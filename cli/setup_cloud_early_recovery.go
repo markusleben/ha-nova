@@ -36,7 +36,8 @@ func handleInteractiveCloudRecoveryBeforeClients(
 		renderCloudCheckpointActions(out, paths, cfg, false)
 		return cfg, true, 1, false
 	}
-	plain := !serviceMode && !explicitLocalSetup
+	// Named profiles keep the stop: their setup reruns differ.
+	plain := !serviceMode && !explicitLocalSetup && activeServerProfile() == defaultServerProfileName
 	if remoteOnlyCloudSetup(cfg) {
 		if !cfg.Cloud.ready() {
 			renderCloudCheckpointActions(out, paths, cfg, true)
@@ -51,11 +52,12 @@ func handleInteractiveCloudRecoveryBeforeClients(
 		return cfg, false, 0, false
 	}
 	if !hybridCloudSetupPending(cfg) {
+		if !cfg.Cloud.ready() && plain {
+			renderSetupLinkPausedNotice(out)
+			return cfg, false, 0, true
+		}
 		if !cfg.Cloud.ready() {
 			renderCloudCheckpointActions(out, paths, cfg, true)
-			if plain {
-				return cfg, false, 0, true
-			}
 			return cfg, true, 1, false
 		}
 		return cfg, false, 0, false
@@ -67,12 +69,13 @@ func handleInteractiveCloudRecoveryBeforeClients(
 		exited = errors.Is(err, errSetupExit)
 		return yes, err
 	}
-	updated, handled, code = offerCloudForCompletedSetup(
+	updated, handled, code = offerCloudForCompletedSetupWith(
 		ask,
 		out,
 		paths,
 		cfg,
 		serviceMode,
+		plain,
 		lifecycleMarker...,
 	)
 	if !handled {

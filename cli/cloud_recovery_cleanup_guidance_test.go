@@ -77,11 +77,11 @@ func TestCloudRecoveryHoldGuidanceIsCleanupOnly(t *testing.T) {
 			Remediation: cloudRemediationSecurityStop,
 		},
 	)
-	// A plain remove can't check this sign-in either: the owner steps end
-	// with the manual cleanup command instead.
+	// No store answers here, so the plain remove (which prints the owner
+	// steps itself when it can't check): setup_link_paused_test.go has both.
 	if !strings.Contains(
 		output.String(),
-		"3. Run: ha-nova cloud remove --server cabin --yes --confirm-remote-access-revoked cabin",
+		"To remove Link, run: ha-nova cloud remove --server cabin",
 	) ||
 		strings.Contains(output.String(), "Verified cleanup") ||
 		strings.Contains(output.String(), "Resume:") ||

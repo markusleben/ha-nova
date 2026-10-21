@@ -125,31 +125,52 @@ func TestSetupLinkPausedStopsBeforePairing(t *testing.T) {
 	}
 }
 
-// A safety hold on a Link sign-in: one plain sentence, the owner steps
-// with links on the local address, and the manual cleanup command (a plain
-// `cloud remove` would stop again).
-func TestCloudSignInHoldShowsOwnerStepsNotALoop(t *testing.T) {
+// A safety hold: `cloud remove` decides. When it can't check the saved
+// sign-in (here a second one with nothing stored), the owner steps with
+// links on the local address end in the manual cleanup command; in output
+// an AI assistant may read, step 3 is the plain remove. When everything
+// checks out, only the plain remove (the steps would revoke needlessly).
+func TestCloudSecurityHoldAdviceFollowsWhatRemoveFinds(t *testing.T) {
 	restore := setCloudFeatureTestBuild(t, false)
 	defer restore()
-	cfg := hybridCheckpointUXConfig(cloudStateAuthorizing, true)
-	cfg.HAURL = "http://homeassistant.local:8123"
+	paths, store, _, _ := cloudRemoveCommandFixture(t)
+	installCloudRemoveStore(t, store, nil)
+	cfg, err := loadSelectedRuntimeConfigUnchecked(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
 	cfg.Cloud.RecoveryHold = &cloudRecoveryHold{Code: cloudProblemAuthorization, Remediation: cloudRemediationSecurityStop}
-	var out strings.Builder
-	renderCloudCheckpointActionsForProfile(&out, cfg, true, "cabin")
+	render := func(cfg runtimeConfig, terminal bool) string {
+		var out strings.Builder
+		renderCloudSecurityHold(&out, cfg, "default", terminal)
+		return out.String()
+	}
+
+	if out := render(cfg, true); !strings.Contains(out, "To remove Link, run: ha-nova cloud remove --server default") ||
+		strings.Contains(out, "Refresh tokens") {
+		t.Fatalf("checkable hold:\n%s", out)
+	}
+
+	pending := cloudMetadataForTest(strings.Repeat("e", 32)) // never stored
+	cfg.Cloud.State, cfg.Cloud.Pending = cloudStateAuthorizing, &pending
+	out := render(cfg, true)
 	for _, want := range []string{
 		"It can't tell if an earlier Link sign-in still works.",
 		"1. As the owner, open the NOVA App page.",
-		"Open: http://homeassistant.local:8123/app/" + HAOfficialNOVAAppSlug,
-		"Open: http://homeassistant.local:8123/profile/security",
-		"If you don't find any, that's fine. Go to step 3.",
-		"3. Run: ha-nova cloud remove --server cabin --yes --confirm-remote-access-revoked cabin",
+		"Open: http://ha:8123/app/" + HAOfficialNOVAAppSlug,
+		"Open: http://ha:8123/profile/security",
+		"3. Run: ha-nova cloud remove --server default --yes --confirm-remote-access-revoked default",
 	} {
-		if !strings.Contains(out.String(), want) {
-			t.Fatalf("missing %q:\n%s", want, out.String())
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q:\n%s", want, out)
 		}
 	}
-	if strings.Contains(out.String(), "Verified cleanup") || strings.Contains(out.String(), "security review") {
-		t.Fatalf("hold still points at plain cleanup:\n%s", out.String())
+	if strings.Contains(out, "Verified cleanup") || strings.Contains(out, "still works until") {
+		t.Fatalf("unclear hold:\n%s", out)
+	}
+	if out := render(cfg, false); strings.Contains(out, "--confirm-remote-access-revoked") ||
+		!strings.Contains(out, "3. In your own terminal, run: ha-nova cloud remove --server default") {
+		t.Fatalf("agent-readable hold:\n%s", out)
 	}
 }
 
@@ -160,7 +181,7 @@ func TestOwnerStepLinksUseOnlyAPlainLocalAddress(t *testing.T) {
 	if panel != "http://192.168.1.5:8123/app/"+HAOfficialNOVAAppSlug || security != "http://192.168.1.5:8123/profile/security" {
 		t.Fatalf("links = %q %q", panel, security)
 	}
-	for _, unsafe := range []string{"", "https://abc.ui.nabu.casa", "http://user:pw@ha:8123", "http://ha:8123/?token=x", "ftp://ha", "ha:8123"} {
+	for _, unsafe := range []string{"", "https://abc.ui.nabu.casa", "https://abc.ui.nabu.casa.", "http://user:pw@ha:8123", "http://ha:8123/?token=x", "ftp://ha", "ha:8123"} {
 		if panel, security := ownerStepLinks(unsafe); panel != "" || security != "" {
 			t.Fatalf("%q gave %q %q", unsafe, panel, security)
 		}
@@ -190,5 +211,95 @@ func TestUnfinishedSecondSignInStopNamesIt(t *testing.T) {
 	problem := cloudAuthorizationStopProblem(err)
 	if problem == nil || !strings.Contains(problem.Detail, "didn't finish") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// Exit at the client choice still leaves the Link commands on screen.
+func TestSetupLinkPausedExitStillShowsCommands(t *testing.T) {
+	paths, cfg, state := linkPausedLegacyFixture(t)
+	var out strings.Builder
+	flow := &setupFlow{paths: paths, cfg: cfg, state: state, connectionMode: setupConnectionLocal,
+		pairingBackStep: setupStepRelayInstall, ui: setupTextUI{reader: bufio.NewReader(strings.NewReader("exit\n")), out: &out}}
+	captureCommandOutput(t, func() int { return flow.run() })
+	if !strings.Contains(out.String(), "To remove it, run: ha-nova cloud remove --server default") ||
+		strings.Contains(out.String(), "Link setup paused") {
+		t.Fatalf("exit:\n%s", out.String())
+	}
+}
+
+// A paired install: "Not now" or "back" at the resume question, and the
+// reconnect state (Current saved), each go on with one line; nothing is
+// added to Link.
+func TestPairedLinkPausedGoesOnWithOneLine(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		current bool
+		input   string
+	}{{"not now", false, "n\n"}, {"back", false, "back\n"}, {"reconnect owns it", true, ""}} {
+		t.Run(test.name, func(t *testing.T) {
+			restore := setCloudFeatureTestBuild(t, true)
+			defer restore()
+			paths, cfg := saveHybridCheckpointUXProfile(t, defaultServerProfileName, hybridCheckpointUXConfig(cloudStateTokenStored, test.current))
+			coordinator := successfulCloudCoordinatorForTest()
+			installCloudSetupTestSeams(t, coordinator, true, true)
+			var out strings.Builder
+			_, handled, code, paused := handleInteractiveCloudRecoveryBeforeClients(
+				bufio.NewReader(strings.NewReader(test.input)), &out, paths, cfg, false, false)
+			if handled || code != 0 || !paused || coordinator.addCalls != 0 ||
+				!strings.Contains(out.String(), "Setup goes on without it.") || strings.Contains(out.String(), "Verified cleanup") {
+				t.Fatalf("handled=%v code=%d paused=%v adds=%d:\n%s", handled, code, paused, coordinator.addCalls, out.String())
+			}
+		})
+	}
+}
+
+// End to end on a paired install: "Not now", then the device check, the
+// skills, and the paused outcome; no Link add and no credential change.
+func TestPairedLinkPausedEndsOnPausedOutcome(t *testing.T) {
+	paths, cfg, state, _ := setupCompletedInstallFixture(t)
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
+	t.Setenv("PATH", installClaudeMock(t, paths.Home, filepath.Join(t.TempDir(), "claude.log"))+string(os.PathListSeparator)+os.Getenv("PATH"))
+	restore := setCloudFeatureTestBuild(t, true)
+	defer restore()
+	coordinator := successfulCloudCoordinatorForTest()
+	installCloudSetupTestSeams(t, coordinator, true, true)
+	cfg, err := loadConfig(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pending := cloudMetadataForTest(strings.Repeat("a", 32))
+	cfg.RelaySecureBaseURL, cfg.RelaySpkiPin = "https://192.168.1.5:8792", "PIN"
+	cfg.Cloud = &cloudLifecycleMetadata{State: cloudStateTokenStored, Pending: &pending}
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeDeviceCredential(validCredential(91)); err != nil {
+		t.Fatal(err)
+	}
+	previous := verifyDeviceHealth
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceOK }
+	t.Cleanup(func() { verifyDeviceHealth = previous })
+	before := credentialSnapshot(t, paths)
+
+	var out strings.Builder
+	flow := &setupFlow{paths: paths, cfg: cfg, state: state, connectionMode: setupConnectionLocal,
+		pairingBackStep: setupStepRelayInstall, ui: setupTextUI{reader: bufio.NewReader(strings.NewReader("n\n1\n")), out: &out}}
+	var code int
+	_, stderr := captureCommandOutput(t, func() int { code = flow.run(); return code })
+	output := out.String() + stderr
+	if code != 0 || coordinator.addCalls != 0 || !strings.Contains(output, "Link setup paused") ||
+		!strings.Contains(output, "To finish it, run: ha-nova cloud add --server default") ||
+		strings.Contains(output, "Switch to your own access") {
+		t.Fatalf("exit %d adds %d:\n%s", code, coordinator.addCalls, output)
+	}
+	after := credentialSnapshot(t, paths)
+	delete(before, paths.ConfigFile) // the device check saves the setup state; Link data stays
+	delete(after, paths.ConfigFile)
+	if !sameSnapshot(before, after) {
+		t.Fatal("a paused paired run changed secure storage")
+	}
+	saved, err := loadConfig(paths)
+	if err != nil || saved.Cloud == nil || saved.Cloud.State != cloudStateTokenStored || saved.Cloud.Pending == nil {
+		t.Fatalf("Link data changed: %+v %v", saved.Cloud, err)
 	}
 }

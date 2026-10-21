@@ -99,6 +99,28 @@ func offerCloudForCompletedSetup(
 	serviceMode bool,
 	lifecycleMarker ...[]byte,
 ) (runtimeConfig, bool, int) {
+	return offerCloudForCompletedSetupWith(ask, out, paths, cfg, serviceMode, false, lifecycleMarker...)
+}
+
+// offerCloudForCompletedSetupWith: goesOnPaused (a plain setup that goes on
+// with Link paused) says so in one line where Link stays unfinished; the
+// paused outcome shows the commands at the end.
+func offerCloudForCompletedSetupWith(
+	ask func(prompt, yesLabel string, defaultYes bool) (bool, error),
+	out io.Writer,
+	paths runtimePaths,
+	cfg runtimeConfig,
+	serviceMode bool,
+	goesOnPaused bool,
+	lifecycleMarker ...[]byte,
+) (runtimeConfig, bool, int) {
+	paused := func() {
+		if goesOnPaused {
+			renderSetupLinkPausedNotice(out)
+		} else {
+			renderCloudCheckpointActions(out, paths, cfg, true)
+		}
+	}
 	if problem := cloudRecoveryHoldProblem(cfg); problem != nil {
 		renderCloudRecoveryGuidance(out, cfg, problem)
 		return cfg, true, 1
@@ -176,7 +198,7 @@ func offerCloudForCompletedSetup(
 	if cfg.Cloud != nil && cfg.Cloud.Current != nil {
 		// A reconnect/rotation owns this state. The add-away wizard must not
 		// replace a still-usable current credential.
-		renderCloudCheckpointActions(out, paths, cfg, true)
+		paused()
 		return cfg, true, 0
 	}
 	localDeviceReady, err := reusableLocalDeviceForCloudSetup(cfg)
@@ -230,9 +252,15 @@ func offerCloudForCompletedSetup(
 	}
 	enable, err := ask(prompt, yesLabel, defaultYes)
 	switch {
-	case errors.Is(err, errSetupExit), errors.Is(err, errSetupBack):
+	case errors.Is(err, errSetupExit):
 		if resuming {
 			renderCloudCheckpointActions(out, paths, cfg, true)
+			return cfg, true, 0
+		}
+		return cfg, false, 0
+	case errors.Is(err, errSetupBack):
+		if resuming {
+			paused()
 			return cfg, true, 0
 		}
 		return cfg, false, 0
@@ -241,7 +269,7 @@ func offerCloudForCompletedSetup(
 		return cfg, true, 1
 	case !enable:
 		if resuming {
-			renderCloudCheckpointActions(out, paths, cfg, true)
+			paused()
 			return cfg, true, 0
 		}
 		return cfg, false, 0

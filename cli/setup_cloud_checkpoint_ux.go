@@ -46,8 +46,8 @@ func renderCloudCheckpointActionsForProfile(
 	if cfg.Cloud == nil {
 		return
 	}
-	if cloudHoldNeedsOwnerSteps(cfg) {
-		renderCloudHoldOwnerSteps(out, cfg, profile)
+	if cloudHoldIsSecurityStop(cfg) {
+		renderCloudSecurityHold(out, cfg, profile, true)
 		return
 	}
 	if cfg.Cloud.ready() {
@@ -94,6 +94,11 @@ func renderCloudCheckpointActionsForProfile(
 		"  Verified cleanup: %s\n",
 		cloudProfileCommandFor("remove", profile),
 	)
+}
+
+// renderSetupLinkPausedNotice: setup goes on with Link paused.
+func renderSetupLinkPausedNotice(out io.Writer) {
+	fmt.Fprintln(out, "  Home Assistant Link isn't finished. Setup goes on without it. You'll see what to do at the end.")
 }
 
 // renderSetupCloudPausedOutcome: local access works, Link waits. steps are

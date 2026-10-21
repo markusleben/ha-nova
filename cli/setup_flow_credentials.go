@@ -128,10 +128,9 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 		}
 	}
 	if f.tokenStoragePreflightErr == nil && !onPageRerun {
-		var paused *setupOutcome
+		var paused func()
 		if f.cloudPausedAtStart {
-			outcome := f.linkPausedOutcome()
-			paused = &outcome
+			paused = f.showLinkPausedOutcome
 		}
 		if handled, code := maybeHandleInteractiveSetupCurrentStateLinkPaused(f.ui.termIn(), f.ui.termOut(), f.paths, f.cfg, f.current, f.overrideApplied, f.serviceMode, paused, currentLifecycleMarker...); handled {
 			return setupDone(code)
@@ -152,7 +151,10 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 // checkTokenStorage reads a token saved before this run, or decides how to
 // go on without a usable keyring.
 func (f *setupFlow) checkTokenStorage() setupStepResult {
-	if f.tokenStoragePreflightErr == nil && !hybridCloudSetupPending(f.cfg) {
+	if f.tokenStoragePreflightErr == nil && hybridCloudSetupPending(f.cfg) {
+		return setupGoOn // a paired install with Link paused: no shared token to read
+	}
+	if f.tokenStoragePreflightErr == nil {
 		if savedToken, err := readRelayAuthTokenForSetup(); err == nil && strings.TrimSpace(savedToken) != "" {
 			f.savedTokenBeforeSetup = strings.TrimSpace(savedToken)
 			f.hadSavedTokenBeforeSetup = true

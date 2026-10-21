@@ -38,8 +38,8 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 
 // maybeHandleInteractiveSetupCurrentStateLinkPaused: linkPaused (Link
 // unfinished at the start) skips the Link and add-server offers and ends
-// on that outcome instead of the done banner.
-func maybeHandleInteractiveSetupCurrentStateLinkPaused(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, current setupState, overrideApplied, serviceMode bool, linkPaused *setupOutcome, lifecycleMarker ...[]byte) (bool, int) {
+// on that outcome, which it shows, instead of the done banner.
+func maybeHandleInteractiveSetupCurrentStateLinkPaused(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, current setupState, overrideApplied, serviceMode bool, linkPaused func(), lifecycleMarker ...[]byte) (bool, int) {
 	if !(current.ConfigOK || current.TokenOK || current.RelayOK || current.WSOK || current.SkillsOK) {
 		return false, 0
 	}
@@ -95,7 +95,7 @@ func maybeHandleInteractiveSetupCurrentStateLinkPaused(reader *bufio.Reader, out
 		// its own closing lines are the message — never bury a cancelled or
 		// partial add under a success banner.
 		if linkPaused != nil {
-			renderSetupCloudPausedOutcome(out, linkPaused.LinkSteps)
+			linkPaused()
 			return true, 0
 		}
 		if !addAttempted && cloudAttempted && cfg.Cloud.ready() &&

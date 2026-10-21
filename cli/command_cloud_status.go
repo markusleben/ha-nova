@@ -134,7 +134,7 @@ func runCloudStatusCommand(paths runtimePaths, args []string) int {
 			printCloudStatusJSON(summary)
 			return 1
 		}
-		if printCloudHoldOwnerSteps(cfg) {
+		if printCloudSecurityHold(cfg) {
 			return 1
 		}
 		printHumanErr("%s", hold)

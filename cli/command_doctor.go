@@ -165,8 +165,10 @@ func runDoctor(paths runtimePaths, args []string) int {
 		return 1
 	} else if transportErr != nil &&
 		effectiveRoutePolicy(cfg.RoutePolicy) != routePolicyLocal {
-		printHumanErr("%s", relayTransportErrorMessage(transportErr))
-		printCloudHoldOwnerSteps(cfg)
+		if hold := cloudRecoveryHoldProblem(cfg); hold == nil || relayTransportErrorMessage(transportErr) != hold.humanText() {
+			printHumanErr("%s", relayTransportErrorMessage(transportErr)) // the hold itself: its steps say it
+		}
+		printCloudSecurityHold(cfg)
 		return 1
 	} else if activeServerProfile() != defaultServerProfileName {
 		// Non-default profiles are device-credential-only: never check them with

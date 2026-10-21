@@ -113,8 +113,8 @@ func handlePausedCloudOwnerPairing(
 		)
 		return true
 	}
-	if cloudHoldNeedsOwnerSteps(cfg) {
-		renderCloudHoldOwnerSteps(out, cfg, profile)
+	if cloudHoldIsSecurityStop(cfg) {
+		renderCloudSecurityHold(out, cfg, profile, true)
 		return true
 	}
 	if hold := cloudRecoveryHoldProblem(cfg); hold != nil {
@@ -183,8 +183,8 @@ func renderCloudRecoveryGuidance(
 		)
 		return
 	}
-	if cloudHoldNeedsOwnerSteps(cfg) {
-		renderCloudHoldOwnerSteps(out, cfg, selectedCloudCommandProfile())
+	if cloudHoldIsSecurityStop(cfg) {
+		renderCloudSecurityHold(out, cfg, selectedCloudCommandProfile(), true)
 		return
 	}
 	if hold := cloudRecoveryHoldProblem(cfg); hold != nil {

@@ -182,10 +182,8 @@ func (f *setupFlow) stepSkills() setupStepResult {
 func (f *setupFlow) afterSkills() setupStepResult {
 	exit := 0
 	onPage := f.page != nil && !f.page.inTerminal()
-	if f.cloudSetupPaused && onPage {
-		f.pageControlled = true // pageFinish shows the paused outcome; the page goes on to step 3
-	} else if f.cloudSetupPaused {
-		f.ui.outcome(f.linkPausedOutcome())
+	if f.cloudSetupPaused && !onPage { // the page never runs with Link unfinished (setupPageCloudOK)
+		f.showLinkPausedOutcome()
 	} else if f.cloudSetupIncomplete {
 		f.ui.outcome(setupOutcome{Kind: setupOutcomeIncomplete, Issue: setupIssueCloudAccess})
 		exit = 1

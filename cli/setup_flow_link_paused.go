@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -15,7 +16,8 @@ import (
 // linkPausedStopsBefore: the steps that may write credentials.
 func linkPausedStopsBefore(step setupStepID) bool {
 	switch step {
-	case setupStepSecureStorageRecovery, setupStepRelayInstall, setupStepToken, setupStepPairing:
+	case setupStepSecureStorageRecovery, setupStepHost, setupStepRelayInstall, setupStepToken, setupStepPairing:
+		// Host too: a new address would no longer match the Link data.
 		return true
 	}
 	return false
@@ -23,10 +25,16 @@ func linkPausedStopsBefore(step setupStepID) bool {
 
 // stopWhileLinkPaused ends the run before it would change credentials.
 func (f *setupFlow) stopWhileLinkPaused() setupStepResult {
-	out := f.ui.termOut()
-	renderCloudCheckpointActions(out, f.paths, f.cfg, true)
+	fmt.Fprint(f.ui.termOut(), f.linkPausedOutcome().LinkSteps)
+	f.linkPausedShown = true
 	f.ui.show(setupView{Blocks: []setupBlock{setupParagraph(setupText("setup.link.paused_stop"))}})
 	return setupDone(1)
+}
+
+// showLinkPausedOutcome is the paused end screen.
+func (f *setupFlow) showLinkPausedOutcome() {
+	f.ui.outcome(f.linkPausedOutcome())
+	f.linkPausedShown = true
 }
 
 // linkPausedNeedsCredentials: an interrupted activation or retirement

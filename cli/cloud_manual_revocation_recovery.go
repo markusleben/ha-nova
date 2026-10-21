@@ -123,8 +123,9 @@ func cloudAuthorizationStopProblem(err error) *cloudProblem {
 // oauthLoopbackClientPath). haURL adds a direct link to each page
 // (ownerStepLinks); without one the steps name the pages only.
 func cloudAuthorizationRecoverySteps(profileName, client, haURL string) string {
-	remove := fmt.Sprintf("delete %q.", client)
+	remove, none := fmt.Sprintf("delete %q.", client), "If you don't find it, that's fine. Go to step 3."
 	if client == "" {
+		none = "If you don't find any, that's fine. Go to step 3."
 		remove = fmt.Sprintf(
 			"delete every entry that ends in %q. This turns off Home Assistant Link on your other computers too. Their local connection keeps working.",
 			oauthLoopbackClientPath,
@@ -143,7 +144,7 @@ func cloudAuthorizationRecoverySteps(profileName, client, haURL string) string {
 		steps = append(steps, "   Open: "+security)
 	}
 	steps = append(steps,
-		"   If you don't find any, that's fine. Go to step 3.",
+		"   "+none,
 		"3. Run: "+manualRemoteAccessRecoveryCommand(profileName),
 	)
 	return strings.Join(steps, "\n")
@@ -157,7 +158,7 @@ func ownerStepLinks(haURL string) (panel, security string) {
 	parsed, err := url.Parse(strings.TrimSpace(haURL))
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" ||
 		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Opaque != "" ||
-		strings.HasSuffix(strings.ToLower(parsed.Hostname()), "nabu.casa") {
+		strings.HasSuffix(strings.TrimSuffix(strings.ToLower(parsed.Hostname()), "."), "nabu.casa") {
 		return "", ""
 	}
 	base := parsed.Scheme + "://" + parsed.Host

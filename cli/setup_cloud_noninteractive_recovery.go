@@ -49,8 +49,8 @@ func handleNonInteractiveCloudRecoveryHold(
 		return false
 	}
 	profile, err := cloudRecoveryCommandProfile(paths)
-	if err == nil && cloudHoldNeedsOwnerSteps(cfg) {
-		renderCloudHoldOwnerSteps(os.Stdout, cfg, profile)
+	if err == nil && cloudHoldIsSecurityStop(cfg) {
+		renderCloudSecurityHold(os.Stdout, cfg, profile, false)
 		return true
 	}
 	printHumanErr(

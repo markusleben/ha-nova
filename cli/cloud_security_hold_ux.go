@@ -1,46 +1,85 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"time"
 )
+
+// cloudHoldOwnerCleanupTimeout bounds that read; past it, the plain advice.
+var cloudHoldOwnerCleanupTimeout = 5 * time.Second
 
 const cloudSignInHoldText = "HA NOVA stopped Home Assistant Link to keep your home safe. It can't tell if an earlier Link sign-in still works"
 
-// cloudHoldNeedsOwnerSteps: a safety hold on a Link sign-in. A plain
-// `cloud remove` can't check that sign-in either and stops again, so the
-// owner steps and the manual cleanup command are the way out.
-func cloudHoldNeedsOwnerSteps(cfg runtimeConfig) bool {
+// cloudHoldIsSecurityStop: a safety hold that only `cloud remove` clears.
+func cloudHoldIsSecurityStop(cfg runtimeConfig) bool {
 	return cfg.Cloud != nil && cfg.Cloud.RecoveryHold != nil &&
-		cfg.Cloud.RecoveryHold.Remediation == cloudRemediationSecurityStop &&
-		cfg.Cloud.RecoveryHold.Code == cloudProblemAuthorization
+		cfg.Cloud.RecoveryHold.Remediation == cloudRemediationSecurityStop
 }
 
-// renderCloudHoldOwnerSteps says what happened in one sentence, then the
-// owner steps with links on the saved local address, ending with the exact
-// manual cleanup command for profile.
-func renderCloudHoldOwnerSteps(out io.Writer, cfg runtimeConfig, profile string) {
-	fmt.Fprintf(out, "  %s.\n", cloudSignInHoldText)
+// cloudHoldOwnerCleanup asks what `cloud remove` would find, read without a
+// prompt: owner true when it can't check the saved sign-in or device and so
+// needs the owner's steps and --confirm-remote-access-revoked; client is
+// the one sign-in address to delete, when known. Anything else (it checks
+// out, a cleanup checkpoint, a locked store) keeps the plain `cloud remove`.
+var cloudHoldOwnerCleanup = func(cfg runtimeConfig) (owner bool, client string) {
+	ctx, cancel := context.WithTimeout(context.Background(), cloudHoldOwnerCleanupTimeout)
+	defer cancel()
+	store, err := newCloudSecretStoreForCLI(cfg.ProfileID)
+	if err != nil {
+		return false, ""
+	}
+	_, authErr := inspectCloudAuthorizationCleanup(ctx, cfg, store)
+	deviceErr := validateCloudDeviceRevocationPlan(ctx, cfg, activeServerProfile())
+	authMissing := errors.Is(authErr, errCloudAuthorizationCleanupUnverifiable)
+	deviceMissing := errors.Is(deviceErr, errCloudDeviceRevocationCredentialMissing)
+	owner = (authMissing || deviceMissing) &&
+		(authErr == nil || authMissing) && (deviceErr == nil || deviceMissing)
+	if problem := cloudAuthorizationStopProblem(authErr); problem != nil {
+		client = problem.linkClient
+	}
+	return owner, client
+}
+
+// renderCloudSecurityHold says what happened in one sentence and the way
+// out for profile: the plain `cloud remove` when it can finish, else the
+// owner steps with links on the saved local address. terminal: a person
+// reads this in their own terminal; elsewhere (doctor, status, agents) the
+// last step is `cloud remove`, which prints the exact --confirm command.
+func renderCloudSecurityHold(out io.Writer, cfg runtimeConfig, profile string, terminal bool) {
 	if err := validateServerProfileName(profile); err != nil {
+		fmt.Fprintln(out, "  HA NOVA stopped Home Assistant Link to keep your home safe.")
 		renderCloudSelectionRepair(out, err)
 		return
 	}
-	if cfg.Cloud.Current != nil {
-		fmt.Fprintln(out, "  Your saved Link connection was not changed.")
+	owner, client := cloudHoldOwnerCleanup(cfg)
+	if !owner {
+		fmt.Fprintln(out, "  HA NOVA stopped Home Assistant Link to keep your home safe.")
+		fmt.Fprintf(out, "  To remove Link, run: %s\n", cloudProfileCommandFor("remove", profile))
+		return
 	}
-	for _, line := range strings.Split(cloudAuthorizationRecoverySteps(profile, "", cfg.HAURL), "\n") {
+	fmt.Fprintf(out, "  %s.\n", cloudSignInHoldText)
+	steps := cloudAuthorizationRecoverySteps(profile, client, cfg.HAURL)
+	if !terminal {
+		steps = steps[:strings.LastIndex(steps, "\n3. ")] +
+			"\n3. In your own terminal, run: " + cloudProfileCommandFor("remove", profile) +
+			"\n   It shows the last step."
+	}
+	for _, line := range strings.Split(steps, "\n") {
 		fmt.Fprintf(out, "  %s\n", line)
 	}
 }
 
-// printCloudHoldOwnerSteps renders them on stdout for the selected server
-// when the hold needs them; false otherwise.
-func printCloudHoldOwnerSteps(cfg runtimeConfig) bool {
-	if !cloudHoldNeedsOwnerSteps(cfg) {
+// printCloudSecurityHold renders it on stdout for the selected server, for
+// output an AI assistant may read; false when there is no such hold.
+func printCloudSecurityHold(cfg runtimeConfig) bool {
+	if !cloudHoldIsSecurityStop(cfg) {
 		return false
 	}
-	renderCloudHoldOwnerSteps(os.Stdout, cfg, selectedCloudCommandProfile())
+	renderCloudSecurityHold(os.Stdout, cfg, selectedCloudCommandProfile(), false)
 	return true
 }

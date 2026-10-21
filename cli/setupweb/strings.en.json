@@ -90,7 +90,7 @@
 
   "setup.link.will_open": "This will open:",
   "setup.link.unavailable_build": "Home Assistant Link access is unavailable because this build or platform has Cloud setup disabled.",
-  "setup.link.paused_stop": "Setup stopped here, so your sign-in stays as it is. Finish or remove Home Assistant Link first. Then run ha-nova setup again.",
+  "setup.link.paused_stop": "Setup stopped before it changed this computer's access to HA NOVA. First finish or remove Home Assistant Link with a command above. Then run ha-nova setup again.",
 
   "setup.status.already_done": "Already done: {steps}",
 

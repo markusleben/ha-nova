@@ -178,14 +178,16 @@ func runCloudConnectCommand(
 
 func printCloudURLPromptCancellation(paths runtimePaths) {
 	cfg, err := loadSelectedRuntimeConfigUnchecked(paths)
+	if err == nil && cloudHoldIsSecurityStop(cfg) {
+		printHumanInfo("Nothing was changed.")
+		renderCloudSecurityHold(os.Stdout, cfg, selectedCloudCommandProfile(), true)
+		return
+	}
 	if err == nil && cfg.Cloud != nil {
 		printHumanInfo(
 			"Home Assistant Link setup remains paused at the saved checkpoint %q. No authorization was changed by this attempt.",
 			cfg.Cloud.State,
 		)
-		if printCloudHoldOwnerSteps(cfg) {
-			return
-		}
 		if hold := cloudRecoveryHoldProblem(cfg); hold != nil {
 			printHumanInfo("The recovery safety hold remains active: %s", hold.Detail)
 			if cloudRecoveryHoldNeedsUnlockForConfig(cfg) {

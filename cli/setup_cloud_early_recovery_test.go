@@ -85,7 +85,10 @@ func TestInteractiveCloudRecoveryPrecedesClientResolution(t *testing.T) {
 				)
 				output := stdout + stderr
 				wantRemove := "ha-nova cloud remove --server " + profile
-				wentOn := mode == "pending"
+				wentOn := mode == "pending" && profile == defaultServerProfileName
+				if wentOn {
+					wantRemove = "Setup goes on without it." // the commands come at the end
+				}
 				if !strings.Contains(output, wantRemove) ||
 					strings.Contains(output, "unsupported client") != wentOn ||
 					strings.Contains(output, "Which AI client") ||

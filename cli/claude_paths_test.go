@@ -60,6 +60,9 @@ func TestMain(m *testing.M) {
 		return deviceCredentialPreflight()
 	}
 	cloudRemoteSecureStorageBoundaryAvailable = func() bool { return true }
+	// The system OAuth store never answers here: a safety hold's check falls
+	// back fast unless a test installs a store (setup_link_paused_test.go).
+	cloudHoldOwnerCleanupTimeout = 50 * time.Millisecond
 	// Same protection for the device-credential storage probe: on Linux its
 	// keyring canary preflights the REAL DBus Secret Service before go-keyring is
 	// even consulted, so MockInit alone does not isolate it. A package-wide test

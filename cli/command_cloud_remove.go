@@ -212,7 +212,7 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 				Code:        cloudProblemAuthorization,
 				Remediation: cloudRemediationSecurityStop,
 				Detail: "HA NOVA can check this Link access itself, so " +
-					"--confirm-remote-access-revoked isn't needed. Run: " +
+					"--confirm-remote-access-revoked isn't needed.\nRun: " +
 					cloudProfileCommandFor("remove", activeServerProfile()),
 			}
 		}
@@ -378,7 +378,11 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 	})
 	if err != nil {
 		printCloudCommandProblem(err)
-		printHumanInfo("Cloud configuration was kept unless revocation had already been verified.")
+		if errors.Is(err, errCloudAuthorizationCleanupUnverifiable) { // checked before any revoke
+			printHumanInfo("Nothing was removed yet.")
+		} else {
+			printHumanInfo("Cloud configuration was kept unless revocation had already been verified.")
+		}
 		return 1
 	}
 	if nextCommand, needsRecovery, recoveryErr :=
