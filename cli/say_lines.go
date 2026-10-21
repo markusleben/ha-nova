@@ -84,13 +84,17 @@ func resultSay(env *verbEnvelope) string {
 	if env.Say != "" || !isCall && env.done == "" || isCall && env.Action.Response {
 		return env.Say
 	}
-	detail, checked, verified := env.done+".", "I checked that Home Assistant saved it.", 0
+	detail, checked, verified, reached := env.done+".", "I checked that Home Assistant saved it.", 0, 0
 	switch {
 	case isCall:
 		detail, checked = lowerFirst(callOutcome(env)), "I checked it."
 		for _, row := range env.Verification {
-			if row.Outcome == "verified" {
+			switch row.Outcome {
+			case "verified":
 				verified++
+				reached++
+			case "accepted": // sent to a script or scene: it may have run
+				reached++
 			}
 		}
 	case strings.HasPrefix(env.done, "deleted "):
@@ -121,7 +125,7 @@ func resultSay(env *verbEnvelope) string {
 		return "Not sure: " + detail
 	case env.Status == "unverified":
 		return "Not sure: I sent it, but I couldn't check that it worked."
-	case env.Status == "failed" && verified > 0:
+	case env.Status == "failed" && reached > 0:
 		return "Partly done: " + detail
 	case env.Status == "failed" && isCall:
 		return "Not done: " + detail

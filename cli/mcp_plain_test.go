@@ -129,6 +129,8 @@ func TestResultSayForCalls(t *testing.T) {
 	cases[`{"status":"failed","verb":"call","action":{"service":"light.turn_on","entity_ids":["light.a","light.b"]},"error":{"code":"SERVICE_REJECTED"}}`] = "Not done: Home Assistant refused it. Part of it may have happened, so let's check before you count on it."
 	cases[`{"status":"failed","verb":"call","action":{},"resolved":[{"entity_id":"light.a","name":"A"},{"entity_id":"light.b","name":"B"}],
 		"verification":[{"entity_id":"light.a","observed":"on","outcome":"verified"},{"entity_id":"light.b","observed":"off","outcome":"failed"}]}`] = "Partly done: “A” is on now. “B” did not change as asked; it shows off."
+	cases[`{"status":"failed","verb":"call","action":{},"resolved":[{"entity_id":"script.a","name":"A"},{"entity_id":"light.b","name":"B"}],
+		"verification":[{"entity_id":"script.a","outcome":"accepted"},{"entity_id":"light.b","observed":"off","outcome":"failed"}]}`] = "Partly done: sent to “A”. “B” did not change as asked; it shows off."
 	for raw, want := range cases {
 		if got := outcome(t, raw); got != want {
 			t.Fatalf("say %q, want %q", got, want)
