@@ -37,13 +37,23 @@ func TestRedactSecretsGolden(t *testing.T) {
 			`{"data_schema":[{"type":"expandable","name":"advanced","schema":[{"name":"client_key_password","description":{"suggested_value":"p1"}}]},{"name":"user","secret":true,"default":"p2"},{"name":"s2_access_control_key","description":{"suggested_value":"p3"}},{"name":"installer_code","default":"p4"},{"name":"max_tokens","default":4096},{"name":"use_psk","default":true},{"name":"token_url","default":"https://x"},{"name":"code_format","default":"number"}]}`,
 			[]string{`"p1"`, `"p2"`, `"p3"`, `"p4"`}},
 		{"an MQTT alarm panel's discovery code", `{"entities":[{"discovery_data":{"payload":{"name":"Alarm","code":"1234"}}}]}`, []string{`"1234"`}},
+		{"a retained MQTT discovery message", `{"topic":"homeassistant/alarm_control_panel/a/config","payload":"{\"name\":\"Alarm\",\"code\":\"1234\"}"}`, []string{`\"1234\"`}},
+		{"a retained MQTT device discovery message", `{"topic":"homeassistant/device/d/config","payload":"{\"cmps\":{\"a\":{\"p\":\"alarm_control_panel\",\"code\":\"1234\"}}}"}`, []string{`\"1234\"`}},
 		{"big numbers stay exact", `{"n":1e1000,"m":12345678901234567890,"default_code":"4711"}`, []string{`"4711"`}},
+		{"a repeated key keeps no hidden copy", `{"default_code":"1234","default_code":null}`, nil}, // checked below
 		{"trailing data is never rewritten", `{"default_code":"4711"} {}`, nil},
 	}
 	for _, c := range cases {
 		want := c.in
 		for _, secret := range c.secrets {
-			want = strings.Replace(want, secret, `"(hidden: a stored code, password, or key)"`, 1)
+			marker := `"(hidden: a stored code, password, or key)"`
+			if strings.HasPrefix(secret, `\"`) { // inside a JSON string payload
+				marker = `\"(hidden: a stored code, password, or key)\"`
+			}
+			want = strings.Replace(want, secret, marker, 1)
+		}
+		if c.name == "a repeated key keeps no hidden copy" {
+			want = `{"default_code":null}` // the last value, as Home Assistant and the Relay read it
 		}
 		if c.name == "an escaped key" {
 			want = `{"options":{"lock":{"default_code":"(hidden: a stored code, password, or key)"}}}`
@@ -155,7 +165,7 @@ func TestSeededDefaultCodeNeverLeaves(t *testing.T) {
 // with the marker: such writes are refused before anything is sent.
 func TestWriteWithHiddenValueIsRefused(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
-	update := `{"type":"config/entity_registry/update","entity_id":"lock.front","options_domain":"lock","options":{"default_code":"(hidden: a stored code, password, or key)"}}`
+	update := `{"type":"config/entity_registry/update","entity_id":"sensor.power","options_domain":"sensor","options":{"display_precision":"(hidden: a stored code, password, or key)"}}`
 	escaped := strings.Replace(update, "(hidden", `\u0028hidden`, 1)
 	for _, body := range []string{update, escaped} {
 		exit, out := captureCommandOutput(t, func() int { return runRelayProxy(h.paths, "ws", []string{"--data", body}) })

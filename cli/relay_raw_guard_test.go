@@ -105,6 +105,26 @@ func TestRawRelayRefusesConfigPlanBypass(t *testing.T) {
 	rawAllowed(t, "core", `{"method":"POST","path":"/api/template","body":{"template":"{{ 1 }}"}}`)
 }
 
+// Entity options other than a sensor's or number's own display options hold
+// a lock's code, voice or cloud exposure, or switch_as_x wiring: refused raw.
+func TestRawRelayRefusesOtherEntityOptions(t *testing.T) {
+	for _, body := range []string{
+		`{"type":"config/entity_registry/update","entity_id":"lock.front","options_domain":"lock","options":{"default_code":"1234"}}`,
+		`{"type":"config/entity_registry/update","entity_id":"alarm_control_panel.home","options_domain":"alarm_control_panel","options":{"default_code":"1"}}`,
+		`{"type":"config/entity_registry/update","entity_id":"lock.front","options_domain":"cloud.google_assistant","options":{"disable_2fa":true}}`,
+		`{"type":"config/entity_registry/update","entity_id":"light.desk","options_domain":"conversation","options":{"should_expose":true}}`,
+		`{"type":"config/entity_registry/update","entity_id":"switch.plug","options_domain":"switch_as_x","options":{"entity_id":"lock.x"}}`,
+		`{"type":"config/entity_registry/update","entity_id":"sensor.power","options_domain":"sensor.private","options":{}}`,
+		`{"type":"config/entity_registry/update","entity_id":"sensor.power","options_domain":"number","options":{}}`, // not its own domain
+		`{"type":"config/entity_registry/update","entity_id":"sensor.power","options":{"display_precision":1}}`,      // no options_domain
+		`{"type":"config/entity_registry/update","entity_id":"light.desk","options_domain":"light","options":{}}`,
+	} {
+		rawRefused(t, "ws", body)
+	}
+	rawAllowed(t, "ws", `{"type":"config/entity_registry/update","entity_id":"sensor.power","options_domain":"sensor","options":{"display_precision":1}}`)
+	rawAllowed(t, "ws", `{"type":"config/entity_registry/update","entity_id":"number.target","options_domain":"number","options":{"unit_of_measurement":"°C"}}`)
+}
+
 func TestRawRelayRefusesCoverClassOverride(t *testing.T) {
 	rawRefused(t, "ws", `{"type":"config/entity_registry/update","entity_id":"cover.garage","device_class":"curtain"}`)
 	rawAllowed(t, "ws", `{"type":"config/entity_registry/update","entity_id":"cover.garage","name":"Garage"}`)

@@ -32,6 +32,7 @@ func redactSecrets(body []byte, nonces bool) []byte {
 		!(nonces && bytes.Contains(body, []byte("HANOVA_"))) && !bytes.Contains(body, []byte("default_code")) &&
 		!bytes.Contains(body, []byte("create_backup")) && !bytes.Contains(body, []byte("active_dataset_tlvs")) &&
 		!bytes.Contains(body, []byte("data_schema")) && !bytes.Contains(body, []byte("discovery_data")) &&
+		!bytes.Contains(body, []byte(`/config"`)) &&
 		!bytes.Contains(body, []byte(`\u`)) { // an escaped key spells none of these
 		return body
 	}
@@ -60,6 +61,7 @@ func redactSecrets(body []byte, nonces bool) []byte {
 type jsonObject struct {
 	keys []string
 	vals map[string]any
+	dup  bool // the source repeated a key
 }
 
 func (o *jsonObject) MarshalJSON() ([]byte, error) {
@@ -111,7 +113,9 @@ func decodeOrdered(dec *json.Decoder) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			if _, dup := o.vals[key]; !dup {
+			if _, dup := o.vals[key]; dup {
+				o.dup = true // re-encoded, so no hidden duplicate survives
+			} else {
 				o.keys = append(o.keys, key)
 			}
 			o.vals[key] = v
@@ -175,7 +179,7 @@ func redactValue(v any, nonces bool) (any, bool) {
 			return phoneSecretHidden, true
 		}
 	case *jsonObject:
-		changed = redactObject(t.vals, nonces)
+		changed = redactObject(t.vals, nonces) || t.dup
 	case []any:
 		for i, x := range t {
 			if redacted, did := redactValue(x, nonces); did {
@@ -212,12 +216,44 @@ func redactObject(t map[string]any, nonces bool) bool {
 	if payload := jsonFields(jsonFields(t["discovery_data"])["payload"]); payload != nil { // mqtt/device/debug_info: an MQTT alarm panel's code
 		changed = hideSet(payload, "code") || changed
 	}
+	if topic, _ := t["topic"].(string); strings.HasSuffix(topic, "/config") { // a retained discovery message from mqtt/subscribe
+		if payload, ok := t["payload"].(string); ok {
+			if hidden, did := hideDiscoveryCode(payload); did {
+				t["payload"], changed = hidden, true
+			}
+		}
+	}
 	for key, x := range t {
 		if redacted, did := redactValue(x, nonces); did {
 			t[key], changed = redacted, true
 		}
 	}
 	return changed
+}
+
+// hideDiscoveryCode hides an MQTT discovery config's code, also in a
+// device config's components (cmps); the payload stays a JSON string.
+func hideDiscoveryCode(payload string) (string, bool) {
+	dec := json.NewDecoder(strings.NewReader(payload))
+	dec.UseNumber()
+	v, err := decodeOrdered(dec)
+	config := jsonFields(v)
+	if err != nil || config == nil {
+		return payload, false
+	}
+	changed := hideSet(config, "code")
+	if cmps := jsonFields(config["cmps"]); cmps != nil {
+		for _, c := range cmps {
+			if component := jsonFields(c); component != nil {
+				changed = hideSet(component, "code") || changed
+			}
+		}
+	}
+	out, err := marshalPlain(v)
+	if !changed || err != nil {
+		return payload, false
+	}
+	return string(out), true
 }
 
 // hideFlowSecrets hides the current value of each secret field of a
