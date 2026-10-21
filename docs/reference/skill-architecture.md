@@ -684,7 +684,7 @@ After any mutation (automation, script, or helper):
    - **Findings**: 🔴🟠🟡 findings with short descriptive titles plus `Why` / `Fix` — only when there are real issues.
    - **Collision check**: only when related items exist (list them + the conflict verdict).
    - **Advisory**: 🟠🟡 findings — only when non-empty.
-   - Omit any section with nothing to report — never print an empty "none" bucket. When all are empty, collapse to one scope-honest confirmation line (write-safety → Verification Honesty; never a bare "verified").
+   - Omit any section with nothing to report — never print an empty "none" bucket. When all are empty, the result's `say` alone (a helper: one scope-honest line; write-safety → Verification Honesty; never a bare "verified").
    - Do not emit `Questions to consider`, `Suggestions`, or `Instant help` in post-write mode.
 
 After the review, the `write` skill offers a structured test plan (feasibility, one recommended option, single bound confirmation) per `skills/ha-nova/test-run.md` (Phase 5: Test Offer) — offer only; execution follows `ha-nova:service-call` → Automation And Script Runtime Calls. The `helper` skill keeps the plain Verification Honesty offer.

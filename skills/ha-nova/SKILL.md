@@ -1,6 +1,6 @@
 ---
 name: ha-nova
-description: Use for reviews and multi-step or multi-target Home Assistant work through HA NOVA (App + Relay; the demo house via `--server demo`), or when no other HA NOVA skill fits. Single device actions, lookups, and single automation/script changes need only their own skill. If you can run ha-nova in a shell, use it, never a "HA NOVA…" connector.
+description: Questions about the user's Home Assistant — rooms, devices, modes, where something is used — go through ha-nova, not file search. Use for reviews and multi-step or multi-target Home Assistant work through HA NOVA (App + Relay; the demo house via `--server demo`), or when no other HA NOVA skill fits. Single device actions, lookups, and single automation/script changes need only their own skill. If you can run ha-nova in a shell, use it, never a "HA NOVA…" connector.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -225,7 +225,7 @@ Keep orchestration details internal on normal success paths.
 ## Output Rules (Critical)
 
 Read `../ha-nova/output-rules.md` once per session, before the first user-facing response, and apply it to every response (core: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON); re-read it only when a response needs a Card or shape not yet rendered this session, or after the conversation was compacted.
-This shared file is the source of truth for localization, internal-code hiding, technical-noise limits, and verb results; Card, report, and list shapes, severity markers, empty-state handling, and the review confidence split live in its on-demand part `../ha-nova/output-cards.md`.
+This shared file is the source of truth for localization, internal-code hiding, technical-noise limits, and verb results; other shapes live in its on-demand part `../ha-nova/output-cards.md`.
 
 ## Skill Dispatch (Critical)
 

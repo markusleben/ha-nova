@@ -70,8 +70,8 @@ than one `update.*` entity — an official App and a fork can share a display
 name — do not pick one: list the candidates with their slugs and ask. Starting
 or stopping the wrong App is not recoverable by trying again. Show both name
 and slug in the preview. If no matching `update` entity exists, stop and ask for the slug rather than guessing it.
-- **App state cannot be verified from here.** There is no readable `started`/`stopped` for an App on this transport, so there is nothing to read back: report the call as issued, say plainly that the result is not observable through the Relay, and point at the Apps page. Never infer success from the service call returning.
-- `host_reboot` and `host_shutdown` have no target at all and take the whole transport down with them. Nothing can be verified afterwards from here — say that BEFORE asking, get the user's confirmation (`say`), then report the call as issued and the connection as expected to drop. Never report success: you will not be there to see it. `host_shutdown` additionally needs physical access to come back, so say so.
+- **App state cannot be verified from here.** There is no readable `started`/`stopped` for an App on this transport, so there is nothing to read back: relay `say` and point at the Apps page. Never infer success from the service call returning.
+- `host_reboot` and `host_shutdown` have no target at all and take the whole transport down with them. Nothing can be verified afterwards from here — say that BEFORE asking, get the user's confirmation (`say`), then relay `say` and add that the connection will drop. Claim nothing more: you will not be there to see it. `host_shutdown` additionally needs physical access to come back, so say so.
 
 ## Config Check First
 

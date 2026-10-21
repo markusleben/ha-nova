@@ -68,7 +68,7 @@ These are guarantees about what HA NOVA *says*, which matter as much as what it 
 
 | Guarantee | Enforced by | Verified by |
 |---|---|---|
-| A successful write is never reported as verified behavior — persistence is not the same as "it works" | `skills/ha-nova/write-safety.md` → Verification Honesty ("never a bare 'verified'") | `tests/skills/write-delete-safety-contract.test.ts` |
+| A successful write is never reported as verified behavior — persistence is not the same as "it works" | `skills/ha-nova/write-safety.md` → Verification Honesty ("never a bare 'verified'"); CLI result lines in `cli/say_lines.go` | `tests/skills/write-delete-safety-contract.test.ts` |
 | Conclusions are bound to evidence; without it, hypotheses are labelled as such | Context skill → Claim-Evidence Binding; `skills/diagnose/SKILL.md` | `tests/skills/honesty-and-gate-pins.test.ts` |
 | A notification that Home Assistant accepted is not claimed as delivered to your phone | `skills/notify/SKILL.md` | `tests/skills/honesty-and-gate-pins.test.ts` |
 | An empty MQTT window means "nothing was published", and retained broker replays are never counted as live device traffic | `skills/mqtt/SKILL.md` | `tests/skills/honesty-and-gate-pins.test.ts`; `tests/skills/test-run-contract.test.ts` |

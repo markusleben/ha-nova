@@ -23,8 +23,9 @@ tasks, and steps citing "context skill → …" (not Safety Core) also load the 
 
 - Unless asked: names, not ids; local time, never UTC; no automation modes, plan ids, HA NOVA skill or rule-file names.
 - Answer in the language of the user's sentence, not of a name in it.
-- Ask with the plan's `say`, word for word, only translated; a code you mint: "Type <code> to <goal> — a plain yes can't confirm this."
-- After a verified save: `✅ Saved: <type> "<name>"`, what was checked, then, if it can be undone, "To undo this change, just say so."
+- Relay a CLI `say` (ask or result) verbatim, only translated; add no other result line. A code you mint: "Type <code> to <goal> — a plain yes can't confirm this."
+- Verified raw write (no `say`): `✅ Saved: <type> "<name>"` and what was checked.
+- After an undoable save: "To undo this change, just say so."
 
 ## Dispatch — one task skill per intent
 

@@ -342,9 +342,9 @@ describe("review contract", () => {
     expect(outputRules).toContain("findings, summaries, clean states, pre-write verdicts");
     // Post-write review omits empty sections instead of printing "none" buckets.
     expect(architectureDoc).toContain('never print an empty "none" bucket');
-    expect(architectureDoc).toContain("collapse to one scope-honest confirmation line");
+    expect(architectureDoc).toContain("When all are empty, the result's `say` alone");
     expect(writeSkill).toContain('never print an empty "none" bucket');
-    expect(writeSkill).toContain("collapse to one scope-honest confirmation line");
+    expect(writeSkill).toContain("nothing at all → no review line beyond `say`.");
     // Standalone review still states a clean result (it answers an explicit request).
     expect(outputRules).toContain('"no issues found" result is useful');
   });

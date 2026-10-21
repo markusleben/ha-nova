@@ -93,7 +93,7 @@ describe("service call contract", () => {
       expect(skillDoc).toContain("only after a reply that is only that code");
       expect(skillDoc).toContain("drift since the preview, nothing sent");
       expect(skillDoc).toContain("never retry automatically");
-      expect(skillDoc).toContain("It may have run: read the state (`ha-nova get`) and report; the outcome stays unknown even if the state matches; never retry.");
+      expect(skillDoc).toContain("Relay `say`, then read the state (`ha-nova get`) and name it; still unknown even if it matches; never retry.");
     });
 
     it("binds confirmation to the shown preview and never lets the agent mint a code", () => {
