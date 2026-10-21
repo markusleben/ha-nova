@@ -49,7 +49,9 @@ describe("agent scenario regressions (2026-10-15)", () => {
     expect(readFileSync("docs/reference/skill-architecture.md", "utf8")).toContain(
       "- Relay a plan's `say` in full, localized; never drop or shorten sentences.",
     );
-    expect(rules).toContain('"This unlocks a door, so it needs a one-time code from HA NOVA."');
+    expect(rules).toContain('"This unlocks a door, so I need you to confirm it."');
+    // The fallback reason keeps the CLI's shape (<reason>, so I need you to confirm it.).
+    expect(readFileSync("cli/say_lines.go", "utf8")).toContain('sayNeedsYou = ", so I need you to confirm it."');
     expect(rules).toContain("Never mention, quote, or link HA NOVA's own skill or rule files or scratch paths — the user doesn't know they exist. Paths the user needs (the config file a change targets, a batch manifest) stay visible.");
     expect(rules).toContain("Clarifying questions name candidates by friendly name and area (add the entity_id when either is missing or both collide).");
     // The pointer alone did not stop citations at the code step: the CLI
@@ -168,7 +170,8 @@ describe("agent scenario regressions (2026-10-20)", () => {
     expect(index).toContain("Answer in the language of the user's sentence, not of a name in it.");
     expect(index).toContain("Ask with the plan's `say`, word for word, only translated");
     expect(index).toContain('"Type <code> to <goal> — a plain yes can\'t confirm this."');
-    expect(index).toContain('After a verified save: `✅ Saved: <type> "<name>"`, what was checked, then, if it can be undone,');
+    expect(index).toContain("A result's `say` is its outcome line, word for word, only translated.");
+    expect(index).toContain('After a verified save: `✅ Saved: <type> "<name>"`, that line (none: what was checked), then, if it can be undone,');
     expect(flat("skills/ha-nova/output-cards.md")).toContain("Ask and result shapes: `../ha-nova/index.md` → Say it.");
   });
 
