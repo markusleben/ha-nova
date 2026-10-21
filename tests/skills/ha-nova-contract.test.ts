@@ -1187,6 +1187,10 @@ describe("ha-nova contract", () => {
       "startup|resume|clear|compact",
     );
 
+    // Double quotes: the shell must expand CLAUDE_PLUGIN_ROOT. Single quotes
+    // passed the literal "${CLAUDE_PLUGIN_ROOT}" to /bin/sh, so the hook failed
+    // (exit 127) and the index was never injected (2026-10-21 Claude Code run).
+    expect(hooksJson.hooks.SessionStart[0].hooks[0].command).toBe('"${CLAUDE_PLUGIN_ROOT}/hooks/session-start"');
     const hookScript = "hooks/session-start";
     expect(existsSync(hookScript)).toBe(true);
     const mode = statSync(hookScript).mode;
