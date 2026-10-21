@@ -19,7 +19,7 @@ video-recording kit, `docs/reference/demo-recording.md`).
 | `update-ha.sh` | host, nightly | Latest stable HA: resolve digest, verify the Sigstore signature, refuse downgrades, candidate reset + gates, promote or roll back, prune old images. |
 | `host-lib.sh` | host | Shared gates: relay round trip, egress/DNS, listeners, public site (with the Add to Claude metadata); Caddy (re)creation; pinned Node/Go/Caddy images; the lock. |
 | `chat.mjs`, `Dockerfile.bridge` | host | Add to Claude (below): `entry` (the seeded `ha_nova` entry), `files` (the bridge's secret, demo profile, `chat-apps.json`), `gate` (sign-in as `demo` the way Claude does, tools work, the owner refused), `check` (guard: puts `external_url` back, entry loaded, owner refused). The bridge image (`ha-nova serve` + skills of this ref), built once per ref by `bootstrap.sh`. |
-| `demo.mjs` | host | `setup` (seeded http config check, local-only owner, admin `demo/demo`, drop onboarding extras), `token` (the relay user's LLAT), `dashboard` (also shows the "Demo add-on" device as "Demo app", drops the Map dashboard, arms the simulated MQTT devices), `guard`, `smoke` (incl. an MQTT device round trip). |
+| `demo.mjs` | host | `setup` (seeded http config check, local-only owner, admin `demo/demo`, drop onboarding extras), `token` (the relay user's LLAT), `dashboard` (first saves HA NOVA's sample work, then the dashboard with "Start here" first; also shows the "Demo add-on" device as "Demo app", drops the Map dashboard, arms the simulated MQTT devices), `guard`, `smoke` (incl. an MQTT device round trip). |
 | `edge.yml`, `Caddyfile`, `site/` | host | Caddy in its own compose project: TLS, CSP, blocked paths, landing redirect, restarting page (`site/icon.svg`: a copy of `assets/icon.svg`, kept equal by `tests/config/hosted-demo-icon.test.ts`), `/relay/*`, `/connect.json`, `/abuse`, privacy-filtered access log. |
 | `docker-compose.yml` | host | Overlay over the test bed compose: internal network only, DNS sink, sealed directories, the `ha_nova` integration (read-only), limits, relay and chat bridge settings. |
 | `mosquitto.conf`, `mosquitto.acl` | host | Broker split: seeding listener (container loopback) vs. Home Assistant listener (no discovery writes). |
@@ -140,6 +140,19 @@ the next full hour.
   warning first, minutes to the reset, HA version, links to `/start`,
   `/abuse`, and Privacy), and a notice at :55 UTC (with the same warning).
   Both use `utcnow()`, because visitors can change HA's time zone.
+- The dashboard opens on "Start here" (`/demo-house/start`): what HA NOVA is,
+  how to try it (Claude through hanova.app/demo, or `ha-nova try`), five prompts (the first
+  four are `ha-nova try`'s, kept equal by
+  `tests/config/hosted-demo-start-here.test.ts`), what HA NOVA made here, and
+  what "What is worth a look?" finds (the demo integration's 12 % battery,
+  devices with no room). "Made with HA NOVA": two automations and two scripts
+  in `made-with-nova.json`, made by the write skill (Claude Code with this
+  repo's skills, local test bed, 2026-10-21) and saved as Home Assistant read
+  them back; only each description was replaced by "Made with HA NOVA from:
+  <what was asked>". `demo.mjs dashboard` posts them to the config API (the
+  one `ha-nova apply` writes to) every reset. Re-generate them the same way
+  when the house changes. "Watch the house" links (`ha-nova try`, the setup
+  page, hanova.app/demo) go to `/demo-house/house`.
 - Every tile on the dashboard reacts. The test bed's MQTT devices (entrance
   lock, garage, driveway gate, smart plug) have no device behind them, so
   "Demo: simulated devices report back" publishes each command as the new
