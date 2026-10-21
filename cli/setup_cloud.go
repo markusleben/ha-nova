@@ -217,7 +217,7 @@ func offerCloudForCompletedSetup(
 		)
 	} else {
 		renderSetupParagraph(out,
-			"Home Assistant Link (formerly Home Assistant Cloud) adds a secure fallback (Beta)",
+			"Home Assistant Link adds a secure fallback (Beta)",
 			"when this computer cannot reach Home Assistant locally.",
 			"Local access stays preferred.",
 		)

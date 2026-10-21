@@ -284,7 +284,7 @@ func TestWizardCopyPinsTheShortTerminalText(t *testing.T) {
 		t.Fatal(err)
 	}
 	mode := runner.specs[len(runner.specs)-1]
-	if mode.Note != "Link = Nabu Casa remote access, formerly Home Assistant Cloud." ||
+	if mode.Note != "Home Assistant Link used to be called Home Assistant Cloud." ||
 		mode.Options[0].Label != "Local only (recommended)" || mode.Options[0].Detail != "No subscription needed." {
 		t.Fatalf("connection mode menu = %+v", mode)
 	}

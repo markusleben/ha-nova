@@ -13,7 +13,7 @@ exit 0
     3) Home Assistant Link only
        For a computer that is not on the Home Assistant network.
 
-  Link = Nabu Casa remote access, formerly Home Assistant Cloud.
+  Home Assistant Link used to be called Home Assistant Cloud.
 
   Enter [1-3] (default 1, or type 'back'/'exit'): 
   HA NOVA Setup
