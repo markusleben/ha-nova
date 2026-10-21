@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"time"
 )
 
@@ -86,26 +85,15 @@ func maybeOfferCloudForCompletedSetup(
 	ask := func(prompt, yesLabel string, defaultYes bool) (bool, error) {
 		return promptWizardYesNoMenu(reader, out, prompt, yesLabel, "Not now", defaultYes)
 	}
-	return offerCloudForCompletedSetup(ask, out, paths, cfg, serviceMode, lifecycleMarker...)
+	return offerCloudForCompletedSetup(ask, out, paths, cfg, serviceMode, false, lifecycleMarker...)
 }
 
 // offerCloudForCompletedSetup is the Link offer with its question asked by
 // ask: the terminal menu, or the setup page's answer (setup_page_control.go).
+// goesOnPaused (a plain setup that goes on with Link paused) says so in
+// one line where Link stays unfinished; the paused outcome shows the
+// commands at the end.
 func offerCloudForCompletedSetup(
-	ask func(prompt, yesLabel string, defaultYes bool) (bool, error),
-	out io.Writer,
-	paths runtimePaths,
-	cfg runtimeConfig,
-	serviceMode bool,
-	lifecycleMarker ...[]byte,
-) (runtimeConfig, bool, int) {
-	return offerCloudForCompletedSetupWith(ask, out, paths, cfg, serviceMode, false, lifecycleMarker...)
-}
-
-// offerCloudForCompletedSetupWith: goesOnPaused (a plain setup that goes on
-// with Link paused) says so in one line where Link stays unfinished; the
-// paused outcome shows the commands at the end.
-func offerCloudForCompletedSetupWith(
 	ask func(prompt, yesLabel string, defaultYes bool) (bool, error),
 	out io.Writer,
 	paths runtimePaths,
@@ -376,64 +364,4 @@ func resumeCommittedCloudSetup(
 	default:
 		return false, nil
 	}
-}
-
-func ensureProfileIdentityForSetup(paths runtimePaths, cfg *runtimeConfig) error {
-	if cfg.ProfileID != "" {
-		return validateProfileID(cfg.ProfileID)
-	}
-	doc, err := loadConfigDocument(paths.ConfigFile)
-	if err == nil {
-		name, selectErr := resolveSelectedServerProfile(doc)
-		if selectErr != nil {
-			return selectErr
-		}
-		if stored, ok := doc.flatProfile(name); ok && stored.ProfileID != "" {
-			cfg.ProfileID = stored.ProfileID
-			return validateProfileID(cfg.ProfileID)
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("read existing server profile identity: %w", err)
-	}
-	return ensureProfileID(cfg)
-}
-
-func validateCloudSetupResult(cfg runtimeConfig, result cloudSetupResult) error {
-	if err := rejectCloudSetupDuringDeviceRevocation(cfg); err != nil {
-		return err
-	}
-	if problem := cloudRecoveryHoldProblem(cfg); problem != nil {
-		return problem
-	}
-	if err := validateCurrentCloudConnectionMetadata(result.Current); err != nil {
-		return &cloudProblem{
-			Code:        cloudProblemAuthorization,
-			Remediation: cloudRemediationSignIn,
-			Detail:      fmt.Sprintf("Cloud setup returned invalid connection metadata: %v", err),
-		}
-	}
-	if !validIdentifier(result.RelayInstanceID, 256) {
-		return &cloudProblem{
-			Code:        cloudProblemIdentityMismatch,
-			Remediation: cloudRemediationSecurityStop,
-			Detail:      "the NOVA Relay instance identity is missing or invalid",
-		}
-	}
-	if cfg.RelayInstanceID != "" && cfg.RelayInstanceID != result.RelayInstanceID {
-		return &cloudProblem{
-			Code:        cloudProblemIdentityMismatch,
-			Remediation: cloudRemediationSecurityStop,
-			Detail:      "the local and Cloud NOVA Relay instance identities do not match",
-		}
-	}
-	if cfg.Cloud == nil || cfg.Cloud.Pending == nil ||
-		cfg.Cloud.State != cloudStateDeviceBoundOrPaired ||
-		cfg.Cloud.Pending.CredentialGeneration != result.Current.CredentialGeneration {
-		return &cloudProblem{
-			Code:        cloudProblemAuthorization,
-			Remediation: cloudRemediationSignIn,
-			Detail:      "Cloud credential promotion did not match the saved pending generation",
-		}
-	}
-	return nil
 }

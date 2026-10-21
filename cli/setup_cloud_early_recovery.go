@@ -69,7 +69,7 @@ func handleInteractiveCloudRecoveryBeforeClients(
 		exited = errors.Is(err, errSetupExit)
 		return yes, err
 	}
-	updated, handled, code = offerCloudForCompletedSetupWith(
+	updated, handled, code = offerCloudForCompletedSetup(
 		ask,
 		out,
 		paths,

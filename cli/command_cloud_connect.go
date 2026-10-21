@@ -193,10 +193,7 @@ func printCloudURLPromptCancellation(paths runtimePaths) {
 			if cloudRecoveryHoldNeedsUnlockForConfig(cfg) {
 				printHumanInfo("Verify native secure storage with: %s", cloudUnlockCommand())
 			}
-			printHumanInfo(
-				"Verified cleanup remains available with: %s",
-				cloudRemoveCommand(),
-			)
+			printHumanInfo("Verified cleanup remains available with: %s", cloudRemoveCommand())
 			return
 		}
 		if resume := cloudResumeCommand(cfg); resume != "" {
