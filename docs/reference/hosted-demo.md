@@ -49,7 +49,7 @@ bash scripts/demo/hosted/provision.sh --ref <sha> --alert-email <you> --abuse-co
 #    sudo docker restart ha-nova-demo-caddy
 # 3. Lightsail browser SSH: sudo tail -f /var/log/cloud-init-output.log   (~10 min),
 #    then journalctl -fu ha-nova-demo-reset -u ha-nova-demo-update
-# 4. https://demo.hanova.app -> hanova.app/demo/ -> Open the demo, login demo / demo
+# 4. https://demo.hanova.app -> hanova.app/demo/ -> Add to Claude, or "Open the house next to the chat", login demo / demo
 ```
 
 Rebuild from scratch (new ref, or incident response):
@@ -124,12 +124,15 @@ the next full hour.
   `markusleben/ha-nova-site`, the site's design). `/` without a query and
   `/start` answer 302 there; HA's own redirects to `/` always carry a query
   (sign-in returns to `/?auth_callback=1&code=...`) and still reach HA. It
-  shows the personal-data warning above the buttons, login, admin rights,
-  the next reset, the running HA version (read from `/connect.json`, which
-  answers GETs with `Access-Control-Allow-Origin: https://hanova.app`), a
-  link to `/connect.json`, the abuse link, and "Open the demo"
-  (`/demo-house/house`). It promises nothing unreleased and stays unlinked
-  from the site (`noindex`) until the demo ships in a release. Deploy this
+  leads with "Try HA NOVA on a demo house": the personal-data warning above
+  every button, then "Which app do you use?" (Claude: Add to Claude; ChatGPT Plus
+  or Pro on the web: paste the address, OAuth, Connect again if the first
+  sign-in fails; a computer: install, then `ha-nova try`), three
+  prompts, a small "Open the house next to the chat and watch it change"
+  link (`/demo-house/house`), the login, admin rights, the next reset, the
+  running HA version (read from `/connect.json`, which answers GETs with
+  `Access-Control-Allow-Origin: https://hanova.app`), and the abuse link.
+  It promises nothing unreleased. Deploy this
   Caddyfile only once that page is live (`bootstrap.sh` refuses otherwise). Verified locally (throwaway HA
   2026.10.1 behind this Caddyfile): logged-out `/` and `/start`, sign-in
   back to a deep link and to `/?auth_callback=1`, logout (HA goes to `/`)
@@ -199,7 +202,11 @@ Visitors with a claude.ai account (the free plan allows one custom
 connector) add `https://demo.hanova.app/api/ha_nova/mcp` (the landing page's "Add to
 Claude" button opens Claude's "Add custom connector" with it filled in) and
 sign in as `demo` / `demo`. Design and reasons:
-`docs/work/2026-10-20-demo-add-to-claude-spec.md`.
+`docs/work/2026-10-20-demo-add-to-claude-spec.md`. ChatGPT (Plus or Pro, on
+the web) works with the same address pasted as a custom MCP server with
+OAuth (maintainer test, ChatGPT Pro, 2026-10-22); its first sign-in often
+fails with "OAuth callback data missing", and Connect again works. The free
+plan can't add its own connectors.
 
 - Path: claude.ai's servers → Caddy → Home Assistant's own OAuth and the
   `ha_nova` integration (`nova/integration`, the only `custom_components`,
@@ -239,7 +246,7 @@ scripts for third parties), the AWS account, persistence past :00.
 | Proxy trust | `trusted_proxies` = Caddy's fixed 10.89.240.2 only (dynamic addresses start at .128). Caddy replaces any client-sent `X-Forwarded-For` and sends HA the client's IPv4 with the last byte zeroed (`map` + `header_up`; a private address stays private, so the owner's local-only check is unchanged; anything not IPv4 becomes `192.0.2.0`). Verified on HA 2026.10.1 behind this Caddyfile: a failed login logs and notifies `x.y.z.0`, a sign-in's refresh token stores `last_used_ip` `x.y.z.0`, a spoofed `X-Forwarded-For` is ignored. The relay gets the same truncated header and reads only its socket peer (Caddy) anyway. HA 2026.10 deprecated the `http:` YAML (a repair, plus a 5-minute trial to promote), so there is none: `config/.storage/http` seeds HA's own store (stable slot, YAML migration marked done) before the first boot, every reset; `demo.mjs setup` fails loud if HA runs anything else. **No IP bans:** HA bans on any 401, the password is public, the owner cannot log in from outside anyway; bans would only lock visitors (or the tooling path) out. |
 | Secrets | None in the repo or user-data (readable via instance metadata). Owner password and token, relay user password and token: generated on the host per reset; the public relay token once. IMDSv2 only, hop limit 1. |
 | AWS | No role or credentials of the demo's account on the instance. Lightsail's own platform role (`AmazonLightsailInstanceRole`, instance profile in an AWS-owned account) is on the IMDS for host root only: IMDSv2, hop limit 1, and the house network has no route to it (verified from every container). Budget alarm at 10 USD. |
-| Logs / privacy | Caddy access log (`/var/lib/ha-nova-demo/logs`): client IPs truncated to /24 (/48), no headers, no `authSig`/`token`/`code` query values. A new file every day at 00:00 UTC by the clock (timberjack's scheduled roll, also without requests once Caddy has logged one since its start; the public gate does so every reset) and at 10 MiB; a rolled file is deleted at the first roll more than 4 days after its own (`roll_keep_for 96h`; besides the current file at most 7 rolled ones): no entry is older than 6 days. Backstop for a missed roll (Caddy down or restarted across midnight): every hourly reset deletes any log file whose first (oldest) entry is over 5 days old (its mtime if that entry is unreadable; the open `access.log` is emptied instead); that day of slack covers late or skipped resets, so while the host runs no entry outlives the privacy page's 6 days. Caddy's own log (`docker logs`, size-capped, no time limit) drops the `request` object from every entry and replaces IPv4 addresses in error texts with `[ip]`, so it holds no visitor address, header, or URI (verified with an aborted proxied download). Home Assistant only ever gets the visitor's IPv4 with the last byte zeroed (Proxy trust): refresh tokens' last-used IP, failed-login notices, and HA's log all show that; everything HA stores is wiped at :00. `/abuse` shows the contact given at provisioning. The banner, the restarting page, and `/abuse` link hanova.app's privacy page (`https://hanova.app/privacy.html`). Visitors' browsers fetch integration icons from `brands.home-assistant.io` (their IP; no referrer: `Referrer-Policy: no-referrer` on every page, the restarting page included); `/` and `/start` redirect to the landing page on hanova.app (GitHub Pages), which in turn fetches `/connect.json`; no other third party. Add to Claude: Anthropic's servers call `/.well-known/oauth-*`, `/auth/token`, and `/api/ha_nova/mcp` for visitors who added the demo (the access log has Anthropic's addresses, truncated, for those; the sign-in page itself opens in the visitor's browser); HA keeps the resulting refresh token (client `claude.ai`) until :00; the bridge logs method, tool, status, duration, and a hash prefix of the user (no content, no address) in its container log, and keeps plans (the changes Claude prepares) in `.state/bridge` until they expire or the reset; both go at every reset. |
+| Logs / privacy | Caddy access log (`/var/lib/ha-nova-demo/logs`): client IPs truncated to /24 (/48), no headers, no `authSig`/`token`/`code` query values. A new file every day at 00:00 UTC by the clock (timberjack's scheduled roll, also without requests once Caddy has logged one since its start; the public gate does so every reset) and at 10 MiB; a rolled file is deleted at the first roll more than 4 days after its own (`roll_keep_for 96h`; besides the current file at most 7 rolled ones): no entry is older than 6 days. Backstop for a missed roll (Caddy down or restarted across midnight): every hourly reset deletes any log file whose first (oldest) entry is over 5 days old (its mtime if that entry is unreadable; the open `access.log` is emptied instead); that day of slack covers late or skipped resets, so while the host runs no entry outlives the privacy page's 6 days. Caddy's own log (`docker logs`, size-capped, no time limit) drops the `request` object from every entry and replaces IPv4 addresses in error texts with `[ip]`, so it holds no visitor address, header, or URI (verified with an aborted proxied download). Home Assistant only ever gets the visitor's IPv4 with the last byte zeroed (Proxy trust): refresh tokens' last-used IP, failed-login notices, and HA's log all show that; everything HA stores is wiped at :00. `/abuse` shows the contact given at provisioning. The banner, the restarting page, and `/abuse` link hanova.app's privacy page (`https://hanova.app/privacy.html`). Visitors' browsers fetch integration icons from `brands.home-assistant.io` (their IP; no referrer: `Referrer-Policy: no-referrer` on every page, the restarting page included); `/` and `/start` redirect to the landing page on hanova.app (GitHub Pages), which in turn fetches `/connect.json`; no other third party. Add to Claude (and ChatGPT: OpenAI's servers, the same way): Anthropic's servers call `/.well-known/oauth-*`, `/auth/token`, and `/api/ha_nova/mcp` for visitors who added the demo (the access log has Anthropic's addresses, truncated, for those; the sign-in page itself opens in the visitor's browser); HA keeps the resulting refresh token (client `claude.ai`) until :00; the bridge logs method, tool, status, duration, and a hash prefix of the user (no content, no address) in its container log, and keeps plans (the changes Claude prepares) in `.state/bridge` until they expire or the reset; both go at every reset. |
 | Integrity | Hourly rebuild restores the clone (`checkout --force`, `clean -ffdx`) and all HA state. Caddy is validated with the pinned image and recreated whenever `edge.yml`, the Caddyfile, or `site/` change (hash compare in every reset; `bootstrap.sh` always). Host compromise is not fixed by a reset: rebuild the instance. |
 
 **Detect:** budget mail; `journalctl -u ha-nova-demo-guard -u ha-nova-demo-reset`
@@ -323,7 +330,7 @@ admin-only, go2rtc/local_file/file manifests and checks, HA 2026.10 sending a
   responsive) and the hourly reset. Only the chat bridge limits (120 requests
   a minute for `demo`, which every Claude visitor shares; tool calls run one
   at a time, so one heavy user can block the others for a few minutes;
-  Claude's requests all come from Anthropic's addresses, so per-IP limits
+  Claude's requests all come from Anthropic's addresses (ChatGPT's from OpenAI's), so per-IP limits
   would not help). The bridge keeps at most 20 open plans for `demo`: a
   visitor making many can push out another visitor's pending code.
 - Add to Claude: other visitors' names, notices, and entity texts reach a
