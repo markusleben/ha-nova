@@ -52,7 +52,7 @@ describe("release notes contract", () => {
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
     expect(stableNotes).not.toContain("Cloud Remote is back on Windows and Linux");
-    expect(readme).toContain("only unambiguous everyday actions run right away");
+    expect(readme).toContain("only clear everyday actions run right away");
     expect(readme).toContain("Each automation or script delete is confirmed on its own");
     expect(readme).toContain("the AI can see it too, so it only counts when you type it yourself");
     expect(readme).toContain("ha-nova setup confirm-window off");
@@ -69,7 +69,9 @@ describe("release notes contract", () => {
       "Optional remote access with Home Assistant Link (Beta)",
     );
     expect(readme).toContain("#optional-remote-access-with-home-assistant-link-beta");
-    expect(readme).toContain("(formerly Home Assistant Cloud)");
+    // User copy says "Home Assistant Link"; the old name and Nabu Casa appear once, as the explanation.
+    expect(readme).toContain("(formerly Home Assistant Cloud; Nabu Casa)");
+    expect(readme.split("Home Assistant Cloud").length - 1).toBe(1);
     expect(readme).toContain("Local only");
     expect(readme).toContain("automatic remote fallback");
     expect(readme).toContain("HA NOVA runs no additional public tunnel");
@@ -80,7 +82,8 @@ describe("release notes contract", () => {
     expect(readme).toContain(
       "OAuth authorization in this computer's native credential store",
     );
-    expect(readme).toContain("Optional Cloud mode uses your Nabu Casa service");
+    expect(readme).toContain("Optional Link mode uses your own Home Assistant Link service");
+    expect(readme.split("Nabu Casa").length - 1).toBe(1);
     expect(readme).not.toContain(
       "Your Home Assistant credentials never leave the server",
     );
