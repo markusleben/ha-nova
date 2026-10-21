@@ -77,7 +77,7 @@ release:
     - **Claude Code rules are on by default.** Claude Code then reads HA NOVA's files and runs changes you approved without asking. You still confirm every unlock or delete. Turn them off before you finish setup.
     - **Claude Code starts in a new “HA NOVA” folder.** When setup opens Claude Code, it starts in that folder in your home folder. When Claude Code asks, choose “Yes, I trust this folder”.
     - **`ha-nova uninstall` asks one question.** “Remove” now also removes this computer's pairing. Choose “Remove, but keep the pairing” to reinstall later. `--yes` keeps the pairing unless you add `--purge`.
-    - **Windows, coming from 0.25.x: update with the install command once.** There, `ha-nova update` asks for admin rights or fails. Run the Windows install command below. After that, no admin prompt.
+    - **Windows, coming from 0.24.x or 0.25.x: update with the install command once.** On those versions, `ha-nova update` asks for admin rights or fails. Run the Windows install command below. After that, no admin prompt.
     - **Last release with the old shared access.** Still on it? Pair again once with `ha-nova pair`, then choose “Revoke legacy access” on the NOVA page. The next release no longer accepts it.
 
     ## New Features

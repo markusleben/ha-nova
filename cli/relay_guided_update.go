@@ -36,7 +36,7 @@ var (
 	relayUpdateOutput       = func() io.Writer { return os.Stdout }
 )
 
-const relayUpdateManualPath = "Manual path: open Home Assistant > Settings > Apps > NOVA Relay (older HA calls it Add-ons) and install the update there; a standalone container needs a manual image pull."
+const relayUpdateManualPath = "To update it yourself: " + relayAppUpdatePath + " " + relayContainerUpdateLine
 
 // maybeOfferGuidedRelayUpdate follows a printed relay update notice and
 // reports whether the relay ended up updated AND verified — doctor uses that
@@ -79,15 +79,15 @@ func maybeOfferGuidedRelayUpdate(paths runtimePaths, notice humanNotice) bool {
 func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufio.Reader, out io.Writer) bool {
 	candidate, reason := resolveRelayUpdateCandidate(cfg, token)
 	if candidate.EntityID == "" {
-		fmt.Fprintf(out, "Cannot start the App update from here: %s\n%s\n", reason, relayUpdateManualPath)
+		fmt.Fprintf(out, "HA NOVA can't start the NOVA App update from here. Nothing was installed.\n%s\n", relayUpdateManualPath) // reason: for tests and logs, not people
 		return false
 	}
 	if !candidate.updateAvailable() {
-		fmt.Fprintf(out, "Cannot start the App update from here: the exact NOVA Relay update entity has no newer pending version.\n%s\n", relayUpdateManualPath)
+		fmt.Fprintf(out, "Home Assistant has no NOVA App update ready to install right now. Nothing was installed.\n%s\n", relayUpdateManualPath)
 		return false
 	}
 	if !candidate.guidedInstallReady() {
-		fmt.Fprintf(out, "Cannot start the guided App update: the exact entity does not support both install and partial backup. Nothing was installed.\n%s\n", relayUpdateManualPath)
+		fmt.Fprintf(out, "HA NOVA updates the NOVA App only with a backup first, and this App can't make one. Nothing was installed.\n%s\n", relayUpdateManualPath)
 		return false
 	}
 	fmt.Fprintf(

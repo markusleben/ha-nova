@@ -144,14 +144,14 @@ func TestGuidedRelayUpdateRequiresIdleInstallAndBackupSupport(t *testing.T) {
 			mutate: func(entity map[string]interface{}) {
 				entity["attributes"].(map[string]interface{})["in_progress"] = true
 			},
-			wantFragment: "has no newer pending version",
+			wantFragment: "no NOVA App update ready to install",
 		},
 		{
 			name: "backup capability missing",
 			mutate: func(entity map[string]interface{}) {
 				entity["attributes"].(map[string]interface{})["supported_features"] = updateFeatureInstall
 			},
-			wantFragment: "does not support both install and partial backup",
+			wantFragment: "this App can't make one",
 		},
 	}
 	for _, tc := range cases {
@@ -217,10 +217,10 @@ func TestGuidedRelayUpdateContainerFallsBackToManualPath(t *testing.T) {
 	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("")), &out) {
 		t.Fatalf("container fallback must not report success")
 	}
-	if !strings.Contains(out.String(), "no registry-proven NOVA Relay App update entity found") {
-		t.Fatalf("missing container reason: %s", out.String())
+	if !strings.Contains(out.String(), "can't start the NOVA App update from here") || strings.Contains(out.String(), "registry") {
+		t.Fatalf("container refusal must be plain: %s", out.String())
 	}
-	if !strings.Contains(out.String(), "Manual path:") {
+	if !strings.Contains(out.String(), relayUpdateManualPath) {
 		t.Fatalf("container path must stay manual: %s", out.String())
 	}
 	if strings.Contains(out.String(), "Install the latest available NOVA Relay update now?") {

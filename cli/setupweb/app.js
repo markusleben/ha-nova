@@ -350,7 +350,9 @@
     }
     failures = 0;
     const fresh = await response.json();
-    if (seen !== clicks) return; // older than the last click: the poll after it shows where setup stands
+    // Older than the last click: the poll after it shows where setup stands.
+    // An end screen is never stale, and setup may close right after it is read.
+    if (seen !== clicks && !finalScreens.includes(fresh.screen)) return;
     state = fresh;
     if ((state.accepts || []).length || state.screen !== lastScreen) checking = false;
     // Setup checks a sent address, then waits for a click again: the field

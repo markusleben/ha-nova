@@ -37,8 +37,9 @@ class FakeNode {
 
 // A page whose /api/state answers before, then (once something was posted)
 // each afterPost state in turn, the last one repeating; /api/action records
-// each post.
+// each post. ctl.down: /api/state no longer answers (setup closed the page).
 function page(before: object, ...afterPost: object[]) {
+  const ctl = { down: false };
   const nodes = { screen: new FakeNode("main"), dots: new FakeNode("div"), status: new FakeNode("div") };
   const posts: unknown[] = [];
   const timers: (() => void)[] = [];
@@ -61,6 +62,7 @@ function page(before: object, ...afterPost: object[]) {
       posts.push(JSON.parse(init?.body ?? "{}"));
       return json({});
     }
+    if (ctl.down) return Promise.reject(new Error("closed"));
     if (!posts.length || !afterPost.length) return json(before);
     return json(afterPost.length > 1 ? afterPost.shift() : afterPost[0]);
   };
@@ -84,7 +86,7 @@ function page(before: object, ...afterPost: object[]) {
     }
   };
   const find = (id: string) => nodes.screen.all().find((n) => n.id === id);
-  return { screen: nodes.screen, posts, settle, find, catalog };
+  return { screen: nodes.screen, posts, settle, find, catalog, timers, ctl };
 }
 
 const found = {
@@ -621,6 +623,19 @@ describe("setup page re-run (G1)", () => {
     expect(p.screen.textContent).toContain(p.catalog["setup.page.rerun.problem_app_only"]);
     expect(p.catalog["setup.page.rerun.problem_app_only"]).not.toContain("at home");
     expect(p.catalog["setup.page.rerun.problem_app"]).toContain("Is this computer at home?");
+  });
+
+  it("keeps the end screen that a poll read while Done was posting (lane D5)", async () => {
+    const p = page(working, { screen: "saved", accepts: [], home: { notes: [] } });
+    await p.settle();
+    await new Promise((r) => setImmediate(r)); // the last poll schedules the next
+    const due = p.timers.splice(0);
+    expect(due.length).toBe(1);
+    p.find("b-finish")!.dispatch("click");
+    due.forEach((fn) => fn()); // this poll began while Done was posting; it reads the end
+    p.ctl.down = true; // the CLI closed the page once that end was read
+    await p.settle();
+    expect(p.screen.querySelector("h1")!.textContent).toBe(p.catalog["setup.page.saved.title"]);
   });
 
   it("ends with what Done changed", async () => {

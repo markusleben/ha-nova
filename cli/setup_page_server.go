@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"embed"
@@ -115,8 +116,14 @@ func (s *setupPageServer) launchURL() string {
 	return "http://127.0.0.1:" + s.port + "/s/" + s.token
 }
 
+// close lets a request in flight finish first, bounded: the poll that read
+// the end screen must reach the page (0.27 upgrade lane D5).
 func (s *setupPageServer) close() {
-	_ = s.server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if s.server.Shutdown(ctx) != nil {
+		_ = s.server.Close()
+	}
 }
 
 // callbackHost, routeCallback, and callbackDone let the Home Assistant

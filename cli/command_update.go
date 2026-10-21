@@ -288,7 +288,9 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 		if name, _ := requestedServerSelection(); name != "" {
 			doctor += " --server " + name
 		}
-		printHumanInfo("To update the NOVA App: run `%s` in a terminal, or in Home Assistant open Settings > Apps > NOVA Relay and click Update.", doctor)
+		if notice.appUpdate { // doctor can offer only an update Home Assistant has
+			printHumanInfo("Or run `%s` in a terminal: it offers to update the NOVA App for you.", doctor) // the notice names the Home Assistant path
+		}
 	}
 	printPostUpdateSessionInstruction(syncResult)
 	return 0

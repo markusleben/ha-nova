@@ -249,3 +249,17 @@ func TestWindowPlanWithASelectedServerSaysApplyBare(t *testing.T) {
 		t.Fatalf("next step must say apply runs bare: %q (%+v)", env.NextStep, env.Error)
 	}
 }
+
+// The Windows box: OK/Cancel with Cancel the default, on top, and no
+// MB_SETFOREGROUND (it would take the keyboard before OK is off, and Tab
+// then Enter could press OK); never a service notification (another
+// desktop's box this process can't withdraw).
+func TestWindowsBoxStyle(t *testing.T) {
+	const okCancel, defButton2, setForeground, topmost, serviceNotification = 0x1, 0x100, 0x10000, 0x40000, 0x200000
+	if windowsBoxStyle&0xf != okCancel || windowsBoxStyle&0xf00 != defButton2 {
+		t.Fatalf("style %#x: want OK/Cancel with Cancel the default", windowsBoxStyle)
+	}
+	if windowsBoxStyle&topmost == 0 || windowsBoxStyle&setForeground != 0 || windowsBoxStyle&serviceNotification != 0 {
+		t.Fatalf("style %#x: want topmost, no foreground request, no service notification", windowsBoxStyle)
+	}
+}

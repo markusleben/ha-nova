@@ -326,3 +326,34 @@ func TestSetupPageRoutesTheSignInCallbackOnlyWhileItWaits(t *testing.T) {
 		t.Fatalf("callback after the sign-in = %d", got)
 	}
 }
+
+// The poll that reads how setup ended gets its answer, though setup closes
+// the server the moment that poll is served (0.27 upgrade lane D5: "This
+// page lost touch with setup." after Done).
+func TestSetupPageEndScreenReachesThePageBeforeClose(t *testing.T) {
+	for i := 0; i < 300; i++ {
+		ui := newSetupWebUI(strings.NewReader(""), io.Discard)
+		server, err := startSetupPageServer(ui)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p := &setupPageTest{t: t, ui: ui, server: server, base: "http://127.0.0.1:" + server.port}
+		p.launch()
+		ui.end("saved")
+		closed := make(chan struct{})
+		go func() { <-server.shownEnd; server.close(); close(closed) }()
+		request, _ := http.NewRequest(http.MethodGet, p.base+"/api/state", nil)
+		request.AddCookie(p.cookie)
+		response, err := setupPageNoRedirect.Do(request)
+		if err != nil {
+			t.Fatalf("run %d: the end screen never arrived: %v", i, err)
+		}
+		var state struct{ Screen string }
+		err = json.NewDecoder(response.Body).Decode(&state)
+		response.Body.Close()
+		if err != nil || state.Screen != "saved" {
+			t.Fatalf("run %d: state %+v, %v", i, state, err)
+		}
+		<-closed
+	}
+}

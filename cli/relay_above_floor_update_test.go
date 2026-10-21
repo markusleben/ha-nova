@@ -118,23 +118,23 @@ func TestRelayUpdateNoticeClassifiesBelowFloorAppBeforeOfferingGuidedUpdate(t *t
 				pendingRelayUpdateEntity("update.nova_relay_update", "0.3.0", "0.7.1"),
 			},
 			wantKind:   humanNoticeKindRelayUpdateAvailable,
-			wantText:   "offer to prepare the guided App update through ha-nova:updates",
-			rejectText: "standalone Relay container",
+			wantText:   relayAppUpdatePath,
+			rejectText: relayContainerUpdateLine,
 			wantPage:   true,
 		},
 		{
 			name:       "no App update entity",
 			states:     []map[string]interface{}{},
 			wantKind:   humanNoticeKindRelayOutdated,
-			wantText:   "pull and recreate a standalone Relay container",
-			rejectText: "ha-nova:updates",
+			wantText:   relayContainerUpdateLine,
+			rejectText: "No Update button yet",
 		},
 		{
 			name:       "registry proves current App even without pending update",
 			states:     []map[string]interface{}{currentApp},
 			wantKind:   humanNoticeKindRelayOutdated,
-			wantText:   "confirms the NOVA Relay App is installed",
-			rejectText: "standalone Relay container",
+			wantText:   "No Update button yet? In Settings > Apps, check for updates first.",
+			rejectText: relayContainerUpdateLine,
 		},
 	}
 
@@ -178,6 +178,12 @@ func TestRelayUpdateNoticeClassifiesBelowFloorAppBeforeOfferingGuidedUpdate(t *t
 			}
 			if !strings.Contains(notice.message, tc.wantText) {
 				t.Fatalf("notice missing %q: %s", tc.wantText, notice.message)
+			}
+			// Plain words for a person: what an AI app does comes from the kind.
+			for _, agentText := range []string{"Inform the user", "ha-nova:updates", "registry", "entity"} {
+				if strings.Contains(notice.message, agentText) {
+					t.Fatalf("notice speaks to the AI app (%q): %s", agentText, notice.message)
+				}
 			}
 			if strings.Contains(notice.message, tc.rejectText) {
 				t.Fatalf("notice must not contain %q: %s", tc.rejectText, notice.message)
@@ -319,7 +325,7 @@ func TestRunDoctorReportsAboveFloorRelayUpdateWithoutFailing(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("compatible pending Relay update must not fail doctor: exit %d\n%s", exitCode, output)
 	}
-	if !strings.Contains(output, "Relay update available: v0.4.1 → v0.6.0") {
+	if !strings.Contains(output, "The NOVA App in Home Assistant has an update: v0.4.1 → v0.6.0") {
 		t.Fatalf("doctor did not surface the pending Relay update:\n%s", output)
 	}
 	if !strings.Contains(output, "Doctor checks passed") {
@@ -369,7 +375,7 @@ func TestRunCheckUpdateQuietReportsHANOVAAndAboveFloorRelayUpdates(t *testing.T)
 		t.Fatalf("compatible pending Relay update must not fail check-update: exit %d\n%s", exitCode, output)
 	}
 	skillNotice := "HA NOVA 0.21.0 is ready (you have 0.20.0)."
-	relayNotice := "Relay update available: v0.4.1 → v0.6.0"
+	relayNotice := "The NOVA App in Home Assistant has an update: v0.4.1 → v0.6.0"
 	if !strings.Contains(output, skillNotice) || !strings.Contains(output, relayNotice) {
 		t.Fatalf("quiet check-update did not surface both updates:\n%s", output)
 	}
