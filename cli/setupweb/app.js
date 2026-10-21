@@ -114,12 +114,13 @@
       action === 'recheck' && checking && !accepts(action) ? t('setup.page.button.checking') : label);
   const link = (label, href, kind, id) =>
     safeURL(href) ? el('a', { id: `l-${id}`, class: `btn btn-${kind}`, href, target: '_blank', rel: 'noopener noreferrer' }, label) : null;
-  const icon = (status, amber) => {
+  // Status (style.css): ok ✓ green, run a spinner, fail ! amber, todo muted.
+  const icon = (status) => {
     const glyph = { ok: '✓', fail: '!', todo: '·', run: '' }[status];
-    return el('span', { class: `ic ${status}${amber && status === 'run' ? ' amber' : ''}`, 'aria-hidden': 'true' }, glyph);
+    return el('span', { class: `ic ${status}`, 'aria-hidden': 'true' }, glyph);
   };
-  const row = (status, key, value, extra, amber) =>
-    el('li', {}, icon(status, amber),
+  const row = (status, key, value, extra) =>
+    el('li', {}, icon(status),
       el('div', {}, el('div', { class: 'k' }, el('span', { class: 'visually-hidden' }, `${t(rowStatus[status])} `), key),
         value ? el('div', { class: 'v' }, value) : null, extra && extra.below),
       extra && extra.side ? extra.side : el('span'));
@@ -229,7 +230,7 @@
       const rows = state.rows || [];
       const installs = rows.some((r) => r.id === 'app_add');
       const waiting = safeURL(state.signin_url);
-      const items = rows.map((r) => row(r.state, say(r.msg), null, null, r.id.startsWith('app_')));
+      const items = rows.map((r) => row(r.state, say(r.msg)));
       const actions = [];
       if (waiting) {
         actions.push(el('p', { class: 'fine' }, t('setup.page.signin.waiting')),
@@ -252,7 +253,7 @@
           state.fix === 'owner' && !state.web ? el('p', { class: 'fine' }, t('setup.page.found.owner_away')) : null,
           state.web ? null : codeLink());
       }
-      return [...head(t('setup.page.connect.eyebrow'), t('setup.page.connect.title'), t(installs ? 'setup.page.connect.lead' : 'setup.page.connect.lead_signin'), true),
+      return [...head(t('setup.page.connect.eyebrow'), t('setup.page.connect.title'), t(installs ? 'setup.page.connect.lead' : 'setup.page.connect.lead_signin')),
         problemLine(), el('ul', { class: 'rows' }, items), ...actions];
     },
 
@@ -261,7 +262,10 @@
   };
   // Steps 3 and 4 (steps.js), and a re-run (rerun.js).
   const announce = (text) => { statusEl.textContent = text; };
-  const helpers = { t, el, row, head, button, link, format, render, post, accepts, announce, state: () => state };
+  // What step 3 did, on step 4 and a re-run's end: green when it went
+  // through, amber when it didn't or still needs you.
+  const note = (msg) => el('p', { class: /_failed$/.test(msg.key) || msg.key === 'setup.page.home.note_web_off' ? 'note' : 'note done' }, say(msg));
+  const helpers = { t, el, row, head, note, button, link, format, render, post, accepts, announce, state: () => state };
   const later = window.novaSteps(helpers);
   Object.assign(screens, later, window.novaRerun({ ...helpers, control: later.control }));
   for (const [screen, [eyebrow, title, lead, amber]] of Object.entries(endScreens)) {

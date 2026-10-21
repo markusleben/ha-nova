@@ -412,20 +412,32 @@ describe("setup page: Add to Claude", () => {
     }
   });
 
-  it("says in one line what's missing without Link or a public HTTPS address", async () => {
-    const p = page(control({ state: "noaddress" }));
+  it("offers Link remote access as a muted row, with its page and Check again", async () => {
+    const link_page = "http://homeassistant.local:8123/config/cloud";
+    const p = page({ ...control({ state: "noaddress", link_page }), accepts: ["finish", "recheck"] });
     await p.settle();
-    expect(p.screen.textContent).toContain(p.catalog["setup.chat.need_address"]);
+    for (const key of ["setup.chat.need_key", "setup.chat.need_link", "setup.chat.need_own"]) expect(p.screen.textContent).toContain(p.catalog[key]);
+    expect(p.screen.textContent).not.toContain(p.catalog["setup.chat.need_address"]);
+    expect(p.find("l-chat-link")!.attributes).toMatchObject({ href: link_page, target: "_blank", rel: "noopener noreferrer" });
+    const row = p.screen.all().find((n) => n.className === "rows tall")!.children.at(-1)!;
+    expect(row.children[0]!.className).toBe("ic todo"); // optional: muted, not amber
+    p.find("b-chat-recheck")!.dispatch("click");
+    await p.settle();
+    expect(p.posts).toEqual([{ action: "recheck", value: "chat" }]);
     expect(p.find("b-chat-ask")).toBeUndefined();
     expect(p.find("b-chat-switch")).toBeUndefined();
     expect(p.find("l-chat-claude")).toBeUndefined();
+    const unsafe = page(control({ state: "noaddress", link_page: "javascript:alert(1)" }));
+    await unsafe.settle();
+    expect(unsafe.find("l-chat-link")).toBeUndefined();
   });
 
   it("says chat apps are on when the address is missing now", async () => {
     const p = page(control({ state: "noaddress", problem: { key: "setup.chat.on_noaddress" } }));
     await p.settle();
     expect(p.screen.textContent).toContain(p.catalog["setup.chat.on_noaddress"]);
-    expect(p.screen.textContent).not.toContain(p.catalog["setup.chat.need_address"]);
+    expect(p.screen.textContent).not.toContain(p.catalog["setup.chat.need_link"]);
+    expect(p.find("b-chat-recheck")).toBeUndefined();
   });
 
   it("promises the restart only when one comes (lane S2)", async () => {
@@ -674,5 +686,74 @@ describe("setup page re-run (G1)", () => {
     // "Show me how" puts an <ol> inside a row; `.rows li` made each step a
     // three-column grid, one word per line.
     expect(read("style.css")).not.toMatch(/\.rows[\w.-]*\s+li\b/);
+  });
+});
+
+// One status language (style.css): green ✓ on, a spinner waiting, amber
+// only for what needs you or went wrong, muted for off or optional.
+describe("setup page: status colors", () => {
+  const marks = (p: ReturnType<typeof page>) => p.screen.all().find((n) => n.className === "rows tall")!.children.map((li) => li.children[0]!.className);
+  const classes = (p: ReturnType<typeof page>) => p.screen.all().map((n) => n.className).filter(Boolean);
+
+  it("shows what is on in green, never amber, with the word On", async () => {
+    const p = page({ screen: "control", accepts: ["finish", "chat"], control: { window: true, phone: "linked", phone_name: "iPh0ne", phones: [], rule: "on", rule_count: 2, link: "offer", chat: { state: "offer" } } });
+    await p.settle();
+    expect(marks(p)).toEqual(["ic ok", "ic ok", "ic ok", "ic todo", "ic todo amber"]); // window, phone, rule on; Link optional; chat apps need you
+    const tags = p.screen.all().filter((n) => n.className.startsWith("tag"));
+    expect(tags.map((n) => [n.className, n.textContent])).toEqual(Array(3).fill(["tag ok", p.catalog["setup.page.control.on"]]));
+    expect(p.screen.all().find((n) => n.className.startsWith("eyebrow"))!.className).toBe("eyebrow");
+    expect(classes(p).filter((c) => /amber|guard/.test(c))).toEqual(["ic todo amber"]);
+    expect(p.screen.textContent).toContain("Linked. From now on, “iPh0ne” asks too. Answer there or on this computer.");
+  });
+
+  it("puts a cyan spinner in the mark while it waits", async () => {
+    const p = page({ screen: "control", accepts: [], control: { window: false, phone: "waiting", phone_name: "iPh0ne", phones: [], link: "run", chat: { state: "run", rows: [{ state: "run", msg: { key: "setup.chat.row_on" } }] } } });
+    await p.settle();
+    expect(marks(p)).toEqual(["ic todo", "ic run", "ic run", "ic run"]); // window off; phone, Link, chat apps waiting
+    expect(classes(p).filter((c) => /amber|guard/.test(c))).toEqual([]);
+  });
+
+  it("says the phone alone asks when no window can", async () => {
+    for (const state of [{ control: { window: false } }, { web: true, control: { window: true } }]) {
+      const p = page({ screen: "control", accepts: ["finish"], ...state, control: { ...state.control, phone: "linked", phone_name: "iPh0ne", phones: [] } });
+      await p.settle();
+      expect(p.screen.textContent).toContain(p.catalog["setup.page.control.phone_value_only"]!.replace("{phone}", "iPh0ne"));
+      expect(p.screen.textContent).not.toContain("on this computer. The first answer counts");
+    }
+  });
+
+  it("marks a re-run's chat apps by what they are now, not by the switch", async () => {
+    const p = page({ screen: "rerun", rows: [], accepts: ["finish"], control: { window: true, phone: "none", chat: { state: "page_on" } } });
+    await p.settle();
+    expect(marks(p).at(-1)).toBe("ic ok");
+    p.find("b-chat-switch")!.dispatch("click"); // off when Done is clicked: still on now
+    expect(marks(p).at(-1)).toBe("ic ok");
+    const off = page({ screen: "rerun", rows: [], accepts: ["finish"], control: { window: true, phone: "none", chat: { state: "page_off" } } });
+    await off.settle();
+    expect(marks(off).at(-1)).toBe("ic todo");
+  });
+
+  it("keeps amber for steps that need you or stopped, not for progress", async () => {
+    const connect = page({ screen: "connect", accepts: [], rows: [{ id: "app_add", state: "run", msg: { key: "setup.page.row.app_add" } }] });
+    await connect.settle();
+    expect(classes(connect).filter((c) => /amber/.test(c))).toEqual([]);
+    const fix = page({ screen: "rerun_fix", rows: [], accepts: ["fix"] });
+    await fix.settle();
+    expect(fix.screen.children[0]!.className).toBe("eyebrow amber");
+  });
+
+  it("draws the locks tile like the others and notes what went through in green", async () => {
+    const p = page({ screen: "home", accepts: ["done"], home: { stats: { rooms: 1, locks: 2, automations: 0 }, notes: [{ key: "setup.page.home.note_link" }, { key: "setup.page.home.note_link_failed" }, { key: "setup.page.home.note_web_off" }] } });
+    await p.settle();
+    expect(p.screen.all().find((n) => n.className === "stat")!.children.map((li) => li.className)).toEqual(["", "", "", "", "muted"]);
+    expect(p.screen.all().filter((n) => n.className.startsWith("note")).map((n) => n.className)).toEqual(["note done", "note", "note"]);
+  });
+
+  it("ends a first run with what to do next", async () => {
+    const p = page({ screen: "closed", accepts: [] });
+    await p.settle();
+    expect(p.screen.querySelector("h1")!.textContent).toBe(p.catalog["setup.page.closed.title"]);
+    expect(p.catalog["setup.page.closed.lead"]).toContain("ask it about your home");
+    expect(p.catalog["setup.page.closed.lead"]).not.toContain("unless you saved it");
   });
 });

@@ -48,8 +48,15 @@ type setupPageChat struct {
 	URL        string         `json:"url,omitempty"`         // the connector address, once on
 	ClaudeLink string         `json:"claude_link,omitempty"` // Add to Claude (claudeConnectorLink), once on
 	Phone      string         `json:"phone,omitempty"`       // the phone that confirms for chat apps; "": a code in the chat
+	LinkPage   string         `json:"link_page,omitempty"`   // noaddress, off: Home Assistant's Link page (haLinkPageURL)
 	NoRestart  bool           `json:"no_restart,omitempty"`  // Home Assistant runs the integration already: turning on doesn't restart it
 	Problem    *setupPageMsg  `json:"problem,omitempty"`
+}
+
+// needsLink: chat apps are off and nothing could reach them; the row
+// offers Home Assistant Link and Check again.
+func (c *setupPageChat) needsLink() bool {
+	return c != nil && c.State == "noaddress" && c.Problem == nil
 }
 
 type setupPagePhone struct {
@@ -108,18 +115,23 @@ func (f *setupFlow) pageControl() int {
 	chatOrigin := func() string { return chatAppsLinkOrigin(f.cfg, linkOrigin()) } // as `ha-nova chat-apps`
 	var chat chatAppsOffer
 	chatOK := false
-	if (f.pairedThisRun || f.pageRerunning) && !f.cloudSetupPaused { // as the phone row; nil without this run's owner sign-in
-		chat, chatOK = readChatAppsOffer(setupOwnerIngress, f.paths, chatOrigin)
+	readChat := func() *setupPageChat { // also on the row's Check again
+		if (f.pairedThisRun || f.pageRerunning) && !f.cloudSetupPaused { // as the phone row; nil without this run's owner sign-in
+			chat, chatOK = readChatAppsOffer(setupOwnerIngress, f.paths, chatOrigin)
+		}
+		var row *setupPageChat
+		switch {
+		case chatOK:
+			row = f.pageChatRow(&chat)
+		case f.pageRerunning:
+			row = f.pageRerunChat(chatOrigin)
+		}
+		if f.noClient && row != nil && row.State == "offer" {
+			row.Ask = true // Claude or ChatGPT in the browser: the consent opens; only its button turns them on
+		}
+		return row
 	}
-	switch {
-	case chatOK:
-		ctl.Chat = f.pageChatRow(&chat)
-	case f.pageRerunning:
-		ctl.Chat = f.pageRerunChat(chatOrigin)
-	}
-	if f.noClient && ctl.Chat != nil && ctl.Chat.State == "offer" {
-		ctl.Chat.Ask = true // Claude or ChatGPT in the browser: the consent opens; only its button turns them on
-	}
+	ctl.Chat = readChat()
 	screen := "control"
 	if f.pageRerunOK { // the re-run screen: what is set up, then these rows
 		screen = "rerun"
@@ -131,6 +143,9 @@ func (f *setupFlow) pageControl() int {
 		if ctl.Chat != nil { // pageChatOn keeps changing its own copy
 			row := *ctl.Chat
 			row.Rows = slices.Clone(row.Rows)
+			if row.needsLink() { // where to turn on Link remote access
+				row.LinkPage = haLinkPageURL(f.cfg.HAURL)
+			}
 			view.Chat = &row
 		}
 		p.update(func(v *setupPageState) {
@@ -143,10 +158,10 @@ func (f *setupFlow) pageControl() int {
 	for {
 		show()
 		accepts := []string{"finish"}
-		switch {
-		case ctl.Phone == "pick", ctl.Phone == "linked" && len(ctl.Phones) > 0:
+		if ctl.Phone == "pick" || ctl.Phone == "linked" && len(ctl.Phones) > 0 {
 			accepts = append(accepts, "phone")
-		case ctl.Phone == "unread":
+		}
+		if ctl.Phone == "unread" || ctl.Chat.needsLink() {
 			accepts = append(accepts, "recheck")
 		}
 		if ctl.Chat != nil && ctl.Chat.State == "offer" {
@@ -167,7 +182,14 @@ func (f *setupFlow) pageControl() int {
 		}
 		switch action.Action {
 		case "recheck": // its buttons stay disabled while it reads
-			f.pagePhones(&ctl)
+			if action.Value != "chat" {
+				f.pagePhones(&ctl)
+			} else if ctl.Chat.needsLink() {
+				originRead = false // Link remote access may be on now
+				if row := readChat(); row != nil {
+					ctl.Chat = row
+				}
+			}
 		case "server":
 			return f.pageAddServer()
 		case "clients":

@@ -4,7 +4,7 @@
 'use strict';
 
 window.novaRerun = (h) => {
-  const { t, el, row, head, button, link, control } = h;
+  const { t, el, row, head, note, button, link, control } = h;
   const say = (msg) => (msg ? t(msg.key, msg.args || {}) : '');
   const problem = (msg) => (msg ? el('p', { class: 'problem', role: 'alert' }, say(msg)) : null);
 
@@ -49,11 +49,11 @@ window.novaRerun = (h) => {
         link(t('setup.page.link.app'), links.app, 'ghost', 'app'))];
   };
   // Fix it, or the skills refresh, while the usual steps run.
-  const repair = () => [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.repair_title'), t('setup.page.connect.lead_signin'), true),
-    el('ul', { class: 'rows' }, (h.state().rows || []).map((r) => row(r.state, say(r.msg), null, null, true)))];
+  const repair = () => [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.repair_title'), t('setup.page.connect.lead_signin')),
+    el('ul', { class: 'rows' }, (h.state().rows || []).map((r) => row(r.state, say(r.msg))))];
   // How a re-run ended: what Done changed.
   const saved = () => [...head(t('setup.page.saved.eyebrow'), t('setup.page.saved.title'), t('setup.page.saved.lead')),
-    ...((h.state().home || {}).notes || []).map((note) => el('p', { class: 'note' }, say(note)))];
+    ...((h.state().home || {}).notes || []).map(note)];
 
   return { rerun, rerun_fix: rerun, rerun_switch: rerun, repair, saved };
 };

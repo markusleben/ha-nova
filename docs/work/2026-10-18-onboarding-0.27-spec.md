@@ -130,7 +130,7 @@ The line updates in place and ends with `✓ Done: this computer is connected to
   - "Confirm on this computer": "A small window asks before anything risky runs." Tag: On.
   - "Confirm on your phone": "iPhone Markus, and its Apple Watch. Both ask; the first answer counts." Switch, off by default. Switching it on sends one link notification ("Tap 'Link' there."). Several eligible phones: the row first lists them to pick one, as `confirm-phone` does today (§16 D10). None: "No phone with the Home Assistant app found", and no switch.
   - "Let Claude Code show the window": "Adds one rule to Claude Code so its auto mode doesn't block the confirmation window." Switch, **preselected**; written on [Finish setup] with #738's writer; uninstall removes it.
-  - *Addition* (§16 D3), only when HA Link remote access is active: "Use HA NOVA in Claude and ChatGPT, on any phone." Switch, off by default; turning it on runs §11.6.
+  - *Addition* (§16 D3), only when HA Link remote access is active: "Use HA NOVA in Claude and ChatGPT, on any phone." Switch, off by default; turning it on runs §11.6. Without remote access (and no public HTTPS address): a muted row "Use HA NOVA on your phone, in Claude and ChatGPT" with [Open Home Assistant Link] (`<saved HA URL>/config/cloud`) and [Check again], which reads remote access again and shows the switch once it is on.
 - Button: [Finish setup].
 - Fine print: "Turning on your phone sends one notification to that phone. Tap 'Link' there."
 
@@ -170,10 +170,11 @@ The page follows `../ha-nova-site/DESIGN.md` ("The Legible Cosmos"), so setup fe
   - kept in one embedded `tokens.css` whose header names the site commit;
   - the release site-sync step checks drift.
 - **Theme:** the dark night gradient only, like the site. Star dots stay sparse and static under reduced motion.
-- **Two Lights Rule:**
-  - cyan = this computer and the user's actions: primary buttons, client rows, copy, the "Both set up" tag;
-  - amber = Home Assistant, the App, and safety: all of step 3, the guard icons, the App install;
-  - never swapped.
+- **Status colors** (one language on every screen; replaces the Two Lights Rule, which read "on" in amber as "still to do"):
+  - green ✓ = on, done, ready (with the word "On" where a row is on);
+  - a cyan spinner = waiting on the user or on a check; cyan stays the brand for buttons, links, and progress;
+  - amber = needs action or a problem, only;
+  - muted = off or optional. Color is never the only signal.
 - **Type:** system stack only (No-Webfont Rule). Headline for screen titles, Title for row keys, Body and Lead for copy, Label for the uppercase eyebrows.
 - **Structure:** hairline-topped rows, not cards (One Hairline and No-Shadow Rules). The step 2 progress rows may use the Safety Timeline nodes.
 - **Components:**
