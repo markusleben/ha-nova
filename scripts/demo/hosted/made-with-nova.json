@@ -68,17 +68,17 @@
   },
   {
     "entity_id": "script.movie_time",
-    "asked": "Make a script for movie time: dim the living room lights to 20 percent and close the living room window.",
+    "asked": "Make a script for movie time: dim the ceiling lights to 20 percent and close the living room window.",
     "domain": "script",
     "id": "movie_time",
     "config": {
       "alias": "Movie Time",
-      "description": "Made with HA NOVA from: “Make a script for movie time: dim the living room lights to 20 percent and close the living room window.”",
+      "description": "Made with HA NOVA from: “Make a script for movie time: dim the ceiling lights to 20 percent and close the living room window.”",
       "sequence": [
         {
           "action": "light.turn_on",
           "target": {
-            "entity_id": "light.living_room_group"
+            "entity_id": "light.ceiling_lights"
           },
           "data": {
             "brightness_pct": 20
@@ -91,8 +91,7 @@
           }
         }
       ],
-      "mode": "single",
-      "icon": "mdi:movie-open"
+      "mode": "single"
     }
   },
   {

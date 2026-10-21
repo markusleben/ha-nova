@@ -141,7 +141,7 @@ the next full hour.
   `/abuse`, and Privacy), and a notice at :55 UTC (with the same warning).
   Both use `utcnow()`, because visitors can change HA's time zone.
 - The dashboard opens on "Start here" (`/demo-house/start`): what HA NOVA is,
-  how to try it (hanova.app/demo or `ha-nova try`), five prompts (the first
+  how to try it (Claude through hanova.app/demo, or `ha-nova try`), five prompts (the first
   four are `ha-nova try`'s, kept equal by
   `tests/config/hosted-demo-start-here.test.ts`), what HA NOVA made here, and
   what "What is worth a look?" finds (the demo integration's 12 % battery,

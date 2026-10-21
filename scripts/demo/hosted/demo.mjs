@@ -214,11 +214,11 @@ const md = (content) => ({ type: "markdown", content });
 const startSections = () => [
   { type: "grid", cards: [md([
     "## This house runs on HA NOVA",
-    "HA NOVA lets your AI app run Home Assistant. You ask in plain words, and it does it. Before a risky step, like unlocking a door, it asks you first.",
+    "HA NOVA lets your AI app run Home Assistant. You ask in plain words. Simple things, like turning off a light, it just does. Before it changes your setup or unlocks a door, it asks you first.",
     "",
-    "**Try it:** go to [hanova.app/demo](https://hanova.app/demo/) and pick your AI app. Then keep this page open next to the chat and watch the house change.",
+    "**Try it:** in Claude, add this house at [hanova.app/demo](https://hanova.app/demo/). Have HA NOVA on your computer? Run `ha-nova try`. Then keep this page open next to the chat and watch the house change.",
   ].join("\n"))] },
-  { type: "grid", cards: [{ type: "heading", heading: "Say this to it" }, md([
+  { type: "grid", cards: [{ type: "heading", heading: "Say this in the chat" }, md([
     ...PROMPTS.map((p, i) => `${i + 1}. “${p}”${i === 2 ? " It asks you first." : ""}`),
     "",
     "You can ask in any language.",
@@ -248,7 +248,10 @@ async function saveNovaWork(ha) {
     const live = new Set((await ha.call({ type: "get_states" })).map((s) => s.entity_id));
     const missing = NOVA_WORK.filter((w) => !live.has(w.entity_id)).map((w) => w.entity_id);
     if (!missing.length) return;
-    if (i === 20) throw new Error(`HA NOVA's sample work did not load: ${missing.join(", ")}`);
+    if (i === 10) { // only for show: a slow reload warns, it never takes the house down
+      console.error(`demo.mjs dashboard: warning: HA NOVA's sample work did not load yet: ${missing.join(", ")}`);
+      return;
+    }
     await new Promise((r) => setTimeout(r, 500));
   }
 }
@@ -352,8 +355,8 @@ async function roundTrip(ha, domain, name, entityId, want, seconds = 30) {
 // demo.yaml's MQTT trigger could not attach at boot (seed.mjs adds the
 // broker entry later), and a reload skips unchanged automations: off and on.
 // HA's MQTT client then still holds new subscriptions back for up to a
-// minute after a reset: wait for a real answer (75 + 15 s, inside reset.sh's
-// 120) before the house is exposed. No answer only warns: the house works
+// minute after a reset: wait for a real answer (75 + 15 s; with up to 5 s for
+// HA NOVA's sample work, still inside reset.sh's 120) before the house is exposed. No answer only warns: the house works
 // without it, and smoke (update-ha.sh) gates new HA releases on it.
 async function armSimulatedDevices(ha) {
   const [row] = await demoAutomations(ha, ["demo_simulated_devices"]);
@@ -429,7 +432,10 @@ async function guard() {
     }
     // The banner dashboard and the system-wide default panel.
     const lovelace = await ha.call({ type: "lovelace/config", url_path: DASHBOARD }).catch(() => null);
-    if (!lovelace?.views?.length || !lovelace.views.every((v) => v.header?.card?.content?.includes(BANNER_MARK))) {
+    // "Start here" too: its link and prompts are the demo's own instructions.
+    const start = lovelace?.views?.[0];
+    if (!lovelace?.views?.length || !lovelace.views.every((v) => v.header?.card?.content?.includes(BANNER_MARK))
+      || start.path !== "start" || JSON.stringify(start.sections) !== JSON.stringify(startSections())) {
       await saveDashboard(ha);
     } else {
       await setDefaultPanel(ha);
