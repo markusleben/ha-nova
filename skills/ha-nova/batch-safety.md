@@ -139,7 +139,7 @@ Runs one by one — stops at the first error.
 Type <four digits> to delete all 8 — a plain yes can't confirm this.
 ```
 
-**Batch Result Card**:
+**Batch Result Card** (not each apply's `say`):
 
 ```
 ✅ Deleted: 8 of 8 timer helpers

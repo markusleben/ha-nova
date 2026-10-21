@@ -111,7 +111,7 @@ since changed.
 
 - Scrub gate passed; exported txt eyeballed once.
 - Hero: Preview Card (behavior sentences on create; the before/after change
-  table appears on updates) -> `apply` -> Result Card. A revert offer appears
+  table appears on updates) -> `apply` -> the CLI's result line (`say`). A revert offer appears
   only when the take includes an update — creates carry no revert and are
   cleaned up via `cleanup-hero.sh` (write contract: `skills/write/SKILL.md`).
   Clarifying-question menus and auto-confirmed approval prompts are fine —
