@@ -20,6 +20,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 - Chat apps help on the NOVA page: if ChatGPT says the OAuth callback data is missing right after you create the plugin, choose Connect on it again. (#792)
 - Computers that are already connected stay connected; no re-pairing.
 - Computers on the matching HA NOVA release ask you to update this App; computers on an older release keep working with it.
+- Still on the old shared access (Relay Auth Token)? HA NOVA 0.27 is the last release that accepts it. Run `ha-nova setup` once on each computer to switch.
 
 ## [Relay 0.10.0] - 2026-10-17
 

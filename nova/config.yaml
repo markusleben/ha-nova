@@ -2,7 +2,7 @@ name: NOVA Relay
 version: "0.11.0"
 image: "ghcr.io/markusleben/{arch}-ha-nova-relay"
 slug: ha_nova_relay
-description: Thin Home Assistant relay for WS proxy and skill workflows
+description: Lets Claude, ChatGPT, and other AI apps work with your home, safely
 url: https://github.com/markusleben/ha-nova
 arch:
   - amd64

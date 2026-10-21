@@ -7,7 +7,7 @@ For the stable installer, lifecycle commands, and general troubleshooting, use [
 ## Setup Choice
 
 - Use the normal HA NOVA installer flow.
-- In the setup wizard, choose `Claude Code`.
+- The setup page finds Claude Code on this computer and sets it up. In the terminal wizard, choose `Claude Code`.
 - Claude Desktop in the **Code** tab uses this same integration path.
 
 ## Windows Notes

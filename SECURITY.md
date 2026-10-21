@@ -22,6 +22,11 @@ Current `main` branch is supported for security fixes.
   authorization, and protocol failures stop before functional dispatch.
 - Functional requests are never replayed across transports. Ambiguous
   completion is reported as unknown instead of retried.
+- Chat apps (Claude and ChatGPT) are off by default. Only the Home Assistant
+  owner can turn them on. By default only the owner can use them, through a
+  Home Assistant sign-in.
+  Unlocks, deletes, and other risky changes wait for a tap on the owner's
+  linked phone, or a code in the chat that the owner can turn off.
 
 The Cloud remote transport is a Beta. Release binaries enable it only with
 signed bundle provenance; its contracts live in

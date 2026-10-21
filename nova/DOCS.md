@@ -1,6 +1,7 @@
 # NOVA Relay
 
-The NOVA Relay connects your AI coding client to Home Assistant.
+The NOVA Relay connects your AI app to Home Assistant: an AI app on your
+computer, and (with chat apps on) Claude and ChatGPT, also on your phone.
 It provides secure, authenticated access to Home Assistant's APIs and extends them where needed.
 
 ## How It Works
@@ -19,7 +20,7 @@ the relay.
 
 The optional Home Assistant Link (formerly Home Assistant Cloud) path is a
 release-gated desktop Beta. Enabled release builds use the user's existing
-Nabu Casa remote service; HA NOVA runs no public tunnel or broker. Local-only
+Home Assistant Link remote access; HA NOVA runs no public tunnel or broker. Local-only
 operation is unchanged. In Home Assistant, the service is under
 **Settings > Home Assistant Cloud** (Home Assistant 2026.12 and newer:
 **Settings > Home Assistant Link**). The `ha-nova cloud`
@@ -51,7 +52,7 @@ direct network request cannot open it.
 
 | Option | Description |
 |--------|-------------|
-| **Relay Auth Token (legacy/advanced)** | Existing installs may keep their shared token. New installs leave this empty; the App creates and persists a private token automatically. |
+| **Relay Auth Token (legacy/advanced)** | Existing installs may keep their shared token. HA NOVA 0.27 is the last release that accepts it: run `ha-nova setup` once on each computer to switch (a `--service` install: `ha-nova pair --credential-store=file`). New installs leave this empty; the App creates and persists a private token automatically. |
 | **File access (advanced)** | Optional access to supported Home Assistant configuration files. Defaults to off. |
 
 The App receives Home Assistant API access automatically from Supervisor. Do
@@ -121,7 +122,12 @@ The easiest way to set up everything (relay + AI client + skills):
 - open the [latest GitHub release](https://github.com/markusleben/ha-nova/releases/latest)
 - copy the stable install one-liner for your OS and run it unchanged
 
-Or if you already have the repo:
+On a desktop, setup opens a page in your browser. It finds your Home
+Assistant, you sign in as the owner, and it installs this App for you if
+needed (HA OS, Supervised). Over SSH or with `--no-browser`, it asks in the
+terminal instead.
+
+Already installed HA NOVA? Run setup again:
 
 ```bash
 ha-nova setup
@@ -264,7 +270,7 @@ A healthy response looks like:
   "data": {
     "status": "ok",
     "ha_ws_connected": true,
-    "version": "0.2.6",
+    "version": "0.11.0",
     "uptime_s": 3621
   }
 }

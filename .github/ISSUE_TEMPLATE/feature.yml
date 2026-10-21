@@ -21,8 +21,8 @@ body:
   - type: textarea
     id: scope
     attributes:
-      label: MVP scope
-      description: Keep scope minimal and KISS.
+      label: Smallest useful version
+      description: What is the smallest change that would already help?
     validations:
       required: true
 
