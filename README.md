@@ -108,12 +108,12 @@ We built this because we didn't trust AI with our own setup either.
 
 **The ground rules, always:**
 
-- 🔒 **The Relay's login stays out of the AI.** The App's Home Assistant login stays inside the Relay. Optional Cloud access uses a separate Home Assistant OAuth authorization in this computer's native credential store. The AI sees neither of them.
+- 🔒 **The Relay's login stays out of the AI.** The App's Home Assistant login stays inside the Relay. Optional Link access uses a separate Home Assistant OAuth authorization in this computer's native credential store. The AI sees neither of them.
 - 🙈 **Stored codes stay hidden from the AI.** A lock or alarm code saved in its settings, the backup password, and the Thread network key reach the AI only as "hidden", also in HA NOVA's saved copies. Codes written into automations are not hidden.
-- 🔑 **Each device is paired on its own.** The Home Assistant sign-in and the six-digit code work once and run out fast. They create a separate login for each device, over an encrypted, pinned connection (OPAQUE, RFC 9807 + SPKI-pinned TLS 1.3 under the hood). This is for App installs. The standalone container uses one shared token instead.
+- 🔑 **Each device is paired on its own.** The Home Assistant sign-in and the six-digit code work once and run out fast. They create a separate login for each device, over an encrypted connection that trusts only your own Relay. How it works: [safety page](docs/reference/safety.md). This is for App installs. The standalone container uses one shared token instead.
 - 🗑️ **Cut off a device with one click (App installs).** Lost a laptop? Retired a computer? Choose "Revoke this device" for it on the NOVA page. Everything else keeps working.
 - 📖 **Every rule the AI follows is a Markdown file you can read.**
-- 🏠 **HA NOVA runs no cloud relay, and the program sends no usage data or install counts.** Local mode stays between your computer and Home Assistant. Optional Cloud mode uses your Nabu Casa service, and HA NOVA gets none of that traffic.
+- 🏠 **HA NOVA runs no cloud relay, and the program sends no usage data or install counts.** Local mode stays between your computer and Home Assistant. Optional Link mode uses your own Home Assistant Link service, and HA NOVA gets none of that traffic.
 
 ---
 
@@ -152,7 +152,7 @@ The installer selects the latest stable release. Run the command for your system
 
 After pairing, setup offers to link your phone for confirmations: tap "Allow" on it. The phone must be signed in to the Home Assistant app as an administrator. Setup ends with a first look at your home.
 
-> **Want to look first?** The [demo house](https://hanova.app/demo/) is a pretend Home Assistant with no real devices. Look around before you connect your own. `ha-nova try` connects your AI app to it (the setup page offers it when it finds no Home Assistant), and `ha-nova try --stop` removes it. Everyone shares one login, and it resets every hour. So never enter real names, passwords, or tokens there.
+> **Want to look first?** The [demo house](https://hanova.app/demo/) is a pretend Home Assistant with no real devices. Look around before you connect your own. `ha-nova try` connects your AI app to it (the setup page offers it when it finds no Home Assistant), and `ha-nova try --stop` removes it. To talk to it in Claude with nothing to install, choose "Add to Claude" on the [demo page](https://hanova.app/demo/#claude). Everyone shares one login, and it resets every hour. So never enter real names, passwords, or tokens there. What the demo keeps: [privacy page](https://hanova.app/privacy.html).
 
 ### Use HA NOVA in Claude and ChatGPT
 
@@ -160,7 +160,7 @@ Ask about your home and change it from Claude (web, desktop, and phone apps) or 
 
 **How easy is it?**
 
-1. **Turn on remote access in Home Assistant Link.** Your Home Assistant may still call it Home Assistant Cloud. Your own HTTPS address works too.
+1. **Turn on remote access in Home Assistant Link.** Your Home Assistant may still show its old name ([see below](#optional-remote-access-with-home-assistant-link-beta)). Your own HTTPS address works too.
 2. **Flip the switch.** In setup, choose **Turn on…** in "You stay in control". On a re-run, turn on its switch, then click Done. Or open the NOVA page in the Home Assistant sidebar, then Chat apps. Home Assistant restarts once.
 3. **Click "Add to Claude",** or paste the address setup shows into ChatGPT. Then sign in to Home Assistant as the owner.
 
@@ -187,14 +187,14 @@ Step by step, ChatGPT plans, and what to do if it doesn't connect: [Use HA NOVA 
 
 Setup keeps **Local only** as the default we recommend. On the setup page, Link is one switch in "You stay in control". It shows while Link's remote access answers.
 
-Do you have a paid Home Assistant Link plan (formerly Home Assistant Cloud) from Nabu Casa, with remote access on? Then choose **Local + Home Assistant Link** for automatic remote fallback, or **Home Assistant Link only** to go remote first. In Home Assistant, the service is under **Settings > Home Assistant Cloud** until the new name reaches your Home Assistant. Setup checks your Link address, opens the Home Assistant OAuth sign-in, and saves it in the macOS, Windows, or Linux desktop credential store. HA NOVA runs no additional public tunnel or hosted broker.
+Do you have a paid Home Assistant Link plan (formerly Home Assistant Cloud; Nabu Casa), with remote access on? Then choose **Local + Home Assistant Link** for automatic remote fallback, or **Home Assistant Link only** to go remote first. Your Home Assistant may still show the old name in Settings until the new name reaches it. Setup checks your Link address, opens the Home Assistant OAuth sign-in, and saves it in the macOS, Windows, or Linux desktop credential store. HA NOVA runs no additional public tunnel or hosted broker.
 
-Remote access through Link needs Home Assistant OS or Supervised, and a supported desktop to sign in. Did a setup that was already checked get cut off? You can finish over SSH with `ha-nova cloud add --remote-resume`. Headless, WSL, service, gateway, Container, and Core setups stay local only. Sign in to Link as the Home Assistant owner, and this computer connects with no code (this needs an up-to-date NOVA Relay App). You can also sign in as a standard Home Assistant user. Remote-first pairing then uses a separate, private Owner session to create the one-time NOVA device code.
+Remote access through Link needs Home Assistant OS or Supervised, and a supported desktop to sign in. Did a setup that was already checked get cut off? You can finish over SSH with `ha-nova cloud add --remote-resume`. Headless, WSL, service, gateway, Container, and Core setups stay local only. Sign in to Link as the Home Assistant owner, and this computer connects with no code (this needs an up-to-date NOVA Relay App). You can also sign in as a standard Home Assistant user. Then the owner signs in once more on their own (setup calls it the "Owner session") and makes the one-time NOVA code there.
 
 Already installed locally? Run `ha-nova cloud add`, or run `ha-nova setup` again for the same choice.
 
 <p align="center">
-  <img src="assets/cloud-fallback.png" alt="Local first, Cloud fallback: at home your machine reaches Home Assistant over the direct local connection; away, the same session falls back through your Home Assistant Link remote access.">
+  <img src="assets/cloud-fallback.png" alt="Local first, Home Assistant Link fallback: at home your machine reaches Home Assistant over the direct local connection; away, the same session falls back through your Home Assistant Link remote access.">
 </p>
 
 *Local stays first: the CLI uses the direct connection and falls back to your Home Assistant Link remote access only when it has to. No switching addresses by hand.*
@@ -203,7 +203,7 @@ Once setup is done, try: *"Show me all my automations."*
 
 > **More than one Home Assistant?** Add each one with `ha-nova pair --server <name> --relay-url http://<ha-host>:8791`. Each server gets its own profile and its own login. To pick one, add `--server <name>` to a command. This works in every shell, PowerShell too. Manage them with `ha-nova server list|default|rename|remove`. (The `HA_NOVA_SERVER` environment variable still works too.)
 
-> **Upgrading from an earlier HA NOVA?** Everything keeps working through the update. Still on the old shared access? Pair each computer again once with `ha-nova pair`, then choose "Revoke legacy access" on the NOVA page. On Windows with 0.24.x or 0.25.x, update once with the Windows install command above: `ha-nova update` there asks for admin rights or fails.
+> **Upgrading from an earlier HA NOVA?** Everything keeps working through the update. Still on the old shared access? This is the last release that accepts it. Run `ha-nova setup` once on each computer to switch (a `--service` install: `ha-nova pair --credential-store=file`). When every computer has switched, choose "Revoke legacy access" on the NOVA page. On Windows, some older versions of `ha-nova update` ask for admin rights or fail. Then update once with the Windows install command above.
 
 <details>
 <summary><strong>Platform notes</strong></summary>
@@ -232,7 +232,7 @@ Once setup is done, try: *"Show me all my automations."*
 
 | Command | What it does |
 |:--------|:-------------|
-| `ha-nova check-update` | Check for a newer version |
+| `ha-nova check-update` | Check for a newer version. It also says when the NOVA App in Home Assistant needs an update |
 | `ha-nova update` | Update to the latest release |
 | `ha-nova setup` | Opens the setup page: what is set up, and your switches. `--no-browser` keeps it in the terminal |
 | `ha-nova try` | Connect your AI app to the shared demo house; `--stop` removes it |
@@ -262,7 +262,7 @@ Once setup is done, try: *"Show me all my automations."*
 
 **Skills** live on your computer as plain Markdown files. They are the AI's playbook: what to check, what to show you first, and what to check after a change. You can open them, read them, and even edit them.
 
-**The Relay** lives on your Home Assistant server. On the local path, it is the only part that talks to Home Assistant directly, and its Home Assistant login stays inside it. Optional Cloud mode lets the CLI connect through Nabu Casa, with an OAuth sign-in kept in your desktop's secure storage. Neither login ever goes into a prompt. Each paired device still reaches the Relay with its own encrypted login. The NOVA page is where you connect or remove devices.
+**The Relay** lives on your Home Assistant server. On the local path, it is the only part that talks to Home Assistant directly, and its Home Assistant login stays inside it. Optional Link mode lets the CLI connect through Home Assistant Link, with an OAuth sign-in kept in your desktop's secure storage. Neither login ever goes into a prompt. Each paired device still reaches the Relay with its own encrypted login. The NOVA page is where you connect or remove devices.
 
 Most new HA NOVA features are skill updates: text files on your computer. The Relay only changes when a feature needs something really new from Home Assistant. Even then, it stays a simple pipe. All the know-how stays in the skills.
 
