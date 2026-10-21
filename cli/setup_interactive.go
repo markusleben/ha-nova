@@ -93,7 +93,7 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 		// the message — the already-done banner would bury a cancelled or
 		// partial add under "Everything is already set up!".
 		if !addAttempted {
-			renderSetupAlreadyDoneBanner(out, cfg.RelaySecureBaseURL == "" && cfg.RelayBaseURL != "")
+			renderSetupAlreadyDoneBanner(out, !serviceMode && legacyAccessSwitchable(cfg, probePairingV1ForSetup))
 		}
 		return true, 0
 	}

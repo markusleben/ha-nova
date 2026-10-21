@@ -24,13 +24,7 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 		return setupGoOn, false
 	}
 	f.pageRerunning = true
-	// None of them here (none set up yet, or all removed): every one found,
-	// as on a first run.
-	before := slices.DeleteFunc(slices.Clone(f.selectedClients), func(c string) bool { return !slices.Contains(f.state.InstalledClients, c) })
-	if len(before) > 0 {
-		f.pageNewClients = slices.DeleteFunc(slices.Clone(f.selectedClients), func(c string) bool { return slices.Contains(before, c) })
-		f.selectedClients = before
-	}
+	before := f.keepClientsSetUpBefore()
 	for {
 		notReady := f.pageClientsNotReady()
 		f.current.SkillsOK = len(notReady) == 0
@@ -92,6 +86,18 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 		f.pageRepairing("connect", "teach")
 		return setupGoTo(next), true
 	}
+}
+
+// keepClientsSetUpBefore: a re-run works on the AI assistants set up before;
+// one found since waits for its click (pageNewClients). None of them here
+// (none set up yet, or all removed): every one found, as on a first run.
+func (f *setupFlow) keepClientsSetUpBefore() (before []string) {
+	before = slices.DeleteFunc(slices.Clone(f.selectedClients), func(c string) bool { return !slices.Contains(f.state.InstalledClients, c) })
+	if len(before) > 0 {
+		f.pageNewClients = slices.DeleteFunc(slices.Clone(f.selectedClients), func(c string) bool { return slices.Contains(before, c) })
+		f.selectedClients = before
+	}
+	return before
 }
 
 // pageRepairing shows the re-run's progress rows while the usual steps run
@@ -276,7 +282,7 @@ func (f *setupFlow) pageFinish() setupStepResult {
 	if f.noClient && kind == setupOutcomeComplete { // Claude or ChatGPT in the browser: as the terminal's no-app finish
 		f.page.text.show(setupView{Blocks: []setupBlock{setupSuccess(setupText("setup.done.connected_no_client"))}})
 	} else {
-		f.page.text.outcome(setupOutcome{Kind: kind, Clients: f.selectedClients, LegacyToken: f.pageRerunOK && f.cfg.RelaySecureBaseURL == "" && f.cfg.RelayBaseURL != ""})
+		f.page.text.outcome(setupOutcome{Kind: kind, Clients: f.selectedClients, LegacyToken: f.pageRerunOK && legacyAccessSwitchable(f.cfg, probePairingV1ForSetup)})
 	}
 	if f.pageRerunOK { // the banner cleared the page's address
 		fmt.Fprintf(f.page.text.out, "  %s\n", setupT("setup.page.terminal.rerun"))

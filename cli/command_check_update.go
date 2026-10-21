@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"io"
@@ -88,15 +89,22 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 	// headers prove only the compatibility floor and cannot expose a compatible
 	// above-floor App update. Stderr-only, exit code unchanged; --json returned
 	// above and stays machine-clean.
+	// The quiet path's one deadline covers the legacy-access notice too.
 	var relayNotice humanNotice
+	var noticeCtx context.Context
+	var cancelNotices context.CancelFunc
 	if *quiet {
-		relayNotice = relayUpdateNoticeWithTimeout(paths, firstUseRelayNoticeTimeout)
+		noticeCtx, cancelNotices = context.WithTimeout(context.Background(), firstUseRelayNoticeTimeout)
+		relayNotice = relayUpdateNoticeWithContext(noticeCtx, paths)
 	} else {
 		relayNotice = relayUpdateNotice(paths)
+		noticeCtx, cancelNotices = context.WithTimeout(context.Background(), legacyNoticeProbeTimeout)
 	}
+	defer cancelNotices()
 	notice = withAppUpdateToo(notice, relayNotice)
 	printHumanNotice(notice)
 	printHumanNotice(relayNotice)
+	printLegacyAccessNotice(noticeCtx, paths, *quiet)
 	if *quiet {
 		deadline := time.Now()
 		if migrationContended {

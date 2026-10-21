@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"flag"
 	"fmt"
@@ -112,7 +113,9 @@ func runUpdate(paths runtimePaths, args []string) int {
 			return 1
 		}
 		if cmp >= 0 && !isStableTargetFromRC(currentVersion, targetVersion) {
-			return syncInstalledClientsForCurrentVersion(paths, currentVersion, targetVersion, cmp, updateLifecycleMarker)
+			code := syncInstalledClientsForCurrentVersion(paths, currentVersion, targetVersion, cmp, updateLifecycleMarker)
+			noteLegacyAccess(paths)
+			return code
 		}
 	}
 
@@ -121,6 +124,9 @@ func runUpdate(paths runtimePaths, args []string) int {
 			printHumanInfo("%s", line)
 		}
 	}
+	// Before the new version goes in: this binary may be the last release that
+	// accepts the shared access, and the one it installs may not.
+	noteLegacyAccess(paths)
 	stageRoot, err := stageBundle(paths, targetVersion)
 	if err != nil {
 		printHumanErr("The update could not be downloaded or checked. Nothing was changed. Try again later; if it keeps failing, run: ha-nova doctor")
@@ -187,6 +193,14 @@ func runUpdate(paths runtimePaths, args []string) int {
 	offerRelayUpdateAfterUpdate(paths)
 	printPostUpdateSessionInstruction(syncResult)
 	return 0
+}
+
+// noteLegacyAccess: `ha-nova update` names the shared-access switch when it
+// applies: before it installs a newer version, or when already current.
+func noteLegacyAccess(paths runtimePaths) {
+	ctx, cancel := context.WithTimeout(context.Background(), legacyNoticeProbeTimeout)
+	defer cancel()
+	printLegacyAccessNotice(ctx, paths, false)
 }
 
 func runInternalReplace(paths runtimePaths, args []string) int {

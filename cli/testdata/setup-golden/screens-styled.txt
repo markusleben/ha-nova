@@ -136,9 +136,9 @@
 
   <ESC>[32m✓<ESC>[0m Everything is already set up!
 
-  This device still connects with the shared legacy token.
-  Switch to its own revocable credential: run 'ha-nova pair' and
-  enter a fresh code from the NOVA page ("Connect a device").
+  This computer still uses the old shared access.
+  The next HA NOVA release won't accept it.
+  Run ha-nova setup again any time to switch. It takes a minute.
 
   Run 'ha-nova doctor' for full diagnostics.
 

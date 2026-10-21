@@ -133,7 +133,8 @@ func markInstallLifecycleStopped(paths runtimePaths) error {
 	// legacy path; give them the same barrier. Best effort. Keep this mirror
 	// until the release after next (v0.25.1 processes can still be running
 	// during an upgrade-then-uninstall); then stop writing it and keep only
-	// the read/cleanup paths.
+	// the read/cleanup paths. uninstallMarkerStale relies on this mirror too:
+	// retiring it needs a content-based staleness check there first.
 	_ = writeJSONFile(legacyUninstallMarkerPath(paths), value, 0o600)
 	return nil
 }
@@ -160,6 +161,60 @@ func clearUninstallMarkerAfterSetup(paths runtimePaths, captured []byte) (bool, 
 		return false, err
 	}
 	return true, nil
+}
+
+// clearStaleUninstallMarker drops an uninstall marker that a later completed
+// setup already superseded. A release older than this marker (0.25.1 knows
+// only the Census-era one) can be reinstalled and set up after an uninstall:
+// its setup clears its own marker and rotates the shared generation, but
+// leaves this one, which then blocks a working, paired install.
+//
+// Stale means: the Census-era marker is gone, a config exists, and both the
+// generation and the install state were written after the marker. Uninstall
+// rotates the generation before it writes the marker, under the same lock
+// taken here, so a live marker is never older than the generation; and only
+// a setup that started after the uninstall can rotate it again (a process
+// from before holds the old generation and fails closed). Equal or unknown
+// times keep the marker.
+func clearStaleUninstallMarker(paths runtimePaths) {
+	if !uninstallMarkerStale(paths) { // the usual case: no lock taken
+		return
+	}
+	release, acquired := acquireAutoRepairLock(paths)
+	if !acquired {
+		return
+	}
+	defer release()
+	if uninstallMarkerStale(paths) {
+		_ = os.Remove(uninstallMarkerPath(paths))
+	}
+}
+
+func uninstallMarkerStale(paths runtimePaths) bool {
+	path := uninstallMarkerPath(paths)
+	if path == "" {
+		return false
+	}
+	marker, err := os.Lstat(path)
+	if err != nil || !marker.Mode().IsRegular() {
+		return false
+	}
+	if _, err := os.Lstat(legacyUninstallMarkerPath(paths)); !errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+	if paths.ConfigFile == "" || paths.StateFile == "" {
+		return false
+	}
+	if _, err := os.Stat(paths.ConfigFile); err != nil {
+		return false
+	}
+	for _, newer := range []string{installLifecycleGenerationPath(paths), paths.StateFile} {
+		info, err := os.Stat(newer)
+		if err != nil || !info.ModTime().After(marker.ModTime()) {
+			return false
+		}
+	}
+	return true
 }
 
 // removeLegacyCensusState deletes local state left by releases that shipped

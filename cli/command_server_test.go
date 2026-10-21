@@ -196,14 +196,14 @@ func TestSetupAlreadyDoneBannerOffersPairingSwitchForLegacyInstalls(t *testing.T
 	// sends legacy users to setup, so setup must name the switch (issue #419).
 	var out strings.Builder
 	renderSetupAlreadyDoneBanner(&out, true)
-	for _, want := range []string{"shared legacy token", "ha-nova pair", "Connect a device"} {
+	for _, want := range []string{"old shared access", "next HA NOVA release won't accept it", "ha-nova setup again"} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("legacy banner must contain %q, got:\n%s", want, out.String())
 		}
 	}
 	out.Reset()
 	renderSetupAlreadyDoneBanner(&out, false)
-	if strings.Contains(out.String(), "legacy token") {
+	if strings.Contains(out.String(), "shared access") {
 		t.Fatalf("paired installs must not see the legacy hint:\n%s", out.String())
 	}
 }

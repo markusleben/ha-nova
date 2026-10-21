@@ -179,6 +179,9 @@ func TestSetupGoldenAlreadyInstalled(t *testing.T) {
 	}
 	writeInstalledClaudePluginFixture(t, home)
 	writeClaudeMarketplaceRegistrationFixture(t, home, filepath.Join(paths.ConfigDir, "claude-marketplace"))
+	previousProbe := probePairingV1ForSetup // its App can pair: the switch is named, nobody to ask here
+	probePairingV1ForSetup = func(string) bool { return true }
+	t.Cleanup(func() { probePairingV1ForSetup = previousProbe })
 	code := -1
 	stdout, stderr := captureInteractiveSetupIO(t, "\n", func() int {
 		code = interactiveSetup(paths, cfg, state, "claude", "", "", "", "", false)

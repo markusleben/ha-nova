@@ -81,7 +81,7 @@ func (f *setupFlow) stepSecureStorageRecovery() setupStepResult {
 				return f.fail(setupText("setup.error.save_config", "error", err))
 			}
 		}
-		f.ui.outcome(setupOutcome{Kind: setupOutcomeAlreadyDone, LegacyToken: f.cfg.RelaySecureBaseURL == "" && f.cfg.RelayBaseURL != ""})
+		f.ui.outcome(setupOutcome{Kind: setupOutcomeAlreadyDone, LegacyToken: legacyAccessSwitchable(f.cfg, probePairingV1ForSetup)})
 		return setupDone(0)
 	}
 	f.verifyFirstReuseFlow = false
