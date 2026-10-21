@@ -370,6 +370,7 @@ Known limits:
   - undo checkpoints saved on the demo are tagged `demo`, and the demo never reverts to an untagged one.
 - On the demo, typed verbs carry a `demo` notice and no Relay update notices; an unreachable or resetting demo is one plain line. With only the demo connected, an unselected verb says how to select it. One session-bootstrap line names `--server demo`, and the Claude Code session hook says when the demo is connected.
 - Step 4 reads "A shared demo house. It resets every hour; never type real names or passwords."
+- Both `try`'s terminal text and the page's demo screen link the demo's own Home Assistant (`/demo-house/house`, log in demo / demo) to watch the house change next to the chat.
 - The demo profile gets no phone link and no Claude rule offer.
 - Not done: the `setup --demo` alias (one command is enough) and step 1's link (page work, A6).
 
