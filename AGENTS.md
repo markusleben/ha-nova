@@ -19,7 +19,7 @@ Instructions for coding agents in this repo. "Hard rules" protect real homes, cr
 - Terminology: "App", not "Add-on" (legacy API paths like `/addons/*` exempt). Pairing copy says what happens (one-time six-digit code, per-device, revocable), not what is absent; technical token docs exempt.
 - Terminology: "Home Assistant Link" (formerly Home Assistant Cloud; Nabu Casa) in user copy; technical ids (`cloud` command, domain, config keys) stay.
 - Skill sources (`skills/**/*.md`, agent templates, reference docs) are English only; proper nouns and real entity IDs (`light.wohnzimmer`) are exempt. Why: output is localized at runtime per `skills/ha-nova/`; `tests/skills/skill-source-language-contract.test.ts` enforces it.
-- Public texts (commits, PRs, issues, docs, test names) name no other project and carry no comparison. Comparisons stay internal in `docs/internal/` (gitignored). Why: the repo is public, and comparisons go stale.
+- Public texts (commits, PRs, issues, docs, test names) name no other project and carry no comparison; required license and credit lines are exempt. Comparisons stay internal in `docs/internal/` (gitignored). Why: the repo is public, and comparisons go stale.
 - Active docs and their roles: `docs/reference/documentation-governance.md`. `docs/archive/` is history; add no new active docs there.
 - Fewer rules and fewer files: add process docs or scripts only for a recurring real problem.
 - Code: new files under ~400 LOC, and don't grow a file already over it unless splitting it is the topic; the simplest thing that works; new functionality small or clearly necessary. New dependency → check its health first (recent releases/commits, adoption).
