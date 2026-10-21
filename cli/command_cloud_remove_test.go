@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -369,11 +370,13 @@ func TestCloudRemoveSaysWhetherSharedAccessStillWorks(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { _ = deleteDeviceCredential() })
+			// The file-backed test keyring: no Secret Service on Linux CI.
+			t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+			t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(t.TempDir(), "relay-token"))
 			if sharedToken {
 				if err := writeRelayAuthToken("shared-token"); err != nil {
 					t.Fatal(err)
 				}
-				t.Cleanup(func() { _ = deleteRelayAuthToken() })
 			}
 			installRemoteDeviceRevokeHook(t, func(context.Context, runtimeConfig, OAuthSecretStore, string) error { return nil })
 			installCloudRemoveStore(t, store, func(context.Context, OAuthSecretEnvelope) error { return nil })
