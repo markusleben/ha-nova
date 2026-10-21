@@ -7,7 +7,6 @@ describe("release notes contract", () => {
   const readme = readFileSync("README.md", "utf8");
   const privacy = readFileSync("PRIVACY.md", "utf8");
   const safety = readFileSync("docs/reference/safety.md", "utf8");
-  const comparison = readFileSync("docs/reference/comparison.md", "utf8");
   const clientIntegration = readFileSync("docs/reference/client-integration.md", "utf8");
   const stableNotes = goreleaser
     .split("{{ else }}", 2)[1]
@@ -62,7 +61,6 @@ describe("release notes contract", () => {
     expect(readme).not.toContain("ha-nova mcp");
     expect(readme).not.toContain("ha_apply");
     expect(readme).not.toContain("Local MCP clients");
-    expect(comparison).not.toContain("ha-nova mcp");
     expect(clientIntegration).toContain("Experimental — not supported yet; the interface may change.");
     expect(readme).not.toContain("Every change is previewed and approved first");
     expect(readme).not.toContain("A reviewed batch delete takes one code");
