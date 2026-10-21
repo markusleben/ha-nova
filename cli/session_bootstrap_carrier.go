@@ -102,7 +102,8 @@ func runMigratedFirstUseCheck(paths runtimePaths, budget time.Duration) {
 		relayResult <- relayUpdateNoticeWithTimeout(paths, budget)
 	}()
 	relayNotice := <-relayResult
-	printHumanNotice(withAppUpdateToo(humanNoticeFromUpdateCheckResult(<-updateResult, true), relayNotice))
+	notice, relayNotice := withAppUpdateToo(humanNoticeFromUpdateCheckResult(<-updateResult, true), relayNotice)
+	printHumanNotice(notice)
 	printHumanNotice(relayNotice)
 }
 

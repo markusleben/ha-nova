@@ -18,14 +18,22 @@ var quietUpdateCheckTimeout = 3 * time.Second
 // one offer covers both (the App keeps its own preview and confirmation).
 const appUpdateTooLine = "The NOVA App in Home Assistant needs an update too."
 
-// withAppUpdateToo puts appUpdateTooLine into the HA NOVA notice, above its
-// update step, when Home Assistant reports a pending NOVA App update too (a
-// standalone Relay or an App with nothing pending gets no such promise).
-func withAppUpdateToo(notice, relayNotice humanNotice) humanNotice {
-	if notice.kind == humanNoticeKindUpdateAvailable && relayNotice.appUpdate {
-		notice.message = strings.Replace(notice.message, "\nTo update", "\n"+appUpdateTooLine+"\nTo update", 1)
+// withAppUpdateToo makes the HA NOVA update offer and the NOVA App notice
+// one notice, so a run says one thing. A pending App update in Home
+// Assistant becomes appUpdateTooLine above the update step (`ha-nova update`
+// then offers the App update); an App with nothing pending (or a standalone
+// Relay) gets no such promise, so its own notice closes the offer. The
+// second result is what is left to print on its own.
+func withAppUpdateToo(notice, relayNotice humanNotice) (humanNotice, humanNotice) {
+	if notice.kind != humanNoticeKindUpdateAvailable || relayNotice.empty() {
+		return notice, relayNotice
 	}
-	return notice
+	if relayNotice.appUpdate {
+		notice.message = strings.Replace(notice.message, "\nTo update", "\n"+appUpdateTooLine+"\nTo update", 1)
+	} else {
+		notice.message += "\n" + relayNotice.message
+	}
+	return notice, humanNotice{}
 }
 
 func runCheckUpdate(paths runtimePaths, args []string) int {
@@ -101,7 +109,7 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 		noticeCtx, cancelNotices = context.WithTimeout(context.Background(), legacyNoticeProbeTimeout)
 	}
 	defer cancelNotices()
-	notice = withAppUpdateToo(notice, relayNotice)
+	notice, relayNotice = withAppUpdateToo(notice, relayNotice)
 	printHumanNotice(notice)
 	printHumanNotice(relayNotice)
 	printLegacyAccessNotice(noticeCtx, paths, *quiet)

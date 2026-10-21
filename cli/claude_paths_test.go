@@ -197,3 +197,44 @@ func jsonQuote(s string) string {
 	}
 	return string(quoted)
 }
+
+// A CLAUDE_CONFIG_DIR sync names the default ~/.claude only when it exists
+// and has no HA NOVA, as a plain line (rc5 recheck R4).
+func TestClaudeProfileRedirectNamesOnlyADefaultClaudeWithoutHANova(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(t.TempDir(), "claude-profile"))
+	const line = "Your other Claude Code setup in ~/.claude doesn't have HA NOVA yet."
+	plugins := func(home, state string) {
+		dir := filepath.Join(home, ".claude", "plugins")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if state != "" {
+			if err := os.WriteFile(filepath.Join(dir, "installed_plugins.json"), []byte(state), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	cases := []struct {
+		name  string
+		setup func(home string)
+		want  bool
+	}{
+		{"no default Claude", func(string) {}, false},
+		{"default Claude without plugins", func(home string) { plugins(home, "") }, true},
+		{"default Claude with other plugins", func(home string) { plugins(home, `{"plugins":{"other@x":[{"installPath":"/x"}]},"version":2}`) }, true},
+		{"default Claude with HA NOVA", func(home string) {
+			plugins(home, `{"plugins":{"ha-nova@ha-nova":[{"installPath":"/x","version":"0.27.0"}]},"version":2}`)
+		}, false},
+		{"unreadable plugin list", func(home string) { plugins(home, "{") }, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			home := t.TempDir()
+			tc.setup(home)
+			out := captureStderr(t, func() { warnClaudeProfileRedirect(home) })
+			if strings.Contains(out, line) != tc.want || strings.Contains(out, "WARNING") {
+				t.Fatalf("want line %v, got %q", tc.want, out)
+			}
+		})
+	}
+}

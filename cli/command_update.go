@@ -314,16 +314,15 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 		}
 		return 1
 	}
+	// Nothing new went in, so no "start a new chat" step follows.
+	printUpdateDone("You already have HA NOVA "+currentVersion, syncResult)
 	if cmp > 0 {
-		printUpdateDone(fmt.Sprintf("HA NOVA %s is up to date (newer than %s)", currentVersion, targetVersion), syncResult)
-	} else {
-		printUpdateDone(fmt.Sprintf("HA NOVA %s is up to date", currentVersion), syncResult)
+		printHumanInfo("It is newer than %s.", targetVersion)
 	}
-	// "Up to date" is misleading while the relay is below the required floor
+	// "Already have" is misleading while the relay is below the required floor
 	// or Home Assistant exposes a newer App update — say so where the user is
 	// looking.
 	offerRelayUpdateAfterUpdate(paths)
-	printPostUpdateSessionInstruction(syncResult)
 	return 0
 }
 

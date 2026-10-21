@@ -91,7 +91,7 @@ func TestRelayAvailableUpdateNoticeRequiresExactPendingEvidence(t *testing.T) {
 				if notice.kind != humanNoticeKindRelayUpdateAvailable {
 					t.Fatalf("notice kind = %q, want %q", notice.kind, humanNoticeKindRelayUpdateAvailable)
 				}
-				if !strings.Contains(notice.message, "v0.4.1 → v0.6.0") {
+				if !strings.Contains(notice.message, ": 0.4.1 → 0.6.0.") {
 					t.Fatalf("notice does not name installed and latest versions: %q", notice.message)
 				}
 			} else if !notice.empty() {
@@ -325,7 +325,7 @@ func TestRunDoctorReportsAboveFloorRelayUpdateWithoutFailing(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("compatible pending Relay update must not fail doctor: exit %d\n%s", exitCode, output)
 	}
-	if !strings.Contains(output, "The NOVA App in Home Assistant has an update: v0.4.1 → v0.6.0") {
+	if !strings.Contains(output, "The NOVA App in Home Assistant has an update: 0.4.1 → 0.6.0") || strings.Contains(output, "WARNING: The NOVA App") {
 		t.Fatalf("doctor did not surface the pending Relay update:\n%s", output)
 	}
 	if !strings.Contains(output, "Doctor checks passed") {
@@ -375,15 +375,55 @@ func TestRunCheckUpdateQuietReportsHANOVAAndAboveFloorRelayUpdates(t *testing.T)
 		t.Fatalf("compatible pending Relay update must not fail check-update: exit %d\n%s", exitCode, output)
 	}
 	skillNotice := "HA NOVA 0.21.0 is ready (you have 0.20.0)."
-	relayNotice := "The NOVA App in Home Assistant has an update: v0.4.1 → v0.6.0"
-	if !strings.Contains(output, skillNotice) || !strings.Contains(output, relayNotice) {
-		t.Fatalf("quiet check-update did not surface both updates:\n%s", output)
-	}
-	if strings.Index(output, skillNotice) > strings.Index(output, relayNotice) {
-		t.Fatalf("HA NOVA update must precede the Relay update:\n%s", output)
-	}
-	// One notice names both updates, so the chat offer can too.
-	if !strings.Contains(output, appUpdateTooLine+"\nTo update, run: ha-nova update") || strings.Index(output, appUpdateTooLine) > strings.Index(output, relayNotice) {
+	// One notice names both updates, so the chat offer can too; the App's
+	// own notice is not printed a second time (`ha-nova update` offers it).
+	if !strings.Contains(output, skillNotice) || !strings.Contains(output, appUpdateTooLine+"\nTo update, run: ha-nova update") {
 		t.Fatalf("the HA NOVA notice must name the App update too:\n%s", output)
+	}
+	if strings.Contains(output, "has an update: 0.4.1 → 0.6.0") || strings.Contains(output, "WARNING") {
+		t.Fatalf("one plain notice per run:\n%s", output)
+	}
+}
+
+// doctor says the App notice in check-update's words: no WARNING label, and
+// "No Update button yet?" when Home Assistant knows the App but offers no
+// update yet (rc5 recheck R2).
+func TestRunDoctorBelowFloorUsesCheckUpdateWords(t *testing.T) {
+	paths, cfg := doctorTestSetup(t)
+	currentApp := pendingRelayUpdateEntity("update.nova_relay_update", "0.3.0", "0.3.0")
+	currentApp["state"] = "off"
+	health := `{"ok":true,"data":{"status":"ok","ha_ws_connected":true,"version":"0.3.0"}}`
+	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			fmt.Fprint(w, health)
+		case "/core":
+			w.Write(statesEnvelope(t, []map[string]interface{}{currentApp}))
+		case "/ws":
+			w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry("update.nova_relay_update")}))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer relay.Close()
+	cfg.RelayBaseURL = relay.URL
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.18.0","min_relay_version":"0.4.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+	originalHealth := fetchRelayHealthForReadiness
+	defer func() { fetchRelayHealthForReadiness = originalHealth }()
+	fetchRelayHealthForReadiness = func(string, string) ([]byte, error) { return []byte(health), nil }
+
+	exitCode, output := captureCommandOutput(t, func() int { return runDoctor(paths, []string{"--quiet"}) })
+	want := "[ha-nova] The NOVA App in Home Assistant needs an update: it has 0.3.0, HA NOVA needs 0.4.0 or newer. " +
+		relayAppUpdatePath + " No Update button yet? In Settings > Apps, check for updates first."
+	if exitCode != 1 || !strings.Contains(output, want) {
+		t.Fatalf("exit %d, want 1 and %q:\n%s", exitCode, want, output)
 	}
 }

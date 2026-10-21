@@ -109,20 +109,27 @@ func TestQuietCheckUpdateIsBoundedOnASlowNetwork(t *testing.T) {
 }
 
 // "…needs an update too" only when Home Assistant reports a pending App
-// update: a standalone Relay or an App with nothing pending gets no promise.
+// update: a standalone Relay or an App with nothing pending gets no promise,
+// and its own notice closes the offer instead. One notice either way.
 func TestAppUpdateTooLineNeedsAPendingAppUpdate(t *testing.T) {
 	cli := humanNotice{level: humanNoticeNote, kind: humanNoticeKindUpdateAvailable, message: "HA NOVA 0.2.0 is ready (you have 0.1.0).\nTo update, run: ha-nova update"}
-	pending := humanNotice{level: humanNoticeWarning, kind: humanNoticeKindRelayUpdateAvailable, message: "x", appUpdate: true}
-	if got := withAppUpdateToo(cli, pending).message; got != "HA NOVA 0.2.0 is ready (you have 0.1.0).\n"+appUpdateTooLine+"\nTo update, run: ha-nova update" {
-		t.Fatalf("pending App update: %q", got)
+	pending := humanNotice{level: humanNoticeNote, kind: humanNoticeKindRelayUpdateAvailable, message: "x", appUpdate: true}
+	if got, rest := withAppUpdateToo(cli, pending); got.message != "HA NOVA 0.2.0 is ready (you have 0.1.0).\n"+appUpdateTooLine+"\nTo update, run: ha-nova update" || !rest.empty() {
+		t.Fatalf("pending App update: %q, rest %q", got.message, rest.message)
 	}
 	for _, other := range []humanNotice{
-		{level: humanNoticeWarning, kind: humanNoticeKindRelayOutdated, message: "pull and recreate a standalone Relay container"},
-		{level: humanNoticeWarning, kind: humanNoticeKindRelayOutdated, message: "exposes no pending App update"},
-		{},
+		{level: humanNoticeNote, kind: humanNoticeKindRelayOutdated, message: "pull and recreate a standalone Relay container"},
+		{level: humanNoticeNote, kind: humanNoticeKindRelayOutdated, message: "exposes no pending App update"},
 	} {
-		if got := withAppUpdateToo(cli, other).message; got != cli.message {
-			t.Fatalf("no pending App update (%q): %q", other.message, got)
+		if got, rest := withAppUpdateToo(cli, other); got.message != cli.message+"\n"+other.message || !rest.empty() {
+			t.Fatalf("no pending App update (%q): %q, rest %q", other.message, got.message, rest.message)
 		}
+	}
+	if got, rest := withAppUpdateToo(cli, humanNotice{}); got.message != cli.message || !rest.empty() {
+		t.Fatalf("no App notice: %q", got.message)
+	}
+	upToDate := humanNotice{level: humanNoticeInfo, kind: humanNoticeKindUpToDate, message: "HA NOVA is up to date (0.1.0)."}
+	if got, rest := withAppUpdateToo(upToDate, pending); got.message != upToDate.message || rest.message != "x" {
+		t.Fatalf("no offer: the App notice stays its own: %q, rest %q", got.message, rest.message)
 	}
 }

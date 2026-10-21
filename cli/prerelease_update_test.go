@@ -255,11 +255,9 @@ func TestRunUpdateTreatsSameRCTargetAsUpToDate(t *testing.T) {
 		}
 	})
 
-	if !strings.Contains(stdout, "HA NOVA 0.3.2-rc1 is up to date") {
+	// Nothing changed: no "start a new chat" step (rc5 recheck R1).
+	if strings.TrimSpace(stdout) != "[ha-nova] You already have HA NOVA 0.3.2-rc1." {
 		t.Fatalf("expected same-RC no-op message, got %q", stdout)
-	}
-	if !strings.HasSuffix(strings.TrimSpace(stdout), postUpdateSessionInstruction) {
-		t.Fatalf("expected final new-session instruction after client resync, got %q", stdout)
 	}
 }
 

@@ -340,7 +340,7 @@ func TestRelayProxyWarnsOnOutdatedRelayVersionHeader(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("runRelayProxy() exit = %d, want 0", exitCode)
 	}
-	if !strings.Contains(output, "it has v0.1.0, HA NOVA needs v0.2.0 or newer") {
+	if !strings.Contains(output, "it has 0.1.0, HA NOVA needs 0.2.0 or newer") {
 		t.Fatalf("expected outdated-relay warning in output, got: %q", output)
 	}
 

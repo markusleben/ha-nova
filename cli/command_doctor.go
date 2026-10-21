@@ -262,6 +262,11 @@ func runDoctor(paths runtimePaths, args []string) int {
 	} else {
 		doctorInfo("Relay health reachable: %s/health", healthBase)
 		if notice := checkRelayVersion(paths, readiness.HealthBody); !notice.empty() {
+			// The same words as check-update: with the App's own update
+			// state ("No Update button yet?", a container's step).
+			if full := relayUpdateNotice(paths); !full.empty() {
+				notice = full
+			}
 			printHumanNotice(notice)
 			// --quiet is a machine/diagnostic contract: warning-only, never
 			// an interactive question that could block or trigger a restart.
