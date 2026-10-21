@@ -272,27 +272,6 @@ Every safety promise above is backed by a file and a test. The **[safety page](d
 
 ---
 
-## ⚖️ Why skills first, not a tool server?
-
-Fair question. We built a tool-based MCP server first: 88,000 lines, never shipped. It taught us what HA NOVA now does differently:
-
-<p align="center">
-  <img src="assets/skills-vs-tools.png" alt="Left: a tool server lists its whole catalog by default. Right: HA NOVA sends one markdown skill on demand, and the credential stays locked on the server.">
-</p>
-
-| | Tool-based MCP server | ✦ HA NOVA |
-|:--|:--|:--|
-| 📖 **Where the know-how lives** | In server code: to change how it acts, you change the server | In Markdown files you can open, read, and edit yourself |
-| 🛡️ **Safety model** | Up to you: read-only modes, switches per tool, approval rules you set up | Built in for every change: a preview first (only clear everyday actions run right away). Locks, gates, the alarm, and deletes wait for a Confirm in a window or on your phone, or a one-time code. Every change is checked afterwards, and each promise is backed by a test |
-| 🏠 **Where it runs** | The leading project's recommended setup runs inside Home Assistant's own process | A simple relay in its own process: if it crashes, Home Assistant keeps running. It holds no Home Assistant logic *(chat apps add a small forwarding integration inside Home Assistant)* |
-| 🔑 **Connecting a device** | A shared secret (URL or token), or OAuth where set up | Home Assistant sign-in or a one-time six-digit code per device. You can remove each one on the NOVA page *(App installs; the standalone container keeps a token on the server; chat apps use a Home Assistant sign-in held by your Claude or ChatGPT account, removed in your Home Assistant profile)* |
-
-> **The honest bit:** the MCP side is ahead on breadth today: more tools (App management, dashboard screenshots, ZHA inspection), more contributors, more stars. It's the older project. But one thing matters more: **our gaps close one Markdown file at a time. Turning a tool server's Python into plain text you can read would mean a rewrite.**
-
-The full comparison, with names and dates, fair both ways: **[comparison page](docs/reference/comparison.md)**.
-
----
-
 ## 🧩 Skills
 
 34 task skills plus the HA NOVA context skill. Each one is a Markdown file you can read and edit.
