@@ -10,7 +10,7 @@ that breaks quietly: a Node-RED trigger node that ignores re-triggers becomes a
 "restart" automation, a Homey dim level of 0.6 becomes 0.6 %, a regex entity
 filter becomes a fixed list, and the old rule is deleted before anyone checked
 that the new one does the same thing. Needs analysis TOP 4 (forum 1028637,
-971269 #6/#34, 924003, 1010430; ha-mcp#634).
+971269 #6/#34, 924003, 1010430; a community issue report).
 
 ha-nova has the write machinery (`plan write`/`apply`, grouped change sets,
 CLI tiers, snapshots, revert) and the Safe Migration Pattern

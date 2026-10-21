@@ -20,6 +20,8 @@ Hermes on Windows is the exception: use the Linux/WSL HA NOVA install and run He
 
 On Windows, the HA NOVA core path is verified; individual client coverage still depends on the client runtime you actually have available on that machine.
 
+**Windows, coming from 0.24.x or 0.25.x:** update once with the Windows install command from the [latest release](https://github.com/markusleben/ha-nova/releases/latest). On those versions, `ha-nova update` asks for admin rights or fails. After that, no admin prompt.
+
 **Older installations** may still use a migration shim. If `ha-nova update` is missing or fails before launch:
 1. Re-run the installer for your platform
 2. Re-run `ha-nova setup`

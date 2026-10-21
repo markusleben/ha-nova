@@ -6,7 +6,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Please provide clear reproduction steps.
+        Please run `ha-nova doctor` first and say what it shows.
+        Never paste codes, tokens, or passwords.
 
   - type: textarea
     id: summary
@@ -20,7 +21,7 @@ body:
     id: steps
     attributes:
       label: Steps to reproduce
-      description: Include exact commands and inputs.
+      description: What you did or asked, step by step. Include exact commands.
       placeholder: |
         1. Run ...
         2. Open ...
@@ -46,6 +47,9 @@ body:
     id: env
     attributes:
       label: Environment
-      description: OS, Node version, relevant package versions.
+      description: >-
+        HA NOVA version (`ha-nova version`), NOVA App version, Home Assistant
+        version, your computer's system, and your AI app (for example Claude
+        Code, or Claude or ChatGPT in the browser or phone app).
     validations:
       required: true

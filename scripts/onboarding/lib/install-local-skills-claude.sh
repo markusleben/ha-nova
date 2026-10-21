@@ -121,7 +121,7 @@ write_claude_marketplace() {
       "name": "ha-nova",
       "source": "./ha-nova",
       "version": "${plugin_version}",
-      "description": "AI-powered Home Assistant control through LLM skills and a local relay"
+      "description": "Ask about and control your Home Assistant safely, from your AI app"
     }
   ]
 }

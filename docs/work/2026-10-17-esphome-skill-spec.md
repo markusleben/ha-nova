@@ -5,7 +5,7 @@ Status: active
 ## Problem
 
 People ask an assistant to explain or fix their ESPHome device configs
-(needs analysis TOP 5; forum 840935, 1028637 #14; ha-mcp#1167, #1319). The
+(needs analysis TOP 5; forum 840935, 1028637 #14; two community issue reports). The
 files sit in `/config/esphome/` beside Home Assistant's own config. What
 breaks in practice: configs that stopped compiling after an ESPHome release
 (`api: password:` removed in 2026.1.0, `ota:` as a platform list since
