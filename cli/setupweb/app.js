@@ -26,7 +26,6 @@
   const endScreens = {
     incomplete: ['setup.page.incomplete.eyebrow', 'setup.page.incomplete.title', 'setup.page.incomplete.lead', true],
     finished: ['setup.page.finished.eyebrow', 'setup.page.finished.title', 'setup.page.done.fine'],
-    closed: ['setup.page.closed.eyebrow', 'setup.page.closed.title', 'setup.page.closed.lead'],
     skipped: ['setup.page.skipped.eyebrow', 'setup.page.skipped.title', 'setup.page.skipped.lead'],
     failed: ['setup.page.failed.eyebrow', 'setup.page.failed.title', 'setup.page.failed.lead', true],
     stopped: ['setup.page.stopped.eyebrow', 'setup.page.stopped.title', 'setup.page.stopped.lead', true],
@@ -43,7 +42,7 @@
   let editing = false;
   let sentAddress = false;
   let posting = false;
-  let checking = false; // Check again was clicked: "Checking…" until setup waits for a click again
+  let checking = ''; // the Check again clicked (recheck, chat_recheck): "Checking…" on it until setup waits for a click again
   let clicks = 0; // posts so far: a poll begun before (or during) one shows the old state
   let failures = 0;
   let timer = 0;
@@ -88,8 +87,8 @@
     if (posting) return;
     posting = true;
     clicks++;
-    if (action === 'recheck') {
-      checking = true;
+    if (action === 'recheck' || action === 'chat_recheck') {
+      checking = action;
       statusEl.textContent = t('setup.page.button.checking');
     }
     render(true);
@@ -111,7 +110,7 @@
   // Buttons carry stable ids, so focus survives a re-render.
   const button = (label, action, kind = 'primary', value, id = action) =>
     el('button', { id: `b-${id}`, class: `btn btn-${kind}`, type: 'button', onclick: () => post(action, value), ...(accepts(action) ? {} : { disabled: '' }) },
-      action === 'recheck' && checking && !accepts(action) ? t('setup.page.button.checking') : label);
+      checking === action && !accepts(action) ? t('setup.page.button.checking') : label);
   const link = (label, href, kind, id) =>
     safeURL(href) ? el('a', { id: `l-${id}`, class: `btn btn-${kind}`, href, target: '_blank', rel: 'noopener noreferrer' }, label) : null;
   // Status (style.css): ok ✓ green, run a spinner, fail ! amber, todo muted.
@@ -264,13 +263,18 @@
   const announce = (text) => { statusEl.textContent = text; };
   // What step 3 did, on step 4 and a re-run's end: green when it went
   // through, amber when it didn't or still needs you.
-  const note = (msg) => el('p', { class: /_failed$/.test(msg.key) || msg.key === 'setup.page.home.note_web_off' ? 'note' : 'note done' }, say(msg));
+  const amberNotes = ['setup.page.home.note_rule_failed', 'setup.page.home.note_link_failed', 'setup.page.home.note_chat_off_failed',
+    'setup.page.home.note_clients_failed', 'setup.page.home.note_web_off'];
+  const note = (msg) => el('p', { class: amberNotes.includes(msg.key) ? 'note' : 'note done' }, say(msg));
   const helpers = { t, el, row, head, note, button, link, format, render, post, accepts, announce, state: () => state };
   const later = window.novaSteps(helpers);
   Object.assign(screens, later, window.novaRerun({ ...helpers, control: later.control }));
   for (const [screen, [eyebrow, title, lead, amber]] of Object.entries(endScreens)) {
     screens[screen] = () => head(t(eyebrow), t(title), t(lead), amber);
   }
+  // A first run's end: what to do next; chat apps still off in the browser.
+  screens.closed = () => head(t('setup.page.closed.eyebrow'), t('setup.page.closed.title'),
+    t(((state.home || {}).notes || []).some((n) => n.key === 'setup.page.home.note_web_off') ? 'setup.page.closed.lead_web_off' : 'setup.page.closed.lead'));
 
   const renderDots = (screen) => {
     const step = steps[screen] || (screen === 'terminal' ? lastStep : 0);
@@ -358,7 +362,7 @@
     // An end screen is never stale, and setup may close right after it is read.
     if (seen !== clicks && !finalScreens.includes(fresh.screen)) return;
     state = fresh;
-    if ((state.accepts || []).length || state.screen !== lastScreen) checking = false;
+    if ((state.accepts || []).length || state.screen !== lastScreen) checking = '';
     // Setup checks a sent address, then waits for a click again: the field
     // closes (a wrong one comes back with ask_ha).
     if (state.screen !== 'found' || (sent && sentAddress && (state.accepts || []).length)) editing = sentAddress = false;

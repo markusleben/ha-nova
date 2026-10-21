@@ -161,8 +161,11 @@ func (f *setupFlow) pageControl() int {
 		if ctl.Phone == "pick" || ctl.Phone == "linked" && len(ctl.Phones) > 0 {
 			accepts = append(accepts, "phone")
 		}
-		if ctl.Phone == "unread" || ctl.Chat.needsLink() {
+		if ctl.Phone == "unread" {
 			accepts = append(accepts, "recheck")
+		}
+		if ctl.Chat.needsLink() {
+			accepts = append(accepts, "chat_recheck")
 		}
 		if ctl.Chat != nil && ctl.Chat.State == "offer" {
 			accepts = append(accepts, "chat")
@@ -182,13 +185,14 @@ func (f *setupFlow) pageControl() int {
 		}
 		switch action.Action {
 		case "recheck": // its buttons stay disabled while it reads
-			if action.Value != "chat" {
-				f.pagePhones(&ctl)
-			} else if ctl.Chat.needsLink() {
-				originRead = false // Link remote access may be on now
-				if row := readChat(); row != nil {
-					ctl.Chat = row
-				}
+			f.pagePhones(&ctl)
+		case "chat_recheck": // Link remote access may be on now
+			originRead = false
+			if row := readChat(); row != nil {
+				ctl.Chat = row
+			}
+			if ctl.Link == "" && f.pageLinkOffered() && linkOrigin() != "" {
+				ctl.Link = "offer"
 			}
 		case "server":
 			return f.pageAddServer()

@@ -9,8 +9,9 @@ window.novaSteps = (h) => {
   const say = (msg) => (msg ? t(msg.key, msg.args || {}) : '');
   // Switches and open details live here until "Continue" sends them.
   // chatFlip: a re-run's chat-app switch turned the other way (Done applies
-  // it); moving: "Use another phone" shows the phones to pick from.
-  const local = { rule: true, link: false, others: false, moving: false, drafts: {}, chatAsk: false, chatFlip: false, chatSeen: '', how: {} };
+  // it); chatChecked: its Check again was clicked; moving: "Use another
+  // phone" shows the phones to pick from.
+  const local = { rule: true, link: false, others: false, moving: false, drafts: {}, chatAsk: false, chatFlip: false, chatSeen: '', chatChecked: false, how: {} };
 
   const focusId = (id) => { const node = document.getElementById(id); if (node) node.focus(); };
   const toast = (text) => {
@@ -46,7 +47,7 @@ window.novaSteps = (h) => {
   const done = () => mark('ok', '✓');
   const spinner = () => mark('run');
   const muted = (glyph) => mark('todo', glyph);
-  const needs = (glyph) => mark('todo amber', glyph);
+  const needs = () => mark('todo amber', '!'); // its own glyph: not by color alone
   // A row; vid names its value line for a switch's aria-describedby.
   const line = (glyph, key, value, below, side, vid) =>
     el('li', {}, glyph, el('div', {}, el('div', { class: 'k' }, key), value ? el('div', { class: 'v', ...(vid ? { id: vid } : {}) }, value) : null, below), side || el('span'));
@@ -140,7 +141,7 @@ window.novaSteps = (h) => {
   // The row after the run ends takes the focus the run row had.
   const refocus = (node) => {
     node.setAttribute('tabindex', '-1');
-    node.dataset.focusAfter = 'chat-run b-chat-on b-chat-cancel';
+    node.dataset.focusAfter = 'chat-run b-chat-on b-chat-cancel b-chat-recheck';
     return node;
   };
   // Once on: Add to Claude (never a second primary next to Finish), then how.
@@ -150,6 +151,12 @@ window.novaSteps = (h) => {
     howTo('chatgpt', 'setup.chat.chatgpt_title', ['setup.chat.chatgpt_1', 'setup.chat.chatgpt_2', 'setup.chat.chatgpt_3'],
       el('div', { class: 'copybar' }, el('code', { id: 'chat-url' }, chat.url),
         el('button', { id: 'b-chat-copy', class: 'btn btn-ghost btn-small', type: 'button', onclick: () => copy(chat.url) }, t('setup.chat.copy'))))];
+  // Check again for Link remote access; after it, a line if it's still off.
+  const recheckChat = () => {
+    const node = button(t('setup.page.button.recheck'), 'chat_recheck', 'ghost btn-small', undefined, 'chat-recheck');
+    node.addEventListener('click', () => { local.chatChecked = true; });
+    return node;
+  };
   const chatRow = (c) => {
     const chat = c.chat;
     if (!chat) return null;
@@ -158,9 +165,12 @@ window.novaSteps = (h) => {
     if (seen !== local.chatSeen) {
       local.chatSeen = seen;
       local.chatFlip = false;
+      local.chatChecked = false;
       if (chat.ask) local.chatAsk = true; // Done's sign-in is through: the consent, as on step 3
       if (chat.state === 'on') h.announce(t('setup.chat.on'));
     }
+    // Optional here; what a browser user came for (state.web).
+    const want = () => (h.state().web ? needs() : muted('◎'));
     const progress = (chat.rows || []).length
       ? el('ul', { class: 'rows sub' }, chat.rows.map((r) => row(r.state, say(r.msg)))) : null;
     switch (chat.state) {
@@ -171,27 +181,29 @@ window.novaSteps = (h) => {
         return el('li', { id: 'chat-run', ...focusAfter(['b-chat-on', 'b-chat-switch']) }, spinner(),
           el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t(chat.no_restart ? 'setup.chat.wait_now' : 'setup.chat.wait')), progress), el('span'));
       case 'expired':
-        return line(muted('·'), key, t('setup.chat.value'), problem(chat.problem));
+        return line(mark('fail', '!'), key, t('setup.chat.value'), problem(chat.problem));
       case 'page_on': // a re-run: no owner sign-in yet, so Done applies the switch
       case 'page_off': {
         const was = chat.state === 'page_on';
         const on = was !== local.chatFlip; // the switch: what Done makes it; the mark: what it is now
         const sw = toggle('b-chat-switch', key, on, flip('chatFlip', was ? 'setup.chat.off_later' : 'setup.chat.on_later'), !h.accepts('finish'));
+        const now = was ? (chat.problem && !chat.url ? mark('fail', '!') : done()) : muted('◎'); // on, but nothing reaches them: a problem
         if (local.chatFlip) { // what Done does: off, or the sign-in and then the question
-          return line(was ? done() : muted('◎'), key, t(was ? 'setup.chat.off_later' : 'setup.chat.value'), was ? null : el('div', { class: 'v' }, t('setup.chat.on_later')), sw, 'b-chat-switch-v');
+          return refocus(line(now, key, t(was ? 'setup.chat.off_later' : 'setup.chat.value'), was ? null : el('div', { class: 'v' }, t('setup.chat.on_later')), sw, 'b-chat-switch-v'));
         }
-        return line(was ? done() : muted('◎'), key, t(was ? (chat.url && !chat.problem ? 'setup.chat.page_on' : 'setup.chat.page_on_short') : 'setup.chat.page_off'),
-          [problem(chat.problem), ...(was && chat.url ? onParts(chat) : [])], sw, 'b-chat-switch-v');
+        return refocus(line(now, key, t(was ? (chat.url && !chat.problem ? 'setup.chat.page_on' : 'setup.chat.page_on_short') : 'setup.chat.page_off'),
+          [problem(chat.problem), ...(was && chat.url ? onParts(chat) : [])], sw, 'b-chat-switch-v'));
       }
       case 'signin':
         return el('li', {}, spinner(),
           el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t('setup.chat.signin'))), el('span'));
       case 'noaddress': // on, but nothing reaches them: a problem. Off: what they need, and Check again
         if (chat.problem) return line(mark('fail', '!'), key, say(chat.problem));
-        return line(muted('◎'), t('setup.chat.need_key'), t('setup.chat.need_link'), [
+        return refocus(line(want(), key, t('setup.chat.need_link'), [
           el('div', { class: 'pick' }, link(t('setup.chat.open_link'), chat.link_page, 'ghost btn-small', 'chat-link'),
-            button(t('setup.page.button.recheck'), 'recheck', 'ghost btn-small', 'chat', 'chat-recheck')),
-          el('p', { class: 'fine' }, t('setup.chat.need_own'))]);
+            recheckChat()),
+          local.chatChecked && h.accepts('chat_recheck') ? el('p', { class: 'fine', role: 'status' }, t('setup.chat.still_off')) : null, // read again: still off
+          el('p', { class: 'fine' }, t('setup.chat.need_own'))]));
       default: {
         const ask = local.chatAsk && h.accepts('chat');
         const consent = ask ? el('div', { class: 'consent', id: 'chat-consent' },
@@ -203,7 +215,8 @@ window.novaSteps = (h) => {
         // A button that opens the question; only its "Turn on" acts.
         const open = ask ? null : el('button', { id: 'b-chat-ask', class: 'btn btn-ghost btn-small', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'chat-consent',
           onclick: () => { local.chatAsk = true; render(true); focusId('b-chat-on'); }, ...(h.accepts('chat') ? {} : { disabled: '' }) }, t('setup.chat.turn_on_ask'));
-        return refocus(line(needs('◎'), key, t('setup.chat.value'), [problem(chat.problem), consent], open));
+        const status = chat.problem ? mark('fail', '!') : want();
+        return refocus(line(status, key, t('setup.chat.value'), [problem(chat.problem), consent], open));
       }
     }
   };
@@ -231,7 +244,8 @@ window.novaSteps = (h) => {
       rows.push(line(muted('⇄'), label, t('setup.page.control.link_value'), local.link ? later() : null,
         toggle('b-link', label, local.link, flip('link'), busy), 'b-link-v'));
     } else if (c.link === 'run') {
-      rows.push(line(spinner(), t('setup.page.control.link_key'), t('setup.page.control.link_run')));
+      rows.push(el('li', {}, spinner(), el('div', {}, el('div', { class: 'k' }, t('setup.page.control.link_key')),
+        el('div', { class: 'v', role: 'status' }, t('setup.page.control.link_run'))), el('span')));
     } else if (c.link === 'on') {
       rows.push(line(done(), t('setup.page.control.link_key'), t('setup.page.control.link_on'), null, tagOn()));
     }

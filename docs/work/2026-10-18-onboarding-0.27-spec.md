@@ -130,7 +130,7 @@ The line updates in place and ends with `✓ Done: this computer is connected to
   - "Confirm on this computer": "A small window asks before anything risky runs." Tag: On.
   - "Confirm on your phone": "iPhone Markus, and its Apple Watch. Both ask; the first answer counts." Switch, off by default. Switching it on sends one link notification ("Tap 'Link' there."). Several eligible phones: the row first lists them to pick one, as `confirm-phone` does today (§16 D10). None: "No phone with the Home Assistant app found", and no switch.
   - "Let Claude Code show the window": "Adds one rule to Claude Code so its auto mode doesn't block the confirmation window." Switch, **preselected**; written on [Finish setup] with #738's writer; uninstall removes it.
-  - *Addition* (§16 D3), only when HA Link remote access is active: "Use HA NOVA in Claude and ChatGPT, on any phone." Switch, off by default; turning it on runs §11.6. Without remote access (and no public HTTPS address): a muted row "Use HA NOVA on your phone, in Claude and ChatGPT" with [Open Home Assistant Link] (`<saved HA URL>/config/cloud`) and [Check again], which reads remote access again and shows the switch once it is on.
+  - *Addition* (§16 D3), only when HA Link remote access is active: "Use HA NOVA in Claude and ChatGPT, on any phone." Switch, off by default; turning it on runs §11.6. Without remote access (and no public HTTPS address): the row says Claude also works on the phone and that it needs Remote access, with [Open Home Assistant Link] (`<saved HA URL>/config/cloud`) and [Check again], which reads remote access again and shows the switch once it is on.
 - Button: [Finish setup].
 - Fine print: "Turning on your phone sends one notification to that phone. Tap 'Link' there."
 
