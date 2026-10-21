@@ -1,7 +1,10 @@
 /* HA NOVA setup page: the hanova.app look (tokens.css), laid out like the
    approved prototype (docs/work/2026-10-18-onboarding-0.27-prototype.html).
-   Cyan = this computer and your actions; amber = Home Assistant, the App,
-   and safety. */
+   One status language on every screen: green ✓ = on, done, ready; a cyan
+   spinner = waiting on you or on a check; amber = needs action or a
+   problem, only; muted = off or optional. Cyan is the brand: progress,
+   buttons, links. Color is never the only signal: each status has a word
+   or a glyph too. */
 
 :root {
   color-scheme: dark;
@@ -112,11 +115,12 @@ h1 { margin: 0 0 12px; font-size: clamp(1.75rem, 1.2rem + 2.4vw, 2.6rem); line-h
 .ic.todo { border: 1.5px solid var(--ink-soft); color: var(--ink-soft); }
 .ic.fail { color: var(--abyss); background: var(--amber); }
 .ic.run { border: 2px solid var(--hairline); border-top-color: var(--cyan); animation: spin .9s linear infinite; }
-.ic.run.amber { border-top-color: var(--amber); }
+.ic.todo.amber { border-color: var(--amber); color: var(--amber); } /* needs action */
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .tag { font-size: .75rem; font-weight: 600; letter-spacing: .06em; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--hairline); color: var(--ink-soft); white-space: nowrap; }
 .tag.amber { color: var(--amber); border-color: rgba(255, 179, 71, .4); }
+.tag.ok { color: var(--ok); border-color: rgba(91, 214, 154, .4); }
 .tag.cyan { color: var(--cyan); border-color: rgba(24, 188, 242, .4); }
 
 .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
@@ -147,7 +151,6 @@ h1:focus { outline: none; }
 .code { font: 600 .9375rem var(--mono); background: var(--panel); border: 1px solid var(--hairline); border-radius: 10px; padding: .9rem 1.1rem; margin: 0 0 28px; overflow-x: auto; white-space: nowrap; }
 
 /* Steps 3 and 4. */
-.ic.guard { color: var(--abyss); background: var(--amber); }
 .switch { flex: none; width: 46px; height: 26px; border-radius: 999px; border: 1px solid var(--hairline); background: rgba(184, 204, 224, .12); position: relative; cursor: pointer; padding: 0; }
 .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--ink-soft); transition: transform .2s; }
 .switch[aria-checked="true"] { background: var(--cyan); border-color: var(--cyan); }
@@ -157,11 +160,11 @@ h1:focus { outline: none; }
 .linkish { font: 600 .875rem var(--font); background: none; border: none; color: var(--cyan); cursor: pointer; padding: 0; margin-top: 6px; }
 .rows .problem { margin: 8px 0 0; font: 400 .95rem/1.5 var(--font); }
 .note { border-left: 2px solid var(--amber); padding: 2px 0 2px 14px; color: var(--ink-soft); font-size: .95rem; margin: 0 0 16px; }
+.note.done { border-left-color: var(--ok); } /* what went through */
 h2 { font-size: .8125rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); margin: 0 0 6px; }
 .stat { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 12px; margin: 8px 0 32px; padding: 0; list-style: none; }
 .stat li { display: grid; justify-items: start; gap: 6px; padding: 14px 14px 12px; border: 1px solid var(--hairline); border-radius: 10px; font-size: .9rem; color: var(--ink-soft); }
 .stat svg { width: 30px; height: 30px; fill: none; stroke: var(--cyan); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 4px rgba(24, 188, 242, .45)); }
-.stat li.guard svg { stroke: var(--amber); filter: drop-shadow(0 0 4px rgba(255, 179, 71, .45)); }
 .stat li.muted svg { stroke: var(--ink-soft); filter: none; opacity: .7; }
 .stat b { font-size: 1.6rem; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
 .stat .hint { font-size: .78rem; color: var(--cyan); }

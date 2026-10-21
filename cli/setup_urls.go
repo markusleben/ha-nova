@@ -19,6 +19,16 @@ func haRelayAppPageURL(haURL string) string {
 	return haURL + "/_my_redirect/supervisor_addon?addon=" + haNovaRelayAppSlug
 }
 
+// haLinkPageURL is Home Assistant's own Home Assistant Link page
+// (frontend route /config/cloud), on the saved local address only;
+// "" without one.
+func haLinkPageURL(haURL string) string {
+	if haURL == "" {
+		return ""
+	}
+	return strings.TrimRight(haURL, "/") + "/config/cloud"
+}
+
 type haNOVAAppOpenTarget struct {
 	URL    string
 	Direct bool
