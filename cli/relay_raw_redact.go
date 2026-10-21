@@ -216,6 +216,11 @@ func redactObject(t map[string]any, nonces bool) bool {
 	if payload := jsonFields(jsonFields(t["discovery_data"])["payload"]); payload != nil { // mqtt/device/debug_info: an MQTT alarm panel's code
 		changed = hideSet(payload, "code") || changed
 	}
+	if data, ok := t["data"].(string); ok { // a snapshot saved as a JSON string
+		if hidden := redactSecrets([]byte(data), nonces); string(hidden) != data {
+			t["data"], changed = string(hidden), true
+		}
+	}
 	if topic, _ := t["topic"].(string); strings.HasSuffix(topic, "/config") { // a retained discovery message from mqtt/subscribe
 		if payload, ok := t["payload"].(string); ok {
 			if hidden, did := hideDiscoveryCode(payload); did {
@@ -232,7 +237,8 @@ func redactObject(t map[string]any, nonces bool) bool {
 }
 
 // hideDiscoveryCode hides an MQTT discovery config's code, also in a
-// device config's components (cmps); the payload stays a JSON string.
+// device config's components (cmps or components); the payload stays a
+// JSON string.
 func hideDiscoveryCode(payload string) (string, bool) {
 	dec := json.NewDecoder(strings.NewReader(payload))
 	dec.UseNumber()
@@ -242,8 +248,8 @@ func hideDiscoveryCode(payload string) (string, bool) {
 		return payload, false
 	}
 	changed := hideSet(config, "code")
-	if cmps := jsonFields(config["cmps"]); cmps != nil {
-		for _, c := range cmps {
+	for _, key := range []string{"cmps", "components"} { // HA accepts the abbreviation and the full key
+		for _, c := range jsonFields(config[key]) {
 			if component := jsonFields(c); component != nil {
 				changed = hideSet(component, "code") || changed
 			}

@@ -39,6 +39,8 @@ func TestRedactSecretsGolden(t *testing.T) {
 		{"an MQTT alarm panel's discovery code", `{"entities":[{"discovery_data":{"payload":{"name":"Alarm","code":"1234"}}}]}`, []string{`"1234"`}},
 		{"a retained MQTT discovery message", `{"topic":"homeassistant/alarm_control_panel/a/config","payload":"{\"name\":\"Alarm\",\"code\":\"1234\"}"}`, []string{`\"1234\"`}},
 		{"a retained MQTT device discovery message", `{"topic":"homeassistant/device/d/config","payload":"{\"cmps\":{\"a\":{\"p\":\"alarm_control_panel\",\"code\":\"1234\"}}}"}`, []string{`\"1234\"`}},
+		{"a device discovery message with the full components key", `{"topic":"homeassistant/device/d/config","payload":"{\"components\":{\"a\":{\"code\":\"1234\"}}}"}`, []string{`\"1234\"`}},
+		{"a snapshot saved as a JSON string", `{"action":"save","data":"{\"options\":{\"lock\":{\"default_code\":\"4711\"}}}"}`, []string{`\"4711\"`}},
 		{"big numbers stay exact", `{"n":1e1000,"m":12345678901234567890,"default_code":"4711"}`, []string{`"4711"`}},
 		{"a repeated key keeps no hidden copy", `{"default_code":"1234","default_code":null}`, nil}, // checked below
 		{"trailing data is never rewritten", `{"default_code":"4711"} {}`, nil},
