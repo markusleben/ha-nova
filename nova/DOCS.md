@@ -1,7 +1,8 @@
 # NOVA Relay
 
 The NOVA Relay connects your AI app to Home Assistant: an AI app on your
-computer, and (with chat apps on) Claude and ChatGPT, also on your phone.
+computer and, with chat apps on, Claude (also on your phone) and ChatGPT on the web.
+Chat apps need Home Assistant Link with remote access (a subscription from the Home Assistant team) or your own HTTPS address.
 It provides secure, authenticated access to Home Assistant's APIs and extends them where needed.
 
 ## How It Works
@@ -52,7 +53,7 @@ direct network request cannot open it.
 
 | Option | Description |
 |--------|-------------|
-| **Relay Auth Token (legacy/advanced)** | Existing installs may keep their shared token. HA NOVA 0.27 is the last release that accepts it: run `ha-nova setup` once on each computer to switch (a `--service` install: `ha-nova pair --credential-store=file`). New installs leave this empty; the App creates and persists a private token automatically. |
+| **Relay Auth Token (legacy/advanced)** | Existing installs may keep their shared token. HA NOVA 0.27 is the last release that accepts it: run `ha-nova setup` once on each computer to switch (a `--service` install: `ha-nova pair --credential-store=file`). When every computer has switched, choose "Revoke legacy access" on the NOVA page. New installs leave this empty; the App creates and persists a private token automatically. |
 | **File access (advanced)** | Optional access to supported Home Assistant configuration files. Defaults to off. |
 
 The App receives Home Assistant API access automatically from Supervisor. Do
@@ -198,7 +199,8 @@ With chat apps on, you can use HA NOVA from Claude (web, desktop, phone apps)
 and ChatGPT (web) without a computer running. They are off by default.
 
 - **Needs:** Home Assistant 2026.10 or newer, and an address Claude and ChatGPT
-  can reach: Home Assistant Link with remote access on, or your own public
+  can reach: Home Assistant Link with remote access on (a subscription from
+  the Home Assistant team), or your own public
   HTTPS address with a valid certificate set as Home Assistant's external URL.
 - **Turn on:** NOVA page → Chat apps → "Turn on chat apps" (or during
   `ha-nova setup`, or `ha-nova chat-apps on`). Only the owner can turn them

@@ -50,6 +50,6 @@ body:
       description: >-
         HA NOVA version (`ha-nova version`), NOVA App version, Home Assistant
         version, your computer's system, and your AI app (for example Claude
-        Code, or Claude or ChatGPT in chat apps).
+        Code, or Claude or ChatGPT in the browser or phone app).
     validations:
       required: true

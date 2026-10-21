@@ -17,18 +17,19 @@ updated.
 
 ## Chat apps (Claude and ChatGPT)
 
-Chat apps are off by default. When the owner turns them on, Claude or ChatGPT
+Chat apps are off by default. They need Home Assistant Link with remote access (a subscription from the Home Assistant team) or your own HTTPS address. When the owner turns them on, Claude or ChatGPT
 connect straight to the owner's own Home Assistant, through Home Assistant
-Link or the owner's own HTTPS address. HA NOVA runs no server in between.
+Link or the owner's own HTTPS address. HA NOVA runs no server of its own for this.
 What you ask, and what HA NOVA reads from your home to answer, then goes to
 Anthropic (Claude) or OpenAI (ChatGPT), and their privacy terms apply. Turning
-chat apps off ends HA NOVA's part; to sign Claude or ChatGPT out of Home
+chat apps off stops HA NOVA from answering them; to sign Claude or ChatGPT out of Home
 Assistant, remove their refresh tokens in your Home Assistant profile.
 
 ## Demo house
 
 The demo house (`ha-nova try`, "Add to Claude" on hanova.app) is a shared
-public Home Assistant that the maintainer runs. It is not your home. What it
+public Home Assistant that the maintainer runs. It is not your home. Other
+visitors see what you enter. Don't enter personal data. What it
 keeps, and for how long, is on its privacy page:
 <https://hanova.app/privacy.html>.
 
