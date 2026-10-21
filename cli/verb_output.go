@@ -30,8 +30,8 @@ type verbEnvelope struct {
 	Status        string    `json:"status"`
 	Tier          string    `json:"tier,omitempty"`
 	Plan          *verbPlan `json:"plan,omitempty"`
-	// Say: the plain confirmation text of a plan that needs one (CLI-built
-	// from tier, reasons, and names; skills relay it).
+	// Say: the plain text for the user (CLI-built, one shape: say_lines.go):
+	// a plan's confirmation, or an apply's or call's result line.
 	Say string `json:"say,omitempty"`
 	// NextStep: the agent's next step (a preview plan: wait for the user's
 	// reply; a window plan: apply without a code; its fallback: a new code plan).

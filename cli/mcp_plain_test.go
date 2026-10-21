@@ -97,7 +97,7 @@ func TestResultSayForCalls(t *testing.T) {
 		`{"status":"verified","verb":"apply","action":{},"resolved":[{"entity_id":"lock.front","name":"Entrance Door"}],
 		  "verification":[{"entity_id":"lock.front","observed":"unlocked","outcome":"verified"}]}`: "Done: “Entrance Door” is unlocked now. I checked it.",
 		`{"status":"accepted","verb":"call","action":{},"resolved":[{"entity_id":"scene.movie","name":"Movie"}],
-		  "verification":[{"entity_id":"light.x","observed":"off","outcome":"verified"},{"entity_id":"light.y","observed":"off","outcome":"verified"},{"entity_id":"scene.movie","outcome":"accepted"}]}`: "Done: 2 devices are off now. Sent to “Movie”. I can't check this kind of change.",
+		  "verification":[{"entity_id":"light.x","observed":"off","outcome":"verified"},{"entity_id":"light.y","observed":"off","outcome":"verified"},{"entity_id":"scene.movie","outcome":"accepted"}]}`: "Done: 2 devices are off now. Sent to “Movie”. I checked what I could.",
 		`{"status":"verified","verb":"call","action":{},"resolved":[{"entity_id":"scene.night","name":"Night"}],
 		  "verification":[{"entity_id":"light.x","observed":"off","outcome":"verified"}]}`: "Done: “Night” ran. 1 device is off now. I checked it.",
 		`{"status":"verified","verb":"call","action":{},"resolved":[{"entity_id":"light.a","name":"A"},{"entity_id":"light.b","name":"B"},{"entity_id":"light.c","name":"C"},{"entity_id":"light.d","name":"D"}],
@@ -118,11 +118,17 @@ func TestResultSayForCalls(t *testing.T) {
 		`{"status":"failed","verb":"call","action":{},"resolved":[{"entity_id":"lock.a","name":"A"},{"entity_id":"lock.b","name":"B"}],
 		  "verification":[{"entity_id":"lock.a","observed":"jammed","outcome":"failed"},{"entity_id":"lock.b","observed":"jammed","outcome":"failed"}]}`: "Not done: “A” and “B” did not change as asked; they show jammed.",
 		`{"status":"verified","verb":"call","action":{},"resolved":[{"entity_id":"light.a","name":"Lamp"},{"entity_id":"light.b","name":"Lamp"}],
-		  "verification":[{"entity_id":"light.a","observed":"off","outcome":"verified"},{"entity_id":"light.b","observed":"off","outcome":"verified"}]}`: "Done: “Lamp” (light.a) and “Lamp” (light.b) are off now. I checked it.",
+		  "verification":[{"entity_id":"light.a","observed":"off","outcome":"verified"},{"entity_id":"light.b","observed":"off","outcome":"verified"}]}`: "Done: light.a (“Lamp”) and light.b (“Lamp”) are off now. I checked it.",
 		`{"verb":"call","status":"accepted","action":{"service":"homeassistant.check_config"}}`: "Done: sent to Home Assistant. I can't check this kind of change.",
 		`{"status":"accepted","verb":"apply","action":{},"resolved":[{"entity_id":"cover.garage","name":"Garage"}],
 		  "verification":[{"entity_id":"cover.garage","observed":"opening","outcome":"accepted"}]}`: "Done: sent to “Garage”; it is still opening. I can't check this kind of change.",
 	}
+	// "Nothing changed" only where the failure proves it.
+	cases[`{"status":"failed","verb":"call","action":{"service":"light.turn_on","entity_ids":["light.a"]},"error":{"code":"SERVICE_REJECTED"}}`] = "Not done: Home Assistant refused it. Nothing changed."
+	cases[`{"status":"failed","verb":"call","action":{"service":"script.turn_on","entity_ids":["script.a"]},"error":{"code":"SERVICE_REJECTED"}}`] = "Not done: Home Assistant refused it. Part of it may have happened, so let's check before you count on it."
+	cases[`{"status":"failed","verb":"call","action":{"service":"light.turn_on","entity_ids":["light.a","light.b"]},"error":{"code":"SERVICE_REJECTED"}}`] = "Not done: Home Assistant refused it. Part of it may have happened, so let's check before you count on it."
+	cases[`{"status":"failed","verb":"call","action":{},"resolved":[{"entity_id":"light.a","name":"A"},{"entity_id":"light.b","name":"B"}],
+		"verification":[{"entity_id":"light.a","observed":"on","outcome":"verified"},{"entity_id":"light.b","observed":"off","outcome":"failed"}]}`] = "Partly done: “A” is on now. “B” did not change as asked; it shows off."
 	for raw, want := range cases {
 		if got := outcome(t, raw); got != want {
 			t.Fatalf("say %q, want %q", got, want)
@@ -139,6 +145,27 @@ func TestResultSayForCalls(t *testing.T) {
 	} {
 		if say := outcome(t, raw); say != "" && say != "keep" {
 			t.Fatalf("unexpected say %q for %s", say, raw)
+		}
+	}
+}
+
+// A config apply's result line: "Nothing changed" only for a refusal that
+// saved nothing; a dashboard that changed anyway is "Not sure".
+func TestResultSayForConfigApplies(t *testing.T) {
+	for _, tc := range []struct {
+		env  verbEnvelope
+		want string
+	}{
+		{verbEnvelope{Status: "verified", done: "deleted the automation “Night”"}, "Done: deleted the automation “Night”. I checked that it's gone."},
+		{verbEnvelope{Status: "failed", done: "changed the automation “Night”", Error: &verbError{Code: "CONFIG_REJECTED"}}, "Not done: Home Assistant refused it. Nothing changed."},
+		{verbEnvelope{Status: "unverified", done: "changed the dashboard “Home”", Error: &verbError{Code: "CONFIG_REJECTED"}}, "Not sure: Home Assistant showed an error, but something may have changed. Let's check it before you count on it."},
+		{verbEnvelope{Status: "failed", done: "created the dashboard “Home”", Error: &verbError{Code: "CONFIG_REJECTED"}}, "Not done: Home Assistant refused it. Part of it may have happened, so let's check before you count on it."},
+		{verbEnvelope{Status: "unverified", done: "changed the automation “Night”", OutcomeUnknown: true, Error: &verbError{Code: "OUTCOME_UNKNOWN"}}, "Not sure: it may have been saved, and I can't tell. I didn't try again."},
+		{verbEnvelope{Status: "error", done: "changed the automation “Night”", Error: &verbError{Code: "RELAY_ERROR"}}, ""},
+		{verbEnvelope{Status: "drift", done: "changed the automation “Night”", Say: "Something changed since the last preview."}, "Something changed since the last preview."},
+	} {
+		if got := resultSay(&tc.env); got != tc.want {
+			t.Errorf("%+v: %q, want %q", tc.env, got, tc.want)
 		}
 	}
 }

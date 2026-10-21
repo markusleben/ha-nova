@@ -83,6 +83,8 @@ func buildLabel(segs []segment, anchorsWipePositional bool) string {
 				head = token
 				if segs[i+1].anchor == notAnchor {
 					tokens = append(tokens, labelToken{text: notAnchor})
+				} else if at := strings.Index(segs[i+1].anchor, "“"); at >= 0 && previewNames != nil {
+					tokens = append(tokens, labelToken{text: segs[i+1].anchor[at:]}) // a preview names whom the row is about
 				}
 			case branchTokenKeys[s.key]:
 				tokens = append(tokens, labelToken{text: strings.ToLower(token)})

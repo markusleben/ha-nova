@@ -13,6 +13,7 @@ import (
 //	Confirmation: I'm about to <action>. <consequences> <status> <ask>
 //	Result:       Done: <result>. I checked it.
 //	              Not done: <reason>. Nothing changed.
+//	              Not sure: / Partly done: <what is known>.
 
 // sayAbout opens every confirmation: "I'm about to unlock “Front Door”."
 func sayAbout(action string) string { return "I'm about to " + lowerFirst(action) + "." }
@@ -27,6 +28,10 @@ const (
 	sayNeedsYou = ", so I need you to confirm it."
 	sayYesAsk   = "Reply yes to go ahead."
 	saySaveAsk  = "Save it? I can also show the details."
+	sayRoomsAsk = "Save these rooms?"
+	// Prefixes that put a fresh confirmation in context.
+	sayChanged      = "Something changed since the last preview. "
+	sayNoWindowHere = "The confirmation window couldn't open on this computer. "
 	// sayWindowAsk: the code is never shown.
 	sayWindowAsk = "Confirm in the window on this computer."
 	// sayFormAsk replaces sayTypedAsk where the client shows a confirmation
@@ -41,8 +46,12 @@ const (
 // sayCodeAsk: the code's ask in a confirmation form (mcp_confirm.go).
 func sayCodeAsk(code string) string { return "Type " + code + " to confirm." }
 
-// sayTypedAsk ends a chat plan's `say`; the action is the first sentence.
-func sayTypedAsk(code string) string { return sayCodeAsk(code) + " A plain yes can't." }
+// sayTypedAsk ends a chat plan's `say`: the code names its own action, so
+// several plans in one preview can't swap codes ("Type 4821 to delete the
+// automation “Night”.").
+func sayTypedAsk(code, goal string) string {
+	return "Type " + code + " to " + lowerFirst(goal) + ". A plain yes can't."
+}
 
 // sayWindowPhoneAsk: a phone is linked here, so it asks too (confirm_both.go).
 func sayWindowPhoneAsk(button string) string {
@@ -55,6 +64,9 @@ func sayPhoneAsk(button string) string {
 }
 
 func sayNotDone(reason string) string { return "Not done: " + reason + ". Nothing changed." }
+
+// sayDone: "Done: <result>. <how I know>."
+func sayDone(result, checked string) string { return "Done: " + result + ". " + checked }
 
 // resultSay is the one result line of an apply or a direct call; it never
 // replaces a line that already speaks (a drift's new preview, a no-op, a
@@ -72,31 +84,67 @@ func resultSay(env *verbEnvelope) string {
 	if env.Say != "" || !isCall && env.done == "" || isCall && env.Action.Response {
 		return env.Say
 	}
-	detail := env.done + "."
-	if isCall {
-		detail = lowerFirst(callOutcome(env))
+	detail, checked, verified := env.done+".", "I checked that Home Assistant saved it.", 0
+	switch {
+	case isCall:
+		detail, checked = lowerFirst(callOutcome(env)), "I checked it."
+		for _, row := range env.Verification {
+			if row.Outcome == "verified" {
+				verified++
+			}
+		}
+	case strings.HasPrefix(env.done, "deleted "):
+		checked = "I checked that it's gone."
+	case strings.HasPrefix(env.done, "put "): // rooms
+		checked = "I checked it."
 	}
 	switch {
 	case code != "" && code != "SERVICE_REJECTED" && code != "CONFIG_REJECTED" && code != "OUTCOME_UNKNOWN": // its message and next step speak
-	case code == "SERVICE_REJECTED" || code == "CONFIG_REJECTED":
+	case code == "SERVICE_REJECTED" && !callMayHavePartlyRun(env), code == "CONFIG_REJECTED" && env.Status == "failed" && !strings.HasPrefix(env.done, "created the dashboard"):
 		return sayNotDone("Home Assistant refused it")
-	case env.OutcomeUnknown || code == "OUTCOME_UNKNOWN":
+	case code == "SERVICE_REJECTED" || code == "CONFIG_REJECTED" && env.Status == "failed":
+		return "Not done: Home Assistant refused it. Part of it may have happened, so let's check before you count on it."
+	case code == "CONFIG_REJECTED": // a dashboard that changed anyway
+		return "Not sure: Home Assistant showed an error, but something may have changed. Let's check it before you count on it."
+	case (env.OutcomeUnknown || code == "OUTCOME_UNKNOWN") && isCall:
 		return "Not sure: it may have run, and I can't tell. I didn't try again."
+	case env.OutcomeUnknown || code == "OUTCOME_UNKNOWN":
+		return "Not sure: it may have been saved, and I can't tell. I didn't try again."
 	case detail == "" || detail == ".": // nothing to name
 	case env.Status == "verified":
-		return "Done: " + detail + " I checked it."
+		return sayDone(strings.TrimSuffix(detail, "."), checked)
+	case env.Status == "accepted" && verified > 0:
+		return "Done: " + detail + " I checked what I could."
 	case env.Status == "accepted":
 		return "Done: " + detail + " I can't check this kind of change."
 	case env.Status == "unverified" && isCall:
 		return "Not sure: " + detail
 	case env.Status == "unverified":
 		return "Not sure: I sent it, but I couldn't check that it worked."
+	case env.Status == "failed" && verified > 0:
+		return "Partly done: " + detail
 	case env.Status == "failed" && isCall:
 		return "Not done: " + detail
 	case env.Status == "failed":
 		return "Not done: I sent it, but it didn't take effect."
 	}
 	return ""
+}
+
+// callMayHavePartlyRun: a rejected call with several targets, or one that
+// runs steps (a script, automation, or scene), may have acted before Home
+// Assistant refused it.
+func callMayHavePartlyRun(env *verbEnvelope) bool {
+	if env.Action == nil || len(env.Action.EntityIDs) > 1 {
+		return true
+	}
+	domain, _ := splitID(env.Action.Service)
+	for _, id := range env.Action.EntityIDs {
+		if target, _ := splitID(id); target == "script" || target == "automation" || target == "scene" {
+			return true
+		}
+	}
+	return domain == "script" || domain == "automation" || domain == "scene"
 }
 
 // callOutcome words a call's read-back per target: “Kitchen Lights” is on
@@ -113,9 +161,9 @@ func callOutcome(env *verbEnvelope) string {
 		names[t.EntityID] = sayText(t.Name, true)
 		seen[names[t.EntityID]]++
 	}
-	for id, name := range names { // two targets with one name: the id tells them apart
+	for id, name := range names { // two targets with one name: the id tells them apart (as in a preview row)
 		if name != "" && seen[name] > 1 {
-			names[id] = name + " (" + sayText(id, false) + ")"
+			names[id] = sayText(id, false) + " (" + name + ")"
 		}
 	}
 	inRows := map[string]bool{}
@@ -203,7 +251,7 @@ func sayPast(verb, object string) string {
 		"Turn on": "turned on", "Turn off": "turned off", "Toggle": "toggled", "Open": "opened", "Close": "closed",
 		"Stop": "stopped", "Lock": "locked", "Unlock": "unlocked", "Arm": "armed", "Disarm": "disarmed", "Press": "pressed",
 		"Run": "ran", "Set": "set", "Set off": "set off", "Set the position of": "set the position of",
-		"Create": "created", "Change": "changed", "Delete": "deleted", "Restore": "restored", "Revert": "undid the last change to",
+		"Create": "created", "Change": "changed", "Delete": "deleted", "Restore": "restored", "Undo the last change to": "undid the last change to",
 	}[verb]
 	if past == "" {
 		past = lowerFirst(verb)

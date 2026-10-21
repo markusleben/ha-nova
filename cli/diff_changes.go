@@ -103,6 +103,9 @@ func makeChange(segs []segment, before, after interface{}) configChange {
 		bf, af = cell(before), "—"
 	default:
 		bf, af = cell(before), cell(after)
+		if bf == af { // plain words hid the difference: show it exact
+			bf, af = formatValue(before), formatValue(after)
+		}
 		if bf == af {
 			// Same rendered text but a real change → a type/representation
 			// difference (e.g. number 5 vs string "5"). Disambiguate by type so

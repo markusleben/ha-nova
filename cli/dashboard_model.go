@@ -111,7 +111,10 @@ func itemLabel(container string, i int) string {
 func cardSummary(card any) string {
 	m := asMap(card)
 	if m == nil {
-		return formatValue(card) // a badge may be a bare entity_id
+		if id, isText := card.(string); isText && entityIDPattern.MatchString(id) {
+			return nameOf(id) // a badge may be a bare entity_id
+		}
+		return formatValue(card)
 	}
 	kind, _ := m["type"].(string)
 	if kind == "" {

@@ -150,12 +150,25 @@ func keyRow(field string, before, after map[string]any, key string) string {
 		}
 		return formatValue(v)
 	}
-	b, a := focusDivergence(cell(before), cell(after))
+	b, a := cell(before), cell(after)
+	if b == a { // plain words hid the difference (["light.a"] vs "light.a"): show it exact
+		b, a = formatValue(before[key]), formatValue(after[key])
+	}
+	b, a = focusDivergence(b, a)
 	return tableRow(field, b, a)
 }
 
 func valueRow(field string, before, after any) string {
-	b, a := formatValue(before), formatValue(after)
+	cell := func(v any) string { // a bare badge is an entity id
+		if id, isText := v.(string); isText && entityIDPattern.MatchString(id) {
+			return nameOf(id)
+		}
+		return formatValue(v)
+	}
+	b, a := cell(before), cell(after)
+	if b == a {
+		b, a = formatValue(before), formatValue(after)
+	}
 	b, a = focusDivergence(b, a)
 	return tableRow(field, b, a)
 }

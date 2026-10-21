@@ -260,7 +260,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			return env, verbExitOK
 		}
 		if fresh.Prompt != "" { // a confirmation form shows it without the preview (mcp_confirm.go)
-			fresh.Prompt = "Something changed since the last preview. " + fresh.Prompt
+			fresh.Prompt = sayChanged + fresh.Prompt
 		}
 		if err := savePlan(paths, fresh, s.transport.Credential); err != nil {
 			return fail(err)
@@ -269,7 +269,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			env.Say = confirmationSay(e, &env, fresh, "")
 		}
 		if env.Say != "" {
-			env.Say = "Something changed since the last preview. " + env.Say
+			env.Say = sayChanged + env.Say
 		}
 		return fail(&verbFailure{exit: verbExitDrift, status: "drift", code: "PLAN_DRIFT",
 			message: "something changed since the preview; nothing was sent and the old plan is gone",
@@ -358,8 +358,10 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 // call words its read-back instead).
 func applyDone(e *tierEngine, env *verbEnvelope, plan storedPlan, ctx configContext) string {
 	switch {
+	case plan.Kind == "rooms" && plan.RoomsRequest.Undo:
+		return "put the devices back where they were"
 	case plan.Kind == "rooms":
-		return "set the rooms"
+		return "put the devices in their rooms"
 	case plan.ConfigAction == nil:
 		return ""
 	}

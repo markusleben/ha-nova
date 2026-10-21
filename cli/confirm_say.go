@@ -17,7 +17,7 @@ import (
 func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) string {
 	if plan.ConfigAction == nil && frozeNothing(plan.Request, plan.Action) {
 		// apply refuses such a plan (UNRESOLVED_TARGET): never ask for it.
-		return sayNotDone("I couldn't find what you named, so this can't run; name the devices instead")
+		return sayNotDone("I couldn't find what you named") + " Tell me which devices you mean."
 	}
 	parts := sayBody(e, env, plan, subject)
 	switch {
@@ -30,7 +30,7 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 		verb, _ := sayGoal(e, env, plan, subject)
 		parts = append(parts, sayPhoneAsk(phoneButton(verb)))
 	case plan.Confirm == "code":
-		parts = append(parts, sayTypedAsk(plan.code))
+		parts = append(parts, sayTypedAsk(plan.code, sayGoalText(e, env, plan, subject)))
 		if plan.Channel == channelChat {
 			parts = append(parts, chatNote())
 		}
@@ -80,7 +80,7 @@ func confirmationPrompt(e *tierEngine, env *verbEnvelope, plan storedPlan, subje
 func sayGoal(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) (verb, object string) {
 	if action := plan.ConfigAction; action != nil {
 		name := cmp.Or(sayText(subject, true), sayText(action.EntityID, true), sayText(action.Domain+"."+action.ConfigID, true))
-		verb := map[string]string{"delete": "Delete", "revert": "Revert", "restore": "Restore"}[action.Op]
+		verb := map[string]string{"delete": "Delete", "revert": "Undo the last change to", "restore": "Restore"}[action.Op]
 		switch {
 		case verb != "":
 		case plan.Basis["current"] == "absent": // no live config: a create
@@ -269,7 +269,7 @@ func sayReason(e *tierEngine, env *verbEnvelope, plan storedPlan, r tierReason) 
 		return "This also " + sayOwnedEffect(env, r) + through, false
 	case reasonExpanded, reasonBatch:
 		if n := len(plan.Action.EntityIDs); n != 1 {
-			return fmt.Sprintf("This acts on %d entities at once", n), false
+			return fmt.Sprintf("This acts on %d devices at once", n), false
 		}
 		if r.Via == "" { // a batch that named one entity several times
 			return "", false

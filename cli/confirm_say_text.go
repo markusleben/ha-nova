@@ -275,13 +275,17 @@ func sayOwnedEffect(env *verbEnvelope, r tierReason) string {
 		}
 	}
 	domain, _ := splitID(action)
-	switch {
-	case domain == "notify" || domain == "persistent_notification":
+	switch { // neutral per domain: one word fits every service in it
+	case domain == "notify":
 		return "sends a notification"
-	case domain == "tts" || domain == "media_player":
-		return "plays something on a speaker or screen"
+	case domain == "persistent_notification":
+		return "shows or clears a notification in Home Assistant"
+	case domain == "tts":
+		return "speaks on a speaker"
+	case domain == "media_player":
+		return "controls a speaker or screen"
 	case domain == "camera":
-		return "uses a camera"
+		return "controls a camera"
 	case domain == "calendar":
 		return "changes a calendar"
 	case domain == "todo":
@@ -289,7 +293,7 @@ func sayOwnedEffect(env *verbEnvelope, r tierReason) string {
 	case domain == "backup":
 		return "makes a backup"
 	case domain == "update":
-		return "installs or skips an update"
+		return "acts on an update"
 	case action == "logger.set_level":
 		return "changes how much Home Assistant logs"
 	}

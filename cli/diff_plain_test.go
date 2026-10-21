@@ -42,11 +42,11 @@ func TestPreviewRowsShowNamesNotRawIDs(t *testing.T) {
 	for _, want := range []string{
 		"| Mode | one run at a time | a new run restarts it |",
 		"| Trigger 2 | — | at 22:00 |",
-		"| Condition 1 (state) | off | on |",
+		"| Condition 1 (“Hall Motion” › state) | off | on |",
 		"| Condition 2 | — | only on Saturday and Sunday |",
 		"| “Smart Plug” | “Decorative Lights” |",
 		"| Action 2 | — | wait 5 min |",
-		"| Action 3 | — | turn off “Lamp” (light.lamp_a) and “lamp” (light.lamp_b) with transition…", // a shared name keeps its id
+		"| Action 3 | — | turn off light.lamp_a (“Lamp”) and light.lamp_b (“lamp”) with transition…", // a shared name keeps its id, first
 	} {
 		if !strings.Contains(rows, want) {
 			t.Errorf("rows lack %q:\n%s", want, rows)
@@ -61,7 +61,7 @@ func TestPreviewRowsShowNamesNotRawIDs(t *testing.T) {
 	if !strings.Contains(string(env.Config.Body), "switch.decorative_lights") {
 		t.Fatalf("the plan must bind the exact ids: %s", env.Config.Body)
 	}
-	if exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 0 || applied.Say != "Done: changed the automation “Heat turns on plug”. I checked it." {
+	if exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 0 || applied.Say != "Done: changed the automation “Heat turns on plug”. I checked that Home Assistant saved it." {
 		t.Fatalf("apply: exit %d say %q", exit, applied.Say)
 	}
 }
@@ -102,10 +102,44 @@ func TestPlainItemNeverDropsAKey(t *testing.T) {
 		if text, ok := plainValue("message", "light.a"); ok {
 			t.Errorf("a message that looks like an id was renamed: %q", text)
 		}
+		if text := plainItem(map[string]any{"condition": "state", "entity_id": "light.a", "state": true}); text != "" {
+			t.Errorf("a boolean state read as on/off: %q", text)
+		}
 	})
 	shown := map[string]string{}
-	uniqueNames(map[string]string{"a": "Kitchen", "b": "Office", "c": "office"}, shown)
-	if shown["a"] != "“Kitchen”" || shown["b"] != "“Office” (b)" || shown["c"] != "“office” (c)" {
+	uniqueNames(map[string]string{"a": "Kitchen", "b": "Office", "c": "office", "d": "Fr\u043ent Door", "e": "Lamp (light.x)"}, shown)
+	if shown["a"] != "“Kitchen”" || shown["b"] != "b (“Office”)" || shown["c"] != "c (“office”)" || shown["d"] != "d (“Frоnt Door”)" || shown["e"] != "e (“Lamp (light.x)”)" {
 		t.Fatalf("names: %v", shown)
+	}
+}
+
+// Review findings: a partial parse never rounds a value, and a phrase never
+// hides what tells two services apart.
+func TestPlainValuesStayExact(t *testing.T) {
+	withPreviewNames(&plainNames{entity: map[string]string{"alarm_control_panel.h": "“House Alarm”"}}, func() {
+		for key, value := range map[string]string{"delay": "0:0:1.5", "at": "6:0:0.5", "after": "06:00:30"} {
+			if text, ok := plainValue(key, value); ok {
+				t.Errorf("%s %q became %q", key, value, text)
+			}
+		}
+		if text, _ := plainValue("delay", "01:30:00"); text != "1 h 30 min" {
+			t.Errorf("span: %q", text)
+		}
+		// Plain words never make two different values look the same.
+		if rows := strings.Join(renderConfigChanges(map[string]any{"at": "22:00"}, map[string]any{"at": "22:00:00"}), ""); !strings.Contains(rows, "| 22:00 | 22:00:00 |") {
+			t.Errorf("equal-looking times: %s", rows)
+		}
+		if rows := strings.Join(dashboardDiff(map[string]any{"entity": "alarm_control_panel.h"}, map[string]any{"entity": []any{"alarm_control_panel.h"}}), ""); !strings.Contains(rows, `| alarm_control_panel.h | ["alarm_control_panel.h"] |`) {
+			t.Errorf("equal-looking dashboard values: %s", rows)
+		}
+		home := plainItem(map[string]any{"action": "alarm_control_panel.alarm_arm_home", "target": map[string]any{"entity_id": "alarm_control_panel.h"}})
+		away := plainItem(map[string]any{"action": "alarm_control_panel.alarm_arm_away", "target": map[string]any{"entity_id": "alarm_control_panel.h"}})
+		if home != "arm “House Alarm” in home mode" || away != "arm “House Alarm” in away mode" {
+			t.Errorf("alarm modes: %q / %q", home, away)
+		}
+	})
+	env := &verbEnvelope{Members: []tierMember{{EntityID: "media_player.tv", Action: "media_player.media_stop", Via: "script.x/sequence/0"}}}
+	if got := sayOwnedEffect(env, tierReason{EntityID: "media_player.tv", Via: "script.x/sequence/0"}); got != "controls a speaker or screen" {
+		t.Errorf("owned effect: %q", got)
 	}
 }

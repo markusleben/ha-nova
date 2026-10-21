@@ -268,7 +268,7 @@ func (srv *mcpServer) phoneJob(job *chatJob, argv []string) {
 // waitingForPhone: the ask is still open, or the phone answered and apply
 // is still running (tapped): no outcome yet either way.
 func waitingForPhone(id string, tapped bool) map[string]any {
-	say := "Waiting for your tap: expand the HA NOVA notification on your phone (it can take a few seconds to arrive) and tap the button there. Nothing has changed yet."
+	say := "Waiting for your tap: expand the HA NOVA notification on your phone (it can take a few seconds to arrive) and tap the button there. " + sayNotRun
 	next := fmt.Sprintf("Nothing has run yet: HA NOVA is still waiting for the user's tap on their phone. Tell the user `say`, then call ha_apply again with plan_id %s and no confirm_code: it keeps waiting on the same notification and sends no new one. Never ask for a code.", id)
 	if tapped {
 		say = "Your phone answered; HA NOVA is finishing."

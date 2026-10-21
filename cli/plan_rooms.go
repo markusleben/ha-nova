@@ -241,7 +241,7 @@ func computeRoomsPlan(s *relaySession, env *verbEnvelope, req roomsRequest) (*ti
 	plan := storedPlan{Kind: "rooms", RoomsRequest: &req, Basis: map[string]any{"names": names, "areas": areaNames, "effective": effective}}
 	plan, err = sealPlan(e, env, plan, req)
 	env.Result = result
-	env.Say = sayAbout(roomsSay(result.Changes, req.Undo)) + " " + sayNotSaved + " Save these rooms?"
+	env.Say = sayAbout(roomsSay(result.Changes, req.Undo)) + " " + sayNotSaved + " " + sayRoomsAsk
 	return e, plan, err
 }
 
