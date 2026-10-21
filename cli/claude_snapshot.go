@@ -180,6 +180,15 @@ func claudePluginExplicitlyDisabled(home string) bool {
 // unparseable output) — callers then fall back to the state file. ok=true
 // with found=false is an authoritative "not installed".
 func readClaudePluginInstallFromCLI(home string) (found, usable, ok bool) {
+	// Bind the subprocess to the inspected home: without this, claude would
+	// answer for the process $HOME while the file reader inspects `home`.
+	// CLAUDE_CONFIG_DIR stays inherited — both sides honor it identically.
+	return readClaudePluginListWithEnv(append(os.Environ(), "HOME="+home))
+}
+
+// readClaudePluginListWithEnv: readClaudePluginInstallFromCLI for a claude
+// run with env.
+func readClaudePluginListWithEnv(env []string) (found, usable, ok bool) {
 	// stdout goes to a real file descriptor, not a pipe: claude truncates
 	// piped --json output at exactly 64 KiB (anthropics/claude-code#36685),
 	// which would silently disable this confirmation for plugin-heavy users.
@@ -189,10 +198,7 @@ func readClaudePluginInstallFromCLI(home string) (found, usable, ok bool) {
 	}
 	defer os.Remove(outFile.Name())
 	cmd := exec.Command("claude", "plugin", "list", "--json")
-	// Bind the subprocess to the inspected home: without this, claude would
-	// answer for the process $HOME while the file reader inspects `home`.
-	// CLAUDE_CONFIG_DIR stays inherited — both sides honor it identically.
-	cmd.Env = append(os.Environ(), "HOME="+home)
+	cmd.Env = env
 	cmd.Stdout = outFile
 	runErr := cmd.Run()
 	closeErr := outFile.Close()

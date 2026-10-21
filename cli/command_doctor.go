@@ -69,7 +69,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 		printHumanErr("%s", stateErr)
 		return 1
 	}
-	status := 0
+	status, appBelowFloor := 0, false
 
 	if cfgErr == nil {
 		doctorInfo("Config present: %s", paths.ConfigFile)
@@ -262,6 +262,12 @@ func runDoctor(paths runtimePaths, args []string) int {
 	} else {
 		doctorInfo("Relay health reachable: %s/health", healthBase)
 		if notice := checkRelayVersion(paths, readiness.HealthBody); !notice.empty() {
+			// check-update's words ("No Update button yet?", a container's step)
+			if !usingCloud { // bounded, as the first-use check; Cloud keeps the floor words
+				if full := relayUpdateNoticeWithTimeout(paths, firstUseRelayNoticeTimeout); full.belowFloor || full.kind == humanNoticeKindRelayOutdated {
+					notice = full
+				}
+			}
 			printHumanNotice(notice)
 			// --quiet is a machine/diagnostic contract: warning-only, never
 			// an interactive question that could block or trigger a restart.
@@ -272,7 +278,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 				fixed = maybeOfferGuidedRelayUpdate(paths, notice)
 			}
 			if !fixed {
-				status = 1
+				status, appBelowFloor = 1, true
 			} else {
 				// The relay just restarted: the readiness captured before the
 				// update is stale (its WS may still be reconnecting, or fail
@@ -395,6 +401,9 @@ func runDoctor(paths runtimePaths, args []string) int {
 		for _, artifact := range installStatus.InactiveArtifacts {
 			doctorInfo("Inactive legacy/dev artifact ignored: %s (%s)", artifact.Path, artifact.Kind)
 		}
+	}
+	if appBelowFloor { // the App notice is plain words; this says it failed
+		printHumanErr("To fix: update the NOVA App (see above).")
 	}
 	if status == 0 {
 		doctorInfo("Doctor checks passed")

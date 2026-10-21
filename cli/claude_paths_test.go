@@ -197,3 +197,74 @@ func jsonQuote(s string) string {
 	}
 	return string(quoted)
 }
+
+// A CLAUDE_CONFIG_DIR sync names the default ~/.claude only when it exists
+// and has no HA NOVA or an older one, as a plain line (rc5 recheck R4).
+func TestClaudeProfileRedirectNamesOnlyADefaultClaudeThatNeedsHANova(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(t.TempDir(), "claude-profile"))
+	listed, answered := false, true // what claude itself says about ~/.claude
+	previous := defaultClaudeListsHANova
+	defaultClaudeListsHANova = func(string) (bool, bool) { return listed, answered }
+	t.Cleanup(func() { defaultClaudeListsHANova = previous })
+	const lacks = "Your other Claude Code setup in ~/.claude doesn't have HA NOVA yet."
+	const older = "Your other Claude Code setup in ~/.claude still has an older HA NOVA. To update it there, run `ha-nova update`"
+	plugins := func(home, state string) {
+		dir := filepath.Join(home, ".claude", "plugins")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if state != "" {
+			if err := os.WriteFile(filepath.Join(dir, "installed_plugins.json"), []byte(state), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	nova := func(version string) string {
+		return `{"plugins":{"ha-nova@ha-nova":[{"installPath":"/x","version":"` + version + `"}]},"version":2}`
+	}
+	cases := []struct {
+		name  string
+		setup func(home string)
+		want  string
+	}{
+		{"no default Claude", func(string) {}, ""},
+		{"default Claude without plugins", func(home string) { plugins(home, "") }, lacks},
+		{"default Claude with other plugins", func(home string) { plugins(home, `{"plugins":{"other@x":[{"installPath":"/x"}]},"version":2}`) }, lacks},
+		{"default Claude with this HA NOVA", func(home string) { plugins(home, nova("0.27.0")) }, ""},
+		{"default Claude with an older HA NOVA", func(home string) { plugins(home, nova("0.26.0")) }, older},
+		{"an empty HA NOVA record list", func(home string) { plugins(home, `{"plugins":{"ha-nova@ha-nova":[]},"version":2}`) }, lacks},
+		{"an old record beside a current one", func(home string) {
+			plugins(home, `{"plugins":{"ha-nova@ha-nova":[{"version":"0.26.0"},{"version":"0.27.0"}]},"version":2}`)
+		}, ""},
+		{"unreadable plugin list", func(home string) { plugins(home, "{") }, ""},
+	}
+	run := func(t *testing.T, setup func(string), want string) {
+		t.Helper()
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		paths, err := detectPaths()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.27.0-rc6"}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		setup(home)
+		out := captureStderr(t, func() { warnClaudeProfileRedirect(paths) })
+		if (want == "") != (strings.TrimSpace(out) == "") || !strings.Contains(out, want) || strings.Contains(out, "WARNING") {
+			t.Fatalf("want %q, got %q", want, out)
+		}
+	}
+	// claude lists HA NOVA though its file doesn't, or gives no answer: silent.
+	for _, answer := range [][2]bool{{true, true}, {false, false}} {
+		listed, answered = answer[0], answer[1]
+		run(t, func(home string) { plugins(home, "") }, "")
+	}
+	listed, answered = false, true
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) { run(t, tc.setup, tc.want) })
+	}
+}

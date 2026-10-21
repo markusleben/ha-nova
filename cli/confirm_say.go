@@ -111,7 +111,7 @@ func sayGoal(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 func sayReasons(e *tierEngine, env *verbEnvelope, plan storedPlan) []string {
 	var parts, typed, other []string
 	seen := map[string]bool{}
-	// "can't see what “Front Door” does" adds nothing once that entity's own
+	// "can't check how “Front Door” works" adds nothing once that entity's own
 	// typed action ("This unlocks a door") already says why.
 	explained := map[string]bool{}
 	for _, r := range env.Reasons {
@@ -228,7 +228,8 @@ func sayReason(e *tierEngine, env *verbEnvelope, plan storedPlan, r tierReason) 
 		through = ", through " + via
 	}
 	if sayUnseenCodes[r.Code] {
-		return sayUnseen(name, via), true
+		domain, _ := splitID(r.EntityID)
+		return sayUnseen(name, via, sayPlainDomains[domain]), true
 	}
 	switch r.Code {
 	case reasonUserService:
@@ -392,19 +393,30 @@ func sayActionRank(m tierMember) int {
 
 var sayUnseenCodes = map[string]bool{reasonUnregisteredActuator: true, reasonTemplateAction: true, reasonUserButton: true, reasonUnreadCommand: true}
 
-// sayUnseen: "HA NOVA can't see what “X” does"; reached through an item,
-// that item leads ("This automation uses “X”, and …").
-func sayUnseen(name, via string) string {
+// sayPlainDomains: what these do is plain from the kind (a lock locks, a
+// garage door opens); what HA NOVA can't check is how it does it.
+var sayPlainDomains = map[string]bool{"lock": true, "cover": true, "alarm_control_panel": true, "valve": true}
+
+// sayUnseen: "HA NOVA can't see what “X” does" ("…can't check how “X”
+// works" for a lock, cover, alarm, or valve); reached through an item, that
+// item leads ("This automation uses “X”, and …").
+func sayUnseen(name, via string, plain bool) string {
+	unseen := "HA NOVA can't see what " + name + " does"
+	that := "HA NOVA can't see what that does"
+	if plain {
+		unseen = "HA NOVA can't check how " + name + " works"
+		that = "HA NOVA can't check how that works"
+	}
 	switch {
 	case name == "" && via == "":
 		return "HA NOVA can't check everything this would set off"
 	case name == "":
 		return "HA NOVA can't check everything " + via + " would set off"
 	case via == "":
-		return "HA NOVA can't see what " + name + " does"
+		return unseen
 	}
 	first, size := utf8.DecodeRuneInString(via)
-	return string(unicode.ToUpper(first)) + via[size:] + " uses " + name + ", and HA NOVA can't see what that does"
+	return string(unicode.ToUpper(first)) + via[size:] + " uses " + name + ", and " + that
 }
 
 // sayVia names the item a member reason runs through ("the automation

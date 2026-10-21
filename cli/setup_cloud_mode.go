@@ -17,7 +17,7 @@ const (
 
 var verifyCloudDeviceHealthForSetup = verifyCloudDeviceHealth
 
-const setupConnectionLinkNote = "Link = Nabu Casa remote access, formerly Home Assistant Cloud."
+const setupConnectionLinkNote = "Home Assistant Link used to be called Home Assistant Cloud."
 
 // promptSetupConnectionMode asks with the arrow menu; without one it falls
 // back to the numbered prompt.
