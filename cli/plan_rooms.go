@@ -241,7 +241,7 @@ func computeRoomsPlan(s *relaySession, env *verbEnvelope, req roomsRequest) (*ti
 	plan := storedPlan{Kind: "rooms", RoomsRequest: &req, Basis: map[string]any{"names": names, "areas": areaNames, "effective": effective}}
 	plan, err = sealPlan(e, env, plan, req)
 	env.Result = result
-	env.Say = roomsSay(result.Changes, req.Undo) + " Nothing changes until you say so. Save these rooms?"
+	env.Say = sayAbout(roomsSay(result.Changes, req.Undo)) + " " + sayNotSaved + " " + sayRoomsAsk
 	return e, plan, err
 }
 
@@ -272,9 +272,9 @@ func roomsSay(changes []roomsChange, undo bool) string {
 		parts = append(parts, room+" ← "+sayList(by[room]))
 	}
 	if undo {
-		return fmt.Sprintf("Put %s back where they were: %s.", plural(len(changes), "device"), strings.Join(parts, "; "))
+		return fmt.Sprintf("Put %s back where they were: %s", plural(len(changes), "device"), strings.Join(parts, "; "))
 	}
-	return fmt.Sprintf("Put %s in rooms: %s.", plural(len(changes), "device"), strings.Join(parts, "; "))
+	return fmt.Sprintf("Put %s in rooms: %s", plural(len(changes), "device"), strings.Join(parts, "; "))
 }
 
 func deviceAreaWrite(s *relaySession, device, area string) error {

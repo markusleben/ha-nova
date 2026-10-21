@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"errors"
 	"flag"
 	"fmt"
@@ -259,7 +260,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			return env, verbExitOK
 		}
 		if fresh.Prompt != "" { // a confirmation form shows it without the preview (mcp_confirm.go)
-			fresh.Prompt = "Something changed since the last preview. " + fresh.Prompt
+			fresh.Prompt = sayChanged + fresh.Prompt
 		}
 		if err := savePlan(paths, fresh, s.transport.Credential); err != nil {
 			return fail(err)
@@ -268,7 +269,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			env.Say = confirmationSay(e, &env, fresh, "")
 		}
 		if env.Say != "" {
-			env.Say = "Something changed since the last preview. " + env.Say
+			env.Say = sayChanged + env.Say
 		}
 		return fail(&verbFailure{exit: verbExitDrift, status: "drift", code: "PLAN_DRIFT",
 			message: "something changed since the preview; nothing was sent and the old plan is gone",
@@ -323,6 +324,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		wantCode = "" // never shown, not even once used
 	}
 	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode}
+	env.done = applyDone(e, &env, fresh, ctx)
 	if isRooms {
 		previewed, _ := env.Result.(roomsResult)
 		if err := executeRooms(paths, s, &env, *fresh.RoomsRequest, previewed.Changes); err != nil {
@@ -350,6 +352,20 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(release(err))
 	}
 	return env, env.exit
+}
+
+// applyDone: what a config or rooms apply does, for its result line (a
+// call words its read-back instead).
+func applyDone(e *tierEngine, env *verbEnvelope, plan storedPlan, ctx configContext) string {
+	switch {
+	case plan.Kind == "rooms" && plan.RoomsRequest.Undo:
+		return "put the devices back where they were"
+	case plan.Kind == "rooms":
+		return "put the devices in their rooms"
+	case plan.ConfigAction == nil:
+		return ""
+	}
+	return sayPast(sayGoal(e, env, plan, cmp.Or(ctx.alias, configAlias(nil, ctx.current))))
 }
 
 // errNothingSent: the write failed before reaching Home Assistant, so the

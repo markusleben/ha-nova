@@ -89,14 +89,23 @@ func appendSegment(segs []segment, s segment) []segment {
 
 func makeChange(segs []segment, before, after interface{}) configChange {
 	var bf, af string
+	cell := func(v interface{}) string { // plain words only in a preview (diff_plain.go)
+		if text, ok := plainCell(segs, v); ok {
+			return text
+		}
+		return formatValue(v)
+	}
 	switch {
 	case before == nil:
 		// The empty Before column IS the "added" statement; no verbal wrapper.
-		bf, af = "—", formatValue(after)
+		bf, af = "—", cell(after)
 	case after == nil:
-		bf, af = formatValue(before), "—"
+		bf, af = cell(before), "—"
 	default:
 		bf, af = formatValue(before), formatValue(after)
+		if pb, pa := cell(before), cell(after); bf != af && pb != pa { // plain words only where they keep the difference
+			bf, af = pb, pa
+		}
 		if bf == af {
 			// Same rendered text but a real change → a type/representation
 			// difference (e.g. number 5 vs string "5"). Disambiguate by type so

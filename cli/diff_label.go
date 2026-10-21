@@ -83,6 +83,8 @@ func buildLabel(segs []segment, anchorsWipePositional bool) string {
 				head = token
 				if segs[i+1].anchor == notAnchor {
 					tokens = append(tokens, labelToken{text: notAnchor})
+				} else if who := headName(segs[i+1].anchor); who != "" {
+					tokens = append(tokens, labelToken{text: who}) // a preview names whom the row is about
 				}
 			case branchTokenKeys[s.key]:
 				tokens = append(tokens, labelToken{text: strings.ToLower(token)})
@@ -121,6 +123,25 @@ func buildLabel(segs []segment, anchorsWipePositional bool) string {
 	default:
 		return head + " (" + strings.Join(parts, " › ") + ")"
 	}
+}
+
+// headName: the entity a trigger or condition anchor names, as a preview
+// shows it (“Door”, or binary_sensor.front (“Door”) for a shared name);
+// "" outside a preview, for a raw id, or when it is long enough to push
+// the changed field past the label cap.
+func headName(anchor string) string {
+	at := strings.Index(anchor, "“")
+	if previewNames == nil || at < 0 || !strings.HasPrefix(anchor, "condition ") && !strings.HasPrefix(anchor, "trigger ") {
+		return ""
+	}
+	start := at
+	if strings.HasSuffix(anchor[:at], " (") { // the id leads a shared name
+		start = strings.LastIndex(anchor[:at-2], " ") + 1
+	}
+	if who := anchor[start:]; len(who) <= 48 {
+		return who
+	}
+	return ""
 }
 
 func withoutPositional(tokens []labelToken) []labelToken {
@@ -168,7 +189,7 @@ func configItemAnchor(v interface{}) string {
 			return notAnchor
 		}
 		if entity != "" {
-			return "condition " + entity
+			return "condition " + nameOf(entity)
 		}
 		return "condition " + s
 	}
@@ -179,7 +200,7 @@ func withEntityAnchor(base, entity string) string {
 	if entity == "" {
 		return base
 	}
-	return base + " " + entity
+	return base + " " + nameOf(entity)
 }
 
 // itemAnchorFor is the single gate for anchoring: items inside a service

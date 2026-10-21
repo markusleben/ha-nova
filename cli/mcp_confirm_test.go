@@ -14,7 +14,7 @@ import (
 // The human types the code in a confirmation form, never the model
 // (docs/work/2026-10-16-mcp-human-confirmation-spec.md).
 
-var formCode = regexp.MustCompile(`To go ahead, type this one-time code from HA NOVA: ([0-9]{4})$`)
+var formCode = regexp.MustCompile(`Type ([0-9]{4}) to confirm\.$`)
 
 var planIDText = regexp.MustCompile(`p_[0-9a-f]{12}`)
 
@@ -172,8 +172,8 @@ func TestMCPFormConfirmsTypedPlanLegacy(t *testing.T) {
 	formID, params, typed := c.form()
 	schema := params["requestedSchema"].(map[string]any)
 	field := schema["properties"].(map[string]any)["code"].(map[string]any)
-	if code != typed || params["mode"] != nil || !strings.HasPrefix(params["message"].(string), "Unlock “lock.front”") || field["title"] != "One-time code from HA NOVA" ||
-		!strings.Contains(params["message"].(string), "so it needs a four-digit one-time code from HA NOVA.") || field["type"] != "string" || schema["required"].([]any)[0] != "code" {
+	if code != typed || params["mode"] != nil || !strings.HasPrefix(params["message"].(string), "I'm about to unlock “lock.front”") || field["title"] != "One-time code from HA NOVA" ||
+		!strings.HasSuffix(params["message"].(string), "so I need you to confirm it. Nothing has run yet. Type "+code+" to confirm.") || field["type"] != "string" || schema["required"].([]any)[0] != "code" {
 		t.Fatalf("form %v (code %s)", params, code)
 	}
 	if len(h.posts()) != 0 {
@@ -337,7 +337,7 @@ func TestMCPFormConfirmsTypedPlanModern(t *testing.T) {
 		asked := call(applyArgs(id, extra))
 		form := asked["inputRequests"].(map[string]any)["confirm"].(map[string]any)
 		message := form["params"].(map[string]any)["message"].(string)
-		if asked["resultType"] != "input_required" || asked["content"] != nil || form["method"] != "elicitation/create" || !strings.HasSuffix(message, "one-time code from HA NOVA: "+code) || len(h.posts()) != 0 {
+		if asked["resultType"] != "input_required" || asked["content"] != nil || form["method"] != "elicitation/create" || !strings.HasSuffix(message, "Type "+code+" to confirm.") || len(h.posts()) != 0 {
 			t.Fatalf("want the form, got %v", asked)
 		}
 	}
@@ -427,7 +427,7 @@ func TestMCPFormDriftAndDelete(t *testing.T) {
 	noCode(t, "drift", drift, storedCode(t, h, fresh["id"].(string)))
 	call = c.startCall(applyArgs(fresh["id"].(string), nil))
 	formID, params, _ := c.form()
-	if message := params["message"].(string); !strings.HasPrefix(message, "Something changed since the last preview. Unlock") {
+	if message := params["message"].(string); !strings.HasPrefix(message, "Something changed since the last preview. I'm about to unlock") {
 		t.Fatalf("the form after a drift: %q", message)
 	}
 	c.answer(formID, map[string]any{"action": "cancel"})
@@ -440,7 +440,7 @@ func TestMCPFormDriftAndDelete(t *testing.T) {
 	h.f.snapshotErr = true
 	call = c.startCall(applyArgs(id, nil))
 	formID, params, typed = c.form()
-	if message := params["message"].(string); !strings.HasPrefix(message, "Delete the automation “Night”. Nothing is deleted yet.") || !strings.Contains(message, sayCopyNote) {
+	if message := params["message"].(string); !strings.HasPrefix(message, "I'm about to delete the automation “Night”. This removes it from Home Assistant, so I need you to confirm it. Nothing is deleted yet.") || !strings.Contains(message, sayCopyNote) {
 		t.Fatalf("delete form: %q", message)
 	}
 	c.answer(formID, map[string]any{"action": "accept", "content": map[string]any{"code": typed}})
@@ -507,8 +507,8 @@ func TestMCPFormBindingAndWording(t *testing.T) {
 	unlocking := hallDraft("light.turn_on")
 	unlocking["alias"], unlocking["actions"] = "Porch light", []any{step("lock.unlock", "lock.front")}
 	for args, want := range map[*map[string]any]string{
-		{"kind": "write", "domain": "automation", "id": "a1", "draft": unlocking}:     "Change the automation “Hall motion”. Nothing is saved yet. This also unlocks",
-		{"kind": "write", "domain": "automation", "create": true, "draft": unlocking}: "Create the automation “Porch light”. Nothing is saved yet. This also unlocks",
+		{"kind": "write", "domain": "automation", "id": "a1", "draft": unlocking}:     "I'm about to change the automation “Hall motion”. This also unlocks",
+		{"kind": "write", "domain": "automation", "create": true, "draft": unlocking}: "I'm about to create the automation “Porch light”. This also unlocks",
 	} {
 		planned := call(map[string]any{"name": "ha_plan", "arguments": *args})
 		id := envelopeOf(planned)["plan"].(map[string]any)["id"].(string)

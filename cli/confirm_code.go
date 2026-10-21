@@ -91,9 +91,6 @@ var (
 	humanWhere  string
 )
 
-// sayChatNote closes a chat plan's ask: the honest limit of fallback E.
-const sayChatNote = "Note: the assistant can see this code too, so it only counts if you type it yourself in your reply."
-
 var fourDigits = regexp.MustCompile(`^[0-9]{4}$`)
 
 // typedCode is what the user typed as a code: spaces and invisible format
@@ -114,29 +111,6 @@ func typedCode(s string) string {
 		return r
 	}, s)
 }
-
-// sayTypedAsk ends a typed plan's `say`; goal is the plan's own action
-// ("unlock “Front Door”"), so the code reads as bound to it.
-func sayTypedAsk(code, goal string) string {
-	return "Type " + code + " to " + goal + " — a plain yes can't confirm this."
-}
-
-// sayWindowAsk closes a window plan's `say`: the code is never shown.
-const sayWindowAsk = "A confirmation window opens on this computer — confirm there."
-
-// sayWindowPhoneAsk: a phone is linked here, so it asks too (confirm_both.go).
-func sayWindowPhoneAsk(button string) string {
-	return "A confirmation window opens on this computer, and your linked phone gets a notification (expand it and tap “" + button + "”). Answer on either, only if you asked for this; the first answer counts."
-}
-
-// sayPhoneAsk closes a phone plan's `say`: the code is never shown.
-func sayPhoneAsk(button string) string {
-	return "HA NOVA sends a notification to your phone: expand it and tap “" + button + "” there, only if you asked for this."
-}
-
-// sayFormAsk replaces sayTypedAsk where the client shows a confirmation
-// form: the code is never in a tool result there (mcp_confirm.go).
-const sayFormAsk = "Your app will ask for the four-digit one-time code from HA NOVA in a form — a plain yes can't confirm this."
 
 // withholdAsk swaps the closing ask for sayFormAsk: the last "Type <code> to "
 // outside “…”, since a Home Assistant name (always quoted; sayText strips

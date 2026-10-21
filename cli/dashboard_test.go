@@ -139,7 +139,7 @@ func TestDashboardWritePreviewsCardLevelDiffSnapshotsSavesOnceAndReverts(t *test
 	}
 	diff := strings.Join(env.Diff, "\n")
 	for _, want := range []string{
-		`| View "Living room" › card 1 (tile light.kitchen) › color | — | amber |`,
+		`| View "Living room" › card 1 (tile “Kitchen”) › color | — | amber |`, // the card's entity by its name
 		`| View "Living room" › card 3 | — | tile light.attic |`,
 		`| View "Garden" | — | masonry view, 1 card |`,
 		`| View order | View "Living room", View "Doors" | View "Doors", View "Living room" |`,
@@ -477,8 +477,9 @@ func TestDashboardErrorsAreReportedByWhatHomeAssistantHoldsAfterwards(t *testing
 	f.lovelace.rejectAll = true
 	h = newWriteHarness(t, f)
 	_, env = h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "new-board", "--create", "--title", "New", "--file", draftFile(t, homeDashboard()))
-	if exit, applied = h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 6 || !strings.Contains(applied.Error.Message, "exists, but it is empty") {
-		t.Fatalf("rejected create: exit %d env %+v", exit, applied.Error)
+	if exit, applied = h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 6 || !strings.Contains(applied.Error.Message, "exists, but it is empty") ||
+		applied.Say != "Not done: Home Assistant refused it. Part of it may have happened, so let's check before you count on it." {
+		t.Fatalf("rejected create: exit %d env %+v say %q", exit, applied.Error, applied.Say)
 	}
 }
 

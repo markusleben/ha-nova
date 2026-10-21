@@ -275,9 +275,9 @@ func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnap
 	_ = os.Remove(claimed)
 	flag := ""
 	if noSnapshot { // the user already chose to go on without a copy
-		env.Say, flag = strings.Replace(env.Say, sayCopyNote, "No copy could be saved, so once deleted it can't be restored.", 1), " --no-snapshot"
+		env.Say, flag = strings.Replace(env.Say, sayCopyNote, sayNoCopyNote, 1), " --no-snapshot"
 	}
-	env.Say = "The confirmation window couldn't open on this computer. " + env.Say
+	env.Say = sayNoWindowHere + env.Say
 	if channel == channelPhone { // no code: sealPlan's next_step applies
 		if noSnapshot {
 			env.NextStep = strings.Replace(env.NextStep, "without --confirm", "with --no-snapshot and without --confirm", 1)

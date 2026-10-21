@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -86,7 +87,7 @@ func TestApplyVerifiesHomeAssistantsRenamedServiceKey(t *testing.T) {
 			_, env := h.run(runPlanCommand, "write", "--domain", "automation", "--file", draftFile(t, draft))
 			exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
 			if name == "saved as planned" {
-				if exit != 0 || applied.Status != "verified" || applied.Say != "" {
+				if exit != 0 || applied.Status != "verified" || !strings.HasPrefix(applied.Say, "Done: created the automation ") {
 					t.Fatalf("exit %d env %+v", exit, applied)
 				}
 				return

@@ -358,7 +358,7 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 			if before == nil {
 				before = json.RawMessage(`{}`)
 			}
-			env.Diff, _ = configChanges(before, req.Draft)
+			withPreviewNames(loadPreviewNames(s, req.Draft), func() { env.Diff, _ = configChanges(before, req.Draft) })
 		}
 		after, _ := configObjectFromBytes(req.Draft)
 		ctx.alias, _ = after["alias"].(string)
