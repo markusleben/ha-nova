@@ -35,10 +35,11 @@ type setupPageControl struct {
 	Chat         *setupPageChat   `json:"chat,omitempty"`       // nil: no row (chat_apps.go)
 }
 
-// setupPageChat is the "Use HA NOVA in Claude and ChatGPT" row (spec
-// §11.6). It shows only when the App has chat apps and Home Assistant is
-// 2026.10 or newer; without Link remote access or a public HTTPS address
-// (chatAppsBase) it is one plain line. The page shows the restart
+// setupPageChat is the "Use HA NOVA from your phone too" row (browser flow:
+// "Use HA NOVA in Claude and ChatGPT"; spec §11.6). It shows only when the
+// App has chat apps and Home Assistant is 2026.10 or newer; without Link
+// remote access or a public HTTPS address (chatAppsBase) it says what they
+// need, with Home Assistant's Link page and Check again. The page shows the restart
 // consent before it posts "chat"; the click on it is that consent.
 type setupPageChat struct {
 	State      string         `json:"state"`                 // offer, run, on, expired (the owner session ran out), noaddress (no Link, no public HTTPS address), page_on/page_off (a re-run: no owner sign-in yet, Done applies the switch), signin (Done's owner sign-in runs)
@@ -49,6 +50,7 @@ type setupPageChat struct {
 	ClaudeLink string         `json:"claude_link,omitempty"` // Add to Claude (claudeConnectorLink), once on
 	Phone      string         `json:"phone,omitempty"`       // the phone that confirms for chat apps; "": a code in the chat
 	LinkPage   string         `json:"link_page,omitempty"`   // noaddress, off: Home Assistant's Link page (haLinkPageURL)
+	Guide      string         `json:"guide,omitempty"`       // noaddress, off: the guide's own-HTTPS-address part
 	Checked    string         `json:"checked,omitempty"`     // noaddress, off: the last Check again: off (read, still no address), failed (couldn't read)
 	NoRestart  bool           `json:"no_restart,omitempty"`  // Home Assistant runs the integration already: turning on doesn't restart it
 	Problem    *setupPageMsg  `json:"problem,omitempty"`
@@ -145,7 +147,7 @@ func (f *setupFlow) pageControl() int {
 			row := *ctl.Chat
 			row.Rows = slices.Clone(row.Rows)
 			if row.needsLink() { // where to turn on Link remote access
-				row.LinkPage = haLinkPageURL(f.cfg.HAURL)
+				row.LinkPage, row.Guide = haLinkPageURL(f.cfg.HAURL), chatAppsGuideURL+"#what-you-need"
 			}
 			view.Chat = &row
 		}

@@ -171,6 +171,7 @@ h2 { font-size: .8125rem; font-weight: 600; letter-spacing: .08em; text-transfor
 .rows.tall > li, .rows.sub > li { align-items: start; }
 .rows.tall > li > .ic, .rows.sub > li > .ic { margin-top: 2px; }
 .rows > li.pvrow { border-top: 0; padding-top: 0; }
+.rows > li.feature { background: var(--panel); border: 1px solid var(--hairline); border-radius: 10px; padding: 16px 14px; margin: 12px 0; } /* chat apps: the first optional item */
 .preview:focus, .rows > li:focus { outline: none; }
 .preview { font: .85rem/1.6 var(--mono); color: var(--ink-soft); background: var(--panel); border: 1px solid var(--hairline); border-radius: 10px; padding: 12px 14px; overflow-wrap: anywhere; }
 .preview .add { color: var(--ok); }

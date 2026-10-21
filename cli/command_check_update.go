@@ -18,14 +18,22 @@ var quietUpdateCheckTimeout = 3 * time.Second
 // one offer covers both (the App keeps its own preview and confirmation).
 const appUpdateTooLine = "The NOVA App in Home Assistant needs an update too."
 
-// withAppUpdateToo puts appUpdateTooLine into the HA NOVA notice, above its
-// update step, when Home Assistant reports a pending NOVA App update too (a
-// standalone Relay or an App with nothing pending gets no such promise).
-func withAppUpdateToo(notice, relayNotice humanNotice) humanNotice {
-	if notice.kind == humanNoticeKindUpdateAvailable && relayNotice.appUpdate {
-		notice.message = strings.Replace(notice.message, "\nTo update", "\n"+appUpdateTooLine+"\nTo update", 1)
+// withAppUpdateToo makes the HA NOVA update offer and a pending NOVA App
+// update one notice: appUpdateTooLine above `ha-nova update`, which then
+// offers the App update, so the App's own notice is not printed again. An
+// App with nothing pending (or a standalone Relay), or an offer whose step
+// is not `ha-nova update` (a legacy Windows reinstall), keeps both notices:
+// only the App's own text says where to update it. So does another server's
+// App (--server): a plain `ha-nova update` offers only the default one's.
+// The second result is what is left to print on its own.
+func withAppUpdateToo(notice, relayNotice humanNotice) (humanNotice, humanNotice) {
+	const step = "\nTo update, run: ha-nova update"
+	if name, _ := requestedServerSelection(); name != "" ||
+		notice.kind != humanNoticeKindUpdateAvailable || !relayNotice.appUpdate || !strings.Contains(notice.message, step) {
+		return notice, relayNotice
 	}
-	return notice
+	notice.message = strings.Replace(notice.message, step, "\n"+appUpdateTooLine+step, 1)
+	return notice, humanNotice{}
 }
 
 func runCheckUpdate(paths runtimePaths, args []string) int {
@@ -101,7 +109,7 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 		noticeCtx, cancelNotices = context.WithTimeout(context.Background(), legacyNoticeProbeTimeout)
 	}
 	defer cancelNotices()
-	notice = withAppUpdateToo(notice, relayNotice)
+	notice, relayNotice = withAppUpdateToo(notice, relayNotice)
 	printHumanNotice(notice)
 	printHumanNotice(relayNotice)
 	printLegacyAccessNotice(noticeCtx, paths, *quiet)

@@ -106,7 +106,7 @@ The line updates in place and ends with `✓ Done: this computer is connected to
 - Buttons: [Sign in and install NOVA] (or [Sign in with Home Assistant] / [Sign in and update NOVA]) and ghost [Use a six-digit code].
 - Fine print: "You sign in on your own Home Assistant page as the owner. HA NOVA then installs only its own App." Plus one line: "Home Assistant will say 'You're about to give http://127.0.0.1:… access'. That is this page."
 - Sub-states:
-  - nothing found or several found: the HA row becomes "Where is your Home Assistant?" with a field (or a list) and [Connect]. A link reads "No Home Assistant yet? Look around the demo house" (§8);
+  - nothing found or several found: the HA row becomes "Where is your Home Assistant?" with a field (or a list) and [Connect]. A link reads "No Home Assistant yet? Try HA NOVA on a demo house" (§8);
   - code path: "In Home Assistant, open NOVA in the sidebar and click Connect a device." Six boxes, [Connect].
 
 **Step 2: "Setting up NOVA in your Home Assistant."** (eyebrow "Connecting")
@@ -130,7 +130,7 @@ The line updates in place and ends with `✓ Done: this computer is connected to
   - "Confirm on this computer": "A small window asks before anything risky runs." Tag: On.
   - "Confirm on your phone": "iPhone Markus, and its Apple Watch. Both ask; the first answer counts." Switch, off by default. Switching it on sends one link notification ("Tap 'Link' there."). Several eligible phones: the row first lists them to pick one, as `confirm-phone` does today (§16 D10). None: "No phone with the Home Assistant app found", and no switch.
   - "Let Claude Code show the window": "Adds one rule to Claude Code so its auto mode doesn't block the confirmation window." Switch, **preselected**; written on [Finish setup] with #738's writer; uninstall removes it.
-  - *Addition* (§16 D3), only when HA Link remote access is active: "Use HA NOVA in Claude and ChatGPT, on any phone." Switch, off by default; turning it on runs §11.6. Without remote access (and no public HTTPS address): the row says Claude also works on the phone and that it needs Remote access, with [Open Home Assistant Link] (`<saved HA URL>/config/cloud`) and [Check again], which reads remote access again and shows the switch once it is on.
+  - *Addition* (§16 D3), when Link remote access or a public HTTPS address is there: "Use HA NOVA from your phone too" on the computer flow, "Use HA NOVA in Claude and ChatGPT" in the browser flow. Switch, off by default; turning it on runs §11.6. On the computer flow the row is a card right after the confirmation rows: "Use HA NOVA from your phone too" ("Ask in the Claude app on your phone, or in Claude or ChatGPT on the web. No computer has to stay on."); the browser flow keeps it first with its own words. Without remote access (and no public HTTPS address): "Needs Home Assistant Link with remote access. That's a subscription from the Home Assistant team." with [Open Home Assistant Link] (`<saved HA URL>/config/cloud`, which also starts a subscription), [Check again] (reads remote access again and shows the switch once it is on), and "Or use your own HTTPS address" (the chat-apps guide).
 - Button: [Finish setup].
 - Fine print: "Turning on your phone sends one notification to that phone. Tap 'Link' there."
 
@@ -149,7 +149,7 @@ The line updates in place and ends with `✓ Done: this computer is connected to
 - Step 3 runs once setup is complete (as the terminal's offers do), so its writes never race setup's own config checks. Ctrl+C or idle there shows "connected, choices not applied".
 - The Link row is the Home Assistant Link fallback (D2), shown only while Link remote access answers; its sign-in opens in a tab of its own. A Link failure keeps the terminal's exit code, but step 4 still shows with one line. The chat-app row (B4) is in the contract doc, "Setup and CLI (B4)".
 - Step 4 runs the §7.6 verbs as child processes for the server setup connected (`--server`), in their own signal group (Ctrl+C never stops a save halfway). A save posts the plan id the page shows; the CLI saves only a plan this run stored for that preview, once. An unclear outcome is never offered again; a read-back mismatch shows no ✓. Rooms undo is a preview of its own, then a click, and stays offered until an undo is verified. Done, Ctrl+C, or 30 min idle closes setup.
-- No Home Assistant found: step 1 offers "Look around the demo house" (`ha-nova try`; `setup --demo` is the alias).
+- No Home Assistant found: step 1 offers "Try HA NOVA on a demo house" (`ha-nova try`; `setup --demo` is the alias).
 
 **Re-run on a working install** ("HA NOVA is connected"):
 - ✓ rows from doctor's checks;
@@ -362,7 +362,7 @@ Known limits:
 
 ## 8. Demo path (`ha-nova try`)
 
-- `ha-nova try` (A10) and step 1's "Look around the demo house" connect to `demo.hanova.app`:
+- `ha-nova try` (A10) and step 1's "Try HA NOVA on a demo house" connect to `demo.hanova.app`:
   - the relay token comes from `connect.json` (public, shared, no pairing); its `relay_url` must share the origin of `connect.json`, and the relay must answer `/health` before anything is saved;
   - the profile `demo` lives in `demo.json` beside `config.json`, never in it: it cannot become the default, and only `HA_NOVA_SERVER=demo` or `--server demo` selects it;
   - `setup`, `pair`, and `cloud` refuse a demo selection; new server profiles can't be named `demo` (an existing one keeps working, and `try` then refuses);
@@ -370,6 +370,7 @@ Known limits:
   - undo checkpoints saved on the demo are tagged `demo`, and the demo never reverts to an untagged one.
 - On the demo, typed verbs carry a `demo` notice and no Relay update notices; an unreachable or resetting demo is one plain line. With only the demo connected, an unselected verb says how to select it. One session-bootstrap line names `--server demo`, and the Claude Code session hook says when the demo is connected.
 - Step 4 reads "A shared demo house. It resets every hour; never type real names or passwords."
+- Both `try`'s terminal text and the page's demo screen link the demo's own Home Assistant (`/demo-house/house`, log in demo / demo) to watch the house change next to the chat.
 - The demo profile gets no phone link and no Claude rule offer.
 - Not done: the `setup --demo` alias (one command is enough) and step 1's link (page work, A6).
 
@@ -486,7 +487,7 @@ ChatGPT works the same way on the web only; its mobile app is not claimed, since
 
 ### 11.6 Turning it on (step 3 row or NOVA page)
 
-1. The owner turns on "Use HA NOVA in Claude and ChatGPT". This requires an active Link remote and HA 2026.10+.
+1. The owner turns on "Use HA NOVA from your phone too" (browser flow: "Use HA NOVA in Claude and ChatGPT"). This requires Link remote access or a public HTTPS address, and HA 2026.10+.
 2. Both entry points call the same owner-only App action: the NOVA page directly, the CLI through its owner ingress session (§6). The switch state lives in `/data`, not in a Supervisor App option, so the running App acts at once, without an App restart, and never rewrites the App's other options.
 3. The App writes `custom_components/ha_nova` into `/config`. It needs no new permission: `homeassistant_config` is already mapped for `/files`. It writes only that directory, and a test pins this.
 4. The App publishes its discovery message (§11.3).

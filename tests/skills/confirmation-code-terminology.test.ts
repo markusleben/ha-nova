@@ -12,7 +12,6 @@ const SKILLS_ROOT = "skills";
 const REFERENCE_DOCS = [
   "docs/reference/skill-architecture.md",
   "docs/reference/safety.md",
-  "docs/reference/comparison.md",
 ];
 
 const ALL_SKILL_MD_FILES = ((): string[] => {
@@ -61,13 +60,12 @@ const AUTH_TOKEN_FILES = new Set([
   "skills/ha-nova/batch-safety.md",
   "skills/ha-nova/relay-api.md",
   "docs/reference/safety.md",
-  "docs/reference/comparison.md",
 ]);
 
 // A bare "token" line in an allowlisted file must carry auth context — this is
 // the checkable form of the issue's auth-language exception.
 const AUTH_CONTEXT =
-  /auth|LLAT|credential|secret|password|paste|placeholder|access[- ]token|API|long-lived|InfluxDB|read permission|URLs|relay|owner-level|OAuth|Bearer|SUPERVISOR|HA token|pairing|privacy|token cost/i;
+  /auth|LLAT|credential|secret|password|paste|placeholder|access[- ]token|API|long-lived|InfluxDB|read permission|URLs|relay|owner-level|OAuth|Bearer|SUPERVISOR|HA token|pairing|privacy/i;
 
 const strip = (md: string): string =>
   md

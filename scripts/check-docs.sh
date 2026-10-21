@@ -90,8 +90,7 @@ fi
 
 # ── 2b. One relay codebase, two distributions ──
 # The standalone container must build from the SAME src/ as the App. A second
-# implementation (e.g. a Python custom component) is exactly the false-parity
-# bug class HA NOVA criticizes in MCP servers.
+# implementation (e.g. a Python custom component) would drift from the first.
 echo "[2b] Relay container builds from the shared source"
 if [[ -f "$REPO_ROOT/nova/Dockerfile.standalone" ]]; then
   if grep -q "COPY src ./src" "$REPO_ROOT/nova/Dockerfile.standalone"; then

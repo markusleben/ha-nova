@@ -42,6 +42,16 @@ func TestConfirmationSay(t *testing.T) {
 			setup: func(f *fakeHA) { f.ent("lock.yaml", "", "locked", map[string]any{"friendly_name": "Front Door"}) }, // no registry row
 			args:  []string{"lock.unlock", "lock.yaml"},
 			want:  "I'm about to unlock “Front Door”: locked → unlocked. This unlocks a door, so I need you to confirm it. Nothing has run yet. Type CODE to unlock “Front Door” — a plain yes can't confirm this. " + sayChatNote},
+		{name: "locking an unreadable lock says how, not what (rc5 recheck R3)",
+			setup: func(f *fakeHA) { f.ent("lock.yaml", "", "unlocked", map[string]any{"friendly_name": "Front Door"}) }, // no registry row
+			args:  []string{"lock.lock", "lock.yaml"},
+			has:   []string{"HA NOVA can't check how “Front Door” works, so I need you to confirm it."}},
+		{name: "a template garage door says how, not what",
+			setup: func(f *fakeHA) {
+				f.ent("cover.tpl", "template", "open", map[string]any{"device_class": "garage", "friendly_name": "Garage", "supported_features": 15.0})
+			},
+			args: []string{"cover.close_cover", "cover.tpl"},
+			has:  []string{"HA NOVA can't check how “Garage” works"}},
 		{name: "unregistered switch",
 			setup: func(f *fakeHA) { f.ent("switch.porch", "", "off", map[string]any{"friendly_name": "Porch"}) },
 			args:  []string{"switch.turn_on", "switch.porch"},

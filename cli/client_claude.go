@@ -68,7 +68,7 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 						return verifyErr
 					}
 					cleanupClaudeMarketplaceDevResidue(paths, marketplaceRoot)
-					warnClaudeProfileRedirect(paths.Home)
+					warnClaudeProfileRedirect(paths)
 					return nil
 				} else {
 					return restoreMarketplace(fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(installCmd.Args[1:], " "), strings.TrimSpace(string(installOutput))))
@@ -88,18 +88,8 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 	// Only after the sync fully verified: earlier failure paths roll back to
 	// the previous (possibly dev) registration, which still needs its symlink.
 	cleanupClaudeMarketplaceDevResidue(paths, marketplaceRoot)
-	warnClaudeProfileRedirect(paths.Home)
+	warnClaudeProfileRedirect(paths)
 	return nil
-}
-
-// warnClaudeProfileRedirect surfaces that the sync landed in a non-default
-// Claude profile so a redirected shell (e.g. inside a Claude Code session)
-// cannot silently leave the default install outdated.
-func warnClaudeProfileRedirect(home string) {
-	if !claudeConfigRootRedirected(home) {
-		return
-	}
-	printHumanWarn("Claude sync targeted the profile at %s (CLAUDE_CONFIG_DIR). A default Claude install at ~/.claude needs a separate `ha-nova setup claude` from a shell without CLAUDE_CONFIG_DIR.", claudeConfigRoot(home))
 }
 
 func verifyClaudePluginInstalled(home, desiredSource string) error {

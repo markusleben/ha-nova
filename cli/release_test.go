@@ -234,7 +234,7 @@ func TestRunUpdateIgnoresFreshReleaseCacheWhenResolvingTargetVersion(t *testing.
 		}
 	})
 
-	if !strings.Contains(output, "HA NOVA 0.2.3 is up to date") {
+	if !strings.Contains(output, "You already have HA NOVA 0.2.3.") {
 		t.Fatalf("expected up-to-date message, got %q", output)
 	}
 	if strings.Contains(output, "target v0.2.1") {
@@ -611,10 +611,10 @@ func TestCheckRelayVersionReturnsStructuredOutdatedNotice(t *testing.T) {
 	if notice.kind != humanNoticeKindRelayOutdated {
 		t.Fatalf("notice.kind = %q, want %q", notice.kind, humanNoticeKindRelayOutdated)
 	}
-	if notice.level != humanNoticeWarning {
-		t.Fatalf("notice.level = %q, want %q", notice.level, humanNoticeWarning)
+	if notice.level != humanNoticeNote { // plain, like the update offer: no WARNING label
+		t.Fatalf("notice.level = %q, want %q", notice.level, humanNoticeNote)
 	}
-	if !strings.Contains(notice.message, "The NOVA App in Home Assistant needs an update: it has v0.1.0, HA NOVA needs v0.2.0 or newer.") {
+	if !strings.Contains(notice.message, "The NOVA App in Home Assistant needs an update: it has 0.1.0, HA NOVA needs 0.2.0 or newer.") {
 		t.Fatalf("unexpected relay warning message: %q", notice.message)
 	}
 }
@@ -641,7 +641,7 @@ func TestCheckRelayVersionWarnsOnUnsupportedRelayVersionFormat(t *testing.T) {
 	if notice.level != humanNoticeWarning {
 		t.Fatalf("notice.level = %q, want %q", notice.level, humanNoticeWarning)
 	}
-	if !strings.Contains(notice.message, "can't read the NOVA App's version (v0.2.0-beta1") {
+	if !strings.Contains(notice.message, "can't read the NOVA App's version (0.2.0-beta1") {
 		t.Fatalf("unexpected relay warning message: %q", notice.message)
 	}
 }
@@ -670,7 +670,7 @@ func TestCheckRelayVersionReadsTheRealHealthEnvelope(t *testing.T) {
 	if notice.kind != humanNoticeKindRelayOutdated {
 		t.Fatalf("notice.kind = %q, want %q (envelope body must not be skipped)", notice.kind, humanNoticeKindRelayOutdated)
 	}
-	if !strings.Contains(notice.message, "The NOVA App in Home Assistant needs an update: it has v0.2.6, HA NOVA needs v0.4.0 or newer.") {
+	if !strings.Contains(notice.message, "The NOVA App in Home Assistant needs an update: it has 0.2.6, HA NOVA needs 0.4.0 or newer.") {
 		t.Fatalf("unexpected relay warning message: %q", notice.message)
 	}
 }
@@ -712,7 +712,7 @@ func TestRelayFloorNoticeWarnsWhenLiveRelayIsBelowFloor(t *testing.T) {
 	if notice.kind != humanNoticeKindRelayOutdated {
 		t.Fatalf("notice.kind = %q, want %q", notice.kind, humanNoticeKindRelayOutdated)
 	}
-	if !strings.Contains(notice.message, "The NOVA App in Home Assistant needs an update: it has v0.2.6, HA NOVA needs v0.4.0 or newer.") {
+	if !strings.Contains(notice.message, "The NOVA App in Home Assistant needs an update: it has 0.2.6, HA NOVA needs 0.4.0 or newer.") {
 		t.Fatalf("unexpected relay warning message: %q", notice.message)
 	}
 }

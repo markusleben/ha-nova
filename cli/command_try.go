@@ -186,10 +186,18 @@ Never type real names or passwords there. Your own home is not touched.
 
 Open %s in a new chat. Say these, one at a time:
 %s
+Watch the house: %s/demo-house/house  (log in: demo / demo)
 Done?            ha-nova try --stop
 Your own home?   ha-nova setup
-`, map[bool]string{true: setupClientLabels(apps), false: "your AI app (" + setupClientLabels(apps) + ")"}[len(apps) == 1], demoTryPrompts)
+`, map[bool]string{true: setupClientLabels(apps), false: "your AI app (" + setupClientLabels(apps) + ")"}[len(apps) == 1], demoTryPrompts, demoWatchOrigin())
 	return 0
+}
+
+// demoWatchOrigin: the demo's own origin (from demoConnectURL, not from the
+// fetched connect.json), where its Home Assistant shows what HA NOVA changes.
+func demoWatchOrigin() string {
+	u, _ := url.Parse(demoConnectURL)
+	return u.Scheme + "://" + u.Host
 }
 
 func stopDemo(paths runtimePaths) int {

@@ -353,7 +353,7 @@ func relayUpdateNoticeWithContext(ctx context.Context, paths runtimePaths) human
 	if !floorNotice.empty() {
 		if candidate.updateAvailable() { // the guided update checks the entity itself
 			return humanNotice{
-				level: humanNoticeWarning, appUpdate: true, belowFloor: true,
+				level: humanNoticeNote, appUpdate: true, belowFloor: true,
 				kind:    humanNoticeKindRelayUpdateAvailable,
 				message: floorNotice.message,
 			}
@@ -385,9 +385,9 @@ func relayAvailableUpdateNoticeFromCandidate(candidate relayUpdateCandidate) hum
 		return humanNotice{}
 	}
 	return humanNotice{
-		level: humanNoticeWarning, appUpdate: true,
+		level: humanNoticeNote, appUpdate: true,
 		kind:    humanNoticeKindRelayUpdateAvailable,
-		message: fmt.Sprintf("The NOVA App in Home Assistant has an update: v%s → v%s. %s", candidate.InstalledVersion, candidate.LatestVersion, relayAppUpdatePath),
+		message: fmt.Sprintf("The NOVA App in Home Assistant has an update: %s → %s. %s", candidate.InstalledVersion, candidate.LatestVersion, relayAppUpdatePath),
 	}
 }
 
@@ -409,14 +409,14 @@ func checkRelayVersionValue(paths runtimePaths, relayVersion string) humanNotice
 		return humanNotice{
 			level:   humanNoticeWarning,
 			kind:    humanNoticeKindRelayOutdated,
-			message: fmt.Sprintf("HA NOVA can't read the NOVA App's version (v%s). HA NOVA needs v%s or newer. %s", relayVersion, v.MinRelayVersion, relayAppUpdatePath),
+			message: fmt.Sprintf("HA NOVA can't read the NOVA App's version (%s). HA NOVA needs %s or newer. %s", relayVersion, v.MinRelayVersion, relayAppUpdatePath),
 		}
 	}
 	if cmp < 0 {
 		return humanNotice{
-			level:   humanNoticeWarning,
+			level:   humanNoticeNote, // news to act on, as the HA NOVA update offer: no WARNING label
 			kind:    humanNoticeKindRelayOutdated,
-			message: fmt.Sprintf("The NOVA App in Home Assistant needs an update: it has v%s, HA NOVA needs v%s or newer. %s", relayVersion, v.MinRelayVersion, relayAppUpdatePath),
+			message: fmt.Sprintf("The NOVA App in Home Assistant needs an update: it has %s, HA NOVA needs %s or newer. %s", relayVersion, v.MinRelayVersion, relayAppUpdatePath),
 		}
 	}
 	return humanNotice{}

@@ -121,7 +121,7 @@ func TestCompletedSetupAddsCloudByReusingExistingDevice(t *testing.T) {
 	output := out.String()
 	orderedCopy := []string{
 		"Optional — Away-from-home access",
-		"Home Assistant Link (formerly Home Assistant Cloud) adds a secure fallback",
+		"Home Assistant Link adds a secure fallback",
 		"Local access stays preferred.",
 		"Your Home Assistant authorization for HA NOVA stays in this computer's native secure storage.",
 		"Add Home Assistant Link fallback now? [y/N]",
