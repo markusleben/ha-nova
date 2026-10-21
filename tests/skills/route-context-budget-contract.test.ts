@@ -33,7 +33,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // Typed-verbs PR6: writes run through `ha-nova find|get` and
   // `ha-nova plan write|delete|revert` + `apply`, so the agent templates and
   // relay-api.md left the mandatory list, and the router is no longer read
-  // for a single-item write (installed releases inject nothing; the write
+  // for a single-item write (only the Claude hook injects the index; the write
   // skill carries its own create-summary shape). The card file stays: write
   // renders Preview/Delete/Result/Test Plan Cards. checks.md is the core
   // catalog; checks-extended.md (evidence boundaries, other families) is read
@@ -89,8 +89,9 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // Typed-verbs PR4: the service-call route runs entity calls through
   // `ha-nova call`, so it needs neither the full router nor the card file
   // (its Output Format renders previews inline; output-rules.md exempts verb
-  // routes from output-cards.md). Installed releases inject nothing, so the
-  // dev-only index (hooks/session-start) is not counted. Common paths read
+  // routes from output-cards.md). The Claude hook's injected index
+  // (hooks/session-start) has its own cap in tests/hooks and other clients
+  // never get it, so it is not counted here. Common paths read
   // the bootstrap, the output-rules core, and the skill. On demand only:
   // domain-fields.md (when a field, unit, or feature bit is uncertain, and
   // for relative asks and input_number changes), raw-routes.md (response

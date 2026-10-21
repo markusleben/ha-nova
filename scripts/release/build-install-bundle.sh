@@ -54,7 +54,12 @@ binary_asset_path() {
     flat_path="${DIST_DIR}/ha-nova-${source_os}-${arch_name}"
   fi
 
-  mapfile -t nested_paths < <(
+  # No mapfile: the builder also runs under macOS /bin/bash 3.2 (local tests).
+  local -a nested_paths=()
+  local nested_path
+  while IFS= read -r nested_path; do
+    nested_paths+=("${nested_path}")
+  done < <(
     find "${DIST_DIR}" -type f -name "${binary_name}" -path "*_${source_os}_${arch_name}_*/*" | sort
   )
   if [[ -f "${flat_path}" && "${#nested_paths[@]}" -gt 0 ]]; then
@@ -83,6 +88,11 @@ copy_common_bundle_files() {
   cp -R "${ROOT_DIR}/skills" "${bundle_root}/skills"
   cp -R "${ROOT_DIR}/docs/reference" "${bundle_root}/docs/reference"
   cp -R "${ROOT_DIR}/.claude-plugin" "${bundle_root}/.claude-plugin"
+  # Claude Code SessionStart hook: injects the HA NOVA index into each session.
+  mkdir -p "${bundle_root}/hooks"
+  cp "${ROOT_DIR}/hooks/hooks.json" "${bundle_root}/hooks/hooks.json"
+  cp "${ROOT_DIR}/hooks/session-start" "${bundle_root}/hooks/session-start"
+  chmod 755 "${bundle_root}/hooks/session-start"
   cp "${ROOT_DIR}/version.json" "${bundle_root}/version.json"
   cp "${ROOT_DIR}/PRIVACY.md" "${bundle_root}/PRIVACY.md"
   [[ -f "${ROOT_DIR}/README.md" ]] && cp "${ROOT_DIR}/README.md" "${bundle_root}/README.md"

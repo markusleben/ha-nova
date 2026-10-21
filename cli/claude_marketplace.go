@@ -559,7 +559,7 @@ func stageClaudeMarketplacePluginRoot(targetRoot, sourceRoot string) error {
 }
 
 func shouldFilterClaudeMarketplacePayload(sourceRoot string) bool {
-	info, err := os.Stat(filepath.Join(sourceRoot, "ha-nova"))
+	info, err := os.Stat(filepath.Join(sourceRoot, publicBinaryName()))
 	if err != nil {
 		return false
 	}
@@ -578,7 +578,7 @@ func copyClaudeMarketplacePluginPayload(src, dst string) error {
 		if rel == "." {
 			return os.MkdirAll(dst, 0o755)
 		}
-		if rel == "ha-nova" && !d.IsDir() {
+		if rel == publicBinaryName() && !d.IsDir() { // ha-nova.exe on Windows
 			return nil
 		}
 		target := filepath.Join(dst, rel)
