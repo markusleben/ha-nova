@@ -113,6 +113,10 @@ func handlePausedCloudOwnerPairing(
 		)
 		return true
 	}
+	if cloudHoldNeedsOwnerSteps(cfg) {
+		renderCloudHoldOwnerSteps(out, cfg, profile)
+		return true
+	}
 	if hold := cloudRecoveryHoldProblem(cfg); hold != nil {
 		fmt.Fprintf(
 			out,
@@ -177,6 +181,10 @@ func renderCloudRecoveryGuidance(
 			out,
 			"  Repair default_server in config.json or correct --server or HA_NOVA_SERVER before continuing.",
 		)
+		return
+	}
+	if cloudHoldNeedsOwnerSteps(cfg) {
+		renderCloudHoldOwnerSteps(out, cfg, selectedCloudCommandProfile())
 		return
 	}
 	if hold := cloudRecoveryHoldProblem(cfg); hold != nil {

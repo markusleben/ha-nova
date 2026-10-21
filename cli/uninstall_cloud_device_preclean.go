@@ -42,6 +42,7 @@ func prepareCloudDeviceRevocationsBeforeGuidedTeardown(
 				cloudAuthorizationCleanupErrorWithRecoveryCommand(
 					err,
 					target.profileName,
+					target.config.HAURL,
 				),
 			))
 		}

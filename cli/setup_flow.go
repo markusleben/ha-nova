@@ -127,6 +127,9 @@ type setupFlow struct {
 	relaySkipNote        setupMsg
 	cloudSetupIncomplete bool
 	cloudSetupPaused     bool
+	// cloudPausedAtStart: Link was unfinished when setup started; this run
+	// changes no credentials (setup_flow_link_paused.go).
+	cloudPausedAtStart bool
 
 	cleanups []func()
 }
@@ -179,6 +182,9 @@ func (f *setupFlow) run() int {
 }
 
 func (f *setupFlow) runStep(step setupStepID) setupStepResult {
+	if f.cloudPausedAtStart && linkPausedStopsBefore(step) {
+		return f.stopWhileLinkPaused()
+	}
 	switch step {
 	case setupStepClient:
 		return f.stepClient()

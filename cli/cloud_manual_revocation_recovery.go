@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -38,9 +39,12 @@ func manualRemoteAccessRecoveryCommand(profileName string) string {
 	)
 }
 
+// cloudAuthorizationCleanupErrorWithRecoveryCommand adds the owner steps;
+// haURL is the profile's saved local Home Assistant address, for their links.
 func cloudAuthorizationCleanupErrorWithRecoveryCommand(
 	err error,
 	profileName string,
+	haURL string,
 ) error {
 	if !errors.Is(err, errCloudAuthorizationCleanupUnverifiable) &&
 		!errors.Is(err, errCloudDeviceRevocationCredentialMissing) {
@@ -49,7 +53,7 @@ func cloudAuthorizationCleanupErrorWithRecoveryCommand(
 	problem := cloudProblemForError(err)
 	copy := *problem
 	if errors.Is(err, errCloudAuthorizationCleanupUnverifiable) {
-		copy.Detail += "\n" + cloudAuthorizationRecoverySteps(profileName, problem.linkClient)
+		copy.Detail += "\n" + cloudAuthorizationRecoverySteps(profileName, problem.linkClient, haURL)
 	} else {
 		copy.Detail += fmt.Sprintf(
 			"; after both remote revocations are complete, run: %s",
@@ -116,23 +120,51 @@ func cloudAuthorizationStopProblem(err error) *cloudProblem {
 // cloudAuthorizationRecoverySteps are the steps that make the recovery
 // command safe. Home Assistant lists a HA NOVA sign-in under Profile >
 // Security > Refresh tokens by its address (127.0.0.1, a random port, and
-// oauthLoopbackClientPath).
-func cloudAuthorizationRecoverySteps(profileName, client string) string {
-	remove := fmt.Sprintf("delete %q", client)
+// oauthLoopbackClientPath). haURL adds a direct link to each page
+// (ownerStepLinks); without one the steps name the pages only.
+func cloudAuthorizationRecoverySteps(profileName, client, haURL string) string {
+	remove := fmt.Sprintf("delete %q.", client)
 	if client == "" {
 		remove = fmt.Sprintf(
-			"delete every entry that ends in %q. This also signs out HA NOVA on your other computers",
+			"delete every entry that ends in %q. This turns off Home Assistant Link on your other computers too. Their local connection keeps working.",
 			oauthLoopbackClientPath,
 		)
 	}
-	return fmt.Sprintf(
-		"Next, in Home Assistant:\n"+
-			"1. As the owner, open NOVA. If this computer is listed with a \"cloud\" tag, click Revoke next to it.\n"+
-			"2. Each person who uses HA NOVA: open Profile > Security, and under \"Refresh tokens\", %s.\n"+
-			"3. Run: %s",
-		remove,
-		manualRemoteAccessRecoveryCommand(profileName),
+	panel, security := ownerStepLinks(haURL)
+	steps := []string{
+		"Next, in Home Assistant:",
+		"1. As the owner, open the NOVA App page. If this computer is listed with a \"cloud\" tag, click Revoke next to it.",
+	}
+	if panel != "" {
+		steps = append(steps, "   Open: "+panel)
+	}
+	steps = append(steps, "2. Each person who uses HA NOVA: open Profile > Security, and under \"Refresh tokens\", "+remove)
+	if security != "" {
+		steps = append(steps, "   Open: "+security)
+	}
+	steps = append(steps,
+		"   If you don't find any, that's fine. Go to step 3.",
+		"3. Run: "+manualRemoteAccessRecoveryCommand(profileName),
 	)
+	return strings.Join(steps, "\n")
+}
+
+// ownerStepLinks: the NOVA App page and Profile > Security on the saved
+// local Home Assistant address. Only a plain http(s) address with no user,
+// query, or fragment, and never the Home Assistant Link domain; "" when
+// there is none (or no official App page to link).
+func ownerStepLinks(haURL string) (panel, security string) {
+	parsed, err := url.Parse(strings.TrimSpace(haURL))
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" ||
+		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Opaque != "" ||
+		strings.HasSuffix(strings.ToLower(parsed.Hostname()), "nabu.casa") {
+		return "", ""
+	}
+	base := parsed.Scheme + "://" + parsed.Host
+	if target, err := haNOVAAppPanelURL(base); err == nil && target.Direct {
+		panel = target.URL
+	}
+	return panel, haProfileSecurityURL(base)
 }
 
 func manualRemoteAccessRecoveryAllowed(

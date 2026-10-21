@@ -153,6 +153,11 @@ func runCloudUnlockCommand(paths runtimePaths, args []string) int {
 		)
 		return 0
 	}
+	if cloudHoldNeedsOwnerSteps(cfg) {
+		printHumanInfo("Native secure storage is unlocked.")
+		printCloudHoldOwnerSteps(cfg)
+		return 0
+	}
 	if cfg.Cloud != nil &&
 		cfg.Cloud.RecoveryHold != nil &&
 		!cloudRecoveryHoldClearsAfterUnlock(cfg.Cloud.RecoveryHold) {

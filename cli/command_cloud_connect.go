@@ -183,13 +183,13 @@ func printCloudURLPromptCancellation(paths runtimePaths) {
 			"Home Assistant Link setup remains paused at the saved checkpoint %q. No authorization was changed by this attempt.",
 			cfg.Cloud.State,
 		)
+		if printCloudHoldOwnerSteps(cfg) {
+			return
+		}
 		if hold := cloudRecoveryHoldProblem(cfg); hold != nil {
 			printHumanInfo("The recovery safety hold remains active: %s", hold.Detail)
 			if cloudRecoveryHoldNeedsUnlockForConfig(cfg) {
-				printHumanInfo(
-					"Verify native secure storage with: %s",
-					cloudUnlockCommand(),
-				)
+				printHumanInfo("Verify native secure storage with: %s", cloudUnlockCommand())
 			}
 			printHumanInfo(
 				"Verified cleanup remains available with: %s",

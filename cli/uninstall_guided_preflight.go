@@ -138,6 +138,7 @@ func validateUninstallSecureStorageBeforeGuidedTeardown(
 					cloudAuthorizationCleanupErrorWithRecoveryCommand(
 						err,
 						target.profileName,
+						target.config.HAURL,
 					),
 				),
 			)

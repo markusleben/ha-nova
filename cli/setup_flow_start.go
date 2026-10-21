@@ -48,7 +48,7 @@ func (f *setupFlow) start() setupStepResult {
 		strings.TrimSpace(f.relayTokenFlag) != ""
 	var cloudRecoveryHandled bool
 	var cloudRecoveryCode int
-	f.cfg, cloudRecoveryHandled, cloudRecoveryCode =
+	f.cfg, cloudRecoveryHandled, cloudRecoveryCode, f.cloudPausedAtStart =
 		handleInteractiveCloudRecoveryBeforeClients(
 			f.ui.termIn(),
 			f.ui.termOut(),
@@ -60,6 +60,16 @@ func (f *setupFlow) start() setupStepResult {
 		)
 	if cloudRecoveryHandled {
 		return setupDone(cloudRecoveryCode)
+	}
+	if f.cloudPausedAtStart {
+		f.cloudSetupPaused = true
+		needsCredentials, err := f.linkPausedNeedsCredentials()
+		if err != nil {
+			return f.fail(setupText("setup.error.inspect_retirement", "error", err))
+		}
+		if needsCredentials {
+			return f.stopWhileLinkPaused()
+		}
 	}
 	if !namedRequestAllowed {
 		renderNamedSetupRequestError()

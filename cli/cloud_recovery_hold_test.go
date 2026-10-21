@@ -102,7 +102,7 @@ func TestCloudRecoveryHoldSurvivesRestartAndBlocksEveryResumePath(
 	})
 	if exit != 1 ||
 		blockedCoordinator.remoteCalls != 0 ||
-		!strings.Contains(output, "recovery safety hold") {
+		!strings.Contains(output, "--confirm-remote-access-revoked") {
 		t.Fatalf("held wizard exit=%d output=%s", exit, output)
 	}
 }

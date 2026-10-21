@@ -198,16 +198,10 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 					cloudSource.Cloud.AuthorizationRevocationCompleted != nil),
 		)
 		if authorizationErr != nil && !manualRecovery {
-			return cloudAuthorizationCleanupErrorWithRecoveryCommand(
-				authorizationErr,
-				activeServerProfile(),
-			)
+			return cloudAuthorizationCleanupErrorWithRecoveryCommand(authorizationErr, activeServerProfile(), cloudSource.HAURL)
 		}
 		if deviceValidationErr != nil && !manualRecovery {
-			return cloudAuthorizationCleanupErrorWithRecoveryCommand(
-				deviceValidationErr,
-				activeServerProfile(),
-			)
+			return cloudAuthorizationCleanupErrorWithRecoveryCommand(deviceValidationErr, activeServerProfile(), cloudSource.HAURL)
 		}
 		if !manualRecovery &&
 			authorizationErr == nil &&
@@ -217,9 +211,9 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 			return &cloudProblem{
 				Code:        cloudProblemAuthorization,
 				Remediation: cloudRemediationSecurityStop,
-				Detail: "--confirm-remote-access-revoked is accepted " +
-					"only when automatic cleanup cannot verify the " +
-					"saved remote access",
+				Detail: "HA NOVA can check this Link access itself, so " +
+					"--confirm-remote-access-revoked isn't needed. Run: " +
+					cloudProfileCommandFor("remove", activeServerProfile()),
 			}
 		}
 		checkpointDeviceRevocation := func(
@@ -409,6 +403,8 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 	}
 	if updated.RelaySecureBaseURL != "" && updated.RelaySpkiPin != "" {
 		printHumanInfo("%s Local access remains ready.", removed)
+	} else if legacySharedAccess(updated) && legacyTokenReadable() {
+		printHumanInfo("%s HA NOVA still works here with the old shared access. Run ha-nova setup to switch to your own access.", removed)
 	} else {
 		printHumanInfo("%s This profile now needs a local pairing before it can be used.", removed)
 	}

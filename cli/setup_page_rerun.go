@@ -282,7 +282,11 @@ func (f *setupFlow) pageFinish() setupStepResult {
 	if f.noClient && kind == setupOutcomeComplete { // Claude or ChatGPT in the browser: as the terminal's no-app finish
 		f.page.text.show(setupView{Blocks: []setupBlock{setupSuccess(setupText("setup.done.connected_no_client"))}})
 	} else {
-		f.page.text.outcome(setupOutcome{Kind: kind, Clients: f.selectedClients, LegacyToken: f.pageRerunOK && legacyAccessSwitchable(f.cfg, probePairingV1ForSetup)})
+		outcome := setupOutcome{Kind: kind, Clients: f.selectedClients, LegacyToken: f.pageRerunOK && legacyAccessSwitchable(f.cfg, probePairingV1ForSetup)}
+		if kind == setupOutcomeLinkPaused {
+			outcome = f.linkPausedOutcome()
+		}
+		f.page.text.outcome(outcome)
 	}
 	if f.pageRerunOK { // the banner cleared the page's address
 		fmt.Fprintf(f.page.text.out, "  %s\n", setupT("setup.page.terminal.rerun"))

@@ -350,3 +350,41 @@ func TestCloudRemoveClearsRelayIdentityWithoutLocalPairing(t *testing.T) {
 		t.Fatalf("Cloud-only removal retained stale Relay identity %q", saved.RelayInstanceID)
 	}
 }
+
+// The last line says what still works: the old shared access keeps working
+// when its token is still here; otherwise this computer needs a pairing.
+func TestCloudRemoveSaysWhetherSharedAccessStillWorks(t *testing.T) {
+	for _, sharedToken := range []bool{true, false} {
+		t.Run(map[bool]string{true: "shared token", false: "no token"}[sharedToken], func(t *testing.T) {
+			paths, store, backend, _ := cloudRemoveCommandFixture(t)
+			cfg, err := loadSelectedRuntimeConfigUnchecked(paths)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg.RelaySecureBaseURL, cfg.RelaySpkiPin, cfg.RoutePolicy = "", "", routePolicyCloud
+			if err := saveConfig(paths, cfg); err != nil {
+				t.Fatal(err)
+			}
+			if err := writeDeviceCredential(validCredential(78)); err != nil {
+				t.Fatal(err)
+			}
+			if sharedToken {
+				if err := writeRelayAuthToken("shared-token"); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = deleteRelayAuthToken() })
+			}
+			installRemoteDeviceRevokeHook(t, func(context.Context, runtimeConfig, OAuthSecretStore, string) error { return nil })
+			installCloudRemoveStore(t, store, func(context.Context, OAuthSecretEnvelope) error { return nil })
+			resetProductionCloudPolicies(backend)
+
+			exit, output := captureCommandOutput(t, func() int {
+				return runCloudRemoveCommand(paths, []string{"--yes"})
+			})
+			shared := strings.Contains(output, "still works here with the old shared access")
+			if exit != 0 || shared != sharedToken || strings.Contains(output, "needs a local pairing") == sharedToken {
+				t.Fatalf("exit=%d output=%s", exit, output)
+			}
+		})
+	}
+}

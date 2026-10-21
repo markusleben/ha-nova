@@ -42,6 +42,7 @@ func prepareCloudPurgeExecutions(
 				cloudAuthorizationCleanupErrorWithRecoveryCommand(
 					err,
 					target.profileName,
+					target.config.HAURL,
 				),
 			))
 		}
@@ -56,6 +57,7 @@ func prepareCloudPurgeExecutions(
 				cloudAuthorizationCleanupErrorWithRecoveryCommand(
 					err,
 					target.profileName,
+					target.config.HAURL,
 				),
 			))
 		}

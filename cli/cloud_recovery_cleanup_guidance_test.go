@@ -77,10 +77,13 @@ func TestCloudRecoveryHoldGuidanceIsCleanupOnly(t *testing.T) {
 			Remediation: cloudRemediationSecurityStop,
 		},
 	)
+	// A plain remove can't check this sign-in either: the owner steps end
+	// with the manual cleanup command instead.
 	if !strings.Contains(
 		output.String(),
-		"Verified cleanup: ha-nova cloud remove --server cabin",
+		"3. Run: ha-nova cloud remove --server cabin --yes --confirm-remote-access-revoked cabin",
 	) ||
+		strings.Contains(output.String(), "Verified cleanup") ||
 		strings.Contains(output.String(), "Resume:") ||
 		strings.Contains(output.String(), "Reconnect:") {
 		t.Fatalf("hold guidance=%s", output.String())

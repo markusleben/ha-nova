@@ -48,11 +48,15 @@ func handleNonInteractiveCloudRecoveryHold(
 	if problem == nil {
 		return false
 	}
+	profile, err := cloudRecoveryCommandProfile(paths)
+	if err == nil && cloudHoldNeedsOwnerSteps(cfg) {
+		renderCloudHoldOwnerSteps(os.Stdout, cfg, profile)
+		return true
+	}
 	printHumanErr(
 		"Home Assistant Link setup is paused by a recovery safety hold: %s",
 		problem,
 	)
-	profile, err := cloudRecoveryCommandProfile(paths)
 	if err != nil {
 		printHumanInfo(
 			"No recovery command is shown until the server profile selection is repaired: %v",

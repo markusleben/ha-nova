@@ -33,6 +33,13 @@ func printRelayTokenStorageSetupWarning(err error) {
 }
 
 func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, current setupState, overrideApplied, serviceMode bool, lifecycleMarker ...[]byte) (bool, int) {
+	return maybeHandleInteractiveSetupCurrentStateLinkPaused(reader, out, paths, cfg, current, overrideApplied, serviceMode, nil, lifecycleMarker...)
+}
+
+// maybeHandleInteractiveSetupCurrentStateLinkPaused: linkPaused (Link
+// unfinished at the start) skips the Link and add-server offers and ends
+// on that outcome instead of the done banner.
+func maybeHandleInteractiveSetupCurrentStateLinkPaused(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, current setupState, overrideApplied, serviceMode bool, linkPaused *setupOutcome, lifecycleMarker ...[]byte) (bool, int) {
 	if !(current.ConfigOK || current.TokenOK || current.RelayOK || current.WSOK || current.SkillsOK) {
 		return false, 0
 	}
@@ -55,20 +62,23 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 				return true, 1
 			}
 		}
-		var cloudAttempted bool
-		var cloudCode int
-		cfg, cloudAttempted, cloudCode = maybeOfferCloudForCompletedSetup(reader, out, paths, cfg, serviceMode, lifecycleMarker...)
-		if cloudAttempted && cloudCode != 0 {
-			return true, cloudCode
-		}
-		if cloudAttempted && cfg.Cloud != nil && !cfg.Cloud.ready() {
-			return true, cloudCode
-		}
-		// Offered before completeSetupLifecycle so the add flow's config
-		// saves run under the same lifecycle marker as this setup pass.
-		addAttempted, addCode := maybeOfferAddServerForCompletedSetup(reader, out, paths, serviceMode, lifecycleMarker...)
-		if addAttempted && addCode != 0 {
-			return true, addCode
+		var cloudAttempted, addAttempted bool
+		if linkPaused == nil {
+			var cloudCode int
+			cfg, cloudAttempted, cloudCode = maybeOfferCloudForCompletedSetup(reader, out, paths, cfg, serviceMode, lifecycleMarker...)
+			if cloudAttempted && cloudCode != 0 {
+				return true, cloudCode
+			}
+			if cloudAttempted && cfg.Cloud != nil && !cfg.Cloud.ready() {
+				return true, cloudCode
+			}
+			// Offered before completeSetupLifecycle so the add flow's config
+			// saves run under the same lifecycle marker as this setup pass.
+			var addCode int
+			addAttempted, addCode = maybeOfferAddServerForCompletedSetup(reader, out, paths, serviceMode, lifecycleMarker...)
+			if addAttempted && addCode != 0 {
+				return true, addCode
+			}
 		}
 		if err := completeSetupLifecycle(paths, lifecycleMarker...); err != nil {
 			printHumanErr("%s", setupT("setup.error.finalize_lifecycle", "error", err))
@@ -84,6 +94,10 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 		// Same suppression as the done banner below: after a ran add flow
 		// its own closing lines are the message — never bury a cancelled or
 		// partial add under a success banner.
+		if linkPaused != nil {
+			renderSetupCloudPausedOutcome(out, linkPaused.LinkSteps)
+			return true, 0
+		}
 		if !addAttempted && cloudAttempted && cfg.Cloud.ready() &&
 			cfg.RoutePolicy == routePolicyAutomatic {
 			renderSetupCloudFallbackReadyBanner(out, nil)

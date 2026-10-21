@@ -80,6 +80,7 @@ type setupOutcome struct {
 	Look        *setupFirstLook
 	LegacyToken bool
 	Issue       string
+	LinkSteps   string // setupOutcomeLinkPaused: its commands
 }
 
 // setupUI is what the setup engine asks of a renderer: the terminal
@@ -194,7 +195,7 @@ func (ui setupTextUI) outcome(o setupOutcome) {
 	case setupOutcomeIncomplete:
 		renderSetupIncompleteBanner(ui.out, o.Issue)
 	case setupOutcomeLinkPaused:
-		renderSetupCloudPausedOutcome(ui.out)
+		renderSetupCloudPausedOutcome(ui.out, o.LinkSteps)
 	default:
 		renderSetupCompleteBanner(ui.out, o.Clients, o.Look)
 	}
