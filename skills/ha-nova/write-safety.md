@@ -140,6 +140,8 @@ should learn one shape and always recognize it:
 4. Save-status slot: explicitly say that nothing has been saved yet (the ⚠️ line).
 5. Options slot: one natural question — save it, show the details, or leave it.
 
+A plan's `say` replaces 1's title line, 4, and 5.
+
 This is the Preview Card of `../ha-nova/output-cards.md` → Cards; the
 Result Card and Delete Card there frame the post-write and delete sides.
 
@@ -179,9 +181,9 @@ entity exists. What they do NOT establish: that conditions carry the intended
 meaning, that every branch is reachable, that timing assumptions hold, or that
 the physical action succeeds.
 
-Wording rules for a result without `say` and the collapsed no-findings line:
+Wording rules for the result and the collapsed no-findings line:
 
-- Never a bare "verified"/"works now". Name the proven scope instead — the
+- Never a bare "verified"/"works now". Without a result `say`, name the proven scope instead — the
   localized equivalent of: "Saved and checked: it is stored and Home
   Assistant loaded it. I didn't run it yet."
 - Where a real run is meaningful, offer it as an explicit optional step: a

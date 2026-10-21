@@ -344,7 +344,7 @@ describe("review contract", () => {
     expect(architectureDoc).toContain('never print an empty "none" bucket');
     expect(architectureDoc).toContain("When all are empty, the result's `say` alone");
     expect(writeSkill).toContain('never print an empty "none" bucket');
-    expect(writeSkill).toContain("nothing at all → the result's `say` alone");
+    expect(writeSkill).toContain("nothing at all → no review line beyond `say`.");
     // Standalone review still states a clean result (it answers an explicit request).
     expect(outputRules).toContain('"no issues found" result is useful');
   });

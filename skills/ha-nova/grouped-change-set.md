@@ -100,7 +100,7 @@ grouped set with fresh previews.
 ## Grouped Cards
 
 Same rules as `../ha-nova/output-cards.md` → Cards. Per-operation Preview
-Cards render unchanged minus the options line; the group closes with:
+Cards render unchanged minus the options line (a plan's `say` minus its last sentence); the group closes with:
 
 ```
 📝 Group: rename "Morning" scene set (3 operations, 2 families)

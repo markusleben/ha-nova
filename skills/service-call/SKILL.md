@@ -45,9 +45,9 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 | 2 | drift since the preview, nothing sent | Show the new preview (typed: new code) and ask again; a relative ask re-derives its value and runs a fresh `call`. |
 | 4 | refused | `reasons[]` (an owner skill wins over `hassio`): owner skill; `TARGET_REQUIRED` → resolve targets first; `SERVICE_NOT_FOUND` → offer `error.next`'s candidates; `SERVICE_LIST_UNREAD` → plan again; `CODE_REQUIRED` → finish the action in the Home Assistant UI; missing feature → the device cannot do it; `hassio` or response-only → `raw-routes.md`. `error` from `apply`: `CODE_REQUIRED`/`CODE_MISMATCH` → ask for the code again; any other → follow `error.next`, never a re-`call`; `PLAN_NOT_FOUND`/`PLAN_CLAIMED`: outcome unknown, never re-plan. |
 | 5 | ambiguous or not found | One question listing `error.candidates` (max 10, else narrow) with each match basis; re-run with the choice. No candidates: say nothing matched; follow `error.next`. |
-| 6 | sent; `unverified` or `failed` | Relay `say`; never retry automatically. |
+| 6 | sent; `unverified` or `failed` | Relay `say` (none: the `error`, per Verb Results); never retry automatically. |
 | 7 | outcome unknown | Relay `say`, then read the state (`ha-nova get`) and name it; still unknown even if it matches; never retry. |
-| 1 | operational error, nothing sent | What failed, why, next step. |
+| 1 | operational error, nothing sent | `say` if any; else what failed, why, next step. |
 
 4. **Confirm** (exit 3). The CLI decides the tier; never lower it, split a call to dodge it, or replay it through `ha-nova relay`.
    - Earlier planning consent is draft-only.
@@ -73,7 +73,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 
 Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.
 
-Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule. After `apply`, read the `members[]` the preview named (the door a mode unlocks) and say their state; a delayed step may still change it. A preview (exit 2 or 3) closes with `say` (names, a single target's arrow one-liner, warnings, an explicit not-executed-yet line); with several targets, more become the `Field | Before | After` mini table, warnings kept; on the typed tier only `say`'s ask — no menu. A grouped set or Test Plan Card asks once instead of `say`'s last sentence, except on the typed tier.
+Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule. After `apply`, read the `members[]` the preview named that `say` doesn't (the door a mode unlocks) and say their state; a delayed step may still change it. A preview (exit 2 or 3) closes with `say` (names, a single target's arrow one-liner, warnings, an explicit not-executed-yet line); with several targets, more become the `Field | Before | After` mini table, warnings kept; on the typed tier only `say`'s ask — no menu. A grouped set or Test Plan Card asks once instead of `say`'s last sentence, except on the typed tier.
 
 ## Safety
 

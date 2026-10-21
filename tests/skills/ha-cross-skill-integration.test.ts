@@ -103,7 +103,7 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("Collision check");
     expect(writeSkill).toContain("Advisory");
     expect(writeSkill).toContain('never print an empty "none" bucket');
-    expect(writeSkill).toContain("nothing at all → the result's `say` alone");
+    expect(writeSkill).toContain("nothing at all → no review line beyond `say`.");
     expect(writeSkill).toContain("Never emit `Questions to consider`, `Suggestions`, or `Instant help` post-write");
     expect(writeSkill).toContain("never repeat an item across **Findings** and **Advisory**");
     expect(writeSkill).toContain("../ha-nova/output-rules.md");
@@ -137,11 +137,11 @@ describe("ha cross-skill integration", () => {
     expect(outputRules).toContain("Localize section headings and labels idiomatically to the user's language");
     expect(outputRules).toContain("never mix English slot labels (`Changes`, `Options`, `Pre-write check`) into another language unless the user used them first");
     expect(outputRules).toContain("Prefer plain short labels over decorative Markdown headings");
-    expect(outputRules).toContain("preview summary, changes or summary, pre-write check/impact, save status, options");
+    // Slot order and the not-saved line live once: the Preview Card template
+    // (output-design-contract) and write-safety's fixed shape below.
     expect(outputRules).toContain("Use stable localized labels for those slots across a conversation");
     expect(outputRules).toContain("same label and in the same order");
     expect(outputRules).toContain("omit that slot instead of printing an empty placeholder");
-    expect(outputRules).toContain("nothing has been saved yet before showing the options");
     expect(outputRules).toContain("Close every create/update preview with one natural question");
     expect(outputRules).toContain("Keep delete previews structured in this order");
     expect(outputRules).toContain("Delete previews must say nothing has been deleted yet");

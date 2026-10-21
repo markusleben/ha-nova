@@ -117,7 +117,7 @@ describe("semantic outcome verification (#567/#566)", () => {
     const verify = flat(read("cli/verb_verify.go"));
     // Every press, restart buttons included, is acknowledgement only.
     expect(verify).toContain('(domain == "button" || domain == "input_button") && name == "press"');
-    expect(sc).toContain("| 6 | sent; `unverified` or `failed` | Relay `say`; never retry automatically. |");
+    expect(sc).toContain("| 6 | sent; `unverified` or `failed` | Relay `say` (none: the `error`, per Verb Results); never retry automatically. |");
     expect(sc).toContain("Never retry after exit 6 or 7; a verified result names only the proven scope.");
     // The result vocabulary lives in the CLI's result line; the skills relay it.
     expect(flat(read("skills/ha-nova/output-rules.md"))).toContain("result's `say` is the result line: relay it verbatim, only translated");

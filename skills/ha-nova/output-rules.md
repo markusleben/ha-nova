@@ -39,7 +39,7 @@ The user is not technical. Unless they used the term first or asked:
 
 ## Confirmation Reasons
 
-A plan's `say` is the reason, localized (names, code literal; states plain); add none of your own. Without one, the same shape: "I'm about to unlock “Front Door”. This unlocks a door, so I need you to confirm it." A "yes" or the like without the code: repeat `say`'s ask and note in full.
+A plan's `say` is the reason, localized (names, code literal; states plain); add none of your own. Without one, the same shape: "I'm about to unlock “Front Door”. This unlocks a door, so I need you to confirm it. Nothing has run yet." A "yes" or the like without the code: repeat `say`'s ask and note in full.
 
 ## Progressive Detail
 
@@ -52,4 +52,4 @@ may have changed.
 
 ## Verb Results
 
-A `ha-nova call` or `ha-nova apply` result's `say` is the result line: relay it verbatim, only translated, then any `notices[]` not yet surfaced this session. Add no result line, ✅ line, or check summary of your own. No `say`: answer a data call with its data, an error per A failure above. No card.
+A `ha-nova call` or `ha-nova apply` result's `say` is the result line: relay it verbatim, only translated, then any `notices[]` not yet surfaced this session. Add no result or ✅ line of your own; a read-back the skill requires adds one line with what it found. No `say`: answer a data call with its data, an error per A failure above. No card for calls.

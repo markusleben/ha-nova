@@ -65,7 +65,7 @@ Canonical contract: `../ha-nova/mobile-notification-composition.md` — read it 
      Read the target's platform from the device name or ask, and place the keys accordingly.
    - A `message: "clear_notification"` with a matching `tag` removes a previously sent notification instead of sending a new one.
 4. Plan it with `ha-nova call` (exit 3): show its preview with the exact payload (target + title + message + any `data`) and get one confirmation — a notification is an irreversible, user-visible side effect.
-5. Send with `ha-nova apply --plan <id>`, then report what was sent where: a successful service call means Home Assistant accepted it, not that the phone displayed it — say so honestly. There is no delivery receipt by default — one exists only through a pre-existing, verified received-event automation (canonical contract → Delivery honesty; never built ad hoc for a send); receipt never proves reading.
+5. Send with `ha-nova apply --plan <id>` and relay its `say`: a successful service call means Home Assistant accepted it, not that the phone displayed it — never claim delivery. There is no delivery receipt by default — one exists only through a pre-existing, verified received-event automation (canonical contract → Delivery honesty; never built ad hoc for a send); receipt never proves reading.
 
 ## Persistent Notifications (Home Assistant UI)
 
@@ -117,7 +117,7 @@ Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling.
 
 Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
-Report shape (output-cards.md): resolved target, sent title/message, extras used. Report acceptance honestly (accepted by Home Assistant, not confirmed on the device). Discovery: the List Frame by surface (notify targets vs mobile-app services).
+Report shape (output-cards.md): resolved target, sent title/message, extras used. Discovery: the List Frame by surface (notify targets vs mobile-app services).
 
 ## Safety
 

@@ -50,7 +50,7 @@ describe("agent scenario regressions (2026-10-15)", () => {
       "- Relay a plan's `say` in full, localized; never drop or shorten sentences.",
     );
     // The fallback reason has the CLI's confirmation shape (cli/say_lines.go).
-    expect(rules).toContain(`"I'm about to unlock “Front Door”. This unlocks a door, so I need you to confirm it."`);
+    expect(rules).toContain(`"I'm about to unlock “Front Door”. This unlocks a door, so I need you to confirm it. Nothing has run yet."`);
     expect(rules).not.toContain("so it needs a one-time code");
     expect(rules).toContain("Never mention, quote, or link HA NOVA's own skill or rule files or scratch paths — the user doesn't know they exist. Paths the user needs (the config file a change targets, a batch manifest) stay visible.");
     expect(rules).toContain("Clarifying questions name candidates by friendly name and area (add the entity_id when either is missing or both collide).");
@@ -172,7 +172,7 @@ describe("agent scenario regressions (2026-10-20)", () => {
     // One source of truth: the CLI's `say` is the ask and the result line (#803).
     expect(index).toContain("Relay a CLI `say` (ask or result) verbatim, only translated; add no other result line.");
     expect(index).toContain('"Type <code> to <goal> — a plain yes can\'t confirm this."');
-    expect(index).toContain('No result `say` (raw writes): `✅ Saved: <type> "<name>"` and what was checked.');
+    expect(index).toContain('Verified raw write (no `say`): `✅ Saved: <type> "<name>"` and what was checked.');
     expect(index).toContain('After an undoable save: "To undo this change, just say so."');
     expect(flat("skills/ha-nova/output-cards.md")).toContain("Ask and result shapes: `../ha-nova/index.md` → Say it.");
   });
@@ -190,7 +190,7 @@ describe("agent scenario regressions (2026-10-20)", () => {
     expect(write).toContain("on the entities it triggers on and acts on, minus the item itself");
     expect(flat("skills/ha-nova/smallest-solution.md")).toContain("a fitting new name when an update makes the old one wrong");
     expect(flat("skills/ha-nova/smallest-solution.md")).toContain("with the same flagged defect");
-    expect(flat("skills/service-call/SKILL.md")).toContain("After `apply`, read the `members[]` the preview named (the door a mode unlocks) and say their state; a delayed step may still change it.");
+    expect(flat("skills/service-call/SKILL.md")).toContain("After `apply`, read the `members[]` the preview named that `say` doesn't (the door a mode unlocks) and say their state; a delayed step may still change it.");
     expect(flat("skills/dashboard/SKILL.md")).toContain("`climate` → `thermostat`");
     expect(flat("skills/home-map/SKILL.md")).toContain("likeliest first (a sensor: sensors built from a formula), never as a raw list");
   });
