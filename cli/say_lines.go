@@ -36,7 +36,7 @@ const (
 	sayWindowAsk = "Confirm in the window on this computer."
 	// sayFormAsk replaces sayTypedAsk where the client shows a confirmation
 	// form: the code is never in a tool result there (mcp_confirm.go).
-	sayFormAsk = "Type the one-time code from HA NOVA in the form your app shows. A plain yes can't confirm this."
+	sayFormAsk = "Type the one-time code from HA NOVA in the form your app shows — a plain yes can't confirm this."
 	// sayChatNote closes a chat plan's ask: the honest limit of fallback E.
 	sayChatNote = "I can see this code too, so it only counts if you type it yourself."
 	// chatCodeNote is sayChatNote in a chat app (ha-nova serve).
@@ -47,10 +47,10 @@ const (
 func sayCodeAsk(code string) string { return "Type " + code + " to confirm." }
 
 // sayTypedAsk ends a chat plan's `say`: the code names its own action, so
-// several plans in one preview can't swap codes ("Type 4821 to delete the
-// automation “Night”.").
+// several plans in one preview can't swap codes; the same shape as a code
+// a skill mints (skills/ha-nova/index.md → Say it).
 func sayTypedAsk(code, goal string) string {
-	return "Type " + code + " to " + lowerFirst(goal) + ". A plain yes can't."
+	return "Type " + code + " to " + lowerFirst(goal) + " — a plain yes can't confirm this."
 }
 
 // sayWindowPhoneAsk: a phone is linked here, so it asks too (confirm_both.go).

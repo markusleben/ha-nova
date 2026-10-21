@@ -135,7 +135,7 @@ func TestWindowOpenFailureFallsBackToChat(t *testing.T) {
 	exit, env := h.run(runApplyCommand, "--plan", old.ID)
 	if exit != 3 || env.Status != "needs_confirmation" || env.Plan == nil || env.Plan.Code == "" || env.Plan.Channel != channelChat ||
 		!strings.HasPrefix(env.Say, "The confirmation window couldn't open on this computer. ") || !strings.HasSuffix(env.Say, sayChatNote) ||
-		!strings.Contains(env.Say, "I'm about to unlock “lock.front”") || !strings.Contains(env.Say, "Type "+env.Plan.Code+" to unlock “lock.front”. A plain yes can't.") || !strings.Contains(env.NextStep, "apply --confirm <the user's text> --plan "+env.Plan.ID) || len(h.posts()) != 0 {
+		!strings.Contains(env.Say, "I'm about to unlock “lock.front”") || !strings.Contains(env.Say, "Type "+env.Plan.Code+" to unlock “lock.front” — a plain yes can't confirm this.") || !strings.Contains(env.NextStep, "apply --confirm <the user's text> --plan "+env.Plan.ID) || len(h.posts()) != 0 {
 		t.Fatalf("fallback: exit %d %+v", exit, env)
 	}
 	if exit, env := h.run(runApplyCommand, "--plan", old.ID); exit != 4 || env.Error.Code != "PLAN_NOT_FOUND" {

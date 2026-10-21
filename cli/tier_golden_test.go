@@ -216,7 +216,7 @@ func TestPlanCallTierGoldenCases(t *testing.T) {
 			setup: func(f *fakeHA) { f.ent("lock.front_door", "zwave_js", "locked", nil) },
 			args:  []string{"lock.unlock", "lock.front_door"}, exit: 3, tier: "typed", reasons: []string{reasonAccessLock},
 			check: func(t *testing.T, env verbTestEnvelope) {
-				if !fourDigits.MatchString(env.Plan.Code) || !strings.HasSuffix(env.Say, "Type "+env.Plan.Code+" to unlock “lock.front_door”. A plain yes can't. "+sayChatNote) {
+				if !fourDigits.MatchString(env.Plan.Code) || !strings.HasSuffix(env.Say, "Type "+env.Plan.Code+" to unlock “lock.front_door” — a plain yes can't confirm this. "+sayChatNote) {
 					t.Fatalf("plan %+v", env.Plan)
 				}
 			}},
