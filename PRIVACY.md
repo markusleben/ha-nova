@@ -27,7 +27,7 @@ Assistant, remove their refresh tokens in your Home Assistant profile.
 
 ## Demo house
 
-The demo house (`ha-nova try`, "Add to Claude" on hanova.app) is a shared
+The demo house (`ha-nova try`, Claude or ChatGPT via hanova.app/demo) is a shared
 public Home Assistant that the maintainer runs. It is not your home. Other
 visitors see what you enter. Don't enter personal data. What it
 keeps, and for how long, is on its privacy page:
