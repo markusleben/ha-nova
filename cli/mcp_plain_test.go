@@ -97,7 +97,7 @@ func TestResultSayForCalls(t *testing.T) {
 		`{"status":"verified","verb":"apply","action":{},"resolved":[{"entity_id":"lock.front","name":"Entrance Door"}],
 		  "verification":[{"entity_id":"lock.front","observed":"unlocked","outcome":"verified"}]}`: "Done: “Entrance Door” is unlocked now. I checked it.",
 		`{"status":"accepted","verb":"call","action":{},"resolved":[{"entity_id":"scene.movie","name":"Movie"}],
-		  "verification":[{"entity_id":"light.x","observed":"off","outcome":"verified"},{"entity_id":"light.y","observed":"off","outcome":"verified"},{"entity_id":"scene.movie","outcome":"accepted"}]}`: "Done: 2 devices are off now. Sent to “Movie”. I checked what I could.",
+		  "verification":[{"entity_id":"light.x","observed":"off","outcome":"verified"},{"entity_id":"light.y","observed":"off","outcome":"verified"},{"entity_id":"scene.movie","outcome":"accepted"}]}`: "Sent: 2 devices are off now. Sent to “Movie”. I checked what I could.",
 		`{"status":"verified","verb":"call","action":{},"resolved":[{"entity_id":"scene.night","name":"Night"}],
 		  "verification":[{"entity_id":"light.x","observed":"off","outcome":"verified"}]}`: "Done: “Night” ran. 1 device is off now. I checked it.",
 		`{"status":"verified","verb":"call","action":{},"resolved":[{"entity_id":"light.a","name":"A"},{"entity_id":"light.b","name":"B"},{"entity_id":"light.c","name":"C"},{"entity_id":"light.d","name":"D"}],
@@ -119,9 +119,15 @@ func TestResultSayForCalls(t *testing.T) {
 		  "verification":[{"entity_id":"lock.a","observed":"jammed","outcome":"failed"},{"entity_id":"lock.b","observed":"jammed","outcome":"failed"}]}`: "Not done: “A” and “B” did not change as asked; they show jammed.",
 		`{"status":"verified","verb":"call","action":{},"resolved":[{"entity_id":"light.a","name":"Lamp"},{"entity_id":"light.b","name":"Lamp"}],
 		  "verification":[{"entity_id":"light.a","observed":"off","outcome":"verified"},{"entity_id":"light.b","observed":"off","outcome":"verified"}]}`: "Done: light.a (“Lamp”) and light.b (“Lamp”) are off now. I checked it.",
-		`{"verb":"call","status":"accepted","action":{"service":"homeassistant.check_config"}}`: "Done: sent to Home Assistant. I can't check this kind of change.",
+		`{"verb":"call","status":"accepted","action":{"service":"homeassistant.check_config"}}`: "Sent to Home Assistant. I can't check the result.",
 		`{"status":"accepted","verb":"apply","action":{},"resolved":[{"entity_id":"cover.garage","name":"Garage"}],
-		  "verification":[{"entity_id":"cover.garage","observed":"opening","outcome":"accepted"}]}`: "Done: sent to “Garage”; it is still opening. I can't check this kind of change.",
+		  "verification":[{"entity_id":"cover.garage","observed":"opening","outcome":"accepted"}]}`: "Sent to “Garage”; it is still opening. I can't check the result.",
+		// Fire-and-forget: sent is all that is known, never "Done".
+		`{"status":"accepted","verb":"call","action":{"service":"script.turn_on"},"resolved":[{"entity_id":"script.morning","name":"Morning"}],
+		  "verification":[{"entity_id":"script.morning","outcome":"accepted"}]}`: "Sent to “Morning”. I can't check the result.",
+		`{"status":"accepted","verb":"call","action":{"service":"button.press"},"resolved":[{"entity_id":"button.router_restart","name":"Router Restart"}],
+		  "verification":[{"entity_id":"button.router_restart","outcome":"accepted"}]}`: "Sent to “Router Restart”. I can't check the result.",
+		`{"status":"accepted","verb":"call","action":{"service":"notify.notify"}}`: "Sent to Home Assistant. I can't check the result.",
 	}
 	// "Nothing changed" only where the failure proves it.
 	cases[`{"status":"failed","verb":"call","action":{"service":"light.turn_on","entity_ids":["light.a"]},"error":{"code":"SERVICE_REJECTED"}}`] = "Not done: Home Assistant refused it. Nothing changed."

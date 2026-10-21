@@ -12,6 +12,7 @@ import (
 //
 //	Confirmation: I'm about to <action>. <consequences> <status> <ask>
 //	Result:       Done: <result>. I checked it.
+//	              Sent to <target>. I can't check the result.
 //	              Not done: <reason>. Nothing changed.
 //	              Not sure: / Partly done: <what is known>.
 
@@ -68,6 +69,15 @@ func sayNotDone(reason string) string { return "Not done: " + reason + ". Nothin
 // sayDone: "Done: <result>. <how I know>."
 func sayDone(result, checked string) string { return "Done: " + result + ". " + checked }
 
+// saySent: a result that was sent but not (all) read back; "Done" stays
+// for checked outcomes.
+func saySent(detail, checked string) string {
+	if rest, ok := strings.CutPrefix(detail, "sent to "); ok {
+		return "Sent to " + rest + " " + checked
+	}
+	return "Sent: " + detail + " " + checked
+}
+
 // resultSay is the one result line of an apply or a direct call; it never
 // replaces a line that already speaks (a drift's new preview, a no-op, a
 // read-back difference). A call words each target's read-back ("“Kitchen”
@@ -117,10 +127,10 @@ func resultSay(env *verbEnvelope) string {
 	case detail == "" || detail == ".": // nothing to name
 	case env.Status == "verified":
 		return sayDone(strings.TrimSuffix(detail, "."), checked)
-	case env.Status == "accepted" && verified > 0:
-		return "Done: " + detail + " I checked what I could."
+	case env.Status == "accepted" && verified > 0: // part of it only sent: never "Done"
+		return saySent(detail, "I checked what I could.")
 	case env.Status == "accepted":
-		return "Done: " + detail + " I can't check this kind of change."
+		return saySent(detail, "I can't check the result.")
 	case env.Status == "unverified" && isCall:
 		return "Not sure: " + detail
 	case env.Status == "unverified":

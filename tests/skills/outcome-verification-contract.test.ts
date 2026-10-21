@@ -122,6 +122,6 @@ describe("semantic outcome verification (#567/#566)", () => {
     // The result vocabulary lives in the CLI's result line; the skills relay it.
     expect(flat(read("skills/ha-nova/output-rules.md"))).toContain("result's `say` is the result line: relay it verbatim, only translated");
     const lines = read("cli/say_lines.go");
-    for (const lead of ['"Done: "', '"Not done: "', '"Not sure: ', '"Partly done: "']) expect(lines).toContain(lead);
+    for (const lead of ['"Done: "', '"Sent to "', '"Not done: "', '"Not sure: ', '"Partly done: "']) expect(lines).toContain(lead);
   });
 });
