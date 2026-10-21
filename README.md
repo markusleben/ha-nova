@@ -69,6 +69,7 @@ Say what you want. HA NOVA works out the rest.
 | *"Check my ESPHome config for the garage sensor"* | Explains the device file in plain words. Flags removed settings, pins that can't do what the file asks, and passwords written in the file |
 | *"Remind me in 20 minutes to check the oven"* | Makes a one-time reminder that turns itself off after it runs |
 | *"Show me all temperature sensors"* | Finds entities by name, room, area, or label |
+| *"What's the average temperature upstairs?"* | Works out averages and totals across rooms in one step. Names the sensors it used and any it couldn't read |
 
 > Automations and scripts get the full treatment today: a preview, a review, and a check against 40+ rules. Helpers get a preview and a check afterwards. Dashboards get a preview of every changed view and card, a copy before each save, and undo. Device control runs clear everyday actions right away and checks them afterwards. Everything else shows a preview first, and locks, gates, the alarm, and deletes need your OK. Deeper checks come with every release.
 
@@ -81,8 +82,8 @@ We built this because we didn't trust AI with our own setup either.
 **What happens when AI wants to change something:**
 
 1. **Looks first.** Finds your devices, checks your setup, and finds the right names. No guessing.
-2. **Shows you the change.** A clear before-and-after table of what will change, before anything is saved. The one exception: only clear everyday actions run right away, like "turn off the kitchen light". HA NOVA checks them afterwards. The HA NOVA program decides which actions count, never the AI. And it sends nothing if anything changed since a preview.
-3. **You approve it.** Unlocking a door, opening a gate or garage door, turning off the alarm, restarting Home Assistant, and deletes need a real confirmation, not just "yes" in the chat.
+2. **Shows you the change.** A clear before-and-after table of what will change, in plain words with names, before anything is saved. The one exception: only clear everyday actions run right away, like "turn off the kitchen light". HA NOVA checks them afterwards. The HA NOVA program decides which actions count, never the AI. And it sends nothing if anything changed since a preview.
+3. **You approve it.** Unlocking a door, opening a gate or garage door, turning off the alarm, restarting Home Assistant, and deletes need a real confirmation, not just "yes" in the chat. Before a restart, HA NOVA checks your config first. If something is wrong, it says what before you confirm.
    - **On your computer**, a window opens where it can. Click Confirm (OK on Windows) or Cancel. Your AI never sees a code.
    - **With a linked phone**, the phone asks at the same time. The first answer counts, and the phone shows the result. On a computer without a screen (for example a Linux server), the one phone you linked asks. This needs the Home Assistant Companion app. It doesn't work with a standalone relay that runs on your own token.
    - **About the phone:** you can answer on the phone or its Apple Watch without unlocking it. So whoever holds your phone can answer while a request is open (up to 90 seconds), but only for that one action. To link, move, or turn off phone confirmation, you need the unlocked phone. You can also move it to a new phone on the setup page. Once a phone is linked, an action it can't reach is refused. It is never moved to the chat.
@@ -103,6 +104,7 @@ We built this because we didn't trust AI with our own setup either.
 **The ground rules, always:**
 
 - 🔒 **The Relay's login stays out of the AI.** The App's Home Assistant login stays inside the Relay. Optional Cloud access uses a separate Home Assistant OAuth authorization in this computer's native credential store. The AI sees neither of them.
+- 🙈 **Stored codes stay hidden from the AI.** A lock or alarm code, the backup password, or the Thread network key saved in Home Assistant reaches the AI only as "hidden", also in HA NOVA's saved copies.
 - 🔑 **Each device is paired on its own.** The Home Assistant sign-in and the six-digit code work once and run out fast. They create a separate login for each device, over an encrypted, pinned connection (OPAQUE, RFC 9807 + SPKI-pinned TLS 1.3 under the hood). This is for App installs. The standalone container uses one shared token instead.
 - 🗑️ **Cut off a device with one click (App installs).** Lost a laptop? Retired a computer? Choose "Revoke this device" for it on the NOVA page. Everything else keeps working.
 - 📖 **Every rule the AI follows is a Markdown file you can read.**
@@ -132,7 +134,7 @@ The installer selects the latest stable release. Run the command for your system
 
 **On a desktop**, setup goes on in your browser. The page shows the Home Assistant it found, or asks for its address. It also shows the AI apps on this computer and sets them up for you. On HA OS and Supervised, choose "Sign in and install NOVA" and sign in as the owner. Setup then installs and starts the NOVA Relay App and connects this computer, all with that one sign-in. An old App is updated the same way. If an up-to-date App already runs, there is nothing to do. Then choose how you confirm risky changes, and see your home at a glance.
 
-**Only use Claude or ChatGPT in the browser?** With no AI app on this computer, choose "I use Claude or ChatGPT in the browser" on the setup page. The owner signs in, and this computer connects. Then chat apps come first. They need HA OS or Supervised (see [Use HA NOVA in Claude and ChatGPT](#use-ha-nova-in-claude-and-chatgpt)).
+**Only use Claude or ChatGPT in the browser?** With no AI app on this computer, choose "I use Claude or ChatGPT in the browser" on the setup page. This needs Home Assistant 2026.10 or newer on HA OS or Supervised, and Home Assistant Link with remote access on, or your own HTTPS address (see [Use HA NOVA in Claude and ChatGPT](#use-ha-nova-in-claude-and-chatgpt)). Right after the owner signs in, setup checks this, before it changes anything. If something is missing, the page says what and offers "Set it up, then check again" or "Use HA NOVA on this computer instead". If all is ready, this computer connects, and chat apps come first.
 
 **Not the owner?** The page asks the owner to sign in. If the owner can't come to this computer, they make a six-digit code in NOVA in Home Assistant ("Connect a device"), and you type it in the terminal. Can't sign in on this computer at all? Choose "Use a six-digit code instead". The owner can make it on any device. On the browser-only path there is no code: the owner signs in here.
 
@@ -157,7 +159,7 @@ With chat apps on, you can ask about your home and change it from Claude (web, d
 
 - Home Assistant 2026.10 or newer on HA OS or Supervised, with an up-to-date NOVA Relay App.
 - An address Claude and ChatGPT can reach over the internet: Home Assistant Link with remote access on, or your own public HTTPS address with a valid certificate, set as Home Assistant's external URL.
-- Self-signed certificates, plain `http://`, Tailscale, and local addresses don't work, and setup can't check the certificate for you. Without a Link or HTTPS address, setup says so and shows no switch.
+- Self-signed certificates, plain `http://`, Tailscale, and local addresses don't work, and setup can't check the certificate for you. Without a Link or HTTPS address, setup says so and shows no switch. On the browser path, setup checks the version, HA OS, and the address right after the owner signs in.
 - Only the Home Assistant owner can turn chat apps on and use them.
 
 **What needs your OK:** the same rules as on a computer. Everyday actions run right away and are checked afterwards. Unlocks and deletes wait for a tap on your linked phone. Without a phone, you type a code in the chat. The AI can see that code too, so it protects less than your phone. On the NOVA page, you can require the phone, or let chat apps only read.
@@ -305,7 +307,7 @@ The full comparison, with names and dates, fair both ways: **[comparison page](d
 | 🔍 **review** | Check your setup for mistakes, conflicts, and weak spots |
 | 🧱 **dashboard** | Build and change dashboards, views, and cards (installed custom cards too), find broken cards, and manage Lovelace resources, with a copy before each save |
 | 🎬 **scene** | Create and manage scenes, including "save this room as a scene" |
-| 🗂️ **organize** | Manage areas, floors, labels, and entity details |
+| 🗂️ **organize** | Manage areas, floors, labels, and entity details like icons, units, and how a value shows |
 | 🕒 **history** | Look up history, logbook timelines, and long-term stats |
 | 🏠 **health** | Sum up Home Assistant status, repairs, integrations, system health, and noisy entities |
 | 📅 **calendar** | Read calendars and events in a time window |
