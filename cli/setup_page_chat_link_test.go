@@ -20,8 +20,8 @@ func TestSetupPageChatRowChecksLinkAgain(t *testing.T) {
 	done := p.runControl()
 
 	s := p.waitFor("step 3", accepting("chat_recheck"))
-	if c := s.Control.Chat; c == nil || c.State != "noaddress" || c.LinkPage != "http://homeassistant.local:8123/config/cloud" {
-		t.Fatalf("chat row %+v, want noaddress with the local Link page", c)
+	if c := s.Control.Chat; c == nil || c.State != "noaddress" || c.LinkPage != "http://homeassistant.local:8123/config/cloud" || c.Guide != chatAppsGuideURL+"#what-you-need" {
+		t.Fatalf("chat row %+v, want noaddress with the local Link page and the guide", c)
 	}
 	p.click("chat_recheck", "") // remote access still off: the same row
 	s = p.waitFor("still off", accepting("chat_recheck"))
@@ -33,7 +33,9 @@ func TestSetupPageChatRowChecksLinkAgain(t *testing.T) {
 	app.getErr = errSetupExit // the App doesn't answer this time
 	app.mu.Unlock()
 	p.click("chat_recheck", "")
-	s = p.waitFor("couldn't read", func(s setupPageState) bool { return s.Control.Chat.Checked == "failed" && slices.Contains(s.Accepts, "chat_recheck") })
+	s = p.waitFor("couldn't read", func(s setupPageState) bool {
+		return s.Control.Chat.Checked == "failed" && slices.Contains(s.Accepts, "chat_recheck")
+	})
 	if c := s.Control.Chat; c.State != "noaddress" || c.LinkPage == "" {
 		t.Fatalf("chat row %+v after a failed Check again", c)
 	}
@@ -46,7 +48,7 @@ func TestSetupPageChatRowChecksLinkAgain(t *testing.T) {
 	mu.Unlock()
 	p.click("chat_recheck", "")
 	s = p.waitFor("the switch", accepting("chat"))
-	if c := s.Control.Chat; c.State != "offer" || c.LinkPage != "" || c.Checked != "" || slices.Contains(s.Accepts, "chat_recheck") {
+	if c := s.Control.Chat; c.State != "offer" || c.LinkPage != "" || c.Guide != "" || c.Checked != "" || slices.Contains(s.Accepts, "chat_recheck") {
 		t.Fatalf("chat row %+v accepts %v, want the offer", c, s.Accepts)
 	}
 	p.click("finish", "")

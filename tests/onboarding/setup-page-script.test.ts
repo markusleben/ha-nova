@@ -414,16 +414,20 @@ describe("setup page: Add to Claude", () => {
 
   it("offers Link remote access as a muted row, with its page and Check again", async () => {
     const link_page = "http://homeassistant.local:8123/config/cloud";
-    const off = { ...control({ state: "noaddress", link_page }), accepts: ["finish", "chat_recheck"] };
-    const stillOff = { ...off, control: { ...off.control, chat: { state: "noaddress", link_page, checked: "off" } } };
+    const guide = "https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md#what-you-need";
+    const off = { ...control({ state: "noaddress", link_page, guide }), accepts: ["finish", "chat_recheck"] };
+    const stillOff = { ...off, control: { ...off.control, chat: { state: "noaddress", link_page, guide, checked: "off" } } };
     const p = page(off, { ...off, accepts: [] }, stillOff); // Check again reads, then remote access is still off
     await p.settle();
-    for (const key of ["setup.chat.key", "setup.chat.need_link", "setup.chat.need_own"]) expect(p.screen.textContent).toContain(p.catalog[key]);
+    for (const key of ["setup.chat.phone_key", "setup.chat.phone_value", "setup.chat.need_link"]) expect(p.screen.textContent).toContain(p.catalog[key]);
+    expect(p.catalog["setup.chat.need_link"]).not.toMatch(/Cloud|Nabu/);
+    expect(p.find("l-chat-own")!.attributes).toMatchObject({ href: guide, target: "_blank", rel: "noopener noreferrer" });
+    expect(p.find("l-chat-own")!.textContent).toBe(p.catalog["setup.chat.need_own"]);
     expect(p.screen.textContent).not.toContain(p.catalog["setup.chat.still_off"]);
     expect(p.screen.textContent).not.toContain(p.catalog["setup.chat.need_address"]);
     expect(p.find("l-chat-link")!.attributes).toMatchObject({ href: link_page, target: "_blank", rel: "noopener noreferrer" });
     const row = p.screen.all().find((n) => n.className === "rows tall")!.children.at(-1)!;
-    expect(row.children[0]!.className).toBe("ic todo"); // optional: muted, not amber
+    expect([row.className, row.children[0]!.className]).toEqual(["feature", "ic todo"]); // optional: a card, muted, not amber
     p.find("b-chat-recheck")!.dispatch("click");
     await p.settle();
     expect(p.posts).toEqual([{ action: "chat_recheck" }]);
@@ -438,6 +442,25 @@ describe("setup page: Add to Claude", () => {
     const unsafe = page(control({ state: "noaddress", link_page: "javascript:alert(1)" }));
     await unsafe.settle();
     expect(unsafe.find("l-chat-link")).toBeUndefined();
+    expect(unsafe.find("l-chat-own")).toBeUndefined(); // no guide: no link
+  });
+
+  it("puts chat apps first among the options, as a card; in the browser, first of all with its own words", async () => {
+    const rows = (p: ReturnType<typeof page>) => p.screen.all().find((n) => n.className === "rows tall")!.children;
+    const desk = page({ screen: "control", accepts: ["finish", "chat"], control: { window: true, phone: "none", rule: "offer", rule_count: 1, link: "offer", chat: { state: "offer" } } });
+    await desk.settle();
+    expect(rows(desk).map((li) => li.children[1]!.children[0]!.textContent)).toEqual([desk.catalog["setup.page.control.window_key"], desk.catalog["setup.page.control.phone_key"],
+      desk.catalog["setup.chat.phone_key"], desk.catalog["setup.page.control.rule_key"], desk.catalog["setup.page.control.link_key"]]);
+    expect(rows(desk)[2]!.className).toBe("feature");
+    expect(desk.screen.textContent).toContain(desk.catalog["setup.chat.phone_value"]);
+    const web = page({ screen: "control", web: true, accepts: ["finish", "chat"], control: { window: true, phone: "none", chat: { state: "offer" } } });
+    await web.settle();
+    expect(rows(web)[0]!.children[1]!.children[0]!.textContent).toBe(web.catalog["setup.chat.key"]);
+    expect(rows(web)[0]!.className).toBe("");
+    expect(web.screen.textContent).toContain(web.catalog["setup.chat.value"]);
+    const rerunOff = page({ screen: "rerun", rows: [], accepts: ["finish"], control: { window: true, phone: "none", chat: { state: "page_off" } } });
+    await rerunOff.settle();
+    expect(rerunOff.screen.textContent).toContain(rerunOff.catalog["setup.chat.phone_value"] + rerunOff.catalog["setup.chat.page_off"]); // what it is, then Off
   });
 
   it("says chat apps are on when the address is missing now", async () => {
@@ -706,7 +729,7 @@ describe("setup page: status colors", () => {
   it("shows what is on in green, never amber, with the word On", async () => {
     const p = page({ screen: "control", accepts: ["finish", "chat"], control: { window: true, phone: "linked", phone_name: "iPh0ne", phones: [], rule: "on", rule_count: 2, link: "offer", chat: { state: "offer" } } });
     await p.settle();
-    expect(marks(p)).toEqual(["ic ok", "ic ok", "ic ok", "ic todo", "ic todo"]); // window, phone, rule on; Link and chat apps optional
+    expect(marks(p)).toEqual(["ic ok", "ic ok", "ic todo", "ic ok", "ic todo"]); // window, phone on; chat apps optional; rule on; Link optional
     const tags = p.screen.all().filter((n) => n.className.startsWith("tag"));
     expect(tags.map((n) => [n.className, n.textContent])).toEqual(Array(3).fill(["tag ok", p.catalog["setup.page.control.on"]]));
     expect(p.screen.all().find((n) => n.className.startsWith("eyebrow"))!.className).toBe("eyebrow");

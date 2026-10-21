@@ -150,10 +150,19 @@ window.novaSteps = (h) => {
     howTo('chatgpt', 'setup.chat.chatgpt_title', ['setup.chat.chatgpt_1', 'setup.chat.chatgpt_2', 'setup.chat.chatgpt_3'],
       el('div', { class: 'copybar' }, el('code', { id: 'chat-url' }, chat.url),
         el('button', { id: 'b-chat-copy', class: 'btn btn-ghost btn-small', type: 'button', onclick: () => copy(chat.url) }, t('setup.chat.copy'))))];
+  // The guide's own-HTTPS-address part: a plain link, not a third button.
+  const ownAddress = (href) => {
+    const node = link(t('setup.chat.need_own'), href, 'ghost', 'chat-own');
+    if (node) node.className = 'linkish';
+    return node ? el('p', { class: 'fine' }, node) : null;
+  };
   const chatRow = (c) => {
     const chat = c.chat;
     if (!chat) return null;
-    const key = t('setup.chat.key');
+    // In the browser, chat apps are where the user is; here, the phone is the news.
+    const web = h.state().web;
+    const key = t(web ? 'setup.chat.key' : 'setup.chat.phone_key');
+    const value = t(web ? 'setup.chat.value' : 'setup.chat.phone_value');
     const seen = `${chat.state} ${chat.attempt || 0}`; // a failed sign-in may come back before a poll saw it run
     if (seen !== local.chatSeen) {
       local.chatSeen = seen;
@@ -173,7 +182,7 @@ window.novaSteps = (h) => {
         return el('li', { id: 'chat-run', ...focusAfter(['b-chat-on', 'b-chat-switch']) }, spinner(),
           el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t(chat.no_restart ? 'setup.chat.wait_now' : 'setup.chat.wait')), progress), el('span'));
       case 'expired':
-        return line(mark('fail', '!'), key, t('setup.chat.value'), problem(chat.problem));
+        return line(mark('fail', '!'), key, value, problem(chat.problem));
       case 'page_on': // a re-run: no owner sign-in yet, so Done applies the switch
       case 'page_off': {
         const was = chat.state === 'page_on';
@@ -181,22 +190,24 @@ window.novaSteps = (h) => {
         const sw = toggle('b-chat-switch', key, on, flip('chatFlip', was ? 'setup.chat.off_later' : 'setup.chat.on_later'), !h.accepts('finish'));
         const now = was ? done(chat.problem) : muted('◎');
         if (local.chatFlip) { // what Done does: off, or the sign-in and then the question
-          return refocus(line(now, key, t(was ? 'setup.chat.off_later' : 'setup.chat.value'), was ? null : el('div', { class: 'v' }, t('setup.chat.on_later')), sw, 'b-chat-switch-v'));
+          return refocus(line(now, key, was ? t('setup.chat.off_later') : value, was ? null : el('div', { class: 'v' }, t('setup.chat.on_later')), sw, 'b-chat-switch-v'));
         }
-        return refocus(line(now, key, t(was ? (chat.url && !chat.problem ? 'setup.chat.page_on' : 'setup.chat.page_on_short') : 'setup.chat.page_off'),
-          [problem(chat.problem), ...(was && chat.url ? onParts(chat) : [])], sw, 'b-chat-switch-v'));
+        if (!was) return refocus(line(now, key, value, [el('div', { class: 'v' }, t('setup.chat.page_off')), problem(chat.problem)], sw, 'b-chat-switch-v')); // what it is, then Off
+        return refocus(line(now, key, t(chat.url && !chat.problem ? 'setup.chat.page_on' : 'setup.chat.page_on_short'),
+          [problem(chat.problem), ...(chat.url ? onParts(chat) : [])], sw, 'b-chat-switch-v'));
       }
       case 'signin':
         return el('li', {}, spinner(),
           el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t('setup.chat.signin'))), el('span'));
       case 'noaddress': // on, but nothing reaches them: a problem. Off: what they need, and Check again
         if (chat.problem) return line(mark('fail', '!'), key, say(chat.problem));
-        return refocus(line(want(), key, t('setup.chat.need_link'), [
+        return refocus(line(want(), key, value, [
+          el('div', { class: 'v' }, t('setup.chat.need_link')),
           el('div', { class: 'pick' }, link(t('setup.chat.open_link'), chat.link_page, 'ghost btn-small', 'chat-link'),
             button(t('setup.page.button.recheck'), 'chat_recheck', 'ghost btn-small', undefined, 'chat-recheck')),
           // What the last Check again found, once setup waits again.
           chat.checked && h.accepts('chat_recheck') ? el('p', { class: 'fine', role: 'status' }, t(chat.checked === 'failed' ? 'setup.chat.check_failed' : 'setup.chat.still_off')) : null,
-          el('p', { class: 'fine' }, t('setup.chat.need_own'))]));
+          ownAddress(chat.guide)]));
       default: {
         const ask = local.chatAsk && h.accepts('chat');
         const consent = ask ? el('div', { class: 'consent', id: 'chat-consent' },
@@ -209,7 +220,7 @@ window.novaSteps = (h) => {
         const open = ask ? null : el('button', { id: 'b-chat-ask', class: 'btn btn-ghost btn-small', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'chat-consent',
           onclick: () => { local.chatAsk = true; render(true); focusId('b-chat-on'); }, ...(h.accepts('chat') ? {} : { disabled: '' }) }, t('setup.chat.turn_on_ask'));
         const status = chat.problem ? mark('fail', '!') : want();
-        return refocus(line(status, key, t('setup.chat.value'), [problem(chat.problem), consent], open));
+        return refocus(line(status, key, value, [problem(chat.problem), consent], open));
       }
     }
   };
@@ -218,11 +229,17 @@ window.novaSteps = (h) => {
   // switches.
   const control = (status) => {
     const c = h.state().control || {};
-    // Claude or ChatGPT in the browser: the window on this computer never asks for them.
+    // Claude or ChatGPT in the browser: chat apps first, and the window on
+    // this computer never asks for them. Here: chat apps are the first
+    // optional item, right after the confirmations, as a card.
+    const web = h.state().web;
+    const chat = chatRow(c);
     const rows = [
-      h.state().web ? null : line(c.window ? done() : muted('·'), t('setup.page.control.window_key'),
+      web ? chat : null,
+      web ? null : line(c.window ? done() : muted('·'), t('setup.page.control.window_key'),
         t(c.window ? 'setup.page.control.window_value' : 'setup.page.control.window_off'), null, c.window ? tagOn() : null),
       phoneRow(c),
+      web || !chat ? null : Object.assign(chat, { className: 'feature' }),
     ];
     const busy = !h.accepts('finish');
     if (c.rule === 'offer') {
@@ -243,8 +260,6 @@ window.novaSteps = (h) => {
       rows.push(line(done(), t('setup.page.control.link_key'), t('setup.page.control.link_on'), null, tagOn()));
     }
     // Claude or ChatGPT in the browser: chat apps are what this user came for.
-    if (h.state().web) rows.unshift(chatRow(c));
-    else rows.push(chatRow(c));
     // An open chat consent is a question: Finish waits for its answer.
     const asking = local.chatAsk && c.chat && c.chat.state === 'offer';
     const choices = [];
