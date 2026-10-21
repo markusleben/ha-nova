@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  📱 <b>Use it from your phone.</b> In Claude, or in ChatGPT on the web. No computer needed.<br>
+  📱 <b>Use it from your phone</b> in the Claude app. ChatGPT works on the web. No computer has to stay on.<br>
   <a href="#use-ha-nova-in-claude-and-chatgpt">See how easy it is</a>
 </p>
 
@@ -161,7 +161,7 @@ Ask about your home and change it from Claude (web, desktop, and phone apps) or 
 **How easy is it?**
 
 1. **Turn on remote access in Home Assistant Link.** Your Home Assistant may still call it Home Assistant Cloud. Your own HTTPS address works too.
-2. **Flip the switch.** In setup, choose **Turn on…** in "You stay in control" (also on a re-run). Or open the NOVA page in the Home Assistant sidebar, then Chat apps. Home Assistant restarts once.
+2. **Flip the switch.** In setup, choose **Turn on…** in "You stay in control". On a re-run, turn on its switch, then click Done. Or open the NOVA page in the Home Assistant sidebar, then Chat apps. Home Assistant restarts once.
 3. **Click "Add to Claude",** or paste the address setup shows into ChatGPT. Then sign in to Home Assistant as the owner.
 
 **You need:**
