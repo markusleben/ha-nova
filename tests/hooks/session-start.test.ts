@@ -12,11 +12,13 @@ import { makeTempDir } from "../helpers/temp-dir.js";
 
 describe("S-6: session-start hook", () => {
   it("outputs valid JSON with skill content", () => {
+    // No ha-nova on PATH: the budget measures the injected files only, and the
+    // test never reaches a real install or its Relay.
     const result = spawnSync("bash", ["hooks/session-start"], {
       cwd: REPO_ROOT,
       encoding: "utf8",
       timeout: 15000,
-      env: { ...process.env },
+      env: { PATH: "/usr/bin:/bin", HOME: makeTempDir("ha-nova-hook-home-") },
     });
 
     expect(result.status).toBe(0);
@@ -73,6 +75,37 @@ describe("S-6: session-start hook", () => {
     context = run();
     expect(context).toContain("The demo house is connected (ha-nova try)");
     expect(context).toContain("Relay unreachable"); // a real home's Relay still gets its warning
+  });
+
+  // 2026-10-21: once the hook really ran, its background jobs inherited
+  // Claude Code's stdout pipe, so every session start waited for them.
+  it("returns at once while its background jobs still run, and repairs only on a fresh start", () => {
+    const home = makeTempDir("ha-nova-hook-slow-");
+    const bin = makeTempDir("ha-nova-hook-slow-bin-");
+    const log = join(home, "calls.log");
+    writeFileSync(
+      join(bin, "ha-nova"),
+      `#!/usr/bin/env bash\necho "$1" >> "${log}"\ncase "$1" in relay) exit 1;; esac\nsleep 5\n`,
+      { mode: 0o755 },
+    );
+    const run = (source: string) => {
+      const started = Date.now();
+      const result = spawnSync("bash", ["hooks/session-start"], {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 15000,
+        input: JSON.stringify({ hook_event_name: "SessionStart", source }),
+        env: { PATH: `${bin}:/usr/bin:/bin`, HOME: home },
+      });
+      expect(result.status).toBe(0);
+      JSON.parse(result.stdout.trim());
+      return Date.now() - started;
+    };
+    expect(run("compact")).toBeLessThan(2000);
+    expect(run("startup")).toBeLessThan(2000);
+    spawnSync("sleep", ["0.5"]);
+    const calls = readFileSync(log, "utf8").split("\n").filter((line) => line === "doctor");
+    expect(calls).toHaveLength(1);
   });
 
   it("fails loud when the index is missing", () => {

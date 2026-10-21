@@ -1,11 +1,11 @@
 # HA NOVA Index
 
-Any request about the user's home — rooms, devices, sensors ("room
+Any request about the user's Home Assistant — rooms, devices, sensors ("room
 temperature"), lights, locks, modes or toggles ("guest mode"), automations,
 dashboards, or "where is X used / why didn't X happen" — is a Home Assistant
-task unless it names code in the open folder: load its task skill and use
-`ha-nova find …`, not file search. Reviews, multi-step tasks,
-and steps citing "context skill → …" (not Safety Core) also load the full context skill `ha-nova:ha-nova`.
+task unless it is about files or code in the open folder: load its task skill
+and use `ha-nova find …`, not file search. Home Assistant reviews, multi-step
+tasks, and steps citing "context skill → …" (not Safety Core) also load the full context skill `ha-nova:ha-nova`.
 
 ## Safety Core (Home Assistant tasks)
 
@@ -23,7 +23,7 @@ and steps citing "context skill → …" (not Safety Core) also load the full co
 
 - Unless asked: names, not ids; local time, never UTC; no automation modes, plan ids, HA NOVA skill or rule-file names.
 - Answer in the language of the user's sentence, not of a name in it.
-- Ask with the plan's `say`, word for word, only translated (names and digits as printed). No plan: "Save it? I can also show the details."; a code you mint: "Type <code> to <goal> — a plain yes can't confirm this."
+- Ask with the plan's `say`, word for word, only translated; a code you mint: "Type <code> to <goal> — a plain yes can't confirm this."
 - After a verified save: `✅ Saved: <type> "<name>"`, what was checked, then, if it can be undone, "To undo this change, just say so."
 
 ## Dispatch — one task skill per intent
@@ -36,17 +36,17 @@ and steps citing "context skill → …" (not Safety Core) also load the full co
 - `ha-nova:helper` — helpers and timers
 - `ha-nova:scene` — scene setup
 - `ha-nova:organize` — areas, floors, labels, categories, metadata
-- `ha-nova:device` — swap, add, retire a device
+- `ha-nova:device` — swap, onboard, retire a device
 - `ha-nova:home-map` — home inventory, "where is X used", whole-setup review
 - `ha-nova:migrate` — rules from Node-RED, Homey, legacy YAML
 - `ha-nova:health` — repairs, unavailable entities, batteries
 - `ha-nova:diagnose` — why something failed or didn't happen
-- `ha-nova:integration-setup` — add or reauthenticate integrations
+- `ha-nova:integration-setup` — add integrations, reauthentication, options
 - `ha-nova:admin` — persons, zones, tags, accounts
 - `ha-nova:esphome` — ESPHome configs
 - `ha-nova:maintenance` — statistics repair, history purge
-- By topic: `ha-nova:dashboard`, `ha-nova:history`, `ha-nova:media`, `ha-nova:notify`, `ha-nova:camera`, `ha-nova:mqtt`, `ha-nova:calendar`, `ha-nova:todo`, `ha-nova:backup`, `ha-nova:updates`, `ha-nova:energy`, `ha-nova:hacs`, `ha-nova:assist` (voice), `ha-nova:yaml-config`, `ha-nova:external-sources` (InfluxDB)
+- By topic: `ha-nova:dashboard`, `ha-nova:history`, `ha-nova:media`, `ha-nova:notify`, `ha-nova:camera`, `ha-nova:mqtt`, `ha-nova:calendar`, `ha-nova:todo`, `ha-nova:backup`, `ha-nova:updates`, `ha-nova:energy`, `ha-nova:hacs`, `ha-nova:assist`, `ha-nova:yaml-config`, `ha-nova:external-sources`
 - `ha-nova:onboarding` — pairing or connection errors
 - `ha-nova:fallback` — anything else
-- `ha-nova:ha-nova` — capabilities, version, setup audit, starter ideas, recap, config-snapshot list/delete
+- `ha-nova:ha-nova` — capabilities, version, structure audit, starter ideas, recap, config-snapshot list/delete
 - Undo or restore: the item's skill

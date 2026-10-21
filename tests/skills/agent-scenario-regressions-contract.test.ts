@@ -153,7 +153,7 @@ describe("agent scenario regressions (2026-10-20)", () => {
 
   it("routes home questions to HA NOVA from the injected index", () => {
     // Scoped to the user's home: the hook injects this into every Claude Code session, coding projects included.
-    expect(index).toContain('Any request about the user\'s home — rooms, devices, sensors ("room temperature"), lights, locks, modes or toggles ("guest mode"), automations, dashboards, or "where is X used / why didn\'t X happen" — is a Home Assistant task unless it names code in the open folder');
+    expect(index).toContain('Any request about the user\'s Home Assistant — rooms, devices, sensors ("room temperature"), lights, locks, modes or toggles ("guest mode"), automations, dashboards, or "where is X used / why didn\'t X happen" — is a Home Assistant task unless it is about files or code in the open folder');
     expect(index).toContain("not file search");
     expect(index).toContain("## Say it (Home Assistant tasks)");
     expect(index).toContain("(like unlocking,");

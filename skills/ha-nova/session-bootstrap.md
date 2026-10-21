@@ -20,7 +20,7 @@ Cited ../<x>/<file> paths are relative to the citing file.
 
 ## HA NOVA Update Callout
 
-After the requested result, surface an available HA NOVA update exactly once
+After the requested result of a Home Assistant task, surface an available HA NOVA update exactly once
 per session in its own localized callout: installed → latest version, up to three supplied highlight lines, the supplied release URL, and
 an offer to update. Never update without
 consent. After a successful `ha-nova update`, tell the
