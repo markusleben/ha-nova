@@ -107,7 +107,7 @@ func sayGoal(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 }
 
 // sayReasons: one sentence per distinct reason; a typed plan's first one
-// says that it needs a one-time code from HA NOVA.
+// ends "so I need you to confirm it" (sayNeedsYou).
 func sayReasons(e *tierEngine, env *verbEnvelope, plan storedPlan) []string {
 	var parts, typed, other []string
 	seen := map[string]bool{}

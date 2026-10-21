@@ -12,6 +12,7 @@ import (
 //
 //	Confirmation: I'm about to <action>. <consequences> <status> <ask>
 //	Result:       Done: <result>. I checked it.
+//	              Sent to <target>. I can't check the result.  (only sent, not read back)
 //	              Not done: <reason>. Nothing changed.
 //	              Not sure: / Partly done: <what is known>.
 
@@ -117,10 +118,10 @@ func resultSay(env *verbEnvelope) string {
 	case detail == "" || detail == ".": // nothing to name
 	case env.Status == "verified":
 		return sayDone(strings.TrimSuffix(detail, "."), checked)
-	case env.Status == "accepted" && verified > 0:
-		return "Done: " + detail + " I checked what I could."
-	case env.Status == "accepted":
-		return "Done: " + detail + " I can't check this kind of change."
+	case env.Status == "accepted" && isCall && verified > 0: // part of it only sent: never "Done"
+		return callOutcome(env) + " I checked what I could."
+	case env.Status == "accepted" && isCall: // each part says what is known ("Sent to …")
+		return callOutcome(env) + " I can't check the result."
 	case env.Status == "unverified" && isCall:
 		return "Not sure: " + detail
 	case env.Status == "unverified":
