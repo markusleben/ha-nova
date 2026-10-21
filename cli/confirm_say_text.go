@@ -276,8 +276,8 @@ func sayOwnedEffect(env *verbEnvelope, r tierReason) string {
 	}
 	domain, _ := splitID(action)
 	switch { // neutral per domain: one word fits every service in it
-	case domain == "notify":
-		return "sends a notification"
+	case domain == "notify": // a phone command rides on a notify call too
+		return "sends a message"
 	case domain == "persistent_notification":
 		return "shows or clears a notification in Home Assistant"
 	case action == "tts.clear_cache":

@@ -140,6 +140,9 @@ func TestPlainValuesStayExact(t *testing.T) {
 		if rows := strings.Join(renderConfigChanges(map[string]any{"at": "22:00"}, map[string]any{"at": "22:00:00"}), ""); !strings.Contains(rows, "| 22:00 | 22:00:00 |") {
 			t.Errorf("equal-looking times: %s", rows)
 		}
+		if rows := strings.Join(renderConfigChanges(map[string]any{"variables": map[string]any{"gate": true}}, map[string]any{"variables": map[string]any{"gate": "true"}}), ""); !strings.Contains(rows, "| true (boolean) | true (string) |") {
+			t.Errorf("a type change: %s", rows)
+		}
 		if rows := strings.Join(dashboardDiff(map[string]any{"entity": "alarm_control_panel.h"}, map[string]any{"entity": []any{"alarm_control_panel.h"}}), ""); !strings.Contains(rows, `| alarm_control_panel.h | ["alarm_control_panel.h"] |`) {
 			t.Errorf("equal-looking dashboard values: %s", rows)
 		}

@@ -102,9 +102,9 @@ func makeChange(segs []segment, before, after interface{}) configChange {
 	case after == nil:
 		bf, af = cell(before), "—"
 	default:
-		bf, af = cell(before), cell(after)
-		if bf == af { // plain words hid the difference: show it exact
-			bf, af = formatValue(before), formatValue(after)
+		bf, af = formatValue(before), formatValue(after)
+		if pb, pa := cell(before), cell(after); bf != af && pb != pa { // plain words only where they keep the difference
+			bf, af = pb, pa
 		}
 		if bf == af {
 			// Same rendered text but a real change → a type/representation
