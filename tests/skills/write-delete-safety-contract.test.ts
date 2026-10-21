@@ -13,7 +13,7 @@ describe("write delete safety contract", () => {
     expect(writeSkill).toContain("Delete preview MUST include the consumer-check result before confirmation");
     // The CLI emits `consumers: []` only for a complete delete scan (plan_config.go).
     expect(writeSkill).toContain("`[]` is an explicit none among automations, scripts, and scenes");
-    expect(writeSkill).toContain('absent (`coverage.complete` false) is "consumer check inconclusive", never a no-consumer result');
+    expect(writeSkill).toContain("absent (`coverage.complete` false) is \"couldn't check what uses it\", never a no-consumer result");
   });
 
   it("requires destructive writes to stay unclaimed until verification proves the target is gone", () => {
@@ -75,7 +75,7 @@ describe("write delete safety contract", () => {
     // Post-write checks prove persistence, not behavior — wording must say so.
     expect(writeSafety).toContain("## Verification Honesty (post-write wording)");
     expect(writeSafety).toContain('Never a bare "verified"');
-    expect(writeSafety).toContain("Runtime behavior was not exercised");
+    expect(writeSafety).toContain("I didn't run it yet.");
     expect(writeSafety).toContain("it may actuate real devices; never run it unrequested");
     // One logical change over several targets: plan first, honest revert scope.
     expect(writeSafety).toContain("## Multi-Target Changes (one logical change, several items)");

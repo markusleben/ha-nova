@@ -125,7 +125,7 @@ describe("ha safety contract", () => {
     expect(router).toContain("what failed");
     expect(router).toContain("why it failed");
     expect(router).toContain("next concrete step");
-    expect(writeSkill).toContain("No raw curl/JSON in output.");
+    expect(writeSkill).toContain("snapshots, raw JSON.");
     expect(writeSkill).toContain("## References");
   });
 
@@ -195,7 +195,7 @@ describe("ha safety contract", () => {
     // PR6: both write-flow call sites read through `ha-nova get --related`,
     // which fails the verb on any read error; the skill fails closed on it.
     expect(writeSkill).toContain("`ha-nova get <entity_id> --related` on the top entities");
-    expect(writeSkill).toContain("a failed read is \"consumer check inconclusive\" — never a no-consumer claim");
+    expect(writeSkill).toContain("a failed read is \"couldn't check what uses it\" — never a no-consumer claim");
     expect(writeSkill).toContain("(3c fail-closed rule)");
     expect(writeSkill).toContain("NEVER on the item's own `entity_id`");
     expect(readFileSync("cli/verb_get.go", "utf8")).toContain('if result.Related, err = s.ws(map[string]any{"type": "search/related", "item_type": "entity", "item_id": entityID}); err != nil {');

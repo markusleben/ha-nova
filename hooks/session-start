@@ -80,7 +80,7 @@ if [[ -f "$version_file" ]]; then
     # (seconds); keep this probe tight so a dead relay never blocks session start.
     health_json="$(ha-nova relay health --connect-timeout 1 --max-time 2 2>/dev/null || true)"
     if [[ -z "$health_json" ]]; then
-      version_warning="[ha-nova] WARNING: Relay unreachable. Check relay status or run: ha-nova doctor\\n"
+      version_warning="[ha-nova] WARNING (Home Assistant tasks only): Relay unreachable. Check relay status or run: ha-nova doctor\\n"
     elif [[ -n "$MIN_RELAY_VERSION" ]]; then
       relay_version=$(extract_json_string "version" "$health_json")
       if [[ -n "$relay_version" && "$relay_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && semver_lt "$relay_version" "$MIN_RELAY_VERSION"; then
@@ -150,7 +150,9 @@ if [[ -f "$version_file" ]]; then
   # Background refresh: fire-and-forget through the shared CLI contract.
   if [[ "$needs_refresh" == "1" ]] && command -v ha-nova >/dev/null 2>&1; then
     mkdir -p "$update_cache_dir" 2>/dev/null || true
-    (ha-nova check-update --quiet --json >/dev/null 2>&1 || true) &
+    # Redirect the whole subshell: an inherited stdout keeps Claude Code's
+    # pipe open, so the session would wait for the background job.
+    (ha-nova check-update --quiet --json || true) </dev/null >/dev/null 2>&1 &
     disown 2>/dev/null || true
   fi
 fi
@@ -170,8 +172,12 @@ fi
 # Background auto-repair: silently reattach drifted clients (e.g., a Claude
 # Code update wiped the marketplace registration). Fire-and-forget so this
 # session starts immediately; the repair lands in time for the next session.
-if command -v ha-nova >/dev/null 2>&1; then
-  (ha-nova doctor --auto-repair --quiet >/dev/null 2>&1 || true) &
+# Only on a fresh start (stdin carries the hook input JSON with its source),
+# not on resume, clear, or compact.
+hook_input=""
+[[ -t 0 ]] || IFS= read -r -t 2 -d '' hook_input || true
+if command -v ha-nova >/dev/null 2>&1 && ! grep -Eq '"source"[[:space:]]*:[[:space:]]*"(resume|clear|compact)"' <<<"$hook_input"; then
+  (ha-nova doctor --auto-repair --quiet || true) </dev/null >/dev/null 2>&1 &
   disown 2>/dev/null || true
 fi
 

@@ -66,7 +66,7 @@ describe("output design system (Cards)", () => {
 
   it("asks a natural save question and keeps the confirmation-code prompt literal", () => {
     expect(outputRules).toContain("Save it? I can also show the details.");
-    expect(outputRules).toContain("Type <four digits> to delete.");
+    expect(outputRules).toContain("Type <four digits> to delete — a plain yes can't confirm this.");
     expect(outputRules).toContain("the one-time-code prompt is always the last line");
   });
 
@@ -88,7 +88,8 @@ describe("output design system (Cards)", () => {
   });
 
   it("keeps the result card scope-honest", () => {
-    expect(outputRules).toContain("Runtime behavior was not exercised.");
+    expect(outputRules).toContain("I didn't run it yet.");
+    expect(outputRules).not.toContain("Runtime behavior was not exercised.");
     expect(outputRules).toContain("Verification Honesty");
   });
 
@@ -253,7 +254,7 @@ describe("output design system (Cards)", () => {
     expect(del[0]).toMatch(/^🗑️ {2}Delete:/);
     expect(del.filter((l) => l.startsWith("⚠️")), "exactly one status line").toHaveLength(1);
     expect(del[del.length - 1], "confirmation prompt closes the card").toBe(
-      "Type <four digits> to delete.",
+      "Type <four digits> to delete — a plain yes can't confirm this.",
     );
     expect(del.findIndex((l) => l.startsWith("⚠️")), "status precedes the prompt").toBe(
       del.length - 2,

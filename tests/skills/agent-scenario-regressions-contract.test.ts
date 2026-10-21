@@ -144,3 +144,58 @@ describe("agent scenario regressions (2026-10-16)", () => {
     expect(checks).not.toContain("may reorder mapping keys");
   });
 });
+
+// 2026-10-20 Claude Code run (19 scenarios × Sonnet/Haiku): Haiku never
+// routed "where is X used" or "turn on guest mode" to HA NOVA, the plain-language
+// rules lived only in on-demand files, and the code prompt drifted per run.
+describe("agent scenario regressions (2026-10-20)", () => {
+  const index = flat("skills/ha-nova/index.md");
+
+  it("routes home questions to HA NOVA from the injected index", () => {
+    // Scoped to the user's home: the hook injects this into every Claude Code session, coding projects included.
+    expect(index).toContain('Any request about the user\'s Home Assistant — rooms, devices, sensors ("room temperature"), lights, locks, modes or toggles ("guest mode"), automations, dashboards, or "where is X used / why didn\'t X happen" — is a Home Assistant task unless it is about files or code in the open folder');
+    expect(index).toContain("not file search");
+    expect(index).toContain("## Say it (Home Assistant tasks)");
+    expect(index).toContain("(like unlocking,");
+    expect(index).not.toContain("For Home Assistant tasks only");
+    expect(index).toContain("`ha-nova:service-call` — control now: devices, toggles, modes");
+    expect(index).toContain('`ha-nova:home-map` — home inventory, "where is X used"');
+    expect(flat("skills/home-map/SKILL.md")).toContain('"where is X used"');
+  });
+
+  it("carries one ask shape and one result shape in the injected index", () => {
+    expect(index).toContain("Unless asked: names, not ids; local time, never UTC; no automation modes, plan ids, HA NOVA skill or rule-file names.");
+    expect(index).toContain("Answer in the language of the user's sentence, not of a name in it.");
+    expect(index).toContain("Ask with the plan's `say`, word for word, only translated");
+    expect(index).toContain('"Type <code> to <goal> — a plain yes can\'t confirm this."');
+    expect(index).toContain('After a verified save: `✅ Saved: <type> "<name>"`, what was checked, then, if it can be undone,');
+    expect(flat("skills/ha-nova/output-cards.md")).toContain("Ask and result shapes: `../ha-nova/index.md` → Say it.");
+  });
+
+  it("saves turns without skipping a confirmation", () => {
+    expect(flat("skills/entity-discovery/SKILL.md")).toContain(
+      "When the user asks for a change with one clear target: hand off to the write-capable skill in the same turn; ask only what that skill requires.",
+    );
+    expect(flat("skills/write/SKILL.md")).toContain("an open choice (which garage door): ask one blocking question before any draft, not inside a preview.");
+  });
+
+  it("closes the behaviour gaps the run found", () => {
+    const write = flat("skills/write/SKILL.md");
+    expect(write).toContain("A create gets a one-sentence `description`.");
+    expect(write).toContain("on the entities it triggers on and acts on, minus the item itself");
+    expect(flat("skills/ha-nova/smallest-solution.md")).toContain("a fitting new name when an update makes the old one wrong");
+    expect(flat("skills/ha-nova/smallest-solution.md")).toContain("with the same flagged defect");
+    expect(flat("skills/service-call/SKILL.md")).toContain("After `apply`, read the `members[]` the preview named (the door a mode unlocks) and say their state; a delayed step may still change it.");
+    expect(flat("skills/dashboard/SKILL.md")).toContain("`climate` → `thermostat`");
+    expect(flat("skills/home-map/SKILL.md")).toContain("likeliest first (a sensor: sensors built from a formula), never as a raw list");
+  });
+
+  it("prescribes no jargon lines", () => {
+    for (const file of ["skills/write/SKILL.md", "skills/ha-nova/output-cards.md", "skills/ha-nova/write-safety.md", "skills/dashboard/SKILL.md", "skills/fallback/SKILL.md", "skills/hacs/SKILL.md", "skills/review/SKILL.md"]) {
+      const text = flat(file);
+      for (const phrase of ["no issues worth flagging", "Runtime behavior was not exercised", "Name the `snapshot`", "consumer check inconclusive", "subskill schema guardrails", "Pre-write check: no concerns", "EXPERIMENTAL marker", "Collision check skipped"]) {
+        expect(text, `${file}: ${phrase}`).not.toContain(phrase);
+      }
+    }
+  });
+});

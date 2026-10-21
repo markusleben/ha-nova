@@ -91,7 +91,7 @@ The context skill (`ha-nova`) stays the stable entrypoint; sub-skills remain ind
 
 ## Repo-local Hook Note
 
-`hooks/session-start` still exists as a repo-local development helper, but it is **not** the production installation model for Claude. Production Claude installs use a versioned local release snapshot under `~/.config/ha-nova/claude-marketplace/releases/vX.Y.Z`. The flat local staged marketplace layout stays a repo-local development tool only.
+`hooks/session-start` runs only where the plugin root is a repo checkout: dev-synced installs and a marketplace added straight from GitHub (source `./`). It injects `skills/ha-nova/index.md` and `session-bootstrap.md`, runs a 2-second Relay probe, and starts `check-update` and (fresh starts only) `doctor --auto-repair` in the background. The release bundle does not ship `hooks/`, so it is **not** the production installation model for Claude. Production Claude installs use a versioned local release snapshot under `~/.config/ha-nova/claude-marketplace/releases/vX.Y.Z`. The flat local staged marketplace layout stays a repo-local development tool only.
 
 ## Execution Model
 

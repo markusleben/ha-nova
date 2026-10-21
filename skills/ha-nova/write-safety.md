@@ -136,7 +136,7 @@ should learn one shape and always recognize it:
    it may run longer when per-entry coverage requires it).
 2. Changes slot: your localized header row + `|---|---|---|`, then the
    CLI diff rows, verbatim.
-3. Pre-write-check/impact slot: one or two short lines.
+3. Pre-write-check/impact slot: one or two short lines; omit it when clean.
 4. Save-status slot: explicitly say that nothing has been saved yet (the ⚠️ line).
 5. Options slot: one natural question — save it, show the details, or leave it.
 
@@ -151,7 +151,7 @@ the diff already states what changes. Keep it scannable.
 A non-technical user reads the Changes slot, not raw YAML. So:
 
 - **update**: lead with the Changes slot; close with the save question.
-- **create**: a compact human summary, the pre-write check, a not-saved-yet
+- **create**: a compact human summary, any pre-write finding, a not-saved-yet
   line, and the save question (a selectable menu where the client offers one).
 
 Shape (the table rows are exactly what the CLI produced this turn — never
@@ -166,7 +166,7 @@ semantic placeholders; localize them before showing the user:
 |---|---|---|
 <paste the CLI diff rows here, unchanged>
 
-<pre-write check / impact line>
+<pre-write finding, if any>
 ⚠️  <localized: nothing saved yet>
 <localized question: save it? I can also show the details.>
 ```
@@ -183,7 +183,7 @@ Wording rules for the result and the collapsed no-findings line:
 
 - Never a bare "verified"/"works now". Name the proven scope instead — the
   localized equivalent of: "Saved and checked: it is stored and Home
-  Assistant loaded it. Runtime behavior was not exercised."
+  Assistant loaded it. I didn't run it yet."
 - Where a real run is meaningful, offer it as an explicit optional step: a
   manual trigger via `ha-nova:service-call` (its own preview + confirmation —
   it may actuate real devices; never run it unrequested). For automations and
