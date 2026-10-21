@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -9,6 +11,9 @@ type postUpdateSyncResult struct {
 	FullySynced      bool
 	RefreshedClients bool
 	Err              error
+	// Synced and Skipped name the AI apps (labels) for the one-line summary.
+	Synced  []string
+	Skipped []string
 }
 
 // postUpdateSync re-syncs every configured client from the canonical install root
@@ -65,8 +70,7 @@ func postUpdateSyncWithResultUnlocked(paths runtimePaths) postUpdateSyncResult {
 	state := loadStateOrDefault(paths)
 	configured := normalizeClients(append(append([]string{}, state.InstalledClients...), detectedClients...))
 	failed := []string{}
-	skipped := false
-	syncedClients := 0
+	var synced, syncedIDs, skipped, unverified []string
 	for _, client := range configured {
 		entry, ok, err := findRegistryClient(paths, client)
 		if err != nil {
@@ -80,8 +84,7 @@ func postUpdateSyncWithResultUnlocked(paths runtimePaths) postUpdateSyncResult {
 			fileClientAdapter(entry.AdapterKind) &&
 			managedInstalledFileClient(paths, client)
 		if !status.RuntimeDetected && !canSyncAttachedFiles {
-			printHumanWarn("Skipping %s until the client runtime is installed in this environment", entry.Label)
-			skipped = true
+			skipped = append(skipped, entry.Label)
 			continue
 		}
 		if fileClientAdapter(entry.AdapterKind) {
@@ -96,8 +99,15 @@ func postUpdateSyncWithResultUnlocked(paths runtimePaths) postUpdateSyncResult {
 			failed = append(failed, client)
 			continue
 		}
-		printHumanInfo("Client synced: %s", client)
-		syncedClients++
+		// Verify the version: Claude Code's plugin must now point at this
+		// release's snapshot. File clients link or copy the one install root,
+		// so the residue scan below is their check.
+		if !fileClientAdapter(entry.AdapterKind) && !clientAttachmentPresentForStatus(paths, state, client) {
+			unverified = append(unverified, entry.Label)
+			continue
+		}
+		synced = append(synced, entry.Label)
+		syncedIDs = append(syncedIDs, client)
 	}
 	state.InstalledClients = configured
 	version := localVersion(paths)
@@ -106,7 +116,7 @@ func postUpdateSyncWithResultUnlocked(paths runtimePaths) postUpdateSyncResult {
 	// verified: a residue scan catches a sync that resolved from a transient backup
 	// (the pre-0.6.1 bug class), so "Updated" never silently means "updated-ish".
 	residue := transientBackupResidue(paths, configured)
-	fullySynced := len(failed) == 0 && !skipped && len(residue) == 0
+	fullySynced := len(failed) == 0 && len(skipped) == 0 && len(unverified) == 0 && len(residue) == 0
 	if fullySynced {
 		state.ClientsVerifiedVersion = version
 	} else if len(residue) > 0 {
@@ -117,15 +127,99 @@ func postUpdateSyncWithResultUnlocked(paths runtimePaths) postUpdateSyncResult {
 	if err := saveState(paths, state); err != nil {
 		return postUpdateSyncResult{Err: err}
 	}
+	if len(unverified) > 0 {
+		printHumanWarn("Not ready in %s after the update. Run: ha-nova doctor", joinAnd(unverified))
+	}
+	if len(skipped) > 0 {
+		printHumanWarn("Not updated in %s: it isn't on this computer right now. If you use it again, run: ha-nova update", joinAnd(skipped))
+	}
 	if len(residue) > 0 {
-		printHumanWarn("These clients still reference a temporary update backup and are not fully up to date: %s", strings.Join(normalizeClients(residue), ", "))
-		printHumanWarn("Run `ha-nova doctor` to refresh them.")
+		printHumanWarn("Not fully updated in %s (they still point at a temporary update copy). Run: ha-nova doctor", strings.Join(normalizeClients(residue), ", "))
+	}
+	// The summary names only the apps that are fully on this version.
+	for i := len(syncedIDs) - 1; i >= 0; i-- {
+		if containsClient(residue, syncedIDs[i]) {
+			synced = append(synced[:i], synced[i+1:]...)
+		}
 	}
 	if len(failed) > 0 {
 		return postUpdateSyncResult{Err: fmt.Errorf("failed clients: %s", strings.Join(normalizeClients(failed), ", "))}
 	}
 	return postUpdateSyncResult{
 		FullySynced:      fullySynced,
-		RefreshedClients: syncedClients > 0 && len(residue) == 0,
+		RefreshedClients: len(synced) > 0 && len(residue) == 0,
+		Synced:           synced,
+		Skipped:          skipped,
+	}
+}
+
+// printUpdateDone: one plain sentence for what the update did, naming every
+// AI app it refreshed (the sync already warned about the others).
+func printUpdateDone(lead string, result postUpdateSyncResult) {
+	if len(result.Synced) > 0 {
+		printHumanInfo("%s in %s.", lead, joinAnd(result.Synced))
+		return
+	}
+	printHumanInfo("%s.", lead)
+}
+
+// relayUpdateManualLine: where a person updates the App by hand.
+const relayUpdateManualLine = "To update the NOVA App: in Home Assistant, open Settings > Apps > NOVA Relay and click Update."
+
+// openSetupPageForAppUpdate runs the NEW binary's `ha-nova setup`: its
+// re-run page leads with "Update the NOVA App", and nothing installs until
+// the owner clicks and signs in. Test seam.
+var openSetupPageForAppUpdate = func(paths runtimePaths) error {
+	cmd := exec.Command(paths.PublicBinary, "setup")
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	return cmd.Run()
+}
+
+// relayUpdateNoticeForUpdate: the App's state after the CLI update. Test seam.
+var relayUpdateNoticeForUpdate = relayUpdateNotice
+
+// offerRelayUpdateAfterUpdate is the NOVA App half of `ha-nova update`.
+func offerRelayUpdateAfterUpdate(paths runtimePaths) {
+	offerRelayUpdate(paths, relayUpdateNoticeForUpdate(paths))
+}
+
+// setupPageCanUpdateApp: `ha-nova setup` opens its page here, and the page's
+// owner sign-in can update the official App on this Home Assistant.
+func setupPageCanUpdateApp(paths runtimePaths) bool {
+	cfg, err := loadConfig(paths)
+	if err != nil {
+		return false
+	}
+	_, originErr := parseLocalHAOrigin(cfg.HAURL)
+	return originErr == nil && setupPageCloudOK(cfg) && haAppInstallTargetsThisHAForPage(cfg)
+}
+
+// offerRelayUpdate: an App below what this version needs, with its update
+// pending in Home Assistant, at a desktop: the setup page opens on its
+// "Update the NOVA App" button. In a terminal otherwise: the guided offer
+// (it asks first). Without a terminal (an AI app ran the command): one plain
+// line where to update it. Nothing installs without the user's click or yes.
+func offerRelayUpdate(paths runtimePaths, notice humanNotice) {
+	if notice.empty() {
+		return
+	}
+	printHumanNotice(notice)
+	if notice.belowFloor && serverSelectionOverride == "" &&
+		activeServerProfile() == defaultServerProfileName && setupPageCanUpdateApp(paths) && setupPageAvailable() {
+		printHumanInfo("The NOVA App in Home Assistant needs an update too. Opening HA NOVA setup: click \"Update the NOVA App\" there.")
+		if err := openSetupPageForAppUpdate(paths); err == nil {
+			if relayUpdateNoticeForUpdate(paths).empty() {
+				return
+			}
+			printHumanInfo("%s", relayUpdateManualLine) // closed without updating: where to do it later
+			return
+		}
+	}
+	if relayUpdateInputIsTTY() && relayUpdateOutputIsTTY() {
+		maybeOfferGuidedRelayUpdate(paths, notice) // says the manual path itself when it can't
+		return
+	}
+	if notice.appUpdate {
+		printHumanInfo("%s", relayUpdateManualLine)
 	}
 }

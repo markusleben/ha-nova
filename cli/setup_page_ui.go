@@ -61,7 +61,7 @@ type setupPageState struct {
 	Primary    string               `json:"primary,omitempty"` // install, update, signin; empty: no sign-in from the page
 	Rows       []setupPageRow       `json:"rows,omitempty"`
 	Problem    *setupPageMsg        `json:"problem,omitempty"`
-	Fix        string               `json:"fix,omitempty"` // retry, owner, web (chat apps can't work here yet), web_never (nor after a change here)
+	Fix        string               `json:"fix,omitempty"` // retry, owner, web (chat apps can't work here yet), web_never (nor after a change here); app_update (re-run: the App needs an update)
 	Links      map[string]string    `json:"links,omitempty"`
 	AskHA      bool                 `json:"ask_ha,omitempty"` // step 1 opens the address field
 	Typed      bool                 `json:"typed,omitempty"`  // the user typed HA's address: step 1 says so

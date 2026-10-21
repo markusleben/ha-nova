@@ -103,8 +103,10 @@ func (s novaAppSupervisor) allowed(method, endpoint string, data map[string]any)
 		return !s.removal && data == nil
 	case "post /store/repositories":
 		return !s.removal && len(data) == 1 && data["repository"] == haNovaRepositoryURL
-	case "post /store/addons/" + s.appSlug + "/install", "post /store/addons/" + s.appSlug + "/update":
+	case "post /store/addons/" + s.appSlug + "/install":
 		return !s.removal && len(data) == 1 && data["background"] == true
+	case "post /store/addons/" + s.appSlug + "/update": // always with a backup of the App first
+		return !s.removal && len(data) == 2 && data["background"] == true && data["backup"] == true
 	}
 	id, isJob := strings.CutPrefix(endpoint, "/jobs/")
 	return !s.removal && method == "get" && data == nil && isJob && supervisorJobIDPattern.MatchString(id)
@@ -340,7 +342,11 @@ func (s novaAppSupervisor) job(ctx context.Context, out io.Writer, state *novaAp
 		var started struct {
 			JobID string `json:"job_id"`
 		}
-		if err := s.call(ctx, "post", "/store/addons/"+s.appSlug+"/"+action, map[string]any{"background": true}, time.Minute, &started); err != nil {
+		data := map[string]any{"background": true}
+		if action == "update" { // Home Assistant saves a backup of the App first
+			data["backup"] = true
+		}
+		if err := s.call(ctx, "post", "/store/addons/"+s.appSlug+"/"+action, data, time.Minute, &started); err != nil {
 			return jobResult{}, err
 		}
 		if started.JobID == "" { // Supervisor finished within the call

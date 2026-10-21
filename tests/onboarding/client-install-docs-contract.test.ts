@@ -59,12 +59,8 @@ describe("client install docs contract", () => {
       expect(overlay).toContain(instruction);
     }
     expect(contextSkill).toContain("../ha-nova/session-bootstrap.md");
-    expect(sessionBootstrap).toContain(
-      "After a successful `ha-nova update`, tell the"
-    );
-    expect(sessionBootstrap).toMatch(
-      /user to start a new\s+AI-client session/
-    );
+    // The CLI's result ends with the new-chat step; the agent relays it.
+    expect(sessionBootstrap).toContain("Yes: run `ha-nova update`, relay its result,");
   });
 
   it("keeps reciprocal client overlay links on the current Antigravity overlay", () => {

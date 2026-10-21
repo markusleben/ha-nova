@@ -94,6 +94,9 @@ func (f *fakeSupervisor) Call(ctx context.Context, commandType string, fields ma
 	case "get /addons/" + slug + "/info":
 		return reply(f.info)
 	case "post /store/addons/" + slug + "/install", "post /store/addons/" + slug + "/update":
+		if data, _ := fields["data"].(map[string]any); strings.HasSuffix(endpoint, "/update") && data["backup"] != true {
+			f.t.Fatalf("App update without a backup: %v", data)
+		}
 		if f.jobErr == "" && !f.jobNever {
 			f.info["version"], f.info["update_available"] = f.info["version_latest"], false
 			if f.info["state"] == "unknown" {
@@ -175,6 +178,7 @@ func TestNOVAAppSupervisorRefusesEverythingOffTheAllowList(t *testing.T) {
 		{"post", "/store/addons/" + other + "/install", map[string]any{"background": true}},
 		{"post", "/store/addons/local_ha_nova_relay/install", map[string]any{"background": true}},
 		{"post", "/store/addons/" + HAOfficialNOVAAppSlug + "/install", nil},
+		{"post", "/store/addons/" + HAOfficialNOVAAppSlug + "/update", map[string]any{"background": true}}, // no backup
 		{"post", "/store/addons/" + HAOfficialNOVAAppSlug + "/install/0.9.0", map[string]any{"background": true}},
 		{"post", "/addons/" + HAOfficialNOVAAppSlug + "/uninstall", nil},
 		{"post", "/addons/" + HAOfficialNOVAAppSlug + "/options", map[string]any{"options": map[string]any{}}},

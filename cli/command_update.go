@@ -12,9 +12,9 @@ import (
 	"strconv"
 )
 
-const postUpdateSessionInstruction = "Next step: start a new AI client session to load the updated HA NOVA skills."
-const postUpdatePartialSessionInstruction = "Next step for refreshed clients: start a new AI client session in each one to load the updated HA NOVA skills."
-const windowsUpdateStagedInstruction = "Update staged. Wait for the updater to finish. After it reports success, start a new AI client session to load the updated HA NOVA skills."
+const postUpdateSessionInstruction = "Next step: start a new chat in your AI app so it uses the new version."
+const postUpdatePartialSessionInstruction = "Next step: start a new chat in each updated AI app so it uses the new version."
+const windowsUpdateStagedInstruction = "Installing the update in the background. When it says \"Updated HA NOVA\" (about a minute), start a new chat in your AI app."
 
 func runUpdate(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("update", flag.ContinueOnError)
@@ -92,7 +92,8 @@ func runUpdate(paths runtimePaths, args []string) int {
 	if targetVersion == "" {
 		release, err := fetchLatestRelease(paths, true, false)
 		if err != nil {
-			printHumanErr("%s", err)
+			printHumanErr("Can't find the new version right now. Nothing was changed. Check your internet, then try again.")
+			printHumanWarn("Details: %s", err)
 			return 1
 		}
 		targetVersion = release.Version
@@ -122,7 +123,8 @@ func runUpdate(paths runtimePaths, args []string) int {
 	}
 	stageRoot, err := stageBundle(paths, targetVersion)
 	if err != nil {
-		printHumanErr("update failed: %s", err)
+		printHumanErr("The update could not be downloaded or checked. Nothing was changed. Try again later; if it keeps failing, run: ha-nova doctor")
+		printHumanWarn("Details: %s", err)
 		return 1
 	}
 
@@ -178,14 +180,11 @@ func runUpdate(paths runtimePaths, args []string) int {
 	// Report the staged target, not localVersion(): the still-running process
 	// may be the OLD (dev) binary whose compiled-in version predates the
 	// update (issue #245 showed "Updated to v0.7.1" while installing 0.8.0).
-	printHumanInfo("Updated to v%s", targetVersion)
+	printUpdateDone("Updated HA NOVA to "+targetVersion, syncResult)
 	// The freshly installed version.json may raise min_relay_version, and Home
 	// Assistant may expose a newer compatible App update. The update moment is
 	// where the user can still act instead of being interrupted later.
-	if notice := relayUpdateNotice(paths); !notice.empty() {
-		printHumanNotice(notice)
-		maybeOfferGuidedRelayUpdate(paths, notice)
-	}
+	offerRelayUpdateAfterUpdate(paths)
 	printPostUpdateSessionInstruction(syncResult)
 	return 0
 }
@@ -260,7 +259,7 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 		printHumanWarn("updated to v%s, but could not remove the previous install backup: %s", localVersion(paths), err)
 	}
 	releaseMutation()
-	printHumanInfo("Updated to v%s", localVersion(paths))
+	printUpdateDone("Updated HA NOVA to "+localVersion(paths), syncResult)
 	// Windows finishes the update in this replacement process — the freshly
 	// installed version.json and Relay App-update state are live here, so the
 	// notice belongs here too (the staging branch in runUpdate exits before it).
@@ -275,7 +274,7 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 		if name, _ := requestedServerSelection(); name != "" {
 			doctor += " --server " + name
 		}
-		printHumanInfo("Run `%s` in a terminal to be offered the guided relay update.", doctor)
+		printHumanInfo("To update the NOVA App: run `%s` in a terminal, or in Home Assistant open Settings > Apps > NOVA Relay and click Update.", doctor)
 	}
 	printPostUpdateSessionInstruction(syncResult)
 	return 0
@@ -300,17 +299,14 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 		return 1
 	}
 	if cmp > 0 {
-		printHumanInfo("Already on newer version v%s than target v%s", currentVersion, targetVersion)
+		printUpdateDone(fmt.Sprintf("HA NOVA %s is up to date (newer than %s)", currentVersion, targetVersion), syncResult)
 	} else {
-		printHumanInfo("Already up to date: v%s", currentVersion)
+		printUpdateDone(fmt.Sprintf("HA NOVA %s is up to date", currentVersion), syncResult)
 	}
 	// "Up to date" is misleading while the relay is below the required floor
 	// or Home Assistant exposes a newer App update — say so where the user is
 	// looking.
-	if notice := relayUpdateNotice(paths); !notice.empty() {
-		printHumanNotice(notice)
-		maybeOfferGuidedRelayUpdate(paths, notice)
-	}
+	offerRelayUpdateAfterUpdate(paths)
 	printPostUpdateSessionInstruction(syncResult)
 	return 0
 }

@@ -80,17 +80,21 @@ Three checks run automatically:
 2. **Relay compat check** — `ha-nova relay health` compares Relay version against `min_relay_version`.
 3. **Relay-traffic update nudge** — every `ha-nova relay ws|core` call surfaces a cached "update available" notice on stderr at most once per 24h; `ha-nova relay health` surfaces it unthrottled as the explicit diagnostic path. The compare is cache-only (never a network call in the hot path); a non-fresh cache is refreshed by a detached background `check-update --quiet --json`. Opt out with `HA_NOVA_NO_UPDATE_NUDGE=1`. An RC newer than the latest stable gets no notice (plain `ha-nova check-update` prints one return-to-stable line); its final release is a normal update notice.
 
+`check-update` and the nudge say the same plain notice: "HA NOVA 0.27.0 is ready (you have 0.26.0)", one highlight, the update step, and the release link; `check-update` also says when the NOVA App needs an update too. The quiet first-use check waits at most 3 s for GitHub, then uses the cached release; offline with no cache it stays silent. The Claude Code session hook adds no update notice; it only keeps the release cache warm.
+
 The `doctor` command runs the first two checks synchronously and also refreshes the update cache.
 Other clients use the same shared first-use skill contract and CLI updater path (`ha-nova check-update`, `ha-nova doctor`, `ha-nova update`). The relay-traffic nudge remains a cache-only fallback if a client misses the skill instruction.
 Installed Claude uses the tested HA NOVA release payload on disk; update discovery stays automatic where HA NOVA already provides it.
 
 ## Agent-Driven Updates
 
-When the agent detects `UPDATE AVAILABLE` in its session context, it can run the update command directly:
+After a Home Assistant task, the agent offers an available update once per session ("Say 'update HA NOVA' and I'll do it"). Only after the user says yes does it run:
 
 ```text
 ha-nova update
 ```
+
+`ha-nova update` refreshes HA NOVA in every installed AI app, checks that Claude Code uses the new version, and ends with one line naming the apps it updated (and any it could not, with the next step). If the NOVA App is then older than this version needs and Home Assistant offers its update, a desktop terminal opens the setup page on "Update the NOVA App" (nothing installs before the owner clicks and signs in; Home Assistant backs up the App first). Another terminal gets the guided App update offer; without a terminal (an AI app ran the command) it prints where to update the App in Home Assistant.
 
 After `ha-nova update` succeeds, start a new AI client session to load the updated HA NOVA skills.
 

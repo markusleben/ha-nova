@@ -2,7 +2,7 @@
  * S-6: SessionStart hook (4 variants)
  * Tests the hooks/session-start script output in various configurations.
  */
-import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -233,72 +233,54 @@ describe("S-6: session-start hook", () => {
     const hookContent = readFileSync("hooks/session-start", "utf8");
 
     expect(hookContent).toContain("latest-release.json");
-    expect(hookContent).toContain('"version"');
-    expect(hookContent).toContain("UPDATE AVAILABLE");
-    expect(hookContent).toContain("ha-nova update");
     expect(hookContent).toContain('"$ha_nova_bin" check-update --quiet --json');
     expect(hookContent).not.toContain("api.github.com/repos/markusleben/ha-nova/releases/latest");
-    // Compact release highlights come from the shared cache via grep-based
-    // extraction of the "text" fields — never a jq dependency.
-    expect(hookContent).toContain("release_highlights");
-    expect(hookContent).toContain('"text"');
-    expect(hookContent).toContain("Release notes:");
   });
 
-  it("surfaces cached release highlights and release URL in the update notice", () => {
+  // The update notice comes from the CLI at the first Home Assistant task
+  // (check-update --quiet, notices[]), in its plain words and together with a
+  // NOVA App update; the hook only keeps the cache warm. A test release
+  // (skill_version 0.27.0-rc4) once crashed this hook under set -u, so the
+  // whole session lost the HA NOVA index.
+  it("adds no update notice and survives a test-release version", () => {
+    const plugin = makeTempDir("ha-nova-hook-plugin-");
+    cpSync(join(REPO_ROOT, "hooks"), join(plugin, "hooks"), { recursive: true });
+    cpSync(join(REPO_ROOT, "skills", "ha-nova"), join(plugin, "skills", "ha-nova"), { recursive: true });
+    writeFileSync(join(plugin, "version.json"), JSON.stringify({ skill_version: "0.27.0-rc4", min_relay_version: "0.10.0-rc1" }));
     const home = makeTempDir("ha-nova-hook-home-");
-    const cacheDir = join(home, ".cache", "ha-nova");
-    mkdirSync(cacheDir, { recursive: true });
+    mkdirSync(join(home, ".cache", "ha-nova"), { recursive: true });
     writeFileSync(
-      join(cacheDir, "latest-release.json"),
-      JSON.stringify(
-        {
-          version: "99.0.0",
-          html_url: "https://example.test/releases/v99.0.0",
-          published_at: "2026-07-21T10:00:00Z",
-          release_highlights: [
-            { kind: "action", text: "Re-run ha-nova setup after updating" },
-            { kind: "feature", text: "New energy skill" },
-            { kind: "fix", text: "Fix relay reconnect loop" },
-          ],
-        },
-        null,
-        2,
-      ),
+      join(home, ".cache", "ha-nova", "latest-release.json"),
+      JSON.stringify({ version: "99.0.0", release_highlights: [{ kind: "feature", text: "New energy skill" }] }),
     );
-
-    // Deterministic ha-nova mock: a released (non-dev) version so the update
-    // notice branch runs; every other subcommand no-ops. Keep the normal test
-    // PATH otherwise — the other hook tests rely on the same bash resolution.
     const binDir = makeTempDir("ha-nova-hook-bin-");
     writeFileSync(
       join(binDir, "ha-nova"),
       `#!/usr/bin/env bash
 case "$1" in
-  version) echo "0.19.0" ;;
-  relay) exit 1 ;;
+  version) echo "0.27.0-rc4" ;;
+  relay) echo '{"ok":true,"data":{"version":"0.9.0"}}' ;;
   *) exit 0 ;;
 esac
 `,
       { mode: 0o755 },
     );
 
-    const result = spawnSync("bash", ["hooks/session-start"], {
+    const result = spawnSync("bash", [join(plugin, "hooks", "session-start")], {
       cwd: REPO_ROOT,
       encoding: "utf8",
       timeout: 15000,
       env: isolatedEnv(`${binDir}:/usr/bin:/bin`, home),
     });
 
+    expect(result.stderr).toBe("");
     expect(result.status).toBe(0);
-    const json = JSON.parse(result.stdout.trim());
-    expect(json.additional_context).toContain("UPDATE AVAILABLE");
-    expect(json.additional_context).toContain("v99.0.0");
-    expect(json.additional_context).toContain("- Re-run ha-nova setup after updating");
-    expect(json.additional_context).toContain("- New energy skill");
-    expect(json.additional_context).toContain("- Fix relay reconnect loop");
-    expect(json.additional_context).toContain("Release notes: https://example.test/releases/v99.0.0");
-    expect(json.additional_context).toContain("UPDATE AVAILABLE (Home Assistant tasks only)");
+    const context = JSON.parse(result.stdout.trim()).additional_context;
+    expect(context).toContain("HA NOVA Skills v0.27.0-rc4");
+    expect(context).toContain("# HA NOVA Index");
+    expect(context).not.toMatch(/UPDATE AVAILABLE|99\.0\.0|New energy skill/);
+    // 0.9.0 is below 0.10.0 (the rc suffix is cut, never evaluated).
+    expect(context).toContain("Relay version 0.9.0 is below minimum 0.10.0-rc1");
   });
 
   // Windows: the CLI keeps its release cache under %LOCALAPPDATA%\ha-nova\cache.
@@ -316,7 +298,7 @@ esac
       env: { ...isolatedEnv(`${binDir}:/usr/bin:/bin`, home), LOCALAPPDATA: local },
     });
     expect(result.status).toBe(0);
-    expect(JSON.parse(result.stdout.trim()).additional_context).toContain("v99.0.0");
+    // A fresh LOCALAPPDATA cache: no refresh, so no ~/.cache either.
     expect(existsSync(join(home, ".cache"))).toBe(false);
   });
 

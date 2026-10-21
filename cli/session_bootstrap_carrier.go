@@ -101,13 +101,9 @@ func runMigratedFirstUseCheck(paths runtimePaths, budget time.Duration) {
 	go func() {
 		relayResult <- relayUpdateNoticeWithTimeout(paths, budget)
 	}()
-	result := <-updateResult
-	if notice := humanNoticeFromUpdateCheckResult(result, true); !notice.empty() {
-		printHumanNotice(notice)
-	}
-	if relayNotice := <-relayResult; !relayNotice.empty() {
-		printHumanNotice(relayNotice)
-	}
+	relayNotice := <-relayResult
+	printHumanNotice(withAppUpdateToo(humanNoticeFromUpdateCheckResult(<-updateResult, true), relayNotice))
+	printHumanNotice(relayNotice)
 }
 
 var runMigratedFirstUseCheckForCarrier = runMigratedFirstUseCheck

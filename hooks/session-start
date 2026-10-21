@@ -48,10 +48,11 @@ session_context=$(escape_for_json "$context_skill_content")
 # Relay version check
 # ---------------------------------------------------------------------------
 
-# NOTE: duplicate of semver_lt in scripts/onboarding/lib/relay.sh (can't source across contexts)
+# Compares X.Y.Z only: a "-rcN" or "+build" suffix is cut first (under set -u,
+# "0-rc4" in arithmetic names an unset variable and aborts the hook).
 semver_lt() {
   # shellcheck disable=SC2206
-  local IFS='.'; local -a a=($1) b=($2)
+  local IFS='.'; local -a a=(${1%%[-+]*}) b=(${2%%[-+]*})
   for i in 0 1 2; do
     local ai="${a[$i]:-0}" bi="${b[$i]:-0}"
     (( ai < bi )) && return 0; (( ai > bi )) && return 1
@@ -83,7 +84,6 @@ if [[ -z "$ha_nova_bin" ]]; then
 fi
 
 version_warning=""
-update_notice=""
 version_file="${PLUGIN_ROOT}/version.json"
 if [[ -f "$version_file" ]]; then
   version_json=$(cat "$version_file")
@@ -107,54 +107,21 @@ if [[ -f "$version_file" ]]; then
   fi
   # No relay CLI = not onboarded yet, skip silently
 
-  # --- Cached release update check (stale-while-revalidate via CLI) ---
-  # This TTL only throttles how often we spawn the background CLI refresh; the
-  # CLI owns real freshness (short floor + conditional revalidation). Keep it
-  # <= the CLI's updateCacheTTLSeconds (cli/paths.go), otherwise a new release
-  # stays hidden from the session banner until this longer window expires.
+  # --- Release cache refresh ---
+  # No update notice here: the first Home Assistant task's
+  # `ha-nova check-update --quiet` (session-bootstrap.md) and every typed
+  # verb's notices[] say it once, in the CLI's plain words, together with a
+  # NOVA App update — and never in sessions with no Home Assistant task.
+  # This only keeps the CLI's release cache warm, so that check stays fast.
   # The CLI's cache dir (cli/paths.go): %LOCALAPPDATA%\ha-nova\cache on Windows.
   update_cache_dir="${HOME}/.cache/ha-nova"
   [[ -n "${LOCALAPPDATA:-}" ]] && update_cache_dir="${LOCALAPPDATA}/ha-nova/cache"
   update_cache_file="${update_cache_dir}/latest-release.json"
+  # <= the CLI's updateCacheTTLSeconds (cli/paths.go).
   update_ttl=3600
 
   needs_refresh="1"
   if [[ -f "$update_cache_file" ]]; then
-    # Read cached latest version (stale is OK — show it now, refresh in background)
-    cached_json=$(cat "$update_cache_file" 2>/dev/null || true)
-    latest_skill_version=$(extract_json_string "version" "$cached_json")
-    if [[ -n "$latest_skill_version" && "$latest_skill_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && -n "$SKILL_VERSION" ]] && semver_lt "$SKILL_VERSION" "$latest_skill_version"; then
-      if [[ -n "$ha_nova_bin" ]]; then
-        # A locally dev-synced build (`ha-nova version` reports "local DEV build")
-        # must not be nudged to update — that would overwrite the dev tree. The
-        # release path is unaffected: released binaries omit the marker.
-        if ! "$ha_nova_bin" version 2>/dev/null | grep -q "local DEV build"; then
-          update_notice="[ha-nova] UPDATE AVAILABLE (Home Assistant tasks only): v${SKILL_VERSION} -> v${latest_skill_version}. After a Home Assistant task's result, ask once if the user wants you to run: ha-nova update (new session required after update)\\n"
-        fi
-      else
-        update_notice="[ha-nova] UPDATE AVAILABLE: v${SKILL_VERSION} -> v${latest_skill_version}. Repo-dev fallback only: update the local checkout manually, then re-run setup. (new session required after update)\\n"
-      fi
-
-      # Compact release highlights: the CLI derives them into the shared cache
-      # as release_highlights[].text (same semantic lines as check-update and
-      # the relay nudge). grep-based extraction — no jq dependency; the CLI
-      # guarantees highlight text contains no double quotes or backslashes.
-      if [[ -n "$update_notice" ]]; then
-        release_highlight_texts=$(printf '%s\n' "$cached_json" | grep -o '"text"[[:space:]]*:[[:space:]]*"[^"]*"' | head -3 | sed -e 's/^"text"[[:space:]]*:[[:space:]]*"//' -e 's/"$//') || true
-        if [[ -n "$release_highlight_texts" ]]; then
-          while IFS= read -r highlight_text; do
-            [[ -z "$highlight_text" ]] && continue
-            update_notice="${update_notice}- ${highlight_text}\\n"
-          done <<< "$release_highlight_texts"
-        fi
-        latest_release_url=$(extract_json_string "html_url" "$cached_json")
-        if [[ -n "$latest_release_url" ]]; then
-          update_notice="${update_notice}Release notes: ${latest_release_url}\\n"
-        fi
-      fi
-    fi
-
-    # Check if cache is still fresh
     if [[ "$(uname)" == "Darwin" ]]; then
       cache_mtime=$(stat -f %m "$update_cache_file" 2>/dev/null || echo 0)
     else
@@ -198,10 +165,6 @@ hook_input=""
 if [[ -n "$ha_nova_bin" ]] && grep -Eq '"source"[[:space:]]*:[[:space:]]*"startup"' <<<"$hook_input"; then
   ("$ha_nova_bin" doctor --auto-repair --quiet || true) </dev/null >/dev/null 2>&1 &
   disown 2>/dev/null || true
-fi
-
-if [[ -n "$update_notice" ]]; then
-  session_context="${update_notice}\\n${session_context}"
 fi
 
 if [[ -n "$demo_notice" ]]; then

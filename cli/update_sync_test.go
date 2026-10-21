@@ -181,8 +181,20 @@ func TestPostUpdateSyncRefreshesAllDetectedClients(t *testing.T) {
 	logPath := filepath.Join(home, "claude.log")
 	t.Setenv("PATH", installClaudeMock(t, home, logPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	if err := postUpdateSync(paths); err != nil {
-		t.Fatalf("postUpdateSync() error: %v", err)
+	result := postUpdateSyncWithResult(paths)
+	if result.Err != nil {
+		t.Fatalf("postUpdateSync() error: %v", result.Err)
+	}
+	// Every installed AI app is refreshed and verified, and the one-line
+	// summary names each of them.
+	if len(result.Synced) != 5 || len(result.Skipped) != 0 || !result.FullySynced {
+		t.Fatalf("expected all five AI apps refreshed and verified, got %+v", result)
+	}
+	summary := captureStdout(t, func() { printUpdateDone("Updated HA NOVA to 0.27.0", result) })
+	for _, label := range result.Synced {
+		if !strings.Contains(summary, label) {
+			t.Fatalf("summary %q misses %s", summary, label)
+		}
 	}
 
 	logData, err := os.ReadFile(logPath)

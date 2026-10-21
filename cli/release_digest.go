@@ -24,7 +24,7 @@ const (
 
 // releaseHighlight is one normalized release-notes bullet. Kind is one of
 // action|feature|fix; Text is plain single-line prose (no Markdown, no
-// double quotes — the session hook extracts it with grep).
+// double quotes, so a one-line notice can quote it).
 type releaseHighlight struct {
 	Kind string `json:"kind"`
 	Text string `json:"text"`
@@ -183,8 +183,8 @@ func capReleaseHighlightsTotal(selected []releaseHighlight) []releaseHighlight {
 // normalizeReleaseHighlightText turns one Markdown bullet into plain
 // single-line prose: control characters removed, presentation-only Markdown
 // (bold, links, inline code) reduced to its text, double quotes and
-// backslashes replaced so the session hook's grep-based JSON extraction stays
-// exact, whitespace collapsed, and the 220-char item cap applied.
+// backslashes replaced (old session hooks grep the cache for them),
+// whitespace collapsed, and the 220-char item cap applied.
 func normalizeReleaseHighlightText(raw string) string {
 	text := strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) {
@@ -219,38 +219,4 @@ func looksLikeInstallCommand(text string) bool {
 		}
 	}
 	return false
-}
-
-// formatReleaseHighlightLines is the ONE shared formatter for the compact
-// highlight lines. Every Go presentation path renders these exact lines; the
-// Claude session hook reproduces the same "- <text>" shape from the cached
-// "text" fields.
-func formatReleaseHighlightLines(highlights []releaseHighlight) []string {
-	lines := make([]string, 0, len(highlights))
-	for _, highlight := range highlights {
-		text := strings.TrimSpace(highlight.Text)
-		if text == "" {
-			continue
-		}
-		lines = append(lines, "- "+text)
-	}
-	return lines
-}
-
-// releaseHighlightNoticeSuffix composes the digest block that is appended
-// AROUND (after) the pinned update-guidance message: highlight lines plus the
-// release URL. With no valid digest it degrades to just the release URL, and
-// to an empty string when that is missing too — the generic notice stays
-// untouched either way.
-func releaseHighlightNoticeSuffix(highlights []releaseHighlight, htmlURL string) string {
-	var b strings.Builder
-	if lines := formatReleaseHighlightLines(highlights); len(lines) > 0 {
-		b.WriteString("\nHighlights:\n")
-		b.WriteString(strings.Join(lines, "\n"))
-	}
-	if url := strings.TrimSpace(htmlURL); url != "" {
-		b.WriteString("\nRelease notes: ")
-		b.WriteString(url)
-	}
-	return b.String()
 }

@@ -117,7 +117,7 @@ func TestRunUpdateReturnsSelfManagedRCToStable(t *testing.T) {
 		}
 	})
 
-	if !strings.Contains(stdout, "Updated to v0.3.1") {
+	if !strings.Contains(stdout, "Updated HA NOVA to 0.3.1") {
 		t.Fatalf("expected stable rollback message, got %q", stdout)
 	}
 	if !strings.HasSuffix(strings.TrimSpace(stdout), postUpdateSessionInstruction) {
@@ -173,7 +173,7 @@ func TestRunUpdateExactRCFromStableInstallsThatRC(t *testing.T) {
 		}
 	})
 
-	if !strings.Contains(stdout, "Updated to v0.3.1-rc1") {
+	if !strings.Contains(stdout, "Updated HA NOVA to 0.3.1-rc1") {
 		t.Fatalf("expected exact RC pin update message, got %q", stdout)
 	}
 	if got := localVersion(paths); got != "0.3.1-rc1" {
@@ -226,7 +226,7 @@ func TestRunUpdateExactStablePinFromRCInstallsThatStable(t *testing.T) {
 		}
 	})
 
-	if !strings.Contains(stdout, "Updated to v0.3.0") {
+	if !strings.Contains(stdout, "Updated HA NOVA to 0.3.0") {
 		t.Fatalf("expected exact stable pin update message, got %q", stdout)
 	}
 	if got := localVersion(paths); got != "0.3.0" {
@@ -255,7 +255,7 @@ func TestRunUpdateTreatsSameRCTargetAsUpToDate(t *testing.T) {
 		}
 	})
 
-	if !strings.Contains(stdout, "Already up to date: v0.3.2-rc1") {
+	if !strings.Contains(stdout, "HA NOVA 0.3.2-rc1 is up to date") {
 		t.Fatalf("expected same-RC no-op message, got %q", stdout)
 	}
 	if !strings.HasSuffix(strings.TrimSpace(stdout), postUpdateSessionInstruction) {

@@ -306,3 +306,39 @@ func TestSetupPageRerunSetsUpTheFirstAIAssistant(t *testing.T) {
 	page.click("finish", "")
 	setupPageExit(t, done, stdout)
 }
+
+// An App older than this HA NOVA needs (after `ha-nova update`): the re-run
+// leads with "Update the NOVA App", which goes to step 1's owner sign-in
+// ("Sign in and update NOVA"). Nothing installs before those clicks.
+func TestSetupPageRerunLeadsWithUpdateTheNOVAApp(t *testing.T) {
+	paths, cfg, state, marker := setupCompletedInstallFixture(t)
+	stubRerunApp(t, true, chatAppsHA{}, errors.New("not read"))
+	previous := haAppInstallTargetsThisHAForPage
+	t.Cleanup(func() { haAppInstallTargetsThisHAForPage = previous })
+	haAppInstallTargetsThisHAForPage = func(runtimeConfig) bool { return true }
+	previousIdle := setupPageIdle
+	setupPageIdle = 2 * time.Second // step 1 then waits for nobody: setup ends idle
+	t.Cleanup(func() { setupPageIdle = previousIdle })
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.27.0","min_relay_version":"0.12.0"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	page, stdout, done := startSetupPageFlowWith(t, "", rerunFlow(paths, cfg, state, marker))
+
+	old := page.waitFor("the re-run screen", accepting("fix"))
+	if old.Screen != "rerun_fix" || old.Control != nil || old.Fix != "app_update" || !slices.Contains(old.Accepts, "recheck") ||
+		old.Links["app"] != haRelayAppPageURL(cfg.HAURL) ||
+		old.Problem == nil || old.Problem.Key != "setup.page.rerun.problem_app_old" || rowStates(old.Rows)["app"] != "todo" {
+		t.Fatalf("old App = %+v", old)
+	}
+	page.click("fix", "")
+	signIn := page.waitFor("step 1", accepting("address"))
+	if signIn.Screen != "found" || signIn.App != "old" || signIn.Primary != "update" || signIn.Fix != "" {
+		t.Fatalf("step 1 = %+v", signIn)
+	}
+	if code := setupPageExit(t, done, stdout); code != 0 {
+		t.Fatalf("exit %d\n%s", code, stdout)
+	}
+}
