@@ -45,7 +45,7 @@ WS response body: `.data` (`../ha-nova/relay-api.md` → Standard Envelope).
 4. Fallback when that fails because automatic settings are not configured: `{"type":"backup/generate","name":"<name>","agent_ids":["<local-agent>"],"include_homeassistant":true,"include_database":true}`:
    - discover the local agent via `{"type":"backup/agents/info"}`: Supervised installs register `hassio.local`, Core installs `backup.local` — never hardcode
    - add `"include_all_addons":true` ONLY for `hassio.local` (Core rejects App options)
-   - if `backup/config/info` shows an encryption password configured, pass it as `password`; never invent one
+   - the encryption password is hidden: never invent one; first say this backup gets no password
 5. Both generate commands return when the job is INITIATED, not when it finishes. Poll `backup/info` every ~10 s until `state` returns to `idle` and a new backup appears in `backups`; then check the new backup's `failed_agent_ids`, `failed_addons`, and `failed_folders`: if any is non-empty, report partial success — the backup exists but is missing those locations, Apps, or folders — never plain success. Otherwise report name, date, size, and locations by name (`backup/agents/info`). If still running after ~5 minutes, say the backup continues in the background and how to check later.
 6. If Status afterwards shows the attempt failed (`last_action_event`/no new backup), report the failure — never claim success from initiation alone.
 

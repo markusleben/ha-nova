@@ -27,6 +27,11 @@ var (
 // checkWriteRequest is the write allowlist; anything else is refused before
 // sending. Tests use the same function as their oracle.
 func checkWriteRequest(endpoint string, payload map[string]any) error {
+	if endpoint != "backups" { // a snapshot may hold a marker; a write must not send one
+		if body, err := json.Marshal(payload); err != nil || holdsHiddenValue(body) {
+			return fmt.Errorf("refused a write: %s; nothing was sent", hiddenValueNext)
+		}
+	}
 	method, _ := payload["method"].(string)
 	path, _ := payload["path"].(string)
 	_, hasBody := payload["body"]
@@ -177,7 +182,7 @@ func (s *relaySession) write(endpoint string, payload map[string]any) (json.RawM
 	if err != nil {
 		return nil, relayPostRequestOutcomeUnknownError("reading the Relay response", err)
 	}
-	raw = redactPhoneSecrets(raw, true)
+	raw = redactSecrets(raw, true)
 	var envelope struct {
 		OK    *bool           `json:"ok"`
 		Data  json.RawMessage `json:"data"`

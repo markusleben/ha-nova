@@ -302,7 +302,7 @@ func (s *relaySession) sendIn(parent context.Context, endpoint string, body []by
 		return nil, err
 	}
 	// Every verb read: no webhook id (the phone listener needs its action ids).
-	raw = redactPhoneSecrets(raw, false)
+	raw = redactSecrets(raw, false)
 	var envelope struct {
 		OK    *bool           `json:"ok"`
 		Data  json.RawMessage `json:"data"`

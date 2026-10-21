@@ -38,6 +38,8 @@ describe("backup contract", () => {
     expect(backupSkill).toContain("Supervised installs register `hassio.local`, Core installs `backup.local` — never hardcode");
     expect(backupSkill).toContain('add `"include_all_addons":true` ONLY for `hassio.local`');
     expect(backupSkill).toContain("never invent one");
+    // The CLI hides the saved password (a write with the hidden value is refused).
+    expect(backupSkill).toContain("the encryption password is hidden: never invent one; first say this backup gets no password");
   });
 
   it("guards deletion and surfaces silent agent failures", () => {
