@@ -33,14 +33,15 @@ window.novaRerun = (h) => {
         el('div', { class: 'actions' }, button(t('setup.page.rerun.switch'), 'switch'), button(t('setup.page.rerun.later'), 'terminal', 'ghost'))];
     }
     // Home Assistant doesn't answer, but one was found at another address:
-    // offered, as on a first run; the click goes on to step 1.
+    // offered first, as on a first run; the click goes on to step 1.
     const found = s.candidates || [];
     const several = found.length > 1;
+    const away = found.length && s.problem && s.problem.key === 'setup.page.rerun.problem_app' ? { key: 'setup.page.rerun.problem_found' } : s.problem;
     const offer = found.length ? [
-      el('p', { class: 'note' }, several ? t('setup.page.rerun.found_several') : t('setup.page.rerun.found_one', { host: found[0].host })),
-      el('div', { class: 'actions' }, found.map((c, i) => button(several ? c.host : t('setup.page.rerun.use_found'), 'address', several ? 'ghost' : 'primary', c.url, `pick-${i}`)))] : [];
+      el('p', { class: 'note', role: 'status' }, several ? t('setup.page.rerun.found_several') : t('setup.page.rerun.found_one', { host: found[0].host })),
+      el('div', { class: 'actions offer' }, found.map((c, i) => button(several ? c.host : t('setup.page.rerun.use_found'), 'address', several ? 'ghost' : 'primary', c.url, `pick-${i}`)))] : [];
     return [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.title_fix'), t('setup.page.rerun.lead_fix'), true),
-      problem(s.problem), status, ...offer,
+      problem(away), ...offer, status,
       el('div', { class: 'actions' },
         s.problem ? button(t('setup.page.button.recheck'), 'recheck', found.length ? 'ghost' : 'primary') : null,
         s.fix === 'app_update' ? button(t('setup.page.rerun.update_app'), 'fix', 'primary')

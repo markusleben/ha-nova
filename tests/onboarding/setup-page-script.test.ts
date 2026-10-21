@@ -596,7 +596,13 @@ describe("setup page re-run (G1)", () => {
     const down = { screen: "rerun_fix", rows, accepts: ["recheck", "fix", "address"], problem: { key: "setup.page.rerun.problem_app" } };
     const one = page({ ...down, candidates: [{ host: "homeassistant.local", url: "http://homeassistant.local:8123" }] });
     await one.settle();
-    expect(one.screen.textContent).toContain("Found a Home Assistant at homeassistant.local. Use this one?");
+    const text = one.screen.textContent;
+    expect(text).toContain("Found another Home Assistant at homeassistant.local. Use this one instead?");
+    // The alert no longer asks "at home?", and the offer comes before the rows.
+    expect(text).toContain(one.catalog["setup.page.rerun.problem_found"]);
+    expect(text).not.toContain(one.catalog["setup.page.rerun.problem_app"]);
+    const kids = one.screen.children.map((n) => n.className);
+    expect(kids.indexOf("actions offer")).toBeLessThan(kids.indexOf("rows"));
     expect(one.find("b-pick-0")!.textContent).toBe(one.catalog["setup.page.rerun.use_found"]);
     expect(one.find("b-pick-0")!.className).toContain("btn-primary");
     expect(one.find("b-recheck")!.className).toContain("btn-ghost"); // still there: away from home

@@ -140,6 +140,7 @@ h1:focus { outline: none; }
 .fine { margin: 14px 0 0; font-size: .875rem; color: var(--ink-soft); }
 .fine + .fine { margin-top: 4px; }
 #web-needs + .actions { margin-top: 20px; }
+.actions.offer { margin-bottom: 32px; } /* a re-run: the Home Assistant found, above the rows */
 .owner { margin: -12px 0 16px; color: var(--ink); }
 .fine .linkish { margin-top: 0; text-align: left; }
 .linkish[disabled] { opacity: .55; cursor: default; }

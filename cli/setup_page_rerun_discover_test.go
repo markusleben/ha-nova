@@ -38,7 +38,12 @@ func stubRerunDown(t *testing.T, cfg *runtimeConfig, haUp *atomic.Bool, found []
 		runs.Add(1)
 		return found, ""
 	}
-	resolveHAURLBaseForSetup = func(input string) (string, error) { return input, nil }
+	resolveHAURLBaseForSetup = func(input string) (string, error) {
+		if input == "http://192.0.2.30:8123" { // gone again by the click
+			return "", errors.New("unreachable")
+		}
+		return input, nil
+	}
 	return &runs
 }
 
@@ -47,7 +52,8 @@ func TestSetupPageRerunOffersAHomeAssistantFoundElsewhere(t *testing.T) {
 	var haUp atomic.Bool
 	runs := stubRerunDown(t, &cfg, &haUp, []setupDiscoveryCandidate{
 		{Host: cfg.HAHost, HAURL: cfg.HAURL}, // the saved one: not offered
-		{Host: "192.0.2.20", HAURL: "http://192.0.2.20:8123"},
+		{Host: "192.0.2.20", HAURL: "http://192.0.2.20:8123", Via: "homeassistant.local"},
+		{Host: "192.0.2.30", HAURL: "http://192.0.2.30:8123", Via: "192.0.2.30"},
 	})
 	savedBefore, err := readSetupConfigSnapshot(paths)
 	if err != nil {
@@ -57,7 +63,7 @@ func TestSetupPageRerunOffersAHomeAssistantFoundElsewhere(t *testing.T) {
 
 	offer := page.waitFor("the found Home Assistant", func(s setupPageState) bool { return len(s.Candidates) > 0 && slices.Contains(s.Accepts, "address") })
 	if offer.Screen != "rerun_fix" || offer.Problem == nil || offer.Problem.Key != "setup.page.rerun.problem_app" ||
-		!slices.Equal(offer.Candidates, []setupPageCandidate{{Host: "192.0.2.20", URL: "http://192.0.2.20:8123"}}) ||
+		!slices.Equal(offer.Candidates, []setupPageCandidate{{Host: "homeassistant.local (192.0.2.20)", URL: "http://192.0.2.20:8123"}, {Host: "192.0.2.30", URL: "http://192.0.2.30:8123"}}) ||
 		!slices.Contains(offer.Accepts, "recheck") || !slices.Contains(offer.Accepts, "fix") {
 		t.Fatalf("offer = %+v", offer)
 	}
@@ -66,6 +72,18 @@ func TestSetupPageRerunOffersAHomeAssistantFoundElsewhere(t *testing.T) {
 	page.waitFor("the screen again", func(s setupPageState) bool { return runs.Load() == 2 && slices.Contains(s.Accepts, "address") })
 	if again := page.ui.snapshot(); again.Screen != "rerun_fix" {
 		t.Fatalf("an address it didn't find was taken: %+v", again)
+	}
+	// One that doesn't answer by the click: said, and no longer offered.
+	page.click("address", "http://192.0.2.30:8123")
+	gone := page.waitFor("the pick that didn't answer", func(s setupPageState) bool {
+		return s.Problem != nil && s.Problem.Key == "setup.page.problem.address" && len(s.Candidates) == 1 && slices.Contains(s.Accepts, "address")
+	})
+	if gone.Problem.Args["address"] != "192.0.2.30" || gone.Candidates[0].URL != "http://192.0.2.20:8123" || gone.Screen != "rerun_fix" {
+		t.Fatalf("gone = %+v", gone)
+	}
+	time.Sleep(100 * time.Millisecond) // a later search's result: still without it
+	if again := page.ui.snapshot(); len(again.Candidates) != 1 {
+		t.Fatalf("a pick that didn't answer came back: %+v", again.Candidates)
 	}
 	page.click("address", "http://192.0.2.20:8123")
 	step1 := page.waitFor("step 1 with the found address", func(s setupPageState) bool { return s.Screen == "found" && slices.Contains(s.Accepts, "address") })
