@@ -103,7 +103,7 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("Collision check");
     expect(writeSkill).toContain("Advisory");
     expect(writeSkill).toContain('never print an empty "none" bucket');
-    expect(writeSkill).toContain("collapse to one scope-honest confirmation line");
+    expect(writeSkill).toContain("nothing at all → the result's `say` alone");
     expect(writeSkill).toContain("Never emit `Questions to consider`, `Suggestions`, or `Instant help` post-write");
     expect(writeSkill).toContain("never repeat an item across **Findings** and **Advisory**");
     expect(writeSkill).toContain("../ha-nova/output-rules.md");

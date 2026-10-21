@@ -49,7 +49,9 @@ describe("agent scenario regressions (2026-10-15)", () => {
     expect(readFileSync("docs/reference/skill-architecture.md", "utf8")).toContain(
       "- Relay a plan's `say` in full, localized; never drop or shorten sentences.",
     );
-    expect(rules).toContain('"This unlocks a door, so it needs a one-time code from HA NOVA."');
+    // The fallback reason has the CLI's confirmation shape (cli/say_lines.go).
+    expect(rules).toContain(`"I'm about to unlock “Front Door”. This unlocks a door, so I need you to confirm it."`);
+    expect(rules).not.toContain("so it needs a one-time code");
     expect(rules).toContain("Never mention, quote, or link HA NOVA's own skill or rule files or scratch paths — the user doesn't know they exist. Paths the user needs (the config file a change targets, a batch manifest) stay visible.");
     expect(rules).toContain("Clarifying questions name candidates by friendly name and area (add the entity_id when either is missing or both collide).");
     // The pointer alone did not stop citations at the code step: the CLI
@@ -134,7 +136,8 @@ describe("agent scenario regressions (2026-10-16)", () => {
     // Up to 10 explicit ids would run at once (ordinary tier); the domain list never may.
     expect(sc).not.toContain("one `call`, no pre-question");
     expect(sc).toContain("more → a `plan call` preview, an area/device target, or ask.");
-    expect(sc).toContain("a typed `apply` result restates the effect the code was for and whether it was verified.");
+    // The CLI's result `say` names the effect and the check (#803); the skill adds no line of its own.
+    expect(sc).not.toContain("a typed `apply` result restates the effect");
   });
 
   it("flags a sibling variable only when it is used above its declaration", () => {
@@ -166,9 +169,11 @@ describe("agent scenario regressions (2026-10-20)", () => {
   it("carries one ask shape and one result shape in the injected index", () => {
     expect(index).toContain("Unless asked: names, not ids; local time, never UTC; no automation modes, plan ids, HA NOVA skill or rule-file names.");
     expect(index).toContain("Answer in the language of the user's sentence, not of a name in it.");
-    expect(index).toContain("Ask with the plan's `say`, word for word, only translated");
+    // One source of truth: the CLI's `say` is the ask and the result line (#803).
+    expect(index).toContain("Relay a CLI `say` (ask or result) verbatim, only translated; add no other result line.");
     expect(index).toContain('"Type <code> to <goal> — a plain yes can\'t confirm this."');
-    expect(index).toContain('After a verified save: `✅ Saved: <type> "<name>"`, what was checked, then, if it can be undone,');
+    expect(index).toContain('No result `say` (raw writes): `✅ Saved: <type> "<name>"` and what was checked.');
+    expect(index).toContain('After an undoable save: "To undo this change, just say so."');
     expect(flat("skills/ha-nova/output-cards.md")).toContain("Ask and result shapes: `../ha-nova/index.md` → Say it.");
   });
 

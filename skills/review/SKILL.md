@@ -322,7 +322,7 @@ Execute the planned call once, verified by the CLI:
 ```text
 ha-nova apply --plan <id>
 ```
-Report the result in the three-line verb result (`../ha-nova/output-rules.md` → Verb Results); exit 2 means the state changed since the plan — show the new plan and ask again; never retry after exit 6 or 7.
+Relay the result's `say` (`../ha-nova/output-rules.md` → Verb Results); exit 2 means the state changed since the plan — show the new plan and ask again; never retry after exit 6 or 7.
 
 ### Step 5: Explorative Questions (standalone automation/script only)
 

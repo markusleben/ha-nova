@@ -111,7 +111,7 @@ Cards render unchanged minus the options line; the group closes with:
 Save all 3? I can also show the details.
 ```
 
-The Result Card reports the ledger:
+The Result Card reports the ledger, not each apply's `say`:
 
 ```
 ✅ Applied: 3 of 3 operations

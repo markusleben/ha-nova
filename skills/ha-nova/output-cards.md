@@ -18,7 +18,7 @@ Line, a Session Recap, findings, or review output. The core rules still apply.
 - Close every create/update preview with one natural question (save it, show the details, or leave it). Sole exception: intermediate previews inside a grouped change set (`../ha-nova/grouped-change-set.md`) carry none — one final question closes the group.
 - Delete previews must say nothing has been deleted yet and must close with the confirmation ask (a CLI plan's `say`, else the one-time code); never a save question or a selectable menu for destructive confirmation.
 - Never hide the available next actions inside a paragraph.
-- A plan's `say` closes the card, replacing the ⚠️ save-status and options or code lines. Ask and result shapes: `../ha-nova/index.md` → Say it.
+- A plan's `say` closes the card, replacing the ⚠️ save-status and options or code lines; it names the action and item, so drop the title line. A result's `say` replaces the Result Card's ✅ and checked lines. Ask and result shapes: `../ha-nova/index.md` → Say it.
 
 ## Cards (Write-Flow Visual System)
 
@@ -38,7 +38,7 @@ The three light actions now only run when someone is home.
 Save it? I can also show the details.
 ```
 
-Title line: emoji + localized preview label + item type + name. Then one to three plain sentences on what the change DOES. They must cover every collection the diff touches — each added, removed, replaced, or modified entry described by its effect, never only by count or type name; grouped entries may share a sentence, and coverage beats the three-sentence guideline. The changes block: in diff-backed skills you author only the localized header row and the literal separator — the data rows are pasted verbatim from the CLI (`ha-nova plan write` / `ha-nova diff`), never invented and never re-aligned (mechanics: `../ha-nova/write-safety.md`); skills without a CLI diff author one short planned-change row or line per changed field; file-editing skills show the changed section as a snippet instead of a table. Existing per-skill slots map into the card: identity slots (name/target) fold into the title line, `Planned change` is the changes block, `Save status` is the ⚠️ line, `Options` or the one-time-code prompt closes the card. Runtime actions close with the plan's `say` (an explicit not-executed-yet line and the ask).
+Title line: emoji + localized preview label + item type + name. Then one to three plain sentences on what the change DOES. They must cover every collection the diff touches — each added, removed, replaced, or modified entry described by its effect, never only by count or type name; grouped entries may share a sentence, and coverage beats the three-sentence guideline. The changes block: in diff-backed skills you author only the localized header row and the literal separator — the data rows are pasted verbatim from the CLI (`ha-nova plan write` / `ha-nova diff`), never invented and never re-aligned (mechanics: `../ha-nova/write-safety.md`); skills without a CLI diff author one short planned-change row or line per changed field; file-editing skills show the changed section as a snippet instead of a table. Existing per-skill slots map into the card: identity slots (name/target) fold into the title line, `Planned change` is the changes block, `Save status` is the ⚠️ line, `Options` or the one-time-code prompt closes the card.
 
 **Delete Card** (destructive — never a menu; the one-time-code prompt is always the last line, or a CLI plan's `say` in its place):
 
@@ -53,7 +53,7 @@ Type <four digits> to delete — a plain yes can't confirm this.
 Destructive batch previews and results render the Batch Cards defined in
 `../ha-nova/batch-safety.md` — same emoji vocabulary and rules.
 
-**Result Card** (after verification — name only the proven scope, per `../ha-nova/write-safety.md` → Verification Honesty; findings, if any, follow with 🔴🟠🟡):
+**Result Card** (a verified write without a result `say` — name only the proven scope, per `../ha-nova/write-safety.md` → Verification Honesty; findings, if any, follow with 🔴🟠🟡):
 
 ```
 ✅ Saved: automation "Morning routine"
@@ -90,7 +90,7 @@ write flow renders outside this system:
 | Grouped change set (non-destructive, one logical task) | Preview Cards without options → one final action block → Result Card (`../ha-nova/grouped-change-set.md`) |
 | Snapshot restore (`../ha-nova/config-snapshots.md`) | Preview Card → Result Card |
 | Post-write test offer | Test Plan Card |
-| Runtime action (service call, experimental write) | CLI fast path (`tier: ordinary`): no preview, the three-line verb result (`output-rules.md` → Verb Results). Otherwise a preview closing with the plan's `say` (high-consequence actions escalate to the typed tier — context skill → Confirmation Tiers) → Result Card (verb routes: the three-line verb result) |
+| Runtime action (service call, experimental write) | CLI fast path (`tier: ordinary`): no preview, the result's `say` (`output-rules.md` → Verb Results). Otherwise a preview closing with the plan's `say` (high-consequence actions escalate to the typed tier — context skill → Confirmation Tiers) → the result's `say` (no `say`: Result Card) |
 
 ## Report Shape (Read & Analysis Results)
 

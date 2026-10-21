@@ -179,7 +179,7 @@ entity exists. What they do NOT establish: that conditions carry the intended
 meaning, that every branch is reachable, that timing assumptions hold, or that
 the physical action succeeds.
 
-Wording rules for the result and the collapsed no-findings line:
+Wording rules for a result without `say` and the collapsed no-findings line:
 
 - Never a bare "verified"/"works now". Name the proven scope instead — the
   localized equivalent of: "Saved and checked: it is stored and Home

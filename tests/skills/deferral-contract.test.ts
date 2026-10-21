@@ -117,7 +117,7 @@ describe("owning-skill deferrals and lifecycle paths (#513)", () => {
     expect(doc).toContain("App state cannot be verified from here");
     expect(doc).toContain("Never infer success from the service call returning");
     // A host reboot takes the transport with it, so success is unobservable.
-    expect(doc).toContain("Never report success: you will not be there to see it");
+    expect(doc).toContain("Claim nothing more: you will not be there to see it");
     expect(doc).toContain("needs physical access to come back");
   });
   it("defers clearing completed to-do items to the owning skill", () => {
