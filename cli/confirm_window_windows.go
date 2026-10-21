@@ -13,8 +13,8 @@ import (
 // Windows: MessageBoxTimeoutW in process, so no program path or environment
 // is involved. Any same-user process can click it (UI Automation), so it
 // guards against slips, not a determined model. raiseBox puts it on top
-// without taking the keyboard: keys meant for the terminal (Tab, arrows,
-// Enter) never reach it, so only a click answers it.
+// without asking for the keyboard, and keeps OK off at first, so keys or a
+// click meant for the terminal can't confirm.
 
 var (
 	user32               = syscall.NewLazyDLL("user32.dll")
@@ -29,6 +29,10 @@ var (
 	postMessage          = user32.NewProc("PostMessageW")
 	setWindowPos         = user32.NewProc("SetWindowPos")
 	flashWindowEx        = user32.NewProc("FlashWindowEx")
+	getDlgItem           = user32.NewProc("GetDlgItem")
+	enableWindow         = user32.NewProc("EnableWindow")
+	isWindowVisible      = user32.NewProc("IsWindowVisible")
+	showWindow           = user32.NewProc("ShowWindow")
 	// closeBox posts WM_CLOSE (Cancel's effect on an OK/Cancel box) to each
 	// dialog window of the thread it is enumerated for: only our message box
 	// lives there. One callback each for the process (Go keeps a fixed number).
@@ -58,37 +62,68 @@ func isDialog(hwnd uintptr) bool {
 }
 
 // raiseBox puts the box on thread above every other window once it exists
-// (for at most two seconds, or until stop) and flashes its taskbar button
-// until it is clicked. MB_SETFOREGROUND would be refused to `ha-nova mcp`,
-// which an AI app started long ago (0.27 upgrade lane D6: the box waited
-// behind the terminal). It takes no keyboard focus on purpose: with focus,
-// a terminal habit like Tab then Enter could press OK. A window may always
-// move itself on top; that needs no foreground right.
+// (looked for during at most two seconds, or until stop) and flashes its
+// taskbar button until it is clicked: MB_SETFOREGROUND is refused to
+// `ha-nova mcp`, which an AI app started long ago (0.27 upgrade lane D6:
+// the box waited behind the terminal). A window may always move itself on
+// top; that needs no foreground right, and it asks for no keyboard focus.
+// Windows may still give the box the keyboard as it opens, so OK stays off
+// for its first okDelay: a terminal habit like Tab then Enter lands on
+// Cancel, and a click meant for the terminal can't hit OK either.
 func raiseBox(thread uintptr, stop <-chan struct{}) {
 	defer foundBoxes.Delete(thread)
-	for give := time.Now().Add(2 * time.Second); time.Now().Before(give); {
-		_, _, _ = enumThreadWindows.Call(thread, findBox, thread)
-		if box, ok := foundBoxes.Load(thread); ok {
-			const hwndTopmost = ^uintptr(0) // HWND_TOPMOST (-1)
-			const swpNoSize, swpNoMove, swpNoActivate, swpShowWindow = 0x1, 0x2, 0x10, 0x40
-			_, _, _ = setWindowPos.Call(box.(uintptr), hwndTopmost, 0, 0, 0, 0, swpNoSize|swpNoMove|swpNoActivate|swpShowWindow)
-			const flashAll, flashUntilFront = 0x3, 0xc // FLASHW_ALL | FLASHW_TIMERNOFG
-			info := struct {
-				size             uint32
-				hwnd             uintptr
-				flags, count, ms uint32
-			}{hwnd: box.(uintptr), flags: flashAll | flashUntilFront}
-			info.size = uint32(unsafe.Sizeof(info))
-			_, _, _ = flashWindowEx.Call(uintptr(unsafe.Pointer(&info)))
-			return
-		}
+	wait := func() bool { // false: stop
 		select {
 		case <-stop:
-			return
+			return false
 		case <-time.After(50 * time.Millisecond):
+			return true
+		}
+	}
+	var box uintptr
+	for give := time.Now().Add(2 * time.Second); box == 0; {
+		_, _, _ = enumThreadWindows.Call(thread, findBox, thread)
+		if found, ok := foundBoxes.Load(thread); ok {
+			box = found.(uintptr)
+		} else if !time.Now().Before(give) || !wait() {
+			return
+		}
+	}
+	// Until it has shown itself (set up, buttons in place), at most a second.
+	for i := 0; i < 20; i++ {
+		if visible, _, _ := isWindowVisible.Call(box); visible != 0 || !wait() {
+			break
+		}
+	}
+	const idOK = 1
+	okButton, _, _ := getDlgItem.Call(box, idOK)
+	if okButton != 0 {
+		_, _, _ = enableWindow.Call(okButton, 0)
+	}
+	const swShowNoActivate = 4 // also restores a box started minimized or hidden
+	_, _, _ = showWindow.Call(box, swShowNoActivate)
+	const hwndTopmost = ^uintptr(0) // HWND_TOPMOST (-1)
+	const swpNoSize, swpNoMove, swpNoActivate, swpShowWindow = 0x1, 0x2, 0x10, 0x40
+	_, _, _ = setWindowPos.Call(box, hwndTopmost, 0, 0, 0, 0, swpNoSize|swpNoMove|swpNoActivate|swpShowWindow)
+	const flashAll, flashUntilFront = 0x3, 0xc // FLASHW_ALL | FLASHW_TIMERNOFG
+	info := struct {
+		size             uint32
+		hwnd             uintptr
+		flags, count, ms uint32
+	}{hwnd: box, flags: flashAll | flashUntilFront}
+	info.size = uint32(unsafe.Sizeof(info))
+	_, _, _ = flashWindowEx.Call(uintptr(unsafe.Pointer(&info)))
+	if okButton != 0 {
+		select {
+		case <-stop: // the box is gone
+		case <-time.After(okDelay):
+			_, _, _ = enableWindow.Call(okButton, 1)
 		}
 	}
 }
+
+// okDelay: how long OK stays off after the box opens (raiseBox).
+const okDelay = 1500 * time.Millisecond
 
 // nativeWindowAvailable: an interactive session (not session 0, where SSH
 // and services run) on the visible desktop "Default" (Codex's sandbox uses
