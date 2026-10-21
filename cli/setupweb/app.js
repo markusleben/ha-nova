@@ -26,7 +26,6 @@
   const endScreens = {
     incomplete: ['setup.page.incomplete.eyebrow', 'setup.page.incomplete.title', 'setup.page.incomplete.lead', true],
     finished: ['setup.page.finished.eyebrow', 'setup.page.finished.title', 'setup.page.done.fine'],
-    closed: ['setup.page.closed.eyebrow', 'setup.page.closed.title', 'setup.page.closed.lead'],
     skipped: ['setup.page.skipped.eyebrow', 'setup.page.skipped.title', 'setup.page.skipped.lead'],
     failed: ['setup.page.failed.eyebrow', 'setup.page.failed.title', 'setup.page.failed.lead', true],
     stopped: ['setup.page.stopped.eyebrow', 'setup.page.stopped.title', 'setup.page.stopped.lead', true],
@@ -43,7 +42,7 @@
   let editing = false;
   let sentAddress = false;
   let posting = false;
-  let checking = false; // Check again was clicked: "Checking…" until setup waits for a click again
+  let checking = ''; // the Check again clicked (recheck, chat_recheck): "Checking…" on it until setup waits for a click again
   let clicks = 0; // posts so far: a poll begun before (or during) one shows the old state
   let failures = 0;
   let timer = 0;
@@ -88,8 +87,8 @@
     if (posting) return;
     posting = true;
     clicks++;
-    if (action === 'recheck') {
-      checking = true;
+    if (action === 'recheck' || action === 'chat_recheck') {
+      checking = action;
       statusEl.textContent = t('setup.page.button.checking');
     }
     render(true);
@@ -111,15 +110,16 @@
   // Buttons carry stable ids, so focus survives a re-render.
   const button = (label, action, kind = 'primary', value, id = action) =>
     el('button', { id: `b-${id}`, class: `btn btn-${kind}`, type: 'button', onclick: () => post(action, value), ...(accepts(action) ? {} : { disabled: '' }) },
-      action === 'recheck' && checking && !accepts(action) ? t('setup.page.button.checking') : label);
+      checking === action && !accepts(action) ? t('setup.page.button.checking') : label);
   const link = (label, href, kind, id) =>
     safeURL(href) ? el('a', { id: `l-${id}`, class: `btn btn-${kind}`, href, target: '_blank', rel: 'noopener noreferrer' }, label) : null;
-  const icon = (status, amber) => {
+  // Status (style.css): ok ✓ green, run a spinner, fail ! amber, todo muted.
+  const icon = (status) => {
     const glyph = { ok: '✓', fail: '!', todo: '·', run: '' }[status];
-    return el('span', { class: `ic ${status}${amber && status === 'run' ? ' amber' : ''}`, 'aria-hidden': 'true' }, glyph);
+    return el('span', { class: `ic ${status}`, 'aria-hidden': 'true' }, glyph);
   };
-  const row = (status, key, value, extra, amber) =>
-    el('li', {}, icon(status, amber),
+  const row = (status, key, value, extra) =>
+    el('li', {}, icon(status),
       el('div', {}, el('div', { class: 'k' }, el('span', { class: 'visually-hidden' }, `${t(rowStatus[status])} `), key),
         value ? el('div', { class: 'v' }, value) : null, extra && extra.below),
       extra && extra.side ? extra.side : el('span'));
@@ -229,7 +229,7 @@
       const rows = state.rows || [];
       const installs = rows.some((r) => r.id === 'app_add');
       const waiting = safeURL(state.signin_url);
-      const items = rows.map((r) => row(r.state, say(r.msg), null, null, r.id.startsWith('app_')));
+      const items = rows.map((r) => row(r.state, say(r.msg)));
       const actions = [];
       if (waiting) {
         actions.push(el('p', { class: 'fine' }, t('setup.page.signin.waiting')),
@@ -252,7 +252,7 @@
           state.fix === 'owner' && !state.web ? el('p', { class: 'fine' }, t('setup.page.found.owner_away')) : null,
           state.web ? null : codeLink());
       }
-      return [...head(t('setup.page.connect.eyebrow'), t('setup.page.connect.title'), t(installs ? 'setup.page.connect.lead' : 'setup.page.connect.lead_signin'), true),
+      return [...head(t('setup.page.connect.eyebrow'), t('setup.page.connect.title'), t(installs ? 'setup.page.connect.lead' : 'setup.page.connect.lead_signin')),
         problemLine(), el('ul', { class: 'rows' }, items), ...actions];
     },
 
@@ -261,12 +261,20 @@
   };
   // Steps 3 and 4 (steps.js), and a re-run (rerun.js).
   const announce = (text) => { statusEl.textContent = text; };
-  const helpers = { t, el, row, head, button, link, format, render, post, accepts, announce, state: () => state };
+  // What step 3 did, on step 4 and a re-run's end: green when it went
+  // through, amber when it didn't or still needs you.
+  const amberNotes = ['setup.page.home.note_rule_failed', 'setup.page.home.note_link_failed', 'setup.page.home.note_chat_off_failed',
+    'setup.page.home.note_clients_failed', 'setup.page.home.note_web_off'];
+  const note = (msg) => el('p', { class: amberNotes.includes(msg.key) ? 'note' : 'note done' }, say(msg));
+  const helpers = { t, el, row, head, note, button, link, format, render, post, accepts, announce, state: () => state };
   const later = window.novaSteps(helpers);
   Object.assign(screens, later, window.novaRerun({ ...helpers, control: later.control }));
   for (const [screen, [eyebrow, title, lead, amber]] of Object.entries(endScreens)) {
     screens[screen] = () => head(t(eyebrow), t(title), t(lead), amber);
   }
+  // A first run's end: what to do next; chat apps still off in the browser.
+  screens.closed = () => head(t('setup.page.closed.eyebrow'), t('setup.page.closed.title'),
+    t(((state.home || {}).notes || []).some((n) => n.key === 'setup.page.home.note_web_off') ? 'setup.page.closed.lead_web_off' : 'setup.page.closed.lead'));
 
   const renderDots = (screen) => {
     const step = steps[screen] || (screen === 'terminal' ? lastStep : 0);
@@ -354,7 +362,7 @@
     // An end screen is never stale, and setup may close right after it is read.
     if (seen !== clicks && !finalScreens.includes(fresh.screen)) return;
     state = fresh;
-    if ((state.accepts || []).length || state.screen !== lastScreen) checking = false;
+    if ((state.accepts || []).length || state.screen !== lastScreen) checking = '';
     // Setup checks a sent address, then waits for a click again: the field
     // closes (a wrong one comes back with ask_ha).
     if (state.screen !== 'found' || (sent && sentAddress && (state.accepts || []).length)) editing = sentAddress = false;
