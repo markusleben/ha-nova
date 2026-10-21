@@ -90,7 +90,7 @@ We built this because we didn't trust AI with our own setup either.
 2. **Shows you the change.** A clear before-and-after table of what will change, in plain words with names, before anything is saved. The one exception: only clear everyday actions run right away, like "turn off the kitchen light". HA NOVA checks them afterwards. The HA NOVA program decides which actions count, never the AI. And it sends nothing if anything changed since a preview.
 3. **You approve it.** Unlocking a door, opening a gate or garage door, turning off the alarm, restarting Home Assistant, and deletes need a real confirmation, not just "yes" in the chat. Before a restart, HA NOVA checks your config first. If something is wrong, it says what before you confirm.
    - **On your computer**, a window opens where it can. Click Confirm (OK on Windows) or Cancel. Your AI never sees a code.
-   - **With a linked phone**, the phone asks at the same time. The first answer counts, and the phone shows the result. On a computer without a screen (for example a Linux server), the one phone you linked asks. This needs the Home Assistant Companion app. It doesn't work with a standalone relay that runs on your own token.
+   - **With a linked phone**, the phone asks at the same time. The first answer counts, and the phone shows the result. With no screen (for example a Linux server), or with the window turned off, the phone asks alone. This needs the Home Assistant Companion app. It doesn't work with a standalone relay that runs on your own token.
    - **About the phone:** you can answer on the phone or its Apple Watch without unlocking it. So whoever holds your phone can answer while a request is open (up to 90 seconds), but only for that one action. To link, move, or turn off phone confirmation, you need the unlocked phone. You can also move it to a new phone on the setup page. Once a phone is linked, an action it can't reach is refused. It is never moved to the chat.
    - **With neither**, you get a four-digit one-time code, in the chat or in your AI app's own form where it shows one. But the AI can see it too, so it only counts when you type it yourself.
    - **Deletes:** automation, script, and dashboard deletes use the same window or phone. Other deletes (helpers, scenes, areas, and the like) take a four-digit code in the chat. Each automation or script delete is confirmed on its own. Other batch deletes you checked take one confirmation for the exact list of items.
@@ -189,7 +189,7 @@ Setup keeps **Local only** as the default we recommend. On the setup page, Link 
 
 Do you have a paid Home Assistant Link plan (formerly Home Assistant Cloud; Nabu Casa), with remote access on? Then choose **Local + Home Assistant Link** for automatic remote fallback, or **Home Assistant Link only** to go remote first. Your Home Assistant may still show the old name in Settings until the new name reaches it. Setup checks your Link address, opens the Home Assistant OAuth sign-in, and saves it in the macOS, Windows, or Linux desktop credential store. HA NOVA runs no additional public tunnel or hosted broker.
 
-Remote access through Link needs Home Assistant OS or Supervised, and a supported desktop to sign in. Did a setup that was already checked get cut off? You can finish over SSH with `ha-nova cloud add --remote-resume`. Headless, WSL, service, gateway, Container, and Core setups stay local only. Sign in to Link as the Home Assistant owner, and this computer connects with no code (this needs an up-to-date NOVA Relay App). You can also sign in as a standard Home Assistant user. Then the owner signs in once more on their own (setup calls it the "Owner session") and makes the one-time NOVA code there.
+Remote access through Link needs Home Assistant OS or Supervised, and a supported desktop to sign in. Did a setup that was already checked get cut off? You can finish over SSH with `ha-nova cloud add --remote-resume`. Headless, WSL, service, gateway, Container, and Core setups stay local only. Sign in to Link as the Home Assistant owner, and this computer connects with no code (this needs an up-to-date NOVA Relay App). You can also sign in as a standard Home Assistant user. Then the owner signs in once more, in a separate private browser window (setup calls it the "Owner session"), and makes the six-digit code there with "Connect a device".
 
 Already installed locally? Run `ha-nova cloud add`, or run `ha-nova setup` again for the same choice.
 
@@ -203,7 +203,7 @@ Once setup is done, try: *"Show me all my automations."*
 
 > **More than one Home Assistant?** Add each one with `ha-nova pair --server <name> --relay-url http://<ha-host>:8791`. Each server gets its own profile and its own login. To pick one, add `--server <name>` to a command. This works in every shell, PowerShell too. Manage them with `ha-nova server list|default|rename|remove`. (The `HA_NOVA_SERVER` environment variable still works too.)
 
-> **Upgrading from an earlier HA NOVA?** Everything keeps working through the update. Still on the old shared access? This is the last release that accepts it. Run `ha-nova setup` once on each computer to switch (a `--service` install: `ha-nova pair --credential-store=file`). When every computer has switched, choose "Revoke legacy access" on the NOVA page. On Windows, some older versions of `ha-nova update` ask for admin rights or fail. Then update once with the Windows install command above.
+> **Upgrading from an earlier HA NOVA?** Everything keeps working through the update. Still on the old shared access with the NOVA App? This is the last release that accepts it. Run `ha-nova setup` once on each computer to switch (a `--service` install: `ha-nova pair --credential-store=file`). When every computer has switched, choose "Revoke legacy access" on the NOVA page. (The standalone container keeps its token.) On Windows, some older versions of `ha-nova update` ask for admin rights or fail. If yours does, update once with the Windows install command above.
 
 <details>
 <summary><strong>Platform notes</strong></summary>
@@ -351,18 +351,6 @@ The skills know which NOVA Relay version they need (see `version.json`). If your
 
 ---
 
-## 🔮 What's Next
-
-HA NOVA is young, and that's the point. Here's where it's going:
-
-- **Deeper reviews everywhere**: the full 40+ rule check, for more than automations
-- **Community skills**: write a new workflow as a Markdown file and share it with everyone
-- **A guided Docker path in setup**: Container and Core setup without the manual steps
-
-> If you've ever wanted to shape how AI works with Home Assistant, now is when your input really changes the product.
-
----
-
 ## 🤝 Contributing
 
 This is the best time to get involved.
@@ -378,7 +366,7 @@ This is the best time to get involved.
 
 ## 📖 The Story
 
-I spent over a year building an 88K-line MCP server for Home Assistant. I kept adding features and never released it. Others shipped theirs while mine sat on my computer.
+I spent over a year building an 88K-line MCP server for Home Assistant. I kept adding features and never released it.
 
 Then I saw that the design was the problem. Instead of burying Home Assistant know-how in a huge server, I could keep the server small and write the workflows as plain text: easy to read, easy to edit, and much easier to grow with other people.
 
