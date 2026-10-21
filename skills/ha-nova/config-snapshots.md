@@ -60,13 +60,13 @@ relay-outdated warning when it appears.
 
 All wired for auto-capture: `automations`, `scripts`, `scenes`, `dashboards`,
 `helpers`, `energy` (destructive `save_prefs`), `metadata` (entity registry
-fields before rename/disable), `yaml` (file overwrites and deletes).
+fields before rename/unit change/disable), `yaml` (file overwrites and deletes).
 
 ## Capture (before destructive ops)
 
 Capture triggers, per family: every DELETE; full-document saves that REMOVE
-content (dropped views, cards, scene members, energy entries); entity renames
-and entity/device disables (`metadata` — consumer-breaking even though nothing
+content (dropped views, cards, scene members, energy entries); entity renames,
+unit changes, and entity/device disables (`metadata` — consumer-breaking even though nothing
 is deleted); every YAML file overwrite or delete (`yaml` — the `.bak` holds
 only one step). Routine field edits in the other families stay covered by the
 revert stack and read-back verification instead. Save the

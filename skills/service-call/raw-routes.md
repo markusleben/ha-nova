@@ -1,7 +1,7 @@
 # Service Call — Raw Relay Routes
 
 On-demand part of `../service-call/SKILL.md`. Read the matching section
-before a response service or App/host control — the typed verbs cover these
+before a response service, App/host control, or a restart — the typed verbs cover these
 through `ha-nova call` (a response service with `--response`, an owned domain
 such as `hassio.*` with `--skill ha-nova:service-call`). Firing a custom
 event and calling a webhook are refused on the raw routes (see Custom Events
@@ -18,7 +18,9 @@ would skip the tier the typed verbs compute. Use the typed verbs instead.
 - `ha-nova call hassio.<addon_start|addon_stop|addon_restart> --skill ha-nova:service-call --set addon=<slug>` for App control; `ha-nova call hassio.<host_reboot|host_shutdown> --skill ha-nova:service-call` (no data) for host control
 - `ha-nova relay ws --data-file <payload-file>` for `config/entity_registry/get` (App slug lookup)
 - `ha-nova relay core --method GET --path /api/states/<entity_id>`
+- `ha-nova relay core --method POST --path /api/config/core/check_config` (read-only config check; Config Check First)
 - `--out <result-file>` when the response is large
+- Raw relay errors: `../ha-nova/relay-api.md` → Error Handling
 
 `ha-nova call` previews, tiers, sends once, and verifies on its own. Where a
 section below demands the typed tier, `ha-nova call` carries it and its `say`
@@ -70,6 +72,13 @@ or stopping the wrong App is not recoverable by trying again. Show both name
 and slug in the preview. If no matching `update` entity exists, stop and ask for the slug rather than guessing it.
 - **App state cannot be verified from here.** There is no readable `started`/`stopped` for an App on this transport, so there is nothing to read back: report the call as issued, say plainly that the result is not observable through the Relay, and point at the Apps page. Never infer success from the service call returning.
 - `host_reboot` and `host_shutdown` have no target at all and take the whole transport down with them. Nothing can be verified afterwards from here — say that BEFORE asking, get the user's confirmation (`say`), then report the call as issued and the connection as expected to drop. Never report success: you will not be there to see it. `host_shutdown` additionally needs physical access to come back, so say so.
+
+## Config Check First
+
+Before `homeassistant.restart`, `homeassistant.reload_all`, `hassio.host_reboot`, or `hassio.host_shutdown`, check Home Assistant's configuration with `check_config` (above; it changes nothing). Run it before the `ha-nova call`; for a script or automation run, when its preview names one of these, run it before asking.
+- `"result": "valid"`: go on. The call keeps its tier and confirmation.
+- `"result": "invalid"`: send nothing. Say in plain words what is wrong and where (from `errors`, short, no raw log) and that Home Assistant refuses a restart or reload until it is fixed. Hand off to the skill that owns the broken file: `automations.yaml`/`scripts.yaml` → `ha-nova:write`, `scenes.yaml` → `ha-nova:scene`, any other file → `ha-nova:yaml-config`. A host reboot or shutdown is not refused: say Home Assistant may come back with parts missing, and ask whether to fix it first. A script or automation run that contains `homeassistant.restart` or `reload_all`: say that step would fail, and offer to fix it first.
+- The check fails or gives no answer: say the configuration could not be checked (never call it valid), then ask whether to go ahead anyway. Home Assistant still checks a restart or reload itself; a host reboot or shutdown it does not. The call keeps its tier.
 
 ## Custom Events And Webhooks
 

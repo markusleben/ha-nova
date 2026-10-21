@@ -78,6 +78,7 @@
   "tests/skills/agent-scenario-regressions-contract.test.ts",
   "tests/skills/best-practice-patterns-contract.test.ts",
   "tests/skills/bulk-audit-contract.test.ts",
+  "tests/skills/config-check-display-computed-contract.test.ts",
   "tests/skills/config-snapshots-contract.test.ts",
   "tests/skills/confirmation-code-terminology.test.ts",
   "tests/skills/deferral-contract.test.ts",
