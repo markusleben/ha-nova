@@ -100,7 +100,7 @@ func resultSay(env *verbEnvelope) string {
 	}
 	switch {
 	case code != "" && code != "SERVICE_REJECTED" && code != "CONFIG_REJECTED" && code != "OUTCOME_UNKNOWN": // its message and next step speak
-	case code == "SERVICE_REJECTED" && !callMayHavePartlyRun(env), code == "CONFIG_REJECTED" && env.Status == "failed" && !strings.HasPrefix(env.done, "created the dashboard"):
+	case code == "SERVICE_REJECTED" && !callMayHavePartlyRun(env), code == "CONFIG_REJECTED" && env.Status == "failed" && !strings.HasPrefix(env.done, "created the dashboard"): // a new dashboard may stay, empty
 		return sayNotDone("Home Assistant refused it")
 	case code == "SERVICE_REJECTED" || code == "CONFIG_REJECTED" && env.Status == "failed":
 		return "Not done: Home Assistant refused it. Part of it may have happened, so let's check before you count on it."

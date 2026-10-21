@@ -408,6 +408,7 @@ func plainStep(m map[string]any, only func(...string) bool) string {
 	metadata, isMap := m["metadata"].(map[string]any)
 	switch {
 	case !only(key, "target", "entity_id", "data", "metadata"),
+		!entityIDPattern.MatchString(cmpStr(m, key)), // a templated service keeps its exact form
 		m["target"] != nil && (target == nil || len(target) != 1 || target["entity_id"] == nil),
 		m["metadata"] != nil && (!isMap || len(metadata) != 0),
 		(m["target"] == nil) == (m["entity_id"] == nil):

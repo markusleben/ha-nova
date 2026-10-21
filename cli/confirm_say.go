@@ -83,7 +83,7 @@ func sayGoal(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 		verb := map[string]string{"delete": "Delete", "revert": "Undo the last change to", "restore": "Restore"}[action.Op]
 		switch {
 		case verb != "":
-		case plan.Basis["current"] == "absent": // no live config: a create
+		case plan.Basis["current"] == "absent" || plan.ConfigRequest != nil && plan.ConfigRequest.Create: // a create (a dashboard's basis is a digest)
 			verb = "Create"
 		default:
 			verb = "Change"

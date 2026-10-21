@@ -94,6 +94,7 @@ func TestPlainItemNeverDropsAKey(t *testing.T) {
 			{"trigger": "state", "entity_id": "light.a", "to": nil},
 			{"trigger": "state", "entity_id": "light.a", "id": "t1"},
 			{"condition": "template", "value_template": "{{ true }}"},
+			{"action": "{{ chosen }}", "target": map[string]any{"entity_id": "light.a"}},
 		} {
 			if text := plainItem(item); text != "" {
 				t.Errorf("%v worded as %q", item, text)
@@ -140,6 +141,10 @@ func TestPlainValuesStayExact(t *testing.T) {
 	})
 	env := &verbEnvelope{Members: []tierMember{{EntityID: "media_player.tv", Action: "media_player.media_stop", Via: "script.x/sequence/0"}}}
 	if got := sayOwnedEffect(env, tierReason{EntityID: "media_player.tv", Via: "script.x/sequence/0"}); got != "controls a speaker or screen" {
+		t.Errorf("owned effect: %q", got)
+	}
+	env.Members[0].Action = "tts.clear_cache"
+	if got := sayOwnedEffect(env, tierReason{EntityID: "media_player.tv", Via: "script.x/sequence/0"}); got != "clears saved speech audio" {
 		t.Errorf("owned effect: %q", got)
 	}
 }

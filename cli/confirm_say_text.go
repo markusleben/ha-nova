@@ -280,6 +280,8 @@ func sayOwnedEffect(env *verbEnvelope, r tierReason) string {
 		return "sends a notification"
 	case domain == "persistent_notification":
 		return "shows or clears a notification in Home Assistant"
+	case action == "tts.clear_cache":
+		return "clears saved speech audio"
 	case domain == "tts":
 		return "speaks on a speaker"
 	case domain == "media_player":

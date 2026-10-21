@@ -477,8 +477,9 @@ func TestDashboardErrorsAreReportedByWhatHomeAssistantHoldsAfterwards(t *testing
 	f.lovelace.rejectAll = true
 	h = newWriteHarness(t, f)
 	_, env = h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "new-board", "--create", "--title", "New", "--file", draftFile(t, homeDashboard()))
-	if exit, applied = h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 6 || !strings.Contains(applied.Error.Message, "exists, but it is empty") {
-		t.Fatalf("rejected create: exit %d env %+v", exit, applied.Error)
+	if exit, applied = h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 6 || !strings.Contains(applied.Error.Message, "exists, but it is empty") ||
+		applied.Say != "Not done: Home Assistant refused it. Part of it may have happened, so let's check before you count on it." {
+		t.Fatalf("rejected create: exit %d env %+v say %q", exit, applied.Error, applied.Say)
 	}
 }
 
