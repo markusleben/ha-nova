@@ -35,10 +35,11 @@ type setupPageControl struct {
 	Chat         *setupPageChat   `json:"chat,omitempty"`       // nil: no row (chat_apps.go)
 }
 
-// setupPageChat is the "Use HA NOVA in Claude and ChatGPT" row (spec
-// §11.6). It shows only when the App has chat apps and Home Assistant is
-// 2026.10 or newer; without Link remote access or a public HTTPS address
-// (chatAppsBase) it is one plain line. The page shows the restart
+// setupPageChat is the "Use HA NOVA from your phone too" row (browser flow:
+// "Use HA NOVA in Claude and ChatGPT"; spec §11.6). It shows only when the
+// App has chat apps and Home Assistant is 2026.10 or newer; without Link
+// remote access or a public HTTPS address (chatAppsBase) it says what they
+// need, with Home Assistant's Link page and Check again. The page shows the restart
 // consent before it posts "chat"; the click on it is that consent.
 type setupPageChat struct {
 	State      string         `json:"state"`                 // offer, run, on, expired (the owner session ran out), noaddress (no Link, no public HTTPS address), page_on/page_off (a re-run: no owner sign-in yet, Done applies the switch), signin (Done's owner sign-in runs)

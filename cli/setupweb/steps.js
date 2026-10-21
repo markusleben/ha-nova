@@ -259,7 +259,6 @@ window.novaSteps = (h) => {
     } else if (c.link === 'on') {
       rows.push(line(done(), t('setup.page.control.link_key'), t('setup.page.control.link_on'), null, tagOn()));
     }
-    // Claude or ChatGPT in the browser: chat apps are what this user came for.
     // An open chat consent is a question: Finish waits for its answer.
     const asking = local.chatAsk && c.chat && c.chat.state === 'offer';
     const choices = [];
