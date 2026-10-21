@@ -10,6 +10,11 @@ import { describe, expect, it } from "vitest";
 import { createMockBinaries, createMockHome, mockEnv, REPO_ROOT } from "../onboarding/_helpers.js";
 import { makeTempDir } from "../helpers/temp-dir.js";
 
+// Every run gets a throwaway HOME and a PATH without the real install
+// (~/.local/bin/ha-nova), so no test reaches a real Relay or repairs a real
+// client. Tests that need a CLI put a stub first on PATH.
+const isolatedEnv = (path = "/usr/bin:/bin", home = makeTempDir("ha-nova-hook-home-")) => ({ PATH: path, HOME: home });
+
 describe("S-6: session-start hook", () => {
   it("outputs valid JSON with skill content", () => {
     // No ha-nova on PATH: the budget measures the injected files only, and the
@@ -18,7 +23,7 @@ describe("S-6: session-start hook", () => {
       cwd: REPO_ROOT,
       encoding: "utf8",
       timeout: 15000,
-      env: { PATH: "/usr/bin:/bin", HOME: makeTempDir("ha-nova-hook-home-") },
+      env: isolatedEnv(),
     });
 
     expect(result.status).toBe(0);
@@ -29,6 +34,8 @@ describe("S-6: session-start hook", () => {
     expect(json).toHaveProperty("additional_context");
     expect(json).toHaveProperty("hookSpecificOutput");
     expect(json.additional_context).toContain("HA NOVA Skills");
+    expect(json.additional_context).not.toContain("Relay unreachable");
+    expect(json.additional_context).not.toContain("not on PATH");
     // Compact index + bootstrap only; the full router loads on demand.
     expect(json.additional_context).toContain("# HA NOVA Index");
     expect(json.additional_context).toContain("load the full context skill `ha-nova:ha-nova`");
@@ -88,13 +95,13 @@ describe("S-6: session-start hook", () => {
       `#!/usr/bin/env bash\necho "$1" >> "${log}"\ncase "$1" in relay) exit 1;; esac\nsleep 5\n`,
       { mode: 0o755 },
     );
-    const run = (source: string) => {
+    const run = (source: string | null) => {
       const started = Date.now();
       const result = spawnSync("bash", ["hooks/session-start"], {
         cwd: REPO_ROOT,
         encoding: "utf8",
         timeout: 15000,
-        input: JSON.stringify({ hook_event_name: "SessionStart", source }),
+        input: source === null ? "" : JSON.stringify({ hook_event_name: "SessionStart", source }),
         env: { PATH: `${bin}:/usr/bin:/bin`, HOME: home },
       });
       expect(result.status).toBe(0);
@@ -102,15 +109,60 @@ describe("S-6: session-start hook", () => {
       return Date.now() - started;
     };
     expect(run("compact")).toBeLessThan(2000);
+    expect(run("resume")).toBeLessThan(2000);
+    expect(run(null)).toBeLessThan(2000);
     expect(run("startup")).toBeLessThan(2000);
     spawnSync("sleep", ["0.5"]);
     const calls = readFileSync(log, "utf8").split("\n").filter((line) => line === "doctor");
     expect(calls).toHaveLength(1);
   });
 
+  // CLI installs: a GUI-launched Claude Code may start without ~/.local/bin on
+  // PATH. The hook then finds the installer's symlink and names its full path.
+  it("finds the installed CLI outside PATH and names its full path", () => {
+    const home = makeTempDir("ha-nova-hook-gui-");
+    const log = join(home, "calls.log");
+    mkdirSync(join(home, ".local", "bin"), { recursive: true });
+    writeFileSync(
+      join(home, ".local", "bin", "ha-nova"),
+      `#!/usr/bin/env bash\necho "$1" >> "${log}"\ncase "$1" in relay) echo '{"version":"99.0.0"}';; esac\n`,
+      { mode: 0o755 },
+    );
+    const result = spawnSync("bash", ["hooks/session-start"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      timeout: 15000,
+      input: JSON.stringify({ hook_event_name: "SessionStart", source: "resume" }),
+      env: isolatedEnv("/usr/bin:/bin", home),
+    });
+    expect(result.status).toBe(0);
+    const context = JSON.parse(result.stdout.trim()).additional_context as string;
+    expect(context).toContain(`ha-nova is not on PATH here. Run it by its full path: ${join(home, ".local", "bin", "ha-nova")}`);
+    expect(context).not.toContain("Relay unreachable");
+    expect(readFileSync(log, "utf8")).toContain("relay");
+  });
+
+  // A dead Relay must not hold the session: the stub fails at once, like a
+  // refused connection.
+  it("stays fast with an unreachable Relay", () => {
+    const bin = makeTempDir("ha-nova-hook-dead-bin-");
+    writeFileSync(join(bin, "ha-nova"), "#!/usr/bin/env bash\nexit 1\n", { mode: 0o755 });
+    const started = Date.now();
+    const result = spawnSync("bash", ["hooks/session-start"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      timeout: 15000,
+      input: JSON.stringify({ hook_event_name: "SessionStart", source: "startup" }),
+      env: isolatedEnv(`${bin}:/usr/bin:/bin`),
+    });
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout.trim()).additional_context).toContain("Relay unreachable");
+  });
+
   it("fails loud when the index is missing", () => {
     const root = pluginCopy(null);
-    const result = spawnSync("bash", [join(root, "hooks", "session-start")], { encoding: "utf8", timeout: 15000 });
+    const result = spawnSync("bash", [join(root, "hooks", "session-start")], { encoding: "utf8", timeout: 15000, env: isolatedEnv() });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Missing HA NOVA file: skills/ha-nova/index.md");
     expect(result.stdout).toBe("");
@@ -118,7 +170,7 @@ describe("S-6: session-start hook", () => {
 
   it("escapes every control character into valid JSON", () => {
     const root = pluginCopy("# Index\nbell\u0007 esc\u001b vt\u000b nul-adjacent\u0001 quote\" slash\\ tab\t");
-    const result = spawnSync("bash", [join(root, "hooks", "session-start")], { encoding: "utf8", timeout: 15000 });
+    const result = spawnSync("bash", [join(root, "hooks", "session-start")], { encoding: "utf8", timeout: 15000, env: isolatedEnv() });
     expect(result.status).toBe(0);
     const json = JSON.parse(result.stdout.trim());
     expect(json.additional_context).toContain("bell\u0007 esc\u001b vt\u000b nul-adjacent\u0001 quote\" slash\\ tab\t");
@@ -137,6 +189,7 @@ describe("S-6: session-start hook", () => {
       cwd: REPO_ROOT,
       encoding: "utf8",
       timeout: 15000,
+      env: isolatedEnv(),
     });
 
     const json = JSON.parse(result.stdout.trim());
@@ -156,6 +209,7 @@ describe("S-6: session-start hook", () => {
       cwd: REPO_ROOT,
       encoding: "utf8",
       timeout: 15000,
+      env: isolatedEnv(),
     });
 
     const json = JSON.parse(result.stdout.trim());
@@ -181,7 +235,7 @@ describe("S-6: session-start hook", () => {
     expect(hookContent).toContain('"version"');
     expect(hookContent).toContain("UPDATE AVAILABLE");
     expect(hookContent).toContain("ha-nova update");
-    expect(hookContent).toContain("ha-nova check-update --quiet --json");
+    expect(hookContent).toContain('"$ha_nova_bin" check-update --quiet --json');
     expect(hookContent).not.toContain("api.github.com/repos/markusleben/ha-nova/releases/latest");
     // Compact release highlights come from the shared cache via grep-based
     // extraction of the "text" fields — never a jq dependency.
@@ -232,7 +286,7 @@ esac
       cwd: REPO_ROOT,
       encoding: "utf8",
       timeout: 15000,
-      env: { ...process.env, HOME: home, PATH: `${binDir}:${process.env.PATH ?? ""}` },
+      env: isolatedEnv(`${binDir}:/usr/bin:/bin`, home),
     });
 
     expect(result.status).toBe(0);
@@ -268,6 +322,7 @@ esac
       cwd: REPO_ROOT,
       encoding: "utf8",
       timeout: 15000,
+      env: isolatedEnv(),
     });
 
     const output = result.stdout;

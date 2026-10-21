@@ -83,6 +83,11 @@ copy_common_bundle_files() {
   cp -R "${ROOT_DIR}/skills" "${bundle_root}/skills"
   cp -R "${ROOT_DIR}/docs/reference" "${bundle_root}/docs/reference"
   cp -R "${ROOT_DIR}/.claude-plugin" "${bundle_root}/.claude-plugin"
+  # Claude Code SessionStart hook: injects the HA NOVA index into each session.
+  mkdir -p "${bundle_root}/hooks"
+  cp "${ROOT_DIR}/hooks/hooks.json" "${bundle_root}/hooks/hooks.json"
+  cp "${ROOT_DIR}/hooks/session-start" "${bundle_root}/hooks/session-start"
+  chmod 755 "${bundle_root}/hooks/session-start"
   cp "${ROOT_DIR}/version.json" "${bundle_root}/version.json"
   cp "${ROOT_DIR}/PRIVACY.md" "${bundle_root}/PRIVACY.md"
   [[ -f "${ROOT_DIR}/README.md" ]] && cp "${ROOT_DIR}/README.md" "${bundle_root}/README.md"

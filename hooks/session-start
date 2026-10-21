@@ -66,6 +66,21 @@ extract_json_string() {
   echo "$match" | sed 's/.*"\([^"]*\)"$/\1/'
 }
 
+# The installed CLI. GUI-launched clients may start without ~/.local/bin on
+# PATH, so fall back to the installer's fixed locations (Unix symlink, Windows
+# install root under Git Bash).
+ha_nova_bin="$(command -v ha-nova 2>/dev/null || true)"
+path_notice=""
+if [[ -z "$ha_nova_bin" ]]; then
+  for candidate in "${HOME}/.local/bin/ha-nova" ${LOCALAPPDATA:+"${LOCALAPPDATA}/Programs/ha-nova/ha-nova.exe"}; do
+    if [[ -f "$candidate" && -x "$candidate" ]]; then
+      ha_nova_bin="$candidate"
+      path_notice="[ha-nova] (Home Assistant tasks only) ha-nova is not on PATH here. Run it by its full path: $(escape_for_json "$candidate")\\n"
+      break
+    fi
+  done
+fi
+
 version_warning=""
 update_notice=""
 version_file="${PLUGIN_ROOT}/version.json"
@@ -75,10 +90,11 @@ if [[ -f "$version_file" ]]; then
   MIN_RELAY_VERSION=$(extract_json_string "min_relay_version" "$version_json")
 
   # --- Relay version check ---
-  if command -v ha-nova >/dev/null 2>&1; then
+  if [[ -n "$ha_nova_bin" ]]; then
     # `relay health` accepts curl-compatible --connect-timeout/--max-time
-    # (seconds); keep this probe tight so a dead relay never blocks session start.
-    health_json="$(ha-nova relay health --connect-timeout 1 --max-time 2 2>/dev/null || true)"
+    # (seconds); keep this probe tight so a dead relay never blocks session
+    # start: a refused port fails at once, a silent host after 0.5 s.
+    health_json="$("$ha_nova_bin" relay health --connect-timeout 0.5 --max-time 2 2>/dev/null || true)"
     if [[ -z "$health_json" ]]; then
       version_warning="[ha-nova] WARNING (Home Assistant tasks only): Relay unreachable. Check relay status or run: ha-nova doctor\\n"
     elif [[ -n "$MIN_RELAY_VERSION" ]]; then
@@ -105,11 +121,11 @@ if [[ -f "$version_file" ]]; then
     cached_json=$(cat "$update_cache_file" 2>/dev/null || true)
     latest_skill_version=$(extract_json_string "version" "$cached_json")
     if [[ -n "$latest_skill_version" && "$latest_skill_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && -n "$SKILL_VERSION" ]] && semver_lt "$SKILL_VERSION" "$latest_skill_version"; then
-      if command -v ha-nova >/dev/null 2>&1; then
+      if [[ -n "$ha_nova_bin" ]]; then
         # A locally dev-synced build (`ha-nova version` reports "local DEV build")
         # must not be nudged to update — that would overwrite the dev tree. The
         # release path is unaffected: released binaries omit the marker.
-        if ! ha-nova version 2>/dev/null | grep -q "local DEV build"; then
+        if ! "$ha_nova_bin" version 2>/dev/null | grep -q "local DEV build"; then
           update_notice="[ha-nova] UPDATE AVAILABLE: v${SKILL_VERSION} -> v${latest_skill_version}. Ask the user if they want you to run: ha-nova update (new session required after update)\\n"
         fi
       else
@@ -148,11 +164,11 @@ if [[ -f "$version_file" ]]; then
   fi
 
   # Background refresh: fire-and-forget through the shared CLI contract.
-  if [[ "$needs_refresh" == "1" ]] && command -v ha-nova >/dev/null 2>&1; then
+  if [[ "$needs_refresh" == "1" && -n "$ha_nova_bin" ]]; then
     mkdir -p "$update_cache_dir" 2>/dev/null || true
     # Redirect the whole subshell: an inherited stdout keeps Claude Code's
     # pipe open, so the session would wait for the background job.
-    (ha-nova check-update --quiet --json || true) </dev/null >/dev/null 2>&1 &
+    ("$ha_nova_bin" check-update --quiet --json || true) </dev/null >/dev/null 2>&1 &
     disown 2>/dev/null || true
   fi
 fi
@@ -172,12 +188,12 @@ fi
 # Background auto-repair: silently reattach drifted clients (e.g., a Claude
 # Code update wiped the marketplace registration). Fire-and-forget so this
 # session starts immediately; the repair lands in time for the next session.
-# Only on a fresh start (stdin carries the hook input JSON with its source),
-# not on resume, clear, or compact.
+# Only on a fresh start: stdin carries the hook input JSON, and only
+# "source": "startup" runs it (never resume, clear, compact, or no input).
 hook_input=""
 [[ -t 0 ]] || IFS= read -r -t 2 -d '' hook_input || true
-if command -v ha-nova >/dev/null 2>&1 && ! grep -Eq '"source"[[:space:]]*:[[:space:]]*"(resume|clear|compact)"' <<<"$hook_input"; then
-  (ha-nova doctor --auto-repair --quiet || true) </dev/null >/dev/null 2>&1 &
+if [[ -n "$ha_nova_bin" ]] && grep -Eq '"source"[[:space:]]*:[[:space:]]*"startup"' <<<"$hook_input"; then
+  ("$ha_nova_bin" doctor --auto-repair --quiet || true) </dev/null >/dev/null 2>&1 &
   disown 2>/dev/null || true
 fi
 
@@ -191,6 +207,10 @@ fi
 
 if [[ -n "$version_warning" ]]; then
   session_context="${version_warning}\\n${session_context}"
+fi
+
+if [[ -n "$path_notice" ]]; then
+  session_context="${path_notice}\\n${session_context}"
 fi
 
 if [[ -n "${SKILL_VERSION:-}" ]]; then

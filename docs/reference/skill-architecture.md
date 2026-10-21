@@ -15,7 +15,7 @@ Installed skill tree:
 skills/
   ha-nova/SKILL.md              (context skill — stable top-level entrypoint)
   ha-nova/session-bootstrap.md  (shared first-use update contract)
-  ha-nova/index.md              (compact dispatch index — read on demand; only the repo-dev hook injects it)
+  ha-nova/index.md              (compact dispatch index — the Claude Code hook injects it; other clients read it on demand)
   ha-nova/relay-api.md          (reference doc)
   ha-nova/best-practices.md     (reference doc)
   ha-nova/payload-schemas.md    (reference doc)
@@ -89,9 +89,9 @@ The canonical skill entrypoints remain `skills/*/SKILL.md`.
 
 The context skill (`ha-nova`) stays the stable entrypoint; sub-skills remain independently discoverable by description and naming.
 
-## Repo-local Hook Note
+## Claude Session Hook
 
-`hooks/session-start` runs only where the plugin root is a repo checkout: dev-synced installs and a marketplace added straight from GitHub (source `./`). It injects `skills/ha-nova/index.md` and `session-bootstrap.md`, runs a 2-second Relay probe, and starts `check-update` and (fresh starts only) `doctor --auto-repair` in the background. The release bundle does not ship `hooks/`, so it is **not** the production installation model for Claude. Production Claude installs use a versioned local release snapshot under `~/.config/ha-nova/claude-marketplace/releases/vX.Y.Z`. The flat local staged marketplace layout stays a repo-local development tool only.
+`hooks/` ships in the release bundle and in every Claude plugin root: release snapshots under `~/.config/ha-nova/claude-marketplace/releases/vX.Y.Z`, dev-synced installs, and a marketplace added straight from GitHub. On each Claude Code session start, `hooks/session-start` injects `skills/ha-nova/index.md` and `session-bootstrap.md`, runs a Relay probe (0.5 s to connect, 2 s at most), and starts `check-update` and (on `startup` only) `doctor --auto-repair` in the background, fully detached. It finds `ha-nova` on PATH, else at the installer's fixed path (`~/.local/bin/ha-nova`; on Windows under Git Bash, `%LOCALAPPDATA%\Programs\ha-nova\ha-nova.exe`), and then tells the agent that full path. No CLI found: it injects the files only. Other clients have no session hook; they route by skill descriptions and read `index.md` on demand. The flat local staged marketplace layout stays a repo-local development tool only.
 
 ## Execution Model
 
