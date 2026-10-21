@@ -589,6 +589,25 @@ describe("setup page re-run (G1)", () => {
     expect(down.find("b-recheck")!.className).toContain("btn-primary");
     expect(down.find("l-app")).toBeTruthy();
     expect(down.screen.textContent).toContain(down.catalog["setup.page.rerun.problem_app"]);
+    expect(down.find("b-pick-0")).toBeUndefined();
+  });
+
+  it("offers a Home Assistant found at another address while the saved one doesn't answer", async () => {
+    const down = { screen: "rerun_fix", rows, accepts: ["recheck", "fix", "address"], problem: { key: "setup.page.rerun.problem_app" } };
+    const one = page({ ...down, candidates: [{ host: "homeassistant.local", url: "http://homeassistant.local:8123" }] });
+    await one.settle();
+    expect(one.screen.textContent).toContain("Found a Home Assistant at homeassistant.local. Use this one?");
+    expect(one.find("b-pick-0")!.textContent).toBe(one.catalog["setup.page.rerun.use_found"]);
+    expect(one.find("b-pick-0")!.className).toContain("btn-primary");
+    expect(one.find("b-recheck")!.className).toContain("btn-ghost"); // still there: away from home
+    one.find("b-pick-0")!.dispatch("click");
+    await one.settle();
+    expect(one.posts).toEqual([{ action: "address", value: "http://homeassistant.local:8123" }]);
+
+    const several = page({ ...down, candidates: [{ host: "ha-one", url: "http://192.0.2.1:8123" }, { host: "ha-two", url: "http://192.0.2.2:8123" }] });
+    await several.settle();
+    expect(several.screen.textContent).toContain(several.catalog["setup.page.rerun.found_several"]);
+    expect(several.find("b-pick-1")!.textContent).toBe("ha-two");
   });
 
   it("offers the switch from the old shared access first, or Not now", async () => {

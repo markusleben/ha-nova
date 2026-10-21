@@ -10,7 +10,8 @@ window.novaRerun = (h) => {
 
   // A re-run (spec §4): what is set up. All fine (rerun): step 3's rows on
   // the same screen, and AI assistants found since get a button. Else
-  // (rerun_fix) Fix it; while the NOVA App doesn't answer, Check again first.
+  // (rerun_fix) Fix it; while the NOVA App doesn't answer, Check again first,
+  // and a Home Assistant found at another address.
   // (rerun_switch) Still on the old shared access: Switch to your own
   // access, or Not now.
   const statusKeys = { ha: 'setup.page.ha.key', app: 'setup.page.app.key', computer: 'setup.page.rerun.computer_key', clients: 'setup.page.clients.key' };
@@ -31,10 +32,17 @@ window.novaRerun = (h) => {
       return [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.title_switch'), t('setup.page.rerun.lead_switch'), true), status,
         el('div', { class: 'actions' }, button(t('setup.page.rerun.switch'), 'switch'), button(t('setup.page.rerun.later'), 'terminal', 'ghost'))];
     }
+    // Home Assistant doesn't answer, but one was found at another address:
+    // offered, as on a first run; the click goes on to step 1.
+    const found = s.candidates || [];
+    const several = found.length > 1;
+    const offer = found.length ? [
+      el('p', { class: 'note' }, several ? t('setup.page.rerun.found_several') : t('setup.page.rerun.found_one', { host: found[0].host })),
+      el('div', { class: 'actions' }, found.map((c, i) => button(several ? c.host : t('setup.page.rerun.use_found'), 'address', several ? 'ghost' : 'primary', c.url, `pick-${i}`)))] : [];
     return [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.title_fix'), t('setup.page.rerun.lead_fix'), true),
-      problem(s.problem), status,
+      problem(s.problem), status, ...offer,
       el('div', { class: 'actions' },
-        s.problem ? button(t('setup.page.button.recheck'), 'recheck') : null,
+        s.problem ? button(t('setup.page.button.recheck'), 'recheck', found.length ? 'ghost' : 'primary') : null,
         s.fix === 'app_update' ? button(t('setup.page.rerun.update_app'), 'fix', 'primary')
           : button(t('setup.page.rerun.fix'), 'fix', s.problem ? 'ghost' : 'primary'),
         link(t('setup.page.link.app'), links.app, 'ghost', 'app'))];
