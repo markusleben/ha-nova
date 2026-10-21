@@ -222,8 +222,6 @@ Fair question — we built a tool-based MCP server first. 88,000 lines of it, ne
 
 > **The honest bit:** the MCP side is ahead on breadth today — more tools (App management, dashboard screenshots, ZHA inspection), more contributors, more stars. It's the older project. But the asymmetry matters: **our gaps close one markdown file at a time — turning a tool server's Python into plain text you can read would be a rewrite.**
 
-Full detail, named, dated, honest in both directions: **[comparison page](docs/reference/comparison.md)**.
-
 ---
 
 ## 🧩 Skills
