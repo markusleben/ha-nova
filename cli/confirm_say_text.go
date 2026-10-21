@@ -265,6 +265,37 @@ func sayOwnedAction(env *verbEnvelope, r tierReason) string {
 	return "runs a Supervisor action"
 }
 
+// sayOwnedEffect words a step another skill owns after what it does
+// ("sends a notification"); the reason names the step's item.
+func sayOwnedEffect(env *verbEnvelope, r tierReason) string {
+	action := ""
+	for _, m := range env.Members {
+		if m.EntityID == r.EntityID && m.Via == r.Via {
+			action = m.Action
+		}
+	}
+	domain, _ := splitID(action)
+	switch {
+	case domain == "notify" || domain == "persistent_notification":
+		return "sends a notification"
+	case domain == "tts" || domain == "media_player":
+		return "plays something on a speaker or screen"
+	case domain == "camera":
+		return "uses a camera"
+	case domain == "calendar":
+		return "changes a calendar"
+	case domain == "todo":
+		return "changes a to-do list"
+	case domain == "backup":
+		return "makes a backup"
+	case domain == "update":
+		return "installs or skips an update"
+	case action == "logger.set_level":
+		return "changes how much Home Assistant logs"
+	}
+	return "runs another step"
+}
+
 // directOwnedCall: the reason is the call itself, made from its owning
 // skill (--skill), not a member it runs.
 func directOwnedCall(env *verbEnvelope, r tierReason) bool {

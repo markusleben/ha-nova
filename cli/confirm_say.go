@@ -17,12 +17,9 @@ import (
 func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) string {
 	if plan.ConfigAction == nil && frozeNothing(plan.Request, plan.Action) {
 		// apply refuses such a plan (UNRESOLVED_TARGET): never ask for it.
-		return "Nothing could be resolved for the target you named, so this can't run. Name the entities instead."
+		return sayNotDone("I couldn't find what you named, so this can't run; name the devices instead")
 	}
-	parts := append([]string{sayWhat(e, env, plan, subject)}, sayReasons(e, env, plan)...)
-	if plan.Kind == "delete" {
-		parts = append(parts, sayCopyNote)
-	}
+	parts := sayBody(e, env, plan, subject)
 	switch {
 	case plan.Confirm == "code" && plan.Channel == channelWindow && phoneLinkedHere(e.s.paths):
 		verb, _ := sayGoal(e, env, plan, subject)
@@ -33,16 +30,27 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 		verb, _ := sayGoal(e, env, plan, subject)
 		parts = append(parts, sayPhoneAsk(phoneButton(verb)))
 	case plan.Confirm == "code":
-		parts = append(parts, sayTypedAsk(plan.code, lowerFirst(sayGoalText(e, env, plan, subject))))
+		parts = append(parts, sayTypedAsk(plan.code))
 		if plan.Channel == channelChat {
 			parts = append(parts, chatNote())
 		}
 	case plan.ConfigAction != nil: // the write card's save question
-		parts = append(parts, "Save it? I can also show the details.")
+		parts = append(parts, saySaveAsk)
 	default:
-		parts = append(parts, "Reply yes to go ahead.")
+		parts = append(parts, sayYesAsk)
 	}
 	return demoPrefix(strings.Join(parts, " "))
+}
+
+// sayBody: the action, its consequences, and what has not happened yet —
+// everything of the fixed shape (say_lines.go) but the ask.
+func sayBody(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) []string {
+	about, status := sayWhat(e, env, plan, subject)
+	parts := append(append([]string{about}, sayReasons(e, env, plan)...), status)
+	if plan.Kind == "delete" {
+		parts = append(parts, sayCopyNote)
+	}
+	return parts
 }
 
 // demoPrefix names the demo house in every confirmation it asks for.
@@ -53,22 +61,18 @@ func demoPrefix(text string) string {
 	return text
 }
 
-const sayCopyNote = "A copy is saved first, so it can be restored."
-
 // confirmationPrompt is a typed plan's code-free text for a confirmation
-// form: the form stands alone (no write card above it), so a config plan
-// names its item first (subject: the live item's alias, else the draft's).
+// form or window: the form stands alone (no write card above it), so a
+// config plan names its item (subject: the live item's alias, else the
+// draft's). The copy note is added where it is shown (confirmText).
 // Empty when apply would refuse the plan anyway.
 func confirmationPrompt(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) string {
 	if plan.Confirm != "code" || plan.ConfigAction == nil && frozeNothing(plan.Request, plan.Action) {
 		return ""
 	}
 	env.ask = sayAsk(e, env, plan, subject) // a phone plan's question
-	what := sayWhat(e, env, plan, subject)
-	if plan.ConfigAction != nil {
-		what = env.ask[0] + " " + env.ask[1] + ". " + what
-	}
-	return demoPrefix(strings.Join(append([]string{what}, sayReasons(e, env, plan)...), " "))
+	about, status := sayWhat(e, env, plan, subject)
+	return demoPrefix(strings.Join(append(append([]string{about}, sayReasons(e, env, plan)...), status), " "))
 }
 
 // sayGoal: "Unlock" “Front Door”, "Delete" the automation “Night” — the
@@ -140,13 +144,12 @@ func sayReasons(e *tierEngine, env *verbEnvelope, plan storedPlan) []string {
 		if len(typed) > 0 {
 			first, typed = typed[0], typed[1:]
 		}
-		needs := map[bool]string{false: "a four-digit one-time code from HA NOVA", true: "your confirmation"}[humanChannel(plan.Channel)]
-		parts = append(parts, first+", so it needs "+needs+".")
+		parts = append(parts, first+sayNeedsYou)
 	}
 	// Every code-tier clause is shown (up to 8); the milder ones fill up to
 	// four sentences and the rest are counted, never dropped silently.
 	if len(typed) > 8 {
-		typed = append(typed[:8], sayMore(len(typed)-8, "that need the one-time code from HA NOVA; the preview lists them"))
+		typed = append(typed[:8], sayMore(len(typed)-8, "that need your confirmation; the preview lists them"))
 	}
 	if room := max(4-len(typed), 1); len(other) > room {
 		other = append(other[:room], sayMore(len(other)-room, "the preview lists"))
@@ -158,21 +161,20 @@ func sayReasons(e *tierEngine, env *verbEnvelope, plan storedPlan) []string {
 	return parts
 }
 
-// sayWhat: "Unlock “Front Door” (Hall): locked → unlocked. Nothing has run yet."
-func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) string {
+// sayWhat: "I'm about to unlock “Front Door” in Hall: locked → unlocked."
+// and the status that closes the body ("Nothing has run yet.").
+func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) (about, status string) {
 	if action := plan.ConfigAction; action != nil {
-		// The write card already names the item and shows the diff: `say`
-		// is its closing block (save status, reasons, ask).
 		if action.Op == "delete" {
-			return "Nothing is deleted yet."
+			return sayAbout(sayGoalText(e, env, plan, subject)), sayNotDeleted
 		}
-		return "Nothing is saved yet."
+		return sayAbout(sayGoalText(e, env, plan, subject)), sayNotSaved
 	}
 	domain, verb := splitID(plan.Action.Service)
 	targets := plan.Action.EntityIDs
 	line := sayGoalText(e, env, plan, "")
 	if len(targets) != 1 || domain == "script" && !scriptEntityServices[verb] {
-		return line + sayData(plan.Action.Data) + ". Nothing has run yet."
+		return sayAbout(line + sayData(plan.Action.Data)), sayNotRun
 	}
 	for _, t := range env.Resolved {
 		if area := sayText(t.Area, true); t.EntityID == targets[0] && area != "" {
@@ -197,7 +199,7 @@ func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 	if len(changes) > 0 {
 		line += ": " + strings.Join(changes, ", ")
 	}
-	return line + "." + warnings + " Nothing has run yet."
+	return sayAbout(line) + warnings, sayNotRun
 }
 
 // sayReason is one plain clause per reason code; typed reports whether the
@@ -264,7 +266,7 @@ func sayReason(e *tierEngine, env *verbEnvelope, plan storedPlan, r tierReason) 
 		if directOwnedCall(env, r) { // its preview says it all
 			return "", false
 		}
-		return "This also runs an action that normally gets its own check" + through, false
+		return "This also " + sayOwnedEffect(env, r) + through, false
 	case reasonExpanded, reasonBatch:
 		if n := len(plan.Action.EntityIDs); n != 1 {
 			return fmt.Sprintf("This acts on %d entities at once", n), false

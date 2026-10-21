@@ -40,7 +40,6 @@ var chatCall *chatPolicy
 const chatAskSpan = 3 * time.Minute
 
 const (
-	chatCodeNote     = "The AI can see this code too, so it protects less than a tap on your phone. Type it yourself to confirm. Link your phone in NOVA for real protection."
 	chatCodesOffWhy  = "this change needs a tap on the user's linked phone; no phone is linked for their Home Assistant user, and chat codes are turned off"
 	chatCodesOffNext = "Tell the user nothing changed: this change needs a tap on their phone. They link their phone on the HA NOVA page in Home Assistant, then ask again; or they make this change in Home Assistant itself. Never ask them for a code."
 	chatRelayNext    = "Tell the user nothing changed: HA NOVA in Home Assistant can't reach its Relay right now. They try again in a moment; if it keeps failing, the Home Assistant owner checks the NOVA App (Settings → Apps). Never suggest a terminal command."

@@ -210,7 +210,7 @@ func computeDashboardPlan(paths runtimePaths, s *relaySession, env *verbEnvelope
 			before = map[string]any{}
 		}
 		after, _ := configObjectFromBytes(req.Draft)
-		env.Diff = dashboardDiff(before, after)
+		withPreviewNames(loadPreviewNames(s, req.Draft), func() { env.Diff = dashboardDiff(before, after) })
 	}
 	basis := map[string]any{"current": digestOf(current), "draft": digestOf(req.Draft), "entry": digestOf(json.RawMessage(nil))}
 	if entry != nil {

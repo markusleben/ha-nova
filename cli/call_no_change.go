@@ -106,6 +106,6 @@ func markNoChange(e *tierEngine, env *verbEnvelope, action planAction) {
 	}
 	*env = verbEnvelope{SchemaVersion: env.SchemaVersion, Verb: env.Verb, Server: env.Server, Status: "no_change",
 		Resolved: env.Resolved, Deltas: env.Deltas,
-		Say:      sayList(names) + is + " already " + after + "; nothing to do.",
+		Say:      "Done: " + sayList(names) + is + " already " + after + ". I checked it.",
 		NextStep: "Relay `say` only. If the user says it is not so (Home Assistant can miss a manual change), run the same request with ha-nova plan call instead of call (same targets, --area, --device, or --match), show its preview, and apply only after their confirmation."}
 }

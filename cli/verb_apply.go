@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"errors"
 	"flag"
 	"fmt"
@@ -323,6 +324,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		wantCode = "" // never shown, not even once used
 	}
 	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode}
+	env.done = applyDone(e, &env, fresh, ctx)
 	if isRooms {
 		previewed, _ := env.Result.(roomsResult)
 		if err := executeRooms(paths, s, &env, *fresh.RoomsRequest, previewed.Changes); err != nil {
@@ -350,6 +352,18 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(release(err))
 	}
 	return env, env.exit
+}
+
+// applyDone: what a config or rooms apply does, for its result line (a
+// call words its read-back instead).
+func applyDone(e *tierEngine, env *verbEnvelope, plan storedPlan, ctx configContext) string {
+	switch {
+	case plan.Kind == "rooms":
+		return "set the rooms"
+	case plan.ConfigAction == nil:
+		return ""
+	}
+	return sayPast(sayGoal(e, env, plan, cmp.Or(ctx.alias, configAlias(nil, ctx.current))))
 }
 
 // errNothingSent: the write failed before reaching Home Assistant, so the

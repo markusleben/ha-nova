@@ -63,6 +63,7 @@ type verbEnvelope struct {
 	Notices      []verbNotice    `json:"notices,omitempty"`
 	exit         int             // success exit code; 0 unless a verb sets it (plan: 3)
 	ask          [3]string       // a typed plan's phone question: verb, object, reason (sayAsk)
+	done         string          // what a config or rooms apply did, for its result line (resultSay)
 }
 
 type verbTarget struct {
@@ -219,6 +220,7 @@ func verbNotices(paths runtimePaths, relayVersion string) []verbNotice {
 }
 
 func printVerbEnvelope(env verbEnvelope) bool {
+	env.Say = resultSay(&env)
 	out, err := json.Marshal(env)
 	if err == nil {
 		_, err = os.Stdout.Write(append(out, '\n'))

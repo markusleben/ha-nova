@@ -119,7 +119,7 @@ func TestPlanRoomsPreviewsAndSavesOnlyOnApply(t *testing.T) {
 	if strings.Join(got, ",") != "d_guest→guest,d_kitchen→kitchen,d_radio→kitchen" {
 		t.Fatalf("changes %v", got)
 	}
-	if !strings.Contains(env.Say, "Put 3 devices in rooms: Guest Bedroom ← “Guest Bedroom Lamp”; Kitchen ← “Kitchen Lights” and “Küchenradio”.") ||
+	if env.Say != "I'm about to put 3 devices in rooms: Guest Bedroom ← “Guest Bedroom Lamp”; Kitchen ← “Kitchen Lights” and “Küchenradio”. Nothing is saved yet. Save these rooms?" ||
 		!strings.Contains(env.NextStep, "only after the user's own reply approves it") {
 		t.Errorf("say %q next %q", env.Say, env.NextStep)
 	}
@@ -143,7 +143,7 @@ func TestPlanRoomsPreviewsAndSavesOnlyOnApply(t *testing.T) {
 		t.Fatalf("plain revert: exit %d %+v", exit, plain.Error)
 	}
 	exit, undo := h.run(runPlanCommand, "revert", "--target", applied.Undo.TargetID)
-	if exit != 3 || undo.Tier != "preview" || !strings.Contains(undo.Say, "Put 3 devices back where they were: no room ← ") {
+	if exit != 3 || undo.Tier != "preview" || !strings.Contains(undo.Say, "I'm about to put 3 devices back where they were: no room ← ") {
 		t.Fatalf("revert plan: exit %d %+v %+v", exit, undo, undo.Error)
 	}
 	if exit, back := h.run(runApplyCommand, "--plan", undo.Plan.ID); exit != 0 || back.Status != "verified" {

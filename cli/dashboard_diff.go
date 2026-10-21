@@ -145,6 +145,9 @@ func keyRow(field string, before, after map[string]any, key string) string {
 		if present && v == nil {
 			return "null"
 		}
+		if text, ok := plainCell([]segment{{key: key}, {}}, v); ok { // never the top-level mode rule
+			return text
+		}
 		return formatValue(v)
 	}
 	b, a := focusDivergence(cell(before), cell(after))

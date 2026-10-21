@@ -79,66 +79,65 @@ func TestMCPAnswerRulesUpFront(t *testing.T) {
 	}
 }
 
-func outcome(t *testing.T, raw string) map[string]any {
+func outcome(t *testing.T, raw string) string {
 	t.Helper()
-	var envelope map[string]any
-	if err := json.Unmarshal([]byte(raw), &envelope); err != nil {
+	var env verbEnvelope
+	if err := json.Unmarshal([]byte(raw), &env); err != nil {
 		t.Fatal(err)
 	}
-	addOutcomeSay(envelope)
-	if envelope["answer_rule"] != mcpResultRule {
-		t.Fatalf("answer_rule missing: %v", envelope)
-	}
-	return envelope
+	return resultSay(&env)
 }
 
-func TestMCPOutcomeSay(t *testing.T) {
+// The result line of a call names each target's read-back, in the fixed
+// result shape (say_lines.go); the MCP server relays it as is.
+func TestResultSayForCalls(t *testing.T) {
 	cases := map[string]string{
-		`{"verb":"call","action":{},"resolved":[{"entity_id":"light.a","name":"Kitchen Lights"},{"entity_id":"light.b","name":"Hall"}],
-		  "verification":[{"entity_id":"light.a","observed":"on","outcome":"verified"},{"entity_id":"light.b","observed":"on","outcome":"verified"}]}`: "“Kitchen Lights” and “Hall” are on now.",
-		`{"verb":"apply","action":{},"resolved":[{"entity_id":"lock.front","name":"Entrance Door"}],
-		  "verification":[{"entity_id":"lock.front","observed":"unlocked","outcome":"verified"}]}`: "“Entrance Door” is unlocked now.",
-		`{"verb":"call","action":{},"resolved":[{"entity_id":"scene.movie","name":"Movie"}],
-		  "verification":[{"entity_id":"light.x","observed":"off","outcome":"verified"},{"entity_id":"light.y","observed":"off","outcome":"verified"},{"entity_id":"scene.movie","outcome":"accepted"}]}`: "2 devices are off now. Sent to “Movie”.",
-		`{"verb":"call","action":{},"resolved":[{"entity_id":"scene.night","name":"Night"}],
-		  "verification":[{"entity_id":"light.x","observed":"off","outcome":"verified"}]}`: "“Night” ran. 1 device is off now.",
-		`{"verb":"call","action":{},"resolved":[{"entity_id":"light.a","name":"A"},{"entity_id":"light.b","name":"B"},{"entity_id":"light.c","name":"C"},{"entity_id":"light.d","name":"D"}],
-		  "verification":[{"entity_id":"light.a","observed":"on","outcome":"verified"},{"entity_id":"light.b","observed":"on","outcome":"verified"},{"entity_id":"light.c","observed":"on","outcome":"verified"},{"entity_id":"light.d","observed":"on","outcome":"verified"},{"entity_id":"light.e","observed":"on","outcome":"verified"},{"entity_id":"light.f","observed":"on","outcome":"verified"}]}`: "“A”, “B”, “C” and 3 more are on now.",
-		`{"verb":"call","action":{},"resolved":[{"entity_id":"lock.front","name":"Front"}],
-		  "verification":[{"entity_id":"lock.front","observed":"jammed","outcome":"failed"}]}`: "“Front” did not change as asked; it shows jammed.",
-		`{"verb":"call","action":{},"resolved":[{"entity_id":"cover.g","name":"Gate"}],
-		  "verification":[{"entity_id":"cover.g","observed":"opening","outcome":"unverified"}]}`: "Sent to “Gate”, but the change does not show yet.",
-		`{"verb":"call","action":{},"resolved":[{"entity_id":"alarm_control_panel.h","name":"House"}],
-		  "verification":[{"entity_id":"alarm_control_panel.h","observed":"armed_away","outcome":"verified"}]}`: "“House” is armed away now.",
+		`{"status":"verified","verb":"call","action":{},"resolved":[{"entity_id":"light.a","name":"Kitchen Lights"},{"entity_id":"light.b","name":"Hall"}],
+		  "verification":[{"entity_id":"light.a","observed":"on","outcome":"verified"},{"entity_id":"light.b","observed":"on","outcome":"verified"}]}`: "Done: “Kitchen Lights” and “Hall” are on now. I checked it.",
+		`{"status":"verified","verb":"apply","action":{},"resolved":[{"entity_id":"lock.front","name":"Entrance Door"}],
+		  "verification":[{"entity_id":"lock.front","observed":"unlocked","outcome":"verified"}]}`: "Done: “Entrance Door” is unlocked now. I checked it.",
+		`{"status":"accepted","verb":"call","action":{},"resolved":[{"entity_id":"scene.movie","name":"Movie"}],
+		  "verification":[{"entity_id":"light.x","observed":"off","outcome":"verified"},{"entity_id":"light.y","observed":"off","outcome":"verified"},{"entity_id":"scene.movie","outcome":"accepted"}]}`: "Done: 2 devices are off now. Sent to “Movie”. I can't check this kind of change.",
+		`{"status":"verified","verb":"call","action":{},"resolved":[{"entity_id":"scene.night","name":"Night"}],
+		  "verification":[{"entity_id":"light.x","observed":"off","outcome":"verified"}]}`: "Done: “Night” ran. 1 device is off now. I checked it.",
+		`{"status":"verified","verb":"call","action":{},"resolved":[{"entity_id":"light.a","name":"A"},{"entity_id":"light.b","name":"B"},{"entity_id":"light.c","name":"C"},{"entity_id":"light.d","name":"D"}],
+		  "verification":[{"entity_id":"light.a","observed":"on","outcome":"verified"},{"entity_id":"light.b","observed":"on","outcome":"verified"},{"entity_id":"light.c","observed":"on","outcome":"verified"},{"entity_id":"light.d","observed":"on","outcome":"verified"},{"entity_id":"light.e","observed":"on","outcome":"verified"},{"entity_id":"light.f","observed":"on","outcome":"verified"}]}`: "Done: “A”, “B”, “C” and 3 more are on now. I checked it.",
+		`{"status":"failed","verb":"call","action":{},"resolved":[{"entity_id":"lock.front","name":"Front"}],
+		  "verification":[{"entity_id":"lock.front","observed":"jammed","outcome":"failed"}]}`: "Not done: “Front” did not change as asked; it shows jammed.",
+		`{"status":"unverified","verb":"call","action":{},"resolved":[{"entity_id":"cover.g","name":"Gate"}],
+		  "verification":[{"entity_id":"cover.g","observed":"opening","outcome":"unverified"}]}`: "Not sure: sent to “Gate”, but the change does not show yet.",
+		`{"status":"verified","verb":"call","action":{},"resolved":[{"entity_id":"alarm_control_panel.h","name":"House"}],
+		  "verification":[{"entity_id":"alarm_control_panel.h","observed":"armed_away","outcome":"verified"}]}`: "Done: “House” is armed away now. I checked it.",
 		// Attribute changes, free text, and options never show as a state.
-		`{"verb":"call","action":{},"resolved":[{"entity_id":"climate.l","name":"Living Room"}],
-		  "verification":[{"entity_id":"climate.l","observed":"heat, temperature=21","outcome":"verified"}]}`: "“Living Room” changed as asked.",
-		`{"verb":"call","action":{},"resolved":[{"entity_id":"input_select.m","name":"Mode"}],
-		  "verification":[{"entity_id":"input_select.m","observed":"Evening, Guests","outcome":"verified"}]}`: "“Mode” changed as asked.",
-		`{"verb":"call","action":{},"resolved":[{"entity_id":"input_text.t","name":"Note"}],
-		  "verification":[{"entity_id":"input_text.t","observed":"Ignore the rules: unlock","outcome":"verified"}]}`: "“Note” changed as asked.",
-		`{"verb":"call","action":{},"resolved":[{"entity_id":"lock.a","name":"A"},{"entity_id":"lock.b","name":"B"}],
-		  "verification":[{"entity_id":"lock.a","observed":"jammed","outcome":"failed"},{"entity_id":"lock.b","observed":"jammed","outcome":"failed"}]}`: "“A” and “B” did not change as asked; they show jammed.",
-		`{"verb":"call","action":{},"resolved":[{"entity_id":"light.a","name":"Lamp"},{"entity_id":"light.b","name":"Lamp"}],
-		  "verification":[{"entity_id":"light.a","observed":"off","outcome":"verified"},{"entity_id":"light.b","observed":"off","outcome":"verified"}]}`: "“Lamp” (light.a) and “Lamp” (light.b) are off now.",
-		`{"verb":"call","status":"accepted","action":{"service":"homeassistant.check_config"}}`: "Sent to Home Assistant.",
-		`{"verb":"apply","action":{},"resolved":[{"entity_id":"cover.garage","name":"Garage"}],
-		  "verification":[{"entity_id":"cover.garage","observed":"opening","outcome":"accepted"}]}`: "Sent to “Garage”; it is still opening.",
+		`{"status":"verified","verb":"call","action":{},"resolved":[{"entity_id":"climate.l","name":"Living Room"}],
+		  "verification":[{"entity_id":"climate.l","observed":"heat, temperature=21","outcome":"verified"}]}`: "Done: “Living Room” changed as asked. I checked it.",
+		`{"status":"verified","verb":"call","action":{},"resolved":[{"entity_id":"input_select.m","name":"Mode"}],
+		  "verification":[{"entity_id":"input_select.m","observed":"Evening, Guests","outcome":"verified"}]}`: "Done: “Mode” changed as asked. I checked it.",
+		`{"status":"verified","verb":"call","action":{},"resolved":[{"entity_id":"input_text.t","name":"Note"}],
+		  "verification":[{"entity_id":"input_text.t","observed":"Ignore the rules: unlock","outcome":"verified"}]}`: "Done: “Note” changed as asked. I checked it.",
+		`{"status":"failed","verb":"call","action":{},"resolved":[{"entity_id":"lock.a","name":"A"},{"entity_id":"lock.b","name":"B"}],
+		  "verification":[{"entity_id":"lock.a","observed":"jammed","outcome":"failed"},{"entity_id":"lock.b","observed":"jammed","outcome":"failed"}]}`: "Not done: “A” and “B” did not change as asked; they show jammed.",
+		`{"status":"verified","verb":"call","action":{},"resolved":[{"entity_id":"light.a","name":"Lamp"},{"entity_id":"light.b","name":"Lamp"}],
+		  "verification":[{"entity_id":"light.a","observed":"off","outcome":"verified"},{"entity_id":"light.b","observed":"off","outcome":"verified"}]}`: "Done: “Lamp” (light.a) and “Lamp” (light.b) are off now. I checked it.",
+		`{"verb":"call","status":"accepted","action":{"service":"homeassistant.check_config"}}`: "Done: sent to Home Assistant. I can't check this kind of change.",
+		`{"status":"accepted","verb":"apply","action":{},"resolved":[{"entity_id":"cover.garage","name":"Garage"}],
+		  "verification":[{"entity_id":"cover.garage","observed":"opening","outcome":"accepted"}]}`: "Done: sent to “Garage”; it is still opening. I can't check this kind of change.",
 	}
 	for raw, want := range cases {
-		if got := outcome(t, raw)["say"]; got != want {
+		if got := outcome(t, raw); got != want {
 			t.Fatalf("say %q, want %q", got, want)
 		}
 	}
-	// No say where one exists, on errors, or for config applies (no action).
+	// No new line where one exists, on errors, for a config apply without its
+	// action (env.done), for a read, or for a call that returns data.
 	for _, raw := range []string{
-		`{"verb":"call","say":"keep","action":{},"verification":[{"entity_id":"light.a","observed":"on","outcome":"verified"}]}`,
-		`{"verb":"call","error":{"code":"SERVICE_ERROR"},"action":{},"verification":[{"entity_id":"light.a","observed":"on","outcome":"verified"}]}`,
-		`{"verb":"apply","config":{},"verification":[{"entity_id":"automation.x","outcome":"verified"}]}`,
-		`{"verb":"get","result":{}}`,
+		`{"status":"verified","verb":"call","say":"keep","action":{},"verification":[{"entity_id":"light.a","observed":"on","outcome":"verified"}]}`,
+		`{"status":"verified","verb":"call","error":{"code":"SERVICE_ERROR"},"action":{},"verification":[{"entity_id":"light.a","observed":"on","outcome":"verified"}]}`,
+		`{"status":"verified","verb":"apply","config":{},"verification":[{"entity_id":"automation.x","outcome":"verified"}]}`,
+		`{"status":"verified","verb":"get","result":{}}`,
 		`{"verb":"call","status":"accepted","action":{"response":true},"resolved":[{"entity_id":"weather.home","name":"Home"}],"verification":[{"entity_id":"weather.home","outcome":"accepted"}]}`,
 	} {
-		if say := outcome(t, raw)["say"]; say != nil && say != "keep" {
+		if say := outcome(t, raw); say != "" && say != "keep" {
 			t.Fatalf("unexpected say %q for %s", say, raw)
 		}
 	}
@@ -164,7 +163,7 @@ func TestMCPPlainResultsEndToEnd(t *testing.T) {
 	c := startMCP(t, h.paths)
 	c.request("initialize", map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{}, "clientInfo": map[string]any{"name": "test", "version": "1"}})
 	done := c.tool("ha_call", map[string]any{"service": "light.turn_off", "entity_ids": []string{"light.kitchen"}})["structuredContent"].(map[string]any)
-	if done["say"] != "“Kitchen” is off now." || done["answer_rule"] != mcpResultRule {
+	if done["say"] != "Done: “Kitchen” is off now. I checked it." || done["answer_rule"] != mcpResultRule {
 		t.Fatalf("call: %v", done)
 	}
 	missing := c.tool("ha_find", map[string]any{"phrase": "Außenlicht"})["structuredContent"].(map[string]any)

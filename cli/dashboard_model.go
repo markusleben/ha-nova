@@ -120,7 +120,7 @@ func cardSummary(card any) string {
 	for _, key := range []string{"entity", "heading", "title", "name"} {
 		if text, _ := m[key].(string); text != "" {
 			if key == "entity" {
-				return kind + " " + text
+				return kind + " " + nameOf(text)
 			}
 			return fmt.Sprintf("%s %q", kind, text)
 		}

@@ -162,7 +162,7 @@ func TestCreateCodeUsesTheAlias(t *testing.T) {
 	draft := hallDraft("light.turn_on")
 	draft["actions"] = []any{step("lock.unlock", "lock.front")}
 	_, env := h.run(runPlanCommand, "write", "--domain", "automation", "--file", draftFile(t, draft))
-	if !fourDigits.MatchString(env.Plan.Code) || !strings.Contains(env.Say, "Type "+env.Plan.Code+" to create the automation “Hall motion” — ") {
+	if !fourDigits.MatchString(env.Plan.Code) || !strings.HasPrefix(env.Say, "I'm about to create the automation “Hall motion”.") || !strings.Contains(env.Say, "Type "+env.Plan.Code+" to confirm.") {
 		t.Fatalf("create code %q", env.Plan.Code)
 	}
 	if exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID, "--confirm", env.Plan.Code); exit != 0 || applied.Status != "verified" {

@@ -168,7 +168,7 @@ func configItemAnchor(v interface{}) string {
 			return notAnchor
 		}
 		if entity != "" {
-			return "condition " + entity
+			return "condition " + nameOf(entity)
 		}
 		return "condition " + s
 	}
@@ -179,7 +179,7 @@ func withEntityAnchor(base, entity string) string {
 	if entity == "" {
 		return base
 	}
-	return base + " " + entity
+	return base + " " + nameOf(entity)
 }
 
 // itemAnchorFor is the single gate for anchoring: items inside a service

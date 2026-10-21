@@ -313,7 +313,11 @@ func renderAlignedSide(segs []segment, items []interface{}, offset int, removed 
 	}
 	for i := 0; i < rendered; i++ {
 		itemSegs := appendSegment(segs, segment{index: offset + i, isIndex: true})
-		c := side(itemSegs, summarizeConfigItem(items[i]))
+		summary := summarizeConfigItem(items[i])
+		if m, isMap := items[i].(map[string]interface{}); isMap && previewNames != nil && plainItem(m) != "" {
+			summary = plainItem(m)
+		}
+		c := side(itemSegs, summary)
 		c.label = humanizeLabel(itemSegs)
 		*changes = append(*changes, c)
 	}

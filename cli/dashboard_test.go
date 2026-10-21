@@ -139,7 +139,7 @@ func TestDashboardWritePreviewsCardLevelDiffSnapshotsSavesOnceAndReverts(t *test
 	}
 	diff := strings.Join(env.Diff, "\n")
 	for _, want := range []string{
-		`| View "Living room" › card 1 (tile light.kitchen) › color | — | amber |`,
+		`| View "Living room" › card 1 (tile “Kitchen”) › color | — | amber |`, // the card's entity by its name
 		`| View "Living room" › card 3 | — | tile light.attic |`,
 		`| View "Garden" | — | masonry view, 1 card |`,
 		`| View order | View "Living room", View "Doors" | View "Doors", View "Living room" |`,

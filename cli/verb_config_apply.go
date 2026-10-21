@@ -209,7 +209,7 @@ const readBackDiffers = "the read-back differs: "
 // approved. Equivalent spellings never get here (configChanges), so this is
 // a real difference the agent must not explain away.
 func sayReadBackDiffers(env *verbEnvelope) {
-	env.Say = "It was saved, but Home Assistant kept something different from what you approved. Let's look at what changed before you count on it."
+	env.Say = sayReadBackDiffersText
 	env.NextStep = "Show `say`, then what differs (verification[].note; each row: field | approved | saved) in plain words. It is a real difference: never call it harmless or say it works anyway. Read the saved version again and offer a new plan to fix it; if the note says the reload failed, also offer a reload."
 }
 
