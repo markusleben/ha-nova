@@ -18,9 +18,10 @@ var quietUpdateCheckTimeout = 3 * time.Second
 const appUpdateTooLine = "The NOVA App in Home Assistant needs an update too."
 
 // withAppUpdateToo puts appUpdateTooLine into the HA NOVA notice, above its
-// update step, when a NOVA App notice is due as well.
+// update step, when Home Assistant reports a pending NOVA App update too (a
+// standalone Relay or an App with nothing pending gets no such promise).
 func withAppUpdateToo(notice, relayNotice humanNotice) humanNotice {
-	if notice.kind == humanNoticeKindUpdateAvailable && !relayNotice.empty() {
+	if notice.kind == humanNoticeKindUpdateAvailable && relayNotice.appUpdate {
 		notice.message = strings.Replace(notice.message, "\nTo update", "\n"+appUpdateTooLine+"\nTo update", 1)
 	}
 	return notice

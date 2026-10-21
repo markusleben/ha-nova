@@ -103,3 +103,22 @@ func TestQuietCheckUpdateIsBoundedOnASlowNetwork(t *testing.T) {
 		t.Fatalf("exit %d\n%s", exitCode, output)
 	}
 }
+
+// "…needs an update too" only when Home Assistant reports a pending App
+// update: a standalone Relay or an App with nothing pending gets no promise.
+func TestAppUpdateTooLineNeedsAPendingAppUpdate(t *testing.T) {
+	cli := humanNotice{level: humanNoticeNote, kind: humanNoticeKindUpdateAvailable, message: "HA NOVA 0.2.0 is ready (you have 0.1.0).\nTo update, run: ha-nova update"}
+	pending := humanNotice{level: humanNoticeWarning, kind: humanNoticeKindRelayUpdateAvailable, message: "x", appUpdate: true}
+	if got := withAppUpdateToo(cli, pending).message; got != "HA NOVA 0.2.0 is ready (you have 0.1.0).\n"+appUpdateTooLine+"\nTo update, run: ha-nova update" {
+		t.Fatalf("pending App update: %q", got)
+	}
+	for _, other := range []humanNotice{
+		{level: humanNoticeWarning, kind: humanNoticeKindRelayOutdated, message: "pull and recreate a standalone Relay container"},
+		{level: humanNoticeWarning, kind: humanNoticeKindRelayOutdated, message: "exposes no pending App update"},
+		{},
+	} {
+		if got := withAppUpdateToo(cli, other).message; got != cli.message {
+			t.Fatalf("no pending App update (%q): %q", other.message, got)
+		}
+	}
+}

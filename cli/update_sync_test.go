@@ -107,6 +107,40 @@ func TestPostUpdateSyncRepairsConfiguredClaudeWhenMarketplaceRecordIsMissing(t *
 	}
 }
 
+// A client that still isn't attached after its sync is not verified: the
+// marker is cleared so check-update and doctor retry the repair.
+func TestPostUpdateSyncClearsTheMarkerWhenClaudeIsNotAttachedAfterSync(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(home, ".claude", "plugins"), 0o755); err != nil {
+		t.Fatalf("mkdir plugins: %v", err)
+	}
+	writeInstalledClaudePluginFixture(t, home)
+	writeClaudeMarketplaceFixture(t, paths.InstallRoot)
+	t.Setenv("PATH", installClaudeMock(t, home, filepath.Join(home, "claude.log"))+string(os.PathListSeparator)+os.Getenv("PATH"))
+	withClientAttachmentPresence(t, map[string]bool{"claude": false})
+	if err := saveState(paths, installState{SchemaVersion: stateSchemaVersion, InstalledClients: []string{"claude"}, ClientsVerifiedVersion: localVersion(paths)}); err != nil {
+		t.Fatalf("saveState() error: %v", err)
+	}
+
+	var result postUpdateSyncResult
+	_, output := captureCommandOutput(t, func() int { result = postUpdateSyncWithResult(paths); return 0 })
+	if result.Err != nil || result.FullySynced || len(result.Synced) != 0 {
+		t.Fatalf("result = %+v", result)
+	}
+	if !strings.Contains(output, "Not ready in Claude Code after the update. Run: ha-nova doctor") {
+		t.Fatalf("missing warning:\n%s", output)
+	}
+	state, err := loadState(paths)
+	if err != nil || state.ClientsVerifiedVersion != "" {
+		t.Fatalf("marker = %q (err %v), want cleared", state.ClientsVerifiedVersion, err)
+	}
+}
+
 func TestPostUpdateSyncRefreshesAllDetectedClients(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
