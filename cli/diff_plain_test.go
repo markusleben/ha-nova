@@ -107,6 +107,16 @@ func TestPlainItemNeverDropsAKey(t *testing.T) {
 			t.Errorf("a boolean state read as on/off: %q", text)
 		}
 	})
+	withPreviewNames(&plainNames{entity: map[string]string{"binary_sensor.front": "binary_sensor.front (“Door”)", "sensor.t": "“" + strings.Repeat("温", 40) + "”"}}, func() {
+		rows := strings.Join(renderConfigChanges(
+			map[string]any{"conditions": []any{map[string]any{"condition": "state", "entity_id": "binary_sensor.front", "state": "off"}, map[string]any{"condition": "numeric_state", "entity_id": "sensor.t", "above": 1, "below": 5}}},
+			map[string]any{"conditions": []any{map[string]any{"condition": "state", "entity_id": "binary_sensor.front", "state": "on"}, map[string]any{"condition": "numeric_state", "entity_id": "sensor.t", "above": 2, "below": 6}}}), "\n")
+		for _, want := range []string{"| Condition 1 (binary_sensor.front (“Door”) › state) | off | on |", "| Condition 2 (above) | 1 | 2 |", "| Condition 2 (below) | 5 | 6 |"} {
+			if !strings.Contains(rows, want) {
+				t.Errorf("labels lack %q:\n%s", want, rows)
+			}
+		}
+	})
 	shown := map[string]string{}
 	uniqueNames(map[string]string{"a": "Kitchen", "b": "Office", "c": "office", "d": "Fr\u043ent Door", "e": "Lamp (light.x)"}, shown)
 	if shown["a"] != "“Kitchen”" || shown["b"] != "b (“Office”)" || shown["c"] != "c (“office”)" || shown["d"] != "d (“Frоnt Door”)" || shown["e"] != "e (“Lamp (light.x)”)" {

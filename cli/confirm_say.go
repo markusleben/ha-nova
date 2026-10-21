@@ -20,6 +20,9 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 		return sayNotDone("I couldn't find what you named") + " Tell me which devices you mean."
 	}
 	parts := sayBody(e, env, plan, subject)
+	if plan.Kind == "delete" {
+		parts = append(parts, sayCopyNote)
+	}
 	switch {
 	case plan.Confirm == "code" && plan.Channel == channelWindow && phoneLinkedHere(e.s.paths):
 		verb, _ := sayGoal(e, env, plan, subject)
@@ -42,15 +45,11 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 	return demoPrefix(strings.Join(parts, " "))
 }
 
-// sayBody: the action, its consequences, and what has not happened yet —
-// everything of the fixed shape (say_lines.go) but the ask.
+// sayBody: the action, its reasons, and what has not happened yet (the
+// fixed shape of say_lines.go up to the ask).
 func sayBody(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) []string {
 	about, status := sayWhat(e, env, plan, subject)
-	parts := append(append([]string{about}, sayReasons(e, env, plan)...), status)
-	if plan.Kind == "delete" {
-		parts = append(parts, sayCopyNote)
-	}
-	return parts
+	return append(append([]string{about}, sayReasons(e, env, plan)...), status)
 }
 
 // demoPrefix names the demo house in every confirmation it asks for.
@@ -62,17 +61,15 @@ func demoPrefix(text string) string {
 }
 
 // confirmationPrompt is a typed plan's code-free text for a confirmation
-// form or window: the form stands alone (no write card above it), so a
-// config plan names its item (subject: the live item's alias, else the
-// draft's). The copy note is added where it is shown (confirmText).
-// Empty when apply would refuse the plan anyway.
+// form or window (subject: the live item's alias, else the draft's; the
+// copy note is added where it is shown, confirmText). Empty when apply
+// would refuse the plan anyway.
 func confirmationPrompt(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) string {
 	if plan.Confirm != "code" || plan.ConfigAction == nil && frozeNothing(plan.Request, plan.Action) {
 		return ""
 	}
 	env.ask = sayAsk(e, env, plan, subject) // a phone plan's question
-	about, status := sayWhat(e, env, plan, subject)
-	return demoPrefix(strings.Join(append(append([]string{about}, sayReasons(e, env, plan)...), status), " "))
+	return demoPrefix(strings.Join(sayBody(e, env, plan, subject), " "))
 }
 
 // sayGoal: "Unlock" “Front Door”, "Delete" the automation “Night” — the
