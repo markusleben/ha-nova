@@ -49,7 +49,7 @@ bash scripts/demo/hosted/provision.sh --ref <sha> --alert-email <you> --abuse-co
 #    sudo docker restart ha-nova-demo-caddy
 # 3. Lightsail browser SSH: sudo tail -f /var/log/cloud-init-output.log   (~10 min),
 #    then journalctl -fu ha-nova-demo-reset -u ha-nova-demo-update
-# 4. https://demo.hanova.app -> hanova.app/demo/ -> Open the demo, login demo / demo
+# 4. https://demo.hanova.app -> hanova.app/demo/ -> Add to Claude, or "Open the house next to the chat", login demo / demo
 ```
 
 Rebuild from scratch (new ref, or incident response):
@@ -124,12 +124,14 @@ the next full hour.
   `markusleben/ha-nova-site`, the site's design). `/` without a query and
   `/start` answer 302 there; HA's own redirects to `/` always carry a query
   (sign-in returns to `/?auth_callback=1&code=...`) and still reach HA. It
-  shows the personal-data warning above the buttons, login, admin rights,
-  the next reset, the running HA version (read from `/connect.json`, which
-  answers GETs with `Access-Control-Allow-Origin: https://hanova.app`), a
-  link to `/connect.json`, the abuse link, and "Open the demo"
-  (`/demo-house/house`). It promises nothing unreleased and stays unlinked
-  from the site (`noindex`) until the demo ships in a release. Deploy this
+  leads with "Try HA NOVA on a demo house": the personal-data warning above
+  every button, then "Which app do you use?" (Claude: Add to Claude; ChatGPT:
+  one line on the free plan; a computer: install, then `ha-nova try`), three
+  prompts, a small "Open the house next to the chat and watch it change"
+  link (`/demo-house/house`), the login, admin rights, the next reset, the
+  running HA version (read from `/connect.json`, which answers GETs with
+  `Access-Control-Allow-Origin: https://hanova.app`), and the abuse link.
+  It promises nothing unreleased. Deploy this
   Caddyfile only once that page is live (`bootstrap.sh` refuses otherwise). Verified locally (throwaway HA
   2026.10.1 behind this Caddyfile): logged-out `/` and `/start`, sign-in
   back to a deep link and to `/?auth_callback=1`, logout (HA goes to `/`)
