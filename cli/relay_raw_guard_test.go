@@ -105,6 +105,26 @@ func TestRawRelayRefusesConfigPlanBypass(t *testing.T) {
 	rawAllowed(t, "core", `{"method":"POST","path":"/api/template","body":{"template":"{{ 1 }}"}}`)
 }
 
+// Entity options other than a sensor's or number's own display options hold
+// a lock's code, voice or cloud exposure, or switch_as_x wiring: refused raw.
+func TestRawRelayRefusesOtherEntityOptions(t *testing.T) {
+	for _, body := range []string{
+		`{"type":"config/entity_registry/update","entity_id":"lock.front","options_domain":"lock","options":{"default_code":"1234"}}`,
+		`{"type":"config/entity_registry/update","entity_id":"alarm_control_panel.home","options_domain":"alarm_control_panel","options":{"default_code":"1"}}`,
+		`{"type":"config/entity_registry/update","entity_id":"lock.front","options_domain":"cloud.google_assistant","options":{"disable_2fa":true}}`,
+		`{"type":"config/entity_registry/update","entity_id":"light.desk","options_domain":"conversation","options":{"should_expose":true}}`,
+		`{"type":"config/entity_registry/update","entity_id":"switch.plug","options_domain":"switch_as_x","options":{"entity_id":"lock.x"}}`,
+		`{"type":"config/entity_registry/update","entity_id":"sensor.power","options_domain":"sensor.private","options":{}}`,
+		`{"type":"config/entity_registry/update","entity_id":"sensor.power","options_domain":"number","options":{}}`, // not its own domain
+		`{"type":"config/entity_registry/update","entity_id":"sensor.power","options":{"display_precision":1}}`,      // no options_domain
+		`{"type":"config/entity_registry/update","entity_id":"light.desk","options_domain":"light","options":{}}`,
+	} {
+		rawRefused(t, "ws", body)
+	}
+	rawAllowed(t, "ws", `{"type":"config/entity_registry/update","entity_id":"sensor.power","options_domain":"sensor","options":{"display_precision":1}}`)
+	rawAllowed(t, "ws", `{"type":"config/entity_registry/update","entity_id":"number.target","options_domain":"number","options":{"unit_of_measurement":"°C"}}`)
+}
+
 func TestRawRelayRefusesCoverClassOverride(t *testing.T) {
 	rawRefused(t, "ws", `{"type":"config/entity_registry/update","entity_id":"cover.garage","device_class":"curtain"}`)
 	rawAllowed(t, "ws", `{"type":"config/entity_registry/update","entity_id":"cover.garage","name":"Garage"}`)
@@ -377,13 +397,13 @@ func TestRawRelayHidesPhoneWebhookIDs(t *testing.T) {
 	// verb's reader hide its webhook id and the confirmation id, not an
 	// automation's own webhook trigger.
 	body, _ := json.Marshal(map[string]any{"ok": true, "data": tapTrace})
-	if raw := string(redactPhoneSecrets(body, true)); strings.Contains(raw, "deadbeefwebhook") || strings.Contains(raw, "HANOVA_") || !strings.Contains(raw, "my-automation-hook") {
+	if raw := string(redactSecrets(body, true)); strings.Contains(raw, "deadbeefwebhook") || strings.Contains(raw, "HANOVA_") || !strings.Contains(raw, "my-automation-hook") {
 		t.Fatalf("raw trace: %s", raw) // the raw route's filter (relay.go)
 	}
-	if trailing := `{"platform":"mobile_app","unique_id":"deadbeefwebhook_x"} {}`; string(redactPhoneSecrets([]byte(trailing), true)) != trailing {
+	if trailing := `{"platform":"mobile_app","unique_id":"deadbeefwebhook_x"} {}`; string(redactSecrets([]byte(trailing), true)) != trailing {
 		t.Fatal("a response with trailing data was rewritten into a valid one")
 	}
-	if verb := string(redactPhoneSecrets(body, false)); strings.Contains(verb, "deadbeefwebhook") || !strings.Contains(verb, "HANOVA_OK_0123") {
+	if verb := string(redactSecrets(body, false)); strings.Contains(verb, "deadbeefwebhook") || !strings.Contains(verb, "HANOVA_OK_0123") {
 		t.Fatalf("session reads keep action ids for the phone listener: %s", verb)
 	}
 	read, err := readRelayWSJSONResponse(&http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(body))}, maxRelayResponseBytes)

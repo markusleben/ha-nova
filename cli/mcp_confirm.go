@@ -189,8 +189,8 @@ func (srv *mcpServer) formPlan(args map[string]json.RawMessage) (storedPlan, boo
 // apply does. No mode field: form is the default in every revision.
 func confirmForm(plan storedPlan, noSnapshot bool, credential string) map[string]any {
 	code := confirmCode(credential, planIdentity(strings.TrimPrefix(plan.Hash, "sha256:"), plan.Nonce), plan.Channel, plan.ExpiresAt)
-	message := confirmText(plan, noSnapshot) + " To go ahead, type this one-time code from HA NOVA: " + code
-	field := map[string]any{"type": "string", "title": "One-time code from HA NOVA", "description": "Type " + code + " to go ahead", "minLength": 4, "maxLength": 12}
+	message := confirmText(plan, noSnapshot) + " " + sayCodeAsk(code)
+	field := map[string]any{"type": "string", "title": "One-time code from HA NOVA", "description": strings.TrimSuffix(sayCodeAsk(code), "."), "minLength": 4, "maxLength": 12}
 	return map[string]any{"message": message, "requestedSchema": map[string]any{"type": "object",
 		"properties": map[string]any{"code": field}, "required": []string{"code"}}}
 }
@@ -203,7 +203,7 @@ func confirmText(plan storedPlan, noSnapshot bool) string {
 	}
 	note := sayCopyNote
 	if noSnapshot {
-		note = "No copy could be saved, so once deleted it can't be restored."
+		note = sayNoCopyNote
 	}
 	return plan.Prompt + " " + note
 }

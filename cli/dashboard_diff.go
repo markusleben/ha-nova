@@ -140,19 +140,35 @@ func notList(v any) bool {
 
 // keyRow: one key's change; an absent key shows "—", an explicit null "null".
 func keyRow(field string, before, after map[string]any, key string) string {
-	cell := func(m map[string]any) string {
+	cell := func(m map[string]any, plain bool) string {
 		v, present := m[key]
 		if present && v == nil {
 			return "null"
 		}
+		if text, ok := plainCell([]segment{{key: key}, {}}, v); ok && plain { // never the top-level mode rule
+			return text
+		}
 		return formatValue(v)
 	}
-	b, a := focusDivergence(cell(before), cell(after))
+	b, a := cell(before, false), cell(after, false)
+	if pb, pa := cell(before, true), cell(after, true); b != a && pb != pa { // plain words only where they keep the difference (["light.a"] vs "light.a")
+		b, a = pb, pa
+	}
+	b, a = focusDivergence(b, a)
 	return tableRow(field, b, a)
 }
 
 func valueRow(field string, before, after any) string {
+	cell := func(v any) string { // a bare badge is an entity id
+		if id, isText := v.(string); isText && entityIDPattern.MatchString(id) {
+			return nameOf(id)
+		}
+		return formatValue(v)
+	}
 	b, a := formatValue(before), formatValue(after)
+	if pb, pa := cell(before), cell(after); b != a && pb != pa {
+		b, a = pb, pa
+	}
 	b, a = focusDivergence(b, a)
 	return tableRow(field, b, a)
 }

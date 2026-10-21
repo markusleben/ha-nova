@@ -76,10 +76,10 @@ func TestWindowPlanConfirmsInTheWindow(t *testing.T) {
 		t.Fatalf("sent %d requests without a confirmation", len(h.posts()))
 	}
 	exit, applied := h.run(runApplyCommand, "--plan", plan.ID)
-	if exit != 0 || applied.Status != "verified" || len(h.posts()) != 1 || applied.Plan.Code != "" || applied.NextStep != "" || applied.Say != "" {
+	if exit != 0 || applied.Status != "verified" || len(h.posts()) != 1 || applied.Plan.Code != "" || applied.NextStep != "" || applied.Say != "Done: 1 device is unlocked now. I checked it." {
 		t.Fatalf("confirm: exit %d %+v posts %d", exit, applied, len(h.posts()))
 	}
-	if !strings.Contains(w.messages[0], "Unlock “lock.front”") || !strings.Contains(w.messages[0], "so it needs your confirmation.") ||
+	if !strings.HasPrefix(w.messages[0], "I'm about to unlock “lock.front”") || !strings.Contains(w.messages[0], "so I need you to confirm it. Nothing has run yet.") ||
 		!strings.HasSuffix(w.messages[0], windowAsked) || strings.Contains(w.messages[0], code) {
 		t.Fatalf("window text: %q", w.messages[0])
 	}
@@ -135,7 +135,7 @@ func TestWindowOpenFailureFallsBackToChat(t *testing.T) {
 	exit, env := h.run(runApplyCommand, "--plan", old.ID)
 	if exit != 3 || env.Status != "needs_confirmation" || env.Plan == nil || env.Plan.Code == "" || env.Plan.Channel != channelChat ||
 		!strings.HasPrefix(env.Say, "The confirmation window couldn't open on this computer. ") || !strings.HasSuffix(env.Say, sayChatNote) ||
-		!strings.Contains(env.Say, "Type "+env.Plan.Code+" to unlock") || !strings.Contains(env.NextStep, "apply --confirm <the user's text> --plan "+env.Plan.ID) || len(h.posts()) != 0 {
+		!strings.Contains(env.Say, "I'm about to unlock “lock.front”") || !strings.Contains(env.Say, "Type "+env.Plan.Code+" to unlock “lock.front” — a plain yes can't confirm this.") || !strings.Contains(env.NextStep, "apply --confirm <the user's text> --plan "+env.Plan.ID) || len(h.posts()) != 0 {
 		t.Fatalf("fallback: exit %d %+v", exit, env)
 	}
 	if exit, env := h.run(runApplyCommand, "--plan", old.ID); exit != 4 || env.Error.Code != "PLAN_NOT_FOUND" {

@@ -30,8 +30,8 @@ type verbEnvelope struct {
 	Status        string    `json:"status"`
 	Tier          string    `json:"tier,omitempty"`
 	Plan          *verbPlan `json:"plan,omitempty"`
-	// Say: the plain confirmation text of a plan that needs one (CLI-built
-	// from tier, reasons, and names; skills relay it).
+	// Say: the plain text for the user (CLI-built, one shape: say_lines.go):
+	// a plan's confirmation, or an apply's or call's result line.
 	Say string `json:"say,omitempty"`
 	// NextStep: the agent's next step (a preview plan: wait for the user's
 	// reply; a window plan: apply without a code; its fallback: a new code plan).
@@ -63,6 +63,7 @@ type verbEnvelope struct {
 	Notices      []verbNotice    `json:"notices,omitempty"`
 	exit         int             // success exit code; 0 unless a verb sets it (plan: 3)
 	ask          [3]string       // a typed plan's phone question: verb, object, reason (sayAsk)
+	done         string          // what a config or rooms apply did, for its result line (resultSay)
 }
 
 type verbTarget struct {
@@ -219,6 +220,7 @@ func verbNotices(paths runtimePaths, relayVersion string) []verbNotice {
 }
 
 func printVerbEnvelope(env verbEnvelope) bool {
+	env.Say = resultSay(&env)
 	out, err := json.Marshal(env)
 	if err == nil {
 		_, err = os.Stdout.Write(append(out, '\n'))

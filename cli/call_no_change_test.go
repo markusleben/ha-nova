@@ -16,7 +16,7 @@ func TestCallAlreadyAtTargetIsNoChange(t *testing.T) {
 	h := newWriteHarness(t, f)
 	exit, env := h.run(runCallCommand, "lock.unlock", "lock.front")
 	if exit != 0 || env.Status != "no_change" || env.Plan != nil || env.Tier != "" || !strings.HasPrefix(env.NextStep, "Relay `say` only.") ||
-		env.Say != "“Front Door” is already unlocked; nothing to do." || len(env.Deltas) != 1 {
+		env.Say != "Done: “Front Door” is already unlocked. I checked it." || len(env.Deltas) != 1 {
 		t.Fatalf("exit %d env %+v", exit, env)
 	}
 	if len(h.posts()) != 0 || len(h.planFiles()) != 0 {
@@ -37,7 +37,7 @@ func TestCallPartlyAtTargetPlansEveryTarget(t *testing.T) {
 	}
 	f.states["lock.front"]["state"] = "unlocked"
 	exit, env = h.run(runCallCommand, "lock.unlock", "lock.front", "lock.back")
-	if exit != 0 || env.Status != "no_change" || env.Say != "“lock.front” and “Back Door” are already unlocked; nothing to do." ||
+	if exit != 0 || env.Status != "no_change" || env.Say != "Done: “lock.front” and “Back Door” are already unlocked. I checked it." ||
 		!strings.Contains(env.NextStep, "same request with ha-nova plan call instead of call") {
 		t.Fatalf("all unlocked: exit %d env %+v", exit, env)
 	}
@@ -217,7 +217,7 @@ func TestNoChangeBeforeCodeRequired(t *testing.T) {
 	f := newFakeHA()
 	f.ent("lock.keypad", "zwave_js", "unlocked", map[string]any{"code_format": "^\\d{4}$", "friendly_name": "Keypad"})
 	h := newWriteHarness(t, f)
-	if exit, env := h.run(runCallCommand, "lock.unlock", "lock.keypad"); exit != 0 || env.Status != "no_change" || env.Say != "“Keypad” is already unlocked; nothing to do." {
+	if exit, env := h.run(runCallCommand, "lock.unlock", "lock.keypad"); exit != 0 || env.Status != "no_change" || env.Say != "Done: “Keypad” is already unlocked. I checked it." {
 		t.Fatalf("exit %d env %+v", exit, env)
 	}
 	f.states["lock.keypad"]["state"] = "locked"

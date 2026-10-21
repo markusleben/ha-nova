@@ -184,7 +184,7 @@ func runSnapshotShow(paths runtimePaths, args []string) int {
 		printErr("cannot render snapshot: %s", err)
 		return 1
 	}
-	fmt.Fprintln(os.Stdout, string(out))
+	fmt.Fprintln(os.Stdout, string(redactSecrets(out, false))) // a record saved before codes were hidden
 	return 0
 }
 
