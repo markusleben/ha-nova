@@ -2,7 +2,7 @@
  * S-6: SessionStart hook (4 variants)
  * Tests the hooks/session-start script output in various configurations.
  */
-import { readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -112,9 +112,10 @@ describe("S-6: session-start hook", () => {
     expect(run("resume")).toBeLessThan(2000);
     expect(run(null)).toBeLessThan(2000);
     expect(run("startup")).toBeLessThan(2000);
-    spawnSync("sleep", ["0.5"]);
-    const calls = readFileSync(log, "utf8").split("\n").filter((line) => line === "doctor");
-    expect(calls).toHaveLength(1);
+    const doctorCalls = () => readFileSync(log, "utf8").split("\n").filter((line) => line === "doctor").length;
+    for (let waited = 0; doctorCalls() < 1 && waited < 3000; waited += 100) spawnSync("sleep", ["0.1"]);
+    spawnSync("sleep", ["0.3"]);
+    expect(doctorCalls()).toBe(1);
   });
 
   // CLI installs: a GUI-launched Claude Code may start without ~/.local/bin on
@@ -137,7 +138,7 @@ describe("S-6: session-start hook", () => {
     });
     expect(result.status).toBe(0);
     const context = JSON.parse(result.stdout.trim()).additional_context as string;
-    expect(context).toContain(`ha-nova is not on PATH here. Run it by its full path: ${join(home, ".local", "bin", "ha-nova")}`);
+    expect(context).toContain(`ha-nova is not on PATH here. Run it by its full path, in quotes: "${join(home, ".local", "bin", "ha-nova")}"`);
     expect(context).not.toContain("Relay unreachable");
     expect(readFileSync(log, "utf8")).toContain("relay");
   });
@@ -224,7 +225,7 @@ describe("S-6: session-start hook", () => {
 
     expect(hookContent).toContain("semver_lt");
     expect(hookContent).toContain("min_relay_version");
-    expect(hookContent).toContain("WARNING:");
+    expect(hookContent).toContain("WARNING (Home Assistant tasks only): Relay version");
     expect(hookContent).toContain("Relay version");
   });
 
@@ -297,6 +298,26 @@ esac
     expect(json.additional_context).toContain("- New energy skill");
     expect(json.additional_context).toContain("- Fix relay reconnect loop");
     expect(json.additional_context).toContain("Release notes: https://example.test/releases/v99.0.0");
+    expect(json.additional_context).toContain("UPDATE AVAILABLE (Home Assistant tasks only)");
+  });
+
+  // Windows: the CLI keeps its release cache under %LOCALAPPDATA%\ha-nova\cache.
+  it("reads the release cache from LOCALAPPDATA when set", () => {
+    const local = makeTempDir("ha-nova-hook-localappdata-");
+    mkdirSync(join(local, "ha-nova", "cache"), { recursive: true });
+    writeFileSync(join(local, "ha-nova", "cache", "latest-release.json"), JSON.stringify({ version: "99.0.0" }));
+    const binDir = makeTempDir("ha-nova-hook-win-bin-");
+    writeFileSync(join(binDir, "ha-nova"), "#!/usr/bin/env bash\ncase \"$1\" in version) echo 0.19.0;; relay) exit 1;; esac\n", { mode: 0o755 });
+    const home = makeTempDir("ha-nova-hook-win-home-");
+    const result = spawnSync("bash", ["hooks/session-start"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      timeout: 15000,
+      env: { ...isolatedEnv(`${binDir}:/usr/bin:/bin`, home), LOCALAPPDATA: local },
+    });
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout.trim()).additional_context).toContain("v99.0.0");
+    expect(existsSync(join(home, ".cache"))).toBe(false);
   });
 
   it("keeps the SessionStart refresh throttle within the CLI freshness floor", () => {

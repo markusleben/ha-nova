@@ -54,7 +54,12 @@ binary_asset_path() {
     flat_path="${DIST_DIR}/ha-nova-${source_os}-${arch_name}"
   fi
 
-  mapfile -t nested_paths < <(
+  # No mapfile: the builder also runs under macOS /bin/bash 3.2 (local tests).
+  local -a nested_paths=()
+  local nested_path
+  while IFS= read -r nested_path; do
+    nested_paths+=("${nested_path}")
+  done < <(
     find "${DIST_DIR}" -type f -name "${binary_name}" -path "*_${source_os}_${arch_name}_*/*" | sort
   )
   if [[ -f "${flat_path}" && "${#nested_paths[@]}" -gt 0 ]]; then

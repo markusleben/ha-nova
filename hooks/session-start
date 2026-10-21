@@ -4,6 +4,7 @@
 # Code session; the full context skill loads on demand.
 
 set -euo pipefail
+HOME="${HOME:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -75,7 +76,7 @@ if [[ -z "$ha_nova_bin" ]]; then
   for candidate in "${HOME}/.local/bin/ha-nova" ${LOCALAPPDATA:+"${LOCALAPPDATA}/Programs/ha-nova/ha-nova.exe"}; do
     if [[ -f "$candidate" && -x "$candidate" ]]; then
       ha_nova_bin="$candidate"
-      path_notice="[ha-nova] (Home Assistant tasks only) ha-nova is not on PATH here. Run it by its full path: $(escape_for_json "$candidate")\\n"
+      path_notice="[ha-nova] (Home Assistant tasks only) ha-nova is not on PATH here. Run it by its full path, in quotes: \\\"$(escape_for_json "$candidate")\\\"\\n"
       break
     fi
   done
@@ -100,7 +101,7 @@ if [[ -f "$version_file" ]]; then
     elif [[ -n "$MIN_RELAY_VERSION" ]]; then
       relay_version=$(extract_json_string "version" "$health_json")
       if [[ -n "$relay_version" && "$relay_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && semver_lt "$relay_version" "$MIN_RELAY_VERSION"; then
-        version_warning="[ha-nova] WARNING: Relay version ${relay_version} is below minimum ${MIN_RELAY_VERSION}. Update: HA Settings > Apps > NOVA Relay > Update\\n"
+        version_warning="[ha-nova] WARNING (Home Assistant tasks only): Relay version ${relay_version} is below minimum ${MIN_RELAY_VERSION}. Update: HA Settings > Apps > NOVA Relay > Update\\n"
       fi
     fi
   fi
@@ -111,7 +112,9 @@ if [[ -f "$version_file" ]]; then
   # CLI owns real freshness (short floor + conditional revalidation). Keep it
   # <= the CLI's updateCacheTTLSeconds (cli/paths.go), otherwise a new release
   # stays hidden from the session banner until this longer window expires.
+  # The CLI's cache dir (cli/paths.go): %LOCALAPPDATA%\ha-nova\cache on Windows.
   update_cache_dir="${HOME}/.cache/ha-nova"
+  [[ -n "${LOCALAPPDATA:-}" ]] && update_cache_dir="${LOCALAPPDATA}/ha-nova/cache"
   update_cache_file="${update_cache_dir}/latest-release.json"
   update_ttl=3600
 
@@ -126,7 +129,7 @@ if [[ -f "$version_file" ]]; then
         # must not be nudged to update — that would overwrite the dev tree. The
         # release path is unaffected: released binaries omit the marker.
         if ! "$ha_nova_bin" version 2>/dev/null | grep -q "local DEV build"; then
-          update_notice="[ha-nova] UPDATE AVAILABLE: v${SKILL_VERSION} -> v${latest_skill_version}. Ask the user if they want you to run: ha-nova update (new session required after update)\\n"
+          update_notice="[ha-nova] UPDATE AVAILABLE (Home Assistant tasks only): v${SKILL_VERSION} -> v${latest_skill_version}. After a Home Assistant task's result, ask once if the user wants you to run: ha-nova update (new session required after update)\\n"
         fi
       else
         update_notice="[ha-nova] UPDATE AVAILABLE: v${SKILL_VERSION} -> v${latest_skill_version}. Repo-dev fallback only: update the local checkout manually, then re-run setup. (new session required after update)\\n"

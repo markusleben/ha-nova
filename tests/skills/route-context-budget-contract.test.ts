@@ -33,7 +33,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // Typed-verbs PR6: writes run through `ha-nova find|get` and
   // `ha-nova plan write|delete|revert` + `apply`, so the agent templates and
   // relay-api.md left the mandatory list, and the router is no longer read
-  // for a single-item write (installed releases inject nothing; the write
+  // for a single-item write (only the Claude hook injects the index; the write
   // skill carries its own create-summary shape). The card file stays: write
   // renders Preview/Delete/Result/Test Plan Cards. checks.md is the core
   // catalog; checks-extended.md (evidence boundaries, other families) is read
