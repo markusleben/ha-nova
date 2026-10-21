@@ -68,7 +68,7 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 						return verifyErr
 					}
 					cleanupClaudeMarketplaceDevResidue(paths, marketplaceRoot)
-					warnClaudeProfileRedirect(paths.Home)
+					warnClaudeProfileRedirect(paths)
 					return nil
 				} else {
 					return restoreMarketplace(fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(installCmd.Args[1:], " "), strings.TrimSpace(string(installOutput))))
@@ -88,42 +88,8 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 	// Only after the sync fully verified: earlier failure paths roll back to
 	// the previous (possibly dev) registration, which still needs its symlink.
 	cleanupClaudeMarketplaceDevResidue(paths, marketplaceRoot)
-	warnClaudeProfileRedirect(paths.Home)
+	warnClaudeProfileRedirect(paths)
 	return nil
-}
-
-// warnClaudeProfileRedirect: the sync landed in a CLAUDE_CONFIG_DIR profile.
-// A default Claude at ~/.claude is a separate install; say so only when it
-// exists and has no HA NOVA. Known limit: one that has HA NOVA gets no line,
-// though its copy may stay older until a sync without CLAUDE_CONFIG_DIR.
-// stderr, without a WARNING label: news, and stdout may carry JSON.
-func warnClaudeProfileRedirect(home string) {
-	if !claudeConfigRootRedirected(home) || !defaultClaudeLacksHANova(home) {
-		return
-	}
-	printHumanNotice(humanNotice{level: humanNoticeNote, message: "Your other Claude Code setup in ~/.claude doesn't have HA NOVA yet. To add it there, run `ha-nova setup claude` in a terminal without CLAUDE_CONFIG_DIR."})
-}
-
-// defaultClaudeLacksHANova: ~/.claude exists, and its plugin list readably
-// has no HA NOVA. Unreadable state says nothing.
-func defaultClaudeLacksHANova(home string) bool {
-	root := filepath.Join(home, ".claude")
-	if info, err := os.Stat(root); err != nil || !info.IsDir() {
-		return false
-	}
-	data, err := os.ReadFile(filepath.Join(root, "plugins", "installed_plugins.json"))
-	if isNotExist(err) {
-		return true
-	}
-	var raw map[string]any
-	if err != nil || unmarshalClaudeJSON(data, &raw) != nil {
-		return false
-	}
-	if plugins, ok := raw["plugins"].(map[string]any); ok { // the current layout: keyed by plugin id
-		_, has := plugins["ha-nova@ha-nova"]
-		return !has
-	}
-	return !claudeInstalledPluginRecordPresent(raw["plugins"])
 }
 
 func verifyClaudePluginInstalled(home, desiredSource string) error {

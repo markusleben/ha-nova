@@ -24,3 +24,77 @@ func claudeConfigRoot(home string) string {
 func claudeConfigRootRedirected(home string) bool {
 	return claudeConfigRoot(home) != filepath.Join(home, ".claude")
 }
+
+// warnClaudeProfileRedirect: the sync landed in a CLAUDE_CONFIG_DIR profile.
+// A default Claude Code at ~/.claude is a separate install that this sync
+// did not touch: say so when it has no HA NOVA, or an older one (the shared
+// ClientsVerifiedVersion means no self-heal would fix it). Silent otherwise.
+// stderr without a WARNING label: news, and stdout may carry JSON.
+func warnClaudeProfileRedirect(paths runtimePaths) {
+	if !claudeConfigRootRedirected(paths.Home) {
+		return
+	}
+	line := ""
+	switch claudeHANovaAt(filepath.Join(paths.Home, ".claude"), localVersion(paths)) {
+	case claudeHANovaNone:
+		line = "Your other Claude Code setup in ~/.claude doesn't have HA NOVA yet. To add it there, run `ha-nova setup claude` in a terminal without CLAUDE_CONFIG_DIR."
+	case claudeHANovaOlder:
+		line = "Your other Claude Code setup in ~/.claude still has an older HA NOVA. To update it there, run `ha-nova update` in a terminal without CLAUDE_CONFIG_DIR."
+	default:
+		return
+	}
+	printHumanNotice(humanNotice{level: humanNoticeNote, message: line})
+}
+
+const (
+	claudeHANovaUnknown = "" // current, or the state can't be read
+	claudeHANovaNone    = "none"
+	claudeHANovaOlder   = "older"
+)
+
+// claudeHANovaAt: HA NOVA in the Claude Code root `root`: none (the root
+// exists, its plugin list has no HA NOVA), older (a record older than
+// version; the plugin carries the release's version without "-rcN"), or
+// unknown. No root, or unreadable state, is unknown.
+func claudeHANovaAt(root, version string) string {
+	if info, err := os.Stat(root); err != nil || !info.IsDir() {
+		return claudeHANovaUnknown
+	}
+	data, err := os.ReadFile(filepath.Join(root, "plugins", "installed_plugins.json"))
+	if isNotExist(err) {
+		return claudeHANovaNone
+	}
+	var raw map[string]any
+	if err != nil || unmarshalClaudeJSON(data, &raw) != nil {
+		return claudeHANovaUnknown
+	}
+	plugins, keyed := raw["plugins"].(map[string]any) // the current layout: keyed by plugin id
+	if !keyed {
+		if claudeInstalledPluginRecordPresent(raw["plugins"]) {
+			return claudeHANovaUnknown
+		}
+		return claudeHANovaNone
+	}
+	records, has := plugins["ha-nova@ha-nova"]
+	list, isList := records.([]any)
+	if !has || isList && len(list) == 0 {
+		return claudeHANovaNone
+	}
+	// Older only when no record is current: a leftover project record
+	// beside a current one says nothing.
+	want, _, _ := strings.Cut(version, "-")
+	older := false
+	for _, record := range list {
+		entry, _ := record.(map[string]any)
+		got, _ := entry["version"].(string)
+		cmp, err := compareReleaseVersions(got, want)
+		if err != nil || cmp >= 0 {
+			return claudeHANovaUnknown
+		}
+		older = true
+	}
+	if older {
+		return claudeHANovaOlder
+	}
+	return claudeHANovaUnknown
+}

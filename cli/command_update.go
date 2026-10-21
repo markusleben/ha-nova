@@ -305,6 +305,11 @@ func runInternalSyncClients(paths runtimePaths, _ []string) int {
 }
 
 func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, targetVersion string, cmp int, lifecycleMarker []byte) int {
+	// A repair counts as new to the AI app: a sync that hadn't finished for
+	// this version and now did (an app that is always skipped never stamps
+	// it), or a Claude Code copy older than it.
+	unverified := loadStateOrDefault(paths).ClientsVerifiedVersion != currentVersion
+	claudeOlder := claudeHANovaAt(claudeConfigRoot(paths.Home), currentVersion) == claudeHANovaOlder
 	syncResult := postUpdateSyncWithResultForLifecycle(paths, lifecycleMarker)
 	if syncResult.Err != nil {
 		if cmp > 0 {
@@ -314,7 +319,6 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 		}
 		return 1
 	}
-	// Nothing new went in, so no "start a new chat" step follows.
 	printUpdateDone("You already have HA NOVA "+currentVersion, syncResult)
 	if cmp > 0 {
 		printHumanInfo("It is newer than %s.", targetVersion)
@@ -323,6 +327,9 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 	// or Home Assistant exposes a newer App update — say so where the user is
 	// looking.
 	offerRelayUpdateAfterUpdate(paths)
+	if unverified && syncResult.FullySynced || claudeOlder { // else nothing new went in: no "start a new chat" step
+		printPostUpdateSessionInstruction(syncResult)
+	}
 	return 0
 }
 

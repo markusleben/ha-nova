@@ -18,21 +18,21 @@ var quietUpdateCheckTimeout = 3 * time.Second
 // one offer covers both (the App keeps its own preview and confirmation).
 const appUpdateTooLine = "The NOVA App in Home Assistant needs an update too."
 
-// withAppUpdateToo makes the HA NOVA update offer and the NOVA App notice
-// one notice, so a run says one thing. A pending App update in Home
-// Assistant becomes appUpdateTooLine above the update step (`ha-nova update`
-// then offers the App update); an App with nothing pending (or a standalone
-// Relay) gets no such promise, so its own notice closes the offer. The
-// second result is what is left to print on its own.
+// withAppUpdateToo makes the HA NOVA update offer and a pending NOVA App
+// update one notice: appUpdateTooLine above `ha-nova update`, which then
+// offers the App update, so the App's own notice is not printed again. An
+// App with nothing pending (or a standalone Relay), or an offer whose step
+// is not `ha-nova update` (a legacy Windows reinstall), keeps both notices:
+// only the App's own text says where to update it. So does another server's
+// App (--server): a plain `ha-nova update` offers only the default one's.
+// The second result is what is left to print on its own.
 func withAppUpdateToo(notice, relayNotice humanNotice) (humanNotice, humanNotice) {
-	if notice.kind != humanNoticeKindUpdateAvailable || relayNotice.empty() {
+	const step = "\nTo update, run: ha-nova update"
+	if name, _ := requestedServerSelection(); name != "" ||
+		notice.kind != humanNoticeKindUpdateAvailable || !relayNotice.appUpdate || !strings.Contains(notice.message, step) {
 		return notice, relayNotice
 	}
-	if relayNotice.appUpdate {
-		notice.message = strings.Replace(notice.message, "\nTo update", "\n"+appUpdateTooLine+"\nTo update", 1)
-	} else {
-		notice.message += "\n" + relayNotice.message
-	}
+	notice.message = strings.Replace(notice.message, step, "\n"+appUpdateTooLine+step, 1)
 	return notice, humanNotice{}
 }
 

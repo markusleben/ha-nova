@@ -405,7 +405,7 @@ func sayUnseen(name, via string, plain bool) string {
 	that := "HA NOVA can't see what that does"
 	if plain {
 		unseen = "HA NOVA can't check how " + name + " works"
-		that = "HA NOVA can't check how it works"
+		that = "HA NOVA can't check how that works"
 	}
 	switch {
 	case name == "" && via == "":

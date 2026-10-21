@@ -249,14 +249,19 @@ func TestRunUpdateTreatsSameRCTargetAsUpToDate(t *testing.T) {
 		t.Fatalf("write version file: %v", err)
 	}
 
-	stdout := captureStdout(t, func() {
-		if exitCode := runUpdate(paths, []string{"--version", "0.3.2-rc1"}); exitCode != 0 {
-			t.Fatalf("runUpdate() exit = %d, want 0", exitCode)
-		}
-	})
-
-	// Nothing changed: no "start a new chat" step (rc5 recheck R1).
-	if strings.TrimSpace(stdout) != "[ha-nova] You already have HA NOVA 0.3.2-rc1." {
+	run := func() string {
+		return captureStdout(t, func() {
+			if exitCode := runUpdate(paths, []string{"--version", "0.3.2-rc1"}); exitCode != 0 {
+				t.Fatalf("runUpdate() exit = %d, want 0", exitCode)
+			}
+		})
+	}
+	// Not yet verified for this version: the sync repairs, so a new chat helps.
+	if stdout := run(); !strings.HasPrefix(stdout, "[ha-nova] You already have HA NOVA 0.3.2-rc1.\n") || !strings.HasSuffix(strings.TrimSpace(stdout), postUpdateSessionInstruction) {
+		t.Fatalf("expected same-RC repair message, got %q", stdout)
+	}
+	// Verified now: nothing changed, no "start a new chat" step (rc5 recheck R1).
+	if stdout := run(); strings.TrimSpace(stdout) != "[ha-nova] You already have HA NOVA 0.3.2-rc1." {
 		t.Fatalf("expected same-RC no-op message, got %q", stdout)
 	}
 }

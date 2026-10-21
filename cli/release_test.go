@@ -234,7 +234,7 @@ func TestRunUpdateIgnoresFreshReleaseCacheWhenResolvingTargetVersion(t *testing.
 		}
 	})
 
-	if !strings.Contains(output, "You already have HA NOVA 0.2.3.") || strings.Contains(output, "Next step") {
+	if !strings.Contains(output, "You already have HA NOVA 0.2.3.") {
 		t.Fatalf("expected up-to-date message, got %q", output)
 	}
 	if strings.Contains(output, "target v0.2.1") {

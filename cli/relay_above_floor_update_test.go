@@ -334,6 +334,7 @@ func TestRunDoctorReportsAboveFloorRelayUpdateWithoutFailing(t *testing.T) {
 }
 
 func TestRunCheckUpdateQuietReportsHANOVAAndAboveFloorRelayUpdates(t *testing.T) {
+	resetServerProfileSelection(t) // a leaked --server keeps the App notice separate
 	paths, cfg := doctorTestSetup(t)
 	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -423,7 +424,7 @@ func TestRunDoctorBelowFloorUsesCheckUpdateWords(t *testing.T) {
 	exitCode, output := captureCommandOutput(t, func() int { return runDoctor(paths, []string{"--quiet"}) })
 	want := "[ha-nova] The NOVA App in Home Assistant needs an update: it has 0.3.0, HA NOVA needs 0.4.0 or newer. " +
 		relayAppUpdatePath + " No Update button yet? In Settings > Apps, check for updates first."
-	if exitCode != 1 || !strings.Contains(output, want) {
+	if exitCode != 1 || !strings.Contains(output, want) || !strings.Contains(output, "To fix: update the NOVA App (see above).") {
 		t.Fatalf("exit %d, want 1 and %q:\n%s", exitCode, want, output)
 	}
 }

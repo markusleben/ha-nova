@@ -109,9 +109,11 @@ func TestQuietCheckUpdateIsBoundedOnASlowNetwork(t *testing.T) {
 }
 
 // "…needs an update too" only when Home Assistant reports a pending App
-// update: a standalone Relay or an App with nothing pending gets no promise,
-// and its own notice closes the offer instead. One notice either way.
+// update and the offer's step is `ha-nova update`: then one notice. A
+// standalone Relay, an App with nothing pending, or a legacy reinstall step
+// keeps the App's own notice, which says where to update it.
 func TestAppUpdateTooLineNeedsAPendingAppUpdate(t *testing.T) {
+	resetServerProfileSelection(t)
 	cli := humanNotice{level: humanNoticeNote, kind: humanNoticeKindUpdateAvailable, message: "HA NOVA 0.2.0 is ready (you have 0.1.0).\nTo update, run: ha-nova update"}
 	pending := humanNotice{level: humanNoticeNote, kind: humanNoticeKindRelayUpdateAvailable, message: "x", appUpdate: true}
 	if got, rest := withAppUpdateToo(cli, pending); got.message != "HA NOVA 0.2.0 is ready (you have 0.1.0).\n"+appUpdateTooLine+"\nTo update, run: ha-nova update" || !rest.empty() {
@@ -120,14 +122,23 @@ func TestAppUpdateTooLineNeedsAPendingAppUpdate(t *testing.T) {
 	for _, other := range []humanNotice{
 		{level: humanNoticeNote, kind: humanNoticeKindRelayOutdated, message: "pull and recreate a standalone Relay container"},
 		{level: humanNoticeNote, kind: humanNoticeKindRelayOutdated, message: "exposes no pending App update"},
+		{},
 	} {
-		if got, rest := withAppUpdateToo(cli, other); got.message != cli.message+"\n"+other.message || !rest.empty() {
+		if got, rest := withAppUpdateToo(cli, other); got.message != cli.message || rest.message != other.message {
 			t.Fatalf("no pending App update (%q): %q, rest %q", other.message, got.message, rest.message)
 		}
 	}
-	if got, rest := withAppUpdateToo(cli, humanNotice{}); got.message != cli.message || !rest.empty() {
-		t.Fatalf("no App notice: %q", got.message)
+	legacy := cli
+	legacy.message = "HA NOVA 0.2.0 is ready (you have 0.1.0).\nTo update: Remove the old HA NOVA app"
+	if got, rest := withAppUpdateToo(legacy, pending); got.message != legacy.message || rest.message != "x" {
+		t.Fatalf("legacy reinstall keeps the App notice: %q, rest %q", got.message, rest.message)
 	}
+	// Another server's App: a plain `ha-nova update` offers only the default one's.
+	serverSelectionOverride = "cabin"
+	if got, rest := withAppUpdateToo(cli, pending); got.message != cli.message || rest.message != "x" {
+		t.Fatalf("--server keeps the App notice: %q, rest %q", got.message, rest.message)
+	}
+	serverSelectionOverride = ""
 	upToDate := humanNotice{level: humanNoticeInfo, kind: humanNoticeKindUpToDate, message: "HA NOVA is up to date (0.1.0)."}
 	if got, rest := withAppUpdateToo(upToDate, pending); got.message != upToDate.message || rest.message != "x" {
 		t.Fatalf("no offer: the App notice stays its own: %q, rest %q", got.message, rest.message)
