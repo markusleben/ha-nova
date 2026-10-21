@@ -73,7 +73,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 
 Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.
 
-Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule; a typed `apply` result restates the effect the code was for and whether it was verified. After `apply`, read the `members[]` the preview named (the door a mode unlocks) and say their state; a delayed step may still change it. A preview (exit 2 or 3) closes with `say` (names, a single target's arrow one-liner, warnings, an explicit not-executed-yet line); with several targets, more become the `Field | Before | After` mini table, warnings kept; on the typed tier only `say`'s ask — no menu. A grouped set or Test Plan Card asks once instead of `say`'s last sentence, except on the typed tier.
+Results (exit 0, 6, 7, after `apply`) follow Verb Results; a typed `apply` result without `say` restates the effect the code was for and whether it was verified. After `apply`, read the `members[]` the preview named (the door a mode unlocks) and say their state; a delayed step may still change it. A preview (exit 2 or 3) closes with `say` (names, a single target's arrow one-liner, warnings, an explicit not-executed-yet line); with several targets, more become the `Field | Before | After` mini table, warnings kept; on the typed tier only `say`'s ask — no menu. A grouped set or Test Plan Card asks once instead of `say`'s last sentence, except on the typed tier.
 
 ## Safety
 

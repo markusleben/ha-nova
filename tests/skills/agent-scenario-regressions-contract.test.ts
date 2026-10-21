@@ -136,7 +136,7 @@ describe("agent scenario regressions (2026-10-16)", () => {
     // Up to 10 explicit ids would run at once (ordinary tier); the domain list never may.
     expect(sc).not.toContain("one `call`, no pre-question");
     expect(sc).toContain("more → a `plan call` preview, an area/device target, or ask.");
-    expect(sc).toContain("a typed `apply` result restates the effect the code was for and whether it was verified.");
+    expect(sc).toContain("a typed `apply` result without `say` restates the effect the code was for and whether it was verified.");
   });
 
   it("flags a sibling variable only when it is used above its declaration", () => {
@@ -170,8 +170,8 @@ describe("agent scenario regressions (2026-10-20)", () => {
     expect(index).toContain("Answer in the language of the user's sentence, not of a name in it.");
     expect(index).toContain("Ask with the plan's `say`, word for word, only translated");
     expect(index).toContain('"Type <code> to <goal> — a plain yes can\'t confirm this."');
-    expect(index).toContain("A result's `say` is its outcome line, word for word, only translated.");
-    expect(index).toContain('After a verified save: `✅ Saved: <type> "<name>"`, that line (none: what was checked), then, if it can be undone,');
+    expect(index).toContain("Results: relay `say` too.");
+    expect(index).toContain('A verified create/update: `✅ Saved: <type> "<name>"`, `say` (none: what was checked), then, if it can be undone,');
     expect(flat("skills/ha-nova/output-cards.md")).toContain("Ask and result shapes: `../ha-nova/index.md` → Say it.");
   });
 

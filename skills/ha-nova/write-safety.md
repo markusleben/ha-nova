@@ -181,9 +181,9 @@ the physical action succeeds.
 
 Wording rules for the result and the collapsed no-findings line:
 
-- Never a bare "verified"/"works now". Name the proven scope instead — the
-  localized equivalent of: "Saved and checked: it is stored and Home
-  Assistant loaded it. I didn't run it yet."
+- Never a bare "verified"/"works now". Name the proven scope: the result's
+  `say` (none: "Saved and checked: Home Assistant stored and loaded it."),
+  then "I didn't run it yet."
 - Where a real run is meaningful, offer it as an explicit optional step: a
   manual trigger via `ha-nova:service-call` (its own preview + confirmation —
   it may actuate real devices; never run it unrequested). For automations and

@@ -54,8 +54,8 @@ may have changed.
 
 A `ha-nova call` or `apply` result is at most three lines:
 
-1. what ran, with the resolved names (area when it disambiguates);
-2. its `say`, word for word, only translated; else the outcome — verified, accepted (sent, effect not observable), unverified, failed, or "may have run, unknown" — with any per-entity discrepancy ("still locked after 10s"); `no_change`: only `say`;
+1. no `say`: what ran, with resolved names (area when it disambiguates);
+2. its `say`, word for word, only translated (else the outcome: verified, accepted (sent, effect not observable), unverified, failed, or unknown), plus per-entity states it lacks (a `members[]` state, "still locked after 10s"); `no_change`: only `say`;
 3. `notices[]` not yet surfaced this session.
 
 No card.

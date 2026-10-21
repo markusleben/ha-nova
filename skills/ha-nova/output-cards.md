@@ -53,7 +53,7 @@ Type <four digits> to delete — a plain yes can't confirm this.
 Destructive batch previews and results render the Batch Cards defined in
 `../ha-nova/batch-safety.md` — same emoji vocabulary and rules.
 
-**Result Card** (after verification — line 2 is the result's `say`, word for word (none: name only the proven scope, per `../ha-nova/write-safety.md` → Verification Honesty); findings, if any, follow with 🔴🟠🟡):
+**Result Card** (verified only — line 2 opens with the result's `say`, word for word, unless the skill's own read-back differs (none: name only the proven scope, per `../ha-nova/write-safety.md` → Verification Honesty); findings, if any, follow with 🔴🟠🟡):
 
 ```
 ✅ Saved: automation "Morning routine"

@@ -90,8 +90,9 @@ describe("output design system (Cards)", () => {
   it("keeps the result card scope-honest", () => {
     expect(outputRules).toContain("I didn't run it yet.");
     // The CLI writes the result line (`say`, cli/say_lines.go); the card relays it.
-    expect(outputRules).toContain("line 2 is the result's `say`, word for word (none: name only the proven scope");
-    expect(outputRules).toContain("2. its `say`, word for word, only translated; else the outcome");
+    expect(outputRules).toContain("line 2 opens with the result's `say`, word for word, unless the skill's own read-back differs (none: name only the proven scope");
+    expect(outputRules).toContain("plus per-entity states it lacks (a `members[]` state");
+    expect(outputRules).toContain("2. its `say`, word for word, only translated (else the outcome");
     expect(outputRules).not.toContain("Runtime behavior was not exercised.");
     expect(outputRules).toContain("Verification Honesty");
   });
