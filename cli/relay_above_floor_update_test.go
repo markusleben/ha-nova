@@ -110,6 +110,7 @@ func TestRelayUpdateNoticeClassifiesBelowFloorAppBeforeOfferingGuidedUpdate(t *t
 		wantKind   humanNoticeKind
 		wantText   string
 		rejectText string
+		wantPage   bool // below the floor with a pending App update: the setup page may update it
 	}{
 		{
 			name: "exact pending App update",
@@ -119,6 +120,7 @@ func TestRelayUpdateNoticeClassifiesBelowFloorAppBeforeOfferingGuidedUpdate(t *t
 			wantKind:   humanNoticeKindRelayUpdateAvailable,
 			wantText:   "offer to prepare the guided App update through ha-nova:updates",
 			rejectText: "standalone Relay container",
+			wantPage:   true,
 		},
 		{
 			name:       "no App update entity",
@@ -179,6 +181,9 @@ func TestRelayUpdateNoticeClassifiesBelowFloorAppBeforeOfferingGuidedUpdate(t *t
 			}
 			if strings.Contains(notice.message, tc.rejectText) {
 				t.Fatalf("notice must not contain %q: %s", tc.rejectText, notice.message)
+			}
+			if notice.belowFloor != tc.wantPage || notice.appUpdate != tc.wantPage {
+				t.Fatalf("belowFloor=%v appUpdate=%v, want %v", notice.belowFloor, notice.appUpdate, tc.wantPage)
 			}
 		})
 	}
@@ -363,12 +368,16 @@ func TestRunCheckUpdateQuietReportsHANOVAAndAboveFloorRelayUpdates(t *testing.T)
 	if exitCode != 0 {
 		t.Fatalf("compatible pending Relay update must not fail check-update: exit %d\n%s", exitCode, output)
 	}
-	skillNotice := "Update available: v0.20.0 -> v0.21.0"
+	skillNotice := "HA NOVA 0.21.0 is ready (you have 0.20.0)."
 	relayNotice := "Relay update available: v0.4.1 → v0.6.0"
 	if !strings.Contains(output, skillNotice) || !strings.Contains(output, relayNotice) {
 		t.Fatalf("quiet check-update did not surface both updates:\n%s", output)
 	}
 	if strings.Index(output, skillNotice) > strings.Index(output, relayNotice) {
 		t.Fatalf("HA NOVA update must precede the Relay update:\n%s", output)
+	}
+	// One notice names both updates, so the chat offer can too.
+	if !strings.Contains(output, appUpdateTooLine+"\nTo update, run: ha-nova update") || strings.Index(output, appUpdateTooLine) > strings.Index(output, relayNotice) {
+		t.Fatalf("the HA NOVA notice must name the App update too:\n%s", output)
 	}
 }

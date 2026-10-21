@@ -209,27 +209,22 @@ func TestDeriveReleaseHighlightsDeterministic(t *testing.T) {
 	}
 }
 
-func TestFormatReleaseHighlightLinesSharedShape(t *testing.T) {
-	lines := formatReleaseHighlightLines([]releaseHighlight{
-		{Kind: releaseHighlightKindAction, Text: "Do the thing"},
-		{Kind: releaseHighlightKindFix, Text: ""},
-		{Kind: releaseHighlightKindFeature, Text: "New skill"},
-	})
-	want := []string{"- Do the thing", "- New skill"}
-	if !reflect.DeepEqual(lines, want) {
-		t.Fatalf("lines = %+v, want %+v", lines, want)
+func TestReleaseHeadlineIsOneSentenceFeatureFirst(t *testing.T) {
+	highlights := []releaseHighlight{
+		{Kind: releaseHighlightKindAction, Text: "Update the NOVA Relay App too. This release needs Relay 0.10.0."},
+		{Kind: releaseHighlightKindFix, Text: "Made-up services are refused."},
+		{Kind: releaseHighlightKindFeature, Text: "Sign in with Home Assistant to pair. Setup opens your login."},
 	}
-}
-
-func TestReleaseHighlightNoticeSuffixFallsBackToURLOnly(t *testing.T) {
-	if got := releaseHighlightNoticeSuffix(nil, ""); got != "" {
-		t.Fatalf("no digest, no URL: suffix = %q, want empty", got)
+	if got := releaseHeadline(highlights); got != "Sign in with Home Assistant to pair." {
+		t.Fatalf("headline = %q, want the first feature's first sentence", got)
 	}
-	if got := releaseHighlightNoticeSuffix(nil, "https://example.test/v1"); got != "\nRelease notes: https://example.test/v1" {
-		t.Fatalf("URL-only suffix = %q", got)
+	if got := releaseHeadline(highlights[:2]); got != "Made-up services are refused." {
+		t.Fatalf("no feature: headline = %q, want the fix", got)
 	}
-	full := releaseHighlightNoticeSuffix([]releaseHighlight{{Kind: releaseHighlightKindFix, Text: "Fix it"}}, "https://example.test/v1")
-	if full != "\nHighlights:\n- Fix it\nRelease notes: https://example.test/v1" {
-		t.Fatalf("full suffix = %q", full)
+	if got := releaseHeadline(highlights[:1]); got != "Update the NOVA Relay App too." {
+		t.Fatalf("action only: headline = %q", got)
+	}
+	if got := releaseHeadline(nil); got != "" {
+		t.Fatalf("no digest: headline = %q, want empty", got)
 	}
 }

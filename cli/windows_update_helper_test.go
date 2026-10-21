@@ -29,10 +29,12 @@ func TestWindowsHelperLaunchProfileKeepsConsoleOutput(t *testing.T) {
 }
 
 func TestWindowsStagingInstructionKeepsFirstUpgradeGuidanceConditional(t *testing.T) {
-	if !strings.Contains(windowsUpdateStagedInstruction, "After it reports success") {
+	// The helper is a copy of this same binary, so it prints exactly the
+	// "Updated HA NOVA" line this instruction waits for.
+	if !strings.Contains(windowsUpdateStagedInstruction, `When it says "Updated HA NOVA"`) {
 		t.Fatalf("expected staging instruction to make new-session guidance conditional: %q", windowsUpdateStagedInstruction)
 	}
-	if !strings.Contains(windowsUpdateStagedInstruction, "start a new AI client session") {
+	if !strings.Contains(windowsUpdateStagedInstruction, "start a new chat in your AI app") {
 		t.Fatalf("expected staging instruction to preserve guidance for an older replacement helper: %q", windowsUpdateStagedInstruction)
 	}
 }
@@ -200,7 +202,7 @@ func TestRunInternalReplacePrintsFinalSuccess(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("runInternalReplace() exit = %d\n%s", exitCode, output)
 	}
-	if !strings.Contains(output, "Updated to v") {
+	if !strings.Contains(output, "Updated HA NOVA to ") {
 		t.Fatalf("expected final update success output:\n%s", output)
 	}
 	if !strings.HasSuffix(strings.TrimSpace(output), postUpdateSessionInstruction) {

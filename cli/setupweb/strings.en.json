@@ -349,6 +349,8 @@
   "setup.page.rerun.problem_app_only": "Home Assistant answers, but the NOVA App doesn't. Check that the NOVA App is installed and running in Home Assistant, then check again. Or choose Fix it to sign in and start it.",
   "setup.page.rerun.problem_app": "HA NOVA can't reach Home Assistant. Is this computer at home? Check that Home Assistant runs, then check again. Or choose Fix it to change the address or sign in again.",
   "setup.page.rerun.fix": "Fix it",
+  "setup.page.rerun.update_app": "Update the NOVA App",
+  "setup.page.rerun.problem_app_old": "Your NOVA App in Home Assistant is too old for this HA NOVA. Click Update the NOVA App, then sign in to Home Assistant. Only the NOVA App gets updated, after a backup.",
   "setup.page.rerun.done": "Done",
   "setup.page.rerun.done_signin": "Done, then sign in",
   "setup.page.rerun.add_server": "Add another Home Assistant server",

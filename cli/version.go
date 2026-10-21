@@ -50,6 +50,8 @@ type updateCheckResult struct {
 	// Additive digest fields (#403); existing fields and exit codes are pinned.
 	PublishedAt       string             `json:"published_at,omitempty"`
 	ReleaseHighlights []releaseHighlight `json:"release_highlights,omitempty"`
+	// human: the same result in plain words for the terminal (never JSON).
+	human string
 }
 
 type parsedReleaseVersion struct {
@@ -343,8 +345,8 @@ func relayUpdateNoticeWithContext(ctx context.Context, paths runtimePaths) human
 		if candidate.updateAvailable() {
 			if !candidate.guidedInstallReady() {
 				return humanNotice{
-					level: humanNoticeWarning,
-					kind:  humanNoticeKindRelayUpdateAvailable,
+					level: humanNoticeWarning, appUpdate: true, belowFloor: true,
+					kind: humanNoticeKindRelayUpdateAvailable,
 					message: fmt.Sprintf(
 						"%s Home Assistant reports a NOVA Relay App update: v%s → v%s, but its entity does not support the required install-plus-backup flow. Inform the user to update it manually in Home Assistant > Settings > Apps > NOVA Relay.",
 						floorNotice.message,
@@ -354,8 +356,8 @@ func relayUpdateNoticeWithContext(ctx context.Context, paths runtimePaths) human
 				}
 			}
 			return humanNotice{
-				level: humanNoticeWarning,
-				kind:  humanNoticeKindRelayUpdateAvailable,
+				level: humanNoticeWarning, appUpdate: true, belowFloor: true,
+				kind: humanNoticeKindRelayUpdateAvailable,
 				message: fmt.Sprintf(
 					"%s Home Assistant reports a NOVA Relay App update: v%s → v%s. Inform the user, then offer to prepare the guided App update through ha-nova:updates; that skill must show its preview and obtain confirmation before installing.",
 					floorNotice.message,
@@ -393,8 +395,8 @@ func relayAvailableUpdateNoticeFromCandidate(candidate relayUpdateCandidate) hum
 	}
 	if !candidate.guidedInstallReady() {
 		return humanNotice{
-			level: humanNoticeWarning,
-			kind:  humanNoticeKindRelayUpdateAvailable,
+			level: humanNoticeWarning, appUpdate: true,
+			kind: humanNoticeKindRelayUpdateAvailable,
 			message: fmt.Sprintf(
 				"Relay update available: v%s → v%s, but the App entity does not support the required install-plus-backup flow. Inform the user to update it manually in Home Assistant > Settings > Apps > NOVA Relay.",
 				candidate.InstalledVersion,
@@ -403,8 +405,8 @@ func relayAvailableUpdateNoticeFromCandidate(candidate relayUpdateCandidate) hum
 		}
 	}
 	return humanNotice{
-		level: humanNoticeWarning,
-		kind:  humanNoticeKindRelayUpdateAvailable,
+		level: humanNoticeWarning, appUpdate: true,
+		kind: humanNoticeKindRelayUpdateAvailable,
 		message: fmt.Sprintf(
 			"Relay update available: v%s → v%s. Inform the user, then offer to prepare the guided App update through ha-nova:updates; that skill must show its preview and obtain confirmation before installing.",
 			candidate.InstalledVersion,

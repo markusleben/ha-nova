@@ -37,7 +37,11 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 		c := f.current
 		// Skills set up before and now out of date: refreshed without a question.
 		refresh := len(before) == 0 || !slices.ContainsFunc(notReady, func(client string) bool { return !slices.Contains(f.state.InstalledClients, client) })
-		if c.ConfigOK && c.TokenOK && c.RelayOK && c.WSOK && refresh {
+		app := f.pageApp()
+		// An App older than this HA NOVA needs, which the owner sign-in can
+		// update: that is the one thing to do, before the switches.
+		appUpdate := app.state == "old" && app.primary == "update"
+		if c.ConfigOK && c.TokenOK && c.RelayOK && c.WSOK && refresh && !appUpdate {
 			f.pageRerunOK = true
 			if c.SkillsOK {
 				if len(marker) == 0 && len(f.lifecycleMarker) > 0 {
@@ -52,17 +56,21 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 			f.pageRepairing("teach")
 			return setupGoTo(f.routeKnownAddress(setupStepHost)), true
 		}
-		rows, problem := f.pageRerunRows()
+		rows, problem := f.pageRerunRows(app)
 		appDown := problem != nil
-		accepts, links := []string{"fix"}, map[string]string{}
+		accepts, links, fix := []string{"fix"}, map[string]string{}, ""
 		if appDown {
 			accepts = []string{"recheck", "fix"}
 		}
 		if appDown && problem.Key == "setup.page.rerun.problem_app_only" { // the App page opens only while Home Assistant answers
 			links["app"] = haInstallRelayAppURL(f.cfg.HAURL)
 		}
+		if appUpdate && !appDown { // its button says what it does; step 1's sign-in updates the App
+			problem, fix, accepts = setupPageText("setup.page.rerun.problem_app_old"), "app_update", []string{"recheck", "fix"}
+			links["app"] = haRelayAppPageURL(f.cfg.HAURL) // or update it in Home Assistant, then Check again
+		}
 		f.page.update(func(v *setupPageState) {
-			v.Screen, v.Rows, v.Problem, v.Links, v.Control = "rerun_fix", rows, problem, links, nil
+			v.Screen, v.Rows, v.Problem, v.Links, v.Control, v.Fix = "rerun_fix", rows, problem, links, nil, fix
 		})
 		action, err := f.page.wait(accepts...)
 		if err != nil {
@@ -72,7 +80,7 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 			f.current = detectSetupStateForAssessment(f.paths, f.cfg, f.state, f.target, f.savedTokenBeforeSetup, f.hadSavedTokenBeforeSetup)
 			continue
 		}
-		if appDown { // another address, or the sign-in that installs or starts the App: step 1
+		if appDown || appUpdate { // another address, or the sign-in that installs, updates, or starts the App: step 1
 			f.pageRepairing()
 			return setupGoTo(setupStepHost), true
 		}
@@ -114,9 +122,8 @@ func (f *setupFlow) pageClientsNotReady() []string {
 // pageRerunRows: what is set up, from the same checks as the terminal's
 // status screen. problem: the NOVA App doesn't answer at all (nil: it does);
 // "Is this computer at home?" only when Home Assistant doesn't answer either.
-func (f *setupFlow) pageRerunRows() (rows []setupPageRow, problem *setupPageMsg) {
+func (f *setupFlow) pageRerunRows(app setupPageApp) (rows []setupPageRow, problem *setupPageMsg) {
 	c := f.current
-	app := f.pageApp()
 	appRow := setupPageRow{ID: "app", State: "ok", Msg: setupPageText("setup.page.app.running")}
 	switch {
 	case app.state == "old":
@@ -150,7 +157,7 @@ func (f *setupFlow) pageRerunRows() (rows []setupPageRow, problem *setupPageMsg)
 // the AI assistants found since, to set up with a click.
 func (f *setupFlow) pageRerunControl() {
 	f.current = setupState{ConfigOK: true, TokenOK: true, RelayOK: true, WSOK: true, SkillsOK: true}
-	rows, _ := f.pageRerunRows()
+	rows, _ := f.pageRerunRows(f.pageApp())
 	links := map[string]string{}
 	if rows[1].State != "ok" { // an App that needs an update
 		links["app"] = haRelayAppPageURL(f.cfg.HAURL)

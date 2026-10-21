@@ -25,6 +25,9 @@ const (
 	humanNoticeNone    humanNoticeLevel = ""
 	humanNoticeInfo    humanNoticeLevel = "info"
 	humanNoticeWarning humanNoticeLevel = "warning"
+	// humanNoticeNote: news, not a problem — stderr like a warning (stdout
+	// stays clean for JSON) but without the WARNING label.
+	humanNoticeNote humanNoticeLevel = "note"
 )
 
 type humanNoticeKind string
@@ -42,6 +45,9 @@ type humanNotice struct {
 	level   humanNoticeLevel
 	kind    humanNoticeKind
 	message string
+	// Relay notices: Home Assistant reports a pending NOVA App update
+	// (appUpdate), for an App below what this version needs (belowFloor).
+	appUpdate, belowFloor bool
 }
 
 var uiEnvLookup = os.Getenv
@@ -198,6 +204,12 @@ func printHumanNotice(notice humanNotice) {
 	switch notice.level {
 	case humanNoticeInfo:
 		printHumanInfo("%s", notice.message)
+	case humanNoticeNote:
+		prefix := resolveStatusUISession(os.Stderr).style("accent", "[ha-nova]")
+		if prefix == "" {
+			prefix = "[ha-nova]"
+		}
+		writeStyledLine(os.Stderr, prefix, notice.message)
 	default:
 		printHumanWarn("%s", notice.message)
 	}

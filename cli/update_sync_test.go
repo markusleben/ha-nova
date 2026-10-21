@@ -107,6 +107,40 @@ func TestPostUpdateSyncRepairsConfiguredClaudeWhenMarketplaceRecordIsMissing(t *
 	}
 }
 
+// A client that still isn't attached after its sync is not verified: the
+// marker is cleared so check-update and doctor retry the repair.
+func TestPostUpdateSyncClearsTheMarkerWhenClaudeIsNotAttachedAfterSync(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(home, ".claude", "plugins"), 0o755); err != nil {
+		t.Fatalf("mkdir plugins: %v", err)
+	}
+	writeInstalledClaudePluginFixture(t, home)
+	writeClaudeMarketplaceFixture(t, paths.InstallRoot)
+	t.Setenv("PATH", installClaudeMock(t, home, filepath.Join(home, "claude.log"))+string(os.PathListSeparator)+os.Getenv("PATH"))
+	withClientAttachmentPresence(t, map[string]bool{"claude": false})
+	if err := saveState(paths, installState{SchemaVersion: stateSchemaVersion, InstalledClients: []string{"claude"}, ClientsVerifiedVersion: localVersion(paths)}); err != nil {
+		t.Fatalf("saveState() error: %v", err)
+	}
+
+	var result postUpdateSyncResult
+	_, output := captureCommandOutput(t, func() int { result = postUpdateSyncWithResult(paths); return 0 })
+	if result.Err != nil || result.FullySynced || len(result.Synced) != 0 {
+		t.Fatalf("result = %+v", result)
+	}
+	if !strings.Contains(output, "Not ready in Claude Code after the update. Run: ha-nova doctor") {
+		t.Fatalf("missing warning:\n%s", output)
+	}
+	state, err := loadState(paths)
+	if err != nil || state.ClientsVerifiedVersion != "" {
+		t.Fatalf("marker = %q (err %v), want cleared", state.ClientsVerifiedVersion, err)
+	}
+}
+
 func TestPostUpdateSyncRefreshesAllDetectedClients(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -181,8 +215,20 @@ func TestPostUpdateSyncRefreshesAllDetectedClients(t *testing.T) {
 	logPath := filepath.Join(home, "claude.log")
 	t.Setenv("PATH", installClaudeMock(t, home, logPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	if err := postUpdateSync(paths); err != nil {
-		t.Fatalf("postUpdateSync() error: %v", err)
+	result := postUpdateSyncWithResult(paths)
+	if result.Err != nil {
+		t.Fatalf("postUpdateSync() error: %v", result.Err)
+	}
+	// Every installed AI app is refreshed and verified, and the one-line
+	// summary names each of them.
+	if len(result.Synced) != 5 || len(result.Skipped) != 0 || !result.FullySynced {
+		t.Fatalf("expected all five AI apps refreshed and verified, got %+v", result)
+	}
+	summary := captureStdout(t, func() { printUpdateDone("Updated HA NOVA to 0.27.0", result) })
+	for _, label := range result.Synced {
+		if !strings.Contains(summary, label) {
+			t.Fatalf("summary %q misses %s", summary, label)
+		}
 	}
 
 	logData, err := os.ReadFile(logPath)

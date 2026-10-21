@@ -2,12 +2,10 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 )
@@ -430,85 +428,6 @@ func doctorClientSetupCommand(clientID string) string {
 		)
 	}
 	return fmt.Sprintf("ha-nova setup %s", clientID)
-}
-
-func runCheckUpdate(paths runtimePaths, args []string) int {
-	fs := flag.NewFlagSet("check-update", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	quiet := fs.Bool("quiet", false, "print only when an update is available; stay silent when current")
-	jsonOutput := fs.Bool("json", false, "machine-readable result on stdout")
-	server := fs.String("server", "", "server profile whose Relay is checked (multi-server installs)")
-	if err := fs.Parse(args); err != nil {
-		if helpRequested(err, fs, "ha-nova check-update [--quiet] [--json] [--server <name>]") {
-			return 0
-		}
-		printHumanErr("%s", err)
-		return 1
-	}
-	if err := selectServerFlag(fs, *server); err != nil {
-		printHumanErr("%s", err)
-		return 1
-	}
-
-	result := buildUpdateCheckResult(paths)
-	if *jsonOutput { // the CLI/skills result only: no server involved
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		if err := enc.Encode(result); err != nil {
-			printHumanErr("%s", err)
-			return 1
-		}
-		return updateCheckExitCode(result)
-	}
-	if *server != "" { // a mistyped server must not count as checked
-		if _, err := loadConfig(paths); err != nil {
-			printHumanErr("%s", err)
-			return 1
-		}
-	}
-
-	// Human/quiet path only (the `--json` branch above stays machine-clean): every
-	// client runs `check-update` on first skill use per session, so this is the
-	// universal point to self-heal client integrations once after a version change.
-	// Best-effort; never blocks the update check.
-	migrationContended := false
-	if *quiet {
-		_, migrationContended = repairMissingSessionBootstrapWithContention(paths)
-	}
-	ensureClientsVerifiedForCurrentVersion(paths)
-	defer markSessionBootstrapLayoutVerified(paths)
-
-	notice := humanNoticeFromUpdateCheckResult(result, *quiet)
-	if !notice.empty() {
-		printHumanNotice(notice)
-	}
-	// CLI/skills freshness is only half the answer: the relay in Home
-	// Assistant has its own version, and "up to date" would be misleading
-	// below min_relay_version or while an App update is pending. The quiet
-	// first-skill-use path must include this exact check too: relay response
-	// headers prove only the compatibility floor and cannot expose a compatible
-	// above-floor App update. Stderr-only, exit code unchanged; --json returned
-	// above and stays machine-clean.
-	var relayNotice humanNotice
-	if *quiet {
-		relayNotice = relayUpdateNoticeWithTimeout(paths, firstUseRelayNoticeTimeout)
-	} else {
-		relayNotice = relayUpdateNotice(paths)
-	}
-	if !relayNotice.empty() {
-		printHumanNotice(relayNotice)
-	}
-	if *quiet {
-		deadline := time.Now()
-		if migrationContended {
-			deadline = deadline.Add(sessionBootstrapCarrierContentionWait)
-		}
-		finalizePendingSessionBootstrapCarrierUntil(paths, deadline)
-	}
-	if notice.empty() {
-		return 0
-	}
-	return updateCheckExitCode(result)
 }
 
 func fetchRelayHealth(relayBaseURL, token string) ([]byte, error) {

@@ -59,7 +59,7 @@ func TestSkillUpdateNudgeNoticeThrottlesTo24h(t *testing.T) {
 	if notice.kind != humanNoticeKindUpdateAvailable {
 		t.Fatalf("kind = %q, want %q", notice.kind, humanNoticeKindUpdateAvailable)
 	}
-	if !strings.Contains(notice.message, "v0.1.0 -> v0.2.0") {
+	if !strings.Contains(notice.message, "HA NOVA 0.2.0 is ready (you have 0.1.0).") {
 		t.Fatalf("message missing versions: %q", notice.message)
 	}
 	if !strings.Contains(notice.message, "ha-nova update") {
@@ -230,15 +230,15 @@ func TestSkillUpdateNudgeRefreshThrottleFollowsCacheTTLNotNoticeInterval(t *test
 	}
 }
 
-func TestSkillUpdateNudgeMessageMatchesInstallSourceGuidance(t *testing.T) {
-	normal := skillUpdateNudgeMessage("HA NOVA update available", "0.1.0", "0.2.0", installSourceBundle, nil, "")
-	if !strings.Contains(normal, "Run: ha-nova update") {
-		t.Fatalf("bundle install must advise ha-nova update: %q", normal)
+func TestUpdateReadyTextMatchesInstallSourceGuidance(t *testing.T) {
+	normal := updateReadyText("0.1.0", "0.2.0", installSourceBundle, nil, "")
+	if normal != "HA NOVA 0.2.0 is ready (you have 0.1.0).\nTo update, run: ha-nova update" {
+		t.Fatalf("bundle install: %q", normal)
 	}
 	// Legacy Windows package installs reject `ha-nova update` in runUpdate, so
 	// the passive nudge must never advertise a known-failing command.
-	legacy := skillUpdateNudgeMessage("HA NOVA update available", "0.1.0", "0.2.0", installSourceLegacyWindowsPackage, nil, "")
-	if strings.Contains(legacy, "Run: ha-nova update") {
+	legacy := updateReadyText("0.1.0", "0.2.0", installSourceLegacyWindowsPackage, nil, "")
+	if strings.Contains(legacy, "ha-nova update") {
 		t.Fatalf("legacy Windows package installs must not be told to run ha-nova update: %q", legacy)
 	}
 	if !strings.Contains(legacy, "install.ps1") {
@@ -246,27 +246,24 @@ func TestSkillUpdateNudgeMessageMatchesInstallSourceGuidance(t *testing.T) {
 	}
 }
 
-func TestSkillUpdateNudgeMessageComposesHighlightsAroundPinnedGuidance(t *testing.T) {
+func TestUpdateReadyTextIsPlainWithOneHighlight(t *testing.T) {
 	highlights := []releaseHighlight{
 		{Kind: releaseHighlightKindAction, Text: "Re-run ha-nova setup after updating"},
-		{Kind: releaseHighlightKindFeature, Text: "New energy skill"},
+		{Kind: releaseHighlightKindFeature, Text: "New energy skill. Ask about your power use."},
 	}
-	message := skillUpdateNudgeMessage("HA NOVA update available", "0.1.0", "0.2.0", installSourceBundle, highlights, "https://example.test/v0.2.0")
-	if !strings.Contains(message, "Inform the user: Run: ha-nova update (new session required after update).") {
-		t.Fatalf("pinned guidance must stay intact: %q", message)
+	got := updateReadyText("0.1.0", "0.2.0", installSourceBundle, highlights, "https://example.test/v0.2.0")
+	want := "HA NOVA 0.2.0 is ready (you have 0.1.0).\nNew: New energy skill.\nTo update, run: ha-nova update\nWhat's new: https://example.test/v0.2.0"
+	if got != want {
+		t.Fatalf("notice =\n%s\nwant\n%s", got, want)
 	}
-	for _, want := range []string{
-		"Highlights:\n- Re-run ha-nova setup after updating\n- New energy skill",
-		"Release notes: https://example.test/v0.2.0",
-	} {
-		if !strings.Contains(message, want) {
-			t.Fatalf("expected %q in nudge message %q", want, message)
+	for _, jargon := range []string{"Inform the user", "WARNING", "->", "Highlights:"} {
+		if strings.Contains(got, jargon) {
+			t.Fatalf("notice keeps %q: %q", jargon, got)
 		}
 	}
-	// Legacy Windows guidance composes with the digest too, never replaced by it.
-	legacy := skillUpdateNudgeMessage("HA NOVA update available", "0.1.0", "0.2.0", installSourceLegacyWindowsPackage, highlights, "https://example.test/v0.2.0")
-	if !strings.Contains(legacy, "install.ps1") || !strings.Contains(legacy, "Highlights:") {
-		t.Fatalf("legacy guidance and highlights must both be present: %q", legacy)
+	// A test release says so: the channel is part of the plain words.
+	if rc := updateReadyText("0.2.0-rc1", "0.2.0", installSourceBundle, nil, ""); !strings.HasPrefix(rc, "HA NOVA 0.2.0 is ready (you have the test release 0.2.0-rc1).") {
+		t.Fatalf("rc wording: %q", rc)
 	}
 }
 
@@ -289,9 +286,9 @@ func TestSkillUpdateNudgeNoticeCarriesHighlightsFromCacheOnly(t *testing.T) {
 		t.Fatal("expected an update notice")
 	}
 	for _, want := range []string{
-		"v0.1.0 -> v0.2.0",
-		"Highlights:\n- New energy skill\n- Fix relay reconnect loop",
-		"Release notes: https://example.test/releases/v0.2.0",
+		"HA NOVA 0.2.0 is ready (you have 0.1.0).",
+		"New: New energy skill",
+		"What's new: https://example.test/releases/v0.2.0",
 	} {
 		if !strings.Contains(notice.message, want) {
 			t.Fatalf("expected %q in notice %q", want, notice.message)
@@ -313,7 +310,7 @@ func TestSkillUpdateNudgeNoticeOffersFinalReleaseToRC(t *testing.T) {
 	if notice.empty() || notice.kind != humanNoticeKindUpdateAvailable {
 		t.Fatalf("rc build with its final release: expected an update notice, got %+v", notice)
 	}
-	if !strings.Contains(notice.message, "HA NOVA update available: v0.2.0-rc1 -> v0.2.0") {
+	if !strings.Contains(notice.message, "HA NOVA 0.2.0 is ready (you have the test release 0.2.0-rc1).") {
 		t.Fatalf("message missing update lead or versions: %q", notice.message)
 	}
 }

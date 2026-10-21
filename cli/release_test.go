@@ -51,10 +51,11 @@ func TestCheckForUpdateReturnsStructuredUpdateAvailableNotice(t *testing.T) {
 	if notice.kind != humanNoticeKindUpdateAvailable {
 		t.Fatalf("notice.kind = %q, want %q", notice.kind, humanNoticeKindUpdateAvailable)
 	}
-	if notice.level != humanNoticeWarning {
-		t.Fatalf("notice.level = %q, want %q", notice.level, humanNoticeWarning)
+	// News, not a problem: no WARNING label.
+	if notice.level != humanNoticeNote {
+		t.Fatalf("notice.level = %q, want %q", notice.level, humanNoticeNote)
 	}
-	if !strings.Contains(notice.message, "Run: ha-nova update") {
+	if !strings.Contains(notice.message, "To update, run: ha-nova update") {
 		t.Fatalf("expected update guidance in message, got %q", notice.message)
 	}
 }
@@ -233,7 +234,7 @@ func TestRunUpdateIgnoresFreshReleaseCacheWhenResolvingTargetVersion(t *testing.
 		}
 	})
 
-	if !strings.Contains(output, "Already up to date: v0.2.3") {
+	if !strings.Contains(output, "HA NOVA 0.2.3 is up to date") {
 		t.Fatalf("expected up-to-date message, got %q", output)
 	}
 	if strings.Contains(output, "target v0.2.1") {
@@ -360,42 +361,26 @@ func TestRunCheckUpdateJSONOmitsAbsentDigestFields(t *testing.T) {
 	}
 }
 
-func TestHumanNoticeComposesDigestAroundPinnedGuidance(t *testing.T) {
+func TestHumanNoticeIsPlainAndKeepsJSONMessage(t *testing.T) {
 	result := updateCheckResult{
-		Status:  "update_available",
-		Message: "Update available: v0.1.0 -> v0.2.0 | Run: ha-nova update",
-		HTMLURL: "https://example.invalid/releases/v0.2.0",
+		Status:         "update_available",
+		CurrentVersion: "0.1.0",
+		LatestVersion:  "0.2.0",
+		Message:        "Update available: v0.1.0 -> v0.2.0 | Run: ha-nova update",
+		HTMLURL:        "https://example.invalid/releases/v0.2.0",
 		ReleaseHighlights: []releaseHighlight{
 			{Kind: releaseHighlightKindFix, Text: "Fix relay reconnect loop"},
 		},
 	}
 	notice := humanNoticeFromUpdateCheckResult(result, false)
-	if !strings.HasPrefix(notice.message, result.Message) {
-		t.Fatalf("digest must compose AFTER the pinned guidance, got %q", notice.message)
+	want := "HA NOVA 0.2.0 is ready (you have 0.1.0).\nNew: Fix relay reconnect loop\nTo update, run: ha-nova update\nWhat's new: https://example.invalid/releases/v0.2.0"
+	if notice.message != want || notice.level != humanNoticeNote {
+		t.Fatalf("notice = %+v", notice)
 	}
-	if !strings.Contains(notice.message, "Highlights:\n- Fix relay reconnect loop") {
-		t.Fatalf("expected highlight lines in %q", notice.message)
-	}
-	if !strings.Contains(notice.message, "Release notes: https://example.invalid/releases/v0.2.0") {
-		t.Fatalf("expected release URL in %q", notice.message)
-	}
-}
-
-func TestHumanNoticeWithoutDigestKeepsGenericMessagePlusURL(t *testing.T) {
-	result := updateCheckResult{
-		Status:  "update_available",
-		Message: "Update available: v0.1.0 -> v0.2.0 | Run: ha-nova update",
-		HTMLURL: "https://example.invalid/releases/v0.2.0",
-	}
-	notice := humanNoticeFromUpdateCheckResult(result, false)
-	if notice.message != result.Message+"\nRelease notes: https://example.invalid/releases/v0.2.0" {
-		t.Fatalf("fallback notice = %q", notice.message)
-	}
-
-	// No digest and no URL: today's generic notice, byte-identical.
-	bare := updateCheckResult{Status: "update_available", Message: result.Message}
-	if got := humanNoticeFromUpdateCheckResult(bare, false); got.message != result.Message {
-		t.Fatalf("generic notice changed: %q", got.message)
+	// No digest and no URL: the version line and the step only.
+	bare := updateCheckResult{Status: "update_available", CurrentVersion: "0.1.0", LatestVersion: "0.2.0", Message: result.Message}
+	if got := humanNoticeFromUpdateCheckResult(bare, false).message; got != "HA NOVA 0.2.0 is ready (you have 0.1.0).\nTo update, run: ha-nova update" {
+		t.Fatalf("bare notice = %q", got)
 	}
 }
 
@@ -442,7 +427,7 @@ func TestBuildUpdateCheckResultLegacyWindowsGuidanceSurvivesDigest(t *testing.T)
 	for _, want := range []string{
 		"Installed Apps / App Installer",
 		"install.ps1 | iex",
-		"Highlights:\n- New energy skill",
+		"New: New energy skill",
 	} {
 		if !strings.Contains(notice.message, want) {
 			t.Fatalf("expected %q in legacy-Windows notice %q", want, notice.message)
@@ -560,7 +545,7 @@ func TestRunCheckUpdateTextModeOffersStableReturnFromRC(t *testing.T) {
 	})
 
 	// Explicit check: one line on the way back, no stale stable highlights.
-	if !strings.Contains(output, "Up to date: v0.4.0-rc1 (prerelease, newer than stable v0.3.1) | To return to stable: Run: ha-nova update") {
+	if !strings.Contains(output, "You have the test release 0.4.0-rc1. It is newer than the stable release 0.3.1.\nTo go back to stable, run: ha-nova update") {
 		t.Fatalf("expected text stable return guidance, got %q", output)
 	}
 	if strings.Contains(output, "Stale stable highlight") || strings.Contains(output, "example.invalid") {

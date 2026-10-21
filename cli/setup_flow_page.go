@@ -64,8 +64,7 @@ func defaultSetupPageAvailable() bool {
 func (f *setupFlow) usesSetupPage() bool {
 	return f.target == "" && !f.serviceMode &&
 		f.hostFlag == "" && f.haURLFlag == "" && f.relayURLFlag == "" && f.relayTokenFlag == "" &&
-		(f.cfg.Cloud == nil || (f.cfg.Cloud.ready() && !remoteOnlyCloudSetup(f.cfg) && !hybridCloudSetupPending(f.cfg) &&
-			cloudRecoveryHoldProblem(f.cfg) == nil && cloudRemoteFeatureAvailable())) &&
+		setupPageCloudOK(f.cfg) &&
 		(f.cfg.RelayBaseURL == "" || f.cfg.RelayBaseURL == deriveRelayURLFromHA(f.cfg.HAURL, f.cfg.HAHost)) && // a custom Relay address: the terminal keeps it
 		activeServerProfile() == defaultServerProfileName && setupPageAvailable()
 }
@@ -328,7 +327,7 @@ func (f *setupFlow) pageApp() setupPageApp {
 	}
 	_, originErr := parseLocalHAOrigin(f.cfg.HAURL)
 	signIn := originErr == nil // the sign-in needs Home Assistant's own address
-	installs := signIn && haAppInstallTargetsThisHA(f.cfg)
+	installs := signIn && haAppInstallTargetsThisHAForPage(f.cfg)
 	running, version := probeInstalledRelayForSetup(f.cfg.RelayBaseURL)
 	app := setupPageApp{state: "missing", version: version}
 	if running {

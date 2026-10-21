@@ -36,6 +36,16 @@ func defaultHAAppInstallOffered(out io.Writer, cfg runtimeConfig) bool {
 	return haAppInstallTargetsThisHA(cfg) && haSignInPossible(out, cfg)
 }
 
+// setupPageCloudOK: Link that isn't ready, or Link only, keeps setup in
+// the terminal (usesSetupPage).
+func setupPageCloudOK(cfg runtimeConfig) bool {
+	return cfg.Cloud == nil || (cfg.Cloud.ready() && !remoteOnlyCloudSetup(cfg) && !hybridCloudSetupPending(cfg) &&
+		cloudRecoveryHoldProblem(cfg) == nil && cloudRemoteFeatureAvailable())
+}
+
+// haAppInstallTargetsThisHAForPage: the setup page's seam (tests).
+var haAppInstallTargetsThisHAForPage = haAppInstallTargetsThisHA
+
 func haAppInstallTargetsThisHA(cfg runtimeConfig) bool {
 	derived := strings.TrimRight(deriveRelayURLFromHA(cfg.HAURL, cfg.HAHost), "/")
 	slug, err := selectedCloudNOVAAppSlug()

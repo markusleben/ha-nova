@@ -301,10 +301,10 @@ Fixed headings: `New Features`, `What To Watch`, `Bug Fixes`.
 - `What To Watch` is optional: only real behavior changes, breaking changes,
   or action-needed items
 - short, concrete, user-visible outcomes; do not list every small fix
-- bullet order is importance: the compact update notice shows only the FIRST
-  bullets (one action-needed item plus two feature/fix items) from
-  `Breaking Changes`, `What To Watch`, `Upgrade Notes`, `New Features`, and
-  `Bug Fixes`
+- bullet order is importance: the update notice shows one highlight, the
+  first sentence of the FIRST `New Features` bullet (else `Bug Fixes`, else
+  `What To Watch` / `Breaking Changes` / `Upgrade Notes`), so lead each
+  bullet with a short bold sentence that works alone
 - call out Windows installer/update/uninstall changes that affect real users
 - stable release notes must publish tag-pinned install commands, never `main` bootstrap URLs
 - legacy pre-Go installs run the dedicated legacy cleanup script, then reinstall

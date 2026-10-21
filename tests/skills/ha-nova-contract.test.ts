@@ -1162,9 +1162,15 @@ describe("ha-nova contract", () => {
     const content = readFileSync("skills/ha-nova/session-bootstrap.md", "utf8");
     expect(content).toContain("## HA NOVA Update Callout");
     expect(content).toContain("exactly once");
-    expect(content).toContain("After the requested result");
-    expect(content).toContain("up to three supplied highlight lines");
-    expect(content).toContain("supplied release URL");
+    expect(content).toContain("After an HA task's requested result");
+    // One plain offer the user answers in chat; the agent runs the update.
+    expect(content).toMatch(/A new HA NOVA version is ready \(<version>\)/);
+    expect(content).toMatch(/Say ‘update HA NOVA’ and I'll do it/);
+    // CLI and App updates in one callout when both are due.
+    expect(content).toMatch(/…and the\s+NOVA App in Home Assistant too/);
+    expect(content).toContain("Yes: run `ha-nova update`, relay its result,");
+    // Legacy Windows reinstall or an MCP client: the user runs the step.
+    expect(content).toContain("Other step or no shell: tell the user that step.");
     expect(content).toMatch(/Never update without\s+consent/);
   });
 

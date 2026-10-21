@@ -29,7 +29,8 @@ window.novaRerun = (h) => {
       problem(s.problem), status,
       el('div', { class: 'actions' },
         s.problem ? button(t('setup.page.button.recheck'), 'recheck') : null,
-        button(t('setup.page.rerun.fix'), 'fix', s.problem ? 'ghost' : 'primary'),
+        s.fix === 'app_update' ? button(t('setup.page.rerun.update_app'), 'fix', 'primary')
+          : button(t('setup.page.rerun.fix'), 'fix', s.problem ? 'ghost' : 'primary'),
         link(t('setup.page.link.app'), links.app, 'ghost', 'app'))];
   };
   // Fix it, or the skills refresh, while the usual steps run.
