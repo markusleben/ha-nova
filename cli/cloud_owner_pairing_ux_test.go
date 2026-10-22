@@ -33,8 +33,7 @@ func TestRemoteOwnerPairingKeepsOAuthAndOwnerBrowserSessionsSeparate(
 		"OAuth sign-in is complete",
 		"separate private/incognito window",
 		"Home Assistant Owner",
-		"standard Home Assistant account is preferred",
-		"Owner OAuth account is also supported",
+		"Link works with a standard Home Assistant user or with the owner",
 	} {
 		if !strings.Contains(output.String(), required) {
 			t.Fatalf("owner pairing UX missing %q: %s", required, output.String())

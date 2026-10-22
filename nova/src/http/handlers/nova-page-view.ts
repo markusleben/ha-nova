@@ -225,7 +225,7 @@ export function renderPage(m: PageModel): string {
 </style></head><body>
 <main>
 <h1>${star}NOVA</h1>
-<p class="intro">Let your AI app work with Home Assistant, safely. Each computer connects once and gets its own login. Most computers connect when you sign in on them. Can't sign in there? Make a code here.</p>
+<p class="intro">Let your AI app work with Home Assistant, safely. Each computer connects once and gets its own connection. Most computers connect when you sign in on them. Can't sign in there? Make a code here.</p>
 ${errorSection}${confirmSection}<section><h2>Home Assistant</h2><p>${m.connection.haConnected ? "Connected." : `<span class="muted">Not connected — check the App logs.</span>`}</p></section>
 ${recoverySection}<section><h2>Update</h2><p>${updateLine}</p></section>
 <section><h2>Pairing</h2>${pairingSection}</section>

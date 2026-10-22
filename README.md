@@ -44,7 +44,7 @@ Signed in, but not as the owner? The page asks the owner to sign in here, or to 
   <img src="assets/pairing-flow.png" alt="Pairing with a code: run the installer, click Connect a device on the NOVA page, type the six-digit code">
 </p>
 
-*The sign-in and the code work once and run out after a few minutes. Each device gets its own connection, and you can cut it off anytime on the NOVA page.*
+*The code works once, for 10 minutes. The sign-in works once too. Each device gets its own connection, and you can cut it off anytime on the NOVA page.*
 
 <p align="center">
   <b><a href="#-what-you-can-do">What it does</a></b> · <b><a href="#%EF%B8%8F-safe-by-design">Is it safe?</a></b> · <b><a href="#-get-started">Get started</a></b> · <b><a href="#use-ha-nova-in-claude-and-chatgpt">Claude &amp; ChatGPT</a></b> · <b><a href="#optional-remote-access-with-home-assistant-link-beta">Remote access</a></b> · <b><a href="#%EF%B8%8F-how-it-works">How it works</a></b>
@@ -91,7 +91,7 @@ We built this because we didn't trust AI with our own setup either.
 3. **You approve it.** Unlocking a door, opening a gate or garage door, turning off the alarm, restarting Home Assistant, and deletes need a real confirmation, not just "yes" in the chat. Before a restart, HA NOVA checks your config first. If something is wrong, it says what before you confirm.
    - **On your computer**, a window opens where it can. Click Confirm (OK on Windows) or Cancel. Your AI never sees a code.
    - **With a linked phone**, the phone asks at the same time. The first answer counts, and the phone shows the result. With no screen (for example a Linux server), or with the window turned off, the phone asks alone. This needs the Home Assistant Companion app. It doesn't work with a standalone relay that runs on your own token.
-   - **About the phone:** you can answer on the phone or its Apple Watch without unlocking it. So whoever holds your phone can answer while a request is open: up to 90 seconds on a computer, up to 3 minutes in Claude or ChatGPT. It works only for that one action. To link, move, or turn off phone confirmation, you need the unlocked phone. You can also move it to a new phone on the setup page. Once a phone is linked, an action it can't reach is refused. It is never moved to the chat.
+   - **About the phone:** you can answer on the phone or its Apple Watch without unlocking it. So whoever holds your phone can answer while a request is open: up to 90 seconds on a computer, up to 3 minutes in Claude or ChatGPT. It works only for that one action. To link, move, or turn off phone confirmation, you need the unlocked phone. You can also move it to a new phone on the setup page. Chat apps keep the phone they had. Once a phone is linked, an action it can't reach is refused. It is never moved to the chat.
    - **With neither**, you get a four-digit one-time code, in the chat or in your AI app's own form where it shows one. But the AI can see it too, so it only counts when you type it yourself.
    - **Deletes:** automation, script, and dashboard deletes use the same window or phone. Other deletes (helpers, scenes, areas, and the like) take a four-digit code in the chat. Each automation or script delete is confirmed on its own. Other batch deletes you checked take one confirmation for the exact list of items.
    - **Screen control:** anything you let control your screen can click that window too. That means computer use, apps you gave Accessibility access, and on Windows and some Linux desktops, other programs. To turn the window off, run `ha-nova setup confirm-window off`.
@@ -162,7 +162,7 @@ Ask about your home and change it from Claude (web, desktop, and phone apps) or 
 
 1. **Turn on remote access in Home Assistant Link.** Your Home Assistant may still show its old name ([see below](#optional-remote-access-with-home-assistant-link-beta)). Your own HTTPS address works too.
 2. **Flip the switch.** In setup, choose **Turn on…** in "You stay in control". On a re-run, turn on its switch, then click Done. Or open the NOVA page in the Home Assistant sidebar, then Chat apps. Home Assistant restarts once.
-3. **Click "Add to Claude",** or paste the address setup shows into ChatGPT. Then sign in to Home Assistant as the owner. No form in Claude? In Claude, open Customize → Connectors, click +, then Add custom connector, and paste the address. On a Claude Team or Enterprise plan, you can't add it yourself: the owner of your Claude Team or Enterprise plan adds it once for everyone, with "Add for my organization". Then you click Connect next to HA NOVA in Customize → Connectors.
+3. **Click "Add to Claude",** or paste the address setup shows into ChatGPT. Then sign in to Home Assistant as the owner. No form in Claude? In Claude, open Customize → Connectors, click +, then Add custom connector, and paste the address. On a Claude Team or Enterprise plan, you can't add it yourself: the owner of your Claude plan adds it once for everyone, with "Add for my organization". Then you click Connect next to HA NOVA in Customize → Connectors.
 
 **You need:**
 
