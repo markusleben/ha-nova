@@ -155,7 +155,7 @@ func TestSetupPageChatRowOnlyWhenItCanWork(t *testing.T) {
 			if got != test.want || slices.Contains(s.Accepts, "chat") != (test.want == "offer") {
 				t.Fatalf("chat row %q accepts %v, want %q", got, s.Accepts, test.want)
 			}
-			if c := s.Control.Chat; test.want == "on" && (c.URL != chatTestLink+"/api/ha_nova/mcp" || c.ClaudeLink != claudeConnectorLink(c.URL)) {
+			if c := s.Control.Chat; test.want == "on" && (c.URL != chatTestLink+"/api/ha_nova/mcp" || c.ClaudeLink != claudeConnectorLink(c.URL) || c.OrgLink != claudeOrgConnectorLink(c.URL)) {
 				t.Fatalf("connector %q, Add to Claude %q", c.URL, c.ClaudeLink)
 			}
 			if (test.want == "offer" || test.want == "noaddress") && (s.Control.Chat.ClaudeLink != "" || s.Control.Chat.URL != "") {
@@ -218,12 +218,12 @@ func TestSetupPageChatTurnsOnThroughTheRestart(t *testing.T) {
 	ha.next <- chatHARead{ha: chatAppsHA{version: "2026.10.2", loaded: true}}
 	s = p.waitFor("on", accepting("finish"))
 	c := s.Control.Chat
-	if c.State != "on" || c.URL != chatTestLink+"/api/ha_nova/mcp" || c.ClaudeLink != claudeConnectorLink(c.URL) || c.Problem != nil || rows(s) != "chat_on=ok,chat_restart=ok,chat_ready=ok" || slices.Contains(s.Accepts, "chat") {
+	if c.State != "on" || c.URL != chatTestLink+"/api/ha_nova/mcp" || c.ClaudeLink != claudeConnectorLink(c.URL) || c.OrgLink != claudeOrgConnectorLink(c.URL) || c.Problem != nil || rows(s) != "chat_on=ok,chat_restart=ok,chat_ready=ok" || slices.Contains(s.Accepts, "chat") {
 		t.Fatalf("after the restart: %+v accepts %v", c, s.Accepts)
 	}
 	p.click("finish", "")
 	<-done
-	if n := p.flow.pageNotes; len(n) != 1 || n[0].Key != "setup.page.home.note_chat" || n[0].Args["url"] != c.URL || p.flow.pageChatLink != c.ClaudeLink {
+	if n := p.flow.pageNotes; len(n) != 1 || n[0].Key != "setup.page.home.note_chat" || n[0].Args["url"] != c.URL || p.flow.pageChatLink != c.ClaudeLink || p.flow.pageOrgLink != c.OrgLink {
 		t.Fatalf("notes %+v, step 4 link %q", n, p.flow.pageChatLink)
 	}
 }
@@ -286,25 +286,27 @@ func TestSetupPageChatFailures(t *testing.T) {
 	})
 }
 
-// Add to Claude goes to claude.ai's "Add custom connector" and carries the
-// connector address only, percent-encoded, whatever it holds.
+// Add to Claude goes to claude.ai's "Add custom connector" (a Team or
+// Enterprise owner's: organization settings) and carries the connector
+// address only, percent-encoded, whatever it holds.
 func TestClaudeConnectorLink(t *testing.T) {
 	for _, connector := range []string{
 		"https://abc123.ui.nabu.casa/api/ha_nova/mcp",
 		"https://home.example.com/a b/ä?x=1&connectorName=evil&modal=x#frag+%2F",
 	} {
-		link := claudeConnectorLink(connector)
-		parsed, err := url.Parse(link)
-		if err != nil || parsed.Scheme != "https" || parsed.Host != "claude.ai" || parsed.Path != "/customize/connectors" || parsed.Fragment != "" {
-			t.Fatalf("%q: not claude.ai's connector page: %q (%v)", connector, link, err)
-		}
-		query, err := url.ParseQuery(parsed.RawQuery)
-		want := url.Values{"modal": {"add-custom-connector"}, "connectorName": {"HA NOVA"}, "connectorUrl": {connector}}
-		if err != nil || !reflect.DeepEqual(query, want) {
-			t.Fatalf("%q: query %v (%v), want %v", connector, query, err, want)
-		}
-		if strings.Contains(parsed.RawQuery, "+") || !strings.Contains(link, "connectorName=HA%20NOVA&connectorUrl=https%3A%2F%2F") {
-			t.Fatalf("not percent-encoded as Claude documents it: %q", link)
+		for path, link := range map[string]string{"/customize/connectors": claudeConnectorLink(connector), "/admin-settings/connectors": claudeOrgConnectorLink(connector)} {
+			parsed, err := url.Parse(link)
+			if err != nil || parsed.Scheme != "https" || parsed.Host != "claude.ai" || parsed.Path != path || parsed.Fragment != "" {
+				t.Fatalf("%q: not claude.ai's connector page: %q (%v)", connector, link, err)
+			}
+			query, err := url.ParseQuery(parsed.RawQuery)
+			want := url.Values{"modal": {"add-custom-connector"}, "connectorName": {"HA NOVA"}, "connectorUrl": {connector}}
+			if err != nil || !reflect.DeepEqual(query, want) {
+				t.Fatalf("%q: query %v (%v), want %v", connector, query, err, want)
+			}
+			if strings.Contains(parsed.RawQuery, "+") || !strings.Contains(link, "connectorName=HA%20NOVA&connectorUrl=https%3A%2F%2F") {
+				t.Fatalf("not percent-encoded as Claude documents it: %q", link)
+			}
 		}
 	}
 }
@@ -526,7 +528,8 @@ func TestChatAppsCommand(t *testing.T) {
 	t.Run("status", func(t *testing.T) {
 		paths, signIns := setup(t, &fakeChatApp{}, loaded, chatTestLink, "")
 		connector := chatTestLink + "/api/ha_nova/mcp"
-		if exit, out := run(paths, "status"); exit != 0 || !strings.Contains(out, connector) || !strings.Contains(out, claudeConnectorLink(connector)) || *signIns != 0 {
+		if exit, out := run(paths, "status"); exit != 0 || !strings.Contains(out, connector) || !strings.Contains(out, claudeConnectorLink(connector)) ||
+			!strings.Contains(out, claudeOrgConnectorLink(connector)) || !strings.Contains(out, "paste this address:\n    "+connector+"\n") || *signIns != 0 {
 			t.Fatalf("status: %d %q", exit, out)
 		}
 	})

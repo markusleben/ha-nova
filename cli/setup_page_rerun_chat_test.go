@@ -51,7 +51,7 @@ func TestSetupPageRerunChatOffOnDone(t *testing.T) {
 	page, done, stdout, signIns := rerunChat(t, app, nil)
 	rerun := page.waitFor("the re-run screen", accepting("finish"))
 	connector := chatTestLink + chatAppsConnectorPath
-	if chat := rerun.Control.Chat; chat == nil || chat.State != "page_on" || chat.URL != connector || chat.ClaudeLink != claudeConnectorLink(connector) || chat.Problem != nil {
+	if chat := rerun.Control.Chat; chat == nil || chat.State != "page_on" || chat.URL != connector || chat.ClaudeLink != claudeConnectorLink(connector) || chat.OrgLink != claudeOrgConnectorLink(connector) || chat.Problem != nil {
 		t.Fatalf("chat row = %+v", rerun.Control.Chat)
 	}
 	if *signIns != 0 || len(app.posted()) != 0 {

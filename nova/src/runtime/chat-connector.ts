@@ -17,8 +17,10 @@ export function chatConnectorUrl(status: unknown, config: unknown): string | nul
     !/\.(local|lan|home|internal|localdomain|localhost|home\.arpa|ts\.net)$/.test(name) && (link || !name.endsWith(".nabu.casa"));
   return ok ? `https://${name}${port ? `:${port}` : ""}/api/ha_nova/mcp` : null;
 }
-export const claudeConnectorLink = (url: string): string =>
-  `https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=HA%20NOVA&connectorUrl=${encodeURIComponent(url)}`;
+// Team and Enterprise members can't add one; an owner adds it under
+// organization settings (admin = true), with the same parameters.
+export const claudeConnectorLink = (url: string, admin = false): string =>
+  `https://claude.ai/${admin ? "admin-settings" : "customize"}/connectors?modal=add-custom-connector&connectorName=HA%20NOVA&connectorUrl=${encodeURIComponent(url)}`;
 
 // Link first (cloud/status fails without the cloud integration); get_config
 // only without it, so a hiccup there never hides a working Link address.

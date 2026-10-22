@@ -48,6 +48,7 @@ type setupPageChat struct {
 	Rows       []setupPageRow `json:"rows,omitempty"`        // while run (and after): on, restart, ready
 	URL        string         `json:"url,omitempty"`         // the connector address, once on
 	ClaudeLink string         `json:"claude_link,omitempty"` // Add to Claude (claudeConnectorLink), once on
+	OrgLink    string         `json:"org_link,omitempty"`    // the same for a Team or Enterprise owner (claudeOrgConnectorLink)
 	Phone      string         `json:"phone,omitempty"`       // the phone that confirms for chat apps; "": a code in the chat
 	LinkPage   string         `json:"link_page,omitempty"`   // noaddress, off: Home Assistant's Link page (haLinkPageURL)
 	Guide      string         `json:"guide,omitempty"`       // noaddress, off: the guide's own-HTTPS-address part
