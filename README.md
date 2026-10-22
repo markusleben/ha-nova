@@ -15,9 +15,9 @@
 <h2 align="center">Talk to your home. Every change checked.</h2>
 
 <p align="center">
-  Connect your AI to Home Assistant. Simple things run right away. Other changes show a preview. Locks, alarms, and deletes wait for you to confirm.<br>
-  You confirm with a click in a window on your computer, or a tap on your linked phone.<br>
-  <sub>No screen and no phone? Then you type a one-time code.</sub>
+  Connect your AI to Home Assistant. Simple things run right away. Other changes show a preview first. Unlocks, the alarm, and deletes wait for your OK.<br>
+  You OK them with a click in a window on your computer, or a tap on your phone.<br>
+  <sub>No window and no phone? You type a four-digit code. Some deletes always use the code.</sub>
 </p>
 
 <p align="center">
@@ -44,7 +44,7 @@ Signed in, but not as the owner? The page asks the owner to sign in here, or to 
   <img src="assets/pairing-flow.png" alt="Pairing with a code: run the installer, click Connect a device on the NOVA page, type the six-digit code">
 </p>
 
-*The sign-in and the code work once and run out after a few minutes. Each device gets its own connection, and you can cut it off anytime on the NOVA page.*
+*The code works once, for 10 minutes. The sign-in works once too. Each device gets its own connection, and you can cut it off anytime on the NOVA page.*
 
 <p align="center">
   <b><a href="#-what-you-can-do">What it does</a></b> · <b><a href="#%EF%B8%8F-safe-by-design">Is it safe?</a></b> · <b><a href="#-get-started">Get started</a></b> · <b><a href="#use-ha-nova-in-claude-and-chatgpt">Claude &amp; ChatGPT</a></b> · <b><a href="#optional-remote-access-with-home-assistant-link-beta">Remote access</a></b> · <b><a href="#%EF%B8%8F-how-it-works">How it works</a></b>
@@ -91,7 +91,7 @@ We built this because we didn't trust AI with our own setup either.
 3. **You approve it.** Unlocking a door, opening a gate or garage door, turning off the alarm, restarting Home Assistant, and deletes need a real confirmation, not just "yes" in the chat. Before a restart, HA NOVA checks your config first. If something is wrong, it says what before you confirm.
    - **On your computer**, a window opens where it can. Click Confirm (OK on Windows) or Cancel. Your AI never sees a code.
    - **With a linked phone**, the phone asks at the same time. The first answer counts, and the phone shows the result. With no screen (for example a Linux server), or with the window turned off, the phone asks alone. This needs the Home Assistant Companion app. It doesn't work with a standalone relay that runs on your own token.
-   - **About the phone:** you can answer on the phone or its Apple Watch without unlocking it. So whoever holds your phone can answer while a request is open (up to 90 seconds), but only for that one action. To link, move, or turn off phone confirmation, you need the unlocked phone. You can also move it to a new phone on the setup page. Once a phone is linked, an action it can't reach is refused. It is never moved to the chat.
+   - **About the phone:** you can answer on the phone or its Apple Watch without unlocking it. So whoever holds your phone can answer while a request is open: up to 90 seconds on a computer, up to 3 minutes in Claude or ChatGPT. It works only for that one action. To link, move, or turn off phone confirmation, you need the unlocked phone. You can also move it to a new phone on the setup page. Chat apps keep the phone they had. Once a phone is linked, an action it can't reach is refused. It is never moved to the chat.
    - **With neither**, you get a four-digit one-time code, in the chat or in your AI app's own form where it shows one. But the AI can see it too, so it only counts when you type it yourself.
    - **Deletes:** automation, script, and dashboard deletes use the same window or phone. Other deletes (helpers, scenes, areas, and the like) take a four-digit code in the chat. Each automation or script delete is confirmed on its own. Other batch deletes you checked take one confirmation for the exact list of items.
    - **Screen control:** anything you let control your screen can click that window too. That means computer use, apps you gave Accessibility access, and on Windows and some Linux desktops, other programs. To turn the window off, run `ha-nova setup confirm-window off`.
@@ -152,17 +152,17 @@ The installer selects the latest stable release. Run the command for your system
 
 After pairing, setup offers to link your phone for confirmations: tap "Allow" on it. The phone must be signed in to the Home Assistant app as an administrator. Setup ends with a first look at your home.
 
-> **Try it first?** [Try HA NOVA in 1 minute](https://hanova.app/demo/) in Claude, on a shared demo house with no real devices. There is nothing to install, and a free account works. ChatGPT on the web, on a computer, works too (tested with Pro; your plan’s rules apply). On your computer, `ha-nova try` connects your AI app to it (the setup page offers it when it finds no Home Assistant), and `ha-nova try --stop` removes it. Everyone shares one login, and it resets every hour. So never enter real names, passwords, or tokens there. What the demo keeps: [privacy page](https://hanova.app/privacy.html).
+> **Try it first?** [Try HA NOVA in 1 minute](https://hanova.app/demo/) on a shared demo house with no real devices. There is nothing to install. In Claude, a free account works. ChatGPT needs a paid plan that lets you add your own plugins, like Plus or Pro (we tested Pro). The free plan can't. On a phone, ChatGPT can only answer. On your computer, `ha-nova try` connects your AI app to it (the setup page offers it when it finds no Home Assistant), and `ha-nova try --stop` removes it. Everyone shares one login, and it resets every hour. So never enter real names, passwords, or tokens there. What the demo keeps: [privacy page](https://hanova.app/privacy.html).
 
 ### Use HA NOVA in Claude and ChatGPT
 
-Ask about your home and change it from Claude (web, desktop, and phone apps) or ChatGPT (web, on a computer; on a phone it can only read). No computer needs to run HA NOVA.
+Ask about your home and change it from Claude (web, desktop, and phone apps) or ChatGPT (web, on a computer; on a phone it can only answer). No computer needs to run HA NOVA.
 
 **How easy is it?**
 
 1. **Turn on remote access in Home Assistant Link.** Your Home Assistant may still show its old name ([see below](#optional-remote-access-with-home-assistant-link-beta)). Your own HTTPS address works too.
 2. **Flip the switch.** In setup, choose **Turn on…** in "You stay in control". On a re-run, turn on its switch, then click Done. Or open the NOVA page in the Home Assistant sidebar, then Chat apps. Home Assistant restarts once.
-3. **Click "Add to Claude",** or paste the address setup shows into ChatGPT. Then sign in to Home Assistant as the owner. No form in Claude? Click + → Add custom connector, and paste the address. On a Claude Team or Enterprise plan, an owner of that plan adds it once for everyone with "Add for my organization".
+3. **Click "Add to Claude",** or paste the address setup shows into ChatGPT. Then sign in to Home Assistant as the owner. No form in Claude? In Claude, open Customize → Connectors, click +, then Add custom connector, and paste the address. On a Claude Team or Enterprise plan, the owner of your Claude plan adds it once for everyone, with "Add for my organization". Then you click Connect next to HA NOVA in Customize → Connectors.
 
 **You need:**
 
@@ -170,7 +170,7 @@ Ask about your home and change it from Claude (web, desktop, and phone apps) or 
 - Home Assistant Link with remote access on, or your own public HTTPS address with a valid certificate, set as Home Assistant's external URL. Self-signed certificates, plain `http://`, Tailscale, and local addresses don't work, and setup can't check the certificate for you. Without a Link or HTTPS address, setup says so and shows no switch.
 - Only the Home Assistant owner can turn chat apps on and use them.
 
-**What needs your OK:** the same rules as on a computer. Everyday actions run right away and are checked afterwards. Unlocks and deletes wait for a tap on your linked phone. Without a phone, you type a code in the chat. The AI can see that code too, so it protects less than your phone. On the NOVA page, you can require the phone, or let chat apps only read.
+**What needs your OK:** the same rules as on a computer. Everyday actions run right away and are checked afterwards. Unlocks, the alarm, and deletes wait for a tap on your linked phone. No phone? You type a four-digit code in the chat. The AI can see that code too, so it protects less than your phone. On the NOVA page, you can require the phone, or let chat apps only read.
 
 **In Claude, tools have plain names, and you can let read-only steps run without asking.** In Claude, open Customize → Connectors → HA NOVA. Set the read-only tools and "Control a device" to "Always allow". Leave "Run a confirmed change" on "Needs approval", so Claude still asks before a bigger change. Claude may ask again after an update. Details: [Stop Claude from asking before every step](docs/reference/chat-apps.md#stop-claude-from-asking-before-every-step).
 
@@ -189,7 +189,7 @@ Setup keeps **Local only** as the default we recommend. On the setup page, Link 
 
 Do you have a paid Home Assistant Link plan (formerly Home Assistant Cloud; Nabu Casa), with remote access on? Then choose **Local + Home Assistant Link** for automatic remote fallback, or **Home Assistant Link only** to go remote first. Your Home Assistant may still show the old name in Settings until the new name reaches it. Setup checks your Link address, opens the Home Assistant OAuth sign-in, and saves it in the macOS, Windows, or Linux desktop credential store. HA NOVA runs no additional public tunnel or hosted broker.
 
-Remote access through Link needs Home Assistant OS or Supervised, and a supported desktop to sign in. Did a setup that was already checked get cut off? You can finish over SSH with `ha-nova cloud add --remote-resume`. Headless, WSL, service, gateway, Container, and Core setups stay local only. Sign in to Link as the Home Assistant owner, and this computer connects with no code (this needs an up-to-date NOVA Relay App). You can also sign in as a standard Home Assistant user. Then the owner signs in once more, in a separate private browser window (setup calls it the "Owner session"), and makes the six-digit code there with "Connect a device".
+Remote access through Link needs Home Assistant OS or Supervised, and a supported desktop to sign in. Did a setup that was already checked get cut off? You can finish over SSH with `ha-nova cloud add --remote-resume`. Headless, WSL, service, gateway, Container, and Core setups stay local only. Sign in to Link as the Home Assistant owner, and this computer connects with no code (this needs an up-to-date NOVA Relay App). Don't want the owner's login saved on this computer? Sign in as a standard Home Assistant user instead. HA NOVA can still do the same things. Then the owner signs in once more, in a separate private browser window (setup calls it the "Owner session"), and makes the six-digit code there with "Connect a device".
 
 Already installed locally? Run `ha-nova cloud add`, or run `ha-nova setup` again for the same choice.
 

@@ -49,11 +49,11 @@ describe("release notes contract", () => {
     expect(stableNotes).toMatch(/^## Bug Fixes\s+- \*\*The code is last in chat apps too\.\*\*/);
     expect(stableNotes).toContain("on its own line, in bold. Nothing comes after it.");
     expect(stableNotes).toContain("How long the code works, and notes like the demo house's hourly reset, now come right above the code.");
-    expect(stableNotes).toContain("**Claude Team and Enterprise plans can add HA NOVA.** There, an owner adds it once for everyone.");
+    expect(stableNotes).toContain("**Claude Team and Enterprise plans can add HA NOVA.** There, the owner of your Claude Team or Enterprise plan adds it once for everyone.");
     expect(stableNotes).toContain('"Add for my organization"');
     expect(stableNotes).toContain("Click +, then Add custom connector, and paste it.");
     // 0.27.1 sent phone users to chatgpt.com in a browser; a phone browser can't make changes either.
-    expect(stableNotes).toContain("**ChatGPT on a phone can only read.** 0.27.1 said to use chatgpt.com in a browser");
+    expect(stableNotes).toContain("**On a phone, ChatGPT can only answer.** 0.27.1 said to use chatgpt.com in a browser");
     expect(stableNotes).toContain("Use chatgpt.com on a computer, or the Claude app on your phone.");
     // App patch 0.11.2 carries the 0.27.2 chat-app bridge; ChatGPT needs a Refresh to load it.
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
@@ -69,8 +69,8 @@ describe("release notes contract", () => {
     // claude.ai's connector list lives under Customize, not Settings.
     expect(readme).toContain("open Customize → Connectors → HA NOVA");
     expect(readme).not.toContain("Settings → Connectors");
-    expect(readme).toContain("ChatGPT (web, on a computer; on a phone it can only read)");
-    expect(readme).toContain('No form in Claude? Click + → Add custom connector, and paste the address. On a Claude Team or Enterprise plan, an owner of that plan adds it once for everyone with "Add for my organization".');
+    expect(readme).toContain("ChatGPT (web, on a computer; on a phone it can only answer)");
+    expect(readme).toContain('No form in Claude? In Claude, open Customize → Connectors, click +, then Add custom connector, and paste the address. On a Claude Team or Enterprise plan, the owner of your Claude plan adds it once for everyone, with "Add for my organization".');
     expect(readme).toContain("https://hanova.app/demo/");
     expect(readme).toContain("34 task skills plus the HA NOVA context skill");
     expect(readme).not.toContain("ha-nova mcp");

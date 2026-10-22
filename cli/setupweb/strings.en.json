@@ -496,8 +496,8 @@
   "setup.chat.need_address": "Claude and ChatGPT can't reach your home from the internet yet. The easy way: turn on remote access in Home Assistant Link. Or set your own HTTPS address in Home Assistant under Settings → System → Network. Then open NOVA in Home Assistant, then Chat apps.",
   "setup.chat.phone_key": "Use HA NOVA from your phone too",
   "setup.chat.phone_value": "Ask in the Claude app on your phone, in Claude on the web, or in ChatGPT on a computer. No computer has to run HA NOVA.",
-  "setup.chat.need_link": "Needs Home Assistant Link with remote access. That's a subscription from the Home Assistant team.",
-  "setup.chat.still_off": "Still no address Claude can reach. Turn on Remote access, or check your own HTTPS address.",
+  "setup.chat.need_link": "Claude and ChatGPT need a way into your home from the internet. The easy way is Home Assistant Link, a paid service from the Home Assistant team.",
+  "setup.chat.still_off": "Claude and ChatGPT still can't reach your home. Turn on remote access, or check your own HTTPS address.",
   "setup.chat.check_failed": "HA NOVA couldn't check just now. Try again.",
   "setup.chat.open_link": "Open Home Assistant Link",
   "setup.chat.need_own": "Or use your own HTTPS address",
@@ -520,10 +520,10 @@
   "setup.chat.copy_failed": "Couldn't copy. Select the address and copy it yourself.",
   "setup.chat.add_claude": "Add to Claude",
   "setup.chat.adds": "Adds {host}",
-  "setup.chat.org": "On a Team or Enterprise plan? An owner adds it once for everyone:",
+  "setup.chat.org": "On a Claude Team or Enterprise plan? The owner of your Claude plan adds it once for everyone:",
   "setup.chat.add_org": "Add for my organization",
-  "setup.chat.no_form": "No form? Click + → Add custom connector, and paste this address:",
-  "setup.chat.no_form_above": "No form? Click + → Add custom connector, and paste the address above.",
+  "setup.chat.no_form": "No form? In Claude, open Customize → Connectors, click +, then Add custom connector, and paste this address:",
+  "setup.chat.no_form_above": "No form? In Claude, open Customize → Connectors, click +, then Add custom connector, and paste the address above.",
   "setup.chat.on_noaddress": "Chat apps are on, but HA NOVA can't find an address Claude and ChatGPT can reach right now. Check remote access in Home Assistant Link, or your own HTTPS address under Settings → System → Network, then open NOVA in Home Assistant, then Chat apps.",
   "setup.chat.add_claude_cli": "Add to Claude (opens claude.ai with HA NOVA and this address filled in):",
   "setup.chat.claude_title": "How to add it in Claude",
@@ -550,5 +550,5 @@
   "setup.chat.problem_unknown": "HA NOVA couldn't tell whether chat apps turned on. In a minute, open NOVA in Home Assistant and check Chat apps.",
   "setup.chat.problem_app": "This NOVA App can't turn chat apps on here. Update or restart it in Home Assistant, then try again.",
   "setup.chat.problem_phone": "Chat apps are on, but your phone wasn't added for them, so changes that need your OK show a code in the chat. To add it, run ha-nova chat-apps on in a terminal.",
-  "setup.chat.phone_kept": "Chat apps keep the phone they had. To change it, open NOVA in Home Assistant, then Chat apps."
+  "setup.chat.phone_kept": "Chat apps still ask the phone they had before. You can't move them to the new phone."
 }

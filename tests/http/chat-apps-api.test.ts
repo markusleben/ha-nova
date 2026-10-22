@@ -287,8 +287,8 @@ describe("NOVA page: Chat apps", () => {
     expect(href).toBe("https://claude.ai/customize/connectors?modal=add-custom-connector&amp;connectorName=HA%20NOVA&amp;connectorUrl=https%3A%2F%2Fabc123.ui.nabu.casa%2Fapi%2Fha_nova%2Fmcp");
     expect(page.body).toContain(`<p class="address">${url}</p>`);
     expect(page.body).toContain("Adds abc123.ui.nabu.casa</span>");
-    // Team and Enterprise: only an owner adds it; no form: paste the address shown right after.
-    expect(page.body).toContain(`An owner adds it once for everyone: <a href="https://claude.ai/admin-settings/connectors?modal=add-custom-connector&amp;connectorName=HA%20NOVA&amp;connectorUrl=https%3A%2F%2Fabc123.ui.nabu.casa%2Fapi%2Fha_nova%2Fmcp" target="_blank" rel="noopener noreferrer">Add for my organization</a>`);
+    // Team and Enterprise: the owner of the Claude plan adds it; no form: paste the address shown right after.
+    expect(page.body).toContain(`The owner of your Claude plan adds it once for everyone: <a href="https://claude.ai/admin-settings/connectors?modal=add-custom-connector&amp;connectorName=HA%20NOVA&amp;connectorUrl=https%3A%2F%2Fabc123.ui.nabu.casa%2Fapi%2Fha_nova%2Fmcp" target="_blank" rel="noopener noreferrer">Add for my organization</a>. Then click Connect next to HA NOVA in Customize → Connectors.`);
     expect(page.body).toContain(`paste this address:</p>\n<p class="address">${url}</p>`);
     for (const connectorUrl of [async () => null, async () => { throw new Error("ws down"); }]) {
       const plain = await run(createNovaPageHandler({ ...pageDeps(on), connectorUrl }), request("owner-1"));

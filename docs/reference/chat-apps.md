@@ -1,6 +1,6 @@
 # Use HA NOVA in Claude and ChatGPT
 
-With chat apps on, you can ask about your home and change it from Claude (also on your phone) or ChatGPT on the web, on a computer. On a phone, ChatGPT can only read. No computer has to run HA NOVA. They reach your home through Home Assistant Link or your Home Assistant's own public HTTPS address, and the same rules decide what needs your OK as with HA NOVA on a computer (see below).
+With chat apps on, you can ask about your home and change it from Claude (also on your phone) or ChatGPT on the web, on a computer. On a phone, ChatGPT can only answer. No computer has to run HA NOVA. They reach your home through Home Assistant Link or your Home Assistant's own public HTTPS address, and the same rules decide what needs your OK as with HA NOVA on a computer (see below).
 
 ## What you need
 
@@ -11,7 +11,7 @@ With chat apps on, you can ask about your home and change it from Claude (also o
 
   No subscription needed if your Home Assistant already has a public HTTPS address; Home Assistant Link is the easiest way. When both are there, HA NOVA uses Home Assistant Link.
 - You are the owner of your Home Assistant. Only the owner can turn chat apps on and use them. When Claude or ChatGPT asks you to sign in to Home Assistant, sign in as the owner, not as another Home Assistant user.
-- For ChatGPT: a plan that lets you add your own MCP server. It worked with ChatGPT Pro in our test; your plan's and workspace's rules apply.
+- For ChatGPT: a paid plan that lets you add your own plugins, like Plus or Pro (we tested Pro). The free plan can't. At work, your admin may need to allow it.
 
 ## Turn it on
 
@@ -20,7 +20,7 @@ You can turn it on in either place:
 - **During setup:** on "You stay in control", choose "Turn on…" next to "Use HA NOVA from your phone too" (in the browser flow: "Use HA NOVA in Claude and ChatGPT"). The page explains what happens; click "Turn on and restart Home Assistant" (just "Turn on" when Home Assistant needs no restart). No AI app on the computer? Choose "I use Claude or ChatGPT in the browser" on the first screen: right after your owner sign-in, setup checks what chat apps need (see above). If something is missing, it says what before it changes anything, with "Set it up, then check again" or "Use HA NOVA on this computer instead". Otherwise it connects the computer and shows this question first.
 - **Later:** open NOVA in the Home Assistant sidebar, then Chat apps, then "Turn on chat apps". Or run `ha-nova setup` again and turn on the switch: when you click Done, you sign in to Home Assistant, then the page asks before it turns them on. Or run `ha-nova chat-apps on`.
 
-The first time, Home Assistant restarts once, because it loads new parts only when it starts. This usually takes under a minute, longer on small devices. Setup waits for the restart and then shows an "Add to Claude" button, a link for Claude Team and Enterprise owners ("Add for my organization"), and your connector address: your Home Assistant Link address (or your own HTTPS address) followed by `/api/ha_nova/mcp`, for example `https://abc123.ui.nabu.casa/api/ha_nova/mcp` or `https://home.example.com/api/ha_nova/mcp`. Without either address, setup says so in one line instead of the button. NOVA in Home Assistant and `ha-nova chat-apps status` show both too. Later, turning chat apps on restarts Home Assistant only when it isn't running HA NOVA, for example when you turned chat apps off and Home Assistant restarted since.
+The first time, Home Assistant restarts once, because it loads new parts only when it starts. This usually takes under a minute, longer on small devices. Setup waits for the restart and then shows an "Add to Claude" button, a link for the owner of a Claude Team or Enterprise plan ("Add for my organization"), and your connector address: your Home Assistant Link address (or your own HTTPS address) followed by `/api/ha_nova/mcp`, for example `https://abc123.ui.nabu.casa/api/ha_nova/mcp` or `https://home.example.com/api/ha_nova/mcp`. Without either address, setup says so in one line instead of the button. NOVA in Home Assistant and `ha-nova chat-apps status` show both too. Later, turning chat apps on restarts Home Assistant only when it isn't running HA NOVA, for example when you turned chat apps off and Home Assistant restarted since.
 
 ## Connect Claude
 
@@ -28,7 +28,7 @@ This works in Claude on the web, in the desktop app, and in the phone apps. Menu
 
 1. On the setup page or in NOVA in Home Assistant, choose "Add to Claude" (next to it: the address it adds). Claude opens "Add custom connector" ("Benutzerdefinierten Konnektor hinzufügen") with the name HA NOVA and your address filled in, and says the values came from a link.
    No form? In Claude, open Customize → Connectors ("Anpassungen → Konnektoren"), click + → "Add custom connector", name it HA NOVA, and paste the address.
-   On a Team or Enterprise plan, members can't add it: Claude opens Connectors with no form. An owner of that plan adds it once for everyone (on Enterprise, also someone whose role can manage the organization's libraries): "Add for my organization" opens Claude's organization settings → Connectors with the same values. No form there? Choose Add → Custom (→ Web), then paste the address. Then you (the Home Assistant owner) choose "Connect" next to HA NOVA under Customize → Connectors. Only that account can sign in.
+   On a Team or Enterprise plan, members can't add it: Claude opens Connectors with no form. The owner of your Claude Team or Enterprise plan adds it once for everyone (on Enterprise, also someone whose role can manage the organization's libraries): "Add for my organization" opens Claude's organization settings → Connectors with the same values. No form there? Choose Add → Custom (→ Web), then paste the address. Then you (the Home Assistant owner) choose "Connect" next to HA NOVA under Customize → Connectors. Only that account can sign in.
 2. If Claude asks how to sign in, choose "Sign in now" ("Jetzt anmelden") and "Use Claude's published identity" ("Claudes veröffentlichte Identität verwenden"). Then choose "Add".
 3. Sign in to Home Assistant as its owner when Claude opens the sign-in (if it doesn't, choose "Connect"). The Claude phone app then uses it too.
 
@@ -45,7 +45,7 @@ Claude may ask again after an HA NOVA update, or now and then in a new chat. Tha
 
 ## Connect ChatGPT (on a computer)
 
-ChatGPT has no button that fills this in, so you paste the address. It worked with ChatGPT Pro in our test; your plan's rules apply. Menu names in German are in brackets.
+ChatGPT has no button that fills this in, so you paste the address. You need a paid plan (see "What you need"). Menu names in German are in brackets.
 
 1. In ChatGPT on the web, on a computer, open Plugins (chatgpt.com/plugins), choose +, then "Add custom MCP server" ("Benutzerdefinierten MCP-Server hinzufügen").
 2. Name it HA NOVA and paste the address under "Connection" ("Verbindung"). Pick OAuth, tick "I understand and want to continue", then choose "Create as a plugin" ("Als Plugin erstellen").
@@ -65,8 +65,8 @@ Menu names in Claude and ChatGPT change now and then; look for "connector", "plu
 ## What your phone confirms
 
 - Everyday changes, like a light, run right away and are checked afterwards.
-- Unlocking a door, deleting, and other risky changes wait for you:
-  - **With a linked phone** (the one you linked during setup), it gets a notification (also on its watch). Tap to allow. If you don't tap within about half a minute, the chat says it is still waiting; tap, then tell the assistant to go on.
+- Unlocks, the alarm, deletes, and other risky changes wait for you:
+  - **With a linked phone** (the one you linked during setup), it gets a notification (also on its watch). Tap to allow. The request stays open for up to 3 minutes. If you don't tap soon, the chat says it is still waiting; tap, then tell the assistant to go on.
   - **Without a linked phone,** the chat shows a code to type back. The AI can see this code too, so it protects less than a tap on your phone. For real protection, link your phone on your computer (`ha-nova setup confirm-phone`), then run `ha-nova chat-apps on` once more: it adds that phone for chat apps.
 - On the NOVA page you can also turn off codes in the chat (risky changes then need your phone), or let chat apps only read.
 - If you stop setup while Home Assistant restarts, chat apps may still turn on; NOVA in Home Assistant shows whether they are on.

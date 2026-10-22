@@ -121,7 +121,7 @@ export function renderPage(m: PageModel): string {
       : m.pairing.phase === "armed"
         ? `<p class="muted waiting">A computer is connecting through Home Assistant sign-in… this page updates on its own once it connects. If your computer asks for a code instead, click “Connect a device”.</p>
          ${formOpen}${csrfField("generate_code")}<button type="submit">Connect a device</button></form>${formOpen}${csrfField("cancel_code")}<button class="secondary" type="submit">Cancel</button></form>`
-      : `<p class="muted">Generate a one-time code, then enter it on your computer when NOVA asks. Each device gets its own secure connection.</p>
+      : `<p class="muted">Make a code here only if your computer asks for one. It works once, for 10 minutes. Each computer gets its own secure connection.</p>
          ${formOpen}${csrfField("generate_code")}<button type="submit">Connect a device</button></form>${
           m.pairing.phase === "consumed" ? `<p class="ok">✓ A device was just connected.</p>` : ""
         }`;
@@ -225,7 +225,7 @@ export function renderPage(m: PageModel): string {
 </style></head><body>
 <main>
 <h1>${star}NOVA</h1>
-<p class="intro">Let your AI assistant work with Home Assistant — safely. Connect each computer once with a one-time code; every device gets its own connection.</p>
+<p class="intro">Let your AI app work with Home Assistant, safely. Each computer connects once and gets its own connection. Most computers connect when you sign in on them. Can't sign in there? Make a code here.</p>
 ${errorSection}${confirmSection}<section><h2>Home Assistant</h2><p>${m.connection.haConnected ? "Connected." : `<span class="muted">Not connected — check the App logs.</span>`}</p></section>
 ${recoverySection}<section><h2>Update</h2><p>${updateLine}</p></section>
 <section><h2>Pairing</h2>${pairingSection}</section>
@@ -259,10 +259,10 @@ function renderChatApps(m: PageModel, formOpen: string, csrfField: (action: Nova
     const url = m.chatConnectorUrl;
     body = `${url === null
       ? `<p>On, but HA NOVA can't find an address Claude and ChatGPT can reach. Turn on remote access in Home Assistant Link, or set your own public HTTPS address (valid certificate) as the external URL under Settings → System → Network, then reload this page.</p>`
-      : `<p>On. Add HA NOVA to Claude in one click, or add this address as a connector in ChatGPT. Then sign in to Home Assistant as its owner.</p>
+      : `<p>On. Add HA NOVA to Claude in one click, or add this address as a plugin in ChatGPT. Then sign in to Home Assistant as its owner.</p>
 <p><a class="linkbtn primary" href="${escapeAttr(claudeConnectorLink(url))}" target="_blank" rel="noopener noreferrer">Add to Claude</a> <span class="muted meta">Adds ${escapeHtml(new URL(url).host)}</span></p>
-<p class="muted meta">On a Team or Enterprise plan? An owner adds it once for everyone: <a href="${escapeAttr(claudeConnectorLink(url, true))}" target="_blank" rel="noopener noreferrer">Add for my organization</a></p>
-<p class="muted meta">No form? Click + → Add custom connector, and paste this address:</p>
+<p class="muted meta">On a Claude Team or Enterprise plan? The owner of your Claude plan adds it once for everyone: <a href="${escapeAttr(claudeConnectorLink(url, true))}" target="_blank" rel="noopener noreferrer">Add for my organization</a>. Then click Connect next to HA NOVA in Customize → Connectors.</p>
+<p class="muted meta">No form? In Claude, open Customize → Connectors, click +, then Add custom connector, and paste this address:</p>
 <p class="address">${escapeHtml(url)}</p>
 <p class="muted meta">ChatGPT on the web, on a computer: open chatgpt.com/plugins → + → Add custom MCP server, paste the address under Connection, pick OAuth, tick “I understand and want to continue”, then Create as a plugin. Sign in as the owner. If ChatGPT then says the OAuth callback data is missing, choose Connect on the plugin again. Then type @HA NOVA in a chat. Name already taken? Find your old HA NOVA under your own plugins. If it has this address, choose Install; if not, use another name.</p>`}
 <p class="muted">Who can use it: ${who}. Confirmations: ${phone}.</p>
@@ -272,7 +272,7 @@ ${m.chatRestarting ? `<p class="ok">Home Assistant is restarting (usually under 
 ${button("chat_apps_off", "Turn off chat apps", "", "secondary")}`;
   } else {
     body = `${c.unfinished ? `<p class="error">Chat apps are not fully off: parts are still in Home Assistant.</p>${button("chat_apps_off", "Finish turning off", "", "secondary")}` : ""}
-<p class="muted">Use HA NOVA in Claude and ChatGPT, also on your phone, through Home Assistant Link or your own public HTTPS address (with a valid certificate). Only you can use it.</p>
+<p class="muted">Use HA NOVA in Claude, also in its phone app, and in ChatGPT on a computer. ChatGPT needs a paid plan, like Plus or Pro; on a phone, it can only answer. You need Home Assistant Link or your own HTTPS address with a valid certificate. Only you can use it.</p>
 <p class="muted">Home Assistant restarts once if needed, always the first time (usually under a minute, longer on small devices).</p>${button("chat_apps_on", "Turn on chat apps")}`;
   }
   return `<section><h2>Chat apps</h2>${body}</section>

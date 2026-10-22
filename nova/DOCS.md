@@ -145,9 +145,12 @@ offers:
   Supervisor Ingress: signed in as the owner, with no code; as another user,
   with a six-digit code from the owner-only NOVA page.
 
-A standard Home Assistant user is recommended for everyday Cloud calls; owner
-or admin rights are not required for the machine routes. An owner is still
-required to open the NOVA console and generate or revoke pairing codes.
+Sign in to Home Assistant Link as the owner, and this computer connects with
+no code. Don't want the owner's login saved on this computer? Sign in as a
+standard Home Assistant user instead: HA NOVA through Link doesn't need owner
+or admin rights, and it can still do the same things. Then the owner makes a six-digit code on the NOVA page, in a separate
+private browser window. Only the owner can open the NOVA page and make or
+revoke codes.
 
 The setup wizard handles Relay configuration and skill installation. Local
 setup automatically uses one reachable Home Assistant instance, shows a
@@ -209,12 +212,12 @@ and ChatGPT (web, on a computer), without a computer running HA NOVA. They are o
   restarts once (about a minute).
 - **Connect:** add the address the NOVA page shows in Claude ("Add to Claude")
   or ChatGPT, then sign in to Home Assistant as the owner. On a Claude Team or
-  Enterprise plan, an owner of that plan adds it once for everyone, under
-  Claude's organization settings → Connectors. Then you choose "Connect" next
-  to HA NOVA under Customize → Connectors.
-- **Confirmations:** the same rules as on a computer. Risky changes wait for a
-  tap on the owner's linked phone or, without one, a code in the chat; the AI
-  can see that code too. You can turn off codes in the chat (risky changes
+  Enterprise plan, the owner of your Claude plan adds it once for everyone,
+  with "Add for my organization".
+  Then you click "Connect" next to HA NOVA under Customize → Connectors.
+- **Confirmations:** the same rules as on a computer. Unlocks, the alarm, and
+  deletes wait for a tap on the owner's linked phone. No phone? The owner types
+  a four-digit code in the chat; the AI can see that code too. You can turn off codes in the chat (risky changes
   then need the phone) or let chat apps only read.
 - **Turn off:** NOVA page → Chat apps → "Turn off chat apps". It takes effect
   at once, without a restart: the bridge stops, its own access is signed out,

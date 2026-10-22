@@ -127,8 +127,8 @@ the next full hour.
   `/start` answer 302 there; HA's own redirects to `/` always carry a query
   (sign-in returns to `/?auth_callback=1&code=...`) and still reach HA. It
   leads with "Try HA NOVA on a demo house": the personal-data warning above
-  every button, then "Which app do you use?" (Claude: Add to Claude; ChatGPT Plus
-  or Pro on the web: paste the address, OAuth, Connect again if the first
+  every button, then "Which app do you use?" (Claude: Add to Claude; ChatGPT on a paid
+  plan that lets you add your own plugins, on a computer: paste the address, OAuth, Connect again if the first
   sign-in fails; a computer: install, then `ha-nova try`), three
   prompts, a small "Open the house next to the chat and watch it change"
   link (`/demo-house/house`), the login, admin rights, the next reset, the
@@ -204,11 +204,12 @@ Visitors with a claude.ai account (the free plan allows one custom
 connector) add `https://demo.hanova.app/api/ha_nova/mcp` (the landing page's "Add to
 Claude" button opens Claude's "Add custom connector" with it filled in) and
 sign in as `demo` / `demo`. Design and reasons:
-`docs/work/2026-10-20-demo-add-to-claude-spec.md`. ChatGPT (Plus or Pro, on
-the web) works with the same address pasted as a custom MCP server with
-OAuth (maintainer test, ChatGPT Pro, 2026-10-22); its first sign-in often
-fails with "OAuth callback data missing", and Connect again works. The free
-plan can't add its own connectors.
+`docs/work/2026-10-20-demo-add-to-claude-spec.md`. ChatGPT needs a paid
+plan that lets you add your own plugins, like Plus or Pro (maintainer test,
+ChatGPT Pro, 2026-10-22). The free plan can't. On the web, on a computer, it
+works with the same address pasted as a custom MCP server with OAuth; its
+first sign-in often fails with "OAuth callback data missing", and Connect
+again works. On a phone, ChatGPT can only answer.
 
 - Path: claude.ai's servers → Caddy → Home Assistant's own OAuth and the
   `ha_nova` integration (`nova/integration`, the only `custom_components`,

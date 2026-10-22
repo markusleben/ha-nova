@@ -115,7 +115,7 @@ func (f *setupFlow) pageChatPhone(c *setupPageChat, offer *chatAppsOffer) {
 
 // pageChatMoved: after "Use another phone". Chat apps that are on keep the
 // phone the App holds for them (the move is this computer's); the row says
-// where to change it. Still off: the consent names the phone now linked.
+// so (nothing can change that phone yet). Still off: the consent names the phone now linked.
 func (f *setupFlow) pageChatMoved(c *setupPageChat, offer *chatAppsOffer) {
 	switch {
 	case c == nil:
