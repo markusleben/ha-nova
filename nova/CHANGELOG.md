@@ -9,7 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 ### Fixed
 - Chat apps: the code to confirm a change now ends the message in Claude and ChatGPT. How long the code works, and notes like the demo house's hourly reset, come right above it. (#831)
 - NOVA page: on a Claude Team or Enterprise plan, an owner adds HA NOVA once for everyone with the new "Add for my organization" link. If Claude opens with no form, the page shows the address to paste. (#830)
-- Chat apps: ChatGPT on a phone can't make changes, in its app or in a phone browser. HA NOVA now says to use chatgpt.com on a computer, or the Claude app on the phone. Questions still work on the phone.
+- Chat apps: ChatGPT on a phone can't make changes, in its app or in a phone browser. HA NOVA now says to use chatgpt.com on a computer, or the Claude app on the phone. Questions still work on the phone. (#834)
 - Chat apps now run HA NOVA 0.27.2.
 
 ### Upgrade notes

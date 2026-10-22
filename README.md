@@ -22,7 +22,7 @@
 
 <p align="center">
   Works with <b>Claude Code</b> · <b>Claude Desktop</b> · <b>Codex CLI</b> · <b>OpenCode</b> · <b>Google Antigravity</b> · <b>Hermes Agent</b> (preview)<br>
-  and in <b>Claude</b> (also on your phone) and <b>ChatGPT</b> on the web on a computer, with the NOVA Relay App
+  and in <b>Claude</b> (also on your phone) and <b>ChatGPT</b> on the web, on a computer, with the NOVA Relay App
 </p>
 
 <p align="center">
