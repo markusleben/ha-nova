@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // claude.ai keys a user's per-tool "Always allow" on the tool name and its
@@ -219,5 +220,47 @@ func TestMCPPlainResultsEndToEnd(t *testing.T) {
 	missing := c.tool("ha_find", map[string]any{"phrase": "Außenlicht"})["structuredContent"].(map[string]any)
 	if step, _ := missing["next_step"].(string); !strings.Contains(step, "list that kind (e.g. domain light) or the area before you say none exists") {
 		t.Fatalf("find miss: %v", missing)
+	}
+}
+
+// A chat code is the last thing the user reads: the demo notices and the
+// code's expiry go into say above the code block; a code a form withholds
+// gets nothing folded in and never reaches say.
+func TestSayAboveCode(t *testing.T) {
+	now := time.Date(2026, 10, 22, 19, 32, 0, 0, time.UTC)
+	previous := verbNow
+	verbNow = func() time.Time { return now }
+	t.Cleanup(func() { verbNow = previous })
+	head := "In the demo house: I'm about to unlock “Front Door”: locked → unlocked.\n" + chatCodeNote
+	envelope := func() map[string]any {
+		return map[string]any{"schema_version": 1, "verb": "call", "status": "needs_confirmation", "say": head + sayCodeBlock("8642"),
+			"plan":    map[string]any{"id": "p_1", "code": "8642", "confirm": "code", "channel": "chat", "expires_at": "2026-10-22T19:47:00Z"},
+			"notices": []any{map[string]any{"kind": "demo", "text": demoNoticeText}, map[string]any{"kind": "demo_reset", "text": "The demo house resets in 9 minutes."}}}
+	}
+	got := toolResult("ha_call", string(mustJSON(envelope())), "", verbExitConfirmation, nil, false)["structuredContent"].(map[string]any)
+	want := head + "\n" + demoSayNote + "\nThe demo house resets in 9 minutes.\nThis code works for 15 minutes." + sayCodeBlock("8642")
+	if got["say"] != want {
+		t.Fatalf("say:\n%v\nwant:\n%s", got["say"], want)
+	}
+	if step, _ := got["next_step"].(string); !strings.Contains(step, "already tells: the demo house notices and when the code expires)") || !strings.HasSuffix(step, "one line per code, last: <name>: **<code>**.") {
+		t.Fatalf("next_step: %s", step)
+	}
+	// Near the hourly reset the demo's code works only until then.
+	now = time.Date(2026, 10, 22, 19, 55, 30, 0, time.UTC)
+	late := envelope()
+	late["plan"].(map[string]any)["expires_at"] = "2026-10-22T20:10:30Z"
+	if say := toolResult("ha_call", string(mustJSON(late)), "", verbExitConfirmation, nil, false)["structuredContent"].(map[string]any)["say"].(string); !strings.HasSuffix(say, "\nThis code works for 5 minutes."+sayCodeBlock("8642")) {
+		t.Fatalf("reset cap: %s", say)
+	}
+	now = time.Date(2026, 10, 22, 19, 32, 0, 0, time.UTC)
+	forms := toolResult("ha_call", string(mustJSON(envelope())), "", verbExitConfirmation, nil, true)["structuredContent"].(map[string]any)
+	if say := forms["say"].(string); strings.Contains(say, "8642") || strings.Contains(say, "works for") || strings.Contains(forms["next_step"].(string), "add nothing after the code") {
+		t.Fatalf("forms: %v / %v", say, forms["next_step"])
+	}
+	// No code block (an ordinary preview, an expired plan's leftovers): say unchanged.
+	plain := envelope()
+	plain["say"] = "I'm about to run “Night”. Reply yes to go ahead."
+	if got := toolResult("ha_call", string(mustJSON(plain)), "", verbExitConfirmation, nil, false)["structuredContent"].(map[string]any); got["say"] != plain["say"] {
+		t.Fatalf("plain say changed: %v", got["say"])
 	}
 }
