@@ -173,7 +173,11 @@ async function gate([haUrl, ownerToken, origin]) {
 // HA's own expiries. A visitor admin may have written the old store
 // (local_file), so each field is checked, the files are read without
 // following links, and the count is capped.
-const CHAT_CLIENT = /^https:\/\/(claude\.ai|chatgpt\.com)\/[A-Za-z0-9._~\/-]{1,200}$/; // CIMD ids; HA accepts only same-host callbacks here (no egress)
+// The published CIMD client ids, exactly: Claude's, and ChatGPT's two forms
+// (developers.openai.com/apps-sdk/build/auth; HA offers no DCR). ChatGPT's
+// callback id is the only free part: 64 URL-safe characters at most, no dots,
+// so no address or sentence rides along.
+const CHAT_CLIENT = /^(https:\/\/claude\.ai\/oauth\/mcp-oauth-client-metadata|https:\/\/chatgpt\.com\/oauth\/([A-Za-z0-9_-]{1,64}\/)?client\.json)$/;
 const KEEP_MS = 24 * 3600_000;
 const KEEP_MAX = 200;
 const STORE_MAX = 32 << 20;
@@ -218,26 +222,38 @@ function keepable(tokens, demo, now = Date.now()) {
       created_at: new Date(created).toISOString(), last_used_at: new Date(used).toISOString() }));
 }
 
-// Old store unreadable or missing (first boot, a failed reset): the last
-// carry file stays for restore, which filters it again.
+// No previous store or demo user (first boot, a reset that failed before
+// up.sh): the last carry file stays for restore, which filters it again.
+// Anything present but unreadable, too large, or not a plain file drops it
+// (fail closed: a visitor can bloat or replace the store).
 function keep([stateDir, carry]) {
   if (!stateDir || !carry) throw new Error("usage: chat.mjs keep <state_dir> <carry_file>");
-  let tokens;
+  let ids, auth;
   try {
-    const demo = readPlain(`${stateDir}/demo-users.json`)?.demo;
-    const auth = readPlain(`${stateDir}/config/.storage/auth`);
-    if (!/^[0-9a-f]{32}$/.test(demo ?? "") || !auth) {
-      console.error("chat.mjs keep: no previous demo user or auth store; nothing kept");
-      return;
-    }
-    tokens = keepable(auth.data?.refresh_tokens, demo);
+    ids = readPlain(`${stateDir}/demo-users.json`);
+    auth = readPlain(`${stateDir}/config/.storage/auth`);
   } catch (err) {
+    rmSync(carry, { force: true });
     console.error(`chat.mjs keep: previous auth store unreadable (${err.message}); nothing kept`);
     return;
   }
+  if (!ids || !auth) {
+    console.error("chat.mjs keep: no previous demo user or auth store; the last carry file stays");
+    return;
+  }
+  const all = Array.isArray(auth.data?.refresh_tokens) ? auth.data.refresh_tokens : [];
+  const tokens = /^[0-9a-f]{32}$/.test(ids.demo ?? "") ? keepable(all, ids.demo) : [];
   if (tokens.length) writeAtomic(carry, tokens);
   else rmSync(carry, { force: true });
-  console.error(`chat.mjs keep: ${tokens.length} chat-app sign-in(s) kept`);
+  // Per client host, no secrets: shows whether a chat app's real client id
+  // ever falls outside CHAT_CLIENT (journal, ha-nova-demo-reset).
+  const kept = new Set(tokens.map((t) => t.id));
+  const host = (id) => /^https:\/\/([a-z0-9.-]{1,64})\//.exec(id ?? "")?.[1] ?? "other";
+  const dropped = {};
+  for (const t of all) {
+    if (t?.user_id === ids.demo && t.token_type === "normal" && !kept.has(t.id)) dropped[host(t.client_id)] = (dropped[host(t.client_id)] ?? 0) + 1;
+  }
+  console.error(`chat.mjs keep: ${tokens.length} chat-app sign-in(s) kept; demo sign-ins dropped by client host: ${JSON.stringify(dropped)}`);
 }
 
 function restore([carry, stateDir]) {
@@ -250,8 +266,15 @@ function restore([carry, stateDir]) {
   if (!credential) throw new Error("the demo user has no Home Assistant credential");
   const version = auth.data.refresh_tokens.find((t) => t.version)?.version ?? null;
   const known = new Set(auth.data.refresh_tokens.map((t) => t.id));
-  // Filtered again: a carry file left by a failed reset may be old.
-  const kept = keepable((readPlain(carry) ?? []).map((t) => ({ ...t, user_id: demo, token_type: "normal" })), demo)
+  // Filtered again: a carry file left by a failed reset may be old, and one
+  // older than 70 min (keep runs every reset) is not used at all.
+  let carried = [];
+  try {
+    if (Date.now() - lstatSync(carry).mtimeMs < 70 * 60_000) carried = readPlain(carry) ?? [];
+  } catch (err) {
+    if (err.code !== "ENOENT") throw err;
+  }
+  const kept = keepable(carried.map((t) => ({ ...t, user_id: demo, token_type: "normal" })), demo)
     .filter((t) => !known.has(t.id));
   for (const t of kept) {
     auth.data.refresh_tokens.push({ ...t, user_id: demo, client_name: null, client_icon: null, token_type: "normal",
@@ -259,6 +282,7 @@ function restore([carry, stateDir]) {
       credential_id: credential.id, version });
   }
   if (kept.length) writeAtomic(path, auth, lstatSync(path).mode & 0o777);
+  else rmSync(carry, { force: true });
   console.log(kept.length);
 }
 

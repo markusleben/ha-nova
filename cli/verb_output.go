@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"strings"
-	"time"
 )
 
 // Exit codes of the typed verbs (typed-verbs spec §2).
@@ -208,7 +207,7 @@ func verbNotices(paths runtimePaths, relayVersion string) []verbNotice {
 	var notices []verbNotice
 	if activeServerIsDemo() {
 		notices = append(notices, verbNotice{Kind: "demo", Text: demoNoticeText})
-		if text := demoResetText(time.Now()); text != "" {
+		if text := demoResetText(verbNow()); text != "" {
 			notices = append(notices, verbNotice{Kind: "demo_reset", Text: text})
 		}
 	} else if demoProfileOn(paths) {

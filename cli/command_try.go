@@ -46,6 +46,26 @@ func demoResetText(now time.Time) string {
 	return fmt.Sprintf("The demo house resets in %d %s. Your connection stays, your changes don't.", minutes, unit)
 }
 
+// demoPlanGone: apply found no plan on the demo house (--server or
+// HA_NOVA_SERVER demo, as the chat bridge runs) within planTTL after :00.
+// The reset drops open plans, so it may be one made before :00 (nothing ran)
+// or one already used (it may have run); its expires_at tells which. ""
+// anywhere else: a real home keeps PLAN_NOT_FOUND.
+func demoPlanGone(paths runtimePaths, opts verbOptions, now time.Time) string {
+	name := opts.server
+	if !opts.serverSet {
+		name, _ = requestedServerSelection()
+	}
+	reset := now.UTC().Truncate(time.Hour)
+	if name != demoProfileName || realDemoProfileExists(paths) || !demoProfileOn(paths) || now.Sub(reset) > planTTL+time.Minute {
+		return ""
+	}
+	return fmt.Sprintf("The demo house reset at %s UTC and dropped its open plans. If this plan's expires_at is before %s UTC, "+
+		"it was made before the reset and nothing ran: tell the user, then plan again (ha-nova plan call|write|delete|revert), show its preview, and get confirmation again. "+
+		"Otherwise it may have run: read the target with ha-nova get and tell the user; do not plan or apply again.",
+		reset.Format("15:04"), reset.Add(planTTL).Format("15:04"))
+}
+
 // demoTryPrompts: a short tour of the demo house. Each prompt names the
 // demo house (selection is per command, and a real home may be connected
 // too); "Undo that." follows a create, which the delete flow undoes. Each

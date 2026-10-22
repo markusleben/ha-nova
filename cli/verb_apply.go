@@ -145,6 +145,9 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	open := filepath.Join(planDir(paths), id+".json")
 	peek, err := readPlanFile(open)
 	if err != nil {
+		if next := demoPlanGone(paths, opts, verbNow()); next != "" {
+			return fail(refusedWith("PLAN_RESET", "plan "+id+" is missing: the demo house resets every hour at :00 and drops its open plans", next))
+		}
 		return fail(refused("PLAN_NOT_FOUND", "plan "+id+" is missing, expired, or already used"))
 	}
 	if opts.serverSet && opts.server != peek.Server {

@@ -67,11 +67,17 @@ main() {
 
   # Chat-app sign-ins (Claude, ChatGPT) outlive the wipe: HA flushes its auth
   # store on stop, chat.mjs keeps the demo user's used in the last 24 h
-  # (spec decision 2). Never a reason to stop: the worst case is today's
-  # reconnect.
-  timeout 90 docker stop -t 60 ha-nova-testbed-ha > /dev/null 2>&1 || true
-  timeout 60 node "$HOSTED/chat.mjs" keep "$TB/.state" "$KEPT" \
-    || logger -p user.warning -t ha-nova-demo-reset "chat-app sign-ins not kept"
+  # (spec decision 2). Never a reason to stop: the worst case is a
+  # reconnect. DEMO_DROP_SIGN_INS=1 (env or /etc/ha-nova-demo.env) drops them
+  # all instead (hosted-demo.md, incident).
+  if [[ "${DEMO_DROP_SIGN_INS:-}" == 1 ]]; then
+    rm -f "$KEPT"
+    echo "reset.sh: DEMO_DROP_SIGN_INS=1: every chat-app sign-in dropped" >&2
+  else
+    timeout 30 docker stop -t 15 ha-nova-testbed-ha > /dev/null 2>&1 || true
+    timeout 60 node "$HOSTED/chat.mjs" keep "$TB/.state" "$KEPT" \
+      || { rm -f "$KEPT"; logger -p user.warning -t ha-nova-demo-reset "chat-app sign-ins not kept"; }
+  fi
   RELAY_AUTH_TOKEN="" HA_LLAT="" timeout 300 bash "$TB/down.sh"
   git -C "$REPO" checkout -q --force --detach "$DEMO_REF"
   git -C "$REPO" clean -qffdx
@@ -103,13 +109,16 @@ main() {
   # to this build's demo user. Only when there are any: a restart costs time.
   if [[ -s "$KEPT" ]]; then
     local kept=0
-    timeout 90 docker stop -t 60 ha-nova-testbed-ha > /dev/null || gate_failed "could not stop Home Assistant to restore chat-app sign-ins"
+    # A failed gate after this moves the carry file aside (gate_failed): a
+    # bad restore must not keep the house down until the sign-ins expire.
+    RESTORED=1
+    timeout 30 docker stop -t 15 ha-nova-testbed-ha > /dev/null || gate_failed "could not stop Home Assistant to restore chat-app sign-ins"
     kept="$(timeout 60 node "$HOSTED/chat.mjs" restore "$KEPT" "$TB/.state")" \
       || logger -p user.warning -t ha-nova-demo-reset "chat-app sign-ins not restored"
     docker start ha-nova-testbed-ha > /dev/null || gate_failed "could not start Home Assistant after restoring chat-app sign-ins"
-    for i in $(seq 1 90); do
-      curl -sf -m 5 -o /dev/null -H "Authorization: Bearer $owner_llat" "$HA/api/" && break
-      [[ "$i" == 90 ]] && gate_failed "Home Assistant did not come back after restoring ${kept:-0} chat-app sign-in(s)"
+    local deadline=$((SECONDS + 180))
+    until curl -sf -m 5 -o /dev/null -H "Authorization: Bearer $owner_llat" "$HA/api/"; do
+      ((SECONDS < deadline)) || gate_failed "Home Assistant did not come back within 3 min after restoring ${kept:-0} chat-app sign-in(s)"
       sleep 2
     done
     echo "reset.sh: ${kept:-0} chat-app sign-in(s) restored" >&2
@@ -161,6 +170,7 @@ main() {
 # A failed gate takes the house down: Caddy keeps showing the reset page.
 gate_failed() {
   rm -f "$PUBLIC/ready"
+  if [[ "${RESTORED:-}" == 1 && -e "$KEPT" ]]; then mv -f "$KEPT" "$KEPT.failed"; fi
   logger -p user.err -t ha-nova-demo-reset "gate failed, house taken down: $1"
   echo "reset.sh: gate failed: $1" >&2
   RELAY_AUTH_TOKEN="" HA_LLAT="" timeout 300 bash "$TB/down.sh" || true

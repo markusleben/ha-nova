@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, utimesSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -12,8 +12,10 @@ const OLD_DEMO = "a".repeat(32);
 const NEW_DEMO = "b".repeat(32);
 const CLAUDE = "https://claude.ai/oauth/mcp-oauth-client-metadata";
 const CHATGPT = "https://chatgpt.com/oauth/abc123/client.json";
+const CHATGPT_STABLE = "https://chatgpt.com/oauth/client.json";
 const hex = (c: string, n: number) => c.repeat(n);
-const ago = (hours: number) => new Date(Date.now() - hours * 3600_000).toISOString();
+// As HA writes them (datetime.isoformat()): microseconds and +00:00.
+const ago = (hours: number) => new Date(Date.now() - hours * 3600_000).toISOString().replace(/\.(\d{3})Z$/, ".$1123+00:00");
 
 let dirs: string[] = [];
 afterEach(() => {
@@ -51,21 +53,24 @@ describe("hosted demo: chat-app sign-ins across the reset", () => {
       token("6", { user_id: "c".repeat(32) }), // another user
       token("7", { client_id: "https://claude.ai.evil.example/x" }),
       token("8", { token: "short" }),
+      token("a", { client_id: "https://claude.ai/FREE-GIFT-visit-scam" }), // only the published ids
+      token("b", { client_id: "https://chatgpt.com/oauth/visit.scam.example/client.json" }),
+      token("c", { client_id: CHATGPT_STABLE, last_used_at: ago(2) }),
     ]);
     const carry = join(old, "carry.json");
     run("keep", old, carry);
-    expect(JSON.parse(readFileSync(carry, "utf8")).map((t: { id: string }) => t.id[0])).toEqual(["1", "2"]);
+    expect(JSON.parse(readFileSync(carry, "utf8")).map((t: { id: string }) => t.id[0])).toEqual(["1", "2", "c"]);
 
     const fresh = stateDir(NEW_DEMO, [token("9", { user_id: "d".repeat(32), client_id: "http://127.0.0.1:18123/" })],
       [{ id: "newcred", user_id: NEW_DEMO, auth_provider_type: "homeassistant", auth_provider_id: null, data: { username: "demo" } }]);
-    expect(run("restore", carry, fresh).trim()).toBe("2");
+    expect(run("restore", carry, fresh).trim()).toBe("3");
     const tokens = JSON.parse(readFileSync(join(fresh, "config/.storage/auth"), "utf8")).data.refresh_tokens;
     const chatgpt = tokens.find((t: { client_id: string }) => t.client_id === CHATGPT);
     expect(chatgpt).toMatchObject({
       user_id: NEW_DEMO, client_name: null, client_icon: null, token_type: "normal", access_token_expiration: 1800,
       last_used_ip: null, credential_id: "newcred", version: "2026.10.1", token: hex("2", 128), jwt_key: hex("2", 128),
     });
-    expect(tokens).toHaveLength(3);
+    expect(tokens).toHaveLength(4);
     // Twice is harmless: no duplicates.
     expect(run("restore", carry, fresh).trim()).toBe("0");
   });
@@ -82,14 +87,43 @@ describe("hosted demo: chat-app sign-ins across the reset", () => {
     expect(kept[0].id).toBe("0".repeat(32));
   });
 
-  it("follows no link and keeps the last carry file when the old store is unreadable", () => {
+  it("keeps the last carry file only when the old store is missing, and drops it when the store is unusable", () => {
+    const old = stateDir(OLD_DEMO, [token("1")]);
+    const carry = join(old, "carry.json");
+    const store = join(old, "config/.storage/auth");
+    run("keep", old, carry);
+    const before = readFileSync(carry, "utf8");
+    rmSync(store); // a reset that failed before up.sh: nothing to read
+    run("keep", old, carry);
+    expect(readFileSync(carry, "utf8")).toBe(before);
+    for (const unusable of [
+      () => symlinkSync(join(old, "demo-users.json"), store), // not a plain file
+      () => writeFileSync(store, "{not json"), // present but unreadable
+    ]) {
+      writeFileSync(carry, before);
+      rmSync(store, { force: true });
+      unusable();
+      run("keep", old, carry);
+      expect(existsSync(carry)).toBe(false);
+    }
+  });
+
+  it("ignores and removes a carry file older than 70 minutes", () => {
     const old = stateDir(OLD_DEMO, [token("1")]);
     const carry = join(old, "carry.json");
     run("keep", old, carry);
-    const before = readFileSync(carry, "utf8");
-    rmSync(join(old, "config/.storage/auth"));
-    symlinkSync(join(old, "demo-users.json"), join(old, "config/.storage/auth"));
+    const longAgo = new Date(Date.now() - 71 * 60_000);
+    utimesSync(carry, longAgo, longAgo);
+    const fresh = stateDir(NEW_DEMO, [], [{ id: "newcred", user_id: NEW_DEMO, auth_provider_type: "homeassistant" }]);
+    expect(run("restore", carry, fresh).trim()).toBe("0");
+    expect(existsSync(carry)).toBe(false);
+  });
+
+  it("refuses to restore without the new demo user's credential", () => {
+    const old = stateDir(OLD_DEMO, [token("1")]);
+    const carry = join(old, "carry.json");
     run("keep", old, carry);
-    expect(readFileSync(carry, "utf8")).toBe(before);
+    const fresh = stateDir(NEW_DEMO, [], [{ id: "x", user_id: "d".repeat(32), auth_provider_type: "homeassistant" }]);
+    expect(() => run("restore", carry, fresh)).toThrow(/no Home Assistant credential/);
   });
 });

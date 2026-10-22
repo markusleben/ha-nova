@@ -403,3 +403,42 @@ func TestDemoResetTextOnlyInTheLastTenMinutes(t *testing.T) {
 		t.Errorf("CEST: %q", got)
 	}
 }
+
+func TestMissingDemoPlanAfterTheResetSaysWhichCase(t *testing.T) {
+	fakeDemo(t, "")
+	paths := tryTestPaths(t, testV2TwoProfileConfig)
+	paths.CacheDir = t.TempDir()
+	if exit, out := runTry(t, paths); exit != 0 {
+		t.Fatalf("try exit=%d out=%s", exit, out)
+	}
+	previous := verbNow
+	t.Cleanup(func() { verbNow = previous })
+	apply := func(clock string, opts verbOptions) *verbError {
+		at, err := time.Parse(time.RFC3339, "2026-10-22T"+clock+"Z")
+		if err != nil {
+			t.Fatal(err)
+		}
+		verbNow = func() time.Time { return at }
+		env, exit := applyPlan(paths, opts, "p_0123456789ab", "", false)
+		if exit != verbExitRefused || env.Error == nil {
+			t.Fatalf("%s: exit=%d %+v", clock, exit, env)
+		}
+		return env.Error
+	}
+	demo := verbOptions{server: demoProfileName, serverSet: true}
+	got := apply("13:05:00", demo)
+	if got.Code != "PLAN_RESET" || !strings.Contains(got.Next, "reset at 13:00 UTC") || !strings.Contains(got.Next, "before 13:15 UTC") ||
+		!strings.Contains(mcpNext(got.Next), "ha_get") {
+		t.Fatalf("demo, just after :00: %+v", got)
+	}
+	if got := apply("13:30:00", demo); got.Code != "PLAN_NOT_FOUND" || got.Next != mayHaveRun {
+		t.Fatalf("demo, past every pre-reset plan's expiry: %+v", got)
+	}
+	// The real home never gets the demo's step, also right after :00.
+	if got := apply("13:05:00", verbOptions{}); got.Code != "PLAN_NOT_FOUND" {
+		t.Fatalf("real home: %+v", got)
+	}
+	if got := apply("13:05:00", verbOptions{server: defaultServerProfileName, serverSet: true}); got.Code != "PLAN_NOT_FOUND" {
+		t.Fatalf("real home by name: %+v", got)
+	}
+}
