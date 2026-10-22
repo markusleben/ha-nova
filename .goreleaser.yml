@@ -69,49 +69,14 @@ release:
     ```
 
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`; if it reports that it needs admin rights, rerun the stable Windows install command instead.
-    {{ else }}## What To Watch
+    {{ else }}## Bug Fixes
 
-    - **Update the NOVA Relay App too.** Chat apps, Link sign-in without a code, and App removal on uninstall need NOVA Relay 0.11.0. Update it in Settings > Apps, or let setup do it (Container/Core: pull the new image).
-    - **Chat apps need Home Assistant 2026.10 or newer** on HA OS or Supervised, plus Home Assistant Link with remote access on, or your own public HTTPS address with a valid certificate.
-    - **Setup opens in your browser.** On a desktop, `ha-nova setup` shows a setup page. Run it again and the page shows what is set up, so you can change it. Over SSH or with `--no-browser`, it asks in the terminal as before.
-    - **Claude Code rules are on by default.** Claude Code then reads HA NOVA's files and runs changes you approved without asking. You still confirm every unlock or delete. Turn them off before you finish setup.
-    - **Claude Code starts in a new “HA NOVA” folder.** When setup opens Claude Code, it starts in that folder in your home folder. When Claude Code asks, choose “Yes, I trust this folder”.
-    - **`ha-nova uninstall` asks one question.** “Remove” now also removes this computer's pairing. Choose “Remove, but keep the pairing” to reinstall later. `--yes` keeps the pairing unless you add `--purge`.
-    - **Windows, coming from 0.24.x or 0.25.x: update with the install command once.** On those versions, `ha-nova update` asks for admin rights or fails. Run the Windows install command below. After that, no admin prompt.
-    - **Link setup not finished? Setup still works.** It updates HA NOVA, then shows one command to finish Home Assistant Link and one to remove it.
-    - **Coming from 0.25 or older? You may see a privacy question one last time.** The old version asks it right after the update. Choose 2 (No). Nothing is sent.
-    - **Last release with the old shared access.** Run `ha-nova setup` once (a `--service` install: `ha-nova pair --credential-store=file`), then choose “Revoke legacy access” on the NOVA page. The next release drops it.
+    - **Your code works the first time.** If nothing changed, the code you typed now works, even when the safety check was slow. Before, a slow check could turn it down again and again, like on a NOVA Relay App update.
+    - **HA NOVA says what changed.** If something changed since the preview, like a newer version, it stops, says what changed, and asks again.
+    - **The code is easy to spot.** The code to confirm a change now comes last, on its own line, in bold.
+    - **Demo house: a heads-up before the hourly reset.** Your AI app tells you when the reset is near. Claude and ChatGPT now stay connected through it.
 
-    ## New Features
-
-    - **Set up in your browser.** One installer line opens a setup page. It finds your Home Assistant, you sign in as the owner, it installs the NOVA Relay App if needed (HA OS, Supervised), and this computer connects.
-    - **Use HA NOVA in Claude, also on your phone, and in ChatGPT.** Turn on chat apps in setup or on the NOVA page. Then add HA NOVA to Claude in one click, or paste its address into ChatGPT on the web. No computer needed.
-    - **Window and phone ask together.** A confirmation asks in the window on your computer and on your linked phone at once. The first answer counts, and the phone shows what happened.
-    - **Your home at a glance.** Setup ends with your home in numbers, things worth a look, and an automation made for your home to preview and save. Nothing in your home changes unless you save it.
-    - **Try it without Home Assistant.** `ha-nova try` connects your AI app to a shared demo house that resets every hour, then gives you five things to say. `ha-nova try --stop` removes it.
-    - **Link sign-in without a code.** Set up Home Assistant Link as the owner, and this computer connects with that one sign-in. Other users still get the six-digit code.
-    - **Uninstall in one step.** On the last computer that uses the NOVA Relay App, `ha-nova uninstall` can remove the App from Home Assistant too, after the owner signs in.
-    - **Use Claude or ChatGPT in the browser? Setup has a path for that.** No AI app on this computer? Choose “I use Claude or ChatGPT in the browser”. After the owner signs in, setup checks the version and internet address.
-    - **Smarter answers and settings.** Ask for averages or totals across rooms (“How warm is it upstairs?”). Change icons, units, and how a value shows. Before a restart, HA NOVA checks your config.
-    - **Change your phone from the setup page.** Run setup again and choose “Use another phone” (it shows when another phone has the Home Assistant app). Tap “Move” on the old phone, then “Allow” on the new one.
-
-    ## Bug Fixes
-
-    - **Setup waits for a slow Home Assistant.** Connecting this computer no longer gives up after 30 seconds. The page says what went wrong, and Try again often needs no new sign-in.
-    - **Clearer answers.** Usually names, not ids, also in previews. One way to ask before a change, one way to say what happened. Times use your home's time zone. If the NOVA Relay App doesn't answer, it says where to look.
-    - **Safer: saved codes stay hidden from the AI.** A lock or alarm code in its settings, the backup password, and the Thread network key are hidden from your AI app and undo copies. Codes in automations are not.
-    - **Claude Code asks Home Assistant, not your files.** A question like “Where is the outside temperature used?” now goes to HA NOVA, also when you installed with the install command.
-    - **Your AI app says who asks.** Before an unlock, it says a window or your phone will ask you. It asks for a code only when neither can.
-    - **Linux: uninstall unlocks a locked keyring.** It opens the system window. HA NOVA never sees your password. If it can't reach the keyring, it stops before any change. A server with no desktop still finishes over SSH.
-    - **Linux: `ha-nova` works in every new terminal.** The installer also adds it to `~/.bashrc`. A locked keyring now gets one plain next step instead of a connection error.
-    - **A confirmation window closes with its command.** If you stop the command (Ctrl+C, or a closed terminal), its window closes too. So a late Confirm never lands in a window nobody reads.
-    - **Setup asks before it uses a Home Assistant it found,** also when it found just one by IP address. After a pairing was removed on the NOVA page, setup goes straight to pairing again.
-    - **Setup in the terminal without an AI app still connects this computer.** Then it names the AI apps to install and says to run `ha-nova setup` again.
-    - **A correct save no longer says it didn't pass the check.** Home Assistant stores some steps in a newer form. HA NOVA now reads them the same way, so your AI app no longer reports a false problem.
-    - **Works with AI apps that use PowerShell on Windows.** With the demo house or more than one Home Assistant, your AI app now picks the right one there too.
-    - **Setup page is clearer.** It says who the owner is. Buttons act right away. Switches wait for “Continue” (“Done” on a re-run). Can't sign in on this computer? Use a six-digit code, made on any device.
-    - **Uninstall ends with a short summary:** what was removed, what stays, and one next step. Add `--verbose` to see file paths. A Link sign-in you start and don't finish no longer stops a full removal.
-    - **Plainer questions and notifications.** Every yes/no in the terminal is an arrow menu. Phone and watch notifications read right. To link a phone, you now tap “Allow” (was “Link”).
+    For your own home, these fixes are for HA NOVA on your computer. Claude and ChatGPT chat apps run in the NOVA Relay App, which this release doesn't change.
 
     Stable install commands are release-pinned for this tag.
 
