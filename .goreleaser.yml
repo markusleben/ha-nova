@@ -76,6 +76,8 @@ release:
     - **The code is easy to spot.** The code to confirm a change now comes last, on its own line, in bold.
     - **Demo house: a heads-up before the hourly reset.** Your AI app tells you when the reset is near. Claude and ChatGPT now stay connected through it.
 
+    For your own home, these fixes are for HA NOVA on your computer. Claude and ChatGPT chat apps run in the NOVA Relay App, which this release doesn't change.
+
     Stable install commands are release-pinned for this tag.
 
     **macOS / Linux:**

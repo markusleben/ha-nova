@@ -47,6 +47,8 @@ describe("release notes contract", () => {
     expect(stableNotes).toMatch(/^## Bug Fixes\s+- \*\*Your code works the first time\.\*\*/);
     expect(stableNotes).toContain("says what changed");
     expect(stableNotes).toContain("on its own line, in bold");
+    // No App patch in 0.27.1: the chat-app bridge in the App keeps the 0.27.0 CLI.
+    expect(stableNotes).toContain("chat apps run in the NOVA Relay App, which this release doesn't change");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
     expect(stableNotes).not.toContain("Cloud Remote is back on Windows and Linux");
