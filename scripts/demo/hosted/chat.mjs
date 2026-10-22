@@ -237,7 +237,8 @@ function keep([stateDir, carry]) {
     auth = readPlain(`${stateDir}/config/.storage/auth`);
   } catch (err) {
     rmSync(carry, { force: true });
-    console.error(`chat.mjs keep: previous auth store unreadable (${err.message}); nothing kept`);
+    // A parse error quotes the visitor-writable file: never into the log.
+    console.error(`chat.mjs keep: previous auth store unusable (${err instanceof SyntaxError ? "not valid JSON" : err.message}); nothing kept`);
     return;
   }
   if (!ids || !auth) {

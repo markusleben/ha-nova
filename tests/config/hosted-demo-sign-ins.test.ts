@@ -101,12 +101,12 @@ describe("hosted demo: chat-app sign-ins across the reset", () => {
     expect(readFileSync(carry, "utf8")).toBe(before);
     for (const unusable of [
       () => symlinkSync(join(old, "demo-users.json"), store), // not a plain file
-      () => writeFileSync(store, "{not json"), // present but unreadable
+      () => writeFileSync(store, "{visitor-text"), // present but unreadable
     ]) {
       writeFileSync(carry, before);
       rmSync(store, { force: true });
       unusable();
-      run("keep", old, carry);
+      expect(spawnSync("node", [CHAT, "keep", old, carry], { encoding: "utf8" }).stderr).not.toContain("visitor-text");
       expect(existsSync(carry)).toBe(false);
     }
   });
