@@ -75,7 +75,9 @@ describe("release notes contract", () => {
     // Only Pro was tested for changes in ChatGPT; Plus stays unnamed.
     expect(readme).toContain("ChatGPT needs a paid plan that lets you add your own plugins. We tested Pro. The free plan can't. On a phone, ChatGPT can only answer.");
     expect(readme).not.toMatch(/\bPlus\b/);
-    expect(readFileSync("docs/reference/chat-apps.md", "utf8")).not.toMatch(/\bPlus\b/);
+    for (const doc of ["docs/reference/chat-apps.md", "docs/reference/hosted-demo.md"]) {
+      expect(readFileSync(doc, "utf8")).not.toMatch(/\bPlus\b/);
+    }
     expect(readme).toContain("34 task skills plus the HA NOVA context skill");
     expect(readme).not.toContain("ha-nova mcp");
     expect(readme).not.toContain("ha_apply");
