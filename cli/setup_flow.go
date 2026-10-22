@@ -53,12 +53,14 @@ type setupFlow struct {
 	pageTyped      bool // the user typed Home Assistant's address on the page
 	// pageControlled: step 3 runs on the page; pageQuit: setup ended there
 	// (Ctrl+C or idle); pageNotes: what step 3 did, for step 4, and
-	// pageChatLink its Add to Claude link; pageGeneration: the install
+	// pageChatLink its Add to Claude link (pageOrgLink: for a Team or
+	// Enterprise owner); pageGeneration: the install
 	// generation setup completed with.
 	pageControlled bool
 	pageQuit       bool
 	pageNotes      []*setupPageMsg
 	pageChatLink   string
+	pageOrgLink    string
 	pageChatOff    bool // step 3 ended with chat apps off: step 4 tells a browser user what's next
 	pageGeneration []byte
 	// pageRerunning: setup ran on this computer before (setup_page_rerun.go);

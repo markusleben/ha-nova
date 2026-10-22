@@ -294,7 +294,7 @@ func (f *setupFlow) pageRerunChat(linkOrigin func() string) *setupPageChat {
 	case url == "":
 		return &setupPageChat{State: "page_on", Problem: setupPageText("setup.chat.on_noaddress")}
 	}
-	chat := &setupPageChat{State: "page_on", URL: url, ClaudeLink: claudeConnectorLink(url)}
+	chat := &setupPageChat{State: "page_on", URL: url, ClaudeLink: claudeConnectorLink(url), OrgLink: claudeOrgConnectorLink(url)}
 	if !ha.loaded {
 		chat.Problem = setupPageText("setup.chat.problem_slow")
 	}

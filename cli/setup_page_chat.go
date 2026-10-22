@@ -18,7 +18,7 @@ import (
 // Home Assistant to return before step 4). A failure keeps the switch, with
 // one line; trying again runs the whole action again.
 func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func()) {
-	c.State, c.Problem, c.URL, c.ClaudeLink = "run", nil, "", ""
+	c.State, c.Problem, c.URL, c.ClaudeLink, c.OrgLink = "run", nil, "", "", ""
 	c.Rows = []setupPageRow{{ID: "chat_on", State: "run", Msg: setupPageText("setup.chat.row_on")}}
 	show()
 	set := func(id, state string) {
@@ -64,7 +64,7 @@ func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func
 		}
 		return
 	}
-	c.State, c.URL, c.ClaudeLink = "on", offer.url, claudeConnectorLink(offer.url)
+	c.State, c.URL, c.ClaudeLink, c.OrgLink = "on", offer.url, claudeConnectorLink(offer.url), claudeOrgConnectorLink(offer.url)
 	offer.state.Enabled = true
 	if result.phoneStored {
 		name := phone.Name
@@ -89,7 +89,7 @@ func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func
 func (f *setupFlow) pageChatNote(url string) {
 	f.pageNotes = slices.DeleteFunc(f.pageNotes, func(n *setupPageMsg) bool { return n.Key == "setup.page.home.note_chat" })
 	f.pageNotes = append(f.pageNotes, setupPageText("setup.page.home.note_chat", "url", url))
-	f.pageChatLink = claudeConnectorLink(url)
+	f.pageChatLink, f.pageOrgLink = claudeConnectorLink(url), claudeOrgConnectorLink(url)
 }
 
 // pageChatPhone follows a phone linked on step 3 after the chat row was
@@ -144,7 +144,7 @@ func (f *setupFlow) pageChatRow(chat *chatAppsOffer) *setupPageChat {
 		}
 		return row
 	case chat.state.Enabled:
-		row := &setupPageChat{State: "on", URL: chat.url, ClaudeLink: claudeConnectorLink(chat.url)}
+		row := &setupPageChat{State: "on", URL: chat.url, ClaudeLink: claudeConnectorLink(chat.url), OrgLink: claudeOrgConnectorLink(chat.url)}
 		if !chat.loaded { // on, but a restart never came: the address doesn't answer yet
 			row.Problem = setupPageText("setup.chat.problem_slow")
 		}
@@ -163,7 +163,7 @@ func (f *setupFlow) pageChatRow(chat *chatAppsOffer) *setupPageChat {
 // naming the phone and the restart from the fresh read. Nothing turns on
 // before that click.
 func (f *setupFlow) pageRerunChatOn(c *setupPageChat, offer *chatAppsOffer, linkOrigin func() string, show func()) {
-	c.State, c.Problem, c.URL, c.ClaudeLink = "signin", nil, "", ""
+	c.State, c.Problem, c.URL, c.ClaudeLink, c.OrgLink = "signin", nil, "", "", ""
 	show()
 	out := f.page.text.out // the sign-in's link, as the Link offer's
 	failed := func(problem *setupPageMsg) {
@@ -193,7 +193,7 @@ func (f *setupFlow) pageRerunChatOn(c *setupPageChat, offer *chatAppsOffer, link
 // `ha-nova chat-apps off` itself (the owner's sign-in, then the check of
 // what Home Assistant still holds); the end screen says how it went.
 func (f *setupFlow) pageRerunChatOff(c *setupPageChat, show func()) {
-	c.State, c.Problem, c.URL, c.ClaudeLink = "signin", nil, "", ""
+	c.State, c.Problem, c.URL, c.ClaudeLink, c.OrgLink = "signin", nil, "", "", ""
 	show()
 	c.State = "page_off"
 	note := setupPageText("setup.page.home.note_chat_off")

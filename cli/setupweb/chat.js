@@ -18,12 +18,20 @@ window.novaChat = (h) => {
     try { host = decodeURIComponent((/[?&]connectorUrl=([^&]*)/.exec(href) || ['', ''])[1]).replace(/^https:\/\/([^/]+).*$/, '$1'); } catch (_) { /* no host line */ }
     return [link(t('setup.chat.add_claude'), href, kind, id), host ? el('span', { class: 'fine' }, t('setup.chat.adds', { host })) : null];
   };
+  // Team and Enterprise members can't add it themselves: an owner adds it
+  // once in organization settings (claudeOrgConnectorLink). No form at all?
+  // Paste the address.
+  const claudeHelp = (orgHref, id, noForm) => {
+    const org = /^https:\/\/claude\.ai\//.test(orgHref || '') ? link(t('setup.chat.add_org'), orgHref, 'ghost', id) : null;
+    if (org) org.className = 'linkish';
+    return [org ? el('p', { class: 'fine' }, t('setup.chat.org'), ' ', org) : null, el('p', { class: 'fine' }, t(noForm))];
+  };
   const copy = (text) => (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard')))
     .then(() => toast(t('setup.chat.copied')), () => toast(t('setup.chat.copy_failed')));
-  // How to add it, one fold per app (closed); ChatGPT's holds the address to copy.
-  const howTo = (app, title, keys, ...first) => {
+  // How to add it, one fold per app (closed).
+  const howTo = (app, title, keys) => {
     const details = el('details', { class: 'how' }, el('summary', { id: `b-chat-how-${app}` }, t(title)),
-      ...first, el('ol', {}, keys.map((key) => el('li', {}, t(key)))));
+      el('ol', {}, keys.map((key) => el('li', {}, t(key)))));
     details.open = Boolean(local.how[app]);
     details.addEventListener('toggle', () => { local.how[app] = details.open; });
     return details;
@@ -34,13 +42,15 @@ window.novaChat = (h) => {
     node.dataset.focusAfter = 'chat-run b-chat-on b-chat-cancel b-chat-recheck';
     return node;
   };
-  // Once on: Add to Claude (never a second primary next to Finish), then how.
+  // Once on: Add to Claude (never a second primary next to Finish), the
+  // address to copy (Claude without a form, ChatGPT), then how.
   const onParts = (chat) => [
     el('div', { class: 'actions addclaude' }, addClaude(chat.claude_link, 'ghost btn-small', 'chat-claude')),
+    ...claudeHelp(chat.org_link, 'chat-claude-org', 'setup.chat.no_form'),
+    el('div', { class: 'copybar' }, el('code', { id: 'chat-url' }, chat.url),
+      el('button', { id: 'b-chat-copy', class: 'btn btn-ghost btn-small', type: 'button', onclick: () => copy(chat.url) }, t('setup.chat.copy'))),
     howTo('claude', 'setup.chat.claude_title', ['setup.chat.claude_1', 'setup.chat.claude_2', 'setup.chat.claude_3']),
-    howTo('chatgpt', 'setup.chat.chatgpt_title', ['setup.chat.chatgpt_1', 'setup.chat.chatgpt_2', 'setup.chat.chatgpt_3'],
-      el('div', { class: 'copybar' }, el('code', { id: 'chat-url' }, chat.url),
-        el('button', { id: 'b-chat-copy', class: 'btn btn-ghost btn-small', type: 'button', onclick: () => copy(chat.url) }, t('setup.chat.copy'))))];
+    howTo('chatgpt', 'setup.chat.chatgpt_title', ['setup.chat.chatgpt_1', 'setup.chat.chatgpt_2', 'setup.chat.chatgpt_3'])];
   // The guide's own-HTTPS-address part: a plain link, not a third button.
   const ownAddress = (href) => {
     const node = link(t('setup.chat.need_own'), href, 'ghost', 'chat-own');
@@ -116,5 +126,5 @@ window.novaChat = (h) => {
     }
   };
 
-  return { chatRow, addClaude };
+  return { chatRow, addClaude, claudeHelp };
 };
