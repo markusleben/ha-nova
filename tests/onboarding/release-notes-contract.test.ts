@@ -47,8 +47,9 @@ describe("release notes contract", () => {
       expect(noted, "notes name the shipped NOVA Relay version").toBe(relayVersion);
     }
     expect(stableNotes).toMatch(/^## Bug Fixes\s+- \*\*The code is last in chat apps too\.\*\*/);
-    expect(stableNotes).toContain("on its own line, in bold. Nothing comes after it.");
-    expect(stableNotes).toContain("How long the code works, and notes like the demo house's hourly reset, now come right above the code.");
+    expect(stableNotes).toContain("stands on its own line at the end, in bold. Nothing comes after it.");
+    expect(stableNotes).toContain("**Short notes only.** Above the code, the chat says only what will happen and how long the code works.");
+    expect(stableNotes).not.toContain("hourly reset, now come right above the code");
     expect(stableNotes).toContain("**Claude Team and Enterprise plans can add HA NOVA.** There, the owner of your Claude Team or Enterprise plan adds it once for everyone.");
     expect(stableNotes).toContain('"Add for my organization"');
     expect(stableNotes).toContain("Click +, then Add custom connector, and paste it.");

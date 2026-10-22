@@ -71,8 +71,8 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`; if it reports that it needs admin rights, rerun the stable Windows install command instead.
     {{ else }}## Bug Fixes
 
-    - **The code is last in chat apps too.** In Claude and ChatGPT, the code to confirm a change now ends the message, on its own line, in bold. Nothing comes after it.
-    - **What you need to know comes first.** How long the code works, and notes like the demo house's hourly reset, now come right above the code.
+    - **The code is last in chat apps too.** In Claude and ChatGPT, the code to confirm a change now stands on its own line at the end, in bold. Nothing comes after it.
+    - **Short notes only.** Above the code, the chat says only what will happen and how long the code works.
     - **Claude Team and Enterprise plans can add HA NOVA.** There, the owner of your Claude Team or Enterprise plan adds it once for everyone. Setup and the NOVA page now show an "Add for my organization" link for that.
     - **No form in Claude? Paste the address.** If Claude opens with no form, setup and the NOVA page show the address. Click +, then Add custom connector, and paste it.
     - **On a phone, ChatGPT can only answer.** 0.27.1 said to use chatgpt.com in a browser, but a phone browser can't make changes either. Use chatgpt.com on a computer, or the Claude app on your phone.

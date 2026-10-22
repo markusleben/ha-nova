@@ -32,10 +32,16 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 	case plan.Confirm == "code" && plan.Channel == channelPhone:
 		verb, _ := sayGoal(e, env, plan, subject)
 		parts = append(parts, sayPhoneAsk(phoneButton(verb)))
+	case plan.Confirm == "code" && plan.Channel == channelChat && chatCall != nil:
+		// A chat app (ha-nova serve): only the action and the code, since
+		// claude.ai moves anything else below the code (mcp_plain.go adds
+		// when it expires).
+		about, status := sayWhat(e, env, plan, subject)
+		return demoPrefix(about + " " + status + sayCodeBlock(plan.code))
 	case plan.Confirm == "code": // the code block is always last
 		text := strings.Join(parts, " ")
 		if plan.Channel == channelChat {
-			text += "\n" + chatNote()
+			text += "\n" + sayChatNote
 		}
 		return demoPrefix(text + sayCodeBlock(plan.code))
 	case plan.ConfigAction != nil: // the write card's save question
