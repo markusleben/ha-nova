@@ -39,9 +39,12 @@ describe("release notes contract", () => {
   });
 
   it("keeps v0.27.1 release-facing wording aligned to the shipped stack", () => {
-    // 0.27.1 ships no NOVA Relay App: the notes ask for no App update.
-    expect(stableNotes).not.toMatch(/Update the NOVA Relay App/);
-    expect(stableNotes).toMatch(/^## Bug Fixes\s+- \*\*Confirm once, not twice\.\*\*/);
+    const relayVersion = /^version:\s*"([^"]+)"\s*$/m.exec(readFileSync("nova/config.yaml", "utf8"))?.[1] ?? "";
+    // A NOVA Relay version named in the notes is the shipped App.
+    for (const [, noted] of (stableNotes ?? "").matchAll(/NOVA Relay (\d+\.\d+\.\d+)/g)) {
+      expect(noted, "notes name the shipped NOVA Relay version").toBe(relayVersion);
+    }
+    expect(stableNotes).toMatch(/^## Bug Fixes\s+- \*\*Your code works the first time\.\*\*/);
     expect(stableNotes).toContain("says what changed");
     expect(stableNotes).toContain("on its own line, in bold");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
