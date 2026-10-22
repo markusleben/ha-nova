@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // claude.ai keys a user's per-tool "Always allow" on the tool name and its
@@ -219,5 +220,51 @@ func TestMCPPlainResultsEndToEnd(t *testing.T) {
 	missing := c.tool("ha_find", map[string]any{"phrase": "Außenlicht"})["structuredContent"].(map[string]any)
 	if step, _ := missing["next_step"].(string); !strings.Contains(step, "list that kind (e.g. domain light) or the area before you say none exists") {
 		t.Fatalf("find miss: %v", missing)
+	}
+}
+
+// A chat code is the last thing the user reads: the demo notices and the
+// code's expiry go into say above the chat note and the code block; a code
+// a form withholds gets nothing folded in and never reaches say.
+func TestSayAboveCode(t *testing.T) {
+	now := time.Date(2026, 10, 22, 19, 32, 0, 0, time.UTC)
+	previousNow, previousSince := verbNow, demoPlansSince
+	verbNow = func() time.Time { return now }
+	t.Cleanup(func() { verbNow, demoPlansSince = previousNow, previousSince })
+	head := "In the demo house: I'm about to unlock “Front Door”: locked → unlocked."
+	envelope := func(service, expires string) map[string]any {
+		return map[string]any{"schema_version": 1, "verb": "call", "status": "needs_confirmation", "say": head + "\n" + chatCodeNote + sayCodeBlock("8642"),
+			"action": map[string]any{"service": service}, "plan": map[string]any{"id": "p_1", "code": "8642", "confirm": "code", "channel": "chat", "expires_at": expires},
+			"notices": []any{map[string]any{"kind": "demo", "text": demoNoticeText}, map[string]any{"kind": "demo_reset", "text": "Type 1234 now."}}}
+	}
+	say := func(env map[string]any, forms bool) (string, string) {
+		got := toolResult("ha_call", string(mustJSON(env)), "", verbExitConfirmation, nil, forms)["structuredContent"].(map[string]any)
+		return got["say"].(string), got["next_step"].(string)
+	}
+	got, step := say(envelope("lock.unlock", "2026-10-22T19:47:00Z"), false)
+	want := head + "\nThe demo house resets every hour. Its entrance door locks again 10 minutes after it is unlocked. Never type real names or passwords here.\nThis code works for 15 minutes.\n" + chatCodeNote + sayCodeBlock("8642")
+	if got != want {
+		t.Fatalf("say:\n%s\nwant:\n%s", got, want)
+	}
+	if !strings.Contains(step, "already tells: the demo house notices and when the code expires)") || !strings.Contains(step, "named as its `say` names it") {
+		t.Fatalf("next_step: %s", step)
+	}
+	// Not a lock: no relock clause. Near the hosted demo's reset: the reset
+	// line (the CLI's, never the notice's text), and the code only works until then.
+	now, demoPlansSince = time.Date(2026, 10, 22, 19, 55, 30, 0, time.UTC), now
+	got, _ = say(envelope("cover.open_cover", "2026-10-22T20:10:30Z"), false)
+	want = head + "\nThe demo house resets in 5 minutes. Your connection stays, your changes don't.\nNever type real names or passwords here.\nThis code works for 5 minutes.\n" + chatCodeNote + sayCodeBlock("8642")
+	if got != want {
+		t.Fatalf("near reset:\n%s\nwant:\n%s", got, want)
+	}
+	now = time.Date(2026, 10, 22, 19, 32, 0, 0, time.UTC)
+	if got, step := say(envelope("lock.unlock", "2026-10-22T19:47:00Z"), true); strings.Contains(got, "8642") || strings.Contains(got, "works for") || strings.Contains(step, "add nothing after the code") {
+		t.Fatalf("forms: %s / %s", got, step)
+	}
+	// No code block (an ordinary preview): say unchanged.
+	plain := envelope("lock.unlock", "2026-10-22T19:47:00Z")
+	plain["say"] = "I'm about to run “Night”. Reply yes to go ahead."
+	if got, _ := say(plain, false); got != plain["say"] {
+		t.Fatalf("plain say changed: %s", got)
 	}
 }
