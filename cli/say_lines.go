@@ -11,6 +11,7 @@ import (
 // confirm_say.go and confirm_say_text.go.
 //
 //	Confirmation: I'm about to <action>. <consequences> <status> <ask>
+//	              (a chat code: the ask is sayCodeBlock, always last)
 //	Result:       Done: <result>. I checked it.
 //	              Sent to <target>. I can't check the result.  (only sent, not read back)
 //	              Not done: <reason>. Nothing changed.
@@ -35,24 +36,28 @@ const (
 	sayNoWindowHere = "The confirmation window couldn't open on this computer. "
 	// sayWindowAsk: the code is never shown.
 	sayWindowAsk = "Confirm in the window on this computer."
-	// sayFormAsk replaces sayTypedAsk where the client shows a confirmation
+	// sayFormAsk replaces sayCodeBlock where the client shows a confirmation
 	// form: the code is never in a tool result there (mcp_confirm.go).
 	sayFormAsk = "Type the one-time code from HA NOVA in the form your app shows — a plain yes can't confirm this."
-	// sayChatNote closes a chat plan's ask: the honest limit of fallback E.
+	// sayChatNote: the honest limit of fallback E, one line before a chat
+	// plan's code block.
 	sayChatNote = "I can see this code too, so it only counts if you type it yourself."
 	// chatCodeNote is sayChatNote in a chat app (ha-nova serve).
-	chatCodeNote = "I can see this code too, so it protects less than a tap on your phone. Link your phone in NOVA for real protection."
+	chatCodeNote = "I can see this code too, so a phone tap is safer: link your phone on the HA NOVA page."
+	// sayCodeLead introduces the code, on the line above it.
+	sayCodeLead = "To go ahead, type this code:"
 )
 
 // sayCodeAsk: the code's ask in a confirmation form (mcp_confirm.go).
 func sayCodeAsk(code string) string { return "Type " + code + " to confirm." }
 
-// sayTypedAsk ends a chat plan's `say`: the code names its own action, so
-// several plans in one preview can't swap codes; the same shape as a code
-// a skill mints (skills/ha-nova/index.md → Say it).
-func sayTypedAsk(code, goal string) string {
-	return "Type " + code + " to " + lowerFirst(goal) + " — a plain yes can't confirm this."
-}
+// sayCodeBlock ends a chat plan's `say`, after a blank line so it stands
+// apart: the lead, then the code alone and bold on the last line. A hard
+// line break (two spaces) keeps the two lines apart where a chat app joins
+// a plain newline; the blank line is a paragraph break every client keeps.
+// The say's first sentence names the action the code confirms. The same
+// shape as a code a skill mints (skills/ha-nova/index.md → Say it).
+func sayCodeBlock(code string) string { return "\n\n" + sayCodeLead + "  \n**" + code + "**" }
 
 // sayWindowPhoneAsk: a phone is linked here, so it asks too (confirm_both.go).
 func sayWindowPhoneAsk(button string) string {

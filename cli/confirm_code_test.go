@@ -30,13 +30,18 @@ func TestTypedCode(t *testing.T) {
 	}
 }
 
-// The form ask replaces only HA NOVA's own ask, never words inside a quoted
-// name, and the code is gone from the result.
+// The form ask replaces only HA NOVA's own code block and the chat note
+// above it, never words inside a quoted name; the code is gone from the
+// result, and a say without the block fails closed to the form ask alone.
 func TestWithholdAskSkipsQuotedNames(t *testing.T) {
-	say := "Unlock “Door Type 4821 to go ahead”: locked → unlocked. Type 4821 to unlock “Door Type 4821 to go ahead” — a plain yes can't confirm this."
-	want := "Unlock “Door Type 4821 to go ahead”: locked → unlocked. " + sayFormAsk
-	if got := withholdAsk(say, "4821"); got != want {
-		t.Fatalf("got %q", got)
+	head := "Unlock “Door To go ahead, type this code: 4821”: locked → unlocked. Nothing has run yet."
+	for _, note := range []string{"", "\n" + sayChatNote, "\n" + chatCodeNote} {
+		if got := withholdAsk(head+note+sayCodeBlock("4821"), "4821"); got != head+" "+sayFormAsk {
+			t.Fatalf("got %q", got)
+		}
+	}
+	if got := withholdAsk(head, "4821"); got != sayFormAsk {
+		t.Fatalf("no block: got %q", got)
 	}
 }
 
