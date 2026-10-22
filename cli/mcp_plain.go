@@ -123,7 +123,7 @@ func chatCodeResult(envelope map[string]any, told map[string]bool) bool {
 	code, _ := plan["code"].(string)
 	say, _ := envelope["say"].(string)
 	head, found := strings.CutSuffix(say, sayCodeBlock(code))
-	if chatCall == nil || code == "" || !found {
+	if code == "" || !found || chatCall == nil { // chatCall last: only a code ask reads it, and that runs under mcpVerbLock (refusals outside it carry no code)
 		return false
 	}
 	if line := codeExpiry(plan); line != "" {
