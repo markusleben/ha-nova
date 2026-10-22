@@ -412,7 +412,8 @@ func TestMissingDemoPlanAfterTheResetSaysWhichCase(t *testing.T) {
 		t.Fatalf("try exit=%d out=%s", exit, out)
 	}
 	previous := verbNow
-	t.Cleanup(func() { verbNow = previous })
+	t.Cleanup(func() { verbNow, demoPlansReset = previous, false })
+	demoPlansReset = true // the hosted demo's bridge
 	apply := func(clock string, opts verbOptions) *verbError {
 		at, err := time.Parse(time.RFC3339, "2026-10-22T"+clock+"Z")
 		if err != nil {
@@ -440,5 +441,10 @@ func TestMissingDemoPlanAfterTheResetSaysWhichCase(t *testing.T) {
 	}
 	if got := apply("13:05:00", verbOptions{server: defaultServerProfileName, serverSet: true}); got.Code != "PLAN_NOT_FOUND" {
 		t.Fatalf("real home by name: %+v", got)
+	}
+	// A local `ha-nova try` keeps its plans across the reset: a missing one may have run.
+	demoPlansReset = false
+	if got := apply("13:05:00", demo); got.Code != "PLAN_NOT_FOUND" || got.Next != mayHaveRun {
+		t.Fatalf("local try: %+v", got)
 	}
 }

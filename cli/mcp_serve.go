@@ -109,6 +109,8 @@ func runServeCommand(paths runtimePaths, args []string) int {
 	if opts.serverSet {
 		setServerSelectionOverride(opts.server)
 		b.pin = opts.server
+		// The hosted demo's bridge: its plan store goes with every reset.
+		demoPlansReset = opts.server == demoProfileName
 	}
 	// Verbs print to stdout and stderr, which runVerb captures; the log keeps
 	// the real stderr.

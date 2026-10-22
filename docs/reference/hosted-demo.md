@@ -262,6 +262,12 @@ plan can't add its own connectors.
   `ha-nova try`) carries a `demo_reset` notice for the user: "The demo house
   resets in 6 minutes. Your connection stays, your changes don't." (results
   only: tool descriptions are unchanged).
+- The reset also wipes the bridge's open plans. Until 15 minutes after :00,
+  a plan the bridge can't find is `PLAN_RESET`, not `PLAN_NOT_FOUND`: its
+  next step says that a plan expiring before :15 was made before the reset
+  (plan again) and any other may have run (read it first). Only the bridge
+  (`serve --server demo`) does this; `ha-nova try` keeps its plans across
+  the reset.
   Risky changes show the chat code (no window, no phone here).
 - Caddy answers `/api/ha_nova/mcp` with a JSON-RPC error ("The demo house
   is resetting …", 503) while the house is down, never the HTML page.
