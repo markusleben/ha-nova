@@ -219,7 +219,7 @@ func callPlanBasis(e *tierEngine, service string, frozen []string, data map[stri
 		}
 		before[id] = fields
 	}
-	return map[string]any{"entities": entities, "before": before, "configs": e.basis}
+	return map[string]any{"entities": entities, "before": before, "configs": e.basis, "consumers": basisConsumers(e, frozen)}
 }
 
 // planIdentity is hex(sha256(hash ‖ nonce)): the plan id and the code's MAC

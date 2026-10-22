@@ -352,5 +352,8 @@ func humanPlan(paths runtimePaths, opts verbOptions, id string, noSnapshot bool,
 		s.close()
 		return plan, fresh, nil, "", 0, goal, false
 	}
+	if fresh.Hash != plan.Hash { // still the confirmed plan: ask with its sealed preview, every warning kept
+		fresh.Prompt = plan.Prompt
+	}
 	return plan, fresh, s, idHex, min(windowWait, expires.Sub(verbNow())), env.ask, true
 }

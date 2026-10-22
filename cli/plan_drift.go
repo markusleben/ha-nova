@@ -39,6 +39,22 @@ func basisEntities(e *tierEngine) map[string]any {
 	return entities
 }
 
+// basisConsumers: the automations Home Assistant relates to each frozen
+// target. They are read before any long scan, so a consumer added since the
+// preview is drift even when a cut check could not read it.
+func basisConsumers(e *tierEngine, frozen []string) map[string]any {
+	out := map[string]any{}
+	for _, id := range frozen {
+		related, err := e.related("entity", id) // memoized: the prefetch read it first
+		if err != nil {
+			out[id] = "unread"
+			continue
+		}
+		out[id] = related["automation"]
+	}
+	return out
+}
+
 // checkGapCodes: reasons that mean the check could not see everything the
 // plan sets off; the preview says one sentence for all of them.
 var checkGapCodes = map[string]bool{
@@ -62,13 +78,14 @@ func stillConfirmed(stored, fresh storedPlan) bool {
 // still the confirmed plan. It needs a preview that was cut short and said
 // so, a plan file whose fields still make its hash, the same action, tier,
 // and basis (before values, acted entities, every config the walk read),
-// and no reason the preview did not show. Timing-made gaps (a cut, a failed
-// read, the listener scan's per-automation gaps) count as the one sentence
-// they all say. The listener scan's own reads never enter the basis
-// (tierEngine.census), so how far it got cannot make a plan stale.
+// and no reason the preview did not show. Timing-made gaps (the budget cut,
+// the listener scan's per-automation gaps) count as the one sentence they
+// all say; a failed read in the walk keeps its own entity. The listener
+// scan's own reads never enter the basis (tierEngine.census), so how far it
+// got cannot make a plan stale.
 func sameAsConfirmed(stored, fresh storedPlan) bool {
 	if !slices.ContainsFunc(stored.Reasons, cutShort) ||
-		stored.Hash != "sha256:"+planHash(stored.Kind, stored.Server, planActionOf(stored), stored.Tier, stored.Reasons, stored.Basis) ||
+		!intact(stored) ||
 		stored.Kind != fresh.Kind || stored.Server != fresh.Server || stored.Tier != fresh.Tier ||
 		!jsonEqual(planActionOf(stored), planActionOf(fresh)) {
 		return false
@@ -85,6 +102,12 @@ func sameAsConfirmed(stored, fresh storedPlan) bool {
 	return reflect.DeepEqual(asJSON(stored.Basis), asJSON(fresh.Basis))
 }
 
+// intact: the plan file's fields still make its hash (and so its id and
+// code), so they show what the user was shown.
+func intact(p storedPlan) bool {
+	return p.Hash == "sha256:"+planHash(p.Kind, p.Server, planActionOf(p), p.Tier, p.Reasons, p.Basis)
+}
+
 // planActionOf is the action a plan's hash covers (sealPlan's action).
 func planActionOf(p storedPlan) any {
 	switch p.Kind {
@@ -98,7 +121,7 @@ func planActionOf(p storedPlan) any {
 
 // sayKey: a reason as the preview words it.
 func sayKey(r tierReason) string {
-	if checkGapCodes[r.Code] && (cutShort(r) || r.Via == viaListenerScan) {
+	if checkGapCodes[r.Code] && (r.Via == viaListenerScan || r.Code == reasonLimitCut && r.EntityID == "" && r.Via == "") {
 		return "gap"
 	}
 	return r.Code + "|" + r.EntityID + "|" + r.Via
@@ -122,6 +145,9 @@ func jsonEqual(a, b any) bool {
 // driftSay opens a drifted plan's new preview: the first thing that
 // changed, in plain words.
 func driftSay(e *tierEngine, env *verbEnvelope, stored, fresh storedPlan) string {
+	if !intact(stored) { // an edited file never words the new preview
+		return sayChanged
+	}
 	old, now := asJSON(stored.Basis), asJSON(fresh.Basis)
 	was, _ := old["before"].(map[string]any)
 	is, _ := now["before"].(map[string]any)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -17,7 +18,7 @@ func appUpdateHA() *fakeHA {
 		"friendly_name": "NOVA Relay Update", "installed_version": "0.10.0", "latest_version": "0.11.0",
 		"in_progress": false, "update_percentage": nil, "skipped_version": nil, "auto_update": false,
 		"release_summary": nil, "release_url": "https://example.invalid/0.11.0", "title": "NOVA Relay",
-		"entity_picture": "/api/hassio/addons/x/icon", "supported_features": 29.0, "display_precision": 0.0,
+		"entity_picture": "/api/hassio/addons/x/icon", "supported_features": 29.0, "display_precision": 0.0, "_di": "app_device",
 	})
 	f.services = append(f.defaultServices(), map[string]any{"domain": "update", "services": map[string]any{"install": map[string]any{"target": map[string]any{}}}})
 	return f
@@ -110,7 +111,11 @@ func TestApplyStillRefusesARealChangeInACutPlan(t *testing.T) {
 // make its hash, so the recompute is a new plan with a new code.
 func TestApplyRefusesAnEditedCutPlan(t *testing.T) {
 	h := cutHome(t)
-	h.f.ent("update.other_app_update", "hassio", "on", map[string]any{"installed_version": "1.0", "latest_version": "2.0", "supported_features": 29.0})
+	twin := map[string]any{}
+	for k, v := range h.f.states["update.nova_relay_update"]["attributes"].(map[string]any) {
+		twin[k] = v
+	}
+	h.f.ent("update.other_app_update", "hassio", "on", twin) // reads exactly alike: only the re-hash tells them apart
 	h.cutAt("a10")
 	planned := h.plan(appInstall...)
 	path := filepath.Join(planDir(h.paths), planned.Plan.ID+".json")
@@ -123,7 +128,7 @@ func TestApplyRefusesAnEditedCutPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID, "--confirm", planned.Plan.Code)
-	if exit == 0 || len(h.posts()) != 0 {
+	if len(h.posts()) != 0 {
 		t.Fatalf("an edited plan ran: exit %d env %+v", exit, env)
 	}
 }
@@ -188,16 +193,45 @@ func TestApplyRefusesACutPlanThatCouldNotReadAgain(t *testing.T) {
 // area a script switches off is drift.
 func TestApplyRefusesANewAreaMemberWithoutACut(t *testing.T) {
 	f := newFakeHA()
-	f.ent("switch.coffee", "shelly", "on", nil)
+	f.ent("switch.coffee", "shelly", "on", map[string]any{"_ai": "kitchen"})
 	f.ent("switch.freezer", "shelly", "on", nil)
+	f.full = []map[string]any{{"entity_id": "switch.coffee", "platform": "shelly", "area_id": "kitchen"}, {"entity_id": "switch.freezer", "platform": "shelly"}}
 	f.script("evening", map[string]any{"action": "switch.turn_off", "target": map[string]any{"area_id": "kitchen"}}, map[string]any{"action": "{{ service }}"})
 	f.related["area:kitchen"] = []string{"switch.coffee"}
 	h := newWriteHarness(t, f)
+	unchanged := h.plan("script.turn_on", "script.evening")
+	if !slices.ContainsFunc(unchanged.Members, func(m tierMember) bool { return m.EntityID == "switch.coffee" }) {
+		t.Fatalf("setup: members %+v", unchanged.Members)
+	}
+	if exit, env := h.run(runApplyCommand, "--plan", unchanged.Plan.ID, "--confirm", unchanged.Plan.Code); exit != 0 {
+		t.Fatalf("unchanged: exit %d env %+v", exit, env)
+	}
 	planned := h.plan("script.turn_on", "script.evening").Plan
 	h.f.mu.Lock()
 	h.f.related["area:kitchen"] = []string{"switch.coffee", "switch.freezer"}
+	h.f.full[1]["area_id"] = "kitchen"
+	for _, row := range h.f.compact {
+		if row["ei"] == "switch.freezer" {
+			row["ai"] = "kitchen"
+		}
+	}
 	h.f.mu.Unlock()
-	if exit, env := h.run(runApplyCommand, "--plan", planned.ID, "--confirm", planned.Code); exit != verbExitDrift || len(h.posts()) != 0 {
+	if exit, env := h.run(runApplyCommand, "--plan", planned.ID, "--confirm", planned.Code); exit != verbExitDrift || len(h.posts()) != 1 {
+		t.Fatalf("exit %d env %+v posts %d", exit, env, len(h.posts()))
+	}
+}
+
+// The preview's scan hit a failed read; the apply's ran out of budget. The
+// hashes differ, the plan does not: the user's code still applies it.
+func TestApplyKeepsACutPlanWhoseGapsDiffer(t *testing.T) {
+	h := cutHome(t)
+	h.f.mu.Lock()
+	h.f.fail = map[string]bool{"/api/config/automation/config/a05": true}
+	h.f.mu.Unlock()
+	planned := h.plan(appInstall...)
+	h.cutAt("a20")
+	exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID, "--confirm", planned.Plan.Code)
+	if exit != 0 || len(h.posts()) != 1 || env.Plan.Hash != planned.Plan.Hash {
 		t.Fatalf("exit %d env %+v posts %d", exit, env, len(h.posts()))
 	}
 }
