@@ -210,7 +210,7 @@ export function renderPage(m: PageModel): string {
   .badge { display: inline-block; font-size: .7rem; text-transform: uppercase; letter-spacing: .04em;
     border: 1px solid var(--primary); color: var(--primary); border-radius: 6px;
     padding: 0 .35rem; margin-left: .45rem; vertical-align: middle; }
-  .meta { font-size: .8rem; }
+  .meta { font-size: .8rem; } .meta a { color: var(--primary); }
   .confirm { border-color: var(--danger); }
   .confirm input[type="text"] { font: inherit; padding: .45rem .7rem; border-radius: 10px;
     border: 1px solid var(--border); background: var(--bg); color: var(--text); width: 7rem; }
@@ -261,6 +261,8 @@ function renderChatApps(m: PageModel, formOpen: string, csrfField: (action: Nova
       ? `<p>On, but HA NOVA can't find an address Claude and ChatGPT can reach. Turn on remote access in Home Assistant Link, or set your own public HTTPS address (valid certificate) as the external URL under Settings → System → Network, then reload this page.</p>`
       : `<p>On. Add HA NOVA to Claude in one click, or add this address as a connector in ChatGPT. Then sign in to Home Assistant as its owner.</p>
 <p><a class="linkbtn primary" href="${escapeAttr(claudeConnectorLink(url))}" target="_blank" rel="noopener noreferrer">Add to Claude</a> <span class="muted meta">Adds ${escapeHtml(new URL(url).host)}</span></p>
+<p class="muted meta">On a Team or Enterprise plan? An owner adds it once for everyone: <a href="${escapeAttr(claudeConnectorLink(url, true))}" target="_blank" rel="noopener noreferrer">Add for my organization</a></p>
+<p class="muted meta">No form? Click + → Add custom connector, and paste this address:</p>
 <p class="address">${escapeHtml(url)}</p>
 <p class="muted meta">ChatGPT on the web: open chatgpt.com/plugins → + → Add custom MCP server, paste the address under Connection, pick OAuth, tick “I understand and want to continue”, then Create as a plugin. Sign in as the owner. If ChatGPT then says the OAuth callback data is missing, choose Connect on the plugin again. Then type @HA NOVA in a chat. Name already taken? Find your old HA NOVA under your own plugins. If it has this address, choose Install; if not, use another name.</p>`}
 <p class="muted">Who can use it: ${who}. Confirmations: ${phone}.</p>

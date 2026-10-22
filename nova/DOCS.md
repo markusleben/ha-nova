@@ -208,7 +208,9 @@ and ChatGPT (web) without a computer running. They are off by default.
   (`custom_components/ha_nova`), announces itself to it, and Home Assistant
   restarts once (about a minute).
 - **Connect:** add the address the NOVA page shows in Claude ("Add to Claude")
-  or ChatGPT, then sign in to Home Assistant as the owner.
+  or ChatGPT, then sign in to Home Assistant as the owner. On a Claude Team or
+  Enterprise plan, an owner of that plan adds it once for everyone, under
+  Claude's organization settings → Connectors.
 - **Confirmations:** the same rules as on a computer. Risky changes wait for a
   tap on the owner's linked phone or, without one, a code in the chat; the AI
   can see that code too. You can turn off codes in the chat (risky changes

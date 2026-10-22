@@ -64,8 +64,18 @@ var publicHostname = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)
 // It always goes to claude.ai and carries the address only, never a token;
 // Claude shows the values and asks before it adds anything.
 func claudeConnectorLink(connectorURL string) string {
+	return claudeLink("customize", connectorURL)
+}
+
+// claudeOrgConnectorLink: the same for a Team or Enterprise owner, whose
+// members can't add a custom connector themselves (organization settings).
+func claudeOrgConnectorLink(connectorURL string) string {
+	return claudeLink("admin-settings", connectorURL)
+}
+
+func claudeLink(section, connectorURL string) string {
 	encode := func(s string) string { return strings.ReplaceAll(url.QueryEscape(s), "+", "%20") }
-	return "https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=" + encode("HA NOVA") + "&connectorUrl=" + encode(connectorURL)
+	return "https://claude.ai/" + section + "/connectors?modal=add-custom-connector&connectorName=" + encode("HA NOVA") + "&connectorUrl=" + encode(connectorURL)
 }
 
 // printChatAppsHowTo: the connector address, the Add to Claude link, and
@@ -81,6 +91,8 @@ func printChatAppsHowTo(out io.Writer, url string) {
 		fmt.Fprintln(out)
 	}
 	fmt.Fprintf(out, "  %s\n    %s\n\n", setupT("setup.chat.add_claude_cli"), claudeConnectorLink(url))
+	fmt.Fprintf(out, "  %s\n    %s\n", setupT("setup.chat.org"), claudeOrgConnectorLink(url))
+	fmt.Fprintf(out, "  %s\n\n", setupT("setup.chat.no_form_above"))
 	steps(setupT("setup.chat.claude_title"), setupT("setup.chat.claude_1"), setupT("setup.chat.claude_2"), setupT("setup.chat.claude_3"))
 	steps(setupT("setup.chat.chatgpt_title"), setupT("setup.chat.chatgpt_1"), setupT("setup.chat.chatgpt_2"), setupT("setup.chat.chatgpt_3"))
 	renderSetupParagraph(out, setupT("setup.chat.off_hint"))

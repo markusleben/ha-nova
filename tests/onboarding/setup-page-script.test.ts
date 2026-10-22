@@ -381,6 +381,7 @@ describe("setup page step 4", () => {
 describe("setup page: Add to Claude", () => {
   const url = "https://abc123.ui.nabu.casa/api/ha_nova/mcp";
   const link = "https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=HA%20NOVA&connectorUrl=https%3A%2F%2Fabc123.ui.nabu.casa%2Fapi%2Fha_nova%2Fmcp";
+  const org_link = link.replace("/customize/", "/admin-settings/");
   const control = (chat: object) => ({ screen: "control", accepts: ["finish"], control: { window: true, phone: "none", chat } });
 
   it("opens Claude's prefilled dialog in a new tab once chat apps are on, next to the address to copy", async () => {
@@ -392,6 +393,21 @@ describe("setup page: Add to Claude", () => {
     expect(p.find("chat-url")!.textContent).toBe(url);
     expect(p.screen.textContent).toContain("Adds abc123.ui.nabu.casa");
     expect(p.find("b-chat-copy")).toBeTruthy();
+  });
+
+  it("tells Team and Enterprise members that an owner adds it, and how to paste the address with no form", async () => {
+    const p = page(control({ state: "on", url, claude_link: link, org_link }));
+    await p.settle();
+    expect(p.find("l-chat-claude-org")!.attributes).toMatchObject({ href: org_link, target: "_blank", rel: "noopener noreferrer" });
+    expect(p.find("l-chat-claude-org")!.className).toBe("linkish");
+    expect(p.screen.textContent).toContain(p.catalog["setup.chat.org"]);
+    expect(p.screen.textContent).toContain(p.catalog["setup.chat.no_form"]);
+    for (const bad of ["https://claude.ai.evil.com/x", "javascript:alert(1)", ""]) {
+      const q = page(control({ state: "on", url, claude_link: link, org_link: bad }));
+      await q.settle();
+      expect(q.find("l-chat-claude-org")).toBeUndefined();
+      expect(q.screen.textContent).toContain(q.catalog["setup.chat.no_form"]);
+    }
   });
 
   it("says what's next once on, with one primary button and no German menu names", async () => {
@@ -488,9 +504,11 @@ describe("setup page: Add to Claude", () => {
   });
 
   it("repeats it on step 4", async () => {
-    const p = page({ screen: "home", accepts: ["done"], home: { notes: [{ key: "setup.page.home.note_chat", args: { url } }], chat_link: link } });
+    const p = page({ screen: "home", accepts: ["done"], home: { notes: [{ key: "setup.page.home.note_chat", args: { url } }], chat_link: link, org_link } });
     await p.settle();
     expect(p.find("l-chat-claude-4")!.attributes.href).toBe(link);
+    expect(p.find("l-chat-claude-org-4")!.attributes.href).toBe(org_link);
+    expect(p.screen.textContent).toContain(p.catalog["setup.chat.no_form_above"]);
   });
 });
 

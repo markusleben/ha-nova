@@ -64,7 +64,7 @@ func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func
 		}
 		return
 	}
-	c.State, c.URL, c.ClaudeLink = "on", offer.url, claudeConnectorLink(offer.url)
+	c.State, c.URL, c.ClaudeLink, c.OrgLink = "on", offer.url, claudeConnectorLink(offer.url), claudeOrgConnectorLink(offer.url)
 	offer.state.Enabled = true
 	if result.phoneStored {
 		name := phone.Name
@@ -89,7 +89,7 @@ func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func
 func (f *setupFlow) pageChatNote(url string) {
 	f.pageNotes = slices.DeleteFunc(f.pageNotes, func(n *setupPageMsg) bool { return n.Key == "setup.page.home.note_chat" })
 	f.pageNotes = append(f.pageNotes, setupPageText("setup.page.home.note_chat", "url", url))
-	f.pageChatLink = claudeConnectorLink(url)
+	f.pageChatLink, f.pageOrgLink = claudeConnectorLink(url), claudeOrgConnectorLink(url)
 }
 
 // pageChatPhone follows a phone linked on step 3 after the chat row was
@@ -144,7 +144,7 @@ func (f *setupFlow) pageChatRow(chat *chatAppsOffer) *setupPageChat {
 		}
 		return row
 	case chat.state.Enabled:
-		row := &setupPageChat{State: "on", URL: chat.url, ClaudeLink: claudeConnectorLink(chat.url)}
+		row := &setupPageChat{State: "on", URL: chat.url, ClaudeLink: claudeConnectorLink(chat.url), OrgLink: claudeOrgConnectorLink(chat.url)}
 		if !chat.loaded { // on, but a restart never came: the address doesn't answer yet
 			row.Problem = setupPageText("setup.chat.problem_slow")
 		}
