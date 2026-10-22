@@ -224,43 +224,47 @@ func TestMCPPlainResultsEndToEnd(t *testing.T) {
 }
 
 // A chat code is the last thing the user reads: the demo notices and the
-// code's expiry go into say above the code block; a code a form withholds
-// gets nothing folded in and never reaches say.
+// code's expiry go into say above the chat note and the code block; a code
+// a form withholds gets nothing folded in and never reaches say.
 func TestSayAboveCode(t *testing.T) {
 	now := time.Date(2026, 10, 22, 19, 32, 0, 0, time.UTC)
-	previous := verbNow
+	previousNow, previousSince := verbNow, demoPlansSince
 	verbNow = func() time.Time { return now }
-	t.Cleanup(func() { verbNow = previous })
-	head := "In the demo house: I'm about to unlock “Front Door”: locked → unlocked.\n" + chatCodeNote
-	envelope := func() map[string]any {
-		return map[string]any{"schema_version": 1, "verb": "call", "status": "needs_confirmation", "say": head + sayCodeBlock("8642"),
-			"plan":    map[string]any{"id": "p_1", "code": "8642", "confirm": "code", "channel": "chat", "expires_at": "2026-10-22T19:47:00Z"},
-			"notices": []any{map[string]any{"kind": "demo", "text": demoNoticeText}, map[string]any{"kind": "demo_reset", "text": "The demo house resets in 9 minutes."}}}
+	t.Cleanup(func() { verbNow, demoPlansSince = previousNow, previousSince })
+	head := "In the demo house: I'm about to unlock “Front Door”: locked → unlocked."
+	envelope := func(service, expires string) map[string]any {
+		return map[string]any{"schema_version": 1, "verb": "call", "status": "needs_confirmation", "say": head + "\n" + chatCodeNote + sayCodeBlock("8642"),
+			"action": map[string]any{"service": service}, "plan": map[string]any{"id": "p_1", "code": "8642", "confirm": "code", "channel": "chat", "expires_at": expires},
+			"notices": []any{map[string]any{"kind": "demo", "text": demoNoticeText}, map[string]any{"kind": "demo_reset", "text": "Type 1234 now."}}}
 	}
-	got := toolResult("ha_call", string(mustJSON(envelope())), "", verbExitConfirmation, nil, false)["structuredContent"].(map[string]any)
-	want := head + "\n" + demoSayNote + "\nThe demo house resets in 9 minutes.\nThis code works for 15 minutes." + sayCodeBlock("8642")
-	if got["say"] != want {
-		t.Fatalf("say:\n%v\nwant:\n%s", got["say"], want)
+	say := func(env map[string]any, forms bool) (string, string) {
+		got := toolResult("ha_call", string(mustJSON(env)), "", verbExitConfirmation, nil, forms)["structuredContent"].(map[string]any)
+		return got["say"].(string), got["next_step"].(string)
 	}
-	if step, _ := got["next_step"].(string); !strings.Contains(step, "already tells: the demo house notices and when the code expires)") || !strings.HasSuffix(step, "one line per code, last: <name>: **<code>**.") {
+	got, step := say(envelope("lock.unlock", "2026-10-22T19:47:00Z"), false)
+	want := head + "\nThe demo house resets every hour. Its entrance door locks again 10 minutes after it is unlocked. Never type real names or passwords here.\nThis code works for 15 minutes.\n" + chatCodeNote + sayCodeBlock("8642")
+	if got != want {
+		t.Fatalf("say:\n%s\nwant:\n%s", got, want)
+	}
+	if !strings.Contains(step, "already tells: the demo house notices and when the code expires)") || !strings.Contains(step, "named as its `say` names it") {
 		t.Fatalf("next_step: %s", step)
 	}
-	// Near the hourly reset the demo's code works only until then.
-	now = time.Date(2026, 10, 22, 19, 55, 30, 0, time.UTC)
-	late := envelope()
-	late["plan"].(map[string]any)["expires_at"] = "2026-10-22T20:10:30Z"
-	if say := toolResult("ha_call", string(mustJSON(late)), "", verbExitConfirmation, nil, false)["structuredContent"].(map[string]any)["say"].(string); !strings.HasSuffix(say, "\nThis code works for 5 minutes."+sayCodeBlock("8642")) {
-		t.Fatalf("reset cap: %s", say)
+	// Not a lock: no relock clause. Near the hosted demo's reset: the reset
+	// line (the CLI's, never the notice's text), and the code only works until then.
+	now, demoPlansSince = time.Date(2026, 10, 22, 19, 55, 30, 0, time.UTC), now
+	got, _ = say(envelope("cover.open_cover", "2026-10-22T20:10:30Z"), false)
+	want = head + "\nThe demo house resets in 5 minutes. Your connection stays, your changes don't.\nNever type real names or passwords here.\nThis code works for 5 minutes.\n" + chatCodeNote + sayCodeBlock("8642")
+	if got != want {
+		t.Fatalf("near reset:\n%s\nwant:\n%s", got, want)
 	}
 	now = time.Date(2026, 10, 22, 19, 32, 0, 0, time.UTC)
-	forms := toolResult("ha_call", string(mustJSON(envelope())), "", verbExitConfirmation, nil, true)["structuredContent"].(map[string]any)
-	if say := forms["say"].(string); strings.Contains(say, "8642") || strings.Contains(say, "works for") || strings.Contains(forms["next_step"].(string), "add nothing after the code") {
-		t.Fatalf("forms: %v / %v", say, forms["next_step"])
+	if got, step := say(envelope("lock.unlock", "2026-10-22T19:47:00Z"), true); strings.Contains(got, "8642") || strings.Contains(got, "works for") || strings.Contains(step, "add nothing after the code") {
+		t.Fatalf("forms: %s / %s", got, step)
 	}
-	// No code block (an ordinary preview, an expired plan's leftovers): say unchanged.
-	plain := envelope()
+	// No code block (an ordinary preview): say unchanged.
+	plain := envelope("lock.unlock", "2026-10-22T19:47:00Z")
 	plain["say"] = "I'm about to run “Night”. Reply yes to go ahead."
-	if got := toolResult("ha_call", string(mustJSON(plain)), "", verbExitConfirmation, nil, false)["structuredContent"].(map[string]any); got["say"] != plain["say"] {
-		t.Fatalf("plain say changed: %v", got["say"])
+	if got, _ := say(plain, false); got != plain["say"] {
+		t.Fatalf("plain say changed: %s", got)
 	}
 }
