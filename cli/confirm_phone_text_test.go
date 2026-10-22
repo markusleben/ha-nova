@@ -125,6 +125,25 @@ func TestPhoneApplyResult(t *testing.T) {
 	}
 }
 
+// A stop after the tap points where the reason shows: the chat in a chat
+// app (no computer there), else the computer.
+func TestPhoneStopSaysWhereWhyShows(t *testing.T) {
+	t.Cleanup(func() { chatCall = nil })
+	for _, c := range []struct {
+		chat *chatPolicy
+		want string
+	}{{nil, "The computer says why."}, {&chatPolicy{codes: true}, "The chat says why."}} {
+		chatCall = c.chat
+		_, tapped := phoneNothing(phoneConfirmed)
+		_, refused := phoneApplyResult(verbEnvelope{}, verbExitRefused)
+		for _, line := range []string{tapped, refused} {
+			if !strings.HasSuffix(line, "Nothing changed. "+c.want) {
+				t.Errorf("chat %v: %q, want it to end %q", c.chat != nil, line, c.want)
+			}
+		}
+	}
+}
+
 // A move or stop that gets no answer on the old phone still ends there.
 func TestPhoneChangeTimeoutTellsTheOldPhone(t *testing.T) {
 	h, p, _ := familyLink(t)

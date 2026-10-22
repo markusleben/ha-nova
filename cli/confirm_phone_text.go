@@ -210,7 +210,7 @@ func phoneNothing(answer phoneAnswer) (string, string) {
 	case phoneRejected:
 		return "Not confirmed", "The tap came from another Home Assistant user. Nothing changed."
 	case phoneConfirmed:
-		return "Not done", "Your tap arrived, but HA NOVA stopped. Nothing changed; the computer says why."
+		return "Not done", "Your tap arrived, but HA NOVA stopped. Nothing changed. " + phoneSaysWhy()
 	case phoneFailed:
 		return "Not asked", "HA NOVA couldn't ask. Nothing changed."
 	}
@@ -238,7 +238,16 @@ func phoneApplyResult(env verbEnvelope, exit int) (string, string) {
 	case exit == verbExitUnknown || code == "PLAN_CLAIMED" || code == "PLAN_NOT_FOUND":
 		return "Unclear", "It may have run. Check Home Assistant."
 	}
-	return "Not done", "Nothing changed; the computer says why."
+	return "Not done", "Nothing changed. " + phoneSaysWhy()
+}
+
+// phoneSaysWhy: where the reason shows, the chat in a chat app, else the
+// computer (as phonePlanAsk's "more in the chat").
+func phoneSaysWhy() string {
+	if chatCall != nil {
+		return "The chat says why."
+	}
+	return "The computer says why."
 }
 
 // phoneResultTitle: "Done: Unlock “A” and 6 more", counted like the ask.

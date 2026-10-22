@@ -73,9 +73,9 @@ release:
 
     - **The code is last in chat apps too.** In Claude and ChatGPT, the code to confirm a change now ends the message, on its own line, in bold. Nothing comes after it.
     - **What you need to know comes first.** How long the code works, and notes like the demo house's hourly reset, now come right above the code.
-    - **Claude Team and Enterprise plans can add HA NOVA.** There, an owner adds it once for everyone. Setup and the NOVA page now show an "Add for my organization" link for that.
+    - **Claude Team and Enterprise plans can add HA NOVA.** There, the owner of your Claude Team or Enterprise plan adds it once for everyone. Setup and the NOVA page now show an "Add for my organization" link for that.
     - **No form in Claude? Paste the address.** If Claude opens with no form, setup and the NOVA page show the address. Click +, then Add custom connector, and paste it.
-    - **ChatGPT on a phone can only read.** 0.27.1 said to use chatgpt.com in a browser, but a phone browser can't make changes either. Use chatgpt.com on a computer, or the Claude app on your phone.
+    - **On a phone, ChatGPT can only answer.** 0.27.1 said to use chatgpt.com in a browser, but a phone browser can't make changes either. Use chatgpt.com on a computer, or the Claude app on your phone.
 
     **Update the NOVA App to 0.11.2 too.** It brings these fixes to Claude and ChatGPT chat apps and the NOVA page. HA NOVA on your computer asks for it too. In Home Assistant: Settings > Apps > NOVA Relay > Update. Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.
 
