@@ -35,7 +35,7 @@ func TestTypedCode(t *testing.T) {
 // result, and a say without the block fails closed to the form ask alone.
 func TestWithholdAskSkipsQuotedNames(t *testing.T) {
 	head := "Unlock “Door To go ahead, type this code: 4821”: locked → unlocked. Nothing has run yet."
-	for _, note := range []string{"", "\n" + sayChatNote, "\n" + chatCodeNote} {
+	for _, note := range []string{"", "\n" + sayChatNote, "\n" + chatCodeNote, "\n" + demoChatCodeNote} {
 		if got := withholdAsk(head+note+sayCodeBlock("4821"), "4821"); got != head+" "+sayFormAsk {
 			t.Fatalf("got %q", got)
 		}
