@@ -1,6 +1,6 @@
 # Use HA NOVA in Claude and ChatGPT
 
-With chat apps on, you can ask about your home and change it from Claude or ChatGPT, also on your phone, with no computer running. They reach your home through Home Assistant Link or your Home Assistant's own public HTTPS address, and the same rules decide what needs your OK as with HA NOVA on a computer (see below).
+With chat apps on, you can ask about your home and change it from Claude (also on your phone) or ChatGPT on the web, with no computer running. They reach your home through Home Assistant Link or your Home Assistant's own public HTTPS address, and the same rules decide what needs your OK as with HA NOVA on a computer (see below).
 
 ## What you need
 
@@ -93,7 +93,7 @@ To stay on the older App: removing the NOVA App clears them too, but then every 
 
 ## Good to know
 
-- ChatGPT works on the web only. Its phone app can't make changes through plugins you add yourself.
+- ChatGPT's phone app can answer questions, but it can't make changes through plugins you add yourself. For changes, open chatgpt.com in a browser and ask again.
 - A code in the chat protects less than your phone (see above).
 - Access belongs to your Home Assistant account, not to a device: anyone who can use your Claude or ChatGPT account can reach your home through it. Remove the token in Home Assistant (above) if you lose control of that account.
 - Some changes, like helpers, dashboards, and files, still need HA NOVA on a computer. The assistant tells you when that is the case.
