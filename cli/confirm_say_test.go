@@ -180,7 +180,7 @@ func TestConfirmationSay(t *testing.T) {
 			say := env.Say
 			if env.Plan.Code != "" {
 				block := "\n\nTo go ahead, type this code:  \n**" + env.Plan.Code + "**"
-				if !fourDigits.MatchString(env.Plan.Code) || !strings.HasSuffix(say, block) || strings.Count(say, env.Plan.Code) != 1 {
+				if !fourDigits.MatchString(env.Plan.Code) || !strings.HasSuffix(say, block) || strings.Count(say, "**"+env.Plan.Code+"**") != 1 {
 					t.Fatalf("code %q not asked for once, last, in %q", env.Plan.Code, say)
 				}
 				say = strings.TrimSuffix(say, env.Plan.Code+"**") + "CODE**"

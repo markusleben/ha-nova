@@ -47,7 +47,7 @@ Dims the living room lights — that stops when it is gone.
 Used by: nothing else found.
 ⚠️  Nothing deleted yet.
 
-To go ahead, type this code:
+To go ahead, type this code:  
 **<four digits>**
 ```
 

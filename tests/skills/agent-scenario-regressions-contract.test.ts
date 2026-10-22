@@ -60,7 +60,7 @@ describe("agent scenario regressions (2026-10-15)", () => {
     for (const file of ["skills/service-call/SKILL.md", "skills/write/SKILL.md"]) {
       const text = flat(file);
       expect(text).toMatch(/add no other reason; never cite, link, or name this skill or any HA NOVA rule file\./);
-      expect(text).toContain('After a "yes" to a code plan, repeat `say`\'s ask and note in full.');
+      expect(text).toContain('After a "yes" to a code plan, repeat `say`\'s note and code block.');
     }
   });
   // 2026-10-16 agent path analysis: avoidable tool rounds and reads on the
@@ -172,7 +172,7 @@ describe("agent scenario regressions (2026-10-20)", () => {
     // One source of truth: the CLI's `say` is the ask and the result line (#803).
     expect(index).toContain("Relay a CLI `say` (ask or result) verbatim, only translated, line breaks kept; add no other result line.");
     // The code stands apart at the very end, never inside a sentence.
-    expect(index).toContain('A code always ends the message: a blank line, "To go ahead, type this code:", then the code alone and bold — also one you mint.');
+    expect(index).toContain('A code you mint: blank line, "To go ahead, type this code:", bold code.');
     expect(index).toContain('Verified raw write (no `say`): `✅ Saved: <type> "<name>"` and what was checked.');
     expect(index).toContain('After an undoable save: "To undo this change, just say so."');
     expect(flat("skills/ha-nova/output-cards.md")).toContain("Ask and result shapes: `../ha-nova/index.md` → Say it.");

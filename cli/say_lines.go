@@ -43,7 +43,7 @@ const (
 	// plan's code block.
 	sayChatNote = "I can see this code too, so it only counts if you type it yourself."
 	// chatCodeNote is sayChatNote in a chat app (ha-nova serve).
-	chatCodeNote = "I can see this code too, so a tap on your phone is safer: link it in NOVA."
+	chatCodeNote = "I can see this code too, so a phone tap is safer: link your phone on the HA NOVA page."
 	// sayCodeLead introduces the code, on the line above it.
 	sayCodeLead = "To go ahead, type this code:"
 )

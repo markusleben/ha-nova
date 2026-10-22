@@ -66,7 +66,7 @@ describe("output design system (Cards)", () => {
 
   it("asks a natural save question and keeps the confirmation-code prompt literal", () => {
     expect(outputRules).toContain("Save it? I can also show the details.");
-    expect(outputRules).toContain("\n\nTo go ahead, type this code:\n**<four digits>**\n```");
+    expect(outputRules).toContain("\n\nTo go ahead, type this code:  \n**<four digits>**\n```");
     expect(outputRules).toContain("the one-time-code prompt is always the last line");
   });
 
@@ -253,10 +253,10 @@ describe("output design system (Cards)", () => {
     const del = cardTemplate("Delete Card");
     expect(del[0]).toMatch(/^🗑️ {2}Delete:/);
     expect(del.filter((l) => l.startsWith("⚠️")), "exactly one status line").toHaveLength(1);
-    // The code stands apart: a blank line, the lead, then the bold code last.
+    // The code stands apart: a blank line, the lead (a hard line break), then the bold code last.
     expect(del.slice(-3), "confirmation prompt closes the card").toEqual([
       "",
-      "To go ahead, type this code:",
+      "To go ahead, type this code:  ",
       "**<four digits>**",
     ]);
     expect(del.findIndex((l) => l.startsWith("⚠️")), "status precedes the prompt").toBe(
