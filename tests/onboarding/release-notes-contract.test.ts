@@ -40,15 +40,19 @@ describe("release notes contract", () => {
 
   it("keeps v0.27.1 release-facing wording aligned to the shipped stack", () => {
     const relayVersion = /^version:\s*"([^"]+)"\s*$/m.exec(readFileSync("nova/config.yaml", "utf8"))?.[1] ?? "";
-    // A NOVA Relay version named in the notes is the shipped App.
-    for (const [, noted] of (stableNotes ?? "").matchAll(/NOVA Relay (\d+\.\d+\.\d+)/g)) {
+    // Any App version the notes name is the shipped App.
+    const notedApps = [...(stableNotes ?? "").matchAll(/NOVA (?:Relay |App to )(\d+\.\d+\.\d+)/g)];
+    expect(notedApps.length, "notes name the App version chat apps need").toBeGreaterThan(0);
+    for (const [, noted] of notedApps) {
       expect(noted, "notes name the shipped NOVA Relay version").toBe(relayVersion);
     }
     expect(stableNotes).toMatch(/^## Bug Fixes\s+- \*\*Your code works the first time\.\*\*/);
     expect(stableNotes).toContain("says what changed");
     expect(stableNotes).toContain("on its own line, in bold");
-    // No App patch in 0.27.1: the chat-app bridge in the App keeps the 0.27.0 CLI.
-    expect(stableNotes).toContain("chat apps run in the NOVA Relay App, which this release doesn't change");
+    // App patch 0.11.1 carries the 0.27.1 chat-app bridge; ChatGPT needs a Refresh to load it.
+    expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
+    expect(stableNotes).toContain("open chatgpt.com/plugins, choose HA NOVA, then Refresh");
+    expect(stableNotes).not.toContain("which this release doesn't change");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
     expect(stableNotes).not.toContain("Cloud Remote is back on Windows and Linux");

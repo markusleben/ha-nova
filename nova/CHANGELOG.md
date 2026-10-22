@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.11.1] - 2026-10-22
+
+### Fixed
+- Chat apps: ChatGPT's phone app can't make changes through plugins you add yourself. HA NOVA now says so and asks you to use chatgpt.com in a browser. Questions still work on the phone. (#824)
+- Chat apps: the code to confirm a change now comes last, on its own line, in bold. (#825)
+- Chat apps: if nothing changed, the code you typed now works, even when the safety check was slow. If something did change, HA NOVA says what and asks again. (#827)
+- Chat apps now run HA NOVA 0.27.1. App 0.11.0 had an early 0.27.0 build, so this also brings every 0.27.0 fix to chat apps, like hiding lock and alarm codes from the AI. (#801)
+
+### Upgrade notes
+- In ChatGPT, open chatgpt.com/plugins, choose HA NOVA, then Refresh. ChatGPT then gets the new instructions.
+- Computers that are already connected stay connected; no re-pairing.
+- Computers on HA NOVA 0.27.1 ask you to update this App; computers on 0.27.0 keep working with it.
+
 ## [Relay 0.11.0] - 2026-10-20
 
 ### Added
