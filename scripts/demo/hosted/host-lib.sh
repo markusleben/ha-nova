@@ -17,6 +17,9 @@ LOCK=/run/ha-nova-demo.lock
 # Set while the public gate was skipped (nothing served over TLS); guard.sh
 # starts a reset, and with it the gate, as soon as TLS is served.
 PENDING="$STATE/public-gate-pending"
+# The chat-app sign-ins reset.sh carries from one build to the next (chat.mjs
+# keep/restore): demo tokens only, root-only, never served.
+KEPT="$STATE/chat-sign-ins.json"
 # The relay and chat-bridge images: built once per ref by bootstrap.sh from
 # digest-pinned bases (Go only for the bridge's build stage), never pulled or
 # rebuilt by a reset, labelled so prunes keep them.

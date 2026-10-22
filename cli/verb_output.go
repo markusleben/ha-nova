@@ -207,6 +207,9 @@ func verbNotices(paths runtimePaths, relayVersion string) []verbNotice {
 	var notices []verbNotice
 	if activeServerIsDemo() {
 		notices = append(notices, verbNotice{Kind: "demo", Text: demoNoticeText})
+		if text := demoResetText(verbNow()); text != "" {
+			notices = append(notices, verbNotice{Kind: "demo_reset", Text: text})
+		}
 	} else if demoProfileOn(paths) {
 		notices = append(notices, verbNotice{Kind: "home", Text: "This is the user's own home, not the demo house; the demo house needs --server demo (apply follows its plan)."})
 	}
