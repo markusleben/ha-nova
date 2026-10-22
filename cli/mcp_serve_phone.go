@@ -48,6 +48,9 @@ const (
 
 // chatNote closes a chat plan's say.
 func chatNote() string {
+	if chatCall != nil && activeServerIsDemo() {
+		return demoChatCodeNote
+	}
 	if chatCall != nil {
 		return chatCodeNote
 	}

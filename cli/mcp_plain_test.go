@@ -233,7 +233,7 @@ func TestSayAboveCode(t *testing.T) {
 	t.Cleanup(func() { verbNow, demoPlansSince = previousNow, previousSince })
 	head := "In the demo house: I'm about to unlock “Front Door”: locked → unlocked."
 	envelope := func(service, expires string) map[string]any {
-		return map[string]any{"schema_version": 1, "verb": "call", "status": "needs_confirmation", "say": head + "\n" + chatCodeNote + sayCodeBlock("8642"),
+		return map[string]any{"schema_version": 1, "verb": "call", "status": "needs_confirmation", "say": head + "\n" + demoChatCodeNote + sayCodeBlock("8642"),
 			"action": map[string]any{"service": service}, "plan": map[string]any{"id": "p_1", "code": "8642", "confirm": "code", "channel": "chat", "expires_at": expires},
 			"notices": []any{map[string]any{"kind": "demo", "text": demoNoticeText}, map[string]any{"kind": "demo_reset", "text": "Type 1234 now."}}}
 	}
@@ -242,7 +242,7 @@ func TestSayAboveCode(t *testing.T) {
 		return got["say"].(string), got["next_step"].(string)
 	}
 	got, step := say(envelope("lock.unlock", "2026-10-22T19:47:00Z"), false)
-	want := head + "\nThe demo house resets every hour. Its entrance door locks again 10 minutes after it is unlocked. Never type real names or passwords here.\nThis code works for 15 minutes.\n" + chatCodeNote + sayCodeBlock("8642")
+	want := head + "\nThe demo house resets every hour. Its entrance door locks again 10 minutes after it is unlocked. Never type real names or passwords here.\nThis code works for 15 minutes.\n" + demoChatCodeNote + sayCodeBlock("8642")
 	if got != want {
 		t.Fatalf("say:\n%s\nwant:\n%s", got, want)
 	}
@@ -253,7 +253,7 @@ func TestSayAboveCode(t *testing.T) {
 	// line (the CLI's, never the notice's text), and the code only works until then.
 	now, demoPlansSince = time.Date(2026, 10, 22, 19, 55, 30, 0, time.UTC), now
 	got, _ = say(envelope("cover.open_cover", "2026-10-22T20:10:30Z"), false)
-	want = head + "\nThe demo house resets in 5 minutes. Your connection stays, your changes don't.\nNever type real names or passwords here.\nThis code works for 5 minutes.\n" + chatCodeNote + sayCodeBlock("8642")
+	want = head + "\nThe demo house resets in 5 minutes. Your connection stays, your changes don't.\nNever type real names or passwords here.\nThis code works for 5 minutes.\n" + demoChatCodeNote + sayCodeBlock("8642")
 	if got != want {
 		t.Fatalf("near reset:\n%s\nwant:\n%s", got, want)
 	}

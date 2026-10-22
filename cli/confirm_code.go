@@ -120,7 +120,7 @@ func withholdAsk(say, code string) string {
 	if !found { // unreachable (say and code come from one plan); fail closed
 		return sayFormAsk
 	}
-	for _, note := range []string{sayChatNote, chatCodeNote} {
+	for _, note := range chatNotes {
 		head = strings.TrimSuffix(head, "\n"+note)
 	}
 	return head + " " + sayFormAsk

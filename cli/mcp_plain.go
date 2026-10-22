@@ -46,7 +46,7 @@ func sayAboveCode(envelope map[string]any) string {
 		return ""
 	}
 	note := ""
-	for _, n := range []string{sayChatNote, chatCodeNote} { // the note stays right above the code
+	for _, n := range chatNotes { // the note stays right above the code
 		if cut, ok := strings.CutSuffix(head, "\n"+n); ok {
 			head, note = cut, "\n"+n
 		}
