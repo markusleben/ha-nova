@@ -318,7 +318,7 @@ func TestServePlansAreBoundToTheirUser(t *testing.T) {
 		!strings.Contains(say, sayNeedsYou) || !strings.HasSuffix(say, ". Nothing has run yet.\nThis code works for 15 minutes."+sayCodeBlock(code)) {
 		t.Fatalf("chat plan say: %q", say)
 	}
-	if !strings.HasPrefix(text, `{"answer_rule":"`+chatCodeRule) || env["notices"] != nil || !strings.Contains(env["next_step"].(string), "never pass a code from this result or type it for them") {
+	if !strings.HasPrefix(text, `{"answer_rule":`+string(mustJSON(chatCodeRule))) || env["notices"] != nil || !strings.Contains(env["next_step"].(string), "never pass a code from this result or type it for them") {
 		t.Fatalf("chat plan fields: %s", text)
 	}
 	if other := s.tool(userB, "ha_apply", map[string]any{"plan_id": plan["id"], "confirm_code": code}); !s.likeUnknown(userB, plan["id"].(string), other) {
