@@ -71,13 +71,12 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`; if it reports that it needs admin rights, rerun the stable Windows install command instead.
     {{ else }}## Bug Fixes
 
-    - **Your code works the first time.** If nothing changed, the code you typed now works, even when the safety check was slow. Before, a slow check could turn it down again and again, like on a NOVA Relay App update.
-    - **HA NOVA says what changed.** If something changed since the preview, like a newer version, it stops, says what changed, and asks again.
-    - **The code is easy to spot.** The code to confirm a change now comes last, on its own line, in bold.
-    - **Demo house: a heads-up before the hourly reset.** Your AI app tells you when the reset is near. Claude and ChatGPT now stay connected through it.
-    - **ChatGPT on your phone says why a change stops.** The phone app can't make changes with HA NOVA. ChatGPT now says so and asks you to use chatgpt.com in a browser. This needs the App update and a Refresh (below).
+    - **The code is last in chat apps too.** In Claude and ChatGPT, the code to confirm a change now ends the message, on its own line, in bold. Nothing comes after it.
+    - **What you need to know comes first.** How long the code works, and notes like the demo house's hourly reset, now come right above the code.
+    - **"Add to Claude" works on Team and Enterprise plans.** There, an owner adds HA NOVA once for everyone. Setup and the NOVA page now show an "Add for my organization" link for that.
+    - **No form in Claude? Paste the address.** If Claude opens with no form, setup and the NOVA page show the address. Click + > Add custom connector, and paste it.
 
-    **Update the NOVA App to 0.11.1 too.** It brings the code and ChatGPT fixes above, and all 0.27.0 fixes like hidden lock and alarm codes, to Claude and ChatGPT chat apps. HA NOVA on your computer asks for it too. In Home Assistant: Settings > Apps > NOVA Relay > Update. Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.
+    **Update the NOVA App to 0.11.2 too.** It brings these fixes to Claude and ChatGPT chat apps. HA NOVA on your computer asks for it too. In Home Assistant: Settings > Apps > NOVA Relay > Update. Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.
 
     Stable install commands are release-pinned for this tag.
 

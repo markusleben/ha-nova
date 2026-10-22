@@ -27,7 +27,7 @@ The first time, Home Assistant restarts once, because it loads new parts only wh
 This works in Claude on the web, in the desktop app, and in the phone apps. Menu names in German are in brackets.
 
 1. On the setup page or in NOVA in Home Assistant, choose "Add to Claude" (next to it: the address it adds). Claude opens "Add custom connector" ("Benutzerdefinierten Konnektor hinzufügen") with the name HA NOVA and your address filled in, and says the values came from a link.
-   No form? In Claude, open Customize → Connectors, click + → "Add custom connector", name it HA NOVA, and paste the address.
+   No form? In Claude, open Customize → Connectors ("Anpassungen → Konnektoren"), click + → "Add custom connector", name it HA NOVA, and paste the address.
    On a Team or Enterprise plan, members can't add it: Claude opens Connectors with no form. An owner of that plan adds it once for everyone (on Enterprise, also someone whose role can manage the organization's libraries): "Add for my organization" opens Claude's organization settings → Connectors with the same values. No form there? Choose Add → Custom (→ Web), then paste the address. Then you (the Home Assistant owner) choose "Connect" next to HA NOVA under Customize → Connectors. Only that account can sign in.
 2. If Claude asks how to sign in, choose "Sign in now" ("Jetzt anmelden") and "Use Claude's published identity" ("Claudes veröffentlichte Identität verwenden"). Then choose "Add".
 3. Sign in to Home Assistant as its owner when Claude opens the sign-in (if it doesn't, choose "Connect"). The Claude phone app then uses it too.
@@ -36,7 +36,7 @@ This works in Claude on the web, in the desktop app, and in the phone apps. Menu
 
 At first, Claude asks before each HA NOVA step: "Allow once" or "Always allow" ("Einmal erlauben" / "Immer erlauben"). To ask less:
 
-1. In Claude, open Settings → Connectors and choose HA NOVA.
+1. In Claude, open Customize → Connectors and choose HA NOVA.
 2. You see two groups: read-only tools ("Schreibgeschützte Tools") and write/delete tools ("Schreib-/Lösch-Tools"). Set the read-only tools to "Always allow" ("Immer erlauben").
 3. Under write/delete tools, set "Control a device" to "Always allow" too. Lights and other everyday things then run right away, the same as HA NOVA on a computer.
 4. Leave "Run a confirmed change" on "Needs approval" ("Genehmigung erforderlich"). Claude then still asks before a bigger change, like a new automation, unlocking a door, or deleting something. Your linked phone or the code asks too (see "What your phone confirms").
@@ -89,7 +89,7 @@ To stay on the older App: removing the NOVA App clears them too, but then every 
 
 - **ChatGPT says the OAuth callback data is missing** ("OAuth-Callback-Daten fehlen") right after you create the plugin: choose Connect on the plugin again. This is a known ChatGPT issue; the second try usually works.
 - **ChatGPT says "A plugin with this name already exists":** you made one before, and it may be hidden. Open chatgpt.com/plugins, find HA NOVA under your own plugins, and choose Install. If it has another address, give the new one another name instead.
-- **Claude says "This connector has no tools available"** ("Dieser Konnektor hat keine Tools verfügbar"): its sign-in is gone, for example after you restored Home Assistant from a backup. In Claude, open Settings → Connectors and choose HA NOVA. Choose Disconnect ("Trennen"), then Connect ("Verbinden"), and sign in again. Still no tools? Check in NOVA in Home Assistant that chat apps are on.
+- **Claude says "This connector has no tools available"** ("Dieser Konnektor hat keine Tools verfügbar"): its sign-in is gone, for example after you restored Home Assistant from a backup. In Claude, open Customize → Connectors and choose HA NOVA. Choose Disconnect ("Trennen"), then Connect ("Verbinden"), and sign in again. Still no tools? Check in NOVA in Home Assistant that chat apps are on.
 - **Claude only says the connection was rejected, or ChatGPT can't connect:** you probably signed in to Home Assistant as another user. Only the owner can use HA NOVA in chat apps. Remove the connector, add it again, and sign in as the owner.
 - **Claude or ChatGPT can't reach your own HTTPS address:** open the address in a browser on your phone with Wi-Fi off. It must open without a certificate warning. A self-signed certificate or a port your router doesn't forward doesn't work.
 - **After you turned chat apps off, Claude or ChatGPT can't connect:** that's expected. Remove HA NOVA there. Opening the address may answer "401" until Home Assistant's next restart; it no longer reaches HA NOVA.

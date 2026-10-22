@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.11.2] - 2026-10-22
+
+### Fixed
+- Chat apps: the code to confirm a change now ends the message in Claude and ChatGPT. How long the code works, and notes like the demo house's hourly reset, come right above it. (#831)
+- NOVA page: "Add to Claude" now works on Claude Team and Enterprise plans. An owner adds HA NOVA once for everyone with the new "Add for my organization" link. If Claude opens with no form, the page shows the address to paste. (#830)
+- Chat apps now run HA NOVA 0.27.2.
+
+### Upgrade notes
+- In ChatGPT, open chatgpt.com/plugins, choose HA NOVA, then Refresh. ChatGPT then gets the new instructions.
+- Computers that are already connected stay connected; no re-pairing.
+- Computers on HA NOVA 0.27.2 ask you to update this App; computers on 0.27.0 and 0.27.1 keep working with it.
+
 ## [Relay 0.11.1] - 2026-10-22
 
 ### Fixed

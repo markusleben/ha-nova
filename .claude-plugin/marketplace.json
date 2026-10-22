@@ -2,7 +2,7 @@
   "name": "ha-nova",
   "metadata": {
     "description": "HA NOVA: safe Home Assistant control for your AI app",
-    "version": "0.27.1"
+    "version": "0.27.2"
   },
   "owner": {
     "name": "Markus Leben"
@@ -11,7 +11,7 @@
     {
       "name": "ha-nova",
       "source": "./",
-      "version": "0.27.1",
+      "version": "0.27.2",
       "description": "Ask about and control your Home Assistant safely, from your AI app"
     }
   ]

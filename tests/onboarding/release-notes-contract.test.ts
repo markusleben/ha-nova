@@ -38,7 +38,7 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.27.1 release-facing wording aligned to the shipped stack", () => {
+  it("keeps v0.27.2 release-facing wording aligned to the shipped stack", () => {
     const relayVersion = /^version:\s*"([^"]+)"\s*$/m.exec(readFileSync("nova/config.yaml", "utf8"))?.[1] ?? "";
     // Any App version the notes name is the shipped App.
     const notedApps = [...(stableNotes ?? "").matchAll(/NOVA (?:Relay |App to )(\d+\.\d+\.\d+)/g)];
@@ -46,10 +46,13 @@ describe("release notes contract", () => {
     for (const [, noted] of notedApps) {
       expect(noted, "notes name the shipped NOVA Relay version").toBe(relayVersion);
     }
-    expect(stableNotes).toMatch(/^## Bug Fixes\s+- \*\*Your code works the first time\.\*\*/);
-    expect(stableNotes).toContain("says what changed");
-    expect(stableNotes).toContain("on its own line, in bold");
-    // App patch 0.11.1 carries the 0.27.1 chat-app bridge; ChatGPT needs a Refresh to load it.
+    expect(stableNotes).toMatch(/^## Bug Fixes\s+- \*\*The code is last in chat apps too\.\*\*/);
+    expect(stableNotes).toContain("on its own line, in bold. Nothing comes after it.");
+    expect(stableNotes).toContain("How long the code works, and notes like the demo house's hourly reset, now come right above the code.");
+    expect(stableNotes).toContain('**"Add to Claude" works on Team and Enterprise plans.** There, an owner adds HA NOVA once for everyone.');
+    expect(stableNotes).toContain('"Add for my organization"');
+    expect(stableNotes).toContain("Click + > Add custom connector, and paste it.");
+    // App patch 0.11.2 carries the 0.27.2 chat-app bridge; ChatGPT needs a Refresh to load it.
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
     expect(stableNotes).toContain("open chatgpt.com/plugins, choose HA NOVA, then Refresh");
     expect(stableNotes).not.toContain("which this release doesn't change");
@@ -60,6 +63,10 @@ describe("release notes contract", () => {
     expect(readme).toContain("Each automation or script delete is confirmed on its own");
     expect(readme).toContain("the AI can see it too, so it only counts when you type it yourself");
     expect(readme).toContain("ha-nova setup confirm-window off");
+    // claude.ai's connector list lives under Customize, not Settings.
+    expect(readme).toContain("open Customize → Connectors → HA NOVA");
+    expect(readme).not.toContain("Settings → Connectors");
+    expect(readme).toContain('On a Claude Team or Enterprise plan, an owner of that plan adds it once for everyone with "Add for my organization".');
     expect(readme).toContain("https://hanova.app/demo/");
     expect(readme).toContain("34 task skills plus the HA NOVA context skill");
     expect(readme).not.toContain("ha-nova mcp");

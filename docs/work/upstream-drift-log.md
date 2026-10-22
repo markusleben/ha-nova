@@ -369,3 +369,52 @@ stopped.
   watch the 2026.11 items (`temperature_unit`, in-place `entity_id` renames,
   `has_update`, `DeviceInfo` dataclass), the deferred lawn-mower `idle`
   bucket, and the legacy device-registry removal command for 2027.9.
+
+## 2026-10-22 — pre-release screen (v0.27.2 cycle): HA after 2026.10.2 + developer blog 2026-10-17–2026-10-22 + HACS
+
+- Window screened: Core releases and tags after 2026.10.2 (none; latest
+  release and tag is 2026.10.2 of 2026-10-16; no 2026.11 beta or `2026.11.0b*`
+  tag yet); contributors.home-assistant.io/blog posts after 2026-10-16
+  through 2026-10-22 (2026-10-17, -19, -20, -22); HACS releases and tags
+  after 2.0.5 (none).
+- HIT (P2, not an upstream change in this window; surfaced by the
+  2026-10-22 post) — dev-blog "Introducing child devices" says targeting a
+  parent device in an action also targets the entities of its child devices.
+  This is the 2026.9 behavior from core #178666; the CLI already does this
+  (`cli/tier_device.go`, via `parent_device_id`).
+  `skills/ha-nova/membership-resolution.md` → Devices row still says "the
+  entity registry filtered by `device_id` ONLY", so a skill-built preview of
+  a parent-device action can leave out the child devices' entities. Issue
+  #833.
+- CLEAN — same post, other points: area inheritance (child with null
+  `area_id` takes the parent's) matches Device rows; labels not inherited
+  (no skill claims they are); parent delete/disable cascades to children,
+  child cannot have children, no reparenting. All are Python integration
+  APIs. No `config/device_registry/*` WS or REST change described.
+- CLEAN — dev-blog 2026-10-17 "A Python console inside Home Assistant"
+  (Core 2026.11): new `debug_console:` integration, YAML-only, admin-only
+  panel. No WS command named; no skill references it, and
+  `cli/relay_raw_allow.go` has no entry for it. Never add one.
+- CLEAN — dev-blog 2026-10-19 "Auth providers now opt in to multi-factor
+  authentication" (Core 2026.11): `AuthProvider.support_mfa` removed; custom
+  auth providers only. The admin skill pins `config/auth/list|create|delete`
+  and `auth/current_user`, none affected.
+- CLEAN — dev-blog 2026-10-20 "Integrations have categories now": new
+  manifest key `categories`. `manifest/list` may gain an additive field
+  (inferred; the post names no WS change). Skills join by `domain` and read
+  the display name only.
+- CLEAN — no Core release after 2026.10.2; no 2026.11 beta yet.
+- CLEAN — no HACS release after 2.0.5.
+- Sources: github.com/home-assistant/core/releases (and tags);
+  contributors.home-assistant.io/blog/2026/10/17/debug-console/;
+  contributors.home-assistant.io/blog/2026/10/19/auth-providers-opt-in-mfa/;
+  contributors.home-assistant.io/blog/2026/10/20/integration-categories/;
+  contributors.home-assistant.io/blog/2026/10/22/child-devices/;
+  github.com/home-assistant/core/pull/178666;
+  github.com/hacs/integration/releases (and tags).
+- Next window starts AFTER HA 2026.10.2 + dev-blog 2026-10-22 + HACS 2.0.5.
+  Screen the 2026.11 beta notes when they appear; watch `temperature_unit`,
+  in-place `entity_id` renames, `has_update`, the `DeviceInfo` dataclass,
+  `support_mfa` removal, `debug_console`, whether `manifest/list` exposes
+  `categories`, the deferred lawn-mower `idle` bucket, and the legacy
+  device-registry removal command for 2027.9.
