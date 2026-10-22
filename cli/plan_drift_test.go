@@ -47,6 +47,7 @@ func (h *writeHarness) cutAt(id string) {
 	h.f.mu.Lock()
 	defer h.f.mu.Unlock()
 	h.f.hang = map[string]bool{"/api/config/automation/config/" + id: true}
+	h.f.fail = map[string]bool{}
 }
 
 func TestApplyKeepsACutPlanThatDidNotChange(t *testing.T) {
@@ -80,14 +81,11 @@ func TestApplyStillRefusesARealChangeInACutPlan(t *testing.T) {
 			f.states["update.nova_relay_update"]["attributes"].(map[string]any)["in_progress"] = true
 		},
 			"Since the last preview, “NOVA Relay Update” changed: in progress was no, now yes. "},
-		"edited automation both runs read": {func(f *fakeHA) {
-			f.configs["/api/config/automation/config/a03"] = map[string]any{"triggers": []any{}, "actions": []any{step("light.turn_off", "light.kitchen")}}
-		}, "Since the last preview, an automation or script this sets off was changed. "},
 		"a new consumer unlocks a door": {func(f *fakeHA) {
 			f.related["entity:update.nova_relay_update"] = []string{"automation.auto_a01"}
 			f.configs["/api/config/automation/config/a01"] = map[string]any{
 				"triggers": []any{map[string]any{"trigger": "state", "entity_id": "update.nova_relay_update"}}, "actions": []any{step("lock.unlock", "lock.front")}}
-		}, "Since the last preview, "},
+		}, "HA NOVA checked again, and what this sets off looks different now. "},
 	} {
 		t.Run(name, func(t *testing.T) {
 			h := cutHome(t)
@@ -101,7 +99,7 @@ func TestApplyStillRefusesARealChangeInACutPlan(t *testing.T) {
 			if exit != verbExitDrift || len(h.posts()) != 0 || env.Plan == nil || env.Plan.ID == planned.Plan.ID || !strings.HasPrefix(env.Say, tc.say) {
 				t.Fatalf("exit %d say %q posts %d", exit, env.Say, len(h.posts()))
 			}
-			if env.Error == nil || !strings.Contains(env.Error.Next, "Never run this another way") {
+			if env.Error == nil || !strings.Contains(env.Error.Next, "Never run it another way") {
 				t.Fatalf("next %+v", env.Error)
 			}
 		})
@@ -148,5 +146,58 @@ func TestApplyIgnoresRefreshOnlyChanges(t *testing.T) {
 		if exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", "yes"); exit != 0 {
 			t.Fatalf("%s: exit %d env %+v", plan.ID, exit, env)
 		}
+	}
+}
+
+// The window (and phone) ask runs the same check: a cut plan that did not
+// change opens its window instead of refusing forever.
+func TestWindowPlanKeepsACutPlanThatDidNotChange(t *testing.T) {
+	useWindow(t, windowConfirmed)
+	h := cutHome(t)
+	h.cutAt("a10")
+	planned := h.plan(appInstall...).Plan
+	if planned.Channel != channelWindow {
+		t.Fatalf("setup: %+v", planned)
+	}
+	h.cutAt("a20")
+	if exit, env := h.run(runApplyCommand, "--plan", planned.ID); exit != 0 || len(h.posts()) != 1 {
+		t.Fatalf("exit %d env %+v posts %d", exit, env, len(h.posts()))
+	}
+}
+
+// A config the preview read but the recompute could not read again might
+// have changed: that is drift, not "the check got less far".
+func TestApplyRefusesACutPlanThatCouldNotReadAgain(t *testing.T) {
+	h := cutHome(t)
+	h.f.script("morning", step("light.turn_on", "light.kitchen"))
+	h.f.mu.Lock()
+	h.f.fail = map[string]bool{"/api/config/automation/config/a10": true} // the scan stops early, the walk goes on
+	h.f.mu.Unlock()
+	planned := h.plan("script.turn_on", "script.morning")
+	if planned.Plan.Code == "" {
+		t.Fatalf("setup: %+v", planned)
+	}
+	h.cutAt("a10") // now the budget runs out before the script is read
+	exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID, "--confirm", planned.Plan.Code)
+	if exit != verbExitDrift || len(h.posts()) != 0 {
+		t.Fatalf("exit %d env %+v posts %d", exit, env, len(h.posts()))
+	}
+}
+
+// A full check (only a deterministic gap) stays exact: a new device in an
+// area a script switches off is drift.
+func TestApplyRefusesANewAreaMemberWithoutACut(t *testing.T) {
+	f := newFakeHA()
+	f.ent("switch.coffee", "shelly", "on", nil)
+	f.ent("switch.freezer", "shelly", "on", nil)
+	f.script("evening", map[string]any{"action": "switch.turn_off", "target": map[string]any{"area_id": "kitchen"}}, map[string]any{"action": "{{ service }}"})
+	f.related["area:kitchen"] = []string{"switch.coffee"}
+	h := newWriteHarness(t, f)
+	planned := h.plan("script.turn_on", "script.evening").Plan
+	h.f.mu.Lock()
+	h.f.related["area:kitchen"] = []string{"switch.coffee", "switch.freezer"}
+	h.f.mu.Unlock()
+	if exit, env := h.run(runApplyCommand, "--plan", planned.ID, "--confirm", planned.Code); exit != verbExitDrift || len(h.posts()) != 0 {
+		t.Fatalf("exit %d env %+v posts %d", exit, env, len(h.posts()))
 	}
 }

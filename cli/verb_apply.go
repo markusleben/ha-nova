@@ -252,11 +252,8 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	if err != nil {
 		return fail(err)
 	}
-	// The plan's identity: the recompute's hash, or the stored one when the
-	// recompute is still the confirmed plan (sameAsConfirmed checks that the
-	// file's fields make that hash).
-	identity := fresh.Hash
-	if fresh.Hash != plan.Hash && sameAsConfirmed(plan, fresh) {
+	identity := fresh.Hash // the stored hash once its fields are proven to make it (sameAsConfirmed)
+	if stillConfirmed(plan, fresh) {
 		identity = plan.Hash
 	}
 	if identity != plan.Hash {
@@ -281,7 +278,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		}
 		return fail(&verbFailure{exit: verbExitDrift, status: "drift", code: "PLAN_DRIFT",
 			message: "something changed since the preview; nothing was sent and the old plan is gone",
-			next:    "Show the new say (it starts with what changed) and ask again, with its new code (a plan without one: follow next_step). Never run this another way (raw requests, another skill, the fallback): this check is what keeps it safe."})
+			next:    "Show the new `say` (it starts with what changed) and ask again with its new code (no code: follow next_step; a relative ask: plan it fresh from the new value). If it changes again, stop and tell the user. Never run it another way (raw requests, another skill, the fallback)."})
 	}
 	// From here every envelope shows the STORED plan: the recompute's own
 	// id and code were never saved, and typing them would burn this plan.

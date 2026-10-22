@@ -263,7 +263,7 @@ func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnap
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and "+phoneUnlinkedWhy, phoneUnlinkedNext)
 	}
 	fresh, ok := replanStored(paths, s, &env, plan, channel)
-	if !ok || fresh.Hash != plan.Hash || fresh.Tier != plan.Tier || env.Plan == nil {
+	if !ok || !stillConfirmed(plan, fresh) || fresh.Tier != plan.Tier || env.Plan == nil {
 		return verbEnvelope{}, 0, false // apply reports the drift or the error
 	}
 	// Claim the window plan first: one window plan yields at most one chat plan.
@@ -348,7 +348,7 @@ func humanPlan(paths runtimePaths, opts verbOptions, id string, noSnapshot bool,
 	env := verbEnvelope{}
 	fresh, ok = replanStored(paths, s, &env, plan, channel)
 	idHex = planIdentity(strings.TrimPrefix(plan.Hash, "sha256:"), plan.Nonce)
-	if !ok || fresh.Hash != plan.Hash || fresh.Tier != plan.Tier || plan.ID != "p_"+idHex[:12] || fresh.Prompt == "" {
+	if !ok || !stillConfirmed(plan, fresh) || fresh.Tier != plan.Tier || plan.ID != "p_"+idHex[:12] || fresh.Prompt == "" {
 		s.close()
 		return plan, fresh, nil, "", 0, goal, false
 	}

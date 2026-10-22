@@ -14,6 +14,10 @@ import (
 // does not index bus listeners, so live counts are compared with the event
 // triggers of every readable automation.
 
+// viaListenerScan marks what the scan of every automation's event triggers
+// found; how far it gets depends on the read budget (plan_drift.go).
+const viaListenerScan = "listener scan"
+
 type listenerHit struct{ automation, entityFilter string }
 
 type listenerTable struct {
@@ -159,14 +163,14 @@ func (e *tierEngine) listenerTable() *listenerTable {
 		var notFound *verbFailure
 		switch {
 		case errors.As(row.err, &notFound) && row.configID == "":
-			e.gap(reasonYAMLNoID, row.entityID, "listener scan", "")
+			e.gap(reasonYAMLNoID, row.entityID, viaListenerScan, "")
 			continue
 		case errors.As(row.err, &notFound):
-			e.gap(reasonUnreadConfig, row.entityID, "listener scan", row.configID)
+			e.gap(reasonUnreadConfig, row.entityID, viaListenerScan, row.configID)
 			continue
 		}
 		if row.err != nil {
-			e.readFailed(row.entityID, "", "config")
+			e.readFailed(row.entityID, viaListenerScan, "config")
 			return nil
 		}
 		cfg, cached := e.configs[row.entityID]
@@ -176,7 +180,7 @@ func (e *tierEngine) listenerTable() *listenerTable {
 			if row.loaded {
 				key = loadedConfigKey(row.entityID)
 			}
-			if cfg, ok = e.parseConfig(row.entityID, "automation", key, row.raw, "listener scan"); !ok {
+			if cfg, ok = e.parseConfig(row.entityID, "automation", key, row.raw, viaListenerScan); !ok {
 				return nil
 			}
 		} else if cfg == nil {
@@ -198,7 +202,7 @@ func (e *tierEngine) listenerTable() *listenerTable {
 			for _, t := range types {
 				name, isString := t.(string)
 				if !isString || name == "" || isTemplated(name) {
-					e.gap(reasonListener, row.entityID, "listener scan", "templated event_type")
+					e.gap(reasonListener, row.entityID, viaListenerScan, "templated event_type")
 					continue
 				}
 				table.counts[name]++

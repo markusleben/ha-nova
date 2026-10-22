@@ -74,7 +74,8 @@ type tierEngine struct {
 	reg          map[string]registryEntry
 	states       map[string]*entityState // nil value: entity absent (HTTP 404)
 	configs      map[string]map[string]any
-	basis        map[string]string // config key → sha256 of the normalized config
+	basis        map[string]string    // config key → sha256 of the normalized config
+	census       map[string][2]string // automation → its basis key and digest, read by the listener scan (enters basis only once used)
 	level        tierLevel
 	scopes       []*tierLevel
 	reasons      []tierReason
@@ -107,7 +108,7 @@ type tierEngine struct {
 
 func newTierEngine(s *relaySession) *tierEngine {
 	return &tierEngine{s: s, reg: map[string]registryEntry{}, states: map[string]*entityState{}, configs: map[string]map[string]any{},
-		basis: map[string]string{}, seen: map[string]bool{}, visited: map[string]bool{}, done: map[string]tierLevel{}, complete: true,
+		basis: map[string]string{}, census: map[string][2]string{}, seen: map[string]bool{}, visited: map[string]bool{}, done: map[string]tierLevel{}, complete: true,
 		routes: map[string][]string{}, firedOn: map[string][]fired{}, runs: map[string][]string{}}
 }
 
@@ -391,6 +392,9 @@ func automationActions(cfg map[string]any) any {
 // → When you cannot see the members).
 func (e *tierEngine) runConfig(id, domain, via string) (map[string]any, bool) {
 	if cfg, ok := e.configs[id]; ok {
+		if d, read := e.census[id]; read {
+			e.basis[d[0]] = d[1]
+		}
 		return cfg, cfg != nil
 	}
 	e.configs[id] = nil
@@ -485,7 +489,11 @@ func (e *tierEngine) parseConfig(id, domain, configID string, raw json.RawMessag
 	}
 	normalized, _ := json.Marshal(normalizeConfig(cfg))
 	sum := sha256.Sum256(normalized)
-	e.basis[domain+":"+configID] = hex.EncodeToString(sum[:])
+	if via == viaListenerScan { // how far that scan of every automation got must never make a plan stale
+		e.census[id] = [2]string{domain + ":" + configID, hex.EncodeToString(sum[:])}
+	} else {
+		e.basis[domain+":"+configID] = hex.EncodeToString(sum[:])
+	}
 	e.configs[id] = cfg
 	return cfg, true
 }

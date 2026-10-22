@@ -3,17 +3,44 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"reflect"
 	"slices"
 	"strings"
 )
 
-// Drift at apply (spec §2.1, I3): when a recompute still is the confirmed
-// plan, and what the new preview says when it is not.
+// The plan basis beyond configs, and drift at apply (spec §2.1, I3): when a
+// recompute still is the confirmed plan, and what a new preview says when
+// it is not.
+
+// basisAttributes: what a call on an entity of the domain acts on, beyond
+// its data fields. An update installs, skips, or unskips one version, so a
+// new version or a running install is drift; the progress, notes, picture,
+// and title a Supervisor or integration refresh rewrites are not.
+var basisAttributes = map[string][]string{"update": {"installed_version", "latest_version", "skipped_version", "in_progress"}}
+
+// featureGated: the domains whose supported_features decide a refusal or
+// what the call can do. Elsewhere the bits change with what a device is
+// doing (a media player's app), and that never made a plan stale.
+var featureGated = map[string]bool{"lock": true, "alarm_control_panel": true, "update": true}
+
+// basisEntities: per acted entity pl, device_class, and (feature-gated
+// domains only) supported_features.
+func basisEntities(e *tierEngine) map[string]any {
+	entities := map[string]any{}
+	for _, id := range e.acted {
+		st := e.states[id]
+		entity := map[string]any{"pl": e.reg[id].pl, "device_class": st.attr("device_class")}
+		if domain, _ := splitID(id); featureGated[domain] {
+			entity["supported_features"] = st.attr("supported_features")
+		}
+		entities[id] = entity
+	}
+	return entities
+}
 
 // checkGapCodes: reasons that mean the check could not see everything the
-// plan sets off. The preview says one sentence for all of them, and how many
-// a run finds depends on how far it got within its read budget.
+// plan sets off; the preview says one sentence for all of them.
 var checkGapCodes = map[string]bool{
 	reasonTemplatedAction: true, reasonUnresolvedTarget: true, reasonStoredSelector: true, reasonBlueprint: true,
 	reasonYAMLNoID: true, reasonUnreadConfig: true, reasonListener: true, reasonScanFailed: true, reasonLimitCut: true,
@@ -21,27 +48,26 @@ var checkGapCodes = map[string]bool{
 
 const sayCheckGap = "HA NOVA can't check everything this would set off"
 
-// planActionOf is the action a plan's hash covers (sealPlan's action).
-func planActionOf(p storedPlan) any {
-	switch p.Kind {
-	case "call":
-		return p.Action
-	case "rooms":
-		return p.RoomsRequest
-	}
-	return p.ConfigAction
+// cutShort: a read failed or ran out of budget, so how far a run got
+// depends on timing.
+func cutShort(r tierReason) bool { return r.Code == reasonLimitCut || r.Code == reasonScanFailed }
+
+// stillConfirmed: the recompute is the plan the user confirmed.
+func stillConfirmed(stored, fresh storedPlan) bool {
+	return fresh.Hash == stored.Hash || sameAsConfirmed(stored, fresh)
 }
 
-// sameAsConfirmed: a recompute whose hash differs only in how far an
-// incomplete check got is still the plan the user confirmed. That needs a
-// preview that already said HA NOVA can't check everything (a gap reason),
-// a plan file whose fields still make its hash, and then the same action,
-// tier, and before values, no reason the preview did not show (gap reasons
-// count as the one sentence they say), and every config and entity both
-// runs read unchanged. A run cut by the read budget reads a different set
-// each time, so without this an unchanged plan could never be confirmed.
+// sameAsConfirmed: a recompute whose hash differs only in the gaps a check
+// cut short ran into (a 30 s budget over a slow link, a timed-out read) is
+// still the confirmed plan. It needs a preview that was cut short and said
+// so, a plan file whose fields still make its hash, the same action, tier,
+// and basis (before values, acted entities, every config the walk read),
+// and no reason the preview did not show. Timing-made gaps (a cut, a failed
+// read, the listener scan's per-automation gaps) count as the one sentence
+// they all say. The listener scan's own reads never enter the basis
+// (tierEngine.census), so how far it got cannot make a plan stale.
 func sameAsConfirmed(stored, fresh storedPlan) bool {
-	if !slices.ContainsFunc(stored.Reasons, func(r tierReason) bool { return checkGapCodes[r.Code] }) ||
+	if !slices.ContainsFunc(stored.Reasons, cutShort) ||
 		stored.Hash != "sha256:"+planHash(stored.Kind, stored.Server, planActionOf(stored), stored.Tier, stored.Reasons, stored.Basis) ||
 		stored.Kind != fresh.Kind || stored.Server != fresh.Server || stored.Tier != fresh.Tier ||
 		!jsonEqual(planActionOf(stored), planActionOf(fresh)) {
@@ -56,49 +82,26 @@ func sameAsConfirmed(stored, fresh storedPlan) bool {
 			return false
 		}
 	}
-	old, now := asJSON(stored.Basis), asJSON(fresh.Basis)
-	if len(old) != len(now) {
-		return false
+	return reflect.DeepEqual(asJSON(stored.Basis), asJSON(fresh.Basis))
+}
+
+// planActionOf is the action a plan's hash covers (sealPlan's action).
+func planActionOf(p storedPlan) any {
+	switch p.Kind {
+	case "call":
+		return p.Action
+	case "rooms":
+		return p.RoomsRequest
 	}
-	for key, value := range old {
-		if _, present := now[key]; !present {
-			return false
-		}
-		switch key {
-		case "configs", "entities": // read as far as each run got
-			if !sameWhereBoth(value, now[key]) {
-				return false
-			}
-		default:
-			if !reflect.DeepEqual(value, now[key]) {
-				return false
-			}
-		}
-	}
-	return true
+	return p.ConfigAction
 }
 
 // sayKey: a reason as the preview words it.
 func sayKey(r tierReason) string {
-	if checkGapCodes[r.Code] {
+	if checkGapCodes[r.Code] && (cutShort(r) || r.Via == viaListenerScan) {
 		return "gap"
 	}
 	return r.Code + "|" + r.EntityID + "|" + r.Via
-}
-
-// sameWhereBoth: every key both maps hold has the same value.
-func sameWhereBoth(a, b any) bool {
-	am, aIsMap := a.(map[string]any)
-	bm, bIsMap := b.(map[string]any)
-	if !aIsMap || !bIsMap {
-		return reflect.DeepEqual(a, b)
-	}
-	for key, value := range am {
-		if other, both := bm[key]; both && !reflect.DeepEqual(value, other) {
-			return false
-		}
-	}
-	return true
 }
 
 // asJSON: a basis as its plan file holds it, so a fresh one compares with
@@ -128,7 +131,7 @@ func driftSay(e *tierEngine, env *verbEnvelope, stored, fresh storedPlan) string
 		for _, field := range sortedKeys(wasFields) {
 			if after, present := isFields[field]; both && present && !reflect.DeepEqual(wasFields[field], after) {
 				return fmt.Sprintf("Since the last preview, %s changed: %s was %s, now %s. ", sayText(e.sayName(env, id), true),
-					strings.ReplaceAll(field, "_", " "), driftValue(wasFields[field]), driftValue(after))
+					driftField(field), driftValue(field, wasFields[field]), driftValue(field, after))
 			}
 		}
 	}
@@ -140,19 +143,44 @@ func driftSay(e *tierEngine, env *verbEnvelope, stored, fresh storedPlan) string
 	case !sameWhereBoth(old["configs"], now["configs"]):
 		return "Since the last preview, an automation or script this sets off was changed. "
 	case !sameWhereBoth(old["entities"], now["entities"]):
-		return "Since the last preview, a device this controls changed. "
-	case stored.Tier != fresh.Tier || !jsonEqual(stored.Reasons, fresh.Reasons) || !reflect.DeepEqual(old["configs"], now["configs"]):
-		return "Since the last preview, what this sets off changed. "
+		return "Since the last preview, something this controls changed. "
+	case stored.Tier != fresh.Tier || !jsonEqual(stored.Reasons, fresh.Reasons) || !reflect.DeepEqual(old, now):
+		return "HA NOVA checked again, and what this sets off looks different now. "
 	}
 	return sayChanged
 }
 
-func driftValue(v any) string {
+// sameWhereBoth: every key both maps hold has the same value.
+func sameWhereBoth(a, b any) bool {
+	am, _ := a.(map[string]any)
+	bm, _ := b.(map[string]any)
+	for key, value := range am {
+		if other, both := bm[key]; both && !reflect.DeepEqual(value, other) {
+			return false
+		}
+	}
+	return true
+}
+
+// driftField names a basis field; brightness_pct holds HA's brightness.
+func driftField(field string) string {
+	return strings.ReplaceAll(deltaAttribute(field), "_", " ")
+}
+
+func driftValue(field string, v any) string {
+	n, isNumber := v.(float64)
 	switch t := v.(type) {
 	case nil:
-		return "empty"
+		return "none"
 	case bool:
 		return map[bool]string{true: "yes", false: "no"}[t]
+	case string:
+		if t == "" {
+			return "none"
+		}
 	}
-	return sayText(deltaValue(v), false)
+	if isNumber && deltaAttribute(field) == "brightness" {
+		return fmt.Sprintf("%d%%", int(math.Round(n/255*100)))
+	}
+	return sayValue(deltaValue(v)) // a long or odd value stays quoted
 }
