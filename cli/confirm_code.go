@@ -112,25 +112,18 @@ func typedCode(s string) string {
 	}, s)
 }
 
-// withholdAsk swaps the closing ask for sayFormAsk: the last "Type <code> to "
-// outside “…”, since a Home Assistant name (always quoted; sayText strips
-// quote marks from it) may contain the same words.
+// withholdAsk swaps the closing code block (and the chat note above it)
+// for sayFormAsk. A Home Assistant name can't spoof the block: sayText
+// strips line breaks and asterisks from it.
 func withholdAsk(say, code string) string {
-	at, depth := -1, 0
-	for i, r := range say {
-		switch {
-		case r == '“':
-			depth++
-		case r == '”':
-			depth--
-		case depth == 0 && strings.HasPrefix(say[i:], "Type "+code+" to "):
-			at = i
-		}
-	}
-	if at < 0 { // unreachable (say and code come from one plan); fail closed
+	head, found := strings.CutSuffix(say, sayCodeBlock(code))
+	if !found { // unreachable (say and code come from one plan); fail closed
 		return sayFormAsk
 	}
-	return say[:at] + sayFormAsk
+	for _, note := range []string{sayChatNote, chatCodeNote} {
+		head = strings.TrimSuffix(head, "\n"+note)
+	}
+	return head + " " + sayFormAsk
 }
 
 // lowerFirst: "Unlock “Door”" → "unlock “Door”" (names are quoted, so only

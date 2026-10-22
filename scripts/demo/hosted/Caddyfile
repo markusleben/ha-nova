@@ -24,7 +24,7 @@
 	header Retry-After "60"
 	# handle_errors skips the site's deferred headers; its links go out.
 	header Referrer-Policy "no-referrer"
-	respond `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="refresh" content="15"><title>Demo is restarting</title><body style="margin:0;min-height:100vh;background:#0A1628 linear-gradient(180deg,#0A0E1A 0%,#0D1525 45%,#0A1628 100%);color:#B8CCE0;font:17px/1.65 -apple-system,'Helvetica Neue','Segoe UI',sans-serif;text-align:center"><main style="max-width:34em;margin:0 auto;padding:clamp(3rem,12vh,6rem) 1.5rem"><img src="/_demo/icon.svg" alt="" width="96" height="96" style="display:block;margin:0 auto"><p style="margin:1.25rem 0 0;font-size:1rem;font-weight:600;letter-spacing:.34em;padding-left:.34em">HA NOVA</p><h1 style="margin:.75rem 0 0;color:#E8EDF2;font-size:2rem;line-height:1.2">Demo is restarting</h1><p style="margin:1.25rem 0 0">The demo is being reset (at the top of every hour, UTC) or restarted. Back in about 2 minutes; this page reloads by itself.</p><p style="margin:1.5rem 0 0"><a href="/start" style="color:#18BCF2;text-underline-offset:3px">About this demo</a> · <a href="https://hanova.app/privacy.html" style="color:#18BCF2;text-underline-offset:3px">Privacy</a></p></main>` 503
+	respond `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="refresh" content="15"><title>Demo is restarting</title><body style="margin:0;min-height:100vh;background:#0A1628 linear-gradient(180deg,#0A0E1A 0%,#0D1525 45%,#0A1628 100%);color:#B8CCE0;font:17px/1.65 -apple-system,'Helvetica Neue','Segoe UI',sans-serif;text-align:center"><main style="max-width:34em;margin:0 auto;padding:clamp(3rem,12vh,6rem) 1.5rem"><img src="/_demo/icon.svg" alt="" width="96" height="96" style="display:block;margin:0 auto"><p style="margin:1.25rem 0 0;font-size:1rem;font-weight:600;letter-spacing:.34em;padding-left:.34em">HA NOVA</p><h1 style="margin:.75rem 0 0;color:#E8EDF2;font-size:2rem;line-height:1.2">Demo is restarting</h1><p style="margin:1.25rem 0 0">The demo is being reset (at the top of every hour, UTC) or restarted. Back in a few minutes; this page reloads by itself.</p><p style="margin:1.5rem 0 0"><a href="/start" style="color:#18BCF2;text-underline-offset:3px">About this demo</a> · <a href="https://hanova.app/privacy.html" style="color:#18BCF2;text-underline-offset:3px">Privacy</a></p></main>` 503
 }
 
 (resetting_json) {
@@ -33,11 +33,20 @@
 	respond `{"error":"demo_resetting"}` 503
 }
 
+# A chat app's token refresh (/auth/token) while the house is down: an OAuth
+# JSON error with Retry-After, never the HTML page, so it retries later; its
+# sign-in outlives the reset (reset.sh, chat.mjs keep/restore).
+(resetting_oauth) {
+	header Content-Type "application/json"
+	header Retry-After "60"
+	respond `{"error":"temporarily_unavailable","error_description":"The demo house is resetting. Try again in a few minutes."}` 503
+}
+
 # Add to Claude (/api/ha_nova/mcp): a JSON-RPC error, so the chat can say why.
 (resetting_rpc) {
 	header Content-Type "application/json"
 	header Retry-After "60"
-	respond `{"jsonrpc":"2.0","id":null,"error":{"code":-32001,"message":"The demo house is resetting (every hour at :00 UTC). Try again in a few minutes. Claude may then ask to connect again: log in with demo / demo."}}` 503
+	respond `{"jsonrpc":"2.0","id":null,"error":{"code":-32001,"message":"The demo house is resetting (every hour at :00 UTC). Try again in a few minutes. Your connection stays."}}` 503
 }
 
 {$DEMO_DOMAIN} {
@@ -180,7 +189,12 @@
 		}
 		handle {
 			handle @notready {
-				import restarting_html
+				handle /auth/token {
+					import resetting_oauth
+				}
+				handle {
+					import restarting_html
+				}
 			}
 			handle /connect.json {
 				header Cache-Control "no-store"
@@ -200,7 +214,12 @@
 					# stopping) gets the same page as one that is gone.
 					@down status 502 503 504
 					handle_response @down {
-						import restarting_html
+						handle /auth/token {
+							import resetting_oauth
+						}
+						handle {
+							import restarting_html
+						}
 					}
 				}
 			}
@@ -215,6 +234,9 @@
 		}
 		handle /api/ha_nova/mcp {
 			import resetting_rpc
+		}
+		handle /auth/token {
+			import resetting_oauth
 		}
 		handle {
 			import restarting_html

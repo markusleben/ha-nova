@@ -155,14 +155,14 @@ func TestFindByState(t *testing.T) {
 	}
 }
 
-// F6: a create's code is named after the alias, not the minted number;
+// F6: a create's say names the alias, not the minted number;
 // updates keep the config id; the hash+nonce suffix still binds it.
 func TestCreateCodeUsesTheAlias(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
 	draft := hallDraft("light.turn_on")
 	draft["actions"] = []any{step("lock.unlock", "lock.front")}
 	_, env := h.run(runPlanCommand, "write", "--domain", "automation", "--file", draftFile(t, draft))
-	if !fourDigits.MatchString(env.Plan.Code) || !strings.HasPrefix(env.Say, "I'm about to create the automation “Hall motion”.") || !strings.Contains(env.Say, "Type "+env.Plan.Code+" to create the automation “Hall motion” — ") {
+	if !fourDigits.MatchString(env.Plan.Code) || !strings.HasPrefix(env.Say, "I'm about to create the automation “Hall motion”.") || !strings.HasSuffix(env.Say, sayCodeBlock(env.Plan.Code)) {
 		t.Fatalf("create code %q", env.Plan.Code)
 	}
 	if exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID, "--confirm", env.Plan.Code); exit != 0 || applied.Status != "verified" {

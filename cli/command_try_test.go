@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // fakeDemo serves connect.json and the relay health like demo.hanova.app.
@@ -375,5 +376,84 @@ func TestApplyTakesTheDemoPlansServerWithoutASelection(t *testing.T) {
 	}
 	if env, _ := applyPlan(paths, verbOptions{}, id, "", false); env.Server != demoProfileName {
 		t.Fatalf("apply without a selection must use the plan's demo server: %+v %+v", env, env.Error)
+	}
+}
+
+func TestDemoResetTextOnlyInTheLastTenMinutes(t *testing.T) {
+	at := func(hhmmss string) time.Time {
+		v, err := time.Parse(time.RFC3339, "2026-10-22T"+hhmmss+"Z")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	for clock, want := range map[string]string{
+		"13:00:00": "",
+		"13:49:59": "",
+		"13:50:00": "The demo house resets in 10 minutes. Your connection stays, your changes don't.",
+		"13:54:30": "The demo house resets in 6 minutes. Your connection stays, your changes don't.",
+		"13:59:01": "The demo house resets in 1 minute. Your connection stays, your changes don't.",
+	} {
+		if got := demoResetText(at(clock)); got != want {
+			t.Errorf("%s: %q, want %q", clock, got, want)
+		}
+	}
+	// Whole-hour offsets reset at the same instant.
+	if got := demoResetText(at("13:54:30").In(time.FixedZone("CEST", 2*3600))); !strings.Contains(got, " 6 minutes") {
+		t.Errorf("CEST: %q", got)
+	}
+}
+
+func TestMissingDemoPlanAfterTheResetSaysWhichCase(t *testing.T) {
+	fakeDemo(t, "")
+	paths := tryTestPaths(t, testV2TwoProfileConfig)
+	paths.CacheDir = t.TempDir()
+	if exit, out := runTry(t, paths); exit != 0 {
+		t.Fatalf("try exit=%d out=%s", exit, out)
+	}
+	previous := verbNow
+	t.Cleanup(func() { verbNow, demoPlansSince = previous, time.Time{} })
+	dataDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dataDir, "plans-since"), []byte("2026-10-22T13:02:10Z\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	demoPlansSince = readPlansSince(dataDir) // the hosted demo's bridge, reset at 13:02:10
+	apply := func(clock string, opts verbOptions) *verbError {
+		at, err := time.Parse(time.RFC3339, "2026-10-22T"+clock+"Z")
+		if err != nil {
+			t.Fatal(err)
+		}
+		verbNow = func() time.Time { return at }
+		env, exit := applyPlan(paths, opts, "p_0123456789ab", "", false)
+		if exit != verbExitRefused || env.Error == nil {
+			t.Fatalf("%s: exit=%d %+v", clock, exit, env)
+		}
+		return env.Error
+	}
+	demo := verbOptions{server: demoProfileName, serverSet: true}
+	got := apply("13:05:00", demo)
+	if got.Code != "PLAN_RESET" || !strings.Contains(got.Next, "reset at 13:02:10 UTC") || !strings.Contains(got.Next, "before 13:17:10 UTC") ||
+		!strings.Contains(mcpNext(got.Next), "ha_get") {
+		t.Fatalf("demo, just after :00: %+v", got)
+	}
+	if got := apply("13:18:11", demo); got.Code != "PLAN_NOT_FOUND" || got.Next != mayHaveRun {
+		t.Fatalf("demo, past every pre-reset plan's expiry: %+v", got)
+	}
+	// A late hourly timer leaves the last reset's time in place: no reset claimed
+	// before it happened (here: a clock before the reset time).
+	if got := apply("13:01:00", demo); got.Code != "PLAN_NOT_FOUND" {
+		t.Fatalf("demo, before its reset: %+v", got)
+	}
+	// The real home never gets the demo's step, also right after :00.
+	if got := apply("13:05:00", verbOptions{}); got.Code != "PLAN_NOT_FOUND" {
+		t.Fatalf("real home: %+v", got)
+	}
+	if got := apply("13:05:00", verbOptions{server: defaultServerProfileName, serverSet: true}); got.Code != "PLAN_NOT_FOUND" {
+		t.Fatalf("real home by name: %+v", got)
+	}
+	// A local `ha-nova try` keeps its plans across the reset: a missing one may have run.
+	demoPlansSince = time.Time{}
+	if got := apply("13:05:00", demo); got.Code != "PLAN_NOT_FOUND" || got.Next != mayHaveRun {
+		t.Fatalf("local try: %+v", got)
 	}
 }

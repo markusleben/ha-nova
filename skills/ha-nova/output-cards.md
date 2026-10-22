@@ -12,7 +12,7 @@ Line, a Session Recap, findings, or review output. The core rules still apply.
 - Prefer plain short labels over decorative Markdown headings in terminal-like clients.
 - Treat names such as `Changes`, `Preview`, `Post-write review`, and `Options` as semantic slots; do not rely on literal Markdown heading markers to make the output understandable.
 - Without a plan's `say`, create/update previews run: summary, changes, pre-write check, ⚠️ not saved, question.
-- Keep delete previews structured in this order: preview summary, consumer-check impact, save status, the confirmation ask (a CLI plan's `say`, else the exact one-time-code prompt).
+- Keep delete previews structured in this order: preview summary, consumer-check impact, save status, the confirmation ask.
 - Use stable localized labels for those slots across a conversation. If a slot has content, show it under the same label and in the same order; if it has no content, omit that slot instead of printing an empty placeholder.
 - Close every create/update preview with one natural question (save it, show the details, or leave it). Sole exception: intermediate previews inside a grouped change set (`../ha-nova/grouped-change-set.md`) carry none — one final question closes the group.
 - Delete previews must say nothing has been deleted yet and must close with the confirmation ask (a CLI plan's `say`, else the one-time code); never a save question or a selectable menu for destructive confirmation.
@@ -46,7 +46,9 @@ Title line: emoji + localized preview label + item type + name. Then one to thre
 Dims the living room lights — that stops when it is gone.
 Used by: nothing else found.
 ⚠️  Nothing deleted yet.
-Type <four digits> to delete — a plain yes can't confirm this.
+
+To go ahead, type this code:  
+**<four digits>**
 ```
 
 Destructive batch previews and results render the Batch Cards defined in

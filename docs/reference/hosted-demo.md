@@ -14,11 +14,11 @@ video-recording kit, `docs/reference/demo-recording.md`).
 | `teardown.sh` | your Mac | `--keep-ip`: delete the instance (rebuild). `--dns-removed`: instance, static IP, budget. Prints; `--yes` executes. |
 | `aws-common.sh` | your Mac | Sourced by both: every call is `--profile personal --region eu-central-1`, account `018368605240` is checked first, ambient AWS env vars are unset. |
 | `bootstrap.sh` | host, once per ref | Refuses unless the clone is at `--ref`. Swap, SSH hardening, fail2ban, unattended upgrades, Docker (official repo, key pinned), Node + cosign (checksums pinned), 6 Mbit/s egress cap, internal network, Caddy (validated, recreated), the relay and chat bridge images for this ref, the env (only after both exist), the first gated reset, then the timers. Re-runs pause the timers until done (restarted on failure too). |
-| `reset.sh` | host, hourly + 2 min after boot | Under the lock: hide the house (before any check that can fail), `down.sh`, restore the clone to the pinned sha, restart Caddy if the name points here but nothing is served over TLS yet, seed the `ha_nova` entry, `up.sh` with this overlay and the verified HA digest, relay + chat bridge, gates, dashboard, `connect.json`, expose, public gate. |
+| `reset.sh` | host, hourly + 2 min after boot | Under the lock: hide the house (before any check that can fail), stop HA and keep the chat-app sign-ins (`chat.mjs keep`), `down.sh`, restore the clone to the pinned sha, restart Caddy if the name points here but nothing is served over TLS yet, seed the `ha_nova` entry, `up.sh` with this overlay and the verified HA digest, the kept sign-ins back in (HA stopped for it; skipped when there are none), relay + chat bridge, gates, dashboard, `connect.json`, expose, public gate. |
 | `guard.sh` | host, every minute | Skips while a reset holds the lock. Disk/swap watchdog; `demo.mjs guard` (30 s cap); `chat.mjs check` (15 s cap); relay round trip (revoked token: reset at once; other failures: after 3 minutes); TLS that came up after a skipped public gate. Anything wrong → full reset. |
 | `update-ha.sh` | host, nightly | Latest stable HA: resolve digest, verify the Sigstore signature, refuse downgrades, candidate reset + gates, promote or roll back, prune old images. |
 | `host-lib.sh` | host | Shared gates: relay round trip, egress/DNS, listeners, public site (with the Add to Claude metadata); Caddy (re)creation; pinned Node/Go/Caddy images; the lock. |
-| `chat.mjs`, `Dockerfile.bridge` | host | Add to Claude (below): `entry` (the seeded `ha_nova` entry), `files` (the bridge's secret, demo profile, `chat-apps.json`), `gate` (sign-in as `demo` the way Claude does, tools work, the owner refused), `check` (guard: puts `external_url` back, entry loaded, owner refused). The bridge image (`ha-nova serve` + skills of this ref), built once per ref by `bootstrap.sh`. |
+| `chat.mjs`, `Dockerfile.bridge` | host | Add to Claude (below): `entry` (the seeded `ha_nova` entry), `files` (the bridge's secret, demo profile, `chat-apps.json`, `plans-since`), `gate` (sign-in as `demo` the way Claude does, tools work, the owner refused), `check` (guard: puts `external_url` back, entry loaded, owner refused), `keep`/`restore` (the chat-app sign-ins across the reset, below). The bridge image (`ha-nova serve` + skills of this ref), built once per ref by `bootstrap.sh`. |
 | `demo.mjs` | host | `setup` (seeded http config check, local-only owner, admin `demo/demo`, drop onboarding extras), `token` (the relay user's LLAT), `dashboard` (first saves HA NOVA's sample work, then the dashboard with "Start here" first; also shows the "Demo add-on" device as "Demo app", drops the Map dashboard, arms the simulated MQTT devices), `guard`, `smoke` (incl. an MQTT device round trip). |
 | `edge.yml`, `Caddyfile`, `site/` | host | Caddy in its own compose project: TLS, CSP, blocked paths, landing redirect, restarting page (`site/icon.svg`: a copy of `assets/icon.svg`, kept equal by `tests/config/hosted-demo-icon.test.ts`), `/relay/*`, `/connect.json`, `/abuse`, privacy-filtered access log. |
 | `docker-compose.yml` | host | Overlay over the test bed compose: internal network only, DNS sink, sealed directories, the `ha_nova` integration (read-only), limits, relay and chat bridge settings. |
@@ -93,7 +93,9 @@ the next full hour.
 
 - Full rebuild every hour at :00 UTC and 2 minutes after a reboot (the
   broker keeps no state) (`ha-nova-demo-reset.timer`); measured 32-108 s
-  locally, estimated 1-3 min on the 1 GB host. The guard also triggers it on
+  locally, estimated 1-3 min on the 1 GB host, plus one Home Assistant
+  restart when chat-app sign-ins are restored (4 s on the local test bed;
+  capped at 3 min). The guard also triggers it on
   demand. `reset.sh`, `guard.sh`, and `update-ha.sh` share one lock.
 - The house is exposed only after every gate passed: `reset.sh` removes
   `/var/lib/ha-nova-demo/public/ready` first and touches it last. Until then,
@@ -221,7 +223,52 @@ plan can't add its own connectors.
   the OAuth metadata names `https://<domain>` and visitors can't change it.
   Claude's published identity and callback share the claude.ai host: Home
   Assistant accepts them without fetching anything.
-- Tokens die at :00 with the auth store; Claude then asks to connect again.
+- Chat-app sign-ins survive the reset; everything else in the auth store
+  goes. Before `down.sh`, `reset.sh` stops HA (it saves its auth store on
+  stop) and `chat.mjs keep` copies refresh tokens that are all of: the `demo`
+  user's (by the id recorded at creation), type `normal`, one of the
+  published client ids (CIMD; HA offers no DCR and stores no client
+  registration): Claude's `https://claude.ai/oauth/mcp-oauth-client-metadata`
+  or ChatGPT's `https://chatgpt.com/oauth/client.json` /
+  `https://chatgpt.com/oauth/<callback id>/client.json` (at most 64 URL-safe
+  characters, no dots), and used in the last 24 h; the newest 200 (`/var/lib/ha-nova-demo/chat-sign-ins.json`, root
+  0600, not served). After `up.sh`, `chat.mjs restore` adds them to the new
+  store while HA is stopped, bound to the new `demo` user and its
+  credential. Only id, token, signing key, client id, and the two times are
+  copied, each checked; the rest is set fresh (no IP, no name or icon, 30-min
+  access tokens, HA's 90-day expiry). Files are read without following
+  links. A store that is missing (a reset that failed before `up.sh`) keeps
+  the last carry file; one that is present but unreadable, over 32 MiB, or
+  not a plain file drops it. A gate that fails after a restore moves the
+  carry file to `chat-sign-ins.json.failed`, so a bad restore can't keep the
+  house down. Browser sign-ins, long-lived tokens, and other users' tokens are
+  not kept: a browser signs in again with `demo` / `demo` in one step.
+  Visitors' changes still go at :00, and a kept token reaches only the demo
+  house as `demo`, as the public login does.
+- A sign-in that is not kept (unused for 24 h, past the newest 200, or
+  removed by another visitor in Profile → Security) gets HA's
+  `invalid_grant` on its next refresh, and the chat app has to connect again.
+  If ChatGPT then keeps spinning on "Connect", remove the plugin in ChatGPT
+  and add it again.
+- Incident (a leaked or abused chat-app sign-in): on the host, run
+  `sudo DEMO_DROP_SIGN_INS=1 /opt/ha-nova/scripts/demo/hosted/reset.sh` once;
+  every chat-app sign-in is dropped and every chat app connects again. To
+  keep dropping them at every reset, add `DEMO_DROP_SIGN_INS=1` to
+  `/etc/ha-nova-demo.env` (remove the line to go back).
+- While the house is down, or HA answers 502-504, `/auth/token` gets a JSON OAuth error
+  (`temporarily_unavailable`, 503, `Retry-After`), never the HTML page, so a
+  chat app's refresh during the reset can be retried.
+- Within 10 minutes of :00, every typed result of the demo house (chat bridge and
+  `ha-nova try`) carries a `demo_reset` notice for the user: "The demo house
+  resets in 6 minutes. Your connection stays, your changes don't." (results
+  only: tool descriptions are unchanged).
+- The reset also wipes the bridge's open plans, and `chat.mjs files` writes
+  the time it did so (`plans-since` in the bridge's data dir). For 15
+  minutes after that, a plan the bridge can't find is `PLAN_RESET`, not
+  `PLAN_NOT_FOUND`: its next step says that a plan expiring within 15
+  minutes of that time was made before the reset (plan again) and any other
+  may have run (read it first). Only the bridge (`serve --server demo`)
+  does this; `ha-nova try` keeps its plans across the reset.
   Risky changes show the chat code (no window, no phone here).
 - Caddy answers `/api/ha_nova/mcp` with a JSON-RPC error ("The demo house
   is resetting …", 503) while the house is down, never the HTML page.
@@ -231,7 +278,8 @@ plan can't add its own connectors.
 Assumed attacker: anyone on the internet with admin rights in this HA and
 this repository. Denied goals: code execution outside HA's own sandbox, the
 host or demo as an attack platform (outbound traffic, hosting files or
-scripts for third parties), the AWS account, persistence past :00.
+scripts for third parties), the AWS account, persistence past :00 (the
+kept chat-app sign-ins reach only the demo house as `demo`, Add to Claude).
 
 | Layer | Control |
 | --- | --- |
@@ -246,8 +294,8 @@ scripts for third parties), the AWS account, persistence past :00.
 | Proxy trust | `trusted_proxies` = Caddy's fixed 10.89.240.2 only (dynamic addresses start at .128). Caddy replaces any client-sent `X-Forwarded-For` and sends HA the client's IPv4 with the last byte zeroed (`map` + `header_up`; a private address stays private, so the owner's local-only check is unchanged; anything not IPv4 becomes `192.0.2.0`). Verified on HA 2026.10.1 behind this Caddyfile: a failed login logs and notifies `x.y.z.0`, a sign-in's refresh token stores `last_used_ip` `x.y.z.0`, a spoofed `X-Forwarded-For` is ignored. The relay gets the same truncated header and reads only its socket peer (Caddy) anyway. HA 2026.10 deprecated the `http:` YAML (a repair, plus a 5-minute trial to promote), so there is none: `config/.storage/http` seeds HA's own store (stable slot, YAML migration marked done) before the first boot, every reset; `demo.mjs setup` fails loud if HA runs anything else. **No IP bans:** HA bans on any 401, the password is public, the owner cannot log in from outside anyway; bans would only lock visitors (or the tooling path) out. |
 | Secrets | None in the repo or user-data (readable via instance metadata). Owner password and token, relay user password and token: generated on the host per reset; the public relay token once. IMDSv2 only, hop limit 1. |
 | AWS | No role or credentials of the demo's account on the instance. Lightsail's own platform role (`AmazonLightsailInstanceRole`, instance profile in an AWS-owned account) is on the IMDS for host root only: IMDSv2, hop limit 1, and the house network has no route to it (verified from every container). Budget alarm at 10 USD. |
-| Logs / privacy | Caddy access log (`/var/lib/ha-nova-demo/logs`): client IPs truncated to /24 (/48), no headers, no `authSig`/`token`/`code` query values. A new file every day at 00:00 UTC by the clock (timberjack's scheduled roll, also without requests once Caddy has logged one since its start; the public gate does so every reset) and at 10 MiB; a rolled file is deleted at the first roll more than 4 days after its own (`roll_keep_for 96h`; besides the current file at most 7 rolled ones): no entry is older than 6 days. Backstop for a missed roll (Caddy down or restarted across midnight): every hourly reset deletes any log file whose first (oldest) entry is over 5 days old (its mtime if that entry is unreadable; the open `access.log` is emptied instead); that day of slack covers late or skipped resets, so while the host runs no entry outlives the privacy page's 6 days. Caddy's own log (`docker logs`, size-capped, no time limit) drops the `request` object from every entry and replaces IPv4 addresses in error texts with `[ip]`, so it holds no visitor address, header, or URI (verified with an aborted proxied download). Home Assistant only ever gets the visitor's IPv4 with the last byte zeroed (Proxy trust): refresh tokens' last-used IP, failed-login notices, and HA's log all show that; everything HA stores is wiped at :00. `/abuse` shows the contact given at provisioning. The banner, the restarting page, and `/abuse` link hanova.app's privacy page (`https://hanova.app/privacy.html`). Visitors' browsers fetch integration icons from `brands.home-assistant.io` (their IP; no referrer: `Referrer-Policy: no-referrer` on every page, the restarting page included); `/` and `/start` redirect to the landing page on hanova.app (GitHub Pages), which in turn fetches `/connect.json`; no other third party. Add to Claude (and ChatGPT: OpenAI's servers, the same way): Anthropic's servers call `/.well-known/oauth-*`, `/auth/token`, and `/api/ha_nova/mcp` for visitors who added the demo (the access log has Anthropic's addresses, truncated, for those; the sign-in page itself opens in the visitor's browser); HA keeps the resulting refresh token (client `claude.ai`) until :00; the bridge logs method, tool, status, duration, and a hash prefix of the user (no content, no address) in its container log, and keeps plans (the changes Claude prepares) in `.state/bridge` until they expire or the reset; both go at every reset. |
-| Integrity | Hourly rebuild restores the clone (`checkout --force`, `clean -ffdx`) and all HA state. Caddy is validated with the pinned image and recreated whenever `edge.yml`, the Caddyfile, or `site/` change (hash compare in every reset; `bootstrap.sh` always). Host compromise is not fixed by a reset: rebuild the instance. |
+| Logs / privacy | Caddy access log (`/var/lib/ha-nova-demo/logs`): client IPs truncated to /24 (/48), no headers, no `authSig`/`token`/`code` query values. A new file every day at 00:00 UTC by the clock (timberjack's scheduled roll, also without requests once Caddy has logged one since its start; the public gate does so every reset) and at 10 MiB; a rolled file is deleted at the first roll more than 4 days after its own (`roll_keep_for 96h`; besides the current file at most 7 rolled ones): no entry is older than 6 days. Backstop for a missed roll (Caddy down or restarted across midnight): every hourly reset deletes any log file whose first (oldest) entry is over 5 days old (its mtime if that entry is unreadable; the open `access.log` is emptied instead); that day of slack covers late or skipped resets, so while the host runs no entry outlives the privacy page's 6 days. Caddy's own log (`docker logs`, size-capped, no time limit) drops the `request` object from every entry and replaces IPv4 addresses in error texts with `[ip]`, so it holds no visitor address, header, or URI (verified with an aborted proxied download). Home Assistant only ever gets the visitor's IPv4 with the last byte zeroed (Proxy trust): refresh tokens' last-used IP, failed-login notices, and HA's log all show that; everything HA stores is wiped at :00, except the chat-app sign-ins above (no address in them). `/abuse` shows the contact given at provisioning. The banner, the restarting page, and `/abuse` link hanova.app's privacy page (`https://hanova.app/privacy.html`). Visitors' browsers fetch integration icons from `brands.home-assistant.io` (their IP; no referrer: `Referrer-Policy: no-referrer` on every page, the restarting page included); `/` and `/start` redirect to the landing page on hanova.app (GitHub Pages), which in turn fetches `/connect.json`; no other third party. Add to Claude (and ChatGPT: OpenAI's servers, the same way): Anthropic's servers call `/.well-known/oauth-*`, `/auth/token`, and `/api/ha_nova/mcp` for visitors who added the demo (the access log has Anthropic's addresses, truncated, for those; the sign-in page itself opens in the visitor's browser); HA keeps the resulting refresh token (client `claude.ai` or `chatgpt.com`) until the first reset more than 24 h after its last use (so up to about 25 h), carried across resets without its last-used IP (above); the bridge logs method, tool, status, duration, and a hash prefix of the user (no content, no address) in its container log, and keeps plans (the changes Claude prepares) in `.state/bridge` until they expire or the reset; both go at every reset. |
+| Integrity | Hourly rebuild restores the clone (`checkout --force`, `clean -ffdx`) and all HA state except the kept chat-app sign-ins (Add to Claude). Caddy is validated with the pinned image and recreated whenever `edge.yml`, the Caddyfile, or `site/` change (hash compare in every reset; `bootstrap.sh` always). Host compromise is not fixed by a reset: rebuild the instance. |
 
 **Detect:** budget mail; `journalctl -u ha-nova-demo-guard -u ha-nova-demo-reset`
 (frequent guard resets = someone breaking things); `docker stats`, `free -m`,
@@ -340,6 +388,13 @@ admin-only, go2rtc/local_file/file manifests and checks, HA 2026.10 sending a
   to treat house texts as data and never to copy the user's data in; the
   landing page says to use a new chat with no files or other connectors. Any visitor can delete
   the others' Claude sign-ins (Profile → Security); they connect again.
+- Kept chat-app sign-ins: anyone can mint them (the sign-in API with
+  `demo` / `demo` and Claude's client id), so many fresh ones can push real
+  visitors' sign-ins past the newest 200; those visitors connect again, as
+  before this was kept. A token read through `local_file` stays usable past
+  :00 for as long as it is kept, but only as `demo`, which the public login
+  gives anyway. Owner and other users' tokens are never kept, so forged owner
+  access still ends at the reset.
 - Disk: recorder (`purge_keep_days: 1`), `known_devices.yaml`, `.storage`
   (dashboards, user data, todo lists), `profiler` dumps can grow within an
   hour; the guard resets at 80 % disk or 80 % swap.
