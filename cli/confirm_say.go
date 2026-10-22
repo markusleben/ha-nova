@@ -32,11 +32,12 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 	case plan.Confirm == "code" && plan.Channel == channelPhone:
 		verb, _ := sayGoal(e, env, plan, subject)
 		parts = append(parts, sayPhoneAsk(phoneButton(verb)))
-	case plan.Confirm == "code":
-		parts = append(parts, sayTypedAsk(plan.code, sayGoalText(e, env, plan, subject)))
+	case plan.Confirm == "code": // the code block is always last
+		text := strings.Join(parts, " ")
 		if plan.Channel == channelChat {
-			parts = append(parts, chatNote())
+			text += "\n" + chatNote()
 		}
+		return demoPrefix(text + sayCodeBlock(plan.code))
 	case plan.ConfigAction != nil: // the write card's save question
 		parts = append(parts, saySaveAsk)
 	default:
