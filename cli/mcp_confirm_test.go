@@ -427,7 +427,7 @@ func TestMCPFormDriftAndDelete(t *testing.T) {
 	noCode(t, "drift", drift, storedCode(t, h, fresh["id"].(string)))
 	call = c.startCall(applyArgs(fresh["id"].(string), nil))
 	formID, params, _ := c.form()
-	if message := params["message"].(string); !strings.HasPrefix(message, "Something changed since the last preview. I'm about to unlock") {
+	if message := params["message"].(string); !strings.HasPrefix(message, "Since the last preview, “lock.front” changed: state was locked, now jammed. I'm about to unlock") {
 		t.Fatalf("the form after a drift: %q", message)
 	}
 	c.answer(formID, map[string]any{"action": "cancel"})

@@ -231,12 +231,12 @@ func sayReason(e *tierEngine, env *verbEnvelope, plan storedPlan, r tierReason) 
 		domain, _ := splitID(r.EntityID)
 		return sayUnseen(name, via, sayPlainDomains[domain]), true
 	}
+	if checkGapCodes[r.Code] {
+		return sayCheckGap, true
+	}
 	switch r.Code {
 	case reasonUserService:
 		return "This runs a service defined on the device itself, which HA NOVA can't read", true
-	case reasonTemplatedAction, reasonUnresolvedTarget, reasonStoredSelector, reasonBlueprint, reasonYAMLNoID,
-		reasonUnreadConfig, reasonListener, reasonScanFailed, reasonLimitCut:
-		return "HA NOVA can't check everything this would set off", true
 	case reasonConfirmWatch:
 		return "It watches service calls or phone notifications, so it could see another confirmation's buttons", true
 	case reasonSceneAccess:

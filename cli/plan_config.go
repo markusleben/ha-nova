@@ -444,8 +444,8 @@ func (e *tierEngine) referencedBy(entityID string) {
 }
 
 // configPlanBasis: the normalized live config digest ("absent" on create),
-// the draft digest, every member config digest, and the acted entities'
-// pl/device_class/supported_features. Key order and HA bookkeeping keys never
+// the draft digest, every member config digest, and the acted entities
+// (basisEntities). Key order and HA bookkeeping keys never
 // count as drift (normalizeConfig).
 func configPlanBasis(e *tierEngine, current, draft json.RawMessage) map[string]any {
 	digest := func(raw json.RawMessage) string {
@@ -460,10 +460,5 @@ func configPlanBasis(e *tierEngine, current, draft json.RawMessage) map[string]a
 		sum := sha256.Sum256(normalized)
 		return hex.EncodeToString(sum[:])
 	}
-	entities := map[string]any{}
-	for _, id := range e.acted {
-		st := e.states[id]
-		entities[id] = map[string]any{"pl": e.reg[id].pl, "device_class": st.attr("device_class"), "supported_features": st.attr("supported_features")}
-	}
-	return map[string]any{"current": digest(current), "draft": digest(draft), "configs": e.basis, "entities": entities}
+	return map[string]any{"current": digest(current), "draft": digest(draft), "configs": e.basis, "entities": basisEntities(e)}
 }

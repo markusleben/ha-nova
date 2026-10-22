@@ -195,24 +195,50 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 	return plan, nil
 }
 
-// callPlanBasis: per acted entity pl/device_class/supported_features, the
-// before value of every field the call changes on the frozen targets (the
-// state only when the service changes it), and the normalized config
+// basisAttributes: what a call on an entity of the domain acts on, beyond
+// its data fields. An update installs, skips, or unskips one version, so a
+// new version or a running install is drift; the progress, notes, picture,
+// and title a Supervisor or integration refresh rewrites are not.
+var basisAttributes = map[string][]string{"update": {"installed_version", "latest_version", "skipped_version", "in_progress"}}
+
+// featureGated: the domains whose supported_features decide a refusal or
+// what the call can do. Elsewhere the bits change with what a device is
+// doing (a media player's app), and that never made a plan stale.
+var featureGated = map[string]bool{"lock": true, "alarm_control_panel": true, "update": true}
+
+// basisEntities: per acted entity pl, device_class, and (feature-gated
+// domains only) supported_features.
+func basisEntities(e *tierEngine) map[string]any {
+	entities := map[string]any{}
+	for _, id := range e.acted {
+		st := e.states[id]
+		entity := map[string]any{"pl": e.reg[id].pl, "device_class": st.attr("device_class")}
+		if domain, _ := splitID(id); featureGated[domain] {
+			entity["supported_features"] = st.attr("supported_features")
+		}
+		entities[id] = entity
+	}
+	return entities
+}
+
+// callPlanBasis: the acted entities (basisEntities), the before value of
+// every field the call changes on the frozen targets (the state only when
+// the service changes it, plus basisAttributes), and the normalized config
 // digests (spec §2.1). Listener surpluses already show in tier and reasons.
 func callPlanBasis(e *tierEngine, service string, frozen []string, data map[string]any) map[string]any {
 	_, name := splitID(service)
 	changesState := serviceAfterState[name] != "" || name == "toggle" || strings.HasPrefix(name, "alarm_arm_")
-	entities := map[string]any{}
-	for _, id := range e.acted {
-		st := e.states[id]
-		entities[id] = map[string]any{"pl": e.reg[id].pl, "device_class": st.attr("device_class"), "supported_features": st.attr("supported_features")}
-	}
+	entities := basisEntities(e)
 	before := map[string]any{}
 	for _, id := range frozen {
 		st := e.states[id]
 		fields := map[string]any{}
-		if changesState {
+		domain, _ := splitID(id)
+		if changesState || basisAttributes[domain] != nil {
 			fields["state"] = st.state()
+		}
+		for _, key := range basisAttributes[domain] {
+			fields[key] = st.attr(key)
 		}
 		for key := range data {
 			fields[key] = beforeValue(id, key, st)

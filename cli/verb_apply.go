@@ -252,15 +252,23 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	if err != nil {
 		return fail(err)
 	}
-	if fresh.Hash != plan.Hash {
+	// The plan's identity: the recompute's hash, or the stored one when the
+	// recompute is still the confirmed plan (sameAsConfirmed checks that the
+	// file's fields make that hash).
+	identity := fresh.Hash
+	if fresh.Hash != plan.Hash && sameAsConfirmed(plan, fresh) {
+		identity = plan.Hash
+	}
+	if identity != plan.Hash {
 		// It got there meanwhile: nothing to send or re-confirm — only for the
 		// very targets the user confirmed (a changed area is a new preview).
 		if isCall && slices.Equal(fresh.Action.EntityIDs, plan.Action.EntityIDs) && alreadyDone(e, &env, fresh.Action) {
 			markNoChange(e, &env, fresh.Action)
 			return env, verbExitOK
 		}
+		changed := driftSay(e, &env, plan, fresh)
 		if fresh.Prompt != "" { // a confirmation form shows it without the preview (mcp_confirm.go)
-			fresh.Prompt = sayChanged + fresh.Prompt
+			fresh.Prompt = changed + fresh.Prompt
 		}
 		if err := savePlan(paths, fresh, s.transport.Credential); err != nil {
 			return fail(err)
@@ -269,18 +277,19 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			env.Say = confirmationSay(e, &env, fresh, "")
 		}
 		if env.Say != "" {
-			env.Say = sayChanged + env.Say
+			env.Say = changed + env.Say
 		}
 		return fail(&verbFailure{exit: verbExitDrift, status: "drift", code: "PLAN_DRIFT",
 			message: "something changed since the preview; nothing was sent and the old plan is gone",
-			next:    "Show the new preview and ask again (with its code; a plan without one: follow next_step)."})
+			next:    "Show the new say (it starts with what changed) and ask again, with its new code (a plan without one: follow next_step). Never run this another way (raw requests, another skill, the fallback): this check is what keeps it safe."})
 	}
 	// From here every envelope shows the STORED plan: the recompute's own
 	// id and code were never saved, and typing them would burn this plan.
 	env.Say, env.NextStep = "", "" // they name the recompute's code or id
-	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm}
-	// Identity, tier, and code come from the recompute and nonce, never file fields (I2).
-	idHex := planIdentity(strings.TrimPrefix(fresh.Hash, "sha256:"), plan.Nonce)
+	env.Plan = &verbPlan{ID: plan.ID, Hash: identity, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm}
+	// Identity, tier, and code come from the recompute (or the stored plan it
+	// still is) and nonce, never unchecked file fields (I2).
+	idHex := planIdentity(strings.TrimPrefix(identity, "sha256:"), plan.Nonce)
 	if plan.ID != "p_"+idHex[:12] || plan.Tier != fresh.Tier {
 		return fail(refused("PLAN_INVALID", "plan "+id+" does not match its own hash"))
 	}
@@ -323,7 +332,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	if humanChannel(plan.Channel) {
 		wantCode = "" // never shown, not even once used
 	}
-	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode}
+	env.Plan = &verbPlan{ID: plan.ID, Hash: identity, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode}
 	env.done = applyDone(e, &env, fresh, ctx)
 	if isRooms {
 		previewed, _ := env.Result.(roomsResult)
