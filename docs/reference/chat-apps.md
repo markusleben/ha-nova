@@ -28,7 +28,7 @@ This works in Claude on the web, in the desktop app, and in the phone apps. Menu
 
 1. On the setup page or in NOVA in Home Assistant, choose "Add to Claude" (next to it: the address it adds). Claude opens "Add custom connector" ("Benutzerdefinierten Konnektor hinzufügen") with the name HA NOVA and your address filled in, and says the values came from a link.
    No form? In Claude, open Customize → Connectors, click + → "Add custom connector", name it HA NOVA, and paste the address.
-   On a Team or Enterprise plan, members can't add it: Claude opens Connectors with no form. An owner of that plan adds it once for everyone: "Add for my organization" opens Claude's organization settings → Connectors with the same values. Without that link: Add → Custom there, then paste the address. Then you (the Home Assistant owner) choose "Connect" next to HA NOVA under Customize → Connectors. Only that account can sign in.
+   On a Team or Enterprise plan, members can't add it: Claude opens Connectors with no form. An owner of that plan adds it once for everyone (on Enterprise, also someone whose role can manage the organization's libraries): "Add for my organization" opens Claude's organization settings → Connectors with the same values. No form there? Choose Add → Custom (→ Web), then paste the address. Then you (the Home Assistant owner) choose "Connect" next to HA NOVA under Customize → Connectors. Only that account can sign in.
 2. If Claude asks how to sign in, choose "Sign in now" ("Jetzt anmelden") and "Use Claude's published identity" ("Claudes veröffentlichte Identität verwenden"). Then choose "Add".
 3. Sign in to Home Assistant as its owner when Claude opens the sign-in (if it doesn't, choose "Connect"). The Claude phone app then uses it too.
 
