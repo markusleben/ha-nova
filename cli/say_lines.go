@@ -40,19 +40,12 @@ const (
 	// form: the code is never in a tool result there (mcp_confirm.go).
 	sayFormAsk = "Type the one-time code from HA NOVA in the form your app shows — a plain yes can't confirm this."
 	// sayChatNote: the honest limit of fallback E, one line before a chat
-	// plan's code block.
+	// plan's code block. Chat apps (ha-nova serve) have none: the server
+	// instructions carry it there (mcpInstructions).
 	sayChatNote = "I can see this code too, so it only counts if you type it yourself."
-	// chatCodeNote is sayChatNote in a chat app (ha-nova serve).
-	chatCodeNote = "I can see this code too, so a phone tap is safer: link your phone on the HA NOVA page."
-	// demoChatCodeNote is chatCodeNote in the demo house: its visitors can't
-	// link a phone there.
-	demoChatCodeNote = "I can see this code too. At home, a linked phone asks instead."
 	// sayCodeLead introduces the code, on the line above it.
 	sayCodeLead = "To go ahead, type this code:"
 )
-
-// chatNotes: every note that can sit right above a chat code block.
-var chatNotes = []string{sayChatNote, chatCodeNote, demoChatCodeNote}
 
 // sayCodeAsk: the code's ask in a confirmation form (mcp_confirm.go).
 func sayCodeAsk(code string) string { return "Type " + code + " to confirm." }

@@ -242,21 +242,3 @@ func TestServeOneOpenPhoneAskPerUser(t *testing.T) {
 		t.Fatalf("second after cancel: %v", env)
 	}
 }
-
-// A chat app's code note: a real home points to linking a phone; the demo
-// house can't link one, so its note says what a home does instead.
-func TestChatNoteDemo(t *testing.T) {
-	previous := activeServerProfile()
-	t.Cleanup(func() { chatCall = nil; setActiveServerProfile(previous) })
-	if got := chatNote(); got != sayChatNote {
-		t.Fatalf("terminal: %q", got)
-	}
-	chatCall = &chatPolicy{codes: true}
-	if got := chatNote(); got != chatCodeNote {
-		t.Fatalf("home: %q", got)
-	}
-	setActiveDemoProfile()
-	if got := chatNote(); got != demoChatCodeNote || strings.Contains(got, "link your phone") {
-		t.Fatalf("demo: %q", got)
-	}
-}

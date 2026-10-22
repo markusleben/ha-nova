@@ -15,8 +15,8 @@ import (
 // Confirmations for chat apps (ha-nova serve; docs/work/2026-10-19-chat-
 // bridge-contract.md): no
 // window and no form. A typed plan asks the linked phone of the chat app's
-// own Home Assistant user; with none linked, a chat code with a fixed
-// low-protection note, unless the owner turned chat codes off. ha_apply
+// own Home Assistant user; with none linked, a chat code, unless the owner
+// turned chat codes off. ha_apply
 // waits a little for the tap, then answers waiting_for_phone while the ask
 // stays open; calling it again waits on the same ask and never re-notifies.
 
@@ -41,21 +41,10 @@ const chatAskSpan = 3 * time.Minute
 
 const (
 	chatCodesOffWhy  = "this change needs a tap on the user's linked phone; no phone is linked for their Home Assistant user, and chat codes are turned off"
-	chatCodesOffNext = "Tell the user nothing changed: this change needs a tap on their phone. They link their phone on the HA NOVA page in Home Assistant, then ask again; or they make this change in Home Assistant itself. Never ask them for a code."
+	chatCodesOffNext = "Tell the user nothing changed: this change needs a tap on their phone. They link a phone on their computer (`ha-nova setup confirm-phone`, then `ha-nova chat-apps on`), then ask again; or they make this change in Home Assistant itself. Never ask them for a code."
 	chatRelayNext    = "Tell the user nothing changed: HA NOVA in Home Assistant can't reach its Relay right now. They try again in a moment; if it keeps failing, the Home Assistant owner checks the NOVA App (Settings → Apps). Never suggest a terminal command."
-	chatPhoneMissing = "Tell the user nothing changed: HA NOVA can't use the phone linked to their Home Assistant user right now (the phone's Home Assistant app must be signed in with their own account, and that account must be a Home Assistant administrator). They check it on the HA NOVA page in Home Assistant, or make this change in Home Assistant itself. Never ask them for a code."
+	chatPhoneMissing = "Tell the user nothing changed: HA NOVA can't use the phone linked to their Home Assistant user right now (the phone's Home Assistant app must be signed in with their own account, and that account must be a Home Assistant administrator). They check that phone's Home Assistant app, or make this change in Home Assistant itself. Never ask them for a code."
 )
-
-// chatNote closes a chat plan's say.
-func chatNote() string {
-	if chatCall != nil && activeServerIsDemo() {
-		return demoChatCodeNote
-	}
-	if chatCall != nil {
-		return chatCodeNote
-	}
-	return sayChatNote
-}
 
 // phoneMissingStep: what to do when the linked phone can't be asked.
 func phoneMissingStep() string {

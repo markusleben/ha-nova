@@ -240,12 +240,7 @@ func toolResult(name, out, errOut string, exit int, told map[string]bool, forms 
 	if forms {
 		next = formsNext(envelope, next)
 	}
-	next = strings.TrimSpace(next + " " + sayAboveCode(envelope)) // after formsNext: a withheld code has no block
-	if step := strings.TrimSpace(next + " " + noticeHints(envelope, told)); step != "" {
-		envelope["next_step"] = step
-	}
-	addOutcomeSay(envelope) // and answer_rule (mcp_plain.go)
-	text, _ := json.Marshal(envelope)
+	text := plainResult(envelope, next, told) // say, next_step, and answer_rule (mcp_plain.go)
 	return map[string]any{"content": []map[string]any{{"type": "text", "text": string(text)}}, "structuredContent": envelope,
 		"isError": exit != 0 && exit != verbExitConfirmation}
 }

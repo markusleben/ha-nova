@@ -233,7 +233,7 @@ func TestSayAboveCode(t *testing.T) {
 	t.Cleanup(func() { verbNow, demoPlansSince = previousNow, previousSince })
 	head := "In the demo house: I'm about to unlock “Front Door”: locked → unlocked."
 	envelope := func(service, expires string) map[string]any {
-		return map[string]any{"schema_version": 1, "verb": "call", "status": "needs_confirmation", "say": head + "\n" + demoChatCodeNote + sayCodeBlock("8642"),
+		return map[string]any{"schema_version": 1, "verb": "call", "status": "needs_confirmation", "say": head + "\n" + sayChatNote + sayCodeBlock("8642"),
 			"action": map[string]any{"service": service}, "plan": map[string]any{"id": "p_1", "code": "8642", "confirm": "code", "channel": "chat", "expires_at": expires},
 			"notices": []any{map[string]any{"kind": "demo", "text": demoNoticeText}, map[string]any{"kind": "demo_reset", "text": "Type 1234 now."}}}
 	}
@@ -242,7 +242,7 @@ func TestSayAboveCode(t *testing.T) {
 		return got["say"].(string), got["next_step"].(string)
 	}
 	got, step := say(envelope("lock.unlock", "2026-10-22T19:47:00Z"), false)
-	want := head + "\nThe demo house resets every hour. Its entrance door locks again 10 minutes after it is unlocked. Never type real names or passwords here.\nThis code works for 15 minutes.\n" + demoChatCodeNote + sayCodeBlock("8642")
+	want := head + "\nThe demo house resets every hour. Its entrance door locks again 10 minutes after it is unlocked. Never type real names or passwords here.\nThis code works for 15 minutes.\n" + sayChatNote + sayCodeBlock("8642")
 	if got != want {
 		t.Fatalf("say:\n%s\nwant:\n%s", got, want)
 	}
@@ -253,7 +253,7 @@ func TestSayAboveCode(t *testing.T) {
 	// line (the CLI's, never the notice's text), and the code only works until then.
 	now, demoPlansSince = time.Date(2026, 10, 22, 19, 55, 30, 0, time.UTC), now
 	got, _ = say(envelope("cover.open_cover", "2026-10-22T20:10:30Z"), false)
-	want = head + "\nThe demo house resets in 5 minutes. Your connection stays, your changes don't.\nNever type real names or passwords here.\nThis code works for 5 minutes.\n" + demoChatCodeNote + sayCodeBlock("8642")
+	want = head + "\nThe demo house resets in 5 minutes. Your connection stays, your changes don't.\nNever type real names or passwords here.\nThis code works for 5 minutes, until the demo house resets.\n" + sayChatNote + sayCodeBlock("8642")
 	if got != want {
 		t.Fatalf("near reset:\n%s\nwant:\n%s", got, want)
 	}
@@ -266,5 +266,39 @@ func TestSayAboveCode(t *testing.T) {
 	plain["say"] = "I'm about to run “Night”. Reply yes to go ahead."
 	if got, _ := say(plain, false); got != plain["say"] {
 		t.Fatalf("plain say changed: %s", got)
+	}
+}
+
+// A chat app's code ask (ha-nova serve): say is the action, the expiry, and
+// the code, nothing else; no notices for the model to append after the code
+// (an untold one waits for the next result) but a draft's, which only a plan
+// carries; the rule leads the text.
+func TestChatCodeResult(t *testing.T) {
+	previousNow, previousSince := verbNow, demoPlansSince
+	now := time.Date(2026, 10, 22, 19, 55, 30, 0, time.UTC) // near the hosted demo's reset
+	verbNow, demoPlansSince, chatCall = func() time.Time { return now }, now.Add(-time.Hour), &chatPolicy{codes: true}
+	t.Cleanup(func() { verbNow, demoPlansSince, chatCall = previousNow, previousSince, nil })
+	head := "In the demo house: I'm about to unlock “Front Door”: locked → unlocked. Nothing has run yet."
+	env := map[string]any{"schema_version": 1, "verb": "call", "status": "needs_confirmation", "say": head + sayCodeBlock("8642"),
+		"plan": map[string]any{"id": "p_1", "code": "8642", "confirm": "code", "channel": "chat", "expires_at": "2026-10-22T20:10:30Z"},
+		"notices": []any{map[string]any{"kind": "demo", "text": demoNoticeText}, map[string]any{"kind": "demo_reset", "text": "x"},
+			map[string]any{"kind": "relay_outdated", "text": "update"}, map[string]any{"kind": "draft", "text": "trigger 1 may never fire"}}}
+	told := map[string]bool{}
+	result := toolResult("ha_call", string(mustJSON(env)), "", verbExitConfirmation, told, false)
+	got := result["structuredContent"].(map[string]any)
+	if want := head + "\nThis code works for 5 minutes, until the demo house resets." + sayCodeBlock("8642"); got["say"] != want {
+		t.Fatalf("say:\n%s\nwant:\n%s", got["say"], want)
+	}
+	text := result["content"].([]map[string]any)[0]["text"].(string)
+	if notices, _ := got["notices"].([]any); len(notices) != 1 || notices[0].(map[string]any)["kind"] != "draft" || told["relay_outdated"] || got["answer_rule"] != chatCodeRule || !strings.HasPrefix(text, `{"answer_rule":`) || !json.Valid([]byte(text)) {
+		t.Fatalf("fields: %s / told %v", text, told)
+	}
+	if step := got["next_step"].(string); !strings.HasPrefix(step, mcpNoticeHints["draft"]) || !strings.Contains(step, "ha_apply (plan_id p_1)") || strings.Contains(step, "8642") {
+		t.Fatalf("next_step: %s", step)
+	}
+	// No code block (a phone or window ask): the usual result.
+	env["say"], env["plan"] = "Confirm on your phone.", map[string]any{"id": "p_1", "channel": "phone"}
+	if got := toolResult("ha_call", string(mustJSON(env)), "", verbExitConfirmation, told, false)["structuredContent"].(map[string]any); got["notices"] == nil || got["answer_rule"] != mcpResultRule {
+		t.Fatalf("phone ask: %v", got)
 	}
 }

@@ -262,7 +262,9 @@ again works. On a phone, ChatGPT can only answer.
 - Within 10 minutes of :00, every typed result of the demo house (chat bridge and
   `ha-nova try`) carries a `demo_reset` notice for the user: "The demo house
   resets in 6 minutes. Your connection stays, your changes don't." (results
-  only: tool descriptions are unchanged).
+  only: tool descriptions are unchanged). A chat app's code ask says it in
+  its expiry line instead ("This code works for 6 minutes, until the demo
+  house resets."): it carries no notices.
 - The reset also wipes the bridge's open plans, and `chat.mjs files` writes
   the time it did so (`plans-since` in the bridge's data dir). For 15
   minutes after that, a plan the bridge can't find is `PLAN_RESET`, not

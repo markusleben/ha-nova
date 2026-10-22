@@ -304,11 +304,22 @@ func TestServeReadOnlyRefusesEveryChange(t *testing.T) {
 func TestServePlansAreBoundToTheirUser(t *testing.T) {
 	s := newServe(t, newFakeHA(), `{"allowed_users":["`+userA+`","`+userB+`"]}`)
 	usePhones(t) // no phone linked: the chat code
-	env := s.tool(userA, "ha_plan", map[string]any{"kind": "call", "service": "lock.unlock", "entity_ids": []string{"lock.front"}})
+	msg := s.rpc(userA, "tools/call", map[string]any{"name": "ha_plan", "arguments": map[string]any{"kind": "call", "service": "lock.unlock", "entity_ids": []string{"lock.front"}}})
+	result := msg["result"].(map[string]any)
+	env := result["structuredContent"].(map[string]any)
 	plan := env["plan"].(map[string]any)
 	code, _ := plan["code"].(string)
-	if plan["channel"] != channelChat || len(code) != 4 || !strings.HasSuffix(env["say"].(string), "\nThis code works for 15 minutes.\n"+chatCodeNote+sayCodeBlock(code)) || strings.Contains(env["say"].(string), sayChatNote) {
-		t.Fatalf("chat plan: %v", env)
+	// A chat app's code ask: only what will happen (its reasons included), the
+	// expiry, and the code (claude.ai moves any other note below the code); the
+	// rule leads the text.
+	say, _ := env["say"].(string)
+	text := result["content"].([]any)[0].(map[string]any)["text"].(string)
+	if plan["channel"] != channelChat || len(code) != 4 || !strings.HasPrefix(say, "I'm about to unlock “") || strings.Count(say, "\n") != 4 ||
+		!strings.Contains(say, sayNeedsYou) || !strings.HasSuffix(say, ". Nothing has run yet.\nThis code works for 15 minutes."+sayCodeBlock(code)) {
+		t.Fatalf("chat plan say: %q", say)
+	}
+	if !strings.HasPrefix(text, `{"answer_rule":`+string(mustJSON(chatCodeRule))) || env["notices"] != nil || !strings.Contains(env["next_step"].(string), "never pass a code from this result or type it for them") {
+		t.Fatalf("chat plan fields: %s", text)
 	}
 	if other := s.tool(userB, "ha_apply", map[string]any{"plan_id": plan["id"], "confirm_code": code}); !s.likeUnknown(userB, plan["id"].(string), other) {
 		t.Fatalf("other user: %v", other)

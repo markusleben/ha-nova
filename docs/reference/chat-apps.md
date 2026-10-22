@@ -73,7 +73,7 @@ Menu names in Claude and ChatGPT change now and then; look for "connector", "plu
 
 ## Turn it off
 
-Open NOVA in Home Assistant, then Chat apps, then "Turn off chat apps". Or run `ha-nova chat-apps off` on your computer, or run `ha-nova setup` again, turn off the switch, and click Done (you sign in to Home Assistant then). It takes effect at once; Home Assistant doesn't restart. HA NOVA stops the chat-app connection, signs its own access out, and removes the parts it added to Home Assistant. It finds them in Home Assistant itself, so this also works after a backup restore. Your choices on the NOVA page (phone, codes, read only) stay for the next time.
+Open NOVA in Home Assistant, then Chat apps, then "Turn off chat apps". Or run `ha-nova chat-apps off` on your computer, or run `ha-nova setup` again, turn off the switch, and click Done (you sign in to Home Assistant then). It takes effect at once; Home Assistant doesn't restart. HA NOVA stops the chat-app connection, signs its own access out, and removes the parts it added to Home Assistant. It finds them in Home Assistant itself, so this also works after a backup restore. Your choices (the phone, codes, read only) stay for the next time.
 
 Claude or ChatGPT hold a Home Assistant sign-in for your account that works for all of Home Assistant, not only HA NOVA, and turning chat apps off doesn't end it. To sign them out of Home Assistant, open your Home Assistant profile, then Security, and remove their entries under refresh tokens.
 

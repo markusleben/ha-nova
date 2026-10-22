@@ -34,8 +34,8 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 		parts = append(parts, sayPhoneAsk(phoneButton(verb)))
 	case plan.Confirm == "code": // the code block is always last
 		text := strings.Join(parts, " ")
-		if plan.Channel == channelChat {
-			text += "\n" + chatNote()
+		if plan.Channel == channelChat && chatCall == nil { // a chat app has no note: claude.ai moved it below the code (mcp_plain.go)
+			text += "\n" + sayChatNote
 		}
 		return demoPrefix(text + sayCodeBlock(plan.code))
 	case plan.ConfigAction != nil: // the write card's save question
