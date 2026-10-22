@@ -1,7 +1,7 @@
 # NOVA Relay
 
 The NOVA Relay connects your AI app to Home Assistant: an AI app on your
-computer and, with chat apps on, Claude (also on your phone) and ChatGPT on the web.
+computer and, with chat apps on, Claude (also on your phone) and ChatGPT on the web on a computer.
 Chat apps need Home Assistant Link with remote access (a subscription from the Home Assistant team) or your own HTTPS address.
 It provides secure, authenticated access to Home Assistant's APIs and extends them where needed.
 
@@ -196,7 +196,7 @@ both names.
 ## Chat apps (Claude and ChatGPT)
 
 With chat apps on, you can use HA NOVA from Claude (web, desktop, phone apps)
-and ChatGPT (web) without a computer running. They are off by default.
+and ChatGPT (web, on a computer) without HA NOVA running on a computer. They are off by default.
 
 - **Needs:** Home Assistant 2026.10 or newer, and an address Claude and ChatGPT
   can reach: Home Assistant Link with remote access on (a subscription from

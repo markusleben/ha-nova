@@ -1,6 +1,6 @@
 # Use HA NOVA in Claude and ChatGPT
 
-With chat apps on, you can ask about your home and change it from Claude (also on your phone) or ChatGPT on the web, with no computer running. They reach your home through Home Assistant Link or your Home Assistant's own public HTTPS address, and the same rules decide what needs your OK as with HA NOVA on a computer (see below).
+With chat apps on, you can ask about your home and change it from Claude (also on your phone) or ChatGPT on the web on a computer (on a phone, ChatGPT can only read), with no computer running HA NOVA. They reach your home through Home Assistant Link or your Home Assistant's own public HTTPS address, and the same rules decide what needs your OK as with HA NOVA on a computer (see below).
 
 ## What you need
 
@@ -43,11 +43,11 @@ At first, Claude asks before each HA NOVA step: "Allow once" or "Always allow" (
 
 Claude may ask again after an HA NOVA update, or now and then in a new chat. That comes from Claude: choose "Always allow" again.
 
-## Connect ChatGPT (on the web)
+## Connect ChatGPT (on a computer)
 
 ChatGPT has no button that fills this in, so you paste the address. It worked with ChatGPT Pro in our test; your plan's rules apply. Menu names in German are in brackets.
 
-1. In ChatGPT on the web, open Plugins (chatgpt.com/plugins), choose +, then "Add custom MCP server" ("Benutzerdefinierten MCP-Server hinzufügen").
+1. In ChatGPT on the web, on a computer, open Plugins (chatgpt.com/plugins), choose +, then "Add custom MCP server" ("Benutzerdefinierten MCP-Server hinzufügen").
 2. Name it HA NOVA and paste the address under "Connection" ("Verbindung"). Pick OAuth, tick "I understand and want to continue", then choose "Create as a plugin" ("Als Plugin erstellen").
    ChatGPT says "A plugin with this name already exists"? You made one before. Open chatgpt.com/plugins, find HA NOVA under your own plugins, and choose Install. If it has another address, give the new one another name instead.
 3. Sign in to Home Assistant as its owner. Right after you create the plugin, ChatGPT may say the OAuth callback data is missing ("OAuth-Callback-Daten fehlen"). Choose Connect on the plugin again.
@@ -96,7 +96,7 @@ To stay on the older App: removing the NOVA App clears them too, but then every 
 
 ## Good to know
 
-- ChatGPT's phone app can answer questions, but it can't make changes through plugins you add yourself. For changes, open chatgpt.com in a browser and ask again.
+- ChatGPT on a phone (its app or a phone browser) can answer questions, but it can't make changes through plugins you add yourself. For changes, use chatgpt.com on a computer, or the Claude app on your phone.
 - A code in the chat protects less than your phone (see above).
 - Access belongs to your Home Assistant account, not to a device: anyone who can use your Claude or ChatGPT account can reach your home through it. Remove the token in Home Assistant (above) if you lose control of that account.
 - Some changes, like helpers, dashboards, and files, still need HA NOVA on a computer. The assistant tells you when that is the case.

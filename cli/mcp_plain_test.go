@@ -86,7 +86,7 @@ func TestMCPAnswerRulesUpFront(t *testing.T) {
 // which would reset claude.ai's Always allow (TestMCPToolTextStable).
 func TestMCPInstructionsChatGPTPhoneHint(t *testing.T) {
 	for _, part := range []string{"never call again. If ChatGPT itself stops ha_call or ha_apply before HA NOVA\nanswers, and the user did not say no: read with ha_get when there is a\ndevice to read; if nothing changed, or there is nothing to read, say\nplainly:",
-		"ChatGPT's phone app can't make changes through plugins you add\nyourself; open chatgpt.com in a browser and ask again", "Questions still work\non the phone", "Never blame a security check"} {
+		"ChatGPT on a phone (app or phone browser) can't make changes\nthrough plugins you add yourself; use chatgpt.com on a computer, or the\nClaude app on the phone. Questions still work on the phone.", "Never blame a security check"} {
 		if !strings.Contains(mcpInstructions, part) {
 			t.Fatalf("instructions miss %q", part)
 		}
