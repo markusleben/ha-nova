@@ -195,31 +195,31 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 	return plan, nil
 }
 
-// callPlanBasis: per acted entity pl/device_class/supported_features, the
-// before value of every field the call changes on the frozen targets (the
-// state only when the service changes it), and the normalized config
+// callPlanBasis: the acted entities (basisEntities), the before value of
+// every field the call changes on the frozen targets (the state only when
+// the service changes it, plus basisAttributes), and the normalized config
 // digests (spec §2.1). Listener surpluses already show in tier and reasons.
 func callPlanBasis(e *tierEngine, service string, frozen []string, data map[string]any) map[string]any {
 	_, name := splitID(service)
 	changesState := serviceAfterState[name] != "" || name == "toggle" || strings.HasPrefix(name, "alarm_arm_")
-	entities := map[string]any{}
-	for _, id := range e.acted {
-		st := e.states[id]
-		entities[id] = map[string]any{"pl": e.reg[id].pl, "device_class": st.attr("device_class"), "supported_features": st.attr("supported_features")}
-	}
+	entities := basisEntities(e)
 	before := map[string]any{}
 	for _, id := range frozen {
 		st := e.states[id]
 		fields := map[string]any{}
-		if changesState {
+		domain, _ := splitID(id)
+		if changesState || basisAttributes[domain] != nil {
 			fields["state"] = st.state()
+		}
+		for _, key := range basisAttributes[domain] {
+			fields[key] = st.attr(key)
 		}
 		for key := range data {
 			fields[key] = beforeValue(id, key, st)
 		}
 		before[id] = fields
 	}
-	return map[string]any{"entities": entities, "before": before, "configs": e.basis}
+	return map[string]any{"entities": entities, "before": before, "configs": e.basis, "consumers": basisConsumers(e, frozen)}
 }
 
 // planIdentity is hex(sha256(hash ‖ nonce)): the plan id and the code's MAC

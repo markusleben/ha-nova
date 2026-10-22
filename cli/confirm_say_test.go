@@ -315,7 +315,7 @@ func TestConfirmationSayOnDriftToOrdinary(t *testing.T) {
 	delete(h.f.related, "entity:light.hall") // the consumer is gone: the call is ordinary now
 	exit, env := h.run(runApplyCommand, "--plan", old.ID, "--confirm", old.Code)
 	if exit != verbExitDrift || env.Plan.Confirm != "none" || env.Plan.Code != "" ||
-		env.Say != "Something changed since the last preview. I'm about to turn on “light.hall”: off → on. Nothing has run yet. Reply yes to go ahead." {
+		env.Say != "HA NOVA checked again, and what this sets off looks different now. I'm about to turn on “light.hall”: off → on. Nothing has run yet. Reply yes to go ahead." {
 		t.Fatalf("exit %d plan %+v say %q", exit, env.Plan, env.Say)
 	}
 	if len(h.posts()) != 0 {
