@@ -38,17 +38,12 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.27.0 release-facing wording aligned to the shipped stack", () => {
-    const relayVersion = /^version:\s*"([^"]+)"\s*$/m.exec(readFileSync("nova/config.yaml", "utf8"))?.[1] ?? "";
-    const notedApp = /need NOVA Relay (\d+\.\d+\.\d+)/.exec(stableNotes ?? "")?.[1] ?? "";
-    // The notes name the App release that turns chat apps on: the shipped App.
-    expect(notedApp, "notes name the shipped NOVA Relay version").toBe(relayVersion);
-    expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Update the NOVA Relay App too\.\*\*/);
-    expect(stableNotes).toContain("Home Assistant 2026.10 or newer");
-    expect(stableNotes).toContain("your own public HTTPS address");
-    expect(stableNotes).toContain("`--no-browser`");
-    expect(stableNotes).toContain("`ha-nova try --stop`");
-    expect(stableNotes).toContain("keep the pairing");
+  it("keeps v0.27.1 release-facing wording aligned to the shipped stack", () => {
+    // 0.27.1 ships no NOVA Relay App: the notes ask for no App update.
+    expect(stableNotes).not.toMatch(/Update the NOVA Relay App/);
+    expect(stableNotes).toMatch(/^## Bug Fixes\s+- \*\*Confirm once, not twice\.\*\*/);
+    expect(stableNotes).toContain("says what changed");
+    expect(stableNotes).toContain("on its own line, in bold");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
     expect(stableNotes).not.toContain("Cloud Remote is back on Windows and Linux");
