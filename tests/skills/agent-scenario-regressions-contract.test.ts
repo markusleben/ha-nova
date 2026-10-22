@@ -170,8 +170,9 @@ describe("agent scenario regressions (2026-10-20)", () => {
     expect(index).toContain("Unless asked: names, not ids; local time, never UTC; no automation modes, plan ids, HA NOVA skill or rule-file names.");
     expect(index).toContain("Answer in the language of the user's sentence, not of a name in it.");
     // One source of truth: the CLI's `say` is the ask and the result line (#803).
-    expect(index).toContain("Relay a CLI `say` (ask or result) verbatim, only translated; add no other result line.");
-    expect(index).toContain('"Type <code> to <goal> — a plain yes can\'t confirm this."');
+    expect(index).toContain("Relay a CLI `say` (ask or result) verbatim, only translated, line breaks kept; add no other result line.");
+    // The code stands apart at the very end, never inside a sentence.
+    expect(index).toContain('A code always ends the message: a blank line, "To go ahead, type this code:", then the code alone and bold — also one you mint.');
     expect(index).toContain('Verified raw write (no `say`): `✅ Saved: <type> "<name>"` and what was checked.');
     expect(index).toContain('After an undoable save: "To undo this change, just say so."');
     expect(flat("skills/ha-nova/output-cards.md")).toContain("Ask and result shapes: `../ha-nova/index.md` → Say it.");

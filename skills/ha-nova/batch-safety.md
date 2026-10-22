@@ -136,7 +136,9 @@ Impact: no consumers found for 7; "Tea timer" is referenced by script "Wake up" 
 Recovery: a config snapshot of each is saved first; a restore makes a new copy, so references stay broken.
 Runs one by one — stops at the first error.
 ⚠️  Nothing deleted yet.
-Type <four digits> to delete all 8 — a plain yes can't confirm this.
+
+To go ahead, type this code:
+**<four digits>**
 ```
 
 **Batch Result Card** (not each apply's `say`):

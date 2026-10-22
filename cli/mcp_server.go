@@ -43,7 +43,7 @@ var mcpLegacyVersions = []string{"2025-11-25", "2025-06-18", "2024-11-05"}
 const mcpAnswerRules = `Answer in plain words. Keep Home Assistant names exactly as written, never translated: say "Kitchen Lights", not "Küchenlicht". No ids (light.kitchen_lights), "entity", plan ids, or raw states ("armed_away"): say what they mean in the user's language, unless the user asks or two names clash. Look up devices before you suggest or plan with them: list that kind (ha_find with domain light) or call ha_map, since names may be in another language. Never guess ("if there is one"), and never say what is missing or how many there are after a name search. Never guess who or what changed something: name a cause only when the history shows it.`
 
 // mcpResultRule rides on every verb result as answer_rule.
-const mcpResultRule = "Tell the user in plain words, in their language (relay `say` where there is one): names exactly as written, never translated; no ids, plan ids, or raw states; never guess who or what changed something."
+const mcpResultRule = "Tell the user in plain words, in their language (relay `say` where there is one, line breaks kept): names exactly as written, never translated; no ids, plan ids, or raw states; never guess who or what changed something."
 
 const mcpInstructions = `HA NOVA controls one Home Assistant through typed tools.
 ` + mcpAnswerRules + `
@@ -55,7 +55,8 @@ Change things only with ha_call (devices) or ha_plan followed by ha_apply.
 Ordinary everyday actions run immediately and are verified; anything else
 returns status needs_confirmation with a preview: show that preview to the
 user, end with its say text (the reason and how to go ahead; add no other
-reason), and follow its next_step. A preview plan runs with ha_apply after the
+reason; keep its line breaks, so a code stays alone and bold on the last
+line), and follow its next_step. A preview plan runs with ha_apply after the
 user agrees in their own words. A plan with a one-time code from HA NOVA
 (four digits; locks, gates, garage doors, alarm disarm, deletes) needs the
 user: where the result has no code, a confirmation window on their computer,
