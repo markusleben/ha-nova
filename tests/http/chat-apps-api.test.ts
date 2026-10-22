@@ -208,6 +208,9 @@ describe("NOVA page: Chat apps", () => {
   it("turns on with the restart named on the button, then restarts after the redirect", async () => {
     const page = await run(createNovaPageHandler(pageDeps(fakeChatApps())), request("owner-1"));
     expect(page.body).toContain("Home Assistant restarts once if needed, always the first time (usually under a minute, longer on small devices).");
+    // Only Pro was tested for changes; Plus stays unnamed.
+    expect(page.body).toContain("ChatGPT needs a paid plan that lets you add your own plugins (we tested Pro); on a phone, it can only answer.");
+    expect(page.body).not.toMatch(/\bPlus\b/);
     const token = /name="csrf" value="([^"]+)"><input type="hidden" name="action" value="chat_apps_on">/.exec(page.body)?.[1];
     expect(token).toBeDefined();
     const action = await run(createNovaActionHandler(pageDeps(fakeChatApps())), request("owner-1"), { action: "chat_apps_on", csrf: token });

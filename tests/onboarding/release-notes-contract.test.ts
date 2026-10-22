@@ -72,6 +72,12 @@ describe("release notes contract", () => {
     expect(readme).toContain("ChatGPT (web, on a computer; on a phone it can only answer)");
     expect(readme).toContain('No form in Claude? In Claude, open Customize → Connectors, click +, then Add custom connector, and paste the address. On a Claude Team or Enterprise plan, the owner of your Claude plan adds it once for everyone, with "Add for my organization".');
     expect(readme).toContain("https://hanova.app/demo/");
+    // Only Pro was tested for changes in ChatGPT; Plus stays unnamed.
+    expect(readme).toContain("ChatGPT needs a paid plan that lets you add your own plugins. We tested Pro. The free plan can't. On a phone, ChatGPT can only answer.");
+    expect(readme).not.toMatch(/\bPlus\b/);
+    for (const doc of ["docs/reference/chat-apps.md", "docs/reference/hosted-demo.md"]) {
+      expect(readFileSync(doc, "utf8")).not.toMatch(/\bPlus\b/);
+    }
     expect(readme).toContain("34 task skills plus the HA NOVA context skill");
     expect(readme).not.toContain("ha-nova mcp");
     expect(readme).not.toContain("ha_apply");

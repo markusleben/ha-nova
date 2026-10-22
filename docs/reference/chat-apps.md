@@ -11,7 +11,7 @@ With chat apps on, you can ask about your home and change it from Claude (also o
 
   No subscription needed if your Home Assistant already has a public HTTPS address; Home Assistant Link is the easiest way. When both are there, HA NOVA uses Home Assistant Link.
 - You are the owner of your Home Assistant. Only the owner can turn chat apps on and use them. When Claude or ChatGPT asks you to sign in to Home Assistant, sign in as the owner, not as another Home Assistant user.
-- For ChatGPT: a paid plan that lets you add your own plugins, like Plus or Pro (we tested Pro). The free plan can't. At work, your admin may need to allow it.
+- For ChatGPT: a paid plan that lets you add your own plugins. We tested Pro. The free plan can't. At work, your admin may need to allow it.
 
 ## Turn it on
 

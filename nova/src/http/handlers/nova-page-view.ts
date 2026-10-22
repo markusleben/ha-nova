@@ -272,7 +272,7 @@ ${m.chatRestarting ? `<p class="ok">Home Assistant is restarting (usually under 
 ${button("chat_apps_off", "Turn off chat apps", "", "secondary")}`;
   } else {
     body = `${c.unfinished ? `<p class="error">Chat apps are not fully off: parts are still in Home Assistant.</p>${button("chat_apps_off", "Finish turning off", "", "secondary")}` : ""}
-<p class="muted">Use HA NOVA in Claude, also in its phone app, and in ChatGPT on a computer. ChatGPT needs a paid plan, like Plus or Pro; on a phone, it can only answer. You need Home Assistant Link or your own HTTPS address with a valid certificate. Only you can use it.</p>
+<p class="muted">Use HA NOVA in Claude, also in its phone app, and in ChatGPT on a computer. ChatGPT needs a paid plan that lets you add your own plugins (we tested Pro); on a phone, it can only answer. You need Home Assistant Link or your own HTTPS address with a valid certificate. Only you can use it.</p>
 <p class="muted">Home Assistant restarts once if needed, always the first time (usually under a minute, longer on small devices).</p>${button("chat_apps_on", "Turn on chat apps")}`;
   }
   return `<section><h2>Chat apps</h2>${body}</section>
