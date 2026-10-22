@@ -528,7 +528,8 @@ func TestChatAppsCommand(t *testing.T) {
 	t.Run("status", func(t *testing.T) {
 		paths, signIns := setup(t, &fakeChatApp{}, loaded, chatTestLink, "")
 		connector := chatTestLink + "/api/ha_nova/mcp"
-		if exit, out := run(paths, "status"); exit != 0 || !strings.Contains(out, connector) || !strings.Contains(out, claudeConnectorLink(connector)) || *signIns != 0 {
+		if exit, out := run(paths, "status"); exit != 0 || !strings.Contains(out, connector) || !strings.Contains(out, claudeConnectorLink(connector)) ||
+			!strings.Contains(out, claudeOrgConnectorLink(connector)) || !strings.Contains(out, "paste this address:\n    "+connector+"\n") || *signIns != 0 {
 			t.Fatalf("status: %d %q", exit, out)
 		}
 	})

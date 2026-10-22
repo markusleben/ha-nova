@@ -18,7 +18,7 @@ import (
 // Home Assistant to return before step 4). A failure keeps the switch, with
 // one line; trying again runs the whole action again.
 func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func()) {
-	c.State, c.Problem, c.URL, c.ClaudeLink = "run", nil, "", ""
+	c.State, c.Problem, c.URL, c.ClaudeLink, c.OrgLink = "run", nil, "", "", ""
 	c.Rows = []setupPageRow{{ID: "chat_on", State: "run", Msg: setupPageText("setup.chat.row_on")}}
 	show()
 	set := func(id, state string) {
@@ -163,7 +163,7 @@ func (f *setupFlow) pageChatRow(chat *chatAppsOffer) *setupPageChat {
 // naming the phone and the restart from the fresh read. Nothing turns on
 // before that click.
 func (f *setupFlow) pageRerunChatOn(c *setupPageChat, offer *chatAppsOffer, linkOrigin func() string, show func()) {
-	c.State, c.Problem, c.URL, c.ClaudeLink = "signin", nil, "", ""
+	c.State, c.Problem, c.URL, c.ClaudeLink, c.OrgLink = "signin", nil, "", "", ""
 	show()
 	out := f.page.text.out // the sign-in's link, as the Link offer's
 	failed := func(problem *setupPageMsg) {
@@ -193,7 +193,7 @@ func (f *setupFlow) pageRerunChatOn(c *setupPageChat, offer *chatAppsOffer, link
 // `ha-nova chat-apps off` itself (the owner's sign-in, then the check of
 // what Home Assistant still holds); the end screen says how it went.
 func (f *setupFlow) pageRerunChatOff(c *setupPageChat, show func()) {
-	c.State, c.Problem, c.URL, c.ClaudeLink = "signin", nil, "", ""
+	c.State, c.Problem, c.URL, c.ClaudeLink, c.OrgLink = "signin", nil, "", "", ""
 	show()
 	c.State = "page_off"
 	note := setupPageText("setup.page.home.note_chat_off")

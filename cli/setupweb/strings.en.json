@@ -529,7 +529,7 @@
   "setup.chat.claude_title": "How to add it in Claude",
   "setup.chat.claude_1": "Open “Add to Claude”. Claude opens with HA NOVA and the address filled in.",
   "setup.chat.claude_2": "If Claude asks how to sign in, pick “Sign in now” and “Use Claude's published identity”. Then click “Add”.",
-  "setup.chat.claude_3": "Sign in to Home Assistant with the owner account. No sign-in page? Click “Connect” next to HA NOVA. The Claude phone app then works too.",
+  "setup.chat.claude_3": "Sign in to Home Assistant with the owner account. No sign-in page? In Claude, open Customize → Connectors and click “Connect” next to HA NOVA. The Claude phone app then works too.",
   "setup.chat.chatgpt_title": "How to add it in ChatGPT (on the web)",
   "setup.chat.chatgpt_1": "Copy the address. Open chatgpt.com/plugins, click +, then “Add custom MCP server”.",
   "setup.chat.chatgpt_2": "Name it HA NOVA and paste the address under “Connection”. For sign-in, pick “OAuth”. Tick “I understand and want to continue”, then click “Create as a plugin”. Name taken? Find your old HA NOVA at chatgpt.com/plugins and click Install.",

@@ -91,8 +91,8 @@ func printChatAppsHowTo(out io.Writer, url string) {
 		fmt.Fprintln(out)
 	}
 	fmt.Fprintf(out, "  %s\n    %s\n\n", setupT("setup.chat.add_claude_cli"), claudeConnectorLink(url))
-	fmt.Fprintf(out, "  %s\n    %s\n", setupT("setup.chat.org"), claudeOrgConnectorLink(url))
-	fmt.Fprintf(out, "  %s\n\n", setupT("setup.chat.no_form_above"))
+	fmt.Fprintf(out, "  %s\n    %s\n\n", setupT("setup.chat.org"), claudeOrgConnectorLink(url))
+	fmt.Fprintf(out, "  %s\n    %s\n\n", setupT("setup.chat.no_form"), url)
 	steps(setupT("setup.chat.claude_title"), setupT("setup.chat.claude_1"), setupT("setup.chat.claude_2"), setupT("setup.chat.claude_3"))
 	steps(setupT("setup.chat.chatgpt_title"), setupT("setup.chat.chatgpt_1"), setupT("setup.chat.chatgpt_2"), setupT("setup.chat.chatgpt_3"))
 	renderSetupParagraph(out, setupT("setup.chat.off_hint"))
