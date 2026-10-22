@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 )
 
 // Exit codes of the typed verbs (typed-verbs spec §2).
@@ -207,6 +208,9 @@ func verbNotices(paths runtimePaths, relayVersion string) []verbNotice {
 	var notices []verbNotice
 	if activeServerIsDemo() {
 		notices = append(notices, verbNotice{Kind: "demo", Text: demoNoticeText})
+		if text := demoResetText(time.Now()); text != "" {
+			notices = append(notices, verbNotice{Kind: "demo_reset", Text: text})
+		}
 	} else if demoProfileOn(paths) {
 		notices = append(notices, verbNotice{Kind: "home", Text: "This is the user's own home, not the demo house; the demo house needs --server demo (apply follows its plan)."})
 	}

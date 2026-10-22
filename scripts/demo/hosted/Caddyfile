@@ -33,11 +33,20 @@
 	respond `{"error":"demo_resetting"}` 503
 }
 
+# A chat app's token refresh (/auth/token) while the house is down: an OAuth
+# JSON error with Retry-After, never the HTML page, so it retries later; its
+# sign-in outlives the reset (reset.sh, chat.mjs keep/restore).
+(resetting_oauth) {
+	header Content-Type "application/json"
+	header Retry-After "60"
+	respond `{"error":"temporarily_unavailable","error_description":"The demo house is resetting. Try again in a few minutes."}` 503
+}
+
 # Add to Claude (/api/ha_nova/mcp): a JSON-RPC error, so the chat can say why.
 (resetting_rpc) {
 	header Content-Type "application/json"
 	header Retry-After "60"
-	respond `{"jsonrpc":"2.0","id":null,"error":{"code":-32001,"message":"The demo house is resetting (every hour at :00 UTC). Try again in a few minutes. Claude may then ask to connect again: log in with demo / demo."}}` 503
+	respond `{"jsonrpc":"2.0","id":null,"error":{"code":-32001,"message":"The demo house is resetting (every hour at :00 UTC). Try again in a few minutes. Your connection stays."}}` 503
 }
 
 {$DEMO_DOMAIN} {
@@ -180,7 +189,12 @@
 		}
 		handle {
 			handle @notready {
-				import restarting_html
+				handle /auth/token {
+					import resetting_oauth
+				}
+				handle {
+					import restarting_html
+				}
 			}
 			handle /connect.json {
 				header Cache-Control "no-store"
@@ -215,6 +229,9 @@
 		}
 		handle /api/ha_nova/mcp {
 			import resetting_rpc
+		}
+		handle /auth/token {
+			import resetting_oauth
 		}
 		handle {
 			import restarting_html

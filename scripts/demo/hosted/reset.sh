@@ -8,10 +8,11 @@
 #   reset.sh                        last verified good Home Assistant digest
 #   reset.sh --candidate <ref>      a verified candidate (update-ha.sh only)
 #
-# lock -> hide the house (drop /srv/ready) -> down -> restore the clone ->
-# seed the chat-app entry -> up -> relay (stable public token, fresh HA
-# token) + chat bridge -> egress, DNS, listener, relay, chat gates ->
-# dashboard -> connect.json + /srv/ready -> public gate.
+# lock -> hide the house (drop /srv/ready) -> keep the chat-app sign-ins ->
+# down -> restore the clone -> seed the chat-app entry -> up -> restore the
+# sign-ins -> relay (stable public token, fresh HA token) + chat bridge ->
+# egress, DNS, listener, relay, chat gates -> dashboard -> connect.json +
+# /srv/ready -> public gate.
 set -euo pipefail
 
 # Everything runs inside main: the checkout may rewrite this very file, and
@@ -64,6 +65,13 @@ main() {
   # down.sh wipes .state with this image: in use by Caddy, so never pruned.
   export TESTBED_OVERLAY="$HOSTED" TESTBED_HA_IMAGE DEMO_RELAY_IMAGE DEMO_BRIDGE_IMAGE DEMO_EXTERNAL_URL DEMO_DOMAIN ABUSE_CONTACT TESTBED_WIPE_IMAGE="$CADDY_IMAGE"
 
+  # Chat-app sign-ins (Claude, ChatGPT) outlive the wipe: HA flushes its auth
+  # store on stop, chat.mjs keeps the demo user's used in the last 24 h
+  # (spec decision 2). Never a reason to stop: the worst case is today's
+  # reconnect.
+  timeout 90 docker stop -t 60 ha-nova-testbed-ha > /dev/null 2>&1 || true
+  timeout 60 node "$HOSTED/chat.mjs" keep "$TB/.state" "$KEPT" \
+    || logger -p user.warning -t ha-nova-demo-reset "chat-app sign-ins not kept"
   RELAY_AUTH_TOKEN="" HA_LLAT="" timeout 300 bash "$TB/down.sh"
   git -C "$REPO" checkout -q --force --detach "$DEMO_REF"
   git -C "$REPO" clean -qffdx
@@ -86,11 +94,26 @@ main() {
 
   # Fresh owner password per reset; the owner is local-only (demo.mjs setup)
   # and only host tooling uses it, through its long-lived token.
-  local owner_password owner_llat
+  local owner_password owner_llat i
   owner_password="$(openssl rand -hex 24)"
   (umask 077 && printf '%s\n' "$owner_password" > /root/ha-nova-demo-owner-password)
   TESTBED_OWNER_PASSWORD="$owner_password" timeout 900 bash "$TB/up.sh"
   owner_llat="$(cat "$TB/.state/ha-llat")"
+  # The kept sign-ins go into the new auth store while HA is stopped, bound
+  # to this build's demo user. Only when there are any: a restart costs time.
+  if [[ -s "$KEPT" ]]; then
+    local kept=0
+    timeout 90 docker stop -t 60 ha-nova-testbed-ha > /dev/null || gate_failed "could not stop Home Assistant to restore chat-app sign-ins"
+    kept="$(timeout 60 node "$HOSTED/chat.mjs" restore "$KEPT" "$TB/.state")" \
+      || logger -p user.warning -t ha-nova-demo-reset "chat-app sign-ins not restored"
+    docker start ha-nova-testbed-ha > /dev/null || gate_failed "could not start Home Assistant after restoring chat-app sign-ins"
+    for i in $(seq 1 90); do
+      curl -sf -m 5 -o /dev/null -H "Authorization: Bearer $owner_llat" "$HA/api/" && break
+      [[ "$i" == 90 ]] && gate_failed "Home Assistant did not come back after restoring ${kept:-0} chat-app sign-in(s)"
+      sleep 2
+    done
+    echo "reset.sh: ${kept:-0} chat-app sign-in(s) restored" >&2
+  fi
 
   # The public relay token is public anyway (connect.json): generated once
   # and kept, so agents survive the hourly rebuild. Never in the repo.
@@ -104,7 +127,6 @@ main() {
   RELAY_AUTH_TOKEN="$relay_token" HA_LLAT="$(timeout 120 node "$HOSTED/demo.mjs" token "$HA" "$owner_llat")" \
     timeout 300 docker compose -f "$TB/docker-compose.yml" -f "$HOSTED/docker-compose.yml" up -d relay bridge >&2
 
-  local i
   for i in $(seq 1 30); do
     relay_roundtrip "$HA/relay" "$relay_token" 2> /dev/null && break
     [[ "$i" == 30 ]] && gate_failed "relay round trip: $(relay_roundtrip "$HA/relay" "$relay_token" 2>&1)"

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // fakeDemo serves connect.json and the relay health like demo.hanova.app.
@@ -375,5 +376,30 @@ func TestApplyTakesTheDemoPlansServerWithoutASelection(t *testing.T) {
 	}
 	if env, _ := applyPlan(paths, verbOptions{}, id, "", false); env.Server != demoProfileName {
 		t.Fatalf("apply without a selection must use the plan's demo server: %+v %+v", env, env.Error)
+	}
+}
+
+func TestDemoResetTextOnlyInTheLastTenMinutes(t *testing.T) {
+	at := func(hhmmss string) time.Time {
+		v, err := time.Parse(time.RFC3339, "2026-10-22T"+hhmmss+"Z")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	for clock, want := range map[string]string{
+		"13:00:00": "",
+		"13:49:59": "",
+		"13:50:00": "The demo house resets in 10 minutes. Your connection stays, your changes don't.",
+		"13:54:30": "The demo house resets in 6 minutes. Your connection stays, your changes don't.",
+		"13:59:01": "The demo house resets in 1 minute. Your connection stays, your changes don't.",
+	} {
+		if got := demoResetText(at(clock)); got != want {
+			t.Errorf("%s: %q, want %q", clock, got, want)
+		}
+	}
+	// Whole-hour offsets reset at the same instant.
+	if got := demoResetText(at("13:54:30").In(time.FixedZone("CEST", 2*3600))); !strings.Contains(got, " 6 minutes") {
+		t.Errorf("CEST: %q", got)
 	}
 }

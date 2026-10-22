@@ -13,9 +13,13 @@
 //                                                        does (its published identity, PKCE), tools work
 //   node chat.mjs check <ha_url> <owner_llat> <origin>   minute check: external_url (repaired), entry
 //                                                        loaded, the owner is refused
+//   node chat.mjs keep    <state_dir> <carry_file>      Home Assistant stopped: the demo user's chat-app
+//                                                       sign-ins used in the last 24 h, into carry_file
+//   node chat.mjs restore <carry_file> <state_dir>      Home Assistant stopped: adds them, bound to this
+//                                                       build's demo user; prints how many
 
 import { createHash, randomBytes } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 
 // Claude's published client identity (CIMD) and its callback. Same host, so
 // Home Assistant accepts the callback without fetching anything (the house
@@ -163,9 +167,104 @@ async function gate([haUrl, ownerToken, origin]) {
   }
 }
 
-const commands = { entry, files, gate, check };
+// Chat-app sign-ins that outlive the hourly reset (spec decision 2). Only
+// what a chat app needs to refresh: id, token, signing key, client, two
+// times. Everything else is set here, never copied: no IP, no name or icon,
+// HA's own expiries. A visitor admin may have written the old store
+// (local_file), so each field is checked, the files are read without
+// following links, and the count is capped.
+const CHAT_CLIENT = /^https:\/\/(claude\.ai|chatgpt\.com)\/[A-Za-z0-9._~\/-]{1,200}$/; // CIMD ids; HA accepts only same-host callbacks here (no egress)
+const KEEP_MS = 24 * 3600_000;
+const KEEP_MAX = 200;
+const STORE_MAX = 32 << 20;
+
+// A regular file inside a real directory, never a link; null if missing.
+function readPlain(path) {
+  for (const p of [path, path.slice(0, path.lastIndexOf("/"))]) {
+    let st;
+    try {
+      st = lstatSync(p);
+    } catch (err) {
+      if (err.code === "ENOENT") return null;
+      throw err;
+    }
+    if (p === path ? !st.isFile() : !st.isDirectory()) throw new Error(`${p}: not a plain ${p === path ? "file" : "directory"}`);
+  }
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    if (fstatSync(fd).size > STORE_MAX) throw new Error(`${path}: over ${STORE_MAX} bytes`);
+    return JSON.parse(readFileSync(fd, "utf8"));
+  } finally {
+    closeSync(fd);
+  }
+}
+
+const writeAtomic = (path, value, mode = 0o600) => {
+  writeFileSync(`${path}.tmp`, JSON.stringify(value), { mode });
+  renameSync(`${path}.tmp`, path);
+};
+
+// The tokens to keep: the demo user's, from a chat app, used within 24 h, newest first.
+function keepable(tokens, demo, now = Date.now()) {
+  const hex = (n) => (s) => typeof s === "string" && s.length === n && /^[0-9a-f]+$/.test(s);
+  return (Array.isArray(tokens) ? tokens : [])
+    .filter((t) => t && t.user_id === demo && t.token_type === "normal" && CHAT_CLIENT.test(t.client_id ?? "")
+      && hex(32)(t.id) && hex(128)(t.token) && hex(128)(t.jwt_key))
+    .map((t) => ({ t, created: Date.parse(t.created_at), used: Date.parse(t.last_used_at ?? t.created_at) }))
+    .filter(({ created, used }) => created <= used && used > now - KEEP_MS && used <= now + 60_000)
+    .sort((a, b) => b.used - a.used)
+    .slice(0, KEEP_MAX)
+    .map(({ t, created, used }) => ({ id: t.id, client_id: t.client_id, token: t.token, jwt_key: t.jwt_key,
+      created_at: new Date(created).toISOString(), last_used_at: new Date(used).toISOString() }));
+}
+
+// Old store unreadable or missing (first boot, a failed reset): the last
+// carry file stays for restore, which filters it again.
+function keep([stateDir, carry]) {
+  if (!stateDir || !carry) throw new Error("usage: chat.mjs keep <state_dir> <carry_file>");
+  let tokens;
+  try {
+    const demo = readPlain(`${stateDir}/demo-users.json`)?.demo;
+    const auth = readPlain(`${stateDir}/config/.storage/auth`);
+    if (!/^[0-9a-f]{32}$/.test(demo ?? "") || !auth) {
+      console.error("chat.mjs keep: no previous demo user or auth store; nothing kept");
+      return;
+    }
+    tokens = keepable(auth.data?.refresh_tokens, demo);
+  } catch (err) {
+    console.error(`chat.mjs keep: previous auth store unreadable (${err.message}); nothing kept`);
+    return;
+  }
+  if (tokens.length) writeAtomic(carry, tokens);
+  else rmSync(carry, { force: true });
+  console.error(`chat.mjs keep: ${tokens.length} chat-app sign-in(s) kept`);
+}
+
+function restore([carry, stateDir]) {
+  if (!carry || !stateDir) throw new Error("usage: chat.mjs restore <carry_file> <state_dir>");
+  const demo = readPlain(`${stateDir}/demo-users.json`)?.demo;
+  const path = `${stateDir}/config/.storage/auth`;
+  const auth = readPlain(path);
+  if (!/^[0-9a-f]{32}$/.test(demo ?? "") || !auth?.data?.refresh_tokens) throw new Error("no demo user or auth store of this build");
+  const credential = auth.data.credentials.find((c) => c.user_id === demo && c.auth_provider_type === "homeassistant");
+  if (!credential) throw new Error("the demo user has no Home Assistant credential");
+  const version = auth.data.refresh_tokens.find((t) => t.version)?.version ?? null;
+  const known = new Set(auth.data.refresh_tokens.map((t) => t.id));
+  // Filtered again: a carry file left by a failed reset may be old.
+  const kept = keepable((readPlain(carry) ?? []).map((t) => ({ ...t, user_id: demo, token_type: "normal" })), demo)
+    .filter((t) => !known.has(t.id));
+  for (const t of kept) {
+    auth.data.refresh_tokens.push({ ...t, user_id: demo, client_name: null, client_icon: null, token_type: "normal",
+      access_token_expiration: 1800, last_used_ip: null, expire_at: Date.parse(t.last_used_at) / 1000 + 90 * 86400,
+      credential_id: credential.id, version });
+  }
+  if (kept.length) writeAtomic(path, auth, lstatSync(path).mode & 0o777);
+  console.log(kept.length);
+}
+
+const commands = { entry, files, gate, check, keep, restore };
 if (!commands[cmd]) {
-  console.error("usage: node chat.mjs entry|files|gate|check ...");
+  console.error("usage: node chat.mjs entry|files|gate|check|keep|restore ...");
   process.exit(2);
 }
 Promise.resolve(commands[cmd](args)).then(
