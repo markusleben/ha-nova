@@ -24,7 +24,7 @@ Shipped and current:
 3. Context skill `ha-nova` plus 34 task skills, flat under `skills/` — the dispatch table in `skills/ha-nova/SKILL.md` is the authoritative inventory
 4. Shared references under `skills/ha-nova/` (relay API contract, output rules, write safety, batch safety, schemas)
 5. Setup page in the browser (owner sign-in pairing, the six-digit code as fallback; installs the NOVA App after sign-in on HA OS/Supervised); confirmations ask in a window and on the linked phone together, a chat code is the last fallback
-6. Chat apps: the App runs the chat-app bridge (`ha-nova serve` plus the small `ha_nova` integration), so Claude (web, desktop, phone) and ChatGPT (web) reach a home through Home Assistant Link with remote access (a subscription from the Home Assistant team) or its own HTTPS address, with no computer running; contract in `docs/reference/bridge-architecture.md` ("Chat apps")
+6. Chat apps: the App runs the chat-app bridge (`ha-nova serve` plus the small `ha_nova` integration), so Claude (web, desktop, phone) and ChatGPT (web, on a computer) reach a home through Home Assistant Link with remote access (a subscription from the Home Assistant team) or its own HTTPS address, with no computer running; contract in `docs/reference/bridge-architecture.md` ("Chat apps")
 7. Hosted demo house (`ha-nova try`, "Add to Claude"): `docs/reference/hosted-demo.md`
 
 HA NOVA also contains an opt-in Home Assistant Link (formerly Home Assistant

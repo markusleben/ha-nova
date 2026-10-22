@@ -22,11 +22,11 @@
 
 <p align="center">
   Works with <b>Claude Code</b> · <b>Claude Desktop</b> · <b>Codex CLI</b> · <b>OpenCode</b> · <b>Google Antigravity</b> · <b>Hermes Agent</b> (preview)<br>
-  and in <b>Claude</b> (also on your phone) and <b>ChatGPT</b> on the web, with the NOVA Relay App
+  and in <b>Claude</b> (also on your phone) and <b>ChatGPT</b> on the web, on a computer, with the NOVA Relay App
 </p>
 
 <p align="center">
-  📱 <b>Use it from your phone</b> in the Claude app. ChatGPT works on the web. No computer has to stay on.<br>
+  📱 <b>Use it from your phone</b> in the Claude app. ChatGPT works on the web, on a computer. No computer has to run HA NOVA.<br>
   <a href="#use-ha-nova-in-claude-and-chatgpt">See how easy it is</a>
 </p>
 
@@ -152,17 +152,17 @@ The installer selects the latest stable release. Run the command for your system
 
 After pairing, setup offers to link your phone for confirmations: tap "Allow" on it. The phone must be signed in to the Home Assistant app as an administrator. Setup ends with a first look at your home.
 
-> **Try it first?** [Try HA NOVA in 1 minute](https://hanova.app/demo/) in Claude, on a shared demo house with no real devices. There is nothing to install, and a free account works. ChatGPT on the web works too (tested with Pro; your plan’s rules apply). On your computer, `ha-nova try` connects your AI app to it (the setup page offers it when it finds no Home Assistant), and `ha-nova try --stop` removes it. Everyone shares one login, and it resets every hour. So never enter real names, passwords, or tokens there. What the demo keeps: [privacy page](https://hanova.app/privacy.html).
+> **Try it first?** [Try HA NOVA in 1 minute](https://hanova.app/demo/) in Claude, on a shared demo house with no real devices. There is nothing to install, and a free account works. ChatGPT on the web, on a computer, works too (tested with Pro; your plan’s rules apply). On your computer, `ha-nova try` connects your AI app to it (the setup page offers it when it finds no Home Assistant), and `ha-nova try --stop` removes it. Everyone shares one login, and it resets every hour. So never enter real names, passwords, or tokens there. What the demo keeps: [privacy page](https://hanova.app/privacy.html).
 
 ### Use HA NOVA in Claude and ChatGPT
 
-Ask about your home and change it from Claude (web, desktop, and phone apps) or ChatGPT (web). No computer needs to run.
+Ask about your home and change it from Claude (web, desktop, and phone apps) or ChatGPT (web, on a computer; on a phone it can only read). No computer needs to run HA NOVA.
 
 **How easy is it?**
 
 1. **Turn on remote access in Home Assistant Link.** Your Home Assistant may still show its old name ([see below](#optional-remote-access-with-home-assistant-link-beta)). Your own HTTPS address works too.
 2. **Flip the switch.** In setup, choose **Turn on…** in "You stay in control". On a re-run, turn on its switch, then click Done. Or open the NOVA page in the Home Assistant sidebar, then Chat apps. Home Assistant restarts once.
-3. **Click "Add to Claude",** or paste the address setup shows into ChatGPT. Then sign in to Home Assistant as the owner.
+3. **Click "Add to Claude",** or paste the address setup shows into ChatGPT. Then sign in to Home Assistant as the owner. No form in Claude? Click + → Add custom connector, and paste the address. On a Claude Team or Enterprise plan, an owner of that plan adds it once for everyone with "Add for my organization".
 
 **You need:**
 
@@ -172,7 +172,7 @@ Ask about your home and change it from Claude (web, desktop, and phone apps) or 
 
 **What needs your OK:** the same rules as on a computer. Everyday actions run right away and are checked afterwards. Unlocks and deletes wait for a tap on your linked phone. Without a phone, you type a code in the chat. The AI can see that code too, so it protects less than your phone. On the NOVA page, you can require the phone, or let chat apps only read.
 
-**In Claude, tools have plain names, and you can let read-only steps run without asking.** In Claude, open Settings → Connectors → HA NOVA. Set the read-only tools and "Control a device" to "Always allow". Leave "Run a confirmed change" on "Needs approval", so Claude still asks before a bigger change. Claude may ask again after an update. Details: [Stop Claude from asking before every step](docs/reference/chat-apps.md#stop-claude-from-asking-before-every-step).
+**In Claude, tools have plain names, and you can let read-only steps run without asking.** In Claude, open Customize → Connectors → HA NOVA. Set the read-only tools and "Control a device" to "Always allow". Leave "Run a confirmed change" on "Needs approval", so Claude still asks before a bigger change. Claude may ask again after an update. Details: [Stop Claude from asking before every step](docs/reference/chat-apps.md#stop-claude-from-asking-before-every-step).
 
 **Good to know:**
 
@@ -343,7 +343,7 @@ The skills know which NOVA Relay version they need (see `version.json`). If your
 | [Google Antigravity](https://antigravity.google/) | Desktop app / Terminal |
 | Hermes Agent (preview) | Terminal |
 
-> **Claude and ChatGPT chat apps** (Claude on the web, desktop, and phone; ChatGPT on the web) connect through the NOVA Relay App, not a computer: see [Use HA NOVA in Claude and ChatGPT](#use-ha-nova-in-claude-and-chatgpt).
+> **Claude and ChatGPT chat apps** (Claude on the web, desktop, and phone; ChatGPT on the web, on a computer) connect through the NOVA Relay App, not a computer: see [Use HA NOVA in Claude and ChatGPT](#use-ha-nova-in-claude-and-chatgpt).
 
 > Google Antigravity is the current Google client path. `ha-nova setup gemini` remains a legacy alias for existing Gemini-era installs.
 
