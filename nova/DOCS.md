@@ -146,9 +146,9 @@ offers:
   with a six-digit code from the owner-only NOVA page.
 
 Sign in to Home Assistant Link as the owner, and this computer connects with
-no code. Want this computer to have less access? Sign in as a standard Home
-Assistant user instead: using HA NOVA through Link doesn't need owner or admin
-rights. Then the owner makes a six-digit code on the NOVA page, in a separate
+no code. Don't want the owner's login saved on this computer? Sign in as a
+standard Home Assistant user instead: HA NOVA through Link doesn't need owner
+or admin rights, and it can still do the same things. Then the owner makes a six-digit code on the NOVA page, in a separate
 private browser window. Only the owner can open the NOVA page and make or
 revoke codes.
 
@@ -212,8 +212,8 @@ and ChatGPT (web, on a computer), without a computer running HA NOVA. They are o
   restarts once (about a minute).
 - **Connect:** add the address the NOVA page shows in Claude ("Add to Claude")
   or ChatGPT, then sign in to Home Assistant as the owner. On a Claude Team or
-  Enterprise plan, you can't add it yourself: the owner of your Claude plan adds
-  it once for everyone, with "Add for my organization".
+  Enterprise plan, the owner of your Claude plan adds it once for everyone,
+  with "Add for my organization".
   Then you click "Connect" next to HA NOVA under Customize → Connectors.
 - **Confirmations:** the same rules as on a computer. Unlocks, the alarm, and
   deletes wait for a tap on the owner's linked phone. No phone? The owner types

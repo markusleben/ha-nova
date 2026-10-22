@@ -70,7 +70,7 @@ describe("release notes contract", () => {
     expect(readme).toContain("open Customize → Connectors → HA NOVA");
     expect(readme).not.toContain("Settings → Connectors");
     expect(readme).toContain("ChatGPT (web, on a computer; on a phone it can only answer)");
-    expect(readme).toContain('No form in Claude? In Claude, open Customize → Connectors, click +, then Add custom connector, and paste the address. On a Claude Team or Enterprise plan, you can\'t add it yourself: the owner of your Claude plan adds it once for everyone, with "Add for my organization".');
+    expect(readme).toContain('No form in Claude? In Claude, open Customize → Connectors, click +, then Add custom connector, and paste the address. On a Claude Team or Enterprise plan, the owner of your Claude plan adds it once for everyone, with "Add for my organization".');
     expect(readme).toContain("https://hanova.app/demo/");
     expect(readme).toContain("34 task skills plus the HA NOVA context skill");
     expect(readme).not.toContain("ha-nova mcp");
