@@ -79,6 +79,19 @@ func TestMCPAnswerRulesUpFront(t *testing.T) {
 	}
 }
 
+// ChatGPT's phone app blocks writes of added plugins before they reach HA
+// NOVA, so no result can explain it. The hint lives in the instructions
+// (ChatGPT reads them; claude.ai drops them), not in a tool description,
+// which would reset claude.ai's Always allow (TestMCPToolTextStable).
+func TestMCPInstructionsChatGPTPhoneHint(t *testing.T) {
+	for _, part := range []string{"In ChatGPT's phone app, ChatGPT blocks changes through plugins the user added",
+		"no vague security reason", "open chatgpt.com in a browser\nand ask again", "questions still work on the phone"} {
+		if !strings.Contains(mcpInstructions, part) {
+			t.Fatalf("instructions miss %q", part)
+		}
+	}
+}
+
 func outcome(t *testing.T, raw string) string {
 	t.Helper()
 	var env verbEnvelope

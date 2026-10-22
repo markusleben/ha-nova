@@ -52,6 +52,10 @@ matching skill (once per skill per session) and follow it; device control and
 lookups need only the tools.
 Read freely with ha_find, ha_get, ha_history, ha_map, ha_trace, and ha_read.
 Change things only with ha_call (devices) or ha_plan followed by ha_apply.
+In ChatGPT's phone app, ChatGPT blocks changes through plugins the user added:
+when a change there is blocked or fails with no HA NOVA result, say exactly
+that (no vague security reason), and that they open chatgpt.com in a browser
+and ask again; questions still work on the phone.
 Ordinary everyday actions run immediately and are verified; anything else
 returns status needs_confirmation with a preview: show that preview to the
 user, end with its say text (the reason and how to go ahead; add no other
