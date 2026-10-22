@@ -251,10 +251,11 @@ function keep([stateDir, carry]) {
   // Per client host, no secrets: shows whether a chat app's real client id
   // ever falls outside CHAT_CLIENT (journal, ha-nova-demo-reset).
   const kept = new Set(tokens.map((t) => t.id));
-  const host = (id) => /^https:\/\/([a-z0-9.-]{1,64})\//.exec(id ?? "")?.[1] ?? "other";
-  const dropped = {};
+  // Fixed buckets only: a client id is visitor text and must not reach the log.
+  const host = (id) => (/^https:\/\/(claude\.ai|chatgpt\.com)\//.exec(id ?? "")?.[1] ?? "other");
+  const dropped = { "claude.ai": 0, "chatgpt.com": 0, other: 0 };
   for (const t of all) {
-    if (t?.user_id === ids.demo && t.token_type === "normal" && !kept.has(t.id)) dropped[host(t.client_id)] = (dropped[host(t.client_id)] ?? 0) + 1;
+    if (t?.user_id === ids.demo && t.token_type === "normal" && !kept.has(t.id)) dropped[host(t.client_id)] += 1;
   }
   console.error(`chat.mjs keep: ${tokens.length} chat-app sign-in(s) kept; demo sign-ins dropped by client host: ${JSON.stringify(dropped)}`);
 }

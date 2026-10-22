@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, utimesSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -58,7 +58,10 @@ describe("hosted demo: chat-app sign-ins across the reset", () => {
       token("c", { client_id: CHATGPT_STABLE, last_used_at: ago(2) }),
     ]);
     const carry = join(old, "carry.json");
-    run("keep", old, carry);
+    const log = spawnSync("node", [CHAT, "keep", old, carry], { encoding: "utf8" }).stderr;
+    // Fixed buckets: a visitor's client id text never reaches the reset log.
+    expect(log).toContain('{"claude.ai":3,"chatgpt.com":1,"other":2}');
+    expect(log).not.toMatch(/scam|hanova/);
     expect(JSON.parse(readFileSync(carry, "utf8")).map((t: { id: string }) => t.id[0])).toEqual(["1", "2", "c"]);
 
     const fresh = stateDir(NEW_DEMO, [token("9", { user_id: "d".repeat(32), client_id: "http://127.0.0.1:18123/" })],
