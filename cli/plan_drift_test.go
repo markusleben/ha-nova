@@ -235,3 +235,18 @@ func TestApplyKeepsACutPlanWhoseGapsDiffer(t *testing.T) {
 		t.Fatalf("exit %d env %+v posts %d", exit, env, len(h.posts()))
 	}
 }
+
+// A consumer added to the target's device since the preview is drift, even
+// when both runs are cut before the consumer scan reads it.
+func TestApplyRefusesANewDeviceConsumerInACutPlan(t *testing.T) {
+	h := cutHome(t)
+	h.cutAt("a10")
+	planned := h.plan(appInstall...).Plan
+	h.cutAt("a10")
+	h.f.mu.Lock()
+	h.f.related["device:app_device"] = []string{"automation.auto_a29"}
+	h.f.mu.Unlock()
+	if exit, env := h.run(runApplyCommand, "--plan", planned.ID, "--confirm", planned.Code); exit != verbExitDrift || len(h.posts()) != 0 {
+		t.Fatalf("exit %d env %+v posts %d", exit, env, len(h.posts()))
+	}
+}

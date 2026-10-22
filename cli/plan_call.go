@@ -441,6 +441,9 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 			return &tierReason{Code: code, EntityID: t.EntityID}
 		}
 		reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest("entity", t.EntityID)) })
+		if device := e.reg[t.EntityID].di; device != "" { // before any long scan: the plan basis binds both (basisConsumers)
+			reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest("device", device)) })
+		}
 	}
 	prefetch(reads) // the consumer scan of every frozen target, warmed in parallel
 	if e.liveEvents()["call_service"] > callServiceListenerBaseline {

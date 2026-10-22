@@ -39,18 +39,31 @@ func basisEntities(e *tierEngine) map[string]any {
 	return entities
 }
 
-// basisConsumers: the automations Home Assistant relates to each frozen
-// target. They are read before any long scan, so a consumer added since the
-// preview is drift even when a cut check could not read it.
+// basisConsumers: what the consumer scan starts from for each frozen
+// target — the automations and groups Home Assistant relates to it and the
+// automations related to its device. evaluate reads them before any long
+// scan, so a consumer added since the preview is drift even when a cut
+// check could not read it.
 func basisConsumers(e *tierEngine, frozen []string) map[string]any {
 	out := map[string]any{}
 	for _, id := range frozen {
-		related, err := e.related("entity", id) // memoized: the prefetch read it first
-		if err != nil {
-			out[id] = "unread"
-			continue
+		items := [][2]string{{"entity", id}}
+		if device := e.reg[id].di; device != "" {
+			items = append(items, [2]string{"device", device})
 		}
-		out[id] = related["automation"]
+		bound := map[string]any{}
+		for _, item := range items {
+			related, err := e.related(item[0], item[1]) // memoized: evaluate read it first
+			switch {
+			case err != nil:
+				bound[item[0]] = "unread"
+			case item[0] == "entity":
+				bound["entity"] = map[string]any{"automation": related["automation"], "group": related["group"]}
+			default:
+				bound[item[0]] = related["automation"]
+			}
+		}
+		out[id] = bound
 	}
 	return out
 }
