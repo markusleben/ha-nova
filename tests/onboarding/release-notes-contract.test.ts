@@ -49,9 +49,9 @@ describe("release notes contract", () => {
     expect(stableNotes).toMatch(/^## Bug Fixes\s+- \*\*The code is last in chat apps too\.\*\*/);
     expect(stableNotes).toContain("on its own line, in bold. Nothing comes after it.");
     expect(stableNotes).toContain("How long the code works, and notes like the demo house's hourly reset, now come right above the code.");
-    expect(stableNotes).toContain('**"Add to Claude" works on Team and Enterprise plans.** There, an owner adds HA NOVA once for everyone.');
+    expect(stableNotes).toContain("**Claude Team and Enterprise plans can add HA NOVA.** There, an owner adds it once for everyone.");
     expect(stableNotes).toContain('"Add for my organization"');
-    expect(stableNotes).toContain("Click + > Add custom connector, and paste it.");
+    expect(stableNotes).toContain("Click +, then Add custom connector, and paste it.");
     // App patch 0.11.2 carries the 0.27.2 chat-app bridge; ChatGPT needs a Refresh to load it.
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
     expect(stableNotes).toContain("open chatgpt.com/plugins, choose HA NOVA, then Refresh");
@@ -66,7 +66,7 @@ describe("release notes contract", () => {
     // claude.ai's connector list lives under Customize, not Settings.
     expect(readme).toContain("open Customize → Connectors → HA NOVA");
     expect(readme).not.toContain("Settings → Connectors");
-    expect(readme).toContain('On a Claude Team or Enterprise plan, an owner of that plan adds it once for everyone with "Add for my organization".');
+    expect(readme).toContain('No form in Claude? Click + → Add custom connector, and paste the address. On a Claude Team or Enterprise plan, an owner of that plan adds it once for everyone with "Add for my organization".');
     expect(readme).toContain("https://hanova.app/demo/");
     expect(readme).toContain("34 task skills plus the HA NOVA context skill");
     expect(readme).not.toContain("ha-nova mcp");

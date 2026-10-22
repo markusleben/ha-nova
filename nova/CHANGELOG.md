@@ -8,7 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 
 ### Fixed
 - Chat apps: the code to confirm a change now ends the message in Claude and ChatGPT. How long the code works, and notes like the demo house's hourly reset, come right above it. (#831)
-- NOVA page: "Add to Claude" now works on Claude Team and Enterprise plans. An owner adds HA NOVA once for everyone with the new "Add for my organization" link. If Claude opens with no form, the page shows the address to paste. (#830)
+- NOVA page: on a Claude Team or Enterprise plan, an owner adds HA NOVA once for everyone with the new "Add for my organization" link. If Claude opens with no form, the page shows the address to paste. (#830)
 - Chat apps now run HA NOVA 0.27.2.
 
 ### Upgrade notes
