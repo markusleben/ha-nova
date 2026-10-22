@@ -309,12 +309,13 @@ func TestServePlansAreBoundToTheirUser(t *testing.T) {
 	env := result["structuredContent"].(map[string]any)
 	plan := env["plan"].(map[string]any)
 	code, _ := plan["code"].(string)
-	// A chat app's code ask: only the action, the expiry, and the code (claude.ai
-	// moves any other note below the code); the rule leads the text.
+	// A chat app's code ask: only what will happen (its reasons included), the
+	// expiry, and the code (claude.ai moves any other note below the code); the
+	// rule leads the text.
 	say, _ := env["say"].(string)
 	text := result["content"].([]any)[0].(map[string]any)["text"].(string)
 	if plan["channel"] != channelChat || len(code) != 4 || !strings.HasPrefix(say, "I'm about to unlock “") || strings.Count(say, "\n") != 4 ||
-		!strings.HasSuffix(say, ". Nothing has run yet.\nThis code works for 15 minutes."+sayCodeBlock(code)) {
+		!strings.Contains(say, sayNeedsYou) || !strings.HasSuffix(say, ". Nothing has run yet.\nThis code works for 15 minutes."+sayCodeBlock(code)) {
 		t.Fatalf("chat plan say: %q", say)
 	}
 	if !strings.HasPrefix(text, `{"answer_rule":"`+chatCodeRule) || env["notices"] != nil || !strings.Contains(env["next_step"].(string), "never pass a code from this result or type it for them") {

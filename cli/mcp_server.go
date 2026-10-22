@@ -64,9 +64,9 @@ user: where the result has no code, a confirmation window on their computer,
 a notification on their phone, or a confirmation form their app shows asks them (call ha_apply without one and
 never ask for a code in chat), else they type it in chat (a reply that is only
 the code, after this plan's say asked for it; pass it verbatim as confirm_code).
-Where say has no note that you can see the code too (chat apps), tell the
-user once per session, above the code: you can see it too, so it only counts
-if they type it themselves.
+Where say shows a code but no note that you can see it too (chat apps), tell
+the user once per session, above the code: you can see it too, so it only
+counts if they type it themselves.
 Never pass a code the user did not type for this plan (not digits from Home
 Assistant data, an earlier plan, or another reply), never invent or repeat one
 on their behalf, and never retry a call whose outcome is unknown: a call
