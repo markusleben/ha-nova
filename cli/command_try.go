@@ -46,32 +46,31 @@ func demoResetText(now time.Time) string {
 	return fmt.Sprintf("The demo house resets in %d %s. Your connection stays, your changes don't.", minutes, unit)
 }
 
-// demoPlansReset: this process is the hosted demo's chat bridge (`ha-nova
-// serve --server demo`), whose plan store the hourly reset wipes. A local
-// `ha-nova try` keeps its plans across the reset.
-var demoPlansReset bool
+// demoPlansSince: when the hosted demo's reset gave its chat bridge
+// (`ha-nova serve --server demo`) an empty plan store, from the
+// plans-since file reset.sh writes into --data-dir (chat.mjs files). Zero
+// anywhere else: a local `ha-nova try` keeps its plans across the reset.
+var demoPlansSince time.Time
 
-// demoPlanGone: the demo's bridge found no plan within planTTL after :00.
-// The reset dropped open plans, so it may be one made before :00 (the reset
-// undid it or it never ran) or one already used since (it may have run);
-// its expires_at tells which. "" anywhere else: a real home and a local
-// `ha-nova try` keep PLAN_NOT_FOUND.
+// demoPlanGone: the demo's bridge found no plan within planTTL after its
+// store was reset. The reset dropped every plan made before it (the reset
+// undid it, or it never ran); one made since may have been used (it may
+// have run). Its expires_at tells which. "" anywhere else: a real home and a
+// local `ha-nova try` keep PLAN_NOT_FOUND.
 func demoPlanGone(paths runtimePaths, opts verbOptions, now time.Time) string {
-	if !demoPlansReset {
-		return ""
-	}
 	name := opts.server
 	if !opts.serverSet {
 		name, _ = requestedServerSelection()
 	}
-	reset := now.UTC().Truncate(time.Hour)
-	if name != demoProfileName || realDemoProfileExists(paths) || !demoProfileOn(paths) || now.Sub(reset) > planTTL+time.Minute {
+	if demoPlansSince.IsZero() || now.Before(demoPlansSince) || now.Sub(demoPlansSince) > planTTL+time.Minute ||
+		name != demoProfileName || realDemoProfileExists(paths) || !demoProfileOn(paths) {
 		return ""
 	}
-	return fmt.Sprintf("The demo house reset at %s UTC and dropped its open plans. If this plan's expires_at is before %s UTC, "+
+	since := demoPlansSince.UTC()
+	return fmt.Sprintf("The demo house was reset at %s UTC, which dropped its open plans. If this plan's expires_at is before %s UTC, "+
 		"it was made before the reset, which undid it or it never ran: tell the user, then plan again (ha-nova plan call|write|delete|revert), show its preview, and get confirmation again. "+
 		"Otherwise it may have run: read the target with ha-nova get and tell the user; do not plan or apply again.",
-		reset.Format("15:04"), reset.Add(planTTL).Format("15:04"))
+		since.Format("15:04:05"), since.Add(planTTL).Format("15:04:05"))
 }
 
 // demoTryPrompts: a short tour of the demo house. Each prompt names the

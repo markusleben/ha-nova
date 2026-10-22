@@ -412,8 +412,12 @@ func TestMissingDemoPlanAfterTheResetSaysWhichCase(t *testing.T) {
 		t.Fatalf("try exit=%d out=%s", exit, out)
 	}
 	previous := verbNow
-	t.Cleanup(func() { verbNow, demoPlansReset = previous, false })
-	demoPlansReset = true // the hosted demo's bridge
+	t.Cleanup(func() { verbNow, demoPlansSince = previous, time.Time{} })
+	dataDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dataDir, "plans-since"), []byte("2026-10-22T13:02:10Z\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	demoPlansSince = readPlansSince(dataDir) // the hosted demo's bridge, reset at 13:02:10
 	apply := func(clock string, opts verbOptions) *verbError {
 		at, err := time.Parse(time.RFC3339, "2026-10-22T"+clock+"Z")
 		if err != nil {
@@ -428,12 +432,17 @@ func TestMissingDemoPlanAfterTheResetSaysWhichCase(t *testing.T) {
 	}
 	demo := verbOptions{server: demoProfileName, serverSet: true}
 	got := apply("13:05:00", demo)
-	if got.Code != "PLAN_RESET" || !strings.Contains(got.Next, "reset at 13:00 UTC") || !strings.Contains(got.Next, "before 13:15 UTC") ||
+	if got.Code != "PLAN_RESET" || !strings.Contains(got.Next, "reset at 13:02:10 UTC") || !strings.Contains(got.Next, "before 13:17:10 UTC") ||
 		!strings.Contains(mcpNext(got.Next), "ha_get") {
 		t.Fatalf("demo, just after :00: %+v", got)
 	}
-	if got := apply("13:30:00", demo); got.Code != "PLAN_NOT_FOUND" || got.Next != mayHaveRun {
+	if got := apply("13:18:11", demo); got.Code != "PLAN_NOT_FOUND" || got.Next != mayHaveRun {
 		t.Fatalf("demo, past every pre-reset plan's expiry: %+v", got)
+	}
+	// A late hourly timer leaves the last reset's time in place: no reset claimed
+	// before it happened (here: a clock before the reset time).
+	if got := apply("13:01:00", demo); got.Code != "PLAN_NOT_FOUND" {
+		t.Fatalf("demo, before its reset: %+v", got)
 	}
 	// The real home never gets the demo's step, also right after :00.
 	if got := apply("13:05:00", verbOptions{}); got.Code != "PLAN_NOT_FOUND" {
@@ -443,7 +452,7 @@ func TestMissingDemoPlanAfterTheResetSaysWhichCase(t *testing.T) {
 		t.Fatalf("real home by name: %+v", got)
 	}
 	// A local `ha-nova try` keeps its plans across the reset: a missing one may have run.
-	demoPlansReset = false
+	demoPlansSince = time.Time{}
 	if got := apply("13:05:00", demo); got.Code != "PLAN_NOT_FOUND" || got.Next != mayHaveRun {
 		t.Fatalf("local try: %+v", got)
 	}

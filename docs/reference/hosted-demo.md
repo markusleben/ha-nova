@@ -18,7 +18,7 @@ video-recording kit, `docs/reference/demo-recording.md`).
 | `guard.sh` | host, every minute | Skips while a reset holds the lock. Disk/swap watchdog; `demo.mjs guard` (30 s cap); `chat.mjs check` (15 s cap); relay round trip (revoked token: reset at once; other failures: after 3 minutes); TLS that came up after a skipped public gate. Anything wrong → full reset. |
 | `update-ha.sh` | host, nightly | Latest stable HA: resolve digest, verify the Sigstore signature, refuse downgrades, candidate reset + gates, promote or roll back, prune old images. |
 | `host-lib.sh` | host | Shared gates: relay round trip, egress/DNS, listeners, public site (with the Add to Claude metadata); Caddy (re)creation; pinned Node/Go/Caddy images; the lock. |
-| `chat.mjs`, `Dockerfile.bridge` | host | Add to Claude (below): `entry` (the seeded `ha_nova` entry), `files` (the bridge's secret, demo profile, `chat-apps.json`), `gate` (sign-in as `demo` the way Claude does, tools work, the owner refused), `check` (guard: puts `external_url` back, entry loaded, owner refused), `keep`/`restore` (the chat-app sign-ins across the reset, below). The bridge image (`ha-nova serve` + skills of this ref), built once per ref by `bootstrap.sh`. |
+| `chat.mjs`, `Dockerfile.bridge` | host | Add to Claude (below): `entry` (the seeded `ha_nova` entry), `files` (the bridge's secret, demo profile, `chat-apps.json`, `plans-since`), `gate` (sign-in as `demo` the way Claude does, tools work, the owner refused), `check` (guard: puts `external_url` back, entry loaded, owner refused), `keep`/`restore` (the chat-app sign-ins across the reset, below). The bridge image (`ha-nova serve` + skills of this ref), built once per ref by `bootstrap.sh`. |
 | `demo.mjs` | host | `setup` (seeded http config check, local-only owner, admin `demo/demo`, drop onboarding extras), `token` (the relay user's LLAT), `dashboard` (first saves HA NOVA's sample work, then the dashboard with "Start here" first; also shows the "Demo add-on" device as "Demo app", drops the Map dashboard, arms the simulated MQTT devices), `guard`, `smoke` (incl. an MQTT device round trip). |
 | `edge.yml`, `Caddyfile`, `site/` | host | Caddy in its own compose project: TLS, CSP, blocked paths, landing redirect, restarting page (`site/icon.svg`: a copy of `assets/icon.svg`, kept equal by `tests/config/hosted-demo-icon.test.ts`), `/relay/*`, `/connect.json`, `/abuse`, privacy-filtered access log. |
 | `docker-compose.yml` | host | Overlay over the test bed compose: internal network only, DNS sink, sealed directories, the `ha_nova` integration (read-only), limits, relay and chat bridge settings. |
@@ -262,12 +262,13 @@ plan can't add its own connectors.
   `ha-nova try`) carries a `demo_reset` notice for the user: "The demo house
   resets in 6 minutes. Your connection stays, your changes don't." (results
   only: tool descriptions are unchanged).
-- The reset also wipes the bridge's open plans. Until 15 minutes after :00,
-  a plan the bridge can't find is `PLAN_RESET`, not `PLAN_NOT_FOUND`: its
-  next step says that a plan expiring before :15 was made before the reset
-  (plan again) and any other may have run (read it first). Only the bridge
-  (`serve --server demo`) does this; `ha-nova try` keeps its plans across
-  the reset.
+- The reset also wipes the bridge's open plans, and `chat.mjs files` writes
+  the time it did so (`plans-since` in the bridge's data dir). For 15
+  minutes after that, a plan the bridge can't find is `PLAN_RESET`, not
+  `PLAN_NOT_FOUND`: its next step says that a plan expiring within 15
+  minutes of that time was made before the reset (plan again) and any other
+  may have run (read it first). Only the bridge (`serve --server demo`)
+  does this; `ha-nova try` keeps its plans across the reset.
   Risky changes show the chat code (no window, no phone here).
 - Caddy answers `/api/ha_nova/mcp` with a JSON-RPC error ("The demo house
   is resetting …", 503) while the house is down, never the HTML page.

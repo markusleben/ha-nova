@@ -7,8 +7,8 @@
 //   node chat.mjs entry <secret>                      prints the seeded .storage/core.config_entries
 //                                                     (before Home Assistant's first boot)
 //   node chat.mjs files <dir> <secret> <relay_token> <origin>
-//                                                     the bridge's files: secret, demo profile, and
-//                                                     chat-apps.json letting only the demo user in
+//                                                     the bridge's files: secret, demo profile,
+//                                                     chat-apps.json letting only the demo user in, plans-since
 //   node chat.mjs gate  <ha_url> <owner_llat> <origin>   check, then sign in as demo the way Claude
 //                                                        does (its published identity, PKCE), tools work
 //   node chat.mjs check <ha_url> <owner_llat> <origin>   minute check: external_url (repaired), entry
@@ -64,6 +64,9 @@ function files([dir, secret, relayToken, origin]) {
   write("home/.config/ha-nova/demo.json", JSON.stringify({ ha_url: origin, relay_url: "http://relay:8791", relay_token: relayToken }));
   // Only the demo user: never the owner, the relay's user, or a user a visitor makes.
   write("bridge/chat-apps.json", JSON.stringify({ allowed_users: [demo] }));
+  // The plan store is empty from now on: a plan missing soon after was
+  // made before this reset (cli/command_try.go demoPlanGone).
+  write("bridge/plans-since", `${new Date().toISOString().replace(/\.\d{3}Z$/, "Z")}\n`);
 }
 
 async function http(url, init = {}) {

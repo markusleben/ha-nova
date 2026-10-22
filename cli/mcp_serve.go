@@ -109,8 +109,9 @@ func runServeCommand(paths runtimePaths, args []string) int {
 	if opts.serverSet {
 		setServerSelectionOverride(opts.server)
 		b.pin = opts.server
-		// The hosted demo's bridge: its plan store goes with every reset.
-		demoPlansReset = opts.server == demoProfileName
+		if opts.server == demoProfileName { // the hosted demo's bridge: its plan store goes with every reset
+			demoPlansSince = readPlansSince(dataDir)
+		}
 	}
 	// Verbs print to stdout and stderr, which runVerb captures; the log keeps
 	// the real stderr.
@@ -417,3 +418,17 @@ func rpcLabel(body []byte) string {
 }
 
 var mcpLogWord = regexp.MustCompile(`^[a-z_/]{1,40}$`)
+
+// readPlansSince: the hosted demo's reset time from <data-dir>/plans-since
+// (one RFC 3339 line); zero if there is none.
+func readPlansSince(dataDir string) time.Time {
+	raw, err := os.ReadFile(filepath.Join(dataDir, "plans-since"))
+	if err != nil {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, strings.TrimSpace(string(raw)))
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
