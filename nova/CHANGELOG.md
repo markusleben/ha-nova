@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.11.4] - 2026-10-23
+
+### Fixed
+- Android phones can be linked for confirmations, with HA NOVA 0.27.2 on your computer. Before, the question to link, move, or stop never reached most Android phones. Once a phone is linked on your computer, chat apps ask that phone too. (#842)
+- Chat apps: the phone's notification and the "waiting for your tap" message now say how to answer on your phone: press and hold on iPhone, pull down on Android. Before, they said to expand the notification. (#842)
+- Chat apps: if a phone question gets no answer in time, the chat now says where to turn on that phone's notifications (on Android, also pop-ups). A phone that never had an HA NOVA notification now shows them as pop-ups. (#844, #845)
+- Chat apps now run HA NOVA 0.27.2 with these fixes.
+
+### Upgrade notes
+- Coming from App 0.11.2 or older? In ChatGPT, open chatgpt.com/plugins, choose HA NOVA, then Refresh. From 0.11.3, no Refresh is needed.
+- Computers that are already connected stay connected; no re-pairing.
+- Computers on HA NOVA 0.27.2 ask you to update this App; computers on 0.27.0 and 0.27.1 keep working with it.
+
 ## [Relay 0.11.3] - 2026-10-23
 
 ### Fixed
