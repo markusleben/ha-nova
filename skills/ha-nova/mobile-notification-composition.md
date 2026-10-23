@@ -44,7 +44,9 @@ existing, verified automation filtered to the exact `event_data.action` ID —
 never a send-specific listener invented for one run. Invocation-unique action
 identifiers and bounded waits apply only where a genuinely supported
 transient-callback surface exists. Consequential actions require
-authentication or unlocking where supported. Never replace inline actions with
+authentication or unlocking where supported: `authenticationRequired: true` on
+iOS, the string `"true"` on Android (a bool there fails the whole push while
+Home Assistant still answers 200). Never replace inline actions with
 deprecated category assumptions.
 
 **Notification commands.** `message: command_*` payloads are phone-control

@@ -134,7 +134,7 @@ func TestPhonePlanConfirmsOnTheLinkedPhoneAndReplacesIt(t *testing.T) {
 	p := usePhones(t, "mobile_app_iphone")
 	env := h.plan("lock.unlock", "lock.front")
 	plan := env.Plan
-	if plan.Channel != channelPhone || plan.Code != "" || !strings.HasSuffix(env.Say, sayPhoneAsk("Unlock")) || strings.Contains(env.Say, "one-time code") ||
+	if plan.Channel != channelPhone || plan.Code != "" || !strings.HasSuffix(env.Say, sayPhoneAsk("Unlock", "")) || strings.Contains(env.Say, "one-time code") ||
 		!strings.Contains(env.NextStep, "a notification on their phone") || !strings.Contains(env.NextStep, "Never ask for a code") {
 		t.Fatalf("phone plan: %+v say %q next %q", plan, env.Say, env.NextStep)
 	}
@@ -147,7 +147,7 @@ func TestPhonePlanConfirmsOnTheLinkedPhoneAndReplacesIt(t *testing.T) {
 	if exit != 0 || applied.Status != "verified" || len(h.posts()) != 1 {
 		t.Fatalf("confirm: exit %d %+v posts %d", exit, applied.Error, len(h.posts()))
 	}
-	if !strings.Contains(stderr, fmt.Sprintf(phoneSentText, "mobile_app_iphone", "Unlock")) {
+	if !strings.Contains(stderr, fmt.Sprintf(phoneSentText, "mobile_app_iphone", phoneTapLine("", "Unlock"))) {
 		t.Fatalf("stderr %q", stderr)
 	}
 	// The linked phone got it once, then the verified result in its place (same tag, no buttons).
@@ -161,7 +161,7 @@ func TestPhonePlanConfirmsOnTheLinkedPhoneAndReplacesIt(t *testing.T) {
 	// A short question, the computer that asked, and the hint last.
 	if _, auth := confirm["authenticationRequired"]; auth || confirm["destructive"] != true || confirm["title"] != "Unlock" || p.sent[0]["title"] != "Unlock “lock.front”?" ||
 		!strings.HasPrefix(data["tag"].(string), "ha-nova-"+plan.ID+"-") || p.sent[1]["data"].(map[string]any)["tag"] != data["tag"] ||
-		p.sent[0]["message"] != "Requested by “"+phoneHost()+"”. "+phoneHint || data["push"].(map[string]any)["interruption-level"] != "time-sensitive" {
+		p.sent[0]["message"] != "Requested by “"+phoneHost()+"”. "+phoneHint("") || data["push"].(map[string]any)["interruption-level"] != "time-sensitive" {
 		t.Fatalf("payload %+v", p.sent[0])
 	}
 	// The ids exist only in the notification: never in output or a plan file.

@@ -106,7 +106,7 @@ func linkPhone(s *relaySession, reader *bufio.Reader, out io.Writer, run phoneLi
 		if run.offer {
 			return 0
 		}
-		fmt.Fprintln(out, "  Changing it asks that phone first: the user taps “Move” there, then “Allow” on the new phone.")
+		fmt.Fprintln(out, "  Changing it asks that phone first: the user taps “Move” there, then “Allow” on the new phone. "+phoneButtonsLine)
 	case status == phoneMissing:
 		fmt.Fprintln(out, "  "+home.missingLine(prev, current.why))
 		if !current.why.replaceable() && !run.listOnly {
@@ -137,7 +137,7 @@ func linkPhone(s *relaySession, reader *bufio.Reader, out io.Writer, run phoneLi
 	case run.listOnly:
 		fmt.Fprintln(out, "  Which phone should confirm HA NOVA actions? "+phoneListHeader)
 		listPhones(out, all, home.shared)
-		fmt.Fprintln(out, "  Nothing was sent. To link one: tell the user to watch that phone for “"+phoneLinkTitle+"” and to expand it and tap “"+phoneLinkButton+"”, then run ha-nova setup confirm-phone \"<phone name>\" (it waits up to 90 seconds).")
+		fmt.Fprintln(out, "  Nothing was sent. To link one: tell the user to watch that phone for “"+phoneLinkTitle+"”: "+phoneTapLine("", phoneLinkButton)+" Then run ha-nova setup confirm-phone \"<phone name>\" (it waits up to 90 seconds).")
 		return 0
 	default:
 		if chosen, ok = choosePhone(reader, out, home, run.signedIn); !ok {
@@ -220,9 +220,9 @@ func sendPhoneLink(s *relaySession, out io.Writer, home phoneHome, links map[str
 	case phoneFailed:
 		return say(phoneLinkFailed, "Nothing linked: HA NOVA couldn't send the notification, or couldn't listen for the tap through the NOVA App. Check that the phone's Home Assistant app is signed in and can reach Home Assistant."+retry)
 	default:
-		return say(phoneLinkTimeout, "Nothing linked: “"+phoneLinkButton+"” was not tapped in time (expand the notification to see it)."+retry)
+		return say(phoneLinkTimeout, "Nothing linked: “"+phoneLinkButton+"” was not tapped in time. Next time: "+phoneTapLine(chosen.platform(), phoneLinkButton)+retry)
 	}
-	link := &phoneLink{Service: chosen.Service, DeviceID: chosen.DeviceID, UserID: chosen.UserID, Name: terminalSafeName(chosen.Name)}
+	link := &phoneLink{Service: chosen.Service, DeviceID: chosen.DeviceID, UserID: chosen.UserID, Name: terminalSafeName(chosen.Name), Platform: chosen.platform()}
 	if err := setPhoneLink(s.paths, home.owner, prev, link); err != nil {
 		return say(phoneLinkNotSaved, fmt.Sprintf("Nothing linked: %s.", err))
 	}

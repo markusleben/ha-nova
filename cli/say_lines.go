@@ -62,13 +62,13 @@ func sayCodeBlock(code string) string { return codeBlock(sayCodeLead, code) }
 func codeBlock(lead, code string) string { return "\n\n" + lead + "  \n**" + code + "**" }
 
 // sayWindowPhoneAsk: a phone is linked here, so it asks too (confirm_both.go).
-func sayWindowPhoneAsk(button string) string {
-	return "Confirm in the window on this computer or on your phone (expand the notification and tap “" + button + "”). The first answer counts."
+func sayWindowPhoneAsk(button, platform string) string {
+	return "Confirm in the window on this computer or on your phone. On the phone: " + phoneTapLine(platform, button) + " The first answer counts."
 }
 
 // sayPhoneAsk: the code is never shown.
-func sayPhoneAsk(button string) string {
-	return "Confirm on your phone: expand the notification and tap “" + button + "”."
+func sayPhoneAsk(button, platform string) string {
+	return "Confirm on your phone. " + phoneTapLine(platform, button)
 }
 
 func sayNotDone(reason string) string { return "Not done: " + reason + ". Nothing changed." }

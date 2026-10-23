@@ -28,6 +28,7 @@ type setupPageControl struct {
 	OldPhone     string           `json:"old_phone,omitempty"`
 	Proposed     bool             `json:"proposed,omitempty"` // Phones[0] is the signed-in user's own phone
 	PhoneName    string           `json:"phone_name,omitempty"`
+	PhoneOS      string           `json:"phone_os,omitempty"` // waiting: PhoneName's platform (ios, android), for how to tap
 	PhoneProblem *setupPageMsg    `json:"phone_problem,omitempty"`
 	Rule         string           `json:"rule,omitempty"`       // offer, on (already there); "" no row
 	RuleCount    int              `json:"rule_count,omitempty"` // the rules it adds (offer) or has (on)
@@ -67,6 +68,7 @@ type setupPagePhone struct {
 	ID     string `json:"id"` // the Home Assistant device id
 	Name   string `json:"name"`
 	Person string `json:"person"`
+	OS     string `json:"os,omitempty"` // ios, android; "" unknown
 }
 
 // Test seam: the Home Assistant Link address while its remote access is on
@@ -218,7 +220,7 @@ func (f *setupFlow) pageControl() int {
 					f.pageChatMoved(ctl.Chat, &chat)
 				}
 			default:
-				ctl.Phone, ctl.PhoneName, ctl.PhoneProblem = "waiting", ctl.Phones[i].Name, nil
+				ctl.Phone, ctl.PhoneName, ctl.PhoneOS, ctl.PhoneProblem = "waiting", ctl.Phones[i].Name, ctl.Phones[i].OS, nil
 				show()
 				f.pageLinkPhone(&ctl, action.Value)
 				if ctl.Phone == "linked" {

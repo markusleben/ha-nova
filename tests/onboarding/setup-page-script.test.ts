@@ -782,6 +782,14 @@ describe("setup page: status colors", () => {
     expect(classes(p).filter((c) => /amber|guard/.test(c))).toEqual([]);
   });
 
+  it("says how to reach “Allow” on the phone being asked", async () => {
+    for (const [os, key] of [["ios", "phone_waiting_ios"], ["android", "phone_waiting_android"], [undefined, "phone_waiting"]] as const) {
+      const p = page({ screen: "control", accepts: [], control: { window: false, phone: "waiting", phone_name: "Bene 14", phone_os: os, phones: [] } });
+      await p.settle();
+      expect(p.screen.textContent).toContain(p.catalog[`setup.page.control.${key}`]!.replace("{phone}", "Bene 14"));
+    }
+  });
+
   it("says the phone alone asks when no window can", async () => {
     for (const state of [{ control: { window: false } }, { web: true, control: { window: true } }]) {
       const p = page({ screen: "control", accepts: ["finish"], ...state, control: { ...state.control, phone: "linked", phone_name: "iPh0ne", phones: [] } });

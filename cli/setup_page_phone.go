@@ -49,7 +49,7 @@ func (f *setupFlow) pagePhones(ctl *setupPageControl) {
 	}
 	ctl.Phone = "pick"
 	for _, t := range all {
-		ctl.Phones = append(ctl.Phones, setupPagePhone{ID: t.DeviceID, Name: terminalSafeName(t.Name), Person: terminalSafeName(t.Person)})
+		ctl.Phones = append(ctl.Phones, setupPagePhone{ID: t.DeviceID, Name: terminalSafeName(t.Name), Person: terminalSafeName(t.Person), OS: t.platform()})
 	}
 }
 
@@ -99,7 +99,7 @@ func movePhones(home phoneHome, current phoneSetup) []setupPagePhone {
 	var out []setupPagePhone
 	for _, t := range home.eligible("") {
 		if !slices.ContainsFunc(current.targets, func(c phoneTarget) bool { return c.DeviceID == t.DeviceID }) {
-			out = append(out, setupPagePhone{ID: t.DeviceID, Name: terminalSafeName(t.Name), Person: terminalSafeName(t.Person)})
+			out = append(out, setupPagePhone{ID: t.DeviceID, Name: terminalSafeName(t.Name), Person: terminalSafeName(t.Person), OS: t.platform()})
 		}
 	}
 	return out

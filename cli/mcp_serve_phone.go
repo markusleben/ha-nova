@@ -135,9 +135,10 @@ func chatStopped(name string, failure *verbFailure) map[string]any {
 // chatJob is one phone ask of one user's plan, run once in the background.
 type chatJob struct {
 	done   chan struct{}
-	result map[string]any // never handed out itself: each response gets its own copy (reply adds fields)
-	ended  time.Time      // under bridge.mu
-	tapped atomic.Bool    // the phone answered; apply may be running
+	result map[string]any         // never handed out itself: each response gets its own copy (reply adds fields)
+	ended  time.Time              // under bridge.mu
+	tapped atomic.Bool            // the phone answered; apply may be running
+	tap    atomic.Pointer[string] // how to answer on the phone asked (phoneTapLine), once known
 }
 
 // chatApply: in a chat app, ha_apply on a phone plan starts (or joins) its
@@ -193,7 +194,7 @@ func (srv *mcpServer) chatApply(name string, args map[string]json.RawMessage, ar
 		b.mu.Unlock()
 		return maps.Clone(job.result)
 	case <-timer.C:
-		return waitingForPhone(id, job.tapped.Load())
+		return waitingForPhone(id, job.tapped.Load(), job.tap.Load())
 	}
 }
 
@@ -233,6 +234,8 @@ func (srv *mcpServer) phoneJob(job *chatJob, argv []string) {
 		job.result = result
 		return
 	}
+	tap := a.tapLine()
+	job.tap.Store(&tap)
 	a.wait(nil)
 	job.tapped.Store(a.answer != phoneNoAnswer)
 	// The owner may have removed this user or set read only meanwhile.
@@ -259,8 +262,12 @@ func (srv *mcpServer) phoneJob(job *chatJob, argv []string) {
 
 // waitingForPhone: the ask is still open, or the phone answered and apply
 // is still running (tapped): no outcome yet either way.
-func waitingForPhone(id string, tapped bool) map[string]any {
-	say := "Waiting for your tap: expand the HA NOVA notification on your phone (it can take a few seconds to arrive) and tap the button there. " + sayNotRun
+func waitingForPhone(id string, tapped bool, tap *string) map[string]any {
+	how := "Press and hold it on an iPhone, or pull it down on Android, then tap the button for this change."
+	if tap != nil {
+		how = *tap
+	}
+	say := "Waiting for your tap on the HA NOVA notification on your phone (it can take a few seconds to arrive). " + how + " " + sayNotRun
 	next := fmt.Sprintf("Nothing has run yet: HA NOVA is still waiting for the user's tap on their phone. Tell the user `say`, then call ha_apply again with plan_id %s and no confirm_code: it keeps waiting on the same notification and sends no new one. Never ask for a code.", id)
 	if tapped {
 		say = "Your phone answered; HA NOVA is finishing."

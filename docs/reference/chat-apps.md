@@ -66,7 +66,7 @@ Menu names in Claude and ChatGPT change now and then; look for "connector", "plu
 
 - Everyday changes, like a light, run right away and are checked afterwards.
 - Unlocks, the alarm, deletes, and other risky changes wait for you:
-  - **With a linked phone** (the one you linked during setup), it gets a notification (also on its watch). Tap to allow. The request stays open for up to 3 minutes. If you don't tap soon, the chat says it is still waiting; tap, then tell the assistant to go on.
+  - **With a linked phone** (the one you linked during setup), it gets a notification (also on its watch). Press and hold it on an iPhone, or pull it down on Android, then tap the button. The request stays open for up to 3 minutes. If you don't tap soon, the chat says it is still waiting; tap, then tell the assistant to go on.
   - **Without a linked phone,** the chat shows a code to type back. The AI can see this code too, so it protects less than a tap on your phone. For real protection, link your phone on your computer (`ha-nova setup confirm-phone`), then run `ha-nova chat-apps on` once more: it adds that phone for chat apps.
 - On the NOVA page you can also turn off codes in the chat (risky changes then need your phone), or let chat apps only read.
 - If you stop setup while Home Assistant restarts, chat apps may still turn on; NOVA in Home Assistant shows whether they are on.

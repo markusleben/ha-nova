@@ -29,8 +29,8 @@ func newFamilyHome() *fakeHome {
 			{"id": "kid-id", "name": "Kid", "is_active": true, "group_ids": []string{"system-users"}},
 		},
 		devices: []phoneTarget{
-			{Service: "mobile_app_markuss_iphone", Name: "Markus’s iPhone", DeviceID: "dev-markus", UserID: "owner-id", Person: "Markus"},
-			{Service: "mobile_app_annas_pixel", Name: "Anna’s Pixel", DeviceID: "dev-anna", UserID: "anna-id", Person: "Anna"},
+			{Service: "mobile_app_markuss_iphone", Name: "Markus’s iPhone", DeviceID: "dev-markus", UserID: "owner-id", Person: "Markus", Maker: "Apple"},
+			{Service: "mobile_app_annas_pixel", Name: "Anna’s Pixel", DeviceID: "dev-anna", UserID: "anna-id", Person: "Anna", Maker: "Google"},
 			{Service: "mobile_app_kids_phone", Name: "Kid’s Phone", DeviceID: "dev-kid", UserID: "kid-id", Person: "Kid"},
 			{Service: "mobile_app_family_ipad", Name: "Family iPad", DeviceID: "dev-ipad", UserID: "owner-id", Person: "Markus"},
 		},
@@ -82,7 +82,7 @@ func (home *fakeHome) install(t *testing.T, f *fakeHA) {
 					phones = append(phones, d)
 				}
 				if d.DeviceID == device {
-					linked = map[string]any{"service": d.Service, "name": d.Name, "device_id": d.DeviceID}
+					linked = map[string]any{"service": d.Service, "name": d.Name, "device_id": d.DeviceID, "maker": d.Maker}
 				}
 			}
 			out, _ := json.Marshal(map[string]any{"phones": phones, "all": all, "linked": linked})
@@ -184,17 +184,18 @@ func TestLinkPhoneByTapOnTheChosenPhoneOnly(t *testing.T) {
 		t.Fatalf("exit %d out %q", exit, out)
 	}
 	if strings.Join(p.services, ",") != "mobile_app_annas_pixel,mobile_app_annas_pixel" || p.sent[0]["title"] != phoneLinkTitle ||
-		p.sent[0]["message"] != "Requested by “"+phoneHost()+"”. "+phoneHint || p.sent[0]["data"].(map[string]any)["push"].(map[string]any)["interruption-level"] != "active" ||
-		p.sent[0]["data"].(map[string]any)["actions"].([]any)[0].(map[string]any)["authenticationRequired"] != true || p.sent[1]["title"] != "Linked to HA NOVA" ||
+		p.sent[0]["message"] != "Pull down to answer. Requested by “"+phoneHost()+"”." || p.sent[0]["data"].(map[string]any)["push"].(map[string]any)["interruption-level"] != "active" ||
+		p.sent[0]["data"].(map[string]any)["actions"].([]any)[0].(map[string]any)["authenticationRequired"] != "true" || p.sent[1]["title"] != "Linked to HA NOVA" ||
 		p.sent[1]["message"] != "Confirmations from “"+phoneHost()+"” now come to you." {
 		t.Fatalf("notified %v %v", p.services, p.sent)
 	}
-	if l := linked(t, h); l == nil || l.DeviceID != "dev-anna" || l.UserID != "anna-id" || l.Service != "mobile_app_annas_pixel" || l.Name != "Anna’s Pixel" {
+	if l := linked(t, h); l == nil || l.DeviceID != "dev-anna" || l.UserID != "anna-id" || l.Service != "mobile_app_annas_pixel" || l.Name != "Anna’s Pixel" || l.Platform != phoneAndroid {
 		t.Fatalf("link %+v", l)
 	}
 	// A typed plan now asks Anna's phone only; a tap from the owner's account is rejected.
-	plan := h.plan("lock.unlock", "lock.front").Plan
-	if plan.Channel != channelPhone {
+	planned := h.plan("lock.unlock", "lock.front")
+	plan := planned.Plan
+	if plan.Channel != channelPhone || !strings.HasSuffix(planned.Say, "Confirm on your phone. Pull the notification down, or tap its arrow, then tap “Unlock”.") {
 		t.Fatalf("plan %+v", plan)
 	}
 	p.services, p.sent = nil, nil

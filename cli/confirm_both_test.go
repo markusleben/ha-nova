@@ -259,7 +259,7 @@ func TestBothAskExpireTogether(t *testing.T) {
 	plan := h.plan("lock.unlock", "lock.front").Plan
 	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
 	if exit != 4 || env.Error.Code != "CONFIRM_CANCELLED" || !strings.Contains(env.Error.Message, "neither") || len(h.posts()) != 0 || len(h.planFiles()) != 1 || !w.wasClosed() ||
-		!strings.Contains(env.Error.Next, "a new notification goes to their phone") || !strings.Contains(env.Error.Next, "tap “Unlock”") {
+		!strings.Contains(env.Error.Next, "a new notification goes to their phone") || !strings.Contains(env.Error.Next, phoneTapLine("", "Unlock")) {
 		t.Fatalf("exit %d %+v posts %d closed %v", exit, env.Error, len(h.posts()), w.wasClosed())
 	}
 	if last := p.last(); last["title"] != "Not confirmed: Unlock “lock.front”" || last["data"].(map[string]any)["actions"] != nil {
@@ -277,7 +277,7 @@ func TestWindowPlanSayNamesTheLinkedPhone(t *testing.T) {
 	if err := setPhoneLink(h.paths, "owner-id", phoneEntry{}, &phoneLink{Service: "mobile_app_iphone", DeviceID: "d1", UserID: "owner-id", Name: "iPhone"}); err != nil {
 		t.Fatal(err)
 	}
-	if env := h.plan("lock.unlock", "lock.front"); !strings.HasSuffix(env.Say, sayWindowPhoneAsk("Unlock")) || !strings.Contains(env.NextStep, "and a notification on their linked phone") {
+	if env := h.plan("lock.unlock", "lock.front"); !strings.HasSuffix(env.Say, sayWindowPhoneAsk("Unlock", "")) || !strings.Contains(env.NextStep, "and a notification on their linked phone") {
 		t.Fatalf("phone linked: %q next %q", env.Say, env.NextStep)
 	}
 }
@@ -298,7 +298,7 @@ func TestWindowFallbackFindsThePhoneLate(t *testing.T) {
 	}
 	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
 	if exit != 3 || env.Plan == nil || env.Plan.Channel != channelPhone || env.Plan.Code != "" || len(h.posts()) != 0 ||
-		!strings.HasSuffix(env.Say, sayPhoneAsk("Unlock")) || !strings.Contains(env.NextStep, "a notification on their phone") {
+		!strings.HasSuffix(env.Say, sayPhoneAsk("Unlock", "")) || !strings.Contains(env.NextStep, "a notification on their phone") {
 		t.Fatalf("fallback: exit %d %+v say %q next %q", exit, env.Plan, env.Say, env.NextStep)
 	}
 }
