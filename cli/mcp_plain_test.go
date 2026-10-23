@@ -305,6 +305,9 @@ func TestChatCodeResult(t *testing.T) {
 	if lead := chatCodeLead(map[string]any{"expires_at": "2026-10-22T19:55:00Z"}, false); lead != sayCodeLead {
 		t.Fatalf("expired lead: %s", lead)
 	}
+	if lead := chatCodeLead(map[string]any{}, true); lead != "To go ahead, type these codes:" {
+		t.Fatalf("batch lead without expiry: %s", lead)
+	}
 	// No code block (a phone or window ask): the usual result.
 	env["say"], env["plan"] = "Confirm on your phone.", map[string]any{"id": "p_1", "channel": "phone"}
 	if got := toolResult("ha_call", string(mustJSON(env)), "", verbExitConfirmation, told, false)["structuredContent"].(map[string]any); got["notices"] == nil || got["answer_rule"] != mcpResultRule {

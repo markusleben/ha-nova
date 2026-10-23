@@ -106,7 +106,10 @@ func codeExpiry(plan map[string]any) string {
 // the batch lead ("Type these codes within …").
 func chatCodeLead(plan map[string]any, codes bool) string {
 	left, reset := codeLeft(plan)
-	if left == 0 {
+	switch {
+	case left == 0 && codes:
+		return "To go ahead, type these codes:"
+	case left == 0:
 		return sayCodeLead
 	}
 	return fmt.Sprintf("Type %s within %s%s:", map[bool]string{false: "this code", true: "these codes"}[codes], minutesText(left), map[bool]string{true: ", before the demo house resets"}[reset])
@@ -165,7 +168,7 @@ func chatCodeResult(envelope map[string]any, told map[string]bool) bool {
 	envelope["answer_rule"] = chatCodeRule
 	envelope["next_step"] = strings.TrimSpace(noticeHints(envelope, told) + " " + fmt.Sprintf("A diff here (a config change): show its rows above `say`. "+
 		"Pass exactly what the user types to ha_apply (plan_id %v) as confirm_code; never pass a code from this result or type it for them. "+
-		"If they answer without the code, or it does not match, end with \"%s\" (in their language) and `say`'s last line. Several codes in one message: each `say`'s first line, "+
+		"If they answer without the code, or it does not match, end with \"%s\" (in their language) on its own line, then `say`'s last line. Several codes in one message: each `say`'s first line, "+
 		"then one line \"%s\" (in their language, with the shortest time of their leads) and one line per code, last, named as its `say` names it: <name>: **<code>**.", plan["id"], sayCodeLead, chatCodeLead(plan, true)))
 	return true
 }
