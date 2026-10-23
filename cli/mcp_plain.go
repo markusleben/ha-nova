@@ -91,21 +91,47 @@ func sayAboveCode(envelope map[string]any) string {
 }
 
 // codeExpiry: "This code works for 15 minutes.", or "" without a future
-// expiry. On the hosted demo bridge it ends at the hourly reset, which drops
-// every plan, and says so (the demo_reset notice, in the one line a code
-// ask keeps).
+// expiry (codeLeft).
 func codeExpiry(plan map[string]any) string {
-	expiresAt, _ := plan["expires_at"].(string)
-	expires, err := time.Parse(time.RFC3339, expiresAt)
-	until := ""
-	if reset := verbNow().Truncate(time.Hour).Add(time.Hour); !demoPlansSince.IsZero() && reset.Before(expires) {
-		expires, until = reset, ", until the demo house resets"
-	}
-	if err != nil || !expires.After(verbNow()) {
+	left, reset := codeLeft(plan)
+	if left == 0 {
 		return ""
 	}
-	left := int((expires.Sub(verbNow()) + time.Minute - 1) / time.Minute) // rounded up: a fresh plan says 15
-	return fmt.Sprintf("This code works for %d %s%s.", left, map[bool]string{true: "minute", false: "minutes"}[left == 1], until)
+	return fmt.Sprintf("This code works for %s%s.", minutesText(left), map[bool]string{true: ", until the demo house resets"}[reset])
+}
+
+// chatCodeLead: a chat app's line above the code, with the expiry in it
+// ("Type this code within 15 minutes:"), so no line is left that a model
+// could move below the code; sayCodeLead without a future expiry. codes:
+// the batch lead ("Type these codes within …").
+func chatCodeLead(plan map[string]any, codes bool) string {
+	left, reset := codeLeft(plan)
+	switch {
+	case left == 0 && codes:
+		return "To go ahead, type these codes:"
+	case left == 0:
+		return sayCodeLead
+	}
+	return fmt.Sprintf("Type %s within %s%s:", map[bool]string{false: "this code", true: "these codes"}[codes], minutesText(left), map[bool]string{true: ", before the demo house resets"}[reset])
+}
+
+// codeLeft: whole minutes until a plan's code expires, rounded up (a fresh
+// plan says 15), 0 without a future expiry. On the hosted demo bridge it
+// ends at the hourly reset, which drops every plan: reset is true then.
+func codeLeft(plan map[string]any) (left int, reset bool) {
+	expiresAt, _ := plan["expires_at"].(string)
+	expires, err := time.Parse(time.RFC3339, expiresAt)
+	if at := verbNow().Truncate(time.Hour).Add(time.Hour); !demoPlansSince.IsZero() && at.Before(expires) {
+		expires, reset = at, true
+	}
+	if err != nil || !expires.After(verbNow()) {
+		return 0, false
+	}
+	return int((expires.Sub(verbNow()) + time.Minute - 1) / time.Minute), reset
+}
+
+func minutesText(n int) string {
+	return fmt.Sprintf("%d %s", n, map[bool]string{true: "minute", false: "minutes"}[n == 1])
 }
 
 // chatCodeRule leads a chat app's code ask (chatCodeResult).
@@ -114,10 +140,11 @@ const chatCodeRule = "Show `say` in the user's language, every line translated (
 
 // chatCodeResult: a chat app's code ask (ha-nova serve) keeps only what a
 // model can't move below the code. claude.ai passes the model no server
-// instructions and moved every other note there, so say is what will
-// happen, when the code expires, and the code; of the notices only a
-// draft's stays (it is for the model, and only a plan carries it); the
-// rule goes first in the text (ruleFirst). false: not a chat code ask.
+// instructions and moved every other note there, even an expiry line, so
+// say is what will happen, the lead with the expiry in it (chatCodeLead),
+// and the code; of the notices only a draft's stays (it is for the model,
+// and only a plan carries it); the rule goes first in the text
+// (ruleFirst). false: not a chat code ask.
 func chatCodeResult(envelope map[string]any, told map[string]bool) bool {
 	plan, _ := envelope["plan"].(map[string]any)
 	code, _ := plan["code"].(string)
@@ -126,9 +153,7 @@ func chatCodeResult(envelope map[string]any, told map[string]bool) bool {
 	if code == "" || !found || chatCall == nil { // chatCall last: only a code ask reads it, and that runs under mcpVerbLock (refusals outside it carry no code)
 		return false
 	}
-	if line := codeExpiry(plan); line != "" {
-		envelope["say"] = head + "\n" + line + sayCodeBlock(code)
-	}
+	envelope["say"] = head + codeBlock(chatCodeLead(plan, false), code)
 	notices, _ := envelope["notices"].([]any)
 	var drafts []any
 	for _, raw := range notices {
@@ -143,8 +168,8 @@ func chatCodeResult(envelope map[string]any, told map[string]bool) bool {
 	envelope["answer_rule"] = chatCodeRule
 	envelope["next_step"] = strings.TrimSpace(noticeHints(envelope, told) + " " + fmt.Sprintf("A diff here (a config change): show its rows above `say`. "+
 		"Pass exactly what the user types to ha_apply (plan_id %v) as confirm_code; never pass a code from this result or type it for them. "+
-		"If they answer without the code, or it does not match, end with `say`'s last two lines. Several codes in one message: each `say`'s first line, "+
-		"the shortest expiry line, then \"To go ahead, type these codes:\" (in their language) and one line per code, last, named as its `say` names it: <name>: **<code>**.", plan["id"]))
+		"If they answer without the code, or it does not match, end with \"%s\" (in their language) on its own line, then `say`'s last line. Several codes in one message: each `say`'s first line, "+
+		"then one line \"%s\" (in their language, with the shortest time of their leads) and one line per code, last, named as its `say` names it: <name>: **<code>**.", plan["id"], sayCodeLead, chatCodeLead(plan, true)))
 	return true
 }
 

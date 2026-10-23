@@ -310,12 +310,12 @@ func TestServePlansAreBoundToTheirUser(t *testing.T) {
 	plan := env["plan"].(map[string]any)
 	code, _ := plan["code"].(string)
 	// A chat app's code ask: only what will happen (its reasons included), the
-	// expiry, and the code (claude.ai moves any other note below the code); the
-	// rule leads the text.
+	// lead with the expiry in it, and the code (claude.ai moves any other line
+	// below the code); the rule leads the text.
 	say, _ := env["say"].(string)
 	text := result["content"].([]any)[0].(map[string]any)["text"].(string)
-	if plan["channel"] != channelChat || len(code) != 4 || !strings.HasPrefix(say, "I'm about to unlock “") || strings.Count(say, "\n") != 4 ||
-		!strings.Contains(say, sayNeedsYou) || !strings.HasSuffix(say, ". Nothing has run yet.\nThis code works for 15 minutes."+sayCodeBlock(code)) {
+	if plan["channel"] != channelChat || len(code) != 4 || !strings.HasPrefix(say, "I'm about to unlock “") || strings.Count(say, "\n") != 3 ||
+		!strings.Contains(say, sayNeedsYou) || !strings.HasSuffix(say, ". Nothing has run yet.\n\nType this code within 15 minutes:  \n**"+code+"**") {
 		t.Fatalf("chat plan say: %q", say)
 	}
 	if !strings.HasPrefix(text, `{"answer_rule":`+string(mustJSON(chatCodeRule))) || env["notices"] != nil || !strings.Contains(env["next_step"].(string), "never pass a code from this result or type it for them") {
