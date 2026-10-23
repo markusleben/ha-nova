@@ -15,7 +15,10 @@ const CHATGPT = "https://chatgpt.com/oauth/abc123/client.json";
 const CHATGPT_STABLE = "https://chatgpt.com/oauth/client.json";
 const hex = (c: string, n: number) => c.repeat(n);
 // As HA writes them (datetime.isoformat()): microseconds and +00:00.
-const ago = (hours: number) => new Date(Date.now() - hours * 3600_000).toISOString().replace(/\.(\d{3})Z$/, ".$1123+00:00");
+// One clock read for the file: tokens with the same age must tie, or the
+// newest-first order flips when two ago() calls land a millisecond apart.
+const NOW = Date.now();
+const ago = (hours: number) => new Date(NOW - hours * 3600_000).toISOString().replace(/\.(\d{3})Z$/, ".$1123+00:00");
 
 let dirs: string[] = [];
 afterEach(() => {
