@@ -9,7 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 ### Fixed
 - Android phones can be linked for confirmations, with HA NOVA 0.27.2 on your computer. Before, the question to link, move, or stop never reached most Android phones. Once a phone is linked on your computer, chat apps ask that phone too. (#842)
 - Chat apps: the phone's notification and the "waiting for your tap" message now say how to answer on your phone: press and hold on iPhone, pull down on Android. Before, they said to expand the notification. (#842)
-- Chat apps: if a phone question gets no answer in time, the chat now says where to turn on that phone's notifications. Android also shows HA NOVA's notifications as pop-ups when the first one it gets is a result. (#844)
+- Chat apps: if a phone question gets no answer in time, the chat now says where to turn on that phone's notifications (on Android, also pop-ups). Android also shows HA NOVA's notifications as pop-ups when the first one it gets is a result. (#844, #845)
 - Chat apps now run HA NOVA 0.27.2 with these fixes.
 
 ### Upgrade notes
