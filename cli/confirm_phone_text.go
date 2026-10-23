@@ -104,6 +104,21 @@ func phoneTapLine(platform, button string) string {
 // phoneButtonsLine: how to show the buttons, true on both platforms.
 const phoneButtonsLine = "To see the buttons, press and hold the notification on an iPhone, or pull it down on Android."
 
+// phoneNothingHint: where to turn on notifications when none showed (after
+// phoneNothingAfter, and when the ask timed out).
+func phoneNothingHint(platform string) string {
+	return "Nothing on your phone? " + phoneNothingSteps(platform)
+}
+
+func phoneNothingSteps(platform string) string {
+	switch platform {
+	case phoneIOS:
+		return "Open Settings → Notifications → Home Assistant, and turn on Allow Notifications."
+	case phoneAndroid:
+		return "Open your phone's settings → Apps → Home Assistant → Notifications, and turn on HA NOVA."
+	}
+	return "Open your phone's settings, find the Home Assistant app, and turn on its notifications."
+}
 
 // phoneTitle: verb + object + "?" in one line. Too long with several
 // names, it keeps the first and counts every other one ("Unlock “A” and 6
@@ -233,10 +248,13 @@ func (r phoneReply) say(title, body string) {
 }
 
 // phoneResultPayload: a passive-looking result (active, so a watch shows
-// it), gone on Android after ten minutes.
+// it), gone on Android after ten minutes. Android fixes a channel's
+// importance when its first notification arrives, and a result can come
+// first (the question never arrived): both payloads create it as high, so
+// pop-ups are on.
 func phoneResultPayload(title, body, tag string) map[string]any {
 	return map[string]any{"title": title, "message": body, "data": map[string]any{
-		"tag": tag, "push": map[string]any{"interruption-level": "active"}, "channel": "HA NOVA", "timeout": 600,
+		"tag": tag, "push": map[string]any{"interruption-level": "active"}, "channel": "HA NOVA", "importance": "high", "timeout": 600,
 	}}
 }
 

@@ -43,6 +43,7 @@ function page(before: object, ...afterPost: object[]) {
   const nodes = { screen: new FakeNode("main"), dots: new FakeNode("div"), status: new FakeNode("div") };
   const posts: unknown[] = [];
   const timers: (() => void)[] = [];
+  const held: (() => void)[] = []; // 30 s and longer: run only when a test says so
   const json = (body: unknown) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
   const catalog = JSON.parse(read("strings.en.json"));
   const document = {
@@ -72,7 +73,7 @@ function page(before: object, ...afterPost: object[]) {
     navigator: { language: "en" },
     location: { hash: "", origin: "http://127.0.0.1:1", assign: () => undefined },
     sessionStorage: { getItem: () => null, setItem: () => undefined },
-    setTimeout: (fn: () => void) => timers.push(fn),
+    setTimeout: (fn: () => void, ms = 0) => (ms >= 30_000 ? held : timers).push(fn),
     clearTimeout: () => undefined,
   };
   runInNewContext(read("chat.js"), context);
@@ -87,7 +88,7 @@ function page(before: object, ...afterPost: object[]) {
     }
   };
   const find = (id: string) => nodes.screen.all().find((n) => n.id === id);
-  return { screen: nodes.screen, posts, settle, find, catalog, timers, ctl };
+  return { screen: nodes.screen, posts, settle, find, catalog, timers, held, ctl };
 }
 
 const found = {
@@ -787,6 +788,26 @@ describe("setup page: status colors", () => {
       const p = page({ screen: "control", accepts: [], control: { window: false, phone: "waiting", phone_name: "Bene 14", phone_os: os, phones: [] } });
       await p.settle();
       expect(p.screen.textContent).toContain(p.catalog[`setup.page.control.${key}`]!.replace("{phone}", "Bene 14"));
+    }
+  });
+
+  it("says where notifications turn on when nothing arrived after 30 s or at the timeout", async () => {
+    const hint = (p: { catalog: Record<string, string> }, os?: string) => p.catalog[`setup.page.control.phone_nothing${os ? `_${os}` : ""}`]!;
+    for (const os of ["ios", "android", undefined]) {
+      const p = page({ screen: "control", accepts: [], control: { window: false, phone: "waiting", phone_name: "Bene 14", phone_os: os, phones: [] } });
+      await p.settle();
+      expect(p.screen.textContent).not.toContain("Nothing on your phone?");
+      p.held.splice(0).forEach((fn) => fn());
+      expect(p.screen.textContent).toContain(hint(p, os));
+    }
+    const moving = page({ screen: "control", accepts: [], control: { window: false, phone: "moving", old_phone: "Old", phone_name: "Bene 14", phone_os: "android", phones: [] } });
+    await moving.settle();
+    moving.held.splice(0).forEach((fn) => fn());
+    expect(moving.screen.textContent).toContain(hint(moving)); // two phones: the neutral line
+    for (const [problem, shown] of [["phone_timeout", true], ["phone_declined", false]] as const) {
+      const p = page({ screen: "control", accepts: ["phone"], control: { window: false, phone: "pick", phone_os: "android", phones: [{ id: "d1", name: "Bene 14", person: "Bene" }], phone_problem: { key: `setup.page.control.${problem}`, args: { phone: "Bene 14" } } } });
+      await p.settle();
+      expect(p.screen.textContent.includes(hint(p, "android"))).toBe(shown);
     }
   });
 

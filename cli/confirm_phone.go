@@ -40,9 +40,10 @@ const (
 )
 
 var (
-	phoneApplied  func(env verbEnvelope, exit int) // set by confirmByPhone: apply tells the phone how it ended, after its output
-	phoneTellSpan = cliPhoneTellSpan               // the result reaches a slow Relay before the process exits
-	phoneSettle   = time.Second                    // a failing subscription returns at once; a working one has acked by then
+	phoneApplied      func(env verbEnvelope, exit int) // set by confirmByPhone: apply tells the phone how it ended, after its output
+	phoneTellSpan     = cliPhoneTellSpan               // the result reaches a slow Relay before the process exits
+	phoneSettle       = time.Second                    // a failing subscription returns at once; a working one has acked by then
+	phoneNothingAfter = 30 * time.Second               // no answer yet: the terminal says where notifications turn on
 	// The Relay calls; tests replace them.
 	phoneDiscover = discoverPhone
 	phoneNotify   = func(s *relaySession, service string, body map[string]any) error {
@@ -213,11 +214,17 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 	if notice != nil {
 		fmt.Fprintf(notice, phoneSentText+"\n", terminalSafeName(setup.targets[0].Name), phoneTapLine(setup.targets[0].platform(), ask.button))
 	}
+	var quiet <-chan time.Time
+	if notice != nil {
+		quiet = time.After(phoneNothingAfter)
+	}
 	seen := map[string]bool{}
 	for {
 		select {
 		case <-ctx.Done():
 			return phoneNoAnswer, reply
+		case <-quiet:
+			fmt.Fprintln(notice, phoneNothingHint(setup.targets[0].platform()))
 		case <-failed:
 		case ev := <-events:
 			if ev.Context.ID != "" && seen[ev.Context.ID] { // both lanes saw it
@@ -413,12 +420,17 @@ func (a *phoneAsking) finish() (env verbEnvelope, exit int, asked bool) {
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation could not be sent to the phone", phoneMissingStep())
 	}
 	return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "the phone confirmation got no answer in time",
-		fmt.Sprintf("Tell the user nothing changed: “%s” was not tapped in time. Next time: %s A plain tap only opens the app.%s Run ha-nova apply --plan %s again (a new notification goes to their phone) only after they say they still want it; never ask them for a code. If no notification arrived, they can make this change in Home Assistant itself.", a.ask.button, a.tapLine(), a.watchLine(), id))
+		fmt.Sprintf("Tell the user nothing changed: “%s” was not tapped in time. Next time: %s A plain tap only opens the app.%s Run ha-nova apply --plan %s again (a new notification goes to their phone) only after they say they still want it; never ask them for a code. %s They can also make this change in Home Assistant itself.", a.ask.button, a.tapLine(), a.watchLine(), id, a.nothingLine()))
 }
 
 // tapLine: how to answer on the phone being asked (startPhoneAsk asks only a ready one).
 func (a *phoneAsking) tapLine() string {
 	return phoneTapLine(a.setup.targets[0].platform(), a.ask.button)
+}
+
+// nothingLine: where notifications turn on, for a person who saw none.
+func (a *phoneAsking) nothingLine() string {
+	return "If nothing showed on their phone, tell them where to turn on its notifications: " + phoneNothingSteps(a.setup.targets[0].platform())
 }
 
 // watchLine: an Apple Watch hears a tap only once its app has opened.

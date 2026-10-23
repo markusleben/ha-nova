@@ -28,7 +28,7 @@ type setupPageControl struct {
 	OldPhone     string           `json:"old_phone,omitempty"`
 	Proposed     bool             `json:"proposed,omitempty"` // Phones[0] is the signed-in user's own phone
 	PhoneName    string           `json:"phone_name,omitempty"`
-	PhoneOS      string           `json:"phone_os,omitempty"` // waiting: PhoneName's platform (ios, android), for how to tap
+	PhoneOS      string           `json:"phone_os,omitempty"` // waiting, moving: PhoneName's platform (ios, android), for how to tap and a timeout's hint
 	PhoneProblem *setupPageMsg    `json:"phone_problem,omitempty"`
 	Rule         string           `json:"rule,omitempty"`       // offer, on (already there); "" no row
 	RuleCount    int              `json:"rule_count,omitempty"` // the rules it adds (offer) or has (on)
@@ -214,7 +214,7 @@ func (f *setupFlow) pageControl() int {
 			switch {
 			case i < 0:
 			case ctl.Phone == "linked": // Use another phone
-				ctl.Phone, ctl.OldPhone, ctl.PhoneName, ctl.PhoneProblem = "moving", ctl.PhoneName, ctl.Phones[i].Name, nil
+				ctl.Phone, ctl.OldPhone, ctl.PhoneName, ctl.PhoneOS, ctl.PhoneProblem = "moving", ctl.PhoneName, ctl.Phones[i].Name, ctl.Phones[i].OS, nil
 				show()
 				if f.pageMovePhone(&ctl, action.Value) {
 					f.pageChatMoved(ctl.Chat, &chat)
