@@ -77,7 +77,7 @@ release:
     - **No form in Claude? Paste the address.** If Claude opens with no form, setup and the NOVA page show the address. Click +, then Add custom connector, and paste it.
     - **On a phone, ChatGPT can only answer.** 0.27.1 said to use chatgpt.com in a browser, but a phone browser can't make changes either. Use chatgpt.com on a computer, or the Claude app on your phone.
 
-    **Update the NOVA App to 0.11.2 too.** It brings these fixes to Claude and ChatGPT chat apps and the NOVA page. HA NOVA on your computer asks for it too. In Home Assistant: Settings > Apps > NOVA Relay > Update. Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.
+    **Update the NOVA App to 0.11.3 too.** It brings these fixes to Claude and ChatGPT chat apps and the NOVA page. HA NOVA on your computer asks for it too. In Home Assistant: Settings > Apps > NOVA Relay > Update. Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.
 
     Stable install commands are release-pinned for this tag.
 
