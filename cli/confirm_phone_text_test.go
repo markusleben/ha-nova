@@ -9,7 +9,7 @@ import (
 // hint last; only a pending action is time-sensitive.
 func TestPhoneAskTexts(t *testing.T) {
 	host := "“" + phoneHost() + "”"
-	requested := "Requested by " + host + ". " + phoneHint
+	requested := "Requested by " + host + "."
 	cases := []struct {
 		got                 phoneAsk
 		title, body, button string
@@ -66,7 +66,7 @@ func TestPhonePlanNamesTheHiddenEffect(t *testing.T) {
 		t.Fatalf("plan %+v exit %d %+v", plan, exit, env.Error)
 	}
 	if p.sent[0]["title"] != "Turn on “Guest mode”?" ||
-		p.sent[0]["message"] != "This also unlocks “Entrance Door” through the automation “Guest mode unlocks”. Requested by “"+phoneHost()+"”. "+phoneHint {
+		p.sent[0]["message"] != "This also unlocks “Entrance Door” through the automation “Guest mode unlocks”. Requested by “"+phoneHost()+"”. "+phoneHint("") {
 		t.Fatalf("notification %q / %q", p.sent[0]["title"], p.sent[0]["message"])
 	}
 }
@@ -97,7 +97,7 @@ func TestPhonePlanSkipsTheTargetsOwnReason(t *testing.T) {
 	plan := h.plan("lock.unlock", "lock.yaml").Plan
 	p.answer = func(_, no string) []phoneEvent { return []phoneEvent{tap(no, "owner-id", "REMOTE")} }
 	if exit, _ := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || len(p.sent) == 0 ||
-		p.sent[0]["title"] != "Unlock “Front Door”?" || p.sent[0]["message"] != "Requested by “"+phoneHost()+"”. "+phoneHint {
+		p.sent[0]["title"] != "Unlock “Front Door”?" || p.sent[0]["message"] != "Requested by “"+phoneHost()+"”. "+phoneHint("") {
 		t.Fatalf("exit %d sent %v", exit, p.sent)
 	}
 }

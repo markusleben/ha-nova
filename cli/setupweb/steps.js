@@ -94,7 +94,7 @@ window.novaSteps = (h) => {
           el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t('setup.page.control.phone_moving', { old: c.old_phone, phone: c.phone_name }))), el('span'));
       case 'waiting':
         return el('li', focusAfter(['b-phone-0', ...phones.map((p, i) => `b-phone-${i}`)]), spinner(),
-          el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t('setup.page.control.phone_waiting', { phone: c.phone_name }))), el('span'));
+          el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t({ ios: 'setup.page.control.phone_waiting_ios', android: 'setup.page.control.phone_waiting_android' }[c.phone_os] || 'setup.page.control.phone_waiting', { phone: c.phone_name }))), el('span'));
       case 'none':
         return line(muted('·'), key, t('setup.page.control.phone_none'));
       case 'unread': // the button is disabled while it reads again

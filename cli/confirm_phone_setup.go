@@ -17,7 +17,8 @@ import (
 // user while they are an administrator other than the Relay's own user.
 
 // phoneTemplate lists every person's Companion phones (device id, name, and
-// legacy notify service, slugged by Home Assistant itself), the service of
+// legacy notify service, slugged by Home Assistant itself; its maker tells
+// iPhone from Android), the service of
 // every Companion device named in names (from the device registry, so a
 // device whose entities are disabled still counts: two devices with one
 // name share a service), and the linked device by id. names and the id are
@@ -29,11 +30,11 @@ const phoneTemplate = `{%- set ns = namespace(phones=[], all=[]) -%}
 {%- for t in p.attributes.device_trackers | default([], true) if t in apps -%}
 {%- set d = device_id(t) -%}
 {%- set n = device_attr(d, 'name') if d else none -%}
-{%- if n -%}{%- set ns.phones = ns.phones + [{'service': ('mobile_app_' ~ n) | slugify, 'name': n, 'device_id': d, 'user_id': p.attributes.user_id, 'person': p.name}] -%}{%- endif -%}
+{%- if n -%}{%- set ns.phones = ns.phones + [{'service': ('mobile_app_' ~ n) | slugify, 'name': n, 'device_id': d, 'user_id': p.attributes.user_id, 'person': p.name, 'maker': device_attr(d, 'manufacturer')}] -%}{%- endif -%}
 {%- endfor -%}
 {%- endfor -%}
 {%- set n = device_attr(device, 'name') if device else none -%}
-{{ {'phones': ns.phones, 'all': ns.all, 'linked': ({'service': ('mobile_app_' ~ n) | slugify, 'name': n, 'device_id': device} if n else none)} | to_json }}`
+{{ {'phones': ns.phones, 'all': ns.all, 'linked': ({'service': ('mobile_app_' ~ n) | slugify, 'name': n, 'device_id': device, 'maker': device_attr(device, 'manufacturer')} if n else none)} | to_json }}`
 
 var phoneServicePattern = regexp.MustCompile(`^mobile_app_[a-z0-9_]+$`)
 
@@ -318,6 +319,7 @@ type phoneLink struct {
 	DeviceID string `json:"device_id"`
 	UserID   string `json:"user_id"` // the tap's context.user_id
 	Name     string `json:"name"`
+	Platform string `json:"platform,omitempty"` // ios or android, for a plan's say; a link from before 0.27.2 has none
 }
 
 type phoneEntry struct {

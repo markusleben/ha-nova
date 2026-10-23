@@ -127,7 +127,7 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 		why = "the confirmation window was closed, and the phone got no answer in time"
 	}
 	return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", why,
-		fmt.Sprintf("Tell the user nothing changed: neither the window on this computer nor their phone was answered in time (on the phone, expand the notification and tap “%s”; a plain tap only opens the app). Run ha-nova apply --plan %s again (the window opens and a new notification goes to their phone) only after they say they still want it; never ask them for a code. If neither arrived, they can make this change in Home Assistant itself.", a.ask.button, a.id))
+		fmt.Sprintf("Tell the user nothing changed: neither the window on this computer nor their phone was answered in time. On the phone: %s A plain tap only opens the app. Run ha-nova apply --plan %s again (the window opens and a new notification goes to their phone) only after they say they still want it; never ask them for a code. If neither arrived, they can make this change in Home Assistant itself.", a.tapLine(), a.id))
 }
 
 // discoverInTime finds the linked phone's setup within wait, which the
@@ -138,6 +138,24 @@ func discoverInTime(s *relaySession, wait time.Duration) (setup phoneSetup, stat
 		setup, status = discoverConfirmer(s)
 	}
 	return setup, status, deadline, time.Until(deadline) >= windowMinWait
+}
+
+// linkedPlatform: the linked phones' one platform, for a plan's say before
+// any lookup; "" when unknown or the homes' phones differ.
+func linkedPlatform(paths runtimePaths) string {
+	links, _ := linksForCall(paths)
+	seen := map[string]bool{}
+	for _, entry := range links {
+		if entry.link != nil && entry.link.Service != "" {
+			seen[entry.link.Platform] = true
+		}
+	}
+	for platform := range seen {
+		if len(seen) == 1 {
+			return platform
+		}
+	}
+	return ""
 }
 
 // phoneLinkedHere: a phone is linked on this computer (for any Home

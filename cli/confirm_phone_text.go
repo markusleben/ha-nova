@@ -13,9 +13,10 @@ import (
 // The phone's notification (Companion app): a short question as the title,
 // never naming the device it shows on (a watch shows it too),
 // one line naming the computer that asked, and the hint last — a plain tap
-// only opens the app; the buttons show when it is expanded (a long-press on
-// iOS; on Android a long-press opens settings). Everything else (what it means, "only if you started this")
-// is in the terminal, not on the lock screen.
+// only opens the app; the buttons show once it is opened up: press and hold
+// on an iPhone (a watch shows them at once), pull it down or tap its arrow
+// on Android (a long-press there opens settings). Everything else (what it
+// means, "only if you started this") is in the terminal, not on the lock screen.
 
 type phoneAsk struct {
 	title, body, button string
@@ -24,9 +25,8 @@ type phoneAsk struct {
 }
 
 const (
-	phoneHint       = "Expand to answer."
 	phoneLinkTitle  = "Use this for HA NOVA confirmations?"
-	phoneSentText   = "Sent to “%s”. Expand the notification and tap “%s”, only if you started this."
+	phoneSentText   = "Sent to “%s”. %s Do it only if you started this."
 	phoneTitleLimit = 80  // runes: one lock-screen line
 	phoneWhyLimit   = 300 // runes: the reasons (an expanded notification shows them all)
 )
@@ -73,9 +73,31 @@ func phoneButton(verb string) string {
 
 func phoneRequested() string {
 	if chatCall != nil { // ha-nova serve: the host is the NOVA App, not the user's computer
-		return "Requested in your AI chat app. " + phoneHint
+		return "Requested in your AI chat app."
 	}
-	return "Requested by “" + phoneHost() + "”. " + phoneHint
+	return "Requested by “" + phoneHost() + "”."
+}
+
+// phoneHint ends the notification: how to show its buttons on this phone.
+func phoneHint(platform string) string {
+	switch platform {
+	case phoneIOS:
+		return "Press and hold to answer."
+	case phoneAndroid:
+		return "Pull down to answer."
+	}
+	return "Press and hold (iPhone) or pull down (Android) to answer."
+}
+
+// phoneTapLine: how to answer on this phone, for the computer and the chat.
+func phoneTapLine(platform, button string) string {
+	switch platform {
+	case phoneIOS:
+		return "Press and hold the notification, then tap “" + button + "”."
+	case phoneAndroid:
+		return "Pull the notification down, or tap its arrow, then tap “" + button + "”."
+	}
+	return "Tap “" + button + "” in the notification. To see it, press and hold the notification on an iPhone, or pull it down on Android."
 }
 
 // phoneTitle: verb + object + "?" in one line. Too long with several
@@ -119,19 +141,27 @@ func phoneCut(text string, limit int) string {
 // (maintainer decision) — so whoever holds the linked phone can answer that
 // one open request. Linking, moving, and stopping last beyond one request:
 // they need the unlocked phone (iOS, Android 12+), asked at the computer.
-// The ids die with the wait (Android timeout, iOS apns-expiration).
+// Android's push relay copies that flag into FCM data, which takes strings
+// only: a bool there fails the whole push, and Home Assistant only logs it.
+// iOS reads a bool (a string there would drop the unlock), and so does an
+// unknown phone: no notification beats one without the unlock.
+// The ids die with the wait (Android timeout and FCM ttl in milliseconds,
+// iOS apns-expiration; the relay drops a ttl of 0).
 // A pending action is time-sensitive (iOS shows it through Focus); linking
 // and its changes are asked while the person is at the computer: active.
-func phonePayload(ask phoneAsk, tag, ok, no string, deadline time.Time) map[string]any {
-	seconds := max(int(time.Until(deadline).Seconds()), 1)
+func phonePayload(ask phoneAsk, platform, tag, ok, no string, deadline time.Time) map[string]any {
+	left := max(time.Until(deadline), time.Second)
 	level, confirm := "active", map[string]any{"action": ok, "title": ask.button, "destructive": true}
 	if ask.urgent {
 		level = "time-sensitive"
 	}
-	if ask.unlock {
+	switch {
+	case ask.unlock && platform == phoneAndroid:
+		confirm["authenticationRequired"] = "true"
+	case ask.unlock:
 		confirm["authenticationRequired"] = true
 	}
-	return map[string]any{"title": ask.title, "message": ask.body, "data": map[string]any{
+	return map[string]any{"title": ask.title, "message": ask.body + " " + phoneHint(platform), "data": map[string]any{
 		"tag": tag,
 		"actions": []any{
 			confirm,
@@ -139,7 +169,7 @@ func phonePayload(ask phoneAsk, tag, ok, no string, deadline time.Time) map[stri
 		},
 		"push":         map[string]any{"interruption-level": level},
 		"apns_headers": map[string]any{"apns-expiration": strconv.FormatInt(deadline.Unix(), 10)},
-		"priority":     "high", "channel": "HA NOVA", "importance": "high", "timeout": seconds,
+		"priority":     "high", "ttl": left.Milliseconds(), "channel": "HA NOVA", "importance": "high", "timeout": int(left.Seconds()),
 	}}
 }
 

@@ -26,12 +26,12 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 	switch {
 	case plan.Confirm == "code" && plan.Channel == channelWindow && phoneLinkedHere(e.s.paths):
 		verb, _ := sayGoal(e, env, plan, subject)
-		parts = append(parts, sayWindowPhoneAsk(phoneButton(verb)))
+		parts = append(parts, sayWindowPhoneAsk(phoneButton(verb), linkedPlatform(e.s.paths)))
 	case plan.Confirm == "code" && plan.Channel == channelWindow:
 		parts = append(parts, sayWindowAsk)
 	case plan.Confirm == "code" && plan.Channel == channelPhone:
 		verb, _ := sayGoal(e, env, plan, subject)
-		parts = append(parts, sayPhoneAsk(phoneButton(verb)))
+		parts = append(parts, sayPhoneAsk(phoneButton(verb), linkedPlatform(e.s.paths)))
 	case plan.Confirm == "code": // the code block is always last
 		text := strings.Join(parts, " ")
 		if plan.Channel == channelChat && chatCall == nil { // a chat app has no note: claude.ai moved it below the code (mcp_plain.go)
