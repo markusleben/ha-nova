@@ -149,7 +149,7 @@ func TestWaitingForPhoneSaysHowToTap(t *testing.T) {
 func TestPhoneNothingArrivedHint(t *testing.T) {
 	for platform, want := range map[string]string{
 		phoneIOS:     "Nothing on your phone? Open Settings → Notifications → Home Assistant, and turn on Allow Notifications.",
-		phoneAndroid: "Nothing on your phone? Open your phone's settings → Apps → Home Assistant → Notifications, and turn on HA NOVA.",
+		phoneAndroid: "Nothing on your phone? Open your phone's settings → Apps → Home Assistant → Notifications → HA NOVA, and turn on notifications and pop-ups.",
 		"":           "Nothing on your phone? Open your phone's settings, find the Home Assistant app, and turn on its notifications.",
 	} {
 		if got := phoneNothingHint(platform); got != want {

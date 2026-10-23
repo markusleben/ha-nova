@@ -115,7 +115,7 @@ func phoneNothingSteps(platform string) string {
 	case phoneIOS:
 		return "Open Settings → Notifications → Home Assistant, and turn on Allow Notifications."
 	case phoneAndroid:
-		return "Open your phone's settings → Apps → Home Assistant → Notifications, and turn on HA NOVA."
+		return "Open your phone's settings → Apps → Home Assistant → Notifications → HA NOVA, and turn on notifications and pop-ups."
 	}
 	return "Open your phone's settings, find the Home Assistant app, and turn on its notifications."
 }

@@ -318,7 +318,7 @@
   "setup.page.control.phone_waiting_android": "Pull the notification on {phone} down, or tap its arrow, then tap “Allow”.",
   "setup.page.control.phone_nothing": "Nothing on your phone? Open your phone's settings, find the Home Assistant app, and turn on its notifications.",
   "setup.page.control.phone_nothing_ios": "Nothing on your phone? Open Settings → Notifications → Home Assistant, and turn on Allow Notifications.",
-  "setup.page.control.phone_nothing_android": "Nothing on your phone? Open your phone's settings → Apps → Home Assistant → Notifications, and turn on HA NOVA.",
+  "setup.page.control.phone_nothing_android": "Nothing on your phone? Open your phone's settings → Apps → Home Assistant → Notifications → HA NOVA, and turn on notifications and pop-ups.",
   "setup.page.control.phone_none": "No phone with the Home Assistant app found.",
   "setup.page.control.phone_unread": "HA NOVA couldn't check your phones just now. Check again, or ask your assistant to link your phone later.",
   "setup.page.control.phone_problem": "Linking {phone} didn't work. Nothing was linked; try again.",
