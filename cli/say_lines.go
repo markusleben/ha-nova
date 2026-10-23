@@ -56,7 +56,10 @@ func sayCodeAsk(code string) string { return "Type " + code + " to confirm." }
 // a plain newline; the blank line is a paragraph break every client keeps.
 // The say's first sentence names the action the code confirms. The same
 // shape as a code a skill mints (skills/ha-nova/index.md → Say it).
-func sayCodeBlock(code string) string { return "\n\n" + sayCodeLead + "  \n**" + code + "**" }
+func sayCodeBlock(code string) string { return codeBlock(sayCodeLead, code) }
+
+// codeBlock: sayCodeBlock with another lead (a chat app's has the expiry).
+func codeBlock(lead, code string) string { return "\n\n" + lead + "  \n**" + code + "**" }
 
 // sayWindowPhoneAsk: a phone is linked here, so it asks too (confirm_both.go).
 func sayWindowPhoneAsk(button string) string {
