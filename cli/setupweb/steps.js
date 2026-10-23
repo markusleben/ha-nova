@@ -69,12 +69,27 @@ window.novaSteps = (h) => {
   const problem = (msg) => (msg ? el('p', { class: 'problem', role: 'alert' }, say(msg)) : null);
 
   // Step 3.
+  const hint = (os) => t({ ios: 'setup.page.control.phone_nothing_ios', android: 'setup.page.control.phone_nothing_android' }[os] || 'setup.page.control.phone_nothing');
   const pickPhones = (phones) => el('div', { class: 'pick' }, phones.map((p, i) =>
     button(t('setup.page.control.phone_choice', { phone: p.name, person: p.person }), 'phone', 'ghost btn-small', p.id, `phone-${i}`)));
   const phoneRow = (c) => {
     const key = t('setup.page.control.phone_key');
     const phones = c.phones || [];
     if (c.phone !== 'linked') local.moving = false;
+    // No tap after 30 s, or the ask timed out: where the phone turns on notifications.
+    const asking = c.phone === 'waiting' || c.phone === 'moving' ? `${c.phone} ${c.phone_name}` : '';
+    if (asking !== local.asking) {
+      const n = (local.askN = (local.askN || 0) + 1);
+      local.asking = asking;
+      local.quiet = false;
+      const os = c.phone === 'waiting' ? c.phone_os : ''; // moving asks two phones: the neutral line
+      if (asking) setTimeout(() => { if (local.askN === n) { local.quiet = true; render(true); h.announce(hint(os)); } }, 30000);
+    }
+    const nothing = (os) => el('div', { class: 'v' }, hint(os));
+    const quiet = (os) => (local.quiet ? nothing(os) : null);
+    // A timeout says where notifications turn on, in the same alert.
+    const phoneProblem = () => (c.phone_problem && c.phone_problem.key === 'setup.page.control.phone_timeout'
+      ? el('p', { class: 'problem', role: 'alert' }, `${say(c.phone_problem)} ${hint(c.phone_os)}`) : problem(c.phone_problem));
     switch (c.phone) {
       case 'linked': {
         // Use another phone: the phone linked now OKs the move (confirm-phone's rule).
@@ -87,14 +102,14 @@ window.novaSteps = (h) => {
             el('button', { id: 'b-phone-move-cancel', class: 'linkish', type: 'button', onclick: () => { local.moving = false; render(true); focusId('b-phone-move'); } }, t('setup.page.control.not_now'))), el('span'));
         }
         const side = move ? el('button', { id: 'b-phone-move', class: 'btn btn-ghost btn-small', type: 'button', onclick: () => { local.moving = true; render(true); focusId('b-phone-0'); } }, t('setup.page.control.phone_move')) : tagOn();
-        return line(done(c.phone_problem), key, value, problem(c.phone_problem), side);
+        return line(done(c.phone_problem), key, value, phoneProblem(), side);
       }
       case 'moving':
         return el('li', focusAfter(phones.map((p, i) => `b-phone-${i}`)), spinner(),
-          el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t('setup.page.control.phone_moving', { old: c.old_phone, phone: c.phone_name }))), el('span'));
+          el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t('setup.page.control.phone_moving', { old: c.old_phone, phone: c.phone_name })), quiet('')), el('span'));
       case 'waiting':
         return el('li', focusAfter(['b-phone-0', ...phones.map((p, i) => `b-phone-${i}`)]), spinner(),
-          el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t({ ios: 'setup.page.control.phone_waiting_ios', android: 'setup.page.control.phone_waiting_android' }[c.phone_os] || 'setup.page.control.phone_waiting', { phone: c.phone_name }))), el('span'));
+          el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t({ ios: 'setup.page.control.phone_waiting_ios', android: 'setup.page.control.phone_waiting_android' }[c.phone_os] || 'setup.page.control.phone_waiting', { phone: c.phone_name })), quiet(c.phone_os)), el('span'));
       case 'none':
         return line(muted('·'), key, t('setup.page.control.phone_none'));
       case 'unread': // the button is disabled while it reads again
@@ -106,10 +121,10 @@ window.novaSteps = (h) => {
             ? el('button', { id: 'b-phone-other', class: 'linkish', type: 'button', onclick: () => { local.others = true; render(true); } }, t('setup.page.control.phone_other'))
             : null;
           // A button: the notification goes out on this click.
-          return line(muted('◎'), key, t('setup.page.control.phone_offer', { phone: phones[0].name, person: phones[0].person }), [problem(c.phone_problem), other],
+          return line(muted('◎'), key, t('setup.page.control.phone_offer', { phone: phones[0].name, person: phones[0].person }), [phoneProblem(), other],
             button(t('setup.page.control.phone_use'), 'phone', 'ghost btn-small', phones[0].id, 'phone-0'));
         }
-        return line(muted('◎'), key, t('setup.page.control.phone_pick'), [problem(c.phone_problem), pickPhones(phones)]);
+        return line(muted('◎'), key, t('setup.page.control.phone_pick'), [phoneProblem(), pickPhones(phones)]);
       }
       default:
         return null; // can't be linked here: no row (confirm-phone settles it later)

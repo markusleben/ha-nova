@@ -41,6 +41,17 @@ func TestPhonePayloadPerPlatform(t *testing.T) {
 			actions[1].(map[string]any)["authenticationRequired"] != nil || data["priority"] != "high" || data["tag"] != "tag-1" {
 			t.Fatalf("%q link: %v", c.maker, link)
 		}
+		// Android fixes a channel's importance when its first notification
+		// arrives: the question and the result both create it as high (pop-ups on).
+		result := phoneResultPayload("Done", "Home Assistant confirms it.", "tag-1")["data"].(map[string]any)
+		for _, d := range []map[string]any{data, result} {
+			if d["channel"] != "HA NOVA" || d["importance"] != "high" {
+				t.Fatalf("%q channel: %v", c.maker, d)
+			}
+		}
+		if data["push"].(map[string]any)["interruption-level"] != "active" || result["push"].(map[string]any)["interruption-level"] != "active" {
+			t.Fatalf("%q iOS level: %v %v", c.maker, data["push"], result["push"])
+		}
 		// The ids die with the wait: FCM's ttl in milliseconds (the relay drops 0), Android's timeout in seconds.
 		if ttl := data["ttl"].(int64); ttl < 85_000 || ttl > 90_000 || data["timeout"].(int) < 85 || data["timeout"].(int) > 90 {
 			t.Fatalf("%q ttl %v timeout %v", c.maker, data["ttl"], data["timeout"])
@@ -129,5 +140,42 @@ func TestWaitingForPhoneSaysHowToTap(t *testing.T) {
 		if say := waitingForPhone("p_1", false, line)["structuredContent"].(map[string]any)["say"].(string); !strings.Contains(strings.ToLower(say), strings.ToLower(want)) {
 			t.Errorf("say %q lacks %q", say, want)
 		}
+	}
+}
+
+// Nothing showed on the phone: one line on where its notifications turn on,
+// per platform, in the terminal (after phoneNothingAfter and at the
+// timeout) and in a timed-out plan's next step.
+func TestPhoneNothingArrivedHint(t *testing.T) {
+	for platform, want := range map[string]string{
+		phoneIOS:     "Nothing on your phone? Open Settings → Notifications → Home Assistant, and turn on Allow Notifications.",
+		phoneAndroid: "Nothing on your phone? Open your phone's settings → Apps → Home Assistant → Notifications, and turn on HA NOVA.",
+		"":           "Nothing on your phone? Open your phone's settings, find the Home Assistant app, and turn on its notifications.",
+	} {
+		if got := phoneNothingHint(platform); got != want {
+			t.Errorf("%q: %q", platform, got)
+		}
+	}
+	if got := (&phoneAsking{setup: phoneSetup{targets: []phoneTarget{{Maker: "Google"}}}}).nothingLine(); !strings.HasSuffix(got, ": "+phoneNothingSteps(phoneAndroid)) {
+		t.Errorf("plan next: %q", got)
+	}
+
+	h, p, _ := familyLink(t)
+	savedBudget, savedAfter := phoneLinkBudget, phoneNothingAfter
+	phoneLinkBudget, phoneNothingAfter = 3*time.Second, 200*time.Millisecond
+	t.Cleanup(func() { phoneLinkBudget, phoneNothingAfter = savedBudget, savedAfter })
+	seedLink(t, h, &annaLink)
+	p.tapBy = func(service, ok, no string) []phoneEvent {
+		if service == "mobile_app_annas_pixel" {
+			return []phoneEvent{tap(ok, "anna-id", "REMOTE")}
+		}
+		return nil // the new iPhone never answers
+	}
+	var exit int
+	var out string
+	stderr := captureStderr(t, func() { exit, out = runLink(t, h, "", phoneLinkRun{pick: "Markus’s iPhone"}) })
+	hint := phoneNothingHint(phoneIOS)
+	if exit != 1 || !strings.Contains(out, "was not tapped in time") || !strings.Contains(out, "  "+hint+" Run ha-nova setup confirm-phone again to retry.\n") || strings.Count(stderr, hint) != 1 {
+		t.Fatalf("link timeout: %d %q / stderr %q", exit, out, stderr)
 	}
 }

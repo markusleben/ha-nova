@@ -220,7 +220,8 @@ func sendPhoneLink(s *relaySession, out io.Writer, home phoneHome, links map[str
 	case phoneFailed:
 		return say(phoneLinkFailed, "Nothing linked: HA NOVA couldn't send the notification, or couldn't listen for the tap through the NOVA App. Check that the phone's Home Assistant app is signed in and can reach Home Assistant."+retry)
 	default:
-		return say(phoneLinkTimeout, "Nothing linked: “"+phoneLinkButton+"” was not tapped in time. Next time: "+phoneTapLine(chosen.platform(), phoneLinkButton)+retry)
+		say(phoneLinkTimeout, "Nothing linked: “"+phoneLinkButton+"” was not tapped in time. Next time: "+phoneTapLine(chosen.platform(), phoneLinkButton))
+		return say(phoneLinkTimeout, phoneNothingHint(chosen.platform())+retry)
 	}
 	link := &phoneLink{Service: chosen.Service, DeviceID: chosen.DeviceID, UserID: chosen.UserID, Name: terminalSafeName(chosen.Name), Platform: chosen.platform()}
 	if err := setPhoneLink(s.paths, home.owner, prev, link); err != nil {
@@ -305,6 +306,9 @@ func allowPhoneChange(s *relaySession, out io.Writer, home phoneHome, links map[
 			fmt.Fprintf(out, "  Nothing changed: the tap came from a phone signed in to Home Assistant as someone other than the person who linked “%s”.\n", old)
 		default:
 			fmt.Fprintf(out, "  Nothing changed: it was not confirmed on “%s” in time, or the notification could not be sent. If that phone is lost, remove it in Home Assistant (Settings → Devices & services → Mobile App), then run this again.\n", old)
+			if answer == phoneNoAnswer {
+				fmt.Fprintln(out, "  "+phoneNothingHint(current.targets[0].platform()))
+			}
 		}
 		return false
 	case status == phoneMissing && !current.why.replaceable():

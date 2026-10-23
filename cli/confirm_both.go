@@ -127,7 +127,7 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 		why = "the confirmation window was closed, and the phone got no answer in time"
 	}
 	return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", why,
-		fmt.Sprintf("Tell the user nothing changed: neither the window on this computer nor their phone was answered in time. On the phone: %s A plain tap only opens the app. Run ha-nova apply --plan %s again (the window opens and a new notification goes to their phone) only after they say they still want it; never ask them for a code. If neither arrived, they can make this change in Home Assistant itself.", a.tapLine(), a.id))
+		fmt.Sprintf("Tell the user nothing changed: neither the window on this computer nor their phone was answered in time. On the phone: %s A plain tap only opens the app. Run ha-nova apply --plan %s again (the window opens and a new notification goes to their phone) only after they say they still want it; never ask them for a code. %s They can also make this change in Home Assistant itself.", a.tapLine(), a.id, a.nothingLine()))
 }
 
 // discoverInTime finds the linked phone's setup within wait, which the
