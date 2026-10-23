@@ -263,7 +263,7 @@ func (srv *mcpServer) phoneJob(job *chatJob, argv []string) {
 // waitingForPhone: the ask is still open, or the phone answered and apply
 // is still running (tapped): no outcome yet either way.
 func waitingForPhone(id string, tapped bool, tap *string) map[string]any {
-	how := "Press and hold it on an iPhone, or pull it down on Android, then tap its button."
+	how := "Press and hold it on an iPhone, or pull it down on Android, then tap the button for this change."
 	if tap != nil {
 		how = *tap
 	}

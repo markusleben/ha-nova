@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -72,7 +73,7 @@ const (
 // (any other maker: the Companion app exists for these two), or "" unknown.
 func (t phoneTarget) platform() string {
 	switch {
-	case t.Maker == "Apple":
+	case strings.EqualFold(strings.TrimSpace(t.Maker), "Apple"): // any doubt keeps iOS's bool: the unlock stays
 		return phoneIOS
 	case t.Maker != "":
 		return phoneAndroid

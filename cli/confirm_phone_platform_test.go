@@ -22,6 +22,7 @@ func TestPhonePayloadPerPlatform(t *testing.T) {
 		{"Apple", phoneIOS, "Press and hold to answer.", true},
 		{"Google", phoneAndroid, "Pull down to answer.", "true"},
 		{"samsung", phoneAndroid, "Pull down to answer.", "true"},
+		{" apple ", phoneIOS, "Press and hold to answer.", true}, // any doubt keeps the unlock
 		{"", "", "Press and hold (iPhone) or pull down (Android) to answer.", true},
 	} {
 		target := phoneTarget{Maker: c.maker}
@@ -32,7 +33,11 @@ func TestPhonePayloadPerPlatform(t *testing.T) {
 		data := link["data"].(map[string]any)
 		actions := data["actions"].([]any)
 		confirm := actions[0].(map[string]any)
-		if link["message"] != phoneRequested()+" "+c.hint || confirm["authenticationRequired"] != c.unlock || len(actions) != 2 ||
+		want := phoneRequested() + " " + c.hint
+		if c.platform == phoneAndroid { // a collapsed Android notification shows one line: the hint first
+			want = c.hint + " " + phoneRequested()
+		}
+		if link["message"] != want || confirm["authenticationRequired"] != c.unlock || len(actions) != 2 ||
 			actions[1].(map[string]any)["authenticationRequired"] != nil || data["priority"] != "high" || data["tag"] != "tag-1" {
 			t.Fatalf("%q link: %v", c.maker, link)
 		}
@@ -63,7 +68,7 @@ func TestPhoneTapLinePerPlatform(t *testing.T) {
 	for platform, want := range map[string]string{
 		phoneIOS:     "Press and hold the notification, then tap “Allow”.",
 		phoneAndroid: "Pull the notification down, or tap its arrow, then tap “Allow”.",
-		"":           "Tap “Allow” in the notification. To see it, press and hold the notification on an iPhone, or pull it down on Android.",
+		"":           "Tap “Allow” in the notification. To see the buttons, press and hold the notification on an iPhone, or pull it down on Android.",
 	} {
 		if got := phoneTapLine(platform, "Allow"); got != want {
 			t.Errorf("%q: %q", platform, got)
@@ -100,6 +105,29 @@ func TestLinkedPlatformFromTheStoredLinks(t *testing.T) {
 		raw, _ := json.Marshal(map[string]any{"schema_version": 1, "confirm_phone": c.links})
 		if got := linkedPlatform(writeTestConfigFile(t, string(raw))); got != c.want {
 			t.Errorf("%v: %q, want %q", c.links, got, c.want)
+		}
+	}
+}
+
+// A phone linked as an iPhone stays one for Move and Stop: a maker changed
+// later in Home Assistant never turns its unlock into Android's string.
+func TestLinkedIPhoneKeepsItsUnlock(t *testing.T) {
+	home := phoneHome{owner: "o", relay: "r", users: map[string]haUser{"u": {ID: "u", IsActive: true, GroupIDs: []string{"system-admin"}}},
+		linked: &phoneTarget{Service: "mobile_app_x", DeviceID: "d", Maker: "samsung"}}
+	for stored, want := range map[string]string{phoneIOS: phoneIOS, phoneAndroid: phoneAndroid, "": phoneAndroid} {
+		setup, status := home.status(map[string]phoneEntry{"o": {link: &phoneLink{Service: "mobile_app_x", DeviceID: "d", UserID: "u", Platform: stored}}}, nil)
+		if status != phoneReady || setup.targets[0].platform() != want {
+			t.Errorf("stored %q: %v %q", stored, status, setup.targets[0].platform())
+		}
+	}
+}
+
+// A chat app's waiting say names the asked phone's gesture once known.
+func TestWaitingForPhoneSaysHowToTap(t *testing.T) {
+	tap := phoneTapLine(phoneAndroid, "Unlock")
+	for want, line := range map[string]*string{tap: &tap, "press and hold it on an iPhone, or pull it down on Android": nil} {
+		if say := waitingForPhone("p_1", false, line)["structuredContent"].(map[string]any)["say"].(string); !strings.Contains(strings.ToLower(say), strings.ToLower(want)) {
+			t.Errorf("say %q lacks %q", say, want)
 		}
 	}
 }

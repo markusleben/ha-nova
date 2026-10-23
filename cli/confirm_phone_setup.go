@@ -290,6 +290,9 @@ func (h phoneHome) status(links map[string]phoneEntry, err error) (phoneSetup, p
 	}
 	target := *h.linked
 	target.UserID = setup.confirmer
+	if entry.link.Platform == phoneIOS { // linked as an iPhone: a maker changed later never drops its unlock (Move, Stop)
+		target.Maker = "Apple"
+	}
 	setup.targets = []phoneTarget{target}
 	return setup, phoneReady
 }

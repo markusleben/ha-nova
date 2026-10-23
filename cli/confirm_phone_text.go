@@ -12,7 +12,8 @@ import (
 
 // The phone's notification (Companion app): a short question as the title,
 // never naming the device it shows on (a watch shows it too),
-// one line naming the computer that asked, and the hint last — a plain tap
+// one line naming the computer that asked, and the hint last (first on
+// Android, whose collapsed notification shows one line) — a plain tap
 // only opens the app; the buttons show once it is opened up: press and hold
 // on an iPhone (a watch shows them at once), pull it down or tap its arrow
 // on Android (a long-press there opens settings). Everything else (what it
@@ -97,8 +98,12 @@ func phoneTapLine(platform, button string) string {
 	case phoneAndroid:
 		return "Pull the notification down, or tap its arrow, then tap “" + button + "”."
 	}
-	return "Tap “" + button + "” in the notification. To see it, press and hold the notification on an iPhone, or pull it down on Android."
+	return "Tap “" + button + "” in the notification. " + phoneButtonsLine
 }
+
+// phoneButtonsLine: how to show the buttons, true on both platforms.
+const phoneButtonsLine = "To see the buttons, press and hold the notification on an iPhone, or pull it down on Android."
+
 
 // phoneTitle: verb + object + "?" in one line. Too long with several
 // names, it keeps the first and counts every other one ("Unlock “A” and 6
@@ -161,7 +166,11 @@ func phonePayload(ask phoneAsk, platform, tag, ok, no string, deadline time.Time
 	case ask.unlock:
 		confirm["authenticationRequired"] = true
 	}
-	return map[string]any{"title": ask.title, "message": ask.body + " " + phoneHint(platform), "data": map[string]any{
+	message := ask.body + " " + phoneHint(platform)
+	if platform == phoneAndroid { // a collapsed Android notification shows one line of text: the hint first
+		message = phoneHint(platform) + " " + ask.body
+	}
+	return map[string]any{"title": ask.title, "message": message, "data": map[string]any{
 		"tag": tag,
 		"actions": []any{
 			confirm,
@@ -303,5 +312,5 @@ const (
 	// #719's pin: no phone chosen yet. The agent may run the listing itself;
 	// only a tap on the chosen phone links it.
 	phoneUnlinkedWhy  = "HA NOVA now confirms on one phone the user chooses, and none is chosen on this computer yet"
-	phoneUnlinkedNext = "Tell the user nothing changed: HA NOVA now asks on one phone they choose. With a shell: run ha-nova setup confirm-phone list (it sends nothing), ask which phone is theirs, tell them to watch it for “" + phoneLinkTitle + "” and tap “" + phoneLinkButton + "”, then run ha-nova setup confirm-phone \"<that phone's name>\" (it waits up to 90 seconds) and plan again. Without a shell, they run ha-nova setup confirm-phone in a terminal. Never ask them for a code."
+	phoneUnlinkedNext = "Tell the user nothing changed: HA NOVA now asks on one phone they choose. With a shell: run ha-nova setup confirm-phone list (it sends nothing), ask which phone is theirs, tell them to watch it for “" + phoneLinkTitle + "” and tap “" + phoneLinkButton + "” (" + phoneButtonsLine + "), then run ha-nova setup confirm-phone \"<that phone's name>\" (it waits up to 90 seconds) and plan again. Without a shell, they run ha-nova setup confirm-phone in a terminal. Never ask them for a code."
 )

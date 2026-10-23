@@ -184,7 +184,7 @@ func TestLinkPhoneByTapOnTheChosenPhoneOnly(t *testing.T) {
 		t.Fatalf("exit %d out %q", exit, out)
 	}
 	if strings.Join(p.services, ",") != "mobile_app_annas_pixel,mobile_app_annas_pixel" || p.sent[0]["title"] != phoneLinkTitle ||
-		p.sent[0]["message"] != "Requested by “"+phoneHost()+"”. Pull down to answer." || p.sent[0]["data"].(map[string]any)["push"].(map[string]any)["interruption-level"] != "active" ||
+		p.sent[0]["message"] != "Pull down to answer. Requested by “"+phoneHost()+"”." || p.sent[0]["data"].(map[string]any)["push"].(map[string]any)["interruption-level"] != "active" ||
 		p.sent[0]["data"].(map[string]any)["actions"].([]any)[0].(map[string]any)["authenticationRequired"] != "true" || p.sent[1]["title"] != "Linked to HA NOVA" ||
 		p.sent[1]["message"] != "Confirmations from “"+phoneHost()+"” now come to you." {
 		t.Fatalf("notified %v %v", p.services, p.sent)
@@ -193,8 +193,9 @@ func TestLinkPhoneByTapOnTheChosenPhoneOnly(t *testing.T) {
 		t.Fatalf("link %+v", l)
 	}
 	// A typed plan now asks Anna's phone only; a tap from the owner's account is rejected.
-	plan := h.plan("lock.unlock", "lock.front").Plan
-	if plan.Channel != channelPhone || !strings.HasSuffix(h.plan("lock.unlock", "lock.front").Say, "Confirm on your phone. Pull the notification down, or tap its arrow, then tap “Unlock”.") {
+	planned := h.plan("lock.unlock", "lock.front")
+	plan := planned.Plan
+	if plan.Channel != channelPhone || !strings.HasSuffix(planned.Say, "Confirm on your phone. Pull the notification down, or tap its arrow, then tap “Unlock”.") {
 		t.Fatalf("plan %+v", plan)
 	}
 	p.services, p.sent = nil, nil
