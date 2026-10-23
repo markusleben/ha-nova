@@ -59,6 +59,7 @@ describe("release notes contract", () => {
     // Android pushes failed on the bool unlock flag (#842); the tap steps differ per phone.
     expect(stableNotes).toContain("**Android phones can link for confirmations.**");
     expect(stableNotes).toContain("press and hold on iPhone, pull down on Android.");
+    expect(stableNotes).toContain("**When nothing shows on your phone, HA NOVA says where to look.**");
     // App patch 0.11.4 carries the 0.27.2 chat-app bridge; ChatGPT needs a Refresh to load it.
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
     expect(stableNotes).toContain("open chatgpt.com/plugins, choose HA NOVA, then Refresh");

@@ -77,6 +77,7 @@ release:
     - **No form in Claude? Paste the address.** If Claude opens with no form, setup and the NOVA page show the address. Click +, then Add custom connector, and paste it.
     - **On a phone, ChatGPT can only answer.** 0.27.1 said to use chatgpt.com in a browser, but a phone browser can't make changes either. Use chatgpt.com on a computer, or the Claude app on your phone.
     - **Android phones can link for confirmations.** Before, most Android phones never got the question to link, move, or stop. HA NOVA now says how to answer on your phone: press and hold on iPhone, pull down on Android.
+    - **When nothing shows on your phone, HA NOVA says where to look.** On Android, HA NOVA notifications now pop up by default. If yours don't, turn on notifications and pop-ups for HA NOVA in your phone's settings.
 
     **Update the NOVA App to 0.11.4 too.** It brings these fixes to Claude and ChatGPT chat apps and the NOVA page. HA NOVA on your computer asks for it too. In Home Assistant: Settings > Apps > NOVA Relay > Update. Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.
 
