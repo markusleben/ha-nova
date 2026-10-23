@@ -56,7 +56,10 @@ describe("release notes contract", () => {
     // 0.27.1 sent phone users to chatgpt.com in a browser; a phone browser can't make changes either.
     expect(stableNotes).toContain("**On a phone, ChatGPT can only answer.** 0.27.1 said to use chatgpt.com in a browser");
     expect(stableNotes).toContain("Use chatgpt.com on a computer, or the Claude app on your phone.");
-    // App patch 0.11.3 carries the 0.27.2 chat-app bridge; ChatGPT needs a Refresh to load it.
+    // Android pushes failed on the bool unlock flag (#842); the tap steps differ per phone.
+    expect(stableNotes).toContain("**Android phones can link for confirmations.**");
+    expect(stableNotes).toContain("press and hold on iPhone, pull down on Android.");
+    // App patch 0.11.4 carries the 0.27.2 chat-app bridge; ChatGPT needs a Refresh to load it.
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
     expect(stableNotes).toContain("open chatgpt.com/plugins, choose HA NOVA, then Refresh");
     expect(stableNotes).not.toContain("which this release doesn't change");
