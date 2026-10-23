@@ -7,8 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 ## [Relay 0.11.3] - 2026-10-23
 
 ### Fixed
-- Chat apps: the line that asks for the code now says how long it works, and nothing else is left that Claude could move below the code. (#837, #838)
-- Chat apps: phone tips now name only steps that exist: link a phone on your computer, or check that phone's Home Assistant app. (#837)
+- Chat apps: the line that asks for the code now says how long it works, like "Type this code within 15 minutes:". Other notes left the ask, so Claude can't move them below the code. The note "I can see this code too" now comes only in apps that read HA NOVA's instructions; Claude doesn't. (#837, #838)
+- Chat apps: phone tips now name only steps that exist: link a phone on your computer, or check that phone's Home Assistant app. The old tip to link a phone on the NOVA page is gone. (#837)
 - NOVA page: plain, true wording. Most computers connect by signing in, and a pairing code works once, for 10 minutes. ChatGPT needs a paid plan that lets you add your own plugins (we tested Pro); on a phone, it can only answer. (#835, #836)
 - Chat apps now run HA NOVA 0.27.2 with these fixes.
 
