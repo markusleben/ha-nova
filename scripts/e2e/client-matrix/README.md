@@ -25,8 +25,9 @@ FAIL row even when earlier rows passed.
 ## Safety
 
 - **Local test bed only.** An existing `ha-nova-testbed` compose project is
-  reused only when relay and HA are healthy (its relay token is read from that
-  worktree's `.state/`) and is never torn down; an unhealthy one stops the run.
+  reused only when it was started from this checkout and relay and HA are
+  healthy, and it is never torn down. A bed from another tree (another
+  agent's, or an older Relay) or an unhealthy one stops the run.
   With none present, `run.sh` starts one from this checkout and runs `down.sh`
   at exit once its `up.sh` succeeded. The only other network peer is GitHub (installer, release
   bundles, release API).

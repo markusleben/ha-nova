@@ -20,8 +20,8 @@ func TestPhonePayloadPerPlatform(t *testing.T) {
 		unlock                any
 	}{
 		{"Apple", phoneIOS, "Press and hold to answer.", true},
-		{"Google", phoneAndroid, "Pull down to answer.", "true"},
-		{"samsung", phoneAndroid, "Pull down to answer.", "true"},
+		{"Google", phoneAndroid, "Tap “Allow”. No button? Pull down.", "true"},
+		{"samsung", phoneAndroid, "Tap “Allow”. No button? Pull down.", "true"},
 		{" apple ", phoneIOS, "Press and hold to answer.", true}, // any doubt keeps the unlock
 		{"", "", "Press and hold (iPhone) or pull down (Android) to answer.", true},
 	} {
@@ -78,7 +78,7 @@ func TestPhonePayloadPerPlatform(t *testing.T) {
 func TestPhoneTapLinePerPlatform(t *testing.T) {
 	for platform, want := range map[string]string{
 		phoneIOS:     "Press and hold the notification, then tap “Allow”.",
-		phoneAndroid: "Pull the notification down, or tap its arrow, then tap “Allow”.",
+		phoneAndroid: "Tap “Allow” in the notification. No button? Pull it down, or tap its arrow.",
 		"":           "Tap “Allow” in the notification. To see the buttons, press and hold the notification on an iPhone, or pull it down on Android.",
 	} {
 		if got := phoneTapLine(platform, "Allow"); got != want {
@@ -88,10 +88,10 @@ func TestPhoneTapLinePerPlatform(t *testing.T) {
 	if got := sayPhoneAsk("Unlock", phoneIOS); got != "Confirm on your phone. Press and hold the notification, then tap “Unlock”." {
 		t.Errorf("say: %q", got)
 	}
-	if got := sayWindowPhoneAsk("Unlock", phoneAndroid); got != "Confirm in the window on this computer or on your phone. On the phone: Pull the notification down, or tap its arrow, then tap “Unlock”. The first answer counts." {
+	if got := sayWindowPhoneAsk("Unlock", phoneAndroid); got != "Confirm in the window on this computer or on your phone. On the phone: Tap “Unlock” in the notification. No button? Pull it down, or tap its arrow. The first answer counts." {
 		t.Errorf("say both: %q", got)
 	}
-	if got := fmtSent("Bene 14", phoneAndroid); got != "Sent to “Bene 14”. Pull the notification down, or tap its arrow, then tap “Allow”. Do it only if you started this." {
+	if got := fmtSent("Bene 14", phoneAndroid); got != "Sent to “Bene 14”. Tap “Allow” in the notification. No button? Pull it down, or tap its arrow. Do it only if you started this." {
 		t.Errorf("sent: %q", got)
 	}
 }

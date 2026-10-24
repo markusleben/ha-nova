@@ -10,7 +10,7 @@
 # only to the local test bed (127.0.0.1:18123/18791) and GitHub. See README.md.
 set -euo pipefail
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HERE="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 TESTBED="$ROOT/scripts/e2e/testbed"
 FROM="" TO="" LANES="" KEEP=0 STARTED_TESTBED=0 SERVER_PID="" REPORTED=0
@@ -65,18 +65,20 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# --- test bed: reuse a healthy one (never tear it down), else start our own --
-# Any existing ha-nova-testbed container belongs to someone else: reuse it only
-# when relay + HA are healthy, otherwise stop. Teardown is armed only after our
-# own up.sh succeeded.
+# --- test bed: reuse this tree's healthy one (never tear it down), else start our own
+# A bed from another tree runs another tree's Relay (maybe older) and belongs
+# to someone else: stop instead of testing against it. Teardown is armed only
+# after our own up.sh succeeded.
 existing="$(docker ps -aq --filter label=com.docker.compose.project=ha-nova-testbed)"
 if [[ -n "$existing" ]]; then
   health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' ha-nova-testbed-relay ha-nova-testbed-ha 2>/dev/null | tr '\n' ' ')"
-  relay_wd="$(docker inspect ha-nova-testbed-relay --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null || true)"
-  [[ "$health" == "healthy healthy " && -n "$relay_wd" ]] ||
-    die "an existing ha-nova-testbed project is not healthy (relay/ha: ${health:-missing}); fix it or tear it down from its worktree first"
-  STATE="$relay_wd/.state"
-  echo "client-matrix: reusing running test bed ($relay_wd)"
+  relay_wd="$(docker inspect "${existing%%$'\n'*}" --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null || true)"
+  [[ "$relay_wd" == "$TESTBED" ]] ||
+    die "a test bed from another tree is running (${relay_wd:-unknown}); it is not this checkout's Relay. Wait for its owner, or tear it down there if it is yours"
+  [[ "$health" == "healthy healthy " ]] ||
+    die "this tree's test bed is not healthy (relay/ha: ${health:-missing}); fix it or run: bash $TESTBED/down.sh"
+  STATE="$TESTBED/.state"
+  echo "client-matrix: reusing this tree's running test bed"
 else
   echo "client-matrix: starting the test bed (torn down at exit)"
   bash "$TESTBED/up.sh" >"$WORK/testbed-up.log" 2>&1 ||

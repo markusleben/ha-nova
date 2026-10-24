@@ -93,9 +93,24 @@ deploy or tag.
    A local `bash scripts/e2e/disposable-ha/run.sh` pass is useful but does not replace the dispatched run.
 3. Push the RC tag
    (`git tag vX.Y.Z-rcN <reviewed-merge-sha> && git push origin vX.Y.Z-rcN`).
-4. Wait for `release.yml` to finish green. Verify the published RC over the real
-   public install path (section 7), including one real Windows 11 +
-   PowerShell onboarding proof, and run the Cloud checklist (section 6).
+4. Wait for `release.yml` to finish green. Run the standard RC check from a
+   checkout at the tag (its test bed builds this checkout's Relay):
+   ```bash
+   npm run rc-lane -- vX.Y.Z-rcN
+   ```
+   One command, throwaway only, about 5–10 minutes: the client matrix from
+   the last stable and from v0.24.0 (published stable install, then update to
+   the RC), the phone lane (push payloads per platform through fake phones),
+   the chat-bridge "code last" check with headless Claude (SKIP without
+   `claude` and `~/.claude-ha-nova-test`), and the slow-check regression. It
+   prints one table and exits non-zero on any FAIL; a WARN row means the bed's
+   Relay is not the tag's. Post the table as a comment on the release-prep PR.
+   It starts its own test bed, so no other bed may run.
+   Still manual, for the maintainer. Verify the published RC over the real
+   public install path (section 7, `docs/release-validation.md` "Minimum
+   Manual Gate"), including one real Windows 11 + PowerShell onboarding
+   proof, run the Cloud checklist (section 6), and confirm on a real iPhone
+   and Android phone.
 5. Then cut the final tag on the same commit
    (`git tag vX.Y.Z <reviewed-merge-sha> && git push origin vX.Y.Z`) and
    run the post-publish verification (section 7). A skipped RC still needs

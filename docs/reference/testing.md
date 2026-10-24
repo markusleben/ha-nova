@@ -32,6 +32,8 @@ For CLI verbs, the tier engine, skills, and agent scenarios, use the seeded **te
 
 For client-side release regression (public install of the last stable tag, setup against the test bed, client wiring, update to the candidate, uninstall — macOS and Linux lanes in throwaway HOMEs), run `bash scripts/e2e/client-matrix/run.sh --from <stable-tag> --to local`. See [scripts/e2e/client-matrix/README.md](../../scripts/e2e/client-matrix/README.md).
 
+For a release candidate, `npm run rc-lane -- <tag>` runs the client matrix, the test bed's phone lane (`TESTBED_PHONE=1 npm run testbed:verify`: push payloads per platform through fake phones), a headless chat-bridge check, and the slow-check regression in one go, with its own test bed. See `docs/releasing.md` §4.
+
 ## 3. Live against your own HA
 
 For maintainers with an HA instance, when you need to exercise the interactive setup wizard, the NOVA owner console, or the OPAQUE + TLS device pairing on real hardware. **Two hard rules:** deploy an *isolated* test App (never your production one), and run an *isolated* CLI (never your real config/keyring). Both are covered below.

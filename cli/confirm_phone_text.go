@@ -15,9 +15,13 @@ import (
 // one line naming the computer that asked, and the hint last (first on
 // Android, whose collapsed notification shows one line) — a plain tap
 // only opens the app; the buttons show once it is opened up: press and hold
-// on an iPhone (a watch shows them at once), pull it down or tap its arrow
-// on Android (a long-press there opens settings). Everything else (what it
-// means, "only if you started this") is in the terminal, not on the lock screen.
+// on an iPhone (a watch shows them at once); on Android a pop-up or an
+// opened one shows them, a collapsed one needs a pull down (a long-press
+// there opens settings), so its hint is true either way, and where the text
+// says more than who asked, it asks to read it all before a tap from the
+// pop-up. Android's pop-up cuts a title after about 30 characters: the
+// fixed titles fit. Everything else (what it means, "only if you started
+// this") is in the terminal, not on the lock screen.
 
 type phoneAsk struct {
 	title, body, button string
@@ -26,7 +30,8 @@ type phoneAsk struct {
 }
 
 const (
-	phoneLinkTitle  = "Use this for HA NOVA confirmations?"
+	phoneLinkTitle  = "Get HA NOVA confirmations?"
+	phoneMoveTitle  = "Move HA NOVA confirmations?"
 	phoneSentText   = "Sent to “%s”. %s Do it only if you started this."
 	phoneTitleLimit = 80  // runes: one lock-screen line
 	phoneWhyLimit   = 300 // runes: the reasons (an expanded notification shows them all)
@@ -40,9 +45,9 @@ func phoneLinkAsk() phoneAsk {
 // HA NOVA's confirmations to newPhone. Stopping says what it gives up.
 func phoneChangeAsk(newPhone string) phoneAsk {
 	if newPhone == "" {
-		return phoneAsk{title: "Stop getting HA NOVA confirmations?", body: "After this, HA NOVA may ask in chat, where your AI assistant can answer. " + phoneRequested(), button: "Stop", unlock: true}
+		return phoneAsk{title: "Stop HA NOVA confirmations?", body: "After this, HA NOVA may ask in chat, where your AI assistant can answer. " + phoneRequested(), button: "Stop", unlock: true}
 	}
-	return phoneAsk{title: phoneTitle("Move HA NOVA confirmations to", sayText(newPhone, true)), body: phoneRequested(), button: "Move", unlock: true}
+	return phoneAsk{title: phoneMoveTitle, body: "New phone: " + sayText(newPhone, true) + ". " + phoneRequested(), button: "Move", unlock: true}
 }
 
 // phonePlanAsk: "Unlock “Front Door”?" with an Unlock button, and the
@@ -80,12 +85,22 @@ func phoneRequested() string {
 }
 
 // phoneHint ends the notification: how to show its buttons on this phone.
-func phoneHint(platform string) string {
+// Android's fits the collapsed line (at most 38 characters; an emulator
+// showed 39); with more to read than who asked (a hidden effect, "Can't be
+// undone.", the new phone), it asks to read that first, as the pop-up shows
+// the buttons but one line.
+func phoneHint(platform, button string, more bool) string {
 	switch platform {
 	case phoneIOS:
 		return "Press and hold to answer."
 	case phoneAndroid:
-		return "Pull down to answer."
+		if more {
+			return "Read it all. No button? Pull down."
+		}
+		if hint := "Tap “" + button + "”. No button? Pull down."; len([]rune(hint)) <= 38 {
+			return hint
+		}
+		return "No buttons? Pull down to answer."
 	}
 	return "Press and hold (iPhone) or pull down (Android) to answer."
 }
@@ -96,7 +111,7 @@ func phoneTapLine(platform, button string) string {
 	case phoneIOS:
 		return "Press and hold the notification, then tap “" + button + "”."
 	case phoneAndroid:
-		return "Pull the notification down, or tap its arrow, then tap “" + button + "”."
+		return "Tap “" + button + "” in the notification. No button? Pull it down, or tap its arrow."
 	}
 	return "Tap “" + button + "” in the notification. " + phoneButtonsLine
 }
@@ -181,9 +196,10 @@ func phonePayload(ask phoneAsk, platform, tag, ok, no string, deadline time.Time
 	case ask.unlock:
 		confirm["authenticationRequired"] = true
 	}
-	message := ask.body + " " + phoneHint(platform)
+	hint := phoneHint(platform, ask.button, ask.body != phoneRequested())
+	message := ask.body + " " + hint
 	if platform == phoneAndroid { // a collapsed Android notification shows one line of text: the hint first
-		message = phoneHint(platform) + " " + ask.body
+		message = hint + " " + ask.body
 	}
 	return map[string]any{"title": ask.title, "message": message, "data": map[string]any{
 		"tag": tag,
