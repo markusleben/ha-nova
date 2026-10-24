@@ -8,7 +8,7 @@
 
   Welcome! HA NOVA lets your AI assistant run your Home Assistant.
 
-  Steps: pick your AI client, find Home Assistant, add the NOVA App, connect this computer, install the skills.
+  Steps: pick your AI app, find Home Assistant, add the NOVA App, connect this computer, add the skills.
   When a browser page opens, finish there and come back here.
   You need the Home Assistant owner's account.
   Home Assistant Link only: the NOVA App must already be installed.
@@ -20,38 +20,38 @@
 === status summary: nothing
 
   Checking current setup...
-  [!!] NOVA App not reachable
-  [!!] No auth token found
-  [!!] WebSocket not connected
+  [!!] NOVA App doesn't answer
+  [!!] No login saved yet
+  [!!] Not connected to Home Assistant
   [!!] Skills not installed
 
 
 === status summary: token only
 
   Checking current setup...
-  [!!] NOVA App not reachable
-  [!!] Authentication failed
-  [!!] WebSocket not connected
+  [!!] NOVA App doesn't answer
+  [!!] Login doesn't work
+  [!!] Not connected to Home Assistant
   [!!] Skills not installed
 
 
 === status summary: all
 
   Checking current setup...
-  [ok] NOVA App reachable
-  [ok] Authentication valid
-  [ok] WebSocket connected
+  [ok] NOVA App answers
+  [ok] Login works
+  [ok] Connected to Home Assistant
   [ok] Skills installed
 
 
 === discovery results
-  [ok] Found Home Assistant at ha.lan (discovered via mDNS)
+  [ok] Found Home Assistant at ha.lan (mDNS)
   [!] Found Home Assistant as homeassistant.local
-    .local names can stop working (especially on Windows); its IP address is safer: type it below.
-    Find it in Home Assistant: Settings > System > Network.
+    This name can stop working, mostly on Windows. Type its IP address below instead.
+    Find it in Home Assistant: Settings → System → Network.
   [ok] Found Home Assistant at 10.0.0.2
-  [!] No Home Assistant found automatically; starting from your saved address 10.0.0.3
-  [!] No Home Assistant found automatically; enter its address.
+  [!] Didn't find Home Assistant by itself. Starting from your saved address 10.0.0.3
+  [!] Didn't find Home Assistant by itself. Type its address.
 
 === complete: one client
 
@@ -79,7 +79,7 @@
 
   Installed for: Claude Code, Codex CLI
 
-  Open your installed AI assistants and try asking:
+  Open your AI apps and try asking:
 
     "Turn off the living room light"
     "List my automations"
@@ -94,7 +94,7 @@
 
   [ok] Setup complete!
 
-  Open your AI assistant and try asking:
+  Open your AI app and try asking:
 
     "Turn off the living room light"
     "List my automations"
@@ -134,7 +134,7 @@
   The next HA NOVA release won't accept it.
   Run ha-nova setup again any time to switch. It takes a minute.
 
-  Run 'ha-nova doctor' for full diagnostics.
+  Run 'ha-nova doctor' to check everything.
 
 
 === already done
@@ -144,7 +144,7 @@
 
   [ok] Everything is already set up!
 
-  Run 'ha-nova doctor' for full diagnostics.
+  Run 'ha-nova doctor' to check everything.
 
 
 === link fallback ready
@@ -155,11 +155,11 @@
   [ok] Setup complete!
 
   Connections:
-    Local:          Ready — preferred
+    At home:        Ready, used first
     Away from home: Ready — Home Assistant Link
-    Routing:        Automatic — Home Assistant Link is used only when local access is unavailable
+    Which one:      Automatic. Home Assistant Link only when home can't be reached
 
-  Run 'ha-nova doctor' for full diagnostics.
+  Run 'ha-nova doctor' to check everything.
 
 
 === link fallback ready: first look
@@ -170,9 +170,9 @@
   [ok] Setup complete!
 
   Connections:
-    Local:          Ready — preferred
+    At home:        Ready, used first
     Away from home: Ready — Home Assistant Link
-    Routing:        Automatic — Home Assistant Link is used only when local access is unavailable
+    Which one:      Automatic. Home Assistant Link only when home can't be reached
 
   Your home: 1 room.
 
@@ -183,14 +183,14 @@
 
   Unlocking a lock or opening a gate or garage door waits for your own confirmation; a plain yes in chat isn't enough.
 
-  Run 'ha-nova doctor' for full diagnostics.
+  Run 'ha-nova doctor' to check everything.
 
 
 === incomplete: generic
 
   [!!] Setup incomplete
 
-  HA NOVA saved your local setup, but the system is not fully ready yet.
+  HA NOVA saved your setup, but it isn't ready yet.
   Then run "ha-nova setup" again — it continues where you left off.
 
 
@@ -198,8 +198,8 @@
 
   [!!] Setup incomplete
 
-  HA NOVA saved your local setup, but the relay could not be verified yet.
-  Open Home Assistant > Settings > Apps > NOVA Relay (older Home Assistant: Settings > Add-ons) and start the app.
+  HA NOVA saved your setup, but couldn't reach the NOVA App yet.
+  In Home Assistant, open Settings → Apps → NOVA Relay (older Home Assistant: Settings > Add-ons) and start it.
   Then run "ha-nova setup" again — it continues where you left off.
 
 
@@ -207,8 +207,8 @@
 
   [!!] Setup incomplete
 
-  The NOVA App is reachable, but its Home Assistant connection is not up yet.
-  Open Home Assistant > Settings > Apps > NOVA Relay (older Home Assistant: Settings > Add-ons), verify the app settings, and restart the App.
+  The NOVA App answers, but it isn't connected to Home Assistant yet.
+  In Home Assistant, open Settings → Apps → NOVA Relay (older Home Assistant: Settings > Add-ons). Check its settings, then restart it.
   Then run "ha-nova setup" again — it continues where you left off.
 
 
@@ -216,24 +216,24 @@
 
   [!!] Setup incomplete
 
-  The Home Assistant connection is configured, but local skill installation still needs another run.
-  Re-run setup or install the HA NOVA skills again for your client.
+  This computer is connected to Home Assistant, but HA NOVA isn't set up in your AI app yet.
+  Run setup again to finish.
 
 
 === incomplete: cloud_access
 
   [!!] Setup incomplete
 
-  Local access and skills are ready, but the selected Home Assistant Link connection is not.
-  Re-run setup to resume Home Assistant Link authorization; local access remains available.
+  HA NOVA works at home, but Home Assistant Link isn't ready yet.
+  Run setup again to finish Home Assistant Link.
 
 
 === outcome: link incomplete
 
   [!!] Setup incomplete
 
-  Local access and skills are ready, but the selected Home Assistant Link connection is not.
-  Re-run setup to resume Home Assistant Link authorization; local access remains available.
+  HA NOVA works at home, but Home Assistant Link isn't ready yet.
+  Run setup again to finish Home Assistant Link.
 
 
 === outcome: complete
@@ -259,16 +259,16 @@
 
 === client menu: invalid, disabled, back, pick
 
-  Which AI client do you use?
+  Which AI app do you use?
 
     1) Claude Code
     2) Codex CLI
        not available: install Codex CLI first
     3) All available clients
 
-  Enter [1-3] (default 1, or type 'exit'):   [!!] Invalid choice. Please enter one of the listed options.
+  Enter [1-3] (default 1, or type 'exit'):   [!!] Pick one of the numbers shown.
 
-  Which AI client do you use?
+  Which AI app do you use?
 
     1) Claude Code
     2) Codex CLI
@@ -276,9 +276,9 @@
     3) All available clients
 
   Enter [1-3] (default 1, or type 'exit'):   [!!] Codex CLI is not available yet: install Codex CLI first
-  [!!] Invalid choice. Please enter one of the listed options.
+  [!!] Pick one of the numbers shown.
 
-  Which AI client do you use?
+  Which AI app do you use?
 
     1) Claude Code
     2) Codex CLI
@@ -288,7 +288,7 @@
   Enter [1-3] (default 1, or type 'exit'): 
 →  setup back
 
-  Which AI client do you use?
+  Which AI app do you use?
 
     1) Claude Code
     2) Codex CLI
@@ -300,7 +300,7 @@
 
 === client menu: default and exit
 
-  Which AI client do you use?
+  Which AI app do you use?
 
     1) Claude Code
     2) Codex CLI
@@ -310,7 +310,7 @@
   Enter [1-3] (default 1, or type 'exit'): 
 → claude <nil>
 
-  Which AI client do you use?
+  Which AI app do you use?
 
     1) Claude Code
     2) Codex CLI
@@ -322,7 +322,7 @@
 
 === client menu: nothing available
 
-  Which AI client do you use?
+  Which AI app do you use?
 
     1) Codex CLI
        not available: install Codex CLI first
@@ -335,46 +335,46 @@
 
 === token menu: fresh
 
-  Choose how to set up the Relay Auth Token:
+  How do you want to set up the shared key (Relay Auth Token)?
 
-    1) Paste existing token from another device / Home Assistant
-    2) Generate a new token
+    1) Paste a key from another computer or from Home Assistant
+    2) Make a new key
 
-  Enter [1-2] (default 2, or type 'back'/'exit'):   [!!] Invalid choice. Please enter one of the listed options.
+  Enter [1-2] (default 2, or type 'back'/'exit'):   [!!] Pick one of the numbers shown.
 
-  Choose how to set up the Relay Auth Token:
+  How do you want to set up the shared key (Relay Auth Token)?
 
-    1) Paste existing token from another device / Home Assistant
-    2) Generate a new token
+    1) Paste a key from another computer or from Home Assistant
+    2) Make a new key
 
   Enter [1-2] (default 2, or type 'back'/'exit'): 
 → generate <nil>
 
 === token menu: saved token
 
-  Choose how to set up the Relay Auth Token:
+  How do you want to set up the shared key (Relay Auth Token)?
 
-    1) Keep saved token
-    2) Paste existing token from another device / Home Assistant
-    3) Generate a new token
+    1) Keep the saved key
+    2) Paste a key from another computer or from Home Assistant
+    3) Make a new key
 
   Enter [1-3] (default 1, or type 'back'/'exit'): 
 → paste <nil>
 
-  Choose how to set up the Relay Auth Token:
+  How do you want to set up the shared key (Relay Auth Token)?
 
-    1) Keep saved token
-    2) Paste existing token from another device / Home Assistant
-    3) Generate a new token
+    1) Keep the saved key
+    2) Paste a key from another computer or from Home Assistant
+    3) Make a new key
 
   Enter [1-3] (default 1, or type 'back'/'exit'): 
 →  setup back
 
-  Choose how to set up the Relay Auth Token:
+  How do you want to set up the shared key (Relay Auth Token)?
 
-    1) Keep saved token
-    2) Paste existing token from another device / Home Assistant
-    3) Generate a new token
+    1) Keep the saved key
+    2) Paste a key from another computer or from Home Assistant
+    3) Make a new key
 
   Enter [1-3] (default 1, or type 'back'/'exit'): 
 →  setup exit

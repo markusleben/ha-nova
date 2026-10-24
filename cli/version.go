@@ -340,9 +340,9 @@ func relayUpdateNoticeWithContext(ctx context.Context, paths runtimePaths) human
 	if !ok {
 		return humanNotice{}
 	}
-	floorNotice := humanNotice{}
+	floorNotice, running := humanNotice{}, ""
 	if body, healthErr := fetchRelayHealthWithContext(ctx, client, base, credential); healthErr == nil {
-		floorNotice = checkRelayVersion(paths, body)
+		floorNotice, running = checkRelayVersion(paths, body), parseRelayHealthVersion(body)
 	}
 	// Resolve the exact HA update entity even when the Relay is below the
 	// compatibility floor. Only that evidence distinguishes an App that can
@@ -372,15 +372,21 @@ func relayUpdateNoticeWithContext(ctx context.Context, paths runtimePaths) human
 			message: floorNotice.message + " " + relayContainerUpdateLine,
 		}
 	}
-	return relayAvailableUpdateNoticeFromCandidate(candidate)
+	return relayAvailableUpdateNoticeFromCandidate(candidate, running)
 }
 
-func relayAvailableUpdateNotice(cfg config, token string) humanNotice {
+func relayAvailableUpdateNotice(cfg config, token, running string) humanNotice {
 	candidate, _ := resolveRelayUpdateCandidate(cfg, token)
-	return relayAvailableUpdateNoticeFromCandidate(candidate)
+	return relayAvailableUpdateNoticeFromCandidate(candidate, running)
 }
 
-func relayAvailableUpdateNoticeFromCandidate(candidate relayUpdateCandidate) humanNotice {
+// running is the version the Relay itself reports. Right after an App update
+// through the Supervisor, the update entity's installed_version can still
+// show the old one: the running Relay wins, so a done update isn't offered.
+func relayAvailableUpdateNoticeFromCandidate(candidate relayUpdateCandidate, running string) humanNotice {
+	if running != "" {
+		candidate.InstalledVersion = running
+	}
 	if !candidate.updateAvailable() {
 		return humanNotice{}
 	}

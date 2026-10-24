@@ -1,13 +1,13 @@
 exit 0
 --- output
 [ha-nova] Saved HA NOVA configuration
-  [ok] Home Assistant reachable
-  [ok] NOVA App reachable
+  [ok] Home Assistant answers
+  [ok] NOVA App answers
   [ok] Connected to Home Assistant
-[ha-nova] Config present: <home>/.config/ha-nova/config.json
-[ha-nova] Relay auth token present in secure storage
-[ha-nova] Home Assistant reachable: <ha-url>
-[ha-nova] Relay health reachable: <relay-url>/health
+[ha-nova] Settings file found: <home>/.config/ha-nova/config.json
+[ha-nova] This computer's shared key is saved in secure storage
+[ha-nova] Home Assistant answers at <ha-url>
+[ha-nova] The NOVA App answers at <relay-url>
 [ha-nova] Connected to Home Assistant
-[ha-nova] Google Antigravity ready now
-[ha-nova] Doctor checks passed
+[ha-nova] Google Antigravity is ready
+[ha-nova] All checks passed

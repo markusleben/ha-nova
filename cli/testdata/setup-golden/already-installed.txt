@@ -8,9 +8,9 @@ exit 0
   -------------
 
   Checking current setup...
-  [ok] NOVA App reachable
-  [ok] Authentication valid
-  [ok] WebSocket connected
+  [ok] NOVA App answers
+  [ok] Login works
+  [ok] Connected to Home Assistant
   [ok] Skills installed
 
   Home Assistant Link remote access (Beta) is available only from an interactive desktop session.
@@ -25,6 +25,6 @@ exit 0
   The next HA NOVA release won't accept it.
   Run ha-nova setup again any time to switch. It takes a minute.
 
-  Run 'ha-nova doctor' for full diagnostics.
+  Run 'ha-nova doctor' to check everything.
 
 --- stderr

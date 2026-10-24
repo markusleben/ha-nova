@@ -146,7 +146,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 
 	releaseMutation, acquired := acquireAutoRepairLock(paths)
 	if !acquired {
-		printHumanErr("update blocked: another HA NOVA client update is already in progress")
+		printHumanErr("Another HA NOVA update is running. Wait for it, then try again.")
 		return 1
 	}
 	if err := ensureUpdateLifecycleCurrent(paths, updateLifecycleMarker); err != nil {
@@ -172,7 +172,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 		if restoreErr := postUpdateSyncWithResultUnlocked(paths).Err; restoreErr != nil {
 			releaseMutation()
 			printHumanErr("update aborted: %s", syncErr)
-			printHumanWarn("runtime rollback succeeded, but restoring client integrations failed: %s", restoreErr)
+			printHumanWarn("HA NOVA went back to the old version, but couldn't set it up again in your AI apps. Run ha-nova setup. Details: %s", restoreErr)
 			return 1
 		}
 		releaseMutation()
@@ -236,7 +236,7 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 	waitForParentReleaseForReplace(*parentPID)
 	releaseMutation, acquired := acquireAutoRepairLock(paths)
 	if !acquired {
-		printHumanErr("update blocked: another HA NOVA client update is already in progress")
+		printHumanErr("Another HA NOVA update is running. Wait for it, then try again.")
 		return 1
 	}
 	if err := ensureUpdateLifecycleCurrent(paths, lifecycleMarker); err != nil {
@@ -262,7 +262,7 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 		if restoreResult := postUpdateSyncForReplace(paths); restoreResult.Err != nil {
 			releaseMutation()
 			printHumanErr("update aborted: %s", syncErr)
-			printHumanWarn("runtime rollback succeeded, but restoring client integrations failed: %s", restoreResult.Err)
+			printHumanWarn("HA NOVA went back to the old version, but couldn't set it up again in your AI apps. Run ha-nova setup. Details: %s", restoreResult.Err)
 			return 1
 		}
 		releaseMutation()

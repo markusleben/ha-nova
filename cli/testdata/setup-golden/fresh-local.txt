@@ -4,14 +4,14 @@ exit 0
   HA NOVA Setup
   -------------
 
-  Which AI client do you use?
+  Which AI app do you use?
 
     1) Claude Code
     2) Codex CLI
     3) OpenCode
     4) Google Antigravity
     5) Hermes Agent
-    6) All available clients
+    6) All of them
 
   Enter [1-6] (default 1, or type 'exit'): 
   HA NOVA Setup
@@ -19,7 +19,7 @@ exit 0
 
   Discovering Home Assistant on your network... (up to 6s)
 
-  [!] No Home Assistant found automatically; starting from your saved address 127.0.0.1
+  [!] Didn't find Home Assistant by itself. Starting from your saved address 127.0.0.1
 
   Home Assistant address (press Enter to use this, or type a different one) [127.0.0.1]:   Checking connection to Home Assistant...
   [ok] Connected to Home Assistant at 127.0.0.1
@@ -61,41 +61,41 @@ exit 0
   HA NOVA Setup
   -------------
 
-  [2/4] Step 2 of 4 – Set up Relay Auth Token
+  [2/4] Step 2 of 4 – Set up the shared key
 
-  NOVA keeps client and Home Assistant access separate:
-    a) This Relay token protects the connection from this computer
-    b) The Home Assistant App receives its upstream access automatically
+  HA NOVA keeps two kinds of access apart:
+    a) This key lets this computer talk to the NOVA App
+    b) The NOVA App gets its own Home Assistant access by itself
 
-  Standalone Container/Core relays keep HA_LLAT in the server environment; the CLI never asks for it.
+  NOVA Relay in your own container? Its Home Assistant token (HA_LLAT) stays there. Setup never asks for it.
 
-  Choose how to set up the Relay Auth Token:
+  How do you want to set up the shared key (Relay Auth Token)?
 
-    1) Paste existing token from another device / Home Assistant
-    2) Generate a new token
+    1) Paste a key from another computer or from Home Assistant
+    2) Make a new key
 
   Enter [1-2] (default 2, or type 'back'/'exit'): 
-  Here is your relay token (generated automatically):
+  Here is your new key:
     <token>
 
   Next, on the NOVA App page:
     1. Open the "Configuration" tab
-    2. Paste the token into the "Relay Auth Token" field ("relay_auth_token")
+    2. Paste the key into the "Relay Auth Token" field
     3. Click Save
-    4. Restart the App so it picks up the new token
+    4. Restart the App so it uses the new key
 
   This will open:
       <ha-url>/_my_redirect/supervisor_addon?addon=2368fcfa_ha_nova_relay
 
   Press Enter to open your browser:   Opening in your browser...
 
-  Press Enter after you saved the Relay Auth Token and restarted the NOVA App: 
+  Press Enter after you saved the key and restarted the NOVA App: 
   HA NOVA Setup
   -------------
 
   [3/4] Step 3 of 4 – Verifying connection
-  [ok] Home Assistant reachable
-  [ok] NOVA App reachable
+  [ok] Home Assistant answers
+  [ok] NOVA App answers
   [ok] Connected to Home Assistant
 
   HA NOVA Setup

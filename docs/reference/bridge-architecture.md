@@ -33,6 +33,60 @@ POST /backups
 POST /ws/subscribe
 ```
 
+### Home Assistant Link routes
+
+The Cloud Beta (Home Assistant Link) adds a separate
+Supervisor-ingress-only machine surface. `nova/DOCS.md` links here.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/cloud/v1/info` | Relay identity and Cloud capability discovery |
+| POST | `/cloud/v1/device/bind` | Bind an existing local device to the authenticated Home Assistant user |
+| POST | `/cloud/v1/device/revoke-self` | Revoke the exact presented, user-bound device; remains available for cleanup when Cloud is disabled |
+| GET/POST | `/pair/v2/*` | OPAQUE remote-first pairing through Ingress |
+| POST | `/cloud/v1/device/activate` | Atomically activate and user-bind a pending remote device |
+| GET | `/health` | The same bounded health route through Ingress |
+| GET/POST | `/chat-apps/v1/state` | Read or change the chat-app switch (owner only, through Ingress) |
+| POST | `/ws`, `/core`, `/files`, `/backups` | The same bounded functional routes through Ingress |
+
+These routes are not exposed as a new public Relay port. Every machine request
+must come from the exact Supervisor Ingress peer with exactly one Home Assistant
+user identity. Functional calls also require an active device credential bound
+to that user and this persistent Relay instance. Legacy shared Relay tokens are
+not accepted through Ingress.
+
+When Cloud Remote is disabled, `/cloud/v1/info` advertises cleanup-only
+capabilities and `/cloud/v1/device/revoke-self` remains registered. Setup,
+pairing, and functional machine routes are absent.
+
+`automatic` routing prefers the pinned local device transport. It selects Cloud
+only when a short authenticated local health preflight ends in a pure network
+failure. Authentication, authorization, certificate-pin, identity, redirect,
+or protocol failures stop without Cloud fallback. A functional request is sent
+through one selected transport and is never replayed through the other.
+
+Only a verified canonical `https://*.ui.nabu.casa` origin receives credentials.
+A custom domain may be used for discovery only after its DNS CNAME resolution
+ends at that canonical origin and one publicly trusted TLS certificate covers
+both names.
+
+Cloud OAuth refresh tokens are separate from Relay/device credentials and live
+only in native OS secure storage. There is no file, environment-variable,
+argument, or config fallback for them. Setup, reconnect, and explicit unlock
+may show bounded native prompts for the selected device and OAuth slots. Normal
+Relay calls use no-UI reads and fail fast if the store is locked.
+
+Enabled release builds support Cloud Remote only on macOS desktop terminals,
+Windows console/RDP sessions, and validated Linux desktop Secret Service
+providers. SSH, WSL, containers, services, gateways, and other headless
+contexts stay local-only for starting an authorization; an interrupted,
+already-verified setup on a supported machine may finish over SSH with
+`ha-nova cloud add --remote-resume`. Every publication remains gated on
+exact-source Home Assistant Link parity, native-keyring, user-role, redirect,
+lifecycle, App restart/update/reinstall, and 10,000-command Ingress-session
+stress evidence. See
+[`docs/work/2026-07-25-home-assistant-cloud-remote-spec.md`](../work/2026-07-25-home-assistant-cloud-remote-spec.md).
+
 ---
 
 ## Endpoint Specifications — Implemented

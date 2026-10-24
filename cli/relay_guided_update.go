@@ -92,12 +92,11 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 	}
 	fmt.Fprintf(
 		out,
-		"NOVA Relay App update preview: v%s → v%s (%s).\nPlanned change: install the latest version available at execution time with a partial App backup; the relay restarts during the install. Home Assistant does not support binding App installs to a specific version.\n",
+		"The NOVA App has an update: v%s → v%s.\nHA NOVA installs the newest version, with a backup of the App first. The App restarts while it installs.\n",
 		candidate.InstalledVersion,
 		candidate.LatestVersion,
-		candidate.EntityID,
 	)
-	yes, err := promptYesNoMenu(in, out, "Install the latest available NOVA Relay update now?", "Yes, update now", "Not now", true)
+	yes, err := promptYesNoMenu(in, out, "Update the NOVA App now?", "Yes, update now", "Not now", true)
 	if err != nil || !yes {
 		return false
 	}
@@ -108,11 +107,11 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 		if reason == "" {
 			reason = "the pending update changed after the preview"
 		}
-		fmt.Fprintf(out, "The observed NOVA Relay App update changed after the preview: %s. Nothing was installed; run the check again.\n", reason)
+		fmt.Fprintf(out, "The update changed while you decided (%s). Nothing was installed. Run the check again.\n", reason)
 		return false
 	}
 	candidate = current
-	fmt.Fprintf(out, "Installing the NOVA Relay App update (%s) with a partial backup — the relay restarts during the install.\n", candidate.EntityID)
+	fmt.Fprintln(out, "Updating the NOVA App, with a backup first. The App restarts while it installs.")
 	// The relay dies mid-call when the install lands, so a dropped response
 	// is the EXPECTED shape of success here; polling decides the outcome.
 	// An ok:false envelope is a relay-side transport problem (the relay's
@@ -130,7 +129,7 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 	// install preview (a plain yes), so this path skips no tier.
 	installBody, marshalErr := json.Marshal(installPayload)
 	if marshalErr != nil {
-		fmt.Fprintln(out, "Could not build the confirmed install request. Nothing was installed.")
+		fmt.Fprintln(out, "HA NOVA couldn't start the update. Nothing was installed.")
 		return false
 	}
 	body, err := relayCoreRequest(cfg, token, "POST", "/api/services/update/install", installBody)
@@ -142,26 +141,26 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 			} `json:"data"`
 		}
 		if json.Unmarshal(body, &envelope) == nil && envelope.OK && envelope.Data.Status >= 400 {
-			fmt.Fprintf(out, "Home Assistant rejected the install call.\n%s\n", relayUpdateManualPath)
+			fmt.Fprintf(out, "Home Assistant didn't start the update.\n%s\n", relayUpdateManualPath)
 			return false
 		}
 	}
 	version, ok := waitForRelayVersion(paths, cfg, token, candidate.LatestVersion)
 	if !ok {
-		fmt.Fprintf(out, "The relay did not report a new version within %s.\n%s\n", relayUpdatePollTimeout, relayUpdateManualPath)
+		fmt.Fprintf(out, "The NOVA App didn't show the new version within %s.\n%s\n", relayUpdatePollTimeout, relayUpdateManualPath)
 		return false
 	}
 	if !waitForRelayUpdateCompletion(cfg, token, candidate) {
-		fmt.Fprintf(out, "The Relay reached v%s, but Home Assistant did not confirm the App update as complete within %s.\n%s\n", version, relayUpdatePollTimeout, relayUpdateManualPath)
+		fmt.Fprintf(out, "The NOVA App runs v%s now, but Home Assistant didn't say the update was done within %s.\n%s\n", version, relayUpdatePollTimeout, relayUpdateManualPath)
 		return false
 	}
 	readiness, readinessVersion := verifyUpdatedRelayReadiness(paths, cfg, token, candidate.LatestVersion)
 	if !readiness {
-		fmt.Fprintf(out, "The Relay reached v%s, but its Home Assistant WebSocket readiness could not be verified.\n%s\n", version, relayUpdateManualPath)
+		fmt.Fprintf(out, "The NOVA App runs v%s now, but HA NOVA couldn't check that it reaches Home Assistant.\n%s\n", version, relayUpdateManualPath)
 		return false
 	}
 	version = readinessVersion
-	fmt.Fprintf(out, "Relay updated and verified: v%s is running.\n", version)
+	fmt.Fprintf(out, "The NOVA App is updated and works: v%s.\n", version)
 	return true
 }
 

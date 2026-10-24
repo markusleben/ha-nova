@@ -8,9 +8,9 @@ exit 0
   -------------
 
   Checking current setup...
-  [!!] NOVA App not reachable
-  [!!] No auth token found
-  [!!] WebSocket not connected
+  [!!] NOVA App doesn't answer
+  [!!] No login saved yet
+  [!!] Not connected to Home Assistant
   [!!] Skills not installed
 
   Already done: Home Assistant address
@@ -40,8 +40,8 @@ exit 0
   -------------
 
   [3/4] Step 3 of 4 – Verifying connection
-  [ok] Home Assistant reachable
-  [ok] NOVA App reachable
+  [ok] Home Assistant answers
+  [ok] NOVA App answers
   [ok] Connected to Home Assistant
 
   HA NOVA Setup

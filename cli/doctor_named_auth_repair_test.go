@@ -267,7 +267,7 @@ func TestNamedClientRepairNeverRepairsInvalidInstallIdentity(
 			},
 		)
 	})
-	if exit != 1 || !strings.Contains(output, "unsupported client") {
+	if exit != 1 || !strings.Contains(output, "doesn't work with this AI app") {
 		t.Fatalf("unsupported exit=%d output=%q", exit, output)
 	}
 	assertInvalidInstallIdentityUnchanged(t, paths)

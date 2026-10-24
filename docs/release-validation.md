@@ -40,7 +40,7 @@ Helper:
 10. finish setup, then run `ha-nova doctor`
 11. if the lane includes Hermes or a pre-fix Hermes bundle, confirm `ha-nova doctor` reports a repairable Hermes mismatch instead of silently hiding it
 12. run `ha-nova setup hermes` and confirm the Hermes route repairs cleanly
-13. re-run `ha-nova doctor` and confirm it reports `Hermes Agent ready now`
+13. re-run `ha-nova doctor` and confirm it reports `Hermes Agent is ready`
 14. confirm the relay token is saved and can be reused by a second `ha-nova setup` / `ha-nova doctor` invocation without repeating recovery
 15. for the Hermes service/gateway lane, run `ha-nova setup --service hermes`, then `ha-nova doctor`, then one authenticated relay call from a fresh SSH/service-like shell without an unlocked desktop keyring
 16. for the Hermes service/gateway lane, run `ha-nova uninstall --yes --purge` and confirm the service token file is removed

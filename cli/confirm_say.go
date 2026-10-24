@@ -179,10 +179,13 @@ func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 			line += " in " + area
 		}
 	}
-	changes, warnings := []string{}, ""
+	changes, flags, warnings := []string{}, "", ""
 	for _, d := range env.Deltas {
 		change := sayValue(d.Before) + " → " + sayValue(d.After)
+		flag, isFlag := sayFlag(d.Field, d.After)
 		switch {
+		case d.Field != "state" && d.Before != d.After && isFlag:
+			flags += ", " + flag
 		case d.Field != "state" && d.Before == "" && d.After != "":
 			changes = append(changes, sayValue(d.Field)+" set to "+sayValue(d.After))
 		case d.Field != "state" && d.Before != d.After: // an explicit "" clears the field: shown as “”
@@ -197,7 +200,7 @@ func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 	if len(changes) > 0 {
 		line += ": " + strings.Join(changes, ", ")
 	}
-	return sayAbout(line) + warnings, sayNotRun
+	return sayAbout(line+flags) + warnings, sayNotRun
 }
 
 // sayReason is one plain clause per reason code; typed reports whether the

@@ -40,7 +40,7 @@ func TestVerifySetupConnectionOnceKeepsTransportFailureGeneric(t *testing.T) {
 	if strings.Contains(output.String(), "Home Assistant Access Token") {
 		t.Fatalf("expected generic transport guidance, got:\n%s", output.String())
 	}
-	if !strings.Contains(output.String(), "Verify the app settings and restart the App if needed.") {
+	if !strings.Contains(output.String(), "Check the App's settings. Restart the App if needed.") {
 		t.Fatalf("expected generic troubleshooting guidance, got:\n%s", output.String())
 	}
 }
@@ -377,7 +377,7 @@ func TestVerifySetupConnectionRepairPromptInputEndStopsWithProgressSaved(t *test
 	if issue != setupIssueRelayUnreachable {
 		t.Fatalf("expected relay unreachable issue, got %q", issue)
 	}
-	if !strings.Contains(output.String(), "Invalid choice.") {
+	if !strings.Contains(output.String(), "Pick one of the numbers shown.") {
 		t.Fatalf("expected invalid-choice re-prompt before input end:\n%s", output.String())
 	}
 }

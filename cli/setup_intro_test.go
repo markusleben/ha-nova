@@ -12,7 +12,7 @@ func TestRenderSetupIntroExplainsProjectAndBrowserBehavior(t *testing.T) {
 	rendered := output.String()
 	for _, want := range []string{
 		"lets your AI assistant run your Home Assistant",
-		"Steps: pick your AI client, find Home Assistant, add the NOVA App, connect this computer, install the skills.",
+		"Steps: pick your AI app, find Home Assistant, add the NOVA App, connect this computer, add the skills.",
 		"When a browser page opens, finish there and come back here.",
 		"You need the Home Assistant owner's account.",
 		"Home Assistant Link only: the NOVA App must already be installed.",

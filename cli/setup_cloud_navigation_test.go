@@ -74,7 +74,7 @@ func TestConnectionModeBackReturnsToClientSelection(t *testing.T) {
 		output,
 		"How should this computer connect to Home Assistant?",
 	) != 2 ||
-		!strings.Contains(output, "Which AI client do you use?") {
+		!strings.Contains(output, "Which AI app do you use?") {
 		t.Fatalf("connection-mode back did not return to client selection:\n%s", output)
 	}
 	if strings.Count(output, "Setup cancelled") != 1 {

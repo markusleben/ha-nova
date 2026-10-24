@@ -95,7 +95,7 @@ func TestCloudUnlockSupportsExplicitProfileBeforeCheckpointExists(
 				) ||
 				strings.Contains(
 					output,
-					"Native secure storage is unlocked",
+					"The password store is unlocked",
 				) ||
 				!strings.Contains(output, wantAdd) ||
 				strings.Contains(output, "<your-cloud-host>") ||
@@ -179,7 +179,7 @@ func TestCloudUnlockHandlesLegacyLocalProfileWithoutCloudIdentity(
 			output,
 			"OAuth storage has no profile-scoped slot yet",
 		) ||
-		strings.Contains(output, "Native secure storage is unlocked") ||
+		strings.Contains(output, "The password store is unlocked") ||
 		!strings.Contains(output, cloudFreshAddCommand()) ||
 		coordinator.preflightCalls != 0 {
 		t.Fatalf(

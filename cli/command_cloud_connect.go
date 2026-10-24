@@ -169,7 +169,7 @@ func runCloudConnectCommand(
 		return 1
 	}
 	if effectiveRoutePolicy(connected.RoutePolicy) == routePolicyCloud {
-		printHumanInfo("Home Assistant Link access is ready. This profile uses Cloud routing.")
+		printHumanInfo("Home Assistant Link is ready. This server always connects through Link.")
 		return 0
 	}
 	printHumanInfo("Home Assistant Link access is ready. Local access stays preferred.")

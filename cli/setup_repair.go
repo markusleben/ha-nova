@@ -155,7 +155,7 @@ func promptSetupRepairActionFromReader(reader *bufio.Reader, out io.Writer, mode
 			return choice.Value, nil
 		}
 	}
-	renderSetupErrorLine(out, "Invalid choice. Please enter one of the listed options.")
+	renderSetupErrorLine(out, "Pick one of the numbers shown.")
 	return promptSetupRepairActionFromReader(reader, out, mode, credentialRepair)
 }
 

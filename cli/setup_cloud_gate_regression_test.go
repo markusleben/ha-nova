@@ -84,7 +84,7 @@ func TestRemoteOnlyCheckpointBlocksEveryExplicitLocalSetupPath(
 					output,
 					"before changing local or service credentials",
 				) ||
-					strings.Contains(output, "unsupported client") ||
+					strings.Contains(output, "doesn't work with this AI app") ||
 					*keyringCalls != 0 ||
 					activationCalls != 0 ||
 					coordinator.preflightCalls != 0 ||
@@ -289,7 +289,7 @@ func TestRetirementCheckpointInspectionFailureRendersExactCloudRecoveryFirst(
 				})
 				resume := "ha-nova cloud add --server " + profile
 				remove := "ha-nova cloud remove --server " + profile
-				failure := "cannot inspect interrupted device credential retirement"
+				failure := "couldn't check an earlier setup step"
 				if exit != 1 ||
 					!strings.Contains(output, resume) ||
 					!strings.Contains(output, remove) ||

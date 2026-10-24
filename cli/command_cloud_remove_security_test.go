@@ -28,7 +28,7 @@ func TestCloudRemoveKeepsConfigAndSecretWhenRevocationFails(t *testing.T) {
 	if exit != 1 {
 		t.Fatalf("cloud remove exit=%d output=%s", exit, output)
 	}
-	if !strings.Contains(output, "Cloud configuration was kept") ||
+	if !strings.Contains(output, "Home Assistant Link settings were kept") ||
 		!strings.Contains(output, string(cloudProblemUnavailable)) {
 		t.Fatalf("missing fail-closed removal guidance:\n%s", output)
 	}

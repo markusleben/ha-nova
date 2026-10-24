@@ -1,131 +1,109 @@
 # NOVA Relay
 
-The NOVA Relay connects your AI app to Home Assistant: an AI app on your
-computer and, with chat apps on, Claude (also on your phone) and ChatGPT on the web, on a computer.
-Chat apps need Home Assistant Link with remote access (a subscription from the Home Assistant team) or your own HTTPS address.
-It provides secure, authenticated access to Home Assistant's APIs and extends them where needed.
+The NOVA Relay connects your AI app to Home Assistant. That can be an AI app on
+your computer. With chat apps on, it can also be Claude (also in its phone app)
+or ChatGPT on the web, on a computer. Chat apps need Home Assistant Link with
+remote access (a paid service from the Home Assistant team) or your own HTTPS
+address. The Relay lets in only the computers and apps you allowed. It also adds
+a few things Home Assistant can't do on its own.
 
 ## How It Works
 
 ```
-Local: AI Client → NOVA Relay (this App) → Home Assistant APIs
-Cloud: AI Client → Home Assistant Link → Supervisor Ingress → NOVA Relay → Home Assistant APIs
-Chat apps: Claude / ChatGPT → Home Assistant (Link or your own HTTPS address)
-           → ha_nova integration → chat-app bridge (this App) → NOVA Relay → Home Assistant APIs
+At home:     AI app → NOVA Relay (this App) → Home Assistant
+Away (Link): AI app → Home Assistant Link → Home Assistant → NOVA Relay → Home Assistant
+Chat apps:   Claude / ChatGPT → Home Assistant (Link or your own HTTPS address)
+             → ha_nova integration → chat-app bridge (this App) → NOVA Relay → Home Assistant
 ```
 
-Your AI client (Claude Code, Claude Desktop, Codex, OpenCode, Google Antigravity, Hermes Agent) connects
-to the relay with its own secure device credential — created by pairing, never
-copied or pasted by hand. Intelligence lives in the AI client's skills, not in
-the relay.
+Your AI app (Claude Code, Claude Desktop, Codex, OpenCode, Google Antigravity,
+Hermes Agent) talks to the Relay with its own key. Each computer gets its key
+when it connects, so you never copy or paste one. The know-how lives in the AI
+app's skills, not in the Relay.
 
-The optional Home Assistant Link (formerly Home Assistant Cloud) path is a
-release-gated desktop Beta. Enabled release builds use the user's existing
-Home Assistant Link remote access; HA NOVA runs no public tunnel or broker. Local-only
-operation is unchanged. In Home Assistant, the service is under
-**Settings > Home Assistant Cloud** (Home Assistant 2026.12 and newer:
-**Settings > Home Assistant Link**). The `ha-nova cloud`
-commands, the `cloud` route, and the "Cloud" mode name in HA NOVA keep their
-names.
+Home Assistant Link (formerly Home Assistant Cloud; Nabu Casa) is optional and
+still in Beta. It uses the remote access you already pay for. HA NOVA adds no
+server of its own in between. Without Link, everything works at home as before.
+Your Home Assistant may still show the old name in Settings until the new name
+reaches it. The `ha-nova cloud` commands and the `cloud` route keep their names.
 
 ## The NOVA page
 
 Open **NOVA** in the Home Assistant sidebar to manage everything in one place.
-(The **Open Web UI** button on this App's page opens the exact same screen —
-it is the same owner console either way.)
+The **Open Web UI** button on this App's page opens the same page.
 
-From there you can:
+There you can:
 
-- see whether the relay is connected to Home Assistant,
+- see whether the Relay is connected to Home Assistant,
 - check for App updates,
-- **connect a device**: click *Connect a device* to show a one-time six-digit
-  code, then enter it on your computer when `ha-nova setup` asks. The code works
-  once and expires in 10 minutes. When setup pairs through your Home Assistant
-  sign-in instead, the page shows that a computer is connecting, with Cancel,
-- see connected devices and **revoke** any one of them instantly,
+- **connect a device**: click *Connect a device* to show a six-digit code.
+  Type it on your computer when `ha-nova setup` asks. The code works once, for
+  10 minutes. When setup connects through your Home Assistant sign-in instead,
+  the page shows that a computer is connecting, with Cancel,
+- see connected devices and **revoke** any one of them at once,
 - turn **chat apps** (HA NOVA in Claude and ChatGPT) on or off, let them only
   read, or turn off codes in the chat (see [Chat apps](#chat-apps-claude-and-chatgpt)).
 
-The page is owner-only and only reachable through Home Assistant's ingress — a
-direct network request cannot open it.
+Only the Home Assistant owner can open this page. It opens only from inside
+Home Assistant, never by its network address.
 
 ## Configuration
 
 | Option | Description |
 |--------|-------------|
-| **Relay Auth Token (legacy/advanced)** | Existing installs may keep their shared token. HA NOVA 0.27 is the last release that accepts it: run `ha-nova setup` once on each computer to switch (a `--service` install: `ha-nova pair --credential-store=file`). When every computer has switched, choose "Revoke legacy access" on the NOVA page. New installs leave this empty; the App creates and persists a private token automatically. |
-| **File access (advanced)** | Optional access to supported Home Assistant configuration files. Defaults to off. |
+| **Relay Auth Token (legacy/advanced)** | Old installs may still use this shared password. HA NOVA 0.27 is the last release that accepts it. Run `ha-nova setup` once on each computer to switch (a `--service` install: `ha-nova pair --credential-store=file`). When every computer has switched, choose "Revoke legacy access…" on the NOVA page. New installs leave this empty. The App then makes and keeps its own private one. |
+| **File access (advanced)** | Lets HA NOVA read or change some Home Assistant config files. Off by default. |
 
-The App receives Home Assistant API access automatically from Supervisor. Do
-not create or paste a Home Assistant Long-Lived Access Token for a normal App
-install. Standalone Container/Core deployments keep their explicit `HA_LLAT`
-server-side as documented in `docs/reference/relay-container.md`.
+The App logs in to Home Assistant by itself. Don't create or paste a Home
+Assistant access token for a normal App install. A standalone Container/Core
+Relay keeps its `HA_LLAT` on the server, as described in
+`docs/reference/relay-container.md`.
 
-> **Where is this page?** Home Assistant 2026.2 renamed Add-ons to Apps: this
-> page moved from `/hassio/addon/<slug>/info` to `/config/app/<slug>/info`
-> (Settings > Apps > NOVA Relay). The setup wizard links through HA's own
-> `/_my_redirect/` endpoint, so its links work on both old and new versions.
+> **Where is this page?** Home Assistant 2026.2 renamed Add-ons to Apps. This
+> page is now under Settings → Apps → NOVA Relay. Setup's links work on both old
+> and new versions.
 
 ### Network
 
 | Port | Description |
 |------|-------------|
-| 8791/tcp | Pairing + legacy HTTP access |
-| 8792/tcp | Secure device API (pinned TLS) — all paired-device traffic |
+| 8791/tcp | Connecting computers, and the old shared access |
+| 8792/tcp | Everything a connected computer sends (encrypted, locked to this App) |
 
 ## Endpoints
 
-Paired devices authenticate with their own credential over the secure TLS port
-(8792), sent as `Authorization: Bearer <token>`. Requests on the plain port
-(8791), including `GET /health` and legacy access, use the same header. The
-pairing endpoints use the six-digit pairing code, or the owner's Home
-Assistant sign-in, as their credential instead. You
-normally never call these directly — the CLI and the NOVA page do it for you.
+You normally never call these yourself. The CLI and the NOVA page do it for
+you. Connected devices use their own key over the encrypted port (8792), sent
+as `Authorization: Bearer <token>`. Requests on the plain port (8791),
+including `GET /health` and the old shared access, use the same header.
+Connecting uses the six-digit code, or the owner's Home Assistant sign-in,
+instead.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/health` | Relay health check (version, uptime, WS status) |
-| GET/POST | `/pair/v1/*` | Secure device pairing (OPAQUE) — code as credential |
-| POST | `/auth/device/*` | Device credential activate / revoke (TLS only) |
-| GET | `/auth/device/peers` | Whether other devices, an open pairing, legacy access, or chat-app files still use this App (TLS only; for `ha-nova uninstall`) |
-| POST | `/ws` | WebSocket proxy — forwards commands to HA's WS API |
-| POST | `/core` | REST API proxy — forwards requests to HA's Core REST API (`/api/...`) |
-| POST | `/files` | Opt-in, contained configuration-file operations |
-| POST | `/backups` | Generic config-snapshot storage |
+| GET | `/health` | Relay health check (version, uptime, Home Assistant connection) |
+| GET/POST | `/pair/v1/*` | Connect a device (OPAQUE) — the code is the key |
+| POST | `/auth/device/*` | Turn a device's key on or off (encrypted port only) |
+| GET | `/auth/device/peers` | Whether other devices, an open code, the old shared access, or chat-app files still use this App (encrypted port only; for `ha-nova uninstall`) |
+| POST | `/ws` | Passes commands to Home Assistant's WebSocket API |
+| POST | `/core` | Passes requests to Home Assistant's REST API (`/api/...`) |
+| POST | `/files` | Config-file access, only when you turn it on |
+| POST | `/backups` | Saved copies of configs, for undo |
 
-The Cloud Beta adds a separate Supervisor-ingress-only machine surface:
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/cloud/v1/info` | Relay identity and Cloud capability discovery |
-| POST | `/cloud/v1/device/bind` | Bind an existing local device to the authenticated Home Assistant user |
-| POST | `/cloud/v1/device/revoke-self` | Revoke the exact presented, user-bound device; remains available for cleanup when Cloud is disabled |
-| GET/POST | `/pair/v2/*` | OPAQUE remote-first pairing through Ingress |
-| POST | `/cloud/v1/device/activate` | Atomically activate and user-bind a pending remote device |
-| GET | `/health` | The same bounded health route through Ingress |
-| GET/POST | `/chat-apps/v1/state` | Read or change the chat-app switch (owner only, through Ingress) |
-| POST | `/ws`, `/core`, `/files`, `/backups` | The same bounded functional routes through Ingress |
-
-These routes are not exposed as a new public Relay port. Every machine request
-must come from the exact Supervisor Ingress peer with exactly one Home Assistant
-user identity. Functional calls also require an active device credential bound
-to that user and this persistent Relay instance. Legacy shared Relay tokens are
-not accepted through Ingress.
-
-When Cloud Remote is disabled, `/cloud/v1/info` advertises cleanup-only
-capabilities and `/cloud/v1/device/revoke-self` remains registered. Setup,
-pairing, and functional machine routes are absent.
+Home Assistant Link and chat apps reach the Relay only from inside Home
+Assistant, never on a new public port. That route list is in
+[the Relay reference](https://github.com/markusleben/ha-nova/blob/main/docs/reference/bridge-architecture.md#home-assistant-link-routes).
 
 ## Setup
 
-The easiest way to set up everything (relay + AI client + skills):
+The easiest way to set up everything (the App, your AI app, and the skills):
 
 - open [README.md](../README.md)
 - open the [latest GitHub release](https://github.com/markusleben/ha-nova/releases/latest)
-- copy the stable install one-liner for your OS and run it unchanged
+- copy the install line for your computer and run it as is
 
-On a desktop, setup opens a page in your browser. It finds your Home
-Assistant, you sign in as the owner, and it installs this App for you if
+On a computer with a screen, setup opens a page in your browser. It finds your
+Home Assistant. You sign in as the owner, and it installs this App for you if
 needed (HA OS, Supervised). Over SSH or with `--no-browser`, it asks in the
 terminal instead.
 
@@ -135,67 +113,52 @@ Already installed HA NOVA? Run setup again:
 ha-nova setup
 ```
 
-When a validated build enables Cloud Remote, a supported interactive desktop
-offers:
+Setup finds your Home Assistant by itself. Does it find more than one? You pick
+one. None? You type its address. If this App already runs (for another
+computer), setup skips the install step. Then it opens your Home Assistant
+login. Sign in as the owner, and this computer connects by itself. Over SSH,
+as another Home Assistant user, or if sign-in fails, setup asks for a six-digit
+code instead. The owner makes it on the NOVA page.
 
-- **Local only (recommended default)** — unchanged local setup; no Home
-  Assistant Link subscription or background Cloud probe required.
-- **Local + Home Assistant Link** — pair locally once, then explicitly add
-  secure remote access with the same device credential.
-- **Home Assistant Link only** — authorize remotely, then pair through
-  Supervisor Ingress: signed in as the owner, with no code; as another user,
-  with a six-digit code from the owner-only NOVA page.
+Each computer gets its own key. It is saved in this computer's password store.
+With no password store (for example a server), or with `--service` or
+`ha-nova pair --credential-store=file`, it goes in a private file instead.
+Saved old tokens, `--relay-token`, service token files, and standalone
+Container/Core setups still work the old way.
 
-Sign in to Home Assistant Link as the owner, and this computer connects with
-no code. Don't want the owner's login saved on this computer? Sign in as a
-standard Home Assistant user instead: HA NOVA through Link doesn't need owner
-or admin rights, and it can still do the same things. Then the owner makes a six-digit code on the NOVA page, in a separate
-private browser window. Only the owner can open the NOVA page and make or
-revoke codes.
+### Away from home with Home Assistant Link
 
-The setup wizard handles Relay configuration and skill installation. Local
-setup automatically uses one reachable Home Assistant instance, shows a
-source-labeled pick list when it finds several, and keeps manual address entry
-when discovery finds none. If this App already runs (for another computer),
-setup skips the install step. Its normal App flow opens your Home Assistant login:
-sign in as the owner and this computer pairs by itself. Over SSH, with another
-Home Assistant user, or when sign-in does not work out, it asks for the
-six-digit code from the NOVA page instead (the owner generates it there). Either way it pairs securely: the
-device receives its own credential
-(kept in the client's OS credential store — or in a private file for
-`--service` installs, explicit `ha-nova pair --credential-store=file` opt-ins,
-and headless systems without a keyring) and talks to the Relay over pinned TLS.
-Existing saved tokens, `--relay-token`, service token
-files, and standalone Container/Core setups keep their explicit-token paths.
+Do you pay for Home Assistant Link, with remote access on? Then setup can also
+let this computer reach your home when you're away. It offers:
 
-Cloud OAuth refresh tokens are separate from Relay/device credentials and live
-only in native OS secure storage. There is no file, environment-variable,
-argument, or config fallback for them. Setup, reconnect, and explicit unlock
-may show bounded native prompts for the selected device and OAuth slots. Normal
-Relay calls use no-UI reads and fail fast if the store is locked.
+- **Local only** (what we recommend): works at home. No Link needed.
+- **Local + Home Assistant Link**: connect at home once, then add Link with the
+  same key. At home, this computer still talks to Home Assistant directly. It
+  uses Link only when it can't reach home.
+- **Home Assistant Link only**: sign in through Link first, then connect.
 
-Cloud management commands:
+Sign in as the owner, and this computer connects with no code. Want this
+computer to have less access? Sign in as a standard user instead. Then the
+owner makes a code on the NOVA page, in a separate private browser window (setup
+calls it the "Owner session"). HA NOVA can still do the same things.
+
+Your Link sign-in is saved only in this computer's password store, nowhere
+else. Setup may ask you to unlock the password store. Link works on a Mac, on
+Windows, and on a Linux computer with a desktop. Servers, SSH, WSL, and
+containers stay at home only. Did a setup that was already checked get cut
+off? You can finish it over SSH with `ha-nova cloud add --remote-resume`.
+
+Link commands:
 
 ```bash
-ha-nova cloud add [--server <name>] [--url https://<cloud-host>]
+ha-nova cloud add [--server <name>] [--url https://<link-address>]
 ha-nova cloud status [--server <name>] [--json]
 ha-nova cloud unlock [--server <name>]
-ha-nova cloud reconnect [--server <name>] [--url https://<cloud-host>]
+ha-nova cloud reconnect [--server <name>] [--url https://<link-address>]
 ha-nova cloud remove [--server <name>]
 ha-nova server route <local|automatic|cloud> [--server <name>]
 ha-nova relay health --via <local|cloud> [--server <name>]
 ```
-
-`automatic` routing prefers the pinned local device transport. It selects Cloud
-only when a short authenticated local health preflight ends in a pure network
-failure. Authentication, authorization, certificate-pin, identity, redirect,
-or protocol failures stop without Cloud fallback. A functional request is sent
-through one selected transport and is never replayed through the other.
-
-Only a verified canonical `https://*.ui.nabu.casa` origin receives credentials.
-A custom domain may be used for discovery only after its DNS CNAME resolution
-ends at that canonical origin and one publicly trusted TLS certificate covers
-both names.
 
 ## Chat apps (Claude and ChatGPT)
 
@@ -238,32 +201,28 @@ it. Step by step and troubleshooting:
 ## Checking Status
 
 Open **NOVA** in the Home Assistant sidebar (see [The NOVA page](#the-nova-page))
-for connection status, updates, and device management.
+to see the connection, updates, and devices.
 
-Run the built-in health check:
+On your computer, run:
 
 ```bash
 ha-nova doctor
 ```
 
-This verifies: config file, local Relay token, relay reachability, WebSocket connection,
-and relay version.
+It checks that HA NOVA is set up, can reach the NOVA App, and that the App can
+talk to Home Assistant. It also tells you when an update is ready.
 
-For a configured Cloud profile:
+Using Home Assistant Link? Run:
 
 ```bash
 ha-nova cloud status --server <name>
-ha-nova relay health --server <name> --via cloud
 ```
 
-`cloud status` verifies OAuth, Home Assistant Link state, the current user,
-NOVA Relay Ingress discovery, Relay instance identity, and the bound device
-credential. With `--json`, it always emits one object; failures include typed
-`verification_error` and `next_command` fields. It does not print tokens,
-cookies, or Ingress paths. A named Cloud-only profile can run
-`ha-nova setup --server <name>` to resume onboarding and install client skills.
+It says what's wrong and which command fixes it. With `--json`, it prints one
+JSON object (`verification_error` and `next_command` when something fails). It
+never prints passwords or keys.
 
-You can also check the relay directly:
+You can also ask the Relay yourself:
 
 ```bash
 curl \
@@ -271,7 +230,7 @@ curl \
   http://<your-ha-ip>:8791/health
 ```
 
-A healthy response looks like:
+A healthy answer looks like this:
 
 ```json
 {
@@ -287,87 +246,77 @@ A healthy response looks like:
 
 ## Troubleshooting
 
-**Relay not reachable**
+**HA NOVA can't reach the App**
 
-- Verify the App is running (green icon in the header)
-- Check that port 8791 is not blocked by your network/firewall
-- Ensure the correct host IP is configured in your AI client
+- Check that this App is running (Settings → Apps → NOVA Relay). Start it if not.
+- Check that nothing on your network blocks port 8791.
+- Run `ha-nova setup` again. It checks the address and fixes it.
 
-**Authentication failed**
+**Login failed**
 
-- Existing installs should verify that the relay auth token matches on both sides
-- Re-run `ha-nova setup` to repair the current client configuration
-- App install: update or restart NOVA Relay so Supervisor access is refreshed
-- Standalone Container/Core: verify that server-side `HA_LLAT` is still valid
+- Run `ha-nova setup` again. It connects this computer again.
+- Restart or update this App. That renews its own Home Assistant login.
+- Standalone Container/Core: check that `HA_LLAT` on the server still works.
 
-**WebSocket not connected**
+**The App isn't connected to Home Assistant yet**
 
-- Health and REST calls do not open the lazy HA WebSocket connection
-- Run `ha-nova doctor` to send a WS ping and verify the following health state
-- Check the App logs only when that active readiness check fails
+- The App connects to Home Assistant only when it's first needed.
+- Run `ha-nova doctor`. It makes the App connect, then says if it worked.
+- Still not connected? Then look at this App's **Log** tab.
 
-**Cloud secure storage is locked**
+**Link says the password store is locked**
 
-- Run `ha-nova cloud unlock --server <name>` from the same interactive desktop
-  session
-- Do not run Cloud commands through `sudo`, SSH, WSL, a service, or a container
-- Linux requires a validated desktop Secret Service session
+- Run `ha-nova cloud unlock --server <name>` on the computer itself, at its
+  screen.
+- Don't run Link commands with `sudo`, over SSH, in WSL, as a service, or in a
+  container.
+- On Linux, you need a desktop with a password store (a Secret Service).
 
-**Cloud remote access is unavailable**
+**Link doesn't work**
 
-- Confirm the Home Assistant Link subscription and remote access are active
-  (in Home Assistant: **Settings > Home Assistant Cloud**; 2026.12 and newer:
-  **Settings > Home Assistant Link**)
-- Confirm the NOVA Relay App is installed, current, and running
-- Run `ha-nova cloud status --server <name>` for a typed remediation code
-- Treat any Relay-instance or user mismatch as a security stop; do not bypass it
-- If reconnect signs in as a different Home Assistant user, HA NOVA restores the
-  previous Cloud authorization. Pair this computer for the intended user before
-  reconnecting again.
-- After an intentional App reinstall, a Cloud-only profile must run
-  `cloud remove --yes` and then `cloud add --url ...`. A hybrid profile must
-  remove Cloud access, pair locally with the reinstalled App, and then add
-  Cloud access again. Never use this sequence for an unexplained mismatch.
+- Check that your Home Assistant Link plan and its remote access are on.
+- Check that this App is installed, up to date, and running.
+- Run `ha-nova cloud status --server <name>`. It says what to do next.
+- It says this App or the Home Assistant user changed? Stop there. Don't work
+  around it. Someone may be trying to get in.
+- Did a reconnect sign in as a different Home Assistant user? HA NOVA keeps
+  the old Link sign-in. Connect this computer for the right user first, then
+  reconnect.
+- Did you reinstall this App on purpose? With "Home Assistant Link only", run
+  `ha-nova cloud remove --yes`, then `ha-nova cloud add --url ...`. With
+  "Local + Home Assistant Link", remove Link, connect this computer again at
+  home, then add Link again. Only do this after a reinstall you made yourself.
 
-## Removing Cloud Access
+## Removing Home Assistant Link
 
-`ha-nova cloud remove` revokes and verifies HA NOVA's OAuth authorization, then
-removes its local Cloud secret and metadata. It leaves the Home Assistant Link
-subscription and local NOVA pairing unchanged.
+`ha-nova cloud remove` signs HA NOVA out of Link and checks that it worked.
+Then it deletes the Link sign-in from this computer. Your Link plan and this
+computer's connection at home stay as they are.
 
-`ha-nova uninstall` asks one question. "Remove" revokes and verifies every
-configured Cloud authorization and this computer's pairing before removing
-local secrets and config; if safe revocation cannot be completed, it stops
-before destructive local cleanup. "Remove, but keep the pairing" keeps the Home
-Assistant connection config, device pairing, and Cloud authorization for a
-reinstall (also what `ha-nova uninstall --yes` does; add `--purge` for a full
-removal). This App stays installed unless the menu offers "Remove, and remove
-the NOVA App too": only when this App answers that no other device, no legacy
-shared access, and no chat-app files use it, and only after the Home Assistant
-owner signs in. Removing the App disconnects every paired computer. Turn chat
-apps off on the NOVA page before you remove the App.
+`ha-nova uninstall` asks one question:
 
-## Cloud Beta Availability
+- "Remove" signs out every Link sign-in and this computer's connection, checks
+  that it worked, and then deletes HA NOVA's keys and settings here. If it
+  can't sign out safely, it stops before it deletes anything.
+- "Remove, but keep the pairing" keeps the Home Assistant connection, this
+  computer's key, and the Link sign-in, for a later reinstall.
+  `ha-nova uninstall --yes` does the same; add `--purge` to remove everything.
+- "Remove, and remove the NOVA App too" shows only when this App says that no
+  other device, no old shared access, and no chat-app files use it. The Home
+  Assistant owner must sign in first.
 
-Enabled release builds support Cloud Remote only on macOS desktop terminals,
-Windows console/RDP sessions, and validated Linux desktop Secret Service
-providers. SSH, WSL, containers, services, gateways, and other headless
-contexts stay local-only for starting an authorization; an interrupted,
-already-verified setup on a supported machine may finish over SSH with
-`ha-nova cloud add --remote-resume`. Every publication remains gated on exact-source Home
-Assistant Link parity, native-keyring, user-role, redirect, lifecycle, App
-restart/update/reinstall, and 10,000-command Ingress-session stress evidence.
-See
-[`docs/work/2026-07-25-home-assistant-cloud-remote-spec.md`](../docs/work/2026-07-25-home-assistant-cloud-remote-spec.md).
+Removing this App disconnects every computer. Turn chat apps off on the NOVA
+page before you remove the App.
 
 ## Logs
 
-App logs are available in the **Log** tab above. Look for:
+The App's logs are in the **Log** tab above. Look for:
 
-- `Relay listening (app mode)` — relay started successfully
-- `Relay bootstrap (app mode)` — shows the upstream auth source
-- Pairing codes are **never** logged — generate and read them on the NOVA page
-- Any `error` or `warn` messages indicate issues
+- `Relay listening (app mode)`: the Relay started.
+- `Relay bootstrap (app mode)`: shows how the App logs in to Home Assistant.
+- Pairing codes are **never** in the log. Make them and read them on the NOVA
+  page.
+- Lines with `error` or `warn` point to a problem.
 
 ## Support
 

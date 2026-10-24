@@ -255,7 +255,7 @@ func resumePendingActivationWithPolicy(
 	}
 	if cfg.Cloud != nil {
 		return false, fmt.Errorf(
-			"cannot resume a local device replacement while Home Assistant Link access is configured; remove Cloud access first",
+			"cannot resume a local device replacement while Home Assistant Link access is configured; remove Home Assistant Link first (ha-nova cloud remove)",
 		)
 	}
 	// Choose the backend that actually holds the interrupted pairing, without a

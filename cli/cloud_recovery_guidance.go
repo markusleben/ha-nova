@@ -204,7 +204,7 @@ func renderCloudRecoveryGuidance(
 		if cfg.Cloud.Current != nil {
 			fmt.Fprintln(
 				out,
-				"  The previously saved Cloud connection was not overwritten.",
+				"  The Home Assistant Link connection saved before was kept.",
 			)
 		}
 		fmt.Fprintf(out, "  Verified cleanup: %s\n", cloudRemoveCommand())

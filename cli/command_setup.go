@@ -135,7 +135,7 @@ func runSetup(paths runtimePaths, args []string) int {
 	if retirementErr != nil {
 		renderSetupCloudRecoveryBeforePrerequisiteFailure(paths)
 		printHumanErr(
-			"cannot inspect interrupted device credential retirement: %s",
+			"couldn't check an earlier setup step that didn't finish: %s",
 			retirementErr,
 		)
 		return 1
@@ -296,7 +296,7 @@ func runSetup(paths runtimePaths, args []string) int {
 			cfg,
 		); err != nil {
 			printHumanErr(
-				"cannot finish the interrupted device credential retirement: %s",
+				"couldn't finish an earlier setup step: %s",
 				err,
 			)
 			return 1

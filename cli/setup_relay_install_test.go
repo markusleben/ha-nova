@@ -132,7 +132,7 @@ func TestDetectInstalledRelayHintsUpdateBelowMinimum(t *testing.T) {
 	for version, wantHint := range map[string]bool{"0.8.0": true, "0.9.1": false, "1.0.0": false, "": false} {
 		stubInstalledRelayProbe(t, true, version)
 		_, note := detectInstalledRelay(&strings.Builder{}, paths, cfg, "")
-		if got := strings.Contains(note.plain(), "update to v0.9.1 or newer after setup"); got != wantHint {
+		if got := strings.Contains(note.plain(), "update it to v0.9.1 or newer"); got != wantHint {
 			t.Fatalf("relay %q: update hint = %v, want %v (note %q)", version, got, wantHint, note)
 		}
 	}

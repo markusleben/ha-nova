@@ -56,9 +56,9 @@ func TestInteractiveCloudConflictFailsBeforeClientAndKeyring(
 			) ||
 				!strings.Contains(
 					output,
-					"remove Cloud access first",
+					"remove Home Assistant Link first",
 				) ||
-				strings.Contains(output, "unsupported client") ||
+				strings.Contains(output, "doesn't work with this AI app") ||
 				*keyringCalls != 0 {
 				t.Fatalf(
 					"Cloud activation conflict keyring=%d: %s",

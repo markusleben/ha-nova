@@ -118,7 +118,7 @@ func TestRenderSetupMenuBlockUsesCRLFForRawTerminalLayout(t *testing.T) {
 	output := &bytes.Buffer{}
 
 	lines := renderSetupMenuBlock(output, uiSession{mode: uiModeEnhanced}, setupMenuSpec{
-		Title:        "Which AI client do you use?",
+		Title:        "Which AI app do you use?",
 		Prompt:       "Use ↑/↓ or j/k, Enter to select, Ctrl+C to exit",
 		DefaultValue: "claude",
 		Options: []setupMenuOption{
@@ -134,7 +134,7 @@ func TestRenderSetupMenuBlockUsesCRLFForRawTerminalLayout(t *testing.T) {
 	if !strings.Contains(rendered, "\r\n") {
 		t.Fatalf("expected CRLF in rendered menu output, got %q", rendered)
 	}
-	if strings.Contains(rendered, "\n  Which AI client do you use?\n") {
+	if strings.Contains(rendered, "\n  Which AI app do you use?\n") {
 		t.Fatalf("expected raw-menu rendering to avoid bare LF-only layout, got %q", rendered)
 	}
 }
@@ -143,7 +143,7 @@ func TestRenderSetupMenuBlockUsesCompactLayoutAndSecondLineDisabledReason(t *tes
 	output := &bytes.Buffer{}
 
 	renderSetupMenuBlock(output, uiSession{mode: uiModeEnhanced, color: true}, setupMenuSpec{
-		Title:  "Which AI client do you use?",
+		Title:  "Which AI app do you use?",
 		Prompt: "Use ↑/↓ or j/k, Enter to select, Ctrl+C to exit",
 		Options: []setupMenuOption{
 			{Value: "claude", Label: "Claude Code"},
@@ -152,7 +152,7 @@ func TestRenderSetupMenuBlockUsesCompactLayoutAndSecondLineDisabledReason(t *tes
 	}, 0, 0)
 
 	rendered := output.String()
-	if !strings.Contains(rendered, "Which AI client do you use?") || !strings.Contains(rendered, "\r\n\r\n  ") {
+	if !strings.Contains(rendered, "Which AI app do you use?") || !strings.Contains(rendered, "\r\n\r\n  ") {
 		t.Fatalf("expected compact menu title block with a single blank separator, got %q", rendered)
 	}
 	if !strings.Contains(rendered, "not available: install Codex CLI first") {

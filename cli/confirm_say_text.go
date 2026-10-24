@@ -13,14 +13,38 @@ import (
 
 // sayData: the values a call sets, once, when no single-target delta shows them.
 func sayData(data map[string]any) string {
-	var parts []string
+	var parts, flags []string
 	for _, key := range sortedKeys(data) {
+		if flag, ok := sayFlag(key, deltaValue(data[key])); ok {
+			flags = append(flags, ", "+flag)
+			continue
+		}
 		parts = append(parts, sayValue(key)+" "+sayValue(deltaValue(data[key])))
 	}
-	if len(parts) == 0 {
-		return ""
+	out := ""
+	if len(parts) > 0 {
+		out = " with " + strings.Join(parts, ", ")
 	}
-	return " with " + strings.Join(parts, ", ")
+	return out + strings.Join(flags, "")
+}
+
+// sayFlag: a true/false field in plain words ("with a backup first"), never
+// "backup set to true"; ok is false for any other value.
+func sayFlag(field, value string) (string, bool) {
+	on, ok := map[string]bool{"true": true, "false": false}[value]
+	switch {
+	case !ok:
+		return "", false
+	case field == "backup" && on:
+		return "with a backup first", true
+	case field == "backup":
+		return "without a backup", true
+	}
+	words := strings.TrimPrefix(strings.ReplaceAll(sayText(field, false), "_", " "), "is ")
+	if on {
+		return "with " + words + " on", true
+	}
+	return "with " + words + " off", true
 }
 
 func sayMore(n int, rest string) string {
