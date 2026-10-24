@@ -42,6 +42,9 @@ async function waitFor(what, check, ms = 60_000) {
 
 async function fixture() {
   if (!existsSync(join(STATE, "relay-token"))) throw new Error("test bed not running; npm run testbed:up first");
+  // It recreates the Relay: only ever on this tree's own bed.
+  const wd = execFileSync("docker", ["inspect", "--format", '{{index .Config.Labels "com.docker.compose.project.working_dir"}}', "ha-nova-testbed-ha"], { encoding: "utf8" }).trim();
+  if (wd !== HERE) throw new Error(`the running test bed is not this tree's (${wd}); nothing changed`);
   const file = join(STATE, "phone.json");
   if (!existsSync(file)) {
     const out = execFileSync("node", [join(HERE, "seed.mjs"), "phones", HA, read("ha-llat")], { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
@@ -54,6 +57,8 @@ async function fixture() {
   });
   const health = async () => (await (await fetch("http://127.0.0.1:18791/health", { headers: { authorization: `Bearer ${read("relay-token")}` } })).json()).data?.status === "ok"; // it connects to Home Assistant on first use
   await waitFor("the Relay as Testbed Relay", health);
+  // Docker's own health check too (30 s interval): a client matrix after this lane needs "healthy".
+  await waitFor("the Relay container healthy", async () => execFileSync("docker", ["inspect", "-f", "{{.State.Health.Status}}", "ha-nova-testbed-relay"], { encoding: "utf8" }).trim() === "healthy", 90_000);
   await waitFor("the push service", async () => (await fetch(`${PUSH}/pushes`)).ok);
   // A fresh home every run: a link left by an aborted run never carries over.
   rmSync(HOME, { recursive: true, force: true });
@@ -73,6 +78,10 @@ function cli(args) {
   child.on("close", () => children.delete(child));
   return { child, done: new Promise((resolve) => child.on("close", (code) => resolve({ code, stdout, stderr }))) };
 }
+
+// An unanswered ask must not outlive the lane, however it ends.
+process.on("exit", () => { for (const child of children) child.kill(); });
+for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => process.exit(130));
 
 let seen = 0;
 async function nextPush() {
@@ -163,7 +172,7 @@ async function stop(platform) {
   const run = cli(["setup", "confirm-phone", "off"]);
   const ask = await question(platform, "Stop", { unlock: true });
   await result(ask, "Approved");
-  finished(`stop on ${PHONES[platform]}`, await run.done, { out: "Phone confirmation is off" });
+  finished(`stop on ${PHONES[platform]}`, await run.done, { out: "Phone confirmation is off", err: tapLine(platform, "Stop") });
 }
 
 async function confirmUnlock(platform) {
@@ -190,8 +199,9 @@ try {
   await link("android");
   await stop("android");
   await cli(["call", "lock.lock", "lock.front_door"]).done;
+  const extra = (await (await fetch(`${PUSH}/pushes`)).json()).slice(seen);
+  report("no push beyond the asked phones", extra.map((p) => `${p.path}: ${p.body.title}`));
 } catch (err) {
   report("phone lane ran to the end", [err.message]);
 }
-for (const child of children) child.kill(); // an unanswered ask must not outlive the lane
 process.exit(failed ? 1 : 0);

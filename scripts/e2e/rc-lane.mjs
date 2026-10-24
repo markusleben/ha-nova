@@ -56,25 +56,37 @@ function tagLt(a, b) { // vX.Y.Z-rcN sorts before vX.Y.Z
   return false;
 }
 // run: a child process with its output in a log; resolves {code, out}.
+// Its own process group: a timeout or cleanup stops everything it started
+// (the matrix's lanes and containers, the phone lane's waiting CLI).
 function run(cmd, args, { log, env = process.env, cwd = ROOT, timeoutMs = 30 * 60_000 } = {}) {
   const fd = openSync(log, "a");
-  const child = spawn(cmd, args, { cwd, env, stdio: ["ignore", fd, fd] });
+  const child = spawn(cmd, args, { cwd, env, stdio: ["ignore", fd, fd], detached: true });
   procs.add(child);
-  const timer = setTimeout(() => child.kill(), timeoutMs);
-  return new Promise((done) => child.on("close", (code) => {
-    clearTimeout(timer);
-    procs.delete(child);
-    closeSync(fd);
-    done({ code, out: readFileSync(log, "utf8") });
-  }));
+  const timer = setTimeout(() => stopGroup(child), timeoutMs);
+  return new Promise((done) => {
+    const end = (code) => {
+      clearTimeout(timer);
+      procs.delete(child);
+      try { closeSync(fd); } catch { /* closed by an earlier end */ }
+      done({ code, out: readFileSync(log, "utf8") });
+    };
+    child.on("error", (err) => { writeFileSync(log, `\n${err.message}\n`, { flag: "a" }); end(-1); });
+    child.on("close", end);
+  });
+}
+function stopGroup(child) {
+  try { process.kill(-child.pid, "SIGTERM"); } catch { /* already gone */ }
 }
 const freePort = () => new Promise((done) => { const s = net.createServer().listen(0, "127.0.0.1", () => { const { port } = s.address(); s.close(() => done(port)); }); });
-const cli = (args, log) => run("bash", [join(TESTBED, "cli.sh"), ...args], { log, env: { ...process.env, TESTBED_CLI_BIN: join(WORK, "bin/ha-nova"), TESTBED_CLI_HOME: join(STATE, "rc-home") } });
+const cli = (args, log) => run("bash", [join(TESTBED, "cli.sh"), ...args], { log, timeoutMs: 3 * 60_000, env: { ...process.env, TESTBED_CLI_BIN: join(WORK, "bin/ha-nova"), TESTBED_CLI_HOME: join(STATE, "rc-home") } });
 // The CLI prints its envelope as one JSON line; stderr lines may surround it.
 const json = (text) => { try { return JSON.parse(text.split("\n").find((l) => l.startsWith("{")) ?? "{}"); } catch { return {}; } };
 
+let cleaned = false;
 function cleanup() {
-  for (const p of procs) p.kill();
+  if (cleaned) return;
+  cleaned = true;
+  for (const p of procs) stopGroup(p);
   proxy?.close();
   if (startedBed) {
     try { execFileSync("bash", [join(TESTBED, "down.sh")], { stdio: "ignore" }); } catch { console.error(`rc-lane: test bed teardown failed; run: bash ${TESTBED}/down.sh`); }
@@ -82,7 +94,10 @@ function cleanup() {
   if (KEEP) say(`work dir kept: ${WORK}`);
   else rmSync(WORK, { recursive: true, force: true });
 }
-for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => { cleanup(); process.exit(130); });
+// Every way out cleans up: a signal, a crash, or the normal end.
+process.on("exit", cleanup);
+for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => process.exit(130));
+for (const ev of ["uncaughtException", "unhandledRejection"]) process.on(ev, (err) => { console.error(`rc-lane: crashed: ${err?.stack ?? err}`); process.exit(1); });
 
 // ---- setup: the tag's binary and a fresh test bed of our own --------------------
 async function fetchBinary() {
@@ -120,7 +135,8 @@ function startBed() {
 
 // ---- a: client matrix ------------------------------------------------------------
 async function matrix() {
-  const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`);
+  const auth = process.env.GITHUB_TOKEN ? { authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {};
+  const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`, { headers: auth });
   if (!res.ok) throw new Error(`GitHub releases: HTTP ${res.status}`);
   const stable = (await res.json()).filter((r) => !r.draft && !r.prerelease && TAG_RE.test(r.tag_name) && tagLt(r.tag_name, tag)).map((r) => r.tag_name);
   const last = stable.reduce((a, b) => (tagLt(a, b) ? b : a), stable[0]);
@@ -128,7 +144,8 @@ async function matrix() {
   for (const from of [...new Set([last, "v0.24.0"])].filter((f) => tagLt(f, tag))) {
     const log = join(WORK, `matrix-${from}.log`);
     const t = Date.now();
-    const { code, out } = await run("bash", [join(ROOT, "scripts/e2e/client-matrix/run.sh"), "--from", from, "--to", tag, "--lanes", "macos,linux"], { log });
+    // TMPDIR=WORK: the matrix keeps its work dir on a FAIL; it goes with ours.
+    const { code, out } = await run("bash", [join(ROOT, "scripts/e2e/client-matrix/run.sh"), "--from", from, "--to", tag, "--lanes", "macos,linux"], { log, env: { ...process.env, TMPDIR: WORK } });
     const count = (r) => (out.match(new RegExp(`^(macos|linux)\\s+\\S+\\s+\\S+\\s+${r}\\b`, "gm")) ?? []).length;
     row("a", `client matrix ${from} -> ${tag}`, code === 0 ? "PASS" : "FAIL", `${count("PASS")} PASS, ${count("FAIL")} FAIL, ${count("SKIP")} SKIP, ${Math.round((Date.now() - t) / 1000)} s`, log);
   }
@@ -182,12 +199,12 @@ async function chat() {
   let stripped = 0;
   const strip = (m) => { if (m?.result && "instructions" in m.result) { delete m.result.instructions; stripped++; } };
   proxy = http.createServer(async (req, res) => {
-    const chunks = [];
-    for await (const c of req) chunks.push(c);
-    const headers = { ...req.headers };
-    delete headers.host;
-    delete headers["content-length"];
     try {
+      const chunks = [];
+      for await (const c of req) chunks.push(c);
+      const headers = { ...req.headers };
+      delete headers.host;
+      delete headers["content-length"];
       const r = await fetch(`http://127.0.0.1:${bridgePort}${req.url}`, { method: req.method, headers, body: ["GET", "HEAD"].includes(req.method) ? undefined : Buffer.concat(chunks) });
       const text = (await r.text()).replace(/^(data: )?(\{.*\})$/gm, (line, prefix = "", body) => {
         try { const m = JSON.parse(body); [m].flat().forEach(strip); return prefix + JSON.stringify(m); } catch { return line; }
@@ -199,12 +216,16 @@ async function chat() {
       res.writeHead(502).end(String(err));
     }
   }).listen(proxyPort, "127.0.0.1");
-  for (let i = 0; i < 60 && !(await fetch(`http://127.0.0.1:${bridgePort}/mcp`).then(() => true, () => false)); i++) await sleep(500);
+  proxy.on("error", (err) => writeFileSync(log, `\nproxy: ${err.message}\n`, { flag: "a" }));
+  let up = false;
+  for (let i = 0; i < 60 && !(up = await fetch(`http://127.0.0.1:${bridgePort}/mcp`).then(() => true, () => false)); i++) await sleep(500);
+  if (!up) return row("c", "chat bridge started", "FAIL", `ha-nova serve did not answer on 127.0.0.1:${bridgePort}`, log);
   const mcp = join(WORK, "mcp.json");
   writeFileSync(mcp, JSON.stringify({ mcpServers: { hanova: { type: "http", url: `http://127.0.0.1:${proxyPort}/mcp`, headers: { Authorization: `Bearer ${secret}`, "X-Ha-User-Id": user } } } }), { mode: 0o600 });
   mkdirSync(join(WORK, "claude-cwd"));
   for (const [name, prompt] of Object.entries(PROMPTS)) {
     const out = join(WORK, `claude-${name.replace(" ", "-")}.json`);
+    const strippedBefore = stripped; // each run's own initialize must lose its instructions
     const t = Date.now();
     const { code } = await run("claude", ["-p", prompt, "--model", "sonnet", "--strict-mcp-config", "--mcp-config", mcp, "--tools", "",
       "--allowedTools", TOOLS, "--disallowedTools", "mcp__hanova__ha_apply", "--output-format", "json", "--no-session-persistence"],
@@ -212,8 +233,9 @@ async function chat() {
     const reply = json(readFileSync(out, "utf8")).result ?? "";
     const { ok, last } = codeLast(reply, name.endsWith("batch") ? 2 : 1);
     const secs = Math.round((Date.now() - t) / 1000);
-    row("c", `chat bridge code last, ${name}`, code === 0 && ok && stripped > 0 ? "PASS" : "FAIL",
-      `${stripped ? "instructions stripped" : "NO instructions stripped"}, last line ${JSON.stringify(last)}, ${secs} s`, out);
+    const strippedNow = stripped > strippedBefore;
+    row("c", `chat bridge code last, ${name}`, code === 0 && ok && strippedNow ? "PASS" : "FAIL",
+      `${strippedNow ? "instructions stripped" : "NO instructions stripped"}, last line ${JSON.stringify(last)}, ${secs} s`, out);
   }
 }
 
@@ -238,28 +260,33 @@ async function slow() {
   const limit = (plan.reasons ?? []).some((r) => r.code === "LIMIT_CUT");
   t = Date.now();
   const applied = plan.plan?.code ? json((await cli(["apply", "--plan", plan.plan.id, "--confirm", plan.plan.code], join(WORK, "slow-apply.json"))).out) : {};
-  const hit = limit || planSecs >= 25;
-  row("d", "slow check: first code applies (#827)", hit && applied.status === "verified" ? "PASS" : "FAIL",
-    `${on} automations on, plan ${planSecs.toFixed(1)} s${limit ? " LIMIT_CUT" : ""}${hit ? "" : " (budget NOT hit)"}, apply ${((Date.now() - t) / 1000).toFixed(1)} s -> ${applied.status ?? plan.status}${applied.error ? ` ${applied.error.code}` : ""}`, join(WORK, "slow-apply.json"));
+  row("d", "slow check: first code applies (#827)", limit && applied.status === "verified" ? "PASS" : "FAIL",
+    `${on} automations on, plan ${planSecs.toFixed(1)} s${limit ? " LIMIT_CUT" : " (read budget NOT hit: no LIMIT_CUT)"}, apply ${((Date.now() - t) / 1000).toFixed(1)} s -> ${applied.status ?? plan.status}${applied.error ? ` ${applied.error.code}` : ""}`, join(WORK, "slow-apply.json"));
   await cli(["call", "lock.lock", "lock.front_door"], log);
 }
 
 // ---- main ---------------------------------------------------------------------------
 const started = Date.now();
 let crashed = false;
+let setupLog;
 try {
   const head = execFileSync("git", ["-C", ROOT, "rev-parse", "--short", "HEAD"], { encoding: "utf8" }).trim();
-  const relay = (ref) => { try { return execFileSync("git", ["-C", ROOT, "show", `${ref}:nova/config.yaml`], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).match(/^version:\s*"?([^"\n]+)/m)?.[1]; } catch { return undefined; } };
-  say(`candidate ${tag}; harness and test bed Relay ${relay("HEAD")} from this checkout (${head}); work dir ${WORK}`);
-  if (relay(tag) && relay(tag) !== relay("HEAD")) say(`NOTE: ${tag} ships Relay ${relay(tag)}; run from a checkout at the tag to test that one`);
+  const git = (...args) => { try { return execFileSync("git", ["-C", ROOT, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch { return ""; } };
+  say(`candidate ${tag}; harness and test bed Relay from this checkout (${head}); work dir ${WORK}`);
+  // The bed builds this checkout's Relay: the tag's own only from a checkout at the tag.
+  const tagNova = git("rev-parse", `${tag}^{commit}:nova`), headNova = git("rev-parse", "HEAD:nova");
+  if (tagNova !== headNova) {
+    row("-", "test bed Relay is the tag's", "WARN", tagNova ? `nova/ differs from ${tag} (git diff ${tag} HEAD -- nova); run from a checkout at the tag` : `${tag} is not in this checkout (git fetch --tags)`);
+  }
   await fetchBinary();
+  setupLog = join(WORK, "testbed-up.log");
   startBed();
   for (const [step, fn] of [["a", matrix], ["b", phone], ["c", chat], ["d", slow]]) {
     try { await fn(); } catch (err) { row(step, "step ran", "FAIL", err.message); }
   }
 } catch (err) {
   crashed = true;
-  row("-", "setup", "FAIL", err.message);
+  row("-", "setup", "FAIL", err.message, setupLog);
 }
 const failed = rows.filter((r) => r.result === "FAIL");
 for (const r of failed.filter((r) => r.log && existsSync(r.log))) {
@@ -270,5 +297,6 @@ const w = (k) => Math.max(k.length, ...rows.map((r) => String(r[k]).length));
 console.log(`\n${"STEP".padEnd(4)}  ${"CHECK".padEnd(w("check"))}  RESULT  DETAIL`);
 for (const r of rows) console.log(`${r.step.padEnd(4)}  ${r.check.padEnd(w("check"))}  ${r.result.padEnd(6)}  ${r.detail ?? ""}`);
 cleanup();
-console.log(`\nrc-lane ${tag}: ${failed.length ? `${failed.length} FAIL` : "all PASS"} in ${Math.round((Date.now() - started) / 60000)} min${crashed ? " (setup failed)" : ""}`);
+const other = ["SKIP", "WARN"].map((r) => [r, rows.filter((x) => x.result === r).length]).filter(([, n]) => n).map(([r, n]) => `, ${n} ${r}`).join("");
+console.log(`\nrc-lane ${tag}: ${failed.length ? `${failed.length} FAIL` : "all PASS"}${other} in ${Math.round((Date.now() - started) / 60000)} min${crashed ? " (setup failed)" : ""}`);
 process.exit(failed.length ? 1 : 0);

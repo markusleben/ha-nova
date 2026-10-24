@@ -12,7 +12,7 @@ npm run testbed:down                       # containers, volumes, tokens, runtim
 ```
 
 Prerequisites (`up.sh` checks them and fails loud): Docker with Compose v2,
-Node >= 22.12, Go, curl, and free ports 18123 / 18791 / 11883 on 127.0.0.1.
+Node >= 22.12, Go, curl, and free ports 18123 / 18791 / 11883 / 18792 on 127.0.0.1.
 
 ## Safety rules
 

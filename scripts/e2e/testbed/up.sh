@@ -15,7 +15,7 @@
 # replaces the fixed local owner password.
 set -euo pipefail
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HERE="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 STATE="$HERE/.state"
 HA_URL="http://127.0.0.1:18123"
@@ -46,7 +46,7 @@ if [[ -n "$("${COMPOSE[@]}" ps -q 2> /dev/null)" ]]; then
 fi
 # The hosted demo publishes nothing from this project (its Caddy, in another
 # project, already holds 127.0.0.1:18123).
-[[ -n "$OVERLAY" ]] || for port in 18123 18791 11883; do
+[[ -n "$OVERLAY" ]] || for port in 18123 18791 11883 18792; do
   if (exec 3<> "/dev/tcp/127.0.0.1/$port") 2> /dev/null; then
     die "port $port is in use on 127.0.0.1; free it (the test bed never uses 8123/8791/1883)"
   fi

@@ -11,7 +11,7 @@
 # isolated home (the phone lane keeps its link out of the default home).
 set -euo pipefail
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HERE="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 STATE="$HERE/.state"
 CLI_HOME="${TESTBED_CLI_HOME:-$STATE/home}"
@@ -19,7 +19,7 @@ BIN="${TESTBED_CLI_BIN:-$STATE/bin/ha-nova}"
 
 [[ -f "$STATE/relay-token" ]] || { echo "testbed: not running; npm run testbed:up first" >&2; exit 1; }
 # down.sh wipes .state: a home anywhere else would outlive the bed.
-[[ "$CLI_HOME" == "$STATE"/* ]] || { echo "testbed: TESTBED_CLI_HOME must be inside $STATE" >&2; exit 1; }
+[[ "$CLI_HOME" == "$STATE"/* && "$CLI_HOME" != *..* ]] || { echo "testbed: TESTBED_CLI_HOME must be inside $STATE" >&2; exit 1; }
 
 # Always build: go's build cache makes this cheap, and it never runs stale code.
 [[ -n "${TESTBED_CLI_BIN:-}" ]] || (cd "$ROOT/cli" && go build -o "$BIN" .) >&2

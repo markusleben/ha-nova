@@ -10,7 +10,7 @@
 # only to the local test bed (127.0.0.1:18123/18791) and GitHub. See README.md.
 set -euo pipefail
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HERE="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 TESTBED="$ROOT/scripts/e2e/testbed"
 FROM="" TO="" LANES="" KEEP=0 STARTED_TESTBED=0 SERVER_PID="" REPORTED=0
@@ -72,7 +72,7 @@ trap cleanup EXIT
 existing="$(docker ps -aq --filter label=com.docker.compose.project=ha-nova-testbed)"
 if [[ -n "$existing" ]]; then
   health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' ha-nova-testbed-relay ha-nova-testbed-ha 2>/dev/null | tr '\n' ' ')"
-  relay_wd="$(docker inspect ha-nova-testbed-relay --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null || true)"
+  relay_wd="$(docker inspect "${existing%%$'\n'*}" --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null || true)"
   [[ "$relay_wd" == "$TESTBED" ]] ||
     die "a test bed from another tree is running (${relay_wd:-unknown}); it is not this checkout's Relay. Wait for its owner, or tear it down there if it is yours"
   [[ "$health" == "healthy healthy " ]] ||

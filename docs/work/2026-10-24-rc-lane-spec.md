@@ -76,14 +76,15 @@ Runs in order, prints one summary table, exits non-zero on any FAIL:
 Safety and cleanup:
 - It starts its own test bed from this checkout and fails fast when any
   `ha-nova-testbed` is running (from any tree): never reuse, never tear down
-  someone else's. The matrix now refuses a bed from another tree too (it
+  someone else's. The phone lane changes only this tree's bed. The matrix now refuses a bed from another tree too (it
   reused a stale one before).
 - Downloads only the tag's binary (checksum-verified against
   `checksums.txt`); every CLI home is a throwaway under `.state` or the work
   dir with the file test keyring, so the host keychain is never read; the
   Linux and macOS matrix lanes keep their own guards.
-- At exit: bed down (when it started it), bridge and proxy stopped, work dir
-  removed (`--keep` keeps it). Logs of failed steps are printed before removal.
+- At exit (also on a signal or a crash): bed down (when it started it), every
+  child's process group stopped, work dir removed, the matrix's own work dir
+  with it (`--keep` keeps it). Logs of failed steps are printed before removal.
 
 ## 3. Runbook
 
@@ -94,7 +95,13 @@ the maintainer.
 ## Limits
 
 - The bed's Relay is built from the checkout, not from the tag: run rc-lane
-  from a checkout at the tag (or newer with the same Relay version).
+  from a checkout at the tag. Otherwise a WARN row says `nova/` differs.
+- The phone lane asserts the CLI's copy (tap lines, hints) literally, so
+  `phone.mjs` must match the binary's version, as it does from a checkout at
+  the tag.
+- CI runs the phone lane weekly only (and a CLI regression there opens the
+  "Test bed fails on Home Assistant" issue). The per-PR gate for the payload
+  shape stays `cli/confirm_phone_platform_test.go`.
 - Fake phones show what Home Assistant sends to the push relay, not what the
   FCM/APNs relay or a real phone does with it.
 - Chat check: one run per prompt, Sonnet; a model can still vary run to run.

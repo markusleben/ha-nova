@@ -98,15 +98,18 @@ deploy or tag.
    ```bash
    npm run rc-lane -- vX.Y.Z-rcN
    ```
-   One command, throwaway only, about 10 minutes: the client matrix from the
-   last stable and from v0.24.0, the phone lane (push payloads per platform
-   through fake phones), the chat-bridge "code last" check with headless
-   Claude (skipped without `claude` and `~/.claude-ha-nova-test`), and the
-   slow-check regression. It prints one table and exits non-zero on any
-   FAIL. Paste the table into the release PR. It starts its own test bed, so
-   no other bed may run. Still manual, for the maintainer: one real Windows 11
-   + PowerShell onboarding proof over the public install path (section 7),
-   the Cloud checklist (section 6), and a real iPhone and Android phone.
+   One command, throwaway only, about 5–10 minutes: the client matrix from
+   the last stable and from v0.24.0 (published stable install, then update to
+   the RC), the phone lane (push payloads per platform through fake phones),
+   the chat-bridge "code last" check with headless Claude (SKIP without
+   `claude` and `~/.claude-ha-nova-test`), and the slow-check regression. It
+   prints one table and exits non-zero on any FAIL; a WARN row means the bed's
+   Relay is not the tag's. Post the table as a comment on the release-prep PR.
+   It starts its own test bed, so no other bed may run. Still manual, for the
+   maintainer: the RC's own public install and one real Windows 11 +
+   PowerShell onboarding proof (section 7, `docs/release-validation.md`
+   "Minimum Manual Gate"), the Cloud checklist (section 6), and a real iPhone
+   and Android phone.
 5. Then cut the final tag on the same commit
    (`git tag vX.Y.Z <reviewed-merge-sha> && git push origin vX.Y.Z`) and
    run the post-publish verification (section 7). A skipped RC still needs
