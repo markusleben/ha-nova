@@ -33,7 +33,7 @@ Target: 0.28. Parents: `docs/work/2026-10-19-chat-bridge-contract.md` (the bridg
 - The page lists Home Assistant users from `config/auth/list` (already read for the owner check, `nova/src/security/owner-check.ts`): active, not system-generated, not the Relay's own user. Each row shows the name and "Owner", "Administrator", or "User".
 - The owner is always allowed and can't be unticked. Only the owner ticked: the App writes no list (today's default, "the current owner", `cli/mcp_serve.go:291-298`), so an ownership change in Home Assistant still works. The demo keeps its own hand-written list (an explicit list stays the whole list).
 - New App save action, written atomically next to the switches (`setSwitches`, `nova/src/runtime/chat-apps.ts:377-380`, today writes only `read_only` and `chat_codes`). It checks every id against a fresh `config/auth/list` first; an unknown, inactive, or system user refuses the whole save. It re-reads the file after that wait, so a switch changed meanwhile isn't overwritten.
-- **Rollback guard:** whenever the list holds anyone who isn't an administrator, the App also writes `"roles": 1`. A 0.27 bridge rejects unknown fields (`DisallowUnknownFields`, `cli/mcp_serve.go:329-333`), so after a rollback to the 0.27 App it refuses every chat request instead of giving a User full power. The cost: chat apps stay refused until the owner removes those users or updates again; the page and `nova/DOCS.md` say so.
+- **Rollback guard:** whenever the App writes an explicit list, it also writes `"roles": 1`. Not only when a User is on it: an administrator can be demoted in Home Assistant later, with no save on the NOVA page to notice. A 0.27 bridge rejects unknown fields (`DisallowUnknownFields`, `cli/mcp_serve.go:329-333`), so after a rollback to the 0.27 App it refuses every chat request instead of giving a User full power. The cost: after a rollback, chat apps stay refused until the owner sets the list back to "only me" (which writes no list) or updates again; the page and `nova/DOCS.md` say so.
 
 ### What each role may do (bridge, on every request)
 
@@ -109,7 +109,7 @@ Recent changes:
 
 ## Test plan
 
-- Go (`cli/mcp_serve_test.go`, fake Home Assistant): a role table (owner, admin, `system-users`, `system-read-only`, no group, demoted between plan and apply, unreadable list) × each tool; a User's `ha_call` outside the domain list, or with a preview or code tier, is refused before anything is sent; `ha_get` with `config`, `related`, or `references` refused for a User; `"roles": 1` makes a 0.27-shaped decoder refuse.
+- Go (`cli/mcp_serve_test.go`, fake Home Assistant): a role table (owner, admin, `system-users`, `system-read-only`, no group, demoted between plan and apply, unreadable list) × each tool; a User's `ha_call` outside the domain list, or with a preview or code tier, is refused before anything is sent; `ha_get` with `config`, `related`, or `references` refused for a User; every explicit list carries `"roles": 1`, and it makes a 0.27-shaped decoder refuse.
 - Go: user B's plan id from user A answers as unknown (exists; keep); B's ask never reaches A's phone; a tap from A on B's ask is refused.
 - Go: `activity.jsonl` gets one line per change, none per read, holds no code, and trims at the cap.
 - TS (`tests/http/`): the save refuses unknown, inactive, and system ids; a non-owner admin gets 403; the owner can't be unticked; removing a user drops their phone link.
@@ -122,4 +122,4 @@ Recent changes:
 2. Should a non-administrator ever get typed actions confirmed on their own phone (Home Assistant lets them unlock in the app)? Default: no.
 3. Activity log: keep it (default), or skip it for 0.28?
 4. Must the owner always stay on the list (default), or may the owner leave it?
-5. Rollback guard: accept that a rollback to the 0.27 App refuses chat apps while a User is on the list (default), or drop Users from the list on rollback some other way?
+5. Rollback guard: accept that a rollback to the 0.27 App refuses chat apps while any extra user is on the list (default)?
