@@ -39,9 +39,20 @@ describe("shared membership-resolution contract (#571)", () => {
     expect(contract).toContain(
       "entity/device registry plus `search/related` on the resolved area",
     );
-    // A device target never inherits its room's members.
+    // A device target reaches its direct child devices (HA 2026.9+, #833),
+    // as the CLI's deviceFamily does, but never its room's members.
     expect(contract).toContain(
-      "the entity registry filtered by `device_id` ONLY — never combined with the device's area expansion",
+      "the entity registry filtered by the device's `device_id` plus those of its direct child devices (device rows whose `parent_device_id` is that device",
+    );
+    expect(contract).toContain(
+      "never combined with the device's area expansion: a device-scoped action must not reach room neighbours",
+    );
+    expect(contract).toContain(
+      "an unreadable device registry leaves the children unread (partially resolved)",
+    );
+    expect(contract).not.toContain("filtered by `device_id` ONLY");
+    expect(read("cli/tier_device.go")).toContain(
+      "the device plus its direct child devices",
     );
     expect(contract).toContain(
       "`person.*` states mapped to real notify targets",
@@ -54,6 +65,7 @@ describe("shared membership-resolution contract (#571)", () => {
     expect(contract).toContain("A parent absent from the same read leaves the area unknown — never guessed");
     expect(contract).toContain("Read the legacy `config_entries` array only when the singular field is absent");
     expect(contract).toContain("it never expands to its parent's or siblings' entities");
+    expect(contract).toContain("A parent target reaches its direct children only, never grandchildren");
   });
 
   it("bounds nested expansion with cycle detection, dedupe, and ordering", () => {
@@ -177,6 +189,11 @@ describe("consumer wiring (#571)", () => {
     // A group name left in the payload is re-expanded by HA at execution
     // time; the engine freezes leaves only.
     expect(read("cli/tier_engine.go")).toContain("expanded direct group targets: consumer-scanned, never frozen");
+  });
+  it("discovery hands a parent device over with its child devices (#833)", () => {
+    expect(flat(read("skills/entity-discovery/SKILL.md"))).toContain(
+      "A device target also reaches its direct child devices (`parent_device_id`): a named parent qualifies even when only its children act; a named child is targeted alone.",
+    );
   });
   it("lets the grouped drift rule win over the frozen list", () => {
     expect(flat(read("skills/service-call/SKILL.md"))).toContain(

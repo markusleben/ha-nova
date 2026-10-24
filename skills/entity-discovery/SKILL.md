@@ -33,7 +33,7 @@ Use file-based relay requests by default:
 - `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>` when a body is needed
 - `--jq-file <filter-file>` for non-trivial filters; keep inline `--jq` for short selectors only
 - `--out <result-file>` for large reads
-- On Windows PowerShell, never chain commands with `&&` or `||`; run separate shell commands instead.
+- On Windows PowerShell, never chain commands with `&&` or `||`.
 - Never call external `jq`; use relay-native filters or `ha-nova relay jq --file <result-file> ...`.
 
 ## Flow
@@ -50,10 +50,10 @@ case- and accent-insensitive; aliases are read automatically when names miss.
 The result carries `total` (exact), `returned`, and `matches[]` with each
 match basis (`by`: `name`, `alias`, or `state` for unregistered).
 
-- **If the match does not resolve a suitable target** — no results, or only matches the user rejects or that plainly are not what they meant — re-run ONCE with `--aliases` (aliases searched even when a name matched): an alias is exactly where a household keeps the name it actually says. Only then try synonyms, alternative terms, or shorter words, one `find` each. When a resolved entity had no matching alias and the user's word was clearly their habitual name, offer once to store it as an alias via `ha-nova:organize`.
+- **If the match does not resolve a suitable target** — no results, or only matches the user rejects or that plainly are not what they meant — re-run ONCE with `--aliases` (aliases searched even when a name matched): households keep their everyday names there. Only then try synonyms, alternative terms, or shorter words, one `find` each. When a resolved entity had no matching alias and the user's word was clearly their habitual name, offer once to store it as an alias via `ha-nova:organize`.
 - `--include-disabled` when a disabled entity may be the target (it reads the full registry).
 - Multi-server: `--server <name>` on every command but `apply`; name a non-default server once per response.
-- A room, area, or device request handed to `ha-nova:service-call` travels as its `area_id`/`device_id` (`--area`/`--device`), never as a list of entity ids you expanded.
+- A room, area, or device request handed to `ha-nova:service-call` travels as its `area_id`/`device_id` (`--area`/`--device`), never as a list of entity ids you expanded. A device target also reaches its direct child devices (`parent_device_id`): a named parent qualifies even when only its children act; a named child is targeted alone.
 - **Fail closed on truncation:** while `returned` is below `total` the result proves neither absence nor uniqueness — narrow (`--domain`, `--area`, more words) until `total` fits before concluding either; report total/shown/omitted with the rows.
 
 ### Step 1b: Bulk inventory — raw relay
@@ -137,7 +137,7 @@ Automations rarely have reliable direct `area_id` data in the compact registry. 
 A capability-oriented request (restart, identify, calibrate, reset, siren, ...) on a resolved entity or device, where the capability is not on the resolved entity itself, is answered by the device's OTHER entities — not by "the entity cannot do that":
 
 1. Resolve the physical device: for an entity target, read its registry row (WS `config/entity_registry/get`) and take its `device_id`; a target already resolved AS a device (a device-registry row or config-entry device) supplies its `device_id` directly — no entity row is required to proceed.
-2. List ALL registry entities of that device from the FULL registry (`config/entity_registry/list`, filter by `device_id`) — `list_for_display` omits disabled entities, and the registry row's `disabled_by` decides enabled/disabled status. NEVER validate a disabled candidate through `/api/states`: it has no state there, and its absence proves nothing about the capability. The 20-row display envelope does NOT apply here — a device's own entity list is complete and bounded by nature; capping it could hide the one capability past the cap.
+2. List ALL registry entities of that device from the FULL registry (`config/entity_registry/list`, filter by `device_id`) — `list_for_display` omits disabled entities, and the registry row's `disabled_by` decides enabled/disabled status. NEVER validate a disabled candidate through `/api/states`: it has no state there, and its absence proves nothing about the capability. The 20-row display envelope does NOT apply: capping could hide the one capability past the cap.
 3. Select by domain, `device_class`, `translation_key`, and entity_id semantics on the SAME device. An entity on another device never qualifies merely because its name matches.
 4. Prefer an enabled exact match. Multiple plausible candidates → ONE bounded clarification listing each candidate by name, device, and whether it is disabled (entity ID only on a name clash).
 5. Report a disabled candidate as available-but-disabled WITH its `disabled_by` source and offer the matching enable flow via `ha-nova:organize` (a `"device"`-disabled sibling needs its parent DEVICE re-enabled, not the entity alone; `"integration"` (off by default) enables like `"user"`; `"config_entry"` needs the HA UI). Never enable anything automatically, and never press or execute from discovery — hand off to the owning skill.
