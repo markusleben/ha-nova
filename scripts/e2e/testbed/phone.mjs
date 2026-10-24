@@ -84,11 +84,18 @@ process.on("exit", () => { for (const child of children) child.kill(); });
 for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => process.exit(130));
 
 let seen = 0;
+const lastResult = {}; // per platform: the tag of the last result shown
 async function nextPush() {
   let list = [];
   await waitFor("a push", async () => (list = await (await fetch(`${PUSH}/pushes`)).json()).length > seen, 30_000);
   const push = list[seen++];
-  if (push.body.message === "clear_notification") return nextPush(); // a newer CLI clears its last result first
+  // Since 0.27.3 the CLI clears a phone's last result before the next
+  // question: when it does, it may clear only that result, never a question.
+  if (push.body.message === "clear_notification") {
+    const platform = push.path.split("/").pop(), tag = push.body.data?.tag;
+    report(`clear on ${PHONES[platform]} removes only its last result`, tag && tag === lastResult[platform] ? [] : [`cleared ${tag}, last result ${lastResult[platform]}`]);
+    return nextPush();
+  }
   return { ...push, platform: push.path.split("/").pop(), data: push.body.data ?? {} };
 }
 
@@ -148,6 +155,7 @@ async function result(ask, prefix) {
   want(d.actions === undefined, "has buttons");
   want(d.channel === "HA NOVA" && d.importance === "high" && d.push?.["interruption-level"] === "active", "channel/importance/interruption-level");
   report(`result on ${PHONES[ask.platform]}: “${prefix}…”, the question's tag`, p);
+  lastResult[ask.platform] = d.tag;
 }
 
 function finished(name, run, { code = 0, out = "", tap }) {
