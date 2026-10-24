@@ -29,7 +29,7 @@ const confirmPhoneUsage = `ha-nova setup confirm-phone ["<phone name>" | list | 
 
 const (
 	phoneLinkButton = "Allow" // not "Link": the setup screen also shows Home Assistant Link
-	phoneNoneFound  = "No phone with the Home Assistant app was found for a Home Assistant administrator here. To confirm on your phone: install the Home Assistant app, sign in with your own Home Assistant account, then run ha-nova setup confirm-phone. If your account isn't an administrator, ask the Home Assistant owner to make it one. Until then HA NOVA asks in a window on this computer, in your AI app's form, or with a one-time code in chat."
+	phoneNoneFound  = "No phone with the Home Assistant app was found for a Home Assistant administrator here. To confirm on your phone: install the Home Assistant app, sign in with your own Home Assistant account, then run ha-nova setup confirm-phone. If your account isn't an administrator, ask the Home Assistant owner to make it one. Until then HA NOVA asks in a window on this computer, in your AI app's form, or with a four-digit code in chat."
 	phoneOwnerToken = "This NOVA App signs in to Home Assistant as the owner, so a tap on a phone can't be told apart from HA NOVA itself. Phone confirmation isn't available with this App. Nothing changed."
 	phoneReadFailed = "HA NOVA can't read this Home Assistant's phones right now. Nothing changed; try again in a moment."
 	phoneListHeader = "Pick your own phone; it gets one notification. Only administrators' phones are listed (yours missing? ask the owner to make you an administrator)."
@@ -254,7 +254,7 @@ func unlinkPhone(s *relaySession, out io.Writer) int {
 	case phoneMissing:
 		fmt.Fprintln(out, "  "+home.missingLine(prev, current.why))
 	}
-	if !allowPhoneChange(s, out, home, links, "Stop confirming HA NOVA actions on your linked phone? HA NOVA then asks in a window, in your AI app's form, or with a one-time code in chat that your AI assistant can see too.", "", true, windowWait) {
+	if !allowPhoneChange(s, out, home, links, "Stop confirming HA NOVA actions on your linked phone? HA NOVA then asks in a window, in your AI app's form, or with a four-digit code in chat that your AI assistant can see too.", "", true, windowWait) {
 		return 1
 	}
 	if err := setPhoneLink(s.paths, home.owner, prev, nil); err != nil {

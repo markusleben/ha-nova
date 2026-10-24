@@ -23,8 +23,8 @@ The optional Home Assistant Link (formerly Home Assistant Cloud) path is a
 release-gated desktop Beta. Enabled release builds use the user's existing
 Home Assistant Link remote access; HA NOVA runs no public tunnel or broker. Local-only
 operation is unchanged. In Home Assistant, the service is under
-**Settings > Home Assistant Cloud** (Home Assistant 2026.12 and newer:
-**Settings > Home Assistant Link**). The `ha-nova cloud`
+**Settings > Home Assistant Link**; your Home Assistant may still show the
+old name there until the new name reaches it. The `ha-nova cloud`
 commands, the `cloud` route, and the "Cloud" mode name in HA NOVA keep their
 names.
 
@@ -78,7 +78,8 @@ server-side as documented in `docs/reference/relay-container.md`.
 Paired devices authenticate with their own credential over the secure TLS port
 (8792), sent as `Authorization: Bearer <token>`. Requests on the plain port
 (8791), including `GET /health` and legacy access, use the same header. The
-pairing endpoints use the one-time code as their credential instead. You
+pairing endpoints use the six-digit pairing code, or the owner's Home
+Assistant sign-in, as their credential instead. You
 normally never call these directly — the CLI and the NOVA page do it for you.
 
 | Method | Path | Description |
@@ -315,8 +316,8 @@ A healthy response looks like:
 **Cloud remote access is unavailable**
 
 - Confirm the Home Assistant Link subscription and remote access are active
-  (in Home Assistant: **Settings > Home Assistant Cloud**; 2026.12 and newer:
-  **Settings > Home Assistant Link**)
+  (in Home Assistant: **Settings > Home Assistant Link**, which may still
+  show the old name)
 - Confirm the NOVA Relay App is installed, current, and running
 - Run `ha-nova cloud status --server <name>` for a typed remediation code
 - Treat any Relay-instance or user mismatch as a security stop; do not bypass it

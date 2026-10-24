@@ -34,11 +34,11 @@ For client-side release regression (public install of the last stable tag, setup
 
 ## 3. Live against your own HA
 
-For maintainers with an HA instance, when you need to exercise the interactive setup wizard, the NOVA owner console, or the OPAQUE + TLS device pairing on real hardware. **Two hard rules:** deploy an *isolated* test add-on (never your production one), and run an *isolated* CLI (never your real config/keyring). Both are covered below.
+For maintainers with an HA instance, when you need to exercise the interactive setup wizard, the NOVA owner console, or the OPAQUE + TLS device pairing on real hardware. **Two hard rules:** deploy an *isolated* test App (never your production one), and run an *isolated* CLI (never your real config/keyring). Both are covered below.
 
-### Deploy an isolated test add-on
+### Deploy an isolated test App
 
-`scripts/dev/ha-app-bootstrap.sh` syncs `nova/` to your HA over SSH and installs it as a local add-on (env: `HA_HOST`, `HA_SSH_KEY`, `RELAY_AUTH_TOKEN` required; `SSH_USER`/`SSH_PORT`/`APP_SLUG`/`SUPERVISOR_SLUG` optional, also read from `.env` / `.env.local`).
+`scripts/dev/ha-app-bootstrap.sh` syncs `nova/` to your HA over SSH and installs it as a local App (env: `HA_HOST`, `HA_SSH_KEY`, `RELAY_AUTH_TOKEN` required; `SSH_USER`/`SSH_PORT`/`APP_SLUG`/`SUPERVISOR_SLUG` optional, also read from `.env` / `.env.local`).
 
 **Isolation is not automatic.** The script syncs `nova/` verbatim, so the deployed `config.yaml` keeps the production `slug`, `name`, and host ports `8791`/`8792`. `APP_SLUG` only changes the target directory — it does **not** edit `config.yaml`, so on its own it collides with your production NOVA Relay on the same ports. To deploy a genuinely separate instance, work from a **copy** of `nova/` whose `config.yaml` you have edited:
 
@@ -46,7 +46,7 @@ For maintainers with an HA instance, when you need to exercise the interactive s
 - `ports:` → unused host ports (e.g. `18791`/`18792`)
 - `image:` → delete the line, or Supervisor pulls the published image instead of building your code
 
-Then `rsync` that overlay to `/addons/local/<slug>/`, `ha store reload`, `ha apps install local_<slug>`. When the overlay's `config.yaml` version drifts from the installed one, `ha apps rebuild` becomes a silent no-op — use `ha store reload` + `ha apps update local_<slug>`. Never `docker restart` an ingress add-on from outside (its IP changes and HA's ingress route breaks); only `ha apps …` commands. `scripts/smoke/ha-app-e2e.mjs` runs a Node smoke pass against the deployed app.
+Then `rsync` that overlay to `/addons/local/<slug>/`, `ha store reload`, `ha apps install local_<slug>`. When the overlay's `config.yaml` version drifts from the installed one, `ha apps rebuild` becomes a silent no-op — use `ha store reload` + `ha apps update local_<slug>`. Never `docker restart` an ingress App from outside (its IP changes and HA's ingress route breaks); only `ha apps …` commands. `scripts/smoke/ha-app-e2e.mjs` runs a Node smoke pass against the deployed app.
 
 ### Run an isolated CLI
 
@@ -117,7 +117,7 @@ interface. Normal development and release binaries deliberately ignore it.
 
 Host-safe tests prove parsing, lifecycle, redirect rejection, no-UI policy, and
 transport selection with injected stores and servers. They do not prove a
-native keyring, a Nabu Casa OAuth flow, or a real Supervisor Ingress session.
+native keyring, a Home Assistant Link OAuth flow, or a real Supervisor Ingress session.
 Every release that keeps Cloud enabled therefore runs the per-release Cloud
 checklist in `docs/releasing.md`.
 
@@ -201,7 +201,7 @@ its path; signed provenance on all enabled OSes always runs in `release.yml`:
 - `/health`, `/ws`, `/core`, `/files`, and `/backups` parity through a real
   Home Assistant Link route on one reference platform after a transport
   change;
-- one real canonical Nabu Casa OAuth flow and one real standard
+- one real canonical Home Assistant Link OAuth flow and one real standard
   non-administrator binding; Home Assistant owns the MFA challenge before
   returning the same OAuth callback, while deterministic tests cover custom
   origins, inactive subscription, disabled remote access, and authorization
