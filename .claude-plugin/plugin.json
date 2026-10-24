@@ -1,6 +1,6 @@
 {
   "name": "ha-nova",
-  "version": "0.27.2",
+  "version": "0.27.3",
   "description": "Ask about and control your Home Assistant safely, from your AI app",
   "author": {
     "name": "Markus Leben"

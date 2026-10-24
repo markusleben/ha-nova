@@ -71,15 +71,14 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`; if it reports that it needs admin rights, rerun the stable Windows install command instead.
     {{ else }}## Bug Fixes
 
-    - **The code is last in chat apps too.** In Claude and ChatGPT, the code to confirm a change now stands alone on the last line. Nothing comes after it.
-    - **Short notes only.** Above the code, the chat says only what will happen and how long the code works.
-    - **Claude Team and Enterprise plans can add HA NOVA.** There, the owner of your Claude Team or Enterprise plan adds it once for everyone. Setup and the NOVA page now show an "Add for my organization" link for that.
-    - **No form in Claude? Paste the address.** If Claude opens with no form, setup and the NOVA page show the address. Click +, then Add custom connector, and paste it.
-    - **On a phone, ChatGPT can only answer.** 0.27.1 said to use chatgpt.com in a browser, but a phone browser can't make changes either. Use chatgpt.com on a computer, or the Claude app on your phone.
-    - **Android phones can link for confirmations.** Before, most Android phones never got the question to link, move, or stop. HA NOVA now says how to answer on your phone: press and hold on iPhone, pull down on Android.
-    - **When nothing shows on your phone, HA NOVA says where to look.** It names the steps in your phone's settings. On Android, turn on notifications and pop-ups for HA NOVA there.
+    - **Automation previews include child devices.** Since Home Assistant 2026.9, an action on a device, like a power strip, also reaches its child devices, like its outlets. Previews of automations and scripts now list them.
+    - **Removing HA NOVA works when this computer's key is lost.** Before, it stopped with an error. Now it asks to finish and says to revoke this computer on the NOVA page. With --yes, it says to rerun without it.
+    - **A new phone question clears the last HA NOVA result.** On Android, it no longer lands in a group. Link, move, and stop titles fit, and the hint matches what you see: tap the button, or pull down if none shows.
+    - **Doctor and setup speak plain English.** They say plainly when this computer can't reach Home Assistant (on a Mac: check Local Network). Doctor no longer offers an App update that's already installed.
+    - **Previews say "with a backup first".** Not "backup set to true". Other on/off settings say on or off.
+    - **Clearer code names.** On your computer and in the docs: "four-digit code" to confirm a change, "six-digit code" to connect a computer. The NOVA page's ChatGPT steps quote what ChatGPT shows.
 
-    **Update the NOVA App to 0.11.4 too.** It brings these fixes to Claude and ChatGPT chat apps and the NOVA page. HA NOVA on your computer asks for it too. In Home Assistant: Settings > Apps > NOVA Relay > Update. Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.
+    **Update the NOVA App to 0.11.5 too.** It brings the child-device previews, "with a backup first", and the cleared phone result to Claude and ChatGPT chat apps, and the new words to the NOVA page and its docs. HA NOVA on your computer asks for it too. In Home Assistant: Settings > Apps > NOVA Relay > Update. Coming from App 0.11.2 or older? Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.
 
     Stable install commands are release-pinned for this tag.
 

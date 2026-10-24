@@ -42,9 +42,6 @@ const { rules } = JSON.parse(readFileSync("tests/docs/banned-wording.json", "utf
 
 // True exceptions: `file` (or a folder ending in /) plus text the hit's line must contain. Stale entries fail.
 const allow: { rule: string; file: string; line: string; reason: string }[] = [
-  // README changes only in a release-prep PR (AGENTS.md).
-  { rule: "one-time-code", file: "README.md", line: "You pair with a one-time code", reason: "fix at next release-prep: six-digit code" },
-  { rule: "one-time-code", file: "README.md", line: '| *"Unlock the front door"* |', reason: "fix at next release-prep: four-digit code" },
   // The contributor index mirrors the skills' own term, "the one-time code" (pinned in tests/skills).
   ...[
     "impact preview + one-time code",
