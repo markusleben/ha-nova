@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"runtime"
 	"strings"
@@ -62,4 +64,24 @@ func homeNetworkHost(host string) bool {
 		return ip.IsPrivate() || ip.IsLinkLocalUnicast()
 	}
 	return strings.HasSuffix(strings.ToLower(host), ".local") || !strings.Contains(host, ".")
+}
+
+func probeHTTP(url string) error {
+	return probeHTTPWithClient(httpClient, url)
+}
+
+func probeHTTPWithClient(client *http.Client, url string) error {
+	req, err := http.NewRequest("GET", strings.TrimRight(url, "/"), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 500 {
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	return nil
 }

@@ -483,23 +483,3 @@ func fetchRelayHealthWithContext(ctx context.Context, client *http.Client, relay
 	}
 	return body, nil
 }
-
-func probeHTTP(url string) error {
-	return probeHTTPWithClient(httpClient, url)
-}
-
-func probeHTTPWithClient(client *http.Client, url string) error {
-	req, err := http.NewRequest("GET", strings.TrimRight(url, "/"), nil)
-	if err != nil {
-		return err
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 500 {
-		return fmt.Errorf("HTTP %d", resp.StatusCode)
-	}
-	return nil
-}
