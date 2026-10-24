@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Version: 0.34 (2026-10-21) — bump this header on every local amendment.
+Version: 0.35 (2026-10-24) — bump this header on every local amendment.
 
 Instructions for coding agents in this repo. "Hard rules" protect real homes, credentials, and the release path; no other section can trade them off. The other sections are the standard workflow; where two of them conflict, see Autonomy.
 
@@ -66,7 +66,7 @@ Instructions for coding agents in this repo. "Hard rules" protect real homes, cr
   - sibling-path sweep: the same defect class in sibling files, callers, state sources, and orderings.
 - Brief reviewers to report every finding that affects correctness or the stated requirements, then triage yourself (below); chasing style findings leads to over-engineering. Fix ALL surviving findings in one batch, then open the PR. Repeat only if the scope or the protected invariant changes; at most two passes of the same lens. Once the PR is open, further review is the Codex round's job. Edge cases you leave uncovered go into the PR body as known limits.
 - Skill changes that alter agent behavior: verify with an end-to-end agent run on the test bed when available (start the agent from `eval "$(bash scripts/e2e/testbed/cli.sh --env)"`), not only unit tests — the skill text is the product. Word and route budgets in `tests/skills/` are ratchets: never raise one to fit your own text — trim, or move detail into a reference file. A raise needs a reason stated in the test and the PR body.
-- Release-bound: also run a local Codex CLI review over the working-tree diff and fix its findings.
+- Release-bound: also run a local Codex CLI review over the working-tree diff and fix its findings. Run it read-only and tell it to run nothing: `codex -s read-only review "Review only; run no tests, builds, or ha-nova commands."`. Why: on 2026-10-24 a full-access review ran uninstall/purge Go tests on the macOS host, which the keychain rule in Hard rules forbids.
 - Size: >~800 changed production lines (tests/docs/generated/lockfiles excluded) or 15 runtime files → split, or say in the PR why it stays one change. A substantial contract rewrite plus a new executable oracle → two stacked PRs from the start.
 - Checkpoint (a report, not a gate) in your PR-open reply: `git status --short --branch`, `git diff --stat`, any `README.md` diff, tests run, remaining risks.
 - Triage: **P1** real defect on a shipped path (security, data loss, release gate, user-visible break) → always fix. **P2** real but bounded (edge case with workaround, internal-only) → fix, unless the fix must add contract text; then prefer deleting the promise, or answer in-thread. **P3** / style / hypothetical → answer in-thread, no commit. For every new finding, sweep the same defect class across sibling paths and fix all instances in the same commit.
