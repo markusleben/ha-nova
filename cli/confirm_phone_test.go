@@ -20,7 +20,8 @@ type fakePhones struct {
 	mu       sync.Mutex
 	setup    phoneSetup
 	status   phoneStatus
-	sent     []map[string]any // every notify body, by service order
+	sent     []map[string]any // every notify body but a clear, by service order
+	cleared  []string         // "service tag" of every clear_notification
 	services []string
 	answer   func(ok, no string) []phoneEvent          // the events a tap produces; nil: none
 	tapBy    func(service, ok, no string) []phoneEvent // set: answers every notification with buttons
@@ -47,6 +48,10 @@ func usePhones(t *testing.T, targets ...string) *fakePhones {
 	phoneNotify = func(_ *relaySession, service string, body map[string]any) error {
 		p.mu.Lock()
 		defer p.mu.Unlock()
+		if body["message"] == "clear_notification" {
+			p.cleared = append(p.cleared, service+" "+body["data"].(map[string]any)["tag"].(string))
+			return nil
+		}
 		p.sent, p.services = append(p.sent, body), append(p.services, service)
 		if text := fmt.Sprint(body["title"], " ", body["message"]); phoneNamesDevice.MatchString(text) { // a watch shows it too
 			t.Errorf("notification names the device it shows on: %q", text)
@@ -161,7 +166,7 @@ func TestPhonePlanConfirmsOnTheLinkedPhoneAndReplacesIt(t *testing.T) {
 	// A short question, the computer that asked, and the hint last.
 	if _, auth := confirm["authenticationRequired"]; auth || confirm["destructive"] != true || confirm["title"] != "Unlock" || p.sent[0]["title"] != "Unlock “lock.front”?" ||
 		!strings.HasPrefix(data["tag"].(string), "ha-nova-"+plan.ID+"-") || p.sent[1]["data"].(map[string]any)["tag"] != data["tag"] ||
-		p.sent[0]["message"] != "Requested by “"+phoneHost()+"”. "+phoneHint("") || data["push"].(map[string]any)["interruption-level"] != "time-sensitive" {
+		p.sent[0]["message"] != "Requested by “"+phoneHost()+"”. "+phoneHint("", "Unlock", false) || data["push"].(map[string]any)["interruption-level"] != "time-sensitive" {
 		t.Fatalf("payload %+v", p.sent[0])
 	}
 	// The ids exist only in the notification: never in output or a plan file.

@@ -170,6 +170,7 @@ func managedCacheArtifactPaths(paths runtimePaths) []string {
 		filepath.Join(paths.CacheDir, "automation-bp-snapshot.json"),
 		filepath.Join(paths.CacheDir, sessionBootstrapVerifiedMarker),
 		filepath.Join(paths.CacheDir, sessionBootstrapRepairPendingFile),
+		phoneResultsFile(paths),
 		planDir(paths), // pending confirmations: short-lived, worthless after uninstall
 	}
 }

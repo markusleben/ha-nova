@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 // Every notification: a short question, one line naming the computer, the
@@ -15,9 +16,9 @@ func TestPhoneAskTexts(t *testing.T) {
 		title, body, button string
 		urgent              bool
 	}{
-		{phoneLinkAsk(), "Use this for HA NOVA confirmations?", requested, "Allow", false},
-		{phoneChangeAsk(""), "Stop getting HA NOVA confirmations?", "After this, HA NOVA may ask in chat, where your AI assistant can answer. " + requested, "Stop", false},
-		{phoneChangeAsk("Anna’s Pixel"), "Move HA NOVA confirmations to “Anna's Pixel”?", requested, "Move", false},
+		{phoneLinkAsk(), "Get HA NOVA confirmations?", requested, "Allow", false},
+		{phoneChangeAsk(""), "Stop HA NOVA confirmations?", "After this, HA NOVA may ask in chat, where your AI assistant can answer. " + requested, "Stop", false},
+		{phoneChangeAsk("Anna’s Pixel"), "Move HA NOVA confirmations?", "New phone: “Anna's Pixel”. " + requested, "Move", false},
 		{phonePlanAsk([3]string{"Delete", "the automation “Night”"}, true), "Delete the automation “Night”?", "Can't be undone. " + requested, "Delete", true},
 		{phonePlanAsk([3]string{"Turn on", "“Guest mode”", "This also unlocks “Entrance Door” through the automation “Guest”"}, false),
 			"Turn on “Guest mode”?", "This also unlocks “Entrance Door” through the automation “Guest”. " + requested, "Turn on", true},
@@ -46,6 +47,47 @@ func TestPhoneAskTexts(t *testing.T) {
 	}
 }
 
+// Android's pop-up cuts a title after about 30 characters and shows one
+// line of text: the fixed titles fit, and the hint (first there) is true
+// whether the buttons show (pop-up, opened) or not (collapsed).
+func TestPhoneTextsFitAndroid(t *testing.T) {
+	for _, ask := range []phoneAsk{phoneLinkAsk(), phoneChangeAsk(""), phoneChangeAsk("A very long phone name, Pixel 9 Pro XL")} {
+		if n := len([]rune(ask.title)); n > 30 {
+			t.Errorf("title %q: %d characters", ask.title, n)
+		}
+	}
+	android := func(ask phoneAsk) string {
+		return phonePayload(ask, phoneAndroid, "t", "OK", "NO", time.Now().Add(time.Minute))["message"].(string)
+	}
+	// Only who asked: the button, true with or without it in view.
+	for button, want := range map[string]string{
+		"Allow":           "Tap “Allow”. No button? Pull down.",
+		"Turn off":        "Tap “Turn off”. No button? Pull down.",
+		"Set temperature": "No buttons? Pull down to answer.", // a long verb would cut "Pull down"
+	} {
+		if got := phoneHint(phoneAndroid, button, false); got != want || len([]rune(got)) > 38 {
+			t.Errorf("android hint %q: %q", button, got)
+		}
+	}
+	if got := android(phoneLinkAsk()); got != "Tap “Allow”. No button? Pull down. "+phoneRequested() {
+		t.Errorf("link %q", got)
+	}
+	// More to read (a hidden effect, no undo, the new phone): read it before a tap from the pop-up.
+	for _, ask := range []phoneAsk{phoneChangeAsk("Anna’s Pixel"), phoneChangeAsk(""), phonePlanAsk([3]string{"Delete", "the automation “Night”"}, true),
+		phonePlanAsk([3]string{"Turn on", "“Guest mode”", "This also unlocks “Entrance Door”"}, false)} {
+		if got := android(ask); !strings.HasPrefix(got, "Read it all. No button? Pull down. ") {
+			t.Errorf("%q: %q", ask.title, got)
+		}
+	}
+	if got := phoneHint(phoneIOS, "Allow", true); got != "Press and hold to answer." {
+		t.Errorf("ios hint %q", got)
+	}
+	// The move's new phone is in the text, so the old phone sees where it goes.
+	if got := android(phoneChangeAsk("Anna’s Pixel")); !strings.Contains(got, "New phone: “Anna's Pixel”.") {
+		t.Errorf("move text %q", got)
+	}
+}
+
 // A plan whose risk is not its target: the phone says what else happens.
 func TestPhonePlanNamesTheHiddenEffect(t *testing.T) {
 	f := newFakeHA()
@@ -66,7 +108,7 @@ func TestPhonePlanNamesTheHiddenEffect(t *testing.T) {
 		t.Fatalf("plan %+v exit %d %+v", plan, exit, env.Error)
 	}
 	if p.sent[0]["title"] != "Turn on “Guest mode”?" ||
-		p.sent[0]["message"] != "This also unlocks “Entrance Door” through the automation “Guest mode unlocks”. Requested by “"+phoneHost()+"”. "+phoneHint("") {
+		p.sent[0]["message"] != "This also unlocks “Entrance Door” through the automation “Guest mode unlocks”. Requested by “"+phoneHost()+"”. "+phoneHint("", "Turn on", true) {
 		t.Fatalf("notification %q / %q", p.sent[0]["title"], p.sent[0]["message"])
 	}
 }
@@ -97,7 +139,7 @@ func TestPhonePlanSkipsTheTargetsOwnReason(t *testing.T) {
 	plan := h.plan("lock.unlock", "lock.yaml").Plan
 	p.answer = func(_, no string) []phoneEvent { return []phoneEvent{tap(no, "owner-id", "REMOTE")} }
 	if exit, _ := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || len(p.sent) == 0 ||
-		p.sent[0]["title"] != "Unlock “Front Door”?" || p.sent[0]["message"] != "Requested by “"+phoneHost()+"”. "+phoneHint("") {
+		p.sent[0]["title"] != "Unlock “Front Door”?" || p.sent[0]["message"] != "Requested by “"+phoneHost()+"”. "+phoneHint("", "Unlock", false) {
 		t.Fatalf("exit %d sent %v", exit, p.sent)
 	}
 }

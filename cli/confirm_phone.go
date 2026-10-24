@@ -193,7 +193,7 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 		return phoneNoAnswer, reply
 	}
 	deadline, _ := ctx.Deadline()
-	sent, sending := sendPhones(ctx, s, notify, setup.targets, func(t phoneTarget) map[string]any { return phonePayload(ask, t.platform(), tag, ok, no, deadline) })
+	sent, sending := sendPhones(ctx, s, clearingFirst(phoneLastResults(s.paths), setup.owner, notify), setup.targets, func(t phoneTarget) map[string]any { return phonePayload(ask, t.platform(), tag, ok, no, deadline) })
 	all := make([]string, 0, len(setup.targets))
 	for _, target := range setup.targets {
 		all = append(all, target.Service)
@@ -206,6 +206,7 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 		case <-sending:
 		case <-time.After(phoneTellSpan):
 		}
+		notePhoneResult(s.paths, setup.owner, all, tag)
 		tellPhones(s, notify, all, phoneResultPayload(title, body, tag), until)
 	}}
 	if len(sent) == 0 {
