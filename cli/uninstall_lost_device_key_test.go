@@ -4,6 +4,8 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -322,4 +324,78 @@ func TestServerRemovalResumeKeepsTheNovaPageStep(t *testing.T) {
 			t.Fatalf("%s: remind=%v, want %v", name, got, tc.remind)
 		}
 	}
+}
+
+// Local Codex review: a symlinked raw slot may still lead to the key, so it
+// is not "gone" either.
+func TestSymlinkedPendingSlotIsNotALostKey(t *testing.T) {
+	paths, _ := lostKeyFixture(t)
+	cfg := appPathConfig
+	cfg.PendingSecureBaseURL, cfg.PendingSpkiPin = "https://ha.local:8792", "pin"
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+	slot, err := deviceSecretFilePath(deviceCredentialPendingServiceForProfile(defaultServerProfileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	held := filepath.Join(t.TempDir(), "held")
+	if err := os.WriteFile(held, []byte(validCredential(183)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(slot), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(held, slot); err != nil {
+		t.Fatal(err)
+	}
+	if lost := findLostDeviceKeys(paths); len(lost) != 0 {
+		t.Fatalf("symlinked pending slot counted as lost: %+v", lost)
+	}
+}
+
+// Local Codex review: a checkpoint written for another profile generation
+// proves nothing about the slots, so `uninstall --purge` keeps the stop.
+func TestStaleCheckpointGenerationKeepsTheStop(t *testing.T) {
+	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
+	previousConfirmation, previousHook := readServerRemoveConfirmationForCommand, serverRemovalPhaseHook
+	t.Cleanup(func() {
+		readServerRemoveConfirmationForCommand, serverRemovalPhaseHook = previousConfirmation, previousHook
+	})
+	readServerRemoveConfirmationForCommand = func(string) (string, error) { return "cabin", nil }
+	serverRemovalPhaseHook = func(phase string) error {
+		if phase == "checkpoint-persisted" {
+			return errors.New("simulated crash")
+		}
+		return nil
+	}
+	if exit, output := captureCommandOutput(t, func() int { return runServerRemove(paths, []string{"cabin"}) }); exit != 1 {
+		t.Fatalf("crash run exit=%d output=%s", exit, output)
+	}
+	raw := readTestFile(t, paths.ConfigFile)
+	stale := regexp.MustCompile(`"original_profile_sha256":\s*"[^"]*"`).ReplaceAllString(raw, `"original_profile_sha256": "stale"`)
+	if stale == raw {
+		t.Fatal("fixture has no checkpoint generation")
+	}
+	if err := os.WriteFile(paths.ConfigFile, []byte(stale), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	targets, err := collectProfilePurgeTargets(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range targets {
+		if target.name != "cabin" {
+			continue
+		}
+		state, err := inspectProfilePurgeSlotState(target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if target.removalSlotsVerified || validateRequiredProfilePurgeSlots(target, state) == nil {
+			t.Fatalf("stale checkpoint trusted: %+v", target)
+		}
+		return
+	}
+	t.Fatal("no cabin target")
 }

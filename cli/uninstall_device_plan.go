@@ -90,6 +90,10 @@ func collectProfilePurgeTargets(
 			return nil, err
 		}
 		if cfg.ServerRemoval != nil {
+			// Trust the recorded slot absence only for the profile generation
+			// the checkpoint was written for (the resume checks the same).
+			target.removalSlotsVerified =
+				validateServerRemovalCheckpointDocument(doc, name, cfg) == nil
 			profileName := name
 			target.checkpointProcessed = func(
 				pending bool,
@@ -278,7 +282,13 @@ func inspectProfilePurgeSlotState(
 			return false
 		}
 		if !deviceSecretFileBacked() {
-			return deviceSecretFileExists(service)
+			// Any entry (a symlink too) or an unreadable path may hold it.
+			path, err := deviceSecretFilePath(service)
+			if err != nil {
+				return true
+			}
+			_, err = os.Lstat(path)
+			return !os.IsNotExist(err)
 		}
 		_, found, err := readKeyringDeviceSecret(service)
 		return found || err != nil
