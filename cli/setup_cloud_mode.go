@@ -78,7 +78,7 @@ func promptSetupConnectionModeFromReader(
 		case "exit":
 			return "", errSetupExit
 		default:
-			renderSetupErrorLine(out, "Invalid choice. Please enter 1, 2, or 3.")
+			renderSetupErrorLine(out, "Pick one of the numbers shown: 1, 2, or 3.")
 		}
 	}
 }

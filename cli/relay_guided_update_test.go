@@ -293,11 +293,11 @@ func TestGuidedRelayUpdateInstallsThroughTheRestartAndVerifies(t *testing.T) {
 	if !installed.Load() {
 		t.Fatalf("update/install was never called; output: %s", out.String())
 	}
-	if !strings.Contains(out.String(), "Relay updated and verified: v0.4.0 is running.") {
+	if !strings.Contains(out.String(), "The NOVA App is updated and works: v0.4.0.") {
 		t.Fatalf("missing verified-version report in output: %s", out.String())
 	}
-	previewIndex := strings.Index(out.String(), "NOVA Relay App update preview: v0.2.6 → v0.4.0")
-	confirmationIndex := strings.Index(out.String(), "Install the latest available NOVA Relay update now?")
+	previewIndex := strings.Index(out.String(), "HA NOVA installs the newest NOVA App (now v0.4.0)")
+	confirmationIndex := strings.Index(out.String(), "Update the NOVA App now?")
 	if previewIndex < 0 || confirmationIndex < 0 || previewIndex > confirmationIndex {
 		t.Fatalf("exact preview must precede confirmation: %s", out.String())
 	}
@@ -333,7 +333,7 @@ func TestGuidedRelayUpdatePollTimeoutStaysHonest(t *testing.T) {
 	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
 		t.Fatalf("timeout must not report success")
 	}
-	if !strings.Contains(out.String(), "did not report a new version") {
+	if !strings.Contains(out.String(), "didn't show the new version") {
 		t.Fatalf("missing honest timeout message: %s", out.String())
 	}
 	if !strings.Contains(out.String(), relayUpdateManualPath) {
@@ -371,7 +371,7 @@ func TestGuidedRelayUpdateRejectedInstallSkipsTheWait(t *testing.T) {
 	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
 		t.Fatalf("rejection must not report success")
 	}
-	if !strings.Contains(out.String(), "Home Assistant rejected the install call.") {
+	if !strings.Contains(out.String(), "Home Assistant didn't start the update.") {
 		t.Fatalf("missing rejection message: %s", out.String())
 	}
 	if !strings.Contains(out.String(), relayUpdateManualPath) {
@@ -424,7 +424,7 @@ func TestGuidedRelayUpdateRelayTimeoutEnvelopeStillPolls(t *testing.T) {
 	if !runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
 		t.Fatalf("relay-side timeout must poll and verify; output: %s", out.String())
 	}
-	if !strings.Contains(out.String(), "Relay updated and verified: v0.4.0 is running.") {
+	if !strings.Contains(out.String(), "The NOVA App is updated and works: v0.4.0.") {
 		t.Fatalf("missing verified report: %s", out.String())
 	}
 }
@@ -468,10 +468,10 @@ func TestGuidedRelayUpdateRejectsTargetVersionWhileEntityRemainsPending(t *testi
 	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
 		t.Fatalf("pending update entity must not verify; output: %s", out.String())
 	}
-	if !strings.Contains(out.String(), "did not confirm the App update as complete") {
+	if !strings.Contains(out.String(), "didn't say the update was done") {
 		t.Fatalf("missing terminal-state failure: %s", out.String())
 	}
-	if strings.Contains(out.String(), "Relay updated and verified") {
+	if strings.Contains(out.String(), "The NOVA App is updated and works") {
 		t.Fatalf("pending update entity produced a false success: %s", out.String())
 	}
 }
@@ -529,10 +529,10 @@ func TestGuidedRelayUpdateRejectsSuccessfulInstallWithoutWSReadiness(t *testing.
 	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
 		t.Fatalf("unready WebSocket must not verify; output: %s", out.String())
 	}
-	if !strings.Contains(out.String(), "WebSocket readiness could not be verified") {
+	if !strings.Contains(out.String(), "couldn't check that it reaches Home Assistant") {
 		t.Fatalf("missing WebSocket-readiness failure: %s", out.String())
 	}
-	if strings.Contains(out.String(), "Relay updated and verified") {
+	if strings.Contains(out.String(), "The NOVA App is updated and works") {
 		t.Fatalf("unready WebSocket produced a false success: %s", out.String())
 	}
 }

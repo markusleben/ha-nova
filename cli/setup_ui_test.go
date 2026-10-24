@@ -34,7 +34,7 @@ func TestPromptSetupClientShowsLegacyListAndDefaultsToClaude(t *testing.T) {
 
 	rendered := output.String()
 	for _, want := range []string{
-		"Which AI client do you use?",
+		"Which AI app do you use?",
 		"1) Claude Code",
 		"2) Codex CLI",
 		"3) OpenCode",
@@ -135,7 +135,7 @@ func TestPromptSetupClientRepromptsOnInvalidInput(t *testing.T) {
 	if got != "antigravity" {
 		t.Fatalf("promptSetupClient() = %q, want %q", got, "antigravity")
 	}
-	if !strings.Contains(output.String(), "Invalid choice") {
+	if !strings.Contains(output.String(), "Pick one of the numbers shown") {
 		t.Fatalf("expected invalid-choice guidance in output:\n%s", output.String())
 	}
 	if strings.Contains(output.String(), "✗") {
@@ -486,7 +486,7 @@ func TestRenderSetupCompleteBannerShowsInstalledClientsForMultipleTargets(t *tes
 	for _, want := range []string{
 		"Installed for: ",
 		"Claude Code, Google Antigravity",
-		"Open your installed AI assistants and try asking:",
+		"Open your AI apps and try asking:",
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("complete banner missing %q:\n%s", want, rendered)
@@ -502,8 +502,8 @@ func TestRenderSetupIncompleteBannerUsesIssueSpecificText(t *testing.T) {
 	rendered := output.String()
 	for _, want := range []string{
 		"Setup incomplete",
-		"relay could not be verified yet",
-		"Open Home Assistant",
+		"couldn't reach the NOVA App yet",
+		"In Home Assistant, open Settings",
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("incomplete banner missing %q:\n%s", want, rendered)
@@ -522,7 +522,7 @@ func TestPromptSetupTokenChoiceRepromptsOnInvalidInput(t *testing.T) {
 	if got != "generate" {
 		t.Fatalf("promptSetupTokenChoiceInteractive() = %q, want %q", got, "generate")
 	}
-	if !strings.Contains(output.String(), "Invalid choice") {
+	if !strings.Contains(output.String(), "Pick one of the numbers shown") {
 		t.Fatalf("expected invalid-choice guidance in output:\n%s", output.String())
 	}
 	if strings.Contains(output.String(), "✗") {

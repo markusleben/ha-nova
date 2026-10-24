@@ -300,7 +300,7 @@ func TestRunDoctorWarnsWhenConfiguredClientRuntimeMissing(t *testing.T) {
 	if exitCode == 0 {
 		t.Fatalf("expected doctor to degrade for missing Codex runtime:\n%s", output)
 	}
-	if !strings.Contains(output, "Codex CLI configured, but client runtime not detected now") {
+	if !strings.Contains(output, "HA NOVA is set up for Codex CLI, but can't find Codex CLI on this computer right now") {
 		t.Fatalf("expected configured-but-missing-runtime warning:\n%s", output)
 	}
 }

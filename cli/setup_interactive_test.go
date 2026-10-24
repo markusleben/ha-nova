@@ -81,17 +81,17 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 
 	output := stdout + stderr
 	for _, want := range []string{
-		"Which AI client do you use?",
+		"Which AI app do you use?",
 		"1) Claude Code",
 		"4) Google Antigravity",
 		"5) Hermes Agent",
 		"Discovering Home Assistant on your network...",
 		"Your browser opens the NOVA App in Home Assistant (listed as “NOVA Relay”).",
 		`In the browser: sign in and click "Add" if asked, then Install, then Start.`,
-		"NOVA keeps client and Home Assistant access separate",
-		"Standalone Container/Core relays keep HA_LLAT in the server environment; the CLI never asks for it.",
-		`Paste the token into the "Relay Auth Token" field`,
-		"Press Enter after you saved the Relay Auth Token and restarted the NOVA App",
+		"HA NOVA keeps two kinds of access apart",
+		"NOVA Relay in your own container? Its Home Assistant token (HA_LLAT) stays there. Setup never asks for it.",
+		`Paste the key into the "Relay Auth Token" field`,
+		"Press Enter after you saved the key and restarted the NOVA App",
 		"Setting up HA NOVA for Google Antigravity...",
 		"Setup complete!",
 	} {
@@ -101,8 +101,8 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 	}
 	if !strings.Contains(output, "Found Home Assistant at ") &&
 		!strings.Contains(output, "Found Home Assistant as ") &&
-		!strings.Contains(output, "No Home Assistant found automatically; enter its address.") &&
-		!strings.Contains(output, "No Home Assistant found automatically; starting from your saved address") {
+		!strings.Contains(output, "Didn't find Home Assistant by itself. Type its address.") &&
+		!strings.Contains(output, "Didn't find Home Assistant by itself. Starting from your saved address") {
 		t.Fatalf("wizard output missing discovery result:\n%s", output)
 	}
 	discoveryIdx := strings.Index(output, "Discovering Home Assistant on your network...")
@@ -119,7 +119,7 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 			t.Fatalf("wizard output missing step %d marker:\n%s", step, output)
 		}
 	}
-	generatedTokenMatch := regexp.MustCompile(`Here is your relay token \(generated automatically\):\s+([a-f0-9]{64})`).FindStringSubmatch(output)
+	generatedTokenMatch := regexp.MustCompile(`Here is your new key:\s+([a-f0-9]{64})`).FindStringSubmatch(output)
 	if len(generatedTokenMatch) != 2 {
 		t.Fatalf("expected generated relay token in wizard output:\n%s", output)
 	}
@@ -422,7 +422,7 @@ func TestInteractiveSetupFreshInstallCanPasteExistingRelayToken(t *testing.T) {
 	}
 
 	output := stdout + stderr
-	if !strings.Contains(output, "Paste existing token from another device / Home Assistant") {
+	if !strings.Contains(output, "Paste a key from another computer or from Home Assistant") {
 		t.Fatalf("expected token reuse choice in output:\n%s", output)
 	}
 	if strings.Contains(output, "generated automatically") {
@@ -484,7 +484,7 @@ func TestInteractiveSetupFreshInstallManualTokenFallbackRunsAppSetupBeforeVerify
 
 	output := stdout + stderr
 	for _, want := range []string{
-		"If this token already works on another device",
+		"If this key already works on another computer",
 		"Connected to Home Assistant",
 	} {
 		if !strings.Contains(output, want) {
@@ -504,7 +504,7 @@ func TestInteractiveSetupFreshInstallManualTokenFallbackRunsAppSetupBeforeVerify
 	if !hasSetupStep(output, 3) {
 		t.Fatalf("expected explicit-token verification step marker in output:\n%s", output)
 	}
-	if strings.Contains(output, "automations\n\n\n  Existing relay token found:") {
+	if strings.Contains(output, "automations\n\n\n  Found a saved key:") {
 		t.Fatalf("expected single-gap spacing before reuse-token note:\n%s", output)
 	}
 }
@@ -1017,7 +1017,7 @@ func TestInteractiveSetupResumeCanChangeHostFromRepairMenuWithoutTokenRePrompt(t
 		"Using Home Assistant address: " + deadHAURL,
 		"Change Home Assistant address",
 		"could not be used. Enter a new one.",
-		"Keeping your saved relay address: " + relayServer.URL,
+		"Keeping your saved NOVA App address: " + relayServer.URL,
 		"Setup complete!",
 	} {
 		if !strings.Contains(output, want) {
@@ -1025,7 +1025,7 @@ func TestInteractiveSetupResumeCanChangeHostFromRepairMenuWithoutTokenRePrompt(t
 		}
 	}
 	for _, unwanted := range []string{
-		"Choose how to set up the Relay Auth Token",
+		"How do you want to set up the shared key",
 		"Create a Home Assistant Access Token in Home Assistant.",
 		"Discovering Home Assistant on your network",
 	} {
@@ -1387,7 +1387,7 @@ func TestInteractiveSetupPartialResumeSkipsTokenChoiceAndVerifiesFirstWhenWSIsPe
 		t.Fatalf("did not expect LLAT walkthrough on partial resume:\n%s", output)
 	}
 	verifyIdx := setupStepIndex(output, 3)
-	tokenIdx := strings.Index(output, "Choose how to set up the Relay Auth Token")
+	tokenIdx := strings.Index(output, "How do you want to set up the shared key")
 	if tokenIdx != -1 && tokenIdx < verifyIdx {
 		t.Fatalf("expected partial resume to verify before reopening token step:\n%s", output)
 	}
@@ -1638,7 +1638,7 @@ func TestInteractiveSetupWSDegradedEndsIncomplete(t *testing.T) {
 
 	output := stdout + stderr
 	for _, want := range []string{
-		"Home Assistant WebSocket is not connected yet",
+		"The NOVA App isn't connected to Home Assistant yet.",
 		"Retry now",
 		"Setup incomplete",
 	} {
@@ -1719,9 +1719,9 @@ func TestInteractiveSetupWSDegradedMentionsUpstreamAuthCause(t *testing.T) {
 
 	output := stdout + stderr
 	for _, want := range []string{
-		"Home Assistant WebSocket is not connected yet",
-		"Home Assistant rejected the NOVA App's access.",
-		"Update or restart the NOVA App (standalone container: replace HA_LLAT in its environment).",
+		"The NOVA App isn't connected to Home Assistant yet.",
+		"Home Assistant turned down the NOVA App's login.",
+		"Restart or update the NOVA App. NOVA Relay in your own container? Give it a new Home Assistant token (HA_LLAT).",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("expected upstream-auth guidance %q in output:\n%s", want, output)
@@ -1802,7 +1802,7 @@ func TestInteractiveSetupWSDegradedUsesWSPingSuccessAsReady(t *testing.T) {
 	if !strings.Contains(output, "Connected to Home Assistant") {
 		t.Fatalf("expected ws-ping success to count as connected:\n%s", output)
 	}
-	if strings.Contains(output, "Home Assistant WebSocket is not connected yet") {
+	if strings.Contains(output, "The NOVA App isn't connected to Home Assistant yet.") {
 		t.Fatalf("did not expect degraded WS guidance when ws ping succeeds:\n%s", output)
 	}
 }
@@ -1978,7 +1978,7 @@ func TestInteractiveSetupCompletedResumeUsesOverrideHealthInsteadOfOldHealthySta
 
 	output := stdout + stderr
 	for _, want := range []string{
-		"Home Assistant WebSocket is not connected yet",
+		"The NOVA App isn't connected to Home Assistant yet.",
 		"Setup incomplete",
 	} {
 		if !strings.Contains(output, want) {
@@ -2079,7 +2079,7 @@ func TestInteractiveSetupContinueAnywayPersistsExplicitURL(t *testing.T) {
 	if strings.Contains(output, "Check the connection again?") {
 		t.Fatalf("did not expect WebSocket retry prompt for relay-unreachable path:\n%s", output)
 	}
-	if !strings.Contains(output, "relay could not be verified yet") {
+	if !strings.Contains(output, "couldn't reach the NOVA App yet") {
 		t.Fatalf("expected relay-unreachable incomplete banner in output:\n%s", output)
 	}
 
@@ -2459,7 +2459,7 @@ func TestInteractiveSetupFreshHostChangeRoutesBackThroughInstallStepsNotStraight
 			t.Fatalf("output missing %q:\n%s", want, output)
 		}
 	}
-	if got := strings.Count(output, "Set up Relay Auth Token"); got < 2 {
+	if got := strings.Count(output, "Set up the shared key"); got < 2 {
 		t.Fatalf("fresh-flow host change must re-run the token step for the new address; token step shown %d time(s):\n%s", got, output)
 	}
 
@@ -2557,7 +2557,7 @@ func TestInteractiveSetupFlaggedFreshHostChangeReenablesInstallSteps(t *testing.
 			t.Fatalf("output missing %q:\n%s", want, output)
 		}
 	}
-	if got := strings.Count(output, "Set up Relay Auth Token"); got < 2 {
+	if got := strings.Count(output, "Set up the shared key"); got < 2 {
 		t.Fatalf("flagged fresh host change must re-run the token step; token step shown %d time(s):\n%s", got, output)
 	}
 
@@ -2701,7 +2701,7 @@ func TestInteractiveSetupConnectionRepairMenuOffersFullInstallSteps(t *testing.T
 	for _, want := range []string{
 		"Run the app install steps for this address",
 		"Install the NOVA App",
-		"Keep saved token",
+		"Keep the saved key",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output missing %q:\n%s", want, output)

@@ -39,10 +39,9 @@ func TestRunDoctorTreatsWSPingSuccessAsReady(t *testing.T) {
 		t.Fatalf("runDoctor() exit = %d, want 0\n%s", exitCode, output)
 	}
 	for _, want := range []string{
-		"Relay health reachable",
-		"Relay /ws ping succeeded",
+		"The NOVA App answers at",
 		"Connected to Home Assistant",
-		"Doctor checks passed",
+		"All checks passed",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("doctor output missing %q:\n%s", want, output)
@@ -73,7 +72,7 @@ func TestRunDoctorMentionsUpstreamAuthCause(t *testing.T) {
 	if exitCode == 0 {
 		t.Fatalf("expected doctor to fail when ws ping proves an upstream auth issue:\n%s", output)
 	}
-	if !strings.Contains(output, "Relay upstream authentication was rejected; update/restart the App, or replace HA_LLAT for standalone Container/Core") {
+	if !strings.Contains(output, "Home Assistant turned down its login.") {
 		t.Fatalf("expected upstream auth guidance in doctor output:\n%s", output)
 	}
 }
@@ -186,10 +185,10 @@ func TestRunDoctorShowsRepairHintForDetachedConfiguredClaude(t *testing.T) {
 	if exitCode == 0 {
 		t.Fatalf("expected doctor to degrade for detached Claude:\n%s", output)
 	}
-	if !strings.Contains(output, "Claude Code is not attached correctly") {
+	if !strings.Contains(output, "Claude Code doesn't load HA NOVA right now") {
 		t.Fatalf("expected detached Claude warning:\n%s", output)
 	}
-	if !strings.Contains(output, "Repair: run `ha-nova setup claude`.") {
+	if !strings.Contains(output, "To fix: run `ha-nova setup claude`.") {
 		t.Fatalf("expected concrete Claude repair hint:\n%s", output)
 	}
 }
@@ -226,7 +225,7 @@ func TestRunDoctorShowsDevSyncHintForDetachedConfiguredClaudeOnDevInstall(t *tes
 	if exitCode == 0 {
 		t.Fatalf("expected doctor to degrade for detached Claude on dev install:\n%s", output)
 	}
-	if !strings.Contains(output, "Repair: run `npm run dev:sync` or `ha-nova setup claude`.") {
+	if !strings.Contains(output, "To fix: run `npm run dev:sync` or `ha-nova setup claude`.") {
 		t.Fatalf("expected repo/dev Claude repair hint:\n%s", output)
 	}
 }
@@ -277,10 +276,10 @@ func TestRunDoctorShowsRepairHintWhenClaudeMarketplaceMissing(t *testing.T) {
 	if exitCode == 0 {
 		t.Fatalf("expected doctor to degrade when Claude marketplace is missing:\n%s", output)
 	}
-	if !strings.Contains(output, "Claude Code is not attached correctly") {
+	if !strings.Contains(output, "Claude Code doesn't load HA NOVA right now") {
 		t.Fatalf("expected detached Claude warning for missing marketplace:\n%s", output)
 	}
-	if !strings.Contains(output, "Repair: run `ha-nova setup claude`.") {
+	if !strings.Contains(output, "To fix: run `ha-nova setup claude`.") {
 		t.Fatalf("expected concrete Claude repair hint for missing marketplace:\n%s", output)
 	}
 }
@@ -452,7 +451,7 @@ func TestRunDoctorReportsConfiguredServiceTokenFile(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("runDoctor() exit = %d, want 0\n%s", exitCode, output)
 	}
-	if !strings.Contains(output, "Relay auth token present in service token file") {
+	if !strings.Contains(output, "This computer's shared key is saved in service token file") {
 		t.Fatalf("expected service-token-file wording:\n%s", output)
 	}
 }
@@ -486,10 +485,10 @@ func TestRunDoctorShowsRepairHintForDetachedConfiguredHermes(t *testing.T) {
 	if exitCode == 0 {
 		t.Fatalf("expected doctor to degrade for detached Hermes:\n%s", output)
 	}
-	if !strings.Contains(output, "Hermes Agent configured, but HA NOVA is not attached") {
+	if !strings.Contains(output, "Hermes Agent doesn't load HA NOVA right now") {
 		t.Fatalf("expected detached Hermes warning:\n%s", output)
 	}
-	if !strings.Contains(output, "Repair: run `ha-nova setup hermes`.") {
+	if !strings.Contains(output, "To fix: run `ha-nova setup hermes`.") {
 		t.Fatalf("expected concrete Hermes repair hint:\n%s", output)
 	}
 }
@@ -533,10 +532,10 @@ func TestRunDoctorShowsRepairHintForLegacyHermesBundleWithoutState(t *testing.T)
 	if exitCode == 0 {
 		t.Fatalf("expected doctor to degrade for legacy Hermes bundle:\n%s", output)
 	}
-	if !strings.Contains(output, "Hermes Agent configured, but HA NOVA is not attached") {
+	if !strings.Contains(output, "Hermes Agent doesn't load HA NOVA right now") {
 		t.Fatalf("expected legacy Hermes warning:\n%s", output)
 	}
-	if !strings.Contains(output, "Repair: run `ha-nova setup hermes`.") {
+	if !strings.Contains(output, "To fix: run `ha-nova setup hermes`.") {
 		t.Fatalf("expected legacy Hermes repair hint:\n%s", output)
 	}
 }

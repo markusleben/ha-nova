@@ -44,7 +44,7 @@ func TestUpdateAppStepOpensSetupPageOnlyAtADesktop(t *testing.T) {
 	}
 	// Without the page: the notice says where to update, once.
 	once := func(out string) bool {
-		return strings.Count(out, "Settings > Apps > NOVA Relay") == 1 && strings.Contains(out, relayAppUpdatePath)
+		return strings.Count(out, "Settings → Apps → NOVA Relay") == 1 && strings.Contains(out, relayAppUpdatePath)
 	}
 
 	setupPageAvailable = func() bool { return true }

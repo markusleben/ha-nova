@@ -150,7 +150,7 @@ func TestCloudOnlyConnectSuccessDoesNotClaimLocalPreference(t *testing.T) {
 	if exit != 0 ||
 		!strings.Contains(
 			output,
-			"Home Assistant Link access is ready. This profile uses Cloud routing.",
+			"Home Assistant Link is ready. This server always connects through Link.",
 		) ||
 		strings.Contains(output, "Local access stays preferred.") {
 		t.Fatalf("Cloud-only success exit=%d output=%s", exit, output)

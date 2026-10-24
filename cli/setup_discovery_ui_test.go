@@ -30,7 +30,7 @@ func TestSelectDefaultHAHostWithFeedbackKeepsOverridePromptForSingleLocalResult(
 	for _, want := range []string{
 		"Discovering Home Assistant on your network...",
 		"Found Home Assistant as ha-box.local",
-		".local names can stop working",
+		"This name can stop working",
 	} {
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf("discovery output missing %q:\n%s", want, output.String())
@@ -80,7 +80,7 @@ func TestSelectDefaultHAHostWithFeedbackKeepsManualPathWhenNothingWasConfirmed(t
 	if selected || candidate.Host != "saved-ha.local" {
 		t.Fatalf("selection = (%+v, %v), want saved manual default", candidate, selected)
 	}
-	if !strings.Contains(output.String(), "starting from your saved address saved-ha.local") {
+	if !strings.Contains(output.String(), "Starting from your saved address saved-ha.local") {
 		t.Fatalf("missing manual entry guidance:\n%s", output.String())
 	}
 }
@@ -169,7 +169,7 @@ func TestSelectDefaultHAHostWithFeedbackDoesNotDelayFastTTYDiscovery(t *testing.
 	if elapsed >= 40*time.Millisecond {
 		t.Fatalf("elapsed = %s, want less than %s for a fast task", elapsed, 40*time.Millisecond)
 	}
-	if !strings.Contains(output.String(), "Found Home Assistant at 192.168.1.123 (discovered via homeassistant.local)") {
+	if !strings.Contains(output.String(), "Found Home Assistant at 192.168.1.123 (homeassistant.local)") {
 		t.Fatalf("missing discovery result:\n%s", output.String())
 	}
 }

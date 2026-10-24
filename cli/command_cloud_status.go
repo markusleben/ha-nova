@@ -139,7 +139,7 @@ func runCloudStatusCommand(paths runtimePaths, args []string) int {
 		}
 		printHumanErr("%s", hold)
 		if summary.CurrentAvailable {
-			printHumanInfo("The previously saved Cloud connection was not overwritten.")
+			printHumanInfo("The Home Assistant Link connection saved before was kept.")
 		}
 		if cloudRecoveryHoldNeedsUnlockForConfig(cfg) {
 			printHumanInfo(

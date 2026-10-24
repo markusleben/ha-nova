@@ -68,41 +68,45 @@ func verifySetupConnection(reader *bufio.Reader, out io.Writer, cfg runtimeConfi
 
 func verifySetupConnectionOnce(out io.Writer, cfg runtimeConfig, token string, forceWSPing bool) (relayReadiness, string, bool) {
 	if err := probeHTTPForSetup(cfg.HAURL); err != nil {
-		renderSetupErrorLine(out, "Home Assistant unreachable: %s", err)
-		fmt.Fprintln(out, "  Check that Home Assistant is running and reachable from this computer.")
+		if hint := reachProblem(cfg.HAURL, err); hint != "" {
+			renderSetupErrorLine(out, "%s", hint)
+		} else {
+			renderSetupErrorLine(out, "This computer can't reach Home Assistant. Details: %s", err)
+			fmt.Fprintln(out, "  Check that Home Assistant is running.")
+		}
 		return relayReadiness{}, setupIssueRelayUnreachable, false
 	}
 
 	readiness := checkRelayReadinessWithProbes(cfg.RelayBaseURL, token, fetchRelayHealthForSetup, probeRelayWSPingForSetup, forceWSPing)
 	if readiness.HealthErr != nil {
-		renderSetupErrorLine(out, "Relay health failed: %s", readiness.HealthErr)
-		fmt.Fprintln(out, "  Check that the NOVA App is running and the saved Relay Auth Token matches.")
+		renderSetupErrorLine(out, "HA NOVA couldn't check the NOVA App. Details: %s", readiness.HealthErr)
+		fmt.Fprintln(out, `  Check that the NOVA App is running, and that the saved key matches its "Relay Auth Token".`)
 		return readiness, setupIssueRelayUnreachable, false
 	}
 
-	renderSetupSuccessLine(out, "Home Assistant reachable")
-	renderSetupSuccessLine(out, "NOVA App reachable")
+	renderSetupSuccessLine(out, "Home Assistant answers")
+	renderSetupSuccessLine(out, "NOVA App answers")
 	if readiness.WSReady {
 		renderSetupSuccessLine(out, "Connected to Home Assistant")
 		return readiness, "", true
 	}
 
-	renderSetupErrorLine(out, "Home Assistant WebSocket is not connected yet.")
+	renderSetupErrorLine(out, "The NOVA App isn't connected to Home Assistant yet.")
 	if readiness.WSPingErr == nil {
 		switch {
 		case readiness.UpstreamAuthIssue:
-			fmt.Fprintln(out, `  Home Assistant rejected the NOVA App's access.`)
-			fmt.Fprintln(out, `  Update or restart the NOVA App (standalone container: replace HA_LLAT in its environment).`)
+			fmt.Fprintln(out, `  Home Assistant turned down the NOVA App's login.`)
+			fmt.Fprintln(out, `  Restart or update the NOVA App. NOVA Relay in your own container? Give it a new Home Assistant token (HA_LLAT).`)
 		case readiness.RelayAuthIssue:
-			fmt.Fprintln(out, `  The Relay Auth Token in the NOVA App still needs to be checked.`)
-			fmt.Fprintln(out, `  Verify the "Relay Auth Token" field ("relay_auth_token"), save, and restart the App.`)
+			fmt.Fprintln(out, `  The NOVA App turned down this computer's shared access key.`)
+			fmt.Fprintln(out, `  In the NOVA App's Configuration tab, check the "Relay Auth Token" field. Save, then restart the App.`)
 		default:
-			fmt.Fprintln(out, "  The NOVA App is running, but can't finish its Home Assistant connection yet.")
-			fmt.Fprintln(out, "  Verify the app settings and restart the App if needed.")
+			fmt.Fprintln(out, "  The NOVA App runs, but can't reach Home Assistant yet.")
+			fmt.Fprintln(out, "  Check the App's settings. Restart the App if needed.")
 		}
 	} else {
-		fmt.Fprintln(out, "  The NOVA App is reachable, but its Home Assistant connection check failed.")
-		fmt.Fprintln(out, "  Verify the app settings and restart the App if needed.")
+		fmt.Fprintln(out, "  The NOVA App answers, but HA NOVA couldn't check its link to Home Assistant.")
+		fmt.Fprintln(out, "  Check the App's settings. Restart the App if needed.")
 	}
 	return readiness, setupIssueWSDegraded, false
 }

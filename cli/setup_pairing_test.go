@@ -68,7 +68,7 @@ func TestInteractiveSetupReachesPairingWhenLegacyKeyringUnavailable(t *testing.T
 	if strings.Contains(output, "save relay token") {
 		t.Fatalf("wizard surfaced the fatal legacy-token save error instead of pairing:\n%s", output)
 	}
-	for _, want := range []string{"file-backed storage", "Connect this computer"} {
+	for _, want := range []string{"saves its key in a private file", "Connect this computer"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("wizard output missing %q (did not reach the pairing path):\n%s", want, output)
 		}
@@ -339,7 +339,7 @@ func TestInteractiveSetupPairsStoresTokenAndVerifiesHealthAndWS(t *testing.T) {
 		t.Fatalf("interactiveSetup() exit = %d, want 0\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
 	}
 	output := stdout + stderr
-	for _, want := range []string{"Connect this computer", "This computer is connected", "NOVA App reachable", "Setup complete!"} {
+	for _, want := range []string{"Connect this computer", "This computer is connected", "NOVA App answers", "Setup complete!"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("wizard output missing %q:\n%s", want, output)
 		}
@@ -423,7 +423,7 @@ func TestInteractiveSetupManualPairingFallbackKeepsTokenRepair(t *testing.T) {
 	if strings.Contains(output, "Open Home Base and pair this device again") {
 		t.Fatalf("manual credential failure incorrectly forced pairing repair:\n%s", output)
 	}
-	if strings.Count(output, "Set up Relay Auth Token") < 2 {
+	if strings.Count(output, "Set up the shared key") < 2 {
 		t.Fatalf("manual credential failure did not return to the token step:\n%s", output)
 	}
 }
@@ -517,11 +517,11 @@ func TestInteractiveSetupPairedDeviceReRunVerifiesWithoutNewCode(t *testing.T) {
 	// The precheck must reflect the device transport, and the run must verify
 	// the existing pairing instead of demanding a fresh code.
 	for _, want := range []string{
-		"Secure connection verified",
+		"Connection works",
 		"Setup complete!",
-		"Local:          Ready — preferred",
+		"At home:        Ready, used first",
 		"Away from home: Ready — Home Assistant Link",
-		"Routing:        Automatic — Home Assistant Link is used only when local access is unavailable",
+		"Which one:      Automatic. Home Assistant Link only when home can't be reached",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output missing %q:\n%s", want, output)
@@ -540,7 +540,7 @@ func TestInteractiveSetupPairedDeviceReRunVerifiesWithoutNewCode(t *testing.T) {
 		saved.RoutePolicy != routePolicyAutomatic {
 		t.Fatalf("saved Cloud config = %+v, err = %v", saved.Cloud, err)
 	}
-	for _, forbidden := range []string{"Six-digit code", "NOVA App not reachable", "No auth token found"} {
+	for _, forbidden := range []string{"Six-digit code", "NOVA App doesn't answer", "No key saved yet"} {
 		if strings.Contains(output, forbidden) {
 			t.Fatalf("paired re-run must not show %q:\n%s", forbidden, output)
 		}

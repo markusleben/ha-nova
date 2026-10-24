@@ -313,7 +313,7 @@ func relayNoticeTransport(cfg config) (string, *http.Client, string, bool) {
 // (it reads this text on stderr, or the notices[] kind) and the MCP hint
 // (mcpNoticeHints) — never from instructions in this text.
 const (
-	relayAppUpdatePath       = "In Home Assistant: Settings > Apps > NOVA Relay > Update."
+	relayAppUpdatePath       = "In Home Assistant: Settings → Apps → NOVA Relay → Update."
 	relayContainerUpdateLine = "NOVA Relay in your own container? Pull its new image, then recreate the container (a restart keeps the old image)."
 )
 
@@ -340,9 +340,9 @@ func relayUpdateNoticeWithContext(ctx context.Context, paths runtimePaths) human
 	if !ok {
 		return humanNotice{}
 	}
-	floorNotice := humanNotice{}
+	floorNotice, running := humanNotice{}, ""
 	if body, healthErr := fetchRelayHealthWithContext(ctx, client, base, credential); healthErr == nil {
-		floorNotice = checkRelayVersion(paths, body)
+		floorNotice, running = checkRelayVersion(paths, body), parseRelayHealthVersion(body)
 	}
 	// Resolve the exact HA update entity even when the Relay is below the
 	// compatibility floor. Only that evidence distinguishes an App that can
@@ -372,23 +372,7 @@ func relayUpdateNoticeWithContext(ctx context.Context, paths runtimePaths) human
 			message: floorNotice.message + " " + relayContainerUpdateLine,
 		}
 	}
-	return relayAvailableUpdateNoticeFromCandidate(candidate)
-}
-
-func relayAvailableUpdateNotice(cfg config, token string) humanNotice {
-	candidate, _ := resolveRelayUpdateCandidate(cfg, token)
-	return relayAvailableUpdateNoticeFromCandidate(candidate)
-}
-
-func relayAvailableUpdateNoticeFromCandidate(candidate relayUpdateCandidate) humanNotice {
-	if !candidate.updateAvailable() {
-		return humanNotice{}
-	}
-	return humanNotice{
-		level: humanNoticeNote, appUpdate: true,
-		kind:    humanNoticeKindRelayUpdateAvailable,
-		message: fmt.Sprintf("The NOVA App in Home Assistant has an update: %s → %s. %s", candidate.InstalledVersion, candidate.LatestVersion, relayAppUpdatePath),
-	}
+	return relayAvailableUpdateNoticeFromCandidate(candidate, running)
 }
 
 // checkRelayVersionValue compares a bare relay version (from the /health body

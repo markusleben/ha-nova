@@ -472,7 +472,7 @@ describe("release contract", () => {
       "run `ha-nova setup --service hermes`, then `ha-nova doctor`, then one authenticated relay call from a fresh SSH/service-like shell without an unlocked desktop keyring",
     );
     expect(releaseDocs).toContain("confirm the service token file is removed");
-    expect(releaseDocs).toContain("Hermes Agent ready now");
+    expect(releaseDocs).toContain("Hermes Agent is ready");
     expect(releaseDocs).toContain(
       "when Linux setup or secure-storage behavior changes, the release-bound manual matrix must include the Linux real-machine onboarding lane above",
     );

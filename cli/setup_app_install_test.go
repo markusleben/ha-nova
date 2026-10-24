@@ -210,7 +210,7 @@ func TestRelayInstallStepsFallBackToTheManualPageOrContinue(t *testing.T) {
 			var out bytes.Buffer
 			note, err := runRelayInstallSteps(bufio.NewReader(strings.NewReader(test.input)), &out, paths, cfg, true)
 			if err != nil || *calls != test.calls || strings.Contains(out.String(), manual) != test.wantSteps ||
-				strings.Contains(note.plain(), "update to v0.10.0 or newer") != test.wantNote {
+				strings.Contains(note.plain(), "update it to v0.10.0 or newer") != test.wantNote {
 				t.Fatalf("err=%v sign-ins=%d manual steps=%v note=%q\n%s", err, *calls, strings.Contains(out.String(), manual), note.plain(), out.String())
 			}
 		})

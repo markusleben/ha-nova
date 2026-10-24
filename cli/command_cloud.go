@@ -227,7 +227,7 @@ func runCloudUnlockCommand(paths runtimePaths, args []string) int {
 			}
 			printVerifiedStorageHoldCleared()
 		}
-		printHumanInfo("Native secure storage is unlocked and Cloud access is ready.")
+		printHumanInfo("The password store is unlocked. Home Assistant Link is ready.")
 		return 0
 	}
 	if verifiedStorageHold != nil {

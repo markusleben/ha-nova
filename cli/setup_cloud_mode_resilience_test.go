@@ -180,7 +180,7 @@ func TestSetupConnectionModeDefaultsAndRecoversFromInvalidInput(t *testing.T) {
 	if err != nil || got != setupConnectionLocal {
 		t.Fatalf("recovered mode=%q err=%v output=%s", got, err, output.String())
 	}
-	if count := strings.Count(output.String(), "Invalid choice"); count != 2 {
+	if count := strings.Count(output.String(), "Pick one of the numbers shown"); count != 2 {
 		t.Fatalf("invalid-choice count=%d output=%s", count, output.String())
 	}
 }

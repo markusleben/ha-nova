@@ -34,9 +34,9 @@ Use it to answer two separate questions cleanly:
 ## Repair Check
 
 - `ha-nova doctor` is the first repair surface for Hermes.
-- If Hermes is installed but HA NOVA is still on an older mismatched skill layout, `doctor` should report that Hermes is configured but not attached and point to `ha-nova setup hermes`.
+- If Hermes is installed but HA NOVA is still on an older mismatched skill layout, `doctor` should report that `Hermes Agent doesn't load HA NOVA right now` and point to `ha-nova setup hermes`.
 - `ha-nova setup hermes` is the supported repair path.
-- After repair, `ha-nova doctor` should report `Hermes Agent ready now`.
+- After repair, `ha-nova doctor` should report `Hermes Agent is ready`.
 
 ## Community Validation Rules
 

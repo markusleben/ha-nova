@@ -40,7 +40,7 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		return 1
 	}
 	if cfg.ProfileID == "" {
-		printHumanErr("the selected server profile has no Cloud credential identity")
+		printHumanErr("this server has no Home Assistant Link sign-in to remove")
 		return 1
 	}
 	remoteOnly, err := isRemoteOnlyCloudProfile(cfg)
@@ -79,7 +79,7 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 			false,
 		)
 		if promptErr != nil || !confirmed {
-			printHumanInfo("Cloud removal cancelled — nothing was changed.")
+			printHumanInfo("Home Assistant Link stays. Nothing was changed.")
 			return 0
 		}
 	}
@@ -379,7 +379,7 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		if !cleanupStarted && errors.Is(err, errCloudAuthorizationCleanupUnverifiable) { // stopped before any revoke
 			printHumanInfo("Nothing was removed yet.")
 		} else {
-			printHumanInfo("Cloud configuration was kept unless revocation had already been verified.")
+			printHumanInfo("Home Assistant Link settings were kept, unless its sign-in was already turned off.")
 		}
 		return 1
 	}

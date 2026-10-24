@@ -13,14 +13,40 @@ import (
 
 // sayData: the values a call sets, once, when no single-target delta shows them.
 func sayData(data map[string]any) string {
-	var parts []string
+	var parts, flags []string
 	for _, key := range sortedKeys(data) {
+		if flag, ok := sayFlag(key, data[key]); ok {
+			flags = append(flags, ", "+flag)
+			continue
+		}
 		parts = append(parts, sayValue(key)+" "+sayValue(deltaValue(data[key])))
 	}
-	if len(parts) == 0 {
-		return ""
+	out := ""
+	if len(parts) > 0 {
+		out = " with " + strings.Join(parts, ", ")
 	}
-	return " with " + strings.Join(parts, ", ")
+	return out + strings.Join(flags, "")
+}
+
+// sayFlag: a true/false field in plain words ("with a backup first"), never
+// "backup set to true"; ok is false for any value that isn't a real bool
+// (a text set to "true" stays a text).
+func sayFlag(field string, value any) (string, bool) {
+	on, ok := value.(bool)
+	words := strings.ReplaceAll(sayText(field, false), "_", " ")
+	switch {
+	case !ok:
+		return "", false
+	case field == "backup" && on:
+		return "with a backup first", true
+	case field == "backup":
+		return "without a backup", true
+	case strings.HasPrefix(words, "is "): // is_volume_muted: "volume muted: yes"
+		return map[bool]string{true: strings.TrimPrefix(words, "is ") + ": yes", false: strings.TrimPrefix(words, "is ") + ": no"}[on], true
+	case on:
+		return "with " + words + " on", true
+	}
+	return "with " + words + " off", true
 }
 
 func sayMore(n int, rest string) string {

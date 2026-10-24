@@ -80,13 +80,15 @@ describe("project docs contract", () => {
     expect(novaDocs).toContain("including `GET /health`");
     expect(novaDocs).toContain("Authorization: Bearer <token>");
     expect(novaDocs).toContain("[latest GitHub release](https://github.com/markusleben/ha-nova/releases/latest)");
-    expect(novaDocs).toContain("local Relay token");
+    expect(novaDocs).toContain("can reach the NOVA App, and that the App can\ntalk to Home Assistant");
     expect(novaDocs).not.toContain("keychain token");
     expect(novaDocs).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.sh");
     expect(novaDocs).toContain('"ok": true');
     expect(novaDocs).toContain('"data": {');
-    expect(novaDocs).toContain("Enabled release builds support Cloud Remote");
-    expect(novaDocs).not.toContain(
+    expect(novaDocs).toContain("bridge-architecture.md#home-assistant-link-routes");
+    expect(bridgeArchitecture).toContain("### Home Assistant Link routes");
+    expect(bridgeArchitecture).toContain("Enabled release builds support Cloud Remote");
+    expect(bridgeArchitecture).not.toContain(
       "Release metadata currently keeps Cloud Remote disabled",
     );
   });
@@ -139,8 +141,8 @@ describe("project docs contract", () => {
     expect(hermesValidation).toContain("Community validation");
     expect(hermesValidation).toContain("Planned / not yet validated");
     expect(hermesValidation).toContain("## Repair Check");
-    expect(hermesValidation).toContain("configured but not attached");
-    expect(hermesValidation).toContain("Hermes Agent ready now");
+    expect(hermesValidation).toContain("Hermes Agent doesn't load HA NOVA right now");
+    expect(hermesValidation).toContain("Hermes Agent is ready");
     expect(hermesValidation).toContain("GNOME Keyring");
     expect(hermesValidation).toContain("WSL2");
     expect(hermesValidation).toContain("Native Windows Hermes is not part of the HA NOVA support model.");

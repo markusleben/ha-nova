@@ -49,13 +49,13 @@ func TestRunDoctorDeviceModeChecksSecureEndpoint(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("doctor exit = %d, want 0:\n%s", exitCode, output)
 	}
-	if !strings.Contains(output, "Device credential present (paired securely)") {
+	if !strings.Contains(output, "This computer's key is saved") {
 		t.Fatalf("expected device credential line:\n%s", output)
 	}
-	if strings.Contains(output, "Relay auth token present") {
+	if strings.Contains(output, "This computer's shared key is saved in") {
 		t.Fatalf("device mode must not claim a relay auth token:\n%s", output)
 	}
-	if !strings.Contains(output, "Relay health reachable: "+secure.URL+"/health") {
+	if !strings.Contains(output, "The NOVA App answers at "+secure.URL) {
 		t.Fatalf("expected health over the secure endpoint:\n%s", output)
 	}
 }
@@ -75,7 +75,7 @@ func TestRunDoctorDeviceModeRevokedGuidesRepair(t *testing.T) {
 	if exitCode == 0 {
 		t.Fatalf("expected doctor to fail on a revoked device credential:\n%s", output)
 	}
-	if !strings.Contains(output, "This device's pairing was not accepted (revoked or unknown). Pair again: run 'ha-nova setup'.") {
+	if !strings.Contains(output, "The NOVA App doesn't know this computer anymore. Maybe it was removed on the NOVA page. Connect it again: run 'ha-nova setup'.") {
 		t.Fatalf("expected re-pair guidance:\n%s", output)
 	}
 }
@@ -150,7 +150,7 @@ func TestRunDoctorPairedButMissingCredentialGuidesRepair(t *testing.T) {
 	if exitCode == 0 {
 		t.Fatalf("expected doctor to fail on a missing device credential:\n%s", output)
 	}
-	if !strings.Contains(output, "This device was paired, but its device credential is missing from secure storage.") {
+	if !strings.Contains(output, "This computer was connected, but its key is gone from the password store.") {
 		t.Fatalf("expected paired-but-missing guidance:\n%s", output)
 	}
 }
@@ -187,10 +187,10 @@ func TestRunDoctorPairedMissingCredentialNotMaskedByLegacyToken(t *testing.T) {
 	if exitCode == 0 {
 		t.Fatalf("expected doctor to fail on a missing device credential:\n%s", output)
 	}
-	if !strings.Contains(output, "This device was paired, but its device credential is missing from secure storage.") {
+	if !strings.Contains(output, "This computer was connected, but its key is gone from the password store.") {
 		t.Fatalf("expected paired-but-missing guidance, not a legacy fallback:\n%s", output)
 	}
-	if strings.Contains(output, "Relay auth token present") {
+	if strings.Contains(output, "This computer's shared key is saved in") {
 		t.Fatalf("a leftover legacy token must not mask the paired device problem:\n%s", output)
 	}
 }

@@ -90,8 +90,8 @@ func TestInteractiveCloudRecoveryPrecedesClientResolution(t *testing.T) {
 					wantRemove = "Setup goes on without it." // the commands come at the end
 				}
 				if !strings.Contains(output, wantRemove) ||
-					strings.Contains(output, "unsupported client") != wentOn ||
-					strings.Contains(output, "Which AI client") ||
+					strings.Contains(output, "doesn't work with this AI app") != wentOn ||
+					strings.Contains(output, "Which AI app") ||
 					coordinator.addCalls != 0 ||
 					localActivationCalls != 0 ||
 					localKeyringCalls != 0 {

@@ -193,7 +193,7 @@ func TestNamedClientRepairSkipsPendingActivationMutation(
 	})
 	if exit != 0 ||
 		!strings.Contains(output, "Repaired client integration") ||
-		strings.Contains(output, "Resumed the interrupted pairing") {
+		strings.Contains(output, "Finished connecting this computer") {
 		t.Fatalf("named client repair exit=%d output=%q", exit, output)
 	}
 	if activationCalls != 0 {
@@ -267,7 +267,7 @@ func TestNamedClientRepairNeverRepairsInvalidInstallIdentity(
 			},
 		)
 	})
-	if exit != 1 || !strings.Contains(output, "unsupported client") {
+	if exit != 1 || !strings.Contains(output, "doesn't work with this AI app") {
 		t.Fatalf("unsupported exit=%d output=%q", exit, output)
 	}
 	assertInvalidInstallIdentityUnchanged(t, paths)

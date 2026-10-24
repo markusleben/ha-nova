@@ -105,7 +105,7 @@ func TestServerRouteRejectsAutomaticWithoutLocalPairing(t *testing.T) {
 	exit, out := captureCommandOutput(t, func() int {
 		return runServerCommand(paths, []string{"route", "automatic", "--server", "cabin"})
 	})
-	if exit != 1 || !strings.Contains(out, "requires both local and Cloud transports") {
+	if exit != 1 || !strings.Contains(out, "Automatic needs both: home and Home Assistant Link.") {
 		t.Fatalf("exit=%d output=%s", exit, out)
 	}
 }

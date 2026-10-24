@@ -139,9 +139,9 @@ func TestCompletedSetupAddsCloudByReusingExistingDevice(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Setup complete!",
-		"Local:          Ready — preferred",
+		"At home:        Ready, used first",
 		"Away from home: Ready — Home Assistant Link",
-		"Routing:        Automatic — Home Assistant Link is used only when local access is unavailable",
+		"Which one:      Automatic. Home Assistant Link only when home can't be reached",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("Cloud completion missing %q:\n%s", want, output)

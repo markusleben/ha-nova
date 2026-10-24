@@ -140,7 +140,7 @@ func promptSetupDiscoveryCandidateFromReader(reader *bufio.Reader, out io.Writer
 		choice, err := strconv.Atoi(line)
 		switch {
 		case err != nil || choice < 1 || choice > manualNumber:
-			renderSetupErrorLine(out, "Invalid choice. Please enter one of the listed options.")
+			renderSetupErrorLine(out, "Pick one of the numbers shown.")
 		case choice == manualNumber:
 			return "manual", nil
 		default:

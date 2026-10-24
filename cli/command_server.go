@@ -260,7 +260,7 @@ func runServerRename(paths runtimePaths, args []string) int {
 	}
 	if hasCloud {
 		printHumanErr(
-			"server profile %q has Home Assistant Link state and cannot be renamed safely. Remove Cloud access first with: ha-nova cloud remove --server %s",
+			"server profile %q has Home Assistant Link state and cannot be renamed safely. Remove Home Assistant Link first with: ha-nova cloud remove --server %s",
 			oldName,
 			oldName,
 		)

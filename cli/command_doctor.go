@@ -35,12 +35,12 @@ func runDoctor(paths runtimePaths, args []string) int {
 	}
 	doctorLifecycleGeneration, lifecycleErr := readInstallLifecycleGeneration(paths)
 	if lifecycleErr != nil {
-		printHumanErr("cannot inspect install lifecycle: %s", lifecycleErr)
+		printHumanErr("HA NOVA couldn't read its install state: %s", lifecycleErr)
 		return 1
 	}
 	doctorConfigSnapshot, doctorHadConfigSnapshot, snapshotErr := readOptionalFile(paths.ConfigFile)
 	if snapshotErr != nil {
-		printHumanErr("cannot inspect server configuration: %s", snapshotErr)
+		printHumanErr("HA NOVA couldn't read its settings file: %s", snapshotErr)
 		return 1
 	}
 	doctorInfo := func(format string, parts ...any) {
@@ -54,11 +54,11 @@ func runDoctor(paths runtimePaths, args []string) int {
 		switch recovery.Kind {
 		case windowsUninstallStatusKindRunning:
 			printHumanErr("%s", recovery.Summary)
-			printHumanWarn("Wait for the background uninstall to finish, then rerun `ha-nova doctor`.")
+			printHumanWarn("HA NOVA is still being removed. Wait for that to finish, then run `ha-nova doctor` again.")
 			return 1
 		case windowsUninstallStatusKindInterrupted, windowsUninstallStatusKindFailed, windowsUninstallStatusKindCorrupt:
 			printHumanErr("%s", recovery.Summary)
-			printHumanWarn("Recovery: run `%s`.", recovery.RecoveryCommand)
+			printHumanWarn("To fix: run `%s`.", recovery.RecoveryCommand)
 			return 1
 		}
 	}
@@ -72,7 +72,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 	status, appBelowFloor := 0, false
 
 	if cfgErr == nil {
-		doctorInfo("Config present: %s", paths.ConfigFile)
+		doctorInfo("Settings file found: %s", paths.ConfigFile)
 	} else {
 		printHumanErr("%s", cfgErr)
 		return 1
@@ -90,7 +90,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 	// Multi-server installs: name the checked profile so per-server doctor runs
 	// (ha-nova doctor --server <name>) are unambiguous.
 	if profileName, profileCount := selectedServerProfileStatus(paths); profileCount > 1 || profileName != defaultServerProfileName {
-		doctorInfo("Server profile: %s", profileName)
+		doctorInfo("Checking server: %s", profileName)
 	}
 
 	// Finish a pairing interrupted between activation and promotion (crash or
@@ -107,7 +107,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 		return 1
 	}
 	if resumed {
-		doctorInfo("Resumed the interrupted pairing — this device is connected.")
+		doctorInfo("Finished connecting this computer. It is connected now.")
 	}
 	// Self-heal client integrations once after a version change (complements
 	// --auto-repair below, which only re-attaches drifted clients). Best-effort.
@@ -128,35 +128,35 @@ func runDoctor(paths runtimePaths, args []string) int {
 	var token string
 	if transportErr == nil && deviceMode {
 		token = transportCred
-		doctorInfo("Device credential present (paired securely)")
+		doctorInfo("This computer's key is saved")
 	} else if pairedConfig {
 		// A paired config whose device transport failed must NOT be masked by a
 		// leftover legacy token: report the device problem so the user re-pairs.
 		// The direct slot read distinguishes unreadable storage from an absent
 		// credential (re-pairing cannot store anything in broken storage).
 		if _, exists, credErr := readDeviceCredential(); credErr != nil && isLinuxKeyringError(credErr) {
-			printHumanErr("This device is paired, but HA NOVA can't read its key. %s", relayAuthTokenProblemMessage(credErr))
+			printHumanErr("This computer was set up with HA NOVA, but HA NOVA can't read its key. %s", relayAuthTokenProblemMessage(credErr))
 			if hint := doctorServiceCredentialRecoveryHint(paths, state, credErr); hint != "" {
 				printHumanWarn("%s", hint)
 			}
 			return 1
 		} else if credErr != nil {
-			printHumanErr("This device is paired, but its device credential could not be read from secure storage: %s", credErr)
+			printHumanErr("This computer was set up with HA NOVA, but HA NOVA can't read its key from the password store. Details: %s", credErr)
 			if secureStorageSessionProblem(credErr) {
 				printHumanWarn("%s. Next step: %s, then run 'ha-nova doctor' there.", secureStorageSessionReason, secureStorageSessionNextStep())
 			} else if hint := setupSecureStorageRecoveryHint(credErr); hint != "" {
 				printHumanWarn("%s", hint)
 			} else {
-				printHumanWarn("Unlock or repair secure storage on this machine, then run 'ha-nova doctor' again.")
+				printHumanWarn("Unlock this computer's password store, then run 'ha-nova doctor' again.")
 			}
 			return 1
 		} else if exists {
 			printHumanErr("%s", relayTransportErrorMessage(transportErr))
 			return 1
 		}
-		printHumanErr("This device was paired, but its device credential is missing from secure storage.")
+		printHumanErr("This computer was connected, but its key is gone from the password store.")
 		printHumanErr(
-			"Pair again: run '%s' and enter a fresh code from the NOVA page.",
+			"Connect it again: run '%s'.",
 			localRelayRepairCommand(
 				activeServerProfile(),
 				cfg.RelayBaseURL,
@@ -175,7 +175,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 		// the machine-wide legacy token (it belongs to the default profile).
 		if transportErr == nil {
 			transportErr = fmt.Errorf(
-				"server profile %q has no completed device pairing; run: %s",
+				"server %q isn't connected yet. Run: %s",
 				activeServerProfile(),
 				localRelayRepairCommand(
 					activeServerProfile(),
@@ -193,7 +193,11 @@ func runDoctor(paths runtimePaths, args []string) int {
 			token, tokenErr = readRelayAuthTokenForDoctor()
 		}
 		if tokenErr == nil && token != "" {
-			doctorInfo("Relay auth token present in %s", relayAuthTokenStorageLabel())
+			where := relayAuthTokenStorageLabel()
+			if where == "secure storage" {
+				where = "this computer's password store"
+			}
+			doctorInfo("This computer's shared key is saved in %s", where)
 		} else {
 			printHumanErr("%s", relayAuthTokenProblemMessage(tokenErr))
 			if hint := doctorServiceCredentialRecoveryHint(paths, state, tokenErr); hint != "" {
@@ -207,25 +211,30 @@ func runDoctor(paths runtimePaths, args []string) int {
 	}
 
 	usingCloud := transport.Via == relayViaCloud
-	haReachable := false
+	haReachable, haHinted := false, false
 	haURLKnown := strings.TrimSpace(cfg.HAURL) != ""
 	if usingCloud {
-		doctorInfo("Cloud route selected; skipping the local Home Assistant address probe")
+		doctorInfo("Using Home Assistant Link, so HA NOVA skips the home address check")
 		haReachable = true
 	} else if !haURLKnown {
 		// A pair-only setup (`ha-nova pair --relay-url ...`) has no saved HA
 		// address yet. The relay's WS state still proves the connection; the
 		// direct HA probe is just skipped instead of failing on an empty URL.
 		if activeServerProfile() == defaultServerProfileName {
-			printHumanWarn("No Home Assistant address saved yet; skipping the direct HA check. Run 'ha-nova setup' to complete this device's setup.")
+			printHumanWarn("No Home Assistant address saved yet, so HA NOVA skips that check. Run 'ha-nova setup' to finish setting up this computer.")
 		} else {
-			printHumanWarn("No Home Assistant address saved for this profile; skipping the direct HA check.")
+			printHumanWarn("No Home Assistant address saved for this server, so HA NOVA skips that check.")
 		}
 	} else if err := probeHTTP(cfg.HAURL); err != nil {
-		printHumanErr("Home Assistant unreachable: %s", err)
+		if hint := reachProblem(cfg.HAURL, err); hint != "" {
+			printHumanErr("%s", hint)
+			haHinted = true
+		} else {
+			printHumanErr("This computer can't reach Home Assistant at %s. Details: %s", cfg.HAURL, err)
+		}
 		status = 1
 	} else {
-		doctorInfo("Home Assistant reachable: %s", cfg.HAURL)
+		doctorInfo("Home Assistant answers at %s", cfg.HAURL)
 		haReachable = true
 	}
 	// WS state is judged when HA answered directly, or when no address is
@@ -246,21 +255,31 @@ func runDoctor(paths runtimePaths, args []string) int {
 		}
 		return checkRelayReadiness(cfg.RelayBaseURL, token)
 	}
+	// Over Home Assistant Link, a turned-down computer is Link's to explain.
+	printNotAccepted := func() {
+		if usingCloud {
+			printHumanErr("Home Assistant Link didn't let this computer in. Run 'ha-nova cloud status --server %s'. It says what to do next.", activeServerProfile())
+			return
+		}
+		printHumanErr(
+			"The NOVA App doesn't know this computer anymore. Maybe it was removed on the NOVA page. Connect it again: run '%s'.",
+			localRelayRepairCommand(activeServerProfile(), cfg.RelayBaseURL),
+		)
+	}
 	readiness := runReadiness()
 	if readiness.HealthErr != nil {
-		printHumanErr("Relay health failed: %s", readiness.HealthErr)
-		if deviceMode && relayHealthIssueLooksLikeRelayAuth(readiness.HealthErr) {
-			printHumanErr(
-				"This device's pairing was not accepted (revoked or unknown). Pair again: run '%s'.",
-				localRelayRepairCommand(
-					activeServerProfile(),
-					cfg.RelayBaseURL,
-				),
-			)
+		switch {
+		case deviceMode && relayHealthIssueLooksLikeRelayAuth(readiness.HealthErr):
+			printNotAccepted()
+		case haHinted && reachProblem(cfg.HAURL, readiness.HealthErr) != "": // same cause: the hint above says why
+			printHumanErr("HA NOVA can't reach the NOVA App either.")
+		default:
+			printHumanErr("HA NOVA couldn't check the NOVA App. Details: %s", readiness.HealthErr)
+			printHumanErr("Is the NOVA App running? In Home Assistant: Settings → Apps → NOVA Relay.")
 		}
 		status = 1
 	} else {
-		doctorInfo("Relay health reachable: %s/health", healthBase)
+		doctorInfo("The NOVA App answers at %s", healthBase)
 		if notice := checkRelayVersion(paths, readiness.HealthBody); !notice.empty() {
 			// check-update's words ("No Update button yet?", a container's step)
 			if !usingCloud { // bounded, as the first-use check; Cloud keeps the floor words
@@ -290,7 +309,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 			// A newer App may be available even while the running Relay remains
 			// compatible with min_relay_version. That is an optional update, not
 			// a failed doctor check; decline/non-TTY keeps status unchanged.
-			if notice := relayAvailableUpdateNotice(cfg, token); !notice.empty() {
+			if notice := relayAvailableUpdateNotice(cfg, token, parseRelayHealthVersion(readiness.HealthBody)); !notice.empty() {
 				printHumanNotice(notice)
 				if maybeOfferGuidedRelayUpdate(paths, notice) {
 					readiness = runReadiness()
@@ -300,31 +319,21 @@ func runDoctor(paths runtimePaths, args []string) int {
 		if judgeWS {
 			switch {
 			case readiness.WSReady:
-				if readiness.UsedWSPing {
-					doctorInfo("Relay /ws ping succeeded")
-				}
 				doctorInfo("Connected to Home Assistant")
 			case readiness.UpstreamAuthIssue:
-				printHumanErr("Relay reports degraded upstream WS capability")
-				printHumanErr("Relay upstream authentication was rejected; update/restart the App, or replace HA_LLAT for standalone Container/Core")
+				printHumanErr("The NOVA App can't talk to Home Assistant: Home Assistant turned down its login.")
+				printHumanErr("Restart or update the NOVA App in Home Assistant. NOVA Relay in your own container? Give it a new Home Assistant token (HA_LLAT).")
 				status = 1
 			case readiness.RelayAuthIssue:
-				printHumanErr("Relay reports degraded upstream WS capability")
 				if deviceMode {
-					printHumanErr(
-						"This device's pairing was not accepted (revoked or unknown). Pair again: run '%s'.",
-						localRelayRepairCommand(
-							activeServerProfile(),
-							cfg.RelayBaseURL,
-						),
-					)
+					printNotAccepted()
 				} else {
-					printHumanErr(`The Relay Auth Token field ("relay_auth_token") in NOVA Relay is missing or invalid`)
+					printHumanErr(`The NOVA App turned down this computer's shared key. In the NOVA App's Configuration tab, check the "Relay Auth Token" field.`)
 				}
 				status = 1
 			default:
-				printHumanErr("Relay reports degraded upstream WS capability")
-				printHumanErr("Home Assistant WebSocket is not connected yet")
+				printHumanErr("The NOVA App isn't connected to Home Assistant yet.")
+				printHumanErr("Wait a minute, then run 'ha-nova doctor' again. Still not working? Restart the NOVA App in Home Assistant.")
 				status = 1
 			}
 		}
@@ -347,9 +356,9 @@ func runDoctor(paths runtimePaths, args []string) int {
 				for _, outcome := range runClientAutoRepair(paths, clientStatuses) {
 					switch {
 					case outcome.Repaired:
-						printHumanInfo("Auto-repaired %s attachment", outcome.ClientLabel)
+						printHumanInfo("Fixed HA NOVA in %s", outcome.ClientLabel)
 					case outcome.Err != nil:
-						printHumanWarn("Auto-repair %s failed: %s", outcome.ClientLabel, outcome.Err)
+						printHumanWarn("Couldn't fix HA NOVA in %s: %s", outcome.ClientLabel, outcome.Err)
 					}
 				}
 				if refreshed, refreshErr := configuredClientStatuses(paths, state); refreshErr == nil {
@@ -361,7 +370,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 		for _, client := range clientStatuses {
 			switch {
 			case client.Ready:
-				doctorInfo("%s ready now", client.Label)
+				doctorInfo("%s is ready", client.Label)
 				if client.ID != "claude" {
 					break
 				}
@@ -369,15 +378,11 @@ func runDoctor(paths runtimePaths, args []string) int {
 					doctorInfo("%s", hint)
 				}
 			case !client.RuntimeDetected:
-				printHumanWarn("%s configured, but client runtime not detected now", client.Label)
+				printHumanWarn("HA NOVA is set up for %s, but can't find %s on this computer right now", client.Label, client.Label)
 				printHumanWarn("%s", doctorClientRepairHint(client, installSource))
 				status = 1
 			case !client.Attached:
-				if client.ID == "claude" {
-					printHumanWarn("%s is not attached correctly", client.Label)
-				} else {
-					printHumanWarn("%s configured, but HA NOVA is not attached", client.Label)
-				}
+				printHumanWarn("%s doesn't load HA NOVA right now", client.Label)
 				printHumanWarn("%s", doctorClientRepairHint(client, installSource))
 				status = 1
 			}
@@ -388,25 +393,25 @@ func runDoctor(paths runtimePaths, args []string) int {
 	}
 	installStatus, installStatusErr := buildInstallStatus(paths)
 	if installStatusErr != nil {
-		printHumanWarn("Install integrity status unavailable: %s", installStatusErr)
+		printHumanWarn("HA NOVA couldn't check its own files: %s", installStatusErr)
 	} else {
 		for _, client := range installStatus.Clients {
 			if !client.ActiveDrift {
 				continue
 			}
-			printHumanWarn("%s has active install drift: skill files still reference a temporary update backup", client.Label)
+			printHumanWarn("%s still uses HA NOVA files from an update that didn't finish", client.Label)
 			printHumanWarn("%s", doctorClientRepairHint(clientStatus{ID: client.ID, Label: client.Label, RuntimeDetected: client.RuntimeDetected}, installStatus.InstallSource))
 			status = 1
 		}
 		for _, artifact := range installStatus.InactiveArtifacts {
-			doctorInfo("Inactive legacy/dev artifact ignored: %s (%s)", artifact.Path, artifact.Kind)
+			doctorInfo("Ignoring an old, unused HA NOVA file: %s (%s)", artifact.Path, artifact.Kind)
 		}
 	}
 	if appBelowFloor { // the App notice is plain words; this says it failed
 		printHumanErr("To fix: update the NOVA App (see above).")
 	}
 	if status == 0 {
-		doctorInfo("Doctor checks passed")
+		doctorInfo("All checks passed")
 	}
 	return status
 }
@@ -416,17 +421,17 @@ func doctorClientRepairHint(client clientStatus, installSource string) string {
 	switch {
 	case !client.RuntimeDetected:
 		return fmt.Sprintf(
-			"Repair: install or reopen %s, then run `%s`.",
+			"To fix: install or open %s, then run `%s`.",
 			client.Label,
 			setupCommand,
 		)
 	case installSource == installSourceDev:
 		return fmt.Sprintf(
-			"Repair: run `npm run dev:sync` or `%s`.",
+			"To fix: run `npm run dev:sync` or `%s`.",
 			setupCommand,
 		)
 	default:
-		return fmt.Sprintf("Repair: run `%s`.", setupCommand)
+		return fmt.Sprintf("To fix: run `%s`.", setupCommand)
 	}
 }
 
@@ -477,24 +482,4 @@ func fetchRelayHealthWithContext(ctx context.Context, client *http.Client, relay
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 	return body, nil
-}
-
-func probeHTTP(url string) error {
-	return probeHTTPWithClient(httpClient, url)
-}
-
-func probeHTTPWithClient(client *http.Client, url string) error {
-	req, err := http.NewRequest("GET", strings.TrimRight(url, "/"), nil)
-	if err != nil {
-		return err
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 500 {
-		return fmt.Errorf("HTTP %d", resp.StatusCode)
-	}
-	return nil
 }

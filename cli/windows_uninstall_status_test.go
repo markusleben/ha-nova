@@ -258,10 +258,10 @@ func TestRunDoctorBlocksOnFailedWindowsUninstallStatus(t *testing.T) {
 	if !strings.Contains(output, "HA NOVA uninstall could not remove the stored relay token.") {
 		t.Fatalf("expected failed uninstall summary:\n%s", output)
 	}
-	if !strings.Contains(output, "Recovery: run `ha-nova uninstall --yes --purge`.") {
+	if !strings.Contains(output, "To fix: run `ha-nova uninstall --yes --purge`.") {
 		t.Fatalf("expected purge recovery hint:\n%s", output)
 	}
-	if strings.Contains(output, "Doctor checks passed") {
+	if strings.Contains(output, "All checks passed") {
 		t.Fatalf("doctor should not claim success while uninstall recovery is pending:\n%s", output)
 	}
 }

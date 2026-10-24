@@ -540,10 +540,10 @@ func TestInteractiveSetupReusesSavedTokenAfterReadRecovery(t *testing.T) {
 	}
 
 	output := stdout + stderr
-	if !strings.Contains(output, "Existing relay token found") {
+	if !strings.Contains(output, "Found a saved key") {
 		t.Fatalf("expected saved token reuse after recovery:\n%s", output)
 	}
-	if strings.Contains(output, "Here is your relay token (generated automatically)") {
+	if strings.Contains(output, "Here is your new key:") {
 		t.Fatalf("did not expect a new relay token to be generated after recovery:\n%s", output)
 	}
 }
@@ -595,7 +595,7 @@ func TestInteractiveSetupDeclinedReadRecoveryMentionsSavedTokenAccess(t *testing
 	}
 
 	output := stdout + stderr
-	if !strings.Contains(output, "This computer's keyring is still locked, so setup stopped. Nothing was changed.") {
+	if !strings.Contains(output, "This computer's password store is still locked, so setup stopped. Nothing was changed.") {
 		t.Fatalf("expected the plain locked-keyring wording when recovery is declined (lane D7):\n%s", output)
 	}
 }

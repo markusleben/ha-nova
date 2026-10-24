@@ -20,9 +20,8 @@ func TestSelectedHybridCloudFailureIsNotReportedAsComplete(t *testing.T) {
 	}
 	for _, required := range []string{
 		"Setup incomplete",
-		"Local access and skills are ready",
-		"Link connection is not",
-		"Re-run setup",
+		"HA NOVA works at home, but Home Assistant Link isn't ready yet",
+		"Run setup again to finish Home Assistant Link",
 	} {
 		if !strings.Contains(output.String(), required) {
 			t.Fatalf("partial hybrid setup missing %q: %s", required, output.String())

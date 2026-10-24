@@ -44,13 +44,13 @@ func TestRemoteOnlyCloudCheckpointPrecedesConflictingRetirement(
 			output := stdout + stderr
 			resume := "ha-nova cloud add --server " + profile
 			remove := "ha-nova cloud remove --server " + profile
-			retirementFailure := "cannot finish the interrupted device credential retirement"
+			retirementFailure := "couldn't finish an earlier setup step"
 			if !strings.Contains(output, resume) ||
 				!strings.Contains(output, remove) ||
 				!strings.Contains(output, retirementFailure) ||
 				strings.Index(output, resume) >
 					strings.Index(output, retirementFailure) ||
-				strings.Contains(output, "unsupported client") ||
+				strings.Contains(output, "doesn't work with this AI app") ||
 				*revokeCalls != 0 ||
 				*keyringCalls != 0 ||
 				coordinator.preflightCalls != 0 ||
@@ -136,7 +136,7 @@ func TestRemoteOnlyCloudStaleRetirementSettlesBeforeClientResolution(
 					},
 				)
 				output := stdout + stderr
-				if !strings.Contains(output, "unsupported client") ||
+				if !strings.Contains(output, "doesn't work with this AI app") ||
 					*revokeCalls != 0 ||
 					*keyringCalls != 0 ||
 					coordinator.preflightCalls != 0 ||
@@ -153,7 +153,7 @@ func TestRemoteOnlyCloudStaleRetirementSettlesBeforeClientResolution(
 					resume := "ha-nova cloud add --server " + profile
 					if !strings.Contains(output, resume) ||
 						strings.Index(output, resume) >
-							strings.Index(output, "unsupported client") {
+							strings.Index(output, "doesn't work with this AI app") {
 						t.Fatalf("Cloud recovery rendered too late: %s", output)
 					}
 				}

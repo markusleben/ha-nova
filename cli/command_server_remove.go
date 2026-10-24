@@ -87,7 +87,7 @@ func runServerRemove(paths runtimePaths, args []string) int {
 			printHumanErr("%q is the only server profile and still has Home Assistant Link state. Revoke its authorization and remove HA NOVA with: ha-nova uninstall --purge", name)
 			return 1
 		}
-		printHumanErr("server profile %q still has Home Assistant Link state; remove Cloud access first so its native secure-storage credentials are not stranded. Nothing was removed.", name)
+		printHumanErr("server profile %q still has Home Assistant Link state; remove Home Assistant Link first (ha-nova cloud remove --server %s), so its sign-in doesn't stay behind in the password store. Nothing was removed.", name, name)
 		return 1
 	}
 	if len(doc.profileNames()) == 1 {

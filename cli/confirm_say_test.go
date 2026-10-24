@@ -121,6 +121,22 @@ func TestConfirmationSay(t *testing.T) {
 			setup: func(f *fakeHA) { f.script("leave", step("light.turn_off", "light.hall")) },
 			args:  []string{"script.turn_on", "script.leave", "--set", `variables={"mode":"away"}`},
 			has:   []string{"I'm about to run the script “script.leave”: variables set to “{'mode':'away'}”.", "Nothing has run yet. Reply yes to go ahead."}},
+		{name: "a true/false field reads plainly",
+			setup: func(f *fakeHA) {
+				f.ent("update.nova", "hassio", "on", map[string]any{"friendly_name": "NOVA Relay"})
+				f.ent("update.core", "hassio", "on", map[string]any{"friendly_name": "Core"})
+				f.services = append(f.defaultServices(), map[string]any{"domain": "update", "services": map[string]any{"install": map[string]any{"target": map[string]any{}}}})
+			},
+			args: []string{"update.install", "update.nova", "--set", "backup=true", "--skill", "ha-nova:updates"},
+			has:  []string{"“NOVA Relay”, with a backup first."}},
+		{name: "a true/false field reads plainly for several targets",
+			setup: func(f *fakeHA) {
+				f.ent("update.nova", "hassio", "on", map[string]any{"friendly_name": "NOVA Relay"})
+				f.ent("update.core", "hassio", "on", map[string]any{"friendly_name": "Core"})
+				f.services = append(f.defaultServices(), map[string]any{"domain": "update", "services": map[string]any{"install": map[string]any{"target": map[string]any{}}}})
+			},
+			args: []string{"update.install", "update.nova", "update.core", "--set", "backup=false", "--skill", "ha-nova:updates"},
+			has:  []string{", without a backup."}},
 		{name: "a disruptive step never borrows another step's action",
 			setup: func(f *fakeHA) {
 				f.ent("alarm_control_panel.home", "manual", "armed_away", map[string]any{"friendly_name": "Home Alarm", "supported_features": 63.0})

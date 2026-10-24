@@ -86,7 +86,7 @@ func TestRelayAvailableUpdateNoticeRequiresExactPendingEvidence(t *testing.T) {
 			}))
 			defer server.Close()
 
-			notice := relayAvailableUpdateNotice(config{RelayBaseURL: server.URL}, "token")
+			notice := relayAvailableUpdateNotice(config{RelayBaseURL: server.URL}, "token", "")
 			if tc.wantNotice {
 				if notice.kind != humanNoticeKindRelayUpdateAvailable {
 					t.Fatalf("notice kind = %q, want %q", notice.kind, humanNoticeKindRelayUpdateAvailable)
@@ -249,7 +249,7 @@ func TestGuidedRelayUpdateWaitsForOfferedAboveFloorVersion(t *testing.T) {
 	if healthPolls.Load() < 3 {
 		t.Fatalf("guided update accepted the old above-floor relay after %d poll(s)", healthPolls.Load())
 	}
-	if !strings.Contains(out.String(), "Relay updated and verified: v0.6.0 is running.") {
+	if !strings.Contains(out.String(), "The NOVA App is updated and works: v0.6.0.") {
 		t.Fatalf("missing target-version verification: %s", out.String())
 	}
 }
@@ -328,7 +328,7 @@ func TestRunDoctorReportsAboveFloorRelayUpdateWithoutFailing(t *testing.T) {
 	if !strings.Contains(output, "The NOVA App in Home Assistant has an update: 0.4.1 → 0.6.0") || strings.Contains(output, "WARNING: The NOVA App") {
 		t.Fatalf("doctor did not surface the pending Relay update:\n%s", output)
 	}
-	if !strings.Contains(output, "Doctor checks passed") {
+	if !strings.Contains(output, "All checks passed") {
 		t.Fatalf("doctor did not preserve compatible-health success:\n%s", output)
 	}
 }
@@ -426,5 +426,21 @@ func TestRunDoctorBelowFloorUsesCheckUpdateWords(t *testing.T) {
 		relayAppUpdatePath + " No Update button yet? In Settings > Apps, check for updates first."
 	if exitCode != 1 || !strings.Contains(output, want) || !strings.Contains(output, "To fix: update the NOVA App (see above).") {
 		t.Fatalf("exit %d, want 1 and %q:\n%s", exitCode, want, output)
+	}
+}
+
+// After a Supervisor update the entity can still show the old installed
+// version while the Relay already runs the new one: the Relay wins.
+func TestRelayAvailableUpdateNoticePrefersTheRunningRelayVersion(t *testing.T) {
+	stale := relayUpdateCandidate{EntityID: "update.nova_relay_update", State: "on", InstalledVersion: "0.11.3", LatestVersion: "0.11.4"}
+	if notice := relayAvailableUpdateNoticeFromCandidate(stale, "0.11.4"); !notice.empty() {
+		t.Fatalf("Relay already at latest, want no notice: %q", notice.message)
+	}
+	notice := relayAvailableUpdateNoticeFromCandidate(stale, "0.11.2")
+	if !strings.Contains(notice.message, ": 0.11.2 → 0.11.4.") {
+		t.Fatalf("want the running version as the from-version: %q", notice.message)
+	}
+	if notice := relayAvailableUpdateNoticeFromCandidate(stale, ""); !strings.Contains(notice.message, ": 0.11.3 → 0.11.4.") {
+		t.Fatalf("no running version: want the entity's: %q", notice.message)
 	}
 }

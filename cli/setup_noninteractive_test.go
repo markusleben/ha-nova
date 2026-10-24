@@ -279,7 +279,7 @@ func TestRunSetupNonInteractiveServiceModeRequiresSpecificClient(t *testing.T) {
 	if exitCode == 0 {
 		t.Fatalf("expected service setup to fail for all target:\n%s", output)
 	}
-	if !strings.Contains(output, "service credentials require a specific client; use: ha-nova setup --service <client>") {
+	if !strings.Contains(output, "--service needs the name of your AI app. Use: ha-nova setup --service <client>") {
 		t.Fatalf("expected explicit service target error:\n%s", output)
 	}
 	if _, err := os.Stat(defaultRelayAuthTokenFile(paths)); !isNotExist(err) {

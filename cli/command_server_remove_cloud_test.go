@@ -53,7 +53,7 @@ func TestServerRemoveRefusesToStrandCloudCredentials(t *testing.T) {
 		return runServerCommand(paths, []string{"remove", "cabin"})
 	})
 	if exit != 1 ||
-		!strings.Contains(output, "native secure-storage credentials") ||
+		!strings.Contains(output, "doesn't stay behind in the password store") ||
 		!strings.Contains(output, "Nothing was removed") {
 		t.Fatalf("exit=%d output=%s", exit, output)
 	}
