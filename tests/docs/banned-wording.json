@@ -1,0 +1,82 @@
+{
+  "about": "Phrases that must not come back in user-facing text. Read by tests/docs/canonical-wording.test.ts and by hanova.app's scripts/check-sync.sh (fetched from main). pattern: a regex that means the same in JS and in Perl with (?a); flags: \"i\" or \"\". scope: all = every surface; pages = the setup page and the NOVA page only. quotedOk: text inside “ ” (an on-screen label) doesn't count. sha256 + words: every lower-case run of words-matches, split on - and _, rejoined with - (each sub-run), is hashed and compared. Each line is matched together with its neighbours, so a phrase wrapped across lines still counts. Allowed exceptions live next to each reader, never here.",
+  "rules": [
+    {
+      "id": "chatgpt-plus",
+      "scope": "all",
+      "pattern": "\\bPlus or Pro\\b|\\bPlus/Pro\\b|\\bChatGPT Plus\\b|\\bPlus plan\\b",
+      "flags": "",
+      "why": "Only ChatGPT Pro was tested.",
+      "use": "ChatGPT needs a paid plan that lets you add your own plugins. We tested Pro."
+    },
+    {
+      "id": "claude-settings-connectors",
+      "scope": "all",
+      "pattern": "Settings\\s*(→|>|->|›|»)\\s*Connectors",
+      "flags": "",
+      "why": "Claude keeps connectors under Customize, not Settings.",
+      "use": "Customize → Connectors"
+    },
+    {
+      "id": "link-old-name",
+      "scope": "all",
+      "pattern": "(?<!formerly )(?<!Settings > )Home Assistant Cloud|(?<!formerly Home Assistant Cloud; )Nabu Casa",
+      "flags": "",
+      "why": "User copy says Home Assistant Link; the old name appears only as the explanation \"(formerly Home Assistant Cloud; Nabu Casa)\" or as the menu people still see (\"Settings > Home Assistant Cloud\").",
+      "use": "Home Assistant Link"
+    },
+    {
+      "id": "add-on",
+      "scope": "all",
+      "pattern": "\\badd-ons?\\b",
+      "flags": "i",
+      "why": "Home Assistant 2026.2 renamed Add-ons to Apps (legacy API paths like /addons/ don't match).",
+      "use": "App"
+    },
+    {
+      "id": "expand-notification",
+      "scope": "all",
+      "pattern": "\\bexpand(ing)? (the|this|that|a) notification",
+      "flags": "i",
+      "why": "Each phone shows the buttons its own way.",
+      "use": "press and hold it on an iPhone, or pull it down on Android"
+    },
+    {
+      "id": "one-time-code",
+      "scope": "all",
+      "pattern": "(?<!four-digit )(?<!six-digit )(?<!4-digit )(?<!6-digit )\\bone[- ]time codes?\\b(?! from HA NOVA)",
+      "flags": "i",
+      "why": "A bare \"one-time code\" doesn't say which code: confirming takes four digits (the skills call it the \"one-time code from HA NOVA\"), pairing takes six.",
+      "use": "four-digit code; pairing: six-digit code"
+    },
+    {
+      "id": "page-jargon",
+      "scope": "pages",
+      "pattern": "\\b(MCP|OAuth)\\b",
+      "flags": "",
+      "quotedOk": true,
+      "why": "Setup page and NOVA page prose has no jargon; it may only quote the label people see on screen, in “ ”.",
+      "use": "chat app / sign-in, or the on-screen label in “ ”"
+    },
+    {
+      "id": "benchmark",
+      "scope": "all",
+      "pattern": "\\bbenchmark\\w*",
+      "flags": "i",
+      "why": "Public texts carry no comparison (AGENTS.md).",
+      "use": "Say what HA NOVA does, on its own."
+    },
+    {
+      "id": "other-project",
+      "scope": "all",
+      "sha256": [
+        "eaaf2a46e1935a2235112db1bac56316b14713f10e0469204cffddb78de59b76",
+        "10b8cb535a29a631372ef1337c7f40adc42e679ee7b3f9e1553dd03b336d11e0",
+        "28f4f4b252caef9ec68282b9f1869f43497489691a0e58aeffe48ba5469bec1b"
+      ],
+      "why": "Public texts name no other project (AGENTS.md). Stored as sha256 so this public file names none either.",
+      "use": "Say what HA NOVA does, on its own.",
+      "words": "[a-z0-9]+(?:[-_][a-z0-9]+)*"
+    }
+  ]
+}

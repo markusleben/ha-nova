@@ -19,6 +19,7 @@
   "tests/config/hosted-demo-privacy.test.ts",
   "tests/config/hosted-demo-sign-ins.test.ts",
   "tests/config/hosted-demo-start-here.test.ts",
+  "tests/docs/canonical-wording.test.ts",
   "tests/e2e/codex-skill-bulk-live-validator.test.ts",
   "tests/e2e/codex-skill-live-contract.test.ts",
   "tests/e2e/codex-skill-promoted-live-contract.test.ts",

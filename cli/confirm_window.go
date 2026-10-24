@@ -85,7 +85,7 @@ const confirmWindowUsage = "ha-nova setup confirm-window on|off"
 // On needs no confirmation.
 func runConfirmWindowSetting(paths runtimePaths, args []string) int {
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Println("Usage: " + confirmWindowUsage + "\n\nWhere a typed change (unlock, open, disarm, delete) asks you: \"on\" (default) opens a\nconfirmation window on this computer when one can open; \"off\" uses your linked phone, else your app's\nconfirmation form, or a one-time code in chat that your AI assistant can see too. Turning it off is confirmed in that window.")
+		fmt.Println("Usage: " + confirmWindowUsage + "\n\nWhere a typed change (unlock, open, disarm, delete) asks you: \"on\" (default) opens a\nconfirmation window on this computer when one can open; \"off\" uses your linked phone, else your app's\nconfirmation form, or a four-digit code in chat that your AI assistant can see too. Turning it off is confirmed in that window.")
 		return 0
 	}
 	if len(args) != 1 || args[0] != "on" && args[0] != "off" {
@@ -99,13 +99,13 @@ func runConfirmWindowSetting(paths runtimePaths, args []string) int {
 	}
 	if args[0] == "off" && !windowOff(paths) {
 		if !windowAvailable() {
-			printHumanInfo("No confirmation window can open here, so HA NOVA already asks on your linked phone, in your app's form, or with a one-time code in chat. Nothing changed.")
+			printHumanInfo("No confirmation window can open here, so HA NOVA already asks on your linked phone, in your app's form, or with a four-digit code in chat. Nothing changed.")
 			return 0
 		}
-		switch askWindow(context.Background(), "Turn off confirmation windows? HA NOVA then asks on your linked phone, else in your app's confirmation form, or shows a one-time code in chat that your AI assistant can see too.", cliWindowWait) {
+		switch askWindow(context.Background(), "Turn off confirmation windows? HA NOVA then asks on your linked phone, else in your app's confirmation form, or shows a four-digit code in chat that your AI assistant can see too.", cliWindowWait) {
 		case windowConfirmed:
 		case windowFailed:
-			printHumanInfo("The confirmation window couldn't open here, so HA NOVA asks on your linked phone, in your app's form, or with a one-time code in chat anyway. Nothing changed.")
+			printHumanInfo("The confirmation window couldn't open here, so HA NOVA asks on your linked phone, in your app's form, or with a four-digit code in chat anyway. Nothing changed.")
 			return 0
 		default:
 			printHumanErr("Nothing changed: the window was cancelled or got no answer. If no window appeared at all, set \"%s\": \"off\" in %s yourself.", windowSetting, paths.ConfigFile)

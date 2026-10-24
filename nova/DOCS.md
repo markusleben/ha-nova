@@ -78,7 +78,8 @@ server-side as documented in `docs/reference/relay-container.md`.
 Paired devices authenticate with their own credential over the secure TLS port
 (8792), sent as `Authorization: Bearer <token>`. Requests on the plain port
 (8791), including `GET /health` and legacy access, use the same header. The
-pairing endpoints use the one-time code as their credential instead. You
+pairing endpoints use the six-digit pairing code, or the owner's Home
+Assistant sign-in, as their credential instead. You
 normally never call these directly — the CLI and the NOVA page do it for you.
 
 | Method | Path | Description |
