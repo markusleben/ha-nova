@@ -239,3 +239,79 @@ func TestUnmarkedPendingFileIsNotALostKey(t *testing.T) {
 		t.Fatalf("unmarked pending file counted as lost: %+v", lost)
 	}
 }
+
+// Codex #790: a half-written endpoint keeps the technical refusal. The
+// finish is offered only when both endpoint fields of every lost slot are set.
+func TestIncompleteEndpointIsNeverAnAskableLostKey(t *testing.T) {
+	t.Cleanup(func() { acceptedLostDeviceKeys = nil })
+	for name, target := range map[string]profilePurgeTarget{
+		"current url only":  {name: "cabin", secureBaseURL: "https://cabin:18792"},
+		"current pin only":  {name: "cabin", spkiPin: "PINB"},
+		"pending url only":  {name: "cabin", pendingSecureBaseURL: "https://cabin:18792"},
+		"pending pin only":  {name: "cabin", pendingSpkiPin: "PINB"},
+		"complete + broken": {name: "cabin", secureBaseURL: "https://cabin:18792", spkiPin: "PINB", pendingSpkiPin: "PINB"},
+	} {
+		key := lostDeviceKeyOf(target, profilePurgeSlotState{})
+		acceptedLostDeviceKeys = map[string]lostDeviceKey{"cabin": key}
+		err := validateRequiredProfilePurgeSlots(target, profilePurgeSlotState{})
+		if _, ok := lostDeviceKeyErrorText(err); ok || err == nil {
+			t.Fatalf("%s: err=%v", name, err)
+		}
+	}
+	complete := profilePurgeTarget{name: "cabin", secureBaseURL: "https://cabin:18792", spkiPin: "PINB"}
+	acceptedLostDeviceKeys = nil
+	if _, ok := lostDeviceKeyErrorText(validateRequiredProfilePurgeSlots(complete, profilePurgeSlotState{})); !ok {
+		t.Fatal("complete endpoints lost their finish")
+	}
+}
+
+// Codex #790: a resumed removal reminds about the NOVA page unless the
+// pending key it removes really revokes the same pairing (local, live,
+// same endpoint) — the test lostDeviceKeyOf uses.
+func TestServerRemovalResumeKeepsTheNovaPageStep(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+	const url, pin = "https://cabin:18792", "PINB"
+	pendingService := deviceCredentialPendingServiceForProfile("cabin")
+	cfgWith := func(outcome serverRemovalCleanupOutcome) runtimeConfig {
+		cfg := runtimeConfig{
+			ProfileID: "p-cabin", RelaySecureBaseURL: url, RelaySpkiPin: pin,
+			PendingSecureBaseURL: url, PendingSpkiPin: pin,
+		}
+		cfg.ServerRemoval = &serverRemovalCheckpoint{
+			Schema: serverRemovalCheckpointSchema, ProfileID: "p-cabin",
+			CurrentService: deviceCredentialServiceForProfile("cabin"), PendingService: pendingService,
+			OriginalProfileSHA: "sha", PendingSlotPresent: true, ObservedPendingID: "seen",
+			SecureBaseURL: url, SPKIPin: pin, PendingSecureURL: url, PendingSPKIPin: pin,
+		}
+		if outcome != "" {
+			cfg.ServerRemoval.ProcessedPendingID, cfg.ServerRemoval.PendingOutcome = "seen", outcome
+		}
+		if err := validateServerRemovalCheckpoint("cabin", cfg); err != nil {
+			t.Fatal(err)
+		}
+		return cfg
+	}
+	for name, tc := range map[string]struct {
+		slot    string
+		outcome serverRemovalCleanupOutcome
+		remind  bool
+	}{
+		"unprocessed local pending":    {slot: validCredential(41)},
+		"unprocessed unreadable":       {slot: "not a credential", remind: true},
+		"unprocessed slot gone":        {remind: true},
+		"processed and revoked":        {outcome: serverRemovalCleanupRevoked},
+		"processed, revoke failed":     {outcome: serverRemovalCleanupFailed, remind: true},
+		"processed, nothing to revoke": {outcome: serverRemovalCleanupLocal, remind: true},
+	} {
+		_ = secretDelete(pendingService)
+		if tc.slot != "" {
+			if err := secretSet(pendingService, tc.slot); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := serverRemovalLeftLostKey("cabin", cfgWith(tc.outcome)); got != tc.remind {
+			t.Fatalf("%s: remind=%v, want %v", name, got, tc.remind)
+		}
+	}
+}

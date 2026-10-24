@@ -56,12 +56,13 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		if !currentOK {
 			return 1
 		}
+		remind := serverRemovalLeftLostKey(name, cfg)
 		exitCode := completeServerRemovalUnlocked(
 			paths,
 			currentDoc,
 			name,
 		)
-		if exitCode == 0 && serverRemovalLeftLostKey(name, cfg) {
+		if exitCode == 0 && remind {
 			printHumanInfo("%s", lostDeviceKeyHandStep())
 		}
 		return exitCode

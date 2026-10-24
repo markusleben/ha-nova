@@ -22,6 +22,24 @@ type lostDeviceKey struct {
 
 func (k lostDeviceKey) lost() bool { return k.current || k.pending }
 
+// complete: every lost slot names both endpoint fields. A half-written
+// endpoint keeps the technical refusal; a yes never covers it.
+func (k lostDeviceKey) complete() bool {
+	return (!k.current || k.secureBaseURL != "" && k.spkiPin != "") &&
+		(!k.pending || k.pendingSecureBaseURL != "" && k.pendingSpkiPin != "")
+}
+
+// interruptedFirstPromotion: the current slot is empty because a first
+// pairing stopped before promoting its pending key. The purge revokes that
+// pairing with the pending key, so the current key is not lost.
+func interruptedFirstPromotion(target profilePurgeTarget, state profilePurgeSlotState) bool {
+	return state.pendingExists &&
+		state.pendingLocal &&
+		state.pendingEndpointLive &&
+		target.secureBaseURL == target.pendingSecureBaseURL &&
+		target.spkiPin == target.pendingSpkiPin
+}
+
 // acceptedLostDeviceKeys is this run's yes to finishing without signing out
 // (guided uninstall). The purge skips exactly these lost keys and stops on
 // anything else. Nothing is written: a rerun asks again, and a key that comes
@@ -36,12 +54,6 @@ func lostDeviceKeyOf(
 	target profilePurgeTarget,
 	state profilePurgeSlotState,
 ) lostDeviceKey {
-	interruptedFirstPromotion :=
-		state.pendingExists &&
-			state.pendingLocal &&
-			state.pendingEndpointLive &&
-			target.secureBaseURL == target.pendingSecureBaseURL &&
-			target.spkiPin == target.pendingSpkiPin
 	return lostDeviceKey{
 		pending: (target.pendingSecureBaseURL != "" ||
 			target.pendingSpkiPin != "") &&
@@ -51,7 +63,7 @@ func lostDeviceKeyOf(
 		current: (target.secureBaseURL != "" || target.spkiPin != "") &&
 			!state.currentExists &&
 			target.revokedCurrentID == "" &&
-			!interruptedFirstPromotion &&
+			!interruptedFirstPromotion(target, state) &&
 			!(target.removalSlotsVerified && !target.currentSlotPresent && !state.keyMayExistElsewhere),
 		secureBaseURL:        target.secureBaseURL,
 		spkiPin:              target.spkiPin,
@@ -235,15 +247,27 @@ func serverRemoveLostKey(doc *configDocument, name string) (lostDeviceKey, bool)
 
 // serverRemovalLeftLostKey: the removal checkpoint recorded a paired slot as
 // already gone, so the device may still be listed on the NOVA page (shown
-// again when an interrupted removal resumes).
+// again when an interrupted removal resumes). Read before the resume deletes
+// the slots: an empty current slot is covered only by a pending key the purge
+// revokes, the same test lostDeviceKeyOf uses. Unsure means remind.
 func serverRemovalLeftLostKey(name string, cfg runtimeConfig) bool {
 	target, err := profilePurgeTargetFromConfig(name, cfg)
 	if err != nil || !target.removalSlotsVerified {
 		return false
 	}
-	promotion := target.pendingSlotPresent &&
-		target.pendingSecureBaseURL == target.secureBaseURL &&
-		target.pendingSpkiPin == target.spkiPin
-	return !target.currentSlotPresent && target.secureBaseURL != "" && target.revokedCurrentID == "" && !promotion ||
-		!target.pendingSlotPresent && target.pendingSecureBaseURL != "" && target.revokedPendingID == ""
+	pendingLost := !target.pendingSlotPresent && target.pendingSecureBaseURL != "" && target.revokedPendingID == ""
+	if target.currentSlotPresent || target.secureBaseURL == "" || target.revokedCurrentID != "" {
+		return pendingLost
+	}
+	sameEndpoint := target.pendingSecureBaseURL == target.secureBaseURL && target.pendingSpkiPin == target.spkiPin
+	var promotion bool
+	switch outcome := cfg.ServerRemoval.PendingOutcome; {
+	case !target.pendingSlotPresent:
+	case outcome != "":
+		promotion = outcome == serverRemovalCleanupRevoked && sameEndpoint
+	default:
+		state, err := inspectProfilePurgeSlotState(target)
+		promotion = err == nil && interruptedFirstPromotion(target, state)
+	}
+	return !promotion || pendingLost
 }

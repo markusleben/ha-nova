@@ -326,7 +326,7 @@ func validateRequiredProfilePurgeSlots(
 		)
 	}
 	key := lostDeviceKeyOf(target, state)
-	askable := !target.cloudProfile && !state.keyMayExistElsewhere
+	askable := !target.cloudProfile && !state.keyMayExistElsewhere && key.complete()
 	if key.lost() && (!askable || acceptedLostDeviceKeys[target.name] != key) {
 		return &lostDeviceKeyError{
 			profile: target.name,
