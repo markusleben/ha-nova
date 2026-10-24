@@ -3,6 +3,9 @@
 # Uses the CLI built from this checkout with the isolated HOME (cli.sh). Only
 # read verbs and plans run here: nothing is applied, Home Assistant is not
 # changed. Prints PASS/FAIL per assertion; exits non-zero on any FAIL.
+# TESTBED_PHONE=1 adds the phone lane (phone.mjs): fake Companion phones,
+# push payloads per platform; it links, unlocks, and moves the Relay to a
+# second admin user, so it runs last.
 #
 #   bash scripts/e2e/testbed/verify.sh      (or: npm run testbed:verify)
 set -uo pipefail
@@ -142,6 +145,15 @@ echo "--- known gap (reported, not asserted)"
 gap="$(bash "$CLI" plan call button.press button.gate_buzzer 2> /dev/null)"
 echo "INFO  template button without unique_id whose press unlocks lock.kitchen_door -> tier: $(
   node -e 'const d=JSON.parse(process.argv[1]); console.log(d.tier, d.reasons.map(r=>r.code).join(","))' "$gap")"
+
+if [[ "${TESTBED_PHONE:-}" == 1 ]]; then
+  echo "--- phone lane (fake Companion phones; TESTBED_PHONE=1)"
+  node "$HERE/phone.mjs" | tee "$TMP/phone.out"
+  phone_rc=${PIPESTATUS[0]}
+  PASSED=$((PASSED + $(grep -c '^PASS' "$TMP/phone.out")))
+  FAILED=$((FAILED + $(grep -c '^FAIL' "$TMP/phone.out")))
+  if [[ "$phone_rc" != 0 ]] && ! grep -q '^FAIL' "$TMP/phone.out"; then FAILED=$((FAILED + 1)); fi
+fi
 
 echo
 echo "$PASSED passed, $FAILED failed in $(($(date +%s) - start_ts))s"

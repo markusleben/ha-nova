@@ -5,7 +5,7 @@ name: ha-nova-testbed
 
 services:
   homeassistant:
-    image: "${TESTBED_HA_IMAGE:-homeassistant/home-assistant:2026.10.1}"
+    image: &ha_image "${TESTBED_HA_IMAGE:-homeassistant/home-assistant:2026.10.1}"
     container_name: ha-nova-testbed-ha
     # Runtime copy of ./config (up.sh copies it; HA writes .storage as root).
     volumes:
@@ -47,3 +47,15 @@ services:
       HA_URL: "http://homeassistant:8123"
     ports:
       - "127.0.0.1:18791:8791"
+
+  # Phone lane only (phone.mjs starts it): a fake Companion push relay. Home
+  # Assistant's mobile_app notify posts here instead of to a real phone. Runs
+  # on the Home Assistant image (its Python), so nothing extra is pulled.
+  push:
+    image: *ha_image
+    container_name: ha-nova-testbed-push
+    entrypoint: ["python3", "-I", "-u", "/push.py"]
+    volumes:
+      - ./push.py:/push.py:ro
+    ports:
+      - "127.0.0.1:18792:8080"

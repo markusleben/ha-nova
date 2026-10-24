@@ -7,6 +7,7 @@ engine, skills, and agent scenarios — no Home Assistant of your own needed.
 npm run testbed:up                         # ~35 s warm; first run also pulls images + builds the relay
 npm run testbed:cli -- find "Leselampe"     # the CLI built from this checkout, isolated HOME
 npm run testbed:verify                     # PASS/FAIL smoke assertions, read-only
+TESTBED_PHONE=1 npm run testbed:verify     # + the phone lane (fake phones, push payloads)
 npm run testbed:down                       # containers, volumes, tokens, runtime config: gone
 ```
 
@@ -18,8 +19,8 @@ Node >= 22.12, Go, curl, and free ports 18123 / 18791 / 11883 on 127.0.0.1.
 - **Never point tests at a real Home Assistant.** Everything here is a local
   container; `seed.mjs` refuses any URL other than `http://127.0.0.1:18123`.
 - Isolated compose project `ha-nova-testbed`, isolated ports bound to
-  127.0.0.1 only: HA **18123**, relay **18791**, MQTT **11883** (never the
-  defaults 8123/8791/1883). The MQTT broker is anonymous because it is local-only.
+  127.0.0.1 only: HA **18123**, relay **18791**, MQTT **11883**, phone lane
+  push capture **18792** (never the defaults 8123/8791/1883). The MQTT broker is anonymous because it is local-only.
 - The CLI never touches your real `~/.config/ha-nova` or an installed `ha-nova`:
   `cli.sh` builds from `cli/` into `.state/bin` and runs it with
   `HOME=.state/home`, `HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1`, and
@@ -40,6 +41,9 @@ Node >= 22.12, Go, curl, and free ports 18123 / 18791 / 11883 on 127.0.0.1.
   to the test bed only. (In that shell `ha-nova setup <client> --non-interactive
   --relay-url http://127.0.0.1:18791 --relay-token "$(cat scripts/e2e/testbed/.state/relay-token)"
   --ha-url http://127.0.0.1:18123` would install a client into the isolated HOME.)
+- **Another build or home:** `TESTBED_CLI_BIN=<ha-nova binary>` runs that build
+  instead of building this checkout (the RC lane runs a published tag);
+  `TESTBED_CLI_HOME=<dir inside .state>` uses a separate isolated home.
 - **Raw access:** `.state/relay-token` (relay bearer), `.state/ha-llat` (HA
   long-lived token), UI at http://127.0.0.1:18123 (user `testbed`, password
   `testbed-password-1234`).
@@ -92,6 +96,32 @@ Scripts: `script.leave_home` (lights off + lock), `script.open_garage_after_dela
 (delay → open garage: typed stored member), `script.good_night` (scene + lock).
 Scenes: `scene.movie_night` (lights + media), `scene.door_scene` (group with a lock → typed).
 
+## Phone lane (opt-in)
+
+`TESTBED_PHONE=1 npm run testbed:verify` (or `node scripts/e2e/testbed/phone.mjs`)
+checks what Home Assistant hands the push relay for HA NOVA's phone
+questions. The weekly `testbed-ha-stable.yml` job runs it too.
+
+- Fixture, once per bed (`seed.mjs phones`, marked by `.state/phone.json`):
+  two admin users with random passwords, "Testbed Relay" (the Relay now
+  signs in as it: on the owner's token phone confirmation is off by design)
+  and "Phone Tester" (with a person), plus two **fake** Companion phones of
+  Phone Tester, "Testbed iPhone" (maker Apple) and "Testbed Pixel" (maker
+  Google). Their `push_url` is the bed's `push` service (`push.py` on the
+  Home Assistant image, `127.0.0.1:18792/pushes` lists what arrived), so no
+  push leaves the machine.
+- A tap is what the Companion app sends: `fire_event` on the phone's own
+  webhook. The CLI runs in `.state/phone-home` with windows off.
+- Run: link iPhone, unlock on iPhone, move to Pixel, unlock on Pixel, move
+  back, stop on iPhone, link Pixel, stop on Pixel. Asserted per question:
+  only the asked phone gets it, `authenticationRequired` is the bool `true`
+  on iOS and the string `"true"` on Android (none on a plan confirm), every
+  Android action value is a string, the hint and the CLI's tap line match the
+  platform, `importance: high`, and each ask has its own tag. Per result: the
+  question's tag, no buttons, `importance: high`.
+- It leaves the front door locked and no phone linked. The Relay stays on
+  the second user until `testbed:down`; the other verify checks pass either way.
+
 ## Determinism and versions
 
 `down` + `up` always yields the same entity ids, area/floor/label ids, and
@@ -121,7 +151,8 @@ red opens a "Test bed fails on Home Assistant <version>" issue.
 `docker-compose.yml`, `mosquitto.conf`, `config/` (committed seed, copied to
 `.state/config` per run; command-running platforms live in
 `packages/commands.yaml`), `up.sh`, `seed.mjs` (LLAT, MQTT config entry,
-floors/areas/labels, registry edits, summary), `cli.sh`, `verify.sh`, `down.sh`.
+floors/areas/labels, registry edits, summary, phone fixture), `cli.sh`,
+`verify.sh`, `phone.mjs` + `push.py` (phone lane), `down.sh`.
 
 The hosted demo (`scripts/demo/hosted/`) reuses this bed: `TESTBED_OVERLAY` and
 `TESTBED_OWNER_PASSWORD` in `up.sh`/`down.sh` exist for it only; local runs
