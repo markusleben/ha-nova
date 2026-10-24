@@ -16,7 +16,7 @@
 
 <p align="center">
   Connect your AI to Home Assistant. Simple things run right away. Other changes show a preview first. Unlocks, the alarm, and deletes wait for your OK.<br>
-  You OK them with a click in a window on your computer, or a tap on your phone.<br>
+  You OK them with a click in a window on your computer, or a tap on your iPhone or Android phone.<br>
   <sub>No window and no phone? You type a four-digit code. Some deletes always use the code.</sub>
 </p>
 
@@ -38,7 +38,7 @@
 2. **Sign in with Home Assistant.** Sign in as the owner: the first account made when Home Assistant was set up. If needed, setup installs and starts the NOVA Relay App for you. Then this computer connects by itself.
 3. **Choose your safety net, then look around.** The confirmation window on this computer is on. To add your phone, click **Use this phone** (or pick it from the list). On a re-run, **Use another phone** moves it to a new phone once the old phone OKs it. The Claude Code rules are on unless you turn them off: they let Claude Code read HA NOVA's files and make changes you already approved, without asking again. You still confirm every unlock or delete. Then you see your home at a glance: things worth a look (like a low battery or devices without a room) and an automation made for your home, to preview and save. Nothing in your home changes unless you save it.
 
-Signed in, but not as the owner? The page asks the owner to sign in here, or to make a six-digit code for you ([details](#-get-started)). Over SSH or with `--no-browser`, setup asks in the terminal instead. No browser here? Then setup shows the NOVA Relay App page (click "Add", then Install and Start; skipped when the App already runs). You pair with a one-time code: the Home Assistant owner clicks **"Connect a device"** on the NOVA page in the sidebar, and you type the six-digit code. Over SSH, this works well on Linux only. On Windows and macOS, run setup in a terminal on that computer's own screen: over SSH, HA NOVA usually can't save its key.
+Signed in, but not as the owner? The page asks the owner to sign in here, or to make a six-digit code for you ([details](#-get-started)). Over SSH or with `--no-browser`, setup asks in the terminal instead. No browser here? Then setup shows the NOVA Relay App page (click "Add", then Install and Start; skipped when the App already runs). You pair with a six-digit code: the Home Assistant owner clicks **"Connect a device"** on the NOVA page in the sidebar, and you type the code. Over SSH, this works well on Linux only. On Windows and macOS, run setup in a terminal on that computer's own screen: over SSH, HA NOVA usually can't save its key.
 
 <p align="center">
   <img src="assets/pairing-flow.png" alt="Pairing with a code: run the installer, click Connect a device on the NOVA page, type the six-digit code">
@@ -67,7 +67,7 @@ Say what you want. HA NOVA works out the rest.
 | *"Build a dashboard for the living room"* | Builds whole dashboards and views, also with custom cards you installed. It lists every view and card that changes and saves a copy first. "Undo that" brings the old one back |
 | *"Move all kitchen devices to the Kitchen area"* | Moves the devices and entities and shows what will change first |
 | *"Turn off the kitchen light"* | Turns it off right away and checks that it really is off. Whole rooms, scenes, and riskier actions show a preview first |
-| *"Unlock the front door"* | Shows what will happen, then waits for you: Confirm in a window on your computer, a tap on your linked phone, or a one-time code |
+| *"Unlock the front door"* | Shows what will happen, then waits for you: Confirm in a window on your computer, a tap on your linked phone, or a four-digit code |
 | *"What do I have, and where is this sensor used?"* | Counts rooms, devices, automations, and integrations itself. Lists the automations, scripts, scenes, groups, helpers, and dashboard cards that use a sensor, and says what it couldn't check. Exact numbers, never a guess |
 | *"My door sensor died, I paired a new one"* | Moves automations, scripts, scenes, dashboards, helpers, and energy sources to the new device in one plan you check first |
 | *"Turn this Node-RED flow into an automation"* | Lists what the rule does, matches each device to a real entity, and builds a Home Assistant automation. The old rule is turned off, not deleted |

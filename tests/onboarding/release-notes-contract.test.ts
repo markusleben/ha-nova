@@ -38,7 +38,7 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.27.2 release-facing wording aligned to the shipped stack", () => {
+  it("keeps v0.27.3 release-facing wording aligned to the shipped stack", () => {
     const relayVersion = /^version:\s*"([^"]+)"\s*$/m.exec(readFileSync("nova/config.yaml", "utf8"))?.[1] ?? "";
     // Any App version the notes name is the shipped App.
     const notedApps = [...(stableNotes ?? "").matchAll(/NOVA (?:Relay |App to )(\d+\.\d+\.\d+)/g)];
@@ -46,23 +46,25 @@ describe("release notes contract", () => {
     for (const [, noted] of notedApps) {
       expect(noted, "notes name the shipped NOVA Relay version").toBe(relayVersion);
     }
-    expect(stableNotes).toMatch(/^## Bug Fixes\s+- \*\*The code is last in chat apps too\.\*\*/);
-    expect(stableNotes).toContain("stands alone on the last line. Nothing comes after it.");
-    expect(stableNotes).toContain("**Short notes only.** Above the code, the chat says only what will happen and how long the code works.");
-    expect(stableNotes).not.toContain("hourly reset, now come right above the code");
-    expect(stableNotes).toContain("**Claude Team and Enterprise plans can add HA NOVA.** There, the owner of your Claude Team or Enterprise plan adds it once for everyone.");
-    expect(stableNotes).toContain('"Add for my organization"');
-    expect(stableNotes).toContain("Click +, then Add custom connector, and paste it.");
-    // 0.27.1 sent phone users to chatgpt.com in a browser; a phone browser can't make changes either.
-    expect(stableNotes).toContain("**On a phone, ChatGPT can only answer.** 0.27.1 said to use chatgpt.com in a browser");
-    expect(stableNotes).toContain("Use chatgpt.com on a computer, or the Claude app on your phone.");
-    // Android pushes failed on the bool unlock flag (#842); the tap steps differ per phone.
-    expect(stableNotes).toContain("**Android phones can link for confirmations.**");
-    expect(stableNotes).toContain("press and hold on iPhone, pull down on Android.");
-    expect(stableNotes).toContain("**When nothing shows on your phone, HA NOVA says where to look.**");
-    // App patch 0.11.4 carries the 0.27.2 chat-app bridge; ChatGPT needs a Refresh to load it.
+    expect(stableNotes).toMatch(/^## Bug Fixes\s+- \*\*Automation previews include child devices\.\*\*/);
+    // HA 2026.9: a device target also reaches its direct child devices; the CLI did since 0.26.0, skills since #847.
+    expect(stableNotes).toContain("also reaches its child devices, like its outlets. Previews of automations and scripts now list them.");
+    // A lost device key no longer blocks a full removal (#790).
+    expect(stableNotes).toContain("**Removing HA NOVA works when this computer's key is lost.**");
+    expect(stableNotes).toContain("Now it asks to finish and says to revoke this computer on the NOVA page. With --yes, it says to rerun without it.");
+    // One notification per phone, titles that fit, a hint true in both states (#850).
+    expect(stableNotes).toContain("**A new phone question clears the last HA NOVA result.**");
+    expect(stableNotes).toContain("tap the button, or pull down if none shows.");
+    // Plain doctor/setup, the reach hint, the running Relay wins over a stale update entity (#852).
+    expect(stableNotes).toContain("**Doctor and setup speak plain English.**");
+    expect(stableNotes).toContain("(on a Mac: check Local Network)");
+    expect(stableNotes).toContain("Doctor no longer offers an App update that's already installed.");
+    expect(stableNotes).toContain('**Previews say "with a backup first".**');
+    // Codes named by their digits (#848, README in this release).
+    expect(stableNotes).toContain('On your computer and in the docs: "four-digit code" to confirm a change, "six-digit code" to connect a computer.');
+    // App patch 0.11.5 carries the 0.27.3 chat-app bridge; only Apps before 0.11.3 need a ChatGPT Refresh.
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
-    expect(stableNotes).toContain("open chatgpt.com/plugins, choose HA NOVA, then Refresh");
+    expect(stableNotes).toContain("Coming from App 0.11.2 or older? Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.");
     expect(stableNotes).not.toContain("which this release doesn't change");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
@@ -71,6 +73,8 @@ describe("release notes contract", () => {
     expect(readme).toContain("Each automation or script delete is confirmed on its own");
     expect(readme).toContain("the AI can see it too, so it only counts when you type it yourself");
     expect(readme).toContain("ha-nova setup confirm-window off");
+    expect(readme).toContain("or a tap on your iPhone or Android phone.");
+    expect(readme).toContain("You pair with a six-digit code:");
     // claude.ai's connector list lives under Customize, not Settings.
     expect(readme).toContain("open Customize → Connectors → HA NOVA");
     expect(readme).not.toContain("Settings → Connectors");
