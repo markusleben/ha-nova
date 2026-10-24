@@ -48,7 +48,7 @@ Implementation detail: `npm run verify` uses `test:safe:core` between the docs a
 
 ## Test Without Your Own Home Assistant
 
-The test bed is a throwaway local Home Assistant "house" (demo devices, MQTT devices, areas, aliases, automations, scripts, scenes, helpers) plus the relay, all in Docker on 127.0.0.1 ports 18123/18791/11883. Needs Docker with Compose v2, Node, and Go.
+The test bed is a throwaway local Home Assistant "house" (demo devices, MQTT devices, areas, aliases, automations, scripts, scenes, helpers) plus the relay, all in Docker on 127.0.0.1 ports 18123/18791/11883 (18792 for the phone lane's fake push relay). Needs Docker with Compose v2, Node, and Go.
 
 ```bash
 npm run testbed:up                        # boot + seed (~35 s warm)

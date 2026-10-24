@@ -6,10 +6,13 @@
 //   node seed.mjs mint    <ha_url> <access_token>   -> prints a long-lived token
 //   node seed.mjs house   <ha_url> <llat>           -> MQTT entry + registry seed
 //   node seed.mjs summary <ha_url> <llat>           -> prints the summary JSON
+//   node seed.mjs phones  <ha_url> <llat>           -> phone lane fixture (phone.mjs); prints its JSON
+
+import { randomBytes } from "node:crypto";
 
 const [cmd, haUrl, token] = process.argv.slice(2);
 if (!cmd || !haUrl || !token) {
-  console.error("usage: node seed.mjs mint|house|summary <ha_url> <token>");
+  console.error("usage: node seed.mjs mint|house|summary|phones <ha_url> <token>");
   process.exit(2);
 }
 if (!/^http:\/\/(127\.0\.0\.1|localhost):18123\/?$/.test(haUrl)) {
@@ -20,7 +23,7 @@ const base = haUrl.replace(/\/$/, "");
 
 // ---- transport -------------------------------------------------------------
 
-async function connect() {
+async function connect(auth = token) {
   const ws = new WebSocket(`${base.replace(/^http/, "ws")}/api/websocket`);
   const pending = new Map();
   let nextId = 1;
@@ -28,7 +31,7 @@ async function connect() {
   const ready = new Promise((resolve, reject) => (authed = { resolve, reject }));
   ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
-    if (msg.type === "auth_required") ws.send(JSON.stringify({ type: "auth", access_token: token }));
+    if (msg.type === "auth_required") ws.send(JSON.stringify({ type: "auth", access_token: auth }));
     else if (msg.type === "auth_ok") authed.resolve();
     else if (msg.type === "auth_invalid") authed.reject(new Error(`auth failed: ${msg.message}`));
     else if (msg.type === "result" && pending.has(msg.id)) {
@@ -52,10 +55,10 @@ async function connect() {
   };
 }
 
-async function rest(method, path, body) {
+async function rest(method, path, body, auth = token) {
   const res = await fetch(`${base}${path}`, {
     method,
-    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    headers: { authorization: `Bearer ${auth}`, "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await res.text();
@@ -255,7 +258,67 @@ async function mint() {
   }
 }
 
-const commands = { mint, house: seedHouse, summary };
+// ---- phone lane fixture (phone.mjs) -------------------------------------------
+// Two admin users with random passwords (never printed or kept): the Relay
+// signs in as "Testbed Relay" (with the owner's token phone confirmation is
+// off by design); "Phone Tester" has a person and two FAKE Companion phones
+// whose pushes go to the bed's own push service, never to a real phone.
+const PHONES = [
+  { platform: "ios", device_name: "Testbed iPhone", manufacturer: "Apple", model: "iPhone17,1", os_name: "iOS", os_version: "26.0", app_id: "io.robbie.HomeAssistant", app_version: "2026.6" },
+  { platform: "android", device_name: "Testbed Pixel", manufacturer: "Google", model: "Pixel 9", os_name: "Android", os_version: "16", app_id: "io.homeassistant.companion.android", app_version: "2026.6.0-full" },
+];
+
+async function signIn(ha, name, withPerson) {
+  const username = name.toLowerCase().replace(/ /g, "-");
+  const password = randomBytes(18).toString("base64url");
+  const { user } = await ha.call({ type: "config/auth/create", name, group_ids: ["system-admin"], local_only: false });
+  await ha.call({ type: "config/auth_provider/homeassistant/create", user_id: user.id, username, password });
+  if (withPerson) await ha.call({ type: "person/create", name, user_id: user.id, device_trackers: [] });
+  const client_id = `${base}/`;
+  const post = async (path, body, form) => {
+    const res = await fetch(`${base}${path}`, form
+      ? { method: "POST", body: new URLSearchParams(body) }
+      : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error(`POST ${path} -> HTTP ${res.status}`);
+    return res.json();
+  };
+  const flow = await post("/auth/login_flow", { client_id, handler: ["homeassistant", null], redirect_uri: client_id });
+  const done = await post(`/auth/login_flow/${flow.flow_id}`, { client_id, username, password });
+  if (done.type !== "create_entry") throw new Error(`sign-in of ${name} failed (${done.type})`);
+  const { access_token } = await post("/auth/token", { grant_type: "authorization_code", code: done.result, client_id }, true);
+  return { id: user.id, access_token };
+}
+
+async function phones() {
+  const ha = await connect();
+  try {
+    const users = await ha.call({ type: "config/auth/list" });
+    if (users.some((u) => u.name === "Phone Tester")) throw new Error("the phone fixture exists already; npm run testbed:down, then up");
+    const relay = await signIn(ha, "Testbed Relay", false);
+    const tester = await signIn(ha, "Phone Tester", true);
+    const relayHa = await connect(relay.access_token);
+    const relayLlat = await relayHa.call({ type: "auth/long_lived_access_token", client_name: "HA NOVA testbed relay", lifespan: 30 });
+    relayHa.close();
+    const out = { relay_user: relay.id, tester_user: tester.id, relay_llat: relayLlat, phones: [] };
+    for (const { platform, ...phone } of PHONES) {
+      const reg = await rest("POST", "/api/mobile_app/registrations", {
+        ...phone, device_id: `testbed-${platform}`, app_name: "Home Assistant", supports_encryption: false,
+        app_data: { push_token: `testbed-${platform}`, push_url: `http://push:8080/push/${platform}` },
+      }, tester.access_token);
+      out.phones.push({ platform, name: phone.device_name, webhook_id: reg.webhook_id });
+    }
+    // The Companion app's notify service shows once its registration loaded.
+    await waitFor("the fake phones' notify services", async () => {
+      const services = (await rest("GET", "/api/services")).find((d) => d.domain === "notify")?.services ?? {};
+      return "mobile_app_testbed_iphone" in services && "mobile_app_testbed_pixel" in services;
+    });
+    console.log(JSON.stringify(out));
+  } finally {
+    ha.close();
+  }
+}
+
+const commands = { mint, house: seedHouse, summary, phones };
 if (!commands[cmd]) {
   console.error(`unknown command ${cmd}`);
   process.exit(2);

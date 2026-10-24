@@ -1,7 +1,8 @@
 name: Test bed vs HA stable
 
 # Boots the seeded test bed (scripts/e2e/testbed) on the CURRENT stable Home
-# Assistant and runs verify.sh. Outcomes:
+# Assistant and runs verify.sh, with the phone lane (TESTBED_PHONE=1: push
+# payloads per platform through fake Companion phones). Outcomes:
 #   - stable == pin, green          -> nothing to do
 #   - stable != pin, green          -> open/update the pin-bump PR
 #   - red (any version)             -> open/update the early-warning issue
@@ -68,6 +69,7 @@ jobs:
         continue-on-error: true
         env:
           TESTBED_HA_IMAGE: homeassistant/home-assistant:${{ steps.versions.outputs.stable }}
+          TESTBED_PHONE: "1"
         run: |
           set -o pipefail
           { bash scripts/e2e/testbed/up.sh && bash scripts/e2e/testbed/verify.sh; } 2>&1 | tee "$RUNNER_TEMP/testbed.log"
