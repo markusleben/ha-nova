@@ -137,6 +137,10 @@ function startBed() {
 
 // ---- a: client matrix ------------------------------------------------------------
 async function matrix() {
+  // up.sh returns on the Relay's first HTTP 200; the matrix wants Docker's own "healthy" (30 s interval).
+  const healthy = () => execFileSync("docker", ["inspect", "-f", "{{.State.Health.Status}}", "ha-nova-testbed-relay", "ha-nova-testbed-ha"], { encoding: "utf8" }).split("\n").filter(Boolean).every((h) => h === "healthy");
+  for (let i = 0; i < 90 && !healthy(); i++) await sleep(1000);
+  if (!healthy()) throw new Error("the test bed's containers never turned healthy");
   // Unauthenticated calls share 60 an hour with the matrix's own: use a token when there is one.
   let token = process.env.GITHUB_TOKEN;
   try { token ||= execFileSync("gh", ["auth", "token"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch { /* no gh: unauthenticated */ }
