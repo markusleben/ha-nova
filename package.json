@@ -100,7 +100,7 @@
     "@peculiar/x509": "^2.1.0",
     "@serenity-kit/opaque": "^1.1.0",
     "home-assistant-js-websocket": "^9.7.1",
-    "jose": "^6.2.12",
+    "jose": "^6.2.13",
     "reflect-metadata": "^0.2.2",
     "ws": "^8.22.0",
     "yaml": "^2.9.1"
