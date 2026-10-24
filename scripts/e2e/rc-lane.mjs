@@ -89,7 +89,7 @@ function cleanup() {
   for (const p of procs) stopGroup(p);
   proxy?.close();
   if (startedBed) {
-    try { execFileSync("bash", [join(TESTBED, "down.sh")], { stdio: "ignore" }); } catch { console.error(`rc-lane: test bed teardown failed; run: bash ${TESTBED}/down.sh`); }
+    try { execFileSync("bash", [join(TESTBED, "down.sh")], { stdio: "ignore" }); } catch { row("-", "test bed teardown", "FAIL", `down.sh failed; run: bash ${TESTBED}/down.sh`); process.exitCode = 1; }
   }
   if (KEEP) say(`work dir kept: ${WORK}`);
   else rmSync(WORK, { recursive: true, force: true });
@@ -129,7 +129,9 @@ function startBed() {
     const fd = openSync(join(WORK, "testbed-up.log"), "a");
     execFileSync("bash", [join(TESTBED, "up.sh")], { stdio: ["ignore", fd, fd] });
   } finally {
-    startedBed = existsSync(STATE); // up.sh got past its checks: whatever runs now is ours
+    // Ours once up.sh got past its own checks (it made .state); a bed that
+    // won the race in between (up.sh says so) is someone else's.
+    startedBed = existsSync(STATE) && !/already running|exists from an earlier run|is in use/.test(readFileSync(join(WORK, "testbed-up.log"), "utf8"));
   }
 }
 
@@ -192,7 +194,8 @@ async function chat() {
   const [bridgePort, proxyPort] = [await freePort(), await freePort()];
   const log = join(WORK, "chat.log");
   run(join(WORK, "bin/ha-nova"), ["serve", "--server", "demo", "--listen", `127.0.0.1:${bridgePort}`, "--data-dir", data, "--secret-file", join(WORK, "secret")], {
-    log, env: { PATH: process.env.PATH, HOME: home, XDG_CONFIG_HOME: join(home, ".config"), XDG_CACHE_HOME: join(home, ".cache"), HA_NOVA_NO_BROWSER: "1",
+    // HA_NOVA_DEV_ROOT: ha_skill serves this checkout's skills (the App ships them beside the bridge).
+    log, env: { PATH: process.env.PATH, HOME: home, HA_NOVA_DEV_ROOT: ROOT, XDG_CONFIG_HOME: join(home, ".config"), XDG_CACHE_HOME: join(home, ".cache"), HA_NOVA_NO_BROWSER: "1",
       HA_NOVA_ALLOW_INSECURE_TEST_KEYRING: "1", HA_NOVA_TEST_KEYRING_FILE: join(home, ".test-relay-token"), HA_NOVA_KEYRING_SERVICE: "ha-nova-rc-lane" },
   });
   // claude.ai passes the model no server instructions: drop them on the way.
@@ -293,10 +296,11 @@ for (const r of failed.filter((r) => r.log && existsSync(r.log))) {
   console.log(`\n--- ${r.step} ${r.check}: last lines of ${r.log}`);
   console.log(readFileSync(r.log, "utf8").split("\n").slice(-40).join("\n"));
 }
+cleanup(); // before the table: a failed teardown is a row too
 const w = (k) => Math.max(k.length, ...rows.map((r) => String(r[k]).length));
 console.log(`\n${"STEP".padEnd(4)}  ${"CHECK".padEnd(w("check"))}  RESULT  DETAIL`);
 for (const r of rows) console.log(`${r.step.padEnd(4)}  ${r.check.padEnd(w("check"))}  ${r.result.padEnd(6)}  ${r.detail ?? ""}`);
-cleanup();
+const failedAll = rows.filter((r) => r.result === "FAIL");
 const other = ["SKIP", "WARN"].map((r) => [r, rows.filter((x) => x.result === r).length]).filter(([, n]) => n).map(([r, n]) => `, ${n} ${r}`).join("");
-console.log(`\nrc-lane ${tag}: ${failed.length ? `${failed.length} FAIL` : "all PASS"}${other} in ${Math.round((Date.now() - started) / 60000)} min${crashed ? " (setup failed)" : ""}`);
-process.exit(failed.length ? 1 : 0);
+console.log(`\nrc-lane ${tag}: ${failedAll.length ? `${failedAll.length} FAIL` : "all PASS"}${other} in ${Math.round((Date.now() - started) / 60000)} min${crashed ? " (setup failed)" : ""}`);
+process.exit(failedAll.length ? 1 : 0);
