@@ -137,7 +137,10 @@ function startBed() {
 
 // ---- a: client matrix ------------------------------------------------------------
 async function matrix() {
-  const auth = process.env.GITHUB_TOKEN ? { authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {};
+  // Unauthenticated calls share 60 an hour with the matrix's own: use a token when there is one.
+  let token = process.env.GITHUB_TOKEN;
+  try { token ||= execFileSync("gh", ["auth", "token"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch { /* no gh: unauthenticated */ }
+  const auth = token ? { authorization: `Bearer ${token}` } : {};
   const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`, { headers: auth });
   if (!res.ok) throw new Error(`GitHub releases: HTTP ${res.status}`);
   const stable = (await res.json()).filter((r) => !r.draft && !r.prerelease && TAG_RE.test(r.tag_name) && tagLt(r.tag_name, tag)).map((r) => r.tag_name);
