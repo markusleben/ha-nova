@@ -4,6 +4,21 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.11.5] - 2026-10-24
+
+### Fixed
+- NOVA page: the ChatGPT steps quote the labels ChatGPT shows and say to name it HA NOVA. If ChatGPT shows an error right after, choose Connect on the plugin again. (#848)
+- Documentation tab: plain words, and Home Assistant Link instead of "Cloud". Troubleshooting is now steps you can follow. (#852)
+- Chat apps: an action on a device, like a power strip, also reaches its child devices, like its outlets. Previews of automations and scripts now list them. (#847)
+- Chat apps: a new phone question first clears the last result chat apps sent to that phone. On Android, it no longer lands in a group of notifications. (#850)
+- Chat apps: previews say "with a backup first", not "backup set to true". (#852)
+- Chat apps now run HA NOVA 0.27.3 with these fixes.
+
+### Upgrade notes
+- Coming from App 0.11.2 or older? In ChatGPT, open chatgpt.com/plugins, choose HA NOVA, then Refresh. From 0.11.3, no Refresh is needed.
+- Computers that are already connected stay connected; no re-pairing.
+- Computers on HA NOVA 0.27.3 ask you to update this App; computers on 0.27.0 to 0.27.2 keep working with it.
+
 ## [Relay 0.11.4] - 2026-10-23
 
 ### Fixed

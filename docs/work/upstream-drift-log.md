@@ -418,3 +418,58 @@ stopped.
   `support_mfa` removal, `debug_console`, whether `manifest/list` exposes
   `categories`, the deferred lawn-mower `idle` bucket, and the legacy
   device-registry removal command for 2027.9.
+
+## 2026-10-24 — pre-release screen (v0.27.3 cycle): HA 2026.10.3 + developer blog 2026-10-21, 2026-10-23–2026-10-24 + HACS
+
+- Window screened: Core 2026.10.3 (2026-10-23; full 2026.10.2...2026.10.3
+  compare, 32 commits); Core tags after 2026.10.3 (none; no `2026.11.0b*`
+  tag yet); contributors.home-assistant.io/blog posts 2026-10-23 and
+  2026-10-24, plus 2026-10-21 (listed now, missing from the 2026-10-22
+  entry); HACS releases and tags after 2.0.5 (none).
+- CLEAN — 2026.10.3: fixes and dependency bumps in single integrations,
+  Python 3.14.8, base image 2026.10.1, frontend 20260930.5 (UI fixes
+  only). No change under
+  `websocket_api`, `config`, `api`, `http`, `auth`, or a registry; no
+  skill or `cli/relay_raw_allow.go` entry names a touched integration.
+- CLEAN — dev-blog 2026-10-24 "Two-way audio for camera entities" (Core
+  2026.11): new `camera_entity_capabilities` with `two_way_audio`, WebRTC
+  only, behind a Labs preview. Additive. `skills/camera/SKILL.md` reads
+  `supported_features`/`frontend_stream_type` and pins `camera/stream`
+  (HLS); neither changes.
+- CLEAN — dev-blog 2026-10-23 "Config entry functions now return None"
+  (Core 2026.11): Python integration API only. A custom integration's
+  `False` now ends in the same entry states (`setup_error`,
+  `failed_unload`, `migration_error`) with a reason added; skills read
+  `state`, so no change.
+- CLEAN — dev-blog 2026-10-23 "Always pass a step_id to flow results"
+  (core now, custom integrations by 2027.5.0): flow results always carry
+  `step_id`; the REST/WS flow shape is unchanged. `skills/integration-setup`
+  branches on `type` and the live `data_schema`, never on a missing
+  `step_id`.
+- CLEAN, watch (P3 when 2026.11 ships) — dev-blog 2026-10-21 "Show form
+  fields based on other fields" (Core 2026.11): config/options flow fields
+  and blueprint inputs/sections take a `visible` condition; a hidden field
+  is not required and its value is not saved (a hidden blueprint input
+  gets its default or None). Flow submissions and `blueprint/substitute`
+  stay compatible. Gap: `skills/integration-setup/SKILL.md` builds "the
+  full step body" from the live `data_schema` and does not know `visible`,
+  so on 2026.11 an agent may ask for a hidden field or preview a value that
+  is then dropped. Check the serialized `data_schema` key on the first
+  2026.11 beta before changing skill text.
+- CLEAN — no Core release after 2026.10.3; no 2026.11 beta yet.
+- CLEAN — no HACS release after 2.0.5.
+- Sources: github.com/home-assistant/core/releases/tag/2026.10.3;
+  github.com/home-assistant/core/compare/2026.10.2...2026.10.3;
+  github.com/home-assistant/frontend/releases/tag/20260930.5;
+  contributors.home-assistant.io/blog/2026/10/21/form-fields-visible/;
+  contributors.home-assistant.io/blog/2026/10/23/config-entry-methods-return-none/;
+  contributors.home-assistant.io/blog/2026/10/23/flow-results-require-step-id/;
+  contributors.home-assistant.io/blog/2026/10/24/camera-two-way-audio/;
+  github.com/hacs/integration/releases (and tags).
+- Next window starts AFTER HA 2026.10.3 + dev-blog 2026-10-24 + HACS 2.0.5.
+  Screen the 2026.11 beta notes when they appear; watch `temperature_unit`,
+  in-place `entity_id` renames, `has_update`, the `DeviceInfo` dataclass,
+  `support_mfa` removal, `debug_console`, whether `manifest/list` exposes
+  `categories`, the flow/blueprint `visible` key in serialized
+  `data_schema`, camera two-way audio, the deferred lawn-mower `idle`
+  bucket, and the legacy device-registry removal command for 2027.9.
