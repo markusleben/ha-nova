@@ -271,7 +271,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 		switch {
 		case deviceMode && relayHealthIssueLooksLikeRelayAuth(readiness.HealthErr):
 			printNotAccepted()
-		case haHinted: // the hint above already says why
+		case haHinted && reachProblem(cfg.HAURL, readiness.HealthErr) != "": // same cause: the hint above says why
 			printHumanErr("HA NOVA can't reach the NOVA App either.")
 		default:
 			printHumanErr("HA NOVA couldn't check the NOVA App. Details: %s", readiness.HealthErr)

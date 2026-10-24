@@ -103,7 +103,7 @@ func runServerRoute(paths runtimePaths, args []string) int {
 	}
 	if opts.Policy == routePolicyAutomatic &&
 		(strings.TrimSpace(cfg.RelaySecureBaseURL) == "" || strings.TrimSpace(cfg.RelaySpkiPin) == "") {
-		printHumanErr("server %q isn't connected at home yet. Automatic needs both: home and Home Assistant Link. Connect it at home first: %s", name, localRelayRepairCommand(name, cfg.RelayBaseURL))
+		printHumanErr("server %q isn't connected at home yet. Automatic needs both: home and Home Assistant Link.", name)
 		return 1
 	}
 	cfg.RoutePolicy = opts.Policy
