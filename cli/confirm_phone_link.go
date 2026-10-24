@@ -106,7 +106,7 @@ func linkPhone(s *relaySession, reader *bufio.Reader, out io.Writer, run phoneLi
 		if run.offer {
 			return 0
 		}
-		fmt.Fprintln(out, "  Changing it asks that phone first: the user taps “Move” there, then “Allow” on the new phone. "+phoneButtonsLine)
+		fmt.Fprintln(out, "  Changing it asks that phone first: tell the user to watch it for “"+phoneMoveTitle+"”. "+phoneTapLine(current.targets[0].platform(), "Move")+" Then the new phone gets “"+phoneLinkTitle+"”.")
 	case status == phoneMissing:
 		fmt.Fprintln(out, "  "+home.missingLine(prev, current.why))
 		if !current.why.replaceable() && !run.listOnly {
@@ -136,8 +136,8 @@ func linkPhone(s *relaySession, reader *bufio.Reader, out io.Writer, run phoneLi
 		}
 	case run.listOnly:
 		fmt.Fprintln(out, "  Which phone should confirm HA NOVA actions? "+phoneListHeader)
-		listPhones(out, all, home.shared)
-		fmt.Fprintln(out, "  Nothing was sent. To link one: tell the user to watch that phone for “"+phoneLinkTitle+"”: "+phoneTapLine("", phoneLinkButton)+" Then run ha-nova setup confirm-phone \"<phone name>\" (it waits up to 90 seconds).")
+		listPhones(out, all, home.shared, phoneLinkButton)
+		fmt.Fprintln(out, "  Nothing was sent. To link one: tell the user to watch that phone for “"+phoneLinkTitle+"” and to do what its line above says. Then run ha-nova setup confirm-phone \"<phone name>\" (it waits up to 90 seconds).")
 		return 0
 	default:
 		if chosen, ok = choosePhone(reader, out, home, run.signedIn); !ok {
@@ -372,7 +372,7 @@ func (h phoneHome) pickPhone(out io.Writer, all []phoneTarget, pick string) (pho
 		}
 	}
 	fmt.Fprintf(out, "  No phone is called “%s”. These phones can confirm HA NOVA actions:\n", terminalSafeName(pick))
-	listPhones(out, all, h.shared)
+	listPhones(out, all, h.shared, "")
 	return phoneTarget{}, false
 }
 
@@ -380,9 +380,14 @@ func phoneNameKey(name string) string {
 	return strings.ToLower(strings.NewReplacer("’", "'", "‘", "'").Replace(strings.TrimSpace(name)))
 }
 
-func listPhones(out io.Writer, phones []phoneTarget, shared []string) {
+// listPhones: with button, each row also says how that phone answers.
+func listPhones(out io.Writer, phones []phoneTarget, shared []string, button string) {
 	for i, t := range phones {
-		fmt.Fprintf(out, "    %d) %s (%s)\n", i+1, terminalSafeName(t.Name), terminalSafeName(t.Person))
+		how := ""
+		if button != "" {
+			how = ". On it: " + phoneTapLine(t.platform(), button)
+		}
+		fmt.Fprintf(out, "    %d) %s (%s)%s\n", i+1, terminalSafeName(t.Name), terminalSafeName(t.Person), how)
 	}
 	for _, name := range shared {
 		fmt.Fprintln(out, "  "+phoneSharedLine(name))

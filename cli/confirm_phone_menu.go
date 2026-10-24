@@ -37,7 +37,7 @@ func choosePhone(reader *bufio.Reader, out io.Writer, home phoneHome, signedIn s
 	spec.Options = append(spec.Options, setupMenuOption{Value: "skip", Label: "Skip for now"})
 	answer, err := promptSetupMenu(reader, out, spec, func() (string, error) {
 		fmt.Fprintln(out, "  "+spec.Title)
-		listPhones(out, all, nil)
+		listPhones(out, all, nil, "")
 		for {
 			answer, err := promptLineWithOptions(reader, out, "Type the number of your phone, or press Enter to skip", "", false)
 			answer = strings.TrimSpace(answer)
