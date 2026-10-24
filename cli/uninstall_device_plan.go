@@ -24,6 +24,8 @@ type profilePurgeTarget struct {
 	processedCurrentID   string
 	processedPendingID   string
 	removalCheckpointed  bool
+	removalSlotsVerified bool // the checkpoint passed its own validation
+	cloudProfile         bool
 	currentSlotPresent   bool
 	pendingSlotPresent   bool
 	checkpointProcessed  func(
@@ -88,6 +90,10 @@ func collectProfilePurgeTargets(
 			return nil, err
 		}
 		if cfg.ServerRemoval != nil {
+			// Trust the recorded slot absence only for the profile generation
+			// the checkpoint was written for (the resume checks the same).
+			target.removalSlotsVerified =
+				validateServerRemovalCheckpointDocument(doc, name, cfg) == nil
 			profileName := name
 			target.checkpointProcessed = func(
 				pending bool,
@@ -125,10 +131,13 @@ func profilePurgeTargetFromConfig(
 		spkiPin:              strings.TrimSpace(cfg.RelaySpkiPin),
 		pendingSecureBaseURL: strings.TrimSpace(cfg.PendingSecureBaseURL),
 		pendingSpkiPin:       strings.TrimSpace(cfg.PendingSpkiPin),
+		cloudProfile:         cfg.Cloud != nil,
 	}
 	if cfg.Cloud == nil || cfg.Cloud.DeviceRevocationCompleted == nil {
 		if cfg.ServerRemoval != nil {
 			target.removalCheckpointed = true
+			target.removalSlotsVerified =
+				validateServerRemovalCheckpoint(name, cfg) == nil
 			target.currentSlotPresent =
 				cfg.ServerRemoval.CurrentSlotPresent
 			target.pendingSlotPresent =
@@ -161,6 +170,8 @@ func profilePurgeTargetFromConfig(
 		cfg.Cloud.DeviceRevocationCompleted.PendingDeviceID
 	if cfg.ServerRemoval != nil {
 		target.removalCheckpointed = true
+		target.removalSlotsVerified =
+			validateServerRemovalCheckpoint(name, cfg) == nil
 		target.currentSlotPresent =
 			cfg.ServerRemoval.CurrentSlotPresent
 		target.pendingSlotPresent =
@@ -214,6 +225,9 @@ type profilePurgeSlotState struct {
 	pendingExists       bool
 	pendingLocal        bool
 	pendingEndpointLive bool
+	// keyMayExistElsewhere: a slot that looks empty may still be held by
+	// the store this install doesn't read (or that can't be ruled out).
+	keyMayExistElsewhere bool
 }
 
 func inspectProfilePurgeSlotState(
@@ -260,6 +274,28 @@ func inspectProfilePurgeSlotState(
 	state.pendingEndpointLive =
 		target.pendingSecureBaseURL != "" &&
 			target.pendingSpkiPin != ""
+	// A slot empty in the selected store may sit in the other one: the
+	// keyring behind a file-storage install, or an unmarked file a headless
+	// pairing left (pairing_flow.go). Then it is not "lost".
+	probe := func(service string, recorded, exists bool) bool {
+		if !recorded || exists {
+			return false
+		}
+		if !deviceSecretFileBacked() {
+			// Any entry (a symlink too) or an unreadable path may hold it.
+			path, err := deviceSecretFilePath(service)
+			if err != nil {
+				return true
+			}
+			_, err = os.Lstat(path)
+			return !os.IsNotExist(err)
+		}
+		_, found, err := readKeyringDeviceSecret(service)
+		return found || err != nil
+	}
+	state.keyMayExistElsewhere =
+		probe(currentService, target.secureBaseURL != "" || target.spkiPin != "", state.currentExists) ||
+			probe(pendingService, target.pendingSecureBaseURL != "" || target.pendingSpkiPin != "", state.pendingExists)
 	return state, nil
 }
 
@@ -299,35 +335,16 @@ func validateRequiredProfilePurgeSlots(
 			target.name,
 		)
 	}
-	pendingEndpointRecorded :=
-		target.pendingSecureBaseURL != "" ||
-			target.pendingSpkiPin != ""
-	if pendingEndpointRecorded &&
-		!state.pendingExists &&
-		target.revokedPendingID == "" {
-		return fmt.Errorf(
-			"pending device endpoint for server %q indicates a possibly activated pairing, but its pending credential is missing; refusing cleanup because that relay pairing cannot be authenticated for revocation",
-			target.name,
-		)
-	}
-
-	currentEndpointRecorded :=
-		target.secureBaseURL != "" ||
-			target.spkiPin != ""
-	interruptedFirstPromotion :=
-		state.pendingExists &&
-			state.pendingLocal &&
-			state.pendingEndpointLive &&
-			target.secureBaseURL == target.pendingSecureBaseURL &&
-			target.spkiPin == target.pendingSpkiPin
-	if currentEndpointRecorded &&
-		!state.currentExists &&
-		target.revokedCurrentID == "" &&
-		!interruptedFirstPromotion {
-		return fmt.Errorf(
-			"device endpoint for server %q indicates an active pairing, but its current credential is missing; refusing cleanup because that relay pairing cannot be authenticated for revocation",
-			target.name,
-		)
+	key := lostDeviceKeyOf(target, state)
+	// A checkpoint that fails its own validation proves nothing: no yes.
+	askable := !target.cloudProfile && !state.keyMayExistElsewhere && key.complete() &&
+		(!target.removalCheckpointed || target.removalSlotsVerified)
+	if key.lost() && (!askable || acceptedLostDeviceKeys[target.name] != key) {
+		return &lostDeviceKeyError{
+			profile: target.name,
+			key:     key,
+			askable: askable,
+		}
 	}
 	return nil
 }

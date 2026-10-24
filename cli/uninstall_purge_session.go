@@ -355,15 +355,24 @@ func uninstallErrorText(err error) string {
 	if text, ok := cloudAuthorizationStopText(err); ok {
 		return text
 	}
+	text, plain := lostDeviceKeyErrorText(err)
 	var keyring *keyringRemovalProblem
-	if !errors.As(err, &keyring) {
+	switch {
+	case plain:
+	case errors.As(err, &keyring):
+		text = keyring.Error()
+	default:
 		return err.Error()
 	}
-	text := keyring.Error()
 	// resetPurgeStorageProofAfterError may join a second failure: keep it.
 	if joined, ok := err.(interface{ Unwrap() []error }); ok {
 		for _, other := range joined.Unwrap() {
-			if !errors.As(other, new(*keyringRemovalProblem)) {
+			// Skip only the failure already shown above.
+			shown := errors.As(other, new(*lostDeviceKeyError))
+			if !plain {
+				shown = errors.As(other, new(*keyringRemovalProblem))
+			}
+			if !shown {
 				text += "\n" + other.Error()
 			}
 		}
@@ -390,6 +399,10 @@ func purgeReadyForWindowsHandoff(paths runtimePaths, mode uninstallMode, teardow
 		return true
 	}
 	if err := validatePurgeBeforeWindowsHandoff(paths); err != nil {
+		if text, ok := lostDeviceKeyErrorText(err); ok {
+			printHumanErr("%s", text)
+			return false
+		}
 		printHumanErr("The full purge can't start: %s", uninstallErrorText(err))
 		printHumanWarn("The uninstall stopped before the background step. Fix the problem above, then run: %s", rerun)
 		return false
