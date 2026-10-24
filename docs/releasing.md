@@ -231,7 +231,7 @@ first support or after a change touching their path:
 - [ ] `parity`: `/health`, `/ws`, `/core`, `/files`, `/backups` through real Cloud (transport changes)
 - [ ] `stress_10000`: `internal-cloud-stress` on one reference OS (transport or stress-harness changes)
 - [ ] `keyrings`: real happy path and fail-closed no-UI on each enabled OS (adapter changes: affected OS)
-- [ ] `domains_mfa`: one real canonical Nabu Casa OAuth flow
+- [ ] `domains_mfa`: one real canonical Home Assistant Link OAuth flow
 - [ ] `roles`: one real standard non-administrator binding
 - [ ] `owner_no_code`: one real owner OAuth `cloud add` pairs with no code (Link owner pairing changes)
 - [ ] `lifecycle`: `cloud add` → App restart/reinstall → CLI uninstall/reinstall → purge revokes the device

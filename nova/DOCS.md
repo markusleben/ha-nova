@@ -23,8 +23,8 @@ The optional Home Assistant Link (formerly Home Assistant Cloud) path is a
 release-gated desktop Beta. Enabled release builds use the user's existing
 Home Assistant Link remote access; HA NOVA runs no public tunnel or broker. Local-only
 operation is unchanged. In Home Assistant, the service is under
-**Settings > Home Assistant Link**; your Home Assistant may still show the
-old name there until the new name reaches it. The `ha-nova cloud`
+**Settings > Home Assistant Cloud** (Home Assistant 2026.12 and newer:
+**Settings > Home Assistant Link**). The `ha-nova cloud`
 commands, the `cloud` route, and the "Cloud" mode name in HA NOVA keep their
 names.
 
@@ -316,8 +316,8 @@ A healthy response looks like:
 **Cloud remote access is unavailable**
 
 - Confirm the Home Assistant Link subscription and remote access are active
-  (in Home Assistant: **Settings > Home Assistant Link**, which may still
-  show the old name)
+  (in Home Assistant: **Settings > Home Assistant Cloud**; 2026.12 and newer:
+  **Settings > Home Assistant Link**)
 - Confirm the NOVA Relay App is installed, current, and running
 - Run `ha-nova cloud status --server <name>` for a typed remediation code
 - Treat any Relay-instance or user mismatch as a security stop; do not bypass it
