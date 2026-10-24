@@ -9,7 +9,7 @@ exit 0
 
   Checking current setup...
   [!!] NOVA App doesn't answer
-  [!!] No login saved yet
+  [!!] No key saved yet
   [!!] Not connected to Home Assistant
   [!!] Skills not installed
 

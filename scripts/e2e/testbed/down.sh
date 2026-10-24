@@ -20,7 +20,7 @@ if [[ -d "$STATE" ]]; then
   # read-only folders, which even root can't empty on a macOS bind mount:
   # make every folder writable first (find never follows a link).
   docker run --rm -v "$STATE:/target" "${TESTBED_WIPE_IMAGE:-alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6}" \
-    sh -c 'find /target -type d -exec chmod u+w {} + && rm -rf /target/* /target/.[!.]* /target/..?*' >&2
+    sh -c 'find /target -type d -exec chmod u+w {} +; rm -rf /target/* /target/.[!.]* /target/..?*' >&2
   rmdir "$STATE"
 fi
 echo "testbed: down (containers, volumes, and .state removed)" >&2

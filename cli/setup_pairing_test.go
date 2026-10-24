@@ -540,7 +540,7 @@ func TestInteractiveSetupPairedDeviceReRunVerifiesWithoutNewCode(t *testing.T) {
 		saved.RoutePolicy != routePolicyAutomatic {
 		t.Fatalf("saved Cloud config = %+v, err = %v", saved.Cloud, err)
 	}
-	for _, forbidden := range []string{"Six-digit code", "NOVA App doesn't answer", "No login saved yet"} {
+	for _, forbidden := range []string{"Six-digit code", "NOVA App doesn't answer", "No key saved yet"} {
 		if strings.Contains(output, forbidden) {
 			t.Fatalf("paired re-run must not show %q:\n%s", forbidden, output)
 		}

@@ -15,7 +15,7 @@ import (
 func sayData(data map[string]any) string {
 	var parts, flags []string
 	for _, key := range sortedKeys(data) {
-		if flag, ok := sayFlag(key, deltaValue(data[key])); ok {
+		if flag, ok := sayFlag(key, data[key]); ok {
 			flags = append(flags, ", "+flag)
 			continue
 		}
@@ -29,9 +29,11 @@ func sayData(data map[string]any) string {
 }
 
 // sayFlag: a true/false field in plain words ("with a backup first"), never
-// "backup set to true"; ok is false for any other value.
-func sayFlag(field, value string) (string, bool) {
-	on, ok := map[string]bool{"true": true, "false": false}[value]
+// "backup set to true"; ok is false for any value that isn't a real bool
+// (a text set to "true" stays a text).
+func sayFlag(field string, value any) (string, bool) {
+	on, ok := value.(bool)
+	words := strings.ReplaceAll(sayText(field, false), "_", " ")
 	switch {
 	case !ok:
 		return "", false
@@ -39,9 +41,9 @@ func sayFlag(field, value string) (string, bool) {
 		return "with a backup first", true
 	case field == "backup":
 		return "without a backup", true
-	}
-	words := strings.TrimPrefix(strings.ReplaceAll(sayText(field, false), "_", " "), "is ")
-	if on {
+	case strings.HasPrefix(words, "is "): // is_volume_muted: "volume muted: yes"
+		return map[bool]string{true: strings.TrimPrefix(words, "is ") + ": yes", false: strings.TrimPrefix(words, "is ") + ": no"}[on], true
+	case on:
 		return "with " + words + " on", true
 	}
 	return "with " + words + " off", true

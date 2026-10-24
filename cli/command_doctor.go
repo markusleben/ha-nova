@@ -135,13 +135,13 @@ func runDoctor(paths runtimePaths, args []string) int {
 		// The direct slot read distinguishes unreadable storage from an absent
 		// credential (re-pairing cannot store anything in broken storage).
 		if _, exists, credErr := readDeviceCredential(); credErr != nil && isLinuxKeyringError(credErr) {
-			printHumanErr("This computer is connected, but HA NOVA can't read its key. %s", relayAuthTokenProblemMessage(credErr))
+			printHumanErr("This computer was set up with HA NOVA, but HA NOVA can't read its key. %s", relayAuthTokenProblemMessage(credErr))
 			if hint := doctorServiceCredentialRecoveryHint(paths, state, credErr); hint != "" {
 				printHumanWarn("%s", hint)
 			}
 			return 1
 		} else if credErr != nil {
-			printHumanErr("This computer is connected, but HA NOVA can't read its key from the password store. Details: %s", credErr)
+			printHumanErr("This computer was set up with HA NOVA, but HA NOVA can't read its key from the password store. Details: %s", credErr)
 			if secureStorageSessionProblem(credErr) {
 				printHumanWarn("%s. Next step: %s, then run 'ha-nova doctor' there.", secureStorageSessionReason, secureStorageSessionNextStep())
 			} else if hint := setupSecureStorageRecoveryHint(credErr); hint != "" {
@@ -193,7 +193,11 @@ func runDoctor(paths runtimePaths, args []string) int {
 			token, tokenErr = readRelayAuthTokenForDoctor()
 		}
 		if tokenErr == nil && token != "" {
-			doctorInfo("This computer's shared key is saved in %s", relayAuthTokenStorageLabel())
+			where := relayAuthTokenStorageLabel()
+			if where == "secure storage" {
+				where = "this computer's password store"
+			}
+			doctorInfo("This computer's shared key is saved in %s", where)
 		} else {
 			printHumanErr("%s", relayAuthTokenProblemMessage(tokenErr))
 			if hint := doctorServiceCredentialRecoveryHint(paths, state, tokenErr); hint != "" {
@@ -207,7 +211,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 	}
 
 	usingCloud := transport.Via == relayViaCloud
-	haReachable := false
+	haReachable, haHinted := false, false
 	haURLKnown := strings.TrimSpace(cfg.HAURL) != ""
 	if usingCloud {
 		doctorInfo("Using Home Assistant Link, so HA NOVA skips the home address check")
@@ -224,6 +228,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 	} else if err := probeHTTP(cfg.HAURL); err != nil {
 		if hint := reachProblem(cfg.HAURL, err); hint != "" {
 			printHumanErr("%s", hint)
+			haHinted = true
 		} else {
 			printHumanErr("This computer can't reach Home Assistant at %s. Details: %s", cfg.HAURL, err)
 		}
@@ -250,17 +255,27 @@ func runDoctor(paths runtimePaths, args []string) int {
 		}
 		return checkRelayReadiness(cfg.RelayBaseURL, token)
 	}
+	// Over Home Assistant Link, a turned-down computer is Link's to explain.
+	printNotAccepted := func() {
+		if usingCloud {
+			printHumanErr("Home Assistant Link didn't let this computer in. Run 'ha-nova cloud status --server %s'. It says what to do next.", activeServerProfile())
+			return
+		}
+		printHumanErr(
+			"The NOVA App doesn't know this computer anymore. Maybe it was removed on the NOVA page. Connect it again: run '%s'.",
+			localRelayRepairCommand(activeServerProfile(), cfg.RelayBaseURL),
+		)
+	}
 	readiness := runReadiness()
 	if readiness.HealthErr != nil {
-		printHumanErr("HA NOVA couldn't check the NOVA App. Details: %s", readiness.HealthErr)
-		if deviceMode && relayHealthIssueLooksLikeRelayAuth(readiness.HealthErr) {
-			printHumanErr(
-				"The NOVA App doesn't know this computer anymore. Maybe it was removed on the NOVA page. Connect it again: run '%s'.",
-				localRelayRepairCommand(
-					activeServerProfile(),
-					cfg.RelayBaseURL,
-				),
-			)
+		switch {
+		case deviceMode && relayHealthIssueLooksLikeRelayAuth(readiness.HealthErr):
+			printNotAccepted()
+		case haHinted: // the hint above already says why
+			printHumanErr("HA NOVA can't reach the NOVA App either.")
+		default:
+			printHumanErr("HA NOVA couldn't check the NOVA App. Details: %s", readiness.HealthErr)
+			printHumanErr("Is the NOVA App running? In Home Assistant: Settings → Apps → NOVA Relay.")
 		}
 		status = 1
 	} else {
@@ -311,15 +326,9 @@ func runDoctor(paths runtimePaths, args []string) int {
 				status = 1
 			case readiness.RelayAuthIssue:
 				if deviceMode {
-					printHumanErr(
-						"The NOVA App doesn't know this computer anymore. Maybe it was removed on the NOVA page. Connect it again: run '%s'.",
-						localRelayRepairCommand(
-							activeServerProfile(),
-							cfg.RelayBaseURL,
-						),
-					)
+					printNotAccepted()
 				} else {
-					printHumanErr(`The NOVA App turned down this computer's shared access key. In the NOVA App's Configuration tab, check the "Relay Auth Token" field.`)
+					printHumanErr(`The NOVA App turned down this computer's shared key. In the NOVA App's Configuration tab, check the "Relay Auth Token" field.`)
 				}
 				status = 1
 			default:
@@ -369,7 +378,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 					doctorInfo("%s", hint)
 				}
 			case !client.RuntimeDetected:
-				printHumanWarn("HA NOVA is set up for %s, but %s isn't on this computer right now", client.Label, client.Label)
+				printHumanWarn("HA NOVA is set up for %s, but can't find %s on this computer right now", client.Label, client.Label)
 				printHumanWarn("%s", doctorClientRepairHint(client, installSource))
 				status = 1
 			case !client.Attached:

@@ -31,7 +31,7 @@ func handleInteractiveCloudRecoveryBeforeClients(
 	if !cloudRemoteFeatureAvailable() {
 		fmt.Fprintln(
 			out,
-			"  Home Assistant Link access is unavailable because this build or platform has Cloud setup disabled.",
+			"  "+setupT("setup.link.unavailable_build"),
 		)
 		renderCloudCheckpointActions(out, paths, cfg, false)
 		return cfg, true, 1, false

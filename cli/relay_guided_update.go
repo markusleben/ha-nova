@@ -77,9 +77,9 @@ func maybeOfferGuidedRelayUpdate(paths runtimePaths, notice humanNotice) bool {
 }
 
 func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufio.Reader, out io.Writer) bool {
-	candidate, reason := resolveRelayUpdateCandidate(cfg, token)
+	candidate, _ := resolveRelayUpdateCandidate(cfg, token)
 	if candidate.EntityID == "" {
-		fmt.Fprintf(out, "HA NOVA can't start the NOVA App update from here. Nothing was installed.\n%s\n", relayUpdateManualPath) // reason: for tests and logs, not people
+		fmt.Fprintf(out, "HA NOVA can't start the NOVA App update from here. Nothing was installed.\n%s\n", relayUpdateManualPath)
 		return false
 	}
 	if !candidate.updateAvailable() {
@@ -92,22 +92,18 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 	}
 	fmt.Fprintf(
 		out,
-		"The NOVA App has an update: v%s → v%s.\nHA NOVA installs the newest version, with a backup of the App first. The App restarts while it installs.\n",
-		candidate.InstalledVersion,
+		"HA NOVA installs the newest NOVA App (now v%s), with a backup of the App first. The App restarts while it installs.\n",
 		candidate.LatestVersion,
 	)
 	yes, err := promptYesNoMenu(in, out, "Update the NOVA App now?", "Yes, update now", "Not now", true)
 	if err != nil || !yes {
 		return false
 	}
-	current, reason := resolveRelayUpdateCandidate(cfg, token)
+	current, _ := resolveRelayUpdateCandidate(cfg, token)
 	if !current.updateAvailable() ||
 		!current.guidedInstallReady() ||
 		!current.samePreview(candidate) {
-		if reason == "" {
-			reason = "the pending update changed after the preview"
-		}
-		fmt.Fprintf(out, "The update changed while you decided (%s). Nothing was installed. Run the check again.\n", reason)
+		fmt.Fprintln(out, "The update changed, or HA NOVA couldn't check it again. Nothing was installed. Run the check again.")
 		return false
 	}
 	candidate = current

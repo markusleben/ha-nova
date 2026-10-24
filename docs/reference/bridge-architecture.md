@@ -27,12 +27,6 @@ POST /files
 POST /backups
 ```
 
-### Phase 1c (+ Subscriptions) — PLANNED, NOT IMPLEMENTED
-
-```
-POST /ws/subscribe
-```
-
 ### Home Assistant Link routes
 
 The Cloud Beta (Home Assistant Link) adds a separate
@@ -86,6 +80,12 @@ exact-source Home Assistant Link parity, native-keyring, user-role, redirect,
 lifecycle, App restart/update/reinstall, and 10,000-command Ingress-session
 stress evidence. See
 [`docs/work/2026-07-25-home-assistant-cloud-remote-spec.md`](../work/2026-07-25-home-assistant-cloud-remote-spec.md).
+
+### Phase 1c (+ Subscriptions) — PLANNED, NOT IMPLEMENTED
+
+```
+POST /ws/subscribe
+```
 
 ---
 

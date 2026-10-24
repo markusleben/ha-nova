@@ -232,7 +232,7 @@ func runAddServerStages(
 		)
 	}
 	if verifyDeviceHealth(cfg) != deviceOK {
-		renderSetupErrorLine(out, "Paired, but the secure device endpoint did not answer yet. The App may still be starting.")
+		renderSetupErrorLine(out, "%s", setupT("setup.verify.device_not_answering"))
 		if _, err := promptWizardLineFromReader(reader, out, "Press Enter to retry once", ""); err != nil {
 			if err == errSetupBack || err == errSetupExit {
 				renderSetupCancelledNote(out)

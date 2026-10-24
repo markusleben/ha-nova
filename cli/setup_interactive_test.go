@@ -504,7 +504,7 @@ func TestInteractiveSetupFreshInstallManualTokenFallbackRunsAppSetupBeforeVerify
 	if !hasSetupStep(output, 3) {
 		t.Fatalf("expected explicit-token verification step marker in output:\n%s", output)
 	}
-	if strings.Contains(output, "automations\n\n\n  Existing relay token found:") {
+	if strings.Contains(output, "automations\n\n\n  Found a saved key:") {
 		t.Fatalf("expected single-gap spacing before reuse-token note:\n%s", output)
 	}
 }

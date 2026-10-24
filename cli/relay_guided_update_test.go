@@ -296,7 +296,7 @@ func TestGuidedRelayUpdateInstallsThroughTheRestartAndVerifies(t *testing.T) {
 	if !strings.Contains(out.String(), "The NOVA App is updated and works: v0.4.0.") {
 		t.Fatalf("missing verified-version report in output: %s", out.String())
 	}
-	previewIndex := strings.Index(out.String(), "The NOVA App has an update: v0.2.6 → v0.4.0")
+	previewIndex := strings.Index(out.String(), "HA NOVA installs the newest NOVA App (now v0.4.0)")
 	confirmationIndex := strings.Index(out.String(), "Update the NOVA App now?")
 	if previewIndex < 0 || confirmationIndex < 0 || previewIndex > confirmationIndex {
 		t.Fatalf("exact preview must precede confirmation: %s", out.String())

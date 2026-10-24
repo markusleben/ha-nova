@@ -38,9 +38,9 @@
   "setup.status.checking": "Checking current setup...",
   "setup.status.app_reachable": "NOVA App answers",
   "setup.status.app_unreachable": "NOVA App doesn't answer",
-  "setup.status.auth_valid": "Login works",
-  "setup.status.auth_failed": "Login doesn't work",
-  "setup.status.no_token": "No login saved yet",
+  "setup.status.auth_valid": "Key works",
+  "setup.status.auth_failed": "Can't check the key yet",
+  "setup.status.no_token": "No key saved yet",
   "setup.status.ws_connected": "Connected to Home Assistant",
   "setup.status.ws_disconnected": "Not connected to Home Assistant",
   "setup.status.skills_installed": "Skills installed",
@@ -89,7 +89,7 @@
   "setup.prompt.open_browser": "Press Enter to open your browser",
 
   "setup.link.will_open": "This will open:",
-  "setup.link.unavailable_build": "Home Assistant Link isn't part of this HA NOVA build.",
+  "setup.link.unavailable_build": "Home Assistant Link doesn't work here: not on this computer, in this terminal, or in this HA NOVA build.",
   "setup.link.paused_stop": "Setup stopped before it changed this computer's access to HA NOVA. First finish or remove Home Assistant Link with a command above. Then run ha-nova setup again.",
 
   "setup.status.already_done": "Already done: {steps}",
@@ -102,7 +102,7 @@
 
   "setup.service.credential_moved": "Moved this computer's key into a private file.",
 
-  "setup.storage.file_backed": "This computer has no password store here. HA NOVA saves its key in a private file instead.",
+  "setup.storage.file_backed": "HA NOVA can't use a password store here. It saves its key in a private file instead.",
   "setup.storage.warn_session_unavailable": "HA NOVA can't reach this computer's password store from this terminal (for example over SSH).",
   "setup.storage.warn_unavailable": "This computer's password store isn't running.",
   "setup.storage.warn_not_initialized": "This computer's password store isn't set up yet.",
@@ -134,8 +134,8 @@
   "setup.token.reuse_note": "If this key already works on another computer, the next check should pass. Nothing needs to change in Home Assistant.",
 
   "setup.verify.using_address": "Using Home Assistant address: {url}",
-  "setup.verify.device_not_answering": "Connected, but the NOVA App doesn't answer yet. It may still be starting.",
-  "setup.verify.device_revoked": "Home Assistant doesn't know this computer anymore. Maybe it was removed on the NOVA page. Let's connect it again.",
+  "setup.verify.device_not_answering": "This computer is set up, but the NOVA App doesn't answer yet. It may still be starting.",
+  "setup.verify.device_revoked": "The NOVA App doesn't know this computer anymore. Maybe it was removed on the NOVA page. Let's connect it again.",
   "setup.verify.device_ok": "Connection works",
   "setup.verify.adding_link": "HA NOVA works at home now. Next: Home Assistant Link, for when you're away.",
   "setup.verify.link_ok": "Home Assistant Link works",

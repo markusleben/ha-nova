@@ -43,7 +43,7 @@ func TestGuidedRelayUpdateDeclinedTouchesNothing(t *testing.T) {
 	if installCalled.Load() {
 		t.Fatal("declining the exact preview must not call update/install")
 	}
-	if !strings.Contains(out.String(), "The NOVA App has an update: v0.2.6 → v0.4.0") {
+	if !strings.Contains(out.String(), "HA NOVA installs the newest NOVA App (now v0.4.0)") {
 		t.Fatalf("decline must be bound to an exact preview: %s", out.String())
 	}
 }
@@ -81,7 +81,7 @@ func TestGuidedRelayUpdateRejectsStateDriftAfterConfirmation(t *testing.T) {
 	if installCalled.Load() {
 		t.Fatal("changed update state must not call update/install")
 	}
-	if !strings.Contains(out.String(), "The update changed while you decided") ||
+	if !strings.Contains(out.String(), "The update changed, or HA NOVA couldn't check it again") ||
 		!strings.Contains(out.String(), "Nothing was installed") {
 		t.Fatalf("missing preview-drift stop message: %s", out.String())
 	}
@@ -127,7 +127,7 @@ func TestGuidedRelayUpdateRejectsRegistryDriftAfterConfirmation(t *testing.T) {
 	if installCalled.Load() {
 		t.Fatal("changed registry provenance must not call update/install")
 	}
-	if !strings.Contains(out.String(), "The update changed while you decided") ||
+	if !strings.Contains(out.String(), "The update changed, or HA NOVA couldn't check it again") ||
 		!strings.Contains(out.String(), "Nothing was installed") {
 		t.Fatalf("missing provenance-drift stop message: %s", out.String())
 	}
@@ -325,10 +325,10 @@ func TestRunDoctorClassifiesBelowFloorRelayBeforeAnyInstallPrompt(t *testing.T) 
 			if installCalled.Load() {
 				t.Fatal("doctor must not install without a confirmed current preview")
 			}
-			hasPreview := strings.Contains(output, "The NOVA App has an update:")
+			hasPreview := strings.Contains(output, "HA NOVA installs the newest NOVA App")
 			hasPrompt := strings.Contains(output, "Update the NOVA App now?")
 			if tc.wantPreview {
-				if !hasPreview || !hasPrompt || strings.Index(output, "The NOVA App has an update:") > strings.Index(output, "Update the NOVA App now?") {
+				if !hasPreview || !hasPrompt || strings.Index(output, "HA NOVA installs the newest NOVA App") > strings.Index(output, "Update the NOVA App now?") {
 					t.Fatalf("exact App evidence must produce preview then prompt:\n%s", output)
 				}
 			} else if hasPreview || hasPrompt {

@@ -313,7 +313,7 @@ func relayNoticeTransport(cfg config) (string, *http.Client, string, bool) {
 // (it reads this text on stderr, or the notices[] kind) and the MCP hint
 // (mcpNoticeHints) — never from instructions in this text.
 const (
-	relayAppUpdatePath       = "In Home Assistant: Settings > Apps > NOVA Relay > Update."
+	relayAppUpdatePath       = "In Home Assistant: Settings → Apps → NOVA Relay → Update."
 	relayContainerUpdateLine = "NOVA Relay in your own container? Pull its new image, then recreate the container (a restart keeps the old image)."
 )
 
@@ -384,7 +384,7 @@ func relayAvailableUpdateNotice(cfg config, token, running string) humanNotice {
 // through the Supervisor, the update entity's installed_version can still
 // show the old one: the running Relay wins, so a done update isn't offered.
 func relayAvailableUpdateNoticeFromCandidate(candidate relayUpdateCandidate, running string) humanNotice {
-	if running != "" {
+	if _, err := parseReleaseVersion(running); err == nil {
 		candidate.InstalledVersion = running
 	}
 	if !candidate.updateAvailable() {

@@ -24,7 +24,7 @@ func TestRenderSetupStatusSummaryShowsAllSignals(t *testing.T) {
 	for _, want := range []string{
 		"Checking current setup...",
 		"NOVA App answers",
-		"Login works",
+		"Key works",
 		"Not connected to Home Assistant",
 		"Skills installed",
 	} {
@@ -101,7 +101,7 @@ func TestRenderSetupStatusSummaryShowsAuthFailureWhenTokenExistsButRelayFails(t 
 	if !strings.Contains(rendered, "NOVA App doesn't answer") {
 		t.Fatalf("expected relay failure in summary:\n%s", rendered)
 	}
-	if !strings.Contains(rendered, "Login doesn't work") {
+	if !strings.Contains(rendered, "Can't check the key yet") {
 		t.Fatalf("expected auth failure in summary:\n%s", rendered)
 	}
 }

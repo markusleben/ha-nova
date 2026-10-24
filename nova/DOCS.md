@@ -3,7 +3,7 @@
 The NOVA Relay connects your AI app to Home Assistant. That can be an AI app on
 your computer. With chat apps on, it can also be Claude (also in its phone app)
 or ChatGPT on the web, on a computer. Chat apps need Home Assistant Link with
-remote access (a paid service from the Home Assistant team) or your own HTTPS
+remote access (a subscription from the Home Assistant team) or your own HTTPS
 address. The Relay lets in only the computers and apps you allowed. It also adds
 a few things Home Assistant can't do on its own.
 
@@ -51,7 +51,7 @@ Home Assistant, never by its network address.
 
 | Option | Description |
 |--------|-------------|
-| **Relay Auth Token (legacy/advanced)** | Old installs may still use this shared password. HA NOVA 0.27 is the last release that accepts it. Run `ha-nova setup` once on each computer to switch (a `--service` install: `ha-nova pair --credential-store=file`). When every computer has switched, choose "Revoke legacy access…" on the NOVA page. New installs leave this empty. The App then makes and keeps its own private one. |
+| **Relay Auth Token (legacy/advanced)** | Old installs may still use this shared key. HA NOVA 0.27 is the last release that accepts it. Run `ha-nova setup` once on each computer to switch (a `--service` install: `ha-nova pair --credential-store=file`). When every computer has switched, choose "Revoke legacy access…" on the NOVA page. New installs leave this empty. The App then makes and keeps its own private one. |
 | **File access (advanced)** | Lets HA NOVA read or change some Home Assistant config files. Off by default. |
 
 The App logs in to Home Assistant by itself. Don't create or paste a Home
@@ -83,7 +83,7 @@ instead.
 |--------|------|-------------|
 | GET | `/health` | Relay health check (version, uptime, Home Assistant connection) |
 | GET/POST | `/pair/v1/*` | Connect a device (OPAQUE) — the code is the key |
-| POST | `/auth/device/*` | Turn a device's key on or off (encrypted port only) |
+| POST | `/auth/device/*` | Start a device's key, or revoke it for good (encrypted port only) |
 | GET | `/auth/device/peers` | Whether other devices, an open code, the old shared access, or chat-app files still use this App (encrypted port only; for `ha-nova uninstall`) |
 | POST | `/ws` | Passes commands to Home Assistant's WebSocket API |
 | POST | `/core` | Passes requests to Home Assistant's REST API (`/api/...`) |
@@ -137,10 +137,11 @@ let this computer reach your home when you're away. It offers:
   uses Link only when it can't reach home.
 - **Home Assistant Link only**: sign in through Link first, then connect.
 
-Sign in as the owner, and this computer connects with no code. Want this
-computer to have less access? Sign in as a standard user instead. Then the
-owner makes a code on the NOVA page, in a separate private browser window (setup
-calls it the "Owner session"). HA NOVA can still do the same things.
+Sign in as the owner, and this computer connects with no code. Don't want the
+owner's login saved on this computer? Sign in as a standard user instead. HA
+NOVA can still do the same things. Then the owner makes a code on the NOVA
+page, in a separate private browser window (setup calls it the "Owner
+session").
 
 Your Link sign-in is saved only in this computer's password store, nowhere
 else. Setup may ask you to unlock the password store. Link works on a Mac, on
@@ -218,7 +219,9 @@ Using Home Assistant Link? Run:
 ha-nova cloud status --server <name>
 ```
 
-It says what's wrong and which command fixes it. With `--json`, it prints one
+It says what's wrong and which command fixes it. Set up with Link only, and
+your AI app isn't ready yet? Run `ha-nova setup --server <name>`. With
+`--json`, `cloud status` prints one
 JSON object (`verification_error` and `next_command` when something fails). It
 never prints passwords or keys.
 
@@ -252,7 +255,7 @@ A healthy answer looks like this:
 - Check that nothing on your network blocks port 8791.
 - Run `ha-nova setup` again. It checks the address and fixes it.
 
-**Login failed**
+**The App turns this computer down**
 
 - Run `ha-nova setup` again. It connects this computer again.
 - Restart or update this App. That renews its own Home Assistant login.
@@ -284,8 +287,10 @@ A healthy answer looks like this:
   reconnect.
 - Did you reinstall this App on purpose? With "Home Assistant Link only", run
   `ha-nova cloud remove --yes`, then `ha-nova cloud add --url ...`. With
-  "Local + Home Assistant Link", remove Link, connect this computer again at
-  home, then add Link again. Only do this after a reinstall you made yourself.
+  "Local + Home Assistant Link", run `ha-nova cloud remove`, then
+  `ha-nova setup` to connect this computer again at home, then
+  `ha-nova cloud add` to add Link again. Only do this after a reinstall you
+  made yourself.
 
 ## Removing Home Assistant Link
 

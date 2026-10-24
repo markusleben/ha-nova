@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/url"
 	"runtime"
+	"strings"
 	"syscall"
 )
 
@@ -17,19 +18,22 @@ const (
 	wsaEHOSTUNREACH = 10065
 )
 
-// reachProblem says in plain words why rawURL didn't answer: nothing
-// listens on the port, or this computer can't get to the host at all.
-// "" when the error is something else (TLS, HTTP status, a bad name).
+// reachProblem says in plain words why the Home Assistant address rawURL
+// didn't answer: nothing listens on the port, or this computer can't get to
+// the host at all. "" for anything else (a bad name, TLS, a slow answer, an
+// HTTP error): only a failed connect counts.
 func reachProblem(rawURL string, err error) string {
 	u, parseErr := url.Parse(rawURL)
-	if parseErr != nil || u.Hostname() == "" || err == nil {
+	var op *net.OpError
+	if parseErr != nil || u.Hostname() == "" || !errors.As(err, &op) || op.Op != "dial" {
 		return ""
 	}
 	var errno syscall.Errno
-	isErrno := errors.As(err, &errno)
-	onWindows := runtime.GOOS == "windows"
-	refused := errors.Is(err, syscall.ECONNREFUSED) || onWindows && isErrno && errno == wsaECONNREFUSED
-	if refused {
+	isErrno := errors.As(op, &errno)
+	is := func(e syscall.Errno, onWindows syscall.Errno) bool {
+		return errors.Is(op, e) || runtime.GOOS == "windows" && isErrno && errno == onWindows
+	}
+	if is(syscall.ECONNREFUSED, wsaECONNREFUSED) {
 		port := u.Port()
 		if port == "" {
 			port = map[string]string{"https": "443"}[u.Scheme]
@@ -39,17 +43,23 @@ func reachProblem(rawURL string, err error) string {
 		}
 		return "Home Assistant's address (" + u.Hostname() + ") answers, but nothing listens on port " + port + ". Is Home Assistant running? Is the port right?"
 	}
-	var netErr net.Error
-	unreachable := errors.Is(err, syscall.EHOSTUNREACH) || errors.Is(err, syscall.ENETUNREACH) ||
-		errors.Is(err, syscall.ETIMEDOUT) || errors.Is(err, context.DeadlineExceeded) ||
-		errors.As(err, &netErr) && netErr.Timeout() ||
-		onWindows && isErrno && (errno == wsaEHOSTUNREACH || errno == wsaENETUNREACH || errno == wsaETIMEDOUT)
-	if !unreachable {
+	noRoute := is(syscall.EHOSTUNREACH, wsaEHOSTUNREACH) || is(syscall.ENETUNREACH, wsaENETUNREACH)
+	if !noRoute && !op.Timeout() && !errors.Is(op, context.DeadlineExceeded) && !is(syscall.ETIMEDOUT, wsaETIMEDOUT) {
 		return ""
 	}
-	text := "This computer can't reach Home Assistant at " + u.Hostname() + ". Is Home Assistant running?"
-	if runtime.GOOS == "darwin" {
-		text += " On a Mac, also check System Settings → Privacy & Security → Local Network for your terminal app."
+	text := "This computer can't reach Home Assistant at " + u.Hostname() + ". Is Home Assistant running, and is this computer on the same network?"
+	// macOS blocks apps from the home network until allowed; it shows as "no route".
+	if runtime.GOOS == "darwin" && noRoute && homeNetworkHost(u.Hostname()) {
+		text += " On a Mac, also check System Settings → Privacy & Security → Local Network for your terminal app (or the AI app that runs HA NOVA)."
 	}
 	return text
+}
+
+// homeNetworkHost: a private or link-local IP, a .local name, or a name
+// without a dot (homeassistant).
+func homeNetworkHost(host string) bool {
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsPrivate() || ip.IsLinkLocalUnicast()
+	}
+	return strings.HasSuffix(strings.ToLower(host), ".local") || !strings.Contains(host, ".")
 }

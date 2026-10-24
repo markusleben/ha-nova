@@ -193,7 +193,7 @@ func TestNamedClientRepairSkipsPendingActivationMutation(
 	})
 	if exit != 0 ||
 		!strings.Contains(output, "Repaired client integration") ||
-		strings.Contains(output, "Resumed the interrupted pairing") {
+		strings.Contains(output, "Finished connecting this computer") {
 		t.Fatalf("named client repair exit=%d output=%q", exit, output)
 	}
 	if activationCalls != 0 {

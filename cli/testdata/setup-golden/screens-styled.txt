@@ -22,7 +22,7 @@
 
   <ESC>[1mChecking current setup...<ESC>[0m
   <ESC>[31m✗<ESC>[0m NOVA App doesn't answer
-  <ESC>[31m✗<ESC>[0m No login saved yet
+  <ESC>[31m✗<ESC>[0m No key saved yet
   <ESC>[31m✗<ESC>[0m Not connected to Home Assistant
   <ESC>[31m✗<ESC>[0m Skills not installed
 
@@ -31,7 +31,7 @@
 
   <ESC>[1mChecking current setup...<ESC>[0m
   <ESC>[31m✗<ESC>[0m NOVA App doesn't answer
-  <ESC>[31m✗<ESC>[0m Login doesn't work
+  <ESC>[31m✗<ESC>[0m Can't check the key yet
   <ESC>[31m✗<ESC>[0m Not connected to Home Assistant
   <ESC>[31m✗<ESC>[0m Skills not installed
 
@@ -40,7 +40,7 @@
 
   <ESC>[1mChecking current setup...<ESC>[0m
   <ESC>[32m✓<ESC>[0m NOVA App answers
-  <ESC>[32m✓<ESC>[0m Login works
+  <ESC>[32m✓<ESC>[0m Key works
   <ESC>[32m✓<ESC>[0m Connected to Home Assistant
   <ESC>[32m✓<ESC>[0m Skills installed
 

@@ -21,7 +21,7 @@
 
   Checking current setup...
   [!!] NOVA App doesn't answer
-  [!!] No login saved yet
+  [!!] No key saved yet
   [!!] Not connected to Home Assistant
   [!!] Skills not installed
 
@@ -30,7 +30,7 @@
 
   Checking current setup...
   [!!] NOVA App doesn't answer
-  [!!] Login doesn't work
+  [!!] Can't check the key yet
   [!!] Not connected to Home Assistant
   [!!] Skills not installed
 
@@ -39,7 +39,7 @@
 
   Checking current setup...
   [ok] NOVA App answers
-  [ok] Login works
+  [ok] Key works
   [ok] Connected to Home Assistant
   [ok] Skills installed
 

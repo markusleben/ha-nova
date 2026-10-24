@@ -5,7 +5,7 @@ exit 0
   [ok] NOVA App answers
   [ok] Connected to Home Assistant
 [ha-nova] Settings file found: <home>/.config/ha-nova/config.json
-[ha-nova] This computer's shared key is saved in secure storage
+[ha-nova] This computer's shared key is saved in this computer's password store
 [ha-nova] Home Assistant answers at <ha-url>
 [ha-nova] The NOVA App answers at <relay-url>
 [ha-nova] Connected to Home Assistant

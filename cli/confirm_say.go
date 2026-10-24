@@ -182,7 +182,7 @@ func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 	changes, flags, warnings := []string{}, "", ""
 	for _, d := range env.Deltas {
 		change := sayValue(d.Before) + " → " + sayValue(d.After)
-		flag, isFlag := sayFlag(d.Field, d.After)
+		flag, isFlag := sayFlag(d.Field, plan.Action.Data[d.Field])
 		switch {
 		case d.Field != "state" && d.Before != d.After && isFlag:
 			flags += ", " + flag

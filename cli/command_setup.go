@@ -315,9 +315,7 @@ func runSetup(paths runtimePaths, args []string) int {
 			return 1
 		}
 		if resumedActivation {
-			printHumanInfo(
-				"Resumed the interrupted pairing — this device is connected.",
-			)
+			printHumanInfo("%s", setupT("setup.resumed_pairing"))
 		}
 	}
 	state, err := loadStateOrDefaultChecked(paths)
@@ -335,7 +333,7 @@ func runSetup(paths runtimePaths, args []string) int {
 		target = "all"
 	}
 	if *serviceMode && target == "all" {
-		printHumanErr("service credentials require a specific client; use: ha-nova setup --service <client>")
+		printHumanErr("%s", setupT("setup.error.service_needs_client"))
 		return 1
 	}
 	selectedClients, skippedClients, err := resolveSetupClientsWithState(paths, target, state)
@@ -391,11 +389,11 @@ func runSetup(paths runtimePaths, args []string) int {
 			return err
 		})
 		if migrateErr != nil {
-			printHumanErr("cannot move the device credential into service file storage: %s", migrateErr)
+			printHumanErr("%s", setupT("setup.error.service_move_credential", "error", migrateErr))
 			return 1
 		}
 		if migrated {
-			printHumanInfo("Moved this install's device credential into protected service file storage.")
+			printHumanInfo("%s", setupT("setup.service.credential_moved"))
 		}
 	}
 	cfg, err = applySetupFlagOverrides(cfg, *host, *haURL, *relayURL)
@@ -554,7 +552,7 @@ func runSetup(paths runtimePaths, args []string) int {
 			restoreOptionalFile(paths.ConfigFile, configSnapshot, hadConfigSnapshot),
 		)
 		releaseMutation()
-		printHumanErr("cannot save config: %s", err)
+		printHumanErr("%s", setupT("setup.error.save_config", "error", err))
 		printSetupRollbackFailure(rollbackErr)
 		return 1
 	}
@@ -623,7 +621,7 @@ func runSetup(paths runtimePaths, args []string) int {
 				restoreOptionalFile(paths.StateFile, stateSnapshot, hadStateSnapshot),
 			)
 			releaseMutation()
-			printHumanErr("cannot save config: %s", retireErr)
+			printHumanErr("%s", setupT("setup.error.save_config", "error", retireErr))
 			printSetupRollbackFailure(rollbackErr)
 			return 1
 		}

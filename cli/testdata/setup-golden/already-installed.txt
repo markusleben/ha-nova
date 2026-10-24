@@ -9,7 +9,7 @@ exit 0
 
   Checking current setup...
   [ok] NOVA App answers
-  [ok] Login works
+  [ok] Key works
   [ok] Connected to Home Assistant
   [ok] Skills installed
 

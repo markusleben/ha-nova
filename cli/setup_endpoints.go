@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -68,21 +69,29 @@ func resolveHomeAssistantURLBaseWithinTimeout(input string, timeout time.Duratio
 	if timeout > 0 {
 		deadline = time.Now().Add(timeout)
 	}
+	var firstErr error // the first try (the usual :8123) says best why it failed
 	for _, candidate := range candidates {
 		if !deadline.IsZero() {
 			remaining := time.Until(deadline)
 			if remaining <= 0 {
-				return "", fmt.Errorf("could not reach Home Assistant at %s", input)
+				break
 			}
 			timeoutClient := *httpClient
 			timeoutClient.Timeout = remaining
 			client = &timeoutClient
 		}
-		if err := probeHTTPWithClient(client, candidate); err == nil {
+		err := probeHTTPWithClient(client, candidate)
+		if err == nil {
 			return candidate, nil
 		}
+		if firstErr == nil {
+			firstErr = err
+		}
 	}
-	return "", fmt.Errorf("could not reach Home Assistant at %s", input)
+	if firstErr == nil {
+		return "", fmt.Errorf("could not reach Home Assistant at %s", input)
+	}
+	return "", fmt.Errorf("could not reach Home Assistant at %s: %w", input, firstErr)
 }
 
 func promptValidHAHost(in io.Reader, out io.Writer, defaultHost string) (string, string, error) {
@@ -119,8 +128,16 @@ func promptValidHAHostFromReader(reader *bufio.Reader, out io.Writer, defaultHos
 			return host, resolved, nil
 		}
 
-		renderSetupErrorLine(out, "Could not reach Home Assistant at: %s", input)
-		fmt.Fprintln(out, "  Make sure Home Assistant is running and reachable from this computer.")
+		hint, tried := "", (*url.Error)(nil)
+		if errors.As(err, &tried) {
+			hint = reachProblem(tried.URL, err)
+		}
+		if hint != "" {
+			renderSetupErrorLine(out, "%s", hint)
+		} else {
+			renderSetupErrorLine(out, "Could not reach Home Assistant at: %s", input)
+			fmt.Fprintln(out, "  Make sure Home Assistant is running and reachable from this computer.")
+		}
 		if strings.HasSuffix(strings.ToLower(normalizeHostInput(input)), ".local") {
 			fmt.Fprintln(out, `  Tip: names like "homeassistant.local" can be unreliable (especially on Windows).`)
 			fmt.Fprintln(out, "  Try the IP address instead — find it in your router, or in Home Assistant under Settings > System > Network.")
