@@ -355,6 +355,21 @@ func TestServerRemoveLostKeyFinishesAfterTypedName(
 	}
 }
 
+// The NOVA page step comes before the typed name: a run stopped after its
+// checkpoint may be finished by `uninstall --purge`, which can't repeat it.
+func TestServerRemoveLostKeyNamesTheNovaPageBeforeAsking(t *testing.T) {
+	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
+	previousConfirmation := readServerRemoveConfirmationForCommand
+	t.Cleanup(func() { readServerRemoveConfirmationForCommand = previousConfirmation })
+	readServerRemoveConfirmationForCommand = func(string) (string, error) { return "not cabin", nil }
+	exit, output := captureCommandOutput(t, func() int {
+		return runServerRemove(paths, []string{"cabin"})
+	})
+	if exit != 1 || !strings.Contains(output, "click Revoke next to it") {
+		t.Fatalf("exit=%d output=%s", exit, output)
+	}
+}
+
 // The checkpoint records the key as already gone, so a later run (no yes in
 // memory) still finishes the removal.
 func TestServerRemoveLostKeyResumesFromCheckpoint(t *testing.T) {

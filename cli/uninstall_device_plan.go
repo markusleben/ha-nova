@@ -326,7 +326,9 @@ func validateRequiredProfilePurgeSlots(
 		)
 	}
 	key := lostDeviceKeyOf(target, state)
-	askable := !target.cloudProfile && !state.keyMayExistElsewhere && key.complete()
+	// A checkpoint that fails its own validation proves nothing: no yes.
+	askable := !target.cloudProfile && !state.keyMayExistElsewhere && key.complete() &&
+		(!target.removalCheckpointed || target.removalSlotsVerified)
 	if key.lost() && (!askable || acceptedLostDeviceKeys[target.name] != key) {
 		return &lostDeviceKeyError{
 			profile: target.name,

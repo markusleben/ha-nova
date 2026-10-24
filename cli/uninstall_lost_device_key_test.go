@@ -258,6 +258,14 @@ func TestIncompleteEndpointIsNeverAnAskableLostKey(t *testing.T) {
 			t.Fatalf("%s: err=%v", name, err)
 		}
 	}
+	// A removal checkpoint that fails its own validation gets no finish.
+	corrupt := profilePurgeTarget{name: "cabin", secureBaseURL: "https://cabin:18792", spkiPin: "PINB", removalCheckpointed: true}
+	acceptedLostDeviceKeys = map[string]lostDeviceKey{"cabin": lostDeviceKeyOf(corrupt, profilePurgeSlotState{})}
+	if err := validateRequiredProfilePurgeSlots(corrupt, profilePurgeSlotState{}); err == nil {
+		t.Fatal("unverified checkpoint: accepted")
+	} else if _, ok := lostDeviceKeyErrorText(err); ok {
+		t.Fatalf("unverified checkpoint askable: %v", err)
+	}
 	complete := profilePurgeTarget{name: "cabin", secureBaseURL: "https://cabin:18792", spkiPin: "PINB"}
 	acceptedLostDeviceKeys = nil
 	if _, ok := lostDeviceKeyErrorText(validateRequiredProfilePurgeSlots(complete, profilePurgeSlotState{})); !ok {

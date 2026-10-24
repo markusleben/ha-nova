@@ -181,6 +181,9 @@ func runServerRemove(paths runtimePaths, args []string) int {
 	lostKey, keyLost := serverRemoveLostKey(doc, name)
 	if keyLost {
 		printHumanWarn("This computer's HA NOVA key for %q is gone, so HA NOVA can't sign this computer out of that Home Assistant.", name)
+		// Shown before anything changes: a run stopped after its checkpoint
+		// may be finished by `ha-nova uninstall --purge`, which can't tell.
+		printHumanInfo("%s", lostDeviceKeyHandStep())
 		printHumanInfo("Removing server profile %q: its settings are deleted. The Relay App on that Home Assistant instance stays installed.", name)
 	} else {
 		printHumanInfo("Removing server profile %q: its device pairing will be revoked on that relay and its stored credentials deleted. The Relay App on that Home Assistant instance stays installed.", name)
