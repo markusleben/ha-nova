@@ -42,6 +42,7 @@ Any change to a tool's name, description, or an argument's description resets ev
 | `ha_call` | `destructiveHint: true`. Description unchanged. Annotations don't reset "Always allow". |
 | `ha_skill` | Title "Read a HA NOVA guide". Description says what it returns and where it comes from: "Returns one of HA NOVA's built-in guides (Markdown) for a task, such as writing an automation or finding why one failed. The guides ship inside this server, match its version, and are public in the HA NOVA repository. Nothing is fetched from elsewhere, and no Home Assistant data is read. Use it before building, changing, reviewing, or diagnosing automations, scripts, helpers, scenes, or dashboards." No answer rules. The result header stays (result content, not a description). |
 | `ha_find`, `ha_map` | Drop `mcpAnswerRules` from the description. |
+| `ha_plan`, `ha_call`, `ha_apply`, `ha_get`, `ha_find` | Drop the other behavior lines too ("always tell the user …", "never call again", "never … through ha_plan", "report them separately"); each moves to the result's `answer_rule` or `say`, or the server instructions. Same PR, so "Always allow" resets once. |
 | `ha_read` | "Reads Home Assistant's own API, read only: a GET path of its REST API (https://developers.home-assistant.io/docs/api/rest/) or a message of its WebSocket API (https://developers.home-assistant.io/docs/api/websocket/). Only paths and message types on HA NOVA's read list are accepted." `path`: "a REST API path under /api/ (GET only)". |
 
 Where the answer rules go instead:
@@ -52,7 +53,7 @@ Where the answer rules go instead:
 
 ### How users hear about it
 
-- Release notes, "What To Watch": "After this update, Claude asks once more before each HA NOVA step. Choose “Always allow” again for the read-only tools and for “Control a device”."
+- Release notes, "What To Watch", and the NOVA App changelog (Home Assistant shows it when updating): "After this update, Claude asks again before HA NOVA acts. Pick “Always allow” once more."
 - `docs/reference/chat-apps.md` ("Stop Claude from asking before every step") already says Claude may ask again after an update; no change.
 - The hash update and this reset are named in the PR body, as the test asks.
 - `ha_skill`'s description also lists the skill ids (`skillDescription`, `cli/mcp_skill.go:70-76`), so a new or renamed skill resets it too. Any 0.28 skill added or renamed ships in the same release as this batch.
@@ -95,10 +96,10 @@ This is about fairness, not abuse: the demo login is public, so anyone can make 
 - Maintainer on claude.ai (custom connector on a test build): "Control a device" still offers "Always allow" with `destructiveHint: true`; the tools ask again once after the update.
 - Demo: re-provision on a test host, two Claude accounts; one hits 30 a minute, the other still works.
 
-## Open questions for the maintainer
+## Decisions (maintainer, 2026-10-24)
 
-1. If claude.ai stops offering "Always allow" for `ha_call` once it is marked destructive: keep `true` (honest, the review wants it) or keep `false` and explain it in the listing? Default: `true`, decided by the claude.ai check above.
-2. Demo numbers: 30 per visitor and 120 in total per minute? And option A (integration header, default) or B (custom Caddy build)?
-3. The contact address (`abuse@hanova.app`, or another)?
-4. Ship the batch in 0.28.0 (default), or as its own patch release right before the listing?
-5. Rename `ha_skill`'s title only, or also its name (a name change resets "Always allow" like a description and breaks saved prompts)? Default: title only.
+1. `destructiveHint: true` for `ha_call`, after the claude.ai check above. If that check shows claude.ai no longer offers "Always allow" for it (every light switch would ask), stop and bring the maintainer a screenshot before shipping.
+2. Demo limits: 30 per visitor, 120 in total per minute. Option A (agent default; the maintainer left the mechanism open).
+3. Contact: `abuse@hanova.app` (the maintainer sets up the forwarding).
+4. Ships in 0.28.0, with any 0.28 skill renames, so "Always allow" resets once (agent default after the plain-words explanation; reviewers agree).
+5. Rename `ha_skill`'s title only.
