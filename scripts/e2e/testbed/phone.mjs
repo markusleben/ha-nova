@@ -88,6 +88,7 @@ async function nextPush() {
   let list = [];
   await waitFor("a push", async () => (list = await (await fetch(`${PUSH}/pushes`)).json()).length > seen, 30_000);
   const push = list[seen++];
+  if (push.body.message === "clear_notification") return nextPush(); // a newer CLI clears its last result first
   return { ...push, platform: push.path.split("/").pop(), data: push.body.data ?? {} };
 }
 
@@ -99,10 +100,13 @@ async function tap(push) {
   if (!res.ok) throw new Error(`tap -> HTTP ${res.status}`);
 }
 
-// How to answer on each phone (cli/confirm_phone_text.go phoneTapLine).
-const tapLine = (platform, button) => platform === "ios"
-  ? `Press and hold the notification, then tap “${button}”.`
-  : `Pull the notification down, or tap its arrow, then tap “${button}”.`;
+// The line naming button says this phone's gesture (cli/confirm_phone_text.go
+// phoneTapLine): press and hold on iOS, pull down / its arrow on Android.
+// Matched loosely, so a copy edit doesn't break the lane; the wrong phone's
+// gesture or the both-phones line does.
+const gesture = (platform, button, text) => text.split("\n").filter((l) => l.includes(`“${button}”`)).some((l) => platform === "ios"
+  ? l.includes(`Press and hold the notification, then tap “${button}”`)
+  : l.includes("tap its arrow") && !l.includes("Press and hold"));
 
 const tags = new Set();
 // One question push against the contract; returns it for the tap.
@@ -119,7 +123,9 @@ async function question(platform, button, { unlock, urgent }) {
   else if (platform === "ios") want(auth === true, `authenticationRequired ${JSON.stringify(auth)}, iOS needs the bool true`);
   else want(auth === "true", `authenticationRequired ${JSON.stringify(auth)}, Android needs the string "true"`);
   if (platform === "android") want(a.every((x) => Object.entries(x).every(([k, v]) => k === "destructive" || typeof v === "string")), "an action value is not a string (FCM data takes strings only)");
-  want(platform === "ios" ? b.message?.endsWith("Press and hold to answer.") : b.message?.startsWith("Pull down to answer."), `message ${JSON.stringify(b.message)}`);
+  // The hint: last on iOS, first on Android (a collapsed notification shows one line).
+  const m = b.message ?? "", pull = m.indexOf("Pull down");
+  want(platform === "ios" ? m.endsWith("Press and hold to answer.") : pull >= 0 && pull < m.indexOf("Requested") && !m.includes("Press and hold"), `message ${JSON.stringify(m)}`);
   want(b.title && [...b.title].length <= 80, `title ${JSON.stringify(b.title)}`);
   want(d.channel === "HA NOVA" && d.importance === "high" && d.priority === "high", `channel/importance/priority ${d.channel}/${d.importance}/${d.priority}`);
   want(d.push?.["interruption-level"] === (urgent ? "time-sensitive" : "active"), `interruption-level ${d.push?.["interruption-level"]}`);
@@ -144,11 +150,11 @@ async function result(ask, prefix) {
   report(`result on ${PHONES[ask.platform]}: “${prefix}…”, the question's tag`, p);
 }
 
-function finished(name, run, { code = 0, out = "", err = "" }) {
+function finished(name, run, { code = 0, out = "", tap }) {
   const p = [];
   if (run.code !== code) p.push(`exit ${run.code}, want ${code}`);
   if (out && !run.stdout.includes(out)) p.push(`stdout lacks ${JSON.stringify(out)}: ${run.stdout.slice(0, 300)}`);
-  if (err && !run.stderr.includes(err)) p.push(`stderr lacks ${JSON.stringify(err)}: ${run.stderr.slice(0, 300)}`);
+  if (tap && !gesture(...tap, run.stderr)) p.push(`stderr lacks the ${tap[0]} way to tap “${tap[1]}”: ${run.stderr.slice(0, 300)}`);
   report(name, p);
 }
 
@@ -156,7 +162,7 @@ async function link(platform) {
   const run = cli(["setup", "confirm-phone", PHONES[platform]]);
   const ask = await question(platform, "Allow", { unlock: true });
   await result(ask, "Linked");
-  finished(`link ${PHONES[platform]}`, await run.done, { out: `Linked “${PHONES[platform]}”`, err: tapLine(platform, "Allow") });
+  finished(`link ${PHONES[platform]}`, await run.done, { out: `Linked “${PHONES[platform]}”`, tap: [platform, "Allow"] });
 }
 
 async function move(from, to) {
@@ -165,26 +171,26 @@ async function move(from, to) {
   await result(ask, "Approved");
   const linkAsk = await question(to, "Allow", { unlock: true });
   await result(linkAsk, "Linked");
-  finished(`move ${PHONES[from]} -> ${PHONES[to]}`, await run.done, { out: `Linked “${PHONES[to]}”`, err: tapLine(from, "Move") });
+  finished(`move ${PHONES[from]} -> ${PHONES[to]}`, await run.done, { out: `Linked “${PHONES[to]}”`, tap: [from, "Move"] });
 }
 
 async function stop(platform) {
   const run = cli(["setup", "confirm-phone", "off"]);
   const ask = await question(platform, "Stop", { unlock: true });
   await result(ask, "Approved");
-  finished(`stop on ${PHONES[platform]}`, await run.done, { out: "Phone confirmation is off", err: tapLine(platform, "Stop") });
+  finished(`stop on ${PHONES[platform]}`, await run.done, { out: "Phone confirmation is off", tap: [platform, "Stop"] });
 }
 
 async function confirmUnlock(platform) {
   await cli(["call", "lock.lock", "lock.front_door"]).done; // locked again (ordinary, no confirmation)
   const planned = await cli(["plan", "call", "lock.unlock", "lock.front_door"]).done;
   const plan = JSON.parse(planned.stdout || "{}");
-  report(`unlock plan names the ${platform} gesture`, plan.plan?.channel === "phone" && plan.say?.includes(tapLine(platform, "Unlock")) ? [] : [`channel ${plan.plan?.channel}, say ${JSON.stringify(plan.say)}`]);
+  report(`unlock plan names the ${platform} gesture`, plan.plan?.channel === "phone" && gesture(platform, "Unlock", plan.say ?? "") ? [] : [`channel ${plan.plan?.channel}, say ${JSON.stringify(plan.say)}`]);
   if (!plan.plan?.id) return;
   const run = cli(["apply", "--plan", plan.plan.id]);
   const ask = await question(platform, "Unlock", { unlock: false, urgent: true });
   await result(ask, "Done");
-  finished(`unlock confirmed on ${PHONES[platform]}`, await run.done, { out: '"status":"verified"', err: tapLine(platform, "Unlock") });
+  finished(`unlock confirmed on ${PHONES[platform]}`, await run.done, { out: '"status":"verified"', tap: [platform, "Unlock"] });
 }
 
 try {
@@ -199,7 +205,7 @@ try {
   await link("android");
   await stop("android");
   await cli(["call", "lock.lock", "lock.front_door"]).done;
-  const extra = (await (await fetch(`${PUSH}/pushes`)).json()).slice(seen);
+  const extra = (await (await fetch(`${PUSH}/pushes`)).json()).slice(seen).filter((p) => p.body.message !== "clear_notification");
   report("no push beyond the asked phones", extra.map((p) => `${p.path}: ${p.body.title}`));
 } catch (err) {
   report("phone lane ran to the end", [err.message]);
