@@ -185,6 +185,7 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `DISRUPTIVE` | preview | restart/stop, `siren.turn_on`/`toggle` (also through `homeassistant.*`), `alarm_trigger` (`service-call/SKILL.md` → Safety) |
 | `DISRUPTIVE` (button) | preview | `button.press`, direct or stored, on a button with `device_class` `restart`/`update`, or whose entity_id/name has a whole token restart, reboot, shutdown, poweroff, reset, or the pair shut+down / power+off (PR4 review; `buttonPressTier`) |
 | `DESTRUCTIVE_BUTTON` | typed | `button.press` whose entity_id/name has a whole token factory, wipe, or erase — a factory reset wipes the device's configuration (PR4 codex review) |
+| `HACS_INSTALL` | typed | `update.install` on an entity whose registry platform is `hacs`: third-party code that runs in Home Assistant, like `hacs/repository/download` (chat-parity spec, Decision 3) |
 | `OWNED_SERVICE` | refused | the deferral table names another skill (`service-call/SKILL.md` → Owning-Skill Deferrals) |
 | `OWNED_MEMBER` | preview | a stored member is a deferred service (expanding must not downgrade the owner's gate) |
 | `OWNED_TYPED_MEMBER` | typed | a stored `mqtt.publish` or `hassio.*` member (owning-skill escalation) |

@@ -236,7 +236,7 @@ func TestMCPNextStep(t *testing.T) {
 		t.Fatalf("flag next %q", step)
 	}
 	step = nextStep(map[string]any{"error": map[string]any{"next": refusalNext["REVERT_UNSUPPORTED"]}})
-	if !strings.Contains(step, "ha_plan with kind revert and id <config_id>") || !strings.Contains(step, "Home Assistant (Settings)") {
+	if !strings.Contains(step, "ha_plan with kind revert and id <config_id>") || !strings.Contains(step, "ha_skill") || !strings.Contains(step, "kind raw") || strings.Contains(step, "shell") {
 		t.Fatalf("skill next %q", step)
 	}
 	if step := nextStep(map[string]any{"error": map[string]any{"next": refusalNext["CODE_MISMATCH"]}}); step != "" {

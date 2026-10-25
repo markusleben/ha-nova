@@ -320,3 +320,14 @@ func (e *tierEngine) switchAsX(id, via string) tierLevel {
 	}
 	return tierOrdinary
 }
+
+// readFailed records a failed read as typed: LIMIT_CUT once the 30 s budget
+// is spent, SCAN_FAILED otherwise. Details are stable words, never error
+// text, so the plan hash stays deterministic.
+func (e *tierEngine) readFailed(entityID, via, what string) {
+	if e.s.ctx.Err() != nil {
+		e.gap(reasonLimitCut, "", "", "read budget")
+		return
+	}
+	e.gap(reasonScanFailed, entityID, via, what)
+}

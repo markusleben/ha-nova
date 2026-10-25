@@ -47,11 +47,14 @@ func runPlanCommand(paths runtimePaths, args []string) int {
 	if len(args) > 0 && args[0] == "template" {
 		return runPlanTemplate(paths, args[1:])
 	}
+	if len(args) > 0 && args[0] == "raw" {
+		return runPlanRaw(paths, args[1:])
+	}
 	if len(args) > 0 && (args[0] == "--help" || args[0] == "-h") {
 		fmt.Println("Usage: " + planCallHelp)
 		return verbExitOK
 	}
-	return verbUsageError("plan", errors.New("Usage: "+planCallUsage+" | "+planWriteUsage+" | "+planDeleteUsage+" | "+planRevertUsage+" | "+planRestoreUsage+" | "+planRoomsUsage+" | "+planTemplateUsage))
+	return verbUsageError("plan", errors.New("Usage: "+planCallUsage+" | "+planWriteUsage+" | "+planDeleteUsage+" | "+planRevertUsage+" | "+planRestoreUsage+" | "+planRoomsUsage+" | "+planTemplateUsage+" | "+planRawUsage))
 }
 
 func runPlanCall(paths runtimePaths, args []string) int {

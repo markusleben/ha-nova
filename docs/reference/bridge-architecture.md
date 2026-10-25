@@ -463,7 +463,10 @@ credential the App mints in its own registry. The App also holds the owner's
 switch, the bridge secret, the Supervisor discovery message, and the only
 file it writes in Home Assistant's configuration,
 `custom_components/ha_nova` (a missing `custom_components` it makes, and
-removes again only while empty). No Relay route gains logic. Contract:
+removes again only while empty). No Relay route gains logic: a chat
+app's raw writes (`ha_plan` kind raw) reach the Relay's existing `/core`,
+`/ws`, `/files`, and `/backups` routes, after the CLI's own guard per item.
+Contract:
 `docs/work/2026-10-19-chat-bridge-contract.md` ("App side").
 
 ## What the Relay does NOT do

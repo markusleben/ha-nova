@@ -158,6 +158,14 @@ func (s *relaySession) write(endpoint string, payload map[string]any) (json.RawM
 	if err != nil {
 		return nil, err
 	}
+	return s.sendWrite(endpoint, body)
+}
+
+// sendWrite sends one checked write body exactly once and returns the
+// envelope data: a relayCallError when Home Assistant or the Relay refused
+// it, a relayOutcomeUnknownError when it may have run. write and raw plans
+// (plan_raw_apply.go) check their own allowlist first.
+func (s *relaySession) sendWrite(endpoint string, body []byte) (json.RawMessage, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), relayWriteTimeout)
 	defer cancel()
 	req, err := newRelayRequest(ctx, s.transport, endpoint, body)

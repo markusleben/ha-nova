@@ -307,6 +307,8 @@ func replanStored(paths runtimePaths, s *relaySession, env *verbEnvelope, plan s
 		_, fresh, err = computeCallPlan(s, env, plan.Request)
 	case config != nil && config.Op == plan.Kind && config.ConfigID != "" && config.validate() == nil:
 		_, fresh, _, err = computeConfigPlan(paths, s, env, *config)
+	case plan.Kind == "raw" && config == nil:
+		_, fresh, err = computeRawPlan(s, env, plan.RawRequests)
 	default:
 		return fresh, false
 	}

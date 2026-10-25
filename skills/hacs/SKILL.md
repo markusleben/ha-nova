@@ -125,8 +125,9 @@ act on a name match alone.
    `repository/info` is needed only for release/pin state and clears the
    repository's `new` flag — name that side effect),
    restart/reload impact, and — for updates — the release-notes summary
-   with breaking changes. Natural
-   confirmation for install/update/redownload binds to this exact preview.
+   with breaking changes. Install/update/redownload takes the one-time code
+   (third-party code in Home Assistant, a card in every signed-in browser
+   with that user's rights), bound to this exact preview.
 3. Apply: `hacs/repository/download` with the chosen `version` — never
    version-then-download (a version-less download resolves to LATEST, and
    every download clears the selection; see `hacs-commands.md`). Branch-only
@@ -278,9 +279,9 @@ at runtime.
 
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 
-- Confirmation tiers: natural confirmation for install/update/redownload;
-  the one-time code for uninstall, registration removal, and
-  dependent config-entry deletion.
+- Confirmation tiers: the one-time code for install/update/redownload
+  (third-party code with user rights), uninstall, registration
+  removal, and dependent config-entry deletion.
 - The migration backup gate is non-negotiable: no destructive migration
   step before a COMPLETED and CURRENT full Home Assistant Backup exists.
 - Never trigger restarts, reloads, or config flows silently — each is its

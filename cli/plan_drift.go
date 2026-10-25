@@ -128,6 +128,8 @@ func planActionOf(p storedPlan) any {
 		return p.Action
 	case "rooms":
 		return p.RoomsRequest
+	case "raw":
+		return p.RawRequests
 	}
 	return p.ConfigAction
 }

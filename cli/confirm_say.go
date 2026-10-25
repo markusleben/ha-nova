@@ -4,8 +4,6 @@ import (
 	"cmp"
 	"fmt"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 )
 
 // confirmationSay is the user-facing confirmation text of a plan that needs
@@ -76,6 +74,9 @@ func confirmationPrompt(e *tierEngine, env *verbEnvelope, plan storedPlan, subje
 // sayGoal: "Unlock" “Front Door”, "Delete" the automation “Night” — the
 // plan's action and objects only. subject names a config item.
 func sayGoal(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) (verb, object string) {
+	if plan.Kind == "raw" {
+		return rawGoal(env)
+	}
 	if action := plan.ConfigAction; action != nil {
 		name := cmp.Or(sayText(subject, true), sayText(action.EntityID, true), sayText(action.Domain+"."+action.ConfigID, true))
 		verb := map[string]string{"delete": "Delete", "revert": "Undo the last change to", "restore": "Restore"}[action.Op]
@@ -162,6 +163,9 @@ func sayReasons(e *tierEngine, env *verbEnvelope, plan storedPlan) []string {
 // sayWhat: "I'm about to unlock “Front Door” in Hall: locked → unlocked."
 // and the status that closes the body ("Nothing has run yet.").
 func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) (about, status string) {
+	if plan.Kind == "raw" {
+		return rawSayWhat(env)
+	}
 	if action := plan.ConfigAction; action != nil {
 		if action.Op == "delete" {
 			return sayAbout(sayGoalText(e, env, plan, subject)), sayNotDeleted
@@ -299,7 +303,11 @@ func sayReason(e *tierEngine, env *verbEnvelope, plan storedPlan, r tierReason) 
 		return "This runs an integration's own service, which HA NOVA can't fully check", false
 	case reasonServiceNotFound:
 		return "A step calls " + sayText(r.Detail, true) + ", which Home Assistant doesn't have: that step will fail when it runs", false
-	case reasonConfigWrite, reasonConfigRevert, reasonConfigRestore, reasonAreaAssign:
+	case reasonRawTyped:
+		return r.Detail, true
+	case reasonHACSInstall:
+		return rawTypedWS["hacs/repository/download"], true
+	case reasonConfigWrite, reasonConfigRevert, reasonConfigRestore, reasonAreaAssign, reasonRawWrite:
 		return "", false
 	}
 	return "HA NOVA can't fully check this", r.Code != "" // a code without a sentence never reads as harmless
@@ -393,34 +401,6 @@ func sayActionRank(m tierMember) int {
 		return 1
 	}
 	return 0
-}
-
-var sayUnseenCodes = map[string]bool{reasonUnregisteredActuator: true, reasonTemplateAction: true, reasonUserButton: true, reasonUnreadCommand: true}
-
-// sayPlainDomains: what these do is plain from the kind (a lock locks, a
-// garage door opens); what HA NOVA can't check is how it does it.
-var sayPlainDomains = map[string]bool{"lock": true, "cover": true, "alarm_control_panel": true, "valve": true}
-
-// sayUnseen: "HA NOVA can't see what “X” does" ("…can't check how “X”
-// works" for a lock, cover, alarm, or valve); reached through an item, that
-// item leads ("This automation uses “X”, and …").
-func sayUnseen(name, via string, plain bool) string {
-	unseen := "HA NOVA can't see what " + name + " does"
-	that := "HA NOVA can't see what that does"
-	if plain {
-		unseen = "HA NOVA can't check how " + name + " works"
-		that = "HA NOVA can't check how that works"
-	}
-	switch {
-	case name == "" && via == "":
-		return "HA NOVA can't check everything this would set off"
-	case name == "":
-		return "HA NOVA can't check everything " + via + " would set off"
-	case via == "":
-		return unseen
-	}
-	first, size := utf8.DecodeRuneInString(via)
-	return string(unicode.ToUpper(first)) + via[size:] + " uses " + name + ", and " + that
 }
 
 // sayVia names the item a member reason runs through ("the automation

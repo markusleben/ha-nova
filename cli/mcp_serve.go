@@ -371,15 +371,8 @@ func (b *chatBridge) ownerID() (string, error) {
 
 // readOwner: the active owner from config/auth/list (under mcpVerbLock).
 func (b *chatBridge) readOwner() (string, error) {
-	override, active := serverSelectionOverride, activeServerProfile()
-	defer func() { setServerSelectionOverride(override); setActiveServerProfile(active) }()
-	s, err := newRelaySession(b.paths, verbOptions{server: b.pin, serverSet: b.pin != ""})
+	users, err := b.readUsers()
 	if err != nil {
-		return "", err
-	}
-	defer s.close()
-	var users []haUser
-	if err := s.phoneRead("ws", map[string]any{"type": "config/auth/list"}, &users); err != nil {
 		return "", err
 	}
 	for _, u := range users {

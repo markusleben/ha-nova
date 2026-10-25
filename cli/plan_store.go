@@ -73,6 +73,7 @@ type storedPlan struct {
 	ConfigRequest  *configRequest  `json:"config_request,omitempty"` // kinds write/delete/revert/restore
 	ConfigAction   *configAction   `json:"config_action,omitempty"`
 	RoomsRequest   *roomsRequest   `json:"rooms_request,omitempty"` // kind rooms (plan_rooms.go)
+	RawRequests    []rawRequest    `json:"raw_requests,omitempty"`  // kind raw (plan_raw.go); hashed exactly
 	Reasons        []tierReason    `json:"reasons"`
 	Basis          map[string]any  `json:"basis"`
 }
