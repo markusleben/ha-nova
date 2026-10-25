@@ -108,3 +108,47 @@ func TestStreamTokenNeverLeaves(t *testing.T) {
 	got, _ := marshalPlain(env)
 	check("ha_get", string(got), "/api/image_proxy/image.doorbell", secretHidden)
 }
+
+// Only a camera or image entity id opens the parse: a picture path that says
+// image. keeps the fast path (a parse would drop the repeated key).
+func TestRedactStreamTokensFastPath(t *testing.T) {
+	in := `{"entity_id":"light.desk","attributes":{"entity_picture":"/local/image.png?token=x"},"n":1,"n":2}`
+	if got := string(redactSecrets([]byte(in), false)); got != in {
+		t.Fatalf("got %s, want the original bytes", got)
+	}
+}
+
+// A template's output is plain text redaction cannot read: a render naming
+// the token or the picture is refused before anything is sent, on the CLI
+// and in ha_read; render_template is not a raw WS type at all.
+func TestTemplateCannotPrintStreamToken(t *testing.T) {
+	for _, body := range []string{
+		`{"method":"POST","path":"/api/template","body":{"template":"{{ state_attr('camera.door','access_token') }}"}}`,
+		`{"method":"post","path":"/api/template?x=1","body":{"template":"{{ states.image.doorbell.attributes.Entity_Picture }}"}}`,
+		`{"method":"POST","path":"/api/template","body":{"template":"{{ state_attr('camera.door','\u0061ccess_token') }}"}}`,
+		`{"method":"POST","path":"/api/template","body":"{\"template\":\"{{ state_attr('camera.door','ACCESS_TOKEN') }}\"}"}`,
+	} {
+		rawRefused(t, "core", body)
+	}
+	for _, body := range []string{`{"type":"render_template","template":"{{ 1 }}"}`, `{"message":{"type":"render_template","template":"{{ 1 }}"},"collect_events":{"max_events":1}}`} {
+		rawRefused(t, "ws", body)
+	}
+	rawAllowed(t, "core", `{"method":"POST","path":"/api/template","body":{"template":"{{ states('camera.door') }}"}}`)
+	rawAllowed(t, "core", `{"method":"POST","path":"/api/config/config_entries/flow/0123abcd","body":{"access_token":"x"}}`)
+
+	paths, hits := rawRelayCounter(t)
+	exit, out := captureCommandOutput(t, func() int {
+		return runRelayProxy(paths, "core", []string{"--method", "POST", "--path", "/api/template", "--body", `{"template":"{{ state_attr('camera.door','access_token') }}"}`})
+	})
+	if exit != rawRefusedExit || hits.Load() != 0 || !strings.Contains(out, "read the entity instead") {
+		t.Fatalf("relay core: exit %d hits %d out %s", exit, hits.Load(), out)
+	}
+
+	read, calls := readRelay(t, nil)
+	c := startMCP(t, read)
+	mcpInit(c)
+	env, code := readEnvelope(c.tool("ha_read", map[string]any{"endpoint": "core", "method": "POST", "path": "/api/template", "payload": map[string]any{"template": "{{ state_attr('image.doorbell','entity_picture') }}"}}))
+	if message, _ := env["error"].(map[string]any)["message"].(string); code != "REFUSED" || !strings.Contains(message, "read the entity instead") || len(calls()) != 0 {
+		t.Fatalf("ha_read: %s %v calls %d", code, env["error"], len(calls()))
+	}
+}

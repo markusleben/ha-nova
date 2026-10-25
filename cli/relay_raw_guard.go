@@ -82,7 +82,11 @@ func checkRawRelayRequest(endpoint string, body []byte) error {
 	case "core":
 		method, _ := payload["method"].(string)
 		raw, _ := payload["path"].(string)
-		return checkRawCore(strings.ToUpper(strings.TrimSpace(method)), raw)
+		method = strings.ToUpper(strings.TrimSpace(method))
+		if err := checkRawCore(method, raw); err != nil {
+			return err
+		}
+		return checkTemplateText(method, raw, payload["body"])
 	case "ws":
 		// The Relay sends `message` from a collect_events envelope (a body
 		// without `type`), else the body itself; both are checked when present.
@@ -95,6 +99,24 @@ func checkRawRelayRequest(endpoint string, body []byte) error {
 		if _, typed := payload["type"]; typed || !hasMessage {
 			return checkRawWS(payload)
 		}
+	}
+	return nil
+}
+
+// checkTemplateText: a template's output is plain text, where redaction
+// cannot find a camera's or image entity's access token (redactSecrets), so
+// a render that names one is not sent. A template built to get around this
+// is not covered.
+func checkTemplateText(method, raw string, body any) error {
+	pathPart, _, _ := strings.Cut(raw, "#")
+	pathPart, _, _ = strings.Cut(pathPart, "?")
+	if method != http.MethodPost || pathPart != "/api/template" {
+		return nil
+	}
+	text, _ := json.Marshal(body)
+	lower := strings.ToLower(string(text))
+	if strings.Contains(lower, "access_token") || strings.Contains(lower, "entity_picture") {
+		return rawRefusal("template naming access_token or entity_picture", "templates can't print a camera's or image's sign-in token; read the entity instead")
 	}
 	return nil
 }

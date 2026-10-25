@@ -36,7 +36,7 @@ func redactSecrets(body []byte, nonces bool) []byte {
 		!(nonces && bytes.Contains(body, []byte("HANOVA_"))) && !bytes.Contains(body, []byte("default_code")) &&
 		!bytes.Contains(body, []byte("create_backup")) && !bytes.Contains(body, []byte("active_dataset_tlvs")) &&
 		!bytes.Contains(body, []byte("data_schema")) && !bytes.Contains(body, []byte("discovery_data")) &&
-		!bytes.Contains(body, []byte(`/config"`)) && !bytes.Contains(body, []byte("camera.")) && !bytes.Contains(body, []byte("image.")) &&
+		!bytes.Contains(body, []byte(`/config"`)) && !bytes.Contains(body, []byte(`"camera.`)) && !bytes.Contains(body, []byte(`"image.`)) &&
 		!bytes.Contains(body, []byte(`\u`)) { // an escaped key spells none of these
 		return body
 	}
