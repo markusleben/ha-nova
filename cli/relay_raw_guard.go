@@ -226,6 +226,11 @@ func checkRawWS(message map[string]any) error {
 			return rawRefusal("change of a button's class (it decides whether pressing it needs a preview)", rawNextUI)
 		}
 		// A button rename is checked against the registry (relay_raw_targets.go).
+	case "config/device_registry/update":
+		device, _ := message["device_id"].(string)
+		if _, disables := message["disabled_by"]; disables && device == "" { // the registry check needs the device it names
+			return rawRefusal("disabling or enabling a device without its device_id", "name the device with its device_id, or "+rawNextUI)
+		}
 	}
 	return nil
 }

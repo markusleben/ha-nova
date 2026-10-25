@@ -13,9 +13,10 @@ import (
 )
 
 // rawGuardRelay is a Relay that answers the guard's registry and state
-// reads from registry() and classes (a cover with no class has no state),
-// and counts the registry reads and every request it forwards.
-func rawGuardRelay(t *testing.T, registry func() string, classes map[string]string) (paths runtimePaths, forwarded, registryReads *atomic.Int32) {
+// reads from registry() and classes (a cover with no class has no state, as
+// a disabled one; its registry entry then answers with stored[id]), and
+// counts the registry reads and every request it forwards.
+func rawGuardRelay(t *testing.T, registry func() string, classes, stored map[string]string) (paths runtimePaths, forwarded, registryReads *atomic.Int32) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -33,6 +34,11 @@ func rawGuardRelay(t *testing.T, registry func() string, classes map[string]stri
 				return
 			}
 			_, _ = fmt.Fprint(w, `{"ok":true,"data":{"status":404,"body":{"message":"Entity not found."}}}`)
+			return
+		}
+		if body["type"] == "config/entity_registry/get" {
+			id, _ := body["entity_id"].(string)
+			_, _ = fmt.Fprintf(w, `{"ok":true,"data":{"entity_id":%q,"device_class":null,"original_device_class":%q}}`, id, stored[id])
 			return
 		}
 		if body["type"] == "config/entity_registry/list" {
@@ -62,14 +68,21 @@ func rawGuardRelay(t *testing.T, registry func() string, classes map[string]stri
 func TestRawRelayRefusesDisablingAccessDevice(t *testing.T) {
 	registry := `[{"entity_id":"sensor.door_battery","device_id":"dlock"},{"entity_id":"lock.front_door","device_id":"dlock"},
 		{"entity_id":"alarm_control_panel.home","device_id":"dalarm"},{"entity_id":"cover.garage","device_id":"dgarage"},
-		{"entity_id":"cover.gate","device_id":"dgate"},{"entity_id":"cover.blind","device_id":"dblind"},{"entity_id":"switch.plug","device_id":"dplug"}]`
-	paths, forwarded, _ := rawGuardRelay(t, func() string { return registry }, map[string]string{"cover.garage": "garage", "cover.blind": "blind"})
+		{"entity_id":"cover.gate","device_id":"dgate"},{"entity_id":"cover.blind","device_id":"dblind"},{"entity_id":"switch.plug","device_id":"dplug"},
+		{"entity_id":"cover.curtain","device_id":"dcurtain"},{"entity_id":"cover.old_garage","device_id":"doldgarage"},
+		{"entity_id":"switch.gate_relay","device_id":"drelay"},{"entity_id":"cover.gate_relay","device_id":"drelay","platform":"switch_as_x"},
+		{"entity_id":"switch.lamp_relay","device_id":"dlamp"},{"entity_id":"light.lamp_relay","device_id":"dlamp","platform":"switch_as_x"}]`
+	paths, forwarded, _ := rawGuardRelay(t, func() string { return registry }, map[string]string{"cover.garage": "garage", "cover.blind": "blind"},
+		map[string]string{"cover.curtain": "curtain", "cover.old_garage": "garage"})
 	for _, body := range []string{
 		`{"type":"config/device_registry/update","device_id":"dlock","disabled_by":"user"}`,
 		`{"type":"config/device_registry/update","device_id":"dalarm","disabled_by":null}`, // enabling
 		`{"type":"config/device_registry/update","device_id":"dgarage","disabled_by":"user","name_by_user":"Garage"}`,
 		`{"type":"config/device_registry/update","device_id":"dgate","disabled_by":"user"}`, // no state, no class: fails closed
 		`{"message":{"type":"config/device_registry/update","device_id":"dlock","disabled_by":"user"},"collect_events":{"max_events":1}}`,
+		`{"type":"config/device_registry/update","device_id":"doldgarage","disabled_by":null}`,          // a disabled garage door: class from its registry entry
+		`{"type":"config/entity_registry/update","entity_id":"switch.gate_relay","disabled_by":"user"}`, // the switch a switch_as_x gate runs on
+		`{"type":"config/device_registry/update","disabled_by":"user"}`,                                 // no device named: fails closed
 	} {
 		var exit int
 		stderr := captureStderr(t, func() { exit = runRelayCommand(paths, []string{"ws", "--data", body}) })
@@ -84,13 +97,15 @@ func TestRawRelayRefusesDisablingAccessDevice(t *testing.T) {
 		`{"type":"config/device_registry/update","device_id":"dlock","name_by_user":"Front door","area_id":"hall"}`,
 		`{"type":"config/device_registry/update","device_id":"dplug","disabled_by":"user"}`,
 		`{"type":"config/device_registry/update","device_id":"dblind","disabled_by":"user"}`,
+		`{"type":"config/device_registry/update","device_id":"dcurtain","disabled_by":null}`, // a disabled curtain: class from its registry entry
+		`{"type":"config/entity_registry/update","entity_id":"switch.lamp_relay","disabled_by":"user"}`,
 	} {
 		if exit := runRelayCommand(paths, []string{"ws", "--data", body}); exit != 0 {
 			t.Errorf("%s: exit %d, want sent", body, exit)
 		}
 	}
-	if n := forwarded.Load(); n != 3 {
-		t.Fatalf("forwarded %d, want the 3 requests that disable no access entity", n)
+	if n := forwarded.Load(); n != 5 {
+		t.Fatalf("forwarded %d, want the 5 requests that disable no access entity", n)
 	}
 }
 
@@ -100,7 +115,7 @@ func TestRawRelayRefusesDisablingAccessDevice(t *testing.T) {
 func TestRawAccessTargetRecheckReadsLive(t *testing.T) {
 	var mu sync.Mutex
 	registry := `[{"entity_id":"switch.gate","device_id":"d1"}]`
-	paths, _, reads := rawGuardRelay(t, func() string { mu.Lock(); defer mu.Unlock(); return registry }, nil)
+	paths, _, reads := rawGuardRelay(t, func() string { mu.Lock(); defer mu.Unlock(); return registry }, nil, nil)
 	s, err := newRelaySession(paths, verbOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -124,7 +139,7 @@ func TestRawAccessTargetRecheckReadsLive(t *testing.T) {
 // The shared guard refuses exactly what the raw route refused before it
 // (the cases of relay_raw_guard_test.go), with the same words.
 func TestRawGuardReproducesRelayRefusals(t *testing.T) {
-	paths, forwarded, _ := rawGuardRelay(t, func() string { return `[]` }, nil)
+	paths, forwarded, _ := rawGuardRelay(t, func() string { return `[]` }, nil, nil)
 	core := func(method, path string) string {
 		body, _ := json.Marshal(map[string]any{"method": method, "path": path})
 		return string(body)
