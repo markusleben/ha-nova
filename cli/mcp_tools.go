@@ -76,10 +76,7 @@ var mcpTools = []mcpTool{mcpSkillTool,
 		schema: object([]string{"action", "entity_id"}, map[string]any{"action": map[string]any{"type": "string", "enum": []string{"latest", "list", "get"}},
 			"entity_id": prop("string", "automation.x or script.x"), "run_id": prop("string", "for action get")}),
 		argv: traceArgvChecked, run: runTraceCommand},
-	{name: "ha_read", title: "Advanced read", description: "A raw read-only Home Assistant request: core GET /api/... or a WS message from the read allowlist.", readOnly: true, idempotent: true,
-		schema: object([]string{"endpoint"}, map[string]any{"endpoint": map[string]any{"type": "string", "enum": []string{"core", "ws"}},
-			"path": prop("string", "core: /api/... path (GET only)"), "payload": prop("object", "ws: the message, e.g. {\"type\":\"search/related\",...}")}),
-		argv: readArgv, run: runMCPRead},
+	mcpReadTool,
 	{name: "ha_plan", title: "Plan a change", description: "Plan without executing: kind call (a service call), write (automation/script config), delete, revert, or restore (a deleted automation/script from the snapshot its delete result named). Returns a preview; a high-consequence plan needs a confirmation code the user types (no code is returned where their app asks for it in a form). coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
 		readOnly: true,
 		schema: object([]string{"kind"}, merged(callProperties, map[string]any{
@@ -240,8 +237,9 @@ func toolResult(name, out, errOut string, exit int, told map[string]bool, forms 
 	if forms {
 		next = formsNext(envelope, next)
 	}
+	images := imageContent(envelope)          // before the text: an image is never text
 	text := plainResult(envelope, next, told) // say, next_step, and answer_rule (mcp_plain.go)
-	return map[string]any{"content": []map[string]any{{"type": "text", "text": string(text)}}, "structuredContent": envelope,
+	return map[string]any{"content": append([]map[string]any{{"type": "text", "text": string(text)}}, images...), "structuredContent": envelope,
 		"isError": exit != 0 && exit != verbExitConfirmation}
 }
 

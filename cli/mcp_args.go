@@ -4,11 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/url"
 	"regexp"
-	"sort"
-	"strconv"
 	"strings"
 )
 
@@ -18,25 +14,6 @@ import (
 // bytes (and key order) intact.
 
 var runIDPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.:-]{0,127}$`) // never a flag
-
-var mcpConfigReadPattern = regexp.MustCompile(`^/api/config/(automation|script|scene)/config/[A-Za-z0-9_-]+$`)
-
-// mcpReadablePath is ha_read's explicit allowlist (the read surfaces the
-// skills use), on top of the shared readablePath deny list.
-func mcpReadablePath(raw string) bool {
-	if !readablePath(raw) {
-		return false
-	}
-	pathPart, _, _ := strings.Cut(raw, "?")
-	decoded, _ := url.PathUnescape(pathPart)
-	switch {
-	case decoded == "/api/states", decoded == "/api/config", decoded == "/api/services", decoded == "/api/events":
-		return true
-	case strings.HasPrefix(decoded, "/api/states/"), strings.HasPrefix(decoded, "/api/history/period"), strings.HasPrefix(decoded, "/api/logbook"):
-		return true
-	}
-	return mcpConfigReadPattern.MatchString(decoded)
-}
 
 func traceArgvChecked(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, error) {
 	entityID, runID := text(args, "entity_id"), text(args, "run_id")
@@ -164,57 +141,6 @@ func applyArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, erro
 		argv = append(argv, "--no-snapshot")
 	}
 	return argv, nil
-}
-
-func readArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
-	shell := " needs a client with a shell and the HA NOVA CLI: skip that evidence and say it was not checked"
-	switch text(args, "endpoint") {
-	case "core":
-		path := text(args, "path")
-		if !mcpReadablePath(path) {
-			return nil, fmt.Errorf("ha_read core reads only /api/states, /api/config, /api/services, /api/events, /api/history/period, /api/logbook, and stored automation/script/scene configs; %q%s", path, shell)
-		}
-		return []string{"core", path}, nil
-	default:
-		var payload struct {
-			Type string `json:"type"`
-		}
-		_ = json.Unmarshal(args["payload"], &payload)
-		if !readOnlyWSTypes[payload.Type] { // refused here, not as a Relay error that reads like a pairing problem
-			types := make([]string, 0, len(readOnlyWSTypes))
-			for wsType := range readOnlyWSTypes {
-				types = append(types, wsType)
-			}
-			sort.Strings(types)
-			return nil, fmt.Errorf("ha_read ws reads only %s; %q%s", strings.Join(types, ", "), payload.Type, shell)
-		}
-		return []string{"ws", string(args["payload"])}, nil
-	}
-}
-
-// runMCPRead is ha_read: one raw read through the session's read allowlist
-// (I1) — core GET /api/... or an allowlisted WS message.
-func runMCPRead(paths runtimePaths, argv []string) int {
-	return runReadVerb(paths, "read", verbOptions{}, func(s *relaySession, env *verbEnvelope) error {
-		if argv[0] == "core" {
-			status, body, err := s.coreGET(argv[1])
-			if err != nil {
-				return err
-			}
-			env.Result = map[string]any{"status": status, "body": body}
-			if status >= http.StatusBadRequest {
-				return &verbFailure{exit: verbExitError, code: "UPSTREAM_" + strconv.Itoa(status), message: fmt.Sprintf("Home Assistant answered HTTP %d", status)}
-			}
-			return nil
-		}
-		var payload map[string]any
-		if json.Unmarshal([]byte(argv[1]), &payload) != nil {
-			return &verbFailure{exit: verbExitError, code: "USAGE", message: "payload must be a WS message object"}
-		}
-		data, err := s.ws(payload)
-		env.Result = data
-		return err
-	})
 }
 
 // nextStep is the instruction a model must follow after this result

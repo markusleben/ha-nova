@@ -564,15 +564,9 @@ func relayEnvelopeResult(body []byte) (bool, bool) {
 // writes the raw bytes. A missing marker is an error, not a silent text write:
 // that would hand the caller a file full of JSON instead of an image.
 func writeRelayBinaryBody(envelope []byte, path string) error {
-	// body is RawMessage on purpose: a text/JSON body is not a string, and
-	// decoding must fail with the actionable "use --out" message instead of an
-	// unmarshal error about the field type.
 	var parsed struct {
-		OK   bool `json:"ok"`
-		Data struct {
-			Body         json.RawMessage `json:"body"`
-			BodyEncoding string          `json:"body_encoding"`
-		} `json:"data"`
+		OK   bool            `json:"ok"`
+		Data json.RawMessage `json:"data"`
 	}
 	if err := json.Unmarshal(envelope, &parsed); err != nil {
 		return fmt.Errorf("cannot read the relay response as JSON: %w", err)
@@ -580,21 +574,48 @@ func writeRelayBinaryBody(envelope []byte, path string) error {
 	if !parsed.OK {
 		return errors.New("relay returned an error envelope; run the request without --out-binary to see it")
 	}
-	if parsed.Data.BodyEncoding != "base64" {
-		return errors.New("upstream body is not binary (no base64 marker) — use --out instead of --out-binary")
+	raw, _, err := relayBinaryData(parsed.Data)
+	if errors.Is(err, errRelayBodyNotBinary) {
+		return fmt.Errorf("%w — use --out instead of --out-binary", err)
 	}
-	var encoded string
-	if err := json.Unmarshal(parsed.Data.Body, &encoded); err != nil {
-		return fmt.Errorf("binary body is marked base64 but is not a string: %w", err)
-	}
-	raw, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
-		return fmt.Errorf("cannot decode the binary body: %w", err)
+		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
 	return os.WriteFile(path, raw, 0o644)
+}
+
+var errRelayBodyNotBinary = errors.New("upstream body is not binary (no base64 marker)")
+
+// relayBinaryData decodes the base64 body of a Relay core result's data and
+// returns it with the upstream content type; shared by --out-binary and
+// ha_read's camera image.
+func relayBinaryData(data json.RawMessage) ([]byte, string, error) {
+	// body is RawMessage on purpose: a text/JSON body is not a string, and
+	// decoding must fail with errRelayBodyNotBinary instead of an unmarshal
+	// error about the field type.
+	var parsed struct {
+		Body         json.RawMessage `json:"body"`
+		BodyEncoding string          `json:"body_encoding"`
+		ContentType  string          `json:"content_type"`
+	}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return nil, "", fmt.Errorf("cannot read the relay response as JSON: %w", err)
+	}
+	if parsed.BodyEncoding != "base64" {
+		return nil, "", errRelayBodyNotBinary
+	}
+	var encoded string
+	if err := json.Unmarshal(parsed.Body, &encoded); err != nil {
+		return nil, "", fmt.Errorf("binary body is marked base64 but is not a string: %w", err)
+	}
+	raw, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, "", fmt.Errorf("cannot decode the binary body: %w", err)
+	}
+	return raw, parsed.ContentType, nil
 }
 
 func relayCoreUpstreamTaskSucceeded(body []byte) bool {

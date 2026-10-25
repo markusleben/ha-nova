@@ -142,11 +142,55 @@ func TestRawAccessTargetRecheckReadsLive(t *testing.T) {
 // (the cases of relay_raw_guard_test.go), with the same words.
 func TestRawGuardReproducesRelayRefusals(t *testing.T) {
 	paths, forwarded, _ := rawGuardRelay(t, func() string { return `[]` }, nil, nil)
+	refused, allowed := rawGuardCases()
+	for endpoint, bodies := range refused {
+		for _, body := range bodies {
+			want := checkRawRelayRequest(endpoint, []byte(body))
+			send, refusal, err := guardRawRequest(paths, verbOptions{}, endpoint, []byte(body))
+			if want == nil || refusal == nil || refusal.Error() != want.Error() || err != nil || send != nil {
+				t.Errorf("%s %s: refusal %v, err %v; want %v", endpoint, body, refusal, err, want)
+			}
+		}
+	}
+	for endpoint, bodies := range allowed {
+		for _, body := range bodies {
+			send, refusal, err := guardRawRequest(paths, verbOptions{}, endpoint, []byte(body))
+			if refusal != nil || err != nil || string(send) != body {
+				t.Errorf("%s %s: refusal %v, err %v, send %s; want sent unchanged", endpoint, body, refusal, err, send)
+			}
+		}
+	}
+	// A write that carries a hidden marker back is refused; a read may.
+	if _, refusal, _ := guardRawRequest(paths, verbOptions{}, "ws", []byte(`{"type":"backup/generate","password":"`+secretHidden+`"}`)); refusal == nil || !strings.Contains(refusal.Error(), "HA NOVA hid") {
+		t.Errorf("hidden marker in a write: refusal %v", refusal)
+	}
+	if _, refusal, _ := guardRawRequest(paths, verbOptions{}, "ws", []byte(`{"type":"search/related","item_id":"`+secretHidden+`"}`)); refusal != nil {
+		t.Errorf("hidden marker in a read: refused %v", refusal)
+	}
+	// backups: a snapshot never stores a code; files pass as sent.
+	snapshot := `{"action":"save","data":"{\"options\":{\"lock\":{\"default_code\":\"4711\"}}}"}`
+	if send, refusal, err := guardRawRequest(paths, verbOptions{}, "backups", []byte(snapshot)); refusal != nil || err != nil || strings.Contains(string(send), "4711") || !strings.Contains(string(send), secretHidden) {
+		t.Errorf("backups save: send %s, refusal %v, err %v", send, refusal, err)
+	}
+	if send, refusal, err := guardRawRequest(paths, verbOptions{}, "files", []byte(`{"action":"read_file","path":"packages/a.yaml"}`)); refusal != nil || err != nil || string(send) != `{"action":"read_file","path":"packages/a.yaml"}` {
+		t.Errorf("files read: send %s, refusal %v, err %v", send, refusal, err)
+	}
+	if _, refusal, err := guardRawRequest(paths, verbOptions{}, "trace", []byte(`{}`)); refusal != nil || err == nil {
+		t.Errorf("unknown endpoint: refusal %v, err %v; want an error", refusal, err)
+	}
+	if n := forwarded.Load(); n != 0 {
+		t.Fatalf("the guard sent %d requests; it only reads the registry", n)
+	}
+}
+
+// rawGuardCases: the raw requests of relay_raw_guard_test.go the guard
+// refuses and those it sends (ha_read's parity test reuses them).
+func rawGuardCases() (refused, allowed map[string][]string) {
 	core := func(method, path string) string {
 		body, _ := json.Marshal(map[string]any{"method": method, "path": path})
 		return string(body)
 	}
-	refused := map[string][]string{"core": {
+	refused = map[string][]string{"core": {
 		`{"method":"POST","path":"/api/services/lock/unlock","body":{"entity_id":"lock.front_door"}}`, `{"method":"post","path":"/api/services/lock/unlock?return_response"}`,
 		core("POST", "/api/%73ervices/lock/unlock"), core("POST", "/api/%2573ervices/cover/open_cover"), core("POST", "/api/x/../services/lock/unlock"),
 		`{"method":"POST","path":"/api/events/my_event","body":{}}`, core("POST", "/api/webhook/abc"), core("GET", "/api/webhook/abc"),
@@ -205,7 +249,7 @@ func TestRawGuardReproducesRelayRefusals(t *testing.T) {
 		refused["ws"] = append(refused["ws"], `{"message":{"type":"subscribe_events","event_type":"`+event+`"},"collect_events":{"max_events":1}}`,
 			`{"message":{"type":"subscribe_trigger","trigger":{"platform":"event","event_type":"`+event+`"}},"collect_events":{}}`)
 	}
-	allowed := map[string][]string{"core": {
+	allowed = map[string][]string{"core": {
 		core("GET", "/api/events"), core("GET", "/api/states/lock.front_door"), core("GET", "/api/config/automation/config/1"),
 		`{"method":"POST","path":"/api/config/config_entries/flow","body":{"handler":"trend"}}`, `{"method":"POST","path":"/api/config/scene/config/1","body":{}}`,
 		`{"method":"POST","path":"/api/template","body":{"template":"{{ 1 }}"}}`, core("POST", "/api/template#x"),
@@ -224,42 +268,5 @@ func TestRawGuardReproducesRelayRefusals(t *testing.T) {
 		`{"type":"config/entity_registry/update","entity_id":"button.doorbell","area_id":"hall"}`, `{"type":"energy/save_prefs","energy_sources":[]}`,
 		`{"type":"lovelace/resources/create","res_type":"module","url":"/hacsfiles/mushroom/mushroom.js"}`, `{"type":"lovelace/resources/update","resource_id":"x","res_type":"js"}`,
 	}}
-	for endpoint, bodies := range refused {
-		for _, body := range bodies {
-			want := checkRawRelayRequest(endpoint, []byte(body))
-			send, refusal, err := guardRawRequest(paths, verbOptions{}, endpoint, []byte(body))
-			if want == nil || refusal == nil || refusal.Error() != want.Error() || err != nil || send != nil {
-				t.Errorf("%s %s: refusal %v, err %v; want %v", endpoint, body, refusal, err, want)
-			}
-		}
-	}
-	for endpoint, bodies := range allowed {
-		for _, body := range bodies {
-			send, refusal, err := guardRawRequest(paths, verbOptions{}, endpoint, []byte(body))
-			if refusal != nil || err != nil || string(send) != body {
-				t.Errorf("%s %s: refusal %v, err %v, send %s; want sent unchanged", endpoint, body, refusal, err, send)
-			}
-		}
-	}
-	// A write that carries a hidden marker back is refused; a read may.
-	if _, refusal, _ := guardRawRequest(paths, verbOptions{}, "ws", []byte(`{"type":"backup/generate","password":"`+secretHidden+`"}`)); refusal == nil || !strings.Contains(refusal.Error(), "HA NOVA hid") {
-		t.Errorf("hidden marker in a write: refusal %v", refusal)
-	}
-	if _, refusal, _ := guardRawRequest(paths, verbOptions{}, "ws", []byte(`{"type":"search/related","item_id":"`+secretHidden+`"}`)); refusal != nil {
-		t.Errorf("hidden marker in a read: refused %v", refusal)
-	}
-	// backups: a snapshot never stores a code; files pass as sent.
-	snapshot := `{"action":"save","data":"{\"options\":{\"lock\":{\"default_code\":\"4711\"}}}"}`
-	if send, refusal, err := guardRawRequest(paths, verbOptions{}, "backups", []byte(snapshot)); refusal != nil || err != nil || strings.Contains(string(send), "4711") || !strings.Contains(string(send), secretHidden) {
-		t.Errorf("backups save: send %s, refusal %v, err %v", send, refusal, err)
-	}
-	if send, refusal, err := guardRawRequest(paths, verbOptions{}, "files", []byte(`{"action":"read_file","path":"packages/a.yaml"}`)); refusal != nil || err != nil || string(send) != `{"action":"read_file","path":"packages/a.yaml"}` {
-		t.Errorf("files read: send %s, refusal %v, err %v", send, refusal, err)
-	}
-	if _, refusal, err := guardRawRequest(paths, verbOptions{}, "trace", []byte(`{}`)); refusal != nil || err == nil {
-		t.Errorf("unknown endpoint: refusal %v, err %v; want an error", refusal, err)
-	}
-	if n := forwarded.Load(); n != 0 {
-		t.Fatalf("the guard sent %d requests; it only reads the registry", n)
-	}
+	return refused, allowed
 }

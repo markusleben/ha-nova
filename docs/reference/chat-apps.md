@@ -99,4 +99,5 @@ To stay on the older App: removing the NOVA App clears them too, but then every 
 - ChatGPT on a phone (its app or a phone browser) can answer questions, but it can't make changes through plugins you add yourself. For changes, use chatgpt.com on a computer, or the Claude app on your phone.
 - A code in the chat protects less than your phone (see above).
 - Access belongs to your Home Assistant account, not to a device: anyone who can use your Claude or ChatGPT account can reach your home through it. Remove the token in Home Assistant (above) if you lose control of that account.
-- Some changes, like helpers, dashboards, and files, still need HA NOVA on a computer. The assistant tells you when that is the case.
+- Some changes, like helpers, dashboards, and file edits, still need HA NOVA on a computer. The assistant tells you when that is the case.
+- With file access on in the NOVA Relay App, the assistant can read files in your configuration folder (never `secrets.yaml` or `.storage`). A file reaches the chat as written: a password or key typed straight into a YAML file, not into `secrets.yaml`, is seen by the AI, as it is with HA NOVA on a computer.

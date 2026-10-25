@@ -51,7 +51,7 @@ func TestMCPReadAllowlist(t *testing.T) {
 	c := startMCP(t, h.paths)
 	mcpInit(c)
 	for _, path := range []string{"/api/webhook/unlock-door-hook", "/api/hassio/addons", "/api/camera_proxy_stream/camera.door",
-		"/api/states/../webhook/x", "/api/states/%2E%2E/webhook/x", "/api/error_log", "/api/backup/download/x"} {
+		"/api/states/../webhook/x", "/api/states/%2E%2E/webhook/x", "/api/backup/download/x"} {
 		if res := c.tool("ha_read", map[string]any{"endpoint": "core", "path": path}); res["isError"] != true {
 			t.Fatalf("%s was readable: %v", path, res)
 		}
@@ -60,6 +60,11 @@ func TestMCPReadAllowlist(t *testing.T) {
 		if call.endpoint == "core" && !strings.HasPrefix(call.payload["path"].(string), "/api/states") {
 			t.Fatalf("ha_read sent %v", call.payload["path"])
 		}
+	}
+	before := len(h.log.all())
+	c.tool("ha_read", map[string]any{"endpoint": "core", "path": "/api/error_log"}) // what relay core reads
+	if calls := h.log.all(); len(calls) != before+1 || calls[before].payload["path"] != "/api/error_log" {
+		t.Fatalf("the error log was not read")
 	}
 	if res := c.tool("ha_read", map[string]any{"endpoint": "core", "path": "/api/config/automation/config/a1"}); res["structuredContent"].(map[string]any)["error"] != nil &&
 		res["structuredContent"].(map[string]any)["error"].(map[string]any)["code"] == "INVALID_ARGUMENTS" {

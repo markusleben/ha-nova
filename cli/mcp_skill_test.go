@@ -76,10 +76,10 @@ func TestMCPSkillTool(t *testing.T) {
 		t.Fatalf("ha_skill reached the Relay")
 	}
 
-	refused := c.tool("ha_read", map[string]any{"endpoint": "ws", "payload": map[string]any{"type": "system_log/list"}})["structuredContent"].(map[string]any)
+	refused := c.tool("ha_read", map[string]any{"endpoint": "ws", "payload": map[string]any{"type": "camera/stream", "entity_id": "camera.door"}})["structuredContent"].(map[string]any)
 	message, _ := refused["error"].(map[string]any)["message"].(string)
-	if refused["error"].(map[string]any)["code"] != "INVALID_ARGUMENTS" || !strings.Contains(message, "search/related") ||
-		!strings.Contains(message, "needs a client with a shell") || refused["next_step"] != nil {
+	if refused["error"].(map[string]any)["code"] != "REFUSED" || !strings.Contains(message, "this read is planned with ha_plan kind raw") ||
+		strings.Contains(message, "client with a shell") || refused["next_step"] != nil {
 		t.Fatalf("ha_read refused ws type: %v", refused)
 	}
 	for _, mapping := range []string{"ha-nova find|get|history|trace|map → ha_find|ha_get|ha_history|ha_trace|ha_map", "revert --target → id", "7\n  OUTCOME_UNKNOWN", "→ ha_read"} {
