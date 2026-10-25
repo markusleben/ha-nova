@@ -58,8 +58,8 @@ names a CLI command, use the tool:
   step you run needs it; "why does Claude ask every time?" → ha_skill name
   capability-answer.md
 - setup, pair, doctor, update, check-update, version, uninstall, cloud,
-  chat-apps: this sets up HA NOVA on a computer; tell the user to run it
-  there: "That sets up HA NOVA itself, so it runs on your computer:
+  chat-apps, status, server, try: this sets up HA NOVA on a computer; tell
+  the user to run it there: "That sets up HA NOVA itself, so it runs on your computer:
   ha-nova <command>."
 Pass a one-time code to ha_apply only when the user typed it in chat for that
 plan. Where a result says their app asks for it in a form, that form

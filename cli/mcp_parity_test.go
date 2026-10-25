@@ -1,9 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -105,115 +108,116 @@ func TestMCPParityPlanKindsAndDomains(t *testing.T) {
 // TestPlanRawTierCoversEveryAllowlistedRequest (plan_raw_tier_test.go) plans
 // every allowlisted raw write through kind raw and reads every allowlisted
 // read through ha_read or a plan; TestMCPReadRefusesWhatRelayRefuses
-// (mcp_read_test.go) refuses in ha_read what ha-nova relay refuses.
+// (mcp_read_test.go) refuses in ha_read what ha-nova relay refuses. The
+// table itself is mcp_parity_routes_test.go.
 
-// mcpComputerOnly (items 1 and 5): the commands that set up HA NOVA itself.
-// They have no chat route, their flags need no entry, and the header names
-// exactly these, in the bullet that says mcpComputerOnlySays.
-var mcpComputerOnly = []string{"setup", "pair", "doctor", "update", "check-update", "version", "uninstall", "cloud", "chat-apps"}
+// parityFunc returns a function's source, from its signature to its closing brace.
+func parityFunc(t *testing.T, file, from string) string {
+	t.Helper()
+	src, err := os.ReadFile(file)
+	at := strings.Index(string(src), from)
+	if err != nil || at < 0 {
+		t.Fatalf("%s: no %q (%v): the parity scan needs a new anchor", file, from, err)
+	}
+	body, _, _ := strings.Cut(string(src)[at:], "\n}\n")
+	return body
+}
 
-const mcpComputerOnlySays = "this sets up HA NOVA on a computer"
+// parityCommands: every command dispatch() runs, but internal-* and help.
+func parityCommands(t *testing.T) []string {
+	t.Helper()
+	var out []string
+	for _, m := range regexp.MustCompile(`(?m)^\tcase ((?:"[a-z-]+",? ?)+):`).FindAllStringSubmatch(parityFunc(t, "main.go", "func dispatch("), -1) {
+		for _, c := range regexp.MustCompile(`"([a-z][a-z-]*)"`).FindAllStringSubmatch(m[1], -1) {
+			if !strings.HasPrefix(c[1], "internal-") && c[1] != "help" && !slices.Contains(out, c[1]) {
+				out = append(out, c[1])
+			}
+		}
+	}
+	return out
+}
 
-// mcpParityRoutes (item 1): every command, subcommand, and flag the skills
-// name, and every flag in the usage of a command they use → its chat route,
-// "tool[ argument[=value]]" (alternatives joined by " | "), or the reason it
-// needs none. A flag is looked up under its subcommand, then its command.
-var mcpParityRoutes = map[string]string{
-	"apply": "ha_apply", "apply --plan": "ha_apply plan_id", "apply --confirm": "ha_apply confirm_code", "apply --no-snapshot": "ha_apply no_snapshot",
-	"call": "ha_call service", "call --match": "ha_call match", "call --area": "ha_call area", "call --device": "ha_call device",
-	"call --set": "ha_call data", "call --data-file": "ha_call data", "call --response": "ha_call response", "call --skill": "ha_call skill",
-	"diff": "ha_read endpoint=diff", "diff --before": "ha_read before", "diff --after": "ha_read after", "diff --out": "ha_read endpoint=diff",
-	"find": "ha_find phrase", "find --domain": "ha_find domain", "find --area": "ha_find area", "find --state": "ha_find state",
-	"find --limit": "ha_find limit", "find --include-disabled": "ha_find include_disabled", "find --aliases": "ha_find aliases",
-	"get": "ha_get entity_id", "get --config": "ha_get config", "get --related": "ha_get related", "get --references": "ha_get references",
-	"get --dashboard": "ha_get dashboard", "get --dashboards": "ha_get dashboards",
-	"history": "ha_history entity_id", "history --since": "ha_history since", "history --until": "ha_history until", "history --logbook": "ha_history logbook",
-	"map": "ha_map", "map --section": "ha_map section", "map --entity": "ha_map entity", "map --first-look": "ha_map first_look",
-	"map --insights": "ha_map insights", "map --limit": "ha_map limit",
-	"plan": "ha_plan kind", "plan --domain": "ha_plan domain", "plan --id": "ha_plan id",
-	"plan call": "ha_plan kind=call", "plan call --match": "ha_plan match", "plan call --area": "ha_plan area", "plan call --device": "ha_plan device",
-	"plan call --set": "ha_plan data", "plan call --data-file": "ha_plan data", "plan call --response": "ha_plan response", "plan call --skill": "ha_plan skill",
-	"plan write": "ha_plan kind=write", "plan write --create": "ha_plan create", "plan write --file": "ha_plan draft", "plan write --base": "ha_plan base",
-	"plan write --title": "ha_plan title", "plan write --icon": "ha_plan icon",
-	"plan delete": "ha_plan kind=delete", "plan revert": "ha_plan kind=revert", "plan revert --target": "ha_plan id",
-	"plan restore": "ha_plan kind=restore", "plan restore --snapshot": "ha_plan snapshot", "plan raw --file": "ha_plan requests",
-	"relay": "ha_read | ha_plan kind=raw", "relay ws": "ha_read endpoint=ws | ha_plan kind=raw", "relay core": "ha_read endpoint=core | ha_plan kind=raw",
-	"relay files": "ha_read endpoint=files | ha_plan kind=raw", "relay backups": "ha_read endpoint=backups | ha_plan kind=raw",
-	"relay health":      "every result carries notices[]: the session bootstrap is skipped",
-	"relay --data-file": "ha_read payload | ha_plan requests", "relay --body-file": "ha_read payload | ha_plan requests",
-	"relay --method": "ha_read method | ha_plan requests", "relay --path": "ha_read path | ha_plan requests",
-	"relay --out": "ha_read", "relay --out-binary": "ha_read endpoint=camera", "relay --strict-status": "ha_read",
-	"relay --jq": "ha_read jq", "relay --jq-file": "ha_read jq", "relay jq": "ha_read jq", "relay jq --file": "ha_read jq",
-	"relay jq -r": "results are JSON already: no raw-string flag", "relay jq -c": "results are JSON already: no compact flag",
-	"relay jq -e": "the header tells the model to check for null or false itself",
-	"snapshot":    "ha_read endpoint=snapshot", "snapshot show": "ha_read action=show", "snapshot verify": "ha_read action=verify",
-	"snapshot --list": "ha_read list", "snapshot --target": "ha_read target", "snapshot --against": "ha_read against",
-	"snapshot save": "ha_apply", "snapshot save --data-file": "ha_apply", // apply saves a helper update's checkpoint itself
-	"trace latest": "ha_trace action=latest", "trace list": "ha_trace action=list", "trace get": "ha_trace action=get",
-	"trace --json": "ha_trace", "trace --server": "a chat connection is pinned to one home",
+// parityUsages: the CLI's usage strings, from the parsed Go sources: every
+// string literal that starts with "ha-nova " or "Usage: ha-nova ", and the
+// whole value of every name ending in Usage.
+func parityUsages(t *testing.T) []string {
+	t.Helper()
+	files, _ := filepath.Glob("*.go")
+	fset := token.NewFileSet()
+	var usages []string
+	literal := func(node ast.Node) string {
+		lit, ok := node.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return ""
+		}
+		text, _ := strconv.Unquote(lit.Value)
+		return text
+	}
+	for _, name := range files {
+		if strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, name, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			if spec, ok := node.(*ast.ValueSpec); ok {
+				for i, id := range spec.Names {
+					if !strings.HasSuffix(id.Name, "Usage") || i >= len(spec.Values) {
+						continue
+					}
+					whole := ""
+					ast.Inspect(spec.Values[i], func(part ast.Node) bool {
+						whole += literal(part)
+						return true
+					})
+					usages = append(usages, whole)
+				}
+			}
+			if text := literal(node); strings.HasPrefix(text, "ha-nova ") || strings.HasPrefix(text, "Usage: ha-nova ") {
+				usages = append(usages, text)
+			}
+			return true
+		})
+	}
+	return usages
 }
 
 // parityUses maps every command key ("cmd" or "cmd sub") and flag key
 // ("cmd[ sub] --flag") the skills name, and every flag key in the usage of a
-// command they use, to where it was first seen.
-func parityUses(t *testing.T) map[string]string {
+// command they use, to where it was first seen; unknown maps a bare word
+// after a command that takes subcommands, when it is none of them.
+func parityUses(t *testing.T) (used, unknown map[string]string) {
 	t.Helper()
-	read := func(name, from string) string {
-		src, err := os.ReadFile(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		body, _, _ := strings.Cut(string(src)[strings.Index(string(src), from):], "\n}\n")
-		return body
-	}
 	commands := map[string]bool{}
-	for _, m := range regexp.MustCompile(`(?m)^\tcase ((?:"[a-z-]+",? ?)+):`).FindAllStringSubmatch(read("main.go", "func dispatch("), -1) {
-		for _, c := range regexp.MustCompile(`"([a-z-]+)"`).FindAllStringSubmatch(m[1], -1) {
-			commands[c[1]] = !strings.HasPrefix(c[1], "internal-")
-		}
-	}
-	for _, c := range mcpComputerOnly {
-		if !commands[c] {
-			t.Errorf("computer-only %s is no ha-nova command", c)
-		}
-		commands[c] = false
+	for _, c := range parityCommands(t) {
+		commands[c] = !slices.Contains(mcpComputerOnly, c)
 	}
 	subs := map[string]map[string]bool{"plan": {}}
-	for _, m := range regexp.MustCompile(`args\[0\] == "([a-z]+)"`).FindAllStringSubmatch(read("plan_call.go", "func runPlanCommand("), -1) {
+	for _, m := range regexp.MustCompile(`args\[0\] == "([a-z]+)"`).FindAllStringSubmatch(parityFunc(t, "plan_call.go", "func runPlanCommand("), -1) {
 		subs["plan"][m[1]] = true
 	}
-	var usages []string
-	sources, _ := filepath.Glob("*.go")
-	literal := regexp.MustCompile("\"(?:[^\"\\\\\\n]|\\\\.)*\"|`[^`]*`")
-	assigned := regexp.MustCompile(`Usage\s*=\s*$`)
-	for _, name := range sources {
-		src, _ := os.ReadFile(name)
-		for _, at := range literal.FindAllIndex(src, -1) {
-			text := strings.ReplaceAll(string(src[at[0]+1:at[1]-1]), `\n`, "\n")
-			if strings.HasSuffix(name, "_test.go") || !strings.HasPrefix(text, "Usage: ha-nova ") &&
-				!(strings.HasPrefix(text, "ha-nova ") && assigned.Match(src[bytes.LastIndexByte(src[:at[0]], '\n')+1:at[0]])) {
-				continue
+	usages := parityUsages(t)
+	for _, text := range usages {
+		for _, m := range regexp.MustCompile(`ha-nova ([a-z-]+) <([a-z|-]+)>`).FindAllStringSubmatch(text, -1) {
+			if subs[m[1]] == nil {
+				subs[m[1]] = map[string]bool{}
 			}
-			usages = append(usages, text)
-			for _, m := range regexp.MustCompile(`ha-nova ([a-z-]+) <([a-z|-]+)>`).FindAllStringSubmatch(text, -1) {
-				if subs[m[1]] == nil {
-					subs[m[1]] = map[string]bool{}
-				}
-				for _, sub := range strings.Split(m[2], "|") {
-					subs[m[1]][sub] = true
-				}
+			for _, sub := range strings.Split(m[2], "|") {
+				subs[m[1]][sub] = true
 			}
 		}
 	}
-	used := map[string]string{}
+	used, unknown = map[string]string{}, map[string]string{}
 	usedCommands := map[string]bool{}
-	note := func(key, where string) {
-		if _, seen := used[key]; !seen {
-			used[key] = where
+	note := func(seen map[string]string, key, where string) {
+		if _, ok := seen[key]; !ok {
+			seen[key] = where
 		}
 	}
 	invocation := regexp.MustCompile(`ha-nova ([a-z][a-z-]*)`)
-	subcommand := regexp.MustCompile("^ ([a-z][a-z-]*)(?:[\\s`]|$)")
+	bareWord := regexp.MustCompile("^ ([a-z][a-z-]*)(?:[\\s`]|$)")
 	flag := regexp.MustCompile(`(?:^|[\s\[(])(--?[a-z][a-z-]*)`)
 	scan := func(text, where string, inSpan func(int) bool, usage bool) {
 		for _, at := range invocation.FindAllStringSubmatchIndex(text, -1) {
@@ -228,15 +232,19 @@ func parityUses(t *testing.T) map[string]string {
 				rest = rest[:next]
 			}
 			key := command
-			if m := subcommand.FindStringSubmatch(rest); m != nil && subs[command][m[1]] {
+			if m := bareWord.FindStringSubmatch(rest); m != nil && subs[command] != nil {
+				if !subs[command][m[1]] {
+					note(unknown, command+" "+m[1], where)
+					continue
+				}
 				key, rest = command+" "+m[1], rest[len(m[0]):]
 			}
 			if !usage {
-				note(key, where)
+				note(used, key, where)
 				usedCommands[command] = true
 			}
 			for _, m := range flag.FindAllStringSubmatch(rest, -1) {
-				note(key+" "+m[1], where)
+				note(used, key+" "+m[1], where)
 			}
 		}
 	}
@@ -257,22 +265,32 @@ func parityUses(t *testing.T) map[string]string {
 	for _, usage := range usages {
 		scan(usage, "usage "+strconv.Quote(usage), func(int) bool { return false }, true)
 	}
-	return used
+	return used, unknown
 }
 
-// Parity item 1: a command or flag a skill names, or a flag in the usage of
-// a command they use, has a chat route or a reason; every route names a
-// tool argument that exists.
+// Parity item 1: a command, subcommand, or flag a skill names, or a flag in
+// the usage of a command they use, has a chat route or a reason; every
+// route names a tool argument that exists.
 func TestMCPParityEveryCommandAndFlagHasARoute(t *testing.T) {
-	used := parityUses(t)
+	used, unknown := parityUses(t)
 	if len(used) < 60 {
 		t.Fatalf("the scan found only %d commands and flags: %v", len(used), used)
 	}
+	for key, where := range unknown {
+		t.Errorf("%s: ha-nova %s: %q is no subcommand its usage names; add it to the usage and to mcpParityRoutes", where, key, strings.Fields(key)[1])
+	}
 	resolved := map[string]bool{}
 	for key, where := range used {
-		entry := key
-		if fields := strings.Fields(key); len(fields) == 3 && mcpParityRoutes[key] == "" {
-			entry = fields[0] + " " + fields[2]
+		fields, entry := strings.Fields(key), key
+		if mcpParityRoutes[key] == "" && strings.HasPrefix(fields[len(fields)-1], "-") {
+			base := strings.Join(fields[:len(fields)-1], " ")
+			if reason := mcpParityRoutes[base]; reason != "" && !strings.HasPrefix(reason, "ha_") {
+				resolved[base] = true
+				continue
+			}
+			if len(fields) == 3 {
+				entry = fields[0] + " " + fields[2]
+			}
 		}
 		if mcpParityRoutes[entry] == "" {
 			t.Errorf("%s: ha-nova %s has no chat route: add %q to mcpParityRoutes with its tool and argument, or the reason it has none", where, key, key)
@@ -311,8 +329,29 @@ func TestMCPParityEveryCommandAndFlagHasARoute(t *testing.T) {
 	}
 }
 
+// Every command is computer only, chat-routed, or exempt with a reason:
+// exactly one of them.
+func TestMCPParityEveryCommandIsClassified(t *testing.T) {
+	commands := parityCommands(t)
+	for _, command := range commands {
+		routed := false
+		for key := range mcpParityRoutes {
+			routed = routed || strings.Fields(key)[0] == command
+		}
+		if n := len(slices.DeleteFunc([]bool{slices.Contains(mcpComputerOnly, command), routed, mcpParityExempt[command] != ""}, func(b bool) bool { return !b })); n != 1 {
+			t.Errorf("ha-nova %s: in %d of mcpComputerOnly, mcpParityRoutes, mcpParityExempt; it belongs in exactly one", command, n)
+		}
+	}
+	for _, command := range append(slices.Collect(maps.Keys(mcpParityExempt)), mcpComputerOnly...) {
+		if !slices.Contains(commands, command) {
+			t.Errorf("%s is no ha-nova command any more", command)
+		}
+	}
+}
+
 // Parity item 5: the header names exactly mcpComputerOnly as computer only,
 // maps none of them to a tool, and maps every command that has a chat route.
+// What a bullet maps is the text before its last →.
 func TestMCPParityHeaderComputerOnly(t *testing.T) {
 	var bullets []string
 	for _, line := range strings.Split(mcpSkillHeader, "\n") {
@@ -325,11 +364,10 @@ func TestMCPParityHeaderComputerOnly(t *testing.T) {
 	}
 	var computer, mapped string
 	for _, bullet := range bullets {
-		switch {
-		case strings.Contains(bullet, mcpComputerOnlySays):
+		if strings.Contains(bullet, mcpComputerOnlySays) {
 			computer = bullet
-		case strings.Contains(bullet, "→"):
-			mapped += bullet + "\n"
+		} else if at := strings.LastIndex(bullet, "→"); at >= 0 {
+			mapped += bullet[:at] + "\n"
 		}
 	}
 	listed, _, _ := strings.Cut(computer, ":")

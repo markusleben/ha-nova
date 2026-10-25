@@ -137,9 +137,14 @@ function hits(rule: Rule, prev: string, cur: string, next: string): string[] {
     .map((m) => m[0]);
 }
 
+// The skills are text for the AI, with their own terms; only the chat-app limits that are no longer true are banned there.
+const skillRules = new Set(["needs-computer", "shell-client"]);
+const skillFiles = (readdirSync("skills", { recursive: true }) as string[]).filter((f) => f.endsWith(".md")).map((f) => `skills/${f}`);
+
 const surfaces: { file: string; lines: string[]; skip?: (id: string) => boolean }[] = [
   ...docs.map((file) => ({ file, lines: textLines(file) })),
   ...goFiles.flatMap(goSurfaces),
+  ...skillFiles.map((file) => ({ file, lines: textLines(file), skip: (id: string) => !skillRules.has(id) })),
 ];
 const used = new Set<number>();
 const found = new Map(
@@ -169,10 +174,12 @@ describe("canonical wording", () => {
       const rule = rules.find((r) => r.id === id)!;
       return new RegExp(rule.pattern!, rule.flags).test(text);
     };
-    for (const old of ["Helpers, dashboards, and files still need HA NOVA on a computer.", "That still needs HA NOVA on a computer."]) expect(hit("needs-computer", old)).toBe(true);
+    for (const old of ["Helpers, dashboards, and files still need HA NOVA on a computer.", "That still needs HA NOVA on your computer.", "It needs HA NOVA on the computer."]) expect(hit("needs-computer", old)).toBe(true);
+    for (const fine of ["Run ha-nova setup on your computer.", "That sets up HA NOVA itself, so it runs on your computer.", "the same as HA NOVA on a computer"]) expect(hit("needs-computer", fine)).toBe(false);
+    expect(skillFiles).toContain("skills/ha-nova/capability-answer.md");
     for (const old of ["Anything not mapped here needs a client with a shell and the HA NOVA CLI", "its writes need a shell client with the HA NOVA CLI"]) expect(hit("shell-client", old)).toBe(true);
     const header = readFileSync("cli/mcp_skill.go", "utf8");
-    expect(header).toContain("this sets up HA NOVA on a computer; tell the user to run it");
+    expect(header).toContain("this sets up HA NOVA on a computer;");
     for (const id of ["needs-computer", "shell-client"]) expect(hit(id, header)).toBe(false);
   });
 

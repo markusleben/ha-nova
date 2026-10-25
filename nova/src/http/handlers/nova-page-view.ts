@@ -258,7 +258,7 @@ function renderChatApps(m: PageModel, formOpen: string, csrfField: (action: Nova
       : `your phone ${escapeHtml(c.ownerPhone)} asks you`;
     // Claude asks before each step until its tools are on “Always allow”: with a phone that confirms, all of them.
     const next = c.ownerPhone === null
-      ? "In Claude, open Customize → Connectors → HA NOVA. Set every tool to “Always allow”, except “Run a confirmed change”: leave it on “Needs approval”. Then Claude still asks before a change you confirm with a code. Link a phone, and you can allow that one too."
+      ? "In Claude, open Customize → Connectors → HA NOVA. Set every tool to “Always allow”, except “Run a confirmed change”: leave it on “Needs approval”. Then Claude still asks before each bigger change. The AI can see a chat code, so that question is your own check. Link a phone, and you can allow that one too."
       : "In Claude, open Customize → Connectors → HA NOVA and set every tool to “Always allow”. HA NOVA still shows you a preview before bigger changes, and your phone asks before unlocks, the alarm, and deletes.";
     const url = m.chatConnectorUrl;
     body = `${url === null

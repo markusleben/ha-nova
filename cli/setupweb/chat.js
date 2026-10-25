@@ -28,8 +28,10 @@ window.novaChat = (h) => {
   };
   // What to set in Claude so it stops asking before each step: with a phone
   // that confirms, every tool; without, all but “Run a confirmed change”.
-  const claudeNext = (phone, id) => el('p', { class: 'fine', id }, el('strong', {}, t('setup.chat.next_title')), ' ',
-    t(phone ? 'setup.chat.next_phone' : 'setup.chat.next_code'));
+  // phone: the App's own state, never a name linked only on this computer. A
+  // re-run reads no phone (unread): the NOVA page shows whether one confirms.
+  const claudeNext = (phone, id, unread) => el('p', { class: 'fine', id }, el('strong', {}, t('setup.chat.next_title')), ' ',
+    t(phone ? 'setup.chat.next_phone' : 'setup.chat.next_code'), ...(unread && !phone ? [' ', t('setup.chat.next_check')] : []));
   const copy = (text) => (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard')))
     .then(() => toast(t('setup.chat.copied')), () => toast(t('setup.chat.copy_failed')));
   // How to add it, one fold per app (closed).
@@ -53,7 +55,7 @@ window.novaChat = (h) => {
     ...claudeHelp(chat.org_link, 'chat-claude-org', 'setup.chat.no_form'),
     el('div', { class: 'copybar' }, el('code', { id: 'chat-url' }, chat.url),
       el('button', { id: 'b-chat-copy', class: 'btn btn-ghost btn-small', type: 'button', onclick: () => copy(chat.url) }, t('setup.chat.copy'))),
-    claudeNext(chat.phone, 'chat-next'),
+    claudeNext(chat.phone_confirmed, 'chat-next', chat.state === 'page_on'),
     howTo('claude', 'setup.chat.claude_title', ['setup.chat.claude_1', 'setup.chat.claude_2', 'setup.chat.claude_3']),
     howTo('chatgpt', 'setup.chat.chatgpt_title', ['setup.chat.chatgpt_1', 'setup.chat.chatgpt_2', 'setup.chat.chatgpt_3'])];
   // The guide's own-HTTPS-address part: a plain link, not a third button.

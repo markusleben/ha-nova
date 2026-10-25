@@ -39,9 +39,9 @@ with both cases: in Claude, open Customize → Connectors → HA NOVA, then
   previews bigger changes, and the phone asks before unlocks, the alarm, and
   deletes.
 - with no phone: set every tool to "Always allow" except "Run a confirmed
-  change": leave it on "Needs approval", so Claude still asks before a
-  change confirmed with a code (the AI can see that code). With a phone
-  linked, that one can be allowed too.
+  change": leave it on "Needs approval". Then Claude still asks before each
+  bigger change. The AI can see a chat code, so that question is the user's
+  own check. With a phone linked, that one can be allowed too.
 
 Claude may ask again after an update.
 

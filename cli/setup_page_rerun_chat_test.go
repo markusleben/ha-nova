@@ -133,18 +133,19 @@ func TestPageChatNoteOnce(t *testing.T) {
 	phone := "Pixel"
 	a := &setupPageChat{State: "on", URL: "https://a.example/api/ha_nova/mcp", ClaudeLink: "https://claude.ai/a"}
 	f.pageChatNote(a, chatAppsState{OwnerPhone: &phone})
-	if a.Phone != "Pixel" || !f.pageChatPhoned || f.pageChatLink != "https://claude.ai/a" {
+	if !a.Confirmed || !f.pageChatPhoned || f.pageChatLink != "https://claude.ai/a" {
 		t.Fatalf("with the App's phone: row %+v, step 4 phone %v", a, f.pageChatPhoned)
 	}
 	b := &setupPageChat{State: "on", URL: "https://b.example/api/ha_nova/mcp", ClaudeLink: "https://claude.ai/b", Phone: "Pixel"}
 	f.pageChatNote(b, chatAppsState{})
-	if len(f.pageNotes) != 1 || f.pageNotes[0].Args["url"] != "https://b.example/api/ha_nova/mcp" || b.Phone != "" || f.pageChatPhoned || f.pageChatLink != "https://claude.ai/b" {
+	if len(f.pageNotes) != 1 || f.pageNotes[0].Args["url"] != "https://b.example/api/ha_nova/mcp" || b.Confirmed || f.pageChatPhoned || f.pageChatLink != "https://claude.ai/b" {
 		t.Fatalf("notes = %+v, row %+v, step 4 phone %v", f.pageNotes, b, f.pageChatPhoned)
 	}
 }
 
-// A phone the App refuses keeps the advice for no phone: the phone linked on
-// this computer doesn't confirm for chat apps.
+// A phone the App refuses keeps the advice for no phone, also after "Use
+// another phone" names the phone linked on this computer: it doesn't
+// confirm for chat apps.
 func TestSetupPageChatRefusedPhoneKeepsNoPhoneAdvice(t *testing.T) {
 	app := &fakeChatApp{state: chatAppsState{Available: true, Enabled: true}, phoneErr: errSetupExit}
 	useChatApps(t, app, &fakeChatHA{first: chatHAReady}, chatTestLink)
@@ -152,7 +153,11 @@ func TestSetupPageChatRefusedPhoneKeepsNoPhoneAdvice(t *testing.T) {
 	f := &setupFlow{paths: paths, ui: setupTextUI{out: io.Discard}}
 	on := &setupPageChat{State: "on", URL: chatTestLink + "/api/ha_nova/mcp"}
 	f.pageChatPhone(on, &chatAppsOffer{state: app.state})
-	if on.Problem == nil || on.Problem.Key != "setup.chat.problem_phone" || on.Phone != "" || f.pageChatPhoned {
+	if on.Problem == nil || on.Problem.Key != "setup.chat.problem_phone" || on.Confirmed || f.pageChatPhoned {
 		t.Fatalf("refused phone: row %+v, step 4 phone %v", on, f.pageChatPhoned)
+	}
+	f.pageChatMoved(on, &chatAppsOffer{state: app.state})
+	if on.Phone != "Markus’ iPhone" || on.Confirmed || f.pageChatPhoned {
+		t.Fatalf("after Use another phone: row %+v, step 4 phone %v", on, f.pageChatPhoned)
 	}
 }

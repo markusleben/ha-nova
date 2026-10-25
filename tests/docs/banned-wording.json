@@ -69,7 +69,7 @@
     {
       "id": "needs-computer",
       "scope": "all",
-      "pattern": "\\bneeds? HA NOVA on a computer\\b",
+      "pattern": "\\bneeds? HA NOVA on (a|your|the) computer\\b",
       "flags": "i",
       "why": "Chat apps do what HA NOVA on a computer does. Only setting up HA NOVA itself (setup, pairing, updates, chat apps on or off) runs on a computer.",
       "use": "That sets up HA NOVA itself, so it runs on your computer: ha-nova <command>."

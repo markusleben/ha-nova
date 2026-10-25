@@ -86,16 +86,13 @@ func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func
 
 // pageChatNote: step 4 repeats the connector address, with Add to Claude
 // and what to set in Claude, by whether the App holds a phone that confirms
-// for chat apps (the row names it); once, also when the row is read again
-// (a re-run's "Set up … too").
+// for chat apps (only the App's state counts); once, also when the row is
+// read again (a re-run's "Set up … too").
 func (f *setupFlow) pageChatNote(c *setupPageChat, state chatAppsState) {
-	c.Phone = ""
-	if state.OwnerPhone != nil {
-		c.Phone = terminalSafeName(*state.OwnerPhone)
-	}
+	c.Confirmed = state.OwnerPhone != nil
 	f.pageNotes = slices.DeleteFunc(f.pageNotes, func(n *setupPageMsg) bool { return n.Key == "setup.page.home.note_chat" })
 	f.pageNotes = append(f.pageNotes, setupPageText("setup.page.home.note_chat", "url", c.URL))
-	f.pageChatLink, f.pageOrgLink, f.pageChatPhoned = c.ClaudeLink, c.OrgLink, c.Phone != ""
+	f.pageChatLink, f.pageOrgLink, f.pageChatPhoned = c.ClaudeLink, c.OrgLink, c.Confirmed
 }
 
 // pageChatPhone follows a phone linked on step 3 after the chat row was
@@ -116,7 +113,6 @@ func (f *setupFlow) pageChatPhone(c *setupPageChat, offer *chatAppsOffer) {
 			c.Problem = setupPageText("setup.chat.problem_phone")
 		}
 		f.pageChatNote(c, offer.state)
-		return
 	}
 	c.Phone = chatAppsPhoneName(f.paths, setupSignedInUser, offer.state)
 }

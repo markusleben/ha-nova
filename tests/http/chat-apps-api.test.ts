@@ -318,7 +318,7 @@ describe("NOVA page: Chat apps", () => {
     expect(phone).toContain(`${lead} and set every tool to “Always allow”. HA NOVA still shows you a preview before bigger changes, and your phone asks before unlocks, the alarm, and deletes. Claude may ask again after an update.</p>`);
     expect(phone).not.toContain("Run a confirmed change");
     const none = await render(null);
-    expect(none).toContain(`${lead}. Set every tool to “Always allow”, except “Run a confirmed change”: leave it on “Needs approval”. Then Claude still asks before a change you confirm with a code. Link a phone, and you can allow that one too. Claude may ask again after an update.</p>`);
+    expect(none).toContain(`${lead}. Set every tool to “Always allow”, except “Run a confirmed change”: leave it on “Needs approval”. Then Claude still asks before each bigger change. The AI can see a chat code, so that question is your own check. Link a phone, and you can allow that one too. Claude may ask again after an update.</p>`);
     expect(none.indexOf("Next: stop Claude")).toBeGreaterThan(none.indexOf("Add to Claude</a>"));
     const noAddress = await run(createNovaPageHandler({ ...pageDeps({ ...fakeChatApps(), status: () => ({ ...status, enabled: true }) }), connectorUrl: async () => null }), request("owner-1"));
     expect(noAddress.body).not.toContain("Next: stop Claude"); // nothing to add yet
