@@ -146,6 +146,7 @@ Release-bound (Go, App). PRs, each with reviewers per `AGENTS.md`:
 
 Tool text changes ship in the same release as the directory-readiness texts, so "Always allow" resets once.
 
-## Open decision (maintainer)
+## Decisions (maintainer, 2026-10-25)
 
-1. "Always allow" advice by phone, as above (agent default), or always all tools (simpler copy; without a phone the AI could then confirm a chat code it saw on its own).
+1. Chat apps reach CLI parity before the 0.28 release; no quick 0.27.4.
+2. "Always allow" advice by phone, as above: all tools with a linked phone; without one, "Run a confirmed change" stays on "Needs approval".
