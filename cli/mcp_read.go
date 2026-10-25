@@ -191,19 +191,23 @@ func runMCPRead(paths runtimePaths, argv []string) int {
 	if err := fs.Parse(argv[1:]); err != nil {
 		return verbUsageError("read", err)
 	}
-	var program *jqProgram
+	var run jqRun
 	if *filter != "" {
-		var err error
-		if program, err = compileJQFilter(*filter); err != nil {
+		program, err := compileJQFilter(*filter)
+		if err != nil {
 			return verbUsageError("read", err)
+		}
+		run = inProcessJQ(program)
+		if chatCall != nil { // ha-nova serve: a filter's memory stays out of the bridge (mcp_read_jq.go)
+			run = childJQ(*filter)
 		}
 	}
 	endpoint := argv[0]
 	switch endpoint {
 	case "snapshot":
-		return runOfflineRead(paths, endpoint, program, func() (json.RawMessage, error) { return readSnapshot(paths, *action, fs.Args()) })
+		return runOfflineRead(paths, endpoint, run, func() (json.RawMessage, error) { return readSnapshot(paths, *action, fs.Args()) })
 	case "diff":
-		return runOfflineRead(paths, endpoint, program, func() (json.RawMessage, error) { return readDiff(paths, fs.Args()) })
+		return runOfflineRead(paths, endpoint, run, func() (json.RawMessage, error) { return readDiff(paths, fs.Args()) })
 	}
 	relayEndpoint := endpoint
 	if endpoint == "camera" {
@@ -242,7 +246,7 @@ func runMCPRead(paths runtimePaths, argv []string) int {
 		if failure := upstreamFailure(relayEndpoint, envelope); failure != nil {
 			return failure
 		}
-		result, err := readResult(endpoint, envelope, program)
+		result, err := readResult(endpoint, envelope, run)
 		env.Result = result
 		return err
 	})

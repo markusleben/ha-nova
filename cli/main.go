@@ -30,6 +30,9 @@ func main() {
 	); handled {
 		os.Exit(exitCode)
 	}
+	if handled, exitCode := maybeRunJQChild(os.Args[1:], os.Stdin, os.Stdout); handled {
+		os.Exit(exitCode)
+	}
 	paths, err := detectPaths()
 	if err != nil {
 		printErr("%s", err)

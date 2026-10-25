@@ -107,17 +107,17 @@ func readCamera(env *verbEnvelope, data json.RawMessage) error {
 // readResult applies the jq filter (one output as is, several or none as a
 // list; bounded in time and output) and refuses a result over
 // mcpReadMaxResult: nothing partial.
-func readResult(endpoint string, input []byte, program *jqProgram) (json.RawMessage, error) {
+func readResult(endpoint string, input []byte, run jqRun) (json.RawMessage, error) {
 	tooLarge := func(size string) error {
 		return &verbFailure{exit: verbExitError, code: "RESULT_TOO_LARGE", message: "the result is " + size + " over ha_read's 64 KiB; nothing of it is returned",
 			next: "Filter with jq: read again with jq set to a filter that keeps only what you need, e.g. " + mcpTooLargeHint[endpoint] + "."}
 	}
 	result := input
-	if program != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), mcpJQDeadline)
-		res, err := applyCompiledJQFilterWithin(ctx, program, input, false, mcpReadMaxResult)
-		cancel()
+	if run != nil {
+		res, err := run(input)
 		switch {
+		case errors.Is(err, errJQChildFailed):
+			return nil, &verbFailure{exit: verbExitError, code: "JQ_FAILED", message: "jq: the filter needed too much memory or time; use a simpler filter", next: "Nothing was changed. Use a simpler filter, or read less (a narrower path or message), and read again."}
 		case errors.Is(err, errJQOutputLimit):
 			return nil, tooLarge("(after jq)")
 		case errors.Is(err, context.DeadlineExceeded):
@@ -147,11 +147,11 @@ func readResult(endpoint string, input []byte, program *jqProgram) (json.RawMess
 
 // runOfflineRead runs a read that needs no Relay (snapshot, diff) into the
 // verb envelope.
-func runOfflineRead(paths runtimePaths, endpoint string, program *jqProgram, read func() (json.RawMessage, error)) int {
+func runOfflineRead(paths runtimePaths, endpoint string, run jqRun, read func() (json.RawMessage, error)) int {
 	env := verbEnvelope{SchemaVersion: 1, Verb: "read", Status: "ok"}
 	result, err := read()
 	if err == nil {
-		result, err = readResult(endpoint, result, program)
+		result, err = readResult(endpoint, result, run)
 	}
 	env.Notices = verbNotices(paths, "")
 	exit := verbExitOK
