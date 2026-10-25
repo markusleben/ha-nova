@@ -1,8 +1,11 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
 	"regexp"
 	"slices"
 	"strings"
@@ -14,19 +17,25 @@ import (
 // registry row, or reconfiguring an entry, can remove a lock, alarm panel,
 // or access cover (or change its class) that marks a sibling switch, button,
 // or switch_as_x source as typed; renaming a factory-reset button drops the
-// word that makes its press typed. Before sending one, the CLI reads the
+// word that makes its press typed; disabling a device, or the switch a
+// switch_as_x lock or cover runs on, takes that lock, alarm panel, or access
+// cover out of service with it. Before sending one, the CLI reads the
 // registry and refuses it when the target is such an entity.
 
 var rawEntryDeletePath = regexp.MustCompile(`^/api/config/config_entries/entry/([A-Za-z0-9_-]+)$`)
 
 const rawNextAccessTarget = "it controls a lock, alarm panel, or access cover, and removing or reconfiguring it would change which actions need the one-time code; do this in the Home Assistant UI"
 
-// rawAccessTarget names the entry or entity a raw request would remove or
-// reconfigure ("" = not one of the three).
-func rawAccessTarget(endpoint string, body []byte) (entryID, entityID, button string) {
+// rawTarget: the entry or entity a raw request would remove or reconfigure,
+// the button it would rename, the device it would disable or enable, or the
+// switch it would disable or enable (a switch_as_x lock or cover runs on it;
+// zero = none of these).
+type rawTarget struct{ entry, entity, button, device, source string }
+
+func rawAccessTarget(endpoint string, body []byte) rawTarget {
 	payload, ok := decodeObject(body)
 	if !ok {
-		return "", "", ""
+		return rawTarget{}
 	}
 	switch endpoint {
 	case "core":
@@ -36,17 +45,17 @@ func rawAccessTarget(endpoint string, body []byte) (entryID, entityID, button st
 		pathPart, _, _ := strings.Cut(raw, "#")
 		pathPart, _, _ = strings.Cut(pathPart, "?")
 		if m := rawEntryDeletePath.FindStringSubmatch(pathPart); m != nil && method == "DELETE" {
-			return m[1], "", ""
+			return rawTarget{entry: m[1]}
 		}
 		inner, _ := payload["body"].(map[string]any)
 		switch {
 		case method != "POST":
 		case pathPart == "/api/config/config_entries/options/flow": // handler is the entry id
 			handler, _ := inner["handler"].(string)
-			return handler, "", ""
+			return rawTarget{entry: handler}
 		case pathPart == "/api/config/config_entries/flow": // a reconfigure flow names its entry
 			entry, _ := inner["entry_id"].(string)
-			return entry, "", ""
+			return rawTarget{entry: entry}
 		}
 	case "ws":
 		for _, message := range []any{payload, payload["message"]} {
@@ -55,23 +64,28 @@ func rawAccessTarget(endpoint string, body []byte) (entryID, entityID, button st
 			id = strings.ToLower(id)
 			_, renames := m["name"]
 			_, newID := m["new_entity_id"]
+			_, disables := m["disabled_by"]
+			device, _ := m["device_id"].(string)
 			switch {
 			case m["type"] == "config/entity_registry/remove":
-				return "", id, ""
+				return rawTarget{entity: id}
 			case m["type"] == "config/entity_registry/update" && strings.HasPrefix(id, "button.") && (renames || newID):
-				return "", "", id
+				return rawTarget{button: id}
+			case m["type"] == "config/device_registry/update" && disables:
+				return rawTarget{device: device}
+			case m["type"] == "config/entity_registry/update" && disables && strings.HasPrefix(id, "switch."):
+				return rawTarget{source: id}
 			}
 		}
 	}
-	return "", "", ""
+	return rawTarget{}
 }
 
 // checkRawAccessTarget reads the registry for a request rawAccessTarget
 // names: refusal is the safety rule (exit 4), err a failed read (exit 1) —
 // either way nothing is sent unchecked.
 func checkRawAccessTarget(paths runtimePaths, opts verbOptions, endpoint string, body []byte) (refusal, err error) {
-	entryID, entityID, button := rawAccessTarget(endpoint, body)
-	if entryID == "" && entityID == "" && button == "" {
+	if rawAccessTarget(endpoint, body) == (rawTarget{}) {
 		return nil, nil
 	}
 	s, err := newRelaySession(paths, opts)
@@ -79,22 +93,62 @@ func checkRawAccessTarget(paths runtimePaths, opts verbOptions, endpoint string,
 		return nil, err
 	}
 	defer s.close()
+	return checkRawAccessTargetIn(s, endpoint, body)
+}
+
+// checkRawAccessTargetIn is checkRawAccessTarget on an open session. It
+// reads the registry and cover states live, never from the session's memo,
+// so a caller sending several requests runs it right before each send: an
+// earlier one may have renamed an entity id or finished a flow.
+func checkRawAccessTargetIn(s *relaySession, endpoint string, body []byte) (refusal, err error) {
+	target := rawAccessTarget(endpoint, body)
+	if target == (rawTarget{}) {
+		return nil, nil
+	}
 	var rows []struct {
 		EntityID      string `json:"entity_id"`
 		ConfigEntryID string `json:"config_entry_id"`
+		DeviceID      string `json:"device_id"`
+		Platform      string `json:"platform"`
 		Name          string `json:"name"`
 		OriginalName  string `json:"original_name"`
 	}
-	if err := s.wsDecode(map[string]any{"type": "config/entity_registry/list"}, &rows, "the entity registry"); err != nil {
+	data, err := s.readFresh("ws", map[string]any{"type": "config/entity_registry/list"}, relaySessionRequestTimeout)
+	if err == nil {
+		if uerr := json.Unmarshal(data, &rows); uerr != nil {
+			err = fmt.Errorf("cannot parse the entity registry: %w", uerr)
+		} else if rows == nil { // a real empty registry is []
+			err = errors.New("the entity registry came back empty")
+		}
+	}
+	if err != nil {
 		return nil, errors.New("cannot read what this request would remove or reconfigure, so nothing was sent: " + err.Error())
 	}
+	if target.source != "" {
+		for _, row := range rows {
+			if row.EntityID == target.source {
+				target.device = row.DeviceID
+			}
+		}
+		for _, row := range rows {
+			if row.Platform == "switch_as_x" && row.DeviceID == target.device && accessCapable(row.EntityID, coverClass(s, row.EntityID)) {
+				return rawRefusal("disabling or enabling "+target.source+", which runs "+row.EntityID+" (a disabled lock, alarm panel, or cover stops working in Home Assistant, so a door can't be locked or the alarm armed)", rawNextUI), nil
+			}
+		}
+		return nil, nil
+	}
 	for _, row := range rows {
-		if row.EntityID == button && destructiveButtonText(row.EntityID+" "+row.Name+" "+row.OriginalName) {
+		if row.EntityID == target.button && destructiveButtonText(row.EntityID+" "+row.Name+" "+row.OriginalName) {
 			return rawRefusal("rename of "+row.EntityID+" (its name marks a press as needing the one-time code)", rawNextUI), nil
 		}
-		if (row.EntityID == entityID || (entryID != "" && row.ConfigEntryID == entryID)) && accessCapable(row.EntityID, coverClass(s, row.EntityID)) {
-			return rawRefusal("removal or reconfiguration of "+row.EntityID, rawNextAccessTarget), nil
+		owned := row.EntityID == target.entity || (target.entry != "" && row.ConfigEntryID == target.entry) || (target.device != "" && row.DeviceID == target.device)
+		if !owned || !accessCapable(row.EntityID, coverClass(s, row.EntityID)) {
+			continue
 		}
+		if target.device != "" {
+			return rawRefusal("disabling or enabling device "+target.device+", which has "+row.EntityID+" (a disabled lock, alarm panel, or cover stops working in Home Assistant, so a door can't be locked or the alarm armed)", rawNextUI), nil
+		}
+		return rawRefusal("removal or reconfiguration of "+row.EntityID, rawNextAccessTarget), nil
 	}
 	return nil, nil
 }
@@ -111,20 +165,40 @@ func destructiveButtonText(text string) bool {
 }
 
 // coverClass: a cover's effective class from its state (the registry list
-// carries none); "" for other domains or when unreadable, which fails closed
+// carries none), else, for a cover with no state (disabled), from its
+// registry entry; "" for other domains or when unreadable, which fails closed
 // (accessCapable treats a cover with no known class as access-capable).
+// Read live, never from the session memo: an earlier send may have changed it.
 func coverClass(s *relaySession, entityID string) string {
 	if !strings.HasPrefix(entityID, "cover.") {
 		return ""
 	}
-	status, body, err := s.coreGET("/api/states/" + entityID)
+	data, err := s.readFresh("core", map[string]any{"method": http.MethodGet, "path": "/api/states/" + entityID}, relaySessionRequestTimeout)
+	var core struct {
+		Status int             `json:"status"`
+		Body   json.RawMessage `json:"body"`
+	}
 	var st struct {
 		Attributes struct {
 			DeviceClass string `json:"device_class"`
 		} `json:"attributes"`
 	}
-	if err != nil || status != 200 || json.Unmarshal(body, &st) != nil {
+	if err == nil && json.Unmarshal(data, &core) == nil && core.Status == 200 {
+		if json.Unmarshal(core.Body, &st) != nil {
+			return ""
+		}
+		return st.Attributes.DeviceClass
+	}
+	if err != nil || core.Status != 404 {
 		return ""
 	}
-	return st.Attributes.DeviceClass
+	var entry struct {
+		DeviceClass         string `json:"device_class"`
+		OriginalDeviceClass string `json:"original_device_class"`
+	}
+	data, err = s.readFresh("ws", map[string]any{"type": "config/entity_registry/get", "entity_id": entityID}, relaySessionRequestTimeout)
+	if err != nil || json.Unmarshal(data, &entry) != nil {
+		return ""
+	}
+	return cmp.Or(entry.DeviceClass, entry.OriginalDeviceClass)
 }

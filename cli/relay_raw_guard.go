@@ -219,13 +219,18 @@ func checkRawWS(message map[string]any) error {
 			// cloud exposure (cloud.* disable_2fa), or switch_as_x wiring.
 			return rawRefusal("change of "+entityID+"'s options (only a sensor's or number's own display options are changed from here: options_domain must be the entity's domain, sensor or number)", rawNextUI)
 		case disables && (domain == "lock" || domain == "alarm_control_panel" || domain == "cover"):
-			return rawRefusal("disabling or enabling "+entityID+" (a disabled lock, alarm panel, or cover no longer marks its device's buttons and switches as needing the one-time code)", rawNextUI)
+			return rawRefusal("disabling or enabling "+entityID+" (a disabled lock, alarm panel, or cover stops working in Home Assistant, so a door can't be locked or the alarm armed)", rawNextUI)
 		case setsClass && strings.HasPrefix(entityID, "cover."):
 			return rawRefusal("change of a cover's \"Show as\" class (it decides whether opening needs the one-time code)", rawNextUI)
 		case setsClass && strings.HasPrefix(entityID, "button."):
 			return rawRefusal("change of a button's class (it decides whether pressing it needs a preview)", rawNextUI)
 		}
 		// A button rename is checked against the registry (relay_raw_targets.go).
+	case "config/device_registry/update":
+		device, _ := message["device_id"].(string)
+		if _, disables := message["disabled_by"]; disables && device == "" { // the registry check needs the device it names
+			return rawRefusal("disabling or enabling a device without its device_id", "name the device with its device_id, or "+rawNextUI)
+		}
 	}
 	return nil
 }

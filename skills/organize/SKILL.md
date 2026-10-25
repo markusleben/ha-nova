@@ -27,7 +27,7 @@ Not in scope:
 - zones, persons, tags (`ha-nova:admin`)
 - energy management (`ha-nova:energy`) or calendar management (`ha-nova:calendar`)
 
-Hand off to the skill named per line; surfaces without one go to `ha-nova:fallback`.
+Hand off per line; anything else goes to `ha-nova:fallback`.
 
 ## Bootstrap (once per session)
 
@@ -48,8 +48,6 @@ Registry commands owned here:
 - `config/category_registry/list|create|update|delete`
 - `config/entity_registry/get|list|update`
 - `config/device_registry/list|update`
-
-Use `search/related` when a delete needs a quick impact preview on linked items.
 
 ## Flow
 
@@ -103,11 +101,11 @@ Use only exposed metadata fields:
 - `icon`, `device_class`, `options`, and area labels or sensors: read `display-fields.md` first
 - device: `name_by_user`, `area_id`, `labels`, `disabled_by`
 
-Do not guess unsupported fields.
+Refused here: disabling or enabling a lock, alarm panel, or cover; a device with a lock, alarm panel, or access cover; or a switch whose device has a `switch_as_x` one (registry `platform: switch_as_x`). Say so before any preview; point at **Settings > Devices & services**.
 
-Re-ENABLING a registry-disabled item depends on WHO disabled it (`disabled_by`): `"user"` or `"integration"` (disabled by default) → the write `{"disabled_by": null}` on the entity record; `"device"` → the entity follows its parent — re-enable the DEVICE record (`{"disabled_by": null}` on the device registry entry, same preview/consumer rules as a device-level disable), never the entity alone; `"config_entry"` (the integration itself is disabled) → not writable from any HA NOVA skill (entry enable/disable is External in the capability map): say so and point at **Settings > Devices & services**. It is lower-risk than disabling (nothing loses state), still previewed and confirmed; after the write read the response: `require_restart: true` → the entity appears only after a restart; `reload_delay: <seconds>` → it appears by itself after ~that delay; never actuate the freshly enabled entity from this skill.
+Re-ENABLING a registry-disabled item depends on WHO disabled it (`disabled_by`): `"user"` or `"integration"` (disabled by default) → the write `{"disabled_by": null}` on the entity record; `"device"` → the entity follows its parent — re-enable the DEVICE record (`{"disabled_by": null}` on the device registry entry, same preview/consumer rules as a device-level disable), never the entity alone; `"config_entry"` (the integration is disabled) → not writable from any HA NOVA skill (entry enable/disable is External in the capability map): point at **Settings > Devices & services**. Lower-risk than disabling, still previewed and confirmed; then read the response: `require_restart: true` → the entity appears only after a restart; `reload_delay: <seconds>` → it appears by itself after ~that delay; never actuate the freshly enabled entity from this skill.
 
-`new_entity_id` and `disabled_by` are NOT low-risk metadata: a rename breaks every automation, scene, script, dashboard, and template that references the old id, and disabling removes the entity from the state machine with the same effect on consumers. Before either, run WS `search/related` on the entity — for a DEVICE-level `disabled_by`, expand the device to its entities first (entity registry by `device_id`) and run `search/related` per entity, because the device relation itself does not collect the child entities' consumers — and name the union of consumers in the preview — and say plainly that it covers automations, scripts, groups, persons, and scenes only: template references and dashboards (storage AND YAML mode) are NOT indexed and cannot be ruled out this way (`ha-nova get <entity_id> --references` also reads templates and dashboards). After a rename, offer to update the found consumers through their owning skills. Before either write, capture the auto config snapshot of the record actually being mutated — the entity's registry fields for a rename/entity disable, the DEVICE registry record for a device-level `disabled_by` (category `metadata`, `../ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop). For a RENAME, store the target `new_entity_id` alongside the old record — after the write the live record sits under the new id, so restore addresses it there and renames it back; restore is otherwise an in-place field write-back on the same record.
+`new_entity_id` and `disabled_by` are NOT low-risk metadata: a rename breaks every automation, scene, script, dashboard, and template that references the old id, and disabling removes the entity from the state machine with the same effect on consumers. Before either, run WS `search/related` on the entity — for a DEVICE-level `disabled_by`, expand the device to its entities first (entity registry by `device_id`) and run `search/related` per entity, because the device relation itself does not collect the child entities' consumers — and name the union of consumers in the preview — and say plainly that it covers automations, scripts, groups, persons, and scenes only: template references and dashboards (storage AND YAML mode) are NOT indexed and cannot be ruled out this way (`ha-nova get <entity_id> --references` also reads templates and dashboards). After a rename, offer to update the found consumers through their owning skills. Before either write, capture the auto config snapshot of the record actually being mutated — the entity's registry fields for a rename/entity disable, the DEVICE registry record for a device-level `disabled_by` (category `metadata`, `../ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop). For a RENAME, store the target `new_entity_id` with the old record: restore finds it under the new id and renames it back; otherwise restore writes the fields back in place.
 
 ## Output Format
 

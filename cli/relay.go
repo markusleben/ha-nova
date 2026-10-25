@@ -372,20 +372,12 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		printErr("%s", err)
 		return 1
 	}
-	if err := checkRawRelayRequest(endpoint, requestBody); err != nil {
-		printErr("%s", err)
+	requestBody, refusal, err := guardRawRequest(paths, verbOptions{server: opts.Server, serverSet: opts.ServerSet, via: opts.Via, viaSet: opts.ViaSet}, endpoint, requestBody)
+	if refusal != nil {
+		printErr("%s", refusal)
 		return rawRefusedExit // not 1: an agent must not read a refusal as "run ha-nova setup"
 	}
-	if endpoint == "backups" { // a snapshot never stores a code, even one an agent got elsewhere
-		requestBody = redactSecrets(requestBody, false)
-	} else if (endpoint == "ws" || endpoint == "core") && !rawRelayRead(endpoint, requestBody) && holdsHiddenValue(requestBody) {
-		printErr("%s", rawRefusal("write", hiddenValueNext))
-		return rawRefusedExit
-	}
-	if refusal, err := checkRawAccessTarget(paths, verbOptions{server: opts.Server, serverSet: opts.ServerSet, via: opts.Via, viaSet: opts.ViaSet}, endpoint, requestBody); refusal != nil {
-		printErr("%s", refusal)
-		return rawRefusedExit
-	} else if err != nil {
+	if err != nil {
 		printErr("%s", err)
 		return 1
 	}
@@ -463,10 +455,7 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		printRelayFailure(read, "validating the Relay response", err)
 		return 1
 	}
-	// Every endpoint (an old snapshot from backups too), before --jq, which
-	// could pick it out; live phone ids only on ws/core (a file's or yaml
-	// snapshot's whole content is one string).
-	bodyBytes = redactSecrets(bodyBytes, endpoint == "ws" || endpoint == "core")
+	bodyBytes = redactRawResponse(endpoint, bodyBytes)
 	envelopeValid, taskSucceeded := relayEnvelopeResult(bodyBytes)
 	if !envelopeValid {
 		printRelayFailure(read,
