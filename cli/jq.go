@@ -124,7 +124,7 @@ func applyCompiledJQFilterWithin(ctx context.Context, program *jqProgram, input 
 				continue
 			}
 		}
-		b, err := json.Marshal(v)
+		b, err := marshalPlain(v) // "<" stays "<", as jq prints it
 		if err != nil {
 			return jqResult{}, err
 		}

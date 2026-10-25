@@ -106,6 +106,9 @@ func TestMCPReadJQChildLimits(t *testing.T) {
 	if result, err := readResult("ws", input, childJQ("[.data[].entity_id]")); err != nil || string(result) != `["light.a","light.b"]` {
 		t.Fatalf("normal filter: %s %v", result, err)
 	}
+	if result, err := readResult("ws", input, childJQ(`"<" * 30000`)); err != nil || len(result) != 30002 { // not <: the reply would pass the cap
+		t.Fatalf("html characters: %d %v", len(result), err)
+	}
 	if _, err := readResult("ws", input, childJQ("repeat(0)")); err == nil || err.(*verbFailure).code != "RESULT_TOO_LARGE" {
 		t.Fatalf("endless output: %v", err)
 	}
@@ -128,5 +131,38 @@ func TestMCPReadJQChildLimits(t *testing.T) {
 	}
 	if result, err := readResult("ws", input, childJQ("[range(100000)] | length")); err != nil || string(result) != "100000" {
 		t.Fatalf("after a dead child, a normal filter: %s %v", result, err)
+	}
+}
+
+// The filter's length is checked before anything parses it; under ha-nova
+// serve the parent never parses or compiles it, the child does.
+func TestMCPReadJQChildOnlyCompiles(t *testing.T) {
+	paths, calls := readRelay(t, func(string, map[string]any) any { return []any{1, 2, 3} })
+	c := startMCP(t, paths)
+	mcpInit(c)
+	long := strings.Repeat(".x", 512<<10) // 1 MiB
+	if _, code := readEnvelope(c.tool("ha_read", map[string]any{"endpoint": "ws", "payload": map[string]any{"type": "get_states"}, "jq": long})); code != "INVALID_ARGUMENTS" || len(calls()) != 0 {
+		t.Fatalf("1 MiB filter: %s, %d reads", code, len(calls()))
+	}
+	nested := strings.Repeat("[", 2000) + "." + strings.Repeat("]", 2000)
+	args := map[string]any{"endpoint": "ws", "payload": map[string]any{"type": "get_states"}, "jq": nested}
+	raw := map[string]json.RawMessage{}
+	for key, value := range args {
+		raw[key], _ = json.Marshal(value)
+	}
+	prev := mcpCompileJQ
+	mcpCompileJQ = func(string) (*jqProgram, error) { t.Fatal("the parent compiled a serve filter"); return nil, nil }
+	t.Cleanup(func() { mcpCompileJQ = prev })
+	argv, err := readArgv(raw, &mcpTempFiles{})
+	if err != nil {
+		t.Fatalf("argv: %v", err)
+	}
+	chatCall = &chatPolicy{}
+	t.Cleanup(func() { chatCall = nil })
+	fakeJQChild(t, `read -r filter; cat >/dev/null; case "$filter" in '"[[['*) echo '{"output":"\"child got it\""}';; *) exit 1;; esac`)
+	_, out := captureCommandOutput(t, func() int { return runMCPRead(paths, argv) })
+	var env verbTestEnvelope
+	if json.Unmarshal([]byte(out), &env) != nil || string(env.Result) != `"child got it"` {
+		t.Fatalf("serve: %s", out)
 	}
 }

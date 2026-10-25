@@ -6,4 +6,4 @@ package main
 // bridge runs in the Linux App container; elsewhere the child still keeps a
 // runaway filter out of the parent's process, with Go's soft memory limit
 // only.
-func limitJQChildMemory(uint64) {}
+func limitJQChildMemory(uint64) error { return nil }

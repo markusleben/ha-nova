@@ -108,12 +108,15 @@ func TestMCPReadDemoKeepsTheLog(t *testing.T) {
 	}{
 		{"core", `{"method":"GET","path":"/api/error_log"}`, true},
 		{"core", `{"method":"GET","path":"/api/error_log?x=1"}`, true},
+		{"core", `{"method":"GET","path":"/api/error_log#x"}`, true},
+		{"ws", `{"type":"persistent_notification/get"}`, true},
+		{"ws", `{"message":{"type":"persistent_notification/get"},"collect_events":{}}`, true},
 		{"ws", `{"type":"system_log/list"}`, true},
 		{"ws", `{"message":{"type":"system_log/list"},"collect_events":{}}`, true},
 		{"core", `{"method":"GET","path":"/api/states"}`, false},
 		{"ws", `{"type":"get_states"}`, false},
 	} {
-		if refusal := mcpDemoRefusal(true, tc.endpoint, []byte(tc.body)); (refusal != nil) != tc.refused || refusal != nil && !strings.Contains(refusal.Error(), "other visitors") {
+		if refusal := mcpDemoRefusal(true, tc.endpoint, []byte(tc.body)); (refusal != nil) != tc.refused || refusal != nil && !strings.Contains(refusal.Error(), "other visitors' IP addresses") {
 			t.Errorf("demo %s %s: %v", tc.endpoint, tc.body, refusal)
 		}
 		if refusal := mcpDemoRefusal(false, tc.endpoint, []byte(tc.body)); refusal != nil {

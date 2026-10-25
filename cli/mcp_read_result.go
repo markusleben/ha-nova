@@ -95,9 +95,9 @@ func readCamera(env *verbEnvelope, data json.RawMessage) error {
 	case err != nil:
 		return err
 	case !mcpCameraTypes[mimeType]:
-		return &verbFailure{exit: verbExitError, code: "READ_FAILED", message: fmt.Sprintf("the camera sent a %q picture; chats show JPEG, PNG, GIF, and WebP", mimeType)}
-	case len(frame) > mcpCameraMax:
-		return &verbFailure{exit: verbExitError, code: "READ_FAILED", message: "the picture is too large for the chat (over 5 MiB)"}
+		return &verbFailure{exit: verbExitError, code: "READ_FAILED", message: fmt.Sprintf("the camera sent a %q picture; chats show JPEG, PNG, GIF, and WebP", mcpMessage(mimeType, 64))}
+	case base64.StdEncoding.EncodedLen(len(frame)) > mcpCameraMax: // Claude's limit is on the base64 data
+		return &verbFailure{exit: verbExitError, code: "READ_FAILED", message: "the picture is too large for the chat (over 5 MiB once encoded)"}
 	}
 	env.Result = map[string]any{"mime_type": mimeType, "bytes": len(frame)}
 	env.Image = &verbImage{Data: base64.StdEncoding.EncodeToString(frame), MimeType: mimeType}

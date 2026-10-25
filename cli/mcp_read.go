@@ -24,7 +24,12 @@ const (
 	mcpMessageMax    = 1 << 10  // an error message carries at most this much of Home Assistant's text
 	mcpReasonMax     = 2 << 10  // Home Assistant's reason for an HTTP error
 	mcpPlanIt        = "plan it with ha_plan kind raw (the user sees it first), then ha_apply"
+	mcpJQMax         = 4 << 10 // a jq filter's length
 )
+
+// mcpCompileJQ compiles a local session's filter (a variable for tests: ha-nova
+// serve must never compile one in process).
+var mcpCompileJQ = compileJQFilter
 
 // mcpJQDeadline bounds a jq filter: ha_read runs under mcpVerbLock, so a
 // filter that never ends would stop every tool (a variable for tests).
@@ -107,8 +112,8 @@ func readArgv(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, er
 		if strings.TrimSpace(filter) == "" {
 			return nil, errors.New("jq needs a filter")
 		}
-		if _, err := compileJQFilter(filter); err != nil {
-			return nil, err
+		if len(filter) > mcpJQMax { // the filter is parsed only after this, in the child under ha-nova serve
+			return nil, errors.New("jq is over 4 KiB; use a shorter filter")
 		}
 		argv = append(argv, "--jq="+filter)
 	}
@@ -191,16 +196,23 @@ func runMCPRead(paths runtimePaths, argv []string) int {
 	if err := fs.Parse(argv[1:]); err != nil {
 		return verbUsageError("read", err)
 	}
+	stop := func(err error) int {
+		env := verbEnvelope{SchemaVersion: 1, Verb: "read"}
+		exit := setVerbError(&env, err)
+		printVerbEnvelope(env)
+		return exit
+	}
 	var run jqRun
-	if *filter != "" {
-		program, err := compileJQFilter(*filter)
+	switch {
+	case *filter == "":
+	case chatCall != nil: // ha-nova serve: the filter is parsed and run only in the child (mcp_read_jq.go)
+		run = childJQ(*filter)
+	default:
+		program, err := mcpCompileJQ(*filter)
 		if err != nil {
-			return verbUsageError("read", err)
+			return stop(&verbFailure{exit: verbExitError, code: "INVALID_ARGUMENTS", message: err.Error() + "; nothing was sent"})
 		}
 		run = inProcessJQ(program)
-		if chatCall != nil { // ha-nova serve: a filter's memory stays out of the bridge (mcp_read_jq.go)
-			run = childJQ(*filter)
-		}
 	}
 	endpoint := argv[0]
 	switch endpoint {
@@ -221,10 +233,7 @@ func runMCPRead(paths runtimePaths, argv []string) int {
 		err = &verbFailure{exit: verbExitRefused, code: "REFUSED", message: refusal.Error()}
 	}
 	if err != nil {
-		env := verbEnvelope{SchemaVersion: 1, Verb: "read"}
-		exit := setVerbError(&env, err)
-		printVerbEnvelope(env)
-		return exit
+		return stop(err)
 	}
 	return runReadVerb(paths, "read", verbOptions{}, func(s *relaySession, env *verbEnvelope) error {
 		if refusal := mcpDemoRefusal(activeServerIsDemo(), endpoint, send); refusal != nil { // known once the session loaded the profile
@@ -303,8 +312,11 @@ func mcpDemoRefusal(demo bool, endpoint string, body []byte) error {
 	payload, _ := decodeObject(body)
 	message, _ := payload["message"].(map[string]any)
 	path, _ := payload["path"].(string)
-	if endpoint == "core" && strings.SplitN(path, "?", 2)[0] == "/api/error_log" || endpoint == "ws" && (payload["type"] == "system_log/list" || message["type"] == "system_log/list") {
-		return errors.New("the demo house's log holds other visitors' sign-in attempts, so ha_read does not read it there; nothing was sent")
+	path, _, _ = strings.Cut(path, "#") // as the Relay parses it (rawRelayRead)
+	path, _, _ = strings.Cut(path, "?")
+	shared := map[any]bool{"system_log/list": true, "persistent_notification/get": true}
+	if endpoint == "core" && path == "/api/error_log" || endpoint == "ws" && (shared[payload["type"]] || shared[message["type"]]) {
+		return errors.New("the demo house's log and its \"Login attempt failed\" notifications hold other visitors' IP addresses and browsers, so ha_read does not read /api/error_log, system_log/list, or persistent_notification/get there; nothing was sent")
 	}
 	return nil
 }

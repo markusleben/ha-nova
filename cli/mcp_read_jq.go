@@ -45,7 +45,7 @@ var jqChildCmd = func(ctx context.Context) (*exec.Cmd, error) {
 		return nil, err
 	}
 	cmd := exec.CommandContext(ctx, executable, jqChildCommand)
-	cmd.Env = append(os.Environ(), jqChildEnv+"=1")
+	cmd.Env = []string{jqChildEnv + "=1"} // nothing else: the child needs no credential, path, or proxy
 	return cmd, nil
 }
 
@@ -113,12 +113,14 @@ func maybeRunJQChild(args []string, input io.Reader, output io.Writer) (bool, in
 	if os.Getenv(jqChildEnv) != "1" {
 		return true, 2
 	}
-	limitJQChildMemory(jqChildMemory)
+	if limitJQChildMemory(jqChildMemory) != nil { // never run a filter uncapped
+		return true, 2
+	}
 	debug.SetMemoryLimit(jqChildMemory / 2)
 	reader := bufio.NewReader(input)
 	line, err := reader.ReadBytes('\n')
 	var filter string
-	if err != nil || json.Unmarshal(line, &filter) != nil {
+	if err != nil || json.Unmarshal(line, &filter) != nil || len(filter) > mcpJQMax {
 		return true, 2
 	}
 	data, err := io.ReadAll(reader)
@@ -140,7 +142,9 @@ func maybeRunJQChild(args []string, input io.Reader, output io.Writer) (bool, in
 	case err != nil:
 		reply = jqChildReply{Code: "error", Error: mcpMessage(err.Error(), mcpMessageMax)}
 	}
-	if json.NewEncoder(output).Encode(reply) != nil {
+	encoder := json.NewEncoder(output)
+	encoder.SetEscapeHTML(false) // "<" stays one byte: the parent caps the reply's size
+	if encoder.Encode(reply) != nil {
 		return true, 1
 	}
 	return true, 0
