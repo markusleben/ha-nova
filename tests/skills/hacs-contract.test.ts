@@ -63,9 +63,12 @@ describe("hacs lifecycle skill (#478)", () => {
     expect(normalized).toContain("never silently replaced by a newer release");
     expect(normalized).toContain("prerelease only on explicit request");
     expect(skill).toContain("Delete Card with the one-time code");
+    // Install/update/redownload brings third-party code: the one-time code
+    // (maintainer decision 2026-10-25, chat-parity spec Decisions 3).
     expect(normalized).toContain(
-      "natural confirmation for install/update/redownload",
+      "the one-time code for install/update/redownload",
     );
+    expect(normalized).not.toContain("natural confirmation for install");
   });
 
   it("carries the canonical mutation Safety Core and file-based relay usage", () => {

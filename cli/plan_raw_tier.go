@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"reflect"
 	"regexp"
 	"strings"
 )
@@ -14,11 +17,15 @@ import (
 //
 //	typed:   every delete or removal (WS */delete and */remove,
 //	         recorder/clear_statistics, DELETE …/config_entries/entry/… and
-//	         …/scene/config/…, files delete_file, backups delete and prune),
-//	         a new account, HACS downloads and dashboard resources (code that
-//	         runs in Home Assistant or every signed-in browser), and an energy
-//	         save that empties or replaces a list
-//	preview: everything else, a flow cancel included
+//	         …/scene/config/…, files delete_file, backups delete), a new
+//	         account, HACS downloads and dashboard resources (code that runs
+//	         in Home Assistant or every signed-in browser), an energy save that
+//	         empties a list or drops more than one entry, a new id, area, or
+//	         label carried onto a lock, alarm panel, or access cover, a person
+//	         who follows other devices (skills/device → Access Check), and any
+//	         item the skill marks typed
+//	preview: everything else, a flow cancel and a snapshot prune included
+//	         (skills/ha-nova/config-snapshots.md: prune is natural)
 
 const (
 	reasonRawWrite = "RAW_WRITE" // a previewed raw item; the preview line says it
@@ -39,18 +46,37 @@ var rawTypedWS = map[string]string{
 var rawSceneConfigPath = regexp.MustCompile(`^/api/config/scene/config/[A-Za-z0-9_.-]+$`)
 
 // rawItemTier: the item's tier and, for a typed one, why (one sentence).
-func rawItemTier(n *rawNamer, endpoint string, payload map[string]any) (tierLevel, string) {
+// The item's own typed flag only ever raises it.
+func rawItemTier(n *rawNamer, item rawRequest, payload map[string]any) (tierLevel, string) {
+	level, why := rawRequestTier(n, item.Endpoint, payload)
+	if level < tierTyped && item.Typed {
+		return tierTyped, "This step can change who or what opens a door or disarms the alarm"
+	}
+	return level, why
+}
+
+func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierLevel, string) {
 	action, _ := payload["action"].(string)
 	switch endpoint {
 	case "ws":
 		wsType, _ := payload["type"].(string)
+		_, carries := payload["new_entity_id"]
+		for _, key := range []string{"area_id", "labels"} {
+			_, set := payload[key]
+			carries = carries || set
+		}
+		_, follows := payload["device_trackers"]
 		switch {
 		case strings.HasSuffix(wsType, "/delete") || strings.HasSuffix(wsType, "/remove"):
 			return tierTyped, rawWhyDelete
 		case rawTypedWS[wsType] != "":
 			return tierTyped, rawTypedWS[wsType]
 		case wsType == "energy/save_prefs" && n.energyEmptied(payload):
-			return tierTyped, "This empties or replaces a list of the Energy dashboard"
+			return tierTyped, "This empties a list of the Energy dashboard or drops several of its entries"
+		case wsType == "config/entity_registry/update" && carries && n.accessEntity(payload["entity_id"]):
+			return tierTyped, "This carries a new ID, area, or label onto a lock, alarm panel, or door, which can change what an automation that opens it targets"
+		case wsType == "person/update" && follows:
+			return tierTyped, "This changes which devices a person follows, and an unlock or disarm may wait for that person"
 		}
 	case "core":
 		target, _ := payload["path"].(string)
@@ -68,42 +94,100 @@ func rawItemTier(n *rawNamer, endpoint string, payload map[string]any) (tierLeve
 			return tierTyped, "This deletes a file in Home Assistant's config folder"
 		}
 	case "backups":
-		if action == "delete" || action == "prune" {
-			return tierTyped, "This deletes saved config copies"
+		if action == "delete" {
+			return tierTyped, "This deletes a saved config copy"
 		}
 	}
 	return tierPreview, ""
 }
 
-// energyEmptied: the save leaves a list empty that has entries now, or keeps
-// none of them (save_prefs replaces each list it names). A failed read, or a
-// value that is not a list, counts as emptied: fail closed.
+// accessEntity: the entity is a lock, an alarm panel, or an access cover,
+// or sits on a device with one (read live; a failed read counts as one).
+func (n *rawNamer) accessEntity(id any) bool {
+	entityID, _ := id.(string)
+	var rows []struct {
+		EntityID string `json:"entity_id"`
+		DeviceID string `json:"device_id"`
+	}
+	data, err := rawRead(n.s, "ws", map[string]any{"type": "config/entity_registry/list"})
+	if err != nil || json.Unmarshal(data, &rows) != nil {
+		return true
+	}
+	device := ""
+	for _, row := range rows {
+		if row.EntityID == entityID {
+			device = row.DeviceID
+		}
+	}
+	for _, row := range rows {
+		if (row.EntityID == entityID || device != "" && row.DeviceID == device) && accessCapable(row.EntityID, coverClass(n.s, row.EntityID)) {
+			return true
+		}
+	}
+	return accessCapable(entityID, coverClass(n.s, entityID))
+}
+
+// energyEmptied: the save empties a list that has entries now, or drops
+// more than one of them (save_prefs replaces each list it names; a single
+// add, change, or removal is a preview, skills/energy → Config edit). A
+// failed read, or a value that is not a list, counts as emptied: fail
+// closed. Numbers compare by value (0.30 is 0.3).
 func (n *rawNamer) energyEmptied(payload map[string]any) bool {
 	prefs, ok := n.energyPrefs()
 	for key, value := range payload {
 		if key == "type" {
 			continue
 		}
-		next, isList := value.([]any)
+		next, isList := numbersByValue(value).([]any)
 		if !ok || !isList {
 			return true
 		}
-		before, _ := prefs[key].([]any)
-		kept := false
+		before, _ := numbersByValue(prefs[key]).([]any)
+		gone := 0
 		for _, old := range before {
+			kept := false
 			for _, now := range next {
-				kept = kept || jsonEqual(old, now)
+				kept = kept || reflect.DeepEqual(old, now)
+			}
+			if !kept {
+				gone++
 			}
 		}
-		if len(before) > 0 && !kept {
+		if len(before) > 0 && len(next) == 0 || gone > 1 {
 			return true
 		}
 	}
 	return false
 }
 
-// energyPrefs reads energy/get_prefs once; never configured (not_found)
-// reads as no lists.
+// numbersByValue turns every json.Number into a float64, so 0.30 and 0.3
+// are the same entry.
+func numbersByValue(v any) any {
+	switch t := v.(type) {
+	case json.Number:
+		f, err := t.Float64()
+		if err != nil {
+			return t.String()
+		}
+		return f
+	case map[string]any:
+		out := map[string]any{}
+		for key, value := range t {
+			out[key] = numbersByValue(value)
+		}
+		return out
+	case []any:
+		out := make([]any, len(t))
+		for i, value := range t {
+			out[i] = numbersByValue(value)
+		}
+		return out
+	}
+	return v
+}
+
+// energyPrefs reads energy/get_prefs once (numbers kept as written); never
+// configured (not_found) reads as no lists.
 func (n *rawNamer) energyPrefs() (map[string]any, bool) {
 	if n.prefsRead {
 		return n.prefs, n.prefsOK
@@ -113,22 +197,70 @@ func (n *rawNamer) energyPrefs() (map[string]any, bool) {
 	var call *relayCallError
 	switch {
 	case err == nil:
-		n.prefsOK = json.Unmarshal(data, &n.prefs) == nil && n.prefs != nil
+		dec := json.NewDecoder(bytes.NewReader(data))
+		dec.UseNumber()
+		n.prefsOK = dec.Decode(&n.prefs) == nil && n.prefs != nil
 	case errors.As(err, &call) && strings.Contains(strings.ToLower(call.Error()), "not_found"):
 		n.prefsOK = true
 	}
 	return n.prefs, n.prefsOK
 }
 
+// snapshotListed: a config copy a delete names must be a file the store
+// lists now (skills/ha-nova/config-snapshots.md → Batch delete); its listed
+// entry goes into the basis, so a copy gone or changed since the preview
+// is drift.
+func (n *rawNamer) snapshotListed(payload map[string]any) (refusal, err error) {
+	if n.snapshots == nil {
+		data, err := rawSnapshotList(n.s)
+		var rows []map[string]any
+		if err == nil {
+			err = json.Unmarshal(data, &rows)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("cannot list the config copies, so nothing was planned: %w", err)
+		}
+		n.snapshots = map[string]any{}
+		for _, row := range rows {
+			if file, _ := row["file"].(string); file != "" {
+				n.snapshots[file] = row
+			}
+		}
+	}
+	file, _ := payload["file"].(string)
+	if _, listed := n.snapshots[file]; !listed {
+		return fmt.Errorf("the config copy %q is not in the snapshot store; list the copies again and name one exactly", file), nil
+	}
+	if n.deleting == nil {
+		n.deleting = map[string]any{}
+	}
+	n.deleting[file] = n.snapshots[file]
+	return nil, nil
+}
+
+// rawSnapshotList reads the Relay's snapshot list, unfiltered.
+func rawSnapshotList(s *relaySession) (json.RawMessage, error) {
+	return s.sendWithin("backups", []byte(`{"action":"list"}`), relaySessionRequestTimeout)
+}
+
 // basis: the energy lists a save replaces, so a source another client added
-// since the preview is drift, never silently dropped
-// (skills/energy/SKILL.md → Config edit); nil without an energy save.
+// since the preview is drift, never silently dropped (skills/energy →
+// Config edit), and the listed entry of every config copy a delete names;
+// nil when the plan holds neither.
 func (n *rawNamer) basis() map[string]any {
-	if !n.prefsRead {
+	basis := map[string]any{}
+	switch {
+	case !n.prefsRead:
+	case !n.prefsOK:
+		basis["energy"] = "unreadable"
+	default:
+		basis["energy"] = numbersByValue(n.prefs) // a stored plan reads its numbers back as float64
+	}
+	if n.deleting != nil {
+		basis["snapshots"] = n.deleting
+	}
+	if len(basis) == 0 {
 		return nil
 	}
-	if !n.prefsOK {
-		return map[string]any{"energy": "unreadable"}
-	}
-	return map[string]any{"energy": n.prefs}
+	return basis
 }

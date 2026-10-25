@@ -2,6 +2,7 @@ package main
 
 import (
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -85,5 +86,51 @@ func TestPlanRawConfirmsInTheWindow(t *testing.T) {
 	}
 	if got := strings.Join(sent(), " | "); got != "backups save | input_boolean/delete" {
 		t.Fatalf("sent %s", got)
+	}
+}
+
+// Until household levels land, a chat app's raw plan is for the owner or
+// an administrator only, checked again when it is applied.
+func TestServeRawPlansNeedAnAdministrator(t *testing.T) {
+	f := newFakeHA()
+	var mu sync.Mutex
+	admin, created := true, 0
+	f.extra = func(endpoint string, p map[string]any) (any, bool) {
+		mu.Lock()
+		defer mu.Unlock()
+		switch {
+		case endpoint == "ws" && p["type"] == "config/auth/list":
+			groups := []string{"system-users"}
+			if admin {
+				groups = []string{"system-admin"}
+			}
+			return []map[string]any{{"id": userA, "is_active": true, "group_ids": groups}, {"id": userB, "is_active": true, "group_ids": []string{"system-users"}}}, true
+		case endpoint == "ws" && p["type"] == "input_boolean/create":
+			created++
+			return map[string]any{"id": "a"}, true
+		}
+		return nil, false
+	}
+	s := newServe(t, f, `{"allowed_users":["`+userA+`","`+userB+`"]}`)
+	raw := map[string]any{"kind": "raw", "requests": []any{map[string]any{"endpoint": "ws", "payload": map[string]any{"type": "input_boolean/create", "name": "A"}}}}
+	if env := s.tool(userB, "ha_plan", raw); envCode(env) != "ADMIN_ONLY" {
+		t.Fatalf("not an administrator: %v", env)
+	}
+	if env := s.tool(userB, "ha_plan", map[string]any{"kind": "call", "service": "light.turn_off", "entity_ids": []string{"light.kitchen"}}); envCode(env) == "ADMIN_ONLY" {
+		t.Fatalf("a call plan is not raw: %v", env)
+	}
+	env := s.tool(userA, "ha_plan", raw)
+	plan, _ := env["plan"].(map[string]any)
+	if env["status"] != "needs_confirmation" || plan == nil {
+		t.Fatalf("administrator: %v", env)
+	}
+	mu.Lock()
+	admin = false
+	mu.Unlock()
+	if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": plan["id"]}); envCode(env) != "ADMIN_ONLY" || created != 0 {
+		t.Fatalf("demoted since planning: %v (created %d)", env, created)
+	}
+	if len(s.userPlans(userA)) != 1 { // refused before the claim: the plan stays for an administrator
+		t.Fatalf("plans %v", s.userPlans(userA))
 	}
 }

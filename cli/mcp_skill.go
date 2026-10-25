@@ -30,12 +30,21 @@ names a CLI command, use the tool:
   /api/states
 - relay ws|core writes, a GET on a flow step, relay files write_file|delete_file,
   and relay backups save|delete|prune → ha_plan kind raw with requests
-  [{endpoint, payload}] in the skill's order (its config snapshot first; up
-  to 20), then ha_apply. The plan's preview and confirmation replace the
-  skill's own and any code it would mint; snapshot save after a helper
+  [{endpoint, payload}]: all snapshot saves first, then the writes, in the
+  skill's order; never more items than the skill's own cap (grouped set 10,
+  device and migrate 5); over 20 items, split into manifests of at most 10
+  targets. Then ha_apply. Still show the skill's own preview (a file change,
+  a scene's members, a flow's body) beside the plan's say: the plan's
+  confirmation and tier replace the skill's confirmation step and any code
+  it would mint, except where the skill gates a step with a code and the
+  plan says preview: set typed on that item. Where the skill already counts
+  a step as confirmed (a flow menu pick, the .bak rollback after an invalid
+  check_config, cancelling a flow after a secret form) and the plan is a
+  preview, call ha_apply right after ha_plan. snapshot save after a helper
   update: ha_apply saved it (result undo)
 - exit codes → status: 2 drift, 3 needs_confirmation, 6 unverified, 7
-  OUTCOME_UNKNOWN (read with ha_get, never retry); others status error
+  OUTCOME_UNKNOWN (read with ha_get or ha_read, never retry); others status
+  error
 - skip the session bootstrap (check-update, relay health): results carry
   notices[]. Cache files under ~/.cache/ha-nova are out of reach: missing
 - "context skill" → ha_skill name ha-nova; a cited file (skills/….md,

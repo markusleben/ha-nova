@@ -13,7 +13,9 @@ import (
 // read only a plan sends. A new allowlist entry fails here until its tier
 // is decided below.
 func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
-	paths, sent := rawRelay(t, nil)
+	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
+		"backups list": func(map[string]any) any { return []any{map[string]any{"file": "scenes/a.json.gz"}} },
+	})
 	wantTyped := []string{"config/entity_registry/remove", "lovelace/resources/create", "lovelace/resources/update", "lovelace/resources/delete",
 		"recorder/clear_statistics", "backup/delete", "hacs/repositories/remove", "hacs/repository/download", "hacs/repository/remove",
 		"config/auth/create", "config/auth/delete", "assist_pipeline/pipeline/delete", "calendar/event/delete"}
@@ -75,7 +77,7 @@ func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
 		}
 	}
 	for _, tc := range []struct{ endpoint, action, tier string }{{"files", "write_file", "preview"}, {"files", "delete_file", "typed"},
-		{"backups", "save", "preview"}, {"backups", "delete", "typed"}, {"backups", "prune", "typed"}} {
+		{"backups", "save", "preview"}, {"backups", "delete", "typed"}, {"backups", "prune", "preview"}} {
 		exit, env := plan(tc.endpoint, map[string]any{"action": tc.action, "path": "packages/a.yaml", "content": "a: 1", "file": "scenes/a.json.gz",
 			"category": "scenes", "name": "auto-a", "data": map[string]any{}})
 		if exit != verbExitConfirmation || env.Tier != tc.tier {

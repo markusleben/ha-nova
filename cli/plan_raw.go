@@ -42,6 +42,9 @@ const planRawMaxItems = 20 // the snapshot batch limit (skills/ha-nova/config-sn
 type rawRequest struct {
 	Endpoint string          `json:"endpoint"`
 	Payload  json.RawMessage `json:"payload"`
+	// Typed: the skill gates this step with a one-time code (skills/device
+	// → Access Check); it only ever raises the item's tier (rawItemTier).
+	Typed bool `json:"typed,omitempty"`
 }
 
 // rawPlanItem is one previewed item: Change is its plain line.
@@ -152,18 +155,25 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 	for i, item := range items {
 		payload, _ := decodeObject(item.Payload)
 		refusal := rawPlanRefusal(item.Endpoint, payload)
+		var err error
 		if refusal == nil {
-			var err error
-			if _, refusal, err = guardRawRequestIn(s, item.Endpoint, item.Payload); err != nil {
-				return nil, storedPlan{}, err
-			}
+			_, refusal, err = guardRawRequestIn(s, item.Endpoint, item.Payload)
+		}
+		if refusal == nil && err == nil && item.Endpoint == "backups" && payload["action"] == "delete" {
+			refusal, err = n.snapshotListed(payload)
+		}
+		if err != nil {
+			return nil, storedPlan{}, err
 		}
 		if refusal != nil {
-			return nil, storedPlan{}, &verbFailure{exit: verbExitRefused, code: "REFUSED",
-				message: fmt.Sprintf("item %d: %s; nothing was planned or sent", i+1, strings.TrimSuffix(refusal.Error(), "; nothing was sent")),
-				next:    "Tell the user which step can't be done this way and why (the message says it). Plan the other steps without it only if they still want them."}
+			next := "Tell the user which step can't be done this way and why (the message says it). Plan the other steps without it only if they still want them."
+			if errors.As(refusal, new(rawReadRefusal)) {
+				next = "That step only reads: read it with ha_read (ha-nova relay on a computer), then plan the other steps."
+			}
+			return nil, storedPlan{}, &verbFailure{exit: verbExitRefused, code: "REFUSED", next: next,
+				message: fmt.Sprintf("item %d: %s; nothing was planned or sent", i+1, strings.TrimSuffix(refusal.Error(), "; nothing was sent"))}
 		}
-		level, why := rawItemTier(n, item.Endpoint, payload)
+		level, why := rawItemTier(n, item, payload)
 		code := reasonRawWrite
 		if level == tierTyped {
 			code = reasonRawTyped
@@ -185,7 +195,7 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 // changes; reads go through `relay` (ha_read in chat apps), except
 // rawPlanOnlyRead.
 func rawPlanRefusal(endpoint string, payload map[string]any) error {
-	read := fmt.Errorf("it only reads: read it with ha-nova relay %s (ha_read in chat apps), not in a plan", endpoint)
+	read := rawReadRefusal(endpoint)
 	action, _ := payload["action"].(string)
 	switch endpoint {
 	case "files":
@@ -217,6 +227,13 @@ func rawPlanRefusal(endpoint string, payload map[string]any) error {
 		}
 	}
 	return nil
+}
+
+// rawReadRefusal: a read in a plan; it belongs to relay and ha_read.
+type rawReadRefusal string
+
+func (endpoint rawReadRefusal) Error() string {
+	return "it only reads: read it with ha-nova relay " + string(endpoint) + " (ha_read in chat apps), not in a plan"
 }
 
 // rawPlanOnlyRead: the reads only a plan sends, so the user sees them
@@ -255,22 +272,28 @@ func rawGoal(env *verbEnvelope) (verb, object string) {
 	return "Confirm", fmt.Sprintf("%d steps in Home Assistant", len(result.Items))
 }
 
-// rawAsk: a typed raw plan's phone question; with several items, the
-// notification lists each step before the reasons.
+// rawAsk: a typed raw plan's phone question. With several items the
+// notification names the typed steps first, by number, then the reasons,
+// then how many other steps come along, so a cut keeps what needs the tap.
 func rawAsk(e *tierEngine, env *verbEnvelope, plan storedPlan) [3]string {
 	verb, object := rawGoal(env)
+	result, _ := env.Result.(rawPlanResult)
 	var why []string
-	if result, _ := env.Result.(rawPlanResult); len(result.Items) > 1 {
-		for i, item := range result.Items {
-			why = append(why, fmt.Sprintf("%d. %s", i+1, item.Change))
+	for i, item := range result.Items {
+		if len(result.Items) > 1 && item.Tier == tierTyped.String() {
+			why = append(why, fmt.Sprintf("Step %d: %s", i+1, item.Change))
 		}
 	}
+	others := len(result.Items) - len(why)
 	reasons := map[string]bool{}
 	for _, r := range env.Reasons {
 		if text, typed := sayReason(e, env, plan, r); typed && text != "" && !reasons[text] {
 			reasons[text] = true
 			why = append(why, text)
 		}
+	}
+	if len(result.Items) > 1 && others > 0 {
+		why = append(why, "And "+plural(others, "other step"))
 	}
 	return [3]string{verb, object, strings.Join(why, ". ")}
 }

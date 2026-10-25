@@ -10,105 +10,9 @@ import (
 // The plain line of each raw plan item ("Rename the device “Hall lamp”"),
 // which say, the window, the phone, and the confirmation form show
 // (confirm_say.go hands raw plans to rawSayWhat, rawGoal, and rawAsk).
-// Names are read where one read gets them; an id is shown only when no
-// name can be read. Flow form values are never shown (they can hold a
-// password), only their field names.
-
-// rawNamer reads names for the lines, each list once per plan.
-type rawNamer struct {
-	s         *relaySession
-	e         *tierEngine
-	lists     map[string]map[string]string // list request → id → name
-	prefs     map[string]any               // energy/get_prefs (rawItemTier)
-	prefsOK   bool
-	prefsRead bool
-}
-
-func newRawNamer(s *relaySession, e *tierEngine) *rawNamer {
-	return &rawNamer{s: s, e: e, lists: map[string]map[string]string{}}
-}
-
-// rawRead sends one read the raw guard allows (names, energy prefs, a
-// helper's list item), fresh.
-func rawRead(s *relaySession, endpoint string, payload map[string]any) (json.RawMessage, error) {
-	body, err := json.Marshal(payload)
-	if err == nil && (checkRawRelayRequest(endpoint, body) != nil || !rawRelayRead(endpoint, body)) {
-		err = fmt.Errorf("%s is not a raw read", body)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return s.sendWithin(endpoint, body, relaySessionRequestTimeout)
-}
-
-// names: id → name of one list read; an item's id is the first of idKeys
-// it has, its name the first non-empty of nameKeys.
-func (n *rawNamer) names(request map[string]any, idKeys, nameKeys []string) map[string]string {
-	key, _ := json.Marshal(request)
-	if m, ok := n.lists[string(key)]; ok {
-		return m
-	}
-	m := map[string]string{}
-	n.lists[string(key)] = m
-	data, err := rawRead(n.s, "ws", request)
-	var rows []map[string]any
-	if err != nil || json.Unmarshal(data, &rows) != nil {
-		var wrapped map[string]any // assist_pipeline/pipeline/list: {pipelines: [...]}
-		if err != nil || json.Unmarshal(data, &wrapped) != nil {
-			return m
-		}
-		list, _ := json.Marshal(wrapped["pipelines"])
-		_ = json.Unmarshal(list, &rows)
-	}
-	for _, row := range rows {
-		for _, idKey := range idKeys {
-			id, _ := row[idKey].(string)
-			if id == "" {
-				continue
-			}
-			for _, nameKey := range nameKeys {
-				if name, _ := row[nameKey].(string); name != "" && m[id] == "" {
-					m[id] = name
-				}
-			}
-			break
-		}
-	}
-	return m
-}
-
-func (n *rawNamer) named(request map[string]any, id any, idKeys, nameKeys []string) string {
-	text, _ := id.(string)
-	if name := n.names(request, idKeys, nameKeys)[text]; name != "" {
-		return sayText(name, true)
-	}
-	return sayText(text, true)
-}
-
-func (n *rawNamer) entity(id any) string {
-	text, _ := id.(string)
-	if st, err := n.e.state(text); err == nil && st != nil {
-		if name := st.str("friendly_name"); sayText(name, false) != "" {
-			return sayText(name, true)
-		}
-	}
-	return sayText(text, true)
-}
-
-func (n *rawNamer) device(id any) string {
-	return n.named(map[string]any{"type": "config/device_registry/list"}, id, []string{"id"}, []string{"name_by_user", "name"})
-}
-
-func (n *rawNamer) area(id any) string {
-	if id == nil {
-		return "no area"
-	}
-	return n.named(map[string]any{"type": "config/area_registry/list"}, id, []string{"area_id"}, []string{"name"})
-}
-
-func (n *rawNamer) entry(id any) string {
-	return n.named(map[string]any{"type": "config_entries/get"}, id, []string{"entry_id"}, []string{"title", "domain"})
-}
+// Names are read where one read gets them (plan_raw_names.go); an id is
+// shown only when no name can be read. A field that may hold a password,
+// code, key, or token shows no value (rawSecretField).
 
 // rawCollectionNouns: what each storage collection holds, in plain words.
 var rawCollectionNouns = map[string]string{"input_boolean": "toggle helper", "input_number": "number helper", "input_text": "text helper",
@@ -176,7 +80,7 @@ func rawItemLine(n *rawNamer, endpoint string, payload map[string]any) (verb, ob
 			file, _ := payload["file"].(string)
 			return "Delete", "the config copy " + sayText(file, true)
 		}
-		return "Delete", "old config copies (named ones are kept unless keep_named is false)"
+		return "Delete", rawPruneLine(payload)
 	case "core":
 		return rawCoreLine(n, payload)
 	}
@@ -196,6 +100,8 @@ func rawItemLine(n *rawNamer, endpoint string, payload map[string]any) (verb, ob
 		return "Change", "the " + rawCollectionNouns[collection] + " " + n.collectionItem(collection, idKey, payload) + n.fields(payload, idKey)
 	case op == "delete":
 		return "Delete", "the " + rawCollectionNouns[collection] + " " + n.collectionItem(collection, idKey, payload)
+	case wsType == "calendar/event/delete":
+		return "Delete", n.calendarEvent(payload) + " from the calendar " + n.entity(payload["entity_id"])
 	case wsType == "energy/save_prefs":
 		return "Change", "the Energy dashboard" + n.energyChange(payload)
 	}
@@ -241,25 +147,34 @@ func rawCoreLine(n *rawNamer, payload map[string]any) (verb, object string) {
 		handler, _ := body["handler"].(string)
 		return "Start", "setting up " + sayText(handler, true)
 	}
-	fields := sortedKeys(body)
-	if len(fields) == 0 {
-		return "Submit", "the next step of the setup in progress"
+	setup := "the setup in progress"
+	if !strings.Contains(target, "/options/") {
+		flow := n.names(map[string]any{"type": "config_entries/flow/progress"}, []string{"flow_id"}, []string{"handler"})[target[strings.LastIndex(target, "/")+1:]]
+		if flow != "" {
+			setup = "the setup of " + sayText(flow, true) + " in progress"
+		}
 	}
-	return "Submit", "the next step of the setup in progress (fields: " + sayText(strings.Join(fields, ", "), false) + ")"
+	return "Submit", "the next step of " + setup + n.fields(body, "")
 }
 
-// scene: a scene config's name, read through its own config.
-func (n *rawNamer) scene(id string) string {
-	data, err := rawRead(n.s, "core", map[string]any{"method": http.MethodGet, "path": "/api/config/scene/config/" + id})
-	var core struct {
-		Body struct {
-			Name string `json:"name"`
-		} `json:"body"`
+// rawPruneLine: a snapshot prune in plain words (Relay defaults: 30 days,
+// 100 files, named copies kept).
+func rawPruneLine(payload map[string]any) string {
+	days, files := "30", "100"
+	if v, set := payload["max_age_days"]; set {
+		days = sayText(fmt.Sprint(v), false)
 	}
-	if err == nil && json.Unmarshal(data, &core) == nil && sayText(core.Body.Name, false) != "" {
-		return sayText(core.Body.Name, true)
+	if v, set := payload["max_files"]; set {
+		files = sayText(fmt.Sprint(v), false)
 	}
-	return sayText(id, true)
+	line := "automatic config copies older than " + days + " days or beyond the newest " + files
+	if category, _ := payload["category"].(string); category != "" {
+		line += " in " + sayText(category, true)
+	}
+	if payload["keep_named"] == false {
+		return line + ", named copies too"
+	}
+	return line + "; named copies are kept"
 }
 
 // targets: the named things a request acts on (never an area it sets).
@@ -279,14 +194,16 @@ func (n *rawNamer) targets(payload map[string]any) string {
 				names = append(names, n.entity(text))
 			case key == "device_id":
 				names = append(names, n.device(text))
-			case key == "user_id":
-				names = append(names, n.named(map[string]any{"type": "config/auth/list"}, text, []string{"id"}, []string{"name"}))
-			case key == "pipeline_id":
-				names = append(names, n.named(map[string]any{"type": "assist_pipeline/pipeline/list"}, text, []string{"id"}, []string{"name"}))
+			case rawTargetLists[key].request != "":
+				list := rawTargetLists[key]
+				names = append(names, n.named(map[string]any{"type": list.request}, text, list.ids, list.names))
 			default:
 				names = append(names, sayText(text, true))
 			}
 		}
+	}
+	if version, _ := payload["version"].(string); version != "" {
+		names = append(names, "version "+sayText(version, true))
 	}
 	if len(names) == 0 {
 		return ""
@@ -305,7 +222,7 @@ func (n *rawNamer) fields(payload map[string]any, idKey string) string {
 		lower := strings.ToLower(key)
 		switch {
 		case key == "type" || key == idKey:
-		case strings.Contains(lower, "password") || strings.Contains(lower, "code") || strings.Contains(lower, "token") || strings.Contains(lower, "secret") || strings.Contains(lower, "key"):
+		case rawSecretField(lower):
 			parts = append(parts, sayText(key, false)+" set")
 		case key == "area_id":
 			parts = append(parts, "area "+n.area(value))
@@ -336,6 +253,17 @@ func (n *rawNamer) fields(payload map[string]any, idKey string) string {
 		return ""
 	}
 	return ": " + strings.Join(parts, ", ")
+}
+
+// rawSecretField: a field name that may hold a password, code, key, or
+// token; its value is never shown.
+func rawSecretField(lower string) bool {
+	for _, word := range []string{"password", "passwd", "passphrase", "secret", "token", "key", "code", "credential", "auth", "pin"} {
+		if strings.Contains(lower, word) {
+			return true
+		}
+	}
+	return false
 }
 
 // energyChange: ": energy sources 3 → 2 entries" for each list it saves.

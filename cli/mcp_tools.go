@@ -77,15 +77,16 @@ var mcpTools = []mcpTool{mcpSkillTool,
 			"entity_id": prop("string", "automation.x or script.x"), "run_id": prop("string", "for action get")}),
 		argv: traceArgvChecked, run: runTraceCommand},
 	mcpReadTool,
-	{name: "ha_plan", title: "Plan a change", description: "Plan without executing: kind call (a service call), write (automation/script config), delete, revert, restore (a deleted automation/script from the snapshot its delete result named), or raw (the requests to Home Assistant's own API a skill makes: registry, helper, scene, and integration setup changes, files, config snapshots; sent in order by ha_apply). Returns a preview; a high-consequence plan needs a confirmation code the user types (no code is returned where their app asks for it in a form). coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
+	{name: "ha_plan", title: "Plan a change", description: "Plan without executing: kind call (a service call), write (automation/script config), delete, revert, restore (a deleted automation/script from the snapshot its delete result named), or raw (the requests to Home Assistant's own API a skill makes, such as registry, helper, scene, and integration setup changes, files, config snapshots; sent in order by ha_apply). Returns a preview; a high-consequence plan needs a confirmation code the user types (no code is returned where their app asks for it in a form). coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
 		readOnly: true,
 		schema: object([]string{"kind"}, merged(callProperties, map[string]any{
 			"kind": map[string]any{"type": "string", "enum": []string{"call", "write", "delete", "revert", "restore", "raw"}},
 			"requests": map[string]any{"type": "array", "minItems": 1, "maxItems": planRawMaxItems,
-				"description": "raw: 1 to 20 requests in the order they run (a config snapshot first, then what it protects); reads go to ha_read",
+				"description": "raw: 1 to 20 requests in the order they run (config snapshots first, then what they protect); reads go to ha_read, except blueprint/import, camera/stream, media_source/resolve_media, and a flow step GET, which only a plan sends",
 				"items": object([]string{"endpoint", "payload"}, map[string]any{
 					"endpoint": map[string]any{"type": "string", "enum": []string{"core", "ws", "files", "backups"}},
-					"payload":  prop("object", "core: {method, path, body} of the REST API; ws: the WebSocket message; files: {action: write_file or delete_file, path, content}; backups: {action: save, delete, or prune, ...}")})},
+					"payload":  prop("object", "core: {method, path, body} of the REST API; ws: the WebSocket message; files: {action: write_file or delete_file, path, content}; backups: {action: save, delete, or prune, ...}"),
+					"typed":    prop("boolean", "true where the skill takes the one-time code for this step and the plan would only preview it; never lowers a tier")})},
 			"domain":    map[string]any{"type": "string", "enum": []string{"automation", "script"}},
 			"id":        prop("string", "write: config id to update/create; revert: target config id; restore: the deleted item's config id"),
 			"snapshot":  prop("string", "restore: the snapshot file the delete result named"),
@@ -148,6 +149,9 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 			return invalidArguments(tool.name, err), nil
 		}
 		if refusal := srv.chatRefusal(tool); refusal != nil { // ha-nova serve: the owner's read-only switch
+			return refusal, nil
+		}
+		if refusal := srv.chatRawRefusal(tool.name, params.Arguments); refusal != nil { // ha-nova serve: raw plans for administrators
 			return refusal, nil
 		}
 		if tool.name == mcpSkillTool.name { // offline: no verb, no lock

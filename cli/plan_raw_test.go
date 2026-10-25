@@ -32,6 +32,9 @@ func rawRelay(t *testing.T, handlers map[string]func(map[string]any) any) (paths
 		if handle := handlers[key]; handle != nil {
 			return handle(body)
 		}
+		if handle := handlers[strings.SplitN(key, "?", 2)[0]]; handle != nil { // a query matches its path
+			return handle(body)
+		}
 		switch {
 		case key == "config/entity_registry/list":
 			return []any{}
@@ -283,8 +286,13 @@ func TestPlanRawEnergyTier(t *testing.T) {
 		tier    string
 	}{
 		{prefs, `{"type":"energy/save_prefs","device_consumption":[]}`, "typed"},
-		{prefs, `{"type":"energy/save_prefs","device_consumption":[{"stat_consumption":"sensor.b"}]}`, "typed"},
+		{prefs, `{"type":"energy/save_prefs","device_consumption":[{"stat_consumption":"sensor.b"}]}`, "preview"}, // one entry replaced
 		{prefs, `{"type":"energy/save_prefs","device_consumption":[{"stat_consumption":"sensor.a"},{"stat_consumption":"sensor.b"}]}`, "preview"},
+		{prefs, `{"type":"energy/save_prefs","energy_sources":[{"type":"solar"}],"device_consumption":[{"stat_consumption":"sensor.a"}]}`, "preview"},
+		{map[string]any{"device_consumption": []any{map[string]any{"stat_consumption": "sensor.a", "price": json.Number("0.30")}, map[string]any{"stat_consumption": "sensor.b"}}},
+			`{"type":"energy/save_prefs","device_consumption":[{"stat_consumption":"sensor.a","price":0.3}]}`, "preview"}, // 0.30 is 0.3: one entry dropped
+		{map[string]any{"device_consumption": []any{map[string]any{"stat_consumption": "sensor.a", "price": json.Number("0.30")}, map[string]any{"stat_consumption": "sensor.b"}}},
+			`{"type":"energy/save_prefs","device_consumption":[{"stat_consumption":"sensor.a","price":0.31}]}`, "typed"}, // both entries gone
 		{fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "unknown_error: boom"}, `{"type":"energy/save_prefs","device_consumption":[{"stat_consumption":"sensor.b"}]}`, "typed"},
 		{fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "not_found: No prefs"}, `{"type":"energy/save_prefs","device_consumption":[{"stat_consumption":"sensor.b"}]}`, "preview"},
 	} {
