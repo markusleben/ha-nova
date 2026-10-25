@@ -170,4 +170,4 @@ Tool text changes ship in the same release as the directory-readiness texts, so 
 
 1. Chat apps reach CLI parity before the 0.28 release; no quick 0.27.4.
 2. "Always allow" advice by phone, as above: all tools with a linked phone; without one, "Run a confirmed change" stays on "Needs approval".
-3. HACS downloads and dashboard resources are typed everywhere (option A): in `plan raw`, and the CLI skills (`skills/hacs/SKILL.md`, `skills/dashboard/SKILL.md`) take the one-time code for the same steps on a computer. A behavior change on the computer, called out in the PR.
+3. HACS downloads and dashboard resources are typed everywhere (option A): in `plan raw`, HACS component updates through `update.install` too (the call tier `HACS_INSTALL`), and the CLI skills (`skills/hacs/SKILL.md`, `skills/dashboard/SKILL.md`, `skills/updates/SKILL.md`) take the one-time code for the same steps on a computer. A behavior change on the computer, called out in the PR.

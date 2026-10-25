@@ -133,17 +133,6 @@ func (e *tierEngine) raise(level tierLevel, r tierReason) {
 // open scope, without repeating its reasons.
 func (e *tierEngine) lift(level tierLevel) { e.raise(level, tierReason{}) }
 
-// readFailed records a failed read as typed: LIMIT_CUT once the 30 s budget
-// is spent, SCAN_FAILED otherwise. Details are stable words, never error
-// text, so the plan hash stays deterministic.
-func (e *tierEngine) readFailed(entityID, via, what string) {
-	if e.s.ctx.Err() != nil {
-		e.gap(reasonLimitCut, "", "", "read budget")
-		return
-	}
-	e.gap(reasonScanFailed, entityID, via, what)
-}
-
 // prefetchStates warms the session memo with independent state reads; the
 // session caps them at 8 in flight, and the sequential pass then reads the
 // memo in a fixed order (results and errors alike), so output stays stable.
@@ -301,6 +290,9 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 	case eff == "button.press" && (pl == "esphome" || pl == "mqtt"):
 		level = tierTyped
 		e.gap(reasonUserButton, id, via, pl)
+	case eff == "update.install" && pl == "hacs":
+		level = tierTyped
+		e.raise(tierTyped, tierReason{Code: reasonHACSInstall, EntityID: id, Via: via})
 	}
 	switch serviceDomain, _ := splitID(eff); {
 	case !coreDomains[serviceDomain]:

@@ -162,6 +162,9 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 			if stop, rpcErr := srv.confirmByForm(req, params.Arguments, &answered); stop != nil || rpcErr != nil {
 				return stop, rpcErr
 			}
+			if refusal := srv.chatRawRefusal(tool.name, params.Arguments); refusal != nil { // demoted while the form asked
+				return refusal, nil
+			}
 		}
 		temp := &mcpTempFiles{}
 		defer temp.remove()

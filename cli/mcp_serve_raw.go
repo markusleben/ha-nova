@@ -8,12 +8,23 @@ import (
 // Until household levels land (docs/work/2026-10-24-chat-apps-household-spec.md),
 // a chat app's raw plan is for the Home Assistant owner or an administrator
 // only: ha_plan kind raw is refused for anyone else, and ha_apply of a raw
-// plan checks again, so a user demoted since planning can't run it.
+// plan checks again (also after a form or a phone tap), so a user demoted
+// since planning can't run it.
 
-// chatRawRefusal: nil unless this chat-app call plans or applies a raw plan
-// for a user who isn't an owner or administrator right now (fails closed
-// when the users can't be read).
+// chatRawRefusal is rawAdminFailure as a tool result; nil when allowed.
 func (srv *mcpServer) chatRawRefusal(name string, args map[string]json.RawMessage) map[string]any {
+	failure := srv.rawAdminFailure(name, args)
+	if failure == nil {
+		return nil
+	}
+	return chatStopped(name, refusedWith(failure.code, failure.message, failure.next))
+}
+
+// rawAdminFailure: why this chat-app call may not plan or apply a raw
+// plan (its message without "nothing was sent"), or nil: not a chat app,
+// not a raw plan, or a user who is an owner or administrator right now.
+// Fails closed when the users can't be read.
+func (srv *mcpServer) rawAdminFailure(name string, args map[string]json.RawMessage) *verbFailure {
 	c := srv.chat
 	if c == nil {
 		return nil
@@ -38,16 +49,16 @@ func (srv *mcpServer) chatRawRefusal(name string, args map[string]json.RawMessag
 	users, err := c.bridge.readUsers()
 	mcpVerbLock.Unlock()
 	if err != nil {
-		return chatStopped(name, refusedWith("ADMIN_UNKNOWN", "HA NOVA can't check right now whether this Home Assistant user is an administrator",
-			"Tell the user nothing changed: HA NOVA couldn't check their Home Assistant account just now. They try again in a moment."))
+		return &verbFailure{code: "ADMIN_UNKNOWN", message: "HA NOVA can't check right now whether this Home Assistant user is an administrator",
+			next: "Tell the user nothing changed: HA NOVA couldn't check their Home Assistant account just now. They can try again in a moment."}
 	}
 	for _, u := range users {
 		if u.ID == c.user && phoneAdmin(u) {
 			return nil
 		}
 	}
-	return chatStopped(name, refusedWith("ADMIN_ONLY", "from a chat app, only the Home Assistant owner or an administrator makes this kind of change",
-		"Tell the user nothing changed: this change needs a Home Assistant administrator. An administrator can ask for it, or it can be made in Home Assistant itself."))
+	return &verbFailure{code: "ADMIN_ONLY", message: "from a chat app, only the Home Assistant owner or an administrator makes this kind of change",
+		next: "Tell the user nothing changed: this change needs a Home Assistant administrator. An administrator can make it here or in Home Assistant itself."}
 }
 
 // readUsers: Home Assistant's users from config/auth/list (under

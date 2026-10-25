@@ -34,6 +34,11 @@ const (
 
 const rawWhyDelete = "This deletes something in Home Assistant"
 
+// reasonHACSInstall: update.install on a HACS entity installs third-party
+// code like hacs/repository/download, so a call takes the code too
+// (maintainer decision 3, parity spec; tier_engine.go classify).
+const reasonHACSInstall = "HACS_INSTALL"
+
 // rawTypedWS: the WS writes typed besides the deletes and removals.
 var rawTypedWS = map[string]string{
 	"recorder/clear_statistics": rawWhyDelete,
@@ -50,7 +55,7 @@ var rawSceneConfigPath = regexp.MustCompile(`^/api/config/scene/config/[A-Za-z0-
 func rawItemTier(n *rawNamer, item rawRequest, payload map[string]any) (tierLevel, string) {
 	level, why := rawRequestTier(n, item.Endpoint, payload)
 	if level < tierTyped && item.Typed {
-		return tierTyped, "This step can change who or what opens a door or disarms the alarm"
+		return tierTyped, "This step needs your own confirmation, as the skill asks"
 	}
 	return level, why
 }

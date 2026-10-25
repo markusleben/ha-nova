@@ -305,6 +305,8 @@ func sayReason(e *tierEngine, env *verbEnvelope, plan storedPlan, r tierReason) 
 		return "A step calls " + sayText(r.Detail, true) + ", which Home Assistant doesn't have: that step will fail when it runs", false
 	case reasonRawTyped:
 		return r.Detail, true
+	case reasonHACSInstall:
+		return rawTypedWS["hacs/repository/download"], true
 	case reasonConfigWrite, reasonConfigRevert, reasonConfigRestore, reasonAreaAssign, reasonRawWrite:
 		return "", false
 	}

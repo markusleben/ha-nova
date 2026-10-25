@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 )
 
 // Where the lines of a raw plan (plan_raw_say.go) read their names: one
@@ -132,27 +133,53 @@ func (n *rawNamer) calendarEvent(payload map[string]any) string {
 		} `json:"body"`
 	}
 	name := "the event " + sayText(uid, true) // never found: its id is all there is
-	if data, err := rawRead(n.s, "core", map[string]any{"method": http.MethodGet, "path": path}); entityIDPattern.MatchString(entity) && err == nil && json.Unmarshal(data, &core) == nil {
+	if !entityIDPattern.MatchString(entity) {
+		return name
+	}
+	if data, err := rawRead(n.s, "core", map[string]any{"method": http.MethodGet, "path": path}); err == nil && json.Unmarshal(data, &core) == nil {
 		matches := 0
 		for _, event := range core.Body {
 			if event.UID != uid || sayText(event.Summary, false) == "" {
 				continue
 			}
 			if matches++; matches == 1 {
-				name = "the event " + sayText(event.Summary, true) + " (" + sayText(firstNonEmpty(event.Start.DateTime, event.Start.Date), false) + ")"
+				name = "the event " + sayText(event.Summary, true)
+				if when := plainDate(firstNonEmpty(event.Start.DateTime, event.Start.Date)); when != "" {
+					name += " (" + when + ")"
+				}
 			}
 		}
 		if matches > 1 && recurrence == "" {
 			name += " with all its repeats"
 		}
 	}
+	on := "one occurrence"
+	if when := plainDate(recurrence); when != "" {
+		on = "the one on " + when
+	}
 	switch {
 	case recurrence != "" && payload["recurrence_range"] == "THISANDFUTURE":
-		return name + " on " + sayText(recurrence, false) + " and every later one"
+		return name + ": " + on + " and every later one"
 	case recurrence != "":
-		return name + " on " + sayText(recurrence, false) + " only"
+		return name + ": " + on + " only"
 	}
 	return name
+}
+
+// plainDate: a calendar date or time as people write it ("2 November 2026",
+// "2 November 2026, 14:00"); "" when it can't be read.
+func plainDate(text string) string {
+	for _, layout := range []string{time.RFC3339, "2006-01-02T15:04:05", "20060102T150405Z", "20060102T150405"} {
+		if t, err := time.Parse(layout, text); err == nil {
+			return t.Format("2 January 2006, 15:04")
+		}
+	}
+	for _, layout := range []string{"2006-01-02", "20060102"} {
+		if t, err := time.Parse(layout, text); err == nil {
+			return t.Format("2 January 2006")
+		}
+	}
+	return ""
 }
 
 // scene: a scene config's name, read through its own config.

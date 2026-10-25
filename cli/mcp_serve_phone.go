@@ -255,7 +255,7 @@ func (srv *mcpServer) phoneJob(job *chatJob, argv []string) {
 	// the user may no longer administer Home Assistant (a raw plan).
 	now, _, why := srv.chat.bridge.policyFor(srv.chat.user)
 	id, _ := json.Marshal(req.id)
-	demoted := srv.chatRawRefusal("ha_apply", map[string]json.RawMessage{"plan_id": id}) != nil
+	demoted := srv.rawAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id})
 	job.result = srv.runVerb("ha_apply", "", false, func() int {
 		var env verbEnvelope
 		var exit int
@@ -266,9 +266,8 @@ func (srv *mcpServer) phoneJob(job *chatJob, argv []string) {
 		case now == nil:
 			env, exit, asked = a.refuse("CHAT_APPS_REFUSED", "HA NOVA no longer accepts changes from this chat app ("+why+")",
 				"Tell the user nothing changed: the Home Assistant owner changed who may use HA NOVA in chat apps while the phone was asking.")
-		case demoted:
-			env, exit, asked = a.refuse("ADMIN_ONLY", "this Home Assistant user no longer administers Home Assistant",
-				"Tell the user nothing changed: this change needs a Home Assistant administrator.")
+		case demoted != nil:
+			env, exit, asked = a.refuse(demoted.code, demoted.message, demoted.next)
 		case now.readOnly:
 			env, exit, asked = a.refuse("READ_ONLY", "the owner set chat apps to read only while the phone was asking",
 				"Tell the user nothing changed: the Home Assistant owner set chat apps to read only on the HA NOVA page. They can make this change in Home Assistant itself.")

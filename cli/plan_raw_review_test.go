@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -106,8 +107,9 @@ func TestPlanRawCountsAndReasons(t *testing.T) {
 		},
 	})
 	_, env := planRaw(t, paths, `[{"endpoint":"backups","payload":{"action":"save","category":"scenes","name":"auto-x","data":{}}},
-		{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/flow/abc","body":{"host":"x","password":"hunter2"}}}]`)
-	if strings.Contains(env.Say, "hunter2") || !strings.Contains(env.Say, "password set") || !strings.Contains(env.Say, "host “x”") {
+		{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/flow/abc","body":{"host":"x","password":"hunter2","psk":"s3cret","advanced":{"password":"inner"}}}}]`)
+	if strings.Contains(env.Say, "hunter2") || strings.Contains(env.Say, "s3cret") || strings.Contains(env.Say, "inner") || !strings.Contains(env.Say, "password set") ||
+		!strings.Contains(env.Say, "psk set") || !strings.Contains(env.Say, "advanced set") || !strings.Contains(env.Say, "host “x”") {
 		t.Fatalf("flow step say %q", env.Say)
 	}
 	if exit, failed := applyRaw(t, paths, env); exit != verbExitError || failed.Error.Code != "SNAPSHOT_FAILED" {
@@ -179,7 +181,7 @@ func TestPlanRawSayNames(t *testing.T) {
 		`{"type":"backup/delete","backup_id":"b1"}`:                                                                                               "the backup “Before update”",
 		`{"type":"lovelace/resources/delete","resource_id":"r1"}`:                                                                                 "“/hacsfiles/mushroom.js”",
 		`{"type":"lovelace/dashboards/update","dashboard_id":"d1","title":"Up"}`:                                                                  "dashboard “Upstairs”",
-		`{"type":"calendar/event/delete","entity_id":"calendar.family","uid":"e1","recurrence_id":"20261102","recurrence_range":"THISANDFUTURE"}`: "the event “Dentist” (2026-11-02) on 20261102 and every later one from the calendar “Family”",
+		`{"type":"calendar/event/delete","entity_id":"calendar.family","uid":"e1","recurrence_id":"20261102","recurrence_range":"THISANDFUTURE"}`: "the event “Dentist” (2 November 2026): the one on 2 November 2026 and every later one from the calendar “Family”",
 	} {
 		_, env := planRaw(t, paths, `[{"endpoint":"ws","payload":`+payload+`}]`)
 		if !strings.Contains(env.Say, want) {
@@ -227,5 +229,38 @@ func TestPlanRawPhoneAskKeepsTypedSteps(t *testing.T) {
 	}
 	if !strings.Contains(ask.body, "And 1 other step") || strings.Index(ask.body, "Step 2") > strings.Index(ask.body, "This deletes") {
 		t.Fatalf("phone body %q", ask.body)
+	}
+}
+
+// Decision 3: a HACS component's update.install installs third-party code
+// like hacs/repository/download, so the call takes the code; other updates
+// keep their tier.
+func TestHACSUpdateInstallIsTyped(t *testing.T) {
+	f := newFakeHA()
+	f.ent("update.mushroom_update", "hacs", "on", map[string]any{"friendly_name": "Mushroom update"})
+	f.ent("update.shelly_firmware", "shelly", "on", map[string]any{"friendly_name": "Shelly firmware"})
+	f.services = append(f.defaultServices(), map[string]any{"domain": "update", "services": map[string]any{
+		"install": map[string]any{"target": map[string]any{}}, "skip": map[string]any{"target": map[string]any{}}}})
+	h := newWriteHarness(t, f)
+	hacs := h.plan("update.install", "update.mushroom_update", "--skill", "ha-nova:updates")
+	if hacs.Tier != "typed" || !strings.Contains(fmt.Sprint(hacs.Reasons), reasonHACSInstall) || !strings.Contains(hacs.Say, "installs code from HACS") {
+		t.Fatalf("HACS update: tier %s reasons %v say %q", hacs.Tier, hacs.Reasons, hacs.Say)
+	}
+	other := h.plan("update.install", "update.shelly_firmware", "--skill", "ha-nova:updates")
+	if other.Tier == "typed" || strings.Contains(fmt.Sprint(other.Reasons), reasonHACSInstall) {
+		t.Fatalf("firmware update: tier %s reasons %v", other.Tier, other.Reasons)
+	}
+	if skip := h.plan("update.skip", "update.mushroom_update", "--skill", "ha-nova:updates"); strings.Contains(fmt.Sprint(skip.Reasons), reasonHACSInstall) {
+		t.Fatalf("skip: %v", skip.Reasons)
+	}
+}
+
+// PR 1's guard refuses a cover's class change, so a plan never carries
+// one (a cover's class decides whether opening it needs the code).
+func TestPlanRawRefusesCoverClassChange(t *testing.T) {
+	paths, sent := rawRelay(t, nil)
+	exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"config/entity_registry/update","entity_id":"cover.garage","device_class":"curtain"}}]`)
+	if exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Message, "Show as") || len(sent()) != 0 {
+		t.Fatalf("exit %d %+v", exit, env.Error)
 	}
 }

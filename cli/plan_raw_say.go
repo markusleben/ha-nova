@@ -154,7 +154,7 @@ func rawCoreLine(n *rawNamer, payload map[string]any) (verb, object string) {
 			setup = "the setup of " + sayText(flow, true) + " in progress"
 		}
 	}
-	return "Submit", "the next step of " + setup + n.fields(body, "")
+	return "Submit", "the next step of " + setup + flowFields(body)
 }
 
 // rawPruneLine: a snapshot prune in plain words (Relay defaults: 30 days,
@@ -244,6 +244,8 @@ func (n *rawNamer) fields(payload map[string]any, idKey string) string {
 			parts = append(parts, sayText(strings.ReplaceAll(key, "_", " "), false)+" "+sayText(text, true))
 		case value == nil:
 			parts = append(parts, sayText(strings.ReplaceAll(key, "_", " "), false)+" cleared")
+		case isObject(value):
+			parts = append(parts, sayText(strings.ReplaceAll(key, "_", " "), false)+" set")
 		default:
 			raw, _ := json.Marshal(value)
 			parts = append(parts, sayText(strings.ReplaceAll(key, "_", " "), false)+" "+sayText(string(raw), false))
@@ -255,10 +257,37 @@ func (n *rawNamer) fields(payload map[string]any, idKey string) string {
 	return ": " + strings.Join(parts, ", ")
 }
 
-// rawSecretField: a field name that may hold a password, code, key, or
-// token; its value is never shown.
+func isObject(v any) bool {
+	_, object := v.(map[string]any)
+	return object
+}
+
+// flowFields words a flow step's form: a value only for a top-level text,
+// number, or true/false whose name is clearly no secret; anything nested,
+// and anything in doubt, by its name only.
+func flowFields(body map[string]any) string {
+	var parts []string
+	for _, key := range sortedKeys(body) {
+		label := sayText(strings.ReplaceAll(key, "_", " "), false)
+		switch value := body[key].(type) {
+		case string, bool, json.Number, float64:
+			if text := sayText(fmt.Sprint(value), false); !rawSecretField(strings.ToLower(key)) && text != "" {
+				parts = append(parts, label+" "+sayText(text, true))
+				continue
+			}
+		}
+		parts = append(parts, label+" set")
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return ": " + strings.Join(parts, ", ")
+}
+
+// rawSecretField: a field name that may hold a password, code, key,
+// token, or certificate; its value is never shown.
 func rawSecretField(lower string) bool {
-	for _, word := range []string{"password", "passwd", "passphrase", "secret", "token", "key", "code", "credential", "auth", "pin"} {
+	for _, word := range []string{"pass", "pwd", "psk", "otp", "secret", "token", "key", "code", "credential", "community", "auth", "pin", "cert", "private"} {
 		if strings.Contains(lower, word) {
 			return true
 		}
