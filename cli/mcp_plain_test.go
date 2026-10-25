@@ -15,7 +15,7 @@ import (
 // anthropics/claude-ai-mcp#1032); titles and annotations do not count.
 // Changing any of these resets that choice for every chat-app user: change
 // them only on purpose, then update the hash and say so in the PR.
-const mcpToolTextHash = "c4861734b50f83a55cf4c25c288ad30976ba440cb6e3994d375514ee65b3ec13"
+const mcpToolTextHash = "a7551dfa7f9a3c1c6665410359012a9b1f1fa1a1898fd7d1158787245efb79c8"
 
 func TestMCPToolTextStable(t *testing.T) {
 	t.Setenv("HA_NOVA_DEV_ROOT", "..") // the repo's skills: ha_skill's description lists their ids

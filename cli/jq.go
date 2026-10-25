@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -84,6 +86,14 @@ func compileJQFilter(filter string) (*jqProgram, error) {
 }
 
 func applyCompiledJQFilter(program *jqProgram, input []byte, raw bool) (jqResult, error) {
+	return applyCompiledJQFilterWithin(context.Background(), program, input, raw, 0)
+}
+
+var errJQOutputLimit = errors.New("jq output is over the limit")
+
+// applyCompiledJQFilterWithin stops when ctx ends (its error is returned) and,
+// with limit > 0, as soon as the output passes limit bytes (errJQOutputLimit).
+func applyCompiledJQFilterWithin(ctx context.Context, program *jqProgram, input []byte, raw bool, limit int) (jqResult, error) {
 	input, err := strictJSONBytes(input, "jq input")
 	if err != nil {
 		return jqResult{}, err
@@ -95,7 +105,7 @@ func applyCompiledJQFilter(program *jqProgram, input []byte, raw bool) (jqResult
 
 	var out strings.Builder
 	var lastVal interface{}
-	iter := program.code.Run(inputVal)
+	iter := program.code.RunWithContext(ctx, inputVal)
 	for {
 		v, ok := iter.Next()
 		if !ok {
@@ -104,6 +114,9 @@ func applyCompiledJQFilter(program *jqProgram, input []byte, raw bool) (jqResult
 		if err, isErr := v.(error); isErr {
 			return jqResult{}, err
 		}
+		if limit > 0 && out.Len() > limit { // the caller refuses the rest anyway
+			return jqResult{}, errJQOutputLimit
+		}
 		lastVal = v
 		if raw {
 			if s, ok := v.(string); ok {
@@ -111,7 +124,7 @@ func applyCompiledJQFilter(program *jqProgram, input []byte, raw bool) (jqResult
 				continue
 			}
 		}
-		b, err := json.Marshal(v)
+		b, err := marshalPlain(v) // "<" stays "<", as jq prints it
 		if err != nil {
 			return jqResult{}, err
 		}

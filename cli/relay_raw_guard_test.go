@@ -198,12 +198,16 @@ func TestRawRelayRefusesWhitespaceAndControlPaths(t *testing.T) {
 			t.Errorf("%q: allowed, want refused", path)
 		}
 	}
+	haRead := func(path string) bool {
+		body, _ := json.Marshal(map[string]any{"method": "GET", "path": path})
+		return mcpReadRefusal("core", body) == nil
+	}
 	for _, path := range []string{"/api/states/.\t./webhook/abc", "/api/states/..\\webhook/abc", " /api/webhook/abc", "/api/states/x#/../../webhook/a"} {
-		if readablePath(path) || mcpReadablePath(path) {
+		if readablePath(path) || haRead(path) {
 			t.Errorf("read allowlist accepted %q", path)
 		}
 	}
-	if !readablePath("/api/states/lock.front_door") || !mcpReadablePath("/api/history/period?filter_entity_id=light.x") {
+	if !readablePath("/api/states/lock.front_door") || !haRead("/api/history/period?filter_entity_id=light.x") {
 		t.Error("plain reads must stay allowed")
 	}
 }

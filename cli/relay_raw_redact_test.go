@@ -108,7 +108,7 @@ func TestSeededDefaultCodeNeverLeaves(t *testing.T) {
 	leaks("--out file", string(written))
 
 	exit, out := captureCommandOutput(t, func() int {
-		return runMCPRead(h.paths, []string{"ws", `{"type":"config/entity_registry/get","entity_id":"lock.front"}`})
+		return runMCPRead(h.paths, []string{"ws", `--body={"type":"config/entity_registry/get","entity_id":"lock.front"}`})
 	})
 	if exit != 0 || !strings.Contains(out, secretHidden) {
 		t.Fatalf("ha_read: exit %d %s", exit, out)

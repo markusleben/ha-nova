@@ -59,6 +59,7 @@ type verbEnvelope struct {
 	// BeforeConfig: the config an update replaced, whenever it may have landed.
 	BeforeConfig json.RawMessage `json:"before_config,omitempty"`
 	Result       any             `json:"result,omitempty"`
+	Image        *verbImage      `json:"image,omitempty"` // ha_read camera (mcp_read.go)
 	Error        *verbError      `json:"error,omitempty"`
 	Notices      []verbNotice    `json:"notices,omitempty"`
 	exit         int             // success exit code; 0 unless a verb sets it (plan: 3)

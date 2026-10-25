@@ -21,9 +21,13 @@ names a CLI command, use the tool:
   arguments (--confirm → confirm_code, --file → draft, --data-file and --set →
   data, revert --target → id, plan restore --snapshot/--id → kind restore
   with snapshot/id); this connection is pinned: no --server
-- read-only relay core GET and relay ws reads → ha_read, only the paths and
-  types it accepts; send payloads inline and apply any --jq-file filter
-  yourself. Prefer ha_find/ha_get over whole-list reads such as /api/states
+- relay core|ws|files|backups reads (core POST /api/template and check_config
+  too), a camera image (--out-binary), snapshot show|verify, and diff
+  → ha_read endpoints; send payloads and files inline; --jq, --jq-file, and
+  relay jq → its jq: --out <file> then relay jq --file <file> F → repeat the
+  read with jq F; for -e, check yourself that the result is not null or
+  false; -r isn't needed. Prefer ha_find/ha_get over whole-list reads such as
+  /api/states
 - exit codes → status: 2 drift, 3 needs_confirmation, 6 unverified, 7
   OUTCOME_UNKNOWN (read with ha_get, never retry); others status error
 - skip the session bootstrap (check-update, relay health): results carry
@@ -32,7 +36,7 @@ names a CLI command, use the tool:
   ../ha-nova/….md, or a bare file name): ha_skill with it as name, when the
   step you run needs it
 Everything else (helper, dashboard, scene, registry or organize edits, other
-relay writes, logs, template probes, files on disk) needs a client with a shell
+relay writes, file writes) needs a client with a shell
 and the HA NOVA CLI: say so instead of improvising, and say which evidence was
 not checked. Pass a one-time code to ha_apply only when the user typed it in
 chat for that plan. Where a result says their app asks for it in a form, that form
