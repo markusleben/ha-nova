@@ -1,95 +1,8 @@
 // The setup page's script (cli/setupweb/app.js, steps.js, chat.js, rerun.js) against a small
 // fake DOM: what a click shows next. The Go tests cover the CLI side.
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 
-const WEB = resolve(__dirname, "../../cli/setupweb");
-const read = (name: string) => readFileSync(resolve(WEB, name), "utf8");
-
-type Listener = (event: { preventDefault: () => void }) => void;
-
-class FakeNode {
-  children: FakeNode[] = [];
-  attributes: Record<string, string> = {};
-  listeners: Record<string, Listener[]> = {};
-  className = "";
-  value = "";
-  open = false;
-  dataset: Record<string, string> = {};
-  classList = { toggle: () => undefined };
-  constructor(public tag: string, public text = "") {}
-  get id() { return this.attributes.id ?? ""; }
-  get textContent(): string { return this.text + this.children.map((c) => c.textContent).join(""); }
-  set textContent(value: string) { this.text = value; this.children = []; }
-  setAttribute(name: string, value: string) { this.attributes[name] = String(value); }
-  addEventListener(type: string, fn: Listener) { (this.listeners[type] ??= []).push(fn); }
-  dispatch(type: string) { for (const fn of this.listeners[type] ?? []) fn({ preventDefault: () => undefined }); }
-  append(...nodes: FakeNode[]) { this.children.push(...nodes); }
-  replaceChildren(...nodes: FakeNode[]) { this.children = nodes; }
-  remove() { /* toasts only */ }
-  focus() { /* no focus tracking */ }
-  all(): FakeNode[] { return this.children.flatMap((c) => [c, ...c.all()]); }
-  querySelector(selector: string) { return this.all().find((n) => n.tag === selector) ?? null; }
-  querySelectorAll() { return []; }
-}
-
-// A page whose /api/state answers before, then (once something was posted)
-// each afterPost state in turn, the last one repeating; /api/action records
-// each post. ctl.down: /api/state no longer answers (setup closed the page).
-function page(before: object, ...afterPost: object[]) {
-  const ctl = { down: false };
-  const nodes = { screen: new FakeNode("main"), dots: new FakeNode("div"), status: new FakeNode("div") };
-  const posts: unknown[] = [];
-  const timers: (() => void)[] = [];
-  const held: (() => void)[] = []; // 30 s and longer: run only when a test says so
-  const json = (body: unknown) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
-  const catalog = JSON.parse(read("strings.en.json"));
-  const document = {
-    documentElement: { lang: "en" },
-    activeElement: null,
-    body: new FakeNode("body"),
-    title: "",
-    getElementById: (id: string) =>
-      (nodes as Record<string, FakeNode>)[id] ?? nodes.screen.all().find((n) => n.id === id) ?? null,
-    createElement: (tag: string) => new FakeNode(tag),
-    createElementNS: (_: string, tag: string) => new FakeNode(tag),
-    createTextNode: (text: string) => new FakeNode("#text", text),
-  };
-  const fetch = (url: string, init?: { body?: string }) => {
-    if (url.includes("strings")) return json(catalog);
-    if (url === "/api/action") {
-      posts.push(JSON.parse(init?.body ?? "{}"));
-      return json({});
-    }
-    if (ctl.down) return Promise.reject(new Error("closed"));
-    if (!posts.length || !afterPost.length) return json(before);
-    return json(afterPost.length > 1 ? afterPost.shift() : afterPost[0]);
-  };
-  const window: Record<string, unknown> = {};
-  const context = {
-    window, document, fetch, Intl, JSON, Promise, Object, Array, Map, String, Boolean,
-    navigator: { language: "en" },
-    location: { hash: "", origin: "http://127.0.0.1:1", assign: () => undefined },
-    sessionStorage: { getItem: () => null, setItem: () => undefined },
-    setTimeout: (fn: () => void, ms = 0) => (ms >= 30_000 ? held : timers).push(fn),
-    clearTimeout: () => undefined,
-  };
-  runInNewContext(read("chat.js"), context);
-  runInNewContext(read("steps.js"), context);
-  runInNewContext(read("rerun.js"), context);
-  runInNewContext(read("app.js"), context);
-  const settle = async (rounds = 20) => {
-    for (let i = 0; i < rounds; i++) {
-      await new Promise((r) => setImmediate(r));
-      const due = timers.splice(0);
-      due.forEach((fn) => fn());
-    }
-  };
-  const find = (id: string) => nodes.screen.all().find((n) => n.id === id);
-  return { screen: nodes.screen, posts, settle, find, catalog, timers, held, ctl };
-}
+import { chatFixtures, page, read } from "./setup-page-harness.js";
 
 const found = {
   screen: "found", ha: "10.0.2.2", clients: ["OpenCode"], app: "running", app_version: "0.10.0",
@@ -380,10 +293,7 @@ describe("setup page step 4", () => {
 });
 
 describe("setup page: Add to Claude", () => {
-  const url = "https://abc123.ui.nabu.casa/api/ha_nova/mcp";
-  const link = "https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=HA%20NOVA&connectorUrl=https%3A%2F%2Fabc123.ui.nabu.casa%2Fapi%2Fha_nova%2Fmcp";
-  const org_link = link.replace("/customize/", "/admin-settings/");
-  const control = (chat: object) => ({ screen: "control", accepts: ["finish"], control: { window: true, phone: "none", chat } });
+  const { url, link, org_link, control } = chatFixtures;
 
   it("opens Claude's prefilled dialog in a new tab once chat apps are on, next to the address to copy", async () => {
     const p = page(control({ state: "on", url, claude_link: link }));
@@ -510,35 +420,6 @@ describe("setup page: Add to Claude", () => {
     expect(p.find("l-chat-claude-4")!.attributes.href).toBe(link);
     expect(p.find("l-chat-claude-org-4")!.attributes.href).toBe(org_link);
     expect(p.screen.textContent).toContain(p.catalog["setup.chat.no_form_above"]);
-  });
-
-  // Decision 2 of the chat-parity spec: with a phone that confirms, every tool on “Always allow”;
-  // without one, all but “Run a confirmed change”, so Claude's question still guards a code in the chat.
-  it("says under Add to Claude what to set so Claude stops asking, by whether a phone confirms", async () => {
-    const next = (p: ReturnType<typeof page>, key: string) => `${p.catalog["setup.chat.next_title"]} ${p.catalog[key]}`;
-    for (const [phone, key, other] of [["Pixel", "setup.chat.next_phone", "setup.chat.next_code"], ["", "setup.chat.next_code", "setup.chat.next_phone"]] as const) {
-      const p = page(control({ state: "on", url, claude_link: link, phone: "Pixel", ...(phone ? { phone_confirmed: true } : {}) })); // a name alone confirms nothing
-      await p.settle();
-      expect(p.find("chat-next")!.textContent).toBe(next(p, key));
-      expect(p.screen.textContent).not.toContain(p.catalog[other]);
-      const home = page({ screen: "home", accepts: ["done"], home: { chat_link: link, ...(phone ? { chat_phone: true } : {}) } });
-      await home.settle();
-      expect(home.find("chat-next-4")!.textContent).toBe(next(home, key));
-    }
-    const rerun = page(control({ state: "page_on", url, claude_link: link })); // a re-run reads no phone: the safe advice, and where to look
-    await rerun.settle();
-    expect(rerun.find("chat-next")!.textContent).toBe(`${next(rerun, "setup.chat.next_code")} ${rerun.catalog["setup.chat.next_check"]}`);
-    const rerunPhone = page(control({ state: "page_on", url, claude_link: link, phone_confirmed: true }));
-    await rerunPhone.settle();
-    expect(rerunPhone.find("chat-next")!.textContent).toBe(next(rerunPhone, "setup.chat.next_phone"));
-    const plain = page({ screen: "home", accepts: ["done"], home: {} });
-    await plain.settle();
-    expect(plain.find("chat-next-4")).toBeUndefined(); // chat apps off: nothing to set
-    for (const key of ["setup.chat.next_phone", "setup.chat.next_code"]) {
-      expect(rerun.catalog[key]).toContain("That's Claude, not HA NOVA.");
-      expect(rerun.catalog[key]).toContain("Customize → Connectors → HA NOVA");
-    }
-    expect(rerun.catalog["setup.chat.next_code"]).toContain("except “Run a confirmed change”: leave it on “Needs approval”. Then Claude still asks before each bigger change. The AI can see a chat code, so that question is your own check.");
   });
 });
 
