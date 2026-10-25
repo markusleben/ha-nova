@@ -71,7 +71,8 @@ func TestRawRelayRefusesDisablingAccessDevice(t *testing.T) {
 		{"entity_id":"cover.gate","device_id":"dgate"},{"entity_id":"cover.blind","device_id":"dblind"},{"entity_id":"switch.plug","device_id":"dplug"},
 		{"entity_id":"cover.curtain","device_id":"dcurtain"},{"entity_id":"cover.old_garage","device_id":"doldgarage"},
 		{"entity_id":"switch.gate_relay","device_id":"drelay"},{"entity_id":"cover.gate_relay","device_id":"drelay","platform":"switch_as_x"},
-		{"entity_id":"switch.lamp_relay","device_id":"dlamp"},{"entity_id":"light.lamp_relay","device_id":"dlamp","platform":"switch_as_x"}]`
+		{"entity_id":"switch.lamp_relay","device_id":"dlamp"},{"entity_id":"light.lamp_relay","device_id":"dlamp","platform":"switch_as_x"},
+		{"entity_id":"switch.template_bolt"},{"entity_id":"lock.template_bolt","platform":"switch_as_x"}]`
 	paths, forwarded, _ := rawGuardRelay(t, func() string { return registry }, map[string]string{"cover.garage": "garage", "cover.blind": "blind"},
 		map[string]string{"cover.curtain": "curtain", "cover.old_garage": "garage"})
 	for _, body := range []string{
@@ -80,9 +81,10 @@ func TestRawRelayRefusesDisablingAccessDevice(t *testing.T) {
 		`{"type":"config/device_registry/update","device_id":"dgarage","disabled_by":"user","name_by_user":"Garage"}`,
 		`{"type":"config/device_registry/update","device_id":"dgate","disabled_by":"user"}`, // no state, no class: fails closed
 		`{"message":{"type":"config/device_registry/update","device_id":"dlock","disabled_by":"user"},"collect_events":{"max_events":1}}`,
-		`{"type":"config/device_registry/update","device_id":"doldgarage","disabled_by":null}`,          // a disabled garage door: class from its registry entry
-		`{"type":"config/entity_registry/update","entity_id":"switch.gate_relay","disabled_by":"user"}`, // the switch a switch_as_x gate runs on
-		`{"type":"config/device_registry/update","disabled_by":"user"}`,                                 // no device named: fails closed
+		`{"type":"config/device_registry/update","device_id":"doldgarage","disabled_by":null}`,             // a disabled garage door: class from its registry entry
+		`{"type":"config/entity_registry/update","entity_id":"switch.gate_relay","disabled_by":"user"}`,    // the switch a switch_as_x gate runs on
+		`{"type":"config/entity_registry/update","entity_id":"switch.template_bolt","disabled_by":"user"}`, // device-less, as tier_scan's switchAsX pairs them
+		`{"type":"config/device_registry/update","disabled_by":"user"}`,                                    // no device named: fails closed
 	} {
 		var exit int
 		stderr := captureStderr(t, func() { exit = runRelayCommand(paths, []string{"ws", "--data", body}) })

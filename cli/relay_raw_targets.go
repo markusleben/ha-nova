@@ -131,7 +131,7 @@ func checkRawAccessTargetIn(s *relaySession, endpoint string, body []byte) (refu
 			}
 		}
 		for _, row := range rows {
-			if target.device != "" && row.Platform == "switch_as_x" && row.DeviceID == target.device && accessCapable(row.EntityID, coverClass(s, row.EntityID)) {
+			if row.Platform == "switch_as_x" && row.DeviceID == target.device && accessCapable(row.EntityID, coverClass(s, row.EntityID)) {
 				return rawRefusal("disabling or enabling "+target.source+", which runs "+row.EntityID+" (a disabled lock, alarm panel, or cover stops working in Home Assistant, so a door can't be locked or the alarm armed)", rawNextUI), nil
 			}
 		}

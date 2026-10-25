@@ -27,7 +27,7 @@ Not in scope:
 - zones, persons, tags (`ha-nova:admin`)
 - energy management (`ha-nova:energy`) or calendar management (`ha-nova:calendar`)
 
-Hand off to the skill named per line; surfaces without one go to `ha-nova:fallback`.
+Hand off per line; anything else goes to `ha-nova:fallback`.
 
 ## Bootstrap (once per session)
 
@@ -48,8 +48,6 @@ Registry commands owned here:
 - `config/category_registry/list|create|update|delete`
 - `config/entity_registry/get|list|update`
 - `config/device_registry/list|update`
-
-Use `search/related` when a delete needs a quick impact preview on linked items.
 
 ## Flow
 
@@ -103,9 +101,7 @@ Use only exposed metadata fields:
 - `icon`, `device_class`, `options`, and area labels or sensors: read `display-fields.md` first
 - device: `name_by_user`, `area_id`, `labels`, `disabled_by`
 
-Refused here: disabling or enabling a lock, alarm panel, or cover, its device, or its `switch_as_x` switch; say so before any preview.
-
-Do not guess unsupported fields.
+Refused here: disabling or enabling a lock, alarm panel, or cover; a device with a lock, alarm panel, or access cover; or a switch whose device has a `switch_as_x` one (registry `platform: switch_as_x`). Say so before any preview; point at **Settings > Devices & services**.
 
 Re-ENABLING a registry-disabled item depends on WHO disabled it (`disabled_by`): `"user"` or `"integration"` (disabled by default) → the write `{"disabled_by": null}` on the entity record; `"device"` → the entity follows its parent — re-enable the DEVICE record (`{"disabled_by": null}` on the device registry entry, same preview/consumer rules as a device-level disable), never the entity alone; `"config_entry"` (the integration is disabled) → not writable from any HA NOVA skill (entry enable/disable is External in the capability map): point at **Settings > Devices & services**. Lower-risk than disabling, still previewed and confirmed; then read the response: `require_restart: true` → the entity appears only after a restart; `reload_delay: <seconds>` → it appears by itself after ~that delay; never actuate the freshly enabled entity from this skill.
 
