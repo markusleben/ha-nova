@@ -23,6 +23,10 @@ import (
 //     alarm panel's code in its discovery payload (mqtt/device/debug_info),
 //     and the current value of a secret field in a config or options flow
 //     form.
+//   - a camera's or image entity's short-lived access_token attribute and the
+//     token parameter of its entity_picture (the path stays): the token opens
+//     /api/camera_proxy_stream (live video) or the image for minutes, with no
+//     login. Frames come from /api/camera_proxy/<id> with the Relay's own auth.
 //
 // A set value becomes a fixed marker, an empty one stays empty, so "is a code
 // set" stays readable. Nothing the skills or verbs read needs the values;
@@ -32,7 +36,7 @@ func redactSecrets(body []byte, nonces bool) []byte {
 		!(nonces && bytes.Contains(body, []byte("HANOVA_"))) && !bytes.Contains(body, []byte("default_code")) &&
 		!bytes.Contains(body, []byte("create_backup")) && !bytes.Contains(body, []byte("active_dataset_tlvs")) &&
 		!bytes.Contains(body, []byte("data_schema")) && !bytes.Contains(body, []byte("discovery_data")) &&
-		!bytes.Contains(body, []byte(`/config"`)) &&
+		!bytes.Contains(body, []byte(`/config"`)) && !bytes.Contains(body, []byte(`"camera.`)) && !bytes.Contains(body, []byte(`"image.`)) &&
 		!bytes.Contains(body, []byte(`\u`)) { // an escaped key spells none of these
 		return body
 	}
@@ -203,6 +207,23 @@ func redactObject(t map[string]any, nonces bool) bool {
 	if eventType, ok := t["event_type"].(string); ok && phoneEventName(eventType) {
 		if data := jsonFields(t["data"]); data != nil && data["webhook_id"] != nil {
 			data["webhook_id"], changed = phoneSecretHidden, true
+		}
+	}
+	if id, _ := t["entity_id"].(string); streamTokenEntity(id) { // a state: get_states, /api/states, an event's old_state and new_state
+		changed = hideStreamToken(t, "attributes") || changed
+	}
+	for id, x := range t { // a compressed state keyed by entity id: subscribe_entities, history/history_during_period
+		if !streamTokenEntity(id) {
+			continue
+		}
+		states, isList := x.([]any)
+		if !isList {
+			states = []any{x, jsonFields(x)["+"]}
+		}
+		for _, state := range states {
+			if fields := jsonFields(state); fields != nil {
+				changed = hideStreamToken(fields, "a") || changed
+			}
 		}
 	}
 	changed = hideSet(t, "default_code") || changed
