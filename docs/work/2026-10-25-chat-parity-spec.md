@@ -106,6 +106,26 @@ Where it shows:
 - In chat: the model answers "why does Claude ask every time?" with the same steps (`skills/ha-nova/capability-answer.md`, mapped in the header). Tool descriptions don't carry it: they reset approvals, and the directory review wants no behavior text there.
 - `docs/reference/chat-apps.md`: the same two variants. `README.md` follows in the 0.28 release-prep PR (README edits only there).
 
+## Docs and copy
+
+Every text that says chat apps can't do something, or gives the old "Always allow" advice, changes in the PR that makes it true (sweep 2026-10-25, `main` = `f686de25`):
+
+| Where | Today | Change | PR |
+|---|---|---|---|
+| `cli/mcp_skill.go:35` header | "Everything else … needs a client with a shell" | computer-only list only | 5 |
+| `cli/mcp_args.go:170` (`ha_read` refusal), `:347` (skill without chat writes) | "needs a client with a shell" | the refusal names the route, or the computer-only reason | 2, 3 |
+| `docs/reference/chat-apps.md:37-44` | read-only + "Control a device" | the two variants by phone | 5 |
+| `docs/reference/chat-apps.md:102` | "helpers, dashboards, and files still need HA NOVA on a computer" | removed; computer-only list (setting up HA NOVA itself) | 5 |
+| `cli/setupweb/strings.en.json` (`setup.page.home.note_chat`), `nova/src/http/handlers/nova-page-view.ts` (Chat apps) | no advice | "Next" block, variant by phone | 5 |
+| `skills/ha-nova/capability-answer.md` | no answer for "why does Claude ask" | the steps, both variants | 5 |
+| `nova/DOCS.md` (Chat apps) | no advice | one line, link to chat-apps.md | 5 |
+| `nova/CHANGELOG.md`, `docs/work/next-release-body.md` | — | new entry: chat apps can do what the computer can; new advice | 5 |
+| `README.md:175`, `:182` | old advice; "Helpers, dashboards, and files still need HA NOVA on a computer" | same as chat-apps.md | 0.28 release-prep (README edits only there), listed in `next-release-body.md` |
+| hanova.app `index.html:478`, `demo/index.html:88` | old advice | site PR after the 0.28 tag, from the README (site rule); the demo has no phone, so its copy is the no-phone variant | after release |
+| `docs/reference/` (`client-integration.md`, `ha-api-matrix.md`, `safety.md`, `skill-architecture.md`) and `docs/work/2026-10-19-chat-bridge-contract.md` | tool and route lists | `ha_read` endpoints, `ha_plan kind raw`, the shared guard | 1-5, each with its change |
+
+Guard against regressions: `tests/docs/banned-wording.json` gets rules (scope all) for "still need(s) HA NOVA on a computer" and "client with a shell", read by `tests/docs/canonical-wording.test.ts` and by hanova.app's `check-sync.sh`. `README.md` is an allowed exception in the test until the release-prep PR, which drops it. The parity test (item 5) covers the bridge's own texts.
+
 ## Security
 
 - Same allowlist, guards, and redaction as the CLI, in one function per endpoint; the two guard fixes above hold on both.
