@@ -76,6 +76,7 @@ func planArgv(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, er
 		"delete":  {"kind", "entity_id"},
 		"revert":  {"kind", "domain", "id"},
 		"restore": {"kind", "snapshot", "id"},
+		"raw":     {"kind", "requests"},
 	}[kind]
 	for key := range args {
 		if !containsText(allowed, key) {
@@ -110,6 +111,13 @@ func planArgv(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, er
 			return nil, fmt.Errorf("%q is not an entity_id", entityID)
 		}
 		return []string{"delete", entityID}, nil
+	case "raw":
+		requests, present := args["requests"]
+		if !present {
+			return nil, errors.New("kind raw needs requests")
+		}
+		path, err := temp.write(requests)
+		return []string{"raw", "--file=" + path}, err
 	case "restore":
 		snapshot := text(args, "snapshot")
 		if restoreDomain(snapshot) == "" {
@@ -262,15 +270,17 @@ var cliCommands = strings.NewReplacer("ha-nova plan call|write|delete|revert", "
 	"ha-nova apply --plan ", "ha_apply with plan_id ")
 
 // mcpNext rewrites a verb's next for an MCP client: CLI commands and flags
-// become tools and arguments; a named ha-nova:* skill gets a no-shell path.
+// become tools and arguments; a named ha-nova:* skill gets its chat route.
 func mcpNext(next string) string {
 	out := cliCommands.Replace(mcpArgs(next))
 	switch {
 	case !strings.Contains(out, "ha-nova:"):
+	case strings.Contains(out, "ha-nova:yaml-config") && chatReadOnly():
+		out += " The user edits the YAML/package file and reloads it in Developer tools → YAML."
 	case strings.Contains(out, "ha-nova:yaml-config"):
-		out += " Without a shell client, the user edits the YAML/package file and reloads it in Developer tools → YAML."
-	case !strings.Contains(out, "Settings"):
-		out += " That skill's writes need a client with a shell and the HA NOVA CLI (ha_skill serves it for its read steps); without one, the user does this in Home Assistant (Settings)."
+		out += " Load it with ha_skill: with file access on in the NOVA Relay App, its file writes go through ha_plan kind raw, then ha_apply; otherwise the user edits the YAML/package file and reloads it in Developer tools → YAML."
+	case !strings.Contains(out, "Settings") && !chatReadOnly():
+		out += " Load that skill with ha_skill (its name without ha-nova:); its writes go through ha_plan (kind raw for its Relay requests), then ha_apply."
 	}
 	return out
 }

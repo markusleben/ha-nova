@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -245,4 +246,18 @@ func registryEntityFor(s *relaySession, domain, configID string) (string, bool, 
 		}
 	}
 	return "", false, nil
+}
+
+// applyDone: what a config or rooms apply does, for its result line (a
+// call words its read-back instead).
+func applyDone(e *tierEngine, env *verbEnvelope, plan storedPlan, ctx configContext) string {
+	switch {
+	case plan.Kind == "rooms" && plan.RoomsRequest.Undo:
+		return "put the devices back where they were"
+	case plan.Kind == "rooms":
+		return "put the devices in their rooms"
+	case plan.ConfigAction == nil:
+		return ""
+	}
+	return sayPast(sayGoal(e, env, plan, cmp.Or(ctx.alias, configAlias(nil, ctx.current))))
 }

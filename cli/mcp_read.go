@@ -273,11 +273,11 @@ func mcpReadRefusal(endpoint string, body []byte) error {
 		case method == http.MethodPost && (path == "/api/template" || path == "/api/config/core/check_config"):
 			return nil
 		case method != http.MethodGet:
-			return fmt.Errorf("ha_read sends POST only to /api/template and /api/config/core/check_config; to change something, %s; nothing was sent", mcpPlanIt)
+			return fmt.Errorf("ha_read sends POST only to /api/template and /api/config/core/check_config; to change something, %s; nothing was sent", mcpPlanRoute())
 		case !readablePath(path):
 			return errors.New("ha_read core reads plain paths under /api/, but no webhooks, backup downloads, Supervisor requests, media proxies, or streams (a camera's image: endpoint camera); nothing was sent")
 		case flowStepPath.MatchString(strings.SplitN(path, "?", 2)[0]):
-			return fmt.Errorf("a GET on a flow step can finish the flow: %s; nothing was sent", mcpPlanIt)
+			return fmt.Errorf("a GET on a flow step can finish the flow: %s; nothing was sent", mcpPlanRoute())
 		case !rawRelayRead("core", body):
 			return errors.New("send the plain path (no %-escapes or dot segments); nothing was sent")
 		}
@@ -285,19 +285,19 @@ func mcpReadRefusal(endpoint string, body []byte) error {
 		message, _ := payload["message"].(map[string]any)
 		for _, wsType := range []any{payload["type"], message["type"]} {
 			if name, _ := wsType.(string); mcpPlannedReads[name] {
-				return fmt.Errorf("%s fetches a URL or hands out a live link: %s; nothing was sent", name, mcpPlanIt)
+				return fmt.Errorf("%s fetches a URL or hands out a live link: %s; nothing was sent", name, mcpPlanRoute())
 			}
 		}
 		if !rawRelayRead("ws", body) {
-			return fmt.Errorf("ha_read only reads; to change something, %s; nothing was sent", mcpPlanIt)
+			return fmt.Errorf("ha_read only reads; to change something, %s; nothing was sent", mcpPlanRoute())
 		}
 	case "files":
 		if action, _ := payload["action"].(string); action != "list_dir" && action != "read_file" {
-			return fmt.Errorf("ha_read reads files with list_dir and read_file only; to write or delete one, %s; nothing was sent", mcpPlanIt)
+			return fmt.Errorf("ha_read reads files with list_dir and read_file only; to write or delete one, %s; nothing was sent", mcpPlanRoute())
 		}
 	case "backups":
 		if action, _ := payload["action"].(string); action != "list" && action != "load" {
-			return fmt.Errorf("ha_read lists and loads config snapshots only; to save, delete, or prune one, %s; nothing was sent", mcpPlanIt)
+			return fmt.Errorf("ha_read lists and loads config snapshots only; to save, delete, or prune one, %s; nothing was sent", mcpPlanRoute())
 		}
 	}
 	return nil
