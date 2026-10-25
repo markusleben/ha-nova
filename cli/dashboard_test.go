@@ -68,7 +68,7 @@ func (f *fakeHA) lovelaceReply(endpoint string, p map[string]any) (any, bool) {
 		}
 		return nil, true
 	case "lovelace/dashboards/create":
-		l.entries = append(l.entries, map[string]any{"id": strings.ReplaceAll(urlPath, "-", "_"), "url_path": urlPath, "title": p["title"], "mode": "storage", "require_admin": false, "show_in_sidebar": true})
+		l.entries = append(l.entries, map[string]any{"id": strings.ReplaceAll(urlPath, "-", "_"), "url_path": urlPath, "title": p["title"], "mode": "storage", "require_admin": p["require_admin"] == true, "show_in_sidebar": p["show_in_sidebar"] != false})
 		return l.entries[len(l.entries)-1], true
 	case "lovelace/dashboards/delete":
 		for i, e := range l.entries {

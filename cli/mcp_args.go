@@ -197,6 +197,9 @@ func nextStep(envelope map[string]any) string {
 	if step := findTruncated(envelope); step != "" {
 		return step
 	}
+	if step := largeDashboardStep(envelope); step != "" {
+		return step
+	}
 	next, _ := errInfo["next"].(string)
 	switch errInfo["code"] {
 	case "SERVER_MISMATCH":
@@ -253,9 +256,9 @@ var mcpFlagArgs = map[string]string{"confirm": "confirm_code", "no-snapshot": "n
 	"create": "create: true", "include-disabled": "include_disabled", "state": "state", "domain": "domain", "area": "area",
 	"config": "config", "related": "related", "since": "since", "until": "until", "logbook": "logbook", "match": "match", "device": "device",
 	"references": "references", "aliases": "aliases", "dashboard": "dashboard", "dashboards": "dashboards", "base": "base", "title": "title",
-	"icon": "icon", "require-admin": "require_admin", "hide-sidebar": "hide_sidebar", "insights": "insights"}
+	"icon": "icon", "require-admin": "require_admin", "hide-sidebar": "hide_sidebar", "insights": "insights", "file": "draft"}
 
-var cliFlag = regexp.MustCompile("(?:^|[\\s`(/])--([a-z][a-z-]*)")
+var cliFlag = regexp.MustCompile("(?:^|[\\s`(/[])--([a-z][a-z-]*)")
 
 // mcpArgs rewrites standalone known flag tokens only — never text inside an
 // identifier (foo--bar) or an unknown flag; messages carry HA and user text.

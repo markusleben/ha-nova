@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"path/filepath"
 )
 
@@ -41,7 +43,8 @@ func (srv *mcpServer) configAdminFailure(name string, args map[string]json.RawMe
 		if !planIDPattern.MatchString(id) {
 			return nil
 		}
-		if plan, err := readPlanFile(filepath.Join(planDir(srv.paths), id+".json")); err != nil || plan.Kind == "call" {
+		plan, err := readPlanFile(filepath.Join(planDir(srv.paths), id+".json"))
+		if errors.Is(err, fs.ErrNotExist) || err == nil && plan.Kind == "call" {
 			return nil // a missing plan: apply says so itself
 		}
 	default:

@@ -3,6 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -179,7 +182,13 @@ func TestMCPDashboardRoundTrip(t *testing.T) {
 	if shell["url_path"] != "garden-board" || shell["title"] != "Garden" || shell["icon"] != "mdi:flower" || shell["require_admin"] != true || shell["show_in_sidebar"] != false {
 		t.Fatalf("create sent %v", shell)
 	}
-	appliedOK(t, c, planned(t, c.tool("ha_plan", map[string]any{"kind": "delete", "domain": "dashboard", "id": "garden-board"}), "typed"))
+	deleted := appliedOK(t, c, planned(t, c.tool("ha_plan", map[string]any{"kind": "delete", "domain": "dashboard", "id": "garden-board"}), "typed"))
+	undo, _ := deleted["next_step"].(string)
+	for _, want := range []string{"If the user asks to undo this delete", "ha_plan kind write domain dashboard id garden-board create: true title", "[icon", "require_admin hide_sidebar draft"} {
+		if !strings.Contains(undo, want) || regexp.MustCompile(`--[a-z]`).MatchString(undo) {
+			t.Fatalf("undo step lacks %q or names a CLI flag: %s", want, undo)
+		}
+	}
 	for _, e := range h.f.lovelace.entries {
 		if e["url_path"] == "garden-board" {
 			t.Fatalf("not deleted: %v", h.f.lovelace.entries)
@@ -206,6 +215,13 @@ func TestMCPGetLargeDashboardConfigWhole(t *testing.T) {
 	text := res["content"].([]any)[0].(map[string]any)["text"].(string)
 	if len(got) != 1500 || len(text) <= 64<<10 || !strings.Contains(text, "card 1499") {
 		t.Fatalf("cards %d, text %d bytes", len(got), len(text))
+	}
+	env, _ := readEnvelope(res)
+	if step, _ := env["next_step"].(string); !strings.Contains(step, "read single views with ha_read (endpoint ws, payload {type: lovelace/config, url_path: big-board}, jq .data.views[N])") || !strings.Contains(step, "never plan from a partial config") {
+		t.Fatalf("large config step %q", step)
+	}
+	if env, _ := readEnvelope(c.tool("ha_get", map[string]any{"dashboard": "home-main", "config": true})); env["next_step"] != nil {
+		t.Fatalf("small config step %v", env["next_step"])
 	}
 }
 
@@ -314,6 +330,17 @@ func TestServeConfigPlansNeedAnAdministrator(t *testing.T) {
 	}
 	if env := s.tool(userB, "ha_plan", map[string]any{"kind": "call", "service": "light.turn_off", "entity_ids": []string{"light.kitchen"}}); envCode(env) == "ADMIN_ONLY" {
 		t.Errorf("a call plan needs no administrator: %v", env)
+	}
+	call, _, _ := s.b.policyFor(userB)
+	plans := filepath.Join(s.data, "users", call.key, "plans")
+	if err := os.MkdirAll(plans, 0o700); err != nil || os.WriteFile(filepath.Join(plans, "p_00000000abcd.json"), []byte("{not json"), 0o600) != nil {
+		t.Fatal(err)
+	}
+	if env := s.tool(userB, "ha_apply", map[string]any{"plan_id": "p_00000000abcd"}); envCode(env) != "ADMIN_ONLY" {
+		t.Errorf("unreadable plan file: %v", env)
+	}
+	if env := s.tool(userB, "ha_apply", map[string]any{"plan_id": "p_00000000abce"}); envCode(env) != "PLAN_NOT_FOUND" {
+		t.Errorf("missing plan: %v", env)
 	}
 	if env := s.tool(userA, "ha_plan", map[string]any{"kind": "rooms"}); envCode(env) != "NO_ROOM_SUGGESTIONS" {
 		t.Errorf("administrator, rooms: %v", env)

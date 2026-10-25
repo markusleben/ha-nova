@@ -86,3 +86,27 @@ func boolArg(args map[string]json.RawMessage, key string) bool {
 	var on bool
 	return json.Unmarshal(args[key], &on) == nil && on
 }
+
+// largeDashboardStep: ha_get returns a dashboard config whole, but a chat
+// app may cut a result over ha_read's bound; the model then reads single
+// views before it plans a write from that config.
+func largeDashboardStep(envelope map[string]any) string {
+	if envelope["verb"] != "get" {
+		return ""
+	}
+	result, _ := envelope["result"].(map[string]any)
+	boards, _ := result["dashboards"].([]any)
+	for _, raw := range boards {
+		board, _ := raw.(map[string]any)
+		config, present := board["config"]
+		if size, _ := json.Marshal(config); !present || len(size) <= mcpReadMaxResult {
+			continue
+		}
+		payload := fmt.Sprintf("{type: lovelace/config, url_path: %v}", board["url_path"])
+		if board["url_path"] == defaultDashboard {
+			payload += " (no url_path where that is not found)"
+		}
+		return "If your app cut this result short, read single views with ha_read (endpoint ws, payload " + payload + ", jq .data.views[N]) before you plan a write; never plan from a partial config."
+	}
+	return ""
+}
