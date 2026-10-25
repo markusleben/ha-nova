@@ -219,7 +219,7 @@ func checkRawWS(message map[string]any) error {
 			// cloud exposure (cloud.* disable_2fa), or switch_as_x wiring.
 			return rawRefusal("change of "+entityID+"'s options (only a sensor's or number's own display options are changed from here: options_domain must be the entity's domain, sensor or number)", rawNextUI)
 		case disables && (domain == "lock" || domain == "alarm_control_panel" || domain == "cover"):
-			return rawRefusal("disabling or enabling "+entityID+" (a disabled lock, alarm panel, or cover no longer marks its device's buttons and switches as needing the one-time code)", rawNextUI)
+			return rawRefusal("disabling or enabling "+entityID+" (a disabled lock, alarm panel, or cover stops working in Home Assistant, so a door can't be locked or the alarm armed)", rawNextUI)
 		case setsClass && strings.HasPrefix(entityID, "cover."):
 			return rawRefusal("change of a cover's \"Show as\" class (it decides whether opening needs the one-time code)", rawNextUI)
 		case setsClass && strings.HasPrefix(entityID, "button."):

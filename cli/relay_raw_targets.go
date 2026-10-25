@@ -15,8 +15,8 @@ import (
 // registry row, or reconfiguring an entry, can remove a lock, alarm panel,
 // or access cover (or change its class) that marks a sibling switch, button,
 // or switch_as_x source as typed; renaming a factory-reset button drops the
-// word that makes its press typed; disabling a device disables its lock,
-// alarm panel, or access cover with it. Before sending one, the CLI reads the
+// word that makes its press typed; disabling a device takes its lock, alarm
+// panel, or access cover out of service with it. Before sending one, the CLI reads the
 // registry and refuses it when the target is such an entity.
 
 var rawEntryDeletePath = regexp.MustCompile(`^/api/config/config_entries/entry/([A-Za-z0-9_-]+)$`)
@@ -122,7 +122,7 @@ func checkRawAccessTargetIn(s *relaySession, endpoint string, body []byte) (refu
 			continue
 		}
 		if target.device != "" {
-			return rawRefusal("disabling or enabling device "+target.device+", which has "+row.EntityID+" (a disabled lock, alarm panel, or cover no longer marks its device's buttons and switches as needing the one-time code)", rawNextUI), nil
+			return rawRefusal("disabling or enabling device "+target.device+", which has "+row.EntityID+" (a disabled lock, alarm panel, or cover stops working in Home Assistant, so a door can't be locked or the alarm armed)", rawNextUI), nil
 		}
 		return rawRefusal("removal or reconfiguration of "+row.EntityID, rawNextAccessTarget), nil
 	}
