@@ -23,12 +23,13 @@ type setupPageHome struct {
 	Stats      map[string]int               `json:"stats,omitempty"`
 	Insights   []homeInsight                `json:"insights,omitempty"` // the first 3
 	Automation *templateMatch               `json:"automation,omitempty"`
-	Previews   map[string]*setupPagePreview `json:"previews,omitempty"`  // by slot: rooms, reminder, automation
-	Notes      []*setupPageMsg              `json:"notes,omitempty"`     // what step 3 did
-	ChatLink   string                       `json:"chat_link,omitempty"` // Add to Claude, once chat apps are on
-	OrgLink    string                       `json:"org_link,omitempty"`  // the same for a Team or Enterprise owner
-	Claude     bool                         `json:"claude,omitempty"`    // offer "Open Claude Code"
-	Opened     string                       `json:"opened,omitempty"`    // terminal (Claude Code opened), manual (type it yourself)
+	Previews   map[string]*setupPagePreview `json:"previews,omitempty"`   // by slot: rooms, reminder, automation
+	Notes      []*setupPageMsg              `json:"notes,omitempty"`      // what step 3 did
+	ChatLink   string                       `json:"chat_link,omitempty"`  // Add to Claude, once chat apps are on
+	OrgLink    string                       `json:"org_link,omitempty"`   // the same for a Team or Enterprise owner
+	ChatPhone  bool                         `json:"chat_phone,omitempty"` // a phone confirms for chat apps: allow every tool in Claude
+	Claude     bool                         `json:"claude,omitempty"`     // offer "Open Claude Code"
+	Opened     string                       `json:"opened,omitempty"`     // terminal (Claude Code opened), manual (type it yourself)
 }
 
 // setupPagePreview is one plan on the page: loading, preview (PlanID can be
@@ -60,7 +61,7 @@ func (f *setupFlow) pageHome() {
 	if f.noClient && f.pageChatOff { // Claude or ChatGPT in the browser, but chat apps aren't on
 		notes = append(slices.Clone(notes), setupPageText("setup.page.home.note_web_off"))
 	}
-	home := &setupPageHome{Loading: true, Notes: notes, ChatLink: f.pageChatLink, OrgLink: f.pageOrgLink, Previews: map[string]*setupPagePreview{},
+	home := &setupPageHome{Loading: true, Notes: notes, ChatLink: f.pageChatLink, OrgLink: f.pageOrgLink, ChatPhone: f.pageChatPhoned, Previews: map[string]*setupPagePreview{},
 		Claude: slices.Contains(f.selectedClients, "claude")}
 	show := func() {
 		view := *home

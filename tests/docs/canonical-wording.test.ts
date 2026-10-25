@@ -65,6 +65,8 @@ const allow: { rule: string; file: string; line: string; reason: string }[] = [
   { rule: "link-old-name", file: "cli/testdata/setup-golden/", line: "used to be called Home Assistant Cloud", reason: "explains the rename" },
   { rule: "link-old-name", file: "cli/cloud_origin.go", line: "canonical Nabu Casa origin", reason: "technical error about the provider's own domain" },
   { rule: "link-old-name", file: "cli/cloud_oauth_secret_linux.go", line: "HA NOVA Home Assistant Cloud authorization", reason: "label of keyring items already stored on users' computers" },
+  // README edits wait for the 0.28 release-prep PR, which drops this entry (docs/work/next-release-body.md).
+  { rule: "needs-computer", file: "README.md", line: "Helpers, dashboards, and files still need HA NOVA on a computer.", reason: "README changes only in release prep" },
 ];
 
 const pages = [
@@ -160,6 +162,18 @@ const found = new Map(
 describe("canonical wording", () => {
   it.each(rules.map((rule) => rule.id))("%s stays out of user-facing text", (id) => {
     expect(found.get(id)).toEqual([]);
+  });
+
+  it("catches the old chat-app limits, not the computer-only line of the chat skill header", () => {
+    const hit = (id: string, text: string) => {
+      const rule = rules.find((r) => r.id === id)!;
+      return new RegExp(rule.pattern!, rule.flags).test(text);
+    };
+    for (const old of ["Helpers, dashboards, and files still need HA NOVA on a computer.", "That still needs HA NOVA on a computer."]) expect(hit("needs-computer", old)).toBe(true);
+    for (const old of ["Anything not mapped here needs a client with a shell and the HA NOVA CLI", "its writes need a shell client with the HA NOVA CLI"]) expect(hit("shell-client", old)).toBe(true);
+    const header = readFileSync("cli/mcp_skill.go", "utf8");
+    expect(header).toContain("this sets up HA NOVA on a computer; tell the user to run it");
+    for (const id of ["needs-computer", "shell-client"]) expect(hit(id, header)).toBe(false);
   });
 
   it("has no stale allow-list entry", () => {

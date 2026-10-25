@@ -511,6 +511,32 @@ describe("setup page: Add to Claude", () => {
     expect(p.find("l-chat-claude-org-4")!.attributes.href).toBe(org_link);
     expect(p.screen.textContent).toContain(p.catalog["setup.chat.no_form_above"]);
   });
+
+  // Decision 2 of the chat-parity spec: with a phone that confirms, every tool on “Always allow”;
+  // without one, all but “Run a confirmed change”, so Claude's question still guards a code in the chat.
+  it("says under Add to Claude what to set so Claude stops asking, by whether a phone confirms", async () => {
+    const next = (p: ReturnType<typeof page>, key: string) => `${p.catalog["setup.chat.next_title"]} ${p.catalog[key]}`;
+    for (const [phone, key, other] of [["Pixel", "setup.chat.next_phone", "setup.chat.next_code"], ["", "setup.chat.next_code", "setup.chat.next_phone"]] as const) {
+      const p = page(control({ state: "on", url, claude_link: link, ...(phone ? { phone } : {}) }));
+      await p.settle();
+      expect(p.find("chat-next")!.textContent).toBe(next(p, key));
+      expect(p.screen.textContent).not.toContain(p.catalog[other]);
+      const home = page({ screen: "home", accepts: ["done"], home: { chat_link: link, ...(phone ? { chat_phone: true } : {}) } });
+      await home.settle();
+      expect(home.find("chat-next-4")!.textContent).toBe(next(home, key));
+    }
+    const rerun = page(control({ state: "page_on", url, claude_link: link })); // a re-run reads no phone: the safe advice
+    await rerun.settle();
+    expect(rerun.find("chat-next")!.textContent).toBe(next(rerun, "setup.chat.next_code"));
+    const plain = page({ screen: "home", accepts: ["done"], home: {} });
+    await plain.settle();
+    expect(plain.find("chat-next-4")).toBeUndefined(); // chat apps off: nothing to set
+    for (const key of ["setup.chat.next_phone", "setup.chat.next_code"]) {
+      expect(rerun.catalog[key]).toContain("That's Claude, not HA NOVA.");
+      expect(rerun.catalog[key]).toContain("Customize → Connectors → HA NOVA");
+    }
+    expect(rerun.catalog["setup.chat.next_code"]).toContain("except “Run a confirmed change”: leave it on “Needs approval”");
+  });
 });
 
 describe("setup page re-run (G1)", () => {

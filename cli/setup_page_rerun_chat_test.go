@@ -126,12 +126,33 @@ func TestPageFinishChoices(t *testing.T) {
 	}
 }
 
-// The connector note shows once, also when the row is read again.
+// The connector note shows once, also when the row is read again; what to
+// set in Claude follows the phone the App holds, never one only linked here.
 func TestPageChatNoteOnce(t *testing.T) {
 	f := &setupFlow{}
-	f.pageChatNote("https://a.example/api/ha_nova/mcp")
-	f.pageChatNote("https://b.example/api/ha_nova/mcp")
-	if len(f.pageNotes) != 1 || f.pageNotes[0].Args["url"] != "https://b.example/api/ha_nova/mcp" {
-		t.Fatalf("notes = %+v", f.pageNotes)
+	phone := "Pixel"
+	a := &setupPageChat{State: "on", URL: "https://a.example/api/ha_nova/mcp", ClaudeLink: "https://claude.ai/a"}
+	f.pageChatNote(a, chatAppsState{OwnerPhone: &phone})
+	if a.Phone != "Pixel" || !f.pageChatPhoned || f.pageChatLink != "https://claude.ai/a" {
+		t.Fatalf("with the App's phone: row %+v, step 4 phone %v", a, f.pageChatPhoned)
+	}
+	b := &setupPageChat{State: "on", URL: "https://b.example/api/ha_nova/mcp", ClaudeLink: "https://claude.ai/b", Phone: "Pixel"}
+	f.pageChatNote(b, chatAppsState{})
+	if len(f.pageNotes) != 1 || f.pageNotes[0].Args["url"] != "https://b.example/api/ha_nova/mcp" || b.Phone != "" || f.pageChatPhoned || f.pageChatLink != "https://claude.ai/b" {
+		t.Fatalf("notes = %+v, row %+v, step 4 phone %v", f.pageNotes, b, f.pageChatPhoned)
+	}
+}
+
+// A phone the App refuses keeps the advice for no phone: the phone linked on
+// this computer doesn't confirm for chat apps.
+func TestSetupPageChatRefusedPhoneKeepsNoPhoneAdvice(t *testing.T) {
+	app := &fakeChatApp{state: chatAppsState{Available: true, Enabled: true}, phoneErr: errSetupExit}
+	useChatApps(t, app, &fakeChatHA{first: chatHAReady}, chatTestLink)
+	paths := writeTestConfigFile(t, `{"schema_version":1,"confirm_phone":{"owner-id":{"service":"mobile_app_markus_iphone","device_id":"0123456789abcdef0123456789abcdef","user_id":"owner-id","name":"Markus’ iPhone"}}}`)
+	f := &setupFlow{paths: paths, ui: setupTextUI{out: io.Discard}}
+	on := &setupPageChat{State: "on", URL: chatTestLink + "/api/ha_nova/mcp"}
+	f.pageChatPhone(on, &chatAppsOffer{state: app.state})
+	if on.Problem == nil || on.Problem.Key != "setup.chat.problem_phone" || on.Phone != "" || f.pageChatPhoned {
+		t.Fatalf("refused phone: row %+v, step 4 phone %v", on, f.pageChatPhoned)
 	}
 }

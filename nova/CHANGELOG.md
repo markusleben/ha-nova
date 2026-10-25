@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Chat apps can now do what HA NOVA on a computer does: rename devices and entities, move them to rooms, set up helpers, scenes, dashboards, and integrations, edit files (with file access on), read the error log, and look at a camera. Every change shows a preview first, with the same confirmations as on a computer. Only setting up HA NOVA itself (setup, pairing, updates, turning chat apps on or off) stays on a computer.
+- NOVA page, Chat apps: under "Add to Claude", what to set so Claude stops asking before every step. With a linked phone: every tool on "Always allow". Without one: every tool but "Run a confirmed change".
+
+### Changed
+- Installing or updating a HACS download, and adding or changing a dashboard resource, now take your own confirmation, like a delete, in chat apps and on a computer: that code runs in every signed-in browser.
+
 ## [Relay 0.11.5] - 2026-10-24
 
 ### Fixed

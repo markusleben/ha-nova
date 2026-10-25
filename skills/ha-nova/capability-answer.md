@@ -30,6 +30,21 @@ with ONE bounded aggregate read:
 4. Close with a Next step inviting ONE concrete job ("Want a tour? Ask:
    show me my home"). The Suggestion Block caps apply.
 
+## Claude's Question — "Why does Claude ask every time?"
+
+In a chat app, that question comes from Claude, not from HA NOVA. Answer
+with both cases: in Claude, open Customize → Connectors → HA NOVA, then
+
+- with a linked phone: set every tool to "Always allow". HA NOVA still
+  previews bigger changes, and the phone asks before unlocks, the alarm, and
+  deletes.
+- with no phone: set every tool to "Always allow" except "Run a confirmed
+  change": leave it on "Needs approval", so Claude still asks before a
+  change confirmed with a code (the AI can see that code). With a phone
+  linked, that one can be allowed too.
+
+Claude may ask again after an update.
+
 ## Home Overview — "Show me my home"
 
 Owned by `ha-nova:home-map` (What do I have), which reads `ha-nova map`.

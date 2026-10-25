@@ -132,7 +132,7 @@ window.novaSteps = (h) => {
   };
 
   // Chat apps: their own file (chat.js), with these helpers and switches.
-  const { chatRow, addClaude, claudeHelp } = window.novaChat({ ...h, say, local, toast, line, toggle, focusAfter, focusId, tagOn, flip, problem, mark, done, spinner, muted, needs });
+  const { chatRow, addClaude, claudeHelp, claudeNext } = window.novaChat({ ...h, say, local, toast, line, toggle, focusAfter, focusId, tagOn, flip, problem, mark, done, spinner, muted, needs });
 
   // status: a re-run's rows of what is set up, above these; Done applies the
   // switches.
@@ -360,7 +360,7 @@ window.novaSteps = (h) => {
     const out = [...head(t('setup.page.home.eyebrow'), t('setup.page.home.title'), null)];
     for (const note of hm.notes || []) out.push(h.note(note));
     if (hm.chat_link) out.push(el('div', { class: 'actions addclaude' }, addClaude(hm.chat_link, 'ghost btn-small', 'chat-claude-4')),
-      ...claudeHelp(hm.org_link, 'chat-claude-org-4', 'setup.chat.no_form_above'));
+      ...claudeHelp(hm.org_link, 'chat-claude-org-4', 'setup.chat.no_form_above'), claudeNext(hm.chat_phone, 'chat-next-4'));
     if (hm.loading) out.push(el('ul', { class: 'rows' }, row('run', t('setup.page.home.loading'))));
     if (hm.failed) out.push(el('p', { class: 'problem' }, t('setup.page.home.failed')));
     if (hm.stats) out.push(stats(hm));

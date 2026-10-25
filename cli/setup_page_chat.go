@@ -81,15 +81,21 @@ func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func
 		}
 		c.Problem = setupPageText("setup.chat.problem_slow")
 	}
-	f.pageChatNote(offer.url)
+	f.pageChatNote(c, offer.state)
 }
 
-// pageChatNote: step 4 repeats the connector address, with Add to Claude;
-// once, also when the row is read again (a re-run's "Set up … too").
-func (f *setupFlow) pageChatNote(url string) {
+// pageChatNote: step 4 repeats the connector address, with Add to Claude
+// and what to set in Claude, by whether the App holds a phone that confirms
+// for chat apps (the row names it); once, also when the row is read again
+// (a re-run's "Set up … too").
+func (f *setupFlow) pageChatNote(c *setupPageChat, state chatAppsState) {
+	c.Phone = ""
+	if state.OwnerPhone != nil {
+		c.Phone = terminalSafeName(*state.OwnerPhone)
+	}
 	f.pageNotes = slices.DeleteFunc(f.pageNotes, func(n *setupPageMsg) bool { return n.Key == "setup.page.home.note_chat" })
-	f.pageNotes = append(f.pageNotes, setupPageText("setup.page.home.note_chat", "url", url))
-	f.pageChatLink, f.pageOrgLink = claudeConnectorLink(url), claudeOrgConnectorLink(url)
+	f.pageNotes = append(f.pageNotes, setupPageText("setup.page.home.note_chat", "url", c.URL))
+	f.pageChatLink, f.pageOrgLink, f.pageChatPhoned = c.ClaudeLink, c.OrgLink, c.Phone != ""
 }
 
 // pageChatPhone follows a phone linked on step 3 after the chat row was
@@ -109,6 +115,8 @@ func (f *setupFlow) pageChatPhone(c *setupPageChat, offer *chatAppsOffer) {
 			fmt.Fprintf(f.ui.termOut(), "  %s\n", setupT("setup.chat.error", "error", err))
 			c.Problem = setupPageText("setup.chat.problem_phone")
 		}
+		f.pageChatNote(c, offer.state)
+		return
 	}
 	c.Phone = chatAppsPhoneName(f.paths, setupSignedInUser, offer.state)
 }
@@ -151,7 +159,7 @@ func (f *setupFlow) pageChatRow(chat *chatAppsOffer) *setupPageChat {
 		if err := handOverOwnerPhone(setupOwnerIngress, f.paths, setupSignedInUser, &chat.state); err != nil {
 			row.Problem = setupPageText("setup.chat.problem_phone")
 		}
-		f.pageChatNote(chat.url)
+		f.pageChatNote(row, chat.state)
 		return row
 	}
 	return &setupPageChat{State: "offer", NoRestart: !chat.restart, Phone: chatAppsPhoneName(f.paths, setupSignedInUser, chat.state)}

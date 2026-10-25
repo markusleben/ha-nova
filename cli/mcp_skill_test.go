@@ -63,7 +63,8 @@ func TestMCPSkillTool(t *testing.T) {
 		"ha-nova:ha-nova":                 mcpSkillHeader + "# HA NOVA skill ha-nova\n",
 		"skills/review/checks.md":         "# HA NOVA skills/review/checks.md (CLI commands map",
 		"../ha-nova/session-bootstrap.md": "# HA NOVA skills/ha-nova/session-bootstrap.md (CLI commands map",
-		"raw-routes.md":                   "# HA NOVA skills/service-call/raw-routes.md (CLI commands map"} {
+		"raw-routes.md":                   "# HA NOVA skills/service-call/raw-routes.md (CLI commands map",
+		"capability-answer.md":            "# HA NOVA skills/ha-nova/capability-answer.md (CLI commands map"} {
 		if text := skillText0(t, c.tool("ha_skill", map[string]any{"name": name})); !strings.HasPrefix(text, want) {
 			t.Fatalf("%q: %.300q", name, text)
 		}

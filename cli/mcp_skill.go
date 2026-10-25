@@ -47,7 +47,7 @@ names a CLI command, use the tool:
   a step as confirmed (a flow menu pick, the .bak rollback after an invalid
   check_config, cancelling a flow after a secret form) and the plan is a
   preview, call ha_apply right after ha_plan. snapshot save after a helper
-  update: ha_apply saved it (result undo)
+  edit: ha_apply saved it (result undo)
 - exit codes → status: 2 drift, 3 needs_confirmation, 6 unverified, 7
   OUTCOME_UNKNOWN (read with ha_get or ha_read, never retry); others status
   error
@@ -55,10 +55,13 @@ names a CLI command, use the tool:
   notices[]. Cache files under ~/.cache/ha-nova are out of reach: missing
 - "context skill" → ha_skill name ha-nova; a cited file (skills/….md,
   ../ha-nova/….md, or a bare file name): ha_skill with it as name, when the
-  step you run needs it
-Anything not mapped here needs a client with a shell and the HA NOVA CLI:
-say so instead of improvising, and say which evidence was not checked. Pass
-a one-time code to ha_apply only when the user typed it in chat for that
+  step you run needs it; "why does Claude ask every time?" → ha_skill name
+  capability-answer.md
+- setup, pair, doctor, update, check-update, version, uninstall, cloud,
+  chat-apps: this sets up HA NOVA on a computer; tell the user to run it
+  there: "That sets up HA NOVA itself, so it runs on your computer:
+  ha-nova <command>."
+Pass a one-time code to ha_apply only when the user typed it in chat for that
 plan. Where a result says their app asks for it in a form, that form
 replaces every code step below: never ask for or wait for a code in chat;
 where the skill would apply the plan (also after a drift, a wrong code, or the

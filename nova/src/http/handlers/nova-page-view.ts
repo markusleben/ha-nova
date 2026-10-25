@@ -256,6 +256,10 @@ function renderChatApps(m: PageModel, formOpen: string, csrfField: (action: Nova
     const phone = c.ownerPhone === null
       ? c.chatCodes ? "no phone linked: changes that need your OK show a code in the chat" : "no phone linked: changes that need your OK are refused"
       : `your phone ${escapeHtml(c.ownerPhone)} asks you`;
+    // Claude asks before each step until its tools are on “Always allow”: with a phone that confirms, all of them.
+    const next = c.ownerPhone === null
+      ? "In Claude, open Customize → Connectors → HA NOVA. Set every tool to “Always allow”, except “Run a confirmed change”: leave it on “Needs approval”. Then Claude still asks before a change you confirm with a code. Link a phone, and you can allow that one too."
+      : "In Claude, open Customize → Connectors → HA NOVA and set every tool to “Always allow”. HA NOVA still shows you a preview before bigger changes, and your phone asks before unlocks, the alarm, and deletes.";
     const url = m.chatConnectorUrl;
     body = `${url === null
       ? `<p>On, but HA NOVA can't find an address Claude and ChatGPT can reach. Turn on remote access in Home Assistant Link, or set your own public HTTPS address (valid certificate) as the external URL under Settings → System → Network, then reload this page.</p>`
@@ -264,6 +268,7 @@ function renderChatApps(m: PageModel, formOpen: string, csrfField: (action: Nova
 <p class="muted meta">On a Claude Team or Enterprise plan? The owner of your Claude plan adds it once for everyone: <a href="${escapeAttr(claudeConnectorLink(url, true))}" target="_blank" rel="noopener noreferrer">Add for my organization</a>. Then click Connect next to HA NOVA in Customize → Connectors.</p>
 <p class="muted meta">No form? In Claude, open Customize → Connectors, click +, then Add custom connector, and paste this address:</p>
 <p class="address">${escapeHtml(url)}</p>
+<p><strong>Next: stop Claude from asking every time.</strong> At first, Claude asks before each step. That's Claude, not HA NOVA. ${next} Claude may ask again after an update.</p>
 <p class="muted meta">ChatGPT on the web, on a computer: open chatgpt.com/plugins → + → “Add custom MCP server”, name it HA NOVA, paste the address under “Connection”, pick “OAuth”, tick “I understand and want to continue”, then “Create as a plugin”. Sign in as the owner. If ChatGPT shows an error right after, choose Connect on the plugin again. Then type @HA NOVA in a chat. Name already taken? Find your old HA NOVA under your own plugins. If it has this address, choose Install; if not, use another name.</p>`}
 <p class="muted">Who can use it: ${who}. Confirmations: ${phone}.</p>
 ${m.chatRestarting ? `<p class="ok">Home Assistant is restarting (usually under a minute). Reload this page afterwards.</p>` : ""}

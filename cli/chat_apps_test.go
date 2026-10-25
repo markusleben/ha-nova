@@ -756,8 +756,8 @@ func TestSetupPageChatTakesALaterPhone(t *testing.T) {
 	offer := &chatAppsOffer{state: app.state}
 	on := &setupPageChat{State: "on"}
 	f.pageChatPhone(on, offer)
-	if got := app.posted(); len(got) != 1 || got[0]["owner_phone"] == nil || on.Phone != "Markus’ iPhone" || offer.state.OwnerPhone == nil {
-		t.Fatalf("on: posted %v phone %q", got, on.Phone)
+	if got := app.posted(); len(got) != 1 || got[0]["owner_phone"] == nil || on.Phone != "Markus’ iPhone" || offer.state.OwnerPhone == nil || !f.pageChatPhoned {
+		t.Fatalf("on: posted %v phone %q, step 4 phone %v", got, on.Phone, f.pageChatPhoned)
 	}
 	f.pageChatPhone(on, offer) // the App has it now: nothing more
 	if len(app.posted()) != 1 {
