@@ -5,33 +5,35 @@ import (
 	"path/filepath"
 )
 
-// Until household levels land (docs/work/2026-10-24-chat-apps-household-spec.md),
-// a chat app's raw plan is for the Home Assistant owner or an administrator
-// only: ha_plan kind raw is refused for anyone else, and ha_apply of a raw
-// plan checks again (also after a form or a phone tap), so a user demoted
-// since planning can't run it.
+// Home Assistant's own config APIs (automations, scripts, dashboards,
+// registries) need an administrator, and a chat app is never wider than
+// Home Assistant (docs/work/2026-10-24-chat-apps-household-spec.md): every
+// plan but a service call (ha_plan kinds write, delete, revert, restore,
+// rooms, template, raw) is for the Home Assistant owner or an administrator
+// only, and ha_apply of such a plan checks again (also after a form or a
+// phone tap), so a user demoted since planning can't run it.
 
-// chatRawRefusal is rawAdminFailure as a tool result; nil when allowed.
-func (srv *mcpServer) chatRawRefusal(name string, args map[string]json.RawMessage) map[string]any {
-	failure := srv.rawAdminFailure(name, args)
+// chatAdminRefusal is configAdminFailure as a tool result; nil when allowed.
+func (srv *mcpServer) chatAdminRefusal(name string, args map[string]json.RawMessage) map[string]any {
+	failure := srv.configAdminFailure(name, args)
 	if failure == nil {
 		return nil
 	}
 	return chatStopped(name, refusedWith(failure.code, failure.message, failure.next))
 }
 
-// rawAdminFailure: why this chat-app call may not plan or apply a raw
-// plan (its message without "nothing was sent"), or nil: not a chat app,
-// not a raw plan, or a user who is an owner or administrator right now.
+// configAdminFailure: why this chat-app call may not plan or apply a
+// config plan (its message without "nothing was sent"), or nil: not a chat
+// app, a call plan, or a user who is an owner or administrator right now.
 // Fails closed when the users can't be read.
-func (srv *mcpServer) rawAdminFailure(name string, args map[string]json.RawMessage) *verbFailure {
+func (srv *mcpServer) configAdminFailure(name string, args map[string]json.RawMessage) *verbFailure {
 	c := srv.chat
 	if c == nil {
 		return nil
 	}
 	switch name {
 	case "ha_plan":
-		if text(args, "kind") != "raw" {
+		if text(args, "kind") == "call" {
 			return nil
 		}
 	case "ha_apply":
@@ -39,7 +41,7 @@ func (srv *mcpServer) rawAdminFailure(name string, args map[string]json.RawMessa
 		if !planIDPattern.MatchString(id) {
 			return nil
 		}
-		if plan, err := readPlanFile(filepath.Join(planDir(srv.paths), id+".json")); err != nil || plan.Kind != "raw" {
+		if plan, err := readPlanFile(filepath.Join(planDir(srv.paths), id+".json")); err != nil || plan.Kind == "call" {
 			return nil // a missing plan: apply says so itself
 		}
 	default:

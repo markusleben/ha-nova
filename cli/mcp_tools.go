@@ -158,7 +158,7 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		if refusal := srv.chatRefusal(tool); refusal != nil { // ha-nova serve: the owner's read-only switch
 			return refusal, nil
 		}
-		if refusal := srv.chatRawRefusal(tool.name, params.Arguments); refusal != nil { // ha-nova serve: raw plans for administrators
+		if refusal := srv.chatAdminRefusal(tool.name, params.Arguments); refusal != nil { // ha-nova serve: config plans for administrators
 			return refusal, nil
 		}
 		if tool.name == mcpSkillTool.name { // offline: no verb, no lock
@@ -169,7 +169,7 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 			if stop, rpcErr := srv.confirmByForm(req, params.Arguments, &answered); stop != nil || rpcErr != nil {
 				return stop, rpcErr
 			}
-			if refusal := srv.chatRawRefusal(tool.name, params.Arguments); refusal != nil { // demoted while the form asked
+			if refusal := srv.chatAdminRefusal(tool.name, params.Arguments); refusal != nil { // demoted while the form asked
 				return refusal, nil
 			}
 		}

@@ -100,5 +100,6 @@ To stay on the older App: removing the NOVA App clears them too, but then every 
 - A code in the chat protects less than your phone (see above).
 - Access belongs to your Home Assistant account, not to a device: anyone who can use your Claude or ChatGPT account can reach your home through it. Remove the token in Home Assistant (above) if you lose control of that account.
 - Helpers, scenes, dashboards, room and name changes, setting up integrations, and file edits work in the chat, with the same preview and confirmation as on a computer. Only setting up HA NOVA itself (pairing a computer, updates, turning chat apps on or off) happens outside the chat.
+- Changes beyond controlling devices (automations, scripts, dashboards, rooms, helpers, files) need a Home Assistant administrator, as in Home Assistant itself.
 - The assistant can look at a camera's current picture; it stays in your chat.
 - With file access on in the NOVA Relay App, the assistant can read files in your configuration folder (never `secrets.yaml` or `.storage`) and, after you confirm the change, write or delete them. A file reaches the chat as written: a password or key typed straight into a YAML file, not into `secrets.yaml`, is seen by the AI, as it is with HA NOVA on a computer.

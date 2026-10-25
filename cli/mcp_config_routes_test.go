@@ -256,17 +256,22 @@ func TestMCPTemplatePlan(t *testing.T) {
 	}
 }
 
-// Dashboard, rooms, and template plans are config plans: the owner's read
-// only switch refuses them like every plan, and like kind write they never
-// consult the administrator check that guards kind raw.
-func TestServeConfigRoutesGatedLikeWrite(t *testing.T) {
+// Every plan but a call is a config plan: the owner's read only switch
+// refuses it like every plan, and in a chat app only the Home Assistant
+// owner or an administrator plans or applies it (checked again at apply;
+// an unreadable user list refuses).
+func TestServeConfigPlansNeedAnAdministrator(t *testing.T) {
 	routes := []map[string]any{
 		{"kind": "write", "domain": "dashboard", "id": "home-main", "base": homeBase(), "draft": editedHome()},
+		{"kind": "write", "domain": "automation", "id": "a1", "draft": map[string]any{"alias": "A", "triggers": []any{}, "actions": []any{}}},
 		{"kind": "delete", "domain": "dashboard", "id": "home-main"},
+		{"kind": "delete", "entity_id": "automation.a1"},
 		{"kind": "revert", "domain": "dashboard", "id": "home-main"},
 		{"kind": "revert", "domain": "device_area", "id": "rooms-x"},
+		{"kind": "restore", "snapshot": "scripts/auto-script-night-mode-20261016T120000000Z.json.gz", "id": "night_mode"},
 		{"kind": "rooms"},
 		{"kind": "template", "name": "battery_reminder"},
+		{"kind": "raw", "requests": []any{map[string]any{"endpoint": "ws", "payload": map[string]any{"type": "input_boolean/create", "name": "A"}}}},
 	}
 	ro := newServe(t, dashboardFake(), `{"allowed_users":["`+userA+`"],"read_only":true}`)
 	for _, args := range routes {
@@ -280,28 +285,54 @@ func TestServeConfigRoutesGatedLikeWrite(t *testing.T) {
 
 	f := dashboardFake()
 	var mu sync.Mutex
-	authReads := 0
+	admin, unreadable := true, false
 	f.extra = func(endpoint string, p map[string]any) (any, bool) {
-		if endpoint == "ws" && p["type"] == "config/auth/list" {
-			mu.Lock()
-			authReads++
-			mu.Unlock()
-			return []map[string]any{{"id": userB, "is_active": true, "group_ids": []string{"system-users"}}}, true
+		if endpoint != "ws" || p["type"] != "config/auth/list" {
+			return nil, false
 		}
-		return nil, false
+		mu.Lock()
+		defer mu.Unlock()
+		if unreadable {
+			return fakeRelayFailure{"UPSTREAM_ERROR", "boom"}, true
+		}
+		groups := []string{"system-users"}
+		if admin {
+			groups = []string{"system-admin"}
+		}
+		return []map[string]any{{"id": userA, "is_active": true, "group_ids": groups}, {"id": userB, "is_active": true, "group_ids": []string{"system-users"}}}, true
 	}
-	s := newServe(t, f, `{"allowed_users":["`+userB+`"]}`)
-	for _, args := range append(routes, map[string]any{"kind": "write", "domain": "automation", "id": "a1", "draft": map[string]any{"alias": "A", "triggers": []any{}, "actions": []any{}}}) {
-		if env := s.tool(userB, "ha_plan", args); envCode(env) == "ADMIN_ONLY" || envCode(env) == "READ_ONLY" {
-			t.Errorf("%v: %v", args, env)
+	set := func(isAdmin, isUnreadable bool) {
+		mu.Lock()
+		admin, unreadable = isAdmin, isUnreadable
+		mu.Unlock()
+	}
+	s := newServe(t, f, `{"allowed_users":["`+userA+`","`+userB+`"]}`)
+	for _, args := range routes {
+		if env := s.tool(userB, "ha_plan", args); envCode(env) != "ADMIN_ONLY" {
+			t.Errorf("not an administrator, %v: %v", args, env)
 		}
 	}
-	if env := s.tool(userB, "ha_plan", routes[0]); env["status"] != "needs_confirmation" {
-		t.Errorf("dashboard update: %v", env)
+	if env := s.tool(userB, "ha_plan", map[string]any{"kind": "call", "service": "light.turn_off", "entity_ids": []string{"light.kitchen"}}); envCode(env) == "ADMIN_ONLY" {
+		t.Errorf("a call plan needs no administrator: %v", env)
 	}
-	mu.Lock()
-	defer mu.Unlock()
-	if authReads != 0 {
-		t.Errorf("config plans read the users %d times", authReads)
+	if env := s.tool(userA, "ha_plan", map[string]any{"kind": "rooms"}); envCode(env) != "NO_ROOM_SUGGESTIONS" {
+		t.Errorf("administrator, rooms: %v", env)
+	}
+	env := s.tool(userA, "ha_plan", routes[0])
+	plan, _ := env["plan"].(map[string]any)
+	if env["status"] != "needs_confirmation" || plan == nil {
+		t.Fatalf("administrator, dashboard update: %v", env)
+	}
+	set(false, false)
+	if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": plan["id"]}); envCode(env) != "ADMIN_ONLY" || len(s.lovelaceSaves()) != 0 {
+		t.Fatalf("demoted since planning: %v (saves %v)", env, s.lovelaceSaves())
+	}
+	set(true, true)
+	if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": plan["id"]}); envCode(env) != "ADMIN_UNKNOWN" || len(s.lovelaceSaves()) != 0 {
+		t.Fatalf("unreadable users: %v (saves %v)", env, s.lovelaceSaves())
+	}
+	set(true, false)
+	if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": plan["id"]}); env["status"] != "verified" || len(s.lovelaceSaves()) != 1 {
+		t.Fatalf("administrator, apply: %v (saves %v)", env, s.lovelaceSaves())
 	}
 }
