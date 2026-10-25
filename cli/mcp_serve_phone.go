@@ -125,6 +125,19 @@ func (srv *mcpServer) chatRefusal(tool mcpTool) map[string]any {
 		"Tell the user nothing changed: the Home Assistant owner set chat apps to read only on the HA NOVA page. They can make this change in Home Assistant itself."))
 }
 
+// chatReadOnly: this tool call comes from a chat app the owner set to read
+// only.
+func chatReadOnly() bool { return chatCall != nil && chatCall.readOnly }
+
+// mcpPlanRoute: where a change ha_read refuses goes; never to a plan in a
+// chat app set to read only.
+func mcpPlanRoute() string {
+	if chatReadOnly() {
+		return "chat apps are set to read only in this home (the owner's setting on the HA NOVA page), so tell the user to make this change in Home Assistant itself"
+	}
+	return mcpPlanIt
+}
+
 func chatStopped(name string, failure *verbFailure) map[string]any {
 	env := verbEnvelope{SchemaVersion: 1, Verb: name[len("ha_"):]}
 	setVerbError(&env, failure)

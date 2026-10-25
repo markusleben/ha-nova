@@ -1,7 +1,6 @@
 package main
 
 import (
-	"cmp"
 	"errors"
 	"flag"
 	"fmt"
@@ -47,7 +46,9 @@ every dashboard save) takes a config snapshot first (--no-snapshot only
 after that snapshot failed and the user chose to proceed without one).
 Rooms plans (plan rooms, or plan revert of a rooms record) set each device's
 area once; when one write fails, the earlier ones are put back, and the
-result names anything that could not be.
+result names anything that could not be. Raw plans (plan raw) send their
+items in order, each checked again right before it is sent, and stop at the
+first one that does not go through (--no-snapshot after a failed leading save).
 Exit: 0 verified/accepted, 2 drift, 4 refused/missing/expired/wrong code,
 5 target gone, 6 unverified/failed, 7 outcome unknown (verify; never retry).`
 
@@ -183,8 +184,9 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	isCall := valid && plan.Kind == "call" && config == nil && request.validate() == nil
 	isConfig := valid && config != nil && config.Op == plan.Kind && config.ConfigID != "" && config.validate() == nil
 	isRooms := valid && plan.Kind == "rooms" && config == nil && plan.RoomsRequest != nil && plan.RoomsRequest.validate() == nil
+	isRaw := valid && plan.Kind == "raw" && config == nil && plan.RoomsRequest == nil && validateRawRequests(plan.RawRequests) == nil
 	switch {
-	case !isCall && !isConfig && !isRooms:
+	case !isCall && !isConfig && !isRooms && !isRaw:
 		return fail(refused("PLAN_INVALID", "plan "+id+" cannot be read or is not a valid plan"))
 	case isCall && staticRefusal(request) != nil:
 		return fail(refuse(&env, *staticRefusal(request)))
@@ -234,6 +236,8 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		e, fresh, err = computeCallPlan(s, &env, request)
 	case isRooms:
 		e, fresh, err = computeRoomsPlan(s, &env, *plan.RoomsRequest)
+	case isRaw:
+		e, fresh, err = computeRawPlan(s, &env, plan.RawRequests)
 	default:
 		e, fresh, ctx, err = computeConfigPlan(paths, s, &env, *config)
 	}
@@ -341,8 +345,12 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		}
 		return env, env.exit
 	}
-	if isConfig {
-		err := executeConfig(paths, s, &env, *fresh.ConfigAction, ctx, noSnapshot)
+	if isConfig || isRaw {
+		execute := func() error { return executeConfig(paths, s, &env, *fresh.ConfigAction, ctx, noSnapshot) }
+		if isRaw {
+			execute = func() error { return executeRaw(paths, s, &env, fresh.RawRequests, noSnapshot) }
+		}
+		err := execute()
 		if errors.Is(err, errSnapshotFailed) {
 			plan.SnapshotFailed = true // nothing was deleted or saved: the plan (and a typed code) stays valid for --no-snapshot
 			if writePlanFile(claimed, plan) == nil && os.Rename(claimed, open) == nil {
@@ -361,20 +369,6 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(release(err))
 	}
 	return env, env.exit
-}
-
-// applyDone: what a config or rooms apply does, for its result line (a
-// call words its read-back instead).
-func applyDone(e *tierEngine, env *verbEnvelope, plan storedPlan, ctx configContext) string {
-	switch {
-	case plan.Kind == "rooms" && plan.RoomsRequest.Undo:
-		return "put the devices back where they were"
-	case plan.Kind == "rooms":
-		return "put the devices in their rooms"
-	case plan.ConfigAction == nil:
-		return ""
-	}
-	return sayPast(sayGoal(e, env, plan, cmp.Or(ctx.alias, configAlias(nil, ctx.current))))
 }
 
 // errNothingSent: the write failed before reaching Home Assistant, so the

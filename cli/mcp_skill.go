@@ -28,6 +28,12 @@ names a CLI command, use the tool:
   read with jq F; for -e, check yourself that the result is not null or
   false; -r isn't needed. Prefer ha_find/ha_get over whole-list reads such as
   /api/states
+- relay ws|core writes, a GET on a flow step, relay files write_file|delete_file,
+  and relay backups save|delete|prune → ha_plan kind raw with requests
+  [{endpoint, payload}] in the skill's order (its config snapshot first; up
+  to 20), then ha_apply. The plan's preview and confirmation replace the
+  skill's own and any code it would mint; snapshot save after a helper
+  update: ha_apply saved it (result undo)
 - exit codes → status: 2 drift, 3 needs_confirmation, 6 unverified, 7
   OUTCOME_UNKNOWN (read with ha_get, never retry); others status error
 - skip the session bootstrap (check-update, relay health): results carry
@@ -35,10 +41,9 @@ names a CLI command, use the tool:
 - "context skill" → ha_skill name ha-nova; a cited file (skills/….md,
   ../ha-nova/….md, or a bare file name): ha_skill with it as name, when the
   step you run needs it
-Everything else (helper, dashboard, scene, registry or organize edits, other
-relay writes, file writes) needs a client with a shell
-and the HA NOVA CLI: say so instead of improvising, and say which evidence was
-not checked. Pass a one-time code to ha_apply only when the user typed it in
+Everything else (dashboard edits) needs a client with a shell and the HA
+NOVA CLI: say so instead of improvising, and say which evidence was not
+checked. Pass a one-time code to ha_apply only when the user typed it in
 chat for that plan. Where a result says their app asks for it in a form, that form
 replaces every code step below: never ask for or wait for a code in chat;
 where the skill would apply the plan (also after a drift, a wrong code, or the

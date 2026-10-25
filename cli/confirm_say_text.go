@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 )
 
 // Wording and defanging helpers of the confirmation text (confirm_say.go).
@@ -69,6 +70,9 @@ var sayVerbs = map[string]string{
 // Said: the one target's own action ("This unlocks a door"), and then also
 // that HA NOVA can't see what that target does; never a reason via another item.
 func sayAsk(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) [3]string {
+	if plan.Kind == "raw" {
+		return rawAsk(e, env, plan)
+	}
 	verb, object := sayGoal(e, env, plan, subject)
 	domain, _ := splitID(plan.Action.Service)
 	// phrased: the title already says this effect — only "Unlock"/"Open" a
@@ -351,4 +355,32 @@ func sayAgo(d time.Duration) string {
 	default:
 		return fmt.Sprintf("%d hours ago", m/60)
 	}
+}
+
+var sayUnseenCodes = map[string]bool{reasonUnregisteredActuator: true, reasonTemplateAction: true, reasonUserButton: true, reasonUnreadCommand: true}
+
+// sayPlainDomains: what these do is plain from the kind (a lock locks, a
+// garage door opens); what HA NOVA can't check is how it does it.
+var sayPlainDomains = map[string]bool{"lock": true, "cover": true, "alarm_control_panel": true, "valve": true}
+
+// sayUnseen: "HA NOVA can't see what “X” does" ("…can't check how “X”
+// works" for a lock, cover, alarm, or valve); reached through an item, that
+// item leads ("This automation uses “X”, and …").
+func sayUnseen(name, via string, plain bool) string {
+	unseen := "HA NOVA can't see what " + name + " does"
+	that := "HA NOVA can't see what that does"
+	if plain {
+		unseen = "HA NOVA can't check how " + name + " works"
+		that = "HA NOVA can't check how that works"
+	}
+	switch {
+	case name == "" && via == "":
+		return "HA NOVA can't check everything this would set off"
+	case name == "":
+		return "HA NOVA can't check everything " + via + " would set off"
+	case via == "":
+		return unseen
+	}
+	first, size := utf8.DecodeRuneInString(via)
+	return string(unicode.ToUpper(first)) + via[size:] + " uses " + name + ", and " + that
 }

@@ -11,6 +11,16 @@ import "fmt"
 // rule (exit 4); err is a failed registry read (exit 1). Either way nothing
 // was sent. A caller sending several requests runs it right before each.
 func guardRawRequest(paths runtimePaths, opts verbOptions, endpoint string, body []byte) (send []byte, refusal, err error) {
+	return guardRaw(endpoint, body, func() (error, error) { return checkRawAccessTarget(paths, opts, endpoint, body) })
+}
+
+// guardRawRequestIn is guardRawRequest on an open session: a raw plan runs
+// it at planning and again right before each item is sent (live registry).
+func guardRawRequestIn(s *relaySession, endpoint string, body []byte) (send []byte, refusal, err error) {
+	return guardRaw(endpoint, body, func() (error, error) { return checkRawAccessTargetIn(s, endpoint, body) })
+}
+
+func guardRaw(endpoint string, body []byte, accessTarget func() (refusal, err error)) (send []byte, refusal, err error) {
 	switch endpoint {
 	case "files": // the Relay decides: file access is off unless the Relay App turns it on
 		return body, nil, nil
@@ -26,7 +36,7 @@ func guardRawRequest(paths runtimePaths, opts verbOptions, endpoint string, body
 	if !rawRelayRead(endpoint, body) && holdsHiddenValue(body) {
 		return nil, rawRefusal("write", hiddenValueNext), nil
 	}
-	if refusal, err := checkRawAccessTarget(paths, opts, endpoint, body); refusal != nil || err != nil {
+	if refusal, err := accessTarget(); refusal != nil || err != nil {
 		return nil, refusal, err
 	}
 	return body, nil, nil

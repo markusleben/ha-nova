@@ -77,10 +77,15 @@ var mcpTools = []mcpTool{mcpSkillTool,
 			"entity_id": prop("string", "automation.x or script.x"), "run_id": prop("string", "for action get")}),
 		argv: traceArgvChecked, run: runTraceCommand},
 	mcpReadTool,
-	{name: "ha_plan", title: "Plan a change", description: "Plan without executing: kind call (a service call), write (automation/script config), delete, revert, or restore (a deleted automation/script from the snapshot its delete result named). Returns a preview; a high-consequence plan needs a confirmation code the user types (no code is returned where their app asks for it in a form). coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
+	{name: "ha_plan", title: "Plan a change", description: "Plan without executing: kind call (a service call), write (automation/script config), delete, revert, restore (a deleted automation/script from the snapshot its delete result named), or raw (the requests to Home Assistant's own API a skill makes: registry, helper, scene, and integration setup changes, files, config snapshots; sent in order by ha_apply). Returns a preview; a high-consequence plan needs a confirmation code the user types (no code is returned where their app asks for it in a form). coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
 		readOnly: true,
 		schema: object([]string{"kind"}, merged(callProperties, map[string]any{
-			"kind":      map[string]any{"type": "string", "enum": []string{"call", "write", "delete", "revert", "restore"}},
+			"kind": map[string]any{"type": "string", "enum": []string{"call", "write", "delete", "revert", "restore", "raw"}},
+			"requests": map[string]any{"type": "array", "minItems": 1, "maxItems": planRawMaxItems,
+				"description": "raw: 1 to 20 requests in the order they run (a config snapshot first, then what it protects); reads go to ha_read",
+				"items": object([]string{"endpoint", "payload"}, map[string]any{
+					"endpoint": map[string]any{"type": "string", "enum": []string{"core", "ws", "files", "backups"}},
+					"payload":  prop("object", "core: {method, path, body} of the REST API; ws: the WebSocket message; files: {action: write_file or delete_file, path, content}; backups: {action: save, delete, or prune, ...}")})},
 			"domain":    map[string]any{"type": "string", "enum": []string{"automation", "script"}},
 			"id":        prop("string", "write: config id to update/create; revert: target config id; restore: the deleted item's config id"),
 			"snapshot":  prop("string", "restore: the snapshot file the delete result named"),
@@ -305,62 +310,6 @@ func (t *mcpTempFiles) remove() {
 	for _, path := range t.paths {
 		_ = os.Remove(path)
 	}
-}
-
-// checkArguments enforces the schema's required keys, known keys, and
-// primitive types, so no argument can turn into a CLI flag.
-func checkArguments(schema map[string]any, args map[string]json.RawMessage) error {
-	properties, _ := schema["properties"].(map[string]any)
-	required, _ := schema["required"].([]string)
-	for _, key := range required {
-		if _, present := args[key]; !present {
-			return fmt.Errorf("missing required argument %q", key)
-		}
-	}
-	for key, raw := range args {
-		spec, known := properties[key].(map[string]any)
-		if !known {
-			return fmt.Errorf("unknown argument %q", key)
-		}
-		var value any
-		if json.Unmarshal(raw, &value) != nil {
-			return fmt.Errorf("argument %q is not JSON", key)
-		}
-		ok := false
-		switch spec["type"] {
-		case "string":
-			text, isText := value.(string)
-			enum, hasEnum := spec["enum"].([]string)
-			ok = isText && (!hasEnum || containsText(enum, text))
-		case "integer":
-			n, isNumber := value.(float64)
-			ok = isNumber && n == float64(int(n))
-		case "boolean":
-			_, ok = value.(bool)
-		case "object":
-			_, ok = value.(map[string]any)
-		case "array":
-			items, isList := value.([]any)
-			ok = isList
-			for _, item := range items {
-				_, isText := item.(string)
-				ok = ok && isText
-			}
-		}
-		if !ok {
-			return fmt.Errorf("argument %q has the wrong type", key)
-		}
-	}
-	return nil
-}
-
-func containsText(list []string, s string) bool {
-	for _, item := range list {
-		if item == s {
-			return true
-		}
-	}
-	return false
 }
 
 func text(args map[string]json.RawMessage, key string) string {
