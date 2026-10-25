@@ -251,6 +251,7 @@ func rawGuardCases() (refused, allowed map[string][]string) {
 	}
 	allowed = map[string][]string{"core": {
 		core("GET", "/api/events"), core("GET", "/api/states/lock.front_door"), core("GET", "/api/config/automation/config/1"),
+		core("GET", "/api/config/config_entries/flow/0123abcd"), core("GET", "/api/config/config_entries/subentries/flow/0123abcd"), core("GET", "/api/repairs/issues/fix/0123abcd"),
 		`{"method":"POST","path":"/api/config/config_entries/flow","body":{"handler":"trend"}}`, `{"method":"POST","path":"/api/config/scene/config/1","body":{}}`,
 		`{"method":"POST","path":"/api/template","body":{"template":"{{ 1 }}"}}`, core("POST", "/api/template#x"),
 		core("DELETE", "/api/config/config_entries/flow/0123abcd"), `{"method":"POST","path":"/api/config/config_entries/options/flow/0123abcd","body":{}}`,
@@ -269,4 +270,20 @@ func rawGuardCases() (refused, allowed map[string][]string) {
 		`{"type":"lovelace/resources/create","res_type":"module","url":"/hacsfiles/mushroom/mushroom.js"}`, `{"type":"lovelace/resources/update","resource_id":"x","res_type":"js"}`,
 	}}
 	return refused, allowed
+}
+
+// A GET on any flow step (entry, options, subentry, repair fix) can finish
+// the flow, so the CLI never reads one as a read (a failure is outcome
+// unknown, and a hidden marker in it is refused).
+func TestRawRelayFlowStepGETIsNotARead(t *testing.T) {
+	for _, path := range []string{"/api/config/config_entries/flow/x", "/api/config/config_entries/options/flow/x", "/api/config/config_entries/subentries/flow/x", "/api/repairs/issues/fix/x"} {
+		if body, _ := json.Marshal(map[string]any{"method": "GET", "path": path}); rawRelayRead("core", body) {
+			t.Errorf("%s reads as a read", path)
+		}
+	}
+	for _, path := range []string{"/api/config/config_entries/entry", "/api/repairs/issues"} {
+		if body, _ := json.Marshal(map[string]any{"method": "GET", "path": path}); !rawRelayRead("core", body) {
+			t.Errorf("%s is a read", path)
+		}
+	}
 }

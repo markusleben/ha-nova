@@ -1,16 +1,14 @@
 package main
 
 import (
-	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
+	"time"
 )
 
 // ha_read reads what `ha-nova relay` reads (docs/work/2026-10-25-chat-parity-spec.md
@@ -22,10 +20,15 @@ import (
 
 const (
 	mcpReadMaxResult = 64 << 10 // a bigger result fills the chat: filter it with jq
-	mcpCameraMax     = 8 << 20  // the Relay's bound on a binary body
-	mcpReadPlanned   = "this read is planned with ha_plan kind raw"
-	mcpChangePlanned = "a change is planned with ha_plan kind raw"
+	mcpCameraMax     = 5 << 20  // Claude refuses a bigger image
+	mcpMessageMax    = 1 << 10  // an error message carries at most this much of Home Assistant's text
+	mcpReasonMax     = 2 << 10  // Home Assistant's reason for an HTTP error
+	mcpPlanIt        = "plan it with ha_plan kind raw (the user sees it first), then ha_apply"
 )
+
+// mcpJQDeadline bounds a jq filter: ha_read runs under mcpVerbLock, so a
+// filter that never ends would stop every tool (a variable for tests).
+var mcpJQDeadline = 5 * time.Second
 
 var mcpReadArgs = map[string][]string{
 	"core":     {"endpoint", "path", "method", "payload", "jq"},
@@ -40,6 +43,19 @@ var mcpReadArgs = map[string][]string{
 // mcpPlannedReads: reads the CLI sends raw that ha_read leaves to a plan the
 // user sees first: Home Assistant fetches any URL, or hands out a live link.
 var mcpPlannedReads = map[string]bool{"blueprint/import": true, "camera/stream": true, "media_source/resolve_media": true}
+
+// mcpCameraTypes: the image types chat apps show.
+var mcpCameraTypes = map[string]bool{"image/jpeg": true, "image/png": true, "image/gif": true, "image/webp": true}
+
+// mcpTooLargeHint: a filter that fits each endpoint's result.
+var mcpTooLargeHint = map[string]string{
+	"core":     "`.data.body | length`, `.data.body | keys`, or for a text body such as /api/error_log `.data.body | split(\"\\n\") | .[-200:]`",
+	"ws":       "`.data | length` or `[.data[] | select(.entity_id | startswith(\"light.\")) | .entity_id]`",
+	"backups":  "`.data | length` or `.data[0:20]`",
+	"files":    "`.data.content[0:60000]` (read_file) or `.data.entries[0:200]` (list_dir)",
+	"snapshot": "`.[0:20]` for a list, or `{target_id, domain}` for a checkpoint",
+	"diff":     "`.[0:50]`",
+}
 
 var mcpReadTool = mcpTool{name: "ha_read", title: "Advanced read", readOnly: true, idempotent: true,
 	description: "Reads Home Assistant's own API, read only: a path of its REST API (https://developers.home-assistant.io/docs/api/rest/) or a message of its WebSocket API (https://developers.home-assistant.io/docs/api/websocket/), a camera's current image, files under /config (when file access is on in the NOVA Relay App), and HA NOVA's config snapshots and undo checkpoints; it also compares two configs. Only requests on HA NOVA's read list are accepted. A result over 64 KiB is refused: filter it with jq.",
@@ -57,7 +73,7 @@ var mcpReadTool = mcpTool{name: "ha_read", title: "Advanced read", readOnly: tru
 		"against":   prop("object", "snapshot verify: the live config"),
 		"before":    prop("object", "diff: the config before"),
 		"after":     prop("object", "diff: the config after"),
-		"jq":        prop("string", "a jq filter on the result, as ha-nova relay --jq (a Relay result is {ok, data}); several outputs come back as a list"),
+		"jq":        prop("string", "a jq filter on the result, as ha-nova relay --jq: core, ws, files, backups give the Relay's {ok, data}; snapshot show a checkpoint (list: a list); verify \"match\" or \"drift\"; diff a list of table rows. Several outputs come back as a list"),
 	}),
 	argv: readArgv, run: runMCPRead}
 
@@ -185,9 +201,9 @@ func runMCPRead(paths runtimePaths, argv []string) int {
 	endpoint := argv[0]
 	switch endpoint {
 	case "snapshot":
-		return runOfflineRead(paths, program, func() (json.RawMessage, error) { return readSnapshot(paths, *action, fs.Args()) })
+		return runOfflineRead(paths, endpoint, program, func() (json.RawMessage, error) { return readSnapshot(paths, *action, fs.Args()) })
 	case "diff":
-		return runOfflineRead(paths, program, func() (json.RawMessage, error) { return readDiff(paths, fs.Args()) })
+		return runOfflineRead(paths, endpoint, program, func() (json.RawMessage, error) { return readDiff(paths, fs.Args()) })
 	}
 	relayEndpoint := endpoint
 	if endpoint == "camera" {
@@ -207,27 +223,26 @@ func runMCPRead(paths runtimePaths, argv []string) int {
 		return exit
 	}
 	return runReadVerb(paths, "read", verbOptions{}, func(s *relaySession, env *verbEnvelope) error {
+		if refusal := mcpDemoRefusal(activeServerIsDemo(), endpoint, send); refusal != nil { // known once the session loaded the profile
+			return &verbFailure{exit: verbExitRefused, code: "REFUSED", message: refusal.Error()}
+		}
 		data, err := s.send(relayEndpoint, send)
 		var call *relayCallError
 		if errors.As(err, &call) { // Home Assistant's or the Relay's answer, not a pairing problem
-			return &verbFailure{exit: verbExitError, code: "READ_FAILED", message: call.Error(),
+			return &verbFailure{exit: verbExitError, code: "READ_FAILED", message: mcpMessage(call.Error(), mcpMessageMax),
 				next: "Nothing was changed. Tell the user what the message says, or correct the request and read again."}
 		}
 		if err != nil {
 			return err
 		}
-		if relayEndpoint == "core" {
-			var core struct {
-				Status int `json:"status"`
-			}
-			if json.Unmarshal(data, &core) == nil && core.Status >= http.StatusBadRequest {
-				return &verbFailure{exit: verbExitError, code: "UPSTREAM_" + strconv.Itoa(core.Status), message: fmt.Sprintf("Home Assistant answered HTTP %d", core.Status)}
-			}
-		}
-		if endpoint == "camera" {
+		if endpoint == "camera" { // a frame is no JSON to redact; an error reason is redacted below
 			return readCamera(env, data)
 		}
-		result, err := readResult(redactRawResponse(relayEndpoint, append(append([]byte(`{"ok":true,"data":`), data...), '}')), program)
+		envelope := redactRawResponse(relayEndpoint, append(append([]byte(`{"ok":true,"data":`), data...), '}'))
+		if failure := upstreamFailure(relayEndpoint, envelope); failure != nil {
+			return failure
+		}
+		result, err := readResult(endpoint, envelope, program)
 		env.Result = result
 		return err
 	})
@@ -245,11 +260,11 @@ func mcpReadRefusal(endpoint string, body []byte) error {
 		case method == http.MethodPost && (path == "/api/template" || path == "/api/config/core/check_config"):
 			return nil
 		case method != http.MethodGet:
-			return fmt.Errorf("ha_read sends POST only to /api/template and /api/config/core/check_config; %s; nothing was sent", mcpChangePlanned)
+			return fmt.Errorf("ha_read sends POST only to /api/template and /api/config/core/check_config; to change something, %s; nothing was sent", mcpPlanIt)
 		case !readablePath(path):
-			return errors.New("ha_read core reads plain paths under /api/ except media proxies and streams (a camera's image: endpoint camera); nothing was sent")
+			return errors.New("ha_read core reads plain paths under /api/, but no webhooks, backup downloads, Supervisor requests, media proxies, or streams (a camera's image: endpoint camera); nothing was sent")
 		case flowStepPath.MatchString(strings.SplitN(path, "?", 2)[0]):
-			return fmt.Errorf("a GET on a config flow step can finish the flow, so %s; nothing was sent", mcpReadPlanned)
+			return fmt.Errorf("a GET on a flow step can finish the flow: %s; nothing was sent", mcpPlanIt)
 		case !rawRelayRead("core", body):
 			return errors.New("send the plain path (no %-escapes or dot segments); nothing was sent")
 		}
@@ -257,128 +272,35 @@ func mcpReadRefusal(endpoint string, body []byte) error {
 		message, _ := payload["message"].(map[string]any)
 		for _, wsType := range []any{payload["type"], message["type"]} {
 			if name, _ := wsType.(string); mcpPlannedReads[name] {
-				return fmt.Errorf("%s fetches a URL or hands out a live link, so %s; nothing was sent", name, mcpReadPlanned)
+				return fmt.Errorf("%s fetches a URL or hands out a live link: %s; nothing was sent", name, mcpPlanIt)
 			}
 		}
 		if !rawRelayRead("ws", body) {
-			return fmt.Errorf("ha_read only reads; %s; nothing was sent", mcpChangePlanned)
+			return fmt.Errorf("ha_read only reads; to change something, %s; nothing was sent", mcpPlanIt)
 		}
 	case "files":
 		if action, _ := payload["action"].(string); action != "list_dir" && action != "read_file" {
-			return fmt.Errorf("ha_read reads files with list_dir and read_file only; to write or delete one, %s; nothing was sent", mcpChangePlanned)
+			return fmt.Errorf("ha_read reads files with list_dir and read_file only; to write or delete one, %s; nothing was sent", mcpPlanIt)
 		}
 	case "backups":
 		if action, _ := payload["action"].(string); action != "list" && action != "load" {
-			return fmt.Errorf("ha_read lists and loads config snapshots only; to save, delete, or prune one, %s; nothing was sent", mcpChangePlanned)
+			return fmt.Errorf("ha_read lists and loads config snapshots only; to save, delete, or prune one, %s; nothing was sent", mcpPlanIt)
 		}
 	}
 	return nil
 }
 
-// readCamera returns a camera frame as image content, decoded as
-// `relay core --out-binary` decodes it.
-func readCamera(env *verbEnvelope, data json.RawMessage) error {
-	frame, contentType, err := relayBinaryData(data)
-	mimeType, _, _ := strings.Cut(strings.ToLower(contentType), ";")
-	mimeType = strings.TrimSpace(mimeType)
-	switch {
-	case errors.Is(err, errRelayBodyNotBinary) || err == nil && !strings.HasPrefix(mimeType, "image/"):
-		return &verbFailure{exit: verbExitError, code: "READ_FAILED", message: "the camera sent no image"}
-	case err != nil:
-		return err
-	case len(frame) > mcpCameraMax:
-		return &verbFailure{exit: verbExitError, code: "READ_FAILED", message: "the camera image is over 8 MiB"}
+// mcpDemoRefusal: on the hosted demo every visitor is the same Home
+// Assistant administrator, and its log holds other visitors' failed sign-ins.
+func mcpDemoRefusal(demo bool, endpoint string, body []byte) error {
+	if !demo {
+		return nil
 	}
-	env.Result = map[string]any{"mime_type": mimeType, "bytes": len(frame)}
-	env.Image = &verbImage{Data: base64.StdEncoding.EncodeToString(frame), MimeType: mimeType}
+	payload, _ := decodeObject(body)
+	message, _ := payload["message"].(map[string]any)
+	path, _ := payload["path"].(string)
+	if endpoint == "core" && strings.SplitN(path, "?", 2)[0] == "/api/error_log" || endpoint == "ws" && (payload["type"] == "system_log/list" || message["type"] == "system_log/list") {
+		return errors.New("the demo house's log holds other visitors' sign-in attempts, so ha_read does not read it there; nothing was sent")
+	}
 	return nil
-}
-
-// readResult applies the jq filter (one output as is, several or none as a
-// list) and refuses a result over mcpReadMaxResult: nothing partial.
-func readResult(input []byte, program *jqProgram) (json.RawMessage, error) {
-	result := input
-	if program != nil {
-		res, err := applyCompiledJQFilter(program, input, false)
-		if err != nil {
-			return nil, &verbFailure{exit: verbExitError, code: "JQ_FAILED", message: "jq: " + err.Error(), next: "Nothing was changed. Fix the filter and read again."}
-		}
-		outputs := strings.Split(strings.TrimSuffix(res.output, "\n"), "\n")
-		switch {
-		case res.output == "":
-			result = []byte("[]")
-		case len(outputs) == 1:
-			result = []byte(outputs[0])
-		default:
-			result = []byte("[" + strings.Join(outputs, ",") + "]")
-		}
-	}
-	var compact bytes.Buffer
-	if err := json.Compact(&compact, result); err != nil {
-		return nil, fmt.Errorf("the result is not JSON: %w", err)
-	}
-	if compact.Len() > mcpReadMaxResult {
-		return nil, &verbFailure{exit: verbExitError, code: "RESULT_TOO_LARGE",
-			message: fmt.Sprintf("the result is %d KiB, over ha_read's 64 KiB; nothing of it is returned", (compact.Len()+1023)>>10),
-			next:    "Filter with jq: read again with jq set to a filter that keeps only what you need, e.g. `.data | length` or `[.data[] | select(.entity_id | startswith(\"light.\")) | .entity_id]`."}
-	}
-	return compact.Bytes(), nil
-}
-
-// runOfflineRead runs a read that needs no Relay (snapshot, diff) into the
-// verb envelope.
-func runOfflineRead(paths runtimePaths, program *jqProgram, read func() (json.RawMessage, error)) int {
-	env := verbEnvelope{SchemaVersion: 1, Verb: "read", Status: "ok"}
-	result, err := read()
-	if err == nil {
-		result, err = readResult(result, program)
-	}
-	env.Notices = verbNotices(paths, "")
-	exit := verbExitOK
-	if err != nil {
-		exit = setVerbError(&env, err)
-	} else {
-		env.Result = result
-	}
-	if !printVerbEnvelope(env) {
-		return verbExitError
-	}
-	return exit
-}
-
-// offlineVerb runs a CLI verb in process and returns its stdout; a failure
-// carries its stderr.
-func offlineVerb(run func() int, ok func(exit int) bool) (string, error) {
-	out, errOut, exit := captureVerb(run)
-	if !ok(exit) {
-		return "", &verbFailure{exit: verbExitError, code: "READ_FAILED", message: strings.TrimSpace(errOut)}
-	}
-	return out, nil
-}
-
-// readSnapshot is `ha-nova snapshot show|verify`; verify's result is
-// "match" or "drift".
-func readSnapshot(paths runtimePaths, action string, args []string) (json.RawMessage, error) {
-	if action == "show" {
-		out, err := offlineVerb(func() int { return runSnapshotShow(paths, args) }, func(exit int) bool { return exit == 0 })
-		return json.RawMessage(out), err
-	}
-	out, err := offlineVerb(func() int { return runSnapshotVerify(paths, args) }, func(exit int) bool { return exit == 0 || exit == snapshotExitDrift })
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(strings.TrimSpace(out))
-}
-
-// readDiff is `ha-nova diff`: its table rows, one string each.
-func readDiff(paths runtimePaths, args []string) (json.RawMessage, error) {
-	out, err := offlineVerb(func() int { return runDiffCommand(paths, args) }, func(exit int) bool { return exit == 0 })
-	if err != nil {
-		return nil, err
-	}
-	rows := []string{}
-	if out != "" {
-		rows = strings.Split(strings.TrimSuffix(out, "\n"), "\n")
-	}
-	return json.Marshal(rows)
 }

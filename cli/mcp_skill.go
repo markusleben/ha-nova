@@ -24,7 +24,9 @@ names a CLI command, use the tool:
 - relay core|ws|files|backups reads (core POST /api/template and check_config
   too), a camera image (--out-binary), snapshot show|verify, and diff
   → ha_read endpoints; send payloads and files inline; --jq, --jq-file, and
-  relay jq → its jq. Prefer ha_find/ha_get over whole-list reads such as
+  relay jq → its jq: --out <file> then relay jq --file <file> F → repeat the
+  read with jq F; for -e, check yourself that the result is not null or
+  false; -r isn't needed. Prefer ha_find/ha_get over whole-list reads such as
   /api/states
 - exit codes → status: 2 drift, 3 needs_confirmation, 6 unverified, 7
   OUTCOME_UNKNOWN (read with ha_get, never retry); others status error

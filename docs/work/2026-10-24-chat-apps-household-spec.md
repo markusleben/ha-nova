@@ -87,6 +87,7 @@ The bridge already re-reads `chat-apps.json` per request. It now also reads the 
 - **No widening by a non-owner.** Only the owner's ingress session (`checkOwner`) writes `allowed_users`; the bridge never writes `chat-apps.json`; no tool reads or changes it. An administrator who adds a new user in Home Assistant doesn't add them here (the list holds ids).
 - **Admins remain admins.** An allowed administrator can already change users and roles in Home Assistant itself; HA NOVA adds nothing to that.
 - **Fail closed:** an unreadable settings file or user list refuses; a missing or unknown group caps at Ask only; a 0.27 bridge after a rollback refuses (rollback guard).
+- **`ha_read` per endpoint:** below Manage everything it reads devices only: no files, camera, raw core or ws, backups, or snapshot. Today the bridge has no level cap (`chatRefusal`, `cli/mcp_serve_phone.go:121`), so this lands with the levels.
 - **Demo:** unchanged. Its one user is an administrator and its list is written by its reset script.
 
 ## UX copy (draft)

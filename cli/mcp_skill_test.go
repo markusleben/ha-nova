@@ -78,7 +78,7 @@ func TestMCPSkillTool(t *testing.T) {
 
 	refused := c.tool("ha_read", map[string]any{"endpoint": "ws", "payload": map[string]any{"type": "camera/stream", "entity_id": "camera.door"}})["structuredContent"].(map[string]any)
 	message, _ := refused["error"].(map[string]any)["message"].(string)
-	if refused["error"].(map[string]any)["code"] != "REFUSED" || !strings.Contains(message, "this read is planned with ha_plan kind raw") ||
+	if refused["error"].(map[string]any)["code"] != "REFUSED" || !strings.Contains(message, mcpPlanIt) ||
 		strings.Contains(message, "client with a shell") || refused["next_step"] != nil {
 		t.Fatalf("ha_read refused ws type: %v", refused)
 	}

@@ -41,7 +41,7 @@ func readRelay(t *testing.T, reply func(endpoint string, body map[string]any) an
 		}
 		w.Header().Set("content-type", "application/json")
 		if failure, ok := data.(fakeRelayFailure); ok {
-			w.WriteHeader(http.StatusForbidden)
+			w.WriteHeader(http.StatusBadGateway)
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": map[string]any{"code": failure.code, "message": failure.message}})
 			return
 		}
@@ -88,7 +88,7 @@ func TestMCPReadEndpoints(t *testing.T) {
 	payload := func(endpoint, action string) map[string]any {
 		return map[string]any{"endpoint": endpoint, "payload": map[string]any{"action": action, "path": "/config/packages/a.yaml", "file": "automations/a.json.gz", "content": "x"}}
 	}
-	changePlanned := "a change is planned with ha_plan kind raw; nothing was sent"
+	planIt := mcpPlanIt + "; nothing was sent"
 	cases := []struct {
 		args       map[string]any
 		code, says string // code "" = read and sent to sent
@@ -98,17 +98,20 @@ func TestMCPReadEndpoints(t *testing.T) {
 		{map[string]any{"endpoint": "core", "path": "/api/states", "method": "GET"}, "", "", "core"},
 		{map[string]any{"endpoint": "core", "method": "POST", "path": "/api/template", "payload": map[string]any{"template": "{{ 1 }}"}}, "", "", "core"},
 		{map[string]any{"endpoint": "core", "method": "POST", "path": "/api/config/core/check_config"}, "", "", "core"},
-		{map[string]any{"endpoint": "core", "method": "POST", "path": "/api/config/config_entries/flow", "payload": map[string]any{"handler": "trend"}}, "REFUSED", changePlanned, ""},
-		{map[string]any{"endpoint": "core", "method": "POST", "path": "/api/config/scene/config/1", "payload": map[string]any{}}, "REFUSED", changePlanned, ""},
+		{map[string]any{"endpoint": "core", "method": "POST", "path": "/api/config/config_entries/flow", "payload": map[string]any{"handler": "trend"}}, "REFUSED", planIt, ""},
+		{map[string]any{"endpoint": "core", "method": "POST", "path": "/api/config/scene/config/1", "payload": map[string]any{}}, "REFUSED", planIt, ""},
 		{map[string]any{"endpoint": "core", "method": "POST", "path": "/api/services/lock/unlock"}, "REFUSED", "ha-nova call", ""},
 		{map[string]any{"endpoint": "core", "path": "/api/camera_proxy/camera.door"}, "REFUSED", "endpoint camera", ""},
-		{map[string]any{"endpoint": "core", "path": "/api/camera_proxy_stream/camera.door"}, "REFUSED", "media proxies and streams", ""},
-		{map[string]any{"endpoint": "core", "path": "/api/tts_proxy/x.mp3"}, "REFUSED", "media proxies and streams", ""},
-		{map[string]any{"endpoint": "core", "path": "/api/config/config_entries/flow/0123abcd"}, "REFUSED", "config flow step can finish the flow, so this read is planned with ha_plan kind raw", ""},
-		{map[string]any{"endpoint": "core", "path": "/api/config/config_entries/options/flow/0123abcd"}, "REFUSED", "this read is planned with ha_plan kind raw", ""},
+		{map[string]any{"endpoint": "core", "path": "/api/camera_proxy_stream/camera.door"}, "REFUSED", "media proxies, or streams", ""},
+		{map[string]any{"endpoint": "core", "path": "/api/tts_proxy/x.mp3"}, "REFUSED", "media proxies, or streams", ""},
+		{map[string]any{"endpoint": "core", "path": "/api/config/config_entries/flow/0123abcd"}, "REFUSED", "a GET on a flow step can finish the flow: " + mcpPlanIt, ""},
+		{map[string]any{"endpoint": "core", "path": "/api/config/config_entries/options/flow/0123abcd"}, "REFUSED", mcpPlanIt, ""},
 		{map[string]any{"endpoint": "core", "path": "/api/webhook/x"}, "REFUSED", "webhook", ""},
 		{map[string]any{"endpoint": "core", "path": "/api/states/light%2Ekitchen"}, "REFUSED", "send the plain path", ""},
-		{map[string]any{"endpoint": "core", "path": "/api/config/config_entries/flow/0123abcd?x=1"}, "REFUSED", "config flow step", ""},
+		{map[string]any{"endpoint": "core", "path": "/api/config/config_entries/flow/0123abcd?x=1"}, "REFUSED", "flow step", ""},
+		{map[string]any{"endpoint": "core", "path": "/api/config/config_entries/subentries/flow/0123abcd"}, "REFUSED", "a GET on a flow step can finish the flow", ""},
+		{map[string]any{"endpoint": "core", "path": "/api/repairs/issues/fix/0123abcd"}, "REFUSED", "a GET on a flow step can finish the flow", ""},
+		{map[string]any{"endpoint": "core", "path": "/api/repairs/issues"}, "", "", "core"},
 		{map[string]any{"endpoint": "core", "path": "/api/hassio/addons"}, "REFUSED", "Supervisor", ""},
 		{map[string]any{"endpoint": "core", "path": "/api/states", "payload": map[string]any{}}, "INVALID_ARGUMENTS", "core POST only", ""},
 		{map[string]any{"endpoint": "core", "method": "DELETE", "path": "/api/states"}, "INVALID_ARGUMENTS", "wrong type", ""},
@@ -117,21 +120,21 @@ func TestMCPReadEndpoints(t *testing.T) {
 		{ws(`{"type":"system_log/list"}`), "", "", "ws"},
 		{ws(`{"type":"config/entity_registry/list"}`), "", "", "ws"},
 		{ws(`{"message":{"type":"subscribe_events","event_type":"zha_event"},"collect_events":{"max_events":1}}`), "", "", "ws"},
-		{ws(`{"type":"config/area_registry/create","name":"Garden"}`), "REFUSED", "ha_read only reads; " + changePlanned, ""},
+		{ws(`{"type":"config/area_registry/create","name":"Garden"}`), "REFUSED", "ha_read only reads; to change something, " + planIt, ""},
 		{ws(`{"type":"call_service","domain":"lock","service":"unlock"}`), "REFUSED", "ha-nova call", ""},
 		{ws(`{"message":{"type":"subscribe_events","event_type":"call_service"},"collect_events":{"max_events":1}}`), "REFUSED", "subscribe to the one event type", ""},
-		{ws(`{"type":"blueprint/import","url":"https://example.com/a.yaml"}`), "REFUSED", "blueprint/import fetches a URL or hands out a live link, so this read is planned with ha_plan kind raw", ""},
-		{ws(`{"type":"camera/stream","entity_id":"camera.door"}`), "REFUSED", "this read is planned with ha_plan kind raw", ""},
-		{ws(`{"type":"media_source/resolve_media","media_content_id":"media-source://x"}`), "REFUSED", "this read is planned with ha_plan kind raw", ""},
-		{ws(`{"message":{"type":"media_source/resolve_media"},"collect_events":{"max_events":1}}`), "REFUSED", "this read is planned with ha_plan kind raw", ""},
+		{ws(`{"type":"blueprint/import","url":"https://example.com/a.yaml"}`), "REFUSED", "blueprint/import fetches a URL or hands out a live link: " + mcpPlanIt, ""},
+		{ws(`{"type":"camera/stream","entity_id":"camera.door"}`), "REFUSED", mcpPlanIt, ""},
+		{ws(`{"type":"media_source/resolve_media","media_content_id":"media-source://x"}`), "REFUSED", mcpPlanIt, ""},
+		{ws(`{"message":{"type":"media_source/resolve_media"},"collect_events":{"max_events":1}}`), "REFUSED", mcpPlanIt, ""},
 		{map[string]any{"endpoint": "ws"}, "INVALID_ARGUMENTS", "needs payload", ""},
 		{payload("files", "list_dir"), "", "", "files"},
 		{payload("files", "read_file"), "", "", "files"},
-		{payload("files", "write_file"), "REFUSED", "list_dir and read_file only; to write or delete one, " + changePlanned, ""},
+		{payload("files", "write_file"), "REFUSED", "list_dir and read_file only; to write or delete one, " + planIt, ""},
 		{payload("files", "delete_file"), "REFUSED", "list_dir and read_file only", ""},
 		{payload("backups", "list"), "", "", "backups"},
 		{payload("backups", "load"), "", "", "backups"},
-		{payload("backups", "save"), "REFUSED", "lists and loads config snapshots only; to save, delete, or prune one, " + changePlanned, ""},
+		{payload("backups", "save"), "REFUSED", "lists and loads config snapshots only; to save, delete, or prune one, " + planIt, ""},
 		{payload("backups", "delete"), "REFUSED", "lists and loads config snapshots only", ""},
 		{payload("backups", "prune"), "REFUSED", "lists and loads config snapshots only", ""},
 		{map[string]any{"endpoint": "camera", "entity_id": "light.kitchen"}, "INVALID_ARGUMENTS", "not a camera's entity_id", ""},

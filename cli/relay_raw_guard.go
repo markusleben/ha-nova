@@ -291,9 +291,11 @@ func watchesConfirmation(v any) bool {
 	return false
 }
 
-// flowStepPath: a GET on a config flow step re-runs it, which can finish the
-// flow (a progress or external step) and create an entry.
-var flowStepPath = regexp.MustCompile(`^/api/config/config_entries/(options/)?flow/`)
+// flowStepPath: a GET on a flow step re-runs it (Home Assistant's
+// FlowManagerResourceView.get calls async_configure), which can finish the
+// flow (a progress or external step) and create an entry, a subentry, or a
+// repair's fix.
+var flowStepPath = regexp.MustCompile(`^/api/(config/config_entries/((options|subentries)/)?flow|repairs/issues/fix)/`)
 
 // rawRelayRead: the request only reads (a core GET, or WS types listed as
 // reads), so a failure after it was sent changed nothing in Home Assistant.
