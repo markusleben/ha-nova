@@ -22,7 +22,7 @@ import (
 const (
 	jqChildCommand = "__jq-eval"        // hidden: no help, no usage
 	jqChildEnv     = "HA_NOVA_JQ_CHILD" // set by the parent; the child refuses without it
-	jqChildMemory  = 128 << 20          // RLIMIT_DATA counts Go's 64 MiB heap arenas as mapped: below 128 MiB even small filters fail
+	jqChildMemory  = 64 << 20           // what a filter may add to what the child maps at start (mcp_read_jq_linux.go)
 )
 
 // jqRun runs ha_read's filter on one input.
@@ -116,7 +116,7 @@ func maybeRunJQChild(args []string, input io.Reader, output io.Writer) (bool, in
 	if limitJQChildMemory(jqChildMemory) != nil { // never run a filter uncapped
 		return true, 2
 	}
-	debug.SetMemoryLimit(jqChildMemory / 2)
+	debug.SetMemoryLimit(jqChildMemory)
 	reader := bufio.NewReader(input)
 	line, err := reader.ReadBytes('\n')
 	var filter string
