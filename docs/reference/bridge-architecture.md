@@ -465,7 +465,9 @@ file it writes in Home Assistant's configuration,
 `custom_components/ha_nova` (a missing `custom_components` it makes, and
 removes again only while empty). No Relay route gains logic: a chat
 app's raw writes (`ha_plan` kind raw) reach the Relay's existing `/core`,
-`/ws`, `/files`, and `/backups` routes, after the CLI's own guard per item.
+`/ws`, `/files`, and `/backups` routes, after the CLI's own guard per item;
+dashboard, rooms, and template plans are the CLI's own config plans and
+reach `/ws` the same way.
 Contract:
 `docs/work/2026-10-19-chat-bridge-contract.md` ("App side").
 
