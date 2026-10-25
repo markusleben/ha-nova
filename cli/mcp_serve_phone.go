@@ -252,10 +252,10 @@ func (srv *mcpServer) phoneJob(job *chatJob, argv []string) {
 	a.wait(nil)
 	job.tapped.Store(a.answer != phoneNoAnswer)
 	// The owner may have removed this user or set read only meanwhile, or
-	// the user may no longer administer Home Assistant (a raw plan).
+	// the user may no longer administer Home Assistant (a config plan).
 	now, _, why := srv.chat.bridge.policyFor(srv.chat.user)
 	id, _ := json.Marshal(req.id)
-	demoted := srv.rawAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id})
+	demoted := srv.configAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id})
 	job.result = srv.runVerb("ha_apply", "", false, func() int {
 		var env verbEnvelope
 		var exit int

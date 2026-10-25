@@ -71,17 +71,25 @@ func callArgv(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, er
 func planArgv(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, error) {
 	kind := text(args, "kind")
 	allowed := map[string][]string{
-		"call":    {"kind", "service", "entity_ids", "match", "area", "device", "data", "skill", "response"},
-		"write":   {"kind", "domain", "id", "create", "draft"},
-		"delete":  {"kind", "entity_id"},
-		"revert":  {"kind", "domain", "id"},
-		"restore": {"kind", "snapshot", "id"},
-		"raw":     {"kind", "requests"},
+		"call":     {"kind", "service", "entity_ids", "match", "area", "device", "data", "skill", "response"},
+		"write":    {"kind", "domain", "id", "create", "draft", "base", "title", "icon", "require_admin", "hide_sidebar"},
+		"delete":   {"kind", "entity_id", "domain", "id"},
+		"revert":   {"kind", "domain", "id"},
+		"restore":  {"kind", "snapshot", "id"},
+		"raw":      {"kind", "requests"},
+		"rooms":    {"kind"},
+		"template": {"kind", "name"},
 	}[kind]
 	for key := range args {
 		if !containsText(allowed, key) {
 			return nil, fmt.Errorf("argument %q does not apply to kind %s", key, kind)
 		}
+	}
+	if err := checkPlanDomain(kind, args); err != nil {
+		return nil, err
+	}
+	if argv, err := planKindArgv(kind, args); argv != nil || err != nil {
+		return argv, err
 	}
 	switch kind {
 	case "call":
@@ -104,7 +112,8 @@ func planArgv(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, er
 		if json.Unmarshal(args["create"], &create) == nil && create {
 			argv = append(argv, "--create")
 		}
-		return argv, nil
+		dashboard, _ := flagsThen(args, []string{"require_admin", "hide_sidebar"}, []string{"base", "title", "icon"}, "")
+		return append(argv, dashboard...), nil
 	case "delete":
 		entityID := text(args, "entity_id")
 		if !entityIDPattern.MatchString(entityID) {
@@ -188,6 +197,9 @@ func nextStep(envelope map[string]any) string {
 	if step := findTruncated(envelope); step != "" {
 		return step
 	}
+	if step := largeDashboardStep(envelope); step != "" {
+		return step
+	}
 	next, _ := errInfo["next"].(string)
 	switch errInfo["code"] {
 	case "SERVER_MISMATCH":
@@ -243,9 +255,10 @@ var mcpNoticeHints = map[string]string{
 var mcpFlagArgs = map[string]string{"confirm": "confirm_code", "no-snapshot": "no_snapshot", "snapshot": "snapshot", "target": "id", "id": "id",
 	"create": "create: true", "include-disabled": "include_disabled", "state": "state", "domain": "domain", "area": "area",
 	"config": "config", "related": "related", "since": "since", "until": "until", "logbook": "logbook", "match": "match", "device": "device",
-	"references": "references", "aliases": "aliases"}
+	"references": "references", "aliases": "aliases", "dashboard": "dashboard", "dashboards": "dashboards", "base": "base", "title": "title",
+	"icon": "icon", "require-admin": "require_admin", "hide-sidebar": "hide_sidebar", "insights": "insights", "file": "draft"}
 
-var cliFlag = regexp.MustCompile("(?:^|[\\s`(/])--([a-z][a-z-]*)")
+var cliFlag = regexp.MustCompile("(?:^|[\\s`(/[])--([a-z][a-z-]*)")
 
 // mcpArgs rewrites standalone known flag tokens only — never text inside an
 // identifier (foo--bar) or an unknown flag; messages carry HA and user text.

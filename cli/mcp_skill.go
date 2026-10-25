@@ -21,6 +21,12 @@ names a CLI command, use the tool:
   arguments (--confirm → confirm_code, --file → draft, --data-file and --set →
   data, revert --target → id, plan restore --snapshot/--id → kind restore
   with snapshot/id); this connection is pinned: no --server
+- plan write|delete|revert --domain dashboard → domain dashboard with id,
+  base, title, icon, require_admin, hide_sidebar; plan revert --domain
+  device_area → domain device_area; plan rooms → kind rooms; plan template
+  <name> → kind template with name; get --dashboard <url_path> [--config] |
+  --dashboards → ha_get dashboard (config) | dashboards; map --insights →
+  ha_map insights
 - relay core|ws|files|backups reads (core POST /api/template and check_config
   too), a camera image (--out-binary), snapshot show|verify, and diff
   → ha_read endpoints; send payloads and files inline; --jq, --jq-file, and
@@ -50,10 +56,10 @@ names a CLI command, use the tool:
 - "context skill" → ha_skill name ha-nova; a cited file (skills/….md,
   ../ha-nova/….md, or a bare file name): ha_skill with it as name, when the
   step you run needs it
-Everything else (dashboard edits) needs a client with a shell and the HA
-NOVA CLI: say so instead of improvising, and say which evidence was not
-checked. Pass a one-time code to ha_apply only when the user typed it in
-chat for that plan. Where a result says their app asks for it in a form, that form
+Anything not mapped here needs a client with a shell and the HA NOVA CLI:
+say so instead of improvising, and say which evidence was not checked. Pass
+a one-time code to ha_apply only when the user typed it in chat for that
+plan. Where a result says their app asks for it in a form, that form
 replaces every code step below: never ask for or wait for a code in chat;
 where the skill would apply the plan (also after a drift, a wrong code, or the
 choice to delete without a copy), call ha_apply without confirm_code.

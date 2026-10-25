@@ -53,13 +53,13 @@ var mcpTools = []mcpTool{mcpSkillTool,
 			"limit": prop("integer", "1-200 rows (default 20)"), "include_disabled": prop("boolean", "include disabled entities"),
 			"aliases": prop("boolean", "also match aliases when names already match (after a rejected name match)")}),
 		argv: findArgv, run: runFindCommand},
-	{name: "ha_get", title: "Read a device", description: "Read one entity's state, optionally its stored config and relations. managed: yaml means the config is defined in YAML or a package: never edit or delete it through ha_plan; it is changed in those files.", readOnly: true, idempotent: true,
-		schema: object([]string{"entity_id"}, map[string]any{"entity_id": prop("string", "exact entity_id"),
-			"config": prop("boolean", "also read the stored automation/script/scene config"), "related": prop("boolean", "also read search/related"),
+	{name: "ha_get", title: "Read a device", description: "Read one entity's state, optionally its stored config and relations; or one dashboard (dashboard) or every dashboard's broken-card sweep (dashboards). Pass exactly one of entity_id, dashboard, dashboards. managed: yaml means the config is defined in YAML or a package: never edit or delete it through ha_plan; it is changed in those files.", readOnly: true, idempotent: true,
+		schema: object(nil, map[string]any{"entity_id": prop("string", "exact entity_id"),
+			"dashboard":  prop("string", "a dashboard's url_path (lovelace: the default one): its views, cards, issues, and config_digest"),
+			"dashboards": prop("boolean", "every dashboard: missing entities and unconfirmed custom card types"),
+			"config":     prop("boolean", "also read the stored automation/script/scene config, or the dashboard's full config"), "related": prop("boolean", "also read search/related"),
 			"references": prop("boolean", "also scan automations, scripts, dashboards, energy, and state attributes for the entity, its device, and the device's other entities (includes related)")}),
-		argv: func(a map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
-			return flagsThen(a, []string{"config", "related", "references"}, nil, "entity_id")
-		}, run: runGetCommand},
+		argv: getArgv, run: runGetCommand},
 	{name: "ha_history", title: "Read history", description: "Summarize an entity's history in a window of at most 7 days (each bound a duration ago of at most 7d or an RFC3339 time).", readOnly: true, idempotent: true,
 		schema: object([]string{"entity_id"}, map[string]any{"entity_id": prop("string", "exact entity_id"),
 			"since": prop("string", "window start: a duration ago (90m, 24h, 7d) or an RFC3339 time"),
@@ -67,32 +67,39 @@ var mcpTools = []mcpTool{mcpSkillTool,
 		argv: func(a map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
 			return flagsThen(a, []string{"logbook"}, []string{"since", "until"}, "entity_id")
 		}, run: runHistoryCommand},
-	{name: "ha_map", title: "Map the home", description: "Exact, computed home facts — never count by hand: areas/floors with device and entity counts, automations/scripts/scenes/helpers, integrations, unavailable entities, low batteries. section gives one full list; entity gives where-used (automations, scripts, scenes, groups, helpers, dashboard cards; not_checked names what was not searched); first_look gives the onboarding summary. " + mcpAnswerRules, readOnly: true, idempotent: true,
+	{name: "ha_map", title: "Map the home", description: "Exact, computed home facts — never count by hand: areas/floors with device and entity counts, automations/scripts/scenes/helpers, integrations, unavailable entities, low batteries. section gives one full list; entity gives where-used (automations, scripts, scenes, groups, helpers, dashboard cards; not_checked names what was not searched); first_look gives the onboarding summary; insights gives ranked insights with room suggestions and one automation template that fit this home. " + mcpAnswerRules, readOnly: true, idempotent: true,
 		schema: object(nil, map[string]any{"section": map[string]any{"type": "string", "enum": []string{"areas", "integrations", "automations", "unavailable", "batteries"}},
 			"entity": prop("string", "exact entity_id: where it is used"), "first_look": prop("boolean", "the onboarding first look"),
-			"limit": prop("integer", "1-200 rows for section or entity")}),
+			"insights": prop("boolean", "stats, ranked insights, room suggestions (ha_plan kind rooms), and a template (ha_plan kind template)"),
+			"limit":    prop("integer", "1-200 rows for section or entity")}),
 		argv: mapArgv, run: runMapCommand},
 	{name: "ha_trace", title: "Read automation runs", description: "Latest trace, trace list, or one trace of an automation or script.", readOnly: true, idempotent: true,
 		schema: object([]string{"action", "entity_id"}, map[string]any{"action": map[string]any{"type": "string", "enum": []string{"latest", "list", "get"}},
 			"entity_id": prop("string", "automation.x or script.x"), "run_id": prop("string", "for action get")}),
 		argv: traceArgvChecked, run: runTraceCommand},
 	mcpReadTool,
-	{name: "ha_plan", title: "Plan a change", description: "Plan without executing: kind call (a service call), write (automation/script config), delete, revert, restore (a deleted automation/script from the snapshot its delete result named), or raw (the requests to Home Assistant's own API a skill makes, such as registry, helper, scene, and integration setup changes, files, config snapshots; sent in order by ha_apply). Returns a preview; a high-consequence plan needs a confirmation code the user types (no code is returned where their app asks for it in a form). coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
+	{name: "ha_plan", title: "Plan a change", description: "Plan without executing: kind call (a service call), write (automation/script/dashboard config), delete, revert, restore (a deleted automation/script from the snapshot its delete result named), rooms (the room suggestions of ha_map insights), template (a ready-made automation filled with this home's entities), or raw (the requests to Home Assistant's own API a skill makes, such as registry, helper, scene, and integration setup changes, files, config snapshots; sent in order by ha_apply). Returns a preview; a high-consequence plan needs a confirmation code the user types (no code is returned where their app asks for it in a form). coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
 		readOnly: true,
 		schema: object([]string{"kind"}, merged(callProperties, map[string]any{
-			"kind": map[string]any{"type": "string", "enum": []string{"call", "write", "delete", "revert", "restore", "raw"}},
+			"kind": map[string]any{"type": "string", "enum": []string{"call", "write", "delete", "revert", "restore", "rooms", "template", "raw"}},
 			"requests": map[string]any{"type": "array", "minItems": 1, "maxItems": planRawMaxItems,
 				"description": "raw: 1 to 20 requests in the order they run (config snapshots first, then what they protect); reads go to ha_read, except blueprint/import, camera/stream, media_source/resolve_media, and a flow step GET, which only a plan sends",
 				"items": object([]string{"endpoint", "payload"}, map[string]any{
 					"endpoint": map[string]any{"type": "string", "enum": []string{"core", "ws", "files", "backups"}},
 					"payload":  prop("object", "core: {method, path, body} of the REST API; ws: the WebSocket message; files: {action: write_file or delete_file, path, content}; backups: {action: save, delete, or prune, ...}"),
 					"typed":    prop("boolean", "true where the skill takes the one-time code for this step and the plan would only preview it; never lowers a tier")})},
-			"domain":    map[string]any{"type": "string", "enum": []string{"automation", "script"}},
-			"id":        prop("string", "write: config id to update/create; revert: target config id; restore: the deleted item's config id"),
-			"snapshot":  prop("string", "restore: the snapshot file the delete result named"),
-			"create":    prop("boolean", "write: a new item — refused if the id already exists, never an overwrite"),
-			"draft":     prop("object", "write: the full config (key order is kept)"),
-			"entity_id": prop("string", "delete: automation.x or script.x")})),
+			"domain":        map[string]any{"type": "string", "enum": []string{"automation", "script", "dashboard", "device_area"}, "description": "write, delete (dashboard), revert; device_area: revert of a rooms record"},
+			"id":            prop("string", "write: config id (dashboard: url_path) to update/create; delete: a dashboard's url_path; revert: target config id, url_path, or rooms record; restore: the deleted item's config id"),
+			"snapshot":      prop("string", "restore: the snapshot file the delete result named"),
+			"create":        prop("boolean", "write: a new item — refused if the id already exists, never an overwrite"),
+			"draft":         prop("object", "write: the full config (key order is kept)"),
+			"entity_id":     prop("string", "delete: automation.x or script.x"),
+			"base":          prop("string", "write, dashboard update: the config_digest from ha_get dashboard that the draft starts from"),
+			"title":         prop("string", "write, new dashboard: its title (required with create)"),
+			"icon":          prop("string", "write, new dashboard: its icon (mdi:name)"),
+			"require_admin": prop("boolean", "write, new dashboard: only administrators see it"),
+			"hide_sidebar":  prop("boolean", "write, new dashboard: not shown in the sidebar"),
+			"name":          map[string]any{"type": "string", "enum": automationTemplates, "description": "template: which one"}})),
 		argv: planArgv, run: runPlanCommand},
 	{name: "ha_call", title: "Control a device", description: "Call a service. Ordinary calls run now and are verified; no_change: already so, nothing sent (relay say); anything else returns needs_confirmation with a plan for ha_apply. A call that timed out or returned no result is outcome unknown: read with ha_get; never call again. coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
 		schema: object([]string{"service"}, callProperties), argv: callArgv, run: runCallCommand},
@@ -151,7 +158,7 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		if refusal := srv.chatRefusal(tool); refusal != nil { // ha-nova serve: the owner's read-only switch
 			return refusal, nil
 		}
-		if refusal := srv.chatRawRefusal(tool.name, params.Arguments); refusal != nil { // ha-nova serve: raw plans for administrators
+		if refusal := srv.chatAdminRefusal(tool.name, params.Arguments); refusal != nil { // ha-nova serve: config plans for administrators
 			return refusal, nil
 		}
 		if tool.name == mcpSkillTool.name { // offline: no verb, no lock
@@ -162,7 +169,7 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 			if stop, rpcErr := srv.confirmByForm(req, params.Arguments, &answered); stop != nil || rpcErr != nil {
 				return stop, rpcErr
 			}
-			if refusal := srv.chatRawRefusal(tool.name, params.Arguments); refusal != nil { // demoted while the form asked
+			if refusal := srv.chatAdminRefusal(tool.name, params.Arguments); refusal != nil { // demoted while the form asked
 				return refusal, nil
 			}
 		}
@@ -347,7 +354,7 @@ func flagsThen(args map[string]json.RawMessage, bools, strs []string, positional
 }
 
 func mapArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
-	argv, _ := flagsThen(args, []string{"first_look"}, []string{"section", "entity"}, "")
+	argv, _ := flagsThen(args, []string{"first_look", "insights"}, []string{"section", "entity"}, "")
 	if raw, present := args["limit"]; present {
 		var n int
 		_ = json.Unmarshal(raw, &n)
