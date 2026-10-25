@@ -104,6 +104,8 @@ func TestMCPReadCameraImage(t *testing.T) {
 		switch body["path"] {
 		case "/api/camera_proxy/camera.door":
 			return map[string]any{"status": 200, "body": base64.StdEncoding.EncodeToString(frame), "body_encoding": "base64", "content_type": "image/jpeg; charset=binary"}
+		case "/api/camera_proxy/camera.demo": // HA's demo camera, and many others, say image/jpg
+			return map[string]any{"status": 200, "body": base64.StdEncoding.EncodeToString(frame), "body_encoding": "base64", "content_type": "image/jpg"}
 		case "/api/camera_proxy/camera.text":
 			return map[string]any{"status": 200, "body": map[string]any{"message": "no image"}}
 		case "/api/camera_proxy/camera.tiff":
@@ -133,6 +135,9 @@ func TestMCPReadCameraImage(t *testing.T) {
 	}
 	if last := calls()[len(calls())-1]; last.endpoint != "core" || last.body != `{"method":"GET","path":"/api/camera_proxy/camera.door"}` {
 		t.Fatalf("camera request %v", last)
+	}
+	if res := c.tool("ha_read", map[string]any{"endpoint": "camera", "entity_id": "camera.demo"}); len(res["content"].([]any)) != 2 || res["content"].([]any)[1].(map[string]any)["mimeType"] != "image/jpeg" {
+		t.Fatalf("image/jpg camera: %v", res)
 	}
 	for id, want := range map[string]string{"camera.text": "no image", "camera.big": "too large for the chat", "camera.tiff": "JPEG, PNG, GIF, and WebP", "camera.err": "Camera is off", "camera.gone": "HTTP 404"} {
 		res := c.tool("ha_read", map[string]any{"endpoint": "camera", "entity_id": id})

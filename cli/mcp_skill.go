@@ -43,10 +43,12 @@ names a CLI command, use the tool:
   a scene's members, a flow's body) beside the plan's say: the plan's
   confirmation and tier replace the skill's confirmation step and any code
   it would mint, except where the skill gates a step with a code and the
-  plan says preview: set typed on that item. Where the skill already counts
-  a step as confirmed (a flow menu pick, the .bak rollback after an invalid
-  check_config, cancelling a flow after a secret form) and the plan is a
-  preview, call ha_apply right after ha_plan. snapshot save after a helper
+  plan says preview: set typed on that item. Where the user already agreed
+  to the skill's preview of exactly this change, or the skill counts a step
+  as confirmed (a flow menu pick, the .bak rollback after an invalid
+  check_config, cancelling a flow after a secret form), and the plan is a
+  preview, call ha_apply right after ha_plan and show the plan's say with
+  the result; if the plan differs from what the user saw, show it and ask. snapshot save after a helper
   edit: ha_apply saved it (result undo)
 - exit codes → status: 2 drift, 3 needs_confirmation, 6 unverified, 7
   OUTCOME_UNKNOWN (read with ha_get or ha_read, never retry); others status
