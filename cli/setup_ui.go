@@ -126,7 +126,7 @@ func renderSetupCompleteBanner(out io.Writer, clients []string, look *setupFirst
 	if labels := setupClientLabels(clients); labels != "" {
 		fmt.Fprintf(out, "  %s\n", setupStyled(session, "setup.done.installed_for", "clients", setupStrong(labels)))
 		if slices.Contains(clients, "codex") {
-			fmt.Fprintf(out, "  %s\n", setupT("setup.codex.where"))
+			fmt.Fprintf(out, "  %s\n", setupT(codexWhereKey()))
 		}
 		fmt.Fprintln(out)
 	}

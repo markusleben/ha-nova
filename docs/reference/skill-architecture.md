@@ -572,7 +572,7 @@ It handles repo-local skill refreshes for development and validation:
 - source skill tree: `skills/` (repo-local, flat layout)
 - client-specific install strategies:
   - **Claude Code:** for repo-local development only, stages a local marketplace root under `~/.config/ha-nova/claude-marketplace`, registers it with `claude plugin marketplace add`, then installs/reinstalls `ha-nova@ha-nova`
-  - **Codex** (the `codex` command, the IDE extension, and Codex in the desktop app, which all read `~/.agents/skills`): symlink on Unix, copy fallback on Windows at `~/.agents/skills/ha-nova`; `ha-nova setup codex` also removes HA NOVA's own old flat `ha-nova-*` copies there
+  - **Codex** (the `codex` command, the IDE extension, and Codex in the desktop app, which all read `~/.agents/skills`): symlink on Unix, copy fallback on Windows at `~/.agents/skills/ha-nova`; `ha-nova setup` (for Codex or Antigravity) also moves HA NOVA's own old flat `ha-nova-*` copies there into `~/.config/ha-nova/backups/codex-legacy-<time>/`
   - **OpenCode:** symlink on Unix, copy fallback on Windows at `~/.config/opencode/skills/ha-nova`
   - **Google Antigravity:** Flat copy `~/.gemini/config/skills/ha-nova/SKILL.md` plus `~/.gemini/config/skills/ha-nova-*/SKILL.md` sub-skills (1-level limit), with namespaced sub-skill names matching those folder names
   - **Hermes Agent:** Namespaced nested copy under `~/.hermes/skills/ha-nova/ha-nova-*`, with sub-skill directory names and frontmatter names both using the same `ha-nova-*` identifier

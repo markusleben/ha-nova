@@ -45,6 +45,14 @@ describe("setup page: where Codex works", () => {
     expect(p.posts).toEqual([{ action: "clients" }]);
   });
 
+  it("uses the line the CLI picks for this OS (no desktop app on Linux)", async () => {
+    const p = page({ screen: "done", clients: ["Codex"], codex_where: "setup.codex.where_linux", accepts: [] });
+    await p.settle();
+    const where = p.find("codex-where")!.textContent;
+    expect(where).toBe(p.catalog["setup.codex.where_linux"]);
+    expect(where).not.toContain("desktop app");
+  });
+
   it("says it on the terminal path's end too", async () => {
     const p = page({ screen: "done", clients: ["Codex"], accepts: [] });
     await p.settle();

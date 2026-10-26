@@ -124,7 +124,7 @@
         value ? el('div', { class: 'v' }, value) : null, extra && extra.below),
       extra && extra.side ? extra.side : el('span'));
   // Where "Codex" works, wherever the page says it got HA NOVA.
-  const codexWhere = (clients) => ((clients || []).includes('Codex') ? el('p', { class: 'fine', id: 'codex-where' }, t('setup.codex.where')) : null);
+  const codexWhere = (clients) => ((clients || []).includes('Codex') ? el('p', { class: 'fine', id: 'codex-where' }, t(state.codex_where || 'setup.codex.where')) : null);
   const head = (eyebrow, title, lead, amber) => [
     el('p', { class: amber ? 'eyebrow amber' : 'eyebrow' }, eyebrow),
     el('h1', { tabindex: '-1' }, title),

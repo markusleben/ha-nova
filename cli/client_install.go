@@ -48,7 +48,11 @@ func installClientsAndSaveStateUnlocked(
 	if allTrackedClientsSynced(state.InstalledClients, clients) {
 		state.ClientsVerifiedVersion = localVersion(paths)
 	}
-	return save(paths, *state)
+	if err := save(paths, *state); err != nil {
+		return err
+	}
+	cleanUpLegacyCodexSkills(paths, clients)
+	return nil
 }
 
 func ensureSetupLifecycleCurrent(paths runtimePaths, lifecycleMarker ...[]byte) error {
@@ -303,11 +307,7 @@ func installClientWithPolicy(paths runtimePaths, sourceRoot, client string, allo
 			if err := requireSessionBootstrap(sourceRoot); err != nil {
 				return "", err
 			}
-			mode, err := installTreeClient(codexSkillsRoot(paths.Home), filepath.Join(sourceRoot, "skills"), preferSymlinkForCurrentOS())
-			if err != nil || allowFileClientWithoutRuntime {
-				return mode, err
-			}
-			return mode, removeLegacyCodexFlatSkills(paths.Home, sourceRoot)
+			return installTreeClient(codexSkillsRoot(paths.Home), filepath.Join(sourceRoot, "skills"), preferSymlinkForCurrentOS())
 		case "opencode":
 			if err := requireSessionBootstrap(sourceRoot); err != nil {
 				return "", err

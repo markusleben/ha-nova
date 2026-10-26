@@ -41,7 +41,8 @@ func evaluateClientStatus(paths runtimePaths, state installState, client clientR
 	if client.ID == "hermes" && (hermesNamespacedContextPresent(paths.Home) || hermesLegacyBundlePresent(paths.Home)) {
 		status.Configured = true
 	}
-	status.RuntimeDetected = clientRuntimeDetectedForStatus(client.ID)
+	status.RuntimeDetected = clientRuntimeDetectedForStatus(client.ID) ||
+		(client.ID == "codex" && codexAppInstalled(paths.Home))
 	status.Ready = status.SupportedOnOS && status.RuntimeDetected && status.Attached
 	status.Reason = clientStatusReason(client.ID, status)
 	return status
@@ -50,10 +51,6 @@ func evaluateClientStatus(paths runtimePaths, state installState, client clientR
 func clientRuntimeDetected(client string) bool {
 	if client == "antigravity" {
 		return antigravityRuntimeDetected()
-	}
-	if client == "codex" {
-		home, _ := os.UserHomeDir()
-		return commandRuntimeDetected("codex") || codexAppInstalled(home)
 	}
 	command := clientRuntimeCommand(client)
 	if command == "" {
@@ -150,8 +147,8 @@ func clientStatusReason(client string, status clientStatus) string {
 	case "claude":
 		return "install Claude Code first"
 	case "codex":
-		if runtime.GOOS == "darwin" {
-			return "install the Codex CLI or the ChatGPT desktop app first"
+		if codexPlatformOS == "darwin" {
+			return "install the Codex CLI, or the ChatGPT desktop app that includes Codex, first"
 		}
 		return "install the Codex CLI first"
 	case "opencode":
