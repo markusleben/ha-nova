@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 )
 
@@ -124,6 +125,9 @@ func renderSetupCompleteBanner(out io.Writer, clients []string, look *setupFirst
 	fmt.Fprintln(out)
 	if labels := setupClientLabels(clients); labels != "" {
 		fmt.Fprintf(out, "  %s\n", setupStyled(session, "setup.done.installed_for", "clients", setupStrong(labels)))
+		if slices.Contains(clients, "codex") {
+			fmt.Fprintf(out, "  %s\n", setupT("setup.codex.where"))
+		}
 		fmt.Fprintln(out)
 	}
 	promptHeader := setupStyled(session, "setup.done.try_asking_in", "client", setupStrong(setupClientLabelsForPrompt(clients)))
@@ -209,7 +213,7 @@ func setupClientLabel(client string) string {
 	case "claude":
 		return "Claude Code"
 	case "codex":
-		return "Codex CLI"
+		return "Codex"
 	case "opencode":
 		return "OpenCode"
 	case "antigravity":

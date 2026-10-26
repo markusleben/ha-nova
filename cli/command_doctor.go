@@ -371,6 +371,9 @@ func runDoctor(paths runtimePaths, args []string) int {
 			switch {
 			case client.Ready:
 				doctorInfo("%s is ready", client.Label)
+				if client.ID == "codex" {
+					doctorInfo("%s", setupT("setup.codex.where"))
+				}
 				if client.ID != "claude" {
 					break
 				}
@@ -384,6 +387,15 @@ func runDoctor(paths runtimePaths, args []string) int {
 			case !client.Attached:
 				printHumanWarn("%s doesn't load HA NOVA right now", client.Label)
 				printHumanWarn("%s", doctorClientRepairHint(client, installSource))
+				status = 1
+			}
+			if client.ID != "codex" {
+				continue
+			}
+			for _, problem := range codexSkillProblems(paths) {
+				warning, fix := doctorCodexSkillProblem(problem)
+				printHumanWarn("%s", warning)
+				printHumanWarn("%s", fix)
 				status = 1
 			}
 		}

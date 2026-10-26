@@ -77,7 +77,8 @@
 
   [ok] Setup complete!
 
-  Installed for: Claude Code, Codex CLI
+  Installed for: Claude Code, Codex
+  Codex is the codex command in a terminal and Codex in the ChatGPT desktop app (formerly the Codex app). In the app, start a new chat to load HA NOVA.
 
   Open your AI apps and try asking:
 
@@ -243,9 +244,10 @@
 
   [ok] Setup complete!
 
-  Installed for: Codex CLI
+  Installed for: Codex
+  Codex is the codex command in a terminal and Codex in the ChatGPT desktop app (formerly the Codex app). In the app, start a new chat to load HA NOVA.
 
-  Open Codex CLI and try asking:
+  Open Codex and try asking:
 
     "Turn off the living room light"
     "List my automations"
@@ -262,8 +264,8 @@
   Which AI app do you use?
 
     1) Claude Code
-    2) Codex CLI
-       not available: install Codex CLI first
+    2) Codex
+       not available: install the Codex CLI first
     3) All available clients
 
   Enter [1-3] (default 1, or type 'exit'):   [!!] Pick one of the numbers shown.
@@ -271,18 +273,18 @@
   Which AI app do you use?
 
     1) Claude Code
-    2) Codex CLI
-       not available: install Codex CLI first
+    2) Codex
+       not available: install the Codex CLI first
     3) All available clients
 
-  Enter [1-3] (default 1, or type 'exit'):   [!!] Codex CLI is not available yet: install Codex CLI first
+  Enter [1-3] (default 1, or type 'exit'):   [!!] Codex is not available yet: install the Codex CLI first
   [!!] Pick one of the numbers shown.
 
   Which AI app do you use?
 
     1) Claude Code
-    2) Codex CLI
-       not available: install Codex CLI first
+    2) Codex
+       not available: install the Codex CLI first
     3) All available clients
 
   Enter [1-3] (default 1, or type 'exit'): 
@@ -291,8 +293,8 @@
   Which AI app do you use?
 
     1) Claude Code
-    2) Codex CLI
-       not available: install Codex CLI first
+    2) Codex
+       not available: install the Codex CLI first
     3) All available clients
 
   Enter [1-3] (default 1, or type 'exit'): 
@@ -303,8 +305,8 @@
   Which AI app do you use?
 
     1) Claude Code
-    2) Codex CLI
-       not available: install Codex CLI first
+    2) Codex
+       not available: install the Codex CLI first
     3) All available clients
 
   Enter [1-3] (default 1, or type 'exit'): 
@@ -313,8 +315,8 @@
   Which AI app do you use?
 
     1) Claude Code
-    2) Codex CLI
-       not available: install Codex CLI first
+    2) Codex
+       not available: install the Codex CLI first
     3) All available clients
 
   Enter [1-3] (default 1, or type 'exit'): 
@@ -324,8 +326,8 @@
 
   Which AI app do you use?
 
-    1) Codex CLI
-       not available: install Codex CLI first
+    1) Codex
+       not available: install the Codex CLI first
     2) All available clients
        not available: install a supported AI client first
 

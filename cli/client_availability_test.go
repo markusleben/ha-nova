@@ -261,7 +261,7 @@ func TestRunSetupFailsBeforePersistenceWhenTargetRuntimeMissing(t *testing.T) {
 	if exitCode == 0 {
 		t.Fatalf("expected setup to fail when Codex runtime is missing:\n%s", output)
 	}
-	if !strings.Contains(output, "Codex CLI is not available yet: install Codex CLI first") {
+	if !strings.Contains(output, "Codex is not available yet: install the Codex CLI") {
 		t.Fatalf("expected explicit missing-client output:\n%s", output)
 	}
 	if _, err := os.Stat(paths.ConfigFile); !isNotExist(err) {
@@ -300,7 +300,7 @@ func TestRunDoctorWarnsWhenConfiguredClientRuntimeMissing(t *testing.T) {
 	if exitCode == 0 {
 		t.Fatalf("expected doctor to degrade for missing Codex runtime:\n%s", output)
 	}
-	if !strings.Contains(output, "HA NOVA is set up for Codex CLI, but can't find Codex CLI on this computer right now") {
+	if !strings.Contains(output, "HA NOVA is set up for Codex, but can't find Codex on this computer right now") {
 		t.Fatalf("expected configured-but-missing-runtime warning:\n%s", output)
 	}
 }
@@ -331,7 +331,7 @@ func TestPostUpdateSyncSkipsConfiguredClientWhenRuntimeMissing(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("expected successful post-update sync wrapper, got %d:\n%s", exitCode, output)
 	}
-	if !strings.Contains(output, "Not updated in Codex CLI: it isn't on this computer right now") {
+	if !strings.Contains(output, "Not updated in Codex: it isn't on this computer right now") {
 		t.Fatalf("expected skip warning:\n%s", output)
 	}
 
@@ -374,7 +374,7 @@ func TestCurrentVersionSyncOmitsSessionInstructionWhenClientRuntimeIsMissing(t *
 	if exitCode != 0 {
 		t.Fatalf("expected skipped client sync to remain retryable, got %d:\n%s", exitCode, output)
 	}
-	if !strings.Contains(output, "Not updated in Codex CLI: it isn't on this computer right now") {
+	if !strings.Contains(output, "Not updated in Codex: it isn't on this computer right now") {
 		t.Fatalf("expected skip warning:\n%s", output)
 	}
 	if strings.Contains(output, postUpdateSessionInstruction) {

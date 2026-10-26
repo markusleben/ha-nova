@@ -69,7 +69,7 @@ func TestSetupGoldenScreens(t *testing.T) {
 
 			choices := []setupClientChoice{
 				{Value: "claude", Label: "Claude Code"},
-				{Value: "codex", Label: "Codex CLI", Disabled: true, DisabledReason: "install Codex CLI first"},
+				{Value: "codex", Label: "Codex", Disabled: true, DisabledReason: "install the Codex CLI first"},
 				{Value: "all", Label: "All available clients"},
 			}
 			section("client menu: invalid, disabled, back, pick")
@@ -84,7 +84,7 @@ func TestSetupGoldenScreens(t *testing.T) {
 			out.WriteString("\n→ " + answer + " " + errString(err) + "\n")
 			section("client menu: nothing available")
 			answer, err = promptSetupClientInteractive(goldenReader("\n"), out, []setupClientChoice{
-				{Value: "codex", Label: "Codex CLI", Disabled: true, DisabledReason: "install Codex CLI first"},
+				{Value: "codex", Label: "Codex", Disabled: true, DisabledReason: "install the Codex CLI first"},
 				{Value: "all", Label: "All available clients", Disabled: true, DisabledReason: "install a supported AI client first"},
 			}, "claude")
 			out.WriteString("\n→ " + answer + " " + errString(err) + "\n")

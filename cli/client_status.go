@@ -51,6 +51,10 @@ func clientRuntimeDetected(client string) bool {
 	if client == "antigravity" {
 		return antigravityRuntimeDetected()
 	}
+	if client == "codex" {
+		home, _ := os.UserHomeDir()
+		return commandRuntimeDetected("codex") || codexAppInstalled(home)
+	}
 	command := clientRuntimeCommand(client)
 	if command == "" {
 		return false
@@ -146,7 +150,10 @@ func clientStatusReason(client string, status clientStatus) string {
 	case "claude":
 		return "install Claude Code first"
 	case "codex":
-		return "install Codex CLI first"
+		if runtime.GOOS == "darwin" {
+			return "install the Codex CLI or the ChatGPT desktop app first"
+		}
+		return "install the Codex CLI first"
 	case "opencode":
 		if runtime.GOOS == "windows" {
 			return "install OpenCode natively first, or run HA NOVA setup inside WSL"

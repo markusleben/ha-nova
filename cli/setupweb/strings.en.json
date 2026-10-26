@@ -57,6 +57,7 @@
   "setup.done.complete": "Setup complete!",
   "setup.done.connected_no_client": "This computer is connected to Home Assistant.",
   "setup.done.installed_for": "Installed for: {clients}",
+  "setup.codex.where": "Codex is the codex command in a terminal and Codex in the ChatGPT desktop app (formerly the Codex app). In the app, start a new chat to load HA NOVA.",
   "setup.done.try_asking_in": "Open {client} and try asking:",
   "setup.done.try_asking": "Try asking:",
   "setup.done.example_light": "Turn off the living room light",

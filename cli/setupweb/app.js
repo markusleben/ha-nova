@@ -123,6 +123,8 @@
       el('div', {}, el('div', { class: 'k' }, el('span', { class: 'visually-hidden' }, `${t(rowStatus[status])} `), key),
         value ? el('div', { class: 'v' }, value) : null, extra && extra.below),
       extra && extra.side ? extra.side : el('span'));
+  // Where "Codex" works, wherever the page says it got HA NOVA.
+  const codexWhere = (clients) => ((clients || []).includes('Codex') ? el('p', { class: 'fine', id: 'codex-where' }, t('setup.codex.where')) : null);
   const head = (eyebrow, title, lead, amber) => [
     el('p', { class: amber ? 'eyebrow amber' : 'eyebrow' }, eyebrow),
     el('h1', { tabindex: '-1' }, title),
@@ -189,6 +191,7 @@
       const clients = state.clients || [];
       const clientRow = state.web ? row('ok', t('setup.page.clients.key'), t('setup.page.clients.web'))
         : row('ok', t('setup.page.clients.key'), format(clients), {
+          below: codexWhere(clients),
           side: el('span', { class: 'tag cyan' }, t('setup.page.clients.tag', { count: clients.length })),
         });
       let appRow;
@@ -262,7 +265,7 @@
     },
 
     done: () => [...head(t('setup.page.done.eyebrow'), t('setup.page.done.title'), t('setup.page.done.lead', { clients: state.clients || [] })),
-      el('p', { class: 'fine' }, t('setup.page.done.fine'))],
+      codexWhere(state.clients), el('p', { class: 'fine' }, t('setup.page.done.fine'))],
   };
   // Steps 3 and 4 (steps.js), and a re-run (rerun.js).
   const announce = (text) => { statusEl.textContent = text; };
@@ -271,7 +274,7 @@
   const amberNotes = ['setup.page.home.note_rule_failed', 'setup.page.home.note_link_failed', 'setup.page.home.note_chat_off_failed',
     'setup.page.home.note_clients_failed', 'setup.page.home.note_web_off'];
   const note = (msg) => el('p', { class: amberNotes.includes(msg.key) ? 'note' : 'note done' }, say(msg));
-  const helpers = { t, el, row, head, note, button, link, format, render, post, accepts, announce, state: () => state };
+  const helpers = { t, el, row, head, note, button, link, format, render, post, accepts, announce, codexWhere, state: () => state };
   const later = window.novaSteps(helpers);
   Object.assign(screens, later, window.novaRerun({ ...helpers, control: later.control }));
   for (const [screen, [eyebrow, title, lead, amber]] of Object.entries(endScreens)) {

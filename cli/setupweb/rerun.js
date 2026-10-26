@@ -4,7 +4,7 @@
 'use strict';
 
 window.novaRerun = (h) => {
-  const { t, el, row, head, note, button, link, control } = h;
+  const { t, el, row, head, note, button, link, control, codexWhere } = h;
   const say = (msg) => (msg ? t(msg.key, msg.args || {}) : '');
   const problem = (msg) => (msg ? el('p', { class: 'problem', role: 'alert' }, say(msg)) : null);
 
@@ -21,10 +21,11 @@ window.novaRerun = (h) => {
     const fresh = s.new_clients || [];
     const side = (r) => {
       if (s.control && r.id === 'app') return { side: link(t('setup.page.link.app'), links.app, 'ghost btn-small', 'app') }; // needs an update
-      if (r.id === 'clients' && fresh.length && s.accepts.includes('clients')) {
-        return { below: el('div', { class: 'actions' }, button(t('setup.page.rerun.add_clients', { clients: fresh }), 'clients', 'ghost btn-small')) };
-      }
-      return null;
+      if (r.id !== 'clients') return null;
+      const where = r.state === 'ok' ? codexWhere(((r.msg || {}).args || {}).clients) : null;
+      const add = fresh.length && s.accepts.includes('clients')
+        ? el('div', { class: 'actions' }, button(t('setup.page.rerun.add_clients', { clients: fresh }), 'clients', 'ghost btn-small')) : null;
+      return { below: [where, add] };
     };
     const status = el('ul', { class: 'rows' }, (s.rows || []).map((r) => row(r.state, t(statusKeys[r.id]), say(r.msg), side(r))));
     if (s.control) return control(status);
