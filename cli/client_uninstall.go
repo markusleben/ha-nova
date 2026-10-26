@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -39,7 +38,7 @@ func removeInstalledClientsWithReport(paths runtimePaths, state installState, re
 				}
 				continue
 			}
-			if _, err := exec.LookPath("claude"); err != nil {
+			if _, err := claudeRuntimePath(); err != nil {
 				if err := removeClaudePluginRecord(paths.Home); err != nil {
 					return fmt.Errorf("claude plugin removal failed: %w", err)
 				}
@@ -51,7 +50,7 @@ func removeInstalledClientsWithReport(paths runtimePaths, state installState, re
 				}
 				continue
 			}
-			cmd := exec.Command("claude", "plugin", "remove", "ha-nova@ha-nova")
+			cmd := claudeCommand("plugin", "remove", "ha-nova@ha-nova")
 			if output, err := cmd.CombinedOutput(); err != nil {
 				message := strings.TrimSpace(string(output))
 				if strings.Contains(strings.ToLower(message), "not found in installed plugins") {

@@ -1,9 +1,6 @@
 package main
 
-import (
-	"fmt"
-	"os/exec"
-)
+import "fmt"
 
 // autoRepairOutcome describes what auto-repair did for a single client.
 type autoRepairOutcome struct {
@@ -76,9 +73,9 @@ func attemptClientAutoRepair(paths runtimePaths, client clientStatus) autoRepair
 	}
 
 	if client.ID == "claude" {
-		if _, err := exec.LookPath("claude"); err != nil {
+		if _, err := claudeRuntimePath(); err != nil {
 			outcome.Skipped = true
-			outcome.SkipReason = "claude CLI not on PATH"
+			outcome.SkipReason = "Claude Code runtime not found"
 			return outcome
 		}
 		snapshot := inspectClaudeInstallSnapshot(paths, state)

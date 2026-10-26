@@ -122,16 +122,28 @@ func openClaudeTerminal(paths runtimePaths) error {
 	if err != nil {
 		return err
 	}
-	if _, err := exec.LookPath("claude"); err != nil {
+	claude, err := claudeRuntimePath()
+	if err != nil {
 		return err
+	}
+	profile := ""
+	if strings.TrimSpace(os.Getenv("CLAUDE_CONFIG_DIR")) != "" {
+		profile, err = filepath.Abs(claudeConfigRoot(paths.Home))
+		if err != nil {
+			return err
+		}
 	}
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
 		// Run, not Start: a denied Automation prompt fails here, and the
 		// page then shows its hint.
-		quoted := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(dir) // an AppleScript string
-		run := exec.Command("osascript", "-e", `tell application "Terminal" to do script "cd " & quoted form of "`+quoted+`" & " && claude"`, "-e", `tell application "Terminal" to activate`)
+		replacer := strings.NewReplacer(`\`, `\\`, `"`, `\"`)
+		command := `quoted form of "` + replacer.Replace(claude) + `"`
+		if profile != "" {
+			command = `"env " & quoted form of "CLAUDE_CONFIG_DIR=` + replacer.Replace(profile) + `" & " " & ` + command
+		}
+		run := exec.Command("osascript", "-e", `tell application "Terminal" to do script "cd " & quoted form of "`+replacer.Replace(dir)+`" & " && " & `+command, "-e", `tell application "Terminal" to activate`)
 		run.Dir = dir
 		return run.Run()
 	case "windows":
@@ -141,10 +153,11 @@ func openClaudeTerminal(paths runtimePaths) error {
 		} else {
 			cmd = exec.Command("cmd", "/c", "start", "", "cmd", "/k", "claude")
 		}
+		cmd.Env = append(os.Environ(), "PATH="+filepath.Dir(claude)+string(os.PathListSeparator)+os.Getenv("PATH"))
 	default:
 		for _, term := range [][]string{{"x-terminal-emulator", "-e"}, {"gnome-terminal", "--"}, {"konsole", "-e"}, {"xterm", "-e"}} {
 			if _, err := exec.LookPath(term[0]); err == nil {
-				cmd = exec.Command(term[0], term[1], "claude")
+				cmd = exec.Command(term[0], term[1], claude)
 				break
 			}
 		}
@@ -153,6 +166,12 @@ func openClaudeTerminal(paths runtimePaths) error {
 		return errors.New("no terminal to open")
 	}
 	cmd.Dir = dir
+	if profile != "" {
+		if cmd.Env == nil {
+			cmd.Env = os.Environ()
+		}
+		cmd.Env = append(cmd.Env, "CLAUDE_CONFIG_DIR="+profile)
+	}
 	if err := cmd.Start(); err != nil {
 		return err
 	}
