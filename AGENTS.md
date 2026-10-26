@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Version: 0.35 (2026-10-24) — bump this header on every local amendment.
+Version: 0.36 (2026-10-26) — bump this header on every local amendment.
 
 Instructions for coding agents in this repo. "Hard rules" protect real homes, credentials, and the release path; no other section can trade them off. The other sections are the standard workflow; where two of them conflict, see Autonomy.
 
@@ -28,7 +28,7 @@ Instructions for coding agents in this repo. "Hard rules" protect real homes, cr
 - Specs: a new feature, contract, or flow gets a short spec in `docs/work/` first; for a fix or small change the PR body is the spec. Prefer skills (project or installed agent skills) over web research, and current docs over memory: use the search/docs tools you have, quote exact errors, prefer recent sources.
 
 ## Hard rules
-- Never run tests against the maintainer's or any user's live Home Assistant. Throwaway HA is fine: the test bed (`npm run testbed:up|verify|down`, `scripts/e2e/testbed/README.md`), the disposable-HA E2E (`scripts/e2e/disposable-ha/`), and the client matrix (`scripts/e2e/client-matrix/`). The real-device Cloud/Windows steps in `docs/releasing.md` are run by the maintainer — hand them over, don't run them. Why: tests write, delete, and pair against real devices in someone's home.
+- Never run tests against the maintainer's or any user's live Home Assistant. Throwaway HA is fine: the test bed (`npm run testbed:up|verify|down`, `scripts/e2e/testbed/README.md`), the disposable-HA E2E (`scripts/e2e/disposable-ha/`), and the client matrix (`scripts/e2e/client-matrix/`). The Windows onboarding proof runs automatically on the maintainer's throwaway Win11/HAOS VMs (`npm run vm-lane -- <tag>`, `docs/releasing.md` §4); the Cloud checklist's accounts lane and the real phones stay with the maintainer — hand them over, don't run them. Why: tests write, delete, and pair against real devices in someone's home.
 - On macOS a temporary `HOME` does not isolate the login keychain. Run pairing, `setup --service`, and `uninstall --purge` tests only in the Linux container lane or a separate macOS user/VM (the client matrix enforces this itself). Why: these paths read, and can delete, real HA NOVA credentials (`docs/reference/testing.md`).
 - Deletions: delete files, folders, branches, worktrees, or remote state only with the maintainer's approval or as part of an approved plan; use `trash` for anything in the repo or under `$HOME`. Pre-approved: your own temp dirs and scratch files from this task under `$TMPDIR` or the session scratchpad (`rm -rf` on exact paths — `trash` would keep the disk full), your own worktree after its PR merged (`git worktree remove`), and the merged PR's head branch (`--delete-branch`). Never another agent's worktree, a Docker container or volume you didn't start (your own go down only via `npm run testbed:down` or an E2E script's cleanup), or anything else you didn't create. Destructive git (`reset --hard`, `clean`, `restore`, `rm`) and force-push to shared branches (`main`, release branches, a branch someone else pushed) need explicit consent; your own PR branch is not shared.
 - Never `gh workflow disable|enable`, change branch protection/rulesets, or flip repository settings to get past a blocker unless the maintainer ordered that exact change; report the blocker instead.

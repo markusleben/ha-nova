@@ -45,7 +45,7 @@ Helper:
 15. for the Hermes service/gateway lane, run `ha-nova setup --service hermes`, then `ha-nova doctor`, then one authenticated relay call from a fresh SSH/service-like shell without an unlocked desktop keyring
 16. for the Hermes service/gateway lane, run `ha-nova uninstall --yes --purge` and confirm the service token file is removed
 
-Windows self-managed:
+Windows self-managed (on Windows 11, `npm run vm-lane -- <tag>` runs steps 1-5 and 9-13 automatically; see "Windows Public Onboarding Lane"):
 1. on fresh-profile runs, preinstall at least one supported client and verify it already runs on that exact machine/session
 2. fresh stable install via `install.ps1` from a local PowerShell console or Windows Terminal session
 3. confirm the supported path starts guided setup automatically; fail if it ends with a manual `ha-nova setup` instruction
@@ -102,7 +102,7 @@ Rules:
 
 ## Windows Public Onboarding Lane
 
-This is the release-bound Windows UX proof. It is separate from `npm run verify` and separate from the private RC helper scripts.
+This is the release-bound Windows UX proof. It is separate from `npm run verify` and separate from the private RC helper scripts. On Windows 11 it runs automatically on the maintainer's throwaway UTM VMs: `npm run vm-lane -- <tag>`.
 
 Prerequisites for this lane:
 - on `clean` / fresh-profile runs, preinstall at least one supported client and verify it already runs from the same local shell
@@ -124,7 +124,11 @@ Supported matrix for this lane:
 - rerunning the same public one-liner after a successful install
 
 Entry point:
-- `npm run test:desktop:windows:public`
+- `npm run vm-lane -- <tag>` (`scripts/e2e/vm-lane/run.mjs`): the maintainer starts "HA NOVA Win11 Test" and "HA NOVA HAOS Test" in UTM and leaves the VM admin signed in. "HA NOVA Ubuntu Test" is optional. Post the STEP/CHECK/RESULT/DETAIL table on the release-prep PR; any FAIL exits non-zero
+- per PowerShell shell, a fresh standard user proves the published candidate and stable one-liners start setup automatically, six-digit pairing, installed-client wiring, doctor, stable-to-candidate update, read/call, rerun, standard uninstall (pairing retained), stale marker, reinstall, and purge (device revoked). SSH controls one-shot tasks in the console session, where Windows Credential Manager is available; no HA NOVA commands run on the Mac
+- the VM is Windows 11 ARM64: installs use x64 PowerShell 7. The 5.1 run verifies the native ARM64 installer's x64 guidance, then runs the CLI lifecycle in 5.1. This is not a native amd64 PowerShell 5.1 installer proof. Setup is cancelled at its first client prompt; the remaining wizard and confirmation-window UX are not exercised
+- paths and SSH ports use `VM_LANE_*` environment overrides declared at the top of the script; defaults read gitignored `docs/internal/vm-tools` and credentials from the main checkout. HA URLs are restricted to the runbook's throwaway forwards. The App is backed up before writes and restored afterward; VMs stay running. `--wait 60` waits up to an hour in two-minute intervals
+- manual, for hosts the VM can't stand in for (Windows 10, native x64): `npm run test:desktop:windows:public`
 - or `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\windows-public-onboarding.ps1`
 
 Rules:
@@ -151,8 +155,8 @@ Evidence record for each run:
 
 Release defaults:
 - RC before tag: local/private bundle proof is acceptable only as a pre-tag sanity check
-- RC after publish: at least one real public Windows onboarding proof on Windows 11 + PowerShell 7 against the published prerelease installer
-- Stable: full 4-host matrix plus `reinstall` and `stale-uninstall-marker` runs before final publish when installer/onboarding changed
+- RC after publish: `npm run vm-lane -- vX.Y.Z-rcN` green against the published prerelease (Windows 11 + PowerShell 7 and 5.1, standard users, fresh profiles, rerun, stale marker); post its table on the release-prep PR
+- Stable: full 4-host matrix (the Windows 11 rows from `vm-lane`) plus `reinstall` and `stale-uninstall-marker` runs before final publish when installer/onboarding changed
 
 ## Desktop Validation Helpers
 

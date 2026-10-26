@@ -106,11 +106,25 @@ deploy or tag.
    prints one table and exits non-zero on any FAIL; a WARN row means the bed's
    Relay is not the tag's. Post the table as a comment on the release-prep PR.
    It starts its own test bed, so no other bed may run.
-   Still manual, for the maintainer. Verify the published RC over the real
-   public install path (section 7, `docs/release-validation.md` "Minimum
-   Manual Gate"), including one real Windows 11 + PowerShell onboarding
-   proof, run the Cloud checklist (section 6), and confirm on a real iPhone
-   and Android phone.
+   Then the Windows onboarding proof, automated on the maintainer's
+   throwaway UTM VMs ("HA NOVA Win11 Test" and "HA NOVA HAOS Test" running;
+   "HA NOVA Ubuntu Test" optional):
+   ```bash
+   npm run vm-lane -- vX.Y.Z-rcN
+   ```
+   The published public one-liners, pairing with a six-digit code, update
+   from the last stable, doctor, a read and an ordinary call, client wiring,
+   rerun, stale uninstall marker, uninstall and purge, as fresh standard
+   users in PowerShell 7 and 5.1 (`docs/release-validation.md` "Windows
+   Public Onboarding Lane"). It never starts or stops a VM, checks the HAOS
+   VM is the throwaway one before any write, and revokes its devices at the
+   end. Post its table on the release-prep PR too.
+   This replaces only the Windows 11 proof; other platform-specific gates in
+   `docs/release-validation.md` still apply, with an explicit no-delta record
+   for an OS lane that need not repeat.
+   Still manual, for the maintainer: the Cloud checklist's accounts lane
+   (section 6: real Home Assistant Link, claude.ai, and ChatGPT accounts) and
+   the confirmations on a real iPhone and Android phone.
 5. Then cut the final tag on the same commit
    (`git tag vX.Y.Z <reviewed-merge-sha> && git push origin vX.Y.Z`) and
    run the post-publish verification (section 7). A skipped RC still needs
