@@ -12,7 +12,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 
 ### Changed
 - Installing or updating a HACS download, and adding or changing a dashboard resource, now take your own confirmation, like a delete, in chat apps and on a computer: that code runs in every signed-in browser. (#864)
-- Chat apps: changes beyond controlling devices (automations, scripts, dashboards, rooms, helpers, files, and the like) need a Home Assistant administrator, as in Home Assistant itself. (#865)
 - NOVA page: an administrator who isn't the owner now sees who the owner is and how to get a six-digit code from them, instead of "Owner access required". (#868)
 
 ### Fixed

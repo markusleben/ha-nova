@@ -48,11 +48,12 @@ describe("release notes contract", () => {
     }
     expect(stableNotes).toMatch(/^## New Features\s+- \*\*Chat apps do what HA NOVA on a computer does\.\*\*/);
     // Chat apps at CLI parity (#863, #864, #865, #867); only setting up HA NOVA itself stays on a computer.
-    expect(stableNotes).toContain("rooms and names, helpers, scenes, dashboards, integrations, files, the error log, and camera pictures, with the same previews and confirmations.");
+    expect(stableNotes).toContain("files (with file access on), and more. Only setting up HA NOVA itself stays on a computer.");
     // "Always allow" advice by phone (#867).
     expect(stableNotes).toContain('with a linked phone, every tool on "Always allow"; without one, all but "Run a confirmed change".');
     // Codex in the desktop app; stale copies flagged and moved (fix/codex-app-guidance).
     expect(stableNotes).toContain("**HA NOVA works in the Codex app too.**");
+    expect(stableNotes).toContain("Doctor flags an older HA NOVA copy that Codex would load; setup updates it, or moves HA NOVA's own old copies to a backup.");
     // HACS and dashboard resources take the typed confirmation (#864, maintainer decision 3).
     expect(stableNotes).toMatch(/## What To Watch\s+- \*\*HACS installs and updates, and dashboard resources, now take your own confirmation, like a delete\.\*\*/);
     expect(stableNotes).toContain("**Camera sign-in tokens stay hidden from the AI.**");

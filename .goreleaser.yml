@@ -71,9 +71,9 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`; if it reports that it needs admin rights, rerun the stable Windows install command instead.
     {{ else }}## New Features
 
-    - **Chat apps do what HA NOVA on a computer does.** In Claude and ChatGPT: rooms and names, helpers, scenes, dashboards, integrations, files, the error log, and camera pictures, with the same previews and confirmations.
+    - **Chat apps do what HA NOVA on a computer does.** In Claude and ChatGPT: rooms, names, helpers, scenes, dashboards, integrations, files (with file access on), and more. Only setting up HA NOVA itself stays on a computer.
     - **Claude stops asking before every step, if you let it.** The setup page and the NOVA page say what to set in Claude: with a linked phone, every tool on "Always allow"; without one, all but "Run a confirmed change".
-    - **HA NOVA works in the Codex app too.** Setup finds Codex as the codex command or, on a Mac, the desktop app. Doctor flags an older HA NOVA copy that Codex would load, and setup moves it to a backup.
+    - **HA NOVA works in the Codex app too.** Setup finds the codex command or, on a Mac, the app. Doctor flags an older HA NOVA copy that Codex would load; setup updates it, or moves HA NOVA's own old copies to a backup.
 
     ## What To Watch
 

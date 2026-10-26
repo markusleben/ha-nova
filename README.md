@@ -250,7 +250,7 @@ Once setup is done, try: *"Show me all my automations."*
 
 </details>
 
-> **Not a terminal person?** Setup is one command to copy and paste, then a page in your browser. After that, Claude Desktop (its Code tab), Codex in the ChatGPT desktop app, and Google Antigravity Desktop give you the same skills in an app window. Pairing another computer is one more sign-in (or one six-digit code). Or skip the computer: with chat apps on, ask from Claude or ChatGPT.
+> **Not a terminal person?** Setup is one command to copy and paste, then a page in your browser. After that, Claude Desktop (its Code tab), Codex in the ChatGPT desktop app (on a Mac), and Google Antigravity Desktop give you the same skills in an app window. Pairing another computer is one more sign-in (or one six-digit code). Or skip the computer: with chat apps on, ask from Claude or ChatGPT.
 
 ---
 
