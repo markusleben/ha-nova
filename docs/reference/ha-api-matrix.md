@@ -254,7 +254,7 @@ guardrails.
 
 Out of scope: InfluxDB paths (`/api/v2/query`, `/api/v3/query_sql`) pinned in
 `skills/external-sources` are not Home Assistant APIs. Supervisor paths
-(`/api/hassio/*`) are pinned only as unreachable through the Relay (HTTP 403),
+(`/api/hassio/*`) are pinned only as unreachable through the App Relay (HTTP 403),
 and so is WS `supervisor/api` (with every `supervisor/*` and `hassio/*` type):
 Supervisor's WebSocket proxy refuses them for Apps whatever the App's role
 (`docs/work/2026-10-26-supervisor-role-spec.md`). App control goes through

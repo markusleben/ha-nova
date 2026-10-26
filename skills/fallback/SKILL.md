@@ -56,6 +56,7 @@ For every Relay-Ready call in this skill:
 | Statistics / Trend Queries | Covered | history |
 | System Health / Repairs | Covered | health |
 | Logs / diagnostics (why a specific automation/script/device/integration failed: traces, error/system logs, root cause) | Covered | diagnose |
+| Host / Supervisor / App logs | External | -- (HA UI: Settings > System > Logs, pick the source) |
 | Media players (transport, volume, source, grouping, browsing, TTS announce) | Covered | media |
 | Notifications (targets, mobile-app sends, persistent notifications) | Covered | notify |
 | Actionable-notification callbacks (waiting for a button press) | Covered for the durable path | write (an automation on `mobile_app_notification_action`) |
@@ -181,7 +182,7 @@ running this Relay. App UPDATES are `ha-nova:updates`.
 
 **Search:** `home assistant supervisor app add-on install manage api 2026`
 
-**Alternative for management:** HA UI: Settings > Apps. Or `ha` CLI on HA OS.
+**Alternative for management:** HA UI: Settings > Apps.
 
 ### HACS (Home Assistant Community Store) -- COVERED
 
