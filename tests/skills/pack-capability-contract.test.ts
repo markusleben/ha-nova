@@ -212,7 +212,7 @@ describe("integration options/reconfigure/reload scope (#520 C1-04)", () => {
     expect(setup).toContain("reload re-runs setup and briefly drops the entry's entities");
     expect(setup).toContain("report the entry's ACTUAL state");
     // The exclusion line shrinks but keeps its remaining boundary.
-    expect(setup).toContain("integration subentry or delete operations");
+    expect(setup).toContain("### Subentries");
   });
 
   it("moves the fallback rows with the scope", () => {
@@ -223,7 +223,7 @@ describe("integration options/reconfigure/reload scope (#520 C1-04)", () => {
 
   it("routes the new lanes from the dispatch table", () => {
     expect(flat(read("skills/ha-nova/SKILL.md"))).toContain(
-      "add, enable/disable, rename an integration, ignore a discovery, change options, reconfigure, reload, continue reauthentication or recover invalid credentials without a pending flow | `ha-nova:integration-setup` |",
+      "add/remove, enable/disable, rename an integration, manage subentries, ignore discovery, change options, reconfigure, reload, reauthenticate or recover invalid credentials | `ha-nova:integration-setup` |",
     );
   });
   it("selects reconfigure mode via entry_id at flow start", () => {
@@ -235,6 +235,66 @@ describe("integration options/reconfigure/reload scope (#520 C1-04)", () => {
     expect(flat(read("skills/integration-setup/SKILL.md"))).toContain(
       "For an agent-started OPTIONS or RECONFIGURE flow, DELETE the transient flow",
     );
+  });
+});
+
+describe("HA UI parity flow ownership", () => {
+  const setup = read("skills/integration-setup/SKILL.md");
+  const health = read("skills/health/SKILL.md");
+  const write = read("skills/write/SKILL.md");
+  const fallback = read("skills/fallback/SKILL.md") + read("skills/fallback/relay-ready.md");
+  it("owns repair start and live steps with destructive tier escalation", () => {
+    for (const text of [
+      "/api/repairs/issues/fix", "issue_id", "is_fixable", "translation",
+      "typed:true", "live-schema-preflight.md", "next_flow",
+    ]) {
+      expect(health).toContain(text);
+    }
+    expect(health).not.toContain("Never call repair fix flows");
+    expect(health).toContain("Never call delete issue commands");
+    const preflight = read("skills/ha-nova/live-schema-preflight.md");
+    for (const text of ["frontend/get_translations", '"category":"issues"', ".data.resources", "issue.translation_key || issue.issue_id", "fix_flow.step.<step_id>.description", "Missing/unclear descriptions"]) {
+      expect(preflight).toContain(text);
+    }
+  });
+
+  it("uses the standard subentry API and checks identity after each mutation", () => {
+    for (const text of [
+      "config_entries/subentries/list", "config_entries/subentries/update",
+      "config_entries/subentries/delete", "/api/config/config_entries/subentries/flow",
+      "supported_subentry_types", "supports_reconfigure", "config_subentry_id",
+      "exactly one new", "reopened live values", "Parent and unrelated subentries must survive",
+    ]) {
+      expect(setup).toContain(text);
+    }
+    expect(setup).toContain("parent owns a lock, alarm panel, or access cover");
+    expect(setup).toContain("normalized device subentry membership");
+    const membership = read("skills/ha-nova/membership-resolution.md");
+    expect(membership).toContain("config_entries_subentries[entry_id]");
+    expect(membership).toContain("Only when absent");
+    expect(membership).toContain("stop before a destructive preview with unresolved scope");
+  });
+
+  it("moves entry removal out of fallback without losing the impact scan", () => {
+    for (const text of [
+      "typed raw DELETE", "/api/config/config_entries/entry/<entry_id>",
+      "FULL entity/device registries", "EACH owned device AND entity",
+      "event-listener", "unindexed dashboard/template", "no auto-undo",
+    ]) {
+      expect(setup).toContain(text);
+    }
+    expect(fallback).not.toContain("### Integration Entry Lifecycle -- RELAY-READY");
+  });
+
+  it("moves blueprints to write and expands inputs before normal config planning", () => {
+    for (const text of [
+      "blueprint/import", "blueprint/save", "blueprint/substitute", "blueprint/delete",
+      "raw_data", "validation_errors", "source_url", "substituted_config",
+      "use_blueprint", "plan write --create", "automation_blueprint", "script_blueprint",
+    ]) {
+      expect(write).toContain(text);
+    }
+    expect(fallback).not.toContain("### Blueprints -- RELAY-READY");
   });
 });
 
@@ -256,8 +316,8 @@ describe("HA UI parity batch 1", () => {
     for (const pin of ["repairs/ignore_issue", "Ignoring hides, never fixes", "re-reading its `ignored` flag", "ha-nova plan raw", "ha-nova apply"]) {
       expect(health).toContain(pin);
     }
-    const blueprints = read("skills/fallback/relay-ready.md");
-    for (const pin of ["blueprint/delete", "automation_blueprint", "script_blueprint", "search/related", "Home Assistant refuses a blueprint in use", "(typed)"]) {
+    const blueprints = read("skills/write/SKILL.md");
+    for (const pin of ["blueprint/delete", "automation_blueprint", "script_blueprint", "search/related", "Home Assistant refuses a blueprint in use", "typed raw plan"]) {
       expect(blueprints).toContain(pin);
     }
     const assist = read("skills/assist/SKILL.md");

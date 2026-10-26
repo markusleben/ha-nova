@@ -32,7 +32,7 @@ tasks, and steps citing "context skill → …" (not Safety Core) also load the 
 - `ha-nova:service-call` — control now: devices, toggles, modes, scenes, scripts, locks, alarms, timers; enable/disable/trigger automations
 - `ha-nova:entity-discovery` — find devices; "is everything closed?"
 - `ha-nova:read` — list or explain automations and scripts
-- `ha-nova:write` — automation/script CRUD; "for 30 minutes" actions
+- `ha-nova:write` — automations/scripts, blueprints, duration actions
 - `ha-nova:review` — audit automations, scripts, helpers
 - `ha-nova:helper` — helpers and timers
 - `ha-nova:scene` — scene setup
@@ -40,9 +40,9 @@ tasks, and steps citing "context skill → …" (not Safety Core) also load the 
 - `ha-nova:device` — swap, onboard, retire a device
 - `ha-nova:home-map` — home inventory, "where is X used", whole-setup review
 - `ha-nova:migrate` — rules from Node-RED, Homey, legacy YAML
-- `ha-nova:health` — repairs, unavailable entities, batteries
+- `ha-nova:health` — repair fixes, unavailable entities, batteries
 - `ha-nova:diagnose` — why something failed or didn't happen
-- `ha-nova:integration-setup` — add integrations, reauthentication, options
+- `ha-nova:integration-setup` — integrations, subentries, reauthentication
 - `ha-nova:admin` — persons, zones, tags, accounts
 - `ha-nova:esphome` — ESPHome configs
 - `ha-nova:maintenance` — statistics repair, history purge

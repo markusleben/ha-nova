@@ -37,7 +37,7 @@ skills/
   read/SKILL.md                         (ha-nova:read — automation/script list/get/trace)
   write/SKILL.md                        (ha-nova:write — automation/script create/update/delete)
   helper/SKILL.md                       (ha-nova:helper — helper CRUD: list/read/create/update/delete)
-  integration-setup/SKILL.md            (ha-nova:integration-setup — add integrations, continue pending reauth flows, recover invalid credentials when none is pending)
+  integration-setup/SKILL.md            (ha-nova:integration-setup — integration lifecycle, subentries, reauth and credential recovery)
   dashboard/SKILL.md                    (ha-nova:dashboard — storage dashboards, Lovelace resources, card operations)
   scene/SKILL.md                        (ha-nova:scene — storage-scene list/read/create/update/delete)
   organize/SKILL.md                     (ha-nova:organize — areas/floors/labels/categories/entity+device metadata)
@@ -46,7 +46,7 @@ skills/
   migrate/SKILL.md                      (ha-nova:migrate — rules from Node-RED, Homey, SmartThings, Hubitat, openHAB, legacy YAML into native config; soak, then retire)
   migrate/source-mappings.md            (reference doc — per-source export steps, concept tables, traps)
   history/SKILL.md                      (ha-nova:history — bounded history/logbook/statistics reads)
-  health/SKILL.md                       (ha-nova:health — home status, repairs, system health; ignore a repair)
+  health/SKILL.md                       (ha-nova:health — home status, repairs, system health; ignore or fix a repair)
   home-map/SKILL.md                     (ha-nova:home-map — exact home inventory, where-used, whole-home audit, first look via `ha-nova map`)
   calendar/SKILL.md                     (ha-nova:calendar — bounded calendar reads and single-event writes)
   hacs/SKILL.md                         (ha-nova:hacs — HACS package lifecycle: registration, download, update, uninstall, migration)
@@ -114,7 +114,7 @@ Current mapping:
 | device | inline + CLI | `get --references` scans; `plan write` + `apply` re-point; every other family hands off to its owner |
 | migrate | inline + CLI | the agent reads the export; `find`/`get` map; `plan write`/`plan call` + `apply` in one group per source rule; helpers and YAML hand off |
 | history | inline | read-only bounded timeline lookups |
-| health | inline | status aggregation, best-effort diagnostics; previewed repair ignore |
+| health | inline | status aggregation, best-effort diagnostics; previewed repair ignore/fix, typed when removing configuration |
 | home-map | inline + CLI | `ha-nova map` computes every count; the skill renders and hands fixes to owning skills |
 | calendar | inline | bounded REST reads plus feature-gated service/WS event writes |
 | todo | inline | service-based item CRUD with feature gate, single-step list flow |
@@ -292,7 +292,7 @@ Rules:
 
 ## Health Architecture
 
-`ha-nova:health` reports home status; ignoring a repair is its only write:
+`ha-nova:health` reports home status and owns repair ignore and fix flows:
 - repairs/deprecation issues through `repairs/list_issues`
 - integration setup/load status through `config_entries/get`
 - system health through generic bounded WS event collection for `system_health/info`
@@ -301,7 +301,7 @@ Rules:
 
 Rules:
 - `repairs/ignore_issue` hides or restores one listed issue via a previewed raw plan; it never fixes it
-- no repair fix flows
+- one fixable repair at a time through the existing live-schema flow loop; deletion/removal repairs raise the raw item to typed
 - no restart/reload/service calls
 - check `ha-nova relay health` and skip `system_health/info` when the relay is below the enforced floor (`min_relay_version`)
 - summarize by source and bind conclusions to evidence
@@ -362,11 +362,11 @@ Rules:
 - recurring creation goes through WS `calendar/event/create` with an `rrule` (`calendar.create_event` has no recurrence field); verification re-reads the window and reports the pre-expanded instances as one series
 
 ## Integration Setup Architecture
-
-`ha-nova:integration-setup` owns UI-configurable integration add, entry options/reconfigure through the standard config-entry flows, entry reload, pending reauthentication flows, and invalid-credential recovery when no reauth flow is pending:
+`ha-nova:integration-setup` owns UI-configurable integration add/remove, subentries, entry options/reconfigure through the standard config-entry flows, entry reload, pending reauthentication flows, and invalid-credential recovery when no reauth flow is pending:
 - add starts through REST `POST /api/config/config_entries/flow` after resolving an exact handler from `/api/config/config_entries/flow_handlers`
 - options/reconfigure follow the live-schema preflight contract: options via `POST /api/config/config_entries/options/flow` with the entry as handler, reconfigure via a config-flow start carrying `entry_id`; reconfigure verification requires the same `entry_id` to persist with no new entry created
-- entry reload previews the disruption (setup re-runs, entities drop briefly) and reports the entry's actual post-reload state; entry remove stays with `ha-nova:fallback`; enable/disable (`config_entries/disable`, refused for an entry with a lock, alarm panel, or access cover), rename and system options (`config_entries/update`), and ignoring a discovery (`config_entries/ignore_flow`) run as one-item raw plans
+- entry reload previews the disruption (setup re-runs, entities drop briefly) and reports the entry's actual post-reload state; entry remove belongs to integration-setup with owned devices/entities and consumers previewed before a typed raw plan; enable/disable (`config_entries/disable`, refused for an entry with a lock, alarm panel, or access cover), rename and system options (`config_entries/update`), and ignoring a discovery (`config_entries/ignore_flow`) run as one-item raw plans
+- subentry list/rename/delete and live-schema add/reconfigure flows use that same owner and machinery; deletes are typed, title edits previewed; flow starts and deletion reuse the parent entry's access-target refusal
 - reauthentication continues an existing `context.source == "reauth"` flow discovered through WS `config_entries/flow/progress`; it never synthesizes a reauth flow
 - credential recovery (no reauth pending) previews and reloads the exact config entry, then re-reads flow progress and continues the reauth handoff, or fails closed to the HA UI
 - menu/form steps use only the live response schema and require a preview-bound confirmation before each submit
@@ -540,7 +540,7 @@ no verb, no relay change.
 ## Fallback Architecture
 
 `ha-nova:fallback` is the mandatory safety fallback for HA features without a dedicated skill:
-- Covers: blueprints; device deletion belongs to organize
+- Blueprints belong to write; integration removal belongs to integration-setup; device deletion belongs to organize
 - Three-tier capability map: Covered (redirect to existing skill), Relay-Ready (experimental relay calls), External (web search)
 - All inline, no agents — research + web search + experimental relay calls
 - Safety: all experimental relay calls follow Write Safety by Endpoint Type guardrails (full-overwrite, field-level replace, merge, delete)
@@ -655,7 +655,7 @@ Read-only sub-skills open `## Safety` with this block instead:
 
 Skill-specific safety bullets follow the core block; bullets that merely restate a core line are removed, domain nuances (confirmation tiering, no-revert notes, session-cleanup rules) stay.
 
-A skill may declare an explicit, named exception to a single core bullet directly below the core block — it must reference the core rule it narrows ("Declared exception to the core ... rule above") so a bare agent never sees two contradicting instructions. Current declared exceptions: `todo` item removes (`todo.remove_item`, `todo.remove_completed_items`) stay at natural preview confirmation while list deletion keeps the one-time code; `integration-setup` may delete only an unfinished add flow that it started when a credential, external/OAuth, or progress step requires a UI restart.
+A skill may declare an explicit, named exception to a single core bullet directly below the core block — it must reference the core rule it narrows ("Declared exception to the core ... rule above") so a bare agent never sees two contradicting instructions. Current declared exceptions: `todo` item removes (`todo.remove_item`, `todo.remove_completed_items`) stay at natural preview confirmation while list deletion keeps the one-time code; `integration-setup` and `health` may cancel only their own unfinished transient flows at preview tier, never an entry, subentry, or issue.
 
 ## Post-Write Review Standard
 

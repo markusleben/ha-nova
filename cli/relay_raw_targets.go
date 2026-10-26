@@ -56,6 +56,12 @@ func rawAccessTarget(endpoint string, body []byte) rawTarget {
 		case pathPart == "/api/config/config_entries/options/flow": // handler is the entry id
 			handler, _ := inner["handler"].(string)
 			return rawTarget{entry: handler}
+		case pathPart == "/api/config/config_entries/subentries/flow":
+			handler, _ := inner["handler"].([]any)
+			if len(handler) == 2 {
+				entry, _ := handler[0].(string)
+				return rawTarget{entry: cmp.Or(entry, "(none)")}
+			}
 		case pathPart == "/api/config/config_entries/flow": // a reconfigure flow names its entry
 			entry, _ := inner["entry_id"].(string)
 			return rawTarget{entry: entry}
@@ -78,6 +84,8 @@ func rawAccessTarget(endpoint string, body []byte) rawTarget {
 				access = access || set
 			}
 			switch {
+			case m["type"] == "config_entries/subentries/delete":
+				return rawTarget{entry: cmp.Or(entry, "(none)")}
 			case m["type"] == "config_entries/disable" || m["type"] == "config_entries/update" && polling:
 				return rawTarget{toggled: cmp.Or(entry, "(none)")}
 			case m["type"] == "config/auth/update" && access:

@@ -272,6 +272,55 @@ func rawGuardCases() (refused, allowed map[string][]string) {
 	return refused, allowed
 }
 
+func TestRawSubentryHandlerCoercionIsRefused(t *testing.T) {
+	paths, sent := rawRelay(t, nil)
+	c := startMCP(t, paths)
+	mcpInit(c)
+	for _, handler := range []string{`{"Elock":true,"sensor":true}`, `"ab"`, `null`, `[]`, `["Elock"]`, `["Elock",null]`, `["","sensor"]`} {
+		for _, target := range []string{"/api/config/config_entries/subentries/flow", "/api/config/config_entries/subentries/flow?x=1"} {
+			body := `{"handler":` + handler + `,"subentry_id":"s1"}`
+			payload := map[string]any{"method": "POST", "path": target, "body": json.RawMessage(body)}
+			items := []any{map[string]any{"endpoint": "core", "payload": payload}}
+			raw, _ := json.Marshal(items)
+			exit, env := planRaw(t, paths, string(raw))
+			chat, code := readEnvelope(c.tool("ha_plan", map[string]any{"kind": "raw", "requests": items}))
+			if exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Message, "subentry flow handler") || code != "REFUSED" {
+				t.Errorf("handler %s: exit %d CLI %+v chat %v", handler, exit, env, chat)
+			}
+			stderr := captureStderr(t, func() {
+				exit = runRelayCommand(paths, []string{"core", "--method", "POST", "--path", target, "--body", body})
+			})
+			if exit != verbExitRefused || !strings.Contains(stderr, "subentry flow handler") {
+				t.Errorf("handler %s: raw exit %d stderr %s", handler, exit, stderr)
+			}
+		}
+	}
+	if got := sent(); len(got) != 0 {
+		t.Fatalf("malformed handlers sent %v", got)
+	}
+}
+
+func TestRawRepairTranslationsReadParity(t *testing.T) {
+	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
+		"frontend/get_translations": func(map[string]any) any {
+			return map[string]any{"resources": map[string]any{"component.demo.issues.test.description": "Remove obsolete configuration"}}
+		},
+	})
+	c := startMCP(t, paths)
+	mcpInit(c)
+	payload := map[string]any{"type": "frontend/get_translations", "language": "en", "category": "issues", "integration": []any{"demo"}}
+	chat, code := readEnvelope(c.tool("ha_read", map[string]any{"endpoint": "ws", "payload": payload}))
+	if code != "" || !strings.Contains(fmt.Sprint(chat), "Remove obsolete configuration") {
+		t.Fatalf("translation read: %s %v", code, chat)
+	}
+	if exit := runRelayCommand(paths, []string{"ws", "--data", string(mustJSON(payload))}); exit != 0 {
+		t.Fatalf("CLI translation read exit %d", exit)
+	}
+	if got := sent(); len(got) != 0 {
+		t.Fatalf("translation reads sent a write %v", got)
+	}
+}
+
 // A GET on any flow step (entry, options, subentry, repair fix) can finish
 // the flow, so the CLI never reads one as a read (a failure is outcome
 // unknown, and a hidden marker in it is refused).

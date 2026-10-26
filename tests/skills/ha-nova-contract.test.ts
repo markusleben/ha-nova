@@ -68,7 +68,7 @@ describe("ha-nova contract", () => {
       "| show history, logbook timelines, or long-term statistics | `ha-nova:history` |",
     );
     expect(context).toContain(
-      "| check home status, ignore repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health`",
+      "| check home status, ignore/fix repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health`",
     );
     expect(context).toContain(
       "| list calendars; read, create, update, or delete calendar events | `ha-nova:calendar` |",
@@ -568,7 +568,7 @@ describe("ha-nova contract", () => {
       "`ha-nova:history` is a bounded read-only timeline skill",
     );
     expect(architecture).toContain(
-      "`ha-nova:health` reports home status; ignoring a repair is its only write:",
+      "`ha-nova:health` reports home status and owns repair ignore and fix flows:",
     );
     expect(architecture).toContain(
       "`ha-nova:calendar` owns bounded calendar reads and single-event writes",

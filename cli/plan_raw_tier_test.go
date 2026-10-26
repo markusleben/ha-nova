@@ -23,7 +23,7 @@ func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
 	mcpInit(c)
 	wantTyped := []string{"config/entity_registry/remove", "config/device_registry/remove", "lovelace/resources/create", "lovelace/resources/update", "lovelace/resources/delete",
 		"recorder/clear_statistics", "backup/delete", "hacs/repositories/remove", "hacs/repository/download", "hacs/repository/remove",
-		"config/auth/create", "config/auth/delete", "assist_pipeline/pipeline/delete", "calendar/event/delete", "blueprint/delete"}
+		"config/auth/create", "config/auth/delete", "assist_pipeline/pipeline/delete", "calendar/event/delete", "blueprint/delete", "config_entries/subentries/delete"}
 	for _, collection := range rawWSCollections {
 		wantTyped = append(wantTyped, collection+"/delete")
 	}
@@ -69,6 +69,7 @@ func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
 	// One sample path per core write; a new entry needs its own.
 	samples := []string{"/api/template", "/api/config/core/check_config", "/api/config/config_entries/flow", "/api/config/config_entries/options/flow",
 		"/api/config/config_entries/flow/0123abcd", "/api/config/config_entries/options/flow/0123abcd", "/api/config/config_entries/entry/0123abcd",
+		"/api/config/config_entries/subentries/flow", "/api/config/config_entries/subentries/flow/0123abcd", "/api/repairs/issues/fix", "/api/repairs/issues/fix/0123abcd",
 		"/api/config/scene/config/evening"}
 	typedCore := []string{"DELETE /api/config/config_entries/entry/0123abcd", "DELETE /api/config/scene/config/evening"}
 	for _, allowed := range rawCoreWrites {
@@ -78,10 +79,18 @@ func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
 				continue
 			}
 			matched = true
-			exit, env := plan("core", map[string]any{"method": allowed.method, "path": sample, "body": map[string]any{"handler": "hue"}})
+			payload := map[string]any{"method": allowed.method, "path": sample, "body": map[string]any{"handler": "hue"}}
+			if sample == "/api/config/config_entries/subentries/flow" {
+				payload["body"] = map[string]any{"handler": []any{"Ehue", "device"}}
+			}
+			exit, env := plan("core", payload)
 			want := map[bool]string{true: "typed", false: "preview"}[slices.Contains(typedCore, allowed.method+" "+sample)]
 			if exit != verbExitConfirmation || env.Tier != want {
 				t.Errorf("%s %s: exit %d tier %s, want %s (%+v)", allowed.method, sample, exit, env.Tier, want, env.Error)
+			}
+			chat, code := readEnvelope(c.tool("ha_plan", map[string]any{"kind": "raw", "requests": []any{map[string]any{"endpoint": "core", "payload": payload}}}))
+			if code != "" || chat["tier"] != want || chat["status"] != "needs_confirmation" {
+				t.Errorf("%s %s: chat tier differs from CLI: %v", allowed.method, sample, chat)
 			}
 		}
 		if !matched {
@@ -113,6 +122,78 @@ func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
 	}
 	if got := sent(); len(got) != 0 {
 		t.Fatalf("planning sent %v", got)
+	}
+}
+
+func TestPlanRawBatch2FlowParity(t *testing.T) {
+	paths, sent := rawRelay(t, nil)
+	c := startMCP(t, paths)
+	mcpInit(c)
+	for _, target := range []string{"/api/repairs/issues/fix", "/api/repairs/issues/fix/f1", "/api/config/config_entries/subentries/flow", "/api/config/config_entries/subentries/flow/f1"} {
+		for _, method := range []string{"POST", "GET", "DELETE"} {
+			if method != "POST" && !strings.HasSuffix(target, "/f1") {
+				continue
+			}
+			for _, typed := range []bool{false, true} {
+				payload := map[string]any{"method": method, "path": target}
+				if method == "POST" {
+					payload["body"] = map[string]any{}
+					if target == "/api/config/config_entries/subentries/flow" {
+						payload["body"] = map[string]any{"handler": []any{"Ehue", "device"}}
+					} else if target == "/api/repairs/issues/fix" {
+						payload["body"] = map[string]any{"handler": "hue", "issue_id": "old_bridge"}
+					}
+				}
+				items := []any{map[string]any{"endpoint": "core", "payload": payload, "typed": typed}}
+				body, _ := json.Marshal(items)
+				exit, env := planRaw(t, paths, string(body))
+				chat, code := readEnvelope(c.tool("ha_plan", map[string]any{"kind": "raw", "requests": items}))
+				want := map[bool]string{false: "preview", true: "typed"}[typed]
+				if exit != verbExitConfirmation || env.Tier != want || code != "" || chat["tier"] != want {
+					t.Errorf("%s %s typed=%v: exit %d CLI %+v chat %v", method, target, typed, exit, env, chat)
+				}
+				if mcpReadRefusal("core", mustJSON(payload)) == nil || rawRelayRead("core", mustJSON(payload)) {
+					t.Errorf("%s %s was treated as an ordinary read", method, target)
+				}
+			}
+		}
+	}
+	if got := sent(); len(got) != 0 {
+		t.Fatalf("planning sent %v", got)
+	}
+}
+
+func TestRawSubentryAccessGuard(t *testing.T) {
+	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
+		"config/entity_registry/list": func(map[string]any) any {
+			return []any{map[string]any{"entity_id": "lock.front", "config_entry_id": "Elock"}}
+		},
+	})
+	s, err := newRelaySession(paths, verbOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.close()
+	c := startMCP(t, paths)
+	mcpInit(c)
+	for _, item := range []map[string]any{
+		{"endpoint": "ws", "payload": map[string]any{"type": "config_entries/subentries/delete", "entry_id": "Elock", "subentry_id": "S1"}},
+		{"endpoint": "core", "payload": map[string]any{"method": "POST", "path": "/api/config/config_entries/subentries/flow", "body": map[string]any{"handler": []any{"Elock", "device"}}}},
+	} {
+		body, _ := json.Marshal([]any{item})
+		exit, env := planRaw(t, paths, string(body))
+		chat, code := readEnvelope(c.tool("ha_plan", map[string]any{"kind": "raw", "requests": []any{item}}))
+		if exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Message, "lock.front") || code != "REFUSED" {
+			t.Errorf("exit %d CLI %+v chat %v", exit, env, chat)
+		}
+		payload, _ := json.Marshal(item["payload"])
+		_, refusal, err := guardRawRequestIn(s, item["endpoint"].(string), payload)
+		if refusal == nil && err == nil {
+			t.Errorf("raw request bypassed access guard: %s", body)
+		}
+	}
+	if got := sent(); len(got) != 0 {
+		t.Fatalf("refused requests sent %v", got)
 	}
 }
 

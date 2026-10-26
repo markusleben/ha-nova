@@ -181,7 +181,7 @@ describe("health and calendar skill contracts", () => {
       "Keep Home Assistant state values such as `unavailable`, `unknown`, `setup_error`, `setup_retry`, and `not_loaded` literal",
     );
     expect(health).toContain(
-      "Never call repair fix flows or delete issue commands.",
+      "Never call delete issue commands.",
     );
     expect(health).toContain(
       "Never restart/reload Home Assistant from this skill.",
@@ -254,7 +254,7 @@ describe("health and calendar skill contracts", () => {
     expect(architecture).toContain("health/SKILL.md");
     expect(architecture).toContain("calendar/SKILL.md");
     expect(architecture).toContain(
-      "`ha-nova:health` reports home status; ignoring a repair is its only write:",
+      "`ha-nova:health` reports home status and owns repair ignore and fix flows:",
     );
     expect(architecture).toContain(
       "integration setup/load status through `config_entries/get`",

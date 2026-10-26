@@ -200,6 +200,28 @@ func TestPlanRawSayNames(t *testing.T) {
 	}
 }
 
+func TestPlanRawSubentryReconfigureNamesTarget(t *testing.T) {
+	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
+		"config_entries/subentries/list": func(map[string]any) any {
+			return []any{map[string]any{"subentry_id": "s1", "title": "Hall sensor"}, map[string]any{"subentry_id": "s2", "title": "Kitchen sensor"}}
+		},
+	})
+	c := startMCP(t, paths)
+	mcpInit(c)
+	for id, name := range map[string]string{"s1": "Hall sensor", "s2": "Kitchen sensor", "unknown": "unknown"} {
+		payload := map[string]any{"method": "POST", "path": "/api/config/config_entries/subentries/flow", "body": map[string]any{"handler": []any{"Ehue", "sensor"}, "subentry_id": id}}
+		items := []any{map[string]any{"endpoint": "core", "payload": payload}}
+		exit, env := planRaw(t, paths, string(mustJSON(items)))
+		chat, code := readEnvelope(c.tool("ha_plan", map[string]any{"kind": "raw", "requests": items}))
+		if exit != verbExitConfirmation || !strings.Contains(env.Say, name) || code != "" || !strings.Contains(fmt.Sprint(chat["say"]), name) {
+			t.Errorf("subentry %s: exit %d CLI %s chat %v", id, exit, env.Say, chat)
+		}
+	}
+	if got := sent(); len(got) != 0 {
+		t.Fatalf("planning sent %v", got)
+	}
+}
+
 // On the phone, every typed step comes first, by number, and survives the
 // cut to the notification's length; the other steps are counted.
 func TestPlanRawPhoneAskKeepsTypedSteps(t *testing.T) {

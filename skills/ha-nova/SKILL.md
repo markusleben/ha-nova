@@ -237,7 +237,7 @@ Match user intent to exactly one skill:
 |---|---|
 | list, show, read automations/scripts | `ha-nova:read` |
 | analyze, review, audit, check, find problems | `ha-nova:review` (reads config internally); the whole home: `ha-nova:home-map` |
-| create, update, delete automations/scripts | `ha-nova:write` (resolves + reviews internally) |
+| create, update, delete automations/scripts; import/save/instantiate/delete blueprints | `ha-nova:write` |
 | do something FOR a duration when the service has NO native duration field ("sprinkler for 30 minutes", "lights on for an hour") | `ha-nova:write` — one preview covering the immediate service call AND the expiry automation, per `../ha-nova/one-shot-automations.md`; routing the halves to two skills loses the pairing |
 | list, show, read helpers | `ha-nova:helper` |
 | create, update, delete helpers | `ha-nova:helper` |
@@ -252,9 +252,9 @@ Match user intent to exactly one skill:
 | assign or remove entity categories | `ha-nova:organize` |
 | show history, logbook timelines, or long-term statistics | `ha-nova:history` |
 | "is everything closed / locked / off?", "who is home?", "what is running right now?" — a live state snapshot across a domain | `ha-nova:entity-discovery` |
-| check home status, ignore repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` (the SYSTEM's condition; a snapshot of what things are DOING is entity-discovery, above) |
+| check home status, ignore/fix repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` (the SYSTEM's condition; a snapshot of what things are DOING is entity-discovery, above) |
 | find out WHY a specific automation, script, device, or integration failed or misbehaved (traces, error/system logs, root cause) | `ha-nova:diagnose` |
-| add, enable/disable, rename an integration, ignore a discovery, change options, reconfigure, reload, continue reauthentication or recover invalid credentials without a pending flow | `ha-nova:integration-setup` |
+| add/remove, enable/disable, rename an integration, manage subentries, ignore discovery, change options, reconfigure, reload, reauthenticate or recover invalid credentials | `ha-nova:integration-setup` |
 | play, pause, skip, set volume, change source, group speakers, browse media, or announce over a speaker | `ha-nova:media` |
 | send a notification to a phone or another notify target, or manage Home Assistant's persistent notifications | `ha-nova:notify` |
 | look at a camera (snapshot), get a stream URL, record, switch a camera on/off, toggle its motion detection, or cast its stream to a TV | `ha-nova:camera` |
@@ -289,7 +289,7 @@ Match user intent to exactly one skill:
 | structure audit — "is my setup tidy?", "which entities have no area?" | `ha-nova` (this context skill); Structure Check in `../ha-nova/capability-answer.md` — fixes hand to `ha-nova:organize` |
 | list or delete config snapshots ("what snapshots do I have?", "delete these obsolete snapshots") | `ha-nova` (this context skill); mechanics: `../ha-nova/config-snapshots.md` |
 | restore a config snapshot ("restore X from a snapshot") | the skill that owns the item family — `ha-nova:write` (automations/scripts), `ha-nova:scene`, `ha-nova:dashboard`, `ha-nova:helper`, `ha-nova:energy` (prefs), `ha-nova:yaml-config` (files; `/config/esphome/`: `ha-nova:esphome`), `ha-nova:organize` (metadata); mechanics: `../ha-nova/config-snapshots.md` |
-| **any HA task not matched above** — blueprints, unsupported admin writes, any unfamiliar raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
+| **any HA task not matched above** — unsupported admin writes, any unfamiliar raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
 
 **"Analyze my automation"** → `ha-nova:review` (NOT read + review)
 **"Review my whole setup"** → `ha-nova:home-map` (NOT review or health)
@@ -326,7 +326,7 @@ Match user intent to exactly one skill:
 **"Why didn't my morning automation run?"** → `ha-nova:diagnose` (concrete failure → traces + logs)
 **"Why is the light turning on at random times?"** → `ha-nova:diagnose`
 **"Add the Hue integration"** → `ha-nova:integration-setup`
-**"Reconnect my expired integration login"** → `ha-nova:integration-setup` (continues an existing Home Assistant `reauth` flow — or, when none is pending, runs its credential recovery; credentials stay in the HA UI)
+**"Reconnect my expired integration login"** → `ha-nova:integration-setup` (continue reauthentication or recover invalid credentials without a pending flow; credentials stay in the HA UI)
 **"Announce that dinner is ready"** → `ha-nova:media` (TTS to a speaker)
 **"Send me a notification when..."** → `ha-nova:write` (that is an automation, not a one-off send)
 **"Send a notification to my phone"** → `ha-nova:notify` (one-off send now)
@@ -350,7 +350,7 @@ Match user intent to exactly one skill:
 **"Add this plug to the energy dashboard"** → `ha-nova:energy`
 **"Fix the spike in my energy graph"** → `ha-nova:maintenance`
 **"Clean up orphaned statistics"** → `ha-nova:maintenance`
-**"Import a blueprint"** → `ha-nova:fallback` (relay-ready, no skill)
+**"Import a blueprint"** → `ha-nova:write`
 **"How do I manage Apps?"** → `ha-nova:fallback` (external, web search)
 **"Show history for sensor X"** → `ha-nova:history`
 **"Save the Lovelace config"** → `ha-nova:dashboard`
