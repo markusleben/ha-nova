@@ -15,11 +15,6 @@ import (
 // shared reference files as ha-nova://skills/<path>.md. Read-only, and no
 // path outside the bundle's skills directory is ever opened.
 
-// Skills whose whole workflow runs over the MCP tools; the others keep their
-// reads but need a shell client with the CLI for their writes.
-var mcpFullySupportedSkills = map[string]bool{"ha-nova": true, "ha-nova-read": true, "ha-nova-entity-discovery": true,
-	"ha-nova-history": true, "ha-nova-service-call": true, "ha-nova-write": true}
-
 const mcpResourcePrefix = "ha-nova://skills/"
 
 func skillsRoot(paths runtimePaths) string {
@@ -52,11 +47,7 @@ func (srv *mcpServer) listPrompts() (map[string]any, *rpcError) {
 	names, _ := skillPrompts(srv.paths)
 	prompts := []map[string]any{}
 	for _, name := range names {
-		support := "reads work over MCP; its writes need a shell client with the HA NOVA CLI"
-		if mcpFullySupportedSkills[name] {
-			support = "fully usable over MCP"
-		}
-		prompts = append(prompts, map[string]any{"name": name, "description": "HA NOVA skill " + name + " (" + support + ")"})
+		prompts = append(prompts, map[string]any{"name": name, "description": "HA NOVA skill " + name})
 	}
 	return map[string]any{"prompts": prompts}, nil
 }

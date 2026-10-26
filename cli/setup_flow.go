@@ -61,6 +61,7 @@ type setupFlow struct {
 	pageNotes      []*setupPageMsg
 	pageChatLink   string
 	pageOrgLink    string
+	pageChatPhoned bool // a phone confirms for chat apps: step 4 says to allow every tool in Claude
 	pageChatOff    bool // step 3 ended with chat apps off: step 4 tells a browser user what's next
 	pageGeneration []byte
 	// pageRerunning: setup ran on this computer before (setup_page_rerun.go);

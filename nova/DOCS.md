@@ -180,6 +180,10 @@ and ChatGPT (web, on a computer), without a computer running HA NOVA. They are o
   Enterprise plan, the owner of your Claude plan adds it once for everyone,
   with "Add for my organization".
   Then you click "Connect" next to HA NOVA under Customize → Connectors.
+- **Claude asks before every step?** That's Claude, not HA NOVA: set the HA
+  NOVA tools to "Always allow" (no phone linked: all but "Run a confirmed
+  change").
+  [How](https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md#stop-claude-from-asking-before-every-step)
 - **Confirmations:** the same rules as on a computer. Unlocks, the alarm, and
   deletes wait for a tap on the owner's linked phone. No phone? The owner types
   a four-digit code in the chat; the AI can see that code too. You can turn off codes in the chat (risky changes

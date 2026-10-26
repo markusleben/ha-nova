@@ -174,7 +174,7 @@ func TestMCPReviewProtocolDetails(t *testing.T) {
 		}
 	}
 	text := c.request("prompts/get", map[string]any{"name": "ha-nova-dashboard"})["result"].(map[string]any)["messages"].([]any)[0].(map[string]any)["content"].(map[string]any)["text"].(string)
-	if !strings.Contains(full, "fully usable") || !strings.Contains(partial, "need a shell client") || !strings.Contains(text, "needs a client with a shell") {
+	if full != "HA NOVA skill ha-nova-service-call" || partial != "HA NOVA skill ha-nova-dashboard" || !strings.HasPrefix(text, mcpSkillHeader) || strings.Contains(text, "client with a shell") {
 		t.Fatalf("prompt honesty: %q / %q", full, partial)
 	}
 	for _, method := range []string{"tools/list", "prompts/list", "resources/list", "resources/templates/list"} {
@@ -246,9 +246,6 @@ func TestMCPToolResultWrapsPlainJSONIntoTheEnvelope(t *testing.T) {
 	errObj, isObj := bad["error"].(map[string]any)
 	if bad["status"] != "error" || !isObj || errObj["code"] != "TOOL_ERROR" {
 		t.Fatalf("trace failure not wrapped: %+v", bad)
-	}
-	if mcpFullySupportedSkills["ha-nova-review"] {
-		t.Fatal("review needs WS/file reads the MCP tools lack; it must not be advertised as fully supported")
 	}
 }
 

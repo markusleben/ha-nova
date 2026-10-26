@@ -65,6 +65,8 @@ const allow: { rule: string; file: string; line: string; reason: string }[] = [
   { rule: "link-old-name", file: "cli/testdata/setup-golden/", line: "used to be called Home Assistant Cloud", reason: "explains the rename" },
   { rule: "link-old-name", file: "cli/cloud_origin.go", line: "canonical Nabu Casa origin", reason: "technical error about the provider's own domain" },
   { rule: "link-old-name", file: "cli/cloud_oauth_secret_linux.go", line: "HA NOVA Home Assistant Cloud authorization", reason: "label of keyring items already stored on users' computers" },
+  // README edits wait for the 0.28 release-prep PR, which drops this entry (docs/work/next-release-body.md).
+  { rule: "needs-computer", file: "README.md", line: "Helpers, dashboards, and files still need HA NOVA on a computer.", reason: "README changes only in release prep" },
 ];
 
 const pages = [
@@ -135,9 +137,14 @@ function hits(rule: Rule, prev: string, cur: string, next: string): string[] {
     .map((m) => m[0]);
 }
 
+// The skills are text for the AI, with their own terms; only the chat-app limits that are no longer true are banned there.
+const skillRules = new Set(["needs-computer", "shell-client"]);
+const skillFiles = (readdirSync("skills", { recursive: true }) as string[]).filter((f) => f.endsWith(".md")).map((f) => `skills/${f}`);
+
 const surfaces: { file: string; lines: string[]; skip?: (id: string) => boolean }[] = [
   ...docs.map((file) => ({ file, lines: textLines(file) })),
   ...goFiles.flatMap(goSurfaces),
+  ...skillFiles.map((file) => ({ file, lines: textLines(file), skip: (id: string) => !skillRules.has(id) })),
 ];
 const used = new Set<number>();
 const found = new Map(
@@ -160,6 +167,20 @@ const found = new Map(
 describe("canonical wording", () => {
   it.each(rules.map((rule) => rule.id))("%s stays out of user-facing text", (id) => {
     expect(found.get(id)).toEqual([]);
+  });
+
+  it("catches the old chat-app limits, not the computer-only line of the chat skill header", () => {
+    const hit = (id: string, text: string) => {
+      const rule = rules.find((r) => r.id === id)!;
+      return new RegExp(rule.pattern!, rule.flags).test(text);
+    };
+    for (const old of ["Helpers, dashboards, and files still need HA NOVA on a computer.", "That still needs HA NOVA on your computer.", "It needs HA NOVA on the computer."]) expect(hit("needs-computer", old)).toBe(true);
+    for (const fine of ["Run ha-nova setup on your computer.", "That sets up HA NOVA itself, so it runs on your computer.", "the same as HA NOVA on a computer"]) expect(hit("needs-computer", fine)).toBe(false);
+    expect(skillFiles).toContain("skills/ha-nova/capability-answer.md");
+    for (const old of ["Anything not mapped here needs a client with a shell and the HA NOVA CLI", "its writes need a shell client with the HA NOVA CLI"]) expect(hit("shell-client", old)).toBe(true);
+    const header = readFileSync("cli/mcp_skill.go", "utf8");
+    expect(header).toContain("this sets up HA NOVA on a computer;");
+    for (const id of ["needs-computer", "shell-client"]) expect(hit(id, header)).toBe(false);
   });
 
   it("has no stale allow-list entry", () => {

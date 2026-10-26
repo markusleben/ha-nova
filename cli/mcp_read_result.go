@@ -81,6 +81,9 @@ func readCamera(env *verbEnvelope, data json.RawMessage) error {
 	frame, contentType, err := relayBinaryData(data)
 	mimeType, _, _ := strings.Cut(strings.ToLower(contentType), ";")
 	mimeType = strings.TrimSpace(mimeType)
+	if mimeType == "image/jpg" || mimeType == "image/pjpeg" { // what many cameras, HA's demo camera too, send for JPEG
+		mimeType = "image/jpeg"
+	}
 	switch {
 	case errors.Is(err, errRelayBodyNotBinary):
 		var core struct {

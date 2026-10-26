@@ -34,12 +34,12 @@ This works in Claude on the web, in the desktop app, and in the phone apps. Menu
 
 ## Stop Claude from asking before every step
 
-At first, Claude asks before each HA NOVA step: "Allow once" or "Always allow" ("Einmal erlauben" / "Immer erlauben"). To ask less:
+That question comes from Claude, not from HA NOVA. At first, Claude asks before each HA NOVA step: "Allow once" or "Always allow" ("Einmal erlauben" / "Immer erlauben"). What to set depends on whether a phone is linked for chat apps (the NOVA page shows it under Chat apps, "Confirmations").
 
-1. In Claude, open Customize → Connectors and choose HA NOVA.
-2. You see two groups: read-only tools ("Schreibgeschützte Tools") and write/delete tools ("Schreib-/Lösch-Tools"). Set the read-only tools to "Always allow" ("Immer erlauben").
-3. Under write/delete tools, set "Control a device" to "Always allow" too. Lights and other everyday things then run right away, the same as HA NOVA on a computer.
-4. Leave "Run a confirmed change" on "Needs approval" ("Genehmigung erforderlich"). Claude then still asks before a bigger change, like a new automation, unlocking a door, or deleting something. Your linked phone or the code asks too (see "What your phone confirms").
+In Claude, open Customize → Connectors ("Anpassungen → Konnektoren") and choose HA NOVA. You see two groups: read-only tools ("Schreibgeschützte Tools") and write/delete tools ("Schreib-/Lösch-Tools"). Then:
+
+- **Phone linked:** set every tool to "Always allow" ("Immer erlauben"). HA NOVA still shows you a preview before bigger changes, and your phone asks before unlocks, the alarm, and deletes. That's the same as HA NOVA on a computer.
+- **No phone:** set every tool to "Always allow", except "Run a confirmed change": leave it on "Needs approval" ("Genehmigung erforderlich"). Then Claude still asks before each bigger change. The AI can see a chat code, so that question is your own check. Link a phone, and you can allow that one too.
 
 Claude may ask again after an HA NOVA update, or now and then in a new chat. That comes from Claude: choose "Always allow" again.
 

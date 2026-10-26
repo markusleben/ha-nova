@@ -67,6 +67,22 @@
       "use": "Say what HA NOVA does, on its own."
     },
     {
+      "id": "needs-computer",
+      "scope": "all",
+      "pattern": "\\bneeds? HA NOVA on (a|your|the) computer\\b",
+      "flags": "i",
+      "why": "Chat apps do what HA NOVA on a computer does. Only setting up HA NOVA itself (setup, pairing, updates, chat apps on or off) runs on a computer.",
+      "use": "That sets up HA NOVA itself, so it runs on your computer: ha-nova <command>."
+    },
+    {
+      "id": "shell-client",
+      "scope": "all",
+      "pattern": "\\b(client|app) with a shell\\b|\\bshell client\\b",
+      "flags": "i",
+      "why": "Chat apps reach every skill through HA NOVA's chat tools; nothing needs a shell client any more.",
+      "use": "Name the chat tool, or: That sets up HA NOVA itself, so it runs on your computer."
+    },
+    {
       "id": "other-project",
       "scope": "all",
       "sha256": [

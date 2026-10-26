@@ -304,6 +304,25 @@ describe("NOVA page: Chat apps", () => {
     expect(off.body).not.toContain("Add to Claude");
     expect(asked).toBe(0); // off: Home Assistant isn't asked
   });
+
+  // Decision 2 of the chat-parity spec: with a phone that confirms, every tool on “Always allow”;
+  // without one, all but “Run a confirmed change”, so Claude's question still guards a code in the chat.
+  it("says under Add to Claude what to set so Claude stops asking, by whether a phone confirms", async () => {
+    const url = "https://abc123.ui.nabu.casa/api/ha_nova/mcp";
+    const render = async (ownerPhone: string | null) => {
+      const on = { ...fakeChatApps(), status: () => ({ ...status, enabled: true, ownerPhone }) };
+      return (await run(createNovaPageHandler({ ...pageDeps(on), connectorUrl: async () => url }), request("owner-1"))).body;
+    };
+    const lead = "<p><strong>Next: stop Claude from asking every time.</strong> At first, Claude asks before each step. That's Claude, not HA NOVA. In Claude, open Customize → Connectors → HA NOVA";
+    const phone = await render("Pixel");
+    expect(phone).toContain(`${lead} and set every tool to “Always allow”. HA NOVA still shows you a preview before bigger changes, and your phone asks before unlocks, the alarm, and deletes. Claude may ask again after an update.</p>`);
+    expect(phone).not.toContain("Run a confirmed change");
+    const none = await render(null);
+    expect(none).toContain(`${lead}. Set every tool to “Always allow”, except “Run a confirmed change”: leave it on “Needs approval”. Then Claude still asks before each bigger change. The AI can see a chat code, so that question is your own check. Link a phone, and you can allow that one too. Claude may ask again after an update.</p>`);
+    expect(none.indexOf("Next: stop Claude")).toBeGreaterThan(none.indexOf("Add to Claude</a>"));
+    const noAddress = await run(createNovaPageHandler({ ...pageDeps({ ...fakeChatApps(), status: () => ({ ...status, enabled: true }) }), connectorUrl: async () => null }), request("owner-1"));
+    expect(noAddress.body).not.toContain("Next: stop Claude"); // nothing to add yet
+  });
 });
 
 describe("chat-app connector address", () => {
