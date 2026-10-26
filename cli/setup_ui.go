@@ -131,7 +131,7 @@ func renderSetupCompleteBanner(out io.Writer, clients []string, look *setupFirst
 			}
 		}
 		if slices.Contains(clients, "codex") {
-			fmt.Fprintf(out, "  %s\n", setupT(codexWhereKey()))
+			fmt.Fprintf(out, "  %s\n", codexWhereLine())
 		}
 		fmt.Fprintln(out)
 	}

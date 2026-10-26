@@ -299,7 +299,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 			case client.Ready:
 				doctorInfo("%s is ready", client.Label)
 				if client.ID == "codex" {
-					doctorInfo("%s", setupT(codexWhereKey()))
+					doctorInfo("%s", codexWhereLine())
 				}
 				if client.ID != "claude" {
 					break

@@ -80,6 +80,14 @@ func codexWhereKey() string {
 	return "setup.codex.where"
 }
 
+// codexWhereLine is codexWhereKey's line for the terminal.
+func codexWhereLine() string {
+	if codexPlatformOS == "linux" {
+		return setupT("setup.codex.where_linux")
+	}
+	return setupT("setup.codex.where")
+}
+
 func codexSkillsRoot(home string) string {
 	return filepath.Join(home, ".agents", "skills")
 }

@@ -176,7 +176,7 @@ func printUpdateDone(lead string, result postUpdateSyncResult) {
 	if len(result.Synced) > 0 {
 		printHumanInfo("%s in %s.", lead, joinAnd(result.Synced))
 		if slices.Contains(result.Synced, setupClientLabel("codex")) {
-			printHumanInfo("%s", setupT(codexWhereKey()))
+			printHumanInfo("%s", codexWhereLine())
 		}
 		return
 	}
