@@ -127,7 +127,9 @@ func TestInstallAntigravityClientRemovesRetiredCurrentSkills(t *testing.T) {
 	}
 }
 
-func TestInstallAntigravityClientRemovesLegacyCodexGeminiFlatSkillsOnly(t *testing.T) {
+// ~/.agents/skills is Codex's: only an explicit setup moves HA NOVA's old
+// copies out of it (TestAntigravitySetupMovesOnlyHANovasOldCodexCopies).
+func TestInstallAntigravityClientLeavesLegacyCodexGeminiFlatSkillsToSetup(t *testing.T) {
 	home := t.TempDir()
 	sourceRoot := filepath.Join(t.TempDir(), "source")
 	for _, skill := range []string{"ha-nova", "read"} {
@@ -161,12 +163,7 @@ func TestInstallAntigravityClientRemovesLegacyCodexGeminiFlatSkillsOnly(t *testi
 		t.Fatalf("installAntigravityClient() error: %v", err)
 	}
 
-	for _, removed := range []string{"ha-nova-read", "ha-nova-guide"} {
-		if _, err := os.Stat(filepath.Join(legacyCodexGeminiSkillsRoot(home), removed, "SKILL.md")); !os.IsNotExist(err) {
-			t.Fatalf("expected legacy Codex-scope Gemini flat skill %s to be removed, stat err=%v", removed, err)
-		}
-	}
-	for _, kept := range []string{"ha-nova", "ha-nova-lab"} {
+	for _, kept := range []string{"ha-nova", "ha-nova-read", "ha-nova-guide", "ha-nova-lab"} {
 		if _, err := os.Stat(filepath.Join(legacyCodexGeminiSkillsRoot(home), kept, "SKILL.md")); err != nil {
 			t.Fatalf("expected %s to remain: %v", kept, err)
 		}

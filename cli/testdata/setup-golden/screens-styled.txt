@@ -82,9 +82,10 @@
 
   <ESC>[32m✓<ESC>[0m Setup complete!
 
-  Installed for: <ESC>[1mClaude Code, Codex CLI<ESC>[0m
+  Installed for: <ESC>[1mClaude Code, Codex<ESC>[0m
   Claude Code is the claude command in a terminal and the Code tab in the Claude Desktop app (in a new chat). The chat tab in Claude Desktop doesn't use it. For that tab, see chat apps (needs Home Assistant reachable from the internet).
   Chat apps guide: https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md
+  Codex is the codex command in a terminal, the Codex IDE extension, and Codex in the ChatGPT desktop app (formerly the Codex app). In the app, start a new chat to load HA NOVA.
 
   Open <ESC>[1myour AI apps<ESC>[0m and try asking:
 
@@ -257,9 +258,10 @@
 
   <ESC>[32m✓<ESC>[0m Setup complete!
 
-  Installed for: <ESC>[1mCodex CLI<ESC>[0m
+  Installed for: <ESC>[1mCodex<ESC>[0m
+  Codex is the codex command in a terminal, the Codex IDE extension, and Codex in the ChatGPT desktop app (formerly the Codex app). In the app, start a new chat to load HA NOVA.
 
-  Open <ESC>[1mCodex CLI<ESC>[0m and try asking:
+  Open <ESC>[1mCodex<ESC>[0m and try asking:
 
     "Turn off the living room light"
     "List my automations"
@@ -276,8 +278,8 @@
   Which AI app do you use?
 
     1) Claude Code
-    2) Codex CLI
-       not available: install Codex CLI first
+    2) Codex
+       not available: install the Codex CLI first
     3) All available clients
 
   Enter [1-3] (default 1, or type 'exit'):   <ESC>[31m✗<ESC>[0m Pick one of the numbers shown.
@@ -285,18 +287,18 @@
   Which AI app do you use?
 
     1) Claude Code
-    2) Codex CLI
-       not available: install Codex CLI first
+    2) Codex
+       not available: install the Codex CLI first
     3) All available clients
 
-  Enter [1-3] (default 1, or type 'exit'):   <ESC>[31m✗<ESC>[0m Codex CLI is not available yet: install Codex CLI first
+  Enter [1-3] (default 1, or type 'exit'):   <ESC>[31m✗<ESC>[0m Codex is not available yet: install the Codex CLI first
   <ESC>[31m✗<ESC>[0m Pick one of the numbers shown.
 
   Which AI app do you use?
 
     1) Claude Code
-    2) Codex CLI
-       not available: install Codex CLI first
+    2) Codex
+       not available: install the Codex CLI first
     3) All available clients
 
   Enter [1-3] (default 1, or type 'exit'): 
@@ -305,8 +307,8 @@
   Which AI app do you use?
 
     1) Claude Code
-    2) Codex CLI
-       not available: install Codex CLI first
+    2) Codex
+       not available: install the Codex CLI first
     3) All available clients
 
   Enter [1-3] (default 1, or type 'exit'): 
@@ -317,8 +319,8 @@
   Which AI app do you use?
 
     1) Claude Code
-    2) Codex CLI
-       not available: install Codex CLI first
+    2) Codex
+       not available: install the Codex CLI first
     3) All available clients
 
   Enter [1-3] (default 1, or type 'exit'): 
@@ -327,8 +329,8 @@
   Which AI app do you use?
 
     1) Claude Code
-    2) Codex CLI
-       not available: install Codex CLI first
+    2) Codex
+       not available: install the Codex CLI first
     3) All available clients
 
   Enter [1-3] (default 1, or type 'exit'): 
@@ -338,8 +340,8 @@
 
   Which AI app do you use?
 
-    1) Codex CLI
-       not available: install Codex CLI first
+    1) Codex
+       not available: install the Codex CLI first
     2) All available clients
        not available: install a supported AI client first
 

@@ -48,7 +48,7 @@ func writeMinimalBundleTree(t *testing.T, root, version string, includeWriteSafe
 	writeBundleTestFile(t, filepath.Join(root, "clients", "registry.json"),
 		`{"clients":[`+
 			`{"id":"hermes","label":"Hermes Agent","adapter_kind":"skill_tree","supported_os":["macos","linux"]},`+
-			`{"id":"codex","label":"Codex CLI","adapter_kind":"skill_tree","supported_os":["macos","linux","windows"]},`+
+			`{"id":"codex","label":"Codex","adapter_kind":"skill_tree","supported_os":["macos","linux","windows"]},`+
 			`{"id":"opencode","label":"OpenCode","adapter_kind":"skill_tree","supported_os":["macos","linux","windows"]},`+
 			`{"id":"antigravity","label":"Google Antigravity","adapter_kind":"skill_flat","supported_os":["macos","linux","windows"]}`+
 			`]}`, 0o644)

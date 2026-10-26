@@ -126,7 +126,8 @@
       el('div', {}, el('div', { class: 'k' }, el('span', { class: 'visually-hidden' }, `${t(rowStatus[status])} `), key),
         value ? el('div', { class: 'v' }, value) : null, extra && extra.below),
       extra && extra.side ? extra.side : el('span'));
-  // Which Claude "Claude Code" is where setup says it got HA NOVA, with the chat apps guide.
+  // Where setup says it got HA NOVA: which Claude "Claude Code" is (with the chat apps guide), and where "Codex" works.
+  const codexWhere = (clients) => ((clients || []).includes('Codex') ? el('p', { class: 'fine', id: 'codex-where' }, t(state.codex_where || 'setup.codex.where')) : null);
   const claudeWhere = (clients) => ((clients || []).includes('Claude Code') ? el('p', { class: 'fine', id: 'claude-where' }, `${t('setup.claude.where')} `,
     el('a', { id: 'l-chat-guide', class: 'linkish', href: downloads.chat_guide, target: '_blank', rel: 'noopener noreferrer' }, t('setup.page.link.chat_guide'))) : null);
   const head = (eyebrow, title, lead, amber) => [
@@ -199,9 +200,7 @@
       }
       const clients = state.clients || [];
       const clientRow = state.web ? row('ok', t('setup.page.clients.key'), t('setup.page.clients.web'))
-        : row('ok', t('setup.page.clients.key'), format(clients), {
-          side: el('span', { class: 'tag cyan' }, t('setup.page.clients.tag', { count: clients.length })),
-        });
+        : row('ok', t('setup.page.clients.key'), format(clients), { below: codexWhere(clients), side: el('span', { class: 'tag cyan' }, t('setup.page.clients.tag', { count: clients.length })) });
       let appRow;
       if (!state.app || asking) appRow = row('todo', t('setup.page.app.key'), t('setup.page.app.unknown'));
       else if (state.app === 'running') appRow = row('ok', t('setup.page.app.key'), state.app_version ? t('setup.page.app.running_version', { version: state.app_version }) : t('setup.page.app.running'));
@@ -273,7 +272,7 @@
     },
 
     done: () => [...head(t('setup.page.done.eyebrow'), t('setup.page.done.title'), t('setup.page.done.lead', { clients: state.clients || [] })),
-      claudeWhere(state.clients), el('p', { class: 'fine' }, t('setup.page.done.fine'))],
+      claudeWhere(state.clients), codexWhere(state.clients), el('p', { class: 'fine' }, t('setup.page.done.fine'))],
   };
   // Steps 3 and 4 (steps.js), and a re-run (rerun.js).
   const announce = (text) => { statusEl.textContent = text; };
@@ -282,7 +281,7 @@
   const amberNotes = ['setup.page.home.note_rule_failed', 'setup.page.home.note_link_failed', 'setup.page.home.note_chat_off_failed',
     'setup.page.home.note_clients_failed', 'setup.page.home.note_web_off'];
   const note = (msg) => el('p', { class: amberNotes.includes(msg.key) ? 'note' : 'note done' }, say(msg));
-  const helpers = { t, el, row, head, note, button, link, format, render, post, accepts, announce, claudeWhere, state: () => state };
+  const helpers = { t, el, row, head, note, button, link, format, render, post, accepts, announce, claudeWhere, codexWhere, state: () => state };
   const { copybar, ...later } = window.novaSteps(helpers);
   Object.assign(screens, later, window.novaRerun({ ...helpers, control: later.control }));
   for (const [screen, [eyebrow, title, lead, amber]] of Object.entries(endScreens)) {

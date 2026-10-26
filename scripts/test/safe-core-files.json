@@ -153,6 +153,7 @@
   "tests/storage/relay-instance.test.ts",
   "tests/onboarding/setup-page-script.test.ts",
   "tests/onboarding/setup-page-chat-advice.test.ts",
+  "tests/onboarding/setup-page-codex.test.ts",
   "tests/onboarding/setup-page-claude.test.ts",
   "tests/onboarding/setup-page-owner.test.ts",
   "tests/http/nova-page-not-owner.test.ts",

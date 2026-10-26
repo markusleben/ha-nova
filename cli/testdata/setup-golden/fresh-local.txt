@@ -7,7 +7,7 @@ exit 0
   Which AI app do you use?
 
     1) Claude Code
-    2) Codex CLI
+    2) Codex
     3) OpenCode
     4) Google Antigravity
     5) Hermes Agent

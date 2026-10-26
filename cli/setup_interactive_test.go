@@ -206,7 +206,7 @@ func TestInteractiveSetupWithoutAvailableClientConnectsAndSaysWhatToInstall(t *t
 		"No AI app found on this computer yet.",
 		"Setup connects this computer to Home Assistant now",
 		"This computer is connected to Home Assistant.",
-		"One step left: install one of these AI apps: Claude Code, Codex CLI, OpenCode",
+		"One step left: install one of these AI apps: Claude Code, Codex, OpenCode",
 		"Then run: ha-nova setup (it adds HA NOVA to that app).",
 	} {
 		if !strings.Contains(output, want) {

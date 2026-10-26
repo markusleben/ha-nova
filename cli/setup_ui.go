@@ -130,6 +130,9 @@ func renderSetupCompleteBanner(out io.Writer, clients []string, look *setupFirst
 				fmt.Fprintf(out, "  %s\n", line)
 			}
 		}
+		if slices.Contains(clients, "codex") {
+			fmt.Fprintf(out, "  %s\n", codexWhereLine())
+		}
 		fmt.Fprintln(out)
 	}
 	promptHeader := setupStyled(session, "setup.done.try_asking_in", "client", setupStrong(setupClientLabelsForPrompt(clients)))
@@ -215,7 +218,7 @@ func setupClientLabel(client string) string {
 	case "claude":
 		return "Claude Code"
 	case "codex":
-		return "Codex CLI"
+		return "Codex"
 	case "opencode":
 		return "OpenCode"
 	case "antigravity":

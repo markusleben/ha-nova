@@ -109,9 +109,6 @@ func installAntigravityClientWithPolicy(home, sourceRoot string, cleanupLegacy b
 		if err := cleanupLegacyGeminiSkills(home, subSkills); err != nil {
 			return err
 		}
-		if err := cleanupLegacyCodexGeminiFlatSkills(home, subSkills); err != nil {
-			return err
-		}
 	}
 	if err := cleanupRetiredAntigravitySkills(skillsRoot); err != nil {
 		return err
@@ -176,15 +173,6 @@ func legacyAntigravityFlatSkillNames(subSkills []string) map[string]struct{} {
 func cleanupLegacyGeminiSkills(home string, subSkills []string) error {
 	for skill := range managedAntigravitySkillNames(subSkills) {
 		if err := os.RemoveAll(filepath.Join(legacyGeminiSkillsRoot(home), skill)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func cleanupLegacyCodexGeminiFlatSkills(home string, subSkills []string) error {
-	for skill := range legacyAntigravityFlatSkillNames(subSkills) {
-		if err := os.RemoveAll(filepath.Join(legacyCodexGeminiSkillsRoot(home), skill)); err != nil {
 			return err
 		}
 	}
