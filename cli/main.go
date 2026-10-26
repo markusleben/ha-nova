@@ -82,7 +82,12 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 			return runConfirmWindowSetting(paths, args[2:])
 		}
 		if len(args) > 1 && args[1] == "confirm-phone" {
-			return runConfirmPhoneSetting(paths, args[2:])
+			phoneArgs, err := takeServerArg(args[2:])
+			if err != nil {
+				printHumanErr("%s", err)
+				return 1
+			}
+			return runConfirmPhoneSetting(paths, phoneArgs)
 		}
 		return runSetup(paths, args[1:])
 	case "doctor":

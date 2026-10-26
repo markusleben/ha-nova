@@ -233,6 +233,12 @@ func (f *setupFlow) pageRerunControl() {
 	f.current = setupState{ConfigOK: true, TokenOK: true, RelayOK: true, WSOK: true, SkillsOK: true}
 	rows, _ := f.pageRerunRows(f.pageApp())
 	links := map[string]string{}
+	f.pageNewClients = nil
+	for _, choice := range f.choices {
+		if choice.Value != "all" && !choice.Disabled && !clientReadyNow(f.paths, f.state, choice.Value) {
+			f.pageNewClients = append(f.pageNewClients, choice.Value)
+		}
+	}
 	if rows[1].State != "ok" { // an App that needs an update
 		links["app"] = haRelayAppPageURL(f.cfg.HAURL)
 	}
@@ -244,8 +250,11 @@ func (f *setupFlow) pageRerunControl() {
 // pageRerunAddClients sets up HA NOVA in the AI assistants found since the
 // last setup (the click on the page), then shows the re-run screen again.
 // It holds the generation setup completed with.
-func (f *setupFlow) pageRerunAddClients() int {
+func (f *setupFlow) pageRerunAddClients(client string) int {
 	adding := f.pageNewClients
+	if client != "" {
+		adding = []string{client}
+	}
 	f.selectedClients, f.pageNewClients = append(f.selectedClients, adding...), nil
 	f.page.update(func(v *setupPageState) {
 		v.Screen, v.Control, v.NewClients = "repair", nil, nil

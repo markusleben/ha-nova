@@ -99,6 +99,14 @@ func (m setupMsg) plain() string {
 	return m.render(func(v any) string { return fmt.Sprint(v) })
 }
 
+func (m *setupPageMsg) plain() string {
+	args := []any{}
+	for key, value := range m.Args {
+		args = append(args, key, value)
+	}
+	return setupMsg{Key: m.Key, Args: args}.plain()
+}
+
 // render fills the placeholders; value formats each argument. A missing
 // key, a missing or extra argument, or a plural entry without an integer
 // "count" is a programming error and panics (the catalog test keeps the

@@ -101,13 +101,20 @@ func maybeHandleInteractiveSetupCurrentStateLinkPaused(reader *bufio.Reader, out
 		if !addAttempted && cloudAttempted && cfg.Cloud.ready() &&
 			cfg.RoutePolicy == routePolicyAutomatic {
 			renderSetupCloudFallbackReadyBanner(out, nil)
-			return true, 0
 		}
 		// After a ran add flow (success or cancel) its own closing lines are
 		// the message — the already-done banner would bury a cancelled or
 		// partial add under "Everything is already set up!".
 		if !addAttempted {
-			renderSetupAlreadyDoneBanner(out, !serviceMode && legacyAccessSwitchable(cfg, probePairingV1ForSetup))
+			if !(cloudAttempted && cfg.Cloud.ready() && cfg.RoutePolicy == routePolicyAutomatic) {
+				renderSetupAlreadyDoneBanner(out, !serviceMode && legacyAccessSwitchable(cfg, probePairingV1ForSetup))
+			}
+			if !serviceMode {
+				if err := printCompletedSetupOverview(out, paths, cfg); err != nil {
+					printHumanErr("%s", err)
+					return true, 1
+				}
+			}
 		}
 		return true, 0
 	}

@@ -1,0 +1,39 @@
+
+  Your setup
+
+  Your home
+  · Use this computer away from home: Not yet — set up Home Assistant Link to connect this computer away from home.
+    ha-nova cloud add
+
+  AI apps on this computer
+  ✓ Claude Code: HA NOVA is set up in this AI app.
+  · Codex: Not yet — add HA NOVA to this AI app.
+    ha-nova setup codex
+  · OpenCode: Not yet — add HA NOVA to this AI app.
+    ha-nova setup opencode
+  · Google Antigravity: Not yet — add HA NOVA to this AI app.
+    ha-nova setup antigravity
+  · Hermes Agent: Not yet — add HA NOVA to this AI app.
+    ha-nova setup hermes
+  · Other AI apps: Any app that supports MCP can use HA NOVA: add this to its MCP settings.
+{
+  "mcpServers": {
+    "ha-nova": {
+      "command": "<home>/.local/bin/ha-nova",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}
+
+  Confirmations
+  · Confirm on this computer: Not yet — turn on the confirmation window on this computer.
+    ha-nova setup confirm-window on
+  ✓ Phone for this computer: My phone is linked to confirm actions from this computer.
+    ha-nova setup confirm-phone
+
+  Chat apps (Claude, ChatGPT)
+  · Use HA NOVA in Claude and ChatGPT: Not yet — turn on HA NOVA in Claude and ChatGPT.
+    ha-nova chat-apps on
+  · Phone for chat apps: Not checked — in Home Assistant, open NOVA in the sidebar to check the chat-app phone.

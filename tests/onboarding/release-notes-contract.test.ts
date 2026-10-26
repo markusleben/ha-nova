@@ -97,7 +97,12 @@ describe("release notes contract", () => {
     expect(readme).not.toContain("ha-nova mcp");
     expect(readme).not.toContain("ha_apply");
     expect(readme).not.toContain("Local MCP clients");
-    expect(clientIntegration).toContain("Experimental — not supported yet; the interface may change.");
+    expect(clientIntegration).toContain("The local stdio MCP adapter is supported.");
+    expect(clientIntegration).not.toContain("Experimental — not supported yet");
+    expect(clientIntegration).toContain("**A phone is linked for this computer:**");
+    expect(clientIntegration).toContain("**No linked phone, even with a confirmation window:**");
+    expect(clientIntegration).toContain("A window can fail to open and fall back to a chat code the AI can see.");
+    expect(clientIntegration).toContain("keep `ha_apply` (“Run a confirmed change”) on “Needs approval”");
     expect(readme).not.toContain("Every change is previewed and approved first");
     expect(readme).not.toContain("A reviewed batch delete takes one code");
     expect(readme).not.toMatch(/census/i);

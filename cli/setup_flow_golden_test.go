@@ -157,6 +157,9 @@ func TestSetupGoldenAlreadyInstalled(t *testing.T) {
 	withClientRuntimeAvailability(t, map[string]bool{"claude": true})
 	withClientAttachmentPresence(t, map[string]bool{"claude": true})
 	home := setupGoldenHome(t)
+	previousExecutable := executablePathForInstallSource
+	executablePathForInstallSource = func() (string, error) { return filepath.Join(home, "ha-nova"), nil }
+	t.Cleanup(func() { executablePathForInstallSource = previousExecutable })
 	relayServer := setupGoldenRelayServer(t, "unused")
 	paths, err := detectPaths()
 	if err != nil {

@@ -52,7 +52,7 @@ func TestSubcommandHelpFlagPrintsUsageAndFlags(t *testing.T) {
 		// config/token preflight of the proxy path.
 		{"relay core", func() int { return runRelayCommand(paths, []string{"core", "--help"}) }, "Usage: ha-nova relay core", "-body-file"},
 		{"relay ws", func() int { return runRelayCommand(paths, []string{"ws", "--help"}) }, "Usage: ha-nova relay ws", "-data-file"},
-		{"mcp", func() int { return runMCPCommand(paths, []string{"--help"}) }, "EXPERIMENTAL — not supported yet", "-server"},
+		{"mcp", func() int { return runMCPCommand(paths, []string{"--help"}) }, "supported HA NOVA tools over MCP (stdio)", "-server"},
 		{"serve", func() int { return runServeCommand(paths, []string{"--help"}) }, "EXPERIMENTAL — not supported yet", "-secret-file"},
 		{"chat-apps", func() int { return runChatAppsCommand(paths, []string{"--help"}) }, "Usage: ha-nova chat-apps [on|off|status]", "Claude and ChatGPT"},
 		{"relay version", func() int { return runRelayCommand(paths, []string{"version", "--help"}) }, "Usage: ha-nova relay version", "No flags"},

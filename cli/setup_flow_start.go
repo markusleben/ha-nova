@@ -171,7 +171,7 @@ func (f *setupFlow) chooseClientAndMode() setupStepResult {
 		}
 
 		if remoteOnlyCloudSetup(f.cfg) && !f.explicitLocalSetup {
-			return setupDone(resumeInteractiveCloudOnlySetup(
+			code := resumeInteractiveCloudOnlySetup(
 				f.ui.termIn(),
 				f.ui.termOut(),
 				f.paths,
@@ -181,7 +181,13 @@ func (f *setupFlow) chooseClientAndMode() setupStepResult {
 				f.selectedClients,
 				f.skippedClients,
 				f.lifecycleMarker...,
-			))
+			)
+			if code == 0 && f.cfg.Cloud.ready() {
+				if err := printCompletedSetupOverview(f.ui.termOut(), f.paths, f.cfg); err != nil {
+					return f.failErr(err)
+				}
+			}
+			return setupDone(code)
 		}
 
 		f.connectionMode = setupConnectionLocal
