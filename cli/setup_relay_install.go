@@ -112,18 +112,22 @@ func outdatedRelayNote(version, minimum string) setupMsg {
 // and update NOVA" for an App below min_relay_version) where a desktop
 // sign-in is possible and pairing follows (pairNext). Otherwise, or when that
 // falls back, it announces the install link, opens it on Enter, lists the
-// clicks, and waits until the user says the App runs. note is the
+// clicks (Update for an App below min_relay_version), and waits until the
+// user says the App runs. note is the
 // outdated-App reminder for the pairing step. It returns the prompt's
 // errSetupBack/errSetupExit unchanged for the caller's navigation.
 func runRelayInstallSteps(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, pairNext bool) (note setupMsg, err error) {
-	// After the page's "Use a six-digit code" the sign-in isn't offered again.
-	if pairNext && !setupPairWithCode && haAppInstallOffered(out, cfg) {
+	// After the page's "Use a six-digit code" the sign-in isn't offered again,
+	// but an App below min_relay_version still gets the update steps below.
+	update := false
+	if pairNext && (setupPairWithCode || haAppInstallOffered(out, cfg)) {
 		running, version := probeInstalledRelayForSetup(cfg.RelayBaseURL)
 		minimum := ""
 		if running {
 			minimum = relayVersionBelowMinimum(paths, version)
 		}
-		if !running || minimum != "" { // a running, current App needs nothing
+		update = minimum != ""
+		if !setupPairWithCode && (!running || update) { // a running, current App needs nothing
 			result, err := runSignInAppInstall(reader, out, cfg, minimum != "", version, minimum)
 			if err != nil || result == appInstallDone {
 				return setupMsg{}, err
@@ -143,6 +147,11 @@ func runRelayInstallSteps(reader *bufio.Reader, out io.Writer, paths runtimePath
 		return setupMsg{}, err
 	}
 	openAnnouncedBrowserURL(out, link)
+	if update {
+		renderSetupParagraphTight(out, "In the browser: sign in if asked, then click Update on NOVA Relay.")
+		_, err = promptWizardLineFromReader(reader, out, "Press Enter when the App is updated", "")
+		return setupMsg{}, err
+	}
 	renderSetupParagraphTight(out, `In the browser: sign in and click "Add" if asked, then Install, then Start.`)
 	_, err = promptWizardLineFromReader(reader, out, "Press Enter when the App is running", "")
 	return setupMsg{}, err

@@ -305,21 +305,34 @@ func TestSignInInstallStepRunsInsideTheSignInAndStillRevokes(t *testing.T) {
 }
 
 // After the setup page's "Use a six-digit code", the App step shows the
-// manual steps instead of offering the sign-in again.
+// manual steps instead of offering the sign-in again: Install for a missing
+// App, Update for one below min_relay_version.
 func TestRelayInstallStepsRespectTheCodeChoiceFromThePage(t *testing.T) {
 	previousOffered := haAppInstallOffered
 	t.Cleanup(func() { haAppInstallOffered = previousOffered; setupPairWithCode = false })
 	haAppInstallOffered = func(io.Writer, runtimeConfig) bool { return true }
-	stubInstalledRelayProbe(t, false, "")
-	calls := stubAppInstallSignIn(t, newFakeSupervisor(t))
+	versionFile := filepath.Join(t.TempDir(), "version.json")
+	if err := os.WriteFile(versionFile, []byte(`{"min_relay_version":"0.10.0"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	previousOpen := openBrowserForSetup
 	openBrowserForSetup = func(string) error { return nil }
 	t.Cleanup(func() { openBrowserForSetup = previousOpen })
 	setupPairWithCode = true
-	var out bytes.Buffer
 	cfg := runtimeConfig{HAURL: "http://ha.local:8123", RelayBaseURL: "http://ha.local:8791"}
-	if _, err := runRelayInstallSteps(bufio.NewReader(strings.NewReader("\n\n")), &out, runtimePaths{}, cfg, true); err != nil ||
-		*calls != 0 || strings.Contains(out.String(), "Sign in and install") || !strings.Contains(out.String(), "Your browser opens the NOVA App") {
-		t.Fatalf("err=%v sign-ins=%d\n%s", err, *calls, out.String())
+	install, update := "then Install, then Start", "then click Update on NOVA Relay"
+	for _, test := range []struct {
+		running   bool
+		version   string
+		want, not string
+	}{{false, "", install, update}, {true, "0.9.2", update, install}} {
+		stubInstalledRelayProbe(t, test.running, test.version)
+		calls := stubAppInstallSignIn(t, newFakeSupervisor(t))
+		var out bytes.Buffer
+		if _, err := runRelayInstallSteps(bufio.NewReader(strings.NewReader("\n\n")), &out, runtimePaths{VersionFile: versionFile}, cfg, true); err != nil ||
+			*calls != 0 || strings.Contains(out.String(), "Sign in and") || !strings.Contains(out.String(), "Your browser opens the NOVA App") ||
+			!strings.Contains(out.String(), test.want) || strings.Contains(out.String(), test.not) {
+			t.Fatalf("running=%v err=%v sign-ins=%d\n%s", test.running, err, *calls, out.String())
+		}
 	}
 }

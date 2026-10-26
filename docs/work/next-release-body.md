@@ -13,6 +13,7 @@ Unreleased claims wait here until they ship (AGENTS.md, Releases: the README des
 Release-prep todos for these:
 
 - `README.md:175`: the "Always allow" advice by phone, as in `docs/reference/chat-apps.md`; `README.md:182`: drop "Helpers, dashboards, and files still need HA NOVA on a computer" (only setting up HA NOVA itself stays there). Then remove the `needs-computer` README entry from the allow list in `tests/docs/canonical-wording.test.ts`.
+- `README.md:187` (Link): say that a standard-user Link sign-in only changes which login Link keeps on the computer; the owner still connects the computer once, and HA NOVA then works for anyone who uses that login on the computer (as in `nova/DOCS.md`). There is no per-person sign-in.
 - hanova.app, after the tag: `index.html:478` (the same advice) and `demo/index.html:88` (the demo has no phone: the no-phone variant).
 
 ## Planned
