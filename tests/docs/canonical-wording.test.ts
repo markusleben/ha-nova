@@ -65,8 +65,6 @@ const allow: { rule: string; file: string; line: string; reason: string }[] = [
   { rule: "link-old-name", file: "cli/testdata/setup-golden/", line: "used to be called Home Assistant Cloud", reason: "explains the rename" },
   { rule: "link-old-name", file: "cli/cloud_origin.go", line: "canonical Nabu Casa origin", reason: "technical error about the provider's own domain" },
   { rule: "link-old-name", file: "cli/cloud_oauth_secret_linux.go", line: "HA NOVA Home Assistant Cloud authorization", reason: "label of keyring items already stored on users' computers" },
-  // README edits wait for the 0.28 release-prep PR, which drops this entry (docs/work/next-release-body.md).
-  { rule: "needs-computer", file: "README.md", line: "Helpers, dashboards, and files still need HA NOVA on a computer.", reason: "README changes only in release prep" },
 ];
 
 const pages = [
