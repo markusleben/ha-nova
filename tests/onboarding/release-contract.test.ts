@@ -404,7 +404,8 @@ describe("release contract", () => {
     const orderedMarkers = [
       "Merge the reviewed PR state",
       "verify-relay-image.sh <reviewed-merge-sha> <relay-version>",
-      "Verify the published RC over the real",
+      "npm run vm-lane -- vX.Y.Z-rcN",
+      "Still manual, for the maintainer: the Cloud checklist's accounts lane",
       "cut the final tag",
     ];
     let previousIndex = -1;
