@@ -43,3 +43,24 @@ describe("setup page: the owner connects this computer once", () => {
     }
   });
 });
+
+describe("setup page: the six-digit code while the App still needs installing or updating", () => {
+  it("says the terminal first shows how to install or update the App, on the sign-in screen and after a failed sign-in", async () => {
+    for (const [primary, label] of [
+      ["signin", "Use a six-digit code instead (continues in the terminal)"],
+      ["install", "Install the NOVA App from any device, then use a six-digit code (continues in the terminal)"],
+      ["update", "Update the NOVA App from any device, then use a six-digit code (continues in the terminal)"],
+    ]) {
+      for (const state of [{ ...found, primary }, { ...notOwner, primary }, { ...notOwner, primary, fix: "retry", problem: { key: "setup.page.problem.timeout" } }]) {
+        const p = page(state);
+        await p.settle();
+        const code = p.find("b-terminal")!;
+        expect(code.textContent).toBe(label);
+        expect(p.screen.textContent).toContain(`Can't sign in on this computer? ${label}`);
+        code.dispatch("click");
+        await p.settle();
+        expect(p.posts).toEqual([{ action: "terminal" }]);
+      }
+    }
+  });
+});

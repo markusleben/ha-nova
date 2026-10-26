@@ -164,7 +164,7 @@ describe("setup page sign-in", () => {
       expect(p.catalog["setup.page.found.owner"]).toContain("first account made when Home Assistant was set up");
       const code = p.find("b-terminal")!;
       expect(code.className).toBe("linkish");
-      expect(code.textContent).toBe(p.catalog["setup.page.button.code"]);
+      expect(code.textContent).toBe(p.catalog[state.primary === "install" ? "setup.page.button.code_install" : "setup.page.button.code"]);
       expect(code.textContent).toContain("(continues in the terminal)");
       code.dispatch("click");
       await p.settle();

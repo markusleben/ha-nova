@@ -144,9 +144,11 @@
   };
 
   const problemLine = () => (state.problem ? el('p', { class: 'problem', role: 'alert' }, say(state.problem)) : null);
-  // "Use a six-digit code": a text link, since it goes on in the terminal.
+  // "Use a six-digit code": a text link, since it goes on in the terminal. With
+  // no current App yet, the terminal first shows how to install or update it.
+  const codeLabels = { install: 'setup.page.button.code_install', update: 'setup.page.button.code_update' };
   const codeLink = () => el('p', { class: 'fine' }, `${t('setup.page.found.fine_elsewhere')} `,
-    el('button', { id: 'b-terminal', class: 'linkish', type: 'button', onclick: () => post('terminal'), ...(accepts('terminal') ? {} : { disabled: '' }) }, t('setup.page.button.code')));
+    el('button', { id: 'b-terminal', class: 'linkish', type: 'button', onclick: () => post('terminal'), ...(accepts('terminal') ? {} : { disabled: '' }) }, t(codeLabels[state.primary] || 'setup.page.button.code')));
   // "What's this?": what chat apps need (docs/reference/chat-apps.md), in a new tab.
   const chatHelp = () => {
     const href = safeURL((state.links || {}).chat);
