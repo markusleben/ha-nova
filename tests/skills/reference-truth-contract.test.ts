@@ -64,8 +64,10 @@ describe("fallback capability map is complete and truthful (#516)", () => {
 
   it("corrects the Supervisor premise instead of repeating it", () => {
     const f = flat(fallback);
-    expect(f).toContain("is only half true");
-    expect(f).toContain("the `hassio` integration proxies it under `/api/hassio/*`");
+    // Verified on HAOS (docs/work/2026-10-26-supervisor-role-spec.md): the
+    // Supervisor refuses Apps both the REST proxy and the WS supervisor/* types.
+    expect(f).toContain("the Supervisor refuses this App both `/api/hassio/*` and the WebSocket `supervisor/*` and `hassio/*` types");
+    expect(f).not.toContain("proxies it under `/api/hassio/*`");
     // Management stays external; lifecycle and updates have owners.
     expect(f).toContain("App *management* (install, uninstall, configure, store browsing) is Supervisor");
     expect(f).toContain("App UPDATES are `ha-nova:updates`");
