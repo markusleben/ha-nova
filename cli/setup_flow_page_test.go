@@ -143,7 +143,7 @@ func TestSetupPageSignsInInTheSameTabAndConnects(t *testing.T) {
 
 	found := page.waitFor("the found screen", accepting("signin"))
 	if found.Screen != "found" || found.HA != normalizeHostInput(ha.server.URL) || found.App != "running" ||
-		found.Primary != "signin" || !slices.Equal(found.Clients, []string{"Codex CLI"}) {
+		found.Primary != "signin" || !slices.Equal(found.Clients, []string{"Codex"}) {
 		t.Fatalf("found = %+v", found)
 	}
 	page.click("signin", "")
@@ -273,7 +273,7 @@ func TestSetupPageInstallShowsEachStep(t *testing.T) {
 	if got := pageRows(state); got != "signed_in=ok app_add=ok app_start=ok connect=todo teach=todo" {
 		t.Fatalf("rows = %s", got)
 	}
-	if teach := state.Rows[4].Msg; teach.Key != "setup.page.row.teach" || !slices.Equal(teach.Args["clients"].([]string), []string{"Claude Code", "Codex CLI"}) {
+	if teach := state.Rows[4].Msg; teach.Key != "setup.page.row.teach" || !slices.Equal(teach.Args["clients"].([]string), []string{"Claude Code", "Codex"}) {
 		t.Fatalf("teach row = %+v", teach)
 	}
 	if !slices.Contains(supervisor.writes(), "post /addons/"+HAOfficialNOVAAppSlug+"/start") {

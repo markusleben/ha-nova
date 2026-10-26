@@ -147,7 +147,7 @@ func TestRenderSetupMenuBlockUsesCompactLayoutAndSecondLineDisabledReason(t *tes
 		Prompt: "Use ↑/↓ or j/k, Enter to select, Ctrl+C to exit",
 		Options: []setupMenuOption{
 			{Value: "claude", Label: "Claude Code"},
-			{Value: "codex", Label: "Codex CLI", Disabled: true, DisabledReason: "install Codex CLI first"},
+			{Value: "codex", Label: "Codex", Disabled: true, DisabledReason: "install the Codex CLI first"},
 		},
 	}, 0, 0)
 
@@ -155,7 +155,7 @@ func TestRenderSetupMenuBlockUsesCompactLayoutAndSecondLineDisabledReason(t *tes
 	if !strings.Contains(rendered, "Which AI app do you use?") || !strings.Contains(rendered, "\r\n\r\n  ") {
 		t.Fatalf("expected compact menu title block with a single blank separator, got %q", rendered)
 	}
-	if !strings.Contains(rendered, "not available: install Codex CLI first") {
+	if !strings.Contains(rendered, "not available: install the Codex CLI first") {
 		t.Fatalf("expected disabled reason on second line, got %q", rendered)
 	}
 }

@@ -47,7 +47,7 @@ func TestSetupPageLegacyInstallWithoutPairingKeepsTheTerminal(t *testing.T) {
 // this computer, and the run ends on the page like a first setup.
 func TestSetupPageLegacySwitchSignsInAndPairs(t *testing.T) {
 	paths, cfg, state, marker := setupCompletedInstallFixture(t)
-	withClientRuntimeAvailability(t, map[string]bool{"claude": true, "codex": true}) // Codex CLI found since: not set up without its click
+	withClientRuntimeAvailability(t, map[string]bool{"claude": true, "codex": true}) // Codex found since: not set up without its click
 	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
 	t.Setenv("PATH", installClaudeMock(t, paths.Home, filepath.Join(t.TempDir(), "claude.log"))+string(os.PathListSeparator)+os.Getenv("PATH"))
 	ha := newFakeSignInHA(t)

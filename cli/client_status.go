@@ -44,7 +44,8 @@ func evaluateClientStatus(paths runtimePaths, state installState, client clientR
 	if client.ID == "hermes" && (hermesNamespacedContextPresent(paths.Home) || hermesLegacyBundlePresent(paths.Home)) {
 		status.Configured = true
 	}
-	status.RuntimeDetected = clientRuntimeDetectedForStatus(client.ID)
+	status.RuntimeDetected = clientRuntimeDetectedForStatus(client.ID) ||
+		(client.ID == "codex" && codexAppInstalled(paths.Home))
 	status.Ready = status.SupportedOnOS && status.RuntimeDetected && status.Attached
 	status.Reason = clientStatusReason(client.ID, status, paths.Home)
 	return status
@@ -162,7 +163,10 @@ func clientStatusReason(client string, status clientStatus, home string) string 
 		}
 		return "install Claude Code first"
 	case "codex":
-		return "install Codex CLI first"
+		if codexPlatformOS == "darwin" {
+			return "install the Codex CLI, or the ChatGPT desktop app that includes Codex, first"
+		}
+		return "install the Codex CLI first"
 	case "opencode":
 		if runtime.GOOS == "windows" {
 			return "install OpenCode natively first, or run HA NOVA setup inside WSL"

@@ -41,7 +41,7 @@ func rerunFlow(paths runtimePaths, cfg runtimeConfig, state installState, marker
 		connectionMode: setupConnectionLocal, pairingBackStep: setupStepRelayInstall}
 }
 
-// codexAttachedForReal: Claude Code as the fixture fakes it, Codex CLI from
+// codexAttachedForReal: Claude Code as the fixture fakes it, Codex from
 // the files setup installs.
 func codexAttachedForReal(t *testing.T) {
 	t.Helper()
@@ -219,19 +219,19 @@ func TestSetupPageRerunOffersANewAIAssistant(t *testing.T) {
 	stubRerunApp(t, true, chatAppsHA{}, errors.New("no chat apps"))
 	page, stdout, done := startSetupPageFlowWith(t, "", rerunFlow(paths, cfg, state, marker))
 	rerun := page.waitFor("the re-run screen", accepting("clients"))
-	if rerun.Screen != "rerun" || !slices.Equal(rerun.NewClients, []string{"Codex CLI"}) || rowStates(rerun.Rows)["clients"] != "ok" ||
+	if rerun.Screen != "rerun" || !slices.Equal(rerun.NewClients, []string{"Codex"}) || rowStates(rerun.Rows)["clients"] != "ok" ||
 		!slices.Equal(rerun.Rows[3].Msg.Args["clients"].([]any), []any{"Claude Code"}) {
 		t.Fatalf("re-run = %+v", rerun)
 	}
 	if slices.Contains(loadStateOrDefault(paths).InstalledClients, "codex") {
-		t.Fatal("Codex CLI was set up before the click")
+		t.Fatal("Codex was set up before the click")
 	}
 	page.click("clients", "")
 	again := page.waitFor("the re-run screen again", func(s setupPageState) bool {
 		return s.Screen == "rerun" && len(s.NewClients) == 0 && slices.Contains(s.Accepts, "finish")
 	})
 	if !slices.Contains(loadStateOrDefault(paths).InstalledClients, "codex") || slices.Contains(again.Accepts, "clients") ||
-		!slices.Equal(again.Rows[3].Msg.Args["clients"].([]any), []any{"Claude Code", "Codex CLI"}) || rowStates(again.Rows)["clients"] != "ok" {
+		!slices.Equal(again.Rows[3].Msg.Args["clients"].([]any), []any{"Claude Code", "Codex"}) || rowStates(again.Rows)["clients"] != "ok" {
 		t.Fatalf("after the click: %+v state %+v", again, loadStateOrDefault(paths).InstalledClients)
 	}
 	page.click("finish", "")
@@ -270,7 +270,7 @@ func rerunAfterUninstallFailsClosed(t *testing.T, plain bool) {
 		t.Fatalf("exit %d screen %s home %+v\n%s", code, end.Screen, end.Home, stdout)
 	}
 	if slices.Contains(loadStateOrDefault(paths).InstalledClients, "codex") {
-		t.Fatal("set up Codex CLI after an uninstall")
+		t.Fatal("set up Codex after an uninstall")
 	}
 }
 

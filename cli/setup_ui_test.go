@@ -12,7 +12,7 @@ import (
 func testSetupClientChoices() []setupClientChoice {
 	return []setupClientChoice{
 		{Value: "claude", Label: "Claude Code", Resolved: []string{"claude"}},
-		{Value: "codex", Label: "Codex CLI", Resolved: []string{"codex"}},
+		{Value: "codex", Label: "Codex", Resolved: []string{"codex"}},
 		{Value: "opencode", Label: "OpenCode", Resolved: []string{"opencode"}},
 		{Value: "antigravity", Label: "Google Antigravity", Resolved: []string{"antigravity"}},
 		{Value: "hermes", Label: "Hermes Agent", Resolved: []string{"hermes"}},
@@ -36,7 +36,7 @@ func TestPromptSetupClientShowsLegacyListAndDefaultsToClaude(t *testing.T) {
 	for _, want := range []string{
 		"Which AI app do you use?",
 		"1) Claude Code",
-		"2) Codex CLI",
+		"2) Codex",
 		"3) OpenCode",
 		"4) Google Antigravity",
 		"5) Hermes Agent",
@@ -298,7 +298,7 @@ func TestPromptLineFromReaderAllowsDelayedBlankDefaultAfterProtectedProgress(t *
 func TestPromptSetupClientExplainsDisabledChoiceAndReprompts(t *testing.T) {
 	choices := testSetupClientChoices()
 	choices[1].Disabled = true
-	choices[1].DisabledReason = "install Codex CLI first"
+	choices[1].DisabledReason = "install the Codex CLI first"
 
 	input := strings.NewReader("2\n1\n")
 	output := &bytes.Buffer{}
@@ -310,10 +310,10 @@ func TestPromptSetupClientExplainsDisabledChoiceAndReprompts(t *testing.T) {
 	if got != "claude" {
 		t.Fatalf("promptSetupClient() = %q, want claude", got)
 	}
-	if !strings.Contains(output.String(), "Codex CLI is not available yet: install Codex CLI first") {
+	if !strings.Contains(output.String(), "Codex is not available yet: install the Codex CLI first") {
 		t.Fatalf("expected disabled-choice guidance:\n%s", output.String())
 	}
-	if !strings.Contains(output.String(), "not available: install Codex CLI first") {
+	if !strings.Contains(output.String(), "not available: install the Codex CLI first") {
 		t.Fatalf("expected disabled reason on its own line:\n%s", output.String())
 	}
 }
