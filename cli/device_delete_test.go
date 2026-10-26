@@ -109,22 +109,27 @@ func TestDeviceDeleteTypedNamedAndApplied(t *testing.T) {
 // What a device delete removes is part of the plan: an entity or child
 // device added since the preview is drift, and nothing is sent.
 func TestDeviceDeleteMembershipDrift(t *testing.T) {
-	var mu sync.Mutex
-	entities := []any{map[string]any{"entity_id": "light.hall", "device_id": "dlamp", "config_entry_id": "E1"}}
-	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
-		"config/device_registry/list": func(map[string]any) any {
-			return []any{map[string]any{"id": "dlamp", "name": "Hall lamp", "config_entry_id": "E1"}}
-		},
-		"config/entity_registry/list": func(map[string]any) any { mu.Lock(); defer mu.Unlock(); return entities },
-	})
-	exit, env := deleteDevicePlan(t, paths, "dlamp")
-	if exit != verbExitConfirmation || !strings.Contains(env.Say, "and its 1 entity") {
-		t.Fatalf("plan: exit %d %q", exit, env.Say)
-	}
-	mu.Lock()
-	entities = append(entities, map[string]any{"entity_id": "sensor.hall_power", "device_id": "dlamp", "config_entry_id": "E1"})
-	mu.Unlock()
-	if exit, drift := applyRaw(t, paths, env); exit != verbExitDrift || len(sent()) != 0 {
-		t.Fatalf("membership changed since the preview: exit %d %+v sent %v", exit, drift.Error, sent())
+	for _, added := range []map[string]any{
+		{"entity_id": "switch.hall_template", "device_id": "dlamp", "config_entry_id": "E2"}, // another integration's: unlinked, not counted
+		{"entity_id": "sensor.hall_power", "device_id": "dlamp", "config_entry_id": "E1"},
+	} {
+		var mu sync.Mutex
+		entities := []any{map[string]any{"entity_id": "light.hall", "device_id": "dlamp", "config_entry_id": "E1"}}
+		paths, sent := rawRelay(t, map[string]func(map[string]any) any{
+			"config/device_registry/list": func(map[string]any) any {
+				return []any{map[string]any{"id": "dlamp", "name": "Hall lamp", "config_entry_id": "E1"}}
+			},
+			"config/entity_registry/list": func(map[string]any) any { mu.Lock(); defer mu.Unlock(); return entities },
+		})
+		exit, env := deleteDevicePlan(t, paths, "dlamp")
+		if exit != verbExitConfirmation || !strings.Contains(env.Say, "and its 1 entity") {
+			t.Fatalf("plan: exit %d %q", exit, env.Say)
+		}
+		mu.Lock()
+		entities = append(entities, added)
+		mu.Unlock()
+		if exit, drift := applyRaw(t, paths, env); exit != verbExitDrift || len(sent()) != 0 {
+			t.Fatalf("%s attached since the preview: exit %d %+v sent %v", added["entity_id"], exit, drift.Error, sent())
+		}
 	}
 }

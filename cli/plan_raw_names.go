@@ -109,7 +109,8 @@ func (n *rawNamer) device(id any) string {
 // deviceEntities: what deleting the device takes with it (", its 1 child
 // device, and its 3 entities"): its child devices and the entities of their
 // own integration on them (Home Assistant keeps another integration's
-// entity, unlinked).
+// entity, unlinked: not counted, but in the basis with the rest, so any
+// entity attached since the preview is drift).
 func (n *rawNamer) deviceEntities(id any) string {
 	device, _ := id.(string)
 	var devices []struct {
@@ -147,14 +148,20 @@ func (n *rawNamer) deviceEntities(id any) string {
 			gone[row.ID] = [2]string{row.ConfigEntryID, row.ConfigSubentryID}
 		}
 	}
-	var goneEntities []string
+	var goneEntities, unlinked []string
 	for _, row := range entities {
-		if owner, ok := gone[row.DeviceID]; ok && [2]string{row.ConfigEntryID, row.ConfigSubentryID} == owner {
+		owner, ok := gone[row.DeviceID]
+		switch {
+		case !ok:
+		case [2]string{row.ConfigEntryID, row.ConfigSubentryID} == owner:
 			goneEntities = append(goneEntities, row.EntityID)
+		default:
+			unlinked = append(unlinked, row.EntityID)
 		}
 	}
 	slices.Sort(goneEntities)
-	n.removing[device] = map[string]any{"devices": slices.Sorted(maps.Keys(gone)), "entities": goneEntities}
+	slices.Sort(unlinked)
+	n.removing[device] = map[string]any{"devices": slices.Sorted(maps.Keys(gone)), "entities": goneEntities, "unlinked": unlinked}
 	count := len(goneEntities)
 	if children := len(gone) - 1; children > 0 {
 		return ", its " + plural(children, "child device") + ", and its " + plural(count, "entity")

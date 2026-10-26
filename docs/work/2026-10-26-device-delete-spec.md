@@ -27,7 +27,7 @@ KISS, per maintainer: one new allowlisted WS type, existing raw guard/tier/say p
 ## Known limits
 
 - `ha-nova relay ws` can still send the delete without the plan (guard only, no snapshot or code), like every other allowlisted raw delete; the skill always uses `plan raw`.
-- The plan binds what goes (devices and entities) to its hash, so a member added after the preview is drift; what the integration's own `async_remove_config_entry_device` removes besides the registry records is outside HA NOVA's view.
+- The plan binds what goes (devices and entities) and the other integrations' entities it unlinks to its hash, so any entity or child device attached after the preview is drift; what the integration's own `async_remove_config_entry_device` removes besides the registry records is outside HA NOVA's view.
 - The own-App refusal recognises the published App slug (`*_ha_nova_relay`) and the `ha_nova` domain, not a renamed local dev App.
 
 ## Verification
