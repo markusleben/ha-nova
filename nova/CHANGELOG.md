@@ -4,14 +4,27 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [Relay 0.12.0] - 2026-10-26
 
 ### Added
-- Chat apps can now do what HA NOVA on a computer does: rename devices and entities, move them to rooms, set up helpers, scenes, dashboards, and integrations, edit files (with file access on), read the error log, and look at a camera. Every change shows a preview first, with the same confirmations as on a computer. Only setting up HA NOVA itself (setup, pairing, updates, turning chat apps on or off) stays on a computer.
-- NOVA page, Chat apps: under "Add to Claude", what to set so Claude stops asking before every step. With a linked phone: every tool on "Always allow". Without one: every tool but "Run a confirmed change".
+- Chat apps can now do what HA NOVA on a computer does: rename devices and entities, move them to rooms, set up helpers, scenes, dashboards, and integrations, edit files (with file access on), read the error log, and look at a camera. Every change shows a preview first, with the same confirmations as on a computer. Only setting up HA NOVA itself (setup, pairing, updates, turning chat apps on or off) stays on a computer. (#863, #864, #865, #867)
+- NOVA page, Chat apps: under "Add to Claude", what to set so Claude stops asking before every step. With a linked phone: every tool on "Always allow". Without one: every tool but "Run a confirmed change". (#867)
 
 ### Changed
-- Installing or updating a HACS download, and adding or changing a dashboard resource, now take your own confirmation, like a delete, in chat apps and on a computer: that code runs in every signed-in browser.
+- Installing or updating a HACS download, and adding or changing a dashboard resource, now take your own confirmation, like a delete, in chat apps and on a computer: that code runs in every signed-in browser. (#864)
+- Chat apps: changes beyond controlling devices (automations, scripts, dashboards, rooms, helpers, files, and the like) need a Home Assistant administrator, as in Home Assistant itself. (#865)
+- NOVA page: an administrator who isn't the owner now sees who the owner is and how to get a six-digit code from them, instead of "Owner access required". (#868)
+
+### Fixed
+- Chat apps: a camera's or image's short-lived sign-in token, which opens its picture or live video without a login, no longer reaches the AI. (#866)
+- Chat apps: disabling a device that has a lock, alarm panel, or garage door, or the switch a lock or cover runs on, is refused, like disabling the lock itself. (#862)
+- Chat apps now run HA NOVA 0.28.0 with these changes.
+
+### Upgrade notes
+- In ChatGPT, open chatgpt.com/plugins, choose HA NOVA, then Refresh. ChatGPT then gets the new tools.
+- Claude asks once more before HA NOVA's tools, because their texts changed. Set them to "Always allow" again, as the NOVA page says.
+- Computers that are already connected stay connected; no re-pairing.
+- Computers on HA NOVA 0.28.0 ask you to update this App; computers on 0.27.x keep working with it.
 
 ## [Relay 0.11.5] - 2026-10-24
 

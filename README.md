@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  Works with <b>Claude Code</b> · <b>Claude Desktop</b> · <b>Codex CLI</b> · <b>OpenCode</b> · <b>Google Antigravity</b> · <b>Hermes Agent</b> (preview)<br>
+  Works with <b>Claude Code</b> · <b>Claude Desktop</b> · <b>Codex</b> · <b>OpenCode</b> · <b>Google Antigravity</b> · <b>Hermes Agent</b> (preview)<br>
   and in <b>Claude</b> (also on your phone) and <b>ChatGPT</b> on the web, on a computer, with the NOVA Relay App
 </p>
 
@@ -172,14 +172,14 @@ Ask about your home and change it from Claude (web, desktop, and phone apps) or 
 
 **What needs your OK:** the same rules as on a computer. Everyday actions run right away and are checked afterwards. Unlocks, the alarm, and deletes wait for a tap on your linked phone. No phone? You type a four-digit code in the chat. The AI can see that code too, so it protects less than your phone. On the NOVA page, you can require the phone, or let chat apps only read.
 
-**In Claude, tools have plain names, and you can let read-only steps run without asking.** In Claude, open Customize → Connectors → HA NOVA. Set the read-only tools and "Control a device" to "Always allow". Leave "Run a confirmed change" on "Needs approval", so Claude still asks before a bigger change. Claude may ask again after an update. Details: [Stop Claude from asking before every step](docs/reference/chat-apps.md#stop-claude-from-asking-before-every-step).
+**Stop Claude from asking before every step.** At first, Claude asks before each step. That's Claude, not HA NOVA. In Claude, open Customize → Connectors → HA NOVA. With a linked phone, set every tool to "Always allow": HA NOVA still shows you a preview before bigger changes, and your phone asks before unlocks, the alarm, and deletes. No phone? Set every tool to "Always allow", except "Run a confirmed change": leave it on "Needs approval", so Claude still asks before each bigger change. The setup page and the NOVA page show the same advice. Claude may ask again after an update. Details: [Stop Claude from asking before every step](docs/reference/chat-apps.md#stop-claude-from-asking-before-every-step).
 
 **Good to know:**
 
 - Access belongs to your Home Assistant account, not to a device. Anyone who can use your Claude or ChatGPT account can reach your home through it.
 - Claude or ChatGPT then holds a Home Assistant sign-in for your account. It works for all of Home Assistant, not only HA NOVA. Turning chat apps off cuts HA NOVA there. To sign Claude or ChatGPT out, open your Home Assistant profile (Security, refresh tokens).
 - Turn chat apps off before you remove the NOVA Relay App.
-- Helpers, dashboards, and files still need HA NOVA on a computer.
+- Helpers, scenes, dashboards, rooms and names, integration setup, files (with file access on), the error log, and camera pictures work in the chat, with the same preview and confirmation as on a computer. Only setting up HA NOVA itself (setup, pairing, updates, turning chat apps on or off) runs on a computer.
 
 Step by step, ChatGPT plans, and what to do if it doesn't connect: [Use HA NOVA in Claude and ChatGPT](docs/reference/chat-apps.md).
 
@@ -189,7 +189,7 @@ Setup keeps **Local only** as the default we recommend. On the setup page, Link 
 
 Do you have a paid Home Assistant Link plan (formerly Home Assistant Cloud; Nabu Casa), with remote access on? Then choose **Local + Home Assistant Link** for automatic remote fallback, or **Home Assistant Link only** to go remote first. Your Home Assistant may still show the old name in Settings until the new name reaches it. Setup checks your Link address, opens the Home Assistant OAuth sign-in, and saves it in the macOS, Windows, or Linux desktop credential store. HA NOVA runs no additional public tunnel or hosted broker.
 
-Remote access through Link needs Home Assistant OS or Supervised, and a supported desktop to sign in. Did a setup that was already checked get cut off? You can finish over SSH with `ha-nova cloud add --remote-resume`. Headless, WSL, service, gateway, Container, and Core setups stay local only. Sign in to Link as the Home Assistant owner, and this computer connects with no code (this needs an up-to-date NOVA Relay App). Don't want the owner's login saved on this computer? Sign in as a standard Home Assistant user instead. HA NOVA can still do the same things. Then the owner signs in once more, in a separate private browser window (setup calls it the "Owner session"), and makes the six-digit code there with "Connect a device".
+Remote access through Link needs Home Assistant OS or Supervised, and a supported desktop to sign in. Did a setup that was already checked get cut off? You can finish over SSH with `ha-nova cloud add --remote-resume`. Headless, WSL, service, gateway, Container, and Core setups stay local only. Sign in to Link as the Home Assistant owner, and this computer connects with no code (this needs an up-to-date NOVA Relay App). Don't want the owner's login saved on this computer? Sign in to Link as a standard Home Assistant user instead. That only changes which login Link keeps on this computer: the owner still connects it once, in a separate private browser window (setup calls it the "Owner session"), with a six-digit code made there with "Connect a device". Either way, HA NOVA then works the same for anyone who uses this login on this computer. There is no separate sign-in per person.
 
 Already installed locally? Run `ha-nova cloud add`, or run `ha-nova setup` again for the same choice.
 
@@ -212,7 +212,7 @@ Once setup is done, try: *"Show me all my automations."*
 
 **macOS**: tested end to end on real Macs.
 
-**Linux**: tested end to end, also without a desktop (servers, containers, LXC, SSH). With no desktop keyring, the device login is saved in a private file instead. A standalone relay (relay token, no device pairing) on such a machine uses `ha-nova setup --service <client>` (Codex CLI, OpenCode, Hermes Agent).
+**Linux**: tested end to end, also without a desktop (servers, containers, LXC, SSH). With no desktop keyring, the device login is saved in a private file instead. A standalone relay (relay token, no device pairing) on such a machine uses `ha-nova setup --service <client>` (Codex, OpenCode, Hermes Agent).
 
 **Windows**: tested end to end on a real Windows 11 PC. Only x64 builds. On Windows 11 on ARM, install from the x64 PowerShell (the installer shows the steps).
 - Claude Code is the most tested AI app on Windows today
@@ -250,7 +250,7 @@ Once setup is done, try: *"Show me all my automations."*
 
 </details>
 
-> **Not a terminal person?** Setup is one command to copy and paste, then a page in your browser. After that, Claude Desktop and Google Antigravity Desktop give you the same skills in an app window. Pairing another computer is one more sign-in (or one six-digit code). Or skip the computer: with chat apps on, ask from Claude or ChatGPT.
+> **Not a terminal person?** Setup is one command to copy and paste, then a page in your browser. After that, Claude Desktop (its Code tab), Codex in the ChatGPT desktop app, and Google Antigravity Desktop give you the same skills in an app window. Pairing another computer is one more sign-in (or one six-digit code). Or skip the computer: with chat apps on, ask from Claude or ChatGPT.
 
 ---
 
@@ -338,7 +338,7 @@ The skills know which NOVA Relay version they need (see `version.json`). If your
 |:-------|:-----|
 | [Claude Code](https://github.com/anthropics/claude-code) | Terminal |
 | [Claude Desktop](https://claude.com/download) (Code tab) | Desktop app |
-| [Codex CLI](https://github.com/openai/codex) | Terminal |
+| [Codex](https://github.com/openai/codex) | Terminal / IDE extension / Desktop app |
 | [OpenCode](https://github.com/opencode-ai/opencode) | Terminal |
 | [Google Antigravity](https://antigravity.google/) | Desktop app / Terminal |
 | Hermes Agent (preview) | Terminal |

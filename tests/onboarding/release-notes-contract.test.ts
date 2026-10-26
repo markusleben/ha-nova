@@ -38,7 +38,7 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.27.3 release-facing wording aligned to the shipped stack", () => {
+  it("keeps v0.28.0 release-facing wording aligned to the shipped stack", () => {
     const relayVersion = /^version:\s*"([^"]+)"\s*$/m.exec(readFileSync("nova/config.yaml", "utf8"))?.[1] ?? "";
     // Any App version the notes name is the shipped App.
     const notedApps = [...(stableNotes ?? "").matchAll(/NOVA (?:Relay |App to )(\d+\.\d+\.\d+)/g)];
@@ -46,25 +46,24 @@ describe("release notes contract", () => {
     for (const [, noted] of notedApps) {
       expect(noted, "notes name the shipped NOVA Relay version").toBe(relayVersion);
     }
-    expect(stableNotes).toMatch(/^## Bug Fixes\s+- \*\*Automation previews include child devices\.\*\*/);
-    // HA 2026.9: a device target also reaches its direct child devices; the CLI did since 0.26.0, skills since #847.
-    expect(stableNotes).toContain("also reaches its child devices, like its outlets. Previews of automations and scripts now list them.");
-    // A lost device key no longer blocks a full removal (#790).
-    expect(stableNotes).toContain("**Removing HA NOVA works when this computer's key is lost.**");
-    expect(stableNotes).toContain("Now it asks to finish and says to revoke this computer on the NOVA page. With --yes, it says to rerun without it.");
-    // One notification per phone, titles that fit, a hint true in both states (#850).
-    expect(stableNotes).toContain("**A new phone question clears the last HA NOVA result.**");
-    expect(stableNotes).toContain("tap the button, or pull down if none shows.");
-    // Plain doctor/setup, the reach hint, the running Relay wins over a stale update entity (#852).
-    expect(stableNotes).toContain("**Doctor and setup speak plain English.**");
-    expect(stableNotes).toContain("(on a Mac: check Local Network)");
-    expect(stableNotes).toContain("Doctor no longer offers an App update that's already installed.");
-    expect(stableNotes).toContain('**Previews say "with a backup first".**');
-    // Codes named by their digits (#848, README in this release).
-    expect(stableNotes).toContain('On your computer and in the docs: "four-digit code" to confirm a change, "six-digit code" to connect a computer.');
-    // App patch 0.11.5 carries the 0.27.3 chat-app bridge; only Apps before 0.11.3 need a ChatGPT Refresh.
+    expect(stableNotes).toMatch(/^## New Features\s+- \*\*Chat apps do what HA NOVA on a computer does\.\*\*/);
+    // Chat apps at CLI parity (#863, #864, #865, #867); only setting up HA NOVA itself stays on a computer.
+    expect(stableNotes).toContain("rooms and names, helpers, scenes, dashboards, integrations, files, the error log, and camera pictures, with the same previews and confirmations.");
+    // "Always allow" advice by phone (#867).
+    expect(stableNotes).toContain('with a linked phone, every tool on "Always allow"; without one, all but "Run a confirmed change".');
+    // Codex in the desktop app; stale copies flagged and moved (fix/codex-app-guidance).
+    expect(stableNotes).toContain("**HA NOVA works in the Codex app too.**");
+    // HACS and dashboard resources take the typed confirmation (#864, maintainer decision 3).
+    expect(stableNotes).toMatch(/## What To Watch\s+- \*\*HACS installs and updates, and dashboard resources, now take your own confirmation, like a delete\.\*\*/);
+    expect(stableNotes).toContain("**Camera sign-in tokens stay hidden from the AI.**");
+    expect(stableNotes).toContain("**A leftover Home Assistant Link is explained.**");
+    expect(stableNotes).toContain("**Setup says which Claude gets HA NOVA.** Claude Code is the claude command and the Code tab in Claude Desktop.");
+    expect(stableNotes).toContain("**Setup explains the owner sign-in.** The owner connects each computer once");
+    expect(stableNotes).toContain("**Disabling a lock's device is refused.**");
+    // App 0.12.0 carries the 0.28.0 chat bridge; its tools changed, so ChatGPT needs a Refresh and Claude asks once more.
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
-    expect(stableNotes).toContain("Coming from App 0.11.2 or older? Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.");
+    expect(stableNotes).toContain("Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.");
+    expect(stableNotes).toContain('Claude asks once more before HA NOVA\'s tools: set them to "Always allow" again.');
     expect(stableNotes).not.toContain("which this release doesn't change");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
@@ -75,6 +74,12 @@ describe("release notes contract", () => {
     expect(readme).toContain("ha-nova setup confirm-window off");
     expect(readme).toContain("or a tap on your iPhone or Android phone.");
     expect(readme).toContain("You pair with a six-digit code:");
+    // Chat apps: "Always allow" by phone; only setting up HA NOVA itself stays on a computer; Link sign-in (0.28).
+    expect(readme).toContain('With a linked phone, set every tool to "Always allow"');
+    expect(readme).toContain('No phone? Set every tool to "Always allow", except "Run a confirmed change"');
+    expect(readme).toContain("Only setting up HA NOVA itself (setup, pairing, updates, turning chat apps on or off) runs on a computer.");
+    expect(readme).toContain("That only changes which login Link keeps on this computer: the owner still connects it once");
+    expect(readme).not.toContain("Codex CLI");
     // claude.ai's connector list lives under Customize, not Settings.
     expect(readme).toContain("open Customize → Connectors → HA NOVA");
     expect(readme).not.toContain("Settings → Connectors");

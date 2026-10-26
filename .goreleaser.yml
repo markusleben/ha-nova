@@ -69,16 +69,25 @@ release:
     ```
 
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`; if it reports that it needs admin rights, rerun the stable Windows install command instead.
-    {{ else }}## Bug Fixes
+    {{ else }}## New Features
 
-    - **Automation previews include child devices.** Since Home Assistant 2026.9, an action on a device, like a power strip, also reaches its child devices, like its outlets. Previews of automations and scripts now list them.
-    - **Removing HA NOVA works when this computer's key is lost.** Before, it stopped with an error. Now it asks to finish and says to revoke this computer on the NOVA page. With --yes, it says to rerun without it.
-    - **A new phone question clears the last HA NOVA result.** On Android, it no longer lands in a group. Link, move, and stop titles fit, and the hint matches what you see: tap the button, or pull down if none shows.
-    - **Doctor and setup speak plain English.** They say plainly when this computer can't reach Home Assistant (on a Mac: check Local Network). Doctor no longer offers an App update that's already installed.
-    - **Previews say "with a backup first".** Not "backup set to true". Other on/off settings say on or off.
-    - **Clearer code names.** On your computer and in the docs: "four-digit code" to confirm a change, "six-digit code" to connect a computer. The NOVA page's ChatGPT steps quote what ChatGPT shows.
+    - **Chat apps do what HA NOVA on a computer does.** In Claude and ChatGPT: rooms and names, helpers, scenes, dashboards, integrations, files, the error log, and camera pictures, with the same previews and confirmations.
+    - **Claude stops asking before every step, if you let it.** The setup page and the NOVA page say what to set in Claude: with a linked phone, every tool on "Always allow"; without one, all but "Run a confirmed change".
+    - **HA NOVA works in the Codex app too.** Setup finds Codex as the codex command or, on a Mac, the desktop app. Doctor flags an older HA NOVA copy that Codex would load, and setup moves it to a backup.
 
-    **Update the NOVA App to 0.11.5 too.** It brings the child-device previews, "with a backup first", and the cleared phone result to Claude and ChatGPT chat apps, and the new words to the NOVA page and its docs. HA NOVA on your computer asks for it too. In Home Assistant: Settings > Apps > NOVA Relay > Update. Coming from App 0.11.2 or older? Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.
+    ## What To Watch
+
+    - **HACS installs and updates, and dashboard resources, now take your own confirmation, like a delete.** In chat apps and on a computer: that code runs in every signed-in browser.
+
+    ## Bug Fixes
+
+    - **Camera sign-in tokens stay hidden from the AI.** A camera's or image's short-lived token opens its picture or live video without a login. It no longer reaches the AI, on a computer or in chat apps.
+    - **A leftover Home Assistant Link is explained.** Setup says what it is and lets you finish or remove it right there. Doctor runs all its checks anyway and shows both ways out.
+    - **Setup says which Claude gets HA NOVA.** Claude Code is the claude command and the Code tab in Claude Desktop. Setup also catches an old HA NOVA in Claude Code and installs this one.
+    - **Setup explains the owner sign-in.** The owner connects each computer once; then anyone who uses that login on it can use HA NOVA. On the NOVA page, other admins see who the owner is.
+    - **Disabling a lock's device is refused.** Like the lock itself: a disabled lock, alarm panel, or garage door stops working in Home Assistant. Do that in Home Assistant's settings.
+
+    **Update the NOVA App to 0.12.0 too.** It brings these changes to Claude and ChatGPT chat apps, and the "Always allow" advice to the NOVA page. HA NOVA on your computer asks for it too. In Home Assistant: Settings > Apps > NOVA Relay > Update. Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh. Claude asks once more before HA NOVA's tools: set them to "Always allow" again.
 
     Stable install commands are release-pinned for this tag.
 
