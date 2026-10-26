@@ -117,10 +117,10 @@ describe("maintenance contract", () => {
 
   it("is wired into dispatch, capability map, availability table, and architecture doc", () => {
     expect(contextSkill).toContain(
-      "| repair statistics (orphans, unit mismatches, sum spikes), purge recorder history, clean up dead registry entries | `ha-nova:maintenance` |",
+      "| repair or import statistics (orphans, unit mismatches, sum spikes), purge recorder history, clean up dead registry entries | `ha-nova:maintenance` |",
     );
     expect(contextSkill).toContain('"Clean up orphaned statistics"** → `ha-nova:maintenance`');
-    expect(fallbackSkill).toContain("| Statistics repair / Purge / Entity registry remove | Covered | maintenance |");
+    expect(fallbackSkill).toContain("| Statistics repair / import / Purge / Entity registry remove | Covered | maintenance |");
     expect(fallbackSkill + relayReadySplit).not.toContain("Entity Removal / Device Detach -- RELAY-READY");
     expect(writeSafety).toContain(
       "| `maintenance` | grouped preview + re-validate verify | spike adjust only (inverse call); clears/purges/removals irreversible | HA Backups (offered pre-bulk) |",

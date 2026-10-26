@@ -25,7 +25,9 @@ import (
 //	         who follows other devices (skills/device → Access Check), an
 //	         account's administrator flag, active state, or local-only
 //	         sign-in, Home Assistant's time zone or units (they shift
-//	         history and statistics), and any item the skill marks typed
+//	         history and statistics), a backup retention (it deletes older
+//	         automatic backups), a Labs feature, a statistics import,
+//	         and any item the skill marks typed
 //	preview: everything else, a flow cancel and a snapshot prune included
 //	         (skills/ha-nova/config-snapshots.md: prune is natural)
 
@@ -43,11 +45,13 @@ const reasonHACSInstall = "HACS_INSTALL"
 
 // rawTypedWS: the WS writes typed besides the deletes and removals.
 var rawTypedWS = map[string]string{
-	"recorder/clear_statistics": rawWhyDelete,
-	"config/auth/create":        "This creates a Home Assistant account",
-	"hacs/repository/download":  "This installs code from HACS that runs in Home Assistant",
-	"lovelace/resources/create": "This adds code that runs in every browser signed in to Home Assistant",
-	"lovelace/resources/update": "This changes code that runs in every browser signed in to Home Assistant",
+	"recorder/clear_statistics":  rawWhyDelete,
+	"config/auth/create":         "This creates a Home Assistant account",
+	"hacs/repository/download":   "This installs code from HACS that runs in Home Assistant",
+	"lovelace/resources/create":  "This adds code that runs in every browser signed in to Home Assistant",
+	"lovelace/resources/update":  "This changes code that runs in every browser signed in to Home Assistant",
+	"labs/update":                "This turns an experimental Home Assistant feature on or off",
+	"recorder/import_statistics": "This writes long-term statistics; rows already stored for the same hours are overwritten",
 }
 
 var rawSceneConfigPath = regexp.MustCompile(`^/api/config/scene/config/[A-Za-z0-9_.-]+$`)
@@ -95,6 +99,8 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 			return tierTyped, "This changes which devices a person follows, and an unlock or disarm may wait for that person"
 		case wsType == "config/auth/update" && access:
 			return tierTyped, "This changes what a Home Assistant account may do, or whether it can sign in"
+		case wsType == "backup/config/update" && rawRetains(payload):
+			return tierTyped, "This changes how many automatic backups Home Assistant keeps, and older ones are deleted for good"
 		case wsType == "config/core/update" && clock:
 			return tierTyped, "This changes Home Assistant's time zone or units, which shifts how history and long-term statistics read"
 		}
@@ -119,6 +125,19 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 		}
 	}
 	return tierPreview, ""
+}
+
+// rawRetains: a backup settings change that sets a retention, global or
+// per location; Home Assistant deletes the automatic backups beyond it.
+func rawRetains(payload map[string]any) bool {
+	_, retains := payload["retention"]
+	agents, _ := payload["agents"].(map[string]any)
+	for _, agent := range agents {
+		fields, _ := agent.(map[string]any)
+		_, set := fields["retention"]
+		retains = retains || set
+	}
+	return retains
 }
 
 // accessEntity: the entity is a lock, an alarm panel, or an access cover,
