@@ -87,7 +87,21 @@ func claudeRepairFailedFor(paths runtimePaths, version string) bool {
 	return err == nil && version != "" && strings.TrimSpace(string(data)) == version
 }
 
-// noteClaudeRepair records how a Claude Code auto-repair for version ended.
+// claudeRepairStuck: Claude Code still holds an older HA NOVA, and a repair
+// to this release already failed that way. Automatic repairs skip it.
+func claudeRepairStuck(paths runtimePaths, state installState) bool {
+	snapshot := inspectClaudeInstallSnapshot(paths, state)
+	return snapshot.MismatchReason == claudePluginOutdated && claudeRepairFailedFor(paths, snapshot.ExpectedVersion)
+}
+
+// noteClaudeRepairAfter notes how a Claude Code install (err) ended, and
+// returns err with any failure to note it.
+func noteClaudeRepairAfter(paths runtimePaths, state installState, err error) error {
+	_, version, _ := expectedClaudeMarketplaceSource(paths, state)
+	return errors.Join(err, noteClaudeRepair(paths, version, errors.Is(err, errClaudeKeptOlderPlugin)))
+}
+
+// noteClaudeRepair records how a Claude Code repair for version ended.
 func noteClaudeRepair(paths runtimePaths, version string, failed bool) error {
 	if failed {
 		if err := os.MkdirAll(paths.ConfigDir, 0o700); err != nil {

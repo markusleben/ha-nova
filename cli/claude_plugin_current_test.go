@@ -61,6 +61,12 @@ func staleClaudeRelease(t *testing.T) (runtimePaths, string) {
 	if err != nil {
 		t.Fatalf("detectPaths() error: %v", err)
 	}
+	return paths, writeStaleClaudeRelease(t, paths)
+}
+
+func writeStaleClaudeRelease(t *testing.T, paths runtimePaths) string {
+	t.Helper()
+	home := paths.Home
 	writeClaudeMarketplaceFixture(t, paths.InstallRoot)
 	if err := os.WriteFile(filepath.Join(paths.InstallRoot, "bundle.json"), []byte(`{"version":"0.27.3"}`), 0o644); err != nil {
 		t.Fatalf("write bundle.json: %v", err)
@@ -78,7 +84,7 @@ func staleClaudeRelease(t *testing.T) (runtimePaths, string) {
 	if err := os.WriteFile(filepath.Join(home, ".claude", "plugins", "installed_plugins.json"), []byte(state), 0o644); err != nil {
 		t.Fatalf("write installed_plugins.json: %v", err)
 	}
-	return paths, releaseRoot
+	return releaseRoot
 }
 
 func TestVerifyClaudePluginReinstallsAPluginClaudeCodeKeptOld(t *testing.T) {

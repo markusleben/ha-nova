@@ -52,7 +52,7 @@ func ensureClientsVerifiedForCurrentVersion(paths runtimePaths) {
 	if currentState.Version == "" || currentState.ClientsVerifiedVersion == version {
 		return
 	}
-	if err := postUpdateSyncWithResultUnlocked(paths).Err; err != nil {
+	if err := postUpdateSyncWithResultUnlocked(paths, true).Err; err != nil {
 		printHumanWarn("Client self-heal incomplete (retries on next run): %s", err)
 	}
 }
