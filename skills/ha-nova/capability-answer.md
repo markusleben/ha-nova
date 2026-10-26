@@ -15,9 +15,9 @@ with ONE bounded aggregate read:
 2. Render a short List Frame grouped by everyday jobs, each line naming what
    exists HERE, for example:
    - Control: lights, switches, covers, climate, media (with the counts found)
-   - Automate: create/change automations, scenes, schedules, helpers
+   - Automate: automations, scripts, blueprints, scenes, schedules, helpers
    - Watch: history, energy, cameras, who is home, what is open or running
-   - Organize & maintain: rooms/areas, names, updates, backups, cleanups
+   - Organize & maintain: rooms/areas, names, integrations/subentries, repair fixes, updates, backups, cleanups
    - Voice: what Assist understands, teach it new phrases (first use may
      need Relay file access enabled — the owning skill guides that)
 3. Skip groups whose ENABLING hardware is absent — Automate stays visible

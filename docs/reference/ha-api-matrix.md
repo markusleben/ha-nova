@@ -99,6 +99,9 @@ Raw `ha-nova relay ws` sends only the types on `cli/relay_raw_allow.go` (raw `re
 | WS | `config_entries/disable` | Disable (`disabled_by: "user"`) or enable (`null`) an entry; integration-setup, raw plan; an entry with a lock, alarm panel, or access cover is refused |
 | WS | `config_entries/update` | Entry `title`, `pref_disable_polling`, `pref_disable_new_entities`; integration-setup. Polling changes reload loaded entries and use the enable/disable access-target refusal |
 | WS | `config_entries/ignore_flow` | Ignore a discovered flow (`flow_id`, `title`; the flow needs a `unique_id`); integration-setup |
+| WS | `config_entries/subentries/list` | List one entry's subentries (`entry_id`); integration-setup |
+| WS | `config_entries/subentries/update` | Rename a subentry (`entry_id`, `subentry_id`, `title`); preview raw plan |
+| WS | `config_entries/subentries/delete` | Delete a subentry (`entry_id`, `subentry_id`) and its owned devices/entities; typed raw plan; an access-capable parent entry is refused |
 | `/core` | `GET /api/config/config_entries/flow_handlers` | List available config-flow handlers |
 | `/core` | `POST /api/config/config_entries/flow` | Start flow |
 | `/core` | `GET /api/config/config_entries/flow/{flow_id}` | Read current flow step |
@@ -108,11 +111,15 @@ Raw `ha-nova relay ws` sends only the types on `cli/relay_raw_allow.go` (raw `re
 | `/core` | `GET /api/config/config_entries/options/flow/{flow_id}` | Read current options-flow step |
 | `/core` | `POST /api/config/config_entries/options/flow/{flow_id}` | Submit options-flow step |
 | `/core` | `DELETE /api/config/config_entries/options/flow/{flow_id}` | Cancel an unfinished options flow |
-| `/core` | `DELETE /api/config/config_entries/entry/{entry_id}` | Delete config entry |
+| `/core` | `POST /api/config/config_entries/subentries/flow` | Start add (`handler: [entry_id, subentry_type]`) or reconfigure (also `subentry_id`); preview raw plan; an access-capable parent entry is refused |
+| `/core` | `GET /api/config/config_entries/subentries/flow/{flow_id}` | Continue subentry flow; plan-only, can finish it |
+| `/core` | `POST /api/config/config_entries/subentries/flow/{flow_id}` | Submit live subentry step; preview, typed if removing configuration |
+| `/core` | `DELETE /api/config/config_entries/subentries/flow/{flow_id}` | Cancel an unfinished subentry flow; preview |
+| `/core` | `DELETE /api/config/config_entries/entry/{entry_id}` | Delete config entry; integration-setup, typed raw plan with owned device/entity counts and consumers |
 
 Observed locally on a real HA instance on 2026-03-19: raw WS `config_entries/flow` did not succeed in this session; relay `/core` returned the expected config-flow responses.
 
-**Integration flow ownership:** `ha-nova:integration-setup` owns integration add, pending `reauth` continuation, invalid-credential recovery when no reauth flow is pending, options and reconfigure flows for existing entries, config-entry reload, enable/disable, rename and system options, and ignoring a discovery; it uses the live response schema and hands secrets/external steps to the HA UI.
+**Integration flow ownership:** `ha-nova:integration-setup` owns integration add/remove, subentries, pending `reauth` continuation, invalid-credential recovery when no reauth flow is pending, options and reconfigure flows for existing entries, config-entry reload, enable/disable, rename and system options, and ignoring a discovery; it uses the live response schema and hands secrets/external steps to the HA UI.
 
 **Helper-owned config-entry domains:** utility_meter, derivative, integration, min_max, threshold, tod, statistics, group, history_stats, template, generic_thermostat, switch_as_x, trend, random, filter, generic_hygrostat
 `group` is menu-driven; the live-proven end-to-end subtype is `sensor`, and other subtypes must stay anchored to the live step schema instead of guessed fields.
@@ -169,6 +176,7 @@ Recurring instances add `recurrence_id`; `recurrence_range` is `""` for only tha
 |---------|-----|
 | `webhook/list` | Registered webhook IDs plus domain/name, locality, and allowed methods (secret-bearing) — raw refused |
 | `repairs/list_issues` | Repairs/Deprecation Issues |
+| `frontend/get_translations` | Read repair descriptions: `language: "en"`, `category: "issues"`, `integration: [domain]`; resources under `.data.resources` |
 | `repairs/ignore_issue` | Ignore or un-ignore one issue (`domain`, `issue_id`, `ignore`); health, raw plan |
 | `config_entries/get` | Config-entry metadata; health uses not-loaded entries as integration status |
 | `system_health/info` | System health finite event response (Skill opts into Relay `collect_events` until `finish`) |
@@ -177,10 +185,19 @@ Recurring instances add `recurrence_id`; `recurrence_range` is `""` for only tha
 | `subscribe_trigger` | Trigger subscription — same envelope-only rule |
 | `render_template` | Streaming render — rejected bare by the Relay; use `POST /api/template` instead |
 | `blueprint/list` | List blueprints |
-| `blueprint/import` | Import blueprint |
-| `blueprint/save` | Save a blueprint (used by `ha-nova:fallback`) |
-| `blueprint/substitute` | Expand a blueprint config (used by `ha-nova:fallback`) |
-| `blueprint/delete` | Delete a blueprint (`domain`, `path`); Home Assistant refuses one in use; fallback, typed raw plan |
+| `blueprint/import` | Fetch and preview a URL; write owns it, preview raw plan (no save) |
+| `blueprint/save` | Save a new blueprint (`domain`, `path`, `yaml`, optional `source_url`); write, preview raw plan; override refused |
+| `blueprint/substitute` | Expand a blueprint (`domain`, `path`, `input`) read-only; write reviews the expansion before normal automation/script planning |
+| `blueprint/delete` | Delete a blueprint (`domain`, `path`); Home Assistant refuses one in use; write, typed raw plan |
+
+**Repairs fix flows:** health owns `POST /api/repairs/issues/fix` with
+`handler: <issue domain>, issue_id`, then `POST /api/repairs/issues/fix/{flow_id}`
+with the live form body. Preview each step; the existing raw-item `typed: true`
+raises deletion/removal repairs, identified from the issue domain/translation
+and live description because HA declares no deletion flag. The by-id GET can
+advance/finish a flow, so it is plan-only too. DELETE the by-id path cancels
+an unfinished agent-owned flow at preview tier. Unknown outcomes are reconciled
+against the issue and actual affected resources, never retried blindly.
 
 ## Filesystem (via the Relay's opt-in `/files` endpoint)
 

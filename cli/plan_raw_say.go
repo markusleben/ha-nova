@@ -128,6 +128,13 @@ func rawItemLine(n *rawNamer, endpoint string, payload map[string]any) (verb, ob
 	case wsType == "config_entries/ignore_flow":
 		title, _ := payload["title"].(string)
 		return "Ignore", "the discovered integration " + sayText(title, true)
+	case wsType == "config_entries/subentries/update" || wsType == "config_entries/subentries/delete":
+		name := n.named(map[string]any{"type": "config_entries/subentries/list", "entry_id": payload["entry_id"]}, payload["subentry_id"], []string{"subentry_id"}, []string{"title"})
+		line := "the subentry " + name + " of the integration " + n.entry(payload["entry_id"])
+		if wsType == "config_entries/subentries/delete" {
+			return "Delete", line + " and its devices and entities"
+		}
+		return "Rename", line + n.fields(map[string]any{"title": payload["title"]}, "")
 	case wsType == "config/auth/update":
 		line := "the Home Assistant account" + n.targets(map[string]any{"user_id": payload["user_id"]})
 		if groups, set := payload["group_ids"].([]any); set {
@@ -175,6 +182,8 @@ func rawCoreLine(n *rawNamer, payload map[string]any) (verb, object string) {
 		return "Render", "a template (this changes nothing)"
 	case target == "/api/config/core/check_config":
 		return "Check", "the configuration (this changes nothing)"
+	case method == http.MethodDelete && strings.HasPrefix(target, "/api/repairs/issues/fix/"):
+		return "Cancel", "the unfinished repair"
 	case method == http.MethodDelete && flow:
 		return "Cancel", "the unfinished setup"
 	case method == http.MethodDelete && rawEntryDeletePath.MatchString(target):
@@ -186,6 +195,21 @@ func rawCoreLine(n *rawNamer, payload map[string]any) (verb, object string) {
 			return "Delete", "the scene " + n.scene(id)
 		}
 		return "Save", "the scene " + sayText(firstNonEmpty(name, id), true) + " (saving never activates it)"
+	case target == "/api/repairs/issues/fix":
+		return "Start", "fixing the repair " + sayText(fmt.Sprint(body["handler"]), true) + " / " + sayText(fmt.Sprint(body["issue_id"]), true)
+	case strings.HasPrefix(target, "/api/repairs/issues/fix/"):
+		return "Submit", "the next step of the repair in progress" + flowFields(body)
+	case strings.HasSuffix(target, "/subentries/flow"):
+		handler, _ := body["handler"].([]any)
+		if len(handler) == 2 {
+			if body["subentry_id"] != nil {
+				name := n.named(map[string]any{"type": "config_entries/subentries/list", "entry_id": handler[0]}, body["subentry_id"], []string{"subentry_id"}, []string{"title"})
+				return "Reconfigure", "the subentry " + name + " of the integration " + n.entry(handler[0])
+			}
+			return "Add", "a subentry of the integration " + n.entry(handler[0]) + flowFields(map[string]any{"subentry_type": handler[1]})
+		}
+	case strings.Contains(target, "/subentries/flow/"):
+		return "Submit", "the next step of the integration subentry in progress" + flowFields(body)
 	case strings.HasSuffix(target, "/options/flow"):
 		return "Open", "the options of the integration " + n.entry(body["handler"])
 	case strings.HasSuffix(target, "/flow") && body["entry_id"] != nil:

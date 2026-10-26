@@ -63,7 +63,7 @@ describe("integration setup skill contract", () => {
 
   it("wires dispatch, fallback ownership, and architecture", () => {
     expect(context).toContain(
-      "| add, enable/disable, rename an integration, ignore a discovery, change options, reconfigure, reload, continue reauthentication or recover invalid credentials without a pending flow | `ha-nova:integration-setup` |",
+      "| add/remove, enable/disable, rename an integration, manage subentries, ignore discovery, change options, reconfigure, reload, reauthenticate or recover invalid credentials | `ha-nova:integration-setup` |",
     );
     expect(context).toContain('"Add the Hue integration"** → `ha-nova:integration-setup`');
     expect(fallback).toContain(

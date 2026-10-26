@@ -5,27 +5,6 @@ Split out of `../fallback/SKILL.md` to keep that file under the repo's
 skill owns yet; the fallback Flow sends `Relay-Ready` rows here.
 
 
-### Blueprints -- RELAY-READY
-
-List, import, and delete automation/script blueprints.
-
-**Search:** `home assistant blueprint import automation api 2026`
-
-**Experimental relay calls (no skill guardrails):**
-```text
-ha-nova relay ws --data-file <payload-file>
-
-# payload examples (verify current schema via web search first):
-# {"type":"blueprint/list","domain":"automation"}
-# {"type":"blueprint/import","url":"https://community.home-assistant.io/t/..."}   (fetches + previews, does not save)
-# {"type":"blueprint/save","domain":"automation","path":"<folder/name.yaml>","yaml":"<blueprint yaml>"}
-# {"type":"blueprint/substitute","domain":"automation","path":"<folder/name.yaml>","input":{...}}   (read-only: expands the blueprint with the given inputs)
-```
-
-**Delete:** `{"type":"blueprint/delete","domain":"automation","path":"<folder/name.yaml>"}` through `ha-nova plan raw --file <requests.json>` (typed), then `ha-nova apply`. First name its users: `search/related` with `item_type` `automation_blueprint` or `script_blueprint` and the path as `item_id`; Home Assistant refuses a blueprint in use, so offer to re-point or delete those (`ha-nova:write`) first. No undo: offer `ha-nova:backup`.
-
-**Risks:** Imported blueprints execute when instantiated. Review blueprint source before import. Instantiating a blueprint into an automation (`use_blueprint`) is a normal automation create — hand off to `ha-nova:write`.
-
 ### Zigbee / Z-Wave Network Status -- RELAY-READY
 
 Read-only network observability for ZHA and Z-Wave JS setups: which devices
@@ -129,60 +108,6 @@ after a retry.
 **Risks:** The window blocks for its full `timeout_ms` when nothing arrives —
 say the duration before starting it. `ha-nova:mqtt` owns MQTT topics; this is
 for Home Assistant's own event bus.
-
-### Integration Entry Lifecycle -- RELAY-READY
-
-Remove for an existing config entry — that one only.
-`ha-nova:integration-setup` owns ADDING an integration, continuing a
-pending `reauth`, options and reconfigure flows, and every entry reload
-(credential recovery included), enable/disable, rename, and ignoring a
-discovery.
-
-**Search:** `home assistant config entry delete api 2026`
-
-**Experimental relay calls (no skill guardrails):**
-```text
-ha-nova relay core --method DELETE --path /api/config/config_entries/entry/<entry_id>
-```
-
-**Risks:** Remove
-deletes every device and
-entity that entry owns and is not undoable — preview the counts before asking,
-and take the one-time code. `search/related` needs a concrete item
-type and id, so the config entry id alone does not query it: read the entry's
-own devices and entities first with WS `{"type":"config/entity_registry/list"}`
-and `{"type":"config/device_registry/list"}`. The two registries express
-ownership differently and mixing them up undercounts: an ENTITY row carries a
-singular `config_entry_id`; on Home Assistant 2026.8+ a DEVICE row does too
-(2026.9 child rows carry only the singular field — `../ha-nova/membership-resolution.md`
-→ Device rows). Older rows and compatibility responses may expose a `config_entries` array —
-match on membership there when the singular field is absent. Count every
-matched device as deleted in the safety preview: removing its owning entry
-removes the device on 2026.8+, and an older shared device that survives is an
-outcome to report after verification, not a reason to understate the preview.
-The compact `list_for_display` cannot answer this — its
-rows carry no `config_entry_id`, so it is the wrong read for an ownership
-question however much cheaper it is. It does carry more than the three keys
-this once claimed (`pl` among them), which is why the actuation gate can read
-a platform from it — do not use this sentence as an argument that it cannot. Then scan what depends on them BEFORE asking, not on request: run
-`search/related` per DEVICE **and** per ENTITY. Neither covers the other — a
-device-level scan does not reach its child entities' consumers, and an
-automation can reference a `device_id` directly, which no entity scan sees
-(`../organize/SKILL.md`). An entry id is not a related-item type at all,
-so there is no shortcut: the automations, scripts and scenes that break are
-the point of the preview.
-
-Event-trigger consumers are part of this too: an automation listening for
-`zha_event` from a device this entry owns is not reachable through
-`search/related` on that device. When the entry provides input devices, scan
-the stored automations for their identifiers as well — the preflight treats
-event listeners as their own family for exactly this reason.
-
-And say what the scan cannot see. `search/related` does not index dashboards
-(storage or YAML) or template references, so a removed entity can still be
-named on a card or inside a template with nothing reporting it. Report the
-found consumers AND that unindexed list before the typed confirmation — the
-user is deciding with what you found, and needs to know its edges.
 
 ### Assist Custom Sentences -- RELAY-READY
 

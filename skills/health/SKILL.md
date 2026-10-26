@@ -1,6 +1,6 @@
 ---
 name: health
-description: Use when checking Home Assistant home status, repairs, system health, unavailable/unknown entities, low batteries, or component/config summaries through HA NOVA Relay.
+description: Use when checking Home Assistant home status, ignoring or fixing repairs, system health, unavailable/unknown entities, low batteries, or component/config summaries through HA NOVA Relay.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -9,7 +9,7 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 ## Scope
 
-Home status checks; ignoring a repair is the only write:
+Home status checks, repair ignore/un-ignore and fix flows:
 - repairs/deprecation issues
 - integration entries that are not loaded
 - config and loaded component summary
@@ -18,7 +18,6 @@ Home status checks; ignoring a repair is the only write:
 - best-effort system health info
 
 Not in scope:
-- repair fix flows
 - statistics repair, purge, registry cleanup (`ha-nova:maintenance`)
 - restart, reload, update, backup, or service calls
 - YAML/filesystem diagnostics
@@ -67,22 +66,20 @@ For WS payloads:
 
 ## Data Shapes
 
-Envelope parsing follows `../ha-nova/relay-api.md` → Standard Envelope. Normalize each saved relay result separately before summarizing:
+Normalize each saved relay result separately before summarizing (`../ha-nova/relay-api.md` → Standard Envelope):
 - REST `/api/config`, `/api/components`, `/api/states`: use `.data.body`
 - WS `repairs/list_issues`: use `.data.issues`
 - WS `config_entries/get`: use `.data` as an array
-- WS `config/entity_registry/list`: use `.data` as an array
-- WS `config/device_registry/list`: use `.data` as an array
-- WS `config/area_registry/list`: use `.data` as an array; use only `area_id` and `name`
+- entity/device/area registries: `.data` arrays; area fields only `area_id`, `name`
 - WS `system_health/info`: use `.data.events` as an array; event kind is `.type`
+
+Normalize each source separately: REST, WS lists, repairs, and system-health events have different envelopes. Combine only validated summaries.
 
 Private detail uses explicit, minimal source fields — never more:
 - state rows: `entity_id`, `state`, `last_changed`, `attributes.restored`, `attributes.friendly_name`, structured battery/SOC metadata
 - entity registry: `entity_id`, `config_entry_id`, `device_id`, `platform`, `name`, `original_name`, `area_id`
 - device registry: `id`, `name_by_user`, `name`, `area_id`, `parent_device_id`, `config_entry_id` — effective area is the row's own `area_id`, else the parent's (`../ha-nova/membership-resolution.md` → Device rows)
 - config entries: existing state/domain fields plus `title`, sanitized before display
-
-Normalize each source separately: REST, WS lists, repairs, and system-health events have different envelopes. Combine only validated summaries.
 
 Before accepting a source, require `ok:true`, a 2xx REST `data.status`, and valid types for every required row field. If a shape differs, mark that source unavailable and continue. Do not show parser or `jq` errors; mention only the affected source in coverage.
 
@@ -95,11 +92,7 @@ System Health event payloads are mixed-shape. For events from `.data.events[]`:
 - scalar `.data` values such as strings, numbers, booleans, or null are informational only; do not count them as failed checks and do not let them break jq filters
 - failed update detection must consider only `update` events whose event-level fields or object-shaped `.data` explicitly indicate failure
 
-Low-battery detection must be structured:
-- primary numeric detector: entities whose `attributes.device_class == "battery"` and numeric state is below 20
-- primary state detector: entities whose `attributes.device_class == "battery"` and state is `low`
-- do not use shell-escaped regex on `entity_id` for the main battery filter
-- name/entity text such as `battery` or `batterie` may be used only as secondary context after the structured detector, never as the main signal
+Low-battery detection must be structured: `attributes.device_class == "battery"`, numeric under 20 or state `low`; do not use shell-escaped regex on `entity_id` for the main battery filter. Names are secondary context, never as the main signal.
 
 ## Availability Analysis
 
@@ -121,12 +114,9 @@ display-name rules.
 9. Source coverage and reconciliation details
 10. One safest next step
 
-Each block: localized label, assessment BEFORE the table, optional action after.
-Tables compare facts; explanations, uncertainty, and instructions stay outside cells.
-A shown ID shares its name's cell. Single findings or wide rows use stacked records.
-Severity never depends on color alone:
-pair `🔴`/`🟠`/`🟡` with a plain-language title or status ("act", "check",
-"information").
+Each block: localized assessment BEFORE the table; explanations/instructions outside cells.
+IDs share names' cells; single/wide findings stack.
+Severity never depends on color alone: `🔴`/`🟠`/`🟡` pairs with plain-language status.
 
 ## Behavior
 
@@ -192,6 +182,12 @@ pair `🔴`/`🟠`/`🟡` with a plain-language title or status ("act", "check",
 
 Resolve `domain` and `issue_id` from `repairs/list_issues`. One WS item `{"type":"repairs/ignore_issue","domain":"<d>","issue_id":"<id>","ignore":true}` through `ha-nova plan raw --file <requests.json>`, then `ha-nova apply` per `next_step`; `false` shows it again. Ignoring hides, never fixes. Verify by re-reading its `ignored` flag.
 
+### Fix a Repair
+
+Resolve `domain`, `issue_id`, `is_fixable:true`. Follow `../ha-nova/live-schema-preflight.md` repair-description lookup: POST `{"handler":"<domain>","issue_id":"<id>"}` to `/api/repairs/issues/fix`; GET/POST at `/api/repairs/issues/fix/<flow_id>`. Each uses `plan raw` + `apply`, including GET/empty submits. Inspect domain/translation and live schema BEFORE start/EVERY step. Delete/remove: request `typed:true` onward; new destruction needs fresh typed confirmation. Unknown effects/boundaries: UI.
+
+Secrets/external/progress: hand off to **Settings > System > Repairs**, never collect secrets. Declared exception to the core delete rule above: cancel only this skill's unfinished flow (ephemeral DELETE on cancel/UI restart). `abort` is not success. After `create_entry`, re-read issue AND affected resource: absence proves dismissal, not remediation; missing effect evidence means unverified. Uncertainty/`next_flow`: shared preflight, never blind retries.
+
 ## Output Format
 
 Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. Use the Preview Card (`../ha-nova/output-cards.md`).
@@ -200,9 +196,7 @@ total/shown/omitted counts and a precise request for the full set — never a
 bare "N more".
 
 These names are semantic output slots, not literal headings. Do not mix English labels with localized prose unless the label is a Home Assistant state/value.
-Deterministic internal sorting happens before localization; localize every
-generic label, ordinal, classification, overall phrase, mode name, and next
-step at runtime. No installation-specific text is hard-coded:
+Sort before localization; localize labels, ordinals, classifications, overall phrases, modes, next steps. No hard-coded installation text:
 
 - `Status` (answer-first lead. Compute overall internally as `ok`, `attention`, or `limited`, but show the overall value as a localized human phrase, not the raw enum — plus active modes, checked time, and the one-sentence conclusion; all source coverage lives in `Coverage`, never here)
 - `Actions` (prioritized action summary)
@@ -239,6 +233,6 @@ does not separate candidates, break ties in this order:
 - Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
-- Never call repair fix flows or delete issue commands.
+- Never call delete issue commands.
 - Never restart/reload Home Assistant from this skill.
 - Never call update, backup, or service actions.

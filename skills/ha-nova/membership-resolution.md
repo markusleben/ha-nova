@@ -38,6 +38,10 @@ row the same way:
 - owning integration: the singular `config_entry_id` → `config_entries/get`
   → `domain`. Read the legacy `config_entries` array only when the singular
   field is absent (pre-2026.8 rows; scheduled for removal in 2027.8).
+- owning subentry: use singular `config_subentry_id` (null means none).
+  Only when absent, match membership in legacy
+  `config_entries_subentries[entry_id]`. Missing or malformed membership is
+  unknown, never empty; stop before a destructive preview with unresolved scope.
 - a child is its own device for entity-registry `device_id` joins; it never
   expands to its parent's or siblings' entities. A parent target reaches its
   direct children only, never grandchildren.

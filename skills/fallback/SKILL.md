@@ -1,6 +1,6 @@
 ---
 name: fallback
-description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, Apps, and Zigbee/Z-Wave.
+description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers Apps and Zigbee/Z-Wave.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -78,7 +78,7 @@ For every Relay-Ready call in this skill:
 | Category CRUD / Entity category assignment | Covered | organize |
 | Entity / Device metadata updates | Covered | organize |
 | Device replacement (re-point consumers), onboarding, retirement | Covered | device |
-| Blueprints | Relay-Ready | this skill |
+| Blueprints (import, save, instantiate, delete) | Covered | write |
 | Energy (analysis + source/device config) | Covered | energy |
 | Statistics repair / Purge / Entity registry remove | Covered | maintenance |
 | Device deletion (integration-supported, HA 2026.9+) | Covered | organize |
@@ -94,7 +94,7 @@ For every Relay-Ready call in this skill:
 | Zigbee / Z-Wave Config | External | -- (MQTT-level inspection of a Zigbee2MQTT setup: `mqtt`) |
 | Zigbee / Z-Wave network status (read-only device list / network reads) | Relay-Ready | this skill; Z2M bridge topics: `mqtt` |
 | Alarm / lock code management (lock user codes, alarm PINs) | External | -- (Home Assistant UI; codes never enter chat) |
-| Integration entry lifecycle (remove) | Relay-Ready | this skill; reload (credential recovery included): `integration-setup` |
+| Integration entry lifecycle (remove, reload, subentry add/reconfigure/rename/delete) | Covered | integration-setup |
 | Integration entry options / reconfigure (standard config-entry flows) | Covered | integration-setup |
 | Integration entry enable/disable, rename, system options, ignoring a discovery | Covered | integration-setup |
 | Matter / Thread status (border router, datasets, node diagnostics) | Relay-Ready | this skill |
@@ -127,7 +127,7 @@ permissive matching row (External over Relay-Ready).
 3. If "Relay-Ready":
    a. FIRST: Search web using the provided Search query — understand current payload schema before any call
    b. Show experimental relay call examples informed by search results
-   c. If the endpoint matches a row in Write Safety by Endpoint Type (below), classify it BEFORE drafting — a full-document endpoint needs a read-merge-verify payload, not a partial one. Endpoints the table does not cover split by where their schema comes from. A response-driven config-entry flow carries its own: submit exactly the fields the LIVE response named for that step, one step at a time, and never the fields the research step suggested — research is how you understand the flow, the response is what you answer. They diverge by domain and by Home Assistant version, and a stale field set fails the step or writes the wrong config. For the rest (`blueprint/save`, resource replacement) the research schema is the only one available; say so. Then preview the full payload; never guess fields
+   c. If the endpoint matches a row in Write Safety by Endpoint Type (below), classify it BEFORE drafting: full-document writes need read-merge-verify, never partial payloads. Endpoints the table does not cover split by where their schema comes from. For response-driven flows, submit exactly the fields the LIVE response named, never the fields the research step suggested — research is how you understand the flow, the response is what you answer. Standard config-entry flows belong to `integration-setup` or `helper`, blueprints to `write`. Other writes require a researched current schema and full-payload preview; never guess fields.
    d. Execute only after user confirms that exact preview (see context skill → Active Preview Confirmation)
 4. If "Roadmap":
    a. Explain which phase and what blocks it

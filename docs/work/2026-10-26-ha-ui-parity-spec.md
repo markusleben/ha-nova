@@ -18,10 +18,10 @@ Goal (maintainer, 2026-10-26): everything the Home Assistant web UI can do, HA N
 | HA UI | HA NOVA today | Status |
 |---|---|---|
 | Integration: add, options, reconfigure, reauth, reload | `integration-setup`; flows raw (`cli/relay_raw_allow.go:20-22`), reload via `ha-nova call homeassistant.reload_config_entry` | covered |
-| Integration: remove | `fallback` Relay-Ready, raw `DELETE …/entry/{id}` (`cli/relay_raw_allow.go:23`, `skills/fallback/relay-ready.md:165`) | partial (no owning skill; the code gate is skill text, the typed tier comes from `plan raw`) |
+| Integration: remove | `integration-setup`, typed raw `DELETE …/entry/{id}` with owned devices/entities and consumer preview | covered (0.30) |
 | Integration: enable/disable (WS `config_entries/disable`, [config_entries.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/config_entries.ts)) | `integration-setup` → Enable, Disable, Rename, Ignore (raw plan; an entry with a lock, alarm panel, or access cover is refused) | covered (0.29) |
 | Integration: rename, system options (polling, new entities) (WS `config_entries/update`) | `integration-setup` | covered (0.29) |
-| Integration: subentries add/edit/delete (WS `config_entries/subentries/*`, REST `…/subentries/flow`) | `integration-setup` excludes them | missing |
+| Integration: subentries add/edit/delete (WS `config_entries/subentries/*`, REST `…/subentries/flow`) | `integration-setup`, existing live-schema loop; deletes typed, edits previewed | covered (0.30) |
 | Integration: ignore a discovered one (WS `config_entries/ignore_flow`) | `integration-setup` | covered (0.29) |
 | Integration: download diagnostics, logs | `diagnose` (`/api/diagnostics/…`, `system_log/list`) | covered |
 | Device: rename, area, labels, disable | `organize` (`config/device_registry/update`, `cli/relay_raw_allow.go:72`) | covered |
@@ -39,8 +39,8 @@ Goal (maintainer, 2026-10-26): everything the Home Assistant web UI can do, HA N
 | HA UI | HA NOVA today | Status |
 |---|---|---|
 | Create, edit, delete, duplicate, enable, disable, run; traces; "Triggered by" (2026.10) | `write`, `read`, `service-call`, `ha-nova trace`, `diagnose` | covered |
-| Blueprints: import, save, instantiate | `fallback` Relay-Ready (`skills/fallback/relay-ready.md:8`) plus `write` | partial (no owning skill) |
-| Blueprints: delete (WS `blueprint/delete`, [blueprint.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/blueprint.ts)) | `fallback` Relay-Ready, typed raw plan | covered (0.29) |
+| Blueprints: import, save, instantiate | `write`, preview raw import/save and ordinary automation/script planning | covered (0.30) |
+| Blueprints: delete (WS `blueprint/delete`, [blueprint.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/blueprint.ts)) | `write`, typed raw plan | covered (0.29; owner promoted 0.30) |
 | Scenes (storage), scene editor apply | `scene`, `service-call` | covered |
 
 ### Settings → System
@@ -55,7 +55,7 @@ Goal (maintainer, 2026-10-26): everything the Home Assistant web UI can do, HA N
 | Backups: automatic settings (WS `backup/config/update`, [backup.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/backup.ts)), download | `skills/backup/SKILL.md:20` "HA UI" | external — schedule and retention: reason no longer holds (a storage write like energy prefs); the encryption key stays out |
 | Logs (`system_log/list`, `logger.set_level`) | `diagnose` | covered; `/api/error_log` partial (404 on HA OS, matrix note) |
 | Repairs: list | `health` | covered |
-| Repairs: ignore (WS `repairs/ignore_issue`), fix flows (REST `POST /api/repairs/issues/fix`, [repairs.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/repairs.ts)) | ignore: `health`; fix flows: nothing | partial (0.29: ignore covered; fix flows 0.30) |
+| Repairs: ignore (WS `repairs/ignore_issue`), fix flows (REST `POST /api/repairs/issues/fix`, [repairs.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/repairs.ts)) | `health`, live-schema fix steps previewed; deletion/removal repairs typed | covered (0.29 ignore; 0.30 fix) |
 | Updates: install, skip, release notes | `updates` | covered; auto-update is an App option → Supervisor row |
 | Analytics (WS `analytics/preferences`) | nothing | missing (low value) |
 | AI page (2026.10: MCP server card; WS `ai_task/preferences/set`) | `integration-setup` adds the integration | partial |
@@ -98,14 +98,14 @@ Every row fits "Relay stays dumb, Skills stay smart" unless marked ★ (a Relay 
 |---|---|---|---|---|
 | Integration enable/disable | WS `config_entries/disable` | preview; refused when the entry owns a lock, alarm panel, or access cover | S | covered (0.29): allowlist + `integration-setup`; External row removed |
 | Integration rename, system options | WS `config_entries/update` | preview | S | covered (0.29): allowlist + `integration-setup` |
-| Integration remove, owned | existing raw DELETE | typed | S | move the text from `relay-ready.md` into `integration-setup`; no CLI change |
-| Subentries | WS `config_entries/subentries/*`, REST `…/subentries/flow` | preview | M | the live-schema flow of options; three allowlist types, two paths |
+| Integration remove, owned | existing raw DELETE | typed | S | covered (0.30): `integration-setup`, counts and consumers before confirmation |
+| Subentries | WS `config_entries/subentries/*`, REST `…/subentries/flow` | preview; delete typed | M | covered (0.30): existing live-schema loop, three WS types, start/step/cancel paths |
 | Ignore discovery | WS `config_entries/ignore_flow` | preview | S | covered (0.29): allowlist + `integration-setup` |
 | User update | WS `config/auth/update` | typed for access fields | S | covered (0.29): allowlist + `admin`; live owner/system/Relay-account guards |
 | System General | WS `config/core/update`, `config/core/detect` (read) | preview; typed for time zone and units (they break statistics) | S | covered (0.29): allowlist + `admin` (the home zone lives there) |
 | Repairs ignore | WS `repairs/ignore_issue` | preview | S | covered (0.29): allowlist + `health` (its only write) |
-| Repairs fix flows | REST `POST /api/repairs/issues/fix`, `…/fix/{flow_id}` | preview; typed when a flow deletes | M | reuse `integration-setup`'s flow stepping; two allowlist paths |
-| Blueprint delete and owner | WS `blueprint/delete` | typed (consumers via `search/related`) | S / M | delete covered (0.29) in `fallback/relay-ready.md`; full ownership promotion remains 0.30 |
+| Repairs fix flows | REST `POST /api/repairs/issues/fix`, `…/fix/{flow_id}` | preview; typed when a flow deletes | M | covered (0.30): health reuses live-schema stepping; start/step/cancel, by-id GET plan-only |
+| Blueprint delete and owner | WS `blueprint/delete` | typed (consumers via `search/related`) | S / M | covered (0.30): write owns import/save/instantiate/delete |
 | Expose new entities; pipeline debug | WS `homeassistant/expose_new_entities/set`; `assist_pipeline/pipeline_debug/*` (reads) | preview for exposure; debug reads | S | covered (0.29): allowlist + `assist`, `diagnose` |
 | Labs | WS `labs/update` | typed (experimental features) | S | allowlist + context skill |
 | Backup automatic settings | WS `backup/config/update` | preview; a password field is refused by the guard | S | allowlist with a field guard like the resource-URL one (`cli/relay_raw_allow.go:75`) + `backup` |
@@ -127,7 +127,7 @@ Worth adding: bulk registry edits with one preview (rename 40 entities); a plain
 ## 4. Order
 
 1. **0.29 — allowlist batch (all S, one PR; covered):** integration enable/disable, rename and system options, ignore discovery; user update; repairs ignore; expose new entities; pipeline debug reads; blueprint delete; the four helper families; System General. Highest daily value, no machinery.
-2. **0.30 — flows (M):** repairs fix flows, subentries, integration remove and blueprints owned by a skill. Reuses the live-schema flow.
+2. **0.30 — flows (M; covered):** repairs fix flows, subentries, integration remove and blueprints owned by a skill. Reuses the live-schema flow.
 3. **0.31 — system (M → L):** Supervisor verified on the test bed first, then Apps, network, storage, host logs; backup settings; labs; statistics import.
 4. **Later, spec first:** media and image upload (Relay change); a Supervisor role change if the WS path fails.
 
@@ -185,3 +185,56 @@ so ignore/un-ignore was skipped. Core saves moved `config_source` from `yaml` to
 The owned test bed was taken down afterwards. No live home or native credential
 tests ran. Existing Go tier coverage now exercises every allowlisted write through
 both CLI and chat planning; no new Vitest files or budget increases.
+
+## Batch 2 source verification (2026-10-26)
+
+All four requested items exist; none dropped. Current dev revisions checked:
+Core `54a29725d9ef2b2e000aa34775b49af5ecc3af3e`, frontend
+`2e5aae8932324e5ad5b92d279ac3d6dbf3f0fbe1`. No new verb, Relay behavior,
+or flow abstraction: existing raw allowlist, `plan raw`, tier table, and
+live-schema stepping only. DELETE cancellation is included because the UI
+cancels transient repair and subentry flows too; it remains preview-tier.
+
+| Item | Pinned source and verified contract |
+|---|---|
+| Repair fix | Core [repairs/websocket_api.py](https://github.com/home-assistant/core/blob/54a29725d9ef2b2e000aa34775b49af5ecc3af3e/homeassistant/components/repairs/websocket_api.py) and frontend [repairs.ts](https://github.com/home-assistant/frontend/blob/2e5aae8932324e5ad5b92d279ac3d6dbf3f0fbe1/src/data/repairs.ts): POST start uses `handler: <domain>`, `issue_id`; by-id GET/POST continue; DELETE cancels. Core [issue_handler.py](https://github.com/home-assistant/core/blob/54a29725d9ef2b2e000aa34775b49af5ecc3af3e/homeassistant/components/repairs/issue_handler.py) delegates to integration-specific repair code; there is no deletion-result flag. Health inspects issue domain/translation and live descriptions for delete/remove and raises existing raw-item `typed: true`, including starts and continuation GETs. This is a skill decision, not a new CLI semantic classifier. |
+| Subentries | Core [config/config_entries.py](https://github.com/home-assistant/core/blob/54a29725d9ef2b2e000aa34775b49af5ecc3af3e/homeassistant/components/config/config_entries.py) and frontend [config_entries.ts](https://github.com/home-assistant/frontend/blob/2e5aae8932324e5ad5b92d279ac3d6dbf3f0fbe1/src/data/config_entries.ts): list uses `entry_id`; update adds `subentry_id`, optional `title` only; delete uses both IDs. REST start uses `handler: [entry_id, subentry_type]`; optional `subentry_id` selects reconfigure. By-id GET/POST/DELETE reuse the common flow manager. The CLI reuses its existing entry access guard on subentry delete and flow start: any access-capable parent is refused conservatively, even when another subentry is selected. |
+| Integration remove | The same Core [config/config_entries.py](https://github.com/home-assistant/core/blob/54a29725d9ef2b2e000aa34775b49af5ecc3af3e/homeassistant/components/config/config_entries.py) and frontend [config_entries.ts](https://github.com/home-assistant/frontend/blob/2e5aae8932324e5ad5b92d279ac3d6dbf3f0fbe1/src/data/config_entries.ts): existing REST DELETE entry endpoint, now owned by integration-setup. Preview owned devices/entities, related consumers, event listeners, and unindexed references; typed, no undo. |
+| Blueprints | Core [blueprint/websocket_api.py](https://github.com/home-assistant/core/blob/54a29725d9ef2b2e000aa34775b49af5ecc3af3e/homeassistant/components/blueprint/websocket_api.py) and frontend [blueprint.ts](https://github.com/home-assistant/frontend/blob/2e5aae8932324e5ad5b92d279ac3d6dbf3f0fbe1/src/data/blueprint.ts): import fetches/previews; save accepts `domain`, `path`, `yaml`, optional `source_url`; substitute takes `domain`, `path`, `input`, returns `substituted_config`. Write owns all stages, reviews expanded actions, then uses ordinary automation/script planning; the existing override refusal remains. Delete stays typed with consumer checks. |
+
+Repair descriptions use the UI's existing translation read, now allowlisted:
+Core [frontend/__init__.py](https://github.com/home-assistant/core/blob/54a29725d9ef2b2e000aa34775b49af5ecc3af3e/homeassistant/components/frontend/__init__.py)
+defines `frontend/get_translations` with `language`, `category`, `integration`;
+frontend [translation.ts](https://github.com/home-assistant/frontend/blob/2e5aae8932324e5ad5b92d279ac3d6dbf3f0fbe1/src/data/translation.ts)
+reads its `resources`. The [repair dialog](https://github.com/home-assistant/frontend/blob/2e5aae8932324e5ad5b92d279ac3d6dbf3f0fbe1/src/dialogs/repairs-flow/show-dialog-repair-flow.ts)
+loads category `issues` and resolves
+`component.<domain>.issues.<translation_key-or-issue_id>.fix_flow.step.<step_id>.description`,
+overlaying step placeholders onto issue placeholders. Missing descriptions
+remain a UI handoff, not proof of a harmless empty form.
+Review hardening rejects non-array subentry handlers before forwarding: Core's
+tuple coercion also accepts object keys, which must not bypass the parent
+guard. Reconfigure previews name the selected subentry, not just its parent.
+Device ownership normalization also handles legacy
+`config_entries_subentries[entry_id]` only when the singular field is absent;
+null singular ownership is authoritative. Pinned Core
+[device_registry.py](https://github.com/home-assistant/core/blob/54a29725d9ef2b2e000aa34775b49af5ecc3af3e/homeassistant/helpers/device_registry.py)
+retains this compatibility mapping. Unresolved scope blocks destructive previews.
+The tier table covers every new read/write through CLI/chat planning; dedicated
+regressions cover the coercion bypass, translated repair reads, and target names.
+No new test file or budget increase was needed.
+
+Disposable test-bed agent run: HA 2026.10.1 / Relay 0.12.0. An isolated
+MQTT sensor subentry fixture was prepared through Core's live forms, then
+the agent read the owning skill, listed it, planned its title-only update
+at preview tier, applied it, and independently verified the same subentry id
+and renamed title. No unrelated subentries existed, so their preservation
+was not exercised. The agent then scanned Sun's one device and nine entities
+(all ten related queries valid; no automation/script/scene consumers),
+previewed the unindexed-reference limits, and removed Sun through a typed raw
+plan. Readback proved the entry, device, and nine entities absent;
+117 unrelated entity rows, 68 device rows, and nine entries survived unchanged.
+Both applies returned exit 0; no restart required. Repairs were empty, so
+the repair-fix live run was skipped. Flow navigation and blueprint lifecycle
+were source/contract-tested, not exercised end to end. The owned bed was
+taken down; no live home, pairing, setup, uninstall, Cloud, or native-keychain
+tests ran. Skill word/route budgets remain unchanged.

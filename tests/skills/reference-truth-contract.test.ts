@@ -81,12 +81,12 @@ describe("fallback capability map is complete and truthful (#516)", () => {
   });
 
   it("warns that removing a config entry takes its devices with it", () => {
-    const f = flat(fallback);
-    expect(f).toContain("### Integration Entry Lifecycle -- RELAY-READY");
+    const f = flat(read("skills/integration-setup/SKILL.md"));
+    expect(f).toContain("### Removal");
     expect(f).toContain(
-      "deletes every device and entity that entry owns and is not undoable",
+      "Preview all affected counts, interruption, and no auto-undo",
     );
-    expect(f).toContain("take the one-time code");
+    expect(f).toContain("typed raw DELETE");
   });
 });
 
@@ -214,15 +214,13 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
 
   it("advertises only the lifecycle operations it documents mechanics for", () => {
     const fallbackAll = flat(read("skills/fallback/SKILL.md") + read("skills/fallback/relay-ready.md"));
-    // A Relay-Ready row is a promise that this skill can perform it. Enable/
-    // disable has no documented mechanics, so it stays External. Options,
-    // reconfigure, and reload moved to integration-setup (#520 C1-04,
-    // 2026-08-20); remove is the one lifecycle operation left here.
-    expect(fallbackAll).toContain("Integration entry lifecycle (remove)");
+    const setup = flat(read("skills/integration-setup/SKILL.md"));
+    const membership = flat(read("skills/ha-nova/membership-resolution.md"));
+    expect(fallbackAll).toContain("Integration entry lifecycle (remove, reload, subentry add/reconfigure/rename/delete) | Covered | integration-setup");
     expect(fallbackAll).toContain("Integration entry options / reconfigure (standard config-entry flows) | Covered | integration-setup");
     expect(fallbackAll).toContain("Integration entry enable/disable, rename, system options, ignoring a discovery | Covered | integration-setup");
     // The section behind the row must claim the same scope as the row.
-    expect(fallbackAll).toContain("Remove for an existing config entry — that one only");
+    expect(setup).toContain("Entry removal: typed raw DELETE");
     // Every Relay-Ready row needs a section behind it, event capture included.
     expect(fallbackAll).toContain("Bounded Event Capture -- RELAY-READY");
     expect(fallbackAll).toContain("do not invent a bare subscription");
@@ -232,17 +230,17 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     expect(fallbackAll).toContain("capped at **10000**");
     // An entry id is not a search/related item type — the counts come from
     // the registries, filtered on config_entry_id.
-    expect(fallbackAll).toContain("An entry id is not a related-item type at all");
+    expect(setup).toContain("Run `search/related` for EACH owned device AND entity");
     // Current rows carry singular config_entry_id; compatibility responses
     // may retain the old array, which still needs membership matching.
-    expect(fallbackAll).toContain("a DEVICE row does too");
-    expect(fallbackAll).toContain("match on membership there when the singular field is absent");
+    expect(setup).toContain("membership-resolution.md");
+    expect(membership).toContain("config_entry_id");
     // A device-level search/related misses its child entities' consumers.
-    expect(fallbackAll).toContain("per DEVICE **and** per ENTITY");
-    expect(fallbackAll).toContain("Neither covers the other");
-    expect(fallbackAll).toContain("does not index dashboards");
+    expect(setup).toContain("EACH owned device AND entity");
+    expect(setup).toContain("validate successful object responses before claiming no consumers");
+    expect(setup).toContain("unindexed dashboard/template references");
     expect(fallbackAll).toContain("an unfiltered window turns the neighbour's motion sensor into");
-    expect(fallbackAll).toContain("Event-trigger consumers are part of this too");
+    expect(setup).toContain("stored automation event-listener scans");
     // A button's event type is per-integration.
     expect(fallbackAll).toContain("Resolve the event type from the button's own integration first");
     // An entity-less remote has no platform to read.
@@ -258,14 +256,14 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     // Naming the exception is not enough without the payload for it.
     expect(fallbackAll).toContain('"type": "subscribe_trigger"');
     expect(fallbackAll).toContain("puts the button in `attributes.event_type`");
-    expect(fallbackAll).toContain("Count every matched device as deleted");
-    expect(fallbackAll).toContain("which no entity scan sees");
+    expect(setup).toContain("Preview all affected counts");
+    expect(setup).toContain("EACH owned device AND entity");
     // Verified on the live instance: list_for_display rows are
     // ei/pl/lb/di/tk/ec/hn/en — no config_entry_id.
-    expect(fallbackAll).toContain('`{"type":"config/entity_registry/list"}`');
-    expect(fallbackAll).toContain("The compact `list_for_display` cannot answer this");
+    expect(setup).toContain("FULL entity/device registries");
+    expect(setup).toContain("never compact display rows");
     expect(fallbackAll).toContain("it is not evidence that events were missed");
-    expect(fallbackAll).toContain("enable/disable, rename, and ignoring a discovery");
+    expect(fallbackAll).toContain("enable/disable, rename, system options, ignoring a discovery");
     // get_states is not how any listed owner reads the compact registry.
     const row = read("docs/reference/ha-api-matrix.md")
       .split("\n")
