@@ -67,6 +67,7 @@
     "testbed:cli": "bash scripts/e2e/testbed/cli.sh",
     "testbed:down": "bash scripts/e2e/testbed/down.sh",
     "rc-lane": "node scripts/e2e/rc-lane.mjs",
+    "vm-lane": "node scripts/e2e/vm-lane/run.mjs",
     "test:desktop:macos": "bash scripts/dev/macos-private-rc-suite.sh",
     "test:desktop:linux:antigravity": "HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup antigravity' bash scripts/smoke/linux-headless-setup-check.sh",
     "test:desktop:windows:headless": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& { if (-not $env:HA_NOVA_BUNDLE_URL) { throw 'HA_NOVA_BUNDLE_URL is required' }; if (-not $env:HA_NOVA_BUNDLE_SHA256_URL) { throw 'HA_NOVA_BUNDLE_SHA256_URL is required' }; & './scripts/dev/windows-private-rc-install.ps1' -BundleUrl $env:HA_NOVA_BUNDLE_URL -BundleSha256Url $env:HA_NOVA_BUNDLE_SHA256_URL }\"",

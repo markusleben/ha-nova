@@ -34,6 +34,8 @@ For client-side release regression (public install of the last stable tag, setup
 
 For a release candidate, `npm run rc-lane -- <tag>` runs the client matrix, the test bed's phone lane (`TESTBED_PHONE=1 npm run testbed:verify`: push payloads per platform through fake phones), a headless chat-bridge check, and the slow-check regression in one go, with its own test bed. See `docs/releasing.md` §4.
 
+The Windows onboarding proof runs on the maintainer's throwaway UTM VMs: `npm run vm-lane -- <tag>` (`scripts/e2e/vm-lane/run.mjs`) drives the Win11 VM over SSH as fresh standard users against the HAOS VM, and the Ubuntu VM when it runs. Every `ha-nova` command runs inside a VM, never on the host.
+
 ## 3. Live against your own HA
 
 For maintainers with an HA instance, when you need to exercise the interactive setup wizard, the NOVA owner console, or the OPAQUE + TLS device pairing on real hardware. **Two hard rules:** deploy an *isolated* test App (never your production one), and run an *isolated* CLI (never your real config/keyring). Both are covered below.
