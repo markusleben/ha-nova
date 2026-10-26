@@ -117,7 +117,7 @@ describe("ha-nova contract", () => {
       '"Remove this entity from Home Assistant"** → `ha-nova:maintenance` (dead registry entries only; live entities get disabled via `ha-nova:organize`)',
     );
     expect(context).toContain(
-      '"Detach this config entry from the device"** → `ha-nova:fallback`',
+      '"Delete this device"** → `ha-nova:organize`',
     );
     expect(context).not.toContain(
       '"Show history for sensor X"** → `ha-nova:fallback`',
@@ -475,10 +475,11 @@ describe("ha-nova contract", () => {
     expect(apiMatrix).toContain("live-proven end-to-end subtype is `sensor`");
     expect(apiMatrix).toContain("`config/device_registry/remove_config_entry`");
     expect(apiMatrix).toContain("deprecated, removed in HA 2027.9");
-    // HA 2026.9: admin-only successor stays external; the two read commands
-    // are listed so nobody re-audits them as gaps (#520).
+    // HA 2026.9: organize deletes a device through the admin-only successor;
+    // the legacy command stays denied. The two read commands are listed so
+    // nobody re-audits them as gaps (#520).
     expect(apiMatrix).toContain(
-      "`config/device_registry/remove` | Delete a device (HA 2026.9+, admin-only; external — HA NOVA never calls it)",
+      "`config/device_registry/remove` | Delete a device (HA 2026.9+, admin-only; organize, typed raw plan",
     );
     expect(apiMatrix).toContain("`config/device_registry/list_linked_devices`");
     expect(apiMatrix).toContain("`config/device_registry/list_composite_splits`");
@@ -1064,7 +1065,7 @@ describe("ha-nova contract", () => {
       "| Statistics repair / Purge / Entity registry remove | Covered | maintenance |",
     );
     expect(fallback).toContain(
-      "| Device config-entry detach | External | -- (Home Assistant UI; HA 2026.8+ removes the device) |",
+      "| Device deletion (integration-supported, HA 2026.9+) | Covered | organize |",
     );
   });
 

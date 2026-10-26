@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"time"
 )
 
@@ -20,6 +22,7 @@ type rawNamer struct {
 	prefsRead bool
 	snapshots map[string]any // the snapshot store's list, by file (snapshotListed)
 	deleting  map[string]any // the listed entries of the copies the plan deletes
+	removing  map[string]any // device id → the devices and entities deleting it removes (deviceEntities)
 }
 
 func newRawNamer(s *relaySession, e *tierEngine) *rawNamer {
@@ -101,6 +104,62 @@ func (n *rawNamer) entity(id any) string {
 
 func (n *rawNamer) device(id any) string {
 	return n.named(map[string]any{"type": "config/device_registry/list"}, id, []string{"id"}, []string{"name_by_user", "name"})
+}
+
+// deviceEntities: what deleting the device takes with it (", its 1 child
+// device, and its 3 entities"): its child devices and the entities of their
+// own integration on them (Home Assistant keeps another integration's
+// entity, unlinked).
+func (n *rawNamer) deviceEntities(id any) string {
+	device, _ := id.(string)
+	var devices []struct {
+		ID               string `json:"id"`
+		ConfigEntryID    string `json:"config_entry_id"`
+		ConfigSubentryID string `json:"config_subentry_id"`
+		ParentDeviceID   string `json:"parent_device_id"`
+	}
+	var entities []struct {
+		EntityID         string `json:"entity_id"`
+		DeviceID         string `json:"device_id"`
+		ConfigEntryID    string `json:"config_entry_id"`
+		ConfigSubentryID string `json:"config_subentry_id"`
+	}
+	data, err := rawRead(n.s, "ws", map[string]any{"type": "config/device_registry/list"})
+	if err == nil {
+		err = json.Unmarshal(data, &devices)
+	}
+	if err == nil {
+		data, err = rawRead(n.s, "ws", map[string]any{"type": "config/entity_registry/list"})
+	}
+	if err == nil {
+		err = json.Unmarshal(data, &entities)
+	}
+	if n.removing == nil {
+		n.removing = map[string]any{}
+	}
+	if err != nil {
+		n.removing[device] = "unreadable"
+		return " and its entities (the registry could not be read to count them)"
+	}
+	gone := map[string][2]string{}
+	for _, row := range devices {
+		if device != "" && (row.ID == device || row.ParentDeviceID == device) {
+			gone[row.ID] = [2]string{row.ConfigEntryID, row.ConfigSubentryID}
+		}
+	}
+	var goneEntities []string
+	for _, row := range entities {
+		if owner, ok := gone[row.DeviceID]; ok && [2]string{row.ConfigEntryID, row.ConfigSubentryID} == owner {
+			goneEntities = append(goneEntities, row.EntityID)
+		}
+	}
+	slices.Sort(goneEntities)
+	n.removing[device] = map[string]any{"devices": slices.Sorted(maps.Keys(gone)), "entities": goneEntities}
+	count := len(goneEntities)
+	if children := len(gone) - 1; children > 0 {
+		return ", its " + plural(children, "child device") + ", and its " + plural(count, "entity")
+	}
+	return " and its " + plural(count, "entity")
 }
 
 func (n *rawNamer) area(id any) string {

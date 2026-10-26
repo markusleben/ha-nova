@@ -221,6 +221,7 @@ Still excluded:
 - entity registry metadata updates
 - entity category assignment/removal by scope
 - device registry metadata updates
+- integration-supported device deletion (HA 2026.9+, typed raw plan; snapshot and consumer preview first)
 
 Mutation rules:
 - exact target resolution first
@@ -237,7 +238,6 @@ Mutation rules:
 
 Still excluded:
 - entity removal
-- device config-entry detachment
 - device categories do not exist; offer entity categories instead
 - zones / persons / tags
 
@@ -256,7 +256,7 @@ names an old device to its replacement), onboard, and retire.
   (grouped, at most 5 per group for the undo store, CLI tiers) and takeover
   renames (organize rules; typed for access-capable entities or typed
   consumers); every other family hands off to its owning skill
-- device removal stays in the Home Assistant UI
+- device removal goes to `organize` (HA 2026.9+) or the Home Assistant UI
 
 ## Migrate Architecture
 
@@ -545,7 +545,7 @@ no verb, no relay change.
 ## Fallback Architecture
 
 `ha-nova:fallback` is the mandatory safety fallback for HA features without a dedicated skill:
-- Covers: blueprints, device config-entry detach, unsupported config-entry helper families
+- Covers: blueprints, unsupported config-entry helper families; device deletion belongs to organize
 - Three-tier capability map: Covered (redirect to existing skill), Relay-Ready (experimental relay calls), External (web search)
 - All inline, no agents — research + web search + experimental relay calls
 - Safety: all experimental relay calls follow Write Safety by Endpoint Type guardrails (full-overwrite, field-level replace, merge, delete)

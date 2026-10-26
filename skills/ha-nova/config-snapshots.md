@@ -60,7 +60,7 @@ relay-outdated warning when it appears.
 
 All wired for auto-capture: `automations`, `scripts`, `scenes`, `dashboards`,
 `helpers`, `energy` (destructive `save_prefs`), `metadata` (entity registry
-fields before rename/unit change/disable), `yaml` (file overwrites and deletes).
+fields before rename/unit change/disable; device deletion's device and entity records), `yaml` (file overwrites and deletes).
 
 ## Capture (before destructive ops)
 

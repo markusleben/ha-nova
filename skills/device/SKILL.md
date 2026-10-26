@@ -13,7 +13,7 @@ Device lifecycle: **swap** (re-point everything that names the old device to the
 
 This skill plans the whole task and writes two families itself: automation/script re-points (`ha-nova plan write` + `apply`) and the entity_id takeover (entity registry `new_entity_id`). Every other family goes to its owning skill (Hit Routing).
 
-Not in scope: removing or re-pairing a device (Home Assistant UI, the integration's device page; leftover entity rows: `ha-nova:maintenance`); one entity rename without a swap (`ha-nova:organize`); groups and bindings inside ZHA or Zigbee2MQTT (the integration's UI).
+Not in scope: removing a device (`ha-nova:organize`), re-pairing one (the integration's device page; leftover entity rows: `ha-nova:maintenance`); one entity rename without a swap (`ha-nova:organize`); groups and bindings inside ZHA or Zigbee2MQTT (the integration's UI).
 
 ## Bootstrap (once per session)
 
@@ -61,10 +61,10 @@ Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome 
    - **Takeover** — smaller when the old device is gone for good and the mapped entities share a domain: remove the old device, then rename each new entity to its old entity_id. Every reference by entity_id keeps working (dashboards, energy, groups, persons, scenes, templates) and history and long-term statistics continue, because the old id's recorder rows stay. Never rename the old entity away to free the id: its history and statistics move with it, and the energy dashboard loses that source's past.
    - **Rewrite** each consumer — when the old device stays in use, a domain differs, the old entity has no registry row, or the user wants the new ids. A rewritten energy source starts its history fresh: say so.
    - Both paths rewrite device-level hits (`needle` is the device id or a `registry_id`: device triggers, conditions, actions, `device_id` targets) and the notify service. Across integrations a device trigger rarely maps 1:1: use a state trigger on the mapped entity and name the change.
-4. **Plan card** (one Report): the mapping, the path and why in one sentence, hits by route with counts, the steps in order (the old device's removal is a user step in the HA UI), the Access Check result for every rename and hand-off, and coverage — `scanned` counts, every `not_scanned` row, the `not_covered` line. Never claim "everything" while either applies.
+4. **Plan card** (one Report): the mapping, the path and why in one sentence, hits by route with counts, the steps in order (the old device's removal: `ha-nova:organize` or the HA UI), the Access Check result for every rename and hand-off, and coverage — `scanned` counts, every `not_scanned` row, the `not_covered` line. Never claim "everything" while either applies.
 5. **Execute** in this order (Re-point Group below):
    a. Device-level re-points — and on the rewrite path every re-point — before anything is removed: the new ids are known now, and a removed device's ids can never be scanned again.
-   b. Takeover only: the user removes the old device in Home Assistant. Verify each mapped old id: `ha-nova get <old id>` exits 5 `NOT_FOUND`; a leftover row goes to `ha-nova:maintenance`.
+   b. Takeover only: remove the old device (`ha-nova:organize` or HA UI). Verify each mapped old id: `ha-nova get <old id>` exits 5 `NOT_FOUND`; a leftover row goes to `ha-nova:maintenance`.
    c. Takeover renames, one registry update per pair on the NEW entity, per `../organize/SKILL.md` → Entity / Device Update Fields (metadata snapshot first); tier per Access Check, ordinary renames in one grouped change set. Carry the old entity's `area_id` and `labels` and, when the user wants, its `name`, `icon`, `aliases`. Both paths: the old device's area and labels go to the new device through `ha-nova:organize`.
    d. Takeover only, after the renames are verified: re-point every holder that names a NEW entity's own id (the new scan's hits) to its taken-over id; a holder that named both ids now names one entity twice — the user picks which reference stays.
    e. Hand-offs, one owning skill at a time (Hit Routing), each with exact holders, paths, and the mapping; their previews, snapshots, and tiers stay, raised by the Access Check where it applies. The Work Ledger carries the open families.

@@ -355,7 +355,7 @@ Match user intent to exactly one skill:
 **"Show history for sensor X"** → `ha-nova:history`
 **"Save the Lovelace config"** → `ha-nova:dashboard`
 **"Remove this entity from Home Assistant"** → `ha-nova:maintenance` (dead registry entries only; live entities get disabled via `ha-nova:organize`)
-**"Detach this config entry from the device"** → `ha-nova:fallback`
+**"Delete this device"** → `ha-nova:organize`
 
 After any `read` or `review` task, re-evaluate intent once before continuing:
 - config change on automation/script → `ha-nova:write`

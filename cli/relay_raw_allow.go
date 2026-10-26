@@ -70,6 +70,7 @@ var rawWSAllowed = map[string]string{
 	"config/entity_registry/update":           "an entity's name, area, labels, aliases, or visibility (a cover's or button's class, disabling a lock, alarm panel, or cover, and renaming a destructive button are refused)",
 	"config/entity_registry/remove":           "removes an orphaned registry entry (maintenance; a lock, alarm panel, or access cover is refused)",
 	"config/device_registry/update":           "a device's name, area, labels, or enabled state (disabling or enabling one with a lock, alarm panel, or access cover is refused)",
+	"config/device_registry/remove":           "deletes a device and its entities, as Home Assistant's own Delete does (2026.9+; one with a lock, alarm panel, or access cover, and HA NOVA's own App, are refused)",
 	"lovelace/dashboards/update":              "a dashboard's title, icon, or sidebar flags; its content goes through plan write",
 	"lovelace/resources/create":               "registers a frontend card resource already on this Home Assistant (/hacsfiles/, /local/; other URLs are refused below)",
 	"lovelace/resources/update":               "changes such a resource",

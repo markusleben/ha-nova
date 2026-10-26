@@ -1,6 +1,6 @@
 ---
 name: fallback
-description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, device config-entry detach, Apps, Zigbee/Z-Wave, and unsupported config-entry helper families.
+description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, Apps, Zigbee/Z-Wave, and unsupported config-entry helper families.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -81,7 +81,7 @@ For every Relay-Ready call in this skill:
 | Energy (analysis + source/device config) | Covered | energy |
 | Other Config-Entry Helpers | Relay-Ready | this skill |
 | Statistics repair / Purge / Entity registry remove | Covered | maintenance |
-| Device config-entry detach | External | -- (Home Assistant UI; HA 2026.8+ removes the device) |
+| Device deletion (integration-supported, HA 2026.9+) | Covered | organize |
 | Integration onboarding (add / re-auth an integration via config flow) | Covered | integration-setup |
 | Custom-integration configuration APIs — the integration's OWN endpoints (Alarmo, Scheduler, Frigate, ...) | Relay-Ready (reads only; changes: the integration's own panel in the UI) | this skill |
 | Event capture — bounded window (a button's event, a short watch after an action) | Relay-Ready | this skill; `mqtt` for MQTT topics |
@@ -167,16 +167,6 @@ an action; `ha-nova:mqtt` uses exactly this pattern.
 (`ha-nova:write`), or polling `GET /api/states/{entity_id}`.
 
 ## External Features
-
-### Device Config-Entry Detach -- EXTERNAL
-
-Home Assistant 2026.8 replaced shared devices with one owning config entry per
-device. `config/device_registry/remove_config_entry` removes that device
-(deprecated in favour of the admin-only `config/device_registry/remove`,
-HA 2026.9+; the legacy command is removed in 2027.9); it is not a
-harmless relationship edit. HA NOVA does not expose generic device
-deletion. Use Settings > Devices & services and treat the operation as an
-irreversible device deletion, including Home Assistant's own confirmation.
 
 ### Apps / Supervisor Management -- EXTERNAL
 

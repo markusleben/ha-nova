@@ -28,9 +28,9 @@ const rawNextAccessTarget = "it controls a lock, alarm panel, or access cover, a
 
 // rawTarget: the entry or entity a raw request would remove or reconfigure,
 // the button it would rename, the device it would disable or enable, or the
-// switch it would disable or enable (a switch_as_x lock or cover runs on it;
-// zero = none of these).
-type rawTarget struct{ entry, entity, button, device, source string }
+// switch it would disable or enable (a switch_as_x lock or cover runs on it),
+// or the device it would delete (zero = none of these).
+type rawTarget struct{ entry, entity, button, device, source, deleted string }
 
 func rawAccessTarget(endpoint string, body []byte) rawTarget {
 	payload, ok := decodeObject(body)
@@ -73,6 +73,8 @@ func rawAccessTarget(endpoint string, body []byte) rawTarget {
 				return rawTarget{button: id}
 			case m["type"] == "config/device_registry/update" && disables:
 				return rawTarget{device: device}
+			case m["type"] == "config/device_registry/remove":
+				return rawTarget{deleted: device}
 			case m["type"] == "config/entity_registry/update" && disables && strings.HasPrefix(id, "switch."):
 				return rawTarget{source: id}
 			}
@@ -137,20 +139,68 @@ func checkRawAccessTargetIn(s *relaySession, endpoint string, body []byte) (refu
 		}
 		return nil, nil
 	}
+	gone := map[string]bool{}
+	if target.deleted != "" {
+		var refusal error
+		if gone, refusal, err = rawDeletedDevices(s, target.deleted); refusal != nil || err != nil {
+			return refusal, err
+		}
+	}
 	for _, row := range rows {
 		if row.EntityID == target.button && destructiveButtonText(row.EntityID+" "+row.Name+" "+row.OriginalName) {
 			return rawRefusal("rename of "+row.EntityID+" (its name marks a press as needing the one-time code)", rawNextUI), nil
 		}
-		owned := row.EntityID == target.entity || (target.entry != "" && row.ConfigEntryID == target.entry) || (target.device != "" && row.DeviceID == target.device)
+		owned := row.EntityID == target.entity || (target.entry != "" && row.ConfigEntryID == target.entry) || (target.device != "" && row.DeviceID == target.device) || gone[row.DeviceID]
 		if !owned || !accessCapable(row.EntityID, coverClass(s, row.EntityID)) {
 			continue
 		}
 		if target.device != "" {
 			return rawRefusal("disabling or enabling device "+target.device+", which has "+row.EntityID+" (a disabled lock, alarm panel, or cover stops working in Home Assistant, so a door can't be locked or the alarm armed)", rawNextUI), nil
 		}
+		if target.deleted != "" {
+			return rawRefusal("deletion of device "+target.deleted+", which has "+row.EntityID, rawNextAccessTarget), nil
+		}
 		return rawRefusal("removal or reconfiguration of "+row.EntityID, rawNextAccessTarget), nil
 	}
 	return nil, nil
+}
+
+// rawDeletedDevices: the devices deleting id removes, read live: it and its
+// child devices (rows whose parent_device_id is it; Home Assistant removes
+// them with it). HA NOVA's own App device is refused.
+func rawDeletedDevices(s *relaySession, id string) (gone map[string]bool, refusal, err error) {
+	var rows []struct {
+		ID             string     `json:"id"`
+		ParentDeviceID string     `json:"parent_device_id"`
+		Identifiers    [][]string `json:"identifiers"`
+	}
+	data, err := s.readFresh("ws", map[string]any{"type": "config/device_registry/list"}, relaySessionRequestTimeout)
+	if err == nil {
+		if uerr := json.Unmarshal(data, &rows); uerr != nil {
+			err = fmt.Errorf("cannot parse the device registry: %w", uerr)
+		} else if rows == nil {
+			err = errors.New("the device registry came back empty")
+		}
+	}
+	if err != nil {
+		return nil, nil, errors.New("cannot read which devices this request would delete, so nothing was sent: " + err.Error())
+	}
+	gone = map[string]bool{}
+	for _, row := range rows {
+		if row.ID != id && row.ParentDeviceID != id {
+			continue
+		}
+		gone[row.ID] = true
+		for _, pair := range row.Identifiers {
+			if len(pair) == 2 && (pair[0] == "ha_nova" || pair[0] == "hassio" && strings.HasSuffix(pair[1], "_ha_nova_relay")) {
+				return nil, rawRefusal("deletion of HA NOVA's own App device", "HA NOVA would lose its way into Home Assistant; remove the App in the Home Assistant UI (Settings > Apps)"), nil
+			}
+		}
+	}
+	if !gone[id] {
+		return nil, rawRefusal("deletion of unknown device "+id, "read the device registry again and resolve its current device_id"), nil
+	}
+	return gone, nil, nil
 }
 
 // destructiveButtonText: a destructive word as a whole token, as
