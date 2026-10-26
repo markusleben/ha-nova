@@ -51,9 +51,6 @@ func evaluateClientStatus(paths runtimePaths, state installState, client clientR
 	return status
 }
 
-// claudeDesktopInstalled: the Claude Desktop app is on this Mac. It brings
-// no claude command, so HA NOVA can't set up its Code tab without Claude
-// Code. macOS only: on Windows it is a package with no fixed path. Test seam.
 var claudeDesktopInstalled = func(home string) bool {
 	if runtime.GOOS != "darwin" {
 		return false
@@ -62,6 +59,10 @@ var claudeDesktopInstalled = func(home string) bool {
 }
 
 func clientRuntimeDetected(client string) bool {
+	if client == "claude" {
+		_, err := claudeRuntimePath()
+		return err == nil
+	}
 	if client == "antigravity" {
 		return antigravityRuntimeDetected()
 	}
@@ -159,7 +160,7 @@ func clientStatusReason(client string, status clientStatus, home string) string 
 	switch client {
 	case "claude":
 		if claudeDesktopInstalled(home) {
-			return "Claude Desktop is installed, but HA NOVA can only set up its Code tab through Claude Code: install Claude Code first"
+			return "Claude Desktop is installed, but its Claude Code runtime isn't ready: open its Code tab and check again, or install Claude Code first"
 		}
 		return "install Claude Code first"
 	case "codex":

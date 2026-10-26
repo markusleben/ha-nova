@@ -4,14 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
 
 func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
-	if _, err := exec.LookPath("claude"); err != nil {
-		return fmt.Errorf("Claude CLI not found in PATH; install Claude Code first")
+	if _, err := claudeRuntimePath(); err != nil {
+		return fmt.Errorf("Claude CLI not found in PATH and no usable Desktop runtime; open Claude Desktop's Code tab or install Claude Code first")
 	}
 
 	restoreState, err := captureClaudeLocalRestoreState(paths.Home)
@@ -53,7 +52,7 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 		refreshArgs = []string{"plugin", "update", "ha-nova@ha-nova"}
 	}
 
-	cmd := exec.Command("claude", refreshArgs...)
+	cmd := claudeCommand(refreshArgs...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		commandErr := fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(refreshArgs, " "), strings.TrimSpace(string(output)))
 		if localMode {
@@ -62,7 +61,7 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 		if alreadyInstalled {
 			text := strings.TrimSpace(string(output))
 			if strings.Contains(strings.ToLower(text), "not found") || strings.Contains(strings.ToLower(text), "not installed") {
-				installCmd := exec.Command("claude", "plugin", "install", "ha-nova@ha-nova")
+				installCmd := claudeCommand("plugin", "install", "ha-nova@ha-nova")
 				if installOutput, installErr := installCmd.CombinedOutput(); installErr == nil {
 					if verifyErr := verifyClaudePluginInstalled(paths, marketplaceRoot); verifyErr != nil {
 						return verifyErr
@@ -100,7 +99,7 @@ func resetClaudeLocalPluginState(home string) error {
 		return removeClaudePluginCache(home)
 	}
 
-	cmd := exec.Command("claude", "plugin", "remove", "ha-nova@ha-nova")
+	cmd := claudeCommand("plugin", "remove", "ha-nova@ha-nova")
 	if output, err := cmd.CombinedOutput(); err != nil {
 		message := strings.TrimSpace(string(output))
 		lower := strings.ToLower(message)
@@ -127,7 +126,7 @@ func claudePluginInstalled(home string) bool {
 }
 
 func removeClaudeMarketplace(home string, report *uninstallReport) error {
-	if _, err := exec.LookPath("claude"); err != nil {
+	if _, err := claudeRuntimePath(); err != nil {
 		removed, err := removeClaudeMarketplaceRecord(home)
 		if err != nil {
 			return err
@@ -138,7 +137,7 @@ func removeClaudeMarketplace(home string, report *uninstallReport) error {
 		return nil
 	}
 
-	cmd := exec.Command("claude", "plugin", "marketplace", "remove", "ha-nova")
+	cmd := claudeCommand("plugin", "marketplace", "remove", "ha-nova")
 	if output, err := cmd.CombinedOutput(); err != nil {
 		message := strings.TrimSpace(string(output))
 		lower := strings.ToLower(message)

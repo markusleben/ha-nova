@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -209,7 +208,7 @@ func readClaudePluginListWithEnv(env []string) (found, usable, ok bool) {
 		return false, false, false
 	}
 	defer os.Remove(outFile.Name())
-	cmd := exec.Command("claude", "plugin", "list", "--json")
+	cmd := claudeCommand("plugin", "list", "--json")
 	cmd.Env = env
 	cmd.Stdout = outFile
 	runErr := cmd.Run()

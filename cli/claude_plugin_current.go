@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -39,7 +38,7 @@ func verifyClaudePluginInstalled(paths runtimePaths, desiredSource string) error
 	if err := resetClaudeLocalPluginState(paths.Home); err != nil {
 		return err
 	}
-	if output, err := exec.Command("claude", "plugin", "install", "ha-nova@ha-nova").CombinedOutput(); err != nil {
+	if output, err := claudeCommand("plugin", "install", "ha-nova@ha-nova").CombinedOutput(); err != nil {
 		return fmt.Errorf("claude plugin command failed: plugin install ha-nova@ha-nova (%s)", strings.TrimSpace(string(output)))
 	}
 	if err := verifyClaudePluginPresent(paths.Home, desiredSource); err != nil {
