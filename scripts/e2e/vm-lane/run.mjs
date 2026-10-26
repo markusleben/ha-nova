@@ -379,7 +379,7 @@ async function windowsRun(shell, stable) {
 
   const re = await ps7(INSTALL(tag), { timeoutMs: 6 * 60_000 });
   const d3 = await hn("doctor", { timeoutMs: 3 * 60_000 });
-  check(S, `${tag} one-liner rerun: installs, still paired`, re.code === 0 && new RegExp(`Installed HA NOVA v${want}`).test(re.out) && d3.code === 0, `${tail(re.out, 1)}; doctor: ${tail(d3.out, 1)}`);
+  check(S, `${tag} one-liner rerun: installs, still paired`, re.code === 0 && re.out.includes(`Installed HA NOVA v${want}`) && d3.code === 0, `${tail(re.out, 1)}; doctor: ${tail(d3.out, 1)}`);
 
   const un = await run(thenWait("uninstall --yes", gone, `runtime=$(Test-Path "$env:LOCALAPPDATA\\Programs\\ha-nova") marker=$(Test-Path "${MARK}") config=$(Test-Path "$env:APPDATA\\ha-nova\\config.json") state=$(Test-Path "$env:APPDATA\\ha-nova\\state.json") cache=$(Test-Path "$env:LOCALAPPDATA\\ha-nova\\cache")`), { timeoutMs: 6 * 60_000 });
   check(S, "uninstall --yes: runtime/state/cache/marker gone, config kept", /rc=0 runtime=False marker=False config=True state=False cache=False/.test(un.out), tail(un.out, 2));
@@ -415,7 +415,7 @@ ${hasClaude ? "claude plugin list 2>&1 | Out-String" : ""}`);
   if (!hasClaude) return;
   const lines = w.out.split(/\r?\n/);
   const block = lines.slice(Math.max(0, lines.findIndex((l) => l.includes("ha-nova@ha-nova")))).slice(0, 5).join(" ");
-  check(S, "Claude Code wiring: ha-nova@ha-nova at the candidate", block.includes("ha-nova@ha-nova") && block.includes(`Version: ${want.split("-rc")[0]}`) && new RegExp(`releases[\\\\/]+${tag}`).test(block) && /enabled/i.test(block), block.slice(0, 160));
+  check(S, "Claude Code wiring: ha-nova@ha-nova at the candidate", block.includes("ha-nova@ha-nova") && block.includes(`Version: ${want.split("-rc")[0]}`) && (block.includes(`releases\\${tag}`) || block.includes(`releases/${tag}`)) && /enabled/i.test(block), block.slice(0, 160));
 }
 
 // ---- Ubuntu ----------------------------------------------------------------------------
