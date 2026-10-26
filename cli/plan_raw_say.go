@@ -120,7 +120,11 @@ func rawItemLine(n *rawNamer, endpoint string, payload map[string]any) (verb, ob
 			}
 			delete(rest, field.key)
 		}
-		return "Change", line + n.fields(rest, "entry_id")
+		line += n.fields(rest, "entry_id")
+		if _, polling := payload["pref_disable_polling"]; polling {
+			line += "; changing polling reloads this integration when loaded, briefly making its devices and entities unavailable"
+		}
+		return "Change", line
 	case wsType == "config_entries/ignore_flow":
 		title, _ := payload["title"].(string)
 		return "Ignore", "the discovered integration " + sayText(title, true)

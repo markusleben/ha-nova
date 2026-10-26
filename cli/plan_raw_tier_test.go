@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -243,5 +244,36 @@ func TestRawIntegrationDeviceLessWrapperSources(t *testing.T) {
 				t.Fatalf("planning sent %v", got)
 			}
 		})
+	}
+}
+
+func TestPlanRawPollingDisruptionSayAndPrompt(t *testing.T) {
+	paths, sent := rawRelay(t, nil)
+	for _, fields := range []string{`"pref_disable_polling":true`, `"pref_disable_polling":false`, `"title":"New name"`, `"pref_disable_new_entities":true`} {
+		for _, typed := range []bool{false, true} {
+			exit, env := planRaw(t, paths, fmt.Sprintf(`[{"endpoint":"ws","typed":%t,"payload":{"type":"config_entries/update","entry_id":"Ehue",%s}}]`, typed, fields))
+			if exit != verbExitConfirmation || env.Tier != map[bool]string{false: "preview", true: "typed"}[typed] || env.Plan == nil {
+				t.Fatalf("%s: exit %d env %+v", fields, exit, env)
+			}
+			plan, err := readPlanFile(filepath.Join(planDir(paths), env.Plan.ID+".json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := strings.Contains(fields, "pref_disable_polling")
+			texts := map[string]string{"say": env.Say}
+			if typed {
+				texts["prompt"] = plan.Prompt
+			} else if plan.Prompt != "" {
+				t.Errorf("preview plan has a typed confirmation prompt: %s", plan.Prompt)
+			}
+			for name, text := range texts {
+				if strings.Contains(text, "changing polling reloads this integration when loaded, briefly making its devices and entities unavailable") != want {
+					t.Errorf("%s %s: unexpected disruption disclosure: %s", fields, name, text)
+				}
+			}
+		}
+	}
+	if got := sent(); len(got) != 0 {
+		t.Fatalf("planning sent %v", got)
 	}
 }
