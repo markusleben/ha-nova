@@ -29,7 +29,7 @@ Target: 0.28. Follow-up to #813 (its known limits: "A one-click 'clean up for me
 
 ### When it's offered
 
-- Only where the owner steps would print to a person: `cloud remove` and `ha-nova uninstall` in a terminal (when Link is what blocks it), and setup's hold and paused-Link screens (#813), when `haSignInPossible` holds (desktop, browser, a plain local Home Assistant address; `cli/ha_signin_session.go:90-105`) and the Relay advertises sign-in.
+- Only where the owner steps would print to a person: `cloud remove` and `ha-nova uninstall` in a terminal (when Link is what blocks it), and setup's hold and paused-Link screens (#813) and its leftover-Link choice (Remove there runs `cloud remove` in the same process, with the person's choice as its confirmation, not `--yes`; `docs/work/2026-10-26-link-leftover-setup-doctor-spec.md`), when `haSignInPossible` holds (desktop, browser, a plain local Home Assistant address; `cli/ha_signin_session.go:90-105`) and the Relay advertises sign-in.
 - A two-item menu above the steps: "Clean up for me (sign in to Home Assistant once)" / "Show me the steps". Default: the first. `--yes`, `--json`, no terminal: the steps as today, never the offer.
 
 ### Steps

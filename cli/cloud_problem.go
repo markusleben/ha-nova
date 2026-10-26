@@ -112,6 +112,14 @@ func cloudProblemForError(err error) *cloudProblem {
 	if errors.Is(err, errInvalidClientInstallID) {
 		return invalidCloudInstallIdentityProblem(err)
 	}
+	if errors.Is(err, errRelayHealthIdentityMismatch) { // before the code: it stays HA_PROTOCOL
+		return &cloudProblem{
+			Code:        cloudProblemIdentityMismatch,
+			Remediation: cloudRemediationSecurityStop,
+			Detail:      relayIdentityMismatchText(selectedCloudCommandProfile(), ""),
+			Cause:       err,
+		}
+	}
 	if isDesktopKeyringSetupRequiredError(err) ||
 		isDesktopKeyringSessionUnavailableError(err) ||
 		isDesktopKeyringUnavailableError(err) ||

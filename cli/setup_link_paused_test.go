@@ -92,7 +92,7 @@ func TestSetupLinkPausedKeepsCredentialsAndShowsCommands(t *testing.T) {
 		"Link setup paused",
 		"To finish it, run: ha-nova cloud reconnect --server default",
 		"To remove it, run: ha-nova cloud remove --server default",
-		"Switch to your own access after Link is fixed or removed: run ha-nova setup again.",
+		"Switch to your own access after Link is removed: run ha-nova setup again.",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q (exit %d):\n%s", want, code, out)

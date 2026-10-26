@@ -108,6 +108,11 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 	}
 
 	f.current = detectSetupStateForAssessment(f.paths, f.cfg, f.state, f.target, f.savedTokenBeforeSetup, f.hadSavedTokenBeforeSetup)
+	if f.current.RelayOK && forgetUnprovenRelayIdentity(&f.cfg) {
+		if err := saveSetupConfigWithLifecycle(f.paths, f.cfg, f.lifecycleMarker...); err != nil {
+			return f.failErr(err)
+		}
+	}
 	currentLifecycleMarker := f.lifecycleMarker
 	if !f.setupChanged && !f.overrideApplied &&
 		!(len(f.lifecycleMarker) > 1 && len(f.lifecycleMarker[1]) > 0) {

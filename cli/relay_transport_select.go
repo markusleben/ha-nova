@@ -53,6 +53,8 @@ func (e *localRelayPreflightError) Error() string {
 	case IsCloudErrorCode(e.cause, CloudErrForbidden):
 		return "local Relay denied the saved device credential; run: " +
 			e.repairCommand()
+	case errors.Is(e.cause, errRelayHealthIdentityMismatch):
+		return relayIdentityMismatchText(e.profile, e.relayURL)
 	case IsCloudErrorCode(e.cause, CloudErrRedirectRejected):
 		return "local Relay redirected an authenticated health check; no Cloud fallback or functional request was attempted"
 	case IsCloudErrorCode(e.cause, CloudErrHAProtocol),
@@ -63,6 +65,16 @@ func (e *localRelayPreflightError) Error() string {
 	default:
 		return "local Relay security preflight failed; no Cloud fallback or functional request was attempted"
 	}
+}
+
+// relayIdentityMismatchText: the saved Link belongs to an App that is gone.
+// Removing Link keeps a paired profile's Relay id; pairing again clears it.
+func relayIdentityMismatchText(profile, relayURL string) string {
+	text := "The NOVA App isn't the one this computer's Link was set up with (was it reinstalled?). Remove Link"
+	if remove := cloudProfileCommandFor("remove", profile); remove != "" {
+		text += ": " + remove
+	}
+	return text + ". Then connect this computer again: " + localRelayRepairCommand(profile, relayURL) + ". Add Link again after that if you want it."
 }
 
 func (e *localRelayPreflightError) Unwrap() error {

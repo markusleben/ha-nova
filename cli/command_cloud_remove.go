@@ -1,11 +1,9 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 )
@@ -21,6 +19,12 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
+	return runCloudRemove(paths, options)
+}
+
+// runCloudRemove is `cloud remove` after its flags; setup calls it with
+// confirmed set (setup_link_leftover.go).
+func runCloudRemove(paths runtimePaths, options cloudCommandFlags) int {
 	initialSnapshot, err := loadCloudRecoverySnapshotUnchecked(paths)
 	if err != nil {
 		printHumanErr("%s", err)
@@ -53,34 +57,9 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		printHumanErr("cannot inspect server configuration: %s", err)
 		return 1
 	}
-	if !options.yes {
-		if !uiInputSupportsTTY() || !stdoutIsInteractiveTTY() {
-			printHumanErr("cloud remove requires confirmation; rerun with --yes")
-			return 1
-		}
-		fmt.Fprintln(os.Stdout, "This revokes HA NOVA's Home Assistant Link authorization.")
-		if remoteOnly {
-			fmt.Fprintln(
-				os.Stdout,
-				"The Cloud-only NOVA device pairing is revoked too; the Home Assistant Link subscription stays unchanged.",
-			)
-		} else {
-			fmt.Fprintln(
-				os.Stdout,
-				"The local NOVA device pairing and Home Assistant Link subscription stay unchanged.",
-			)
-		}
-		confirmed, promptErr := promptYesNoMenu(
-			bufio.NewReader(os.Stdin),
-			os.Stdout,
-			"Remove Home Assistant Link access?",
-			"Yes, remove it",
-			"No, keep it",
-			false,
-		)
-		if promptErr != nil || !confirmed {
-			printHumanInfo("Home Assistant Link stays. Nothing was changed.")
-			return 0
+	if !options.yes && !options.confirmed {
+		if proceed, code := confirmCloudRemove(remoteOnly); !proceed {
+			return code
 		}
 	}
 

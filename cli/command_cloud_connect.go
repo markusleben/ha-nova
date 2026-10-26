@@ -14,28 +14,34 @@ var errCloudURLPromptCancelled = errors.New(
 	"Cloud URL prompt cancelled before setup started",
 )
 
-func runCloudConnectCommand(
+func runCloudConnectCommand(paths runtimePaths, args []string, reconnect bool) int {
+	code, _ := runCloudConnect(paths, args, reconnect)
+	return code
+}
+
+// runCloudConnect: exited when the person left a prompt with Ctrl+C.
+func runCloudConnect(
 	paths runtimePaths,
 	args []string,
 	reconnect bool,
-) int {
+) (code int, exited bool) {
 	command := "add"
 	if reconnect {
 		command = "reconnect"
 	}
 	options, err := parseCloudCommandFlags(command, args)
 	if errors.Is(err, errHelpShown) {
-		return 0
+		return 0, false
 	}
 	if err != nil {
 		printHumanErr("%s", err)
-		return 1
+		return 1, false
 	}
 	loadedCfg, loadedCfgErr := loadCloudManagementConfig(paths)
 	if loadedCfgErr == nil {
 		if problem := cloudRecoveryHoldProblem(loadedCfg); problem != nil {
 			renderCloudRecoveryGuidance(os.Stdout, loadedCfg, problem)
-			return 1
+			return 1, false
 		}
 	}
 	if err := requireCloudRemoteFeatureForSetup(); err != nil {
@@ -45,7 +51,7 @@ func runCloudConnectCommand(
 			paths,
 			cloudAdapterUnavailableProblem(),
 		)
-		return 1
+		return 1, false
 	}
 	if err := preflightSavedCloudConnectConfig(
 		paths,
@@ -53,14 +59,14 @@ func runCloudConnectCommand(
 		reconnect,
 	); err != nil {
 		printHumanErr("%s", err)
-		return 1
+		return 1, false
 	}
 	if options.remoteResume {
 		if loadedCfgErr != nil || !cloudRemoteResumeCheckpointReady(loadedCfg) {
 			printHumanErr(
 				"--remote-resume only resumes an existing checkpoint at \"cloud_verified\" or later: run the authorization once from an interactive desktop session first; no authorization was changed.",
 			)
-			return 1
+			return 1, false
 		}
 		enableCloudRemoteResumeSession()
 	}
@@ -82,19 +88,19 @@ func runCloudConnectCommand(
 				)
 			}
 		}
-		return 1
+		return 1, false
 	}
 	ctx, cancel := newInteractiveCloudSetupContext()
 	defer cancel()
 	configSnapshot, hadConfig, err := readOptionalFile(paths.ConfigFile)
 	if err != nil {
 		printHumanErr("cannot inspect server configuration: %s", err)
-		return 1
+		return 1, false
 	}
 	previewCfg, err := loadCloudConnectConfig(paths, options, reconnect)
 	if err != nil {
 		printHumanErr("%s", err)
-		return 1
+		return 1, false
 	}
 	target, err := resolveCloudCommandConnectionTarget(
 		ctx,
@@ -105,10 +111,10 @@ func runCloudConnectCommand(
 	if err != nil {
 		if errors.Is(err, errCloudURLPromptCancelled) {
 			printCloudURLPromptCancellation(paths)
-			return 0
+			return 0, errors.Is(err, errSetupExit)
 		}
 		renderCloudFailure(os.Stdout, paths, err)
-		return 1
+		return 1, false
 	}
 
 	var connected runtimeConfig
@@ -152,68 +158,28 @@ func runCloudConnectCommand(
 	if err != nil {
 		if configPreflightErr != nil {
 			printHumanErr("%s", configPreflightErr)
-			return 1
+			return 1, false
 		}
 		if errors.Is(err, errCloudURLPromptCancelled) {
 			printCloudURLPromptCancellation(paths)
-			return 0
+			return 0, errors.Is(err, errSetupExit)
 		}
 		if handlePausedCloudOwnerPairing(os.Stdout, paths, err) {
-			return 0
+			return 0, errors.Is(err, errSetupExit)
 		}
 		if errors.Is(err, errCloudAlreadyConfigured) {
 			printHumanErr("%s", err)
-			return 1
+			return 1, false
 		}
 		renderCloudFailure(os.Stdout, paths, err)
-		return 1
+		return 1, false
 	}
 	if effectiveRoutePolicy(connected.RoutePolicy) == routePolicyCloud {
 		printHumanInfo("Home Assistant Link is ready. This server always connects through Link.")
-		return 0
+		return 0, false
 	}
 	printHumanInfo("Home Assistant Link access is ready. Local access stays preferred.")
-	return 0
-}
-
-func printCloudURLPromptCancellation(paths runtimePaths) {
-	cfg, err := loadSelectedRuntimeConfigUnchecked(paths)
-	if err == nil && cloudHoldIsSecurityStop(cfg) {
-		printHumanInfo("Nothing was changed.")
-		renderCloudSecurityHold(os.Stdout, cfg, selectedCloudCommandProfile(), true)
-		return
-	}
-	if err == nil && cfg.Cloud != nil {
-		printHumanInfo(
-			"Home Assistant Link setup remains paused at the saved checkpoint %q. No authorization was changed by this attempt.",
-			cfg.Cloud.State,
-		)
-		if hold := cloudRecoveryHoldProblem(cfg); hold != nil {
-			printHumanInfo("The recovery safety hold remains active: %s", hold.Detail)
-			if cloudRecoveryHoldNeedsUnlockForConfig(cfg) {
-				printHumanInfo("Verify native secure storage with: %s", cloudUnlockCommand())
-			}
-			printHumanInfo("Verified cleanup remains available with: %s", cloudRemoveCommand())
-			return
-		}
-		if resume := cloudResumeCommand(cfg); resume != "" {
-			printHumanInfo("Resume with: %s", resume)
-		}
-		printHumanInfo(
-			"Verified cleanup remains available with: %s",
-			cloudRemoveCommand(),
-		)
-		return
-	}
-	if err == nil && cfg.ProfileID != "" {
-		printHumanInfo(
-			"Home Assistant Link setup was cancelled before an authorization checkpoint was saved. The existing server profile was not changed.",
-		)
-		return
-	}
-	printHumanInfo(
-		"Home Assistant Link setup was cancelled before a checkpoint was saved. No authorization was changed.",
-	)
+	return 0, false
 }
 
 func loadCloudConnectConfig(

@@ -80,3 +80,15 @@ func persistDeviceSetupStateUnlocked(paths runtimePaths, cfg runtimeConfig, stat
 	}
 	return saveState(paths, *state)
 }
+
+// forgetUnprovenRelayIdentity: without Link, setup's device check proves
+// the endpoint, not the Relay's Link identity. As after a fresh local
+// pairing, a later `cloud add` reads it again, so remove → setup → add
+// works after a reinstalled App. Reports whether cfg changed.
+func forgetUnprovenRelayIdentity(cfg *runtimeConfig) bool {
+	if cfg.Cloud != nil || cfg.RelayInstanceID == "" {
+		return false
+	}
+	cfg.RelayInstanceID = ""
+	return true
+}
