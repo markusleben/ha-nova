@@ -43,9 +43,9 @@ tasks, and steps citing "context skill → …" (not Safety Core) also load the 
 - `ha-nova:health` — repair fixes, unavailable entities, batteries
 - `ha-nova:diagnose` — why something failed or didn't happen
 - `ha-nova:integration-setup` — integrations, subentries, reauthentication
-- `ha-nova:admin` — persons, zones, tags, accounts, settings, Labs, analytics
+- `ha-nova:admin` — persons, zones, tags, accounts, settings, Labs
 - `ha-nova:esphome` — ESPHome configs
-- `ha-nova:maintenance` — statistics repair and import, history purge
+- `ha-nova:maintenance` — statistics repair/import, history purge
 - By topic: `ha-nova:dashboard`, `ha-nova:history`, `ha-nova:media`, `ha-nova:notify`, `ha-nova:camera`, `ha-nova:mqtt`, `ha-nova:calendar`, `ha-nova:todo`, `ha-nova:backup`, `ha-nova:updates`, `ha-nova:energy`, `ha-nova:hacs`, `ha-nova:assist`, `ha-nova:yaml-config`, `ha-nova:external-sources`
 - `ha-nova:onboarding` — pairing or connection errors
 - `ha-nova:fallback` — anything else
