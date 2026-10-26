@@ -374,8 +374,8 @@ func runDoctor(paths runtimePaths, args []string) int {
 				if client.ID != "claude" {
 					break
 				}
-				if hint := claudeRulesHint(paths); hint != "" {
-					doctorInfo("%s", hint)
+				for _, line := range doctorClaudeReadyLines(paths) {
+					doctorInfo("%s", line)
 				}
 			case !client.RuntimeDetected:
 				printHumanWarn("HA NOVA is set up for %s, but can't find %s on this computer right now", client.Label, client.Label)

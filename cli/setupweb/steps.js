@@ -385,5 +385,10 @@ window.novaSteps = (h) => {
     return out;
   };
 
-  return { control, home, demo };
+  // A line to copy, with its Copy button (as chat.js's address).
+  const copybar = (text, id, copied, failed) => el('div', { class: 'copybar' }, el('code', { id }, text),
+    el('button', { id: `b-${id}-copy`, class: 'btn btn-ghost btn-small', type: 'button', onclick: () => (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard')))
+      .then(() => toast(t(copied)), () => toast(t(failed))) }, t('setup.chat.copy')));
+
+  return { control, home, demo, copybar };
 };

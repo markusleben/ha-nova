@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 )
@@ -75,6 +76,7 @@ func attemptClientAutoRepair(paths runtimePaths, client clientStatus) autoRepair
 		}
 	}
 
+	release := "" // Claude Code: the release its HA NOVA is repaired to
 	if client.ID == "claude" {
 		if _, err := exec.LookPath("claude"); err != nil {
 			outcome.Skipped = true
@@ -92,6 +94,12 @@ func attemptClientAutoRepair(paths runtimePaths, client clientStatus) autoRepair
 			outcome.SkipReason = "already attached"
 			return outcome
 		}
+		release = snapshot.ExpectedVersion
+		if snapshot.MismatchReason == claudePluginOutdated && claudeRepairFailedFor(paths, release) { // else every session start reinstalls it
+			outcome.Skipped = true
+			outcome.SkipReason = "Claude Code kept an older HA NOVA after the last repair; run ha-nova doctor"
+			return outcome
+		}
 	}
 
 	var installErr error
@@ -99,6 +107,11 @@ func attemptClientAutoRepair(paths runtimePaths, client clientStatus) autoRepair
 		installErr = installAntigravityClientWithPolicy(paths.Home, sourceRoot, false)
 	} else {
 		_, installErr = installClient(paths, sourceRoot, client.ID)
+	}
+	if client.ID == "claude" {
+		if err := noteClaudeRepair(paths, release, errors.Is(installErr, errClaudeKeptOlderPlugin)); err != nil {
+			installErr = errors.Join(installErr, err)
+		}
 	}
 	if installErr != nil {
 		outcome.Err = fmt.Errorf("auto-repair %s: %w", client.ID, installErr)

@@ -73,8 +73,8 @@ const (
 
 // claudeHANovaAt: HA NOVA in the Claude Code root `root`: none (the root
 // exists, its plugin list has no HA NOVA), older (a record older than
-// version; the plugin carries the release's version without "-rcN"), or
-// unknown. No root, or unreadable state, is unknown.
+// version), or unknown. No root, or unreadable state, is unknown. Both
+// sides compare without "-rcN": a 0.28.0-rc1 record is current for 0.28.0.
 func claudeHANovaAt(root, version string) string {
 	if info, err := os.Stat(root); err != nil || !info.IsDir() {
 		return claudeHANovaUnknown
@@ -106,6 +106,7 @@ func claudeHANovaAt(root, version string) string {
 	for _, record := range list {
 		entry, _ := record.(map[string]any)
 		got, _ := entry["version"].(string)
+		got, _, _ = strings.Cut(got, "-")
 		cmp, err := compareReleaseVersions(got, want)
 		if err != nil || cmp >= 0 {
 			return claudeHANovaUnknown

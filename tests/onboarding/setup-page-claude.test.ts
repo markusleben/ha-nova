@@ -14,6 +14,12 @@ describe("setup page: Claude Desktop without Claude Code", () => {
     expect(p.screen.textContent).toContain(p.catalog["setup.page.noclient.lead_desktop"]);
     expect(p.screen.textContent).toContain(p.catalog["setup.page.noclient.install_desktop"]);
     expect(p.find("claude-install")!.textContent).toBe(install);
+    const copied: string[] = [];
+    p.navigator.clipboard = { writeText: (text: string) => { copied.push(text); return Promise.resolve(); } };
+    p.find("b-claude-install-copy")!.dispatch("click");
+    await p.settle();
+    expect(copied).toEqual([install]);
+    expect(p.body.textContent).toContain(p.catalog["setup.page.noclient.copied"]);
     expect(p.find("l-desktop")).toBeUndefined(); // already here
     expect(p.find("l-code")!.attributes.href).toBe("https://claude.com/claude-code");
     p.find("b-recheck")!.dispatch("click");
@@ -42,8 +48,10 @@ describe("setup page: which Claude got HA NOVA", () => {
     const p = page(rerun(clientsRow(["Claude Code", "Codex CLI"])));
     await p.settle();
     const where = p.find("claude-where")!;
-    expect(where.textContent).toBe(p.catalog["setup.claude.where"]);
-    for (const words of ["Code tab", "chat tab", "Add to Claude"]) expect(where.textContent).toContain(words);
+    expect(where.textContent).toContain(p.catalog["setup.claude.where"]);
+    for (const words of ["Code tab", "chat tab", "chat apps", "reachable from the internet"]) expect(where.textContent).toContain(words);
+    const guide = p.find("l-chat-guide")!;
+    expect([guide.attributes.href, guide.attributes.target]).toEqual(["https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md", "_blank"]);
   });
 
   it("says nothing about Claude where Claude Code isn't set up, or isn't ready", async () => {
@@ -58,7 +66,7 @@ describe("setup page: which Claude got HA NOVA", () => {
     for (const claude of [true, false]) {
       const p = page({ screen: "home", home: { claude }, accepts: ["done", "claude"] });
       await p.settle();
-      if (claude) expect(p.find("claude-where")!.textContent).toBe(p.catalog["setup.claude.where"]);
+      if (claude) expect(p.find("claude-where")!.textContent).toContain(p.catalog["setup.claude.where"]);
       else expect(p.find("claude-where")).toBeUndefined();
     }
   });
@@ -66,6 +74,6 @@ describe("setup page: which Claude got HA NOVA", () => {
   it("says it on the terminal path's end too", async () => {
     const p = page({ screen: "done", clients: ["Claude Code"], accepts: [] });
     await p.settle();
-    expect(p.find("claude-where")!.textContent).toBe(p.catalog["setup.claude.where"]);
+    expect(p.find("claude-where")!.textContent).toContain(p.catalog["setup.claude.where"]);
   });
 });

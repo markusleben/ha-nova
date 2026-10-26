@@ -150,6 +150,7 @@ func managedConfigArtifactPaths(paths runtimePaths, purge bool) []string {
 		filepath.Join(paths.ConfigDir, "version.json"),
 		filepath.Join(paths.ConfigDir, "onboarding.env"),
 		filepath.Join(paths.ConfigDir, "doctor-cache.env"),
+		claudeRepairFailedPath(paths),
 		filepath.Join(paths.ConfigDir, "claude-marketplace"),
 		filepath.Join(paths.ConfigDir, "undo-snapshot.json"),
 		filepath.Join(paths.ConfigDir, "undo-snapshots.json"),

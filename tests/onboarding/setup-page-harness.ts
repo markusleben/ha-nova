@@ -69,7 +69,7 @@ export function page(before: object, ...afterPost: object[]) {
   const window: Record<string, unknown> = {};
   const context = {
     window, document, fetch, Intl, JSON, Promise, Object, Array, Map, String, Boolean,
-    navigator: { language: "en" },
+    navigator: { language: "en" } as Record<string, unknown>, // a test may add a clipboard
     location: { hash: "", origin: "http://127.0.0.1:1", assign: () => undefined },
     sessionStorage: { getItem: () => null, setItem: () => undefined },
     setTimeout: (fn: () => void, ms = 0) => (ms >= 30_000 ? held : timers).push(fn),
@@ -87,7 +87,7 @@ export function page(before: object, ...afterPost: object[]) {
     }
   };
   const find = (id: string) => nodes.screen.all().find((n) => n.id === id);
-  return { screen: nodes.screen, posts, settle, find, catalog, timers, held, ctl };
+  return { screen: nodes.screen, body: document.body, navigator: context.navigator, posts, settle, find, catalog, timers, held, ctl };
 }
 
 // Chat apps on: this home's connector address, its Add to Claude links, and step 3 with that row.

@@ -11,6 +11,16 @@ func doctorClientNotLoaded(client clientStatus) string {
 	return fmt.Sprintf("%s doesn't load HA NOVA right now", client.Label)
 }
 
+// doctorClaudeReadyLines: which Claude "Claude Code" is, the chat apps
+// guide for Claude Desktop's chat tab, and the rules hint when it has one.
+func doctorClaudeReadyLines(paths runtimePaths) []string {
+	lines := claudeWhereLines()
+	if hint := claudeRulesHint(paths); hint != "" {
+		lines = append(lines, hint)
+	}
+	return lines
+}
+
 func doctorClientRepairHint(client clientStatus, installSource string) string {
 	setupCommand := doctorClientSetupCommand(client.ID)
 	switch {

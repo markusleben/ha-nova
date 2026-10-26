@@ -61,7 +61,8 @@
   [ok] Setup complete!
 
   Installed for: Claude Code
-  Claude Code is the claude command in a terminal and the Code tab in the Claude Desktop app (in a new chat). The chat tab in Claude Desktop doesn't use it: there, turn on chat apps in NOVA in Home Assistant and click Add to Claude.
+  Claude Code is the claude command in a terminal and the Code tab in the Claude Desktop app (in a new chat). The chat tab in Claude Desktop doesn't use it. For that tab, see chat apps (needs Home Assistant reachable from the internet).
+  Chat apps guide: https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md
 
   Open Claude Code and try asking:
 
@@ -79,7 +80,8 @@
   [ok] Setup complete!
 
   Installed for: Claude Code, Codex CLI
-  Claude Code is the claude command in a terminal and the Code tab in the Claude Desktop app (in a new chat). The chat tab in Claude Desktop doesn't use it: there, turn on chat apps in NOVA in Home Assistant and click Add to Claude.
+  Claude Code is the claude command in a terminal and the Code tab in the Claude Desktop app (in a new chat). The chat tab in Claude Desktop doesn't use it. For that tab, see chat apps (needs Home Assistant reachable from the internet).
+  Chat apps guide: https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md
 
   Open your AI apps and try asking:
 

@@ -19,6 +19,7 @@
   const downloads = {
     claude_desktop: 'https://claude.com/download',
     claude_code: 'https://claude.com/claude-code',
+    chat_guide: 'https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md', // chatAppsGuideURL
   };
   // Claude Code's install line (code.claude.com/docs/en/setup), for a Mac
   // with Claude Desktop only: the CLI sends desktop only there.
@@ -126,8 +127,10 @@
       el('div', {}, el('div', { class: 'k' }, el('span', { class: 'visually-hidden' }, `${t(rowStatus[status])} `), key),
         value ? el('div', { class: 'v' }, value) : null, extra && extra.below),
       extra && extra.side ? extra.side : el('span'));
-  // Which Claude "Claude Code" is, wherever the page says it got HA NOVA.
-  const claudeWhere = (clients) => ((clients || []).includes('Claude Code') ? el('p', { class: 'fine', id: 'claude-where' }, t('setup.claude.where')) : null);
+  // Which Claude "Claude Code" is, wherever setup says it got HA NOVA, and
+  // the chat apps guide for the Claude Desktop tab it isn't.
+  const claudeWhere = (clients) => ((clients || []).includes('Claude Code') ? el('p', { class: 'fine', id: 'claude-where' }, `${t('setup.claude.where')} `,
+    el('a', { id: 'l-chat-guide', class: 'linkish', href: downloads.chat_guide, target: '_blank', rel: 'noopener noreferrer' }, t('setup.page.link.chat_guide'))) : null);
   const head = (eyebrow, title, lead, amber) => [
     el('p', { class: amber ? 'eyebrow amber' : 'eyebrow' }, eyebrow),
     el('h1', { tabindex: '-1' }, title),
@@ -171,7 +174,7 @@
     noclient: () => [...head(t('setup.page.noclient.eyebrow'), t(state.desktop ? 'setup.page.noclient.title_desktop' : 'setup.page.noclient.title'),
       t(state.desktop ? 'setup.page.noclient.lead_desktop' : 'setup.page.noclient.lead')),
       state.desktop ? el('p', { class: 'fine' }, t('setup.page.noclient.install_desktop')) : null,
-      state.desktop ? el('div', { class: 'code', id: 'claude-install' }, claudeInstall) : null,
+      state.desktop ? copybar(claudeInstall, 'claude-install', 'setup.page.noclient.copied', 'setup.page.noclient.copy_failed') : null,
       el('div', { class: 'actions' }, button(t('setup.page.noclient.web'), 'web')),
       el('p', { class: 'fine', id: 'web-needs' }, `${t('setup.page.noclient.web_needs')} `, chatHelp()),
       el('div', { class: 'actions' },
@@ -277,7 +280,7 @@
     'setup.page.home.note_clients_failed', 'setup.page.home.note_web_off'];
   const note = (msg) => el('p', { class: amberNotes.includes(msg.key) ? 'note' : 'note done' }, say(msg));
   const helpers = { t, el, row, head, note, button, link, format, render, post, accepts, announce, claudeWhere, state: () => state };
-  const later = window.novaSteps(helpers);
+  const { copybar, ...later } = window.novaSteps(helpers);
   Object.assign(screens, later, window.novaRerun({ ...helpers, control: later.control }));
   for (const [screen, [eyebrow, title, lead, amber]] of Object.entries(endScreens)) {
     screens[screen] = () => head(t(eyebrow), t(title), t(lead), amber);

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"slices"
 	"strings"
 )
 
@@ -155,14 +154,10 @@ func postUpdateSyncWithResultUnlocked(paths runtimePaths) postUpdateSyncResult {
 }
 
 // printUpdateDone: one plain sentence for what the update did, naming every
-// AI app it refreshed (the sync already warned about the others), and which
-// Claude "Claude Code" is.
+// AI app it refreshed (the sync already warned about the others).
 func printUpdateDone(lead string, result postUpdateSyncResult) {
 	if len(result.Synced) > 0 {
 		printHumanInfo("%s in %s.", lead, joinAnd(result.Synced))
-		if slices.Contains(result.Synced, "Claude Code") {
-			printHumanInfo("%s", setupT("setup.claude.where"))
-		}
 		return
 	}
 	printHumanInfo("%s.", lead)
