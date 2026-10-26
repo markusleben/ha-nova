@@ -74,7 +74,8 @@ function fail(response: ServerResponse, status: number, message: string): void {
 // A non-owner admin sees NOVA in the sidebar (panel_admin): name who can open it (fail() escapes the name).
 function refuse(response: ServerResponse, owner: Extract<OwnerCheckResult, { ok: false }>): void {
   const [who, them] = owner.ownerName ? [`the owner, ${owner.ownerName},`, "them"] : ["the owner of this Home Assistant", "the owner"];
-  fail(response, owner.status, owner.status === 503 ? "Could not verify owner access. Try again shortly." : `Only ${who} can open NOVA. Ask ${them} to open it and click Connect a device. That shows a six-digit code for your computer.`);
+  fail(response, owner.status, owner.status === 503 ? "Could not verify owner access. Try again shortly."
+    : owner.unknownUser ? "Couldn't tell who you are. Open NOVA from the Home Assistant sidebar." : `Only ${who} can open NOVA. Ask ${them} to open it and click Connect a device. That shows a six-digit code for your computer.`);
 }
 
 export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {

@@ -219,8 +219,8 @@ func haSignInRetryable(err error) bool {
 // haOwnerHint: who the owner is, for a family member who signed in.
 const haOwnerHint = "The owner is the first account made when Home Assistant was set up; ask that person to sign in."
 
-// haOwnerConnects: the owner connects a computer once, for everyone using it.
-const haOwnerConnects = "Only the owner can connect a computer, and then it works for everyone who uses it."
+// haOwnerConnects: the owner connects a computer once, for everyone using this login on it.
+const haOwnerConnects = "Only the owner can connect this computer; after that, anyone who uses this login on it can use HA NOVA."
 
 func haSignInFallbackLine(err error, user HACurrentUser) string {
 	var certificate *tls.CertificateVerificationError

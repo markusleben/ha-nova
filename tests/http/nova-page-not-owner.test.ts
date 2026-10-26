@@ -17,11 +17,11 @@ const OWNER: HaAuthUser = { id: "owner-1", name: "Markus", is_owner: true, is_ac
 // Refused before any other dependency is used.
 const deps = (users: HaAuthUser[]) => ({ fetchAuthUsers: async () => users }) as unknown as NovaPageDeps;
 
-async function open(users: HaAuthUser[], handler = createNovaPageHandler) {
+async function open(users: HaAuthUser[], handler = createNovaPageHandler, peer = "172.30.32.2") {
   const headers = { "x-ingress-path": "/api/hassio_ingress/tok", "x-remote-user-id": ADMIN.id };
   const request = {
     url: "/",
-    socket: { remoteAddress: "172.30.32.2" },
+    socket: { remoteAddress: peer },
     headers,
     rawHeaders: Object.entries(headers).flat(),
   } as unknown as IncomingMessage;
@@ -55,6 +55,16 @@ describe("NOVA page: an admin who isn't the owner", () => {
       expect(r.statusCode).toBe(403);
       expect(r.body).toContain(generic);
       expect(r.body).not.toContain("Markus");
+    }
+  });
+
+  it("says neutrally when it can't tell who opened it, and names nobody", async () => {
+    for (const handler of [createNovaPageHandler, createNovaActionHandler]) {
+      const r = await open([ADMIN, OWNER], handler, "192.168.1.20"); // not through the Home Assistant sidebar
+      expect(r.statusCode).toBe(403);
+      expect(r.body).toContain("<p>Couldn&#39;t tell who you are. Open NOVA from the Home Assistant sidebar.</p>");
+      expect(r.body).not.toContain("Markus");
+      expect(r.body).not.toContain("Only the owner");
     }
   });
 });

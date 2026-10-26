@@ -23,7 +23,7 @@ export interface HaAuthUser {
 
 export type OwnerCheckResult =
   | { ok: true; userId: string; name: string }
-  | { ok: false; status: 403 | 503; message: string; ownerName?: string | undefined };
+  | { ok: false; status: 403 | 503; message: string; ownerName?: string | undefined; unknownUser?: true };
 
 export interface OwnerCheckDeps {
   // Fetches config/auth/list via the Supervisor-proxied WS. Throws on failure.
@@ -39,7 +39,7 @@ export async function checkOwner(
   // fails here because it does not arrive from the Supervisor ingress peer.
   const identity = resolveIngressIdentity(request);
   if (!identity.ok) {
-    return { ok: false, status: 403, message: "Ambiguous ingress user" };
+    return { ok: false, status: 403, message: "Ambiguous ingress user", unknownUser: true };
   }
   const userId = identity.userId;
 

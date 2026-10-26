@@ -155,7 +155,7 @@
     return href ? el('a', { id: 'l-chat-help', class: 'linkish', href, target: '_blank', rel: 'noopener noreferrer' }, t('setup.page.link.whats_this')) : null;
   };
   // Why the terminal (state.handover); a question there by default.
-  const terminalLeads = { code: 'setup.page.terminal.lead_code', keyring_locked: 'setup.page.terminal.lead_keyring_locked', keyring_setup: 'setup.page.terminal.lead_keyring_setup' };
+  const terminalLeads = { code: 'setup.page.terminal.lead_code', code_install: 'setup.page.terminal.lead_code_install', code_update: 'setup.page.terminal.lead_code_update', keyring_locked: 'setup.page.terminal.lead_keyring_locked', keyring_setup: 'setup.page.terminal.lead_keyring_setup' };
 
   const screens = {
     looking: () => [...head(t('setup.page.looking.eyebrow'), t('setup.page.looking.title'), t('setup.page.looking.lead')),
@@ -198,7 +198,7 @@
 
       const primary = asking ? '' : state.primary;
       // Who signs in, said above the button: a family member may not know. On a
-      // computer, that one sign-in connects it for everyone who uses it.
+      // computer, that one sign-in connects it for anyone using this login on it.
       const owner = primary ? el('p', { class: 'owner' }, t('setup.page.found.owner'), state.web ? null : ` ${t('setup.page.found.owner_once')}`) : null;
       const actions = el('div', { class: 'actions' },
         primary ? button(t(primaryLabels[primary]), 'signin')
@@ -251,7 +251,7 @@
           link(t('setup.page.link.guide'), links.guide, fixLabels[state.fix] ? 'ghost' : 'primary', 'guide'),
           link(t('setup.page.link.app'), links.app, 'ghost', 'app')),
           webFix ? el('p', { class: 'fine' }, state.fix === 'web' ? `${t('setup.page.connect.web_signin')} ` : null, chatHelp()) : null,
-          // Not owner: the owner connects this computer for everyone; with NOVA
+          // Not owner: the owner connects this computer once; with NOVA
           // already running, the owner can also make a code on any device.
           state.fix === 'owner' && !state.web ? el('p', { class: 'fine' }, t('setup.page.found.owner_once'),
             state.primary === 'install' || state.primary === 'update' ? null : ` ${t('setup.page.found.owner_away')}`) : null,
