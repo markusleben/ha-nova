@@ -11,6 +11,8 @@ release smokes; the maintainer works through the per-release Cloud checklist in
 
 ## Writes
 
+HA UI parity batch 1 (0.29) adds raw writes the Home Assistant UI makes: integration enable/disable, rename and system options, ignoring a discovery, user account edits, general settings, ignoring a repair, exposing new entities to voice, and blueprint deletion (`cli/relay_raw_allow.go`). The raw guard refuses disabling, enabling, or changing polling of an integration entry that has a lock, alarm panel, or access cover, including one whose switch backs a `switch_as_x` access entity, and any access change (administrator flag, active state, local-only) to the owner's account, a system account, or the account HA NOVA uses; an unreadable registry or account list sends nothing. Access changes, time zone or unit changes, and blueprint deletion are typed; the rest are previewed. Proof: `cli/plan_raw_tier_test.go`.
+
 Device deletion sends Home Assistant's own `config/device_registry/remove` (HA 2026.9+) as a typed raw plan, the same on a computer and in chat apps, after a metadata snapshot and a preview of the entities and consumers that go (`organize`). The raw guard refuses a device that has, or whose child devices have, a lock, alarm panel, or access cover, and HA NOVA's own App device; an unreadable registry sends nothing. There is no undo. Proof: `cli/device_delete_test.go`, `cli/plan_raw_tier_test.go`, `tests/skills/routing-contract.test.ts`.
 
 | Guarantee | Enforced by | Verified by |

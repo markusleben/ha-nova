@@ -17,10 +17,12 @@ import (
 // registry row, or reconfiguring an entry, can remove a lock, alarm panel,
 // or access cover (or change its class) that marks a sibling switch, button,
 // or switch_as_x source as typed; renaming a factory-reset button drops the
-// word that makes its press typed; disabling a device, or the switch a
-// switch_as_x lock or cover runs on, takes that lock, alarm panel, or access
-// cover out of service with it. Before sending one, the CLI reads the
-// registry and refuses it when the target is such an entity.
+// word that makes its press typed; disabling a device, an integration entry,
+// or the switch a switch_as_x lock or cover runs on, takes that lock, alarm
+// panel, or access cover out of service with it. Before sending one, the CLI
+// reads the registry and refuses it when the target is such an entity. An
+// access change to the owner's, a system, or HA NOVA's own account is
+// refused the same way (rawAccountKept).
 
 var rawEntryDeletePath = regexp.MustCompile(`^/api/config/config_entries/entry/([A-Za-z0-9_-]+)$`)
 
@@ -29,8 +31,9 @@ const rawNextAccessTarget = "it controls a lock, alarm panel, or access cover, a
 // rawTarget: the entry or entity a raw request would remove or reconfigure,
 // the button it would rename, the device it would disable or enable, or the
 // switch it would disable or enable (a switch_as_x lock or cover runs on it),
-// or the device it would delete (zero = none of these).
-type rawTarget struct{ entry, entity, button, device, source, deleted string }
+// the device it would delete, the integration entry it would disable or
+// enable, or the account whose access it would change (zero = none of these).
+type rawTarget struct{ entry, entity, button, device, source, deleted, toggled, account string }
 
 func rawAccessTarget(endpoint string, body []byte) rawTarget {
 	payload, ok := decodeObject(body)
@@ -65,8 +68,20 @@ func rawAccessTarget(endpoint string, body []byte) rawTarget {
 			_, renames := m["name"]
 			_, newID := m["new_entity_id"]
 			_, disables := m["disabled_by"]
+			_, polling := m["pref_disable_polling"]
 			device, _ := m["device_id"].(string)
+			entry, _ := m["entry_id"].(string)
+			user, _ := m["user_id"].(string)
+			access := false
+			for _, key := range []string{"group_ids", "is_active", "local_only"} {
+				_, set := m[key]
+				access = access || set
+			}
 			switch {
+			case m["type"] == "config_entries/disable" || m["type"] == "config_entries/update" && polling:
+				return rawTarget{toggled: cmp.Or(entry, "(none)")}
+			case m["type"] == "config/auth/update" && access:
+				return rawTarget{account: cmp.Or(user, "(none)")}
 			case m["type"] == "config/entity_registry/remove":
 				return rawTarget{entity: id}
 			case m["type"] == "config/entity_registry/update" && strings.HasPrefix(id, "button.") && (renames || newID):
@@ -107,6 +122,9 @@ func checkRawAccessTargetIn(s *relaySession, endpoint string, body []byte) (refu
 	if target == (rawTarget{}) {
 		return nil, nil
 	}
+	if target.account != "" {
+		return rawAccountKept(s, target.account)
+	}
 	var rows []struct {
 		EntityID      string `json:"entity_id"`
 		ConfigEntryID string `json:"config_entry_id"`
@@ -126,19 +144,6 @@ func checkRawAccessTargetIn(s *relaySession, endpoint string, body []byte) (refu
 	if err != nil {
 		return nil, errors.New("cannot read what this request would remove or reconfigure, so nothing was sent: " + err.Error())
 	}
-	if target.source != "" {
-		for _, row := range rows {
-			if row.EntityID == target.source {
-				target.device = row.DeviceID
-			}
-		}
-		for _, row := range rows {
-			if row.Platform == "switch_as_x" && row.DeviceID == target.device && accessCapable(row.EntityID, coverClass(s, row.EntityID)) {
-				return rawRefusal("disabling or enabling "+target.source+", which runs "+row.EntityID+" (a disabled lock, alarm panel, or cover stops working in Home Assistant, so a door can't be locked or the alarm armed)", rawNextUI), nil
-			}
-		}
-		return nil, nil
-	}
 	gone := map[string]bool{}
 	if target.deleted != "" {
 		var refusal error
@@ -146,13 +151,47 @@ func checkRawAccessTargetIn(s *relaySession, endpoint string, body []byte) (refu
 			return refusal, err
 		}
 	}
+	sources := map[string]bool{}
+	switches := map[string]bool{}
+	deviceLessSources := false
+	for _, row := range rows {
+		if row.EntityID == target.source || target.toggled != "" && row.ConfigEntryID == target.toggled && strings.HasPrefix(row.EntityID, "switch.") {
+			switches[row.EntityID] = true
+			if row.DeviceID != "" {
+				sources[row.DeviceID] = true
+			} else {
+				deviceLessSources = true
+			}
+		}
+	}
 	for _, row := range rows {
 		if row.EntityID == target.button && destructiveButtonText(row.EntityID+" "+row.Name+" "+row.OriginalName) {
 			return rawRefusal("rename of "+row.EntityID+" (its name marks a press as needing the one-time code)", rawNextUI), nil
 		}
-		owned := row.EntityID == target.entity || (target.entry != "" && row.ConfigEntryID == target.entry) || (target.device != "" && row.DeviceID == target.device) || gone[row.DeviceID]
+		wrapped := row.Platform == "switch_as_x" && sources[row.DeviceID]
+		if row.Platform == "switch_as_x" && row.DeviceID == "" && deviceLessSources && accessCapable(row.EntityID, coverClass(s, row.EntityID)) {
+			var wrapper struct {
+				Options struct {
+					Switch struct {
+						EntityID string `json:"entity_id"`
+					} `json:"switch_as_x"`
+				} `json:"options"`
+			}
+			data, err := s.readFresh("ws", map[string]any{"type": "config/entity_registry/get", "entity_id": row.EntityID}, relaySessionRequestTimeout)
+			if err != nil || json.Unmarshal(data, &wrapper) != nil || wrapper.Options.Switch.EntityID == "" {
+				return rawRefusal("an unresolved source switch for "+row.EntityID, "cannot tell whether this change would interrupt its access control; "+rawNextUI), nil
+			}
+			wrapped = switches[wrapper.Options.Switch.EntityID]
+		}
+		owned := row.EntityID == target.entity || (target.entry != "" && row.ConfigEntryID == target.entry) || (target.device != "" && row.DeviceID == target.device) || gone[row.DeviceID] || (target.toggled != "" && row.ConfigEntryID == target.toggled) || wrapped
 		if !owned || !accessCapable(row.EntityID, coverClass(s, row.EntityID)) {
 			continue
+		}
+		if target.toggled != "" {
+			return rawRefusal("disabling, enabling, or changing polling of the integration entry "+target.toggled+", which has "+row.EntityID+" (this can interrupt its lock, alarm panel, or cover, so a door can't be locked or the alarm armed)", rawNextUI), nil
+		}
+		if target.source != "" {
+			return rawRefusal("disabling or enabling "+target.source+", which runs "+row.EntityID+" (a disabled lock, alarm panel, or cover stops working in Home Assistant, so a door can't be locked or the alarm armed)", rawNextUI), nil
 		}
 		if target.device != "" {
 			return rawRefusal("disabling or enabling device "+target.device+", which has "+row.EntityID+" (a disabled lock, alarm panel, or cover stops working in Home Assistant, so a door can't be locked or the alarm armed)", rawNextUI), nil
@@ -201,6 +240,52 @@ func rawDeletedDevices(s *relaySession, id string) (gone map[string]bool, refusa
 		return nil, rawRefusal("deletion of unknown device "+id, "read the device registry again and resolve its current device_id"), nil
 	}
 	return gone, nil, nil
+}
+
+// rawAccountKept: the owner, a system account, and the account HA NOVA
+// signs in with keep their access (administrator flag, active state,
+// local-only sign-in), as skills/admin keeps them from deletion; read live,
+// an unreadable list or an unknown account sends nothing.
+func rawAccountKept(s *relaySession, id string) (refusal, err error) {
+	var users []struct {
+		ID              string `json:"id"`
+		IsOwner         bool   `json:"is_owner"`
+		SystemGenerated bool   `json:"system_generated"`
+	}
+	var current struct {
+		ID string `json:"id"`
+	}
+	data, err := rawRead(s, "ws", map[string]any{"type": "config/auth/list"})
+	if err == nil {
+		err = json.Unmarshal(data, &users)
+	}
+	if err == nil {
+		data, err = rawRead(s, "ws", map[string]any{"type": "auth/current_user"})
+	}
+	if err == nil {
+		err = json.Unmarshal(data, &current)
+	}
+	if err == nil && (users == nil || current.ID == "") {
+		err = errors.New("the account list or HA NOVA's own account came back empty")
+	}
+	if err != nil {
+		return nil, errors.New("cannot read the accounts this request would change, so nothing was sent: " + err.Error())
+	}
+	if id == current.ID {
+		return rawRefusal("access change of HA NOVA's own account", "HA NOVA would lose its way into Home Assistant; "+rawNextUI), nil
+	}
+	for _, user := range users {
+		switch {
+		case user.ID != id:
+		case user.IsOwner:
+			return rawRefusal("access change of the owner's account (Home Assistant would be left without its administrator)", rawNextUI), nil
+		case user.SystemGenerated:
+			return rawRefusal("access change of a system account (it belongs to an integration, not a person)", rawNextUI), nil
+		default:
+			return nil, nil
+		}
+	}
+	return rawRefusal("access change of unknown account "+id, "read config/auth/list again and use the account's current id"), nil
 }
 
 // destructiveButtonText: a destructive word as a whole token, as

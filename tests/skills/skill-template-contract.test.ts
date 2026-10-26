@@ -57,6 +57,7 @@ const FORBIDDEN_HEADINGS = [
 
 const MUTATION_SKILLS = new Set([
   "hacs",
+  "health",
   "device",
   "migrate",
   "esphome",
@@ -89,7 +90,6 @@ const READ_ONLY_SKILLS = new Set([
   "external-sources",
   "entity-discovery",
   "history",
-  "health",
   "home-map",
   "onboarding",
 ]);

@@ -96,6 +96,9 @@ Raw `ha-nova relay ws` sends only the types on `cli/relay_raw_allow.go` (raw `re
 | WS | `config_entries/get` | Retrieve config-entry metadata |
 | WS | `manifest/list` | Map integration domains to manifest names and config-flow capability |
 | WS | `config_entries/flow/progress` | Retrieve in-progress flows, including `reauth` |
+| WS | `config_entries/disable` | Disable (`disabled_by: "user"`) or enable (`null`) an entry; integration-setup, raw plan; an entry with a lock, alarm panel, or access cover is refused |
+| WS | `config_entries/update` | Entry `title`, `pref_disable_polling`, `pref_disable_new_entities`; integration-setup. Polling changes reload loaded entries and use the enable/disable access-target refusal |
+| WS | `config_entries/ignore_flow` | Ignore a discovered flow (`flow_id`, `title`; the flow needs a `unique_id`); integration-setup |
 | `/core` | `GET /api/config/config_entries/flow_handlers` | List available config-flow handlers |
 | `/core` | `POST /api/config/config_entries/flow` | Start flow |
 | `/core` | `GET /api/config/config_entries/flow/{flow_id}` | Read current flow step |
@@ -109,11 +112,10 @@ Raw `ha-nova relay ws` sends only the types on `cli/relay_raw_allow.go` (raw `re
 
 Observed locally on a real HA instance on 2026-03-19: raw WS `config_entries/flow` did not succeed in this session; relay `/core` returned the expected config-flow responses.
 
-**Integration flow ownership:** `ha-nova:integration-setup` owns integration add, pending `reauth` continuation, invalid-credential recovery when no reauth flow is pending, options and reconfigure flows for existing entries, and config-entry reload; it uses the live response schema and hands secrets/external steps to the HA UI.
+**Integration flow ownership:** `ha-nova:integration-setup` owns integration add, pending `reauth` continuation, invalid-credential recovery when no reauth flow is pending, options and reconfigure flows for existing entries, config-entry reload, enable/disable, rename and system options, and ignoring a discovery; it uses the live response schema and hands secrets/external steps to the HA UI.
 
-**Helper-owned config-entry domains:** utility_meter, derivative, integration, min_max, threshold, tod, statistics, group, history_stats, template, generic_thermostat, switch_as_x
+**Helper-owned config-entry domains:** utility_meter, derivative, integration, min_max, threshold, tod, statistics, group, history_stats, template, generic_thermostat, switch_as_x, trend, random, filter, generic_hygrostat
 `group` is menu-driven; the live-proven end-to-end subtype is `sensor`, and other subtypes must stay anchored to the live step schema instead of guessed fields.
-**Fallback-owned flow helpers:** trend, random, filter, generic_hygrostat
 
 ### Dashboard / Lovelace
 | WS Type | Purpose |
@@ -167,6 +169,7 @@ Recurring instances add `recurrence_id`; `recurrence_range` is `""` for only tha
 |---------|-----|
 | `webhook/list` | Registered webhook IDs plus domain/name, locality, and allowed methods (secret-bearing) — raw refused |
 | `repairs/list_issues` | Repairs/Deprecation Issues |
+| `repairs/ignore_issue` | Ignore or un-ignore one issue (`domain`, `issue_id`, `ignore`); health, raw plan |
 | `config_entries/get` | Config-entry metadata; health uses not-loaded entries as integration status |
 | `system_health/info` | System health finite event response (Skill opts into Relay `collect_events` until `finish`) |
 | `homeassistant/expose_entity/list` | Voice-Assistant Exposure |
@@ -177,6 +180,7 @@ Recurring instances add `recurrence_id`; `recurrence_range` is `""` for only tha
 | `blueprint/import` | Import blueprint |
 | `blueprint/save` | Save a blueprint (used by `ha-nova:fallback`) |
 | `blueprint/substitute` | Expand a blueprint config (used by `ha-nova:fallback`) |
+| `blueprint/delete` | Delete a blueprint (`domain`, `path`); Home Assistant refuses one in use; fallback, typed raw plan |
 
 ## Filesystem (via the Relay's opt-in `/files` endpoint)
 
@@ -212,8 +216,9 @@ guardrails.
 | System log | `system_log/list` (the working log source on HA OS) | diagnose |
 | Core state | `get_states` (full state dump; prefer `config/entity_registry/list_for_display` for listings) | ha-nova (`relay-api.md`), used across read paths |
 | Backups | `backup/info`, `backup/generate`, `backup/generate_with_automatic_settings`, `backup/delete`, `backup/agents/info`, `backup/details`, `backup/config/info` | backup |
-| People & access | `person/*`, `zone/*`, `tag/*`, `config/auth/list`, `config/auth/create`, `config/auth/delete`, `auth/current_user` | admin |
-| Voice | `assist_pipeline/pipeline/list`, `assist_pipeline/pipeline/create`, `assist_pipeline/pipeline/update`, `assist_pipeline/pipeline/delete`, `assist_pipeline/pipeline/set_preferred`, `homeassistant/expose_entity` and `homeassistant/expose_entity/list`, engine inventories `tts/engine/list`, `stt/engine/list`, `conversation/agent/list`, `wake_word/info`. `assist_pipeline/run` is pinned as NOT usable via the Relay (streaming audio subscription); utterance tests go through REST `/api/conversation/process` | assist |
+| People & access | `person/*`, `zone/*`, `tag/*`, `config/auth/list`, `config/auth/create`, `config/auth/update` (`name`: preview; `is_active`, `local_only`, `group_ids`: typed and refused for the owner, system accounts, and the Relay's own account), `config/auth/delete`, `auth/current_user` | admin |
+| General settings | `get_config`, `config/core/detect` (read), `config/core/update` (`time_zone`, `unit_system`, `update_units`: typed) | admin |
+| Voice | `assist_pipeline/pipeline/list`, `assist_pipeline/pipeline/create`, `assist_pipeline/pipeline/update`, `assist_pipeline/pipeline/delete`, `assist_pipeline/pipeline/set_preferred`, `homeassistant/expose_entity` and `homeassistant/expose_entity/list`, `homeassistant/expose_new_entities/get` and `/set`, debug runs `assist_pipeline/pipeline_debug/list` and `/get`, engine inventories `tts/engine/list`, `stt/engine/list`, `conversation/agent/list`, `wake_word/info`. `assist_pipeline/run` is pinned as NOT usable via the Relay (streaming audio subscription); utterance tests go through REST `/api/conversation/process` | assist |
 | Recorder repair | `recorder/info`, `recorder/list_statistic_ids`, `recorder/get_statistics_metadata`, `recorder/validate_statistics`, `recorder/clear_statistics`, `recorder/update_statistics_metadata`, `recorder/change_statistics_unit`, `recorder/adjust_sum_statistics` | maintenance |
 | Device automation | `device_automation/trigger/list`, `device_automation/trigger/capabilities` | write |
 | MQTT | `mqtt/subscribe` (envelope only), `mqtt/device/debug_info` | mqtt |

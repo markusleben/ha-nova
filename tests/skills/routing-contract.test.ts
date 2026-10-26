@@ -92,7 +92,7 @@ describe("boundary statements between neighbouring skills (#518)", () => {
 
   it("gives health the reverse boundaries it was missing", () => {
     const h = flat(read("skills/health/SKILL.md"));
-    expect(h).toContain("root-causing one named item's concrete incident (`ha-nova:diagnose`)");
+    expect(h).toContain("root-causing one concrete incident (`ha-nova:diagnose`)");
     expect(h).toContain("not why one thing failed");
     expect(h).toContain("how long an entity has been unavailable");
     expect(flat(read("skills/maintenance/SKILL.md"))).toContain(

@@ -99,7 +99,7 @@ All the config-entry rows below — plus `template` itself when no built-in fits
 | Weekly on/off schedule | `schedule` | UI-editable, creates binary sensor |
 | Time-of-day binary (morning/night) | `tod` | Supports sunrise/sunset offsets |
 
-> **Relay-backed config-entry flows are supported** for the helper-owned domains listed above plus `template` through `ha-nova:helper`. Keep guidance narrow: unsupported helper families (trend, random, filter, ...) still fall back to the HA UI or `ha-nova:fallback`, and `group`/`template` must follow the live menu/form flow instead of guessed fields.
+> **Relay-backed config-entry flows are supported** for the helper-owned domains listed above plus `template` through `ha-nova:helper`. Keep guidance narrow: `group`/`template` must follow the live menu/form flow instead of guessed fields.
 
 ## Zigbee Button Patterns
 

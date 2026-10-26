@@ -112,11 +112,11 @@ describe("helper contract", () => {
 
     it("references the dedicated config-entry flow schema doc", () => {
       expect(skillDoc).toContain("helper-flow-schemas.md");
-      expect(flowSchemasDoc).toContain("full supported config-entry family (12 domains)");
+      expect(flowSchemasDoc).toContain("full supported config-entry family (16 domains)");
       expect(flowSchemasDoc).toContain("Canonical write identity: `entry_id`");
     });
 
-    it("documents full config-entry helper ownership for the 12 supported domains", () => {
+    it("documents full config-entry helper ownership for the 16 supported domains", () => {
       // generic_thermostat + switch_as_x promoted from fallback (#531 P4-05,
       // 2026-08-20).
       const expectedDomains = [
@@ -132,6 +132,10 @@ describe("helper contract", () => {
         "template",
         "generic_thermostat",
         "switch_as_x",
+        "trend",
+        "random",
+        "filter",
+        "generic_hygrostat",
       ];
       const skillDomainLine = skillDoc
         .split("\n")
@@ -140,7 +144,7 @@ describe("helper contract", () => {
       expect(
         [...(skillDomainLine ?? "").matchAll(/`([^`]+)`/g)].map((match) => match[1]),
       ).toEqual(expectedDomains);
-      const domainListStart = flowSchemasDoc.indexOf("(12 domains):");
+      const domainListStart = flowSchemasDoc.indexOf("(16 domains):");
       const domainListEnd = flowSchemasDoc.indexOf("This file is an observed");
       expect(domainListStart).toBeGreaterThan(-1);
       expect(domainListEnd).toBeGreaterThan(domainListStart);
@@ -150,7 +154,8 @@ describe("helper contract", () => {
         ),
       ).toEqual(expectedDomains);
 
-      expect(skillDoc).toContain("CRUD support for 12 domains:");
+      expect(skillDoc).toContain("CRUD support for 16 domains:");
+      expect(skillDoc).toContain("Filter config entries to the sixteen supported domains in Scope");
       expect(skillDoc).toContain("verified for the `sensor` subtype");
       expect(skillDoc).not.toContain("does **not** support update yet");
       // Template authoring safety: broken templates render entities unavailable.
@@ -279,29 +284,12 @@ describe("helper contract", () => {
         resolve(__dirname, "../../skills/fallback/SKILL.md"),
         "utf-8",
       ) + "\n" + readFileSync(resolve(__dirname, "../../skills/fallback/relay-ready.md"), "utf-8");
-      const supportedTypesLine = fallbackDoc
-        .split("\n")
-        .find((line) => line.includes("Supported types in this fallback section:"));
-
-      expect(supportedTypesLine).toBeDefined();
-      expect(supportedTypesLine).toContain("`trend`");
-      expect(supportedTypesLine).toContain("`random`");
-      expect(supportedTypesLine).toContain("`filter`");
-      expect(supportedTypesLine).toContain("`generic_hygrostat`");
-      // Promoted to ha-nova:helper (#531 P4-05, 2026-08-20).
-      expect(supportedTypesLine).not.toContain("`generic_thermostat`");
-      expect(supportedTypesLine).not.toContain("`switch_as_x`");
-      expect(supportedTypesLine).not.toContain("`utility_meter`");
-      expect(supportedTypesLine).not.toContain("`derivative`");
-      expect(supportedTypesLine).not.toContain("`integration`");
-      expect(supportedTypesLine).not.toContain("`min_max`");
-      expect(supportedTypesLine).not.toContain("`threshold`");
-      expect(supportedTypesLine).not.toContain("`tod`");
-      expect(supportedTypesLine).not.toContain("`statistics`");
-      expect(supportedTypesLine).not.toContain("`group`");
-      expect(supportedTypesLine).not.toContain("`history_stats`");
-      expect(supportedTypesLine).not.toContain("`template`");
-      expect(fallbackDoc).toContain("Delete unsupported config-entry helper by entry_id");
+      expect(fallbackDoc).not.toContain("Other Config-Entry Helpers -- RELAY-READY");
+      expect(fallbackDoc).toContain("Helpers (9 storage + 16 config-entry) | Covered | helper");
+      for (const domain of ["trend", "random", "filter", "generic_hygrostat"]) {
+        expect(skillDoc).toContain(`\`${domain}\``);
+        expect(flowSchemasDoc).toContain(`- \`${domain}\``);
+      }
     });
   });
 });

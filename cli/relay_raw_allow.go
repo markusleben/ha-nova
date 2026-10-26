@@ -54,7 +54,8 @@ var rawWSAllowed = map[string]string{
 	"hacs/repositories/removed": rawWSRead, "hacs/critical/list": rawWSRead,
 	"person/list": rawWSRead, "zone/list": rawWSRead, "tag/list": rawWSRead,
 	"config/auth/list": rawWSRead, "auth/current_user": rawWSRead,
-	"assist_pipeline/pipeline/list": rawWSRead, "homeassistant/expose_entity/list": rawWSRead,
+	"assist_pipeline/pipeline/list": rawWSRead, "homeassistant/expose_entity/list": rawWSRead, "homeassistant/expose_new_entities/get": rawWSRead,
+	"assist_pipeline/pipeline_debug/list": rawWSRead, "assist_pipeline/pipeline_debug/get": rawWSRead, "config/core/detect": rawWSRead,
 	"conversation/agent/list": rawWSRead, "tts/engine/list": rawWSRead, "stt/engine/list": rawWSRead, "wake_word/info": rawWSRead,
 	"media_player/browse_media": rawWSRead, "media_player/search_media": rawWSRead,
 	"media_source/browse_media": rawWSRead, "media_source/search_media": rawWSRead, "media_source/resolve_media": rawWSRead,
@@ -102,6 +103,14 @@ var rawWSAllowed = map[string]string{
 	"calendar/event/delete":                   "deletes a calendar event",
 	"todo/item/move":                          "reorders a to-do item",
 	"blueprint/save":                          "saves a new blueprint; overriding one in use is refused below",
+	"blueprint/delete":                        "deletes a blueprint (Home Assistant refuses one in use)",
+	"config_entries/disable":                  "disables or enables an integration entry (one with a lock, alarm panel, or access cover is refused)",
+	"config_entries/update":                   "an integration entry's name or system options (polling changes reload it and use the same access-target refusal as enable/disable)",
+	"config_entries/ignore_flow":              "ignores a discovered integration; the ignored list in the UI brings it back",
+	"config/auth/update":                      "an account's name, administrator flag, or active state (the owner's, a system account's, and HA NOVA's own access are refused)",
+	"config/core/update":                      "Home Assistant's general settings: name, location, units, time zone, currency, language, URLs",
+	"repairs/ignore_issue":                    "ignores a repair issue, or shows it again",
+	"homeassistant/expose_new_entities/set":   "whether new entities are exposed to a voice assistant; using one still takes a person's voice",
 }
 
 // Storage collections the helper and admin skills edit: each holds config
