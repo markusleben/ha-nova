@@ -134,6 +134,7 @@ type setupFlow struct {
 	// changes no credentials (setup_flow_link_paused.go).
 	cloudPausedAtStart bool
 	linkPausedShown    bool // its commands were shown
+	linkKeepsTerminal  bool // the setup page would open, but Link isn't ready
 
 	cleanups []func()
 }
@@ -157,6 +158,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	if flow.usesSetupPage() {
 		return flow.runOnPage()
 	}
+	flow.linkKeepsTerminal = cfg.Cloud != nil && !cfg.Cloud.ready() && flow.pageFitsWithoutLink()
 	flow.ui = setupTextUI{reader: bufio.NewReader(os.Stdin), out: os.Stdout}
 	return flow.run()
 }

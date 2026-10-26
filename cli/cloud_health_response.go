@@ -3,7 +3,12 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 )
+
+// errRelayHealthIdentityMismatch: the App answered as another Relay than the
+// saved one, usually a reinstalled App. The error code stays HA_PROTOCOL.
+var errRelayHealthIdentityMismatch = errors.New("the Relay instance id differs from the saved one")
 
 // validateCloudRelayHealthIdentity keeps the security-sensitive response
 // envelope strict while allowing the Relay to add health metadata fields.
@@ -37,12 +42,18 @@ func validateCloudRelayHealthIdentity(
 	var health struct {
 		RelayInstanceID string `json:"relay_instance_id"`
 	}
-	if err := json.Unmarshal(envelope.Data, &health); err != nil ||
-		health.RelayInstanceID != expectedRelayInstanceID {
+	if err := json.Unmarshal(envelope.Data, &health); err != nil {
 		return newCloudError(
 			CloudErrHAProtocol,
 			"validate Relay health identity",
 			err,
+		)
+	}
+	if health.RelayInstanceID != expectedRelayInstanceID {
+		return newCloudError(
+			CloudErrHAProtocol,
+			"validate Relay health identity",
+			errRelayHealthIdentityMismatch,
 		)
 	}
 	return nil

@@ -90,7 +90,18 @@
 
   "setup.link.will_open": "This will open:",
   "setup.link.unavailable_build": "Home Assistant Link doesn't work here: not on this computer, in this terminal, or in this HA NOVA build.",
-  "setup.link.paused_stop": "Setup stopped before it changed this computer's access to HA NOVA. First finish or remove Home Assistant Link with a command above. Then run ha-nova setup again.",
+  "setup.link.paused_stop": "Setup needs to change this computer's key, and it won't while Link is unfinished. Choose above, then run ha-nova setup again.",
+  "setup.link.terminal": "Link isn't finished, so setup runs here in the terminal.",
+  "setup.link.leftover": "Home Assistant Link on this computer isn't finished. It's left over from an earlier HA NOVA setup. HA NOVA still works at home without it.",
+  "setup.link.leftover_hold": "HA NOVA paused Link to keep your home safe. HA NOVA still works at home without it.",
+  "setup.link.goes_on": "Setup goes on without it. You'll see what to do at the end.",
+  "setup.link.choice_finish": "Finish Link now (sign in to Home Assistant once)",
+  "setup.link.choice_remove": "Remove Link from this computer",
+  "setup.link.choice_remove_detail": "HA NOVA keeps working at home.",
+  "setup.link.choice_later": "Not now",
+  "setup.link.choice_later_detail": "Setup goes on. It stops if it needs to change this computer's key.",
+  "setup.link.finish_does": "You sign in to Home Assistant once. Then HA NOVA works away from home too.",
+  "setup.link.remove_does": "Link is removed from this computer. HA NOVA keeps working at home.",
 
   "setup.status.already_done": "Already done: {steps}",
 

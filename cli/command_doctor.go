@@ -113,102 +113,26 @@ func runDoctor(paths runtimePaths, args []string) int {
 	// --auto-repair below, which only re-attaches drifted clients). Best-effort.
 	ensureClientsVerifiedForCurrentVersion(paths)
 
-	// Doctor uses the same route policy as functional commands. Automatic may
-	// therefore verify over Cloud while away, but still fails closed on local
-	// authentication, pin, or protocol errors.
+	// Doctor uses the same route policy as functional commands; when that
+	// route fails, it says why and checks the home connection instead.
 	doctorRelayCtx, cancelDoctorRelay := context.WithTimeout(
 		context.Background(),
 		time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)),
 	)
 	defer cancelDoctorRelay()
-	transport, transportErr := selectRelayTransport(doctorRelayCtx, cfg, "", false)
-	transportBase, transportClient, transportCred, deviceMode :=
-		transport.BaseURL, transport.Client, transport.Credential, transport.DeviceMode
-	pairedConfig := cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != ""
-	var token string
-	if transportErr == nil && deviceMode {
-		token = transportCred
-		doctorInfo("This computer's key is saved")
-	} else if pairedConfig {
-		// A paired config whose device transport failed must NOT be masked by a
-		// leftover legacy token: report the device problem so the user re-pairs.
-		// The direct slot read distinguishes unreadable storage from an absent
-		// credential (re-pairing cannot store anything in broken storage).
-		if _, exists, credErr := readDeviceCredential(); credErr != nil && isLinuxKeyringError(credErr) {
-			printHumanErr("This computer was set up with HA NOVA, but HA NOVA can't read its key. %s", relayAuthTokenProblemMessage(credErr))
-			if hint := doctorServiceCredentialRecoveryHint(paths, state, credErr); hint != "" {
-				printHumanWarn("%s", hint)
-			}
-			return 1
-		} else if credErr != nil {
-			printHumanErr("This computer was set up with HA NOVA, but HA NOVA can't read its key from the password store. Details: %s", credErr)
-			if secureStorageSessionProblem(credErr) {
-				printHumanWarn("%s. Next step: %s, then run 'ha-nova doctor' there.", secureStorageSessionReason, secureStorageSessionNextStep())
-			} else if hint := setupSecureStorageRecoveryHint(credErr); hint != "" {
-				printHumanWarn("%s", hint)
-			} else {
-				printHumanWarn("Unlock this computer's password store, then run 'ha-nova doctor' again.")
-			}
-			return 1
-		} else if exists {
-			printHumanErr("%s", relayTransportErrorMessage(transportErr))
-			return 1
-		}
-		printHumanErr("This computer was connected, but its key is gone from the password store.")
-		printHumanErr(
-			"Connect it again: run '%s'.",
-			localRelayRepairCommand(
-				activeServerProfile(),
-				cfg.RelayBaseURL,
-			),
-		)
-		return 1
-	} else if transportErr != nil &&
-		effectiveRoutePolicy(cfg.RoutePolicy) != routePolicyLocal {
-		if hold := cloudRecoveryHoldProblem(cfg); !cloudHoldIsSecurityStop(cfg) || relayTransportErrorMessage(transportErr) != hold.humanText() {
-			printHumanErr("%s", relayTransportErrorMessage(transportErr)) // the hold itself: its steps say it
-		}
-		printCloudSecurityHold(cfg)
-		return 1
-	} else if activeServerProfile() != defaultServerProfileName {
-		// Non-default profiles are device-credential-only: never check them with
-		// the machine-wide legacy token (it belongs to the default profile).
-		if transportErr == nil {
-			transportErr = fmt.Errorf(
-				"server %q isn't connected yet. Run: %s",
-				activeServerProfile(),
-				localRelayRepairCommand(
-					activeServerProfile(),
-					cfg.RelayBaseURL,
-				),
-			)
-		}
-		printHumanErr("%s", transportErr)
-		return 1
-	} else {
-		tokenErr := transportErr
-		if tokenErr == nil {
-			token = transportCred
-		} else {
-			token, tokenErr = readRelayAuthTokenForDoctor()
-		}
-		if tokenErr == nil && token != "" {
-			where := relayAuthTokenStorageLabel()
-			if where == "secure storage" {
-				where = "this computer's password store"
-			}
-			doctorInfo("This computer's shared key is saved in %s", where)
-		} else {
-			printHumanErr("%s", relayAuthTokenProblemMessage(tokenErr))
-			if hint := doctorServiceCredentialRecoveryHint(paths, state, tokenErr); hint != "" {
-				printHumanWarn("%s", hint)
-			}
-			if hint := setupSecureStorageRecoveryHint(tokenErr); hint != "" {
-				printHumanWarn("%s", hint)
-			}
-			return 1
-		}
+	route := selectDoctorRoute(doctorRelayCtx, paths, cfg, state, doctorInfo)
+	// The App check gets its own time: a slow route choice must not use it up.
+	readinessCtx, cancelReadiness := context.WithTimeout(
+		context.Background(),
+		time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)),
+	)
+	defer cancelReadiness()
+	if route.failed {
+		status = 1
 	}
+	printDoctorLinkLine(cfg)
+	transport, token, deviceMode := route.transport, route.token, route.deviceMode
+	transportBase, transportClient := transport.BaseURL, transport.Client
 
 	usingCloud := transport.Via == relayViaCloud
 	haReachable, haHinted := false, false
@@ -216,6 +140,8 @@ func runDoctor(paths runtimePaths, args []string) int {
 	if usingCloud {
 		doctorInfo("Using Home Assistant Link, so HA NOVA skips the home address check")
 		haReachable = true
+	} else if route.unchecked && remoteOnlyCloudSetup(cfg) {
+		// Link only, and Link failed: the reason is above.
 	} else if !haURLKnown {
 		// A pair-only setup (`ha-nova pair --relay-url ...`) has no saved HA
 		// address yet. The relay's WS state still proves the connection; the
@@ -247,7 +173,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 	runReadiness := func() relayReadiness {
 		if deviceMode || usingCloud {
 			return checkRelayReadinessOverTransportContext(
-				doctorRelayCtx,
+				readinessCtx,
 				transportBase,
 				transportClient,
 				token,
@@ -266,8 +192,9 @@ func runDoctor(paths runtimePaths, args []string) int {
 			localRelayRepairCommand(activeServerProfile(), cfg.RelayBaseURL),
 		)
 	}
-	readiness := runReadiness()
-	if readiness.HealthErr != nil {
+	if route.unchecked {
+		// No way to reach the App: the reason is above.
+	} else if readiness := runReadiness(); readiness.HealthErr != nil {
 		switch {
 		case deviceMode && relayHealthIssueLooksLikeRelayAuth(readiness.HealthErr):
 			printNotAccepted()

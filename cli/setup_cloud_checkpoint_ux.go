@@ -122,8 +122,10 @@ func setupCloudPausedSteps(paths runtimePaths, cfg runtimeConfig, legacyToken bo
 	} else {
 		if cloudRecoveryHoldProblem(cfg) == nil && !cfg.Cloud.cleanupPending() {
 			fmt.Fprintf(&out, "  To finish it, run: %s\n", cloudResumeCommandFor(cfg, profile))
+			fmt.Fprintln(&out, "    "+setupT("setup.link.finish_does"))
 		}
 		fmt.Fprintf(&out, "  To remove it, run: %s\n", cloudProfileCommandFor("remove", profile))
+		fmt.Fprintln(&out, "    "+setupT("setup.link.remove_does"))
 	}
 	if legacyToken {
 		fmt.Fprintln(&out, "  Switch to your own access after Link is fixed or removed: run ha-nova setup again.")
