@@ -1,7 +1,7 @@
 # HA NOVA Config-Entry Helper Flow Schemas
 
 Reference for the config-entry helper family handled by `ha-nova:helper`.
-This file covers the full supported config-entry family (12 domains):
+This file covers the full supported config-entry family (16 domains):
 
 - `utility_meter`
 - `derivative`
@@ -15,6 +15,10 @@ This file covers the full supported config-entry family (12 domains):
 - `template`
 - `generic_thermostat`
 - `switch_as_x`
+- `trend`
+- `random`
+- `filter`
+- `generic_hygrostat`
 
 This file is an observed field inventory, not a complete validation schema.
 Use it to confirm supported domains, flow shape, update expectations, and verification notes.
@@ -364,5 +368,17 @@ Observed locally on a real HA instance on 2026-03-19:
   the new one — say so in the preview
 - The target domain is create-only: changing it is delete + recreate, never an
   options-flow edit
+- Linked entity resolution:
+  - resolve by matching `config_entry_id` in entity registry
+
+## trend, random, filter, generic_hygrostat
+
+- Handlers: `trend`, `random`, `filter`, `generic_hygrostat`
+- No observed field inventory yet (promoted 2026-10-26, HA UI parity batch 1):
+  the live `data_schema` is the ONLY field source, per
+  `../ha-nova/live-schema-preflight.md`
+- `trend` and `filter` read a source sensor, `generic_hygrostat` a humidity
+  sensor and a humidifier switch: entity references — resolve them, never guess
+- Update: options flow when `supports_options: true`; same live-form rules
 - Linked entity resolution:
   - resolve by matching `config_entry_id` in entity registry

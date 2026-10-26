@@ -9,7 +9,7 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 ## Scope
 
-Read-only home status checks:
+Home status checks; ignoring a repair is the only write:
 - repairs/deprecation issues
 - integration entries that are not loaded
 - config and loaded component summary
@@ -18,12 +18,12 @@ Read-only home status checks:
 - best-effort system health info
 
 Not in scope:
-- repair/fix/ignore actions
+- repair fix flows
 - statistics repair, purge, registry cleanup (`ha-nova:maintenance`)
 - restart, reload, update, backup, or service calls
 - YAML/filesystem diagnostics
 - historical timelines (use `ha-nova:history`)
-- root-causing one named item's concrete incident (`ha-nova:diagnose`) — this skill reports what is wrong across the home right now, not why one thing failed
+- root-causing one concrete incident (`ha-nova:diagnose`) — health reports current status, not why one thing failed
 - how long an entity has been unavailable, and whether it is a cleanup candidate (`ha-nova:maintenance` long-unavailable report)
 
 ## Bootstrap (once per session)
@@ -35,9 +35,7 @@ Read `data.version` from the health response.
 
 ## Report Modes
 
-Two independent dimensions; both are always visible at the top of every
-report. Natural-language requests select them ("short/compact", "explained",
-"full", "private", "shareable", "aggregate", localized); no CLI syntax.
+Both dimensions are always visible; natural-language requests select them, no CLI syntax.
 Default: `Explained + Private`.
 
 - Detail: `Compact` (overall result + three highest-priority actions) ·
@@ -53,10 +51,7 @@ Default: `Explained + Private`.
 
 ## Relay Contract
 
-Use file-based relay requests:
-- `ha-nova relay core --method GET --path /api/config --out <result-file>`
-- `ha-nova relay core --method GET --path /api/components --out <result-file>`
-- `ha-nova relay core --method GET --path /api/states --out <result-file>`
+File-based reads: `ha-nova relay core --method GET --path <path> --out <result-file>` for `/api/config`, `/api/components`, `/api/states`.
 - `ha-nova relay ws --data-file <payload-file> --out <result-file>`
 - `ha-nova relay jq --file <result-file> --jq-file <filter-file>`
 
@@ -68,7 +63,7 @@ For WS payloads:
 - area registry (optional, only when human-readable area names are shown): `{"type":"config/area_registry/list"}`
 - system health: `{"message":{"type":"system_health/info"},"collect_events":{"until_type":"finish","max_events":100,"timeout_ms":10000}}`
 
-`system_health/info` is a finite event-response command. The Skill opts into generic Relay event collection through `collect_events`; the Relay only forwards the WS message and enforces `until_type`, `max_events`, and `timeout_ms`. A compatible relay returns `data.events` containing `initial`, zero or more `update`, and `finish` events. If the relay returns `data: null`, `UNSUPPORTED_WS_TYPE`, `VALIDATION_ERROR`, or another unsupported-event response, continue and say system-health details need a relay at the enforced floor — every supported relay has event collection, so this points at an outdated App.
+`system_health/info` returns `data.events`: `initial`, zero or more `update`, then `finish`. The Relay enforces `until_type`, `max_events`, and `timeout_ms`. On `data: null`, `UNSUPPORTED_WS_TYPE`, `VALIDATION_ERROR`, or unsupported events, continue; say system-health details need a relay at the enforced floor.
 
 ## Data Shapes
 
@@ -87,14 +82,11 @@ Private detail uses explicit, minimal source fields — never more:
 - device registry: `id`, `name_by_user`, `name`, `area_id`, `parent_device_id`, `config_entry_id` — effective area is the row's own `area_id`, else the parent's (`../ha-nova/membership-resolution.md` → Device rows)
 - config entries: existing state/domain fields plus `title`, sanitized before display
 
-Optional display metadata that is unavailable is marked unavailable; it never
-turns an otherwise complete result into a system failure.
-
-Do not run one combined `jq` normalizer across config, components, states, repairs, integrations, and system health. Their envelopes differ. Normalize each source file into a small source-specific shape first, then combine those normalized summaries.
+Normalize each source separately: REST, WS lists, repairs, and system-health events have different envelopes. Combine only validated summaries.
 
 Before accepting a source, require `ok:true`, a 2xx REST `data.status`, and valid types for every required row field. If a shape differs, mark that source unavailable and continue. Do not show parser or `jq` errors; mention only the affected source in coverage.
 
-Use `--jq-file` for non-trivial filters. Avoid complex inline jq, especially regex that must be shell-escaped. Prefer simple field equality and type checks over regex whenever Home Assistant attributes already provide structured data.
+Use `--jq-file` for non-trivial filters; prefer field equality and type checks over shell-escaped regex.
 
 System Health event payloads are mixed-shape. For events from `.data.events[]`:
 - read the event kind from `.type`
@@ -129,29 +121,23 @@ display-name rules.
 9. Source coverage and reconciliation details
 10. One safest next step
 
-Every non-empty block uses the same shape: localized block label; one- or
-two-sentence assessment BEFORE the table; one primary compact table when at
-least two comparable rows exist; one optional action sentence after it.
-Tables hold comparable facts — explanations, uncertainty, and instructions
-stay outside cells; a shown ID shares its name's cell; a single
-finding may stay a compact text record; use a stacked record fallback when
-four short columns would be too wide. Severity never depends on color alone:
+Each block: localized label, assessment BEFORE the table, optional action after.
+Tables compare facts; explanations, uncertainty, and instructions stay outside cells.
+A shown ID shares its name's cell. Single findings or wide rows use stacked records.
+Severity never depends on color alone:
 pair `🔴`/`🟠`/`🟡` with a plain-language title or status ("act", "check",
 "information").
 
 ## Behavior
 
 - **Attribution honesty.** Without an exact join, state attribution unavailable. In `Private` mode Integrations may show a sanitized config-entry title; `Shareable`/`Aggregate` never show title/account identity.
-- **Overall separates availability from findings.** The lead distinguishes
-  whether core and required sources are available from whether findings need
-  attention. A running core never turns active findings into "everything is
-  fine"; a large entity-state count is never described as a core outage.
+- **Overall separates availability from findings.** Source availability is separate
+  from actionable findings; neither a running core nor entity counts establish health.
   Overall stays `limited` for missing required sources; `attention` only for
   an active repair, an attention-state integration, an explicit system-health
   failure, or a structured low battery/SOC finding. Unexplained availability
   findings get their own prominent review block but do not change the enum.
-  Restored, stateless, ignored, disabled, and transitional context alone
-  never creates attention.
+  Non-actionable context alone never creates attention.
 - **Repairs name their exact targets.** Count active issues; group only
   matching domain, `translation_key`, and remediation while retaining
   `issue_id`s internally; never group missing translation keys or distinct
@@ -202,9 +188,13 @@ pair `🔴`/`🟠`/`🟡` with a plain-language title or status ("act", "check",
 5. Otherwise read `system_health/info` and parse `data.events`.
 6. Build the report per Report Order, Availability Analysis, and the Behavior rules; bind each conclusion to the data source used.
 
+### Ignore a Repair
+
+Resolve `domain` and `issue_id` from `repairs/list_issues`. One WS item `{"type":"repairs/ignore_issue","domain":"<d>","issue_id":"<id>","ignore":true}` through `ha-nova plan raw --file <requests.json>`, then `ha-nova apply` per `next_step`; `false` shows it again. Ignoring hides, never fixes. Verify by re-reading its `ignored` flag.
+
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. Use the Preview Card (`../ha-nova/output-cards.md`).
 Report modes stay visible. Every truncation follows → Progressive Detail:
 total/shown/omitted counts and a precise request for the full set — never a
 bare "N more".
@@ -240,11 +230,15 @@ does not separate candidates, break ties in this order:
 
 ## Safety
 
-- Read-only skill: never issue mutating relay or service calls.
-- For write intent, hand off to the owning skill; unfamiliar writes go through `ha-nova:fallback` first.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary`; everything else waits for the user's confirmation of the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
+- Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
+- Relay a plan's `say` in full, localized; never drop or shorten sentences.
+- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
+- Never guess entity, service, or config IDs — resolve them or ask.
+- Home Assistant is reached exclusively through the `ha-nova` CLI.
+- Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 
-- Read-only skill. No writes.
-- Never call repair/fix/ignore/delete issue commands.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
+- Never call repair fix flows or delete issue commands.
 - Never restart/reload Home Assistant from this skill.
-- Never call update, backup, or service actions from this skill.
-- If a status surface is unavailable, mark that part unavailable and continue.
+- Never call update, backup, or service actions.

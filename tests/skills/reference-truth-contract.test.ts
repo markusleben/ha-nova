@@ -220,7 +220,7 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     // 2026-08-20); remove is the one lifecycle operation left here.
     expect(fallbackAll).toContain("Integration entry lifecycle (remove)");
     expect(fallbackAll).toContain("Integration entry options / reconfigure (standard config-entry flows) | Covered | integration-setup");
-    expect(fallbackAll).toContain("Integration entry enable/disable | External");
+    expect(fallbackAll).toContain("Integration entry enable/disable, rename, system options, ignoring a discovery | Covered | integration-setup");
     // The section behind the row must claim the same scope as the row.
     expect(fallbackAll).toContain("Remove for an existing config entry — that one only");
     // Every Relay-Ready row needs a section behind it, event capture included.
@@ -265,7 +265,7 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     expect(fallbackAll).toContain('`{"type":"config/entity_registry/list"}`');
     expect(fallbackAll).toContain("The compact `list_for_display` cannot answer this");
     expect(fallbackAll).toContain("it is not evidence that events were missed");
-    expect(fallbackAll).toContain("point at Settings > Devices & services instead of improvising a payload");
+    expect(fallbackAll).toContain("enable/disable, rename, and ignoring a discovery");
     // get_states is not how any listed owner reads the compact registry.
     const row = read("docs/reference/ha-api-matrix.md")
       .split("\n")

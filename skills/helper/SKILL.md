@@ -13,16 +13,14 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 - **Storage-based family** — full CRUD for:
   - `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`
-- **Config-entry family** — CRUD support for 12 domains:
-  - `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`, `generic_thermostat`, `switch_as_x`
-  - `generic_thermostat` / `switch_as_x` note: promoted without an observed field inventory — every field comes from the live form per `../ha-nova/live-schema-preflight.md`; a `switch_as_x` create hides the source switch entity behind the new one, and its target domain is create-only (changing it means delete + recreate) — say both in the preview
+- **Config-entry family** — CRUD support for 16 domains:
+  - `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`, `generic_thermostat`, `switch_as_x`, `trend`, `random`, `filter`, `generic_hygrostat`
+  - `generic_thermostat` / `switch_as_x` / `trend` / `random` / `filter` / `generic_hygrostat` note: promoted without an observed field inventory — every field comes from the live form per `../ha-nova/live-schema-preflight.md`; `generic_hygrostat` switches a humidifier like `generic_thermostat` a heater; a `switch_as_x` create hides the source switch entity behind the new one, and its target domain is create-only (changing it means delete + recreate) — say both in the preview
   - `group` note: handled through the live menu-driven flow; end-to-end support is verified for the `sensor` subtype, and other subtypes must stay anchored to the live step schema instead of guessed fields
   - `template` note: same menu-driven flow (17 entity types); end-to-end support is verified for the `sensor` subtype. The `state` field is a Jinja template — author it per `../ha-nova/template-guidelines.md` and apply the template-level reliability checks (missing `float`/`int` defaults, boolean-string comparisons) BEFORE submitting; a broken template renders the entity `unavailable`, so post-write verification must read the rendered state, not just entry existence
 
 Not handled here:
 
-- other config-entry helper families:
-  - `trend`, `random`, `filter`, `generic_hygrostat`
 - `local_todo` list config entries (use `ha-nova:todo`)
 - automations/scripts config mutations (use `ha-nova:write`)
 
@@ -178,18 +176,7 @@ Config-entry flow orchestration follows the shared contract in `../ha-nova/live-
 
 #### Supported domains
 
-- `utility_meter`
-- `derivative`
-- `integration`
-- `min_max`
-- `threshold`
-- `tod`
-- `statistics`
-- `group`
-- `history_stats`
-- `template`
-- `generic_thermostat`
-- `switch_as_x`
+Use the sixteen config-entry domains listed in Scope for every operation.
 
 #### Listing helpers
 
@@ -203,7 +190,7 @@ Config-entry flow orchestration follows the shared contract in `../ha-nova/live-
    ha-nova relay ws --data-file <payload-file> --out <registry-file>
    ```
    with `{"type":"config/entity_registry/list"}`.
-3. Filter config entries to the twelve supported domains.
+3. Filter config entries to the sixteen supported domains in Scope.
 4. Join linked entities by matching `config_entry_id`.
 5. Present the List Frame table (output-cards.md): title, type, state. Options-flow support and linked entities stay in the per-helper
    detail read; when several entries share a domain or similar titles, add a
@@ -375,7 +362,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - if multiple candidates remain after resolution, stop and ask one blocking question
    - never guess between duplicate titles or ambiguous linked-entity matches
 2. Enforce the helper-domain allowlist before any delete:
-   - allowed here: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`, `generic_thermostat`, `switch_as_x`
+   - allowed here: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`, `generic_thermostat`, `switch_as_x`, `trend`, `random`, `filter`, `generic_hygrostat`
    - if the resolved `domain` is outside that allowlist, stop
    - do not call `DELETE /api/config/config_entries/entry/{entry_id}` for out-of-scope domains
    - hand off to `ha-nova:fallback` for any other config-entry domain

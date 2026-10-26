@@ -135,12 +135,8 @@ describe("live-schema preflight contract (#594)", () => {
     );
     expect(integrationSkill).toContain("Treat every response as authoritative");
     // Fallback's experimental lane stays outside the contract, fail-closed.
-    expect(relayReady).toContain(
-      "The supported families' orchestration contract is `../ha-nova/live-schema-preflight.md`",
-    );
-    expect(relayReady).toContain(
-      "this experimental lane stays outside it and remains fail-closed per #493",
-    );
+    expect(helperSkill).toContain("`../ha-nova/live-schema-preflight.md`");
+    expect(relayReady).not.toContain("Other Config-Entry Helpers -- RELAY-READY");
   });
   it("confirms helper creates against the live form, not the draft alone", () => {
     const helper = flat("skills/helper/SKILL.md");

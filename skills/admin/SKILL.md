@@ -1,6 +1,6 @@
 ---
 name: admin
-description: Use when managing Home Assistant people, zones, tags, and user accounts — creating a person, drawing a zone, adding a tag, or reviewing who has access — through HA NOVA Relay.
+description: Use when managing Home Assistant people, zones, tags, user accounts, and general settings (name, location, units, time zone) — creating a person, drawing a zone, adding a tag, or reviewing who has access — through HA NOVA Relay.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -13,7 +13,8 @@ The people-and-places layer of Home Assistant:
 - persons (and which device trackers follow them)
 - zones (home, work, school — the geofences presence automations depend on)
 - tags (NFC/QR tags)
-- user accounts: list, and the account lifecycle (create/delete) with hard guards
+- user accounts: list, edit (name, administrator, active), and the account lifecycle (create/delete) with hard guards
+- Home Assistant's general settings (name, location, units, time zone, currency, language, URLs)
 
 Not in scope: areas, floors, labels, categories (`ha-nova:organize`), automations that USE presence (`ha-nova:write`), or authentication providers and passwords — those stay in the Home Assistant UI on purpose.
 
@@ -27,6 +28,7 @@ If this fails: `ha-nova setup`
 
 - `ha-nova relay ws --data-file <payload-file>` for every command here
 - `--out <result-file>` for large listings
+- account edits and general settings: one WS item through `ha-nova plan raw --file <requests.json>`, then `ha-nova apply`
 
 ## Flow
 
@@ -36,14 +38,14 @@ If this fails: `ha-nova setup`
 2. **Zones**: WS `zone/list` -> `zone/create` / `zone/update` / `zone/delete`.
    - a zone is `name`, `latitude`, `longitude`, `radius` (metres), `icon`, `passive`
    - **Zones are presence infrastructure.** Changing a radius or deleting a zone silently changes when every presence automation fires. Before any zone change, run WS `search/related` with `{"item_type":"entity","item_id":"zone.<id>"}` (there is no `zone` item type) and name the automations that depend on it — as an advisory, in the preview.
-   - the `home` zone is special: it comes from core config, not the zone registry. Changing home means changing the Home Assistant location (`homeassistant.reload_core_config` territory) — say so instead of trying to delete it.
+   - the `home` zone is special: it comes from core config, not the zone registry. Changing home means changing the location in General settings (step 5) — say so instead of trying to delete it.
 3. **Tags**: WS `tag/list` -> `tag/create` / `tag/update` / `tag/delete`. A tag's `tag_id` is what the NFC/QR tag physically carries; scanning fires an event automations listen for. Deleting a tag breaks those automations, not the sticker.
 4. **Users**: WS `config/auth/list` shows accounts (`id`, `name`, `username`, `is_owner`, `is_active`, `system_generated`, `group_ids`).
-   - listing and reviewing access is the safe, common case
-   - `config/auth/create` / `config/auth/delete` exist, and are the most dangerous writes in HA NOVA
    - create payload: `{"type":"config/auth/create","name":"<display name>","group_ids":["system-users"],"local_only":false}` — `system-admin` in `group_ids` makes the account an administrator, so name that in the preview. The password is NOT set here: Home Assistant issues the credential separately, so tell the user to finish in Settings → People rather than offering to set one
    - before any delete: WS `auth/current_user` returns the account this relay's token belongs to — that account is never deletable
-5. Verify every write by re-reading the list — never from the command response alone.
+   - edit: `{"type":"config/auth/update","user_id":"<id>"}` plus requested fields: `name`, `is_active`, `local_only`, `group_ids` (`["system-admin"]` administrator, `["system-users"]` user). Any access field takes the one-time code; the CLI refuses it for the owner, a system account, and the relay's own account
+5. **General settings**: `get_config` reads them; `config/core/detect` suggests location, units, and currency. Change with `config/core/update` plus requested fields: `location_name`, `latitude`, `longitude`, `elevation`, `radius`, `unit_system` (with `update_units` to convert entities), `time_zone`, `currency`, `country`, `language`, `internal_url`, `external_url`. Time zone and units take the one-time code: history and long-term statistics shift, and units can raise unit mismatches (`ha-nova:maintenance`). The location is the `home` zone: name presence automations (step 2's `search/related` on `zone.home`).
+6. Verify every write by re-reading the list (`get_config` for settings) — never from the command response alone.
 
 ## User Safety (read before touching accounts)
 
@@ -51,7 +53,6 @@ If this fails: `ha-nova setup`
 - **Never delete a `system_generated` account** — those belong to integrations, not people.
 - **Never delete the account whose token this relay uses.** Identify it first with WS `auth/current_user`; if that call fails, do not delete any account.
 - Deleting a user does not delete their person entry, their history, or their long-lived tokens' effects — say so.
-- Passwords and authentication providers are deliberately out of scope: send the user to the Home Assistant UI.
 
 ## Error Handling
 
@@ -83,10 +84,8 @@ Render the Report shape (output-cards.md); person/zone/user inventories render t
 - Creating a user account grants durable system access, so it takes the one-time code too — not the ordinary create tier. The preview names the login name, whether the account is an administrator (`group_ids`), and that the password is set in the Home Assistant UI, never here.
 - No delete here has a `revert`. Zones, persons, and tags are recreatable from their previewed fields — a tag keeps its physical `tag_id`, but other recreates mint new internal ids, so inbound references stay broken. A deleted user's password, tokens, and history are unrecoverable; the delete preview must say so.
 - Offer a safety backup via `ha-nova:backup` before zone, person, and user deletes (not for tag deletes or routine updates).
-- Never surface credentials, tokens, or password state in output.
 
 ## Guardrails
 
 - One person, zone, tag, or user per operation.
-- Updates resend every mutable field, addressed by the `*_id` key — never `id` in the body; read before write, always.
 - Never guess a `person_id`, `zone_id`, `tag_id`, or user `id`.

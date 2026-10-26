@@ -36,17 +36,18 @@ If this fails: `ha-nova setup`
 
 1. **Testing an utterance** (the most useful thing here): `ha-nova call conversation.process --skill ha-nova:assist --response --set text="turn on the kitchen light"` (`--set language=en`, `--set agent_id=<id>` optional). `result.service_response.response` says what Assist understood and did.
    - **This ACTUALLY EXECUTES the command.** Every test utterance is typed (the CLI can't tell a read-only phrase from an actuating one) — even a "what is the temperature" query.
-   - `--set conversation_id=<id>` continues a previous exchange; omit it for a fresh one.
 2. **Pipelines**: WS `assist_pipeline/pipeline/list` shows every pipeline plus `preferred_pipeline`. Each carries `stt_engine`, `conversation_engine`, `tts_engine`, and language settings.
    - change the preferred one: WS `assist_pipeline/pipeline/set_preferred` with `pipeline_id`
    - create: WS `assist_pipeline/pipeline/create`. The named default is **clone-preferred-with-a-different-engine**: read the preferred pipeline from the list, carry its settings fields over, add the REQUIRED new `name`, and swap only the engine(s) the user asked for (the local-LLM move: same STT/TTS, different `conversation_engine`). Resolve the new engine id from step 4's inventories — never invent one. Preview every field, labeling cloned vs changed, confirm, then create; verify by re-reading the pipeline list for the new pipeline with the requested settings. Creating never changes the preferred pipeline — offer `set_preferred` separately
    - update: WS `assist_pipeline/pipeline/update` — read the pipeline first, then send ALL its settings fields with your change, addressed by `pipeline_id` (the list's `id` value). Never send it as `id` — that slot is the WS request id. A partial payload drops settings.
    - delete: WS `assist_pipeline/pipeline/delete` — one-time code; a pipeline in use by a satellite breaks it
+   - debug runs (read-only): WS `assist_pipeline/pipeline_debug/list` (`pipeline_id`) lists recent runs; `assist_pipeline/pipeline_debug/get` (plus `pipeline_run_id`) shows each stage: what was heard, matched, and said
 3. **Exposed entities** (what voice can even see): WS `homeassistant/expose_entity/list`; expose or hide with WS `homeassistant/expose_entity` (`assistants: ["conversation"]`, `entity_ids`, `should_expose`). Aliases live in the entity registry (`ha-nova:organize` owns those).
    - Exposing an entity gives voice control over it — preview the list before changing it.
+   - new entities: `homeassistant/expose_new_entities/get`; change with `homeassistant/expose_new_entities/set` (`assistant`, `expose_new`) through `ha-nova plan raw --file <requests.json>`, then `ha-nova apply`. Say that new covers (garage doors, gates) would follow; locks and alarm panels never do.
    - Risk-weight the preview: exposing a `lock`, `alarm_control_panel`, or a cover with a garage/gate/door `device_class` means anyone within earshot can actuate physical access by voice — flag these entities explicitly as high-consequence before confirming.
 4. **Engines**: WS `tts/engine/list`, `stt/engine/list`, `conversation/agent/list`, `wake_word/info`. Read-only inventories; use them to explain what a pipeline can be built from.
-5. Verify pipeline changes by re-reading the pipeline list, and exposure changes by re-reading `expose_entity/list` — never report success from the command response alone. After a pipeline or exposure change made to FIX an utterance, offer to re-run that exact utterance as the proof (with the standing warning that a test utterance executes what it understands).
+5. Verify pipelines with the pipeline list; entity exposure with `expose_entity/list`; automatic exposure with `homeassistant/expose_new_entities/get` (same `assistant`, compare `expose_new`), never from the write response. After a pipeline or exposure change made to FIX an utterance, offer to re-run that exact utterance as the proof (with the standing warning that a test utterance executes what it understands).
 
 ## Custom Sentences
 
@@ -63,7 +64,6 @@ Teach Assist a phrase it does not understand out of the box. This skill owns the
 
 Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling. Assist specifics:
 - `assist_pipeline/run` is NOT usable here: it is a streaming subscription (audio), and the relay is request/response. Testing an utterance goes through `ha-nova call conversation.process` instead.
-- An unknown WS command usually means an older Home Assistant — say which version introduced it rather than guessing a workaround.
 - A conversation response of "Sorry, I couldn't understand that" is a real answer, not an error: it means the intent did not match. Report what Assist actually said.
 
 ## Output Format
@@ -86,12 +86,10 @@ Render the Report shape (output-cards.md). For an utterance test: the exact resp
 
 - **A test utterance is a live command.** `conversation/process` executes what it understands. Anything that could change state gets a preview and confirmation, exactly like a service call.
 - An utterance is the least enumerable indirect actuation there is: what it reaches is decided by the conversation agent at runtime. When the utterance plausibly reaches a lock, alarm panel, or access cover — the words themselves, or the exposed entity set makes it reachable — it takes the one-time code (context skill → Confirmation Tiers), including the re-run proof after an exposure fix.
-- Exposing entities to voice grants voice control over them — show the full list before changing exposure.
 - Pipeline updates resend every settings field: read first, or you silently drop settings.
 - No change here has a `revert`: restore exposure by re-toggling, restore a pipeline by resending its prior fields. A deleted pipeline recreates with a new `pipeline_id` — satellites pointing at the old one must be re-pointed.
 
 ## Guardrails
 
 - One pipeline or one exposure change per operation.
-- Never invent `pipeline_id` or `agent_id` values — list them first.
 - Never claim Assist "understood" something the response does not show.

@@ -252,16 +252,16 @@ Match user intent to exactly one skill:
 | assign or remove entity categories | `ha-nova:organize` |
 | show history, logbook timelines, or long-term statistics | `ha-nova:history` |
 | "is everything closed / locked / off?", "who is home?", "what is running right now?" — a live state snapshot across a domain | `ha-nova:entity-discovery` |
-| check home status, repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` (the SYSTEM's condition; a snapshot of what things are DOING is entity-discovery, above) |
+| check home status, ignore repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` (the SYSTEM's condition; a snapshot of what things are DOING is entity-discovery, above) |
 | find out WHY a specific automation, script, device, or integration failed or misbehaved (traces, error/system logs, root cause) | `ha-nova:diagnose` |
-| add an integration, continue a pending integration reauthentication flow, or recover invalid integration credentials when no reauth flow is pending, or change an integration's options, reconfigure it, or reload its entry | `ha-nova:integration-setup` |
+| add, enable/disable, rename an integration, ignore a discovery, change options, reconfigure, reload, continue reauthentication or recover invalid credentials without a pending flow | `ha-nova:integration-setup` |
 | play, pause, skip, set volume, change source, group speakers, browse media, or announce over a speaker | `ha-nova:media` |
 | send a notification to a phone or another notify target, or manage Home Assistant's persistent notifications | `ha-nova:notify` |
 | look at a camera (snapshot), get a stream URL, record, switch a camera on/off, toggle its motion detection, or cast its stream to a TV | `ha-nova:camera` |
 | listen to MQTT topics to see what a device actually publishes, inspect MQTT discovery, or publish a message | `ha-nova:mqtt` |
-| test what the voice assistant understands, manage Assist pipelines, or control which entities voice can see | `ha-nova:assist` |
+| test what the voice assistant understands, manage Assist pipelines/debug runs, or control which entities voice can see | `ha-nova:assist` |
 | teach Assist a new phrase / custom sentence | `ha-nova:assist` |
-| manage persons, zones, tags, or user accounts | `ha-nova:admin` |
+| manage persons, zones, tags, user accounts, or System General settings | `ha-nova:admin` |
 | create or edit configuration that only exists as YAML (template/REST/command-line sensors, packages, themes) | `ha-nova:yaml-config` |
 | browse or list installed HACS packages, install, pin or downgrade to a specific version, redownload, or remove HACS packages, add custom HACS repositories, or migrate to a custom integration | `ha-nova:hacs` |
 | query long-term history from InfluxDB or another external store Home Assistant writes to but cannot read back | `ha-nova:external-sources` |

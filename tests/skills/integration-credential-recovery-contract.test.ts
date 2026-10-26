@@ -21,7 +21,7 @@ describe("integration-setup credential recovery (#585)", () => {
     );
     const dispatch = read("skills/ha-nova/SKILL.md");
     expect(dispatch).toContain(
-      "or recover invalid integration credentials when no reauth flow is pending",
+      "or recover invalid credentials without a pending flow",
     );
   });
 

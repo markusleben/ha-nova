@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 )
 
@@ -56,7 +58,7 @@ var rawWSPhrases = map[string]string{
 	"assist_pipeline/pipeline/delete": "Delete the voice assistant", "assist_pipeline/pipeline/set_preferred": "Make this the preferred voice assistant:",
 	"homeassistant/expose_entity": "Change which voice assistants see", "calendar/event/create": "Add an event to the calendar",
 	"calendar/event/update": "Change an event in the calendar", "calendar/event/delete": "Delete an event from the calendar",
-	"todo/item/move": "Reorder an item in the to-do list", "blueprint/save": "Save the blueprint",
+	"todo/item/move": "Reorder an item in the to-do list", "blueprint/save": "Save the blueprint", "blueprint/delete": "Delete the blueprint",
 	"blueprint/import": "Fetch a blueprint from", "camera/stream": "Get a live stream link for", "media_source/resolve_media": "Get a playable link for",
 }
 
@@ -106,6 +108,49 @@ func rawItemLine(n *rawNamer, endpoint string, payload map[string]any) (verb, ob
 		return "Delete", n.calendarEvent(payload) + " from the calendar " + n.entity(payload["entity_id"])
 	case wsType == "energy/save_prefs":
 		return "Change", "the Energy dashboard" + n.energyChange(payload)
+	case wsType == "config_entries/disable" && payload["disabled_by"] == nil:
+		return "Enable", "the integration " + n.entry(payload["entry_id"])
+	case wsType == "config_entries/disable":
+		return "Disable", "the integration " + n.entry(payload["entry_id"]) + " and all its devices and entities"
+	case wsType == "config_entries/update":
+		line, rest := "the integration "+n.entry(payload["entry_id"]), maps.Clone(payload)
+		for _, field := range []struct{ key, what string }{{"pref_disable_polling", "polls for updates"}, {"pref_disable_new_entities", "adds new entities"}} {
+			if value, set := rest[field.key].(bool); set {
+				line += map[bool]string{true: ", no longer ", false: ", again "}[value] + field.what
+			}
+			delete(rest, field.key)
+		}
+		line += n.fields(rest, "entry_id")
+		if _, polling := payload["pref_disable_polling"]; polling {
+			line += "; changing polling reloads this integration when loaded, briefly making its devices and entities unavailable"
+		}
+		return "Change", line
+	case wsType == "config_entries/ignore_flow":
+		title, _ := payload["title"].(string)
+		return "Ignore", "the discovered integration " + sayText(title, true)
+	case wsType == "config/auth/update":
+		line := "the Home Assistant account" + n.targets(map[string]any{"user_id": payload["user_id"]})
+		if groups, set := payload["group_ids"].([]any); set {
+			line += map[bool]string{true: ", now an administrator", false: ", now not an administrator"}[slices.Contains(groups, any("system-admin"))]
+		}
+		if active, set := payload["is_active"].(bool); set {
+			line += map[bool]string{true: ", can sign in again", false: ", can no longer sign in"}[active]
+		}
+		rest := maps.Clone(payload)
+		delete(rest, "group_ids")
+		delete(rest, "is_active")
+		return "Change", line + n.fields(rest, "user_id")
+	case wsType == "config/core/update":
+		return "Change", "Home Assistant's general settings" + n.fields(payload, "")
+	case wsType == "repairs/ignore_issue":
+		issue, _ := payload["issue_id"].(string)
+		domain, _ := payload["domain"].(string)
+		verb := map[bool]string{true: "Ignore", false: "Show again"}[payload["ignore"] == true]
+		return verb, "the repair issue " + sayText(issue, true) + " of " + sayText(domain, true)
+	case wsType == "homeassistant/expose_new_entities/set":
+		assistant, _ := payload["assistant"].(string)
+		verb := map[bool]string{true: "Expose", false: "Stop exposing"}[payload["expose_new"] == true]
+		return verb, "new entities to the voice assistant " + sayText(assistant, true) + " automatically"
 	}
 	phrase, known := rawWSPhrases[wsType]
 	if !known { // unreachable for allowlisted types (plan_raw_tier_test.go)

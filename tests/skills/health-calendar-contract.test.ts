@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 const relayReadySplit = readFileSync("skills/fallback/relay-ready.md", "utf-8");
 
 describe("health and calendar skill contracts", () => {
-  it("defines a read-only home status skill with repairs and finite-event system health", () => {
+  it("defines home status with previewed repair ignore and finite-event system health", () => {
     const health = readFileSync("skills/health/SKILL.md", "utf8");
     const availability = readFileSync(
       "skills/health/availability-analysis.md",
@@ -38,7 +38,7 @@ describe("health and calendar skill contracts", () => {
       '{"message":{"type":"system_health/info"},"collect_events":{"until_type":"finish","max_events":100,"timeout_ms":10000}}',
     );
     expect(health).toContain(
-      "The Skill opts into generic Relay event collection through `collect_events`",
+      "The Relay enforces `until_type`, `max_events`, and `timeout_ms`",
     );
     expect(health).toContain("data.events");
     expect(health).toContain("need a relay at the enforced floor");
@@ -62,18 +62,18 @@ describe("health and calendar skill contracts", () => {
       "Normalize each saved relay result separately before summarizing",
     );
     expect(health).toContain(
-      "Do not run one combined `jq` normalizer across config, components, states, repairs, integrations, and system health.",
+      "Normalize each source separately: REST, WS lists, repairs, and system-health events have different envelopes.",
     );
     expect(health).toContain(
-      "Normalize each source file into a small source-specific shape first",
+      "Combine only validated summaries.",
     );
     expect(health).toContain(
       "Before accepting a source, require `ok:true`, a 2xx REST `data.status`",
     );
     expect(health).toContain("valid types for every required row field");
-    expect(health).toContain("Use `--jq-file` for non-trivial filters.");
+    expect(health).toContain("Use `--jq-file` for non-trivial filters;");
     expect(health).toContain(
-      "Avoid complex inline jq, especially regex that must be shell-escaped.",
+      "prefer field equality and type checks over shell-escaped regex.",
     );
     expect(health).toContain("System Health event payloads are mixed-shape.");
     expect(health).toContain('require `(.data | type) == "object"`');
@@ -181,13 +181,13 @@ describe("health and calendar skill contracts", () => {
       "Keep Home Assistant state values such as `unavailable`, `unknown`, `setup_error`, `setup_retry`, and `not_loaded` literal",
     );
     expect(health).toContain(
-      "Never call repair/fix/ignore/delete issue commands.",
+      "Never call repair fix flows or delete issue commands.",
     );
     expect(health).toContain(
       "Never restart/reload Home Assistant from this skill.",
     );
     expect(health).toContain(
-      "Never call update, backup, or service actions from this skill.",
+      "Never call update, backup, or service actions.",
     );
     expect(health).toContain("--data-file");
     expect(health).toContain("--out <result-file>");
@@ -254,7 +254,7 @@ describe("health and calendar skill contracts", () => {
     expect(architecture).toContain("health/SKILL.md");
     expect(architecture).toContain("calendar/SKILL.md");
     expect(architecture).toContain(
-      "`ha-nova:health` is a read-only home-status skill",
+      "`ha-nova:health` reports home status; ignoring a repair is its only write:",
     );
     expect(architecture).toContain(
       "integration setup/load status through `config_entries/get`",

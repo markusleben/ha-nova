@@ -1,6 +1,6 @@
 ---
 name: fallback
-description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, Apps, Zigbee/Z-Wave, and unsupported config-entry helper families.
+description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, Apps, and Zigbee/Z-Wave.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -45,7 +45,7 @@ For every Relay-Ready call in this skill:
 | Automations CRUD | Covered | read / write |
 | Scripts CRUD | Covered | read / write |
 | Config Review | Covered | review |
-| Helpers (9 storage + 12 config-entry) | Covered | helper |
+| Helpers (9 storage + 16 config-entry) | Covered | helper |
 | Entity Search | Covered | entity-discovery |
 | Service Calls | Covered | service-call |
 | Relay Setup | Covered | onboarding |
@@ -61,9 +61,10 @@ For every Relay-Ready call in this skill:
 | Actionable-notification callbacks (waiting for a button press) | Covered for the durable path | write (an automation on `mobile_app_notification_action`) |
 | Cameras (snapshot, stream URL, record) | Covered | camera |
 | MQTT (bounded topic listening, discovery/debug info, publish) | Covered | mqtt |
-| Voice / Assist (utterance testing, pipelines, entity exposure, engine inventory) | Covered | assist |
+| Voice / Assist (utterance testing, pipelines, pipeline debug runs, entity exposure, engine inventory) | Covered | assist |
 | Persons / Zones / Tags | Covered | admin |
-| User accounts (list, create, delete — with owner/system guards) | Covered | admin |
+| User accounts (list, create, edit, delete — with owner/system guards) | Covered | admin |
+| System general settings (name, location, units, time zone, currency, language, URLs) | Covered | admin |
 | YAML-only configuration (template/REST/command-line sensors, packages, themes) | Covered | yaml-config |
 | Frontend themes | Covered | yaml-config |
 | External data stores (InfluxDB long-term history, Prometheus, ...) | Covered | external-sources |
@@ -79,7 +80,6 @@ For every Relay-Ready call in this skill:
 | Device replacement (re-point consumers), onboarding, retirement | Covered | device |
 | Blueprints | Relay-Ready | this skill |
 | Energy (analysis + source/device config) | Covered | energy |
-| Other Config-Entry Helpers | Relay-Ready | this skill |
 | Statistics repair / Purge / Entity registry remove | Covered | maintenance |
 | Device deletion (integration-supported, HA 2026.9+) | Covered | organize |
 | Integration onboarding (add / re-auth an integration via config flow) | Covered | integration-setup |
@@ -96,7 +96,7 @@ For every Relay-Ready call in this skill:
 | Alarm / lock code management (lock user codes, alarm PINs) | External | -- (Home Assistant UI; codes never enter chat) |
 | Integration entry lifecycle (remove) | Relay-Ready | this skill; reload (credential recovery included): `integration-setup` |
 | Integration entry options / reconfigure (standard config-entry flows) | Covered | integration-setup |
-| Integration entry enable/disable | External | -- (Settings > Devices & services) |
+| Integration entry enable/disable, rename, system options, ignoring a discovery | Covered | integration-setup |
 | Matter / Thread status (border router, datasets, node diagnostics) | Relay-Ready | this skill |
 | Matter / Thread commissioning | External | -- (companion app; BLE pairing is not an API surface) |
 | Assist custom sentences / intent scripts | Covered | assist (owning workflow; file mechanics stay in `../fallback/relay-ready.md`) |

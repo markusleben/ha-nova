@@ -7,7 +7,7 @@ skill owns yet; the fallback Flow sends `Relay-Ready` rows here.
 
 ### Blueprints -- RELAY-READY
 
-List and import automation/script blueprints from the community or custom URLs.
+List, import, and delete automation/script blueprints.
 
 **Search:** `home assistant blueprint import automation api 2026`
 
@@ -22,41 +22,9 @@ ha-nova relay ws --data-file <payload-file>
 # {"type":"blueprint/substitute","domain":"automation","path":"<folder/name.yaml>","input":{...}}   (read-only: expands the blueprint with the given inputs)
 ```
 
+**Delete:** `{"type":"blueprint/delete","domain":"automation","path":"<folder/name.yaml>"}` through `ha-nova plan raw --file <requests.json>` (typed), then `ha-nova apply`. First name its users: `search/related` with `item_type` `automation_blueprint` or `script_blueprint` and the path as `item_id`; Home Assistant refuses a blueprint in use, so offer to re-point or delete those (`ha-nova:write`) first. No undo: offer `ha-nova:backup`.
+
 **Risks:** Imported blueprints execute when instantiated. Review blueprint source before import. Instantiating a blueprint into an automation (`use_blueprint`) is a normal automation create — hand off to `ha-nova:write`.
-
-### Other Config-Entry Helpers -- RELAY-READY
-
-Handle unsupported config-entry helper types that are not yet owned by `ha-nova:helper`.
-
-Owned by `ha-nova:helper` now: `utility_meter`, `derivative`, `integration`,
-`min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`,
-`template`, `generic_thermostat`, `switch_as_x`.
-
-**Search:** `home assistant config entry flow helper trend random filter api 2026`
-
-**Supported types in this fallback section:** `trend`, `random`, `filter`, `generic_hygrostat`
-
-**Experimental relay calls (no skill guardrails):**
-```text
-# Start create/reconfigure flow
-ha-nova relay core --method POST --path /api/config/config_entries/flow --body-file <payload-file>
-
-# Submit create/reconfigure step
-ha-nova relay core --method POST --path /api/config/config_entries/flow/{flow_id} --body-file <payload-file>
-
-# Start options flow for update when supported
-ha-nova relay core --method POST --path /api/config/config_entries/options/flow --body-file <payload-file>
-
-# Submit options step
-ha-nova relay core --method POST --path /api/config/config_entries/options/flow/{flow_id} --body-file <payload-file>
-
-# Delete unsupported config-entry helper by entry_id
-ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entry_id}
-```
-
-**Risks:** Multi-step flows are complex. Each step returns the next step's schema. Update support can be domain- and version-specific. Delete requires correct `entry_id` resolution first. Prefer HA UI for these.
-
-The supported families' orchestration contract is `../ha-nova/live-schema-preflight.md`; this experimental lane stays outside it and remains fail-closed per #493 (Write-Probing Asymmetry).
 
 ### Zigbee / Z-Wave Network Status -- RELAY-READY
 
@@ -167,9 +135,8 @@ for Home Assistant's own event bus.
 Remove for an existing config entry — that one only.
 `ha-nova:integration-setup` owns ADDING an integration, continuing a
 pending `reauth`, options and reconfigure flows, and every entry reload
-(credential recovery included). Enable/disable
-is `External` in the Capability Map: point at Settings > Devices & services instead of
-improvising a payload.
+(credential recovery included), enable/disable, rename, and ignoring a
+discovery.
 
 **Search:** `home assistant config entry delete api 2026`
 

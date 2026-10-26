@@ -307,6 +307,10 @@ Supported helper domains:
 - `template`
 - `generic_thermostat`
 - `switch_as_x`
+- `trend`
+- `random`
+- `filter`
+- `generic_hygrostat`
 
 `group` is menu-driven; the live-proven end-to-end subtype is `sensor`, and other subtypes must stay anchored to the live step schema instead of guessed fields.
 

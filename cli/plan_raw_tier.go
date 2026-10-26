@@ -22,8 +22,10 @@ import (
 //	         in Home Assistant or every signed-in browser), an energy save that
 //	         empties a list or drops more than one entry, a new id, area, or
 //	         label carried onto a lock, alarm panel, or access cover, a person
-//	         who follows other devices (skills/device → Access Check), and any
-//	         item the skill marks typed
+//	         who follows other devices (skills/device → Access Check), an
+//	         account's administrator flag, active state, or local-only
+//	         sign-in, Home Assistant's time zone or units (they shift
+//	         history and statistics), and any item the skill marks typed
 //	preview: everything else, a flow cancel and a snapshot prune included
 //	         (skills/ha-nova/config-snapshots.md: prune is natural)
 
@@ -71,6 +73,15 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 			carries = carries || set
 		}
 		_, follows := payload["device_trackers"]
+		access, clock := false, false
+		for _, key := range []string{"group_ids", "is_active", "local_only"} {
+			_, set := payload[key]
+			access = access || set
+		}
+		for _, key := range []string{"time_zone", "unit_system", "update_units"} {
+			_, set := payload[key]
+			clock = clock || set
+		}
 		switch {
 		case strings.HasSuffix(wsType, "/delete") || strings.HasSuffix(wsType, "/remove"):
 			return tierTyped, rawWhyDelete
@@ -82,6 +93,10 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 			return tierTyped, "This carries a new ID, area, or label onto a lock, alarm panel, or door, which can change what an automation that opens it targets"
 		case wsType == "person/update" && follows:
 			return tierTyped, "This changes which devices a person follows, and an unlock or disarm may wait for that person"
+		case wsType == "config/auth/update" && access:
+			return tierTyped, "This changes what a Home Assistant account may do, or whether it can sign in"
+		case wsType == "config/core/update" && clock:
+			return tierTyped, "This changes Home Assistant's time zone or units, which shifts how history and long-term statistics read"
 		}
 	case "core":
 		target, _ := payload["path"].(string)

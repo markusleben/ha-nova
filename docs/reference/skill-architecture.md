@@ -46,7 +46,7 @@ skills/
   migrate/SKILL.md                      (ha-nova:migrate — rules from Node-RED, Homey, SmartThings, Hubitat, openHAB, legacy YAML into native config; soak, then retire)
   migrate/source-mappings.md            (reference doc — per-source export steps, concept tables, traps)
   history/SKILL.md                      (ha-nova:history — bounded history/logbook/statistics reads)
-  health/SKILL.md                       (ha-nova:health — read-only home status, repairs, system health)
+  health/SKILL.md                       (ha-nova:health — home status, repairs, system health; ignore a repair)
   home-map/SKILL.md                     (ha-nova:home-map — exact home inventory, where-used, whole-home audit, first look via `ha-nova map`)
   calendar/SKILL.md                     (ha-nova:calendar — bounded calendar reads and single-event writes)
   hacs/SKILL.md                         (ha-nova:hacs — HACS package lifecycle: registration, download, update, uninstall, migration)
@@ -114,7 +114,7 @@ Current mapping:
 | device | inline + CLI | `get --references` scans; `plan write` + `apply` re-point; every other family hands off to its owner |
 | migrate | inline + CLI | the agent reads the export; `find`/`get` map; `plan write`/`plan call` + `apply` in one group per source rule; helpers and YAML hand off |
 | history | inline | read-only bounded timeline lookups |
-| health | inline | read-only status aggregation, best-effort diagnostics |
+| health | inline | status aggregation, best-effort diagnostics; previewed repair ignore |
 | home-map | inline + CLI | `ha-nova map` computes every count; the skill renders and hands fixes to owning skills |
 | calendar | inline | bounded REST reads plus feature-gated service/WS event writes |
 | todo | inline | service-based item CRUD with feature gate, single-step list flow |
@@ -292,7 +292,7 @@ Rules:
 
 ## Health Architecture
 
-`ha-nova:health` is a read-only home-status skill:
+`ha-nova:health` reports home status; ignoring a repair is its only write:
 - repairs/deprecation issues through `repairs/list_issues`
 - integration setup/load status through `config_entries/get`
 - system health through generic bounded WS event collection for `system_health/info`
@@ -300,7 +300,8 @@ Rules:
 - unavailable/unknown and low-battery summaries through `/api/states`
 
 Rules:
-- no repair/fix/ignore actions
+- `repairs/ignore_issue` hides or restores one listed issue via a previewed raw plan; it never fixes it
+- no repair fix flows
 - no restart/reload/service calls
 - check `ha-nova relay health` and skip `system_health/info` when the relay is below the enforced floor (`min_relay_version`)
 - summarize by source and bind conclusions to evidence
@@ -365,7 +366,7 @@ Rules:
 `ha-nova:integration-setup` owns UI-configurable integration add, entry options/reconfigure through the standard config-entry flows, entry reload, pending reauthentication flows, and invalid-credential recovery when no reauth flow is pending:
 - add starts through REST `POST /api/config/config_entries/flow` after resolving an exact handler from `/api/config/config_entries/flow_handlers`
 - options/reconfigure follow the live-schema preflight contract: options via `POST /api/config/config_entries/options/flow` with the entry as handler, reconfigure via a config-flow start carrying `entry_id`; reconfigure verification requires the same `entry_id` to persist with no new entry created
-- entry reload previews the disruption (setup re-runs, entities drop briefly) and reports the entry's actual post-reload state; entry remove stays with `ha-nova:fallback`, enable/disable stays External
+- entry reload previews the disruption (setup re-runs, entities drop briefly) and reports the entry's actual post-reload state; entry remove stays with `ha-nova:fallback`; enable/disable (`config_entries/disable`, refused for an entry with a lock, alarm panel, or access cover), rename and system options (`config_entries/update`), and ignoring a discovery (`config_entries/ignore_flow`) run as one-item raw plans
 - reauthentication continues an existing `context.source == "reauth"` flow discovered through WS `config_entries/flow/progress`; it never synthesizes a reauth flow
 - credential recovery (no reauth pending) previews and reloads the exact config entry, then re-reads flow progress and continues the reauth handoff, or fails closed to the HA UI
 - menu/form steps use only the live response schema and require a preview-bound confirmation before each submit
@@ -424,7 +425,7 @@ Alarm/lock rules:
   - No domain reload needed
 
 - **Config-entry family**
-  - Types: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`, `generic_thermostat`, `switch_as_x`
+  - Types: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`, `generic_thermostat`, `switch_as_x`, `trend`, `random`, `filter`, `generic_hygrostat`
   - Read/list: WS `config_entries/get` + WS `config/entity_registry/list`
   - Readback: current editable options snapshot when `supports_options: true`; metadata-only fallback otherwise
   - Mutation transport: relay `/core`
@@ -434,12 +435,6 @@ Alarm/lock rules:
   - Write verify: config-entry layer first for identity/existence, reopened editable options snapshot for field-level update verification
   - Review: minimal config-entry post-write contract (plus H-12/H-13/H-15 where readable), not H-01..H-11
   - `group` remains menu-driven; end-to-end support is proven for the `sensor` subtype, and other subtypes must stay anchored to the live step schema instead of guessed fields
-
-Still excluded from `ha-nova:helper`:
-- `trend`
-- `random`
-- `filter`
-- `generic_hygrostat`
 
 ## Diagnose Architecture
 
@@ -545,7 +540,7 @@ no verb, no relay change.
 ## Fallback Architecture
 
 `ha-nova:fallback` is the mandatory safety fallback for HA features without a dedicated skill:
-- Covers: blueprints, unsupported config-entry helper families; device deletion belongs to organize
+- Covers: blueprints; device deletion belongs to organize
 - Three-tier capability map: Covered (redirect to existing skill), Relay-Ready (experimental relay calls), External (web search)
 - All inline, no agents — research + web search + experimental relay calls
 - Safety: all experimental relay calls follow Write Safety by Endpoint Type guardrails (full-overwrite, field-level replace, merge, delete)

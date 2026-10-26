@@ -100,9 +100,9 @@ describe("helper families generic_thermostat + switch_as_x (#531 P4-05)", () => 
   );
 
   it("promotes both domains into helper's supported config-entry family", () => {
-    expect(helper).toContain("CRUD support for 12 domains:");
+    expect(helper).toContain("CRUD support for 16 domains:");
     expect(helper).toContain("`generic_thermostat`, `switch_as_x`");
-    expect(fallbackAll).toContain("Helpers (9 storage + 12 config-entry) | Covered | helper");
+    expect(fallbackAll).toContain("Helpers (9 storage + 16 config-entry) | Covered | helper");
     // Delete allowlist follows the family.
     expect(helper).toContain(
       "allowed here: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`, `generic_thermostat`, `switch_as_x`",
@@ -127,9 +127,10 @@ describe("helper families generic_thermostat + switch_as_x (#531 P4-05)", () => 
     expect(helper).not.toContain("`trend`, `random`, `filter`, `generic_thermostat`");
     // Line-level not-contains live in helper-contract.test.ts; pin the
     // remaining fallback family here so the two lists cannot drift apart.
-    expect(fallbackAll).toContain(
-      "**Supported types in this fallback section:** `trend`, `random`, `filter`, `generic_hygrostat`",
-    );
+    expect(fallbackAll).not.toContain("Other Config-Entry Helpers -- RELAY-READY");
+    for (const domain of ["trend", "random", "filter", "generic_hygrostat"]) {
+      expect(helper).toContain(`\`${domain}\``);
+    }
   });
 });
 
@@ -211,18 +212,18 @@ describe("integration options/reconfigure/reload scope (#520 C1-04)", () => {
     expect(setup).toContain("reload re-runs setup and briefly drops the entry's entities");
     expect(setup).toContain("report the entry's ACTUAL state");
     // The exclusion line shrinks but keeps its remaining boundary.
-    expect(setup).toContain("integration subentry, enable/disable, or delete operations");
+    expect(setup).toContain("integration subentry or delete operations");
   });
 
   it("moves the fallback rows with the scope", () => {
     expect(fallback).toContain("Integration entry options / reconfigure (standard config-entry flows) | Covered | integration-setup");
-    expect(fallback).toContain("Integration entry enable/disable | External");
+    expect(fallback).toContain("Integration entry enable/disable, rename, system options, ignoring a discovery | Covered | integration-setup");
     expect(fallback).not.toContain("enable/disable, options, reconfigure");
   });
 
   it("routes the new lanes from the dispatch table", () => {
     expect(flat(read("skills/ha-nova/SKILL.md"))).toContain(
-      "or change an integration's options, reconfigure it, or reload its entry | `ha-nova:integration-setup` |",
+      "add, enable/disable, rename an integration, ignore a discovery, change options, reconfigure, reload, continue reauthentication or recover invalid credentials without a pending flow | `ha-nova:integration-setup` |",
     );
   });
   it("selects reconfigure mode via entry_id at flow start", () => {
@@ -234,5 +235,38 @@ describe("integration options/reconfigure/reload scope (#520 C1-04)", () => {
     expect(flat(read("skills/integration-setup/SKILL.md"))).toContain(
       "For an agent-started OPTIONS or RECONFIGURE flow, DELETE the transient flow",
     );
+  });
+});
+
+describe("HA UI parity batch 1", () => {
+  it("pins each new write and its safety guidance in the owning skill", () => {
+    const integration = read("skills/integration-setup/SKILL.md");
+    for (const type of ["config_entries/disable", "config_entries/update", "config_entries/ignore_flow"]) {
+      expect(integration).toContain(type);
+    }
+    expect(integration).toContain("lock, alarm panel, or access cover is refused");
+    expect(integration).toContain("Polling changes reload loaded entries: preview the interruption");
+    expect(integration).toContain("Same access refusals; `require_restart: true`");
+    expect(integration).toContain("config_entries/get");
+    const admin = read("skills/admin/SKILL.md");
+    for (const pin of ["config/auth/update", "group_ids", "is_active", "system-admin", "config/core/update", "config/core/detect", "get_config", "Time zone and units take the one-time code", "the owner, a system account, and the relay's own account"]) {
+      expect(admin).toContain(pin);
+    }
+    const health = read("skills/health/SKILL.md");
+    for (const pin of ["repairs/ignore_issue", "Ignoring hides, never fixes", "re-reading its `ignored` flag", "ha-nova plan raw", "ha-nova apply"]) {
+      expect(health).toContain(pin);
+    }
+    const blueprints = read("skills/fallback/relay-ready.md");
+    for (const pin of ["blueprint/delete", "automation_blueprint", "script_blueprint", "search/related", "Home Assistant refuses a blueprint in use", "(typed)"]) {
+      expect(blueprints).toContain(pin);
+    }
+    const assist = read("skills/assist/SKILL.md");
+    for (const pin of ["homeassistant/expose_new_entities/get", "homeassistant/expose_new_entities/set", "expose_new", "assist_pipeline/pipeline_debug/list", "assist_pipeline/pipeline_debug/get", "pipeline_run_id"]) {
+      expect(assist).toContain(pin);
+    }
+    expect(assist).toContain("automatic exposure with `homeassistant/expose_new_entities/get` (same `assistant`, compare `expose_new`)");
+    for (const type of ["assist_pipeline/pipeline_debug/list", "assist_pipeline/pipeline_debug/get"]) {
+      expect(read("skills/diagnose/SKILL.md")).toContain(type);
+    }
   });
 });

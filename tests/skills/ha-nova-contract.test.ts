@@ -68,7 +68,7 @@ describe("ha-nova contract", () => {
       "| show history, logbook timelines, or long-term statistics | `ha-nova:history` |",
     );
     expect(context).toContain(
-      "| check home status, repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health`",
+      "| check home status, ignore repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health`",
     );
     expect(context).toContain(
       "| list calendars; read, create, update, or delete calendar events | `ha-nova:calendar` |",
@@ -568,7 +568,7 @@ describe("ha-nova contract", () => {
       "`ha-nova:history` is a bounded read-only timeline skill",
     );
     expect(architecture).toContain(
-      "`ha-nova:health` is a read-only home-status skill",
+      "`ha-nova:health` reports home status; ignoring a repair is its only write:",
     );
     expect(architecture).toContain(
       "`ha-nova:calendar` owns bounded calendar reads and single-event writes",
@@ -588,27 +588,10 @@ describe("ha-nova contract", () => {
       "utf8",
     );
 
-    expect(architecture).toContain("Still excluded from `ha-nova:helper`:");
-    expect(architecture).toContain("- `trend`");
-    expect(architecture).toContain("- `random`");
-    expect(architecture).toContain("- `filter`");
-    expect(architecture).toContain("- `generic_hygrostat`");
-    // Promoted to ha-nova:helper (#531 P4-05, 2026-08-20): list form must be
-    // gone from the exclusion block (they stay inline in the Types line).
-    expect(architecture).not.toContain("- `generic_thermostat`");
-    expect(architecture).not.toContain("- `switch_as_x`");
-    expect(architecture).not.toContain(
-      "Still excluded from `ha-nova:helper`:\n- `template`",
-    );
-    expect(architecture).not.toContain(
-      "Still excluded from `ha-nova:helper`:\n- `group`",
-    );
-    expect(architecture).not.toContain(
-      "Still excluded from `ha-nova:helper`:\n- `statistics`",
-    );
-    expect(architecture).not.toContain(
-      "Still excluded from `ha-nova:helper`:\n- `history_stats`",
-    );
+    expect(architecture).not.toContain("Still excluded from `ha-nova:helper`:");
+    for (const domain of ["trend", "random", "filter", "generic_hygrostat"]) {
+      expect(architecture).toContain(`\`${domain}\``);
+    }
   });
 
   it("documents tiered best-practice gate", () => {
