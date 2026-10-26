@@ -195,8 +195,9 @@
       else appRow = row('todo', t('setup.page.app.key'), t(state.app === 'old' ? 'setup.page.app.old' : 'setup.page.app.missing'), { side: el('span', { class: 'tag amber' }, t('setup.page.app.next')) });
 
       const primary = asking ? '' : state.primary;
-      // Who signs in, said above the button: a family member may not know.
-      const owner = primary ? el('p', { class: 'owner' }, t('setup.page.found.owner')) : null;
+      // Who signs in, said above the button: a family member may not know. On a
+      // computer, that one sign-in connects it for everyone who uses it.
+      const owner = primary ? el('p', { class: 'owner' }, t('setup.page.found.owner'), state.web ? null : ` ${t('setup.page.found.owner_once')}`) : null;
       const actions = el('div', { class: 'actions' },
         primary ? button(t(primaryLabels[primary]), 'signin')
           : button(t('setup.page.button.terminal'), 'terminal', asking ? 'ghost' : 'primary'));
@@ -248,8 +249,10 @@
           link(t('setup.page.link.guide'), links.guide, fixLabels[state.fix] ? 'ghost' : 'primary', 'guide'),
           link(t('setup.page.link.app'), links.app, 'ghost', 'app')),
           webFix ? el('p', { class: 'fine' }, state.fix === 'web' ? `${t('setup.page.connect.web_signin')} ` : null, chatHelp()) : null,
-          // Not owner: the owner can still make a code on any device.
-          state.fix === 'owner' && !state.web ? el('p', { class: 'fine' }, t('setup.page.found.owner_away')) : null,
+          // Not owner: the owner connects this computer for everyone; with NOVA
+          // already running, the owner can also make a code on any device.
+          state.fix === 'owner' && !state.web ? el('p', { class: 'fine' }, t('setup.page.found.owner_once'),
+            state.primary === 'install' || state.primary === 'update' ? null : ` ${t('setup.page.found.owner_away')}`) : null,
           state.web ? null : codeLink());
       }
       return [...head(t('setup.page.connect.eyebrow'), t('setup.page.connect.title'), t(installs ? 'setup.page.connect.lead' : 'setup.page.connect.lead_signin')),

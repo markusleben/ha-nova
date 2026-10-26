@@ -158,7 +158,7 @@ describe("nova-page", () => {
     deps.fetchAuthUsers = async () => [{ ...OWNER, is_owner: false }];
     const r = await call(createNovaPageHandler(deps), req());
     expect(r.statusCode).toBe(403);
-    expect(r.body).not.toContain("Connect a device");
+    expect(r.body).not.toContain("<form");
   });
 
   it("generates a code via a valid CSRF form (PRG redirect)", async () => {

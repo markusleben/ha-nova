@@ -23,7 +23,7 @@ export interface HaAuthUser {
 
 export type OwnerCheckResult =
   | { ok: true; userId: string; name: string }
-  | { ok: false; status: 403 | 503; message: string };
+  | { ok: false; status: 403 | 503; message: string; ownerName?: string | undefined };
 
 export interface OwnerCheckDeps {
   // Fetches config/auth/list via the Supervisor-proxied WS. Throws on failure.
@@ -58,14 +58,11 @@ export async function checkOwner(
     };
   }
 
+  const isOwner = (u: HaAuthUser) => u.is_owner === true && u.is_active !== false && u.system_generated !== true;
   const user = users.find((u) => u.id === userId);
-  if (
-    !user ||
-    user.is_active === false ||
-    user.system_generated === true ||
-    user.is_owner !== true
-  ) {
-    return { ok: false, status: 403, message: "Owner access required" };
+  if (!user || !isOwner(user)) {
+    const owner = users.find(isOwner)?.name; // whom to ask
+    return { ok: false, status: 403, message: "Owner access required", ownerName: typeof owner === "string" ? owner.trim() || undefined : undefined };
   }
   return {
     ok: true,

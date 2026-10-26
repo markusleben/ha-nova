@@ -120,6 +120,13 @@ login. Sign in as the owner, and this computer connects by itself. Over SSH,
 as another Home Assistant user, or if sign-in fails, setup asks for a six-digit
 code instead. The owner makes it on the NOVA page.
 
+The owner connects each computer once. After that, anyone who uses that
+computer can use HA NOVA; there is no separate sign-in per person. The owner is
+the first account made when Home Assistant was set up. An admin with Advanced
+mode on (in their Home Assistant profile) sees it under Settings → People →
+Users, marked Owner. Other admins see NOVA in the sidebar too, but only the
+owner can open it.
+
 Each computer gets its own key. It is saved in this computer's password store.
 With no password store (for example a server), or with `--service` or
 `ha-nova pair --credential-store=file`, it goes in a private file instead.
@@ -137,11 +144,12 @@ let this computer reach your home when you're away. It offers:
   uses Link only when it can't reach home.
 - **Home Assistant Link only**: sign in through Link first, then connect.
 
-Sign in as the owner, and this computer connects with no code. Don't want the
-owner's login saved on this computer? Sign in as a standard user instead. HA
-NOVA can still do the same things. Then the owner makes a code on the NOVA
-page, in a separate private browser window (setup calls it the "Owner
-session").
+Sign in to Link as the owner, and this computer connects with no code. Don't
+want the owner's login saved on this computer? Sign in to Link as a standard
+user instead. That only changes which login Link keeps here: the owner still
+connects this computer, with a code made on the NOVA page in a separate private
+browser window (setup calls it the "Owner session"). Either way, HA NOVA then
+works the same for everyone who uses this computer.
 
 Your Link sign-in is saved only in this computer's password store, nowhere
 else. Setup may ask you to unlock the password store. Link works on a Mac, on
