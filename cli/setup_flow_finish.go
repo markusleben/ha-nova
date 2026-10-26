@@ -113,6 +113,7 @@ func (f *setupFlow) verifyDevice() setupStepResult {
 		}
 	}
 	f.ui.show(setupView{Blocks: []setupBlock{setupSuccess(setupText("setup.verify.device_ok"))}})
+	forgetUnprovenRelayIdentity(&f.cfg)
 	if err := persistDeviceSetupState(f.paths, f.cfg, &f.state, f.lifecycleMarker...); err != nil {
 		return f.failErr(err)
 	}

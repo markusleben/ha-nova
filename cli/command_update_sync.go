@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -54,7 +55,7 @@ func postUpdateSyncWithResultForLifecycle(paths runtimePaths, lifecycleMarker []
 		if err := ensureUpdateLifecycleCurrent(paths, lifecycleMarker); err != nil {
 			return err
 		}
-		result = postUpdateSyncWithResultUnlocked(paths)
+		result = postUpdateSyncWithResultUnlocked(paths, false)
 		return result.Err
 	})
 	if err != nil {
@@ -63,7 +64,9 @@ func postUpdateSyncWithResultForLifecycle(paths runtimePaths, lifecycleMarker []
 	return result
 }
 
-func postUpdateSyncWithResultUnlocked(paths runtimePaths) postUpdateSyncResult {
+// automatic: a self-heal nobody asked for, which leaves a Claude Code that
+// kept an older HA NOVA through a repair to setup and update.
+func postUpdateSyncWithResultUnlocked(paths runtimePaths, automatic bool) postUpdateSyncResult {
 	detectedClients, err := detectInstalledClients(paths)
 	if err != nil {
 		return postUpdateSyncResult{Err: err}
@@ -95,7 +98,19 @@ func postUpdateSyncWithResultUnlocked(paths runtimePaths) postUpdateSyncResult {
 				continue
 			}
 		}
-		if err := installFileClientsForRepairUnlocked(paths, &state, []string{client}); err != nil {
+		if automatic && client == "claude" && claudeRepairStuck(paths, state) {
+			unverified = append(unverified, entry.Label)
+			continue
+		}
+		err = installFileClientsForRepairUnlocked(paths, &state, []string{client})
+		if client == "claude" {
+			err = noteClaudeRepairAfter(paths, state, err)
+		}
+		if errors.Is(err, errClaudeKeptOlderPlugin) { // not a failed update: doctor names the fix
+			unverified = append(unverified, entry.Label)
+			continue
+		}
+		if err != nil {
 			printHumanWarn("Client sync failed: %s (%s)", client, err)
 			failed = append(failed, client)
 			continue

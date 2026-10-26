@@ -64,7 +64,7 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 			if strings.Contains(strings.ToLower(text), "not found") || strings.Contains(strings.ToLower(text), "not installed") {
 				installCmd := exec.Command("claude", "plugin", "install", "ha-nova@ha-nova")
 				if installOutput, installErr := installCmd.CombinedOutput(); installErr == nil {
-					if verifyErr := verifyClaudePluginInstalled(paths.Home, marketplaceRoot); verifyErr != nil {
+					if verifyErr := verifyClaudePluginInstalled(paths, marketplaceRoot); verifyErr != nil {
 						return verifyErr
 					}
 					cleanupClaudeMarketplaceDevResidue(paths, marketplaceRoot)
@@ -77,7 +77,7 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 		}
 		return restoreMarketplace(commandErr)
 	}
-	if err := verifyClaudePluginInstalled(paths.Home, marketplaceRoot); err != nil {
+	if err := verifyClaudePluginInstalled(paths, marketplaceRoot); err != nil {
 		return restoreMarketplace(err)
 	}
 	if localMode {
@@ -89,27 +89,6 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 	// the previous (possibly dev) registration, which still needs its symlink.
 	cleanupClaudeMarketplaceDevResidue(paths, marketplaceRoot)
 	warnClaudeProfileRedirect(paths)
-	return nil
-}
-
-func verifyClaudePluginInstalled(home, desiredSource string) error {
-	pluginPresent, usableInstallPath := readClaudePluginInstallSnapshot(home)
-	if !pluginPresent {
-		return fmt.Errorf("Claude plugin ha-nova@ha-nova not found after sync")
-	}
-	if !usableInstallPath {
-		return fmt.Errorf("Claude plugin ha-nova@ha-nova installPath missing after sync")
-	}
-	currentSource, hasCurrentSource, err := readClaudeMarketplaceSource(home)
-	if err != nil {
-		return err
-	}
-	if !hasCurrentSource {
-		return fmt.Errorf("Claude marketplace ha-nova not found after sync")
-	}
-	if !sameClaudeMarketplaceSource(currentSource, desiredSource) {
-		return fmt.Errorf("Claude marketplace ha-nova source mismatch after sync")
-	}
 	return nil
 }
 

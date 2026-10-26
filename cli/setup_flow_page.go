@@ -58,15 +58,10 @@ func defaultSetupPageAvailable() bool {
 }
 
 // usesSetupPage: a plain `ha-nova setup` at the desktop, a first run or a
-// re-run (setup_page_rerun.go). Flags, service installs, named profiles, a
-// custom Relay address, and Link that isn't ready or Link only keep the
-// text wizard.
+// re-run (setup_page_rerun.go). Link that isn't ready or Link only keep the
+// text wizard, as does anything pageFitsWithoutLink rules out.
 func (f *setupFlow) usesSetupPage() bool {
-	return f.target == "" && !f.serviceMode &&
-		f.hostFlag == "" && f.haURLFlag == "" && f.relayURLFlag == "" && f.relayTokenFlag == "" &&
-		setupPageCloudOK(f.cfg) &&
-		(f.cfg.RelayBaseURL == "" || f.cfg.RelayBaseURL == deriveRelayURLFromHA(f.cfg.HAURL, f.cfg.HAHost)) && // a custom Relay address: the terminal keeps it
-		activeServerProfile() == defaultServerProfileName && setupPageAvailable()
+	return setupPageCloudOK(f.cfg) && f.pageFitsWithoutLink()
 }
 
 // runOnPage serves the page, opens it, and runs the engine with it. Without a
@@ -282,7 +277,9 @@ func (f *setupFlow) pageAskForClient(ask bool) setupStepResult {
 	for !hasAvailableSetupClientChoice(f.choices) {
 		action := setupPageAction{Action: "web"}
 		if ask {
-			f.page.update(func(v *setupPageState) { v.Screen, v.Links = "noclient", map[string]string{"chat": chatAppsGuideURL} })
+			f.page.update(func(v *setupPageState) {
+				v.Screen, v.Links, v.Desktop = "noclient", map[string]string{"chat": chatAppsGuideURL}, claudeDesktopInstalled(f.paths.Home)
+			})
 			var err error
 			if action, err = f.page.wait("recheck", "web"); err != nil {
 				return f.cancelled()

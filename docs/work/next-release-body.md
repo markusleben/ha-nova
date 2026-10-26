@@ -9,6 +9,7 @@ Unreleased claims wait here until they ship (AGENTS.md, Releases: the README des
 - **Chat apps can do what the computer can.** In Claude or ChatGPT you can rename devices, move them to rooms, set up helpers, scenes, dashboards, and integrations, edit files, read the error log, and look at a camera, with the same preview and confirmations as on a computer. Only setting up HA NOVA itself (setup, pairing, updates, turning chat apps on or off) stays on a computer.
 - **Claude stops asking before every step, if you let it.** The setup page and the NOVA page say what to set in Claude: with a linked phone, every HA NOVA tool on "Always allow"; without one, all but "Run a confirmed change".
 - **HACS installs and updates, and dashboard resources, now take your own confirmation, like a delete,** in chat apps and on a computer: that code runs in every signed-in browser.
+- **A leftover Home Assistant Link is explained.** Setup says what it is and lets you finish or remove it right there; `ha-nova doctor` runs all its checks anyway and shows both ways out.
 
 Release-prep todos for these:
 

@@ -91,14 +91,19 @@ func cloudResumeCommand(cfg runtimeConfig) string {
 }
 
 func cloudResumeCommandFor(cfg runtimeConfig, profile string) string {
-	action := "add"
+	return cloudProfileCommandFor(cloudResumeAction(cfg), profile)
+}
+
+// cloudResumeAction: "reconnect" while a saved connection is being
+// replaced, else "add".
+func cloudResumeAction(cfg runtimeConfig) string {
 	if cfg.Cloud != nil &&
 		cfg.Cloud.Current != nil &&
 		cfg.Cloud.State != cloudStateCommitted &&
 		cfg.Cloud.State != cloudStateRetiringPrevious {
-		action = "reconnect"
+		return "reconnect"
 	}
-	return cloudProfileCommandFor(action, profile)
+	return "add"
 }
 
 func cloudProblemNeedsReconnect(problem *cloudProblem) bool {

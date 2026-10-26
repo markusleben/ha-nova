@@ -92,6 +92,11 @@ func attemptClientAutoRepair(paths runtimePaths, client clientStatus) autoRepair
 			outcome.SkipReason = "already attached"
 			return outcome
 		}
+		if claudeRepairStuck(paths, state) { // else every session start reinstalls it
+			outcome.Skipped = true
+			outcome.SkipReason = "Claude Code kept an older HA NOVA after the last repair; run ha-nova doctor"
+			return outcome
+		}
 	}
 
 	var installErr error
@@ -99,6 +104,9 @@ func attemptClientAutoRepair(paths runtimePaths, client clientStatus) autoRepair
 		installErr = installAntigravityClientWithPolicy(paths.Home, sourceRoot, false)
 	} else {
 		_, installErr = installClient(paths, sourceRoot, client.ID)
+	}
+	if client.ID == "claude" {
+		installErr = noteClaudeRepairAfter(paths, state, installErr)
 	}
 	if installErr != nil {
 		outcome.Err = fmt.Errorf("auto-repair %s: %w", client.ID, installErr)

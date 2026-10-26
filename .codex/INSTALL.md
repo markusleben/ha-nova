@@ -9,7 +9,7 @@ For the stable installer, lifecycle commands, and general troubleshooting, use [
 - Use the normal HA NOVA installer flow.
 - The setup page finds Codex on this computer and sets it up: the `codex` command, or on a Mac also the Codex desktop app (now the ChatGPT desktop app) without the command. In the terminal wizard, choose `Codex`.
 - HA NOVA's skills go to `~/.agents/skills/ha-nova`. The `codex` command, the Codex IDE extension, and Codex in the desktop app (macOS, Windows) all read them. In the app, start a new chat to load HA NOVA.
-- Install Codex separately; HA NOVA handles the skills and onboarding, not Codex itself.
+- Install the Codex client separately (the Codex CLI, the IDE extension, or the desktop app); HA NOVA handles the skills and onboarding, not Codex itself.
 
 ## Windows Notes
 

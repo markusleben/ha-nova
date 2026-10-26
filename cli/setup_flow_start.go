@@ -46,18 +46,29 @@ func (f *setupFlow) start() setupStepResult {
 		strings.TrimSpace(f.haURLFlag) != "" ||
 		strings.TrimSpace(f.relayURLFlag) != "" ||
 		strings.TrimSpace(f.relayTokenFlag) != ""
+	if f.linkKeepsTerminal && cloudRecoveryHoldProblem(f.cfg) != nil {
+		f.ui.info(setupText("setup.link.terminal_hold"))
+	} else if f.linkKeepsTerminal {
+		f.ui.info(setupText("setup.link.terminal"))
+	}
 	var cloudRecoveryHandled bool
 	var cloudRecoveryCode int
-	f.cfg, cloudRecoveryHandled, cloudRecoveryCode, f.cloudPausedAtStart =
-		handleInteractiveCloudRecoveryBeforeClients(
-			f.ui.termIn(),
-			f.ui.termOut(),
-			f.paths,
-			f.cfg,
-			f.serviceMode,
-			f.explicitLocalSetup,
-			f.lifecycleMarker...,
-		)
+	if result, done, paused := f.settleLeftoverLink(); done {
+		return result
+	} else if paused {
+		f.cloudPausedAtStart = true
+	} else {
+		f.cfg, cloudRecoveryHandled, cloudRecoveryCode, f.cloudPausedAtStart =
+			handleInteractiveCloudRecoveryBeforeClients(
+				f.ui.termIn(),
+				f.ui.termOut(),
+				f.paths,
+				f.cfg,
+				f.serviceMode,
+				f.explicitLocalSetup,
+				f.lifecycleMarker...,
+			)
+	}
 	if cloudRecoveryHandled {
 		return setupDone(cloudRecoveryCode)
 	}

@@ -18,6 +18,8 @@ type clientStatus struct {
 	Attached        bool
 	Ready           bool
 	Reason          string
+	// PluginOutdated: Claude Code still loads an HA NOVA older than this release.
+	PluginOutdated bool
 }
 
 var clientRuntimeDetectedForStatus = clientRuntimeDetected
@@ -38,14 +40,25 @@ func evaluateClientStatus(paths runtimePaths, state installState, client clientR
 	if client.ID == "claude" && (claudeSnapshot.MarketplaceFound || claudeSnapshot.PluginFound) {
 		status.Configured = true
 	}
+	status.PluginOutdated = claudeSnapshot.MismatchReason == claudePluginOutdated
 	if client.ID == "hermes" && (hermesNamespacedContextPresent(paths.Home) || hermesLegacyBundlePresent(paths.Home)) {
 		status.Configured = true
 	}
 	status.RuntimeDetected = clientRuntimeDetectedForStatus(client.ID) ||
 		(client.ID == "codex" && codexAppInstalled(paths.Home))
 	status.Ready = status.SupportedOnOS && status.RuntimeDetected && status.Attached
-	status.Reason = clientStatusReason(client.ID, status)
+	status.Reason = clientStatusReason(client.ID, status, paths.Home)
 	return status
+}
+
+// claudeDesktopInstalled: the Claude Desktop app is on this Mac. It brings
+// no claude command, so HA NOVA can't set up its Code tab without Claude
+// Code. macOS only: on Windows it is a package with no fixed path. Test seam.
+var claudeDesktopInstalled = func(home string) bool {
+	if runtime.GOOS != "darwin" {
+		return false
+	}
+	return fileExists("/Applications/Claude.app") || fileExists(filepath.Join(home, "Applications", "Claude.app"))
 }
 
 func clientRuntimeDetected(client string) bool {
@@ -136,7 +149,7 @@ func configuredClientStatuses(paths runtimePaths, state installState) ([]clientS
 	return statuses, nil
 }
 
-func clientStatusReason(client string, status clientStatus) string {
+func clientStatusReason(client string, status clientStatus, home string) string {
 	if !status.SupportedOnOS {
 		return clientUnsupportedOSReason(client, bundlePlatformOS())
 	}
@@ -145,6 +158,9 @@ func clientStatusReason(client string, status clientStatus) string {
 	}
 	switch client {
 	case "claude":
+		if claudeDesktopInstalled(home) {
+			return "Claude Desktop is installed, but HA NOVA can only set up its Code tab through Claude Code: install Claude Code first"
+		}
 		return "install Claude Code first"
 	case "codex":
 		if codexPlatformOS == "darwin" {

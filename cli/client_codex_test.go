@@ -97,7 +97,7 @@ func TestCodexCopyNamesTheDesktopAppOnlyWhereItExists(t *testing.T) {
 		{"linux", "install the Codex CLI first", "setup.codex.where_linux"},
 	} {
 		withCodexPlatform(t, tc.os)
-		if got := clientStatusReason("codex", clientStatus{SupportedOnOS: true}); got != tc.reason {
+		if got := clientStatusReason("codex", clientStatus{SupportedOnOS: true}, t.TempDir()); got != tc.reason {
 			t.Errorf("%s reason = %q", tc.os, got)
 		}
 		if got := codexWhereKey(); got != tc.whereKey {

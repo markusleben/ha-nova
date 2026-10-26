@@ -101,18 +101,33 @@ func renderSetupSecureStorageFailure(out io.Writer, prefix string, err error) er
 type localRelayCredentialError struct{ cause error }
 
 func (e *localRelayCredentialError) Error() string {
+	switch {
+	case secureStorageSessionProblem(e.cause):
+		return e.doctorText()
+	case e.unlockable():
+		return e.doctorText() + ", or run: ha-nova doctor"
+	}
+	return e.doctorText() + "; run: ha-nova doctor"
+}
+
+// doctorText is Error() without sending the reader to doctor, for doctor.
+func (e *localRelayCredentialError) doctorText() string {
 	code := "unknown"
 	var cloudErr *CloudError
 	if errors.As(e.cause, &cloudErr) {
 		code = string(cloudErr.Code)
 	}
-	if secureStorageSessionProblem(e.cause) {
+	switch {
+	case secureStorageSessionProblem(e.cause):
 		return secureStorageSessionReason + "; " + secureStorageSessionNextStep() + ", start your AI assistant from that terminal, and try again (" + code + ")"
+	case e.unlockable():
+		return "cannot read this computer's saved HA NOVA credential (" + code + "); unlock this computer's keychain or keyring (sign in to its desktop) and try again"
 	}
-	if isSecureStorageUnavailableError(e.cause) || IsCloudErrorCode(e.cause, CloudErrSecretPromptCanceled) {
-		return "cannot read this computer's saved HA NOVA credential (" + code + "); unlock this computer's keychain or keyring (sign in to its desktop) and try again, or run: ha-nova doctor"
-	}
-	return "cannot read this computer's saved HA NOVA credential (" + code + "); run: ha-nova doctor"
+	return "cannot read this computer's saved HA NOVA credential (" + code + ")"
+}
+
+func (e *localRelayCredentialError) unlockable() bool {
+	return isSecureStorageUnavailableError(e.cause) || IsCloudErrorCode(e.cause, CloudErrSecretPromptCanceled)
 }
 
 func (e *localRelayCredentialError) Unwrap() error { return e.cause }

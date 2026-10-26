@@ -6,7 +6,7 @@
 'use strict';
 
 window.novaSteps = (h) => {
-  const { t, el, row, head, button, link, render } = h;
+  const { t, el, row, head, button, link, render, claudeWhere } = h;
   const say = (msg) => (msg ? t(msg.key, msg.args || {}) : '');
   // Switches and open details live here until "Continue" sends them.
   // chatFlip: a re-run's chat-app switch turned the other way (Done applies
@@ -375,6 +375,7 @@ window.novaSteps = (h) => {
         previewBlock('automation', pv)));
     }
     if (!hm.loading) out.push(el('h2', {}, t('setup.page.home.ask')), prompts(hm));
+    if (hm.claude) out.push(claudeWhere(['Claude Code']));
     out.push(el('div', { class: 'actions' },
       hm.claude ? button(t('setup.page.home.open_claude'), 'claude') : null,
       button(t('setup.page.home.done'), 'done', hm.claude ? 'ghost' : 'primary')));
@@ -384,5 +385,10 @@ window.novaSteps = (h) => {
     return out;
   };
 
-  return { control, home, demo };
+  // A line to copy, with its Copy button (as chat.js's address).
+  const copybar = (text, id, copied, failed) => el('div', { class: 'copybar' }, el('code', { id }, text),
+    el('button', { id: `b-${id}-copy`, class: 'btn btn-ghost btn-small', type: 'button', onclick: () => (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard')))
+      .then(() => toast(t(copied)), () => toast(t(failed))) }, t('setup.chat.copy')));
+
+  return { control, home, demo, copybar };
 };

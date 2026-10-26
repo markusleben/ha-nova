@@ -61,6 +61,8 @@
   [ok] Setup complete!
 
   Installed for: Claude Code
+  Claude Code is the claude command in a terminal and the Code tab in the Claude Desktop app (in a new chat). The chat tab in Claude Desktop doesn't use it. For that tab, see chat apps (needs Home Assistant reachable from the internet).
+  Chat apps guide: https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md
 
   Open Claude Code and try asking:
 
@@ -78,6 +80,8 @@
   [ok] Setup complete!
 
   Installed for: Claude Code, Codex
+  Claude Code is the claude command in a terminal and the Code tab in the Claude Desktop app (in a new chat). The chat tab in Claude Desktop doesn't use it. For that tab, see chat apps (needs Home Assistant reachable from the internet).
+  Chat apps guide: https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md
   Codex is the codex command in a terminal, the Codex IDE extension, and Codex in the ChatGPT desktop app (formerly the Codex app). In the app, start a new chat to load HA NOVA.
 
   Open your AI apps and try asking:
