@@ -6,7 +6,7 @@
 'use strict';
 
 window.novaSteps = (h) => {
-  const { t, el, row, head, button, link, render } = h;
+  const { t, el, row, head, button, link, render, claudeWhere } = h;
   const say = (msg) => (msg ? t(msg.key, msg.args || {}) : '');
   // Switches and open details live here until "Continue" sends them.
   // chatFlip: a re-run's chat-app switch turned the other way (Done applies
@@ -375,6 +375,7 @@ window.novaSteps = (h) => {
         previewBlock('automation', pv)));
     }
     if (!hm.loading) out.push(el('h2', {}, t('setup.page.home.ask')), prompts(hm));
+    if (hm.claude) out.push(claudeWhere(['Claude Code']));
     out.push(el('div', { class: 'actions' },
       hm.claude ? button(t('setup.page.home.open_claude'), 'claude') : null,
       button(t('setup.page.home.done'), 'done', hm.claude ? 'ghost' : 'primary')));

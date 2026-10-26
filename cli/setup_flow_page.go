@@ -282,7 +282,9 @@ func (f *setupFlow) pageAskForClient(ask bool) setupStepResult {
 	for !hasAvailableSetupClientChoice(f.choices) {
 		action := setupPageAction{Action: "web"}
 		if ask {
-			f.page.update(func(v *setupPageState) { v.Screen, v.Links = "noclient", map[string]string{"chat": chatAppsGuideURL} })
+			f.page.update(func(v *setupPageState) {
+				v.Screen, v.Links, v.Desktop = "noclient", map[string]string{"chat": chatAppsGuideURL}, claudeDesktopInstalled(f.paths.Home)
+			})
 			var err error
 			if action, err = f.page.wait("recheck", "web"); err != nil {
 				return f.cancelled()

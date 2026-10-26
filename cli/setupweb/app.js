@@ -20,6 +20,9 @@
     claude_desktop: 'https://claude.com/download',
     claude_code: 'https://claude.com/claude-code',
   };
+  // Claude Code's install line (code.claude.com/docs/en/setup), for a Mac
+  // with Claude Desktop only: the CLI sends desktop only there.
+  const claudeInstall = 'curl -fsSL https://claude.ai/install.sh | bash';
   const primaryLabels = { install: 'setup.page.button.install', update: 'setup.page.button.update', signin: 'setup.page.button.signin' };
   const fixLabels = { retry: 'setup.page.button.retry', owner: 'setup.page.button.owner', web: 'setup.page.button.web_recheck' };
   const rowStatus = { ok: 'setup.page.status.ok', run: 'setup.page.status.run', fail: 'setup.page.status.fail', todo: 'setup.page.status.todo' };
@@ -123,6 +126,8 @@
       el('div', {}, el('div', { class: 'k' }, el('span', { class: 'visually-hidden' }, `${t(rowStatus[status])} `), key),
         value ? el('div', { class: 'v' }, value) : null, extra && extra.below),
       extra && extra.side ? extra.side : el('span'));
+  // Which Claude "Claude Code" is, wherever the page says it got HA NOVA.
+  const claudeWhere = (clients) => ((clients || []).includes('Claude Code') ? el('p', { class: 'fine', id: 'claude-where' }, t('setup.claude.where')) : null);
   const head = (eyebrow, title, lead, amber) => [
     el('p', { class: amber ? 'eyebrow amber' : 'eyebrow' }, eyebrow),
     el('h1', { tabindex: '-1' }, title),
@@ -161,11 +166,16 @@
 
     // Claude or ChatGPT in the browser goes on without an AI app here; what
     // it needs is said under its button, before any sign-in.
-    noclient: () => [...head(t('setup.page.noclient.eyebrow'), t('setup.page.noclient.title'), t('setup.page.noclient.lead')),
+    // Claude Desktop alone (state.desktop): its Code tab gets HA NOVA only
+    // through Claude Code, so the screen says how to install that.
+    noclient: () => [...head(t('setup.page.noclient.eyebrow'), t(state.desktop ? 'setup.page.noclient.title_desktop' : 'setup.page.noclient.title'),
+      t(state.desktop ? 'setup.page.noclient.lead_desktop' : 'setup.page.noclient.lead')),
+      state.desktop ? el('p', { class: 'fine' }, t('setup.page.noclient.install_desktop')) : null,
+      state.desktop ? el('div', { class: 'code', id: 'claude-install' }, claudeInstall) : null,
       el('div', { class: 'actions' }, button(t('setup.page.noclient.web'), 'web')),
       el('p', { class: 'fine', id: 'web-needs' }, `${t('setup.page.noclient.web_needs')} `, chatHelp()),
       el('div', { class: 'actions' },
-        link(t('setup.page.link.claude_desktop'), downloads.claude_desktop, 'ghost', 'desktop'),
+        state.desktop ? null : link(t('setup.page.link.claude_desktop'), downloads.claude_desktop, 'ghost', 'desktop'),
         link(t('setup.page.link.claude_code'), downloads.claude_code, 'ghost', 'code'),
         button(t('setup.page.button.recheck'), 'recheck', 'ghost'))],
 
@@ -257,7 +267,7 @@
     },
 
     done: () => [...head(t('setup.page.done.eyebrow'), t('setup.page.done.title'), t('setup.page.done.lead', { clients: state.clients || [] })),
-      el('p', { class: 'fine' }, t('setup.page.done.fine'))],
+      claudeWhere(state.clients), el('p', { class: 'fine' }, t('setup.page.done.fine'))],
   };
   // Steps 3 and 4 (steps.js), and a re-run (rerun.js).
   const announce = (text) => { statusEl.textContent = text; };
@@ -266,7 +276,7 @@
   const amberNotes = ['setup.page.home.note_rule_failed', 'setup.page.home.note_link_failed', 'setup.page.home.note_chat_off_failed',
     'setup.page.home.note_clients_failed', 'setup.page.home.note_web_off'];
   const note = (msg) => el('p', { class: amberNotes.includes(msg.key) ? 'note' : 'note done' }, say(msg));
-  const helpers = { t, el, row, head, note, button, link, format, render, post, accepts, announce, state: () => state };
+  const helpers = { t, el, row, head, note, button, link, format, render, post, accepts, announce, claudeWhere, state: () => state };
   const later = window.novaSteps(helpers);
   Object.assign(screens, later, window.novaRerun({ ...helpers, control: later.control }));
   for (const [screen, [eyebrow, title, lead, amber]] of Object.entries(endScreens)) {

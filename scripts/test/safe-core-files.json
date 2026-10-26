@@ -153,6 +153,7 @@
   "tests/storage/relay-instance.test.ts",
   "tests/onboarding/setup-page-script.test.ts",
   "tests/onboarding/setup-page-chat-advice.test.ts",
+  "tests/onboarding/setup-page-claude.test.ts",
   "tests/runtime/chat-apps.test.ts",
   "tests/security/pairing-metadata-reserved.test.ts"
 ]

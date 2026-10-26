@@ -10,6 +10,10 @@ import (
 	"strings"
 )
 
+// claudePluginOutdated: the MismatchReason for an install record older than
+// this release.
+const claudePluginOutdated = "plugin older than this release"
+
 type claudeInstallSnapshot struct {
 	ExpectedSource    string
 	MarketplaceSource claudeMarketplaceSource
@@ -56,22 +60,25 @@ func claudeMarketplaceVersionForSourceRoot(paths runtimePaths, sourceRoot string
 	return version, nil
 }
 
-func expectedClaudeMarketplaceSource(paths runtimePaths, state installState) (string, error) {
+// expectedClaudeMarketplaceSource: the marketplace root Claude Code should
+// point at, and the release it holds ("" for the dev root).
+func expectedClaudeMarketplaceSource(paths runtimePaths, state installState) (string, string, error) {
 	if BuildChannel == "dev" ||
 		normalizeInstallSource(detectInstallSource(paths, state)) == installSourceDev ||
 		strings.EqualFold(strings.TrimSpace(os.Getenv("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL")), "1") {
-		return claudeMarketplaceDevRoot(paths), nil
+		return claudeMarketplaceDevRoot(paths), "", nil
 	}
 	version, err := claudeMarketplaceVersionForSourceRoot(paths, paths.InstallRoot)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return claudeMarketplaceReleaseRoot(paths, version)
+	root, err := claudeMarketplaceReleaseRoot(paths, version)
+	return root, version, err
 }
 
 func inspectClaudeInstallSnapshot(paths runtimePaths, state installState) claudeInstallSnapshot {
 	snapshot := claudeInstallSnapshot{}
-	expectedSource, err := expectedClaudeMarketplaceSource(paths, state)
+	expectedSource, expectedVersion, err := expectedClaudeMarketplaceSource(paths, state)
 	if err == nil {
 		snapshot.ExpectedSource = expectedSource
 	}
@@ -97,10 +104,22 @@ func inspectClaudeInstallSnapshot(paths runtimePaths, state installState) claude
 		snapshot.MismatchReason = "plugin missing"
 	case !snapshot.UsableInstallPath:
 		snapshot.MismatchReason = "plugin installPath missing"
+	// Claude Code keeps loading an install record older than this release
+	// (an update that didn't replace it): the marketplace alone proves nothing.
+	// Only when the file itself vouched for the install: a CLI answer outranks it.
+	case expectedVersion != "" && claudePluginFileUsable(paths.Home) && claudeHANovaAt(claudeConfigRoot(paths.Home), expectedVersion) == claudeHANovaOlder:
+		snapshot.MismatchReason = claudePluginOutdated
 	default:
 		snapshot.Attached = true
 	}
 	return snapshot
+}
+
+// claudePluginFileUsable: installed_plugins.json itself holds a usable
+// HA NOVA install (readClaudePluginPresence asked the CLI otherwise).
+func claudePluginFileUsable(home string) bool {
+	found, usable, unreadable := readClaudePluginInstallState(home)
+	return found && usable && !unreadable
 }
 
 func readClaudePluginInstallSnapshot(home string) (bool, bool) {

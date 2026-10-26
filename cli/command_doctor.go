@@ -382,7 +382,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 				printHumanWarn("%s", doctorClientRepairHint(client, installSource))
 				status = 1
 			case !client.Attached:
-				printHumanWarn("%s doesn't load HA NOVA right now", client.Label)
+				printHumanWarn("%s", doctorClientNotLoaded(client))
 				printHumanWarn("%s", doctorClientRepairHint(client, installSource))
 				status = 1
 			}
@@ -414,36 +414,6 @@ func runDoctor(paths runtimePaths, args []string) int {
 		doctorInfo("All checks passed")
 	}
 	return status
-}
-
-func doctorClientRepairHint(client clientStatus, installSource string) string {
-	setupCommand := doctorClientSetupCommand(client.ID)
-	switch {
-	case !client.RuntimeDetected:
-		return fmt.Sprintf(
-			"To fix: install or open %s, then run `%s`.",
-			client.Label,
-			setupCommand,
-		)
-	case installSource == installSourceDev:
-		return fmt.Sprintf(
-			"To fix: run `npm run dev:sync` or `%s`.",
-			setupCommand,
-		)
-	default:
-		return fmt.Sprintf("To fix: run `%s`.", setupCommand)
-	}
-}
-
-func doctorClientSetupCommand(clientID string) string {
-	if activeServerProfile() != defaultServerProfileName {
-		return fmt.Sprintf(
-			"ha-nova setup --server %s %s",
-			activeServerProfile(),
-			clientID,
-		)
-	}
-	return fmt.Sprintf("ha-nova setup %s", clientID)
 }
 
 func fetchRelayHealth(relayBaseURL, token string) ([]byte, error) {

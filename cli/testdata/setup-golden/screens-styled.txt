@@ -63,6 +63,7 @@
   <ESC>[32m✓<ESC>[0m Setup complete!
 
   Installed for: <ESC>[1mClaude Code<ESC>[0m
+  Claude Code is the claude command in a terminal and the Code tab in the Claude Desktop app (in a new chat). The chat tab in Claude Desktop doesn't use it: there, turn on chat apps in NOVA in Home Assistant and click Add to Claude.
 
   Open <ESC>[1mClaude Code<ESC>[0m and try asking:
 
@@ -81,6 +82,7 @@
   <ESC>[32m✓<ESC>[0m Setup complete!
 
   Installed for: <ESC>[1mClaude Code, Codex CLI<ESC>[0m
+  Claude Code is the claude command in a terminal and the Code tab in the Claude Desktop app (in a new chat). The chat tab in Claude Desktop doesn't use it: there, turn on chat apps in NOVA in Home Assistant and click Add to Claude.
 
   Open <ESC>[1myour AI apps<ESC>[0m and try asking:
 
