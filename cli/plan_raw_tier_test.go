@@ -14,9 +14,10 @@ import (
 // is decided below.
 func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
 	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
-		"backups list": func(map[string]any) any { return []any{map[string]any{"file": "scenes/a.json.gz"}} },
+		"backups list":                func(map[string]any) any { return []any{map[string]any{"file": "scenes/a.json.gz"}} },
+		"config/device_registry/list": func(map[string]any) any { return []any{map[string]any{"id": "demo", "name": "Demo"}} },
 	})
-	wantTyped := []string{"config/entity_registry/remove", "lovelace/resources/create", "lovelace/resources/update", "lovelace/resources/delete",
+	wantTyped := []string{"config/entity_registry/remove", "config/device_registry/remove", "lovelace/resources/create", "lovelace/resources/update", "lovelace/resources/delete",
 		"recorder/clear_statistics", "backup/delete", "hacs/repositories/remove", "hacs/repository/download", "hacs/repository/remove",
 		"config/auth/create", "config/auth/delete", "assist_pipeline/pipeline/delete", "calendar/event/delete"}
 	for _, collection := range rawWSCollections {
@@ -28,6 +29,9 @@ func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
 	}
 	for wsType, what := range rawWSAllowed {
 		payload := map[string]any{"type": wsType}
+		if wsType == "config/device_registry/remove" {
+			payload["device_id"] = "demo"
+		}
 		if wsType == "subscribe_events" {
 			payload["event_type"] = "state_changed"
 		}

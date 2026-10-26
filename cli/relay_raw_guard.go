@@ -193,6 +193,10 @@ func checkRawWS(message map[string]any) error {
 		return rawRefusal("WS type "+strconv.Quote(wsType), next)
 	}
 	switch wsType {
+	case "config/device_registry/remove":
+		if device, _ := message["device_id"].(string); device == "" {
+			return rawRefusal("device deletion without its device_id", "name the device with its device_id")
+		}
 	case "subscribe_events":
 		eventType, _ := message["event_type"].(string)
 		if eventType == "" || eventType == "*" || strings.EqualFold(eventType, "call_service") {

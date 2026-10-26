@@ -77,8 +77,8 @@ Raw `ha-nova relay ws` sends only the types on `cli/relay_raw_allow.go` (raw `re
 | `config/entity_registry/remove` | Remove entity from registry |
 | `config/device_registry/list` | All devices |
 | `config/device_registry/update` | Assign device area, labels, name, disable (not a device with a lock, alarm panel, or access cover) |
-| `config/device_registry/remove_config_entry` | Remove the owning device (HA 2026.8+; deprecated, removed in HA 2027.9) |
-| `config/device_registry/remove` | Delete a device (HA 2026.9+, admin-only; external — HA NOVA never calls it) |
+| `config/device_registry/remove_config_entry` | Legacy device removal/detach (deprecated, removed in HA 2027.9; not allowlisted — older HA uses the UI) |
+| `config/device_registry/remove` | Delete a device (HA 2026.9+, admin-only; organize, typed raw plan; requires integration support, refuses access-capable and HA NOVA Relay/App devices) |
 | `config/device_registry/list_linked_devices` | Devices sharing connections or identifiers with one `device_id` (HA 2026.9+) |
 | `config/device_registry/list_composite_splits` | Pre-2026.9 composite device ids mapped to their split replacements |
 

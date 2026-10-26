@@ -100,8 +100,8 @@ describe("maintenance contract", () => {
     // Statistics survive registry removal and become no_state.
     expect(maintenanceSkill).toContain("they then report as `no_state`");
     expect(maintenanceReference).toContain("restorable ~30 days");
-    // Devices are report-only.
-    expect(maintenanceSkill).toContain("device deletion — no generic API");
+    // Device deletion routes to organize.
+    expect(maintenanceSkill).toContain("device deletion — `ha-nova:organize`");
   });
 
   it("labels long-unavailable timestamps by confidence and distrusts last_changed", () => {

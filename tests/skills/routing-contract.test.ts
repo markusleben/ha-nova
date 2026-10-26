@@ -106,6 +106,27 @@ describe("boundary statements between neighbouring skills (#518)", () => {
     );
   });
 
+  it("owns device deletion in organize: official WS type, typed plan, snapshot first, honest undo", () => {
+    const organize = flat(read("skills/organize/SKILL.md"));
+    const section = organize.slice(organize.indexOf("## Delete a Device"), organize.indexOf("## Output Format"));
+    for (const pin of [
+      "HA 2026.9+",
+      "`supports_remove_device: true`",
+      "Refused as for a device disable; also HA NOVA's App",
+      "child devices (`parent_device_id`)",
+      "consumers: `search/related` per device and entity",
+      "others: unlinked",
+      "`ha-nova plan raw --file <requests.json>`: a `backups` save (`metadata`",
+      '{"type":"config/device_registry/remove","device_id":"<id>"}',
+      "removing its integration entry (`ha-nova:fallback`, own preview: all its devices go)",
+      "the copy is a record only",
+      "No undo",
+    ]) {
+      expect(section).toContain(pin);
+    }
+    expect(flat(read("skills/fallback/SKILL.md"))).not.toContain("Device Config-Entry Detach");
+  });
+
   it("corrects the nonexistent device-category premise without a fallback loop", () => {
     const organizeRaw = read("skills/organize/SKILL.md");
     const organize = flat(organizeRaw);
@@ -114,9 +135,6 @@ describe("boundary statements between neighbouring skills (#518)", () => {
     );
     expect(read("docs/reference/skill-architecture.md")).toContain(
       "device categories do not exist; offer entity categories instead",
-    );
-    expect(organize).toContain(
-      "Config-entry detachment goes to `ha-nova:fallback`",
     );
     const handoffList = organizeRaw.match(
       /Not in scope:[\s\S]*?## Bootstrap/,

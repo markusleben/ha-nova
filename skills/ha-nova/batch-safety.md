@@ -166,7 +166,7 @@ the offer of a remaining-targets manifest).
 | `dashboard` | yes | resources and cards are separate families; a card batch is one merged save (single-call path); dashboards delete one at a time (a `plan delete` code binds one) |
 | `todo` | yes | list deletion with per-list open-item counts; item removal keeps its existing natural-confirmation flow |
 | `organize` | yes | one registry family per manifest; only with complete related-item impact per target |
-| `device` | no | destructive steps (device removal, orphan rows) stay with the HA UI and `maintenance` |
+| `device` | no | destructive steps go to their owners: one device removal to `organize` (or the HA UI), orphan rows to `maintenance` |
 | `migrate` | no | retiring an old rule is one delete through `write` or `yaml-config` |
 | `yaml-config` | no | file edits are single-document operations with their own backup flow |
 | `esphome` | no | one device file per edit, through the yaml-config backup flow |
