@@ -134,9 +134,7 @@ window.novaSteps = (h) => {
   // Chat apps: their own file (chat.js), with these helpers and switches.
   const { chatRow, addClaude, claudeHelp, claudeNext } = window.novaChat({ ...h, say, local, toast, line, toggle, focusAfter, focusId, tagOn, flip, problem, mark, done, spinner, muted, needs });
 
-  // status: a re-run's rows of what is set up, above these; Done applies the
-  // switches.
-  const control = (status) => {
+  const control = (status, overview) => {
     const c = h.state().control || {};
     // Claude or ChatGPT in the browser: chat apps first, and the window on
     // this computer never asks for them. Here: chat apps are the first
@@ -158,15 +156,17 @@ window.novaSteps = (h) => {
     } else if (c.rule === 'on') {
       rows.push(line(done(), t('setup.page.control.rule_key'), t('setup.page.control.rule_on', { count: c.rule_count }), null, tagOn()));
     }
+    const ruleRows = rows.slice(4);
+    let linkRow;
     if (c.link === 'offer') {
       const label = t('setup.page.control.link_key');
-      rows.push(line(muted('⇄'), label, t('setup.page.control.link_value'), local.link ? later() : null,
+      rows.push(linkRow = line(muted('⇄'), label, t('setup.page.control.link_value'), local.link ? later() : null,
         toggle('b-link', label, local.link, flip('link'), busy), 'b-link-v'));
     } else if (c.link === 'run') {
-      rows.push(el('li', {}, spinner(), el('div', {}, el('div', { class: 'k' }, t('setup.page.control.link_key')),
+      rows.push(linkRow = el('li', {}, spinner(), el('div', {}, el('div', { class: 'k' }, t('setup.page.control.link_key')),
         el('div', { class: 'v', role: 'status' }, t('setup.page.control.link_run'))), el('span')));
     } else if (c.link === 'on') {
-      rows.push(line(done(), t('setup.page.control.link_key'), t('setup.page.control.link_on'), null, tagOn()));
+      rows.push(linkRow = line(done(), t('setup.page.control.link_key'), t('setup.page.control.link_on'), null, tagOn()));
     }
     // An open chat consent is a question: Finish waits for its answer.
     const asking = local.chatAsk && c.chat && c.chat.state === 'offer';
@@ -176,9 +176,9 @@ window.novaSteps = (h) => {
     if (c.chat && local.chatFlip && (c.chat.state === 'page_on' || c.chat.state === 'page_off')) choices.push(c.chat.state === 'page_on' ? 'chat_off' : 'chat_on');
     // A switch that signs in on the button says so on it too.
     const finish = choices.some((choice) => choice !== 'rule') ? t(status ? 'setup.page.rerun.done_signin' : 'setup.page.control.finish_signin') : finishLabel();
-    return [...(status ? [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.title'), t('setup.page.rerun.lead')), status]
+    return [...(status ? [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.title'), t('setup.page.rerun.lead')), overview ? null : status]
       : head(t('setup.page.control.eyebrow'), t('setup.page.control.title'), t('setup.page.control.lead'))),
-      el('ul', { class: 'rows tall' }, rows),
+      ...(overview ? overview({ window: rows[1], phone: rows[2], chat, link: linkRow }, ruleRows) : [el('ul', { class: 'rows tall' }, rows)]),
       el('div', { class: 'actions' }, asking
         ? el('button', { id: 'b-finish', class: 'btn btn-primary', type: 'button', disabled: '' }, finish)
         : button(finish, 'finish', 'primary', choices.join(','))),

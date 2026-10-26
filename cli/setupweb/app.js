@@ -281,7 +281,7 @@
   const note = (msg) => el('p', { class: amberNotes.includes(msg.key) ? 'note' : 'note done' }, say(msg));
   const helpers = { t, el, row, head, note, button, link, format, render, post, accepts, announce, claudeWhere, codexWhere, state: () => state };
   const { copybar, ...later } = window.novaSteps(helpers);
-  Object.assign(screens, later, window.novaRerun({ ...helpers, control: later.control }));
+  Object.assign(screens, later, window.novaRerun({ ...helpers, control: later.control, copybar }));
   for (const [screen, [eyebrow, title, lead, amber]] of Object.entries(endScreens)) {
     screens[screen] = () => head(t(eyebrow), t(title), t(lead), amber);
   }

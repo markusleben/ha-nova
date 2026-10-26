@@ -24,7 +24,7 @@ import (
 var setupPageIdle = 30 * time.Minute
 
 // The actions the page may post; the engine accepts a subset at a time.
-var setupPageActions = []string{"signin", "address", "terminal", "recheck", "web", "local", "stop", "demo", "fix", "switch", "server", "clients",
+var setupPageActions = []string{"signin", "address", "terminal", "recheck", "web", "local", "stop", "demo", "fix", "switch", "server", "clients", "window",
 	"phone", "chat", "chat_recheck", "finish", // step 3 (setup_page_control.go)
 	"preview", "save", "undo", "claude", "done", // step 4 (setup_page_home.go)
 }
@@ -69,6 +69,7 @@ type setupPageState struct {
 	Control    *setupPageControl    `json:"control,omitempty"`     // step 3
 	Home       *setupPageHome       `json:"home,omitempty"`        // step 4
 	NewClients []string             `json:"new_clients,omitempty"` // a re-run: AI assistants found since, to set up with a click
+	Overview   []setupOverviewItem  `json:"overview,omitempty"`
 	Web        bool                 `json:"web,omitempty"`         // no AI app here: Claude or ChatGPT in the browser (chat apps)
 	Desktop    bool                 `json:"desktop,omitempty"`     // Claude Desktop without a usable Code runtime
 	CodexWhere string               `json:"codex_where,omitempty"` // catalog key: where "Codex" works on this OS

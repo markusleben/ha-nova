@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"slices"
+	"time"
 )
 
 // Step 3's chat-app row on the setup page (setupPageChat in
@@ -81,7 +82,16 @@ func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func
 		}
 		c.Problem = setupPageText("setup.chat.problem_slow")
 	}
+	readCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	fresh, readErr := chatAppsCall(readCtx, setupOwnerIngress, nil)
+	cancel()
+	if readErr == nil {
+		offer.state = fresh
+	} else {
+		offer.state.OwnerPhone = nil
+	}
 	f.pageChatNote(c, offer.state)
+	c.PhoneKnown = readErr == nil
 }
 
 // pageChatNote: step 4 repeats the connector address, with Add to Claude
@@ -90,6 +100,7 @@ func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func
 // read again (a re-run's "Set up … too").
 func (f *setupFlow) pageChatNote(c *setupPageChat, state chatAppsState) {
 	c.Confirmed = state.OwnerPhone != nil
+	c.PhoneKnown = c.Problem == nil || c.Problem.Key != "setup.chat.problem_phone"
 	f.pageNotes = slices.DeleteFunc(f.pageNotes, func(n *setupPageMsg) bool { return n.Key == "setup.page.home.note_chat" })
 	f.pageNotes = append(f.pageNotes, setupPageText("setup.page.home.note_chat", "url", c.URL))
 	f.pageChatLink, f.pageOrgLink, f.pageChatPhoned = c.ClaudeLink, c.OrgLink, c.Confirmed
@@ -142,7 +153,7 @@ func chatAppsOffOnPage(c *setupPageChat) bool {
 func (f *setupFlow) pageChatRow(chat *chatAppsOffer) *setupPageChat {
 	switch {
 	case chat.url == "":
-		row := &setupPageChat{State: "noaddress"}
+		row := &setupPageChat{State: "noaddress", PhoneKnown: true, Confirmed: chat.state.OwnerPhone != nil}
 		if chat.state.Enabled {
 			row.Problem = setupPageText("setup.chat.on_noaddress")
 		}
@@ -152,13 +163,15 @@ func (f *setupFlow) pageChatRow(chat *chatAppsOffer) *setupPageChat {
 		if !chat.loaded { // on, but a restart never came: the address doesn't answer yet
 			row.Problem = setupPageText("setup.chat.problem_slow")
 		}
-		if err := handOverOwnerPhone(setupOwnerIngress, f.paths, setupSignedInUser, &chat.state); err != nil {
+		phoneErr := handOverOwnerPhone(setupOwnerIngress, f.paths, setupSignedInUser, &chat.state)
+		if phoneErr != nil && row.Problem == nil {
 			row.Problem = setupPageText("setup.chat.problem_phone")
 		}
 		f.pageChatNote(row, chat.state)
+		row.PhoneKnown = phoneErr == nil
 		return row
 	}
-	return &setupPageChat{State: "offer", NoRestart: !chat.restart, Phone: chatAppsPhoneName(f.paths, setupSignedInUser, chat.state)}
+	return &setupPageChat{State: "offer", NoRestart: !chat.restart, Phone: chatAppsPhoneName(f.paths, setupSignedInUser, chat.state), PhoneKnown: true, Confirmed: chat.state.OwnerPhone != nil}
 }
 
 // pageRerunChatOn: Done with the chat-app switch turned on, on a re-run

@@ -6,6 +6,7 @@ import "strings"
 // connection mode: interrupted retirements and activations, Cloud
 // recovery, named profiles. A done result ends setup.
 func (f *setupFlow) start() setupStepResult {
+	f.rerun = strings.TrimSpace(f.cfg.HAHost) != "" && strings.TrimSpace(f.cfg.HAURL) != ""
 	f.ui.header()
 	if f.target == "" && strings.TrimSpace(f.cfg.HAHost) == "" && strings.TrimSpace(f.cfg.HAURL) == "" &&
 		strings.TrimSpace(f.hostFlag) == "" && strings.TrimSpace(f.haURLFlag) == "" &&
@@ -171,7 +172,7 @@ func (f *setupFlow) chooseClientAndMode() setupStepResult {
 		}
 
 		if remoteOnlyCloudSetup(f.cfg) && !f.explicitLocalSetup {
-			return setupDone(resumeInteractiveCloudOnlySetup(
+			code := resumeInteractiveCloudOnlySetup(
 				f.ui.termIn(),
 				f.ui.termOut(),
 				f.paths,
@@ -181,7 +182,13 @@ func (f *setupFlow) chooseClientAndMode() setupStepResult {
 				f.selectedClients,
 				f.skippedClients,
 				f.lifecycleMarker...,
-			))
+			)
+			if code == 0 && f.cfg.Cloud.ready() {
+				if err := printCompletedSetupOverview(f.ui.termOut(), f.paths, f.cfg); err != nil {
+					return f.failErr(err)
+				}
+			}
+			return setupDone(code)
 		}
 
 		f.connectionMode = setupConnectionLocal

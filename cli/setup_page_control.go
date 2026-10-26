@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -17,7 +19,8 @@ import (
 // access is active. The terminal asks none of these on the page path.
 
 type setupPageControl struct {
-	Window bool `json:"window"` // the confirmation window can open here
+	Window    bool   `json:"window"` // the confirmation window can open here
+	MCPConfig string `json:"mcp_config,omitempty"`
 	// Phone: pick (Phones can be linked), waiting (for the tap on
 	// PhoneName), linked (Phones: the ones it can move to), moving (OldPhone
 	// OKs the move first, then PhoneName gets the link question), none (no
@@ -52,10 +55,11 @@ type setupPageChat struct {
 	OrgLink    string         `json:"org_link,omitempty"`        // the same for a Team or Enterprise owner (claudeOrgConnectorLink)
 	Phone      string         `json:"phone,omitempty"`           // the phone that confirms for chat apps; "": a code in the chat
 	Confirmed  bool           `json:"phone_confirmed,omitempty"` // on: the App holds a phone that confirms for chat apps (its own state, never a name linked only here)
-	LinkPage   string         `json:"link_page,omitempty"`       // noaddress, off: Home Assistant's Link page (haLinkPageURL)
-	Guide      string         `json:"guide,omitempty"`           // noaddress, off: the guide's own-HTTPS-address part
-	Checked    string         `json:"checked,omitempty"`         // noaddress, off: the last Check again: off (read, still no address), failed (couldn't read)
-	NoRestart  bool           `json:"no_restart,omitempty"`      // Home Assistant runs the integration already: turning on doesn't restart it
+	PhoneKnown bool           `json:"phone_known,omitempty"`
+	LinkPage   string         `json:"link_page,omitempty"`  // noaddress, off: Home Assistant's Link page (haLinkPageURL)
+	Guide      string         `json:"guide,omitempty"`      // noaddress, off: the guide's own-HTTPS-address part
+	Checked    string         `json:"checked,omitempty"`    // noaddress, off: the last Check again: off (read, still no address), failed (couldn't read)
+	NoRestart  bool           `json:"no_restart,omitempty"` // Home Assistant runs the integration already: turning on doesn't restart it
 	Problem    *setupPageMsg  `json:"problem,omitempty"`
 }
 
@@ -139,6 +143,16 @@ func (f *setupFlow) pageControl() int {
 		return row
 	}
 	ctl.Chat = readChat()
+	overviewRemote := false
+	if f.pageRerunOK {
+		var err error
+		ctl.MCPConfig, err = setupMCPConfig(f.paths)
+		if err != nil {
+			printHumanErr("%s", err)
+			return 1
+		}
+		overviewRemote = chatOrigin() != ""
+	}
 	screen := "control"
 	if f.pageRerunOK { // the re-run screen: what is set up, then these rows
 		screen = "rerun"
@@ -157,6 +171,14 @@ func (f *setupFlow) pageControl() int {
 		}
 		p.update(func(v *setupPageState) {
 			v.Screen, v.Control, v.Problem, v.Fix = screen, &view, nil, ""
+			if f.pageRerunOK {
+				v.Overview = f.setupOverview(view, overviewRemote)
+				links := maps.Clone(v.Links)
+				if links == nil {
+					links = map[string]string{}
+				}
+				links["nova"], v.Links = f.cfg.HAURL, links
+			}
 			if !f.pageRerunOK {
 				v.Links = nil
 			}
@@ -178,6 +200,9 @@ func (f *setupFlow) pageControl() int {
 			accepts = append(accepts, "chat")
 		}
 		if f.pageRerunOK {
+			if windowAvailable() && !ctl.Window {
+				accepts = append(accepts, "window")
+			}
 			if name, _ := requestedServerSelection(); name == "" {
 				accepts = append(accepts, "server")
 			}
@@ -195,6 +220,7 @@ func (f *setupFlow) pageControl() int {
 			f.pagePhones(&ctl)
 		case "chat_recheck": // Link remote access may be on now
 			originRead = false
+			overviewRemote = chatOrigin() != ""
 			if row := readChat(); row == nil {
 				ctl.Chat.Checked = "failed" // the old row stays: never a stale "still off"
 			} else {
@@ -209,7 +235,28 @@ func (f *setupFlow) pageControl() int {
 		case "server":
 			return f.pageAddServer()
 		case "clients":
-			return f.pageRerunAddClients()
+			if action.Value == "" || slices.Contains(f.pageNewClients, action.Value) {
+				return f.pageRerunAddClients(action.Value)
+			}
+		case "window":
+			markers, err := f.pageLifecycleMarkers()
+			if err != nil {
+				printHumanErr("%s", err)
+				return 1
+			}
+			code := 0
+			err = withSetupLifecycleLock(f.paths, markers, func() error {
+				code = runConfirmWindowSetting(f.paths, []string{"on"})
+				return nil
+			})
+			if err != nil {
+				printHumanErr("%s", err)
+				return 1
+			}
+			if code != 0 {
+				return 1
+			}
+			ctl.Window = windowAvailable() && !windowOff(f.paths)
 		case "phone":
 			i := slices.IndexFunc(ctl.Phones, func(ph setupPagePhone) bool { return ph.ID == action.Value })
 			switch {
@@ -305,9 +352,13 @@ func pageFinishChoices(value string) (pageFinish, bool) {
 // pageLinkOffered: Home Assistant Link can be added now, as the terminal's
 // offer would (pageControl also needs its remote access on for this home).
 func (f *setupFlow) pageLinkOffered() bool {
+	return f.setupLinkOffered(f.page.text.out)
+}
+
+func (f *setupFlow) setupLinkOffered(out io.Writer) bool {
 	coordinator := cloudCoordinatorForSetup
 	if f.serviceMode || f.noClient || f.cfg.Cloud != nil || coordinator == nil || !coordinator.Available() || // Link here is for this computer's AI app
-		cloudRecoveryHoldProblem(f.cfg) != nil || !cloudSetupPromptEligible(f.page.text.out) {
+		cloudRecoveryHoldProblem(f.cfg) != nil || !cloudSetupPromptEligible(out) {
 		return false
 	}
 	ready, err := reusableLocalDeviceForCloudSetup(f.cfg)
