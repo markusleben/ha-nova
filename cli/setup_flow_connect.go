@@ -292,3 +292,12 @@ func secureStorageHandover(err error) string {
 	}
 	return ""
 }
+
+// codeHandover: why the setup page hands over after "Use a six-digit code"
+// (setupPageState.Handover): an App to install or update comes first there.
+func codeHandover(primary string) string {
+	if primary == "install" || primary == "update" {
+		return "code_" + primary
+	}
+	return "code"
+}

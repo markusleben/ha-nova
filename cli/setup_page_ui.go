@@ -71,7 +71,7 @@ type setupPageState struct {
 	NewClients []string             `json:"new_clients,omitempty"` // a re-run: AI assistants found since, to set up with a click
 	Web        bool                 `json:"web,omitempty"`         // no AI app here: Claude or ChatGPT in the browser (chat apps)
 	Desktop    bool                 `json:"desktop,omitempty"`     // no AI app here, but Claude Desktop without Claude Code
-	Handover   string               `json:"handover,omitempty"`    // why the terminal: code, keyring_locked, keyring_setup; "": a question there
+	Handover   string               `json:"handover,omitempty"`    // why the terminal: code (code_install, code_update: the App first), keyring_locked, keyring_setup; "": a question there
 	Accepts    []string             `json:"accepts"`
 }
 

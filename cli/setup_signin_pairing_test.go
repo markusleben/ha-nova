@@ -373,7 +373,7 @@ func TestHASignInFallbackLinesStayPlain(t *testing.T) {
 	cases := map[string]error{
 		"Sign-in stopped.":                        errors.Join(errSignInStopped, newCloudError(CloudErrTimeout, "wait", nil)),
 		"No sign-in arrived within five minutes.": errors.Join(errSignInBrowser, newCloudError(CloudErrTimeout, "wait", nil)),
-		"Signed in as Alex, who is not the Home Assistant owner. Only the owner can connect a computer.": errSignInNotOwner,
+		"Signed in as Alex, who is not the Home Assistant owner. Only the owner can connect this computer; after that, anyone who uses this login on it can use HA NOVA. The owner is the first account made": errSignInNotOwner,
 		"did not find a running NOVA App":                    errors.Join(errSignInAppMissing, newCloudError(CloudErrHAProtocol, "x", nil)),
 		"Your NOVA App does not support sign-in yet":         &haSignInPairingError{err: errSignInRelayUnsupported},
 		"The NOVA App is not ready to connect computers yet": &haSignInPairingError{err: errSignInRelayNotReady},
@@ -387,7 +387,7 @@ func TestHASignInFallbackLinesStayPlain(t *testing.T) {
 			t.Errorf("line for %v = %q, want it to contain %q", err, got, want)
 		}
 	}
-	if got := haSignInFallbackLine(errSignInNotOwner, HACurrentUser{}); !strings.HasPrefix(got, "The account you signed in with") {
+	if got := haSignInFallbackLine(errSignInNotOwner, HACurrentUser{}); !strings.HasPrefix(got, "The account you signed in with") || !strings.Contains(got, "anyone who uses this login on it can use HA NOVA") {
 		t.Errorf("nameless non-owner line = %q", got)
 	}
 }
@@ -417,7 +417,7 @@ func TestHASignInStepPairsRetriesOrFallsBackInTheSameStep(t *testing.T) {
 		"paired":                  {input: "\n", signIns: []error{nil}, paired: true, output: "Signed in to Home Assistant as Markus (owner)", pairs: 1},
 		"yes":                     {input: "yes\n", signIns: []error{nil}, paired: true, pairs: 1},
 		"retry after stop":        {input: "\n\n", signIns: []error{errors.Join(errSignInStopped, context.Canceled), nil}, paired: true, output: "Press Enter to sign in again", pairs: 1},
-		"wrong account then code": {input: "\ncode\n", signIns: []error{errSignInNotOwner}, output: "Only the owner can connect a computer."},
+		"wrong account then code": {input: "\ncode\n", signIns: []error{errSignInNotOwner}, output: "Only the owner can connect this computer; after that, anyone who uses this login on it can use HA NOVA."},
 		"no App":                  {input: "\n", signIns: []error{errSignInAppMissing}, output: "Use a six-digit code from NOVA instead."},
 		"pairing failed":          {input: "\n", signIns: []error{nil}, pairErr: &haSignInPairingError{err: newCloudError(CloudErrPairingRejected, "x", nil)}, output: "Use a six-digit code from NOVA instead.", pairs: 1},
 		"pin mismatch":            {input: "\n", signIns: []error{nil}, pairErr: errPinMismatch, wantErr: errPinMismatch, output: "secure identity did not match", pairs: 1},

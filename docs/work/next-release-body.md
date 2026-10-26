@@ -9,10 +9,12 @@ Unreleased claims wait here until they ship (AGENTS.md, Releases: the README des
 - **Chat apps can do what the computer can.** In Claude or ChatGPT you can rename devices, move them to rooms, set up helpers, scenes, dashboards, and integrations, edit files, read the error log, and look at a camera, with the same preview and confirmations as on a computer. Only setting up HA NOVA itself (setup, pairing, updates, turning chat apps on or off) stays on a computer.
 - **Claude stops asking before every step, if you let it.** The setup page and the NOVA page say what to set in Claude: with a linked phone, every HA NOVA tool on "Always allow"; without one, all but "Run a confirmed change".
 - **HACS installs and updates, and dashboard resources, now take your own confirmation, like a delete,** in chat apps and on a computer: that code runs in every signed-in browser.
+- **A leftover Home Assistant Link is explained.** Setup says what it is and lets you finish or remove it right there; `ha-nova doctor` runs all its checks anyway and shows both ways out.
 
 Release-prep todos for these:
 
 - `README.md:175`: the "Always allow" advice by phone, as in `docs/reference/chat-apps.md`; `README.md:182`: drop "Helpers, dashboards, and files still need HA NOVA on a computer" (only setting up HA NOVA itself stays there). Then remove the `needs-computer` README entry from the allow list in `tests/docs/canonical-wording.test.ts`.
+- `README.md:187` (Link): say that a standard-user Link sign-in only changes which login Link keeps on the computer; the owner still connects the computer once, and HA NOVA then works for anyone who uses that login on the computer (as in `nova/DOCS.md`). There is no per-person sign-in.
 - hanova.app, after the tag: `index.html:478` (the same advice) and `demo/index.html:88` (the demo has no phone: the no-phone variant).
 
 ## Planned

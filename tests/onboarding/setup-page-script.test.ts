@@ -164,7 +164,7 @@ describe("setup page sign-in", () => {
       expect(p.catalog["setup.page.found.owner"]).toContain("first account made when Home Assistant was set up");
       const code = p.find("b-terminal")!;
       expect(code.className).toBe("linkish");
-      expect(code.textContent).toBe(p.catalog["setup.page.button.code"]);
+      expect(code.textContent).toBe(p.catalog[state.primary === "install" ? "setup.page.button.code_install" : "setup.page.button.code"]);
       expect(code.textContent).toContain("(continues in the terminal)");
       code.dispatch("click");
       await p.settle();
@@ -177,7 +177,7 @@ describe("setup page sign-in", () => {
       problem: { key: "setup.page.problem.not_owner", args: { name: "Anna" } } };
     const p = page(notOwner);
     await p.settle();
-    expect(p.screen.textContent).toContain("Anna isn't the owner of this Home Assistant. Ask the person who set up Home Assistant to sign in here.");
+    expect(p.screen.textContent).toContain("Anna isn't the owner of this Home Assistant. Only the owner can set up HA NOVA. Ask the owner to sign in here.");
     expect(p.find("b-signin")!.textContent).toBe(p.catalog["setup.page.button.owner"]);
     expect(p.screen.textContent).toContain(p.catalog["setup.page.found.owner_away"]);
     expect(p.find("b-terminal")!.className).toBe("linkish");
