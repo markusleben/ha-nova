@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // doctorRoute is how doctor reaches the NOVA App this run. unchecked: it
@@ -15,6 +16,11 @@ type doctorRoute struct {
 	deviceMode bool
 	unchecked  bool
 	failed     bool
+	// diagnosticOnly: the home route stands in for a route that failed (a
+	// safety check, an identity, or Link), so doctor only reads /health:
+	// no WebSocket check, no update offer, nothing functional.
+	diagnosticOnly bool
+	linkShown      bool // the route problem already named the Link commands
 }
 
 // selectDoctorRoute picks the route functional commands use. The choice
@@ -31,8 +37,8 @@ func selectDoctorRoute(ctx context.Context, paths runtimePaths, cfg runtimeConfi
 	var localCredential *localRelayCredentialError
 	if transportErr != nil && effectiveRoutePolicy(cfg.RoutePolicy) != routePolicyLocal &&
 		!errors.As(transportErr, &localCredential) { // a key-read problem: the home route has it too
-		printDoctorRouteProblem(cfg, transportErr)
-		route.failed = true
+		route.linkShown = printDoctorRouteProblem(cfg, transportErr)
+		route.failed, route.diagnosticOnly = true, true
 		if remoteOnlyCloudSetup(cfg) {
 			printHumanErr("This computer reaches Home Assistant only through Home Assistant Link, so HA NOVA can't check the NOVA App now.")
 			return stop()
@@ -120,21 +126,39 @@ func selectDoctorRoute(ctx context.Context, paths runtimePaths, cfg runtimeConfi
 	return route
 }
 
-// printDoctorRouteProblem says in plain words why the saved route fails.
-func printDoctorRouteProblem(cfg runtimeConfig, err error) {
+// healthOnlyReadiness reads /health and nothing else.
+func (r doctorRoute) healthOnlyReadiness(ctx context.Context, cfg runtimeConfig) relayReadiness {
+	var body []byte
+	var err error
+	if r.deviceMode {
+		body, err = fetchRelayHealthWithContext(ctx, r.transport.Client, r.transport.BaseURL, r.token)
+	} else {
+		body, err = fetchRelayHealthForReadiness(cfg.RelayBaseURL, r.token)
+	}
+	if err != nil {
+		return relayReadiness{HealthErr: err}
+	}
+	return relayReadiness{HealthBody: body, RelayReachable: true, WSReady: relayHealthWSConnected(body)}
+}
+
+// printDoctorRouteProblem says in plain words why the saved route fails;
+// true when that already named a Link command.
+func printDoctorRouteProblem(cfg runtimeConfig, err error) bool {
 	var preflight *localRelayPreflightError
+	var message string
 	switch {
 	case errors.Is(err, errRelayHealthIdentityMismatch):
-		printHumanErr("%s", relayIdentityMismatchText(activeServerProfile(), cfg.RelayBaseURL))
+		message = relayIdentityMismatchText(activeServerProfile(), cfg.RelayBaseURL)
 	case errors.As(err, &preflight):
-		printHumanErr("HA NOVA's safety check of the NOVA App failed, so HA NOVA commands stop before they reach it. Details: %s", preflight.Error())
+		message = "HA NOVA's safety check of the NOVA App failed, so HA NOVA commands stop before they reach it. Details: " + preflight.Error()
 	default:
-		message := relayTransportErrorMessage(err)
+		message = relayTransportErrorMessage(err)
 		if hold := cloudRecoveryHoldProblem(cfg); cloudHoldIsSecurityStop(cfg) && message == hold.humanText() {
-			return // the hold's own steps follow (printDoctorLinkLine)
+			return false // the hold's own steps follow (printDoctorLinkLine)
 		}
-		printHumanErr("%s", message)
 	}
+	printHumanErr("%s", message)
+	return strings.Contains(message, "ha-nova cloud ")
 }
 
 // doctorTransportErrorMessage: relayTransportErrorMessage without sending
@@ -156,36 +180,43 @@ func doctorErrorText(err error) string {
 }
 
 // printDoctorLinkLine warns when the saved Home Assistant Link isn't ready
-// or is held, with the way out. It never fails doctor.
-func printDoctorLinkLine(cfg runtimeConfig) {
-	if cfg.Cloud == nil || printCloudSecurityHold(cfg) {
+// or is held; withCommands adds the way out. It never fails doctor.
+func printDoctorLinkLine(cfg runtimeConfig, withCommands bool) {
+	if cfg.Cloud == nil || (withCommands && printCloudSecurityHold(cfg)) {
 		return
 	}
 	profile := selectedCloudCommandProfile()
 	remove := cloudProfileCommandFor("remove", profile)
-	if cloudRecoveryHoldProblem(cfg) != nil {
+	withCommands = withCommands && remove != ""
+	switch {
+	case cloudRecoveryHoldProblem(cfg) != nil:
 		printHumanWarn("Home Assistant Link is paused on this computer.")
+		if !withCommands {
+			return
+		}
 		if cloudRecoveryHoldNeedsUnlockForConfig(cfg) {
 			printHumanWarn("First let HA NOVA check this computer's password store: %s", cloudProfileCommandFor("unlock", profile))
 		}
-		if remove != "" {
-			printHumanWarn("To remove: %s", remove)
+		printHumanWarn("To remove: %s", remove)
+	case cfg.Cloud.ready():
+	case cfg.Cloud.cleanupPending():
+		if withCommands {
+			printHumanWarn("Removing Home Assistant Link didn't finish. To finish removing: %s.", remove)
+		} else {
+			printHumanWarn("Removing Home Assistant Link didn't finish.")
 		}
-		return
+	default:
+		if remoteOnlyCloudSetup(cfg) {
+			printHumanWarn("Home Assistant Link isn't finished on this computer.")
+		} else {
+			printHumanWarn("Home Assistant Link isn't finished on this computer. HA NOVA still works at home without it.")
+		}
+		if !withCommands {
+			return
+		}
+		if cloudRemoteFeatureAvailable() {
+			printHumanWarn("To finish: %s (you sign in to Home Assistant once)", cloudResumeCommandFor(cfg, profile))
+		}
+		printHumanWarn("To remove: %s", remove)
 	}
-	if cfg.Cloud.ready() {
-		return
-	}
-	if remoteOnlyCloudSetup(cfg) {
-		printHumanWarn("Home Assistant Link isn't finished on this computer.")
-	} else {
-		printHumanWarn("Home Assistant Link isn't finished on this computer. HA NOVA still works at home without it.")
-	}
-	if profile == "" {
-		return
-	}
-	if !cfg.Cloud.cleanupPending() && cloudRemoteFeatureAvailable() {
-		printHumanWarn("To finish: %s (you sign in to Home Assistant once)", cloudResumeCommandFor(cfg, profile))
-	}
-	printHumanWarn("To remove: %s", remove)
 }

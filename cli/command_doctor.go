@@ -122,15 +122,12 @@ func runDoctor(paths runtimePaths, args []string) int {
 	defer cancelDoctorRelay()
 	route := selectDoctorRoute(doctorRelayCtx, paths, cfg, state, doctorInfo)
 	// The App check gets its own time: a slow route choice must not use it up.
-	readinessCtx, cancelReadiness := context.WithTimeout(
-		context.Background(),
-		time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)),
-	)
+	readinessCtx, cancelReadiness := context.WithTimeout(context.Background(), time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)))
 	defer cancelReadiness()
 	if route.failed {
 		status = 1
 	}
-	printDoctorLinkLine(cfg)
+	printDoctorLinkLine(cfg, !route.linkShown)
 	transport, token, deviceMode := route.transport, route.token, route.deviceMode
 	transportBase, transportClient := transport.BaseURL, transport.Client
 
@@ -171,6 +168,9 @@ func runDoctor(paths runtimePaths, args []string) int {
 
 	healthBase := transportBase
 	runReadiness := func() relayReadiness {
+		if route.diagnosticOnly {
+			return route.healthOnlyReadiness(readinessCtx, cfg)
+		}
 		if deviceMode || usingCloud {
 			return checkRelayReadinessOverTransportContext(
 				readinessCtx,
@@ -209,7 +209,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 		doctorInfo("The NOVA App answers at %s", healthBase)
 		if notice := checkRelayVersion(paths, readiness.HealthBody); !notice.empty() {
 			// check-update's words ("No Update button yet?", a container's step)
-			if !usingCloud { // bounded, as the first-use check; Cloud keeps the floor words
+			if !usingCloud && !route.diagnosticOnly { // bounded, as the first-use check; Cloud keeps the floor words
 				if full := relayUpdateNoticeWithTimeout(paths, firstUseRelayNoticeTimeout); full.belowFloor || full.kind == humanNoticeKindRelayOutdated {
 					notice = full
 				}
@@ -220,7 +220,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 			// A guided update that ends verified clears THIS failure — doctor
 			// must not exit 1 over a problem the user just fixed.
 			fixed := false
-			if !*quiet && !usingCloud {
+			if !*quiet && !usingCloud && !route.diagnosticOnly {
 				fixed = maybeOfferGuidedRelayUpdate(paths, notice)
 			}
 			if !fixed {
@@ -232,7 +232,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 				// that is running NOW.
 				readiness = runReadiness()
 			}
-		} else if !*quiet && !usingCloud {
+		} else if !*quiet && !usingCloud && !route.diagnosticOnly {
 			// A newer App may be available even while the running Relay remains
 			// compatible with min_relay_version. That is an optional update, not
 			// a failed doctor check; decline/non-TTY keeps status unchanged.

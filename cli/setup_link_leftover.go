@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -14,13 +15,13 @@ import (
 // go on without it (docs/work/2026-10-26-link-leftover-setup-doctor-spec.md).
 
 // Test seams: the menu needs a terminal; the choices run the existing
-// commands in this process.
+// commands in this process. exited: the person left with Ctrl+C.
 var (
 	leftoverLinkChoiceAvailable = func(out io.Writer) bool {
 		return uiInputSupportsTTY() && writerSupportsTTYForSetup(out)
 	}
-	finishLeftoverLink = func(paths runtimePaths, cfg runtimeConfig) int {
-		return runCloudConnectCommand(paths, nil, cloudResumeAction(cfg) == "reconnect")
+	finishLeftoverLink = func(paths runtimePaths, cfg runtimeConfig) (code int, exited bool) {
+		return runCloudConnect(paths, nil, cloudResumeAction(cfg) == "reconnect")
 	}
 	removeLeftoverLink = func(paths runtimePaths) int {
 		return runCloudRemove(paths, cloudCommandFlags{confirmed: true}) // choosing Remove is the confirmation
@@ -46,8 +47,7 @@ func (f *setupFlow) settleLeftoverLink() (result setupStepResult, done, paused b
 	cloud := f.cfg.Cloud
 	hold := cloudRecoveryHoldProblem(f.cfg) != nil
 	if cloud == nil || f.serviceMode || f.explicitLocalSetup || activeServerProfile() != defaultServerProfileName ||
-		remoteOnlyCloudSetup(f.cfg) || !cloudRemoteFeatureAvailable() ||
-		!(hold || (!cloud.ready() && !hybridCloudSetupPending(f.cfg))) {
+		remoteOnlyCloudSetup(f.cfg) || !cloudRemoteFeatureAvailable() || (!hold && cloud.ready()) {
 		return setupStepResult{}, false, false
 	}
 	out := f.ui.termOut()
@@ -55,22 +55,27 @@ func (f *setupFlow) settleLeftoverLink() (result setupStepResult, done, paused b
 		if hold {
 			return setupStepResult{}, false, false // the hold's steps, exit 1
 		}
-		renderSetupParagraph(out, setupT("setup.link.leftover"), setupT("setup.link.goes_on"))
+		if hybridCloudSetupPending(f.cfg) {
+			renderSetupParagraph(out, leftoverLinkText(f.cfg))
+			return setupStepResult{}, false, false // its resume offer or commands, as before (#813)
+		}
+		renderSetupParagraph(out, leftoverLinkText(f.cfg), setupT("setup.link.goes_on"))
 		return setupStepResult{}, false, true
 	}
-	choice, err := promptLeftoverLink(f.ui.termIn(), out, hold, !cloud.cleanupPending() && cloudSetupPromptEligible(out))
+	canFinish := !hold && !cloud.cleanupPending() && cloudSetupPromptEligible(out)
+	choice, err := promptLeftoverLink(f.ui.termIn(), out, leftoverLinkText(f.cfg), canFinish)
 	switch {
 	case errors.Is(err, errSetupExit):
-		fmt.Fprint(out, f.linkPausedOutcome().LinkSteps)
-		return f.cancelled(), true, false
+		return f.leftoverLinkExit(), true, false
 	case err != nil:
 		return f.failErr(err), true, false
 	case choice == "finish" || choice == "remove":
 		if err := ensureSetupLifecycleCurrent(f.paths, f.lifecycleMarker...); err != nil {
 			return f.failErr(err), true, false
 		}
+		exited := false
 		if choice == "finish" {
-			finishLeftoverLink(f.paths, f.cfg)
+			_, exited = finishLeftoverLink(f.paths, f.cfg)
 		} else {
 			removeLeftoverLink(f.paths)
 		}
@@ -83,7 +88,13 @@ func (f *setupFlow) settleLeftoverLink() (result setupStepResult, done, paused b
 			return f.failErr(err), true, false
 		}
 		f.cfg = cfg
-		return setupStepResult{}, false, false
+		if exited {
+			return f.leftoverLinkExit(), true, false
+		}
+		if cfg.Cloud == nil || cfg.Cloud.ready() || cloudRecoveryHoldProblem(cfg) != nil {
+			return setupStepResult{}, false, false
+		}
+		// Still unfinished: go on without asking again.
 	case hold:
 		return setupStepResult{}, false, false // Not now: the hold's steps, exit 1
 	}
@@ -91,25 +102,46 @@ func (f *setupFlow) settleLeftoverLink() (result setupStepResult, done, paused b
 	return setupStepResult{}, false, true
 }
 
-// promptLeftoverLink: "finish", "remove", or "later".
-func promptLeftoverLink(reader *bufio.Reader, out io.Writer, hold, canFinish bool) (string, error) {
-	spec := setupMenuSpec{Title: setupT("setup.link.leftover"), Prompt: "Use ↑/↓ or j/k, Enter to select, Ctrl+C to exit"}
-	if hold {
-		spec.Title = setupT("setup.link.leftover_hold")
-	} else if canFinish {
+// leftoverLinkExit: Ctrl+C at the choice or inside Finish. The commands
+// stay on screen, then setup ends as on any Ctrl+C.
+func (f *setupFlow) leftoverLinkExit() setupStepResult {
+	if f.cfg.Cloud != nil {
+		fmt.Fprint(f.ui.termOut(), f.linkPausedOutcome().LinkSteps)
+	}
+	return f.cancelled()
+}
+
+// leftoverLinkText says what the saved Link is: held, a removal that didn't
+// finish, or a setup that didn't.
+func leftoverLinkText(cfg runtimeConfig) string {
+	switch {
+	case cloudRecoveryHoldProblem(cfg) != nil:
+		return setupT("setup.link.leftover_hold")
+	case cfg.Cloud.cleanupPending():
+		return setupT("setup.link.removal_unfinished", "command", cloudProfileCommandFor("remove", defaultServerProfileName))
+	}
+	return setupT("setup.link.leftover")
+}
+
+// promptLeftoverLink: "finish", "remove", or "later". Enter picks Finish
+// when it's offered, else Not now: Remove never runs on a bare Enter.
+func promptLeftoverLink(reader *bufio.Reader, out io.Writer, title string, canFinish bool) (string, error) {
+	spec := setupMenuSpec{Title: title, Prompt: "Use ↑/↓ or j/k, Enter to select, Ctrl+C to exit", DefaultValue: "later"}
+	if canFinish {
 		spec.Options = append(spec.Options, setupMenuOption{Value: "finish", Label: setupT("setup.link.choice_finish")})
+		spec.DefaultValue = "finish"
 	}
 	spec.Options = append(spec.Options,
 		setupMenuOption{Value: "remove", Label: setupT("setup.link.choice_remove"), Detail: setupT("setup.link.choice_remove_detail")},
 		setupMenuOption{Value: "later", Label: setupT("setup.link.choice_later"), Detail: setupT("setup.link.choice_later_detail")},
 	)
-	spec.DefaultValue = spec.Options[0].Value
 	return promptSetupMenu(reader, out, spec, func() (string, error) {
 		fmt.Fprintf(out, "\n  %s\n", spec.Title)
 		for i, option := range spec.Options {
 			fmt.Fprintf(out, "  %d) %s\n", i+1, option.Label)
 		}
-		answer, err := promptWizardLineFromReader(reader, out, "Choose", "1")
+		byDefault := slices.IndexFunc(spec.Options, func(option setupMenuOption) bool { return option.Value == spec.DefaultValue }) + 1
+		answer, err := promptWizardLineFromReader(reader, out, "Choose", strconv.Itoa(byDefault))
 		if errors.Is(err, errSetupBack) {
 			return "later", nil
 		}

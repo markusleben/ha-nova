@@ -40,7 +40,8 @@ func legacyAccessNoticeFor(cfg runtimeConfig) string {
 // computer instead. A standalone container can't pair yet, so it is never
 // told to switch.
 func legacyAccessSwitchable(cfg runtimeConfig, probe func(string) bool) bool {
-	return legacySharedAccess(cfg) && probe(cfg.RelayBaseURL)
+	// Pairing refuses while Home Assistant Link is saved: never offer it then.
+	return legacySharedAccess(cfg) && cfg.Cloud == nil && probe(cfg.RelayBaseURL)
 }
 
 // legacyAccessNotice: the notice for the selected server, probed within

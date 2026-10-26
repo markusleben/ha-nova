@@ -50,10 +50,14 @@ func validateCloudRelayHealthIdentity(
 		)
 	}
 	if health.RelayInstanceID != expectedRelayInstanceID {
+		var cause error // no id at all: an unsupported reply, not a changed identity
+		if health.RelayInstanceID != "" {
+			cause = errRelayHealthIdentityMismatch
+		}
 		return newCloudError(
 			CloudErrHAProtocol,
 			"validate Relay health identity",
-			errRelayHealthIdentityMismatch,
+			cause,
 		)
 	}
 	return nil

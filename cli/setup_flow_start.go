@@ -46,7 +46,9 @@ func (f *setupFlow) start() setupStepResult {
 		strings.TrimSpace(f.haURLFlag) != "" ||
 		strings.TrimSpace(f.relayURLFlag) != "" ||
 		strings.TrimSpace(f.relayTokenFlag) != ""
-	if f.linkKeepsTerminal {
+	if f.linkKeepsTerminal && cloudRecoveryHoldProblem(f.cfg) != nil {
+		f.ui.info(setupText("setup.link.terminal_hold"))
+	} else if f.linkKeepsTerminal {
 		f.ui.info(setupText("setup.link.terminal"))
 	}
 	var cloudRecoveryHandled bool

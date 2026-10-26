@@ -92,6 +92,8 @@
   "setup.link.unavailable_build": "Home Assistant Link doesn't work here: not on this computer, in this terminal, or in this HA NOVA build.",
   "setup.link.paused_stop": "Setup needs to change this computer's key, and it won't while Link is unfinished. Choose above, then run ha-nova setup again.",
   "setup.link.terminal": "Link isn't finished, so setup runs here in the terminal.",
+  "setup.link.terminal_hold": "Link is paused, so setup runs here in the terminal.",
+  "setup.link.removal_unfinished": "Removing Home Assistant Link didn't finish. To finish removing: {command}. HA NOVA still works at home without it.",
   "setup.link.leftover": "Home Assistant Link on this computer isn't finished. It's left over from an earlier HA NOVA setup. HA NOVA still works at home without it.",
   "setup.link.leftover_hold": "HA NOVA paused Link to keep your home safe. HA NOVA still works at home without it.",
   "setup.link.goes_on": "Setup goes on without it. You'll see what to do at the end.",
