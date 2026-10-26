@@ -255,7 +255,7 @@ func (f *setupFlow) finish() setupStepResult {
 		if interactive && f.pairedThisRun && !f.cloudSetupPaused && setupOwnerIngress != nil {
 			f.printChatApps(f.offerChatApps()) // Claude and ChatGPT on the web need no AI app here
 		}
-		if !f.serviceMode && f.current.ConfigOK {
+		if !f.serviceMode && f.rerun && !f.pairedThisRun && f.current.ConfigOK {
 			if err := printCompletedSetupOverview(f.ui.termOut(), f.paths, f.cfg); err != nil {
 				return f.failErr(err)
 			}
@@ -285,7 +285,7 @@ func (f *setupFlow) finish() setupStepResult {
 		f.ui.note(ruleNote)
 	}
 	f.printChatApps(chatURL, chatNote) // after the outcome, which clears the screen
-	if !f.serviceMode && f.current.ConfigOK {
+	if !f.serviceMode && f.rerun && !f.pairedThisRun && f.current.ConfigOK {
 		if err := printCompletedSetupOverview(f.ui.termOut(), f.paths, f.cfg); err != nil {
 			return f.failErr(err)
 		}

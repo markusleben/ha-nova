@@ -84,7 +84,7 @@ describe("setup re-run overview", () => {
     const copied: string[] = [];
     p.navigator.clipboard = { writeText: async (text: string) => { copied.push(text); } };
     await p.settle();
-    expect(p.screen.textContent).toContain("Any app that supports MCP can use HA NOVA");
+    expect(p.screen.textContent).toContain("Another AI app can use HA NOVA too");
     expect(p.find("other-mcp")!.textContent).toBe(snippet);
     p.find("b-other-mcp-copy")!.dispatch("click");
     await p.settle();

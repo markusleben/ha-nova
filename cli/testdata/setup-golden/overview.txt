@@ -15,7 +15,7 @@
     ha-nova setup antigravity
   · Hermes Agent: Not yet — add HA NOVA to this AI app.
     ha-nova setup hermes
-  · Other AI apps: Any app that supports MCP can use HA NOVA: add this to its MCP settings.
+  · Other AI apps: Another AI app can use HA NOVA too: paste this where its settings say “MCP” or “MCP servers”.
 {
   "mcpServers": {
     "ha-nova": {

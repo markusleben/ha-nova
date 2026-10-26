@@ -69,6 +69,7 @@ type setupFlow struct {
 	// pageRemoved: this computer was removed on the NOVA page, step 1 says so;
 	// pageNewClients: AI assistants found since the last setup.
 	pageRerunning  bool
+	rerun          bool // this home was saved before this run (start); the terminal overview is for re-runs only
 	pageRerunOK    bool
 	pageRemoved    bool
 	pageNewClients []string

@@ -6,6 +6,7 @@ import "strings"
 // connection mode: interrupted retirements and activations, Cloud
 // recovery, named profiles. A done result ends setup.
 func (f *setupFlow) start() setupStepResult {
+	f.rerun = strings.TrimSpace(f.cfg.HAHost) != "" && strings.TrimSpace(f.cfg.HAURL) != ""
 	f.ui.header()
 	if f.target == "" && strings.TrimSpace(f.cfg.HAHost) == "" && strings.TrimSpace(f.cfg.HAURL) == "" &&
 		strings.TrimSpace(f.hostFlag) == "" && strings.TrimSpace(f.haURLFlag) == "" &&

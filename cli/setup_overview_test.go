@@ -229,7 +229,7 @@ func TestSetupOverviewTerminalAfterSkillRepair(t *testing.T) {
 	paths, cfg, state, _ := setupCompletedInstallFixture(t)
 	stubRerunApp(t, true, chatAppsHA{}, nil)
 	var out bytes.Buffer
-	f := setupFlow{paths: paths, cfg: cfg, state: state, current: setupState{ConfigOK: true}, selectedClients: []string{"claude"},
+	f := setupFlow{paths: paths, cfg: cfg, state: state, rerun: true, current: setupState{ConfigOK: true}, selectedClients: []string{"claude"},
 		ui: setupTextUI{reader: bufio.NewReader(strings.NewReader("")), out: &out}}
 	result := f.finish()
 	if !result.done || result.code != 0 || !strings.Contains(out.String(), "Your setup") || !strings.Contains(out.String(), "Other AI apps") {
