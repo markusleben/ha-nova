@@ -268,7 +268,9 @@ echo "[11] No telemetry or analytics code"
 # "segment" alone is an English word (path segments!) — match the vendors, not
 # the vocabulary, or the check cries wolf and gets ignored.
 # Scope: relay and CLI. -I skips locally built binaries.
-TELEMETRY_HITS=$(count_matches -I "telemetry\|analytics\|mixpanel\|segment\.io\|@segment/\|posthog\|sentry" "$REPO_ROOT/nova/src" "$REPO_ROOT/cli")
+# Home Assistant's own analytics settings ("analytics", "analytics/preferences",
+# admin skill) are WS types HA NOVA sends to Home Assistant, not a send path.
+TELEMETRY_HITS=$( (grep -rnI "telemetry\|analytics\|mixpanel\|segment\.io\|@segment/\|posthog\|sentry" "$REPO_ROOT/nova/src" "$REPO_ROOT/cli" 2>/dev/null || true) | grep -cvE '"analytics(/preferences)?"' || true)
 if (( TELEMETRY_HITS == 0 )); then
   pass "No telemetry/analytics patterns in relay or CLI"
 else

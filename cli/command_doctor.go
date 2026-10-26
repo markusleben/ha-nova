@@ -295,6 +295,11 @@ func runDoctor(paths runtimePaths, args []string) int {
 		}
 		installSource := detectInstallSource(paths, state)
 		for _, client := range clientStatuses {
+			if client.ID == "claude" {
+				if hint := claudeDesktopConfigHint(paths.Home); hint != "" {
+					printHumanWarn("%s", hint)
+				}
+			}
 			switch {
 			case client.Ready:
 				doctorInfo("%s is ready", client.Label)

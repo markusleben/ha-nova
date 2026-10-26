@@ -261,16 +261,16 @@ Match user intent to exactly one skill:
 | listen to MQTT topics to see what a device actually publishes, inspect MQTT discovery, or publish a message | `ha-nova:mqtt` |
 | test what the voice assistant understands, manage Assist pipelines/debug runs, or control which entities voice can see | `ha-nova:assist` |
 | teach Assist a new phrase / custom sentence | `ha-nova:assist` |
-| manage persons, zones, tags, user accounts, or System General settings | `ha-nova:admin` |
+| manage persons, zones, tags, user accounts, System General settings, Labs features, or analytics sharing | `ha-nova:admin` |
 | create or edit configuration that only exists as YAML (template/REST/command-line sensors, packages, themes) | `ha-nova:yaml-config` |
 | browse or list installed HACS packages, install, pin or downgrade to a specific version, redownload, or remove HACS packages, add custom HACS repositories, or migrate to a custom integration | `ha-nova:hacs` |
 | query long-term history from InfluxDB or another external store Home Assistant writes to but cannot read back | `ha-nova:external-sources` |
 | list calendars; read, create, update, or delete calendar events | `ha-nova:calendar` |
 | show, add, complete, update, remove to-do or shopping-list items; create/delete to-do lists | `ha-nova:todo` |
-| check backup status, create a backup (also as a safety net before risky changes), inspect a backup's contents, delete backups | `ha-nova:backup` |
+| check backup status, create a backup (also as a safety net before risky changes), inspect a backup's contents, delete backups, change automatic-backup schedule or retention | `ha-nova:backup` |
 | check pending updates, read release notes, install updates, skip/unskip versions | `ha-nova:updates` |
 | analyze energy usage, solar/battery/grid KPIs, per-device consumption or costs; edit energy dashboard sources/devices | `ha-nova:energy` |
-| repair statistics (orphans, unit mismatches, sum spikes), purge recorder history, clean up dead registry entries | `ha-nova:maintenance` |
+| repair or import statistics (orphans, unit mismatches, sum spikes), purge recorder history, clean up dead registry entries | `ha-nova:maintenance` |
 | edit `recorder:` include/exclude filters or `purge_keep_days` (YAML) | `ha-nova:yaml-config` |
 | "what event does my button/remote/tag fire?" — capture it in a bounded window | `ha-nova:fallback` (Bounded Event Capture); MQTT devices: `ha-nova:mqtt` |
 | turn on/off, toggle, set, call a service — including native duration fields such as `timer.start` or `siren.turn_on` | `ha-nova:service-call` |

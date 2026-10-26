@@ -7,6 +7,45 @@ window.novaRerun = (h) => {
   const { t, el, row, head, note, button, link, control, claudeWhere, codexWhere } = h;
   const say = (msg) => (msg ? t(msg.key, msg.args || {}) : '');
   const problem = (msg) => (msg ? el('p', { class: 'problem', role: 'alert' }, say(msg)) : null);
+  const opened = {};
+  const overviewRow = (controls) => (item) => {
+    const s = h.state();
+    let side;
+    let below = [claudeWhere([item.label]), codexWhere([item.label])];
+    if (item.action === 'clients' || item.action === 'window') {
+      side = button(t('setup.overview.setup'), item.action, 'ghost btn-small', item.value, `overview-${item.id}`);
+    } else if (item.action === 'nova') {
+      side = link(t('setup.overview.check'), (s.links || {}).nova, 'ghost btn-small', 'overview-nova');
+    } else if (controls[item.action]) {
+      const details = el('details', {}, el('summary', { id: `overview-${item.id}` }, t(item.state === 'ok' ? 'setup.overview.manage' : 'setup.overview.setup')),
+        el('ul', { class: 'rows' }, controls[item.action]));
+      const chat = (s.control || {}).chat || {};
+      const active = item.id === 'chat' ? chat.ask || ['run', 'signin', 'offer'].includes(chat.state) : item.id === 'phone' && ['waiting', 'moving'].includes((s.control || {}).phone);
+      details.open = active || (opened[item.id] === undefined ? item.id === 'chat' && ['on', 'page_on'].includes(chat.state) : opened[item.id]);
+      details.addEventListener('toggle', () => { opened[item.id] = details.open; });
+      below = details;
+    } else if (item.snippet) {
+      below = h.copybar(item.snippet, 'other-mcp', 'setup.chat.copied', 'setup.chat.copy_failed');
+      below.querySelector('code').setAttribute('style', 'white-space: pre-wrap');
+    }
+    return row(item.state === 'unknown' ? 'todo' : item.state, item.label, say(item.msg), { side, below });
+  };
+  // Grouped under plain headings; apps not found here fold under "More AI apps".
+  const overview = (home) => (controls, rules) => {
+    const items = h.state().overview || [];
+    const rowOf = overviewRow(controls);
+    return [['home', t('setup.overview.section_home')], ['apps', t('setup.overview.section_apps')],
+      ['confirm', t('setup.overview.section_confirm')], ['chat', t('setup.overview.section_chat')]].flatMap(([section, heading]) => {
+      const mine = items.filter((item) => item.section === section);
+      const more = mine.filter((item) => item.more);
+      const fold = more.length ? row('todo', t('setup.overview.more_label'), t('setup.overview.more', { apps: more.map((item) => item.label).join(', ') }),
+        { below: el('details', {}, el('summary', { id: 'overview-more' }, t('setup.overview.show')), el('ul', { class: 'rows sub' }, more.map(rowOf))) }) : null;
+      const rows = section === 'home' ? [...home, ...mine.map(rowOf)]
+        : section === 'apps' ? [...mine.filter((item) => !item.more && item.id !== 'other').map(rowOf), ...rules, fold, ...mine.filter((item) => item.id === 'other').map(rowOf)]
+          : mine.map(rowOf);
+      return rows.some(Boolean) ? [el('h2', {}, heading), el('ul', { class: 'rows tall' }, rows)] : [];
+    });
+  };
 
   // A re-run (spec §4): what is set up. All fine (rerun): step 3's rows on
   // the same screen, and AI assistants found since get a button. Else
@@ -28,8 +67,9 @@ window.novaRerun = (h) => {
         ? el('div', { class: 'actions' }, button(t('setup.page.rerun.add_clients', { clients: fresh }), 'clients', 'ghost btn-small')) : null;
       return { below: [...where, add] };
     };
-    const status = el('ul', { class: 'rows' }, (s.rows || []).map((r) => row(r.state, t(statusKeys[r.id]), say(r.msg), side(r))));
-    if (s.control) return control(status);
+    const statusRows = (s.rows || []).filter((r) => !s.overview || r.id !== 'clients').map((r) => row(r.state, t(statusKeys[r.id]), say(r.msg), side(r)));
+    const status = el('ul', { class: 'rows' }, statusRows);
+    if (s.control) return control(status, s.overview ? overview(statusRows) : null);
     if (s.screen === 'rerun_switch') { // still on the old shared access: the switch comes first
       return [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.title_switch'), t('setup.page.rerun.lead_switch'), true), status,
         el('div', { class: 'actions' }, button(t('setup.page.rerun.switch'), 'switch'), button(t('setup.page.rerun.later'), 'terminal', 'ghost'))];

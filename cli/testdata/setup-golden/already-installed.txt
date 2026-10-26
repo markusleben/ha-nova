@@ -27,4 +27,38 @@ exit 0
 
   Run 'ha-nova doctor' to check everything.
 
+
+  Your setup
+
+  Your home
+  ✓ Home Assistant: 192.168.1.5
+  ✓ NOVA App: Running
+  ✓ This computer: Connected to your home
+
+  AI apps on this computer
+  ✓ Claude Code: HA NOVA is set up in this AI app.
+  · Codex: Not yet — add HA NOVA to this AI app.
+    ha-nova setup codex
+  · OpenCode: Not yet — add HA NOVA to this AI app.
+    ha-nova setup opencode
+  · Google Antigravity: Not yet — add HA NOVA to this AI app.
+    ha-nova setup antigravity
+  · Hermes Agent: Not yet — add HA NOVA to this AI app.
+    ha-nova setup hermes
+  · Other AI apps: Another AI app can use HA NOVA too: paste this where its settings say “MCP” or “MCP servers”.
+{
+  "mcpServers": {
+    "ha-nova": {
+      "command": "<home>/ha-nova",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}
+
+  Confirmations
+  · Confirm on this computer: Not available — a confirmation window cannot open in this session.
+  · Phone for this computer: Not checked — HA NOVA could not read this computer's phone link.
+    ha-nova setup confirm-phone
 --- stderr

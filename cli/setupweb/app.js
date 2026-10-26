@@ -170,8 +170,6 @@
 
     // Claude or ChatGPT in the browser goes on without an AI app here; what
     // it needs is said under its button, before any sign-in.
-    // Claude Desktop alone (state.desktop): its Code tab gets HA NOVA only
-    // through Claude Code, so the screen says how to install that.
     noclient: () => [...head(t('setup.page.noclient.eyebrow'), t(state.desktop ? 'setup.page.noclient.title_desktop' : 'setup.page.noclient.title'),
       t(state.desktop ? 'setup.page.noclient.lead_desktop' : 'setup.page.noclient.lead')),
       state.desktop ? el('p', { class: 'fine' }, t('setup.page.noclient.install_desktop')) : null,
@@ -283,7 +281,7 @@
   const note = (msg) => el('p', { class: amberNotes.includes(msg.key) ? 'note' : 'note done' }, say(msg));
   const helpers = { t, el, row, head, note, button, link, format, render, post, accepts, announce, claudeWhere, codexWhere, state: () => state };
   const { copybar, ...later } = window.novaSteps(helpers);
-  Object.assign(screens, later, window.novaRerun({ ...helpers, control: later.control }));
+  Object.assign(screens, later, window.novaRerun({ ...helpers, control: later.control, copybar }));
   for (const [screen, [eyebrow, title, lead, amber]] of Object.entries(endScreens)) {
     screens[screen] = () => head(t(eyebrow), t(title), t(lead), amber);
   }

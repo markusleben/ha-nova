@@ -65,6 +65,7 @@ For every Relay-Ready call in this skill:
 | Persons / Zones / Tags | Covered | admin |
 | User accounts (list, create, edit, delete — with owner/system guards) | Covered | admin |
 | System general settings (name, location, units, time zone, currency, language, URLs) | Covered | admin |
+| Labs features, analytics sharing | Covered | admin |
 | YAML-only configuration (template/REST/command-line sensors, packages, themes) | Covered | yaml-config |
 | Frontend themes | Covered | yaml-config |
 | External data stores (InfluxDB long-term history, Prometheus, ...) | Covered | external-sources |
@@ -80,13 +81,13 @@ For every Relay-Ready call in this skill:
 | Device replacement (re-point consumers), onboarding, retirement | Covered | device |
 | Blueprints (import, save, instantiate, delete) | Covered | write |
 | Energy (analysis + source/device config) | Covered | energy |
-| Statistics repair / Purge / Entity registry remove | Covered | maintenance |
+| Statistics repair / import / Purge / Entity registry remove | Covered | maintenance |
 | Device deletion (integration-supported, HA 2026.9+) | Covered | organize |
 | Integration onboarding (add / re-auth an integration via config flow) | Covered | integration-setup |
 | Custom-integration configuration APIs — the integration's OWN endpoints (Alarmo, Scheduler, Frigate, ...) | Relay-Ready (reads only; changes: the integration's own panel in the UI) | this skill |
 | Event capture — bounded window (a button's event, a short watch after an action) | Relay-Ready | this skill; `mqtt` for MQTT topics |
 | Event streaming — continuous | Roadmap Phase 1c | -- |
-| Backups (status, create, inspect, delete) | Covered | backup |
+| Backups (status, create, inspect, delete, automatic settings) | Covered | backup |
 | Config snapshots (targeted capture/restore of automations, scripts, scenes, dashboards, helpers, energy prefs, metadata, YAML files) | Covered | the owning family skill (see `../ha-nova/config-snapshots.md`) |
 | Updates (pending, release notes, install, skip) | Covered | updates |
 | Apps / Supervisor: install, uninstall, configure, store | External | -- (updates: `updates`; start/stop/restart and host reboot: `service-call`) |

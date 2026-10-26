@@ -158,6 +158,32 @@ func rawItemLine(n *rawNamer, endpoint string, payload map[string]any) (verb, ob
 		assistant, _ := payload["assistant"].(string)
 		verb := map[bool]string{true: "Expose", false: "Stop exposing"}[payload["expose_new"] == true]
 		return verb, "new entities to the voice assistant " + sayText(assistant, true) + " automatically"
+	case wsType == "backup/config/update":
+		line := "the automatic backup settings" + n.fields(flatFields("", payload), "")
+		if rawRetains(payload) {
+			line += "; automatic backups beyond the retention are deleted for good (by days within a day, by copies after the next automatic backup)"
+		}
+		return "Change", line
+	case wsType == "labs/update":
+		feature, _ := payload["preview_feature"].(string)
+		domain, _ := payload["domain"].(string)
+		return "Turn", map[bool]string{true: "on", false: "off"}[payload["enabled"] == true] + " the Labs feature " + sayText(feature, true) + " of " + sayText(domain, true)
+	case wsType == "recorder/import_statistics":
+		metadata, _ := payload["metadata"].(map[string]any)
+		rows, _ := payload["stats"].([]any)
+		id, _ := metadata["statistic_id"].(string)
+		span := ""
+		if len(rows) > 0 {
+			firstRow, _ := rows[0].(map[string]any)
+			lastRow, _ := rows[len(rows)-1].(map[string]any)
+			first, _ := firstRow["start"].(string)
+			last, _ := lastRow["start"].(string)
+			span = " from " + sayText(first, true) + " to " + sayText(last, true)
+		}
+		return "Import", fmt.Sprintf("%d rows into the long-term statistic %s%s (stored rows for the same hours are overwritten)", len(rows), sayText(id, true), span)
+	case wsType == "analytics/preferences":
+		preferences, _ := payload["preferences"].(map[string]any)
+		return "Change", "what Home Assistant shares about this installation" + n.fields(preferences, "")
 	}
 	phrase, known := rawWSPhrases[wsType]
 	if !known { // unreachable for allowlisted types (plan_raw_tier_test.go)
@@ -364,6 +390,23 @@ func rawSecretField(lower string) bool {
 		}
 	}
 	return false
+}
+
+// flatFields spells nested settings as one level ("schedule recurrence"), so
+// fields shows their values instead of "schedule set".
+func flatFields(prefix string, payload map[string]any) map[string]any {
+	flat := map[string]any{}
+	for key, value := range payload {
+		if key == "type" && prefix == "" {
+			continue
+		}
+		if nested, ok := value.(map[string]any); ok && len(nested) > 0 {
+			maps.Copy(flat, flatFields(prefix+key+" ", nested))
+			continue
+		}
+		flat[prefix+key] = value
+	}
+	return flat
 }
 
 // energyChange: ": energy sources 3 → 2 entries" for each list it saves.

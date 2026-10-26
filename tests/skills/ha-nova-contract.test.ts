@@ -1045,7 +1045,7 @@ describe("ha-nova contract", () => {
       "| Category CRUD / Entity category assignment | Covered | organize |",
     );
     expect(fallback).toContain(
-      "| Statistics repair / Purge / Entity registry remove | Covered | maintenance |",
+      "| Statistics repair / import / Purge / Entity registry remove | Covered | maintenance |",
     );
     expect(fallback).toContain(
       "| Device deletion (integration-supported, HA 2026.9+) | Covered | organize |",

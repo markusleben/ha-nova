@@ -330,3 +330,25 @@ describe("HA UI parity batch 1", () => {
     }
   });
 });
+
+describe("HA UI parity batch 3a", () => {
+  it("pins backup settings, Labs, analytics, and statistics import in their owning skills", () => {
+    const backup = read("skills/backup/SKILL.md");
+    for (const pin of ["backup/config/update", "backup/config/info", "replace whole: send every field from the read", "A retention takes the one-time code", "the CLI refuses both", "no saved key", "ha-nova plan raw"]) {
+      expect(backup).toContain(pin);
+    }
+    expect(backup).not.toContain("changing automatic-backup settings or encryption keys — HA UI");
+    const admin = read("skills/admin/SKILL.md");
+    for (const pin of ["labs/list", "labs/update", "never `create_backup`", "analytics/preferences", "only changed keys", "takes the one-time code"]) {
+      expect(admin).toContain(pin);
+    }
+    expect(read("skills/maintenance/SKILL.md")).toContain("recorder/import_statistics");
+    const reference = read("skills/maintenance/maintenance-reference.md");
+    for (const pin of ["## Statistics Import", "`mean_type`", "`unit_class`", "overwrites its stored rows for the same hours", "`source` is `recorder`", "statistics_unit_of_measurement", "Sums must join"]) {
+      expect(reference).toContain(pin);
+    }
+    const fallback = read("skills/fallback/SKILL.md");
+    expect(fallback).toContain("| Labs features, analytics sharing | Covered | admin |");
+    expect(fallback).toContain("| Backups (status, create, inspect, delete, automatic settings) | Covered | backup |");
+  });
+});

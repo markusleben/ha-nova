@@ -19,6 +19,7 @@ Gated writes:
 - clear orphaned statistics, relabel statistic units, repair sum spikes
 - recorder purge (`recorder.purge`, `recorder.purge_entities`)
 - remove dead entity-registry entries
+- import long-term statistics (`recorder/import_statistics`, one-time code)
 
 Not in scope:
 - energy source/device config (`ha-nova:energy`)

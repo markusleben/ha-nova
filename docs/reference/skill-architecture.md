@@ -51,11 +51,11 @@ skills/
   calendar/SKILL.md                     (ha-nova:calendar — bounded calendar reads and single-event writes)
   hacs/SKILL.md                         (ha-nova:hacs — HACS package lifecycle: registration, download, update, uninstall, migration)
   todo/SKILL.md                         (ha-nova:todo — to-do list items + Local To-do lifecycle)
-  backup/SKILL.md                       (ha-nova:backup — backup status/create/inspect/delete; restore stays in HA UI)
+  backup/SKILL.md                       (ha-nova:backup — backup status/create/inspect/delete, automatic settings; restore and the encryption key stay in HA UI)
   updates/SKILL.md                      (ha-nova:updates — pending updates, release notes, feature-gated installs)
   energy/SKILL.md                       (ha-nova:energy — energy analysis + gated source/device config)
   energy/energy-reference.md            (reference doc — prefs schemas, KPI formulas, analysis recipes)
-  maintenance/SKILL.md                  (ha-nova:maintenance — statistics repair, recorder purge, registry cleanup)
+  maintenance/SKILL.md                  (ha-nova:maintenance — statistics repair and import, recorder purge, registry cleanup)
   maintenance/maintenance-reference.md  (reference doc — issue matrix, repair payloads, orphan gates)
   review/SKILL.md                       (ha-nova:review — config quality review + collision scan)
   entity-discovery/SKILL.md             (ha-nova:entity-discovery — entity lookup)
@@ -70,7 +70,7 @@ skills/
   camera/SKILL.md                       (ha-nova:camera — snapshots the agent can look at, stream URLs, record)
   mqtt/SKILL.md                         (ha-nova:mqtt — bounded topic windows, discovery/debug info, guarded publish)
   assist/SKILL.md                       (ha-nova:assist — utterance testing, pipelines, voice exposure, engine inventory)
-  admin/SKILL.md                        (ha-nova:admin — persons, zones, tags, user accounts)
+  admin/SKILL.md                        (ha-nova:admin — persons, zones, tags, user accounts, settings, Labs, analytics)
   yaml-config/SKILL.md                  (ha-nova:yaml-config — YAML-only configuration through opt-in file access)
   esphome/SKILL.md                      (ha-nova:esphome — explain, check, and edit ESPHome device YAML in /config/esphome/; compile and flash stay external)
   esphome/esphome-checks.md             (reference doc — required blocks, removed keys, pin rules, device-breaking edits, each with its source)
@@ -499,7 +499,7 @@ Rules: never invent a `media_content_id`; volume jumps and announcements are dis
 
 ## Admin Architecture
 
-`ha-nova:admin` owns persons, zones, tags, and user accounts:
+`ha-nova:admin` owns persons, zones, tags, user accounts, general settings, Labs features (`labs/update`, typed), and analytics sharing (`analytics/preferences`, previewed):
 - persons/zones/tags via WS `person/*`, `zone/*`, `tag/*` (updates resend every mutable field, addressed by the `*_id` key)
 - zones are presence infrastructure: every zone change runs `search/related` first and names the automations that depend on it, in the preview
 - users via WS `config/auth/*` — the strictest writes in HA NOVA: owner, system-generated, and the relay's own account are refused outright; everything else needs the one-time code

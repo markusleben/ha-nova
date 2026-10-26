@@ -1,6 +1,6 @@
 ---
 name: admin
-description: Use when managing Home Assistant people, zones, tags, user accounts, and general settings (name, location, units, time zone) — creating a person, drawing a zone, adding a tag, or reviewing who has access — through HA NOVA Relay.
+description: Use when managing Home Assistant people, zones, tags, user accounts, general settings (name, location, units, time zone), Labs features, and analytics sharing — creating a person, drawing a zone, adding a tag, or reviewing who has access — through HA NOVA Relay.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -15,6 +15,7 @@ The people-and-places layer of Home Assistant:
 - tags (NFC/QR tags)
 - user accounts: list, edit (name, administrator, active), and the account lifecycle (create/delete) with hard guards
 - Home Assistant's general settings (name, location, units, time zone, currency, language, URLs)
+- Labs (experimental features) and analytics sharing
 
 Not in scope: areas, floors, labels, categories (`ha-nova:organize`), automations that USE presence (`ha-nova:write`), or authentication providers and passwords — those stay in the Home Assistant UI on purpose.
 
@@ -28,7 +29,7 @@ If this fails: `ha-nova setup`
 
 - `ha-nova relay ws --data-file <payload-file>` for every command here
 - `--out <result-file>` for large listings
-- account edits and general settings: one WS item through `ha-nova plan raw --file <requests.json>`, then `ha-nova apply`
+- account edits, general settings, Labs, and analytics: one WS item through `ha-nova plan raw --file <requests.json>`, then `ha-nova apply`
 
 ## Flow
 
@@ -41,11 +42,12 @@ If this fails: `ha-nova setup`
    - the `home` zone is special: it comes from core config, not the zone registry. Changing home means changing the location in General settings (step 5) — say so instead of trying to delete it.
 3. **Tags**: WS `tag/list` -> `tag/create` / `tag/update` / `tag/delete`. A tag's `tag_id` is what the NFC/QR tag physically carries; scanning fires an event automations listen for. Deleting a tag breaks those automations, not the sticker.
 4. **Users**: WS `config/auth/list` shows accounts (`id`, `name`, `username`, `is_owner`, `is_active`, `system_generated`, `group_ids`).
-   - create payload: `{"type":"config/auth/create","name":"<display name>","group_ids":["system-users"],"local_only":false}` — `system-admin` in `group_ids` makes the account an administrator, so name that in the preview. The password is NOT set here: Home Assistant issues the credential separately, so tell the user to finish in Settings → People rather than offering to set one
+   - create payload: `{"type":"config/auth/create","name":"<display name>","group_ids":["system-users"],"local_only":false}` — `system-admin` in `group_ids` makes the account an administrator, so name that in the preview. The password is set in Settings → People, never here
    - before any delete: WS `auth/current_user` returns the account this relay's token belongs to — that account is never deletable
    - edit: `{"type":"config/auth/update","user_id":"<id>"}` plus requested fields: `name`, `is_active`, `local_only`, `group_ids` (`["system-admin"]` administrator, `["system-users"]` user). Any access field takes the one-time code; the CLI refuses it for the owner, a system account, and the relay's own account
 5. **General settings**: `get_config` reads them; `config/core/detect` suggests location, units, and currency. Change with `config/core/update` plus requested fields: `location_name`, `latitude`, `longitude`, `elevation`, `radius`, `unit_system` (with `update_units` to convert entities), `time_zone`, `currency`, `country`, `language`, `internal_url`, `external_url`. Time zone and units take the one-time code: history and long-term statistics shift, and units can raise unit mismatches (`ha-nova:maintenance`). The location is the `home` zone: name presence automations (step 2's `search/related` on `zone.home`).
-6. Verify every write by re-reading the list (`get_config` for settings) — never from the command response alone.
+6. **Labs and analytics**: `labs/list` lists features; `labs/update` with `domain`, `preview_feature`, `enabled` takes the one-time code; a backup first runs through `ha-nova:backup`, never `create_backup`. `analytics` reads what is shared; `analytics/preferences` with `preferences` (only changed keys of `base`, `diagnostics`, `usage`, `statistics`, `snapshots`) is previewed.
+7. Verify every write by re-reading the list (`get_config` for settings) — never from the command response alone.
 
 ## User Safety (read before touching accounts)
 
@@ -58,7 +60,6 @@ If this fails: `ha-nova setup`
 
 Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling. Admin specifics:
 - `config/auth/*` requires owner/admin rights upstream: a permission error here means the Relay's upstream credential lacks HA admin (App: Supervisor credential; container: the host-side `HA_LLAT`), not that the command is wrong.
-- Deleting a zone that automations reference succeeds — Home Assistant does not stop you. The damage shows up later, which is exactly why the impact advisory runs before the write.
 
 ## Output Format
 

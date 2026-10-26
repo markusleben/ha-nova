@@ -82,6 +82,11 @@ func (f *setupFlow) stepSecureStorageRecovery() setupStepResult {
 			}
 		}
 		f.ui.outcome(setupOutcome{Kind: setupOutcomeAlreadyDone, LegacyToken: legacyAccessSwitchable(f.cfg, probePairingV1ForSetup)})
+		if !f.serviceMode {
+			if err := printCompletedSetupOverview(f.ui.termOut(), f.paths, f.cfg); err != nil {
+				return f.failErr(err)
+			}
+		}
 		return setupDone(0)
 	}
 	f.verifyFirstReuseFlow = false

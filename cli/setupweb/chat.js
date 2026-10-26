@@ -51,6 +51,7 @@ window.novaChat = (h) => {
   // Once on: Add to Claude (never a second primary next to Finish), the
   // address to copy (Claude without a form, ChatGPT), then how.
   const onParts = (chat) => [
+    h.state().screen === 'rerun' ? el('p', { class: 'fine' }, t('setup.overview.add_claude')) : null,
     el('div', { class: 'actions addclaude' }, addClaude(chat.claude_link, 'ghost btn-small', 'chat-claude')),
     ...claudeHelp(chat.org_link, 'chat-claude-org', 'setup.chat.no_form'),
     el('div', { class: 'copybar' }, el('code', { id: 'chat-url' }, chat.url),
