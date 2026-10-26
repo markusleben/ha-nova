@@ -23,7 +23,7 @@ func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
 	mcpInit(c)
 	wantTyped := []string{"config/entity_registry/remove", "config/device_registry/remove", "lovelace/resources/create", "lovelace/resources/update", "lovelace/resources/delete",
 		"recorder/clear_statistics", "backup/delete", "hacs/repositories/remove", "hacs/repository/download", "hacs/repository/remove",
-		"config/auth/create", "config/auth/delete", "assist_pipeline/pipeline/delete", "calendar/event/delete", "blueprint/delete", "config_entries/subentries/delete"}
+		"config/auth/create", "config/auth/delete", "assist_pipeline/pipeline/delete", "calendar/event/delete", "blueprint/delete", "config_entries/subentries/delete", "labs/update", "recorder/import_statistics"}
 	for _, collection := range rawWSCollections {
 		wantTyped = append(wantTyped, collection+"/delete")
 	}
@@ -356,5 +356,113 @@ func TestPlanRawPollingDisruptionSayAndPrompt(t *testing.T) {
 	}
 	if got := sent(); len(got) != 0 {
 		t.Fatalf("planning sent %v", got)
+	}
+}
+
+// HA UI parity batch 3a (docs/work/2026-10-26-ha-ui-parity-spec.md): backup
+// settings are previewed with their values and typed when they set a
+// retention (it deletes older backups); the encryption key, per-location
+// encryption, the first automatic setup, partial blocks Home Assistant would
+// reset, and backups that would leave unencrypted are refused on every
+// route; Labs and statistics imports are typed; usage-data sharing is previewed.
+func TestPlanRawBatch3aTiersAndBackupKeyGuard(t *testing.T) {
+	for _, keySaved := range []bool{false, true} {
+		t.Run(fmt.Sprint("key saved ", keySaved), func(t *testing.T) { batch3aTiersAndGuards(t, keySaved) })
+	}
+}
+
+func batch3aTiersAndGuards(t *testing.T, keySaved bool) {
+	password := any(nil)
+	if keySaved {
+		password = secretHidden
+	}
+	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
+		"backup/config/info": func(map[string]any) any {
+			return map[string]any{"config": map[string]any{"create_backup": map[string]any{"password": password}}}
+		},
+	})
+	c := startMCP(t, paths)
+	mcpInit(c)
+	plan := func(payload string) (int, verbTestEnvelope) {
+		return planRaw(t, paths, `[{"endpoint":"ws","payload":`+payload+`}]`)
+	}
+	remote := `{"type":"backup/config/update","create_backup":{"agent_ids":["backup.local","onedrive.01ABC"]}}`
+	planned := map[string]struct{ tier, line string }{
+		`{"type":"backup/config/update","schedule":{"days":[],"recurrence":"daily","time":"04:45"}}`:                                                           {"preview", "schedule days (), schedule recurrence “daily”, schedule time “04:45”"},
+		`{"type":"backup/config/update","retention":{"copies":3,"days":null}}`:                                                                                 {"typed", "retention copies 3, retention days cleared; automatic backups beyond the retention are deleted for good"},
+		`{"type":"backup/config/update","agents":{"backup.local":{"retention":{"copies":2,"days":null}}}}`:                                                     {"typed", "agents backup.local retention copies 2"},
+		`{"type":"backup/config/update","agents":{"backup.local":{"retention":null}},"create_backup":{"agent_ids":["backup.local"],"include_database":false}}`: {"typed", "create backup agent ids ('backup.local'), create backup include database false"},
+		`{"type":"labs/update","domain":"frontend","preview_feature":"winter_mode","enabled":true}`:                                                            {"typed", "on the Labs feature “winter_mode” of “frontend”"},
+		`{"type":"labs/update","domain":"frontend","preview_feature":"winter_mode","enabled":false,"create_backup":false}`:                                     {"typed", "off the Labs feature"},
+		`{"type":"recorder/import_statistics","metadata":{"statistic_id":"nova_test:import","source":"nova_test","name":"Import","has_sum":true,"mean_type":0,"unit_class":"energy","unit_of_measurement":"kWh"},"stats":[{"start":"2026-10-25T10:00:00+00:00","sum":1},{"start":"2026-10-25T11:00:00+00:00","sum":2}]}`: {"typed", "2 rows into the long-term statistic “nova_test:import” from “2026-10-25T10:00:00+00:00” to “2026-10-25T11:00:00+00:00”"},
+		`{"type":"analytics/preferences","preferences":{"base":true,"usage":false}}`:      {"preview", "about this installation: base true, usage false"},
+		`{"type":"backup/generate","agent_ids":["hassio.local"],"include_database":true}`: {"preview", "Create a backup"},
+	}
+	refused := map[string]string{
+		`{"type":"backup/config/update","create_backup":{"password":"hunter2"}}`:                                              "backup encryption password",
+		`{"type":"backup/config/update","create_backup":{"password":null}}`:                                                   "backup encryption password",
+		`{"type":"backup/config/update","schedule":{"recurrence":"daily"},"create_backup":{"name":"x","password":"hunter2"}}`: "backup encryption password",
+		`{"type":"backup/config/update","agents":{"cloud.cloud":{"protected":false}}}`:                                        "backup encryption password",
+		`{"type":"backup/config/update","agents":{"backup.local":{"retention":null},"cloud.cloud":{"protected":true}}}`:       "backup encryption password",
+		`{"type":"backup/config/update","agents":{"cloud.cloud":false}}`:                                                      "backup encryption password",
+		`{"type":"backup/config/update","agents":["cloud.cloud"]}`:                                                            "backup encryption password",
+		`{"type":"backup/config/update","create_backup":"password"}`:                                                          "backup encryption password",
+		`{"type":"backup/config/update","automatic_backups_configured":true}`:                                                 "first automatic-backup setup",
+		`{"type":"backup/config/update","schedule":{"time":"05:00"}}`:                                                         "partial schedule or retention",
+		`{"type":"backup/config/update","schedule":{}}`:                                                                       "partial schedule or retention",
+		`{"type":"backup/config/update","retention":{"copies":2}}`:                                                            "partial schedule or retention",
+		`{"type":"backup/config/update","agents":{"backup.local":{"retention":{"days":7}}}}`:                                  "partial schedule or retention",
+		`{"type":"backup/generate","agent_ids":["backup.local"],"password":"hunter2"}`:                                        "its own password or to a remote location",
+		`{"type":"backup/generate","agent_ids":["hassio.local","hassio.nas"]}`:                                                "its own password or to a remote location",
+		`{"type":"labs/update","domain":"frontend","preview_feature":"winter_mode","enabled":true,"create_backup":true}`:      "Labs change with create_backup",
+	}
+	if keySaved {
+		planned[remote] = struct{ tier, line string }{"preview", "onedrive.01ABC"}
+	} else {
+		refused[remote] = "remote backup location without a saved encryption key"
+	}
+	for payload, want := range planned {
+		exit, env := plan(payload)
+		var result rawPlanResult
+		_ = json.Unmarshal(env.Result, &result)
+		if exit != verbExitConfirmation || env.Tier != want.tier || len(result.Items) != 1 || !strings.Contains(result.Items[0].Change, want.line) {
+			t.Errorf("%s: exit %d tier %s, want %s with %q (%+v %+v)", payload, exit, env.Tier, want.tier, want.line, result.Items, env.Error)
+		}
+		var message map[string]any
+		_ = json.Unmarshal([]byte(payload), &message)
+		chat, code := readEnvelope(c.tool("ha_plan", map[string]any{"kind": "raw", "requests": []any{map[string]any{"endpoint": "ws", "payload": message}}}))
+		if code != "" || chat["tier"] != want.tier {
+			t.Errorf("chat %s: %v, want tier %s", payload, chat, want.tier)
+		}
+	}
+	for payload, want := range refused {
+		exit, env := plan(payload)
+		if exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Message, want) || strings.Contains(env.Error.Message, "hunter2") {
+			t.Errorf("%s: exit %d %+v, want refusal %q", payload, exit, env.Error, want)
+		}
+		stderr := captureStderr(t, func() { exit = runRelayCommand(paths, []string{"ws", "--data", payload}) })
+		if exit != verbExitRefused || !strings.Contains(stderr, want) {
+			t.Errorf("relay %s: exit %d, stderr %q", payload, exit, stderr)
+		}
+		if payload != remote { // the static guard; the remote check reads live
+			envelope := `{"message":` + payload + `,"collect_events":{"until_type":"result"}}`
+			if err := checkRawRelayRequest("ws", []byte(envelope)); err == nil || !strings.Contains(err.Error(), want) {
+				t.Errorf("collect_events envelope %s: %v", payload, err)
+			}
+		}
+		var message map[string]any
+		_ = json.Unmarshal([]byte(payload), &message)
+		chat, code := readEnvelope(c.tool("ha_plan", map[string]any{"kind": "raw", "requests": []any{map[string]any{"endpoint": "ws", "payload": message}}}))
+		if code != "REFUSED" || !strings.Contains(fmt.Sprint(chat), want) {
+			t.Errorf("chat %s: %v, want refusal %q", payload, chat, want)
+		}
+	}
+	for _, read := range []string{`{"type":"labs/list"}`, `{"type":"analytics"}`, `{"type":"backup/config/info"}`} {
+		if !rawRelayRead("ws", []byte(read)) || mcpReadRefusal("ws", []byte(read)) != nil {
+			t.Errorf("%s is not an ordinary read", read)
+		}
+	}
+	if got := sent(); len(got) != 0 {
+		t.Fatalf("planning or refusals sent %v", got)
 	}
 }

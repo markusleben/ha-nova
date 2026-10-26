@@ -52,14 +52,14 @@ Goal (maintainer, 2026-10-26): everything the Home Assistant web UI can do, HA N
 | Apps: install, uninstall, configure, store ([hassio/addon.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/hassio/addon.ts)) | External (`skills/fallback/SKILL.md` Apps section); start/stop/restart typed via `service-call` | external — same Supervisor question |
 | Backups: create, inspect, delete | `backup` | covered |
 | Backups: restore (WS `backup/restore`) | `skills/backup/SKILL.md:19` "reboots Home Assistant" | external — reason holds (the connection dies mid-call; nothing verifiable) |
-| Backups: automatic settings (WS `backup/config/update`, [backup.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/backup.ts)), download | `skills/backup/SKILL.md:20` "HA UI" | external — schedule and retention: reason no longer holds (a storage write like energy prefs); the encryption key stays out |
+| Backups: automatic settings (WS `backup/config/update`, [backup.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/backup.ts)), download | `backup` → Automatic settings (preview; the raw guard refuses the encryption password and per-location encryption) | covered (0.31: schedule, retention, locations, contents); download and the encryption key external |
 | Logs (`system_log/list`, `logger.set_level`) | `diagnose` | covered; `/api/error_log` partial (404 on HA OS, matrix note) |
 | Repairs: list | `health` | covered |
 | Repairs: ignore (WS `repairs/ignore_issue`), fix flows (REST `POST /api/repairs/issues/fix`, [repairs.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/repairs.ts)) | `health`, live-schema fix steps previewed; deletion/removal repairs typed | covered (0.29 ignore; 0.30 fix) |
 | Updates: install, skip, release notes | `updates` | covered; auto-update is an App option → Supervisor row |
-| Analytics (WS `analytics/preferences`) | nothing | missing (low value) |
+| Analytics (WS `analytics` read, `analytics/preferences` write, [analytics.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/analytics.ts)) | `admin` (preview) | covered (0.31) |
 | AI page (2026.10: MCP server card; WS `ai_task/preferences/set`) | `integration-setup` adds the integration | partial |
-| Labs (WS `labs/update`, [labs.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/labs.ts)) | nothing | missing |
+| Labs (WS `labs/list`, `labs/update`, [labs.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/labs.ts)) | `admin` (typed) | covered (0.31) |
 | Voice assistants: pipelines, exposure, engines, custom sentences | `assist` | covered |
 | Voice: expose new entities (WS `homeassistant/expose_new_entities/set`, [expose.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/expose.ts)), pipeline debug (WS `assist_pipeline/pipeline_debug/list|get`) | `assist` | covered (0.29) |
 
@@ -87,7 +87,7 @@ Goal (maintainer, 2026-10-26): everything the Home Assistant web UI can do, HA N
 | Templates | `POST /api/template` | covered |
 | Events: fire | refused (`skills/service-call/raw-routes.md` → Custom Events And Webhooks) | external — reason holds (untiered listener fan-out) |
 | Events: listen | `fallback` bounded capture | covered |
-| Statistics: validate, fix unit and sum, clear | `maintenance` | covered; `recorder/import_statistics` missing |
+| Statistics: validate, fix unit and sum, clear, import (WS `recorder/import_statistics`; Core only, no UI button) | `maintenance` | covered (import 0.31, typed) |
 | YAML reload, check configuration, restart | `ha-nova call …reload_*` (typed, `cli/tier_rules.go:255`), `check_config` | covered |
 
 ## 2. Gaps: API, tier, fit, effort
@@ -107,14 +107,15 @@ Every row fits "Relay stays dumb, Skills stay smart" unless marked ★ (a Relay 
 | Repairs fix flows | REST `POST /api/repairs/issues/fix`, `…/fix/{flow_id}` | preview; typed when a flow deletes | M | covered (0.30): health reuses live-schema stepping; start/step/cancel, by-id GET plan-only |
 | Blueprint delete and owner | WS `blueprint/delete` | typed (consumers via `search/related`) | S / M | covered (0.30): write owns import/save/instantiate/delete |
 | Expose new entities; pipeline debug | WS `homeassistant/expose_new_entities/set`; `assist_pipeline/pipeline_debug/*` (reads) | preview for exposure; debug reads | S | covered (0.29): allowlist + `assist`, `diagnose` |
-| Labs | WS `labs/update` | typed (experimental features) | S | allowlist + context skill |
-| Backup automatic settings | WS `backup/config/update` | preview; a password field is refused by the guard | S | allowlist with a field guard like the resource-URL one (`cli/relay_raw_allow.go:75`) + `backup` |
+| Labs | WS `labs/update`, `labs/list` (read) | typed (experimental features) | S | covered (0.31): allowlist + `admin` (Settings → System, beside General) |
+| Backup automatic settings | WS `backup/config/update` | preview; the password and per-location encryption are refused by the guard | S | covered (0.31): allowlist + field guard in `checkRawWS` + `backup` |
 | Remaining four helper families | existing flow paths | preview | S | covered (0.29): `helper` domain list; existing config-entry flow paths |
-| Statistics import | WS `recorder/import_statistics` | typed | M | `maintenance`; data file through `plan raw` |
+| Statistics import | WS `recorder/import_statistics` | typed | M | covered (0.31): `maintenance` + reference payload; rows ride in the `plan raw` payload |
+| Analytics sharing | WS `analytics` (read), `analytics/preferences` | preview | S | covered (0.31): allowlist + `admin` |
 | Media and image upload ★ | multipart REST | preview | L | the Relay's `/core` is JSON-only: new machinery; defer |
 | Supervisor: Apps, network, storage, hardware, host logs ★ | WS `supervisor/api` (`endpoint`, `method`, `data`) | reads ordinary; App start/install typed; `host/reboot`, `network/*` typed | M to verify; L if it fails | first prove on the test bed whether `supervisor/api` passes through `/ws` (the pin at `docs/reference/ha-api-matrix.md:233-234` covers `/api/hassio/*` only). If it passes: allowlist `supervisor/api` with an endpoint allowlist in the CLI guard, same pattern as resource URLs. If it fails: `hassio_role: manager` in `nova/config.yaml` is a privilege change and gets its own security spec |
 
-External reasons removed in 0.29: integration enable/disable (a plain WS write). Remaining stale reasons: backup schedule and retention (the same kind of storage write as energy prefs), Supervisor via `/api/hassio/*` (the frontend path is WS).
+External reasons removed in 0.29: integration enable/disable (a plain WS write). Remaining stale reasons: Supervisor via `/api/hassio/*` (the frontend path is WS). Backup schedule and retention moved in 0.31.
 
 Stays out, with the reason: passwords, MFA, tokens, profile (a person's own secrets and session); backup restore (reboots Home Assistant, unverifiable); set state (fakes a device); fire event and webhook (untiered fan-out; a webhook id is a secret); Zigbee, Z-Wave, Matter pairing (hardware and BLE, not an API); Home Assistant Link account settings.
 
@@ -238,3 +239,63 @@ the repair-fix live run was skipped. Flow navigation and blueprint lifecycle
 were source/contract-tested, not exercised end to end. The owned bed was
 taken down; no live home, pairing, setup, uninstall, Cloud, or native-keychain
 tests ran. Skill word/route budgets remain unchanged.
+
+## Batch 3a source verification (2026-10-26)
+
+The four items of 0.31 that need no Supervisor; all exist, none dropped. Checked
+against Core dev `39922841decf4988ec3a74d8bc96edeb7e318151` and frontend dev `068eee3d8082e78aa9fcba7af04bfeb4edf45b99`. No new verb,
+Relay behavior, or abstraction: allowlist lines, tier-table entries, one guard
+case, plain preview lines, and skill text. Supervisor items stay in batch 3b.
+
+| Item | Pinned source and verified contract |
+|---|---|
+| Backup automatic settings | Core [backup/websocket.py](https://github.com/home-assistant/core/blob/39922841decf4988ec3a74d8bc96edeb7e318151/homeassistant/components/backup/websocket.py) and [backup/config.py](https://github.com/home-assistant/core/blob/39922841decf4988ec3a74d8bc96edeb7e318151/homeassistant/components/backup/config.py), frontend [backup.ts](https://github.com/home-assistant/frontend/blob/068eee3d8082e78aa9fcba7af04bfeb4edf45b99/src/data/backup.ts): `backup/config/update` takes `agents.<id>.{protected, retention}`, `automatic_backups_configured`, `create_backup.{agent_ids, include_addons, include_all_addons, include_database, include_folders, name, password}`, `retention.{copies, days}`, `schedule.{days, recurrence, time}`. `schedule` and `retention` are rebuilt whole (omitted fields reset: recurrence `never`, no limit); `create_backup` and per-agent settings merge. Retention by days deletes older automatic backups from a timer one day later; by copies after the next automatic backup. `backup/config/info` returns `create_backup.password` in clear text, which the CLI already redacts. Owner: `backup`. Tier preview; typed with any retention (it deletes older automatic backups; every other delete is typed too). |
+| Labs | Core [labs/websocket_api.py](https://github.com/home-assistant/core/blob/39922841decf4988ec3a74d8bc96edeb7e318151/homeassistant/components/labs/websocket_api.py), frontend [labs.ts](https://github.com/home-assistant/frontend/blob/068eee3d8082e78aa9fcba7af04bfeb4edf45b99/src/data/labs.ts): `labs/list` returns `features[]` (`domain`, `preview_feature`, `enabled`, URLs); `labs/update` takes `domain`, `preview_feature`, `enabled`, optional `create_backup` (an automatic-settings backup before enabling, awaited to the end through `async_create_automatic_backup`, so longer than the Relay's 10 s request timeout: refused; the backup skill's Create runs first). Both admin-only. Owner: `admin` (Settings → System, beside General) rather than the context skill, which carries no write flows. Tier typed. |
+| Statistics import | Core [recorder/websocket_api.py](https://github.com/home-assistant/core/blob/39922841decf4988ec3a74d8bc96edeb7e318151/homeassistant/components/recorder/websocket_api.py) and [recorder/statistics.py](https://github.com/home-assistant/core/blob/39922841decf4988ec3a74d8bc96edeb7e318151/homeassistant/components/recorder/statistics.py): `recorder/import_statistics` takes `metadata` (`statistic_id`, `source`, `name`, `unit_of_measurement`, `unit_class`, `mean_type`, `has_sum`) and `stats[]` (`start` on the hour, `sum`, `state`, `mean`, `min`, `max`, `last_reset`). An entity id needs `source: recorder`; `domain:name` needs `source` = domain. Rows for existing hours are overwritten and metadata updated. Missing `mean_type` or `unit_class` logs a deprecation; Core 2026.11 rejects it. The frontend has no import button; Core's WS command is the surface. Owner: `maintenance` (payload in `maintenance-reference.md`). Tier typed. |
+| Analytics | Core [analytics/__init__.py](https://github.com/home-assistant/core/blob/39922841decf4988ec3a74d8bc96edeb7e318151/homeassistant/components/analytics/__init__.py), frontend [analytics.ts](https://github.com/home-assistant/frontend/blob/068eee3d8082e78aa9fcba7af04bfeb4edf45b99/src/data/analytics.ts): the read is `analytics` (`preferences`, `onboarded`); the write is `analytics/preferences` with `preferences` (`base`, `diagnostics`, `usage`, `statistics`, `snapshots`), merged into the stored ones. The gap table above had the two names swapped. Owner: `admin`. Tier preview. |
+
+Guard (`cli/relay_raw_guard.go`, `checkRawWS`): a `backup/config/update` that
+carries `create_backup.password` (any value, `null` included: it clears
+encryption), any `agents.<id>.protected` (turns encryption on or off for a
+location), or a `create_backup`/`agents` value that is not an object is refused
+on every raw route — relay, `plan raw`, chat `ha_plan`, and a
+`collect_events` envelope — before anything is sent. Decision (recorded):
+`protected` counts as an encryption-key field, beyond the literal password.
+Further refusals after review: `automatic_backups_configured` (the first
+setup creates the key), a `schedule`, `retention`, or `agents.<id>.retention`
+block missing a field (Home Assistant resets it), and a remote location
+added while no key is saved (read live from `backup/config/info`; an
+unreadable read sends nothing). Sibling sweep: `backup/generate` with its own
+`password` or a remote location is refused for the same reason.
+Changing `agent_ids` to locations with a key saved stays previewed; the skill names each
+location from `backup/agents/info`: a location without its own setting encrypts with the saved key
+([backup/manager.py](https://github.com/home-assistant/core/blob/39922841decf4988ec3a74d8bc96edeb7e318151/homeassistant/components/backup/manager.py)).
+With no saved key Home Assistant uploads as is, so the skill sends the first
+automatic setup (`automatic_backups_configured: false`), which creates the
+key, to the Home Assistant UI.
+
+Known limits: an already configured remote location still uploads unencrypted
+if the key were missing (the UI setup always saves one); the analytics
+preview does not say that `usage` and `statistics` need `base`; importing into an existing entity statistic is typed but not
+diffed row by row in the plan (the skill reads the range first).
+
+Disposable test-bed run: HA 2026.10.1 / Relay 0.12.0. A previewed
+`backup/config/update` set a daily 04:45 schedule, 3 copies, and
+`backup.local`; `backup/config/info` read it back (next run the next morning).
+Setting `create_backup.password` and `agents.backup.local.protected: false` was
+refused on `relay ws` and `plan raw` with nothing sent (password still
+`null`). After review: a retention change planned typed; a partial schedule,
+a remote location without a key, `automatic_backups_configured`, and
+`labs/update` with `create_backup` were refused. `labs/list` showed three
+features; `frontend.winter_mode` was turned on and off through typed plans,
+each read back. A typed `recorder/import_statistics` wrote three hourly rows
+into the throwaway `nova_test:batch3a`, read back with
+`statistics_during_period` and `list_statistic_ids`. `analytics/preferences`
+was planned at preview tier only (no apply: the bed sends nothing out).
+A separate agent session then followed the skills for a schedule plus
+retention change, a refused password, an external-statistic import, and a
+Labs on/off, with independent read-backs; its wording notes are folded in
+above. Typed plans were confirmed with chat codes after turning confirmation
+windows off in the bed's isolated HOME. The owned bed was taken down; no live
+home, pairing, setup, uninstall, Cloud, or native-keychain tests ran. Skill
+word budgets unchanged (backup and admin trimmed to fit).

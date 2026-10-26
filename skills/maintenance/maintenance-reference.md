@@ -72,6 +72,24 @@ Semantics: adds `adjustment` to the `sum` of the bucket starting at `start_time`
 - Energy statistics often have a paired cost statistic (`energy/info` → `cost_sensors`) — a spike usually corrupted both; offer the paired adjustment.
 - `utility_meter` entities: prefer the `utility_meter.calibrate` service over sum adjustments.
 
+## Statistics Import (`recorder/import_statistics`)
+
+One raw plan item through `ha-nova plan raw --file <requests.json>`, then `ha-nova apply`; the rows ride in the payload. The CLI types it: one-time code.
+
+```json
+{"type":"recorder/import_statistics",
+ "metadata":{"statistic_id":"<domain>:<name>","source":"<domain>","name":"<label>","unit_of_measurement":"kWh","unit_class":"energy","mean_type":0,"has_sum":true},
+ "stats":[{"start":"2026-10-25T10:00:00+00:00","state":12.5,"sum":12.5}]}
+```
+
+- `statistic_id` with `:` is an external statistic: `source` is the part before `:`. With `.` it is an entity's own statistic: `source` is `recorder`. Prefer a new external id; importing into an existing one overwrites its stored rows for the same hours (energy history included — run the `energy/get_prefs` cross-check as for clears).
+- For an existing statistic read `recorder/get_statistics_metadata`: its `statistics_unit_of_measurement` (never the display unit) goes into `unit_of_measurement`, rows in that unit; copy `unit_class`, `mean_type`, `has_sum`, and `name` (`null` for an entity's). A different unit relabels the whole statistic.
+- Sums must join: the last imported `sum` must line up with the first stored row after the range (read it with `units` set to the statistics unit), else the Energy dashboard shows a spike; offer `recorder/adjust_sum_statistics` at the join.
+- Always send `mean_type` (`0` meter with `sum`, `1` average with `mean`/`min`/`max`, `2` angles) and `unit_class` (`null` when the unit has none): HA Core 2026.11 rejects imports without them.
+- `start`: whole hours with a UTC offset; one row per hour. For a meter, `sum` keeps rising across rows.
+- Preview: statistic, row count, first and last hour, and how many stored hours are overwritten (read `recorder/statistics_during_period` with `period: "hour"` over the range first).
+- Verify by re-reading that range after a few seconds (the recorder writes in the background). Overwritten rows have no undo; a new external statistic is removed with `recorder/clear_statistics`.
+
 ## Recorder Purge (services, via REST — not WS)
 
 Call it (raw `POST /api/services/*` is refused): `ha-nova call recorder.purge --skill ha-nova:maintenance --data-file <payload-file>` with:

@@ -242,6 +242,8 @@ func checkRawWS(message map[string]any) error {
 		if message["allow_override"] == true {
 			return rawRefusal("blueprint override (it changes every automation that uses it)", rawNextUI)
 		}
+	case "backup/config/update", "backup/generate", "labs/update":
+		return checkRawBackup(wsType, message)
 	case "config/entity_registry/update":
 		entityID, _ := message["entity_id"].(string)
 		entityID = strings.ToLower(entityID)

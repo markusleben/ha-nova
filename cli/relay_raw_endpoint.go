@@ -30,11 +30,11 @@ func guardRaw(endpoint string, body []byte, accessTarget func() (refusal, err er
 	default:
 		return nil, nil, fmt.Errorf("unknown Relay endpoint %q; nothing was sent", endpoint)
 	}
+	if !rawRelayRead(endpoint, body) && holdsHiddenValue(body) { // first: the clearest words for a marker carried back
+		return nil, rawRefusal("write", hiddenValueNext), nil
+	}
 	if refusal := checkRawRelayRequest(endpoint, body); refusal != nil {
 		return nil, refusal, nil
-	}
-	if !rawRelayRead(endpoint, body) && holdsHiddenValue(body) {
-		return nil, rawRefusal("write", hiddenValueNext), nil
 	}
 	if refusal, err := accessTarget(); refusal != nil || err != nil {
 		return nil, refusal, err

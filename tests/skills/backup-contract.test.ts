@@ -75,8 +75,8 @@ describe("backup contract", () => {
   });
 
   it("is wired into dispatch, capability map, and architecture doc — roadmap entry retired", () => {
-    expect(contextSkill).toContain("| check backup status, create a backup (also as a safety net before risky changes), inspect a backup's contents, delete backups | `ha-nova:backup` |");
-    expect(fallbackSkill).toContain("| Backups (status, create, inspect, delete) | Covered | backup |");
+    expect(contextSkill).toContain("| check backup status, create a backup (also as a safety net before risky changes), inspect a backup's contents, delete backups, change automatic-backup schedule or retention | `ha-nova:backup` |");
+    expect(fallbackSkill).toContain("| Backups (status, create, inspect, delete, automatic settings) | Covered | backup |");
     expect(fallbackSkill + relayReadySplit).not.toContain("Configuration Backups -- ROADMAP");
     expect(architectureDoc).toContain("backup/SKILL.md");
   });

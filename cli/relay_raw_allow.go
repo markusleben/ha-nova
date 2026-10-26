@@ -54,6 +54,7 @@ var rawWSAllowed = map[string]string{
 	"recorder/info": rawWSRead, "recorder/validate_statistics": rawWSRead, "recorder/get_statistics_metadata": rawWSRead,
 	"recorder/list_statistic_ids": rawWSRead, "recorder/statistics_during_period": rawWSRead,
 	"backup/info": rawWSRead, "backup/agents/info": rawWSRead, "backup/details": rawWSRead, "backup/config/info": rawWSRead,
+	"labs/list": rawWSRead, "analytics": rawWSRead,
 	"hacs/info": rawWSRead, "hacs/repositories/list": rawWSRead, "hacs/repository/info": rawWSRead,
 	"hacs/repository/releases": rawWSRead, "hacs/repository/release_notes": rawWSRead,
 	"hacs/repositories/removed": rawWSRead, "hacs/critical/list": rawWSRead,
@@ -118,6 +119,10 @@ var rawWSAllowed = map[string]string{
 	"config/core/update":                      "Home Assistant's general settings: name, location, units, time zone, currency, language, URLs",
 	"repairs/ignore_issue":                    "ignores a repair issue, or shows it again",
 	"homeassistant/expose_new_entities/set":   "whether new entities are exposed to a voice assistant; using one still takes a person's voice",
+	"backup/config/update":                    "the automatic backup settings: schedule, retention, locations, and contents (the encryption key, per-location encryption, the first setup, and partial blocks are refused in relay_raw_backup.go)",
+	"labs/update":                             "turns an experimental Labs feature on or off (create_backup is refused in relay_raw_backup.go)",
+	"recorder/import_statistics":              "imports rows into a long-term statistic; stored rows for the same hours are overwritten (maintenance)",
+	"analytics/preferences":                   "what Home Assistant shares about this installation with the Home Assistant project (opt-in usage data)",
 }
 
 // Storage collections the helper and admin skills edit: each holds config
