@@ -172,9 +172,9 @@ an action; `ha-nova:mqtt` uses exactly this pattern.
 ### Apps / Supervisor Management -- EXTERNAL
 
 App *management* (install, uninstall, configure, store browsing) is Supervisor
-territory and stays external. The common premise that "the Supervisor API needs
-different auth and endpoints" is only half true: on HA OS/Supervised the
-`hassio` integration proxies it under `/api/hassio/*`, and start/stop/restart
+territory and stays external: the Supervisor refuses this App both
+`/api/hassio/*` and the WebSocket `supervisor/*` and `hassio/*` types, so
+never send them. Start/stop/restart
 plus host reboot/shutdown are ordinary Home Assistant services — those live in
 `ha-nova:service-call` under the typed tier, with a refusal for the App
 running this Relay. App UPDATES are `ha-nova:updates`.

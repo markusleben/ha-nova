@@ -48,15 +48,15 @@ Goal (maintainer, 2026-10-26): everything the Home Assistant web UI can do, HA N
 | HA UI | HA NOVA today | Status |
 |---|---|---|
 | General: name, location, units, time zone, currency, language, URLs (WS `config/core/update`, `config/core/detect`, [core.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/core.ts)) | `admin` → General settings (typed for time zone and units) | covered (0.29) |
-| Network, Storage, Hardware, host/Supervisor/App logs (WS `supervisor/api`, `network/configure`, [hassio/supervisor.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/hassio/supervisor.ts), [network.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/network.ts)) | `docs/reference/ha-api-matrix.md:233-234` pins `/api/hassio/*` as HTTP 403; the App runs with `hassio_role: default` (`nova/config.yaml:30-32`) | external — reason partly stale: the frontend uses WS `supervisor/api`, not the REST proxy; unverified through the Relay |
-| Apps: install, uninstall, configure, store ([hassio/addon.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/hassio/addon.ts)) | External (`skills/fallback/SKILL.md` Apps section); start/stop/restart typed via `service-call` | external — same Supervisor question |
+| Network, Storage, Hardware, host/Supervisor/App logs (WS `supervisor/api`, `network/configure`, [hassio/supervisor.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/hassio/supervisor.ts), [network.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/network.ts)) | `/api/hassio/*` answers HTTP 403, and WS `supervisor/api` is refused too: Supervisor's App WS proxy drops every `supervisor/*` and `hassio/*` type, whatever the role (verified 0.31, batch 3b) | needs role / Relay route: `docs/work/2026-10-26-supervisor-role-spec.md` (info reads work with today's role over a new Relay route; logs and storage need `manager`) |
+| Apps: install, uninstall, configure, store ([hassio/addon.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/hassio/addon.ts)) | External (`skills/fallback/SKILL.md` Apps section); start/stop/restart typed via `service-call` | needs role: `manager` plus a Relay route (`docs/work/2026-10-26-supervisor-role-spec.md`) |
 | Backups: create, inspect, delete | `backup` | covered |
 | Backups: restore (WS `backup/restore`) | `skills/backup/SKILL.md:19` "reboots Home Assistant" | external — reason holds (the connection dies mid-call; nothing verifiable) |
 | Backups: automatic settings (WS `backup/config/update`, [backup.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/backup.ts)), download | `backup` → Automatic settings (preview; the raw guard refuses the encryption password and per-location encryption) | covered (0.31: schedule, retention, locations, contents); download and the encryption key external |
 | Logs (`system_log/list`, `logger.set_level`) | `diagnose` | covered; `/api/error_log` partial (404 on HA OS, matrix note) |
 | Repairs: list | `health` | covered |
 | Repairs: ignore (WS `repairs/ignore_issue`), fix flows (REST `POST /api/repairs/issues/fix`, [repairs.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/repairs.ts)) | `health`, live-schema fix steps previewed; deletion/removal repairs typed | covered (0.29 ignore; 0.30 fix) |
-| Updates: install, skip, release notes | `updates` | covered; auto-update is an App option → Supervisor row |
+| Updates: install, skip, release notes | `updates` | covered; the App auto-update toggle is an App option and needs `manager` (Supervisor row) |
 | Analytics (WS `analytics` read, `analytics/preferences` write, [analytics.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/analytics.ts)) | `admin` (preview) | covered (0.31) |
 | AI page (2026.10: MCP server card; WS `ai_task/preferences/set`) | `integration-setup` adds the integration | partial |
 | Labs (WS `labs/list`, `labs/update`, [labs.ts](https://raw.githubusercontent.com/home-assistant/frontend/dev/src/data/labs.ts)) | `admin` (typed) | covered (0.31) |
@@ -113,9 +113,9 @@ Every row fits "Relay stays dumb, Skills stay smart" unless marked ★ (a Relay 
 | Statistics import | WS `recorder/import_statistics` | typed | M | covered (0.31): `maintenance` + reference payload; rows ride in the `plan raw` payload |
 | Analytics sharing | WS `analytics` (read), `analytics/preferences` | preview | S | covered (0.31): allowlist + `admin` |
 | Media and image upload ★ | multipart REST | preview | L | the Relay's `/core` is JSON-only: new machinery; defer |
-| Supervisor: Apps, network, storage, hardware, host logs ★ | WS `supervisor/api` (`endpoint`, `method`, `data`) | reads ordinary; App start/install typed; `host/reboot`, `network/*` typed | M to verify; L if it fails | first prove on the test bed whether `supervisor/api` passes through `/ws` (the pin at `docs/reference/ha-api-matrix.md:233-234` covers `/api/hassio/*` only). If it passes: allowlist `supervisor/api` with an endpoint allowlist in the CLI guard, same pattern as resource URLs. If it fails: `hassio_role: manager` in `nova/config.yaml` is a privilege change and gets its own security spec |
+| Supervisor: Apps, network, storage, hardware, host logs ★ | WS `supervisor/api` (`endpoint`, `method`, `data`) | reads ordinary; App start/install typed; `host/reboot`, `network/*` typed | L | verified (batch 3b): `supervisor/api` does not pass through `/ws` for any endpoint or role, so no allowlist line; a Relay route (info reads, today's role) and `hassio_role: manager` (the rest) are specified in `docs/work/2026-10-26-supervisor-role-spec.md` for their own security review |
 
-External reasons removed in 0.29: integration enable/disable (a plain WS write). Remaining stale reasons: Supervisor via `/api/hassio/*` (the frontend path is WS). Backup schedule and retention moved in 0.31.
+External reasons removed in 0.29: integration enable/disable (a plain WS write). Supervisor: the WS path the frontend uses is closed to Apps too (batch 3b), so the External reason now names the Supervisor's App filter. Backup schedule and retention moved in 0.31.
 
 Stays out, with the reason: passwords, MFA, tokens, profile (a person's own secrets and session); backup restore (reboots Home Assistant, unverifiable); set state (fakes a device); fire event and webhook (untiered fan-out; a webhook id is a secret); Zigbee, Z-Wave, Matter pairing (hardware and BLE, not an API); Home Assistant Link account settings.
 
@@ -130,7 +130,7 @@ Worth adding: bulk registry edits with one preview (rename 40 entities); a plain
 1. **0.29 — allowlist batch (all S, one PR; covered):** integration enable/disable, rename and system options, ignore discovery; user update; repairs ignore; expose new entities; pipeline debug reads; blueprint delete; the four helper families; System General. Highest daily value, no machinery.
 2. **0.30 — flows (M; covered):** repairs fix flows, subentries, integration remove and blueprints owned by a skill. Reuses the live-schema flow.
 3. **0.31 — system (M → L):** Supervisor verified on the test bed first, then Apps, network, storage, host logs; backup settings; labs; statistics import.
-4. **Later, spec first:** media and image upload (Relay change); a Supervisor role change if the WS path fails.
+4. **Later, spec first:** media and image upload (Relay change); Supervisor access through a Relay route and a role change (`docs/work/2026-10-26-supervisor-role-spec.md`).
 
 ## Decisions (maintainer, 2026-10-26)
 
@@ -140,7 +140,7 @@ Worth adding: bulk registry edits with one preview (rename 40 entities); a plain
 
 ## Known limits
 
-- The `supervisor/api` pass-through is unverified; the matrix pin covers only the REST proxy.
+- Supervisor items wait for `docs/work/2026-10-26-supervisor-role-spec.md`; `supervisor/api` through the Relay is refused (batch 3b).
 - Open issues were not cross-checked against the gaps.
 - Line numbers cite `main` fd51d9e2.
 
@@ -299,3 +299,21 @@ above. Typed plans were confirmed with chat codes after turning confirmation
 windows off in the bed's isolated HOME. The owned bed was taken down; no live
 home, pairing, setup, uninstall, Cloud, or native-keychain tests ran. Skill
 word budgets unchanged (backup and admin trimmed to fit).
+
+## Batch 3b Supervisor verification (2026-10-26)
+
+Verified first, as Decision 3 asks, on the throwaway HAOS VM (HAOS 18.3,
+Supervisor 2026.10.3, Core 2026.10.2, App 0.11.2; identity checked before any
+write: location "Home", demo entry, QEMU owns the forwarded ports). Probed from
+inside the App container with its `SUPERVISOR_TOKEN`, the Relay's own upstream.
+WS `supervisor/api` was refused (`unauthorized`) for all 25 requests tried,
+reads and the one write (`auto_update` set to its current value) alike;
+`hassio/*` and `supervisor/subscribe` too. The Supervisor log shows its App WS
+proxy blocking them (`DENIED_WS_TYPE_PREFIXES`), and that filter ignores
+`hassio_role`. So nothing is allowlisted: an allowlist line would only ever
+fail. Direct Supervisor REST with the same token reaches the `/.+/info` reads
+on today's role; Apps, store, logs, and storage need `manager`. Details, the
+role per UI item, and options A/B/C: `docs/work/2026-10-26-supervisor-role-spec.md`.
+A pre-test App backup was taken and removed afterwards; App options, boot, and
+state ended unchanged, and the probe files were deleted. No live home, pairing,
+setup, uninstall, Cloud, or keychain tests ran. Skill budgets unchanged.
