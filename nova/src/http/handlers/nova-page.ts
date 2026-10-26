@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { ChatAppsError, type ChatApps, type ChatAppsStatus } from "../../runtime/chat-apps.js";
-import { checkOwner, type HaAuthUser } from "../../security/owner-check.js";
+import { checkOwner, type HaAuthUser, type OwnerCheckResult } from "../../security/owner-check.js";
 import type { CsrfStore } from "../../security/csrf.js";
 import type { DeviceRegistry } from "../../security/device-registry.js";
 import type { PairingV1Manager } from "../../security/pairing-v1.js";
@@ -71,13 +71,17 @@ function fail(response: ServerResponse, status: number, message: string): void {
   response.end(`<!doctype html><meta charset="utf-8"><title>NOVA</title><p>${escapeHtml(message)}</p>`);
 }
 
+// A non-owner admin sees NOVA in the sidebar (panel_admin): name who can open it (fail() escapes the name).
+function refuse(response: ServerResponse, owner: Extract<OwnerCheckResult, { ok: false }>): void {
+  const [who, them] = owner.ownerName ? [`the owner, ${owner.ownerName},`, "them"] : ["the owner of this Home Assistant", "the owner"];
+  fail(response, owner.status, owner.status === 503 ? "Could not verify owner access. Try again shortly."
+    : owner.unknownUser ? "Couldn't tell who you are. Open NOVA from the Home Assistant sidebar." : `Only ${who} can open NOVA. Ask ${them} to open it and click Connect a device. That shows a six-digit code for your computer.`);
+}
+
 export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
   return async ({ request, response }) => {
     const owner = await checkOwner(request, { fetchAuthUsers: deps.fetchAuthUsers, logger: deps.logger });
-    if (!owner.ok) {
-      fail(response, owner.status, owner.status === 503 ? "Could not verify owner access. Try again shortly." : "Owner access required.");
-      return;
-    }
+    if (!owner.ok) return refuse(response, owner);
     const [update] = await Promise.all([safeUpdate(deps)]);
     const query = new URLSearchParams((request.url ?? "").split("?")[1] ?? "");
     // The bridge's internal device is shown under Chat apps, never as a
@@ -125,10 +129,7 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
 export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
   return async ({ request, response, body }) => {
     const owner = await checkOwner(request, { fetchAuthUsers: deps.fetchAuthUsers, logger: deps.logger });
-    if (!owner.ok) {
-      fail(response, owner.status, owner.status === 503 ? "Could not verify owner access. Try again shortly." : "Owner access required.");
-      return;
-    }
+    if (!owner.ok) return refuse(response, owner);
     // Reject cross-site form submissions. Sec-Fetch-Site, when the browser sends
     // it, must be same-origin/same-site/none; an explicit cross-site is refused.
     const fetchSite = singleHeader(request, "sec-fetch-site");

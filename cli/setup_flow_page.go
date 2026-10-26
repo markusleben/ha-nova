@@ -198,7 +198,7 @@ func (f *setupFlow) stepPage() setupStepResult {
 			// for a sign-in again.
 			setupPairWithCode = app.primary != ""
 			if setupPairWithCode {
-				p.handoverFor("code")
+				p.handoverFor(codeHandover(app.primary))
 			} else {
 				p.handover()
 			}

@@ -191,6 +191,11 @@ func TestSetupPageHandOverSaysWhy(t *testing.T) {
 	if s := ui.snapshot(); s.Screen != "terminal" || s.Handover != "code" {
 		t.Fatalf("hand-over = %+v", s)
 	}
+	for primary, want := range map[string]string{"signin": "code", "install": "code_install", "update": "code_update"} {
+		if got := codeHandover(primary); got != want {
+			t.Errorf("%s: %q, want %q", primary, got, want)
+		}
+	}
 	for err, want := range map[error]string{
 		errDesktopKeyringLocked:                 "keyring_locked",
 		errDesktopKeyringInitializationRequired: "keyring_setup",
