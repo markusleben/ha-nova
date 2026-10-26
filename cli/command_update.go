@@ -160,7 +160,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 		printHumanErr("cannot apply update: %s", err)
 		return 1
 	}
-	syncResult := postUpdateSyncWithResultUnlocked(paths)
+	syncResult := postUpdateSyncWithResultUnlocked(paths, false)
 	if syncResult.Err != nil {
 		syncErr := syncResult.Err
 		if rollbackErr := rollbackInstall(); rollbackErr != nil {
@@ -169,7 +169,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 			printHumanWarn("rollback failed: %s", rollbackErr)
 			return 1
 		}
-		if restoreErr := postUpdateSyncWithResultUnlocked(paths).Err; restoreErr != nil {
+		if restoreErr := postUpdateSyncWithResultUnlocked(paths, false).Err; restoreErr != nil {
 			releaseMutation()
 			printHumanErr("update aborted: %s", syncErr)
 			printHumanWarn("HA NOVA went back to the old version, but couldn't set it up again in your AI apps. Run ha-nova setup. Details: %s", restoreErr)

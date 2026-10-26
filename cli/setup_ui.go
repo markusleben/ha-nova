@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 )
 
@@ -124,6 +125,11 @@ func renderSetupCompleteBanner(out io.Writer, clients []string, look *setupFirst
 	fmt.Fprintln(out)
 	if labels := setupClientLabels(clients); labels != "" {
 		fmt.Fprintf(out, "  %s\n", setupStyled(session, "setup.done.installed_for", "clients", setupStrong(labels)))
+		if slices.Contains(clients, "claude") {
+			for _, line := range claudeWhereLines() {
+				fmt.Fprintf(out, "  %s\n", line)
+			}
+		}
 		fmt.Fprintln(out)
 	}
 	promptHeader := setupStyled(session, "setup.done.try_asking_in", "client", setupStrong(setupClientLabelsForPrompt(clients)))
@@ -221,6 +227,12 @@ func setupClientLabel(client string) string {
 	default:
 		return setupT("setup.clients.your_assistant")
 	}
+}
+
+// claudeWhereLines: which Claude "Claude Code" is, and the chat apps guide
+// for the Claude Desktop tab it isn't.
+func claudeWhereLines() []string {
+	return []string{setupT("setup.claude.where"), setupT("setup.claude.chat_guide", "url", chatAppsGuideURL)}
 }
 
 func setupClientLabels(clients []string) string {
