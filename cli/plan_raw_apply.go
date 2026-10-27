@@ -174,11 +174,13 @@ func rawSent(endpoint string, body []byte, data json.RawMessage, err error) (sta
 	switch {
 	case err != nil && errors.As(err, &unknown) && !read:
 		return "unknown", err.Error()
+	case err != nil && errors.As(err, &call) && call.code == "SUPERVISOR_OUTCOME_UNKNOWN": // it may still finish
+		return "unknown", mcpMessage(err.Error(), mcpMessageMax)
 	case err != nil && (errors.As(err, &call) || read):
 		return "rejected", mcpMessage(err.Error(), mcpMessageMax)
 	case err != nil: // it never reached Home Assistant
 		return "not_sent", err.Error()
-	case endpoint != "core":
+	case endpoint != "core" && endpoint != "supervisor":
 		return "done", ""
 	}
 	var core struct {
@@ -192,6 +194,9 @@ func rawSent(endpoint string, body []byte, data json.RawMessage, err error) (sta
 		return "unknown", "the Relay sent no upstream status"
 	}
 	answer := fmt.Sprintf("Home Assistant answered HTTP %d", core.Status)
+	if endpoint == "supervisor" {
+		answer = fmt.Sprintf("the Supervisor answered HTTP %d", core.Status)
+	}
 	if reason := upstreamReason(redactRawResponse(endpoint, core.Body)); reason != "" {
 		answer += ": " + reason
 	}

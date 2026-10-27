@@ -266,6 +266,7 @@ function deps(): IngressListenerDeps {
     core: () => ({ route: "core" }),
     files: () => ({ route: "files" }),
     backups: () => ({ route: "backups" }),
+    supervisor: () => ({ route: "supervisor" }),
   };
   const supervisor: SupervisorClient = {
     getSelfInfo: async () => ({

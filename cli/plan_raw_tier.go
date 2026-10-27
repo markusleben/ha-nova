@@ -60,6 +60,9 @@ var rawSceneConfigPath = regexp.MustCompile(`^/api/config/scene/config/[A-Za-z0-
 // The item's own typed flag only ever raises it.
 func rawItemTier(n *rawNamer, item rawRequest, payload map[string]any) (tierLevel, string) {
 	level, why := rawRequestTier(n, item.Endpoint, payload)
+	if item.Endpoint == "supervisor" {
+		level, why = rawSupervisorTier(payload)
+	}
 	if level < tierTyped && item.Typed {
 		return tierTyped, "This step needs your own confirmation, as the skill asks"
 	}

@@ -64,17 +64,21 @@ echo ""
 # chat-apps-ha.ts that keeps chat-apps.ts under its size: about 10400;
 # and to 10450 for removing the empty custom_components the App made (0.27
 # lane C7): the made_custom_components mark in /data, a non-recursive rmdir
-# only while empty, logged, never blocking turn-off: about 10442.
+# only while empty, logged, never blocking turn-off: about 10442;
+# and to 10970 for the Supervisor route (docs/work/2026-10-26-supervisor-role-spec.md,
+# Decisions 2026-10-27): the static POST /supervisor allowlist, App-option
+# redaction, the merge that keeps stored App credentials in the Relay, bounded
+# log reads, and the Relay's own /ws and /core Supervisor deny, with its review fixes and the per-App write queue: about 10957.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 10450 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–10450 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 10970 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–10970 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–10450 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–10970 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──

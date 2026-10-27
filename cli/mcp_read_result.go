@@ -25,10 +25,13 @@ func upstreamFailure(endpoint string, envelope []byte) error {
 			Body   json.RawMessage `json:"body"`
 		} `json:"data"`
 	}
-	if endpoint != "core" || json.Unmarshal(envelope, &core) != nil || core.Data.Status < http.StatusBadRequest {
+	if endpoint != "core" && endpoint != "supervisor" || json.Unmarshal(envelope, &core) != nil || core.Data.Status < http.StatusBadRequest {
 		return nil
 	}
 	message := fmt.Sprintf("Home Assistant answered HTTP %d", core.Data.Status)
+	if endpoint == "supervisor" {
+		message = fmt.Sprintf("the Supervisor answered HTTP %d", core.Data.Status)
+	}
 	if reason := upstreamReason(core.Data.Body); reason != "" {
 		message += ": " + reason
 	}

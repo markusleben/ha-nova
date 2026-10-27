@@ -2,7 +2,7 @@
 
 Status: active
 
-Date: 2026-10-26. Parent: `docs/work/2026-10-26-ha-ui-parity-spec.md` (batch 3b, Decision 3: a role change for the App is a separate security spec). Nothing here is built; `nova/config.yaml` keeps `hassio_role: default`.
+Date: 2026-10-26. Parent: `docs/work/2026-10-26-ha-ui-parity-spec.md` (batch 3b, Decision 3: a role change for the App is a separate security spec). Built 2026-10-27 as option B, narrow: see Decisions below.
 
 ## Finding (throwaway HAOS VM, 2026-10-26)
 
@@ -47,4 +47,31 @@ Recommendation: A first for the read pages (no new privilege). Decide B against 
 ## Known limits
 
 - Supervisor may change its proxy filter or role table; this spec is pinned to 2026.10.3.
-- A standalone Relay container pointed at an HA OS or Supervised Home Assistant (`HA_URL` plus an admin `HA_LLAT`, `docs/reference/relay-container.md`) has no Supervisor App filter in its path: Core would run `supervisor/api`, `hassio/*`, and `/api/hassio/*` with its own Supervisor token, and today only the CLI guard refuses them (`cli/relay_raw_guard.go`, `rawWSAllowed`), while a device credential reaches the Relay without the CLI. Recommended as its own high-risk PR: a deny in the Relay itself that mirrors the Supervisor's (WS types starting `supervisor/` or `hassio/`, also inside `collect_events`; `/api/hassio` and `/api/hassio_` paths after decoding). Read from code, not run.
+- Closed by Decision 3 (the Relay's own `/ws` and `/core` deny): a standalone Relay container pointed at an HA OS or Supervised Home Assistant (`HA_URL` plus an admin `HA_LLAT`, `docs/reference/relay-container.md`) has no Supervisor App filter in its path: Core would run `supervisor/api`, `hassio/*`, and `/api/hassio/*` with its own Supervisor token, and today only the CLI guard refuses them (`cli/relay_raw_guard.go`, `rawWSAllowed`), while a device credential reaches the Relay without the CLI. Recommended as its own high-risk PR: a deny in the Relay itself that mirrors the Supervisor's (WS types starting `supervisor/` or `hassio/`, also inside `collect_events`; `/api/hassio` and `/api/hassio_` paths after decoding). Read from code, not run.
+
+## Decisions (maintainer, 2026-10-27)
+
+Option **B, narrow**: `hassio_role: manager`, reachable only through one Relay route with a fixed allowlist. Nothing else of the role is reachable through HA NOVA. Pinned to Supervisor 2026.10.3 (v1 API; the `/v2` sub-app is not on the list).
+
+1. **Role.** `nova/config.yaml` sets `hassio_role: manager` with a comment. No App version bump here; the next release-prep does it.
+2. **One Relay route.** `POST /supervisor` with `{method, path, data?, lines?}` on the bootstrap (legacy) and device (TLS) listeners, App mode only (a standalone Relay has no such route: `404 NOT_FOUND`). Not on the Home Assistant Link (Cloud) functional routes in this change: the Cloud checklist runs with the maintainer, so Cloud stays as it is (known limit). The route forwards to `http://supervisor` with the `SUPERVISOR_TOKEN` only when `(method, path)` matches the static table below exactly (raw string: no query, `%`, `.` segments, doubled slashes, or trailing slash). `{slug}` = `[A-Za-z0-9][A-Za-z0-9_-]{0,63}` and not `self`; `{identifier}` = `[A-Za-z0-9][A-Za-z0-9_.@-]{0,63}` (it starts alphanumeric, so it is never a dot segment). Every other request is refused before anything is sent.
+
+   | Method | Path | Kind |
+   |---|---|---|
+   | GET | `/info`, `/os/info`, `/host/info`, `/network/info`, `/hardware/info`, `/resolution/info`, `/core/info`, `/supervisor/info` | read |
+   | GET | `/addons`, `/addons/{slug}/info`, `/store`, `/store/addons`, `/store/addons/{slug}` | read |
+   | GET | `/host/disks/default/usage`, `/os/datadisk/list`, `/host/logs/boots`, `/host/logs/identifiers` | read |
+   | GET | `/supervisor/logs`, `/core/logs`, `/host/logs`, `/host/logs/identifiers/{identifier}`, `/addons/{slug}/logs` | logs (text) |
+   | POST | `/store/addons/{slug}/install` | write, `data` empty |
+   | POST | `/addons/{slug}/uninstall` | write, `data` empty or `{remove_config: bool}` |
+   | POST | `/addons/{slug}/options` | write, `data` exactly `{options: object}` or `{auto_update: bool}` |
+
+   - **Logs**: the Relay sets `?lines=N&no_colors` itself (`lines` 1-1000, default 100), asks for `text/plain`, and stops reading at 512 KiB (`truncated: true`). Follow, latest, and boot-offset log routes are not on the list.
+   - **Redaction (every JSON reply)**: a value under a secret-like key (password, secret, token, key, psk, credential, cert, pin, code, llat, …; camelCase and suffixes like `dbpass` too) is replaced by the CLI's marker `(hidden: a stored code, password, or key)`; booleans and null stay. An environment entry's `value` under a secret-like `name` and a URL's user info are hidden too. In `/addons/{slug}/info`, every option the App's own schema marks `format: password` is hidden, nested ones included. A refused options write returns the Supervisor's message with every stored value cut out (its validation message quotes the whole options object), and a log line `… has invalid options: …` is cut after the colon. Options are kept otherwise: the agent needs them to describe and change an App.
+   - **Options write is a merge**: the Relay reads the App's stored options with its own token and sends `{...stored, ...given}` (top-level keys), so a hidden credential never has to leave the Relay to keep its value. Refused (CLI and Relay): a given hidden marker, a `!secret` reference (the App would receive the resolved secret), and, in the Relay, a change to a list or object option that holds a hidden value (it is replaced whole and would lose it). A write that outlives the Relay's 25 s bound answers `SUPERVISOR_OUTCOME_UNKNOWN` (it may still finish).
+   - **Hard refusals**: any write to HA NOVA's own App (slug containing `ha_nova_relay`, or the slug `/addons/self/info` reports), `self`, `/dns*`, `/security*`, `/supervisor/options` and every other `/supervisor` write, `/auth*`, `/backups*` (restores and deletes stay with the typed `backup` skill paths), `/addons/{slug}/stdin|security|sys_options|rebuild|start|stop|restart|update` (start/stop/restart stay typed `hassio.addon_*` services; App updates stay with `updates`), `/host/reboot|shutdown|options` (typed `hassio.host_*` services), `/os/*` and `/network/*` writes, `/mounts*`, `/docker*`, `/jobs*`, `/store/repositories`, `/store/reload`, `/addons/reload`, `/refresh_updates`, `/discovery`, `/services`, `/core/*` writes and the `/core/api` proxy, and everything not listed.
+3. **Gap closed in the same change**: the Relay's `/ws` refuses types starting `supervisor/` or `hassio/` (case-folded, also inside `collect_events`), and `/core` refuses decoded paths starting `/api/hassio` (`/api/hassio_*` included), mirroring the Supervisor's own App filter for a standalone Relay container.
+4. **CLI**: endpoint `supervisor` through the shared guard (`cli/relay_raw_supervisor.go`) with the same table mirrored (a test checks both tables match). `ha-nova relay supervisor` and `ha_read` send reads only (64 KiB cap, `--jq`); writes go through `ha-nova plan raw` only. Tiers: install, uninstall, and any `options` change typed (App code, or options that can hold credentials and code); `auto_update` preview. Every reply passes the same key redaction in the CLI too.
+5. **Skills**: `ha-nova:updates` owns Apps (list, store, install, uninstall, options, auto-update) in a short section; `ha-nova:diagnose` reads logs; the fallback EXTERNAL rows go.
+
+Existing installs get the role with the next App update. Supervisor shows the App's role on its info page; whether it asks the owner first was not verified (known limit).

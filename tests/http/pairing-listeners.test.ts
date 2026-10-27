@@ -30,7 +30,7 @@ let bootBase: string;
 let devicePort: number;
 
 const echo: RouteHandler = () => ({ echoed: true });
-const functional = { health: echo, ws: echo, core: echo, files: echo, backups: echo };
+const functional = { health: echo, ws: echo, core: echo, files: echo, backups: echo, supervisor: echo };
 
 async function listen(server: Server): Promise<number> {
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));

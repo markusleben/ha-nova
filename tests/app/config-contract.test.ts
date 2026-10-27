@@ -16,7 +16,7 @@ describe("app config contract", () => {
 
     expect(parsed.homeassistant_api).toBe(true);
     expect(parsed.hassio_api).toBe(true);
-    expect(parsed.hassio_role).toBe("default");
+    expect(parsed.hassio_role).toBe("manager");
     expect(parsed.ingress).toBe(true);
     // Ingress moves to an internal, unmapped port so the owner console is never
     // LAN-reachable; the public transport ports are 8791 (bootstrap) + 8792 (TLS).

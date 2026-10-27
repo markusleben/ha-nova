@@ -46,7 +46,7 @@ func TestSubcommandHelpFlagPrintsUsageAndFlags(t *testing.T) {
 		{"call", func() int { return runCallCommand(paths, []string{"--help"}) }, "never retried", "-match"},
 		{"apply", func() int { return runApplyCommand(paths, []string{"--help"}) }, "running apply IS the", "-confirm"},
 		{"relay health", func() int { return runRelayCommand(paths, []string{"health", "--help"}) }, "Usage: ha-nova relay health", "-connect-timeout"},
-		{"relay (parent)", func() int { return runRelayCommand(paths, []string{"--help"}) }, "Usage: ha-nova relay <health|ws|core|files|backups|jq|version>", "relay <subcommand> --help"},
+		{"relay (parent)", func() int { return runRelayCommand(paths, []string{"--help"}) }, "Usage: ha-nova relay <health|ws|core|files|backups|supervisor|jq|version>", "relay <subcommand> --help"},
 		{"relay jq", func() int { return runRelayCommand(paths, []string{"jq", "--help"}) }, "Usage: ha-nova relay jq", "--jq-file"},
 		// Must answer even on a fresh install: help may not hide behind the
 		// config/token preflight of the proxy path.
