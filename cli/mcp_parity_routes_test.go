@@ -42,6 +42,7 @@ var mcpParityRoutes = map[string]string{
 	"plan restore": "ha_plan kind=restore", "plan restore --snapshot": "ha_plan snapshot", "plan raw": "ha_plan kind=raw", "plan raw --file": "ha_plan requests",
 	"relay": "ha_read | ha_plan kind=raw", "relay ws": "ha_read endpoint=ws | ha_plan kind=raw", "relay core": "ha_read endpoint=core | ha_plan kind=raw",
 	"relay files": "ha_read endpoint=files | ha_plan kind=raw", "relay backups": "ha_read endpoint=backups | ha_plan kind=raw",
+	"relay supervisor":  "ha_read endpoint=supervisor | ha_plan kind=raw",
 	"relay health":      "every result carries notices[]: the session bootstrap is skipped",
 	"relay --data-file": "ha_read payload | ha_plan requests", "relay --body-file": "ha_read payload | ha_plan requests",
 	"relay --method": "ha_read method | ha_plan requests", "relay --path": "ha_read path | ha_plan requests",
