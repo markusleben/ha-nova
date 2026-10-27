@@ -351,7 +351,7 @@ Match user intent to exactly one skill:
 **"Fix the spike in my energy graph"** → `ha-nova:maintenance`
 **"Clean up orphaned statistics"** → `ha-nova:maintenance`
 **"Import a blueprint"** → `ha-nova:write`
-**"How do I manage Apps?"** → `ha-nova:updates` (`apps.md`)
+**"How do I manage Apps?"** → `ha-nova:updates` (`../updates/apps.md`)
 **"Show history for sensor X"** → `ha-nova:history`
 **"Save the Lovelace config"** → `ha-nova:dashboard`
 **"Remove this entity from Home Assistant"** → `ha-nova:maintenance` (dead registry entries only; live entities get disabled via `ha-nova:organize`)
