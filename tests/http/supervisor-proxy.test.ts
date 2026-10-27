@@ -51,7 +51,8 @@ async function fakeSupervisor(reply?: (req: IncomingMessage, seen: Seen) => { st
         res.end("line one\nline two\n");
         return;
       }
-      res.end(JSON.stringify({ result: "ok", data: { url: req.url } }));
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ result: "ok", data: { path: new URL(req.url!, "http://supervisor").pathname } }));
     });
   });
   servers.push(server);
