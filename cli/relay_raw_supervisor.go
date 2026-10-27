@@ -124,6 +124,8 @@ func checkRawSupervisor(payload map[string]any) error {
 		return rawRefusal("App uninstall data", "an uninstall takes only {remove_config: true|false}")
 	case kind == "options" && rawSupervisorOptionsKind(data) == "":
 		return rawRefusal("App options change", "send exactly {options: {…the keys to change}} or {auto_update: true|false}; the Relay keeps every other stored option")
+	case kind == "options" && strings.Contains(jsonText(data), `"!secret`):
+		return rawRefusal("App option set to a !secret reference", "it would hand a stored secret to the App; set that option in the App's Configuration tab")
 	}
 	return nil
 }
@@ -141,6 +143,11 @@ func rawSupervisorOptionsKind(data map[string]any) string {
 		return "options"
 	}
 	return ""
+}
+
+func jsonText(v any) string {
+	text, _ := json.Marshal(v)
+	return string(text)
 }
 
 func jsonNumberText(v any) string {
@@ -185,19 +192,31 @@ func rawSupervisorTier(payload map[string]any) (tierLevel, string) {
 }
 
 // rawSupervisorLine: a Supervisor write's plain preview line.
-func rawSupervisorLine(payload map[string]any) (verb, object string) {
+func rawSupervisorLine(s *relaySession, payload map[string]any) (verb, object string) {
 	method, _ := payload["method"].(string)
 	path, _ := payload["path"].(string)
 	data, _ := payload["data"].(map[string]any)
 	kind, slug := rawSupervisorMatch(method, path)
 	app := "the App " + sayText(slug, true)
+	var info struct {
+		Body struct {
+			Data struct {
+				Name string `json:"name"`
+			} `json:"data"`
+		} `json:"body"`
+	}
+	if s != nil { // the store knows installed and new Apps alike; unreadable: the slug alone
+		if raw, err := s.sendWithin("supervisor", []byte(`{"method":"GET","path":"/store/addons/`+slug+`"}`), relaySessionRequestTimeout); err == nil && json.Unmarshal(raw, &info) == nil && info.Body.Data.Name != "" {
+			app = "the App " + sayText(info.Body.Data.Name, true) + " (" + slug + ")"
+		}
+	}
 	switch {
 	case kind == "install":
 		return "Install", app
 	case kind == "uninstall" && data["remove_config"] == true:
-		return "Uninstall", app + " and delete its settings folder"
+		return "Uninstall", app + "; its settings, data, and config folder are deleted"
 	case kind == "uninstall":
-		return "Uninstall", app
+		return "Uninstall", app + "; its settings and data are deleted"
 	case rawSupervisorOptionsKind(data) == "auto_update" && data["auto_update"] == true:
 		return "Turn on", "automatic updates for " + app
 	case rawSupervisorOptionsKind(data) == "auto_update":
@@ -209,27 +228,49 @@ func rawSupervisorLine(payload map[string]any) (verb, object string) {
 		keys = append(keys, key)
 	}
 	slices.Sort(keys)
-	return "Change", "the settings " + sayText(strings.Join(keys, ", "), true) + " of " + app
+	changes := make([]string, 0, len(keys))
+	for _, key := range keys {
+		value, err := marshalPlain(options[key])
+		switch {
+		case rawSupervisorSecretKey(key):
+			changes = append(changes, sayText(key, true)+" (a new secret value, not shown)")
+		case err != nil || len(value) > 120:
+			changes = append(changes, sayText(key, true)+" (a long value)")
+		default:
+			changes = append(changes, sayText(key, true)+" to "+sayText(string(value), false))
+		}
+	}
+	return "Change", "the settings of " + app + ": " + strings.Join(changes, ", ")
 }
 
 // rawSupervisorSecretKey mirrors the Relay's secretKey: the Relay hides these
 // values already; the CLI hides them again in case an older Relay did not.
-var rawSupervisorSecretWords = []string{"pass", "pw", "pwd", "key", "keys", "psk", "pin", "llat", "cert", "certs",
+var rawSupervisorSecretWords = []string{"pass", "pw", "pwd", "key", "keys", "psk", "pin", "code", "codes", "cred", "creds", "llat", "cert", "certs",
 	"certificate", "salt", "otp", "totp", "auth", "secret", "secrets", "token", "tokens"}
 
-var rawSupervisorSecretText = regexp.MustCompile(`password|passwd|passphrase|secret|token|credential|apikey|api_key|private|privkey`)
+var (
+	rawSupervisorSecretText   = regexp.MustCompile(`password|passwd|passphrase|secret|token|credential|apikey|api_key|private|privkey`)
+	rawSupervisorSecretSuffix = regexp.MustCompile(`(pass|pw|pwd|pin|key|code)$`)
+	rawSupervisorCamel        = regexp.MustCompile(`([a-z0-9])([A-Z])`)
+	rawSupervisorURLUserinfo  = regexp.MustCompile(`(?i)^([a-z][a-z0-9+.-]*://)[^/@s]+@`)
+)
 
 func rawSupervisorSecretKey(key string) bool {
-	lower := strings.ToLower(key)
-	if rawSupervisorSecretText.MatchString(lower) {
+	lower := strings.ToLower(rawSupervisorCamel.ReplaceAllString(key, "${1}_${2}"))
+	if lower == "error_key" {
+		return false
+	}
+	if rawSupervisorSecretText.MatchString(lower) || rawSupervisorSecretSuffix.MatchString(lower) {
 		return true
 	}
 	return slices.ContainsFunc(strings.FieldsFunc(lower, func(r rune) bool { return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9') }),
 		func(word string) bool { return slices.Contains(rawSupervisorSecretWords, word) })
 }
 
-// redactSupervisorResponse hides every value under a secret-like key, at any
-// depth (booleans and null stay); a log's text is left as it is.
+// redactSupervisorResponse hides, inside every "body" (the Supervisor's own
+// reply in the Relay's {status, body}), each value under a secret-like key at
+// any depth (booleans and null stay), an environment entry's value, and a
+// URL's user info; a log's text is left as it is.
 func redactSupervisorResponse(body []byte) []byte {
 	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.UseNumber()
@@ -237,25 +278,32 @@ func redactSupervisorResponse(body []byte) []byte {
 	if dec.Decode(&v) != nil || dec.More() {
 		return body
 	}
-	var walk func(any) any
-	walk = func(v any) any {
+	var walk func(v any, inBody bool) any
+	walk = func(v any, inBody bool) any {
 		switch t := v.(type) {
 		case map[string]any:
+			name, _ := t["name"].(string)
+			named := inBody && rawSupervisorSecretKey(name)
 			for key, inner := range t {
-				if _, flag := inner.(bool); rawSupervisorSecretKey(key) && inner != nil && !flag {
+				_, flag := inner.(bool)
+				if inBody && (rawSupervisorSecretKey(key) || named && key == "value") && inner != nil && !flag {
 					t[key] = secretHidden
 				} else {
-					t[key] = walk(inner)
+					t[key] = walk(inner, inBody || key == "body")
 				}
 			}
 		case []any:
 			for i := range t {
-				t[i] = walk(t[i])
+				t[i] = walk(t[i], inBody)
+			}
+		case string:
+			if inBody {
+				return rawSupervisorURLUserinfo.ReplaceAllString(t, "${1}"+secretHidden+"@")
 			}
 		}
 		return v
 	}
-	out, err := marshalPlain(walk(v))
+	out, err := marshalPlain(walk(v, false))
 	if err != nil {
 		return body
 	}
@@ -263,4 +311,4 @@ func redactSupervisorResponse(body []byte) []byte {
 }
 
 // errSupervisorViaCloud: Home Assistant Link carries no Supervisor route.
-var errSupervisorViaCloud = errors.New("Supervisor access needs HA NOVA's local connection; Home Assistant Link does not carry it. Run it at home (--via local); nothing was sent")
+var errSupervisorViaCloud = errors.New("Supervisor access needs HA NOVA's local connection; Home Assistant Link does not carry it. Connect from home (on a computer: --via local); nothing was sent")

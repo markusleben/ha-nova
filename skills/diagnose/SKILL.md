@@ -29,6 +29,7 @@ File-based relay requests only:
 - `ha-nova relay core --method GET --path <PATH>` for REST reads (`--out <result-file>` for large output)
 - `ha-nova call <domain.service> --skill ha-nova:diagnose [--set k=v]…` for services (`logger.set_level`)
 - `ha-nova relay ws --data-file <payload-file>` for WS commands
+- `ha-nova relay supervisor --data-file <payload-file>` for App, Core, Supervisor, and host logs
 - `ha-nova trace latest <entity_id> --json` / `ha-nova trace list <entity_id> --json` / `ha-nova trace get <entity_id> <run_id> --json` for run traces (positional entity, `automation.<id>` or `script.<id>`)
 - `--jq-file <filter-file>` for non-trivial filters
 
@@ -39,7 +40,7 @@ File-based relay requests only:
 | Run traces | `ha-nova trace latest <entity_id> --json` (also `trace list <entity_id>`, `trace get <entity_id> <run_id>`) | First stop for automation/script failures: shows the exact step, condition results, and variables |
 | System log | WS `{"type":"system_log/list"}` | PRIMARY log source: structured warnings/errors with counts and sources, works on every install type |
 | Voice | `assist_pipeline/pipeline_debug/list` (`pipeline_id`), then `assist_pipeline/pipeline_debug/get` (plus `pipeline_run_id`) | Read-only; resolve via `assist_pipeline/pipeline/list` |
-| Error log | `GET /api/error_log` | **404 on HA OS/Supervised since 2025.11** (journald) — normal, not an error. There, read `/core/logs` and App, Supervisor, or host logs (`../updates/apps.md` → Reads). Where the file exists (Container/Core, or re-enabled), see Reading the error log |
+| Error log | `GET /api/error_log` | **404 on HA OS/Supervised since 2025.11** (journald) — normal. There, read `/core/logs` (`../updates/apps.md` → Reads). Where the file exists (Container/Core, or re-enabled), see Reading the error log |
 | State history + logbook | `ha-nova history <entity_id> --since <incident minus 30 min, RFC3339> --until <incident plus 30 min, RFC3339> [--logbook]` | Summarized states and events (≤ 7 days) |
 | Template probe | `ha-nova relay core --method POST --path /api/template --body-file <payload-file>` with `{"template":"{{ ... }}"}` | Evaluate the exact condition/template against live state; the rendered result is the string in `.data.body` |
 | Integration diagnostics | WS `{"type":"diagnostics/list"}`, then `GET /api/diagnostics/config_entry/<entry_id>` with `--out <result-file>` | Deep integration state when an integration itself is the suspect |

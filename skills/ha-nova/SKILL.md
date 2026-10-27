@@ -253,7 +253,7 @@ Match user intent to exactly one skill:
 | show history, logbook timelines, or long-term statistics | `ha-nova:history` |
 | "is everything closed / locked / off?", "who is home?", "what is running right now?" — a live state snapshot across a domain | `ha-nova:entity-discovery` |
 | check home status, ignore/fix repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` (the SYSTEM's condition; a snapshot of what things are DOING is entity-discovery, above) |
-| find out WHY a specific automation, script, device, or integration failed or misbehaved (traces, error/system logs, root cause) | `ha-nova:diagnose` |
+| find out WHY a specific automation, script, device, or integration failed or misbehaved (traces, error/system/App logs, root cause) | `ha-nova:diagnose` |
 | add/remove, enable/disable, rename an integration, manage subentries, ignore discovery, change options, reconfigure, reload, reauthenticate or recover invalid credentials | `ha-nova:integration-setup` |
 | play, pause, skip, set volume, change source, group speakers, browse media, or announce over a speaker | `ha-nova:media` |
 | send a notification to a phone or another notify target, or manage Home Assistant's persistent notifications | `ha-nova:notify` |
@@ -268,7 +268,7 @@ Match user intent to exactly one skill:
 | list calendars; read, create, update, or delete calendar events | `ha-nova:calendar` |
 | show, add, complete, update, remove to-do or shopping-list items; create/delete to-do lists | `ha-nova:todo` |
 | check backup status, create a backup (also as a safety net before risky changes), inspect a backup's contents, delete backups, change automatic-backup schedule or retention | `ha-nova:backup` |
-| check pending updates, read release notes, install updates, skip/unskip versions | `ha-nova:updates` |
+| updates, release notes, skip/unskip; Apps: store, install, uninstall, settings | `ha-nova:updates` |
 | analyze energy usage, solar/battery/grid KPIs, per-device consumption or costs; edit energy dashboard sources/devices | `ha-nova:energy` |
 | repair or import statistics (orphans, unit mismatches, sum spikes), purge recorder history, clean up dead registry entries | `ha-nova:maintenance` |
 | edit `recorder:` include/exclude filters or `purge_keep_days` (YAML) | `ha-nova:yaml-config` |
@@ -351,7 +351,7 @@ Match user intent to exactly one skill:
 **"Fix the spike in my energy graph"** → `ha-nova:maintenance`
 **"Clean up orphaned statistics"** → `ha-nova:maintenance`
 **"Import a blueprint"** → `ha-nova:write`
-**"How do I manage Apps?"** → `ha-nova:fallback` (external, web search)
+**"How do I manage Apps?"** → `ha-nova:updates` (`apps.md`)
 **"Show history for sensor X"** → `ha-nova:history`
 **"Save the Lovelace config"** → `ha-nova:dashboard`
 **"Remove this entity from Home Assistant"** → `ha-nova:maintenance` (dead registry entries only; live entities get disabled via `ha-nova:organize`)

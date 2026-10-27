@@ -110,7 +110,7 @@ describe("owning-skill deferrals and lifecycle paths (#513)", () => {
     // slug; the update entity's registry record stays the fallback where the
     // route is unavailable (standalone container, older App).
     expect(doc).toContain("Resolve it by name from the Supervisor's App list");
-    expect(doc).toContain("Where that read is unavailable (`404`)");
+    expect(doc).toContain("Where that route is unavailable (the Relay's own `NOT_FOUND`)");
     // unique_id is a registry field; entity_picture is mutable state.
     expect(doc).toContain("returns `unique_id` `<slug>_version_latest`");
     expect(doc).toContain("do not pick one: list the candidates with their slugs and ask");

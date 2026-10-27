@@ -160,6 +160,9 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 	for i, item := range items {
 		payload, _ := decodeObject(item.Payload)
 		refusal := rawPlanRefusal(item.Endpoint, payload)
+		if refusal == nil && item.Endpoint == "supervisor" && s.transport.Via == relayViaCloud { // before the user types a code
+			refusal = errSupervisorViaCloud
+		}
 		var err error
 		if refusal == nil {
 			_, refusal, err = guardRawRequestIn(s, item.Endpoint, item.Payload)
@@ -184,8 +187,10 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 			code = reasonRawTyped
 		}
 		e.raise(level, tierReason{Code: code, Via: fmt.Sprintf("requests[%d]", i), Detail: why})
-		verb, object := rawSupervisorLine(payload)
-		if item.Endpoint != "supervisor" {
+		var verb, object string
+		if item.Endpoint == "supervisor" {
+			verb, object = rawSupervisorLine(s, payload)
+		} else {
 			verb, object = rawItemLine(n, item.Endpoint, payload)
 		}
 		result.Items = append(result.Items, rawPlanItem{Endpoint: item.Endpoint, Change: verb + " " + object, Tier: level.String(), verb: verb, object: object})

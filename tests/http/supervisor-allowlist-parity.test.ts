@@ -26,6 +26,8 @@ describe("Supervisor allowlist parity (Relay ↔ CLI)", () => {
     expect(words(go, "var rawSupervisorSecretWords")).toEqual(words(ts, "const SECRET_WORDS").filter((w) => w !== "SECRET_WORDS"));
     expect(go).toContain("password|passwd|passphrase|secret|token|credential|apikey|api_key|private|privkey");
     expect(ts).toContain("password|passwd|passphrase|secret|token|credential|apikey|api_key|private|privkey");
+    expect(go).toContain("(pass|pw|pwd|pin|key|code)$");
+    expect(ts).toContain("(pass|pw|pwd|pin|key|code)$");
     expect(redact).toContain('secretHidden      = "' + HIDDEN_VALUE + '"');
     expect([secretKey("mqtt_password"), secretKey("ha_llat"), secretKey("psk_set"), secretKey("server"), secretKey("log_level")]).toEqual([true, true, true, false, false]);
   });

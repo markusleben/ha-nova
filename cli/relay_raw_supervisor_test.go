@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -122,12 +123,26 @@ func TestMCPReadSupervisor(t *testing.T) {
 }
 
 func TestPlanRawSupervisorTiers(t *testing.T) {
-	paths, sent := rawRelay(t, nil)
+	paths, sent := readRelay(t, func(endpoint string, body map[string]any) any {
+		if endpoint == "supervisor" && body["method"] == "GET" {
+			return map[string]any{"status": 200, "body": map[string]any{"result": "ok", "data": map[string]any{"name": "Mosquitto broker"}}}
+		}
+		return map[string]any{"status": 200, "body": map[string]any{"result": "ok", "data": map[string]any{}}}
+	})
+	sentWrites := func() []readCall {
+		var writes []readCall
+		for _, c := range sent() {
+			if strings.Contains(c.body, `"POST"`) {
+				writes = append(writes, c)
+			}
+		}
+		return writes
+	}
 	cases := []struct{ path, data, tier, line string }{
-		{"/store/addons/core_mosquitto/install", "", "typed", "Install the App “core_mosquitto”"},
-		{"/addons/core_mosquitto/uninstall", `,"data":{"remove_config":true}`, "typed", "Uninstall the App “core_mosquitto” and delete its settings folder"},
-		{"/addons/core_mosquitto/options", `,"data":{"options":{"log_level":"debug"}}`, "typed", "Change the settings “log_level” of the App “core_mosquitto”"},
-		{"/addons/core_mosquitto/options", `,"data":{"auto_update":false}`, "preview", "Turn off automatic updates for the App “core_mosquitto”"},
+		{"/store/addons/core_mosquitto/install", "", "typed", "Install the App “Mosquitto broker” (core_mosquitto)"},
+		{"/addons/core_mosquitto/uninstall", `,"data":{"remove_config":true}`, "typed", "Uninstall the App “Mosquitto broker” (core_mosquitto); its settings, data, and config folder are deleted"},
+		{"/addons/core_mosquitto/options", `,"data":{"options":{"log_level":"debug","mqtt_pass":"n3w"}}`, "typed", `Change the settings of the App “Mosquitto broker” (core_mosquitto): “log_level” to 'debug', “mqtt_pass” (a new secret value, not shown)`},
+		{"/addons/core_mosquitto/options", `,"data":{"auto_update":false}`, "preview", "Turn off automatic updates for the App “Mosquitto broker” (core_mosquitto)"},
 	}
 	for _, tc := range cases {
 		exit, env := planRaw(t, paths, `[{"endpoint":"supervisor","payload":{"method":"POST","path":"`+tc.path+`"`+tc.data+`}}]`)
@@ -138,7 +153,10 @@ func TestPlanRawSupervisorTiers(t *testing.T) {
 			t.Fatalf("%s: apply exit %d %s", tc.path, exit, applied.Result)
 		}
 	}
-	if got := len(sent()); got != len(cases) {
+	if strings.Contains(fmt.Sprint(sentWrites()), "n3w") == false {
+		t.Fatalf("the new secret value was not sent: %v", sentWrites())
+	}
+	if got := len(sentWrites()); got != len(cases) {
 		t.Fatalf("sent %d supervisor writes, want %d", got, len(cases))
 	}
 	for _, items := range []string{
@@ -169,15 +187,22 @@ func TestPlanRawSupervisorRejection(t *testing.T) {
 }
 
 func TestSupervisorResponseRedaction(t *testing.T) {
-	body := []byte(`{"ok":true,"data":{"status":200,"body":{"data":{"wifi":{"psk":"wlan","psk_set":true},"options":{"api_key":"k1","server":"mqtt","ha_llat":"t","logins":[{"password":"p"}]}}}}}`)
+	body := []byte(`{"ok":true,"data":{"status":200,"body":{"data":{"wifi":{"psk":"wlan","psk_set":true},"options":{"api_key":"k1","server":"mqtt","ha_llat":"t","logins":[{"password":"p"}],"adminPin":"9876","dbpass":"dbx","env":[{"name":"DB_PASSWORD","value":"envx"}],"repo":"https://u:ghp_y@github.com/a/b"},"error_key":"app_x"}}}}`)
 	out := string(redactRawResponse("supervisor", body))
-	for _, leaked := range []string{"wlan", "k1", `"t"`, `"p"`} {
+	for _, leaked := range []string{"wlan", "k1", `"t"`, `"p"`, "9876", "dbx", "envx", "ghp_y"} {
 		if strings.Contains(out, leaked) {
 			t.Errorf("%s leaked: %s", leaked, out)
 		}
 	}
-	if !strings.Contains(out, `"psk_set":true`) || !strings.Contains(out, `"server":"mqtt"`) {
+	if !strings.Contains(out, `"psk_set":true`) || !strings.Contains(out, `"server":"mqtt"`) || !strings.Contains(out, `"error_key":"app_x"`) {
 		t.Fatalf("over-redacted: %s", out)
+	}
+	failure := `{"ok":false,"error":{"code":"SUPERVISOR_REQUEST_REFUSED","message":"x"}}`
+	if got := string(redactRawResponse("supervisor", []byte(failure))); !strings.Contains(got, "SUPERVISOR_REQUEST_REFUSED") {
+		t.Fatalf("the Relay's own error code was hidden: %s", got)
+	}
+	if _, refusal, _ := guardRaw("supervisor", []byte(supervisorBody("POST", "/addons/core_x/options", map[string]any{"data": map[string]any{"options": map[string]any{"broker": "!secret wifi"}}})), nil); refusal == nil {
+		t.Fatal("a !secret reference was not refused")
 	}
 }
 

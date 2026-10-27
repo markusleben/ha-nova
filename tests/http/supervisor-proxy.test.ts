@@ -177,3 +177,45 @@ describe("POST /supervisor", () => {
     expect(seen.slice(before).filter((s) => s.method === "POST")).toEqual([]);
   });
 });
+
+describe("POST /supervisor redaction hardening", () => {
+  it("cuts stored values out of a refused options write", async () => {
+    const { call } = await fakeSupervisor((req, seen) =>
+      req.method === "POST" && req.url === "/addons/core_mosquitto/options"
+        ? { status: 400, body: JSON.stringify({ result: "error", message: "bad value for port. Got {'password': 'hunter2', 'mqtt_pass': 'x9'}", extra_fields: { validation_error: "hunter2" } }) }
+        : undefined);
+    const reply = await call({ method: "POST", path: "/addons/core_mosquitto/options", data: { options: { log_level: "nope" } } });
+    expect(reply.status).toBe(400);
+    expect(JSON.stringify(reply.body)).not.toMatch(/hunter2|extra_fields/);
+    expect((reply.body as { message: string }).message).toContain("bad value for port");
+  });
+
+  it("hides nested password options, environment values, URL user info, and compound keys", async () => {
+    const info = { result: "ok", data: { slug: "x_app", schema: [{ name: "server", type: "schema", schema: [{ name: "wpa", type: "string", format: "password" }] }],
+      options: { server: { wpa: "s3cret-wpa", host: "h" }, env_vars: [{ name: "GF_ADMIN_PASSWORD", value: "graf" }, { name: "TZ", value: "Europe/Berlin" }],
+        adminPin: "1234", dbpass: "db1", access_code: "4711", url: "https://user:ghp_x@github.com/me/apps" }, error_key: "app_x" } };
+    const { call } = await fakeSupervisor((req) => (req.url === "/addons/x_app/info" ? { body: JSON.stringify(info) } : undefined));
+    const text = JSON.stringify((await call({ method: "GET", path: "/addons/x_app/info" })).body);
+    expect(text).not.toMatch(/s3cret-wpa|graf"|1234|db1|4711|ghp_x/);
+    expect(text).toContain("Europe/Berlin");
+    expect(text).toContain('"host":"h"');
+    expect(text).toContain('"error_key":"app_x"');
+  });
+
+  it("refuses !secret references and changes to an option holding a hidden value", async () => {
+    const { seen, call } = await fakeSupervisor();
+    for (const options of [{ broker: "!secret wifi_password" }, { logins: [{ username: "a", password: "new" }] }]) {
+      expect((await refusal(call({ method: "POST", path: "/addons/core_mosquitto/options", data: { options } }))).code).toBe("SUPERVISOR_REQUEST_REFUSED");
+    }
+    expect(seen.filter((s) => s.method === "POST")).toEqual([]);
+  });
+
+  it("cuts an App's options out of a Supervisor log line and keeps a plain-text refusal", async () => {
+    const log = await fakeSupervisor(() => ({ body: "ok line\nApp core_x has invalid options: Got {'password': 'hunter2'}\n", type: "text/plain" }));
+    const body = (await log.call({ method: "GET", path: "/supervisor/logs" })).body as string;
+    expect(body).toContain("ok line");
+    expect(body).not.toContain("hunter2");
+    const denied = await fakeSupervisor(() => ({ status: 403, body: "403: Forbidden", type: "text/plain" }));
+    expect(await denied.call({ method: "GET", path: "/addons" })).toEqual({ status: 403, body: "403: Forbidden" });
+  });
+});

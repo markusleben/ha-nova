@@ -4,7 +4,8 @@ import {
   holdsHiddenValue,
   matchSupervisorRoute,
   ownAppSlug,
-  redactAppOptions,
+  HIDDEN_VALUE,
+  redactAppInfo,
   redactSecretValues,
   type SupervisorMatch,
 } from "./supervisor-allowlist.js";
@@ -16,7 +17,9 @@ import {
 // standalone Relay has no Supervisor token and no such route (404).
 
 const SUPERVISOR_BASE = "http://supervisor";
-const REQUEST_TIMEOUT_MS = 60_000; // an uninstall waits for the container
+// Below the CLI's 30 s write bound, so a slow uninstall comes back as
+// SUPERVISOR_OUTCOME_UNKNOWN (it may still finish), never as a dropped call.
+const REQUEST_TIMEOUT_MS = 25_000;
 const DEFAULT_LOG_LINES = 100;
 const MAX_LOG_LINES = 1000;
 const MAX_LOG_BYTES = 512 * 1024;
@@ -62,12 +65,34 @@ export function createSupervisorProxyHandler(options: SupervisorProxyHandlerOpti
       throw validation("lines applies to log reads");
     }
     await rejectOwnApp(match.slug!, upstream);
-    const data = await writeBody(match, request.data, upstream);
-    return await jsonReply(
+    const { data, stored } = await writeBody(match, request.data, upstream);
+    const reply = await jsonReply(
       await upstream(request.path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data) }),
       match,
     );
+    return reply.status < 400 || !stored ? reply : { status: reply.status, body: scrubbed(reply.body, stored) };
   };
+}
+
+// scrubbed: a refused options write's reply without the values sent. The
+// Supervisor's validation message quotes the whole options object, stored
+// credentials included.
+function scrubbed(body: unknown, stored: Record<string, unknown>): unknown {
+  const values: string[] = [];
+  const collect = (v: unknown): void => {
+    if (typeof v === "string" && v.length >= 3) {
+      values.push(v);
+    } else if (v && typeof v === "object") {
+      Object.values(v as Record<string, unknown>).forEach(collect);
+    }
+  };
+  collect(stored);
+  const raw = body as { result?: unknown; message?: unknown } | null;
+  let message = typeof raw?.message === "string" ? raw.message : "the Supervisor refused the settings";
+  for (const value of values.sort((a, b) => b.length - a.length)) {
+    message = message.split(value).join(HIDDEN_VALUE);
+  }
+  return { result: raw?.result ?? "error", message };
 }
 
 function parseRequest(body: unknown): SupervisorRequest {
@@ -111,7 +136,7 @@ async function rejectOwnApp(slug: string, upstream: Upstream): Promise<void> {
 // writeBody: the exact body each write may send. An options change is merged
 // onto the stored options (read here with the Relay's token), so a hidden
 // credential keeps its value without ever leaving the Relay.
-async function writeBody(match: SupervisorMatch, data: Record<string, unknown> | undefined, upstream: Upstream): Promise<Record<string, unknown>> {
+async function writeBody(match: SupervisorMatch, data: Record<string, unknown> | undefined, upstream: Upstream): Promise<{ data: Record<string, unknown>; stored?: Record<string, unknown> }> {
   const given = data ?? {};
   const keys = Object.keys(given);
   if (holdsHiddenValue(given)) {
@@ -122,26 +147,38 @@ async function writeBody(match: SupervisorMatch, data: Record<string, unknown> |
       if (keys.length !== 0) {
         throw validation("an install takes no data");
       }
-      return { background: true }; // the image pull can take minutes; the skill polls the App's state
+      return { data: { background: true } }; // the image pull can take minutes; the skill polls the App's state
     case "uninstall":
       if (keys.some((key) => key !== "remove_config") || (keys.length === 1 && typeof given.remove_config !== "boolean")) {
         throw validation("an uninstall takes only {remove_config: true|false}");
       }
-      return given;
+      return { data: given };
   }
   if (keys.length === 1 && keys[0] === "auto_update" && typeof given.auto_update === "boolean") {
-    return { auto_update: given.auto_update };
+    return { data: { auto_update: given.auto_update } };
   }
   const changes = given.options;
   if (keys.length !== 1 || keys[0] !== "options" || !changes || typeof changes !== "object" || Array.isArray(changes)) {
     throw validation("an options change takes exactly {options: {...}} (the keys to change) or {auto_update: true|false}");
   }
+  if (JSON.stringify(changes).includes('"!secret')) {
+    throw refused("a !secret reference would hand a stored secret to the App; set that option in the App's Configuration tab");
+  }
   const info = await upstream("/addons/" + match.slug! + "/info");
-  const stored = ((await readJson(info, "the App's stored options")) as { data?: { options?: unknown } } | null)?.data?.options;
+  const body = await readJson(info, "the App's stored options");
+  const stored = (body as { data?: { options?: unknown } } | null)?.data?.options as Record<string, unknown> | undefined;
   if (!info.ok || !stored || typeof stored !== "object" || Array.isArray(stored)) {
     throw new HttpError(502, "SUPERVISOR_OPTIONS_UNREADABLE", "cannot read the App's stored options, so nothing was sent");
   }
-  return { options: { ...(stored as Record<string, unknown>), ...(changes as Record<string, unknown>) } };
+  // A list or object option is replaced whole; one holding a hidden value
+  // would silently lose it.
+  const shown = ((redactAppInfo(body) as { data: { options: Record<string, unknown> } }).data.options);
+  for (const key of Object.keys(changes)) {
+    if (stored[key] && typeof stored[key] === "object" && JSON.stringify(shown[key]) !== JSON.stringify(stored[key])) {
+      throw refused("the option '" + key + "' holds a hidden value and is replaced whole; change it in the App's Configuration tab");
+    }
+  }
+  return { data: { options: { ...stored, ...(changes as Record<string, unknown>) } }, stored };
 }
 
 async function send(base: string, token: string, path: string, init?: RequestInit): Promise<Response> {
@@ -153,17 +190,20 @@ async function send(base: string, token: string, path: string, init?: RequestIni
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
+    if (init?.method === "POST" && error instanceof Error && error.name === "TimeoutError") {
+      throw new HttpError(504, "SUPERVISOR_OUTCOME_UNKNOWN", "the Supervisor did not answer in time and may still finish; read the App's state again");
+    }
     const message = error instanceof Error && error.message ? error.message : "request failed";
     throw new HttpError(502, "UPSTREAM_SUPERVISOR_ERROR", "Supervisor request failed: " + message);
   }
 }
 
 async function jsonReply(response: Response, match: SupervisorMatch): Promise<{ status: number; body: unknown }> {
-  let body = await readJson(response, "the Supervisor reply");
-  if (match.route.path === "/addons/{slug}/info") {
-    body = redactAppOptions(body);
+  if (!response.ok && !(response.headers.get("content-type") ?? "").includes("json")) {
+    return { status: response.status, body: (await readText(response, 4096)).text }; // a middleware refusal is plain text
   }
-  return { status: response.status, body: redactSecretValues(body) };
+  const body = await readJson(response, "the Supervisor reply");
+  return { status: response.status, body: match.route.path === "/addons/{slug}/info" ? redactAppInfo(body) : redactSecretValues(body) };
 }
 
 async function readJson(response: Response, what: string): Promise<unknown> {
@@ -183,10 +223,13 @@ async function readJson(response: Response, what: string): Promise<unknown> {
 
 async function logsReply(response: Response): Promise<{ status: number; body: unknown; truncated?: true }> {
   if (!response.ok) {
-    return { status: response.status, body: redactSecretValues(await readJson(response, "the Supervisor reply")) };
+    const json = (response.headers.get("content-type") ?? "").includes("json");
+    return { status: response.status, body: json ? redactSecretValues(await readJson(response, "the Supervisor reply")) : (await readText(response, 4096)).text };
   }
-  const { text, truncated } = await readText(response, MAX_LOG_BYTES);
-  return truncated ? { status: response.status, body: text, truncated: true } : { status: response.status, body: text };
+  const read = await readText(response, MAX_LOG_BYTES);
+  // The Supervisor logs an App's whole options when they fail validation.
+  const text = read.text.replace(/(invalid options:).*$/gm, "$1 " + HIDDEN_VALUE);
+  return read.truncated ? { status: response.status, body: text, truncated: true } : { status: response.status, body: text };
 }
 
 // readText reads at most limit bytes and stops the stream there; a character

@@ -144,7 +144,7 @@ describe("updates contract", () => {
   });
 
   it("is wired into dispatch, capability map, availability table, and architecture doc", () => {
-    expect(contextSkill).toContain("| check pending updates, read release notes, install updates, skip/unskip versions | `ha-nova:updates` |");
+    expect(contextSkill).toContain("| updates, release notes, skip/unskip; Apps: store, install, uninstall, settings | `ha-nova:updates` |");
     expect(contextSkill).toContain('"Update Home Assistant"** → `ha-nova:updates` (offers a safety backup first)');
     expect(fallbackSkill).toContain("| Updates (pending, release notes, install, skip) | Covered | updates |");
     expect(writeSafety).toContain("| `updates` | preview + entity re-read verify | no (updates not downgradable) | HA Backups (offered pre-install for core/OS) |");

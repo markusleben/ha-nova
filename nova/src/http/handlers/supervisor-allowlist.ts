@@ -86,33 +86,50 @@ export function ownAppSlug(slug: string): boolean {
 export const HIDDEN_VALUE = "(hidden: a stored code, password, or key)";
 
 const SECRET_WORDS = new Set([
-  "pass", "pw", "pwd", "key", "keys", "psk", "pin", "llat", "cert", "certs",
+  "pass", "pw", "pwd", "key", "keys", "psk", "pin", "code", "codes", "cred", "creds", "llat", "cert", "certs",
   "certificate", "salt", "otp", "totp", "auth", "secret", "secrets", "token", "tokens",
 ]);
 
 // secretKey: a key whose value may be a credential. Broad on purpose: a
 // hidden harmless value costs nothing, a shown password costs the home.
+// camelCase splits into words (adminPin → admin, pin); the Supervisor's own
+// error_key stays readable.
 export function secretKey(key: string): boolean {
-  const lower = key.toLowerCase();
-  if (/password|passwd|passphrase|secret|token|credential|apikey|api_key|private|privkey/.test(lower)) {
+  const lower = key.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
+  if (lower === "error_key") {
+    return false;
+  }
+  if (/password|passwd|passphrase|secret|token|credential|apikey|api_key|private|privkey/.test(lower) || /(pass|pw|pwd|pin|key|code)$/.test(lower)) {
     return true;
   }
   return lower.split(/[^a-z0-9]+/).some((word) => SECRET_WORDS.has(word));
 }
 
-// redactSecretValues hides every value under a secret-like key, at any depth;
-// booleans and null stay (a "password set" flag is no secret).
+// A URL with user info (https://user:token@host/…): a repository's
+// credentials ride in it.
+const URL_USERINFO = /^([a-z][a-z0-9+.-]*:\/\/)[^/@\s]+@/i;
+
+// redactSecretValues hides every value under a secret-like key, at any depth,
+// and the user info of any URL; booleans and null stay (a "password set" flag
+// is no secret).
 export function redactSecretValues(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map(redactSecretValues);
+  }
+  if (typeof value === "string") {
+    return value.replace(URL_USERINFO, "$1" + HIDDEN_VALUE + "@");
   }
   if (value === null || typeof value !== "object") {
     return value;
   }
   const out: Record<string, unknown> = {};
+  // An environment entry {name: "DB_PASSWORD", value: "…"} keeps its secret
+  // under "value".
+  const name = (value as { name?: unknown }).name;
+  const named = typeof name === "string" && secretKey(name);
   for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
     out[key] =
-      secretKey(key) && inner !== null && typeof inner !== "boolean"
+      (secretKey(key) || (named && key === "value")) && inner !== null && typeof inner !== "boolean"
         ? HIDDEN_VALUE
         : redactSecretValues(inner);
   }
@@ -120,7 +137,8 @@ export function redactSecretValues(value: unknown): unknown {
 }
 
 // redactAppOptions hides, in an App's info reply, every option the App's own
-// schema marks as a password, before the key-based redaction runs.
+// schema marks as a password, nested ones included, before the key-based
+// redaction runs.
 export function redactAppOptions(body: unknown): unknown {
   const data = (body as { data?: unknown } | null)?.data as
     | { options?: unknown; schema?: unknown }
@@ -128,14 +146,32 @@ export function redactAppOptions(body: unknown): unknown {
   if (!data || typeof data !== "object" || !data.options || typeof data.options !== "object") {
     return body;
   }
-  const options = { ...(data.options as Record<string, unknown>) };
-  for (const node of Array.isArray(data.schema) ? data.schema : []) {
-    const name = (node as { name?: unknown }).name;
-    if ((node as { format?: unknown }).format === "password" && typeof name === "string" && name in options && options[name] !== null) {
-      options[name] = HIDDEN_VALUE;
-    }
+  return { ...(body as object), data: { ...data, options: hideBySchema(data.options, data.schema) } };
+}
+
+// hideBySchema walks the Supervisor's UI schema: a node is {name, type,
+// format?, multiple?, schema?}; type "schema" nests the next level (each list
+// element when multiple).
+function hideBySchema(value: unknown, schema: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => hideBySchema(item, schema));
   }
-  return { ...(body as object), data: { ...data, options } };
+  if (!value || typeof value !== "object" || !Array.isArray(schema)) {
+    return value;
+  }
+  const out = { ...(value as Record<string, unknown>) };
+  for (const node of schema as Array<{ name?: unknown; format?: unknown; schema?: unknown }>) {
+    if (typeof node?.name !== "string" || !(node.name in out) || out[node.name] === null) {
+      continue;
+    }
+    out[node.name] = node.format === "password" ? HIDDEN_VALUE : hideBySchema(out[node.name], node.schema);
+  }
+  return out;
+}
+
+// redactAppInfo: everything an App's info reply hides.
+export function redactAppInfo(body: unknown): unknown {
+  return redactSecretValues(redactAppOptions(body));
 }
 
 // holdsHiddenValue: a write carrying the marker back would store it.
