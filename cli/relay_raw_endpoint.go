@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // One guard per raw Relay endpoint, shared by `ha-nova relay core|ws|files|backups`
 // and the chat bridge (docs/work/2026-10-25-chat-parity-spec.md): the bridge
@@ -11,6 +14,9 @@ import "fmt"
 // rule (exit 4); err is a failed registry read (exit 1). Either way nothing
 // was sent. A caller sending several requests runs it right before each.
 func guardRawRequest(paths runtimePaths, opts verbOptions, endpoint string, body []byte) (send []byte, refusal, err error) {
+	if payload, _ := decodeObject(body); endpoint == "supervisor" && rawSupervisorWrite(payload) { // relay and ha_read: reads only
+		return nil, rawRefusal("Supervisor write", "an App install, uninstall, or options change goes through ha-nova plan raw (ha_plan kind raw in chat apps), then ha-nova apply"), nil
+	}
 	return guardRaw(endpoint, body, func() (error, error) { return checkRawAccessTarget(paths, opts, endpoint, body) })
 }
 
@@ -26,6 +32,18 @@ func guardRaw(endpoint string, body []byte, accessTarget func() (refusal, err er
 		return body, nil, nil
 	case "backups": // a snapshot never stores a code, even one an agent got elsewhere
 		return redactSecrets(body, false), nil, nil
+	case "supervisor":
+		payload, ok := decodeObject(body)
+		switch {
+		case !ok:
+			return nil, rawRefusal("Supervisor request", "send a JSON object {method, path, data?, lines?}"), nil
+		case holdsHiddenValue(body):
+			return nil, rawRefusal("write", "it holds a value HA NOVA hid; leave that option out and the App keeps its stored value"), nil
+		}
+		if refusal := checkRawSupervisor(payload); refusal != nil {
+			return nil, refusal, nil
+		}
+		return body, nil, nil
 	case "core", "ws":
 	default:
 		return nil, nil, fmt.Errorf("unknown Relay endpoint %q; nothing was sent", endpoint)
@@ -47,5 +65,40 @@ func guardRaw(endpoint string, body []byte, accessTarget func() (refusal, err er
 // one out; live phone confirmation ids only on ws/core (a file's or yaml
 // snapshot's whole content is one string).
 func redactRawResponse(endpoint string, body []byte) []byte {
+	if endpoint == "supervisor" {
+		body = redactSupervisorResponse(body)
+	}
 	return redactSecrets(body, endpoint == "ws" || endpoint == "core")
+}
+
+// relayReadFailed words a failed read: its outcome is never unknown.
+func relayReadFailed(cause string) string {
+	return "READ_FAILED: " + cause + "\nThis was a read: nothing in Home Assistant was changed. Fix the cause, then run it again."
+}
+
+func printRelaySendFailure(read bool, baseURL string, err error) {
+	switch {
+	case !read:
+		printErr("%s", relayRequestOutcomeUnknownMessage(baseURL, err))
+	case strings.TrimRight(baseURL, "/") == cloudRelayVirtualBaseURL:
+		printErr("%s", relayReadFailed("Home Assistant Link could not complete the NOVA Relay request: "+cloudOutcomeUnknownCause(err)))
+	default:
+		printErr("%s", relayReadFailed(relayConnectErrorMessage(baseURL, err)))
+	}
+}
+
+func printRelayFailure(read bool, stage string, err error) {
+	if read {
+		printErr("%s", relayReadFailed(stage+" failed: "+err.Error()))
+		return
+	}
+	printRelayPostRequestError(stage, err)
+}
+
+func printRelayHTTPFailure(read bool, status int) {
+	if read {
+		printErr("%s", relayReadFailed(fmt.Sprintf("Relay returned HTTP %d", status)))
+		return
+	}
+	printRelayHTTPOutcomeUnknown(status)
 }

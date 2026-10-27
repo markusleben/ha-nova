@@ -106,15 +106,17 @@ describe("owning-skill deferrals and lifecycle paths (#513)", () => {
     const doc = flat(skillDoc);
     // An App is addressed by slug; there is no entity to read before or after.
     expect(doc).toContain("The target is an App SLUG, not an entity");
-    // Probed live: the relay passes only /api/..., and HA answers its
-    // /api/hassio/... proxy with 403 — so the slug comes from the update
-    // entity's entity_picture, and App state is simply not readable here.
-    expect(doc).toContain("The Supervisor API is NOT reachable from here");
+    // The Supervisor route (supervisor-role spec, Decisions) lists Apps by
+    // slug; the update entity's registry record stays the fallback where the
+    // route is unavailable (standalone container, older App).
+    expect(doc).toContain("Resolve it by name from the Supervisor's App list");
+    expect(doc).toContain("Where that read is unavailable (`404`)");
     // unique_id is a registry field; entity_picture is mutable state.
     expect(doc).toContain("returns `unique_id` `<slug>_version_latest`");
     expect(doc).toContain("do not pick one: list the candidates with their slugs and ask");
     expect(doc).toContain("must NOT be used");
-    expect(doc).toContain("App state cannot be verified from here");
+    expect(doc).toContain("Verify the App's state");
+    expect(doc).toContain("Where that read is unavailable, nothing can be read back");
     expect(doc).toContain("Never infer success from the service call returning");
     // A host reboot takes the transport with it, so success is unobservable.
     expect(doc).toContain("Claim nothing more: you will not be there to see it");

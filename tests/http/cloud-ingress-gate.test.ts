@@ -72,6 +72,8 @@ const MACHINE_ROUTES = [
   { method: "POST", path: "/core", disabledStatus: 404, enabledStatus: 401 },
   { method: "POST", path: "/files", disabledStatus: 404, enabledStatus: 401 },
   { method: "POST", path: "/backups", disabledStatus: 404, enabledStatus: 401 },
+  // Supervisor access is not a Home Assistant Link functional route.
+  { method: "POST", path: "/supervisor", disabledStatus: 404, enabledStatus: 404 },
 ] as const;
 
 const servers: Server[] = [];
@@ -197,6 +199,7 @@ function deps(cloudRemoteEnabled: boolean): IngressListenerDeps {
       core: () => ({ route: "core" }),
       files: () => ({ route: "files" }),
       backups: () => ({ route: "backups" }),
+      supervisor: () => ({ route: "supervisor" }),
     },
     relayInstanceId: RELAY_ID,
     relayVersion: RELAY_VERSION,

@@ -1,6 +1,6 @@
 # NOVA Relay: Architecture Reference
 
-> **Implementation status:** Seven bounded local endpoint families are implemented.
+> **Implementation status:** Eight bounded local endpoint families are implemented.
 > The Cloud remote Beta adds a Supervisor-ingress-only machine surface;
 > Home Assistant sign-in pairing uses the same surface.
 > Filesystem access is opt-in/off by default; streaming remains unimplemented.
@@ -25,6 +25,7 @@ POST /ws
 POST /core
 POST /files
 POST /backups
+POST /supervisor   # App mode only
 ```
 
 ### Home Assistant Link routes
@@ -42,6 +43,9 @@ Supervisor-ingress-only machine surface. `nova/DOCS.md` links here.
 | GET | `/health` | The same bounded health route through Ingress |
 | GET/POST | `/chat-apps/v1/state` | Read or change the chat-app switch (owner only, through Ingress) |
 | POST | `/ws`, `/core`, `/files`, `/backups` | The same bounded functional routes through Ingress |
+
+`POST /supervisor` is not among them: Supervisor access needs the local
+connection.
 
 These routes are not exposed as a new public Relay port. Every machine request
 must come from the exact Supervisor Ingress peer with exactly one Home Assistant
@@ -255,6 +259,9 @@ Security:
 - Path traversal (`..`, `\`, encoded variants) is blocked via iterative decode + check.
 - Path length capped at 2048 characters.
 - Control characters in path are rejected.
+- Paths starting `/api/hassio` after decoding (`/api/hassio_*` included) are
+  refused with `403 CORE_PATH_REFUSED`: Home Assistant runs its Supervisor proxy
+  with its own Supervisor token.
 - Upstream request timeout: 10 s (default).
 
 ---
@@ -323,6 +330,28 @@ HA system backups, which `ha-nova:backup` manages via `/ws` `backup/*` today.
 { "action": "delete", "file": "automations/old-backup.json.gz" }
 ```
 
+### `POST /supervisor` — Supervisor allowlist (implemented, App mode)
+
+The App holds `hassio_role: manager`. This route forwards one request to
+`http://supervisor` with the `SUPERVISOR_TOKEN` only when its method and raw
+path match the static table in `nova/src/http/handlers/supervisor-allowlist.ts`
+exactly; everything else is refused with `403 SUPERVISOR_REQUEST_REFUSED`
+before anything is sent. Routes, write bodies, and tiers:
+`docs/reference/ha-api-matrix.md` → Supervisor.
+
+```json
+{ "method": "GET", "path": "/addons/core_mosquitto/logs", "lines": 200 }
+{ "method": "POST", "path": "/addons/core_mosquitto/options", "data": { "options": { "logins": [] } } }
+```
+
+- Registered on the bootstrap and device listeners only, not on the Home
+  Assistant Link (Ingress) routes, and App mode only: a standalone container
+  has no such route (`404 NOT_FOUND`).
+- JSON replies hide secret-like values and App options marked
+  `format: password`; log reads return text (`lines` 1-1000, cut at 512 KiB).
+- Writes to HA NOVA's own App are refused; an options change is merged onto the
+  stored options inside the Relay, so a hidden credential never leaves it.
+
 ---
 
 ## Auth — Separate Inbound and Upstream Credentials
@@ -334,7 +363,7 @@ The Relay keeps inbound client authentication separate from upstream Home Assist
 | Legacy/standalone inbound | `RELAY_AUTH_TOKEN` | Authenticates direct client requests to the Relay |
 | App paired-device inbound | Per-device credential | Authenticates direct TLS requests on the pinned device listener |
 | App Cloud Ingress inbound | User- and Relay-bound per-device credential | Authenticates functional requests after the Supervisor Ingress identity gate |
-| Home Assistant App upstream | `SUPERVISOR_TOKEN` | Authenticates upstream REST and WebSocket requests through the Supervisor Core proxies |
+| Home Assistant App upstream | `SUPERVISOR_TOKEN` | Authenticates upstream REST and WebSocket requests through the Supervisor Core proxies, and the allowlisted `/supervisor` requests |
 | Standalone Container/Core upstream | `HA_LLAT` | Authenticates upstream requests directly with Home Assistant |
 
 **Legacy/standalone inbound (client -> Relay):**
@@ -371,7 +400,8 @@ the CLI asks for the owner code (`docs/work/2026-10-18-onboarding-0.27-spec.md`
 **Upstream (Relay -> HA):**
 The Home Assistant App prefers its process-local `SUPERVISOR_TOKEN` and sends it
 only to the official `http://supervisor/core/api` and
-`ws://supervisor/core/websocket` proxies. Standalone Container/Core uses
+`ws://supervisor/core/websocket` proxies, and to `http://supervisor` for the
+allowlisted `POST /supervisor` requests. Standalone Container/Core uses
 `HA_LLAT` against its configured Home Assistant URL. When both variables exist,
 Supervisor auth wins so an obsolete legacy App LLAT cannot break the App.
 
@@ -401,7 +431,11 @@ The Cloud Beta contract is
 ## WS Forwarding Policy
 
 The Relay forwards authenticated WS messages as passthrough requests.
-Message-type filtering is not applied locally.
+Message-type filtering is not applied locally, with one exception: types
+starting `supervisor/` or `hassio/` (case-folded, also inside
+`collect_events`) are refused with `403 WS_TYPE_REFUSED`, because Home
+Assistant runs them with its own Supervisor token. Supervisor access goes
+through `POST /supervisor` only.
 
 ## Configuration
 

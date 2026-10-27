@@ -550,6 +550,7 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/organize/display-fields.md",
   "skills/review/checks.md",
   "skills/review/checks-extended.md",
+  "skills/updates/apps.md",
 ].map((file) => resolve(file)));
 
 function subskillPath(name: string): string {

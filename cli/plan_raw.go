@@ -25,9 +25,10 @@ const planRawUsage = "ha-nova plan raw --file <requests.json>"
 const planRawHelp = planRawUsage + `
 
 Read-only: checks a JSON list of 1 to 20 raw Relay requests, each
-{"endpoint": "core"|"ws"|"files"|"backups", "payload": {…}}, the payload
-exactly as "ha-nova relay <endpoint>" sends it (core: {"method", "path",
-"body"}), and stores one plan for "ha-nova apply". Apply checks each item
+{"endpoint": "core"|"ws"|"files"|"backups"|"supervisor", "payload": {…}},
+the payload exactly as "ha-nova relay <endpoint>" sends it (core: {"method",
+"path", "body"}; supervisor: {"method": "POST", "path", "data"}), and stores
+one plan for "ha-nova apply". Apply checks each item
 again right before sending it, sends them in order, and stops at the first
 failure. Leading backups saves are the config snapshot: when one fails,
 nothing else is sent and apply offers --no-snapshot. Reads go through
@@ -135,8 +136,12 @@ func validateRawRequests(items []rawRequest) error {
 			if method != http.MethodGet && method != http.MethodPost && method != http.MethodDelete || !strings.HasPrefix(target, "/api/") || !plainRelayPath(target) {
 				return fmt.Errorf("item %d: a core payload needs method GET, POST, or DELETE and a plain path under /api/ (no spaces, backslashes, or #)", i+1)
 			}
+		case "supervisor":
+			if payload["method"] != http.MethodPost || len(payload) > 3 || len(payload) == 3 && payload["data"] == nil {
+				return fmt.Errorf("item %d: a supervisor payload holds method POST, path, and data only", i+1)
+			}
 		default:
-			return fmt.Errorf("item %d: endpoint must be core, ws, files, or backups, not %q", i+1, item.Endpoint)
+			return fmt.Errorf("item %d: endpoint must be core, ws, files, backups, or supervisor, not %q", i+1, item.Endpoint)
 		}
 	}
 	return nil
@@ -179,7 +184,10 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 			code = reasonRawTyped
 		}
 		e.raise(level, tierReason{Code: code, Via: fmt.Sprintf("requests[%d]", i), Detail: why})
-		verb, object := rawItemLine(n, item.Endpoint, payload)
+		verb, object := rawSupervisorLine(payload)
+		if item.Endpoint != "supervisor" {
+			verb, object = rawItemLine(n, item.Endpoint, payload)
+		}
 		result.Items = append(result.Items, rawPlanItem{Endpoint: item.Endpoint, Change: verb + " " + object, Tier: level.String(), verb: verb, object: object})
 	}
 	plan := storedPlan{Kind: "raw", RawRequests: items, Basis: n.basis()}

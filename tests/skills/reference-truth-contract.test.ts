@@ -62,15 +62,14 @@ describe("fallback capability map is complete and truthful (#516)", () => {
     expect(f).not.toContain("Blocked by: No SSE streaming endpoint in Relay.");
   });
 
-  it("corrects the Supervisor premise instead of repeating it", () => {
+  it("routes App management to its owner instead of calling it external", () => {
     const f = flat(fallback);
-    // Verified on HAOS (docs/work/2026-10-26-supervisor-role-spec.md): the
-    // Supervisor refuses Apps both the REST proxy and the WS supervisor/* types.
-    expect(f).toContain("the Supervisor refuses this App both `/api/hassio/*` and the WebSocket `supervisor/*` and `hassio/*` types");
+    // docs/work/2026-10-26-supervisor-role-spec.md → Decisions: Apps and
+    // Supervisor logs go through the Relay's Supervisor route.
+    expect(f).not.toContain("Apps / Supervisor Management -- EXTERNAL");
     expect(f).not.toContain("proxies it under `/api/hassio/*`");
-    // Management stays external; lifecycle and updates have owners.
-    expect(f).toContain("App *management* (install, uninstall, configure, store browsing) is Supervisor");
-    expect(f).toContain("App UPDATES are `ha-nova:updates`");
+    expect(f).toContain("| Host / Supervisor / App logs | Covered | diagnose");
+    expect(f).toContain("Apps / Supervisor: store, install, uninstall, settings, auto-update, system and storage info (`../updates/apps.md`;");
   });
 
   it("routes the durable actionable-notification path instead of shelving it", () => {

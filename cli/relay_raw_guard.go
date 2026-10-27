@@ -365,38 +365,8 @@ func rawRelayRead(endpoint string, body []byte) bool {
 		}
 		_, typed := payload["type"]
 		return !typed && hasMessage || isRead(payload)
+	case "supervisor":
+		return rawSupervisorRead(payload)
 	}
 	return false
-}
-
-// relayReadFailed words a failed read: its outcome is never unknown.
-func relayReadFailed(cause string) string {
-	return "READ_FAILED: " + cause + "\nThis was a read: nothing in Home Assistant was changed. Fix the cause, then run it again."
-}
-
-func printRelaySendFailure(read bool, baseURL string, err error) {
-	switch {
-	case !read:
-		printErr("%s", relayRequestOutcomeUnknownMessage(baseURL, err))
-	case strings.TrimRight(baseURL, "/") == cloudRelayVirtualBaseURL:
-		printErr("%s", relayReadFailed("Home Assistant Link could not complete the NOVA Relay request: "+cloudOutcomeUnknownCause(err)))
-	default:
-		printErr("%s", relayReadFailed(relayConnectErrorMessage(baseURL, err)))
-	}
-}
-
-func printRelayFailure(read bool, stage string, err error) {
-	if read {
-		printErr("%s", relayReadFailed(stage+" failed: "+err.Error()))
-		return
-	}
-	printRelayPostRequestError(stage, err)
-}
-
-func printRelayHTTPFailure(read bool, status int) {
-	if read {
-		printErr("%s", relayReadFailed(fmt.Sprintf("Relay returned HTTP %d", status)))
-		return
-	}
-	printRelayHTTPOutcomeUnknown(status)
 }

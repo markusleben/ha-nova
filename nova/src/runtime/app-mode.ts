@@ -7,6 +7,7 @@ import { createBackupsHandler } from "../http/handlers/backups.js";
 import { createCoreProxyHandler } from "../http/handlers/core-proxy.js";
 import { createFilesHandler } from "../http/handlers/files.js";
 import { createHealthHandler } from "../http/handlers/health.js";
+import { createSupervisorProxyHandler } from "../http/handlers/supervisor-proxy.js";
 import { createWsProxyHandler } from "../http/handlers/ws-proxy.js";
 import { applyServerTimeouts, type RelayLogger } from "../http/server.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
@@ -218,7 +219,7 @@ export async function buildAppMode(
     });
   }
 
-  const functional = buildFunctionalHandlers(input, relayInstanceId);
+  const functional = buildFunctionalHandlers(input, relayInstanceId, supervisorBase);
   const listenerDeps = {
     registry,
     pairingManager: pairing,
@@ -290,6 +291,7 @@ export async function buildAppMode(
 function buildFunctionalHandlers(
   input: AppModeInput,
   relayInstanceId: string,
+  supervisorBase: string | undefined,
 ): FunctionalHandlers {
   return {
     health: createHealthHandler({
@@ -309,6 +311,11 @@ function buildFunctionalHandlers(
       snapshotRoot: input.snapshotRoot,
       now: input.now,
     }),
+    supervisor: createSupervisorProxyHandler(
+      supervisorBase
+        ? { token: input.supervisorToken, base: supervisorBase }
+        : { token: input.supervisorToken },
+    ),
   };
 }
 

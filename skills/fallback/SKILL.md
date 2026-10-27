@@ -56,7 +56,7 @@ For every Relay-Ready call in this skill:
 | Statistics / Trend Queries | Covered | history |
 | System Health / Repairs | Covered | health |
 | Logs / diagnostics (why a specific automation/script/device/integration failed: traces, error/system logs, root cause) | Covered | diagnose |
-| Host / Supervisor / App logs | External | -- (HA UI: Settings > System > Logs, pick the source) |
+| Host / Supervisor / App logs | Covered | diagnose (`../updates/apps.md` → Reads) |
 | Media players (transport, volume, source, grouping, browsing, TTS announce) | Covered | media |
 | Notifications (targets, mobile-app sends, persistent notifications) | Covered | notify |
 | Actionable-notification callbacks (waiting for a button press) | Covered for the durable path | write (an automation on `mobile_app_notification_action`) |
@@ -91,7 +91,7 @@ For every Relay-Ready call in this skill:
 | Backups (status, create, inspect, delete, automatic settings) | Covered | backup |
 | Config snapshots (targeted capture/restore of automations, scripts, scenes, dashboards, helpers, energy prefs, metadata, YAML files) | Covered | the owning family skill (see `../ha-nova/config-snapshots.md`) |
 | Updates (pending, release notes, install, skip) | Covered | updates |
-| Apps / Supervisor: install, uninstall, configure, store | External | -- (updates: `updates`; start/stop/restart and host reboot: `service-call`) |
+| Apps / Supervisor: store, install, uninstall, settings, auto-update, system and storage info (`../updates/apps.md`; start/stop/restart and host reboot: `service-call`; repositories, DNS, network, OS, and Supervisor settings stay in the HA UI: Settings > Apps, Settings > System) | Covered | updates |
 | HACS (registration, download, version switching, uninstall, migration) | Covered | hacs |
 | Zigbee / Z-Wave Config | External | -- (MQTT-level inspection of a Zigbee2MQTT setup: `mqtt`) |
 | Zigbee / Z-Wave network status (read-only device list / network reads) | Relay-Ready | this skill; Z2M bridge topics: `mqtt` |
@@ -169,20 +169,6 @@ an action; `ha-nova:mqtt` uses exactly this pattern.
 (`ha-nova:write`), or polling `GET /api/states/{entity_id}`.
 
 ## External Features
-
-### Apps / Supervisor Management -- EXTERNAL
-
-App *management* (install, uninstall, configure, store browsing) is Supervisor
-territory and stays external: the Supervisor refuses this App both
-`/api/hassio/*` and the WebSocket `supervisor/*` and `hassio/*` types, so
-never send them. Start/stop/restart
-plus host reboot/shutdown are ordinary Home Assistant services — those live in
-`ha-nova:service-call` under the typed tier, with a refusal for the App
-running this Relay. App UPDATES are `ha-nova:updates`.
-
-**Search:** `home assistant supervisor app add-on install manage api 2026`
-
-**Alternative for management:** HA UI: Settings > Apps.
 
 ### HACS (Home Assistant Community Store) -- COVERED
 

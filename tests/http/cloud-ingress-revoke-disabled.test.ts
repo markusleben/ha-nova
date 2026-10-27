@@ -145,6 +145,7 @@ function deps(): IngressListenerDeps {
       core: () => ({ route: "core" }),
       files: () => ({ route: "files" }),
       backups: () => ({ route: "backups" }),
+      supervisor: () => ({ route: "supervisor" }),
     },
     relayInstanceId: RELAY_ID,
     relayVersion: RELAY_VERSION,

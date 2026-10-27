@@ -29,7 +29,12 @@ ports_description:
 watchdog: tcp://[HOST]:[PORT:8791]
 homeassistant_api: true
 hassio_api: true
-hassio_role: default
+# manager: HA NOVA reads Supervisor, host, and App logs, lists Apps and the
+# store, and installs, removes, or reconfigures an App with the owner's
+# confirmation. The Relay reaches only its fixed POST /supervisor allowlist
+# (nova/src/http/handlers/supervisor-allowlist.ts); everything else the role
+# allows stays unreachable (docs/work/2026-10-26-supervisor-role-spec.md).
+hassio_role: manager
 panel_icon: mdi:star-four-points
 panel_title: NOVA
 panel_admin: true

@@ -66,6 +66,7 @@ function parseWsRequestBody(body: unknown): ParsedWsProxyRequest {
   }
 
   const message = parseHaWsMessage(body);
+  rejectSupervisorWsType(message.type);
   rejectUnsupportedWsType(message.type);
   return { message };
 }
@@ -86,6 +87,7 @@ function isWsMessageLike(value: unknown): boolean {
 
 function parseEnvelopeRequest(body: Record<string, unknown>): ParsedWsProxyRequest {
   const message = parseHaWsMessage(body.message);
+  rejectSupervisorWsType(message.type);
 
   if (!("collect_events" in body)) {
     // No envelope options: this is a bare request/response call in envelope
@@ -116,6 +118,21 @@ function parseHaWsMessage(value: unknown): HaWsRequest {
   }
 
   return value as HaWsRequest;
+}
+
+// rejectSupervisorWsType mirrors the Supervisor's own App filter: Core runs
+// supervisor/* and hassio/* types with its fully privileged Supervisor token,
+// so a standalone Relay pointed at a Supervised Home Assistant must not pass
+// them either. Supervisor access goes through POST /supervisor only.
+function rejectSupervisorWsType(type: string): void {
+  const t = type.trim().toLowerCase();
+  if (t.startsWith("supervisor/") || t.startsWith("hassio/")) {
+    throw new HttpError(
+      403,
+      "WS_TYPE_REFUSED",
+      `WS type '${type.trim()}' reaches the Supervisor with Home Assistant's own token; the relay refuses it`,
+    );
+  }
 }
 
 function rejectUnsupportedWsType(type: string): void {

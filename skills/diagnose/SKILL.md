@@ -11,7 +11,7 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 Root-cause a concrete failure: "why did X not run", "why did X misbehave", "what broke last night".
 
-- Evidence sources: automation/script traces, HA error log, system log, bounded logbook/history windows, template probes, integration diagnostics.
+- Evidence sources: automation/script traces, HA error log, system log, App and host logs, bounded logbook/history windows, template probes, integration diagnostics.
 - Boundary: `ha-nova:health` reports CURRENT home status (repairs, unavailable entities); `ha-nova:history` answers plain timeline questions; `ha-nova:review` audits config quality without a concrete incident. This skill starts from a concrete symptom.
 - The ONLY mutation in this skill is a temporary `logger.set_level` debug escalation (see Flow step 5) — every other fix hands off to the owning skill (`ha-nova:write`, `ha-nova:helper`, `ha-nova:service-call`, `ha-nova:integration-setup` for credential recovery).
 
@@ -39,7 +39,7 @@ File-based relay requests only:
 | Run traces | `ha-nova trace latest <entity_id> --json` (also `trace list <entity_id>`, `trace get <entity_id> <run_id>`) | First stop for automation/script failures: shows the exact step, condition results, and variables |
 | System log | WS `{"type":"system_log/list"}` | PRIMARY log source: structured warnings/errors with counts and sources, works on every install type |
 | Voice | `assist_pipeline/pipeline_debug/list` (`pipeline_id`), then `assist_pipeline/pipeline_debug/get` (plus `pipeline_run_id`) | Read-only; resolve via `assist_pipeline/pipeline/list` |
-| Error log | `GET /api/error_log` | **404 on HA OS/Supervised since 2025.11** (the log file moved to journald) — that is normal, not an error; stay with `system_log/list`. Where the file exists (Container/Core, or re-enabled), see Reading the error log |
+| Error log | `GET /api/error_log` | **404 on HA OS/Supervised since 2025.11** (journald) — normal, not an error. There, read `/core/logs` and App, Supervisor, or host logs (`../updates/apps.md` → Reads). Where the file exists (Container/Core, or re-enabled), see Reading the error log |
 | State history + logbook | `ha-nova history <entity_id> --since <incident minus 30 min, RFC3339> --until <incident plus 30 min, RFC3339> [--logbook]` | Summarized states and events (≤ 7 days) |
 | Template probe | `ha-nova relay core --method POST --path /api/template --body-file <payload-file>` with `{"template":"{{ ... }}"}` | Evaluate the exact condition/template against live state; the rendered result is the string in `.data.body` |
 | Integration diagnostics | WS `{"type":"diagnostics/list"}`, then `GET /api/diagnostics/config_entry/<entry_id>` with `--out <result-file>` | Deep integration state when an integration itself is the suspect |
@@ -82,7 +82,7 @@ Only where the log file exists (Container/Core installs; on HA OS/Supervised the
 ## Error Handling
 
 Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling. Diagnose specifics:
-- `/api/error_log` 404: normal on HA OS/Supervised since 2025.11 — continue with `system_log/list` and mention the `--duplicate-log-file` re-enable only if the user asks for the raw file.
+- `/api/error_log` 404: normal on HA OS/Supervised since 2025.11 — use `system_log/list` and `/core/logs` (Evidence table).
 - Missing traces (empty `trace list`): traces are kept per entity with a small cap and reset on reload/restart — say so instead of guessing.
 - `system_log/list` empty after a restart is normal; fall back to logbook/history windows.
 

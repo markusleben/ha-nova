@@ -106,6 +106,7 @@ The relay refuses secrets, the recorder database and Home Assistant's internal s
 
 ## Notes
 
+- **No Supervisor access.** `POST /supervisor` (Apps, store, logs) needs the App; this relay has no such route (`404 NOT_FOUND`). The relay also refuses WS types starting `supervisor/` or `hassio/` and `/core` paths starting `/api/hassio`, so a container pointed at a Home Assistant OS or Supervised install cannot reach the Supervisor through Home Assistant's own token.
 - **No Supervisor watchdog.** Use `--restart unless-stopped` (or Compose's `restart:`) so the relay comes back after a reboot.
 - **Updating**: pull the new image and **recreate** the container — `docker restart` would keep running the old image:
   ```bash

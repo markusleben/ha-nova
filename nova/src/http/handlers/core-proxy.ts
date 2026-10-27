@@ -84,6 +84,13 @@ function normalizeCorePath(pathValue: string): string {
     throw new HttpError(400, "CORE_PATH_INVALID", "Core request path is invalid");
   }
 
+  // Home Assistant's Supervisor proxy (/api/hassio, /api/hassio_ingress, …)
+  // runs with Core's own Supervisor token; the Supervisor refuses it to Apps,
+  // and the relay refuses it for a standalone container too.
+  if (decodedPath.replace(/\/+/g, "/").toLowerCase().startsWith("/api/hassio")) {
+    throw new HttpError(403, "CORE_PATH_REFUSED", "Home Assistant's Supervisor proxy is not reachable through the relay");
+  }
+
   return `${decodedPath}${parsed.search}`;
 }
 

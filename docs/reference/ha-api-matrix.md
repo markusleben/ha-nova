@@ -215,6 +215,23 @@ Raw backup file transfer (`/data/backups/`) is planned host-filesystem tooling �
 **Sensor types with config flow (no YAML needed):** SQL, Scrape, Template (limited)
 **YAML-only sensor types:** REST, Command Line
 
+## Supervisor (via the Relay's `/supervisor` endpoint, App only)
+
+The App holds `hassio_role: manager`; `POST /supervisor` (`{method, path, data?, lines?}`) forwards a request to the Supervisor only when method and raw path match this table exactly (no query, `%`, dot segments, doubled or trailing slash). `{slug}` is never `self` or HA NOVA's own App. Anything else is refused before it is sent. A standalone container has no such route (`404 NOT_FOUND`); Home Assistant Link does not carry the route. Pinned to Supervisor 2026.10.3, v1 API. Table: `nova/src/http/handlers/supervisor-allowlist.ts`, mirrored in `cli/relay_raw_supervisor.go`.
+
+| Method | Path | Kind | Tier (`ha-nova plan raw`) |
+|--------|------|------|------|
+| GET | `/info`, `/os/info`, `/host/info`, `/network/info`, `/hardware/info`, `/resolution/info`, `/core/info`, `/supervisor/info` | read | — (`relay supervisor`, `ha_read`) |
+| GET | `/addons`, `/addons/{slug}/info`, `/store`, `/store/addons`, `/store/addons/{slug}` | read | — |
+| GET | `/host/disks/default/usage`, `/os/datadisk/list`, `/host/logs/boots`, `/host/logs/identifiers` | read | — |
+| GET | `/supervisor/logs`, `/core/logs`, `/host/logs`, `/host/logs/identifiers/{identifier}`, `/addons/{slug}/logs` | logs (text; `lines` 1-1000, default 100; cut at 512 KiB with `truncated: true`) | — |
+| POST | `/store/addons/{slug}/install` | write, `data` empty | typed |
+| POST | `/addons/{slug}/uninstall` | write, `data` empty or `{remove_config: bool}` | typed |
+| POST | `/addons/{slug}/options` | write, `{options: {...}}` (merged onto the stored options by the Relay) | typed |
+| POST | `/addons/{slug}/options` | write, `{auto_update: bool}` | preview |
+
+JSON replies hide every value under a secret-like key and, in `/addons/{slug}/info`, every option the App's schema marks `format: password`. Start, stop, and restart of an App stay typed `hassio.addon_*` services (`ha-nova:service-call`); App updates stay with `ha-nova:updates`. Full refusal list: `docs/reference/safety.md` → The relay itself.
+
 ## Surfaces the skills pin (grouped)
 
 This document routes an operation to its transport. It is not a command
@@ -253,12 +270,13 @@ guardrails.
 | HACS | `hacs/*` (17 commands) — not a Home Assistant API; the pinned map lives in `skills/hacs/hacs-commands.md` | hacs |
 
 Out of scope: InfluxDB paths (`/api/v2/query`, `/api/v3/query_sql`) pinned in
-`skills/external-sources` are not Home Assistant APIs. Supervisor paths
-(`/api/hassio/*`) are pinned only as unreachable through the App Relay (HTTP 403),
-and so is WS `supervisor/api` (with every `supervisor/*` and `hassio/*` type):
-Supervisor's WebSocket proxy refuses them for Apps whatever the App's role
-(`docs/work/2026-10-26-supervisor-role-spec.md`). App control goes through
-ordinary services (`ha-nova:service-call`).
+`skills/external-sources` are not Home Assistant APIs. Home Assistant's own
+Supervisor paths (`/api/hassio*`) and WS `supervisor/api` (with every
+`supervisor/*` and `hassio/*` type) are pinned only as unreachable: the
+Supervisor refuses them to Apps whatever the App's role, and the Relay itself
+refuses them too (`403 CORE_PATH_REFUSED`, `403 WS_TYPE_REFUSED`), also in a standalone
+container. Supervisor access goes through the `/supervisor` endpoint above
+(`docs/work/2026-10-26-supervisor-role-spec.md` → Decisions).
 
 Completeness: rebuilt 2026-08-19 against `skills/**/*.md` (issue #517).
 
