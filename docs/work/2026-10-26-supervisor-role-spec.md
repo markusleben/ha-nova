@@ -75,4 +75,3 @@ Option **B, narrow**: `hassio_role: manager`, reachable only through one Relay r
 5. **Skills**: `ha-nova:updates` owns Apps (list, store, install, uninstall, options, auto-update) in a short section; `ha-nova:diagnose` reads logs; the fallback EXTERNAL rows go.
 
 Existing installs get the role with the next App update. Supervisor shows the App's role on its info page; whether it asks the owner first was not verified (known limit).
-

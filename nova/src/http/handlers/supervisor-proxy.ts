@@ -88,7 +88,9 @@ function scrubbed(body: unknown, stored: Record<string, unknown>): unknown {
   };
   collect(stored);
   const raw = body as { result?: unknown; message?: unknown } | null;
-  let message = typeof raw?.message === "string" ? raw.message : "the Supervisor refused the settings";
+  // humanize_error appends "Got <the whole options object>": cut it, then any
+  // stored value quoted elsewhere.
+  let message = typeof raw?.message === "string" ? raw.message.replace(/\s*Got [\s\S]*$/, "") : "the Supervisor refused the settings";
   for (const value of values.sort((a, b) => b.length - a.length)) {
     message = message.split(value).join(HIDDEN_VALUE);
   }

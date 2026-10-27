@@ -186,17 +186,17 @@ describe("POST /supervisor redaction hardening", () => {
         : undefined);
     const reply = await call({ method: "POST", path: "/addons/core_mosquitto/options", data: { options: { log_level: "nope" } } });
     expect(reply.status).toBe(400);
-    expect(JSON.stringify(reply.body)).not.toMatch(/hunter2|extra_fields/);
+    expect(JSON.stringify(reply.body)).not.toMatch(/hunter2|x9|extra_fields|Got/);
     expect((reply.body as { message: string }).message).toContain("bad value for port");
   });
 
   it("hides nested password options, environment values, URL user info, and compound keys", async () => {
     const info = { result: "ok", data: { slug: "x_app", schema: [{ name: "server", type: "schema", schema: [{ name: "wpa", type: "string", format: "password" }] }],
       options: { server: { wpa: "s3cret-wpa", host: "h" }, env_vars: [{ name: "GF_ADMIN_PASSWORD", value: "graf" }, { name: "TZ", value: "Europe/Berlin" }],
-        adminPin: "1234", dbpass: "db1", access_code: "4711", url: "https://user:ghp_x@github.com/me/apps" }, error_key: "app_x" } };
+        adminPin: "1234", dbpass: "db1", access_code: "4711", url: "https://user:ghp_x@github.com/me/apps", odd: "https://name@example.com:pw_odd@host/p" }, error_key: "app_x" } };
     const { call } = await fakeSupervisor((req) => (req.url === "/addons/x_app/info" ? { body: JSON.stringify(info) } : undefined));
     const text = JSON.stringify((await call({ method: "GET", path: "/addons/x_app/info" })).body);
-    expect(text).not.toMatch(/s3cret-wpa|graf"|1234|db1|4711|ghp_x/);
+    expect(text).not.toMatch(/s3cret-wpa|graf"|1234|db1|4711|ghp_x|pw_odd/);
     expect(text).toContain("Europe/Berlin");
     expect(text).toContain('"host":"h"');
     expect(text).toContain('"error_key":"app_x"');
@@ -204,7 +204,7 @@ describe("POST /supervisor redaction hardening", () => {
 
   it("refuses !secret references and changes to an option holding a hidden value", async () => {
     const { seen, call } = await fakeSupervisor();
-    for (const options of [{ broker: "!secret wifi_password" }, { logins: [{ username: "a", password: "new" }] }]) {
+    for (const options of [{ broker: "!secret wifi_password" }, { logins: [{ username: "a", password: "new" }] }, { broker: "mqtt://(hidden: a stored code, password, or key)@core-mosquitto" }]) {
       expect((await refusal(call({ method: "POST", path: "/addons/core_mosquitto/options", data: { options } }))).code).toBe("SUPERVISOR_REQUEST_REFUSED");
     }
     expect(seen.filter((s) => s.method === "POST")).toEqual([]);

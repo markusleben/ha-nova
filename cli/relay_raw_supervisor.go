@@ -232,7 +232,7 @@ func rawSupervisorLine(s *relaySession, payload map[string]any) (verb, object st
 	for _, key := range keys {
 		value, err := marshalPlain(options[key])
 		switch {
-		case rawSupervisorSecretKey(key):
+		case rawSupervisorSecretKey(key) || rawSupervisorHoldsSecret(key, options[key]):
 			changes = append(changes, sayText(key, true)+" (a new secret value, not shown)")
 		case err != nil || len(value) > 120:
 			changes = append(changes, sayText(key, true)+" (a long value)")
@@ -252,7 +252,7 @@ var (
 	rawSupervisorSecretText   = regexp.MustCompile(`password|passwd|passphrase|secret|token|credential|apikey|api_key|private|privkey`)
 	rawSupervisorSecretSuffix = regexp.MustCompile(`(pass|pw|pwd|pin|key|code)$`)
 	rawSupervisorCamel        = regexp.MustCompile(`([a-z0-9])([A-Z])`)
-	rawSupervisorURLUserinfo  = regexp.MustCompile(`(?i)^([a-z][a-z0-9+.-]*://)[^/@s]+@`)
+	rawSupervisorURLUserinfo  = regexp.MustCompile(`(?i)^([a-z][a-z0-9+.-]*://)[^/?#\s]*@`)
 )
 
 func rawSupervisorSecretKey(key string) bool {
@@ -265,6 +265,13 @@ func rawSupervisorSecretKey(key string) bool {
 	}
 	return slices.ContainsFunc(strings.FieldsFunc(lower, func(r rune) bool { return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9') }),
 		func(word string) bool { return slices.Contains(rawSupervisorSecretWords, word) })
+}
+
+// rawSupervisorHoldsSecret: the option's new value would be hidden on a read
+// (a nested secret-like key, an environment entry, a URL's user info).
+func rawSupervisorHoldsSecret(key string, value any) bool {
+	plain, err := marshalPlain(map[string]any{"body": map[string]any{key: value}})
+	return err != nil || !bytes.Equal(redactSupervisorResponse(plain), plain)
 }
 
 // redactSupervisorResponse hides, inside every "body" (the Supervisor's own

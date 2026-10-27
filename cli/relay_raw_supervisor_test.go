@@ -142,11 +142,12 @@ func TestPlanRawSupervisorTiers(t *testing.T) {
 		{"/store/addons/core_mosquitto/install", "", "typed", "Install the App “Mosquitto broker” (core_mosquitto)"},
 		{"/addons/core_mosquitto/uninstall", `,"data":{"remove_config":true}`, "typed", "Uninstall the App “Mosquitto broker” (core_mosquitto); its settings, data, and config folder are deleted"},
 		{"/addons/core_mosquitto/options", `,"data":{"options":{"log_level":"debug","mqtt_pass":"n3w"}}`, "typed", `Change the settings of the App “Mosquitto broker” (core_mosquitto): “log_level” to 'debug', “mqtt_pass” (a new secret value, not shown)`},
+		{"/addons/core_mosquitto/options", `,"data":{"options":{"server":{"password":"nested-new"}}}`, "typed", "“server” (a new secret value, not shown)"},
 		{"/addons/core_mosquitto/options", `,"data":{"auto_update":false}`, "preview", "Turn off automatic updates for the App “Mosquitto broker” (core_mosquitto)"},
 	}
 	for _, tc := range cases {
 		exit, env := planRaw(t, paths, `[{"endpoint":"supervisor","payload":{"method":"POST","path":"`+tc.path+`"`+tc.data+`}}]`)
-		if exit != verbExitConfirmation || env.Tier != tc.tier || !strings.Contains(strings.ToLower(env.Say), strings.ToLower(tc.line)) {
+		if exit != verbExitConfirmation || env.Tier != tc.tier || !strings.Contains(strings.ToLower(env.Say), strings.ToLower(tc.line)) || strings.Contains(env.Say, "nested-new") || strings.Contains(env.Say, "n3w") {
 			t.Fatalf("%s: exit %d tier %s say %q", tc.path, exit, env.Tier, env.Say)
 		}
 		if exit, applied := applyRaw(t, paths, env); exit != 0 || statuses(rawOutcomes(t, applied)) != "done" {
@@ -187,9 +188,9 @@ func TestPlanRawSupervisorRejection(t *testing.T) {
 }
 
 func TestSupervisorResponseRedaction(t *testing.T) {
-	body := []byte(`{"ok":true,"data":{"status":200,"body":{"data":{"wifi":{"psk":"wlan","psk_set":true},"options":{"api_key":"k1","server":"mqtt","ha_llat":"t","logins":[{"password":"p"}],"adminPin":"9876","dbpass":"dbx","env":[{"name":"DB_PASSWORD","value":"envx"}],"repo":"https://u:ghp_y@github.com/a/b"},"error_key":"app_x"}}}}`)
+	body := []byte(`{"ok":true,"data":{"status":200,"body":{"data":{"wifi":{"psk":"wlan","psk_set":true},"options":{"api_key":"k1","server":"mqtt","ha_llat":"t","logins":[{"password":"p"}],"adminPin":"9876","dbpass":"dbx","env":[{"name":"DB_PASSWORD","value":"envx"}],"repo":"https://u:ghp_y@github.com/a/b","odd":"https://n@e.com:pw_odd@h/p"},"error_key":"app_x"}}}}`)
 	out := string(redactRawResponse("supervisor", body))
-	for _, leaked := range []string{"wlan", "k1", `"t"`, `"p"`, "9876", "dbx", "envx", "ghp_y"} {
+	for _, leaked := range []string{"wlan", "k1", `"t"`, `"p"`, "9876", "dbx", "envx", "ghp_y", "pw_odd"} {
 		if strings.Contains(out, leaked) {
 			t.Errorf("%s leaked: %s", leaked, out)
 		}
