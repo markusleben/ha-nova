@@ -220,3 +220,24 @@ describe("POST /supervisor redaction hardening", () => {
     expect(await denied.call({ method: "GET", path: "/addons" })).toEqual({ status: 403, body: "403: Forbidden" });
   });
 });
+
+describe("POST /supervisor concurrent options changes", () => {
+  it("applies two concurrent changes to one App one after the other", async () => {
+    let options: Record<string, unknown> = { a: 1, b: 1, password: "hunter2" };
+    const { call } = await fakeSupervisor((req, seen) => {
+      if (req.url === "/addons/core_x/info") {
+        return { body: JSON.stringify({ result: "ok", data: { slug: "core_x", options, schema: [] } }) };
+      }
+      if (req.method === "POST" && req.url === "/addons/core_x/options") {
+        options = JSON.parse(seen.body).options;
+        return { body: JSON.stringify({ result: "ok", data: {} }) };
+      }
+      return undefined;
+    });
+    await Promise.all([
+      call({ method: "POST", path: "/addons/core_x/options", data: { options: { a: 2 } } }),
+      call({ method: "POST", path: "/addons/core_x/options", data: { options: { b: 3 } } }),
+    ]);
+    expect(options).toEqual({ a: 2, b: 3, password: "hunter2" });
+  });
+});

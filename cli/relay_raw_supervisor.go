@@ -228,11 +228,12 @@ func rawSupervisorLine(s *relaySession, payload map[string]any) (verb, object st
 		keys = append(keys, key)
 	}
 	slices.Sort(keys)
+	secret, schemaRead := rawSupervisorPasswordOptions(s, slug)
 	changes := make([]string, 0, len(keys))
 	for _, key := range keys {
 		value, err := marshalPlain(options[key])
 		switch {
-		case rawSupervisorSecretKey(key) || rawSupervisorHoldsSecret(key, options[key]):
+		case !schemaRead || secret[key] || rawSupervisorSecretKey(key) || rawSupervisorHoldsSecret(key, options[key]):
 			changes = append(changes, sayText(key, true)+" (a new secret value, not shown)")
 		case err != nil || len(value) > 120:
 			changes = append(changes, sayText(key, true)+" (a long value)")
@@ -241,6 +242,42 @@ func rawSupervisorLine(s *relaySession, payload map[string]any) (verb, object st
 		}
 	}
 	return "Change", "the settings of " + app + ": " + strings.Join(changes, ", ")
+}
+
+// rawSupervisorPasswordOptions: the App's top-level options whose schema marks
+// them, or anything nested in them, as a password (the Relay's redactAppInfo).
+// read is false when the schema can't be read: then no value is shown.
+func rawSupervisorPasswordOptions(s *relaySession, slug string) (secret map[string]bool, read bool) {
+	if s == nil {
+		return nil, false
+	}
+	var info struct {
+		Status int `json:"status"`
+		Body   struct {
+			Data struct {
+				Schema []json.RawMessage `json:"schema"`
+			} `json:"data"`
+		} `json:"body"`
+	}
+	raw, err := s.sendWithin("supervisor", []byte(`{"method":"GET","path":"/addons/`+slug+`/info"}`), relaySessionRequestTimeout)
+	if err != nil || json.Unmarshal(raw, &info) != nil || info.Status != 200 || info.Body.Data.Schema == nil {
+		return nil, false
+	}
+	secret = map[string]bool{}
+	for _, node := range info.Body.Data.Schema {
+		var top struct {
+			Name string `json:"name"`
+		}
+		if json.Unmarshal(node, &top) != nil {
+			return nil, false
+		}
+		var compact bytes.Buffer
+		if json.Compact(&compact, node) != nil {
+			return nil, false
+		}
+		secret[top.Name] = bytes.Contains(compact.Bytes(), []byte(`"format":"password"`))
+	}
+	return secret, true
 }
 
 // rawSupervisorSecretKey mirrors the Relay's secretKey: the Relay hides these

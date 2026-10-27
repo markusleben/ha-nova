@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -124,6 +125,12 @@ func TestMCPReadSupervisor(t *testing.T) {
 
 func TestPlanRawSupervisorTiers(t *testing.T) {
 	paths, sent := readRelay(t, func(endpoint string, body map[string]any) any {
+		if endpoint == "supervisor" && body["path"] == "/addons/core_mosquitto/info" {
+			return map[string]any{"status": 200, "body": map[string]any{"result": "ok", "data": map[string]any{"schema": []any{
+				map[string]any{"name": "log_level", "type": "string"}, map[string]any{"name": "mqtt_pass", "type": "string"},
+				map[string]any{"name": "wpa", "type": "string", "format": "password"},
+				map[string]any{"name": "server", "type": "schema", "schema": []any{map[string]any{"name": "pw2", "type": "string", "format": "password"}}}}}}}
+		}
 		if endpoint == "supervisor" && body["method"] == "GET" {
 			return map[string]any{"status": 200, "body": map[string]any{"result": "ok", "data": map[string]any{"name": "Mosquitto broker"}}}
 		}
@@ -143,11 +150,12 @@ func TestPlanRawSupervisorTiers(t *testing.T) {
 		{"/addons/core_mosquitto/uninstall", `,"data":{"remove_config":true}`, "typed", "Uninstall the App “Mosquitto broker” (core_mosquitto); its settings, data, and config folder are deleted"},
 		{"/addons/core_mosquitto/options", `,"data":{"options":{"log_level":"debug","mqtt_pass":"n3w"}}`, "typed", `Change the settings of the App “Mosquitto broker” (core_mosquitto): “log_level” to 'debug', “mqtt_pass” (a new secret value, not shown)`},
 		{"/addons/core_mosquitto/options", `,"data":{"options":{"server":{"password":"nested-new"}}}`, "typed", "“server” (a new secret value, not shown)"},
+		{"/addons/core_mosquitto/options", `,"data":{"options":{"wpa":"wpa-new-1","server":{"host":"h","pw2":"nested-pw2"}}}`, "typed", "“server” (a new secret value, not shown), “wpa” (a new secret value, not shown)"},
 		{"/addons/core_mosquitto/options", `,"data":{"auto_update":false}`, "preview", "Turn off automatic updates for the App “Mosquitto broker” (core_mosquitto)"},
 	}
 	for _, tc := range cases {
 		exit, env := planRaw(t, paths, `[{"endpoint":"supervisor","payload":{"method":"POST","path":"`+tc.path+`"`+tc.data+`}}]`)
-		if exit != verbExitConfirmation || env.Tier != tc.tier || !strings.Contains(strings.ToLower(env.Say), strings.ToLower(tc.line)) || strings.Contains(env.Say, "nested-new") || strings.Contains(env.Say, "n3w") {
+		if exit != verbExitConfirmation || env.Tier != tc.tier || !strings.Contains(strings.ToLower(env.Say), strings.ToLower(tc.line)) || rawPreviewLeaks(t, paths, env) {
 			t.Fatalf("%s: exit %d tier %s say %q", tc.path, exit, env.Tier, env.Say)
 		}
 		if exit, applied := applyRaw(t, paths, env); exit != 0 || statuses(rawOutcomes(t, applied)) != "done" {
@@ -169,6 +177,34 @@ func TestPlanRawSupervisorTiers(t *testing.T) {
 		if exit, env := planRaw(t, paths, items); exit == verbExitConfirmation || env.Plan != nil {
 			t.Errorf("%s: planned (exit %d)", items, exit)
 		}
+	}
+}
+
+// rawPreviewLeaks: a new secret shows in the say, the items, or the stored
+// confirmation prompt.
+func rawPreviewLeaks(t *testing.T, paths runtimePaths, env verbTestEnvelope) bool {
+	t.Helper()
+	plan, err := readPlanFile(filepath.Join(planDir(paths), env.Plan.ID+".json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := env.Say + string(env.Result) + plan.Prompt // the phone question is built from the same item line (rawGoal)
+	for _, secret := range []string{"nested-new", "n3w", "wpa-new-1", "nested-pw2"} {
+		if strings.Contains(text, secret) {
+			return true
+		}
+	}
+	return false
+}
+
+// The App's schema can't be read: no value is shown.
+func TestPlanRawSupervisorPreviewFailsClosed(t *testing.T) {
+	paths, _ := readRelay(t, func(endpoint string, body map[string]any) any {
+		return map[string]any{"status": 500, "body": map[string]any{"result": "error", "message": "x"}}
+	})
+	exit, env := planRaw(t, paths, `[{"endpoint":"supervisor","payload":{"method":"POST","path":"/addons/core_x/options","data":{"options":{"log_level":"debug"}}}}]`)
+	if exit != verbExitConfirmation || strings.Contains(env.Say, "debug") || !strings.Contains(env.Say, "“log_level” (a new secret value, not shown)") {
+		t.Fatalf("exit %d say %q", exit, env.Say)
 	}
 }
 

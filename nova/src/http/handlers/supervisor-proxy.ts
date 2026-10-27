@@ -42,6 +42,21 @@ type Upstream = (path: string, init?: RequestInit) => Promise<Response>;
 export function createSupervisorProxyHandler(options: SupervisorProxyHandlerOptions): RouteHandler {
   const base = options.base ?? SUPERVISOR_BASE;
   const token = options.token;
+  // One write per App at a time: an options change reads, merges, and sends
+  // the whole options object, so two concurrent changes would otherwise
+  // revert each other.
+  const queues = new Map<string, Promise<unknown>>();
+  const serialized = <T>(slug: string, run: () => Promise<T>): Promise<T> => {
+    const next = (queues.get(slug) ?? Promise.resolve()).then(run, run);
+    const tail = next.catch(() => undefined);
+    queues.set(slug, tail);
+    void tail.then(() => {
+      if (queues.get(slug) === tail) {
+        queues.delete(slug);
+      }
+    });
+    return next;
+  };
   return async ({ body }: RouteContext) => {
     const request = parseRequest(body);
     const match = matchSupervisorRoute(request.method, request.path);
@@ -64,13 +79,15 @@ export function createSupervisorProxyHandler(options: SupervisorProxyHandlerOpti
     if (request.lines !== undefined) {
       throw validation("lines applies to log reads");
     }
-    await rejectOwnApp(match.slug!, upstream);
-    const { data, stored } = await writeBody(match, request.data, upstream);
-    const reply = await jsonReply(
-      await upstream(request.path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data) }),
-      match,
-    );
-    return reply.status < 400 || !stored ? reply : { status: reply.status, body: scrubbed(reply.body, stored) };
+    return await serialized(match.slug!, async () => {
+      await rejectOwnApp(match.slug!, upstream);
+      const { data, stored } = await writeBody(match, request.data, upstream);
+      const reply = await jsonReply(
+        await upstream(request.path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data) }),
+        match,
+      );
+      return reply.status < 400 || !stored ? reply : { status: reply.status, body: scrubbed(reply.body, stored) };
+    });
   };
 }
 
