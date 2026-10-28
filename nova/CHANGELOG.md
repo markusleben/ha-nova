@@ -8,7 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 
 ### Added
 - More of Home Assistant's settings, on a computer and in chat apps: turn integrations on or off, rename or remove them and their subentries, fix or ignore repairs, edit users, change general settings, set the automatic backup schedule, turn on Labs features, import long-term statistics, and delete a device or a blueprint. Each shows a preview first, and what can't be undone takes your own confirmation. (#873, #875, #876, #877)
-- Apps and logs on HA OS: HA NOVA reads the Supervisor, Core, host, and App logs, lists your Apps and the store, and installs, removes, or configures an App after your own confirmation. Nothing else in the Supervisor is reachable. This works over HA NOVA's local connection, not through Home Assistant Link. (#883)
+- Apps and logs on HA OS: HA NOVA reads the Supervisor, Core, host, and App logs, lists your Apps and the store, reads system, storage, network, and hardware info, and installs, removes, or configures an App after your own confirmation. Nothing else in the Supervisor is reachable. This works over HA NOVA's local connection, not through Home Assistant Link. (#883)
 
 ### Changed
 - The App asks the Supervisor for the "manager" role, which it needs for Apps and logs. HA NOVA itself reaches only the parts listed above. (#883)

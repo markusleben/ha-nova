@@ -66,8 +66,8 @@ Say what you want. HA NOVA works out the rest.
 | *"What happened to my living room temperature overnight?"* | Reads the history and sums it up in plain words |
 | *"Build a dashboard for the living room"* | Builds whole dashboards and views, also with custom cards you installed. It lists every view and card that changes and saves a copy first. "Undo that" brings the old one back |
 | *"Move all kitchen devices to the Kitchen area"* | Moves the devices and entities and shows what will change first |
-| *"Turn off the old Hue integration and fix the open repairs"* | Turns integrations on or off, renames or removes them, fixes or ignores repairs, and changes users, general settings, and the backup schedule. Shows what changes first. What can't be undone takes your own confirmation |
-| *"Why does the Mosquitto App keep restarting?"* | On HA OS, reads the Supervisor, Core, host, and App logs. It can also install, remove, or set up an App, after your own confirmation |
+| *"Turn off the integration I don't use anymore and fix the open repairs"* | Turns integrations on or off, renames or removes them, fixes or ignores repairs, and changes users, general settings, and the backup schedule. Shows what changes first. What can't be undone takes your own confirmation |
+| *"Why does my MQTT broker App keep restarting?"* | On HA OS, reads the Supervisor, Core, host, and App logs. It can also install, remove, or set up an App, after your own confirmation. This needs HA NOVA's local connection, not Home Assistant Link |
 | *"Turn off the kitchen light"* | Turns it off right away and checks that it really is off. Whole rooms, scenes, and riskier actions show a preview first |
 | *"Unlock the front door"* | Shows what will happen, then waits for you: Confirm in a window on your computer, a tap on your linked phone, or a four-digit code |
 | *"What do I have, and where is this sensor used?"* | Counts rooms, devices, automations, and integrations itself. Lists the automations, scripts, scenes, groups, helpers, and dashboard cards that use a sensor, and says what it couldn't check. Exact numbers, never a guess |
@@ -304,7 +304,7 @@ Every safety promise above is backed by a file and a test. The **[safety page](d
 | 📅 **calendar** | Read calendars and events in a time window |
 | ✅ **todo** | Manage to-do and shopping-list items, create Local To-do lists |
 | 💾 **backup** | Check backups and create them, also as a safety net before risky changes; set the automatic schedule |
-| ⬆️ **updates** | See waiting updates, read release notes, and install them with safety checks; on HA OS, install, remove, and set up Apps and read their logs |
+| ⬆️ **updates** | See waiting updates, read release notes, and install them with safety checks; on HA OS, install, remove, and set up Apps and read their logs (over the local connection) |
 | 📦 **hacs** | Browse, install, pin, update, and remove HACS packages, with previews and a required backup before risky moves |
 | ⚡ **energy** | Look at use, solar, battery, and cost per device; manage Energy dashboard sources |
 | 🧹 **maintenance** | Repair and import statistics, clear out recorder history, and clean up dead entities, with strict safety checks |
