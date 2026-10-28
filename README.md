@@ -66,6 +66,8 @@ Say what you want. HA NOVA works out the rest.
 | *"What happened to my living room temperature overnight?"* | Reads the history and sums it up in plain words |
 | *"Build a dashboard for the living room"* | Builds whole dashboards and views, also with custom cards you installed. It lists every view and card that changes and saves a copy first. "Undo that" brings the old one back |
 | *"Move all kitchen devices to the Kitchen area"* | Moves the devices and entities and shows what will change first |
+| *"Turn off the integration I don't use anymore and fix the open repairs"* | Turns integrations on or off, renames or removes them, fixes or ignores repairs, and changes users, general settings, and the backup schedule. Shows what changes first. What can't be undone takes your own confirmation |
+| *"Why does my MQTT broker App keep restarting?"* | On HA OS, reads the Supervisor, Core, host, and App logs. It can also install, remove, or set up an App, after your own confirmation. This needs HA NOVA's local connection, not Home Assistant Link |
 | *"Turn off the kitchen light"* | Turns it off right away and checks that it really is off. Whole rooms, scenes, and riskier actions show a preview first |
 | *"Unlock the front door"* | Shows what will happen, then waits for you: Confirm in a window on your computer, a tap on your linked phone, or a four-digit code |
 | *"What do I have, and where is this sensor used?"* | Counts rooms, devices, automations, and integrations itself. Lists the automations, scripts, scenes, groups, helpers, and dashboard cards that use a sensor, and says what it couldn't check. Exact numbers, never a guess |
@@ -145,6 +147,8 @@ The installer selects the latest stable release. Run the command for your system
 
 **In the terminal.** Over SSH or with `ha-nova setup --no-browser`, setup asks in the terminal instead.
 
+**Run setup again any time.** "Your setup" then shows what is done and what you can still do, each with a button.
+
 - Want to install the App yourself, or no browser sign-in here (for example over SSH)? Setup takes you to the App page and adds the repository for you. Click "Add", then Install and Start.
 - After that, or when the App already runs, setup opens your Home Assistant login. Sign in as the owner, and this computer connects by itself.
 - Signed in as another Home Assistant user, over SSH on Linux, or the sign-in didn't work? Then setup asks for a code. The owner opens **NOVA** in the sidebar (or "Open Web UI" on the App page) and clicks **"Connect a device"**. You type the six-digit code.
@@ -179,7 +183,7 @@ Ask about your home and change it from Claude (web, desktop, and phone apps) or 
 - Access belongs to your Home Assistant account, not to a device. Anyone who can use your Claude or ChatGPT account can reach your home through it.
 - Claude or ChatGPT then holds a Home Assistant sign-in for your account. It works for all of Home Assistant, not only HA NOVA. Turning chat apps off cuts HA NOVA there. To sign Claude or ChatGPT out, open your Home Assistant profile (Security, refresh tokens).
 - Turn chat apps off before you remove the NOVA Relay App.
-- Helpers, scenes, dashboards, rooms and names, integration setup, files (with file access on), the error log, and camera pictures work in the chat, with the same preview and confirmation as on a computer. Only setting up HA NOVA itself (setup, pairing, updates, turning chat apps on or off) runs on a computer.
+- Helpers, scenes, dashboards, rooms and names, integrations and Home Assistant's settings, files (with file access on), the error log, and camera pictures work in the chat, with the same preview and confirmation as on a computer. Only setting up HA NOVA itself (setup, pairing, updates, turning chat apps on or off) runs on a computer.
 
 Step by step, ChatGPT plans, and what to do if it doesn't connect: [Use HA NOVA in Claude and ChatGPT](docs/reference/chat-apps.md).
 
@@ -250,7 +254,7 @@ Once setup is done, try: *"Show me all my automations."*
 
 </details>
 
-> **Not a terminal person?** Setup is one command to copy and paste, then a page in your browser. After that, Claude Desktop (its Code tab), Codex in the ChatGPT desktop app (on a Mac), and Google Antigravity Desktop give you the same skills in an app window. Pairing another computer is one more sign-in (or one six-digit code). Or skip the computer: with chat apps on, ask from Claude or ChatGPT.
+> **Not a terminal person?** Setup is one command to copy and paste, then a page in your browser. After that, Claude Desktop (its Code tab; on a Mac, the app alone is enough), Codex in the ChatGPT desktop app (on a Mac), and Google Antigravity Desktop give you the same skills in an app window. Pairing another computer is one more sign-in (or one six-digit code). Or skip the computer: with chat apps on, ask from Claude or ChatGPT.
 
 ---
 
@@ -280,7 +284,7 @@ Every safety promise above is backed by a file and a test. The **[safety page](d
 - 🔍 **Understand & fix**: config reading, a map of your whole home, 40+ rule checks, finding out why something failed, history & stats, entity search, system health
 - 🧰 **Run & maintain**: backups, updates, HACS packages, recorder & statistics repair, energy, MQTT, InfluxDB history, integration setup
 - 🏠 **Everyday**: media & speakers, notifications, cameras, voice assistants, to-dos, calendars
-- 🛟 **Admin & safety net**: persons, zones & users (owner-guarded), blueprint fallback, onboarding & troubleshooting
+- 🛟 **Admin & safety net**: persons, zones, users & general settings (owner-guarded), a fallback for advanced tasks, onboarding & troubleshooting
 
 <details>
 <summary><strong>The full list — all 34 skills</strong></summary>
@@ -289,21 +293,21 @@ Every safety promise above is backed by a file and a test. The **[safety page](d
 
 | Skill | What it does |
 |:------|:-------------|
-| ✏️ **write** | Build and change automations, with a full preview and safety checks |
+| ✏️ **write** | Build and change automations, with a full preview and safety checks; import and use blueprints |
 | 📖 **read** | Show your automation and script configs as they really are |
 | 🔍 **review** | Check your setup for mistakes, conflicts, and weak spots |
 | 🧱 **dashboard** | Build and change dashboards, views, and cards (installed custom cards too), find broken cards, and manage Lovelace resources, with a copy before each save |
 | 🎬 **scene** | Create and manage scenes, including "save this room as a scene" |
-| 🗂️ **organize** | Manage areas, floors, labels, and entity details like icons, units, and how a value shows |
+| 🗂️ **organize** | Manage areas, floors, labels, and entity details like icons, units, and how a value shows; delete a device |
 | 🕒 **history** | Look up history, logbook timelines, and long-term stats |
-| 🏠 **health** | Sum up Home Assistant status, repairs, integrations, system health, and noisy entities |
+| 🏠 **health** | Sum up Home Assistant status, repairs, integrations, system health, and noisy entities; fix or ignore repairs |
 | 📅 **calendar** | Read calendars and events in a time window |
 | ✅ **todo** | Manage to-do and shopping-list items, create Local To-do lists |
-| 💾 **backup** | Check backups and create them, also as a safety net before risky changes |
-| ⬆️ **updates** | See waiting updates, read release notes, and install them with safety checks |
+| 💾 **backup** | Check backups and create them, also as a safety net before risky changes; set the automatic schedule |
+| ⬆️ **updates** | See waiting updates, read release notes, and install them with safety checks; on HA OS, install, remove, and set up Apps and read their logs (over the local connection) |
 | 📦 **hacs** | Browse, install, pin, update, and remove HACS packages, with previews and a required backup before risky moves |
 | ⚡ **energy** | Look at use, solar, battery, and cost per device; manage Energy dashboard sources |
-| 🧹 **maintenance** | Repair statistics, clear out recorder history, and clean up dead entities, with strict safety checks |
+| 🧹 **maintenance** | Repair and import statistics, clear out recorder history, and clean up dead entities, with strict safety checks |
 | 🎛️ **service-call** | Control lights, climate, covers, switches, and media players |
 | 🔎 **entity-discovery** | Find entities by name, room, area, or label |
 | 🗺️ **home-map** | Your whole home with exact numbers: rooms, devices, automations, integrations, where an entity is used, and the first look after pairing |
@@ -317,11 +321,11 @@ Every safety promise above is backed by a file and a test. The **[safety page](d
 | 📷 **camera** | Look at the current camera picture, get stream URLs, record |
 | 📡 **mqtt** | Listen to MQTT topics, look at discovery, publish with safety checks |
 | 🗣️ **assist** | Test what your voice assistant understands, manage pipelines and what it can reach |
-| 👥 **admin** | Manage persons, zones, tags, and user accounts, with strict owner guards |
-| 🔌 **integration-setup** | Add new integrations and finish sign-in renewals |
+| 👥 **admin** | Manage persons, zones, tags, user accounts, general settings, Labs, and analytics, with strict owner guards |
+| 🔌 **integration-setup** | Add new integrations, finish sign-in renewals, and turn integrations on or off, rename, or remove them |
 | 📝 **yaml-config** | Edit YAML-only config (template, REST, and command-line sensors, packages, themes) with file access you turn on |
 | 📊 **external-sources** | Read old history from InfluxDB that Home Assistant already removed |
-| 🛡️ **fallback** | Safety net for blueprints and advanced tasks |
+| 🛡️ **fallback** | Safety net for advanced tasks |
 | 🚀 **onboarding** | Find and fix setup and connection problems |
 
 </details>

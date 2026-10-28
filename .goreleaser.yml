@@ -72,22 +72,27 @@ release:
     {{ else }}## New Features
 
     - **Chat apps do what HA NOVA on a computer does.** In Claude and ChatGPT: rooms, names, helpers, scenes, dashboards, integrations, files (with file access on), and more. Only setting up HA NOVA itself stays on a computer.
+    - **More of Home Assistant's settings.** Integrations, repairs, users, general settings, backup schedule, Labs, statistics import, deleting a device or blueprint. Preview first; what can't be undone takes your OK.
+    - **Apps and their logs, on HA OS.** Read Supervisor, Core, host, and App logs; install, remove, or set up an App after your own OK. Over HA NOVA's local connection, not through Home Assistant Link.
+    - **"Your setup" when you run setup again.** What is done and what is left, in four parts, each with a button. Another AI app can use HA NOVA too: setup shows what to paste.
     - **Claude stops asking before every step, if you let it.** The setup page and the NOVA page say what to set in Claude: with a linked phone, every tool on "Always allow"; without one, all but "Run a confirmed change".
     - **HA NOVA works in the Codex app too.** Setup finds the codex command or, on a Mac, the app. Doctor flags an older HA NOVA copy that Codex would load; setup updates it, or moves HA NOVA's own old copies to a backup.
 
     ## What To Watch
 
     - **HACS installs and updates, and dashboard resources, now take your own confirmation, like a delete.** In chat apps and on a computer: that code runs in every signed-in browser.
+    - **Moving a device with a lock to another room takes your own confirmation.** Also for an alarm panel or garage door, and for labels: an automation that opens a whole room would reach it.
+    - **The NOVA Relay App asks for more Supervisor access.** It needs it for Apps and logs. Home Assistant may ask you to allow it when you update.
 
     ## Bug Fixes
 
-    - **Camera sign-in tokens stay hidden from the AI.** A camera's or image's short-lived token opens its picture or live video without a login. It no longer reaches the AI, on a computer or in chat apps.
+    - **Camera sign-in tokens stay hidden from the AI.** A camera's or image's short-lived token opens its picture or live video without a login. It no longer reaches the AI, also not through a template or a trace.
     - **A leftover Home Assistant Link is explained.** Setup says what it is and lets you finish or remove it right there. Doctor runs all its checks anyway and shows both ways out.
-    - **Setup says which Claude gets HA NOVA.** Claude Code is the claude command and the Code tab in Claude Desktop. Setup also catches an old HA NOVA in Claude Code and installs this one.
+    - **Setup says which Claude gets HA NOVA.** Claude Code is the claude command and the Code tab in Claude Desktop. Setup replaces an old HA NOVA there. On a Mac, the Claude Desktop app alone is enough.
     - **Setup explains the owner sign-in.** The owner connects each computer once; then anyone who uses that login on it can use HA NOVA. On the NOVA page, other admins see who the owner is.
-    - **Disabling a lock's device is refused.** Like the lock itself: a disabled lock, alarm panel, or garage door stops working in Home Assistant. Do that in Home Assistant's settings.
+    - **Disabling a lock's device is refused.** So is removing the integration or switch a lock or gate runs on: it would stop working. Do that in Home Assistant's settings.
 
-    **Update the NOVA App to 0.12.0 too.** It brings these changes to Claude and ChatGPT chat apps, and the "Always allow" advice to the NOVA page. HA NOVA on your computer asks for it too. In Home Assistant: Settings > Apps > NOVA Relay > Update. Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh. Claude asks once more before HA NOVA's tools: set them to "Always allow" again.
+    **Update the NOVA App to 0.12.1 too.** It brings these changes to Claude and ChatGPT chat apps, and the "Always allow" advice to the NOVA page. HA NOVA on your computer asks for it too. In Home Assistant: Settings > Apps > NOVA Relay > Update. Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh. Claude asks once more before HA NOVA's tools: set them again as the NOVA page says. With a linked phone, every tool on "Always allow"; without one, all but "Run a confirmed change".
 
     Stable install commands are release-pinned for this tag.
 

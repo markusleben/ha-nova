@@ -61,10 +61,21 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain("**Setup says which Claude gets HA NOVA.** Claude Code is the claude command and the Code tab in Claude Desktop.");
     expect(stableNotes).toContain("**Setup explains the owner sign-in.** The owner connects each computer once");
     expect(stableNotes).toContain("**Disabling a lock's device is refused.**");
-    // App 0.12.0 carries the 0.28.0 chat bridge; its tools changed, so ChatGPT needs a Refresh and Claude asks once more.
+    // App 0.12.1 carries the 0.28.0 chat bridge; its tools changed, so ChatGPT needs a Refresh and Claude asks once more,
+    // and "Always allow" keeps its phone condition there too (0.28 review).
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
     expect(stableNotes).toContain("Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.");
-    expect(stableNotes).toContain('Claude asks once more before HA NOVA\'s tools: set them to "Always allow" again.');
+    expect(stableNotes).toContain('Claude asks once more before HA NOVA\'s tools: set them again as the NOVA page says. With a linked phone, every tool on "Always allow"; without one, all but "Run a confirmed change".');
+    expect(stableNotes).not.toContain('set them to "Always allow" again');
+    // HA UI parity (#873, #875-#877), Supervisor Apps and logs (#883), "Your setup" (#879), Claude Desktop alone (#878), 0.28 review fixes (#885).
+    expect(stableNotes).toContain("**More of Home Assistant's settings.**");
+    expect(stableNotes).toContain("**Apps and their logs, on HA OS.**");
+    expect(stableNotes).toContain("not through Home Assistant Link.");
+    expect(stableNotes).toContain('**"Your setup" when you run setup again.**');
+    expect(stableNotes).toContain("**The NOVA Relay App asks for more Supervisor access.**");
+    expect(stableNotes).toContain("**Moving a device with a lock to another room takes your own confirmation.**");
+    expect(stableNotes).toContain("On a Mac, the Claude Desktop app alone is enough");
+    expect(readme).toContain('**Run setup again any time.** "Your setup" then shows what is done');
     expect(stableNotes).not.toContain("which this release doesn't change");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);

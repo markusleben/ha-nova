@@ -4,6 +4,29 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.12.1] - 2026-10-28
+
+### Added
+- More of Home Assistant's settings, on a computer and in chat apps: turn integrations on or off, rename or remove them and their subentries, fix or ignore repairs, edit users, change general settings, set the automatic backup schedule, turn on Labs features, import long-term statistics, and delete a device or a blueprint. Each shows a preview first, and what can't be undone takes your own confirmation. (#873, #875, #876, #877)
+- Apps and logs on HA OS: HA NOVA reads the Supervisor, Core, host, and App logs, lists your Apps and the store, reads system, storage, network, and hardware info, and installs, removes, or configures an App after your own confirmation. Nothing else in the Supervisor is reachable. This works over HA NOVA's local connection, not through Home Assistant Link. (#883)
+
+### Changed
+- The App asks the Supervisor for the "manager" role, which it needs for Apps and logs. HA NOVA itself reaches only the parts listed above. (#883)
+- Moving a device with a lock, alarm panel, or garage door to another room or label now takes your own confirmation, like the same change on the lock itself. (#885)
+
+### Fixed
+- A camera's or image's sign-in token no longer reaches the AI through a template's output or an automation trace. (#885)
+- Removing the integration, subentry, or switch that a lock or gate runs on is refused, like disabling it. (#885)
+- An App option that holds a web address with a password stays hidden even with a space in front. (#885)
+- Chat apps now run HA NOVA 0.28.0 with these changes.
+
+### Upgrade notes
+- Home Assistant may ask you to allow the App's new Supervisor access when you update.
+- In ChatGPT, open chatgpt.com/plugins, choose HA NOVA, then Refresh. ChatGPT then gets the new tools.
+- Claude asks once more before HA NOVA's tools. Set them again as the NOVA page says: with a linked phone, every tool on "Always allow"; without one, all but "Run a confirmed change".
+- Computers that are already connected stay connected; no re-pairing.
+- Computers on HA NOVA 0.28.0 ask you to update this App.
+
 ## [Relay 0.12.0] - 2026-10-26
 
 ### Added
