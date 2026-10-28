@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -118,9 +119,10 @@ func TestRedactStreamTokensFastPath(t *testing.T) {
 	}
 }
 
-// A template's output is plain text redaction cannot read: a render naming
-// the token or the picture is refused before anything is sent, on the CLI
-// and in ha_read; render_template is not a raw WS type at all.
+// A render naming the token or the picture is refused before anything is
+// sent, on the CLI and in ha_read (its output is hidden too:
+// TestTemplateOutputHidesStreamToken); render_template is not a raw WS type
+// at all.
 func TestTemplateCannotPrintStreamToken(t *testing.T) {
 	for _, body := range []string{
 		`{"method":"POST","path":"/api/template","body":{"template":"{{ state_attr('camera.door','access_token') }}"}}`,
@@ -150,5 +152,59 @@ func TestTemplateCannotPrintStreamToken(t *testing.T) {
 	env, code := readEnvelope(c.tool("ha_read", map[string]any{"endpoint": "core", "method": "POST", "path": "/api/template", "payload": map[string]any{"template": "{{ state_attr('image.doorbell','entity_picture') }}"}}))
 	if message, _ := env["error"].(map[string]any)["message"].(string); code != "REFUSED" || !strings.Contains(message, "read the entity instead") || len(calls()) != 0 {
 		t.Fatalf("ha_read: %s %v calls %d", code, env["error"], len(calls()))
+	}
+}
+
+// Text that prints a state or its attributes carries the token too: a
+// template's output (plain text, or a string in the Relay's JSON) and a media
+// browser thumbnail. Live ws and core responses hide it there; a snapshot or
+// file (no nonces) keeps its text, and another entity's proxy keeps its token.
+func TestRedactStreamTokensInText(t *testing.T) {
+	const h = "(hidden: a stored code, password, or key)"
+	cases := []struct{ name, in, want string }{
+		{"a state's text", `<template TemplateState(<state camera.door=idle; access_token=t1, entity_picture=/api/camera_proxy/camera.door?token=t1, friendly_name=Door @ 2026-10-28>)>`,
+			`<template TemplateState(<state camera.door=idle; access_token=` + h + `, entity_picture=/api/camera_proxy/camera.door?token=` + h + `, friendly_name=Door @ 2026-10-28>)>`},
+		{"attributes | to_json in the Relay's JSON", `{"status":200,"body":"{\"access_token\": \"t1\", \"entity_picture\": \"/api/image_proxy/image.doorbell?width=9&token=t1\"}"}`,
+			`{"status":200,"body":"{\"access_token\": \"` + h + `\", \"entity_picture\": \"/api/image_proxy/image.doorbell?width=9&token=` + h + `\"}"}`},
+		{"a dict's text", `{'access_token': 't1', 'entity_picture': '/api/camera_proxy/camera.door?token=t1'}`,
+			`{'access_token': '` + h + `', 'entity_picture': '/api/camera_proxy/camera.door?token=` + h + `'}`},
+		{"a media browser thumbnail", `{"children":[{"title":"Door","thumbnail":"/api/camera_proxy_stream/camera.door?token=t1"}]}`,
+			`{"children":[{"title":"Door","thumbnail":"/api/camera_proxy_stream/camera.door?token=` + h + `"}]}`},
+		{"another entity's proxy", `{"body":"/api/media_player_proxy/media_player.tv?token=m1"}`, ""},
+		{"no camera or image", `{"body":"access_token=x1 for sensor.uptime"}`, ""},
+	}
+	for _, c := range cases {
+		want := c.want
+		if want == "" {
+			want = c.in
+		}
+		if got := string(redactSecrets([]byte(c.in), true)); got != want {
+			t.Errorf("%s:\n got %s\nwant %s", c.name, got, want)
+		}
+		if got := string(redactSecrets([]byte(c.in), false)); got != c.in && !strings.HasPrefix(c.in, "{\"children") {
+			t.Errorf("%s without nonces changed: %s", c.name, got)
+		}
+	}
+}
+
+// A template that prints a camera's state reaches neither the CLI's output
+// nor ha_read with the token in it.
+func TestTemplateOutputHidesStreamToken(t *testing.T) {
+	const live = "c0ffee77ab"
+	text := "<template TemplateState(<state camera.door=idle; access_token=" + live + ", entity_picture=/api/camera_proxy/camera.door?token=" + live + ">)>"
+	paths, _ := readRelay(t, func(endpoint string, body map[string]any) any {
+		return map[string]any{"status": 200, "body": text}
+	})
+	exit, out := captureCommandOutput(t, func() int {
+		return runRelayProxy(paths, "core", []string{"--method", "POST", "--path", "/api/template", "--body", `{"template":"{{ states.camera.door }}"}`})
+	})
+	if exit != 0 || strings.Contains(out, live) || !strings.Contains(out, secretHidden) {
+		t.Fatalf("relay core: exit %d %s", exit, out)
+	}
+	c := startMCP(t, paths)
+	mcpInit(c)
+	env, code := readEnvelope(c.tool("ha_read", map[string]any{"endpoint": "core", "method": "POST", "path": "/api/template", "payload": map[string]any{"template": "{{ states.camera.door }}"}}))
+	if shown, _ := json.Marshal(env); code != "" || strings.Contains(string(shown), live) || !strings.Contains(string(shown), "camera_proxy/camera.door") {
+		t.Fatalf("ha_read: %s %s", code, shown)
 	}
 }

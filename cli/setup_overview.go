@@ -169,9 +169,13 @@ func setupMCPConfig(paths runtimePaths) (string, error) {
 		args = append(args, "--server", activeServerProfile())
 	}
 	entry := struct {
-		Command string   `json:"command"`
-		Args    []string `json:"args"`
-	}{command, args}
+		Command string            `json:"command"`
+		Args    []string          `json:"args"`
+		Env     map[string]string `json:"env,omitempty"`
+	}{Command: command, Args: args}
+	if os.Getenv(configDirEnv) != "" { // a GUI app doesn't inherit it
+		entry.Env = map[string]string{configDirEnv: paths.ConfigDir}
+	}
 	data, err := json.MarshalIndent(map[string]any{"mcpServers": map[string]any{"ha-nova": entry}}, "", "  ")
 	return string(data), err
 }

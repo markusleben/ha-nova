@@ -368,3 +368,23 @@ func TestSetupOverviewWindowActionKeepsOtherSettings(t *testing.T) {
 		t.Fatalf("other settings changed: %s", data)
 	}
 }
+
+// A config folder moved with HA_NOVA_CONFIG_DIR rides in the snippet: a GUI
+// app doesn't inherit the variable and would read the default folder.
+func TestSetupOverviewMCPSnippetCarriesConfigDir(t *testing.T) {
+	f := overviewFixture(t)
+	plain, err := setupMCPConfig(f.paths)
+	if err != nil || strings.Contains(plain, configDirEnv) {
+		t.Fatalf("snippet without the variable = %s, %v", plain, err)
+	}
+	t.Setenv(configDirEnv, f.paths.ConfigDir)
+	config, err := setupMCPConfig(f.paths)
+	var result struct {
+		Servers map[string]struct {
+			Env map[string]string `json:"env"`
+		} `json:"mcpServers"`
+	}
+	if err != nil || json.Unmarshal([]byte(config), &result) != nil || result.Servers["ha-nova"].Env[configDirEnv] != f.paths.ConfigDir {
+		t.Fatalf("snippet = %s, %v", config, err)
+	}
+}

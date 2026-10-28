@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/url"
+	"regexp"
 	"strings"
 )
 
@@ -31,6 +32,27 @@ func hideStreamToken(m map[string]any, key string) bool {
 		changed = hideSet(attrs.vals, "entity_picture") || changed
 	}
 	return changed
+}
+
+// Text that is no state object still carries the token when it prints one:
+// a template's output ({{ states.camera.door }}, an attributes | to_json), a
+// media browser thumbnail. In such text the token of a camera or image proxy
+// URL and every access_token pair are hidden.
+var (
+	streamProxyToken = regexp.MustCompile(`(?i)(/api/(?:camera_proxy(?:_stream)?|image_proxy)/[^\s"'<>?]*\?(?:[^\s"'<>]*?[&;])?token=)[A-Za-z0-9._~%+=-]+`)
+	streamTokenPair  = regexp.MustCompile(`(?i)(access_token\\?["']?\s*[:=]\s*\\?["']?)[A-Za-z0-9._~%+/=-]+`)
+)
+
+// hideStreamTokenText hides those tokens in text that names a camera or an
+// image entity or proxy.
+func hideStreamTokenText(text string) (string, bool) {
+	lower := strings.ToLower(text)
+	if !strings.Contains(lower, "token") || !strings.Contains(lower, "_proxy/") && !strings.Contains(lower, "camera.") && !strings.Contains(lower, "image.") {
+		return text, false
+	}
+	hidden := streamProxyToken.ReplaceAllString(text, "${1}"+secretHidden)
+	hidden = streamTokenPair.ReplaceAllString(hidden, "${1}"+secretHidden)
+	return hidden, hidden != text
 }
 
 // dropTokenParam drops every token parameter from a picture URL and keeps

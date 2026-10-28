@@ -169,7 +169,9 @@ func checkRawAccessTargetIn(s *relaySession, endpoint string, body []byte) (refu
 	switches := map[string]bool{}
 	deviceLessSources := false
 	for _, row := range rows {
-		if row.EntityID == target.source || target.toggled != "" && row.ConfigEntryID == target.toggled && strings.HasPrefix(row.EntityID, "switch.") {
+		takes := target.toggled != "" && row.ConfigEntryID == target.toggled || target.entry != "" && row.ConfigEntryID == target.entry ||
+			target.device != "" && row.DeviceID == target.device || gone[row.DeviceID] || row.EntityID == target.entity
+		if row.EntityID == target.source || takes && strings.HasPrefix(row.EntityID, "switch.") {
 			switches[row.EntityID] = true
 			if row.DeviceID != "" {
 				sources[row.DeviceID] = true

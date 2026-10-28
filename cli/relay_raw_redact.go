@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"strings"
 )
@@ -27,6 +28,8 @@ import (
 //     token parameter of its entity_picture (the path stays): the token opens
 //     /api/camera_proxy_stream (live video) or the image for minutes, with no
 //     login. Frames come from /api/camera_proxy/<id> with the Relay's own auth.
+//     With nonces (a live ws or core response), also in text that prints one
+//     (hideStreamTokenText): a template's output, a media browser thumbnail.
 //
 // A set value becomes a fixed marker, an empty one stays empty, so "is a code
 // set" stays readable. Nothing the skills or verbs read needs the values;
@@ -37,16 +40,24 @@ func redactSecrets(body []byte, nonces bool) []byte {
 		!bytes.Contains(body, []byte("create_backup")) && !bytes.Contains(body, []byte("active_dataset_tlvs")) &&
 		!bytes.Contains(body, []byte("data_schema")) && !bytes.Contains(body, []byte("discovery_data")) &&
 		!bytes.Contains(body, []byte(`/config"`)) && !bytes.Contains(body, []byte(`"camera.`)) && !bytes.Contains(body, []byte(`"image.`)) &&
-		!bytes.Contains(body, []byte(`\u`)) { // an escaped key spells none of these
+		!bytes.Contains(body, []byte(`\u`)) && !(nonces && bytes.Contains(body, []byte("token"))) { // an escaped key spells none of these
 		return body
 	}
 	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.UseNumber()
 	v, err := decodeOrdered(dec)
-	if err != nil {
-		return body
+	if err == nil {
+		_, err = dec.Token()
+		if err == io.EOF {
+			err = nil
+		} else if err == nil {
+			err = errors.New("trailing data")
+		}
 	}
-	if _, err := dec.Token(); err != io.EOF { // trailing data: never rewrite a malformed response into a valid one
+	if err != nil { // plain text, or trailing data: never rewrite a malformed response into a valid one
+		if hidden, did := hideStreamTokenText(string(body)); nonces && did {
+			return []byte(hidden)
+		}
 		return body
 	}
 	v, changed := redactValue(v, nonces)
@@ -181,6 +192,9 @@ func redactValue(v any, nonces bool) (any, bool) {
 	case string:
 		if nonces && strings.Contains(t, "HANOVA_") {
 			return phoneSecretHidden, true
+		}
+		if hidden, did := hideStreamTokenText(t); nonces && did {
+			return hidden, true
 		}
 	case *jsonObject:
 		changed = redactObject(t.vals, nonces) || t.dup

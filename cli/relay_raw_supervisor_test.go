@@ -224,9 +224,9 @@ func TestPlanRawSupervisorRejection(t *testing.T) {
 }
 
 func TestSupervisorResponseRedaction(t *testing.T) {
-	body := []byte(`{"ok":true,"data":{"status":200,"body":{"data":{"wifi":{"psk":"wlan","psk_set":true},"options":{"api_key":"k1","server":"mqtt","ha_llat":"t","logins":[{"password":"p"}],"adminPin":"9876","dbpass":"dbx","env":[{"name":"DB_PASSWORD","value":"envx"}],"repo":"https://u:ghp_y@github.com/a/b","odd":"https://n@e.com:pw_odd@h/p"},"error_key":"app_x"}}}}`)
+	body := []byte(`{"ok":true,"data":{"status":200,"body":{"data":{"wifi":{"psk":"wlan","psk_set":true},"options":{"api_key":"k1","server":"mqtt","ha_llat":"t","logins":[{"password":"p"}],"adminPin":"9876","dbpass":"dbx","env":[{"name":"DB_PASSWORD","value":"envx"}],"repo":"https://u:ghp_y@github.com/a/b","odd":"https://n@e.com:pw_odd@h/p","spaced":" https://a:pw_spaced@h/p"},"error_key":"app_x"}}}}`)
 	out := string(redactRawResponse("supervisor", body))
-	for _, leaked := range []string{"wlan", "k1", `"t"`, `"p"`, "9876", "dbx", "envx", "ghp_y", "pw_odd"} {
+	for _, leaked := range []string{"wlan", "k1", `"t"`, `"p"`, "9876", "dbx", "envx", "ghp_y", "pw_odd", "pw_spaced"} {
 		if strings.Contains(out, leaked) {
 			t.Errorf("%s leaked: %s", leaked, out)
 		}

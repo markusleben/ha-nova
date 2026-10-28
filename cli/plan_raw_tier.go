@@ -98,6 +98,8 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 			return tierTyped, "This empties a list of the Energy dashboard or drops several of its entries"
 		case wsType == "config/entity_registry/update" && carries && n.accessEntity(payload["entity_id"]):
 			return tierTyped, "This carries a new ID, area, or label onto a lock, alarm panel, or door, which can change what an automation that opens it targets"
+		case wsType == "config/device_registry/update" && carries && n.accessDevice(payload["device_id"]):
+			return tierTyped, "This carries a new area or label onto a device with a lock, alarm panel, or door, which can change what an automation that opens it targets"
 		case wsType == "person/update" && follows:
 			return tierTyped, "This changes which devices a person follows, and an unlock or disarm may wait for that person"
 		case wsType == "config/auth/update" && access:
@@ -167,6 +169,26 @@ func (n *rawNamer) accessEntity(id any) bool {
 		}
 	}
 	return accessCapable(entityID, coverClass(n.s, entityID))
+}
+
+// accessDevice: the device has a lock, an alarm panel, or an access cover
+// (read live; a failed read counts as one).
+func (n *rawNamer) accessDevice(id any) bool {
+	device, _ := id.(string)
+	var rows []struct {
+		EntityID string `json:"entity_id"`
+		DeviceID string `json:"device_id"`
+	}
+	data, err := rawRead(n.s, "ws", map[string]any{"type": "config/entity_registry/list"})
+	if err != nil || json.Unmarshal(data, &rows) != nil {
+		return true
+	}
+	for _, row := range rows {
+		if device != "" && row.DeviceID == device && accessCapable(row.EntityID, coverClass(n.s, row.EntityID)) {
+			return true
+		}
+	}
+	return false
 }
 
 // energyEmptied: the save empties a list that has entries now, or drops

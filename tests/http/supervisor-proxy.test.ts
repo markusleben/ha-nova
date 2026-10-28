@@ -194,10 +194,10 @@ describe("POST /supervisor redaction hardening", () => {
   it("hides nested password options, environment values, URL user info, and compound keys", async () => {
     const info = { result: "ok", data: { slug: "x_app", schema: [{ name: "server", type: "schema", schema: [{ name: "wpa", type: "string", format: "password" }] }],
       options: { server: { wpa: "s3cret-wpa", host: "h" }, env_vars: [{ name: "GF_ADMIN_PASSWORD", value: "graf" }, { name: "TZ", value: "Europe/Berlin" }],
-        adminPin: "1234", dbpass: "db1", access_code: "4711", url: "https://user:ghp_x@github.com/me/apps", odd: "https://name@example.com:pw_odd@host/p" }, error_key: "app_x" } };
+        adminPin: "1234", dbpass: "db1", access_code: "4711", url: "https://user:ghp_x@github.com/me/apps", odd: "https://name@example.com:pw_odd@host/p", spaced: " https://alice:pw_spaced@example.test/p" }, error_key: "app_x" } };
     const { call } = await fakeSupervisor((req) => (req.url === "/addons/x_app/info" ? { body: JSON.stringify(info) } : undefined));
     const text = JSON.stringify((await call({ method: "GET", path: "/addons/x_app/info" })).body);
-    expect(text).not.toMatch(/s3cret-wpa|graf"|1234|db1|4711|ghp_x|pw_odd/);
+    expect(text).not.toMatch(/s3cret-wpa|graf"|1234|db1|4711|ghp_x|pw_odd|pw_spaced/);
     expect(text).toContain("Europe/Berlin");
     expect(text).toContain('"host":"h"');
     expect(text).toContain('"error_key":"app_x"');
