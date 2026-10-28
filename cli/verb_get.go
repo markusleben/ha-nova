@@ -203,13 +203,13 @@ func resolveConfigID(s *relaySession, entityID, domain string, state json.RawMes
 		configID = parsed.Attributes.ID
 	} else {
 		var entry struct {
-			UniqueID string `json:"unique_id"`
+			UniqueID registryID `json:"unique_id"`
 		}
 		// A YAML item without id has no registry row: HA answers not_found.
 		if err := s.wsDecode(map[string]any{"type": "config/entity_registry/get", "entity_id": entityID}, &entry, "the registry entry of "+entityID); err != nil && !isUpstreamNotFound(err) {
 			return "", err
 		}
-		configID = entry.UniqueID
+		configID = string(entry.UniqueID)
 	}
 	if strings.TrimSpace(configID) == "" {
 		return "", &verbFailure{

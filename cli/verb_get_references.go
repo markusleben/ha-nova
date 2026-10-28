@@ -92,18 +92,18 @@ var sourceHelperPlatforms = map[string]bool{"group": true, "min_max": true, "uti
 	"integration": true, "threshold": true}
 
 type refRegistryRow struct {
-	ID             string   `json:"id"`
-	EntityID       string   `json:"entity_id"`
-	UniqueID       string   `json:"unique_id"`
-	Platform       string   `json:"platform"`
-	DeviceID       string   `json:"device_id"`
-	ConfigEntryID  string   `json:"config_entry_id"`
-	AreaID         string   `json:"area_id"`
-	Labels         []string `json:"labels"`
-	DisabledBy     string   `json:"disabled_by"`
-	Name           string   `json:"name"`
-	OriginalName   string   `json:"original_name"`
-	TranslationKey string   `json:"translation_key"`
+	ID             string     `json:"id"`
+	EntityID       string     `json:"entity_id"`
+	UniqueID       registryID `json:"unique_id"`
+	Platform       string     `json:"platform"`
+	DeviceID       string     `json:"device_id"`
+	ConfigEntryID  string     `json:"config_entry_id"`
+	AreaID         string     `json:"area_id"`
+	Labels         []string   `json:"labels"`
+	DisabledBy     string     `json:"disabled_by"`
+	Name           string     `json:"name"`
+	OriginalName   string     `json:"original_name"`
+	TranslationKey string     `json:"translation_key"`
 }
 
 type refState struct {

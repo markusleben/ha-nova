@@ -319,7 +319,7 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 			return fail(err)
 		}
 		for _, row := range rows {
-			if row.Platform == req.Domain && row.UniqueID == req.ConfigID {
+			if row.Platform == req.Domain && string(row.UniqueID) == req.ConfigID {
 				return fail(refused("CONFIG_NOT_UI_MANAGED", row.EntityID+" is defined in YAML or a package, not in the UI config; edit it with ha-nova:yaml-config"))
 			}
 		}
@@ -382,7 +382,7 @@ func (e *tierEngine) registryConfigID(entityID string) (string, error) {
 	}
 	for _, row := range rows {
 		if row.EntityID == entityID && row.UniqueID != "" {
-			return row.UniqueID, nil
+			return string(row.UniqueID), nil
 		}
 	}
 	_, _, err = readEntityState(e.s, entityID)

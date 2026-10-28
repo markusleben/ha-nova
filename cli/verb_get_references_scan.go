@@ -21,7 +21,7 @@ func (sc *refScanner) scanConfigs(s *relaySession, registry []refRegistryRow, st
 	for _, row := range registry {
 		if domain, _ := splitID(row.EntityID); (domain == "automation" || domain == "script") && row.Platform == domain {
 			registered[row.EntityID] = true
-			items = append(items, item{row.EntityID, domain, row.UniqueID})
+			items = append(items, item{row.EntityID, domain, string(row.UniqueID)})
 		}
 	}
 	for _, st := range states {

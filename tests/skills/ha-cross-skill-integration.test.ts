@@ -174,7 +174,7 @@ describe("ha cross-skill integration", () => {
     const configApply = readFileSync("cli/verb_config_apply.go", "utf8");
     // The CLI maps the config id to the registry unique_id (never the slug)
     // and requires a live entity for `verified`.
-    expect(configApply).toContain("row.Platform == domain && row.UniqueID == configID");
+    expect(configApply).toContain("row.Platform == domain && string(row.UniqueID) == configID");
     expect(configApply).toContain('row.Expect = "read-back equals the plan, reload ok, entity present"');
 
     expect(writeSkill).toContain("never the slug");
