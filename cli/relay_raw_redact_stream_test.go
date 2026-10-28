@@ -156,22 +156,31 @@ func TestTemplateCannotPrintStreamToken(t *testing.T) {
 }
 
 // Text that prints a state or its attributes carries the token too: a
-// template's output (plain text, or a string in the Relay's JSON) and a media
-// browser thumbnail. Live ws and core responses hide it there; a snapshot or
-// file (no nonces) keeps its text, and another entity's proxy keeps its token.
+// template's output (plain text, or a string in the Relay's JSON), a media
+// browser thumbnail, and bare attributes as a trace keeps them. Live ws and
+// core responses hide it in text; a snapshot or file (no nonces) keeps its
+// text, a template's source keeps its words, and another entity's proxy
+// keeps its token.
 func TestRedactStreamTokensInText(t *testing.T) {
 	const h = "(hidden: a stored code, password, or key)"
-	cases := []struct{ name, in, want string }{
-		{"a state's text", `<template TemplateState(<state camera.door=idle; access_token=t1, entity_picture=/api/camera_proxy/camera.door?token=t1, friendly_name=Door @ 2026-10-28>)>`,
-			`<template TemplateState(<state camera.door=idle; access_token=` + h + `, entity_picture=/api/camera_proxy/camera.door?token=` + h + `, friendly_name=Door @ 2026-10-28>)>`},
-		{"attributes | to_json in the Relay's JSON", `{"status":200,"body":"{\"access_token\": \"t1\", \"entity_picture\": \"/api/image_proxy/image.doorbell?width=9&token=t1\"}"}`,
-			`{"status":200,"body":"{\"access_token\": \"` + h + `\", \"entity_picture\": \"/api/image_proxy/image.doorbell?width=9&token=` + h + `\"}"}`},
-		{"a dict's text", `{'access_token': 't1', 'entity_picture': '/api/camera_proxy/camera.door?token=t1'}`,
-			`{'access_token': '` + h + `', 'entity_picture': '/api/camera_proxy/camera.door?token=` + h + `'}`},
-		{"a media browser thumbnail", `{"children":[{"title":"Door","thumbnail":"/api/camera_proxy_stream/camera.door?token=t1"}]}`,
-			`{"children":[{"title":"Door","thumbnail":"/api/camera_proxy_stream/camera.door?token=` + h + `"}]}`},
-		{"another entity's proxy", `{"body":"/api/media_player_proxy/media_player.tv?token=m1"}`, ""},
-		{"no camera or image", `{"body":"access_token=x1 for sensor.uptime"}`, ""},
+	const k = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	cases := []struct {
+		name, in, want string
+		always         bool // hidden without nonces too (a structure, not text)
+	}{
+		{"a state's text", `<template TemplateState(<state camera.door=idle; access_token=` + k + `, entity_picture=/api/camera_proxy/camera.door?token=` + k + `, friendly_name=Door>)>`,
+			`<template TemplateState(<state camera.door=idle; access_token=` + h + `, entity_picture=/api/camera_proxy/camera.door?token=` + h + `, friendly_name=Door>)>`, false},
+		{"attributes | to_json in the Relay's JSON", `{"status":200,"body":"{\"access_token\": \"` + k + `\", \"entity_picture\": \"/api/image_proxy/image.doorbell?width=9&token=` + k + `\"}"}`,
+			`{"status":200,"body":"{\"access_token\": \"` + h + `\", \"entity_picture\": \"/api/image_proxy/image.doorbell?width=9&token=` + h + `\"}"}`, false},
+		{"a dict's text, upper case", `{'ACCESS_TOKEN': '` + k + `', 'entity_picture': '/api/camera_proxy/camera.door?TOKEN=` + k + `'}`,
+			`{'ACCESS_TOKEN': '` + h + `', 'entity_picture': '/api/camera_proxy/camera.door?TOKEN=` + h + `'}`, false},
+		{"every token parameter, an encoded one too", `{"thumbnail":"/api/camera_proxy_stream/camera.door?token=a1&token=b2;%74oken=c3&w=1"}`,
+			`{"thumbnail":"/api/camera_proxy_stream/camera.door?token=` + h + `&token=` + h + `;%74oken=` + h + `&w=1"}`, false},
+		{"bare attributes in a trace", `{"trace":{"attributes":{"access_token":"t1","entity_picture":"/api/camera_proxy/camera.door?token=t1"}}}`,
+			`{"trace":{"attributes":{"access_token":` + `"` + h + `","entity_picture":"/api/camera_proxy/camera.door"}}}`, true},
+		{"a template's source", `{"template":"{% set access_token = states('sensor.auth') %}{{ states('camera.door') }}"}`, "", false},
+		{"another entity's proxy", `{"body":"/api/media_player_proxy/media_player.tv?token=m1"}`, "", false},
+		{"no camera or image", `{"body":"access_token=` + k + ` for sensor.uptime"}`, "", false},
 	}
 	for _, c := range cases {
 		want := c.want
@@ -181,8 +190,8 @@ func TestRedactStreamTokensInText(t *testing.T) {
 		if got := string(redactSecrets([]byte(c.in), true)); got != want {
 			t.Errorf("%s:\n got %s\nwant %s", c.name, got, want)
 		}
-		if got := string(redactSecrets([]byte(c.in), false)); got != c.in && !strings.HasPrefix(c.in, "{\"children") {
-			t.Errorf("%s without nonces changed: %s", c.name, got)
+		if got := string(redactSecrets([]byte(c.in), false)); !c.always && got != c.in || c.always && got != want {
+			t.Errorf("%s without nonces: %s", c.name, got)
 		}
 	}
 }
@@ -190,7 +199,7 @@ func TestRedactStreamTokensInText(t *testing.T) {
 // A template that prints a camera's state reaches neither the CLI's output
 // nor ha_read with the token in it.
 func TestTemplateOutputHidesStreamToken(t *testing.T) {
-	const live = "c0ffee77ab"
+	const live = "c0ffee77abc0ffee77abc0ffee77abc0ffee77abc0ffee77abc0ffee77ab0000"
 	text := "<template TemplateState(<state camera.door=idle; access_token=" + live + ", entity_picture=/api/camera_proxy/camera.door?token=" + live + ">)>"
 	paths, _ := readRelay(t, func(endpoint string, body map[string]any) any {
 		return map[string]any{"status": 200, "body": text}

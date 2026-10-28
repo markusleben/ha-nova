@@ -51,10 +51,10 @@ func TestRawDeviceAreaOnAccessDeviceIsTyped(t *testing.T) {
 		},
 	})
 	for payload, want := range map[string]string{
-		`{"type":"config/device_registry/update","device_id":"dlock","area_id":"garage"}`:   "typed",
-		`{"type":"config/device_registry/update","device_id":"dlock","labels":["outside"]}`: "typed",
+		`{"type":"config/device_registry/update","device_id":"dlock","area_id":"garage"}`:    "typed",
+		`{"type":"config/device_registry/update","device_id":"dlock","labels":["outside"]}`:  "typed",
 		`{"type":"config/device_registry/update","device_id":"dlock","name_by_user":"Door"}`: "preview",
-		`{"type":"config/device_registry/update","device_id":"dlight","area_id":"garage"}`:  "preview",
+		`{"type":"config/device_registry/update","device_id":"dlight","area_id":"garage"}`:   "preview",
 	} {
 		exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":`+payload+`}]`)
 		if exit != verbExitConfirmation || env.Tier != want {
@@ -81,5 +81,53 @@ func TestRawDeviceDeleteUnreadableScopePlansNothing(t *testing.T) {
 	}
 	if got := sent(); len(got) != 0 {
 		t.Fatalf("sent %v", got)
+	}
+}
+
+// Two channels of one relay device: the wrapper names its own source, so
+// removing the other channel is free and removing its own is refused.
+func TestRawSourceSwitchOtherChannelStaysFree(t *testing.T) {
+	paths, _ := rawRelay(t, map[string]func(map[string]any) any{
+		"config/entity_registry/list": func(map[string]any) any {
+			return []any{map[string]any{"entity_id": "switch.ch1", "config_entry_id": "Esource", "device_id": "drelay"},
+				map[string]any{"entity_id": "switch.ch2", "config_entry_id": "Esource", "device_id": "drelay"},
+				map[string]any{"entity_id": "cover.gate", "config_entry_id": "Ewrapper", "device_id": "drelay", "platform": "switch_as_x"}}
+		},
+		"config/entity_registry/get": func(body map[string]any) any {
+			return map[string]any{"options": map[string]any{"switch_as_x": map[string]any{"entity_id": "switch.ch1"}}}
+		},
+	})
+	for source, refused := range map[string]bool{"switch.ch1": true, "switch.ch2": false} {
+		exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"config/entity_registry/remove","entity_id":"`+source+`"}}]`)
+		if refused && (exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Message, "cover.gate")) || !refused && exit != verbExitConfirmation {
+			t.Errorf("%s: exit %d %+v", source, exit, env.Error)
+		}
+	}
+}
+
+// A rooms plan never moves a device with a lock: that move is a raw device
+// update, which takes the user's own confirmation. A failed read refuses.
+func TestRoomsPlanRefusesAccessDevices(t *testing.T) {
+	list := any([]any{map[string]any{"entity_id": "lock.front", "device_id": "dlock"}, map[string]any{"entity_id": "light.hall", "device_id": "dlight"}})
+	paths, _ := rawRelay(t, map[string]func(map[string]any) any{"config/entity_registry/list": func(map[string]any) any { return list }})
+	s, err := newRelaySession(paths, verbOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.close()
+	if err := roomsAccessRefusal(s, roomsRequest{Items: []roomsItem{{DeviceID: "dlight"}}}); err != nil {
+		t.Fatalf("a light: %v", err)
+	}
+	if err := roomsAccessRefusal(s, roomsRequest{Items: []roomsItem{{DeviceID: "dlight"}, {DeviceID: "dlock"}}}); err == nil || !strings.Contains(err.Error(), "lock.front") {
+		t.Fatalf("a lock: %v", err)
+	}
+	list = nil
+	s2, err := newRelaySession(paths, verbOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.close()
+	if err := roomsAccessRefusal(s2, roomsRequest{Items: []roomsItem{{DeviceID: "dlight"}}}); err == nil || !strings.Contains(err.Error(), "nothing was planned") {
+		t.Fatalf("unreadable: %v", err)
 	}
 }

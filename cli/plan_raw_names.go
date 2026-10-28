@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -134,6 +135,9 @@ func (n *rawNamer) deviceEntities(id any) string {
 	}
 	if err == nil {
 		err = json.Unmarshal(data, &entities)
+	}
+	if err == nil && (devices == nil || entities == nil) { // a real empty registry is []
+		err = errors.New("a registry came back empty")
 	}
 	if n.removing == nil {
 		n.removing = map[string]any{}

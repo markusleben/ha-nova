@@ -180,7 +180,7 @@ func (n *rawNamer) accessDevice(id any) bool {
 		DeviceID string `json:"device_id"`
 	}
 	data, err := rawRead(n.s, "ws", map[string]any{"type": "config/entity_registry/list"})
-	if err != nil || json.Unmarshal(data, &rows) != nil {
+	if err != nil || json.Unmarshal(data, &rows) != nil || rows == nil {
 		return true
 	}
 	for _, row := range rows {

@@ -39,8 +39,8 @@ func redactSecrets(body []byte, nonces bool) []byte {
 		!(nonces && bytes.Contains(body, []byte("HANOVA_"))) && !bytes.Contains(body, []byte("default_code")) &&
 		!bytes.Contains(body, []byte("create_backup")) && !bytes.Contains(body, []byte("active_dataset_tlvs")) &&
 		!bytes.Contains(body, []byte("data_schema")) && !bytes.Contains(body, []byte("discovery_data")) &&
-		!bytes.Contains(body, []byte(`/config"`)) && !bytes.Contains(body, []byte(`"camera.`)) && !bytes.Contains(body, []byte(`"image.`)) &&
-		!bytes.Contains(body, []byte(`\u`)) && !(nonces && bytes.Contains(body, []byte("token"))) { // an escaped key spells none of these
+		!bytes.Contains(body, []byte(`/config"`)) && !bytes.Contains(body, []byte(`"camera.`)) && !bytes.Contains(body, []byte(`"image.`)) && !bytes.Contains(body, []byte("access_token")) &&
+		!bytes.Contains(body, []byte(`\u`)) && !(nonces && (bytes.Contains(body, []byte("oken")) || bytes.Contains(body, []byte("OKEN")))) { // an escaped key spells none of these
 		return body
 	}
 	dec := json.NewDecoder(bytes.NewReader(body))
@@ -225,6 +225,9 @@ func redactObject(t map[string]any, nonces bool) bool {
 	}
 	if id, _ := t["entity_id"].(string); streamTokenEntity(id) { // a state: get_states, /api/states, an event's old_state and new_state
 		changed = hideStreamToken(t, "attributes") || changed
+	}
+	if picture, _ := t["entity_picture"].(string); t["access_token"] != nil && streamProxyPicture(picture) { // bare attributes, as a trace keeps them
+		changed = hideStreamTokenAttrs(t) || changed
 	}
 	for id, x := range t { // a compressed state keyed by entity id: subscribe_entities, history/history_during_period
 		if !streamTokenEntity(id) {

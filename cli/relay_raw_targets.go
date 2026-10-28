@@ -185,7 +185,7 @@ func checkRawAccessTargetIn(s *relaySession, endpoint string, body []byte) (refu
 			return rawRefusal("rename of "+row.EntityID+" (its name marks a press as needing the one-time code)", rawNextUI), nil
 		}
 		wrapped := row.Platform == "switch_as_x" && sources[row.DeviceID]
-		if row.Platform == "switch_as_x" && row.DeviceID == "" && deviceLessSources && accessCapable(row.EntityID, coverClass(s, row.EntityID)) {
+		if row.Platform == "switch_as_x" && (wrapped || row.DeviceID == "" && deviceLessSources) && accessCapable(row.EntityID, coverClass(s, row.EntityID)) {
 			var wrapper struct {
 				Options struct {
 					Switch struct {
@@ -194,10 +194,12 @@ func checkRawAccessTargetIn(s *relaySession, endpoint string, body []byte) (refu
 				} `json:"options"`
 			}
 			data, err := s.readFresh("ws", map[string]any{"type": "config/entity_registry/get", "entity_id": row.EntityID}, relaySessionRequestTimeout)
-			if err != nil || json.Unmarshal(data, &wrapper) != nil || wrapper.Options.Switch.EntityID == "" {
+			switch {
+			case err == nil && json.Unmarshal(data, &wrapper) == nil && wrapper.Options.Switch.EntityID != "":
+				wrapped = switches[wrapper.Options.Switch.EntityID] // another channel of the same device stays free
+			case row.DeviceID == "":
 				return rawRefusal("an unresolved source switch for "+row.EntityID, "cannot tell whether this change would interrupt its access control; "+rawNextUI), nil
-			}
-			wrapped = switches[wrapper.Options.Switch.EntityID]
+			} // a wrapper on the device whose source can't be read counts as wrapping it
 		}
 		owned := row.EntityID == target.entity || (target.entry != "" && row.ConfigEntryID == target.entry) || (target.device != "" && row.DeviceID == target.device) || gone[row.DeviceID] || (target.toggled != "" && row.ConfigEntryID == target.toggled) || wrapped
 		if !owned || !accessCapable(row.EntityID, coverClass(s, row.EntityID)) {

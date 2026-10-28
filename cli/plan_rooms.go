@@ -211,6 +211,9 @@ func computeRoomsPlan(s *relaySession, env *verbEnvelope, req roomsRequest) (*ti
 		return nil, storedPlan{}, refused("PLAN_INVALID", err.Error())
 	}
 	reg, err := readRoomsRegistry(s, false)
+	if err == nil {
+		err = roomsAccessRefusal(s, req)
+	}
 	if err != nil {
 		return nil, storedPlan{}, err
 	}
@@ -243,14 +246,6 @@ func computeRoomsPlan(s *relaySession, env *verbEnvelope, req roomsRequest) (*ti
 	env.Result = result
 	env.Say = sayAbout(roomsSay(result.Changes, req.Undo)) + " " + sayNotSaved + " " + sayRoomsAsk
 	return e, plan, err
-}
-
-// roomsAgain: what to do when a device changed since the preview.
-func roomsAgain(req roomsRequest) string {
-	if req.Undo {
-		return "Nothing was reverted: a device changed since. Tell the user; they can move devices in Home Assistant's own device settings."
-	}
-	return "Nothing was sent. Plan again with ha-nova plan rooms, show its preview, and get confirmation again."
 }
 
 // roomsSay: Kitchen ← “A” and “B”; Bedroom ← “C”; no room ← “D”.
