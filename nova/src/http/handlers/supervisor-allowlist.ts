@@ -107,7 +107,7 @@ export function secretKey(key: string): boolean {
 
 // A URL with user info (https://user:token@host/…): a repository's
 // credentials ride in it.
-const URL_USERINFO = /^([a-z][a-z0-9+.-]*:\/\/)[^/?#\s]*@/i; // through the last "@" of the authority
+const URL_USERINFO = /^(\s*[a-z][a-z0-9+.-]*:\/\/)[^/?#\s]*@/i; // through the last "@" of the authority
 
 // redactSecretValues hides every value under a secret-like key, at any depth,
 // and the user info of any URL; booleans and null stay (a "password set" flag

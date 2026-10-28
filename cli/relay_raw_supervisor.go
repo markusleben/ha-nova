@@ -289,7 +289,7 @@ var (
 	rawSupervisorSecretText   = regexp.MustCompile(`password|passwd|passphrase|secret|token|credential|apikey|api_key|private|privkey`)
 	rawSupervisorSecretSuffix = regexp.MustCompile(`(pass|pw|pwd|pin|key|code)$`)
 	rawSupervisorCamel        = regexp.MustCompile(`([a-z0-9])([A-Z])`)
-	rawSupervisorURLUserinfo  = regexp.MustCompile(`(?i)^([a-z][a-z0-9+.-]*://)[^/?#\s]*@`)
+	rawSupervisorURLUserinfo  = regexp.MustCompile(`(?i)^(\s*[a-z][a-z0-9+.-]*://)[^/?#\s]*@`)
 )
 
 func rawSupervisorSecretKey(key string) bool {

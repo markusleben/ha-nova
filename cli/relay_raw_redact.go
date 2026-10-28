@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"strings"
 )
@@ -27,6 +28,8 @@ import (
 //     token parameter of its entity_picture (the path stays): the token opens
 //     /api/camera_proxy_stream (live video) or the image for minutes, with no
 //     login. Frames come from /api/camera_proxy/<id> with the Relay's own auth.
+//     With nonces (a live ws or core response), also in text that prints one
+//     (hideStreamTokenText): a template's output, a media browser thumbnail.
 //
 // A set value becomes a fixed marker, an empty one stays empty, so "is a code
 // set" stays readable. Nothing the skills or verbs read needs the values;
@@ -36,17 +39,25 @@ func redactSecrets(body []byte, nonces bool) []byte {
 		!(nonces && bytes.Contains(body, []byte("HANOVA_"))) && !bytes.Contains(body, []byte("default_code")) &&
 		!bytes.Contains(body, []byte("create_backup")) && !bytes.Contains(body, []byte("active_dataset_tlvs")) &&
 		!bytes.Contains(body, []byte("data_schema")) && !bytes.Contains(body, []byte("discovery_data")) &&
-		!bytes.Contains(body, []byte(`/config"`)) && !bytes.Contains(body, []byte(`"camera.`)) && !bytes.Contains(body, []byte(`"image.`)) &&
-		!bytes.Contains(body, []byte(`\u`)) { // an escaped key spells none of these
+		!bytes.Contains(body, []byte(`/config"`)) && !bytes.Contains(body, []byte(`"camera.`)) && !bytes.Contains(body, []byte(`"image.`)) && !bytes.Contains(body, []byte("access_token")) &&
+		!bytes.Contains(body, []byte(`\u`)) && !(nonces && (bytes.Contains(body, []byte("oken")) || bytes.Contains(body, []byte("OKEN")))) { // an escaped key spells none of these
 		return body
 	}
 	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.UseNumber()
 	v, err := decodeOrdered(dec)
-	if err != nil {
-		return body
+	if err == nil {
+		_, err = dec.Token()
+		if err == io.EOF {
+			err = nil
+		} else if err == nil {
+			err = errors.New("trailing data")
+		}
 	}
-	if _, err := dec.Token(); err != io.EOF { // trailing data: never rewrite a malformed response into a valid one
+	if err != nil { // plain text, or trailing data: never rewrite a malformed response into a valid one
+		if hidden, did := hideStreamTokenText(string(body)); nonces && did {
+			return []byte(hidden)
+		}
 		return body
 	}
 	v, changed := redactValue(v, nonces)
@@ -182,6 +193,9 @@ func redactValue(v any, nonces bool) (any, bool) {
 		if nonces && strings.Contains(t, "HANOVA_") {
 			return phoneSecretHidden, true
 		}
+		if hidden, did := hideStreamTokenText(t); nonces && did {
+			return hidden, true
+		}
 	case *jsonObject:
 		changed = redactObject(t.vals, nonces) || t.dup
 	case []any:
@@ -211,6 +225,9 @@ func redactObject(t map[string]any, nonces bool) bool {
 	}
 	if id, _ := t["entity_id"].(string); streamTokenEntity(id) { // a state: get_states, /api/states, an event's old_state and new_state
 		changed = hideStreamToken(t, "attributes") || changed
+	}
+	if picture, _ := t["entity_picture"].(string); t["access_token"] != nil && streamProxyPicture(picture) { // bare attributes, as a trace keeps them
+		changed = hideStreamTokenAttrs(t) || changed
 	}
 	for id, x := range t { // a compressed state keyed by entity id: subscribe_entities, history/history_during_period
 		if !streamTokenEntity(id) {
