@@ -227,9 +227,9 @@ func checkRawAccessTargetIn(s *relaySession, endpoint string, body []byte) (refu
 // them with it). HA NOVA's own App device is refused.
 func rawDeletedDevices(s *relaySession, id string) (gone map[string]bool, refusal, err error) {
 	var rows []struct {
-		ID             string     `json:"id"`
-		ParentDeviceID string     `json:"parent_device_id"`
-		Identifiers    [][]string `json:"identifiers"`
+		ID             string         `json:"id"`
+		ParentDeviceID string         `json:"parent_device_id"`
+		Identifiers    [][]registryID `json:"identifiers"`
 	}
 	data, err := s.readFresh("ws", map[string]any{"type": "config/device_registry/list"}, relaySessionRequestTimeout)
 	if err == nil {
@@ -249,7 +249,7 @@ func rawDeletedDevices(s *relaySession, id string) (gone map[string]bool, refusa
 		}
 		gone[row.ID] = true
 		for _, pair := range row.Identifiers {
-			if len(pair) == 2 && (pair[0] == "ha_nova" || pair[0] == "hassio" && strings.HasSuffix(pair[1], "_ha_nova_relay")) {
+			if len(pair) == 2 && (pair[0] == "ha_nova" || pair[0] == "hassio" && strings.HasSuffix(string(pair[1]), "_ha_nova_relay")) {
 				return nil, rawRefusal("deletion of HA NOVA's own App device", "HA NOVA would lose its way into Home Assistant; remove the App in the Home Assistant UI (Settings > Apps)"), nil
 			}
 		}

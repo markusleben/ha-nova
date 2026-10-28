@@ -287,9 +287,9 @@ func resolveRelayUpdateCandidateWithTransport(
 		return relayUpdateCandidate{}, "could not read Home Assistant entity registry"
 	}
 	var registryEntries []struct {
-		EntityID string `json:"entity_id"`
-		Platform string `json:"platform"`
-		UniqueID string `json:"unique_id"`
+		EntityID string     `json:"entity_id"`
+		Platform string     `json:"platform"`
+		UniqueID registryID `json:"unique_id"`
 	}
 	if err := json.Unmarshal(registryEnvelope.Data, &registryEntries); err != nil {
 		return relayUpdateCandidate{}, "could not read Home Assistant entity registry"
@@ -297,12 +297,12 @@ func resolveRelayUpdateCandidateWithTransport(
 	var matches []relayUpdateCandidate
 	for _, entry := range registryEntries {
 		if entry.Platform != "hassio" || !strings.HasPrefix(entry.EntityID, "update.") ||
-			!relayRegistryEntryMatchesNOVA(entry.UniqueID) {
+			!relayRegistryEntryMatchesNOVA(string(entry.UniqueID)) {
 			continue
 		}
 		if candidate, ok := stateByEntityID[entry.EntityID]; ok {
 			candidate.Platform = entry.Platform
-			candidate.UniqueID = entry.UniqueID
+			candidate.UniqueID = string(entry.UniqueID)
 			matches = append(matches, candidate)
 		}
 	}

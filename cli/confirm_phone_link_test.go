@@ -62,7 +62,8 @@ func (home *fakeHome) install(t *testing.T, f *fakeHA) {
 			for _, d := range home.devices {
 				rows = append(rows, map[string]any{"id": d.DeviceID, "name": d.Name, "identifiers": [][]string{{"mobile_app", "app-" + d.DeviceID}}})
 			}
-			return append(rows, map[string]any{"id": "hue-bridge", "name": "Anna’s Pixel", "identifiers": [][]string{{"hue", "x"}}}), true
+			return append(rows, map[string]any{"id": "hue-bridge", "name": "Anna’s Pixel", "identifiers": [][]string{{"hue", "x"}}},
+				map[string]any{"id": "nuki", "name": "Haustür", "identifiers": []any{[]any{"nuki", 743657972}}}), true
 		case p["path"] == "/api/template":
 			vars := p["body"].(map[string]any)["variables"].(map[string]any)
 			device := vars["device"]

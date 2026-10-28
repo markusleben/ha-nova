@@ -241,7 +241,7 @@ func registryEntityFor(s *relaySession, domain, configID string) (string, bool, 
 		return "", false, err
 	}
 	for _, row := range rows {
-		if row.Platform == domain && row.UniqueID == configID && strings.HasPrefix(row.EntityID, domain+".") {
+		if row.Platform == domain && string(row.UniqueID) == configID && strings.HasPrefix(row.EntityID, domain+".") {
 			return row.EntityID, row.DisabledBy != "", nil
 		}
 	}

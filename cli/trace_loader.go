@@ -177,7 +177,7 @@ func resolveTraceUniqueIDContext(
 	var envelope struct {
 		OK   bool `json:"ok"`
 		Data struct {
-			UniqueID string `json:"unique_id"`
+			UniqueID registryID `json:"unique_id"`
 		} `json:"data"`
 		Error struct {
 			Message string `json:"message"`
@@ -192,10 +192,10 @@ func resolveTraceUniqueIDContext(
 		}
 		return "", fmt.Errorf("cannot resolve %s", entityID)
 	}
-	if strings.TrimSpace(envelope.Data.UniqueID) == "" {
+	if strings.TrimSpace(string(envelope.Data.UniqueID)) == "" {
 		return "", fmt.Errorf("cannot resolve %s: entity registry entry has no unique_id", entityID)
 	}
-	return envelope.Data.UniqueID, nil
+	return string(envelope.Data.UniqueID), nil
 }
 
 func relayWSJSONContext(
