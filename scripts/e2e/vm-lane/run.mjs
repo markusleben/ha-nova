@@ -545,9 +545,10 @@ if (start) {
 if (backupSlug) {
   try {
     const restored = await sup(`/backups/${backupSlug}/restore/partial`, "post", { addons: [CFG.app], homeassistant: false });
-    let info;
-    for (let i = 0; i < 60; i++) { info = await sup(`/addons/${CFG.app}/info`); if (info.state === "started" && info.version === start.version) break; await sleep(3000); }
-    const ids = (await (await nova()).devices()).map((d) => d.id).sort();
+    let info, ids;
+    const listed = async () => (await (await nova()).devices()).map((d) => d.id).sort();
+    for (let i = 0; i < 60 && !ids; i++) { info = await sup(`/addons/${CFG.app}/info`); if (info.state === "started" && info.version === start.version) ids = await listed().catch(() => undefined); if (!ids) await sleep(3000); }
+    ids ??= await listed();
     const sameRegistry = registryHash() === start.registry;
     const matched = check("c", "HAOS App and credential registry match snapshot", info.state === "started" && info.version === start.version && sameRegistry && JSON.stringify(ids) === JSON.stringify([...start.devices].sort()), `backup ${backupSlug}; App ${info.version} ${info.state}; original device IDs ${ids.length}; registry SHA-256 ${sameRegistry ? "unchanged" : "DIFFERS"} (only lastUsedAtMs excluded)${!sameRegistry && restored?.error ? JSON.stringify(restored.error) : ""}`);
     if (matched) {
