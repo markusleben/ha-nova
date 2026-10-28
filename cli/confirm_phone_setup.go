@@ -134,8 +134,8 @@ func lookupPhones(s *relaySession, links map[string]phoneEntry) (phoneHome, erro
 		device = link.DeviceID
 	}
 	var devices []struct {
-		Name        string     `json:"name"`
-		Identifiers [][]string `json:"identifiers"`
+		Name        string         `json:"name"`
+		Identifiers [][]registryID `json:"identifiers"`
 	}
 	if err := s.phoneRead("ws", map[string]any{"type": "config/device_registry/list"}, &devices); err != nil {
 		return home, err

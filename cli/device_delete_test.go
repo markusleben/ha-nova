@@ -42,6 +42,7 @@ func TestDeviceDeleteRefusals(t *testing.T) {
 		map[string]any{"id": "dgate", "name": "Gate hub", "config_entry_id": "E1"},
 		map[string]any{"id": "dchildlock", "name": "Gate", "config_entry_id": "E1", "parent_device_id": "dgate"},
 		map[string]any{"id": "drelay", "name": "NOVA Relay", "config_entry_id": "H1", "identifiers": []any{[]any{"hassio", "2368fcfa_ha_nova_relay"}}},
+		map[string]any{"id": "dnuki", "name": "Haustür", "config_entry_id": "E3", "identifiers": []any{[]any{"nuki", 743657972}}}, // a number, as Nuki stores it
 	})
 	for device, want := range map[string]string{
 		"dlock":  "deletion of device dlock, which has lock.front",
