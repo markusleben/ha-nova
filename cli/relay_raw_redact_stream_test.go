@@ -179,6 +179,7 @@ func TestRedactStreamTokensInText(t *testing.T) {
 		{"bare attributes in a trace", `{"trace":{"attributes":{"access_token":"t1","entity_picture":"/api/camera_proxy/camera.door?token=t1"}}}`,
 			`{"trace":{"attributes":{"access_token":` + `"` + h + `","entity_picture":"/api/camera_proxy/camera.door"}}}`, true},
 		{"a template's source", `{"template":"{% set access_token = states('sensor.auth') %}{{ states('camera.door') }}"}`, "", false},
+		{"a template that builds the URL", `{"value_template":"{{ '/api/camera_proxy/camera.door?token=' ~ states('sensor.camera_auth') }}"}`, "", false},
 		{"another entity's proxy", `{"body":"/api/media_player_proxy/media_player.tv?token=m1"}`, "", false},
 		{"no camera or image", `{"body":"access_token=` + k + ` for sensor.uptime"}`, "", false},
 	}

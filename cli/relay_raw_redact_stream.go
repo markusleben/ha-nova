@@ -67,7 +67,7 @@ func hideStreamTokenText(text string) (string, bool) {
 				continue
 			}
 			param := query[start:i]
-			if name, _, set := strings.Cut(param, "="); set {
+			if name, value, _ := strings.Cut(param, "="); value != "" { // an empty one, as a template builds it, holds nothing
 				if decoded, err := url.QueryUnescape(name); err != nil || strings.EqualFold(strings.TrimSpace(decoded), "token") {
 					param = name + "=" + secretHidden
 				}
