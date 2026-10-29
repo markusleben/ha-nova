@@ -123,8 +123,8 @@ describe("batch safety contract (issue #327)", () => {
   // mixed, are one CLI batch with one confirmation; no code per item.
   it("routes automation/script batches through the CLI batch", () => {
     expect(batchSafety).toContain("## CLI Batch (automations and scripts)");
-    expect(batchSafety).toContain("one `ha-nova plan batch --plan <id> --plan <id> …` (plan ids in run order)\nwith one confirmation");
-    expect(batchSafety).toContain("After a stop, never apply\n   it again; the rest is a new batch with a new confirmation.");
+    expect(batchSafety).toContain("one `ha-nova plan batch --plan <id> --plan <id> …` (plan ids in run order: an\nitem that runs or reads another item goes before it) with one confirmation");
+    expect(batchSafety).toContain("After a stop,\n   never apply it again; the rest needs a new confirmation (two or more\n   items: a new batch).");
     expect(batchSafety).toContain("| `write` | yes | automations and scripts, mixed: the CLI Batch");
     for (const [name, text] of Object.entries({ batchSafety, contextSkill, writeSafety })) {
       expect(text, name).not.toMatch(/CLI code per item|CLI-minted code per item|never mixed\)/);

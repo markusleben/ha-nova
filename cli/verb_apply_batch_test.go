@@ -153,7 +153,14 @@ func TestBatchApplyNeverTrustsTheBatchFile(t *testing.T) {
 		"the language": {func(p map[string]any) { p["lang"] = "de" }, "PLAN_INVALID"},
 		"a member's hash": {func(p map[string]any) {
 			p["batch_members"].([]any)[2].(map[string]any)["hash"] = "sha256:" + strings.Repeat("0", 64)
-		}, "BATCH_DRIFT"},
+		}, "PLAN_INVALID"},
+		"a member's basis": {func(p map[string]any) { // the list would say Create
+			p["batch_members"].([]any)[0].(map[string]any)["basis"].(map[string]any)["current"] = "absent"
+		}, "PLAN_INVALID"},
+		"a member's config id": {func(p map[string]any) { // the ledger would name another revert target
+			p["batch_members"].([]any)[1].(map[string]any)["config_action"].(map[string]any)["config_id"] = "s2"
+		}, "PLAN_INVALID"},
+		"a member's id": {func(p map[string]any) { p["batch_members"].([]any)[3].(map[string]any)["id"] = "p_000000000000" }, "PLAN_INVALID"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			h := newWriteHarness(t, batchHome())

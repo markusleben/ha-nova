@@ -192,12 +192,12 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	case isCall && staticRefusal(request) != nil:
 		return fail(refuse(&env, *staticRefusal(request)))
 	case !verbNow().Before(expires):
-		return fail(refused("PLAN_EXPIRED", "plan "+id+" expired "+sayAgo(verbNow().Sub(expires))))
+		return fail(batchRefusal(isBatch, refused("PLAN_EXPIRED", "plan "+id+" expired "+sayAgo(verbNow().Sub(expires)))))
 	case expires.After(verbNow().Add(planTTL + time.Minute)):
 		// The plan file is user-writable; a far-future expiry would turn the
 		// 4-digit code into an unbounded online brute force. No plan is ever
 		// valid longer than its TTL, so refuse one claiming to be.
-		return fail(refused("PLAN_EXPIRED", "plan "+id+" has an expiry beyond its lifetime"))
+		return fail(batchRefusal(isBatch, refused("PLAN_EXPIRED", "plan "+id+" has an expiry beyond its lifetime")))
 	case plan.SchemaVersion != planSchemaVersion: // its code scheme is gone: never typed against a new one
 		return fail(refused("PLAN_EXPIRED", "plan "+id+" was made by an earlier HA NOVA version"))
 	case plan.Server != s.server:
@@ -333,7 +333,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			// That is enough: a chat plan's code is in `say`, and a form plan
 			// (its channel sealed above) never takes an argv code.
 			if plan.Mismatches++; plan.Mismatches >= 3 {
-				return fail(refused("PLAN_INVALIDATED", "three wrong one-time codes; the plan is gone"))
+				return fail(batchRefusal(isBatch, refused("PLAN_INVALIDATED", "three wrong one-time codes; the plan is gone")))
 			}
 			if writePlanFile(claimed, plan) == nil && os.Rename(claimed, open) == nil {
 				consumed = false

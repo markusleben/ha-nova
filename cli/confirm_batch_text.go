@@ -201,15 +201,23 @@ func batchPhoneTitle(rp batchReplan) string {
 	return confirmT(lang, "batch.phone.either.mixed", "count", n)
 }
 
-// batchWindowFits refuses a list too long for one window: it is never cut.
-func batchWindowFits(plan storedPlan) error {
-	text := confirmText(plan, false) + "\n\n" + windowBoth + "\n" + windowAsked
+// batchWindowFits refuses a window batch too long for one window, with the
+// longer copy note and the phone's line: it is never cut.
+func batchWindowFits(plan storedPlan, verb string) error {
+	text := plan.Prompt
+	if noCopies := batchNoCopies(plan.Lang, text); utf8.RuneCountInString(noCopies) > utf8.RuneCountInString(text) {
+		text = noCopies
+	}
+	text += "\n\n" + windowBoth + "\n" + windowAsked
 	lines, chars := strings.Count(text, "\n")+1, utf8.RuneCountInString(text)
 	if lines <= batchWindowLines && chars <= batchWindowChars {
 		return nil
 	}
-	return refusedWith("BATCH_TOO_LONG", fmt.Sprintf("the confirmation of these %d changes is too long for one window (%d lines and %d characters; at most %d and %d)", len(plan.BatchMembers), lines, chars, batchWindowLines, batchWindowChars),
-		"Split the list into two batches (each gets its own confirmation), then make them again with the same plan ids.")
+	next := "Split the list into two batches (each gets its own confirmation), then make them again with the same plan ids."
+	if verb != "plan" {
+		next = "Nothing was sent, and this batch is used up (a name in it grew longer): plan every item again, then make two shorter batches, each with its own confirmation."
+	}
+	return refusedWith("BATCH_TOO_LONG", fmt.Sprintf("the confirmation of these %d changes is too long for one window (%d lines and %d characters; at most %d and %d)", len(plan.BatchMembers), lines, chars, batchWindowLines, batchWindowChars), next)
 }
 
 // batchCopyText: a batch's window and form text; after the user chose to go
@@ -279,6 +287,8 @@ func batchPhoneResult(env verbEnvelope, exit int) (string, string) {
 		return "Done", confirmT(result.lang, "batch.phone.done")
 	case exit == verbExitUnverified && result.Counts.Verified > 0:
 		return "Partly done", confirmT(result.lang, "batch.phone.partly", "count", len(result.Items), "done", result.Counts.Verified) + " " + phoneSaysWhy()
+	case exit == verbExitUnknown && result.Counts.Verified > 0:
+		return "Unclear", confirmT(result.lang, "batch.phone.partly", "count", len(result.Items), "done", result.Counts.Verified) + " " + phoneSaysWhy()
 	}
 	return "", ""
 }

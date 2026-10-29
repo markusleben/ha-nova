@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -59,6 +60,7 @@ type batchItem struct {
 	Snapshot     string               `json:"snapshot,omitempty"`
 	Restore      string               `json:"restore,omitempty"`
 	Undo         *snapshotSaveReceipt `json:"undo,omitempty"`
+	BeforeConfig json.RawMessage      `json:"before_config,omitempty"` // an update whose checkpoint wasn't saved
 	Error        string               `json:"error,omitempty"`
 	quoted       string
 }
@@ -84,22 +86,20 @@ func computeBatchPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, st
 		s.lang = s.language()
 	}
 	rp := batchReplan{lang: s.lang}
-	var changed []string
+	var changed, changedIDs []string
 	for _, m := range stored {
 		member, err := replanMember(paths, s, m)
 		var refusal *verbFailure
 		switch {
-		case errors.As(err, &refusal):
-			changed = append(changed, member.name())
-		case err != nil:
+		case err != nil && !errors.As(err, &refusal):
 			return rp, storedPlan{}, err
-		case !stillConfirmed(m, member.fresh) || member.fresh.Tier != m.Tier:
-			changed = append(changed, member.name())
+		case err != nil || !stillConfirmed(m, member.fresh) || member.fresh.Tier != m.Tier:
+			changed, changedIDs = append(changed, member.name()), append(changedIDs, m.ID)
 		}
 		rp.members = append(rp.members, member)
 	}
 	if len(changed) > 0 {
-		return rp, storedPlan{}, batchChanged(env, rp.lang, changed)
+		return rp, storedPlan{}, batchChanged(env, rp.lang, changed, changedIDs)
 	}
 	e := newTierEngine(s)
 	for _, m := range rp.members {
@@ -113,6 +113,11 @@ func computeBatchPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, st
 	text := batchText(rp, plan.Tier == tierTyped.String())
 	if plan.Tier == tierTyped.String() {
 		plan.Prompt = demoPrefix(text)
+	}
+	if plan.Channel == channelWindow { // checked again at every apply: a name in a reason may have grown
+		if err := batchWindowFits(plan, env.Verb); err != nil {
+			return rp, plan, err
+		}
 	}
 	env.Result, env.ask = batchPlanResult(rp), batchPhoneGoal(rp)
 	env.Say = batchSay(s, plan, env.ask, text, len(rp.members))
@@ -132,15 +137,16 @@ func replanMember(paths runtimePaths, s *relaySession, m storedPlan) (batchMembe
 	return member, err
 }
 
-func batchChanged(env *verbEnvelope, lang string, names []string) error {
+func batchChanged(env *verbEnvelope, lang string, names, ids []string) error {
+	which := fmt.Sprintf("%s changed since the preview (plan %s)", strings.Join(names, ", "), strings.Join(ids, ", "))
 	if env.Verb == "plan" {
 		return &verbFailure{exit: verbExitDrift, status: "drift", code: "PLAN_DRIFT",
-			message: sayList(names) + " changed since the preview; nothing was planned or sent",
+			message: which + "; nothing was planned or sent",
 			next:    "Plan each one named again and show its new preview, then make the batch again with its new plan id; the other plans are as they were."}
 	}
 	env.Say = confirmT(lang, "batch.drift", "count", len(names), "names", sayList(names))
 	return &verbFailure{exit: verbExitDrift, status: "drift", code: "BATCH_DRIFT",
-		message: sayList(names) + " changed since the preview; nothing was sent, and the batch is used up",
+		message: which + "; nothing was sent, and the batch is used up",
 		next:    "Show `say`. Plan each one named again and show its new preview; the other plans of this batch are gone too, so plan them again as well, then make a new batch of all of them. Never apply this batch again."}
 }
 
@@ -202,9 +208,9 @@ func executeBatch(paths runtimePaths, s *relaySession, env *verbEnvelope, rp bat
 			var refusal *verbFailure
 			switch {
 			case rerr != nil && !errors.As(rerr, &refusal):
-				return batchStopped(env, &result, i, "not_sent", "it could not be checked again before sending: "+rerr.Error())
+				return batchStopped(env, &result, i, "not_sent", "it could not be checked again before sending: "+rerr.Error(), "")
 			case rerr != nil || !stillConfirmed(m.stored, again.fresh) || again.fresh.Tier != m.stored.Tier:
-				return batchStopped(env, &result, i, "drift", "it changed since the preview, so it was not sent")
+				return batchStopped(env, &result, i, "drift", "it changed since the preview, so it was not sent", "")
 			}
 			m = again
 		}
@@ -212,11 +218,16 @@ func executeBatch(paths runtimePaths, s *relaySession, env *verbEnvelope, rp bat
 		werr := executeConfig(paths, s, &menv, *m.fresh.ConfigAction, m.ctx, true)
 		item := &result.Items[i]
 		item.Verification, item.Snapshot, item.Restore, item.Undo = menv.Verification, menv.Snapshot, menv.Restore, menv.Undo
+		if menv.Undo == nil { // no checkpoint was saved: the replaced config is its only way back
+			item.BeforeConfig = menv.BeforeConfig
+		}
 		if len(menv.Verification) > 0 && menv.Verification[0].EntityID != "" {
 			item.EntityID = menv.Verification[0].EntityID
 		}
-		env.Notices = append(env.Notices, menv.Notices...)
-		var failure *verbFailure
+		for _, notice := range menv.Notices {
+			notice.Text = fmt.Sprintf("item %d (%s): %s", i+1, item.quoted, notice.Text)
+			env.Notices = append(env.Notices, notice)
+		}
 		switch {
 		case werr == nil && menv.Status == "verified":
 			sent, item.Status = true, "verified"
@@ -225,41 +236,67 @@ func executeBatch(paths runtimePaths, s *relaySession, env *verbEnvelope, rp bat
 		case errors.Is(werr, errNothingSent) && !sent:
 			return werr
 		case errors.Is(werr, errNothingSent):
-			return batchStopped(env, &result, i, "not_sent", werr.Error())
+			return batchStopped(env, &result, i, "not_sent", werr.Error(), "")
 		case werr == nil:
 			sent = true
-			return batchStopped(env, &result, i, "unverified", "it was sent, but the check after it did not pass")
+			return batchStopped(env, &result, i, "unverified", "it was sent, but the check after it did not pass", menv.NextStep)
 		}
 		sent = true
-		switch errors.As(werr, &failure); {
-		case failure != nil && failure.code == "OUTCOME_UNKNOWN":
-			return batchStopped(env, &result, i, "unknown", werr.Error())
-		case failure != nil && failure.status == "failed":
-			return batchStopped(env, &result, i, "failed", werr.Error())
+		var failure *verbFailure
+		status, itemNext := "unverified", ""
+		if errors.As(werr, &failure) {
+			itemNext = failure.next
 		}
-		return batchStopped(env, &result, i, "unverified", werr.Error())
+		switch {
+		case failure != nil && failure.code == "OUTCOME_UNKNOWN":
+			status = "unknown"
+		case failure != nil && failure.status == "failed":
+			status = "failed"
+		}
+		return batchStopped(env, &result, i, status, werr.Error(), itemNext)
 	}
 	env.Result, env.Status, env.exit = result, "verified", verbExitOK
 	env.Say = batchDoneSay(rp.lang, len(rp.members), noSnapshot && slices.ContainsFunc(rp.members, func(m batchMember) bool { return m.op() == "delete" }))
-	env.NextStep = "Tell the user `say`. Every item went through (result.items). Only if they ask: a changed one goes back with ha-nova plan revert --target <its config_id>, a deleted one with its result.items[].restore command; each is a new plan."
+	env.NextStep = "Tell the user `say`. Every item went through (result.items). " + batchWaysBack
 	return nil
+}
+
+// batchWaysBack: how each kind of item that went through is undone.
+const batchWaysBack = "Only if they ask, the ways back: a deleted item through its result.items[].restore command, a changed one through ha-nova plan revert --target <its config_id>, a created one through the delete flow; each is a new plan."
+
+// batchRefusal: a batch that expired or took three wrong codes leaves no
+// item plans behind (plan batch used them up): every item is planned again.
+func batchRefusal(isBatch bool, failure *verbFailure) *verbFailure {
+	switch {
+	case !isBatch:
+	case failure.code == "PLAN_EXPIRED":
+		failure.next = "Nothing was sent, and the item plans of this batch are gone: plan every item again, show the previews, then make a new batch."
+	case failure.code == "PLAN_INVALIDATED":
+		failure.next = "Stop and tell the user; only on their explicit request plan every item again, show the previews, and make a new batch."
+	}
+	return failure
 }
 
 // batchStopped records a batch that stopped at member i (0-based); every
 // member before it was verified, every one after it was not attempted.
-func batchStopped(env *verbEnvelope, result *batchResult, i int, status, why string) error {
+// itemNext is what that member's own result says to do.
+func batchStopped(env *verbEnvelope, result *batchResult, i int, status, why, itemNext string) error {
+	if itemNext != "" {
+		itemNext = " For that item: " + itemNext
+	}
 	item := &result.Items[i]
 	item.Status, item.Error = status, why
 	result.Counts.Stopped = 1
 	result.Counts.NotAttempted = len(result.Items) - i - 1
 	env.Result, env.Status, env.exit = *result, "failed", verbExitUnverified
 	env.Error = &verbError{Code: "BATCH_STOPPED", Message: fmt.Sprintf("item %d (%s) did not go through: %s; %d of %d went through, the rest were not sent", i+1, item.quoted, why, result.Counts.Verified, len(result.Items)),
-		Next: "Tell the user `say`: which went through (result.items[].status verified), what stopped the next one (its error and verification), and that the rest were not sent. Never apply this batch again; the rest is a new batch with a new confirmation, only if they still want it."}
+		Next: "Tell the user `say`: which went through (result.items[].status verified), what stopped the next one (its error and verification), and that the rest were not sent." + itemNext +
+			" Never apply this batch again; only if they still want the rest, plan it again with a new confirmation (two or more items: a new batch). " + batchWaysBack}
 	switch status {
 	case "unknown":
 		env.Status, env.exit, env.OutcomeUnknown = "unverified", verbExitUnknown, true
 		env.Error.Code = "OUTCOME_UNKNOWN"
-		env.Error.Next = "Read whether that item took effect (ha-nova get with --config) and tell the user; never apply this batch again. The items after it were not sent."
+		env.Error.Next = "Read whether that item took effect (ha-nova get with --config) and tell the user; never apply this batch again. The items after it were not sent." + itemNext + " " + batchWaysBack
 	case "unverified":
 		env.Status = "unverified"
 	}

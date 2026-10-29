@@ -32,7 +32,7 @@ Exit: 2 a plan changed since its preview, 3 needs confirmation, 4 refused.`
 
 const batchMaxMembers = 20
 
-const batchSplitNext = "Tell the user which plan can't be in this batch and why (the message says it). Make the batch again without it; that one keeps its own confirmation."
+const batchSplitNext = "Tell the user which item can't be in this batch and why (the message names its plan). Make the batch again without it; that one keeps its own preview ask and confirmation."
 
 type planIDList []string
 
@@ -91,7 +91,8 @@ func planBatch(paths runtimePaths, s *relaySession, env *verbEnvelope, ids []str
 		open := filepath.Join(planDir(paths), id+".json")
 		hold := filepath.Join(planDir(paths), fmt.Sprintf("%s.batched-%d", id, os.Getpid()))
 		if os.Rename(open, hold) != nil {
-			return refused("PLAN_NOT_FOUND", "plan "+id+" is missing, expired, already used, or in another batch")
+			return refusedWith("PLAN_NOT_FOUND", "plan "+id+" is missing, expired, already used, or in another batch; nothing was sent",
+				"Plan that item again and show its preview, then make the batch again with its new plan id (the plans of an earlier batch are used up).")
 		}
 		held[open] = hold
 		m, err := readPlanFile(hold)
@@ -113,13 +114,12 @@ func planBatch(paths runtimePaths, s *relaySession, env *verbEnvelope, ids []str
 	if err == nil {
 		err = batchOrder(rp)
 	}
-	if err == nil && plan.Tier == tierTyped.String() {
-		err = batchWindowFits(plan)
-	}
 	if err == nil {
 		err = savePlan(paths, plan, s.transport.Credential)
 	}
-	saved = err == nil
+	if saved = err == nil; !saved { // a sealed batch that is refused shows no plan
+		env.Plan, env.Tier, env.Reasons, env.Members, env.Consumers, env.Coverage = nil, "", nil, nil, nil, nil
+	}
 	return err
 }
 
@@ -135,10 +135,10 @@ func batchMemberRefusal(s *relaySession, m storedPlan, id string) *verbFailure {
 	case batchUnsupported(m) != "":
 		return refusedWith("BATCH_UNSUPPORTED", "plan "+id+" can't be in a batch: "+batchUnsupported(m), batchSplitNext)
 	case m.Server != s.server:
-		return refused("SERVER_MISMATCH", fmt.Sprintf("plan %s belongs to server %q", id, m.Server))
+		return refusedWith("SERVER_MISMATCH", fmt.Sprintf("plan %s belongs to server %q", id, m.Server), "A batch holds plans of one server: make it again from this server's plans only.")
 	case !verbNow().Before(expires) || expires.After(verbNow().Add(planTTL+time.Minute)):
 		return refused("PLAN_EXPIRED", "plan "+id+" expired")
-	case m.Tier == tierTyped.String() && !planSealed(m, s.transport.Credential):
+	case !memberIntact(m) || m.Tier == tierTyped.String() && !planSealed(m, s.transport.Credential):
 		return refused("PLAN_INVALID", "plan "+id+" was changed after it was made")
 	}
 	return nil
@@ -181,12 +181,19 @@ func validBatchMembers(members []storedPlan) error {
 		if m.ConfigAction != nil {
 			item = m.ConfigAction.Domain + ":" + m.ConfigAction.ConfigID
 		}
-		if why := batchUnsupported(m); why != "" || ids[m.ID] || items[item] {
+		if why := batchUnsupported(m); why != "" || !memberIntact(m) || ids[m.ID] || items[item] {
 			return fmt.Errorf("member %s is not a valid batch member", m.ID)
 		}
 		ids[m.ID], items[item] = true, true
 	}
 	return nil
+}
+
+// memberIntact: a member's fields still make its hash and its id derives
+// from that hash, as apply checks a single plan (verb_apply.go), so the
+// list, the ledger, and the ways back never come from an edited field.
+func memberIntact(m storedPlan) bool {
+	return intact(m) && m.ID == "p_"+planIdentity(strings.TrimPrefix(m.Hash, "sha256:"), m.Nonce)[:12]
 }
 
 // batchOrder: a member whose check reads another member's item (its config
@@ -228,7 +235,7 @@ func batchOrder(rp batchReplan) error {
 			switch {
 			case reads(j, i) && reads(i, j):
 				return refusedWith("BATCH_ORDER", fmt.Sprintf("%s and %s each check the other, so neither can run first", first, later),
-					"Put them in separate batches (each gets its own confirmation), then make the batches again.")
+					"Take them out of this batch: apply one of them on its own first, then plan the other again (its check then sees the change); the other items can stay one batch.")
 			case reads(j, i):
 				return refusedWith("BATCH_ORDER", fmt.Sprintf("%s checks %s, so it must run first: move %s before %s", later, first, later, first),
 					"Make the batch again with the same plan ids in that order.")

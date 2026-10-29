@@ -1,10 +1,12 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
@@ -31,6 +33,32 @@ func TestBatchWindowShowsEveryItem(t *testing.T) {
 	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
 	if exit != 0 || itemStatuses(batchItems(t, applied)) != "verified,verified,verified,verified" || len(w.messages) != 1 || w.messages[0] != batchFourList+"\n\n"+windowAsked {
 		t.Fatalf("apply: exit %d %+v window %q", exit, applied.Error, w.messages)
+	}
+}
+
+// The window and the linked phone ask at once: the first answer sends the
+// list once; answered on the computer, the phone's question goes away.
+func TestBatchWindowAndPhoneRaceSendOnce(t *testing.T) {
+	for name, windowFirst := range map[string]bool{"window first": true, "phone first": false} {
+		t.Run(name, func(t *testing.T) {
+			h := newWriteHarness(t, batchHome())
+			p := usePhones(t, "mobile_app_iphone")
+			first, late := make(chan struct{}), make(chan struct{})
+			gate := map[bool]chan struct{}{true: first, false: late}
+			w := useRaceWindow(t, windowConfirmed, gate[windowFirst], false)
+			p.tapWhen(t, gate[!windowFirst], true)
+			_, env := h.batch(batchFour(h)...)
+			go func() { p.waitSent(); close(first); time.Sleep(250 * time.Millisecond); close(late) }()
+			exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
+			if exit != 0 || applied.Status != "verified" || len(h.writes()) != 4 || w.messages[0] != batchFourList+"\n\n"+windowBoth+"\n"+windowAsked {
+				t.Fatalf("exit %d %+v writes %d window %q", exit, applied.Error, len(h.writes()), w.messages)
+			}
+			<-late
+			time.Sleep(50 * time.Millisecond)
+			if len(h.writes()) != 4 || windowFirst != p.withdrawn() || !windowFirst && p.last()["title"] != "Done: Change or delete 4 automations and scripts" {
+				t.Fatalf("after the race: writes %d sent %v cleared %v", len(h.writes()), p.sent, p.cleared)
+			}
+		})
 	}
 }
 
@@ -153,6 +181,7 @@ func TestBatchWindowBudget(t *testing.T) {
 	if err != nil || lines > batchWindowLines || chars > batchWindowChars || !strings.Contains(text, "\n20. Delete the automation “"+name(20)+"”.\n") {
 		t.Fatalf("%d lines, %d characters (%v): %s", lines, chars, err, text)
 	}
+	useWindow(t)
 	for i := 1; i <= batchMaxMembers; i++ {
 		unlocks = append(unlocks, h.writePlan("automation", fmt.Sprintf("l%d", i), map[string]any{"alias": name(i), "actions": []any{step("lock.unlock", "lock.front")}}))
 	}
@@ -160,5 +189,10 @@ func TestBatchWindowBudget(t *testing.T) {
 	if exit, env := h.batch(unlocks...); exit != 4 || env.Error.Code != "BATCH_TOO_LONG" || !strings.Contains(env.Error.Next, "Split the list") ||
 		strings.Join(h.planFiles(), ",") != strings.Join(before, ",") {
 		t.Fatalf("20 unlocks: exit %d %+v files %d", exit, env.Error, len(h.planFiles()))
+	}
+	var failure *verbFailure
+	if err := batchWindowFits(storedPlan{Lang: "en", Prompt: strings.Repeat("A name that grew.\n", batchWindowLines)}, "apply"); !errors.As(err, &failure) ||
+		failure.code != "BATCH_TOO_LONG" || !strings.Contains(failure.next, "used up") {
+		t.Fatalf("at apply: %v", err)
 	}
 }

@@ -11,6 +11,11 @@ Baseline → Active Preview Confirmation. This file defines only the batch
 mechanics: manifest, code format, caps, execution, and recovery.
 
 Exception: automations and scripts take the CLI Batch below, not a manifest code.
+A family whose CLI plans each bind their own code (MQTT publishes) lists each
+plan's `say` ask in the manifest, ending with one `<name>: **<code>**` line
+each; the user types each as its own reply, in manifest order (a window or
+phone plan has none: follow its `next_step`); never pass a code the user did
+not type.
 
 ## Purpose & Opt-In
 
@@ -156,28 +161,31 @@ the offer of a remaining-targets manifest).
 ## CLI Batch (automations and scripts)
 
 2 to 20 automation/script writes and deletes of one task, mixed allowed, are
-one `ha-nova plan batch --plan <id> --plan <id> …` (plan ids in run order)
-with one confirmation. No manifest file and no code of your own: the CLI holds
+one `ha-nova plan batch --plan <id> --plan <id> …` (plan ids in run order: an
+item that runs or reads another item goes before it) with one confirmation. No manifest file and no code of your own: the CLI holds
 the list, the order, the re-checks, each delete's config snapshot, and the
 ledger.
 
 1. Plan each item (`plan write`, `plan delete`); show each preview with its
    consumer check but without its ask or code.
 2. Run `ha-nova plan batch`; show its `say` (every item, then one ask) and
-   follow its `next_step`. The item plans are used up. `BATCH_ORDER`: make it
-   again in the order named. `BATCH_SIZE`, `BATCH_TOO_LONG`,
-   `BATCH_UNSUPPORTED`, `BATCH_DUPLICATE`: split as the message says; a plan
-   left out keeps its own confirmation. `PLAN_DRIFT`: plan the named items
-   again and show their new previews.
+   follow its `next_step`. The item plans are used up. `BATCH_ORDER`,
+   `BATCH_SIZE`, `BATCH_TOO_LONG`, `BATCH_UNSUPPORTED`, `BATCH_DUPLICATE`,
+   `PLAN_NOT_FOUND`: nothing was sent; follow the refusal's `next_step`. An
+   item left out keeps its own preview ask and confirmation. `PLAN_DRIFT`:
+   plan the named items again and show their new previews.
 3. One `ha-nova apply` sends them in order, checking each again first, and
-   stops at the first one that doesn't go through. Report `say` and
-   `result.items[]`. `BATCH_DRIFT` (exit 2) sent nothing and used the batch
-   up: plan every item again. `SNAPSHOT_FAILED` sent nothing: the
-   `--no-snapshot` choice covers the whole batch. After a stop, never apply
-   it again; the rest is a new batch with a new confirmation.
+   stops at the first one that doesn't go through; the ones before it stay
+   done. Report `say` and `result.items[]`; the write skill's post-write
+   review is one block for the whole list, its test offer only on request.
+   `BATCH_DRIFT` (exit 2), `BATCH_TOO_LONG` and `PLAN_EXPIRED` sent nothing
+   and used the batch up: plan every item again. `SNAPSHOT_FAILED` sent
+   nothing: the `--no-snapshot` choice covers the whole batch. After a stop,
+   never apply it again; the rest needs a new confirmation (two or more
+   items: a new batch).
 4. Ways back: a deleted item through its row's `restore`, a changed one
    through `ha-nova plan revert --target <config_id>` (the last 25 updated
-   targets per server).
+   targets per server), a created one through the delete flow.
 
 ## Capability Matrix (v1)
 

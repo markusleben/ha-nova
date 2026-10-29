@@ -137,6 +137,8 @@ func TestPlanBatchRefusesAndHandsTheMembersBack(t *testing.T) {
 	h.tamper(other, func(p map[string]any) { p["server"] = "other" })
 	edited := h.member("delete", "automation.night_mode")
 	h.tamper(edited, func(p map[string]any) { p["prompt"] = "I'm about to change nothing." })
+	basis := h.writePlan("script", "s1", arrival("light.toggle"))
+	h.tamper(basis, func(p map[string]any) { p["basis"].(map[string]any)["current"] = "absent" })
 	var many []string
 	for i := range 21 {
 		many = append(many, fmt.Sprintf("p_%012x", i))
@@ -151,6 +153,7 @@ func TestPlanBatchRefusesAndHandsTheMembersBack(t *testing.T) {
 		"a missing plan": {[]string{a1, "p_000000000000"}, "PLAN_NOT_FOUND"}, "a call": {[]string{a1, call}, "BATCH_UNSUPPORTED"},
 		"a revert": {[]string{revert, s1}, "BATCH_UNSUPPORTED"}, "expired": {[]string{s1, expired}, "PLAN_EXPIRED"},
 		"another server": {[]string{other, s1}, "SERVER_MISMATCH"}, "an edited typed plan": {[]string{deleted, edited}, "PLAN_INVALID"},
+		"an edited preview plan": {[]string{a1, basis}, "PLAN_INVALID"},
 	} {
 		exit, env := h.batch(c.ids...)
 		if exit != 4 || env.Error == nil || env.Error.Code != c.code || env.Plan != nil {

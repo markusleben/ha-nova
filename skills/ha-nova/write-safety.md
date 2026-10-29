@@ -235,10 +235,11 @@ previews alone hide the whole picture. Before the FIRST per-target preview:
    `ha-nova:backup` first (proportionality rules apply).
 3. Get plan-level consent, then run the normal per-target flow (each target
    still gets its own preview + confirmation — the plan does not replace them).
-   Exception: where the owning skill declares grouped support and the workset
-   is non-destructive with at most 10 operations, the per-target previews
-   render without intermediate menus and ONE final action block confirms the
-   whole set (`../ha-nova/grouped-change-set.md`).
+   Exceptions: 2 to 20 automation/script writes and deletes take one CLI
+   Batch (`../ha-nova/batch-safety.md` → CLI Batch); where the owning skill
+   declares grouped support and the workset is non-destructive with at most
+   10 operations, ONE final action block confirms the whole set
+   (`../ha-nova/grouped-change-set.md`).
 4. Close with a combined summary: all targets applied, the still-revertible
    targets named (`ha-nova snapshot show --list`), and the
    verification-honesty wording for the whole change.

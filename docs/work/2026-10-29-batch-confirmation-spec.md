@@ -62,7 +62,7 @@ Rules; each refusal names the member, and the member plans stay as they were:
 ### 3. The batch plan
 
 - Kind `batch`; `batch_members` holds the member plans as they were stored (id, hash, tier, config request).
-- Hash: `planHash("batch", server, [{id, hash}, …] in order, tier, …)`. It covers every member's hash and the order. The batch id and code derive from it as for every plan (nonce, `planIdentity`, `confirmCode`); a typed batch's channel seal covers its id, channel, kind, language, and text. An edited order, text, language, or tier in the plan file is `PLAN_INVALID` at apply; an edited member request or member hash re-plans to another hash, so it is `BATCH_DRIFT`; a member changed in Home Assistant is drift. Either way nothing is sent.
+- Hash: `planHash("batch", server, [{id, hash}, …] in order, tier, …)`. It covers every member's hash and the order. The batch id and code derive from it as for every plan (nonce, `planIdentity`, `confirmCode`); a typed batch's channel seal covers its id, channel, kind, language, and text. Every member's fields must still make its hash and its id derive from that hash, as for a single plan (`memberIntact`), at `plan batch` and at every re-check. An edited order, text, language, tier, member hash, basis, action, or id in the plan file is `PLAN_INVALID` at apply; an edited member request re-plans to another hash, so it is `BATCH_DRIFT`; a member changed in Home Assistant is drift. Either way nothing is sent.
 - Tier: the highest member tier. All preview: `plan.confirm: natural`, the user's own reply to the list, then one `apply`. Any typed: one typed confirmation on the channel `detectChannel` picks for the batch (window, with the linked phone in parallel; phone; form; chat code).
 - Claim: `plan batch` claims each member with the atomic rename apply uses (`<id>.json` → `<id>.batched-<pid>`). A member already claimed (being applied, or in another batch) refuses the batch. Once the batch plan is saved, the member files are deleted: no member can be applied alone or join another batch. A failure before the save renames them back. The batch itself is claimed at apply like every plan.
 - Expiry: members must be unexpired when the batch is made. The batch then has its own 15 minutes from `plan batch`; it re-plans every member then and again before each send.
@@ -89,11 +89,11 @@ Rules; each refusal names the member, and the member plans stay as they were:
 | 0 | `verified` | none | every member verified |
 | 1 | none | `SNAPSHOT_FAILED`, `RELAY_ERROR` | nothing sent; the batch stays valid (snapshot) or is handed back for a retry (Relay unreachable before the first send) |
 | 2 | `drift` | `BATCH_DRIFT` | a member changed before anything was sent |
-| 4 | as today | as today | claim, expiry, code, form, window, and phone answers, `NO_SNAPSHOT_NOT_OFFERED` |
+| 4 | as today | as today | claim, expiry, code, form, window, and phone answers, `NO_SNAPSHOT_NOT_OFFERED`, `BATCH_TOO_LONG` (a window batch whose text grew); an expired batch or three wrong codes say to plan every item again |
 | 6 | `failed` or `unverified` | `BATCH_STOPPED` | stopped after a member was attempted: refused by Home Assistant, unverified, changed, or a Relay error |
 | 7 | `unverified` | `OUTCOME_UNKNOWN` | a member may have been saved or deleted: read it, never apply again |
 
-`result.items[]` is the ledger, one row per member in order: `item`, `plan` (the member's id), `op` (`create`, `update`, `delete`), `domain`, `entity_id`, `config_id`, `name`, `status` (`verified`, `unverified`, `failed`, `unknown`, `drift`, `not_sent`, `not_attempted`), `verification`, `snapshot` and `restore` (deletes), `undo` (updates), `error`. `result.counts`: verified, stopped, not attempted. `say` is one catalog line (§6). `next_step`: tell which went through, what stopped the next one, and what was not sent; the rest is a new batch with a new confirmation; deleted ones come back with each row's `restore`, changed ones with `plan revert` (the last 25 updated targets per server, decision 4).
+`result.items[]` is the ledger, one row per member in order: `item`, `plan` (the member's id), `op` (`create`, `update`, `delete`), `domain`, `entity_id`, `config_id`, `name`, `status` (`verified`, `unverified`, `failed`, `unknown`, `drift`, `not_sent`, `not_attempted`), `verification`, `snapshot` and `restore` (deletes), `undo` (updates), `error`. `result.counts`: verified, stopped, not attempted. `say` is one catalog line (§6). `next_step`: tell which went through, what stopped the next one, and what was not sent; the rest needs a new confirmation (two or more items: a new batch); deleted ones come back with each row's `restore`, changed ones with `plan revert` (the last 25 updated targets per server, decision 4), created ones through the delete flow. The stopped member's own next step (a create's retry id, a read-back difference to fix) follows. An update whose checkpoint could not be saved keeps its `before_config` in its row.
 
 ### 6. Texts on every surface
 
@@ -119,11 +119,11 @@ Every batch text is a new key in `cli/confirm_strings.en.json`, rendered by `con
 | `batch.result.done` | Done: all {count} went through. I checked each one. |
 | `batch.result.no_copies` | No copies were saved, as you chose. |
 | `batch.result.failed` | Partly done: {done} of {count} went through; Home Assistant refused {name}. |
-| `batch.result.unverified` | Partly done: {done} of {count} went through; {name} was sent, but I couldn't check it. |
+| `batch.result.unverified` | Partly done: {done} of {count} went through; {name} was sent, but the check after it didn't pass. |
 | `batch.result.changed` | Partly done: {done} of {count} went through; {name} changed since you saw it, so I stopped. |
 | `batch.result.not_sent` | Partly done: {done} of {count} went through; {name} couldn't be sent. |
 | `batch.result.unknown` | Not sure: {done} of {count} went through, and {name} may have too; I can't tell. I didn't try again. |
-| `batch.result.none_failed`, `….none_unverified`, `….none_unknown` | the same when nothing went through before: Not done: Home Assistant refused {name}. Nothing changed. / Not sure: {name} was sent, but I couldn't check it. / Not sure: {name} may have gone through, and I can't tell. I didn't try again. |
+| `batch.result.none_failed`, `….none_unverified`, `….none_unknown` | the same when nothing went through before: Not done: Home Assistant refused {name}. Nothing changed. / Not sure: {name} was sent, but the check after it didn't pass. / Not sure: {name} may have gone through, and I can't tell. I didn't try again. |
 | `batch.result.rest` | The rest weren't sent. |
 | `batch.drift` | Not done: {names} changed since you saw the list, so nothing was sent. |
 
@@ -139,7 +139,7 @@ I'm about to make these 3 changes in Home Assistant, in this order:
 One confirmation covers all 3, so I need you to confirm it. A copy of each one deleted is saved first, so it can be restored. HA NOVA checks each one again right before it is sent and stops at the first one that doesn't go through. Nothing has changed yet.
 ```
 
-- **Window:** the batch text, then the existing lines (the phone asks too; "Requested by your AI assistant …"). Budget: at most 34 lines and 2,400 characters with those lines. The worst 20-member case (60-character names, no reasons) measures 25 lines and 2,264 characters (`TestBatchWindowBudget`) and fits. `plan batch` checks it on every OS: over it, the batch is refused (`BATCH_TOO_LONG`, exit 4: split it); the text is never cut. The numbers become final in Phase 2, once the worst case shows uncut in macOS `display dialog` on a 13-inch MacBook, Windows `MessageBoxTimeoutW` at 1366×768 and 125 % (`npm run vm-lane`), and zenity at 1366×768 (Linux container, screenshot). Any clipping lowers them.
+- **Window:** the batch text, then the existing lines (the phone asks too; "Requested by your AI assistant …"). Budget: at most 34 lines and 2,400 characters with those lines. The worst 20-member case (60-character names, no reasons) measures 25 lines and 2,264 characters (`TestBatchWindowBudget`) and fits. `plan batch` checks it for a window batch on every OS, and apply checks it again before the window opens (a name in a reason may have grown since), with the longer of the copy and no-copy notes: over it, the batch is refused (`BATCH_TOO_LONG`, exit 4: split it; at apply nothing is sent and the batch is used up); the text is never cut. A phone, form, or chat batch shows no window and has no such limit. The numbers become final in Phase 2, once the worst case shows uncut in macOS `display dialog` on a 13-inch MacBook, Windows `MessageBoxTimeoutW` at 1366×768 and 125 % (`npm run vm-lane`), and zenity at 1366×768 (Linux container, screenshot). Any clipping lowers them.
 - **Phone:** title `batch.phone.<op>.<kind>` (80-character limit; the longest is 44). Body: `batch.phone.most` with the most sensitive member's goal and typed reason sentences, then "Requested by …" and the platform hint, cut at the existing 300-character reason limit with "(more on the computer)" or "(more in the chat)"; "Can't be undone." first after `--no-snapshot`. Most sensitive: an access or disruptive reason (lock, alarm, door, gate, garage, siren, wiping button) before a delete, a delete before another typed reason, typed before preview; the first in order on a tie. Button: "Confirm" for every batch (built: the title is a whole question, so no single verb fits; the chat's ask names the same button). Result: the existing prefixes ("Done", "Partly done", "Not done", "Unclear") before the title ("Done: Delete 12 automations"), with `batch.phone.done` or `batch.phone.partly` and where to read why.
 - **Form** (MCP elicitation): the batch text plus the existing code line ("Type 1234 to confirm."); after a failed snapshot the form asks again with `batch.no_copies`.
 - **Chat code:** one code for the batch, last, as for every chat-code plan.
@@ -204,6 +204,10 @@ Until all three have passed, 34 lines and 2,400 characters are provisional; any 
 - After a stop, the copies of members that were never deleted stay in the snapshot store (one name per item; a later delete replaces it).
 - A list whose typed reasons make the window text too long is refused, never shown cut.
 - Time grows with the list; over a slow link a 20-member apply can outlast a chat app's tool timeout (measured in Phase 2).
+- The first member is checked at step 2, not again after the delete copies are saved; every later one is checked right before its send.
+- Where only the phone asks, a second member with an access reason is not named there (the list in the chat or terminal names it).
+- An internal crash after the first send ends with exit 7 and no ledger; the batch is used up and never retried.
+- In a chat app that shows codes, each item's `ha_plan` result still carries its own code; the skill shows none of them, and `plan batch` makes them unusable.
 
 ## Choices made here (accepted, decision 5)
 
