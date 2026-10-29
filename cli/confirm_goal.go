@@ -52,16 +52,25 @@ func (g actionGoal) text(lang string) string {
 	return g.phrase(lang, g.object(lang, sayList(lang, g.names)))
 }
 
-// object: names in the goal's frame ("the script “Night”").
+// object: names in the goal's frame ("the script “Night”"). An undo has
+// frames of its own, as a language may need another case after its "to"
+// (German names the item alone: „an „Flurlicht““).
 func (g actionGoal) object(lang, names string) string {
-	switch g.frame {
-	case "":
+	undo := g.verb == "revert"
+	switch {
+	case g.frame == "":
 		return names
-	case "script":
+	case g.frame == "script" && undo:
+		return confirmT(lang, "goal.revert_object.script", "names", names)
+	case g.frame == "automation" && undo:
+		return confirmT(lang, "goal.revert_object.automation", "names", names)
+	case g.frame == "dashboard" && undo:
+		return confirmT(lang, "goal.revert_object.dashboard", "names", names)
+	case g.frame == "script":
 		return confirmT(lang, "goal.object.script", "names", names)
-	case "automation":
+	case g.frame == "automation":
 		return confirmT(lang, "goal.object.automation", "names", names)
-	case "dashboard":
+	case g.frame == "dashboard":
 		return confirmT(lang, "goal.object.dashboard", "names", names)
 	}
 	panic("confirm goal: unknown frame " + g.frame)

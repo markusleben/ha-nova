@@ -43,7 +43,7 @@ func germanHome(t *testing.T) (*writeHarness, func(id string) storedPlan) {
 	}
 }
 
-const germanUnlock = "Ich werde gleich “Haustür” entriegeln (Verriegelt → Entriegelt). Das entriegelt eine Tür, deshalb musst du das bestätigen. Noch wurde nichts ausgeführt."
+const germanUnlock = "Ich werde gleich „Haustür“ entriegeln (Verriegelt → Entriegelt). Das entriegelt eine Tür, deshalb musst du das bestätigen. Noch wurde nichts ausgeführt."
 
 // A German home gets the confirmation in German, with Home Assistant's own
 // names for the states of what it acts on and for an action HA NOVA has no
@@ -58,7 +58,7 @@ func TestGermanHomeConfirmsInGerman(t *testing.T) {
 		t.Fatalf("say %q\nplan %s %v", env.Say, plan.Lang, plan.Words)
 	}
 	env = h.plan("climate.set_temperature", "climate.living", "--set", "temperature=21")
-	if !strings.HasPrefix(env.Say, "Ich werde gleich “Temperatur einstellen” für “Wohnzimmer” ausführen (temperature 20 → 21). ") ||
+	if !strings.HasPrefix(env.Say, "Ich werde gleich „Temperatur einstellen“ für „Wohnzimmer“ ausführen (temperature 20 → 21). ") ||
 		stored(env.Plan.ID).Words["service:climate.set_temperature"] != "Temperatur einstellen" {
 		t.Fatalf("an action named by Home Assistant: %q %v", env.Say, stored(env.Plan.ID).Words)
 	}
@@ -104,9 +104,9 @@ func TestGermanHomeWithoutHomeAssistantNames(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"switch.turn_on", "switch.porch"}, "Ich werde gleich “Veranda” einschalten (off → on)."},
-		{[]string{"cover.set_cover_position", "cover.garage", "--set", "position=0"}, "Ich werde gleich die Position von “Garage” einstellen (position unbekannt → 0%)."},
-		{[]string{"lock.unlock", "lock.shed"}, "Ich werde gleich “Schuppen” entriegeln (nicht verfügbar → Entriegelt)."},
+		{[]string{"switch.turn_on", "switch.porch"}, "Ich werde gleich „Veranda“ einschalten (off → on)."},
+		{[]string{"cover.set_cover_position", "cover.garage", "--set", "position=0"}, "Ich werde gleich die Position von „Garage“ einstellen (position unbekannt → 0%)."},
+		{[]string{"lock.unlock", "lock.shed"}, "Ich werde gleich „Schuppen“ entriegeln (nicht verfügbar → Entriegelt)."},
 	} {
 		if env := h.plan(c.args...); !strings.HasPrefix(env.Say, c.want) || len(env.Notices) != 0 {
 			t.Errorf("%v: %q %+v", c.args, env.Say, env.Notices)
@@ -120,7 +120,7 @@ func TestGermanHomeAsksOnThePhone(t *testing.T) {
 	h, _ := germanHome(t)
 	p := usePhones(t, "mobile_app_iphone")
 	env := h.plan("lock.unlock", "lock.front")
-	if !strings.HasSuffix(env.Say, "Noch wurde nichts ausgeführt. Bestätige auf deinem Handy. Tippe in der Benachrichtigung auf “Entriegeln”. Um die Knöpfe zu sehen, halte die Benachrichtigung auf einem iPhone gedrückt oder zieh sie auf Android nach unten.") {
+	if !strings.HasSuffix(env.Say, "Noch wurde nichts ausgeführt. Bestätige auf deinem Handy. Tippe in der Benachrichtigung auf „Entriegeln“. Um die Knöpfe zu sehen, halte die Benachrichtigung auf einem iPhone gedrückt oder zieh sie auf Android nach unten.") {
 		t.Fatalf("phone plan: %q", env.Say)
 	}
 	p.answer = func(ok, _ string) []phoneEvent { return []phoneEvent{tap(ok, "owner-id", "REMOTE")} }
@@ -129,15 +129,15 @@ func TestGermanHomeAsksOnThePhone(t *testing.T) {
 		t.Fatalf("apply: exit %d %+v sent %v", exit, applied, p.sent)
 	}
 	actions := p.sent[0]["data"].(map[string]any)["actions"].([]any)
-	if p.sent[0]["title"] != "“Haustür” entriegeln?" || p.sent[0]["message"] != "Angefordert von “"+phoneHost("de")+"”. Zum Antworten gedrückt halten (iPhone) oder runterziehen (Android)." ||
+	if p.sent[0]["title"] != "„Haustür“ entriegeln?" || p.sent[0]["message"] != "Angefordert von „"+phoneHost("de")+"“. Zum Antworten gedrückt halten (iPhone) oder runterziehen (Android)." ||
 		actions[0].(map[string]any)["title"] != "Entriegeln" || actions[1].(map[string]any)["title"] != "Abbrechen" ||
-		p.sent[1]["title"] != "Erledigt: “Haustür” entriegeln" || p.sent[1]["message"] != "Home Assistant bestätigt das." {
+		p.sent[1]["title"] != "Erledigt: „Haustür“ entriegeln" || p.sent[1]["message"] != "Home Assistant bestätigt das." {
 		t.Fatalf("phone texts %v", p.sent)
 	}
 	// Home Assistant's name never becomes a button: no word list can tell
 	// that “Abbrechen” or “Stopp” dismisses (Design 8).
 	env = h.plan("climate.set_temperature", "climate.living", "--set", "temperature=21")
-	if !strings.Contains(env.Say, "Tippe in der Benachrichtigung auf “Bestätigen”.") ||
+	if !strings.Contains(env.Say, "Tippe in der Benachrichtigung auf „Bestätigen“.") ||
 		(actionGoal{label: "Abbrechen", named: true, names: []string{"“Tee”"}}).button("de") != "Bestätigen" {
 		t.Fatalf("a named action's button: %q", env.Say)
 	}
@@ -168,7 +168,7 @@ func TestHomeAssistantWordsStayWithThePlan(t *testing.T) {
 	h.f.translations["de/entity_component"] = renamed
 	h.f.states["lock.front"]["state"] = "jammed"
 	exit, env := h.run(runApplyCommand, "--plan", id)
-	if exit != 2 || env.Status != "drift" || env.Plan == nil || !strings.HasPrefix(env.Say, "Seit der letzten Vorschau hat sich “Haustür” geändert: Zustand war Verriegelt, jetzt Blockiert. ") ||
+	if exit != 2 || env.Status != "drift" || env.Plan == nil || !strings.HasPrefix(env.Say, "Seit der letzten Vorschau hat sich „Haustür“ geändert: Zustand war Verriegelt, jetzt Blockiert. ") ||
 		!jsonEqual(stored(env.Plan.ID).Words, words) {
 		t.Fatalf("drift: exit %d %q %v", exit, env.Say, stored(env.Plan.ID).Words)
 	}
@@ -230,7 +230,7 @@ func TestSettingsAsksSpeakTheHomesLanguageNow(t *testing.T) {
 	h.f.config = map[string]any{"language": "de"}
 	p.tapBy = tapFrom("mobile_app_annas_pixel", "anna-id", true)
 	if exit, out := runLink(t, h, "1\n", phoneLinkRun{interactive: true, offer: true}); exit != 0 || len(p.sent) != 2 || p.sent[0]["title"] != "HA NOVA hier bestätigen?" ||
-		p.sent[0]["message"] != "“Erlauben” tippen. Sonst runterziehen. Angefordert von “"+phoneHost("de")+"”." || p.sent[1]["title"] != "Mit HA NOVA verbunden" ||
+		p.sent[0]["message"] != "„Erlauben“ tippen. Sonst runterziehen. Angefordert von „"+phoneHost("de")+"“." || p.sent[1]["title"] != "Mit HA NOVA verbunden" ||
 		!strings.Contains(out, "Only “Anna’s Pixel” gets HA NOVA confirmations") {
 		t.Fatalf("link: exit %d %v %q", exit, p.sent, out)
 	}
@@ -281,18 +281,27 @@ func TestPhoneTextsFitEveryCatalog(t *testing.T) {
 				t.Errorf("%s title %q: %d runes", lang, ask.title, n)
 			}
 		}
-		// Every action's question and result title keep a usual name whole.
-		goals := []actionGoal{{label: "Temperatur einstellen", named: true, names: []string{"“Wohnzimmer Decke”"}}}
+		// Every action's question and result title (an undo's included) keep
+		// a usual name whole, in the language's quotes, and cut the longest
+		// name a confirmation shows, never dropping it.
+		goals := []actionGoal{{label: "Temperatur einstellen", named: true}}
 		for key := range confirmCatalogs[lang] {
-			if verb, ok := strings.CutPrefix(key, "goal."); ok && verb != "label" && !strings.HasPrefix(verb, "object.") {
+			if verb, ok := strings.CutPrefix(key, "goal."); ok && verb != "label" && !strings.Contains(verb, ".") {
 				frame := map[bool]string{true: "automation"}[slices.Contains([]string{"create", "change", "delete", "restore", "revert"}, verb)] // a config plan's frame
-				goals = append(goals, actionGoal{verb: verb, frame: frame, names: []string{"“Wohnzimmer Decke”"}})
+				goals = append(goals, actionGoal{verb: verb, frame: frame})
 			}
 		}
+		usual, longest := sayText("Wohnzimmer Decke", true), sayText(strings.Repeat("Flurlicht ", 7), true)
+		opening := string([]rune(confirmQuote(lang, usual))[0])
 		for _, g := range goals {
 			for _, prefix := range []string{"", confirmT(lang, "outcome.failed"), confirmT(lang, "outcome.not_confirmed"), confirmT(lang, "outcome.already_done")} {
-				if title := g.title(lang, prefix); !strings.Contains(title, "“Wohnzimmer Decke”") {
+				g.names = []string{usual}
+				if title := g.title(lang, prefix); !strings.Contains(title, confirmQuote(lang, usual)) {
 					t.Errorf("%s %s: %q", lang, cmp.Or(g.verb, g.label), title)
+				}
+				g.names = []string{longest}
+				if title := g.title(lang, prefix); utf8.RuneCountInString(title) > phoneTitleLimit || !strings.Contains(title, opening+"Flurlicht") {
+					t.Errorf("%s %s, a long name: %q", lang, cmp.Or(g.verb, g.label), title)
 				}
 			}
 		}
@@ -323,7 +332,7 @@ func TestGermanBatchFitsTheWindowAndThePhone(t *testing.T) {
 	lines, chars := strings.Count(text, "\n")+1, utf8.RuneCountInString(text)
 	t.Logf("the longest German window: %d lines, %d characters", lines, chars)
 	if err != nil || stored.Lang != "de" || lines > batchWindowLines || chars > batchWindowChars ||
-		!strings.Contains(text, "\n20. Automatisierung “"+name(20)+"” löschen.\n") || !strings.Contains(text, confirmT("de", "batch.no_copies")) {
+		!strings.Contains(text, "\n20. Automatisierung „"+name(20)+"“ löschen.\n") || !strings.Contains(text, confirmT("de", "batch.no_copies")) {
 		t.Fatalf("%d lines, %d characters (%v): %s", lines, chars, err, text)
 	}
 	member := func(op, domain string) batchMember {
@@ -342,7 +351,7 @@ func TestGermanBatchFitsTheWindowAndThePhone(t *testing.T) {
 			}
 		}
 	}
-	if one, two := confirmT("de", "batch.drift", "count", 1, "names", "“A”"), confirmT("de", "batch.drift", "count", 2, "names", "“A” und “B”"); !strings.Contains(one, "“A” wurde geändert") || !strings.Contains(two, "“B” wurden geändert") {
+	if one, two := confirmT("de", "batch.drift", "count", 1, "names", "“A”"), confirmT("de", "batch.drift", "count", 2, "names", "“A” und “B”"); !strings.Contains(one, "„A“ wurde geändert") || !strings.Contains(two, "„B“ wurden geändert") {
 		t.Errorf("drift: %q %q", one, two)
 	}
 }

@@ -206,8 +206,10 @@ func sayValue(s string) string {
 }
 
 // sayText defangs a Home Assistant string for the confirmation text: no
-// control characters or line breaks, no backticks or quote marks (a name
-// cannot close its own quotes), at most 60 characters; quoted when asked.
+// control characters or line breaks, no backticks, and no quote marks of
+// any language („ “ ‚ ‘ included, so a name can't close or open a quote in
+// English or German), at most 60 characters; quoted “…” when asked (a
+// German text marks the pair „…“: confirmQuote).
 func sayText(s string, quote bool) string {
 	s = strings.Map(func(r rune) rune {
 		switch {
@@ -215,7 +217,7 @@ func sayText(s string, quote bool) string {
 			return -1
 		case unicode.IsControl(r) || unicode.IsSpace(r):
 			return ' '
-		case unicode.In(r, unicode.Pi, unicode.Pf) || strings.ContainsRune("`\"″＂〝〞〟", r):
+		case sayQuoteMark(r) || r == '`':
 			return '\''
 		case r == '[' || r == '<':
 			return '('
@@ -235,6 +237,11 @@ func sayText(s string, quote bool) string {
 		return s
 	}
 	return "“" + s + "”"
+}
+
+// sayQuoteMark: a quote mark of any language („ “ ‚ ‘ included).
+func sayQuoteMark(r rune) bool {
+	return unicode.In(r, unicode.Pi, unicode.Pf) || strings.ContainsRune("\"″＂〝〞〟„‚⹂", r)
 }
 
 func appendUnique(list []string, s string) []string {

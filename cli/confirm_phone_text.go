@@ -42,8 +42,15 @@ func phoneLinkTitle(lang string) string  { return confirmT(lang, "phone.link.tit
 func phoneLinkButton(lang string) string { return confirmT(lang, "phone.link.button") }
 
 // phoneLinkQuestion: the window's question before a link (the phone linked
-// now asks phoneChangeAsk instead).
+// now asks phoneChangeAsk instead). The phone's name stands in quotes, so
+// its quote marks become apostrophes; an apostrophe stays.
 func phoneLinkQuestion(lang, phone string) string {
+	phone = strings.Map(func(r rune) rune {
+		if r != '’' && sayQuoteMark(r) {
+			return '\''
+		}
+		return r
+	}, phone)
 	return confirmT(lang, "settings.link_ask", "phone", phone, "host", phoneHost(lang))
 }
 
@@ -139,15 +146,19 @@ func phoneNothingSteps(platform string) string {
 }
 
 // phoneCut shortens text to limit runes with "…", closing a quote it cut
-// open (“Front Do…”).
+// open (“Front Do…”, German „Haustü…“).
 func phoneCut(text string, limit int) string {
 	runes := []rune(text)
 	if len(runes) <= limit {
 		return text
 	}
 	cut := string(runes[:max(limit-1, 0)]) + "…"
-	if strings.Count(cut, "“") > strings.Count(cut, "”") {
-		cut = string(runes[:max(limit-2, 0)]) + "…”"
+	open, closing := "“", "”"
+	if strings.Contains(text, "„") { // German marks (confirmQuote)
+		open, closing = "„", "“"
+	}
+	if strings.Count(cut, open) > strings.Count(cut, closing) {
+		cut = string(runes[:max(limit-2, 0)]) + "…" + closing
 	}
 	return cut
 }

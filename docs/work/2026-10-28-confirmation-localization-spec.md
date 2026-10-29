@@ -49,6 +49,13 @@ Calls of the coordinating agent, 2026-10-29, for Delivery 2b:
 
 Built in 2b: Home Assistant keeps state names under category `entity_component` (`component.<domain>.entity_component._.state.<state>`), which 2b reads for the domains a call acts on. `unknown` and `unavailable`, which Home Assistant names only in its frontend, are HA NOVA's own words, like the drift line's word for a state; a value a call sends is shown as it is. An action's name counts only when both reads succeed, it differs from the English one, has a letter once defanged, and fits 40 runes (else English with a notice); it is never a phone button (Design 8: no word list can check it in every language). The setup page sends its link and move asks in Home Assistant's language, read with the phones, and quotes their buttons from the catalog in that language (the control state carries them; the page only renders them); its own copy stays English. Terminal lines quote the button of the ask they refer to the same way.
 
+Calls of the maintainer, 2026-10-29, on the German texts:
+
+1. Quotes: German texts mark names „…“, English ones “…”. `sayText` stays the one place a name is quoted and defanged. It turns every quote mark of either language („ “ ‚ ‘ included) into an apostrophe, so no name can close or open a quote, and the German catalog re-marks only the pairs HA NOVA wrote (`confirmQuote`). A phone's name in the link question is defanged the same way.
+2. An integration's own action on an access entity (a Z-Wave „Benutzercode löschen“ on a lock) keeps Home Assistant's German name for the action; the tier and its warnings stay HA NOVA's.
+3. The chat-app titles stay „Chat-App-Freigaben erhalten/wechseln/beenden?“.
+4. Undo reads „rückgängig machen“, not „zurücksetzen“: „Die letzte Änderung an „Flurlicht“ rückgängig machen?“. After „an“ the German undo names the item without its kind, so the phone's question and result titles keep the name, cut by the title rule and never dropped.
+
 ## Delivery
 
 Four stacked PRs, each reviewed and merged before the next builds on it; rc5 follows the last.

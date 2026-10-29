@@ -108,6 +108,9 @@
   "goal.object.script": "the script {names}",
   "goal.object.automation": "the automation {names}",
   "goal.object.dashboard": "the dashboard {names}",
+  "goal.revert_object.script": "the script {names}",
+  "goal.revert_object.automation": "the automation {names}",
+  "goal.revert_object.dashboard": "the dashboard {names}",
 
   "list.and": "{list} and {last}",
   "list.more": "{list} and {count} more",
