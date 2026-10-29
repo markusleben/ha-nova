@@ -33,6 +33,7 @@ type setupPageControl struct {
 	PhoneName    string           `json:"phone_name,omitempty"`
 	PhoneOS      string           `json:"phone_os,omitempty"` // waiting, moving: PhoneName's platform (ios, android), for how to tap and a timeout's hint
 	PhoneProblem *setupPageMsg    `json:"phone_problem,omitempty"`
+	PhoneButtons *phoneButtons    `json:"phone_buttons,omitempty"`
 	Rule         string           `json:"rule,omitempty"`       // offer, on (already there); "" no row
 	RuleCount    int              `json:"rule_count,omitempty"` // the rules it adds (offer) or has (on)
 	Link         string           `json:"link,omitempty"`       // offer, run; "" no row

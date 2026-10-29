@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -296,4 +297,74 @@ func TestPhoneTextsFitEveryCatalog(t *testing.T) {
 			}
 		}
 	}
+}
+
+// A batch in German: the longest list that may show still fits the window,
+// with the longer no-copy note; every phone title keeps its count, also
+// after a result's prefix; one changed name reads singular.
+func TestGermanBatchFitsTheWindowAndThePhone(t *testing.T) {
+	f := newFakeHA()
+	f.config = map[string]any{"language": "de"}
+	name := func(i int) string { return fmt.Sprintf("Long automation name %02d %s", i, strings.Repeat("y", 36)) }
+	for i := 1; i <= batchMaxMembers; i++ {
+		f.storeConfig(fmt.Sprintf("/api/config/automation/config/l%d", i), map[string]any{"alias": name(i), "actions": []any{step("light.turn_on", "light.hall")}})
+	}
+	h := newWriteHarness(t, f)
+	var deletes []string
+	for i := 1; i <= batchMaxMembers; i++ {
+		deletes = append(deletes, h.member("delete", "automation."+strings.ReplaceAll(strings.ToLower(name(i)), " ", "_")))
+	}
+	exit, env := h.batch(deletes...)
+	if exit != 3 || env.Plan == nil {
+		t.Fatalf("20 deletes: exit %d %+v", exit, env.Error)
+	}
+	stored, err := readPlanFile(filepath.Join(planDir(h.paths), env.Plan.ID+".json"))
+	text := batchNoCopies("de", confirmText(stored, false)) + "\n\n" + windowBoth("de") + "\n" + windowAsked("de")
+	lines, chars := strings.Count(text, "\n")+1, utf8.RuneCountInString(text)
+	t.Logf("the longest German window: %d lines, %d characters", lines, chars)
+	if err != nil || stored.Lang != "de" || lines > batchWindowLines || chars > batchWindowChars ||
+		!strings.Contains(text, "\n20. Automatisierung “"+name(20)+"” löschen.\n") || !strings.Contains(text, confirmT("de", "batch.no_copies")) {
+		t.Fatalf("%d lines, %d characters (%v): %s", lines, chars, err, text)
+	}
+	member := func(op, domain string) batchMember {
+		return batchMember{stored: storedPlan{ConfigAction: &configAction{Op: op, Domain: domain}, ConfigRequest: &configRequest{Op: op, Domain: domain}}}
+	}
+	for _, ops := range [][2]string{{"delete", "delete"}, {"write", "write"}, {"write", "delete"}} {
+		for _, kinds := range [][2]string{{"automation", "automation"}, {"script", "script"}, {"automation", "script"}} {
+			rp := batchReplan{lang: "de"}
+			for i := range batchMaxMembers {
+				rp.members = append(rp.members, member(ops[i%2], kinds[i%2]))
+			}
+			for _, prefix := range []string{"", confirmT("de", "batch.phone.partly_title"), confirmT("de", "outcome.failed")} {
+				if title := (actionGoal{whole: batchPhoneTitle(rp)}).title("de", prefix); utf8.RuneCountInString(title) >= phoneTitleLimit || !strings.Contains(title, "20 ") {
+					t.Errorf("%v %v %q: %q", ops, kinds, prefix, title)
+				}
+			}
+		}
+	}
+	if one, two := confirmT("de", "batch.drift", "count", 1, "names", "“A”"), confirmT("de", "batch.drift", "count", 2, "names", "“A” und “B”"); !strings.Contains(one, "“A” wurde geändert") || !strings.Contains(two, "“B” wurden geändert") {
+		t.Errorf("drift: %q %q", one, two)
+	}
+}
+
+// The setup page asks in Home Assistant's language and quotes that ask's
+// buttons; the page's own words stay English (setup_page_phone.go).
+func TestSetupPageQuotesTheAsksButtonsInGerman(t *testing.T) {
+	h, phones, _ := familyLink(t)
+	h.f.config = map[string]any{"language": "de"}
+	p := newPageStepsTest(t, h.paths, "codex")
+	p.flow.pairedThisRun = true
+	done := p.runControl()
+	ctl := p.waitFor("step 3", accepting("phone")).Control
+	if state, _ := json.Marshal(ctl); ctl.Phone != "pick" || !strings.Contains(string(state), `"phone_buttons":{"allow":"Erlauben","move":"Wechseln"}`) {
+		t.Fatalf("control = %s", state)
+	}
+	p.click("phone", "dev-anna")
+	ctl = p.waitFor("the timeout", func(s setupPageState) bool { return s.Control.PhoneProblem != nil }).Control
+	if ctl.PhoneProblem.Key != "setup.page.control.phone_timeout" || ctl.PhoneProblem.Args["allow"] != "Erlauben" || len(phones.sent) == 0 || phones.sent[0]["title"] != phoneLinkTitle("de") {
+		t.Fatalf("problem %+v sent %v", ctl.PhoneProblem, phones.sent)
+	}
+	p.waitFor("finish", accepting("finish"))
+	p.click("finish", "")
+	<-done
 }
