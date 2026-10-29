@@ -66,13 +66,14 @@ const (
 	channelChatOff = "chat-off"
 )
 
-// channelRefusal: a channel no plan may be stored with, and why.
-func channelRefusal(channel string) *verbFailure {
+// channelRefusal: a channel no plan may be stored with, and why, quoting
+// phone texts in lang (the plan's).
+func channelRefusal(channel, lang string) *verbFailure {
 	switch channel {
 	case channelPhoneMissing:
 		return refusedWith("CONFIRM_UNAVAILABLE", phoneMissingWhy, phoneMissingStep())
 	case channelPhoneUnlinked:
-		return refusedWith("CONFIRM_UNAVAILABLE", phoneUnlinkedWhy, phoneUnlinkedNext)
+		return refusedWith("CONFIRM_UNAVAILABLE", phoneUnlinkedWhy, phoneUnlinkedNext(lang))
 	case channelChatOff:
 		return refusedWith("CONFIRM_UNAVAILABLE", chatCodesOffWhy, chatCodesOffNext)
 	}
@@ -118,14 +119,14 @@ func typedCode(s string) string {
 }
 
 // withholdAsk swaps the closing code block (and the chat note above it)
-// for sayFormAsk. A Home Assistant name can't spoof the block: sayText
-// strips line breaks and asterisks from it.
+// for sayFormAsk, in the say's language. A Home Assistant name can't spoof
+// the block: sayText strips line breaks and asterisks from it.
 func withholdAsk(say, code string) string {
-	head, found := strings.CutSuffix(say, sayCodeBlock(code))
+	head, lang, found := sayCodeHead(say, code)
 	if !found { // unreachable (say and code come from one plan); fail closed
-		return sayFormAsk
+		return sayFormAsk("en")
 	}
-	return strings.TrimSuffix(head, "\n"+sayChatNote) + " " + sayFormAsk
+	return strings.TrimSuffix(head, "\n"+sayChatNote(lang)) + " " + sayFormAsk(lang)
 }
 
 // lowerFirst: "Unlock “Door”" → "unlock “Door”" (names are quoted, so only

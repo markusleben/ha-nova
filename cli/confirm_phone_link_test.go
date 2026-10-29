@@ -208,10 +208,10 @@ func TestLinkPhoneByTapOnTheChosenPhoneOnly(t *testing.T) {
 	if exit != 0 || !strings.Contains(out, phoneWhoseQuestion) || !strings.Contains(out, "1) Anna’s Pixel (Anna)") || !strings.Contains(out, "Only “Anna’s Pixel” gets HA NOVA confirmations") {
 		t.Fatalf("exit %d out %q", exit, out)
 	}
-	if strings.Join(p.services, ",") != "mobile_app_annas_pixel,mobile_app_annas_pixel" || p.sent[0]["title"] != phoneLinkTitle ||
-		p.sent[0]["message"] != "Tap “Allow”. No button? Pull down. Requested by “"+phoneHost()+"”." || p.sent[0]["data"].(map[string]any)["push"].(map[string]any)["interruption-level"] != "active" ||
+	if strings.Join(p.services, ",") != "mobile_app_annas_pixel,mobile_app_annas_pixel" || p.sent[0]["title"] != phoneLinkTitle("en") ||
+		p.sent[0]["message"] != "Tap “Allow”. No button? Pull down. Requested by “"+phoneHost("en")+"”." || p.sent[0]["data"].(map[string]any)["push"].(map[string]any)["interruption-level"] != "active" ||
 		p.sent[0]["data"].(map[string]any)["actions"].([]any)[0].(map[string]any)["authenticationRequired"] != "true" || p.sent[1]["title"] != "Linked to HA NOVA" ||
-		p.sent[1]["message"] != "Confirmations from “"+phoneHost()+"” now come to you." {
+		p.sent[1]["message"] != "Confirmations from “"+phoneHost("en")+"” now come to you." {
 		t.Fatalf("notified %v %v", p.services, p.sent)
 	}
 	if l := linked(t, h); l == nil || l.DeviceID != "dev-anna" || l.UserID != "anna-id" || l.Service != "mobile_app_annas_pixel" || l.Name != "Anna’s Pixel" || l.Platform != phoneAndroid {
@@ -250,9 +250,9 @@ func TestLinkPhoneWithoutTerminalOnlyLists(t *testing.T) {
 	h, p, _ := familyLink(t)
 	exit, out := runLink(t, h, "", phoneLinkRun{})
 	// Each row says how that phone shows the buttons; one with no known maker gets both ways.
-	if exit != 0 || !strings.Contains(out, "1) Anna’s Pixel (Anna). On it: "+phoneTapLine(phoneAndroid, "Allow")+"\n") ||
-		!strings.Contains(out, "Family iPad (Markus). On it: "+phoneTapLine("", "Allow")+"\n") ||
-		!strings.Contains(out, "Markus’s iPhone (Markus). On it: "+phoneTapLine(phoneIOS, "Allow")+"\n") || !strings.Contains(out, "Only administrators' phones are listed") ||
+	if exit != 0 || !strings.Contains(out, "1) Anna’s Pixel (Anna). On it: "+phoneTapLine("en", phoneAndroid, "Allow")+"\n") ||
+		!strings.Contains(out, "Family iPad (Markus). On it: "+phoneTapLine("en", "", "Allow")+"\n") ||
+		!strings.Contains(out, "Markus’s iPhone (Markus). On it: "+phoneTapLine("en", phoneIOS, "Allow")+"\n") || !strings.Contains(out, "Only administrators' phones are listed") ||
 		strings.Contains(out, "Kid") || !strings.Contains(out, "Nothing was sent") || len(p.sent) != 0 || linked(t, h) != nil {
 		t.Fatalf("exit %d out %q sent %v", exit, out, p.services)
 	}
@@ -268,7 +268,7 @@ func TestLinkPhoneWithoutTerminalOnlyLists(t *testing.T) {
 	// Linked: a move starts on that phone, in its own way.
 	seedLink(t, h, &annaLink)
 	if exit, out := runLink(t, h, "", phoneLinkRun{}); exit != 0 || len(p.sent) != 0 ||
-		!strings.Contains(out, "Changing it asks that phone first: tell the user to watch it for “Move HA NOVA confirmations?”. "+phoneTapLine(phoneAndroid, "Move")+" Then the new phone gets “Get HA NOVA confirmations?”.\n") {
+		!strings.Contains(out, "Changing it asks that phone first: tell the user to watch it for “Move HA NOVA confirmations?”. "+phoneTapLine("en", phoneAndroid, "Move")+" Then the new phone gets “Get HA NOVA confirmations?”.\n") {
 		t.Fatalf("linked list: %d %q", exit, out)
 	}
 }

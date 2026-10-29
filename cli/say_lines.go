@@ -2,13 +2,17 @@ package main
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 )
 
 // The fixed shapes of every line the CLI writes for a person to read: the
 // confirmation (`say`, the window and form text) and the result. One voice,
 // first person, one place; the sentences that fill them stay in
-// confirm_say.go and confirm_say_text.go.
+// confirm_say.go and confirm_say_text.go. A confirmation speaks its plan's
+// language (cli/confirm_strings.*.json); a result line stays English, and
+// the agent words it in the user's language.
 //
 //	Confirmation: I'm about to <action>. <consequences> <status> <ask>
 //	              (a chat code: the ask is sayCodeBlock, always last)
@@ -18,37 +22,46 @@ import (
 //	              Not sure: / Partly done: <what is known>.
 
 // sayAbout opens every confirmation: "I'm about to unlock “Front Door”."
-func sayAbout(action string) string { return "I'm about to " + lowerFirst(action) + "." }
+// action continues the sentence (actionGoal.text).
+func sayAbout(lang, action string) string { return confirmT(lang, "say.about", "action", action) }
 
-const (
-	sayNotRun     = "Nothing has run yet."
-	sayNotSaved   = "Nothing is saved yet."
-	sayNotDeleted = "Nothing is deleted yet."
-	sayCopyNote   = "A copy is saved first, so it can be restored."
-	sayNoCopyNote = "No copy could be saved, so once deleted it can't be restored."
-	// sayNeedsYou follows the first reason of a typed plan.
-	sayNeedsYou = ", so I need you to confirm it."
-	sayYesAsk   = "Reply yes to go ahead."
-	saySaveAsk  = "Save it? I can also show the details."
-	sayRoomsAsk = "Save these rooms?"
-	// Prefixes that put a fresh confirmation in context.
-	sayChanged      = "Something changed since the last preview. "
-	sayNoWindowHere = "The confirmation window couldn't open on this computer. "
-	// sayWindowAsk: the code is never shown.
-	sayWindowAsk = "Confirm in the window on this computer."
-	// sayFormAsk replaces sayCodeBlock where the client shows a confirmation
-	// form: the code is never in a tool result there (mcp_confirm.go).
-	sayFormAsk = "Type the one-time code from HA NOVA in the form your app shows — a plain yes can't confirm this."
-	// sayChatNote: the honest limit of fallback E, one line before a chat
-	// plan's code block. Chat apps (ha-nova serve) have none: the server
-	// instructions carry it there (mcpInstructions).
-	sayChatNote = "I can see this code too, so it only counts if you type it yourself."
-	// sayCodeLead introduces the code, on the line above it.
-	sayCodeLead = "To go ahead, type this code:"
-)
+func sayNotRun(lang string) string     { return confirmT(lang, "say.not_run") }
+func sayNotSaved(lang string) string   { return confirmT(lang, "say.not_saved") }
+func sayNotDeleted(lang string) string { return confirmT(lang, "say.not_deleted") }
+func sayCopyNote(lang string) string   { return confirmT(lang, "say.copy_note") }
+func sayNoCopyNote(lang string) string { return confirmT(lang, "say.no_copy_note") }
+
+// sayNeedsYou: the first reason of a typed plan, and why it asks.
+func sayNeedsYou(lang, reason string) string {
+	return confirmT(lang, "say.needs_you", "reason", reason)
+}
+
+func sayYesAsk(lang string) string   { return confirmT(lang, "say.yes_ask") }
+func saySaveAsk(lang string) string  { return confirmT(lang, "say.save_ask") }
+func sayRoomsAsk(lang string) string { return confirmT(lang, "say.rooms_ask") }
+
+// sayChanged and sayNoWindowHere put a fresh confirmation in context, one
+// space before it.
+func sayChanged(lang string) string      { return confirmT(lang, "say.changed") }
+func sayNoWindowHere(lang string) string { return confirmT(lang, "say.no_window_here") }
+
+// sayWindowAsk: the code is never shown.
+func sayWindowAsk(lang string) string { return confirmT(lang, "say.window_ask") }
+
+// sayFormAsk replaces sayCodeBlock where the client shows a confirmation
+// form: the code is never in a tool result there (mcp_confirm.go).
+func sayFormAsk(lang string) string { return confirmT(lang, "say.form_ask") }
+
+// sayChatNote: the honest limit of fallback E, one line before a chat
+// plan's code block. Chat apps (ha-nova serve) have none: the server
+// instructions carry it there (mcpInstructions).
+func sayChatNote(lang string) string { return confirmT(lang, "say.chat_note") }
+
+// sayCodeLead introduces the code, on the line above it.
+func sayCodeLead(lang string) string { return confirmT(lang, "say.code_lead") }
 
 // sayCodeAsk: the code's ask in a confirmation form (mcp_confirm.go).
-func sayCodeAsk(code string) string { return "Type " + code + " to confirm." }
+func sayCodeAsk(lang, code string) string { return confirmT(lang, "form.code_ask", "code", code) }
 
 // sayCodeBlock ends a chat plan's `say`, after a blank line so it stands
 // apart: the lead, then the code alone and bold on the last line. A hard
@@ -56,19 +69,30 @@ func sayCodeAsk(code string) string { return "Type " + code + " to confirm." }
 // a plain newline; the blank line is a paragraph break every client keeps.
 // The say's first sentence names the action the code confirms. The same
 // shape as a code a skill mints (skills/ha-nova/index.md → Say it).
-func sayCodeBlock(code string) string { return codeBlock(sayCodeLead, code) }
+func sayCodeBlock(lang, code string) string { return codeBlock(sayCodeLead(lang), code) }
 
 // codeBlock: sayCodeBlock with another lead (a chat app's has the expiry).
 func codeBlock(lead, code string) string { return "\n\n" + lead + "  \n**" + code + "**" }
 
+// sayCodeHead: a chat plan's say without its closing sayCodeBlock, and the
+// language that block (so the whole say) speaks; found is false without one.
+func sayCodeHead(say, code string) (head, lang string, found bool) {
+	for _, lang := range slices.Sorted(maps.Keys(confirmCatalogs)) {
+		if head, found := strings.CutSuffix(say, sayCodeBlock(lang, code)); found {
+			return head, lang, true
+		}
+	}
+	return say, "", false
+}
+
 // sayWindowPhoneAsk: a phone is linked here, so it asks too (confirm_both.go).
-func sayWindowPhoneAsk(button, platform string) string {
-	return "Confirm in the window on this computer or on your phone. On the phone: " + phoneTapLine(platform, button) + " The first answer counts."
+func sayWindowPhoneAsk(lang, button, platform string) string {
+	return confirmT(lang, "say.window_phone_ask", "tap", phoneTapLine(lang, platform, button))
 }
 
 // sayPhoneAsk: the code is never shown.
-func sayPhoneAsk(button, platform string) string {
-	return "Confirm on your phone. " + phoneTapLine(platform, button)
+func sayPhoneAsk(lang, button, platform string) string {
+	return confirmT(lang, "say.phone_ask", "tap", phoneTapLine(lang, platform, button))
 }
 
 func sayNotDone(reason string) string { return "Not done: " + reason + ". Nothing changed." }
@@ -204,7 +228,7 @@ func callOutcome(env *verbEnvelope) string {
 	}
 	var parts []string
 	if len(ran) > 0 {
-		parts = append(parts, sayList(ran)+" ran.")
+		parts = append(parts, sayList("en", ran)+" ran.")
 	}
 	for _, key := range order {
 		who := groups[key]
@@ -243,7 +267,7 @@ func sayCount(named []string, unnamed int) string {
 	if unnamed > 0 {
 		named = append(named, map[bool]string{true: "1 device", false: fmt.Sprint(unnamed, " devices")}[unnamed == 1])
 	}
-	return sayList(named)
+	return sayList("en", named)
 }
 
 // plainStates: the end states a result may name, in plain words; any other
@@ -256,17 +280,13 @@ var plainStates = map[string]string{"on": "on", "off": "off", "locked": "locked"
 // sayReadBackDiffersText: saved, but not what the user approved.
 const sayReadBackDiffersText = "Not sure: it was saved, but Home Assistant kept something different from what you approved. Let's look at what changed before you count on it."
 
-// sayPast: "Unlock" → "unlocked", for the result line; an unknown verb
-// stays as it is ("Done: set temperature “Hall”").
-func sayPast(verb, object string) string {
-	past := map[string]string{
-		"Turn on": "turned on", "Turn off": "turned off", "Toggle": "toggled", "Open": "opened", "Close": "closed",
-		"Stop": "stopped", "Lock": "locked", "Unlock": "unlocked", "Arm": "armed", "Disarm": "disarmed", "Press": "pressed",
-		"Run": "ran", "Set": "set", "Set off": "set off", "Set the position of": "set the position of",
-		"Create": "created", "Change": "changed", "Delete": "deleted", "Restore": "restored", "Undo the last change to": "undid the last change to",
-	}[verb]
+// sayPast: a config plan's goal in the past for its result line, which
+// stays English (the agent words results in the user's language): "deleted
+// the automation “Night”". A verb without a past stays as it is.
+func sayPast(g actionGoal) string {
+	past := map[string]string{"create": "created", "change": "changed", "delete": "deleted", "restore": "restored", "revert": "undid the last change to"}[g.verb]
 	if past == "" {
-		past = lowerFirst(verb)
+		return g.text("en")
 	}
-	return strings.TrimSpace(past + " " + object)
+	return past + " " + g.object("en", sayList("en", g.names))
 }

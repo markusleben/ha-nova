@@ -77,7 +77,7 @@ func TestPlanRawConfirmsInTheWindow(t *testing.T) {
 	w := useWindow(t, windowConfirmed)
 	_, env := planRaw(t, paths, `[{"endpoint":"backups","payload":{"action":"save","category":"helpers","name":"auto-guest","data":{}}},
 		{"endpoint":"ws","payload":{"type":"input_boolean/delete","input_boolean_id":"guest"}}]`)
-	if env.Plan == nil || env.Plan.Channel != channelWindow || env.Plan.Code != "" || !strings.HasSuffix(env.Say, sayWindowAsk) {
+	if env.Plan == nil || env.Plan.Channel != channelWindow || env.Plan.Code != "" || !strings.HasSuffix(env.Say, sayWindowAsk("en")) {
 		t.Fatalf("plan %+v say %q", env.Plan, env.Say)
 	}
 	exit, applied := applyRaw(t, paths, env)

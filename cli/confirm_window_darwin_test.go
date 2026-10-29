@@ -57,7 +57,7 @@ func TestRealWindow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), limit)
 	defer cancel()
 	start := time.Now()
-	if got := nativeWindow(ctx, "HA NOVA test — nothing happens. Unlock “Front Door”?\n\n"+windowAsked, "en", wait); got != expected || time.Since(start) > limit+2*time.Second {
+	if got := nativeWindow(ctx, "HA NOVA test — nothing happens. Unlock “Front Door”?\n\n"+windowAsked("en"), "en", wait); got != expected || time.Since(start) > limit+2*time.Second {
 		t.Fatalf("real window: %v after %v, want %v", got, time.Since(start), expected)
 	}
 	if out, _ := exec.Command("/usr/bin/pgrep", "-x", "osascript").Output(); mode == "withdrawn" && len(out) > 0 {

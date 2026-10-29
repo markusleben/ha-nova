@@ -76,6 +76,6 @@ describe("plain-language output rules", () => {
       expect(text, file).not.toContain("show yaml");
       expect(text, file).not.toMatch(/apply · |· cancel/);
     }
-    expect(readFileSync("cli/say_lines.go", "utf8")).toContain('"Save it? I can also show the details."');
+    expect(readFileSync("cli/confirm_strings.en.json", "utf8")).toContain('"Save it? I can also show the details."');
   });
 });

@@ -153,11 +153,11 @@ func TestPlainValuesStayExact(t *testing.T) {
 		}
 	})
 	env := &verbEnvelope{Members: []tierMember{{EntityID: "media_player.tv", Action: "media_player.media_stop", Via: "script.x/sequence/0"}}}
-	if got := sayOwnedEffect(env, tierReason{EntityID: "media_player.tv", Via: "script.x/sequence/0"}); got != "controls a speaker or screen" {
+	if got := sayOwnedEffect("en", env, tierReason{EntityID: "media_player.tv", Via: "script.x/sequence/0"}); got != "controls a speaker or screen" {
 		t.Errorf("owned effect: %q", got)
 	}
 	env.Members[0].Action = "tts.clear_cache"
-	if got := sayOwnedEffect(env, tierReason{EntityID: "media_player.tv", Via: "script.x/sequence/0"}); got != "clears saved speech audio" {
+	if got := sayOwnedEffect("en", env, tierReason{EntityID: "media_player.tv", Via: "script.x/sequence/0"}); got != "clears saved speech audio" {
 		t.Errorf("owned effect: %q", got)
 	}
 }

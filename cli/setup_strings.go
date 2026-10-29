@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 )
 
 // The setup string catalog (docs/work/2026-10-18-onboarding-0.27-spec.md
@@ -30,7 +31,9 @@ func (e *setupEntry) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	for category := range e.Plural {
-		if !setupPluralCategories[category] {
+		// A literal: a catalog parses while package variables are still
+		// being set (confirmCatalogs), so a variable here could be empty.
+		if !slices.Contains([]string{"zero", "one", "two", "few", "many", "other"}, category) {
 			return fmt.Errorf("unknown CLDR plural category %q", category)
 		}
 	}
@@ -39,8 +42,6 @@ func (e *setupEntry) UnmarshalJSON(data []byte) error {
 	}
 	return nil
 }
-
-var setupPluralCategories = map[string]bool{"zero": true, "one": true, "two": true, "few": true, "many": true, "other": true}
 
 func (e setupEntry) plural() bool { return e.Plural != nil }
 

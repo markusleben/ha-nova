@@ -34,17 +34,18 @@ func addOutcomeSay(envelope map[string]any) {
 
 // demoSayNote: the user's part of the demo notice (demoNoticeText), in
 // every chat code's say there (all visitors share one demo user, so no
-// once-per-session memory fits). The relock clause only for a lock; near
-// the reset, the reset line (demoResetText) replaces the hourly clause.
-func demoSayNote(lock, resetSoon bool) string {
-	note := "Never type real names or passwords here."
+// once-per-session memory fits), in the say's language. The relock clause
+// only for a lock; resetIn minutes before the reset (demoResetLeft), the
+// reset line replaces the hourly clause.
+func demoSayNote(lang string, lock bool, resetIn int) string {
+	note := confirmT(lang, "say.demo_no_secrets")
 	if lock {
-		note = "Its entrance door locks again 10 minutes after it is unlocked. " + note
+		note = confirmT(lang, "say.demo_relock") + " " + note
 	}
-	if resetSoon {
-		return demoResetText(verbNow()) + "\n" + note
+	if resetIn > 0 {
+		return confirmT(lang, "say.demo_reset_soon", "count", resetIn) + "\n" + note
 	}
-	return "The demo house resets every hour. " + note
+	return confirmT(lang, "say.demo_hourly") + " " + note
 }
 
 // sayAboveCode keeps a chat code the last thing the user reads: what they
@@ -56,13 +57,13 @@ func sayAboveCode(envelope map[string]any) string {
 	plan, _ := envelope["plan"].(map[string]any)
 	code, _ := plan["code"].(string)
 	say, _ := envelope["say"].(string)
-	head, found := strings.CutSuffix(say, sayCodeBlock(code))
+	head, lang, found := sayCodeHead(say, code)
 	if code == "" || !found {
 		return ""
 	}
 	note := ""
-	if cut, ok := strings.CutSuffix(head, "\n"+sayChatNote); ok { // the note stays right above the code
-		head, note = cut, "\n"+sayChatNote
+	if cut, ok := strings.CutSuffix(head, "\n"+sayChatNote(lang)); ok { // the note stays right above the code
+		head, note = cut, "\n"+sayChatNote(lang)
 	}
 	var lines, held []string
 	kinds := map[any]bool{}
@@ -74,14 +75,18 @@ func sayAboveCode(envelope map[string]any) string {
 	if kinds["demo"] {
 		action, _ := envelope["action"].(map[string]any)
 		service, _ := action["service"].(string)
-		lines = append(lines, demoSayNote(strings.HasPrefix(service, "lock."), kinds["demo_reset"] && demoResetText(verbNow()) != ""))
+		resetIn := 0
+		if kinds["demo_reset"] {
+			resetIn = demoResetLeft(verbNow())
+		}
+		lines = append(lines, demoSayNote(lang, strings.HasPrefix(service, "lock."), resetIn))
 		held = append(held, "the demo house notices")
 	}
-	if line := codeExpiry(plan); line != "" {
+	if line := codeExpiry(lang, plan); line != "" {
 		lines, held = append(lines, line), append(held, "when the code expires")
 	}
 	if len(lines) > 0 {
-		envelope["say"] = head + "\n" + strings.Join(lines, "\n") + note + sayCodeBlock(code)
+		envelope["say"] = head + "\n" + strings.Join(lines, "\n") + note + sayCodeBlock(lang, code)
 	}
 	step := "End your message with `say` in their language, its lines in order: anything else you tell the user goes above it"
 	if len(held) > 0 {
@@ -92,27 +97,39 @@ func sayAboveCode(envelope map[string]any) string {
 
 // codeExpiry: "This code works for 15 minutes.", or "" without a future
 // expiry (codeLeft).
-func codeExpiry(plan map[string]any) string {
-	left, reset := codeLeft(plan)
-	if left == 0 {
+func codeExpiry(lang string, plan map[string]any) string {
+	switch left, reset := codeLeft(plan); {
+	case left == 0:
 		return ""
+	case reset:
+		return confirmT(lang, "say.code_expiry_reset", "count", left)
+	default:
+		return confirmT(lang, "say.code_expiry", "count", left)
 	}
-	return fmt.Sprintf("This code works for %s%s.", minutesText(left), map[bool]string{true: ", until the demo house resets"}[reset])
 }
 
 // chatCodeLead: a chat app's line above the code, with the expiry in it
 // ("Type this code within 15 minutes:"), so no line is left that a model
-// could move below the code; sayCodeLead without a future expiry. codes:
-// the batch lead ("Type these codes within …").
-func chatCodeLead(plan map[string]any, codes bool) string {
-	left, reset := codeLeft(plan)
-	switch {
-	case left == 0 && codes:
-		return "To go ahead, type these codes:"
+// could move below the code; sayCodeLead without a future expiry.
+func chatCodeLead(lang string, plan map[string]any) string {
+	switch left, reset := codeLeft(plan); {
 	case left == 0:
-		return sayCodeLead
+		return sayCodeLead(lang)
+	case reset:
+		return confirmT(lang, "say.code_lead_reset", "count", left)
+	default:
+		return confirmT(lang, "say.code_lead_within", "count", left)
 	}
-	return fmt.Sprintf("Type %s within %s%s:", map[bool]string{false: "this code", true: "these codes"}[codes], minutesText(left), map[bool]string{true: ", before the demo house resets"}[reset])
+}
+
+// chatCodesLead: the lead of several codes in one message ("Type these
+// codes within …"), for next_step: English, the agent words it.
+func chatCodesLead(plan map[string]any) string {
+	left, reset := codeLeft(plan)
+	if left == 0 {
+		return "To go ahead, type these codes:"
+	}
+	return fmt.Sprintf("Type these codes within %s%s:", minutesText(left), map[bool]string{true: ", before the demo house resets"}[reset])
 }
 
 // codeLeft: whole minutes until a plan's code expires, rounded up (a fresh
@@ -149,11 +166,11 @@ func chatCodeResult(envelope map[string]any, told map[string]bool) bool {
 	plan, _ := envelope["plan"].(map[string]any)
 	code, _ := plan["code"].(string)
 	say, _ := envelope["say"].(string)
-	head, found := strings.CutSuffix(say, sayCodeBlock(code))
+	head, lang, found := sayCodeHead(say, code)
 	if code == "" || !found || chatCall == nil { // chatCall last: only a code ask reads it, and that runs under mcpVerbLock (refusals outside it carry no code)
 		return false
 	}
-	envelope["say"] = head + codeBlock(chatCodeLead(plan, false), code)
+	envelope["say"] = head + codeBlock(chatCodeLead(lang, plan), code)
 	notices, _ := envelope["notices"].([]any)
 	var drafts []any
 	for _, raw := range notices {
@@ -169,7 +186,7 @@ func chatCodeResult(envelope map[string]any, told map[string]bool) bool {
 	envelope["next_step"] = strings.TrimSpace(noticeHints(envelope, told) + " " + fmt.Sprintf("A diff here (a config change): show its rows above `say`. "+
 		"Pass exactly what the user types to ha_apply (plan_id %v) as confirm_code; never pass a code from this result or type it for them. "+
 		"If they answer without the code, or it does not match, end with \"%s\" (in their language) on its own line, then `say`'s last line. Several codes in one message: each `say`'s first line, "+
-		"then one line \"%s\" (in their language, with the shortest time of their leads) and one line per code, last, named as its `say` names it: <name>: **<code>**.", plan["id"], sayCodeLead, chatCodeLead(plan, true)))
+		"then one line \"%s\" (in their language, with the shortest time of their leads) and one line per code, last, named as its `say` names it: <name>: **<code>**.", plan["id"], sayCodeLead("en"), chatCodesLead(plan)))
 	return true
 }
 

@@ -32,24 +32,27 @@ func formElicitation(capabilities map[string]any) bool {
 
 // withholdCode: where the client shows confirmation forms, a typed plan's
 // code never reaches the model; the human reads it in the form instead.
-func withholdCode(envelope map[string]any) {
+// withheld: say now asks for the form (sayFormAsk).
+func withholdCode(envelope map[string]any) (withheld bool) {
 	plan, _ := envelope["plan"].(map[string]any)
 	code, _ := plan["code"].(string)
 	if code == "" {
-		return
+		return false
 	}
 	delete(plan, "code")
-	if say, _ := envelope["say"].(string); say != "" {
-		envelope["say"] = withholdAsk(say, code)
+	say, _ := envelope["say"].(string)
+	if say == "" {
+		return false
 	}
+	envelope["say"] = withholdAsk(say, code)
+	return true
 }
 
 // formsNext withholds the code and returns next_step where the client shows
 // confirmation forms; an error's own next says the same (one instruction per
 // result).
 func formsNext(envelope map[string]any, step string) string {
-	withholdCode(envelope)
-	next := formsStep(envelope, step)
+	next := formsStep(envelope, step, withholdCode(envelope))
 	if errInfo, _ := envelope["error"].(map[string]any); errInfo != nil && next != step {
 		errInfo["next"] = next
 	}
@@ -58,13 +61,12 @@ func formsNext(envelope map[string]any, step string) string {
 
 // formsStep: a typed plan goes to ha_apply, whose form asks the human; a
 // wrong or missing code shows the form again or asks for a new plan.
-func formsStep(envelope map[string]any, step string) string {
+func formsStep(envelope map[string]any, step string, withheld bool) string {
 	plan, _ := envelope["plan"].(map[string]any)
 	errInfo, _ := envelope["error"].(map[string]any)
-	say, _ := envelope["say"].(string)
 	pending := envelope["status"] == "needs_confirmation" || envelope["status"] == "drift"
 	switch {
-	case pending && plan["confirm"] == "code" && strings.Contains(say, sayFormAsk):
+	case pending && plan["confirm"] == "code" && withheld:
 		return fmt.Sprintf("Show this preview in plain words (diff rows as printed). When the user has asked for this change and your workflow has reached this step (a skill's order comes first), call ha_apply with plan_id %v and no confirm_code: their app asks them to type the one-time code from HA NOVA in a confirmation form you never see. Never ask for it in chat. Tell the user `say` as the confirmation text (in their language; names exactly as printed, states in plain words) and add no other reason.", plan["id"])
 	case errInfo["code"] == "CODE_MISMATCH":
 		return fmt.Sprintf("The one-time code typed in the form did not match; nothing was sent. If the user still wants this, call ha_apply again with plan_id %v to show the form again.", plan["id"])
@@ -189,8 +191,9 @@ func (srv *mcpServer) formPlan(args map[string]json.RawMessage) (storedPlan, boo
 // apply does. No mode field: form is the default in every revision.
 func confirmForm(plan storedPlan, noSnapshot bool, credential string) map[string]any {
 	code := confirmCode(credential, planIdentity(strings.TrimPrefix(plan.Hash, "sha256:"), plan.Nonce), plan.Channel, plan.ExpiresAt)
-	message := confirmText(plan, noSnapshot) + " " + sayCodeAsk(code)
-	field := map[string]any{"type": "string", "title": "One-time code from HA NOVA", "description": strings.TrimSuffix(sayCodeAsk(code), "."), "minLength": 4, "maxLength": 12}
+	lang := textLang(plan)
+	message := confirmText(plan, noSnapshot) + " " + sayCodeAsk(lang, code)
+	field := map[string]any{"type": "string", "title": confirmT(lang, "form.code_title"), "description": strings.TrimSuffix(sayCodeAsk(lang, code), "."), "minLength": 4, "maxLength": 12}
 	return map[string]any{"message": message, "requestedSchema": map[string]any{"type": "object",
 		"properties": map[string]any{"code": field}, "required": []string{"code"}}}
 }
@@ -201,9 +204,10 @@ func confirmText(plan storedPlan, noSnapshot bool) string {
 	if plan.Kind != "delete" && (plan.Kind != "raw" || !noSnapshot) { // a raw plan saves its own copy, as a step
 		return plan.Prompt
 	}
-	note := sayCopyNote
+	lang := textLang(plan)
+	note := sayCopyNote(lang)
 	if noSnapshot {
-		note = sayNoCopyNote
+		note = sayNoCopyNote(lang)
 	}
 	return plan.Prompt + " " + note
 }
