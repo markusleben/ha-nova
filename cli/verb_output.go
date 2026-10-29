@@ -65,6 +65,7 @@ type verbEnvelope struct {
 	Notices      []verbNotice    `json:"notices,omitempty"`
 	exit         int             // success exit code; 0 unless a verb sets it (plan: 3)
 	ask          actionGoal      // a typed plan's phone question: its goal and the reasons the title doesn't say (sayAsk)
+	everyday     *everydayLine   // an MQTT or Supervisor call's everyday line (confirm_everyday.go), set with the plan
 	done         string          // what a config or rooms apply did, for its result line (resultSay)
 }
 

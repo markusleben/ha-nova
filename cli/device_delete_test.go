@@ -94,7 +94,7 @@ func TestDeviceDeleteTypedNamedAndApplied(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "2. Delete the device “Hall lamp”, its 1 child device, and its 3 entities."
+	want := "I'm about to delete the device “Hall lamp”, its 1 child device, and its 3 entities. Detail: device ID “dlamp”. HA NOVA saves a copy first (“metadata/auto-device”)."
 	if !strings.Contains(env.Say, want) || !strings.Contains(plan.Prompt, want) || !strings.Contains(env.Say, "This deletes") {
 		t.Fatalf("say or prompt lacks %q:\n%s\n---\n%s", want, env.Say, plan.Prompt)
 	}

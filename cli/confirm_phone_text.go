@@ -32,6 +32,7 @@ type phoneAsk struct {
 const (
 	phoneSentText   = "Sent to “%s”. %s Do it only if you started this."
 	phoneTitleLimit = 80  // runes: one lock-screen line
+	phoneNameRoom   = 8   // runes a title keeps for a cut name, its quotes included
 	phoneWhyLimit   = 300 // runes: the reasons (an expanded notification shows them all)
 )
 
@@ -158,7 +159,11 @@ func phoneCut(text string, limit int) string {
 		open, closing = "„", "“"
 	}
 	if strings.Count(cut, open) > strings.Count(cut, closing) {
-		cut = string(runes[:max(limit-2, 0)]) + "…" + closing
+		kept := string(runes[:max(limit-2, 0)])
+		cut = kept + "…"
+		if strings.Count(kept, open) > strings.Count(kept, closing) { // only a mark it kept is closed
+			cut += closing
+		}
 	}
 	return cut
 }

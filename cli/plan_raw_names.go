@@ -108,12 +108,29 @@ func (n *rawNamer) device(id any) string {
 	return n.named(map[string]any{"type": "config/device_registry/list"}, id, []string{"id"}, []string{"name_by_user", "name"})
 }
 
-// deviceEntities: what deleting the device takes with it (", its 1 child
-// device, and its 3 entities"): its child devices and the entities of their
-// own integration on them (Home Assistant keeps another integration's
-// entity, unlinked: not counted, but in the basis with the rest, so any
-// entity attached since the preview is drift).
-func (n *rawNamer) deviceEntities(id any) string {
+// deviceDelete: a device delete's everyday line, named with what deleting
+// it takes along (deviceEntities), and its id as the detail.
+func (n *rawNamer) deviceDelete(id any) everydayLine {
+	goal := actionGoal{verb: "device_delete", frame: "device", names: []string{n.device(id)}}
+	children, entities := n.deviceEntities(id)
+	switch {
+	case children > 0:
+		goal.verb = "device_delete_children"
+		goal.args = map[string]string{"children": confirmT(rawLang, "unit.child_devices", "count", children), "entities": confirmT(rawLang, "unit.entities", "count", entities)}
+	default:
+		goal.args = map[string]string{"entities": confirmT(rawLang, "unit.entities", "count", entities)}
+	}
+	text, _ := id.(string)
+	return everydayLine{goal: goal, detail: confirmT(rawLang, "detail.device", "id", sayDetail(rawLang, text, detailLimit, true))}
+}
+
+// deviceEntities: what deleting the device takes with it: its child devices
+// and the entities of their own integration on them (Home Assistant keeps
+// another integration's entity, unlinked: not counted, but in the basis with
+// the rest, so any entity attached since the preview is drift). A registry
+// that can't be read refuses the plan (computeRawPlan), so its 0s are never
+// shown.
+func (n *rawNamer) deviceEntities(id any) (children, count int) {
 	device, _ := id.(string)
 	var devices []struct {
 		ID               string `json:"id"`
@@ -145,7 +162,7 @@ func (n *rawNamer) deviceEntities(id any) string {
 	}
 	if err != nil {
 		n.removing[device] = "unreadable"
-		return " and its entities (the registry could not be read to count them)"
+		return 0, 0
 	}
 	gone := map[string][2]string{}
 	for _, row := range devices {
@@ -167,11 +184,7 @@ func (n *rawNamer) deviceEntities(id any) string {
 	slices.Sort(goneEntities)
 	slices.Sort(unlinked)
 	n.removing[device] = map[string]any{"devices": slices.Sorted(maps.Keys(gone)), "entities": goneEntities, "unlinked": unlinked}
-	count := len(goneEntities)
-	if children := len(gone) - 1; children > 0 {
-		return ", its " + plural(children, "child device") + ", and its " + plural(count, "entity")
-	}
-	return " and its " + plural(count, "entity")
+	return max(len(gone)-1, 0), len(goneEntities)
 }
 
 func (n *rawNamer) area(id any) string {

@@ -223,7 +223,8 @@ func TestPlanRawSubentryReconfigureNamesTarget(t *testing.T) {
 }
 
 // On the phone, every typed step comes first, by number, and survives the
-// cut to the notification's length; the other steps are counted.
+// cut to the notification's length; the other steps are counted, and the
+// copy saved first is no step.
 func TestPlanRawPhoneAskKeepsTypedSteps(t *testing.T) {
 	paths, _ := rawRelay(t, nil)
 	s, err := newRelaySession(paths, verbOptions{})
@@ -238,6 +239,7 @@ func TestPlanRawPhoneAskKeepsTypedSteps(t *testing.T) {
 	for _, id := range []string{"guest_mode_living_room", "holiday_lights_garden", "night_mode_upstairs"} {
 		items = append(items, rawRequest{Endpoint: "ws", Payload: json.RawMessage(`{"type":"input_boolean/delete","input_boolean_id":"` + id + `"}`)})
 	}
+	items = append(items, rawRequest{Endpoint: "ws", Payload: json.RawMessage(`{"type":"input_boolean/create","name":"Guest"}`)})
 	env := verbEnvelope{}
 	_, plan, err := computeRawPlan(s, &env, items)
 	if err != nil {
@@ -245,11 +247,11 @@ func TestPlanRawPhoneAskKeepsTypedSteps(t *testing.T) {
 	}
 	ask := phonePlanAsk("en", sayAsk(newTierEngine(s), &env, plan, ""), false)
 	for i, id := range []string{"guest_mode_living_room", "holiday_lights_garden", "night_mode_upstairs"} {
-		if want := "Step " + string(rune('2'+i)) + ": Delete the toggle helper “" + id + "”"; !strings.Contains(ask.body, want) {
+		if want := "Step " + string(rune('1'+i)) + ": Delete the toggle helper “" + id + "”"; !strings.Contains(ask.body, want) {
 			t.Errorf("phone body lacks %q: %q", want, ask.body)
 		}
 	}
-	if !strings.Contains(ask.body, "And 1 other step") || strings.Index(ask.body, "Step 2") > strings.Index(ask.body, "This deletes") {
+	if !strings.Contains(ask.body, "And 1 other step") || strings.Index(ask.body, "Step 3") > strings.Index(ask.body, "This deletes") || ask.title != "Confirm 4 steps in Home Assistant?" {
 		t.Fatalf("phone body %q", ask.body)
 	}
 }
