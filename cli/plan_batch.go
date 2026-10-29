@@ -198,7 +198,12 @@ func memberIntact(m storedPlan) bool {
 
 // batchOrder: a member whose check reads another member's item (its config
 // or its entity) must run before it, or it would change as soon as that one
-// is sent. Two that read each other go in separate batches.
+// is sent. Two that read each other (automations on one light) run in the
+// given order when the later one reads only the earlier one's config: its
+// re-check excuses that verified write and nothing else (excusedByBatch).
+// An entity is never excused, so a later one that reads the earlier one's
+// entity moves first, and two that read each other's entities can't share
+// a batch.
 func batchOrder(rp batchReplan) error {
 	rows, err := rp.members[0].e.fullRegistry()
 	if err != nil {
@@ -219,27 +224,28 @@ func batchOrder(rp batchReplan) error {
 			}
 		}
 	}
-	reads := func(j, i int) bool {
+	reads := func(j, i int) (config, entity bool) {
 		basis := asJSON(rp.members[j].fresh.Basis)
 		configs, _ := basis["configs"].(map[string]any)
 		acted, _ := basis["entities"].(map[string]any)
 		action := rp.members[i].fresh.ConfigAction
-		if _, read := configs[action.Domain+":"+action.ConfigID]; read {
-			return true
-		}
-		return slices.ContainsFunc(entities[i], func(id string) bool { _, read := acted[id]; return read })
+		_, config = configs[action.Domain+":"+action.ConfigID]
+		return config, slices.ContainsFunc(entities[i], func(id string) bool { _, read := acted[id]; return read })
 	}
 	for i := range rp.members {
 		for j := i + 1; j < len(rp.members); j++ {
 			first, later := rp.members[i].name(), rp.members[j].name()
+			laterConfig, laterEntity := reads(j, i)
+			firstConfig, firstEntity := reads(i, j)
 			switch {
-			case reads(j, i) && reads(i, j):
+			case !laterConfig && !laterEntity, (firstConfig || firstEntity) && !laterEntity:
+				continue
+			case firstEntity && laterEntity:
 				return refusedWith("BATCH_ORDER", fmt.Sprintf("%s and %s each check the other, so neither can run first", first, later),
 					"Take them out of this batch: apply one of them on its own first, then plan the other again (its check then sees the change); the other items can stay one batch.")
-			case reads(j, i):
-				return refusedWith("BATCH_ORDER", fmt.Sprintf("%s checks %s, so it must run first: move %s before %s", later, first, later, first),
-					"Make the batch again with the same plan ids in that order.")
 			}
+			return refusedWith("BATCH_ORDER", fmt.Sprintf("%s checks %s, so it must run first: move %s before %s", later, first, later, first),
+				"Make the batch again with the same plan ids in that order.")
 		}
 	}
 	return nil

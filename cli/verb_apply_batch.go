@@ -200,6 +200,7 @@ func executeBatch(paths runtimePaths, s *relaySession, env *verbEnvelope, rp bat
 		}
 		snapshots[i] = file
 	}
+	written := map[string]string{} // basis.configs key → the digest of the config this apply sent and verified there
 	for i := range rp.members {
 		m := rp.members[i]
 		if i > 0 {
@@ -209,7 +210,7 @@ func executeBatch(paths runtimePaths, s *relaySession, env *verbEnvelope, rp bat
 			switch {
 			case rerr != nil && !errors.As(rerr, &refusal):
 				return batchStopped(env, &result, i, "not_sent", "it could not be checked again before sending: "+rerr.Error(), "")
-			case rerr != nil || !stillConfirmed(m.stored, again.fresh) || again.fresh.Tier != m.stored.Tier:
+			case rerr != nil || !excusedByBatch(m.stored, again.fresh, written) || again.fresh.Tier != m.stored.Tier:
 				return batchStopped(env, &result, i, "drift", "it changed since the preview, so it was not sent", "")
 			}
 			m = again
@@ -231,6 +232,10 @@ func executeBatch(paths runtimePaths, s *relaySession, env *verbEnvelope, rp bat
 		switch {
 		case werr == nil && menv.Status == "verified":
 			sent, item.Status = true, "verified"
+			key := m.fresh.ConfigAction.Domain + ":" + m.fresh.ConfigAction.ConfigID
+			if configs, _ := asJSON(m.fresh.Basis)["configs"].(map[string]any); configs[key+"#draft"] != nil { // a delete has none: never excused
+				written[key] = fmt.Sprint(configs[key+"#draft"])
+			}
 			result.Counts.Verified++
 			continue
 		case errors.Is(werr, errNothingSent) && !sent:
@@ -259,6 +264,43 @@ func executeBatch(paths runtimePaths, s *relaySession, env *verbEnvelope, rp bat
 	env.Say = batchDoneSay(rp.lang, len(rp.members), noSnapshot && slices.ContainsFunc(rp.members, func(m batchMember) bool { return m.op() == "delete" }))
 	env.NextStep = "Tell the user `say`. Every item went through (result.items). " + batchWaysBack
 	return nil
+}
+
+// excusedByBatch: a member planned again right before its send is still
+// the confirmed one, or differs only where it read, under the key of an
+// earlier member of this apply, exactly the config that member wrote and
+// verified (written: its draft's digest), or no longer reads it (that write
+// took it out of this member's scan). Their stored digests go back and the
+// hash must then be the confirmed one, so the action, the tier, the reasons
+// (from this re-plan), every entity, and every other config are still what
+// the user confirmed. Any other content there is drift.
+func excusedByBatch(stored, fresh storedPlan, written map[string]string) bool {
+	if stillConfirmed(stored, fresh) {
+		return true
+	}
+	if len(written) == 0 || fresh.ConfigAction == nil {
+		return false
+	}
+	basis := asJSON(fresh.Basis)
+	now, _ := basis["configs"].(map[string]any)
+	was, _ := asJSON(stored.Basis)["configs"].(map[string]any)
+	configs := map[string]any{}
+	for key, digest := range now {
+		want, own := written[key]
+		switch {
+		case !own:
+			configs[key] = digest
+		case digest != want:
+			return false
+		}
+	}
+	for key, digest := range was {
+		if _, own := written[key]; own {
+			configs[key] = digest
+		}
+	}
+	basis["configs"] = configs
+	return "sha256:"+planHash(fresh.Kind, fresh.Server, *fresh.ConfigAction, fresh.Tier, fresh.Reasons, basis) == stored.Hash
 }
 
 // batchWaysBack: how each kind of item that went through is undone.
