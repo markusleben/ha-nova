@@ -203,7 +203,7 @@ func computeCallPlan(s *relaySession, env *verbEnvelope, req planCallRequest) (*
 		return nil, storedPlan{}, err
 	}
 	env.Resolved = targets
-	if failure := chatCallFailure(req, targets, func(id string) bool { return e.reg[id].categorized }); failure != nil { // ha-nova serve: below Manage everything (mcp_serve_levels.go)
+	if failure := chatCallFailure(req, targets, e); failure != nil { // ha-nova serve: below Manage everything (mcp_serve_levels.go)
 		return nil, storedPlan{}, failure
 	}
 	if spec.responseOnly && !req.wantsResponse() {

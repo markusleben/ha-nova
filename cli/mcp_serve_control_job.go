@@ -126,7 +126,7 @@ func (b *chatBridge) runPhoneJob(job *controlJob, look *controlLook, chosen *pho
 		}
 		want := chatPhoneOK // a move: the new phone must still confirm for the user
 		if chosen == nil {  // a stop: its question said what chat codes do then
-			want = func(p *chatPolicy) bool { return p != nil && p.codes == codes }
+			want = func(p *chatPolicy) bool { return p != nil && p.chatCodes() == codes }
 		}
 		err := b.policyStill(job.user, want) // first: the link reads as changed once the user may no longer confirm
 		var still, unread bool

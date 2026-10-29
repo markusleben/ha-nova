@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 )
 
 // Household levels for chat apps (docs/work/2026-10-24-chat-apps-household-
@@ -71,7 +72,7 @@ var chatArgLevel = map[string]map[string]chatLevel{
 		"dashboard": levelManage, "dashboards": levelManage},
 	"ha_history": {"entity_id": levelAsk, "since": levelAsk, "until": levelAsk, "logbook": levelAsk},
 	"ha_call": {"service": levelUse, "entity_ids": levelUse, "match": levelUse, "area": levelUse, "device": levelUse,
-		"data": levelUse, "response": levelUse, "skill": levelManage},
+		"data": levelUse, "response": levelUse, "skill": levelUse},
 	"ha_apply": {"plan_id": levelUse, "confirm_code": levelUse, "no_snapshot": levelManage},
 }
 
@@ -94,6 +95,16 @@ var chatPlanKinds = map[string]struct{ plan, apply chatLevel }{
 // more. A policy that allows nothing (level zero) allows no phone.
 func (p *chatPolicy) phoneAllowed(u haUser) bool {
 	return p.level > 0 && u.ID == p.user && u.IsActive && !u.SystemGenerated && min(p.granted, roleCap(u)) >= levelUse
+}
+
+// chatCodes: a chat code may confirm for p: the owner's switch is on, and
+// only at Manage everything.
+func (p *chatPolicy) chatCodes() bool { return p.codes && p.level >= levelManage }
+
+// chatMediaSkill: the one skill below Manage everything, ha-nova:media, and
+// only on a media player (Markus's call, 2026-10-29).
+func chatMediaSkill(skill, service string) bool {
+	return skill == "ha-nova:media" && strings.HasPrefix(service, "media_player.")
 }
 
 // mayApply: this user's level applies a plan of kind now.
@@ -123,8 +134,8 @@ func (srv *mcpServer) chatLevelRefusal(tool mcpTool, args map[string]json.RawMes
 		}
 	}
 	switch name {
-	case "ha_call":
-		if ownerSkill(text(args, "service")) != "" { // an owned service: its skill is Manage everything's
+	case "ha_call": // a skill, or an owned service, is Manage everything's; below it only ha-nova:media on a media player
+		if service, skill := text(args, "service"), text(args, "skill"); (skill != "" || ownerSkill(service) != "") && !chatMediaSkill(skill, service) {
 			need = levelManage
 		}
 	case "ha_plan":
@@ -241,7 +252,7 @@ func chatPlanFailure(plan storedPlan) *verbFailure {
 		return nil
 	case !chatCall.mayApply(plan.Kind):
 		return chatLevelFailure(chatCall, false)
-	case plan.Tier == tierTyped.String() && plan.Channel == channelChat && (!chatCall.codes || chatCall.level < levelManage):
+	case plan.Tier == tierTyped.String() && plan.Channel == channelChat && !chatCall.chatCodes():
 		return refusedWith("CONFIRM_UNAVAILABLE", chatCodesOffWhy(chatCall), chatCodesOffNext(chatCall))
 	}
 	return nil
@@ -260,17 +271,22 @@ var chatDeviceDomains = map[string]bool{
 // inside Use the home's allowlist, on the service and every target the tier
 // engine resolved, before anything is sent: in ha_call and again in apply's
 // recompute, with the level read again; never on a target Home Assistant
-// marks as a device's configuration or diagnostics (categorized). nil:
-// allowed, or not a chat app.
-func chatCallFailure(req planCallRequest, targets []verbTarget, categorized func(string) bool) *verbFailure {
+// marks as a device's configuration or diagnostics, and with no skill but
+// ha-nova:media on a media player. An entity registry Home Assistant didn't
+// answer decides nothing: refused. nil: allowed, or not a chat app.
+func chatCallFailure(req planCallRequest, targets []verbTarget, e *tierEngine) *verbFailure {
 	if chatCall == nil || chatCall.level >= levelManage {
 		return nil
 	}
-	settings := slices.ContainsFunc(targets, func(t verbTarget) bool { return categorized(t.EntityID) })
-	if chatCall.level >= levelUse && req.Skill == "" && !settings && useTheHome(req.Service, targets) {
-		return nil
+	settings := slices.ContainsFunc(targets, func(t verbTarget) bool { return e.reg[t.EntityID].categorized })
+	switch {
+	case chatCall.level < levelUse, req.Skill != "" && !chatMediaSkill(req.Skill, req.Service), settings, !useTheHome(req.Service, targets):
+		return chatLevelFailure(chatCall, false)
+	case e.regFailed && len(targets) > 0:
+		return refusedWith("ACCESS_UNKNOWN", "HA NOVA couldn't read Home Assistant's entity registry, so it can't tell whether a target is a device's own settings; nothing was sent",
+			"Tell the user nothing changed: HA NOVA couldn't check this just now. They can try again in a moment.")
 	}
-	return chatLevelFailure(chatCall, false)
+	return nil
 }
 
 // useTheHome: Use the home's allowlist. Running what exists (a scene, a

@@ -299,3 +299,15 @@ func TestServeBatchNeverBelowManageEverything(t *testing.T) {
 		t.Fatalf("writes %d, plans %d", len(s.writes()), len(s.userPlans(userA)))
 	}
 }
+
+// An entity registry Home Assistant doesn't answer can't tell a device's
+// settings from the device: below Manage everything, no call with a target
+// runs.
+func TestServeUseTheHomeNeedsTheRegistry(t *testing.T) {
+	f := household(newFakeHA())
+	f.fail["config/entity_registry/list_for_display"] = true
+	s := newServe(t, f, levels([]string{userB}, nil))
+	if env := s.tool(userB, "ha_call", map[string]any{"service": "light.turn_off", "entity_ids": []string{"light.kitchen"}}); envCode(env) != "ACCESS_UNKNOWN" || len(s.posts()) != 0 {
+		t.Fatalf("registry unread: %v (sent %d)", env, len(s.posts()))
+	}
+}

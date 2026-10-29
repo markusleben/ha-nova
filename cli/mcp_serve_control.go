@@ -344,7 +344,7 @@ func (b *chatBridge) controlStart(req controlRequest) (int, map[string]any) {
 	}
 	b.step(job, step, *first, chosen)
 	started = true
-	go b.runPhoneJob(job, look, chosen, policy.codes)
+	go b.runPhoneJob(job, look, chosen, policy.chatCodes()) // a stop's question says what chat codes do then, for this user
 	return http.StatusAccepted, map[string]any{"job": id, "status": "running"}
 }
 

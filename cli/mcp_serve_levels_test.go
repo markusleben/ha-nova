@@ -270,3 +270,106 @@ func TestServeLevelsDecideEachTool(t *testing.T) {
 		t.Fatalf("sent %v", s.posts())
 	}
 }
+
+// Markus's call (2026-10-29): at Use the home, the skill ha-nova:media on a
+// media player, no other skill, and that skill on nothing else; Ask only
+// refuses all of it, and apply checks the same again on both paths.
+func TestServeUseTheHomeMediaSkill(t *testing.T) {
+	media := func() *fakeHA {
+		f := household(newFakeHA())
+		f.ent("media_player.living_room", "cast", "playing", map[string]any{"friendly_name": "Living Room"})
+		f.services = f.defaultServices()
+		for _, d := range f.services {
+			if d["domain"] == "media_player" {
+				d["services"].(map[string]any)["volume_set"] = map[string]any{"target": map[string]any{}}
+				d["services"].(map[string]any)["play_media"] = map[string]any{"target": map[string]any{}}
+			}
+		}
+		return f
+	}
+	player := []string{"media_player.living_room"}
+	volume := map[string]any{"service": "media_player.volume_set", "entity_ids": player, "data": map[string]any{"volume_level": 0.3}, "skill": "ha-nova:media"}
+	play := map[string]any{"service": "media_player.play_media", "entity_ids": player, "skill": "ha-nova:media",
+		"data": map[string]any{"media_content_id": "http://example.invalid/a.mp3", "media_content_type": "music"}}
+	sent := func(s *serveHarness, service string) bool {
+		return slices.ContainsFunc(s.posts(), func(c fakeRelayCall) bool {
+			return c.payload["path"] == "/api/services/"+strings.Replace(service, ".", "/", 1)
+		})
+	}
+	call := func(s *serveHarness, user string, args map[string]any) map[string]any { // a preview: applied as the model would
+		env := s.tool(user, "ha_call", args)
+		if plan, _ := env["plan"].(map[string]any); env["status"] == "needs_confirmation" && plan != nil {
+			env = s.tool(user, "ha_apply", map[string]any{"plan_id": plan["id"]})
+		}
+		return env
+	}
+	s := newServe(t, media(), levels([]string{userB}, nil))
+	for _, args := range []map[string]any{volume, play} {
+		if env := call(s, userB, args); envCode(env) != "" || !sent(s, args["service"].(string)) {
+			t.Errorf("%v at Use the home: %v", args["service"], env)
+		}
+	}
+	for _, args := range []map[string]any{
+		{"service": "media_player.volume_set", "entity_ids": player, "data": map[string]any{"volume_level": 0.3}}, // no skill: today's refusal
+		{"service": "media_player.volume_set", "entity_ids": player, "data": map[string]any{"volume_level": 0.3}, "skill": "ha-nova:service-call"},
+		{"service": "light.turn_off", "entity_ids": []string{"light.kitchen"}, "skill": "ha-nova:media"},
+		{"service": "tts.speak", "entity_ids": []string{"tts.home"}, "skill": "ha-nova:media"},
+		{"service": "notify.notify", "skill": "ha-nova:media"},
+	} {
+		before := len(s.posts())
+		if env := s.tool(userB, "ha_call", args); envCode(env) != "CHAT_LEVEL" || len(s.posts()) != before {
+			t.Errorf("%v at Use the home: %v", args, env)
+		}
+	}
+	ask := newServe(t, media(), levels([]string{userB}, map[string]string{userB: "ask"}))
+	for _, args := range []map[string]any{volume, play} {
+		if env := ask.tool(userB, "ha_call", args); envCode(env) != "CHAT_LEVEL" || len(ask.posts()) != 0 {
+			t.Errorf("%v at Ask only: %v", args["service"], env)
+		}
+	}
+	demote := func(f *fakeHA) {
+		f.mu.Lock()
+		f.users[1]["group_ids"] = []string{"system-users"}
+		f.mu.Unlock()
+	}
+	planned := func(s *serveHarness, args map[string]any) any {
+		withKind := map[string]any{"kind": "call"}
+		for k, v := range args {
+			withKind[k] = v
+		}
+		plan, _ := s.tool(userA, "ha_plan", withKind)["plan"].(map[string]any)
+		if plan == nil {
+			t.Fatalf("no plan for %v", args)
+		}
+		return plan["id"]
+	}
+	t.Run("apply, no code", func(t *testing.T) {
+		f := media()
+		s := newServe(t, f, levels([]string{userA}, nil))
+		media, light := planned(s, volume), planned(s, map[string]any{"service": "light.turn_off", "entity_ids": []string{"light.kitchen"}, "skill": "ha-nova:media"})
+		demote(f)
+		if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": media}); envCode(env) != "" || !sent(s, "media_player.volume_set") {
+			t.Fatalf("the media player at Use the home: %v", env)
+		}
+		if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": light}); envCode(env) != "CHAT_LEVEL" || sent(s, "light.turn_off") {
+			t.Fatalf("ha-nova:media on a light at Use the home: %v", env)
+		}
+	})
+	t.Run("apply, phone", func(t *testing.T) { // an unlock Use the home may tap for, but not with a skill
+		f := media()
+		s := newServe(t, f, levels([]string{userA}, nil))
+		p := usePhones(t, "mobile_app_anna")
+		p.setup.confirmer = userA
+		id := planned(s, map[string]any{"service": "lock.unlock", "entity_ids": []string{"lock.front"}, "skill": "ha-nova:media"})
+		if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": id}); env["status"] != "waiting_for_phone" {
+			t.Fatalf("before the tap: %v", env)
+		}
+		demote(f)
+		ok, _ := p.buttons(t)
+		p.events <- tap(ok, userA, "REMOTE")
+		waitFor(t, "the result on the phone", func() bool { return p.sentCount() == 2 })
+		if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": id}); envCode(env) != "CHAT_LEVEL" || len(s.posts()) != 0 {
+			t.Fatalf("after the tap: %v (sent %d)", env, len(s.posts()))
+		}
+	})
+}

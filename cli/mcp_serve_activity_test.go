@@ -63,6 +63,34 @@ func TestServeControlPhonesFollowTheLevel(t *testing.T) {
 	}
 }
 
+// Below Manage everything there is no chat code: a stop's question never
+// promises one.
+func TestServeControlStopAtUseTheHome(t *testing.T) {
+	c := newControl(t, levels([]string{ownerHex, kidHex}, map[string]string{kidHex: "use"}))
+	c.phones.tapBy = tapFrom("mobile_app_kids_phone", kidHex, true)
+	_, body := c.post(map[string]any{"user": kidHex, "action": "move", "phone": map[string]any{"device_id": devKid}})
+	if status := c.finish(body["job"]); status != "done" {
+		t.Fatalf("link: %s", status)
+	}
+	_, body = c.post(map[string]any{"user": kidHex, "action": "stop"})
+	if status := c.finish(body["job"]); status != "done" || c.links()[kidHex] != nil {
+		t.Fatalf("stop: %s %v", status, c.links())
+	}
+	c.phones.mu.Lock()
+	defer c.phones.mu.Unlock()
+	refused := false
+	for _, sent := range c.phones.sent {
+		message, _ := sent["message"].(string)
+		refused = refused || strings.Contains(message, "stop working until a phone is linked again")
+		if strings.Contains(message, "four-digit code") {
+			t.Fatalf("a code promised at Use the home: %q", message)
+		}
+	}
+	if !refused {
+		t.Fatal("the stop's question doesn't say what stops working")
+	}
+}
+
 // A control action reads the user's level, then waits for the verb lock:
 // the owner's choice saved meanwhile holds, as for a chat app's own call.
 func TestServeControlLevelHoldsUnderTheVerbLock(t *testing.T) {

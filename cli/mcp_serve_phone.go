@@ -87,7 +87,7 @@ func phoneMissingStep() string {
 // codeChannel: where a typed plan's code goes when no phone asks.
 func codeChannel() string {
 	switch {
-	case chatCall != nil && (!chatCall.codes || chatCall.level < levelManage): // no chat code below Manage everything
+	case chatCall != nil && !chatCall.chatCodes(): // no chat code below Manage everything
 		return channelChatOff
 	case chatCall != nil:
 		return channelChat
@@ -226,7 +226,7 @@ func (srv *mcpServer) chatApply(name string, args map[string]json.RawMessage, ar
 		srv.noteChange(name, what, result)
 		return result
 	}
-	if err == nil && plan.Tier == tierTyped.String() && plan.Channel == channelChat && (!c.codes || c.level < levelManage) {
+	if err == nil && plan.Tier == tierTyped.String() && plan.Channel == channelChat && !c.chatCodes() {
 		return refuse(refusedWith("CONFIRM_UNAVAILABLE", chatCodesOffWhy(c), chatCodesOffNext(c)))
 	}
 	var noSnapshot bool
