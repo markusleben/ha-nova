@@ -340,7 +340,7 @@ func TestGermanBatchFitsTheWindowAndThePhone(t *testing.T) {
 	lines, chars := strings.Count(text, "\n")+1, utf8.RuneCountInString(text)
 	t.Logf("the longest German window: %d lines, %d characters", lines, chars)
 	if err != nil || stored.Lang != "de" || lines > batchWindowLines || chars > batchWindowChars ||
-		!strings.Contains(text, "\n20. Automatisierung „"+name(20)+"“ löschen.\n") || !strings.Contains(text, confirmT("de", "batch.no_copies")) {
+		!strings.Contains(text, "\n20. Automation „"+name(20)+"“ löschen.\n") || !strings.Contains(text, confirmT("de", "batch.no_copies")) {
 		t.Fatalf("%d lines, %d characters (%v): %s", lines, chars, err, text)
 	}
 	member := func(op, domain string) batchMember {
