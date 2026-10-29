@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -18,7 +17,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -34,7 +32,7 @@ import (
 // calls it: it adds the bridge secret and the HA user it authenticated.
 // Plans, phone links, and the owner's switches live in --data-dir.
 
-const serveUsage = "ha-nova serve --listen <host:port> --data-dir <dir> --secret-file <file> [--confirm-wait 25s] [--rate-limit <n>] [--server <name> | --relay-file <file>]"
+const serveUsage = "ha-nova serve --listen <host:port> --data-dir <dir> --secret-file <file> [--confirm-wait 25s] [--rate-limit <n>] [--server <name> | --relay-file <file>] [--control-listen <127.0.0.1:port> --control-secret-file <file>]"
 
 const (
 	serveUserHeader = "X-Ha-User-Id"
@@ -62,11 +60,15 @@ type chatBridge struct {
 	owner   string                     // the HA owner's user id, the default allowed user
 	ownerAt time.Time
 	ownerNo time.Time // the last failed owner read: retried after 5 s
+
+	control     [32]byte               // sha256 of the control secret (mcp_serve_control.go)
+	controlJobs map[string]*controlJob // job id → a phone change (under mu)
+	linksMu     sync.Mutex             // phone-links.json: the bridge is its only writer
 }
 
 func runServeCommand(paths runtimePaths, args []string) int {
 	var opts verbOptions
-	var listen, dataDir, secretFile, relayFile string
+	var listen, dataDir, secretFile, relayFile, controlListen, controlSecret string
 	wait := 25 * time.Second
 	limit := 0
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
@@ -77,6 +79,8 @@ func runServeCommand(paths runtimePaths, args []string) int {
 	fs.StringVar(&relayFile, "relay-file", "", "the NOVA App's internal Relay credential file, in place of a paired server profile")
 	fs.DurationVar(&wait, "confirm-wait", wait, "how long one ha_apply waits for a phone tap before it answers waiting_for_phone (1s-2m)")
 	fs.IntVar(&limit, "rate-limit", 0, "requests per minute per Home Assistant user, then 429 until the minute is over (0: no limit)")
+	fs.StringVar(&controlListen, "control-listen", "", "loopback address for the NOVA App's phone-link control channel (with --control-secret-file)")
+	fs.StringVar(&controlSecret, "control-secret-file", "", "file holding the control channel's own 64-hex-character secret")
 	positional, err := parseVerbArgs(fs, &opts, args, serveUsage+"\n\nEXPERIMENTAL — not supported yet; the interface may change.\nServes the HA NOVA tools over MCP Streamable HTTP for chat apps, behind the Home Assistant integration.")
 	if errors.Is(err, errHelpShown) {
 		return 0
@@ -92,6 +96,10 @@ func runServeCommand(paths runtimePaths, args []string) int {
 		err = errors.New("--confirm-wait must be between 1s and 2m")
 	case limit < 0:
 		err = errors.New("--rate-limit must be 0 (no limit) or more")
+	case (controlListen == "") != (controlSecret == ""):
+		err = errors.New("--control-listen and --control-secret-file go together")
+	case controlListen != "" && controlAddr(controlListen) != nil:
+		err = controlAddr(controlListen)
 	case relayFile != "" && opts.serverSet:
 		err = errors.New("--relay-file and --server exclude each other")
 	case relayFile != "":
@@ -100,6 +108,9 @@ func runServeCommand(paths runtimePaths, args []string) int {
 	var b *chatBridge
 	if err == nil {
 		b, err = newChatBridge(paths, dataDir, secretFile, wait, os.Stderr)
+	}
+	if err == nil && controlSecret != "" {
+		err = b.enableControl(controlSecret)
 	}
 	if err != nil {
 		printErr("%s", err)
@@ -117,10 +128,12 @@ func runServeCommand(paths runtimePaths, args []string) int {
 	// the real stderr.
 	os.Stdout = os.Stderr
 	reapUpdateRefresh = true
+	// As ha-nova mcp, once: the phone jobs read it outside the verb lock.
+	phoneTellSpan = 2 * time.Second
 	_ = os.Setenv(updateNudgeOptOutEnv, "1") // the App updates the bridge; a chat user has no terminal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := b.listen(ctx, listen); err != nil {
+	if err := b.listen(ctx, listen, controlListen); err != nil {
 		printErr("serve: %s", err)
 		return 1
 	}
@@ -128,45 +141,70 @@ func runServeCommand(paths runtimePaths, args []string) int {
 }
 
 func newChatBridge(paths runtimePaths, dataDir, secretFile string, wait time.Duration, logTo io.Writer) (*chatBridge, error) {
-	raw, err := os.ReadFile(secretFile)
+	secret, err := readServeSecret(secretFile, "secret")
 	if err != nil {
-		return nil, fmt.Errorf("cannot read the secret file: %w", err)
-	}
-	if info, err := os.Stat(secretFile); err == nil && runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
-		return nil, errors.New("the secret file must be readable by its owner only (chmod 600)")
-	}
-	secret := strings.TrimSpace(string(raw))
-	if !serveSecretPattern.MatchString(secret) {
-		return nil, errors.New("the secret file must hold exactly 64 lowercase hex characters (256 bits)")
+		return nil, err
 	}
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return nil, fmt.Errorf("cannot create the data directory: %w", err)
 	}
-	return &chatBridge{paths: paths, dataDir: dataDir, secret: sha256.Sum256([]byte(secret)), wait: wait,
+	return &chatBridge{paths: paths, dataDir: dataDir, secret: secret, wait: wait,
 		log: log.New(logTo, "ha-nova serve: ", log.LstdFlags), jobs: map[string]*chatJob{}, told: map[string]map[string]bool{}}, nil
 }
 
-func (b *chatBridge) listen(ctx context.Context, addr string) error {
-	server := &http.Server{Addr: addr, Handler: b, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second,
-		WriteTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute, MaxHeaderBytes: 16 << 10}
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		return err
+// listen serves /mcp on addr and, with controlAddr, the App's control
+// channel on a listener of its own (mcp_serve_control.go). Both bind
+// before either serves; both stop with ctx, or when one fails.
+func (b *chatBridge) listen(ctx context.Context, addr, controlAddr string) error {
+	var servers []*http.Server
+	var listeners []net.Listener
+	for _, l := range []struct {
+		addr    string
+		handler http.Handler
+	}{{addr, b}, {controlAddr, http.HandlerFunc(b.serveControl)}} {
+		if l.addr == "" {
+			continue
+		}
+		listener, err := net.Listen("tcp", l.addr)
+		if err != nil {
+			for _, open := range listeners {
+				_ = open.Close()
+			}
+			return err
+		}
+		listeners = append(listeners, listener)
+		servers = append(servers, &http.Server{Handler: l.handler, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second,
+			WriteTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute, MaxHeaderBytes: 16 << 10})
 	}
-	b.log.Printf("listening on %s", listener.Addr())
-	stopped := make(chan struct{})
-	go func() {
-		defer close(stopped)
-		<-ctx.Done()
-		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+	for _, listener := range listeners {
+		b.log.Printf("listening on %s", listener.Addr())
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	errs := make(chan error, len(servers))
+	for i, server := range servers {
+		go func() {
+			err := server.Serve(listeners[i])
+			if errors.Is(err, http.ErrServerClosed) {
+				err = nil
+			}
+			cancel()
+			errs <- err
+		}()
+	}
+	<-ctx.Done()
+	shutdown, stop := context.WithTimeout(context.Background(), 5*time.Second)
+	defer stop()
+	for _, server := range servers {
 		_ = server.Shutdown(shutdown) // running calls finish first (bounded)
-	}()
-	if err := server.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
-		return err
 	}
-	<-stopped
-	return nil
+	var first error
+	for range servers {
+		if err := <-errs; err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
 }
 
 // ServeHTTP: POST /mcp only. The log line names the method, the tool, the
@@ -277,110 +315,6 @@ func refuseRPC(w http.ResponseWriter, r *http.Request, code int, message string)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	_, _ = w.Write(answer)
-}
-
-// policyFor: the owner's current switches for user, or why they may not
-// use chat apps. Read on every request, and again before a phone tap
-// applies (mcp_serve_phone.go).
-func (b *chatBridge) policyFor(user string) (*chatPolicy, int, string) {
-	settings, err := readChatSettings(b.dataDir)
-	if err != nil {
-		b.log.Printf("refusing every request: %s", err)
-		return nil, http.StatusServiceUnavailable, "HA NOVA chat-app settings are unreadable"
-	}
-	allowed := settings.AllowedUsers
-	if allowed == nil {
-		owner, err := b.ownerID()
-		if err != nil {
-			return nil, http.StatusServiceUnavailable, "HA NOVA can't read the Home Assistant owner right now"
-		}
-		allowed = &[]string{owner}
-	}
-	switch {
-	case slices.Contains(*allowed, user):
-	case settings.AllowedUsers == nil:
-		return nil, http.StatusForbidden, "Only the Home Assistant owner can use HA NOVA in chat apps. Sign in as the owner."
-	default:
-		return nil, http.StatusForbidden, "This Home Assistant user can't use HA NOVA in chat apps. Sign in with an account the owner allowed."
-	}
-	sum := sha256.Sum256([]byte("ha-nova/chat-user/v1\x00" + user))
-	return &chatPolicy{user: user, key: hex.EncodeToString(sum[:16]), links: filepath.Join(b.dataDir, "phone-links.json"), codes: settings.ChatCodes == nil || *settings.ChatCodes,
-		readOnly: settings.ReadOnly, bridge: b}, 0, ""
-}
-
-// chatSettings is chat-apps.json, the owner's switches (written by the
-// NOVA App). Missing: the defaults (the owner only, changes allowed, chat
-// codes on). Unreadable or unknown fields: every request is refused.
-type chatSettings struct {
-	AllowedUsers *[]string `json:"allowed_users"` // absent: the owner only
-	ReadOnly     bool      `json:"read_only"`
-	ChatCodes    *bool     `json:"chat_codes"` // absent: on
-}
-
-func readChatSettings(dataDir string) (chatSettings, error) {
-	var settings chatSettings
-	raw, err := os.ReadFile(filepath.Join(dataDir, "chat-apps.json"))
-	if errors.Is(err, os.ErrNotExist) {
-		return settings, nil
-	}
-	if err != nil {
-		return settings, err
-	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&settings); err != nil {
-		return settings, fmt.Errorf("chat-apps.json: %w", err)
-	}
-	if _, err := dec.Token(); err != io.EOF { // trailing data: never a partly read file
-		return settings, errors.New("chat-apps.json: trailing data")
-	}
-	return settings, nil
-}
-
-// ownerID reads the HA owner through the Relay, cached for a minute.
-func (b *chatBridge) ownerID() (string, error) {
-	cached := func() (string, error, bool) {
-		b.mu.Lock()
-		defer b.mu.Unlock()
-		switch {
-		case b.owner != "" && time.Since(b.ownerAt) < time.Minute:
-			return b.owner, nil, true
-		case time.Since(b.ownerNo) < 5*time.Second: // a failing Relay is not asked again per request
-			return "", errors.New("the owner could not be read a moment ago"), true
-		}
-		return "", nil, false
-	}
-	if owner, err, ok := cached(); ok {
-		return owner, err
-	}
-	mcpVerbLock.Lock() // a Relay session sets process-wide server selection
-	defer mcpVerbLock.Unlock()
-	if owner, err, ok := cached(); ok { // another request read it while this one waited
-		return owner, err
-	}
-	owner, err := b.readOwner()
-	b.mu.Lock()
-	if err != nil {
-		b.ownerNo = time.Now()
-	} else {
-		b.owner, b.ownerAt = owner, time.Now()
-	}
-	b.mu.Unlock()
-	return owner, err
-}
-
-// readOwner: the active owner from config/auth/list (under mcpVerbLock).
-func (b *chatBridge) readOwner() (string, error) {
-	users, err := b.readUsers()
-	if err != nil {
-		return "", err
-	}
-	for _, u := range users {
-		if u.IsOwner && u.IsActive && !u.SystemGenerated && haUserIDPattern.MatchString(u.ID) {
-			return u.ID, nil
-		}
-	}
-	return "", errors.New("no active owner")
 }
 
 func (b *chatBridge) toldFor(user string) map[string]bool {

@@ -69,9 +69,7 @@ func (srv *mcpServer) configAdminFailure(name string, args map[string]json.RawMe
 // readUsers: Home Assistant's users from config/auth/list (under
 // mcpVerbLock).
 func (b *chatBridge) readUsers() ([]haUser, error) {
-	override, active := serverSelectionOverride, activeServerProfile()
-	defer func() { setServerSelectionOverride(override); setActiveServerProfile(active) }()
-	s, err := newRelaySession(b.paths, verbOptions{server: b.pin, serverSet: b.pin != ""})
+	s, err := b.session(b.paths)
 	if err != nil {
 		return nil, err
 	}
@@ -79,4 +77,13 @@ func (b *chatBridge) readUsers() ([]haUser, error) {
 	var users []haUser
 	err = s.phoneRead("ws", map[string]any{"type": "config/auth/list"}, &users)
 	return users, err
+}
+
+// session opens a Relay session as the bridge (under mcpVerbLock) and
+// leaves the process-wide server selection as it was; the session keeps
+// what it selected.
+func (b *chatBridge) session(paths runtimePaths) (*relaySession, error) {
+	override, active := serverSelectionOverride, activeServerProfile()
+	defer func() { setServerSelectionOverride(override); setActiveServerProfile(active) }()
+	return newRelaySession(paths, verbOptions{server: b.pin, serverSet: b.pin != ""})
 }

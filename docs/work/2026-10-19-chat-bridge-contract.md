@@ -10,10 +10,11 @@ Chat app → Home Assistant OAuth → integration view `/api/ha_nova/mcp` (pure 
 
 ## Command
 
-`ha-nova serve --listen <host:port> --data-dir <dir> --secret-file <file> [--confirm-wait 25s] [--rate-limit <n>] [--server <name>]`
+`ha-nova serve --listen <host:port> --data-dir <dir> --secret-file <file> [--confirm-wait 25s] [--rate-limit <n>] [--server <name>] [--control-listen <127.0.0.1:port> --control-secret-file <file>]`
 
 - `--listen`: an explicit host is required (the App passes `0.0.0.0:<port>`, never mapped to the host).
 - `--secret-file`: exactly 64 lowercase hex characters (256 bits), mode `0600`. Read once at start.
+- `--control-listen` with `--control-secret-file` (0.28) serve the NOVA App's control channel (below) on a listener of its own. It binds a loopback IP only (`127.0.0.1` or `::1`). The secret file follows `--secret-file`'s rules and must differ from it. Give both or neither; without them no control endpoint exists (the hosted demo).
 - `--confirm-wait`: 1 s to 2 min; how long one `ha_apply` waits for a phone tap.
 - `--rate-limit`: at most n requests per minute per Home Assistant user (fixed window), then `429` with a JSON-RPC error (code `-32001`, "Wait a minute"); `0` or absent: no limit (the App sets none). Used by the hosted demo (`docs/work/2026-10-20-demo-add-to-claude-spec.md`).
 
@@ -37,7 +38,7 @@ Refusals: 1–2 → `401`, 3 → `403`, unreadable settings or a failed owner re
   - `allowed_users`: list of HA user ids. Absent means the HA owner only; an empty list allows nobody.
   - `read_only` (default `false`): refuses `ha_call`, `ha_plan`, and `ha_apply`.
   - `chat_codes` (default `true`): with `false`, a typed plan needs the user's linked phone.
-- `phone-links.json`: `{"<HA user id>": {"service", "device_id", "user_id", "name"}}`, the bridge's only link store (never a computer's `config.json`). A link's `user_id` must equal its key; `null` or a malformed entry is an unusable link (refused, never "no phone"). An unreadable file refuses typed plans.
+- `phone-links.json`: `{"<HA user id>": {"service", "device_id", "user_id", "name"}}`, the bridge's only link store (never a computer's `config.json`). A link's `user_id` must equal its key; `null` or a malformed entry is an unusable link (refused, never "no phone"). An unreadable file refuses typed plans. The bridge's control channel (below) writes it; once the App uses that channel, it is the file's only writer.
 - Write both files atomically (temporary file plus rename): a missing `chat-apps.json` means the defaults.
 - `users/<hash>/`: owned by the bridge (per-user plans).
 
@@ -47,6 +48,36 @@ Refusals: 1–2 → `401`, 3 → `403`, unreadable settings or a failed owner re
 - Typed plans: the linked phone of the requesting HA user (an active administrator, as in the CLI), else a chat code, unless `chat_codes` is `false`. Never a window or a form. The code's `say` is only what will happen (the action and its reasons, "Nothing has run yet."), then the line above the code with how long it works ("Type this code within 15 minutes:"), and the code on the last line; the result leads with `answer_rule` ("Show `say` in the user's language, every line translated…; Nothing after the code."), carries no `notices` but a draft's, and the low-protection note ("I can see this code too…") lives in the server instructions, since the bridge has no MCP sessions to say it once per session (claude.ai moved every other note below the code, a separate expiry line too; 0.27.2).
 - `ha_apply` on a phone plan waits up to `--confirm-wait` (default 25 s pending the Home Assistant Link timeout test; spec §11.4 names 45 s), then returns `status: waiting_for_phone`. Calling again joins the same ask (no new notification). A tap applies at once; the owner's switches are re-checked before it applies. One open phone ask per user (`CONFIRM_PENDING` otherwise). An ask stays open 3 min or until the plan expires.
 - The integration's own timeout must exceed `--confirm-wait` plus about 10 s, and must map its timeout to a readable error.
+
+## Control channel (0.28)
+
+Spec: `docs/work/2026-10-24-chat-app-phone-move-spec.md`. Code: `cli/mcp_serve_control.go`, `cli/mcp_serve_control_job.go`. Served only on the `--control-listen` listener, never on `/mcp`. JSON in and out; every request carries exactly one `Authorization: Bearer <control secret>`, else `401 UNAUTHORIZED`. An error is `{"error": {"code", "message"}}`; any other path or method answers `404 NOT_FOUND`.
+
+- `GET /control/v1/phones?user=<HA user id>` answers `{"phones": [{device_id, name, platform}], "link": null | {name, device_id, platform, state, why}}`.
+  - `phones` are that user's own phones that can confirm: on their person, the user an administrator and not the Relay's user, and a name no other device shares. The linked phone is left out.
+  - `platform` is `ios`, `android`, or `""` (unknown). The page needs it because an iPhone shows the buttons on a press and hold.
+  - `state` is `ready`, `gone`, or `unavailable`. Only `override` replaces a `gone` phone, and nothing replaces an `unavailable` one. `why` says which:
+    - `gone`: `removed` (the phone is no longer in Home Assistant, or the entry is `null` or names another user), `not_admin` (its user is no longer an administrator), or `relay_user` (its user is now the Relay's).
+    - `unavailable`: `unreachable` (its notify service is gone) or `shared_name`.
+  - Errors: `400 INVALID_USER`. `503 PHONES_UNREADABLE` when Home Assistant or `phone-links.json` is unreadable. `409 OWNER_TOKEN` when the App's Relay signs in as the owner: a tap can't be told apart from HA NOVA itself, so no phone is listed or linked, as on a computer.
+- `POST /control/v1/phone` takes `{"user", "action", "phone"?: {device_id, service?, name?}, "override"?: false}` and refuses unknown fields (`400 INVALID_REQUEST`).
+  - `adopt` stores the user's first link, handed over from a computer link that the user's own tap made. No question is sent. `phone.device_id` must be one of the user's `phones`; the bridge takes the service, name, and platform from Home Assistant, whatever the request says. Answers `200 {"status": "done"}`, or `409 PHONE_EXISTS` when the user has an entry, `null` included.
+  - `move` (`phone.device_id` from `phones`) answers `202 {"job", "status": "running"}`. The phone linked now asks first ("Move chat-app confirmations?" [Move]), then the new phone ("Get chat-app confirmations?" [Allow]). The new phone's tap must arrive as `user`. With no link yet, only the new phone asks. Refused before anything is sent: `409 PHONE_NOT_ELIGIBLE`, `PHONE_ALREADY_LINKED`, `OLD_PHONE_UNAVAILABLE`, and `OLD_PHONE_GONE` without `override`.
+  - `stop` answers `202` with a job: the phone linked now asks ("Stop chat-app confirmations?" [Stop]), then the entry goes. A `gone` phone with `override` is removed at once (`200 done`). Otherwise `409 NO_PHONE`, `OLD_PHONE_UNAVAILABLE`, or `OLD_PHONE_GONE`.
+  - `drop` removes the entry with no question, only for a user who is no longer allowed (`409 USER_STILL_ALLOWED` otherwise), and answers `200 done`.
+  - Checked first: `400 INVALID_USER`, `INVALID_ACTION`, and `INVALID_PHONE` (`adopt` and `move` need `phone.device_id`). Every action, `drop` included, holds the user's one change at a time: `409 PHONE_CHANGE_RUNNING`. Every action but `drop` needs an allowed user (`403 USER_NOT_ALLOWED`). `503 SETTINGS_UNREADABLE` when `chat-apps.json` or, without `allowed_users`, the owner can't be read. `adopt`, `move`, and `stop` also answer `503 PHONES_UNREADABLE` and `409 OWNER_TOKEN` as `phones` does.
+  - A change made at once (`adopt`, `drop`, a `stop` with `override`) checks again right before it writes: `409 PHONE_CHANGED` (the entry changed meanwhile), `409 ACCESS_CHANGED` (the user's access changed meanwhile), `503 SETTINGS_UNREADABLE`, or `503 LINKS_UNWRITABLE` (`phone-links.json` can't be read or written).
+  - `override` is the NOVA page's click (the owner's browser session and a single-use CSRF token). The App never sends it from its machine API.
+- `GET /control/v1/phone/<job>` answers `{"status"}` (`400 INVALID_JOB` for a malformed id).
+  - While `running`, from the `202` on, it adds `step` (`old` or `new`), `phone` (the phone asked now), and that phone's `platform`. A move also has `to` (its new phone) to the end.
+  - It ends as `done`, `declined`, `timeout`, `rejected` (a tap from someone else), `changed`, or `failed`.
+  - `changed`: the link, the phone, or the user's access changed meanwhile; for a stop, also the chat-code setting its question named.
+  - `failed`: the notification couldn't be sent or heard, a check after a tap couldn't read Home Assistant or the links, or the write failed.
+  - Results stay for 10 minutes. An unknown id, e.g. after a restart, answers `lost`: nothing changed, and the caller says to try again.
+- **Checks after a tap:** the bridge reads the link and the settings again after each tap. A move asks its new phone only while the user is still allowed. Nothing is written or removed unless the entry is unchanged and the user's access still allows it.
+- **Writes** are atomic and `0600` and run under one lock. Each compares the entry the action read first, and the user's access, right before it writes. So a change made meanwhile is never overwritten, and a dropped link never comes back.
+- **Phone texts** come from the confirmation catalog (`chat_phone.*`) in Home Assistant's language.
+- **Who confirms:** until the household levels land (`docs/work/2026-10-24-chat-apps-household-spec.md`), a chat-app phone belongs to an administrator, as on a computer.
 
 ## App side (B2)
 
