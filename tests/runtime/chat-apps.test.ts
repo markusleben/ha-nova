@@ -177,7 +177,14 @@ describe("chat apps: turning on and off", () => {
 
     // serve: internal port, the bridge's own files, and none of the App's tokens.
     expect(spawned).toHaveLength(1);
-    expect(spawned[0]!.args).toEqual(["serve", "--listen", "0.0.0.0:8794", "--data-dir", data("bridge"), "--secret-file", data("secret"), "--relay-file", data("relay.json")]);
+    expect(spawned[0]!.args).toEqual(["serve", "--listen", "0.0.0.0:8794", "--data-dir", data("bridge"), "--secret-file", data("secret"), "--relay-file", data("relay.json"),
+      "--control-listen", "127.0.0.1:8795", "--control-secret-file", data("control-secret")]);
+    // The control channel's own secret: loopback only, never the one Home Assistant holds.
+    const control = readFileSync(data("control-secret"), "utf8");
+    expect(control).toMatch(/^[0-9a-f]{64}$/);
+    expect(control).not.toBe(secretOf());
+    expect(statSync(data("control-secret")).mode & 0o777).toBe(0o600);
+    expect(JSON.stringify([...discovery.values()])).not.toContain(control);
     expect(Object.keys(spawned[0]!.env).sort()).toEqual(expect.arrayContaining(["HA_NOVA_NO_BROWSER", "HOME", "PATH"]));
     expect(JSON.stringify(spawned[0]!.env)).not.toMatch(/SUPERVISOR_TOKEN|HA_LLAT|RELAY_AUTH_TOKEN|sup-token/);
 
@@ -212,8 +219,10 @@ describe("chat apps: turning on and off", () => {
     expect(existsSync(join(root, "config", "custom_components"))).toBe(false); // the App made it, and it is empty
     expect(registry.list().some((d) => d.deviceId === bridgeId)).toBe(false);
     expect(existsSync(data("secret"))).toBe(false);
+    expect(existsSync(data("control-secret"))).toBe(false);
     expect(existsSync(data("relay.json"))).toBe(false);
     expect(apps.status(OWNER)).toMatchObject({ enabled: false, unfinished: false });
+    await expect(apps.phone.phones(OWNER)).rejects.toMatchObject({ status: 503, code: "CHAT_PHONE_UNAVAILABLE" });
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(spawned).toHaveLength(1); // not respawned once off
     await apps.turnOff(); // idempotent, also with the message already gone
@@ -365,12 +374,14 @@ describe("chat apps: across App restarts", () => {
   it("keeps the secret, the credential, and the discovery message", async () => {
     await chatApps().turnOn(true);
     const secret = secretOf();
+    const control = readFileSync(data("control-secret"), "utf8");
     const relay = readFileSync(data("relay.json"), "utf8");
     discovery.clear(); // Supervisor lost it: boot publishes again
 
     const restarted = chatApps();
     await restarted.boot();
     expect(secretOf()).toBe(secret);
+    expect(readFileSync(data("control-secret"), "utf8")).toBe(control);
     expect(readFileSync(data("relay.json"), "utf8")).toBe(relay);
     expect((discovery.get(UUID)?.config as { secret: string }).secret).toBe(secret);
     expect(spawned).toHaveLength(2);
@@ -538,19 +549,25 @@ describe("chat apps: the internal device credential and serve", () => {
     expect(registry.list().filter((d) => d.state === "active")).toHaveLength(1);
   });
 
-  it("stores the owner's switches and phone link for the bridge, atomically and private", () => {
+  it("stores the owner's switches for the bridge, atomically and private, and reads the phone the bridge linked", () => {
     const apps = chatApps();
     apps.setSwitches({ readOnly: true });
     apps.setSwitches({ chatCodes: false });
-    apps.setOwnerPhone(OWNER, { service: "mobile_app_pixel", device_id: "d".repeat(32), name: "Pixel" });
     expect(JSON.parse(readFileSync(data("bridge", "chat-apps.json"), "utf8"))).toEqual({ read_only: true, chat_codes: false });
-    expect(JSON.parse(readFileSync(data("bridge", "phone-links.json"), "utf8"))).toEqual({
-      [OWNER]: { service: "mobile_app_pixel", device_id: "d".repeat(32), user_id: OWNER, name: "Pixel" },
-    });
-    expect(statSync(data("bridge", "phone-links.json")).mode & 0o777).toBe(0o600);
-    expect(apps.status(OWNER)).toMatchObject({ readOnly: true, chatCodes: false, ownerPhone: "Pixel", allowedUsers: null });
-    apps.setOwnerPhone(OWNER, null);
-    expect(apps.status(OWNER).ownerPhone).toBeNull();
-    expect(readdirSync(data("bridge")).sort()).toEqual(["chat-apps.json", "phone-links.json"]); // no temp files left
+    expect(statSync(data("bridge", "chat-apps.json")).mode & 0o777).toBe(0o600);
+    expect(readdirSync(data("bridge")).sort()).toEqual(["chat-apps.json"]); // no temp files left
+    expect(apps.status(OWNER)).toMatchObject({ readOnly: true, chatCodes: false, ownerPhone: null, allowedUsers: null });
+    // Only the bridge writes phone-links.json (its control channel); the App reads the name.
+    writeFileSync(data("bridge", "phone-links.json"), JSON.stringify({ [OWNER]: { service: "mobile_app_pixel", device_id: "d".repeat(32), user_id: OWNER, name: "Pixel" } }));
+    expect(apps.status(OWNER)).toMatchObject({ ownerPhone: "Pixel", ownerPhoneId: "d".repeat(32) });
+  });
+
+  it("makes the control secret at start-up when chat apps were on before it existed (an update)", async () => {
+    await chatApps().turnOn(true);
+    rmSync(data("control-secret"));
+    const restarted = chatApps();
+    await restarted.boot();
+    expect(readFileSync(data("control-secret"), "utf8")).toMatch(/^[0-9a-f]{64}$/);
+    expect(spawned.at(-1)!.args.slice(-4)).toEqual(["--control-listen", "127.0.0.1:8795", "--control-secret-file", data("control-secret")]);
   });
 });

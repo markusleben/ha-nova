@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { SupervisorClient } from "../../nova/src/ha/supervisor-client.js";
 import { createNovaActionHandler, createNovaPageHandler, type NovaPageDeps } from "../../nova/src/http/handlers/nova-page.js";
 import { ChatAppsError, type ChatApps, type ChatAppsStatus } from "../../nova/src/runtime/chat-apps.js";
+import { ChatPhoneError, type ChatPhoneChange, type ChatPhoneJob } from "../../nova/src/runtime/chat-phone-control.js";
 import { chatConnectorUrl, claudeConnectorLink, readConnectorUrl } from "../../nova/src/runtime/chat-connector.js";
 import { createIngressListener, type IngressListenerDeps } from "../../nova/src/runtime/ingress-listener.js";
 import { createCsrfStore } from "../../nova/src/security/csrf.js";
@@ -29,19 +30,26 @@ let calls: string[];
 let turnOnResult: () => Promise<{ restart: boolean }>;
 let bridgeId: string | null;
 let servers: Server[];
+let phoneStart: (change: ChatPhoneChange) => Promise<string | null>;
+let phoneJob: () => Promise<ChatPhoneJob>;
+let enabled: boolean;
 
-const status: ChatAppsStatus = { available: true, enabled: false, unfinished: false, readOnly: false, chatCodes: true, allowedUsers: null, ownerPhone: null };
+const status: ChatAppsStatus = { available: true, enabled: false, unfinished: false, readOnly: false, chatCodes: true, allowedUsers: null, ownerPhone: null, ownerPhoneId: null };
 
 function fakeChatApps(): ChatApps {
   return {
-    status: () => ({ ...status }),
+    status: () => ({ ...status, enabled }),
     turnOn: async (allow) => {
       calls.push(`on:${allow}`);
       return await turnOnResult();
     },
     turnOff: async () => void calls.push("off"),
     setSwitches: (change) => void calls.push(`switches:${JSON.stringify(change)}`),
-    setOwnerPhone: (owner, link) => void calls.push(`phone:${owner}:${JSON.stringify(link)}`),
+    phone: {
+      phones: async () => ({ phones: [], link: null }),
+      start: async (owner, change) => (calls.push(`phone:${owner}:${JSON.stringify(change)}`), await phoneStart(change)),
+      job: async (id) => (calls.push(`job:${id}`), await phoneJob()),
+    },
     restartSoon: () => void calls.push("restart"),
     boot: async () => {},
     restartBridge: () => {},
@@ -57,6 +65,9 @@ beforeEach(() => {
   turnOnResult = async () => ({ restart: true });
   bridgeId = null;
   servers = [];
+  phoneStart = async (change) => (change.action === "move" ? "a".repeat(32) : null);
+  phoneJob = async () => ({ status: "running", step: "old", phone: "iPhone", platform: "ios", to: "Pixel" });
+  enabled = false;
 });
 
 afterEach(async () => {
@@ -163,12 +174,97 @@ describe("chat-app action API", () => {
     await expectError(state(base, "owner-1", { enabled: true, read_only: true }), 409, "RESTART_CONSENT_REQUIRED");
     expect(calls).toEqual(["on:false"]); // nothing else changed
     calls = [];
-    const ok = await state(base, "owner-1", { read_only: true, chat_codes: false, owner_phone: { service: "mobile_app_pixel", device_id: "d".repeat(32), name: "Pixel" } });
+    expect((await state(base, "owner-1", { read_only: true, chat_codes: false })).status).toBe(200);
+    const ok = await state(base, "owner-1", { owner_phone: { service: "mobile_app_pixel", device_id: "d".repeat(32), name: "Pixel" } });
     expect(ok.status).toBe(200);
-    expect(calls).toEqual(['switches:{"readOnly":true,"chatCodes":false}', `phone:owner-1:{"service":"mobile_app_pixel","device_id":"${"d".repeat(32)}","name":"Pixel"}`]);
+    // The first phone goes through the bridge, which takes it only while the owner has none.
+    expect(calls).toEqual(['switches:{"readOnly":true,"chatCodes":false}', `phone:owner-1:{"action":"adopt","phone":{"service":"mobile_app_pixel","device_id":"${"d".repeat(32)}","name":"Pixel"}}`]);
     calls = [];
-    await state(base, "owner-1", { enabled: false, owner_phone: null });
-    expect(calls).toEqual(["off", "phone:owner-1:null"]);
+    phoneStart = async () => {
+      throw new ChatPhoneError(409, "PHONE_EXISTS", "this user has a chat-app phone already");
+    };
+    await expectError(state(base, "owner-1", { owner_phone: { service: "mobile_app_pixel", device_id: "d".repeat(32), name: "Pixel" } }), 409, "PHONE_EXISTS");
+    // A stop asks the phone linked now, from the NOVA page only.
+    calls = [];
+    await expectError(state(base, "owner-1", { enabled: false, owner_phone: null }), 409, "OWNER_PHONE_STOP_ON_PAGE");
+    expect(calls).toEqual([]);
+  });
+
+  it("moves the owner's chat-app phone through the bridge, never with override, and GET follows that move", async () => {
+    const base = await start(fakeChatApps());
+    enabled = true;
+    const before = (await (await state(base, "owner-1")).json()) as { data: Record<string, unknown> };
+    expect(before.data).toMatchObject({ phone_change: true, owner_phone: null, owner_phone_id: null });
+    expect(before.data.phone_job).toBeUndefined();
+    const moved = (await (await state(base, "owner-1", { owner_phone_move: { device_id: "d".repeat(32) } })).json()) as { data: Record<string, unknown> };
+    expect(moved.data.phone_job).toEqual({ id: "a".repeat(32), status: "running" });
+    expect(calls).toEqual([`phone:owner-1:{"action":"move","phone":{"device_id":"${"d".repeat(32)}"}}`]);
+    const polled = (await (await state(base, "owner-1")).json()) as { data: Record<string, unknown> };
+    expect(polled.data.phone_job).toEqual({ id: "a".repeat(32), status: "running", step: "old", phone: "iPhone", platform: "ios", to: "Pixel" });
+    phoneJob = async () => {
+      throw new ChatPhoneError(503, "CHAT_PHONE_UNAVAILABLE", "the chat-app bridge can't be reached");
+    };
+    const unread = await state(base, "owner-1");
+    expect(unread.status).toBe(200); // the rest of the state still reads
+    expect(((await unread.json()) as { data: Record<string, unknown> }).data.phone_job).toEqual({ id: "a".repeat(32), status: "unread" });
+  });
+
+  it("says when a change may have happened, and turns the bridge's other answers into 503", async () => {
+    const base = await start(fakeChatApps());
+    phoneStart = async () => {
+      throw new ChatPhoneError(504, "CHAT_PHONE_UNKNOWN", "the chat-app bridge's answer was lost");
+    };
+    await expectError(state(base, "owner-1", { owner_phone_move: { device_id: "d".repeat(32) } }), 504, "CHAT_PHONE_UNKNOWN");
+    for (const [status, code] of [[401, "UNAUTHORIZED"], [404, "NOT_FOUND"], [500, "CHAT_PHONE_FAILED"]] as const) {
+      phoneStart = async () => {
+        throw new ChatPhoneError(status, code, "the bridge answered");
+      };
+      // a 401 or 404 would read as the owner's session or an App without chat apps
+      await expectError(state(base, "owner-1", { owner_phone_move: { device_id: "d".repeat(32) } }), 503, "CHAT_PHONE_UNAVAILABLE");
+    }
+  });
+
+  it("tries a first phone again while Home Assistant doesn't list it yet", async () => {
+    const base = await start(fakeChatApps());
+    let tries = 0;
+    phoneStart = async () => {
+      tries += 1;
+      if (tries === 1) {
+        throw new ChatPhoneError(409, "PHONE_NOT_ELIGIBLE", "that phone isn't one of this user's phones that can confirm");
+      }
+      return null;
+    };
+    const ok = await state(base, "owner-1", { owner_phone: { service: "mobile_app_pixel", device_id: "d".repeat(32), name: "Pixel" } });
+    expect(ok.status).toBe(200);
+    expect(tries).toBe(2);
+  });
+
+  it("stops following a move once chat apps are off", async () => {
+    const base = await start(fakeChatApps());
+    enabled = true;
+    await state(base, "owner-1", { owner_phone_move: { device_id: "d".repeat(32) } });
+    expect(((await (await state(base, "owner-1")).json()) as { data: Record<string, unknown> }).data.phone_job).toMatchObject({ id: "a".repeat(32) });
+    enabled = false;
+    calls = [];
+    expect(((await (await state(base, "owner-1")).json()) as { data: Record<string, unknown> }).data.phone_job).toBeUndefined();
+    expect(calls).toEqual([]); // no bridge to ask
+  });
+
+  it("refuses override, a stop, and anything but a device id for a move from the machine API", async () => {
+    const base = await start(fakeChatApps());
+    const pixel = { service: "mobile_app_pixel", device_id: "d".repeat(32), name: "Pixel" };
+    for (const body of [{ override: true }, { owner_phone_move: { device_id: "d".repeat(32), override: true } }, { owner_phone_move: { device_id: "nothex" } }, { owner_phone_move: "d".repeat(32) },
+      { owner_phone: pixel, owner_phone_move: { device_id: "d".repeat(32) } },
+      // a phone goes alone, so its refusal never leaves a switch or a turn-on half done
+      { enabled: true, owner_phone: pixel }, { read_only: true, owner_phone_move: { device_id: "d".repeat(32) } }, { chat_codes: false, owner_phone: pixel }]) {
+      await expectError(state(base, "owner-1", body), 400, "VALIDATION_ERROR");
+    }
+    expect(calls).toEqual([]);
+    phoneStart = async () => {
+      throw new ChatPhoneError(409, "PHONE_CHANGE_RUNNING", "a phone change for this user is running");
+    };
+    await expectError(state(base, "owner-1", { owner_phone_move: { device_id: "d".repeat(32) } }), 409, "PHONE_CHANGE_RUNNING");
+    expect(calls.every((c) => !c.includes("override") && !c.includes('"stop"'))).toBe(true);
   });
 });
 
