@@ -116,6 +116,7 @@ func buildCallPlan(e *tierEngine, env *verbEnvelope, req planCallRequest, target
 	plan, err := sealPlan(e, env, plan, action)
 	env.Action = &action
 	env.Deltas = planDeltas(req.Service, frozen, req.Data, e.states)
+	env.everyday = callEveryday(textLang(plan), e.s, action)
 	if env.Status == "needs_confirmation" {
 		env.Say, plan.Prompt = confirmationSay(e, env, plan, ""), confirmationPrompt(e, env, plan, "")
 	}

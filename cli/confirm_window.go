@@ -283,7 +283,8 @@ func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnap
 	_ = os.Remove(claimed)
 	flag, lang := "", textLang(fresh)
 	if noSnapshot { // the user already chose to go on without a copy
-		env.Say, flag = batchNoCopies(lang, strings.Replace(env.Say, sayCopyNote(lang), sayNoCopyNote(lang), 1)), " --no-snapshot"
+		say, _ := rawNoCopies(fresh, env.Say)
+		env.Say, flag = batchNoCopies(lang, strings.Replace(say, sayCopyNote(lang), sayNoCopyNote(lang), 1)), " --no-snapshot"
 	}
 	env.Say = sayNoWindowHere(lang) + " " + env.Say
 	if channel == channelPhone { // no code: sealPlan's next_step applies

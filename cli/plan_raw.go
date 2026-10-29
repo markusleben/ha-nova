@@ -50,12 +50,20 @@ type rawRequest struct {
 
 // rawPlanItem is one previewed item: Change is its plain line.
 type rawPlanItem struct {
-	Endpoint string   `json:"endpoint"`
-	Change   string   `json:"change"`
-	Tier     string   `json:"tier"`
-	verb     string   // the phone's button and title (rawGoal)
-	names    []string // the title's names (rawNames)
+	Endpoint string      `json:"endpoint"`
+	Change   string      `json:"change"`
+	Tier     string      `json:"tier"`
+	verb     string      // the phone's button and title (rawGoal), when goal is nil
+	names    []string    // the title's names (rawNames), when goal is nil
+	goal     *actionGoal // an everyday line's goal: a device delete, a Supervisor item
+	more     string      // what completes that goal (everydayLine)
+	detail   string      // the request behind an everyday line
+	copy     string      // a config snapshot save: the copy's name (rawSteps)
 }
+
+// rawLang: raw item lines speak English until Delivery 4 (docs/work/
+// 2026-10-28-confirmation-localization-spec.md, Decision 1).
+const rawLang = "en"
 
 type rawPlanResult struct {
 	Items []rawPlanItem `json:"items"`
@@ -156,7 +164,7 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 	}
 	e := newTierEngine(s)
 	n := newRawNamer(s, e)
-	result := rawPlanResult{}
+	result, copies := rawPlanResult{}, rawCopies(items)
 	for i, item := range items {
 		payload, _ := decodeObject(item.Payload)
 		refusal := rawPlanRefusal(item.Endpoint, payload)
@@ -187,14 +195,26 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 			code = reasonRawTyped
 		}
 		e.raise(level, tierReason{Code: code, Via: fmt.Sprintf("requests[%d]", i), Detail: why})
-		var verb, object string
-		n.listed = nil
-		if item.Endpoint == "supervisor" {
-			verb, object = rawSupervisorLine(s, payload)
-		} else {
-			verb, object = rawItemLine(n, item.Endpoint, payload)
+		entry := rawPlanItem{Endpoint: item.Endpoint, Tier: level.String()}
+		var line *everydayLine
+		switch n.listed = nil; {
+		case item.Endpoint == "supervisor":
+			supervisor := rawSupervisorEveryday(s, payload)
+			line = &supervisor
+		case item.Endpoint == "ws" && payload["type"] == "config/device_registry/remove":
+			device := n.deviceDelete(payload["device_id"])
+			line = &device
+		default:
+			verb, object := rawItemLine(n, item.Endpoint, payload)
+			entry.Change, entry.verb, entry.names = verb+" "+object, verb, rawNames(object, n.listed)
 		}
-		result.Items = append(result.Items, rawPlanItem{Endpoint: item.Endpoint, Change: verb + " " + object, Tier: level.String(), verb: verb, names: rawNames(object, n.listed)})
+		if line != nil {
+			entry.Change, entry.goal, entry.more, entry.detail = upperFirst(line.text(rawLang)), &line.goal, line.more, line.detail
+		}
+		if i < len(copies) {
+			entry.copy = copies[i]
+		}
+		result.Items = append(result.Items, entry)
 	}
 	for _, removes := range n.removing {
 		if removes == "unreadable" {
@@ -269,27 +289,91 @@ func rawPlanOnlyRead(endpoint string, payload map[string]any) bool {
 		path.Clean(target) == target && flowStepPath.MatchString(target)
 }
 
-// rawSayWhat opens a raw plan's confirmation: one line per item, in order.
-// Its lines are English (raw plans get the catalog in a later step).
-func rawSayWhat(lang string, env *verbEnvelope) (about, status string) {
-	result, _ := env.Result.(rawPlanResult)
-	if len(result.Items) == 1 {
-		return sayAbout(lang, lowerFirst(result.Items[0].Change)), sayNotRun(lang)
+// rawCopies: the names of the config snapshot saves a raw plan opens with,
+// HA NOVA's own copies, which its confirmation and apply say once and never
+// count as steps; none for a plan of saves only (each is then a step).
+func rawCopies(items []rawRequest) []string {
+	var names []string
+	for _, item := range items {
+		payload, _ := decodeObject(item.Payload)
+		if item.Endpoint != "backups" || payload["action"] != "save" {
+			return names
+		}
+		category, _ := payload["category"].(string)
+		name, _ := payload["name"].(string)
+		names = append(names, sayText(category+"/"+name, true))
 	}
-	lines := []string{fmt.Sprintf("I'm about to do these %d steps in Home Assistant, in this order:", len(result.Items))}
-	for i, item := range result.Items {
-		lines = append(lines, fmt.Sprintf("%d. %s.", i+1, item.Change))
+	return nil
+}
+
+// rawCopyNote: "HA NOVA saves a copy first (…)."; "" without copies.
+func rawCopyNote(lang string, copies []string) string {
+	if len(copies) == 0 {
+		return ""
+	}
+	return confirmT(lang, "raw.copy_first", "count", len(copies), "names", sayList(lang, copies))
+}
+
+// rawNoCopies: a raw plan's text with its copy sentence swapped for the
+// no-copy note, for an apply that skips the copies (--no-snapshot); ok is
+// false when the text holds none.
+func rawNoCopies(plan storedPlan, text string) (string, bool) {
+	lang := textLang(plan)
+	copied := rawCopyNote(lang, rawCopies(plan.RawRequests))
+	if copied == "" || !strings.Contains(text, copied) {
+		return text, false
+	}
+	return strings.Replace(text, copied, sayNoCopyNote(lang), 1), true
+}
+
+// rawSteps: the items that change the home, and the copies that lead them
+// (rawCopies).
+func rawSteps(env *verbEnvelope) (steps []rawPlanItem, copies []string) {
+	result, _ := env.Result.(rawPlanResult)
+	for _, item := range result.Items {
+		if item.copy == "" {
+			break
+		}
+		copies = append(copies, item.copy)
+	}
+	return result.Items[len(copies):], copies
+}
+
+// rawSayWhat opens a raw plan's confirmation with what happens in the home:
+// one line per step, in order, each with its detail, and the copies saved
+// first. Item lines are English (rawLang).
+func rawSayWhat(lang string, env *verbEnvelope) (about, status string) {
+	steps, copies := rawSteps(env)
+	detail := func(item rawPlanItem) string {
+		if item.detail == "" {
+			return ""
+		}
+		return " " + confirmT(lang, "detail.say", "detail", item.detail)
+	}
+	copied := rawCopyNote(lang, copies)
+	if len(steps) == 1 {
+		return strings.TrimSpace(sayAbout(lang, lowerFirst(steps[0].Change)) + detail(steps[0]) + " " + copied), sayNotRun(lang)
+	}
+	lines := []string{confirmT(lang, "raw.steps_intro", "count", len(steps))}
+	if copied != "" {
+		lines = append(lines, copied)
+	}
+	for i, item := range steps {
+		lines = append(lines, confirmT(lang, "raw.step_line", "number", i+1, "change", item.Change)+detail(item))
 	}
 	return strings.Join(lines, "\n"), sayNotRun(lang)
 }
 
-// rawGoal: the phone's verb and object, the item's own for one item.
-func rawGoal(env *verbEnvelope) actionGoal {
-	result, _ := env.Result.(rawPlanResult)
-	if len(result.Items) == 1 {
-		return actionGoal{label: result.Items[0].verb, names: result.Items[0].names}
+// rawGoal: the phone's verb and object, the step's own for one step.
+func rawGoal(lang string, env *verbEnvelope) actionGoal {
+	steps, _ := rawSteps(env)
+	switch {
+	case len(steps) == 1 && steps[0].goal != nil:
+		return *steps[0].goal
+	case len(steps) == 1:
+		return actionGoal{label: steps[0].verb, names: steps[0].names}
 	}
-	return actionGoal{label: "Confirm", names: []string{fmt.Sprintf("%d steps in Home Assistant", len(result.Items))}}
+	return actionGoal{label: confirmT(lang, "button.confirm"), names: []string{confirmT(lang, "raw.steps", "count", len(steps))}}
 }
 
 // rawNames: an item's object as the title's names. A list of targets
@@ -307,24 +391,29 @@ func rawNames(object string, listed []string) []string {
 // notification names the typed steps first, by number, then the reasons,
 // then how many other steps come along, so a cut keeps what needs the tap.
 func rawAsk(e *tierEngine, env *verbEnvelope, plan storedPlan) actionGoal {
-	goal := rawGoal(env)
-	result, _ := env.Result.(rawPlanResult)
+	lang := textLang(plan)
+	goal := rawGoal(lang, env)
+	steps, _ := rawSteps(env)
 	var why []string
-	for i, item := range result.Items {
-		if len(result.Items) > 1 && item.Tier == tierTyped.String() {
-			why = append(why, fmt.Sprintf("Step %d: %s", i+1, item.Change))
+	if len(steps) == 1 && steps[0].more != "" { // what completes the title
+		why = append(why, upperFirst(steps[0].more))
+	}
+	typed := 0
+	for i, item := range steps {
+		if len(steps) > 1 && item.Tier == tierTyped.String() {
+			why = append(why, confirmT(lang, "raw.step_why", "number", i+1, "change", item.Change))
+			typed++
 		}
 	}
-	others := len(result.Items) - len(why)
 	reasons := map[string]bool{}
 	for _, r := range env.Reasons {
-		if text, typed := sayReason(textLang(plan), e, env, plan, r); typed && text != "" && !reasons[text] {
+		if text, typed := sayReason(lang, e, env, plan, r); typed && text != "" && !reasons[text] {
 			reasons[text] = true
 			why = append(why, text)
 		}
 	}
-	if len(result.Items) > 1 && others > 0 {
-		why = append(why, "And "+plural(others, "other step"))
+	if others := len(steps) - typed; len(steps) > 1 && others > 0 {
+		why = append(why, confirmT(lang, "raw.others", "count", others))
 	}
 	goal.why = strings.Join(why, ". ")
 	return goal

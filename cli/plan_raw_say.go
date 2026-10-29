@@ -95,8 +95,6 @@ func rawItemLine(n *rawNamer, endpoint string, payload map[string]any) (verb, ob
 		return "Remove", n.entity(payload["entity_id"]) + " from the entity registry"
 	case wsType == "config/device_registry/update":
 		return "Change", "the device " + n.device(payload["device_id"]) + n.fields(payload, "device_id")
-	case wsType == "config/device_registry/remove":
-		return "Delete", "the device " + n.device(payload["device_id"]) + n.deviceEntities(payload["device_id"])
 	case op == "create":
 		name, _ := payload["name"].(string)
 		return "Create", strings.TrimSpace("the "+rawCollectionNouns[collection]+" "+sayText(name, true)) + n.fields(payload, "name")

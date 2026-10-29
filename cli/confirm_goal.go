@@ -13,12 +13,13 @@ import (
 // title cut for length still counts every one, and a verb's button follows
 // its id, never its words.
 type actionGoal struct {
-	verb  string   // catalog verb id (phrase); "" when label names the action
-	label string   // the action's own words, English: an id-derived service name, a raw step's verb
-	frame string   // what the names are ("script", "automation", "dashboard"); "" = the names alone
-	names []string // each sayText-quoted, or Home Assistant itself
-	why   string   // a typed plan's reasons the title doesn't say (sayAsk), for the phone
-	whole string   // a batch's question as one goal (batchPhoneGoal); verb, label, and names stay empty
+	verb  string            // catalog verb id (phrase); "" when label names the action
+	label string            // the action's own words, English: an id-derived service name, a raw step's verb
+	frame string            // what the names are ("script", "automation", "dashboard", "zigbee", "app", "device"); "" = the names alone
+	args  map[string]string // a verb's other placeholders, rendered in the plan's language (goal.zigbee_permit: duration)
+	names []string          // each sayText-quoted, or Home Assistant itself
+	why   string            // a typed plan's reasons the title doesn't say (sayAsk), for the phone
+	whole string            // a batch's question as one goal (batchPhoneGoal); verb, label, and names stay empty
 }
 
 // goalVerbs: a service's catalog verb by its name, in every domain. Any
@@ -62,6 +63,12 @@ func (g actionGoal) object(lang, names string) string {
 		return confirmT(lang, "goal.object.automation", "names", names)
 	case "dashboard":
 		return confirmT(lang, "goal.object.dashboard", "names", names)
+	case "zigbee":
+		return confirmT(lang, "goal.object.zigbee", "names", names)
+	case "app":
+		return confirmT(lang, "goal.object.app", "names", names)
+	case "device":
+		return confirmT(lang, "goal.object.device", "names", names)
 	}
 	panic("confirm goal: unknown frame " + g.frame)
 }
@@ -122,6 +129,46 @@ func (g actionGoal) phrase(lang, object string) string {
 		return confirmT(lang, "goal.restore", "object", object)
 	case "revert":
 		return confirmT(lang, "goal.revert", "object", object)
+	case "start":
+		return confirmT(lang, "goal.start", "object", object)
+	case "install":
+		return confirmT(lang, "goal.install", "object", object)
+	case "uninstall":
+		return confirmT(lang, "goal.uninstall", "object", object)
+	case "auto_update_on":
+		return confirmT(lang, "goal.auto_update_on", "object", object)
+	case "auto_update_off":
+		return confirmT(lang, "goal.auto_update_off", "object", object)
+	case "app_settings":
+		return confirmT(lang, "goal.app_settings", "object", object)
+	case "host_reboot":
+		return confirmT(lang, "goal.host_reboot")
+	case "host_shutdown":
+		return confirmT(lang, "goal.host_shutdown")
+	case "supervisor_run":
+		return confirmT(lang, "goal.supervisor_run")
+	case "mqtt_send":
+		return confirmT(lang, "goal.mqtt_send")
+	case "zigbee_rename":
+		return confirmT(lang, "goal.zigbee_rename", "object", object)
+	case "zigbee_remove":
+		return confirmT(lang, "goal.zigbee_remove", "object", object)
+	case "zigbee_remove_block":
+		return confirmT(lang, "goal.zigbee_remove_block", "object", object)
+	case "zigbee_remove_force":
+		return confirmT(lang, "goal.zigbee_remove_force", "object", object)
+	case "zigbee_remove_force_block":
+		return confirmT(lang, "goal.zigbee_remove_force_block", "object", object)
+	case "zigbee_permit":
+		return confirmT(lang, "goal.zigbee_permit", "duration", g.args["duration"])
+	case "zigbee_permit_via":
+		return confirmT(lang, "goal.zigbee_permit_via", "duration", g.args["duration"], "object", object)
+	case "zigbee_permit_off":
+		return confirmT(lang, "goal.zigbee_permit_off")
+	case "device_delete":
+		return confirmT(lang, "goal.device_delete", "object", object, "entities", g.args["entities"])
+	case "device_delete_children":
+		return confirmT(lang, "goal.device_delete_children", "object", object, "children", g.args["children"], "entities", g.args["entities"])
 	}
 	panic("confirm goal: unknown verb " + g.verb)
 }
@@ -212,6 +259,30 @@ func (g actionGoal) ownButton(lang string) string {
 		return confirmT(lang, "button.delete")
 	case "restore":
 		return confirmT(lang, "button.restore")
+	case "start":
+		return confirmT(lang, "button.start")
+	case "install":
+		return confirmT(lang, "button.install")
+	case "uninstall":
+		return confirmT(lang, "button.uninstall")
+	case "auto_update_on":
+		return confirmT(lang, "button.turn_on")
+	case "auto_update_off":
+		return confirmT(lang, "button.turn_off")
+	case "app_settings":
+		return confirmT(lang, "button.change")
+	case "host_reboot":
+		return confirmT(lang, "button.restart")
+	case "host_shutdown":
+		return confirmT(lang, "button.shut_down")
+	case "zigbee_rename":
+		return confirmT(lang, "button.rename")
+	case "zigbee_remove", "zigbee_remove_block", "zigbee_remove_force", "zigbee_remove_force_block":
+		return confirmT(lang, "button.remove")
+	case "zigbee_permit", "zigbee_permit_via":
+		return confirmT(lang, "button.allow")
+	case "device_delete", "device_delete_children":
+		return confirmT(lang, "button.delete")
 	}
 	return ""
 }

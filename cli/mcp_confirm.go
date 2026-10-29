@@ -204,7 +204,10 @@ func confirmText(plan storedPlan, noSnapshot bool) string {
 	if plan.Kind == "batch" {
 		return batchCopyText(plan, noSnapshot)
 	}
-	if plan.Kind != "delete" && (plan.Kind != "raw" || !noSnapshot) { // a raw plan saves its own copy, as a step
+	if text, swapped := rawNoCopies(plan, plan.Prompt); noSnapshot && swapped { // a raw plan says the copies it saves first
+		return text
+	}
+	if plan.Kind != "delete" && (plan.Kind != "raw" || !noSnapshot) {
 		return plan.Prompt
 	}
 	lang := textLang(plan)

@@ -191,57 +191,50 @@ func rawSupervisorTier(payload map[string]any) (tierLevel, string) {
 	return tierPreview, ""
 }
 
-// rawSupervisorLine: a Supervisor write's plain preview line.
-func rawSupervisorLine(s *relaySession, payload map[string]any) (verb, object string) {
+// rawSupervisorEveryday: a Supervisor write's everyday line, with the
+// request as its detail.
+func rawSupervisorEveryday(s *relaySession, payload map[string]any) everydayLine {
 	method, _ := payload["method"].(string)
 	path, _ := payload["path"].(string)
 	data, _ := payload["data"].(map[string]any)
 	kind, slug := rawSupervisorMatch(method, path)
-	app := "the App " + sayText(slug, true)
-	var info struct {
-		Body struct {
-			Data struct {
-				Name string `json:"name"`
-			} `json:"data"`
-		} `json:"body"`
-	}
-	if s != nil { // the store knows installed and new Apps alike; unreadable: the slug alone
-		if raw, err := s.sendWithin("supervisor", []byte(`{"method":"GET","path":"/store/addons/`+slug+`"}`), relaySessionRequestTimeout); err == nil && json.Unmarshal(raw, &info) == nil && info.Body.Data.Name != "" {
-			app = "the App " + sayText(info.Body.Data.Name, true) + " (" + slug + ")"
-		}
-	}
+	line := everydayLine{goal: actionGoal{frame: "app", names: []string{appLabel(rawLang, appStoreName(s, slug), slug)}},
+		detail: confirmT(rawLang, "detail.supervisor_raw", "method", sayText(method, false), "path", sayDetail(rawLang, path, true))}
 	switch {
 	case kind == "install":
-		return "Install", app
+		line.goal.verb = "install"
 	case kind == "uninstall" && data["remove_config"] == true:
-		return "Uninstall", app + "; its settings, data, and config folder are deleted"
+		line.goal.verb, line.more = "uninstall", confirmT(rawLang, "everyday.uninstall_config")
 	case kind == "uninstall":
-		return "Uninstall", app + "; its settings and data are deleted"
+		line.goal.verb, line.more = "uninstall", confirmT(rawLang, "everyday.uninstall")
 	case rawSupervisorOptionsKind(data) == "auto_update" && data["auto_update"] == true:
-		return "Turn on", "automatic updates for " + app
+		line.goal.verb = "auto_update_on"
 	case rawSupervisorOptionsKind(data) == "auto_update":
-		return "Turn off", "automatic updates for " + app
+		line.goal.verb = "auto_update_off"
+	default:
+		line.goal.verb, line.more = "app_settings", rawSupervisorSettings(s, slug, data)
 	}
+	return line
+}
+
+// rawSupervisorSettings: what an options write sets, every value that may
+// hold a secret hidden.
+func rawSupervisorSettings(s *relaySession, slug string, data map[string]any) string {
 	options, _ := data["options"].(map[string]any)
-	keys := make([]string, 0, len(options))
-	for key := range options {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
 	secret, schemaRead := rawSupervisorPasswordOptions(s, slug)
-	changes := make([]string, 0, len(keys))
-	for _, key := range keys {
+	changes := make([]string, 0, len(options))
+	for _, key := range sortedKeys(options) {
 		value, err := marshalPlain(options[key])
 		switch {
 		case !schemaRead || secret[key] || rawSupervisorSecretKey(key) || rawSupervisorHoldsSecret(key, options[key]):
-			changes = append(changes, sayText(key, true)+" (a new secret value, not shown)")
+			changes = append(changes, confirmT(rawLang, "everyday.app_setting_secret", "key", sayText(key, true)))
 		case err != nil || len(value) > 120:
-			changes = append(changes, sayText(key, true)+" (a long value)")
+			changes = append(changes, confirmT(rawLang, "everyday.app_setting_long", "key", sayText(key, true)))
 		default:
-			changes = append(changes, sayText(key, true)+" to "+sayText(string(value), false))
+			changes = append(changes, confirmT(rawLang, "everyday.app_setting", "key", sayText(key, true), "value", sayText(string(value), false)))
 		}
 	}
-	return "Change", "the settings of " + app + ": " + strings.Join(changes, ", ")
+	return strings.Join(changes, ", ")
 }
 
 // rawSupervisorPasswordOptions: the App's top-level options whose schema marks

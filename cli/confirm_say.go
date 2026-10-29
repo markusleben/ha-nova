@@ -80,7 +80,7 @@ func confirmationPrompt(e *tierEngine, env *verbEnvelope, plan storedPlan, subje
 // action and objects only. subject names a config item.
 func sayGoal(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) actionGoal {
 	if plan.Kind == "raw" {
-		return rawGoal(env)
+		return rawGoal(textLang(plan), env)
 	}
 	if action := plan.ConfigAction; action != nil {
 		name := cmp.Or(sayText(subject, true), sayText(action.EntityID, true), sayText(action.Domain+"."+action.ConfigID, true))
@@ -93,6 +93,9 @@ func sayGoal(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 			verb = "change"
 		}
 		return actionGoal{verb: verb, frame: action.Domain, names: []string{name}}
+	}
+	if env.everyday != nil {
+		return env.everyday.goal
 	}
 	service := plan.Action.Service
 	domain, name := splitID(service)
@@ -179,6 +182,9 @@ func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 			return sayAbout(lang, sayGoal(e, env, plan, subject).text(lang)), sayNotDeleted(lang)
 		}
 		return sayAbout(lang, sayGoal(e, env, plan, subject).text(lang)), sayNotSaved(lang)
+	}
+	if line := env.everyday; line != nil {
+		return sayAbout(lang, line.text(lang)) + " " + confirmT(lang, "detail.say", "detail", line.detail), sayNotRun(lang)
 	}
 	domain, verb := splitID(plan.Action.Service)
 	targets := plan.Action.EntityIDs
