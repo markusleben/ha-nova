@@ -50,6 +50,7 @@
   "tests/http/nova-page.test.ts",
   "tests/http/chat-apps-api.test.ts",
   "tests/http/nova-page-chat-phone.test.ts",
+  "tests/http/nova-page-chat-users.test.ts",
   "tests/http/pair-v2-arm.test.ts",
   "tests/http/pair.test.ts",
   "tests/http/pairing-listeners.test.ts",
@@ -167,5 +168,6 @@
   "tests/http/nova-page-not-owner.test.ts",
   "tests/runtime/chat-apps.test.ts",
   "tests/runtime/chat-phone-control.test.ts",
+  "tests/runtime/chat-apps-household.test.ts",
   "tests/security/pairing-metadata-reserved.test.ts"
 ]

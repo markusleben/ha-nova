@@ -63,7 +63,7 @@ const fails = () => ({
 describe("owner-check", () => {
   it("allows a real active non-system owner over ingress", async () => {
     const r = await checkOwner(req({ userId: "owner-1" }), users());
-    expect(r).toEqual({ ok: true, userId: "owner-1", name: "Owner" });
+    expect(r).toEqual({ ok: true, userId: "owner-1", name: "Owner", users: USERS });
   });
 
   it("denies a plain admin (403)", async () => {
