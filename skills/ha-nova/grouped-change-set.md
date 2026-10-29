@@ -159,7 +159,7 @@ join a dependency-bound set.
 
 | Skill | Grouped support | Non-destructive scope |
 |---|---|---|
-| `write` | yes | automation/script creates and updates within one logical task |
+| `write` | yes | automation/script creates and updates as one CLI Batch (`../ha-nova/batch-safety.md`), one operation of the group; a typed batch leaves it |
 | `helper` | yes | storage and supported config-entry helper creates/updates |
 | `scene` | yes | storage scene creates/updates (Editability Guard per target) |
 | `organize` | yes | registry metadata updates (areas, labels, categories, entity/device metadata) |
@@ -172,7 +172,7 @@ join a dependency-bound set.
 
 ## Cross-Family Destructive Cleanup (#583)
 
-Automation and script items keep their own `ha-nova plan delete` codes inside the cleanup: the CLI binds a code to one delete, so the manifest lists each item's code (none in a window or phone plan: follow `next_step`) and the user types each one as its own reply, in manifest order; pass each code only to the plan whose `say` asked for it, never a code the user did not type.
+Automation and script items become one CLI Batch (`../ha-nova/batch-safety.md`) at their position in the order: one manifest operation with the batch's own confirmation, never the manifest's code.
 
 A separate typed-confirmation workflow, never part of a non-destructive grouped
 set: when ONE fully resolved logical cleanup target spans several supported

@@ -229,7 +229,7 @@ previews alone hide the whole picture. Before the FIRST per-target preview:
    combined behavior, and the apply order (dependencies first). The plan must
    satisfy the active user decisions (context skill → Decision Memory).
 2. State revert coverage honestly BEFORE starting: update-revert keeps the
-   last 5 updated targets (one snapshot per target) — a logical change with
+   last 25 updated targets (one snapshot per target) — a logical change with
    more update targets than that loses auto-revert for the oldest ones; say
    so. For a broad or hard-to-reconstruct change, offer a safety backup via
    `ha-nova:backup` first (proportionality rules apply).
@@ -248,7 +248,7 @@ are already applied — never continue silently into a half-applied state.
 
 This section covers multi-target updates. Deleting a reviewed multi-item
 workset routes through `../ha-nova/batch-safety.md`: one immutable
-manifest, one one-time code (automations/scripts: one CLI code per item), per-target impact checks and
+manifest, one one-time code (automations/scripts: one CLI batch), per-target impact checks and
 verification retained, one resource family per manifest.
 
 ## Update-Revert (durable, identity-preserving)
@@ -263,7 +263,7 @@ first rollback path. When no config snapshot was captured, rollback requires
 restoring a suitable existing Home Assistant Backup (Settings > System >
 Backups), or recreating the item.
 
-Checkpoints: the store keeps the last 5 updated targets per server, one step
+Checkpoints: the store keeps the last 25 updated targets per server, one step
 back each. Automation/script updates (reverts included) are checkpointed by
 `ha-nova apply` itself — repeat the structured receipt it returns as `undo` — a `replaced` receipt means the target's PREVIOUS checkpoint is gone and only the newest update stays revertible; name evicted targets as no longer revertible. Helper storage updates capture their checkpoint by hand:
 `../ha-nova/update-revert.md` → Manual capture.

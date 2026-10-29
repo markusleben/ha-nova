@@ -61,8 +61,8 @@ Rules; each refusal names the member, and the member plans stay as they were:
 
 ### 3. The batch plan
 
-- Kind `batch`; `batch_members` holds per member its id, hash, tier, and stored config request (copied from the member plan).
-- Hash: `planHash("batch", server, [{id, hash}, …] in order, tier, …)`. It covers every member's hash and the order. The batch id and code derive from it as for every plan (nonce, `planIdentity`, `confirmCode`); a typed batch's channel seal covers its id, channel, kind, language, and text. An edited member, hash, or order in the plan file is `PLAN_INVALID` at apply; a member changed in Home Assistant is drift.
+- Kind `batch`; `batch_members` holds the member plans as they were stored (id, hash, tier, config request).
+- Hash: `planHash("batch", server, [{id, hash}, …] in order, tier, …)`. It covers every member's hash and the order. The batch id and code derive from it as for every plan (nonce, `planIdentity`, `confirmCode`); a typed batch's channel seal covers its id, channel, kind, language, and text. An edited order, text, language, or tier in the plan file is `PLAN_INVALID` at apply; an edited member request or member hash re-plans to another hash, so it is `BATCH_DRIFT`; a member changed in Home Assistant is drift. Either way nothing is sent.
 - Tier: the highest member tier. All preview: `plan.confirm: natural`, the user's own reply to the list, then one `apply`. Any typed: one typed confirmation on the channel `detectChannel` picks for the batch (window, with the linked phone in parallel; phone; form; chat code).
 - Claim: `plan batch` claims each member with the atomic rename apply uses (`<id>.json` → `<id>.batched-<pid>`). A member already claimed (being applied, or in another batch) refuses the batch. Once the batch plan is saved, the member files are deleted: no member can be applied alone or join another batch. A failure before the save renames them back. The batch itself is claimed at apply like every plan.
 - Expiry: members must be unexpired when the batch is made. The batch then has its own 15 minutes from `plan batch`; it re-plans every member then and again before each send.
@@ -105,6 +105,7 @@ Every batch text is a new key in `cli/confirm_strings.en.json`, rendered by `con
 | `batch.goal.create.automation` | Create the automation {name} |
 | `batch.goal.create.script`, `….change.automation`, `….change.script`, `….delete.automation`, `….delete.script` | likewise: Create / Change / Delete the automation / script {name} |
 | `batch.item` | {n}. {goal}. |
+| `batch.unchecked` | HA NOVA can't fully check what this would do. (a typed write member with no reason sentence of its own) |
 | `batch.needs_you` | One confirmation covers all {count}, so I need you to confirm it. |
 | `batch.copies` | A copy of each one deleted is saved first, so it can be restored. |
 | `batch.no_copies` | No copies could be saved, so once deleted they can't be restored. |
@@ -116,11 +117,13 @@ Every batch text is a new key in `cli/confirm_strings.en.json`, rendered by `con
 | `batch.phone.done` | Home Assistant confirms each one. |
 | `batch.phone.partly` | {done} of {count} went through. |
 | `batch.result.done` | Done: all {count} went through. I checked each one. |
-| `batch.result.failed` | Partly done: {done} of {count} went through; {name} didn't. |
-| `batch.result.unverified` | Partly done: {done} of {count} went through; {name} was saved, but I couldn't check it. |
+| `batch.result.no_copies` | No copies were saved, as you chose. |
+| `batch.result.failed` | Partly done: {done} of {count} went through; Home Assistant refused {name}. |
+| `batch.result.unverified` | Partly done: {done} of {count} went through; {name} was sent, but I couldn't check it. |
 | `batch.result.changed` | Partly done: {done} of {count} went through; {name} changed since you saw it, so I stopped. |
-| `batch.result.unknown` | Not sure: {name} may have gone through, and I can't tell. I didn't try again. |
-| `batch.result.none` | Not done: {name} didn't go through. Nothing changed. |
+| `batch.result.not_sent` | Partly done: {done} of {count} went through; {name} couldn't be sent. |
+| `batch.result.unknown` | Not sure: {done} of {count} went through, and {name} may have too; I can't tell. I didn't try again. |
+| `batch.result.none_failed`, `….none_unverified`, `….none_unknown` | the same when nothing went through before: Not done: Home Assistant refused {name}. Nothing changed. / Not sure: {name} was sent, but I couldn't check it. / Not sure: {name} may have gone through, and I can't tell. I didn't try again. |
 | `batch.result.rest` | The rest weren't sent. |
 | `batch.drift` | Not done: {names} changed since you saw the list, so nothing was sent. |
 
@@ -136,8 +139,8 @@ I'm about to make these 3 changes in Home Assistant, in this order:
 One confirmation covers all 3, so I need you to confirm it. A copy of each one deleted is saved first, so it can be restored. HA NOVA checks each one again right before it is sent and stops at the first one that doesn't go through. Nothing has changed yet.
 ```
 
-- **Window:** the batch text, then the existing lines (the phone asks too; "Requested by your AI assistant …"). Budget: at most 34 lines and 2,400 characters with those lines. The worst 20-member case (60-character names, no reasons: 30 lines, about 2,200 characters) fits. `plan batch` checks it on every OS: over it, the batch is refused (`BATCH_TOO_LONG`, exit 4: split it); the text is never cut. The numbers become final in Phase 2, once the worst case shows uncut in macOS `display dialog` on a 13-inch MacBook, Windows `MessageBoxTimeoutW` at 1366×768 and 125 % (`npm run vm-lane`), and zenity at 1366×768 (Linux container, screenshot). Any clipping lowers them.
-- **Phone:** title `batch.phone.<op>.<kind>` (80-character limit; the longest is 44). Body: `batch.phone.most` with the most sensitive member's goal and typed reason sentences, then "Requested by …" and the platform hint, cut at the existing 300-character reason limit with "(more on the computer)" or "(more in the chat)"; "Can't be undone." first after `--no-snapshot`. Most sensitive: an access or disruptive reason (lock, alarm, door, gate, garage, siren, wiping button) before a delete, a delete before another typed reason, typed before preview; the first in order on a tie. Button: "Delete" for a delete-only batch, else "Confirm". Result: the existing prefixes ("Done", "Partly done", "Not done", "Unclear") before the title ("Done: Delete 12 automations"), with `batch.phone.done` or `batch.phone.partly` and where to read why.
+- **Window:** the batch text, then the existing lines (the phone asks too; "Requested by your AI assistant …"). Budget: at most 34 lines and 2,400 characters with those lines. The worst 20-member case (60-character names, no reasons) measures 25 lines and 2,264 characters (`TestBatchWindowBudget`) and fits. `plan batch` checks it on every OS: over it, the batch is refused (`BATCH_TOO_LONG`, exit 4: split it); the text is never cut. The numbers become final in Phase 2, once the worst case shows uncut in macOS `display dialog` on a 13-inch MacBook, Windows `MessageBoxTimeoutW` at 1366×768 and 125 % (`npm run vm-lane`), and zenity at 1366×768 (Linux container, screenshot). Any clipping lowers them.
+- **Phone:** title `batch.phone.<op>.<kind>` (80-character limit; the longest is 44). Body: `batch.phone.most` with the most sensitive member's goal and typed reason sentences, then "Requested by …" and the platform hint, cut at the existing 300-character reason limit with "(more on the computer)" or "(more in the chat)"; "Can't be undone." first after `--no-snapshot`. Most sensitive: an access or disruptive reason (lock, alarm, door, gate, garage, siren, wiping button) before a delete, a delete before another typed reason, typed before preview; the first in order on a tie. Button: "Confirm" for every batch (built: the title is a whole question, so no single verb fits; the chat's ask names the same button). Result: the existing prefixes ("Done", "Partly done", "Not done", "Unclear") before the title ("Done: Delete 12 automations"), with `batch.phone.done` or `batch.phone.partly` and where to read why.
 - **Form** (MCP elicitation): the batch text plus the existing code line ("Type 1234 to confirm."); after a failed snapshot the form asks again with `batch.no_copies`.
 - **Chat code:** one code for the batch, last, as for every chat-code plan.
 - **Chat `say`:** the batch text plus the plan's ask: the window, window-and-phone, phone, or code ask as today, or `batch.ask` for a preview batch; the demo prefix in the demo house. After apply: `batch.result.*` (plus `batch.result.rest` when members were not sent) or `batch.drift`.
@@ -214,4 +217,4 @@ Until all three have passed, 34 lines and 2,400 characters are provisional; any 
 
 ## Delivery
 
-One PR, `feat/batch-confirmation`, rebased onto the localization PRs and #891 (they touch the same confirmation files). Estimate: about 750 production lines (new files `plan_batch.go`, `verb_apply_batch.go`, `confirm_batch_text.go`, each under 400 lines; small hooks elsewhere). Over 800, it splits into the CLI (plan, apply, texts) first, then skills and chat apps, stacked. `docs/reference/safety.md` gets the batch row; README items go into the PR body for release prep.
+One PR, `feat/batch-confirmation`, rebased onto the localization PRs and #891 (they touch the same confirmation files). Estimate: about 750 production lines (new files `plan_batch.go`, `verb_apply_batch.go`, `confirm_batch_text.go`, each under 400 lines; small hooks elsewhere). Over 800, it splits into the CLI (plan, apply, texts) first, then skills and chat apps, stacked. Built: about 890 changed production lines without the two moves that keep files under 400 lines (`plan_deltas.go` out of `plan_store.go`, three helpers into `verb_output.go`). It stays one PR: the parity test binds `plan batch --plan` to its `ha_plan` route, so the chat-app part can't leave the CLI PR, and the skills part has no production lines; a split would not bring the CLI part under 800. `docs/reference/safety.md` gets the batch row; README items go into the PR body for release prep.
