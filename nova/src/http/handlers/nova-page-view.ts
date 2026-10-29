@@ -2,12 +2,13 @@ import type { ChatAppsStatus } from "../../runtime/chat-apps.js";
 import { claudeConnectorLink } from "../../runtime/chat-connector.js";
 import type { CsrfStore } from "../../security/csrf.js";
 import type { DeviceRecord } from "../../security/device-registry.js";
+import { chatPhoneLine, chatPhoneWaiting, renderChatPhone, renderChatPhoneError, type ChatPhoneAction, type ChatPhoneModel } from "./nova-page-chat-phone.js";
 
 // Presentation layer of the NOVA owner console: page model, HTML/CSS rendering,
 // the armed confirm section, and formatting helpers. The HTTP/action/CSRF
 // handling lives in nova-page.ts; this module never touches the request.
 
-export type NovaAction = "generate_code" | "cancel_code" | "revoke_device" | "revoke_legacy" | "reset_registry" | ChatAction;
+export type NovaAction = "generate_code" | "cancel_code" | "revoke_device" | "revoke_legacy" | "reset_registry" | ChatAction | ChatPhoneAction;
 export type ChatAction = "chat_apps_on" | "chat_apps_off" | "chat_read_only" | "chat_codes";
 
 export interface ConnectionStatus {
@@ -61,6 +62,7 @@ export interface PageModel {
   confirm: ConfirmTarget | null;
   chatApps: ChatAppsStatus | null; // null: the feature is off in this App
   chatConnectorUrl: string | null; // null: neither Link remote access nor a public HTTPS address
+  chatPhone: ChatPhoneModel | null; // null: chat apps are off
   chatRestarting: boolean;
 }
 
@@ -107,7 +109,7 @@ export function renderPage(m: PageModel): string {
             ? `<section class="error"><h2>Chat apps: that did not work</h2><p>HA NOVA can't use the custom_components folder in Home Assistant's configuration. Check that it is a normal folder, then try again.</p></section>`
           : m.errorCode === "chat"
             ? `<section class="error"><h2>Chat apps: that did not work</h2><p>Try again in a moment. If it keeps failing, the NOVA App log says why.</p></section>`
-            : "";
+            : renderChatPhoneError(m.errorCode);
 
   const confirmSection = renderConfirmSection(m, formOpen, csrfField, base);
 
@@ -158,7 +160,7 @@ export function renderPage(m: PageModel): string {
   // While a code is active we auto-refresh so the owner sees the device appear
   // without reloading — pure HTML (this page runs no JavaScript by design). The
   // refresh stops the moment pairing is consumed or cancelled.
-  const autoRefresh = m.pairing.phase === "active" || m.pairing.phase === "armed" ? `<meta http-equiv="refresh" content="5">` : "";
+  const autoRefresh = m.pairing.phase === "active" || m.pairing.phase === "armed" || chatPhoneWaiting(m.chatPhone) ? `<meta http-equiv="refresh" content="5">` : "";
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">${autoRefresh}
@@ -253,9 +255,6 @@ function renderChatApps(m: PageModel, formOpen: string, csrfField: (action: Nova
     body = `<p>This NOVA App version can't run chat apps. Turn them off, so Home Assistant stops looking for them.</p>${button("chat_apps_off", "Turn off chat apps", "", "secondary")}`;
   } else if (c.enabled) {
     const who = c.allowedUsers === null ? "only you" : `${c.allowedUsers.length} Home Assistant user${c.allowedUsers.length === 1 ? "" : "s"}`;
-    const phone = c.ownerPhone === null
-      ? c.chatCodes ? "no phone linked: changes that need your OK show a code in the chat" : "no phone linked: changes that need your OK are refused"
-      : `your phone ${escapeHtml(c.ownerPhone)} asks you`;
     // Claude asks before each step until its tools are on “Always allow”: with a phone that confirms, all of them.
     const next = c.ownerPhone === null
       ? "In Claude, open Customize → Connectors → HA NOVA. Set every tool to “Always allow”, except “Run a confirmed change”: leave it on “Needs approval”. Then Claude still asks before each bigger change. The AI can see a chat code, so that question is your own check. Link a phone, and you can allow that one too."
@@ -270,8 +269,8 @@ function renderChatApps(m: PageModel, formOpen: string, csrfField: (action: Nova
 <p class="address">${escapeHtml(url)}</p>
 <p><strong>Next: stop Claude from asking every time.</strong> At first, Claude asks before each step. That's Claude, not HA NOVA. ${next} Claude may ask again after an update.</p>
 <p class="muted meta">ChatGPT on the web, on a computer: open chatgpt.com/plugins → + → “Add custom MCP server”, name it HA NOVA, paste the address under “Connection”, pick “OAuth”, tick “I understand and want to continue”, then “Create as a plugin”. Sign in as the owner. If ChatGPT shows an error right after, choose Connect on the plugin again. Then type @HA NOVA in a chat. Name already taken? Find your old HA NOVA under your own plugins. If it has this address, choose Install; if not, use another name.</p>`}
-<p class="muted">Who can use it: ${who}. Confirmations: ${phone}.</p>
-${m.chatRestarting ? `<p class="ok">Home Assistant is restarting (usually under a minute). Reload this page afterwards.</p>` : ""}
+<p class="muted">Who can use it: ${who}. Confirmations: ${chatPhoneLine(m.chatPhone, c.ownerPhone, c.chatCodes)}.</p>
+${m.chatPhone === null ? "" : renderChatPhone(m.chatPhone, c.chatCodes, formOpen, csrfField, `${m.ingressPath.replace(/\/$/, "")}/`)}${m.chatRestarting ? `<p class="ok">Home Assistant is restarting (usually under a minute). Reload this page afterwards.</p>` : ""}
 <ul>${toggle("Chat apps can only read", c.readOnly, "chat_read_only")}${toggle("Codes in the chat", c.chatCodes, "chat_codes")}</ul>
 <p class="muted meta">To sign a chat app out, remove its token in Home Assistant under Profile → Security. Turn chat apps off before you remove the NOVA App or go back to an older version.</p>
 ${button("chat_apps_off", "Turn off chat apps", "", "secondary")}`;

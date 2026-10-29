@@ -217,7 +217,7 @@ func TestSetupOverviewMCPSnippetKeepsPublicSymlinkAndUsesPortableExecutable(t *t
 
 func TestSetupOverviewPhoneNoticesDoNotDisableChatApps(t *testing.T) {
 	f := overviewFixture(t)
-	for _, key := range []string{"setup.chat.phone_kept", "setup.chat.problem_phone"} {
+	for _, key := range []string{"setup.chat.phone_kept", "setup.chat.phone_page", "setup.chat.problem_phone"} {
 		items := overviewByID(f.setupOverview(setupPageControl{Chat: &setupPageChat{State: "page_on", Problem: &setupPageMsg{Key: key}}}, false))
 		if items["chat"].State != "ok" || items["chat"].Msg.Key != "setup.overview.chat_on" {
 			t.Fatalf("phone note made chat apps unusable: %+v", items["chat"])

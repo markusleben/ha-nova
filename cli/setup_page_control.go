@@ -47,21 +47,23 @@ type setupPageControl struct {
 // need, with Home Assistant's Link page and Check again. The page shows the restart
 // consent before it posts "chat"; the click on it is that consent.
 type setupPageChat struct {
-	State      string         `json:"state"`                     // offer, run, on, expired (the owner session ran out), noaddress (no Link, no public HTTPS address), page_on/page_off (a re-run: no owner sign-in yet, Done applies the switch), signin (Done's owner sign-in runs)
-	Ask        bool           `json:"ask,omitempty"`             // offer after Done's sign-in: the page opens the consent
-	Attempt    int            `json:"attempt,omitempty"`         // page_off: Done's sign-ins that failed, so the page resets its switch even when it never saw signin
-	Rows       []setupPageRow `json:"rows,omitempty"`            // while run (and after): on, restart, ready
-	URL        string         `json:"url,omitempty"`             // the connector address, once on
-	ClaudeLink string         `json:"claude_link,omitempty"`     // Add to Claude (claudeConnectorLink), once on
-	OrgLink    string         `json:"org_link,omitempty"`        // the same for a Team or Enterprise owner (claudeOrgConnectorLink)
-	Phone      string         `json:"phone,omitempty"`           // the phone that confirms for chat apps; "": a code in the chat
-	Confirmed  bool           `json:"phone_confirmed,omitempty"` // on: the App holds a phone that confirms for chat apps (its own state, never a name linked only here)
-	PhoneKnown bool           `json:"phone_known,omitempty"`
-	LinkPage   string         `json:"link_page,omitempty"`  // noaddress, off: Home Assistant's Link page (haLinkPageURL)
-	Guide      string         `json:"guide,omitempty"`      // noaddress, off: the guide's own-HTTPS-address part
-	Checked    string         `json:"checked,omitempty"`    // noaddress, off: the last Check again: off (read, still no address), failed (couldn't read)
-	NoRestart  bool           `json:"no_restart,omitempty"` // Home Assistant runs the integration already: turning on doesn't restart it
-	Problem    *setupPageMsg  `json:"problem,omitempty"`
+	State      string             `json:"state"`                     // offer, run, on, expired (the owner session ran out), noaddress (no Link, no public HTTPS address), page_on/page_off (a re-run: no owner sign-in yet, Done applies the switch), signin (Done's owner sign-in runs)
+	Ask        bool               `json:"ask,omitempty"`             // offer after Done's sign-in: the page opens the consent
+	Attempt    int                `json:"attempt,omitempty"`         // page_off: Done's sign-ins that failed, so the page resets its switch even when it never saw signin
+	Rows       []setupPageRow     `json:"rows,omitempty"`            // while run (and after): on, restart, ready
+	URL        string             `json:"url,omitempty"`             // the connector address, once on
+	ClaudeLink string             `json:"claude_link,omitempty"`     // Add to Claude (claudeConnectorLink), once on
+	OrgLink    string             `json:"org_link,omitempty"`        // the same for a Team or Enterprise owner (claudeOrgConnectorLink)
+	Phone      string             `json:"phone,omitempty"`           // the phone that confirms for chat apps; "": a code in the chat
+	Confirmed  bool               `json:"phone_confirmed,omitempty"` // on: the App holds a phone that confirms for chat apps (its own state, never a name linked only here)
+	PhoneKnown bool               `json:"phone_known,omitempty"`
+	LinkPage   string             `json:"link_page,omitempty"`  // noaddress, off: Home Assistant's Link page (haLinkPageURL)
+	Guide      string             `json:"guide,omitempty"`      // noaddress, off: the guide's own-HTTPS-address part
+	Checked    string             `json:"checked,omitempty"`    // noaddress, off: the last Check again: off (read, still no address), failed (couldn't read)
+	NoRestart  bool               `json:"no_restart,omitempty"` // Home Assistant runs the integration already: turning on doesn't restart it
+	Problem    *setupPageMsg      `json:"problem,omitempty"`
+	Move       *setupPageChatMove `json:"move,omitempty"` // on: after "Use another phone" (pageChatMoved)
+	PageMove   bool               `json:"-"`              // page_on: the App moves the chat-app phone on the NOVA page
 }
 
 // needsLink: chat apps are off and nothing could reach them; the row
@@ -162,13 +164,12 @@ func (f *setupFlow) pageControl() int {
 	show := func() {
 		view := ctl
 		view.Phones = slices.Clone(ctl.Phones)
-		if ctl.Chat != nil { // pageChatOn keeps changing its own copy
-			row := *ctl.Chat
-			row.Rows = slices.Clone(row.Rows)
+		if ctl.Chat != nil { // pageChatOn and pageChatMove keep changing their own
+			row := ctl.Chat.snapshot()
 			if row.needsLink() { // where to turn on Link remote access
 				row.LinkPage, row.Guide = haLinkPageURL(f.cfg.HAURL), chatAppsGuideURL+"#what-you-need"
 			}
-			view.Chat = &row
+			view.Chat = row
 		}
 		p.update(func(v *setupPageState) {
 			v.Screen, v.Control, v.Problem, v.Fix = screen, &view, nil, ""
@@ -194,12 +195,7 @@ func (f *setupFlow) pageControl() int {
 		if ctl.Phone == "unread" || ctl.Phone == "pick" || ctl.Phone == "none" {
 			accepts = append(accepts, "recheck")
 		}
-		if ctl.Chat.needsLink() {
-			accepts = append(accepts, "chat_recheck")
-		}
-		if ctl.Chat != nil && ctl.Chat.State == "offer" {
-			accepts = append(accepts, "chat")
-		}
+		accepts = append(accepts, ctl.Chat.accepts()...)
 		if f.pageRerunOK {
 			if windowAvailable() && !ctl.Window {
 				accepts = append(accepts, "window")
@@ -275,6 +271,10 @@ func (f *setupFlow) pageControl() int {
 				if ctl.Phone == "linked" {
 					f.pageChatPhone(ctl.Chat, &chat)
 				}
+			}
+		case "chat_move": // the move offer's answer
+			if f.pageChatMove(ctl.Chat, &chat, action.Value == "yes", show); f.pageQuit {
+				return 0
 			}
 		case "chat":
 			if action.Value == "on" {

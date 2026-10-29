@@ -7,6 +7,7 @@ import type { DeviceRegistry } from "../../security/device-registry.js";
 import type { PairingV1Manager } from "../../security/pairing-v1.js";
 import type { RouteHandler } from "../router.js";
 import type { RelayLogger } from "../server.js";
+import { applyChatPhoneAction, CHAT_PHONE_ACTIONS, chatPhoneErrorCode, readChatPhone, type ChatPhoneAction, type ChatPhoneModel } from "./nova-page-chat-phone.js";
 import {
   escapeHtml,
   parseConfirm,
@@ -95,6 +96,7 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
     } catch (error) {
       deps.logger?.error("Chat-app files are unreadable", { error: error instanceof Error ? error.message : String(error) });
     }
+    const chatPhone: ChatPhoneModel | null = chatApps?.enabled && chatApps.available ? await readChatPhone(deps.chatApps!.phone, owner.userId, query) : null;
     const chatConnectorUrl = chatApps?.enabled // unknown: the page words it without the address
       ? await deps.connectorUrl?.().catch((error: unknown) => (deps.logger?.warn("connector address unavailable", { error: String(error) }), null)) ?? null
       : null;
@@ -117,6 +119,7 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
       confirm: parseConfirm(query),
       chatApps,
       chatConnectorUrl,
+      chatPhone,
       chatRestarting: query.get("chat") === "restarting",
     });
     setHeaders(response);
@@ -140,7 +143,8 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
     const form = (body ?? {}) as Record<string, unknown>;
     const action = typeof form.action === "string" ? form.action : "";
     const token = typeof form.csrf === "string" ? form.csrf : "";
-    if (!ACTIONS.has(action as NovaAction) && !(deps.chatApps !== undefined && CHAT_ACTIONS.has(action as NovaAction))) {
+    const phoneAction = CHAT_PHONE_ACTIONS.has(action);
+    if (!ACTIONS.has(action as NovaAction) && !(deps.chatApps !== undefined && (CHAT_ACTIONS.has(action as NovaAction) || phoneAction))) {
       fail(response, 400, "Unknown action.");
       return;
     }
@@ -158,6 +162,7 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
 
     let errCode: string | null = null;
     let restart = false;
+    let job: string | null = null; // a chat-app phone change that asks a phone: the page shows it
     // The strongest gate: resetting the registry additionally requires the
     // owner to type RESET verbatim on the confirm screen. The consumed token
     // stays consumed on a mismatch — re-arming means opening the screen again.
@@ -165,7 +170,11 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
       errCode = "confirm";
     } else {
       try {
-        restart = await applyAction(deps, action as NovaAction, form);
+        if (phoneAction) {
+          job = await applyChatPhoneAction(deps.chatApps!, owner.userId, action as ChatPhoneAction, form);
+        } else {
+          restart = await applyAction(deps, action as NovaAction, form);
+        }
       } catch (error) {
         // Do not leak internals, but tell the owner it failed via ?err=1 below
         // so a failed "Connect a device" is not a silent reload with no code —
@@ -174,7 +183,7 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
           action,
           error: error instanceof Error ? error.message : String(error),
         });
-        errCode = CHAT_ACTIONS.has(action as NovaAction) ? chatErrorCode(error) : "1";
+        errCode = phoneAction ? chatPhoneErrorCode(error) : CHAT_ACTIONS.has(action as NovaAction) ? chatErrorCode(error) : "1";
       }
     }
 
@@ -189,7 +198,7 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
     // token) so the error's "type RESET" instruction has an input to point at.
     const location =
       errCode === null
-        ? restart ? `${base}?chat=restarting` : base
+        ? restart ? `${base}?chat=restarting` : job !== null ? `${base}?chat_job=${job}` : action === "chat_phone_remove" ? `${base}?chat_phone=stopped` : base
         : errCode === "confirm"
           ? `${base}?err=confirm&confirm=reset_registry`
           : `${base}?err=${errCode}`;
@@ -204,7 +213,7 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
 // Returns whether Home Assistant must restart (turning chat apps on).
 async function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<string, unknown>): Promise<boolean> {
   const chat = deps.chatApps!;
-  switch (action) {
+  switch (action as Exclude<NovaAction, ChatPhoneAction>) {
     case "chat_apps_on":
       // The button carries the consent line "Home Assistant restarts once if needed".
       return (await chat.turnOn(true)).restart;
