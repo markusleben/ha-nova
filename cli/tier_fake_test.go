@@ -53,6 +53,8 @@ type fakeHA struct {
 	// with the keys of the integrations asked for; like Home Assistant, the
 	// English text where the language has none.
 	translations map[string]map[string]string
+	// users answers config/auth/list when extra doesn't (nil: none).
+	users []map[string]any
 }
 
 func newFakeHA() *fakeHA {
@@ -196,6 +198,10 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 				}
 			}
 			return map[string]any{"resources": resources}
+		case "config/auth/list":
+			if f.users != nil {
+				return f.users
+			}
 		}
 		return []any{}
 	}

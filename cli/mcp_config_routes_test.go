@@ -356,7 +356,7 @@ func TestServeConfigPlansNeedAnAdministrator(t *testing.T) {
 		t.Fatalf("demoted since planning: %v (saves %v)", env, s.lovelaceSaves())
 	}
 	set(true, true)
-	if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": plan["id"]}); envCode(env) != "ADMIN_UNKNOWN" || len(s.lovelaceSaves()) != 0 {
+	if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": plan["id"]}); envCode(env) != "ACCESS_UNKNOWN" || len(s.lovelaceSaves()) != 0 {
 		t.Fatalf("unreadable users: %v (saves %v)", env, s.lovelaceSaves())
 	}
 	set(true, false)

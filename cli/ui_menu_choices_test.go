@@ -132,7 +132,7 @@ func TestEveryChoicePromptUsesArrowMenuOnTTY(t *testing.T) {
 	uiOutputSupportsANSI = func(io.Writer) bool { return true }
 
 	phone := phoneTarget{Name: "Pixel", Person: "Ana", DeviceID: "d1", UserID: "u1"}
-	home := phoneHome{users: map[string]haUser{"u1": {ID: "u1", IsActive: true, IsOwner: true}}, phones: []phoneTarget{phone}}
+	home := phoneHome{users: map[string]haUser{"u1": {ID: "u1", IsActive: true, IsOwner: true}}, phones: []phoneTarget{phone}, confirms: phoneAdmin}
 	cases := []struct {
 		name   string
 		answer string

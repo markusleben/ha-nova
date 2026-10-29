@@ -123,7 +123,7 @@ func TestLinkedPlatformFromTheStoredLinks(t *testing.T) {
 // A phone linked as an iPhone stays one for Move and Stop: a maker changed
 // later in Home Assistant never turns its unlock into Android's string.
 func TestLinkedIPhoneKeepsItsUnlock(t *testing.T) {
-	home := phoneHome{owner: "o", relay: "r", users: map[string]haUser{"u": {ID: "u", IsActive: true, GroupIDs: []string{"system-admin"}}},
+	home := phoneHome{owner: "o", relay: "r", users: map[string]haUser{"u": {ID: "u", IsActive: true, GroupIDs: []string{"system-admin"}}}, confirms: phoneAdmin,
 		linked: &phoneTarget{Service: "mobile_app_x", DeviceID: "d", Maker: "samsung"}}
 	for stored, want := range map[string]string{phoneIOS: phoneIOS, phoneAndroid: phoneAndroid, "": phoneAndroid} {
 		setup, status := home.status(map[string]phoneEntry{"o": {link: &phoneLink{Service: "mobile_app_x", DeviceID: "d", UserID: "u", Platform: stored}}}, nil)

@@ -386,7 +386,7 @@ func (a *phoneAsking) wait(notice io.Writer) {
 // phone hears that nothing changed.
 func (a *phoneAsking) refuse(code, message, next string) (verbEnvelope, int, bool) {
 	s, reply, lang := a.s, a.reply, textLang(a.plan)
-	prefix, line := phoneNothing(lang, phoneRejected)
+	prefix, line := phoneNothing(lang, phoneConfirmed) // their tap arrived; the chat says why it stopped
 	phoneApplied = func(verbEnvelope, int) { reply.say(phoneResultTitle(lang, prefix, a.goal), line); s.close() }
 	return windowStopped(s, "refused", code, message, next)
 }
@@ -410,7 +410,7 @@ func (a *phoneAsking) finish() (env verbEnvelope, exit int, asked bool) {
 			return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "HA NOVA couldn't re-check the linked phone in Home Assistant after the tap",
 				fmt.Sprintf("Tell the user nothing changed: their tap arrived, but HA NOVA couldn't re-check the linked phone in Home Assistant, so nothing ran. Run ha-nova apply --plan %s again (a new notification goes to their phone) only after they say they still want it; never ask them for a code.", id))
 		case !still:
-			return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the phone that confirmed is no longer the linked phone, or its user is no longer an administrator", phoneMissingStep())
+			return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the phone that confirmed is no longer the linked phone, or its user may no longer confirm changes", phoneMissingStep())
 		}
 		humanAnswer, humanWhere = confirmCode(s.transport.Credential, a.idHex, a.plan.Channel, a.plan.ExpiresAt), channelPhone
 		handed, phoneApplied = true, func(env verbEnvelope, exit int) {

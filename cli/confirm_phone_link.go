@@ -338,12 +338,13 @@ func allowPhoneChange(s *relaySession, out io.Writer, lang string, home phoneHom
 	return false
 }
 
-// eligible: the phones that may be linked — an administrator's, never the
-// Relay user's. With signedIn, only that user's (none: everyone's).
+// eligible: the phones that may be linked — an administrator's (a chat
+// app's: its user's, by level; confirmer), never the Relay user's. With
+// signedIn, only that user's (none: everyone's).
 func (h phoneHome) eligible(signedIn string) []phoneTarget {
 	var out []phoneTarget
 	for _, t := range h.phones {
-		if t.UserID != h.relay && phoneAdmin(h.users[t.UserID]) && (signedIn == "" || t.UserID == signedIn) {
+		if t.UserID != h.relay && h.confirmer(h.users[t.UserID]) && (signedIn == "" || t.UserID == signedIn) {
 			out = append(out, t)
 		}
 	}

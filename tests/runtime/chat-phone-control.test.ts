@@ -50,8 +50,8 @@ describe("chat-app phone control client", () => {
     reply = answer(200, { status: "done" });
     expect(await control.start("u1", { action: "adopt", phone: { service: "mobile_app_p", device_id: "d".repeat(32), name: "P" } })).toBeNull();
     reply = answer(200, { status: "declined", step: "old", phone: "iPhone", platform: "ios" });
-    expect(await control.job("a".repeat(32))).toEqual({ status: "declined", step: "old", phone: "iPhone", platform: "ios" });
-    expect(seen.map((s) => `${s.method} ${s.url}`)).toEqual(["GET /control/v1/phones?user=user%201", "POST /control/v1/phone", "POST /control/v1/phone", `GET /control/v1/phone/${"a".repeat(32)}`]);
+    expect(await control.job("user 1", "a".repeat(32))).toEqual({ status: "declined", step: "old", phone: "iPhone", platform: "ios" });
+    expect(seen.map((s) => `${s.method} ${s.url}`)).toEqual(["GET /control/v1/phones?user=user%201", "POST /control/v1/phone", "POST /control/v1/phone", `GET /control/v1/phone/${"a".repeat(32)}?user=user%201`]);
     expect(seen.every((s) => s.auth === `Bearer ${SECRET}`)).toBe(true);
     expect(JSON.parse(seen[1]!.body)).toEqual({ user: "u1", action: "move", phone: { device_id: "d".repeat(32) } });
     expect(seen[1]!.type).toBe("application/json");
@@ -93,7 +93,7 @@ describe("chat-app phone control client", () => {
       await expect(control.phones("u1")).rejects.toMatchObject({ status: 503, code: "CHAT_PHONE_UNAVAILABLE" });
     }
     reply = answer(200, {});
-    await expect(control.job("a".repeat(32))).rejects.toMatchObject({ status: 503, code: "CHAT_PHONE_UNAVAILABLE" });
+    await expect(control.job("u1", "a".repeat(32))).rejects.toMatchObject({ status: 503, code: "CHAT_PHONE_UNAVAILABLE" });
   });
 
   it("says the bridge can't be reached when its answer is cut off", async () => {

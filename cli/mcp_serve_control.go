@@ -77,8 +77,9 @@ func (b *chatBridge) enableControl(secretFile string) error {
 	return nil
 }
 
-// serveControl: GET phones?user=, POST phone, GET phone/<job>. The log line
-// names the method, the path, and the HTTP status only.
+// serveControl: GET phones?user=, POST phone, GET phone/<job>?user=, GET
+// activity, GET seen (mcp_serve_activity.go). The log line names the
+// method, the path, and the HTTP status only.
 func (b *chatBridge) serveControl(w http.ResponseWriter, r *http.Request) {
 	start, status := time.Now(), http.StatusOK
 	defer func() {
@@ -114,7 +115,11 @@ func (b *chatBridge) serveControl(w http.ResponseWriter, r *http.Request) {
 		}
 		answer(b.controlStart(req))
 	case isJob && r.Method == http.MethodGet:
-		answer(b.controlJobState(job))
+		answer(b.controlJobState(job, r.URL.Query().Get("user")))
+	case r.URL.Path == controlPrefix+"activity" && r.Method == http.MethodGet:
+		answer(b.controlActivity())
+	case r.URL.Path == controlPrefix+"seen" && r.Method == http.MethodGet:
+		answer(b.controlSeen())
 	default:
 		answer(controlError(http.StatusNotFound, "NOT_FOUND", "not found"))
 	}
@@ -135,13 +140,23 @@ type controlLook struct {
 }
 
 // asUser runs run under mcpVerbLock as a chat call of user would: the
-// phone code then reads that user's link from the bridge's store.
-func (b *chatBridge) asUser(user string, run func()) {
+// phone code then reads that user's link from the bridge's store, and
+// their level decides which phones confirm for them (phoneAllowed). An
+// unreadable policy runs nothing (errSettingsUnread), never as "not allowed".
+func (b *chatBridge) asUser(user string, run func()) error {
+	policy, code, _ := b.policyFor(user) // before the lock: it may read Home Assistant's users
+	switch {
+	case code == http.StatusServiceUnavailable:
+		return errSettingsUnread
+	case policy == nil: // not allowed now: no phone confirms for them
+		policy = &chatPolicy{user: user, key: chatUserKey(user), links: b.linksFile(), bridge: b}
+	}
 	mcpVerbLock.Lock()
 	defer mcpVerbLock.Unlock()
-	chatCall = &chatPolicy{user: user, key: chatUserKey(user), links: b.linksFile(), bridge: b}
+	chatCall = policy.reread() // under the lock: the owner's settings as they are now
 	defer func() { chatCall = nil }()
 	run()
+	return nil
 }
 
 // look reads user's link and phones with s, or with a new session as the
@@ -150,7 +165,7 @@ func (b *chatBridge) look(user string, s *relaySession) (*controlLook, error) {
 	var look *controlLook
 	var err error
 	own := s == nil
-	b.asUser(user, func() {
+	unread := b.asUser(user, func() {
 		if own {
 			paths := b.paths
 			paths.CacheDir = filepath.Join(b.dataDir, "users", chatUserKey(user))
@@ -177,6 +192,9 @@ func (b *chatBridge) look(user string, s *relaySession) (*controlLook, error) {
 			look.current, look.status = phoneSetup{owner: look.home.owner, relayUser: look.home.relay, why: whyRemoved}, phoneMissing
 		}
 	})
+	if unread != nil {
+		err = unread
+	}
 	if err != nil {
 		if own && s != nil {
 			s.close()
@@ -212,10 +230,10 @@ func (l *controlLook) linkState() map[string]any {
 }
 
 var controlWhy = map[phoneWhy]string{whyNone: "", whyRead: "unread", whyOwnerToken: "owner_token", whyRelayUser: "relay_user",
-	whyDemoted: "not_admin", whyRemoved: "removed", whyShared: "shared_name", whyUnreachable: "unreachable"}
+	whyDemoted: "not_allowed", whyRemoved: "removed", whyShared: "shared_name", whyUnreachable: "unreachable"}
 
-// controlPhones: the phones user may link (their own, as an administrator,
-// the linked one left out) and their link.
+// controlPhones: the phones user may link (their own, at Use the home or
+// more, the linked one left out) and their link.
 func (b *chatBridge) controlPhones(user string) (int, map[string]any) {
 	if !haUserIDPattern.MatchString(user) {
 		return controlError(http.StatusBadRequest, "INVALID_USER", "user must be a Home Assistant user id")
@@ -308,7 +326,7 @@ func (b *chatBridge) controlStart(req controlRequest) (int, map[string]any) {
 	case req.Action != "stop" && chosen == nil:
 		return controlError(http.StatusConflict, "PHONE_NOT_ELIGIBLE", "that phone isn't one of this user's phones that can confirm")
 	case req.Action == "adopt": // the first phone, from a computer link its user's tap made: no question, Home Assistant's own listing
-		return b.controlWrite(req.User, nil, false, chatPhoneLink(*chosen), chatAllowed)
+		return b.controlWrite(req.User, nil, false, chatPhoneLink(*chosen), chatPhoneOK)
 	case req.Action == "move" && look.status == phoneReady && look.current.targets[0].DeviceID == chosen.DeviceID:
 		return controlError(http.StatusConflict, "PHONE_ALREADY_LINKED", "that phone is linked already")
 	case req.Action == "stop" && !look.present:
@@ -350,14 +368,19 @@ func (b *chatBridge) reserveJob(user string) (string, *controlJob) {
 	return id, job
 }
 
-func (b *chatBridge) controlJobState(id string) (int, map[string]any) {
-	if !controlJobPattern.MatchString(id) {
+// controlJobState: a job of user's; another user's job reads as lost, as
+// an unknown id does.
+func (b *chatBridge) controlJobState(id, user string) (int, map[string]any) {
+	switch {
+	case !controlJobPattern.MatchString(id):
 		return controlError(http.StatusBadRequest, "INVALID_JOB", "not a job id")
+	case !haUserIDPattern.MatchString(user):
+		return controlError(http.StatusBadRequest, "INVALID_USER", "user must be a Home Assistant user id")
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	job := b.controlJobs[id]
-	if job == nil {
+	if job == nil || job.user != user {
 		return http.StatusOK, map[string]any{"status": "lost"}
 	}
 	state := map[string]any{"status": job.status}

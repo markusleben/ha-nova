@@ -187,12 +187,34 @@ function codeLast(text, codes) {
   return { ok, last: (lines.at(-1) ?? "(empty)").replace(/\d{4}/g, "NNNN").slice(-60) };
 }
 
+// testbedOwner: the id of the Home Assistant user the test bed's token belongs
+// to (its owner, an administrator). The bridge lets in only a user Home
+// Assistant lists, and the lane's checks need Manage everything.
+function testbedOwner() {
+  const llat = readFileSync(join(STATE, "ha-llat"), "utf8").trim();
+  const ws = new WebSocket("ws://127.0.0.1:18123/api/websocket");
+  return new Promise((resolve, reject) => {
+    const end = (fn, value) => { clearTimeout(timer); ws.close(); fn(value); };
+    const timer = setTimeout(() => end(reject, new Error("Home Assistant didn't answer auth/current_user")), 15_000);
+    ws.onerror = () => end(reject, new Error("Home Assistant's WebSocket failed"));
+    ws.onmessage = (event) => {
+      const m = JSON.parse(event.data);
+      if (m.type === "auth_required") ws.send(JSON.stringify({ type: "auth", access_token: llat }));
+      else if (m.type === "auth_invalid") end(reject, new Error("Home Assistant refused the test bed's token"));
+      else if (m.type === "auth_ok") ws.send(JSON.stringify({ id: 1, type: "auth/current_user" }));
+      else if (m.id === 1) m.success && /^[0-9a-f]{32}$/.test(m.result?.id ?? "") ? end(resolve, m.result.id) : end(reject, new Error("auth/current_user failed"));
+    };
+  });
+}
+
 async function chat() {
   const config = join(homedir(), ".claude-ha-nova-test");
   let hasClaude = true;
   try { execFileSync("claude", ["--version"], { stdio: "ignore" }); } catch { hasClaude = false; }
   if (!hasClaude || !existsSync(config)) return row("c", "chat bridge code last", "SKIP", hasClaude ? `${config} missing` : "no claude on PATH");
-  const home = join(WORK, "bridge-home"), data = join(WORK, "bridge-data"), secret = randomBytes(32).toString("hex"), user = randomBytes(16).toString("hex");
+  const home = join(WORK, "bridge-home"), data = join(WORK, "bridge-data"), secret = randomBytes(32).toString("hex");
+  let user;
+  try { user = await testbedOwner(); } catch (err) { return row("c", "chat bridge started", "FAIL", err.message); }
   mkdirSync(join(home, ".config/ha-nova"), { recursive: true, mode: 0o700 });
   mkdirSync(data, { mode: 0o700 });
   writeFileSync(join(home, ".config/ha-nova/demo.json"), JSON.stringify({ ha_url: "http://127.0.0.1:18123", relay_url: "http://127.0.0.1:18791", relay_token: readFileSync(join(STATE, "relay-token"), "utf8").trim() }), { mode: 0o600 });

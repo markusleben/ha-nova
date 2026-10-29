@@ -48,7 +48,7 @@ function fakeChatApps(): ChatApps {
     phone: {
       phones: async () => ({ phones: [], link: null }),
       start: async (owner, change) => (calls.push(`phone:${owner}:${JSON.stringify(change)}`), await phoneStart(change)),
-      job: async (id) => (calls.push(`job:${id}`), await phoneJob()),
+      job: async (user, id) => (calls.push(`job:${user}:${id}`), await phoneJob()),
     },
     restartSoon: () => void calls.push("restart"),
     boot: async () => {},
@@ -201,6 +201,7 @@ describe("chat-app action API", () => {
     expect(calls).toEqual([`phone:owner-1:{"action":"move","phone":{"device_id":"${"d".repeat(32)}"}}`]);
     const polled = (await (await state(base, "owner-1")).json()) as { data: Record<string, unknown> };
     expect(polled.data.phone_job).toEqual({ id: "a".repeat(32), status: "running", step: "old", phone: "iPhone", platform: "ios", to: "Pixel" });
+    expect(calls.at(-1)).toBe(`job:owner-1:${"a".repeat(32)}`); // read as the user it acts for
     phoneJob = async () => {
       throw new ChatPhoneError(503, "CHAT_PHONE_UNAVAILABLE", "the chat-app bridge can't be reached");
     };

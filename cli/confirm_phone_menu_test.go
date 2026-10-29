@@ -16,7 +16,7 @@ func TestChoosePhoneAsksWhosePhone(t *testing.T) {
 	}
 	anna := phoneTarget{Service: "mobile_app_annas_pixel", Name: "Anna’s Pixel", DeviceID: "dev-anna", UserID: "anna-id", Person: "Anna"}
 	mine := phoneTarget{Service: "mobile_app_markuss_iphone", Name: "Markus’s iPhone", DeviceID: "dev-markus", UserID: "owner-id", Person: "Markus"}
-	home := phoneHome{owner: "owner-id", relay: "relay-id",
+	home := phoneHome{owner: "owner-id", relay: "relay-id", confirms: phoneAdmin,
 		users:  map[string]haUser{"owner-id": admin("owner-id", true), "anna-id": admin("anna-id", false)},
 		phones: []phoneTarget{anna, mine}, shared: []string{"Kid’s Phone"}, sharedOf: map[string][]string{"kid-id": {"Kid’s Phone"}}}
 	var out strings.Builder

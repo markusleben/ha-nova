@@ -49,6 +49,7 @@ type controlHarness struct {
 	home   *fakeHome
 	curl   string
 	secret string
+	owners map[string]string // job id → the user it was started for
 }
 
 // newControl: the bridge with its control channel; settings is
@@ -73,7 +74,7 @@ func newControl(t *testing.T, settings string) *controlHarness {
 	}
 	srv := httptest.NewServer(http.HandlerFunc(s.b.serveControl))
 	t.Cleanup(srv.Close)
-	return &controlHarness{serveHarness: s, phones: p, home: home, curl: srv.URL + controlPrefix, secret: secret}
+	return &controlHarness{serveHarness: s, phones: p, home: home, curl: srv.URL + controlPrefix, secret: secret, owners: map[string]string{}}
 }
 
 func (c *controlHarness) call(method, path string, body any, secret string) (int, map[string]any) {
@@ -97,7 +98,18 @@ func (c *controlHarness) call(method, path string, body any, secret string) (int
 
 func (c *controlHarness) post(body map[string]any) (int, map[string]any) {
 	c.t.Helper()
-	return c.call(http.MethodPost, "phone", body, c.secret)
+	code, out := c.call(http.MethodPost, "phone", body, c.secret)
+	if id, ok := out["job"].(string); ok {
+		c.owners[id], _ = body["user"].(string)
+	}
+	return code, out
+}
+
+// job reads a job as the user it was started for.
+func (c *controlHarness) job(id any) map[string]any {
+	c.t.Helper()
+	_, state := c.call(http.MethodGet, "phone/"+id.(string)+"?user="+c.owners[id.(string)], nil, c.secret)
+	return state
 }
 
 // finish waits for a job's end and returns its status.
@@ -105,8 +117,7 @@ func (c *controlHarness) finish(id any) string {
 	c.t.Helper()
 	var status string
 	waitFor(c.t, "the phone change to end", func() bool {
-		_, state := c.call(http.MethodGet, "phone/"+id.(string), nil, c.secret)
-		status, _ = state["status"].(string)
+		status, _ = c.job(id)["status"].(string)
 		return status != "running"
 	})
 	return status
@@ -283,7 +294,7 @@ func TestServeControlAdoptDropAndOneAtATime(t *testing.T) {
 	if code, body := c.post(move); code != http.StatusConflict || controlCode(body) != "PHONE_CHANGE_RUNNING" {
 		t.Fatalf("a second change: %d %v", code, body)
 	}
-	if _, state := c.call(http.MethodGet, "phone/"+strings.Repeat("e", 32), nil, c.secret); state["status"] != "lost" {
+	if _, state := c.call(http.MethodGet, "phone/"+strings.Repeat("e", 32)+"?user="+ownerHex, nil, c.secret); state["status"] != "lost" {
 		t.Fatalf("unknown job: %v", state)
 	}
 	if status := c.finish(first["job"]); status != "timeout" || len(c.links()) != 0 || c.phones.services[0] != "mobile_app_family_ipad" {

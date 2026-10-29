@@ -26,7 +26,7 @@ export async function readChatPhone(control: ChatPhoneControl, ownerId: string, 
   const id = query.get("chat_job");
   const [phones, job] = await Promise.all([
     control.phones(ownerId).catch((error: unknown) => (error instanceof ChatPhoneError && error.code === "OWNER_TOKEN" ? "owner_token" : "unreadable") as "owner_token" | "unreadable"),
-    id !== null && JOB.test(id) ? control.job(id).catch(() => ({ status: "unread" as const })) : null,
+    id !== null && JOB.test(id) ? control.job(ownerId, id).catch(() => ({ status: "unread" as const })) : null,
   ]);
   return { phones, pick: query.get("chat_phone") === "pick", stopped: query.get("chat_phone") === "stopped", job: id !== null && job !== null ? { id, state: job } : null };
 }
@@ -67,7 +67,7 @@ export function chatPhoneWaiting(model: ChatPhoneModel | null): boolean {
 
 const WHY: Record<string, string> = {
   removed: "it is no longer in Home Assistant",
-  not_admin: "its Home Assistant user is no longer an administrator",
+  not_allowed: "its Home Assistant user may no longer confirm changes from chat apps",
   relay_user: "it now belongs to HA NOVA's own Home Assistant user",
   unreachable: "its Home Assistant app is signed out, or its notifications are off",
   shared_name: "another device in Home Assistant has the same name; remove the old one in Settings → Devices &amp; services → Mobile App, or rename one in its Home Assistant app",

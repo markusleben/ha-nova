@@ -57,13 +57,16 @@ type chatBridge struct {
 	mu      sync.Mutex
 	jobs    map[string]*chatJob        // user/plan → its phone ask (mcp_serve_phone.go)
 	told    map[string]map[string]bool // per user: notice hints already given
-	owner   string                     // the HA owner's user id, the default allowed user
-	ownerAt time.Time
-	ownerNo time.Time // the last failed owner read: retried after 5 s
+	users   []haUser                   // Home Assistant's users: roles cap the levels (mcp_serve_settings.go)
+	usersAt time.Time
+	usersNo time.Time // the last failed read: retried after 5 s
 
 	control     [32]byte               // sha256 of the control secret (mcp_serve_control.go)
 	controlJobs map[string]*controlJob // job id → a phone change (under mu)
 	linksMu     sync.Mutex             // phone-links.json: the bridge is its only writer
+
+	activityMu sync.Mutex        // activity.jsonl and seen.json (mcp_serve_activity.go)
+	seen       map[string]string // user → the hour of their last request; nil until read
 }
 
 func runServeCommand(paths runtimePaths, args []string) int {
@@ -239,6 +242,7 @@ func (b *chatBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user = call.key
+	b.noteSeen(call.user)
 	if !b.limiter.allow(call.key) {
 		status = http.StatusTooManyRequests
 		refuseRPC(w, r, status, "Too many requests to HA NOVA right now. Wait a minute, then try again.")

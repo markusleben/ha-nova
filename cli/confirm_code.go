@@ -81,7 +81,7 @@ func channelRefusal(channel string, lang func() string) *verbFailure {
 	case channelPhoneUnlinked:
 		return refusedWith("CONFIRM_UNAVAILABLE", phoneUnlinkedWhy, phoneUnlinkedNext(lang()))
 	case channelChatOff:
-		return refusedWith("CONFIRM_UNAVAILABLE", chatCodesOffWhy, chatCodesOffNext)
+		return refusedWith("CONFIRM_UNAVAILABLE", chatCodesOffWhy(chatCall), chatCodesOffNext(chatCall))
 	}
 	return nil
 }

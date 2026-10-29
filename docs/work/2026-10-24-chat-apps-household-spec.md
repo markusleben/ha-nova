@@ -53,6 +53,7 @@ The bridge already re-reads `chat-apps.json` per request. It now also reads the 
 - Device domains: light, switch, fan, cover (all, garage and gate included), lock, alarm_control_panel, valve, siren, climate, media_player, vacuum, humidifier, water_heater, input_boolean, input_number, input_select, select, number, button, input_button.
 - Running what exists: `scene.turn_on`, `script.turn_on` and calling a script entity, `automation.trigger`. Never `script`/`automation` `turn_off`, `toggle`, `reload`, or any create, edit, or delete path.
 - `homeassistant.turn_on/turn_off/toggle` only when every resolved target is in the lists above.
+- Never a target Home Assistant marks as a device's configuration or diagnostics (`entity_category`: a child lock, a motion-detection switch, a restart or factory-reset button, a Z-Wave parameter): that is a device's settings, and Use the home changes none (H2 review, 2026-10-29).
 - The check runs on the effective service and every resolved target after the tier engine resolves them (`cli/plan_call.go:282-301`). A `skill` argument is refused for Use the home (it unlocks owned services, `cli/plan_call.go:233-247`).
 - High-consequence actions, also inside a scene or script, follow the tier engine as for an administrator: they need this user's own linked phone. **No chat code for Use the home:** the model can see a chat code. With no usable phone the answer is refused with "Ask <owner's name> to link your phone on the NOVA page."
 - Allowed device changes still trigger automations, as in Home Assistant. Copy says "can't change automations", never "no automations".
@@ -70,7 +71,7 @@ The bridge already re-reads `chat-apps.json` per request. It now also reads the 
 ### Activity
 
 - The bridge appends one line per change to `bridge/activity.jsonl` (owned by the bridge, `0600`): time, the user's name at that moment, the tool, the service or plan kind, target names, and the result (done, refused, confirmed by phone, confirmed by code, outcome unknown). No reads, no chat text, no codes.
-- Capped at 500 lines or 30 days, whichever is first; trimmed on write.
+- Capped at 500 lines or 30 days, whichever is first; trimmed on write. At most 100 of those lines are refusals, so a user refused again and again can't push out what ran; a service name that isn't one (free text from the chat) adds no line.
 - The NOVA page shows the last 20 under "Recent changes from chat apps".
 
 ### Removing a user
@@ -138,6 +139,15 @@ Recent changes:
 - TS (`tests/http/`): the save refuses unknown, inactive, and system ids; a non-owner admin gets 403; the owner can't be unticked; removing a user drops their phone link.
 - Page render test: hostile user and device names (activity list) render inert. Page copy that says only the owner can use chat apps ("Only you can use it", "sign in … as its owner", `nova/src/http/handlers/nova-page-view.ts`, chat section) is updated.
 - Test bed E2E: two users signed in through the integration's view (the pytest harness), one admin and one user; the Use the home user turns a light off, unlocks with a tap on the simulated phone, and is refused `homeassistant.restart`.
+
+## Re-check against main (2026-10-29, before the bridge PR)
+
+- `ha_plan` kind `batch` (#896) is configuration all of it: planned and applied only at Manage everything, and the administrator check (`configAdminFailure`) refuses it too. Its own test plans one at Manage everything, then lowers the level to Use the home and Ask only.
+- The control channel (#894, #897) acts as the user's real level: `phones`, `adopt`, and `move` follow `phoneAllowed`, bound when the bridge reads the phones. A job is read with `?user=`, and another user's job reads as `lost`. A phone whose user may no longer confirm reads `not_allowed` (was `not_admin`). The App's control client and the NOVA page change with it.
+- The catalog with `lang` (#895): no new phone or confirmation text. The new refusals are `next` texts for the model, in English like `chatRelayNext`.
+- German (#898) is still open, so there's nothing to translate here.
+- Narrower than written above: `ha_read` is refused below Manage everything (the table; Security's device-only `ha_read` is later work), and so are `ha_get`'s `dashboard` and `dashboards` (state only).
+- Open: every `media_player` service needs the skill `ha-nova:media`, which Use the home refuses, so media players don't work at Use the home yet.
 
 ## Decisions (maintainer, 2026-10-24)
 
