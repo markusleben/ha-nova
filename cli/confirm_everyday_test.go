@@ -184,10 +184,45 @@ func TestEverydayLineOnEverySurface(t *testing.T) {
 			t.Fatalf("exit %d %+v", exit, env.Error)
 		}
 		if p.sent[0]["title"] != "Change the Zigbee device “Rollladen Links Wohnzimmer”?" ||
-			!strings.HasPrefix(p.sent[0]["message"].(string), "Open and closed are swapped. This goes straight to a device or bridge, which HA NOVA can't check. ") {
+			!strings.HasPrefix(p.sent[0]["message"].(string), "Open and closed are swapped. This goes straight to a device or bridge, which HA NOVA can't check. ") ||
+			strings.Contains(p.sent[0]["message"].(string), "Zigbee2MQTT request") {
 			t.Fatalf("notification %q / %q", p.sent[0]["title"], p.sent[0]["message"])
 		}
 	})
+}
+
+// A generic line names its request on the phone too (nothing else there
+// says what it targets): the body opens with its detail, each value cut for
+// the phone, so two different requests never read the same.
+func TestGenericLinesNameTheirRequestOnThePhone(t *testing.T) {
+	mqtt := func(topic, payload string) []string {
+		return []string{"mqtt.publish", "--skill", "ha-nova:mqtt", "--data-file", draftFile(t, map[string]any{"topic": topic, "payload": payload})}
+	}
+	long := strings.Repeat("x", 400)
+	for _, c := range []struct {
+		args        []string
+		title, body string
+	}{
+		{mqtt("zigbee2mqtt/Haustür/set", `{"state":"UNLOCK"}`), "Send an MQTT message?", "MQTT topic “zigbee2mqtt/Haustür/set”, payload “{'state':'UNLOCK'}”. This goes straight to a device or bridge, which HA NOVA can't check. "},
+		{mqtt("zigbee2mqtt/Flurlampe/set", `{"state":"OFF"}`), "Send an MQTT message?", "MQTT topic “zigbee2mqtt/Flurlampe/set”, payload “{'state':'OFF'}”. This goes straight to a device or bridge, which HA NOVA can't check. "},
+		{mqtt("x/y", long), "Send an MQTT message?", "MQTT topic “x/y”, payload “" + strings.Repeat("x", 59) + "…” (400 characters). This goes straight"},
+		{[]string{"hassio.addon_restart", "--skill", "ha-nova:service-call", "--set", "addon=core_ssh", "--set", "extra=1"}, "Run a Supervisor action?",
+			"Supervisor action “hassio.addon_restart” (addon → “core_ssh”, extra → 1). This starts, stops, or changes an App, which HA NOVA can't check. "},
+		{[]string{"hassio.host_reboot", "--skill", "ha-nova:service-call", "--set", "force=true"}, "Run a Supervisor action?",
+			"Supervisor action “hassio.host_reboot” (force → true). This restarts the machine Home Assistant runs on, which HA NOVA can't check. "},
+	} {
+		h := newWriteHarness(t, newFakeHA())
+		p := usePhones(t, "mobile_app_iphone")
+		planned := h.plan(c.args...).Plan
+		p.answer = func(_, no string) []phoneEvent { return []phoneEvent{tap(no, "owner-id", "REMOTE")} }
+		if exit, env := h.run(runApplyCommand, "--plan", planned.ID); exit != 4 || env.Error.Code != "CONFIRM_DECLINED" || len(p.sent) == 0 {
+			t.Fatalf("%v: exit %d %+v", c.args, exit, env.Error)
+		}
+		title, body := p.sent[0]["title"].(string), p.sent[0]["message"].(string)
+		if title != c.title || len([]rune(title)) > phoneTitleLimit || !strings.HasPrefix(body, c.body) {
+			t.Errorf("%v: notification %q / %q", c.args[len(c.args)-1], title, body)
+		}
+	}
 }
 
 // A Supervisor call reads as what it does to the App or host, the App named

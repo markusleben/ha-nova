@@ -199,7 +199,7 @@ func rawSupervisorEveryday(s *relaySession, payload map[string]any) everydayLine
 	data, _ := payload["data"].(map[string]any)
 	kind, slug := rawSupervisorMatch(method, path)
 	line := everydayLine{goal: actionGoal{frame: "app", names: []string{appLabel(rawLang, appStoreName(s, slug), slug)}},
-		detail: confirmT(rawLang, "detail.supervisor_raw", "method", sayText(method, false), "path", sayDetail(rawLang, path, true))}
+		detail: confirmT(rawLang, "detail.supervisor_raw", "method", sayText(method, false), "path", sayDetail(rawLang, path, detailLimit, true))}
 	switch {
 	case kind == "install":
 		line.goal.verb = "install"

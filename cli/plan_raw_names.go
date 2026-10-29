@@ -121,7 +121,7 @@ func (n *rawNamer) deviceDelete(id any) everydayLine {
 		goal.args = map[string]string{"entities": confirmT(rawLang, "unit.entities", "count", entities)}
 	}
 	text, _ := id.(string)
-	return everydayLine{goal: goal, detail: confirmT(rawLang, "detail.device", "id", sayDetail(rawLang, text, true))}
+	return everydayLine{goal: goal, detail: confirmT(rawLang, "detail.device", "id", sayDetail(rawLang, text, detailLimit, true))}
 }
 
 // deviceEntities: what deleting the device takes with it: its child devices

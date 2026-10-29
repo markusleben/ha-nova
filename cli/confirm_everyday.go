@@ -18,12 +18,20 @@ import (
 
 // everydayLine: the goal every surface asks, what completes it (the
 // settings a change sets, or what follows from it: said after the goal, and
-// the phone body's first sentence), and the detail.
+// the phone body's first sentence), and the detail. The detail never goes
+// on the phone, except a generic line's: nothing else there names its
+// target, so phone opens the body with it, each value cut for the phone.
 type everydayLine struct {
 	goal   actionGoal
 	more   string
 	detail string
+	phone  string
 }
+
+const (
+	detailLimit     = 300 // runes of one value on a detail line
+	phoneValueLimit = 60  // runes of one value on the phone, as sayText cuts every other
+)
 
 // text: the line as the chat, window, and form say it.
 func (l everydayLine) text(lang string) string {
@@ -32,6 +40,10 @@ func (l everydayLine) text(lang string) string {
 	}
 	return confirmT(lang, "everyday.more", "action", l.goal.text(lang), "more", l.more)
 }
+
+// phoneOpening: the phone body's first sentence: what completes the goal,
+// or a generic line's request.
+func (l everydayLine) phoneOpening() string { return cmp.Or(l.more, l.phone) }
 
 // callEveryday: the everyday line of an mqtt.publish or hassio.* call; nil
 // for any other service, and for a call with targets (neither service takes
@@ -63,7 +75,7 @@ const zigbeeBridge = "zigbee2mqtt/bridge/request/"
 // JSON object with exactly the request's keys; else the generic line.
 func mqttEveryday(lang string, action planAction) everydayLine {
 	data := action.Data
-	generic := everydayLine{goal: actionGoal{verb: "mqtt_send"}, detail: mqttDetail(lang, data)}
+	generic := everydayLine{goal: actionGoal{verb: "mqtt_send"}, detail: mqttDetail(lang, data, detailLimit), phone: mqttDetail(lang, data, phoneValueLimit)}
 	for key, value := range data {
 		switch key {
 		case "topic", "payload":
@@ -91,7 +103,7 @@ func mqttEveryday(lang string, action planAction) everydayLine {
 		return generic
 	}
 	return everydayLine{goal: goal, more: more,
-		detail: confirmT(lang, "detail.zigbee", "request", sayText(request, true), "fields", detailFields(lang, "", body), "topic", sayDetail(lang, topic, true))}
+		detail: confirmT(lang, "detail.zigbee", "request", sayText(request, true), "fields", detailFields(lang, "", body, detailLimit), "topic", sayDetail(lang, topic, detailLimit, true))}
 }
 
 // zigbeeGoal: one bridge request's goal; ok is false for any request, key,
@@ -197,16 +209,16 @@ func zigbeeGoal(lang, request string, body map[string]any) (goal actionGoal, mor
 }
 
 // mqttDetail: the generic line's detail, the whole call: topic, payload,
-// and every other field as sent.
-func mqttDetail(lang string, data map[string]any) string {
-	parts := []string{confirmT(lang, "detail.mqtt", "topic", detailValue(lang, data["topic"]), "payload", detailValue(lang, data["payload"]))}
+// and every other field as sent, each value cut at limit.
+func mqttDetail(lang string, data map[string]any, limit int) string {
+	parts := []string{confirmT(lang, "detail.mqtt", "topic", detailValue(lang, data["topic"], limit), "payload", detailValue(lang, data["payload"], limit))}
 	for _, key := range sortedKeys(data) {
 		switch {
 		case key == "topic" || key == "payload":
 		case key == "retain" && data[key] == true:
 			parts = append(parts, confirmT(lang, "detail.retained"))
 		default:
-			parts = append(parts, confirmT(lang, "detail.field", "key", sayText(key, false), "value", detailValue(lang, data[key])))
+			parts = append(parts, confirmT(lang, "detail.field", "key", sayText(key, false), "value", detailValue(lang, data[key], limit)))
 		}
 	}
 	return strings.Join(parts, ", ")
@@ -229,10 +241,13 @@ func supervisorCallEveryday(lang string, s *relaySession, name string, action pl
 	case name == "host_shutdown" && len(action.Data) == 0:
 		return everydayLine{goal: actionGoal{verb: name}, more: confirmT(lang, "everyday.host_shutdown"), detail: confirmT(lang, "detail.supervisor_call", "service", service)}
 	}
-	if len(action.Data) == 0 {
-		return everydayLine{goal: actionGoal{verb: "supervisor_run"}, detail: confirmT(lang, "detail.supervisor_call", "service", service)}
+	run := func(limit int) string {
+		if len(action.Data) == 0 {
+			return confirmT(lang, "detail.supervisor_call", "service", service)
+		}
+		return confirmT(lang, "detail.supervisor_call_data", "service", service, "fields", detailFields(lang, "", action.Data, limit))
 	}
-	return everydayLine{goal: actionGoal{verb: "supervisor_run"}, detail: confirmT(lang, "detail.supervisor_call_data", "service", service, "fields", detailFields(lang, "", action.Data))}
+	return everydayLine{goal: actionGoal{verb: "supervisor_run"}, detail: run(detailLimit), phone: run(phoneValueLimit)}
 }
 
 // appLabel names an App by its name and slug, or by its slug alone when no
@@ -289,26 +304,26 @@ func appStoreName(s *relaySession, slug string) string {
 }
 
 // detailFields: "id → “Hall lamp”, options.invert_cover → true": nested
-// settings spelled by their path.
-func detailFields(lang, path string, fields map[string]any) string {
+// settings spelled by their path, each value cut at limit.
+func detailFields(lang, path string, fields map[string]any, limit int) string {
 	var parts []string
 	for _, key := range sortedKeys(fields) {
 		if nested, ok := fields[key].(map[string]any); ok && len(nested) > 0 {
-			parts = append(parts, detailFields(lang, path+key+".", nested))
+			parts = append(parts, detailFields(lang, path+key+".", nested, limit))
 			continue
 		}
-		parts = append(parts, confirmT(lang, "detail.field", "key", sayText(path+key, false), "value", detailValue(lang, fields[key])))
+		parts = append(parts, confirmT(lang, "detail.field", "key", sayText(path+key, false), "value", detailValue(lang, fields[key], limit)))
 	}
 	return strings.Join(parts, ", ")
 }
 
-// detailValue: a text quoted, anything else as JSON, defanged; up to 300
-// characters (sayDetail).
-func detailValue(lang string, value any) string {
+// detailValue: a text quoted, anything else as JSON, defanged and cut at
+// limit (sayDetail).
+func detailValue(lang string, value any, limit int) string {
 	if text, ok := value.(string); ok {
-		return sayDetail(lang, text, true)
+		return sayDetail(lang, text, limit, true)
 	}
-	return sayDetail(lang, detailText(value), false)
+	return sayDetail(lang, detailText(value), limit, false)
 }
 
 func detailText(value any) string {
@@ -320,13 +335,13 @@ func detailText(value any) string {
 }
 
 // sayDetail: a request's text on a detail line, defanged as sayText but
-// up to 300 characters; a longer one ends in "…" and states its length.
-func sayDetail(lang, s string, quote bool) string {
-	shown := sayTextUpTo(s, 300, quote)
+// up to limit characters; a longer one ends in "…" and states its length.
+func sayDetail(lang, s string, limit int, quote bool) string {
+	shown := sayTextUpTo(s, limit, quote)
 	switch n := len([]rune(s)); {
 	case shown == "" && quote:
 		return "“”"
-	case n > 300:
+	case n > limit:
 		return confirmT(lang, "detail.cut", "text", shown, "count", n)
 	}
 	return shown

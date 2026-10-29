@@ -91,8 +91,8 @@ func sayAsk(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) a
 			why = append(why, text)
 		}
 	}
-	if line := env.everyday; line != nil && line.more != "" { // what completes the title
-		why = append([]string{upperFirst(line.more)}, why...)
+	if line := env.everyday; line != nil && line.phoneOpening() != "" {
+		why = append([]string{upperFirst(line.phoneOpening())}, why...)
 	}
 	goal.why = strings.Join(why, ". ")
 	return goal
