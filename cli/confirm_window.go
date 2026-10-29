@@ -192,7 +192,7 @@ func askWindow(parent context.Context, message, lang string, wait time.Duration)
 // askWindowUntilSignal is askWindow without the ending: on SIGTERM, SIGINT,
 // or SIGHUP (one not ignored since start, as under nohup) it withdraws the
 // window and returns the signal, so the caller can tidy up (confirm_both.go
-// tells the phone) before endBySignal. SIGKILL can't be caught: on Linux
+// ends the phone's ask) before endBySignal. SIGKILL can't be caught: on Linux
 // the window gets Pdeathsig (confirm_window_linux.go); Windows' box lives
 // in this process. macOS: an osascript window outlives a SIGKILL until its
 // own timeout.
@@ -236,7 +236,7 @@ func askWindowUntilSignal(parent context.Context, message, lang string, wait tim
 
 // endBySignal ends the process by the signal that stopped a window, as it
 // would have without the window (exit 128+n), after one plain line.
-func endBySignal(ended os.Signal) {
+var endBySignal = func(ended os.Signal) {
 	if ended == nil {
 		return
 	}

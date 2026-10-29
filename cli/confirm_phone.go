@@ -199,16 +199,24 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 		all = append(all, target.Service)
 	}
 	// Every phone: a send still in flight at the deadline may land later.
-	// The result waits for an ask still in flight (bounded): a late ask would replace it.
-	reply = phoneReply{once: &sync.Once{}, tell: func(title, body string) {
+	// The result or the clear waits for an ask still in flight (bounded): a
+	// late ask would land after it. The tag is kept either way, so the next
+	// question clears whatever stays (a clear iOS didn't deliver).
+	end := func(body map[string]any) {
 		until := time.Now().Add(phoneTellSpan) // one bound for both: an MCP call stays under its 60 s
 		select {
 		case <-sending:
 		case <-time.After(phoneTellSpan):
 		}
 		notePhoneResult(s.paths, setup.owner, all, tag)
-		tellPhones(s, notify, all, phoneResultPayload(title, body, tag), until)
-	}}
+		tellPhones(s, notify, all, body, until)
+	}
+	reply = phoneReply{once: &sync.Once{},
+		tell: func(title, body string) { end(phoneResultPayload(title, body, tag)) },
+		clear: func() {
+			end(map[string]any{"message": "clear_notification", "data": map[string]any{"tag": tag, "priority": "high"}})
+		},
+	}
 	if len(sent) == 0 {
 		return phoneFailed, reply
 	}
