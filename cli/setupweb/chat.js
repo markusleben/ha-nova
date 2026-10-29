@@ -59,6 +59,28 @@ window.novaChat = (h) => {
     claudeNext(chat.phone_confirmed, 'chat-next', chat.state === 'page_on'),
     howTo('claude', 'setup.chat.claude_title', ['setup.chat.claude_1', 'setup.chat.claude_2', 'setup.chat.claude_3']),
     howTo('chatgpt', 'setup.chat.chatgpt_title', ['setup.chat.chatgpt_1', 'setup.chat.chatgpt_2', 'setup.chat.chatgpt_3'])];
+  // "Use another phone" with chat apps on: move them to that phone too? Then
+  // the phone asking now, then how it ended (setupPageChatMove).
+  const movePart = (m) => {
+    if (!m) return null;
+    const args = { old: m.from, phone: m.to, asks: m.phone || m.from };
+    if (m.state === 'offer') {
+      return el('div', { class: 'consent', id: 'chat-move' }, el('p', {}, t('setup.chat.move_offer', args)),
+        el('div', { class: 'actions' }, button(t('setup.chat.move_yes'), 'chat_move', 'ghost btn-small', 'yes', 'chat-move-yes'),
+          button(t('setup.chat.move_no'), 'chat_move', 'ghost btn-small', 'no', 'chat-move-no')));
+    }
+    if (m.state === 'run') {
+      const key = m.step === 'new'
+        ? { ios: 'setup.page.control.phone_waiting_ios', android: 'setup.page.control.phone_waiting_android' }[m.os] || 'setup.page.control.phone_waiting'
+        : 'setup.page.control.phone_moving';
+      return el('ul', { class: 'rows sub', role: 'status', id: 'chat-move' }, row('run', t(key, { old: m.from, phone: m.step === 'new' ? m.phone : m.to })));
+    }
+    const ended = { kept: 'setup.chat.move_kept', done: 'setup.chat.move_done', declined: 'setup.chat.move_declined', timeout: 'setup.chat.move_timeout', rejected: 'setup.chat.move_rejected',
+      changed: 'setup.chat.move_changed', busy: 'setup.chat.move_busy', unknown: 'setup.chat.move_unknown', gone: 'setup.chat.move_gone', unavailable: 'setup.chat.move_unavailable',
+      expired: 'setup.chat.move_expired', refused: 'setup.chat.move_refused' }[m.state] || 'setup.chat.move_failed';
+    const ok = m.state === 'done' || m.state === 'kept';
+    return el('p', { class: ok ? 'fine' : 'problem', role: ok ? 'status' : 'alert', id: 'chat-move' }, t(ended, args) + (m.lost ? ' ' + t('setup.chat.move_lost', args) : ''));
+  };
   // The guide's own-HTTPS-address part: a plain link, not a third button.
   const ownAddress = (href) => {
     const node = link(t('setup.chat.need_own'), href, 'ghost', 'chat-own');
@@ -86,7 +108,7 @@ window.novaChat = (h) => {
     switch (chat.state) {
       case 'on':
         return refocus(line(done(chat.problem), key, t(chat.problem ? 'setup.chat.page_on_short' : 'setup.chat.on_next'), [chat.problem ? progress : null,
-          problem(chat.problem), ...onParts(chat), el('p', { class: 'fine' }, t('setup.chat.off_hint_page'))], tagOn()));
+          problem(chat.problem), movePart(chat.move), ...onParts(chat), el('p', { class: 'fine' }, t('setup.chat.off_hint_page'))], tagOn()));
       case 'run':
         return el('li', { id: 'chat-run', ...focusAfter(['b-chat-on', 'b-chat-switch']) }, spinner(),
           el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t(chat.no_restart ? 'setup.chat.wait_now' : 'setup.chat.wait')), progress), el('span'));

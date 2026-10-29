@@ -45,11 +45,14 @@ var setupOwnerIngress *CloudIngressClient
 
 // chatAppsState is the App's answer (nova/src/http/handlers/chat-apps.ts).
 type chatAppsState struct {
-	Available  bool    `json:"available"`
-	Enabled    bool    `json:"enabled"`
-	Unfinished bool    `json:"unfinished"`
-	OwnerPhone *string `json:"owner_phone"`
-	Restarting bool    `json:"restarting"`
+	Available    bool              `json:"available"`
+	Enabled      bool              `json:"enabled"`
+	Unfinished   bool              `json:"unfinished"`
+	OwnerPhone   *string           `json:"owner_phone"`
+	OwnerPhoneID string            `json:"owner_phone_id"` // that phone's Home Assistant device id (an App with phone_change)
+	Restarting   bool              `json:"restarting"`
+	PhoneChange  bool              `json:"phone_change"` // this App moves the chat-app phone (owner_phone_move)
+	PhoneJob     *chatAppsPhoneJob `json:"phone_job"`    // the last move started through this API
 }
 
 // chatAppsRefused: the App answered with an error code (HA_TOO_OLD,
@@ -213,62 +216,6 @@ func readChatAppsOffer(client *CloudIngressClient, paths runtimePaths, linkOrigi
 	return offer, true
 }
 
-// handOverOwnerPhone gives the App the owner's phone linked on this computer
-// while chat apps are on and the App has none yet (spec §11.4: the owner taps
-// once). The state's phone is updated when it took it; err when it didn't.
-func handOverOwnerPhone(client *CloudIngressClient, paths runtimePaths, owner string, state *chatAppsState) error {
-	phone := ownerChatPhone(paths, owner, *state)
-	if phone == nil || !state.Enabled {
-		return nil
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	fresh, err := chatAppsCall(ctx, client, nil) // the NOVA page may have set one meanwhile
-	if err != nil {
-		return err
-	}
-	if fresh.OwnerPhone != nil {
-		state.OwnerPhone = fresh.OwnerPhone
-		return nil
-	}
-	if _, err := chatAppsCall(ctx, client, map[string]any{"owner_phone": phone}); err != nil {
-		return err
-	}
-	name := phone.Name
-	state.OwnerPhone = &name
-	return nil
-}
-
-// chatAppsPhoneName names the phone that will confirm for chat apps: the
-// App's own, else the owner's link on this computer that goes along; ""
-// means a code in the chat.
-func chatAppsPhoneName(paths runtimePaths, owner string, state chatAppsState) string {
-	if state.OwnerPhone != nil {
-		return terminalSafeName(*state.OwnerPhone)
-	}
-	if phone := ownerChatPhone(paths, owner, state); phone != nil {
-		return phone.Name
-	}
-	return ""
-}
-
-// ownerChatPhone is the owner's phone linked on this computer, offered as
-// chat apps' phone too (spec §11.4: the owner taps once). nil when the link
-// isn't the owner's own or the App has one already.
-func ownerChatPhone(paths runtimePaths, owner string, state chatAppsState) *chatAppsPhone {
-	links, ok := phoneLinks(paths)
-	entry, found := links[owner]
-	if !ok || !found || owner == "" || state.OwnerPhone != nil || entry.link == nil {
-		return nil
-	}
-	l := entry.link
-	name := terminalSafeName(l.Name)
-	if l.UserID != owner || !chatAppsService.MatchString(l.Service) || !chatAppsDeviceID.MatchString(l.DeviceID) || name == "" || len(name) > 100 {
-		return nil
-	}
-	return &chatAppsPhone{Service: l.Service, DeviceID: l.DeviceID, Name: name}
-}
-
 // turnOnChatApps asks the App to turn chat apps on. allowRestart: the caller
 // showed the setup.chat.restart line and got the click,
 // the restart consent; without it the App refuses a restart that has become
@@ -343,7 +290,7 @@ func turnOnChatApps(ctx context.Context, client *CloudIngressClient, paths runti
 	case !result.ready:
 		result.phoneFailed = true // Home Assistant isn't back: running chat-apps on again hands it over
 	default:
-		_, err := call(map[string]any{"owner_phone": phone}, 30*time.Second)
+		_, err := call(map[string]any{"owner_phone": phone}, 45*time.Second) // the App tries it again for 15 s
 		result.phoneStored = err == nil
 		result.phoneFailed = err != nil
 	}

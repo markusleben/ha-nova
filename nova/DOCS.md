@@ -196,6 +196,12 @@ and ChatGPT (web, on a computer), without a computer running HA NOVA. They are o
   deletes wait for a tap on the owner's linked phone. No phone? The owner types
   a four-digit code in the chat; the AI can see that code too. You can turn off codes in the chat (risky changes
   then need the phone) or let chat apps only read.
+- **Another phone:** NOVA page → Chat apps → "Change phone…" or "Stop phone
+  confirmations". The phone that confirms now asks first. A phone removed from
+  Home Assistant can be replaced there without it.
+- **A lost phone:** until you remove it in Home Assistant (Settings → Devices &
+  services → Mobile App), chat apps refuse changes that need your OK. Then link
+  a new phone on the NOVA page.
 - **Turn off:** NOVA page → Chat apps → "Turn off chat apps". It takes effect
   at once, without a restart: the bridge stops, its own access is signed out,
   and `custom_components/ha_nova` is removed. Claude or ChatGPT hold a Home
@@ -253,7 +259,7 @@ A healthy answer looks like this:
   "data": {
     "status": "ok",
     "ha_ws_connected": true,
-    "version": "0.12.1",
+    "version": "0.12.2",
     "uptime_s": 3621
   }
 }

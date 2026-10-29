@@ -68,17 +68,22 @@ echo ""
 # and to 10970 for the Supervisor route (docs/work/2026-10-26-supervisor-role-spec.md,
 # Decisions 2026-10-27): the static POST /supervisor allowlist, App-option
 # redaction, the merge that keeps stored App credentials in the Relay, bounded
-# log reads, and the Relay's own /ws and /core Supervisor deny, with its review fixes and the per-App write queue: about 10957.
+# log reads, and the Relay's own /ws and /core Supervisor deny, with its review fixes and the per-App write queue: about 10957;
+# and to 11370 for the chat-app phone (docs/work/2026-10-24-chat-app-phone-move-spec.md): the App's
+# loopback client for the bridge's control channel with its own secret, owner_phone through the bridge,
+# the machine API's move and its last job, and the NOVA page's Link, Change, and Stop, whose forms alone
+# send override, with its review fixes (a lost answer to a change kept apart from "nothing changed",
+# the bridge's answers checked, a first phone tried again right after a turn-on): about 11353.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 10970 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–10970 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 11370 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–11370 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–10970 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–11370 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──

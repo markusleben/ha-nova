@@ -69,7 +69,7 @@ func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func
 	offer.state.Enabled = true
 	if result.phoneStored {
 		name := phone.Name
-		offer.state.OwnerPhone = &name
+		offer.state.OwnerPhone, offer.state.OwnerPhoneID = &name, phone.DeviceID
 	}
 	if result.phoneFailed {
 		c.Problem = setupPageText("setup.chat.problem_phone")
@@ -128,17 +128,131 @@ func (f *setupFlow) pageChatPhone(c *setupPageChat, offer *chatAppsOffer) {
 	c.Phone = chatAppsPhoneName(f.paths, setupSignedInUser, offer.state)
 }
 
+// setupPageChatMove: after "Use another phone" with chat apps on, the offer
+// to move them to the phone linked here too (spec: chat-app phone move),
+// then that move.
+type setupPageChatMove struct {
+	State string `json:"state"`           // offer, run, kept (Keep), or how it ended: done, declined, timeout, rejected, changed, failed, busy, unknown, gone/unavailable (From can't answer), expired, refused
+	From  string `json:"from"`            // the phone chat apps ask now
+	To    string `json:"to"`              // the phone linked here
+	Phone string `json:"phone,omitempty"` // run: the phone asking now; at the end: the one that ended it
+	OS    string `json:"os,omitempty"`    // Phone's platform: how to tap
+	Step  string `json:"step,omitempty"`  // run: old (From asks), new (To asks)
+	Lost  bool   `json:"lost,omitempty"`  // From didn't answer: if it's lost, how to go on without it
+	id    string // To's Home Assistant device id
+}
+
+// chatAppsPhoneChangeAppVersion: the first NOVA App that moves the chat-app
+// phone. A re-run has no owner sign-in to read phone_change with.
+const chatAppsPhoneChangeAppVersion = "0.12.2"
+
 // pageChatMoved: after "Use another phone". Chat apps that are on keep the
-// phone the App holds for them (the move is this computer's); the row says
-// so (nothing can change that phone yet). Still off: the consent names the phone now linked.
+// phone the App holds for them. An App that can move it (phone_change)
+// offers that, with this run's owner session; a re-run without one points
+// to the NOVA page. An older App can't: the row says so. Still off: the
+// consent names the phone now linked.
 func (f *setupFlow) pageChatMoved(c *setupPageChat, offer *chatAppsOffer) {
+	if c == nil || (c.State == "on" || c.State == "page_on") && c.Problem != nil { // a problem shown stays: it says what to do
+		return
+	}
+	phone, old := ownerComputerPhone(f.paths, setupSignedInUser), offer.state.OwnerPhone
+	c.Move = nil // an earlier move's line was for the phone linked before
 	switch {
-	case c == nil:
-	case (c.State == "on" || c.State == "page_on") && c.Problem == nil: // a problem shown stays: it says what to do
+	case c.State == "page_on" && c.PageMove:
+		c.Problem = setupPageText("setup.chat.phone_page")
+	case c.State == "on" && old == nil: // the App has none: the phone linked here goes along, as on a first link
+		f.pageChatPhone(c, offer)
+	case c.State == "page_on", c.State == "on" && (!offer.state.PhoneChange || phone == nil):
 		c.Problem = setupPageText("setup.chat.phone_kept")
-	default:
+	case c.State == "on" && phone.DeviceID != offer.state.OwnerPhoneID:
+		c.Move = &setupPageChatMove{State: "offer", From: terminalSafeName(*old), To: phone.Name, id: phone.DeviceID}
+	case c.State != "on":
 		c.Phone = chatAppsPhoneName(f.paths, setupSignedInUser, offer.state)
 	}
+}
+
+// pageChatMove: the answer to the move offer. Yes moves chat apps to the
+// phone linked here (the phone they ask now OKs it first); the row shows
+// each step, then how it ended. Keep leaves them.
+func (f *setupFlow) pageChatMove(c *setupPageChat, offer *chatAppsOffer, yes bool, show func()) {
+	m := c.Move
+	if !yes {
+		m.State = "kept"
+		return
+	}
+	m.State, m.Step, m.Phone, m.OS = "run", "old", m.From, ""
+	show()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt) // Ctrl+C: as in step 3's wait
+	defer stop()
+	job, err := moveChatAppsPhone(ctx, setupOwnerIngress, m.id, func(j chatAppsPhoneJob) {
+		m.Step, m.Phone, m.OS = j.Step, terminalSafeName(j.Phone), j.Platform
+		show()
+	})
+	if ctx.Err() != nil {
+		fmt.Fprintf(f.ui.termOut(), "  %s\n", setupT("setup.chat.move_quit"))
+		f.pageQuit = true // the move may go on in the App; setup ends without the extras
+		return
+	}
+	code := ""
+	if refused := (*chatAppsRefused)(nil); errors.As(err, &refused) {
+		code = refused.code
+	}
+	m.Step, m.OS = "", ""
+	switch {
+	case err == nil && slices.Contains([]string{"done", "declined", "timeout", "rejected", "changed"}, job.Status):
+		m.State, m.Phone = job.Status, terminalSafeName(job.Phone)
+	case err == nil && job.Status == "lost": // the App or its bridge restarted: how it ended is unknown
+		m.State = "unknown"
+	case err == nil: // failed: nothing changed
+		m.State, m.Phone = "failed", terminalSafeName(job.Phone)
+	case code == "PHONE_ALREADY_LINKED": // the NOVA page linked it meanwhile
+		m.State, m.Phone = "done", m.To
+	case code == "PHONE_CHANGE_RUNNING":
+		m.State = "busy"
+	case code == "OLD_PHONE_GONE": // only the NOVA page replaces it
+		m.State = "gone"
+	case code == "OLD_PHONE_UNAVAILABLE":
+		m.State = "unavailable"
+	case IsCloudErrorCode(err, CloudErrOuterSessionExpired):
+		m.State = "expired"
+	case errors.Is(err, errChatAppsUnknown):
+		m.State = "unknown"
+	default: // refused before anyone was asked, or not reached
+		fmt.Fprintf(f.ui.termOut(), "  %s\n", setupT("setup.chat.error", "error", err))
+		m.State = "refused"
+	}
+	m.Lost = err == nil && job.Step == "old" && (m.State == "timeout" || m.State == "failed")
+	if m.Phone == "" {
+		m.Phone = m.From
+	}
+	if m.State == "done" {
+		offer.state.OwnerPhone, offer.state.OwnerPhoneID = &m.To, m.id
+		f.pageChatNote(c, offer.state)
+	}
+}
+
+// snapshot: a copy the page encodes while the row keeps changing its own.
+func (c *setupPageChat) snapshot() *setupPageChat {
+	row := *c
+	row.Rows = slices.Clone(c.Rows)
+	if c.Move != nil {
+		move := *c.Move
+		row.Move = &move
+	}
+	return &row
+}
+
+// accepts: the row's own actions while setup waits.
+func (c *setupPageChat) accepts() []string {
+	switch {
+	case c.needsLink():
+		return []string{"chat_recheck"}
+	case c != nil && c.State == "offer":
+		return []string{"chat"}
+	case c != nil && c.Move != nil && c.Move.State == "offer":
+		return []string{"chat_move"}
+	}
+	return nil
 }
 
 // chatAppsOffOnPage: the row shows chat apps off (or no row). On without an

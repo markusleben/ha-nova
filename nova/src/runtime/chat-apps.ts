@@ -12,6 +12,7 @@ import { BRIDGE_INSTALL_ID } from "../security/pairing-metadata.js"; // re-minti
 import { readPrivateFileSync, writeFileAtomicSync } from "../storage/atomic-file.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 import { ChatAppsError, chatAppFilesPresent, clearChatAppsInHA, customComponentsMissing, installIntegration, integrationOwner, removeEmptyCustomComponents, removeIntegration, SERVICE } from "./chat-apps-ha.js";
+import { CONTROL_PORT, createChatPhoneControl, type ChatPhoneControl } from "./chat-phone-control.js";
 
 // Chat apps (spec docs/work/2026-10-18-onboarding-0.27-spec.md §11; contract
 // docs/work/2026-10-19-chat-bridge-contract.md, "App side"): the owner's
@@ -25,12 +26,6 @@ const SECRET = /^[0-9a-f]{64}$/;
 
 export { ChatAppsError, chatAppFilesPresent };
 
-export interface PhoneLinkInput {
-  service: string;
-  device_id: string;
-  name: string;
-}
-
 export interface ChatAppsStatus {
   available: boolean;
   enabled: boolean;
@@ -39,6 +34,7 @@ export interface ChatAppsStatus {
   chatCodes: boolean;
   allowedUsers: string[] | null; // null: the owner only
   ownerPhone: string | null; // the owner's linked phone's name
+  ownerPhoneId: string | null; // and its Home Assistant device id
 }
 
 export interface ChatApps {
@@ -46,7 +42,7 @@ export interface ChatApps {
   turnOn(allowRestart: boolean): Promise<{ restart: boolean }>;
   turnOff(): Promise<void>;
   setSwitches(change: { readOnly?: boolean; chatCodes?: boolean }): void;
-  setOwnerPhone(ownerId: string, link: PhoneLinkInput | null): void;
+  phone: ChatPhoneControl; // every chat-app phone change goes through the bridge
   restartSoon(): void;
   boot(): Promise<void>;
   restartBridge(): void;
@@ -111,15 +107,17 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
   const available = (): boolean =>
     existsSync(deps.binary) && existsSync(join(deps.integrationSource, "manifest.json"));
 
-  // The 256-bit secret the integration sends: made once, kept across restarts
-  // and updates; only turning chat apps off deletes it.
-  const ensureSecret = (): string => {
-    const current = readPrivateFileSync(file("secret"), 128)?.toString("utf8") ?? "";
+  // The 256-bit secret the integration sends, and the control channel's own
+  // (control-secret, which Home Assistant never holds): made once (the second
+  // also by a start-up after an update), kept across restarts and updates;
+  // only turning chat apps off deletes them.
+  const ensureSecret = (name = "secret"): string => {
+    const current = readPrivateFileSync(file(name), 128)?.toString("utf8") ?? "";
     if (SECRET.test(current)) {
       return current;
     }
     const secret = randomBytes(32).toString("hex");
-    writeFileAtomicSync(file("secret"), secret);
+    writeFileAtomicSync(file(name), secret);
     return secret;
   };
 
@@ -153,13 +151,14 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
       return;
     }
     ensureCredential();
+    ensureSecret("control-secret");
     mkdirSync(file("home"), { recursive: true, mode: 0o700 });
     // A minimal environment: the App's Supervisor and Home Assistant tokens
     // never reach the bridge; it talks to Home Assistant only through the Relay.
     const proc = spawn(
       deps.binary,
-      ["serve", "--listen", `0.0.0.0:${BRIDGE_PORT}`, "--data-dir", bridgeDir,
-        "--secret-file", file("secret"), "--relay-file", file("relay.json")],
+      ["serve", "--listen", `0.0.0.0:${BRIDGE_PORT}`, "--data-dir", bridgeDir, "--secret-file", file("secret"), "--relay-file", file("relay.json"),
+        "--control-listen", `127.0.0.1:${CONTROL_PORT}`, "--control-secret-file", file("control-secret")],
       { stdio: ["ignore", "inherit", "inherit"], env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: file("home"), HA_NOVA_NO_BROWSER: "1", ...(process.env.TZ ? { TZ: process.env.TZ } : {}) } },
     );
     child = proc;
@@ -235,6 +234,7 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
       }
     }
     rmSync(file("relay.json"), { force: true });
+    rmSync(file("control-secret"), { force: true });
     if (unreadable !== null) {
       throw unreadable;
     }
@@ -311,7 +311,7 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
     status(ownerId) {
       const state = load();
       const current = settings();
-      const name = readJson<Record<string, { name?: unknown } | null>>(join(bridgeDir, "phone-links.json"), {})[ownerId]?.name;
+      const link = readJson<Record<string, { name?: unknown; device_id?: unknown } | null>>(join(bridgeDir, "phone-links.json"), {})[ownerId];
       return {
         available: available(),
         enabled: state.enabled,
@@ -319,7 +319,8 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
         readOnly: current.read_only === true,
         chatCodes: current.chat_codes !== false,
         allowedUsers: current.allowed_users ?? null,
-        ownerPhone: typeof name === "string" ? name : null,
+        ownerPhone: typeof link?.name === "string" ? link.name : null,
+        ownerPhoneId: typeof link?.name === "string" && typeof link.device_id === "string" ? link.device_id : null,
       };
     },
 
@@ -379,15 +380,10 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
       writeJson(join(bridgeDir, "chat-apps.json"), next);
     },
 
-    setOwnerPhone(ownerId, link) {
-      const links = readJson<Record<string, unknown>>(join(bridgeDir, "phone-links.json"), {});
-      if (link === null) {
-        delete links[ownerId];
-      } else {
-        links[ownerId] = { service: link.service, device_id: link.device_id, user_id: ownerId, name: link.name };
-      }
-      writeJson(join(bridgeDir, "phone-links.json"), links);
-    },
+    phone: createChatPhoneControl(() => {
+      const secret = readPrivateFileSync(file("control-secret"), 128)?.toString("utf8") ?? "";
+      return SECRET.test(secret) ? secret : null;
+    }),
 
     // homeassistant.restart checks the configuration again before it stops.
     // The call itself is cut when Home Assistant goes down, so only an answer

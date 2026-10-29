@@ -61,7 +61,7 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain("**Setup says which Claude gets HA NOVA.** Claude Code is the claude command and the Code tab in Claude Desktop.");
     expect(stableNotes).toContain("**Setup explains the owner sign-in.** The owner connects each computer once");
     expect(stableNotes).toContain("**Disabling a lock's device is refused.**");
-    // App 0.12.1 carries the 0.28.0 chat bridge; its tools changed, so ChatGPT needs a Refresh and Claude asks once more,
+    // App 0.12.2 carries the 0.28.0 chat bridge; its tools changed, so ChatGPT needs a Refresh and Claude asks once more,
     // and "Always allow" keeps its phone condition there too (0.28 review).
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
     expect(stableNotes).toContain("Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.");

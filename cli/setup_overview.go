@@ -92,7 +92,7 @@ func (f *setupFlow) setupOverview(ctl setupPageControl, remote bool) []setupOver
 			add("chat", "unknown", setupT("setup.chat.key"), setupPageText("setup.overview.chat_wait"), "chat", "")
 		} else if chat.State == "on" || chat.State == "page_on" || chat.State == "noaddress" && chat.Problem != nil {
 			state, msg := "ok", setupPageText("setup.overview.chat_on")
-			if chat.Problem != nil && chat.Problem.Key != "setup.chat.phone_kept" && chat.Problem.Key != "setup.chat.problem_phone" {
+			if chat.Problem != nil && chat.Problem.Key != "setup.chat.phone_kept" && chat.Problem.Key != "setup.chat.phone_page" && chat.Problem.Key != "setup.chat.problem_phone" {
 				state, msg = "unknown", setupPageText("setup.overview.chat_problem")
 			}
 			add("chat", state, setupT("setup.chat.key"), msg, "chat", "ha-nova chat-apps status")

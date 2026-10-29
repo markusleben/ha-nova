@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.12.2] - 2026-10-29
+
+### Added
+- Chat apps: change the phone that confirms, or stop phone confirmations, on the NOVA page (Chat apps, then "Change phone…" or "Stop phone confirmations"). The phone that confirms now asks first. A phone removed from Home Assistant can be replaced there without it, and a first phone can be linked there too. Setup offers the same move after "Use another phone". (#894)
+
+### Changed
+- Only the chat-app bridge changes which phone confirms for chat apps, through its own channel inside the App, with a secret Home Assistant never holds. (#894)
+- Chat apps now run HA NOVA 0.28.0 with these changes.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.0 ask you to update this App.
+
 ## [Relay 0.12.1] - 2026-10-28
 
 ### Added

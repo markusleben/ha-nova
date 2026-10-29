@@ -6,10 +6,7 @@ import {
   createCloudDeviceRevokeSelfHandler,
   createCloudInfoHandler,
 } from "../http/handlers/cloud.js";
-import {
-  createChatAppsGetHandler,
-  createChatAppsPostHandler,
-} from "../http/handlers/chat-apps.js";
+import { createChatAppsHandlers } from "../http/handlers/chat-apps.js";
 import {
   createNovaActionHandler,
   createNovaPageHandler,
@@ -58,9 +55,9 @@ export function createIngressRoutes(deps: IngressListenerDeps): {
   };
   registerOwnerRoutes(router, policies, deps, fetchAuthUsers);
   if (deps.chatApps !== undefined) {
-    const chat = { fetchAuthUsers, logger: deps.logger, chatApps: deps.chatApps };
-    registerIngressRoute(router, policies, "GET", "/chat-apps/v1/state", machine("none"), createChatAppsGetHandler(chat));
-    registerIngressRoute(router, policies, "POST", "/chat-apps/v1/state", machine("json"), createChatAppsPostHandler(chat));
+    const chat = createChatAppsHandlers({ fetchAuthUsers, logger: deps.logger, chatApps: deps.chatApps });
+    registerIngressRoute(router, policies, "GET", "/chat-apps/v1/state", machine("none"), chat.get);
+    registerIngressRoute(router, policies, "POST", "/chat-apps/v1/state", machine("json"), chat.post);
   }
   registerCloudCleanupRoutes(router, policies, deps);
   // Sign-in pairing yields local devices, so pair v2 serves it with or without
