@@ -77,8 +77,10 @@ func phoneButton(verb string) string {
 	return verb
 }
 
-func phoneRequested() string {
-	if chatCall != nil { // ha-nova serve: the host is the NOVA App, not the user's computer
+func phoneRequested() string { return phoneRequestedBy(chatCall != nil) }
+
+func phoneRequestedBy(chat bool) string {
+	if chat { // ha-nova serve: the host is the NOVA App, not the user's computer
 		return "Requested in your AI chat app."
 	}
 	return "Requested by “" + phoneHost() + "”."
@@ -196,7 +198,7 @@ func phonePayload(ask phoneAsk, platform, tag, ok, no string, deadline time.Time
 	case ask.unlock:
 		confirm["authenticationRequired"] = true
 	}
-	hint := phoneHint(platform, ask.button, ask.body != phoneRequested())
+	hint := phoneHint(platform, ask.button, ask.body != phoneRequestedBy(true) && ask.body != phoneRequestedBy(false)) // never chatCall: ha-nova serve sends outside the verb lock
 	message := ask.body + " " + hint
 	if platform == phoneAndroid { // a collapsed Android notification shows one line of text: the hint first
 		message = hint + " " + ask.body
