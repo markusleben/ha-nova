@@ -157,10 +157,9 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		if err := checkArguments(tool.schema, params.Arguments); err != nil {
 			return invalidArguments(tool.name, err), nil
 		}
-		if refusal := srv.chatRefusal(tool); refusal != nil { // ha-nova serve: the owner's read-only switch
-			return refusal, nil
-		}
-		if refusal := srv.chatAdminRefusal(tool.name, params.Arguments); refusal != nil { // ha-nova serve: config plans for administrators
+		what := srv.chatWhat(tool.name, params.Arguments)                    // ha-nova serve: a change's activity line
+		if refusal := srv.chatGate(tool, params.Arguments); refusal != nil { // ha-nova serve: switches and levels
+			srv.noteChange(tool.name, what, refusal)
 			return refusal, nil
 		}
 		if tool.name == mcpSkillTool.name { // offline: no verb, no lock
@@ -181,10 +180,12 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		if err != nil {
 			return invalidArguments(tool.name, err), nil
 		}
-		if waited := srv.chatApply(tool.name, params.Arguments, argv); waited != nil { // ha-nova serve: a phone plan
+		if waited := srv.chatApply(tool.name, params.Arguments, argv); waited != nil { // ha-nova serve: a phone plan (its job notes it)
 			return waited, nil
 		}
-		return srv.runVerb(tool.name, answered, req.forms, func() int { return tool.run(srv.paths, pinServer(tool.name, argv, srv.pin)) }), nil
+		result := srv.runVerb(tool.name, answered, req.forms, func() int { return tool.run(srv.paths, pinServer(tool.name, argv, srv.pin)) })
+		srv.noteChange(tool.name, what, result)
+		return result, nil
 	}
 	return nil, &rpcError{Code: rpcInvalidParams, Message: "unknown tool: " + params.Name}
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,6 +31,12 @@ type chatPolicy struct {
 	codes    bool   // chat codes allowed (owner switch)
 	readOnly bool   // chat apps can only read (owner switch)
 	bridge   *chatBridge
+	// level: what this user may do now (mcp_serve_levels.go), the lower of
+	// granted (the owner's choice; Manage everything when none) and their
+	// role's cap. Zero: not allowed (a control job's look at another user).
+	level, granted, role chatLevel
+	name, ownerName      string // their name and the owner's, as Home Assistant lists them
+	owner                bool   // this user is the Home Assistant owner
 }
 
 var chatCall *chatPolicy
@@ -40,11 +47,34 @@ var chatCall *chatPolicy
 const chatAskSpan = 3 * time.Minute
 
 const (
-	chatCodesOffWhy  = "this change needs a tap on the user's linked phone; no phone is linked for their Home Assistant user, and chat codes are turned off"
-	chatCodesOffNext = "Tell the user nothing changed: this change needs a tap on their phone. They link a phone on their computer (`ha-nova setup confirm-phone`, then `ha-nova chat-apps on`), then ask again; or they make this change in Home Assistant itself. Never ask them for a code."
 	chatRelayNext    = "Tell the user nothing changed: HA NOVA in Home Assistant can't reach its Relay right now. They try again in a moment; if it keeps failing, the Home Assistant owner checks the NOVA App (Settings → Apps). Never suggest a terminal command."
-	chatPhoneMissing = "Tell the user nothing changed: HA NOVA can't use the phone linked to their Home Assistant user right now (the phone's Home Assistant app must be signed in with their own account, and that account must be a Home Assistant administrator). They check that phone's Home Assistant app, or make this change in Home Assistant itself. Never ask them for a code."
+	chatPhoneMissing = "Tell the user nothing changed: HA NOVA can't use the phone linked to their Home Assistant user right now (the phone's Home Assistant app must be signed in with their own account, and the owner's HA NOVA page must still let them confirm on a phone). They check that phone's Home Assistant app, or make this change in Home Assistant itself. Never ask them for a code."
 )
+
+// chatCodesOffWhy and chatCodesOffNext: a typed plan, no phone linked, and
+// no chat code for p's user: the owner turned chat codes off, or the
+// user's level is below Manage everything (the model sees a chat code).
+func chatCodesOffWhy(p *chatPolicy) string {
+	if p != nil && p.level < levelManage {
+		return "this change needs a tap on the user's own linked phone; none is linked, and HA NOVA never uses a chat code at this user's level"
+	}
+	return "this change needs a tap on the user's linked phone; no phone is linked for their Home Assistant user, and chat codes are turned off"
+}
+
+func chatCodesOffNext(p *chatPolicy) string {
+	link := "They link their phone on the HA NOVA page in Home Assistant (Chat apps), then ask again"
+	if p != nil && !p.owner {
+		owner := "the Home Assistant owner"
+		if p.ownerName != "" {
+			owner = "“" + p.ownerName + "”"
+		}
+		link = "They ask " + owner + " to link their phone on the HA NOVA page, then ask again"
+	}
+	if p != nil && p.level < levelManage {
+		return "Tell the user nothing changed: this needs a tap on their phone, and none is linked yet. " + link + ". Never ask them for a code."
+	}
+	return "Tell the user nothing changed: this change needs a tap on their phone. " + link + "; or they make this change in Home Assistant itself. Never ask them for a code."
+}
 
 // phoneMissingStep: what to do when the linked phone can't be asked.
 func phoneMissingStep() string {
@@ -57,7 +87,7 @@ func phoneMissingStep() string {
 // codeChannel: where a typed plan's code goes when no phone asks.
 func codeChannel() string {
 	switch {
-	case chatCall != nil && !chatCall.codes:
+	case chatCall != nil && !chatCall.chatCodes(): // no chat code below Manage everything
 		return channelChatOff
 	case chatCall != nil:
 		return channelChat
@@ -168,6 +198,7 @@ type chatJob struct {
 	done   chan struct{}
 	lang   string                 // the plan's, read before its seal is checked: one this binary speaks
 	result map[string]any         // never handed out itself: each response gets its own copy (reply adds fields)
+	what   string                 // the plan's service or kind, for its activity line (noted once, by the job)
 	ended  time.Time              // under bridge.mu
 	tapped atomic.Bool            // the phone answered; apply may be running
 	tap    atomic.Pointer[string] // how to answer on the phone asked (phoneTapLine), once known
@@ -186,8 +217,17 @@ func (srv *mcpServer) chatApply(name string, args map[string]json.RawMessage, ar
 		return nil
 	}
 	plan, err := readPlanFile(filepath.Join(planDir(srv.paths), id+".json")) // this user's plans only
-	if err == nil && plan.Tier == tierTyped.String() && plan.Channel == channelChat && !c.codes {
-		return chatStopped(name, channelRefusal(channelChatOff, func() string { return textLang(plan) }))
+	what := "plan"
+	if err == nil {
+		what = planWhat(plan)
+	}
+	refuse := func(failure *verbFailure) map[string]any { // refused before any job: noted here
+		result := chatStopped(name, failure)
+		srv.noteChange(name, what, result)
+		return result
+	}
+	if err == nil && plan.Tier == tierTyped.String() && plan.Channel == channelChat && !c.chatCodes() {
+		return refuse(refusedWith("CONFIRM_UNAVAILABLE", chatCodesOffWhy(c), chatCodesOffNext(c)))
 	}
 	var noSnapshot bool
 	_ = json.Unmarshal(args["no_snapshot"], &noSnapshot)
@@ -206,11 +246,11 @@ func (srv *mcpServer) chatApply(name string, args map[string]json.RawMessage, ar
 			case old.ended.IsZero() && strings.HasPrefix(k, c.user+"/"): // one open ask per user: never a stack of notifications
 				b.mu.Unlock()
 				open, _, _ := strings.Cut(strings.TrimPrefix(k, c.user+"/"), "/")
-				return chatStopped(name, refusedWith("CONFIRM_PENDING", "another change ("+open+") is still waiting for a tap on the phone",
+				return refuse(refusedWith("CONFIRM_PENDING", "another change ("+open+") is still waiting for a tap on the phone",
 					fmt.Sprintf("Tell the user nothing changed yet: their phone still has an open HA NOVA confirmation. Call ha_apply with plan_id %s to wait for that one first (it sends no new notification), then apply this plan.", open)))
 			}
 		}
-		job = &chatJob{done: make(chan struct{}), lang: confirmLanguage(plan.Lang)}
+		job = &chatJob{done: make(chan struct{}), lang: confirmLanguage(plan.Lang), what: what}
 		b.jobs[key] = job
 		go srv.phoneJob(job, argv)
 	}
@@ -262,26 +302,31 @@ func (srv *mcpServer) phoneJob(job *chatJob, argv []string) {
 		}
 		return finishApply(srv.paths, req, env, exit, asked)
 	})
-	if a == nil {
+	if a == nil { // refused before the phone was asked (an expired plan, a phone gone)
 		job.result = result
+		srv.chat.bridge.noteChange(srv.chat, "ha_apply", job.what, "phone", result)
 		return
 	}
 	tap := a.tapLine(textLang(a.plan))
 	job.tap.Store(&tap)
 	a.wait(nil)
 	job.tapped.Store(a.answer != phoneNoAnswer)
-	// The owner may have removed this user or set read only meanwhile, or
-	// the user may no longer administer Home Assistant (a config plan).
-	now, _, why := srv.chat.bridge.policyFor(srv.chat.user)
+	// The owner may have removed this user, lowered their level, or set read
+	// only meanwhile, or the user's Home Assistant role may have changed:
+	// read again, and apply's recompute checks the call with that level.
+	now, code, why := srv.chat.bridge.policy(srv.chat.user, true)
 	id, _ := json.Marshal(req.id)
 	demoted := srv.configAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id})
 	job.result = srv.runVerb("ha_apply", "", false, func() int {
 		var env verbEnvelope
 		var exit int
 		var asked bool
+		now = now.reread() // under the lock: the owner's settings as they are now
 		switch {
 		case a.answer != phoneConfirmed:
 			env, exit, asked = a.finish()
+		case now == nil && code == http.StatusServiceUnavailable:
+			env, exit, asked = a.refuse("ACCESS_UNKNOWN", why, "Tell the user nothing changed: HA NOVA couldn't check their Home Assistant account just now. They can try again in a moment.")
 		case now == nil:
 			env, exit, asked = a.refuse("CHAT_APPS_REFUSED", "HA NOVA no longer accepts changes from this chat app ("+why+")",
 				"Tell the user nothing changed: the Home Assistant owner changed who may use HA NOVA in chat apps while the phone was asking.")
@@ -290,11 +335,15 @@ func (srv *mcpServer) phoneJob(job *chatJob, argv []string) {
 		case now.readOnly:
 			env, exit, asked = a.refuse("READ_ONLY", "the owner set chat apps to read only while the phone was asking",
 				"Tell the user nothing changed: the Home Assistant owner set chat apps to read only on the HA NOVA page. They can make this change in Home Assistant itself.")
+		case !now.mayApply(a.plan.Kind):
+			env, exit, asked = a.refuse(chatLevelWords(now, false))
 		default:
+			chatCall = now // apply's recompute checks the call against this level (chatCallFailure)
 			env, exit, asked = a.finish()
 		}
 		return finishApply(srv.paths, req, env, exit, asked)
 	})
+	srv.chat.bridge.noteChange(srv.chat, "ha_apply", job.what, "phone", job.result)
 }
 
 // waitingForPhone: the ask is still open, or the phone answered and apply

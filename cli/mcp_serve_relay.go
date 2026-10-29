@@ -25,7 +25,7 @@ type bridgeRelayFile struct {
 }
 
 var (
-	bridgeSpkiPin    = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)                                  // sha256, base64url
+	bridgeSpkiPin    = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)                                   // sha256, base64url
 	bridgeCredential = regexp.MustCompile(`^hanova-dev-v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$`) // nova device-credential.ts
 )
 

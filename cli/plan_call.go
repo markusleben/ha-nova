@@ -203,6 +203,9 @@ func computeCallPlan(s *relaySession, env *verbEnvelope, req planCallRequest) (*
 		return nil, storedPlan{}, err
 	}
 	env.Resolved = targets
+	if failure := chatCallFailure(req, targets, e); failure != nil { // ha-nova serve: below Manage everything (mcp_serve_levels.go)
+		return nil, storedPlan{}, failure
+	}
 	if spec.responseOnly && !req.wantsResponse() {
 		return nil, storedPlan{}, refuse(env, tierReason{Code: reasonResponseOnly, Detail: "Home Assistant runs this service only with a response: call it again with --response"})
 	}

@@ -57,7 +57,7 @@ export class ChatPhoneError extends Error {
 export interface ChatPhoneControl {
   phones(user: string): Promise<ChatPhones>;
   start(user: string, change: ChatPhoneChange): Promise<string | null>; // a move, or a stop that asks a phone: its job id
-  job(id: string): Promise<ChatPhoneJob>;
+  job(user: string, id: string): Promise<ChatPhoneJob>; // a job reads only as the user it was started for
 }
 
 const JOB = /^[0-9a-f]{32}$/;
@@ -139,8 +139,8 @@ export function createChatPhoneControl(secret: () => string | null, port = CONTR
       }
       return answer.job;
     },
-    job: async (id) => {
-      const answer = await call("GET", `phone/${encodeURIComponent(id)}`);
+    job: async (user, id) => {
+      const answer = await call("GET", `phone/${encodeURIComponent(id)}?user=${encodeURIComponent(user)}`);
       if (typeof answer.status !== "string") {
         throw unreadable();
       }

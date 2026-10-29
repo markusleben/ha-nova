@@ -185,6 +185,11 @@ describe("NOVA page: the chat-app phone", () => {
     expect(await page(`/?chat_job=${JOB}`)).toContain("Done. Chat apps no longer ask a phone: changes that need your OK show a code in the chat.");
   });
 
+  it("says when the phone's user may no longer confirm", async () => {
+    phones = async () => ({ ...ready(), link: { device_id: IPHONE, name: "iPhone", platform: "ios", state: "gone", why: "not_allowed" } });
+    expect(await page()).toContain("“iPhone” can't answer anymore: its Home Assistant user may no longer confirm changes from chat apps. You can link a new phone here without it.");
+  });
+
   it("replaces or removes a phone that can never answer again only with this page's override", async () => {
     phones = async () => ({ ...ready(), link: { device_id: IPHONE, name: "iPhone", platform: "ios", state: "gone", why: "removed" } });
     const html = await page();

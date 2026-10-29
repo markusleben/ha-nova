@@ -17,9 +17,11 @@ var (
 	errSettingsUnread = errors.New("the chat-app settings are unreadable")
 )
 
-// The chat-app access a write still needs: allowed (adopt, move, stop), or
-// no longer allowed (drop).
+// The chat-app access a write still needs: allowed (stop), allowed at a
+// level with a phone (adopt, move: Use the home or more), or no longer
+// allowed (drop).
 func chatAllowed(p *chatPolicy) bool { return p != nil }
+func chatPhoneOK(p *chatPolicy) bool { return p != nil && p.level >= levelUse }
 func chatRemoved(p *chatPolicy) bool { return p == nil }
 
 // controlWrite answers a change made without a question.
@@ -67,9 +69,10 @@ func (b *chatBridge) setLink(user string, prev *phoneLink, present bool, link *p
 	return writeFileAtomic(b.linksFile(), raw, 0o600)
 }
 
-// policyStill: nil while user's chat-app access still passes want.
+// policyStill: nil while user's chat-app access, with Home Assistant's
+// users read now, still passes want.
 func (b *chatBridge) policyStill(user string, want func(*chatPolicy) bool) error {
-	switch policy, code, _ := b.policyFor(user); {
+	switch policy, code, _ := b.policy(user, true); {
 	case code == http.StatusServiceUnavailable:
 		return errSettingsUnread
 	case !want(policy):
@@ -121,18 +124,23 @@ func (b *chatBridge) runPhoneJob(job *controlJob, look *controlLook, chosen *pho
 			end(controlAnswer[answer])
 			return
 		}
+		want := chatPhoneOK // a move: the new phone must still confirm for the user
+		if chosen == nil {  // a stop: its question said what chat codes do then
+			want = func(p *chatPolicy) bool { return p != nil && p.chatCodes() == codes }
+		}
+		err := b.policyStill(job.user, want) // first: the link reads as changed once the user may no longer confirm
 		var still, unread bool
-		b.asUser(job.user, func() { still, unread = phoneStillLinked(look.s, look.current) })
-		var err error
+		if err == nil {
+			unread = b.asUser(job.user, func() { still, unread = phoneStillLinked(look.s, look.current) }) != nil || unread
+		}
 		switch {
+		case err != nil:
 		case unread:
 			err = errors.New("the link couldn't be read again")
 		case !still:
 			err = errPhoneLinkChanged
-		case chosen == nil: // a stop: its question said what chat codes do then
-			err = b.setLink(job.user, look.prev, true, nil, func(p *chatPolicy) bool { return p != nil && p.codes == codes })
-		default:
-			err = b.policyStill(job.user, chatAllowed)
+		case chosen == nil:
+			err = b.setLink(job.user, look.prev, true, nil, want)
 		}
 		switch {
 		case err != nil:
@@ -153,13 +161,17 @@ func (b *chatBridge) runPhoneJob(job *controlJob, look *controlLook, chosen *pho
 		end(controlAnswer[answer])
 		return
 	}
-	again, err := b.look(job.user, look.s)
+	err := b.policyStill(job.user, chatPhoneOK) // first: removed or lowered meanwhile is a settings change
+	var again *controlLook
+	if err == nil {
+		again, err = b.look(job.user, look.s)
+	}
 	listed := func(t phoneTarget) bool { return t.DeviceID == chosen.DeviceID && t.UserID == chosen.UserID }
 	if err == nil && (!look.same(again) || !slices.ContainsFunc(again.home.eligible(job.user), listed)) {
 		err = errPhoneLinkChanged
 	}
 	if err == nil {
-		err = b.setLink(job.user, look.prev, look.present, chatPhoneLink(*chosen), chatAllowed)
+		err = b.setLink(job.user, look.prev, look.present, chatPhoneLink(*chosen), chatPhoneOK)
 	}
 	if err != nil {
 		notDone(reply, err)

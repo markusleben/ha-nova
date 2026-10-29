@@ -61,7 +61,7 @@ export function createChatAppsHandlers(deps: ChatAppsApiDeps): { get: RouteHandl
     if (id === null) {
       return view(deps, ownerId);
     }
-    const job = await deps.chatApps.phone.job(id).catch(() => ({ status: "unread" }));
+    const job = await deps.chatApps.phone.job(ownerId, id).catch(() => ({ status: "unread" }));
     return { ...view(deps, ownerId), phone_job: { ...job, id } };
   };
   const post: RouteHandler = async ({ request, body }) => {
