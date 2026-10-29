@@ -226,7 +226,7 @@ func TestPhoneResultTitleAndButtons(t *testing.T) {
 	if got := (actionGoal{verb: "set_position", names: []string{long, "“B and -1 more”"}}).title("en", ""); !strings.HasSuffix(got, "” and 1 more?") {
 		t.Errorf("a name steered the count: %q", got)
 	}
-	for _, verb := range []actionGoal{{verb: "close"}, {verb: "stop"}, {label: "Cancel"}} {
+	for _, verb := range []actionGoal{{verb: "close"}, {verb: "stop"}, {label: "Cancel"}, {label: "Ignore"}, {label: "Hide"}, {raw: "cancel"}, {raw: "ignore"}, {raw: "hide"}} {
 		if verb.button("en") != "Confirm" {
 			t.Errorf("button %+v", verb)
 		}
@@ -237,7 +237,7 @@ func TestPhoneResultTitleAndButtons(t *testing.T) {
 // quoted values that are no list stay one name, cut.
 func TestRawTitleCountsItsList(t *testing.T) {
 	listed := []string{"“sensor.kitchen_energy_total”", "“sensor.living_room_energy_total”", "“sensor.bedroom_energy_total”", "“sensor.office_energy_total”"}
-	goal := actionGoal{label: "Delete", names: rawNames("the long-term statistics of "+sayList("en", listed), listed)}
+	goal := actionGoal{raw: "delete", names: rawNames("en", "the long-term statistics of "+sayList("en", listed), listed)}
 	if got := goal.title("en", ""); got != "Delete the long-term statistics of “sensor.kitchen_energy_total” and 3 more?" {
 		t.Fatalf("title = %q", got)
 	}
@@ -245,11 +245,11 @@ func TestRawTitleCountsItsList(t *testing.T) {
 		t.Fatalf("result title = %q", got)
 	}
 	short := []string{"“A”", "“B”"}
-	if got := (actionGoal{label: "Delete", names: rawNames("the statistics of "+sayList("en", short), short)}).title("en", ""); got != "Delete the statistics of “A” and “B”?" {
+	if got := (actionGoal{raw: "delete", names: rawNames("en", "the statistics of "+sayList("en", short), short)}).title("en", ""); got != "Delete the statistics of “A” and “B”?" {
 		t.Fatalf("short title = %q", got)
 	}
 	fields := "the entity “Desk”: name “" + strings.Repeat("Long name ", 8) + "”, area “Office”"
-	if got := rawNames(fields, []string{"“Desk”"}); len(got) != 1 || got[0] != fields {
+	if got := rawNames("en", fields, []string{"“Desk”"}); len(got) != 1 || got[0] != fields {
 		t.Fatalf("names = %q", got)
 	}
 }

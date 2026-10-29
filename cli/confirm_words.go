@@ -44,8 +44,7 @@ func (s *relaySession) homeLanguage() string {
 const haNameMax = 40
 
 // planLanguage: the language and Home Assistant words of a plan that asks.
-// A raw plan speaks English until its lines have a German text (Decision
-// 1). A service HA NOVA names by its label needs Home Assistant's own name
+// A service HA NOVA names by its label needs Home Assistant's own name
 // for it, read in both languages (Home Assistant fills a missing name in
 // with the English one), with a letter once defanged, and short; else the
 // whole plan is English (Design 9: never mixed) and a notice says so. A
@@ -56,7 +55,7 @@ func planLanguage(e *tierEngine, env *verbEnvelope, plan storedPlan) (string, ha
 	}
 	lang := e.s.language()
 	switch {
-	case plan.Kind == "raw" || lang == "en":
+	case lang == "en":
 		return "en", nil
 	case e.s.lang != "":
 		return lang, e.s.words

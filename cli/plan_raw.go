@@ -50,20 +50,15 @@ type rawRequest struct {
 
 // rawPlanItem is one previewed item: Change is its plain line.
 type rawPlanItem struct {
-	Endpoint string      `json:"endpoint"`
-	Change   string      `json:"change"`
-	Tier     string      `json:"tier"`
-	verb     string      // the phone's button and title (rawGoal), when goal is nil
-	names    []string    // the title's names (rawNames), when goal is nil
-	goal     *actionGoal // an everyday line's goal: a device delete, a Supervisor item
-	more     string      // what completes that goal (everydayLine)
-	detail   string      // the request behind an everyday line
-	copy     string      // a config snapshot save: the copy's name (rawSteps)
+	Endpoint string     `json:"endpoint"`
+	Change   string     `json:"change"`
+	Tier     string     `json:"tier"`
+	line     string     // Change as a sentence continues it (rawSayWhat)
+	goal     actionGoal // the phone's title and button (rawGoal)
+	more     string     // what completes an everyday line's goal: a device delete, a Supervisor item
+	detail   string     // the request behind an everyday line
+	copy     string     // a config snapshot save: the copy's name (rawSteps)
 }
-
-// rawLang: raw item lines speak English until Delivery 4 (docs/work/
-// 2026-10-28-confirmation-localization-spec.md, Decision 1).
-const rawLang = "en"
 
 type rawPlanResult struct {
 	Items []rawPlanItem `json:"items"`
@@ -156,8 +151,10 @@ func validateRawRequests(items []rawRequest) error {
 }
 
 // computeRawPlan checks every item (rawPlanRefusal, then the raw guard),
-// tiers it (rawItemTier), and seals the plan. plan raw and apply's
-// recompute run exactly this; one refused item refuses the whole plan.
+// tiers it (rawItemTier), seals the plan, and then words each item in the
+// plan's language; what the hash covers is read before the seal. plan raw
+// and apply's recompute run exactly this; one refused item refuses the
+// whole plan.
 func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*tierEngine, storedPlan, error) {
 	if err := validateRawRequests(items); err != nil {
 		return nil, storedPlan{}, refused("PLAN_INVALID", err.Error())
@@ -190,27 +187,19 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 				message: fmt.Sprintf("item %d: %s; nothing was planned or sent", i+1, strings.TrimSuffix(refusal.Error(), "; nothing was sent"))}
 		}
 		level, why := rawItemTier(n, item, payload)
-		code := reasonRawWrite
+		reason := tierReason{Code: reasonRawWrite, Via: fmt.Sprintf("requests[%d]", i)}
 		if level == tierTyped {
-			code = reasonRawTyped
+			say, known := rawWhys[why]
+			if !known {
+				panic("raw plan: no reason text for " + why)
+			}
+			reason.Code, reason.Detail = reasonRawTyped, say("en") // the plan's JSON and hash keep English
 		}
-		e.raise(level, tierReason{Code: code, Via: fmt.Sprintf("requests[%d]", i), Detail: why})
+		e.raise(level, reason)
+		if item.Endpoint == "ws" && payload["type"] == "config/device_registry/remove" {
+			n.deviceEntities(payload["device_id"])
+		}
 		entry := rawPlanItem{Endpoint: item.Endpoint, Tier: level.String()}
-		var line *everydayLine
-		switch n.listed = nil; {
-		case item.Endpoint == "supervisor":
-			supervisor := rawSupervisorEveryday(s, payload)
-			line = &supervisor
-		case item.Endpoint == "ws" && payload["type"] == "config/device_registry/remove":
-			device := n.deviceDelete(payload["device_id"])
-			line = &device
-		default:
-			verb, object := rawItemLine(n, item.Endpoint, payload)
-			entry.Change, entry.verb, entry.names = verb+" "+object, verb, rawNames(object, n.listed)
-		}
-		if line != nil {
-			entry.Change, entry.goal, entry.more, entry.detail = upperFirst(line.text(rawLang)), &line.goal, line.more, line.detail
-		}
 		if i < len(copies) {
 			entry.copy = copies[i]
 		}
@@ -223,6 +212,23 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 	}
 	plan := storedPlan{Kind: "raw", RawRequests: items, Basis: n.basis()}
 	plan, err := sealPlan(e, env, plan, items)
+	lang := textLang(plan)
+	for i, item := range items {
+		payload, _ := decodeObject(item.Payload)
+		var line everydayLine
+		switch n.listed = nil; {
+		case item.Endpoint == "supervisor":
+			line = rawSupervisorEveryday(lang, s, payload)
+		case item.Endpoint == "ws" && payload["type"] == "config/device_registry/remove":
+			line = n.deviceDelete(lang, payload["device_id"])
+		default:
+			verb, object := rawItemLine(n, lang, item.Endpoint, payload)
+			line.goal = actionGoal{raw: verb, names: rawNames(lang, object, n.listed)}
+		}
+		entry := &result.Items[i]
+		entry.line, entry.goal, entry.more, entry.detail = line.text(lang), line.goal, line.more, line.detail
+		entry.Change = upperFirst(entry.line)
+	}
 	env.Result = result
 	if err == nil {
 		env.Say, plan.Prompt = confirmationSay(e, env, plan, ""), confirmationPrompt(e, env, plan, "")
@@ -341,7 +347,7 @@ func rawSteps(env *verbEnvelope) (steps []rawPlanItem, copies []string) {
 
 // rawSayWhat opens a raw plan's confirmation with what happens in the home:
 // one line per step, in order, each with its detail, and the copies saved
-// first. Item lines are English (rawLang).
+// first.
 func rawSayWhat(lang string, env *verbEnvelope) (about, status string) {
 	steps, copies := rawSteps(env)
 	detail := func(item rawPlanItem) string {
@@ -352,7 +358,7 @@ func rawSayWhat(lang string, env *verbEnvelope) (about, status string) {
 	}
 	copied := rawCopyNote(lang, copies)
 	if len(steps) == 1 {
-		return strings.TrimSpace(sayAbout(lang, lowerFirst(steps[0].Change)) + detail(steps[0]) + " " + copied), sayNotRun(lang)
+		return strings.TrimSpace(sayAbout(lang, steps[0].line) + detail(steps[0]) + " " + copied), sayNotRun(lang)
 	}
 	lines := []string{confirmT(lang, "raw.steps_intro", "count", len(steps))}
 	if copied != "" {
@@ -367,24 +373,10 @@ func rawSayWhat(lang string, env *verbEnvelope) (about, status string) {
 // rawGoal: the phone's verb and object, the step's own for one step.
 func rawGoal(lang string, env *verbEnvelope) actionGoal {
 	steps, _ := rawSteps(env)
-	switch {
-	case len(steps) == 1 && steps[0].goal != nil:
-		return *steps[0].goal
-	case len(steps) == 1:
-		return actionGoal{label: steps[0].verb, names: steps[0].names}
+	if len(steps) == 1 {
+		return steps[0].goal
 	}
-	return actionGoal{label: confirmT(lang, "button.confirm"), names: []string{confirmT(lang, "raw.steps", "count", len(steps))}}
-}
-
-// rawNames: an item's object as the title's names. A list of targets
-// (listed) stays names, so a long title counts them; the words before the
-// list go with its first name. Any other object is one name, cut if long.
-func rawNames(object string, listed []string) []string {
-	lead, isList := strings.CutSuffix(object, sayList("en", listed))
-	if len(listed) < 2 || !isList {
-		return []string{object}
-	}
-	return append([]string{lead + listed[0]}, listed[1:]...)
+	return actionGoal{raw: "confirm", names: []string{confirmT(lang, "raw.steps", "count", len(steps))}}
 }
 
 // rawAsk: a typed raw plan's phone question. With several items the

@@ -34,38 +34,65 @@ import (
 
 const (
 	reasonRawWrite = "RAW_WRITE" // a previewed raw item; the preview line says it
-	reasonRawTyped = "RAW_TYPED" // Detail says why it needs the user
+	reasonRawTyped = "RAW_TYPED" // Detail says why it needs the user (rawWhys)
 )
 
-const rawWhyDelete = "This deletes something in Home Assistant"
+// rawWhys: why a typed raw item needs the user, by id. Its English text is
+// the reason's detail, so the plan's JSON and hash stay English; sayReason
+// finds the id again by that text to say it in the plan's language.
+var rawWhys = map[string]func(lang string) string{
+	"delete":             func(l string) string { return confirmT(l, "raw.why.delete") },
+	"account_create":     func(l string) string { return confirmT(l, "raw.why.account_create") },
+	"hacs_install":       func(l string) string { return confirmT(l, "raw.why.hacs_install") },
+	"resource_create":    func(l string) string { return confirmT(l, "raw.why.resource_create") },
+	"resource_update":    func(l string) string { return confirmT(l, "raw.why.resource_update") },
+	"labs":               func(l string) string { return confirmT(l, "raw.why.labs") },
+	"statistics_import":  func(l string) string { return confirmT(l, "raw.why.statistics_import") },
+	"energy_emptied":     func(l string) string { return confirmT(l, "raw.why.energy_emptied") },
+	"access_entity":      func(l string) string { return confirmT(l, "raw.why.access_entity") },
+	"access_device":      func(l string) string { return confirmT(l, "raw.why.access_device") },
+	"person_follows":     func(l string) string { return confirmT(l, "raw.why.person_follows") },
+	"account_access":     func(l string) string { return confirmT(l, "raw.why.account_access") },
+	"backup_retention":   func(l string) string { return confirmT(l, "raw.why.backup_retention") },
+	"core_clock":         func(l string) string { return confirmT(l, "raw.why.core_clock") },
+	"core_language":      func(l string) string { return confirmT(l, "raw.why.core_language") },
+	"integration_remove": func(l string) string { return confirmT(l, "raw.why.integration_remove") },
+	"file_delete":        func(l string) string { return confirmT(l, "raw.why.file_delete") },
+	"copy_delete":        func(l string) string { return confirmT(l, "raw.why.copy_delete") },
+	"skill_typed":        func(l string) string { return confirmT(l, "raw.why.skill_typed") },
+	"app_install":        func(l string) string { return confirmT(l, "raw.why.app_install") },
+	"app_uninstall":      func(l string) string { return confirmT(l, "raw.why.app_uninstall") },
+	"app_settings":       func(l string) string { return confirmT(l, "raw.why.app_settings") },
+}
 
 // reasonHACSInstall: update.install on a HACS entity installs third-party
 // code like hacs/repository/download, so a call takes the code too
 // (maintainer decision 3, parity spec; tier_engine.go classify).
 const reasonHACSInstall = "HACS_INSTALL"
 
-// rawTypedWS: the WS writes typed besides the deletes and removals.
+// rawTypedWS: the WS writes typed besides the deletes and removals, and why
+// (rawWhys).
 var rawTypedWS = map[string]string{
-	"recorder/clear_statistics":  rawWhyDelete,
-	"config/auth/create":         "This creates a Home Assistant account",
-	"hacs/repository/download":   "This installs code from HACS that runs in Home Assistant",
-	"lovelace/resources/create":  "This adds code that runs in every browser signed in to Home Assistant",
-	"lovelace/resources/update":  "This changes code that runs in every browser signed in to Home Assistant",
-	"labs/update":                "This turns an experimental Home Assistant feature on or off",
-	"recorder/import_statistics": "This writes long-term statistics; rows already stored for the same hours are overwritten",
+	"recorder/clear_statistics":  "delete",
+	"config/auth/create":         "account_create",
+	"hacs/repository/download":   "hacs_install",
+	"lovelace/resources/create":  "resource_create",
+	"lovelace/resources/update":  "resource_update",
+	"labs/update":                "labs",
+	"recorder/import_statistics": "statistics_import",
 }
 
 var rawSceneConfigPath = regexp.MustCompile(`^/api/config/scene/config/[A-Za-z0-9_.-]+$`)
 
-// rawItemTier: the item's tier and, for a typed one, why (one sentence).
-// The item's own typed flag only ever raises it.
+// rawItemTier: the item's tier and, for a typed one, why (rawWhys). The
+// item's own typed flag only ever raises it.
 func rawItemTier(n *rawNamer, item rawRequest, payload map[string]any) (tierLevel, string) {
 	level, why := rawRequestTier(n, item.Endpoint, payload)
 	if item.Endpoint == "supervisor" {
 		level, why = rawSupervisorTier(payload)
 	}
 	if level < tierTyped && item.Typed {
-		return tierTyped, "This step needs your own confirmation, as the skill asks"
+		return tierTyped, "skill_typed"
 	}
 	return level, why
 }
@@ -93,25 +120,25 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 		}
 		switch {
 		case strings.HasSuffix(wsType, "/delete") || strings.HasSuffix(wsType, "/remove"):
-			return tierTyped, rawWhyDelete
+			return tierTyped, "delete"
 		case rawTypedWS[wsType] != "":
 			return tierTyped, rawTypedWS[wsType]
 		case wsType == "energy/save_prefs" && n.energyEmptied(payload):
-			return tierTyped, "This empties a list of the Energy dashboard or drops several of its entries"
+			return tierTyped, "energy_emptied"
 		case wsType == "config/entity_registry/update" && carries && n.accessEntity(payload["entity_id"]):
-			return tierTyped, "This carries a new ID, area, or label onto a lock, alarm panel, or door, which can change what an automation that opens it targets"
+			return tierTyped, "access_entity"
 		case wsType == "config/device_registry/update" && carries && n.accessDevice(payload["device_id"]):
-			return tierTyped, "This carries a new area or label onto a device with a lock, alarm panel, or door, which can change what an automation that opens it targets"
+			return tierTyped, "access_device"
 		case wsType == "person/update" && follows:
-			return tierTyped, "This changes which devices a person follows, and an unlock or disarm may wait for that person"
+			return tierTyped, "person_follows"
 		case wsType == "config/auth/update" && access:
-			return tierTyped, "This changes what a Home Assistant account may do, or whether it can sign in"
+			return tierTyped, "account_access"
 		case wsType == "backup/config/update" && rawRetains(payload):
-			return tierTyped, "This changes how many automatic backups Home Assistant keeps, and older ones are deleted for good"
+			return tierTyped, "backup_retention"
 		case wsType == "config/core/update" && clock:
-			return tierTyped, "This changes Home Assistant's time zone or units, which shifts how history and long-term statistics read"
+			return tierTyped, "core_clock"
 		case wsType == "config/core/update" && language:
-			return tierTyped, "This changes Home Assistant's language, which every later HA NOVA confirmation speaks"
+			return tierTyped, "core_language"
 		}
 	case "core":
 		target, _ := payload["path"].(string)
@@ -120,17 +147,17 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 		switch {
 		case payload["method"] != http.MethodDelete:
 		case rawEntryDeletePath.MatchString(target):
-			return tierTyped, "This removes an integration and its devices from Home Assistant"
+			return tierTyped, "integration_remove"
 		case rawSceneConfigPath.MatchString(target):
-			return tierTyped, rawWhyDelete
+			return tierTyped, "delete"
 		}
 	case "files":
 		if action == "delete_file" {
-			return tierTyped, "This deletes a file in Home Assistant's config folder"
+			return tierTyped, "file_delete"
 		}
 	case "backups":
 		if action == "delete" {
-			return tierTyped, "This deletes a saved config copy"
+			return tierTyped, "copy_delete"
 		}
 	}
 	return tierPreview, ""

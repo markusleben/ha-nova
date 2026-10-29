@@ -175,51 +175,51 @@ func rawSupervisorWrite(payload map[string]any) bool {
 
 // rawSupervisorTier: every App install, removal, and options change takes
 // the one-time code (App code, or options that can hold credentials and
-// code); an auto-update toggle is previewed.
+// code), and why (rawWhys); an auto-update toggle is previewed.
 func rawSupervisorTier(payload map[string]any) (tierLevel, string) {
 	method, _ := payload["method"].(string)
 	path, _ := payload["path"].(string)
 	data, _ := payload["data"].(map[string]any)
 	switch kind, _ := rawSupervisorMatch(method, path); {
 	case kind == "install":
-		return tierTyped, "This installs an App: new code that runs on your Home Assistant host"
+		return tierTyped, "app_install"
 	case kind == "uninstall":
-		return tierTyped, "This removes an App, and whatever it serves stops working"
+		return tierTyped, "app_uninstall"
 	case kind == "options" && rawSupervisorOptionsKind(data) == "options":
-		return tierTyped, "This changes an App's settings, which can hold passwords and run code"
+		return tierTyped, "app_settings"
 	}
 	return tierPreview, ""
 }
 
 // rawSupervisorEveryday: a Supervisor write's everyday line, with the
 // request as its detail.
-func rawSupervisorEveryday(s *relaySession, payload map[string]any) everydayLine {
+func rawSupervisorEveryday(lang string, s *relaySession, payload map[string]any) everydayLine {
 	method, _ := payload["method"].(string)
 	path, _ := payload["path"].(string)
 	data, _ := payload["data"].(map[string]any)
 	kind, slug := rawSupervisorMatch(method, path)
-	line := everydayLine{goal: actionGoal{frame: "app", names: []string{appLabel(rawLang, appStoreName(s, slug), slug)}},
-		detail: confirmT(rawLang, "detail.supervisor_raw", "method", sayText(method, false), "path", sayDetail(rawLang, path, detailLimit, true))}
+	line := everydayLine{goal: actionGoal{frame: "app", names: []string{appLabel(lang, appStoreName(s, slug), slug)}},
+		detail: confirmT(lang, "detail.supervisor_raw", "method", sayText(method, false), "path", sayDetail(lang, path, detailLimit, true))}
 	switch {
 	case kind == "install":
 		line.goal.verb = "install"
 	case kind == "uninstall" && data["remove_config"] == true:
-		line.goal.verb, line.more = "uninstall", confirmT(rawLang, "everyday.uninstall_config")
+		line.goal.verb, line.more = "uninstall", confirmT(lang, "everyday.uninstall_config")
 	case kind == "uninstall":
-		line.goal.verb, line.more = "uninstall", confirmT(rawLang, "everyday.uninstall")
+		line.goal.verb, line.more = "uninstall", confirmT(lang, "everyday.uninstall")
 	case rawSupervisorOptionsKind(data) == "auto_update" && data["auto_update"] == true:
 		line.goal.verb = "auto_update_on"
 	case rawSupervisorOptionsKind(data) == "auto_update":
 		line.goal.verb = "auto_update_off"
 	default:
-		line.goal.verb, line.more = "app_settings", rawSupervisorSettings(s, slug, data)
+		line.goal.verb, line.more = "app_settings", rawSupervisorSettings(lang, s, slug, data)
 	}
 	return line
 }
 
 // rawSupervisorSettings: what an options write sets, every value that may
 // hold a secret hidden.
-func rawSupervisorSettings(s *relaySession, slug string, data map[string]any) string {
+func rawSupervisorSettings(lang string, s *relaySession, slug string, data map[string]any) string {
 	options, _ := data["options"].(map[string]any)
 	secret, schemaRead := rawSupervisorPasswordOptions(s, slug)
 	changes := make([]string, 0, len(options))
@@ -227,11 +227,11 @@ func rawSupervisorSettings(s *relaySession, slug string, data map[string]any) st
 		value, err := marshalPlain(options[key])
 		switch {
 		case !schemaRead || secret[key] || rawSupervisorSecretKey(key) || rawSupervisorHoldsSecret(key, options[key]):
-			changes = append(changes, confirmT(rawLang, "everyday.app_setting_secret", "key", sayText(key, true)))
+			changes = append(changes, confirmT(lang, "everyday.app_setting_secret", "key", sayText(key, true)))
 		case err != nil || len(value) > 120:
-			changes = append(changes, confirmT(rawLang, "everyday.app_setting_long", "key", sayText(key, true)))
+			changes = append(changes, confirmT(lang, "everyday.app_setting_long", "key", sayText(key, true)))
 		default:
-			changes = append(changes, confirmT(rawLang, "everyday.app_setting", "key", sayText(key, true), "value", sayText(string(value), false)))
+			changes = append(changes, confirmT(lang, "everyday.app_setting", "key", sayText(key, true), "value", sayText(string(value), false)))
 		}
 	}
 	return strings.Join(changes, ", ")

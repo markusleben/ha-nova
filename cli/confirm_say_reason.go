@@ -112,7 +112,11 @@ func sayReason(lang string, e *tierEngine, env *verbEnvelope, plan storedPlan, r
 	case reasonServiceNotFound:
 		return confirmT(lang, "reason.service_not_found", "service", sayText(r.Detail, true)), false
 	case reasonRawTyped:
-		return r.Detail, true
+		for _, why := range rawWhys {
+			if why("en") == r.Detail {
+				return why(lang), true
+			}
+		}
 	case reasonHACSInstall:
 		return confirmT(lang, "reason.hacs_install"), true
 	case reasonConfigWrite, reasonConfigRevert, reasonConfigRestore, reasonAreaAssign, reasonRawWrite:

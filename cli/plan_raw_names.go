@@ -109,28 +109,27 @@ func (n *rawNamer) device(id any) string {
 }
 
 // deviceDelete: a device delete's everyday line, named with what deleting
-// it takes along (deviceEntities), and its id as the detail.
-func (n *rawNamer) deviceDelete(id any) everydayLine {
-	goal := actionGoal{verb: "device_delete", frame: "device", names: []string{n.device(id)}}
-	children, entities := n.deviceEntities(id)
-	switch {
-	case children > 0:
-		goal.verb = "device_delete_children"
-		goal.args = map[string]string{"children": confirmT(rawLang, "unit.child_devices", "count", children), "entities": confirmT(rawLang, "unit.entities", "count", entities)}
-	default:
-		goal.args = map[string]string{"entities": confirmT(rawLang, "unit.entities", "count", entities)}
-	}
+// it takes along (deviceEntities read it before the plan was sealed), and
+// its id as the detail.
+func (n *rawNamer) deviceDelete(lang string, id any) everydayLine {
 	text, _ := id.(string)
-	return everydayLine{goal: goal, detail: confirmT(rawLang, "detail.device", "id", sayDetail(rawLang, text, detailLimit, true))}
+	removes, _ := n.removing[text].(map[string]any)
+	devices, _ := removes["devices"].([]string)
+	entities, _ := removes["entities"].([]string)
+	goal := actionGoal{verb: "device_delete", frame: "device", names: []string{n.device(id)}, args: map[string]string{"entities": confirmT(lang, "unit.entities", "count", len(entities))}}
+	if children := len(devices) - 1; children > 0 {
+		goal.verb, goal.args["children"] = "device_delete_children", confirmT(lang, "unit.child_devices", "count", children)
+	}
+	return everydayLine{goal: goal, detail: confirmT(lang, "detail.device", "id", sayDetail(lang, text, detailLimit, true))}
 }
 
-// deviceEntities: what deleting the device takes with it: its child devices
-// and the entities of their own integration on them (Home Assistant keeps
-// another integration's entity, unlinked: not counted, but in the basis with
-// the rest, so any entity attached since the preview is drift). A registry
-// that can't be read refuses the plan (computeRawPlan), so its 0s are never
-// shown.
-func (n *rawNamer) deviceEntities(id any) (children, count int) {
+// deviceEntities records what deleting the device takes with it: its child
+// devices and the entities of their own integration on them (Home Assistant
+// keeps another integration's entity, unlinked: not counted, but in the
+// basis with the rest, so any entity attached since the preview is drift).
+// A registry that can't be read refuses the plan (computeRawPlan), so no
+// line counts it.
+func (n *rawNamer) deviceEntities(id any) {
 	device, _ := id.(string)
 	var devices []struct {
 		ID               string `json:"id"`
@@ -162,7 +161,7 @@ func (n *rawNamer) deviceEntities(id any) (children, count int) {
 	}
 	if err != nil {
 		n.removing[device] = "unreadable"
-		return 0, 0
+		return
 	}
 	gone := map[string][2]string{}
 	for _, row := range devices {
@@ -184,13 +183,9 @@ func (n *rawNamer) deviceEntities(id any) (children, count int) {
 	slices.Sort(goneEntities)
 	slices.Sort(unlinked)
 	n.removing[device] = map[string]any{"devices": slices.Sorted(maps.Keys(gone)), "entities": goneEntities, "unlinked": unlinked}
-	return max(len(gone)-1, 0), len(goneEntities)
 }
 
 func (n *rawNamer) area(id any) string {
-	if id == nil {
-		return "no area"
-	}
 	return n.named(map[string]any{"type": "config/area_registry/list"}, id, []string{"area_id"}, []string{"name"})
 }
 
@@ -200,7 +195,7 @@ func (n *rawNamer) entry(id any) string {
 
 // calendarEvent names the event a delete removes, read from the calendar
 // a year around today, and which occurrences.
-func (n *rawNamer) calendarEvent(payload map[string]any) string {
+func (n *rawNamer) calendarEvent(lang string, payload map[string]any) string {
 	uid, _ := payload["uid"].(string)
 	entity, _ := payload["entity_id"].(string)
 	recurrence, _ := payload["recurrence_id"].(string)
@@ -216,7 +211,7 @@ func (n *rawNamer) calendarEvent(payload map[string]any) string {
 			} `json:"start"`
 		} `json:"body"`
 	}
-	name := "the event " + sayText(uid, true) // never found: its id is all there is
+	name := confirmT(lang, "raw.event.id", "uid", sayText(uid, true)) // never found: its id is all there is
 	if !entityIDPattern.MatchString(entity) {
 		return name
 	}
@@ -227,43 +222,75 @@ func (n *rawNamer) calendarEvent(payload map[string]any) string {
 				continue
 			}
 			if matches++; matches == 1 {
-				name = "the event " + sayText(event.Summary, true)
-				if when := plainDate(firstNonEmpty(event.Start.DateTime, event.Start.Date)); when != "" {
-					name += " (" + when + ")"
+				name = confirmT(lang, "raw.event.named", "summary", sayText(event.Summary, true))
+				if when := plainDate(lang, firstNonEmpty(event.Start.DateTime, event.Start.Date)); when != "" {
+					name = confirmT(lang, "raw.event.dated", "summary", sayText(event.Summary, true), "date", when)
 				}
 			}
 		}
 		if matches > 1 && recurrence == "" {
-			name += " with all its repeats"
+			name = confirmT(lang, "raw.event.repeats", "event", name)
 		}
 	}
-	on := "one occurrence"
-	if when := plainDate(recurrence); when != "" {
-		on = "the one on " + when
+	when := plainDate(lang, recurrence)
+	switch future := payload["recurrence_range"] == "THISANDFUTURE"; {
+	case recurrence == "":
+		return name
+	case future && when != "":
+		return confirmT(lang, "raw.event.from_date", "event", name, "date", when)
+	case future:
+		return confirmT(lang, "raw.event.from_one", "event", name)
+	case when != "":
+		return confirmT(lang, "raw.event.only_date", "event", name, "date", when)
 	}
-	switch {
-	case recurrence != "" && payload["recurrence_range"] == "THISANDFUTURE":
-		return name + ": " + on + " and every later one"
-	case recurrence != "":
-		return name + ": " + on + " only"
-	}
-	return name
+	return confirmT(lang, "raw.event.only_one", "event", name)
 }
 
-// plainDate: a calendar date or time as people write it ("2 November 2026",
-// "2 November 2026, 14:00"); "" when it can't be read.
-func plainDate(text string) string {
+// plainDate: a calendar date or time as people write it (en "2 November
+// 2026, 14:00", de „2. November 2026, 14:00 Uhr“); "" when it can't be read.
+func plainDate(lang, text string) string {
+	day := func(t time.Time) string {
+		return confirmT(lang, "raw.date", "day", t.Day(), "month", sayMonth(lang, t.Month()), "year", t.Format("2006"))
+	}
 	for _, layout := range []string{time.RFC3339, "2006-01-02T15:04:05", "20060102T150405Z", "20060102T150405"} {
 		if t, err := time.Parse(layout, text); err == nil {
-			return t.Format("2 January 2006, 15:04")
+			return confirmT(lang, "raw.date_time", "date", day(t), "time", t.Format("15:04"))
 		}
 	}
 	for _, layout := range []string{"2006-01-02", "20060102"} {
 		if t, err := time.Parse(layout, text); err == nil {
-			return t.Format("2 January 2006")
+			return day(t)
 		}
 	}
 	return ""
+}
+
+func sayMonth(lang string, month time.Month) string {
+	switch month {
+	case time.January:
+		return confirmT(lang, "raw.month.january")
+	case time.February:
+		return confirmT(lang, "raw.month.february")
+	case time.March:
+		return confirmT(lang, "raw.month.march")
+	case time.April:
+		return confirmT(lang, "raw.month.april")
+	case time.May:
+		return confirmT(lang, "raw.month.may")
+	case time.June:
+		return confirmT(lang, "raw.month.june")
+	case time.July:
+		return confirmT(lang, "raw.month.july")
+	case time.August:
+		return confirmT(lang, "raw.month.august")
+	case time.September:
+		return confirmT(lang, "raw.month.september")
+	case time.October:
+		return confirmT(lang, "raw.month.october")
+	case time.November:
+		return confirmT(lang, "raw.month.november")
+	}
+	return confirmT(lang, "raw.month.december")
 }
 
 // scene: a scene config's name, read through its own config.
@@ -295,7 +322,7 @@ var rawTargetLists = map[string]struct {
 
 // targets: the named things a request acts on (never an area it sets),
 // as the line's list; listed keeps them for the phone title (rawNames).
-func (n *rawNamer) targets(payload map[string]any) string {
+func (n *rawNamer) targets(lang string, payload map[string]any) string {
 	var names []string
 	for _, key := range []string{"entity_id", "entity_ids", "device_id", "statistic_id", "statistic_ids", "pipeline_id", "user_id",
 		"backup_id", "repository", "resource_id", "dashboard_id", "url", "path", "name", "summary", "media_content_id"} {
@@ -320,11 +347,11 @@ func (n *rawNamer) targets(payload map[string]any) string {
 		}
 	}
 	if version, _ := payload["version"].(string); version != "" {
-		names = append(names, "version "+sayText(version, true))
+		names = append(names, confirmT(lang, "raw.target.version", "version", sayText(version, true)))
 	}
 	n.listed = names
 	if len(names) == 0 {
 		return ""
 	}
-	return " " + sayList("en", names)
+	return " " + sayList(lang, names)
 }
