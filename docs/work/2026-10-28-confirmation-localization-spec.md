@@ -57,6 +57,7 @@ Calls of the maintainer, 2026-10-29, on the German texts:
 3. The chat-app titles stay „Chat-App-Freigaben erhalten/wechseln/beenden?“.
 4. Undo reads „rückgängig machen“, not „zurücksetzen“: „Die letzte Änderung an „Flurlicht“ rückgängig machen?“. After „an“ the German undo names the item without its kind, so the phone's question and result titles keep the name, cut by the title rule and never dropped.
 5. Batch lines say „sind erledigt“ instead of „haben geklappt“, without a doubled word („Erledigt: alle {count}.“, „Teilweise erledigt: {done} von {count}; …“, „Unklar: {name} ist vielleicht erledigt; …“). „Am kritischsten:“ stays.
+6. Delivery 4: raw lines keep the verb last, with details in parentheses before it. A blueprint is „Blueprint“, as Home Assistant's German frontend writes it, with its article and case („den Blueprint“, „einen Blueprint“), not „Blaupause“.
 
 Call of the coordinating agent, 2026-10-29, for Delivery 4: ignore and hide read like dismissing, so they join Cancel, Close, Stop, and Dismiss in the one dismiss rule (Design 8), and a raw step's or label's ignore and hide button reads Confirm (Bestätigen). These buttons are Delivery 4's only intended English change: discovered-integration ignore, repair-issue ignore, and HACS update hide read Confirm instead of Ignore and Hide.
 
