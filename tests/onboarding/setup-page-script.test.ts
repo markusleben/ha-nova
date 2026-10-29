@@ -221,33 +221,12 @@ describe("setup page step 3", () => {
 describe("setup page step 3: buttons act now, switches wait for the button", () => {
   const phones = [{ id: "d1", name: "iPhone Ben", person: "Ben" }, { id: "d2", name: "Pixel Lisa", person: "Lisa" }];
 
-  it("never offers someone else's phone as the obvious choice, and says why the user's is missing", async () => {
-    const why = { key: "setup.page.control.phone_shared", args: { phone: "iPhone" } };
-    const p = page({ screen: "control", accepts: ["finish", "phone", "recheck"], control: { window: true, phone: "pick", own: 0, phone_why: why, phones: phones.slice(1) } });
-    await p.settle();
-    expect(p.find("b-phone-0")).toBeUndefined();
-    expect(p.screen.textContent).toContain("Two devices in Home Assistant are called “iPhone”");
-    expect(p.screen.textContent).not.toContain(p.catalog["setup.page.control.fine"]);
-    p.find("b-phone-recheck")!.dispatch("click");
-    await p.settle();
-    expect(p.posts).toEqual([{ action: "recheck", value: "" }]);
-    const other = page({ screen: "control", accepts: ["finish", "phone", "recheck"], control: { window: true, phone: "pick", own: 0, phone_why: why, phones: phones.slice(1) } });
-    await other.settle();
-    other.find("b-phone-other")!.dispatch("click");
-    await other.settle();
-    expect(other.find("b-phone-0")!.textContent).toContain("Pixel Lisa");
-    expect(other.screen.textContent).toContain(other.catalog["setup.page.control.phone_pick"]);
-  });
-
-  it("asks whose phone when Home Assistant's owner signed in: every phone with its person, none first", async () => {
-    const control = { window: true, phone: "pick", whose: true, phones };
+  it("asks whose phone: every phone with its person, none first, and how to add one", async () => {
+    const control = { window: true, phone: "pick", phones };
     const p = page({ screen: "control", accepts: ["finish", "phone", "recheck"], control });
     await p.settle();
     expect(p.screen.textContent).toContain(p.catalog["setup.page.control.phone_whose"]);
     expect([p.find("b-phone-0")!.textContent, p.find("b-phone-1")!.textContent]).toEqual(["iPhone Ben (Ben)", "Pixel Lisa (Lisa)"]);
-    expect(p.find("b-phone-other")).toBeUndefined();
-    expect(p.screen.textContent).not.toContain(p.catalog["setup.page.control.phone_use"]);
-    expect(p.screen.textContent).not.toContain(p.catalog["setup.page.control.phone_pick"]);
     expect(p.screen.textContent).toContain(p.catalog["setup.page.control.phone_whose_missing"]);
     expect(p.screen.textContent).toContain(p.catalog["setup.page.control.fine"]);
     p.find("b-phone-1")!.dispatch("click");
@@ -262,7 +241,7 @@ describe("setup page step 3: buttons act now, switches wait for the button", () 
     again.find("b-phone-recheck")!.dispatch("click");
     await again.settle();
     expect(again.posts).toEqual([{ action: "recheck", value: "" }]);
-    const none = page({ screen: "control", accepts: ["finish", "recheck"], control: { window: true, phone: "none", whose: true } });
+    const none = page({ screen: "control", accepts: ["finish", "recheck"], control: { window: true, phone: "none" } });
     await none.settle();
     expect(none.screen.textContent).toContain(none.catalog["setup.page.control.phone_none"]);
     expect(none.screen.textContent).toContain(none.catalog["setup.page.control.phone_whose_missing"]);
@@ -270,14 +249,14 @@ describe("setup page step 3: buttons act now, switches wait for the button", () 
   });
 
   it("sends the phone's notification with a button, never a switch", async () => {
-    const p = page({ screen: "control", accepts: ["finish", "phone"], control: { window: true, phone: "pick", own: 1, phones: phones.slice(0, 1), rule: "offer", rule_count: 3 } });
+    const p = page({ screen: "control", accepts: ["finish", "phone"], control: { window: true, phone: "pick", phones: phones.slice(0, 1), rule: "offer", rule_count: 3 } });
     await p.settle();
     expect(p.screen.textContent).toContain(p.catalog["setup.page.control.lead"]);
     expect(p.catalog["setup.page.control.lead"]).not.toContain("never sees a code");
     const use = p.find("b-phone-0")!;
     expect(use.tag).toBe("button");
     expect(use.attributes.role).toBeUndefined();
-    expect(use.textContent).toBe(p.catalog["setup.page.control.phone_use"]);
+    expect(use.textContent).toBe("iPhone Ben (Ben)");
     expect(p.find("b-rule")!.attributes.role).toBe("switch");
     expect(p.screen.textContent).toContain("Added when you click Continue.");
     p.find("b-rule")!.dispatch("click");
@@ -763,7 +742,7 @@ describe("setup page: status colors", () => {
     moving.held.splice(0).forEach((fn) => fn());
     expect(moving.screen.textContent).toContain(hint(moving)); // two phones: the neutral line
     for (const [problem, shown] of [["phone_timeout", true], ["phone_declined", false]] as const) {
-      const p = page({ screen: "control", accepts: ["phone"], control: { window: false, phone: "pick", own: 1, phone_os: "android", phones: [{ id: "d1", name: "Bene 14", person: "Bene" }], phone_problem: { key: `setup.page.control.${problem}`, args: { phone: "Bene 14" } } } });
+      const p = page({ screen: "control", accepts: ["phone"], control: { window: false, phone: "pick", phone_os: "android", phones: [{ id: "d1", name: "Bene 14", person: "Bene" }], phone_problem: { key: `setup.page.control.${problem}`, args: { phone: "Bene 14" } } } });
       await p.settle();
       expect(p.screen.textContent.includes(hint(p, "android"))).toBe(shown);
     }

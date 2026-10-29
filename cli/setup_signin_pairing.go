@@ -186,7 +186,7 @@ func pairWithHASignInSession(
 	var exchange *haSignInPairingError
 	switch {
 	case pairErr == nil:
-		setupSignedInUser = session.user.ID // the owner: the phone step asks whose phone (phoneHome.whose)
+		setupSignedInUser = session.user.ID // the owner, for chat apps (the phone step asks whose phone)
 		setupOwnerIngress = session.ingress // chat apps (step 3) use the owner's session
 		return true, nil, nil
 	case errors.As(pairErr, &exchange):

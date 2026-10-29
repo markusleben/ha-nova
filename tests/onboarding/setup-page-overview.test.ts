@@ -8,7 +8,7 @@ const item = (id: string, state: string, label: string, key: string, action = ""
 const state = {
   screen: "rerun", rows: [], accepts: ["clients", "window", "phone", "finish"],
   links: { nova: "http://homeassistant.local:8123/app" },
-  control: { window: false, phone: "pick", own: 1, phones: [{ id: "p1", name: "My phone", person: "Me" }], link: "offer", chat: { state: "page_off" } },
+  control: { window: false, phone: "pick", phones: [{ id: "p1", name: "My phone", person: "Me" }], link: "offer", chat: { state: "page_off" } },
   overview: [
     item("claude", "ok", "Claude Code", "client_on"),
     item("codex", "todo", "Codex", "client_off", "clients", "codex"),
@@ -76,12 +76,12 @@ describe("setup re-run overview", () => {
     expect(on.find("b-attention-chat_phone")!.textContent).toContain("Phone for chat apps");
     on.find("b-attention-chat_phone")!.dispatch("click");
     expect(on.posts).toEqual([]);
-    const none = page({ ...state, accepts: ["finish", "recheck"], control: { window: false, phone: "none", phone_why: { key: "setup.page.control.phone_missing" } },
+    const none = page({ ...state, accepts: ["finish", "recheck"], control: { window: false, phone: "none" },
       overview: [item("phone", "todo", "Phone for this computer", "phone_none", "phone")] });
     await none.settle();
     none.find("b-attention-phone")!.dispatch("click");
     await none.settle();
-    expect(none.screen.textContent).toContain(none.catalog["setup.page.control.phone_missing"]);
+    expect(none.screen.textContent).toContain(none.catalog["setup.page.control.phone_whose_missing"]);
     expect(none.find("b-phone-recheck")).toBeDefined();
   });
 

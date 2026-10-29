@@ -169,7 +169,7 @@ func TestEveryChoicePromptUsesArrowMenuOnTTY(t *testing.T) {
 			return err
 		}},
 		{"phone list", "0", func(r *bufio.Reader, out io.Writer) error {
-			if got, ok := choosePhone(r, out, home, ""); !ok || got != phone {
+			if got, ok := choosePhone(r, out, home); !ok || got != phone {
 				t.Errorf("phone = %+v ok=%v", got, ok)
 			}
 			return nil
@@ -190,12 +190,6 @@ func TestEveryChoicePromptUsesArrowMenuOnTTY(t *testing.T) {
 		{"protected file", "yes", func(r *bufio.Reader, out io.Writer) error {
 			if yes, err := promptSetupServiceCredentialsInteractive(r, out, "Claude Code"); !yes || err != nil {
 				t.Errorf("protected file = %v %v", yes, err)
-			}
-			return nil
-		}},
-		{"own phone", "use", func(r *bufio.Reader, out io.Writer) error {
-			if got := promptOwnPhone(r, out, phone); got != "use" {
-				t.Errorf("own phone = %q", got)
 			}
 			return nil
 		}},

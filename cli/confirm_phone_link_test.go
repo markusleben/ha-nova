@@ -194,18 +194,18 @@ func linked(t *testing.T, h *writeHarness) *phoneLink {
 	return links["owner-id"].link
 }
 
-// The signed-in user's only phone is proposed; Enter skips (lane E4: no
-// notification without an explicit yes); "yes" sends ONE notification,
-// to that phone only, and the tap there links it. Later confirmations go to
+// The wizard asks whose phone; Enter skips (lane E4: no notification
+// without an explicit choice); picking one sends ONE notification, to that
+// phone only, and the tap there links it. Later confirmations go to
 // that phone only, and count only from its user — not even the owner's.
 func TestLinkPhoneByTapOnTheChosenPhoneOnly(t *testing.T) {
 	h, p, _ := familyLink(t)
 	p.tapBy = tapFrom("mobile_app_annas_pixel", "anna-id", true)
-	if exit, out := runLink(t, h, "\n", phoneLinkRun{interactive: true, signedIn: "anna-id", offer: true}); exit != 0 || len(p.sent) != 0 || linked(t, h) != nil {
+	if exit, out := runLink(t, h, "\n", phoneLinkRun{interactive: true, offer: true}); exit != 0 || len(p.sent) != 0 || linked(t, h) != nil {
 		t.Fatalf("Enter linked or notified: exit %d sent %v out %q", exit, p.sent, out)
 	}
-	exit, out := runLink(t, h, "yes\n", phoneLinkRun{interactive: true, signedIn: "anna-id", offer: true})
-	if exit != 0 || !strings.Contains(out, "Use “Anna’s Pixel” (Anna) for HA NOVA confirmations?") || !strings.Contains(out, "Only “Anna’s Pixel” gets HA NOVA confirmations") {
+	exit, out := runLink(t, h, "1\n", phoneLinkRun{interactive: true, offer: true})
+	if exit != 0 || !strings.Contains(out, phoneWhoseQuestion) || !strings.Contains(out, "1) Anna’s Pixel (Anna)") || !strings.Contains(out, "Only “Anna’s Pixel” gets HA NOVA confirmations") {
 		t.Fatalf("exit %d out %q", exit, out)
 	}
 	if strings.Join(p.services, ",") != "mobile_app_annas_pixel,mobile_app_annas_pixel" || p.sent[0]["title"] != phoneLinkTitle ||
@@ -239,7 +239,7 @@ func TestLinkPhoneByTapOnTheChosenPhoneOnly(t *testing.T) {
 	}
 	// The wizard on a computer that already has a phone just says so.
 	p.services = nil
-	if exit, out := runLink(t, h, "", phoneLinkRun{interactive: true, signedIn: "anna-id", offer: true}); exit != 0 || !strings.Contains(out, "Linked now: “Anna’s Pixel” confirms") || len(p.services) != 0 {
+	if exit, out := runLink(t, h, "", phoneLinkRun{interactive: true, offer: true}); exit != 0 || !strings.Contains(out, "Linked now: “Anna’s Pixel” confirms") || len(p.services) != 0 {
 		t.Fatalf("offer when linked: %d %q %v", exit, out, p.services)
 	}
 }
@@ -257,7 +257,7 @@ func TestLinkPhoneWithoutTerminalOnlyLists(t *testing.T) {
 		t.Fatalf("exit %d out %q sent %v", exit, out, p.services)
 	}
 	// No one signed in: whose computer this is isn't known, so the list asks whose phone, never "your own".
-	if !strings.Contains(out, phoneWhoseQuestion+" "+phoneWhoseHeader) || !strings.Contains(out, phoneWhoseMissing) || strings.Contains(out, phoneListHeader) ||
+	if !strings.Contains(out, phoneWhoseQuestion+" "+phoneWhoseHeader) || !strings.Contains(out, phoneWhoseMissing) || strings.Contains(out, "your own") ||
 		!strings.Contains(out, "Ask the user whose phone should confirm on this computer and let them choose from this list; never pick one for them.") {
 		t.Fatalf("list: %q", out)
 	}

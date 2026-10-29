@@ -15,7 +15,7 @@ import (
 // be asked now stays with `ha-nova setup confirm-phone`, which settles it
 // safely.
 func (f *setupFlow) pagePhones(ctl *setupPageControl) {
-	ctl.Phone, ctl.Phones, ctl.Own, ctl.Whose, ctl.PhoneWhy, ctl.OldPhone = "unavailable", nil, 0, false, nil, ""
+	ctl.Phone, ctl.Phones, ctl.PhoneWhy, ctl.OldPhone = "unavailable", nil, nil, ""
 	if !(f.pairedThisRun || f.pageRerunning) || f.cloudSetupPaused { // as in the terminal: right after a pairing, and on a re-run
 		return
 	}
@@ -37,24 +37,17 @@ func (f *setupFlow) pagePhones(ctl *setupPageControl) {
 	default:
 		return
 	}
-	all, own := home.ownFirst(setupSignedInUser)
-	switch {
-	case home.whose(setupSignedInUser): // every phone with its person, none first: the user picks whose
-		ctl.Whose = true
-		if name := home.sharedAdmin(); name != "" {
-			ctl.PhoneWhy = setupPageText("setup.page.control.phone_shared", "phone", terminalSafeName(name))
-		}
-	case own == 0: // never someone else's phone as the obvious choice: say why theirs is missing
-		ctl.PhoneWhy = setupPageText("setup.page.control.phone_missing")
-		if names := home.sharedOf[setupSignedInUser]; len(names) > 0 {
-			ctl.PhoneWhy = setupPageText("setup.page.control.phone_shared", "phone", terminalSafeName(names[0]))
-		}
+	// Whose phone, as choosePhone asks: every administrator's phone with its
+	// person, none first. The row also says how to add a missing phone.
+	all := home.eligible("")
+	if name := home.sharedAdmin(); name != "" {
+		ctl.PhoneWhy = setupPageText("setup.page.control.phone_shared", "phone", terminalSafeName(name))
 	}
 	if len(all) == 0 {
 		ctl.Phone = "none"
 		return
 	}
-	ctl.Phone, ctl.Own = "pick", own
+	ctl.Phone = "pick"
 	for _, t := range all {
 		ctl.Phones = append(ctl.Phones, setupPagePhone{ID: t.DeviceID, Name: terminalSafeName(t.Name), Person: terminalSafeName(t.Person), OS: t.platform()})
 	}
@@ -95,7 +88,7 @@ func (f *setupFlow) pageLinkPhone(ctl *setupPageControl, deviceID string) {
 		s.close()
 	}
 	if result == phoneLinked {
-		ctl.Phone, ctl.Phones, ctl.Own, ctl.Whose, ctl.PhoneWhy = "linked", nil, 0, false, nil
+		ctl.Phone, ctl.Phones, ctl.PhoneWhy = "linked", nil, nil
 		return
 	}
 	ctl.Phone, ctl.PhoneProblem = "pick", pagePhoneProblem(result, ctl.PhoneName, person)
