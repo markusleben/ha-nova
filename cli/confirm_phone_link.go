@@ -33,7 +33,7 @@ const (
 	phoneOwnerToken = "This NOVA App signs in to Home Assistant as the owner, so a tap on a phone can't be told apart from HA NOVA itself. Phone confirmation isn't available with this App. Nothing changed."
 	phoneReadFailed = "HA NOVA can't read this Home Assistant's phones right now. Nothing changed; try again in a moment."
 	phoneListHeader = "Pick your own phone; it gets one notification. Only administrators' phones are listed."
-	phoneOwnMissing = "Your own phone isn't listed. Sign in to the Home Assistant app on your phone with your own account, and check that your phone is picked under Settings → People → your name → Track device. Then run ha-nova setup confirm-phone."
+	phoneOwnMissing = "Your own phone isn't listed. In Home Assistant, open Settings → People. Not there? Add yourself and choose your user under “Allow person to login”. Then pick your phone under Track device, and run ha-nova setup confirm-phone."
 )
 
 func runConfirmPhoneSetting(paths runtimePaths, args []string) int {

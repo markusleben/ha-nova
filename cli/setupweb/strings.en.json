@@ -572,7 +572,7 @@
   "setup.page.button.link_remove": "Remove Link for {host}",
   "setup.page.problem.link_remove_failed": "Link couldn't be removed. The terminal says why.",
   "setup.page.control.phone_someone": "Use someone else's phone",
-  "setup.page.control.phone_missing": "Your phone isn't listed. Sign in to the Home Assistant app on your phone with your own account, and check that your phone is picked under Settings → People → your name → Track device. Then check again.",
+  "setup.page.control.phone_missing": "Your phone isn't listed. In Home Assistant, open Settings → People. Not there? Add yourself and choose your user under “Allow person to login”. Then pick your phone under Track device. Then check again.",
   "setup.page.control.phone_shared": "Two devices in Home Assistant are called “{phone}”, so HA NOVA can't tell them apart. Remove the old one in Settings → Devices & services → Mobile App, or rename one in its Home Assistant app. Then check again.",
   "setup.overview.attention": "Needs your attention",
   "setup.chat.key": "Use HA NOVA in Claude and ChatGPT",
