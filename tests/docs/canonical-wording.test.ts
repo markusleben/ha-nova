@@ -81,6 +81,7 @@ const docs = [
   "nova/DOCS.md",
   "nova/README.md",
   "nova/translations/en.yaml",
+  "cli/confirm_strings.en.json",
   ...readdirSync("cli/testdata/setup-golden").map((f) => `cli/testdata/setup-golden/${f}`),
   ...pages,
 ];

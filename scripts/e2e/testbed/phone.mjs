@@ -107,8 +107,9 @@ async function tap(push) {
   if (!res.ok) throw new Error(`tap -> HTTP ${res.status}`);
 }
 
-// The line naming button says this phone's gesture (cli/confirm_phone_text.go
-// phoneTapLine): press and hold on iOS, pull down / its arrow on Android.
+// The line naming button says this phone's gesture (phoneTapLine, keys
+// phone.tap.* in cli/confirm_strings.en.json): press and hold on iOS, pull
+// down / its arrow on Android.
 // Matched loosely, so a copy edit doesn't break the lane; the wrong phone's
 // gesture or the both-phones line does.
 const gesture = (platform, button, text) => text.split("\n").filter((l) => l.includes(`“${button}”`)).some((l) => platform === "ios"
