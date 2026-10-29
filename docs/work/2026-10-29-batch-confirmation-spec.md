@@ -22,6 +22,13 @@ Accepted proposal:
 - "It stops at the first failure and reports what was done, what failed, and what was not attempted (a ledger; never claimed atomic)."
 - "Security: one tap confirms many changes, so each one is named in the window."
 
+Build decisions (2026-10-29, after the spec review):
+
+3. Chat apps: option A (§7). Markus: "Ja, auch in Claude/ChatGPT: „Plan a change“ bekommt die Sammel-Option, einmal neu erlauben." `ha_plan` gets kind `batch` and one argument, `plans`; `ha_apply`'s text stays unchanged; `TestMCPToolTextStable` gets the new hash, and the PR states the old and the new one; the `ha_skill` header routes a batch the same way the CLI does.
+4. The batch stays fully revertible: the undo store keeps the last 25 updated targets per server (`undoSnapshotStackLimit` 5 → 25), so every update of a 20-member batch keeps its `plan revert`. The simpler of the two options: one constant and the skills' "last 5" texts, against a second checkpoint store with its own revert path. One entry per target stays (a batch changes each item once).
+5. Choices 1 to 7 below are accepted as written.
+6. Window limits: the Windows check runs through `npm run vm-lane` later, the 13-inch macOS check in the hands-on round with Markus (Lanes, under Test plan).
+
 ## Design
 
 ### 1. Commands
@@ -86,7 +93,7 @@ Rules; each refusal names the member, and the member plans stay as they were:
 | 6 | `failed` or `unverified` | `BATCH_STOPPED` | stopped after a member was attempted: refused by Home Assistant, unverified, changed, or a Relay error |
 | 7 | `unverified` | `OUTCOME_UNKNOWN` | a member may have been saved or deleted: read it, never apply again |
 
-`result.items[]` is the ledger, one row per member in order: `item`, `plan` (the member's id), `op` (`create`, `update`, `delete`), `domain`, `entity_id`, `config_id`, `name`, `status` (`verified`, `unverified`, `failed`, `unknown`, `drift`, `not_sent`, `not_attempted`), `verification`, `snapshot` and `restore` (deletes), `undo` (updates), `error`. `result.counts`: verified, stopped, not attempted. `say` is one catalog line (§6). `next_step`: tell which went through, what stopped the next one, and what was not sent; the rest is a new batch with a new confirmation; deleted ones come back with each row's `restore`, changed ones with `plan revert` (the newest 5 per server).
+`result.items[]` is the ledger, one row per member in order: `item`, `plan` (the member's id), `op` (`create`, `update`, `delete`), `domain`, `entity_id`, `config_id`, `name`, `status` (`verified`, `unverified`, `failed`, `unknown`, `drift`, `not_sent`, `not_attempted`), `verification`, `snapshot` and `restore` (deletes), `undo` (updates), `error`. `result.counts`: verified, stopped, not attempted. `say` is one catalog line (§6). `next_step`: tell which went through, what stopped the next one, and what was not sent; the rest is a new batch with a new confirmation; deleted ones come back with each row's `restore`, changed ones with `plan revert` (the last 25 updated targets per server, decision 4).
 
 ### 6. Texts on every surface
 
@@ -137,15 +144,15 @@ One confirmation covers all 3, so I need you to confirm it. A copy of each one d
 
 Shared files get small hooks, coordinated with the localization PRs: `replanStored`/`humanPlan` and `confirmText`/`formPlan` learn kind `batch` (`--no-snapshot` offered after a failed snapshot, as for `raw`); the phone title takes a batch's whole-sentence title; `applyPlan` hands kind `batch` to `applyBatch` after its shared checks; `plan` gets the `batch` subcommand; `planMaxFiles`.
 
-### 7. Chat apps (decision needed)
+### 7. Chat apps (decided: A)
 
 Finding: the existing `ha_plan`/`ha_apply` arguments can't express a batch. `ha_apply` needs nothing (a batch is one `plan_id`). `ha_plan` has no kind `batch` and no argument for a list of plan ids: `entity_ids` ("exact entity_ids") would misdescribe them, `requests` has the raw item shape, and `id` is one string. A new enum value alone leaves the hash of `TestMCPToolTextStable` unchanged, but it still needs an argument for the list.
 
 Context: 0.28.0 already changes `ha_plan`'s text against 0.27.3 (raw plans #864; dashboards, rooms, templates #865; hash `28de730f…` against `c4861734…` in v0.27.3). Every claude.ai user who updates from 0.27.3 re-allows "Plan a change" once anyway. `ha_apply`'s text is unchanged since 0.27.3 and stays so.
 
-- **A (recommended):** `ha_plan` gets kind `batch` and one new argument, `plans` (2 to 20 plan ids, in the order they run), and its description names the kind. `ha_apply` unchanged. `TestMCPToolTextStable` gets the new hash, stated in the PR. No extra reset for users coming from 0.27.3; RC testers re-allow `ha_plan` once more. Chat apps get the whole feature (the phone in `ha-nova serve`, form or window in `ha-nova mcp`).
-- **B:** CLI only in 0.28.0. Chat apps keep one confirmation per typed plan and the grouped "yes" for previews; the `ha_skill` header says so. Chat apps get it with the next deliberate tool-text change, which then resets `ha_plan` for everyone.
-- **C:** no text change, deletes only: kind `delete` also takes `entity_ids` (already an `ha_plan` argument, truthfully described) and makes a delete-only batch in one call; batches with changes stay CLI only. A second way to make a batch.
+- **A (chosen, decision 3):** `ha_plan` gets kind `batch` and one new argument, `plans` (2 to 20 plan ids, in the order they run), and its description names the kind. `ha_apply` unchanged. `TestMCPToolTextStable` gets the new hash, stated in the PR. No extra reset for users coming from 0.27.3; RC testers re-allow `ha_plan` once more. Chat apps get the whole feature (the phone in `ha-nova serve`, form or window in `ha-nova mcp`).
+- **B (not chosen):** CLI only in 0.28.0. Chat apps keep one confirmation per typed plan and the grouped "yes" for previews; the `ha_skill` header says so. Chat apps get it with the next deliberate tool-text change, which then resets `ha_plan` for everyone.
+- **C (not chosen):** no text change, deletes only: kind `delete` also takes `entity_ids` (already an `ha_plan` argument, truthfully described) and makes a delete-only batch in one call; batches with changes stay CLI only. A second way to make a batch.
 
 Duration in chat apps: `ha-nova serve` runs a phone-confirmed apply in its background job (the result waits for the next `ha_apply`). A form, window, chat-code, or preview batch in `ha-nova mcp` runs inside one tool call. Phase 2 measures a 20-member apply on the testbed; if it takes more than 45 seconds, I report the number with a proposal before building on.
 
@@ -155,7 +162,8 @@ Duration in chat apps: `ha-nova serve` runs a phone-confirmed apply in its backg
 - `skills/write/SKILL.md`: the Flow's grouped-set sentence and Phase 2's batch-delete bullet become one pointer: several automation/script writes or deletes in one task → plan each, show each preview without its ask, `ha-nova plan batch`, its `say`, one `apply`. Net words ≤ 0.
 - `skills/ha-nova/grouped-change-set.md`: automation/script sets go to the CLI batch (matrix `write` row); in the cross-family cleanup, the automation/script items become one batch at their position in the order, instead of keeping their own codes.
 - `skills/ha-nova/SKILL.md` (Confirmation Tiers) and `skills/ha-nova/write-safety.md` (multi-target): "one CLI code per item" becomes "one CLI batch".
-- `cli/mcp_skill.go` header (a tool result, not tool text): the `plan batch` mapping (A), or "not in chat apps: confirm each plan" (B).
+- `cli/mcp_skill.go` header (a tool result, not tool text): `plan batch --plan <id> …` maps to `ha_plan` kind `batch` with `plans`, so the chat guidance routes a batch the same way as the CLI.
+- The skills' undo depth (decision 4): "last 5 updated targets" becomes "last 25" in `write-safety.md`, `update-revert.md`, `recovery-coverage.md`, `skills/device/SKILL.md`, and `docs/reference/safety.md`. The device swap's and migrate's own caps (at most 5 updates per group) stay.
 - Tests: `tests/skills/batch-safety-contract.test.ts` (its "automations OR scripts, never mixed" pin becomes the CLI batch pins; "one CLI code per item" appears nowhere), `grouped-change-set-contract.test.ts`, and the routing pins. Word and route budgets are not raised: detail lives in `batch-safety.md`, which only batch flows load.
 
 ### 9. The grouped change set
@@ -170,21 +178,31 @@ Go tests on the fake Relay (no keychain, no Home Assistant), run with an anchore
 - Seal: an edited member hash, request, order, text, or language in the batch file is `PLAN_INVALID` or drift; nothing sent.
 - Apply: a mixed batch (automation create, script update, automation delete, script delete) sends one write per member with every snapshot before the first write, records undo receipts and the ledger, exit 0. Drift before any send: exit 2, zero writes. Drift at member 3: exit 6, two writes. Home Assistant refuses member 2: exit 6. An unverified member stops it. An unknown outcome: exit 7, never retried. A failed snapshot: exit 1, zero writes; `--no-snapshot` then sends all; `--no-snapshot` before a failure is refused. Expiry; two concurrent applies (one sends); a second apply refused; the wrong-code counter; a form plan without its answer refused; a window or phone plan without its answer refused.
 - Surfaces, golden in en (and de if the catalog has it): window text and budget (worst case fits; over it `BATCH_TOO_LONG`); phone titles for every op and kind within 80 characters, body ranking, button, Android hint, no-snapshot; result notifications; form message; chat `say` per channel and for a preview batch; the same item lines in window text, form message, and `say`; window and phone racing on a batch (one apply).
-- Chat apps (A): `ha_plan` kind `batch` argv and `plans` checks; `ha_apply` of a batch through a form and through `ha-nova serve`'s phone job; `TestMCPToolTextStable` with the new hash. (B: the header says no batch.)
+- Chat apps: `ha_plan` kind `batch` argv and `plans` checks; `ha_apply` of a batch through a form and through `ha-nova serve`'s phone job; `TestMCPToolTextStable` with the new hash; the `ha_skill` header maps `plan batch`.
+- Undo depth: 20 updates in one batch, then `plan revert` of the first one still works; a 26th update evicts the oldest.
 - Skills: the contract tests of §8; budgets unchanged.
 - Throwaway testbed (announced first): an agent deletes 12 test automations and changes 3 in one batch; the timing of 20 members.
-- Per OS, the worst-case window shows uncut: Windows (vm-lane), Linux (zenity screenshot), macOS (13-inch).
+
+### Lanes for the window budget
+
+The worst-case batch window (20 members, 60-character names, plus the phone lines) must show uncut, with nothing scrolled or clipped:
+
+- Windows: `MessageBoxTimeoutW` at 1366×768 and 125 % through `npm run vm-lane -- <tag>` on the throwaway Win11 VMs, after this PR's build is tagged as a release candidate.
+- macOS: `display dialog` on a 13-inch MacBook, in the hands-on round with Markus.
+- Linux: zenity at 1366×768 in the Linux container lane, with a screenshot.
+
+Until all three have passed, 34 lines and 2,400 characters are provisional; any clipping lowers them before 0.28.0 ships.
 
 ## Known limits
 
-- Not atomic: a stop leaves the earlier members done. Deleted ones come back through each row's `restore`, changed ones through `plan revert`, which keeps the newest 5 updates per server (as six single updates do today). A batch with more than 5 updates leaves only the last 5 revertible, so the skill offers a full backup first.
+- Not atomic: a stop leaves the earlier members done. Deleted ones come back through each row's `restore`, changed ones through `plan revert` (the last 25 updated targets per server: a full batch of 20 updates stays revertible, but 5 earlier updates at most).
 - Where only the phone asks (no window), the person sees the count and the most sensitive item there; the full list is in the chat or terminal.
 - A member that changed before anything was sent ends the whole batch, and its members are used up: the agent plans them again.
 - After a stop, the copies of members that were never deleted stay in the snapshot store (one name per item; a later delete replaces it).
 - A list whose typed reasons make the window text too long is refused, never shown cut.
 - Time grows with the list; over a slow link a 20-member apply can outlast a chat app's tool timeout (measured in Phase 2).
 
-## Choices made here (override if you disagree)
+## Choices made here (accepted, decision 5)
 
 1. Members move into the batch at `plan batch` and their files go away, instead of being referenced and claimed at apply: one file, no state across files, and no member can be applied alone afterwards.
 2. The batch's 15 minutes start at `plan batch` (members must be unexpired then), not at the first member's plan: a 20-item task would otherwise expire while the person reads the previews.
@@ -193,10 +211,6 @@ Go tests on the fake Relay (no keychain, no Home Assistant), run with an anchore
 5. Mixed lists are allowed, with the order check (§2).
 6. A preview batch takes one natural "yes" for up to 20 writes (the grouped set allowed 10): decision 1's cap, and every member's preview is shown first.
 7. A create counts as a change in the phone title.
-
-## Open question
-
-Chat apps: A, B, or C (§7). Recommended: A.
 
 ## Delivery
 
