@@ -39,9 +39,9 @@ var (
 type controlJob struct {
 	user     string
 	status   string // running, done, declined, timeout, rejected, changed, failed
-	step     string // running: "old" (the phone linked now) or "new"
-	phone    string // running: the phone asked now
-	platform string // running: that phone's (how it shows the buttons)
+	step     string // "old" (the phone linked now) or "new": the step running, or at the end the last one
+	phone    string // the phone that step asks
+	platform string // that phone's (how it shows the buttons)
 	to       string // a move: the new phone
 	ended    time.Time
 }

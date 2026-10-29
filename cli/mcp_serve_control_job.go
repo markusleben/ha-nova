@@ -92,7 +92,7 @@ func chatPhoneLink(t phoneTarget) *phoneLink {
 func (b *chatBridge) runPhoneJob(job *controlJob, look *controlLook, chosen *phoneTarget, codes bool) {
 	end := func(status string) {
 		b.mu.Lock()
-		job.status, job.step, job.phone, job.platform, job.ended = status, "", "", "", time.Now()
+		job.status, job.ended = status, time.Now() // the step stays: the page names the phone that ended it
 		b.mu.Unlock()
 	}
 	defer func() {

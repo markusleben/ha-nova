@@ -69,7 +69,7 @@ Spec: `docs/work/2026-10-24-chat-app-phone-move-spec.md`. Code: `cli/mcp_serve_c
   - A change made at once (`adopt`, `drop`, a `stop` with `override`) checks again right before it writes: `409 PHONE_CHANGED` (the entry changed meanwhile), `409 ACCESS_CHANGED` (the user's access changed meanwhile), `503 SETTINGS_UNREADABLE`, or `503 LINKS_UNWRITABLE` (`phone-links.json` can't be read or written).
   - `override` is the NOVA page's click (the owner's browser session and a single-use CSRF token). The App never sends it from its machine API.
 - `GET /control/v1/phone/<job>` answers `{"status"}` (`400 INVALID_JOB` for a malformed id).
-  - While `running`, from the `202` on, it adds `step` (`old` or `new`), `phone` (the phone asked now), and that phone's `platform`. A move also has `to` (its new phone) to the end.
+  - From the `202` on it adds `step` (`old` or `new`), `phone` (the phone that step asks), and that phone's `platform`: while `running` the step now, at the end the last one, so the page can name the phone that cancelled or didn't answer. A move also has `to` (its new phone).
   - It ends as `done`, `declined`, `timeout`, `rejected` (a tap from someone else), `changed`, or `failed`.
   - `changed`: the link, the phone, or the user's access changed meanwhile; for a stop, also the chat-code setting its question named.
   - `failed`: the notification couldn't be sent or heard, a check after a tap couldn't read Home Assistant or the links, or the write failed.

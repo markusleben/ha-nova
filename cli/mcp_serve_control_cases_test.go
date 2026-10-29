@@ -241,7 +241,7 @@ func TestServeControlListsOnlyTheUsersOwnPhones(t *testing.T) {
 }
 
 // A job names the phone it asks, that phone's platform, and a move's new
-// phone, from the 202 on.
+// phone, from the 202 on, and at the end the phone that ended it.
 func TestServeControlJobNamesItsPhones(t *testing.T) {
 	c := newControl(t, "")
 	c.seed(ownerHex, markusIPhone)
@@ -257,7 +257,7 @@ func TestServeControlJobNamesItsPhones(t *testing.T) {
 	ok, _ := c.phones.buttons(t)
 	c.phones.events <- tap(ok, ownerHex, "REMOTE")
 	waitFor(t, "the iPad's question", func() bool { return state() == "running new Family iPad  Family iPad" })
-	if status := c.finish(body["job"]); status != "timeout" || state() != "timeout <nil> <nil> <nil> Family iPad" {
+	if status := c.finish(body["job"]); status != "timeout" || state() != "timeout new Family iPad  Family iPad" {
 		t.Fatalf("no tap on the iPad: %s %q", status, state())
 	}
 }
