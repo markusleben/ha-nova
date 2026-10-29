@@ -79,7 +79,7 @@ func (f *setupFlow) setupOverview(ctl setupPageControl, remote bool) []setupOver
 	case "waiting", "moving":
 		add("phone", "run", phoneLabel, setupPageText("setup.overview.phone_wait"), "phone", "")
 	case "none":
-		add("phone", "todo", phoneLabel, setupPageText("setup.overview.phone_none"), "", "ha-nova setup confirm-phone")
+		add("phone", "todo", phoneLabel, setupPageText("setup.overview.phone_none"), "phone", "ha-nova setup confirm-phone")
 	case "unavailable":
 		add("phone", "unknown", phoneLabel, setupPageText("setup.overview.phone_unavailable"), "", "ha-nova setup confirm-phone")
 	default:

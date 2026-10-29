@@ -195,7 +195,7 @@ func validateLocalDeviceReplacementAllowedWithPolicy(
 ) error {
 	if cfg.Cloud != nil {
 		return fmt.Errorf(
-			"Home Assistant Link access is configured; remove it before replacing the local device pairing (the code was not used)",
+			"Home Assistant Link access is configured; remove it before replacing the local device pairing (the code was not used): run ha-nova cloud remove, then ha-nova setup again",
 		)
 	}
 	ctx, cancel := boundedNativeOAuthSecretContext(

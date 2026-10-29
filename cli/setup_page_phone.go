@@ -40,8 +40,8 @@ func (f *setupFlow) pagePhones(ctl *setupPageControl) {
 	all, own := home.ownFirst(setupSignedInUser)
 	if own == 0 { // never someone else's phone as the obvious choice: say why theirs is missing
 		ctl.PhoneWhy = setupPageText("setup.page.control.phone_missing")
-		if len(home.shared) > 0 {
-			ctl.PhoneWhy = setupPageText("setup.page.control.phone_shared", "phone", terminalSafeName(home.shared[0]))
+		if names := home.sharedOf[home.user(setupSignedInUser)]; len(names) > 0 {
+			ctl.PhoneWhy = setupPageText("setup.page.control.phone_shared", "phone", terminalSafeName(names[0]))
 		}
 	}
 	if len(all) == 0 {

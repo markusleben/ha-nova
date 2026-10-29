@@ -35,10 +35,11 @@ window.novaRerun = (h) => {
     const items = h.state().overview || [];
     const rowOf = overviewRow(controls);
     // Important open items, on top: a click opens the row and scrolls there.
-    const open = items.filter((item) => ['phone', 'chat_phone'].includes(item.id) && item.state === 'todo');
+    const chatOn = ['on', 'page_on'].includes(((h.state().control || {}).chat || {}).state); // the chat-app phone only once chat apps are on
+    const open = items.filter((item) => item.state === 'todo' && (item.id === 'phone' || (item.id === 'chat_phone' && chatOn)));
     const go = (item) => () => {
       if (item.id === 'phone') { opened.phone = true; h.render(true); }
-      const node = document.getElementById(item.id === 'phone' ? 'overview-phone' : 'overview-nova');
+      const node = document.getElementById(item.id === 'phone' ? 'overview-phone' : 'l-overview-nova');
       if (node) { node.scrollIntoView({ block: 'center', behavior: 'smooth' }); node.focus(); }
     };
     const attention = open.length ? el('div', { class: 'attention', role: 'note' }, el('strong', {}, t('setup.overview.attention')),

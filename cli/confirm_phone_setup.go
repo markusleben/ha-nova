@@ -102,10 +102,11 @@ func phoneAdmin(u haUser) bool {
 type phoneHome struct {
 	owner, relay string
 	users        map[string]haUser
-	phones       []phoneTarget // on a person with a user, reachable, name not shared
-	shared       []string      // names of person phones left out because another device has the same name
-	linked       *phoneTarget  // the linked device while it exists; Service "" when it can't be reached
-	linkedWhy    phoneWhy      // why linked can't be reached
+	phones       []phoneTarget       // on a person with a user, reachable, name not shared
+	shared       []string            // names of person phones left out because another device has the same name
+	sharedOf     map[string][]string // user id → that user's names in shared
+	linked       *phoneTarget        // the linked device while it exists; Service "" when it can't be reached
+	linkedWhy    phoneWhy            // why linked can't be reached
 }
 
 // lookupPhones reads the home. owner is set whenever it is known, also on
@@ -206,6 +207,12 @@ func (h *phoneHome) fill(rendered, services json.RawMessage, device string) erro
 		case shared[t.Service] > 1:
 			if !slices.Contains(h.shared, t.Name) {
 				h.shared = append(h.shared, t.Name)
+			}
+			if h.sharedOf == nil {
+				h.sharedOf = map[string][]string{}
+			}
+			if !slices.Contains(h.sharedOf[t.UserID], t.Name) {
+				h.sharedOf[t.UserID] = append(h.sharedOf[t.UserID], t.Name)
 			}
 		case usable(t):
 			seen[t.DeviceID] = true

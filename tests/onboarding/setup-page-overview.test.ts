@@ -66,6 +66,25 @@ describe("setup re-run overview", () => {
     expect(done.screen.all().some((node) => node.className === "attention")).toBe(false);
   });
 
+  it("names the chat-app phone only once chat apps are on, and the phone with none found", async () => {
+    const chatPhone = item("chat_phone", "todo", "Phone for chat apps", "chat_phone_off", "nova");
+    const off = page({ ...state, overview: [chatPhone] });
+    await off.settle();
+    expect(off.screen.all().some((node) => node.className === "attention")).toBe(false);
+    const on = page({ ...state, control: { ...state.control, chat: { state: "page_on" } }, overview: [item("chat", "ok", "Chat apps", "chat_on", "chat"), chatPhone] });
+    await on.settle();
+    expect(on.find("b-attention-chat_phone")!.textContent).toContain("Phone for chat apps");
+    on.find("b-attention-chat_phone")!.dispatch("click");
+    expect(on.posts).toEqual([]);
+    const none = page({ ...state, accepts: ["finish", "recheck"], control: { window: false, phone: "none", phone_why: { key: "setup.page.control.phone_missing" } },
+      overview: [item("phone", "todo", "Phone for this computer", "phone_none", "phone")] });
+    await none.settle();
+    none.find("b-attention-phone")!.dispatch("click");
+    await none.settle();
+    expect(none.screen.textContent).toContain(none.catalog["setup.page.control.phone_missing"]);
+    expect(none.find("b-phone-recheck")).toBeDefined();
+  });
+
   it("keeps chat and Link switches pending until Done", async () => {
     const p = page(state);
     await p.settle();

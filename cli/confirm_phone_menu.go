@@ -14,7 +14,7 @@ import (
 // counts them): the signed-in user's, else the owner's, since only the owner
 // sets up HA NOVA.
 func (h phoneHome) ownFirst(signedIn string) (all []phoneTarget, own int) {
-	who := cmp.Or(signedIn, h.owner)
+	who := h.user(signedIn)
 	for _, t := range h.eligible("") {
 		if t.UserID == who {
 			all = slices.Insert(all, own, t)
@@ -25,6 +25,9 @@ func (h phoneHome) ownFirst(signedIn string) (all []phoneTarget, own int) {
 	}
 	return all, own
 }
+
+// user: whose phones are the user's own (ownFirst).
+func (h phoneHome) user(signedIn string) string { return cmp.Or(signedIn, h.owner) }
 
 // choosePhone: the user's only phone is proposed; otherwise every
 // administrator's phone is a choice, the user's own first (arrow menu,
@@ -41,11 +44,13 @@ func choosePhone(reader *bufio.Reader, out io.Writer, home phoneHome, signedIn s
 			return phoneTarget{}, false
 		}
 	}
-	fmt.Fprintln(out, "  "+phoneListHeader)
+	if own > 0 {
+		fmt.Fprintln(out, "  "+phoneListHeader)
+	}
 	for _, name := range home.shared {
 		fmt.Fprintln(out, "  "+phoneSharedLine(name))
 	}
-	if own == 0 && len(home.shared) == 0 {
+	if own == 0 && len(home.sharedOf[home.user(signedIn)]) == 0 {
 		fmt.Fprintln(out, "  "+phoneOwnMissing)
 	}
 	spec := setupMenuSpec{

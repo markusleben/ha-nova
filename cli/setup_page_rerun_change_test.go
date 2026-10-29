@@ -106,8 +106,8 @@ func TestSetupPageRerunAnotherHomeRemovesLinkFirst(t *testing.T) {
 	}
 	page.click("link_remove", "")
 	after := page.waitFor("Link removed", func(s setupPageState) bool { return !slices.Contains(s.Accepts, "link_remove") && s.Problem == nil })
-	if !after.AskHA || removed != 1 {
-		t.Fatalf("after = %+v removed=%d", after, removed)
+	if after.AskHA || after.HA != "192.0.2.10" || removed != 1 {
+		t.Fatalf("after = %+v removed=%d: not on with the address Link held back", after, removed)
 	}
 	page.click("terminal", "")
 	setupPageExit(t, done, stdout)
@@ -117,11 +117,11 @@ func TestSetupPageRerunAnotherHomeRemovesLinkFirst(t *testing.T) {
 // code instead of checking the old home's device.
 func TestSetupPageAnotherAddressStartsUnpaired(t *testing.T) {
 	f := &setupFlow{cfg: runtimeConfig{HAHost: "a", HAURL: "http://a:8123"}, deviceAlreadyPaired: true, devicePaired: true}
-	f.pageUseAddress("a", "http://a:8123")
+	f.useSetupAddress("a", "http://a:8123")
 	if !f.deviceAlreadyPaired || !f.devicePaired {
 		t.Fatal("the same home forgot its pairing")
 	}
-	f.pageUseAddress("b", "http://b:8123")
+	f.useSetupAddress("b", "http://b:8123")
 	if f.deviceAlreadyPaired || f.devicePaired || f.cfg.HAURL != "http://b:8123" {
 		t.Fatalf("flow = %+v", f)
 	}

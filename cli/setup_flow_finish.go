@@ -194,7 +194,7 @@ func (f *setupFlow) afterSkills() setupStepResult {
 		// setup is complete, like the terminal's offers in finish.
 		f.pageControlled = true
 	} else if exit == 0 && !f.connectionModeAsked && !f.serviceMode && !f.cloudSetupPaused {
-		if coordinator := cloudCoordinatorForSetup; coordinator != nil && coordinator.Available() && !f.cfg.Cloud.ready() {
+		if coordinator := cloudCoordinatorForSetup; coordinator != nil && coordinator.Available() && f.cfg.Cloud == nil && cloudSetupPromptEligible(f.ui.termOut()) {
 			f.showExtras()
 		}
 		armSetupNextPromptSkipsStaleBlankInput()
@@ -211,6 +211,9 @@ func (f *setupFlow) afterSkills() setupStepResult {
 		clearSetupNextPromptSkipsStaleBlankInput()
 		if cloudAttempted && (cloudCode != 0 || f.cfg.Cloud != nil && !f.cfg.Cloud.ready()) {
 			linkExit = cloudCode // the optional Link didn't finish: the other offers and the outcome still come, then this exit
+			if cloudRecoveryHoldProblem(f.cfg) != nil || !f.ui.interactive() {
+				exit = cloudCode // a security hold, or no one to ask: its steps stay last
+			}
 		}
 	}
 	if err := completeSetupLifecycle(f.paths, f.lifecycleMarker...); err != nil {
@@ -230,6 +233,7 @@ func (f *setupFlow) afterSkills() setupStepResult {
 	}
 	result := f.finish()
 	if linkExit != 0 && result.done && result.code == 0 {
+		f.ui.note(setupT("setup.extras.link_failed")) // its reason is above the other questions
 		return setupDone(linkExit)
 	}
 	return result
@@ -255,8 +259,8 @@ func (f *setupFlow) finish() setupStepResult {
 		return f.pageFinish()
 	}
 	interactive := !f.serviceMode && f.ui.interactive()
-	if interactive && (f.pairedThisRun && !f.cloudSetupPaused || slices.Contains(f.selectedClients, "claude")) {
-		f.showExtras()
+	if interactive && !f.cloudSetupPaused && (f.pairedThisRun || slices.Contains(f.selectedClients, "claude") && claudeRulesToOffer(f.paths)) {
+		f.showExtras() // never while Link is paused: its steps stay on screen
 	}
 	if f.pairedThisRun && !f.cloudSetupPaused && interactive {
 		offerPhoneLink(f.ui.termIn(), f.ui.termOut(), f.paths)

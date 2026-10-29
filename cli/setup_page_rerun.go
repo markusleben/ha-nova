@@ -100,7 +100,7 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 				picked = setupPageText("setup.page.problem.address", "address", candidates[i].Host)
 				continue
 			}
-			f.pageUseAddress(host, haURL)
+			f.useSetupAddress(host, haURL)
 			f.pageRepairing()
 			return setupGoTo(setupStepHost), true
 		}

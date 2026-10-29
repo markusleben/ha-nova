@@ -13,6 +13,7 @@ func TestSetupPagePhoneSaysWhyTheOwnPhoneIsMissing(t *testing.T) {
 			home.devices[i].UserID = "" // not on Markus's person
 		}
 	}
+	home.devices = append(home.devices, phoneTarget{Service: "mobile_app_kids_phone", Name: "Kid’s Phone", DeviceID: "dev-kid-old"}) // someone else's clash isn't the reason
 	h.f.mu.Unlock()
 	p := newPageStepsTest(t, h.paths, "codex")
 	p.flow.pairedThisRun = true
