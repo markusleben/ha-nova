@@ -65,10 +65,10 @@ func TestServeControlRefusesAnOwnerTokenHome(t *testing.T) {
 }
 
 // adopt takes the phone from Home Assistant: only one of the user's own
-// phones that can confirm, stored as Home Assistant lists it, whatever the
-// request says.
+// phones that can confirm (the kid is at Ask only), stored as Home
+// Assistant lists it, whatever the request says.
 func TestServeControlAdoptChecksThePhone(t *testing.T) {
-	c := newControl(t, `{"allowed_users":["`+ownerHex+`","`+annaHex+`","`+kidHex+`"]}`)
+	c := newControl(t, levels([]string{ownerHex, annaHex, kidHex}, map[string]string{kidHex: "ask"}))
 	for user, device := range map[string]string{annaHex: devMarkus, kidHex: devKid, ownerHex: "d00000000000000000000000000000ff"} {
 		if code, body := c.post(map[string]any{"user": user, "action": "adopt", "phone": map[string]any{"device_id": device}}); code != http.StatusConflict || controlCode(body) != "PHONE_NOT_ELIGIBLE" {
 			t.Fatalf("adopt %s for %s: %d %v", device, user, code, body)
@@ -211,9 +211,9 @@ func TestServeControlFailsClosedOnUnreadableLinks(t *testing.T) {
 }
 
 // The list holds only the asking user's own phones that can confirm: never
-// another user's, a non-administrator's, or the Relay user's.
+// another user's, those of a user at Ask only, or the Relay user's.
 func TestServeControlListsOnlyTheUsersOwnPhones(t *testing.T) {
-	c := newControl(t, "")
+	c := newControl(t, levels([]string{ownerHex, annaHex, kidHex}, map[string]string{kidHex: "ask"}))
 	listed := func(user string) string {
 		code, list := c.call(http.MethodGet, "phones?user="+user, nil, c.secret)
 		if code != http.StatusOK {
@@ -247,7 +247,7 @@ func TestServeControlJobNamesItsPhones(t *testing.T) {
 	c.seed(ownerHex, markusIPhone)
 	_, body := c.post(map[string]any{"user": ownerHex, "action": "move", "phone": map[string]any{"device_id": devIpad}})
 	state := func() string {
-		_, s := c.call(http.MethodGet, "phone/"+body["job"].(string), nil, c.secret)
+		s := c.job(body["job"])
 		return fmt.Sprint(s["status"], " ", s["step"], " ", s["phone"], " ", s["platform"], " ", s["to"])
 	}
 	if got := state(); got != "running old Markus’s iPhone ios Family iPad" {

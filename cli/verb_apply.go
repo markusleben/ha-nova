@@ -189,6 +189,11 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	switch {
 	case !isCall && !isConfig && !isRooms && !isRaw && !isBatch:
 		return fail(refused("PLAN_INVALID", "plan "+id+" cannot be read or is not a valid plan"))
+	case chatPlanFailure(plan) != nil: // ha-nova serve: this user's level now (mcp_serve_levels.go); the plan stays
+		if os.Rename(claimed, open) == nil {
+			consumed = false
+		}
+		return fail(chatPlanFailure(plan))
 	case isCall && staticRefusal(request) != nil:
 		return fail(refuse(&env, *staticRefusal(request)))
 	case !verbNow().Before(expires):

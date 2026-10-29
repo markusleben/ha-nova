@@ -50,9 +50,7 @@ func (srv *mcpServer) configAdminFailure(name string, args map[string]json.RawMe
 	default:
 		return nil
 	}
-	mcpVerbLock.Lock() // a Relay session sets process-wide server selection
-	users, err := c.bridge.readUsers()
-	mcpVerbLock.Unlock()
+	users, err := c.bridge.homeUsers(true)
 	if err != nil {
 		return &verbFailure{code: "ADMIN_UNKNOWN", message: "HA NOVA can't check right now whether this Home Assistant user is an administrator",
 			next: "Tell the user nothing changed: HA NOVA couldn't check their Home Assistant account just now. They can try again in a moment."}

@@ -123,7 +123,13 @@ type phoneHome struct {
 	sharedOf     map[string][]string // user id → that user's names in shared
 	linked       *phoneTarget        // the linked device while it exists; Service "" when it can't be reached
 	linkedWhy    phoneWhy            // why linked can't be reached
+	confirms     func(haUser) bool   // whose phone may confirm, as lookupPhones read it (confirmer)
 }
+
+// confirmer: u's phone may confirm here. On a computer, an administrator's
+// (phoneAdmin); in a chat app, only its own user's, at a level with a
+// phone (phoneAllowed). A home read without a check allows no one.
+func (h phoneHome) confirmer(u haUser) bool { return h.confirms != nil && h.confirms(u) }
 
 // lookupPhones reads the home. owner is set whenever it is known, also on
 // error: links are keyed by it.
@@ -136,7 +142,10 @@ func lookupPhones(s *relaySession, links map[string]phoneEntry) (phoneHome, erro
 	if err := s.phoneRead("ws", map[string]any{"type": "config/auth/list"}, &users); err != nil {
 		return phoneHome{}, err
 	}
-	home := phoneHome{relay: current.ID, users: map[string]haUser{}}
+	home := phoneHome{relay: current.ID, users: map[string]haUser{}, confirms: phoneAdmin}
+	if chatCall != nil { // a chat app's user, or the one a control action acts for (asUser): bound now
+		home.confirms = chatCall.phoneAllowed
+	}
 	for _, u := range users {
 		home.users[u.ID] = u
 		if u.IsOwner && u.IsActive && !u.SystemGenerated {
@@ -319,7 +328,7 @@ func (h phoneHome) status(links map[string]phoneEntry, err error) (phoneSetup, p
 		setup.why = whyOwnerToken
 	case setup.confirmer == h.relay:
 		setup.why = whyRelayUser
-	case !phoneAdmin(h.users[setup.confirmer]):
+	case !h.confirmer(h.users[setup.confirmer]):
 		setup.why = whyDemoted
 	case h.linked == nil:
 		setup.why = whyRemoved

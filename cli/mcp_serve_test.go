@@ -64,6 +64,10 @@ func randomHex(t *testing.T, n int) string {
 // newServe starts the bridge; settings is chat-apps.json ("" = none).
 func newServe(t *testing.T, f *fakeHA, settings string) *serveHarness {
 	t.Helper()
+	if f.users == nil { // users A and B administer Home Assistant: their level is the owner's choice
+		f.users = []map[string]any{{"id": userA, "name": "A", "is_active": true, "group_ids": []string{"system-admin"}},
+			{"id": userB, "name": "B", "is_active": true, "group_ids": []string{"system-admin"}}}
+	}
 	h := newWriteHarness(t, f)
 	dir := t.TempDir()
 	secret := randomHex(t, 32)
@@ -346,7 +350,8 @@ func TestServeChatCodesOff(t *testing.T) {
 	}
 	env := s.tool(userA, "ha_plan", map[string]any{"kind": "call", "service": "lock.unlock", "entity_ids": []string{"lock.front"}})
 	errInfo, _ := env["error"].(map[string]any)
-	if envCode(env) != "CONFIRM_UNAVAILABLE" || env["plan"] != nil || errInfo["next"] != chatCodesOffNext || len(s.userPlans(userA)) != 1 {
+	next, _ := errInfo["next"].(string)
+	if envCode(env) != "CONFIRM_UNAVAILABLE" || env["plan"] != nil || !strings.Contains(next, "to link their phone on the HA NOVA page") || len(s.userPlans(userA)) != 1 {
 		t.Fatalf("chat codes off: %v", env)
 	}
 	if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": before["id"], "confirm_code": before["code"]}); envCode(env) != "CONFIRM_UNAVAILABLE" || len(s.posts()) != 0 {
