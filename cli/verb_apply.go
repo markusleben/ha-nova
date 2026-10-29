@@ -227,6 +227,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	if plan.Tier == tierTyped.String() {
 		defer func(saved string) { planChannel = saved }(planChannel)
 		planChannel = plan.Channel
+		s.lang = plan.Lang // sealed: the re-plan speaks the language the human read
 	}
 	var e *tierEngine
 	var fresh storedPlan

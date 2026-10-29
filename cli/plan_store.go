@@ -22,7 +22,7 @@ import (
 const (
 	planTTL           = 15 * time.Minute
 	planMaxFiles      = 20
-	planSchemaVersion = 3 // 2: no code at rest, channel; 3: channel seal (2026-10-17); apply refuses older plans
+	planSchemaVersion = 4 // 2: no code at rest, channel; 3: channel seal (2026-10-17); 4: language in the seal (2026-10-29); apply refuses older plans
 )
 
 type planAction struct {
@@ -68,6 +68,7 @@ type storedPlan struct {
 	// handed back; only then may the user choose --no-snapshot. Not in the hash.
 	SnapshotFailed bool            `json:"snapshot_failed,omitempty"`
 	Prompt         string          `json:"prompt,omitempty"` // a typed plan's code-free confirmation-form text (mcp_confirm.go); not in the hash
+	Lang           string          `json:"lang,omitempty"`   // the confirmation catalog its texts use (confirm_strings.go); sealed when typed, not in the hash
 	Request        planCallRequest `json:"request"`
 	Action         planAction      `json:"action"`
 	ConfigRequest  *configRequest  `json:"config_request,omitempty"` // kinds write/delete/revert/restore
@@ -143,6 +144,9 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 	plan.CreatedAt, plan.ExpiresAt = now.Format(time.RFC3339), now.Add(planTTL).Format(time.RFC3339)
 	plan.Tier, plan.Reasons, plan.Channel = tier, e.reasons, planChannel
 	plan.Confirm = map[tierLevel]string{tierOrdinary: "none", tierPreview: "natural", tierTyped: "code"}[e.level]
+	if e.level != tierOrdinary { // the language every text of this plan speaks; a typed plan's is sealed (channelSeal)
+		plan.Lang = e.s.language()
+	}
 	shownChannel := ""
 	if e.level == tierTyped {
 		if e.s.transport.Credential == "" { // unreachable: a session always holds one

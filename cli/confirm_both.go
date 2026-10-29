@@ -47,7 +47,7 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 	defer cancel()
 	votes := make(chan humanVote, 2) // the first vote received decides: the claim
 	go func() {
-		answer, ended := askWindowUntilSignal(ctx, text, time.Until(a.deadline))
+		answer, ended := askWindowUntilSignal(ctx, text, a.plan.Lang, time.Until(a.deadline))
 		votes <- humanVote{window: answer, ended: ended}
 	}()
 	go func() {

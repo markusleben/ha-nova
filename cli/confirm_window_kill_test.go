@@ -30,7 +30,7 @@ func TestWindowHelperProcess(t *testing.T) {
 	if mode == "" {
 		t.Skip("runs only as the helper process")
 	}
-	windowRunner = func(ctx context.Context, _ string, _ time.Duration) windowAnswer {
+	windowRunner = func(ctx context.Context, _, _ string, _ time.Duration) windowAnswer {
 		runtime.LockOSThread() // as nativeWindow: Pdeathsig follows this thread
 		defer runtime.UnlockOSThread()
 		cmd := exec.CommandContext(ctx, "/bin/sleep", "60")
@@ -46,7 +46,7 @@ func TestWindowHelperProcess(t *testing.T) {
 		fmt.Println("closed") // the window was withdrawn before the process ended
 		return windowNoAnswer
 	}
-	askWindow(context.Background(), "test", time.Minute)
+	askWindow(context.Background(), "test", "en", time.Minute)
 	fmt.Println("returned") // only where the signal can't end the process
 	os.Exit(0)
 }

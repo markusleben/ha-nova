@@ -16,6 +16,7 @@ import (
 type fakeWindow struct {
 	answers  []windowAnswer
 	messages []string
+	langs    []string
 	before   func() // runs while the window is open
 }
 
@@ -24,7 +25,7 @@ func useWindow(t *testing.T, answers ...windowAnswer) *fakeWindow {
 	w := &fakeWindow{answers: answers}
 	savedAvailable, savedRunner := windowAvailable, windowRunner
 	windowAvailable = func() bool { return true }
-	windowRunner = func(_ context.Context, message string, wait time.Duration) windowAnswer {
+	windowRunner = func(_ context.Context, message, lang string, wait time.Duration) windowAnswer {
 		if wait <= 0 || wait > cliWindowWait {
 			t.Errorf("window wait %v", wait)
 		}
@@ -32,7 +33,7 @@ func useWindow(t *testing.T, answers ...windowAnswer) *fakeWindow {
 			t.Errorf("an unexpected window: %q", message)
 			return windowNoAnswer
 		}
-		w.messages = append(w.messages, message)
+		w.messages, w.langs = append(w.messages, message), append(w.langs, lang)
 		if w.before != nil {
 			w.before()
 		}

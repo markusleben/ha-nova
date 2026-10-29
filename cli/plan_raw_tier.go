@@ -25,7 +25,8 @@ import (
 //	         who follows other devices (skills/device → Access Check), an
 //	         account's administrator flag, active state, or local-only
 //	         sign-in, Home Assistant's time zone or units (they shift
-//	         history and statistics), a backup retention (it deletes older
+//	         history and statistics) or language (every later confirmation
+//	         speaks it), a backup retention (it deletes older
 //	         automatic backups), a Labs feature, a statistics import,
 //	         and any item the skill marks typed
 //	preview: everything else, a flow cancel and a snapshot prune included
@@ -80,6 +81,7 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 			carries = carries || set
 		}
 		_, follows := payload["device_trackers"]
+		_, language := payload["language"]
 		access, clock := false, false
 		for _, key := range []string{"group_ids", "is_active", "local_only"} {
 			_, set := payload[key]
@@ -108,6 +110,8 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 			return tierTyped, "This changes how many automatic backups Home Assistant keeps, and older ones are deleted for good"
 		case wsType == "config/core/update" && clock:
 			return tierTyped, "This changes Home Assistant's time zone or units, which shifts how history and long-term statistics read"
+		case wsType == "config/core/update" && language:
+			return tierTyped, "This changes Home Assistant's language, which every later HA NOVA confirmation speaks"
 		}
 	case "core":
 		target, _ := payload["path"].(string)

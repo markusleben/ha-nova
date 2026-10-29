@@ -36,8 +36,8 @@ func nativeWindowAvailable() bool {
 	return (os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != "") && executable(linuxDialog)
 }
 
-func nativeWindow(ctx context.Context, message string, wait time.Duration) windowAnswer {
-	args := []string{"--question", "--title=HA NOVA", "--text=" + message, "--ok-label=Confirm", "--cancel-label=Cancel",
+func nativeWindow(ctx context.Context, message, lang string, wait time.Duration) windowAnswer {
+	args := []string{"--question", "--title=HA NOVA", "--text=" + message, "--ok-label=" + confirmT(lang, "window.confirm"), "--cancel-label=" + confirmT(lang, "window.cancel"),
 		"--default-cancel", "--no-markup", "--timeout=" + strconv.Itoa(int(wait.Seconds()))}
 	// The window dies with this process, even a SIGKILLed one (lane E2).
 	// Pdeathsig follows the OS thread that started zenity, so hold it.

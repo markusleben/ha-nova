@@ -26,7 +26,7 @@ func useRaceWindow(t *testing.T, answer windowAnswer, gate <-chan struct{}, stuc
 	w := &raceWindow{}
 	savedAvailable, savedRunner := windowAvailable, windowRunner
 	windowAvailable = func() bool { return true }
-	windowRunner = func(ctx context.Context, message string, wait time.Duration) windowAnswer {
+	windowRunner = func(ctx context.Context, message, _ string, wait time.Duration) windowAnswer {
 		w.mu.Lock()
 		w.messages = append(w.messages, message)
 		w.mu.Unlock()

@@ -226,6 +226,7 @@ func TestPlanRawUIParityTiersAndGuards(t *testing.T) {
 		`{"type":"config/auth/update","user_id":"owner","name":"Markus L"}`:                              "preview",
 		`{"type":"config/core/update","location_name":"Home"}`:                                           "preview",
 		`{"type":"config/core/update","time_zone":"Europe/Berlin"}`:                                      "typed",
+		`{"type":"config/core/update","language":"de"}`:                                                  "typed",
 		`{"type":"config/core/update","unit_system":"us_customary","update_units":true}`:                 "typed",
 		`{"type":"config_entries/disable","entry_id":"Ehue","disabled_by":"user"}`:                       "preview",
 		`{"type":"config_entries/update","entry_id":"Ehue","title":"Hue","pref_disable_polling":true}`:   "preview",

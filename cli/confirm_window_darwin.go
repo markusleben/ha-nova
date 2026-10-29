@@ -16,21 +16,25 @@ import (
 
 const windowShowing = "ha-nova-window-showing"
 
-// windowScript prints exactly one answer line; the message and the wait
-// arrive as arguments, so no Home Assistant text is ever script source.
+// windowScript prints exactly one answer line; the message, the wait, and
+// the Confirm and Cancel labels of the plan's language arrive as arguments,
+// so no Home Assistant text is ever script source. The Confirm answer is
+// matched against the label passed for this ask, never a fixed word. "--"
+// ends osascript's options: a message starting with "-" stays an argument.
 var windowScript = []string{
 	"on run argv",
 	"activate", // in front of the terminal or app that started it
 	"try",
 	`log "` + windowShowing + `"`, // stderr: the script runs and is about to show the window
 	"with timeout of 600 seconds",
-	`set r to display dialog (item 1 of argv) with title "HA NOVA" buttons {"Cancel", "Confirm"} default button "Cancel" cancel button "Cancel" with icon caution giving up after ((item 2 of argv) as integer)`,
+	`set r to display dialog (item 1 of argv) with title "HA NOVA" buttons {(item 4 of argv), (item 3 of argv)} default button (item 4 of argv) cancel button (item 4 of argv) with icon caution giving up after ((item 2 of argv) as integer)`,
 	"end timeout",
 	"on error number n",
 	`if n is -128 then return "cancel"`,
 	`return "error " & n`,
 	"end try",
 	`if gave up of r then return "timeout"`,
+	`if button returned of r is (item 3 of argv) then return "button Confirm"`,
 	`return "button " & (button returned of r)`,
 	"end run",
 }
@@ -44,12 +48,12 @@ func nativeWindowAvailable() bool {
 	return err == nil && strings.TrimSpace(string(out)) == "Aqua"
 }
 
-func nativeWindow(ctx context.Context, message string, wait time.Duration) windowAnswer {
+func nativeWindow(ctx context.Context, message, lang string, wait time.Duration) windowAnswer {
 	args := []string{}
 	for _, line := range windowScript {
 		args = append(args, "-e", line)
 	}
-	cmd := exec.CommandContext(ctx, "/usr/bin/osascript", append(args, message, strconv.Itoa(int(wait.Seconds())))...)
+	cmd := exec.CommandContext(ctx, "/usr/bin/osascript", append(args, "--", message, strconv.Itoa(int(wait.Seconds())), confirmT(lang, "window.confirm"), confirmT(lang, "window.cancel"))...)
 	cmd.Env = []string{} // nothing from the caller's environment reaches the window
 	var stderr strings.Builder
 	cmd.Stderr = &stderr

@@ -102,7 +102,7 @@ func runConfirmWindowSetting(paths runtimePaths, args []string) int {
 			printHumanInfo("No confirmation window can open here, so HA NOVA already asks on your linked phone, in your app's form, or with a four-digit code in chat. Nothing changed.")
 			return 0
 		}
-		switch askWindow(context.Background(), "Turn off confirmation windows? HA NOVA then asks on your linked phone, else in your app's confirmation form, or shows a four-digit code in chat that your AI assistant can see too.", cliWindowWait) {
+		switch askWindow(context.Background(), "Turn off confirmation windows? HA NOVA then asks on your linked phone, else in your app's confirmation form, or shows a four-digit code in chat that your AI assistant can see too.", "en", cliWindowWait) {
 		case windowConfirmed:
 		case windowFailed:
 			printHumanInfo("The confirmation window couldn't open here, so HA NOVA asks on your linked phone, in your app's form, or with a four-digit code in chat anyway. Nothing changed.")
@@ -160,7 +160,7 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 		}
 	}
 	defer s.close()
-	switch askWindow(context.Background(), text+windowAsked, time.Until(deadline)) {
+	switch askWindow(context.Background(), text+windowAsked, plan.Lang, time.Until(deadline)) {
 	case windowConfirmed:
 		humanAnswer, humanWhere = confirmCode(s.transport.Credential, idHex, channelWindow, plan.ExpiresAt), channelWindow
 		return env, 0, false
@@ -183,8 +183,8 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 // A signal that ends this process closes the window first, then ends the
 // process as the signal would (lane E2): a window left behind takes a
 // Confirm nothing reads.
-func askWindow(parent context.Context, message string, wait time.Duration) windowAnswer {
-	answer, ended := askWindowUntilSignal(parent, message, wait)
+func askWindow(parent context.Context, message, lang string, wait time.Duration) windowAnswer {
+	answer, ended := askWindowUntilSignal(parent, message, lang, wait)
 	endBySignal(ended)
 	return answer
 }
@@ -196,7 +196,7 @@ func askWindow(parent context.Context, message string, wait time.Duration) windo
 // the window gets Pdeathsig (confirm_window_linux.go); Windows' box lives
 // in this process. macOS: an osascript window outlives a SIGKILL until its
 // own timeout.
-func askWindowUntilSignal(parent context.Context, message string, wait time.Duration) (windowAnswer, os.Signal) {
+func askWindowUntilSignal(parent context.Context, message, lang string, wait time.Duration) (windowAnswer, os.Signal) {
 	ctx, cancel := context.WithTimeout(parent, wait+5*time.Second)
 	defer cancel()
 	signals := make(chan os.Signal, 1)
@@ -206,7 +206,7 @@ func askWindowUntilSignal(parent context.Context, message string, wait time.Dura
 		}
 	}
 	done := make(chan windowAnswer, 1)
-	go func() { done <- windowRunner(ctx, message, wait) }()
+	go func() { done <- windowRunner(ctx, message, lang, wait) }()
 	opened := time.After(time.Second)
 	for {
 		select {
@@ -299,6 +299,7 @@ func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnap
 func replanStored(paths runtimePaths, s *relaySession, env *verbEnvelope, plan storedPlan, channel string) (storedPlan, bool) {
 	defer func(saved string) { planChannel = saved }(planChannel)
 	planChannel = channel
+	s.lang = plan.Lang
 	env.Server = s.server
 	var fresh storedPlan
 	var err error

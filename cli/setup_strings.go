@@ -54,14 +54,15 @@ func (e setupEntry) pluralForm(count int) string {
 	return e.Plural["other"]
 }
 
-var setupCatalog = mustParseSetupCatalog(setupStringsEN)
+var setupCatalog = mustParseCatalog("setup string catalog", setupStringsEN)
 
 var setupPlaceholderPattern = regexp.MustCompile(`\{([a-z_]+)\}`)
 
-func mustParseSetupCatalog(data []byte) map[string]setupEntry {
+// mustParseCatalog reads one string catalog; name prefixes its panics.
+func mustParseCatalog(name string, data []byte) map[string]setupEntry {
 	catalog := map[string]setupEntry{}
 	if err := json.Unmarshal(data, &catalog); err != nil {
-		panic("setup string catalog: " + err.Error())
+		panic(name + ": " + err.Error())
 	}
 	return catalog
 }
@@ -115,42 +116,48 @@ func (m setupMsg) render(value func(any) string) string {
 	if m.Key == "" {
 		return m.Data
 	}
-	entry, ok := setupCatalog[m.Key]
+	return renderCatalog(setupCatalog, "setup string catalog", m.Key, m.Args, value)
+}
+
+// renderCatalog fills one catalog entry's placeholders (name: the catalog,
+// for panics); kv is name/value pairs.
+func renderCatalog(catalog map[string]setupEntry, name, key string, kv []any, value func(any) string) string {
+	entry, ok := catalog[key]
 	if !ok {
-		panic("setup string catalog: unknown key " + m.Key)
+		panic(name + ": unknown key " + key)
 	}
-	if len(m.Args)%2 != 0 {
-		panic("setup string catalog: odd argument list for " + m.Key)
+	if len(kv)%2 != 0 {
+		panic(name + ": odd argument list for " + key)
 	}
 	args := map[string]any{}
-	for i := 0; i < len(m.Args); i += 2 {
-		name, ok := m.Args[i].(string)
+	for i := 0; i < len(kv); i += 2 {
+		placeholder, ok := kv[i].(string)
 		if !ok {
-			panic("setup string catalog: non-string placeholder name for " + m.Key)
+			panic(name + ": non-string placeholder name for " + key)
 		}
-		args[name] = m.Args[i+1]
+		args[placeholder] = kv[i+1]
 	}
 	text := entry.Text
 	if entry.plural() {
 		count, ok := args["count"].(int)
 		if !ok {
-			panic("setup string catalog: plural " + m.Key + " needs an int count")
+			panic(name + ": plural " + key + " needs an int count")
 		}
 		text = entry.pluralForm(count)
 	}
 	used := map[string]bool{"count": entry.plural()}
 	out := setupPlaceholderPattern.ReplaceAllStringFunc(text, func(match string) string {
-		name := match[1 : len(match)-1]
-		v, ok := args[name]
+		placeholder := match[1 : len(match)-1]
+		v, ok := args[placeholder]
 		if !ok {
-			panic("setup string catalog: " + m.Key + " misses {" + name + "}")
+			panic(name + ": " + key + " misses {" + placeholder + "}")
 		}
-		used[name] = true
+		used[placeholder] = true
 		return value(v)
 	})
-	for name := range args {
-		if !used[name] {
-			panic("setup string catalog: " + m.Key + " has no {" + name + "}")
+	for placeholder := range args {
+		if !used[placeholder] {
+			panic(name + ": " + key + " has no {" + placeholder + "}")
 		}
 	}
 	return out
