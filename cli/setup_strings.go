@@ -30,7 +30,7 @@ func (e *setupEntry) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	for category := range e.Plural {
-		if !setupPluralCategories[category] {
+		if !setupPluralCategory(category) {
 			return fmt.Errorf("unknown CLDR plural category %q", category)
 		}
 	}
@@ -40,7 +40,16 @@ func (e *setupEntry) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-var setupPluralCategories = map[string]bool{"zero": true, "one": true, "two": true, "few": true, "many": true, "other": true}
+// setupPluralCategory is a func, not a map: a catalog parsed in another
+// file's package-level var (confirm_strings.go) runs UnmarshalJSON before
+// this file's vars are set.
+func setupPluralCategory(category string) bool {
+	switch category {
+	case "zero", "one", "two", "few", "many", "other":
+		return true
+	}
+	return false
+}
 
 func (e setupEntry) plural() bool { return e.Plural != nil }
 

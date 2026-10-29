@@ -281,7 +281,7 @@ func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnap
 	_ = os.Remove(claimed)
 	flag := ""
 	if noSnapshot { // the user already chose to go on without a copy
-		env.Say, flag = strings.Replace(env.Say, sayCopyNote, sayNoCopyNote, 1), " --no-snapshot"
+		env.Say, flag = batchNoCopies(plan.Lang, strings.Replace(env.Say, sayCopyNote, sayNoCopyNote, 1)), " --no-snapshot"
 	}
 	env.Say = sayNoWindowHere + env.Say
 	if channel == channelPhone { // no code: sealPlan's next_step applies
@@ -291,6 +291,9 @@ func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnap
 		return env, env.exit, true
 	}
 	env.NextStep = fmt.Sprintf("The window couldn't open, so this is a new plan with a one-time code: show `say`; only after a reply that is only that code, run ha-nova apply --confirm <the user's text> --plan %s%s.", env.Plan.ID, flag)
+	if plan.Kind == "batch" {
+		env.NextStep = batchNextStep(env.NextStep, fresh)
+	}
 	return env, env.exit, true
 }
 
@@ -310,6 +313,8 @@ func replanStored(paths runtimePaths, s *relaySession, env *verbEnvelope, plan s
 		_, fresh, _, err = computeConfigPlan(paths, s, env, *config)
 	case plan.Kind == "raw" && config == nil:
 		_, fresh, err = computeRawPlan(s, env, plan.RawRequests)
+	case plan.Kind == "batch" && config == nil && validBatchMembers(plan.BatchMembers) == nil:
+		_, fresh, err = computeBatchPlan(paths, s, env, plan.BatchMembers)
 	default:
 		return fresh, false
 	}

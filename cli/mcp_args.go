@@ -79,6 +79,7 @@ func planArgv(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, er
 		"raw":      {"kind", "requests"},
 		"rooms":    {"kind"},
 		"template": {"kind", "name"},
+		"batch":    {"kind", "plans"},
 	}[kind]
 	for key := range args {
 		if !containsText(allowed, key) {
