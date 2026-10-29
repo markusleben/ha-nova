@@ -11,10 +11,12 @@ import (
 // 0.27-spec.md §7.4): the window and the phone ask at once, until one
 // deadline, and the first decisive answer (Confirm or Cancel) wins. The
 // other is withdrawn at once: the window closes, and the phone stops
-// listening (its ids die with the ask) while its notification is replaced
-// by the result. A later answer on either changes nothing: no one reads it.
-// Settings changes (confirm-window, confirm-phone) never race: each keeps
-// its single channel (confirm_window.go, confirm_phone_link.go).
+// listening (its ids die with the ask). One answer, one place: answered on
+// the computer, the phone's question is cleared with nothing in its place;
+// answered on the phone, the phone shows the result; no answer anywhere,
+// the phone says so. A later answer on either changes nothing: no one
+// reads it. Settings changes (confirm-window, confirm-phone) never race:
+// each keeps its single channel (confirm_window.go, confirm_phone_link.go).
 
 const (
 	phoneQuietText = "HA NOVA can't reach your linked phone now, so only the window on this computer asks. `ha-nova setup confirm-phone list` says why."
@@ -78,14 +80,26 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 		}
 	}
 	s, reply, goal := a.s, a.reply, a.goal
-	if ended != nil { // stopped: the phone hears it, then the process ends (lane E2)
-		reply.say(phoneResultTitle("Cancelled", goal), "Stopped on the computer. Nothing changed.")
+	if ended != nil { // stopped on the computer, then the process ends (lane E2)
+		if decided && first.phone { // the phone had answered: it hears what came of it
+			reply.say(phoneResultTitle("Cancelled", goal), "Stopped on the computer. Nothing changed.")
+		} else {
+			reply.withdraw()
+		}
 		s.close()
 		endBySignal(ended)
 		return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "HA NOVA was stopped while the confirmation window was open", "Tell the user nothing changed.")
 	}
 	tell := func(prefix, line string) {
 		phoneApplied = func(verbEnvelope, int) { reply.say(phoneResultTitle(prefix, goal), line); s.close() }
+	}
+	// Answered on the computer: the phone's question goes at once, and
+	// nothing takes its place (one answer, one place). Apply doesn't wait
+	// for it; the session closes once it went.
+	withdraw := func() {
+		gone := make(chan struct{})
+		go func() { reply.withdraw(); close(gone) }()
+		phoneApplied = func(verbEnvelope, int) { <-gone; s.close() }
 	}
 	phoneOut := a.answer == phoneFailed
 	switch {
@@ -97,14 +111,10 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 	case decided && first.window == windowConfirmed:
 		fmt.Fprintln(os.Stderr, map[bool]string{false: "Confirmed in the window on this computer; the phone's notification is withdrawn.", true: "Confirmed in the window on this computer."}[phoneOut])
 		humanAnswer, humanWhere = confirmCode(s.transport.Credential, a.idHex, a.plan.Channel, a.plan.ExpiresAt), channelWindow
-		phoneApplied = func(env verbEnvelope, exit int) {
-			prefix, line := phoneApplyResult(env, exit)
-			reply.say(phoneResultTitle(prefix, goal), "Approved on the computer. "+line)
-			s.close()
-		}
+		withdraw()
 		return verbEnvelope{}, 0, false
 	case decided:
-		tell("Cancelled", "Cancelled on the computer. Nothing changed.")
+		withdraw()
 		return windowStopped(s, "declined", "CONFIRM_DECLINED", "the confirmation window was cancelled",
 			"Tell the user nothing changed. Apply this plan again only if they ask for it.")
 	case window == windowFailed && phoneOut:

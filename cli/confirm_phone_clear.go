@@ -12,9 +12,11 @@ import (
 // "Home Assistant (2)" group that must be opened before the question. So
 // each result's tag is kept per phone (per home: two homes can have the same
 // notify service name), and the next question to that phone
-// clears it first. Only results are kept: a result's ask has ended (its
-// ids died with it), so a clear never removes an open question. Best
-// effort: a lost write or clear leaves one old result, as before.
+// clears it first; so is a question withdrawn because the computer
+// answered, whose own clear iOS may not deliver (phoneReply.withdraw). Only
+// ended asks are kept (their ids died with them), so a clear never removes
+// an open question. Best effort: a lost write or clear leaves one old
+// notification, as before.
 
 func phoneResultsFile(paths runtimePaths) string {
 	return filepath.Join(paths.CacheDir, "phone-results.json")

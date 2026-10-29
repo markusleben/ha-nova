@@ -251,15 +251,24 @@ func phoneSharedLine(name string) string {
 // phoneReply closes an ask on the phone: the result replaces the
 // notification (same tag, so it replaces instead of stacking), with no
 // buttons and no ids, so a tap on a watch or a locked phone gets an answer.
-// Only the first say counts; the zero value (nothing was sent) says nothing.
+// Answered on the computer, withdraw takes the question off instead, with
+// nothing in its place (confirm_both.go). Only the first say or withdraw
+// counts; the zero value (nothing was sent) says nothing.
 type phoneReply struct {
-	once *sync.Once
-	tell func(title, body string)
+	once  *sync.Once
+	tell  func(title, body string)
+	clear func()
 }
 
 func (r phoneReply) say(title, body string) {
 	if r.once != nil {
 		r.once.Do(func() { r.tell(phoneCut(title, phoneTitleLimit), body) })
+	}
+}
+
+func (r phoneReply) withdraw() {
+	if r.once != nil {
+		r.once.Do(r.clear)
 	}
 }
 
