@@ -7,7 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 ## [Relay 0.13.0] - 2026-10-29
 
 ### Added
-- Chat apps for more people in your home: on the NOVA page (Chat apps, then "Who can use it"), tick other Home Assistant users and pick a level for each: Ask only (questions), Use the home (devices, scenes, and scripts; risky changes need a tap on their own phone; no automations, scripts, or device settings), or Manage everything (administrators only). Nobody gets more than their Home Assistant role allows. "Link phone…" in a person's row links their own phone. (#900)
+- Chat apps for more people in your home: on the NOVA page (Chat apps, then "Who can use it"), tick other Home Assistant users and pick a level for each: Ask only (questions), Use the home (controls devices and runs scenes, scripts, and automations; unlocks, opening a garage door or gate, and turning off the alarm need a tap on their own phone; can't change automations, scripts, or device settings), or Manage everything (administrators only). Nobody gets more than their Home Assistant role allows. "Link phone…" in a person's row links their own phone. (#900)
 - "Recent changes from chat apps" on the NOVA page: who changed what, and how it ended. (#900)
 
 ### Changed
@@ -15,7 +15,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 - Chat apps now run HA NOVA 0.28.0 with these changes.
 
 ### Upgrade notes
-- With anyone besides the owner on the list, going back to an older NOVA App refuses every chat request until you update again.
+- With anyone besides the owner on the list, going back to an older NOVA App refuses every chat request until you update again. To go back, first untick everyone but you and save.
 - Computers on HA NOVA 0.28.0 ask you to update this App.
 
 ## [Relay 0.12.2] - 2026-10-29

@@ -123,9 +123,10 @@ export function renderChatPhone(model: ChatPhoneModel, who: ChatPhoneWho, chatCo
     const rows = phones.phones.map((p) => `<li><label><input type="radio" name="device_id" value="${escape(p.device_id)}" required> ${escape(p.name)}</label></li>`).join("");
     const first = link?.state === "ready" ? `${named(link.name)} asks first, then the phone you pick.` : "The phone you pick asks once.";
     const whose = who.name === null ? "for chat apps" : `for ${escape(who.name)}`;
+    const theirs = who.name === null ? "" : ` ${escape(who.name)} confirms on it, so its Home Assistant app must be signed in with ${escape(who.name)}'s own login.`;
     return phones.phones.length === 0
       ? `<p>${who.name === null ? "No other phone can confirm. A phone needs the Home Assistant app, signed in with your own account." : noPhone}</p><p>${back}Back</a></p>`
-      : `<p><strong>Which phone should confirm ${whose}?</strong> ${first}</p>${form(action)}<ul>${rows}</ul><button type="submit">Use this phone</button></form><p>${back}Cancel</a></p>`;
+      : `<p><strong>Which phone should confirm ${whose}?</strong> ${first}${theirs}</p>${form(action)}<ul>${rows}</ul><button type="submit">Use this phone</button></form><p>${back}Cancel</a></p>`;
   }
   const user = who.name === null ? "" : `chat_user=${who.id}&`;
   const pick = (label: string): string => `<a class="linkbtn" href="${escape(`${base}?${user}chat_phone=pick${who.name === null ? "" : "#chat-phone"}`)}">${label}</a>`;
@@ -162,9 +163,10 @@ function renderJob(job: ChatPhoneJob | { status: "unread" }, who: ChatPhoneWho, 
   if (job.status === "running") {
     // The phone's own button, as the bridge names it in Home Assistant's language; an older bridge names none.
     const label = (english: string): string => (typeof button === "string" && button.trim() !== "" && button.length <= 40 ? button : english);
-    const line = step === "new" ? `Check ${named(phone)} and ${tapLine(platform, label("Allow"))}`
-      : to !== undefined ? `Check ${named(phone)} first and ${tapLine(platform, label("Move"))} Then ${named(to)} asks too.`
-      : `Check ${named(phone)} and ${tapLine(platform, label("Stop"))}`;
+    const check = who.name === null ? "Check" : `Ask ${escape(who.name)} to check`; // their phone, not the owner's
+    const line = step === "new" ? `${check} ${named(phone)} and ${tapLine(platform, label("Allow"))}`
+      : to !== undefined ? `${check} ${named(phone)} first and ${tapLine(platform, label("Move"))} Then ${named(to)} asks too.`
+      : `${check} ${named(phone)} and ${tapLine(platform, label("Stop"))}`;
     return `<p>${line}</p><p class="muted waiting">Waiting for the phone… this page updates on its own. Nothing on the phone? Open its Home Assistant app; its notifications need to be on.</p>`;
   }
   const lost = step === "old" ? ` ${LOST}` : ""; // the phone linked now didn't answer: it may be lost

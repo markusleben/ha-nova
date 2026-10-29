@@ -140,6 +140,35 @@ describe("chat-app household levels: chat-apps.json", () => {
     expect(settings()).toMatchObject({ allowed_users: [OWNER, ANNA, BEN] });
   });
 
+  it("refuses to add a user again while their old phone link can't be removed", async () => {
+    writeFileSync(bridge("chat-apps.json"), JSON.stringify({ chat_codes: false }), { mode: 0o600 });
+    links({ [ANNA]: "Anna's Pixel" });
+    dropFails = true;
+    const { files: f } = files();
+    await expect(f.setUsers(OWNER, save({ [ANNA]: "use" }))).rejects.toMatchObject({ status: 503, code: "OLD_LINK_STAYS" });
+    expect(settings()).toEqual({ chat_codes: false }); // nothing written: the old phone never confirms again unasked
+  });
+
+  it("takes someone off even when phone-links.json can't be read, and adds no one then", async () => {
+    writeFileSync(bridge("chat-apps.json"), JSON.stringify({ allowed_users: [OWNER, ANNA], levels: { [ANNA]: "use" }, roles: 1 }), { mode: 0o600 });
+    writeFileSync(bridge("phone-links.json"), "{not json", { mode: 0o600 });
+    dropFails = true; // the bridge can't read the file either: LINKS_UNWRITABLE
+    const { files: f, warned } = files();
+    expect(f.choices(OWNER)).toMatchObject({ allowedUsers: [OWNER, ANNA], phones: {}, ownerPhone: null });
+    await expect(f.setUsers(OWNER, save({ [ANNA]: "use", [BEN]: "ask" }))).rejects.toMatchObject({ code: "OLD_LINK_STAYS" }); // Ben may have an old link
+    await f.setUsers(OWNER, save({}));
+    expect(settings()).toEqual({});
+    expect(calls).toEqual([`drop:${BEN}:${JSON.stringify([OWNER, ANNA])}`, `drop:${ANNA}:null`]);
+    expect(warned).toContain("Chat apps: phone-links.json can't be read");
+  });
+
+  it("never shows a hand-edited list the bridge refuses", () => {
+    for (const bad of [{ allowed_users: OWNER }, { allowed_users: [OWNER, 1] }, { allowed_users: [OWNER], levels: { [ANNA]: "admin" }, roles: 1 }, { levels: [] }]) {
+      writeFileSync(bridge("chat-apps.json"), JSON.stringify(bad), { mode: 0o600 });
+      expect(() => files().files.choices(OWNER), JSON.stringify(bad)).toThrow(/chat-apps.json/);
+    }
+  });
+
   it("saves even when a drop fails: the bridge ignores the links of users not on the list", async () => {
     writeFileSync(bridge("chat-apps.json"), JSON.stringify({ allowed_users: [OWNER, ANNA], levels: { [ANNA]: "use" }, roles: 1 }), { mode: 0o600 });
     links({ [ANNA]: "Anna's Pixel" });

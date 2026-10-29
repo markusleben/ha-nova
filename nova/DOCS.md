@@ -190,12 +190,14 @@ and ChatGPT (web, on a computer), without a computer running HA NOVA. They are o
   Then you click "Connect" next to HA NOVA under Customize → Connectors.
 - **Who can use it:** NOVA page → Chat apps → "Who can use it". At first only
   the owner. Tick other Home Assistant users (each needs their own login) and
-  pick a level: Ask only (questions), Use the home (devices, scenes, and
-  scripts; no automations, scripts, or device settings), or Manage everything
-  (administrators only). A level never goes above the person's Home Assistant
-  role. "Link phone…" in their row links their own phone. With anyone else on
-  the list, going back to an older App refuses every chat request until you
-  update again.
+  pick a level: Ask only (questions), Use the home (controls devices and runs
+  scenes, scripts, and automations; unlocks and turning off the alarm need a
+  tap on their own phone; can't change automations, scripts, or device
+  settings), or Manage everything (administrators only). A level never goes
+  above the person's Home Assistant role. "Link phone…" in their row links
+  their own phone. With anyone else on the list, going back to an older App
+  refuses every chat request until you update again. To go back, first untick
+  everyone but you and save.
 - **Claude asks before every step?** That's Claude, not HA NOVA: set the HA
   NOVA tools to "Always allow" (no phone linked: all but "Run a confirmed
   change").

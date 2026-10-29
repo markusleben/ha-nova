@@ -66,29 +66,29 @@ Menu names in Claude and ChatGPT change now and then; look for "connector", "plu
 
 At first only you, the owner. To let others in your home use HA NOVA in their own Claude or ChatGPT, open NOVA in Home Assistant, then Chat apps. Under "Who can use it", tick them, pick a level for each, and choose Save. Each person needs their own Home Assistant login (Settings → People). "How Anna joins" under a person's row says what they do.
 
-- **Ask only:** questions about the home. Changes nothing.
-- **Use the home:** controls devices (lights, switches, climate, covers, locks, the alarm, media players, and more) and runs existing scenes, scripts, and automations. Unlocks, the alarm, and other risky changes need a tap on their own linked phone, never a code in the chat. Can't change automations, scripts, dashboards, or a device's settings (like a child lock or a restart button).
+- **Ask only:** questions about the home's devices and what they did. Can't read automations, scripts, dashboards, or settings, and changes nothing.
+- **Use the home:** controls devices (lights, switches, fans, climate, covers, locks, the alarm, media players, vacuums, and helpers) and runs existing scenes, scripts, and automations. Unlocking a door, opening a garage door or gate, and turning off the alarm need a tap on their own linked phone; without one they're refused, never asked as a code in the chat. Can't change automations, scripts, dashboards, or a device's settings (like a child lock or a restart button).
 - **Manage everything:** what you can do. Only for Home Assistant administrators.
 
-A level never gives more than the person's Home Assistant role: a user gets at most Use the home, and a read-only user Ask only. Change someone's role in Home Assistant later, and their level follows it.
+A level never gives more than the person's Home Assistant role: a user gets at most Use the home, and a read-only user Ask only. Lower someone's role in Home Assistant, and their level drops with it at once. After raising a role, pick the higher level here and save.
 
-**Their phone:** choose "Link phone…" in their row and pick one of their phones. It must belong to them in Home Assistant (Settings → People), with its Home Assistant app signed in with their own login, and they tap "Allow" on it. Their risky changes then ask that phone, never yours.
+**Their phone:** choose "Link phone…" in their row and pick one of their phones. It must belong to them in Home Assistant (Settings → People), with its Home Assistant app signed in with their own login, and they tap "Allow" on it. Their risky changes then ask that phone, never yours. At Ask only, a linked phone stays linked but unused; to remove it, untick them and save.
 
 **Removing someone** works at once, and their phone link goes too. Their chat app keeps its Home Assistant sign-in until they remove it under Profile → Security; it can no longer do anything with HA NOVA.
 
 "Recent changes from chat apps" on the NOVA page shows the last 20 changes: who, what, and how each ended.
 
-With anyone besides you on the list, going back to an older NOVA App refuses every chat request until you update the App again.
+With anyone besides you on the list, going back to an older NOVA App refuses every chat request until you update the App again. To go back, first untick everyone but you and save.
 
 ## What your phone confirms
 
 - Everyday changes, like a light, run right away and are checked afterwards.
-- Unlocks, the alarm, deletes, and other risky changes wait for you:
-  - **With a linked phone** (the one you linked during setup), it gets a notification (also on its watch). Press and hold it on an iPhone, or pull it down on Android, then tap the button. The request stays open for up to 3 minutes. If you don't tap soon, the chat says it is still waiting; tap, then tell the assistant to go on.
-  - **Without a linked phone,** the chat shows a code to type back. The AI can see this code too, so it protects less than a tap on your phone. For real protection, link your phone on the NOVA page (Chat apps, then "Link a phone…"), or on your computer (`ha-nova setup confirm-phone`) and then run `ha-nova chat-apps on` once more: it adds that phone for chat apps.
+- Unlocks, the alarm, deletes, and other risky changes wait for the person who asked:
+  - **With a linked phone** (yours from setup, or the one linked in a person's row), it gets a notification (also on its watch). Press and hold it on an iPhone, or pull it down on Android, then tap the button. The request stays open for up to 3 minutes. If you don't tap soon, the chat says it is still waiting; tap, then tell the assistant to go on.
+  - **Without a linked phone,** the chat shows a code to type back, only at Manage everything; below it, the change is refused. The AI can see this code too, so it protects less than a tap on your phone. For real protection, link your phone on the NOVA page (Chat apps, then "Link a phone…"), or on your computer (`ha-nova setup confirm-phone`) and then run `ha-nova chat-apps on` once more: it adds that phone for chat apps.
 - **Another phone:** open NOVA in Home Assistant, then Chat apps, then "Change phone…", and pick the phone. The phone that confirms now asks first, then the new one. "Stop phone confirmations" asks that phone too; chat apps then show a code, or refuse risky changes when codes are off. If the phone was removed from Home Assistant, the page lets you link a new one without it. Setup offers the same move after "Use another phone".
 - **A lost phone:** until you remove it in Home Assistant (Settings → Devices & services → Mobile App), chat apps refuse changes that need your OK; they don't fall back to a code. Once it's removed, link a new phone on the NOVA page (Chat apps, then "Link a new phone…").
-- On the NOVA page you can also turn off codes in the chat (risky changes then need your phone), or let chat apps only read.
+- On the NOVA page you can also turn off codes in the chat (risky changes then need a linked phone), or let chat apps only read.
 - If you stop setup while Home Assistant restarts, chat apps may still turn on; NOVA in Home Assistant shows whether they are on.
 
 ## Turn it off
@@ -119,7 +119,7 @@ To stay on the older App: removing the NOVA App clears them too, but then every 
 - ChatGPT on a phone (its app or a phone browser) can answer questions, but it can't make changes through plugins you add yourself. For changes, use chatgpt.com on a computer, or the Claude app on your phone.
 - A code in the chat protects less than your phone (see above).
 - Access belongs to your Home Assistant account, not to a device: anyone who can use your Claude or ChatGPT account can reach your home through it. Remove the token in Home Assistant (above) if you lose control of that account.
-- Helpers, scenes, dashboards, room and name changes, setting up integrations, and file edits work in the chat, with the same preview and confirmation as on a computer. Only setting up HA NOVA itself (pairing a computer, updates, turning chat apps on or off) happens outside the chat.
-- Changes beyond controlling devices (automations, scripts, dashboards, rooms, helpers, files) need a Home Assistant administrator, as in Home Assistant itself.
+- At Manage everything, helpers, scenes, dashboards, room and name changes, setting up integrations, and file edits work in the chat, with the same preview and confirmation as on a computer. Only setting up HA NOVA itself (pairing a computer, updates, turning chat apps on or off) happens outside the chat.
+- Changes beyond controlling devices (automations, scripts, dashboards, rooms, helpers, files) need Manage everything, which only Home Assistant administrators can have.
 - The assistant can look at a camera's current picture; it stays in your chat.
 - With file access on in the NOVA Relay App, the assistant can read files in your configuration folder (never `secrets.yaml` or `.storage`) and, after you confirm the change, write or delete them. A file reaches the chat as written: a password or key typed straight into a YAML file, not into `secrets.yaml`, is seen by the AI, as it is with HA NOVA on a computer.

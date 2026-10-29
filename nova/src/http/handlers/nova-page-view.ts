@@ -65,6 +65,7 @@ export interface PageModel {
   chatConnectorUrl: string | null; // null: neither Link remote access nor a public HTTPS address
   chatPhone: ChatPhoneModel | null; // null: chat apps are off
   chatPhoneUser: ChatPhoneUser | null; // whose phone chatPhone is: a listed user's (?chat_user=), null the owner's
+  chatPhoneUserGone: boolean; // ?chat_user= named someone who can't have a phone now: the owner's is shown
   chatUsers: ChatUsersModel | null; // null: chat apps are off
   chatRestarting: boolean;
 }
@@ -112,6 +113,8 @@ export function renderPage(m: PageModel): string {
             ? `<section class="error"><h2>Chat apps: that did not work</h2><p>HA NOVA can't use the custom_components folder in Home Assistant's configuration. Check that it is a normal folder, then try again.</p></section>`
           : m.errorCode === "chat_users"
             ? `<section class="error"><h2>Chat apps: list not saved</h2><p>Nothing changed: someone you picked changed in Home Assistant meanwhile (removed, turned off, or another role). Check the list under Chat apps, then save again.</p></section>`
+          : m.errorCode === "chat_users_link"
+            ? `<section class="error"><h2>Chat apps: list not saved</h2><p>Nothing changed: HA NOVA couldn't clear an old phone link of someone you added. Try again in a moment. If it keeps failing, the NOVA App log says why.</p></section>`
           : m.errorCode === "chat"
             ? `<section class="error"><h2>Chat apps: that did not work</h2><p>Try again in a moment. If it keeps failing, the NOVA App log says why.</p></section>`
             : renderChatPhoneError(m.errorCode);
@@ -268,8 +271,8 @@ function renderChatApps(m: PageModel, formOpen: string, csrfField: (action: Nova
     const who = m.chatPhoneUser;
     const codes = who === null ? c.chatCodes : who.codes;
     const phone = `<h3 id="chat-phone">${who === null ? "Your phone" : `${escapeHtml(who.name)}'s phone`}</h3>
-<p class="muted">Confirmations: ${chatPhoneLine(m.chatPhone, who === null ? c.ownerPhone : c.phones[who.id] ?? null, codes, who?.name ?? null)}.</p>
-${m.chatPhone === null ? "" : renderChatPhone(m.chatPhone, { id: who?.id ?? m.userId, name: who?.name ?? null }, codes, formOpen, csrfField, base)}${who === null ? "" : `<p><a class="linkbtn" href="${escapeAttr(base)}">Back to your phone</a></p>`}`;
+${m.chatPhoneUserGone ? `<p class="muted">That person can't have a phone for chat apps now: they aren't on the list at Use the home or above.</p>` : ""}<p class="muted">Confirmations: ${chatPhoneLine(m.chatPhone, who === null ? c.ownerPhone : c.phones[who.id] ?? null, codes, who?.name ?? null)}.</p>
+${m.chatPhone === null ? "" : renderChatPhone(m.chatPhone, { id: who?.id ?? m.userId, name: who?.name ?? null }, codes, formOpen, csrfField, base)}${who === null ? "" : `<p><a class="linkbtn" href="${escapeAttr(base)}">Close</a></p>`}`;
     const users = m.chatUsers === null ? "" : renderChatUsers({ model: m.chatUsers, status: c, ownerId: m.userId, ownerName: m.ownerName, url: m.chatConnectorUrl, form: `${formOpen}${csrfField("chat_users")}`, base });
     // Claude asks before each step until its tools are on “Always allow”: with a phone that confirms, all of them.
     const next = c.ownerPhone === null

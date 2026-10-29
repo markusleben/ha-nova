@@ -16,6 +16,7 @@ export interface ChatUsersModel {
   activity: ChatActivity[] | null;
   saved: boolean;
   removed: string[]; // the names of the people the last save removed
+  stale: string[]; // the names of people on the list Home Assistant turned off or removed: a save takes them off
 }
 
 export interface ChatPhoneUser {
@@ -30,13 +31,17 @@ const LEVEL: Record<ChatLevel, string> = { ask: "Ask only", use: "Use the home",
 
 export async function readChatUsers(chat: ChatApps, ownerId: string, users: HaAuthUser[], query: URLSearchParams): Promise<ChatUsersModel> {
   const [seen, activity] = await Promise.all([chat.phone.seen().catch(() => null), chat.phone.activity().catch(() => null)]);
-  const removed = (query.get("chat_removed") ?? "").split(",").filter((id) => HA_USER.test(id));
+  const allowed = chat.status(ownerId).allowedUsers ?? [];
+  const listed = [...users.filter((u) => u.id === ownerId), ...users.filter((u) => u.id !== ownerId && pickable(u))];
+  // Only someone who can still sign in and isn't on the list now: never a notice from a crafted link.
+  const removed = (query.get("chat_removed") ?? "").split(",").filter((id) => HA_USER.test(id) && id !== ownerId && !allowed.includes(id));
   return {
-    users: [...users.filter((u) => u.id === ownerId), ...users.filter((u) => u.id !== ownerId && pickable(u))],
+    users: listed,
+    stale: allowed.filter((id) => !listed.some((u) => u.id === id)).map((id) => nameOf(users.find((u) => u.id === id))),
     seen,
     activity,
     saved: query.get("chat_users") === "saved",
-    removed: removed.map((id) => nameOf(users.find((u) => u.id === id))),
+    removed: listed.filter((u) => removed.includes(u.id)).map((u) => nameOf(u)),
   };
 }
 
@@ -88,18 +93,20 @@ export function renderChatUsers(v: ChatUsersView): string {
     const level = effectiveLevel(u, status.levels[u.id]);
     const options = CHAT_LEVELS.slice(0, CHAT_LEVELS.indexOf(cap) + 1)
       .map((l) => `<option value="${l}"${l === level ? " selected" : ""}>${LEVEL[l]}</option>`).join("");
-    const role = cap === "manage" ? "Administrator" : "User";
+    const role = cap === "manage" ? "Administrator" : cap === "use" ? "User" : "Read-only user";
     return `<li><span class="person"><label><input type="checkbox" name="on_${u.id}" value="1"${listed(u) ? " checked" : ""}> <strong>${name}</strong></label><span class="muted meta">${role}${listed(u) ? ` · ${rowStatus(v, u, level)}` : ""}</span>${listed(u) ? joins(v, u, level) : ""}</span><select name="level_${u.id}" aria-label="${name}: level">${options}</select></li>`;
   };
   const saved = model.saved ? `<p class="ok">Saved.</p>` : "";
   const removed = model.removed.map((n) => `<p class="ok">${escape(n)} can't use HA NOVA in chat apps anymore. To sign ${escape(n)}'s chat app out of Home Assistant too, ${escape(n)} removes it under Profile → Security.</p>`).join("");
   const missing = `<p class="muted meta">Someone missing? Each person needs their own Home Assistant login. Add one under Settings → People.</p>`;
-  const list = others.length === 0
+  const stale = model.stale.map((n) => `<li><span class="person"><strong>${escape(n)}</strong><span class="muted meta">Turned off or removed in Home Assistant · leaves this list when you save</span></span></li>`).join("");
+  const list = others.length === 0 && stale === ""
     ? `<ul>${ownerRow}</ul>${missing}`
-    : `${v.form}<ul>${ownerRow}${others.map(row).join("")}</ul><button type="submit">Save</button></form>${missing}
-<p class="muted meta"><strong>Ask only:</strong> questions about the home. Changes nothing.<br><strong>Use the home:</strong> controls devices (lights, switches, climate, covers, locks, the alarm, media players, and more) and runs scenes, scripts, and automations. Doors, gates, and the alarm need a tap on their own phone first. Can't change automations, scripts, or device settings.<br><strong>Manage everything:</strong> what you can do. Only for Home Assistant administrators.</p>
+    : `${v.form}<ul>${ownerRow}${others.map(row).join("")}${stale}</ul><button type="submit">Save</button></form>${missing}
+<p class="muted meta"><strong>Ask only:</strong> questions about the home's devices and what they did. Can't read automations, scripts, or settings, and changes nothing.<br><strong>Use the home:</strong> controls lights, switches, fans, climate, covers, locks, the alarm, media players, vacuums, and helpers, and runs existing scenes, scripts, and automations. Unlocking a door, opening a garage door or gate, and turning off the alarm need a tap on their own linked phone; without one they're refused, never asked as a code in the chat. Can't change automations, scripts, dashboards, or device settings.<br><strong>Manage everything:</strong> what you can do. Only for Home Assistant administrators.</p>
+<p class="muted meta">A level never goes above the person's role in Home Assistant (Settings → People): users get at most Use the home, read-only users Ask only.</p>
 <p class="muted meta">With anyone besides you on this list, going back to an older NOVA App refuses every chat request until you update it again.</p>`;
-  return `<h3>Who can use it</h3>${saved}${removed}<p>Pick who may use HA NOVA in Claude and ChatGPT. Each person signs in with their own Home Assistant account.</p>${list}`;
+  return `<h3 id="chat-users">Who can use it</h3>${saved}${removed}<p>Pick who may use HA NOVA in Claude and ChatGPT. Each person signs in with their own Home Assistant account.</p>${list}`;
 }
 
 // A listed user's row: whether they signed in yet, and their phone.
@@ -122,7 +129,7 @@ function joins(v: ChatUsersView, u: HaAuthUser, level: ChatLevel): string {
   const add = v.url === null
     ? "In Claude or ChatGPT, add HA NOVA with the address above, once this page shows one."
     : `In Claude or ChatGPT, add HA NOVA with this link: <span class="address">${escape(v.url)}</span>`;
-  const phone = level === "ask" ? "" : `<li>Ask ${escape(v.ownerName) || "the owner"} to link your phone here.</li>`;
+  const phone = level === "ask" || v.status.phones[u.id] !== undefined ? "" : `<li>Ask ${escape(v.ownerName) || "the owner"} to link your phone here.</li>`;
   return `<details><summary>How ${name} joins</summary><ol><li>${add}</li><li>Sign in with your own Home Assistant login.</li>${phone}</ol></details>`;
 }
 
@@ -144,9 +151,9 @@ export function renderChatActivity(activity: ChatActivity[] | null, now: number)
   const rows = activity.map((a) => {
     const [domain = "", service = ""] = a.what.split(".");
     const targets = (a.targets ?? []).join(", ");
-    const verb = ["script", "scene", "automation"].includes(domain) ? "Ran" : service.startsWith("alarm_arm") ? "Armed" : VERB[service];
+    const verb = ["script", "scene", "automation"].includes(domain) ? "Ran" : service.startsWith("alarm_arm") ? "Armed" : Object.hasOwn(VERB, service) ? VERB[service] : undefined;
     const what = verb !== undefined && targets !== "" ? `${verb} ${escape(targets)}` : `<code>${escape(a.what)}</code>${targets === "" ? "" : ` ${escape(targets)}`}`;
-    const result = RESULT[a.result] ?? escape(a.result);
+    const result = Object.hasOwn(RESULT, a.result) ? RESULT[a.result]! : escape(a.result);
     return `<li><span>${clock(a.at, now)} · ${escape(a.name)} · ${what}${result === "" ? "" : ` · ${result}`}</span></li>`;
   });
   return `<section><h2>Recent changes from chat apps</h2><ul>${rows.join("")}</ul></section>\n`;

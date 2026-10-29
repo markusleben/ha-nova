@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createNovaActionHandler, createNovaPageHandler, type NovaPageDeps } from "../../nova/src/http/handlers/nova-page.js";
 import type { ChatApps, ChatAppsStatus } from "../../nova/src/runtime/chat-apps.js";
 import type { ChatUsers } from "../../nova/src/runtime/chat-apps-household.js";
-import type { ChatActivity, ChatPhoneChange, ChatPhoneJob, ChatPhones } from "../../nova/src/runtime/chat-phone-control.js";
+import { ChatPhoneError, type ChatActivity, type ChatPhoneChange, type ChatPhoneJob, type ChatPhones } from "../../nova/src/runtime/chat-phone-control.js";
 import { createCsrfStore } from "../../nova/src/security/csrf.js";
 import { openDeviceRegistry, type DeviceRegistry } from "../../nova/src/security/device-registry.js";
 import type { HaAuthUser } from "../../nova/src/security/owner-check.js";
@@ -49,6 +49,7 @@ let activity: ChatActivity[];
 let seen: Record<string, string>;
 let phones: ChatPhones;
 let users: HaAuthUser[];
+let startError: Error | null;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "ha-nova-chat-users-page-"));
@@ -62,6 +63,7 @@ beforeEach(() => {
   seen = {};
   phones = { phones: [{ device_id: PIXEL, name: "Anna's Pixel", platform: "android" }], link: null };
   users = USERS;
+  startError = null;
 });
 
 afterEach(() => {
@@ -77,7 +79,13 @@ function chatApps(): ChatApps {
     setUsers: async (_owner, next) => void saved.push(next),
     phone: {
       phones: async () => phones,
-      start: async (user: string, change: ChatPhoneChange) => (started.push(`${user}:${JSON.stringify(change)}`), JOB),
+      start: async (user: string, change: ChatPhoneChange) => {
+        if (startError !== null) {
+          throw startError;
+        }
+        started.push(`${user}:${JSON.stringify(change)}`);
+        return JOB;
+      },
       job: async () => job,
       activity: async () => activity,
       seen: async () => seen,
@@ -126,7 +134,7 @@ const listed = (ids: string[], levels: Record<string, "ask" | "use" | "manage">)
 describe("NOVA page: who can use chat apps", () => {
   it("lists every active login with its role, and only the levels that role allows", async () => {
     const html = await page();
-    expect(html).toContain("<h3>Who can use it</h3>");
+    expect(html).toContain('<h3 id="chat-users">Who can use it</h3>');
     expect(html).toContain("Pick who may use HA NOVA in Claude and ChatGPT. Each person signs in with their own Home Assistant account.");
     expect(html).toContain('<input type="checkbox" checked disabled> <strong>Markus</strong></label><span class="muted meta">Owner · Manage everything</span>');
     expect(html).not.toContain(`name="on_${OWNER}"`); // the owner can't be unticked
@@ -137,7 +145,9 @@ describe("NOVA page: who can use chat apps", () => {
     expect(html).not.toContain("Gone");
     expect(html).not.toContain("Supervisor");
     expect(html).toContain("Someone missing? Each person needs their own Home Assistant login. Add one under Settings → People.");
-    expect(html).toContain("Can't change automations, scripts, or device settings.");
+    expect(html).toContain("Can't change automations, scripts, dashboards, or device settings.");
+    expect(html).toContain("without one they're refused, never asked as a code in the chat.");
+    expect(html).toContain("users get at most Use the home, read-only users Ask only.");
   });
 
   it("no longer says that only the owner can use chat apps", async () => {
@@ -161,13 +171,16 @@ describe("NOVA page: who can use chat apps", () => {
     expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
     expect(html).toContain(`Phone: “&lt;img src=x onerror=alert(1)&gt;”`);
     expect(html).toContain("Unlocked &lt;img src=x onerror=alert(1)&gt; · confirmed on their phone");
+    const panel = await page(`/?chat_user=${EVIL}&chat_phone=pick`);
+    expect(panel).not.toContain(HOSTILE);
+    expect(panel.slice(panel.indexOf('id="chat-phone"'))).toContain("&lt;img src=x onerror=alert(1)&gt;");
   });
 
   it("saves the ticked users at their levels, always with the owner", async () => {
     const html = await page();
     const answer = await post({ action: "chat_users", csrf: token(html, "chat_users")!, [`on_${ANNA}`]: "1", [`level_${ANNA}`]: "use", [`on_${BEN}`]: "1", [`level_${BEN}`]: "ask", [`level_${CLARA}`]: "manage" });
     expect(answer.statusCode).toBe(303);
-    expect(answer.headers.location).toBe("/api/hassio_ingress/tok/?chat_users=saved");
+    expect(answer.headers.location).toBe("/api/hassio_ingress/tok/?chat_users=saved#chat-users"); // back at the list, where "Saved." shows
     expect(saved).toEqual([{ allowed_users: [OWNER, ANNA, BEN], levels: { [ANNA]: "use", [BEN]: "ask" }, roles: 1 }]);
     expect(await page("/?chat_users=saved")).toContain('<p class="ok">Saved.</p>');
   });
@@ -196,12 +209,34 @@ describe("NOVA page: who can use chat apps", () => {
     expect(saved).toEqual([]);
   });
 
+  it("lets the owner take someone off whom Home Assistant turned off", async () => {
+    listed(["d".repeat(32)], { ["d".repeat(32)]: "use" });
+    const html = await page();
+    expect(html).toContain("<strong>Gone</strong><span class=\"muted meta\">Turned off or removed in Home Assistant · leaves this list when you save</span>");
+    await post({ action: "chat_users", csrf: token(html, "chat_users")! });
+    expect(saved).toEqual([{}]);
+    users = USERS.filter((u) => u.id === OWNER); // only the owner left in Home Assistant, the list still names Gone
+    expect(token(await page(), "chat_users")).toBeDefined();
+  });
+
+  it("says when someone added again keeps an old phone link", async () => {
+    expect(await page("/?err=chat_users_link")).toContain("Nothing changed: HA NOVA couldn't clear an old phone link of someone you added.");
+  });
+
   it("says how someone removed signs their chat app out", async () => {
     listed([ANNA], { [ANNA]: "use" });
     const answer = await post({ action: "chat_users", csrf: token(await page(), "chat_users")!, [`level_${ANNA}`]: "use" });
     expect(saved).toEqual([{}]); // only the owner: no list
-    expect(answer.headers.location).toBe(`/api/hassio_ingress/tok/?chat_users=saved&chat_removed=${ANNA}`);
+    expect(answer.headers.location).toBe(`/api/hassio_ingress/tok/?chat_users=saved&chat_removed=${ANNA}#chat-users`);
+    expect(await page(`/?chat_users=saved&chat_removed=${ANNA}`)).toContain("<p class=\"ok\">Saved.</p>"); // the fake keeps the list: Anna is still on it
+    expect(await page(`/?chat_users=saved&chat_removed=${ANNA}`)).not.toContain("Anna can't use HA NOVA");
+    status = { ...status, allowedUsers: null, levels: {} }; // what the save wrote
     expect(await page(`/?chat_users=saved&chat_removed=${ANNA}`)).toContain("Anna can't use HA NOVA in chat apps anymore. To sign Anna's chat app out of Home Assistant too, Anna removes it under Profile → Security.");
+    const odd = await page(`/?chat_users=saved&chat_removed=${OWNER},${"d".repeat(32)},${EVIL}`); // the owner, a turned-off login, a hostile name
+    expect(odd).not.toContain("Markus can't use");
+    expect(odd).not.toContain("Gone");
+    expect(odd).not.toContain(HOSTILE);
+    expect(odd).toContain("&lt;img src=x onerror=alert(1)&gt; can't use HA NOVA in chat apps anymore.");
   });
 
   it("shows each listed user's sign-in, phone, and how they join", async () => {
@@ -210,7 +245,7 @@ describe("NOVA page: who can use chat apps", () => {
     seen = { [ANNA]: "2026-10-29T18:00:00Z" };
     const html = await page();
     expect(html).toContain(`User · Signed in · no phone · <a href="/api/hassio_ingress/tok/?chat_user=${ANNA}&amp;chat_phone=pick#chat-phone"`);
-    expect(html).toContain("User · Not signed in yet</span>"); // Ben, Ask only: no phone
+    expect(html).toContain("Read-only user · Not signed in yet</span>"); // Ben, Ask only: no phone
     expect(html).toContain(`Administrator · Phone: “Clara&#39;s iPhone” · <a href="/api/hassio_ingress/tok/?chat_user=${CLARA}#chat-phone"`);
     expect(html).toContain("<summary>How Anna joins</summary>");
     expect(html).toContain('add HA NOVA with this link: <span class="address">https://home.example.org/api/ha_nova/mcp</span>');
@@ -224,7 +259,7 @@ describe("NOVA page: a listed user's phone", () => {
     listed([ANNA], { [ANNA]: "use" });
     const list = await page(`/?chat_user=${ANNA}&chat_phone=pick`);
     expect(list).toContain(`<h3 id="chat-phone">Anna's phone</h3>`);
-    expect(list).toContain("<strong>Which phone should confirm for Anna?</strong> The phone you pick asks once.");
+    expect(list).toContain("<strong>Which phone should confirm for Anna?</strong> The phone you pick asks once. Anna confirms on it, so its Home Assistant app must be signed in with Anna's own login.");
     expect(list).toContain(`<input type="hidden" name="user" value="${ANNA}">`);
     const move = token(list, "chat_phone_move")!;
     const answer = await post({ action: "chat_phone_move", csrf: move, user: ANNA, device_id: PIXEL });
@@ -237,21 +272,40 @@ describe("NOVA page: a listed user's phone", () => {
     const owners = await page("/?chat_phone=pick"); // the owner's own list
     expect((await post({ action: "chat_phone_move", csrf: token(owners, "chat_phone_move")!, user: ANNA, device_id: PIXEL })).statusCode).toBe(403);
     const forged = csrf.issue(OWNER, `chat_phone_stop:${BEN}`, Date.parse("2026-10-29T18:30:00Z")); // Ben isn't on the list
-    expect((await post({ action: "chat_phone_stop", csrf: forged, user: BEN })).headers.location).toBe("/api/hassio_ingress/tok/?err=chat_phone");
+    expect((await post({ action: "chat_phone_stop", csrf: forged, user: BEN })).headers.location).toBe(`/api/hassio_ingress/tok/?err=chat_phone&chat_user=${BEN}#chat-phone`);
+    expect(await page(`/?err=chat_phone&chat_user=${BEN}`)).toContain('<h3 id="chat-phone">Your phone</h3>'); // Ben has no phone panel
     expect(started).toEqual([]);
   });
 
-  it("shows the owner's phone for a user who can't have one", async () => {
+  it("stays on that user's phone when a change didn't start or its answer was lost", async () => {
+    listed([ANNA], { [ANNA]: "use" });
+    startError = new ChatPhoneError(504, "CHAT_PHONE_UNKNOWN", "the chat-app bridge's answer was lost");
+    const list = await page(`/?chat_user=${ANNA}&chat_phone=pick`);
+    const answer = await post({ action: "chat_phone_move", csrf: token(list, "chat_phone_move")!, user: ANNA, device_id: PIXEL });
+    expect(answer.headers.location).toBe(`/api/hassio_ingress/tok/?err=chat_phone_unknown&chat_user=${ANNA}#chat-phone`);
+    const after = await page(`/?err=chat_phone_unknown&chat_user=${ANNA}`);
+    expect(after).toContain("Chat apps: phone change unclear");
+    expect(after).toContain(`<h3 id="chat-phone">Anna's phone</h3>`);
+  });
+
+  it("shows the owner's phone for a user who can't have one, and says so, never the owner's pick list or job", async () => {
     listed([BEN], { [BEN]: "ask" });
-    expect(await page(`/?chat_user=${BEN}`)).toContain('<h3 id="chat-phone">Your phone</h3>');
+    const ben = await page(`/?chat_user=${BEN}&chat_phone=pick&chat_job=${JOB}`);
+    expect(ben).toContain('<h3 id="chat-phone">Your phone</h3>');
+    expect(ben).toContain("That person can't have a phone for chat apps now: they aren't on the list at Use the home or above.");
+    expect(ben).not.toContain("Which phone should confirm");
+    expect(ben).not.toContain("Erlauben");
     expect(await page(`/?chat_user=${CLARA}`)).toContain('<h3 id="chat-phone">Your phone</h3>'); // not on the list
+    const forged = csrf.issue(OWNER, `chat_phone_stop:${BEN}`, Date.parse("2026-10-29T18:30:00Z")); // on the list, at Ask only
+    expect((await post({ action: "chat_phone_stop", csrf: forged, user: BEN })).headers.location).toBe(`/api/hassio_ingress/tok/?err=chat_phone&chat_user=${BEN}#chat-phone`);
+    expect(started).toEqual([]);
   });
 
   it("quotes the phone's own button from the bridge, in English when an older bridge names none", async () => {
     listed([ANNA], { [ANNA]: "use" });
-    expect(await page(`/?chat_job=${JOB}&chat_user=${ANNA}`)).toContain("Check “Anna&#39;s Pixel” and tap “Erlauben” in the notification.");
+    expect(await page(`/?chat_job=${JOB}&chat_user=${ANNA}`)).toContain("Ask Anna to check “Anna&#39;s Pixel” and tap “Erlauben” in the notification."); // Anna's phone, not the owner's
     job = { status: "running", step: "new", phone: "Anna's Pixel", platform: "android" };
-    expect(await page(`/?chat_job=${JOB}&chat_user=${ANNA}`)).toContain("Check “Anna&#39;s Pixel” and tap “Allow” in the notification.");
+    expect(await page(`/?chat_job=${JOB}&chat_user=${ANNA}`)).toContain("Ask Anna to check “Anna&#39;s Pixel” and tap “Allow” in the notification.");
     job = { status: "running", step: "old", phone: "iPhone", platform: "ios", button: "<b>Stop</b>" };
     expect(await page(`/?chat_job=${JOB}`)).toContain("then tap “&lt;b&gt;Stop&lt;/b&gt;”.");
   });
@@ -276,6 +330,10 @@ describe("NOVA page: recent changes from chat apps", () => {
     expect(html).toMatch(/\d\d:02 · Anna · Unlocked Front Door · confirmed on their phone/);
     expect(html).toMatch(/\d\d:40 · Anna · Turned off Kitchen Lights<\/span>/);
     expect(html).toMatch(/2026-10-2\d \d\d:15 · Ben · <code>homeassistant.restart<\/code> · refused/);
+    activity = [{ at: "2026-10-29T18:05:00Z", user: BEN, name: "Ben", tool: "ha_call", what: "light.constructor", targets: ["Hall"], result: "toString" }];
+    const odd = await page(); // names from the chat never pick up an object's own properties
+    expect(odd).toContain("· Ben · <code>light.constructor</code> Hall · toString</span>");
+    expect(odd).not.toContain("native code");
     activity = [];
     expect(await page()).not.toContain("Recent changes from chat apps");
   });

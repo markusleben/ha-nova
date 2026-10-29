@@ -99,9 +99,12 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
     }
     // The household list, and the owner's phone or that of the listed user whose row the owner opened.
     const chatOn = chatApps?.enabled === true && chatApps.available;
-    const chatWho = chatOn ? chatPhoneUser(query.get("chat_user"), chatApps!, owner.userId, owner.users) : null;
+    const asked = query.get("chat_user");
+    const chatWho = chatOn ? chatPhoneUser(asked, chatApps!, owner.userId, owner.users) : null;
+    // Someone removed or lowered meanwhile: never their pick list or job as the owner's.
+    const chatWhoGone = chatOn && asked !== null && asked !== owner.userId && chatWho === null;
     const [chatPhone, chatUsers]: [ChatPhoneModel | null, ChatUsersModel | null] = chatOn
-      ? await Promise.all([readChatPhone(deps.chatApps!.phone, chatWho?.id ?? owner.userId, query), readChatUsers(deps.chatApps!, owner.userId, owner.users, query)])
+      ? await Promise.all([readChatPhone(deps.chatApps!.phone, chatWho?.id ?? owner.userId, chatWhoGone ? new URLSearchParams() : query), readChatUsers(deps.chatApps!, owner.userId, owner.users, query)])
       : [null, null];
     const chatConnectorUrl = chatApps?.enabled // unknown: the page words it without the address
       ? await deps.connectorUrl?.().catch((error: unknown) => (deps.logger?.warn("connector address unavailable", { error: String(error) }), null)) ?? null
@@ -127,6 +130,7 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
       chatConnectorUrl,
       chatPhone,
       chatPhoneUser: chatWho,
+      chatPhoneUserGone: chatWhoGone,
       chatUsers,
       chatRestarting: query.get("chat") === "restarting",
     });
@@ -182,8 +186,8 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
     } else {
       try {
         if (phoneAction) {
-          if (phoneUser !== owner.userId && deps.chatApps!.status(owner.userId).allowedUsers?.includes(phoneUser) !== true) {
-            throw new Error("that phone form's user is not on the chat-app list");
+          if (phoneUser !== owner.userId && chatPhoneUser(phoneUser, deps.chatApps!.status(owner.userId), owner.userId, owner.users) === null) {
+            throw new Error("that phone form's user can't have a chat-app phone now");
           }
           job = await applyChatPhoneAction(deps.chatApps!, phoneUser, action as ChatPhoneAction, form);
         } else if (action === "chat_users") {
@@ -217,11 +221,11 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
     const location =
       errCode === null
         ? restart ? `${base}?chat=restarting`
-          : action === "chat_users" ? `${base}?chat_users=saved${removed.length === 0 ? "" : `&chat_removed=${removed.map(encodeURIComponent).join(",")}`}`
+          : action === "chat_users" ? `${base}?chat_users=saved${removed.length === 0 ? "" : `&chat_removed=${removed.map(encodeURIComponent).join(",")}`}#chat-users`
           : job !== null ? `${base}?chat_job=${job}${who}` : action === "chat_phone_remove" ? `${base}?chat_phone=stopped${who}` : base
         : errCode === "confirm"
           ? `${base}?err=confirm&confirm=reset_registry`
-          : `${base}?err=${errCode}`;
+          : `${base}?err=${errCode}${who}`;
     response.setHeader("location", location);
     response.end();
     if (restart) {
@@ -283,7 +287,7 @@ function onOff(value: unknown): boolean {
 function chatErrorCode(error: unknown): string {
   const code = error instanceof ChatAppsError ? error.code : "";
   return code === "HA_CONFIG_INVALID" ? "chat_config" : code === "HA_TOO_OLD" ? "chat_old" : code.startsWith("CONFIG_") ? "chat_folder"
-    : code === "USER_NOT_PICKABLE" || code === "LEVEL_ABOVE_ROLE" ? "chat_users" : "chat";
+    : code === "USER_NOT_PICKABLE" || code === "LEVEL_ABOVE_ROLE" ? "chat_users" : code === "OLD_LINK_STAYS" ? "chat_users_link" : "chat";
 }
 
 async function safeUpdate(deps: NovaPageDeps): Promise<UpdateStatus> {
