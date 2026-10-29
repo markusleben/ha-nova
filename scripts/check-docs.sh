@@ -77,7 +77,9 @@ echo ""
 # and to 11850 for household levels on the NOVA page (docs/work/2026-10-24-chat-apps-household-spec.md):
 # the list of who may use chat apps and at which level, saved whole from the owner's session against
 # Home Assistant's users with the rollback guard, each listed user's phone with tokens bound to that user,
-# a removed user's link dropped, the phone's own button quoted, and the recent changes: about 11780.
+# a removed user's link dropped, the phone's own button quoted, and the recent changes, with its review
+# fixes (a re-added user's old link dropped before the save, removals with an unreadable links file,
+# turned-off users the next save clears): about 11822.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE

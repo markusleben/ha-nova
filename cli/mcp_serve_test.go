@@ -230,7 +230,7 @@ func TestServeDefaultsToTheOwnerAndFailsClosed(t *testing.T) {
 			} `json:"error"`
 		}
 		if status != http.StatusForbidden || json.Unmarshal([]byte(body), &msg) != nil || msg.JSONRPC != "2.0" || msg.ID != id || msg.Error.Code != -32001 ||
-			msg.Error.Message != "Only the Home Assistant owner can use HA NOVA in chat apps. Sign in as the owner." {
+			msg.Error.Message != "This Home Assistant user isn't on the owner's chat-app list. The owner can add them on the NOVA page in Home Assistant." {
 			t.Fatalf("not the owner, %s: HTTP %d %s", request, status, body)
 		}
 	}

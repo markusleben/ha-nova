@@ -49,7 +49,7 @@ func (b *chatBridge) policy(user string, fresh bool) (*chatPolicy, int, string) 
 	case err != nil:
 		return nil, http.StatusServiceUnavailable, "HA NOVA can't read this home's Home Assistant users right now"
 	case !listed && owner.ID != user:
-		return nil, http.StatusForbidden, "Only the Home Assistant owner can use HA NOVA in chat apps. Sign in as the owner."
+		return nil, http.StatusForbidden, "This Home Assistant user isn't on the owner's chat-app list. The owner can add them on the NOVA page in Home Assistant."
 	}
 	i := slices.IndexFunc(users, func(u haUser) bool { return u.ID == user })
 	if i < 0 || !users[i].IsActive || users[i].SystemGenerated {

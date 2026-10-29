@@ -85,6 +85,8 @@ New phone: **Get chat-app confirmations?** "Unlocks and deletes from Claude and 
 
 On the phone afterwards: "Approved" ("“Anna's Pixel” must confirm next."), "Linked to HA NOVA" ("Unlocks and deletes from Claude and ChatGPT now ask you."), "Stopped" ("Claude and ChatGPT no longer ask you."), or what changed nothing.
 
+For a user below Manage everything (household levels, H3), who can delete nothing from a chat app, the move, stop, link, and "Linked" texts say "Unlocking, opening a garage door or gate, and turning off the alarm from Claude and ChatGPT …" instead of "Unlocks and deletes …" (the catalog's `_use` keys).
+
 NOVA page, waiting: "Check “Markus's iPhone” first and tap Move. Then “Markus's Pixel” asks too." For another user's phone: "Ask Anna to tap Move on “Anna's iPhone”. Then “Anna's Pixel” asks too."
 
 NOVA page, old phone gone: "“Markus's iPhone” can't answer anymore (it was removed from Home Assistant). You can link a new phone here without it." [Link a new phone]

@@ -339,14 +339,14 @@ func (b *chatBridge) controlStart(req controlRequest) (int, map[string]any) {
 	case gone && req.Action == "stop":
 		return b.controlWrite(req.User, look.prev, true, nil, chatAllowed)
 	}
-	lang := look.s.homeLanguage()
-	first, step, ask := chosen, "new", chatPhoneLinkAsk(lang)
+	lang, use := look.s.homeLanguage(), policy.level < levelManage
+	first, step, ask := chosen, "new", chatPhoneLinkAsk(lang, use)
 	if look.status == phoneReady {
-		first, step, ask = &look.current.targets[0], "old", chatPhoneChangeAsk(lang, chosen, policy.chatCodes()) // a stop's question says what chat codes do then, for this user
+		first, step, ask = &look.current.targets[0], "old", chatPhoneChangeAsk(lang, chosen, policy.chatCodes(), use) // a stop's question says what chat codes do then, for this user
 	}
 	b.step(job, step, *first, chosen, ask.button)
 	started = true
-	go b.runPhoneJob(job, look, chosen, lang, policy.chatCodes())
+	go b.runPhoneJob(job, look, chosen, lang, policy.chatCodes(), use)
 	return http.StatusAccepted, map[string]any{"job": id, "status": "running"}
 }
 

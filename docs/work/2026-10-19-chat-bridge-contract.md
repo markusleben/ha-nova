@@ -137,7 +137,7 @@ Code: `cli/chat_apps.go`, `cli/command_chat_apps.go`, the step 3 row in `cli/set
 - **Failures:** a lost answer (network, timeout, a 5xx other than `OWNER_CHECK_UNAVAILABLE`) is re-read with `GET`: when the App says on, the wait continues; when they were on before, or the re-read fails, the line says HA NOVA couldn't tell. One plain line per App refusal (`HA_TOO_OLD`, `HA_CONFIG_INVALID`, `CONFIG_*`, other), the switch stays and [Turn on] runs the whole action again; an expired ingress session (Supervisor ends it 15 min after its last use) points to the NOVA page.
 - **Off:** the NOVA page, or `ha-nova chat-apps off` (owner sign-in, `enabled: false`). Step 3 offers no off.
 - **`ha-nova chat-apps status`:** no sign-in; "on" means the `ha_nova` entry is loaded.
-- **Refused user:** the bridge answers a signed-in user who may not use chat apps with `403` and a JSON-RPC error (the request's id when it is a string or number, else `null`; code `-32001`): "Only the Home Assistant owner can use HA NOVA in chat apps. Sign in as the owner." (with an explicit `allowed_users` list: "… Sign in with an account the owner allowed.").
+- **Refused user:** the bridge answers a signed-in user who may not use chat apps with `403` and a JSON-RPC error (the request's id when it is a string or number, else `null`; code `-32001`): "This Home Assistant user isn't on the owner's chat-app list. The owner can add them on the NOVA page in Home Assistant." (with an explicit `allowed_users` list: "… Sign in with an account the owner allowed.").
 
 ## Integration (B3)
 
