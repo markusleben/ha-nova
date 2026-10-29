@@ -49,6 +49,10 @@ type fakeHA struct {
 	lovelace     *fakeLovelace // dashboards (dashboard_test.go); nil: none
 	// extra answers first when set (confirm_phone_test.go).
 	extra func(endpoint string, p map[string]any) (any, bool)
+	// translations answers frontend/get_translations by "<language>/<category>",
+	// with the keys of the integrations asked for; like Home Assistant, the
+	// English text where the language has none.
+	translations map[string]map[string]string
 }
 
 func newFakeHA() *fakeHA {
@@ -180,6 +184,18 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 			return append([]map[string]any{}, f.entries...)
 		case "blueprint/substitute":
 			return f.substitute
+		case "frontend/get_translations":
+			resources := map[string]string{}
+			for _, lang := range []string{"en", fmt.Sprint(p["language"])} {
+				for key, text := range f.translations[lang+"/"+fmt.Sprint(p["category"])] {
+					for _, domain := range p["integration"].([]any) {
+						if strings.HasPrefix(key, "component."+fmt.Sprint(domain)+".") {
+							resources[key] = text
+						}
+					}
+				}
+			}
+			return map[string]any{"resources": resources}
 		}
 		return []any{}
 	}

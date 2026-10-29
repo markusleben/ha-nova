@@ -32,11 +32,16 @@ func confirmCode(credential, idHex, channel, expiresAt string) string {
 // shown (the file's mismatch counter, which an editor resets, would not stop
 // guessing), an edited prompt would show the human a different action
 // next to the real code, and an edited language would word the phone and
-// window asks of apply differently from what the plan showed.
+// window asks of apply differently from what the plan showed, and so would
+// edited Home Assistant words.
 func channelSeal(credential string, plan storedPlan) string {
 	mac := hmac.New(sha256.New, []byte(credential))
-	fields, _ := json.Marshal([]string{plan.ID, plan.Channel, plan.Kind, plan.Lang, plan.Prompt}) // unambiguous field bounds
-	mac.Write(append([]byte("ha-nova/plan-seal/v2\x00"), fields...))
+	words, _ := json.Marshal(plan.Words) // map keys sort
+	if len(plan.Words) == 0 {            // as stored: the file drops an empty map
+		words = nil
+	}
+	fields, _ := json.Marshal([]string{plan.ID, plan.Channel, plan.Kind, plan.Lang, plan.Prompt, string(words)}) // unambiguous field bounds
+	mac.Write(append([]byte("ha-nova/plan-seal/v3\x00"), fields...))
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
@@ -67,13 +72,14 @@ const (
 )
 
 // channelRefusal: a channel no plan may be stored with, and why, quoting
-// phone texts in lang (the plan's).
-func channelRefusal(channel, lang string) *verbFailure {
+// phone texts in lang, read only then (the home's: the link ask speaks it,
+// Decision 2).
+func channelRefusal(channel string, lang func() string) *verbFailure {
 	switch channel {
 	case channelPhoneMissing:
 		return refusedWith("CONFIRM_UNAVAILABLE", phoneMissingWhy, phoneMissingStep())
 	case channelPhoneUnlinked:
-		return refusedWith("CONFIRM_UNAVAILABLE", phoneUnlinkedWhy, phoneUnlinkedNext(lang))
+		return refusedWith("CONFIRM_UNAVAILABLE", phoneUnlinkedWhy, phoneUnlinkedNext(lang()))
 	case channelChatOff:
 		return refusedWith("CONFIRM_UNAVAILABLE", chatCodesOffWhy, chatCodesOffNext)
 	}

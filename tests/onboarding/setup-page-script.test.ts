@@ -222,13 +222,13 @@ describe("setup page step 3: buttons act now, switches wait for the button", () 
   const phones = [{ id: "d1", name: "iPhone Ben", person: "Ben" }, { id: "d2", name: "Pixel Lisa", person: "Lisa" }];
 
   it("asks whose phone: every phone with its person, none first, and how to add one", async () => {
-    const control = { window: true, phone: "pick", phones };
+    const control = { window: true, phone: "pick", phones, phone_buttons: { allow: "Allow", move: "Move" } };
     const p = page({ screen: "control", accepts: ["finish", "phone", "recheck"], control });
     await p.settle();
     expect(p.screen.textContent).toContain(p.catalog["setup.page.control.phone_whose"]);
     expect([p.find("b-phone-0")!.textContent, p.find("b-phone-1")!.textContent]).toEqual(["iPhone Ben (Ben)", "Pixel Lisa (Lisa)"]);
     expect(p.screen.textContent).toContain(p.catalog["setup.page.control.phone_whose_missing"]);
-    expect(p.screen.textContent).toContain(p.catalog["setup.page.control.fine"]);
+    expect(p.screen.textContent).toContain("The phone you pick gets one notification. Tap “Allow” there.");
     p.find("b-phone-1")!.dispatch("click");
     await p.settle();
     expect(p.posts).toEqual([{ action: "phone", value: "d2" }]);
@@ -267,7 +267,7 @@ describe("setup page step 3: buttons act now, switches wait for the button", () 
   });
 
   it("moves to another phone from a linked one; the linked phone says OK first", async () => {
-    const linked = { screen: "rerun", rows: [], accepts: ["finish", "phone"], control: { window: true, phone: "linked", phone_name: "iPhone Anna", phones } };
+    const linked = { screen: "rerun", rows: [], accepts: ["finish", "phone"], control: { window: true, phone: "linked", phone_name: "iPhone Anna", phones, phone_buttons: { allow: "Allow", move: "Move" } } };
     const moving = { ...linked, accepts: [], control: { ...linked.control, phone: "moving", old_phone: "iPhone Anna", phone_name: "Pixel Lisa" } };
     const p = page(linked, moving);
     await p.settle();
@@ -722,10 +722,25 @@ describe("setup page: status colors", () => {
 
   it("says how to reach “Allow” on the phone being asked", async () => {
     for (const [os, key] of [["ios", "phone_waiting_ios"], ["android", "phone_waiting_android"], [undefined, "phone_waiting"]] as const) {
-      const p = page({ screen: "control", accepts: [], control: { window: false, phone: "waiting", phone_name: "Bene 14", phone_os: os, phones: [] } });
+      const p = page({ screen: "control", accepts: [], control: { window: false, phone: "waiting", phone_name: "Bene 14", phone_os: os, phones: [], phone_buttons: { allow: "Allow", move: "Move" } } });
       await p.settle();
-      expect(p.screen.textContent).toContain(p.catalog[`setup.page.control.${key}`]!.replace("{phone}", "Bene 14"));
+      expect(p.screen.textContent).toContain(p.catalog[`setup.page.control.${key}`]!.replace("{phone}", "Bene 14").replace("{allow}", "Allow"));
     }
+  });
+
+  it("quotes the phone's buttons in the language its asks are sent in", async () => {
+    const buttons = { allow: "Erlauben", move: "Wechseln" };
+    const timeout = { key: "setup.page.control.phone_timeout", args: { phone: "Bene 14", allow: "Erlauben" } };
+    const pick = page({ screen: "control", accepts: ["finish", "phone"], control: { window: false, phone: "pick", phones: [{ id: "d1", name: "Bene 14", person: "Bene" }], phone_buttons: buttons, phone_problem: timeout } });
+    await pick.settle();
+    expect(pick.screen.textContent).toContain("“Erlauben” wasn't tapped on Bene 14 in time.");
+    expect(pick.screen.textContent).toContain("The phone you pick gets one notification. Tap “Erlauben” there.");
+    const waiting = page({ screen: "control", accepts: [], control: { window: false, phone: "waiting", phone_name: "Bene 14", phone_os: "ios", phones: [], phone_buttons: buttons } });
+    await waiting.settle();
+    expect(waiting.screen.textContent).toContain("Press and hold the notification on Bene 14, then tap “Erlauben”.");
+    const moving = page({ screen: "control", accepts: [], control: { window: false, phone: "moving", old_phone: "Old", phone_name: "Bene 14", phones: [], phone_buttons: buttons } });
+    await moving.settle();
+    expect(moving.screen.textContent).toContain("Tap “Wechseln” on Old first. Then tap “Erlauben” on Bene 14.");
   });
 
   it("says where notifications turn on when nothing arrived after 30 s or at the timeout", async () => {

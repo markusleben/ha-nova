@@ -14,7 +14,8 @@ import (
 // its id, never its words.
 type actionGoal struct {
 	verb  string   // catalog verb id (phrase); "" when label names the action
-	label string   // the action's own words, English: an id-derived service name, a raw step's verb
+	label string   // the action's own words: an id-derived service name or a raw step's verb (English), or Home Assistant's name
+	named bool     // label is Home Assistant's own name (confirm_words.go), kept as written
 	frame string   // what the names are ("script", "automation", "dashboard"); "" = the names alone
 	names []string // each sayText-quoted, or Home Assistant itself
 	why   string   // a typed plan's reasons the title doesn't say (sayAsk), for the phone
@@ -51,16 +52,25 @@ func (g actionGoal) text(lang string) string {
 	return g.phrase(lang, g.object(lang, sayList(lang, g.names)))
 }
 
-// object: names in the goal's frame ("the script “Night”").
+// object: names in the goal's frame ("the script “Night”"). An undo has
+// frames of its own, as a language may need another case after its "to"
+// (German names the item alone: „an „Flurlicht““).
 func (g actionGoal) object(lang, names string) string {
-	switch g.frame {
-	case "":
+	undo := g.verb == "revert"
+	switch {
+	case g.frame == "":
 		return names
-	case "script":
+	case g.frame == "script" && undo:
+		return confirmT(lang, "goal.revert_object.script", "names", names)
+	case g.frame == "automation" && undo:
+		return confirmT(lang, "goal.revert_object.automation", "names", names)
+	case g.frame == "dashboard" && undo:
+		return confirmT(lang, "goal.revert_object.dashboard", "names", names)
+	case g.frame == "script":
 		return confirmT(lang, "goal.object.script", "names", names)
-	case "automation":
+	case g.frame == "automation":
 		return confirmT(lang, "goal.object.automation", "names", names)
-	case "dashboard":
+	case g.frame == "dashboard":
 		return confirmT(lang, "goal.object.dashboard", "names", names)
 	}
 	panic("confirm goal: unknown frame " + g.frame)
@@ -69,7 +79,11 @@ func (g actionGoal) object(lang, names string) string {
 func (g actionGoal) phrase(lang, object string) string {
 	switch g.verb {
 	case "":
-		return confirmT(lang, "goal.label", "action", lowerFirst(g.label), "object", object)
+		action := lowerFirst(g.label)
+		if g.named {
+			action = g.label
+		}
+		return confirmT(lang, "goal.label", "action", action, "object", object)
 	case "turn_on":
 		return confirmT(lang, "goal.turn_on", "object", object)
 	case "turn_off":
@@ -170,11 +184,13 @@ func (g actionGoal) button(lang string) string {
 // ownButton: the button that names the action; "" where Confirm answers
 // it: a verb that reads like dismissing (close, stop) or is too long for a
 // button (set the position of, undo the last change to). A label is its
-// own button while it is one or two words that don't read like dismissing.
+// own button while it is one or two words that don't read like dismissing;
+// Home Assistant's own name never is, as no word list can check it in every
+// language (Design 8).
 func (g actionGoal) ownButton(lang string) string {
 	switch g.verb {
 	case "":
-		if g.label == "" || strings.Count(g.label, " ") > 1 || slices.ContainsFunc([]string{"Cancel", "Close", "Stop", "Dismiss"}, func(v string) bool { return strings.EqualFold(v, g.label) }) {
+		if g.label == "" || g.named || strings.Count(g.label, " ") > 1 || slices.ContainsFunc([]string{"Cancel", "Close", "Stop", "Dismiss"}, func(v string) bool { return strings.EqualFold(v, g.label) }) {
 			return ""
 		}
 		return g.label

@@ -104,7 +104,12 @@ func runConfirmWindowSetting(paths runtimePaths, args []string) int {
 			printHumanInfo("No confirmation window can open here, so HA NOVA already asks on your linked phone, in your app's form, or with a four-digit code in chat. Nothing changed.")
 			return 0
 		}
-		switch askWindow(context.Background(), confirmT("en", "settings.window_off"), "en", cliWindowWait) {
+		lang := "en" // Home Assistant's language, when it can be read soon
+		if s, err := newRelaySessionWithin(paths, verbOptions{}, 5*time.Second); err == nil {
+			lang = s.homeLanguage()
+			s.close()
+		}
+		switch askWindow(context.Background(), confirmT(lang, "settings.window_off"), lang, cliWindowWait) {
 		case windowConfirmed:
 		case windowFailed:
 			printHumanInfo("The confirmation window couldn't open here, so HA NOVA asks on your linked phone, in your app's form, or with a four-digit code in chat anyway. Nothing changed.")
@@ -262,7 +267,7 @@ func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnap
 	case channelPhoneMissing:
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and HA NOVA can't reach the linked phone either", phoneMissingStep())
 	case channelPhoneUnlinked:
-		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and "+phoneUnlinkedWhy, phoneUnlinkedNext(textLang(plan)))
+		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and "+phoneUnlinkedWhy, phoneUnlinkedNext(s.homeLanguage()))
 	}
 	fresh, ok := replanStored(paths, s, &env, plan, channel)
 	if !ok || !stillConfirmed(plan, fresh) || fresh.Tier != plan.Tier || env.Plan == nil {
@@ -304,7 +309,7 @@ func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnap
 func replanStored(paths runtimePaths, s *relaySession, env *verbEnvelope, plan storedPlan, channel string) (storedPlan, bool) {
 	defer func(saved string) { planChannel = saved }(planChannel)
 	planChannel = channel
-	s.lang = plan.Lang
+	s.lang, s.words = plan.Lang, plan.Words
 	env.Server = s.server
 	var fresh storedPlan
 	var err error
