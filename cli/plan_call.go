@@ -35,26 +35,24 @@ type planCallRequest struct {
 }
 
 func runPlanCommand(paths runtimePaths, args []string) int {
-	if len(args) > 0 && args[0] == "call" {
+	switch {
+	case len(args) > 0 && args[0] == "call":
 		return runPlanCall(paths, args[1:])
-	}
-	if len(args) > 0 && (args[0] == "write" || args[0] == "delete" || args[0] == "revert" || args[0] == "restore") {
+	case len(args) > 0 && (args[0] == "write" || args[0] == "delete" || args[0] == "revert" || args[0] == "restore"):
 		return runPlanConfig(paths, args[0], args[1:])
-	}
-	if len(args) > 0 && args[0] == "rooms" {
+	case len(args) > 0 && args[0] == "rooms":
 		return runPlanRooms(paths, args[1:])
-	}
-	if len(args) > 0 && args[0] == "template" {
+	case len(args) > 0 && args[0] == "template":
 		return runPlanTemplate(paths, args[1:])
-	}
-	if len(args) > 0 && args[0] == "raw" {
+	case len(args) > 0 && args[0] == "raw":
 		return runPlanRaw(paths, args[1:])
-	}
-	if len(args) > 0 && (args[0] == "--help" || args[0] == "-h") {
+	case len(args) > 0 && args[0] == "batch":
+		return runPlanBatch(paths, args[1:])
+	case len(args) > 0 && (args[0] == "--help" || args[0] == "-h"):
 		fmt.Println("Usage: " + planCallHelp)
 		return verbExitOK
 	}
-	return verbUsageError("plan", errors.New("Usage: "+planCallUsage+" | "+planWriteUsage+" | "+planDeleteUsage+" | "+planRevertUsage+" | "+planRestoreUsage+" | "+planRoomsUsage+" | "+planTemplateUsage+" | "+planRawUsage))
+	return verbUsageError("plan", errors.New("Usage: "+planCallUsage+" | "+planWriteUsage+" | "+planDeleteUsage+" | "+planRevertUsage+" | "+planRestoreUsage+" | "+planRoomsUsage+" | "+planTemplateUsage+" | "+planRawUsage+" | "+planBatchUsage))
 }
 
 func runPlanCall(paths runtimePaths, args []string) int {

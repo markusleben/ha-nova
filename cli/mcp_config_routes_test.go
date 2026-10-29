@@ -288,6 +288,7 @@ func TestServeConfigPlansNeedAnAdministrator(t *testing.T) {
 		{"kind": "rooms"},
 		{"kind": "template", "name": "battery_reminder"},
 		{"kind": "raw", "requests": []any{map[string]any{"endpoint": "ws", "payload": map[string]any{"type": "input_boolean/create", "name": "A"}}}},
+		{"kind": "batch", "plans": []string{"p_000000000001", "p_000000000002"}},
 	}
 	ro := newServe(t, dashboardFake(), `{"allowed_users":["`+userA+`"],"read_only":true}`)
 	for _, args := range routes {

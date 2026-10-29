@@ -232,7 +232,7 @@ func TestSnapshotSaveReceiptContract(t *testing.T) {
 			t.Fatalf("fill %d: %v", i, err)
 		}
 	}
-	receipt, err = saveUndoSnapshotBytes(paths, record("t6", "Overflow"))
+	receipt, err = saveUndoSnapshotBytes(paths, record(fmt.Sprintf("t%d", undoSnapshotStackLimit+1), "Overflow"))
 	if err != nil {
 		t.Fatalf("overflow save: %v", err)
 	}

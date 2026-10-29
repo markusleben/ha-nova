@@ -78,7 +78,7 @@ type undoSnapshotStack struct {
 }
 
 const undoSnapshotStackSchemaVersion = 2
-const undoSnapshotStackLimit = 5
+const undoSnapshotStackLimit = 25
 
 // Exit codes for `snapshot verify`: 0 = live matches the post-write state,
 // snapshotExitDrift = live drifted (external edit), 1 = operational error.

@@ -80,7 +80,7 @@ describe("write delete safety contract", () => {
     // One logical change over several targets: plan first, honest revert scope.
     expect(writeSafety).toContain("## Multi-Target Changes (one logical change, several items)");
     expect(writeSafety).toContain("update-revert keeps the");
-    expect(writeSafety).toContain("last 5 updated targets");
+    expect(writeSafety).toContain("last 25 updated targets");
     expect(writeSafety).toContain("one step back per");
     expect(updateRevert).toContain("snapshot show --target <target_id>");
     expect(writeSafety).toContain("snapshot show --list");

@@ -284,6 +284,9 @@ func phoneNothing(lang string, answer phoneAnswer) (string, string) {
 // phoneApplyResult: how a confirmed plan ended, for the phone (a title
 // prefix and the line). "Done" only for a verified result.
 func phoneApplyResult(lang string, env verbEnvelope, exit int) (string, string) {
+	if prefix, line := batchPhoneResult(env, exit); prefix != "" {
+		return prefix, line
+	}
 	code := ""
 	if env.Error != nil {
 		code = env.Error.Code
