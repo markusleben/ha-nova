@@ -62,7 +62,8 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 		if appDown {
 			accepts = []string{"recheck", "fix", "change"}
 		}
-		if haDown { // a Home Assistant found here (pageRerunDiscover)
+		haDown = haDown && f.cfg.Cloud == nil // with Link: "Use another Home Assistant" says what comes first
+		if haDown {                           // a Home Assistant found here (pageRerunDiscover)
 			accepts = append(accepts, "address")
 		}
 		if appDown && problem.Key == "setup.page.rerun.problem_app_only" { // the App page opens only while Home Assistant answers
@@ -99,7 +100,7 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 				picked = setupPageText("setup.page.problem.address", "address", candidates[i].Host)
 				continue
 			}
-			f.cfg = applySelectedSetupHost(f.cfg, host, haURL, f.relayURLFlag)
+			f.pageUseAddress(host, haURL)
 			f.pageRepairing()
 			return setupGoTo(setupStepHost), true
 		}

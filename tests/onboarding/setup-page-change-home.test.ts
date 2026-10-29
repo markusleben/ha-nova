@@ -27,5 +27,27 @@ describe("setup page re-run: another Home Assistant", () => {
     const p = page({ ...old, accepts: ["recheck", "fix"] });
     await p.settle();
     expect(p.find("b-change-ha")).toBeUndefined();
+    expect(p.find("b-fix")!.className).toContain("btn-primary");
+    expect(p.find("b-recheck")!.className).toContain("btn-ghost"); // one main action
+  });
+
+  it("names the Link for the old home first, with a button that removes it", async () => {
+    const p = page({ screen: "found", ha: "192.168.1.5", ask_ha: true, accepts: ["address", "terminal", "link_remove"],
+      problem: { key: "setup.page.problem.link_elsewhere", args: { host: "10.85.1.2" } } });
+    await p.settle();
+    expect(p.screen.textContent).toContain("This computer uses Home Assistant Link for 10.85.1.2.");
+    expect(p.find("b-link_remove")!.textContent).toBe("Remove Link for 10.85.1.2");
+    p.find("b-link_remove")!.dispatch("click");
+    await p.settle();
+    expect(p.posts).toEqual([{ action: "link_remove" }]);
+  });
+
+  it("leads from a failed sign-in to another address", async () => {
+    const p = page({ screen: "connect", fix: "retry", accepts: ["address", "terminal", "signin", "change"], rows: [],
+      problem: { key: "setup.page.problem.not_owner_unnamed" } });
+    await p.settle();
+    p.find("b-change-ha")!.dispatch("click");
+    await p.settle();
+    expect(p.posts).toEqual([{ action: "change" }]);
   });
 });

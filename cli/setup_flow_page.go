@@ -163,6 +163,12 @@ func (f *setupFlow) stepPage() setupStepResult {
 		if fix == "web" || fix == "web_never" { // chat apps can't work here yet (pageWebCheck)
 			accepts = append(accepts, "local")
 		}
+		if screen == "connect" { // a failed sign-in: another address too
+			accepts = append(accepts, "change")
+		}
+		if problem != nil && problem.Key == "setup.page.problem.link_elsewhere" {
+			accepts = append(accepts, "link_remove")
+		}
 		action, err := p.wait(accepts...)
 		if err != nil {
 			return f.cancelled()
@@ -172,6 +178,12 @@ func (f *setupFlow) stepPage() setupStepResult {
 		kept := f.pageRetry
 		f.pageRetry = nil
 		switch action.Action {
+		case "change":
+			askHA = true
+			continue
+		case "link_remove":
+			problem, askHA = f.pageRemoveLink(), true
+			continue
 		case "local":
 			if result := f.pageUseThisComputer(); result.done {
 				return result
@@ -191,7 +203,11 @@ func (f *setupFlow) stepPage() setupStepResult {
 				problem, askHA = setupPageText("setup.page.problem.address", "address", terminalSafeName(action.Value)), true
 				continue
 			}
-			f.cfg = applySelectedSetupHost(f.cfg, host, haURL, f.relayURLFlag)
+			if problem = f.pageLinkElsewhere(haURL); problem != nil {
+				askHA = true
+				continue
+			}
+			f.pageUseAddress(host, haURL)
 			f.pageTyped = !slices.ContainsFunc(found, func(c setupPageCandidate) bool { return c.URL == action.Value })
 			found = nil
 		case "terminal":

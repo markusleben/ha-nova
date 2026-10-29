@@ -51,3 +51,78 @@ func TestSetupPageRerunUseAnotherHomeAssistant(t *testing.T) {
 		t.Fatalf("terminal:\n%s", out)
 	}
 }
+
+// With Home Assistant Link set up for the saved home, another address stops
+// before any sign-in there and says why; its button removes Link (as
+// `ha-nova cloud remove`), and then the other address goes through.
+func TestSetupPageRerunAnotherHomeRemovesLinkFirst(t *testing.T) {
+	paths, cfg, state, marker := setupCompletedInstallFixture(t)
+	stubRerunApp(t, true, chatAppsHA{}, errors.New("not read"))
+	previous, previousRemove := haAppInstallTargetsThisHAForPage, removeLeftoverLink
+	t.Cleanup(func() { haAppInstallTargetsThisHAForPage, removeLeftoverLink = previous, previousRemove })
+	haAppInstallTargetsThisHAForPage = func(runtimeConfig) bool { return true }
+	current := cloudMetadataForTest(strings.Repeat("b", 32))
+	cfg.Cloud = &cloudLifecycleMetadata{State: cloudStateReady, Current: &current}
+	cfg.RelayInstanceID = "relay-a"
+	if !setupPageCloudOK(cfg) {
+		t.Skip("Link isn't available on this platform: the page doesn't run with it")
+	}
+	previousResolve := resolveHAURLBaseForSetup
+	t.Cleanup(func() { resolveHAURLBaseForSetup = previousResolve })
+	resolveHAURLBaseForSetup = func(input string) (string, error) { return "http://" + input + ":8123", nil }
+	removed := 0
+	removeLeftoverLink = func(paths runtimePaths) int {
+		removed++
+		saved, err := loadConfig(paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+		saved.Cloud = nil
+		if err := saveConfig(paths, saved); err != nil {
+			t.Fatal(err)
+		}
+		return 0
+	}
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+	previousIdle := setupPageIdle
+	setupPageIdle = 2 * time.Second
+	t.Cleanup(func() { setupPageIdle = previousIdle })
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.27.0","min_relay_version":"0.12.0"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	page, stdout, done := startSetupPageFlowWith(t, "", rerunFlow(paths, cfg, state, marker))
+	page.waitFor("the re-run screen", accepting("change"))
+	page.click("change", "")
+	page.waitFor("step 1", accepting("address"))
+	page.click("address", "192.0.2.10")
+	blocked := page.waitFor("the Link problem", accepting("link_remove"))
+	if blocked.Screen != "found" || !blocked.AskHA || blocked.Problem.Key != "setup.page.problem.link_elsewhere" || removed != 0 {
+		t.Fatalf("blocked = %+v removed=%d", blocked, removed)
+	}
+	page.click("link_remove", "")
+	after := page.waitFor("Link removed", func(s setupPageState) bool { return !slices.Contains(s.Accepts, "link_remove") && s.Problem == nil })
+	if !after.AskHA || removed != 1 {
+		t.Fatalf("after = %+v removed=%d", after, removed)
+	}
+	page.click("terminal", "")
+	setupPageExit(t, done, stdout)
+}
+
+// Another address starts unpaired: "Use a six-digit code" then asks for a
+// code instead of checking the old home's device.
+func TestSetupPageAnotherAddressStartsUnpaired(t *testing.T) {
+	f := &setupFlow{cfg: runtimeConfig{HAHost: "a", HAURL: "http://a:8123"}, deviceAlreadyPaired: true, devicePaired: true}
+	f.pageUseAddress("a", "http://a:8123")
+	if !f.deviceAlreadyPaired || !f.devicePaired {
+		t.Fatal("the same home forgot its pairing")
+	}
+	f.pageUseAddress("b", "http://b:8123")
+	if f.deviceAlreadyPaired || f.devicePaired || f.cfg.HAURL != "http://b:8123" {
+		t.Fatalf("flow = %+v", f)
+	}
+}
