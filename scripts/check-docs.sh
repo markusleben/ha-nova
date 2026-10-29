@@ -79,7 +79,7 @@ echo ""
 # Home Assistant's users with the rollback guard, each listed user's phone with tokens bound to that user,
 # a removed user's link dropped, the phone's own button quoted, and the recent changes, with its review
 # fixes (a re-added user's old link dropped before the save, removals with an unreadable links file,
-# turned-off users the next save clears): about 11822.
+# turned-off users the next save clears, one way back on a listed user's phone panel): about 11830.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE

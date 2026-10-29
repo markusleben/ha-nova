@@ -272,7 +272,7 @@ function renderChatApps(m: PageModel, formOpen: string, csrfField: (action: Nova
     const codes = who === null ? c.chatCodes : who.codes;
     const phone = `<h3 id="chat-phone">${who === null ? "Your phone" : `${escapeHtml(who.name)}'s phone`}</h3>
 ${m.chatPhoneUserGone ? `<p class="muted">That person can't have a phone for chat apps now: they aren't on the list at Use the home or above.</p>` : ""}<p class="muted">Confirmations: ${chatPhoneLine(m.chatPhone, who === null ? c.ownerPhone : c.phones[who.id] ?? null, codes, who?.name ?? null)}.</p>
-${m.chatPhone === null ? "" : renderChatPhone(m.chatPhone, { id: who?.id ?? m.userId, name: who?.name ?? null }, codes, formOpen, csrfField, base)}${who === null ? "" : `<p><a class="linkbtn" href="${escapeAttr(base)}">Close</a></p>`}`;
+${m.chatPhone === null ? "" : renderChatPhone(m.chatPhone, { id: who?.id ?? m.userId, name: who?.name ?? null }, codes, formOpen, csrfField, base)}`;
     const users = m.chatUsers === null ? "" : renderChatUsers({ model: m.chatUsers, status: c, ownerId: m.userId, ownerName: m.ownerName, url: m.chatConnectorUrl, form: `${formOpen}${csrfField("chat_users")}`, base });
     // Claude asks before each step until its tools are on “Always allow”: with a phone that confirms, all of them.
     const next = c.ownerPhone === null

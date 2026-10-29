@@ -98,8 +98,16 @@ export function chatPhoneLine(model: ChatPhoneModel | null, phone: string | null
   return name === null ? `your phone ${escape(phone)} asks you` : `${named(phone)} asks ${escape(name)}`;
 }
 
-// chatCodes: whether a chat code may stand in for this user's phone.
+// chatCodes: whether a chat code may stand in for this user's phone. A
+// listed user's panel closes back to the owner's, unless it shows its own
+// way back (Cancel, Back, or OK).
 export function renderChatPhone(model: ChatPhoneModel, who: ChatPhoneWho, chatCodes: boolean, formOpen: string, csrfField: CsrfField, base: string): string {
+  const panel = renderPanel(model, who, chatCodes, formOpen, csrfField, base);
+  const ownWayBack = model.job !== null ? model.job.state.status !== "running" : model.pick && typeof model.phones === "object" && model.phones.link?.state !== "unavailable";
+  return who.name === null || ownWayBack ? panel : `${panel}<p><a class="linkbtn" href="${escape(base)}">Close</a></p>`;
+}
+
+function renderPanel(model: ChatPhoneModel, who: ChatPhoneWho, chatCodes: boolean, formOpen: string, csrfField: CsrfField, base: string): string {
   const back = `<a class="linkbtn" href="${escape(base)}">`;
   const form = (action: ChatPhoneAction): string => `${formOpen}${csrfField(action, `${action}:${who.id}`)}<input type="hidden" name="user" value="${escape(who.id)}">`;
   const your = who.name === null ? "your" : `${escape(who.name)}'s`;

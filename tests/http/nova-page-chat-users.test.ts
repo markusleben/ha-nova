@@ -301,6 +301,25 @@ describe("NOVA page: a listed user's phone", () => {
     expect(started).toEqual([]);
   });
 
+  it("closes back to the owner's phone only where the panel has no way back of its own", async () => {
+    listed([ANNA], { [ANNA]: "use" });
+    const panel = async (q: string) => {
+      const html = await page(q);
+      return html.slice(html.indexOf('id="chat-phone"'));
+    };
+    const close = '<p><a class="linkbtn" href="/api/hassio_ingress/tok/">Close</a></p>';
+    expect(await panel(`/?chat_user=${ANNA}`)).toContain(close); // "Link a phone…"
+    expect(await panel(`/?chat_job=${JOB}&chat_user=${ANNA}`)).toContain(close); // waiting for Anna's tap
+    const pick = await panel(`/?chat_user=${ANNA}&chat_phone=pick`);
+    expect(pick).toContain(">Cancel</a>");
+    expect(pick).not.toContain(">Close</a>");
+    job = { ...job, status: "declined" };
+    const ended = await panel(`/?chat_job=${JOB}&chat_user=${ANNA}`);
+    expect(ended).toContain(">OK</a>");
+    expect(ended).not.toContain(">Close</a>");
+    expect(await panel("/")).not.toContain(">Close</a>"); // the owner's own panel
+  });
+
   it("quotes the phone's own button from the bridge, in English when an older bridge names none", async () => {
     listed([ANNA], { [ANNA]: "use" });
     expect(await page(`/?chat_job=${JOB}&chat_user=${ANNA}`)).toContain("Ask Anna to check “Anna&#39;s Pixel” and tap “Erlauben” in the notification."); // Anna's phone, not the owner's
