@@ -32,6 +32,7 @@ type phoneAsk struct {
 const (
 	phoneSentText   = "Sent to “%s”. %s Do it only if you started this."
 	phoneTitleLimit = 80  // runes: one lock-screen line
+	phoneNameRoom   = 8   // runes a title keeps for a cut name, its quotes included
 	phoneWhyLimit   = 300 // runes: the reasons (an expanded notification shows them all)
 )
 
@@ -42,8 +43,15 @@ func phoneLinkTitle(lang string) string  { return confirmT(lang, "phone.link.tit
 func phoneLinkButton(lang string) string { return confirmT(lang, "phone.link.button") }
 
 // phoneLinkQuestion: the window's question before a link (the phone linked
-// now asks phoneChangeAsk instead).
+// now asks phoneChangeAsk instead). The phone's name stands in quotes, so
+// its quote marks become apostrophes; an apostrophe stays.
 func phoneLinkQuestion(lang, phone string) string {
+	phone = strings.Map(func(r rune) rune {
+		if r != '’' && sayQuoteMark(r) {
+			return '\''
+		}
+		return r
+	}, phone)
 	return confirmT(lang, "settings.link_ask", "phone", phone, "host", phoneHost(lang))
 }
 
@@ -139,15 +147,23 @@ func phoneNothingSteps(platform string) string {
 }
 
 // phoneCut shortens text to limit runes with "…", closing a quote it cut
-// open (“Front Do…”).
+// open (“Front Do…”, German „Haustü…“).
 func phoneCut(text string, limit int) string {
 	runes := []rune(text)
 	if len(runes) <= limit {
 		return text
 	}
 	cut := string(runes[:max(limit-1, 0)]) + "…"
-	if strings.Count(cut, "“") > strings.Count(cut, "”") {
-		cut = string(runes[:max(limit-2, 0)]) + "…”"
+	open, closing := "“", "”"
+	if strings.Contains(text, "„") { // German marks (confirmQuote)
+		open, closing = "„", "“"
+	}
+	if strings.Count(cut, open) > strings.Count(cut, closing) {
+		kept := string(runes[:max(limit-2, 0)])
+		cut = kept + "…"
+		if strings.Count(kept, open) > strings.Count(kept, closing) { // only a mark it kept is closed
+			cut += closing
+		}
 	}
 	return cut
 }

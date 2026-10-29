@@ -228,7 +228,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	if plan.Tier == tierTyped.String() {
 		defer func(saved string) { planChannel = saved }(planChannel)
 		planChannel = plan.Channel
-		s.lang = plan.Lang // sealed: the re-plan speaks the language the human read
+		s.lang, s.words = plan.Lang, plan.Words // sealed: the re-plan speaks the language and words the human read
 	}
 	var e *tierEngine
 	var fresh storedPlan
@@ -298,6 +298,8 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	// From here every envelope shows the STORED plan: the recompute's own
 	// id and code were never saved, and typing them would burn this plan.
 	env.Say, env.NextStep = "", "" // they name the recompute's code or id
+	// A language notice is about the recompute's ask, which is never shown.
+	env.Notices = slices.DeleteFunc(env.Notices, func(n verbNotice) bool { return n.Kind == "language" })
 	env.Plan = &verbPlan{ID: plan.ID, Hash: identity, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm}
 	// Identity, tier, and code come from the recompute (or the stored plan it
 	// still is) and nonce, never unchecked file fields (I2).

@@ -102,7 +102,7 @@ func (b *chatBridge) runPhoneJob(job *controlJob, look *controlLook, chosen *pho
 		}
 		look.s.close()
 	}()
-	lang := look.s.language()
+	lang := look.s.homeLanguage()
 	notDone := func(reply phoneReply, err error) { // nothing changed; the phone hears why
 		line, status := confirmT(lang, "chat_phone.reply.failed"), "failed" // a read or the write failed
 		switch {

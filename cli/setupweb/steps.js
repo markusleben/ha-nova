@@ -76,6 +76,7 @@ window.novaSteps = (h) => {
   const phoneRow = (c) => {
     const key = t('setup.page.control.phone_key');
     const phones = c.phones || [];
+    const buttons = c.phone_buttons || {}; // the phone's own buttons, in the language its asks are sent in
     if (c.phone !== 'linked') local.moving = false;
     // No tap after 30 s, or the ask timed out: where the phone turns on notifications.
     const asking = c.phone === 'waiting' || c.phone === 'moving' ? `${c.phone} ${c.phone_name}` : '';
@@ -108,10 +109,10 @@ window.novaSteps = (h) => {
       }
       case 'moving':
         return el('li', focusAfter(phones.map((p, i) => `b-phone-${i}`)), spinner(),
-          el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t('setup.page.control.phone_moving', { old: c.old_phone, phone: c.phone_name })), quiet('')), el('span'));
+          el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t('setup.page.control.phone_moving', { old: c.old_phone, phone: c.phone_name, move: buttons.move, allow: buttons.allow })), quiet('')), el('span'));
       case 'waiting':
         return el('li', focusAfter(['b-phone-0', ...phones.map((p, i) => `b-phone-${i}`)]), spinner(),
-          el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t({ ios: 'setup.page.control.phone_waiting_ios', android: 'setup.page.control.phone_waiting_android' }[c.phone_os] || 'setup.page.control.phone_waiting', { phone: c.phone_name })), quiet(c.phone_os)), el('span'));
+          el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t({ ios: 'setup.page.control.phone_waiting_ios', android: 'setup.page.control.phone_waiting_android' }[c.phone_os] || 'setup.page.control.phone_waiting', { phone: c.phone_name, allow: buttons.allow })), quiet(c.phone_os)), el('span'));
       case 'none':
         return line(muted('·'), key, t('setup.page.control.phone_none'), why(), recheck());
       case 'unread': // the button is disabled while it reads again
@@ -175,7 +176,7 @@ window.novaSteps = (h) => {
         ? el('button', { id: 'b-finish', class: 'btn btn-primary', type: 'button', disabled: '' }, finish)
         : button(finish, 'finish', 'primary', choices.join(','))),
       asking ? el('p', { class: 'fine' }, t('setup.chat.answer_first')) : null,
-      c.phone === 'pick' ? el('p', { class: 'fine' }, t('setup.page.control.fine')) : null,
+      c.phone === 'pick' ? el('p', { class: 'fine' }, t('setup.page.control.fine', { allow: (c.phone_buttons || {}).allow })) : null,
       status && h.state().accepts.includes('server') ? el('p', { class: 'fine' }, el('button', { id: 'b-server', class: 'linkish', type: 'button', onclick: () => h.post('server') }, t('setup.page.rerun.add_server'))) : null];
   };
 

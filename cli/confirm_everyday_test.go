@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // Delivery 3 (docs/work/2026-10-28-confirmation-localization-spec.md): a
@@ -48,7 +49,7 @@ func TestMQTTEverydayRecognizesZigbee2MQTTRequests(t *testing.T) {
 			"Remove the Zigbee device “Flurlampe” from Zigbee2MQTT only and block it?", "Remove", ""},
 		{zigbeeData("device/remove", `{"id":"Flurlampe","force":false,"block":false}`), "remove the Zigbee device “Flurlampe” from the network", "", "", ""},
 		{zigbeeData("permit_join", `{"time":254}`), "let new devices join the Zigbee network for 254 seconds", "Let new devices join the Zigbee network for 254 seconds?", "Allow", ""},
-		{zigbeeData("permit_join", `{"time":60,"device":"Kitchen plug"}`), "let new devices join the Zigbee network through “Kitchen plug” for 60 seconds", "Let new devices join the Zigbee network through “Kitchen plug” for 60 seconds?", "Allow", ""},
+		{zigbeeData("permit_join", `{"time":60,"device":"Kitchen plug"}`), "let new devices join Zigbee through “Kitchen plug” for 60 seconds", "Let new devices join Zigbee through “Kitchen plug” for 60 seconds?", "Allow", ""},
 		{zigbeeData("permit_join", `{"time":0}`), "turn joining off, so no new devices can join the Zigbee network", "Turn joining off, so no new devices can join the Zigbee network?", "Confirm", ""},
 	} {
 		line := mqttEveryday("en", planAction{Service: "mqtt.publish", Data: c.data})
@@ -342,5 +343,63 @@ func TestPlanRawNoSnapshotDropsTheCopySentence(t *testing.T) {
 	copied, none := confirmText(plan, false), confirmText(plan, true)
 	if !strings.Contains(copied, "HA NOVA saves a copy first") || strings.Contains(none, "HA NOVA saves a copy first") || !strings.Contains(none, sayNoCopyNote("en")) {
 		t.Fatalf("with the copy %q\nwithout %q", copied, none)
+	}
+}
+
+// A detail value defangs quote marks of any language the same way at both
+// cuts, so only the pair HA NOVA writes is marked (in German „…“).
+func TestDetailValuesDefangQuotesAtBothCuts(t *testing.T) {
+	for _, limit := range []int{detailLimit, phoneValueLimit} {
+		if got := sayDetail("en", "a „b“ ‚c‘ “d” ❞e", limit, true); got != "“a 'b' 'c' 'd' 'e”" || confirmQuote("de", got) != "„a 'b' 'c' 'd' 'e“" {
+			t.Errorf("limit %d: %q", limit, got)
+		}
+	}
+	if got := confirmQuote("de", sayDetail("en", "", phoneValueLimit, true)); got != "„“" {
+		t.Errorf("empty: %q", got)
+	}
+}
+
+// Every goal of these lines keeps its name in the phone's question and in
+// every result's title, in each catalog, with the longest arguments: cut to
+// fit, its kind dropped first, never the name itself.
+func TestEverydayTitlesKeepTheName(t *testing.T) {
+	name := strings.Repeat("Flurlicht ", 6)
+	prefixes := []string{"", "outcome.done", "outcome.already_done", "outcome.sent", "outcome.failed", "outcome.check", "outcome.unclear",
+		"outcome.not_done", "outcome.cancelled", "outcome.not_confirmed", "outcome.not_asked"}
+	for lang := range confirmCatalogs {
+		named := []string{sayText(name, true)}
+		app := []string{appLabel(lang, name, "a0d7b954_sshxx")}
+		duration := map[string]string{"duration": confirmT(lang, "unit.seconds", "count", 254)}
+		goals := []actionGoal{
+			{verb: "change", frame: "zigbee", names: named}, {verb: "zigbee_rename", frame: "zigbee", names: named},
+			{verb: "zigbee_remove", frame: "zigbee", names: named}, {verb: "zigbee_remove_block", frame: "zigbee", names: named},
+			{verb: "zigbee_remove_force", frame: "zigbee", names: named}, {verb: "zigbee_remove_force_block", frame: "zigbee", names: named},
+			{verb: "zigbee_permit", args: duration}, {verb: "zigbee_permit_via", names: named, args: duration}, {verb: "zigbee_permit_off"},
+			{verb: "mqtt_send"}, {verb: "supervisor_run"}, {verb: "host_reboot"}, {verb: "host_shutdown"},
+			{verb: "device_delete", frame: "device", names: named, args: map[string]string{"entities": confirmT(lang, "unit.entities", "count", 120)}},
+			{verb: "device_delete_children", frame: "device", names: named, args: map[string]string{
+				"children": confirmT(lang, "unit.child_devices", "count", 12), "entities": confirmT(lang, "unit.entities", "count", 120)}},
+		}
+		for _, verb := range []string{"start", "stop", "restart", "install", "uninstall", "auto_update_on", "auto_update_off", "app_settings"} {
+			goals = append(goals, actionGoal{verb: verb, frame: "app", names: app})
+		}
+		opening := string([]rune(confirmQuote(lang, "“x”"))[0])
+		for _, g := range goals {
+			for _, key := range prefixes {
+				prefix, limit := "", phoneTitleLimit
+				if key != "" {
+					prefix, limit = confirmT(lang, key), phoneTitleLimit-1
+				}
+				title := g.title(lang, prefix)
+				if utf8.RuneCountInString(title) > limit || len(g.names) > 0 && !strings.Contains(title, opening+"Flurl") {
+					t.Errorf("%s %s %q: %q (%d runes)", lang, g.verb, prefix, title, utf8.RuneCountInString(title))
+				}
+			}
+		}
+	}
+	for limit, want := range map[int]string{1: "…", 2: "…", 3: "“…”", 4: "“F…”"} {
+		if got := phoneCut("“Flurlampe”", limit); got != want {
+			t.Errorf("phoneCut to %d: %q, want %q", limit, got, want)
+		}
 	}
 }

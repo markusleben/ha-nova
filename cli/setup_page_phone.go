@@ -8,21 +8,32 @@ import (
 // setup_page_control.go): a first link with one notification, and "Use
 // another phone" with `ha-nova setup confirm-phone`'s move rules.
 
+// phoneButtons: the buttons the phone row quotes, from the confirmation
+// catalog in the language its asks are sent in: Home Assistant's, read with
+// the phones (a settings ask, as in `ha-nova setup confirm-phone`). The rest
+// of the page stays English.
+type phoneButtons struct {
+	Allow string `json:"allow"` // the link question's
+	Move  string `json:"move"`  // the move question's, on the phone linked now
+	lang  string
+}
+
 // pagePhones fills the phone row from a read of this home's phones: a first
 // link, or a phone linked before with the phones it can move to (the move
 // keeps `confirm-phone`'s rule: the linked phone OKs it). A link that can't
 // be asked now stays with `ha-nova setup confirm-phone`, which settles it
 // safely.
 func (f *setupFlow) pagePhones(ctl *setupPageControl) {
-	ctl.Phone, ctl.Phones, ctl.PhoneWhy, ctl.OldPhone = "unavailable", nil, nil, ""
+	ctl.Phone, ctl.Phones, ctl.PhoneWhy, ctl.OldPhone, ctl.PhoneButtons = "unavailable", nil, nil, "", nil
 	if !(f.pairedThisRun || f.pageRerunning) || f.cloudSetupPaused { // as in the terminal: right after a pairing, and on a re-run
 		return
 	}
-	home, links, ok := f.pageReadPhones()
+	home, links, lang, ok := f.pageReadPhones()
 	if !ok {
 		ctl.Phone = "unread" // a busy Home Assistant: the row says so and offers Check again
 		return
 	}
+	ctl.PhoneButtons = &phoneButtons{Allow: phoneLinkButton(lang), Move: confirmT(lang, "phone.move.button"), lang: lang}
 	if home.relay == home.owner {
 		return
 	}
@@ -52,28 +63,28 @@ func (f *setupFlow) pagePhones(ctl *setupPageControl) {
 	}
 }
 
-// pageReadPhones reads the phones through the paired Relay; ok=false when
-// they can't be read. A Relay that signs in as the owner (home.relay ==
-// home.owner) can't link a phone: a tap couldn't be told apart from HA NOVA
-// itself.
-func (f *setupFlow) pageReadPhones() (phoneHome, map[string]phoneEntry, bool) {
+// pageReadPhones reads the phones and Home Assistant's language through the
+// paired Relay; ok=false when the phones can't be read. A Relay that signs
+// in as the owner (home.relay == home.owner) can't link a phone: a tap
+// couldn't be told apart from HA NOVA itself.
+func (f *setupFlow) pageReadPhones() (phoneHome, map[string]phoneEntry, string, bool) {
 	s, err := newRelaySession(f.paths, verbOptions{})
 	if err != nil {
-		return phoneHome{}, nil, false
+		return phoneHome{}, nil, "", false
 	}
 	defer s.close()
 	links, readable := phoneLinks(f.paths)
 	home, err := lookupPhones(s, links)
-	return home, links, readable && err == nil
+	return home, links, s.homeLanguage(), readable && err == nil
 }
 
-// pageLinkPhone sends the link question to the phone picked on the page.
-// The click on the page is the consent at this computer (the window's part
-// in `ha-nova setup confirm-phone`); the tap on that phone, from its own
-// administrator, still links it. A fresh read first: the page may have
-// waited a while.
+// pageLinkPhone sends the link question to the phone picked on the page,
+// in the language whose buttons the row quotes. The click on the page is
+// the consent at this computer (the window's part in `ha-nova setup
+// confirm-phone`); the tap on that phone, from its own administrator, still
+// links it. A fresh read first: the page may have waited a while.
 func (f *setupFlow) pageLinkPhone(ctl *setupPageControl, deviceID string) {
-	result, person := phoneLinkUnread, ""
+	result, person, buttons := phoneLinkUnread, "", *ctl.PhoneButtons
 	if s, err := newRelaySession(f.paths, verbOptions{}); err == nil {
 		links, readable := phoneLinks(f.paths)
 		home, err := lookupPhones(s, links)
@@ -82,7 +93,7 @@ func (f *setupFlow) pageLinkPhone(ctl *setupPageControl, deviceID string) {
 		i := slices.IndexFunc(all, func(t phoneTarget) bool { return t.DeviceID == deviceID })
 		if readable && err == nil && home.relay != home.owner && status == phoneNone && i >= 0 {
 			person = terminalSafeName(all[i].Person)
-			result = sendPhoneLink(s, f.ui.termOut(), "en", home, links, links[home.owner], all[i], windowWait)
+			result = sendPhoneLink(s, f.ui.termOut(), buttons.lang, home, links, links[home.owner], all[i], windowWait)
 		}
 		s.close()
 	}
@@ -90,7 +101,7 @@ func (f *setupFlow) pageLinkPhone(ctl *setupPageControl, deviceID string) {
 		ctl.Phone, ctl.Phones, ctl.PhoneWhy = "linked", nil, nil
 		return
 	}
-	ctl.Phone, ctl.PhoneProblem = "pick", pagePhoneProblem(result, ctl.PhoneName, person)
+	ctl.Phone, ctl.PhoneProblem = "pick", pagePhoneProblem(result, ctl.PhoneName, person, buttons.Allow)
 }
 
 // movePhones: the phones confirmations can move to, every eligible one but
@@ -109,10 +120,11 @@ func movePhones(home phoneHome, current phoneSetup) []setupPagePhone {
 // consent here: as `ha-nova setup confirm-phone`, the change goes through
 // allowPhoneChange (the phone linked now OKs it while it can answer, else
 // the window), then the tap on the new phone links it. A fresh read first.
-// True once the new phone is linked; else the row shows the linked one
-// again, with one line.
+// Both asks speak the language whose buttons the row quotes. True once the
+// new phone is linked; else the row shows the linked one again, with one
+// line.
 func (f *setupFlow) pageMovePhone(ctl *setupPageControl, deviceID string) bool {
-	old, name, person := ctl.OldPhone, ctl.PhoneName, ""
+	old, name, person, buttons := ctl.OldPhone, ctl.PhoneName, "", *ctl.PhoneButtons
 	asked, allowed, result := false, false, phoneLinkUnread
 	if s, err := newRelaySession(f.paths, verbOptions{}); err == nil {
 		out := f.ui.termOut()
@@ -124,9 +136,9 @@ func (f *setupFlow) pageMovePhone(ctl *setupPageControl, deviceID string) bool {
 		if readable && err == nil && home.relay != home.owner && status == phoneReady && i >= 0 &&
 			!slices.ContainsFunc(current.targets, func(c phoneTarget) bool { return c.DeviceID == deviceID }) {
 			asked, name, person = true, terminalSafeName(all[i].Name), terminalSafeName(all[i].Person)
-			allowed = allowPhoneChange(s, out, "en", home, links, phoneLinkQuestion("en", name), name, false, windowWait)
+			allowed = allowPhoneChange(s, out, buttons.lang, home, links, phoneLinkQuestion(buttons.lang, name), name, false, windowWait)
 			if allowed {
-				result = sendPhoneLink(s, out, "en", home, links, links[home.owner], all[i], windowWait)
+				result = sendPhoneLink(s, out, buttons.lang, home, links, links[home.owner], all[i], windowWait)
 			}
 		}
 		s.close()
@@ -145,17 +157,17 @@ func (f *setupFlow) pageMovePhone(ctl *setupPageControl, deviceID string) bool {
 	case !allowed:
 		ctl.PhoneProblem = setupPageText("setup.page.control.move_refused", "phone", old)
 	default:
-		ctl.PhoneProblem = pagePhoneProblem(result, name, person)
+		ctl.PhoneProblem = pagePhoneProblem(result, name, person, buttons.Allow)
 	}
 	return false
 }
 
 // pagePhoneProblem: one plain line for a link that didn't happen (person:
-// the phone's person in Home Assistant).
-func pagePhoneProblem(result phoneLinkResult, phone, person string) *setupPageMsg {
+// the phone's person in Home Assistant; allow: the link question's button).
+func pagePhoneProblem(result phoneLinkResult, phone, person, allow string) *setupPageMsg {
 	switch result {
 	case phoneLinkTimeout:
-		return setupPageText("setup.page.control.phone_timeout", "phone", phone)
+		return setupPageText("setup.page.control.phone_timeout", "phone", phone, "allow", allow)
 	case phoneLinkDeclined:
 		return setupPageText("setup.page.control.phone_declined", "phone", phone)
 	case phoneLinkRejected:

@@ -104,17 +104,21 @@ func sayGoal(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 		names = append(names, sayText(e.sayName(env, id), true))
 	}
 	verb, label := sayVerb(name)
+	word := plan.Words["service:"+service] // Home Assistant's name in a plan that isn't English
+	if label != "" && word != "" {
+		label = sayText(word, false)
+	}
 	switch {
 	case domain == "script" && !scriptEntityServices[name]:
 		return actionGoal{verb: "run", frame: "script", names: []string{sayText(e.sayName(env, service), true)}}
 	case len(names) == 0 && domain == "homeassistant":
-		return actionGoal{verb: verb, label: label, names: []string{"Home Assistant"}}
+		return actionGoal{verb: verb, label: label, named: word != "", names: []string{"Home Assistant"}}
 	case len(names) == 0:
 		return actionGoal{verb: "run", names: []string{sayText(service, true)}}
 	case service == "script.turn_on":
 		return actionGoal{verb: "run", frame: "script", names: names}
 	}
-	return actionGoal{verb: verb, label: label, names: names}
+	return actionGoal{verb: verb, label: label, named: word != "", names: names}
 }
 
 // sayReasons: one sentence per distinct reason; a typed plan's first one
@@ -199,13 +203,17 @@ func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 	}
 	changes, flags, warnings := []string{}, "", ""
 	for _, d := range env.Deltas {
-		change := sayValue(d.Before) + " → " + sayValue(d.After)
+		before, after := plan.valueText(d.EntityID, d.Field, d.Before), sayValue(d.After)
+		if d.Field == "state" {
+			after = plan.valueText(d.EntityID, d.Field, d.After)
+		}
+		change := before + " → " + after
 		flag, isFlag := sayFlag(lang, d.Field, plan.Action.Data[d.Field])
 		switch {
 		case d.Field != "state" && d.Before != d.After && isFlag:
 			flags += ", " + flag
 		case d.Field != "state" && d.Before == "" && d.After != "":
-			changes = append(changes, confirmT(lang, "say.field_set", "field", sayValue(d.Field), "value", sayValue(d.After)))
+			changes = append(changes, confirmT(lang, "say.field_set", "field", sayValue(d.Field), "value", after))
 		case d.Field != "state" && d.Before != d.After: // an explicit "" clears the field: shown as “”
 			changes = append(changes, confirmT(lang, "say.field_change", "field", sayValue(d.Field), "change", change))
 		case d.Field == "state" && d.After != "" && d.Before != d.After && domain != "script":

@@ -187,7 +187,7 @@ func (srv *mcpServer) chatApply(name string, args map[string]json.RawMessage, ar
 	}
 	plan, err := readPlanFile(filepath.Join(planDir(srv.paths), id+".json")) // this user's plans only
 	if err == nil && plan.Tier == tierTyped.String() && plan.Channel == channelChat && !c.codes {
-		return chatStopped(name, channelRefusal(channelChatOff, textLang(plan)))
+		return chatStopped(name, channelRefusal(channelChatOff, func() string { return textLang(plan) }))
 	}
 	var noSnapshot bool
 	_ = json.Unmarshal(args["no_snapshot"], &noSnapshot)

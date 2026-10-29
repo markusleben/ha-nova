@@ -36,7 +36,7 @@ const (
 
 func runConfirmPhoneSetting(paths runtimePaths, args []string) int {
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Println("Usage: " + confirmPhoneUsage + "\n\nWhere no confirmation window can open, HA NOVA asks one phone you link (Home Assistant\napp) to confirm unlocks and deletes. Only that phone ever gets these confirmations.\n\n  (nothing)     pick a phone from a list, then tap “Allow” on it\n  \"<name>\"      link that phone (list shows the names)\n  list          show the phones and which one is linked; sends nothing\n  off           stop asking on the phone (you confirm that on the phone)")
+		fmt.Println("Usage: " + confirmPhoneUsage + "\n\nWhere no confirmation window can open, HA NOVA asks one phone you link (Home Assistant\napp) to confirm unlocks and deletes. Only that phone ever gets these confirmations.\n\n  (nothing)     pick a phone from a list, then allow it on that phone\n  \"<name>\"      link that phone (list shows the names)\n  list          show the phones and which one is linked; sends nothing\n  off           stop asking on the phone (you confirm that on the phone)")
 		return 0
 	}
 	if len(args) > 1 {
@@ -80,7 +80,7 @@ type phoneLinkRun struct {
 }
 
 func linkPhone(s *relaySession, reader *bufio.Reader, out io.Writer, run phoneLinkRun) int {
-	start, lang := time.Now(), "en"
+	start, lang := time.Now(), s.homeLanguage()
 	links, readable := phoneLinks(s.paths)
 	home, err := lookupPhones(s, links)
 	if !readable || err != nil {
@@ -236,7 +236,7 @@ func sendPhoneLink(s *relaySession, out io.Writer, lang string, home phoneHome, 
 // confirmed on the linked phone, or in the window when that phone can never
 // answer again; never without either.
 func unlinkPhone(s *relaySession, out io.Writer) int {
-	lang := "en"
+	lang := s.homeLanguage()
 	links, readable := phoneLinks(s.paths)
 	home, err := lookupPhones(s, links)
 	if !readable || err != nil {

@@ -14,7 +14,8 @@ import (
 // its id, never its words.
 type actionGoal struct {
 	verb  string            // catalog verb id (phrase); "" when label names the action
-	label string            // the action's own words, English: an id-derived service name, a raw step's verb
+	label string            // the action's own words: an id-derived service name or a raw step's verb (English), or Home Assistant's name
+	named bool              // label is Home Assistant's own name (confirm_words.go), kept as written
 	frame string            // what the names are ("script", "automation", "dashboard", "zigbee", "app", "device"); "" = the names alone
 	args  map[string]string // a verb's other placeholders, rendered in the plan's language (goal.zigbee_permit: duration)
 	names []string          // each sayText-quoted, or Home Assistant itself
@@ -52,22 +53,31 @@ func (g actionGoal) text(lang string) string {
 	return g.phrase(lang, g.object(lang, sayList(lang, g.names)))
 }
 
-// object: names in the goal's frame ("the script “Night”").
+// object: names in the goal's frame ("the script “Night”"). An undo has
+// frames of its own, as a language may need another case after its "to"
+// (German names the item alone: „an „Flurlicht““).
 func (g actionGoal) object(lang, names string) string {
-	switch g.frame {
-	case "":
+	undo := g.verb == "revert"
+	switch {
+	case g.frame == "":
 		return names
-	case "script":
+	case g.frame == "script" && undo:
+		return confirmT(lang, "goal.revert_object.script", "names", names)
+	case g.frame == "automation" && undo:
+		return confirmT(lang, "goal.revert_object.automation", "names", names)
+	case g.frame == "dashboard" && undo:
+		return confirmT(lang, "goal.revert_object.dashboard", "names", names)
+	case g.frame == "script":
 		return confirmT(lang, "goal.object.script", "names", names)
-	case "automation":
+	case g.frame == "automation":
 		return confirmT(lang, "goal.object.automation", "names", names)
-	case "dashboard":
+	case g.frame == "dashboard":
 		return confirmT(lang, "goal.object.dashboard", "names", names)
-	case "zigbee":
+	case g.frame == "zigbee":
 		return confirmT(lang, "goal.object.zigbee", "names", names)
-	case "app":
+	case g.frame == "app":
 		return confirmT(lang, "goal.object.app", "names", names)
-	case "device":
+	case g.frame == "device":
 		return confirmT(lang, "goal.object.device", "names", names)
 	}
 	panic("confirm goal: unknown frame " + g.frame)
@@ -76,7 +86,11 @@ func (g actionGoal) object(lang, names string) string {
 func (g actionGoal) phrase(lang, object string) string {
 	switch g.verb {
 	case "":
-		return confirmT(lang, "goal.label", "action", lowerFirst(g.label), "object", object)
+		action := lowerFirst(g.label)
+		if g.named {
+			action = g.label
+		}
+		return confirmT(lang, "goal.label", "action", action, "object", object)
 	case "turn_on":
 		return confirmT(lang, "goal.turn_on", "object", object)
 	case "turn_off":
@@ -178,7 +192,9 @@ func (g actionGoal) phrase(lang, object string) string {
 // cut as its question would be, one rune short for the “?” it drops.
 // Too long, it keeps the first name, cut to fit, and counts every other
 // one ("Unlock “A” and 6 more?"), so it never understates what a tap
-// confirms.
+// confirms. The name never goes: with less than phoneNameRoom left for it,
+// the object's kind goes first ("Remove “Flurlampe” …" for "Remove the
+// Zigbee device “Flurlampe” …").
 func (g actionGoal) title(lang, prefix string) string {
 	limit := phoneTitleLimit
 	line := func(names string) string {
@@ -194,16 +210,21 @@ func (g actionGoal) title(lang, prefix string) string {
 	if prefix != "" {
 		limit--
 	}
-	title := line(sayList(lang, g.names))
-	if len([]rune(title)) <= limit || len(g.names) == 0 {
-		return title
-	}
 	first := func(name string) string { return name }
 	if len(g.names) > 1 {
 		first = func(name string) string { return confirmT(lang, "list.more", "list", name, "count", len(g.names)-1) }
 	}
-	room := limit - len([]rune(line(first(""))))
-	return line(first(phoneCut(g.names[0], room)))
+	for {
+		title := line(sayList(lang, g.names))
+		if len([]rune(title)) <= limit || len(g.names) == 0 {
+			return title
+		}
+		room := limit - len([]rune(line(first(""))))
+		if room >= phoneNameRoom || g.frame == "" {
+			return line(first(phoneCut(g.names[0], room)))
+		}
+		g.frame = ""
+	}
 }
 
 // button: the verb's own button, else Confirm.
@@ -217,11 +238,13 @@ func (g actionGoal) button(lang string) string {
 // ownButton: the button that names the action; "" where Confirm answers
 // it: a verb that reads like dismissing (close, stop) or is too long for a
 // button (set the position of, undo the last change to). A label is its
-// own button while it is one or two words that don't read like dismissing.
+// own button while it is one or two words that don't read like dismissing;
+// Home Assistant's own name never is, as no word list can check it in every
+// language (Design 8).
 func (g actionGoal) ownButton(lang string) string {
 	switch g.verb {
 	case "":
-		if g.label == "" || strings.Count(g.label, " ") > 1 || slices.ContainsFunc([]string{"Cancel", "Close", "Stop", "Dismiss"}, func(v string) bool { return strings.EqualFold(v, g.label) }) {
+		if g.label == "" || g.named || strings.Count(g.label, " ") > 1 || slices.ContainsFunc([]string{"Cancel", "Close", "Stop", "Dismiss"}, func(v string) bool { return strings.EqualFold(v, g.label) }) {
 			return ""
 		}
 		return g.label
