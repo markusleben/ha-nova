@@ -243,7 +243,7 @@ func TestPlanRawPhoneAskKeepsTypedSteps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ask := phonePlanAsk(sayAsk(newTierEngine(s), &env, plan, ""), false)
+	ask := phonePlanAsk("en", sayAsk(newTierEngine(s), &env, plan, ""), false)
 	for i, id := range []string{"guest_mode_living_room", "holiday_lights_garden", "night_mode_upstairs"} {
 		if want := "Step " + string(rune('2'+i)) + ": Delete the toggle helper “" + id + "”"; !strings.Contains(ask.body, want) {
 			t.Errorf("phone body lacks %q: %q", want, ask.body)

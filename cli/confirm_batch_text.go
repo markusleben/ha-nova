@@ -68,7 +68,7 @@ func (m batchMember) goal(lang string) string {
 func (m batchMember) reasons(lang string) []string {
 	explained := map[string]bool{}
 	for _, r := range m.env.Reasons {
-		if _, isTyped, ok := sayActionPhrase(m.e, &m.env, r); ok && isTyped {
+		if _, isTyped, ok := sayActionPhrase(lang, m.e, &m.env, r); ok && isTyped {
 			explained[r.EntityID+"|"+r.Via] = true
 		}
 	}
@@ -77,7 +77,7 @@ func (m batchMember) reasons(lang string) []string {
 		if r.Code == reasonConfigDelete || sayUnseenCodes[r.Code] && explained[r.EntityID+"|"+r.Via] {
 			continue
 		}
-		if text, typed := sayReason(m.e, &m.env, m.fresh, r); typed && text != "" && !slices.Contains(out, text+".") {
+		if text, typed := sayReason(lang, m.e, &m.env, m.fresh, r); typed && text != "" && !slices.Contains(out, text+".") {
 			out = append(out, text+".")
 		}
 	}
@@ -123,21 +123,22 @@ func batchText(rp batchReplan, typed bool) string {
 }
 
 // batchSay: the list and the plan's ask, as a single plan's say ends.
-func batchSay(s *relaySession, plan storedPlan, goal [3]string, text string, n int) string {
+func batchSay(s *relaySession, plan storedPlan, goal actionGoal, text string, n int) string {
+	lang := textLang(plan)
 	switch {
 	case plan.Confirm == "code" && plan.Channel == channelWindow && phoneLinkedHere(s.paths):
-		return demoPrefix(text + " " + sayWindowPhoneAsk(phoneButton(goal[0]), linkedPlatform(s.paths)))
+		return demoPrefix(lang, text+" "+sayWindowPhoneAsk(lang, goal.button(lang), linkedPlatform(s.paths)))
 	case plan.Confirm == "code" && plan.Channel == channelWindow:
-		return demoPrefix(text + " " + sayWindowAsk)
+		return demoPrefix(lang, text+" "+sayWindowAsk(lang))
 	case plan.Confirm == "code" && plan.Channel == channelPhone:
-		return demoPrefix(text + " " + sayPhoneAsk(phoneButton(goal[0]), linkedPlatform(s.paths)))
+		return demoPrefix(lang, text+" "+sayPhoneAsk(lang, goal.button(lang), linkedPlatform(s.paths)))
 	case plan.Confirm == "code":
 		if plan.Channel == channelChat && chatCall == nil {
-			text += "\n" + sayChatNote
+			text += "\n" + sayChatNote(lang)
 		}
-		return demoPrefix(text + sayCodeBlock(plan.code))
+		return demoPrefix(lang, text+sayCodeBlock(lang, plan.code))
 	}
-	return demoPrefix(text + " " + confirmT(plan.Lang, "batch.ask", "count", n))
+	return demoPrefix(lang, text+" "+confirmT(lang, "batch.ask", "count", n))
 }
 
 // batchNextStep: a batch's apply takes longer than one plan's.
@@ -148,9 +149,10 @@ func batchNextStep(step string, plan storedPlan) string {
 	return strings.Replace(step, " (give the command up to 2 minutes)", "", 1) + " Give that apply up to 10 minutes: it checks each one again, sends it, and checks it after, in turn."
 }
 
-// batchPhoneGoal: the phone's question, a whole sentence with the count
-// (no object), and the most sensitive member with its reasons.
-func batchPhoneGoal(rp batchReplan) [3]string {
+// batchPhoneGoal: the phone's question, one goal with the count (no
+// names), and the most sensitive member with its reasons; its button is
+// Confirm.
+func batchPhoneGoal(rp batchReplan) actionGoal {
 	best := 0
 	for i, m := range rp.members {
 		if m.sensitivity() > rp.members[best].sensitivity() {
@@ -159,7 +161,7 @@ func batchPhoneGoal(rp batchReplan) [3]string {
 	}
 	m := rp.members[best]
 	why := append([]string{confirmT(rp.lang, "batch.phone.most", "goal", m.goal(rp.lang))}, m.reasons(rp.lang)...)
-	return [3]string{batchPhoneTitle(rp), "", strings.TrimSuffix(strings.Join(why, " "), ".")}
+	return actionGoal{whole: batchPhoneTitle(rp), why: strings.TrimSuffix(strings.Join(why, " "), ".")}
 }
 
 func batchPhoneTitle(rp batchReplan) string {
@@ -208,7 +210,7 @@ func batchWindowFits(plan storedPlan, verb string) error {
 	if noCopies := batchNoCopies(plan.Lang, text); utf8.RuneCountInString(noCopies) > utf8.RuneCountInString(text) {
 		text = noCopies
 	}
-	text += "\n\n" + windowBoth + "\n" + windowAsked
+	text += "\n\n" + windowBoth(textLang(plan)) + "\n" + windowAsked(textLang(plan))
 	lines, chars := strings.Count(text, "\n")+1, utf8.RuneCountInString(text)
 	if lines <= batchWindowLines && chars <= batchWindowChars {
 		return nil
@@ -282,13 +284,14 @@ func batchPhoneResult(env verbEnvelope, exit int) (string, string) {
 	if !ok || result.Counts == nil {
 		return "", ""
 	}
+	lang, partly := result.lang, confirmT(result.lang, "batch.phone.partly", "count", len(result.Items), "done", result.Counts.Verified)
 	switch {
 	case exit == verbExitOK && env.Status == "verified":
-		return "Done", confirmT(result.lang, "batch.phone.done")
+		return confirmT(lang, "outcome.done"), confirmT(lang, "batch.phone.done")
 	case exit == verbExitUnverified && result.Counts.Verified > 0:
-		return "Partly done", confirmT(result.lang, "batch.phone.partly", "count", len(result.Items), "done", result.Counts.Verified) + " " + phoneSaysWhy()
+		return confirmT(lang, "batch.phone.partly_title"), partly + " " + phoneSaysWhy(lang)
 	case exit == verbExitUnknown && result.Counts.Verified > 0:
-		return "Unclear", confirmT(result.lang, "batch.phone.partly", "count", len(result.Items), "done", result.Counts.Verified) + " " + phoneSaysWhy()
+		return confirmT(lang, "outcome.unclear"), partly + " " + phoneSaysWhy(lang)
 	}
 	return "", ""
 }

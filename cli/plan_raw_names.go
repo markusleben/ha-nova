@@ -24,6 +24,7 @@ type rawNamer struct {
 	snapshots map[string]any // the snapshot store's list, by file (snapshotListed)
 	deleting  map[string]any // the listed entries of the copies the plan deletes
 	removing  map[string]any // device id → the devices and entities deleting it removes (deviceEntities)
+	listed    []string       // the names the last targets call listed
 }
 
 func newRawNamer(s *relaySession, e *tierEngine) *rawNamer {
@@ -277,4 +278,40 @@ var rawTargetLists = map[string]struct {
 	"repository":   {"hacs/repositories/list", []string{"id"}, []string{"full_name", "name"}},
 	"resource_id":  {"lovelace/resources", []string{"id"}, []string{"url"}},
 	"dashboard_id": {"lovelace/dashboards/list", []string{"id", "url_path"}, []string{"title"}},
+}
+
+// targets: the named things a request acts on (never an area it sets),
+// as the line's list; listed keeps them for the phone title (rawNames).
+func (n *rawNamer) targets(payload map[string]any) string {
+	var names []string
+	for _, key := range []string{"entity_id", "entity_ids", "device_id", "statistic_id", "statistic_ids", "pipeline_id", "user_id",
+		"backup_id", "repository", "resource_id", "dashboard_id", "url", "path", "name", "summary", "media_content_id"} {
+		values, isList := payload[key].([]any)
+		if !isList {
+			values = []any{payload[key]}
+		}
+		for _, value := range values {
+			text, _ := value.(string)
+			switch {
+			case text == "":
+			case key == "entity_id" || key == "entity_ids":
+				names = append(names, n.entity(text))
+			case key == "device_id":
+				names = append(names, n.device(text))
+			case rawTargetLists[key].request != "":
+				list := rawTargetLists[key]
+				names = append(names, n.named(map[string]any{"type": list.request}, text, list.ids, list.names))
+			default:
+				names = append(names, sayText(text, true))
+			}
+		}
+	}
+	if version, _ := payload["version"].(string); version != "" {
+		names = append(names, "version "+sayText(version, true))
+	}
+	n.listed = names
+	if len(names) == 0 {
+		return ""
+	}
+	return " " + sayList("en", names)
 }

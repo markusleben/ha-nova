@@ -59,7 +59,7 @@ func TestMCPBatchForm(t *testing.T) {
 	batched := c.tool("ha_plan", map[string]any{"kind": "batch", "plans": ids})
 	id := envelopeOf(batched)["plan"].(map[string]any)["id"].(string)
 	list := "I'm about to make these 2 changes in Home Assistant, in this order:\n1. Change the automation “Night mode”.\n2. Delete the automation “Kitchen motion old”.\n"
-	if say, _ := envelopeOf(batched)["say"].(string); !strings.HasPrefix(say, list) || !strings.HasSuffix(say, " "+sayFormAsk) {
+	if say, _ := envelopeOf(batched)["say"].(string); !strings.HasPrefix(say, list) || !strings.HasSuffix(say, " "+sayFormAsk("en")) {
 		t.Fatalf("ha_plan batch: %v", envelopeOf(batched))
 	}
 	code := storedCode(t, h, id)

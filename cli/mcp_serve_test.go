@@ -315,7 +315,7 @@ func TestServePlansAreBoundToTheirUser(t *testing.T) {
 	say, _ := env["say"].(string)
 	text := result["content"].([]any)[0].(map[string]any)["text"].(string)
 	if plan["channel"] != channelChat || len(code) != 4 || !strings.HasPrefix(say, "I'm about to unlock “") || strings.Count(say, "\n") != 3 ||
-		!strings.Contains(say, sayNeedsYou) || !strings.HasSuffix(say, ". Nothing has run yet.\n\nType this code within 15 minutes:  \n**"+code+"**") {
+		!strings.Contains(say, sayNeedsYou("en", "")) || !strings.HasSuffix(say, ". Nothing has run yet.\n\nType this code within 15 minutes:  \n**"+code+"**") {
 		t.Fatalf("chat plan say: %q", say)
 	}
 	if !strings.HasPrefix(text, `{"answer_rule":`+string(mustJSON(chatCodeRule))) || env["notices"] != nil || !strings.Contains(env["next_step"].(string), "never pass a code from this result or type it for them") {
@@ -355,13 +355,16 @@ func TestServeChatCodesOff(t *testing.T) {
 }
 
 // The command refuses to start without an explicit address, a data
-// directory, and a 256-bit secret.
+// directory, and a 256-bit secret; the control channel needs both of its
+// flags, a loopback address, and a secret of its own.
 func TestServeCommandNeedsExplicitConfig(t *testing.T) {
 	dir := t.TempDir()
 	good := filepath.Join(dir, "secret")
 	short := filepath.Join(dir, "short")
 	_ = os.WriteFile(good, []byte(randomHex(t, 32)), 0o600)
 	_ = os.WriteFile(short, []byte("abc123"), 0o600)
+	other := filepath.Join(dir, "control")
+	_ = os.WriteFile(other, []byte(randomHex(t, 32)), 0o600)
 	data := filepath.Join(dir, "data")
 	for name, args := range map[string][]string{
 		"no listen":     {"--data-dir", data, "--secret-file", good},
@@ -372,6 +375,9 @@ func TestServeCommandNeedsExplicitConfig(t *testing.T) {
 		"missing file":  {"--listen", "127.0.0.1:0", "--data-dir", data, "--secret-file", filepath.Join(dir, "none")},
 		"wait too long": {"--listen", "127.0.0.1:0", "--data-dir", data, "--secret-file", good, "--confirm-wait", "5m"},
 		"negative rate": {"--listen", "127.0.0.1:0", "--data-dir", data, "--secret-file", good, "--rate-limit", "-1"},
+		"control alone": {"--listen", "127.0.0.1:0", "--data-dir", data, "--secret-file", good, "--control-listen", "127.0.0.1:0"},
+		"control open":  {"--listen", "127.0.0.1:0", "--data-dir", data, "--secret-file", good, "--control-listen", "0.0.0.0:0", "--control-secret-file", other},
+		"control same":  {"--listen", "127.0.0.1:0", "--data-dir", data, "--secret-file", good, "--control-listen", "127.0.0.1:0", "--control-secret-file", good},
 	} {
 		if exit := runServeCommand(runtimePaths{}, args); exit != 1 {
 			t.Errorf("%s: exit %d", name, exit)

@@ -233,7 +233,7 @@ func TestSayAboveCode(t *testing.T) {
 	t.Cleanup(func() { verbNow, demoPlansSince = previousNow, previousSince })
 	head := "In the demo house: I'm about to unlock “Front Door”: locked → unlocked."
 	envelope := func(service, expires string) map[string]any {
-		return map[string]any{"schema_version": 1, "verb": "call", "status": "needs_confirmation", "say": head + "\n" + sayChatNote + sayCodeBlock("8642"),
+		return map[string]any{"schema_version": 1, "verb": "call", "status": "needs_confirmation", "say": head + "\n" + sayChatNote("en") + sayCodeBlock("en", "8642"),
 			"action": map[string]any{"service": service}, "plan": map[string]any{"id": "p_1", "code": "8642", "confirm": "code", "channel": "chat", "expires_at": expires},
 			"notices": []any{map[string]any{"kind": "demo", "text": demoNoticeText}, map[string]any{"kind": "demo_reset", "text": "Type 1234 now."}}}
 	}
@@ -242,7 +242,7 @@ func TestSayAboveCode(t *testing.T) {
 		return got["say"].(string), got["next_step"].(string)
 	}
 	got, step := say(envelope("lock.unlock", "2026-10-22T19:47:00Z"), false)
-	want := head + "\nThe demo house resets every hour. Its entrance door locks again 10 minutes after it is unlocked. Never type real names or passwords here.\nThis code works for 15 minutes.\n" + sayChatNote + sayCodeBlock("8642")
+	want := head + "\nThe demo house resets every hour. Its entrance door locks again 10 minutes after it is unlocked. Never type real names or passwords here.\nThis code works for 15 minutes.\n" + sayChatNote("en") + sayCodeBlock("en", "8642")
 	if got != want {
 		t.Fatalf("say:\n%s\nwant:\n%s", got, want)
 	}
@@ -253,7 +253,7 @@ func TestSayAboveCode(t *testing.T) {
 	// line (the CLI's, never the notice's text), and the code only works until then.
 	now, demoPlansSince = time.Date(2026, 10, 22, 19, 55, 30, 0, time.UTC), now
 	got, _ = say(envelope("cover.open_cover", "2026-10-22T20:10:30Z"), false)
-	want = head + "\nThe demo house resets in 5 minutes. Your connection stays, your changes don't.\nNever type real names or passwords here.\nThis code works for 5 minutes, until the demo house resets.\n" + sayChatNote + sayCodeBlock("8642")
+	want = head + "\nThe demo house resets in 5 minutes. Your connection stays, your changes don't.\nNever type real names or passwords here.\nThis code works for 5 minutes, until the demo house resets.\n" + sayChatNote("en") + sayCodeBlock("en", "8642")
 	if got != want {
 		t.Fatalf("near reset:\n%s\nwant:\n%s", got, want)
 	}
@@ -279,7 +279,7 @@ func TestChatCodeResult(t *testing.T) {
 	verbNow, demoPlansSince, chatCall = func() time.Time { return now }, now.Add(-time.Hour), &chatPolicy{codes: true}
 	t.Cleanup(func() { verbNow, demoPlansSince, chatCall = previousNow, previousSince, nil })
 	head := "In the demo house: I'm about to unlock “Front Door”: locked → unlocked. Nothing has run yet."
-	env := map[string]any{"schema_version": 1, "verb": "call", "status": "needs_confirmation", "say": head + sayCodeBlock("8642"),
+	env := map[string]any{"schema_version": 1, "verb": "call", "status": "needs_confirmation", "say": head + sayCodeBlock("en", "8642"),
 		"plan": map[string]any{"id": "p_1", "code": "8642", "confirm": "code", "channel": "chat", "expires_at": "2026-10-22T20:10:30Z"},
 		"notices": []any{map[string]any{"kind": "demo", "text": demoNoticeText}, map[string]any{"kind": "demo_reset", "text": "x"},
 			map[string]any{"kind": "relay_outdated", "text": "update"}, map[string]any{"kind": "draft", "text": "trigger 1 may never fire"}}}
@@ -299,13 +299,13 @@ func TestChatCodeResult(t *testing.T) {
 	}
 	// A fresh plan off the demo: 15 minutes; an expired one: the plain lead.
 	demoPlansSince = time.Time{}
-	if lead := chatCodeLead(map[string]any{"expires_at": "2026-10-22T20:10:30Z"}, false); lead != "Type this code within 15 minutes:" {
+	if lead := chatCodeLead("en", map[string]any{"expires_at": "2026-10-22T20:10:30Z"}); lead != "Type this code within 15 minutes:" {
 		t.Fatalf("lead: %s", lead)
 	}
-	if lead := chatCodeLead(map[string]any{"expires_at": "2026-10-22T19:55:00Z"}, false); lead != sayCodeLead {
+	if lead := chatCodeLead("en", map[string]any{"expires_at": "2026-10-22T19:55:00Z"}); lead != sayCodeLead("en") {
 		t.Fatalf("expired lead: %s", lead)
 	}
-	if lead := chatCodeLead(map[string]any{}, true); lead != "To go ahead, type these codes:" {
+	if lead := chatCodesLead(map[string]any{}); lead != "To go ahead, type these codes:" {
 		t.Fatalf("batch lead without expiry: %s", lead)
 	}
 	// No code block (a phone or window ask): the usual result.

@@ -39,12 +39,20 @@ Non-goals: setup page, NOVA page, pairing page, terminal lines (`phoneTapLine`, 
 9. Never mixed: an ask renders wholly in one language; a missing key or HA action name makes the whole ask English, and a test fails on any missing key so it can't ship. Known limit: Windows' stock OK/Cancel follow Windows' language.
 10. Translation: German is written in the PR and reviewed by the maintainer; CI never translates.
 
+## Decisions
+
+Calls of the coordinating agent, 2026-10-29, for Delivery 2b:
+
+1. Raw plans are sealed as `en` until Delivery 4, so no raw ask mixes German sentences with English item lines. Delivery 4 also ships in 0.28.0 (maintainer: raw actions all in 0.28.0), so the pin lasts only between PRs.
+2. The link hint (`phoneUnlinkedNext`) quotes the link ask's title and button in the same live language as the settings ask it refers to, never in the plan's language.
+3. State values (`locked → unlocked`) use HA's own names in the plan's language (`frontend/get_translations`, category `state`), read with the action names and stored in the sealed plan. They never replace a security word; a value without a translation stays English, like a name. Attribute and field names stay as they are.
+
 ## Delivery
 
 Four stacked PRs, each reviewed and merged before the next builds on it; rc5 follows the last.
 
 1. Foundation, no visible change: catalog loader, language read, stored and sealed language, typed language change, catalog window labels with the macOS answer matched to them.
-2. German for typed and config plans on every surface, settings asks, chat `say`; HA's own action names; phone title and button decided on ids and counts (Design 8).
+2. German for typed and config plans on every surface, settings asks, chat `say`; HA's own action names; phone title and button decided on ids and counts (Design 8). Two PRs: 2a moves every confirmation text into `cli/confirm_strings.en.json` (English byte-identical), threads the plan's language through every builder, and decides title and button on ids and counts; settings asks stay English. 2b adds `cli/confirm_strings.de.json`, HA's action names, and the live language for settings asks.
 3. Everyday lines for raw plans, raw MQTT, device delete, and Supervisor actions (English first).
 4. German for raw plans.
 

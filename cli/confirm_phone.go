@@ -221,7 +221,7 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 		return phoneFailed, reply
 	}
 	if notice != nil {
-		fmt.Fprintf(notice, phoneSentText+"\n", terminalSafeName(setup.targets[0].Name), phoneTapLine(setup.targets[0].platform(), ask.button))
+		fmt.Fprintf(notice, phoneSentText+"\n", terminalSafeName(setup.targets[0].Name), phoneTapLine("en", setup.targets[0].platform(), ask.button))
 	}
 	var quiet <-chan time.Time
 	if notice != nil {
@@ -346,7 +346,7 @@ type phoneAsking struct {
 	plan     storedPlan
 	s        *relaySession
 	idHex    string
-	goal     [3]string
+	goal     actionGoal
 	setup    phoneSetup
 	ask      phoneAsk
 	deadline time.Time
@@ -373,7 +373,7 @@ func startPhoneAsk(paths runtimePaths, opts verbOptions, id string, noSnapshot b
 	if status != phoneReady {
 		return stop("CONFIRM_UNAVAILABLE", phoneMissingWhy, phoneMissingStep())
 	}
-	return &phoneAsking{id: id, plan: plan, s: s, idHex: idHex, goal: goal, setup: setup, ask: phonePlanAsk(goal, noSnapshot), deadline: deadline}, verbEnvelope{}, 0, false
+	return &phoneAsking{id: id, plan: plan, s: s, idHex: idHex, goal: goal, setup: setup, ask: phonePlanAsk(textLang(plan), goal, noSnapshot), deadline: deadline}, verbEnvelope{}, 0, false
 }
 
 // wait sends the notification and waits for the answer; notice hears the
@@ -385,9 +385,9 @@ func (a *phoneAsking) wait(notice io.Writer) {
 // refuse: the tap came, but the bridge's policy changed meanwhile; the
 // phone hears that nothing changed.
 func (a *phoneAsking) refuse(code, message, next string) (verbEnvelope, int, bool) {
-	s, reply := a.s, a.reply
-	prefix, line := phoneNothing(phoneRejected)
-	phoneApplied = func(verbEnvelope, int) { reply.say(phoneResultTitle(prefix, a.goal), line); s.close() }
+	s, reply, lang := a.s, a.reply, textLang(a.plan)
+	prefix, line := phoneNothing(lang, phoneRejected)
+	phoneApplied = func(verbEnvelope, int) { reply.say(phoneResultTitle(lang, prefix, a.goal), line); s.close() }
 	return windowStopped(s, "refused", code, message, next)
 }
 
@@ -395,12 +395,12 @@ func (a *phoneAsking) refuse(code, message, next string) (verbEnvelope, int, boo
 // process, else why nothing was sent. The phone hears how it ended once
 // apply has printed (phoneApplied).
 func (a *phoneAsking) finish() (env verbEnvelope, exit int, asked bool) {
-	s, id, reply := a.s, a.id, a.reply
+	s, id, reply, lang := a.s, a.id, a.reply, textLang(a.plan)
 	handed := false
 	defer func() {
 		if !handed {
-			prefix, line := phoneNothing(a.answer)
-			phoneApplied = func(verbEnvelope, int) { reply.say(phoneResultTitle(prefix, a.goal), line); s.close() }
+			prefix, line := phoneNothing(lang, a.answer)
+			phoneApplied = func(verbEnvelope, int) { reply.say(phoneResultTitle(lang, prefix, a.goal), line); s.close() }
 		}
 	}()
 	switch a.answer {
@@ -414,8 +414,8 @@ func (a *phoneAsking) finish() (env verbEnvelope, exit int, asked bool) {
 		}
 		humanAnswer, humanWhere = confirmCode(s.transport.Credential, a.idHex, a.plan.Channel, a.plan.ExpiresAt), channelPhone
 		handed, phoneApplied = true, func(env verbEnvelope, exit int) {
-			prefix, line := phoneApplyResult(env, exit)
-			reply.say(phoneResultTitle(prefix, a.goal), line)
+			prefix, line := phoneApplyResult(lang, env, exit)
+			reply.say(phoneResultTitle(lang, prefix, a.goal), line)
 			s.close()
 		}
 		return env, 0, false
@@ -429,12 +429,12 @@ func (a *phoneAsking) finish() (env verbEnvelope, exit int, asked bool) {
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation could not be sent to the phone", phoneMissingStep())
 	}
 	return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "the phone confirmation got no answer in time",
-		fmt.Sprintf("Tell the user nothing changed: “%s” was not tapped in time. Next time: %s A plain tap only opens the app.%s Run ha-nova apply --plan %s again (a new notification goes to their phone) only after they say they still want it; never ask them for a code. %s They can also make this change in Home Assistant itself.", a.ask.button, a.tapLine(), a.watchLine(), id, a.nothingLine()))
+		fmt.Sprintf("Tell the user nothing changed: “%s” was not tapped in time. Next time: %s A plain tap only opens the app.%s Run ha-nova apply --plan %s again (a new notification goes to their phone) only after they say they still want it; never ask them for a code. %s They can also make this change in Home Assistant itself.", a.ask.button, a.tapLine("en"), a.watchLine(), id, a.nothingLine()))
 }
 
-// tapLine: how to answer on the phone being asked (startPhoneAsk asks only a ready one).
-func (a *phoneAsking) tapLine() string {
-	return phoneTapLine(a.setup.targets[0].platform(), a.ask.button)
+// tapLine: how to answer on the phone asked (startPhoneAsk asks only a ready one), in lang.
+func (a *phoneAsking) tapLine(lang string) string {
+	return phoneTapLine(lang, a.setup.targets[0].platform(), a.ask.button)
 }
 
 // nothingLine: where notifications turn on, for a person who saw none.

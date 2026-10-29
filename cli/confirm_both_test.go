@@ -157,7 +157,7 @@ func TestBothAskFirstAnswerWins(t *testing.T) {
 				if len(h.posts()) != posts {
 					t.Fatalf("a late answer sent: %d", len(h.posts()))
 				}
-				if !strings.Contains(w.messages[0], windowBoth) {
+				if !strings.Contains(w.messages[0], windowBoth("en")) {
 					t.Fatalf("window text %q", w.messages[0])
 				}
 			})
@@ -260,7 +260,7 @@ func TestBothAskOneSideOut(t *testing.T) {
 		var exit int
 		var env verbTestEnvelope
 		stderr := captureStderr(t, func() { exit, env = h.run(runApplyCommand, "--plan", plan.ID) })
-		if exit != 0 || len(h.posts()) != 1 || len(p.sent) != 0 || !strings.Contains(stderr, phoneQuietText) || strings.Contains(w.messages[0], windowBoth) || env.Plan.Channel != channelWindow {
+		if exit != 0 || len(h.posts()) != 1 || len(p.sent) != 0 || !strings.Contains(stderr, phoneQuietText) || strings.Contains(w.messages[0], windowBoth("en")) || env.Plan.Channel != channelWindow {
 			t.Fatalf("exit %d %+v sent %d stderr %q", exit, env.Error, len(p.sent), stderr)
 		}
 	})
@@ -274,7 +274,7 @@ func TestBothAskExpireTogether(t *testing.T) {
 	plan := h.plan("lock.unlock", "lock.front").Plan
 	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
 	if exit != 4 || env.Error.Code != "CONFIRM_CANCELLED" || !strings.Contains(env.Error.Message, "neither") || len(h.posts()) != 0 || len(h.planFiles()) != 1 || !w.wasClosed() ||
-		!strings.Contains(env.Error.Next, "a new notification goes to their phone") || !strings.Contains(env.Error.Next, phoneTapLine("", "Unlock")) {
+		!strings.Contains(env.Error.Next, "a new notification goes to their phone") || !strings.Contains(env.Error.Next, phoneTapLine("en", "", "Unlock")) {
 		t.Fatalf("exit %d %+v posts %d closed %v", exit, env.Error, len(h.posts()), w.wasClosed())
 	}
 	if last := p.last(); last["title"] != "Not confirmed: Unlock “lock.front”" || last["data"].(map[string]any)["actions"] != nil {
@@ -325,13 +325,13 @@ func TestWithdrawnQuestionIsClearedAgainByTheNext(t *testing.T) {
 func TestWindowPlanSayNamesTheLinkedPhone(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
 	useRaceWindow(t, windowCancelled, opened(), false)
-	if say := h.plan("lock.unlock", "lock.front").Say; !strings.HasSuffix(say, sayWindowAsk) {
+	if say := h.plan("lock.unlock", "lock.front").Say; !strings.HasSuffix(say, sayWindowAsk("en")) {
 		t.Fatalf("no phone: %q", say)
 	}
 	if err := setPhoneLink(h.paths, "owner-id", phoneEntry{}, &phoneLink{Service: "mobile_app_iphone", DeviceID: "d1", UserID: "owner-id", Name: "iPhone"}); err != nil {
 		t.Fatal(err)
 	}
-	if env := h.plan("lock.unlock", "lock.front"); !strings.HasSuffix(env.Say, sayWindowPhoneAsk("Unlock", "")) || !strings.Contains(env.NextStep, "and a notification on their linked phone") {
+	if env := h.plan("lock.unlock", "lock.front"); !strings.HasSuffix(env.Say, sayWindowPhoneAsk("en", "Unlock", "")) || !strings.Contains(env.NextStep, "and a notification on their linked phone") {
 		t.Fatalf("phone linked: %q next %q", env.Say, env.NextStep)
 	}
 }
@@ -352,7 +352,7 @@ func TestWindowFallbackFindsThePhoneLate(t *testing.T) {
 	}
 	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
 	if exit != 3 || env.Plan == nil || env.Plan.Channel != channelPhone || env.Plan.Code != "" || len(h.posts()) != 0 ||
-		!strings.HasSuffix(env.Say, sayPhoneAsk("Unlock", "")) || !strings.Contains(env.NextStep, "a notification on their phone") {
+		!strings.HasSuffix(env.Say, sayPhoneAsk("en", "Unlock", "")) || !strings.Contains(env.NextStep, "a notification on their phone") {
 		t.Fatalf("fallback: exit %d %+v say %q next %q", exit, env.Plan, env.Say, env.NextStep)
 	}
 }

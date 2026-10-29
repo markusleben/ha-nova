@@ -35,10 +35,12 @@ const (
 	mcpWindowWait    = 40 * time.Second // under the common 60 s MCP tool-call timeout
 	windowOpened     = "A confirmation window opened on this computer — confirm there."
 	windowOpenedBoth = "A confirmation window opened on this computer — confirm there or on your phone."
-	windowAsked      = "Requested by your AI assistant. Go ahead only if you want this."
-	windowBoth       = "Your linked phone asks too. The first answer counts; a later one changes nothing."
 	windowSetting    = "confirm_window" // config.json top level; "off" = codes in chat
 )
+
+// windowAsked ends a plan's window text; windowBoth: the linked phone asks too.
+func windowAsked(lang string) string { return confirmT(lang, "window.asked") }
+func windowBoth(lang string) string  { return confirmT(lang, "window.both") }
 
 // windowsBoxStyle (confirm_window_windows.go): MB_OKCANCEL, MB_ICONWARNING,
 // MB_DEFBUTTON2 (Cancel is the default), MB_TOPMOST. No MB_SETFOREGROUND:
@@ -102,7 +104,7 @@ func runConfirmWindowSetting(paths runtimePaths, args []string) int {
 			printHumanInfo("No confirmation window can open here, so HA NOVA already asks on your linked phone, in your app's form, or with a four-digit code in chat. Nothing changed.")
 			return 0
 		}
-		switch askWindow(context.Background(), "Turn off confirmation windows? HA NOVA then asks on your linked phone, else in your app's confirmation form, or shows a four-digit code in chat that your AI assistant can see too.", "en", cliWindowWait) {
+		switch askWindow(context.Background(), confirmT("en", "settings.window_off"), "en", cliWindowWait) {
 		case windowConfirmed:
 		case windowFailed:
 			printHumanInfo("The confirmation window couldn't open here, so HA NOVA asks on your linked phone, in your app's form, or with a four-digit code in chat anyway. Nothing changed.")
@@ -148,11 +150,11 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 		return windowStopped(s, "refused", "PLAN_EXPIRED", "plan "+id+" expires before a confirmation window could get an answer", replan)
 	}
 	again := fmt.Sprintf("Tell the user in plain words: the window closed without an answer, nothing changed, and they can ask again. Run ha-nova apply --plan %s again (the window opens again) only after they say they still want it; never ask them for a code. If they saw no window, they can make this change in Home Assistant itself.", id)
-	text := confirmText(fresh, noSnapshot) + "\n\n"
+	text, lang := confirmText(fresh, noSnapshot)+"\n\n", textLang(plan)
 	switch status {
 	case phoneReady: // the linked phone asks too (confirm_both.go)
-		a := &phoneAsking{id: id, plan: plan, s: s, idHex: idHex, goal: goal, setup: setup, ask: phonePlanAsk(goal, noSnapshot), deadline: deadline}
-		return confirmBoth(a, text+windowBoth+"\n"+windowAsked)
+		a := &phoneAsking{id: id, plan: plan, s: s, idHex: idHex, goal: goal, setup: setup, ask: phonePlanAsk(lang, goal, noSnapshot), deadline: deadline}
+		return confirmBoth(a, text+windowBoth(lang)+"\n"+windowAsked(lang))
 	case phoneMissing, phoneNone, phoneLegacy: // the window still asks; a user waiting at the phone learns why it stays quiet
 		if status == phoneMissing || phoneLinkedHere(paths) {
 			fmt.Fprintln(os.Stderr, phoneQuietText)
@@ -160,7 +162,7 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 		}
 	}
 	defer s.close()
-	switch askWindow(context.Background(), text+windowAsked, plan.Lang, time.Until(deadline)) {
+	switch askWindow(context.Background(), text+windowAsked(lang), plan.Lang, time.Until(deadline)) {
 	case windowConfirmed:
 		humanAnswer, humanWhere = confirmCode(s.transport.Credential, idHex, channelWindow, plan.ExpiresAt), channelWindow
 		return env, 0, false
@@ -220,7 +222,7 @@ func askWindowUntilSignal(parent context.Context, message, lang string, wait tim
 			}
 		case <-opened:
 			if ctx.Err() == nil {
-				fmt.Fprintln(os.Stderr, map[bool]string{false: windowOpened, true: windowOpenedBoth}[strings.Contains(message, windowBoth)])
+				fmt.Fprintln(os.Stderr, map[bool]string{false: windowOpened, true: windowOpenedBoth}[strings.Contains(message, windowBoth(lang))])
 			}
 		case ended := <-signals:
 			cancel() // the window closes; a stuck one doesn't hold the ending up
@@ -260,7 +262,7 @@ func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnap
 	case channelPhoneMissing:
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and HA NOVA can't reach the linked phone either", phoneMissingStep())
 	case channelPhoneUnlinked:
-		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and "+phoneUnlinkedWhy, phoneUnlinkedNext)
+		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and "+phoneUnlinkedWhy, phoneUnlinkedNext(textLang(plan)))
 	}
 	fresh, ok := replanStored(paths, s, &env, plan, channel)
 	if !ok || !stillConfirmed(plan, fresh) || fresh.Tier != plan.Tier || env.Plan == nil {
@@ -279,11 +281,11 @@ func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnap
 			"Tell the user nothing changed; they can try again in a moment, or make this change in Home Assistant itself.")
 	}
 	_ = os.Remove(claimed)
-	flag := ""
+	flag, lang := "", textLang(fresh)
 	if noSnapshot { // the user already chose to go on without a copy
-		env.Say, flag = batchNoCopies(plan.Lang, strings.Replace(env.Say, sayCopyNote, sayNoCopyNote, 1)), " --no-snapshot"
+		env.Say, flag = batchNoCopies(lang, strings.Replace(env.Say, sayCopyNote(lang), sayNoCopyNote(lang), 1)), " --no-snapshot"
 	}
-	env.Say = sayNoWindowHere + env.Say
+	env.Say = sayNoWindowHere(lang) + " " + env.Say
 	if channel == channelPhone { // no code: sealPlan's next_step applies
 		if noSnapshot {
 			env.NextStep = strings.Replace(env.NextStep, "without --confirm", "with --no-snapshot and without --confirm", 1)
@@ -330,10 +332,10 @@ func windowStopped(s *relaySession, status, code, message, next string) (verbEnv
 }
 
 // humanPlan reads a typed plan of channel and re-plans it like apply, for
-// a window or phone ask (goal: the phone's verb and object). ok=false:
+// a window or phone ask (goal: the phone's question, sayAsk). ok=false:
 // apply runs and reports whatever is wrong (drift, expiry, a refusal); s is
 // open only when ok.
-func humanPlan(paths runtimePaths, opts verbOptions, id string, noSnapshot bool, channel string) (plan, fresh storedPlan, s *relaySession, idHex string, wait time.Duration, goal [3]string, ok bool) {
+func humanPlan(paths runtimePaths, opts verbOptions, id string, noSnapshot bool, channel string) (plan, fresh storedPlan, s *relaySession, idHex string, wait time.Duration, goal actionGoal, ok bool) {
 	if humanAnswer != "" || !planIDPattern.MatchString(id) { // a form already answered
 		return
 	}

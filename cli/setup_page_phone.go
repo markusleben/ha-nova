@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"slices"
 )
 
@@ -83,7 +82,7 @@ func (f *setupFlow) pageLinkPhone(ctl *setupPageControl, deviceID string) {
 		i := slices.IndexFunc(all, func(t phoneTarget) bool { return t.DeviceID == deviceID })
 		if readable && err == nil && home.relay != home.owner && status == phoneNone && i >= 0 {
 			person = terminalSafeName(all[i].Person)
-			result = sendPhoneLink(s, f.ui.termOut(), home, links, links[home.owner], all[i], windowWait)
+			result = sendPhoneLink(s, f.ui.termOut(), "en", home, links, links[home.owner], all[i], windowWait)
 		}
 		s.close()
 	}
@@ -125,9 +124,9 @@ func (f *setupFlow) pageMovePhone(ctl *setupPageControl, deviceID string) bool {
 		if readable && err == nil && home.relay != home.owner && status == phoneReady && i >= 0 &&
 			!slices.ContainsFunc(current.targets, func(c phoneTarget) bool { return c.DeviceID == deviceID }) {
 			asked, name, person = true, terminalSafeName(all[i].Name), terminalSafeName(all[i].Person)
-			allowed = allowPhoneChange(s, out, home, links, fmt.Sprintf("Link “%s” to confirm HA NOVA actions from “%s”?", name, phoneHost()), name, false, windowWait)
+			allowed = allowPhoneChange(s, out, "en", home, links, phoneLinkQuestion("en", name), name, false, windowWait)
 			if allowed {
-				result = sendPhoneLink(s, out, home, links, links[home.owner], all[i], windowWait)
+				result = sendPhoneLink(s, out, "en", home, links, links[home.owner], all[i], windowWait)
 			}
 		}
 		s.close()

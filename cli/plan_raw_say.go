@@ -274,40 +274,6 @@ func rawPruneLine(payload map[string]any) string {
 	return line + "; named copies are kept"
 }
 
-// targets: the named things a request acts on (never an area it sets).
-func (n *rawNamer) targets(payload map[string]any) string {
-	var names []string
-	for _, key := range []string{"entity_id", "entity_ids", "device_id", "statistic_id", "statistic_ids", "pipeline_id", "user_id",
-		"backup_id", "repository", "resource_id", "dashboard_id", "url", "path", "name", "summary", "media_content_id"} {
-		values, isList := payload[key].([]any)
-		if !isList {
-			values = []any{payload[key]}
-		}
-		for _, value := range values {
-			text, _ := value.(string)
-			switch {
-			case text == "":
-			case key == "entity_id" || key == "entity_ids":
-				names = append(names, n.entity(text))
-			case key == "device_id":
-				names = append(names, n.device(text))
-			case rawTargetLists[key].request != "":
-				list := rawTargetLists[key]
-				names = append(names, n.named(map[string]any{"type": list.request}, text, list.ids, list.names))
-			default:
-				names = append(names, sayText(text, true))
-			}
-		}
-	}
-	if version, _ := payload["version"].(string); version != "" {
-		names = append(names, "version "+sayText(version, true))
-	}
-	if len(names) == 0 {
-		return ""
-	}
-	return " " + sayList(names)
-}
-
 // fields words what an update sets, skipping the id that names the item:
 // ": name “Desk”, area “Office”, disabled". A field that may hold a secret
 // shows no value.

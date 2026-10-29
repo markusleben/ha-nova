@@ -85,7 +85,7 @@ func TestBatchMixedListAppliesInOrderWithOneConfirmation(t *testing.T) {
 	if exit != 3 || env.Tier != "typed" || env.Plan == nil || !fourDigits.MatchString(env.Plan.Code) || len(h.writes()) != 0 {
 		t.Fatalf("plan batch: exit %d env %+v", exit, env)
 	}
-	want := "I'm about to make these 4 changes in Home Assistant, in this order:\n1. Create the automation “Hall motion”.\n2. Change the script “Arrival”.\n3. Delete the automation “Kitchen motion old”.\n4. Delete the script “Old arrival”.\nOne confirmation covers all 4, so I need you to confirm it. A copy of each one deleted is saved first, so it can be restored. HA NOVA checks each one again right before it is sent and stops at the first one that doesn't go through. Nothing has changed yet.\n" + sayChatNote + sayCodeBlock(env.Plan.Code)
+	want := "I'm about to make these 4 changes in Home Assistant, in this order:\n1. Create the automation “Hall motion”.\n2. Change the script “Arrival”.\n3. Delete the automation “Kitchen motion old”.\n4. Delete the script “Old arrival”.\nOne confirmation covers all 4, so I need you to confirm it. A copy of each one deleted is saved first, so it can be restored. HA NOVA checks each one again right before it is sent and stops at the first one that doesn't go through. Nothing has changed yet.\n" + sayChatNote("en") + sayCodeBlock("en", env.Plan.Code)
 	if env.Say != want {
 		t.Fatalf("say:\n%s\nwant:\n%s", env.Say, want)
 	}

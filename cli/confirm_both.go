@@ -79,10 +79,10 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 			windowIn, ended = true, v.ended // a stop still wins over a phone's Confirm
 		}
 	}
-	s, reply, goal := a.s, a.reply, a.goal
+	s, reply, goal, lang := a.s, a.reply, a.goal, textLang(a.plan)
 	if ended != nil { // stopped on the computer, then the process ends (lane E2)
 		if decided && first.phone { // the phone had answered: it hears what came of it
-			reply.say(phoneResultTitle("Cancelled", goal), "Stopped on the computer. Nothing changed.")
+			reply.say(phoneResultTitle(lang, confirmT(lang, "outcome.cancelled"), goal), confirmT(lang, "outcome.line.stopped_computer"))
 		} else {
 			reply.withdraw()
 		}
@@ -91,7 +91,7 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 		return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "HA NOVA was stopped while the confirmation window was open", "Tell the user nothing changed.")
 	}
 	tell := func(prefix, line string) {
-		phoneApplied = func(verbEnvelope, int) { reply.say(phoneResultTitle(prefix, goal), line); s.close() }
+		phoneApplied = func(verbEnvelope, int) { reply.say(phoneResultTitle(lang, prefix, goal), line); s.close() }
 	}
 	// Answered on the computer: the phone's question goes at once, and
 	// nothing takes its place (one answer, one place). Apply doesn't wait
@@ -118,12 +118,12 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 		return windowStopped(s, "declined", "CONFIRM_DECLINED", "the confirmation window was cancelled",
 			"Tell the user nothing changed. Apply this plan again only if they ask for it.")
 	case window == windowFailed && phoneOut:
-		tell(phoneNothing(a.answer))
+		tell(phoneNothing(lang, a.answer))
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and HA NOVA can't reach the linked phone either", phoneMissingStep())
 	case window == windowFailed: // it never showed: the phone's own outcome
 		return a.finish()
 	}
-	tell(phoneNothing(a.answer))
+	tell(phoneNothing(lang, a.answer))
 	if phoneOut {
 		why := "the confirmation window got no answer in time"
 		if window == windowClosed {
@@ -137,7 +137,7 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 		why = "the confirmation window was closed, and the phone got no answer in time"
 	}
 	return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", why,
-		fmt.Sprintf("Tell the user nothing changed: neither the window on this computer nor their phone was answered in time. On the phone: %s A plain tap only opens the app. Run ha-nova apply --plan %s again (the window opens and a new notification goes to their phone) only after they say they still want it; never ask them for a code. %s They can also make this change in Home Assistant itself.", a.tapLine(), a.id, a.nothingLine()))
+		fmt.Sprintf("Tell the user nothing changed: neither the window on this computer nor their phone was answered in time. On the phone: %s A plain tap only opens the app. Run ha-nova apply --plan %s again (the window opens and a new notification goes to their phone) only after they say they still want it; never ask them for a code. %s They can also make this change in Home Assistant itself.", a.tapLine("en"), a.id, a.nothingLine()))
 }
 
 // discoverInTime finds the linked phone's setup within wait, which the

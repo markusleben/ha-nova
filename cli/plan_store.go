@@ -155,7 +155,7 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 		if plan.Channel == "" {
 			plan.Channel = detectChannel(e.s)
 		}
-		if refusal := channelRefusal(plan.Channel); refusal != nil {
+		if refusal := channelRefusal(plan.Channel, textLang(plan)); refusal != nil {
 			return storedPlan{}, refusal
 		}
 		if !humanChannel(plan.Channel) { // a window or phone plan's code never leaves this process

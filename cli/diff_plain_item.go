@@ -180,8 +180,9 @@ func plainStep(m map[string]any, only func(...string) bool) string {
 		return ""
 	}
 	_, name := splitID(cmpStr(m, key))
-	text := lowerFirst(sayVerb(name)) + " " + who
-	if mode, isArm := strings.CutPrefix(name, "alarm_arm_"); isArm { // sayVerb says only "Arm": the mode is the change
+	verb, label := sayVerb(name) // a diff row stays English: the agent words it
+	text := actionGoal{verb: verb, label: label, names: []string{who}}.text("en")
+	if mode, isArm := strings.CutPrefix(name, "alarm_arm_"); isArm { // sayVerb says only "arm": the mode is the change
 		text += " in " + strings.ReplaceAll(mode, "_", " ") + " mode"
 	}
 	data, _ := m["data"].(map[string]any)

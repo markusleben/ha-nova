@@ -75,7 +75,8 @@ var checkGapCodes = map[string]bool{
 	reasonYAMLNoID: true, reasonUnreadConfig: true, reasonListener: true, reasonScanFailed: true, reasonLimitCut: true,
 }
 
-const sayCheckGap = "HA NOVA can't check everything this would set off"
+// sayCheckGap: the one sentence for every check gap.
+func sayCheckGap(lang string) string { return confirmT(lang, "unseen.all") }
 
 // cutShort: a read failed or ran out of budget, so how far a run got
 // depends on timing.
@@ -160,10 +161,12 @@ func jsonEqual(a, b any) bool {
 }
 
 // driftSay opens a drifted plan's new preview: the first thing that
-// changed, in plain words.
+// changed, in plain words, in the new plan's language (a typed plan's is
+// the sealed one it was made in); one space goes before the preview.
 func driftSay(e *tierEngine, env *verbEnvelope, stored, fresh storedPlan) string {
+	lang := textLang(fresh)
 	if !intact(stored) { // an edited file never words the new preview
-		return sayChanged
+		return sayChanged(lang)
 	}
 	old, now := asJSON(stored.Basis), asJSON(fresh.Basis)
 	was, _ := old["before"].(map[string]any)
@@ -173,24 +176,24 @@ func driftSay(e *tierEngine, env *verbEnvelope, stored, fresh storedPlan) string
 		isFields, both := is[id].(map[string]any)
 		for _, field := range sortedKeys(wasFields) {
 			if after, present := isFields[field]; both && present && !reflect.DeepEqual(wasFields[field], after) {
-				return fmt.Sprintf("Since the last preview, %s changed: %s was %s, now %s. ", sayText(e.sayName(env, id), true),
-					driftField(field), driftValue(field, wasFields[field]), driftValue(field, after))
+				return confirmT(lang, "drift.field", "name", sayText(e.sayName(env, id), true),
+					"field", driftField(field), "was", driftValue(lang, field, wasFields[field]), "now", driftValue(lang, field, after))
 			}
 		}
 	}
 	switch {
 	case !jsonEqual(planActionOf(stored), planActionOf(fresh)):
-		return "Since the last preview, what this acts on changed. "
+		return confirmT(lang, "drift.targets")
 	case !reflect.DeepEqual(old["current"], now["current"]):
-		return "Since the last preview, it was changed in Home Assistant. "
+		return confirmT(lang, "drift.current")
 	case !sameWhereBoth(old["configs"], now["configs"]):
-		return "Since the last preview, an automation or script this sets off was changed. "
+		return confirmT(lang, "drift.configs")
 	case !sameWhereBoth(old["entities"], now["entities"]):
-		return "Since the last preview, something this controls changed. "
+		return confirmT(lang, "drift.entities")
 	case stored.Tier != fresh.Tier || !jsonEqual(stored.Reasons, fresh.Reasons) || !reflect.DeepEqual(old, now):
-		return "HA NOVA checked again, and what this sets off looks different now. "
+		return confirmT(lang, "drift.checked")
 	}
-	return sayChanged
+	return sayChanged(lang)
 }
 
 // sameWhereBoth: every key both maps hold has the same value.
@@ -210,16 +213,16 @@ func driftField(field string) string {
 	return strings.ReplaceAll(deltaAttribute(field), "_", " ")
 }
 
-func driftValue(field string, v any) string {
+func driftValue(lang, field string, v any) string {
 	n, isNumber := v.(float64)
 	switch t := v.(type) {
 	case nil:
-		return "none"
+		return confirmT(lang, "drift.none")
 	case bool:
-		return map[bool]string{true: "yes", false: "no"}[t]
+		return map[bool]string{true: confirmT(lang, "drift.yes"), false: confirmT(lang, "drift.no")}[t]
 	case string:
 		if t == "" {
-			return "none"
+			return confirmT(lang, "drift.none")
 		}
 	}
 	if isNumber && deltaAttribute(field) == "brightness" {

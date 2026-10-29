@@ -112,7 +112,7 @@ func computeBatchPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, st
 	}
 	text := batchText(rp, plan.Tier == tierTyped.String())
 	if plan.Tier == tierTyped.String() {
-		plan.Prompt = demoPrefix(text)
+		plan.Prompt = demoPrefix(textLang(plan), text)
 	}
 	if plan.Channel == channelWindow { // checked again at every apply: a name in a reason may have grown
 		if err := batchWindowFits(plan, env.Verb); err != nil {
@@ -144,7 +144,7 @@ func batchChanged(env *verbEnvelope, lang string, names, ids []string) error {
 			message: which + "; nothing was planned or sent",
 			next:    "Plan each one named again and show its new preview, then make the batch again with its new plan id; the other plans are as they were."}
 	}
-	env.Say = confirmT(lang, "batch.drift", "count", len(names), "names", sayList(names))
+	env.Say = confirmT(lang, "batch.drift", "count", len(names), "names", sayList(lang, names))
 	return &verbFailure{exit: verbExitDrift, status: "drift", code: "BATCH_DRIFT",
 		message: which + "; nothing was sent, and the batch is used up",
 		next:    "Show `say`. Plan each one named again and show its new preview; the other plans of this batch are gone too, so plan them again as well, then make a new batch of all of them. Never apply this batch again."}

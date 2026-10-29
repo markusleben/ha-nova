@@ -280,7 +280,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		}
 		changed := driftSay(e, &env, plan, fresh)
 		if fresh.Prompt != "" { // a confirmation form shows it without the preview (mcp_confirm.go)
-			fresh.Prompt = changed + fresh.Prompt
+			fresh.Prompt = changed + " " + fresh.Prompt
 		}
 		if err := savePlan(paths, fresh, s.transport.Credential); err != nil {
 			return fail(err)
@@ -289,7 +289,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			env.Say = confirmationSay(e, &env, fresh, "")
 		}
 		if env.Say != "" {
-			env.Say = changed + env.Say
+			env.Say = changed + " " + env.Say
 		}
 		return fail(&verbFailure{exit: verbExitDrift, status: "drift", code: "PLAN_DRIFT",
 			message: "something changed since the preview; nothing was sent and the old plan is gone",

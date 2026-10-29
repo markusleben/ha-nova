@@ -50,11 +50,11 @@ type rawRequest struct {
 
 // rawPlanItem is one previewed item: Change is its plain line.
 type rawPlanItem struct {
-	Endpoint string `json:"endpoint"`
-	Change   string `json:"change"`
-	Tier     string `json:"tier"`
-	verb     string // the phone's button and title (rawGoal)
-	object   string
+	Endpoint string   `json:"endpoint"`
+	Change   string   `json:"change"`
+	Tier     string   `json:"tier"`
+	verb     string   // the phone's button and title (rawGoal)
+	names    []string // the title's names (rawNames)
 }
 
 type rawPlanResult struct {
@@ -188,12 +188,13 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 		}
 		e.raise(level, tierReason{Code: code, Via: fmt.Sprintf("requests[%d]", i), Detail: why})
 		var verb, object string
+		n.listed = nil
 		if item.Endpoint == "supervisor" {
 			verb, object = rawSupervisorLine(s, payload)
 		} else {
 			verb, object = rawItemLine(n, item.Endpoint, payload)
 		}
-		result.Items = append(result.Items, rawPlanItem{Endpoint: item.Endpoint, Change: verb + " " + object, Tier: level.String(), verb: verb, object: object})
+		result.Items = append(result.Items, rawPlanItem{Endpoint: item.Endpoint, Change: verb + " " + object, Tier: level.String(), verb: verb, names: rawNames(object, n.listed)})
 	}
 	for _, removes := range n.removing {
 		if removes == "unreadable" {
@@ -269,32 +270,44 @@ func rawPlanOnlyRead(endpoint string, payload map[string]any) bool {
 }
 
 // rawSayWhat opens a raw plan's confirmation: one line per item, in order.
-func rawSayWhat(env *verbEnvelope) (about, status string) {
+// Its lines are English (raw plans get the catalog in a later step).
+func rawSayWhat(lang string, env *verbEnvelope) (about, status string) {
 	result, _ := env.Result.(rawPlanResult)
 	if len(result.Items) == 1 {
-		return sayAbout(result.Items[0].Change), sayNotRun
+		return sayAbout(lang, lowerFirst(result.Items[0].Change)), sayNotRun(lang)
 	}
 	lines := []string{fmt.Sprintf("I'm about to do these %d steps in Home Assistant, in this order:", len(result.Items))}
 	for i, item := range result.Items {
 		lines = append(lines, fmt.Sprintf("%d. %s.", i+1, item.Change))
 	}
-	return strings.Join(lines, "\n"), sayNotRun
+	return strings.Join(lines, "\n"), sayNotRun(lang)
 }
 
 // rawGoal: the phone's verb and object, the item's own for one item.
-func rawGoal(env *verbEnvelope) (verb, object string) {
+func rawGoal(env *verbEnvelope) actionGoal {
 	result, _ := env.Result.(rawPlanResult)
 	if len(result.Items) == 1 {
-		return result.Items[0].verb, result.Items[0].object
+		return actionGoal{label: result.Items[0].verb, names: result.Items[0].names}
 	}
-	return "Confirm", fmt.Sprintf("%d steps in Home Assistant", len(result.Items))
+	return actionGoal{label: "Confirm", names: []string{fmt.Sprintf("%d steps in Home Assistant", len(result.Items))}}
+}
+
+// rawNames: an item's object as the title's names. A list of targets
+// (listed) stays names, so a long title counts them; the words before the
+// list go with its first name. Any other object is one name, cut if long.
+func rawNames(object string, listed []string) []string {
+	lead, isList := strings.CutSuffix(object, sayList("en", listed))
+	if len(listed) < 2 || !isList {
+		return []string{object}
+	}
+	return append([]string{lead + listed[0]}, listed[1:]...)
 }
 
 // rawAsk: a typed raw plan's phone question. With several items the
 // notification names the typed steps first, by number, then the reasons,
 // then how many other steps come along, so a cut keeps what needs the tap.
-func rawAsk(e *tierEngine, env *verbEnvelope, plan storedPlan) [3]string {
-	verb, object := rawGoal(env)
+func rawAsk(e *tierEngine, env *verbEnvelope, plan storedPlan) actionGoal {
+	goal := rawGoal(env)
 	result, _ := env.Result.(rawPlanResult)
 	var why []string
 	for i, item := range result.Items {
@@ -305,7 +318,7 @@ func rawAsk(e *tierEngine, env *verbEnvelope, plan storedPlan) [3]string {
 	others := len(result.Items) - len(why)
 	reasons := map[string]bool{}
 	for _, r := range env.Reasons {
-		if text, typed := sayReason(e, env, plan, r); typed && text != "" && !reasons[text] {
+		if text, typed := sayReason(textLang(plan), e, env, plan, r); typed && text != "" && !reasons[text] {
 			reasons[text] = true
 			why = append(why, text)
 		}
@@ -313,5 +326,6 @@ func rawAsk(e *tierEngine, env *verbEnvelope, plan storedPlan) [3]string {
 	if len(result.Items) > 1 && others > 0 {
 		why = append(why, "And "+plural(others, "other step"))
 	}
-	return [3]string{verb, object, strings.Join(why, ". ")}
+	goal.why = strings.Join(why, ". ")
+	return goal
 }

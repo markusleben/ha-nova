@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,64 +23,68 @@ import (
 // this") is in the terminal, not on the lock screen.
 
 type phoneAsk struct {
+	lang                string // the texts' language (phonePayload's hint and Cancel speak it too)
 	title, body, button string
 	urgent              bool // a pending action: iOS time-sensitive; else active
 	unlock              bool // the phone must be unlocked to answer (link, move, stop)
 }
 
 const (
-	phoneLinkTitle  = "Get HA NOVA confirmations?"
-	phoneMoveTitle  = "Move HA NOVA confirmations?"
 	phoneSentText   = "Sent to “%s”. %s Do it only if you started this."
 	phoneTitleLimit = 80  // runes: one lock-screen line
 	phoneWhyLimit   = 300 // runes: the reasons (an expanded notification shows them all)
 )
 
-func phoneLinkAsk() phoneAsk {
-	return phoneAsk{title: phoneLinkTitle, body: phoneRequested(), button: phoneLinkButton, unlock: true}
+// phoneLinkTitle and phoneLinkButton: the link question's, which the
+// terminal and next steps quote. The button is not "Link": the setup screen
+// also shows Home Assistant Link.
+func phoneLinkTitle(lang string) string  { return confirmT(lang, "phone.link.title") }
+func phoneLinkButton(lang string) string { return confirmT(lang, "phone.link.button") }
+
+// phoneLinkQuestion: the window's question before a link (the phone linked
+// now asks phoneChangeAsk instead).
+func phoneLinkQuestion(lang, phone string) string {
+	return confirmT(lang, "settings.link_ask", "phone", phone, "host", phoneHost(lang))
+}
+
+func phoneLinkAsk(lang string) phoneAsk {
+	return phoneAsk{lang: lang, title: phoneLinkTitle(lang), body: phoneRequested(lang), button: phoneLinkButton(lang), unlock: true}
 }
 
 // phoneChangeAsk goes to the phone linked now: stop (newPhone "") or move
 // HA NOVA's confirmations to newPhone. Stopping says what it gives up.
-func phoneChangeAsk(newPhone string) phoneAsk {
+func phoneChangeAsk(lang, newPhone string) phoneAsk {
 	if newPhone == "" {
-		return phoneAsk{title: "Stop HA NOVA confirmations?", body: "After this, HA NOVA may ask in chat, where your AI assistant can answer. " + phoneRequested(), button: "Stop", unlock: true}
+		return phoneAsk{lang: lang, title: confirmT(lang, "phone.stop.title"), body: confirmT(lang, "phone.stop.body", "requested", phoneRequested(lang)), button: confirmT(lang, "phone.stop.button"), unlock: true}
 	}
-	return phoneAsk{title: phoneMoveTitle, body: "New phone: " + sayText(newPhone, true) + ". " + phoneRequested(), button: "Move", unlock: true}
+	return phoneAsk{lang: lang, title: confirmT(lang, "phone.move.title"), body: confirmT(lang, "phone.move.body", "phone", sayText(newPhone, true), "requested", phoneRequested(lang)),
+		button: confirmT(lang, "phone.move.button"), unlock: true}
 }
 
 // phonePlanAsk: "Unlock “Front Door”?" with an Unlock button, and the
 // reason it needs a confirmation where the title doesn't say it (sayAsk).
-func phonePlanAsk(goal [3]string, noSnapshot bool) phoneAsk {
-	body := phoneRequested()
-	if goal[2] != "" {
-		why := goal[2]
+func phonePlanAsk(lang string, goal actionGoal, noSnapshot bool) phoneAsk {
+	body := phoneRequested(lang)
+	if goal.why != "" {
+		why := goal.why
 		if len([]rune(why)) > phoneWhyLimit {
-			why = phoneCut(why, phoneWhyLimit-25) + map[bool]string{true: " (more in the chat)", false: " (more on the computer)"}[chatCall != nil]
+			why = phoneCut(why, phoneWhyLimit-25) + " " + map[bool]string{true: confirmT(lang, "phone.more_in_chat"), false: confirmT(lang, "phone.more_on_computer")}[chatCall != nil]
 		}
 		body = why + ". " + body
 	}
 	if noSnapshot {
-		body = "Can't be undone. " + body
+		body = confirmT(lang, "phone.no_undo") + " " + body
 	}
-	return phoneAsk{title: phoneTitle(goal[0], goal[1]), body: body, button: phoneButton(goal[0]), urgent: true}
+	return phoneAsk{lang: lang, title: goal.title(lang, ""), body: body, button: goal.button(lang), urgent: true}
 }
 
-// phoneButton: the goal's verb ("Unlock", "Turn on"); a longer one such as
-// "Set the position of", or one that reads like dismissing (Cancel, Close,
-// Stop), is Confirm.
-func phoneButton(verb string) string {
-	if verb == "" || strings.Count(verb, " ") > 1 || slices.ContainsFunc([]string{"Cancel", "Close", "Stop", "Dismiss"}, func(v string) bool { return strings.EqualFold(v, verb) }) {
-		return "Confirm"
-	}
-	return verb
-}
+func phoneRequested(lang string) string { return phoneRequestedBy(lang, chatCall != nil) }
 
-func phoneRequested() string {
-	if chatCall != nil { // ha-nova serve: the host is the NOVA App, not the user's computer
-		return "Requested in your AI chat app."
+func phoneRequestedBy(lang string, chat bool) string {
+	if chat { // ha-nova serve: the host is the NOVA App, not the user's computer
+		return confirmT(lang, "phone.requested_chat")
 	}
-	return "Requested by “" + phoneHost() + "”."
+	return confirmT(lang, "phone.requested_by", "host", phoneHost(lang))
 }
 
 // phoneHint ends the notification: how to show its buttons on this phone.
@@ -89,35 +92,35 @@ func phoneRequested() string {
 // showed 39); with more to read than who asked (a hidden effect, "Can't be
 // undone.", the new phone), it asks to read that first, as the pop-up shows
 // the buttons but one line.
-func phoneHint(platform, button string, more bool) string {
+func phoneHint(lang, platform, button string, more bool) string {
 	switch platform {
 	case phoneIOS:
-		return "Press and hold to answer."
+		return confirmT(lang, "phone.hint.ios")
 	case phoneAndroid:
 		if more {
-			return "Read it all. No button? Pull down."
+			return confirmT(lang, "phone.hint.android_more")
 		}
-		if hint := "Tap “" + button + "”. No button? Pull down."; len([]rune(hint)) <= 38 {
+		if hint := confirmT(lang, "phone.hint.android_tap", "button", button); len([]rune(hint)) <= 38 {
 			return hint
 		}
-		return "No buttons? Pull down to answer."
+		return confirmT(lang, "phone.hint.android")
 	}
-	return "Press and hold (iPhone) or pull down (Android) to answer."
+	return confirmT(lang, "phone.hint.other")
 }
 
 // phoneTapLine: how to answer on this phone, for the computer and the chat.
-func phoneTapLine(platform, button string) string {
+func phoneTapLine(lang, platform, button string) string {
 	switch platform {
 	case phoneIOS:
-		return "Press and hold the notification, then tap “" + button + "”."
+		return confirmT(lang, "phone.tap.ios", "button", button)
 	case phoneAndroid:
-		return "Tap “" + button + "” in the notification. No button? Pull it down, or tap its arrow."
+		return confirmT(lang, "phone.tap.android", "button", button)
 	}
-	return "Tap “" + button + "” in the notification. " + phoneButtonsLine
+	return confirmT(lang, "phone.tap.other", "button", button, "buttons", phoneButtonsLine(lang))
 }
 
 // phoneButtonsLine: how to show the buttons, true on both platforms.
-const phoneButtonsLine = "To see the buttons, press and hold the notification on an iPhone, or pull it down on Android."
+func phoneButtonsLine(lang string) string { return confirmT(lang, "phone.buttons_line") }
 
 // phoneNothingHint: where to turn on notifications when none showed (after
 // phoneNothingAfter, and when the ask timed out).
@@ -133,31 +136,6 @@ func phoneNothingSteps(platform string) string {
 		return "Open your phone's settings → Apps → Home Assistant → Notifications → HA NOVA, and turn on notifications and pop-ups."
 	}
 	return "Open your phone's settings, find the Home Assistant app, and turn on its notifications."
-}
-
-// phoneTitle: verb + object + "?" in one line. Too long with several
-// names, it keeps the first and counts every other one ("Unlock “A” and 6
-// more?"), so the title never understates what a tap confirms. Names are
-// sayText-quoted: “ marks each one, and "and N more" counts the rest.
-// Without an object, verb is the whole question (a batch's, batchPhoneGoal).
-func phoneTitle(verb, object string) string {
-	if object == "" {
-		return phoneCut(verb, phoneTitleLimit)
-	}
-	if title := verb + " " + object + "?"; len([]rune(title)) <= phoneTitleLimit {
-		return title
-	}
-	total, rest := strings.Count(object, "“"), 0
-	if i := strings.LastIndex(object, " and "); i > 0 && !strings.HasSuffix(object, "”") { // sayList's own count, never a name
-		if _, err := fmt.Sscanf(object[i:], " and %d more", &rest); err == nil && rest > 0 {
-			total += rest
-		}
-	}
-	head, more := object, ""
-	if j := strings.Index(object, "”"); total > 1 && j > 0 {
-		head, more = object[:j+len("”")], fmt.Sprintf(" and %d more", total-1)
-	}
-	return verb + " " + phoneCut(head, phoneTitleLimit-len([]rune(verb+more))-2) + more + "?"
 }
 
 // phoneCut shortens text to limit runes with "…", closing a quote it cut
@@ -200,7 +178,7 @@ func phonePayload(ask phoneAsk, platform, tag, ok, no string, deadline time.Time
 	case ask.unlock:
 		confirm["authenticationRequired"] = true
 	}
-	hint := phoneHint(platform, ask.button, ask.body != phoneRequested())
+	hint := phoneHint(ask.lang, platform, ask.button, ask.body != phoneRequestedBy(ask.lang, true) && ask.body != phoneRequestedBy(ask.lang, false)) // never chatCall: ha-nova serve sends outside the verb lock
 	message := ask.body + " " + hint
 	if platform == phoneAndroid { // a collapsed Android notification shows one line of text: the hint first
 		message = hint + " " + ask.body
@@ -209,7 +187,7 @@ func phonePayload(ask phoneAsk, platform, tag, ok, no string, deadline time.Time
 		"tag": tag,
 		"actions": []any{
 			confirm,
-			map[string]any{"action": no, "title": "Cancel"},
+			map[string]any{"action": no, "title": confirmT(ask.lang, "phone.cancel")},
 		},
 		"push":         map[string]any{"interruption-level": level},
 		"apns_headers": map[string]any{"apns-expiration": strconv.FormatInt(deadline.Unix(), 10)},
@@ -217,11 +195,11 @@ func phonePayload(ask phoneAsk, platform, tag, ok, no string, deadline time.Time
 	}}
 }
 
-func phoneHost() string {
+func phoneHost(lang string) string {
 	if host, err := os.Hostname(); err == nil && terminalSafeName(host) != "" {
 		return terminalSafeName(host)
 	}
-	return "your computer" // it shows on the phone too, where "this" is the phone
+	return confirmT(lang, "phone.your_computer") // it shows on the phone too, where "this" is the phone
 }
 
 // missingLine: why the linked phone can't be asked now, and what to do.
@@ -289,23 +267,23 @@ func phoneResultPayload(title, body, tag string) map[string]any {
 
 // phoneNothing: the result of an ask that changed nothing (a title
 // prefix and the line).
-func phoneNothing(answer phoneAnswer) (string, string) {
+func phoneNothing(lang string, answer phoneAnswer) (string, string) {
 	switch answer {
 	case phoneDeclined:
-		return "Cancelled", "Nothing changed."
+		return confirmT(lang, "outcome.cancelled"), confirmT(lang, "outcome.line.nothing_changed")
 	case phoneRejected:
-		return "Not confirmed", "The tap came from another Home Assistant user. Nothing changed."
+		return confirmT(lang, "outcome.not_confirmed"), confirmT(lang, "outcome.line.other_user")
 	case phoneConfirmed:
-		return "Not done", "Your tap arrived, but HA NOVA stopped. Nothing changed. " + phoneSaysWhy()
+		return confirmT(lang, "outcome.not_done"), confirmT(lang, "outcome.line.stopped", "why", phoneSaysWhy(lang))
 	case phoneFailed:
-		return "Not asked", "HA NOVA couldn't ask. Nothing changed."
+		return confirmT(lang, "outcome.not_asked"), confirmT(lang, "outcome.line.not_asked")
 	}
-	return "Not confirmed", "No answer reached Home Assistant. Nothing changed."
+	return confirmT(lang, "outcome.not_confirmed"), confirmT(lang, "outcome.line.no_answer")
 }
 
 // phoneApplyResult: how a confirmed plan ended, for the phone (a title
 // prefix and the line). "Done" only for a verified result.
-func phoneApplyResult(env verbEnvelope, exit int) (string, string) {
+func phoneApplyResult(lang string, env verbEnvelope, exit int) (string, string) {
 	if prefix, line := batchPhoneResult(env, exit); prefix != "" {
 		return prefix, line
 	}
@@ -315,33 +293,33 @@ func phoneApplyResult(env verbEnvelope, exit int) (string, string) {
 	}
 	switch {
 	case exit == verbExitOK && env.Status == "verified":
-		return "Done", "Home Assistant confirms it."
+		return confirmT(lang, "outcome.done"), confirmT(lang, "outcome.line.done")
 	case exit == verbExitOK && env.Status == "no_change":
-		return "Already done", "It was already that way; nothing was sent."
+		return confirmT(lang, "outcome.already_done"), confirmT(lang, "outcome.line.already_done")
 	case exit == verbExitOK:
-		return "Sent", "Home Assistant took it; HA NOVA can't confirm the result yet."
+		return confirmT(lang, "outcome.sent"), confirmT(lang, "outcome.line.sent")
 	case exit == verbExitUnverified && env.Status == "failed":
-		return "Didn't work", "Check Home Assistant."
+		return confirmT(lang, "outcome.failed"), confirmT(lang, "outcome.line.failed")
 	case exit == verbExitUnverified:
-		return "Check", "Sent, but HA NOVA couldn't verify it. Check Home Assistant."
+		return confirmT(lang, "outcome.check"), confirmT(lang, "outcome.line.check")
 	case exit == verbExitUnknown || code == "PLAN_CLAIMED" || code == "PLAN_NOT_FOUND":
-		return "Unclear", "It may have run. Check Home Assistant."
+		return confirmT(lang, "outcome.unclear"), confirmT(lang, "outcome.line.unclear")
 	}
-	return "Not done", "Nothing changed. " + phoneSaysWhy()
+	return confirmT(lang, "outcome.not_done"), confirmT(lang, "outcome.line.not_done", "why", phoneSaysWhy(lang))
 }
 
 // phoneSaysWhy: where the reason shows, the chat in a chat app, else the
 // computer (as phonePlanAsk's "more in the chat").
-func phoneSaysWhy() string {
+func phoneSaysWhy(lang string) string {
 	if chatCall != nil {
-		return "The chat says why."
+		return confirmT(lang, "outcome.line.why_chat")
 	}
-	return "The computer says why."
+	return confirmT(lang, "outcome.line.why_computer")
 }
 
 // phoneResultTitle: "Done: Unlock “A” and 6 more", counted like the ask.
-func phoneResultTitle(prefix string, goal [3]string) string {
-	return strings.TrimSuffix(phoneTitle(prefix+": "+goal[0], goal[1]), "?")
+func phoneResultTitle(lang, prefix string, goal actionGoal) string {
+	return goal.title(lang, prefix)
 }
 
 // phoneStillLinked re-reads the link after a tap: unlinked, replaced, or its
@@ -359,8 +337,13 @@ const (
 	phoneMissingWhy  = "this change is confirmed on the phone linked to HA NOVA, and HA NOVA can't reach it now"
 	phoneMissingNext = "Tell the user nothing changed: HA NOVA could not reach their linked phone. `ha-nova setup confirm-phone list` (it sends nothing; in a terminal if you have no shell) says why and what to do. They can also make this change in Home Assistant itself, or try again later. Never ask them for a code."
 	phoneRejectedWhy = "the tap came from a device signed in to Home Assistant as someone other than the person whose phone is linked"
-	// #719's pin: no phone chosen yet. The agent may run the listing itself;
-	// only a tap on the chosen phone links it.
-	phoneUnlinkedWhy  = "HA NOVA now confirms on one phone the user chooses, and none is chosen on this computer yet"
-	phoneUnlinkedNext = "Tell the user nothing changed: HA NOVA now asks on one phone they choose. With a shell: run ha-nova setup confirm-phone list (it sends nothing), ask which phone is theirs, tell them to watch it for “" + phoneLinkTitle + "” and tap “" + phoneLinkButton + "” (" + phoneButtonsLine + "), then run ha-nova setup confirm-phone \"<that phone's name>\" (it waits up to 90 seconds) and plan again. Without a shell, they run ha-nova setup confirm-phone in a terminal. Never ask them for a code."
+	// #719's pin: no phone chosen yet (phoneUnlinkedNext).
+	phoneUnlinkedWhy = "HA NOVA now confirms on one phone the user chooses, and none is chosen on this computer yet"
 )
+
+// phoneUnlinkedNext: the agent may run the listing itself; only a tap on
+// the chosen phone links it. It quotes the link question in the language
+// that phone will show (lang).
+func phoneUnlinkedNext(lang string) string {
+	return "Tell the user nothing changed: HA NOVA now asks on one phone they choose. With a shell: run ha-nova setup confirm-phone list (it sends nothing), ask which phone is theirs, tell them to watch it for “" + phoneLinkTitle(lang) + "” and tap “" + phoneLinkButton(lang) + "” (" + phoneButtonsLine("en") + "), then run ha-nova setup confirm-phone \"<that phone's name>\" (it waits up to 90 seconds) and plan again. Without a shell, they run ha-nova setup confirm-phone in a terminal. Never ask them for a code."
+}

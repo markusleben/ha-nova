@@ -25,13 +25,13 @@ func TestBatchWindowShowsEveryItem(t *testing.T) {
 	h := newWriteHarness(t, batchHome())
 	w := useWindow(t, windowConfirmed)
 	exit, env := h.batch(batchFour(h)...)
-	if exit != 3 || env.Plan.Channel != channelWindow || env.Plan.Code != "" || env.Say != batchFourList+" "+sayWindowAsk ||
+	if exit != 3 || env.Plan.Channel != channelWindow || env.Plan.Code != "" || env.Say != batchFourList+" "+sayWindowAsk("en") ||
 		!strings.Contains(env.NextStep, "apply --plan "+env.Plan.ID+" without --confirm") || strings.Contains(env.NextStep, "up to 2 minutes") ||
 		!strings.HasSuffix(env.NextStep, " Give that apply up to 10 minutes: it checks each one again, sends it, and checks it after, in turn.") {
 		t.Fatalf("plan batch: exit %d say %q next %q", exit, env.Say, env.NextStep)
 	}
 	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
-	if exit != 0 || itemStatuses(batchItems(t, applied)) != "verified,verified,verified,verified" || len(w.messages) != 1 || w.messages[0] != batchFourList+"\n\n"+windowAsked {
+	if exit != 0 || itemStatuses(batchItems(t, applied)) != "verified,verified,verified,verified" || len(w.messages) != 1 || w.messages[0] != batchFourList+"\n\n"+windowAsked("en") {
 		t.Fatalf("apply: exit %d %+v window %q", exit, applied.Error, w.messages)
 	}
 }
@@ -50,7 +50,7 @@ func TestBatchWindowAndPhoneRaceSendOnce(t *testing.T) {
 			_, env := h.batch(batchFour(h)...)
 			go func() { p.waitSent(); close(first); time.Sleep(250 * time.Millisecond); close(late) }()
 			exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
-			if exit != 0 || applied.Status != "verified" || len(h.writes()) != 4 || w.messages[0] != batchFourList+"\n\n"+windowBoth+"\n"+windowAsked {
+			if exit != 0 || applied.Status != "verified" || len(h.writes()) != 4 || w.messages[0] != batchFourList+"\n\n"+windowBoth("en")+"\n"+windowAsked("en") {
 				t.Fatalf("exit %d %+v writes %d window %q", exit, applied.Error, len(h.writes()), w.messages)
 			}
 			<-late
@@ -70,7 +70,7 @@ func TestBatchWindowFallbackKeepsTheList(t *testing.T) {
 	_, old := h.batch(batchFour(h)...)
 	exit, env := h.run(runApplyCommand, "--plan", old.Plan.ID)
 	if exit != 3 || env.Plan == nil || env.Plan.Channel != channelChat || env.Plan.Code == "" || len(h.writes()) != 0 ||
-		env.Say != sayNoWindowHere+batchFourList+"\n"+sayChatNote+sayCodeBlock(env.Plan.Code) || !strings.HasSuffix(env.NextStep, "up to 10 minutes: it checks each one again, sends it, and checks it after, in turn.") {
+		env.Say != sayNoWindowHere("en")+" "+batchFourList+"\n"+sayChatNote("en")+sayCodeBlock("en", env.Plan.Code) || !strings.HasSuffix(env.NextStep, "up to 10 minutes: it checks each one again, sends it, and checks it after, in turn.") {
 		t.Fatalf("fallback: exit %d say %q next %q", exit, env.Say, env.NextStep)
 	}
 	if exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID, "--confirm", env.Plan.Code); exit != 0 || len(h.writes()) != 4 {
@@ -101,7 +101,7 @@ func TestBatchPhoneAsksWithTheCountAndTheMostSensitive(t *testing.T) {
 				h.writePlan("script", "s1", map[string]any{"alias": "Arrival", "sequence": []any{step("lock.unlock", "lock.front")}}),
 				h.member("delete", "script.old_arrival")}
 			exit, env := h.batch(ids...)
-			if exit != 3 || env.Plan.Channel != channelPhone || env.Plan.Code != "" || !strings.HasSuffix(env.Say, sayPhoneAsk("Confirm", "")) ||
+			if exit != 3 || env.Plan.Channel != channelPhone || env.Plan.Code != "" || !strings.HasSuffix(env.Say, sayPhoneAsk("en", "Confirm", "")) ||
 				!strings.Contains(env.Say, "\n3. Change the script “Arrival”. ") {
 				t.Fatalf("plan batch: exit %d say %q", exit, env.Say)
 			}
@@ -114,7 +114,7 @@ func TestBatchPhoneAsksWithTheCountAndTheMostSensitive(t *testing.T) {
 			confirm := p.sent[0]["data"].(map[string]any)["actions"].([]any)[0].(map[string]any)
 			message := p.sent[0]["message"].(string)
 			if p.sent[0]["title"] != "Change or delete 4 automations and scripts?" || confirm["title"] != "Confirm" ||
-				!strings.HasPrefix(message, "Most sensitive: Change the script “Arrival”. ") || !strings.Contains(message, "Requested by “"+phoneHost()+"”.") ||
+				!strings.HasPrefix(message, "Most sensitive: Change the script “Arrival”. ") || !strings.Contains(message, "Requested by “"+phoneHost("en")+"”.") ||
 				strings.Contains(message, "Kitchen") || strings.Contains(message, "Night") {
 				t.Fatalf("the ask: %q %q button %v", p.sent[0]["title"], message, confirm["title"])
 			}
@@ -145,13 +145,13 @@ func TestBatchPhoneTitles(t *testing.T) {
 		{[]batchMember{member("write", "script"), member("delete", "automation")}, "Change or delete 2 automations and scripts?"},
 	} {
 		rp := batchReplan{members: c.members, lang: "en"}
-		if got := batchPhoneTitle(rp); got != c.want {
+		if got := (actionGoal{whole: batchPhoneTitle(rp)}).title("en", ""); got != c.want {
 			t.Errorf("title %q, want %q", got, c.want)
 		}
 		for len(rp.members) < batchMaxMembers {
 			rp.members = append(rp.members, c.members[0])
 		}
-		if title := batchPhoneTitle(rp); utf8.RuneCountInString(phoneTitle(title, "")) > 44 || phoneTitle(title, "") != title || !strings.Contains(title, " 20 ") {
+		if title := (actionGoal{whole: batchPhoneTitle(rp)}).title("en", ""); utf8.RuneCountInString(title) > 44 || !strings.Contains(title, " 20 ") {
 			t.Errorf("at 20: %q", title)
 		}
 	}
@@ -175,7 +175,7 @@ func TestBatchWindowBudget(t *testing.T) {
 		t.Fatalf("20 deletes: exit %d %+v", exit, env.Error)
 	}
 	stored, err := readPlanFile(filepath.Join(planDir(h.paths), env.Plan.ID+".json"))
-	text := confirmText(stored, false) + "\n\n" + windowBoth + "\n" + windowAsked
+	text := confirmText(stored, false) + "\n\n" + windowBoth("en") + "\n" + windowAsked("en")
 	lines, chars := strings.Count(text, "\n")+1, utf8.RuneCountInString(text)
 	t.Logf("the longest window: %d lines, %d characters", lines, chars)
 	if err != nil || lines > batchWindowLines || chars > batchWindowChars || !strings.Contains(text, "\n20. Delete the automation “"+name(20)+"”.\n") {
