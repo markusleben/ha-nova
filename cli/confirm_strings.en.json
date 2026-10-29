@@ -284,7 +284,7 @@
   "raw.object.labs_off": "off the Labs feature {feature} of {domain}",
   "raw.object.import": "0 rows into the long-term statistic {statistic} (stored rows for the same hours are overwritten)",
   "raw.object.import_span": {"other": "{count} rows into the long-term statistic {statistic} from {first} to {last} (stored rows for the same hours are overwritten)"},
-  "raw.object.analytics": "what Home Assistant shares about this installation",
+  "raw.object.sharing": "what Home Assistant shares about this installation",
   "raw.object.repair_continue": "the repair in progress (this can finish it)",
   "raw.object.setup_continue": "the setup in progress (this can finish it)",
   "raw.object.template": "a template (this changes nothing)",

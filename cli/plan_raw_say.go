@@ -163,7 +163,7 @@ func rawItemLine(n *rawNamer, lang, endpoint string, payload map[string]any) (ve
 		return "import", confirmT(lang, "raw.object.import_span", "count", len(rows), "statistic", sayText(id, true), "first", sayText(first, true), "last", sayText(last, true))
 	case wsType == "analytics/preferences":
 		preferences, _ := payload["preferences"].(map[string]any)
-		return "change", withFields(lang, confirmT(lang, "raw.object.analytics"), n.fields(lang, preferences, ""))
+		return "change", withFields(lang, confirmT(lang, "raw.object.sharing"), n.fields(lang, preferences, ""))
 	}
 	targets := n.targets(lang, payload)
 	if phrase, known := rawWSPhrases[wsType]; known {

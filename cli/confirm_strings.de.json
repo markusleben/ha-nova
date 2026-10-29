@@ -281,7 +281,7 @@
   "raw.object.labs_off": "das Labs-Feature {feature} von {domain}",
   "raw.object.import": "0 Zeilen in die Langzeitstatistik {statistic} (gespeicherte Zeilen für dieselben Stunden werden überschrieben)",
   "raw.object.import_span": {"one": "{count} Zeile in die Langzeitstatistik {statistic} von {first} bis {last} (gespeicherte Zeilen für dieselben Stunden werden überschrieben)", "other": "{count} Zeilen in die Langzeitstatistik {statistic} von {first} bis {last} (gespeicherte Zeilen für dieselben Stunden werden überschrieben)"},
-  "raw.object.analytics": "die Analyse-Einstellungen (was Home Assistant über diese Installation teilt)",
+  "raw.object.sharing": "die Analyse-Einstellungen (was Home Assistant über diese Installation teilt)",
   "raw.object.repair_continue": "die laufende Reparatur (dieser Schritt kann sie abschließen)",
   "raw.object.setup_continue": "die laufende Einrichtung (dieser Schritt kann sie abschließen)",
   "raw.object.template": "ein Template (das ändert nichts)",
