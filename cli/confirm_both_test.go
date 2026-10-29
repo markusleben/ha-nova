@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -94,6 +95,17 @@ func (p *fakePhones) last() map[string]any {
 	return p.sent[len(p.sent)-1]
 }
 
+// withdrawn: the question was the only notification sent, and it was
+// cleared (answered on the computer), with nothing in its place.
+func (p *fakePhones) withdrawn() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.sent) != 1 || p.sent[0]["data"].(map[string]any)["actions"] == nil {
+		return false
+	}
+	return slices.Contains(p.cleared, p.services[0]+" "+p.sent[0]["data"].(map[string]any)["tag"].(string))
+}
+
 func opened() chan struct{} { c := make(chan struct{}); close(c); return c }
 
 func TestBothAskFirstAnswerWins(t *testing.T) {
@@ -105,13 +117,13 @@ func TestBothAskFirstAnswerWins(t *testing.T) {
 		window, phone side
 		code          string // "" applied
 		where         string // the applied plan's channel
-		result        string // the phone's result line (prefix)
+		result        string // the phone's result line (prefix); "" = its question was cleared, nothing replaced it
 	}{
-		"window confirms, phone confirms late": {side{true, true}, side{true, false}, "", channelWindow, "Approved on the computer. Home Assistant confirms it."},
+		"window confirms, phone confirms late": {side{true, true}, side{true, false}, "", channelWindow, ""},
 		"phone confirms, window confirms late": {side{true, false}, side{true, true}, "", channelPhone, "Home Assistant confirms it."},
-		"window cancels, phone confirms late":  {side{false, true}, side{true, false}, "CONFIRM_DECLINED", "", "Cancelled on the computer. Nothing changed."},
+		"window cancels, phone confirms late":  {side{false, true}, side{true, false}, "CONFIRM_DECLINED", "", ""},
 		"phone cancels, window confirms late":  {side{true, false}, side{false, true}, "CONFIRM_DECLINED", "", "Nothing changed."},
-		"window confirms, phone cancels late":  {side{true, true}, side{false, false}, "", channelWindow, "Approved on the computer."},
+		"window confirms, phone cancels late":  {side{true, true}, side{false, false}, "", channelWindow, ""},
 		"phone confirms, window cancels late":  {side{false, false}, side{true, true}, "", channelPhone, "Home Assistant confirms it."},
 	}
 	for name, c := range cases {
@@ -134,7 +146,10 @@ func TestBothAskFirstAnswerWins(t *testing.T) {
 				if !c.window.first && !stuck && !w.wasClosed() {
 					t.Fatal("the window was not withdrawn")
 				}
-				if msg := p.last()["message"].(string); !strings.HasPrefix(msg, c.result) || p.last()["data"].(map[string]any)["actions"] != nil {
+				if c.result == "" && !p.withdrawn() {
+					t.Fatalf("answered on the computer, the phone's question was not cleared alone: sent %v cleared %v", p.sent, p.cleared)
+				}
+				if msg := p.last()["message"].(string); c.result != "" && (!strings.HasPrefix(msg, c.result) || p.last()["data"].(map[string]any)["actions"] != nil) {
 					t.Fatalf("phone result %q, want %q", msg, c.result)
 				}
 				<-late // a late answer, after the decision, changes nothing
@@ -165,7 +180,7 @@ func TestBothAskSimultaneousAnswersApplyAtMostOnce(t *testing.T) {
 			exit, env := h.run(runApplyCommand, "--plan", plan.ID)
 			msg := p.last()["message"].(string)
 			switch {
-			case exit == 0 && len(h.posts()) == 1 && env.Plan.Channel == channelWindow && strings.HasPrefix(msg, "Approved on the computer."):
+			case exit == 0 && len(h.posts()) == 1 && env.Plan.Channel == channelWindow && p.withdrawn():
 			case exit == 0 && len(h.posts()) == 1 && phoneConfirms && env.Plan.Channel == channelPhone && msg == "Home Assistant confirms it.":
 			case exit == 4 && len(h.posts()) == 0 && !phoneConfirms && env.Error.Code == "CONFIRM_DECLINED" && strings.Contains(env.Error.Message, "phone"):
 			default:
@@ -264,6 +279,45 @@ func TestBothAskExpireTogether(t *testing.T) {
 	}
 	if last := p.last(); last["title"] != "Not confirmed: Unlock “lock.front”" || last["data"].(map[string]any)["actions"] != nil {
 		t.Fatalf("phone result %+v", last)
+	}
+}
+
+// A question withdrawn because the computer answered is kept like a
+// result: its clear may never reach an iPhone whose app wasn't used lately,
+// so the next question to that phone clears it again first.
+func TestWithdrawnQuestionIsClearedAgainByTheNext(t *testing.T) {
+	h := newWriteHarness(t, newFakeHA())
+	p := usePhones(t, "mobile_app_iphone")
+	confirmOnceSent := func(n int) { // the window confirms once the nth question is out
+		gate := make(chan struct{})
+		useRaceWindow(t, windowConfirmed, gate, false)
+		go func() {
+			for give := time.Now().Add(5 * time.Second); time.Now().Before(give); time.Sleep(2 * time.Millisecond) {
+				p.mu.Lock()
+				out := len(p.sent) >= n
+				p.mu.Unlock()
+				if out {
+					break
+				}
+			}
+			close(gate)
+		}()
+	}
+	confirmOnceSent(1)
+	first := h.plan("lock.unlock", "lock.front").Plan
+	if exit, _ := h.run(runApplyCommand, "--plan", first.ID); exit != 0 || !p.withdrawn() {
+		t.Fatalf("exit %d sent %v cleared %v", exit, p.sent, p.cleared)
+	}
+	gone := "mobile_app_iphone " + p.sent[0]["data"].(map[string]any)["tag"].(string)
+	confirmOnceSent(2)
+	second := h.plan("lock.unlock", "lock.front").Plan
+	if exit, _ := h.run(runApplyCommand, "--plan", second.ID); exit != 0 {
+		t.Fatalf("second apply exit %d", exit)
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.sent) != 2 || len(p.cleared) != 3 || p.cleared[0] != gone || p.cleared[1] != gone {
+		t.Fatalf("sent %d, cleared %v: want %q cleared by its withdrawal and again before the next question", len(p.sent), p.cleared, gone)
 	}
 }
 
