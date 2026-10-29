@@ -29,8 +29,7 @@ type setupPageControl struct {
 	Phone        string           `json:"phone"`
 	Phones       []setupPagePhone `json:"phones,omitempty"`
 	OldPhone     string           `json:"old_phone,omitempty"`
-	Own          int              `json:"own,omitempty"`       // pick: the first Own Phones are the user's own
-	PhoneWhy     *setupPageMsg    `json:"phone_why,omitempty"` // pick with no own phone, none: why, with Check again
+	PhoneWhy     *setupPageMsg    `json:"phone_why,omitempty"` // pick, none: an administrator's phone left out for its name (the row always says how to add one, with Check again)
 	PhoneName    string           `json:"phone_name,omitempty"`
 	PhoneOS      string           `json:"phone_os,omitempty"` // waiting, moving: PhoneName's platform (ios, android), for how to tap and a timeout's hint
 	PhoneProblem *setupPageMsg    `json:"phone_problem,omitempty"`
@@ -191,7 +190,7 @@ func (f *setupFlow) pageControl() int {
 		if ctl.Phone == "pick" || ctl.Phone == "linked" && len(ctl.Phones) > 0 {
 			accepts = append(accepts, "phone")
 		}
-		if ctl.Phone == "unread" || ctl.PhoneWhy != nil {
+		if ctl.Phone == "unread" || ctl.Phone == "pick" || ctl.Phone == "none" {
 			accepts = append(accepts, "recheck")
 		}
 		if ctl.Chat.needsLink() {

@@ -444,19 +444,16 @@ func TestClaudeFolderIsPlainAndOnlySetupsOwnGoes(t *testing.T) {
 	}
 }
 
-// Step 3's phone row: the signed-in user's phone first; one notification to
-// that phone alone; the tap there links it.
+// Step 3's phone row: every administrator's phone, none first; one
+// notification to the phone clicked alone; the tap there links it.
 func TestSetupPageLinksThePhoneWithOneTap(t *testing.T) {
 	h, phones, _ := familyLink(t)
 	phones.tapBy = tapFrom("mobile_app_annas_pixel", "anna-id", true)
-	previous := setupSignedInUser
-	setupSignedInUser = "anna-id"
-	t.Cleanup(func() { setupSignedInUser = previous })
 	p := newPageStepsTest(t, h.paths, "codex")
 	p.flow.pairedThisRun = true
 	done := p.runControl()
 	ctl := p.waitFor("step 3", accepting("phone")).Control
-	if ctl.Phone != "pick" || ctl.Own != 1 || ctl.PhoneWhy != nil || ctl.Phones[0].ID != "dev-anna" || len(ctl.Phones) != 3 || ctl.Rule != "" || ctl.Link != "" {
+	if ctl.Phone != "pick" || ctl.PhoneWhy != nil || ctl.Phones[0].ID != "dev-anna" || len(ctl.Phones) != 3 || ctl.Rule != "" || ctl.Link != "" {
 		t.Fatalf("control = %+v", ctl)
 	}
 	if len(phones.sent) != 0 {
@@ -519,8 +516,7 @@ func TestSetupPagePhoneLinkTimesOut(t *testing.T) {
 	p.flow.pairedThisRun = true
 	done := p.runControl()
 	ctl := p.waitFor("step 3", accepting("phone")).Control
-	if ctl.Own != 2 || ctl.Phones[0].ID != "dev-ipad" || ctl.Phones[1].ID != "dev-markus" || ctl.Phone != "pick" { // no sign-in: the owner's phones
-
+	if ctl.Phones[0].ID != "dev-anna" || ctl.Phones[1].ID != "dev-ipad" || ctl.Phone != "pick" { // every phone in name order, none first
 		t.Fatalf("control = %+v", ctl)
 	}
 	p.click("phone", "dev-anna")
