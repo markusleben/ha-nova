@@ -63,7 +63,7 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain("**Disabling a lock's device is refused.**");
     // Household levels for chat apps (#900 and the NOVA page's list).
     expect(stableNotes).toContain("**Chat apps for everyone in your home.**");
-    // App 0.13.0 carries the 0.28.0 chat bridge; its tools changed, so ChatGPT needs a Refresh and Claude asks once more,
+    // App 0.13.1 carries the 0.28.0 chat bridge; its tools changed, so ChatGPT needs a Refresh and Claude asks once more,
     // and "Always allow" keeps its phone condition there too (0.28 review).
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
     expect(stableNotes).toContain("Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.");

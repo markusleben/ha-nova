@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.1] - 2026-10-30
+
+### Changed
+- Chat apps now confirm changes to Home Assistant's settings (for example renaming an entity) in Home Assistant's language too, and use Home Assistant's own German words, such as "Automation", "Backup", and "Benutzer". (#901)
+- Chat apps now run HA NOVA 0.28.0 with these changes.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.0 ask you to update this App.
+
 ## [Relay 0.13.0] - 2026-10-29
 
 ### Added
