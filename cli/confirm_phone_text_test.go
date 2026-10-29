@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -9,39 +10,39 @@ import (
 // Every notification: a short question, one line naming the computer, the
 // hint last; only a pending action is time-sensitive.
 func TestPhoneAskTexts(t *testing.T) {
-	host := "“" + phoneHost() + "”"
+	host := "“" + phoneHost("en") + "”"
 	requested := "Requested by " + host + "."
 	cases := []struct {
 		got                 phoneAsk
 		title, body, button string
 		urgent              bool
 	}{
-		{phoneLinkAsk(), "Get HA NOVA confirmations?", requested, "Allow", false},
-		{phoneChangeAsk(""), "Stop HA NOVA confirmations?", "After this, HA NOVA may ask in chat, where your AI assistant can answer. " + requested, "Stop", false},
-		{phoneChangeAsk("Anna’s Pixel"), "Move HA NOVA confirmations?", "New phone: “Anna's Pixel”. " + requested, "Move", false},
-		{phonePlanAsk([3]string{"Delete", "the automation “Night”"}, true), "Delete the automation “Night”?", "Can't be undone. " + requested, "Delete", true},
-		{phonePlanAsk([3]string{"Turn on", "“Guest mode”", "This also unlocks “Entrance Door” through the automation “Guest”"}, false),
+		{phoneLinkAsk("en"), "Get HA NOVA confirmations?", requested, "Allow", false},
+		{phoneChangeAsk("en", ""), "Stop HA NOVA confirmations?", "After this, HA NOVA may ask in chat, where your AI assistant can answer. " + requested, "Stop", false},
+		{phoneChangeAsk("en", "Anna’s Pixel"), "Move HA NOVA confirmations?", "New phone: “Anna's Pixel”. " + requested, "Move", false},
+		{phonePlanAsk("en", actionGoal{verb: "delete", frame: "automation", names: []string{"“Night”"}}, true), "Delete the automation “Night”?", "Can't be undone. " + requested, "Delete", true},
+		{phonePlanAsk("en", actionGoal{verb: "turn_on", names: []string{"“Guest mode”"}, why: "This also unlocks “Entrance Door” through the automation “Guest”"}, false),
 			"Turn on “Guest mode”?", "This also unlocks “Entrance Door” through the automation “Guest”. " + requested, "Turn on", true},
-		{phonePlanAsk([3]string{"Set the position of", "“Gate”", "This closes a gate"}, false), "Set the position of “Gate”?", "This closes a gate. " + requested, "Confirm", true},
-		{phonePlanAsk([3]string{"Cancel", "“Timer”"}, false), "Cancel “Timer”?", requested, "Confirm", true},
+		{phonePlanAsk("en", actionGoal{verb: "set_position", names: []string{"“Gate”"}, why: "This closes a gate"}, false), "Set the position of “Gate”?", "This closes a gate. " + requested, "Confirm", true},
+		{phonePlanAsk("en", actionGoal{label: "Cancel", names: []string{"“Timer”"}}, false), "Cancel “Timer”?", requested, "Confirm", true},
 	}
 	for _, c := range cases {
-		if c.got != (phoneAsk{c.title, c.body, c.button, c.urgent, !c.urgent}) { // link, move, stop need the unlocked phone
+		if c.got != (phoneAsk{"en", c.title, c.body, c.button, c.urgent, !c.urgent}) { // link, move, stop need the unlocked phone
 			t.Errorf("ask %+v, want %q %q %q %v", c.got, c.title, c.body, c.button, c.urgent)
 		}
 	}
 	// A long list keeps the first name and counts every other one; a cut name stays quoted.
 	name := "“" + strings.Repeat("Front Door Lock", 3) + "”"
-	title := phonePlanAsk([3]string{"Unlock", name + ", " + name + ", " + name + " and 4 more"}, false).title
+	title := phonePlanAsk("en", actionGoal{verb: "unlock", names: slices.Repeat([]string{name}, 7)}, false).title
 	if n := len([]rune(title)); n > phoneTitleLimit || title != "Unlock "+name+" and 6 more?" {
 		t.Errorf("long title %d %q", n, title)
 	}
 	long := "“" + strings.Repeat("x", 58) + "”"
-	title = phonePlanAsk([3]string{"Set the position of", long + ", " + long + " and " + long}, false).title
+	title = phonePlanAsk("en", actionGoal{verb: "set_position", names: []string{long, long, long}}, false).title
 	if n := len([]rune(title)); n > phoneTitleLimit || !strings.HasSuffix(title, "…” and 2 more?") {
 		t.Errorf("long names %d %q", n, title)
 	}
-	title = phonePlanAsk([3]string{"Unlock", strings.Repeat("x", 200)}, false).title
+	title = phonePlanAsk("en", actionGoal{verb: "unlock", names: []string{strings.Repeat("x", 200)}}, false).title
 	if n := len([]rune(title)); n > phoneTitleLimit || !strings.HasSuffix(title, "…?") {
 		t.Errorf("long name %d %q", n, title)
 	}
@@ -51,7 +52,7 @@ func TestPhoneAskTexts(t *testing.T) {
 // line of text: the fixed titles fit, and the hint (first there) is true
 // whether the buttons show (pop-up, opened) or not (collapsed).
 func TestPhoneTextsFitAndroid(t *testing.T) {
-	for _, ask := range []phoneAsk{phoneLinkAsk(), phoneChangeAsk(""), phoneChangeAsk("A very long phone name, Pixel 9 Pro XL")} {
+	for _, ask := range []phoneAsk{phoneLinkAsk("en"), phoneChangeAsk("en", ""), phoneChangeAsk("en", "A very long phone name, Pixel 9 Pro XL")} {
 		if n := len([]rune(ask.title)); n > 30 {
 			t.Errorf("title %q: %d characters", ask.title, n)
 		}
@@ -65,25 +66,25 @@ func TestPhoneTextsFitAndroid(t *testing.T) {
 		"Turn off":        "Tap “Turn off”. No button? Pull down.",
 		"Set temperature": "No buttons? Pull down to answer.", // a long verb would cut "Pull down"
 	} {
-		if got := phoneHint(phoneAndroid, button, false); got != want || len([]rune(got)) > 38 {
+		if got := phoneHint("en", phoneAndroid, button, false); got != want || len([]rune(got)) > 38 {
 			t.Errorf("android hint %q: %q", button, got)
 		}
 	}
-	if got := android(phoneLinkAsk()); got != "Tap “Allow”. No button? Pull down. "+phoneRequested() {
+	if got := android(phoneLinkAsk("en")); got != "Tap “Allow”. No button? Pull down. "+phoneRequested("en") {
 		t.Errorf("link %q", got)
 	}
 	// More to read (a hidden effect, no undo, the new phone): read it before a tap from the pop-up.
-	for _, ask := range []phoneAsk{phoneChangeAsk("Anna’s Pixel"), phoneChangeAsk(""), phonePlanAsk([3]string{"Delete", "the automation “Night”"}, true),
-		phonePlanAsk([3]string{"Turn on", "“Guest mode”", "This also unlocks “Entrance Door”"}, false)} {
+	for _, ask := range []phoneAsk{phoneChangeAsk("en", "Anna’s Pixel"), phoneChangeAsk("en", ""), phonePlanAsk("en", actionGoal{verb: "delete", frame: "automation", names: []string{"“Night”"}}, true),
+		phonePlanAsk("en", actionGoal{verb: "turn_on", names: []string{"“Guest mode”"}, why: "This also unlocks “Entrance Door”"}, false)} {
 		if got := android(ask); !strings.HasPrefix(got, "Read it all. No button? Pull down. ") {
 			t.Errorf("%q: %q", ask.title, got)
 		}
 	}
-	if got := phoneHint(phoneIOS, "Allow", true); got != "Press and hold to answer." {
+	if got := phoneHint("en", phoneIOS, "Allow", true); got != "Press and hold to answer." {
 		t.Errorf("ios hint %q", got)
 	}
 	// The move's new phone is in the text, so the old phone sees where it goes.
-	if got := android(phoneChangeAsk("Anna’s Pixel")); !strings.Contains(got, "New phone: “Anna's Pixel”.") {
+	if got := android(phoneChangeAsk("en", "Anna’s Pixel")); !strings.Contains(got, "New phone: “Anna's Pixel”.") {
 		t.Errorf("move text %q", got)
 	}
 }
@@ -108,7 +109,7 @@ func TestPhonePlanNamesTheHiddenEffect(t *testing.T) {
 		t.Fatalf("plan %+v exit %d %+v", plan, exit, env.Error)
 	}
 	if p.sent[0]["title"] != "Turn on “Guest mode”?" ||
-		p.sent[0]["message"] != "This also unlocks “Entrance Door” through the automation “Guest mode unlocks”. Requested by “"+phoneHost()+"”. "+phoneHint("", "Turn on", true) {
+		p.sent[0]["message"] != "This also unlocks “Entrance Door” through the automation “Guest mode unlocks”. Requested by “"+phoneHost("en")+"”. "+phoneHint("en", "", "Turn on", true) {
 		t.Fatalf("notification %q / %q", p.sent[0]["title"], p.sent[0]["message"])
 	}
 }
@@ -139,7 +140,7 @@ func TestPhonePlanSkipsTheTargetsOwnReason(t *testing.T) {
 	plan := h.plan("lock.unlock", "lock.yaml").Plan
 	p.answer = func(_, no string) []phoneEvent { return []phoneEvent{tap(no, "owner-id", "REMOTE")} }
 	if exit, _ := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || len(p.sent) == 0 ||
-		p.sent[0]["title"] != "Unlock “Front Door”?" || p.sent[0]["message"] != "Requested by “"+phoneHost()+"”. "+phoneHint("", "Unlock", false) {
+		p.sent[0]["title"] != "Unlock “Front Door”?" || p.sent[0]["message"] != "Requested by “"+phoneHost("en")+"”. "+phoneHint("en", "", "Unlock", false) {
 		t.Fatalf("exit %d sent %v", exit, p.sent)
 	}
 }
@@ -161,7 +162,7 @@ func TestPhoneApplyResult(t *testing.T) {
 		{verbEnvelope{}, verbExitRefused, "Not done: X"},
 	}
 	for _, c := range cases {
-		if prefix, _ := phoneApplyResult(c.env, c.exit); prefix+": X" != c.title {
+		if prefix, _ := phoneApplyResult("en", c.env, c.exit); prefix+": X" != c.title {
 			t.Errorf("%+v %d: %q, want %q", c.env, c.exit, prefix, c.title)
 		}
 	}
@@ -176,8 +177,8 @@ func TestPhoneStopSaysWhereWhyShows(t *testing.T) {
 		want string
 	}{{nil, "The computer says why."}, {&chatPolicy{codes: true}, "The chat says why."}} {
 		chatCall = c.chat
-		_, tapped := phoneNothing(phoneConfirmed)
-		_, refused := phoneApplyResult(verbEnvelope{}, verbExitRefused)
+		_, tapped := phoneNothing("en", phoneConfirmed)
+		_, refused := phoneApplyResult("en", verbEnvelope{}, verbExitRefused)
 		for _, line := range []string{tapped, refused} {
 			if !strings.HasSuffix(line, "Nothing changed. "+c.want) {
 				t.Errorf("chat %v: %q, want it to end %q", c.chat != nil, line, c.want)
@@ -218,16 +219,37 @@ func TestPhonePlanKeepsADirectRiskTheTitleDoesNotSay(t *testing.T) {
 // The result keeps the count; a name can't fake "and N more"; dismissing verbs are Confirm.
 func TestPhoneResultTitleAndButtons(t *testing.T) {
 	name := "“" + strings.Repeat("Front Door Lock", 3) + "”"
-	if got := phoneResultTitle("Unclear", [3]string{"Unlock", name + ", " + name + ", " + name + " and 4 more"}); got != "Unclear: Unlock "+name+" and 6 more" {
+	if got := phoneResultTitle("en", "Unclear", actionGoal{verb: "unlock", names: slices.Repeat([]string{name}, 7)}); got != "Unclear: Unlock "+name+" and 6 more" {
 		t.Errorf("result title %q", got)
 	}
 	long := "“" + strings.Repeat("x", 58) + "”"
-	if got := phoneTitle("Set the position of", long+" and “B and -1 more”"); !strings.HasSuffix(got, "” and 1 more?") {
+	if got := (actionGoal{verb: "set_position", names: []string{long, "“B and -1 more”"}}).title("en", ""); !strings.HasSuffix(got, "” and 1 more?") {
 		t.Errorf("a name steered the count: %q", got)
 	}
-	for _, verb := range []string{"Close", "Stop", "Cancel"} {
-		if phoneButton(verb) != "Confirm" {
-			t.Errorf("button %q", verb)
+	for _, verb := range []actionGoal{{verb: "close"}, {verb: "stop"}, {label: "Cancel"}} {
+		if verb.button("en") != "Confirm" {
+			t.Errorf("button %+v", verb)
 		}
+	}
+}
+
+// A raw step's list of targets is counted in a long title like any names;
+// quoted values that are no list stay one name, cut.
+func TestRawTitleCountsItsList(t *testing.T) {
+	listed := []string{"“sensor.kitchen_energy_total”", "“sensor.living_room_energy_total”", "“sensor.bedroom_energy_total”", "“sensor.office_energy_total”"}
+	goal := actionGoal{label: "Delete", names: rawNames("the long-term statistics of "+sayList("en", listed), listed)}
+	if got := goal.title("en", ""); got != "Delete the long-term statistics of “sensor.kitchen_energy_total” and 3 more?" {
+		t.Fatalf("title = %q", got)
+	}
+	if got := goal.title("en", "Done"); !strings.HasPrefix(got, "Done: Delete the long-term statistics of “sensor.") || !strings.HasSuffix(got, "” and 3 more") {
+		t.Fatalf("result title = %q", got)
+	}
+	short := []string{"“A”", "“B”"}
+	if got := (actionGoal{label: "Delete", names: rawNames("the statistics of "+sayList("en", short), short)}).title("en", ""); got != "Delete the statistics of “A” and “B”?" {
+		t.Fatalf("short title = %q", got)
+	}
+	fields := "the entity “Desk”: name “" + strings.Repeat("Long name ", 8) + "”, area “Office”"
+	if got := rawNames(fields, []string{"“Desk”"}); len(got) != 1 || got[0] != fields {
+		t.Fatalf("names = %q", got)
 	}
 }

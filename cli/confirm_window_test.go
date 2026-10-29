@@ -51,8 +51,8 @@ func TestWindowPlanConfirmsInTheWindow(t *testing.T) {
 	w := useWindow(t, windowCancelled, windowNoAnswer, windowClosed, windowConfirmed)
 	env := h.plan("lock.unlock", "lock.front")
 	plan := env.Plan
-	if plan.Channel != channelWindow || plan.Code != "" || !strings.HasSuffix(env.Say, sayWindowAsk) ||
-		strings.Contains(env.Say, "one-time code") || strings.Contains(env.Say, sayChatNote) ||
+	if plan.Channel != channelWindow || plan.Code != "" || !strings.HasSuffix(env.Say, sayWindowAsk("en")) ||
+		strings.Contains(env.Say, "one-time code") || strings.Contains(env.Say, sayChatNote("en")) ||
 		!strings.Contains(env.NextStep, "apply --plan "+plan.ID+" without --confirm") || !strings.Contains(env.NextStep, "Never ask for a code") ||
 		strings.Contains(env.NextStep, "HA_NOVA_SERVER") {
 		t.Fatalf("window plan: %+v say %q", plan, env.Say)
@@ -81,7 +81,7 @@ func TestWindowPlanConfirmsInTheWindow(t *testing.T) {
 		t.Fatalf("confirm: exit %d %+v posts %d", exit, applied, len(h.posts()))
 	}
 	if !strings.HasPrefix(w.messages[0], "I'm about to unlock “lock.front”") || !strings.Contains(w.messages[0], "so I need you to confirm it. Nothing has run yet.") ||
-		!strings.HasSuffix(w.messages[0], windowAsked) || strings.Contains(w.messages[0], code) {
+		!strings.HasSuffix(w.messages[0], windowAsked("en")) || strings.Contains(w.messages[0], code) {
 		t.Fatalf("window text: %q", w.messages[0])
 	}
 }
@@ -135,7 +135,7 @@ func TestWindowOpenFailureFallsBackToChat(t *testing.T) {
 	old := h.plan("lock.unlock", "lock.front").Plan
 	exit, env := h.run(runApplyCommand, "--plan", old.ID)
 	if exit != 3 || env.Status != "needs_confirmation" || env.Plan == nil || env.Plan.Code == "" || env.Plan.Channel != channelChat ||
-		!strings.HasPrefix(env.Say, "The confirmation window couldn't open on this computer. ") || !strings.HasSuffix(env.Say, "\n"+sayChatNote+sayCodeBlock(env.Plan.Code)) ||
+		!strings.HasPrefix(env.Say, "The confirmation window couldn't open on this computer. ") || !strings.HasSuffix(env.Say, "\n"+sayChatNote("en")+sayCodeBlock("en", env.Plan.Code)) ||
 		!strings.Contains(env.Say, "I'm about to unlock “lock.front”") || !strings.Contains(env.NextStep, "apply --confirm <the user's text> --plan "+env.Plan.ID) || len(h.posts()) != 0 {
 		t.Fatalf("fallback: exit %d %+v", exit, env)
 	}

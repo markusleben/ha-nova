@@ -63,7 +63,7 @@ type verbEnvelope struct {
 	Error        *verbError      `json:"error,omitempty"`
 	Notices      []verbNotice    `json:"notices,omitempty"`
 	exit         int             // success exit code; 0 unless a verb sets it (plan: 3)
-	ask          [3]string       // a typed plan's phone question: verb, object, reason (sayAsk)
+	ask          actionGoal      // a typed plan's phone question: its goal and the reasons the title doesn't say (sayAsk)
 	done         string          // what a config or rooms apply did, for its result line (resultSay)
 }
 

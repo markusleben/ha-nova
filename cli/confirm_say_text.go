@@ -7,116 +7,97 @@ import (
 	"strings"
 	"time"
 	"unicode"
-	"unicode/utf8"
 )
 
-// Wording and defanging helpers of the confirmation text (confirm_say.go).
+// Wording and defanging helpers of the confirmation text (confirm_say.go),
+// in the plan's language (confirmT).
 
-// sayData: the values a call sets, once, when no single-target delta shows them.
-func sayData(data map[string]any) string {
+// sayWithData: the action and the values a call sets, once, when no
+// single-target delta shows them ("turn on “Hall” with brightness 50").
+func sayWithData(lang, action string, data map[string]any) string {
 	var parts, flags []string
 	for _, key := range sortedKeys(data) {
-		if flag, ok := sayFlag(key, data[key]); ok {
+		if flag, ok := sayFlag(lang, key, data[key]); ok {
 			flags = append(flags, ", "+flag)
 			continue
 		}
-		parts = append(parts, sayValue(key)+" "+sayValue(deltaValue(data[key])))
+		parts = append(parts, confirmT(lang, "say.data_item", "field", sayValue(key), "value", sayValue(deltaValue(data[key]))))
 	}
-	out := ""
 	if len(parts) > 0 {
-		out = " with " + strings.Join(parts, ", ")
+		action = confirmT(lang, "say.with_data", "action", action, "data", strings.Join(parts, ", "))
 	}
-	return out + strings.Join(flags, "")
+	return action + strings.Join(flags, "")
 }
 
 // sayFlag: a true/false field in plain words ("with a backup first"), never
 // "backup set to true"; ok is false for any value that isn't a real bool
 // (a text set to "true" stays a text).
-func sayFlag(field string, value any) (string, bool) {
+func sayFlag(lang, field string, value any) (string, bool) {
 	on, ok := value.(bool)
 	words := strings.ReplaceAll(sayText(field, false), "_", " ")
+	is, isField := strings.CutPrefix(words, "is ") // is_volume_muted: "volume muted: yes"
 	switch {
 	case !ok:
 		return "", false
 	case field == "backup" && on:
-		return "with a backup first", true
+		return confirmT(lang, "say.flag.backup"), true
 	case field == "backup":
-		return "without a backup", true
-	case strings.HasPrefix(words, "is "): // is_volume_muted: "volume muted: yes"
-		return map[bool]string{true: strings.TrimPrefix(words, "is ") + ": yes", false: strings.TrimPrefix(words, "is ") + ": no"}[on], true
+		return confirmT(lang, "say.flag.no_backup"), true
+	case isField && on:
+		return confirmT(lang, "say.flag.is_yes", "field", is), true
+	case isField:
+		return confirmT(lang, "say.flag.is_no", "field", is), true
 	case on:
-		return "with " + words + " on", true
+		return confirmT(lang, "say.flag.on", "field", words), true
 	}
-	return "with " + words + " off", true
+	return confirmT(lang, "say.flag.off", "field", words), true
 }
 
-func sayMore(n int, rest string) string {
-	if n == 1 {
-		return "There is 1 more thing " + strings.Replace(rest, "need ", "needs ", 1)
+// sayMore counts the reasons left out (typed: those that need the user's
+// confirmation).
+func sayMore(lang string, n int, typed bool) string {
+	if typed {
+		return confirmT(lang, "say.more_typed", "count", n)
 	}
-	return fmt.Sprintf("There are %d more things %s", n, rest)
+	return confirmT(lang, "say.more", "count", n)
 }
 
-var sayVerbs = map[string]string{
-	"turn_on": "Turn on", "turn_off": "Turn off", "open_cover": "Open", "close_cover": "Close", "stop_cover": "Stop",
-	"set_cover_position": "Set the position of", "alarm_disarm": "Disarm", "alarm_trigger": "Set off", "press": "Press",
-	"trigger": "Run", "set_value": "Set", "select_option": "Set",
-}
-
-// sayAsk: a typed plan's phone question — the goal's verb and object, and
-// the first reason it needs a confirmation that the title doesn't already
-// say (an automation that also unlocks, a device sibling, an unseen effect),
-// all of them.
+// sayAsk: a typed plan's phone question — the goal, and the first reason
+// it needs a confirmation that the title doesn't already say (an automation
+// that also unlocks, a device sibling, an unseen effect), all of them.
 // Said: the one target's own action ("This unlocks a door"), and then also
 // that HA NOVA can't see what that target does; never a reason via another item.
-func sayAsk(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) [3]string {
+func sayAsk(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) actionGoal {
 	if plan.Kind == "raw" {
 		return rawAsk(e, env, plan)
 	}
-	verb, object := sayGoal(e, env, plan, subject)
+	lang := textLang(plan)
+	goal := sayGoal(e, env, plan, subject)
 	domain, _ := splitID(plan.Action.Service)
 	// phrased: the title already says this effect — only "Unlock"/"Open" a
 	// lock and "Disarm" the alarm; a wiping button or a garage cover keeps its line.
 	own := func(r tierReason) (mine, phrased bool) {
-		phrase, _, ok := sayActionPhrase(e, env, r)
+		phrase, _, ok := sayActionPhrase(lang, e, env, r)
 		target, _ := splitID(r.EntityID)
-		mine = r.Via == "" && slices.Equal(plan.Action.EntityIDs, []string{r.EntityID}) && phoneButton(verb) != "Confirm"
-		return mine, ok && domain == target && (r.Code == reasonAccessLock || r.Code == reasonAccessAlarm) && strings.HasPrefix(phrase.verb, strings.ToLower(verb))
+		mine = r.Via == "" && slices.Equal(plan.Action.EntityIDs, []string{r.EntityID}) && goal.ownButton(lang) != ""
+		return mine, ok && domain == target && (r.Code == reasonAccessLock || r.Code == reasonAccessAlarm) && phrase.named
 	}
 	named := slices.ContainsFunc(env.Reasons, func(r tierReason) bool { mine, phrased := own(r); return mine && phrased })
 	var why []string // every distinct risk the title doesn't say
 	for _, r := range env.Reasons {
-		text, typed := sayReason(e, env, plan, r)
+		text, typed := sayReason(lang, e, env, plan, r)
 		mine, phrased := own(r)
 		if typed && text != "" && !(mine && (phrased || named && sayUnseenCodes[r.Code])) && !slices.Contains(why, text) {
 			why = append(why, text)
 		}
 	}
-	return [3]string{verb, object, strings.Join(why, ". ")}
+	goal.why = strings.Join(why, ". ")
+	return goal
 }
 
-// sayGoalText: sayGoal as one phrase, "Unlock “Front Door”".
-func sayGoalText(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) string {
-	verb, object := sayGoal(e, env, plan, subject)
-	return verb + " " + object
-}
-
-func sayVerb(name string) string {
-	if v := sayVerbs[name]; v != "" {
-		return v
-	}
-	if strings.HasPrefix(name, "alarm_arm_") {
-		return "Arm"
-	}
-	words := []rune(strings.ReplaceAll(name, "_", " "))
-	if len(words) == 0 {
-		return "Run"
-	}
-	return string(unicode.ToUpper(words[0])) + string(words[1:])
-}
-
-// sayCoverVerb: only a direction the call proves is named; a position
-// change of unknown direction stays "sets the position of".
+// sayCoverVerb: the phrase (sayPhraseText) of a cover action; only a
+// direction the call proves is named, and a position change of unknown
+// direction stays "sets the position of".
 func sayCoverVerb(name string, data map[string]any, st *entityState) string {
 	switch name {
 	case "open_cover":
@@ -137,9 +118,58 @@ func sayCoverVerb(name string, data map[string]any, st *entityState) string {
 	return "acts on"
 }
 
+// sayPhraseText: what an action does to object, as the reason clauses say
+// it ("unlocks “Front Door”"); act is the English phrase, used as an id.
+func sayPhraseText(lang, act, object string) string {
+	switch act {
+	case "unlocks":
+		return confirmT(lang, "phrase.unlocks", "object", object)
+	case "opens":
+		return confirmT(lang, "phrase.opens", "object", object)
+	case "acts on":
+		return confirmT(lang, "phrase.acts_on", "object", object)
+	case "disarms":
+		return confirmT(lang, "phrase.disarms", "object", object)
+	case "closes":
+		return confirmT(lang, "phrase.closes", "object", object)
+	case "opens or closes":
+		return confirmT(lang, "phrase.opens_or_closes", "object", object)
+	case "sets the position of":
+		return confirmT(lang, "phrase.sets_position", "object", object)
+	case "presses":
+		return confirmT(lang, "phrase.presses", "object", object)
+	case "restarts":
+		return confirmT(lang, "phrase.restarts", "object", object)
+	case "stops":
+		return confirmT(lang, "phrase.stops", "object", object)
+	case "sounds":
+		return confirmT(lang, "phrase.sounds", "object", object)
+	case "silences":
+		return confirmT(lang, "phrase.silences", "object", object)
+	case "sounds or silences":
+		return confirmT(lang, "phrase.sounds_or_silences", "object", object)
+	case "sets off":
+		return confirmT(lang, "phrase.sets_off", "object", object)
+	}
+	panic("confirm say: unknown phrase " + act)
+}
+
+// sayCoverNoun: what a cover is, as far as its device class tells.
+func sayCoverNoun(lang string, st *entityState) string {
+	switch st.str("device_class") {
+	case "garage":
+		return confirmT(lang, "noun.garage")
+	case "gate":
+		return confirmT(lang, "noun.gate")
+	case "door":
+		return confirmT(lang, "noun.door")
+	}
+	return confirmT(lang, "noun.cover_maybe")
+}
+
 // sayButtonNoun names what a disruptive button does only as far as its
 // device class or name proves; a plain "reset" stays unspecific.
-func sayButtonNoun(entityID string, st *entityState) string {
+func sayButtonNoun(lang, entityID string, st *entityState) string {
 	tokens := " " + strings.Join(strings.FieldsFunc(strings.ToLower(entityID+" "+st.str("friendly_name")), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 	}), " ") + " "
@@ -153,13 +183,13 @@ func sayButtonNoun(entityID string, st *entityState) string {
 	}
 	switch dc := st.str("device_class"); {
 	case dc == "restart" || has("restart", "reboot"):
-		return "a button that restarts a device"
+		return confirmT(lang, "noun.restart_button")
 	case dc == "update":
-		return "a button that starts a device update"
+		return confirmT(lang, "noun.update_button")
 	case has("shutdown", "poweroff", "shut down", "power off"):
-		return "a button that switches a device off"
+		return confirmT(lang, "noun.off_button")
 	}
-	return "a reset button (HA NOVA can't tell what it resets)"
+	return confirmT(lang, "noun.reset_button")
 }
 
 // sayPlainValue: a short token (state, number, unit) needs no quotes.
@@ -207,17 +237,6 @@ func sayText(s string, quote bool) string {
 	return "“" + s + "”"
 }
 
-// sayList: “A”, “B” and “C”, or the first three and "N more".
-func sayList(names []string) string {
-	if len(names) > 3 {
-		return strings.Join(names[:3], ", ") + fmt.Sprintf(" and %d more", len(names)-3)
-	}
-	if len(names) <= 1 {
-		return strings.Join(names, "")
-	}
-	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
-}
-
 func appendUnique(list []string, s string) []string {
 	for _, have := range list {
 		if have == s {
@@ -227,45 +246,8 @@ func appendUnique(list []string, s string) []string {
 	return append(list, s)
 }
 
-// sayDeviceSibling: "“Gate relay” is on the same device as “Gate” (a gate):
-// switching it on may open it". Detail names the access entity.
-func sayDeviceSibling(e *tierEngine, env *verbEnvelope, r tierReason, subject string) string {
-	action := ""
-	for _, m := range env.Members {
-		if m.EntityID == r.EntityID && m.Via == r.Via {
-			action = m.Action
-		}
-	}
-	if action == "" && env.Action != nil {
-		domain, _ := splitID(r.EntityID)
-		action = effectiveService(env.Action.Service, domain)
-	}
-	_, name := splitID(action)
-	doing := map[string]string{"press": "pressing it", "turn_on": "switching it on", "toggle": "switching it on"}[name]
-	found, other, effect := r.Detail, "a lock, alarm, or door", "may open it"
-	if doing == "" {
-		doing, effect = "opening it", "may also open it"
-	}
-	domain, _ := splitID(found)
-	switch domain {
-	case "lock":
-		other, effect = "a lock", "may unlock it"
-	case "alarm_control_panel":
-		other, effect = "an alarm", "may disarm it"
-	case "cover":
-		other = map[string]string{"garage": "a garage door", "gate": "a gate", "door": "a door"}[e.states[found].str("device_class")]
-		if other == "" {
-			other = "a cover that may be a door, gate, or garage"
-		}
-	}
-	if !entityIDPattern.MatchString(found) {
-		return subject + " is on the same device as " + other + ": " + doing + " " + effect
-	}
-	return subject + " is on the same device as " + sayText(e.sayName(env, found), true) + " (" + other + "): " + doing + " " + effect
-}
-
 // sayOwnedAction words a Supervisor or raw-MQTT step after what it does.
-func sayOwnedAction(env *verbEnvelope, r tierReason) string {
+func sayOwnedAction(lang string, env *verbEnvelope, r tierReason) string {
 	action := ""
 	if env.Action != nil && r.Via == "" {
 		action = env.Action.Service
@@ -278,26 +260,26 @@ func sayOwnedAction(env *verbEnvelope, r tierReason) string {
 	_, name := splitID(action)
 	switch {
 	case action == "mqtt.publish":
-		return "sends a raw MQTT message"
+		return confirmT(lang, "owned.mqtt")
 	case action == "conversation.process":
-		return "sends a sentence to Assist that can control any device it understands"
+		return confirmT(lang, "owned.assist")
 	case action == "recorder.purge" || action == "recorder.purge_entities":
-		return "permanently deletes recorder history, which can't be undone"
+		return confirmT(lang, "owned.purge")
 	case name == "host_shutdown":
-		return "shuts down the machine Home Assistant runs on"
+		return confirmT(lang, "owned.host_shutdown")
 	case name == "host_reboot":
-		return "restarts the machine Home Assistant runs on"
+		return confirmT(lang, "owned.host_reboot")
 	case strings.HasPrefix(name, "restore_"):
-		return "restores a backup over the current setup"
+		return confirmT(lang, "owned.restore")
 	case strings.HasPrefix(name, "addon_"):
-		return "starts, stops, or changes an App"
+		return confirmT(lang, "owned.app")
 	}
-	return "runs a Supervisor action"
+	return confirmT(lang, "owned.supervisor")
 }
 
 // sayOwnedEffect words a step another skill owns after what it does
-// ("sends a notification"); the reason names the step's item.
-func sayOwnedEffect(env *verbEnvelope, r tierReason) string {
+// ("sends a message"); the reason names the step's item.
+func sayOwnedEffect(lang string, env *verbEnvelope, r tierReason) string {
 	action := ""
 	for _, m := range env.Members {
 		if m.EntityID == r.EntityID && m.Via == r.Via {
@@ -307,29 +289,29 @@ func sayOwnedEffect(env *verbEnvelope, r tierReason) string {
 	domain, _ := splitID(action)
 	switch { // neutral per domain: one word fits every service in it
 	case domain == "notify": // a phone command rides on a notify call too
-		return "sends a message"
+		return confirmT(lang, "effect.notify")
 	case domain == "persistent_notification":
-		return "shows or clears a notification in Home Assistant"
+		return confirmT(lang, "effect.persistent_notification")
 	case action == "tts.clear_cache":
-		return "clears saved speech audio"
+		return confirmT(lang, "effect.tts_clear")
 	case domain == "tts":
-		return "speaks on a speaker"
+		return confirmT(lang, "effect.tts")
 	case domain == "media_player":
-		return "controls a speaker or screen"
+		return confirmT(lang, "effect.media")
 	case domain == "camera":
-		return "controls a camera"
+		return confirmT(lang, "effect.camera")
 	case domain == "calendar":
-		return "changes a calendar"
+		return confirmT(lang, "effect.calendar")
 	case domain == "todo":
-		return "changes a to-do list"
+		return confirmT(lang, "effect.todo")
 	case domain == "backup":
-		return "makes a backup"
+		return confirmT(lang, "effect.backup")
 	case domain == "update":
-		return "acts on an update"
+		return confirmT(lang, "effect.update")
 	case action == "logger.set_level":
-		return "changes how much Home Assistant logs"
+		return confirmT(lang, "effect.logger")
 	}
-	return "runs another step"
+	return confirmT(lang, "effect.other")
 }
 
 // directOwnedCall: the reason is the call itself, made from its owning
@@ -366,21 +348,18 @@ var sayPlainDomains = map[string]bool{"lock": true, "cover": true, "alarm_contro
 // sayUnseen: "HA NOVA can't see what “X” does" ("…can't check how “X”
 // works" for a lock, cover, alarm, or valve); reached through an item, that
 // item leads ("This automation uses “X”, and …").
-func sayUnseen(name, via string, plain bool) string {
-	unseen := "HA NOVA can't see what " + name + " does"
-	that := "HA NOVA can't see what that does"
-	if plain {
-		unseen = "HA NOVA can't check how " + name + " works"
-		that = "HA NOVA can't check how that works"
-	}
+func sayUnseen(lang, name, via string, plain bool) string {
 	switch {
 	case name == "" && via == "":
-		return "HA NOVA can't check everything this would set off"
+		return confirmT(lang, "unseen.all")
 	case name == "":
-		return "HA NOVA can't check everything " + via + " would set off"
+		return confirmT(lang, "unseen.all_via", "via", via)
+	case via == "" && plain:
+		return confirmT(lang, "unseen.how", "name", name)
 	case via == "":
-		return unseen
+		return confirmT(lang, "unseen.what", "name", name)
+	case plain:
+		return confirmT(lang, "unseen.how_via", "via", upperFirst(via), "name", name)
 	}
-	first, size := utf8.DecodeRuneInString(via)
-	return string(unicode.ToUpper(first)) + via[size:] + " uses " + name + ", and " + that
+	return confirmT(lang, "unseen.what_via", "via", upperFirst(via), "name", name)
 }

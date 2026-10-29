@@ -11,7 +11,7 @@ import (
 // chatAsk closes a chat plan's say, pinned literally: the note on its own
 // line, a blank line, then the lead and the bold code (a hard line break)
 // as the last line. CODE stands for plan.code.
-const chatAsk = "\n" + sayChatNote + "\n\nTo go ahead, type this code:  \n**CODE**"
+var chatAsk = "\n" + sayChatNote("en") + "\n\nTo go ahead, type this code:  \n**CODE**"
 
 // The confirmation text (`say`) per tier and reason: plain, named by
 // friendly name, the code only on the typed tier, no paths or rule files.
@@ -250,7 +250,7 @@ func TestConfirmationSayDelete(t *testing.T) {
 	}
 	h.f.ent("light.tpl", "template", "off", map[string]any{"friendly_name": "Desk"})
 	_, unread := h.run(runPlanCommand, "write", "--domain", "automation", "--file", draftFile(t, map[string]any{"alias": "Desk", "actions": []any{step("light.turn_on", "light.tpl")}}))
-	if !strings.HasPrefix(unread.Say, "I'm about to create the automation “Desk”. This automation uses “Desk”, and HA NOVA can't see what that does, so I need you to confirm it. Nothing is saved yet.\n"+sayChatNote+"\n\nTo go ahead, type this code:  \n**") {
+	if !strings.HasPrefix(unread.Say, "I'm about to create the automation “Desk”. This automation uses “Desk”, and HA NOVA can't see what that does, so I need you to confirm it. Nothing is saved yet.\n"+sayChatNote("en")+"\n\nTo go ahead, type this code:  \n**") {
 		t.Fatalf("unread member say %q", unread.Say)
 	}
 	_, natural := h.run(runPlanCommand, "write", "--domain", "automation", "--file", draftFile(t, map[string]any{"alias": "Hall", "actions": []any{step("light.turn_on", "light.hall")}}))
@@ -277,7 +277,7 @@ func TestConfirmationSayCoversEveryPlanReason(t *testing.T) {
 	e := newTierEngine(nil)
 	env := &verbEnvelope{Action: &planAction{Service: "light.turn_on"}}
 	for _, row := range rows {
-		text, typed := sayReason(e, env, storedPlan{}, tierReason{Code: row[1], EntityID: "light.x"})
+		text, typed := sayReason("en", e, env, storedPlan{}, tierReason{Code: row[1], EntityID: "light.x"})
 		if strings.HasPrefix(row[1], "CONFIG_WRITE") || row[1] == reasonConfigRevert || row[1] == reasonConfigRestore || row[1] == reasonAreaAssign {
 			continue // the what line says it; no extra clause
 		}
@@ -298,18 +298,18 @@ func TestConfirmationSayNamesMemberSubjects(t *testing.T) {
 		reasonSwitchAsX:    "“Gate relay” works a lock or a door, through the automation “Guest”",
 		reasonDeviceAccess: "“Gate relay” is on a device that also has a lock, alarm, or door, through the automation “Guest”",
 	} {
-		if got, typed := sayReason(e, env, storedPlan{}, tierReason{Code: code, EntityID: "switch.gate", Via: "automation.guest/actions/0"}); got != want || !typed {
+		if got, typed := sayReason("en", e, env, storedPlan{}, tierReason{Code: code, EntityID: "switch.gate", Via: "automation.guest/actions/0"}); got != want || !typed {
 			t.Errorf("%s: %q typed %v", code, got, typed)
 		}
 	}
 	// Matched only because neither has a device: not proven.
 	e.reg["switch.gate"] = registryEntry{pl: "shelly"}
-	if got, _ := sayReason(e, env, storedPlan{}, tierReason{Code: reasonSwitchAsX, EntityID: "switch.gate"}); got != "“Gate relay” may work a lock or a door" {
+	if got, _ := sayReason("en", e, env, storedPlan{}, tierReason{Code: reasonSwitchAsX, EntityID: "switch.gate"}); got != "“Gate relay” may work a lock or a door" {
 		t.Errorf("device-less switch: %q", got)
 	}
 	// A Supervisor step is named for what it does, never as "an App".
 	env.Members = []tierMember{{Action: "hassio.host_shutdown", Via: "script.bye/sequence/0", Class: "typed"}}
-	if got, _ := sayReason(e, env, storedPlan{}, tierReason{Code: reasonOwnedTypedMember, Via: "script.bye/sequence/0"}); got != "This also shuts down the machine Home Assistant runs on, which HA NOVA can't check, through the script “script.bye”" {
+	if got, _ := sayReason("en", e, env, storedPlan{}, tierReason{Code: reasonOwnedTypedMember, Via: "script.bye/sequence/0"}); got != "This also shuts down the machine Home Assistant runs on, which HA NOVA can't check, through the script “script.bye”" {
 		t.Errorf("host shutdown: %q", got)
 	}
 }
@@ -351,10 +351,10 @@ func TestConfirmationSayDirectionAndEffect(t *testing.T) {
 		{sayCoverVerb("set_cover_position", map[string]any{"position": 40.0}, st("open", nil)), "sets the position of"},
 		{sayCoverVerb("set_cover_position", map[string]any{"position": 0.0}, st("open", nil)), "closes"},
 		{sayCoverVerb("stop_cover", nil, nil), "acts on"},
-		{sayButtonNoun("button.filter_reset", st("unknown", map[string]any{"friendly_name": "Filter reset"})), "a reset button (HA NOVA can't tell what it resets)"},
-		{sayButtonNoun("button.nas_reboot", st("unknown", nil)), "a button that restarts a device"},
-		{sayButtonNoun("button.fw", st("unknown", map[string]any{"device_class": "update"})), "a button that starts a device update"},
-		{sayButtonNoun("button.pc", st("unknown", map[string]any{"friendly_name": "PC power off"})), "a button that switches a device off"},
+		{sayButtonNoun("en", "button.filter_reset", st("unknown", map[string]any{"friendly_name": "Filter reset"})), "a reset button (HA NOVA can't tell what it resets)"},
+		{sayButtonNoun("en", "button.nas_reboot", st("unknown", nil)), "a button that restarts a device"},
+		{sayButtonNoun("en", "button.fw", st("unknown", map[string]any{"device_class": "update"})), "a button that starts a device update"},
+		{sayButtonNoun("en", "button.pc", st("unknown", map[string]any{"friendly_name": "PC power off"})), "a button that switches a device off"},
 	} {
 		if tc.got != tc.want {
 			t.Errorf("got %q, want %q", tc.got, tc.want)
@@ -364,25 +364,25 @@ func TestConfirmationSayDirectionAndEffect(t *testing.T) {
 	for state, want := range map[string]string{"on": "This silences a siren", "off": "This sounds a siren", "unknown": "This sounds or silences a siren"} {
 		e.states["siren.hall"] = st(state, nil)
 		env := &verbEnvelope{Action: &planAction{Service: "siren.toggle"}}
-		if got, _ := sayReason(e, env, storedPlan{}, tierReason{Code: reasonDisruptive, EntityID: "siren.hall"}); got != want {
+		if got, _ := sayReason("en", e, env, storedPlan{}, tierReason{Code: reasonDisruptive, EntityID: "siren.hall"}); got != want {
 			t.Errorf("siren %s: %q", state, got)
 		}
 	}
 	scene := tierReason{Code: reasonSceneAccess, EntityID: "scene.hue"}
 	e.states["scene.hue"] = st("scening", map[string]any{"friendly_name": "Evening"})
-	if got, _ := sayReason(e, &verbEnvelope{}, storedPlan{}, scene); got != "HA NOVA can't read the scene “Evening”, and its integration also controls locks, alarms, gates, or doors" {
+	if got, _ := sayReason("en", e, &verbEnvelope{}, storedPlan{}, scene); got != "HA NOVA can't read the scene “Evening”, and its integration also controls locks, alarms, gates, or doors" {
 		t.Errorf("scene access: %q", got)
 	}
-	if got, _ := sayReason(e, &verbEnvelope{}, storedPlan{Action: planAction{EntityIDs: []string{"light.a", "light.b"}}}, tierReason{Code: reasonExpanded, Via: "area"}); got != "This acts on 2 devices at once" {
+	if got, _ := sayReason("en", e, &verbEnvelope{}, storedPlan{Action: planAction{EntityIDs: []string{"light.a", "light.b"}}}, tierReason{Code: reasonExpanded, Via: "area"}); got != "This acts on 2 devices at once" {
 		t.Errorf("expanded: %q", got)
 	}
 }
 
 func TestConfirmationSayCounts(t *testing.T) {
-	if got := sayMore(1, "that need your confirmation; the preview lists them"); got != "There is 1 more thing that needs your confirmation; the preview lists them" {
+	if got := sayMore("en", 1, true); got != "There is 1 more thing that needs your confirmation; the preview lists them" {
 		t.Error(got)
 	}
-	if got := sayMore(3, "the preview lists"); got != "There are 3 more things the preview lists" {
+	if got := sayMore("en", 3, false); got != "There are 3 more things the preview lists" {
 		t.Error(got)
 	}
 }
@@ -397,12 +397,12 @@ func TestConfirmationSayDeviceSibling(t *testing.T) {
 	e.states["automation.guest"] = &entityState{Attributes: map[string]any{"friendly_name": "Guest"}}
 	env := &verbEnvelope{Action: &planAction{Service: "input_boolean.turn_on"},
 		Members: []tierMember{{EntityID: "switch.relay", Action: "switch.turn_on", Via: "automation.guest/actions/0", Class: "typed"}}}
-	got, typed := sayReason(e, env, storedPlan{}, tierReason{Code: reasonDeviceAccessSibling, EntityID: "switch.relay", Via: "automation.guest/actions/0", Detail: "cover.gate"})
+	got, typed := sayReason("en", e, env, storedPlan{}, tierReason{Code: reasonDeviceAccessSibling, EntityID: "switch.relay", Via: "automation.guest/actions/0", Detail: "cover.gate"})
 	if want := "“Gate relay” is on the same device as “Gate” (a gate): switching it on may open it, through the automation “Guest”"; got != want || !typed {
 		t.Errorf("member: %q typed %v", got, typed)
 	}
 	env = &verbEnvelope{Action: &planAction{Service: "switch.turn_on"}}
-	if got, _ := sayReason(e, env, storedPlan{}, tierReason{Code: reasonDeviceAccessSibling, EntityID: "switch.relay", Detail: "lock.door"}); got != "“Gate relay” is on the same device as “Door” (a lock): switching it on may unlock it" {
+	if got, _ := sayReason("en", e, env, storedPlan{}, tierReason{Code: reasonDeviceAccessSibling, EntityID: "switch.relay", Detail: "lock.door"}); got != "“Gate relay” is on the same device as “Door” (a lock): switching it on may unlock it" {
 		t.Errorf("direct: %q", got)
 	}
 }

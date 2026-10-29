@@ -117,7 +117,7 @@ func TestPlanRawPreviewNamesItemsAndAppliesInOrder(t *testing.T) {
 	if exit != verbExitConfirmation || env.Tier != "preview" || env.Plan.Code != "" {
 		t.Fatalf("plan: exit %d %+v", exit, env)
 	}
-	for _, want := range []string{"1. Change the device “Hall lamp”: area “Office”, name “Desk lamp”.", "2. Create the toggle helper “Guest mode”.", "Nothing has run yet.", sayYesAsk} {
+	for _, want := range []string{"1. Change the device “Hall lamp”: area “Office”, name “Desk lamp”.", "2. Create the toggle helper “Guest mode”.", "Nothing has run yet.", sayYesAsk("en")} {
 		if !strings.Contains(env.Say, want) {
 			t.Errorf("say lacks %q:\n%s", want, env.Say)
 		}
@@ -367,8 +367,8 @@ func TestPlanRawTypedSayPromptAndRedaction(t *testing.T) {
 		t.Fatalf("plan %+v %v", env, err)
 	}
 	for _, want := range []string{"1. Change the entity “Door battery”: name “Front door battery”.", "2. Delete the file “packages/old.yaml” in the config folder.",
-		"3. Delete the toggle helper “guest”.", "This deletes", sayNeedsYou} {
-		if !strings.Contains(env.Say, want) || want != sayNeedsYou && !strings.Contains(plan.Prompt, want) {
+		"3. Delete the toggle helper “guest”.", "This deletes", sayNeedsYou("en", "")} {
+		if !strings.Contains(env.Say, want) || want != sayNeedsYou("en", "") && !strings.Contains(plan.Prompt, want) {
 			t.Errorf("say or prompt lacks %q:\n%s\n---\n%s", want, env.Say, plan.Prompt)
 		}
 	}

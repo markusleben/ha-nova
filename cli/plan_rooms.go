@@ -243,19 +243,19 @@ func computeRoomsPlan(s *relaySession, env *verbEnvelope, req roomsRequest) (*ti
 	e.raise(tierPreview, tierReason{Code: reasonAreaAssign, Via: roomsUndoDomain})
 	plan := storedPlan{Kind: "rooms", RoomsRequest: &req, Basis: map[string]any{"names": names, "areas": areaNames, "effective": effective}}
 	plan, err = sealPlan(e, env, plan, req)
-	env.Result = result
-	env.Say = sayAbout(roomsSay(result.Changes, req.Undo)) + " " + sayNotSaved + " " + sayRoomsAsk
+	lang := textLang(plan)
+	env.Result, env.Say = result, sayAbout(lang, roomsSay(lang, result.Changes, req.Undo))+" "+sayNotSaved(lang)+" "+sayRoomsAsk(lang)
 	return e, plan, err
 }
 
 // roomsSay: Kitchen ← “A” and “B”; Bedroom ← “C”; no room ← “D”.
-func roomsSay(changes []roomsChange, undo bool) string {
+func roomsSay(lang string, changes []roomsChange, undo bool) string {
 	var order []string
 	by := map[string][]string{}
 	for _, c := range changes {
 		room := sayText(c.Area, false)
 		if c.AreaID == "" {
-			room = "no room"
+			room = confirmT(lang, "rooms.no_room")
 		}
 		if by[room] == nil {
 			order = append(order, room)
@@ -264,12 +264,12 @@ func roomsSay(changes []roomsChange, undo bool) string {
 	}
 	var parts []string
 	for _, room := range order {
-		parts = append(parts, room+" ← "+sayList(by[room]))
+		parts = append(parts, room+" ← "+sayList(lang, by[room]))
 	}
 	if undo {
-		return fmt.Sprintf("Put %s back where they were: %s", plural(len(changes), "device"), strings.Join(parts, "; "))
+		return confirmT(lang, "rooms.put_back", "count", len(changes), "list", strings.Join(parts, "; "))
 	}
-	return fmt.Sprintf("Put %s in rooms: %s", plural(len(changes), "device"), strings.Join(parts, "; "))
+	return confirmT(lang, "rooms.put", "count", len(changes), "list", strings.Join(parts, "; "))
 }
 
 func deviceAreaWrite(s *relaySession, device, area string) error {

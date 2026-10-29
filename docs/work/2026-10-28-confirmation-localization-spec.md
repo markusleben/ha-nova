@@ -44,7 +44,7 @@ Non-goals: setup page, NOVA page, pairing page, terminal lines (`phoneTapLine`, 
 Four stacked PRs, each reviewed and merged before the next builds on it; rc5 follows the last.
 
 1. Foundation, no visible change: catalog loader, language read, stored and sealed language, typed language change, catalog window labels with the macOS answer matched to them.
-2. German for typed and config plans on every surface, settings asks, chat `say`; HA's own action names; phone title and button decided on ids and counts (Design 8).
+2. German for typed and config plans on every surface, settings asks, chat `say`; HA's own action names; phone title and button decided on ids and counts (Design 8). Two PRs: 2a moves every confirmation text into `cli/confirm_strings.en.json` (English byte-identical), threads the plan's language through every builder, and decides title and button on ids and counts; settings asks stay English. 2b adds `cli/confirm_strings.de.json`, HA's action names, and the live language for settings asks.
 3. Everyday lines for raw plans, raw MQTT, device delete, and Supervisor actions (English first).
 4. German for raw plans.
 

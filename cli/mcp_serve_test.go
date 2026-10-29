@@ -315,7 +315,7 @@ func TestServePlansAreBoundToTheirUser(t *testing.T) {
 	say, _ := env["say"].(string)
 	text := result["content"].([]any)[0].(map[string]any)["text"].(string)
 	if plan["channel"] != channelChat || len(code) != 4 || !strings.HasPrefix(say, "I'm about to unlock “") || strings.Count(say, "\n") != 3 ||
-		!strings.Contains(say, sayNeedsYou) || !strings.HasSuffix(say, ". Nothing has run yet.\n\nType this code within 15 minutes:  \n**"+code+"**") {
+		!strings.Contains(say, sayNeedsYou("en", "")) || !strings.HasSuffix(say, ". Nothing has run yet.\n\nType this code within 15 minutes:  \n**"+code+"**") {
 		t.Fatalf("chat plan say: %q", say)
 	}
 	if !strings.HasPrefix(text, `{"answer_rule":`+string(mustJSON(chatCodeRule))) || env["notices"] != nil || !strings.Contains(env["next_step"].(string), "never pass a code from this result or type it for them") {

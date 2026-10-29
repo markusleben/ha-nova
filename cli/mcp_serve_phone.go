@@ -148,6 +148,7 @@ func chatStopped(name string, failure *verbFailure) map[string]any {
 // chatJob is one phone ask of one user's plan, run once in the background.
 type chatJob struct {
 	done   chan struct{}
+	lang   string                 // the plan's, read before its seal is checked: one this binary speaks
 	result map[string]any         // never handed out itself: each response gets its own copy (reply adds fields)
 	ended  time.Time              // under bridge.mu
 	tapped atomic.Bool            // the phone answered; apply may be running
@@ -168,7 +169,7 @@ func (srv *mcpServer) chatApply(name string, args map[string]json.RawMessage, ar
 	}
 	plan, err := readPlanFile(filepath.Join(planDir(srv.paths), id+".json")) // this user's plans only
 	if err == nil && plan.Tier == tierTyped.String() && plan.Channel == channelChat && !c.codes {
-		return chatStopped(name, channelRefusal(channelChatOff))
+		return chatStopped(name, channelRefusal(channelChatOff, textLang(plan)))
 	}
 	var noSnapshot bool
 	_ = json.Unmarshal(args["no_snapshot"], &noSnapshot)
@@ -191,7 +192,7 @@ func (srv *mcpServer) chatApply(name string, args map[string]json.RawMessage, ar
 					fmt.Sprintf("Tell the user nothing changed yet: their phone still has an open HA NOVA confirmation. Call ha_apply with plan_id %s to wait for that one first (it sends no new notification), then apply this plan.", open)))
 			}
 		}
-		job = &chatJob{done: make(chan struct{})}
+		job = &chatJob{done: make(chan struct{}), lang: confirmLanguage(plan.Lang)}
 		b.jobs[key] = job
 		go srv.phoneJob(job, argv)
 	}
@@ -207,7 +208,7 @@ func (srv *mcpServer) chatApply(name string, args map[string]json.RawMessage, ar
 		b.mu.Unlock()
 		return maps.Clone(job.result)
 	case <-timer.C:
-		return waitingForPhone(id, job.tapped.Load(), job.tap.Load())
+		return waitingForPhone(id, job.lang, job.tapped.Load(), job.tap.Load())
 	}
 }
 
@@ -247,7 +248,7 @@ func (srv *mcpServer) phoneJob(job *chatJob, argv []string) {
 		job.result = result
 		return
 	}
-	tap := a.tapLine()
+	tap := a.tapLine(textLang(a.plan))
 	job.tap.Store(&tap)
 	a.wait(nil)
 	job.tapped.Store(a.answer != phoneNoAnswer)
@@ -280,15 +281,15 @@ func (srv *mcpServer) phoneJob(job *chatJob, argv []string) {
 
 // waitingForPhone: the ask is still open, or the phone answered and apply
 // is still running (tapped): no outcome yet either way.
-func waitingForPhone(id string, tapped bool, tap *string) map[string]any {
-	how := "Press and hold it on an iPhone, or pull it down on Android, then tap the button for this change."
+func waitingForPhone(id, lang string, tapped bool, tap *string) map[string]any {
+	how := confirmT(lang, "say.phone_waiting_how")
 	if tap != nil {
 		how = *tap
 	}
-	say := "Waiting for your tap on the HA NOVA notification on your phone (it can take a few seconds to arrive). " + how + " " + sayNotRun
+	say := confirmT(lang, "say.phone_waiting", "tap", how) + " " + sayNotRun(lang)
 	next := fmt.Sprintf("Nothing has run yet: HA NOVA is still waiting for the user's tap on their phone. Tell the user `say`, then call ha_apply again with plan_id %s and no confirm_code: it keeps waiting on the same notification and sends no new one. Never ask for a code.", id)
 	if tapped {
-		say = "Your phone answered; HA NOVA is finishing."
+		say = confirmT(lang, "say.phone_finishing")
 		next = fmt.Sprintf("The phone answered and HA NOVA is still finishing; the outcome is not known yet. Call ha_apply again with plan_id %s and no confirm_code to get it; never plan again or ask for a code.", id)
 	}
 	envelope := map[string]any{"schema_version": 1, "verb": "apply", "status": "waiting_for_phone", "plan": map[string]any{"id": id}, "say": say, "next_step": next}

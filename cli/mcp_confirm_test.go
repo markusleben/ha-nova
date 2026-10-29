@@ -163,7 +163,7 @@ func TestMCPFormConfirmsTypedPlanLegacy(t *testing.T) {
 	say, _ := envelope["say"].(string)
 	step, _ := envelope["next_step"].(string)
 	if planned["isError"] != false || envelope["status"] != "needs_confirmation" || plan["confirm"] != "code" || plan["code"] != nil ||
-		!strings.HasSuffix(say, sayFormAsk) || !strings.Contains(step, "call ha_apply with plan_id "+id+" and no confirm_code") || !strings.Contains(step, "Never ask for it in chat") {
+		!strings.HasSuffix(say, sayFormAsk("en")) || !strings.Contains(step, "call ha_apply with plan_id "+id+" and no confirm_code") || !strings.Contains(step, "Never ask for it in chat") {
 		t.Fatalf("typed plan with forms: %v", planned)
 	}
 	noCode(t, "ha_call", planned, code)
@@ -421,7 +421,7 @@ func TestMCPFormDriftAndDelete(t *testing.T) {
 	fresh, _ := envelopeOf(drift)["plan"].(map[string]any)
 	step, _ := envelopeOf(drift)["next_step"].(string)
 	if say, _ := envelopeOf(drift)["say"].(string); envelopeOf(drift)["status"] != "drift" || len(h.posts()) != 0 || fresh["id"] == id ||
-		!strings.Contains(step, "call ha_apply with plan_id "+fresh["id"].(string)) || !strings.HasSuffix(say, sayFormAsk) {
+		!strings.Contains(step, "call ha_apply with plan_id "+fresh["id"].(string)) || !strings.HasSuffix(say, sayFormAsk("en")) {
 		t.Fatalf("drift: %v", drift)
 	}
 	noCode(t, "drift", drift, storedCode(t, h, fresh["id"].(string)))
@@ -440,7 +440,7 @@ func TestMCPFormDriftAndDelete(t *testing.T) {
 	h.f.snapshotErr = true
 	call = c.startCall(applyArgs(id, nil))
 	formID, params, typed = c.form()
-	if message := params["message"].(string); !strings.HasPrefix(message, "I'm about to delete the automation “Night”. This removes it from Home Assistant, so I need you to confirm it. Nothing is deleted yet.") || !strings.Contains(message, sayCopyNote) {
+	if message := params["message"].(string); !strings.HasPrefix(message, "I'm about to delete the automation “Night”. This removes it from Home Assistant, so I need you to confirm it. Nothing is deleted yet.") || !strings.Contains(message, sayCopyNote("en")) {
 		t.Fatalf("delete form: %q", message)
 	}
 	c.answer(formID, map[string]any{"action": "accept", "content": map[string]any{"code": typed}})
@@ -452,7 +452,7 @@ func TestMCPFormDriftAndDelete(t *testing.T) {
 	noCode(t, "snapshot failure", failed, code)
 	call = c.startCall(applyArgs(id, map[string]any{"no_snapshot": true}))
 	formID, params, typed = c.form()
-	if message := params["message"].(string); strings.Contains(message, sayCopyNote) || !strings.Contains(message, "No copy could be saved") {
+	if message := params["message"].(string); strings.Contains(message, sayCopyNote("en")) || !strings.Contains(message, "No copy could be saved") {
 		t.Fatalf("no-snapshot form: %q", message)
 	}
 	c.answer(formID, map[string]any{"action": "accept", "content": map[string]any{"code": typed}})

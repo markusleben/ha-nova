@@ -29,13 +29,13 @@ func TestPhonePayloadPerPlatform(t *testing.T) {
 		if target.platform() != c.platform {
 			t.Fatalf("%q: platform %q", c.maker, target.platform())
 		}
-		link := phonePayload(phoneLinkAsk(), target.platform(), "tag-1", "OK", "NO", deadline)
+		link := phonePayload(phoneLinkAsk("en"), target.platform(), "tag-1", "OK", "NO", deadline)
 		data := link["data"].(map[string]any)
 		actions := data["actions"].([]any)
 		confirm := actions[0].(map[string]any)
-		want := phoneRequested() + " " + c.hint
+		want := phoneRequested("en") + " " + c.hint
 		if c.platform == phoneAndroid { // a collapsed Android notification shows one line: the hint first
-			want = c.hint + " " + phoneRequested()
+			want = c.hint + " " + phoneRequested("en")
 		}
 		if link["message"] != want || confirm["authenticationRequired"] != c.unlock || len(actions) != 2 ||
 			actions[1].(map[string]any)["authenticationRequired"] != nil || data["priority"] != "high" || data["tag"] != "tag-1" {
@@ -57,7 +57,7 @@ func TestPhonePayloadPerPlatform(t *testing.T) {
 			t.Fatalf("%q ttl %v timeout %v", c.maker, data["ttl"], data["timeout"])
 		}
 		// A plan's Confirm needs no unlock on any platform (an Apple Watch must answer it).
-		plan := phonePayload(phonePlanAsk([3]string{"Unlock", "“Front Door”"}, false), target.platform(), "tag-2", "OK", "NO", deadline)
+		plan := phonePayload(phonePlanAsk("en", actionGoal{verb: "unlock", names: []string{"“Front Door”"}}, false), target.platform(), "tag-2", "OK", "NO", deadline)
 		if _, set := plan["data"].(map[string]any)["actions"].([]any)[0].(map[string]any)["authenticationRequired"]; set {
 			t.Fatalf("%q plan asks for the unlock: %v", c.maker, plan)
 		}
@@ -81,14 +81,14 @@ func TestPhoneTapLinePerPlatform(t *testing.T) {
 		phoneAndroid: "Tap “Allow” in the notification. No button? Pull it down, or tap its arrow.",
 		"":           "Tap “Allow” in the notification. To see the buttons, press and hold the notification on an iPhone, or pull it down on Android.",
 	} {
-		if got := phoneTapLine(platform, "Allow"); got != want {
+		if got := phoneTapLine("en", platform, "Allow"); got != want {
 			t.Errorf("%q: %q", platform, got)
 		}
 	}
-	if got := sayPhoneAsk("Unlock", phoneIOS); got != "Confirm on your phone. Press and hold the notification, then tap “Unlock”." {
+	if got := sayPhoneAsk("en", "Unlock", phoneIOS); got != "Confirm on your phone. Press and hold the notification, then tap “Unlock”." {
 		t.Errorf("say: %q", got)
 	}
-	if got := sayWindowPhoneAsk("Unlock", phoneAndroid); got != "Confirm in the window on this computer or on your phone. On the phone: Tap “Unlock” in the notification. No button? Pull it down, or tap its arrow. The first answer counts." {
+	if got := sayWindowPhoneAsk("en", "Unlock", phoneAndroid); got != "Confirm in the window on this computer or on your phone. On the phone: Tap “Unlock” in the notification. No button? Pull it down, or tap its arrow. The first answer counts." {
 		t.Errorf("say both: %q", got)
 	}
 	if got := fmtSent("Bene 14", phoneAndroid); got != "Sent to “Bene 14”. Tap “Allow” in the notification. No button? Pull it down, or tap its arrow. Do it only if you started this." {
@@ -97,7 +97,7 @@ func TestPhoneTapLinePerPlatform(t *testing.T) {
 }
 
 func fmtSent(name, platform string) string {
-	return strings.TrimSpace(strings.Replace(strings.Replace(phoneSentText, "%s", name, 1), "%s", phoneTapLine(platform, "Allow"), 1))
+	return strings.TrimSpace(strings.Replace(strings.Replace(phoneSentText, "%s", name, 1), "%s", phoneTapLine("en", platform, "Allow"), 1))
 }
 
 // A plan's say comes before any lookup: the platform stored with the link
@@ -135,9 +135,9 @@ func TestLinkedIPhoneKeepsItsUnlock(t *testing.T) {
 
 // A chat app's waiting say names the asked phone's gesture once known.
 func TestWaitingForPhoneSaysHowToTap(t *testing.T) {
-	tap := phoneTapLine(phoneAndroid, "Unlock")
+	tap := phoneTapLine("en", phoneAndroid, "Unlock")
 	for want, line := range map[string]*string{tap: &tap, "press and hold it on an iPhone, or pull it down on Android": nil} {
-		if say := waitingForPhone("p_1", false, line)["structuredContent"].(map[string]any)["say"].(string); !strings.Contains(strings.ToLower(say), strings.ToLower(want)) {
+		if say := waitingForPhone("p_1", "en", false, line)["structuredContent"].(map[string]any)["say"].(string); !strings.Contains(strings.ToLower(say), strings.ToLower(want)) {
 			t.Errorf("say %q lacks %q", say, want)
 		}
 	}

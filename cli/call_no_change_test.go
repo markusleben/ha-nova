@@ -206,7 +206,7 @@ func TestWindowConfirmedThenAlreadyDone(t *testing.T) {
 	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 0 || env.Status != "no_change" || len(h.posts()) != 0 {
 		t.Fatalf("exit %d env %+v", exit, env)
 	}
-	if title, line := phoneApplyResult(verbEnvelope{Status: "no_change"}, verbExitOK); title != "Already done" || !strings.Contains(line, "nothing was sent") {
+	if title, line := phoneApplyResult("en", verbEnvelope{Status: "no_change"}, verbExitOK); title != "Already done" || !strings.Contains(line, "nothing was sent") {
 		t.Fatalf("phone: %q %q", title, line)
 	}
 }
