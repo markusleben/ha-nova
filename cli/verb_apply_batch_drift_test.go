@@ -118,34 +118,56 @@ func TestBatchSiblingThatRaisesALaterTierStops(t *testing.T) {
 }
 
 // Two automations that swap their lights read each other. The first one's
-// write takes it out of the second one's scan: that is its own verified
-// change, so the second goes too.
-func TestBatchSiblingThatLeavesALaterScanGoesThrough(t *testing.T) {
-	f := newFakeHA()
-	f.storeConfig("/api/config/automation/config/h1", map[string]any{"alias": "Hall one", "actions": []any{step("light.turn_on", "light.hall")}})
-	f.storeConfig("/api/config/automation/config/h2", map[string]any{"alias": "Hall two", "actions": []any{step("light.turn_on", "light.kitchen")}})
-	f.storeConfig("/api/config/automation/config/z1", map[string]any{"alias": "Hall other", "actions": []any{step("light.turn_on", "light.hall")}})
-	f.related["entity:light.hall"] = []string{"automation.hall_one", "automation.hall_other"}
-	f.related["entity:light.kitchen"] = []string{"automation.hall_two"}
-	h := newWriteHarness(t, f)
-	exit, env := h.batch(h.writePlan("automation", "h1", map[string]any{"alias": "Hall one", "actions": []any{step("light.turn_on", "light.kitchen")}}),
-		h.writePlan("automation", "h2", map[string]any{"alias": "Hall two", "actions": []any{step("light.turn_on", "light.hall")}}))
-	if exit != 3 || env.Plan == nil {
-		t.Fatalf("plan batch: exit %d %+v", exit, env.Error)
-	}
-	h.f.configWrite = writeThen("/h1", func(f *fakeHA) {
-		f.related["entity:light.hall"] = []string{"automation.hall_other"}
-		f.related["entity:light.kitchen"] = []string{"automation.hall_two", "automation.hall_one"}
-	}, nil)
-	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
-	if items := batchItems(t, applied); exit != 0 || itemStatuses(items) != "verified,verified" || len(h.writes()) != 2 {
-		t.Fatalf("apply: exit %d %+v items %s writes %v", exit, applied.Error, itemStatuses(items), h.writes())
+// write takes it out of the second one's scan; read once more, it is still
+// the config this apply verified, so the second goes too. Edited by someone
+// else after its check, it stops the second.
+func TestBatchSiblingThatLeavesALaterScan(t *testing.T) {
+	for name, c := range map[string]struct {
+		edit     map[string]any
+		statuses string
+		writes   int
+	}{
+		"as verified":            {nil, "verified,verified", 2},
+		"edited after its check": {map[string]any{"alias": "Hall one", "actions": []any{step("light.toggle", "light.kitchen")}}, "verified,drift", 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newFakeHA()
+			f.storeConfig("/api/config/automation/config/h1", map[string]any{"alias": "Hall one", "actions": []any{step("light.turn_on", "light.hall")}})
+			f.storeConfig("/api/config/automation/config/h2", map[string]any{"alias": "Hall two", "actions": []any{step("light.turn_on", "light.kitchen")}})
+			f.storeConfig("/api/config/automation/config/z1", map[string]any{"alias": "Hall other", "actions": []any{step("light.turn_on", "light.hall")}})
+			f.related["entity:light.hall"] = []string{"automation.hall_one", "automation.hall_other"}
+			f.related["entity:light.kitchen"] = []string{"automation.hall_two"}
+			h := newWriteHarness(t, f)
+			exit, env := h.batch(h.writePlan("automation", "h1", map[string]any{"alias": "Hall one", "actions": []any{step("light.turn_on", "light.kitchen")}}),
+				h.writePlan("automation", "h2", map[string]any{"alias": "Hall two", "actions": []any{step("light.turn_on", "light.hall")}}))
+			if exit != 3 || env.Plan == nil {
+				t.Fatalf("plan batch: exit %d %+v", exit, env.Error)
+			}
+			wrote, edited := false, false
+			h.f.configWrite = writeThen("/h1", func(f *fakeHA) {
+				wrote = true
+				f.related["entity:light.hall"] = []string{"automation.hall_other"}
+				f.related["entity:light.kitchen"] = []string{"automation.hall_two", "automation.hall_one"}
+			}, nil)
+			h.f.extra = func(_ string, p map[string]any) (any, bool) { // the next member's scan: after h1's check
+				if wrote && c.edit != nil && !edited && p["type"] == "search/related" {
+					h.f.configs["/api/config/automation/config/h1"] = c.edit
+					edited = true
+				}
+				return nil, false
+			}
+			_, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
+			if items := batchItems(t, applied); itemStatuses(items) != c.statuses || len(h.writes()) != c.writes || edited != (c.edit != nil) {
+				t.Fatalf("apply: %+v items %s writes %v edited %v", applied.Error, itemStatuses(items), h.writes(), edited)
+			}
+		})
 	}
 }
 
 // The excuse covers exactly the content this apply wrote and verified under
-// its keys (a create's new key too), or no read of a written key; a
-// different content there or any other difference is drift.
+// its keys (a create's new key too), or a written key no longer read whose
+// live config is still that content; a different content, a failed read,
+// or any other difference is drift.
 func TestExcusedByBatchExcusesOnlyWrittenConfigs(t *testing.T) {
 	plan := func(tier string, reasons []tierReason, configs map[string]any) storedPlan {
 		p := storedPlan{Kind: "write", Server: "default", Tier: tier, Reasons: reasons, ConfigAction: &configAction{Op: "write", Domain: "automation", ConfigID: "h1"},
@@ -155,31 +177,36 @@ func TestExcusedByBatchExcusesOnlyWrittenConfigs(t *testing.T) {
 	}
 	stored := plan("preview", nil, map[string]any{"automation:h2": "old", "automation:z1": "z"})
 	h2 := map[string]string{"automation:h2": "new"}
+	left := plan("preview", nil, map[string]any{"automation:z1": "z"})
 	for name, c := range map[string]struct {
 		fresh   storedPlan
 		written map[string]string
+		live    map[string]string
 		want    bool
 	}{
-		"unchanged":                         {plan("preview", nil, map[string]any{"automation:h2": "old", "automation:z1": "z"}), nil, true},
-		"a sibling as written and verified": {plan("preview", nil, map[string]any{"automation:h2": "new", "automation:z1": "z"}), h2, true},
-		"a sibling created and verified":    {plan("preview", nil, map[string]any{"automation:h2": "old", "automation:h9": "n", "automation:z1": "z"}), map[string]string{"automation:h9": "n"}, true},
-		"a sibling changed again since":     {plan("preview", nil, map[string]any{"automation:h2": "other", "automation:z1": "z"}), h2, false},
-		"a written sibling no longer read":  {plan("preview", nil, map[string]any{"automation:z1": "z"}), h2, true},
-		"a sibling not read nor written":    {plan("preview", nil, map[string]any{"automation:z1": "z"}), nil, false},
-		"a sibling not written":             {plan("preview", nil, map[string]any{"automation:h2": "new", "automation:z1": "z"}), nil, false},
-		"another one written":               {plan("preview", nil, map[string]any{"automation:h2": "new", "automation:z1": "z"}), map[string]string{"automation:z1": "z"}, false},
-		"a config outside the batch":        {plan("preview", nil, map[string]any{"automation:h2": "new", "automation:z1": "y"}), h2, false},
-		"a higher tier":                     {plan("typed", nil, map[string]any{"automation:h2": "new", "automation:z1": "z"}), h2, false},
-		"a new reason":                      {plan("preview", []tierReason{{Code: reasonAccessLock, EntityID: "lock.front"}}, map[string]any{"automation:h2": "new", "automation:z1": "z"}), h2, false},
+		"unchanged":                                 {plan("preview", nil, map[string]any{"automation:h2": "old", "automation:z1": "z"}), nil, nil, true},
+		"a sibling as written and verified":         {plan("preview", nil, map[string]any{"automation:h2": "new", "automation:z1": "z"}), h2, nil, true},
+		"a sibling created and verified":            {plan("preview", nil, map[string]any{"automation:h2": "old", "automation:h9": "n", "automation:z1": "z"}), map[string]string{"automation:h9": "n"}, nil, true},
+		"a sibling changed again since":             {plan("preview", nil, map[string]any{"automation:h2": "other", "automation:z1": "z"}), h2, nil, false},
+		"a written sibling that left":               {left, h2, map[string]string{"automation:h2": "new"}, true},
+		"a written sibling that left, edited since": {left, h2, map[string]string{"automation:h2": "other"}, false},
+		"a written sibling that left, unreadable":   {left, h2, nil, false},
+		"a sibling not read nor written":            {left, nil, nil, false},
+		"a sibling not written":                     {plan("preview", nil, map[string]any{"automation:h2": "new", "automation:z1": "z"}), nil, nil, false},
+		"another one written":                       {plan("preview", nil, map[string]any{"automation:h2": "new", "automation:z1": "z"}), map[string]string{"automation:z1": "z"}, nil, false},
+		"a config outside the batch":                {plan("preview", nil, map[string]any{"automation:h2": "new", "automation:z1": "y"}), h2, nil, false},
+		"a higher tier":                             {plan("typed", nil, map[string]any{"automation:h2": "new", "automation:z1": "z"}), h2, nil, false},
+		"a new reason":                              {plan("preview", []tierReason{{Code: reasonAccessLock, EntityID: "lock.front"}}, map[string]any{"automation:h2": "new", "automation:z1": "z"}), h2, nil, false},
 	} {
-		if got := excusedByBatch(stored, c.fresh, c.written); got != c.want {
+		live := func(key string) (string, bool) { digest, read := c.live[key]; return digest, read }
+		if got := excusedByBatch(stored, c.fresh, c.written, live); got != c.want {
 			t.Errorf("%s: %v, want %v", name, got, c.want)
 		}
 	}
 	entity := plan("preview", nil, map[string]any{"automation:h2": "new", "automation:z1": "z"})
 	entity.Basis["entities"] = map[string]any{"light.hall": map[string]any{"pl": "hue", "device_class": "relay"}}
 	entity.Hash = "sha256:" + planHash(entity.Kind, entity.Server, *entity.ConfigAction, entity.Tier, entity.Reasons, entity.Basis)
-	if excusedByBatch(stored, entity, h2) {
+	if excusedByBatch(stored, entity, h2, func(string) (string, bool) { return "", false }) {
 		t.Error("an acted entity that changed was excused")
 	}
 }
