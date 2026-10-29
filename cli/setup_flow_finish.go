@@ -181,7 +181,7 @@ func (f *setupFlow) stepSkills() setupStepResult {
 
 // afterSkills: the Link offer, the lifecycle close, and finish.
 func (f *setupFlow) afterSkills() setupStepResult {
-	exit := 0
+	exit, linkExit := 0, 0
 	onPage := f.page != nil && !f.page.inTerminal()
 	if f.cloudSetupPaused && !onPage { // the page never runs with Link unfinished (setupPageCloudOK)
 		f.showLinkPausedOutcome()
@@ -194,6 +194,9 @@ func (f *setupFlow) afterSkills() setupStepResult {
 		// setup is complete, like the terminal's offers in finish.
 		f.pageControlled = true
 	} else if exit == 0 && !f.connectionModeAsked && !f.serviceMode && !f.cloudSetupPaused {
+		if coordinator := cloudCoordinatorForSetup; coordinator != nil && coordinator.Available() && f.cfg.Cloud == nil && cloudSetupPromptEligible(f.ui.termOut()) {
+			f.showExtras()
+		}
 		armSetupNextPromptSkipsStaleBlankInput()
 		var cloudAttempted bool
 		var cloudCode int
@@ -206,12 +209,11 @@ func (f *setupFlow) afterSkills() setupStepResult {
 			f.lifecycleMarker...,
 		)
 		clearSetupNextPromptSkipsStaleBlankInput()
-		if cloudAttempted && cloudCode != 0 {
-			exit = cloudCode
-		}
-		if exit == 0 && cloudAttempted &&
-			f.cfg.Cloud != nil && !f.cfg.Cloud.ready() {
-			exit = cloudCode
+		if cloudAttempted && (cloudCode != 0 || f.cfg.Cloud != nil && !f.cfg.Cloud.ready()) {
+			linkExit = cloudCode // the optional Link didn't finish: the other offers and the outcome still come, then this exit
+			if cloudRecoveryHoldProblem(f.cfg) != nil || !f.ui.interactive() {
+				exit = cloudCode // a security hold, or no one to ask: its steps stay last
+			}
 		}
 	}
 	if err := completeSetupLifecycle(f.paths, f.lifecycleMarker...); err != nil {
@@ -229,7 +231,24 @@ func (f *setupFlow) afterSkills() setupStepResult {
 	if exit != 0 {
 		return setupDone(exit)
 	}
-	return f.finish()
+	result := f.finish()
+	if linkExit != 0 && result.done && result.code == 0 {
+		f.ui.note(setupT("setup.extras.link_failed")) // its reason is above the other questions
+		return setupDone(linkExit)
+	}
+	return result
+}
+
+// showExtras gives the optional questions after step 4 their own screen,
+// once: HA NOVA works, the rest is optional. The outcome then keeps their
+// answers on screen.
+func (f *setupFlow) showExtras() {
+	if f.extrasShown || !f.ui.interactive() {
+		return
+	}
+	f.extrasShown = true
+	f.ui.header()
+	f.ui.show(setupView{Blocks: []setupBlock{setupSuccess(setupText("setup.extras.ready")), setupParagraph(setupText("setup.extras.optional"))}})
 }
 
 // finish asks the optional offers (never failing setup) and shows the
@@ -240,6 +259,9 @@ func (f *setupFlow) finish() setupStepResult {
 		return f.pageFinish()
 	}
 	interactive := !f.serviceMode && f.ui.interactive()
+	if interactive && !f.cloudSetupPaused && (f.pairedThisRun || slices.Contains(f.selectedClients, "claude") && claudeRulesToOffer(f.paths)) {
+		f.showExtras() // never while Link is paused: its steps stay on screen
+	}
 	if f.pairedThisRun && !f.cloudSetupPaused && interactive {
 		offerPhoneLink(f.ui.termIn(), f.ui.termOut(), f.paths)
 	}
@@ -277,9 +299,9 @@ func (f *setupFlow) finish() setupStepResult {
 		look = loadSetupFirstLook(f.ui.termOut(), f.paths)
 	}
 	if f.cfg.Cloud.ready() && f.cfg.RoutePolicy == routePolicyAutomatic {
-		f.ui.outcome(setupOutcome{Kind: setupOutcomeLinkReady, Look: look})
+		f.ui.outcome(setupOutcome{Kind: setupOutcomeLinkReady, Look: look, Keep: f.extrasShown})
 	} else if !f.cloudSetupPaused {
-		f.ui.outcome(setupOutcome{Kind: setupOutcomeComplete, Clients: f.selectedClients, Look: look})
+		f.ui.outcome(setupOutcome{Kind: setupOutcomeComplete, Clients: f.selectedClients, Look: look, Keep: f.extrasShown})
 	}
 	if ruleNote != "" {
 		f.ui.note(ruleNote)

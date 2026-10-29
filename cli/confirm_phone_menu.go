@@ -2,29 +2,56 @@ package main
 
 import (
 	"bufio"
+	"cmp"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 )
 
-// choosePhone: the signed-in user's only phone is proposed; otherwise every
-// administrator's phone is a choice (arrow menu, numbered without a TTY).
-// ok=false: skipped. Skip is the default everywhere: Enter never links a
-// phone (that sends a notification).
+// ownFirst lists the phones that can be linked, the user's own first (own
+// counts them): the signed-in user's, else the owner's, since only the owner
+// sets up HA NOVA.
+func (h phoneHome) ownFirst(signedIn string) (all []phoneTarget, own int) {
+	who := h.user(signedIn)
+	for _, t := range h.eligible("") {
+		if t.UserID == who {
+			all = slices.Insert(all, own, t)
+			own++
+		} else {
+			all = append(all, t)
+		}
+	}
+	return all, own
+}
+
+// user: whose phones are the user's own (ownFirst).
+func (h phoneHome) user(signedIn string) string { return cmp.Or(signedIn, h.owner) }
+
+// choosePhone: the user's only phone is proposed; otherwise every
+// administrator's phone is a choice, the user's own first (arrow menu,
+// numbered without a TTY). No own phone: why first. ok=false: skipped. Skip
+// is the default everywhere: Enter never links a phone (that sends a
+// notification).
 func choosePhone(reader *bufio.Reader, out io.Writer, home phoneHome, signedIn string) (phoneTarget, bool) {
-	all := home.eligible("")
-	if own := home.eligible(signedIn); signedIn != "" && len(own) == 1 {
-		switch promptOwnPhone(reader, out, own[0]) {
+	all, own := home.ownFirst(signedIn)
+	if own == 1 {
+		switch promptOwnPhone(reader, out, all[0]) {
 		case "use":
-			return own[0], true
+			return all[0], true
 		case "skip":
 			return phoneTarget{}, false
 		}
 	}
-	fmt.Fprintln(out, "  "+phoneListHeader)
+	if own > 0 {
+		fmt.Fprintln(out, "  "+phoneListHeader)
+	}
 	for _, name := range home.shared {
 		fmt.Fprintln(out, "  "+phoneSharedLine(name))
+	}
+	if own == 0 && len(home.sharedOf[home.user(signedIn)]) == 0 {
+		fmt.Fprintln(out, "  "+phoneOwnMissing)
 	}
 	spec := setupMenuSpec{
 		Title:        "Which phone should confirm HA NOVA actions?",

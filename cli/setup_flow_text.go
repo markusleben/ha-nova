@@ -81,6 +81,7 @@ type setupOutcome struct {
 	LegacyToken bool
 	Issue       string
 	LinkSteps   string // setupOutcomeLinkPaused: its commands
+	Keep        bool   // the optional questions' answers stay on screen above it
 }
 
 // setupUI is what the setup engine asks of a renderer: the terminal
@@ -187,6 +188,10 @@ func (ui setupTextUI) working(label setupMsg, task func() error) error {
 }
 
 func (ui setupTextUI) outcome(o setupOutcome) {
+	if o.Keep {
+		setupKeepScreen = true
+		defer func() { setupKeepScreen = false }()
+	}
 	switch o.Kind {
 	case setupOutcomeLinkReady:
 		renderSetupCloudFallbackReadyBanner(ui.out, o.Look)

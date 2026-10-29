@@ -161,6 +161,7 @@
   "tests/onboarding/setup-page-claude.test.ts",
   "tests/onboarding/claude-desktop-runtime.test.ts",
   "tests/onboarding/setup-page-owner.test.ts",
+  "tests/onboarding/setup-page-change-home.test.ts",
   "tests/http/nova-page-not-owner.test.ts",
   "tests/runtime/chat-apps.test.ts",
   "tests/security/pairing-metadata-reserved.test.ts"

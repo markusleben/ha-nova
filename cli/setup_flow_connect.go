@@ -137,7 +137,7 @@ func (f *setupFlow) stepHost() setupStepResult {
 	}
 	previousRelayURL := strings.TrimSpace(f.cfg.RelayBaseURL)
 	previousDerivedRelayURL := deriveRelayURLFromHA(f.cfg.HAURL, f.cfg.HAHost)
-	f.cfg = applySelectedSetupHost(f.cfg, host, haURL, f.relayURLFlag)
+	f.cfg = applySelectedSetupHost(f.cfg, host, haURL, f.relayURLFlag) // a known device is verified first: the same home at a new address keeps it
 	if strings.TrimSpace(f.relayURLFlag) == "" && previousRelayURL != "" &&
 		previousRelayURL != previousDerivedRelayURL && f.cfg.RelayBaseURL != previousRelayURL {
 		// A saved relay address that was NOT derived from the old host

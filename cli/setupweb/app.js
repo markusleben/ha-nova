@@ -229,7 +229,7 @@
       if (haKnown && asking) [title, lead] = ['setup.page.found.title_ask', 'setup.page.found.lead_change']; // the address field is open
       if (several) lead = 'setup.page.found.lead_several';
       return [...head(t('setup.page.found.eyebrow'), t(title), t(lead)),
-        problemLine(),
+        problemLine(), accepts('link_remove') ? el('div', { class: 'actions' }, button(t('setup.page.button.link_remove', state.problem.args), 'link_remove')) : null,
         el('ul', { class: 'rows' }, haRow, clientRow, appRow),
         owner,
         actions,
@@ -263,7 +263,8 @@
           // already running, the owner can also make a code on any device.
           state.fix === 'owner' && !state.web ? el('p', { class: 'fine' }, t('setup.page.found.owner_once'),
             state.primary === 'install' || state.primary === 'update' ? null : ` ${t('setup.page.found.owner_away')}`) : null,
-          state.web ? null : codeLink());
+          state.web ? null : codeLink(),
+          accepts('change') ? el('p', { class: 'fine' }, el('button', { id: 'b-change-ha', class: 'linkish', type: 'button', onclick: () => post('change') }, t('setup.page.rerun.change_ha'))) : null);
       }
       return [...head(t('setup.page.connect.eyebrow'), t('setup.page.connect.title'), t(installs ? 'setup.page.connect.lead' : 'setup.page.connect.lead_signin')),
         problemLine(), el('ul', { class: 'rows' }, items), ...actions];

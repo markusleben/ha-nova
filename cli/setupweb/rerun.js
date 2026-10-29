@@ -34,7 +34,17 @@ window.novaRerun = (h) => {
   const overview = (home) => (controls, rules) => {
     const items = h.state().overview || [];
     const rowOf = overviewRow(controls);
-    return [['home', t('setup.overview.section_home')], ['apps', t('setup.overview.section_apps')],
+    // Important open items, on top: a click opens the row and scrolls there.
+    const chatOn = ['on', 'page_on'].includes(((h.state().control || {}).chat || {}).state); // the chat-app phone only once chat apps are on
+    const open = items.filter((item) => item.state === 'todo' && (item.id === 'phone' || (item.id === 'chat_phone' && chatOn)));
+    const go = (item) => () => {
+      if (item.id === 'phone') { opened.phone = true; h.render(true); }
+      const node = document.getElementById(item.id === 'phone' ? 'overview-phone' : 'l-overview-nova');
+      if (node) { node.scrollIntoView({ block: 'center', behavior: 'smooth' }); node.focus(); }
+    };
+    const attention = open.length ? el('div', { class: 'attention', role: 'note' }, el('strong', {}, t('setup.overview.attention')),
+      el('ul', {}, open.map((item) => el('li', {}, el('button', { id: `b-attention-${item.id}`, class: 'linkish', type: 'button', onclick: go(item) }, `${item.label}: ${say(item.msg)}`))))) : null;
+    return [attention, ...[['home', t('setup.overview.section_home')], ['apps', t('setup.overview.section_apps')],
       ['confirm', t('setup.overview.section_confirm')], ['chat', t('setup.overview.section_chat')]].flatMap(([section, heading]) => {
       const mine = items.filter((item) => item.section === section);
       const more = mine.filter((item) => item.more);
@@ -44,7 +54,7 @@ window.novaRerun = (h) => {
         : section === 'apps' ? [...mine.filter((item) => !item.more && item.id !== 'other').map(rowOf), ...rules, fold, ...mine.filter((item) => item.id === 'other').map(rowOf)]
           : mine.map(rowOf);
       return rows.some(Boolean) ? [el('h2', {}, heading), el('ul', { class: 'rows tall' }, rows)] : [];
-    });
+    })];
   };
 
   // A re-run (spec §4): what is set up. All fine (rerun): step 3's rows on
@@ -85,10 +95,11 @@ window.novaRerun = (h) => {
     return [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.title_fix'), t('setup.page.rerun.lead_fix'), true),
       problem(away), ...offer, status,
       el('div', { class: 'actions' },
-        s.problem ? button(t('setup.page.button.recheck'), 'recheck', found.length ? 'ghost' : 'primary') : null,
+        s.problem ? button(t('setup.page.button.recheck'), 'recheck', found.length || s.fix === 'app_update' ? 'ghost' : 'primary') : null,
         s.fix === 'app_update' ? button(t('setup.page.rerun.update_app'), 'fix', 'primary')
           : button(t('setup.page.rerun.fix'), 'fix', s.problem ? 'ghost' : 'primary'),
-        link(t('setup.page.link.app'), links.app, 'ghost', 'app'))];
+        link(t('setup.page.link.app'), links.app, 'ghost', 'app')),
+      s.accepts.includes('change') ? el('p', { class: 'fine' }, el('button', { id: 'b-change-ha', class: 'linkish', type: 'button', onclick: () => h.post('change') }, t('setup.page.rerun.change_ha'))) : null];
   };
   // Fix it, or the skills refresh, while the usual steps run.
   const repair = () => [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.repair_title'), t('setup.page.connect.lead_signin')),

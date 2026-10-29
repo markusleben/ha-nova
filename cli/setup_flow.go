@@ -51,6 +51,7 @@ type setupFlow struct {
 	pageRetry      *haSignInSession
 	pageRetryUntil time.Time
 	pageTyped      bool // the user typed Home Assistant's address on the page
+	pageAskHA      bool // a re-run's "Use another Home Assistant": step 1 opens the address field
 	// pageControlled: step 3 runs on the page; pageQuit: setup ended there
 	// (Ctrl+C or idle); pageNotes: what step 3 did, for step 4, and
 	// pageChatLink its Add to Claude link (pageOrgLink: for a Team or
@@ -118,6 +119,7 @@ type setupFlow struct {
 	pairingCredentialReceived bool
 	devicePaired              bool
 	pairedThisRun             bool // a pairing (sign-in or code) succeeded in this run
+	extrasShown               bool // the optional questions after step 4 have their screen (showExtras)
 	manualCredentialFlow      bool
 	pairingBackStep           setupStepID
 	verifyFirstReuseFlow      bool

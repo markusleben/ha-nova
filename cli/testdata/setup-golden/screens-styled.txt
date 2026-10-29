@@ -21,9 +21,7 @@
 === status summary: nothing
 
   <ESC>[1mChecking current setup...<ESC>[0m
-  <ESC>[31m✗<ESC>[0m NOVA App doesn't answer
   <ESC>[31m✗<ESC>[0m No key saved yet
-  <ESC>[31m✗<ESC>[0m Not connected to Home Assistant
   <ESC>[31m✗<ESC>[0m Skills not installed
 
 

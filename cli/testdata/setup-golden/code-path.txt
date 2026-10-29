@@ -8,9 +8,7 @@ exit 0
   -------------
 
   Checking current setup...
-  [!!] NOVA App doesn't answer
   [!!] No key saved yet
-  [!!] Not connected to Home Assistant
   [!!] Skills not installed
 
   Already done: Home Assistant address

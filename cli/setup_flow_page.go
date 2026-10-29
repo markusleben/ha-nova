@@ -130,13 +130,15 @@ func (f *setupFlow) stepPage() setupStepResult {
 			found = append(found, setupPageCandidate{Host: terminalSafeName(candidate.Host), URL: candidate.HAURL})
 		}
 	}
-	problem, screen, fix, askHA := f.pageProblem, "found", "", false
+	problem, screen, fix, askHA := f.pageProblem, "found", "", f.pageAskHA
+	f.pageAskHA = false
 	if problem != nil {
 		screen, fix, f.pageProblem = "connect", "retry", nil
 	} else if f.pageRemoved {
 		problem, f.pageRemoved = setupPageText("setup.page.problem.removed"), false
 	}
 	links := map[string]string{}
+	var blocked [2]string // host and address Link held back (link_remove)
 	for {
 		app := f.pageApp()
 		p.update(func(v *setupPageState) {
@@ -162,6 +164,12 @@ func (f *setupFlow) stepPage() setupStepResult {
 		if fix == "web" || fix == "web_never" { // chat apps can't work here yet (pageWebCheck)
 			accepts = append(accepts, "local")
 		}
+		if screen == "connect" { // a failed sign-in: another address too
+			accepts = append(accepts, "change")
+		}
+		if problem != nil && (problem.Key == "setup.page.problem.link_elsewhere" || problem.Key == "setup.page.problem.link_remove_failed") {
+			accepts = append(accepts, "link_remove")
+		}
 		action, err := p.wait(accepts...)
 		if err != nil {
 			return f.cancelled()
@@ -171,6 +179,19 @@ func (f *setupFlow) stepPage() setupStepResult {
 		kept := f.pageRetry
 		f.pageRetry = nil
 		switch action.Action {
+		case "change":
+			askHA = true
+			continue
+		case "link_remove": // removed: on with the address it blocked
+			if problem, err = f.pageRemoveLink(); err != nil {
+				return f.failErr(err)
+			}
+			if problem != nil || blocked[1] == "" {
+				askHA = true
+				continue
+			}
+			f.useSetupAddress(blocked[0], blocked[1])
+			f.pageTyped, found = true, nil
 		case "local":
 			if result := f.pageUseThisComputer(); result.done {
 				return result
@@ -190,19 +211,27 @@ func (f *setupFlow) stepPage() setupStepResult {
 				problem, askHA = setupPageText("setup.page.problem.address", "address", terminalSafeName(action.Value)), true
 				continue
 			}
-			f.cfg = applySelectedSetupHost(f.cfg, host, haURL, f.relayURLFlag)
+			if problem = f.pageLinkElsewhere(haURL); problem != nil {
+				askHA, blocked = true, [2]string{host, haURL}
+				continue
+			}
+			f.useSetupAddress(host, haURL)
 			f.pageTyped = !slices.ContainsFunc(found, func(c setupPageCandidate) bool { return c.URL == action.Value })
 			found = nil
 		case "terminal":
 			// "Use a six-digit code": the terminal asks for the code, not
 			// for a sign-in again.
-			setupPairWithCode = app.primary != ""
+			if shownAskHA && f.cfg.Cloud != nil { // another address in the terminal: Link first, here
+				problem, askHA, blocked = setupPageText("setup.page.problem.link_elsewhere", "host", terminalSafeName(f.cfg.HAHost)), true, [2]string{}
+				continue
+			}
+			setupPairWithCode = app.primary != "" && !shownAskHA // the address field was open: the terminal asks for it, not the saved home's code
 			if setupPairWithCode {
 				p.handoverFor(codeHandover(app.primary))
 			} else {
 				p.handover()
 			}
-			if f.cfg.HAURL == "" {
+			if f.cfg.HAURL == "" || shownAskHA {
 				return setupGoTo(setupStepHost)
 			}
 			f.detectRelayOnInstall = true

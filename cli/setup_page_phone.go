@@ -15,7 +15,7 @@ import (
 // be asked now stays with `ha-nova setup confirm-phone`, which settles it
 // safely.
 func (f *setupFlow) pagePhones(ctl *setupPageControl) {
-	ctl.Phone, ctl.Phones, ctl.Proposed, ctl.OldPhone = "unavailable", nil, false, ""
+	ctl.Phone, ctl.Phones, ctl.Own, ctl.PhoneWhy, ctl.OldPhone = "unavailable", nil, 0, nil, ""
 	if !(f.pairedThisRun || f.pageRerunning) || f.cloudSetupPaused { // as in the terminal: right after a pairing, and on a re-run
 		return
 	}
@@ -37,17 +37,18 @@ func (f *setupFlow) pagePhones(ctl *setupPageControl) {
 	default:
 		return
 	}
-	all := home.eligible("")
+	all, own := home.ownFirst(setupSignedInUser)
+	if own == 0 { // never someone else's phone as the obvious choice: say why theirs is missing
+		ctl.PhoneWhy = setupPageText("setup.page.control.phone_missing")
+		if names := home.sharedOf[home.user(setupSignedInUser)]; len(names) > 0 {
+			ctl.PhoneWhy = setupPageText("setup.page.control.phone_shared", "phone", terminalSafeName(names[0]))
+		}
+	}
 	if len(all) == 0 {
 		ctl.Phone = "none"
 		return
 	}
-	if own := home.eligible(setupSignedInUser); setupSignedInUser != "" && len(own) == 1 {
-		rest := slices.DeleteFunc(slices.Clone(all), func(t phoneTarget) bool { return t.DeviceID == own[0].DeviceID })
-		all = append([]phoneTarget{own[0]}, rest...)
-		ctl.Proposed = true
-	}
-	ctl.Phone = "pick"
+	ctl.Phone, ctl.Own = "pick", own
 	for _, t := range all {
 		ctl.Phones = append(ctl.Phones, setupPagePhone{ID: t.DeviceID, Name: terminalSafeName(t.Name), Person: terminalSafeName(t.Person), OS: t.platform()})
 	}
@@ -87,7 +88,7 @@ func (f *setupFlow) pageLinkPhone(ctl *setupPageControl, deviceID string) {
 		s.close()
 	}
 	if result == phoneLinked {
-		ctl.Phone, ctl.Phones, ctl.Proposed = "linked", nil, false
+		ctl.Phone, ctl.Phones, ctl.Own, ctl.PhoneWhy = "linked", nil, 0, nil
 		return
 	}
 	ctl.Phone, ctl.PhoneProblem = "pick", pagePhoneProblem(result, ctl.PhoneName)

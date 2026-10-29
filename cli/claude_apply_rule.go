@@ -67,6 +67,12 @@ func claudeUserSettingsPath(home string) string {
 	return path
 }
 
+// claudeRulesToOffer: offerClaudeRules will ask.
+func claudeRulesToOffer(paths runtimePaths) bool {
+	_, _, missing, _ := claudeRulesPending(paths)
+	return len(missing) > 0
+}
+
 // offerClaudeRules is setup's optional Claude Code step: quiet when the rules
 // are there, writes only after "Add rules", and never fails setup. It runs
 // before the final banner, which clears the screen, so it returns its outcome

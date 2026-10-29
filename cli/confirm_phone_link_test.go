@@ -57,6 +57,24 @@ func (home *fakeHome) install(t *testing.T, f *fakeHA) {
 				return fakeRelayFailure{"UPSTREAM_WS_TIMEOUT", "timed out"}, true
 			}
 			return home.users, true
+		case p["type"] == "person/list": // every person with a user, its entity on or off
+			people := map[string]map[string]any{}
+			var order []string
+			for _, d := range home.devices {
+				if d.UserID == "" {
+					continue
+				}
+				if people[d.UserID] == nil {
+					people[d.UserID] = map[string]any{"name": d.Person, "user_id": d.UserID, "device_trackers": []string{}}
+					order = append(order, d.UserID)
+				}
+				people[d.UserID]["device_trackers"] = append(people[d.UserID]["device_trackers"].([]string), "device_tracker."+d.DeviceID)
+			}
+			storage := []any{}
+			for _, id := range order {
+				storage = append(storage, people[id])
+			}
+			return map[string]any{"storage": storage, "config": []any{}}, true
 		case p["type"] == "config/device_registry/list":
 			var rows []map[string]any
 			for _, d := range home.devices {
@@ -78,10 +96,16 @@ func (home *fakeHome) install(t *testing.T, f *fakeHA) {
 					}
 				}
 			}
-			for _, d := range home.devices {
-				if d.UserID != "" {
-					phones = append(phones, d)
+			for _, row := range vars["trackers"].([]any) { // the person list's trackers, as the template reads them
+				row := row.([]any)
+				for _, d := range home.devices {
+					if "device_tracker."+d.DeviceID == row[0] {
+						d.UserID, d.Person = row[1].(string), row[2].(string)
+						phones = append(phones, d)
+					}
 				}
+			}
+			for _, d := range home.devices {
 				if d.DeviceID == device {
 					linked = map[string]any{"service": d.Service, "name": d.Name, "device_id": d.DeviceID, "maker": d.Maker}
 				}

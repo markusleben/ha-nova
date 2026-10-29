@@ -32,7 +32,8 @@ const (
 	phoneNoneFound  = "No phone with the Home Assistant app was found for a Home Assistant administrator here. To confirm on your phone: install the Home Assistant app, sign in with your own Home Assistant account, then run ha-nova setup confirm-phone. If your account isn't an administrator, ask the Home Assistant owner to make it one. Until then HA NOVA asks in a window on this computer, in your AI app's form, or with a four-digit code in chat."
 	phoneOwnerToken = "This NOVA App signs in to Home Assistant as the owner, so a tap on a phone can't be told apart from HA NOVA itself. Phone confirmation isn't available with this App. Nothing changed."
 	phoneReadFailed = "HA NOVA can't read this Home Assistant's phones right now. Nothing changed; try again in a moment."
-	phoneListHeader = "Pick your own phone; it gets one notification. Only administrators' phones are listed (yours missing? ask the owner to make you an administrator)."
+	phoneListHeader = "Pick your own phone; it gets one notification. Only administrators' phones are listed."
+	phoneOwnMissing = "Your own phone isn't listed. In Home Assistant, open Settings → People. Not there? Add yourself and choose your user under “Allow person to login”. Then pick your phone under Track device, and run ha-nova setup confirm-phone."
 )
 
 func runConfirmPhoneSetting(paths runtimePaths, args []string) int {
