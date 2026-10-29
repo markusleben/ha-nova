@@ -31,7 +31,19 @@ export interface ChatPhoneJob {
   step?: "old" | "new";
   phone?: string;
   platform?: string;
+  button?: string; // the button that step's question shows, in Home Assistant's language (an older bridge sends none)
   to?: string;
+}
+
+// One change a chat app made or tried (the bridge's activity.jsonl), newest first.
+export interface ChatActivity {
+  at: string; // RFC 3339, UTC
+  user: string;
+  name: string; // the user's name in Home Assistant at that moment
+  tool: string;
+  what: string; // the service, or the plan kind
+  targets?: string[];
+  result: string; // done, phone, code, declined, refused, failed, unknown
 }
 
 export interface AdoptPhone {
@@ -43,7 +55,8 @@ export interface AdoptPhone {
 export type ChatPhoneChange =
   | { action: "adopt"; phone: AdoptPhone }
   | { action: "move"; phone: { device_id: string }; override?: true }
-  | { action: "stop"; override?: true };
+  | { action: "stop"; override?: true }
+  | { action: "drop" }; // a user no longer allowed: their link goes, without a question
 
 // The bridge's refusal (409 PHONE_EXISTS, ...); 503 CHAT_PHONE_UNAVAILABLE
 // when it can't be reached or read (nothing changed); 504 CHAT_PHONE_UNKNOWN
@@ -58,11 +71,20 @@ export interface ChatPhoneControl {
   phones(user: string): Promise<ChatPhones>;
   start(user: string, change: ChatPhoneChange): Promise<string | null>; // a move, or a stop that asks a phone: its job id
   job(user: string, id: string): Promise<ChatPhoneJob>; // a job reads only as the user it was started for
+  activity(): Promise<ChatActivity[]>; // the last 20 changes
+  seen(): Promise<Record<string, string>>; // each user's last request, to the hour (RFC 3339)
 }
 
 const JOB = /^[0-9a-f]{32}$/;
 
 const unreadable = (): ChatPhoneError => new ChatPhoneError(503, "CHAT_PHONE_UNAVAILABLE", "the chat-app bridge's answer can't be read");
+
+const texts = (value: unknown): boolean => Array.isArray(value) && value.every((v) => typeof v === "string");
+
+const line = (a: unknown): boolean => {
+  const l = a as Record<string, unknown>;
+  return typeof a === "object" && a !== null && ["at", "user", "name", "tool", "what", "result"].every((k) => typeof l[k] === "string") && (l.targets === undefined || texts(l.targets));
+};
 
 const named = (p: unknown): boolean => typeof p === "object" && p !== null && typeof (p as ChatPhone).device_id === "string" && typeof (p as ChatPhone).name === "string";
 
@@ -145,6 +167,20 @@ export function createChatPhoneControl(secret: () => string | null, port = CONTR
         throw unreadable();
       }
       return answer as unknown as ChatPhoneJob;
+    },
+    activity: async () => {
+      const answer = await call("GET", "activity");
+      if (!Array.isArray(answer.changes) || !answer.changes.every(line)) {
+        throw unreadable();
+      }
+      return answer.changes as ChatActivity[];
+    },
+    seen: async () => {
+      const users = (await call("GET", "seen")).users as Record<string, unknown> | undefined;
+      if (typeof users !== "object" || users === null || Array.isArray(users) || !Object.values(users).every((v) => typeof v === "string")) {
+        throw unreadable();
+      }
+      return users as Record<string, string>;
     },
   };
 }

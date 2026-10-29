@@ -184,17 +184,28 @@ and ChatGPT (web, on a computer), without a computer running HA NOVA. They are o
   (`custom_components/ha_nova`), announces itself to it, and Home Assistant
   restarts once (about a minute).
 - **Connect:** add the address the NOVA page shows in Claude ("Add to Claude")
-  or ChatGPT, then sign in to Home Assistant as the owner. On a Claude Team or
+  or ChatGPT, then sign in to Home Assistant with your own login. On a Claude Team or
   Enterprise plan, the owner of your Claude plan adds it once for everyone,
   with "Add for my organization".
   Then you click "Connect" next to HA NOVA under Customize → Connectors.
+- **Who can use it:** NOVA page → Chat apps → "Who can use it". At first only
+  the owner. Tick other Home Assistant users (each needs their own login) and
+  pick a level: Ask only (questions), Use the home (controls devices and runs
+  scenes, scripts, and automations; unlocks and turning off the alarm need a
+  tap on their own phone; can't change automations, scripts, or device
+  settings), or Manage everything (administrators only). A level never goes
+  above the person's Home Assistant role. "Link phone…" in their row links
+  their own phone. With anyone else on the list, going back to an older App
+  refuses every chat request until you update again. To go back, first untick
+  everyone but you and save.
 - **Claude asks before every step?** That's Claude, not HA NOVA: set the HA
   NOVA tools to "Always allow" (no phone linked: all but "Run a confirmed
   change").
   [How](https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md#stop-claude-from-asking-before-every-step)
 - **Confirmations:** the same rules as on a computer. Unlocks, the alarm, and
-  deletes wait for a tap on the owner's linked phone. No phone? The owner types
-  a four-digit code in the chat; the AI can see that code too. You can turn off codes in the chat (risky changes
+  deletes wait for a tap on the linked phone of whoever asked. No phone? At
+  Manage everything, a four-digit code in the chat; the AI can see that code
+  too. Below that, never a code: it's refused. You can turn off codes in the chat (risky changes
   then need the phone) or let chat apps only read.
 - **Another phone:** NOVA page → Chat apps → "Change phone…" or "Stop phone
   confirmations". The phone that confirms now asks first. A phone removed from
@@ -259,7 +270,7 @@ A healthy answer looks like this:
   "data": {
     "status": "ok",
     "ha_ws_connected": true,
-    "version": "0.12.2",
+    "version": "0.13.0",
     "uptime_s": 3621
   }
 }

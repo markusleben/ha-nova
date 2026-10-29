@@ -470,7 +470,7 @@ in sync; Relay and product versions must not be substituted for each other.
 - REST client uses native `fetch()` (no axios at runtime)
 - WS orchestration uses `home-assistant-js-websocket`
 - `ws` supplies the authenticated Node WebSocket transport; REST stays on native `fetch()`
-- Current scope is contract-capped at 10,300 TypeScript source lines (`scripts/check-docs.sh` [1] lists each reviewed raise)
+- Current scope is contract-capped at 11,850 TypeScript source lines (`scripts/check-docs.sh` [1] lists each reviewed raise). The last raise, from 11,370, is the NOVA page's household list for chat apps (who may use them and at which level, each listed user's phone, the recent changes): about 11,830 lines.
 
 ## Standard Envelope
 

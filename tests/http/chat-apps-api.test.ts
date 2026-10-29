@@ -34,7 +34,7 @@ let phoneStart: (change: ChatPhoneChange) => Promise<string | null>;
 let phoneJob: () => Promise<ChatPhoneJob>;
 let enabled: boolean;
 
-const status: ChatAppsStatus = { available: true, enabled: false, unfinished: false, readOnly: false, chatCodes: true, allowedUsers: null, ownerPhone: null, ownerPhoneId: null };
+const status: ChatAppsStatus = { available: true, enabled: false, unfinished: false, readOnly: false, chatCodes: true, allowedUsers: null, levels: {}, phones: {}, ownerPhone: null, ownerPhoneId: null };
 
 function fakeChatApps(): ChatApps {
   return {
@@ -45,10 +45,13 @@ function fakeChatApps(): ChatApps {
     },
     turnOff: async () => void calls.push("off"),
     setSwitches: (change) => void calls.push(`switches:${JSON.stringify(change)}`),
+    setUsers: async () => {},
     phone: {
       phones: async () => ({ phones: [], link: null }),
       start: async (owner, change) => (calls.push(`phone:${owner}:${JSON.stringify(change)}`), await phoneStart(change)),
       job: async (user, id) => (calls.push(`job:${user}:${id}`), await phoneJob()),
+      activity: async () => [],
+      seen: async () => ({}),
     },
     restartSoon: () => void calls.push("restart"),
     boot: async () => {},

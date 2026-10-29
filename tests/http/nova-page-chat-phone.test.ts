@@ -49,16 +49,19 @@ afterEach(() => {
 });
 
 function chatApps(): ChatApps {
-  const status: ChatAppsStatus = { available: true, enabled: true, unfinished: false, readOnly: false, chatCodes, allowedUsers: null, ownerPhone: "iPhone", ownerPhoneId: IPHONE };
+  const status: ChatAppsStatus = { available: true, enabled: true, unfinished: false, readOnly: false, chatCodes, allowedUsers: null, levels: {}, phones: { [OWNER.id]: "iPhone" }, ownerPhone: "iPhone", ownerPhoneId: IPHONE };
   return {
     status: () => status,
     turnOn: async () => ({ restart: false }),
     turnOff: async () => {},
     setSwitches: () => {},
+    setUsers: async () => {},
     phone: {
       phones: async () => await phones(),
       start: async (_user, change) => (started.push(change), await start(change)),
       job: async () => await job(),
+      activity: async () => [],
+      seen: async () => ({}),
     },
     restartSoon: () => {},
     boot: async () => {},

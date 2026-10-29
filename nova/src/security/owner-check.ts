@@ -19,10 +19,11 @@ export interface HaAuthUser {
   is_owner?: boolean;
   is_active?: boolean;
   system_generated?: boolean;
+  group_ids?: string[]; // system-admin, system-users, system-read-only
 }
 
 export type OwnerCheckResult =
-  | { ok: true; userId: string; name: string }
+  | { ok: true; userId: string; name: string; users: HaAuthUser[] } // users: as read for this check
   | { ok: false; status: 403 | 503; message: string; ownerName?: string | undefined; unknownUser?: true };
 
 export interface OwnerCheckDeps {
@@ -68,5 +69,6 @@ export async function checkOwner(
     ok: true,
     userId,
     name: typeof user.name === "string" ? user.name : "",
+    users,
   };
 }
