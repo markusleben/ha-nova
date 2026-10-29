@@ -112,4 +112,24 @@ describe("chat-app phone control client", () => {
     };
     await expect(createChatPhoneControl(() => SECRET, port).phones("u1")).rejects.toMatchObject({ status: 503, code: "CHAT_PHONE_UNAVAILABLE" });
   });
+  it("reads what chat apps changed and when each user last asked, and drops a removed user's link", async () => {
+    const control = createChatPhoneControl(() => SECRET, port);
+    const line = { at: "2026-10-29T18:02:00Z", user: "u1", name: "Anna", tool: "ha_call", what: "lock.unlock", targets: ["Front Door"], result: "phone" };
+    reply = answer(200, { changes: [line] });
+    expect(await control.activity()).toEqual([line]);
+    reply = answer(200, { users: { u1: "2026-10-29T18:00:00Z" } });
+    expect(await control.seen()).toEqual({ u1: "2026-10-29T18:00:00Z" });
+    reply = answer(200, { status: "done" });
+    expect(await control.start("u1", { action: "drop" })).toBeNull();
+    expect(seen.map((s) => `${s.method} ${s.url}`)).toEqual(["GET /control/v1/activity", "GET /control/v1/seen", "POST /control/v1/phone"]);
+    expect(JSON.parse(seen[2]!.body)).toEqual({ user: "u1", action: "drop" });
+    for (const bad of [{}, { changes: [{ ...line, name: 1 }] }, { changes: [{ ...line, targets: [1] }] }]) {
+      reply = answer(200, bad);
+      await expect(control.activity()).rejects.toMatchObject({ status: 503, code: "CHAT_PHONE_UNAVAILABLE" });
+    }
+    for (const bad of [{}, { users: [] }, { users: { u1: 1 } }]) {
+      reply = answer(200, bad);
+      await expect(control.seen()).rejects.toMatchObject({ status: 503, code: "CHAT_PHONE_UNAVAILABLE" });
+    }
+  });
 });

@@ -11,7 +11,9 @@ import type { DeviceRegistry } from "../security/device-registry.js";
 import { BRIDGE_INSTALL_ID } from "../security/pairing-metadata.js"; // re-minting replaces the old record
 import { readPrivateFileSync, writeFileAtomicSync } from "../storage/atomic-file.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
+import { chatAppsFiles, type ChatAppsChoices } from "./chat-apps-files.js";
 import { ChatAppsError, chatAppFilesPresent, clearChatAppsInHA, customComponentsMissing, installIntegration, integrationOwner, removeEmptyCustomComponents, removeIntegration, SERVICE } from "./chat-apps-ha.js";
+import type { ChatUsers } from "./chat-apps-household.js";
 import { CONTROL_PORT, createChatPhoneControl, type ChatPhoneControl } from "./chat-phone-control.js";
 
 // Chat apps (spec docs/work/2026-10-18-onboarding-0.27-spec.md §11; contract
@@ -26,15 +28,10 @@ const SECRET = /^[0-9a-f]{64}$/;
 
 export { ChatAppsError, chatAppFilesPresent };
 
-export interface ChatAppsStatus {
+export interface ChatAppsStatus extends ChatAppsChoices {
   available: boolean;
   enabled: boolean;
   unfinished: boolean; // off, but the discovery message or the integration folder is still there
-  readOnly: boolean;
-  chatCodes: boolean;
-  allowedUsers: string[] | null; // null: the owner only
-  ownerPhone: string | null; // the owner's linked phone's name
-  ownerPhoneId: string | null; // and its Home Assistant device id
 }
 
 export interface ChatApps {
@@ -42,6 +39,7 @@ export interface ChatApps {
   turnOn(allowRestart: boolean): Promise<{ restart: boolean }>;
   turnOff(): Promise<void>;
   setSwitches(change: { readOnly?: boolean; chatCodes?: boolean }): void;
+  setUsers(ownerId: string, users: ChatUsers): Promise<void>; // users: checked against Home Assistant's (chat-apps-household.ts)
   phone: ChatPhoneControl; // every chat-app phone change goes through the bridge
   restartSoon(): void;
   boot(): Promise<void>;
@@ -102,8 +100,6 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
   const writeJson = (path: string, value: unknown): void => writeFileAtomicSync(path, `${JSON.stringify(value)}\n`);
   const load = (): State => readJson<State>(file("state.json"), { enabled: false });
   const save = (state: State): void => writeJson(file("state.json"), state);
-  const settings = (): { allowed_users?: string[]; read_only?: boolean; chat_codes?: boolean } =>
-    readJson(join(bridgeDir, "chat-apps.json"), {});
   const available = (): boolean =>
     existsSync(deps.binary) && existsSync(join(deps.integrationSource, "manifest.json"));
 
@@ -307,21 +303,16 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
     }
   });
 
+  const phone = createChatPhoneControl(() => {
+    const secret = readPrivateFileSync(file("control-secret"), 128)?.toString("utf8") ?? "";
+    return SECRET.test(secret) ? secret : null;
+  });
+  const files = chatAppsFiles(bridgeDir, phone, deps.logger);
+
   return {
     status(ownerId) {
       const state = load();
-      const current = settings();
-      const link = readJson<Record<string, { name?: unknown; device_id?: unknown } | null>>(join(bridgeDir, "phone-links.json"), {})[ownerId];
-      return {
-        available: available(),
-        enabled: state.enabled,
-        unfinished: !state.enabled && leftover(state),
-        readOnly: current.read_only === true,
-        chatCodes: current.chat_codes !== false,
-        allowedUsers: current.allowed_users ?? null,
-        ownerPhone: typeof link?.name === "string" ? link.name : null,
-        ownerPhoneId: typeof link?.name === "string" && typeof link.device_id === "string" ? link.device_id : null,
-      };
+      return { available: available(), enabled: state.enabled, unfinished: !state.enabled && leftover(state), ...files.choices(ownerId) };
     },
 
     // Every step is idempotent: a failure leaves a state that the same action
@@ -375,15 +366,10 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
 
     turnOff: () => serial(off),
 
-    setSwitches(change) {
-      const next = { ...settings(), ...(change.readOnly !== undefined ? { read_only: change.readOnly } : {}), ...(change.chatCodes !== undefined ? { chat_codes: change.chatCodes } : {}) };
-      writeJson(join(bridgeDir, "chat-apps.json"), next);
-    },
+    setSwitches: files.setSwitches,
 
-    phone: createChatPhoneControl(() => {
-      const secret = readPrivateFileSync(file("control-secret"), 128)?.toString("utf8") ?? "";
-      return SECRET.test(secret) ? secret : null;
-    }),
+    setUsers: files.setUsers,
+    phone,
 
     // homeassistant.restart checks the configuration again before it stops.
     // The call itself is cut when Home Assistant goes down, so only an answer

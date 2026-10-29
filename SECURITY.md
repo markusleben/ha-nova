@@ -24,9 +24,11 @@ Current `main` branch is supported for security fixes.
   completion is reported as unknown instead of retried.
 - Chat apps (Claude and ChatGPT) are off by default. They need Home Assistant Link with remote access (a subscription from the Home Assistant team) or your own HTTPS address. Only the Home Assistant
   owner can turn them on. By default only the owner can use them, through a
-  Home Assistant sign-in.
-  Unlocks, deletes, and other risky changes wait for a tap on the owner's
-  linked phone, or a code in the chat that the owner can turn off. The AI can
+  Home Assistant sign-in. The owner can add other Home Assistant users on the
+  NOVA page, each at a level no higher than their Home Assistant role.
+  Unlocks, deletes, and other risky changes wait for a tap on the linked phone
+  of the person who asked. A code in the chat stands in for the phone only for
+  people at Manage everything, and the owner can turn it off. The AI can
   see the chat code too, so a tap on the phone protects more. Claude or
   ChatGPT keep a Home Assistant sign-in for all of Home Assistant. Remove it
   in your Home Assistant profile (Security, refresh tokens).

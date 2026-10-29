@@ -8,6 +8,7 @@ import type { PairingV1Manager } from "../../security/pairing-v1.js";
 import type { RouteHandler } from "../router.js";
 import type { RelayLogger } from "../server.js";
 import { applyChatPhoneAction, CHAT_PHONE_ACTIONS, chatPhoneErrorCode, readChatPhone, type ChatPhoneAction, type ChatPhoneModel } from "./nova-page-chat-phone.js";
+import { applyChatUsers, chatPhoneUser, readChatUsers, type ChatUsersModel } from "./nova-page-chat-users.js";
 import {
   escapeHtml,
   parseConfirm,
@@ -37,7 +38,7 @@ const CSP = [
 ].join("; ");
 
 const ACTIONS = new Set<NovaAction>(["generate_code", "cancel_code", "revoke_device", "revoke_legacy", "reset_registry"]);
-const CHAT_ACTIONS = new Set<NovaAction>(["chat_apps_on", "chat_apps_off", "chat_read_only", "chat_codes"]);
+const CHAT_ACTIONS = new Set<NovaAction>(["chat_apps_on", "chat_apps_off", "chat_read_only", "chat_codes", "chat_users"]);
 
 export interface NovaPageDeps {
   fetchAuthUsers: () => Promise<HaAuthUser[]>;
@@ -96,7 +97,15 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
     } catch (error) {
       deps.logger?.error("Chat-app files are unreadable", { error: error instanceof Error ? error.message : String(error) });
     }
-    const chatPhone: ChatPhoneModel | null = chatApps?.enabled && chatApps.available ? await readChatPhone(deps.chatApps!.phone, owner.userId, query) : null;
+    // The household list, and the owner's phone or that of the listed user whose row the owner opened.
+    const chatOn = chatApps?.enabled === true && chatApps.available;
+    const asked = query.get("chat_user");
+    const chatWho = chatOn ? chatPhoneUser(asked, chatApps!, owner.userId, owner.users) : null;
+    // Someone removed or lowered meanwhile: never their pick list or job as the owner's.
+    const chatWhoGone = chatOn && asked !== null && asked !== owner.userId && chatWho === null;
+    const [chatPhone, chatUsers]: [ChatPhoneModel | null, ChatUsersModel | null] = chatOn
+      ? await Promise.all([readChatPhone(deps.chatApps!.phone, chatWho?.id ?? owner.userId, chatWhoGone ? new URLSearchParams() : query), readChatUsers(deps.chatApps!, owner.userId, owner.users, query)])
+      : [null, null];
     const chatConnectorUrl = chatApps?.enabled // unknown: the page words it without the address
       ? await deps.connectorUrl?.().catch((error: unknown) => (deps.logger?.warn("connector address unavailable", { error: String(error) }), null)) ?? null
       : null;
@@ -120,6 +129,9 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
       chatApps,
       chatConnectorUrl,
       chatPhone,
+      chatPhoneUser: chatWho,
+      chatPhoneUserGone: chatWhoGone,
+      chatUsers,
       chatRestarting: query.get("chat") === "restarting",
     });
     setHeaders(response);
@@ -153,8 +165,10 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
     // token armed for one device cannot revoke another, and no token for these
     // actions exists outside an open confirm screen.
     const deviceId = typeof form.device_id === "string" ? form.device_id : "";
+    // A phone form names its user (the owner, or one on the list), and its token is bound to that user.
+    const phoneUser = !phoneAction ? "" : typeof form.user === "string" ? form.user : owner.userId;
     const csrfAction =
-      action === "revoke_device" ? `revoke_device:${deviceId}` : action;
+      action === "revoke_device" ? `revoke_device:${deviceId}` : phoneAction ? `${action}:${phoneUser}` : action;
     if (!deps.csrf.consume(owner.userId, csrfAction, token, deps.now())) {
       fail(response, 403, "This form expired. Reload the page and try again.");
       return;
@@ -163,6 +177,7 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
     let errCode: string | null = null;
     let restart = false;
     let job: string | null = null; // a chat-app phone change that asks a phone: the page shows it
+    let removed: string[] = []; // the users a save of the household list removed
     // The strongest gate: resetting the registry additionally requires the
     // owner to type RESET verbatim on the confirm screen. The consumed token
     // stays consumed on a mismatch — re-arming means opening the screen again.
@@ -171,7 +186,13 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
     } else {
       try {
         if (phoneAction) {
-          job = await applyChatPhoneAction(deps.chatApps!, owner.userId, action as ChatPhoneAction, form);
+          if (phoneUser !== owner.userId && chatPhoneUser(phoneUser, deps.chatApps!.status(owner.userId), owner.userId, owner.users) === null) {
+            throw new Error("that phone form's user can't have a chat-app phone now");
+          }
+          job = await applyChatPhoneAction(deps.chatApps!, phoneUser, action as ChatPhoneAction, form);
+        } else if (action === "chat_users") {
+          // owner.users: Home Assistant's users as read for this request (checkOwner, never cached).
+          removed = await applyChatUsers(deps.chatApps!, owner.userId, owner.users, form);
         } else {
           restart = await applyAction(deps, action as NovaAction, form);
         }
@@ -196,12 +217,15 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
     response.statusCode = 303;
     // A RESET mismatch redirects back INTO the armed confirm screen (fresh
     // token) so the error's "type RESET" instruction has an input to point at.
+    const who = phoneUser !== "" && phoneUser !== owner.userId ? `&chat_user=${encodeURIComponent(phoneUser)}#chat-phone` : "";
     const location =
       errCode === null
-        ? restart ? `${base}?chat=restarting` : job !== null ? `${base}?chat_job=${job}` : action === "chat_phone_remove" ? `${base}?chat_phone=stopped` : base
+        ? restart ? `${base}?chat=restarting`
+          : action === "chat_users" ? `${base}?chat_users=saved${removed.length === 0 ? "" : `&chat_removed=${removed.map(encodeURIComponent).join(",")}`}#chat-users`
+          : job !== null ? `${base}?chat_job=${job}${who}` : action === "chat_phone_remove" ? `${base}?chat_phone=stopped${who}` : base
         : errCode === "confirm"
           ? `${base}?err=confirm&confirm=reset_registry`
-          : `${base}?err=${errCode}`;
+          : `${base}?err=${errCode}${who}`;
     response.setHeader("location", location);
     response.end();
     if (restart) {
@@ -213,7 +237,7 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
 // Returns whether Home Assistant must restart (turning chat apps on).
 async function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<string, unknown>): Promise<boolean> {
   const chat = deps.chatApps!;
-  switch (action as Exclude<NovaAction, ChatPhoneAction>) {
+  switch (action as Exclude<NovaAction, ChatPhoneAction | "chat_users">) {
     case "chat_apps_on":
       // The button carries the consent line "Home Assistant restarts once if needed".
       return (await chat.turnOn(true)).restart;
@@ -262,7 +286,8 @@ function onOff(value: unknown): boolean {
 // One plain line per refusal the owner can act on (nova-page-view.ts).
 function chatErrorCode(error: unknown): string {
   const code = error instanceof ChatAppsError ? error.code : "";
-  return code === "HA_CONFIG_INVALID" ? "chat_config" : code === "HA_TOO_OLD" ? "chat_old" : code.startsWith("CONFIG_") ? "chat_folder" : "chat";
+  return code === "HA_CONFIG_INVALID" ? "chat_config" : code === "HA_TOO_OLD" ? "chat_old" : code.startsWith("CONFIG_") ? "chat_folder"
+    : code === "USER_NOT_PICKABLE" || code === "LEVEL_ABOVE_ROLE" ? "chat_users" : code === "OLD_LINK_STAYS" ? "chat_users_link" : "chat";
 }
 
 async function safeUpdate(deps: NovaPageDeps): Promise<UpdateStatus> {
