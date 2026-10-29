@@ -119,6 +119,7 @@ type setupFlow struct {
 	pairingCredentialReceived bool
 	devicePaired              bool
 	pairedThisRun             bool // a pairing (sign-in or code) succeeded in this run
+	extrasShown               bool // the optional questions after step 4 have their screen (showExtras)
 	manualCredentialFlow      bool
 	pairingBackStep           setupStepID
 	verifyFirstReuseFlow      bool

@@ -565,6 +565,8 @@
   "setup.page.home.chip": "“{text}”",
   "setup.page.control.phone_offer": "“{phone}” ({person}) can ask before anything risky runs.",
   "setup.page.control.phone_use": "Use this phone",
+  "setup.extras.ready": "HA NOVA is connected.",
+  "setup.extras.optional": "A few optional extras follow. Skip any of them: run ha-nova setup again anytime to add them.",
   "setup.page.problem.link_elsewhere": "This computer uses Home Assistant Link for {host}. To use another Home Assistant, remove that Link first. You can set up Link for the new one later.",
   "setup.page.button.link_remove": "Remove Link for {host}",
   "setup.page.problem.link_remove_failed": "Link couldn't be removed. The terminal says why.",

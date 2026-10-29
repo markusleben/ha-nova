@@ -24,7 +24,15 @@ func hasAvailableSetupClientChoice(choices []setupClientChoice) bool {
 	return false
 }
 
+// setupKeepScreen: an outcome below the optional questions keeps them on
+// screen (setupTextUI.outcome).
+var setupKeepScreen bool
+
 func renderSetupHeader(out io.Writer) {
+	if setupKeepScreen {
+		fmt.Fprintln(out)
+		return
+	}
 	session := resolveSetupUISession(out)
 	clearSetupScreen(out)
 	renderSimpleHeader(out, session, setupT("setup.header"))
