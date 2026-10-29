@@ -8,7 +8,7 @@ const item = (id: string, state: string, label: string, key: string, action = ""
 const state = {
   screen: "rerun", rows: [], accepts: ["clients", "window", "phone", "finish"],
   links: { nova: "http://homeassistant.local:8123/app" },
-  control: { window: false, phone: "pick", phones: [{ id: "p1", name: "My phone", person: "Me" }], link: "offer", chat: { state: "page_off" } },
+  control: { window: false, phone: "pick", own: 1, phones: [{ id: "p1", name: "My phone", person: "Me" }], link: "offer", chat: { state: "page_off" } },
   overview: [
     item("claude", "ok", "Claude Code", "client_on"),
     item("codex", "todo", "Codex", "client_off", "clients", "codex"),
@@ -46,6 +46,24 @@ describe("setup re-run overview", () => {
     phone.find("b-phone-0")!.dispatch("click");
     await phone.settle();
     expect(phone.posts).toEqual([{ action: "phone", value: "p1" }]);
+  });
+
+  it("names the open phone on top and opens its row on a click", async () => {
+    const p = page(state);
+    await p.settle();
+    const box = p.screen.all().find((node) => node.className === "attention")!;
+    expect(box.textContent).toContain(p.catalog["setup.overview.attention"]);
+    expect(box.textContent).toContain("Phone for this computer");
+    expect(box.textContent).not.toContain("Phone for chat apps"); // unknown, not open
+    const phoneDetails = () => p.screen.all().find((node) => node.tag === "details" && node.all().includes(p.find("overview-phone")!))!;
+    expect(phoneDetails().open).toBe(false);
+    p.find("b-attention-phone")!.dispatch("click");
+    await p.settle();
+    expect(phoneDetails().open).toBe(true);
+    expect(p.posts).toEqual([]);
+    const done = page({ ...state, overview: [item("phone", "ok", "Phone for this computer", "phone_on", "phone")] });
+    await done.settle();
+    expect(done.screen.all().some((node) => node.className === "attention")).toBe(false);
   });
 
   it("keeps chat and Link switches pending until Done", async () => {

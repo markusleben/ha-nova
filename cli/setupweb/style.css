@@ -158,6 +158,11 @@ h1:focus { outline: none; }
 .switch[disabled] { opacity: .55; cursor: default; }
 .switch:focus-visible, .chip:focus-visible, .linkish:focus-visible, summary:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
 .linkish { font: 600 .875rem var(--font); background: none; border: none; color: var(--cyan); cursor: pointer; padding: 0; margin-top: 6px; }
+summary { cursor: pointer; color: var(--cyan); font-weight: 600; font-size: .9rem; width: fit-content; }
+.attention { border: 1px solid rgba(255, 179, 71, .45); background: rgba(255, 179, 71, .08); border-radius: 10px; padding: 12px 16px; margin: 0 0 28px; }
+.attention strong { color: var(--amber); }
+.attention ul { margin: 6px 0 0; padding-left: 1.2rem; }
+.attention .linkish { margin: 4px 0 0; text-align: left; font-weight: 500; }
 .rows .problem { margin: 8px 0 0; font: 400 .95rem/1.5 var(--font); }
 .note { border-left: 2px solid var(--amber); padding: 2px 0 2px 14px; color: var(--ink-soft); font-size: .95rem; margin: 0 0 16px; }
 .note.done { border-left-color: var(--ok); } /* what went through */

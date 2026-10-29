@@ -29,6 +29,7 @@ export class FakeNode {
   replaceChildren(...nodes: FakeNode[]) { this.children = nodes; }
   remove() { /* toasts only */ }
   focus() { /* no focus tracking */ }
+  scrollIntoView() { /* no layout */ }
   all(): FakeNode[] { return this.children.flatMap((c) => [c, ...c.all()]); }
   querySelector(selector: string) { return this.all().find((n) => n.tag === selector) ?? null; }
   querySelectorAll() { return []; }
