@@ -6,9 +6,11 @@ import (
 	"testing"
 )
 
-// The terminal's phone question: the user's own phones first (the owner's
-// when no one signed in), and without one, why, before anyone else's.
-func TestChoosePhoneOwnFirstAndWhyItIsMissing(t *testing.T) {
+// The terminal's phone question: setup can't tell whose computer this is
+// (only Home Assistant's owner signs in, also on a partner's computer), so
+// it asks whose phone. Every administrator's phone shows its person in name
+// order, nothing is proposed or first, and Enter skips.
+func TestChoosePhoneAsksWhosePhone(t *testing.T) {
 	admin := func(id string, owner bool) haUser {
 		return haUser{ID: id, IsActive: true, IsOwner: owner, GroupIDs: []string{"system-admin"}}
 	}
@@ -16,32 +18,22 @@ func TestChoosePhoneOwnFirstAndWhyItIsMissing(t *testing.T) {
 	mine := phoneTarget{Service: "mobile_app_markuss_iphone", Name: "Markus’s iPhone", DeviceID: "dev-markus", UserID: "owner-id", Person: "Markus"}
 	home := phoneHome{owner: "owner-id", relay: "relay-id",
 		users:  map[string]haUser{"owner-id": admin("owner-id", true), "anna-id": admin("anna-id", false)},
-		phones: []phoneTarget{anna, mine}}
-	if all, own := home.ownFirst(""); own != 1 || all[0] != mine || all[1] != anna {
-		t.Fatalf("owner fallback: %v own=%d", all, own)
-	}
-	if all, own := home.ownFirst("anna-id"); own != 1 || all[0] != anna {
-		t.Fatalf("signed in: %v own=%d", all, own)
-	}
-
-	// No own phone; a child's two devices share a name: that isn't the reason.
-	home.phones = []phoneTarget{anna}
-	home.shared, home.sharedOf = []string{"Kid’s Phone"}, map[string][]string{"kid-id": {"Kid’s Phone"}}
+		phones: []phoneTarget{anna, mine}, shared: []string{"Kid’s Phone"}, sharedOf: map[string][]string{"kid-id": {"Kid’s Phone"}}}
 	var out strings.Builder
-	if got, ok := choosePhone(bufio.NewReader(strings.NewReader("\n")), &out, home, ""); ok {
+	if got, ok := choosePhone(bufio.NewReader(strings.NewReader("\n")), &out, home); ok {
 		t.Fatalf("Enter linked %+v", got)
 	}
 	text := out.String()
-	if !strings.Contains(text, phoneOwnMissing) || strings.Contains(text, phoneListHeader) || !strings.Contains(text, "Anna’s Pixel") {
-		t.Fatalf("no own phone:\n%s", text)
+	for _, want := range []string{phoneWhoseHeader, phoneWhoseQuestion, phoneWhoseMissing, phoneSharedLine("Kid’s Phone"), "1) Anna’s Pixel (Anna)", "2) Markus’s iPhone (Markus)", "Type the number of the phone"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("no %q in:\n%s", want, text)
+		}
 	}
-
-	// The owner's own phone shares its name: that is the reason.
-	home.sharedOf["owner-id"] = []string{"Markus’s iPhone"}
-	home.shared = append(home.shared, "Markus’s iPhone")
+	if strings.Contains(text, "Use “") || strings.Contains(text, "your") {
+		t.Fatalf("a phone was offered as the user's own:\n%s", text)
+	}
 	out.Reset()
-	choosePhone(bufio.NewReader(strings.NewReader("\n")), &out, home, "")
-	if text := out.String(); strings.Contains(text, phoneOwnMissing) || !strings.Contains(text, phoneSharedLine("Markus’s iPhone")) {
-		t.Fatalf("shared own phone:\n%s", text)
+	if got, ok := choosePhone(bufio.NewReader(strings.NewReader("2\n")), &out, home); !ok || got != mine {
+		t.Fatalf("picked %+v %v", got, ok)
 	}
 }

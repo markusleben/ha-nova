@@ -11,7 +11,7 @@ window.novaSteps = (h) => {
   // Switches and open details live here until "Continue" sends them.
   // chatFlip: a re-run's chat-app switch turned the other way (Done applies
   // it); moving: "Use another phone" shows the phones to pick from.
-  const local = { rule: true, link: false, others: false, moving: false, drafts: {}, chatAsk: false, chatFlip: false, chatSeen: '', how: {} };
+  const local = { rule: true, link: false, moving: false, drafts: {}, chatAsk: false, chatFlip: false, chatSeen: '', how: {} };
 
   const focusId = (id) => { const node = document.getElementById(id); if (node) node.focus(); };
   const toast = (text) => {
@@ -87,6 +87,7 @@ window.novaSteps = (h) => {
       if (asking) setTimeout(() => { if (local.askN === n) { local.quiet = true; render(true); h.announce(hint(os)); } }, 30000);
     }
     const nothing = (os) => el('div', { class: 'v' }, hint(os));
+    const why = () => [c.phone_why ? el('div', { class: 'v' }, say(c.phone_why)) : null, el('div', { class: 'v' }, t('setup.page.control.phone_whose_missing'))];
     const quiet = (os) => (local.quiet ? nothing(os) : null);
     // A timeout says where notifications turn on, in the same alert.
     const phoneProblem = () => (c.phone_problem && c.phone_problem.key === 'setup.page.control.phone_timeout'
@@ -112,22 +113,11 @@ window.novaSteps = (h) => {
         return el('li', focusAfter(['b-phone-0', ...phones.map((p, i) => `b-phone-${i}`)]), spinner(),
           el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t({ ios: 'setup.page.control.phone_waiting_ios', android: 'setup.page.control.phone_waiting_android' }[c.phone_os] || 'setup.page.control.phone_waiting', { phone: c.phone_name })), quiet(c.phone_os)), el('span'));
       case 'none':
-        return line(muted('·'), key, t('setup.page.control.phone_none'), el('div', { class: 'v' }, say(c.phone_why)), recheck());
+        return line(muted('·'), key, t('setup.page.control.phone_none'), why(), recheck());
       case 'unread': // the button is disabled while it reads again
         return line(muted('·'), key, t('setup.page.control.phone_unread'), null, recheck());
-      case 'pick': {
-        // The user's own phones first (c.own of them); someone else's only on an explicit click.
-        const own = c.own || 0;
-        const more = !local.others && phones.length > own
-          ? el('button', { id: 'b-phone-other', class: 'linkish', type: 'button', onclick: () => { local.others = true; render(true); } }, t(own ? 'setup.page.control.phone_other' : 'setup.page.control.phone_someone'))
-          : null;
-        if (own === 1 && !local.others) { // a button: the notification goes out on this click
-          return line(muted('◎'), key, t('setup.page.control.phone_offer', { phone: phones[0].name, person: phones[0].person }), [phoneProblem(), more],
-            button(t('setup.page.control.phone_use'), 'phone', 'ghost btn-small', phones[0].id, 'phone-0'));
-        }
-        if (own === 0 && !local.others) return line(muted('◎'), key, say(c.phone_why), [phoneProblem(), more], recheck());
-        return line(muted('◎'), key, t('setup.page.control.phone_pick'), [phoneProblem(), pickPhones(local.others ? phones : phones.slice(0, own)), more]);
-      }
+      case 'pick': // whose phone (setup can't tell whose computer this is): every phone with its person, none first; a click sends the notification
+        return line(muted('◎'), key, t('setup.page.control.phone_whose'), [phoneProblem(), pickPhones(phones), ...why()], recheck());
       default:
         return null; // can't be linked here: no row (confirm-phone settles it later)
     }
@@ -185,7 +175,7 @@ window.novaSteps = (h) => {
         ? el('button', { id: 'b-finish', class: 'btn btn-primary', type: 'button', disabled: '' }, finish)
         : button(finish, 'finish', 'primary', choices.join(','))),
       asking ? el('p', { class: 'fine' }, t('setup.chat.answer_first')) : null,
-      c.phone === 'pick' && (c.own || local.others) ? el('p', { class: 'fine' }, t('setup.page.control.fine')) : null,
+      c.phone === 'pick' ? el('p', { class: 'fine' }, t('setup.page.control.fine')) : null,
       status && h.state().accepts.includes('server') ? el('p', { class: 'fine' }, el('button', { id: 'b-server', class: 'linkish', type: 'button', onclick: () => h.post('server') }, t('setup.page.rerun.add_server'))) : null];
   };
 
