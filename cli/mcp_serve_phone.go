@@ -86,22 +86,40 @@ func linksForCall(paths runtimePaths) (map[string]phoneEntry, bool) {
 	if chatCall == nil {
 		return phoneLinks(paths)
 	}
-	raw, err := os.ReadFile(chatCall.links)
+	byUser, ok := readBridgeLinks(chatCall.links)
+	if !ok {
+		return nil, false
+	}
+	return bridgeEntries(byUser, chatCall.user), true
+}
+
+// readBridgeLinks: the bridge's store, {HA user id: phoneLink or null}.
+// Missing file: none; unreadable: unknown (ok=false), never "none".
+func readBridgeLinks(file string) (map[string]*phoneLink, bool) {
+	raw, err := os.ReadFile(file)
 	if errors.Is(err, os.ErrNotExist) {
-		return map[string]phoneEntry{}, true
+		return map[string]*phoneLink{}, true
 	}
 	var byUser map[string]*phoneLink
 	if err != nil || json.Unmarshal(raw, &byUser) != nil {
 		return nil, false
 	}
+	if byUser == nil { // a file holding null
+		byUser = map[string]*phoneLink{}
+	}
+	return byUser, true
+}
+
+// bridgeEntries: user's link as the phone code reads it, under chatOwner.
+func bridgeEntries(byUser map[string]*phoneLink, user string) map[string]phoneEntry {
 	links := map[string]phoneEntry{}
-	if link, present := byUser[chatCall.user]; present {
+	if link, present := byUser[user]; present {
 		if link == nil { // null: an unusable link (refused), never "no phone"
 			link = &phoneLink{}
 		}
 		links[chatOwner] = phoneEntry{link: link}
 	}
-	return links, true
+	return links
 }
 
 // chatOwner keys the bridge's one link in place of the HA owner's id.

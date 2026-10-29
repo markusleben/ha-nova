@@ -78,8 +78,10 @@ func phonePlanAsk(lang string, goal actionGoal, noSnapshot bool) phoneAsk {
 	return phoneAsk{lang: lang, title: goal.title(lang, ""), body: body, button: goal.button(lang), urgent: true}
 }
 
-func phoneRequested(lang string) string {
-	if chatCall != nil { // ha-nova serve: the host is the NOVA App, not the user's computer
+func phoneRequested(lang string) string { return phoneRequestedBy(lang, chatCall != nil) }
+
+func phoneRequestedBy(lang string, chat bool) string {
+	if chat { // ha-nova serve: the host is the NOVA App, not the user's computer
 		return confirmT(lang, "phone.requested_chat")
 	}
 	return confirmT(lang, "phone.requested_by", "host", phoneHost(lang))
@@ -176,7 +178,7 @@ func phonePayload(ask phoneAsk, platform, tag, ok, no string, deadline time.Time
 	case ask.unlock:
 		confirm["authenticationRequired"] = true
 	}
-	hint := phoneHint(ask.lang, platform, ask.button, ask.body != phoneRequested(ask.lang))
+	hint := phoneHint(ask.lang, platform, ask.button, ask.body != phoneRequestedBy(ask.lang, true) && ask.body != phoneRequestedBy(ask.lang, false)) // never chatCall: ha-nova serve sends outside the verb lock
 	message := ask.body + " " + hint
 	if platform == phoneAndroid { // a collapsed Android notification shows one line of text: the hint first
 		message = hint + " " + ask.body

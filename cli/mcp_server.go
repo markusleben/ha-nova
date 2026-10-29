@@ -147,6 +147,7 @@ func runMCPCommand(paths runtimePaths, args []string) int {
 	if opts.serverSet {
 		setServerSelectionOverride(opts.server) // every tool call uses this profile
 	}
+	phoneTellSpan = 2 * time.Second // once, never per verb (serve's phone jobs read it unlocked): a result still lands; a call stays under 60 s
 	// stdout carries JSON-RPC only: anything else printed in this process
 	// (warnings, a stray fmt.Print) goes to stderr instead.
 	protocolOut := os.Stdout
@@ -318,7 +319,6 @@ func (srv *mcpServer) runVerb(name, answered string, forms bool, run func() int)
 	if srv.chat != nil {
 		windowWait = chatAskSpan // the phone ask outlives one call (mcp_serve_phone.go)
 	}
-	phoneTellSpan = 2 * time.Second // the server stays up, so a phone result still lands; the call stays under 60 s
 	defer func() {
 		planChannel, humanAnswer, humanWhere, windowWait, formsShown, phoneApplied, chatCall = "", "", "", cliWindowWait, false, nil, nil
 	}()
