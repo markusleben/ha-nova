@@ -283,12 +283,21 @@ func TestPhoneTextsFitEveryCatalog(t *testing.T) {
 		}
 		// Every action's question and result title (an undo's included) keep
 		// a usual name whole, in the language's quotes, and cut the longest
-		// name a confirmation shows, never dropping it.
+		// name a confirmation shows, never dropping it: every goal whose phrase
+		// names what it acts on in any catalog (one that names nothing, such as
+		// a host restart, has no name to keep; TestEverydayTitlesKeepTheName
+		// adds the frames of Delivery 3's goals).
 		goals := []actionGoal{{label: "Temperatur einstellen", named: true}}
 		for key := range confirmCatalogs[lang] {
 			if verb, ok := strings.CutPrefix(key, "goal."); ok && verb != "label" && !strings.Contains(verb, ".") {
 				frame := map[bool]string{true: "automation"}[slices.Contains([]string{"create", "change", "delete", "restore", "revert"}, verb)] // a config plan's frame
-				goals = append(goals, actionGoal{verb: verb, frame: frame})
+				g, named := actionGoal{verb: verb, frame: frame}, false
+				for other := range confirmCatalogs {
+					named = named || strings.Contains(g.phrase(other, "\uE000"), "\uE000")
+				}
+				if named {
+					goals = append(goals, g)
+				}
 			}
 		}
 		usual, longest := sayText("Wohnzimmer Decke", true), sayText(strings.Repeat("Flurlicht ", 7), true)

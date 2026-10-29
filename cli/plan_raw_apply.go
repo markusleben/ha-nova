@@ -40,7 +40,8 @@ var rawHelperCollections = []string{"input_boolean", "input_number", "input_text
 func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []rawRequest, noSnapshot bool) (err error) {
 	sent := false
 	defer afterSend(&sent, env, &err)
-	result := rawApplyResult{}
+	result, copies := rawApplyResult{}, len(rawCopies(items)) // steps are numbered and counted after the copies, as the preview says them
+	step := func(i int) int { return i + 1 - copies }
 	add := func(i int, status, why string) *rawItemOutcome {
 		result.Items = append(result.Items, rawItemOutcome{Item: i + 1, Endpoint: items[i].Endpoint, Status: status, Error: why})
 		return &result.Items[len(result.Items)-1]
@@ -50,11 +51,11 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		for j := i + 1; j < len(items); j++ {
 			add(j, "not_sent", "")
 		}
-		return rawStopped(env, result, i, status, why)
+		return rawStopped(env, result, copies, i, status, why)
 	}
 	undo := func(i int) error {
 		return &verbFailure{exit: verbExitError, code: "UNDO_FAILED", cause: errSnapshotFailed,
-			message: fmt.Sprintf("step %d's helper could not be read before its change, so no undo could be saved; nothing was sent and the plan stays valid", i+1),
+			message: fmt.Sprintf("step %d's helper could not be read before its change, so no undo could be saved; nothing was sent and the plan stays valid", step(i)),
 			next:    "Tell the user the change could not be made undoable. Only if they want it anyway: apply again with --no-snapshot (no config copy, no undo)."}
 	}
 	for i, item := range items { // every helper's undo before anything is sent
@@ -91,7 +92,7 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		case collection == "" || before != nil:
 		case noSnapshot:
 			withoutUndo = true
-			env.Notices = append(env.Notices, verbNotice{Kind: "undo", Text: fmt.Sprintf("step %d is not revertible: the user chose to go on without undo", i+1)})
+			env.Notices = append(env.Notices, verbNotice{Kind: "undo", Text: fmt.Sprintf("step %d is not revertible: the user chose to go on without undo", step(i))})
 		case !sent:
 			return undo(i)
 		default:
@@ -122,7 +123,7 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 	}
 	env.Result, env.Status, env.exit = result, "accepted", verbExitOK
 	env.Say = "Done: Home Assistant accepted it."
-	if done := countStatus(result, "done"); done > 1 {
+	if done := countStatus(rawApplyResult{Items: result.Items[copies:]}, "done"); done > 1 {
 		env.Say = fmt.Sprintf("Done: Home Assistant accepted all %d steps.", done)
 	}
 	if countStatus(result, "skipped") > 0 || withoutUndo {
@@ -224,9 +225,10 @@ func rawResponse(endpoint string, data json.RawMessage) json.RawMessage {
 }
 
 // rawStopped records an apply that stopped at item i (0-based) after
-// earlier items were done; the result keeps every item's outcome.
-func rawStopped(env *verbEnvelope, result rawApplyResult, i int, status, why string) error {
-	done := countStatus(result, "done") // a snapshot left out by --no-snapshot never counts
+// earlier items were done; the result keeps every item's outcome. Its text
+// numbers and counts the steps after the leading copies, as the preview did.
+func rawStopped(env *verbEnvelope, result rawApplyResult, copies, i int, status, why string) error {
+	done, step := countStatus(rawApplyResult{Items: result.Items[copies:]}, "done"), i+1-copies
 	went, rest, sayRest := "", "", ""
 	if done > 0 {
 		went = "; " + plural(done, "earlier step") + " went through"
@@ -235,21 +237,21 @@ func rawStopped(env *verbEnvelope, result rawApplyResult, i int, status, why str
 		rest, sayRest = "; the steps after it were not sent", ", and the rest weren't sent"
 	}
 	env.Result, env.Status, env.exit = result, "failed", verbExitUnverified
-	env.Error = &verbError{Code: "RAW_FAILED", Message: fmt.Sprintf("step %d did not go through (%s)%s%s", i+1, why, went, rest),
+	env.Error = &verbError{Code: "RAW_FAILED", Message: fmt.Sprintf("step %d did not go through (%s)%s%s", step, why, went, rest),
 		Next: "Tell the user which steps went through and what stopped the next one. Plan the rest again only if they still want it."}
 	switch {
 	case status == "unknown":
 		env.Status, env.exit, env.OutcomeUnknown = "unverified", verbExitUnknown, true
 		env.Error.Code = "OUTCOME_UNKNOWN"
-		env.Error.Message = fmt.Sprintf("step %d may have reached Home Assistant (%s)%s%s", i+1, why, went, rest)
+		env.Error.Message = fmt.Sprintf("step %d may have reached Home Assistant (%s)%s%s", step, why, went, rest)
 		env.Error.Next = "Read whether that step took effect and tell the user; never apply this plan again. The steps after it were not sent."
-		env.Say = fmt.Sprintf("Not sure: step %d may have gone through, and I can't tell. I didn't try again%s.", i+1, sayRest)
+		env.Say = fmt.Sprintf("Not sure: step %d may have gone through, and I can't tell. I didn't try again%s.", step, sayRest)
 	case done == 0 && status == "rejected":
 		env.Say = sayNotDone("Home Assistant refused it")
 	case done == 0:
 		env.Say = sayNotDone("it didn't go through")
 	default:
-		env.Say = fmt.Sprintf("Partly done: %s went through; step %d didn't%s.", plural(done, "step"), i+1, sayRest)
+		env.Say = fmt.Sprintf("Partly done: %s went through; step %d didn't%s.", plural(done, "step"), step, sayRest)
 	}
 	return nil
 }

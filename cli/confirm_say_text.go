@@ -91,6 +91,9 @@ func sayAsk(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) a
 			why = append(why, text)
 		}
 	}
+	if line := env.everyday; line != nil && line.phoneOpening() != "" {
+		why = append([]string{upperFirst(line.phoneOpening())}, why...)
+	}
 	goal.why = strings.Join(why, ". ")
 	return goal
 }
@@ -210,7 +213,10 @@ func sayValue(s string) string {
 // any language („ “ ‚ ‘ included, so a name can't close or open a quote in
 // English or German), at most 60 characters; quoted “…” when asked (a
 // German text marks the pair „…“: confirmQuote).
-func sayText(s string, quote bool) string {
+func sayText(s string, quote bool) string { return sayTextUpTo(s, 60, quote) }
+
+// sayTextUpTo is sayText with its own length limit (a detail line's request).
+func sayTextUpTo(s string, limit int, quote bool) string {
 	s = strings.Map(func(r rune) rune {
 		switch {
 		case unicode.Is(unicode.Cf, r): // zero-width and bidi controls
@@ -230,8 +236,8 @@ func sayText(s string, quote bool) string {
 	}, s)
 	s = strings.ReplaceAll(s, "://", ": //") // no autolinks
 	s = strings.Join(strings.Fields(s), " ")
-	if runes := []rune(s); len(runes) > 60 {
-		s = string(runes[:59]) + "…"
+	if runes := []rune(s); len(runes) > limit {
+		s = string(runes[:limit-1]) + "…"
 	}
 	if s == "" || !quote {
 		return s
@@ -241,7 +247,7 @@ func sayText(s string, quote bool) string {
 
 // sayQuoteMark: a quote mark of any language („ “ ‚ ‘ included).
 func sayQuoteMark(r rune) bool {
-	return unicode.In(r, unicode.Pi, unicode.Pf) || strings.ContainsRune("\"″＂〝〞〟„‚⹂", r)
+	return unicode.In(r, unicode.Pi, unicode.Pf) || strings.ContainsRune("\"″＂〝〞〟„‚⹂❛❜❝❞ˮ״", r)
 }
 
 func appendUnique(list []string, s string) []string {
@@ -265,6 +271,14 @@ func sayOwnedAction(lang string, env *verbEnvelope, r tierReason) string {
 		}
 	}
 	_, name := splitID(action)
+	if line := env.everyday; line != nil && r.Via == "" { // the plan's own call: its line already says what it does
+		switch {
+		case action == "mqtt.publish":
+			return confirmT(lang, "owned.mqtt_line")
+		case line.goal.verb == "host_reboot" || line.goal.verb == "host_shutdown":
+			return confirmT(lang, "owned.supervisor")
+		}
+	}
 	switch {
 	case action == "mqtt.publish":
 		return confirmT(lang, "owned.mqtt")

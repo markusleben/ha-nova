@@ -147,7 +147,7 @@ func TestPlanRawSupervisorTiers(t *testing.T) {
 	}
 	cases := []struct{ path, data, tier, line string }{
 		{"/store/addons/core_mosquitto/install", "", "typed", "Install the App “Mosquitto broker” (core_mosquitto)"},
-		{"/addons/core_mosquitto/uninstall", `,"data":{"remove_config":true}`, "typed", "Uninstall the App “Mosquitto broker” (core_mosquitto); its settings, data, and config folder are deleted"},
+		{"/addons/core_mosquitto/uninstall", `,"data":{"remove_config":true}`, "typed", "Uninstall the App “Mosquitto broker” (core_mosquitto): its settings, data, and config folder are deleted"},
 		{"/addons/core_mosquitto/options", `,"data":{"options":{"log_level":"debug","mqtt_pass":"n3w"}}`, "typed", `Change the settings of the App “Mosquitto broker” (core_mosquitto): “log_level” to 'debug', “mqtt_pass” (a new secret value, not shown)`},
 		{"/addons/core_mosquitto/options", `,"data":{"options":{"server":{"password":"nested-new"}}}`, "typed", "“server” (a new secret value, not shown)"},
 		{"/addons/core_mosquitto/options", `,"data":{"options":{"wpa":"wpa-new-1","server":{"host":"h","pw2":"nested-pw2"}}}`, "typed", "“server” (a new secret value, not shown), “wpa” (a new secret value, not shown)"},

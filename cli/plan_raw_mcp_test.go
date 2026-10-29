@@ -71,7 +71,7 @@ func TestServeReadOnlyRefusesRawPlans(t *testing.T) {
 }
 
 // A typed raw plan is confirmed in the window like any typed plan; the
-// window shows each step.
+// window shows its step and the copy saved first.
 func TestPlanRawConfirmsInTheWindow(t *testing.T) {
 	paths, sent := rawRelay(t, nil)
 	w := useWindow(t, windowConfirmed)
@@ -81,7 +81,7 @@ func TestPlanRawConfirmsInTheWindow(t *testing.T) {
 		t.Fatalf("plan %+v say %q", env.Plan, env.Say)
 	}
 	exit, applied := applyRaw(t, paths, env)
-	if exit != 0 || len(w.messages) != 1 || !strings.Contains(w.messages[0], "2. Delete the toggle helper “guest”.") || applied.Plan.Channel != channelWindow {
+	if exit != 0 || len(w.messages) != 1 || !strings.Contains(w.messages[0], "I'm about to delete the toggle helper “guest”. HA NOVA saves a copy first (“helpers/auto-guest”).") || applied.Plan.Channel != channelWindow {
 		t.Fatalf("apply: exit %d %+v windows %q", exit, applied.Error, w.messages)
 	}
 	if got := strings.Join(sent(), " | "); got != "backups save | input_boolean/delete" {

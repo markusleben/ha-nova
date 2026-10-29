@@ -212,7 +212,7 @@ func TestPlanRawSnapshotFailedThenNoSnapshot(t *testing.T) {
 	})
 	_, env := planRaw(t, paths, `[{"endpoint":"backups","payload":{"action":"save","category":"scenes","name":"auto-evening","data":{"id":"evening"}}},
 		{"endpoint":"core","payload":{"method":"DELETE","path":"/api/config/scene/config/evening"}}]`)
-	if env.Tier != "typed" || !strings.Contains(env.Say, "2. Delete the scene “Evening”.") {
+	if env.Tier != "typed" || !strings.Contains(env.Say, "I'm about to delete the scene “Evening”. HA NOVA saves a copy first (“scenes/auto-evening”).") {
 		t.Fatalf("plan %+v", env)
 	}
 	if exit, early := applyRaw(t, paths, env, "--no-snapshot"); exit != verbExitRefused || early.Error.Code != "NO_SNAPSHOT_NOT_OFFERED" {
