@@ -74,8 +74,9 @@ type relaySession struct {
 	mu           sync.Mutex
 	memo         map[string]*relayMemo
 	relayVersion string
-	answered     bool  // the Relay has answered at least one request
-	unreachable  error // transport failure before the Relay ever answered
+	answered     bool   // the Relay has answered at least one request
+	unreachable  error  // transport failure before the Relay ever answered
+	lang         string // a sealed typed plan's language while it is re-planned (replanStored, apply)
 }
 
 type relayMemo struct {
@@ -125,6 +126,22 @@ func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Dur
 }
 
 func (s *relaySession) close() { s.cancel() }
+
+// language is the catalog this session's confirmations speak: a stored
+// plan's while it is re-planned, else Home Assistant's own (/api/config),
+// English when that can't be read or has no catalog.
+func (s *relaySession) language() string {
+	if s.lang != "" {
+		return s.lang
+	}
+	var config struct {
+		Language string `json:"language"`
+	}
+	if status, body, err := s.coreGET("/api/config"); err == nil && status == http.StatusOK {
+		_ = json.Unmarshal(body, &config)
+	}
+	return confirmLanguage(config.Language)
+}
 
 // coreGET reads one Home Assistant REST path and returns the upstream status
 // and body from the Relay envelope.

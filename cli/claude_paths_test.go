@@ -46,7 +46,7 @@ func TestMain(m *testing.M) {
 	// Codex's copy names the desktop app on macOS and Windows only: goldens
 	// pin the Mac wording on every OS (client_codex_test.go covers Linux).
 	codexPlatformOS = "darwin"
-	windowRunner = func(context.Context, string, time.Duration) windowAnswer {
+	windowRunner = func(context.Context, string, string, time.Duration) windowAnswer {
 		panic("a test opened a real confirmation window")
 	}
 	secretKeyringGet = keyring.Get

@@ -213,7 +213,8 @@ func nativeWindowAvailable() bool {
 	return syscall.UTF16ToString(name[:]) == "Default"
 }
 
-func nativeWindow(ctx context.Context, message string, wait time.Duration) windowAnswer {
+// nativeWindow: Windows' stock OK/Cancel follow Windows' own language (lang unused).
+func nativeWindow(ctx context.Context, message, _ string, wait time.Duration) windowAnswer {
 	text, err1 := syscall.UTF16PtrFromString(message)
 	title, err2 := syscall.UTF16PtrFromString("HA NOVA")
 	if err1 != nil || err2 != nil {

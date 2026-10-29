@@ -326,7 +326,7 @@ func allowPhoneChange(s *relaySession, out io.Writer, home phoneHome, links map[
 	if newPhone != "" {
 		fmt.Fprintf(out, "  A confirmation window opens on this computer first; then “%s” gets the link question.\n", newPhone)
 	}
-	switch askWindow(context.Background(), question, wait) {
+	switch askWindow(context.Background(), question, "en", wait) {
 	case windowConfirmed:
 		return true
 	case windowFailed:

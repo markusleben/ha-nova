@@ -309,7 +309,7 @@ describe("HA UI parity batch 1", () => {
     expect(integration).toContain("Same access refusals; `require_restart: true`");
     expect(integration).toContain("config_entries/get");
     const admin = read("skills/admin/SKILL.md");
-    for (const pin of ["config/auth/update", "group_ids", "is_active", "system-admin", "config/core/update", "config/core/detect", "get_config", "Time zone and units take the one-time code", "the owner, a system account, and the relay's own account"]) {
+    for (const pin of ["config/auth/update", "group_ids", "is_active", "system-admin", "config/core/update", "config/core/detect", "get_config", "Time zone, units, and language take the one-time code", "the owner, a system account, and the relay's own account"]) {
       expect(admin).toContain(pin);
     }
     const health = read("skills/health/SKILL.md");

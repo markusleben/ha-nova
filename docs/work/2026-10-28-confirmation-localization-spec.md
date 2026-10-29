@@ -1,78 +1,65 @@
-# Confirmation texts in the household's language
+# Confirmation texts in the household's language and in everyday words
 
 Status: active
 
-Date: 2026-10-28. Owner: CLI confirmation (`cli/confirm_*.go`, `cli/mcp_confirm.go`). Target: the release after 0.28.0.
+Date: 2026-10-28, updated 2026-10-29. Owner: CLI confirmation (`cli/confirm_*.go`, `cli/say_lines.go`, `cli/plan_raw*.go`, `cli/mcp_confirm.go`). Target: 0.28.0 (first candidate v0.28.0-rc5).
 
 ## Today
 
-- Chat works already: the CLI builds `say` in English and the agent relays it in the user's language (`cli/mcp_plain.go` `chatCodeRule`, `cli/mcp_server.go` `mcpResultRule`, `skills/ha-nova/output-rules.md` → Localization).
-- The trusted surfaces are English only:
-  - phone push (`cli/confirm_phone_text.go`: title, body, hint, button; verbs from `sayVerbs` and the generic `sayVerb` fallback in `cli/confirm_say_text.go`, reason phrases from `sayPhrase` in `cli/confirm_say.go`), plus its outcomes (`cli/confirm_both.go`, e.g. "Approved on the computer");
-  - computer window (`plan.Prompt` plus `windowAsked`/`windowBoth` in `cli/confirm_window.go`). macOS buttons `Cancel`/`Confirm` are fixed, and `darwinAnswer` matches the literal `button Confirm` (`cli/confirm_window_darwin.go`); Windows uses the stock OK/Cancel of `MessageBoxTimeoutW`, which follow Windows' own language (`cli/confirm_window_windows.go`);
-  - app form (`cli/mcp_confirm.go` `confirmForm`: `plan.Prompt` as message, field title "One-time code from HA NOVA"). Only a local `ha-nova mcp` client gets forms; the chat bridge runs with `noForms` (`cli/mcp_serve.go`) and falls back to the chat code;
-  - English wrappers around `plan.Prompt`: the drift prefix (`cli/verb_apply.go`) and `demoPrefix` (`cli/confirm_say.go`);
-  - settings asks outside any plan: link, move, and stop phone confirmations (`phoneLinkAsk`, `phoneChangeAsk`, `cli/confirm_phone_link.go`) and turning windows off (`cli/confirm_window.go`).
-- No surface reads a language: neither HA's `language` from `get_config` nor anything in the request.
-- Result: a user who writes German reads German in chat and English on the phone, in the window, and in the form.
+- Every confirmation text is English, built by HA NOVA from fixed sentences: `say` (chat), `plan.Prompt` (window, form), the phone ask (title, body, hint, button; `cli/confirm_phone_text.go`), outcomes (`cli/confirm_both.go`), the drift and demo wrappers (`cli/verb_apply.go`, `demoPrefix`), and the settings asks (link, move, stop phone confirmations in `cli/confirm_phone_link.go`; windows off in `cli/confirm_window.go`).
+- In chat the agent translates `say`; phone, window, and form stay English. Nothing reads HA's language.
+- Raw plans and raw service calls describe the request, not its effect: `mqtt.publish` on `zigbee2mqtt/bridge/request/device/options` reads as "sends a raw MQTT message" plus topic and payload. A user can't tell what changes in the home.
 
 ## Goal
 
-Phone, window, and form speak the household's language. The text stays built by HA NOVA alone, and no MCP tool text changes, so `TestMCPToolTextStable` stays green and "Always allow" in claude.ai survives.
+1. Every confirmation surface speaks Home Assistant's language: phone, window (Mac, Windows, Linux), form, outcomes, settings asks, and the chat `say`. One rule everywhere; English and German in 0.28.0.
+2. The first line says in everyday words what happens in the home; a second line keeps the technical detail for those who want it. Example (de): "Rollladen Links Wohnzimmer: Richtung umdrehen" / "Zigbee2MQTT-Einstellung invert_cover → true".
+3. The texts stay HA NOVA's own: the agent never writes or translates them on phone, window, or form, and no MCP tool text changes (`TestMCPToolTextStable` green, "Always allow" in claude.ai survives).
 
-Non-goals: setup page, NOVA page, pairing page, terminal output, the chat `say` (the agent keeps translating it), raw plans in phase 1, a per-user language.
+Non-goals: setup page, NOVA page, pairing page, terminal lines (`phoneTapLine`, `phoneNothingHint`, …; the agent translates them), a per-user language, languages beyond en and de.
 
 ## Rejected
 
-- The agent supplies the translation: a manipulated model could show "Turn on the light?" while the plan unlocks a door. These surfaces exist because the model can't write them.
-- The agent's translation next to the English original: a reader who can't read English can't check the original, and the phone has no room for both.
-- A language argument from the agent: changes tool text (resets "Always allow") and lets the chat, not the household, pick the phone's language.
-- The household's own AI translating at runtime: not every home has one, it is slow and not repeatable, and names could steer it.
-- Localization keys in the Companion app: they cover only the app's own strings.
+- The agent supplies or translates the text: a manipulated model could show "Turn on the light?" while the plan unlocks a door.
+- Original plus translation: unreadable for who can't read the original; no room on a phone.
+- A language argument from the agent: changes tool text and lets the chat pick the phone's language.
+- A runtime AI translation in the home: not everywhere, slow, not repeatable, steerable by names.
+- A separate "parts" data model rendered per surface (earlier draft): the builders already run again at apply from the stored plan, so one stored, sealed language is enough. Less code, same guarantee.
 
 ## Design
 
-1. Language source: the plan reads `language` from `get_config` (it already talks to HA at plan time) and stores it in the plan. Phone, window, form, outcomes, and the apply recheck render in that stored language. Settings asks without a plan read it live when they ask. Region subtags fold (`de-CH` → `de`); a language without a catalog, or an unreadable `get_config`, is English.
-2. The model can't pick it: a `config/core/update` that sets `language` becomes typed, like time zone and units today (`cli/plan_raw_tier.go`), since it changes what every later confirmation says. Today it is preview-tier through `cli/relay_raw_allow.go`.
-3. The stored language and every rendering input are sealed: `channelSeal` (`cli/confirm_code.go`) covers id, channel, kind, and `Prompt` today; it adds the language and the parts below. Tests edit the plan file's language and parts and expect a refusal, and change HA's language between plan and apply and expect the stored one.
-4. Render from parts, not English sentences. A confirmation becomes data with everything the text uses today (`sayWhat`, `sayAsk`, `sayPhrase`): the goal (action id plus names), values and deltas (`0% → 40%`), area, warnings, reasons (tier reason code plus variant, member action, data, state, and `Via`, e.g. `ACCESS_LOCK`/unlock, `ACCESS_COVER`/garage, `DISRUPTIVE`/restart, enumerated in `cli/tier_rules.go`), flags (no undo, copy saved), the numeric count of other items, and who asked. One renderer per surface turns this into text from the language's catalog. Names stay exactly as written.
-5. Safety logic works on ids and numbers, never on rendered words: `phoneButton`'s dismiss check (Cancel, Close, Stop, Dismiss) moves to action ids, and `phoneTitle`'s truncation uses the numeric count instead of parsing "and N more". The macOS answer is matched against the label HA NOVA passed for that ask, not a fixed English string.
-6. Words:
-   - Our catalog holds every security-relevant word: every action of the access and disruptive domains (`lock`, `alarm_control_panel`, `cover`, `siren`, `button`, `homeassistant.restart`/`stop`), including those that today reach `sayVerb`'s generic fallback (`lock.unlock`, `lock.open`), all `sayVerbs`, the config verbs (Create, Delete, Restore, Undo the last change to), every reason phrase, frames, hints, buttons, outcomes, wrappers, and the form field. Access words never come from a third party.
-   - Any other action uses Home Assistant's own action name in the plan's language: `frontend/get_translations`, category `services`, key `component.<domain>.services.<service>.name` (allowlisted and passed by the Relay WS filter today). Read once per plan, like states, and sealed with it.
-   - The title frame is per language in the catalog, so word order fits (en `{action} {names}?`, de `{names} {action}?`); a language whose grammar does not fit uses the neutral `{action}: {names}?`.
-7. Catalog: `cli/confirm_strings.en.json` is the source; `confirm_strings.<lang>.json` per translation. Same format and loader as `cli/setupweb/strings.en.json` / `cli/setup_strings.go` (keys, named placeholders, CLDR plurals); the plural rule grows per language there (German uses the English rule).
-8. Never mixed: an ask renders wholly in one language. Any missing key, missing HA action name, raw plan (phase 1), or unknown language makes the whole ask English. Exception, as a known limit: Windows' stock buttons follow Windows' language.
-9. Maintenance by script, review by people: `npm run strings:translate` fills missing keys from English with an LLM CLI and writes the files; the maintainer reviews the diff in the PR. CI never translates (deterministic builds). Tests fail on a missing key, a placeholder mismatch, a missing plural form, phone limits on the final rendered text (`phoneTitleLimit`, the Android hint at 38 characters, pop-up titles at about 30), forbidden words ("token", "PIN"), and a tier reason code or access-domain action without catalog text.
+1. Language: at plan time HA NOVA reads `language` from `/api/config` (the REST twin of `get_config`) for every plan that asks something (preview and typed) and stores it as `plan.Lang`. `de-CH` → `de`; a language without a catalog, or an unreadable config, is `en`. Every text of that plan, at plan and at apply, uses `plan.Lang`: a typed plan's re-plan (window, phone, form, chat fallback, drift) is pinned to it. Settings asks without a plan read it live.
+2. Seal: `channelSeal` (`cli/confirm_code.go`) adds `Lang` and encodes its fields as one JSON array, so no field can borrow another's bytes (seal v2, plan schema 4: an earlier version's plan is refused as expired). A typed plan's `Lang` must be a catalog this binary has, else the plan is refused (a newer binary's plan never crashes an older one). An edited language is refused like an edited prompt. A `config/core/update` that sets `language` becomes typed (`cli/plan_raw_tier.go`), as it changes every later confirmation.
+3. Catalog: `cli/confirm_strings.en.json` (source) and `cli/confirm_strings.de.json`, same format and loader as `cli/setupweb/strings.en.json` / `cli/setup_strings.go` (keys, named placeholders, plurals; German uses the English plural rule). The builders keep their structure; each literal becomes a key, each concatenated fragment a whole sentence with placeholders, so word order belongs to the language. Names, ids, topics, and payload keys are inserted verbatim and quoted (`sayText`).
+4. Words: every security-relevant word is ours: all access and disruptive actions (`lock`, `alarm_control_panel`, `cover`, `siren`, `button`, `homeassistant.restart`/`stop`, `lock.unlock`/`open` included), every `sayVerbs` entry, config verbs, reason clauses, raw lines, frames, hints, buttons, outcomes, wrappers, and the form field. Any other service uses HA's own name in the plan's language (`frontend/get_translations`, category `services`, `component.<domain>.services.<service>.name`), read once per plan and stored in the sealed plan.
+5. Title frame per language: our verbs read naturally (en "Unlock Front Door?", de "Haustür entriegeln?"); an HA-supplied action name, whose case we can't adapt, uses `{names}: {action}?` (de "Wohnzimmer: Einschalten?").
+6. Everyday line, then detail: each confirmation opens with what happens in the home ("Rollladen Links Wohnzimmer: Richtung umdrehen", "Gerät Flurlampe löschen, mit 3 Entitäten"). Where that differs from the request, a detail line follows ("Zigbee2MQTT-Einstellung invert_cover → true"). The phone shows the everyday line; window, form, and chat show both. Raw plans, raw MQTT, device delete, and Supervisor actions are in 0.28.0.
+7. Recognizers never understate: an everyday line comes only from an exact match of request shape and known keys (Zigbee2MQTT bridge requests `device/options` with known option keys, `device/rename`, `device/remove`, `permit_join`). Anything else reads "Sends a message straight to a device or bridge; HA NOVA can't check what it does" plus the verbatim detail. The tier never depends on a recognizer.
+8. Safety logic works on ids and numbers, never words: `phoneButton`'s dismiss check moves to action ids, `phoneTitle`'s cut uses the numeric count, the macOS answer matches the label passed for that ask.
+9. Never mixed: an ask renders wholly in one language; a missing key or HA action name makes the whole ask English, and a test fails on any missing key so it can't ship. Known limit: Windows' stock OK/Cancel follow Windows' language.
+10. Translation: German is written in the PR and reviewed by the maintainer; CI never translates.
 
-## Surfaces
+## Delivery
 
-- Phone: title, button, hint, short reason, "can't be undone", requester line, outcomes. An overlong reason is cut as today ("more in the chat").
-- Window: prompt with its drift and demo wrappers, `windowAsked`/`windowBoth`, macOS buttons. Windows keeps its stock buttons.
-- Form (local `ha-nova mcp` clients only): message, field title and description.
-- Settings asks: link, move, stop, and windows off, in the live HA language.
-- Unchanged: the chat `say`, the chat-code flow, and every terminal line (`phoneTapLine`, `phoneNothingHint`, …) stay English; the agent translates them in chat. English goldens stay byte-identical.
+Four stacked PRs, each reviewed and merged before the next builds on it; rc5 follows the last.
 
-## Phases
-
-1. English and German for typed and config plans and the settings asks: data model, catalogs, renderer, language read, the typed language change, the seal, tests.
-2. Raw plans: `cli/plan_raw_say.go` goals and reasons and the `cli/relay_raw_allow.go` route descriptions move into the catalog.
-3. More languages through the script, each with one review in its PR.
-
-## Known limits
-
-- One language per household. A plan keeps its language if HA's language changes before apply.
-- Non-access action names are as good as Home Assistant's translations; access and disruptive actions always use our words.
-- Windows' window buttons follow Windows' language.
-- Phase 1: raw plans (device deletion, Supervisor actions, …) stay English on every surface.
+1. Foundation, no visible change: catalog loader, language read, stored and sealed language, typed language change, catalog window labels with the macOS answer matched to them.
+2. German for typed and config plans on every surface, settings asks, chat `say`; HA's own action names; phone title and button decided on ids and counts (Design 8).
+3. Everyday lines for raw plans, raw MQTT, device delete, and Supervisor actions (English first).
+4. German for raw plans.
 
 ## Verification
 
-- Go golden tests per surface and language against a fake Relay whose `get_config` says `de` and whose translations include one non-catalog action: phone payload and outcomes, window text and buttons, form, settings asks. Long German lists (truncation keeps the true count), a German dismissing verb (still "Confirm"), and the macOS answer with a German label. Seal tests from Design 3. English goldens unchanged; `TestMCPToolTextStable` unchanged.
-- Catalog tests as in Design 9. New files under about 400 lines; split the catalog loader from the renderer.
-- Lanes: window on Windows via `npm run vm-lane`; phone on the HAOS VM with HA set to German; the form through a local elicitation-capable MCP client on `ha-nova mcp` with phone and window unavailable (the chat bridge never shows forms). The maintainer reads one real iPhone and one real Android push in German (lock-screen and pop-up cut-offs only show there).
+- Golden tests per surface in en and de against a fake Relay whose `get_config` says `de` and whose translations hold one non-catalog service: phone payload and outcomes, window text and buttons, form, settings asks, chat `say`. English goldens byte-identical except the new detail lines; `TestMCPToolTextStable` unchanged.
+- One plan, one text: phone body, window prompt, form message, and `say` carry the same everyday and detail lines.
+- Seal: editing `Lang` in the plan file is refused; changing HA's language between plan and apply keeps the stored one.
+- Catalog: every key in both files, matching placeholders and plurals, phone limits on the rendered German text (`phoneTitleLimit`, Android hint 38, pop-up titles ~30), no "token"/"PIN", every tier reason code and access action has text.
+- Recognizers: each known Zigbee2MQTT request renders its line; an unknown topic, key, or extra field renders the generic line.
+- Lanes: window on Windows via `npm run vm-lane`; phone on the HAOS VM with HA set to German; the maintainer reads a real iPhone and Android push in German.
 
-## Open questions
+## Known limits
 
-- Per-language title order versus the neutral `{action}: {names}?` everywhere: decide with the German strings in phase 1.
-- The window follows HA's language, not the computer's, so one rule holds everywhere. Revisit only if users ask.
+- One language per household; a plan keeps its language if HA's changes before apply.
+- Non-access action names are as good as HA's translations.
+- Everyday lines exist for recognized requests only; the rest reads generic plus detail.
+- Windows' window buttons follow Windows' language.

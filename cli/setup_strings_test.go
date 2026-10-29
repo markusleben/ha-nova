@@ -14,7 +14,7 @@ import (
 	"testing"
 )
 
-// setupCatalogCall is one setupT/setupText/setupStyled call site.
+// setupCatalogCall is one catalog call site (setupT, setupText, setupStyled, confirmT).
 type setupCatalogCall struct {
 	pos  string
 	key  string
@@ -43,7 +43,7 @@ func setupPageScriptKeys(t *testing.T) []string {
 	return keys
 }
 
-func scanSetupCatalogCalls(t *testing.T) []setupCatalogCall {
+func scanCatalogCalls(t *testing.T, funcs map[string]int) []setupCatalogCall {
 	t.Helper()
 	files, err := filepath.Glob("*.go")
 	if err != nil {
@@ -82,7 +82,7 @@ func scanSetupCatalogCalls(t *testing.T) []setupCatalogCall {
 				}
 			}
 			if ident, ok := n.(*ast.Ident); ok && !allowed[ident] {
-				if _, isCatalogFunc := setupCatalogFuncs[ident.Name]; isCatalogFunc {
+				if _, isCatalogFunc := funcs[ident.Name]; isCatalogFunc {
 					t.Errorf("%s: use %s only as a direct call", fset.Position(ident.Pos()), ident.Name)
 				}
 			}
@@ -99,7 +99,7 @@ func scanSetupCatalogCalls(t *testing.T) []setupCatalogCall {
 					t.Errorf("%s: setupData(%s) is copy; give it a catalog key", fset.Position(call.Pos()), lit.Value)
 				}
 			}
-			keyIndex, ok := setupCatalogFuncs[ident.Name]
+			keyIndex, ok := funcs[ident.Name]
 			if !ok {
 				return true
 			}
@@ -162,7 +162,7 @@ func setupEntryPlaceholders(entry setupEntry) []string {
 // Every key used exists with matching placeholders, and every catalog key is
 // used (spec §4.2).
 func TestSetupCatalogKeysAndPlaceholdersMatchTheCode(t *testing.T) {
-	calls := scanSetupCatalogCalls(t)
+	calls := scanCatalogCalls(t, setupCatalogFuncs)
 	if len(calls) == 0 {
 		t.Fatal("found no catalog calls; the scan is broken")
 	}
@@ -214,7 +214,7 @@ func TestSetupCatalogEntriesAreWellFormed(t *testing.T) {
 func TestSetupMsgFormatsPlaceholdersAndPlurals(t *testing.T) {
 	old := setupCatalog
 	t.Cleanup(func() { setupCatalog = old })
-	setupCatalog = mustParseSetupCatalog([]byte(`{
+	setupCatalog = mustParseCatalog("setup string catalog", []byte(`{
 		"setup.test.plain": "Hi {name}, {name}!",
 		"setup.test.count": {"one": "{count} device in {room}", "other": "{count} devices in {room}"}
 	}`))
@@ -255,7 +255,7 @@ func TestSetupMsgFormatsPlaceholdersAndPlurals(t *testing.T) {
 					t.Errorf("catalog %s parsed", bad)
 				}
 			}()
-			mustParseSetupCatalog([]byte(bad))
+			mustParseCatalog("setup string catalog", []byte(bad))
 		}()
 	}
 }
@@ -296,5 +296,5 @@ func setupCatalogFromJSON(data string) (catalog map[string]setupEntry, err error
 			err = fmt.Errorf("%v", r)
 		}
 	}()
-	return mustParseSetupCatalog([]byte(data)), nil
+	return mustParseCatalog("setup string catalog", []byte(data)), nil
 }

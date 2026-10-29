@@ -16,6 +16,7 @@ type fakeHA struct {
 	compact       []map[string]any
 	full          []map[string]any
 	configs       map[string]any      // core path → stored config; absent → 404
+	config        map[string]any      // GET /api/config (nil: 404)
 	unique        map[string]string   // entity_id → registry unique_id
 	related       map[string][]string // "entity:<id>" → automations, "area:<id>" → entities
 	events        []map[string]any
@@ -193,6 +194,8 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 		return coreReply(200, f.defaultServices())
 	case path == "/api/events":
 		return coreReply(200, append([]map[string]any{}, f.events...))
+	case path == "/api/config" && f.config != nil:
+		return coreReply(200, f.config)
 	case path == "/api/states":
 		var all []any
 		for _, st := range f.states {
