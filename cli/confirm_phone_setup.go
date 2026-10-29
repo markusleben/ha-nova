@@ -21,17 +21,17 @@ import (
 // iPhone from Android), the service of
 // every Companion device named in names (from the device registry, so a
 // device whose entities are disabled still counts: two devices with one
-// name share a service), and the linked device by id. names and the id are
-// template variables, never template source.
+// name share a service), and the linked device by id. trackers are
+// [tracker, user id, person name] from Home Assistant's person list, so a
+// person whose entity is turned off still counts. names, trackers, and the
+// id are template variables, never template source.
 const phoneTemplate = `{%- set ns = namespace(phones=[], all=[]) -%}
 {%- set apps = integration_entities('mobile_app') -%}
 {%- for n in names -%}{%- set ns.all = ns.all + [('mobile_app_' ~ n) | slugify] -%}{%- endfor -%}
-{%- for p in states.person if p.attributes.user_id -%}
-{%- for t in p.attributes.device_trackers | default([], true) if t in apps -%}
-{%- set d = device_id(t) -%}
+{%- for t in trackers if t[0] in apps -%}
+{%- set d = device_id(t[0]) -%}
 {%- set n = device_attr(d, 'name') if d else none -%}
-{%- if n -%}{%- set ns.phones = ns.phones + [{'service': ('mobile_app_' ~ n) | slugify, 'name': n, 'device_id': d, 'user_id': p.attributes.user_id, 'person': p.name, 'maker': device_attr(d, 'manufacturer')}] -%}{%- endif -%}
-{%- endfor -%}
+{%- if n -%}{%- set ns.phones = ns.phones + [{'service': ('mobile_app_' ~ n) | slugify, 'name': n, 'device_id': d, 'user_id': t[1], 'person': t[2], 'maker': device_attr(d, 'manufacturer')}] -%}{%- endif -%}
 {%- endfor -%}
 {%- set n = device_attr(device, 'name') if device else none -%}
 {{ {'phones': ns.phones, 'all': ns.all, 'linked': ({'service': ('mobile_app_' ~ n) | slugify, 'name': n, 'device_id': device, 'maker': device_attr(device, 'manufacturer')} if n else none)} | to_json }}`
@@ -42,7 +42,7 @@ var phoneServicePattern = regexp.MustCompile(`^mobile_app_[a-z0-9_]+$`)
 func checkPhoneRead(endpoint string, payload map[string]any) error {
 	switch endpoint {
 	case "ws":
-		if t := payload["type"]; len(payload) == 1 && (t == "auth/current_user" || t == "config/auth/list" || t == "config/device_registry/list") {
+		if t := payload["type"]; len(payload) == 1 && (t == "auth/current_user" || t == "config/auth/list" || t == "config/device_registry/list" || t == "person/list") {
 			return nil
 		}
 	case "core":
@@ -61,11 +61,27 @@ func checkPhoneRead(endpoint string, payload map[string]any) error {
 			}
 		}
 		if len(payload) == 3 && payload["method"] == http.MethodPost && payload["path"] == "/api/template" &&
-			len(body) == 2 && body["template"] == phoneTemplate && len(vars) == 2 && isText && isList {
+			len(body) == 2 && body["template"] == phoneTemplate && len(vars) == 3 && isText && isList && phoneTrackersValid(vars["trackers"]) {
 			return nil
 		}
 	}
 	return errors.New("not a phone-confirmation read; nothing was sent")
+}
+
+// phoneTrackersValid: [tracker, user id, person name] rows of text, the
+// first two never empty.
+func phoneTrackersValid(value any) bool {
+	var rows [][]string
+	data, err := json.Marshal(value)
+	if err != nil || json.Unmarshal(data, &rows) != nil || rows == nil && value == nil {
+		return false
+	}
+	for _, row := range rows {
+		if len(row) != 3 || row[0] == "" || row[1] == "" {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *relaySession) phoneRead(endpoint string, payload map[string]any, into any) error {
@@ -150,12 +166,30 @@ func lookupPhones(s *relaySession, links map[string]phoneEntry) (phoneHome, erro
 			}
 		}
 	}
+	var people struct {
+		Storage, Config []struct {
+			Name           string   `json:"name"`
+			UserID         string   `json:"user_id"`
+			DeviceTrackers []string `json:"device_trackers"`
+		}
+	}
+	if err := s.phoneRead("ws", map[string]any{"type": "person/list"}, &people); err != nil {
+		return home, err
+	}
+	trackers := [][]string{}
+	for _, p := range append(people.Storage, people.Config...) {
+		for _, t := range p.DeviceTrackers {
+			if p.UserID != "" && t != "" {
+				trackers = append(trackers, []string{t, p.UserID, p.Name})
+			}
+		}
+	}
 	var core struct {
 		Status int             `json:"status"`
 		Body   json.RawMessage `json:"body"`
 	}
 	payload := map[string]any{"method": http.MethodPost, "path": "/api/template",
-		"body": map[string]any{"template": phoneTemplate, "variables": map[string]any{"device": device, "names": names}}}
+		"body": map[string]any{"template": phoneTemplate, "variables": map[string]any{"device": device, "names": names, "trackers": trackers}}}
 	if err := s.phoneRead("core", payload, &core); err != nil {
 		return home, err
 	}
