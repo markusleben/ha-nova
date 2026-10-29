@@ -131,6 +131,8 @@ func planActionOf(p storedPlan) any {
 		return p.RoomsRequest
 	case "raw":
 		return p.RawRequests
+	case "batch":
+		return batchIdentities(p.BatchMembers)
 	}
 	return p.ConfigAction
 }

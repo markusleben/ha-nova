@@ -30,7 +30,7 @@ func TestMCPParityPlanKindsAndDomains(t *testing.T) {
 		kinds = append(kinds, m[1])
 	}
 	usages := map[string]string{"call": planCallUsage, "write": planWriteUsage, "delete": planDeleteUsage, "revert": planRevertUsage,
-		"restore": planRestoreUsage, "rooms": planRoomsUsage, "template": planTemplateUsage, "raw": planRawUsage}
+		"restore": planRestoreUsage, "rooms": planRoomsUsage, "template": planTemplateUsage, "raw": planRawUsage, "batch": planBatchUsage}
 	draft := map[string]any{"alias": "A"}
 	routes := map[string]map[string]any{
 		"call/":              {"kind": "call", "service": "light.turn_on", "entity_ids": []string{"light.kitchen"}},
@@ -48,6 +48,7 @@ func TestMCPParityPlanKindsAndDomains(t *testing.T) {
 		"rooms/":             {"kind": "rooms"},
 		"template/":          {"kind": "template", "name": "battery_reminder"},
 		"raw/":               {"kind": "raw", "requests": []any{map[string]any{"endpoint": "ws", "payload": map[string]any{"type": "input_boolean/create", "name": "A"}}}},
+		"batch/":             {"kind": "batch", "plans": []string{"p_000000000001", "p_000000000002"}},
 	}
 	var schema map[string]any
 	for _, tool := range mcpTools {

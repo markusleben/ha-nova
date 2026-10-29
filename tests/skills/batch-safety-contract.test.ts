@@ -119,6 +119,19 @@ describe("batch safety contract (issue #327)", () => {
     expect(batchSafety).toContain("All eight are kitchen timers that stop working when deleted.");
   });
 
+  // docs/work/2026-10-29-batch-confirmation-spec.md: automations and scripts,
+  // mixed, are one CLI batch with one confirmation; no code per item.
+  it("routes automation/script batches through the CLI batch", () => {
+    expect(batchSafety).toContain("## CLI Batch (automations and scripts)");
+    expect(batchSafety).toContain("one `ha-nova plan batch --plan <id> --plan <id> …` (plan ids in run order: an\nitem that runs or reads another item goes before it) with one confirmation");
+    expect(batchSafety).toContain("After a stop,\n   never apply it again; the rest needs a new confirmation (two or more\n   items: a new batch).");
+    expect(batchSafety).toContain("| `write` | yes | automations and scripts, mixed: the CLI Batch");
+    for (const [name, text] of Object.entries({ batchSafety, contextSkill, writeSafety })) {
+      expect(text, name).not.toMatch(/CLI code per item|CLI-minted code per item|never mixed\)/);
+    }
+    expect(contextSkill).toContain("(automations/scripts: one CLI batch, see there)");
+  });
+
   it("keeps the v1 exclusions single-target", () => {
     for (const exclusion of [
       "user or account deletion",
@@ -141,7 +154,8 @@ describe("batch safety contract (issue #327)", () => {
     expect(mqtt).toContain("topics taken only from `mqtt/device/debug_info`");
     expect(mqtt).toContain("command/`set` topics always stay single-target");
     const write = readFileSync("skills/write/SKILL.md", "utf8");
-    expect(write).toContain("automations OR scripts, never mixed");
+    expect(write).toContain("`ha-nova plan batch --plan <id> --plan <id> …` in run order");
+    expect(write).toContain("(`../ha-nova/batch-safety.md` → CLI Batch)");
     const helper = readFileSync("skills/helper/SKILL.md", "utf8");
     expect(helper).toContain("storage and config-entry families never mix");
     const dashboard = readFileSync("skills/dashboard/SKILL.md", "utf8");
