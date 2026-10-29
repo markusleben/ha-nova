@@ -14,13 +14,27 @@ func TestServeUseTheHomeStaysInsideTheAllowlist(t *testing.T) {
 	f := household(newFakeHA())
 	f.script("evening", step("light.turn_off", "light.hall"))
 	f.ent("switch.child_lock", "zwave_js", "off", map[string]any{"_ec": 0}).ent("button.restart", "esphome", "unknown", map[string]any{"_ec": 1})
-	f.ent("switch.porch", "zwave_js", "off", nil)
+	f.ent("switch.porch", "zwave_js", "off", nil).ent("input_select.mode", "input_select", "home", nil)
+	f.services = f.defaultServices()
+	config := map[string]map[string]any{ // listed, as Home Assistant lists them: only the allowlist refuses them
+		"input_select": {"set_options": map[string]any{"target": map[string]any{}}}, "input_boolean": {"reload": map[string]any{}},
+		"light": {"reload": map[string]any{}}, "scene": {"create": map[string]any{}, "apply": map[string]any{}}}
+	for _, d := range f.services {
+		for name, spec := range config[d["domain"].(string)] {
+			d["services"].(map[string]any)[name] = spec
+		}
+	}
 	s := newServe(t, f, levels([]string{userB}, nil))
 	for code, refused := range map[string][]map[string]any{
 		"CHAT_LEVEL": {
 			{"service": "switch.turn_on", "entity_ids": []string{"switch.child_lock"}}, // a device's settings: configuration
 			{"service": "button.press", "entity_ids": []string{"button.restart"}},      // and diagnostics
 			{"service": "homeassistant.turn_on", "entity_ids": []string{"switch.porch", "switch.child_lock"}},
+			{"service": "input_select.set_options", "entity_ids": []string{"input_select.mode"}, "data": map[string]any{"options": []string{"home", "away"}}},
+			{"service": "input_boolean.reload"},
+			{"service": "light.reload"},
+			{"service": "scene.create", "data": map[string]any{"scene_id": "evening", "entities": map[string]any{"light.kitchen": "on"}}},
+			{"service": "scene.apply", "data": map[string]any{"entities": map[string]any{"light.kitchen": "on"}}},
 			{"service": "homeassistant.restart"},
 			{"service": "homeassistant.check_config"},
 			{"service": "homeassistant.update_entity", "entity_ids": []string{"light.kitchen"}},
