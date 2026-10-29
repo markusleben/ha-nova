@@ -15,8 +15,12 @@ import (
 //go:embed confirm_strings.en.json
 var confirmStringsEN []byte
 
+//go:embed confirm_strings.de.json
+var confirmStringsDE []byte
+
 var confirmCatalogs = map[string]map[string]setupEntry{
 	"en": mustParseCatalog("confirm string catalog", confirmStringsEN),
+	"de": mustParseCatalog("confirm string catalog (de)", confirmStringsDE),
 }
 
 // confirmLanguage maps Home Assistant's language ("de", "de-CH", "pt_BR")

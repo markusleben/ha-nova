@@ -58,6 +58,9 @@ var readOnlyWSTypes = map[string]bool{
 	// (lovelace/config above; a read with force: true is refused below).
 	"lovelace/dashboards/list": true,
 	"lovelace/resources":       true,
+	// Home Assistant's own names for a service and its states in the
+	// home's language, for a confirmation (confirm_words.go).
+	"frontend/get_translations": true,
 }
 
 // relaySession resolves config and transport once per invocation and
@@ -74,9 +77,10 @@ type relaySession struct {
 	mu           sync.Mutex
 	memo         map[string]*relayMemo
 	relayVersion string
-	answered     bool   // the Relay has answered at least one request
-	unreachable  error  // transport failure before the Relay ever answered
-	lang         string // a sealed typed plan's language while it is re-planned (replanStored, apply)
+	answered     bool    // the Relay has answered at least one request
+	unreachable  error   // transport failure before the Relay ever answered
+	lang         string  // a sealed typed plan's language while it is re-planned (replanStored, apply)
+	words        haWords // and its Home Assistant words (confirm_words.go)
 }
 
 type relayMemo struct {
@@ -126,22 +130,6 @@ func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Dur
 }
 
 func (s *relaySession) close() { s.cancel() }
-
-// language is the catalog this session's confirmations speak: a stored
-// plan's while it is re-planned, else Home Assistant's own (/api/config),
-// English when that can't be read or has no catalog.
-func (s *relaySession) language() string {
-	if s.lang != "" {
-		return s.lang
-	}
-	var config struct {
-		Language string `json:"language"`
-	}
-	if status, body, err := s.coreGET("/api/config"); err == nil && status == http.StatusOK {
-		_ = json.Unmarshal(body, &config)
-	}
-	return confirmLanguage(config.Language)
-}
 
 // coreGET reads one Home Assistant REST path and returns the upstream status
 // and body from the Relay envelope.

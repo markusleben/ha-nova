@@ -174,8 +174,17 @@ func driftSay(e *tierEngine, env *verbEnvelope, stored, fresh storedPlan) string
 		isFields, both := is[id].(map[string]any)
 		for _, field := range sortedKeys(wasFields) {
 			if after, present := isFields[field]; both && present && !reflect.DeepEqual(wasFields[field], after) {
-				return confirmT(lang, "drift.field", "name", sayText(e.sayName(env, id), true),
-					"field", driftField(field), "was", driftValue(lang, field, wasFields[field]), "now", driftValue(lang, field, after))
+				name := driftField(field)
+				if field == "state" {
+					name = confirmT(lang, "drift.state")
+				}
+				value := func(v any) string { // in the plan's language (valueText)
+					if text, ok := v.(string); ok && text != "" {
+						return fresh.valueText(id, field, text)
+					}
+					return driftValue(lang, field, v)
+				}
+				return confirmT(lang, "drift.field", "name", sayText(e.sayName(env, id), true), "field", name, "was", value(wasFields[field]), "now", value(after))
 			}
 		}
 	}

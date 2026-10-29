@@ -14,7 +14,8 @@ import (
 // its id, never its words.
 type actionGoal struct {
 	verb  string   // catalog verb id (phrase); "" when label names the action
-	label string   // the action's own words, English: an id-derived service name, a raw step's verb
+	label string   // the action's own words: an id-derived service name or a raw step's verb (English), or Home Assistant's name
+	named bool     // label is Home Assistant's own name (confirm_words.go), kept as written
 	frame string   // what the names are ("script", "automation", "dashboard"); "" = the names alone
 	names []string // each sayText-quoted, or Home Assistant itself
 	why   string   // a typed plan's reasons the title doesn't say (sayAsk), for the phone
@@ -68,7 +69,11 @@ func (g actionGoal) object(lang, names string) string {
 func (g actionGoal) phrase(lang, object string) string {
 	switch g.verb {
 	case "":
-		return confirmT(lang, "goal.label", "action", lowerFirst(g.label), "object", object)
+		action := lowerFirst(g.label)
+		if g.named {
+			action = g.label
+		}
+		return confirmT(lang, "goal.label", "action", action, "object", object)
 	case "turn_on":
 		return confirmT(lang, "goal.turn_on", "object", object)
 	case "turn_off":
@@ -166,11 +171,13 @@ func (g actionGoal) button(lang string) string {
 // ownButton: the button that names the action; "" where Confirm answers
 // it: a verb that reads like dismissing (close, stop) or is too long for a
 // button (set the position of, undo the last change to). A label is its
-// own button while it is one or two words that don't read like dismissing.
+// own button while it is one or two words that don't read like dismissing;
+// Home Assistant's own name never is, as no word list can check it in every
+// language (Design 8).
 func (g actionGoal) ownButton(lang string) string {
 	switch g.verb {
 	case "":
-		if g.label == "" || strings.Count(g.label, " ") > 1 || slices.ContainsFunc([]string{"Cancel", "Close", "Stop", "Dismiss"}, func(v string) bool { return strings.EqualFold(v, g.label) }) {
+		if g.label == "" || g.named || strings.Count(g.label, " ") > 1 || slices.ContainsFunc([]string{"Cancel", "Close", "Stop", "Dismiss"}, func(v string) bool { return strings.EqualFold(v, g.label) }) {
 			return ""
 		}
 		return g.label

@@ -5,13 +5,9 @@ import (
 	"testing"
 )
 
-// languageHarness: a fake Home Assistant whose language the test sets, with
-// a German catalog that is a copy of the English one (until PR 2 adds it).
+// languageHarness: a fake Home Assistant whose language the test sets.
 func languageHarness(t *testing.T, answers ...windowAnswer) (*writeHarness, *fakeWindow, func(id string) storedPlan) {
 	t.Helper()
-	saved := confirmCatalogs
-	t.Cleanup(func() { confirmCatalogs = saved })
-	confirmCatalogs = map[string]map[string]setupEntry{"en": saved["en"], "de": saved["en"]}
 	f := newFakeHA()
 	f.config = map[string]any{"language": "de-CH"}
 	h := newWriteHarness(t, f)
