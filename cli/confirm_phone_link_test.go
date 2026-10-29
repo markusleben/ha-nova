@@ -256,8 +256,13 @@ func TestLinkPhoneWithoutTerminalOnlyLists(t *testing.T) {
 		strings.Contains(out, "Kid") || !strings.Contains(out, "Nothing was sent") || len(p.sent) != 0 || linked(t, h) != nil {
 		t.Fatalf("exit %d out %q sent %v", exit, out, p.services)
 	}
+	// No one signed in: whose computer this is isn't known, so the list asks whose phone, never "your own".
+	if !strings.Contains(out, phoneWhoseQuestion+" "+phoneWhoseHeader) || !strings.Contains(out, phoneWhoseMissing) || strings.Contains(out, phoneListHeader) ||
+		!strings.Contains(out, "Ask the user whose phone should confirm on this computer and let them choose from this list; never pick one for them.") {
+		t.Fatalf("list: %q", out)
+	}
 	// Several phones in a terminal: a numbered list; Enter skips and sends nothing.
-	if exit, out := runLink(t, h, "\n", phoneLinkRun{interactive: true}); exit != 0 || !strings.Contains(out, "Which phone should confirm") || len(p.sent) != 0 {
+	if exit, out := runLink(t, h, "\n", phoneLinkRun{interactive: true}); exit != 0 || !strings.Contains(out, phoneWhoseQuestion) || len(p.sent) != 0 {
 		t.Fatalf("skip: %d %q", exit, out)
 	}
 	// Linked: a move starts on that phone, in its own way.
@@ -275,7 +280,7 @@ func TestLinkPhoneRefusesOtherUsersAndNonAdmins(t *testing.T) {
 	h, p, _ := familyLink(t)
 	p.tapBy = tapFrom("mobile_app_family_ipad", "kid-id", true)
 	exit, out := runLink(t, h, "", phoneLinkRun{pick: "family ipad"})
-	if exit != 1 || !strings.Contains(out, "someone other than Markus") || linked(t, h) != nil {
+	if exit != 1 || !strings.Contains(out, "someone other than Markus. Sign in as Markus in the Home Assistant app on “Family iPad”.") || linked(t, h) != nil {
 		t.Fatalf("kid's tap: %d %q", exit, out)
 	}
 	for _, service := range p.services {

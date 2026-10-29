@@ -519,8 +519,7 @@ func TestSetupPagePhoneLinkTimesOut(t *testing.T) {
 	p.flow.pairedThisRun = true
 	done := p.runControl()
 	ctl := p.waitFor("step 3", accepting("phone")).Control
-	if ctl.Own != 2 || ctl.Phones[0].ID != "dev-ipad" || ctl.Phones[1].ID != "dev-markus" || ctl.Phone != "pick" { // no sign-in: the owner's phones
-
+	if !ctl.Whose || ctl.Own != 0 || ctl.Phones[0].ID != "dev-anna" || ctl.Phones[1].ID != "dev-ipad" || ctl.Phone != "pick" { // no sign-in: whose phone, none first
 		t.Fatalf("control = %+v", ctl)
 	}
 	p.click("phone", "dev-anna")

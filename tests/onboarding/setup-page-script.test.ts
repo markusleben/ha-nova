@@ -239,6 +239,36 @@ describe("setup page step 3: buttons act now, switches wait for the button", () 
     expect(other.screen.textContent).toContain(other.catalog["setup.page.control.phone_pick"]);
   });
 
+  it("asks whose phone when Home Assistant's owner signed in: every phone with its person, none first", async () => {
+    const control = { window: true, phone: "pick", whose: true, phones };
+    const p = page({ screen: "control", accepts: ["finish", "phone", "recheck"], control });
+    await p.settle();
+    expect(p.screen.textContent).toContain(p.catalog["setup.page.control.phone_whose"]);
+    expect([p.find("b-phone-0")!.textContent, p.find("b-phone-1")!.textContent]).toEqual(["iPhone Ben (Ben)", "Pixel Lisa (Lisa)"]);
+    expect(p.find("b-phone-other")).toBeUndefined();
+    expect(p.screen.textContent).not.toContain(p.catalog["setup.page.control.phone_use"]);
+    expect(p.screen.textContent).not.toContain(p.catalog["setup.page.control.phone_pick"]);
+    expect(p.screen.textContent).toContain(p.catalog["setup.page.control.phone_whose_missing"]);
+    expect(p.screen.textContent).toContain(p.catalog["setup.page.control.fine"]);
+    p.find("b-phone-1")!.dispatch("click");
+    await p.settle();
+    expect(p.posts).toEqual([{ action: "phone", value: "d2" }]);
+    // A clash of names is named, and how to add a phone stays; with no phone at all, the same help.
+    const shared = { key: "setup.page.control.phone_shared", args: { phone: "iPad" } };
+    const again = page({ screen: "control", accepts: ["finish", "phone", "recheck"], control: { ...control, phone_why: shared } });
+    await again.settle();
+    expect(again.screen.textContent).toContain("Two devices in Home Assistant are called “iPad”");
+    expect(again.screen.textContent).toContain(again.catalog["setup.page.control.phone_whose_missing"]);
+    again.find("b-phone-recheck")!.dispatch("click");
+    await again.settle();
+    expect(again.posts).toEqual([{ action: "recheck", value: "" }]);
+    const none = page({ screen: "control", accepts: ["finish", "recheck"], control: { window: true, phone: "none", whose: true } });
+    await none.settle();
+    expect(none.screen.textContent).toContain(none.catalog["setup.page.control.phone_none"]);
+    expect(none.screen.textContent).toContain(none.catalog["setup.page.control.phone_whose_missing"]);
+    expect(none.find("b-phone-recheck")).toBeTruthy();
+  });
+
   it("sends the phone's notification with a button, never a switch", async () => {
     const p = page({ screen: "control", accepts: ["finish", "phone"], control: { window: true, phone: "pick", own: 1, phones: phones.slice(0, 1), rule: "offer", rule_count: 3 } });
     await p.settle();

@@ -15,7 +15,7 @@ import (
 // be asked now stays with `ha-nova setup confirm-phone`, which settles it
 // safely.
 func (f *setupFlow) pagePhones(ctl *setupPageControl) {
-	ctl.Phone, ctl.Phones, ctl.Own, ctl.PhoneWhy, ctl.OldPhone = "unavailable", nil, 0, nil, ""
+	ctl.Phone, ctl.Phones, ctl.Own, ctl.Whose, ctl.PhoneWhy, ctl.OldPhone = "unavailable", nil, 0, false, nil, ""
 	if !(f.pairedThisRun || f.pageRerunning) || f.cloudSetupPaused { // as in the terminal: right after a pairing, and on a re-run
 		return
 	}
@@ -38,9 +38,15 @@ func (f *setupFlow) pagePhones(ctl *setupPageControl) {
 		return
 	}
 	all, own := home.ownFirst(setupSignedInUser)
-	if own == 0 { // never someone else's phone as the obvious choice: say why theirs is missing
+	switch {
+	case home.whose(setupSignedInUser): // every phone with its person, none first: the user picks whose
+		ctl.Whose = true
+		if name := home.sharedAdmin(); name != "" {
+			ctl.PhoneWhy = setupPageText("setup.page.control.phone_shared", "phone", terminalSafeName(name))
+		}
+	case own == 0: // never someone else's phone as the obvious choice: say why theirs is missing
 		ctl.PhoneWhy = setupPageText("setup.page.control.phone_missing")
-		if names := home.sharedOf[home.user(setupSignedInUser)]; len(names) > 0 {
+		if names := home.sharedOf[setupSignedInUser]; len(names) > 0 {
 			ctl.PhoneWhy = setupPageText("setup.page.control.phone_shared", "phone", terminalSafeName(names[0]))
 		}
 	}
@@ -75,7 +81,7 @@ func (f *setupFlow) pageReadPhones() (phoneHome, map[string]phoneEntry, bool) {
 // administrator, still links it. A fresh read first: the page may have
 // waited a while.
 func (f *setupFlow) pageLinkPhone(ctl *setupPageControl, deviceID string) {
-	result := phoneLinkUnread
+	result, person := phoneLinkUnread, ""
 	if s, err := newRelaySession(f.paths, verbOptions{}); err == nil {
 		links, readable := phoneLinks(f.paths)
 		home, err := lookupPhones(s, links)
@@ -83,15 +89,16 @@ func (f *setupFlow) pageLinkPhone(ctl *setupPageControl, deviceID string) {
 		all := home.eligible("")
 		i := slices.IndexFunc(all, func(t phoneTarget) bool { return t.DeviceID == deviceID })
 		if readable && err == nil && home.relay != home.owner && status == phoneNone && i >= 0 {
+			person = terminalSafeName(all[i].Person)
 			result = sendPhoneLink(s, f.ui.termOut(), home, links, links[home.owner], all[i], windowWait)
 		}
 		s.close()
 	}
 	if result == phoneLinked {
-		ctl.Phone, ctl.Phones, ctl.Own, ctl.PhoneWhy = "linked", nil, 0, nil
+		ctl.Phone, ctl.Phones, ctl.Own, ctl.Whose, ctl.PhoneWhy = "linked", nil, 0, false, nil
 		return
 	}
-	ctl.Phone, ctl.PhoneProblem = "pick", pagePhoneProblem(result, ctl.PhoneName)
+	ctl.Phone, ctl.PhoneProblem = "pick", pagePhoneProblem(result, ctl.PhoneName, person)
 }
 
 // movePhones: the phones confirmations can move to, every eligible one but
@@ -113,7 +120,7 @@ func movePhones(home phoneHome, current phoneSetup) []setupPagePhone {
 // True once the new phone is linked; else the row shows the linked one
 // again, with one line.
 func (f *setupFlow) pageMovePhone(ctl *setupPageControl, deviceID string) bool {
-	old, name := ctl.OldPhone, ctl.PhoneName
+	old, name, person := ctl.OldPhone, ctl.PhoneName, ""
 	asked, allowed, result := false, false, phoneLinkUnread
 	if s, err := newRelaySession(f.paths, verbOptions{}); err == nil {
 		out := f.ui.termOut()
@@ -124,7 +131,7 @@ func (f *setupFlow) pageMovePhone(ctl *setupPageControl, deviceID string) bool {
 		i := slices.IndexFunc(all, func(t phoneTarget) bool { return t.DeviceID == deviceID })
 		if readable && err == nil && home.relay != home.owner && status == phoneReady && i >= 0 &&
 			!slices.ContainsFunc(current.targets, func(c phoneTarget) bool { return c.DeviceID == deviceID }) {
-			asked, name = true, terminalSafeName(all[i].Name)
+			asked, name, person = true, terminalSafeName(all[i].Name), terminalSafeName(all[i].Person)
 			allowed = allowPhoneChange(s, out, home, links, fmt.Sprintf("Link “%s” to confirm HA NOVA actions from “%s”?", name, phoneHost()), name, false, windowWait)
 			if allowed {
 				result = sendPhoneLink(s, out, home, links, links[home.owner], all[i], windowWait)
@@ -146,20 +153,21 @@ func (f *setupFlow) pageMovePhone(ctl *setupPageControl, deviceID string) bool {
 	case !allowed:
 		ctl.PhoneProblem = setupPageText("setup.page.control.move_refused", "phone", old)
 	default:
-		ctl.PhoneProblem = pagePhoneProblem(result, name)
+		ctl.PhoneProblem = pagePhoneProblem(result, name, person)
 	}
 	return false
 }
 
-// pagePhoneProblem: one plain line for a link that didn't happen.
-func pagePhoneProblem(result phoneLinkResult, phone string) *setupPageMsg {
+// pagePhoneProblem: one plain line for a link that didn't happen (person:
+// the phone's person in Home Assistant).
+func pagePhoneProblem(result phoneLinkResult, phone, person string) *setupPageMsg {
 	switch result {
 	case phoneLinkTimeout:
 		return setupPageText("setup.page.control.phone_timeout", "phone", phone)
 	case phoneLinkDeclined:
 		return setupPageText("setup.page.control.phone_declined", "phone", phone)
 	case phoneLinkRejected:
-		return setupPageText("setup.page.control.phone_rejected", "phone", phone)
+		return setupPageText("setup.page.control.phone_rejected", "phone", phone, "person", person)
 	case phoneLinkFailed:
 		return setupPageText("setup.page.control.phone_unreachable", "phone", phone)
 	}

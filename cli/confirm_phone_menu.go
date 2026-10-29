@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"cmp"
 	"fmt"
 	"io"
 	"slices"
@@ -10,13 +9,40 @@ import (
 	"strings"
 )
 
+// Asked when setup can't tell whose computer this is (whose).
+const (
+	phoneWhoseQuestion = "Whose phone should confirm on this computer?"
+	phoneWhoseHeader   = "Pick the phone of the person who uses this computer; it gets one notification. Only administrators' phones are listed."
+	phoneWhoseMissing  = "Someone's phone missing? In Home Assistant, open Settings → People and pick that person (not there? Add them). Choose their user under “Allow person to login”, turn on “Administrator”, and pick their phone under Track device. Their Home Assistant app must be signed in to their own account. Then run ha-nova setup confirm-phone."
+)
+
+// whose: Home Assistant's owner signed in, or nobody did. The owner sets up
+// HA NOVA on other people's computers too, so whose computer this is isn't
+// known: no phone is the user's own, every one is listed with its person
+// and none is first or preselected.
+func (h phoneHome) whose(signedIn string) bool { return signedIn == "" || signedIn == h.owner }
+
+// sharedAdmin: the first name in shared that an administrator's phone
+// carries (it could be linked but for the clash); "" when none.
+func (h phoneHome) sharedAdmin() string {
+	for _, name := range h.shared {
+		for id, names := range h.sharedOf {
+			if id != h.relay && phoneAdmin(h.users[id]) && slices.Contains(names, name) {
+				return name
+			}
+		}
+	}
+	return ""
+}
+
 // ownFirst lists the phones that can be linked, the user's own first (own
-// counts them): the signed-in user's, else the owner's, since only the owner
-// sets up HA NOVA.
+// counts them); with whose, in name order and none own.
 func (h phoneHome) ownFirst(signedIn string) (all []phoneTarget, own int) {
-	who := h.user(signedIn)
+	if h.whose(signedIn) {
+		return h.eligible(""), 0
+	}
 	for _, t := range h.eligible("") {
-		if t.UserID == who {
+		if t.UserID == signedIn {
 			all = slices.Insert(all, own, t)
 			own++
 		} else {
@@ -26,15 +52,14 @@ func (h phoneHome) ownFirst(signedIn string) (all []phoneTarget, own int) {
 	return all, own
 }
 
-// user: whose phones are the user's own (ownFirst).
-func (h phoneHome) user(signedIn string) string { return cmp.Or(signedIn, h.owner) }
-
-// choosePhone: the user's only phone is proposed; otherwise every
-// administrator's phone is a choice, the user's own first (arrow menu,
-// numbered without a TTY). No own phone: why first. ok=false: skipped. Skip
-// is the default everywhere: Enter never links a phone (that sends a
-// notification).
+// choosePhone: with whose, every administrator's phone is a choice with its
+// person, and the question is whose phone. Otherwise the user's only phone
+// is proposed, else every administrator's phone is a choice, the user's own
+// first; no own phone: why first. Arrow menu, numbered without a TTY.
+// ok=false: skipped. Skip is the default everywhere: Enter never links a
+// phone (that sends a notification).
 func choosePhone(reader *bufio.Reader, out io.Writer, home phoneHome, signedIn string) (phoneTarget, bool) {
+	whose := home.whose(signedIn)
 	all, own := home.ownFirst(signedIn)
 	if own == 1 {
 		switch promptOwnPhone(reader, out, all[0]) {
@@ -44,17 +69,25 @@ func choosePhone(reader *bufio.Reader, out io.Writer, home phoneHome, signedIn s
 			return phoneTarget{}, false
 		}
 	}
-	if own > 0 {
+	title := "Which phone should confirm HA NOVA actions?"
+	switch {
+	case whose:
+		title = phoneWhoseQuestion
+		fmt.Fprintln(out, "  "+phoneWhoseHeader)
+	case own > 0:
 		fmt.Fprintln(out, "  "+phoneListHeader)
 	}
 	for _, name := range home.shared {
 		fmt.Fprintln(out, "  "+phoneSharedLine(name))
 	}
-	if own == 0 && len(home.sharedOf[home.user(signedIn)]) == 0 {
+	switch {
+	case whose:
+		fmt.Fprintln(out, "  "+phoneWhoseMissing)
+	case own == 0 && len(home.sharedOf[signedIn]) == 0:
 		fmt.Fprintln(out, "  "+phoneOwnMissing)
 	}
 	spec := setupMenuSpec{
-		Title:        "Which phone should confirm HA NOVA actions?",
+		Title:        title,
 		Prompt:       "Use ↑/↓ or j/k, Enter to select",
 		DefaultValue: "skip",
 	}
@@ -66,7 +99,7 @@ func choosePhone(reader *bufio.Reader, out io.Writer, home phoneHome, signedIn s
 		fmt.Fprintln(out, "  "+spec.Title)
 		listPhones(out, all, nil, "")
 		for {
-			answer, err := promptLineWithOptions(reader, out, "Type the number of your phone, or press Enter to skip", "", false)
+			answer, err := promptLineWithOptions(reader, out, "Type the number of the phone, or press Enter to skip", "", false)
 			answer = strings.TrimSpace(answer)
 			if err != nil || answer == "" {
 				return "skip", nil

@@ -87,6 +87,7 @@ window.novaSteps = (h) => {
       if (asking) setTimeout(() => { if (local.askN === n) { local.quiet = true; render(true); h.announce(hint(os)); } }, 30000);
     }
     const nothing = (os) => el('div', { class: 'v' }, hint(os));
+    const why = () => [c.phone_why ? el('div', { class: 'v' }, say(c.phone_why)) : null, c.whose ? el('div', { class: 'v' }, t('setup.page.control.phone_whose_missing')) : null];
     const quiet = (os) => (local.quiet ? nothing(os) : null);
     // A timeout says where notifications turn on, in the same alert.
     const phoneProblem = () => (c.phone_problem && c.phone_problem.key === 'setup.page.control.phone_timeout'
@@ -112,10 +113,12 @@ window.novaSteps = (h) => {
         return el('li', focusAfter(['b-phone-0', ...phones.map((p, i) => `b-phone-${i}`)]), spinner(),
           el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t({ ios: 'setup.page.control.phone_waiting_ios', android: 'setup.page.control.phone_waiting_android' }[c.phone_os] || 'setup.page.control.phone_waiting', { phone: c.phone_name })), quiet(c.phone_os)), el('span'));
       case 'none':
-        return line(muted('·'), key, t('setup.page.control.phone_none'), el('div', { class: 'v' }, say(c.phone_why)), recheck());
+        return line(muted('·'), key, t('setup.page.control.phone_none'), why(), recheck());
       case 'unread': // the button is disabled while it reads again
         return line(muted('·'), key, t('setup.page.control.phone_unread'), null, recheck());
       case 'pick': {
+        // Whose computer this is isn't known (the owner signed in): every phone with its person, none first, and how to add one.
+        if (c.whose) return line(muted('◎'), key, t('setup.page.control.phone_whose'), [phoneProblem(), pickPhones(phones), ...why()], recheck());
         // The user's own phones first (c.own of them); someone else's only on an explicit click.
         const own = c.own || 0;
         const more = !local.others && phones.length > own
@@ -185,7 +188,7 @@ window.novaSteps = (h) => {
         ? el('button', { id: 'b-finish', class: 'btn btn-primary', type: 'button', disabled: '' }, finish)
         : button(finish, 'finish', 'primary', choices.join(','))),
       asking ? el('p', { class: 'fine' }, t('setup.chat.answer_first')) : null,
-      c.phone === 'pick' && (c.own || local.others) ? el('p', { class: 'fine' }, t('setup.page.control.fine')) : null,
+      c.phone === 'pick' && (c.own || c.whose || local.others) ? el('p', { class: 'fine' }, t('setup.page.control.fine')) : null,
       status && h.state().accepts.includes('server') ? el('p', { class: 'fine' }, el('button', { id: 'b-server', class: 'linkish', type: 'button', onclick: () => h.post('server') }, t('setup.page.rerun.add_server'))) : null];
   };
 
