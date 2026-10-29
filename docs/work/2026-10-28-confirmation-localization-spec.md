@@ -46,6 +46,7 @@ Calls of the coordinating agent, 2026-10-29, for Delivery 2b:
 1. Raw plans are sealed as `en` until Delivery 4, so no raw ask mixes German sentences with English item lines. Delivery 4 also ships in 0.28.0 (maintainer: raw actions all in 0.28.0), so the pin lasts only between PRs.
 2. The link hint (`phoneUnlinkedNext`) quotes the link ask's title and button in the same live language as the settings ask it refers to, never in the plan's language.
 3. State values (`locked → unlocked`) use HA's own names in the plan's language (`frontend/get_translations`, category `state`), read with the action names and stored in the sealed plan. They never replace a security word; a value without a translation stays English, like a name. Attribute and field names stay as they are.
+4. The German batch order line reads „… und hört bei der ersten Änderung auf, die fehlschlägt.“, not „… die nicht erledigt wird.“
 
 Built in 2b: Home Assistant keeps state names under category `entity_component` (`component.<domain>.entity_component._.state.<state>`), which 2b reads for the domains a call acts on. `unknown` and `unavailable`, which Home Assistant names only in its frontend, are HA NOVA's own words, like the drift line's word for a state; a value a call sends is shown as it is. An action's name counts only when both reads succeed, it differs from the English one, has a letter once defanged, and fits 40 runes (else English with a notice); it is never a phone button (Design 8: no word list can check it in every language). The setup page sends its link and move asks in Home Assistant's language, read with the phones, and quotes their buttons from the catalog in that language (the control state carries them; the page only renders them); its own copy stays English. Terminal lines quote the button of the ask they refer to the same way.
 
@@ -55,6 +56,7 @@ Calls of the maintainer, 2026-10-29, on the German texts:
 2. An integration's own action on an access entity (a Z-Wave „Benutzercode löschen“ on a lock) keeps Home Assistant's German name for the action; the tier and its warnings stay HA NOVA's.
 3. The chat-app titles stay „Chat-App-Freigaben erhalten/wechseln/beenden?“.
 4. Undo reads „rückgängig machen“, not „zurücksetzen“: „Die letzte Änderung an „Flurlicht“ rückgängig machen?“. After „an“ the German undo names the item without its kind, so the phone's question and result titles keep the name, cut by the title rule and never dropped.
+5. Batch lines say „sind erledigt“ instead of „haben geklappt“, without a doubled word („Erledigt: alle {count}.“, „Teilweise erledigt: {done} von {count}; …“, „Unklar: {name} ist vielleicht erledigt; …“). „Am kritischsten:“ stays.
 
 ## Delivery
 

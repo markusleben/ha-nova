@@ -337,7 +337,7 @@
   "batch.needs_you": {"other": "Eine Bestätigung gilt für alle {count}, deshalb musst du das bestätigen."},
   "batch.copies": "Vor jedem Löschen wird eine Kopie zum Wiederherstellen gespeichert.",
   "batch.no_copies": "Es konnten keine Kopien gespeichert werden; nach dem Löschen lässt sich nichts wiederherstellen.",
-  "batch.order": "HA NOVA prüft jede Änderung direkt vor dem Senden noch einmal und hört bei der ersten auf, die nicht erledigt wird.",
+  "batch.order": "HA NOVA prüft jede Änderung direkt vor dem Senden noch einmal und hört bei der ersten Änderung auf, die fehlschlägt.",
   "batch.status": "Es wurde noch nichts geändert.",
   "batch.ask": {"other": "Alle {count} speichern? Ich kann dir auch die Details zeigen."},
   "batch.phone.delete.automation": {"other": "{count} Automatisierungen löschen"},
