@@ -81,7 +81,7 @@ export function createChatPhoneControl(secret: () => string | null, port = CONTR
       }
       const raw = body === undefined ? undefined : JSON.stringify(body);
       const headers = { authorization: `Bearer ${key}`, ...(raw === undefined ? {} : { "content-type": "application/json", "content-length": Buffer.byteLength(raw) }) };
-      // A change waits for the bridge's lock while a chat app waits on a tap (25 s by default).
+      // A change waits for the bridge's lock, which a chat app's call holds while it reads or writes Home Assistant.
       const timeout = method === "POST" ? 30_000 : 10_000;
       const req = httpRequest({ host: "127.0.0.1", port, method, path: `/control/v1/${path}`, headers, timeout }, (res) => {
         const chunks: Buffer[] = [];
