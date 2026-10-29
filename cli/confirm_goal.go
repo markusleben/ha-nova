@@ -242,23 +242,21 @@ func (g actionGoal) button(lang string) string {
 // ownButton: the button that names the action; "" where Confirm answers
 // it: a verb that reads like dismissing (close, stop) or is too long for a
 // button (set the position of, undo the last change to). A raw step's verb
-// and a label are their own button while they are one or two words that
-// don't read like dismissing (a raw cancel does); Home Assistant's own name
-// never is, as no word list can check it in every language (Design 8).
+// and a label are their own button while they are one or two words whose
+// id or label doesn't read like dismissing (cancel, ignore, hide); Home
+// Assistant's own name never is, as no word list can check it in every
+// language (Design 8).
 func (g actionGoal) ownButton(lang string) string {
 	switch g.verb {
 	case "":
+		own := g.label
 		if g.raw != "" {
-			word := rawVerb(lang, g.raw)
-			if g.raw == "cancel" || strings.Count(word, " ") > 1 {
-				return ""
-			}
-			return upperFirst(word)
+			own = upperFirst(rawVerb(lang, g.raw))
 		}
-		if g.label == "" || g.named || strings.Count(g.label, " ") > 1 || slices.ContainsFunc([]string{"Cancel", "Close", "Stop", "Dismiss"}, func(v string) bool { return strings.EqualFold(v, g.label) }) {
+		if own == "" || g.named || strings.Count(own, " ") > 1 || slices.ContainsFunc([]string{"cancel", "close", "stop", "dismiss", "ignore", "hide"}, func(v string) bool { return strings.EqualFold(v, g.raw) || strings.EqualFold(v, g.label) }) {
 			return ""
 		}
-		return g.label
+		return own
 	case "turn_on":
 		return confirmT(lang, "button.turn_on")
 	case "turn_off":

@@ -226,7 +226,7 @@ func TestPhoneResultTitleAndButtons(t *testing.T) {
 	if got := (actionGoal{verb: "set_position", names: []string{long, "“B and -1 more”"}}).title("en", ""); !strings.HasSuffix(got, "” and 1 more?") {
 		t.Errorf("a name steered the count: %q", got)
 	}
-	for _, verb := range []actionGoal{{verb: "close"}, {verb: "stop"}, {label: "Cancel"}} {
+	for _, verb := range []actionGoal{{verb: "close"}, {verb: "stop"}, {label: "Cancel"}, {label: "Ignore"}, {label: "Hide"}, {raw: "cancel"}, {raw: "ignore"}, {raw: "hide"}} {
 		if verb.button("en") != "Confirm" {
 			t.Errorf("button %+v", verb)
 		}

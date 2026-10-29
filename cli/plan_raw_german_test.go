@@ -61,7 +61,7 @@ func TestRawPlanInAGermanHome(t *testing.T) {
 // every result prefix: a title cuts the object, never the verb. A long name
 // keeps its start, and a list its count, wherever a language puts the
 // list's lead words. The button is the verb's own word while it is one or
-// two words, else Confirm, as for a cancel.
+// two words, else Confirm, as for the verbs that read like dismissing.
 func TestRawTitlesKeepTheVerb(t *testing.T) {
 	name := "Flurlicht Obergeschoss Nord Ost Fenster links oben sehr lang"
 	prefixes := []string{"", "outcome.done", "outcome.already_done", "outcome.sent", "outcome.failed", "outcome.check", "outcome.unclear",
@@ -95,8 +95,8 @@ func TestRawTitlesKeepTheVerb(t *testing.T) {
 					}
 				}
 			}
-			button := (actionGoal{raw: id}).button(lang)
-			if own := upperFirst(word); id != "cancel" && strings.Count(word, " ") < 2 && button != own || (id == "cancel" || strings.Count(word, " ") > 1) && button != confirmT(lang, "button.confirm") {
+			button, dismissing := (actionGoal{raw: id}).button(lang), id == "cancel" || id == "ignore" || id == "hide"
+			if own := upperFirst(word); !dismissing && strings.Count(word, " ") < 2 && button != own || (dismissing || strings.Count(word, " ") > 1) && button != confirmT(lang, "button.confirm") {
 				t.Errorf("%s %s: button %q", lang, id, button)
 			}
 		}
