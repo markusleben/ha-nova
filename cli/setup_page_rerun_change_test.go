@@ -46,7 +46,7 @@ func TestSetupPageRerunUseAnotherHomeAssistant(t *testing.T) {
 	if handed.Handover != "" {
 		t.Fatalf("handover = %q, want the address question", handed.Handover)
 	}
-	setupPageExit(t, done, stdout) // the terminal's question meets no input here
+	setupPageExit(t, done, stdout)                                                                                                           // the terminal's question meets no input here
 	asked := strings.Contains(stdout.String(), "Enter a different address") || strings.Contains(stdout.String(), "Home Assistant address (") // with or without a Home Assistant found on this network
 	if out := stdout.String(); !asked || strings.Contains(out, "six-digit") {
 		t.Fatalf("terminal:\n%s", out)
