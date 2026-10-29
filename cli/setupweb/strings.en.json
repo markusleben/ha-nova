@@ -403,6 +403,7 @@
   "setup.page.rerun.done": "Done",
   "setup.page.rerun.done_signin": "Done, then sign in",
   "setup.page.rerun.add_server": "Add another Home Assistant server",
+  "setup.page.rerun.change_ha": "Use another Home Assistant",
   "setup.overview.title": "Your setup",
   "setup.overview.setup": "Set up",
   "setup.overview.manage": "Manage",

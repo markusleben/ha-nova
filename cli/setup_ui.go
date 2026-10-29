@@ -72,20 +72,19 @@ func renderSetupStatusSummary(out io.Writer, state setupState) {
 	}
 	fmt.Fprintln(out)
 	fmt.Fprintf(out, "  %s\n", session.style("strong", setupT("setup.status.checking")))
-	if state.RelayOK {
+	switch {
+	case state.RelayOK:
 		check(true, setupT("setup.status.app_reachable"))
 		check(true, setupT("setup.status.auth_valid"))
-	} else {
+	case !state.TokenOK: // without a key the App and the connection go unchecked: not "doesn't answer"
+		check(false, setupT("setup.status.no_token"))
+	default:
 		check(false, setupT("setup.status.app_unreachable"))
-		if state.TokenOK {
-			check(false, setupT("setup.status.auth_failed"))
-		} else {
-			check(false, setupT("setup.status.no_token"))
-		}
+		check(false, setupT("setup.status.auth_failed"))
 	}
 	if state.WSOK {
 		check(true, setupT("setup.status.ws_connected"))
-	} else {
+	} else if state.TokenOK {
 		check(false, setupT("setup.status.ws_disconnected"))
 	}
 	if state.SkillsOK {

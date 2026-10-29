@@ -58,9 +58,9 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 		rows, problem := f.pageRerunRows(app)
 		appDown := problem != nil
 		haDown := appDown && problem.Key == "setup.page.rerun.problem_app"
-		accepts, links, fix := []string{"fix"}, map[string]string{}, ""
+		accepts, links, fix := []string{"fix", "change"}, map[string]string{}, ""
 		if appDown {
-			accepts = []string{"recheck", "fix"}
+			accepts = []string{"recheck", "fix", "change"}
 		}
 		if haDown { // a Home Assistant found here (pageRerunDiscover)
 			accepts = append(accepts, "address")
@@ -69,7 +69,7 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 			links["app"] = haInstallRelayAppURL(f.cfg.HAURL)
 		}
 		if appUpdate && !appDown { // its button says what it does; step 1's sign-in updates the App
-			problem, fix, accepts = setupPageText("setup.page.rerun.problem_app_old"), "app_update", []string{"recheck", "fix"}
+			problem, fix, accepts = setupPageText("setup.page.rerun.problem_app_old"), "app_update", []string{"recheck", "fix", "change"}
 			links["app"] = haRelayAppPageURL(f.cfg.HAURL) // or update it in Home Assistant, then Check again
 		}
 		if haDown && picked != nil {
@@ -100,6 +100,11 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 				continue
 			}
 			f.cfg = applySelectedSetupHost(f.cfg, host, haURL, f.relayURLFlag)
+			f.pageRepairing()
+			return setupGoTo(setupStepHost), true
+		}
+		if action.Action == "change" { // another home: step 1 with the address field open
+			f.pageAskHA = true
 			f.pageRepairing()
 			return setupGoTo(setupStepHost), true
 		}

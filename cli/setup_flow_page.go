@@ -130,7 +130,8 @@ func (f *setupFlow) stepPage() setupStepResult {
 			found = append(found, setupPageCandidate{Host: terminalSafeName(candidate.Host), URL: candidate.HAURL})
 		}
 	}
-	problem, screen, fix, askHA := f.pageProblem, "found", "", false
+	problem, screen, fix, askHA := f.pageProblem, "found", "", f.pageAskHA
+	f.pageAskHA = false
 	if problem != nil {
 		screen, fix, f.pageProblem = "connect", "retry", nil
 	} else if f.pageRemoved {
@@ -196,13 +197,13 @@ func (f *setupFlow) stepPage() setupStepResult {
 		case "terminal":
 			// "Use a six-digit code": the terminal asks for the code, not
 			// for a sign-in again.
-			setupPairWithCode = app.primary != ""
+			setupPairWithCode = app.primary != "" && !shownAskHA // the address field was open: the terminal asks for it, not the saved home's code
 			if setupPairWithCode {
 				p.handoverFor(codeHandover(app.primary))
 			} else {
 				p.handover()
 			}
-			if f.cfg.HAURL == "" {
+			if f.cfg.HAURL == "" || shownAskHA {
 				return setupGoTo(setupStepHost)
 			}
 			f.detectRelayOnInstall = true

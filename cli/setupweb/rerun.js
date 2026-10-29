@@ -88,7 +88,8 @@ window.novaRerun = (h) => {
         s.problem ? button(t('setup.page.button.recheck'), 'recheck', found.length ? 'ghost' : 'primary') : null,
         s.fix === 'app_update' ? button(t('setup.page.rerun.update_app'), 'fix', 'primary')
           : button(t('setup.page.rerun.fix'), 'fix', s.problem ? 'ghost' : 'primary'),
-        link(t('setup.page.link.app'), links.app, 'ghost', 'app'))];
+        link(t('setup.page.link.app'), links.app, 'ghost', 'app')),
+      s.accepts.includes('change') ? el('p', { class: 'fine' }, el('button', { id: 'b-change-ha', class: 'linkish', type: 'button', onclick: () => h.post('change') }, t('setup.page.rerun.change_ha'))) : null];
   };
   // Fix it, or the skills refresh, while the usual steps run.
   const repair = () => [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.repair_title'), t('setup.page.connect.lead_signin')),

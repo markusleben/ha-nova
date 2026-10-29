@@ -87,6 +87,7 @@ release:
     ## Bug Fixes
 
     - **Changes now work in homes with Nuki locks.** Nuki and some other integrations give Home Assistant number IDs. HA NOVA then refused every change, while reading worked. It now reads number IDs too.
+    - **Setup can move to another Home Assistant.** When something needs a fix, "Use another Home Assistant" asks for the new address. Without a key, setup no longer says the NOVA App doesn't answer.
     - **Camera sign-in tokens stay hidden from the AI.** A camera's or image's short-lived token opens its picture or live video without a login. It no longer reaches the AI, also not through a template or a trace.
     - **A leftover Home Assistant Link is explained.** Setup says what it is and lets you finish or remove it right there. Doctor runs all its checks anyway and shows both ways out.
     - **Setup says which Claude gets HA NOVA.** Claude Code is the claude command and the Code tab in Claude Desktop. Setup replaces an old HA NOVA there. On a Mac, the Claude Desktop app alone is enough.

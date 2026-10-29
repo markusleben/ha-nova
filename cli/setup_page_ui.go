@@ -24,7 +24,7 @@ import (
 var setupPageIdle = 30 * time.Minute
 
 // The actions the page may post; the engine accepts a subset at a time.
-var setupPageActions = []string{"signin", "address", "terminal", "recheck", "web", "local", "stop", "demo", "fix", "switch", "server", "clients", "window",
+var setupPageActions = []string{"signin", "address", "terminal", "recheck", "web", "local", "stop", "demo", "fix", "change", "switch", "server", "clients", "window",
 	"phone", "chat", "chat_recheck", "finish", // step 3 (setup_page_control.go)
 	"preview", "save", "undo", "claude", "done", // step 4 (setup_page_home.go)
 }
