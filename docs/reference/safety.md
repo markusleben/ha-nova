@@ -106,7 +106,7 @@ These are guarantees about what HA NOVA *says*, which matter as much as what it 
 
 ```bash
 npm run verify                            # typecheck + full test suite + build + documentation fact-check
-cd cli && go test ./...                   # CLI: keyring, snapshot/revert, uninstall teardown, update nudges
+(cd cli && go test ./...)                 # CLI: keyring, snapshot/revert, uninstall teardown, update nudges
 bash scripts/e2e/disposable-ha/run.sh     # boots a REAL Home Assistant and verifies the relay against it
 ```
 
