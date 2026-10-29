@@ -10,7 +10,12 @@ Confirmation validity stays owned by `../ha-nova/SKILL.md` → Safety
 Baseline → Active Preview Confirmation. This file defines only the batch
 mechanics: manifest, code format, caps, execution, and recovery.
 
-Exception: automations and scripts — `ha-nova plan delete` binds each code to one delete, so their manifest lists one CLI code per item (at most 10 items, planned just in time), ending with one `<name>: **<code>**` line each, and the user types each (a window or phone plan has none: follow its `next_step`); never pass a code the user did not type.
+Exception: automations and scripts take the CLI Batch below, not a manifest code.
+A family whose CLI plans each bind their own code (MQTT publishes) lists each
+plan's `say` ask in the manifest, ending with one `<name>: **<code>**` line
+each; the user types each as its own reply, in manifest order (a window or
+phone plan has none: follow its `next_step`); never pass a code the user did
+not type.
 
 ## Purpose & Opt-In
 
@@ -19,12 +24,12 @@ Exception: automations and scripts — `ha-nova plan delete` binds each code to 
   this file, not from the context skill, not from user insistence.
 - Single-target flows stay the default and continue unchanged. Batch mode is
   for a reviewed, fully enumerated workset of same-family targets.
-- One resource family per manifest. Never mix families (e.g. automations and
-  scripts, storage helpers and config-entry helpers, dashboards and resources)
-  — split into separate manifests, each with its own preview and confirmation.
-  The sole cross-family route is `../ha-nova/grouped-change-set.md` →
-  Cross-Family Destructive Cleanup (one logical target, one manifest-bound
-  code).
+- One resource family per manifest. Never mix families (e.g. storage helpers
+  and config-entry helpers, dashboards and resources) — split into separate
+  manifests, each with its own preview and confirmation. The cross-family
+  routes are the CLI Batch (automations and scripts) and
+  `../ha-nova/grouped-change-set.md` → Cross-Family Destructive Cleanup (one
+  logical target, one manifest-bound code).
 
 ## Preconditions (all six required)
 
@@ -153,12 +158,41 @@ On partial failure the ✅ line names the applied subset instead, the ledger
 shows the failure, and the card closes with the exact safe next step (usually
 the offer of a remaining-targets manifest).
 
+## CLI Batch (automations and scripts)
+
+2 to 20 automation/script writes and deletes of one task, mixed allowed, are
+one `ha-nova plan batch --plan <id> --plan <id> …` (plan ids in run order: an
+item that runs or reads another item goes before it) with one confirmation. No manifest file and no code of your own: the CLI holds
+the list, the order, the re-checks, each delete's config snapshot, and the
+ledger.
+
+1. Plan each item (`plan write`, `plan delete`); show each preview with its
+   consumer check but without its ask or code.
+2. Run `ha-nova plan batch`; show its `say` (every item, then one ask) and
+   follow its `next_step`. The item plans are used up. `BATCH_ORDER`,
+   `BATCH_SIZE`, `BATCH_TOO_LONG`, `BATCH_UNSUPPORTED`, `BATCH_DUPLICATE`,
+   `PLAN_NOT_FOUND`: nothing was sent; follow the refusal's `next_step`. An
+   item left out keeps its own preview ask and confirmation. `PLAN_DRIFT`:
+   plan the named items again and show their new previews.
+3. One `ha-nova apply` sends them in order, checking each again first, and
+   stops at the first one that doesn't go through; the ones before it stay
+   done. Report `say` and `result.items[]`; the write skill's post-write
+   review is one block for the whole list, its test offer only on request.
+   `BATCH_DRIFT` (exit 2), `BATCH_TOO_LONG` and `PLAN_EXPIRED` sent nothing
+   and used the batch up: plan every item again. `SNAPSHOT_FAILED` sent
+   nothing: the `--no-snapshot` choice covers the whole batch. After a stop,
+   never apply it again; the rest needs a new confirmation (two or more
+   items: a new batch).
+4. Ways back: a deleted item through its row's `restore`, a changed one
+   through `ha-nova plan revert --target <config_id>` (the last 25 updated
+   targets per server), a created one through the delete flow.
+
 ## Capability Matrix (v1)
 
 | Skill | Batch support | Families / rationale |
 |---|---|---|
 | `ha-nova` | yes | exact config snapshot blobs only (`config-snapshots` family); categories may mix because they remain one generic blob resource family |
-| `write` | yes | automations OR scripts (never mixed); per-item consumer check; each item keeps its own `ha-nova plan delete` code (the CLI binds a code to one delete — the manifest lists them all and the user types each, none in a window or phone plan; no single batch code); the CLI takes each item's config snapshot |
+| `write` | yes | automations and scripts, mixed: the CLI Batch (2 to 20 writes and deletes, one confirmation); each preview keeps its consumer check; the CLI checks each item again, takes each delete's config snapshot, and keeps the ledger |
 | `helper` | yes | one helper family per manifest; storage and config-entry families never mixed |
 | `mqtt` | yes | retained discovery cleanup for ONE resolved device (topics only from `mqtt/device/debug_info`); command/`set` topics excluded |
 | `maintenance` | yes (already grouped) | statistics clears per issue group via the API's single-call group clear (ledger from per-ID re-validation); orphan registry removal per config entry, sequential; all existing gates unchanged |
@@ -190,6 +224,6 @@ Keep these single-target regardless of manifest quality:
   its grouped manifest is non-destructive and separate from this contract:
   `../ha-nova/grouped-change-set.md`)
 - MQTT command/`set` topics
-- mixed resource families (sole route: the cross-family cleanup workflow, see
-  Purpose & Opt-In)
+- mixed resource families (routes: the CLI Batch for automations and scripts,
+  the cross-family cleanup workflow; see Purpose & Opt-In)
 - selectors evaluated only at execution time

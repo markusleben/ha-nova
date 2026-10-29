@@ -24,7 +24,8 @@ names a CLI command, use the tool:
 - plan write|delete|revert --domain dashboard → domain dashboard with id,
   base, title, icon, require_admin, hide_sidebar; plan revert --domain
   device_area → domain device_area; plan rooms → kind rooms; plan template
-  <name> → kind template with name; get --dashboard <url_path> [--config] |
+  <name> → kind template with name; plan batch --plan <id> … → kind batch
+  with plans [<id>, …]; get --dashboard <url_path> [--config] |
   --dashboards → ha_get dashboard (config) | dashboards; map --insights →
   ha_map insights
 - relay core|ws|files|backups reads (core POST /api/template and check_config

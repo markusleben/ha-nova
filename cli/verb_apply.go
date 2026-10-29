@@ -185,18 +185,19 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	isConfig := valid && config != nil && config.Op == plan.Kind && config.ConfigID != "" && config.validate() == nil
 	isRooms := valid && plan.Kind == "rooms" && config == nil && plan.RoomsRequest != nil && plan.RoomsRequest.validate() == nil
 	isRaw := valid && plan.Kind == "raw" && config == nil && plan.RoomsRequest == nil && validateRawRequests(plan.RawRequests) == nil
+	isBatch := valid && plan.Kind == "batch" && config == nil && plan.RoomsRequest == nil && plan.RawRequests == nil && validBatchMembers(plan.BatchMembers) == nil
 	switch {
-	case !isCall && !isConfig && !isRooms && !isRaw:
+	case !isCall && !isConfig && !isRooms && !isRaw && !isBatch:
 		return fail(refused("PLAN_INVALID", "plan "+id+" cannot be read or is not a valid plan"))
 	case isCall && staticRefusal(request) != nil:
 		return fail(refuse(&env, *staticRefusal(request)))
 	case !verbNow().Before(expires):
-		return fail(refused("PLAN_EXPIRED", "plan "+id+" expired "+sayAgo(verbNow().Sub(expires))))
+		return fail(batchRefusal(isBatch, refused("PLAN_EXPIRED", "plan "+id+" expired "+sayAgo(verbNow().Sub(expires)))))
 	case expires.After(verbNow().Add(planTTL + time.Minute)):
 		// The plan file is user-writable; a far-future expiry would turn the
 		// 4-digit code into an unbounded online brute force. No plan is ever
 		// valid longer than its TTL, so refuse one claiming to be.
-		return fail(refused("PLAN_EXPIRED", "plan "+id+" has an expiry beyond its lifetime"))
+		return fail(batchRefusal(isBatch, refused("PLAN_EXPIRED", "plan "+id+" has an expiry beyond its lifetime")))
 	case plan.SchemaVersion != planSchemaVersion: // its code scheme is gone: never typed against a new one
 		return fail(refused("PLAN_EXPIRED", "plan "+id+" was made by an earlier HA NOVA version"))
 	case plan.Server != s.server:
@@ -232,7 +233,10 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	var e *tierEngine
 	var fresh storedPlan
 	var ctx configContext
+	var batch batchReplan
 	switch {
+	case isBatch:
+		batch, fresh, err = computeBatchPlan(paths, s, &env, plan.BatchMembers)
 	case isCall:
 		e, fresh, err = computeCallPlan(s, &env, request)
 	case isRooms:
@@ -263,6 +267,9 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	identity := fresh.Hash // the stored hash once its fields are proven to make it (sameAsConfirmed)
 	if stillConfirmed(plan, fresh) {
 		identity = plan.Hash
+	}
+	if identity != plan.Hash && isBatch {
+		return fail(refused("PLAN_INVALID", "plan "+id+" does not match its own hash"))
 	}
 	if identity != plan.Hash {
 		// It got there meanwhile: nothing to send or re-confirm — only for the
@@ -326,7 +333,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			// That is enough: a chat plan's code is in `say`, and a form plan
 			// (its channel sealed above) never takes an argv code.
 			if plan.Mismatches++; plan.Mismatches >= 3 {
-				return fail(refused("PLAN_INVALIDATED", "three wrong one-time codes; the plan is gone"))
+				return fail(batchRefusal(isBatch, refused("PLAN_INVALIDATED", "three wrong one-time codes; the plan is gone")))
 			}
 			if writePlanFile(claimed, plan) == nil && os.Rename(claimed, open) == nil {
 				consumed = false
@@ -346,10 +353,13 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		}
 		return env, env.exit
 	}
-	if isConfig || isRaw {
+	if isConfig || isRaw || isBatch {
 		execute := func() error { return executeConfig(paths, s, &env, *fresh.ConfigAction, ctx, noSnapshot) }
 		if isRaw {
 			execute = func() error { return executeRaw(paths, s, &env, fresh.RawRequests, noSnapshot) }
+		}
+		if isBatch {
+			execute = func() error { return executeBatch(paths, s, &env, batch, noSnapshot) }
 		}
 		err := execute()
 		if errors.Is(err, errSnapshotFailed) {
@@ -370,29 +380,6 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(release(err))
 	}
 	return env, env.exit
-}
-
-// errNothingSent: the write failed before reaching Home Assistant, so the
-// claimed plan is released and a retry is safe.
-var errNothingSent = errors.New("nothing was sent")
-
-// nothingSent words a failure before anything reached Home Assistant.
-func nothingSent(err error) *verbFailure {
-	next := "Nothing was sent, so retrying is safe: run the same command again once the Relay answers, and tell the user it was retried."
-	return &verbFailure{exit: verbExitError, code: "RELAY_ERROR", message: err.Error() + "; nothing was sent to Home Assistant", next: next, cause: errors.Join(errNothingSent, err)}
-}
-
-// afterSend turns a panic once the request may have reached Home Assistant
-// into an unknown outcome (exit 7), never "nothing sent".
-func afterSend(sent *bool, env *verbEnvelope, err *error) {
-	if p := recover(); p != nil {
-		if !*sent {
-			panic(p)
-		}
-		env.OutcomeUnknown = true
-		*err = &verbFailure{exit: verbExitUnknown, status: "unverified", code: "OUTCOME_UNKNOWN",
-			message: fmt.Sprintf("an internal error after the request was sent: %v", p), next: "Verify the target state; never retry automatically."}
-	}
 }
 
 // frozeNothing: a request that named targets (ids, --match, --area,

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -246,6 +247,29 @@ func refused(code, message string) *verbFailure {
 
 func refusedWith(code, message, next string) *verbFailure {
 	return &verbFailure{exit: verbExitRefused, code: code, message: message + "; nothing was sent", next: next}
+}
+
+// errNothingSent: the write failed before reaching Home Assistant, so the
+// claimed plan is released and a retry is safe.
+var errNothingSent = errors.New("nothing was sent")
+
+// nothingSent words a failure before anything reached Home Assistant.
+func nothingSent(err error) *verbFailure {
+	next := "Nothing was sent, so retrying is safe: run the same command again once the Relay answers, and tell the user it was retried."
+	return &verbFailure{exit: verbExitError, code: "RELAY_ERROR", message: err.Error() + "; nothing was sent to Home Assistant", next: next, cause: errors.Join(errNothingSent, err)}
+}
+
+// afterSend turns a panic once the request may have reached Home Assistant
+// into an unknown outcome (exit 7), never "nothing sent".
+func afterSend(sent *bool, env *verbEnvelope, err *error) {
+	if p := recover(); p != nil {
+		if !*sent {
+			panic(p)
+		}
+		env.OutcomeUnknown = true
+		*err = &verbFailure{exit: verbExitUnknown, status: "unverified", code: "OUTCOME_UNKNOWN",
+			message: fmt.Sprintf("an internal error after the request was sent: %v", p), next: "Verify the target state; never retry automatically."}
+	}
 }
 
 // A re-plan always shows its new preview and asks again: no plan is ever

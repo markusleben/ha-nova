@@ -40,6 +40,7 @@ var mcpParityRoutes = map[string]string{
 	"plan write --title": "ha_plan title", "plan write --icon": "ha_plan icon",
 	"plan delete": "ha_plan kind=delete", "plan revert": "ha_plan kind=revert", "plan revert --target": "ha_plan id",
 	"plan restore": "ha_plan kind=restore", "plan restore --snapshot": "ha_plan snapshot", "plan raw": "ha_plan kind=raw", "plan raw --file": "ha_plan requests",
+	"plan batch": "ha_plan kind=batch", "plan batch --plan": "ha_plan plans",
 	"relay": "ha_read | ha_plan kind=raw", "relay ws": "ha_read endpoint=ws | ha_plan kind=raw", "relay core": "ha_read endpoint=core | ha_plan kind=raw",
 	"relay files": "ha_read endpoint=files | ha_plan kind=raw", "relay backups": "ha_read endpoint=backups | ha_plan kind=raw",
 	"relay supervisor":  "ha_read endpoint=supervisor | ha_plan kind=raw",

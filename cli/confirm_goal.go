@@ -18,6 +18,7 @@ type actionGoal struct {
 	frame string   // what the names are ("script", "automation", "dashboard"); "" = the names alone
 	names []string // each sayText-quoted, or Home Assistant itself
 	why   string   // a typed plan's reasons the title doesn't say (sayAsk), for the phone
+	whole string   // a batch's question as one goal (batchPhoneGoal); verb, label, and names stay empty
 }
 
 // goalVerbs: a service's catalog verb by its name, in every domain. Any
@@ -134,7 +135,10 @@ func (g actionGoal) phrase(lang, object string) string {
 func (g actionGoal) title(lang, prefix string) string {
 	limit := phoneTitleLimit
 	line := func(names string) string {
-		goal := upperFirst(g.phrase(lang, g.object(lang, names)))
+		goal := g.whole
+		if goal == "" {
+			goal = upperFirst(g.phrase(lang, g.object(lang, names)))
+		}
 		if prefix == "" {
 			return confirmT(lang, "phone.title", "goal", goal)
 		}

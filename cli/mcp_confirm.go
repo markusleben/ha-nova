@@ -182,7 +182,7 @@ func (srv *mcpServer) formPlan(args map[string]json.RawMessage) (storedPlan, boo
 	// A window or phone plan is confirmed only there (confirm_window.go, confirm_phone.go), never in a form.
 	ok := err == nil && timeErr == nil && plan.ID == id && plan.Tier == tierTyped.String() && plan.Prompt != "" && plan.SchemaVersion == planSchemaVersion && !humanChannel(plan.Channel) &&
 		verbNow().Before(expires) && (srv.pin == "" || srv.pin == plan.Server) &&
-		(!noSnapshot || (plan.Kind == "delete" || plan.Kind == "raw") && plan.SnapshotFailed)
+		(!noSnapshot || (plan.Kind == "delete" || plan.Kind == "raw" || plan.Kind == "batch") && plan.SnapshotFailed)
 	return plan, noSnapshot, ok
 }
 
@@ -201,6 +201,9 @@ func confirmForm(plan storedPlan, noSnapshot bool, credential string) map[string
 // confirmText is a typed plan's standalone text for a form or window: its
 // code-free prompt and, for a delete, the copy note.
 func confirmText(plan storedPlan, noSnapshot bool) string {
+	if plan.Kind == "batch" {
+		return batchCopyText(plan, noSnapshot)
+	}
 	if plan.Kind != "delete" && (plan.Kind != "raw" || !noSnapshot) { // a raw plan saves its own copy, as a step
 		return plan.Prompt
 	}

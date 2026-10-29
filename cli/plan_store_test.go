@@ -81,10 +81,10 @@ func TestPlanStorePrunesExpiredAndBoundsCount(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Now()
-	for i := 0; i < 25; i++ {
+	for i := 0; i < planMaxFiles+5; i++ {
 		path := filepath.Join(dir, fmt.Sprintf("p_fresh%02d.json", i))
 		_ = os.WriteFile(path, []byte("{}"), 0o600)
-		_ = os.Chtimes(path, now, now.Add(time.Duration(i-30)*time.Second))
+		_ = os.Chtimes(path, now, now.Add(time.Duration(i-planMaxFiles-10)*time.Second))
 	}
 	var stale []string
 	for _, name := range []string{"p_expired.json", "p_x.json.tmp-123", "p_y.claimed-42"} {

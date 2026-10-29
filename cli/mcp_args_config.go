@@ -40,12 +40,25 @@ func checkPlanDomain(kind string, args map[string]json.RawMessage) error {
 	return nil
 }
 
-// planKindArgv: kinds rooms and template, and a dashboard delete; nil when
-// the kind is another one.
+// planKindArgv: kinds rooms, template, and batch, and a dashboard delete;
+// nil when the kind is another one.
 func planKindArgv(kind string, args map[string]json.RawMessage) ([]string, error) {
 	switch {
 	case kind == "rooms":
 		return []string{"rooms"}, nil
+	case kind == "batch":
+		var ids []string
+		if json.Unmarshal(args["plans"], &ids) != nil || len(ids) == 0 {
+			return nil, errors.New("kind batch needs plans: the plan_ids, in the order they run")
+		}
+		argv := []string{"batch"}
+		for _, id := range ids {
+			if !planIDPattern.MatchString(id) {
+				return nil, fmt.Errorf("%q is not a plan_id", id)
+			}
+			argv = append(argv, "--plan="+id)
+		}
+		return argv, nil
 	case kind == "template":
 		name := text(args, "name")
 		if !slices.Contains(automationTemplates, name) {

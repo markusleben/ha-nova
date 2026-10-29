@@ -25,7 +25,7 @@ const rawRoutes = readFileSync(
 const skillAll = skillDoc + rawRoutes;
 // Since PR4 the deterministic gates live in the CLI; pin their source.
 const tierRules = readFileSync(resolve(__dirname, "../../cli/tier_rules.go"), "utf-8");
-const planStore = readFileSync(resolve(__dirname, "../../cli/plan_store.go"), "utf-8");
+const planStore = readFileSync(resolve(__dirname, "../../cli/plan_deltas.go"), "utf-8");
 const verbVerify = readFileSync(resolve(__dirname, "../../cli/verb_verify.go"), "utf-8");
 const contextSkill = readFileSync(
   resolve(__dirname, "../../skills/ha-nova/SKILL.md"),
