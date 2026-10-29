@@ -199,9 +199,8 @@ func TestEditedHomeAssistantWordsAreRefused(t *testing.T) {
 	}
 }
 
-// A raw plan speaks English in a German home until its lines have German
-// texts (Decision 1).
-func TestRawPlanStaysEnglishInAGermanHome(t *testing.T) {
+// A raw plan speaks the home's language like a call plan (Delivery 4).
+func TestRawPlanSpeaksTheHomesLanguage(t *testing.T) {
 	paths, _ := rawRelay(t, map[string]func(map[string]any) any{
 		"GET /api/config": func(map[string]any) any {
 			return map[string]any{"status": 200, "body": map[string]any{"language": "de"}}
@@ -209,10 +208,10 @@ func TestRawPlanStaysEnglishInAGermanHome(t *testing.T) {
 	})
 	exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"input_boolean/create","name":"Guest mode"}},
 		{"endpoint":"ws","payload":{"type":"input_boolean/create","name":"Night mode"}}]`)
-	if exit != verbExitConfirmation || env.Plan == nil || !strings.Contains(env.Say, "1. Create the toggle helper “Guest mode”.") || !strings.Contains(env.Say, sayYesAsk("en")) {
+	if exit != verbExitConfirmation || env.Plan == nil || !strings.Contains(env.Say, "1. Den Schalter-Helfer „Guest mode“ erstellen.") || !strings.Contains(env.Say, sayYesAsk("de")) {
 		t.Fatalf("raw plan: exit %d %q", exit, env.Say)
 	}
-	if plan, err := readPlanFile(filepath.Join(planDir(paths), env.Plan.ID+".json")); err != nil || plan.Lang != "en" || plan.Words != nil {
+	if plan, err := readPlanFile(filepath.Join(planDir(paths), env.Plan.ID+".json")); err != nil || plan.Lang != "de" || plan.Words != nil {
 		t.Fatalf("raw plan file: %+v %v", plan, err)
 	}
 }

@@ -13,8 +13,9 @@ import (
 // title cut for length still counts every one, and a verb's button follows
 // its id, never its words.
 type actionGoal struct {
-	verb  string            // catalog verb id (phrase); "" when label names the action
-	label string            // the action's own words: an id-derived service name or a raw step's verb (English), or Home Assistant's name
+	verb  string            // catalog verb id (phrase); "" when raw or label names the action
+	raw   string            // a raw step's verb id (rawVerb), phrased by raw.goal
+	label string            // the action's own words: an id-derived service name (English), or Home Assistant's name
 	named bool              // label is Home Assistant's own name (confirm_words.go), kept as written
 	frame string            // what the names are ("script", "automation", "dashboard", "zigbee", "app", "device"); "" = the names alone
 	args  map[string]string // a verb's other placeholders, rendered in the plan's language (goal.zigbee_permit: duration)
@@ -86,6 +87,9 @@ func (g actionGoal) object(lang, names string) string {
 func (g actionGoal) phrase(lang, object string) string {
 	switch g.verb {
 	case "":
+		if g.raw != "" {
+			return confirmT(lang, "raw.goal", "action", rawVerb(lang, g.raw), "object", object)
+		}
 		action := lowerFirst(g.label)
 		if g.named {
 			action = g.label
@@ -237,13 +241,20 @@ func (g actionGoal) button(lang string) string {
 
 // ownButton: the button that names the action; "" where Confirm answers
 // it: a verb that reads like dismissing (close, stop) or is too long for a
-// button (set the position of, undo the last change to). A label is its
-// own button while it is one or two words that don't read like dismissing;
-// Home Assistant's own name never is, as no word list can check it in every
-// language (Design 8).
+// button (set the position of, undo the last change to). A raw step's verb
+// and a label are their own button while they are one or two words that
+// don't read like dismissing (a raw cancel does); Home Assistant's own name
+// never is, as no word list can check it in every language (Design 8).
 func (g actionGoal) ownButton(lang string) string {
 	switch g.verb {
 	case "":
+		if g.raw != "" {
+			word := rawVerb(lang, g.raw)
+			if g.raw == "cancel" || strings.Count(word, " ") > 1 {
+				return ""
+			}
+			return upperFirst(word)
+		}
 		if g.label == "" || g.named || strings.Count(g.label, " ") > 1 || slices.ContainsFunc([]string{"Cancel", "Close", "Stop", "Dismiss"}, func(v string) bool { return strings.EqualFold(v, g.label) }) {
 			return ""
 		}

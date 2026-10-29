@@ -43,7 +43,7 @@ Non-goals: setup page, NOVA page, pairing page, terminal lines (`phoneTapLine`, 
 
 Calls of the coordinating agent, 2026-10-29, for Delivery 2b:
 
-1. Raw plans are sealed as `en` until Delivery 4, so no raw ask mixes German sentences with English item lines. Delivery 4 also ships in 0.28.0 (maintainer: raw actions all in 0.28.0), so the pin lasts only between PRs.
+1. Raw plans are sealed as `en` until Delivery 4, so no raw ask mixes German sentences with English item lines. Delivery 4 also ships in 0.28.0 (maintainer: raw actions all in 0.28.0), so the pin lasts only between PRs; Delivery 4 ends it.
 2. The link hint (`phoneUnlinkedNext`) quotes the link ask's title and button in the same live language as the settings ask it refers to, never in the plan's language.
 3. State values (`locked → unlocked`) use HA's own names in the plan's language (`frontend/get_translations`, category `state`), read with the action names and stored in the sealed plan. They never replace a security word; a value without a translation stays English, like a name. Attribute and field names stay as they are.
 4. The German batch order line reads „… und hört bei der ersten Änderung auf, die fehlschlägt.“, not „… die nicht erledigt wird.“
@@ -92,6 +92,19 @@ Scope: `mqtt.publish` (raw MQTT), the five `hassio.*` calls `ha-nova call` runs 
 German force-and-block remove (agent's call): „{object} nur in Zigbee2MQTT entfernen und sperren“ keeps the verb „entfernen“ of the button and every other remove line, and keeps a usual 16-character name whole behind „Hat nicht geklappt:“ at exactly 79 runes.
 
 Known limits: a custom Zigbee2MQTT base topic and every other bridge read generic; the option table covers two keys; some sensors round `occupancy_timeout` up to their own detection interval.
+
+### Delivery 4: German for raw plans
+
+Scope: every text a raw plan's confirmation shows (raw item lines, their typed reasons, device delete and raw Supervisor lines, counts, dates, the step frame) speaks the plan's language, so Decision 1 ends.
+
+1. Language: a raw plan that asks takes `plan.Lang` like every plan (`planLanguage` no longer pins it to English; raw plans read no Home Assistant names). `computeRawPlan` checks and tiers every item first, seals the plan, and only then builds the lines in `textLang(plan)`, the language the seal holds, as call plans build their everyday line. Reads that the hash covers (the device and entity registries a device delete removes, the energy lists) still happen before the seal; a raw plan that asks nothing stays English.
+2. Lines: each raw line is a verb id and its object, both catalog keys (`raw.verb.*`, `raw.object.*`, `raw.ws.*`, with `raw.noun.*`, `raw.field.*`, `raw.event.*`, the month names, and the frames that join them). The frame `raw.goal` reads `{action} {object}` in English (byte-identical) and `{object} {action}` in German: the verb comes last, and what a change sets or entails stands in parentheses before it („die Entität „Desk“ (Name „Schreibtisch“) ändern“). The phone title cuts the object, never the verb, and a list of targets keeps its count. The button is the verb's own catalog word while it is one or two words; `cancel` (it reads like dismissing) and longer verbs get Confirm. Both are decided on the id and the catalog, never on Home Assistant's words (Design 8).
+3. Typed reasons: the sentences of `plan_raw_tier.go` and the App reasons become `raw.why.*` keys. `reasons[].detail` keeps the English sentence, so the plan's JSON and hash stay as they are; the ask renders the matching key in the plan's language, and a sentence without a key reads as the unknown reason, never as harmless.
+4. Counts and names per language (Delivery 3's note): device delete counts, App labels and settings, calendar dates, energy entries, and imported rows are built in the plan's language.
+5. Stays English: refusals and errors for the agent, a raw apply's result (as every apply but a batch's), field names and values, ids.
+6. Tests: a German home's raw plan speaks German end to end; every raw verb keeps its words on the phone in each catalog behind every result prefix; every typed reason has a key. A one-off golden of every raw line on every surface (chat, window, phone title, button, body, result titles), recorded on `main` before the change, is byte-identical in English after it.
+
+Known limits: English keeps its exact text, quirks included ("1 entries", "area no area", "1 days", the buttons Turn, Show, Read, Make). German gives each detail its own parentheses before the verb, and a cut title can leave one open. Behind a long result prefix, a request that names many targets on a type that takes one can cut the first name down to its quote marks.
 
 ## Verification
 
