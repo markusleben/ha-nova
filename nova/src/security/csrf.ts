@@ -4,7 +4,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 // single-use, valid for five minutes, and bound to BOTH the owner user id and
 // the specific action it was issued for — so a token minted for "generate code"
 // cannot drive "revoke device". At most 16 tokens are pending at once
-// (a page with chat apps issues up to six; the 17th evicts the oldest), bounding memory and stale-token surface.
+// (a page with chat apps issues up to seven; the 17th evicts the oldest), bounding memory and stale-token surface.
 
 export const CSRF_TTL_MS = 5 * 60 * 1_000;
 export const CSRF_MAX_PENDING = 16;

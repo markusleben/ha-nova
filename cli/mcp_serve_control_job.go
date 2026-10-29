@@ -92,7 +92,7 @@ func chatPhoneLink(t phoneTarget) *phoneLink {
 // only while the user is still allowed, and the link is written (or a
 // stop's removed) only while the entry is unchanged and the user's access
 // still allows it.
-func (b *chatBridge) runPhoneJob(job *controlJob, look *controlLook, chosen *phoneTarget, codes bool) {
+func (b *chatBridge) runPhoneJob(job *controlJob, look *controlLook, chosen *phoneTarget, lang string, codes bool) {
 	end := func(status string) {
 		b.mu.Lock()
 		job.status, job.ended = status, time.Now() // the step stays: the page names the phone that ended it
@@ -105,7 +105,6 @@ func (b *chatBridge) runPhoneJob(job *controlJob, look *controlLook, chosen *pho
 		}
 		look.s.close()
 	}()
-	lang := look.s.homeLanguage()
 	notDone := func(reply phoneReply, err error) { // nothing changed; the phone hears why
 		line, status := confirmT(lang, "chat_phone.reply.failed"), "failed" // a read or the write failed
 		switch {
@@ -153,9 +152,10 @@ func (b *chatBridge) runPhoneJob(job *controlJob, look *controlLook, chosen *pho
 		}
 		reply.say(confirmT(lang, "chat_phone.reply.approved_title"), confirmT(lang, "chat_phone.reply.approved", "phone", sayText(chosen.Name, true)))
 	}
-	b.step(job, "new", *chosen, chosen)
+	link := chatPhoneLinkAsk(lang)
+	b.step(job, "new", *chosen, chosen, link.button)
 	ask := phoneSetup{owner: look.home.owner, relayUser: look.home.relay, confirmer: chosen.UserID, targets: []phoneTarget{*chosen}}
-	answer, reply := askPhone(context.Background(), look.s, ask, "ha-nova-chat-link", chatPhoneLinkAsk(lang), controlAskWait, nil)
+	answer, reply := askPhone(context.Background(), look.s, ask, "ha-nova-chat-link", link, controlAskWait, nil)
 	if answer != phoneConfirmed {
 		reply.say(phoneNothing(lang, answer))
 		end(controlAnswer[answer])
@@ -183,11 +183,12 @@ func (b *chatBridge) runPhoneJob(job *controlJob, look *controlLook, chosen *pho
 
 var controlAnswer = map[phoneAnswer]string{phoneNoAnswer: "timeout", phoneDeclined: "declined", phoneRejected: "rejected", phoneFailed: "failed"}
 
-// step: the phone a running job asks now, and a move's new phone.
-func (b *chatBridge) step(job *controlJob, step string, asked phoneTarget, to *phoneTarget) {
+// step: the phone a running job asks now, the button its question shows,
+// and a move's new phone.
+func (b *chatBridge) step(job *controlJob, step string, asked phoneTarget, to *phoneTarget, button string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	job.step, job.phone, job.platform = step, terminalSafeName(asked.Name), asked.platform()
+	job.step, job.phone, job.platform, job.button = step, terminalSafeName(asked.Name), asked.platform(), button
 	if to != nil {
 		job.to = terminalSafeName(to.Name)
 	}

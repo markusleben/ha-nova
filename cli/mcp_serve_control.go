@@ -42,6 +42,7 @@ type controlJob struct {
 	step     string // "old" (the phone linked now) or "new": the step running, or at the end the last one
 	phone    string // the phone that step asks
 	platform string // that phone's (how it shows the buttons)
+	button   string // the button that step's question shows, in Home Assistant's language
 	to       string // a move: the new phone
 	ended    time.Time
 }
@@ -338,13 +339,14 @@ func (b *chatBridge) controlStart(req controlRequest) (int, map[string]any) {
 	case gone && req.Action == "stop":
 		return b.controlWrite(req.User, look.prev, true, nil, chatAllowed)
 	}
-	first, step := chosen, "new"
+	lang := look.s.homeLanguage()
+	first, step, ask := chosen, "new", chatPhoneLinkAsk(lang)
 	if look.status == phoneReady {
-		first, step = &look.current.targets[0], "old"
+		first, step, ask = &look.current.targets[0], "old", chatPhoneChangeAsk(lang, chosen, policy.chatCodes()) // a stop's question says what chat codes do then, for this user
 	}
-	b.step(job, step, *first, chosen)
+	b.step(job, step, *first, chosen, ask.button)
 	started = true
-	go b.runPhoneJob(job, look, chosen, policy.chatCodes()) // a stop's question says what chat codes do then, for this user
+	go b.runPhoneJob(job, look, chosen, lang, policy.chatCodes())
 	return http.StatusAccepted, map[string]any{"job": id, "status": "running"}
 }
 
@@ -385,7 +387,7 @@ func (b *chatBridge) controlJobState(id, user string) (int, map[string]any) {
 	}
 	state := map[string]any{"status": job.status}
 	if job.step != "" {
-		state["step"], state["phone"], state["platform"] = job.step, job.phone, job.platform
+		state["step"], state["phone"], state["platform"], state["button"] = job.step, job.phone, job.platform, job.button
 	}
 	if job.to != "" {
 		state["to"] = job.to

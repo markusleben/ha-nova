@@ -72,6 +72,7 @@ release:
     {{ else }}## New Features
 
     - **Chat apps do what HA NOVA on a computer does.** In Claude and ChatGPT: rooms, names, helpers, scenes, dashboards, integrations, files (with file access on), and more. Only setting up HA NOVA itself stays on a computer.
+    - **Chat apps for everyone in your home.** On the NOVA page, pick who else may use HA NOVA in Claude and ChatGPT, each with their own Home Assistant login and a level: Ask only, Use the home, or Manage everything. Nobody gets more than their Home Assistant role allows, and risky changes ask that person's own phone.
     - **More of Home Assistant's settings.** Integrations, repairs, users, general settings, backup schedule, Labs, statistics import, deleting a device or blueprint. Preview first; what can't be undone takes your OK.
     - **Apps and their logs, on HA OS.** Read Supervisor, Core, host, and App logs; install, remove, or set up an App after your own OK. Over HA NOVA's local connection, not through Home Assistant Link.
     - **"Your setup" when you run setup again.** What is done and what is left, in four parts, each with a button. Another AI app can use HA NOVA too: setup shows what to paste.
@@ -96,7 +97,7 @@ release:
     - **Setup explains the owner sign-in.** The owner connects each computer once; then anyone who uses that login on it can use HA NOVA. On the NOVA page, other admins see who the owner is.
     - **Disabling a lock's device is refused.** So is removing the integration or switch a lock or gate runs on: it would stop working. Do that in Home Assistant's settings.
 
-    **Update the NOVA App to 0.12.2 too.** It brings these changes to Claude and ChatGPT chat apps, and the "Always allow" advice to the NOVA page. HA NOVA on your computer asks for it too. In Home Assistant: Settings > Apps > NOVA Relay > Update. Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh. Claude asks once more before HA NOVA's tools: set them again as the NOVA page says. With a linked phone, every tool on "Always allow"; without one, all but "Run a confirmed change".
+    **Update the NOVA App to 0.13.0 too.** It brings these changes to Claude and ChatGPT chat apps, the list of who in your home may use them, and the "Always allow" advice to the NOVA page. HA NOVA on your computer asks for it too. In Home Assistant: Settings > Apps > NOVA Relay > Update. Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh. Claude asks once more before HA NOVA's tools: set them again as the NOVA page says. With a linked phone, every tool on "Always allow"; without one, all but "Run a confirmed change".
 
     Stable install commands are release-pinned for this tag.
 
