@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Version: 0.36 (2026-10-26) — bump this header on every local amendment.
+Version: 0.37 (2026-10-30) — bump this header on every local amendment.
 
 Instructions for coding agents in this repo. "Hard rules" protect real homes, credentials, and the release path; no other section can trade them off. The other sections are the standard workflow; where two of them conflict, see Autonomy.
 
@@ -50,8 +50,8 @@ Instructions for coding agents in this repo. "Hard rules" protect real homes, cr
 - The pre-push hook runs typecheck, tests, build, and `check-docs.sh` (3-5 min). `git push --no-verify` is fine only right after green targeted tests for the touched areas plus `npm run typecheck` (plus `bash scripts/check-docs.sh` for docs changes). On a push timeout, retry the same push.
 - PR hygiene (the public history is a product too):
   - Before starting a topic, check `gh pr list --state open` for one on the same topic and join it.
-  - One topic, one PR: review fixes, sweep fixes, and follow-ups land in that PR before it merges; merge only when you know of no remaining defect. A defect found after merge gets one fix PR that names the original ("follow-up to #N") and carries every known follow-up. Bundle small fixes of the same area into one PR.
-  - Split only for a real reason: the size rule in Review, or a contract that must land before its consumer. Stacked PRs: before the base merges, `gh pr edit <child> --base main`; after it squash-merges, `git rebase --onto origin/main <base head SHA that merged> <child>` and `git push --force-with-lease origin <child>`.
+  - One topic, one PR, kept small (Review → Size). Before it opens, every review fix lands in it. Once it is open, only P1 fixes do (Review → Triage); P2 fixes, and any defect found after merge, go into one follow-up PR that names the original ("follow-up to #N"), opened right after the merge. Why: every push to an open PR costs a CI run, a branch update, and a re-read, and a small follow-up is reviewed faster than a growing PR. Fixes left for "later" get lost, so the follow-up starts right after the merge, not later. Bundle small fixes of the same area into one PR.
+  - Split for the size rule in Review, or for a contract that must land before its consumer. Stacked PRs: before the base merges, `gh pr edit <child> --base main`; after it squash-merges, `git rebase --onto origin/main <base head SHA that merged> <child>` and `git push --force-with-lease origin <child>`.
   - Open a PR (never as draft) only after the pre-PR review, with the full body written: Codex starts reviewing on open. No close/reopen.
   - Title: conventional prefix, ≤72 characters, the user-visible effect. It becomes the commit on `main` only because merge step 4 sets it explicitly.
   - Context for reviewers goes in the PR body, not in extra comments.
@@ -64,19 +64,23 @@ Instructions for coding agents in this repo. "Hard rules" protect real homes, cr
   - security / fail-open: every path that bypasses the new invariant, every error path that grants access or skips a check;
   - UX / agent guidance: does a non-technical user, or an agent following the skill, get the right next step;
   - sibling-path sweep: the same defect class in sibling files, callers, state sources, and orderings.
-- Brief reviewers to report every finding that affects correctness or the stated requirements, then triage yourself (below); chasing style findings leads to over-engineering. Fix ALL surviving findings in one batch, then open the PR. Repeat only if the scope or the protected invariant changes; at most two passes of the same lens. Once the PR is open, further review is the Codex round's job. Edge cases you leave uncovered go into the PR body as known limits.
+- Brief reviewers to report every finding that affects correctness or the stated requirements, then triage yourself (below); chasing style findings leads to over-engineering. Fix all surviving P1 and P2 findings in one batch, then open the PR (fixing before the PR opens costs no extra round). Repeat only if the scope or the protected invariant changes; at most two passes of the same lens. Once the PR is open, further review is the Codex round's job. Edge cases you leave uncovered go into the PR body as known limits.
 - Skill changes that alter agent behavior: verify with an end-to-end agent run on the test bed when available (start the agent from `eval "$(bash scripts/e2e/testbed/cli.sh --env)"`), not only unit tests — the skill text is the product. Word and route budgets in `tests/skills/` are ratchets: never raise one to fit your own text — trim, or move detail into a reference file. A raise needs a reason stated in the test and the PR body.
 - Release-bound: also run a local Codex CLI review over the working-tree diff and fix its findings. Run it read-only and tell it to run nothing: `codex -s read-only review "Review only; run no tests, builds, or ha-nova commands."`. Why: on 2026-10-24 a full-access review ran uninstall/purge Go tests on the macOS host, which the keychain rule in Hard rules forbids.
-- Size: >~800 changed production lines (tests/docs/generated/lockfiles excluded) or 15 runtime files → split, or say in the PR why it stays one change. A substantial contract rewrite plus a new executable oracle → two stacked PRs from the start.
+- Size: aim for at most ~400 changed production lines per PR (tests/docs/generated/lockfiles excluded). Why: reviews find most defects up to there and miss more beyond (code-review studies put the sweet spot at 200–400 lines per review). Above ~400, split into self-contained layers, each with its tests; above ~800 or 15 runtime files, split, or say in the PR why it can't be. A substantial contract rewrite plus a new executable oracle → two stacked PRs from the start.
 - Checkpoint (a report, not a gate) in your PR-open reply: `git status --short --branch`, `git diff --stat`, any `README.md` diff, tests run, remaining risks.
-- Triage: **P1** real defect on a shipped path (security, data loss, release gate, user-visible break) → always fix. **P2** real but bounded (edge case with workaround, internal-only) → fix, unless the fix must add contract text; then prefer deleting the promise, or answer in-thread. **P3** / style / hypothetical → answer in-thread, no commit. For every new finding, sweep the same defect class across sibling paths and fix all instances in the same commit.
+- Triage, and where each fix goes:
+  - **P1** real defect on a shipped path (security, data loss, release gate, user-visible break) → fix it in this PR; it blocks the merge.
+  - **P2** real but bounded (edge case with workaround, internal-only) → before the PR opens, fix it with the rest. Once the PR is open, reply in-thread naming the follow-up PR, then fix it there (Git → PR hygiene). If the fix must add contract text, prefer deleting the promise.
+  - **P3** / style / hypothetical → answer in-thread, no commit.
+  - For every P1 or P2, sweep the same defect class across sibling paths; all instances are fixed together, wherever that finding's fix lands.
 
 ## Codex bot
-- The bot reviews a PR once, automatically, when it opens. That review is the PR's only round, clean or not.
+- The bot reviews a PR once, automatically, when it opens. That review is the PR's only round, clean or not. In GitHub it flags P0/P1 issues and applies `## Code Review Rules` below.
 - Status: the bot's summary comment (`codex-review-state` JSON) has `code_review.status`; done = `completed`. A clean review is a "Didn't find any major issues" comment or a 👍 from the bot. Findings are its inline comments, anchored to the commit it reviewed — usually the PR-open head, not the current one. Read them with `--paginate`.
-- Triage every bot thread, whatever its badge and whatever the current head: reply in-thread with the fix SHA or the reason (a P1 clears only with a fix, or by showing it is wrong for the current diff), then resolve. A thread is answered when its last comment is yours. Never resolve a thread you didn't answer. Agents comment as the maintainer's account: a thread the maintainer started is answered only by your reply to it, and only the maintainer resolves it.
+- Triage every bot thread, whatever its badge and whatever the current head: reply in-thread with the fix SHA (P1), the follow-up PR (P2), or the reason (P3), then resolve. A P1 clears only with a fix, or by showing it is wrong for the current diff. A thread is answered when its last comment is yours. Never resolve a thread you didn't answer. Agents comment as the maintainer's account: a thread the maintainer started is answered only by your reply to it, and only the maintainer resolves it.
 - Manual trigger — once per PR, a comment whose entire body is `@codex` (multi-line bodies are ignored) — only when no summary appeared within 15 min of opening, or the bot replied "Something went wrong". Never trigger while a review is running. Still not `completed` 30 min later = timeout: say so in the PR and proceed on green checks.
-- Batch mode (release-bound/high-risk, >2 new real findings): 2-3 adversarial subagents with distinct lenses over the full current diff, told what is already fixed; triage; fix all survivors in one commit; merge on green checks, no new trigger.
+- More than 2 real P1s on a release-bound or high-risk PR means it wasn't ready: fix them, then run one adversarial subagent over the full current diff (told what is fixed) before merging; no new trigger.
 - After a trigger the bot may re-post fixed findings verbatim on a newer SHA: reply "fixed in <sha>", resolve, don't re-sweep.
 
 ## Merge steps (required for agent-authored PRs)
@@ -91,7 +95,21 @@ Runbook: `docs/releasing.md` (bump, preflight, release-worthiness, RC gate, rehe
 - Before any tag/publish: a dispatched green `e2e-disposable-ha.yml` on that commit; while Cloud is enabled, the Cloud checklist; "Release Candidate Gate" decides whether an `-rcN` rehearsal is required; either way the final tag's `release.yml` smoke and the post-publish public-install verification run (`docs/releasing.md` §4 step 5, §7). Never reintroduce auto-publish in `release-candidate.yml`. Never skip a manual RC lane for an OS silently: state the no-delta case in the release PR.
 - The release-prep PR (bump + notes + release-bound `README.md` edits) starts the tag sequence; tag right after it merges. `README.md` describes the stable release only: no future claims, no version numbers (`version.json` is SSOT). Unreleased claims collect in `docs/work/next-release-body.md`.
 - Upstream drift check before each release cycle and on each monthly HA release: screen the HA release post, dev-blog breaking changes, and HACS releases against every WS/REST surface pinned in `skills/**/*.md`. Append every run, hits and clean passes, to `docs/work/upstream-drift-log.md`; each skill-relevant hit becomes an issue or joins the running PR train.
+- Before a tag, every P2 follow-up PR for release-bound code has merged.
 - Dependabot PRs are reviewed and merged manually like any PR; toolchain bumps (`vitest`, `vite`, `typescript`, `tsx`, `rollup`, `rolldown`, `esbuild`) get a full local `npm run verify` first.
+
+## Code Review Rules
+Read by Codex Code Review and by review subagents. Only consequential, repo-specific checks; CI covers the mechanical ones.
+
+### Confirmations
+- Unlocking, opening a door, gate, or garage door, disarming, deletes, and every other typed-tier action must still ask a person: the window, their own linked phone, or a chat code where the level allows one. Flag any path that sends one without that, or that falls back to a weaker confirmation on an error. Safe path: refuse.
+- Texts on the phone, window, and form come only from `cli/confirm_strings.*.json`; names enter only through `sayText`. Flag any confirmation text built from AI- or user-supplied strings.
+
+### Chat-app levels
+- Below Manage everything, tools, arguments, plan kinds, and services are an allowlist that fails closed (`cli/mcp_serve_levels.go`), decided on the user id the integration vouched for. Flag anything that widens it or decides on data the model sends.
+
+### Compatibility
+- Flag a change that breaks a shipped contract without saying so in the PR: MCP tool text (`TestMCPToolTextStable`), the plan file schema, `chat-apps.json` and `phone-links.json` fields, `min_relay_version`, and App ↔ CLI routes. A rollback to the previous App must fail closed, never open.
 
 ## User Notes
 Use below list to store and recall user notes when asked to do so.
