@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -219,6 +220,53 @@ func TestRawAreaLabelOrFloorOnAccessAreaIsTyped(t *testing.T) {
 	devices = map[string]any{}
 	if exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"config/area_registry/update","area_id":"kitchen","labels":["x"]}}]`); env.Tier != "typed" {
 		t.Errorf("unreadable device registry: exit %d tier %s %+v", exit, env.Tier, env.Error)
+	}
+	if got := sent(); len(got) != 0 {
+		t.Fatalf("planning sent %v", got)
+	}
+}
+
+// An area check reads each cover once, however many entities share its
+// family: 4 blinds and 80 other entities on one device took 340 reads, and
+// on a slow link a read past the budget turned a label change typed. A
+// failed read still counts as access.
+func TestRawAreaCheckReadsEachCoverOnce(t *testing.T) {
+	rows := []any{}
+	reads, failing := map[string]int{}, ""
+	handlers := map[string]func(map[string]any) any{
+		"config/device_registry/list": func(map[string]any) any {
+			return []any{map[string]any{"id": "dshutter", "area_id": "living"}}
+		},
+		"config/entity_registry/list": func(map[string]any) any { return rows },
+	}
+	for i := range 4 {
+		id := fmt.Sprintf("cover.blind_%d", i)
+		rows = append(rows, map[string]any{"entity_id": id, "device_id": "dshutter"})
+		handlers["GET /api/states/"+id] = func(map[string]any) any {
+			if reads[id]++; id == failing {
+				return map[string]any{"status": 500, "body": map[string]any{"message": "timeout"}}
+			}
+			return map[string]any{"status": 200, "body": map[string]any{"entity_id": id, "attributes": map[string]any{"device_class": "blind"}}}
+		}
+	}
+	for i := range 80 {
+		rows = append(rows, map[string]any{"entity_id": fmt.Sprintf("sensor.shutter_%d", i), "device_id": "dshutter"})
+	}
+	paths, sent := rawRelay(t, handlers)
+	for fail, want := range map[string]string{"": "preview", "cover.blind_2": "typed"} {
+		reads, failing = map[string]int{}, fail
+		exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"config/area_registry/update","area_id":"living","labels":["blinds"]}}]`)
+		if exit != verbExitConfirmation || env.Tier != want {
+			t.Errorf("failing %q: exit %d tier %s, want %s (%+v)", fail, exit, env.Tier, want, env.Error)
+		}
+		for id, n := range reads {
+			if n > 1 {
+				t.Errorf("failing %q: %s read %d times, want once", fail, id, n)
+			}
+		}
+		if fail == "" && len(reads) != 4 {
+			t.Errorf("read %v, want each of the 4 blinds", reads)
+		}
 	}
 	if got := sent(); len(got) != 0 {
 		t.Fatalf("planning sent %v", got)
