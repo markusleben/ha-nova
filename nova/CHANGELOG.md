@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.2] - 2026-10-30
+
+### Fixed
+- Room suggestions in chat apps no longer fail when a lock, an alarm panel, or a garage door has no room but a name that matches one. Those devices are left out, so the other suggestions can be saved. Moving one of them to a room still takes your own confirmation.
+
+### Changed
+- Chat apps now run HA NOVA 0.28.0 with this fix.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.0 ask you to update this App.
+
 ## [Relay 0.13.1] - 2026-10-30
 
 ### Changed
