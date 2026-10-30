@@ -69,7 +69,7 @@ release:
     ```
 
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`; if it reports that it needs admin rights, rerun the stable Windows install command instead.
-    {{ else }}**Update the NOVA App to 0.13.1.** It brings the chat-app changes below to Claude and ChatGPT and to the NOVA page, and Apps and logs to HA NOVA on your computer, which asks for it too.
+    {{ else }}**Update the NOVA App to 0.13.2.** It brings the chat-app changes below to Claude and ChatGPT and to the NOVA page, and Apps and logs to HA NOVA on your computer, which asks for it too.
 
     - In Home Assistant: Settings > Apps > NOVA Relay > Update.
     - Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -315,6 +316,32 @@ func suggestRoom(name string, areas []foldedArea) (foldedArea, string, bool) {
 	return foldedArea{}, "", false
 }
 
+// hasAccess: a registry row (disabled ones too) of device or its family (its
+// parent and that parent's child devices) is a lock, an alarm panel, or a
+// cover that is (or may be) an access cover, the check roomsAccessRefusal
+// makes. A cover's class is its state's; a cover without a state fails
+// closed here, so no live read adds to the session budget.
+func (x *homeIndex) hasAccess(device string, entities map[string][]string) bool {
+	root := device
+	for parent, children := range x.children {
+		if slices.Contains(children, device) {
+			root = parent
+		}
+	}
+	for _, member := range append([]string{root}, x.children[root]...) {
+		for _, id := range entities[member] {
+			class := ""
+			if st := x.state[id]; st != nil {
+				class = st.deviceClass()
+			}
+			if accessCapable(id, class) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func equalWords(a, b []string) bool {
 	for i := range a {
 		if a[i] != b[i] {
@@ -325,22 +352,25 @@ func equalWords(a, b []string) bool {
 }
 
 // roomSuggestions: enabled devices without any area (own or inherited),
-// not a service or a private device, with a confident room; by room, then
-// name; at most one plan's worth.
+// not a service, a private device, or one a rooms plan refuses (hasAccess),
+// with a confident room; by room, then name; at most one plan's worth.
 func (x *homeIndex) roomSuggestions() []roomSuggestion {
 	var areas []foldedArea
 	for _, a := range x.h.areas {
 		words := foldWords(a.Name)
 		areas = append(areas, foldedArea{id: a.AreaID, name: a.Name, words: words, kinds: roomKinds(words)})
 	}
-	private := x.privateDevices()
+	private, entities := x.privateDevices(), map[string][]string{}
+	for id, device := range x.entityDevice {
+		entities[device] = append(entities[device], id)
+	}
 	out := []roomSuggestion{}
 	for _, d := range x.h.devices {
 		name := firstNonEmpty(d.NameByUser, d.Name)
 		if !x.deviceOn[d.ID] || x.service[d.ID] || x.deviceArea[d.ID] != "" || private[d.ID] || name == "" {
 			continue
 		}
-		if area, confidence, ok := suggestRoom(name, areas); ok {
+		if area, confidence, ok := suggestRoom(name, areas); ok && !x.hasAccess(d.ID, entities) {
 			out = append(out, roomSuggestion{DeviceID: d.ID, Name: name, AreaID: area.id, Area: area.name, Confidence: confidence})
 		}
 	}

@@ -1,5 +1,5 @@
 name: NOVA Relay
-version: "0.13.1"
+version: "0.13.2"
 image: "ghcr.io/markusleben/{arch}-ha-nova-relay"
 slug: ha_nova_relay
 description: Lets Claude, ChatGPT, and other AI apps work with your home, safely

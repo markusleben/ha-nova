@@ -388,6 +388,8 @@
   "raw.why.energy_emptied": "Das leert eine Liste des Energie-Dashboards oder entfernt mehrere ihrer Einträge",
   "raw.why.access_entity": "Das gibt einem Schloss, einer Alarmanlage oder einer Tür eine neue ID, einen neuen Bereich oder ein neues Label, und das kann ändern, worauf eine Automation zum Öffnen zielt",
   "raw.why.access_device": "Das gibt einem Gerät mit einem Schloss, einer Alarmanlage oder einer Tür einen neuen Bereich oder ein neues Label, und das kann ändern, worauf eine Automation zum Öffnen zielt",
+  "raw.why.access_area": "Das gibt einem Bereich mit einem Schloss, einer Alarmanlage oder einer Tür ein neues Label oder eine neue Etage, und das kann ändern, worauf eine Automation zum Öffnen zielt",
+  "raw.why.access_shown": "Das macht ein Schloss, eine Alarmanlage, eine Tür oder etwas, das dazugehört, wieder sichtbar oder aktiv, und eine Automation zum Öffnen kann dann wieder darauf zielen",
   "raw.why.person_follows": "Das ändert, welchen Geräten eine Person folgt, und ein Entriegeln oder Unscharfschalten kann auf diese Person warten",
   "raw.why.account_access": "Das ändert, was ein Home-Assistant-Benutzer darf oder ob er sich anmelden kann",
   "raw.why.backup_retention": "Das ändert, wie viele automatische Backups Home Assistant aufbewahrt, und ältere werden endgültig gelöscht",
