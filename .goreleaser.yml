@@ -97,7 +97,7 @@ release:
     - **Setup explains the owner sign-in.** The owner connects each computer once; then anyone who uses that login on it can use HA NOVA. On the NOVA page, other admins see who the owner is.
     - **Disabling a lock's device is refused.** So is removing the integration or switch a lock or gate runs on: it would stop working. Do that in Home Assistant's settings.
 
-    **Update the NOVA App to 0.13.1 too.** It brings these changes to Claude and ChatGPT chat apps, the list of who in your home may use them, and the "Always allow" advice to the NOVA page. HA NOVA on your computer asks for it too. In Home Assistant: Settings > Apps > NOVA Relay > Update. Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh. Claude asks once more before HA NOVA's tools: set them again as the NOVA page says. With a linked phone, every tool on "Always allow"; without one, all but "Run a confirmed change".
+    **Update the NOVA App to 0.13.2 too.** It brings these changes to Claude and ChatGPT chat apps, the list of who in your home may use them, and the "Always allow" advice to the NOVA page. HA NOVA on your computer asks for it too. In Home Assistant: Settings > Apps > NOVA Relay > Update. Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh. Claude asks once more before HA NOVA's tools: set them again as the NOVA page says. With a linked phone, every tool on "Always allow"; without one, all but "Run a confirmed change".
 
     Stable install commands are release-pinned for this tag.
 

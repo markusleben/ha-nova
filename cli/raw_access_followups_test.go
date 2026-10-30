@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -49,6 +50,7 @@ func TestRawDeviceAreaOnAccessDeviceIsTyped(t *testing.T) {
 		"config/entity_registry/list": func(map[string]any) any {
 			return []any{map[string]any{"entity_id": "lock.front", "device_id": "dlock"}, map[string]any{"entity_id": "light.hall", "device_id": "dlight"}}
 		},
+		"config/device_registry/list": func(map[string]any) any { return []any{map[string]any{"id": "dlock"}, map[string]any{"id": "dlight"}} },
 	})
 	for payload, want := range map[string]string{
 		`{"type":"config/device_registry/update","device_id":"dlock","area_id":"garage"}`:    "typed",
@@ -60,6 +62,166 @@ func TestRawDeviceAreaOnAccessDeviceIsTyped(t *testing.T) {
 		if exit != verbExitConfirmation || env.Tier != want {
 			t.Errorf("%s: exit %d tier %s, want %s (%+v)", payload, exit, env.Tier, want, env.Error)
 		}
+	}
+}
+
+// A child device goes with its parent (Home Assistant 2026.9+): disabling or
+// enabling the parent disables or enables its children, so a lock on a child
+// refuses that. A new area, label, or ID on a device, or on an entity, in
+// the family of a lock (a parent and its child devices, whatever their
+// rooms) is typed, as the tier's sibling guard reads the family; so is
+// showing or enabling one again, which brings it back into targets. An
+// unreadable device registry counts as a lock.
+func TestRawChildDevicesGoWithTheirParent(t *testing.T) {
+	devices := any([]any{map[string]any{"id": "dhub", "area_id": "hall"}, map[string]any{"id": "dchild", "parent_device_id": "dhub", "area_id": nil},
+		map[string]any{"id": "dside", "parent_device_id": "dhub", "area_id": "hall"},
+		map[string]any{"id": "dhub2", "area_id": "hall"}, map[string]any{"id": "dplaced", "parent_device_id": "dhub2", "area_id": "porch"},
+		map[string]any{"id": "dlamp"}, map[string]any{"id": "dled", "parent_device_id": "dlamp"}})
+	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
+		"config/entity_registry/list": func(map[string]any) any {
+			return []any{map[string]any{"entity_id": "switch.hub_relay", "device_id": "dhub"}, map[string]any{"entity_id": "lock.child", "device_id": "dchild"},
+				map[string]any{"entity_id": "switch.side_relay", "device_id": "dside"},
+				map[string]any{"entity_id": "switch.hub2_relay", "device_id": "dhub2"}, map[string]any{"entity_id": "lock.placed", "device_id": "dplaced"},
+				map[string]any{"entity_id": "switch.lamp", "device_id": "dlamp"}, map[string]any{"entity_id": "light.led", "device_id": "dled"}}
+		},
+		"config/device_registry/list": func(map[string]any) any { return devices },
+	})
+	tiers := map[string]string{
+		`{"type":"config/device_registry/update","device_id":"dhub","area_id":"garage"}`:              "typed", // lock.child takes the hub's room
+		`{"type":"config/device_registry/update","device_id":"dhub2","area_id":"garage"}`:             "typed", // the hub of lock.placed, whose own room changes nothing
+		`{"type":"config/device_registry/update","device_id":"dside","area_id":"garage"}`:             "typed", // beside lock.child
+		`{"type":"config/device_registry/update","device_id":"dled","labels":["x"]}`:                  "preview",
+		`{"type":"config/entity_registry/update","entity_id":"lock.child","hidden_by":null}`:          "typed",
+		`{"type":"config/entity_registry/update","entity_id":"switch.side_relay","hidden_by":null}`:   "typed",
+		`{"type":"config/entity_registry/update","entity_id":"switch.side_relay","disabled_by":null}`: "typed",
+		`{"type":"config/device_registry/update","device_id":"dside","disabled_by":null}`:             "typed",
+		`{"type":"config/entity_registry/update","entity_id":"lock.child","hidden_by":"user"}`:        "preview",
+		`{"type":"config/entity_registry/update","entity_id":"light.led","hidden_by":null}`:           "preview",
+		`{"type":"config/entity_registry/update","entity_id":"light.led","disabled_by":null}`:         "preview",
+		`{"type":"config/device_registry/update","device_id":"dled","disabled_by":null}`:              "preview",
+		`{"type":"config/device_registry/update","device_id":"dhub2","labels":["outside"]}`:           "typed", // a label on the hub reaches lock.placed
+		`{"type":"config/device_registry/update","device_id":"dhub","name_by_user":"Hub"}`:            "preview",
+		`{"type":"config/device_registry/update","device_id":"dlamp","area_id":"garage"}`:             "preview",
+		`{"type":"config/entity_registry/update","entity_id":"switch.hub2_relay","area_id":"garage"}`: "typed", // the hub of lock.placed
+		`{"type":"config/entity_registry/update","entity_id":"switch.side_relay","labels":["x"]}`:     "typed", // beside lock.child
+		`{"type":"config/entity_registry/update","entity_id":"light.led","area_id":"garage"}`:         "preview",
+	}
+	for payload, want := range tiers {
+		exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":`+payload+`}]`)
+		if exit != verbExitConfirmation || env.Tier != want {
+			t.Errorf("%s: exit %d tier %s, want %s (%+v)", payload, exit, env.Tier, want, env.Error)
+		}
+	}
+	for device, child := range map[string]string{"dhub": "dchild has lock.child", "dhub2": "dplaced has lock.placed"} {
+		for _, disabledBy := range []string{`"user"`, "null"} {
+			exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"config/device_registry/update","device_id":"`+device+`","disabled_by":`+disabledBy+`}}]`)
+			if exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Message, "disabling or enabling device "+device+", whose child device "+child) {
+				t.Errorf("%s disabled_by %s: exit %d %+v", device, disabledBy, exit, env.Error)
+			}
+		}
+	}
+	if exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"config/device_registry/update","device_id":"dlamp","disabled_by":"user"}}]`); exit != verbExitConfirmation {
+		t.Errorf("a lamp whose child is a light: exit %d %+v", exit, env.Error)
+	}
+	devices = map[string]any{}
+	for _, payload := range []string{`{"type":"config/device_registry/update","device_id":"dlamp","area_id":"garage"}`,
+		`{"type":"config/entity_registry/update","entity_id":"light.led","area_id":"garage"}`} {
+		if exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":`+payload+`}]`); env.Tier != "typed" {
+			t.Errorf("unreadable device registry, %s: exit %d tier %s %+v", payload, exit, env.Tier, env.Error)
+		}
+	}
+	if exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"config/device_registry/update","device_id":"dlamp","disabled_by":"user"}}]`); exit == verbExitConfirmation || env.Plan != nil || env.Error == nil {
+		t.Errorf("unreadable device registry, disabling: exit %d %+v", exit, env.Error)
+	}
+	if got := sent(); len(got) != 0 {
+		t.Fatalf("planning sent %v", got)
+	}
+}
+
+// A registry that comes back null, or with a null row (it decodes to an
+// empty one), can't show a lock's family: the tier counts it as access and
+// the guard sends nothing.
+func TestRawNullOrMalformedRegistriesCountAsAccess(t *testing.T) {
+	good := func() ([]any, []any) {
+		return []any{map[string]any{"entity_id": "switch.hub_relay", "device_id": "dhub"}, map[string]any{"entity_id": "lock.child", "device_id": "dchild"}},
+			[]any{map[string]any{"id": "dhub"}, map[string]any{"id": "dchild", "parent_device_id": "dhub"}}
+	}
+	var entities, devices any
+	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
+		"config/entity_registry/list": func(map[string]any) any { return entities },
+		"config/device_registry/list": func(map[string]any) any { return devices },
+	})
+	move := `[{"endpoint":"ws","payload":{"type":"config/device_registry/update","device_id":"dhub","area_id":"garage"}}]`
+	moveEntity := `[{"endpoint":"ws","payload":{"type":"config/entity_registry/update","entity_id":"switch.hub_relay","area_id":"garage"}}]`
+	disable := `[{"endpoint":"ws","payload":{"type":"config/device_registry/update","device_id":"dhub","disabled_by":"user"}}]`
+	for _, c := range []struct {
+		name   string
+		mangle func(e, d []any) (any, any)
+		items  string
+		typed  bool
+	}{
+		{"null device list", func(e, d []any) (any, any) { return e, json.RawMessage("null") }, move, true},
+		{"null entity list", func(e, d []any) (any, any) { return json.RawMessage("null"), d }, moveEntity, true},
+		{"a null device row", func(e, d []any) (any, any) { return e, []any{d[0], nil} }, move, true},
+		{"a null entity row", func(e, d []any) (any, any) { return []any{e[0], nil}, d }, moveEntity, true},
+		{"guard: a null device row", func(e, d []any) (any, any) { return e, []any{d[0], nil} }, disable, false},
+		{"guard: a null entity row", func(e, d []any) (any, any) { return []any{e[0], nil}, d }, disable, false},
+	} {
+		entities, devices = c.mangle(good())
+		exit, env := planRaw(t, paths, c.items)
+		if c.typed && (exit != verbExitConfirmation || env.Tier != "typed") || !c.typed && (exit == verbExitConfirmation || env.Plan != nil || env.Error == nil) {
+			t.Errorf("%s: exit %d tier %s %+v", c.name, exit, env.Tier, env.Error)
+		}
+	}
+	if got := sent(); len(got) != 0 {
+		t.Fatalf("planning sent %v", got)
+	}
+}
+
+// A new label or floor on an area reaches every entity in it through a label
+// or floor target (helpers/target.py), so it is typed when one counts as
+// access: a lock there by its own area, its device's, or, for a child device
+// without one, its parent's; or an entity in a lock's device family. Creating
+// an area, or changing a floor or a label, moves nothing into a target. An
+// unreadable registry counts as a lock.
+func TestRawAreaLabelOrFloorOnAccessAreaIsTyped(t *testing.T) {
+	devices := any([]any{map[string]any{"id": "dlock", "area_id": "porch"},
+		map[string]any{"id": "dhub", "area_id": "hall"}, map[string]any{"id": "dchild", "parent_device_id": "dhub", "area_id": nil},
+		map[string]any{"id": "dyard", "area_id": "yard"}, map[string]any{"id": "dgate", "parent_device_id": "dyard", "area_id": "drive"},
+		map[string]any{"id": "dshed"}, map[string]any{"id": "dlamp", "area_id": "kitchen"}, map[string]any{"id": "dled", "parent_device_id": "dlamp"}})
+	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
+		"config/entity_registry/list": func(map[string]any) any {
+			return []any{map[string]any{"entity_id": "lock.front", "device_id": "dlock"}, map[string]any{"entity_id": "lock.child", "device_id": "dchild"},
+				map[string]any{"entity_id": "switch.yard_relay", "device_id": "dyard"}, map[string]any{"entity_id": "lock.gate", "device_id": "dgate"},
+				map[string]any{"entity_id": "lock.shed", "device_id": "dshed", "area_id": "garden"},
+				map[string]any{"entity_id": "light.kitchen", "device_id": "dlamp"}, map[string]any{"entity_id": "light.led", "device_id": "dled"}}
+		},
+		"config/device_registry/list": func(map[string]any) any { return devices },
+	})
+	tiers := map[string]string{
+		`{"type":"config/area_registry/update","area_id":"porch","labels":["outside"]}`:                    "typed",
+		`{"type":"config/area_registry/update","area_id":"porch","floor_id":"ground"}`:                     "typed",
+		`{"type":"config/area_registry/update","area_id":"porch","name":"Front porch"}`:                    "preview",
+		`{"type":"config/area_registry/update","area_id":"hall","floor_id":"ground"}`:                      "typed", // lock.child takes the hub's area
+		`{"type":"config/area_registry/update","area_id":"yard","labels":["outside"]}`:                     "typed", // the gate's hub
+		`{"type":"config/area_registry/update","area_id":"garden","labels":["outside"]}`:                   "typed", // lock.shed's own area
+		`{"type":"config/area_registry/update","area_id":"kitchen","labels":["x"],"floor_id":null}`:        "preview",
+		`{"type":"config/area_registry/create","name":"Porch 2","labels":["outside"],"floor_id":"ground"}`: "preview",
+		`{"type":"config/floor_registry/update","floor_id":"ground","name":"Downstairs"}`:                  "preview",
+		`{"type":"config/label_registry/update","label_id":"outside","name":"Outdoors"}`:                   "preview",
+	}
+	for payload, want := range tiers {
+		exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":`+payload+`}]`)
+		if exit != verbExitConfirmation || env.Tier != want {
+			t.Errorf("%s: exit %d tier %s, want %s (%+v)", payload, exit, env.Tier, want, env.Error)
+		}
+	}
+	devices = map[string]any{}
+	if exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"config/area_registry/update","area_id":"kitchen","labels":["x"]}}]`); env.Tier != "typed" {
+		t.Errorf("unreadable device registry: exit %d tier %s %+v", exit, env.Tier, env.Error)
+	}
+	if got := sent(); len(got) != 0 {
+		t.Fatalf("planning sent %v", got)
 	}
 }
 
@@ -105,21 +267,43 @@ func TestRawSourceSwitchOtherChannelStaysFree(t *testing.T) {
 	}
 }
 
-// A rooms plan never moves a device with a lock: that move is a raw device
-// update, which takes the user's own confirmation. A failed read refuses.
+// A rooms plan never moves a device with a lock, nor one in its family (a
+// parent and its child devices, whatever their rooms): that move is a raw
+// device update, which takes the user's own confirmation. A failed read
+// refuses.
 func TestRoomsPlanRefusesAccessDevices(t *testing.T) {
-	list := any([]any{map[string]any{"entity_id": "lock.front", "device_id": "dlock"}, map[string]any{"entity_id": "light.hall", "device_id": "dlight"}})
+	list := any([]any{map[string]any{"entity_id": "lock.front", "device_id": "dlock"}, map[string]any{"entity_id": "light.hall", "device_id": "dlight"},
+		map[string]any{"entity_id": "lock.child", "device_id": "dchild"}, map[string]any{"entity_id": "lock.placed", "device_id": "dplaced"},
+		map[string]any{"entity_id": "lock.base", "device_id": "dbase"}, map[string]any{"entity_id": "sensor.base_temp", "device_id": "dsensor"}})
+	reg := roomsRegistry{devices: map[string]struct{ area, name, disabled string }{"dchild": {name: "Child Lock"}, "dhub": {name: "Hub"}, "dside": {name: "Side"},
+		"dplaced": {area: "hall", name: "Placed Lock"}, "dhub2": {name: "Hub 2"}, "dbase": {name: "Base"}, "dsensor": {name: "Sensor"}},
+		parent: map[string]string{"dchild": "dhub", "dside": "dhub", "dplaced": "dhub2", "dsensor": "dbase"}}
 	paths, _ := rawRelay(t, map[string]func(map[string]any) any{"config/entity_registry/list": func(map[string]any) any { return list }})
 	s, err := newRelaySession(paths, verbOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer s.close()
-	if err := roomsAccessRefusal(s, roomsRequest{Items: []roomsItem{{DeviceID: "dlight"}}}); err != nil {
+	if err := roomsAccessRefusal(s, roomsRequest{Items: []roomsItem{{DeviceID: "dlight"}}}, reg); err != nil {
 		t.Fatalf("a light: %v", err)
 	}
-	if err := roomsAccessRefusal(s, roomsRequest{Items: []roomsItem{{DeviceID: "dlight"}, {DeviceID: "dlock"}}}); err == nil || !strings.Contains(err.Error(), "lock.front") {
+	if err := roomsAccessRefusal(s, roomsRequest{Items: []roomsItem{{DeviceID: "dlight"}, {DeviceID: "dlock"}}}, reg); err == nil || !strings.Contains(err.Error(), "lock.front") {
 		t.Fatalf("a lock: %v", err)
+	}
+	for device, want := range map[string]string{
+		"dhub":    "“Child Lock” has lock.child (a lock, alarm panel, or door) and is a child device of “Hub”, a device in this plan",
+		"dhub2":   "“Placed Lock” has lock.placed (a lock, alarm panel, or door) and is a child device of “Hub 2”", // its own room changes nothing
+		"dside":   "“Child Lock” has lock.child (a lock, alarm panel, or door) and shares a parent device with “Side”",
+		"dsensor": "“Base” has lock.base (a lock, alarm panel, or door) and is the parent device of “Sensor”",
+	} {
+		err := roomsAccessRefusal(s, roomsRequest{Items: []roomsItem{{DeviceID: device}}}, reg)
+		var failure *verbFailure
+		if !errors.As(err, &failure) || !strings.Contains(failure.message, want) || !strings.HasPrefix(failure.next, "Move "+sayText(reg.devices[device].name, true)+" as a raw plan") {
+			t.Errorf("%s: %+v", device, failure)
+		}
+	}
+	if err := roomsAccessRefusal(s, roomsRequest{Items: []roomsItem{{DeviceID: "dhub"}, {DeviceID: "dchild"}}}, reg); err == nil || !strings.HasPrefix(err.Error(), "a device in this plan has lock.child") {
+		t.Fatalf("the lock itself in the plan: %v", err)
 	}
 	list = nil
 	s2, err := newRelaySession(paths, verbOptions{})
@@ -127,7 +311,7 @@ func TestRoomsPlanRefusesAccessDevices(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s2.close()
-	if err := roomsAccessRefusal(s2, roomsRequest{Items: []roomsItem{{DeviceID: "dlight"}}}); err == nil || !strings.Contains(err.Error(), "nothing was planned") {
+	if err := roomsAccessRefusal(s2, roomsRequest{Items: []roomsItem{{DeviceID: "dlight"}}}, reg); err == nil || !strings.Contains(err.Error(), "nothing was planned") {
 		t.Fatalf("unreadable: %v", err)
 	}
 }

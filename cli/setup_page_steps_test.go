@@ -190,6 +190,30 @@ func TestSetupPageRoomsPreviewSaveAndUndo(t *testing.T) {
 	<-done
 }
 
+// Step 4 in a home with a garage door and a lock beside their rooms: Suggest
+// rooms previews the other devices, not "That didn't work".
+func TestSetupPageRoomsWithAccessDevices(t *testing.T) {
+	h := newRoomsHarness(t, &roomsFake{f: accessHome()})
+	usePageVerbs(t, h.paths, nil)
+	p := newPageStepsTest(t, h.paths, "codex")
+	done := p.runHome()
+	p.waitFor("step 4", accepting("preview"))
+	p.click("preview", "rooms")
+	pv := p.waitFor("the rooms preview", func(s setupPageState) bool {
+		pv := s.Home.previewIn("rooms")
+		return pv != nil && pv.State != "loading" && slices.Contains(s.Accepts, "done")
+	}).Home.Previews["rooms"]
+	var got []string
+	for _, c := range pv.Changes {
+		got = append(got, c.Name+"→"+c.Area)
+	}
+	if pv.State != "preview" || pv.PlanID == "" || strings.Join(got, ",") != "Guest Bedroom Lamp→Guest Bedroom,Kitchen Blind→Kitchen,Kitchen Lights→Kitchen,Küchenradio→Kitchen" {
+		t.Fatalf("preview = %+v, problem %+v", pv, pv.Problem)
+	}
+	p.click("done", "")
+	<-done
+}
+
 // "Made for your home": the preview shows the exact draft, and the save
 // stores exactly that draft, read back.
 func TestSetupPageTemplatePreviewEqualsSave(t *testing.T) {

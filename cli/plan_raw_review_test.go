@@ -17,11 +17,14 @@ func TestPlanRawTypedFlagAndAccessCheck(t *testing.T) {
 			return []any{map[string]any{"entity_id": "lock.front", "device_id": "dlock"}, map[string]any{"entity_id": "sensor.door_battery", "device_id": "dlock"},
 				map[string]any{"entity_id": "light.desk", "device_id": "dlamp"}}
 		},
+		"config/device_registry/list": func(map[string]any) any { return []any{map[string]any{"id": "dlock"}, map[string]any{"id": "dlamp"}} },
 	})
 	for payload, tier := range map[string]string{
 		`{"type":"input_boolean/update","input_boolean_id":"guest","name":"Guest"}`:                     "preview",
 		`{"type":"config/entity_registry/update","entity_id":"lock.front","name":"Front door"}`:         "preview",
 		`{"type":"config/entity_registry/update","entity_id":"lock.front","area_id":"hall"}`:            "typed",
+		`{"type":"config/entity_registry/update","entity_id":"LOCK.Front","area_id":"hall"}`:            "typed", // Home Assistant lowercases it
+		`{"type":"config/entity_registry/update","entity_id":"Sensor.Door_Battery","labels":["door"]}`:  "typed",
 		`{"type":"config/entity_registry/update","entity_id":"lock.front","new_entity_id":"lock.door"}`: "typed",
 		`{"type":"config/entity_registry/update","entity_id":"sensor.door_battery","labels":["door"]}`:  "typed",
 		`{"type":"config/entity_registry/update","entity_id":"light.desk","area_id":"office"}`:          "preview",
