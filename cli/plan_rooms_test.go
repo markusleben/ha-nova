@@ -172,7 +172,7 @@ func TestPlanRoomsLeavesAccessDevicesOut(t *testing.T) {
 	for _, c := range res.Changes {
 		got = append(got, c.DeviceID+"→"+c.AreaID)
 	}
-	if strings.Join(got, ",") != "d_guest→guest,d_blind→kitchen,d_khub→kitchen,d_kitchen→kitchen,d_radio→kitchen" {
+	if strings.Join(got, ",") != "d_guest→guest,d_blind→kitchen,d_kitchen→kitchen,d_radio→kitchen" {
 		t.Fatalf("changes %v", got)
 	}
 }

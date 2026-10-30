@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -51,6 +52,7 @@ var rawWhys = map[string]func(lang string) string{
 	"energy_emptied":     func(l string) string { return confirmT(l, "raw.why.energy_emptied") },
 	"access_entity":      func(l string) string { return confirmT(l, "raw.why.access_entity") },
 	"access_device":      func(l string) string { return confirmT(l, "raw.why.access_device") },
+	"access_area":        func(l string) string { return confirmT(l, "raw.why.access_area") },
 	"person_follows":     func(l string) string { return confirmT(l, "raw.why.person_follows") },
 	"account_access":     func(l string) string { return confirmT(l, "raw.why.account_access") },
 	"backup_retention":   func(l string) string { return confirmT(l, "raw.why.backup_retention") },
@@ -107,6 +109,9 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 			_, set := payload[key]
 			carries = carries || set
 		}
+		_, labeled := payload["labels"]
+		_, floored := payload["floor_id"]
+		retargets := labeled || floored
 		_, follows := payload["device_trackers"]
 		_, language := payload["language"]
 		access, clock := false, false
@@ -127,8 +132,10 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 			return tierTyped, "energy_emptied"
 		case wsType == "config/entity_registry/update" && carries && n.accessEntity(payload["entity_id"]):
 			return tierTyped, "access_entity"
-		case wsType == "config/device_registry/update" && carries && n.accessDevice(payload):
+		case wsType == "config/device_registry/update" && carries && n.accessDevice(payload["device_id"]):
 			return tierTyped, "access_device"
+		case wsType == "config/area_registry/update" && retargets && n.accessArea(payload["area_id"]):
+			return tierTyped, "access_area"
 		case wsType == "person/update" && follows:
 			return tierTyped, "person_follows"
 		case wsType == "config/auth/update" && access:
@@ -177,84 +184,91 @@ func rawRetains(payload map[string]any) bool {
 }
 
 // accessEntity: the entity is a lock, an alarm panel, or an access cover,
-// or sits on a device whose family has one: the device's parent and that
-// parent's child devices count, as the sibling guard counts them
-// (deviceAccessEntity). Home Assistant lowercases the id (cv.entity_id).
-// Read live; a failed read counts as one.
+// or sits in the device family of one (familyAccess). Home Assistant
+// lowercases the id (cv.entity_id). Read live; a failed read counts as one.
 func (n *rawNamer) accessEntity(id any) bool {
 	entityID, _ := id.(string)
 	entityID = strings.ToLower(entityID)
-	var rows []struct {
-		EntityID string `json:"entity_id"`
-		DeviceID string `json:"device_id"`
-	}
-	data, err := rawRead(n.s, "ws", map[string]any{"type": "config/entity_registry/list"})
-	if err != nil || json.Unmarshal(data, &rows) != nil || rows == nil {
+	entities, devices, ok := n.registries()
+	if !ok {
 		return true
 	}
-	family := map[string]bool{}
-	for _, row := range rows {
-		if row.EntityID != entityID || row.DeviceID == "" {
-			continue
-		}
-		devices := n.deviceRows()
-		if devices == nil {
-			return true
-		}
-		root := row.DeviceID
-		for _, d := range devices {
-			if d.ID == row.DeviceID && d.Parent != "" {
-				root = d.Parent
-			}
-		}
-		family[root] = true
-		for _, d := range devices {
-			if d.Parent == root {
-				family[d.ID] = true
-			}
-		}
-	}
-	for _, row := range rows {
-		if family[row.DeviceID] && accessCapable(row.EntityID, coverClass(n.s, row.EntityID)) {
+	for _, e := range entities {
+		if e.EntityID == entityID && n.familyAccess(entities, devices, e.DeviceID) {
 			return true
 		}
 	}
 	return accessCapable(entityID, coverClass(n.s, entityID))
 }
 
-// accessDevice: the device, or a child device that goes with it, has a
-// lock, an alarm panel, or an access cover. A new area moves each child
-// device without a room of its own (Home Assistant 2026.9+,
-// async_entries_for_area), and a label reaches every child device, as a
-// device target does (helpers/target.py). Read live; a failed read counts
-// as one.
-func (n *rawNamer) accessDevice(payload map[string]any) bool {
-	device, _ := payload["device_id"].(string)
-	_, labels := payload["labels"]
-	var rows []struct {
-		EntityID string `json:"entity_id"`
-		DeviceID string `json:"device_id"`
-	}
-	data, err := rawRead(n.s, "ws", map[string]any{"type": "config/entity_registry/list"})
-	if err != nil || json.Unmarshal(data, &rows) != nil || rows == nil {
+// accessDevice: the device's family has a lock, an alarm panel, or an access
+// cover (familyAccess). A device move must not do at preview what moving one
+// of its entities does only as typed (accessEntity). Read live; a failed
+// read counts as one.
+func (n *rawNamer) accessDevice(id any) bool {
+	device, _ := id.(string)
+	entities, devices, ok := n.registries()
+	return !ok || n.familyAccess(entities, devices, device)
+}
+
+// accessArea: an entity in the area is one accessEntity counts. Its area is
+// its own, else its device's, else, for a child device without one, its
+// parent's (Home Assistant 2026.9+, async_entries_for_area): a label or
+// floor target reaches every entity there (helpers/target.py). Read live; a
+// failed read counts as one.
+func (n *rawNamer) accessArea(id any) bool {
+	area, _ := id.(string)
+	entities, devices, ok := n.registries()
+	if !ok {
 		return true
 	}
-	devices := n.deviceRows()
-	if devices == nil {
-		return true
-	}
-	family := map[string]bool{device: device != ""}
+	own, parent := map[string]string{}, map[string]string{}
 	for _, d := range devices {
-		if device != "" && d.Parent == device && (labels || d.Area == "") {
-			family[d.ID] = true
-		}
+		own[d.ID], parent[d.ID] = d.Area, d.Parent
 	}
-	for _, row := range rows {
-		if family[row.DeviceID] && accessCapable(row.EntityID, coverClass(n.s, row.EntityID)) {
+	for _, e := range entities {
+		if area == "" || cmp.Or(e.AreaID, own[e.DeviceID], own[parent[e.DeviceID]]) != area {
+			continue
+		}
+		if accessCapable(e.EntityID, coverClass(n.s, e.EntityID)) || n.familyAccess(entities, devices, e.DeviceID) {
 			return true
 		}
 	}
 	return false
+}
+
+// familyAccess: a lock, an alarm panel, or an access cover sits on the
+// device or in its family: its parent and that parent's child devices, as
+// the sibling guard reads it (deviceAccessEntity). Home Assistant child
+// devices are one level deep.
+func (n *rawNamer) familyAccess(entities []rawEntityRow, devices []rawDeviceRow, device string) bool {
+	if device == "" {
+		return false
+	}
+	root := device
+	for _, d := range devices {
+		if d.ID == device && d.Parent != "" {
+			root = d.Parent
+		}
+	}
+	family := map[string]bool{root: true}
+	for _, d := range devices {
+		if d.Parent == root {
+			family[d.ID] = true
+		}
+	}
+	for _, e := range entities {
+		if family[e.DeviceID] && accessCapable(e.EntityID, coverClass(n.s, e.EntityID)) {
+			return true
+		}
+	}
+	return false
+}
+
+type rawEntityRow struct {
+	EntityID string `json:"entity_id"`
+	DeviceID string `json:"device_id"`
+	AreaID   string `json:"area_id"`
 }
 
 type rawDeviceRow struct {
@@ -263,15 +277,23 @@ type rawDeviceRow struct {
 	Area   string `json:"area_id"`
 }
 
-// deviceRows: the device registry, read live; nil when it can't be read (a
-// real empty registry is []).
-func (n *rawNamer) deviceRows() []rawDeviceRow {
-	var rows []rawDeviceRow
-	data, err := rawRead(n.s, "ws", map[string]any{"type": "config/device_registry/list"})
-	if err != nil || json.Unmarshal(data, &rows) != nil {
-		return nil
+// registries: the entity and device registries, read live; ok is false when
+// either can't be read (a real empty registry is []).
+func (n *rawNamer) registries() (entities []rawEntityRow, devices []rawDeviceRow, ok bool) {
+	data, err := rawRead(n.s, "ws", map[string]any{"type": "config/entity_registry/list"})
+	if err == nil {
+		err = json.Unmarshal(data, &entities)
 	}
-	return rows
+	if err == nil {
+		data, err = rawRead(n.s, "ws", map[string]any{"type": "config/device_registry/list"})
+	}
+	if err == nil {
+		err = json.Unmarshal(data, &devices)
+	}
+	if err != nil || entities == nil || devices == nil {
+		return nil, nil, false
+	}
+	return entities, devices, true
 }
 
 // energyEmptied: the save empties a list that has entries now, or drops

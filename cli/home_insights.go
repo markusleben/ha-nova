@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -315,19 +316,19 @@ func suggestRoom(name string, areas []foldedArea) (foldedArea, string, bool) {
 	return foldedArea{}, "", false
 }
 
-// hasAccess: a registry row (disabled ones too) of device without a room, or
-// of a child device without one (it takes device's room), is a lock, an alarm
-// panel, or a cover that is (or may be) an access cover, the check
-// roomsAccessRefusal makes. A cover's class is its state's; a cover without a
-// state fails closed here, so no live read adds to the session budget.
+// hasAccess: a registry row (disabled ones too) of device or its family (its
+// parent and that parent's child devices) is a lock, an alarm panel, or a
+// cover that is (or may be) an access cover, the check roomsAccessRefusal
+// makes. A cover's class is its state's; a cover without a state fails
+// closed here, so no live read adds to the session budget.
 func (x *homeIndex) hasAccess(device string, entities map[string][]string) bool {
-	family := []string{device}
-	for _, child := range x.children[device] {
-		if x.deviceArea[child] == "" {
-			family = append(family, child)
+	root := device
+	for parent, children := range x.children {
+		if slices.Contains(children, device) {
+			root = parent
 		}
 	}
-	for _, member := range family {
+	for _, member := range append([]string{root}, x.children[root]...) {
 		for _, id := range entities[member] {
 			class := ""
 			if st := x.state[id]; st != nil {

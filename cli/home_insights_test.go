@@ -158,8 +158,9 @@ func TestRoomSuggestionsOnlyConfidentAndNeverPrivate(t *testing.T) {
 // room, a back door whose lock entity is disabled, a blind (a cover that
 // opens nothing), a shade whose cover entity is disabled (no state; its class
 // only in the registry entry), a garage controller whose child opener has no
-// room of its own (it takes the controller's), and a kitchen hub whose child
-// lock has its own room.
+// room of its own (it takes the controller's), a kitchen hub whose child
+// lock has its own room (still the lock's family), and a kitchen button
+// whose parent keypad, also without a room, is an alarm panel.
 func accessHome() mapFixture {
 	f := wowHome()
 	f.areas = append(f.areas, map[string]any{"area_id": "garage", "name": "Garage"})
@@ -170,13 +171,16 @@ func accessHome() mapFixture {
 		map[string]any{"id": "d_gctl", "name": "Garage Controller", "config_entry_id": "e_zwave"},
 		map[string]any{"id": "d_opener", "name": "Opener", "parent_device_id": "d_gctl", "config_entry_id": "e_zwave"},
 		map[string]any{"id": "d_khub", "name": "Kitchen Hub", "config_entry_id": "e_zwave"},
-		map[string]any{"id": "d_klock", "name": "Side Door", "area_id": "hall", "parent_device_id": "d_khub", "config_entry_id": "e_zwave"})
+		map[string]any{"id": "d_klock", "name": "Side Door", "area_id": "hall", "parent_device_id": "d_khub", "config_entry_id": "e_zwave"},
+		map[string]any{"id": "d_keypad", "name": "Alarm Keypad", "config_entry_id": "e_zwave"},
+		map[string]any{"id": "d_kbutton", "name": "Kitchen Button", "parent_device_id": "d_keypad", "config_entry_id": "e_zwave"})
 	f.entities = append(f.entities, ent("cover.garage_door", "d_garage", "zwave_js", "e_zwave", nil),
 		ent("lock.back_door", "d_back", "zwave_js", "e_zwave", map[string]any{"disabled_by": "user"}),
 		ent("cover.kitchen_blind", "d_blind", "zwave_js", "e_zwave", nil),
 		ent("cover.kitchen_shade", "d_shade", "zwave_js", "e_zwave", map[string]any{"disabled_by": "user", "original_device_class": "shade"}),
 		ent("cover.opener", "d_opener", "zwave_js", "e_zwave", nil),
-		ent("lock.side_door", "d_klock", "zwave_js", "e_zwave", nil))
+		ent("lock.side_door", "d_klock", "zwave_js", "e_zwave", nil),
+		ent("alarm_control_panel.keypad", "d_keypad", "zwave_js", "e_zwave", nil), ent("button.kitchen", "d_kbutton", "zwave_js", "e_zwave", nil))
 	f.states = append(f.states, st("cover.garage_door", "closed", map[string]any{"device_class": "garage", "friendly_name": "Garage Door"}),
 		st("cover.kitchen_blind", "open", map[string]any{"device_class": "blind", "friendly_name": "Kitchen Blind"}),
 		st("cover.opener", "closed", map[string]any{"device_class": "garage", "friendly_name": "Opener"}),
@@ -185,8 +189,8 @@ func accessHome() mapFixture {
 }
 
 // A rooms plan refuses a device with a lock, an alarm panel, or an access
-// cover (roomsAccessRefusal), nor a parent whose roomless child has one, so
-// none is suggested; it still counts. The shade's cover has no state, so its
+// cover (roomsAccessRefusal), nor a device in the family of one (a parent
+// and its child devices), so none is suggested; it still counts. The shade's cover has no state, so its
 // class is unknown: it fails closed.
 func TestRoomSuggestionsNeverAccessDevices(t *testing.T) {
 	rooms := indexFixture(t, accessHome()).insights(nil, offerAll).Insights[1]
@@ -194,7 +198,7 @@ func TestRoomSuggestionsNeverAccessDevices(t *testing.T) {
 	for _, s := range rooms.Suggestions {
 		got = append(got, s.DeviceID+"→"+s.AreaID)
 	}
-	if rooms.Kind != "no_room" || strings.Join(got, ",") != "d_guest→guest,d_blind→kitchen,d_khub→kitchen,d_kitchen→kitchen,d_radio→kitchen" || rooms.Action != "rooms" || rooms.Count != 14 {
+	if rooms.Kind != "no_room" || strings.Join(got, ",") != "d_guest→guest,d_blind→kitchen,d_kitchen→kitchen,d_radio→kitchen" || rooms.Action != "rooms" || rooms.Count != 16 {
 		t.Fatalf("%s: suggestions %v action %q count %d", rooms.Kind, got, rooms.Action, rooms.Count)
 	}
 }

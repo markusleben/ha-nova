@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,11 +16,11 @@ func roomsAgain(req roomsRequest) string {
 }
 
 // roomsAccessRefusal: a rooms plan never moves a device with a lock, an
-// alarm panel, or an access cover, nor one whose child device without a room
-// of its own has one (since Home Assistant 2026.9 it takes the parent's room).
-// A new room can change what an area-targeted unlock acts on, so that move
-// takes the user's own confirmation as a raw device update (rawRequestTier).
-// A failed read refuses too.
+// alarm panel, or an access cover, nor one in the family of one: its parent
+// and that parent's child devices (Home Assistant 2026.9+), as the raw tier
+// and the sibling guard read it. A new room can change what an area-targeted
+// unlock acts on, so that move takes the user's own confirmation as a raw
+// device update (rawRequestTier). A failed read refuses too.
 func roomsAccessRefusal(s *relaySession, req roomsRequest, reg roomsRegistry) error {
 	var rows []struct {
 		EntityID string `json:"entity_id"`
@@ -35,26 +36,43 @@ func roomsAccessRefusal(s *relaySession, req roomsRequest, reg roomsRegistry) er
 	if err != nil {
 		return fmt.Errorf("cannot read the entity registry to check for locks, so nothing was planned: %w", err)
 	}
-	items, moving, under := map[string]bool{}, map[string]bool{}, map[string]string{}
+	items, via := map[string]bool{}, map[string]string{}
 	for _, it := range req.Items {
-		items[it.DeviceID], moving[it.DeviceID] = true, true
+		items[it.DeviceID] = true
 	}
-	for device, parent := range reg.parent {
-		if items[parent] && !items[device] && reg.devices[device].area == "" {
-			moving[device], under[device] = true, parent
+	for _, it := range req.Items {
+		root := cmp.Or(reg.parent[it.DeviceID], it.DeviceID)
+		family := []string{root}
+		for device, parent := range reg.parent {
+			if parent == root {
+				family = append(family, device)
+			}
+		}
+		for _, device := range family {
+			if !items[device] && via[device] == "" {
+				via[device] = it.DeviceID
+			}
 		}
 	}
 	for _, row := range rows {
-		if !moving[row.DeviceID] || !accessCapable(row.EntityID, coverClass(s, row.EntityID)) {
+		item := via[row.DeviceID]
+		if !items[row.DeviceID] && item == "" || !accessCapable(row.EntityID, coverClass(s, row.EntityID)) {
 			continue
 		}
-		if parent := under[row.DeviceID]; parent != "" {
-			child := sayText(reg.devices[row.DeviceID].name, true)
-			return &verbFailure{exit: verbExitRefused, code: "REFUSED", message: child + " has " + row.EntityID + " (a lock, alarm panel, or door) and takes the room of " + sayText(reg.devices[parent].name, true) + ", a device in this plan; nothing was planned",
-				next: "Tell the user: once " + child + " has its own room in Home Assistant's device settings, moving its parent no longer moves it; then plan again."}
+		if item == "" {
+			return &verbFailure{exit: verbExitRefused, code: "REFUSED", message: "a device in this plan has " + row.EntityID + " (a lock, alarm panel, or door); nothing was planned",
+				next: "Move that device as a raw plan (config/device_registry/update with its area_id), which needs the user's own confirmation; plan the other devices without it."}
 		}
-		return &verbFailure{exit: verbExitRefused, code: "REFUSED", message: "a device in this plan has " + row.EntityID + " (a lock, alarm panel, or door); nothing was planned",
-			next: "Move that device as a raw plan (config/device_registry/update with its area_id), which needs the user's own confirmation; plan the other devices without it."}
+		relation := " shares a parent device with "
+		switch {
+		case reg.parent[row.DeviceID] == item:
+			relation = " is a child device of "
+		case reg.parent[item] == row.DeviceID:
+			relation = " is the parent device of "
+		}
+		name := sayText(reg.devices[item].name, true)
+		return &verbFailure{exit: verbExitRefused, code: "REFUSED", message: sayText(reg.devices[row.DeviceID].name, true) + " has " + row.EntityID + " (a lock, alarm panel, or door) and" + relation + name + ", a device in this plan; nothing was planned",
+			next: "Move " + name + " as a raw plan (config/device_registry/update with its area_id), which needs the user's own confirmation; plan the other devices without it."}
 	}
 	return nil
 }

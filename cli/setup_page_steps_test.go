@@ -207,7 +207,7 @@ func TestSetupPageRoomsWithAccessDevices(t *testing.T) {
 	for _, c := range pv.Changes {
 		got = append(got, c.Name+"→"+c.Area)
 	}
-	if pv.State != "preview" || pv.PlanID == "" || strings.Join(got, ",") != "Guest Bedroom Lamp→Guest Bedroom,Kitchen Blind→Kitchen,Kitchen Hub→Kitchen,Kitchen Lights→Kitchen,Küchenradio→Kitchen" {
+	if pv.State != "preview" || pv.PlanID == "" || strings.Join(got, ",") != "Guest Bedroom Lamp→Guest Bedroom,Kitchen Blind→Kitchen,Kitchen Lights→Kitchen,Küchenradio→Kitchen" {
 		t.Fatalf("preview = %+v, problem %+v", pv, pv.Problem)
 	}
 	p.click("done", "")
