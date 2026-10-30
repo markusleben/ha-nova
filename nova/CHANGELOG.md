@@ -8,9 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 
 ### Fixed
 - Room suggestions in chat apps no longer fail when a lock, an alarm panel, or a garage door has no room but a name that matches one. Those devices are left out, so the other suggestions can be saved. Moving one of them to a room still takes your own confirmation.
+- Chat apps: a hub whose child device has a lock, an alarm panel, or a garage door is treated like that device. Disabling or enabling the hub is refused. Moving it to a room (when the child has no room of its own), labeling it, or moving, labeling, or changing the entity ID of anything on it takes your own confirmation.
+- Chat apps: a lock's entity ID written with capital letters (for example "LOCK.Front") no longer lets a room, label, or entity ID change skip your own confirmation.
 
 ### Changed
-- Chat apps now run HA NOVA 0.28.0 with this fix.
+- Chat apps now run HA NOVA 0.28.0 with these fixes.
 
 ### Upgrade notes
 - Computers on HA NOVA 0.28.0 ask you to update this App.

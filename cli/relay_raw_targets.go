@@ -159,9 +159,9 @@ func checkRawAccessTargetIn(s *relaySession, endpoint string, body []byte) (refu
 		return nil, errors.New("cannot read what this request would remove or reconfigure, so nothing was sent: " + err.Error())
 	}
 	gone := map[string]bool{}
-	if target.deleted != "" {
+	if device := cmp.Or(target.deleted, target.device); device != "" {
 		var refusal error
-		if gone, refusal, err = rawDeletedDevices(s, target.deleted); refusal != nil || err != nil {
+		if gone, refusal, err = rawDeviceFamily(s, device, target.deleted != ""); refusal != nil || err != nil {
 			return refusal, err
 		}
 	}
@@ -212,7 +212,11 @@ func checkRawAccessTargetIn(s *relaySession, endpoint string, body []byte) (refu
 			return rawRefusal("disabling or enabling "+target.source+", which runs "+row.EntityID+" (a disabled lock, alarm panel, or cover stops working in Home Assistant, so a door can't be locked or the alarm armed)", rawNextUI), nil
 		}
 		if target.device != "" {
-			return rawRefusal("disabling or enabling device "+target.device+", which has "+row.EntityID+" (a disabled lock, alarm panel, or cover stops working in Home Assistant, so a door can't be locked or the alarm armed)", rawNextUI), nil
+			has := "which has " + row.EntityID
+			if row.DeviceID != target.device {
+				has = "whose child device " + row.DeviceID + " has " + row.EntityID + " and is disabled and enabled with it"
+			}
+			return rawRefusal("disabling or enabling device "+target.device+", "+has+" (a disabled lock, alarm panel, or cover stops working in Home Assistant, so a door can't be locked or the alarm armed)", rawNextUI), nil
 		}
 		if target.deleted != "" {
 			return rawRefusal("deletion of device "+target.deleted+", which has "+row.EntityID, rawNextAccessTarget), nil
@@ -222,10 +226,13 @@ func checkRawAccessTargetIn(s *relaySession, endpoint string, body []byte) (refu
 	return nil, nil
 }
 
-// rawDeletedDevices: the devices deleting id removes, read live: it and its
-// child devices (rows whose parent_device_id is it; Home Assistant removes
-// them with it). HA NOVA's own App device is refused.
-func rawDeletedDevices(s *relaySession, id string) (gone map[string]bool, refusal, err error) {
+// rawDeviceFamily: the devices deleting, disabling, or enabling id reaches,
+// read live: it and its child devices (rows whose parent_device_id is it).
+// Home Assistant removes them with it (helpers/device_registry.py
+// async_remove_device), and disables and enables them with it
+// (async_update_device; a child disabled on its own stays so, but counts
+// here). Deleting HA NOVA's own App device, or an unknown one, is refused.
+func rawDeviceFamily(s *relaySession, id string, deleting bool) (gone map[string]bool, refusal, err error) {
 	var rows []struct {
 		ID             string         `json:"id"`
 		ParentDeviceID string         `json:"parent_device_id"`
@@ -240,7 +247,7 @@ func rawDeletedDevices(s *relaySession, id string) (gone map[string]bool, refusa
 		}
 	}
 	if err != nil {
-		return nil, nil, errors.New("cannot read which devices this request would delete, so nothing was sent: " + err.Error())
+		return nil, nil, errors.New("cannot read which devices this request would reach, so nothing was sent: " + err.Error())
 	}
 	gone = map[string]bool{}
 	for _, row := range rows {
@@ -249,12 +256,12 @@ func rawDeletedDevices(s *relaySession, id string) (gone map[string]bool, refusa
 		}
 		gone[row.ID] = true
 		for _, pair := range row.Identifiers {
-			if len(pair) == 2 && (pair[0] == "ha_nova" || pair[0] == "hassio" && strings.HasSuffix(string(pair[1]), "_ha_nova_relay")) {
+			if deleting && len(pair) == 2 && (pair[0] == "ha_nova" || pair[0] == "hassio" && strings.HasSuffix(string(pair[1]), "_ha_nova_relay")) {
 				return nil, rawRefusal("deletion of HA NOVA's own App device", "HA NOVA would lose its way into Home Assistant; remove the App in the Home Assistant UI (Settings > Apps)"), nil
 			}
 		}
 	}
-	if !gone[id] {
+	if deleting && !gone[id] {
 		return nil, rawRefusal("deletion of unknown device "+id, "read the device registry again and resolve its current device_id"), nil
 	}
 	return gone, nil, nil

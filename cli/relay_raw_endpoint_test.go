@@ -14,8 +14,9 @@ import (
 
 // rawGuardRelay is a Relay that answers the guard's registry and state
 // reads from registry() and classes (a cover with no class has no state, as
-// a disabled one; its registry entry then answers with stored[id]), and
-// counts the registry reads and every request it forwards.
+// a disabled one; its registry entry then answers with stored[id]; the
+// device registry has no child devices), and counts the registry reads and
+// every request it forwards.
 func rawGuardRelay(t *testing.T, registry func() string, classes, stored map[string]string) (paths runtimePaths, forwarded, registryReads *atomic.Int32) {
 	t.Helper()
 	home := t.TempDir()
@@ -39,6 +40,10 @@ func rawGuardRelay(t *testing.T, registry func() string, classes, stored map[str
 		if body["type"] == "config/entity_registry/get" {
 			id, _ := body["entity_id"].(string)
 			_, _ = fmt.Fprintf(w, `{"ok":true,"data":{"entity_id":%q,"device_class":null,"original_device_class":%q}}`, id, stored[id])
+			return
+		}
+		if body["type"] == "config/device_registry/list" {
+			_, _ = fmt.Fprint(w, `{"ok":true,"data":[]}`)
 			return
 		}
 		if body["type"] == "config/entity_registry/list" {
