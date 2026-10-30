@@ -46,7 +46,9 @@ describe("release notes contract", () => {
     for (const [, noted] of notedApps) {
       expect(noted, "notes name the shipped NOVA Relay version").toBe(relayVersion);
     }
-    expect(stableNotes).toMatch(/^## New Features\s+- \*\*Chat apps do what HA NOVA on a computer does\.\*\*/);
+    // The App update leads the notes; the update notice still leads with the first feature.
+    expect(stableNotes).toMatch(/^\*\*Update the NOVA App to \d+\.\d+\.\d+\.\*\*/);
+    expect(stableNotes).toMatch(/\n {4}## New Features\s+- \*\*Chat apps do what HA NOVA on a computer does\.\*\*/);
     // Chat apps at CLI parity (#863, #864, #865, #867); only setting up HA NOVA itself stays on a computer.
     expect(stableNotes).toContain("files (with file access on), and more. Only setting up HA NOVA itself stays on a computer.");
     // "Always allow" advice by phone (#867).
@@ -63,6 +65,16 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain("**Disabling a lock's device is refused.**");
     // Household levels for chat apps (#900 and the NOVA page's list).
     expect(stableNotes).toContain("**Chat apps for everyone in your home.**");
+    // Each person's phone, and moving or stopping a chat-app phone (#894, #897, #902).
+    expect(stableNotes).toContain("**Each person confirms on their own phone.**");
+    // Confirmations in Home Assistant's language (#890, #898, #901), batch confirmation (#896), everyday lines (#899).
+    expect(stableNotes).toContain("**Confirmations in your home's language.**");
+    expect(stableNotes).toContain("**One confirmation for up to 20 automation and script changes.**");
+    expect(stableNotes).toContain("**Clearer confirmations for technical requests.**");
+    // Answered on the computer, the phone's question goes away (#891); setup asks whose phone (#893).
+    expect(stableNotes).toContain("**Answered on the computer, the phone's question disappears.**");
+    expect(stableNotes).toContain("**Setup asks whose phone should confirm on this computer.**");
+    expect(stableNotes).not.toContain("Setup proposes your own phone");
     // App 0.13.1 carries the 0.28.0 chat bridge; its tools changed, so ChatGPT needs a Refresh and Claude asks once more,
     // and "Always allow" keeps its phone condition there too (0.28 review).
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
@@ -83,7 +95,10 @@ describe("release notes contract", () => {
     expect(stableNotes).not.toMatch(/mcp/i);
     expect(stableNotes).not.toContain("Cloud Remote is back on Windows and Linux");
     expect(readme).toContain("only clear everyday actions run right away");
-    expect(readme).toContain("Each automation or script delete is confirmed on its own");
+    expect(readme).toContain("Up to 20 automation and script changes and deletes can share one confirmation");
+    expect(readme).toContain("Answered on the phone, the phone shows the result; answered on the computer, the phone's question disappears.");
+    expect(readme).toContain("the owner picks who else may use them, at Ask only, Use the home, or Manage everything");
+    expect(readme).not.toContain("Only the Home Assistant owner can turn chat apps on and use them.");
     expect(readme).toContain("the AI can see it too, so it only counts when you type it yourself");
     expect(readme).toContain("ha-nova setup confirm-window off");
     expect(readme).toContain("or a tap on your iPhone or Android phone.");

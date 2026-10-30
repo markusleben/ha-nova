@@ -69,15 +69,25 @@ release:
     ```
 
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`; if it reports that it needs admin rights, rerun the stable Windows install command instead.
-    {{ else }}## New Features
+    {{ else }}**Update the NOVA App to 0.13.1.** It brings the changes below to Claude and ChatGPT chat apps and to the NOVA page. HA NOVA on your computer asks for it too.
+
+    - In Home Assistant: Settings > Apps > NOVA Relay > Update.
+    - Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.
+    - Claude asks once more before HA NOVA's tools: set them again as the NOVA page says. With a linked phone, every tool on "Always allow"; without one, all but "Run a confirmed change".
+
+    ## New Features
 
     - **Chat apps do what HA NOVA on a computer does.** In Claude and ChatGPT: rooms, names, helpers, scenes, dashboards, integrations, files (with file access on), and more. Only setting up HA NOVA itself stays on a computer.
     - **Chat apps for everyone in your home.** On the NOVA page, pick who else may use them, each with their own login, at Ask only, Use the home, or Manage everything. Never more than their Home Assistant role allows.
+    - **Each person confirms on their own phone.** Link it in their row on the NOVA page. Change or stop a chat-app phone there; setup offers the move after "Use another phone". The phone that confirms now OKs it first.
+    - **Confirmations in your home's language.** Is Home Assistant set to German? Then confirmations are in German, on the phone too, with Home Assistant's own words for its actions and states. Other languages get English.
+    - **One confirmation for up to 20 automation and script changes.** Deletes too. The window names every item and what happens to it; the phone shows how many and the riskiest one. Undo now keeps the last 25 changes.
     - **More of Home Assistant's settings.** Integrations, repairs, users, general settings, backup schedule, Labs, statistics import, deleting a device or blueprint. Preview first; what can't be undone takes your OK.
     - **Apps and their logs, on HA OS.** Read Supervisor, Core, host, and App logs; install, remove, or set up an App after your own OK. Over HA NOVA's local connection, not through Home Assistant Link.
     - **"Your setup" when you run setup again.** What is done and what is left, in four parts, each with a button. Another AI app can use HA NOVA too: setup shows what to paste.
     - **Claude stops asking before every step, if you let it.** The setup page and the NOVA page say what to set in Claude: with a linked phone, every tool on "Always allow"; without one, all but "Run a confirmed change".
     - **HA NOVA works in the Codex app too.** Setup finds the codex command or, on a Mac, the app. Doctor flags an older HA NOVA copy that Codex would load; setup updates it, or moves HA NOVA's own old copies to a backup.
+    - **Clearer confirmations for technical requests.** An MQTT message, a Supervisor action, or a direct request to Home Assistant now opens with what it does in your home, like renaming a Zigbee device, then the details.
 
     ## What To Watch
 
@@ -87,17 +97,16 @@ release:
 
     ## Bug Fixes
 
+    - **Answered on the computer, the phone's question disappears.** The first answer counts. A Confirm or Cancel in the window no longer leaves a second note on the phone.
     - **Changes now work in homes with Nuki locks.** Nuki and some other integrations give Home Assistant number IDs. HA NOVA then refused every change, while reading worked. It now reads number IDs too.
     - **Setup can move to another Home Assistant.** When something needs a fix, "Use another Home Assistant" asks for the new address. Without a key, setup no longer says the NOVA App doesn't answer.
-    - **Setup proposes your own phone.** Someone else's phone is no longer the one-click choice, and a person turned off in Home Assistant no longer hides it. When yours is missing, setup says why.
+    - **Setup asks whose phone should confirm on this computer.** It lists every administrator's phone with its person and picks none for you. A person turned off in Home Assistant no longer hides their phone.
     - **Setup's optional questions stay readable.** Their answers stay on screen after setup ends, and a cancelled Link sign-in no longer skips the phone and the other questions.
     - **Camera sign-in tokens stay hidden from the AI.** A camera's or image's short-lived token opens its picture or live video without a login. It no longer reaches the AI, also not through a template or a trace.
     - **A leftover Home Assistant Link is explained.** Setup says what it is and lets you finish or remove it right there. Doctor runs all its checks anyway and shows both ways out.
     - **Setup says which Claude gets HA NOVA.** Claude Code is the claude command and the Code tab in Claude Desktop. Setup replaces an old HA NOVA there. On a Mac, the Claude Desktop app alone is enough.
     - **Setup explains the owner sign-in.** The owner connects each computer once; then anyone who uses that login on it can use HA NOVA. On the NOVA page, other admins see who the owner is.
     - **Disabling a lock's device is refused.** So is removing the integration or switch a lock or gate runs on: it would stop working. Do that in Home Assistant's settings.
-
-    **Update the NOVA App to 0.13.1 too.** It brings these changes to Claude and ChatGPT chat apps, the list of who in your home may use them, and the "Always allow" advice to the NOVA page. HA NOVA on your computer asks for it too. In Home Assistant: Settings > Apps > NOVA Relay > Update. Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh. Claude asks once more before HA NOVA's tools: set them again as the NOVA page says. With a linked phone, every tool on "Always allow"; without one, all but "Run a confirmed change".
 
     Stable install commands are release-pinned for this tag.
 
