@@ -51,7 +51,7 @@ Home Assistant, never by its network address.
 
 | Option | Description |
 |--------|-------------|
-| **Relay Auth Token (legacy/advanced)** | Old installs may still use this shared key. HA NOVA 0.27 is the last release that accepts it. Run `ha-nova setup` once on each computer to switch (a `--service` install: `ha-nova pair --credential-store=file`). When every computer has switched, choose "Revoke legacy access…" on the NOVA page. New installs leave this empty. The App then makes and keeps its own private one. |
+| **Relay Auth Token (legacy/advanced)** | Old installs may still use this shared key. The App accepts it on the local connection, never through Home Assistant Link. Run `ha-nova setup` once on each computer to switch (a `--service` install: `ha-nova pair --credential-store=file`). When every computer has switched, choose "Revoke legacy access…" on the NOVA page. New installs leave this empty. The App then makes and keeps its own private one. |
 | **File access (advanced)** | Lets HA NOVA read or change some Home Assistant config files. Off by default. |
 
 The App logs in to Home Assistant by itself. Don't create or paste a Home

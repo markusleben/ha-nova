@@ -79,7 +79,7 @@ release:
 
     - **Chat apps do what HA NOVA on a computer does.** In Claude and ChatGPT: rooms, names, helpers, scenes, dashboards, integrations, files (with file access on), and more. Only setting up HA NOVA itself stays on a computer.
     - **Chat apps for everyone in your home.** On the NOVA page, pick who else may use them, each with their own login, at Ask only, Use the home, or Manage everything. Never more than their Home Assistant role allows.
-    - **Each person confirms on their own phone.** Link it in their row on the NOVA page. Change or stop a chat-app phone there; setup offers the move after "Use another phone". The phone that confirms now OKs it first.
+    - **Each person confirms on their own phone.** Link it, change it, or stop it in their row on the NOVA page, or move it in setup. The phone linked now OKs a change or stop first; a new phone OKs its link on itself.
     - **Confirmations in your home's language.** Is Home Assistant set to German? Then confirmations are in German, on the phone too, with Home Assistant's own words for its actions and states. Other languages get English.
     - **One confirmation for up to 20 automation and script changes.** Deletes too. The window names every item and what happens to it; the phone shows how many and the riskiest one. Undo now keeps the last 25 changes.
     - **More of Home Assistant's settings.** Integrations, repairs, users, general settings, backup schedule, Labs, statistics import, deleting a device or blueprint. Preview first; what can't be undone takes your OK.

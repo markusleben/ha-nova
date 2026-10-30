@@ -99,6 +99,11 @@ describe("release notes contract", () => {
     expect(readme).toContain("Answered on the phone, the phone shows the result; answered on the computer, the phone's question disappears.");
     expect(readme).toContain("the owner picks who else may use them, at Ask only, Use the home, or Manage everything");
     expect(readme).not.toContain("Only the Home Assistant owner can turn chat apps on and use them.");
+    // The old shared access: only what 0.28 does, no release it ends with (the App accepts it locally, never over Link).
+    expect(readme).toContain("Still on the old shared access with the NOVA App? It still works on the local connection, not through Home Assistant Link.");
+    for (const doc of [readme, readFileSync("nova/DOCS.md", "utf8")]) {
+      expect(doc).not.toContain("last release that accepts");
+    }
     expect(readme).toContain("the AI can see it too, so it only counts when you type it yourself");
     expect(readme).toContain("ha-nova setup confirm-window off");
     expect(readme).toContain("or a tap on your iPhone or Android phone.");
