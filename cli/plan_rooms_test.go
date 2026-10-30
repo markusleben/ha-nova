@@ -64,6 +64,14 @@ func (r *roomsFake) reply(req *http.Request, endpoint string, p map[string]any) 
 	if r.blind && len(r.writes) > 0 && p["type"] == "config/device_registry/list" {
 		return fakeRelayFailure{"UPSTREAM_ERROR", "boom"}
 	}
+	if path, _ := p["path"].(string); endpoint == "core" && strings.HasPrefix(path, "/api/states/") {
+		for _, s := range r.f.states {
+			if path == "/api/states/"+fmt.Sprint(s["entity_id"]) {
+				return coreReply(200, s)
+			}
+		}
+		return coreReply(404, map[string]any{"message": "Entity not found."})
+	}
 	return r.f.reply(req, endpoint, p)
 }
 
@@ -152,6 +160,20 @@ func TestPlanRoomsPreviewsAndSavesOnlyOnApply(t *testing.T) {
 	h.assertAreas(roomsOriginal)
 	if w := h.r.areaWrites(); len(w) != 6 || w[3] != "d_guest=<nil>" {
 		t.Errorf("writes %v", w)
+	}
+}
+
+// A garage door and a lock beside their rooms are never suggested, so the
+// rooms plan carries every other suggestion instead of refusing them all.
+func TestPlanRoomsLeavesAccessDevicesOut(t *testing.T) {
+	h := newRoomsHarness(t, &roomsFake{f: accessHome()})
+	res := decodeInto[roomsResult](t, h.planRooms().Result)
+	var got []string
+	for _, c := range res.Changes {
+		got = append(got, c.DeviceID+"→"+c.AreaID)
+	}
+	if strings.Join(got, ",") != "d_guest→guest,d_blind→kitchen,d_khub→kitchen,d_kitchen→kitchen,d_radio→kitchen" {
+		t.Fatalf("changes %v", got)
 	}
 }
 

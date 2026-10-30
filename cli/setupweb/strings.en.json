@@ -572,7 +572,7 @@
   "setup.page.control.phone_whose_missing": "Only administrators' phones are listed. To add someone's phone: in Home Assistant, open Settings → People and pick that person (not there? Add them). Choose their user under “Allow person to login”, turn on “Administrator”, and pick their phone under Track device. Administrators can change everything in Home Assistant. Their Home Assistant app must be signed in to their own account. Then check again.",
   "setup.overview.attention": "Needs your attention",
   "setup.chat.key": "Use HA NOVA in Claude and ChatGPT",
-  "setup.chat.value": "Use HA NOVA in Claude (on the web or in its phone app) or in ChatGPT on the web, on a computer. Only the Home Assistant owner's account can use it.",
+  "setup.chat.value": "Use HA NOVA in Claude (on the web or in its phone app) or in ChatGPT on the web, on a computer. Only the Home Assistant owner turns chat apps on. On the NOVA page, the owner picks who else may use them.",
   "setup.chat.need_address": "Claude and ChatGPT can't reach your home from the internet yet. The easy way: turn on remote access in Home Assistant Link. Or set your own HTTPS address in Home Assistant under Settings → System → Network. Then open NOVA in Home Assistant, then Chat apps.",
   "setup.chat.phone_key": "Use HA NOVA from your phone too",
   "setup.chat.phone_value": "Ask in the Claude app on your phone, in Claude on the web, or in ChatGPT on a computer. No computer has to run HA NOVA.",

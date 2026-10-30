@@ -105,21 +105,31 @@ func TestRawSourceSwitchOtherChannelStaysFree(t *testing.T) {
 	}
 }
 
-// A rooms plan never moves a device with a lock: that move is a raw device
+// A rooms plan never moves a device with a lock, nor a hub whose child
+// device without a room of its own has one: that move is a raw device
 // update, which takes the user's own confirmation. A failed read refuses.
 func TestRoomsPlanRefusesAccessDevices(t *testing.T) {
-	list := any([]any{map[string]any{"entity_id": "lock.front", "device_id": "dlock"}, map[string]any{"entity_id": "light.hall", "device_id": "dlight"}})
+	list := any([]any{map[string]any{"entity_id": "lock.front", "device_id": "dlock"}, map[string]any{"entity_id": "light.hall", "device_id": "dlight"},
+		map[string]any{"entity_id": "lock.child", "device_id": "dchild"}, map[string]any{"entity_id": "lock.placed", "device_id": "dplaced"}})
+	reg := roomsRegistry{devices: map[string]struct{ area, name, disabled string }{"dchild": {name: "Child Lock"}, "dhub": {name: "Hub"}, "dplaced": {area: "hall"}},
+		parent: map[string]string{"dchild": "dhub", "dplaced": "dhub2"}}
 	paths, _ := rawRelay(t, map[string]func(map[string]any) any{"config/entity_registry/list": func(map[string]any) any { return list }})
 	s, err := newRelaySession(paths, verbOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer s.close()
-	if err := roomsAccessRefusal(s, roomsRequest{Items: []roomsItem{{DeviceID: "dlight"}}}); err != nil {
-		t.Fatalf("a light: %v", err)
+	if err := roomsAccessRefusal(s, roomsRequest{Items: []roomsItem{{DeviceID: "dlight"}, {DeviceID: "dhub2"}}}, reg); err != nil {
+		t.Fatalf("a light, a hub whose lock has its own room: %v", err)
 	}
-	if err := roomsAccessRefusal(s, roomsRequest{Items: []roomsItem{{DeviceID: "dlight"}, {DeviceID: "dlock"}}}); err == nil || !strings.Contains(err.Error(), "lock.front") {
+	if err := roomsAccessRefusal(s, roomsRequest{Items: []roomsItem{{DeviceID: "dlight"}, {DeviceID: "dlock"}}}, reg); err == nil || !strings.Contains(err.Error(), "lock.front") {
 		t.Fatalf("a lock: %v", err)
+	}
+	if err := roomsAccessRefusal(s, roomsRequest{Items: []roomsItem{{DeviceID: "dhub"}}}, reg); err == nil || !strings.Contains(err.Error(), "“Child Lock” has lock.child (a lock, alarm panel, or door) and takes the room of “Hub”") {
+		t.Fatalf("a hub whose lock takes its room: %v", err)
+	}
+	if err := roomsAccessRefusal(s, roomsRequest{Items: []roomsItem{{DeviceID: "dhub"}, {DeviceID: "dchild"}}}, reg); err == nil || !strings.HasPrefix(err.Error(), "a device in this plan has lock.child") {
+		t.Fatalf("the lock itself in the plan: %v", err)
 	}
 	list = nil
 	s2, err := newRelaySession(paths, verbOptions{})
@@ -127,7 +137,7 @@ func TestRoomsPlanRefusesAccessDevices(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s2.close()
-	if err := roomsAccessRefusal(s2, roomsRequest{Items: []roomsItem{{DeviceID: "dlight"}}}); err == nil || !strings.Contains(err.Error(), "nothing was planned") {
+	if err := roomsAccessRefusal(s2, roomsRequest{Items: []roomsItem{{DeviceID: "dlight"}}}, reg); err == nil || !strings.Contains(err.Error(), "nothing was planned") {
 		t.Fatalf("unreadable: %v", err)
 	}
 }

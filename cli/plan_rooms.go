@@ -212,7 +212,7 @@ func computeRoomsPlan(s *relaySession, env *verbEnvelope, req roomsRequest) (*ti
 	}
 	reg, err := readRoomsRegistry(s, false)
 	if err == nil {
-		err = roomsAccessRefusal(s, req)
+		err = roomsAccessRefusal(s, req, reg)
 	}
 	if err != nil {
 		return nil, storedPlan{}, err
