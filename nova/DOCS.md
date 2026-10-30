@@ -16,9 +16,10 @@ Chat apps:   Claude / ChatGPT → Home Assistant (Link or your own HTTPS address
              → ha_nova integration → chat-app bridge (this App) → NOVA Relay → Home Assistant
 ```
 
-Your AI app (Claude Code, Claude Desktop, Codex, OpenCode, Google Antigravity,
-Hermes Agent) talks to the Relay with its own key. Each computer gets its key
-when it connects, so you never copy or paste one. The know-how lives in the AI
+Your AI apps (Claude Code, Claude Desktop, Codex, OpenCode, Google Antigravity,
+Hermes Agent) talk to the Relay with this computer's key. Each computer gets
+its own key when it connects, and every AI app on it shares that key, so you
+never copy or paste one. The know-how lives in the AI
 app's skills, not in the Relay.
 
 Home Assistant Link (formerly Home Assistant Cloud; Nabu Casa) is optional and
@@ -42,7 +43,9 @@ There you can:
   the page shows that a computer is connecting, with Cancel,
 - see connected devices and **revoke** any one of them at once,
 - turn **chat apps** (HA NOVA in Claude and ChatGPT) on or off, let them only
-  read, or turn off codes in the chat (see [Chat apps](#chat-apps-claude-and-chatgpt)).
+  read, or turn off codes in the chat (see [Chat apps](#chat-apps-claude-and-chatgpt)),
+- pick **who can use** chat apps and at what level, link each person's phone,
+  and see **recent changes from chat apps**.
 
 Only the Home Assistant owner can open this page. It opens only from inside
 Home Assistant, never by its network address.
@@ -51,7 +54,7 @@ Home Assistant, never by its network address.
 
 | Option | Description |
 |--------|-------------|
-| **Relay Auth Token (legacy/advanced)** | Old installs may still use this shared key. The App accepts it on the local connection, never through Home Assistant Link. Run `ha-nova setup` once on each computer to switch (a `--service` install: `ha-nova pair --credential-store=file`). When every computer has switched, choose "Revoke legacy access…" on the NOVA page. New installs leave this empty. The App then makes and keeps its own private one. |
+| **Relay Auth Token (legacy/advanced)** | Old installs may still use this shared key. The App accepts it on the local connection, never through Home Assistant Link. Run `ha-nova setup` once on each computer to switch (a `--service` install: `ha-nova pair --credential-store=file`). When every computer has switched, choose "Revoke legacy access…" on the NOVA page. New installs leave this empty: each computer gets its own key when it connects. |
 | **File access (advanced)** | Lets HA NOVA read or change some Home Assistant config files. Off by default. |
 
 The App logs in to Home Assistant by itself. Don't create or paste a Home
@@ -75,7 +78,8 @@ Relay keeps its `HA_LLAT` on the server, as described in
 You normally never call these yourself. The CLI and the NOVA page do it for
 you. Connected devices use their own key over the encrypted port (8792), sent
 as `Authorization: Bearer <token>`. Requests on the plain port (8791),
-including `GET /health` and the old shared access, use the same header.
+including `GET /health`, work only with the old shared access or a standalone
+container's token, in the same header: a connected device's key is refused there.
 Connecting uses the six-digit code, or the owner's Home Assistant sign-in,
 instead.
 
@@ -89,6 +93,10 @@ instead.
 | POST | `/core` | Passes requests to Home Assistant's REST API (`/api/...`) |
 | POST | `/files` | Config-file access, only when you turn it on |
 | POST | `/backups` | Saved copies of configs, for undo |
+| POST | `/supervisor` | Supervisor logs and Apps, from a fixed list (local ports only, not through Home Assistant Link) |
+
+For Apps and logs, this App has the Supervisor's `manager` access, which Home
+Assistant shows on this App's page. The Relay reaches only that fixed list.
 
 Home Assistant Link and chat apps reach the Relay only from inside Home
 Assistant, never on a new public port. That route list is in
@@ -136,7 +144,8 @@ Container/Core setups still work the old way.
 ### Away from home with Home Assistant Link
 
 Do you pay for Home Assistant Link, with remote access on? Then setup can also
-let this computer reach your home when you're away. It offers:
+let this computer reach your home when you're away. On the setup page, one
+switch adds Local + Home Assistant Link. In the terminal, a first setup offers:
 
 - **Local only** (what we recommend): works at home. No Link needed.
 - **Local + Home Assistant Link**: connect at home once, then add Link with the
@@ -190,29 +199,35 @@ and ChatGPT (web, on a computer), without a computer running HA NOVA. They are o
   Then you click "Connect" next to HA NOVA under Customize → Connectors.
 - **Who can use it:** NOVA page → Chat apps → "Who can use it". At first only
   the owner. Tick other Home Assistant users (each needs their own login) and
-  pick a level: Ask only (questions), Use the home (controls devices and runs
-  scenes, scripts, and automations; unlocks and turning off the alarm need a
-  tap on their own phone; can't change automations, scripts, or device
-  settings), or Manage everything (administrators only). A level never goes
+  pick a level: Ask only (questions), Use the home (controls lights, switches,
+  fans, climate, covers, locks, the alarm, media players, vacuums, and helpers,
+  and runs existing scenes, scripts, and automations; unlocking a door, opening
+  a garage door or gate, and turning off the alarm need a tap on their own
+  linked phone, never a chat code; can't change automations, scripts,
+  dashboards, or device settings), or Manage everything (administrators only). A level never goes
   above the person's Home Assistant role. "Link phone…" in their row links
   their own phone. With anyone else on the list, going back to an older App
   refuses every chat request until you update again. To go back, first untick
-  everyone but you and save.
+  everyone but you and save. Restoring this App's backup from before the update
+  brings back its settings from then: only you can use chat apps.
 - **Claude asks before every step?** That's Claude, not HA NOVA: set the HA
   NOVA tools to "Always allow" (no phone linked: all but "Run a confirmed
   change").
   [How](https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md#stop-claude-from-asking-before-every-step)
-- **Confirmations:** the same rules as on a computer. Unlocks, the alarm, and
-  deletes wait for a tap on the linked phone of whoever asked. No phone? At
+- **Confirmations:** the same rules as on a computer. Unlocks, opening a
+  garage door or gate, turning off the alarm, and deletes wait for a tap on the
+  linked phone of whoever asked. Below Manage everything, deletes and other
+  setup changes are refused, even with a phone. No phone? At
   Manage everything, a four-digit code in the chat; the AI can see that code
   too. Below that, never a code: it's refused. You can turn off codes in the chat (risky changes
   then need the phone) or let chat apps only read.
 - **Another phone:** NOVA page → Chat apps → "Change phone…" or "Stop phone
-  confirmations". The phone that confirms now asks first. A phone removed from
+  confirmations" (someone else's: "Change or stop…" in their row). The phone
+  that confirms now asks first. A phone removed from
   Home Assistant can be replaced there without it.
 - **A lost phone:** until you remove it in Home Assistant (Settings → Devices &
-  services → Mobile App), chat apps refuse changes that need your OK. Then link
-  a new phone on the NOVA page.
+  services → Mobile App), chat apps keep asking it, for 3 minutes each time,
+  and whoever holds it can answer. Then link a new phone on the NOVA page.
 - **Turn off:** NOVA page → Chat apps → "Turn off chat apps". It takes effect
   at once, without a restart: the bridge stops, its own access is signed out,
   and `custom_components/ha_nova` is removed. Claude or ChatGPT hold a Home
@@ -220,7 +235,7 @@ and ChatGPT (web, on a computer), without a computer running HA NOVA. They are o
   only HA NOVA, and turning chat apps off doesn't end it: to sign them out,
   remove their refresh tokens in your Home Assistant profile (Security).
 - **Turn chat apps off before you remove this App or restore an older version.**
-  Forgot? Update this App again, then run `ha-nova chat-apps off`, or choose
+  Forgot? Install or update this App again, then run `ha-nova chat-apps off`, or choose
   "Finish turning off" on the NOVA page.
 
 Access belongs to the Home Assistant account that signed in, not to a device:
@@ -254,7 +269,8 @@ your AI app isn't ready yet? Run `ha-nova setup --server <name>`. With
 JSON object (`verification_error` and `next_command` when something fails). It
 never prints passwords or keys.
 
-You can also ask the Relay yourself:
+With the old shared access or a standalone container, you can also ask the
+Relay yourself (a connected computer's key doesn't work on this port):
 
 ```bash
 curl \
@@ -262,7 +278,7 @@ curl \
   http://<your-ha-ip>:8791/health
 ```
 
-A healthy answer looks like this:
+A healthy answer looks like this (shortened):
 
 ```json
 {
@@ -281,7 +297,7 @@ A healthy answer looks like this:
 **HA NOVA can't reach the App**
 
 - Check that this App is running (Settings → Apps → NOVA Relay). Start it if not.
-- Check that nothing on your network blocks port 8791.
+- Check that nothing on your network blocks ports 8791 and 8792.
 - Run `ha-nova setup` again. It checks the address and fixes it.
 
 **The App turns this computer down**
@@ -300,8 +316,8 @@ A healthy answer looks like this:
 
 - Run `ha-nova cloud unlock --server <name>` on the computer itself, at its
   screen.
-- Don't run Link commands with `sudo`, over SSH, in WSL, as a service, or in a
-  container.
+- Don't run Link commands with `sudo`, over SSH (except `ha-nova cloud add
+  --remote-resume`), in WSL, as a service, or in a container.
 - On Linux, you need a desktop with a password store (a Secret Service).
 
 **Link doesn't work**
@@ -324,19 +340,23 @@ A healthy answer looks like this:
 ## Removing Home Assistant Link
 
 `ha-nova cloud remove` signs HA NOVA out of Link and checks that it worked.
-Then it deletes the Link sign-in from this computer. Your Link plan and this
-computer's connection at home stay as they are.
+Then it deletes the Link sign-in from this computer. Your Link plan stays as it
+is. This computer's connection at home stays too, unless it was set up with
+Link only: then its pairing is revoked as well.
 
 `ha-nova uninstall` asks one question:
 
-- "Remove" signs out every Link sign-in and this computer's connection, checks
-  that it worked, and then deletes HA NOVA's keys and settings here. If it
-  can't sign out safely, it stops before it deletes anything.
-- "Remove, but keep the pairing" keeps the Home Assistant connection, this
-  computer's key, and the Link sign-in, for a later reinstall.
+- "Remove" signs out every Link sign-in, checks that it worked, and then
+  deletes HA NOVA's keys and settings here. If it can't sign out of Link
+  safely, it stops before it deletes anything. It also tries to revoke this
+  computer's connection at home; if the App can't be reached, it says so, and
+  you revoke the device on the NOVA page.
+- "Remove, but keep the pairing for a reinstall" keeps the Home Assistant
+  connection, this computer's key, and the Link sign-in.
   `ha-nova uninstall --yes` does the same; add `--purge` to remove everything.
 - "Remove, and remove the NOVA App too" shows only when this App says that no
-  other device, no old shared access, and no chat-app files use it. The Home
+  other device, no pairing under way, no old shared access, and no chat-app
+  files use it, and no Home Assistant Link is saved on this computer. The Home
   Assistant owner must sign in first.
 
 Removing this App disconnects every computer. Turn chat apps off on the NOVA

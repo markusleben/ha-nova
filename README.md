@@ -17,7 +17,7 @@
 <p align="center">
   Connect your AI to Home Assistant. Simple things run right away. Other changes show a preview first. Unlocks, the alarm, and deletes wait for your OK.<br>
   You OK them with a click in a window on your computer, or a tap on your iPhone or Android phone.<br>
-  <sub>No window and no phone? You type a four-digit code. Some deletes always use the code.</sub>
+  <sub>No window and no phone? You type a four-digit code (in Claude and ChatGPT, only at Manage everything with codes on). Some deletes on a computer always use the code.</sub>
 </p>
 
 <p align="center">
@@ -34,9 +34,9 @@
 
 ## ✦ Three steps to connect
 
-1. **Run the installer.** Copy one command. Setup opens a page in your browser and finds your Home Assistant and your AI apps.
+1. **Run the installer.** Copy one command. Setup opens a page in your browser and finds your Home Assistant and your AI apps. On Windows without an AI app, run `ha-nova setup` after the install.
 2. **Sign in with Home Assistant.** Sign in as the owner: the first account made when Home Assistant was set up. If needed, setup installs and starts the NOVA Relay App for you. Then this computer connects by itself.
-3. **Choose your safety net, then look around.** The confirmation window on this computer is on. To add a phone, pick whose phone should confirm on this computer: every administrator's phone is listed with its person. On a re-run, **Use another phone** moves it to a new phone once the old phone OKs it. The Claude Code rules are on unless you turn them off: they let Claude Code read HA NOVA's files and make changes you already approved, without asking again. You still confirm every unlock or delete. Then you see your home at a glance: things worth a look (like a low battery or devices without a room) and an automation made for your home, to preview and save. Nothing in your home changes unless you save it.
+3. **Choose your safety net, then look around.** The confirmation window on this computer is on. To add a phone, pick whose phone should confirm on this computer: setup lists the phones Home Assistant tracks for an administrator's person. On a re-run, **Use another phone** moves it: the old phone OKs the move, then the new phone taps "Allow". The Claude Code rules are on unless you turn them off: they let Claude Code read HA NOVA's files and make changes you already approved, without asking again. You still confirm every unlock or delete. Then you see your home at a glance: things worth a look (like a low battery or devices without a room) and an automation made for your home, to preview and save. Nothing in your home changes unless you save it.
 
 Signed in, but not as the owner? The page asks the owner to sign in here, or to make a six-digit code for you ([details](#-get-started)). Over SSH or with `--no-browser`, setup asks in the terminal instead. No browser here? Then setup shows the NOVA Relay App page (click "Add", then Install and Start; skipped when the App already runs). You pair with a six-digit code: the Home Assistant owner clicks **"Connect a device"** on the NOVA page in the sidebar, and you type the code. Over SSH, this works well on Linux only. On Windows and macOS, run setup in a terminal on that computer's own screen: over SSH, HA NOVA usually can't save its key.
 
@@ -65,11 +65,11 @@ Say what you want. HA NOVA works out the rest.
 | *"Turn on the porch light at sunset and off at 11 PM"* | Builds the automation, shows it to you, and checks it before anything is saved |
 | *"What happened to my living room temperature overnight?"* | Reads the history and sums it up in plain words |
 | *"Build a dashboard for the living room"* | Builds whole dashboards and views, also with custom cards you installed. It lists every view and card that changes and saves a copy first. "Undo that" brings the old one back |
-| *"Move all kitchen devices to the Kitchen area"* | Moves the devices and entities and shows what will change first |
-| *"Turn off the integration I don't use anymore and fix the open repairs"* | Turns integrations on or off, renames or removes them, fixes or ignores repairs, and changes users, general settings, and the backup schedule. Shows what changes first. What can't be undone takes your own confirmation |
-| *"Why does my MQTT broker App keep restarting?"* | On HA OS, reads the Supervisor, Core, host, and App logs. It can also install, remove, or set up an App, after your own confirmation. This needs HA NOVA's local connection, not Home Assistant Link |
+| *"Move all kitchen devices to the Kitchen area"* | Moves the devices and entities and shows what will change first. Moving a device with a lock, alarm panel, garage door, or gate takes your own confirmation |
+| *"Turn off the integration I don't use anymore and fix the open repairs"* | Turns integrations on or off, renames or removes them, fixes or ignores repairs, and changes users, general settings, and the backup schedule. Shows what changes first. Deletes and sensitive changes take your own confirmation. Disabling a lock's device, or removing the integration or switch it runs on, is refused |
+| *"Why does my MQTT broker App keep restarting?"* | On HA OS, reads the Supervisor, Core, host, and App logs. It can also install or remove an App, or change its settings, after your own confirmation. This needs HA NOVA's local connection, not Home Assistant Link |
 | *"Turn off the kitchen light"* | Turns it off right away and checks that it really is off. Whole rooms, scenes, and riskier actions show a preview first |
-| *"Unlock the front door"* | Shows what will happen, then waits for you: Confirm in a window on your computer, a tap on your linked phone, or a four-digit code |
+| *"Unlock the front door"* | Shows what will happen, then waits for you: Confirm in a window on your computer, a tap on your linked phone, or a four-digit code (in Claude and ChatGPT, only at Manage everything with codes on) |
 | *"What do I have, and where is this sensor used?"* | Counts rooms, devices, automations, and integrations itself. Lists the automations, scripts, scenes, groups, helpers, and dashboard cards that use a sensor, and says what it couldn't check. Exact numbers, never a guess |
 | *"My door sensor died, I paired a new one"* | Moves automations, scripts, scenes, dashboards, helpers, and energy sources to the new device in one plan you check first |
 | *"Turn this Node-RED flow into an automation"* | Lists what the rule does, matches each device to a real entity, and builds a Home Assistant automation. The old rule is turned off, not deleted |
@@ -78,7 +78,7 @@ Say what you want. HA NOVA works out the rest.
 | *"Show me all temperature sensors"* | Finds entities by name, room, area, or label |
 | *"What's the average temperature upstairs?"* | Works out averages and totals across rooms in one step. Names the sensors it used and any it couldn't read |
 
-> Automations and scripts get the full treatment today: a preview, a review, and a check against 40+ rules. Helpers get a preview and a check afterwards. Dashboards get a preview of every changed view and card, a copy before each save, and undo. Device control runs clear everyday actions right away and checks them afterwards. Everything else shows a preview first, and locks, gates, the alarm, and deletes need your OK. Deeper checks come with every release.
+> Automations and scripts get the full treatment today: a preview, a review, and a check against 40+ rules. Helpers get a preview and a check afterwards. Dashboards get a preview of every changed view and card, a copy before each save, and undo. Device control runs clear everyday actions right away and checks them afterwards. Everything else shows a preview first. Unlocks, opening gates and garage doors, turning off the alarm, deletes, HACS installs and updates, and dashboard resources need your OK.
 
 ---
 
@@ -92,10 +92,11 @@ We built this because we didn't trust AI with our own setup either.
 2. **Shows you the change.** A clear before-and-after table of what will change, in plain words with names, before anything is saved. The one exception: only clear everyday actions run right away, like "turn off the kitchen light". HA NOVA checks them afterwards. The HA NOVA program decides which actions count, never the AI. And it sends nothing if anything changed since a preview.
 3. **You approve it.** Unlocking a door, opening a gate or garage door, turning off the alarm, restarting Home Assistant, and deletes need a real confirmation, not just "yes" in the chat. Before a restart, HA NOVA checks your config first. If something is wrong, it says what before you confirm.
    - **On your computer**, a window opens where it can. Click Confirm (OK on Windows) or Cancel. Your AI never sees a code.
-   - **With a linked phone**, the phone asks at the same time. The first answer counts. Answered on the phone, the phone shows the result; answered on the computer, the phone's question disappears. With no screen (for example a Linux server), or with the window turned off, the phone asks alone. This needs the Home Assistant Companion app. It doesn't work with a standalone relay that runs on your own token.
-   - **About the phone:** you can answer on the phone or its Apple Watch without unlocking it. So whoever holds your phone can answer while a request is open: up to 90 seconds on a computer, up to 3 minutes in Claude or ChatGPT. It works only for that one action. To link, move, or turn off phone confirmation, you need the unlocked phone. You can also move it to a new phone on the setup page. Chat apps keep their own phone: setup offers to move it too, and the NOVA page changes or stops it. Once a phone is linked, an action it can't reach is refused. It is never moved to the chat.
+   - **With a linked phone**, the phone asks at the same time. The first answer counts. Answered on the phone, the phone shows the result; answered on the computer, HA NOVA withdraws the phone's question. With no screen (for example a Linux server), or with the window turned off, the phone asks alone. This needs the Home Assistant Companion app. It doesn't work with a standalone relay that runs on your own token.
+   - **About the phone:** you can answer on the phone or its Apple Watch without unlocking it. So whoever holds your phone can answer while a request is open: up to 90 seconds on a computer, up to 3 minutes in Claude or ChatGPT. It works only for that one action. To link, move, or turn off phone confirmation, you need the unlocked phone. You can also move it to a new phone on the setup page. Chat apps keep their own phone: change or stop it on the NOVA page. When setup links the owner's new phone right after the owner signs in, it offers to move chat apps too. If the linked phone can't be reached, only the window asks; with no window, the action is refused. It is never moved to the chat.
    - **With neither**, you get a four-digit one-time code, in the chat or in your AI app's own form where it shows one. But the AI can see it too, so it only counts when you type it yourself.
-   - **Deletes:** automation, script, and dashboard deletes use the same window or phone. Other deletes (helpers, scenes, areas, and the like) take a four-digit code in the chat. Up to 20 automation and script changes and deletes can share one confirmation, and the window names every item and what happens to it. Other batch deletes you checked take one confirmation for the exact list of items.
+   - **Deletes:** automation, script, and dashboard deletes use the same window or phone. On a computer, other deletes (helpers, scenes, areas, and the like) take a four-digit code in the chat. In Claude and ChatGPT, they ask the linked phone too. Up to 20 automation and script changes and deletes can share one confirmation, and the window names every item and what happens to it. Other batch deletes you checked take one confirmation for the exact list of items.
+   - **Language:** confirmations are in German when Home Assistant is set to German, else in English. In a German home, the buttons read „Bestätigen“, „Erlauben“ and „Wechseln“.
    - **Screen control:** anything you let control your screen can click that window too. That means computer use, apps you gave Accessibility access, and on Windows and some Linux desktops, other programs. To turn the window off, run `ha-nova setup confirm-window off`.
 4. **Saves a copy first.** Before a covered delete or a full replacement of a config, HA NOVA saves a copy of that item. So "gone" has a way back.
 5. **Saves and checks.** Reads the config back to make sure the change stuck.
@@ -111,10 +112,10 @@ We built this because we didn't trust AI with our own setup either.
 **The ground rules, always:**
 
 - 🔒 **The Relay's login stays out of the AI.** The App's Home Assistant login stays inside the Relay. Optional Link access uses a separate Home Assistant OAuth authorization in this computer's native credential store. The AI sees neither of them.
-- 🙈 **Stored codes stay hidden from the AI.** A lock or alarm code saved in its settings, the backup password, and the Thread network key reach the AI only as "hidden", also in HA NOVA's saved copies. Codes written into automations are not hidden.
+- 🙈 **Stored codes stay hidden from the AI.** A lock or alarm code saved in its settings, the backup password, and the Thread network key reach the AI only as "hidden", also in HA NOVA's saved copies. Camera and image sign-in tokens stay hidden too. Codes written into automations are not hidden.
 - 🔑 **Each device is paired on its own.** The Home Assistant sign-in and the six-digit code work once and run out fast. They create a separate login for each device, over an encrypted connection that trusts only your own Relay. How it works: [safety page](docs/reference/safety.md). This is for App installs. The standalone container uses one shared token instead.
-- 🗑️ **Cut off a device with one click (App installs).** Lost a laptop? Retired a computer? Choose "Revoke this device" for it on the NOVA page. Everything else keeps working.
-- 📖 **Every rule the AI follows is a Markdown file you can read.**
+- 🗑️ **Cut off a device in two clicks (App installs).** Lost a laptop? Retired a computer? On the NOVA page, choose "Revoke…" next to it, then "Revoke this device". Everything else keeps working.
+- 📖 **Every skill the AI follows is a Markdown file you can read.** Chat apps also get a short guide built into the program.
 - 🏠 **HA NOVA runs no cloud relay, and the program sends no usage data or install counts.** Local mode stays between your computer and Home Assistant. Optional Link mode uses your own Home Assistant Link service, and HA NOVA gets none of that traffic.
 
 ---
@@ -123,7 +124,7 @@ We built this because we didn't trust AI with our own setup either.
 
 One command. One setup page. One sign-in. It even finds your Home Assistant for you.
 
-> **You need:** Home Assistant, any install type. HA OS and Supervised get the NOVA Relay App, and setup helps you install it. Container and Core run the same relay as a [standalone container](docs/reference/relay-container.md): same skills, same safety. It works with a token instead, so skip the steps below and follow that guide from start to end.
+> **You need:** Home Assistant, any install type. HA OS and Supervised get the NOVA Relay App, and setup helps you install it. Container and Core run the same relay as a [standalone container](docs/reference/relay-container.md): same skills, but no pairing, no phone confirmation, no chat apps, and no Home Assistant Link. It works with a token instead, so skip the steps below and follow that guide from start to end.
 
 **macOS / Linux:**
 
@@ -139,9 +140,9 @@ irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
 
 The installer selects the latest stable release. Run the command for your system.
 
-**On a desktop**, setup goes on in your browser. The page shows the Home Assistant it found, or asks for its address. It also shows the AI apps on this computer and sets them up for you. On HA OS and Supervised, choose "Sign in and install NOVA" and sign in as the owner. Setup then installs and starts the NOVA Relay App and connects this computer, all with that one sign-in. An old App is updated the same way. If an up-to-date App already runs, there is nothing to do. Then choose how you confirm risky changes, and see your home at a glance.
+**On a desktop**, setup goes on in your browser (on Windows without an AI app, run `ha-nova setup` after the install). The page shows the Home Assistant it found, or asks for its address. It also shows the AI apps on this computer and sets them up for you. On HA OS and Supervised, choose "Sign in and install NOVA" and sign in as the owner. Setup then installs and starts the NOVA Relay App and connects this computer, all with that one sign-in. An old App is updated the same way. If an up-to-date App already runs, the owner still signs in once, to connect this computer. Then choose how you confirm risky changes, and see your home at a glance.
 
-**Only use Claude or ChatGPT in the browser?** With no AI app on this computer, choose "I use Claude or ChatGPT in the browser" on the setup page. This needs Home Assistant 2026.10 or newer on HA OS or Supervised, and Home Assistant Link with remote access on, or your own HTTPS address (see [Use HA NOVA in Claude and ChatGPT](#use-ha-nova-in-claude-and-chatgpt)). Right after the owner signs in, setup checks the version, HA OS, and that an internet address is set, before it changes anything. If something is missing, the page says what and offers "Set it up, then check again" or "Use HA NOVA on this computer instead". If all is ready, this computer connects, and chat apps come first.
+**Only use Claude or ChatGPT in the browser?** With no AI app on this computer, choose "I use Claude or ChatGPT in the browser" on the setup page (on Windows, run `ha-nova setup` after the install). This needs Home Assistant 2026.10 or newer on HA OS or Supervised, and Home Assistant Link with remote access on, or your own HTTPS address (see [Use HA NOVA in Claude and ChatGPT](#use-ha-nova-in-claude-and-chatgpt)). Right after the owner signs in, setup checks the version, HA OS, and that an internet address is set, before it changes anything. If something is missing, the page says what and offers "Set it up, then check again" or "Use HA NOVA on this computer instead". If all is ready, this computer connects, and chat apps come first.
 
 **Not the owner?** The page asks the owner to sign in. If the owner can't come to this computer, they make a six-digit code in NOVA in Home Assistant ("Connect a device"), and you type it in the terminal. Can't sign in on this computer at all? Choose "Use a six-digit code instead". The owner can make it on any device. On the browser-only path there is no code: the owner signs in here.
 
@@ -154,7 +155,7 @@ The installer selects the latest stable release. Run the command for your system
 - Signed in as another Home Assistant user, over SSH on Linux, or the sign-in didn't work? Then setup asks for a code. The owner opens **NOVA** in the sidebar (or "Open Web UI" on the App page) and clicks **"Connect a device"**. You type the six-digit code.
 - On Windows and macOS, run setup in a terminal on the computer's own screen, not over SSH.
 
-After pairing, setup asks whose phone should confirm on this computer: pick it, then tap "Allow" on that phone. The phone must be signed in to the Home Assistant app as an administrator. Setup ends with a first look at your home.
+After pairing, setup asks whose phone should confirm on this computer: pick it, OK it in the window where one opens, then tap "Allow" on that phone. To move it later, the old phone OKs first, then the new one taps "Allow". The phone must be signed in to the Home Assistant app as an administrator. Setup ends with a first look at your home.
 
 > **Try it first?** [Try HA NOVA in 1 minute](https://hanova.app/demo/) on a shared demo house with no real devices. There is nothing to install. In Claude, a free account works. ChatGPT needs a paid plan that lets you add your own plugins. We tested Pro. The free plan can't. On a phone, ChatGPT can only answer. On your computer, `ha-nova try` connects your AI app to it (the setup page offers it when it finds no Home Assistant), and `ha-nova try --stop` removes it. Everyone shares one login, and it resets every hour. So never enter real names, passwords, or tokens there. What the demo keeps: [privacy page](https://hanova.app/privacy.html).
 
@@ -165,16 +166,17 @@ Ask about your home and change it from Claude (web, desktop, and phone apps) or 
 **How easy is it?**
 
 1. **Turn on remote access in Home Assistant Link.** Your Home Assistant may still show its old name ([see below](#optional-remote-access-with-home-assistant-link-beta)). Your own HTTPS address works too.
-2. **Flip the switch.** In setup, choose **Turn on…** in "You stay in control". On a re-run, turn on its switch, then click Done. Or open the NOVA page in the Home Assistant sidebar, then Chat apps. Home Assistant restarts once.
+2. **Flip the switch.** In setup, choose **Turn on…** in "You stay in control". On a re-run, turn on its switch, then click "Done, then sign in". Or open the NOVA page in the Home Assistant sidebar, then Chat apps. Home Assistant restarts once.
 3. **Click "Add to Claude",** or paste the address setup shows into ChatGPT. Then sign in to Home Assistant with your own login. No form in Claude? In Claude, open Customize → Connectors, click +, then Add custom connector, and paste the address. On a Claude Team or Enterprise plan, the owner of your Claude plan adds it once for everyone, with "Add for my organization". Then you click Connect next to HA NOVA in Customize → Connectors.
 
 **You need:**
 
 - Home Assistant 2026.10 or newer on HA OS or Supervised, with an up-to-date NOVA Relay App.
 - Home Assistant Link with remote access on, or your own public HTTPS address with a valid certificate, set as Home Assistant's external URL. Self-signed certificates, plain `http://`, Tailscale, and local addresses don't work, and setup can't check the certificate for you. Without a Link or HTTPS address, setup says so and shows no switch.
+- For ChatGPT, a paid plan that lets you add your own plugins.
 - Only the Home Assistant owner turns chat apps on. On the NOVA page, the owner picks who else may use them, at Ask only, Use the home, or Manage everything. Each person signs in with their own Home Assistant login.
 
-**What needs your OK:** the same rules as on a computer. Everyday actions run right away and are checked afterwards. Unlocks, the alarm, and deletes wait for a tap on the linked phone of the person who asked. No phone? At Manage everything, you type a four-digit code in the chat; below it, those changes are refused. The AI can see that code too, so it protects less than your phone. On the NOVA page, you can require the phone, or let chat apps only read.
+**What needs your OK:** the same rules as on a computer. Everyday actions run right away and are checked afterwards. Unlocks, opening a garage door or gate, turning off the alarm, and deletes wait for a tap on the linked phone of the person who asked. Below Manage everything, deletes and other setup changes are refused, even with a phone. No phone? At Manage everything, you type a four-digit code in the chat; below it, those changes are refused. The AI can see that code too, so it protects less than your phone. On the NOVA page, you can require the phone, or let chat apps only read.
 
 **Stop Claude from asking before every step.** At first, Claude asks before each step. That's Claude, not HA NOVA. In Claude, open Customize → Connectors → HA NOVA. With a linked phone, set every tool to "Always allow": HA NOVA still shows you a preview before bigger changes, and your phone asks before unlocks, the alarm, and deletes. No phone? Set every tool to "Always allow", except "Run a confirmed change": leave it on "Needs approval", so Claude still asks before each bigger change. The setup page and the NOVA page show the same advice. Claude may ask again after an update. Details: [Stop Claude from asking before every step](docs/reference/chat-apps.md#stop-claude-from-asking-before-every-step).
 
@@ -182,8 +184,8 @@ Ask about your home and change it from Claude (web, desktop, and phone apps) or 
 
 - Access belongs to your Home Assistant account, not to a device. Anyone who can use your Claude or ChatGPT account can reach your home through it.
 - Claude or ChatGPT then holds a Home Assistant sign-in for your account. It works for all of Home Assistant, not only HA NOVA. Turning chat apps off cuts HA NOVA there. To sign Claude or ChatGPT out, open your Home Assistant profile (Security, refresh tokens).
-- Turn chat apps off before you remove the NOVA Relay App.
-- At Manage everything, helpers, scenes, dashboards, rooms and names, integrations and Home Assistant's settings, files (with file access on), the error log, and camera pictures work in the chat, with the same preview and confirmation as on a computer. Only setting up HA NOVA itself (setup, pairing, updates, turning chat apps on or off) runs on a computer.
+- Turn chat apps off before you remove the NOVA Relay App or go back to an older version.
+- At Manage everything, helpers, scenes, dashboards, rooms and names, integrations and Home Assistant's settings, files (with file access on), the error log, camera pictures, and on HA OS also logs and Apps work in the chat, with the same preview and confirmation as on a computer. Turn chat apps on or off on the NOVA page or in setup. Only setting up and updating HA NOVA (setup, pairing, updates) and InfluxDB history stay outside the chat.
 
 Step by step, ChatGPT plans, and what to do if it doesn't connect: [Use HA NOVA in Claude and ChatGPT](docs/reference/chat-apps.md).
 
@@ -191,7 +193,7 @@ Step by step, ChatGPT plans, and what to do if it doesn't connect: [Use HA NOVA 
 
 Setup keeps **Local only** as the default we recommend. On the setup page, Link is one switch in "You stay in control". It shows while Link's remote access answers.
 
-Do you have a paid Home Assistant Link plan (formerly Home Assistant Cloud; Nabu Casa), with remote access on? Then choose **Local + Home Assistant Link** for automatic remote fallback, or **Home Assistant Link only** to go remote first. Your Home Assistant may still show the old name in Settings until the new name reaches it. Setup checks your Link address, opens the Home Assistant OAuth sign-in, and saves it in the macOS, Windows, or Linux desktop credential store. HA NOVA runs no additional public tunnel or hosted broker.
+Do you have a paid Home Assistant Link plan (formerly Home Assistant Cloud; Nabu Casa), with remote access on? On the setup page, its switch adds **Local + Home Assistant Link** for automatic remote fallback. In the terminal, a first setup also offers **Home Assistant Link only**, to go remote first. Your Home Assistant may still show the old name in Settings until the new name reaches it. Setup checks your Link address, opens the Home Assistant OAuth sign-in, and saves it in the macOS, Windows, or Linux desktop credential store. HA NOVA runs no additional public tunnel or hosted broker.
 
 Remote access through Link needs Home Assistant OS or Supervised, and a supported desktop to sign in. Did a setup that was already checked get cut off? You can finish over SSH with `ha-nova cloud add --remote-resume`. Headless, WSL, service, gateway, Container, and Core setups stay local only. Sign in to Link as the Home Assistant owner, and this computer connects with no code (this needs an up-to-date NOVA Relay App). Don't want the owner's login saved on this computer? Sign in to Link as a standard Home Assistant user instead. That only changes which login Link keeps on this computer: the owner still connects it once, in a separate private browser window (setup calls it the "Owner session"), with a six-digit code made there with "Connect a device". Either way, HA NOVA then works the same for anyone who uses this login on this computer. There is no separate sign-in per person.
 
@@ -244,8 +246,8 @@ Once setup is done, try: *"Show me all my automations."*
 | `ha-nova pair` | Pair this computer again with a new six-digit code |
 | `ha-nova doctor` | Find connection and setup problems |
 | `ha-nova setup confirm-window off` | Turn the confirmation window off (you confirm that in the window). `on` turns it back on |
-| `ha-nova setup confirm-phone` | Link one phone for confirmations (pick it, then tap "Allow" on it; picking another phone moves it, once the old phone OKs it). `off` unlinks it, and you confirm that on the phone |
-| `ha-nova uninstall` | Asks one question: remove HA NOVA from this computer (skills, settings, and its pairing), remove it but keep the pairing for a reinstall, or cancel. On the last computer that uses the NOVA Relay App, it can remove the App too, after the owner signs in (this needs an up-to-date NOVA Relay App). `--yes` keeps the pairing |
+| `ha-nova setup confirm-phone` | Link one phone for confirmations (pick it, OK it in the window where one opens, then tap "Allow" on it; picking another phone moves it: the old phone OKs, then the new one taps "Allow"). `off` unlinks it, and you confirm that on the phone |
+| `ha-nova uninstall` | Asks one question: remove HA NOVA from this computer (skills, settings, and its pairing), remove it but keep the pairing for a reinstall, or cancel. On the last computer that uses the NOVA Relay App, it can remove the App too, when no pairing is under way and no Home Assistant Link is saved here, after the owner signs in (this needs an up-to-date NOVA Relay App). `--yes` keeps the pairing |
 | `ha-nova uninstall --purge` | Remove the program, settings, and saved logins. A few tiny local marker files stay, so an old process can't bring the install back |
 
 **Coming from an old install, from before the Go version?**
@@ -266,11 +268,11 @@ Once setup is done, try: *"Show me all my automations."*
 
 **Skills** live on your computer as plain Markdown files. They are the AI's playbook: what to check, what to show you first, and what to check after a change. You can open them, read them, and even edit them.
 
-**The Relay** lives on your Home Assistant server. On the local path, it is the only part that talks to Home Assistant directly, and its Home Assistant login stays inside it. Optional Link mode lets the CLI connect through Home Assistant Link, with an OAuth sign-in kept in your desktop's secure storage. Neither login ever goes into a prompt. Each paired device still reaches the Relay with its own encrypted login. The NOVA page is where you connect or remove devices.
+**The Relay** lives on your Home Assistant server. In daily use, it is the only part that talks to Home Assistant directly, and its Home Assistant login stays inside it. Optional Link mode lets the CLI connect through Home Assistant Link, with an OAuth sign-in kept in your desktop's secure storage. Neither login ever goes into a prompt. Each paired device still reaches the Relay with its own encrypted login. The NOVA page is where you connect or remove devices.
 
-Most new HA NOVA features are skill updates: text files on your computer. The Relay only changes when a feature needs something really new from Home Assistant. Even then, it stays a simple pipe. All the know-how stays in the skills.
+Most new HA NOVA features are skill updates: text files on your computer. The Relay only changes when a feature needs something really new from Home Assistant. All the know-how stays in the skills.
 
-Because the Relay sits right next to Home Assistant, it can do things a remote program can't. For example, it saves a copy of an automation before it updates it, so one word undoes the latest checked update. Deletes of covered items (automations, scripts, scenes, dashboards, and most helpers) save a copy first, so you can bring them back with the same preview and confirmation. Where no copy exists, a Home Assistant backup is the way back.
+Because the Relay sits right next to Home Assistant, it can do things a remote program can't. For example, it saves a copy of an automation before it updates it, so one word undoes the latest checked update. Deletes of covered items (automations, scripts, scenes, dashboards, and storage helpers) save a copy first, so you can bring them back with the same preview and confirmation. Where no copy exists, a Home Assistant backup is the way back.
 
 Every safety promise above is backed by a file and a test. The **[safety page](docs/reference/safety.md)** shows what enforces and checks each one.
 
@@ -293,15 +295,15 @@ Every safety promise above is backed by a file and a test. The **[safety page](d
 
 | Skill | What it does |
 |:------|:-------------|
-| ✏️ **write** | Build and change automations, with a full preview and safety checks; import and use blueprints |
+| ✏️ **write** | Build and change automations and scripts, with a full preview and safety checks; import and use blueprints |
 | 📖 **read** | Show your automation and script configs as they really are |
 | 🔍 **review** | Check your setup for mistakes, conflicts, and weak spots |
 | 🧱 **dashboard** | Build and change dashboards, views, and cards (installed custom cards too), find broken cards, and manage Lovelace resources, with a copy before each save |
 | 🎬 **scene** | Create and manage scenes, including "save this room as a scene" |
 | 🗂️ **organize** | Manage areas, floors, labels, and entity details like icons, units, and how a value shows; delete a device |
 | 🕒 **history** | Look up history, logbook timelines, and long-term stats |
-| 🏠 **health** | Sum up Home Assistant status, repairs, integrations, system health, and noisy entities; fix or ignore repairs |
-| 📅 **calendar** | Read calendars and events in a time window |
+| 🏠 **health** | Sum up Home Assistant status, repairs, integrations, system health, unavailable entities, and low batteries; fix or ignore repairs |
+| 📅 **calendar** | Read calendars and events in a time window; create, change, and delete events |
 | ✅ **todo** | Manage to-do and shopping-list items, create Local To-do lists |
 | 💾 **backup** | Check backups and create them, also as a safety net before risky changes; set the automatic schedule |
 | ⬆️ **updates** | See waiting updates, read release notes, and install them with safety checks; on HA OS, install, remove, and set up Apps and read their logs (over the local connection) |
@@ -343,11 +345,13 @@ The skills know which NOVA Relay version they need (see `version.json`). If your
 | [Claude Code](https://github.com/anthropics/claude-code) | Terminal |
 | [Claude Desktop](https://claude.com/download) (Code tab) | Desktop app |
 | [Codex](https://github.com/openai/codex) | Terminal / IDE extension / Desktop app |
-| [OpenCode](https://github.com/opencode-ai/opencode) | Terminal |
+| [OpenCode](https://opencode.ai) | Terminal |
 | [Google Antigravity](https://antigravity.google/) | Desktop app / Terminal |
 | Hermes Agent (preview) | Terminal |
 
 > **Claude and ChatGPT chat apps** (Claude on the web, desktop, and phone; ChatGPT on the web, on a computer) connect through the NOVA Relay App, not a computer: see [Use HA NOVA in Claude and ChatGPT](#use-ha-nova-in-claude-and-chatgpt).
+
+> **Another AI app?** Any app that supports MCP can use HA NOVA too: "Your setup" shows what to paste.
 
 > Google Antigravity is the current Google client path. `ha-nova setup gemini` remains a legacy alias for existing Gemini-era installs.
 

@@ -49,12 +49,12 @@ describe("release notes contract", () => {
     // The App update leads the notes; the update notice still leads with the first feature.
     expect(stableNotes).toMatch(/^\*\*Update the NOVA App to \d+\.\d+\.\d+\.\*\*/);
     expect(stableNotes).toMatch(/\n {4}## New Features\s+- \*\*Chat apps do what HA NOVA on a computer does\.\*\*/);
-    // Chat apps at CLI parity (#863, #864, #865, #867); only setting up HA NOVA itself stays on a computer.
-    expect(stableNotes).toContain("files (with file access on), and more. Only setting up HA NOVA itself stays on a computer.");
+    // Chat apps at CLI parity (#863, #864, #865, #867); only setup and InfluxDB history stay outside the chat.
+    expect(stableNotes).toContain("files (with file access on), and more. Only setup and InfluxDB history stay outside the chat.");
     // "Always allow" advice by phone (#867).
-    expect(stableNotes).toContain('with a linked phone, every tool on "Always allow"; without one, all but "Run a confirmed change".');
+    expect(stableNotes).toContain('with a phone linked for chat apps, every tool on "Always allow"; without one, all but "Run a confirmed change".');
     // Codex in the desktop app; stale copies flagged and moved (fix/codex-app-guidance).
-    expect(stableNotes).toContain("**HA NOVA works in the Codex app too.**");
+    expect(stableNotes).toContain("**Setup finds Codex in the ChatGPT desktop app too.**");
     expect(stableNotes).toContain("Doctor flags an older HA NOVA copy that Codex would load; setup updates it, or moves HA NOVA's own old copies to a backup.");
     // HACS and dashboard resources take the typed confirmation (#864, maintainer decision 3).
     expect(stableNotes).toMatch(/## What To Watch\s+- \*\*HACS installs and updates, and dashboard resources, now take your own confirmation, like a delete\.\*\*/);
@@ -79,7 +79,7 @@ describe("release notes contract", () => {
     // and "Always allow" keeps its phone condition there too (0.28 review).
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
     expect(stableNotes).toContain("Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.");
-    expect(stableNotes).toContain('Claude asks once more before HA NOVA\'s tools: set them again as the NOVA page says. With a linked phone, every tool on "Always allow"; without one, all but "Run a confirmed change".');
+    expect(stableNotes).toContain('Claude asks once more before HA NOVA\'s tools: set them again as the NOVA page says. With a phone linked for chat apps, every tool on "Always allow"; without one, all but "Run a confirmed change".');
     expect(stableNotes).not.toContain('set them to "Always allow" again');
     // HA UI parity (#873, #875-#877), Supervisor Apps and logs (#883), "Your setup" (#879), Claude Desktop alone (#878), 0.28 review fixes (#885).
     expect(stableNotes).toContain("**More of Home Assistant's settings.**");
@@ -88,7 +88,7 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain('**"Your setup" when you run setup again.**');
     expect(stableNotes).toContain("**The NOVA Relay App asks for more Supervisor access.**");
     expect(stableNotes).toContain("**Moving a device with a lock to another room takes your own confirmation.**");
-    expect(stableNotes).toContain("On a Mac, the Claude Desktop app alone is enough");
+    expect(stableNotes).toContain("On a Mac, Claude Desktop alone is enough once its Code tab was opened.");
     expect(readme).toContain('**Run setup again any time.** "Your setup" then shows what is done');
     expect(stableNotes).not.toContain("which this release doesn't change");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
@@ -96,7 +96,7 @@ describe("release notes contract", () => {
     expect(stableNotes).not.toContain("Cloud Remote is back on Windows and Linux");
     expect(readme).toContain("only clear everyday actions run right away");
     expect(readme).toContain("Up to 20 automation and script changes and deletes can share one confirmation");
-    expect(readme).toContain("Answered on the phone, the phone shows the result; answered on the computer, the phone's question disappears.");
+    expect(readme).toContain("Answered on the phone, the phone shows the result; answered on the computer, HA NOVA withdraws the phone's question.");
     expect(readme).toContain("the owner picks who else may use them, at Ask only, Use the home, or Manage everything");
     expect(readme).not.toContain("Only the Home Assistant owner can turn chat apps on and use them.");
     // The old shared access: only what 0.28 does, no release it ends with (the App accepts it locally, never over Link).
@@ -111,7 +111,7 @@ describe("release notes contract", () => {
     // Chat apps: "Always allow" by phone; only setting up HA NOVA itself stays on a computer; Link sign-in (0.28).
     expect(readme).toContain('With a linked phone, set every tool to "Always allow"');
     expect(readme).toContain('No phone? Set every tool to "Always allow", except "Run a confirmed change"');
-    expect(readme).toContain("Only setting up HA NOVA itself (setup, pairing, updates, turning chat apps on or off) runs on a computer.");
+    expect(readme).toContain("Only setting up and updating HA NOVA (setup, pairing, updates) and InfluxDB history stay outside the chat.");
     expect(readme).toContain("That only changes which login Link keeps on this computer: the owner still connects it once");
     expect(readme).not.toContain("Codex CLI");
     // claude.ai's connector list lives under Customize, not Settings.
