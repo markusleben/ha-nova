@@ -392,6 +392,7 @@
   "raw.why.access_entity": "This carries a new ID, area, or label onto a lock, alarm panel, or door, which can change what an automation that opens it targets",
   "raw.why.access_device": "This carries a new area or label onto a device with a lock, alarm panel, or door, which can change what an automation that opens it targets",
   "raw.why.access_area": "This carries a new label or floor onto an area with a lock, alarm panel, or door, which can change what an automation that opens it targets",
+  "raw.why.access_shown": "This shows or turns on again a lock, alarm panel, or door, or something on its device, which brings it back into what an automation that opens it targets",
   "raw.why.person_follows": "This changes which devices a person follows, and an unlock or disarm may wait for that person",
   "raw.why.account_access": "This changes what a Home Assistant account may do, or whether it can sign in",
   "raw.why.backup_retention": "This changes how many automatic backups Home Assistant keeps, and older ones are deleted for good",

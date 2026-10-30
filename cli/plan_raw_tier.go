@@ -53,6 +53,7 @@ var rawWhys = map[string]func(lang string) string{
 	"access_entity":      func(l string) string { return confirmT(l, "raw.why.access_entity") },
 	"access_device":      func(l string) string { return confirmT(l, "raw.why.access_device") },
 	"access_area":        func(l string) string { return confirmT(l, "raw.why.access_area") },
+	"access_shown":       func(l string) string { return confirmT(l, "raw.why.access_shown") },
 	"person_follows":     func(l string) string { return confirmT(l, "raw.why.person_follows") },
 	"account_access":     func(l string) string { return confirmT(l, "raw.why.account_access") },
 	"backup_retention":   func(l string) string { return confirmT(l, "raw.why.backup_retention") },
@@ -109,6 +110,11 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 			_, set := payload[key]
 			carries = carries || set
 		}
+		shows := false
+		for _, key := range []string{"hidden_by", "disabled_by"} {
+			value, set := payload[key]
+			shows = shows || set && value == nil
+		}
 		_, labeled := payload["labels"]
 		_, floored := payload["floor_id"]
 		retargets := labeled || floored
@@ -132,8 +138,12 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 			return tierTyped, "energy_emptied"
 		case wsType == "config/entity_registry/update" && carries && n.accessEntity(payload["entity_id"]):
 			return tierTyped, "access_entity"
+		case wsType == "config/entity_registry/update" && shows && !carries && n.accessEntity(payload["entity_id"]):
+			return tierTyped, "access_shown"
 		case wsType == "config/device_registry/update" && carries && n.accessDevice(payload["device_id"]):
 			return tierTyped, "access_device"
+		case wsType == "config/device_registry/update" && shows && !carries && n.accessDevice(payload["device_id"]):
+			return tierTyped, "access_shown"
 		case wsType == "config/area_registry/update" && retargets && n.accessArea(payload["area_id"]):
 			return tierTyped, "access_area"
 		case wsType == "person/update" && follows:
@@ -278,7 +288,8 @@ type rawDeviceRow struct {
 }
 
 // registries: the entity and device registries, read live; ok is false when
-// either can't be read (a real empty registry is []).
+// either can't be read (a real empty registry is []) or has a row without
+// its id (a null element decodes to an empty row).
 func (n *rawNamer) registries() (entities []rawEntityRow, devices []rawDeviceRow, ok bool) {
 	data, err := rawRead(n.s, "ws", map[string]any{"type": "config/entity_registry/list"})
 	if err == nil {
@@ -292,6 +303,16 @@ func (n *rawNamer) registries() (entities []rawEntityRow, devices []rawDeviceRow
 	}
 	if err != nil || entities == nil || devices == nil {
 		return nil, nil, false
+	}
+	for _, e := range entities {
+		if e.EntityID == "" {
+			return nil, nil, false
+		}
+	}
+	for _, d := range devices {
+		if d.ID == "" {
+			return nil, nil, false
+		}
 	}
 	return entities, devices, true
 }

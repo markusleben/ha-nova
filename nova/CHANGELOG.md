@@ -10,6 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 - Room suggestions in chat apps no longer fail when a lock, an alarm panel, or a garage door has no room but a name that matches one. Those devices, and their parent or child devices (for example a hub and its lock), are left out, so the other suggestions can be saved. Moving one of them to a room still takes your own confirmation.
 - Chat apps: a device whose parent or child device has a lock, an alarm panel, or a garage door is treated like that device. Moving it to a room, labeling it, or moving, labeling, or changing the entity ID of anything on it takes your own confirmation. Disabling or enabling a hub whose child device has one is refused, because Home Assistant disables and enables child devices with their parent.
 - Chat apps: giving a room with a lock, an alarm panel, or a garage door a new label or floor takes your own confirmation.
+- Chat apps: showing a hidden lock, alarm panel, or garage door again, or showing or enabling again something on its device or a linked parent or child device, takes your own confirmation.
 - Chat apps: a lock's entity ID written with capital letters (for example "LOCK.Front") no longer lets a room, label, or entity ID change skip your own confirmation.
 
 ### Changed

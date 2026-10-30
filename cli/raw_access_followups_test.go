@@ -69,7 +69,8 @@ func TestRawDeviceAreaOnAccessDeviceIsTyped(t *testing.T) {
 // enabling the parent disables or enables its children, so a lock on a child
 // refuses that. A new area, label, or ID on a device, or on an entity, in
 // the family of a lock (a parent and its child devices, whatever their
-// rooms) is typed, as the tier's sibling guard reads the family. An
+// rooms) is typed, as the tier's sibling guard reads the family; so is
+// showing or enabling one again, which brings it back into targets. An
 // unreadable device registry counts as a lock.
 func TestRawChildDevicesGoWithTheirParent(t *testing.T) {
 	devices := any([]any{map[string]any{"id": "dhub", "area_id": "hall"}, map[string]any{"id": "dchild", "parent_device_id": "dhub", "area_id": nil},
@@ -90,6 +91,14 @@ func TestRawChildDevicesGoWithTheirParent(t *testing.T) {
 		`{"type":"config/device_registry/update","device_id":"dhub2","area_id":"garage"}`:             "typed", // the hub of lock.placed, whose own room changes nothing
 		`{"type":"config/device_registry/update","device_id":"dside","area_id":"garage"}`:             "typed", // beside lock.child
 		`{"type":"config/device_registry/update","device_id":"dled","labels":["x"]}`:                  "preview",
+		`{"type":"config/entity_registry/update","entity_id":"lock.child","hidden_by":null}`:          "typed",
+		`{"type":"config/entity_registry/update","entity_id":"switch.side_relay","hidden_by":null}`:   "typed",
+		`{"type":"config/entity_registry/update","entity_id":"switch.side_relay","disabled_by":null}`: "typed",
+		`{"type":"config/device_registry/update","device_id":"dside","disabled_by":null}`:             "typed",
+		`{"type":"config/entity_registry/update","entity_id":"lock.child","hidden_by":"user"}`:        "preview",
+		`{"type":"config/entity_registry/update","entity_id":"light.led","hidden_by":null}`:           "preview",
+		`{"type":"config/entity_registry/update","entity_id":"light.led","disabled_by":null}`:         "preview",
+		`{"type":"config/device_registry/update","device_id":"dled","disabled_by":null}`:              "preview",
 		`{"type":"config/device_registry/update","device_id":"dhub2","labels":["outside"]}`:           "typed", // a label on the hub reaches lock.placed
 		`{"type":"config/device_registry/update","device_id":"dhub","name_by_user":"Hub"}`:            "preview",
 		`{"type":"config/device_registry/update","device_id":"dlamp","area_id":"garage"}`:             "preview",
@@ -123,6 +132,46 @@ func TestRawChildDevicesGoWithTheirParent(t *testing.T) {
 	}
 	if exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"config/device_registry/update","device_id":"dlamp","disabled_by":"user"}}]`); exit == verbExitConfirmation || env.Plan != nil || env.Error == nil {
 		t.Errorf("unreadable device registry, disabling: exit %d %+v", exit, env.Error)
+	}
+	if got := sent(); len(got) != 0 {
+		t.Fatalf("planning sent %v", got)
+	}
+}
+
+// A registry that comes back null, or with a null row (it decodes to an
+// empty one), can't show a lock's family: the tier counts it as access and
+// the guard sends nothing.
+func TestRawNullOrMalformedRegistriesCountAsAccess(t *testing.T) {
+	good := func() ([]any, []any) {
+		return []any{map[string]any{"entity_id": "switch.hub_relay", "device_id": "dhub"}, map[string]any{"entity_id": "lock.child", "device_id": "dchild"}},
+			[]any{map[string]any{"id": "dhub"}, map[string]any{"id": "dchild", "parent_device_id": "dhub"}}
+	}
+	var entities, devices any
+	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
+		"config/entity_registry/list": func(map[string]any) any { return entities },
+		"config/device_registry/list": func(map[string]any) any { return devices },
+	})
+	move := `[{"endpoint":"ws","payload":{"type":"config/device_registry/update","device_id":"dhub","area_id":"garage"}}]`
+	moveEntity := `[{"endpoint":"ws","payload":{"type":"config/entity_registry/update","entity_id":"switch.hub_relay","area_id":"garage"}}]`
+	disable := `[{"endpoint":"ws","payload":{"type":"config/device_registry/update","device_id":"dhub","disabled_by":"user"}}]`
+	for _, c := range []struct {
+		name   string
+		mangle func(e, d []any) (any, any)
+		items  string
+		typed  bool
+	}{
+		{"null device list", func(e, d []any) (any, any) { return e, json.RawMessage("null") }, move, true},
+		{"null entity list", func(e, d []any) (any, any) { return json.RawMessage("null"), d }, moveEntity, true},
+		{"a null device row", func(e, d []any) (any, any) { return e, []any{d[0], nil} }, move, true},
+		{"a null entity row", func(e, d []any) (any, any) { return []any{e[0], nil}, d }, moveEntity, true},
+		{"guard: a null device row", func(e, d []any) (any, any) { return e, []any{d[0], nil} }, disable, false},
+		{"guard: a null entity row", func(e, d []any) (any, any) { return []any{e[0], nil}, d }, disable, false},
+	} {
+		entities, devices = c.mangle(good())
+		exit, env := planRaw(t, paths, c.items)
+		if c.typed && (exit != verbExitConfirmation || env.Tier != "typed") || !c.typed && (exit == verbExitConfirmation || env.Plan != nil || env.Error == nil) {
+			t.Errorf("%s: exit %d tier %s %+v", c.name, exit, env.Tier, env.Error)
+		}
 	}
 	if got := sent(); len(got) != 0 {
 		t.Fatalf("planning sent %v", got)

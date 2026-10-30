@@ -155,6 +155,11 @@ func checkRawAccessTargetIn(s *relaySession, endpoint string, body []byte) (refu
 			err = errors.New("the entity registry came back empty")
 		}
 	}
+	for _, row := range rows { // a null element decodes to an empty row
+		if err == nil && row.EntityID == "" {
+			err = errors.New("the entity registry has a row without an entity_id")
+		}
+	}
 	if err != nil {
 		return nil, errors.New("cannot read what this request would remove or reconfigure, so nothing was sent: " + err.Error())
 	}
@@ -244,6 +249,11 @@ func rawDeviceFamily(s *relaySession, id string, deleting bool) (gone map[string
 			err = fmt.Errorf("cannot parse the device registry: %w", uerr)
 		} else if rows == nil {
 			err = errors.New("the device registry came back empty")
+		}
+	}
+	for _, row := range rows { // a null element decodes to an empty row
+		if err == nil && row.ID == "" {
+			err = errors.New("the device registry has a row without an id")
 		}
 	}
 	if err != nil {
