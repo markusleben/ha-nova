@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 // claudeProcessTree: claude runs in its own process group, so a deadline
@@ -55,6 +56,9 @@ func (t *claudeProcessTree) release() {
 	signal.Stop(t.signals)
 	select {
 	case sig := <-t.signals:
+		if t.cmd.Process != nil {
+			_ = t.kill()
+		}
 		t.handBack(sig)
 	default:
 	}
@@ -65,6 +69,7 @@ func (t *claudeProcessTree) release() {
 func (t *claudeProcessTree) handBack(sig os.Signal) {
 	signal.Stop(t.signals)
 	_ = syscall.Kill(os.Getpid(), sig.(syscall.Signal))
+	time.Sleep(time.Second) // the signal may land on another thread: let it end the process first
 }
 
 func (t *claudeProcessTree) kill() error {

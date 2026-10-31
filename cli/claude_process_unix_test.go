@@ -1,4 +1,4 @@
-//go:build !windows
+//go:build unix
 
 package main
 
@@ -69,9 +69,9 @@ func TestSignalStopsClaudeWithHANova(t *testing.T) {
 			if status, ok := haNova.ProcessState.Sys().(syscall.WaitStatus); !ok || !status.Signaled() || status.Signal() != sig {
 				t.Fatalf("ha-nova ended with %v, want killed by %v\n%s", haNova.ProcessState, sig, stderr.String())
 			}
-			for start := time.Now(); syscall.Kill(-group, 0) != syscall.ESRCH; time.Sleep(50 * time.Millisecond) {
-				if time.Since(start) > 5*time.Second {
-					t.Fatalf("claude's process group %d outlived ha-nova", group)
+			for _, pid := range []int{group, holder} { // claude leads its group
+				if !windowGone(pid, 5*time.Second) {
+					t.Fatalf("claude's process group %d outlived ha-nova (pid %d still runs)", group, pid)
 				}
 			}
 		})
