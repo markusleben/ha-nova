@@ -582,6 +582,8 @@ func TestInstallClaudePluginClearsMarketplaceRegistrationWhenFreshInstallFails(t
 
 func installClaudeMarketplaceMock(t *testing.T, logPath, failCommand string) string {
 	t.Helper()
+	home := os.Getenv("HOME")
+	requireTestHome(t, home)
 
 	binDir := filepath.Join(t.TempDir(), "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
@@ -591,6 +593,7 @@ func installClaudeMarketplaceMock(t *testing.T, logPath, failCommand string) str
 	script := "#!/usr/bin/env bash\n" +
 		"set -euo pipefail\n" +
 		"cmd=\"$*\"\n" +
+		"[ \"$HOME\" = " + shellQuote(home) + " ] || { echo 'claude mock: HOME is not its test home' >&2; exit 97; }\n" +
 		"plugins_root=\"${HOME}/.claude/plugins\"\n" +
 		"known_file=\"${plugins_root}/known_marketplaces.json\"\n" +
 		"installed_file=\"${plugins_root}/installed_plugins.json\"\n" +

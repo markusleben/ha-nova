@@ -37,9 +37,16 @@ it exceeds the usual approximate 400-line target rather than adding helpers.
 - Recreate the VM's outbound LAN isolation rules before discovery. Ubuntu
   must have the runbook's effective nftables output rules. Never issue a
   request to the maintainer's real HA, even as an isolation probe.
+- Windows scripts reach the guest as files (scp to the user's home, then
+  `-File`), never over stdin: on the Win11 guest a stdin read can stay
+  blocked after EOF. A script's first statement claims its file by renaming
+  it; a job with no start within 30 s is voided the same way. Only a won void
+  proves the job never started, and only that case is retried, once. A second
+  miss reads STALL: a harness state, not a product result.
 - Never run a HA NOVA command on macOS. Never start/stop UTM or shut down a
-  guest. Print STEP/CHECK/RESULT/DETAIL; FAIL means a nonzero exit. Retain
-  failed-run logs. `--wait 60` checks required forwards every two minutes.
+  guest. Print STEP/CHECK/RESULT/DETAIL; FAIL or STALL means a nonzero exit.
+  Retain failed-run logs. `--wait 60` checks required forwards every two
+  minutes.
 
 ## Verification
 

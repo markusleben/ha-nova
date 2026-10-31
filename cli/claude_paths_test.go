@@ -26,6 +26,12 @@ import (
 // fallback paths behave like on claude-less CI. Tests that need claude
 // behavior prepend their own mock in front of it.
 func TestMain(m *testing.M) {
+	if os.Getenv(claudeCallerEnv) != "" { // started as ha-nova (claude_timeout_test.go)
+		os.Exit(runClaudeCaller())
+	}
+	if dir := os.Getenv(fakeClaudeEnv); dir != "" { // started as `claude` (claude_timeout_test.go)
+		os.Exit(runFakeClaude(dir, os.Args[1:]))
+	}
 	testSecretDirForRuntime = func() (string, bool) {
 		dir := strings.TrimSpace(os.Getenv("HA_NOVA_TEST_SECRET_DIR"))
 		return dir, dir != ""
@@ -132,7 +138,15 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	os.Setenv("PATH", stubDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	sharedHome := ""
+	if ownsTestRoot { // helper processes keep the HOME their test gave them
+		sharedHome = isolateTestHome(testRoot)
+	}
 	code := m.Run()
+	if written := sharedHomeWrites(sharedHome); sharedHome != "" && len(written) > 0 {
+		fmt.Fprintf(os.Stderr, "FAIL: tests wrote under the shared test HOME; give each its own (t.Setenv(\"HOME\", t.TempDir())):\n  %s\n", strings.Join(written, "\n  "))
+		code = 1
+	}
 	if ownsTestRoot {
 		os.RemoveAll(testRoot)
 	}

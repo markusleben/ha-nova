@@ -50,10 +50,8 @@ func removeInstalledClientsWithReport(paths runtimePaths, state installState, re
 				}
 				continue
 			}
-			cmd := claudeCommand("plugin", "remove", "ha-nova@ha-nova")
-			if output, err := cmd.CombinedOutput(); err != nil {
-				message := strings.TrimSpace(string(output))
-				if strings.Contains(strings.ToLower(message), "not found in installed plugins") {
+			if output, err := claudeOutput("plugin", "remove", "ha-nova@ha-nova"); err != nil {
+				if strings.Contains(strings.ToLower(string(output)), "not found in installed plugins") {
 					if err := removeClaudePluginRecord(paths.Home); err != nil {
 						return fmt.Errorf("claude plugin removal failed: %w", err)
 					}
@@ -65,7 +63,7 @@ func removeInstalledClientsWithReport(paths runtimePaths, state installState, re
 					}
 					continue
 				}
-				return fmt.Errorf("claude plugin removal failed: %s", message)
+				return fmt.Errorf("claude plugin removal failed: %s", claudeFailureText(output, err))
 			}
 			if err := removeClaudePluginRecord(paths.Home); err != nil {
 				return fmt.Errorf("claude plugin removal failed: %w", err)

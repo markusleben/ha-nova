@@ -28,6 +28,9 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 				return fmt.Errorf("%w (Claude marketplace rollback failed: %v)", cause, restoreErr)
 			}
 		}
+		if claudeStalled.Load() != nil { // its own rollback can't run either; doctor names the fix
+			return cause
+		}
 		if restoreState.hasSource || restoreState.pluginInstalled {
 			if restoreErr := restoreClaudeLocalState(paths.Home, restoreState); restoreErr != nil {
 				return fmt.Errorf("%w (Claude rollback failed: %v)", cause, restoreErr)
@@ -52,17 +55,15 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 		refreshArgs = []string{"plugin", "update", "ha-nova@ha-nova"}
 	}
 
-	cmd := claudeCommand(refreshArgs...)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		commandErr := fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(refreshArgs, " "), strings.TrimSpace(string(output)))
+	if output, err := claudeOutput(refreshArgs...); err != nil {
+		commandErr := fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(refreshArgs, " "), claudeFailureText(output, err))
 		if localMode {
 			return restoreMarketplace(commandErr)
 		}
 		if alreadyInstalled {
 			text := strings.TrimSpace(string(output))
 			if strings.Contains(strings.ToLower(text), "not found") || strings.Contains(strings.ToLower(text), "not installed") {
-				installCmd := claudeCommand("plugin", "install", "ha-nova@ha-nova")
-				if installOutput, installErr := installCmd.CombinedOutput(); installErr == nil {
+				if installErr := claudeStep("plugin", "install", "ha-nova@ha-nova"); installErr == nil {
 					if verifyErr := verifyClaudePluginInstalled(paths, marketplaceRoot); verifyErr != nil {
 						return verifyErr
 					}
@@ -70,7 +71,7 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 					warnClaudeProfileRedirect(paths)
 					return nil
 				} else {
-					return restoreMarketplace(fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(installCmd.Args[1:], " "), strings.TrimSpace(string(installOutput))))
+					return restoreMarketplace(installErr)
 				}
 			}
 		}
@@ -99,17 +100,15 @@ func resetClaudeLocalPluginState(home string) error {
 		return removeClaudePluginCache(home)
 	}
 
-	cmd := claudeCommand("plugin", "remove", "ha-nova@ha-nova")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		message := strings.TrimSpace(string(output))
-		lower := strings.ToLower(message)
+	if output, err := claudeOutput("plugin", "remove", "ha-nova@ha-nova"); err != nil {
+		lower := strings.ToLower(strings.TrimSpace(string(output)))
 		if strings.Contains(lower, "not found") || strings.Contains(lower, "not installed") {
 			if err := removeClaudePluginRecord(home); err != nil {
 				return err
 			}
 			return removeClaudePluginCache(home)
 		}
-		return fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(cmd.Args[1:], " "), message)
+		return fmt.Errorf("claude plugin command failed: plugin remove ha-nova@ha-nova (%s)", claudeFailureText(output, err))
 	}
 	if err := removeClaudePluginRecord(home); err != nil {
 		return err
@@ -137,14 +136,12 @@ func removeClaudeMarketplace(home string, report *uninstallReport) error {
 		return nil
 	}
 
-	cmd := claudeCommand("plugin", "marketplace", "remove", "ha-nova")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		message := strings.TrimSpace(string(output))
-		lower := strings.ToLower(message)
+	if output, err := claudeOutput("plugin", "marketplace", "remove", "ha-nova"); err != nil {
+		lower := strings.ToLower(strings.TrimSpace(string(output)))
 		if strings.Contains(lower, "not found") || strings.Contains(lower, "not installed") || strings.Contains(lower, "unknown marketplace") {
 			return nil
 		}
-		return fmt.Errorf("claude marketplace removal failed: %s", message)
+		return fmt.Errorf("claude marketplace removal failed: %s", claudeFailureText(output, err))
 	}
 	if report != nil {
 		report.addRemoved("Claude marketplace ha-nova")
