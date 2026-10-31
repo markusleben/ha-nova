@@ -62,6 +62,8 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain("**A leftover Home Assistant Link is explained.**");
     expect(stableNotes).toContain("**Setup says which Claude gets HA NOVA.** Claude Code is the claude command and the Code tab in Claude Desktop.");
     expect(stableNotes).toContain("**Setup explains the owner sign-in.** The owner connects each computer once");
+    // Every claude call has a deadline (#911); the update to 0.28.0 still runs the old binary's sync, so only later updates.
+    expect(stableNotes).toContain("**A stuck Claude Code no longer hangs setup, doctor, or later updates.**");
     expect(stableNotes).toContain("**Disabling a lock's device is refused.**");
     // Household levels for chat apps (#900 and the NOVA page's list).
     expect(stableNotes).toContain("**Chat apps for everyone in your home.**");
