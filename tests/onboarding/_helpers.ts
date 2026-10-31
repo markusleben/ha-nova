@@ -257,9 +257,17 @@ export function goCacheEnv(): Record<string, string> {
   return goCacheEnvMemo;
 }
 
-/** Env for a `go` child: its own temp HOME (go keeps its telemetry there) and the real caches. */
+/**
+ * Env for a `go` child: its own temp home (go keeps its telemetry there; on
+ * Windows under APPDATA) and the real caches.
+ */
 export function goEnv(): NodeJS.ProcessEnv {
-  return { ...process.env, HOME: makeTempDir("ha-nova-go-home-"), ...goCacheEnv() };
+  const home = makeTempDir("ha-nova-go-home-");
+  const windows =
+    process.platform === "win32"
+      ? { USERPROFILE: home, APPDATA: join(home, "AppData", "Roaming"), LOCALAPPDATA: join(home, "AppData", "Local") }
+      : {};
+  return { ...process.env, HOME: home, ...windows, ...goCacheEnv() };
 }
 
 /** Build PATH with mock bin dir prepended */
