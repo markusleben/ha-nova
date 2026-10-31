@@ -25,6 +25,19 @@ const (
 	fakeClaudeHold     = "--hold-output"
 )
 
+// A process the tests start with claudeCallerEnv set is ha-nova making
+// one claude call (claude_process_unix_test.go signals it).
+const claudeCallerEnv = "HA_NOVA_TEST_CLAUDE_CALLER"
+
+func runClaudeCaller() int {
+	os.Unsetenv(claudeCallerEnv) // the claude it starts is the fake, not another caller
+	if _, err := claudeOutput("plugin", "install", "ha-nova@ha-nova"); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	return 0
+}
+
 // runFakeClaude acts like `claude` on the plugin files in the home dir,
 // except for the call fakeClaudeStallEnv names.
 func runFakeClaude(dir string, args []string) int {
