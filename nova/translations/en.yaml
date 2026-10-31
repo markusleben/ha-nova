@@ -2,14 +2,14 @@ configuration:
   relay_auth_token:
     name: Relay Auth Token (legacy/advanced)
     description: >-
-      Existing installs may keep their shared relay token here.
-      HA NOVA 0.27 is the last release that accepts it: run
-      ha-nova setup once on each computer to switch (a --service
+      Old installs may still use this shared key. The App accepts it
+      on the local connection, never through Home Assistant Link.
+      Run ha-nova setup once on each computer to switch (a --service
       install: ha-nova pair --credential-store=file). When every
       computer has switched, choose "Revoke legacy access" on the
       NOVA page.
-      New installs should leave this empty: the App creates and
-      persists a private token for pairing automatically.
+      New installs leave this empty: each computer gets its own key
+      when it connects.
   ha_llat:
     name: Home Assistant Access Token (legacy migration only)
     description: >-

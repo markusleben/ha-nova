@@ -84,7 +84,9 @@ describe("app config contract", () => {
 
     const relayToken = translations.configuration.relay_auth_token?.description ?? "";
     expect(relayToken).toContain("leave this empty");
-    expect(relayToken).toContain("persists");
+    expect(relayToken).toContain("never through Home Assistant Link");
+    expect(relayToken).toContain("each computer gets its own key");
+    expect(relayToken).not.toContain("last release");
   });
 
   // Supervisor pulls `image:` per arch; an arch without a build_from base has
