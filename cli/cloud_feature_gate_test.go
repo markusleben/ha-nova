@@ -170,6 +170,7 @@ func TestCloudRemoteReleaseBuildIgnoresDevelopmentLDFlags(t *testing.T) {
 		return
 	}
 
+	t.Setenv("HOME", t.TempDir()) // the go command keeps its telemetry under HOME
 	command := exec.Command(
 		"go",
 		"test",
@@ -249,6 +250,7 @@ func TestCloudRemoteBuildTagsSelectIsolatedIdentities(t *testing.T) {
 		return
 	}
 
+	t.Setenv("HOME", t.TempDir()) // the go command keeps its telemetry under HOME
 	for _, testCase := range []struct {
 		mode    string
 		tag     string

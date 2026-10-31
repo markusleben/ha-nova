@@ -32,6 +32,7 @@ func desktopClaudeTestHome(t *testing.T) string {
 
 func writeDesktopClaude(t *testing.T, home, version, body string) string {
 	t.Helper()
+	requireTestHome(t, home)
 	dir := filepath.Join(home, "Library", "Application Support", "Claude", "claude-code", version, "a93ded4b1b47")
 	path := filepath.Join(dir, "claude.app", "Contents", "MacOS", "claude")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

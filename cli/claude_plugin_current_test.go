@@ -14,6 +14,7 @@ import (
 // install 0.27.3. It logs every call and answers no --json list.
 func installStaleClaudeMock(t *testing.T, home string, stale int) string {
 	t.Helper()
+	requireTestHome(t, home)
 	binDir := filepath.Join(t.TempDir(), "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		t.Fatalf("mkdir bin: %v", err)

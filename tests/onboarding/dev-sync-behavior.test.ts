@@ -11,7 +11,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { createMockBinaries, mockEnv, REPO_ROOT } from "./_helpers.js";
+import { createMockBinaries, goEnv, mockEnv, REPO_ROOT } from "./_helpers.js";
 import { makeTempDir } from "../helpers/temp-dir.js";
 
 function writeState(home: string, installedClients: string[]): void {
@@ -324,6 +324,7 @@ describe("dev-sync behavior", () => {
         {
           cwd: join(REPO_ROOT, "cli"),
           encoding: "utf8",
+          env: goEnv(),
           timeout: 90000,
         },
       );

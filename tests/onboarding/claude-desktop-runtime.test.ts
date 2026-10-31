@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 
 import { expect, it } from "vitest";
 
-import { REPO_ROOT } from "./_helpers.js";
+import { goEnv, REPO_ROOT } from "./_helpers.js";
 
 it("uses Desktop's bundled Claude Code without changing PATH users' profile", { timeout: 180000 }, () => {
   const tests = [
@@ -42,6 +42,7 @@ it("uses Desktop's bundled Claude Code without changing PATH users' profile", { 
   const result = spawnSync("go", ["test", "-p", "2", "./...", "-run", `^(${tests.join("|")})$`, "-count=1", "-v"], {
     cwd: `${REPO_ROOT}/cli`,
     encoding: "utf8",
+    env: goEnv(),
     timeout: 170000,
   });
   expect(result.status, result.stdout + result.stderr).toBe(0);
