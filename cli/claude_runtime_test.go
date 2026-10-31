@@ -116,7 +116,7 @@ func TestDesktopClaudePATHAlwaysWinsIncludingCommandFailure(t *testing.T) {
 	if got, err := claudeRuntimePath(); err != nil || got != path {
 		t.Fatalf("runtime = %q, %v; want PATH %q", got, err, path)
 	}
-	output, err := claudeCommand("plugin", "install", "ha-nova@ha-nova").CombinedOutput()
+	output, err := claudeOutput("plugin", "install", "ha-nova@ha-nova")
 	if err == nil || string(output) != os.Getenv("CLAUDE_CONFIG_DIR") {
 		t.Fatalf("PATH command = %q, %v", output, err)
 	}
@@ -152,7 +152,7 @@ func TestDesktopClaudeUserLocalRuntimeStillWins(t *testing.T) {
 	if got, err := claudeRuntimePath(); err != nil || got != local || !clientRuntimeDetected("claude") {
 		t.Fatalf("user-local runtime = %q, %v; want %q", got, err, local)
 	}
-	if output, err := claudeCommand("--version").Output(); err != nil || string(output) != "user-local\n" {
+	if output, err := claudeOutput("--version"); err != nil || string(output) != "user-local\n" {
 		t.Fatalf("user-local command = %q, %v", output, err)
 	}
 	if log := mockInvocations(t, bundled+".log"); log != "" {

@@ -26,6 +26,9 @@ import (
 // fallback paths behave like on claude-less CI. Tests that need claude
 // behavior prepend their own mock in front of it.
 func TestMain(m *testing.M) {
+	if dir := os.Getenv(fakeClaudeEnv); dir != "" { // started as `claude` (claude_timeout_test.go)
+		os.Exit(runFakeClaude(dir, os.Args[1:]))
+	}
 	testSecretDirForRuntime = func() (string, bool) {
 		dir := strings.TrimSpace(os.Getenv("HA_NOVA_TEST_SECRET_DIR"))
 		return dir, dir != ""

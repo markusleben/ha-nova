@@ -131,11 +131,7 @@ func validateClaudeMarketplaceRoot(root string) error {
 	if _, err := os.Stat(filepath.Join(root, "ha-nova")); err != nil {
 		return fmt.Errorf("Claude marketplace plugin payload missing: %w", err)
 	}
-	cmd := claudeCommand("plugin", "validate", root)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(cmd.Args[1:], " "), strings.TrimSpace(string(output)))
-	}
-	return nil
+	return claudeStep("plugin", "validate", root)
 }
 
 func replaceClaudeMarketplaceRoot(targetRoot, stagedRoot string) error {
@@ -257,11 +253,7 @@ func restoreClaudeLocalState(home string, restore claudeLocalRestoreState) error
 	}
 
 	if restore.pluginInstalled {
-		cmd := claudeCommand("plugin", "install", "ha-nova@ha-nova")
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(cmd.Args[1:], " "), strings.TrimSpace(string(output)))
-		}
-		return nil
+		return claudeStep("plugin", "install", "ha-nova@ha-nova")
 	}
 
 	if err := resetClaudeLocalPluginState(home); err != nil {
@@ -308,27 +300,18 @@ func rewriteClaudeMarketplaceManifest(manifestPath, pluginSource string) ([]byte
 }
 
 func addClaudeMarketplace(source string) error {
-	cmd := claudeCommand("plugin", "marketplace", "add", source)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(cmd.Args[1:], " "), strings.TrimSpace(string(output)))
-	}
-	return nil
+	return claudeStep("plugin", "marketplace", "add", source)
 }
 
 func updateClaudeMarketplaceRegistration() error {
-	cmd := claudeCommand("plugin", "marketplace", "update", "ha-nova")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(cmd.Args[1:], " "), strings.TrimSpace(string(output)))
-	}
-	return nil
+	return claudeStep("plugin", "marketplace", "update", "ha-nova")
 }
 
 func replaceClaudeMarketplaceRegistration(source string) error {
-	removeCmd := claudeCommand("plugin", "marketplace", "remove", "ha-nova")
-	if output, err := removeCmd.CombinedOutput(); err != nil {
+	if output, err := claudeOutput("plugin", "marketplace", "remove", "ha-nova"); err != nil {
 		text := strings.ToLower(strings.TrimSpace(string(output)))
 		if !strings.Contains(text, "not found") && !strings.Contains(text, "not installed") && !strings.Contains(text, "unknown marketplace") {
-			return fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(removeCmd.Args[1:], " "), strings.TrimSpace(string(output)))
+			return fmt.Errorf("claude plugin command failed: plugin marketplace remove ha-nova (%s)", claudeFailureText(output, err))
 		}
 	}
 	return addClaudeMarketplace(source)
@@ -354,11 +337,10 @@ func claudeMarketplaceRegistered(home string) bool {
 }
 
 func clearClaudeMarketplaceRegistration(home string) error {
-	removeCmd := claudeCommand("plugin", "marketplace", "remove", "ha-nova")
-	if output, err := removeCmd.CombinedOutput(); err != nil {
+	if output, err := claudeOutput("plugin", "marketplace", "remove", "ha-nova"); err != nil {
 		text := strings.ToLower(strings.TrimSpace(string(output)))
 		if !strings.Contains(text, "not found") && !strings.Contains(text, "not installed") && !strings.Contains(text, "unknown marketplace") {
-			return fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(removeCmd.Args[1:], " "), strings.TrimSpace(string(output)))
+			return fmt.Errorf("claude plugin command failed: plugin marketplace remove ha-nova (%s)", claudeFailureText(output, err))
 		}
 	}
 	_, err := removeClaudeMarketplaceRecord(home)
