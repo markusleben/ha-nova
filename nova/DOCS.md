@@ -200,8 +200,9 @@ and ChatGPT (web, on a computer), without a computer running HA NOVA. They are o
 - **Who can use it:** NOVA page → Chat apps → "Who can use it". At first only
   the owner. Tick other Home Assistant users (each needs their own login) and
   pick a level: Ask only (questions), Use the home (controls lights, switches,
-  fans, climate, covers, locks, the alarm, media players, vacuums, and helpers,
-  and runs existing scenes, scripts, and automations; unlocking a door, opening
+  fans, climate, covers, valves, locks, the alarm, sirens, media players,
+  vacuums, humidifiers, water heaters, and toggle, number, dropdown, and button
+  helpers, and runs existing scenes, scripts, and automations; unlocking a door, opening
   a garage door or gate, and turning off the alarm need a tap on their own
   linked phone, never a chat code; can't change automations, scripts,
   dashboards, or device settings), or Manage everything (administrators only). A level never goes
@@ -217,7 +218,7 @@ and ChatGPT (web, on a computer), without a computer running HA NOVA. They are o
 - **Confirmations:** the same rules as on a computer. Unlocks, opening a
   garage door or gate, turning off the alarm, and deletes wait for a tap on the
   linked phone of whoever asked. Below Manage everything, deletes and other
-  setup changes are refused, even with a phone. No phone? At
+  configuration changes are refused, even with a phone. No phone? At
   Manage everything, a four-digit code in the chat; the AI can see that code
   too. Below that, never a code: it's refused. You can turn off codes in the chat (risky changes
   then need the phone) or let chat apps only read.
@@ -317,7 +318,8 @@ A healthy answer looks like this (shortened):
 - Run `ha-nova cloud unlock --server <name>` on the computer itself, at its
   screen.
 - Don't run Link commands with `sudo`, over SSH (except `ha-nova cloud add
-  --remote-resume`), in WSL, as a service, or in a container.
+  --remote-resume` or `ha-nova cloud reconnect --remote-resume`), in WSL, as a
+  service, or in a container.
 - On Linux, you need a desktop with a password store (a Secret Service).
 
 **Link doesn't work**

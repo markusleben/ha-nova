@@ -86,7 +86,7 @@ release:
     - **One confirmation for up to 20 automation and script changes.** Deletes too. The window names every item and what happens to it; the phone shows how many and the riskiest one. Undo now covers the last 25 changed items.
     - **More of Home Assistant's settings.** Integrations, repairs, users, general settings, backup schedule, Labs, statistics import, deleting a device or blueprint. Preview first; deletes and sensitive changes take your OK.
     - **Apps and their logs, on HA OS.** Read Supervisor, Core, host, and App logs; install or remove an App, or change its settings, after your own OK. Also in chat apps; on a computer, not through Home Assistant Link.
-    - **"Your setup" when you run setup again.** What is done and what is left, with a button for each open step (in the terminal, its command). Another AI app can use HA NOVA too: setup shows what to paste.
+    - **"Your setup" when you run setup again.** What is done and what is left, with a button for each open step (in the terminal, its command). Another AI app on this computer can use HA NOVA too: setup shows what to paste.
     - **Recent changes from chat apps.** The NOVA page lists the last 20, newest first: who asked, what changed, and whether their phone or a chat code confirmed it.
     - **Setup can move to another Home Assistant.** When something needs a fix, "Use another Home Assistant" asks for the new address. Without a key, setup no longer says the NOVA App doesn't answer.
     - **Claude stops asking before every step, if you let it.** The setup page and the NOVA page say what to set: with a phone linked for chat apps, every tool on "Always allow"; without one, all but "Run a confirmed change".
@@ -102,7 +102,7 @@ release:
 
     ## Bug Fixes
 
-    - **Answered on the computer, the phone's question disappears.** The first answer counts. An answer in the window no longer leaves a second note on the phone.
+    - **Answered on the computer, the phone's question disappears.** The first answer counts. An answer in the window no longer leaves a result note on the phone.
     - **Changes now work in homes with Nuki locks.** Nuki, for one, gives Home Assistant number IDs. HA NOVA couldn't read them, so many changes and the phone setup failed. It now reads number IDs too.
     - **Setup asks whose phone should confirm on this computer.** It lists every administrator's phone with its person and picks none for you. A person whose entity is disabled in Home Assistant no longer hides their phone.
     - **Setup's optional questions stay readable.** In the terminal, their answers stay on screen after setup ends, and a cancelled Link sign-in no longer skips the phone and the other questions.
