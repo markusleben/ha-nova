@@ -253,6 +253,12 @@ jobs:
           Set-Location cli
           go test -count=1 -run '^(TestWindowsOAuthNativeOperationsHonorHardDeadline|TestNativeSecretWorker.*)$' .
 
+      - name: Verify claude calls stop on time
+        shell: pwsh
+        run: |
+          Set-Location cli
+          go test -count=1 -run '^(TestClaudeCallStopsOnTime|TestRunInternalReplaceSurvivesStalledClaude)$' .
+
   windows-powershell-unicode:
     name: windows-powershell-unicode
     needs: test-inventory

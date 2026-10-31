@@ -208,10 +208,7 @@ func readClaudePluginListWithEnv(env []string) (found, usable, ok bool) {
 		return false, false, false
 	}
 	defer os.Remove(outFile.Name())
-	cmd := claudeCommand("plugin", "list", "--json")
-	cmd.Env = env
-	cmd.Stdout = outFile
-	runErr := cmd.Run()
+	runErr := runClaude(env, outFile, nil, "plugin", "list", "--json")
 	closeErr := outFile.Close()
 	if runErr != nil || closeErr != nil {
 		return false, false, false

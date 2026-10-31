@@ -1,14 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -31,13 +35,113 @@ func claudeRuntimePath() (string, error) {
 	return "claude", err
 }
 
-func claudeCommand(args ...string) *exec.Cmd {
-	path, err := claudeRuntimePath()
-	cmd := exec.Command(path, args...)
-	if err != nil {
-		cmd.Err = err
+// Every `claude` call has a deadline: Claude Code can stop answering (a
+// prompt nobody sees, a stuck download, a lock another session holds), and
+// the update helper calls it while it holds the update lock. Installs and
+// downloads get minutes, everything else seconds. Test seams.
+var (
+	claudeQuickTimeout = 30 * time.Second
+	claudeSlowTimeout  = 3 * time.Minute
+	// claudeWaitDelay: how long a claude that exited or was stopped may
+	// leave a child holding its output open before HA NOVA closes it.
+	claudeWaitDelay = 5 * time.Second
+)
+
+// claudeStalled is the first claude call of this process that ran out of
+// time. Every later call fails at once with it, so one hung Claude Code
+// costs a run one timeout, not one per step and rollback step.
+var claudeStalled atomic.Pointer[claudeTimeoutError]
+
+type claudeTimeoutError struct {
+	step    string
+	timeout time.Duration
+}
+
+func (e *claudeTimeoutError) Error() string {
+	return fmt.Sprintf("`claude %s` didn't finish within %s, so HA NOVA stopped it and skips Claude Code for the rest of this run. Open Claude Code once and finish any prompt it shows, then run the same ha-nova command again", e.step, e.timeout)
+}
+
+// claudeOutput runs one claude CLI step and returns its combined output.
+func claudeOutput(args ...string) ([]byte, error) {
+	var output bytes.Buffer
+	err := runClaude(nil, &output, &output, args...)
+	return output.Bytes(), err
+}
+
+// claudeStep runs one claude CLI step that must succeed.
+func claudeStep(args ...string) error {
+	if output, err := claudeOutput(args...); err != nil {
+		return fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(args, " "), claudeFailureText(output, err))
 	}
-	return cmd
+	return nil
+}
+
+// claudeFailureText: why a claude step failed, for its error message: the
+// timeout, or what Claude Code printed.
+func claudeFailureText(output []byte, err error) string {
+	var stalled *claudeTimeoutError
+	if errors.As(err, &stalled) {
+		return stalled.Error()
+	}
+	return strings.TrimSpace(string(output))
+}
+
+// runClaude runs one claude CLI step with env (nil: this process's) and an
+// empty stdin. Installs, updates, and marketplace adds get
+// claudeSlowTimeout; lists, validation, and removals claudeQuickTimeout.
+func runClaude(env []string, stdout, stderr io.Writer, args ...string) error {
+	if stalled := claudeStalled.Load(); stalled != nil {
+		return stalled
+	}
+	path, err := claudeRuntimePath()
+	if err != nil {
+		return err
+	}
+	verb := ""
+	if len(args) > 1 {
+		verb = args[1]
+	}
+	if verb == "marketplace" && len(args) > 2 {
+		verb = args[2]
+	}
+	timeout := claudeQuickTimeout
+	if verb == "install" || verb == "update" || verb == "add" {
+		timeout = claudeSlowTimeout
+	}
+	timedOut, err := runWithDeadline(path, args, timeout, claudeWaitDelay, env, stdout, stderr)
+	if timedOut {
+		claudeStalled.CompareAndSwap(nil, &claudeTimeoutError{step: strings.Join(args, " "), timeout: timeout})
+		return claudeStalled.Load()
+	}
+	return err
+}
+
+// runWithDeadline runs path with an empty stdin (os.DevNull) and, after
+// timeout, kills it with everything it started. A process that exited
+// cleanly but left a child holding its output open counts as done once
+// waitDelay closes that output.
+func runWithDeadline(path string, args []string, timeout, waitDelay time.Duration, env []string, stdout, stderr io.Writer) (timedOut bool, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, path, args...)
+	cmd.Env, cmd.Stdout, cmd.Stderr = env, stdout, stderr
+	cmd.WaitDelay = waitDelay
+	tree := newClaudeProcessTree(cmd)
+	defer tree.release()
+	var stopped atomic.Bool
+	cmd.Cancel = func() error {
+		stopped.Store(true)
+		return tree.kill()
+	}
+	if err := cmd.Start(); err != nil {
+		return false, err
+	}
+	tree.adopt()
+	err = cmd.Wait()
+	if err == nil || errors.Is(err, exec.ErrWaitDelay) {
+		return false, nil
+	}
+	return stopped.Load(), err
 }
 
 func claudeDesktopRuntime(home string) string {
@@ -90,16 +194,12 @@ func claudeDesktopRuntimeWorks(path, version string) bool {
 		{[]string{"plugin", "--help"}, []string{"install", "update", "remove", "list", "validate"}},
 		{[]string{"plugin", "marketplace", "--help"}, []string{"add", "remove", "update"}},
 	} {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		cmd := exec.CommandContext(ctx, path, probe.args...)
-		cmd.WaitDelay = 100 * time.Millisecond
-		output, err := cmd.Output()
-		cancel()
-		if err != nil {
+		var output bytes.Buffer
+		if _, err := runWithDeadline(path, probe.args, 3*time.Second, 100*time.Millisecond, nil, &output, nil); err != nil {
 			return false
 		}
 		for _, want := range probe.want {
-			if !strings.Contains(string(output), want) {
+			if !strings.Contains(output.String(), want) {
 				return false
 			}
 		}

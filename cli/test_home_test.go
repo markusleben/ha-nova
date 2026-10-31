@@ -95,4 +95,7 @@ func TestTestFakesRefuseHomesOutsideTemp(t *testing.T) {
 			t.Fatalf("home %q outside the temp dir accepted", home)
 		}
 	}
+	if code := runFakeClaude(t.TempDir(), []string{"plugin", "install", "ha-nova@ha-nova"}); code == 0 || os.Getenv(fakeClaudeHomeEnv) != "" {
+		t.Fatalf("fake claude without a test home exit = %d, want a refusal", code)
+	}
 }

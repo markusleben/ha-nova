@@ -135,9 +135,10 @@ func postUpdateSyncWithResultUnlocked(paths runtimePaths, automatic bool) postUp
 	fullySynced := len(failed) == 0 && len(skipped) == 0 && len(unverified) == 0 && len(residue) == 0
 	if fullySynced {
 		state.ClientsVerifiedVersion = version
-	} else if len(residue) > 0 || len(unverified) > 0 {
-		// Residue or a failed attachment check proves a client is stale. Clear a
-		// matching marker so the next check-update or doctor run retries the repair.
+	} else if len(residue) > 0 || len(unverified) > 0 || claudeStalled.Load() != nil {
+		// Residue, a failed attachment check, or a Claude Code that stopped
+		// answering mid-sync proves a client is stale. Clear a matching marker
+		// so the next check-update or doctor run retries the repair.
 		state.ClientsVerifiedVersion = ""
 	}
 	if err := saveState(paths, state); err != nil {
