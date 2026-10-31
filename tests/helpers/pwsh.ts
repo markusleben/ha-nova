@@ -1,30 +1,41 @@
 /**
- * pwsh for installer tests, without telemetry. On a fresh CI runner the
- * first pwsh starts of two test files, at the same moment, hung for 35 s
- * (run 39223271065) or died at startup with exit 0 (run 39347184646); later
- * starts never failed. Suspected cause (not reproduced locally): telemetry
- * setup, the shared first-start step. It creates the per-user telemetry UUID
- * file under a named mutex that pwsh 7.6.x (the runner's) can hold until
- * exit, which explains the linked hang (fixed upstream in PowerShell#28026,
- * not in any 7.6 release); the exit-0 crash fits a telemetry background
- * thread failing. Opting out skips all telemetry setup.
+ * pwsh for installer tests. Every pwsh exit rewrites the .NET startup JIT
+ * profile (StartupProfileData-NonInteractive) in place in its cache dir. Two
+ * pwsh processes that share that dir and exit together can tear the file, and
+ * the next pwsh that reads it dies in the profile player before it runs
+ * anything (ArgumentException or FileLoadException from
+ * AssemblyName.ParseAsAssemblySpec). The host then prints only "An error has
+ * occurred that was not properly handled" and can still exit 0 (run
+ * 41056840500). vitest runs both pwsh test files in parallel, so each file
+ * gets its own cache dir; inside a file the starts are sequential. Telemetry
+ * stays off: its first-start mutex can block a parallel start until exit
+ * (PowerShell#28026).
  */
 import { spawnSync } from "node:child_process";
 
-export const pwshEnv: NodeJS.ProcessEnv = { ...process.env, POWERSHELL_TELEMETRY_OPTOUT: "1" };
+import { makeTempDir } from "./temp-dir.js";
+
+export const pwshEnv: NodeJS.ProcessEnv = {
+  ...process.env,
+  POWERSHELL_TELEMETRY_OPTOUT: "1",
+  XDG_CACHE_HOME: makeTempDir("ha-nova-pwsh-cache-"),
+};
+
+const PROBE_MARKER = "ha-nova-pwsh-probe-ok";
 
 let available: boolean | undefined;
 
 /**
  * One probe spawn per test file, not one per test. Only a missing pwsh skips
- * (never in CI, which installs it); a pwsh that is there but fails throws.
+ * (never in CI, which installs it). A pwsh that is there but fails throws,
+ * including one that exits 0 without running the probe.
  */
 export function hasPowerShell(): boolean {
   if (available !== undefined) return available;
-  const probe = spawnSync("pwsh", ["-NoProfile", "-Command", "exit 0"], { encoding: "utf8", env: pwshEnv });
+  const probe = spawnSync("pwsh", ["-NoProfile", "-Command", `'${PROBE_MARKER}'`], { encoding: "utf8", env: pwshEnv });
   const missing = (probe.error as NodeJS.ErrnoException | undefined)?.code === "ENOENT";
   if (missing && process.env.CI) throw new Error("pwsh is missing on CI; the installer tests need it");
-  if (!missing && probe.status !== 0) {
+  if (!missing && (probe.status !== 0 || !probe.stdout?.includes(PROBE_MARKER))) {
     throw new Error(`pwsh probe failed (status ${probe.status}, signal ${probe.signal}): ${probe.error ?? ""}${probe.stdout}${probe.stderr}`);
   }
   available = !missing;
