@@ -1,13 +1,14 @@
 import { spawnSync } from "node:child_process";
 
 import { describe, expect, it } from "vitest";
-import { REPO_ROOT } from "./_helpers.js";
+import { goEnv, REPO_ROOT } from "./_helpers.js";
 
 describe("go runtime onboarding contract", () => {
   function expectGoTestsToPass(pattern: string): void {
     const result = spawnSync("go", ["test", "./...", "-run", pattern, "-count=1"], {
       cwd: `${REPO_ROOT}/cli`,
       encoding: "utf8",
+      env: goEnv(),
       timeout: 180000,
     });
 

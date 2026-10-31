@@ -759,6 +759,7 @@ func TestRemoveInstalledClientsRemovesHermesSkillTreeWhenStateMissesHermes(t *te
 
 func installClaudeMock(t *testing.T, home, logPath string) string {
 	t.Helper()
+	requireTestHome(t, home)
 
 	binDir := filepath.Join(t.TempDir(), "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {

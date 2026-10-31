@@ -135,7 +135,15 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	os.Setenv("PATH", stubDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	sharedHome := ""
+	if ownsTestRoot { // helper processes keep the HOME their test gave them
+		sharedHome = isolateTestHome(testRoot)
+	}
 	code := m.Run()
+	if written := sharedHomeWrites(sharedHome); sharedHome != "" && len(written) > 0 {
+		fmt.Fprintf(os.Stderr, "FAIL: tests wrote under the shared test HOME; give each its own (t.Setenv(\"HOME\", t.TempDir())):\n  %s\n", strings.Join(written, "\n  "))
+		code = 1
+	}
 	if ownsTestRoot {
 		os.RemoveAll(testRoot)
 	}

@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { createMockHome, REPO_ROOT } from "./_helpers.js";
+import { createMockHome, goEnv, REPO_ROOT } from "./_helpers.js";
 import { makeTempDir } from "../helpers/temp-dir.js";
 
 describe("relay cli contract", () => {
@@ -29,6 +29,7 @@ describe("relay cli contract", () => {
     const build = spawnSync("go", ["build", "-o", cliBinary, "."], {
       cwd: `${REPO_ROOT}/cli`,
       encoding: "utf8",
+      env: goEnv(),
       timeout: 120000,
     });
     if (build.status !== 0) {
