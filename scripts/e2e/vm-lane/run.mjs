@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as pause } from "node:timers/promises";
+import { winTransport } from "./transport.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const REPO = "markusleben/ha-nova";
@@ -55,6 +56,7 @@ for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => { stopping 
 const say = (line) => console.log(`vm-lane: ${line}`);
 const sleep = (ms) => pause(ms, undefined, { signal: cleaning ? undefined : cancellation.signal });
 function row(step, check, result, detail = "") {
+  ({ result, detail } = judge(result, String(detail)));
   rows.push({ step, check, result, detail: String(detail).replace(/\s+/g, " ").trim().slice(0, 240) });
   say(`${step} ${check}: ${result}${detail ? ` (${rows.at(-1).detail})` : ""}`);
   return result === "PASS";
@@ -72,34 +74,32 @@ const clean = (s) => Object.values(PASSWORDS).reduce((text, secret) => text.repl
 const tail = (s, n = 2) => clean(s).split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(-n).join(" | ");
 
 // ---- ssh into a VM -------------------------------------------------------------------
-// Resolves {code, out}; out also lands in WORK/<log>. tty: an interactive session whose
-// onData sees the output so far and decides when to hang up.
-function ssh(vm, user, cmd, { input, tty = false, timeoutMs = 10 * 60_000, log = "ssh.log", onData, cleanup = false } = {}) {
+// Resolves {code, out}; out also lands in WORK/<log>. tty: an interactive session whose onData sees
+// the output so far and decides when to hang up. upload: scp that local file to cmd, in the user's home.
+function ssh(vm, user, cmd, { input, tty = false, timeoutMs = 10 * 60_000, log = "ssh.log", onData, signal, upload, cleanup = false } = {}) {
   if (stopping && !cleaning && !cleanup) throw new Error("lane interrupted; proceeding to cleanup");
   const pw = PASSWORDS[user];
   const auth = pw ? ["-o", "PubkeyAuthentication=no", "-o", "PreferredAuthentications=password", "-o", "NumberOfPasswordPrompts=1"] : ["-i", vm.key, "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes"];
-  const args = [...auth, "-o", "StrictHostKeyChecking=accept-new", "-o", `UserKnownHostsFile=${vm.knownHosts}`, "-o", "LogLevel=ERROR",
-    "-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=15", "-p", String(vm.port), ...(tty ? ["-tt"] : []), `${user}@127.0.0.1`, cmd];
+  const opts = [...auth, "-o", "StrictHostKeyChecking=accept-new", "-o", `UserKnownHostsFile=${vm.knownHosts}`, "-o", "LogLevel=ERROR", "-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=15"];
+  const [bin, args] = upload ? ["scp", ["-q", ...opts, "-P", String(vm.port), upload, `${user}@127.0.0.1:${cmd}`]]
+    : ["ssh", [...opts, "-p", String(vm.port), ...(tty ? ["-tt"] : []), `${user}@127.0.0.1`, cmd]];
   return new Promise((done) => {
-    const child = spawn("ssh", args, { stdio: ["pipe", "pipe", "pipe"], env: pw ? { ...process.env, SSH_ASKPASS: ASKPASS, SSH_ASKPASS_REQUIRE: "force", VM_LANE_PW: pw } : process.env });
+    const child = spawn(bin, args, { stdio: ["pipe", "pipe", "pipe"], env: pw ? { ...process.env, SSH_ASKPASS: ASKPASS, SSH_ASKPASS_REQUIRE: "force", VM_LANE_PW: pw } : process.env });
     children.add(child);
     child.stdin.on("error", () => {});
+    signal?.addEventListener("abort", () => child.kill("SIGKILL"), { once: true });
     let out = "";
     const timer = setTimeout(() => { out += "\n[vm-lane: timed out]\n"; child.kill("SIGKILL"); }, timeoutMs);
     const take = (d) => { out += d; onData?.(out, child); };
     child.stdout.on("data", take);
     child.stderr.on("data", take);
-    child.on("close", (code) => { clearTimeout(timer); children.delete(child); appendFileSync(join(WORK, log), `\n$ ${user}: ${cmd.slice(0, 200)}\n${clean(out)}\n[exit ${code}]\n`); done({ code, out: clean(out) }); });
+    child.on("close", (code) => { clearTimeout(timer); children.delete(child); appendFileSync(join(WORK, log), `\n$ ${user}: ${upload ? `scp ${cmd}` : cmd.slice(0, 200)}\n${clean(out)}\n[exit ${code}]\n`); done({ code, out: clean(out) }); });
     if (!tty) child.stdin.end(input ?? "");
   });
 }
 const SHELL = { ps7: CFG.pwsh7, ps51: "powershell.exe" };
-const PRELUDE = "$ProgressPreference='SilentlyContinue'\n[Console]::OutputEncoding=[Text.Encoding]::UTF8\n";
-// A terminal session gets its script on the command line; every other script goes over stdin
-// (cmd.exe caps a command line at 8191 characters) and runs as one script block.
-const win = (user, shell, ps, o = {}) => o.tty
-  ? ssh(CFG.win, user, `"${SHELL[shell]}" -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${Buffer.from(PRELUDE + ps, "utf16le").toString("base64")}`, { log: `win-${user}.log`, ...o })
-  : ssh(CFG.win, user, `"${SHELL[shell]}" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "[Console]::InputEncoding=[Text.Encoding]::UTF8; & ([scriptblock]::Create([Console]::In.ReadToEnd()))"`, { log: `win-${user}.log`, input: PRELUDE + ps, ...o });
+// Scripts travel as files, never over stdin (transport.mjs); cmd.exe caps a command line at 8191 characters.
+const { win, judge } = winTransport({ ssh: (user, cmd, o) => ssh(CFG.win, user, cmd, { log: `win-${user}.log`, ...o }), dir: WORK, shells: SHELL });
 const admin = (ps, o) => win(CFG.win.user, "ps51", `$ErrorActionPreference='Stop'\n${ps}`, o);
 // HA NOVA fails closed in session 0 (SSH, services): no Credential Manager, no window. A
 // lane user's command runs in the console session instead: a one-shot task of the signed-in
@@ -302,7 +302,7 @@ $off=@(Get-NetFirewallProfile | Where-Object Enabled -eq $false).Count
 const LANE_RE = "^nova(-lane[57]|[57]-[0-9a-f]{6})$";
 const laneUsers = (u, pw) => `$re='${LANE_RE}'
 Get-ScheduledTask | Where-Object TaskName -like 'vm-lane-*' | ForEach-Object { Stop-ScheduledTask -TaskName $_.TaskName; Unregister-ScheduledTask -TaskName $_.TaskName -Confirm:$false }
-if (Test-Path C:\\Tools\\vm-lane\\jobs) { Remove-Item C:\\Tools\\vm-lane\\jobs\\* -Force }
+if (Test-Path C:\\Tools\\vm-lane\\jobs) { Remove-Item C:\\Tools\\vm-lane\\jobs\\* -Force }; Remove-Item "$HOME\\vm-lane-*.ps1*" -Force -ErrorAction SilentlyContinue
 ${!u ? "Remove-Item C:\\Tools\\vm-lane\\bin -Recurse -Force -ErrorAction SilentlyContinue" : ""}
 $names=@(Get-LocalUser | Where-Object Name -match $re | ForEach-Object Name)
 Get-Process -IncludeUserName -ErrorAction SilentlyContinue | Where-Object { ($_.UserName -split '\\\\')[-1] -match $re } | Stop-Process -Force -ErrorAction SilentlyContinue
@@ -562,9 +562,9 @@ say("the lane never starts or stops a VM: the running ones stay running (the mai
 const w = (k) => Math.max(k.length, ...rows.map((r) => String(r[k]).length));
 console.log(`\n${"STEP".padEnd(4)}  ${"CHECK".padEnd(w("check"))}  RESULT  DETAIL`);
 for (const r of rows) console.log(`${r.step.padEnd(4)}  ${r.check.padEnd(w("check"))}  ${r.result.padEnd(6)}  ${r.detail}`);
-const failed = rows.filter((r) => r.result === "FAIL").length;
-const other = ["SKIP", "WARN"].map((k) => [k, rows.filter((r) => r.result === k).length]).filter(([, n]) => n).map(([k, n]) => `, ${n} ${k}`).join("");
-console.log(`\nvm-lane ${tag}: ${failed ? `${failed} FAIL` : "all PASS"}${other} in ${Math.round((Date.now() - started) / 60000)} min${failed ? `; logs: ${WORK}` : ""}`);
-if (!failed) rmSync(WORK, { recursive: true, force: true });
+const failed = rows.filter((r) => r.result === "FAIL").length, stalled = rows.filter((r) => r.result === "STALL").length;
+const other = ["STALL", "SKIP", "WARN"].map((k) => [k, rows.filter((r) => r.result === k).length]).filter(([, n]) => n).map(([k, n]) => `, ${n} ${k}`).join("");
+console.log(`\nvm-lane ${tag}: ${failed ? `${failed} FAIL` : stalled ? "0 FAIL" : "all PASS"}${other} in ${Math.round((Date.now() - started) / 60000)} min${failed || stalled ? `; logs: ${WORK}` : ""}`);
+if (!failed && !stalled) rmSync(WORK, { recursive: true, force: true });
 lease.close();
-process.exit(failed ? 1 : 0);
+process.exit(failed || stalled ? 1 : 0);
