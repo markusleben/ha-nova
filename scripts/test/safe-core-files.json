@@ -26,6 +26,7 @@
   "tests/e2e/codex-skill-review-live-contract.test.ts",
   "tests/e2e/codex-skill-scenarios-contract.test.ts",
   "tests/e2e/codex-skill-write-review-live-contract.test.ts",
+  "tests/e2e/vm-lane-transport.test.ts",
   "tests/ha/rest-client.test.ts",
   "tests/ha/socket.test.ts",
   "tests/ha/supervisor-client.test.ts",
