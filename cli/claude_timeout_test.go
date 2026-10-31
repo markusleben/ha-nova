@@ -94,11 +94,12 @@ func appendFakeClaudeLine(path, line string) {
 }
 
 // installFakeClaude puts the fake first on PATH with short deadlines
-// (installs 3s, the rest 20s, 1s for held output), makes the temp dir home
+// (installs 3s, the rest 20s, 2s for held output), makes the temp dir home
 // the home of this test and of the fake, and returns the fake's log dir.
 // Children it leaves behind die before the temp dirs go.
 func installFakeClaude(t *testing.T, home, stall, how string) (string, time.Duration, time.Duration) {
 	t.Helper()
+	requireTestHome(t, home)
 	self, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -137,7 +138,7 @@ func installFakeClaude(t *testing.T, home, stall, how string) (string, time.Dura
 		t.Fatalf("fake claude: %v %s", err, output)
 	}
 	quick, slow, delay := claudeQuickTimeout, claudeSlowTimeout, claudeWaitDelay
-	claudeQuickTimeout, claudeSlowTimeout, claudeWaitDelay = 20*time.Second, 3*time.Second, time.Second
+	claudeQuickTimeout, claudeSlowTimeout, claudeWaitDelay = 20*time.Second, 3*time.Second, 2*time.Second
 	t.Cleanup(func() {
 		claudeQuickTimeout, claudeSlowTimeout, claudeWaitDelay = quick, slow, delay
 		claudeStalled.Store(nil)
@@ -165,9 +166,10 @@ func fakeClaudeCalls(t *testing.T, logDir, call string) int {
 	return count
 }
 
-// A hung claude is stopped at its deadline; one that exited but left a
-// child holding its output counts as done once the wait delay closes it.
-// Either way the call returns within timeout plus wait delay.
+// A hung claude is stopped at its deadline with everything it started; one
+// that exited but left a child holding its output counts as done once the
+// wait delay closes it. Either way the call returns within timeout plus
+// wait delay.
 func TestClaudeCallStopsOnTime(t *testing.T) {
 	const slack = 5 * time.Second
 	for _, tc := range []struct {
@@ -176,21 +178,19 @@ func TestClaudeCallStopsOnTime(t *testing.T) {
 	}{
 		{"hang", true},
 		{"orphan", false},
-		{"hang orphan", true},
+		{"hang orphan", true}, // returns before the wait delay: the child holding the output died with it
 	} {
 		t.Run(tc.how, func(t *testing.T) {
 			logDir, timeout, delay := installFakeClaude(t, t.TempDir(), "plugin install", tc.how)
-			minimum := delay
-			if tc.how == "hang" {
-				minimum = timeout
-			} else if tc.timedOut {
-				minimum = timeout + delay
+			minimum, maximum := delay, delay+slack
+			if tc.timedOut {
+				minimum, maximum = timeout, timeout+delay
 			}
 			start := time.Now()
 			output, err := claudeOutput("plugin", "install", "ha-nova@ha-nova")
 			elapsed := time.Since(start)
-			if elapsed < minimum || elapsed > minimum+slack {
-				t.Fatalf("claude call took %s, want %s to %s", elapsed, minimum, minimum+slack)
+			if elapsed < minimum || elapsed >= maximum {
+				t.Fatalf("claude call took %s, want %s to %s", elapsed, minimum, maximum)
 			}
 			if !tc.timedOut {
 				if err != nil || strings.TrimSpace(string(output)) != "ok" {
@@ -202,7 +202,7 @@ func TestClaudeCallStopsOnTime(t *testing.T) {
 			if !errors.As(err, &stalled) {
 				t.Fatalf("claude call error = %v, want a timeout", err)
 			}
-			for _, want := range []string{"`claude plugin install ha-nova@ha-nova` didn't finish within 3s", "`ha-nova doctor`"} {
+			for _, want := range []string{"`claude plugin install ha-nova@ha-nova` didn't finish within 3s", "run the same ha-nova command again"} {
 				if !strings.Contains(claudeFailureText(output, err), want) {
 					t.Fatalf("timeout message %q lacks %q", claudeFailureText(output, err), want)
 				}
@@ -251,6 +251,9 @@ func TestRunInternalReplaceSurvivesStalledClaude(t *testing.T) {
 				t.Fatal(err)
 			}
 			writeClaudeMarketplaceFixture(t, paths.InstallRoot)
+			if err := saveState(paths, installState{Version: "0.1.12", ClientsVerifiedVersion: "0.1.12", InstalledClients: []string{"claude"}}); err != nil {
+				t.Fatal(err)
+			}
 			logDir, timeout, delay := installFakeClaude(t, home, "plugin install", tc.how)
 
 			originalWait, originalApply := waitForParentReleaseForReplace, applyStagedBundleWithRollbackForReplace
@@ -287,7 +290,10 @@ func TestRunInternalReplaceSurvivesStalledClaude(t *testing.T) {
 			if rollbacks != 1 {
 				t.Fatalf("rollbacks = %d, want 1\n%s", rollbacks, output)
 			}
-			for _, want := range []string{"didn't finish within 3s", "`ha-nova doctor`", "update aborted", "went back to the old version"} {
+			if state, err := loadState(paths); err != nil || state.ClientsVerifiedVersion != "" {
+				t.Fatalf("clients-verified marker = %q, %v; want it cleared so the next check-update or doctor run repairs Claude Code", state.ClientsVerifiedVersion, err)
+			}
+			for _, want := range []string{"didn't finish within 3s", "run the same ha-nova command again", "update aborted", "went back to the old version"} {
 				if !strings.Contains(output, want) {
 					t.Fatalf("helper output lacks %q:\n%s", want, output)
 				}

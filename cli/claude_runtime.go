@@ -58,7 +58,7 @@ type claudeTimeoutError struct {
 }
 
 func (e *claudeTimeoutError) Error() string {
-	return fmt.Sprintf("`claude %s` didn't finish within %s, so HA NOVA stopped it and skips Claude Code for the rest of this run. Open Claude Code once and finish any prompt it shows, then run `ha-nova doctor`", e.step, e.timeout)
+	return fmt.Sprintf("`claude %s` didn't finish within %s, so HA NOVA stopped it and skips Claude Code for the rest of this run. Open Claude Code once and finish any prompt it shows, then run the same ha-nova command again", e.step, e.timeout)
 }
 
 // claudeOutput runs one claude CLI step and returns its combined output.
@@ -108,7 +108,7 @@ func runClaude(env []string, stdout, stderr io.Writer, args ...string) error {
 	if verb == "install" || verb == "update" || verb == "add" {
 		timeout = claudeSlowTimeout
 	}
-	timedOut, err := runWithDeadline(path, args, timeout, env, stdout, stderr)
+	timedOut, err := runWithDeadline(path, args, timeout, claudeWaitDelay, env, stdout, stderr)
 	if timedOut {
 		claudeStalled.CompareAndSwap(nil, &claudeTimeoutError{step: strings.Join(args, " "), timeout: timeout})
 		return claudeStalled.Load()
@@ -116,20 +116,32 @@ func runClaude(env []string, stdout, stderr io.Writer, args ...string) error {
 	return err
 }
 
-// runWithDeadline runs path with an empty stdin (os.DevNull) and kills it
-// after timeout. A process that exited cleanly but left a child holding its
-// output open counts as done once claudeWaitDelay closes that output.
-func runWithDeadline(path string, args []string, timeout time.Duration, env []string, stdout, stderr io.Writer) (timedOut bool, err error) {
+// runWithDeadline runs path with an empty stdin (os.DevNull) and, after
+// timeout, kills it with everything it started. A process that exited
+// cleanly but left a child holding its output open counts as done once
+// waitDelay closes that output.
+func runWithDeadline(path string, args []string, timeout, waitDelay time.Duration, env []string, stdout, stderr io.Writer) (timedOut bool, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Env, cmd.Stdout, cmd.Stderr = env, stdout, stderr
-	cmd.WaitDelay = claudeWaitDelay
-	err = cmd.Run()
+	cmd.WaitDelay = waitDelay
+	tree := newClaudeProcessTree(cmd)
+	defer tree.release()
+	var stopped atomic.Bool
+	cmd.Cancel = func() error {
+		stopped.Store(true)
+		return tree.kill()
+	}
+	if err := cmd.Start(); err != nil {
+		return false, err
+	}
+	tree.adopt()
+	err = cmd.Wait()
 	if err == nil || errors.Is(err, exec.ErrWaitDelay) {
 		return false, nil
 	}
-	return ctx.Err() != nil, err
+	return stopped.Load(), err
 }
 
 func claudeDesktopRuntime(home string) string {
@@ -183,7 +195,7 @@ func claudeDesktopRuntimeWorks(path, version string) bool {
 		{[]string{"plugin", "marketplace", "--help"}, []string{"add", "remove", "update"}},
 	} {
 		var output bytes.Buffer
-		if _, err := runWithDeadline(path, probe.args, 3*time.Second, nil, &output, nil); err != nil {
+		if _, err := runWithDeadline(path, probe.args, 3*time.Second, 100*time.Millisecond, nil, &output, nil); err != nil {
 			return false
 		}
 		for _, want := range probe.want {
