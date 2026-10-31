@@ -195,7 +195,8 @@ func rawRetains(payload map[string]any) bool {
 
 // accessEntity: the entity is a lock, an alarm panel, or an access cover,
 // or sits in the device family of one (familyAccess). Home Assistant
-// lowercases the id (cv.entity_id). Read live; a failed read counts as one.
+// lowercases the id (cv.entity_id). Read live, each cover once
+// (capableOnce); a failed read counts as one.
 func (n *rawNamer) accessEntity(id any) bool {
 	entityID, _ := id.(string)
 	entityID = strings.ToLower(entityID)
@@ -203,28 +204,30 @@ func (n *rawNamer) accessEntity(id any) bool {
 	if !ok {
 		return true
 	}
+	capable := n.capableOnce()
 	for _, e := range entities {
-		if e.EntityID == entityID && n.familyAccess(entities, devices, e.DeviceID) {
+		if e.EntityID == entityID && familyAccess(entities, devices, e.DeviceID, capable) {
 			return true
 		}
 	}
-	return accessCapable(entityID, coverClass(n.s, entityID))
+	return capable(entityID)
 }
 
 // accessDevice: the device's family has a lock, an alarm panel, or an access
 // cover (familyAccess). A device move must not do at preview what moving one
-// of its entities does only as typed (accessEntity). Read live; a failed
-// read counts as one.
+// of its entities does only as typed (accessEntity). Read live, each cover
+// once (capableOnce); a failed read counts as one.
 func (n *rawNamer) accessDevice(id any) bool {
 	device, _ := id.(string)
 	entities, devices, ok := n.registries()
-	return !ok || n.familyAccess(entities, devices, device)
+	return !ok || familyAccess(entities, devices, device, n.capableOnce())
 }
 
 // accessArea: an entity in the area is one accessEntity counts. Its area is
 // its own, else its device's, else, for a child device without one, its
 // parent's (Home Assistant 2026.9+, async_entries_for_area): a label or
-// floor target reaches every entity there (helpers/target.py). Read live; a
+// floor target reaches every entity there (helpers/target.py). Read live,
+// each cover once (capableOnce), however many entities share its family; a
 // failed read counts as one.
 func (n *rawNamer) accessArea(id any) bool {
 	area, _ := id.(string)
@@ -232,7 +235,7 @@ func (n *rawNamer) accessArea(id any) bool {
 	if !ok {
 		return true
 	}
-	own, parent := map[string]string{}, map[string]string{}
+	own, parent, capable := map[string]string{}, map[string]string{}, n.capableOnce()
 	for _, d := range devices {
 		own[d.ID], parent[d.ID] = d.Area, d.Parent
 	}
@@ -240,7 +243,7 @@ func (n *rawNamer) accessArea(id any) bool {
 		if area == "" || cmp.Or(e.AreaID, own[e.DeviceID], own[parent[e.DeviceID]]) != area {
 			continue
 		}
-		if accessCapable(e.EntityID, coverClass(n.s, e.EntityID)) || n.familyAccess(entities, devices, e.DeviceID) {
+		if capable(e.EntityID) || familyAccess(entities, devices, e.DeviceID, capable) {
 			return true
 		}
 	}
@@ -251,7 +254,7 @@ func (n *rawNamer) accessArea(id any) bool {
 // device or in its family: its parent and that parent's child devices, as
 // the sibling guard reads it (deviceAccessEntity). Home Assistant child
 // devices are one level deep.
-func (n *rawNamer) familyAccess(entities []rawEntityRow, devices []rawDeviceRow, device string) bool {
+func familyAccess(entities []rawEntityRow, devices []rawDeviceRow, device string, capable func(entityID string) bool) bool {
 	if device == "" {
 		return false
 	}
@@ -268,11 +271,26 @@ func (n *rawNamer) familyAccess(entities []rawEntityRow, devices []rawDeviceRow,
 		}
 	}
 	for _, e := range entities {
-		if family[e.DeviceID] && accessCapable(e.EntityID, coverClass(n.s, e.EntityID)) {
+		if family[e.DeviceID] && capable(e.EntityID) {
 			return true
 		}
 	}
 	return false
+}
+
+// capableOnce: accessCapable for one check, each cover's class read live
+// once (coverClass), so a family of many entities costs one read per cover,
+// not one per entity. A failed read stays "", which counts as access.
+func (n *rawNamer) capableOnce() func(entityID string) bool {
+	classes := map[string]string{}
+	return func(entityID string) bool {
+		class, read := classes[entityID]
+		if !read {
+			class = coverClass(n.s, entityID)
+			classes[entityID] = class
+		}
+		return accessCapable(entityID, class)
+	}
 }
 
 type rawEntityRow struct {
