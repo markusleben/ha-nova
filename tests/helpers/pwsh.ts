@@ -18,6 +18,7 @@ import { makeTempDir } from "./temp-dir.js";
 export const pwshEnv: NodeJS.ProcessEnv = {
   ...process.env,
   POWERSHELL_TELEMETRY_OPTOUT: "1",
+  HOME: makeTempDir("ha-nova-pwsh-home-"), // pwsh keeps its module dir under HOME
   XDG_CACHE_HOME: makeTempDir("ha-nova-pwsh-cache-"),
 };
 

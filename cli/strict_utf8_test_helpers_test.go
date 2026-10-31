@@ -19,7 +19,7 @@ type strictInputRelayCapture struct {
 func setupStrictInputRelay(t *testing.T) (runtimePaths, *strictInputRelayCapture) {
 	t.Helper()
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
 	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".test-relay-token"))
 	t.Setenv("HA_NOVA_NO_UPDATE_NUDGE", "1")

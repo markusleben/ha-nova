@@ -247,12 +247,19 @@ let goCacheEnvMemo: Record<string, string> | undefined;
  * Go child of a temp HOME would otherwise rebuild ~0.5 GB of cache in it.
  */
 export function goCacheEnv(): Record<string, string> {
+  const { GOMODCACHE, GOCACHE } = process.env; // pinned by tests/helpers/tmpdir-guard.ts
+  if (GOMODCACHE && GOCACHE) return { GOMODCACHE, GOCACHE };
   if (goCacheEnvMemo === undefined) {
     const result = spawnSync("go", ["env", "GOMODCACHE", "GOCACHE"], { encoding: "utf8" });
     const [modCache, buildCache] = result.status === 0 ? result.stdout.trim().split("\n") : [];
     goCacheEnvMemo = modCache && buildCache ? { GOMODCACHE: modCache, GOCACHE: buildCache } : {};
   }
   return goCacheEnvMemo;
+}
+
+/** Env for a `go` child: its own temp HOME (go keeps its telemetry there) and the real caches. */
+export function goEnv(): NodeJS.ProcessEnv {
+  return { ...process.env, HOME: makeTempDir("ha-nova-go-home-"), ...goCacheEnv() };
 }
 
 /** Build PATH with mock bin dir prepended */
