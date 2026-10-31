@@ -21,6 +21,7 @@ const (
 	fakeClaudeEnv      = "HA_NOVA_TEST_FAKE_CLAUDE"
 	fakeClaudeStallEnv = "HA_NOVA_TEST_FAKE_CLAUDE_STALL" // the call that misbehaves, e.g. "plugin install"
 	fakeClaudeHowEnv   = "HA_NOVA_TEST_FAKE_CLAUDE_HOW"   // "hang", "orphan" (a child keeps its output open), or both
+	fakeClaudeHomeEnv  = "HA_NOVA_TEST_FAKE_CLAUDE_HOME"  // the only home it writes to: never the developer's own
 	fakeClaudeHold     = "--hold-output"
 )
 
@@ -53,7 +54,11 @@ func runFakeClaude(dir string, args []string) int {
 		time.Sleep(2 * time.Minute)
 		return 0
 	}
-	home, _ := os.UserHomeDir()
+	home := os.Getenv(fakeClaudeHomeEnv)
+	if home == "" {
+		fmt.Fprintln(os.Stderr, "fake claude: no test home")
+		return 1
+	}
 	plugins := filepath.Join(claudeConfigRoot(home), "plugins")
 	var err error
 	switch {
@@ -89,9 +94,10 @@ func appendFakeClaudeLine(path, line string) {
 }
 
 // installFakeClaude puts the fake first on PATH with short deadlines
-// (installs 3s, the rest 20s, 1s for held output) and returns its log dir.
+// (installs 3s, the rest 20s, 1s for held output), makes the temp dir home
+// the home of this test and of the fake, and returns the fake's log dir.
 // Children it leaves behind die before the temp dirs go.
-func installFakeClaude(t *testing.T, stall, how string) (string, time.Duration, time.Duration) {
+func installFakeClaude(t *testing.T, home, stall, how string) (string, time.Duration, time.Duration) {
 	t.Helper()
 	self, err := os.Executable()
 	if err != nil {
@@ -117,6 +123,10 @@ func installFakeClaude(t *testing.T, stall, how string) (string, time.Duration, 
 	if err != nil {
 		t.Fatal(err)
 	}
+	for _, key := range []string{"HOME", "USERPROFILE", fakeClaudeHomeEnv} {
+		t.Setenv(key, home)
+	}
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
 	t.Setenv(fakeClaudeEnv, logDir)
 	t.Setenv(fakeClaudeStallEnv, stall)
 	t.Setenv(fakeClaudeHowEnv, how)
@@ -169,7 +179,7 @@ func TestClaudeCallStopsOnTime(t *testing.T) {
 		{"hang orphan", true},
 	} {
 		t.Run(tc.how, func(t *testing.T) {
-			logDir, timeout, delay := installFakeClaude(t, "plugin install", tc.how)
+			logDir, timeout, delay := installFakeClaude(t, t.TempDir(), "plugin install", tc.how)
 			minimum := delay
 			if tc.how == "hang" {
 				minimum = timeout
@@ -241,7 +251,7 @@ func TestRunInternalReplaceSurvivesStalledClaude(t *testing.T) {
 				t.Fatal(err)
 			}
 			writeClaudeMarketplaceFixture(t, paths.InstallRoot)
-			logDir, timeout, delay := installFakeClaude(t, "plugin install", tc.how)
+			logDir, timeout, delay := installFakeClaude(t, home, "plugin install", tc.how)
 
 			originalWait, originalApply := waitForParentReleaseForReplace, applyStagedBundleWithRollbackForReplace
 			t.Cleanup(func() {
