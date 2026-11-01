@@ -50,3 +50,61 @@ func TestPhoneAnswerAfterTheReadBudgetStillRechecks(t *testing.T) {
 		t.Fatalf("re-check read failure: %d %q", exit, out)
 	}
 }
+
+// A plan whose checks spend the whole read budget (LIMIT_CUT on a large
+// home) still asks the linked phone: the phone lookup reads with a budget of
+// its own, alone and beside the window.
+func TestPhoneLookupAfterChecksSpentTheReadBudget(t *testing.T) {
+	for _, window := range []bool{false, true} {
+		t.Run(map[bool]string{false: "phone", true: "window and phone"}[window], func(t *testing.T) {
+			h, p, _ := familyLink(t)
+			seedLink(t, h, &phoneLink{Service: "mobile_app_markuss_iphone", DeviceID: "dev-markus", UserID: "owner-id", Name: "Markus’s iPhone", Platform: phoneIOS})
+			if window {
+				useRaceWindow(t, windowNoAnswer, make(chan struct{}), false)
+			}
+			previous := relaySessionOverallTimeout
+			relaySessionOverallTimeout = 300 * time.Millisecond
+			t.Cleanup(func() { relaySessionOverallTimeout = previous })
+			h.f.hang["/api/events"] = true
+			p.tapBy = tapFrom("mobile_app_markuss_iphone", "owner-id", true)
+			exit, env := h.run(runPlanCommand, "call", "lock.unlock", "lock.front")
+			if exit != 3 || env.Plan == nil || !strings.Contains(reasonCodes(env), reasonLimitCut) {
+				t.Fatalf("plan: exit %d %+v reasons %s", exit, env.Error, reasonCodes(env))
+			}
+			if want := map[bool]string{false: channelPhone, true: channelWindow}[window]; env.Plan.Channel != want {
+				t.Fatalf("channel %q, want %q", env.Plan.Channel, want)
+			}
+			if exit, env := h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 0 || env.Status != "verified" || len(p.sent) == 0 || calls(h) != 1 {
+				t.Fatalf("apply: exit %d %s %+v sent %d calls %d", exit, env.Status, env.Error, len(p.sent), calls(h))
+			}
+		})
+	}
+}
+
+// The lookup's own budget ends with the lookup: the session keeps the budget
+// it had (a verb that looks up the phone several times stays bounded), and a
+// lookup that still can't read refuses as before.
+func TestPhoneLookupBudgetEndsWithTheLookup(t *testing.T) {
+	h, _, _ := familyLink(t)
+	seedLink(t, h, &phoneLink{Service: "mobile_app_markuss_iphone", DeviceID: "dev-markus", UserID: "owner-id", Name: "Markus’s iPhone", Platform: phoneIOS})
+	previous := relaySessionOverallTimeout
+	relaySessionOverallTimeout = 300 * time.Millisecond
+	t.Cleanup(func() { relaySessionOverallTimeout = previous })
+	s, err := newRelaySession(h.paths, verbOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.close()
+	time.Sleep(400 * time.Millisecond)
+	if _, status := discoverPhone(s); status != phoneReady {
+		t.Fatalf("lookup after the budget: status %d", status)
+	}
+	var current haUser
+	if err := s.phoneRead("ws", map[string]any{"type": "auth/current_user"}, &current); err == nil {
+		t.Fatal("the session's spent budget came back renewed")
+	}
+	h.f.hang["config/auth/list"] = true
+	if setup, status := discoverPhone(s); status != phoneMissing || setup.why != whyRead {
+		t.Fatalf("hung lookup: status %d why %d", status, setup.why)
+	}
+}

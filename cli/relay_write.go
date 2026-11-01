@@ -260,6 +260,24 @@ func (s *relaySession) renewBudget() {
 	s.ctx, s.cancel = ctx, func() { cancel(); previous() }
 }
 
+// ownBudget gives the reads until done a fresh overall budget of their own;
+// done hands the session back the budget it had, so a lookup never extends
+// the reads around it. Contexts stay alive until close, as in renewBudget.
+func (s *relaySession) ownBudget() (done func()) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	previous, previousCancel := s.ctx, s.cancel
+	ctx, cancel := context.WithTimeout(context.Background(), relaySessionOverallTimeout)
+	s.ctx, s.cancel = ctx, func() { cancel(); previousCancel() }
+	return func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.ctx == ctx {
+			s.ctx = previous
+		}
+	}
+}
+
 // reauthSnapshotTimeout bounds the best-effort snapshot so it never delays
 // the confirmed call by more than a few seconds.
 var reauthSnapshotTimeout = 5 * time.Second

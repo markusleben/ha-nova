@@ -359,7 +359,9 @@ func discoverPhone(s *relaySession) (phoneSetup, phoneStatus) {
 	if len(links) == 0 {
 		return phoneSetup{}, phoneNone
 	}
+	done := s.ownBudget()
 	home, err := lookupPhones(s, links)
+	done()
 	return home.status(links, err)
 }
 
