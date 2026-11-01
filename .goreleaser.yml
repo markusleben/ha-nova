@@ -99,9 +99,12 @@ release:
     - **Moving a device with a lock to another room takes your own confirmation.** Also for an alarm panel, garage door, gate, or door, and for labels: an automation that opens a whole room would reach it.
     - **The NOVA Relay App asks for more Supervisor access.** It needs it for Apps and logs. Home Assistant lowers the App's security rating by one.
     - **Going back to an older NOVA App refuses every chat request while others are on the chat-app list.** To go back, first untick everyone but you on the NOVA page and save.
+    - **Another AI app on this computer may give up on a big change.** It can stop waiting while the change still runs, and then say it failed. Chat apps have the fix now; other AI apps get it in a later update.
 
     ## Bug Fixes
 
+    - **Big changes in chat apps no longer time out.** HA NOVA says it is still making the change, and the AI checks back; nothing is sent twice. Other chat requests wait up to 20 s for it, then HA NOVA says it is busy.
+    - **The linked phone asks in big homes too.** The checks before a confirmation could use up HA NOVA's read time, so the phone looked unreachable: only the window asked, or without one, the change was refused.
     - **Answered on the computer, the phone's question disappears.** The first answer counts. An answer in the window no longer leaves a result note on the phone.
     - **Changes now work in homes with Nuki locks.** Nuki, for one, gives Home Assistant number IDs. HA NOVA couldn't read them, so many changes and the phone setup failed. It now reads number IDs too.
     - **Setup asks whose phone should confirm on this computer.** It lists every administrator's phone with its person and picks none for you. A person whose entity is disabled in Home Assistant no longer hides their phone.

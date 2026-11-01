@@ -75,6 +75,10 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain("**Clearer confirmations for technical requests.**");
     // Answered on the computer, the phone's question goes away (#891); setup asks whose phone (#893).
     expect(stableNotes).toContain("**Answered on the computer, the phone's question disappears.**");
+    // Chat-app applies run as jobs (#921); the phone lookup gets its own read budget (#920); the local adapter gets the jobs in a later update (#919).
+    expect(stableNotes).toContain("**Big changes in chat apps no longer time out.**");
+    expect(stableNotes).toContain("**The linked phone asks in big homes too.**");
+    expect(stableNotes).toMatch(/## What To Watch[\s\S]*- \*\*Another AI app on this computer may give up on a big change\.\*\*[\s\S]*## Bug Fixes/);
     expect(stableNotes).toContain("**Setup asks whose phone should confirm on this computer.**");
     expect(stableNotes).not.toContain("Setup proposes your own phone");
     // App 0.13.3 carries the 0.28.0 chat bridge; its tools changed, so ChatGPT needs a Refresh and Claude asks once more,
