@@ -22,6 +22,10 @@ import (
 
 const chatNotAllowed = "This Home Assistant user can't use HA NOVA in chat apps. Sign in with an account the owner allowed."
 
+// chatUsersStale: how old Home Assistant's users may be for a request that
+// changes nothing while a running change holds mcpVerbLock.
+const chatUsersStale = 15 * time.Minute
+
 // policyFor: the owner's current switches and this user's level, or why
 // they may not use chat apps, with Home Assistant's users as read within
 // the last minute. Read on every request, and again before a phone tap
@@ -41,9 +45,11 @@ func (b *chatBridge) policy(user string, fresh bool) (*chatPolicy, int, string) 
 	if listed && !slices.Contains(*settings.AllowedUsers, user) { // before any read: never reaches the Relay
 		return nil, http.StatusForbidden, chatNotAllowed
 	}
-	users, err := b.homeUsers(fresh)
+	users, stale, err := b.homeUsers(fresh)
 	owner := activeOwner(users)
 	switch {
+	case errors.Is(err, errBridgeBusy):
+		return nil, http.StatusServiceUnavailable, chatBusyWhy
 	case err != nil && !listed, !listed && owner == nil:
 		return nil, http.StatusServiceUnavailable, "HA NOVA can't read the Home Assistant owner right now"
 	case err != nil:
@@ -61,7 +67,7 @@ func (b *chatBridge) policy(user string, fresh bool) (*chatPolicy, int, string) 
 	}
 	role := roleCap(users[i])
 	p := &chatPolicy{user: user, key: chatUserKey(user), links: b.linksFile(), codes: settings.ChatCodes == nil || *settings.ChatCodes,
-		readOnly: settings.ReadOnly, bridge: b, granted: granted, role: role, level: min(granted, role), name: terminalSafeName(users[i].Name)}
+		readOnly: settings.ReadOnly, bridge: b, granted: granted, role: role, level: min(granted, role), name: terminalSafeName(users[i].Name), stale: stale}
 	if owner != nil {
 		p.owner, p.ownerName = owner.ID == user, terminalSafeName(owner.Name)
 	}
@@ -172,8 +178,12 @@ func readChatSettings(dataDir string) (chatSettings, error) {
 // homeUsers: Home Assistant's users (config/auth/list) through the Relay,
 // as read within the last minute, or read now (fresh: before a change). A
 // failed read fails closed; a failed cached read isn't repeated for 5 s,
-// and a failed fresh one leaves the cache as it was.
-func (b *chatBridge) homeUsers(fresh bool) ([]haUser, error) {
+// and a failed fresh one leaves the cache as it was. While mcpVerbLock is
+// held (a running change), a request that changes nothing gets the users
+// as read within chatUsersStale instead of waiting (stale: a tool call
+// reads them again in chatGate); a read waits at most chatLockWait
+// (errBridgeBusy).
+func (b *chatBridge) homeUsers(fresh bool) (users []haUser, stale bool, err error) {
 	cached := func() ([]haUser, error, bool) {
 		b.mu.Lock()
 		defer b.mu.Unlock()
@@ -186,14 +196,23 @@ func (b *chatBridge) homeUsers(fresh bool) ([]haUser, error) {
 		return nil, nil, false
 	}
 	if users, err, ok := cached(); ok {
-		return users, err
+		return users, false, err
 	}
-	mcpVerbLock.Lock() // a Relay session sets process-wide server selection
+	b.mu.Lock()
+	users, stale = b.users, !fresh && b.users != nil && time.Since(b.usersAt) < chatUsersStale
+	b.mu.Unlock()
+	locked := stale && mcpVerbLock.TryLock() // a Relay session sets process-wide server selection
+	switch {
+	case stale && !locked:
+		return users, true, nil
+	case !locked && !mcpVerbLock.lockWithin(chatLockWait):
+		return nil, false, errBridgeBusy
+	}
 	defer mcpVerbLock.Unlock()
 	if users, err, ok := cached(); ok && !fresh { // another request read them while this one waited
-		return users, err
+		return users, false, err
 	}
-	users, err := b.readUsers()
+	users, err = b.readUsers()
 	b.mu.Lock()
 	switch {
 	case err == nil:
@@ -202,5 +221,5 @@ func (b *chatBridge) homeUsers(fresh bool) ([]haUser, error) {
 		b.usersNo = time.Now()
 	}
 	b.mu.Unlock()
-	return users, err
+	return users, false, err
 }

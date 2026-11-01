@@ -80,7 +80,7 @@ func runServeCommand(paths runtimePaths, args []string) int {
 	fs.StringVar(&dataDir, "data-dir", "", "directory for plans, phone links, and chat-apps.json (required)")
 	fs.StringVar(&secretFile, "secret-file", "", "file holding the 64-hex-character secret the integration sends (required)")
 	fs.StringVar(&relayFile, "relay-file", "", "the NOVA App's internal Relay credential file, in place of a paired server profile")
-	fs.DurationVar(&wait, "confirm-wait", wait, "how long one ha_apply waits for a phone tap before it answers waiting_for_phone (1s-2m)")
+	fs.DurationVar(&wait, "confirm-wait", wait, "how long one ha_apply waits (for a phone tap, or the change) before it answers waiting_for_phone or applying (1s-2m)")
 	fs.IntVar(&limit, "rate-limit", 0, "requests per minute per Home Assistant user, then 429 until the minute is over (0: no limit)")
 	fs.StringVar(&controlListen, "control-listen", "", "loopback address for the NOVA App's phone-link control channel (with --control-secret-file)")
 	fs.StringVar(&controlSecret, "control-secret-file", "", "file holding the control channel's own 64-hex-character secret")
@@ -127,7 +127,7 @@ func runServeCommand(paths runtimePaths, args []string) int {
 			demoPlansSince = readPlansSince(dataDir)
 		}
 	}
-	// Verbs print to stdout and stderr, which runVerb captures; the log keeps
+	// Verbs print to stdout and stderr, which runLocked captures; the log keeps
 	// the real stderr.
 	os.Stdout = os.Stderr
 	reapUpdateRefresh = true
@@ -232,7 +232,10 @@ func (b *chatBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	call, code, message := b.authorize(r)
-	if call == nil && code == http.StatusForbidden { // a signed-in user who may not: words a chat app can show
+	if call == nil && (code == http.StatusForbidden || message == chatBusyWhy) { // a signed-in user who may not, or must wait: words a chat app can show
+		if code == http.StatusForbidden && b.jobOf(r.Header.Get(serveUserHeader), "", false) != "" { // taken off the list while their change ran
+			message = chatJobOffList
+		}
 		status = code
 		refuseRPC(w, r, code, message)
 		return

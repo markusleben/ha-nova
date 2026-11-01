@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 // The MCP tools are thin argv adapters over the CLI verbs: the same parsing,
@@ -137,8 +136,9 @@ func mcpToolList(paths runtimePaths) []map[string]any {
 }
 
 // mcpVerbLock serializes tool runs: verbs share process-wide state (stdout
-// capture, server selection).
-var mcpVerbLock sync.Mutex
+// capture, server selection). A chat-app call waits for it at most
+// chatLockWait (mcp_serve_apply.go).
+var mcpVerbLock = make(verbLock, 1)
 
 func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 	var params struct {
@@ -156,6 +156,9 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		// protocol error.
 		if err := checkArguments(tool.schema, params.Arguments); err != nil {
 			return invalidArguments(tool.name, err), nil
+		}
+		if joined := srv.chatJoin(tool.name, params.Arguments); joined != nil { // ha-nova serve: this plan's apply job, before any lock
+			return joined, nil
 		}
 		what := srv.chatWhat(tool.name, params.Arguments)                    // ha-nova serve: a change's activity line
 		if refusal := srv.chatGate(tool, params.Arguments); refusal != nil { // ha-nova serve: switches and levels
@@ -180,10 +183,15 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		if err != nil {
 			return invalidArguments(tool.name, err), nil
 		}
-		if waited := srv.chatApply(tool.name, params.Arguments, argv); waited != nil { // ha-nova serve: a phone plan (its job notes it)
+		if waited := srv.chatApply(tool.name, params.Arguments, argv); waited != nil { // ha-nova serve: an apply job (it notes the change)
 			return waited, nil
 		}
-		result := srv.runVerb(tool.name, answered, req.forms, func() int { return tool.run(srv.paths, pinServer(tool.name, argv, srv.pin)) })
+		if !srv.lockVerb() { // ha-nova serve: a running change held the lock too long; nothing ran
+			busy := srv.chatBusy(tool.name, params.Arguments)
+			srv.noteChange(tool.name, what, busy)
+			return busy, nil
+		}
+		result := srv.runLocked(tool.name, answered, req.forms, func() int { return tool.run(srv.paths, pinServer(tool.name, argv, srv.pin)) })
 		srv.noteChange(tool.name, what, result)
 		return result, nil
 	}

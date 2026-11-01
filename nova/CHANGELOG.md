@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.3] - 2026-11-01
+
+### Fixed
+- Chat apps: a big change, such as a batch of 15 automations in a home with 2,000 automations, no longer runs past the chat app's time limit. HA NOVA says it is still making the change, and the AI asks again for the result; the change is never sent twice.
+- Chat apps: while a change runs, other requests no longer hang until it ends. Connecting to HA NOVA answers at once; a request that would wait more than 20 seconds answers that HA NOVA is busy, and nothing it asked for runs later.
+- Chat apps: someone whose access the owner removes or lowers while their change runs is told the change may have run, not how it ended.
+- Chat apps: read only, turned on while a change waits for another one, now stops that change too.
+
+### Changed
+- Chat apps now run HA NOVA 0.28.0 with these fixes.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.0 ask you to update this App.
+
 ## [Relay 0.13.2] - 2026-10-30
 
 ### Fixed
