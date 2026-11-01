@@ -220,9 +220,11 @@ func (srv *mcpServer) chatGate(tool mcpTool, args map[string]json.RawMessage) ma
 	if srv.chat == nil {
 		return nil
 	}
-	if tool.name == "ha_call" || tool.name == "ha_apply" {
+	if tool.name == "ha_call" || tool.name == "ha_apply" || srv.chat.stale && tool.name != mcpSkillTool.name {
 		fresh, code, why := srv.chat.bridge.policy(srv.chat.user, true)
 		switch {
+		case code == http.StatusServiceUnavailable && why == chatBusyWhy:
+			return srv.chatBusy(tool.name, args)
 		case code == http.StatusServiceUnavailable:
 			return chatStopped(tool.name, refusedWith("ACCESS_UNKNOWN", why,
 				"Tell the user nothing changed: HA NOVA couldn't check their Home Assistant account just now. They can try again in a moment."))
@@ -252,6 +254,8 @@ func chatPlanFailure(plan storedPlan) *verbFailure {
 		return nil
 	case !chatCall.mayApply(plan.Kind):
 		return chatLevelFailure(chatCall, false)
+	case chatCall.readOnly:
+		return chatReadOnlyFailure()
 	case plan.Tier == tierTyped.String() && plan.Channel == channelChat && !chatCall.chatCodes():
 		return refusedWith("CONFIRM_UNAVAILABLE", chatCodesOffWhy(chatCall), chatCodesOffNext(chatCall))
 	}
@@ -275,6 +279,9 @@ var chatDeviceDomains = map[string]bool{
 // ha-nova:media on a media player. An entity registry Home Assistant didn't
 // answer decides nothing: refused. nil: allowed, or not a chat app.
 func chatCallFailure(req planCallRequest, targets []verbTarget, e *tierEngine) *verbFailure {
+	if chatReadOnly() && chatCall.level > 0 { // removed: chatLevelFailure says so
+		return chatReadOnlyFailure()
+	}
 	if chatCall == nil || chatCall.level >= levelManage {
 		return nil
 	}

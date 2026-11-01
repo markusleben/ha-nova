@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -22,7 +21,7 @@ import (
 // stays open; calling it again waits on the same ask and never re-notifies.
 
 // chatPolicy is one chat-app request: who asks, and the owner's switches.
-// The MCP server sets chatCall to it for the verb it runs (runVerb, under
+// The MCP server sets chatCall to it for the verb it runs (runLocked, under
 // mcpVerbLock); nil everywhere else.
 type chatPolicy struct {
 	user     string // the HA user id the integration vouched for (secret-authenticated)
@@ -37,6 +36,7 @@ type chatPolicy struct {
 	level, granted, role chatLevel
 	name, ownerName      string // their name and the owner's, as Home Assistant lists them
 	owner                bool   // this user is the Home Assistant owner
+	stale                bool   // users read over a minute ago, while a change ran (homeUsers)
 }
 
 var chatCall *chatPolicy
@@ -169,8 +169,12 @@ func (srv *mcpServer) chatRefusal(tool mcpTool) map[string]any {
 	if srv.chat == nil || !srv.chat.readOnly || tool.readOnly && tool.name != "ha_plan" {
 		return nil
 	}
-	return chatStopped(tool.name, refusedWith("READ_ONLY", "chat apps can only read in this home (the owner's setting)",
-		"Tell the user nothing changed: the Home Assistant owner set chat apps to read only on the HA NOVA page. They can make this change in Home Assistant itself."))
+	return chatStopped(tool.name, chatReadOnlyFailure())
+}
+
+func chatReadOnlyFailure() *verbFailure {
+	return refusedWith("READ_ONLY", "chat apps can only read in this home (the owner's setting)",
+		"Tell the user nothing changed: the Home Assistant owner set chat apps to read only on the HA NOVA page. They can make this change in Home Assistant itself.")
 }
 
 // chatReadOnly: this tool call comes from a chat app the owner set to read
@@ -200,13 +204,16 @@ type chatJob struct {
 	result map[string]any         // never handed out itself: each response gets its own copy (reply adds fields)
 	what   string                 // the plan's service or kind, for its activity line (noted once, by the job)
 	ended  time.Time              // under bridge.mu
+	phone  bool                   // a phone ask (phoneJob), else an apply (applyJob)
+	kind   string                 // the plan's kind: its outcome only for a user who may still apply it
 	tapped atomic.Bool            // the phone answered; apply may be running
 	tap    atomic.Pointer[string] // how to answer on the phone asked (phoneTapLine), once known
 }
 
-// chatApply: in a chat app, ha_apply on a phone plan starts (or joins) its
-// ask and waits up to the bridge's wait; a chat-code plan made before the
-// owner turned chat codes off is refused. nil: run ha_apply as usual.
+// chatApply: in a chat app, ha_apply of this user's plan starts (or joins)
+// its job, a phone plan's ask or the apply itself, and waits up to the
+// bridge's wait (awaitJob); a chat-code plan made before the owner turned
+// chat codes off is refused. nil: no plan of this user, so apply says why.
 func (srv *mcpServer) chatApply(name string, args map[string]json.RawMessage, argv []string) map[string]any {
 	c := srv.chat
 	if c == nil || name != "ha_apply" {
@@ -229,52 +236,43 @@ func (srv *mcpServer) chatApply(name string, args map[string]json.RawMessage, ar
 	if err == nil && plan.Tier == tierTyped.String() && plan.Channel == channelChat && !c.chatCodes() {
 		return refuse(refusedWith("CONFIRM_UNAVAILABLE", chatCodesOffWhy(c), chatCodesOffNext(c)))
 	}
-	var noSnapshot bool
-	_ = json.Unmarshal(args["no_snapshot"], &noSnapshot)
-	b, key := c.bridge, fmt.Sprintf("%s/%s/%t", c.user, id, noSnapshot)
+	b, key := c.bridge, chatJobKey(c.user, id)
 	b.mu.Lock()
 	job := b.jobs[key]
 	if job == nil {
-		if err != nil || plan.Channel != channelPhone {
+		if err != nil {
 			b.mu.Unlock()
 			return nil
 		}
+		phone := plan.Channel == channelPhone
 		for k, old := range b.jobs {
 			switch {
 			case !old.ended.IsZero() && time.Since(old.ended) > planTTL: // a result nobody came back for
 				delete(b.jobs, k)
-			case old.ended.IsZero() && strings.HasPrefix(k, c.user+"/"): // one open ask per user: never a stack of notifications
+			case phone && old.phone && old.ended.IsZero() && strings.HasPrefix(k, c.user+"/"): // one open ask per user: never a stack of notifications
 				b.mu.Unlock()
 				open, _, _ := strings.Cut(strings.TrimPrefix(k, c.user+"/"), "/")
 				return refuse(refusedWith("CONFIRM_PENDING", "another change ("+open+") is still waiting for a tap on the phone",
 					fmt.Sprintf("Tell the user nothing changed yet: their phone still has an open HA NOVA confirmation. Call ha_apply with plan_id %s to wait for that one first (it sends no new notification), then apply this plan.", open)))
 			}
 		}
-		job = &chatJob{done: make(chan struct{}), lang: confirmLanguage(plan.Lang), what: what}
+		job = &chatJob{done: make(chan struct{}), lang: confirmLanguage(plan.Lang), what: what, phone: phone, kind: plan.Kind}
 		b.jobs[key] = job
-		go srv.phoneJob(job, argv)
+		if phone {
+			go srv.phoneJob(job, args, argv)
+		} else {
+			go srv.applyJob(job, args, argv)
+		}
 	}
 	b.mu.Unlock()
-	timer := time.NewTimer(b.wait)
-	defer timer.Stop()
-	select {
-	case <-job.done:
-		b.mu.Lock()
-		if b.jobs[key] == job { // handed out once; a later apply starts afresh
-			delete(b.jobs, key)
-		}
-		b.mu.Unlock()
-		return maps.Clone(job.result)
-	case <-timer.C:
-		return waitingForPhone(id, job.lang, job.tapped.Load(), job.tap.Load())
-	}
+	return srv.awaitJob(key, job, id)
 }
 
 // phoneJob runs apply's phone path with the wait outside the verb lock, so
 // other calls (other users, or this user's reads) run meanwhile. A tap
 // applies at once, also while no call is waiting; the result waits for the
 // next ha_apply.
-func (srv *mcpServer) phoneJob(job *chatJob, argv []string) {
+func (srv *mcpServer) phoneJob(job *chatJob, args map[string]json.RawMessage, argv []string) {
 	var a *phoneAsking
 	defer func() {
 		if p := recover(); p != nil {
@@ -290,7 +288,12 @@ func (srv *mcpServer) phoneJob(job *chatJob, argv []string) {
 	}()
 	argv = pinServer("ha_apply", argv, srv.pin)
 	var req applyRequest
-	result := srv.runVerb("ha_apply", "", false, func() int {
+	if !srv.lockVerb() { // nothing asked yet: the plan stays valid
+		job.result = srv.chatBusy("ha_apply", args)
+		srv.chat.bridge.noteChange(srv.chat, "ha_apply", job.what, "phone", job.result)
+		return
+	}
+	result := srv.runLocked("ha_apply", "", false, func() int {
 		var env verbEnvelope
 		var exit int
 		var ok, asked bool
@@ -314,10 +317,20 @@ func (srv *mcpServer) phoneJob(job *chatJob, argv []string) {
 	// The owner may have removed this user, lowered their level, or set read
 	// only meanwhile, or the user's Home Assistant role may have changed:
 	// read again, and apply's recompute checks the call with that level.
-	now, code, why := srv.chat.bridge.policy(srv.chat.user, true)
-	id, _ := json.Marshal(req.id)
-	demoted := srv.configAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id})
-	job.result = srv.runVerb("ha_apply", "", false, func() int {
+	var now *chatPolicy
+	var code int
+	var why string
+	var demoted *verbFailure
+	if a.answer == phoneConfirmed { // the tap stands: these reads wait for a running change like the apply
+		now, code, why = srv.chat.bridge.policyNow(srv.chat.user)
+		id, _ := json.Marshal(req.id)
+		demoted = srv.configAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id})
+		for demoted != nil && demoted.code == "BUSY" {
+			demoted = srv.configAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id})
+		}
+	}
+	mcpVerbLock.Lock() // the tap stands: as long as it takes
+	job.result = srv.runLocked("ha_apply", "", false, func() int {
 		var env verbEnvelope
 		var exit int
 		var asked bool
@@ -346,19 +359,15 @@ func (srv *mcpServer) phoneJob(job *chatJob, argv []string) {
 	srv.chat.bridge.noteChange(srv.chat, "ha_apply", job.what, "phone", job.result)
 }
 
-// waitingForPhone: the ask is still open, or the phone answered and apply
-// is still running (tapped): no outcome yet either way.
-func waitingForPhone(id, lang string, tapped bool, tap *string) map[string]any {
+// waitingForPhone: the ask is still open (once the phone answered, the
+// apply that follows answers applying).
+func waitingForPhone(id, lang string, tap *string) map[string]any {
 	how := confirmT(lang, "say.phone_waiting_how")
 	if tap != nil {
 		how = *tap
 	}
 	say := confirmT(lang, "say.phone_waiting", "tap", how) + " " + sayNotRun(lang)
 	next := fmt.Sprintf("Nothing has run yet: HA NOVA is still waiting for the user's tap on their phone. Tell the user `say`, then call ha_apply again with plan_id %s and no confirm_code: it keeps waiting on the same notification and sends no new one. Never ask for a code.", id)
-	if tapped {
-		say = confirmT(lang, "say.phone_finishing")
-		next = fmt.Sprintf("The phone answered and HA NOVA is still finishing; the outcome is not known yet. Call ha_apply again with plan_id %s and no confirm_code to get it; never plan again or ask for a code.", id)
-	}
 	envelope := map[string]any{"schema_version": 1, "verb": "apply", "status": "waiting_for_phone", "plan": map[string]any{"id": id}, "say": say, "next_step": next}
 	text, _ := json.Marshal(envelope)
 	return map[string]any{"content": []map[string]any{{"type": "text", "text": string(text)}}, "structuredContent": envelope, "isError": false}

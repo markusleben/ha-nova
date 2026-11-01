@@ -72,7 +72,7 @@ func (b *chatBridge) setLink(user string, prev *phoneLink, present bool, link *p
 // policyStill: nil while user's chat-app access, with Home Assistant's
 // users read now, still passes want.
 func (b *chatBridge) policyStill(user string, want func(*chatPolicy) bool) error {
-	switch policy, code, _ := b.policy(user, true); {
+	switch policy, code, _ := b.policyNow(user); {
 	case code == http.StatusServiceUnavailable:
 		return errSettingsUnread
 	case !want(policy):

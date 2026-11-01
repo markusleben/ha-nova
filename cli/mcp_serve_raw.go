@@ -18,8 +18,11 @@ import (
 // chatAdminRefusal is configAdminFailure as a tool result; nil when allowed.
 func (srv *mcpServer) chatAdminRefusal(name string, args map[string]json.RawMessage) map[string]any {
 	failure := srv.configAdminFailure(name, args)
-	if failure == nil {
+	switch {
+	case failure == nil:
 		return nil
+	case failure.code == "BUSY":
+		return srv.chatBusy(name, args)
 	}
 	return chatStopped(name, refusedWith(failure.code, failure.message, failure.next))
 }
@@ -50,7 +53,10 @@ func (srv *mcpServer) configAdminFailure(name string, args map[string]json.RawMe
 	default:
 		return nil
 	}
-	users, err := c.bridge.homeUsers(true)
+	users, _, err := c.bridge.homeUsers(true)
+	if errors.Is(err, errBridgeBusy) {
+		return &verbFailure{code: "BUSY", message: chatBusyWhy, next: "Tell the user nothing changed: HA NOVA was still finishing another change. They can try again in a moment."}
+	}
 	if err != nil {
 		return &verbFailure{code: "ADMIN_UNKNOWN", message: "HA NOVA can't check right now whether this Home Assistant user is an administrator",
 			next: "Tell the user nothing changed: HA NOVA couldn't check their Home Assistant account just now. They can try again in a moment."}

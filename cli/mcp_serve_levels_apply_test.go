@@ -243,7 +243,8 @@ func TestServeLevelHoldsUnderTheVerbLock(t *testing.T) {
 	}
 	s := newServe(t, f, levels([]string{userA}, nil))
 	plan, _ := s.tool(userA, "ha_plan", map[string]any{"kind": "write", "domain": "script", "id": "s1", "draft": arrival("light.turn_off")})["plan"].(map[string]any)
-	if plan == nil {
+	other, _ := s.tool(userA, "ha_plan", map[string]any{"kind": "write", "domain": "script", "id": "s2", "draft": arrival("light.turn_off")})["plan"].(map[string]any)
+	if plan == nil || other == nil {
 		t.Fatal("no plan")
 	}
 	meanwhile := func(settings, name string, args map[string]any) map[string]any {
@@ -265,11 +266,17 @@ func TestServeLevelHoldsUnderTheVerbLock(t *testing.T) {
 	if env := meanwhile(lower("ask"), "ha_call", map[string]any{"service": "light.turn_off", "entity_ids": []string{"light.kitchen"}}); envCode(env) != "CHAT_LEVEL" || len(s.posts()) != 0 {
 		t.Fatalf("lowered to Ask only: %v (sent %d)", env, len(s.posts()))
 	}
-	if env := meanwhile(lower("use"), "ha_apply", map[string]any{"plan_id": plan["id"]}); envCode(env) != "CHAT_LEVEL" || len(s.writes()) != 0 || len(s.userPlans(userA)) != 1 {
+	if env := meanwhile(lower("use"), "ha_apply", map[string]any{"plan_id": plan["id"]}); envCode(env) != "CHAT_LEVEL" || len(s.writes()) != 0 || len(s.userPlans(userA)) != 2 {
 		t.Fatalf("lowered to Use the home: %v (writes %d, plans %d)", env, len(s.writes()), len(s.userPlans(userA)))
 	}
 	if env := meanwhile(levels([]string{userOwner}, nil), "ha_call", map[string]any{"service": "light.turn_off", "entity_ids": []string{"light.kitchen"}}); envCode(env) != "CHAT_APPS_REFUSED" || len(s.posts()) != 0 {
 		t.Fatalf("removed: %v (sent %d)", env, len(s.posts()))
+	}
+	readOnly := `{"allowed_users":["` + userA + `"],"roles":1,"read_only":true}`
+	for name, args := range map[string]map[string]any{"ha_apply": {"plan_id": other["id"]}, "ha_call": {"service": "light.turn_off", "entity_ids": []string{"light.kitchen"}}} {
+		if env := meanwhile(readOnly, name, args); envCode(env) != "READ_ONLY" || len(s.posts()) != 0 {
+			t.Fatalf("read only, %s: %v (sent %d)", name, env, len(s.posts()))
+		}
 	}
 }
 

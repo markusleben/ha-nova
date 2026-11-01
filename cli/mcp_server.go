@@ -304,11 +304,11 @@ func (srv *mcpServer) route(req rpcRequest) (map[string]any, *rpcError) {
 	return nil, &rpcError{Code: rpcMethodNotFound, Message: "method not found: " + req.Method}
 }
 
-// runVerb runs one verb under mcpVerbLock and returns its tool result.
-// Verbs set process-wide state (server selection, stdout, the channel);
-// every run starts from this server's and leaves nothing behind.
-func (srv *mcpServer) runVerb(name, answered string, forms bool, run func() int) map[string]any {
-	mcpVerbLock.Lock()
+// runLocked runs one verb under mcpVerbLock, which the caller took
+// (lockVerb), releases it, and returns its tool result. Verbs set
+// process-wide state (server selection, stdout, the channel); every run
+// starts from this server's and leaves nothing behind.
+func (srv *mcpServer) runLocked(name, answered string, forms bool, run func() int) map[string]any {
 	defer mcpVerbLock.Unlock()
 	override, active := serverSelectionOverride, activeServerProfile()
 	defer func() { setServerSelectionOverride(override); setActiveServerProfile(active) }()
