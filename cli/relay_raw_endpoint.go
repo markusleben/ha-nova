@@ -18,12 +18,8 @@ func guardRawRequest(paths runtimePaths, opts verbOptions, endpoint string, body
 		return nil, rawRefusal("Supervisor write", "an App install, uninstall, or options change goes through ha-nova plan raw (ha_plan kind raw in chat apps), then ha-nova apply"), nil
 	}
 	return guardRaw(endpoint, body, func() (error, error) {
-		refusal, err := formSecretSet(paths, endpoint, body)
-		if err != nil {
-			return nil, fmt.Errorf("cannot read the setup forms HA NOVA keeps (%w), so nothing was sent", err)
-		}
-		if refusal != nil {
-			return refusal, nil
+		if refusal, err := formSecretSet(paths, endpoint, body); refusal != nil || err != nil {
+			return refusal, err
 		}
 		return checkRawAccessTarget(paths, opts, endpoint, body)
 	})
@@ -31,16 +27,11 @@ func guardRawRequest(paths runtimePaths, opts verbOptions, endpoint string, body
 
 // guardRawRequestIn is guardRawRequest on an open session: a raw plan runs
 // it at planning and again right before each item is sent (live registry,
-// the flow forms an earlier item got back). Flow forms it can't read leave
-// the name check (noteFlowForms says so).
+// the flow forms an earlier item got back).
 func guardRawRequestIn(s *relaySession, endpoint string, body []byte) (send []byte, refusal, err error) {
 	return guardRaw(endpoint, body, func() (error, error) {
-		refusal, unread := formSecretSet(s.paths, endpoint, body)
-		if refusal != nil {
-			return refusal, nil
-		}
-		if unread != nil {
-			s.flowForms = unread
+		if refusal, err := formSecretSet(s.paths, endpoint, body); refusal != nil || err != nil {
+			return refusal, err
 		}
 		return checkRawAccessTargetIn(s, endpoint, body)
 	})

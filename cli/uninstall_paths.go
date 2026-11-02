@@ -172,7 +172,8 @@ func managedCacheArtifactPaths(paths runtimePaths) []string {
 		filepath.Join(paths.CacheDir, sessionBootstrapVerifiedMarker),
 		filepath.Join(paths.CacheDir, sessionBootstrapRepairPendingFile),
 		phoneResultsFile(paths),
-		planDir(paths), // pending confirmations: short-lived, worthless after uninstall
+		planDir(paths),     // pending confirmations: short-lived, worthless after uninstall
+		flowFormDir(paths), // the secret fields of setup forms flows answered with
 	}
 }
 

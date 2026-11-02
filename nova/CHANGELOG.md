@@ -7,7 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 ## [Relay 0.13.9] - 2026-11-02
 
 ### Fixed
-- Chat apps: a password, PIN, or key never goes into a setup or repair form from the chat. HA NOVA refuses it, and when a form asks for one, the AI sends you to Home Assistant to finish there (Settings > Devices & services, or Settings > System > Repairs).
+- HA NOVA refuses a password, PIN, or key it can recognize going into a setup or repair form, and when a form asks for one, the AI sends you to Home Assistant to finish there (Settings > Devices & services, or Settings > System > Repairs). This applies to every HA NOVA caller, chat apps and computers alike.
 
 ### Upgrade notes
 - Computers on HA NOVA 0.28.0 ask you to update this App.

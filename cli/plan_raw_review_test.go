@@ -111,7 +111,7 @@ func TestPlanRawCountsAndReasons(t *testing.T) {
 		},
 	})
 	_, env := planRaw(t, paths, `[{"endpoint":"backups","payload":{"action":"save","category":"scenes","name":"auto-x","data":{}}},
-		{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/flow/abc","body":{"host":"x","password":"","community":"s3cret","advanced":{"pwd":"inner"}}}}]`)
+		{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/flow/abc","body":{"host":"x","password":"","community":"s3cret","advanced":{"zone":"inner"}}}}]`)
 	if strings.Contains(env.Say, "s3cret") || strings.Contains(env.Say, "inner") || !strings.Contains(env.Say, "password set") ||
 		!strings.Contains(env.Say, "community set") || !strings.Contains(env.Say, "advanced set") || !strings.Contains(env.Say, "host “x”") {
 		t.Fatalf("flow step say %q", env.Say)

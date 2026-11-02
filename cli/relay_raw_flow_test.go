@@ -2,17 +2,20 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
 
 // A setup, options, subentry, or repair step that sends a password, key,
-// token, or PIN typed into the chat is refused before it is sent; an empty
-// one, or a field that only looks similar (max_tokens), is not.
+// token, or PIN typed into the chat, or a URL with a password in it, is
+// refused before it is sent; an empty one, or a field that only looks
+// similar (max_tokens, bypass_mode), is not.
 func TestRawFlowStepWithASecretIsRefused(t *testing.T) {
 	for _, tc := range []struct {
 		path    string
@@ -29,11 +32,22 @@ func TestRawFlowStepWithASecretIsRefused(t *testing.T) {
 		{"/api/config/config_entries/flow/0123abcd", map[string]any{"host": "192.168.1.20", "password": ""}, ""},
 		{"/api/config/config_entries/options/flow/0123abcd", map[string]any{"max_tokens": 150, "prompt": "Be brief"}, ""},
 		{"/api/config/config_entries/flow", map[string]any{"handler": "fritz"}, ""},
+		{"/api/config/config_entries/flow/0123abcd", map[string]any{"stream_source": "rtsp://admin:hunter2@192.168.1.5/live"}, "stream_source"},
+		{"/api/config/config_entries/options/flow/0123abcd", map[string]any{"still_image_url": "http://admin:pw@192.168.1.5/still.jpg"}, "still_image_url"},
+		{"/api/config/config_entries/flow/0123abcd", map[string]any{"stream_source": "rtsp://192.168.1.5/live", "bypass_mode": "on", "otp_enabled": "yes"}, ""},
 	} {
 		body, _ := json.Marshal(map[string]any{"method": "POST", "path": tc.path, "body": tc.body})
 		refusal := checkRawRelayRequest("core", body)
 		if tc.refused == "" && refusal != nil || tc.refused != "" && (refusal == nil || !strings.Contains(refusal.Error(), tc.refused)) {
 			t.Errorf("%s %v: refusal %v", tc.path, tc.body, refusal)
+		}
+	}
+	for _, name := range []string{"pass", "pwd", "passcode", "pincode", "pairing_code", "otp", "otp_code", "mfa_code", "2fa"} {
+		for _, value := range []any{"123456", 123456} {
+			body, _ := json.Marshal(map[string]any{"method": "POST", "path": "/api/config/config_entries/flow/0123abcd", "body": map[string]any{name: value}})
+			if refusal := checkRawRelayRequest("core", body); refusal == nil || !strings.Contains(refusal.Error(), strconv.Quote(name)) {
+				t.Errorf("%s %v: refusal %v", name, value, refusal)
+			}
 		}
 	}
 }
@@ -67,12 +81,12 @@ func TestPlanRawFlowFormAskingForASecretPointsToHomeAssistant(t *testing.T) {
 	}
 	host := map[string]any{"name": "host", "required": true, "type": "string"}
 	secret := map[string]any{"type": "expandable", "name": "advanced", "schema": []any{
-		map[string]any{"name": "pass", "required": true, "selector": map[string]any{"text": map[string]any{"type": "password"}}}}}
+		map[string]any{"name": "entry", "required": true, "selector": map[string]any{"text": map[string]any{"type": "password"}}}}}
 	for _, tc := range []struct {
 		fields []any
 		want   string
 	}{
-		{[]any{host, secret}, "never ask the user for pass"},
+		{[]any{host, secret}, "never ask the user for entry"},
 		{[]any{host}, "Tell the user what each item's response says"},
 	} {
 		paths, _ := rawRelay(t, map[string]func(map[string]any) any{
@@ -86,14 +100,15 @@ func TestPlanRawFlowFormAskingForASecretPointsToHomeAssistant(t *testing.T) {
 		if tc.want == "Tell the user what each item's response says" {
 			continue
 		}
-		if !strings.Contains(env.NextStep, "Settings > Devices & services") || !strings.Contains(env.NextStep, "If you started this flow, cancel it with a plan (core DELETE /api/config/config_entries/flow/f1)") ||
+		if !strings.HasPrefix(env.NextStep, "The setup isn't finished") || !strings.Contains(env.NextStep, "complete that step in Home Assistant under Settings > Devices & services") ||
+			!strings.Contains(env.NextStep, "If you started this flow, cancel it with a plan (core DELETE /api/config/config_entries/flow/f1)") ||
 			!strings.Contains(env.NextStep, "leave one Home Assistant started") {
 			t.Fatalf("next_step %q", env.NextStep)
 		}
 		step := func(body string) string {
 			return `[{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/flow/f1","body":` + body + `}}]`
 		}
-		if exit, env := planRaw(t, paths, step(`{"host":"192.168.1.20","advanced":{"pass":"hunter2"}}`)); exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Message, `"pass"`) {
+		if exit, env := planRaw(t, paths, step(`{"host":"192.168.1.20","advanced":{"entry":"hunter2"}}`)); exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Message, `"entry"`) {
 			t.Fatalf("a step that fills the form's password field: exit %d %+v", exit, env.Error)
 		}
 		if exit, env := planRaw(t, paths, step(`{"host":"192.168.1.20"}`)); exit != verbExitConfirmation {
@@ -153,13 +168,13 @@ func TestPlanRawFlowSecretHandOffSurvivesAFailedStep(t *testing.T) {
 }
 
 // The forms HA NOVA keeps: a file holding null holds none; one it can't
-// read leaves the name check and says so; an options flow can leave the
-// secret out.
+// read stops the step, in a plan as on the computer, and names where the
+// user completes it; an options flow can leave the secret out.
 func TestPlanRawFlowFormsFileAndOptionsHandOff(t *testing.T) {
 	paths, _ := rawRelay(t, map[string]func(map[string]any) any{
 		"POST /api/config/config_entries/options/flow": func(map[string]any) any {
 			return map[string]any{"status": 200, "body": map[string]any{"type": "form", "flow_id": "o1", "handler": "e1", "step_id": "init",
-				"data_schema": []any{map[string]any{"name": "pass", "selector": map[string]any{"text": map[string]any{"type": "password"}}}}}}
+				"data_schema": []any{map[string]any{"name": "entry", "selector": map[string]any{"text": map[string]any{"type": "password"}}}}}}
 		},
 	})
 	step := func(body string) string {
@@ -175,12 +190,12 @@ func TestPlanRawFlowFormsFileAndOptionsHandOff(t *testing.T) {
 		}
 	}
 	write("null")
-	if exit, env := planRaw(t, paths, step(`{"pass":"x"}`)); exit != verbExitConfirmation || len(env.Notices) != 0 {
+	if exit, env := planRaw(t, paths, step(`{"entry":"x"}`)); exit != verbExitConfirmation || len(env.Notices) != 0 {
 		t.Fatalf("null file: exit %d %+v %v", exit, env.Error, env.Notices)
 	}
 	_, env := planRaw(t, paths, `[{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/options/flow","body":{"handler":"e1"}}}]`)
 	exit, env := applyRaw(t, paths, env)
-	if exit != 0 || !strings.Contains(env.NextStep, "Leave pass out of the step, or tell them to finish this in Home Assistant under Settings > Devices & services") {
+	if exit != 0 || !strings.Contains(env.NextStep, "Leave entry out of the step, or tell them to complete that step in Home Assistant under Settings > Devices & services") {
 		t.Fatalf("options form: exit %d next_step %q %+v", exit, env.NextStep, env.Error)
 	}
 	write("{")
@@ -188,9 +203,92 @@ func TestPlanRawFlowFormsFileAndOptionsHandOff(t *testing.T) {
 	if exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Message, `"password"`) {
 		t.Fatalf("the name check still holds: exit %d %+v", exit, env.Error)
 	}
+	unread := "cannot read the setup forms HA NOVA keeps"
 	exit, env = planRaw(t, paths, step(`{"mode":"auto"}`))
-	if exit != verbExitConfirmation || !slices.ContainsFunc(env.Notices, func(n verbNotice) bool { return n.Kind == "flow_forms" && strings.Contains(n.Text, "field names only") }) {
-		t.Fatalf("an unreadable file: exit %d %+v %v", exit, env.Error, env.Notices)
+	if exit == verbExitConfirmation || exit == 0 || env.Error == nil || !strings.Contains(env.Error.Message, unread) {
+		t.Fatalf("an unreadable file in a plan: exit %d %+v", exit, env.Error)
+	}
+	_, refusal, err := guardRawRequest(paths, verbOptions{}, "core", []byte(`{"method":"POST","path":"/api/config/config_entries/options/flow/o1","body":{"mode":"auto"}}`))
+	if refusal != nil || err == nil || !strings.Contains(err.Error(), unread) ||
+		!strings.Contains(err.Error(), "the setup isn't finished: the user completes this step in Home Assistant under Settings > Devices & services") {
+		t.Fatalf("an unreadable file on the computer: %v %v", refusal, err)
+	}
+}
+
+// A flow that ends (create_entry, abort) or that a plan cancels (DELETE)
+// loses its files, and a cancelled flow keeps no hand-off.
+func TestPlanRawFlowFormsGoWhenTheFlowEnds(t *testing.T) {
+	form := func(id string) any {
+		return map[string]any{"status": 200, "body": map[string]any{"type": "form", "flow_id": id, "handler": id, "step_id": "user",
+			"data_schema": []any{map[string]any{"name": "entry", "selector": map[string]any{"text": map[string]any{"type": "password"}}}}}}
+	}
+	paths, _ := rawRelay(t, map[string]func(map[string]any) any{
+		"POST /api/config/config_entries/flow": func(req map[string]any) any {
+			body, _ := req["body"].(map[string]any)
+			return form(fmt.Sprint(body["handler"]))
+		},
+		"POST /api/config/config_entries/flow/c1": func(map[string]any) any {
+			return map[string]any{"status": 200, "body": map[string]any{"type": "create_entry", "flow_id": "c1", "handler": "c1"}}
+		},
+		"POST /api/config/config_entries/flow/a1": func(map[string]any) any {
+			return map[string]any{"status": 200, "body": map[string]any{"type": "abort", "flow_id": "a1", "reason": "already_configured"}}
+		},
+	})
+	start := func(id string) string {
+		return `{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/flow","body":{"handler":"` + id + `"}}}`
+	}
+	files := func(id string) int { found, _ := flowFormFiles(paths, id); return len(found) }
+	_, env := planRaw(t, paths, "["+start("c1")+","+start("a1")+"]")
+	if exit, env := applyRaw(t, paths, env); exit != 0 || files("c1") != 1 || files("a1") != 1 {
+		t.Fatalf("two forms: exit %d %+v", exit, env.Error)
+	}
+	_, env = planRaw(t, paths, `[{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/flow/c1","body":{"host":"x"}}},
+		{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/flow/a1","body":{"host":"y"}}},`+start("d1")+`,
+		{"endpoint":"core","payload":{"method":"DELETE","path":"/api/config/config_entries/flow/d1"}}]`)
+	exit, env := applyRaw(t, paths, env)
+	if exit != 0 || files("c1")+files("a1")+files("d1") != 0 || strings.Contains(env.NextStep, "isn't finished") {
+		t.Fatalf("ended and cancelled: exit %d next_step %q files %d %d %d", exit, env.NextStep, files("c1"), files("a1"), files("d1"))
+	}
+}
+
+// A flow's new file outranks its newest one even after the clock was set
+// back, and a temporary file a write left behind goes after an hour.
+func TestPlanRawFlowFormsOutrankAClockSetBack(t *testing.T) {
+	paths, _ := rawRelay(t, map[string]func(map[string]any) any{
+		"POST /api/config/config_entries/flow": func(map[string]any) any {
+			return map[string]any{"status": 200, "body": map[string]any{"type": "form", "flow_id": "s1", "handler": "acme", "step_id": "user",
+				"data_schema": []any{map[string]any{"name": "entry", "selector": map[string]any{"text": map[string]any{"type": "password"}}}}}}
+		},
+	})
+	for file, content := range map[string]string{
+		flowFormFile(paths, "s1", time.Now().Add(time.Hour)):                 `[["host"]]`,
+		flowFormFile(paths, "s1", time.Now().Add(-2*time.Hour)) + ".tmp-123": "",
+	} {
+		if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, env := planRaw(t, paths, `[{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/flow","body":{"handler":"acme"}}}]`)
+	if exit, env := applyRaw(t, paths, env); exit != 0 {
+		t.Fatalf("apply: exit %d %+v", exit, env.Error)
+	}
+	step := func(body string) string {
+		return `[{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/flow/s1","body":` + body + `}}]`
+	}
+	if exit, env := planRaw(t, paths, step(`{"host":"192.168.1.20"}`)); exit != verbExitConfirmation {
+		t.Fatalf("the older form still counts: exit %d %+v", exit, env.Error)
+	}
+	if exit, env := planRaw(t, paths, step(`{"entry":"hunter2"}`)); exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Message, `"entry"`) {
+		t.Fatalf("the newest form: exit %d %+v", exit, env.Error)
+	}
+	entries, _ := os.ReadDir(flowFormDir(paths))
+	for _, entry := range entries {
+		if strings.Contains(entry.Name(), ".tmp-") {
+			t.Fatalf("left behind: %s", entry.Name())
+		}
 	}
 }
 

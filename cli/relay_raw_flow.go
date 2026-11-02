@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -41,15 +42,15 @@ func (r rawFlowSecret) place() string {
 	return "Settings > Devices & services"
 }
 
-// next: an options step can leave the secret out; any other flow finishes
-// in Home Assistant.
+// next: the setup isn't finished; an options step can leave the secret
+// out, any other flow's step is completed in Home Assistant.
 func (r rawFlowSecret) next() string {
-	never := "Passwords and other secrets don't belong in a chat: never ask the user for " + r.field + " here. "
+	never := "The setup isn't finished: its next step needs " + r.field + ", a password or other secret, and secrets don't belong in a chat: never ask the user for " + r.field + " here. "
 	if strings.HasPrefix(r.path, "/api/config/config_entries/options/") {
-		return never + "Leave " + r.field + " out of the step, or tell them to finish this in Home Assistant under " + r.place() + " and cancel this flow with a plan (core DELETE " + r.path + ")."
+		return never + "Leave " + r.field + " out of the step, or tell them to complete that step in Home Assistant under " + r.place() + " and cancel this flow with a plan (core DELETE " + r.path + ")."
 	}
-	return never + "Tell them to finish this in Home Assistant under " + r.place() +
-		". If you started this flow, cancel it with a plan (core DELETE " + r.path + "); leave one Home Assistant started (a discovered device, a reauthentication) as it is: it waits there for them."
+	return never + "Tell them to complete that step in Home Assistant under " + r.place() +
+		". If you started this flow, cancel it with a plan (core DELETE " + r.path + ") so they start it there; leave one Home Assistant started (a discovered device, a reauthentication) as it is: it waits there for them."
 }
 
 // flowStepSecret: a flow step POST that sets a field whose name says it is
@@ -74,7 +75,11 @@ func flowSecretSet(body any) string {
 				return field
 			}
 		case string:
-			if value != "" && secretFlowField(map[string]any{"name": key}) {
+			var password bool
+			if u, err := url.Parse(strings.TrimSpace(value)); err == nil {
+				_, password = u.User.Password() // rtsp://admin:hunter2@camera, whatever the field's name
+			}
+			if value != "" && (password || secretFlowField(map[string]any{"name": key})) {
 				return key
 			}
 		case json.Number: // a token or PSK is never a number
@@ -93,12 +98,25 @@ func flowSecretSet(body any) string {
 // write over each other's, and a prune by the time in the name never
 // removes a newer file than it saw.
 func flowFormFile(paths runtimePaths, flowID string, at time.Time) string {
-	return filepath.Join(paths.CacheDir, "flow-forms", fmt.Sprintf("%s.%020d.json", flowID, at.UnixNano()))
+	return filepath.Join(flowFormDir(paths), fmt.Sprintf("%s.%020d.json", flowID, at.UnixNano()))
+}
+
+// flowFormDir holds every flow's files; uninstall removes it.
+func flowFormDir(paths runtimePaths) string { return filepath.Join(paths.CacheDir, "flow-forms") }
+
+// flowFormTime: the time in the name of a flow's file, or of a temporary
+// file writing one; false for any other name.
+func flowFormTime(name string) (time.Time, bool) {
+	name, _, _ = strings.Cut(name, ".tmp-")
+	stem, isForm := strings.CutSuffix(name, ".json")
+	_, at, _ := strings.Cut(stem, ".")
+	nanos, err := strconv.ParseInt(at, 10, 64)
+	return time.Unix(0, nanos), isForm && err == nil
 }
 
 // flowFormFiles: a flow's files, oldest first; none without the folder.
 func flowFormFiles(paths runtimePaths, flowID string) ([]string, error) {
-	dir := filepath.Join(paths.CacheDir, "flow-forms")
+	dir := flowFormDir(paths)
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
@@ -138,7 +156,8 @@ func readFlowForm(paths runtimePaths, flowID string) ([][]string, error) {
 }
 
 // formSecretSet: a flow step POST that fills a field its flow's last form
-// marked secret, in that field's section, whatever its name.
+// marked secret, in that field's section, whatever its name. Forms it can't
+// read stop the step: nothing is planned or sent.
 func formSecretSet(paths runtimePaths, endpoint string, body []byte) (refusal, err error) {
 	payload, _ := decodeObject(body)
 	method, _ := payload["method"].(string)
@@ -151,7 +170,8 @@ func formSecretSet(paths runtimePaths, endpoint string, body []byte) (refusal, e
 	}
 	secrets, err := readFlowForm(paths, m[2][1:])
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot read the setup forms HA NOVA keeps (%w), so nothing was sent; the setup isn't finished: the user completes this step in Home Assistant under %s",
+			err, rawFlowSecret{path: target}.place())
 	}
 	for _, field := range secrets {
 		value := payload["body"]
@@ -167,30 +187,49 @@ func formSecretSet(paths runtimePaths, endpoint string, body []byte) (refusal, e
 }
 
 // flowAnswered keeps the secret fields of the form a flow request at target
-// got back (none, or no form, once the flow has a file: a newer file says
-// so) and returns the flow's step path and the hand-off when that form asks
-// for one; unkept says why they could not be kept (noteFlowForms).
-func flowAnswered(paths runtimePaths, target string, data json.RawMessage) (flow string, asks *rawFlowSecret, unkept error) {
+// got back in a newer file (none: null, once the flow has a file) and
+// returns the flow's step path and the hand-off when that form asks for one.
+// A flow that ends (create_entry, abort) or is cancelled (DELETE) loses its
+// files. unkept says why they could not be kept (noteFlowForms).
+func flowAnswered(paths runtimePaths, method, target string, data json.RawMessage) (flow string, asks *rawFlowSecret, unkept error) {
 	m := rawFlowPath.FindStringSubmatch(target)
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
 	v, err := decodeOrdered(dec)
 	body := jsonFields(jsonFields(v)["body"])
 	flowID, _ := body["flow_id"].(string)
-	if m == nil || err != nil || !flowIDPattern.MatchString(flowID) {
+	switch {
+	case m != nil && m[2] != "" && strings.EqualFold(method, http.MethodDelete):
+		flowID, body = m[2][1:], map[string]any{"type": "abort"}
+	case m == nil || err != nil || !flowIDPattern.MatchString(flowID):
 		return "", nil, nil
 	}
 	flow = m[1] + "/" + flowID
+	files, err := flowFormFiles(paths, flowID)
 	var secrets [][]string
-	if schema, _ := body["data_schema"].([]any); body["type"] == "form" {
+	switch schema, _ := body["data_schema"].([]any); body["type"] {
+	case "create_entry", "abort":
+		for _, file := range files {
+			if gone := os.Remove(file); gone != nil && !errors.Is(gone, fs.ErrNotExist) {
+				err = gone
+			}
+		}
+		return flow, nil, err
+	case "form":
 		secrets = formSecretFields(schema)
 	}
 	if len(secrets) > 0 {
 		asks = &rawFlowSecret{field: secrets[0][len(secrets[0])-1], path: flow}
-	} else if files, err := flowFormFiles(paths, flowID); err == nil && len(files) == 0 {
+	} else if err == nil && len(files) == 0 {
 		return flow, nil, nil
 	}
-	file := flowFormFile(paths, flowID, time.Now())
+	at := time.Now()
+	if len(files) > 0 {
+		if newest, named := flowFormTime(filepath.Base(files[len(files)-1])); named && !at.After(newest) { // a clock set back never outranks a newer form
+			at = newest.Add(time.Nanosecond)
+		}
+	}
+	file := flowFormFile(paths, flowID, at)
 	out, err := json.Marshal(secrets)
 	if err == nil {
 		err = os.MkdirAll(filepath.Dir(file), 0o700)
@@ -204,18 +243,20 @@ func flowAnswered(paths runtimePaths, target string, data json.RawMessage) (flow
 	return flow, asks, err
 }
 
-// pruneFlowForms removes the files written more than 30 days ago, by the
-// time in their names.
+// pruneFlowForms removes the files written more than 30 days ago, and the
+// temporary files a write left behind an hour ago, by the time in their
+// names.
 func pruneFlowForms(dir string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
 	}
 	for _, entry := range entries {
-		stem, isForm := strings.CutSuffix(entry.Name(), ".json")
-		_, at, _ := strings.Cut(stem, ".")
-		nanos, err := strconv.ParseInt(at, 10, 64)
-		if !isForm || err != nil || time.Since(time.Unix(0, nanos)) < 30*24*time.Hour {
+		kept := 30 * 24 * time.Hour
+		if strings.Contains(entry.Name(), ".tmp-") {
+			kept = time.Hour
+		}
+		if at, named := flowFormTime(entry.Name()); !named || time.Since(at) < kept {
 			continue
 		}
 		if err := os.Remove(filepath.Join(dir, entry.Name())); err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -225,15 +266,14 @@ func pruneFlowForms(dir string) error {
 	return nil
 }
 
-// noteFlowForms says once in a raw plan's result that its flow steps met
-// the name check only, when the flow forms HA NOVA keeps could not be read
-// or kept.
+// noteFlowForms says once in a raw plan's result that a flow's form could
+// not be kept, so its later steps are checked by field names only.
 func noteFlowForms(s *relaySession, env *verbEnvelope) {
 	if s.flowForms == nil || slices.ContainsFunc(env.Notices, func(n verbNotice) bool { return n.Kind == "flow_forms" }) {
 		return
 	}
 	env.Notices = append(env.Notices, verbNotice{Kind: "flow_forms",
-		Text: fmt.Sprintf("HA NOVA couldn't read or keep the setup forms it records (%v): flow steps are checked by field names only", s.flowForms)})
+		Text: fmt.Sprintf("HA NOVA couldn't keep the setup form a flow answered with (%v): that flow's later steps are checked by field names only", s.flowForms)})
 }
 
 // formSecretFields: the paths of a serialized data_schema's secret fields
