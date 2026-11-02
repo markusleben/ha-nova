@@ -238,7 +238,7 @@ func staticRefusal(req planCallRequest) *tierReason {
 	switch {
 	case ownerSkill(req.Service) != "" && req.Skill != ownerSkill(req.Service):
 		return &tierReason{Code: reasonOwnedService, Skill: ownerSkill(req.Service)}
-	case domain == "hassio" && serviceCallHassio[name] && novaAppSlug(jsonText(req.Data["addon"])): // addon_start, _stop, _restart
+	case domain == "hassio" && (name == "addon_stop" || name == "addon_restart") && novaAppSlug(jsonText(req.Data["addon"])):
 		return &tierReason{Code: reasonHassio, Detail: novaAppStop}
 	case domain == "hassio":
 		// Only the five App/host-control services run through `ha-nova call`,

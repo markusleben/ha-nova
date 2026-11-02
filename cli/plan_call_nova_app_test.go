@@ -22,10 +22,12 @@ func TestCallNeverStopsTheNOVAApp(t *testing.T) {
 		{[]string{"switch.turn_off", "switch.nova_relay"}, true},
 		{[]string{"homeassistant.toggle", "switch.nova_relay"}, true},
 		{[]string{"hassio.addon_restart", "--skill", "ha-nova:service-call", "--set", "addon=core_mosquitto"}, false},
+		{[]string{"hassio.addon_start", "--skill", "ha-nova:service-call", "--set", "addon=2368fcfa_ha_nova_relay"}, false},
 		{[]string{"switch.turn_off", "switch.mosquitto"}, false},
 		{appInstall, false},
 	} {
 		f := appUpdateHA()
+		f.services = append(f.services, map[string]any{"domain": "hassio", "services": map[string]any{"addon_start": map[string]any{}}})
 		f.ent("switch.nova_relay", "hassio", "on", map[string]any{"_di": "app_device"})
 		f.ent("switch.mosquitto", "hassio", "on", map[string]any{"_di": "mqtt_device"})
 		f.devices = []map[string]any{
@@ -78,6 +80,25 @@ func TestCallNeverStopsTheNOVAAppThroughWhatItRuns(t *testing.T) {
 		{"scene.apply", func(f *fakeHA) {
 			f.services = append(f.services, map[string]any{"domain": "scene", "services": map[string]any{"apply": map[string]any{}}})
 		}, []string{"scene.apply", "--set", `entities={"switch.nova_relay":"off"}`}, true},
+		{"scene.apply with a boolean state", func(f *fakeHA) {
+			f.services = append(f.services, map[string]any{"domain": "scene", "services": map[string]any{"apply": map[string]any{}}})
+		}, []string{"scene.apply", "--set", `entities={"switch.nova_relay":false}`}, true},
+		{"stored scene with a boolean state", func(f *fakeHA) {
+			f.ent("scene.away", "homeassistant", "unknown", nil)
+			f.unique["scene.away"] = "s1"
+			f.configs["/api/config/scene/config/s1"] = map[string]any{"entities": map[string]any{"switch.nova_relay": map[string]any{"state": false}}}
+		}, []string{"scene.turn_on", "scene.away"}, true},
+		{"a service in capitals", func(f *fakeHA) { f.script("leave", step("Switch.Turn_Off", "switch.nova_relay")) }, []string{"script.turn_on", "script.leave"}, true},
+		{"an entity id in capitals", func(f *fakeHA) { f.script("leave", step("switch.turn_off", "Switch.Nova_Relay")) }, []string{"script.turn_on", "script.leave"}, true},
+		{"a scene key in capitals", func(f *fakeHA) {
+			f.script("leave", map[string]any{"action": "scene.apply", "data": map[string]any{"entities": map[string]any{"Switch.Nova_Relay": "off"}}})
+		}, []string{"script.turn_on", "script.leave"}, true},
+		{"an App service in capitals", func(f *fakeHA) {
+			f.script("leave", map[string]any{"action": "Hassio.Addon_Stop", "data": map[string]any{"addon": "2368fcfa_ha_nova_relay"}})
+		}, []string{"script.turn_on", "script.leave"}, true},
+		{"starting the App", func(f *fakeHA) {
+			f.script("leave", map[string]any{"action": "hassio.addon_start", "data": map[string]any{"addon": "2368fcfa_ha_nova_relay"}})
+		}, []string{"script.turn_on", "script.leave"}, false},
 		{"stored scene", func(f *fakeHA) {
 			f.ent("scene.away", "homeassistant", "unknown", nil)
 			f.unique["scene.away"] = "s1"
@@ -170,11 +191,11 @@ func TestCallNeverStopsTheNOVAAppThroughWhatItRuns(t *testing.T) {
 	}
 }
 
-// A switch HA NOVA can't place in the registry (no row, or a row without a
-// platform) might be the App's: turning it off is refused, and so is a step
-// on every switch while a row lacks its platform (the App's switch always
-// has a row).
-func TestCallRefusesASwitchMissingFromTheRegistry(t *testing.T) {
+// The App's switch always has a registry row with the hassio platform, so a
+// switch without one (YAML without unique_id, or a row without a platform)
+// isn't it: turning it off, or a step on every switch, is not refused. A
+// switch with no row stays typed, as an unregistered actuator.
+func TestCallTypesASwitchMissingFromTheRegistry(t *testing.T) {
 	everySwitch := []string{"script.turn_on", "script.leave"}
 	for name, setup := range map[string]func(f *fakeHA) [][]string{
 		"no row": func(f *fakeHA) [][]string { f.ent("switch.relay", "", "on", nil); return nil },
@@ -188,8 +209,8 @@ func TestCallRefusesASwitchMissingFromTheRegistry(t *testing.T) {
 		f.script("leave", map[string]any{"action": "switch.turn_off", "target": map[string]any{"entity_id": "all"}})
 		for _, args := range append(setup(f), []string{"switch.turn_off", "switch.relay"}) {
 			exit, env, _, _ := runPlanForTest(t, f, args...)
-			if exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Next, "couldn't tell from Home Assistant's registry") {
-				t.Errorf("%s %v: exit %d %+v", name, args, exit, env.Error)
+			if exit == verbExitRefused || env.Tier == "refused" || name == "no row" && env.Tier != "typed" {
+				t.Errorf("%s %v: exit %d tier %q %+v", name, args, exit, env.Tier, env.Error)
 			}
 		}
 	}

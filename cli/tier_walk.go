@@ -82,6 +82,7 @@ var walkSkipKeys = map[string]bool{
 // deviceForm marks a device action (domain + type), which acts on its own
 // chosen entity, hidden or categorized or not.
 func (e *tierEngine) storedCall(name string, step map[string]any, via string, depth int, deviceForm bool) {
+	name = strings.ToLower(name) // as Home Assistant reads it (cv.service)
 	if isTemplated(name) || !entityIDPattern.MatchString(name) {
 		e.gap(reasonTemplatedAction, "", via, name)
 		return
@@ -108,7 +109,7 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 		return
 	}
 	domain, service := splitID(name)
-	if domain == "hassio" && serviceCallHassio[service] && novaAppSlug(jsonText(data["addon"])) {
+	if domain == "hassio" && (service == "addon_stop" || service == "addon_restart") && novaAppSlug(jsonText(data["addon"])) {
 		e.latchOwnApp(novaAppStop, "", via)
 	}
 	if len(targets["floor_id"])+len(targets["label_id"]) > 0 {
@@ -207,6 +208,9 @@ func collectTargets(step map[string]any) (out map[string][]string, known, all bo
 			}
 			for _, value := range values {
 				text, _ := value.(string)
+				if key == "entity_id" { // as Home Assistant reads it (cv.entity_ids)
+					text = strings.ToLower(text)
+				}
 				switch text = strings.TrimSpace(text); {
 				case key == "entity_id" && strings.EqualFold(text, "all"):
 					all, known = true, false
@@ -289,6 +293,7 @@ func (e *tierEngine) sceneMembers(entities any, via string, depth int) {
 // sceneMember maps a stored target state to its service; a group member
 // reproduces that state on each leaf, mapped per leaf domain.
 func (e *tierEngine) sceneMember(id string, value any, via string, depth int) {
+	id = strings.ToLower(id) // as Home Assistant reads it (cv.entity_id)
 	if !entityIDPattern.MatchString(id) {
 		e.gap(reasonUnresolvedTarget, "", via, id)
 		return

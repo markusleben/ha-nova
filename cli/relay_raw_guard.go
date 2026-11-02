@@ -221,7 +221,7 @@ func checkRawWS(message map[string]any) error {
 		trigger, _ := json.Marshal(message["trigger"])
 		text := strings.ToLower(string(trigger))
 		// A template can name any event type, so no template in a raw trigger.
-		if strings.Contains(text, "call_service") || phoneEventName(text) || strings.Contains(text, "{{") || strings.Contains(text, "{%") {
+		if strings.Contains(text, "call_service") || phoneEventName(text) || isTemplated(text) {
 			return rawRefusal("trigger subscription on call_service, phone notification events, or a template", "watch the entity or event you need instead")
 		}
 	case "lovelace/config":

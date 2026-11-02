@@ -204,10 +204,12 @@ const (
 
 // novaAppSwitch: novaAppStop for the switch Home Assistant shows for HA
 // NOVA's own App (the hassio platform's, on the App's device): turning it
-// off stops the App, as hassio.addon_stop would; novaAppUnread for a switch
-// whose registry row, platform, device, or device identifiers can't be
-// read; "" otherwise. A switch_as_x light, fan, … shares its switch's
-// device: it is the App's when a hassio switch there is.
+// off stops the App, as hassio.addon_stop would; novaAppUnread when the
+// entity registry, or a hassio switch's device or its identifiers, can't be
+// read; "" otherwise. The App's switch always has a registry row, so a
+// switch without one (YAML without unique_id) is not it. A switch_as_x
+// light, fan, … shares its switch's device: it is the App's when a hassio
+// switch there is.
 func (e *tierEngine) novaAppSwitch(id string) string {
 	entry, listed := e.reg[id]
 	if entry.pl == "switch_as_x" {
@@ -221,9 +223,9 @@ func (e *tierEngine) novaAppSwitch(id string) string {
 	switch domain, _ := splitID(id); {
 	case domain != "switch":
 		return ""
-	case e.regFailed || !listed || entry.pl == "":
+	case e.regFailed:
 		return novaAppUnread
-	case entry.pl != "hassio":
+	case !listed || entry.pl != "hassio":
 		return ""
 	}
 	var rows []struct {
@@ -270,8 +272,8 @@ func (e *tierEngine) switchOff(id, service, via string) {
 }
 
 // everySwitch latches a step on every entity of its domain (entity_id all,
-// or no target): the App's switch, or a switch_as_x entity on it, is among
-// them unless the registry shows it isn't.
+// or no target): the App's switch, or a switch_as_x entity on it, may be
+// among them.
 func (e *tierEngine) everySwitch(service, via string) {
 	if eff := effectiveService(service, "switch"); e.regFailed && (eff == "switch.turn_off" || eff == "switch.toggle") {
 		e.latchOwnApp(novaAppUnread, "", via)
@@ -280,7 +282,7 @@ func (e *tierEngine) everySwitch(service, via string) {
 	domain, _ := splitID(service)
 	var ids []string
 	for id, entry := range e.reg {
-		if of, _ := splitID(id); (of == domain || domain == "homeassistant") && (entry.pl == "hassio" || entry.pl == "" || entry.pl == "switch_as_x") {
+		if of, _ := splitID(id); (of == domain || domain == "homeassistant") && (entry.pl == "hassio" || entry.pl == "switch_as_x") {
 			ids = append(ids, id)
 		}
 	}
