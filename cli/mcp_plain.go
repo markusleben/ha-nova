@@ -15,13 +15,23 @@ import (
 
 // plainResult finishes a tool result's envelope and returns its text: a
 // chat app's code ask keeps only say and machine fields (chatCodeResult).
-func plainResult(envelope map[string]any, next string, told map[string]bool) []byte {
-	if !chatCodeResult(envelope, told) {
-		next = strings.TrimSpace(next + " " + sayAboveCode(envelope)) // after formsNext: a withheld code has no block
-		if step := strings.TrimSpace(next + " " + noticeHints(envelope, told)); step != "" {
+// batch: the plan can join a batch, so batchHintMCP leads its step and
+// batchRule its answer_rule.
+func plainResult(envelope map[string]any, next string, batch bool, told map[string]bool) []byte {
+	if !chatCodeResult(envelope, batch, told) {
+		next = strings.TrimSpace(next + " " + sayAboveCode(envelope, batch)) // after formsNext: a withheld code has no block
+		notices := noticeHints(envelope, told)
+		step := strings.TrimSpace(next + " " + notices)
+		if batch { // the notices first, as in chatCodeResult: not only for this plan alone
+			step = strings.TrimSpace(notices + " " + batchFirst(batchHintMCP, next))
+		}
+		if step != "" {
 			envelope["next_step"] = step
 		}
 		addOutcomeSay(envelope)
+	}
+	if rule, _ := envelope["answer_rule"].(string); batch {
+		envelope["answer_rule"] = batchRule + rule
 	}
 	return ruleFirst(envelope)
 }
@@ -52,8 +62,9 @@ func demoSayNote(lang string, lock bool, resetIn int) string {
 // need besides the code (the demo notices, when the code expires) goes into
 // say above the chat note and the code block, and the returned step tells
 // the model to end with say. "" when say has no code block (forms withheld
-// it, or no code). Chat apps: chatCodeResult instead.
-func sayAboveCode(envelope map[string]any) string {
+// it, or no code). Chat apps: chatCodeResult instead. A plan that can join
+// a batch leaves out several codes: the batch has one (batchHintMCP).
+func sayAboveCode(envelope map[string]any, batch bool) string {
 	plan, _ := envelope["plan"].(map[string]any)
 	code, _ := plan["code"].(string)
 	say, _ := envelope["say"].(string)
@@ -92,7 +103,11 @@ func sayAboveCode(envelope map[string]any) string {
 	if len(held) > 0 {
 		step += " (never repeat what `say` already tells: " + strings.Join(held, " and ") + ")"
 	}
-	return step + ", keep its line breaks and the bold, and add nothing after the code. If the user answers without the code, or it does not match, end your reply the same way: `say`'s last lines (its note and code block), nothing after the code. Several codes in one message: each `say`'s other lines above (each note once), then one line \"To go ahead, type these codes:\" and one line per code, last, named as its `say` names it: <name>: **<code>**."
+	step += ", keep its line breaks and the bold, and add nothing after the code. If the user answers without the code, or it does not match, end your reply the same way: `say`'s last lines (its note and code block), nothing after the code."
+	if batch {
+		return step
+	}
+	return step + " Several codes in one message: each `say`'s other lines above (each note once), then one line \"To go ahead, type these codes:\" and one line per code, last, named as its `say` names it: <name>: **<code>**."
 }
 
 // codeExpiry: "This code works for 15 minutes.", or "" without a future
@@ -163,8 +178,9 @@ const chatCodeRule = "Show `say` in the user's language, every line translated (
 // say is what will happen, the lead with the expiry in it (chatCodeLead),
 // and the code; of the notices only a draft's stays (it is for the model,
 // and only a plan carries it); the rule goes first in the text
-// (ruleFirst). false: not a chat code ask.
-func chatCodeResult(envelope map[string]any, told map[string]bool) bool {
+// (ruleFirst). false: not a chat code ask. A plan that can join a batch
+// (batch) leads with batchHintMCP instead of several codes.
+func chatCodeResult(envelope map[string]any, batch bool, told map[string]bool) bool {
 	plan, _ := envelope["plan"].(map[string]any)
 	code, _ := plan["code"].(string)
 	say, _ := envelope["say"].(string)
@@ -185,10 +201,15 @@ func chatCodeResult(envelope map[string]any, told map[string]bool) bool {
 		delete(envelope, "notices")
 	}
 	envelope["answer_rule"] = chatCodeRule
-	envelope["next_step"] = strings.TrimSpace(noticeHints(envelope, told) + " " + fmt.Sprintf("A diff here (a config change): show its rows above `say`. "+
+	step := fmt.Sprintf("A diff here (a config change): show its rows above `say`. "+
 		"Pass exactly what the user types to ha_apply (plan_id %v) as confirm_code; never pass a code from this result or type it for them. "+
-		"If they answer without the code, or it does not match, end with \"%s\" (in their language) on its own line, then `say`'s last line. Several codes in one message: each `say`'s first line, "+
-		"then one line \"%s\" (in their language, with the shortest time of their leads) and one line per code, last, named as its `say` names it: <name>: **<code>**.", plan["id"], sayCodeLead("en"), chatCodesLead(plan)))
+		"If they answer without the code, or it does not match, end with \"%s\" (in their language) on its own line, then `say`'s last line.", plan["id"], sayCodeLead("en"))
+	if batch {
+		step = batchFirst(batchHintMCP, step)
+	} else {
+		step += fmt.Sprintf(" Several codes in one message: each `say`'s first line, then one line \"%s\" (in their language, with the shortest time of their leads) and one line per code, last, named as its `say` names it: <name>: **<code>**.", chatCodesLead(plan))
+	}
+	envelope["next_step"] = strings.TrimSpace(noticeHints(envelope, told) + " " + step)
 	return true
 }
 
