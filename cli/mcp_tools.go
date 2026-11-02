@@ -137,8 +137,8 @@ func mcpToolList(paths runtimePaths) []map[string]any {
 
 // mcpVerbLock serializes tool runs: verbs share process-wide state (stdout
 // capture, server selection). A chat-app call waits for it at most
-// chatLockWait (mcp_serve_apply.go).
-var mcpVerbLock = make(verbLock, 1)
+// chatCallWait, and chatLockWait for a running change (mcp_serve_apply.go).
+var mcpVerbLock = newVerbLock()
 
 func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 	var params struct {
@@ -186,8 +186,8 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		if waited := srv.chatApply(tool.name, params.Arguments, argv); waited != nil { // ha-nova serve: an apply job (it notes the change)
 			return waited, nil
 		}
-		if !srv.lockVerb() { // ha-nova serve: a running change held the lock too long; nothing ran
-			busy := srv.chatBusy(tool.name, params.Arguments)
+		if err := srv.lockVerb(); err != nil { // ha-nova serve: a running change, or other requests, held the lock too long; nothing ran
+			busy := srv.chatBusy(tool.name, params.Arguments, err.Error())
 			srv.noteChange(tool.name, what, busy)
 			return busy, nil
 		}

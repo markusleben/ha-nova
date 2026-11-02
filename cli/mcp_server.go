@@ -126,6 +126,7 @@ type mcpServer struct {
 	queued      [][]byte        // messages that arrived while a form was open (legacy era)
 	formSeq     int             // ids of this server's elicitation/create requests
 	chat        *chatPolicy     // ha-nova serve: the chat app's HA user and the owner's switches (nil: stdio)
+	since       time.Time       // ha-nova serve: when the request came in; its waits for mcpVerbLock count from it (lockChat)
 }
 
 func runMCPCommand(paths runtimePaths, args []string) int {
@@ -310,6 +311,9 @@ func (srv *mcpServer) route(req rpcRequest) (map[string]any, *rpcError) {
 // starts from this server's and leaves nothing behind.
 func (srv *mcpServer) runLocked(name, answered string, forms bool, run func() int) map[string]any {
 	defer mcpVerbLock.Unlock()
+	if name == "ha_apply" { // a change: chat-app requests wait for it at most chatLockWait
+		mcpVerbLock.changing()
+	}
 	override, active := serverSelectionOverride, activeServerProfile()
 	defer func() { setServerSelectionOverride(override); setActiveServerProfile(active) }()
 	setServerSelectionOverride(srv.pin)

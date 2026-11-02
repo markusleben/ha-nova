@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Household levels (mcp_serve_levels.go, docs/work/2026-10-24-chat-apps-
@@ -189,7 +190,7 @@ func TestServeLevelIsTheLowerOfChoiceAndRole(t *testing.T) {
 		return fakeRelayFailure{"UPSTREAM_ERROR", "boom"}, endpoint == "ws" && p["type"] == "config/auth/list"
 	}
 	f.mu.Unlock()
-	if p, code, why := s.b.policy(userA, true); p != nil || code != http.StatusServiceUnavailable || !strings.Contains(why, "can't read this home's Home Assistant users") {
+	if p, code, why := s.b.policy(userA, true, chatWait(time.Now())); p != nil || code != http.StatusServiceUnavailable || !strings.Contains(why, "can't read this home's Home Assistant users") {
 		t.Errorf("unreadable users: %+v %d %s", p, code, why)
 	}
 }

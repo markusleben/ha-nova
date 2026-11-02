@@ -221,10 +221,10 @@ func (srv *mcpServer) chatGate(tool mcpTool, args map[string]json.RawMessage) ma
 		return nil
 	}
 	if tool.name == "ha_call" || tool.name == "ha_apply" || srv.chat.stale && tool.name != mcpSkillTool.name {
-		fresh, code, why := srv.chat.bridge.policy(srv.chat.user, true)
+		fresh, code, why := srv.chat.bridge.policy(srv.chat.user, true, chatWait(srv.since))
 		switch {
-		case code == http.StatusServiceUnavailable && why == chatBusyWhy:
-			return srv.chatBusy(tool.name, args)
+		case code == http.StatusServiceUnavailable && (why == chatBusyWhy || why == chatQueuedWhy):
+			return srv.chatBusy(tool.name, args, why)
 		case code == http.StatusServiceUnavailable:
 			return chatStopped(tool.name, refusedWith("ACCESS_UNKNOWN", why,
 				"Tell the user nothing changed: HA NOVA couldn't check their Home Assistant account just now. They can try again in a moment."))
