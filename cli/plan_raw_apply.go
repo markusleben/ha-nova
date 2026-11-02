@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"slices"
 	"strings"
 )
 
@@ -45,7 +46,14 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 	defer noteFlowForms(s, env)
 	result, copies := rawApplyResult{}, len(rawCopies(items)) // steps are numbered and counted after the copies, as the preview says them
 	step := func(i int) int { return i + 1 - copies }
-	var secretForm *rawFlowSecret // a flow answered with a form that asks for a secret (flowAnswered)
+	var handoffs []rawFlowSecret // each flow whose last form asks for a secret (flowAnswered), in order
+	handoff := func() string {
+		var next []string
+		for _, h := range handoffs {
+			next = append(next, h.next())
+		}
+		return strings.Join(next, " ")
+	}
 	add := func(i int, status, why string) *rawItemOutcome {
 		result.Items = append(result.Items, rawItemOutcome{Item: i + 1, Endpoint: items[i].Endpoint, Status: status, Error: why})
 		return &result.Items[len(result.Items)-1]
@@ -56,8 +64,8 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 			add(j, "not_sent", "")
 		}
 		err := rawStopped(env, result, copies, i, status, why)
-		if secretForm != nil { // it still holds for that flow
-			env.Error.Next = secretForm.next() + " " + env.Error.Next
+		if len(handoffs) > 0 { // they still hold for those flows
+			env.Error.Next = handoff() + " " + env.Error.Next
 		}
 		return err
 	}
@@ -135,9 +143,10 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		out.Response = rawResponse(item.Endpoint, data)
 		if target, _ := payload["path"].(string); item.Endpoint == "core" {
 			target, _, _ = strings.Cut(target, "?")
-			asks, unkept := flowAnswered(paths, target, data)
+			flow, asks, unkept := flowAnswered(paths, target, data)
+			handoffs = slices.DeleteFunc(handoffs, func(h rawFlowSecret) bool { return flow != "" && h.path == flow })
 			if asks != nil {
-				secretForm = asks
+				handoffs = append(handoffs, *asks)
 			}
 			if unkept != nil {
 				s.flowForms = unkept
@@ -158,8 +167,8 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		env.Say += " No copy or undo was saved, as you chose."
 	}
 	env.NextStep = "Tell the user what each item's response says where it matters (result.items[].response: a setup flow's next form, a created id). A further step is a new plan."
-	if secretForm != nil {
-		env.NextStep = secretForm.next()
+	if len(handoffs) > 0 {
+		env.NextStep = handoff()
 	}
 	for _, item := range items {
 		payload, _ := decodeObject(item.Payload)

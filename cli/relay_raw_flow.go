@@ -87,39 +87,58 @@ func flowSecretSet(body any) string {
 	return ""
 }
 
-// flowForms: the secret fields of the last form each flow answered a plan's
-// apply with (flowAnswered), by flow id: the newest 50 flows.
-func flowFormsPath(paths runtimePaths) string {
-	return filepath.Join(paths.CacheDir, "flow-forms.json")
+// flowFormFile: a file that keeps the secret fields of a form a flow
+// answered a plan's apply with at a time (flowAnswered). Each answer gets
+// its own file and the flow's newest counts, so two applies at once never
+// write over each other's, and a prune by the time in the name never
+// removes a newer file than it saw.
+func flowFormFile(paths runtimePaths, flowID string, at time.Time) string {
+	return filepath.Join(paths.CacheDir, "flow-forms", fmt.Sprintf("%s.%020d.json", flowID, at.UnixNano()))
 }
 
-type flowForm struct {
-	Secrets []string  `json:"secrets"`
-	At      time.Time `json:"at"`
+// flowFormFiles: a flow's files, oldest first; none without the folder.
+func flowFormFiles(paths runtimePaths, flowID string) ([]string, error) {
+	dir := filepath.Join(paths.CacheDir, "flow-forms")
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	var files []string
+	for _, entry := range entries {
+		if name := entry.Name(); strings.HasPrefix(name, flowID+".") && strings.HasSuffix(name, ".json") {
+			files = append(files, filepath.Join(dir, name))
+		}
+	}
+	return files, err
 }
 
-// readFlowForms: no file yet, or one holding null, holds no forms; an
-// unreadable one is an error.
-func readFlowForms(paths runtimePaths) (map[string]flowForm, error) {
-	forms := map[string]flowForm{}
-	data, err := os.ReadFile(flowFormsPath(paths))
+// flowIDPattern: a flow id as Home Assistant makes it, safe as a file name.
+var flowIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+// readFlowForm: the paths of a flow's secret fields in its newest file (a
+// section's name, then the field's); none without a file or with one
+// holding null; an unreadable file is an error.
+func readFlowForm(paths runtimePaths, flowID string) ([][]string, error) {
+	files, err := flowFormFiles(paths, flowID)
+	if err != nil || len(files) == 0 {
+		return nil, err
+	}
+	data, err := os.ReadFile(files[len(files)-1])
 	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return forms, nil
+	case errors.Is(err, fs.ErrNotExist): // pruned since: untouched for 30 days
+		return nil, nil
 	case err != nil:
 		return nil, err
 	}
-	if err := json.Unmarshal(data, &forms); err != nil {
-		return nil, fmt.Errorf("%s: %w", flowFormsPath(paths), err)
+	var secrets [][]string
+	if err := json.Unmarshal(data, &secrets); err != nil {
+		return nil, fmt.Errorf("%s: %w", files[len(files)-1], err)
 	}
-	if forms == nil {
-		forms = map[string]flowForm{}
-	}
-	return forms, nil
+	return secrets, nil
 }
 
 // formSecretSet: a flow step POST that fills a field its flow's last form
-// marked secret, in a section too, whatever its name.
+// marked secret, in that field's section, whatever its name.
 func formSecretSet(paths runtimePaths, endpoint string, body []byte) (refusal, err error) {
 	payload, _ := decodeObject(body)
 	method, _ := payload["method"].(string)
@@ -130,71 +149,80 @@ func formSecretSet(paths runtimePaths, endpoint string, body []byte) (refusal, e
 	if endpoint != "core" || strings.ToUpper(strings.TrimSpace(method)) != http.MethodPost || m == nil || m[2] == "" {
 		return nil, nil
 	}
-	forms, err := readFlowForms(paths)
+	secrets, err := readFlowForm(paths, m[2][1:])
 	if err != nil {
 		return nil, err
 	}
-	fields, _ := payload["body"].(map[string]any)
-	scopes := []any{fields}
-	for _, value := range fields {
-		scopes = append(scopes, value)
-	}
-	for _, name := range forms[m[2][1:]].Secrets {
-		for _, scope := range scopes {
-			if value, _ := scope.(map[string]any); value[name] != nil && value[name] != "" {
-				return rawFlowSecret{field: name, path: target}, nil
-			}
+	for _, field := range secrets {
+		value := payload["body"]
+		for _, key := range field {
+			inner, _ := value.(map[string]any)
+			value = inner[key]
+		}
+		if len(field) > 0 && value != nil && value != "" {
+			return rawFlowSecret{field: field[len(field)-1], path: target}, nil
 		}
 	}
 	return nil, nil
 }
 
 // flowAnswered keeps the secret fields of the form a flow request at target
-// got back (none, or no form: the flow is forgotten) and returns the
-// hand-off when it asks for one; unkept says why the forms could not be
-// kept (noteFlowForms).
-func flowAnswered(paths runtimePaths, target string, data json.RawMessage) (asks *rawFlowSecret, unkept error) {
+// got back (none, or no form, once the flow has a file: a newer file says
+// so) and returns the flow's step path and the hand-off when that form asks
+// for one; unkept says why they could not be kept (noteFlowForms).
+func flowAnswered(paths runtimePaths, target string, data json.RawMessage) (flow string, asks *rawFlowSecret, unkept error) {
 	m := rawFlowPath.FindStringSubmatch(target)
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
 	v, err := decodeOrdered(dec)
 	body := jsonFields(jsonFields(v)["body"])
 	flowID, _ := body["flow_id"].(string)
-	if m == nil || err != nil || flowID == "" {
-		return nil, nil
+	if m == nil || err != nil || !flowIDPattern.MatchString(flowID) {
+		return "", nil, nil
 	}
-	var secrets []string
+	flow = m[1] + "/" + flowID
+	var secrets [][]string
 	if schema, _ := body["data_schema"].([]any); body["type"] == "form" {
 		secrets = formSecretFields(schema)
 	}
 	if len(secrets) > 0 {
-		asks = &rawFlowSecret{field: secrets[0], path: m[1] + "/" + flowID}
+		asks = &rawFlowSecret{field: secrets[0][len(secrets[0])-1], path: flow}
+	} else if files, err := flowFormFiles(paths, flowID); err == nil && len(files) == 0 {
+		return flow, nil, nil
 	}
-	forms, err := readFlowForms(paths)
+	file := flowFormFile(paths, flowID, time.Now())
+	out, err := json.Marshal(secrets)
+	if err == nil {
+		err = os.MkdirAll(filepath.Dir(file), 0o700)
+	}
+	if err == nil {
+		err = writeFileAtomic(file, out, 0o600)
+	}
+	if err == nil {
+		err = pruneFlowForms(filepath.Dir(file))
+	}
+	return flow, asks, err
+}
+
+// pruneFlowForms removes the files written more than 30 days ago, by the
+// time in their names.
+func pruneFlowForms(dir string) error {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return asks, err
+		return err
 	}
-	delete(forms, flowID)
-	if len(secrets) > 0 {
-		forms[flowID] = flowForm{Secrets: secrets, At: verbNow()}
-	}
-	for len(forms) > 50 {
-		oldest := ""
-		for id, form := range forms {
-			if oldest == "" || form.At.Before(forms[oldest].At) {
-				oldest = id
-			}
+	for _, entry := range entries {
+		stem, isForm := strings.CutSuffix(entry.Name(), ".json")
+		_, at, _ := strings.Cut(stem, ".")
+		nanos, err := strconv.ParseInt(at, 10, 64)
+		if !isForm || err != nil || time.Since(time.Unix(0, nanos)) < 30*24*time.Hour {
+			continue
 		}
-		delete(forms, oldest)
+		if err := os.Remove(filepath.Join(dir, entry.Name())); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
 	}
-	out, err := json.Marshal(forms)
-	if err == nil {
-		err = os.MkdirAll(paths.CacheDir, 0o700)
-	}
-	if err == nil {
-		err = writeFileAtomic(flowFormsPath(paths), out, 0o600)
-	}
-	return asks, err
+	return nil
 }
 
 // noteFlowForms says once in a raw plan's result that its flow steps met
@@ -208,25 +236,27 @@ func noteFlowForms(s *relaySession, env *verbEnvelope) {
 		Text: fmt.Sprintf("HA NOVA couldn't read or keep the setup forms it records (%v): flow steps are checked by field names only", s.flowForms)})
 }
 
-// formSecretFields: the secret fields of a serialized data_schema, in a
-// collapsible section too: one marked secret or a password box, or a text
-// field whose name says it is (secretFlowField); a number, toggle, or choice
-// is never one by its name.
-func formSecretFields(fields []any) []string {
-	var names []string
+// formSecretFields: the paths of a serialized data_schema's secret fields
+// (in a collapsible section, its name first): one marked secret or a
+// password box, or a text field whose name says it is (secretFlowField); a
+// number, toggle, or choice is never one by its name.
+func formSecretFields(fields []any) [][]string {
+	var found [][]string
 	for _, x := range fields {
 		field := jsonFields(x)
 		selector := jsonFields(field["selector"])
 		_, text := selector["text"]
 		name, _ := field["name"].(string)
 		switch section, ok := field["schema"].([]any); {
-		case ok && field["type"] == "expandable":
-			names = append(names, formSecretFields(section)...)
 		case name == "":
+		case ok && field["type"] == "expandable":
+			for _, inner := range formSecretFields(section) {
+				found = append(found, append([]string{name}, inner...))
+			}
 		case field["secret"] == true || jsonFields(selector["text"])["type"] == "password",
 			(field["type"] == "string" || text) && secretFlowField(field):
-			names = append(names, name)
+			found = append(found, []string{name})
 		}
 	}
-	return names
+	return found
 }

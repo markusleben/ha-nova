@@ -3,9 +3,11 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // A setup, options, subentry, or repair step that sends a password, key,
@@ -160,27 +162,86 @@ func TestPlanRawFlowFormsFileAndOptionsHandOff(t *testing.T) {
 				"data_schema": []any{map[string]any{"name": "pass", "selector": map[string]any{"text": map[string]any{"type": "password"}}}}}}
 		},
 	})
-	start := `[{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/options/flow","body":{"handler":"e1"}}}]`
-	if err := os.MkdirAll(paths.CacheDir, 0o700); err != nil {
-		t.Fatal(err)
+	step := func(body string) string {
+		return `[{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/options/flow/o1","body":` + body + `}}]`
 	}
-	if err := os.WriteFile(flowFormsPath(paths), []byte("null"), 0o600); err != nil {
-		t.Fatal(err)
+	write := func(content string) {
+		file := flowFormFile(paths, "o1", time.Now())
+		if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
-	_, env := planRaw(t, paths, start)
+	write("null")
+	if exit, env := planRaw(t, paths, step(`{"pass":"x"}`)); exit != verbExitConfirmation || len(env.Notices) != 0 {
+		t.Fatalf("null file: exit %d %+v %v", exit, env.Error, env.Notices)
+	}
+	_, env := planRaw(t, paths, `[{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/options/flow","body":{"handler":"e1"}}}]`)
 	exit, env := applyRaw(t, paths, env)
 	if exit != 0 || !strings.Contains(env.NextStep, "Leave pass out of the step, or tell them to finish this in Home Assistant under Settings > Devices & services") {
-		t.Fatalf("null file: exit %d next_step %q %+v", exit, env.NextStep, env.Error)
+		t.Fatalf("options form: exit %d next_step %q %+v", exit, env.NextStep, env.Error)
 	}
-	if err := os.WriteFile(flowFormsPath(paths), []byte("{"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	exit, env = planRaw(t, paths, `[{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/options/flow/o1","body":{"password":"hunter2"}}}]`)
+	write("{")
+	exit, env = planRaw(t, paths, step(`{"password":"hunter2"}`))
 	if exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Message, `"password"`) {
 		t.Fatalf("the name check still holds: exit %d %+v", exit, env.Error)
 	}
-	exit, env = planRaw(t, paths, `[{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/options/flow/o1","body":{"mode":"auto"}}}]`)
+	exit, env = planRaw(t, paths, step(`{"mode":"auto"}`))
 	if exit != verbExitConfirmation || !slices.ContainsFunc(env.Notices, func(n verbNotice) bool { return n.Kind == "flow_forms" && strings.Contains(n.Text, "field names only") }) {
 		t.Fatalf("an unreadable file: exit %d %+v %v", exit, env.Error, env.Notices)
+	}
+}
+
+// A recorded secret is matched in its own section: a root field of the same
+// name stays writable. Each flow keeps its own hand-off and files, and a
+// file written 30 days ago goes, never a newer one of the same flow. The
+// cache folder's name is taken literally.
+func TestPlanRawFlowFormsPerFlow(t *testing.T) {
+	form := func(id string, fields ...any) any {
+		return map[string]any{"status": 200, "body": map[string]any{"type": "form", "flow_id": id, "handler": "acme", "step_id": "init", "data_schema": fields}}
+	}
+	password := map[string]any{"name": "value", "selector": map[string]any{"text": map[string]any{"type": "password"}}}
+	paths, _ := rawRelay(t, map[string]func(map[string]any) any{
+		"POST /api/repairs/issues/fix": func(map[string]any) any { return form("r1", password) },
+		"POST /api/config/config_entries/options/flow": func(map[string]any) any {
+			return form("o1", map[string]any{"name": "value", "type": "string"}, map[string]any{"type": "expandable", "name": "advanced", "schema": []any{password}})
+		},
+	})
+	paths.CacheDir = filepath.Join(paths.CacheDir, "ha[prod]*")
+	for id, days := range map[string]int{"stale": 31, "open": 29, "o1": 31} {
+		file := flowFormFile(paths, id, time.Now().Add(-time.Duration(days)*24*time.Hour))
+		if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, []byte(`[["x"]]`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, env := planRaw(t, paths, `[{"endpoint":"core","payload":{"method":"POST","path":"/api/repairs/issues/fix","body":{"handler":"acme","issue_id":"i1"}}},
+		{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/options/flow","body":{"handler":"e1"}}}]`)
+	exit, env := applyRaw(t, paths, env)
+	if exit != 0 || !strings.Contains(env.NextStep, "Settings > System > Repairs") || !strings.Contains(env.NextStep, "core DELETE /api/repairs/issues/fix/r1") ||
+		!strings.Contains(env.NextStep, "core DELETE /api/config/config_entries/options/flow/o1") {
+		t.Fatalf("two flows: exit %d next_step %q", exit, env.NextStep)
+	}
+	step := func(body string) string {
+		return `[{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/options/flow/o1","body":` + body + `}}]`
+	}
+	if exit, env := planRaw(t, paths, step(`{"value":"friendly label"}`)); exit != verbExitConfirmation {
+		t.Fatalf("the root field of the same name: exit %d %+v", exit, env.Error)
+	}
+	if exit, env := planRaw(t, paths, step(`{"advanced":{"value":"hunter2"}}`)); exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Message, `"value"`) {
+		t.Fatalf("the section's password: exit %d %+v", exit, env.Error)
+	}
+	entries, _ := os.ReadDir(filepath.Dir(flowFormFile(paths, "r1", time.Now())))
+	var flows []string
+	for _, entry := range entries {
+		flow, _, _ := strings.Cut(entry.Name(), ".")
+		flows = append(flows, flow)
+	}
+	if !slices.Equal(flows, []string{"o1", "open", "r1"}) {
+		t.Fatalf("kept %v", flows)
 	}
 }
