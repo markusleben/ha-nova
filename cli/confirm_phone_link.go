@@ -217,7 +217,7 @@ func sendPhoneLink(s *relaySession, out io.Writer, lang string, home phoneHome, 
 		return say(phoneLinkRejected, fmt.Sprintf("Nothing linked: the tap came from a phone signed in to Home Assistant as someone other than %s. Sign in as %s in the Home Assistant app on “%s”.%s", person, person, name, retry))
 	case phoneDeclined:
 		return say(phoneLinkDeclined, "Nothing linked: it was cancelled on the phone."+retry)
-	case phoneFailed:
+	case phoneFailed, phoneUnread:
 		return say(phoneLinkFailed, "Nothing linked: HA NOVA couldn't send the notification, or couldn't listen for the tap through the NOVA App. Check that the phone's Home Assistant app is signed in and can reach Home Assistant."+retry)
 	default:
 		say(phoneLinkTimeout, "Nothing linked: “"+phoneLinkButton(lang)+"” was not tapped in time. Next time: "+phoneTapLine("en", chosen.platform(), phoneLinkButton(lang)))
@@ -285,7 +285,7 @@ func allowPhoneChange(s *relaySession, out io.Writer, lang string, home phoneHom
 			reply.say(prefix, line)
 		}()
 		if answer == phoneConfirmed {
-			still, unread := phoneStillLinked(s, current)
+			still, unread := phoneStillLinked(s, current, time.Time{})
 			switch {
 			case still && unlink:
 				reply.say(confirmT(lang, "outcome.approved"), confirmT(lang, "outcome.line.approved_stop", "host", phoneHost(lang)))

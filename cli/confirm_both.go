@@ -19,9 +19,21 @@ import (
 // each keeps its single channel (confirm_window.go, confirm_phone_link.go).
 
 const (
-	phoneQuietText = "HA NOVA can't reach your linked phone now, so only the window on this computer asks. `ha-nova setup confirm-phone list` says why."
-	phoneQuietNext = " Their linked phone couldn't be asked; `ha-nova setup confirm-phone list` (it sends nothing) says why."
+	phoneQuietText       = "HA NOVA can't reach your linked phone now, so only the window on this computer asks. `ha-nova setup confirm-phone list` says why."
+	phoneQuietNext       = " Their linked phone couldn't be asked; `ha-nova setup confirm-phone list` (it sends nothing) says why."
+	phoneQuietUnreadText = "HA NOVA couldn't check your linked phone in Home Assistant just now (Home Assistant answered too slowly or a read failed, twice), so only the window on this computer asks. Nothing on your phone needs fixing."
+	phoneQuietUnreadNext = " Nothing was sent to their phone: HA NOVA couldn't check it in Home Assistant just now (Home Assistant answered too slowly or a read failed, twice). Nothing on the phone needs fixing (no notification settings, no limits)."
 )
+
+// phoneQuiet: why the phone stays quiet while the window asks, for the
+// terminal and for the agent's next step; plainer where its check failed on
+// a read twice (unread).
+func phoneQuiet(unread bool) (line, next string) {
+	if unread {
+		return phoneQuietUnreadText, phoneQuietUnreadNext
+	}
+	return phoneQuietText, phoneQuietNext
+}
 
 // humanVote is one channel's answer.
 type humanVote struct {
@@ -67,8 +79,9 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 			windowIn, window, ended = true, v.window, v.ended
 		}
 		first, decided = v, v.decisive()
-		if v.phone && v.answer == phoneFailed && !windowIn { // the window still asks: say why the phone is quiet
-			fmt.Fprintln(os.Stderr, phoneQuietText)
+		if v.phone && (v.answer == phoneFailed || v.answer == phoneUnread) && !windowIn { // the window still asks: say why the phone is quiet
+			line, _ := phoneQuiet(v.answer == phoneUnread)
+			fmt.Fprintln(os.Stderr, line)
 		}
 	}
 	cancel()                    // withdraw the other: the window closes, the phone stops listening
@@ -101,7 +114,8 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 		go func() { reply.withdraw(); close(gone) }()
 		phoneApplied = func(verbEnvelope, int) { <-gone; s.close() }
 	}
-	phoneOut := a.answer == phoneFailed
+	unread := a.answer == phoneUnread
+	phoneOut := a.answer == phoneFailed || unread
 	switch {
 	case decided && first.phone:
 		if first.answer != phoneRejected && window != windowFailed {
@@ -117,6 +131,9 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 		withdraw()
 		return windowStopped(s, "declined", "CONFIRM_DECLINED", "the confirmation window was cancelled",
 			"Tell the user nothing changed. Apply this plan again only if they ask for it.")
+	case window == windowFailed && unread:
+		tell(phoneNothing(lang, a.answer))
+		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and "+phoneUnreadWhy, phoneUnreadNext)
 	case window == windowFailed && phoneOut:
 		tell(phoneNothing(lang, a.answer))
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and HA NOVA can't reach the linked phone either", phoneMissingStep())
@@ -129,8 +146,9 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 		if window == windowClosed {
 			why = "the confirmation window was closed"
 		}
+		_, quiet := phoneQuiet(unread)
 		return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", why+", and the phone couldn't be asked",
-			fmt.Sprintf("Tell the user in plain words: the window closed without an answer, nothing changed, and they can ask again. Run ha-nova apply --plan %s again (the window opens again) only after they say they still want it; never ask them for a code.", a.id)+phoneQuietNext)
+			fmt.Sprintf("Tell the user in plain words: the window closed without an answer, nothing changed, and they can ask again. Run ha-nova apply --plan %s again (the window opens again) only after they say they still want it; never ask them for a code.", a.id)+quiet)
 	}
 	why := "neither the confirmation window nor the phone got an answer in time"
 	if window == windowClosed {
@@ -141,13 +159,16 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 }
 
 // discoverInTime finds the linked phone's setup within wait, which the
-// lookup counts against; inTime=false: too little is left to ask anyone.
+// lookup counts against; inTime=false: too little is left to ask anyone,
+// also when a lookup that failed on a read has no time left to run once
+// more (discoverAgain). That second one ends a second before only
+// windowMinWait is left, so the ask still runs after it.
 func discoverInTime(s *relaySession, wait time.Duration) (setup phoneSetup, status phoneStatus, deadline time.Time, inTime bool) {
-	deadline = time.Now().Add(wait)
-	if wait >= windowMinWait {
-		setup, status = discoverConfirmer(s)
+	deadline, inTime = time.Now().Add(wait), wait >= windowMinWait
+	if inTime {
+		setup, status, inTime = discoverAgain(s, deadline.Add(-windowMinWait-time.Second))
 	}
-	return setup, status, deadline, time.Until(deadline) >= windowMinWait
+	return setup, status, deadline, inTime && time.Until(deadline) >= windowMinWait
 }
 
 // linkedPlatform: the linked phones' one platform, for a plan's say before

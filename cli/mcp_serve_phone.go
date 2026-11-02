@@ -98,10 +98,14 @@ func codeChannel() string {
 }
 
 // discoverConfirmer: the linked phone, which in a chat app must confirm as
-// the chat app's own user; any other confirmer is refused, never moved to a
-// code.
+// the chat app's own user (chatConfirmer).
 func discoverConfirmer(s *relaySession) (phoneSetup, phoneStatus) {
-	setup, status := phoneDiscover(s)
+	return chatConfirmer(phoneDiscover(s, time.Now().Add(relaySessionOverallTimeout)))
+}
+
+// chatConfirmer: in a chat app, a linked phone that confirms as another
+// user is refused, never moved to a code.
+func chatConfirmer(setup phoneSetup, status phoneStatus) (phoneSetup, phoneStatus) {
 	if chatCall != nil && status == phoneReady && setup.confirmer != chatCall.user {
 		return phoneSetup{why: whyRemoved}, phoneMissing // not "unread": after a tap, "no longer the linked phone"
 	}

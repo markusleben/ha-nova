@@ -31,6 +31,7 @@ const (
 	phoneDeclined                     // the linked user tapped Cancel
 	phoneRejected                     // one of our ids came from someone else: stop, nothing is sent
 	phoneFailed                       // the notification could not be sent: nothing is sent, no fallback
+	phoneUnread                       // a check before the send failed on a read, twice: nothing is sent, no fallback
 )
 
 const (
@@ -177,10 +178,8 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 			}
 		}
 	}
-	// A short probe window proves the Relay can subscribe at all before any
-	// notification goes out: buttons no listener can hear are never sent.
-	if _, err := collect(ctx, s, time.Millisecond); err != nil {
-		return phoneFailed, reply
+	if !phoneListens(ctx, s, collect) { // buttons no listener can hear are never sent
+		return phoneUnread, reply
 	}
 	// Two overlapping lanes: one re-subscribes while the other still listens.
 	go lane(0)
@@ -371,7 +370,7 @@ func startPhoneAsk(paths runtimePaths, opts verbOptions, id string, noSnapshot b
 		return stop("PLAN_EXPIRED", "plan "+id+" expires before the phone could get an answer", replan)
 	}
 	if status != phoneReady {
-		return stop("CONFIRM_UNAVAILABLE", phoneMissingWhy, phoneMissingStep())
+		return stop(phoneMissingRefusal(setup.why))
 	}
 	return &phoneAsking{id: id, plan: plan, s: s, idHex: idHex, goal: goal, setup: setup, ask: phonePlanAsk(textLang(plan), goal, noSnapshot), deadline: deadline}, verbEnvelope{}, 0, false
 }
@@ -405,7 +404,7 @@ func (a *phoneAsking) finish() (env verbEnvelope, exit int, asked bool) {
 	}()
 	switch a.answer {
 	case phoneConfirmed:
-		switch still, unread := phoneStillLinked(s, a.setup); {
+		switch still, unread := phoneStillLinked(s, a.setup, a.deadline); {
 		case unread:
 			return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "HA NOVA couldn't re-check the linked phone in Home Assistant after the tap",
 				fmt.Sprintf("Tell the user nothing changed: their tap arrived, but HA NOVA couldn't re-check the linked phone in Home Assistant, so nothing ran. Run ha-nova apply --plan %s again (a new notification goes to their phone) only after they say they still want it; never ask them for a code.", id))
@@ -425,8 +424,9 @@ func (a *phoneAsking) finish() (env verbEnvelope, exit int, asked bool) {
 	case phoneRejected:
 		return windowStopped(s, "refused", "CONFIRM_REJECTED", phoneRejectedWhy,
 			"Tell the user nothing changed: "+phoneRejectedWhy+". Apply again only if they ask; never ask them for a code.")
-	case phoneFailed:
-		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation could not be sent to the phone", phoneMissingStep())
+	case phoneFailed, phoneUnread:
+		why, next := a.notAsked()
+		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", why, next)
 	}
 	return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "the phone confirmation got no answer in time",
 		fmt.Sprintf("Tell the user nothing changed: “%s” was not tapped in time. Next time: %s A plain tap only opens the app.%s Run ha-nova apply --plan %s again (a new notification goes to their phone) only after they say they still want it; never ask them for a code. %s They can also make this change in Home Assistant itself.", a.ask.button, a.tapLine("en"), a.watchLine(), id, a.nothingLine()))

@@ -204,6 +204,7 @@ func lookupPhones(s *relaySession, links map[string]phoneEntry) (phoneHome, erro
 	}
 	status, services, err := s.coreGET("/api/services")
 	if err != nil || core.Status != http.StatusOK || status != http.StatusOK {
+		s.forgetCoreGET("/api/services") // a second lookup reads it again
 		return home, errors.New("the Companion phones could not be read")
 	}
 	return home, home.fill(core.Body, services, device)
@@ -345,24 +346,6 @@ func (h phoneHome) status(links map[string]phoneEntry, err error) (phoneSetup, p
 	}
 	setup.targets = []phoneTarget{target}
 	return setup, phoneReady
-}
-
-// discoverPhone: the linked phone, read only when this computer has a link.
-func discoverPhone(s *relaySession) (phoneSetup, phoneStatus) {
-	if activeServerIsDemo() {
-		return phoneSetup{}, phoneNone // links belong to real homes
-	}
-	links, readable := linksForCall(s.paths)
-	if !readable {
-		return phoneSetup{why: whyRead}, phoneMissing
-	}
-	if len(links) == 0 {
-		return phoneSetup{}, phoneNone
-	}
-	done := s.ownBudget()
-	home, err := lookupPhones(s, links)
-	done()
-	return home.status(links, err)
 }
 
 // The link store (config.json top level, keyed by the Home Assistant owner's
