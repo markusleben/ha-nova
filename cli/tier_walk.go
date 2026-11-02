@@ -202,6 +202,9 @@ func collectTargets(step map[string]any) (out map[string][]string, known, all bo
 			default:
 				known = false
 			}
+			if out[key] == nil { // a selector given, even an empty one, is a target
+				out[key] = []string{}
+			}
 			for _, value := range values {
 				text, _ := value.(string)
 				switch text = strings.TrimSpace(text); {
@@ -289,6 +292,9 @@ func (e *tierEngine) sceneMember(id string, value any, via string, depth int) {
 	if !entityIDPattern.MatchString(id) {
 		e.gap(reasonUnresolvedTarget, "", via, id)
 		return
+	}
+	if _, data := sceneMemberService(id, value); isTemplated(jsonText(data[sceneStateKey])) { // rendered at runtime, it may be off
+		e.switchOff(id, "homeassistant.toggle", via)
 	}
 	st, err := e.state(id)
 	if err != nil {
