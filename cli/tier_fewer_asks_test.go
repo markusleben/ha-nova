@@ -148,6 +148,9 @@ func TestEverydayMediaAndTodoRunAtOnce(t *testing.T) {
 		kept("a grouped speaker pauses its group too", onMedia("media_pause"), groupedWith("media_player.tv", "media_player.kitchen")),
 		kept("a speaker listing only another player", onMedia("media_pause"), groupedWith("media_player.kitchen")),
 		ordinary("a speaker grouped with only itself", onMedia("media_pause"), groupedWith("media_player.tv")),
+		kept("a group_members that is no list counts as grouped", onMedia("media_pause"), func(f *fakeHA) {
+			f.states["media_player.tv"]["attributes"].(map[string]any)["group_members"] = "media_player.kitchen"
+		}),
 		kept("a level outside 0..1 is not known", onMedia("volume_set", "volume_level=0.5"), volumeAt(40.0)),
 		kept("a level the player only assumes is not known", onMedia("volume_up"), func(f *fakeHA) {
 			f.states["media_player.tv"]["attributes"].(map[string]any)["assumed_state"] = true
@@ -216,10 +219,32 @@ func TestShoppingListMoveWakesItsListeners(t *testing.T) {
 			t.Errorf("%s: exit %d tier %s reasons %s %+v", list, exit, env.Tier, reasonCodes(env), env.Error)
 		}
 	}
-	_, env := planRaw(t, paths, "["+move("todo.shop")+","+move("todo.shopping_list")+"]")
-	var result rawPlanResult
-	if err := json.Unmarshal(env.Result, &result); err != nil || len(result.Items) != 2 || result.Items[0].Tier != "preview" || result.Items[1].Tier != "typed" {
-		t.Fatalf("items %+v (%v)", result.Items, err)
+	tiers := func(paths runtimePaths, lists ...string) string {
+		var moves []string
+		for _, list := range lists {
+			moves = append(moves, move(list))
+		}
+		_, env := planRaw(t, paths, "["+strings.Join(moves, ",")+"]")
+		var result rawPlanResult
+		_ = json.Unmarshal(env.Result, &result)
+		var out []string
+		for _, item := range result.Items {
+			out = append(out, item.Tier)
+		}
+		return env.Tier + ": " + strings.Join(out, ",")
+	}
+	if got := tiers(paths, "todo.shop", "todo.shopping_list"); got != "typed: preview,typed" {
+		t.Errorf("two lists: %s", got)
+	}
+	// A failed read is cached: a later move on the list keeps the class the
+	// first one saw, and with no registry every move is typed.
+	f.fail["/api/events"] = true
+	if got := tiers(paths, "todo.shopping_list", "todo.shopping_list"); got != "typed: typed,typed" {
+		t.Errorf("no event listener counts: %s", got)
+	}
+	f.fail["/api/events"], f.fail["config/entity_registry/list_for_display"] = false, true
+	if got := tiers(paths, "todo.shop", "todo.shopping_list"); got != "typed: typed,typed" {
+		t.Errorf("no registry: %s", got)
 	}
 }
 

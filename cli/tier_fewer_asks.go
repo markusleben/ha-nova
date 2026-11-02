@@ -73,8 +73,8 @@ func (e *tierEngine) ownedChecks(id, eff, via string, depth int, level tierLevel
 	if level != tierOrdinary || ownerSkill(eff) == "" {
 		return level
 	}
-	members, _ := st.attr("group_members").([]any)
-	grouped := slices.ContainsFunc(members, func(member any) bool { return member != id })
+	members, isList := st.attr("group_members").([]any)
+	grouped := !isList && st.attr("group_members") != nil || slices.ContainsFunc(members, func(member any) bool { return member != id })
 	if !commandPlayers[entry.pl] && !grouped && !storedVolumeStep(eff, depth) && e.deviceAccessEntity(entry.di, true) == "" {
 		return level
 	}
@@ -95,21 +95,31 @@ func (e *tierEngine) targetless(service string, data map[string]any) (tierLevel,
 // rawShoppingList: the tier a raw item reaches through its listeners. A
 // todo/item/move on a shopping list reorders it and fires
 // shopping_list_updated, so its listeners are classified (with the
-// registry, as a call's are); an unreadable registry is a typed gap.
+// registry, as a call's are). An unreadable registry makes every move
+// typed. A list's class is walked once and reused (done), since a read that
+// failed is cached and would not raise a later move's class again.
 func (e *tierEngine) rawShoppingList(endpoint string, payload map[string]any) tierLevel {
-	class := tierOrdinary
 	if endpoint != "ws" || payload["type"] != "todo/item/move" {
+		return tierOrdinary
+	}
+	id, _ := payload["entity_id"].(string)
+	key := "listeners shopping_list_updated " + strings.ToLower(id)
+	if class, walked := e.done[key]; walked {
 		return class
 	}
+	class := tierOrdinary
 	e.scopes = append(e.scopes, &class)
 	if len(e.reg) == 0 && !e.regFailed {
 		e.loadRegistry()
 	}
-	id, _ := payload["entity_id"].(string)
-	if id = strings.ToLower(id); e.reg[id].pl == "shopping_list" {
-		e.checkEvents("shopping_list_updated", id)
+	if e.reg[strings.ToLower(id)].pl == "shopping_list" {
+		e.checkEvents("shopping_list_updated", strings.ToLower(id))
 	}
 	e.scopes = e.scopes[:len(e.scopes)-1]
+	if e.regFailed {
+		class = tierTyped
+	}
+	e.done[key] = class
 	return class
 }
 
