@@ -103,13 +103,16 @@ func checkRawRelayRequest(endpoint string, body []byte) error {
 	return nil
 }
 
-// checkRawCoreBody: a template's output is plain text, where redaction
-// cannot find a camera's or image entity's access token (redactSecrets), so
-// a render that names one is not sent. A template built to get around this
-// is not covered.
+// checkRawCoreBody: a flow step never sends a secret (flowStepSecret). A
+// template's output is plain text, where redaction cannot find a camera's or
+// image entity's access token (redactSecrets), so a render that names one is
+// not sent. A template built to get around this is not covered.
 func checkRawCoreBody(method, raw string, body any) error {
 	pathPart, _, _ := strings.Cut(raw, "#")
 	pathPart, _, _ = strings.Cut(pathPart, "?")
+	if refusal := flowStepSecret(method, pathPart, body); refusal != nil {
+		return refusal
+	}
 	if method == http.MethodPost && pathPart == "/api/config/config_entries/subentries/flow" {
 		inner, _ := body.(map[string]any)
 		handler, _ := inner["handler"].([]any)

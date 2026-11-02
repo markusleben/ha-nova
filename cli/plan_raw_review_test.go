@@ -101,7 +101,8 @@ func TestPlanRawSnapshotDeletes(t *testing.T) {
 
 // Results count the steps that went through: a snapshot left out by
 // --no-snapshot is not one. A rejected core step carries Home Assistant's
-// reason.
+// reason. The say never shows a value that may be secret (a password is
+// refused outright: TestRawFlowStepWithASecretIsRefused).
 func TestPlanRawCountsAndReasons(t *testing.T) {
 	paths, _ := rawRelay(t, map[string]func(map[string]any) any{
 		"backups save": func(map[string]any) any { return fakeRelayFailure{"SNAPSHOT_STORE_FULL", "full"} },
@@ -110,9 +111,9 @@ func TestPlanRawCountsAndReasons(t *testing.T) {
 		},
 	})
 	_, env := planRaw(t, paths, `[{"endpoint":"backups","payload":{"action":"save","category":"scenes","name":"auto-x","data":{}}},
-		{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/flow/abc","body":{"host":"x","password":"hunter2","psk":"s3cret","advanced":{"password":"inner"}}}}]`)
-	if strings.Contains(env.Say, "hunter2") || strings.Contains(env.Say, "s3cret") || strings.Contains(env.Say, "inner") || !strings.Contains(env.Say, "password set") ||
-		!strings.Contains(env.Say, "psk set") || !strings.Contains(env.Say, "advanced set") || !strings.Contains(env.Say, "host “x”") {
+		{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/flow/abc","body":{"host":"x","password":"","community":"s3cret","advanced":{"pwd":"inner"}}}}]`)
+	if strings.Contains(env.Say, "s3cret") || strings.Contains(env.Say, "inner") || !strings.Contains(env.Say, "password set") ||
+		!strings.Contains(env.Say, "community set") || !strings.Contains(env.Say, "advanced set") || !strings.Contains(env.Say, "host “x”") {
 		t.Fatalf("flow step say %q", env.Say)
 	}
 	if exit, failed := applyRaw(t, paths, env); exit != verbExitError || failed.Error.Code != "SNAPSHOT_FAILED" {

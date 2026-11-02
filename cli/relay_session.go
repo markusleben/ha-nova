@@ -81,6 +81,7 @@ type relaySession struct {
 	unreachable  error   // transport failure before the Relay ever answered
 	lang         string  // a sealed typed plan's language while it is re-planned (replanStored, apply)
 	words        haWords // and its Home Assistant words (confirm_words.go)
+	flowForms    error   // the flow forms HA NOVA keeps could not be read or kept (noteFlowForms)
 }
 
 type relayMemo struct {
