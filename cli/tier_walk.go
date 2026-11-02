@@ -95,17 +95,13 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 		}
 	}
 	data, dataKnown := stepData(step)
-	targets, targetsKnown := collectTargets(step)
-	if !dataKnown || !targetsKnown {
-		ids, all := stepEntities(step)
+	targets, targetsKnown, all := collectTargets(step)
+	resolved := dataKnown && targetsKnown
+	if !resolved { // what it names literally is still followed below
 		if all {
 			e.everySwitch(name, via)
 		}
-		for _, id := range ids { // what it names is known, whatever the rest resolves to
-			e.visit(id, name, data, depth, via)
-		}
-		e.gap(reasonUnresolvedTarget, "", via, name)
-		return
+		defer e.gap(reasonUnresolvedTarget, "", via, name)
 	}
 	if name == "scene.apply" {
 		e.sceneMembers(data["entities"], via, depth)
@@ -144,6 +140,9 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 	if domain == "script" && !scriptEntityServices[service] {
 		ids, name = append(ids, name), "script.turn_on"
 	}
+	if len(ids) == 0 && !resolved {
+		return
+	}
 	if len(ids) == 0 {
 		if len(targets) == 0 {
 			e.everySwitch(name, via)
@@ -157,34 +156,6 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 	for _, id := range ids {
 		e.visit(id, name, data, depth, via)
 	}
-}
-
-// stepEntities: the literal entity ids a step names in its target, data, or
-// root, and whether one is all, for a step whose other targets can't be
-// read.
-func stepEntities(step map[string]any) (ids []string, all bool) {
-	for _, source := range []any{step, step["target"], step["data"], step["data_template"]} {
-		m, _ := source.(map[string]any)
-		var values []any
-		switch v := m["entity_id"].(type) {
-		case string:
-			for _, part := range strings.Split(v, ",") {
-				values = append(values, part)
-			}
-		case []any:
-			values = v
-		}
-		for _, value := range values {
-			text, _ := value.(string)
-			switch text = strings.TrimSpace(text); {
-			case strings.EqualFold(text, "all"):
-				all = true
-			case entityIDPattern.MatchString(text):
-				ids = append(ids, text)
-			}
-		}
-	}
-	return ids, all
 }
 
 // stepData merges data_template over data, as Home Assistant does; a
@@ -205,53 +176,45 @@ func stepData(step map[string]any) (map[string]any, bool) {
 	return merged, true
 }
 
-// collectTargets gathers literal targets from target, data, and the step
-// root; a comma-separated string is a list, as Home Assistant reads it. Any
-// templated, non-literal, or "all"/"none" value makes the step unresolved.
-func collectTargets(step map[string]any) (map[string][]string, bool) {
-	out := map[string][]string{}
-	sources := []map[string]any{step}
-	switch target := step["target"].(type) {
-	case nil:
-	case map[string]any:
-		sources = append(sources, target)
-	default:
-		return nil, false // a whole-target template
+// collectTargets gathers the literal targets from target, data, and the
+// step root; a comma-separated string is a list, as Home Assistant reads it.
+// A templated or other non-literal value (all and none too) is left out and
+// makes known false; all says entity_id all was one.
+func collectTargets(step map[string]any) (out map[string][]string, known, all bool) {
+	out, known = map[string][]string{}, true
+	if _, isMap := step["target"].(map[string]any); step["target"] != nil && !isMap {
+		known = false // a whole-target template
 	}
-	for _, key := range []string{"data", "data_template"} {
-		if m, isMap := step[key].(map[string]any); isMap {
-			sources = append(sources, m)
-		}
-	}
-	for _, source := range sources {
+	for _, source := range []any{step, step["target"], step["data"], step["data_template"]} {
+		m, _ := source.(map[string]any)
 		for _, key := range []string{"entity_id", "area_id", "device_id", "floor_id", "label_id"} {
-			var values []string
-			switch v := source[key].(type) {
+			var values []any
+			switch v := m[key].(type) {
 			case nil:
 				continue
 			case string:
-				values = strings.Split(v, ",")
-			case []any:
-				for _, item := range v {
-					text, isString := item.(string)
-					if !isString {
-						return nil, false
-					}
-					values = append(values, text)
+				for _, part := range strings.Split(v, ",") {
+					values = append(values, part)
 				}
+			case []any:
+				values = v
 			default:
-				return nil, false
+				known = false
 			}
 			for _, value := range values {
-				value = strings.TrimSpace(value)
-				if value == "" || isTemplated(value) || (key == "entity_id" && !entityIDPattern.MatchString(value)) {
-					return nil, false // includes all/none: not a literal entity_id
+				text, _ := value.(string)
+				switch text = strings.TrimSpace(text); {
+				case key == "entity_id" && strings.EqualFold(text, "all"):
+					all, known = true, false
+				case text == "" || isTemplated(text) || (key == "entity_id" && !entityIDPattern.MatchString(text)):
+					known = false
+				default:
+					out[key] = append(out[key], text)
 				}
-				out[key] = append(out[key], value)
 			}
 		}
 	}
-	return out, true
+	return out, known, all
 }
 
 func sortedKeys(m map[string]any) []string {

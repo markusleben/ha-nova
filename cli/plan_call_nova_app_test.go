@@ -115,6 +115,13 @@ func TestCallNeverStopsTheNOVAAppThroughWhatItRuns(t *testing.T) {
 			f.script("stop", addonStop)
 			f.script("leave", map[string]any{"action": "script.turn_on", "target": map[string]any{"entity_id": "script.stop", "area_id": "{{ area }}"}})
 		}, []string{"script.turn_on", "script.leave"}, true},
+		{"a named script with templated data", func(f *fakeHA) {
+			f.script("stop", addonStop)
+			f.script("leave", map[string]any{"action": "script.stop", "data": "{{ {} }}"})
+		}, []string{"script.turn_on", "script.leave"}, true},
+		{"the App's device beside a templated entity", func(f *fakeHA) {
+			f.script("leave", map[string]any{"action": "switch.turn_off", "target": map[string]any{"device_id": "app_device", "entity_id": "{{ x }}"}})
+		}, []string{"script.turn_on", "script.leave"}, true},
 		{"deeper than the traversal goes", func(f *fakeHA) {
 			f.script("s8", step("switch.turn_off", "switch.nova_relay"))
 			for i := 7; i >= 0; i-- {
