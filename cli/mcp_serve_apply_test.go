@@ -92,7 +92,8 @@ func TestServeSlowApplyIsAJob(t *testing.T) {
 		start := time.Now()
 		env := s.tool(userA, "ha_apply", apply)
 		if env["status"] != "applying" || env["say"] != confirmT("en", "say.applying") || env["error"] != nil ||
-			!strings.Contains(nextOf(env), "call ha_apply again with plan_id "+id) || time.Since(start) > 3*time.Second {
+			!strings.Contains(nextOf(env), "call ha_apply again with plan_id "+id) || !strings.Contains(nextOf(env), "in this same answer") ||
+			!strings.Contains(nextOf(env), "never tell the user you will check back") || time.Since(start) > 3*time.Second {
 			t.Fatalf("call %d: %v", i, env)
 		}
 		<-reached
@@ -321,7 +322,8 @@ func TestServePhoneTapThenApplying(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 	done()
 	<-reached
-	if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": id}); env["status"] != "applying" || env["say"] != confirmT("en", "say.phone_finishing") {
+	if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": id}); env["status"] != "applying" || env["say"] != confirmT("en", "say.phone_finishing") ||
+		!strings.Contains(nextOf(env), "tell the user `say` and that they can ask you again for the result") {
 		t.Fatalf("after the tap: %v", env)
 	}
 	release()
