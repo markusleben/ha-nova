@@ -36,8 +36,17 @@ func TestPlanBatchHintCLI(t *testing.T) {
 	if remove.Plan == nil || remove.NextStep != batchHint { // a chat code: no step of its own
 		t.Fatalf("delete: %q", remove.NextStep)
 	}
-	if call := h.plan("lock.unlock", "lock.front"); strings.Contains(call.NextStep, "ha-nova plan batch") {
+	call := h.plan("lock.unlock", "lock.front")
+	if strings.Contains(call.NextStep, "ha-nova plan batch") {
 		t.Fatalf("a call plan: %q", call.NextStep)
+	}
+	// The ways out of a batch show what the hint held back: the plan's own say and ask.
+	if _, env := h.batch(write.Plan.ID); env.Error == nil || env.Error.Code != "BATCH_SIZE" || !strings.Contains(env.Error.Next, "show that plan's own `say` and ask as usual") {
+		t.Fatalf("one plan: %+v", env.Error)
+	}
+	if _, env := h.batch(write.Plan.ID, call.Plan.ID); env.Error == nil || env.Error.Code != "BATCH_UNSUPPORTED" || env.Error.Next != batchSplitNext ||
+		!strings.Contains(batchSplitNext, "show the plan left out with its own `say` and ask") {
+		t.Fatalf("a call plan in a batch: %+v", env.Error)
 	}
 	if _, env := h.batch(write.Plan.ID, remove.Plan.ID); env.Plan == nil || strings.Contains(env.NextStep, "ha-nova plan batch") {
 		t.Fatalf("the batch: %+v", env)
@@ -69,6 +78,20 @@ func TestPlanBatchHintMCP(t *testing.T) {
 		if step, _ := env["next_step"].(string); step == "" || strings.Contains(step, "kind batch") || env["answer_rule"] != mcpResultRule {
 			t.Fatalf("%s: %v", name, env)
 		}
+	}
+}
+
+// Update notices stay outside the single plan's "Otherwise:" (the chat code
+// ask has them first too).
+func TestBatchHintAfterNotices(t *testing.T) {
+	env := map[string]any{"schema_version": 1, "verb": "plan", "status": "needs_confirmation", "say": "I'm about to change the automation “Night mode”.",
+		"plan":      map[string]any{"id": "p_1", "confirm": "natural", "expires_at": "2026-11-02T20:10:30Z"},
+		"next_step": batchHint + " Otherwise: Show the preview ending with `say` and end your turn; run ha-nova apply --plan p_1 only after the user's own reply approves it.",
+		"notices":   []any{map[string]any{"kind": "relay_outdated", "text": "update"}}}
+	got := toolResult("ha_plan", string(mustJSON(env)), "", verbExitConfirmation, map[string]bool{}, false)["structuredContent"].(map[string]any)
+	if step, _ := got["next_step"].(string); !strings.HasPrefix(step, mcpNoticeHints["relay_outdated"]+" "+batchHintMCP+" Otherwise: Show this preview in plain words") ||
+		strings.Count(step, "Tell the user once") != 1 || got["answer_rule"] != batchRule+mcpResultRule {
+		t.Fatalf("%v", got)
 	}
 }
 

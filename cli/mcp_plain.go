@@ -20,10 +20,12 @@ import (
 func plainResult(envelope map[string]any, next string, batch bool, told map[string]bool) []byte {
 	if !chatCodeResult(envelope, batch, told) {
 		next = strings.TrimSpace(next + " " + sayAboveCode(envelope, batch)) // after formsNext: a withheld code has no block
-		if batch {
-			next = batchFirst(batchHintMCP, next)
+		notices := noticeHints(envelope, told)
+		step := strings.TrimSpace(next + " " + notices)
+		if batch { // the notices first, as in chatCodeResult: not only for this plan alone
+			step = strings.TrimSpace(notices + " " + batchFirst(batchHintMCP, next))
 		}
-		if step := strings.TrimSpace(next + " " + noticeHints(envelope, told)); step != "" {
+		if step != "" {
 			envelope["next_step"] = step
 		}
 		addOutcomeSay(envelope)

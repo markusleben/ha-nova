@@ -7,7 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 ## [Relay 0.13.6] - 2026-11-02
 
 ### Fixed
-- Chat apps: when you ask for several automation or script changes or deletes at once, HA NOVA now tells the AI to ask you once for all of them instead of once per item.
+- Chat apps: when you ask to create, change, or delete several automations or scripts at once, HA NOVA now tells the AI to ask you once for all of them instead of once per item.
 
 ### Upgrade notes
 - Computers on HA NOVA 0.28.0 ask you to update this App.

@@ -37,9 +37,9 @@ const batchMaxMembers = 20
 // but it reads each plan's result. batchHintMCP: the same in tool terms,
 // and batchRule leads that result's answer_rule (plainResult).
 const (
-	batchHint    = "If this request changes or deletes more than one automation or script: show this plan's preview without its ask or code, and once all are planned, run ha-nova plan batch --plan <id> --plan <id> … (2 to 20, in the order they run) and show only its `say`, with one ask or code for all."
-	batchHintMCP = "If this request changes or deletes more than one automation or script: show this plan's preview without its ask or code, and once all are planned, call ha_plan with kind batch and plans [their plan_ids] (2 to 20, in the order they run) and show only its `say`, with one ask or code for all."
-	batchRule    = "If this request changes or deletes more than one automation or script, don't show this `say`: make one batch first (next_step). Otherwise: "
+	batchHint    = "If this request creates, changes, or deletes more than one automation or script: show this plan's preview without its ask or code, and once all are planned, run ha-nova plan batch --plan <id> --plan <id> … (2 to 20 per batch, in the order they run) and show only its `say`, with one ask or code for all."
+	batchHintMCP = "If this request creates, changes, or deletes more than one automation or script: show this plan's preview without its ask or code, and once all are planned, call ha_plan with kind batch and plans [their plan_ids] (2 to 20 per batch, in the order they run) and show only its `say`, with one ask or code for all."
+	batchRule    = "If this request creates, changes, or deletes more than one automation or script, don't show this `say`: make one batch first (next_step). Otherwise: "
 )
 
 // batchFirst: hint, then the plan's own step, which asks for it alone.
@@ -58,7 +58,7 @@ func addBatchHint(env *verbEnvelope, plan storedPlan) {
 	}
 }
 
-const batchSplitNext = "Tell the user which item can't be in this batch and why (the message names its plan). Make the batch again without it; that one keeps its own preview ask and confirmation."
+const batchSplitNext = "Tell the user which item can't be in this batch and why (the message names its plan). Make the batch again without it; show the plan left out with its own `say` and ask: it keeps its own confirmation."
 
 type planIDList []string
 
@@ -93,7 +93,7 @@ func runPlanBatch(paths runtimePaths, args []string) int {
 func planBatch(paths runtimePaths, s *relaySession, env *verbEnvelope, ids []string) error {
 	if len(ids) < 2 || len(ids) > batchMaxMembers {
 		return refusedWith("BATCH_SIZE", fmt.Sprintf("a batch holds 2 to %d plans, not %d", batchMaxMembers, len(ids)),
-			"A single plan is applied on its own. More than 20: make several batches, each with its own confirmation.")
+			"A single plan is applied on its own: show that plan's own `say` and ask as usual. More than 20: make several batches, each with its own confirmation.")
 	}
 	for i, id := range ids {
 		if slices.Index(ids, id) != i {
@@ -268,7 +268,7 @@ func batchOrder(rp batchReplan) error {
 				continue
 			case firstEntity && laterEntity:
 				return refusedWith("BATCH_ORDER", fmt.Sprintf("%s and %s each check the other, so neither can run first", first, later),
-					"Take them out of this batch: apply one of them on its own first, then plan the other again (its check then sees the change); the other items can stay one batch.")
+					"Take them out of this batch: apply one of them on its own first (show its own `say` and ask), then plan the other again (its check then sees the change); the other items can stay one batch.")
 			}
 			return refusedWith("BATCH_ORDER", fmt.Sprintf("%s checks %s, so it must run first: move %s before %s", later, first, later, first),
 				"Make the batch again with the same plan ids in that order.")
