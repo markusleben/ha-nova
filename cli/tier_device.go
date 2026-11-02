@@ -259,7 +259,8 @@ func (e *tierEngine) latchOwnApp(why, id, via string) {
 
 // switchOff latches a step that turns id off or toggles it, or any step on
 // a switch_as_x entity (inverted, its on is its switch's off), before its
-// state is read: the registry alone tells the App's switch.
+// state is read or a traversal limit cuts it (visit): the registry alone
+// tells the App's switch.
 func (e *tierEngine) switchOff(id, service, via string) {
 	domain, _ := splitID(id)
 	switch eff := effectiveService(service, domain); {

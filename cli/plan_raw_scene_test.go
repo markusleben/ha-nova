@@ -48,6 +48,11 @@ func TestPlanRawSceneSaveThatDropsMembersNeedsACopyFirst(t *testing.T) {
 	if exit, env := planRaw(t, paths, "["+staleCopy+","+sceneSaveWithoutHall+"]"); exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Next, "light.hall") {
 		t.Fatalf("a copy of another config counted: exit %d %+v", exit, env.Error)
 	}
+	liveCopyThenPrune := `{"endpoint":"backups","payload":{"action":"save","category":"scenes","name":"auto-evening","data":{"entities":{"light.hall":"off","light.desk":{"brightness":128.0,"state":"on"}},"name":"Evening","id":"evening"}}},` +
+		`{"endpoint":"backups","payload":{"action":"prune","keep_named":false}}`
+	if exit, env := planRaw(t, paths, "["+liveCopyThenPrune+","+sceneSaveWithoutHall+"]"); exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Next, "light.hall") {
+		t.Fatalf("a copy a prune may take counted: exit %d %+v", exit, env.Error)
+	}
 	liveCopy := `{"endpoint":"backups","payload":{"action":"save","category":"scenes","name":"auto-evening","data":{"entities":{"light.hall":"off","light.desk":{"brightness":128.0,"state":"on"}},"name":"Evening","id":"evening"}}}`
 	exit, env = planRaw(t, paths, "["+liveCopy+","+sceneSaveWithoutHall+"]")
 	if exit != verbExitConfirmation || env.Tier != "preview" || len(sent()) != 0 {

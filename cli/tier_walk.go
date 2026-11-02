@@ -101,8 +101,8 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 		if all {
 			e.everySwitch(name, via)
 		}
-		for _, id := range ids {
-			e.switchOff(id, name, via)
+		for _, id := range ids { // what it names is known, whatever the rest resolves to
+			e.visit(id, name, data, depth, via)
 		}
 		e.gap(reasonUnresolvedTarget, "", via, name)
 		return

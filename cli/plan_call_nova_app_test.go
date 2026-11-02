@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -110,6 +111,16 @@ func TestCallNeverStopsTheNOVAAppThroughWhatItRuns(t *testing.T) {
 		}, []string{"script.turn_on", "script.leave"}, true},
 		{"a light on another App's switch", func(f *fakeHA) { f.ent("light.mqtt_lamp", "switch_as_x", "on", map[string]any{"_di": "mqtt_device"}) },
 			[]string{"light.turn_off", "light.mqtt_lamp"}, false},
+		{"a script named beside a templated area", func(f *fakeHA) {
+			f.script("stop", addonStop)
+			f.script("leave", map[string]any{"action": "script.turn_on", "target": map[string]any{"entity_id": "script.stop", "area_id": "{{ area }}"}})
+		}, []string{"script.turn_on", "script.leave"}, true},
+		{"deeper than the traversal goes", func(f *fakeHA) {
+			f.script("s8", step("switch.turn_off", "switch.nova_relay"))
+			for i := 7; i >= 0; i-- {
+				f.script(fmt.Sprintf("s%d", i), step("script.turn_on", fmt.Sprintf("script.s%d", i+1)))
+			}
+		}, []string{"script.turn_on", "script.s0"}, true},
 		{"every light", func(f *fakeHA) {
 			f.script("leave", map[string]any{"action": "light.turn_off", "target": map[string]any{"entity_id": "all"}})
 		}, []string{"script.turn_on", "script.leave"}, false},

@@ -84,9 +84,13 @@ func (n *rawNamer) sceneKept(earlier []rawRequest, payload map[string]any) (refu
 	if len(dropped) == 0 {
 		return nil, nil
 	}
-	for _, item := range earlier {
+	for i, item := range earlier {
 		saved, _ := decodeObject(item.Payload)
-		if item.Endpoint == "backups" && saved["action"] == "save" && jsonEqual(numbersByValue(saved["data"]), live) {
+		pruned := slices.ContainsFunc(earlier[i+1:], func(later rawRequest) bool { // a delete or prune after it may take the copy
+			action, _ := decodeObject(later.Payload)
+			return later.Endpoint == "backups" && (action["action"] == "delete" || action["action"] == "prune")
+		})
+		if item.Endpoint == "backups" && saved["action"] == "save" && !pruned && jsonEqual(numbersByValue(saved["data"]), live) {
 			n.dropped[id] = dropped
 			return nil, nil
 		}
