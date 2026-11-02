@@ -8,7 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 
 ### Fixed
 - Chat apps: saving a scene no longer drops its other lights and devices when the AI sends only the new one. A save that removes some is refused unless HA NOVA saves a copy of the scene first, the preview names what leaves the scene, and a scene changed in Home Assistant since the preview is never saved over.
-- Chat apps can't stop or restart the NOVA Relay App itself, directly or through a scene or script, which would cut them off in the middle of a request. Updating it still works.
+- Chat apps can't stop or restart the NOVA Relay App itself, directly or through a scene, script, or automation, which would cut them off in the middle of a request. Updating it still works.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.0 ask you to update this App.
+
+## [Relay 0.13.7] - 2026-11-02
+
+### Fixed
+- Chat apps: before a delete, the assistant says what uses the item, and a delete, rename, or disable without a copy is planned again with one first. Several scenes, or several helpers, go into one change with one question. After a YAML file changes, the assistant checks the configuration at once.
+- Chat apps: the assistant asks once, with the preview, instead of before and again after it. Above a chat code, it says once that it can see the code too.
 
 ### Upgrade notes
 - Computers on HA NOVA 0.28.0 ask you to update this App.
