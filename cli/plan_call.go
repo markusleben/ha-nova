@@ -259,17 +259,21 @@ func refuse(env *verbEnvelope, r tierReason) *verbFailure {
 	env.Tier = tierRefused.String()
 	env.Reasons = []tierReason{r}
 	next := "Finish this in the Home Assistant UI."
-	skillRuns := r.Code == reasonOwnedService || (r.Code == reasonHassio && r.Skill == "ha-nova:service-call")
 	switch {
 	case r.Code == reasonResponseOnly:
 		next = "Call it again with --response to get its data."
-	case skillRuns:
-		// The call runs through `ha-nova call` from its owning skill: name it.
-		next = "Call it with --skill " + r.Skill + " (only from that skill)."
+	case ownedCall(r):
+		next = "Load " + r.Skill + " first and follow it; it says when to call again with --skill " + r.Skill + "."
 	case r.Skill != "":
 		next = "Continue in " + r.Skill + "."
 	}
 	return &verbFailure{exit: verbExitRefused, code: "REFUSED", message: "refused (" + r.Code + "); nothing was planned or sent", next: next}
+}
+
+// ownedCall: a refused call that runs through `ha-nova call` from its owning
+// skill, once that skill says how.
+func ownedCall(r tierReason) bool {
+	return r.Code == reasonOwnedService || r.Code == reasonHassio && r.Skill == "ha-nova:service-call"
 }
 
 // resolveTargets turns ids, --match, --area, and --device into the frozen

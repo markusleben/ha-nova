@@ -212,6 +212,13 @@ func nextStep(envelope map[string]any) string {
 	case "CONFIRM_DECLINED", "CONFIRM_CANCELLED", "CONFIRM_UNAVAILABLE", "CONFIRM_IN_FORM", "CONFIRM_IN_WINDOW", "CONFIRM_ON_PHONE", "CONFIRM_REJECTED": // a form's, window's, or phone's outcome
 		return mcpNext(next)
 	}
+	if reasons, _ := envelope["reasons"].([]any); errInfo["code"] == "REFUSED" && len(reasons) == 1 { // an owned call: its skill first, no raw tail (mcpNext)
+		reason, _ := reasons[0].(map[string]any)
+		code, _ := reason["code"].(string)
+		if skill, _ := reason["skill"].(string); ownedCall(tierReason{Code: code, Skill: skill}) {
+			return fmt.Sprintf("Load ha_skill name %s first and follow it; it says when to call again with skill %s.", strings.TrimPrefix(skill, "ha-nova:"), skill)
+		}
+	}
 	if next != "" {
 		if step := mcpNext(next); step != next {
 			return step
@@ -279,7 +286,7 @@ func mcpArgs(text string) string {
 }
 
 // cliCommands maps CLI commands in a verb's next to MCP tools; longest first.
-var cliCommands = strings.NewReplacer("ha-nova plan call|write|delete|revert", "ha_plan",
+var cliCommands = strings.NewReplacer("ha-nova relay core --method POST --path ", "ha_read endpoint core, method POST, path ", "ha-nova plan call|write|delete|revert", "ha_plan",
 	"ha-nova plan ", "ha_plan kind ", "plan revert ", "ha_plan with kind revert and ", "ha-nova get ", "ha_get ", "ha-nova find", "ha_find",
 	"ha-nova apply --plan ", "ha_apply with plan_id ")
 
