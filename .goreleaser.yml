@@ -103,7 +103,7 @@ release:
 
     ## Bug Fixes
 
-    - **Big changes in chat apps no longer time out.** HA NOVA says it is still making the change, and the AI checks back; nothing is sent twice. Other chat requests wait up to 20 s for it, then HA NOVA says it is busy.
+    - **Big changes in chat apps no longer time out.** The AI keeps asking for the result; if it stops first, ask it again. Nothing is sent twice. Other chat requests wait up to 20 s for it, then HA NOVA says it is busy.
     - **The linked phone asks in big homes too.** The checks before a confirmation could use up HA NOVA's read time, so the phone looked unreachable: only the window asked, or without one, the change was refused.
     - **Answered on the computer, the phone's question disappears.** The first answer counts. An answer in the window no longer leaves a result note on the phone.
     - **Changes now work in homes with Nuki locks.** Nuki, for one, gives Home Assistant number IDs. HA NOVA couldn't read them, so many changes and the phone setup failed. It now reads number IDs too.
