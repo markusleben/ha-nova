@@ -32,6 +32,32 @@ Exit: 2 a plan changed since its preview, 3 needs confirmation, 4 refused.`
 
 const batchMaxMembers = 20
 
+// batchHint leads the next_step of every plan that can join a batch
+// (addBatchHint): a chat app's model never reads the skill's batch rule,
+// but it reads each plan's result. batchHintMCP: the same in tool terms,
+// and batchRule leads that result's answer_rule (plainResult).
+const (
+	batchHint    = "If this request changes or deletes more than one automation or script: show this plan's preview without its ask or code, and once all are planned, run ha-nova plan batch --plan <id> --plan <id> … (2 to 20, in the order they run) and show only its `say`, with one ask or code for all."
+	batchHintMCP = "If this request changes or deletes more than one automation or script: show this plan's preview without its ask or code, and once all are planned, call ha_plan with kind batch and plans [their plan_ids] (2 to 20, in the order they run) and show only its `say`, with one ask or code for all."
+	batchRule    = "If this request changes or deletes more than one automation or script, don't show this `say`: make one batch first (next_step). Otherwise: "
+)
+
+// batchFirst: hint, then the plan's own step, which asks for it alone.
+func batchFirst(hint, step string) string {
+	if step == "" {
+		return hint
+	}
+	return hint + " Otherwise: " + step
+}
+
+// addBatchHint leads a plan's next_step with batchHint when the plan can
+// be a member (batchUnsupported); a chat-code plan has no other step.
+func addBatchHint(env *verbEnvelope, plan storedPlan) {
+	if batchUnsupported(plan) == "" {
+		env.NextStep = batchFirst(batchHint, env.NextStep)
+	}
+}
+
 const batchSplitNext = "Tell the user which item can't be in this batch and why (the message names its plan). Make the batch again without it; that one keeps its own preview ask and confirmation."
 
 type planIDList []string
