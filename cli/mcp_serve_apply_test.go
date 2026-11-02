@@ -40,6 +40,7 @@ func holdPost(t *testing.T, f *fakeHA, prefix string) (reached chan struct{}, re
 // ends).
 func holdVerbLock(t *testing.T) (release func()) {
 	mcpVerbLock.Lock()
+	mcpVerbLock.changing()
 	var once sync.Once
 	release = func() { once.Do(mcpVerbLock.Unlock) }
 	t.Cleanup(release)
@@ -66,7 +67,7 @@ func serverFor(s *serveHarness, user string) *mcpServer {
 	call, _, _ := s.b.policyFor(user)
 	paths := s.b.paths
 	paths.CacheDir = filepath.Join(s.data, "users", call.key)
-	return &mcpServer{paths: paths, out: &bytes.Buffer{}, pin: s.b.pin, noForms: true, told: s.b.toldFor(user), chat: call}
+	return &mcpServer{paths: paths, out: &bytes.Buffer{}, pin: s.b.pin, noForms: true, told: s.b.toldFor(user), chat: call, since: time.Now()}
 }
 
 func nextOf(env map[string]any) string {
@@ -242,9 +243,9 @@ func TestServeJoinReadsOldUsersAgain(t *testing.T) {
 
 // A waiter that gives up never holds the lock.
 func TestVerbLockGivesUpWithoutTakingIt(t *testing.T) {
-	l := make(verbLock, 1)
+	l := newVerbLock()
 	l.Lock()
-	if l.lockWithin(10*time.Millisecond) || l.TryLock() {
+	if l.lockChat(chatWait(time.Now().Add(-chatCallWait))) == nil || l.TryLock() {
 		t.Fatal("taken twice")
 	}
 	l.Unlock()

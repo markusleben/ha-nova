@@ -231,13 +231,27 @@ func (b *chatBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		refuse(http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	call, code, message := b.authorize(r)
-	if call == nil && (code == http.StatusForbidden || message == chatBusyWhy) { // a signed-in user who may not, or must wait: words a chat app can show
-		if code == http.StatusForbidden && b.jobOf(r.Header.Get(serveUserHeader), "", false) != "" { // taken off the list while their change ran
+	id, code, message := b.authenticate(r)
+	if id == "" {
+		refuse(code, message)
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, serveMaxBody)) // before the users read, which may wait chatCallWait: ReadTimeout counts from the request's start
+	if err != nil {
+		refuse(http.StatusRequestEntityTooLarge, "request body too large or unreadable")
+		return
+	}
+	method = rpcLabel(body)
+	call, code, message := b.policy(id, false, chatWait(start))
+	if call == nil && (code == http.StatusForbidden || message == chatBusyWhy || message == chatQueuedWhy) { // a signed-in user who may not, or must wait: words a chat app can show
+		switch {
+		case code == http.StatusForbidden && b.jobOf(id, "", false) != "": // taken off the list while their change ran
 			message = chatJobOffList
+		case message == chatQueuedWhy: // no change ran: calling again is safe
+			message += ", so nothing ran. Calling it again is safe."
 		}
 		status = code
-		refuseRPC(w, r, code, message)
+		refuseRPC(w, body, code, message)
 		return
 	}
 	if call == nil {
@@ -248,15 +262,9 @@ func (b *chatBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	b.noteSeen(call.user)
 	if !b.limiter.allow(call.key) {
 		status = http.StatusTooManyRequests
-		refuseRPC(w, r, status, "Too many requests to HA NOVA right now. Wait a minute, then try again.")
+		refuseRPC(w, body, status, "Too many requests to HA NOVA right now. Wait a minute, then try again.")
 		return
 	}
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, serveMaxBody))
-	if err != nil {
-		refuse(http.StatusRequestEntityTooLarge, "request body too large or unreadable")
-		return
-	}
-	method = rpcLabel(body)
 	userPaths := b.paths
 	userPaths.CacheDir = filepath.Join(b.dataDir, "users", call.key) // plans are bound to their user
 	if err := os.MkdirAll(userPaths.CacheDir, 0o700); err != nil {
@@ -264,7 +272,7 @@ func (b *chatBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var out bytes.Buffer
-	srv := &mcpServer{paths: userPaths, out: &out, pin: b.pin, noForms: true, told: b.toldFor(call.user), chat: call}
+	srv := &mcpServer{paths: userPaths, out: &out, pin: b.pin, noForms: true, told: b.toldFor(call.user), chat: call, since: start}
 	// Stateless: a legacy client's revision comes from the header (none:
 	// the newest legacy one); 2026-07-28 requests carry their own _meta.
 	switch version := r.Header.Get("Mcp-Protocol-Version"); {
@@ -286,9 +294,9 @@ func (b *chatBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(bytes.TrimRight(out.Bytes(), "\n"))
 }
 
-// authorize checks the secret (constant time), the one HA user header, and
-// the owner's allowed users, on every request. nil: refused, with why.
-func (b *chatBridge) authorize(r *http.Request) (*chatPolicy, int, string) {
+// authenticate checks the secret (constant time) and the one HA user header
+// on every request: the user's id, or "" when refused, with why.
+func (b *chatBridge) authenticate(r *http.Request) (string, int, string) {
 	auth := r.Header.Values("Authorization")
 	token, bearer := "", false
 	if len(auth) == 1 {
@@ -296,24 +304,23 @@ func (b *chatBridge) authorize(r *http.Request) (*chatPolicy, int, string) {
 	}
 	got := sha256.Sum256([]byte(token))
 	if subtle.ConstantTimeCompare(got[:], b.secret[:]) != 1 || !bearer {
-		return nil, http.StatusUnauthorized, "unauthorized"
+		return "", http.StatusUnauthorized, "unauthorized"
 	}
 	users := r.Header.Values(serveUserHeader)
 	if len(users) != 1 || !haUserIDPattern.MatchString(users[0]) {
-		return nil, http.StatusUnauthorized, "unauthorized: no Home Assistant user"
+		return "", http.StatusUnauthorized, "unauthorized: no Home Assistant user"
 	}
-	return b.policyFor(users[0])
+	return users[0], 0, ""
 }
 
-// refuseRPC answers a refused request as a JSON-RPC error with the request's
-// own id, so a chat app can show message instead of a bare HTTP status.
+// refuseRPC answers a refused request as a JSON-RPC error with the id in
+// its body, so a chat app can show message instead of a bare HTTP status.
 // Only after the secret and the user header passed (the request came
 // through the integration for a signed-in user).
-func refuseRPC(w http.ResponseWriter, r *http.Request, code int, message string) {
+func refuseRPC(w http.ResponseWriter, body []byte, code int, message string) {
 	var request struct {
 		ID json.RawMessage `json:"id"`
 	}
-	body, _ := io.ReadAll(http.MaxBytesReader(w, r.Body, serveMaxBody))
 	id := json.RawMessage("null")
 	if json.Unmarshal(body, &request) == nil && len(request.ID) > 0 && (request.ID[0] == '"' || request.ID[0] == '-' || request.ID[0] >= '0' && request.ID[0] <= '9') {
 		id = request.ID // a JSON-RPC id is a string or a number
