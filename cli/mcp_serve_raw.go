@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/fs"
 	"path/filepath"
+	"time"
 )
 
 // Home Assistant's own config APIs (automations, scripts, dashboards,
@@ -17,12 +18,12 @@ import (
 
 // chatAdminRefusal is configAdminFailure as a tool result; nil when allowed.
 func (srv *mcpServer) chatAdminRefusal(name string, args map[string]json.RawMessage) map[string]any {
-	failure := srv.configAdminFailure(name, args)
+	failure := srv.configAdminFailure(name, args, srv.since)
 	switch {
 	case failure == nil:
 		return nil
 	case failure.code == "BUSY":
-		return srv.chatBusy(name, args)
+		return srv.chatBusy(name, args, failure.message)
 	}
 	return chatStopped(name, refusedWith(failure.code, failure.message, failure.next))
 }
@@ -30,8 +31,8 @@ func (srv *mcpServer) chatAdminRefusal(name string, args map[string]json.RawMess
 // configAdminFailure: why this chat-app call may not plan or apply a
 // config plan (its message without "nothing was sent"), or nil: not a chat
 // app, a call plan, or a user who is an owner or administrator right now.
-// Fails closed when the users can't be read.
-func (srv *mcpServer) configAdminFailure(name string, args map[string]json.RawMessage) *verbFailure {
+// Fails closed when the users can't be read; since: as for homeUsers.
+func (srv *mcpServer) configAdminFailure(name string, args map[string]json.RawMessage, since time.Time) *verbFailure {
 	c := srv.chat
 	if c == nil {
 		return nil
@@ -53,9 +54,9 @@ func (srv *mcpServer) configAdminFailure(name string, args map[string]json.RawMe
 	default:
 		return nil
 	}
-	users, _, err := c.bridge.homeUsers(true)
-	if errors.Is(err, errBridgeBusy) {
-		return &verbFailure{code: "BUSY", message: chatBusyWhy, next: "Tell the user nothing changed: HA NOVA was still finishing another change. They can try again in a moment."}
+	users, _, err := c.bridge.homeUsers(true, since)
+	if errors.Is(err, errBridgeBusy) || errors.Is(err, errBridgeQueued) { // chatAdminRefusal answers it (chatBusy); after a phone tap, it asks again
+		return &verbFailure{code: "BUSY", message: err.Error()}
 	}
 	if err != nil {
 		return &verbFailure{code: "ADMIN_UNKNOWN", message: "HA NOVA can't check right now whether this Home Assistant user is an administrator",

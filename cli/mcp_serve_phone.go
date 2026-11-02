@@ -206,6 +206,7 @@ type chatJob struct {
 	ended  time.Time              // under bridge.mu
 	phone  bool                   // a phone ask (phoneJob), else an apply (applyJob)
 	kind   string                 // the plan's kind: its outcome only for a user who may still apply it
+	locked chan struct{}          // closed once the job holds mcpVerbLock (never when it gave up on it)
 	tapped atomic.Bool            // the phone answered; apply may be running
 	tap    atomic.Pointer[string] // how to answer on the phone asked (phoneTapLine), once known
 }
@@ -256,7 +257,7 @@ func (srv *mcpServer) chatApply(name string, args map[string]json.RawMessage, ar
 					fmt.Sprintf("Tell the user nothing changed yet: their phone still has an open HA NOVA confirmation. Call ha_apply with plan_id %s right away, in this same answer, to wait for that one first (it sends no new notification), then apply this plan. You can't act once your answer ends, so never promise to do either on your own; if you end your answer first, tell the user to ask you again for this change.", open)))
 			}
 		}
-		job = &chatJob{done: make(chan struct{}), lang: confirmLanguage(plan.Lang), what: what, phone: phone, kind: plan.Kind}
+		job = &chatJob{done: make(chan struct{}), locked: make(chan struct{}), lang: confirmLanguage(plan.Lang), what: what, phone: phone, kind: plan.Kind}
 		b.jobs[key] = job
 		if phone {
 			go srv.phoneJob(job, args, argv)
@@ -288,11 +289,12 @@ func (srv *mcpServer) phoneJob(job *chatJob, args map[string]json.RawMessage, ar
 	}()
 	argv = pinServer("ha_apply", argv, srv.pin)
 	var req applyRequest
-	if !srv.lockVerb() { // nothing asked yet: the plan stays valid
-		job.result = srv.chatBusy("ha_apply", args)
+	if err := srv.lockVerb(); err != nil { // nothing asked yet: the plan stays valid
+		job.result = srv.chatBusy("ha_apply", args, err.Error())
 		srv.chat.bridge.noteChange(srv.chat, "ha_apply", job.what, "phone", job.result)
 		return
 	}
+	close(job.locked)
 	result := srv.runLocked("ha_apply", "", false, func() int {
 		var env verbEnvelope
 		var exit int
@@ -324,9 +326,9 @@ func (srv *mcpServer) phoneJob(job *chatJob, args map[string]json.RawMessage, ar
 	if a.answer == phoneConfirmed { // the tap stands: these reads wait for a running change like the apply
 		now, code, why = srv.chat.bridge.policyNow(srv.chat.user)
 		id, _ := json.Marshal(req.id)
-		demoted = srv.configAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id})
+		demoted = srv.configAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id}, time.Now())
 		for demoted != nil && demoted.code == "BUSY" {
-			demoted = srv.configAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id})
+			demoted = srv.configAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id}, time.Now())
 		}
 	}
 	mcpVerbLock.Lock() // the tap stands: as long as it takes

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -16,94 +17,173 @@ import (
 // minute, and a batch in a home with many automations runs for minutes.
 // ha_apply waits up to the bridge's wait, then answers applying; calling
 // it again waits on the same job, which never sends anything twice, and
-// the outcome is handed out once. No chat-app call waits longer than
-// chatLockWait for mcpVerbLock: past it, the call answers BUSY and runs
-// nothing. Only what follows a phone tap waits for it as long as it takes.
+// the outcome is handed out once. A chat-app call waits for mcpVerbLock
+// at most chatCallWait in all, and past chatLockWait not while a change
+// holds it: then the call answers BUSY and runs nothing. Only what follows
+// a phone tap waits for it as long as it takes.
 
-// verbLock is mcpVerbLock: a mutex a waiter can give up on.
-type verbLock chan struct{}
+// verbLock is mcpVerbLock: a mutex a waiter can give up on, which knows
+// whether a change (an ha_apply run, runLocked) holds it.
+type verbLock struct {
+	slot   chan struct{}
+	mu     sync.Mutex
+	change chan struct{} // closed while a change holds the lock
+}
 
-func (l verbLock) Lock() { l <- struct{}{} }
+func newVerbLock() *verbLock {
+	return &verbLock{slot: make(chan struct{}, 1), change: make(chan struct{})}
+}
 
-func (l verbLock) Unlock() {
+func (l *verbLock) Lock() { l.slot <- struct{}{} }
+
+func (l *verbLock) Unlock() {
+	l.mu.Lock()
 	select {
-	case <-l:
+	case <-l.change: // the change ends with the lock
+		l.change = make(chan struct{})
+	default:
+	}
+	l.mu.Unlock()
+	select {
+	case <-l.slot:
 	default:
 		panic("mcpVerbLock: unlock of an unlocked lock")
 	}
 }
 
-func (l verbLock) TryLock() bool {
+func (l *verbLock) TryLock() bool {
 	select {
-	case l <- struct{}{}:
+	case l.slot <- struct{}{}:
 		return true
 	default:
 		return false
 	}
 }
 
-// lockWithin takes the lock, or gives up after d (false: not taken).
-func (l verbLock) lockWithin(d time.Duration) bool {
-	timer := time.NewTimer(d)
-	defer timer.Stop()
+// changing marks the holder as a change until it unlocks.
+func (l *verbLock) changing() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	close(l.change)
+}
+
+// changeRuns is closed while a change holds the lock, else once the next
+// change takes it.
+func (l *verbLock) changeRuns() <-chan struct{} {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.change
+}
+
+// lockChat takes the lock for a chat-app request that came in at since.
+// It waits in line until since+chatCallWait (errBridgeQueued), but past
+// since+chatLockWait not while a change holds the lock (errBridgeBusy). It
+// enters the line once, so it keeps its place: senders on a channel are
+// served in order.
+func (l *verbLock) lockChat(since time.Time) error {
+	if l.TryLock() {
+		return nil
+	}
+	busyAt, end := since.Add(chatLockWait), time.NewTimer(time.Until(since.Add(chatCallWait)))
+	defer end.Stop()
+	busy, stop := make(chan struct{}), make(chan struct{})
+	defer close(stop)
+	go func() {
+		wait := time.NewTimer(time.Until(busyAt))
+		defer wait.Stop()
+		select {
+		case <-wait.C:
+		case <-stop:
+			return
+		}
+		select {
+		case <-l.changeRuns():
+			close(busy)
+		case <-stop:
+		}
+	}()
 	select {
-	case l <- struct{}{}:
-		return true
-	case <-timer.C:
-		return false
+	case l.slot <- struct{}{}:
+		return nil
+	case <-busy:
+		return errBridgeBusy
+	case <-end.C:
+		return errBridgeQueued
 	}
 }
 
-// chatLockWait: how long a chat-app call waits for a running change.
-// Variable so tests can shrink it.
-var chatLockWait = 20 * time.Second
+// chatLockWait: how long a chat-app request waits for a running change.
+// chatCallWait: how long it waits for the lock in all, also behind other
+// requests (such as calls a chat app sent at once): it answers before the
+// chat app gives up on it after about a minute (ha_apply after
+// --confirm-wait more). Variables so tests can shrink them.
+var (
+	chatLockWait = 20 * time.Second
+	chatCallWait = 30 * time.Second
+)
 
-const chatBusyWhy = "HA NOVA is still finishing another change"
+const (
+	chatBusyWhy   = "HA NOVA is still finishing another change"
+	chatQueuedWhy = "HA NOVA is still answering other requests"
+)
 
-// errBridgeBusy: Home Assistant's users could not be read within
-// chatLockWait because a running change held mcpVerbLock.
-var errBridgeBusy = errors.New(chatBusyWhy)
+// errBridgeBusy and errBridgeQueued: a chat-app request gave up on
+// mcpVerbLock (lockChat), also for a read of Home Assistant's users.
+var (
+	errBridgeBusy   = errors.New(chatBusyWhy)
+	errBridgeQueued = errors.New(chatQueuedWhy)
+)
 
 // policyNow: policy with the users read now, waiting for a running change
 // as long as it takes: for the checks after a phone tap, which stands.
 func (b *chatBridge) policyNow(user string) (*chatPolicy, int, string) {
 	for {
-		if p, code, why := b.policy(user, true); code != http.StatusServiceUnavailable || why != chatBusyWhy {
+		if p, code, why := b.policy(user, true, time.Now()); code != http.StatusServiceUnavailable || why != chatBusyWhy && why != chatQueuedWhy {
 			return p, code, why
 		}
 	}
 }
 
-// lockVerb takes mcpVerbLock for a tool call: in a chat app within
-// chatLockWait, else for as long as it takes.
-func (srv *mcpServer) lockVerb() bool {
+// lockVerb takes mcpVerbLock for a tool call: in a chat app as lockChat
+// does for its request, else for as long as it takes.
+func (srv *mcpServer) lockVerb() error {
 	if srv.chat == nil {
 		mcpVerbLock.Lock()
-		return true
+		return nil
 	}
-	return mcpVerbLock.lockWithin(chatLockWait)
+	return mcpVerbLock.lockChat(srv.since)
 }
 
-// chatBusy: a tool call that ran nothing because a running change held the
-// lock. An apply's plan stays valid, and its say speaks the plan's language.
-func (srv *mcpServer) chatBusy(name string, args map[string]json.RawMessage) map[string]any {
+// chatBusy: a tool call that ran nothing because it gave up on the lock:
+// why is chatBusyWhy (a change held it) or chatQueuedWhy (other requests
+// did, so calling again is safe). An apply's plan stays valid, and its say
+// speaks the plan's language.
+func (srv *mcpServer) chatBusy(name string, args map[string]json.RawMessage, why string) map[string]any {
+	queued := why == chatQueuedWhy
 	next := "This request ran nothing: HA NOVA is still finishing a change. Tell the user in their language that HA NOVA is busy and that they can ask again in a moment. Never retry on your own and never say a change failed."
+	if queued {
+		next = "This request ran nothing: HA NOVA was still answering other requests, such as calls sent at the same time. Calling it again right away is safe: call it again once your other HA NOVA calls have answered. Never say a change failed."
+	}
 	say := ""
 	if id := text(args, "plan_id"); name == "ha_apply" && planIDPattern.MatchString(id) {
 		if plan, err := readPlanFile(filepath.Join(planDir(srv.paths), id+".json")); err == nil {
-			say = confirmT(confirmLanguage(plan.Lang), "say.busy")
 			again := "and the confirm_code the user typed, if any (no new plan; the user confirms nothing again)"
 			if plan.Channel == channelPhone {
 				again = "(no new plan): HA NOVA then asks on their phone"
 			}
-			next = fmt.Sprintf("Nothing was sent for this plan, and it is still valid: HA NOVA is still finishing another change. Tell the user `say`; when they ask again, call ha_apply again with plan_id %s %s. Never retry on your own and never say it failed.", id, again)
+			if queued {
+				next = fmt.Sprintf("Nothing was sent for this plan, and it is still valid: HA NOVA was still answering other requests, such as calls sent at the same time. Calling it again right away is safe: once your other HA NOVA calls have answered, call ha_apply again with plan_id %s %s. Never say it failed.", id, again)
+			} else {
+				say = confirmT(confirmLanguage(plan.Lang), "say.busy")
+				next = fmt.Sprintf("Nothing was sent for this plan, and it is still valid: HA NOVA is still finishing another change. Tell the user `say`; when they ask again, call ha_apply again with plan_id %s %s. Never retry on your own and never say it failed.", id, again)
+			}
 		}
 	}
 	if running := srv.chat.bridge.jobOf(srv.chat.user, text(args, "plan_id"), true); running != "" {
 		next += fmt.Sprintf(" Their own change (plan_id %s) is still running: call ha_apply with that plan_id for its outcome, and never say it failed or that nothing changed.", running)
 	}
 	env := verbEnvelope{SchemaVersion: 1, Verb: name[len("ha_"):]}
-	setVerbError(&env, refusedWith("BUSY", chatBusyWhy, next))
+	setVerbError(&env, refusedWith("BUSY", why, next))
 	env.Say = say
 	out, _ := json.Marshal(env)
 	return toolResult(name, string(out), "", verbExitRefused, nil, false)
@@ -143,11 +223,16 @@ func (srv *mcpServer) awaitJob(key string, job *chatJob, id string) map[string]a
 	case <-job.done:
 		done = true
 	case <-timer.C:
+		select { // still in line for the lock (until its request's cap): applying means it runs
+		case <-job.locked:
+		case <-job.done:
+			done = true
+		}
 	}
 	if done { // the request's users may be over a minute old by now
-		now, code, _ := b.policy(p.user, false)
+		now, code, _ := b.policy(p.user, false, srv.since)
 		if now != nil && now.stale { // read while a change held the lock (homeUsers): read them now
-			now, code, _ = b.policy(p.user, true)
+			now, code, _ = b.policy(p.user, true, srv.since)
 		}
 		if now == nil && code != http.StatusForbidden {
 			return chatStopped("ha_apply", &verbFailure{exit: verbExitRefused, code: "ACCESS_UNKNOWN",
@@ -197,8 +282,9 @@ func (b *chatBridge) jobOf(user, except string, running bool) string {
 	return ""
 }
 
-// applyJob runs ha_apply as the call would have, in the background: within
-// chatLockWait, else BUSY (nothing ran), so applying means it runs.
+// applyJob runs ha_apply as the call would have, in the background: once
+// it holds the lock (locked), else BUSY (nothing ran). awaitJob answers
+// applying only after locked, so applying means it runs.
 func (srv *mcpServer) applyJob(job *chatJob, args map[string]json.RawMessage, argv []string) {
 	defer func() {
 		if p := recover(); p != nil {
@@ -211,9 +297,10 @@ func (srv *mcpServer) applyJob(job *chatJob, args map[string]json.RawMessage, ar
 		srv.chat.bridge.mu.Unlock()
 		close(job.done)
 	}()
-	if !srv.lockVerb() {
-		job.result = srv.chatBusy("ha_apply", args)
+	if err := srv.lockVerb(); err != nil {
+		job.result = srv.chatBusy("ha_apply", args, err.Error())
 	} else {
+		close(job.locked)
 		job.result = srv.runLocked("ha_apply", "", false, func() int { return runApplyCommand(srv.paths, pinServer("ha_apply", argv, srv.pin)) })
 	}
 	srv.noteChange("ha_apply", job.what, job.result)
