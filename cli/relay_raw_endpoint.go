@@ -18,7 +18,7 @@ func guardRawRequest(paths runtimePaths, opts verbOptions, endpoint string, body
 		return nil, rawRefusal("Supervisor write", "an App install, uninstall, or options change goes through ha-nova plan raw (ha_plan kind raw in chat apps), then ha-nova apply"), nil
 	}
 	return guardRaw(endpoint, body, func() (error, error) {
-		if refusal, err := formSecretSet(paths, endpoint, body); refusal != nil || err != nil {
+		if refusal, err := formSecretSet(paths, nil, endpoint, body); refusal != nil || err != nil {
 			return refusal, err
 		}
 		return checkRawAccessTarget(paths, opts, endpoint, body)
@@ -30,7 +30,7 @@ func guardRawRequest(paths runtimePaths, opts verbOptions, endpoint string, body
 // the flow forms an earlier item got back).
 func guardRawRequestIn(s *relaySession, endpoint string, body []byte) (send []byte, refusal, err error) {
 	return guardRaw(endpoint, body, func() (error, error) {
-		if refusal, err := formSecretSet(s.paths, endpoint, body); refusal != nil || err != nil {
+		if refusal, err := formSecretSet(s.paths, s.flowForms, endpoint, body); refusal != nil || err != nil {
 			return refusal, err
 		}
 		return checkRawAccessTargetIn(s, endpoint, body)

@@ -251,6 +251,76 @@ func TestPlanRawFlowFormsGoWhenTheFlowEnds(t *testing.T) {
 	}
 }
 
+// ha-nova relay core keeps a flow's forms as a raw plan does: a step that
+// fills the password its form asked for is refused, and a cancel removes the
+// flow's files.
+func TestRelayFlowFormsAreKeptOnTheComputer(t *testing.T) {
+	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
+		"POST /api/config/config_entries/flow": func(map[string]any) any {
+			return map[string]any{"status": 200, "body": map[string]any{"type": "form", "flow_id": "r1", "handler": "demo", "step_id": "user",
+				"data_schema": []any{map[string]any{"name": "entry", "selector": map[string]any{"text": map[string]any{"type": "password"}}}}}}
+		},
+		"DELETE /api/config/config_entries/flow/r1": func(map[string]any) any { return map[string]any{"status": 200, "body": map[string]any{}} },
+	})
+	relay := func(method, target, body string) (exit int, stderr string) {
+		args := []string{"core", "--method", method, "--path", target}
+		if body != "" {
+			args = append(args, "--body", body)
+		}
+		stderr = captureStderr(t, func() { exit = runRelayCommand(paths, args) })
+		return exit, stderr
+	}
+	if exit, stderr := relay("POST", "/api/config/config_entries/flow", `{"handler":"demo"}`); exit != 0 {
+		t.Fatalf("start: exit %d %s", exit, stderr)
+	}
+	if exit, stderr := relay("POST", "/api/config/config_entries/flow/r1", `{"entry":"hunter2"}`); exit != rawRefusedExit || !strings.Contains(stderr, `"entry"`) {
+		t.Fatalf("the password its form asked for: exit %d %s", exit, stderr)
+	}
+	if exit, stderr := relay("DELETE", "/api/config/config_entries/flow/r1", ""); exit != 0 {
+		t.Fatalf("cancel: exit %d %s", exit, stderr)
+	}
+	if found, err := flowFormFiles(paths, "r1"); len(found) != 0 || err != nil {
+		t.Fatalf("after the cancel: files %v %v", found, err)
+	}
+	if got := strings.Join(sent(), " | "); got != "POST /api/config/config_entries/flow | DELETE /api/config/config_entries/flow/r1" {
+		t.Fatalf("sent %s", got)
+	}
+}
+
+// A form a plan couldn't keep stops that flow for the rest of the plan:
+// its next step can't be checked against the form, so nothing more is sent.
+func TestPlanRawFlowFormNotKeptStopsTheFlow(t *testing.T) {
+	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
+		"POST /api/config/config_entries/flow": func(map[string]any) any {
+			return map[string]any{"status": 200, "body": map[string]any{"type": "form", "flow_id": "k1", "handler": "demo", "step_id": "user",
+				"data_schema": []any{map[string]any{"name": "entry", "selector": map[string]any{"text": map[string]any{"type": "password"}}}}}}
+		},
+	})
+	dir := flowFormDir(paths)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	exit, env := planRaw(t, paths, `[{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/flow","body":{"handler":"demo"}}},
+		{"endpoint":"core","payload":{"method":"POST","path":"/api/config/config_entries/flow/k1","body":{"entry":"hunter2"}}}]`)
+	if exit != verbExitConfirmation {
+		t.Fatalf("plan: exit %d %+v", exit, env.Error)
+	}
+	exit, env = applyRaw(t, paths, env)
+	if got := strings.Join(sent(), " | "); got != "POST /api/config/config_entries/flow" {
+		t.Fatalf("apply: exit %d sent %s %+v", exit, got, env.Error)
+	}
+	if env.Error == nil || !strings.Contains(env.Error.Message, "couldn't keep the setup form") ||
+		!slices.ContainsFunc(env.Notices, func(n verbNotice) bool {
+			return n.Kind == "flow_forms" && strings.Contains(n.Text, "sent that flow nothing more")
+		}) {
+		t.Fatalf("apply: exit %d %+v %+v", exit, env.Error, env.Notices)
+	}
+}
+
 // A flow's new file outranks its newest one even after the clock was set
 // back, and a temporary file a write left behind goes after an hour.
 func TestPlanRawFlowFormsOutrankAClockSetBack(t *testing.T) {

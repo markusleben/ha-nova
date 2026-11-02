@@ -150,7 +150,10 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 				handoffs = append(handoffs, *asks)
 			}
 			if unkept != nil {
-				s.flowForms = unkept
+				if s.flowForms == nil {
+					s.flowForms = map[string]error{}
+				}
+				s.flowForms[flow] = unkept
 			}
 		}
 		if before != nil {

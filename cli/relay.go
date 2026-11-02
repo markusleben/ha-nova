@@ -453,6 +453,7 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		printRelayFailure(read, "validating the Relay response", err)
 		return 1
 	}
+	reply := bodyBytes
 	bodyBytes = redactRawResponse(endpoint, bodyBytes)
 	envelopeValid, taskSucceeded := relayEnvelopeResult(bodyBytes)
 	if !envelopeValid {
@@ -466,6 +467,9 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 	if endpoint == "core" {
 		upstreamExitStatus = relayCoreUpstreamExitStatus(bodyBytes, opts.StrictStatus)
 		taskSucceeded = taskSucceeded && relayCoreUpstreamTaskSucceeded(bodyBytes)
+		if taskSucceeded { // as a raw plan does: a flow's form, or its end
+			relayFlowAnswered(paths, opts.Method, opts.Path, reply)
+		}
 	}
 
 	if compiledJQ != nil {

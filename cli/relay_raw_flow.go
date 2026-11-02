@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
@@ -157,8 +158,9 @@ func readFlowForm(paths runtimePaths, flowID string) ([][]string, error) {
 
 // formSecretSet: a flow step POST that fills a field its flow's last form
 // marked secret, in that field's section, whatever its name. Forms it can't
-// read stop the step: nothing is planned or sent.
-func formSecretSet(paths runtimePaths, endpoint string, body []byte) (refusal, err error) {
+// read stop the step, and so does a form this plan couldn't keep (unkept,
+// by flow step path): nothing is planned or sent.
+func formSecretSet(paths runtimePaths, unkept map[string]error, endpoint string, body []byte) (refusal, err error) {
 	payload, _ := decodeObject(body)
 	method, _ := payload["method"].(string)
 	target, _ := payload["path"].(string)
@@ -167,6 +169,10 @@ func formSecretSet(paths runtimePaths, endpoint string, body []byte) (refusal, e
 	m := rawFlowPath.FindStringSubmatch(target)
 	if endpoint != "core" || strings.ToUpper(strings.TrimSpace(method)) != http.MethodPost || m == nil || m[2] == "" {
 		return nil, nil
+	}
+	if why := unkept[target]; why != nil {
+		return rawRefusal("flow step", fmt.Sprintf("HA NOVA couldn't keep the setup form this flow answered with (%v), so this plan sends it nothing more; "+
+			"the setup isn't finished: the user completes this step in Home Assistant under %s", why, rawFlowSecret{path: target}.place())), nil
 	}
 	secrets, err := readFlowForm(paths, m[2][1:])
 	if err != nil {
@@ -266,14 +272,30 @@ func pruneFlowForms(dir string) error {
 	return nil
 }
 
+// relayFlowAnswered is flowAnswered for ha-nova relay core, on the reply
+// before redaction: the request was sent, so a form it can't keep is said.
+func relayFlowAnswered(paths runtimePaths, method, target string, reply []byte) {
+	var envelope struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if json.Unmarshal(reply, &envelope) != nil {
+		return
+	}
+	target, _, _ = strings.Cut(target, "?")
+	if _, _, unkept := flowAnswered(paths, strings.TrimSpace(method), target, envelope.Data); unkept != nil {
+		printWarn("HA NOVA couldn't keep the setup form this flow answered with (%v): its next step can't be checked against that form", unkept)
+	}
+}
+
 // noteFlowForms says once in a raw plan's result that a flow's form could
-// not be kept, so its later steps are checked by field names only.
+// not be kept: the plan sent that flow nothing more (formSecretSet).
 func noteFlowForms(s *relaySession, env *verbEnvelope) {
-	if s.flowForms == nil || slices.ContainsFunc(env.Notices, func(n verbNotice) bool { return n.Kind == "flow_forms" }) {
+	if len(s.flowForms) == 0 || slices.ContainsFunc(env.Notices, func(n verbNotice) bool { return n.Kind == "flow_forms" }) {
 		return
 	}
 	env.Notices = append(env.Notices, verbNotice{Kind: "flow_forms",
-		Text: fmt.Sprintf("HA NOVA couldn't keep the setup form a flow answered with (%v): that flow's later steps are checked by field names only", s.flowForms)})
+		Text: fmt.Sprintf("HA NOVA couldn't keep the setup form a flow answered with (%v): this plan sent that flow nothing more, and a later plan can't check its steps against that form",
+			s.flowForms[slices.Min(slices.Collect(maps.Keys(s.flowForms)))])})
 }
 
 // formSecretFields: the paths of a serialized data_schema's secret fields
