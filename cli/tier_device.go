@@ -199,8 +199,11 @@ func (e *tierEngine) primaryEntities(ids []string, area, domain string) []string
 // from that App's is refused.
 const (
 	novaAppStop   = "HA NOVA runs in this App: stopping or restarting it cuts HA NOVA off from Home Assistant mid-call, so nothing could be checked or undone"
-	novaAppUnread = "the registry could not be read to rule out that this switch stops the App HA NOVA runs in"
+	novaAppUnread = "the registry could not be read to rule out that this step stops the App HA NOVA runs in"
 )
+
+// switchAsXDomains: what switch_as_x can show a switch as.
+var switchAsXDomains = map[string]bool{"light": true, "fan": true, "cover": true, "lock": true, "siren": true, "valve": true}
 
 // novaAppSwitch: novaAppStop for the switch Home Assistant shows for HA
 // NOVA's own App (the hassio platform's, on the App's device): turning it
@@ -262,12 +265,16 @@ func (e *tierEngine) latchOwnApp(why, id, via string) {
 // switchOff latches a step that turns id off or toggles it, or any step on
 // a switch_as_x entity (inverted, its on is its switch's off), before its
 // state is read or a traversal limit cuts it (visit): the registry alone
-// tells the App's switch.
+// tells the App's switch. Without the registry, any step on a domain
+// switch_as_x shows switches as may be one.
 func (e *tierEngine) switchOff(id, service, via string) {
 	domain, _ := splitID(id)
 	switch eff := effectiveService(service, domain); {
-	case eff == "switch.turn_off", eff == "switch.toggle", e.reg[id].pl == "switch_as_x" && eff != "homeassistant.update_entity":
+	case eff == "homeassistant.update_entity":
+	case eff == "switch.turn_off", eff == "switch.toggle", e.reg[id].pl == "switch_as_x":
 		e.latchOwnApp(e.novaAppSwitch(id), id, via)
+	case e.regFailed && switchAsXDomains[domain]:
+		e.latchOwnApp(novaAppUnread, id, via)
 	}
 }
 
@@ -275,11 +282,12 @@ func (e *tierEngine) switchOff(id, service, via string) {
 // or no target): the App's switch, or a switch_as_x entity on it, may be
 // among them.
 func (e *tierEngine) everySwitch(service, via string) {
-	if eff := effectiveService(service, "switch"); e.regFailed && (eff == "switch.turn_off" || eff == "switch.toggle") {
+	domain, _ := splitID(service)
+	if eff := effectiveService(service, "switch"); e.regFailed && (eff == "switch.turn_off" || eff == "switch.toggle" || switchAsXDomains[domain] ||
+		domain == "homeassistant" && eff != "homeassistant.update_entity") {
 		e.latchOwnApp(novaAppUnread, "", via)
 		return
 	}
-	domain, _ := splitID(service)
 	var ids []string
 	for id, entry := range e.reg {
 		if of, _ := splitID(id); (of == domain || domain == "homeassistant") && (entry.pl == "hassio" || entry.pl == "switch_as_x") {

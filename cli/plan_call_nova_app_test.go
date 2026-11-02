@@ -54,6 +54,13 @@ func TestCallNeverStopsTheNOVAApp(t *testing.T) {
 			t.Errorf("unreadable registry: exit %d %+v", exit, env.Error)
 		}
 	}
+	f := appUpdateHA()
+	f.ent("light.lamp", "hue", "on", nil)
+	f.fail["config/entity_registry/list_for_display"] = true
+	if exit, env, _, _ := runPlanForTest(t, f, "light.turn_off", "light.lamp"); exit != verbExitRefused || env.Error == nil ||
+		!strings.Contains(env.Error.Next, "couldn't tell from Home Assistant's registry") {
+		t.Errorf("a light that may show the App's switch, with an unreadable registry: exit %d %+v", exit, env.Error)
+	}
 }
 
 // What a call runs can stop the App too: a scene's members, or a script's

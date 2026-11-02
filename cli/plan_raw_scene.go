@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -34,7 +35,8 @@ func rawSceneSave(payload map[string]any) string {
 	target, _ := payload["path"].(string)
 	target, _, _ = strings.Cut(target, "#")
 	target, _, _ = strings.Cut(target, "?")
-	if payload["method"] != http.MethodPost || !rawSceneConfigPath.MatchString(target) {
+	method, _ := payload["method"].(string) // the relay's guard sends any case
+	if strings.ToUpper(strings.TrimSpace(method)) != http.MethodPost || !rawSceneConfigPath.MatchString(target) {
 		return ""
 	}
 	return target[strings.LastIndex(target, "/")+1:]
@@ -99,9 +101,31 @@ func (n *rawNamer) sceneKept(earlier []rawRequest, payload map[string]any) (refu
 	return rawDrop{
 		message: fmt.Sprintf("saving the scene %s would remove %s from it, with no copy of its config saved first", id, members),
 		hint: fmt.Sprintf("This would remove %s from the scene: a save replaces the whole scene. To keep them, read the scene (core GET /api/config/scene/config/%s) and send every member with the change. "+
-			`If the user wants them removed, tell them which ones go, then plan again with a backups save of its current config first: {"endpoint":"backups","payload":{"action":"save","category":"scenes","name":"auto-%s","data":<the body of that read, unchanged>}}.`,
+			`If the user wants them removed, tell them which ones go, then plan it with a backups save of its current config first (ha-nova plan raw on a computer): {"endpoint":"backups","payload":{"action":"save","category":"scenes","name":"auto-%s","data":<the body of that read, unchanged>}}.`,
 			members, id, strings.Trim(slug[:min(len(slug), 59)], "-")),
 	}, nil
+}
+
+// relaySceneKept is sceneKept for ha-nova relay core, after the shared
+// guard (ha_read sends no write): one request, so no copy comes first, and
+// a save that drops a member of the live scene is refused with the plan
+// that keeps a copy.
+func relaySceneKept(paths runtimePaths, opts verbOptions, endpoint string, body []byte) (refusal, err error) {
+	payload, _ := decodeObject(body)
+	if endpoint != "core" || rawSceneSave(payload) == "" {
+		return nil, nil
+	}
+	s, err := newRelaySession(paths, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer s.close()
+	refusal, err = newRawNamer(s, nil).sceneKept(nil, payload)
+	var drop rawDrop
+	if errors.As(refusal, &drop) { // the relay prints the error alone
+		return fmt.Errorf("%v. %s", rawRefusal("scene save", drop.message), drop.hint), nil
+	}
+	return refusal, err
 }
 
 // readScene: the scene id's live config with numbers by value (the plan's

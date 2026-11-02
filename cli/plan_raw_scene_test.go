@@ -33,6 +33,38 @@ const (
 	sceneSaveKeepingAll  = `{"endpoint":"core","payload":{"method":"POST","path":"/api/config/scene/config/evening","body":{"id":"evening","name":"Evening","entities":{"light.desk":"on","light.hall":"off","light.lamp":"on"}}}}`
 )
 
+// ha-nova relay core sends one request, so no copy can come first: a scene
+// save that leaves out a member is refused there, and the refusal names the
+// plan that keeps a copy. A save keeping every member, a new scene, and a
+// lower-case method still pass the scene check.
+func TestRelaySceneSaveThatDropsMembersIsRefused(t *testing.T) {
+	paths, sent, _ := sceneRelay(t)
+	relay := func(method, id, entities string) (exit int, stderr string) {
+		stderr = captureStderr(t, func() {
+			exit = runRelayCommand(paths, []string{"core", "--method", method, "--path", "/api/config/scene/config/" + id, "--body", `{"id":"` + id + `","entities":{` + entities + `}}`})
+		})
+		return exit, stderr
+	}
+	for _, method := range []string{"POST", "post"} {
+		if exit, stderr := relay(method, "evening", `"light.desk":"on","light.lamp":"on"`); exit != rawRefusedExit ||
+			!strings.Contains(stderr, "would remove light.hall") || !strings.Contains(stderr, "ha-nova plan raw") {
+			t.Errorf("%s without light.hall: exit %d %s", method, exit, stderr)
+		}
+	}
+	if got := sent(); len(got) != 0 {
+		t.Fatalf("refused saves sent %v", got)
+	}
+	if exit, stderr := relay("POST", "evening", `"light.desk":"on","light.hall":"off","light.lamp":"on"`); exit != 0 {
+		t.Errorf("a save keeping every member: exit %d %s", exit, stderr)
+	}
+	if exit, stderr := relay("POST", "night", `"light.hall":"off"`); exit != 0 {
+		t.Errorf("a new scene: exit %d %s", exit, stderr)
+	}
+	if got := strings.Join(sent(), " | "); got != "POST /api/config/scene/config/evening | POST /api/config/scene/config/night" {
+		t.Fatalf("sent %s", got)
+	}
+}
+
 // A scene save replaces the whole scene: one that leaves out a member is
 // refused unless a copy of the scene's live config is saved first in the
 // same plan; the refusal says which members would go and how to keep them.

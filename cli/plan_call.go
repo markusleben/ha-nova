@@ -265,7 +265,7 @@ func refuse(env *verbEnvelope, r tierReason) *verbFailure {
 	case r.Code == reasonResponseOnly:
 		next = "Call it again with --response to get its data."
 	case r.Code == reasonHassio && r.Detail == novaAppUnread:
-		next = "Tell the user nothing was sent: HA NOVA couldn't tell from Home Assistant's registry whether this switch stops the NOVA App it runs in. If the registry was busy, they can try again in a moment; otherwise they can switch it in Home Assistant."
+		next = "Tell the user nothing was sent: HA NOVA couldn't tell from Home Assistant's registry whether this step stops the NOVA App it runs in (through its switch, or a light or fan showing that switch). If the registry was busy, they can try again in a moment; otherwise they can do it in Home Assistant."
 	case r.Code == reasonHassio && r.Skill == "": // HA NOVA's own App (novaAppStop)
 		next = "Tell the user HA NOVA doesn't stop or restart its own App: it would lose its way into Home Assistant mid-call. They can do it in Home Assistant under Settings > Apps."
 	case ownedCall(r):
