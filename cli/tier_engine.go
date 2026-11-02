@@ -104,6 +104,7 @@ type tierEngine struct {
 	draft        bool                   // a config draft: it runs later, so plan-time state proves nothing
 	services     map[string]serviceSpec // /api/services by "domain.service"; nil when unreadable
 	servicesRead bool
+	ownApp       *tierReason // the first step that would stop the App HA NOVA runs in (latchOwnApp)
 }
 
 func newTierEngine(s *relaySession) *tierEngine {
@@ -264,6 +265,9 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 	}
 	domain, _ := splitID(id)
 	eff := effectiveService(service, domain)
+	if eff == "switch.turn_off" || eff == "switch.toggle" {
+		e.latchOwnApp(e.novaAppSwitch(id), id, via)
+	}
 	level, code := classifyOnEntity(id, eff, data, st)
 	e.raise(level, tierReason{Code: code, EntityID: id, Via: via})
 	entry, registered := e.reg[id]

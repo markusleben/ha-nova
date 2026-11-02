@@ -105,6 +105,9 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 		return
 	}
 	domain, service := splitID(name)
+	if domain == "hassio" && serviceCallHassio[service] && novaAppSlug(jsonText(data["addon"])) {
+		e.latchOwnApp(novaAppStop, "", via)
+	}
 	if len(targets["floor_id"])+len(targets["label_id"]) > 0 {
 		e.gap(reasonStoredSelector, "", via, name)
 	}

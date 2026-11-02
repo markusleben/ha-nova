@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -104,5 +105,72 @@ func TestPlanRawSceneSaveNewAndUnreadable(t *testing.T) {
 	}
 	if len(sent()) != 0 {
 		t.Fatalf("planning sent %v", sent())
+	}
+}
+
+// Home Assistant stores the body's id: a save whose body names another id,
+// even in another case, would rename the scene, so it is refused; a body
+// without an id keeps the path's.
+func TestPlanRawSceneSaveKeepsItsID(t *testing.T) {
+	paths, sent, _ := sceneRelay(t)
+	renamed := strings.Replace(sceneSaveKeepingAll, `"id":"evening"`, `"id":"Evening"`, 1)
+	if exit, env := planRaw(t, paths, "["+renamed+"]"); exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Message, "is not the scene id evening") {
+		t.Fatalf("a body id in another case: exit %d %+v", exit, env.Error)
+	}
+	noID := strings.Replace(sceneSaveKeepingAll, `"id":"evening",`, "", 1)
+	if exit, env := planRaw(t, paths, "["+noID+"]"); exit != verbExitConfirmation || env.Tier != "preview" {
+		t.Fatalf("a body without an id: exit %d %+v", exit, env.Error)
+	}
+	if len(sent()) != 0 {
+		t.Fatalf("planning sent %v", sent())
+	}
+}
+
+// A save after its copy says which members it removes, in the home's
+// language. That copy can't be left out: when it fails, apply offers no
+// --no-snapshot and refuses one, and goes on once the copy is saved.
+func TestPlanRawSceneSaveSaysWhatGoesAndKeepsItsCopy(t *testing.T) {
+	var full atomic.Bool
+	full.Store(true)
+	scene := map[string]any{"id": "evening", "name": "Evening", "entities": map[string]any{"light.desk": "on", "light.hall": "off"}}
+	relay := func(lang string) (runtimePaths, func() []string) {
+		return rawRelay(t, map[string]func(map[string]any) any{
+			"GET /api/config": func(map[string]any) any {
+				return map[string]any{"status": 200, "body": map[string]any{"language": lang}}
+			},
+			"GET /api/config/scene/config/evening": func(map[string]any) any { return map[string]any{"status": 200, "body": scene} },
+			"backups save": func(map[string]any) any {
+				if full.Load() {
+					return fakeRelayFailure{"SNAPSHOT_STORE_FULL", "the snapshot store is full"}
+				}
+				return map[string]any{"file": "scenes/auto-evening.json.gz"}
+			},
+		})
+	}
+	items := `[{"endpoint":"backups","payload":{"action":"save","category":"scenes","name":"auto-evening","data":{"id":"evening","name":"Evening","entities":{"light.desk":"on","light.hall":"off"}}}},` + sceneSaveWithoutHall + "]"
+	german, _ := relay("de")
+	if _, env := planRaw(t, german, items); !strings.Contains(env.Say, "Entfernt „light.hall“ aus der Szene.") {
+		t.Fatalf("German say %q", env.Say)
+	}
+	paths, sent := relay("en")
+	exit, env := planRaw(t, paths, items)
+	if exit != verbExitConfirmation || !strings.Contains(env.Say, "Removes “light.hall” from the scene.") {
+		t.Fatalf("plan: exit %d say %q %+v", exit, env.Say, env.Error)
+	}
+	exit, failed := applyRaw(t, paths, env)
+	if exit != verbExitError || failed.Error == nil || failed.Error.Code != "SNAPSHOT_REQUIRED" || !strings.Contains(failed.Error.Next, "never with --no-snapshot") ||
+		formsStep(map[string]any{"error": map[string]any{"code": failed.Error.Code}, "plan": map[string]any{"id": env.Plan.ID}}, "step", false) != "step" {
+		t.Fatalf("the copy failed: exit %d %+v", exit, failed.Error)
+	}
+	if exit, skipped := applyRaw(t, paths, env, "--no-snapshot"); exit != verbExitRefused || skipped.Error == nil || skipped.Error.Code != "NO_SNAPSHOT_NOT_OFFERED" ||
+		!strings.Contains(skipped.Error.Message, "removes members") {
+		t.Fatalf("--no-snapshot: exit %d %+v", exit, skipped.Error)
+	}
+	full.Store(false)
+	if exit, done := applyRaw(t, paths, env); exit != 0 || statuses(rawOutcomes(t, done)) != "done,done" {
+		t.Fatalf("apply once the copy saves: exit %d %+v %s", exit, done.Error, done.Result)
+	}
+	if got := strings.Join(sent(), " | "); got != "backups save | backups save | POST /api/config/scene/config/evening" {
+		t.Fatalf("sent %s", got)
 	}
 }

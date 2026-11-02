@@ -206,6 +206,7 @@
   "raw.steps": "{count} steps in Home Assistant",
   "raw.step_why": "Step {number}: {change}",
   "raw.others": {"one": "And {count} other step", "other": "And {count} other steps"},
+  "raw.scene_drops": "Removes {members} from the scene.",
   "raw.copy_first": {"one": "HA NOVA saves a copy first ({names}).", "other": "HA NOVA saves {count} copies first ({names})."},
   "raw.goal": "{action} {object}",
   "raw.with_fields": "{object}: {fields}",

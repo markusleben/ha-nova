@@ -24,23 +24,42 @@ func (r rawDrop) next() string  { return r.hint }
 
 var rawSlugGaps = regexp.MustCompile(`[^a-z0-9]+`)
 
-// sceneKept: a save on an existing scene that drops a member needs a
-// backups save of exactly its live config earlier in the plan
-// (skills/scene → Update). Keeps the live config, or "absent" for a new
-// scene, for the basis. A config that can't be read is an error: nothing is
-// saved over unseen.
-func (n *rawNamer) sceneKept(earlier []rawRequest, payload map[string]any) (refusal, err error) {
+// sceneCopyNext: what to do when a copy a scene save needs can't be saved
+// or would be left out (executeRaw).
+const sceneCopyNext = "Tell the user there is no copy, and this change removes members from a scene, so it doesn't go ahead without one. " +
+	"Once the copy can be saved (a full snapshot store can be pruned), apply this plan again, never with --no-snapshot."
+
+// rawSceneSave: the scene id a request saves; "" for any other request.
+func rawSceneSave(payload map[string]any) string {
 	target, _ := payload["path"].(string)
 	target, _, _ = strings.Cut(target, "#")
 	target, _, _ = strings.Cut(target, "?")
 	if payload["method"] != http.MethodPost || !rawSceneConfigPath.MatchString(target) {
-		return nil, nil
+		return ""
 	}
-	id := target[strings.LastIndex(target, "/")+1:]
-	if _, again := n.scenes[id]; again { // each save is checked against the live scene, not the one before it
+	return target[strings.LastIndex(target, "/")+1:]
+}
+
+// sceneKept: a scene save keeps the body's id as the path's (Home Assistant
+// stores the body's), and one on an existing scene that drops a member needs
+// a backups save of exactly its live config earlier in the plan
+// (skills/scene → Update). Keeps the live config, or "absent" for a new
+// scene, for the basis, and what the save drops for its line (sceneNote).
+// A config that can't be read is an error: nothing is saved over unseen.
+func (n *rawNamer) sceneKept(earlier []rawRequest, payload map[string]any) (refusal, err error) {
+	id := rawSceneSave(payload)
+	body, _ := payload["body"].(map[string]any)
+	bodyID, setsID := body["id"]
+	switch _, again := n.scenes[id]; {
+	case id == "":
+		return nil, nil
+	case setsID && bodyID != id:
+		return rawDrop{message: fmt.Sprintf("the body's id %s is not the scene id %s in the path", jsonText(bodyID), id),
+			hint: "Send the body's id exactly as the id in the path, or leave it out: Home Assistant stores the body's id, so another one renames the scene."}, nil
+	case again: // each save is checked against the live scene, not the one before it
 		return rawDrop{message: "a plan saves the scene " + id + " once", hint: "Put every change to the scene into one save of the whole scene."}, nil
 	}
-	data, err := rawRead(n.s, "core", map[string]any{"method": http.MethodGet, "path": target})
+	data, err := rawRead(n.s, "core", map[string]any{"method": http.MethodGet, "path": "/api/config/scene/config/" + id})
 	var core struct {
 		Status int            `json:"status"`
 		Body   map[string]any `json:"body"`
@@ -57,7 +76,7 @@ func (n *rawNamer) sceneKept(earlier []rawRequest, payload map[string]any) (refu
 		return nil, fmt.Errorf("cannot read the scene %s's config, so nothing was planned or sent: %w", id, err)
 	}
 	if n.scenes == nil {
-		n.scenes = map[string]any{}
+		n.scenes, n.dropped = map[string]any{}, map[string][]string{}
 	}
 	if core.Status == http.StatusNotFound {
 		n.scenes[id] = "absent"
@@ -65,7 +84,6 @@ func (n *rawNamer) sceneKept(earlier []rawRequest, payload map[string]any) (refu
 	}
 	live := numbersByValue(core.Body)
 	n.scenes[id] = live
-	body, _ := payload["body"].(map[string]any)
 	entities, _ := body["entities"].(map[string]any)
 	kept := map[string]bool{}
 	for member := range entities {
@@ -78,16 +96,17 @@ func (n *rawNamer) sceneKept(earlier []rawRequest, payload map[string]any) (refu
 			dropped = append(dropped, member)
 		}
 	}
+	slices.Sort(dropped)
 	if len(dropped) == 0 {
 		return nil, nil
 	}
 	for _, item := range earlier {
 		saved, _ := decodeObject(item.Payload)
 		if item.Endpoint == "backups" && saved["action"] == "save" && jsonEqual(numbersByValue(saved["data"]), live) {
+			n.dropped[id] = dropped
 			return nil, nil
 		}
 	}
-	slices.Sort(dropped)
 	members, slug := strings.Join(dropped, ", "), strings.Trim(rawSlugGaps.ReplaceAllString(strings.ToLower(id), "-"), "-")
 	return rawDrop{
 		message: fmt.Sprintf("saving the scene %s would remove %s from it, with no copy of its config saved first", id, members),
@@ -95,4 +114,32 @@ func (n *rawNamer) sceneKept(earlier []rawRequest, payload map[string]any) (refu
 			`If the user wants them removed, tell them which ones go, then plan again with a backups save of its current config first: {"endpoint":"backups","payload":{"action":"save","category":"scenes","name":"auto-%s","data":<the body of that read, unchanged>}}.`,
 			members, id, strings.Trim(slug[:min(len(slug), 59)], "-")),
 	}, nil
+}
+
+// sceneNote: the sentence after a scene save's line naming the members it
+// removes (a copy comes first: sceneKept); "" for any other request.
+func (n *rawNamer) sceneNote(lang string, payload map[string]any) string {
+	dropped := n.dropped[rawSceneSave(payload)]
+	if len(dropped) == 0 {
+		return ""
+	}
+	var names []string
+	for _, id := range dropped {
+		names = append(names, n.entity(id))
+	}
+	return confirmT(lang, "raw.scene_drops", "members", sayList(lang, names))
+}
+
+// sceneCopyNeeded: a scene save in items drops members that only one of the
+// leading copies keeps (sceneKept without them), so apply never goes on
+// without it; a scene that can't be read counts as one.
+func sceneCopyNeeded(s *relaySession, items []rawRequest) bool {
+	kept, n := items[len(rawCopies(items)):], newRawNamer(s, nil)
+	for i, item := range kept {
+		payload, _ := decodeObject(item.Payload)
+		if refusal, err := n.sceneKept(kept[:i], payload); refusal != nil || err != nil {
+			return true
+		}
+	}
+	return false
 }

@@ -58,6 +58,7 @@ type rawPlanItem struct {
 	more     string     // what completes an everyday line's goal: a device delete, a Supervisor item
 	detail   string     // the request behind an everyday line
 	copy     string     // a config snapshot save: the copy's name (rawSteps)
+	drops    string     // a scene save: the sentence naming the members it removes (sceneNote)
 }
 
 type rawPlanResult struct {
@@ -234,6 +235,7 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 		}
 		entry := &result.Items[i]
 		entry.line, entry.goal, entry.more, entry.detail = line.text(lang), line.goal, line.more, line.detail
+		entry.drops = n.sceneNote(lang, payload)
 		entry.Change = upperFirst(entry.line)
 	}
 	env.Result = result
@@ -357,11 +359,14 @@ func rawSteps(env *verbEnvelope) (steps []rawPlanItem, copies []string) {
 // first.
 func rawSayWhat(lang string, env *verbEnvelope) (about, status string) {
 	steps, copies := rawSteps(env)
-	detail := func(item rawPlanItem) string {
-		if item.detail == "" {
-			return ""
+	detail := func(item rawPlanItem) (say string) {
+		if item.drops != "" {
+			say = " " + item.drops
 		}
-		return " " + confirmT(lang, "detail.say", "detail", item.detail)
+		if item.detail != "" {
+			say += " " + confirmT(lang, "detail.say", "detail", item.detail)
+		}
+		return say
 	}
 	copied := rawCopyNote(lang, copies)
 	if len(steps) == 1 {
@@ -399,6 +404,9 @@ func rawAsk(e *tierEngine, env *verbEnvelope, plan storedPlan) actionGoal {
 	}
 	typed := 0
 	for i, item := range steps {
+		if item.drops != "" {
+			why = append(why, strings.TrimSuffix(item.drops, "."))
+		}
 		if len(steps) > 1 && item.Tier == tierTyped.String() {
 			why = append(why, confirmT(lang, "raw.step_why", "number", i+1, "change", item.Change))
 			typed++

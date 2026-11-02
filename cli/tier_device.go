@@ -205,16 +205,23 @@ const (
 // novaAppSwitch: novaAppStop for the switch Home Assistant shows for HA
 // NOVA's own App (the hassio platform's, on the App's device): turning it
 // off stops the App, as hassio.addon_stop would; novaAppUnread for a switch
-// whose platform, device, or device identifiers can't be read; "" otherwise.
+// whose registry row, platform, device, or device identifiers can't be
+// read; "" otherwise.
 func (e *tierEngine) novaAppSwitch(id string) string {
-	if domain, _ := splitID(id); domain != "switch" || !e.regFailed && e.reg[id].pl != "hassio" {
+	entry, listed := e.reg[id]
+	switch domain, _ := splitID(id); {
+	case domain != "switch":
+		return ""
+	case e.regFailed || !listed || entry.pl == "":
+		return novaAppUnread
+	case entry.pl != "hassio":
 		return ""
 	}
 	var rows []struct {
 		ID          string `json:"id"`
 		Identifiers []any  `json:"identifiers"`
 	}
-	if e.regFailed || e.s.wsDecode(map[string]any{"type": "config/device_registry/list"}, &rows, "the device registry") != nil {
+	if e.s.wsDecode(map[string]any{"type": "config/device_registry/list"}, &rows, "the device registry") != nil {
 		return novaAppUnread
 	}
 	for _, row := range rows {
@@ -229,6 +236,16 @@ func (e *tierEngine) novaAppSwitch(id string) string {
 		}
 	}
 	return novaAppUnread
+}
+
+// latchOwnApp keeps the first step that would stop the App HA NOVA runs in
+// (why from novaAppSwitch, or novaAppStop): a call plan's evaluate refuses
+// with it, whether the step is the call itself or a scene, script, or
+// automation it runs. A config plan never reads it: a saved draft runs later.
+func (e *tierEngine) latchOwnApp(why, id, via string) {
+	if why != "" && e.ownApp == nil {
+		e.ownApp = &tierReason{Code: reasonHassio, EntityID: id, Via: via, Detail: why}
+	}
 }
 
 // skipWhy names why that targeting skips id ("" keeps it): hidden, an entity
