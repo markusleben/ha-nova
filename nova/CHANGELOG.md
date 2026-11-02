@@ -7,7 +7,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 ## [Relay 0.13.10] - 2026-11-02
 
 ### Changed
-- Chat apps: pausing or skipping music, choosing a source, muting, changing the volume a little, adding to or checking off a to-do list, and switching a room's lights now run right away. A big volume jump, playing something new, removing items, a room with more than 10 lights, and anything that sets off something riskier still ask first.
+- Chat apps: pausing or skipping music, choosing a source, muting and a small volume change now run right away. So does switching a room's lights (up to 10 lights, none on a device with a lock) and, at Manage everything, adding to or checking off a to-do list. A big volume jump, playing something new, speaker groups, removing items, and anything that sets off something riskier still ask first.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.0 ask you to update this App.
+
+## [Relay 0.13.7] - 2026-11-02
+
+### Fixed
+- Chat apps: before a delete, the assistant says what uses the item, and a delete, rename, or disable without a copy is planned again with one first. Several scenes, or several helpers, go into one change with one question. After a YAML file changes, the assistant checks the configuration at once.
+- Chat apps: the assistant asks once, with the preview, instead of before and again after it. Above a chat code, it says once that it can see the code too.
 
 ### Upgrade notes
 - Computers on HA NOVA 0.28.0 ask you to update this App.
