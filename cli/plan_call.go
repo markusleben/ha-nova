@@ -71,7 +71,7 @@ func runCallVerb(paths runtimePaths, verb, flagSetName, help string, args []stri
 	fs := flag.NewFlagSet(flagSetName, flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
 	fs.StringVar(&req.Match, "match", "", "resolve exactly one non-disabled entity of the service's domain by phrase")
-	fs.StringVar(&req.Area, "area", "", "expand an area_id to the service domain's entities (previewed unless it resolves to exactly one entity of the service's domain)")
+	fs.StringVar(&req.Area, "area", "", "expand an area_id to the service domain's entities (previewed unless it resolves to exactly one entity of the service's domain, or to a room's lights, up to 30)")
 	fs.StringVar(&req.Device, "device", "", "expand a device_id to the service domain's entities (previewed unless it resolves to exactly one entity of the service's domain)")
 	fs.Func("set", "service data field k=v, JSON-typed when it parses (repeatable)", func(v string) error { sets = append(sets, v); return nil })
 	fs.StringVar(&dataFile, "data-file", "", "JSON object of service data; --set overrides its keys")
@@ -464,7 +464,7 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 	case domain == "script" && !scriptEntityServices[name]:
 		e.visit(req.Service, "script.turn_on", req.Data, 0, "")
 	case len(targets) == 0:
-		level, code := classifyTargetless(req.Service, req.Data)
+		level, code := e.targetless(req.Service, req.Data)
 		e.raise(level, tierReason{Code: code})
 	}
 	for _, t := range targets {

@@ -38,7 +38,7 @@ var callProperties = map[string]any{
 	"service":    prop("string", "domain.service, e.g. light.turn_off"),
 	"entity_ids": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "exact entity_ids"},
 	"match":      prop("string", "a phrase that must match exactly one entity of the service's domain"),
-	"area":       prop("string", "an area_id: expands to its entities (previewed unless it resolves to exactly one entity of the service's domain)"),
+	"area":       prop("string", "an area_id: expands to its entities (previewed unless it resolves to exactly one entity of the service's domain, or to a room's lights, up to 30)"),
 	"device":     prop("string", "a device_id: expands to its entities (previewed unless it resolves to exactly one entity of the service's domain)"),
 	"data":       prop("object", "service data; never entity_id/area_id/device_id/target"),
 	"skill":      prop("string", "the owning skill, e.g. ha-nova:mqtt, required for an owned service (mqtt.publish, notify.*, todo.*, calendar.*, media_player.*, camera.*, tts.*, recorder.purge*, update.*, logger.set_level, conversation.process, hassio.addon_*/host_*)"),

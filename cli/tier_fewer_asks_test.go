@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -71,6 +72,18 @@ func unlocksOn(entity string) func(*fakeHA) {
 	}
 }
 
+// listensToTheList: the built-in shopping list, and an automation that
+// unlocks the front door on each shopping_list_updated.
+func listensToTheList(f *fakeHA) {
+	f.ent("todo.shopping_list", "shopping_list", "1", nil)
+	f.events = []map[string]any{{"event": "shopping_list_updated", "listener_count": 1}}
+	f.automation("groceries", "g1", map[string]any{
+		"triggers": []any{map[string]any{"trigger": "event", "event_type": "shopping_list_updated"}},
+		"actions":  []any{step("lock.unlock", "lock.front")},
+	})
+	f.services = append(f.services, map[string]any{"domain": "shopping_list", "services": map[string]any{"add_item": map[string]any{}}})
+}
+
 // lightRuns: an automation that runs service on the TV when the kitchen light changes.
 func lightRuns(service string) func(*fakeHA) {
 	return func(f *fakeHA) {
@@ -129,9 +142,25 @@ func TestEverydayMediaAndTodoRunAtOnce(t *testing.T) {
 		kept("a universal player's commands may be anything", onMedia("media_pause"), func(f *fakeHA) {
 			f.ent("media_player.tv", "universal", "playing", map[string]any{"volume_level": 0.4})
 		}),
-		kept("a grouped speaker pauses its group too", onMedia("media_pause"), func(f *fakeHA) {
-			f.states["media_player.tv"]["attributes"].(map[string]any)["group_members"] = []any{"media_player.tv", "media_player.kitchen"}
+		kept("a template player's commands may be anything", onMedia("media_pause"), func(f *fakeHA) {
+			f.ent("media_player.tv", "media_player_template", "playing", map[string]any{"volume_level": 0.4})
 		}),
+		kept("a grouped speaker pauses its group too", onMedia("media_pause"), groupedWith("media_player.tv", "media_player.kitchen")),
+		kept("a speaker listing only another player", onMedia("media_pause"), groupedWith("media_player.kitchen")),
+		ordinary("a speaker grouped with only itself", onMedia("media_pause"), groupedWith("media_player.tv")),
+		kept("a level outside 0..1 is not known", onMedia("volume_set", "volume_level=0.5"), volumeAt(40.0)),
+		kept("a level the player only assumes is not known", onMedia("volume_up"), func(f *fakeHA) {
+			f.states["media_player.tv"]["attributes"].(map[string]any)["assumed_state"] = true
+		}),
+		kept("unmute with no level known", onMedia("volume_mute", "is_volume_muted=false"), volumeAt(nil)),
+		{name: "a stored unmute keeps the preview", setup: everydayHome(func(f *fakeHA) {
+			f.related["entity:light.kitchen"] = []string{"automation.tv"}
+			f.automation("tv", "t1", map[string]any{
+				"triggers": []any{map[string]any{"trigger": "state", "entity_id": "light.kitchen"}},
+				"actions": []any{map[string]any{"action": "media_player.volume_mute", "target": map[string]any{"entity_id": "media_player.tv"},
+					"data": map[string]any{"is_volume_muted": false}}},
+			})
+		}), args: []string{"light.turn_off", "light.kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonOwnedMember}},
 		{name: "a stored step that turns the TV up keeps the preview", setup: everydayHome(lightRuns("media_player.volume_up")),
 			args: []string{"light.turn_off", "light.kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonOwnedMember}},
 		{name: "turning the TV up again from its own automation keeps the preview", setup: everydayHome(volumeAt(0.7), func(f *fakeHA) {
@@ -143,14 +172,19 @@ func TestEverydayMediaAndTodoRunAtOnce(t *testing.T) {
 		}), args: onMedia("volume_up"), exit: 3, tier: "preview", reasons: []string{reasonOwnedMember}},
 		{name: "a stored step that pauses the TV runs at once", setup: everydayHome(lightRuns("media_player.media_pause")),
 			args: []string{"light.turn_off", "light.kitchen"}, exit: 0, tier: "ordinary", absent: []string{reasonOwnedMember}},
-		{name: "a shopping list whose update event starts an unlock stays typed", setup: everydayHome(func(f *fakeHA) {
-			f.ent("todo.shopping_list", "shopping_list", "1", nil)
-			f.events = []map[string]any{{"event": "shopping_list_updated", "listener_count": 1}}
-			f.automation("groceries", "g1", map[string]any{
-				"triggers": []any{map[string]any{"trigger": "event", "event_type": "shopping_list_updated"}},
-				"actions":  []any{step("lock.unlock", "lock.front")},
+		{name: "a shopping list whose update event starts an unlock stays typed", setup: everydayHome(listensToTheList),
+			args: []string{"todo.add_item", "todo.shopping_list", "--skill", "ha-nova:todo", "--set", "item=milk"}, exit: 3, tier: "typed", reasons: []string{reasonAccessLock}},
+		{name: "checking off an item wakes the same listener", setup: everydayHome(listensToTheList),
+			args: []string{"todo.update_item", "todo.shopping_list", "--skill", "ha-nova:todo", "--set", "item=milk", "--set", "status=completed"}, exit: 3, tier: "typed", reasons: []string{reasonAccessLock}},
+		{name: "a shopping_list service wakes the same listener", setup: everydayHome(listensToTheList),
+			args: []string{"shopping_list.add_item", "--set", "name=milk"}, exit: 3, tier: "typed", reasons: []string{reasonAccessLock}},
+		{name: "a stored shopping_list service wakes the same listener", setup: everydayHome(listensToTheList, func(f *fakeHA) {
+			f.related["entity:light.kitchen"] = []string{"automation.milk"}
+			f.automation("milk", "m1", map[string]any{
+				"triggers": []any{map[string]any{"trigger": "state", "entity_id": "light.kitchen"}},
+				"actions":  []any{map[string]any{"action": "shopping_list.add_item", "data": map[string]any{"name": "milk"}}},
 			})
-		}), args: []string{"todo.add_item", "todo.shopping_list", "--skill", "ha-nova:todo", "--set", "item=milk"}, exit: 3, tier: "typed", reasons: []string{reasonAccessLock}},
+		}), args: []string{"light.turn_off", "light.kitchen"}, exit: 3, tier: "typed", reasons: []string{reasonAccessLock}},
 		kept("remove an item", onShop("remove_item", "item=uid1")),
 		kept("clear completed items", onShop("remove_completed_items")),
 
@@ -161,6 +195,57 @@ func TestEverydayMediaAndTodoRunAtOnce(t *testing.T) {
 	})
 }
 
+// groupedWith: the TV's group_members.
+func groupedWith(members ...any) func(*fakeHA) {
+	return func(f *fakeHA) { f.states["media_player.tv"]["attributes"].(map[string]any)["group_members"] = members }
+}
+
+// A raw reorder of the built-in shopping list fires shopping_list_updated
+// too, and its item carries the tier; another list's does not.
+func TestShoppingListMoveWakesItsListeners(t *testing.T) {
+	f := newFakeHA()
+	listensToTheList(f)
+	f.ent("todo.shop", "local_todo", "2", nil)
+	paths, _ := setupVerbRelayTest(t, f.reply)
+	move := func(list string) string {
+		return `{"endpoint":"ws","payload":{"type":"todo/item/move","entity_id":"` + list + `","uid":"a"}}`
+	}
+	for list, tier := range map[string]string{"todo.shopping_list": "typed", "todo.shop": "preview"} {
+		exit, env := planRaw(t, paths, "["+move(list)+"]")
+		if exit != verbExitConfirmation || env.Tier != tier || (tier == "typed") != strings.Contains(reasonCodes(env), reasonAccessLock) {
+			t.Errorf("%s: exit %d tier %s reasons %s %+v", list, exit, env.Tier, reasonCodes(env), env.Error)
+		}
+	}
+	_, env := planRaw(t, paths, "["+move("todo.shop")+","+move("todo.shopping_list")+"]")
+	var result rawPlanResult
+	if err := json.Unmarshal(env.Result, &result); err != nil || len(result.Items) != 2 || result.Items[0].Tier != "preview" || result.Items[1].Tier != "typed" {
+		t.Fatalf("items %+v (%v)", result.Items, err)
+	}
+}
+
+// lights: n hue lights light.spot_0… in the kitchen; each switches its own
+// fan through a consumer automation when consumers is set.
+func lights(n int, consumers bool) func(*fakeHA) {
+	return func(f *fakeHA) {
+		var ids []string
+		for i := range n {
+			id := fmt.Sprintf("light.spot_%d", i)
+			ids = append(ids, id)
+			f.ent(id, "hue", "on", map[string]any{"_di": fmt.Sprintf("dev_spot_%d", i)})
+			if consumers {
+				fan := fmt.Sprintf("switch.fan_%d", i)
+				f.ent(fan, "shelly", "off", nil)
+				f.related["entity:"+id] = []string{fmt.Sprintf("automation.fan_%d", i)}
+				f.automation(fmt.Sprintf("fan_%d", i), fmt.Sprintf("a%d", i), map[string]any{
+					"triggers": []any{map[string]any{"trigger": "state", "entity_id": id}},
+					"actions":  []any{step("switch.turn_on", fan)},
+				})
+			}
+		}
+		f.related["area:kitchen"] = ids
+	}
+}
+
 func TestRoomLightsRunAtOnce(t *testing.T) {
 	area := func(ids ...string) func(*fakeHA) {
 		return func(f *fakeHA) { f.related["area:kitchen"] = ids }
@@ -168,8 +253,11 @@ func TestRoomLightsRunAtOnce(t *testing.T) {
 	group := func(id string, members ...any) func(*fakeHA) {
 		return func(f *fakeHA) { f.ent(id, "group", "on", map[string]any{"entity_id": members}) }
 	}
+	hueRoom := func(f *fakeHA) {
+		f.ent("light.hue_kitchen", "hue", "on", map[string]any{"is_hue_group": true, "entity_id": []any{"light.kitchen", "light.hall"}})
+	}
 	both := func(f *fakeHA) {
-		for _, setup := range []func(*fakeHA){area("light.kitchen", "light.hall"), group("light.all", "light.kitchen", "light.hall")} {
+		for _, setup := range []func(*fakeHA){area("light.kitchen", "light.hall", "light.all"), group("light.all", "light.kitchen", "light.hall")} {
 			setup(f)
 		}
 	}
@@ -188,13 +276,33 @@ func TestRoomLightsRunAtOnce(t *testing.T) {
 		{name: "a room holding a light group and its lights", setup: both,
 			args: []string{"light.turn_off", "--area", "kitchen"}, exit: 0, tier: "ordinary"},
 
-		{name: "eleven lights stay preview", setup: func(f *fakeHA) {
-			var ids []string
-			for i := range 11 {
-				ids = append(ids, fmt.Sprintf("light.spot_%d", i))
-				f.ent(ids[i], "hue", "on", nil)
-			}
-			area(ids...)(f)
+		{name: "a Hue room by name", setup: hueRoom,
+			args: []string{"light.turn_off", "light.hue_kitchen"}, exit: 0, tier: "ordinary", absent: []string{reasonExpanded}},
+		{name: "a room holding a Hue room and its lights", setup: func(f *fakeHA) {
+			hueRoom(f)
+			area("light.kitchen", "light.hall", "light.hue_kitchen")(f)
+		}, args: []string{"light.turn_on", "--area", "kitchen"}, exit: 0, tier: "ordinary"},
+		{name: "thirty lights run at once", setup: lights(30, false),
+			args: []string{"light.turn_off", "--area", "kitchen"}, exit: 0, tier: "ordinary", absent: []string{reasonExpanded}},
+		{name: "thirty lights, each with a consumer, stay inside the limits", setup: lights(30, true),
+			args: []string{"light.turn_off", "--area", "kitchen"}, exit: 0, tier: "ordinary", absent: []string{reasonExpanded, reasonLimitCut}},
+
+		{name: "31 lights stay preview", setup: lights(31, false),
+			args: []string{"light.turn_off", "--area", "kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
+		{name: "a Hue light listing lights that is no Hue group stays preview", setup: func(f *fakeHA) {
+			f.ent("light.hue_odd", "hue", "on", map[string]any{"entity_id": []any{"light.kitchen", "light.hall"}})
+		}, args: []string{"light.turn_off", "light.hue_odd"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
+		{name: "a light whose parent device has a lock keeps the room's preview", setup: func(f *fakeHA) {
+			f.devices = []map[string]any{{"id": "dev_hub"}, {"id": "dev_bulb", "parent_device_id": "dev_hub"}}
+			f.ent("light.bulb", "zha", "on", map[string]any{"_di": "dev_bulb"})
+			f.ent("lock.hub", "zha", "locked", map[string]any{"_di": "dev_hub"})
+			area("light.kitchen", "light.bulb")(f)
+		}, args: []string{"light.turn_off", "--area", "kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
+		{name: "a light whose child device has a lock keeps the room's preview", setup: func(f *fakeHA) {
+			f.devices = []map[string]any{{"id": "dev_hub"}, {"id": "dev_lock", "parent_device_id": "dev_hub"}}
+			f.ent("light.hub", "zha", "on", map[string]any{"_di": "dev_hub"})
+			f.ent("lock.child", "zha", "locked", map[string]any{"_di": "dev_lock"})
+			area("light.kitchen", "light.hub")(f)
 		}, args: []string{"light.turn_off", "--area", "kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
 		{name: "a light on a door lock's device keeps the room's preview", setup: func(f *fakeHA) {
 			f.ent("light.door_ring", "nuki", "on", map[string]any{"_di": "dev_nuki"})

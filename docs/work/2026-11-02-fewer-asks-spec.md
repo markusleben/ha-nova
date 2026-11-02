@@ -20,39 +20,44 @@ Date: 2026-11-02. Owner: tier engine (`cli/tier_fewer_asks.go`, called from `cli
    - `volume_set`: the new level is at most 0.8 and at most 0.3 above the current `volume_level`.
    - `volume_up`: the current level plus one step (0.1, Home Assistant's default) stays at most 0.8.
    - Unmuting (`is_volume_muted: false`): the current level is at most 0.8.
-   - An unknown current level, or a missing or templated value, keeps the preview (fail closed).
+   - An unknown current level (none, outside 0..1, or only assumed: `assumed_state`), or a missing or templated value, keeps the preview (fail closed).
 
    Everything else keeps its tier: `play_media` and its queue, `join`/`unjoin`, seek, sound mode, shuffle and repeat, turning a player on or off, and `tts.*`.
 2. **Shopping list**: `todo.add_item` and `todo.update_item` (rename, complete, due date, description) are ordinary on any to-do list. `todo.remove_item`, `todo.remove_completed_items`, and list deletes keep their tier.
 3. **Room lights**: `light.turn_on`, `turn_off`, or `toggle` on `--area <id>`, or on one group named by its entity_id, is classified like naming each light it reaches (no `EXPANDED_TARGET`) when all of these hold:
-   - every reached entity is a `light.*` entity, and there are at most 10 (the cap on explicitly named ids, so an area or group never runs more at once than naming lights does);
+   - every reached entity is a `light.*` entity, and there are at most 30 (`tierMaxRoomLights`, Markus 2026-11-02; explicitly named ids keep their cap of 10, `EXPLICIT_BATCH`);
    - no reached entity is without state (disabled, not loaded: `EXPANDED_TARGET_WITHOUT_STATE`) and resolution read everything;
    - no light's device, or its parent or child devices, carries a lock, alarm panel, or access cover;
-   - every group on the way is a Home Assistant group (registry platform `group`): another platform's `entity_id` list (a template light) does not prove what switching it runs.
+   - every group on the way is a Home Assistant group (registry platform `group`) or a Hue grouped light (platform `hue` with `is_hue_group`), and each light it lists is still classified: another platform's `entity_id` list (a template light) does not prove what switching it runs.
 
-   What Home Assistant's own area targeting leaves out (hidden, configuration or diagnostic, assigned to another area) stays left out, as in the I5 exception. `--device`, `--match`, other domains, `homeassistant.*`, several named groups, and more than 10 lights keep `EXPANDED_TARGET`. The result names every light it read back.
+   What Home Assistant's own area targeting leaves out (hidden, configuration or diagnostic, assigned to another area) stays left out, as in the I5 exception. `--device`, `--match`, other domains, `homeassistant.*`, several named groups, and more than 30 lights keep `EXPANDED_TARGET`. The result names every light it read back.
 4. **Kept previews**: an owned service that is now ordinary stays a preview (`OWNED_MEMBER`, as today) when its own class can't see everything it does:
    - the entity's device family carries a lock, alarm panel, or access cover;
-   - a `universal` media player: its user-written commands may run anything instead;
-   - a player grouped with others (`group_members`): the whole group follows, and its other players are not classified;
+   - a `universal` or `media_player_template` player: its user-written commands may run anything instead;
+   - a player whose `group_members` names another player: the whole group follows, and its other players are not classified;
    - a stored step (a script, scene, or consumer automation) that raises or sets the volume or unmutes, also when it repeats the direct call: the plan-time level is not the level at that step.
-   A write to the built-in shopping list (platform `shopping_list`) fires `shopping_list_updated`; its listeners are classified like a timer's, so one that unlocks makes the write typed.
+   A write to the built-in shopping list (a `todo.*` call on platform `shopping_list`, any `shopping_list.*` service, direct or stored, or a raw `todo/item/move` on it) fires `shopping_list_updated`; its listeners are classified like a timer's, so one that unlocks makes the write typed.
 5. **Ordinary is only the call's own class.** Members, consumers (an automation triggered by the player, the list, or a light), event listeners (`call_service`), device siblings, unregistered or template platforms, and limit cuts still raise the tier. A pause whose consumer automation unlocks a door stays typed.
-6. **Unchanged**: the `--skill` routing (an owned service without its skill stays refused), chat-app levels (below Manage everything a to-do call stays refused), reason codes, and every confirmation text (`cli/confirm_strings.*.json`).
+6. **Tool text**: the `area` argument of `ha_call` and `--area` in the CLI help now say an area that resolves to a room's lights (up to 30) is not previewed. The hash in `TestMCPToolTextStable` changes, so chat apps ask once more to always allow `ha_call` (Markus, 2026-11-02).
+7. **Unchanged**: the `--skill` routing (an owned service without its skill stays refused), chat-app levels (below Manage everything a to-do call stays refused), reason codes, and every confirmation text (`cli/confirm_strings.*.json`).
 
 ## Splitting
 
-The new rules never make a part of a previewed request ordinary that was not already: each light, player, and list is still classified on its own (siblings, consumers, platforms), and a room is capped at the same 10 entities as named ids. `service-call/SKILL.md` keeps "never split a call to dodge it".
+The new rules never make a part of a previewed request ordinary that was not already: each light, player, and list is still classified on its own (siblings, consumers, platforms). A room runs up to 30 lights, named ids up to 10: three calls of 10 named lights run what one room call would, with the same checks. Volume: the cap holds per call, so repeated small steps end at most at 0.8; anything louder previews however it is split. `service-call/SKILL.md` keeps "never split a call to dodge it", and `skills/media/SKILL.md` keeps "never split one into small steps".
 
 ## Known limits
 
-- A player that does not report `volume_level` (some step-only players) still asks for `volume_up`, `volume_set`, and unmuting.
+- A player that does not report `volume_level` (some step-only players), reports it outside 0..1, or only assumes it still asks for `volume_up`, `volume_set`, and unmuting.
 - One `volume_up` step is assumed to be 0.1; an integration with a bigger step can end a little above 0.8.
-- A room with more than 10 lights, or with a light on a door-lock device, still asks.
-- A room light an integration provides that lists its lights (some Hue setups) is not a Home Assistant group: that room still asks.
-- A grouped speaker (Sonos and similar) still asks for every media call; classifying its other players is a follow-up.
-- A `universal` player keeps today's preview, not the typed tier an unread user-written command would get elsewhere (pre-existing).
+- A room with more than 30 lights, or with a light on a device (or its parent or child device) that has a lock, still asks.
+- A large room can reach an engine limit; the plan then needs a code (`LIMIT_CUT`), as the same room's preview did before: more than 64 acted entities (30 lights plus more than 34 other entities their consumer automations switch), or the 30 s read budget. Measured on the fake with a delay per read: 30 lights without consumers took 1.9 s at 100 ms and 4.8 s at 250 ms; 30 lights that each start their own automation took 14 s at 100 ms and hit the budget at 250 ms (24 such lights: 28 s).
+- A Hue grouped light switches every bulb the bridge has in it, also one Home Assistant does not show; those are lights too. ZHA, Zigbee2MQTT, and deCONZ group lights list no members, so they act like one named light, the same as naming one today.
+- A grouped speaker whose `group_members` names another player still asks for every media call; classifying its other players is a follow-up. Speaker groups that don't publish `group_members` (Google Cast groups, Alexa groups, players that drive another player such as Music Assistant or Spotify) run at once while the other speakers' automations are not checked; before this change their preview did not name such an effect either.
+- A `universal` or `media_player_template` player keeps today's preview, not the typed tier an unread user-written command would get elsewhere (pre-existing).
+- A media or to-do call that runs at once ends with "Sent … I can't check the result" (exit 0), as after a confirmed preview before; read-back probes come in 0.28.1.
+- A kept preview on a grouped player names `OWNED_MEMBER` with an empty reason clause; naming the group needs a new confirmation text.
+- `volume_set` from 0.9 down to 0.85 previews (0.85 is above the cap), though it lowers the volume.
 
 ## Tests
 
-`cli/tier_fewer_asks.go` holds the rules. `cli/tier_fewer_asks_test.go`: each new ordinary case; each kept case (`play_media`, `join`, a big volume jump, a fractional one just past a limit, an unknown level, a player on a lock device, a `universal` or grouped player, a stored volume step, a `volume_up` the player's own automation repeats, `remove_item`, a room with a light on a lock device, a generic call on a room with a cover, a skipped or unregistered member, a template light listing lights, a device target, 11 lights); the consumer escalation (a pause, a to-do add, and a room's lights whose automation unlocks a door: typed; a shopping-list event listener that unlocks: typed). Existing tier tests change only where the decision changes (listed in the PR).
+`cli/tier_fewer_asks.go` holds the rules. `cli/tier_fewer_asks_test.go`: each new ordinary case; each kept case (`play_media`, `join`, a big volume jump, a fractional one just past a limit, an unknown level, a player on a lock device, a `universal` or grouped player, a `media_player_template` player, a speaker listing another player (one listing only itself runs), a level outside 0..1 or assumed, unmuting with no level, a stored volume step or unmute, a `volume_up` the player's own automation repeats, `remove_item`, a room with a light on a lock device or on its parent or child device, a generic call on a room with a cover, a skipped or unregistered member, a template light, or a Hue light that is no Hue group, listing lights, a device target, 31 lights); exactly 30 lights, also with a consumer automation each, run at once without a cut; a Hue room by name and inside its area; the consumer escalation (a pause, a to-do add, and a room's lights whose automation unlocks a door: typed; a shopping-list event listener that unlocks: typed for `todo.add_item`, `todo.update_item`, a `shopping_list.*` service, direct or stored, and a raw `todo/item/move`, `TestShoppingListMoveWakesItsListeners`). `cli/mcp_serve_levels_test.go`: at Use the home, a moderate volume change and a room's lights run with no plan. Existing tier tests change only where the decision changes (listed in the PR).
