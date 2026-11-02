@@ -78,7 +78,7 @@
   "say.phone_waiting": "Ich warte, bis du auf die Benachrichtigung von HA NOVA auf deinem Handy tippst (sie kann ein paar Sekunden brauchen). {tap}",
   "say.phone_waiting_how": "Halte sie auf einem iPhone gedrückt oder zieh sie auf Android nach unten, und tippe dann auf den Knopf für diese Änderung.",
   "say.phone_finishing": "Dein Handy hat geantwortet; HA NOVA schließt ab.",
-  "say.applying": "HA NOVA führt die Änderung noch aus. Das kann ein paar Minuten dauern.",
+  "say.applying": "HA NOVA führt die Änderung noch aus. Das kann ein paar Minuten dauern. Frag mich gleich noch einmal, dann sage ich dir das Ergebnis.",
   "say.busy": "HA NOVA ist noch mit einer anderen Änderung beschäftigt. Es ist noch nichts passiert. Versuch es gleich noch einmal.",
 
   "form.code_title": "Einmalcode von HA NOVA",

@@ -78,7 +78,7 @@
   "say.phone_waiting": "Waiting for your tap on the HA NOVA notification on your phone (it can take a few seconds to arrive). {tap}",
   "say.phone_waiting_how": "Press and hold it on an iPhone, or pull it down on Android, then tap the button for this change.",
   "say.phone_finishing": "Your phone answered; HA NOVA is finishing.",
-  "say.applying": "HA NOVA is still making this change. This can take a few minutes.",
+  "say.applying": "HA NOVA is still making this change. This can take a few minutes. Ask me again in a moment, and I'll tell you the result.",
   "say.busy": "HA NOVA is still busy with another change, so nothing has happened yet. Try again in a moment.",
 
   "form.code_title": "One-time code from HA NOVA",

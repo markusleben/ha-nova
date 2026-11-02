@@ -152,7 +152,7 @@ func (srv *mcpServer) awaitJob(key string, job *chatJob, id string) map[string]a
 		if now == nil && code != http.StatusForbidden {
 			return chatStopped("ha_apply", &verbFailure{exit: verbExitRefused, code: "ACCESS_UNKNOWN",
 				message: "HA NOVA couldn't check this Home Assistant user's account just now, so it can't tell how the change ended yet",
-				next:    fmt.Sprintf("Tell the user HA NOVA can't tell yet how their change ended and that they can ask again in a moment; then call ha_apply with plan_id %s again. Never say it failed or that nothing changed.", id)})
+				next:    fmt.Sprintf("Call ha_apply with plan_id %s again right away, in this same answer. If it answers ACCESS_UNKNOWN again, tell the user HA NOVA can't tell yet how their change ended and that they can ask you again in a moment. Never promise to check on your own, and never say it failed or that nothing changed.", id)})
 		}
 		p = now
 	}
@@ -221,11 +221,11 @@ func (srv *mcpServer) applyJob(job *chatJob, args map[string]json.RawMessage, ar
 
 // applying: the job runs (a phone plan's after its tap): no outcome yet.
 func applying(id, lang string, phone bool) map[string]any {
-	say := confirmT(lang, "say.applying")
+	say, askAgain := confirmT(lang, "say.applying"), ""
 	if phone {
-		say = confirmT(lang, "say.phone_finishing")
+		say, askAgain = confirmT(lang, "say.phone_finishing"), " and that they can ask you again for the result"
 	}
-	next := fmt.Sprintf("HA NOVA is still making this change; its outcome is not known yet. Tell the user `say` once, then call ha_apply again with plan_id %s and no confirm_code right away, as often as it answers applying: each call waits on the same run, and nothing is sent twice. If the user writes meanwhile, call it again before you answer. Never plan it again, and never say it failed or that nothing changed.", id)
+	next := fmt.Sprintf("HA NOVA is still making this change; its outcome is not known yet. Don't end your answer here: call ha_apply again with plan_id %s and no confirm_code right away, in this same answer, as often as it answers applying (each call waits on the same run, and nothing is sent twice). You can't act once your answer ends, so never tell the user you will check back, keep watching, or report the result on your own. If you end your answer before the outcome, tell the user `say`%s. If the user writes meanwhile, call it again before you answer. Never plan it again, and never say it failed or that nothing changed.", id, askAgain)
 	envelope := map[string]any{"schema_version": 1, "verb": "apply", "status": "applying", "plan": map[string]any{"id": id}, "say": say, "next_step": next}
 	text, _ := json.Marshal(envelope)
 	return map[string]any{"content": []map[string]any{{"type": "text", "text": string(text)}}, "structuredContent": envelope, "isError": false}
