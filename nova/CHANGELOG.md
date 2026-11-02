@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.4] - 2026-11-02
+
+### Fixed
+- Chat apps: while a big change runs, the AI no longer promises to check back or to report the result on its own, which a chat AI can't do once its answer ends. It keeps asking in the same answer; if it stops anyway, HA NOVA's message asks you to ask again for the result.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.0 ask you to update this App.
+
 ## [Relay 0.13.3] - 2026-11-01
 
 ### Fixed

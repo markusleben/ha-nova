@@ -58,7 +58,7 @@ func TestServeWaitsForThePhoneAndNeverRenotifies(t *testing.T) {
 		start := time.Now()
 		env := s.tool(userA, "ha_apply", map[string]any{"plan_id": id})
 		if env["status"] != "waiting_for_phone" || env["error"] != nil || !strings.Contains(env["next_step"].(string), "call ha_apply again with plan_id "+id) ||
-			time.Since(start) > 3*time.Second || p.sentCount() != 1 || len(s.posts()) != 0 {
+			!strings.Contains(env["next_step"].(string), "never tell the user you will report back on your own") || time.Since(start) > 3*time.Second || p.sentCount() != 1 || len(s.posts()) != 0 {
 			t.Fatalf("call %d: %v notifications %d posts %d", i, env, p.sentCount(), len(s.posts()))
 		}
 	}

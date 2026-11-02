@@ -253,7 +253,7 @@ func (srv *mcpServer) chatApply(name string, args map[string]json.RawMessage, ar
 				b.mu.Unlock()
 				open, _, _ := strings.Cut(strings.TrimPrefix(k, c.user+"/"), "/")
 				return refuse(refusedWith("CONFIRM_PENDING", "another change ("+open+") is still waiting for a tap on the phone",
-					fmt.Sprintf("Tell the user nothing changed yet: their phone still has an open HA NOVA confirmation. Call ha_apply with plan_id %s to wait for that one first (it sends no new notification), then apply this plan.", open)))
+					fmt.Sprintf("Tell the user nothing changed yet: their phone still has an open HA NOVA confirmation. Call ha_apply with plan_id %s right away, in this same answer, to wait for that one first (it sends no new notification), then apply this plan. You can't act once your answer ends, so never promise to do either on your own; if you end your answer first, tell the user to ask you again for this change.", open)))
 			}
 		}
 		job = &chatJob{done: make(chan struct{}), lang: confirmLanguage(plan.Lang), what: what, phone: phone, kind: plan.Kind}
@@ -367,7 +367,7 @@ func waitingForPhone(id, lang string, tap *string) map[string]any {
 		how = *tap
 	}
 	say := confirmT(lang, "say.phone_waiting", "tap", how) + " " + sayNotRun(lang)
-	next := fmt.Sprintf("Nothing has run yet: HA NOVA is still waiting for the user's tap on their phone. Tell the user `say`, then call ha_apply again with plan_id %s and no confirm_code: it keeps waiting on the same notification and sends no new one. Never ask for a code.", id)
+	next := fmt.Sprintf("Nothing has run yet: HA NOVA is still waiting for the user's tap on their phone. Tell the user `say`, then call ha_apply again with plan_id %s and no confirm_code right away, in this same answer: it keeps waiting on the same notification and sends no new one. You can't act once your answer ends, so never tell the user you will report back on your own; if you end your answer before the outcome, tell them to ask you again once they tapped. Never ask for a code.", id)
 	envelope := map[string]any{"schema_version": 1, "verb": "apply", "status": "waiting_for_phone", "plan": map[string]any{"id": id}, "say": say, "next_step": next}
 	text, _ := json.Marshal(envelope)
 	return map[string]any{"content": []map[string]any{{"type": "text", "text": string(text)}}, "structuredContent": envelope, "isError": false}
