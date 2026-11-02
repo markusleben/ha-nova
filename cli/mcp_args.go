@@ -216,7 +216,7 @@ func nextStep(envelope map[string]any) string {
 		reason, _ := reasons[0].(map[string]any)
 		code, _ := reason["code"].(string)
 		if skill, _ := reason["skill"].(string); ownedCall(tierReason{Code: code, Skill: skill}) {
-			return fmt.Sprintf("Load ha_skill name %s first and follow it; it says when to call again with skill %s.", strings.TrimPrefix(skill, "ha-nova:"), skill)
+			return fmt.Sprintf("Load ha_skill name %s first and follow it; it says how to call this.", strings.TrimPrefix(skill, "ha-nova:"))
 		}
 	}
 	if next != "" {
