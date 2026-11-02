@@ -492,4 +492,6 @@ func splitID(id string) (string, string) {
 	return domain, rest
 }
 
-func isTemplated(s string) bool { return strings.Contains(s, "{{") || strings.Contains(s, "{%") }
+func isTemplated(s string) bool {
+	return strings.Contains(s, "{{") || strings.Contains(s, "{%") || strings.Contains(s, "{#")
+}

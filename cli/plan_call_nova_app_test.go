@@ -125,6 +125,9 @@ func TestCallNeverStopsTheNOVAAppThroughWhatItRuns(t *testing.T) {
 		{"a scene state rendered at runtime on the App's switch", func(f *fakeHA) {
 			f.script("leave", map[string]any{"action": "scene.apply", "data": map[string]any{"entities": map[string]any{"switch.nova_relay": map[string]any{"state": "{{ desired }}"}}}})
 		}, []string{"script.turn_on", "script.leave"}, true},
+		{"a scene state behind a template comment on the App's switch", func(f *fakeHA) {
+			f.script("leave", map[string]any{"action": "scene.apply", "data": map[string]any{"entities": map[string]any{"switch.nova_relay": map[string]any{"state": "{# note #}off"}}}})
+		}, []string{"script.turn_on", "script.leave"}, true},
 		{"an empty selection", func(f *fakeHA) {
 			f.script("leave", map[string]any{"action": "switch.turn_off", "target": map[string]any{"entity_id": []any{}}})
 		}, []string{"script.turn_on", "script.leave"}, false},
