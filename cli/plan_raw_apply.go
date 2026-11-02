@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
 	"strings"
 )
 
@@ -130,8 +131,26 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		env.Say += " No copy or undo was saved, as you chose."
 	}
 	env.NextStep = "Tell the user what each item's response says where it matters (result.items[].response: a setup flow's next form, a created id). A further step is a new plan."
+	for _, item := range items {
+		payload, _ := decodeObject(item.Payload)
+		file, _ := payload["path"].(string)
+		file = path.Clean(file)
+		if ext := strings.ToLower(path.Ext(file)); item.Endpoint == "files" && payload["action"] == "write_file" && (ext == ".yaml" || ext == ".yml") &&
+			!strings.HasPrefix(file, "/config/esphome/") && payload["backup"] != false { // no Home Assistant configuration (skills/esphome); backup false: its .bak written back
+			env.NextStep += " " + rawYAMLCheck
+			break
+		}
+	}
 	return nil
 }
+
+// rawYAMLCheck follows a YAML file write: Home Assistant checks its config
+// before anything reloads it, and a file its errors point at goes back to
+// its .bak and is checked once more (skills/yaml-config/SKILL.md → Validate).
+// Writing the .bak back (backup false) takes no step of its own: no loop.
+const rawYAMLCheck = "A YAML file changed: check it now with ha-nova relay core --method POST --path /api/config/core/check_config. " +
+	"If it is invalid, reload nothing and tell the user; if its errors point at this file, put it back with ha-nova plan raw, payload backup false (write its .bak back; a new file has none: delete it), " +
+	"then check once more: still invalid, tell the user and write nothing more."
 
 func countStatus(result rawApplyResult, status string) int {
 	n := 0

@@ -53,8 +53,8 @@ func sayWindowAsk(lang string) string { return confirmT(lang, "say.window_ask") 
 func sayFormAsk(lang string) string { return confirmT(lang, "say.form_ask") }
 
 // sayChatNote: the honest limit of fallback E, one line before a chat
-// plan's code block. Chat apps (ha-nova serve) have none: the server
-// instructions carry it there (mcpInstructions).
+// plan's code block. Chat apps (ha-nova serve) have none: their code
+// ask's answer_rule and the server instructions carry it (chatCodeRule).
 func sayChatNote(lang string) string { return confirmT(lang, "say.chat_note") }
 
 // sayCodeLead introduces the code, on the line above it.
