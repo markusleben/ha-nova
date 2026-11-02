@@ -194,6 +194,43 @@ func (e *tierEngine) primaryEntities(ids []string, area, domain string) []string
 	return out
 }
 
+// novaAppStop, novaAppUnread: why HA NOVA never stops or restarts its own
+// App (staticRefusal, novaAppSwitch), and why a switch it can't tell apart
+// from that App's is refused.
+const (
+	novaAppStop   = "HA NOVA runs in this App: stopping or restarting it cuts HA NOVA off from Home Assistant mid-call, so nothing could be checked or undone"
+	novaAppUnread = "the registry could not be read to rule out that this switch stops the App HA NOVA runs in"
+)
+
+// novaAppSwitch: novaAppStop for the switch Home Assistant shows for HA
+// NOVA's own App (the hassio platform's, on the App's device): turning it
+// off stops the App, as hassio.addon_stop would; novaAppUnread for a switch
+// whose platform, device, or device identifiers can't be read; "" otherwise.
+func (e *tierEngine) novaAppSwitch(id string) string {
+	if domain, _ := splitID(id); domain != "switch" || !e.regFailed && e.reg[id].pl != "hassio" {
+		return ""
+	}
+	var rows []struct {
+		ID          string `json:"id"`
+		Identifiers []any  `json:"identifiers"`
+	}
+	if e.regFailed || e.s.wsDecode(map[string]any{"type": "config/device_registry/list"}, &rows, "the device registry") != nil {
+		return novaAppUnread
+	}
+	for _, row := range rows {
+		switch {
+		case row.ID != e.reg[id].di:
+		case len(row.Identifiers) == 0:
+			return novaAppUnread
+		case novaAppSlug(jsonText(row.Identifiers)):
+			return novaAppStop
+		default:
+			return ""
+		}
+	}
+	return novaAppUnread
+}
+
 // skipWhy names why that targeting skips id ("" keeps it): hidden, an entity
 // category, or for an area an assignment to another area. An integration
 // resolves its targets itself, so its list stays whole; an id without a

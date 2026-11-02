@@ -238,6 +238,8 @@ func staticRefusal(req planCallRequest) *tierReason {
 	switch {
 	case ownerSkill(req.Service) != "" && req.Skill != ownerSkill(req.Service):
 		return &tierReason{Code: reasonOwnedService, Skill: ownerSkill(req.Service)}
+	case domain == "hassio" && serviceCallHassio[name] && novaAppSlug(jsonText(req.Data["addon"])): // addon_start, _stop, _restart
+		return &tierReason{Code: reasonHassio, Detail: novaAppStop}
 	case domain == "hassio":
 		// Only the five App/host-control services run through `ha-nova call`,
 		// and only from service-call (raw-routes.md → App And Host Control).
@@ -263,6 +265,10 @@ func refuse(env *verbEnvelope, r tierReason) *verbFailure {
 	switch {
 	case r.Code == reasonResponseOnly:
 		next = "Call it again with --response to get its data."
+	case r.Code == reasonHassio && r.Detail == novaAppUnread:
+		next = "Tell the user nothing was sent: HA NOVA couldn't read Home Assistant's registry to rule out that this switch stops the NOVA App it runs in. They can try again in a moment."
+	case r.Code == reasonHassio && r.Skill == "": // HA NOVA's own App (novaAppStop)
+		next = "Tell the user HA NOVA doesn't stop or restart its own App: it would lose its way into Home Assistant mid-call. They can do it in Home Assistant under Settings > Apps."
 	case skillRuns:
 		// The call runs through `ha-nova call` from its owning skill: name it.
 		next = "Call it with --skill " + r.Skill + " (only from that skill)."
@@ -443,6 +449,9 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 		entityDomain, _ := splitID(t.EntityID)
 		if code := directRefusal(effectiveService(req.Service, entityDomain), e.states[t.EntityID]); code != "" {
 			return &tierReason{Code: code, EntityID: t.EntityID}
+		}
+		if why := e.novaAppSwitch(t.EntityID); why != "" {
+			return &tierReason{Code: reasonHassio, EntityID: t.EntityID, Detail: why}
 		}
 		reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest("entity", t.EntityID)) })
 		if device := e.reg[t.EntityID].di; device != "" { // before any long scan: the plan basis binds both (basisConsumers)

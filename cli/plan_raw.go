@@ -18,7 +18,7 @@ import (
 // (guardRawRequestIn) at planning and again right before apply sends it
 // (plan_raw_apply.go). Reads stay with `relay` and ha_read, except the few
 // only a plan may send (rawPlanOnlyRead). The hash covers the items exactly;
-// the only Home Assistant state in it is the energy lists a save replaces.
+// the only Home Assistant state in it is the basis (rawNamer.basis).
 
 const planRawUsage = "ha-nova plan raw --file <requests.json>"
 
@@ -175,6 +175,9 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 		if refusal == nil && err == nil && item.Endpoint == "backups" && payload["action"] == "delete" {
 			refusal, err = n.snapshotListed(payload)
 		}
+		if refusal == nil && err == nil && item.Endpoint == "core" {
+			refusal, err = n.sceneKept(items[:i], payload)
+		}
 		if err != nil {
 			return nil, storedPlan{}, err
 		}
@@ -182,6 +185,10 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 			next := "Tell the user which step can't be done this way and why (the message says it). Plan the other steps without it only if they still want them."
 			if errors.As(refusal, new(rawReadRefusal)) {
 				next = "That step only reads: read it with ha_read (ha-nova relay on a computer), then plan the other steps."
+			}
+			var guided interface{ next() string } // a refusal that says what to do instead
+			if errors.As(refusal, &guided) {
+				next = guided.next()
 			}
 			return nil, storedPlan{}, &verbFailure{exit: verbExitRefused, code: "REFUSED", next: next,
 				message: fmt.Sprintf("item %d: %s; nothing was planned or sent", i+1, strings.TrimSuffix(refusal.Error(), "; nothing was sent"))}

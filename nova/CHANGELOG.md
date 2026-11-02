@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.7] - 2026-11-02
+
+### Fixed
+- Chat apps: saving a scene no longer drops its other lights and devices when the AI sends only the new one. A save that removes some is refused unless HA NOVA saves a copy of the scene first, and a scene changed in Home Assistant since the preview is never saved over.
+- Chat apps: a password, PIN, or key never goes into a setup or repair form from the chat. HA NOVA refuses it, and when a form asks for one, the AI sends you to Home Assistant to finish there (Settings > Devices & services, or Settings > System > Repairs).
+- Chat apps can't stop or restart the NOVA Relay App itself, which would cut them off in the middle of a request. Updating it still works.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.0 ask you to update this App.
+
 ## [Relay 0.13.5] - 2026-11-02
 
 ### Fixed

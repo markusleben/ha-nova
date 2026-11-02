@@ -24,6 +24,7 @@ type rawNamer struct {
 	snapshots map[string]any // the snapshot store's list, by file (snapshotListed)
 	deleting  map[string]any // the listed entries of the copies the plan deletes
 	removing  map[string]any // device id → the devices and entities deleting it removes (deviceEntities)
+	scenes    map[string]any // scene id → the live config a save replaces, or "absent" (sceneKept)
 	listed    []string       // the names the last targets call listed
 }
 

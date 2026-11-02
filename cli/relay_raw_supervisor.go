@@ -114,7 +114,7 @@ func checkRawSupervisor(payload map[string]any) error {
 	if hasLines {
 		return rawRefusal("Supervisor write with lines", "lines applies to log reads")
 	}
-	if strings.Contains(strings.ToLower(slug), "ha_nova_relay") {
+	if novaAppSlug(slug) {
 		return rawRefusal("change of HA NOVA's own App", "HA NOVA would lose its way into Home Assistant; do this in Home Assistant (Settings > Apps)")
 	}
 	switch _, removes := data["remove_config"].(bool); {
@@ -144,6 +144,11 @@ func rawSupervisorOptionsKind(data map[string]any) string {
 	}
 	return ""
 }
+
+// novaAppSlug: the text names HA NOVA's own App (the store's
+// 2368fcfa_ha_nova_relay or a local build), which HA NOVA never stops,
+// restarts, or changes: it would lose its way into Home Assistant.
+func novaAppSlug(text string) bool { return strings.Contains(strings.ToLower(text), "ha_nova_relay") }
 
 func jsonText(v any) string {
 	text, _ := json.Marshal(v)
