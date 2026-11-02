@@ -97,8 +97,12 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 	data, dataKnown := stepData(step)
 	targets, targetsKnown := collectTargets(step)
 	if !dataKnown || !targetsKnown {
-		if everyEntity(step) {
+		ids, all := stepEntities(step)
+		if all {
 			e.everySwitch(name, via)
+		}
+		for _, id := range ids {
+			e.switchOff(id, name, via)
 		}
 		e.gap(reasonUnresolvedTarget, "", via, name)
 		return
@@ -155,15 +159,32 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 	}
 }
 
-// everyEntity: a step whose entity_id is all, in its target, data, or root.
-func everyEntity(step map[string]any) bool {
+// stepEntities: the literal entity ids a step names in its target, data, or
+// root, and whether one is all, for a step whose other targets can't be
+// read.
+func stepEntities(step map[string]any) (ids []string, all bool) {
 	for _, source := range []any{step, step["target"], step["data"], step["data_template"]} {
 		m, _ := source.(map[string]any)
-		if id, _ := m["entity_id"].(string); strings.EqualFold(strings.TrimSpace(id), "all") {
-			return true
+		var values []any
+		switch v := m["entity_id"].(type) {
+		case string:
+			for _, part := range strings.Split(v, ",") {
+				values = append(values, part)
+			}
+		case []any:
+			values = v
+		}
+		for _, value := range values {
+			text, _ := value.(string)
+			switch text = strings.TrimSpace(text); {
+			case strings.EqualFold(text, "all"):
+				all = true
+			case entityIDPattern.MatchString(text):
+				ids = append(ids, text)
+			}
 		}
 	}
-	return false
+	return ids, all
 }
 
 // stepData merges data_template over data, as Home Assistant does; a

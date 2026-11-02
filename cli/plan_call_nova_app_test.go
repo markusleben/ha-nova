@@ -99,6 +99,17 @@ func TestCallNeverStopsTheNOVAAppThroughWhatItRuns(t *testing.T) {
 			f.script("leave", map[string]any{"action": "homeassistant.turn_off", "data": map[string]any{"entity_id": "all"}})
 		}, []string{"script.turn_on", "script.leave"}, true},
 		{"a switch step without a target", func(f *fakeHA) { f.script("leave", map[string]any{"action": "switch.toggle"}) }, []string{"script.turn_on", "script.leave"}, true},
+		{"the App's switch beside a templated area", func(f *fakeHA) {
+			f.script("leave", map[string]any{"action": "switch.turn_off", "target": map[string]any{"entity_id": []any{"switch.nova_relay"}, "area_id": "{{ area }}"}})
+		}, []string{"script.turn_on", "script.leave"}, true},
+		{"a light on the App's switch", func(f *fakeHA) { f.ent("light.nova_lamp", "switch_as_x", "on", map[string]any{"_di": "app_device"}) },
+			[]string{"light.turn_off", "light.nova_lamp"}, true},
+		{"every light, one on the App's switch", func(f *fakeHA) {
+			f.ent("light.nova_lamp", "switch_as_x", "on", map[string]any{"_di": "app_device"})
+			f.script("leave", map[string]any{"action": "light.turn_off", "target": map[string]any{"entity_id": "all"}})
+		}, []string{"script.turn_on", "script.leave"}, true},
+		{"a light on another App's switch", func(f *fakeHA) { f.ent("light.mqtt_lamp", "switch_as_x", "on", map[string]any{"_di": "mqtt_device"}) },
+			[]string{"light.turn_off", "light.mqtt_lamp"}, false},
 		{"every light", func(f *fakeHA) {
 			f.script("leave", map[string]any{"action": "light.turn_off", "target": map[string]any{"entity_id": "all"}})
 		}, []string{"script.turn_on", "script.leave"}, false},
@@ -130,20 +141,26 @@ func TestCallNeverStopsTheNOVAAppThroughWhatItRuns(t *testing.T) {
 }
 
 // A switch HA NOVA can't place in the registry (no row, or a row without a
-// platform) might be the App's: turning it off is refused.
+// platform) might be the App's: turning it off is refused, and so is a step
+// on every switch while a row lacks its platform (the App's switch always
+// has a row).
 func TestCallRefusesASwitchMissingFromTheRegistry(t *testing.T) {
-	for name, setup := range map[string]func(f *fakeHA){
-		"no row": func(f *fakeHA) { f.ent("switch.relay", "", "on", nil) },
-		"no platform": func(f *fakeHA) {
+	everySwitch := []string{"script.turn_on", "script.leave"}
+	for name, setup := range map[string]func(f *fakeHA) [][]string{
+		"no row": func(f *fakeHA) [][]string { f.ent("switch.relay", "", "on", nil); return nil },
+		"no platform": func(f *fakeHA) [][]string {
 			f.ent("switch.relay", "", "on", nil)
 			f.compact = append(f.compact, map[string]any{"ei": "switch.relay"})
+			return [][]string{everySwitch}
 		},
 	} {
 		f := appUpdateHA()
-		setup(f)
-		exit, env, _, _ := runPlanForTest(t, f, "switch.turn_off", "switch.relay")
-		if exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Next, "couldn't tell from Home Assistant's registry") {
-			t.Errorf("%s: exit %d %+v", name, exit, env.Error)
+		f.script("leave", map[string]any{"action": "switch.turn_off", "target": map[string]any{"entity_id": "all"}})
+		for _, args := range append(setup(f), []string{"switch.turn_off", "switch.relay"}) {
+			exit, env, _, _ := runPlanForTest(t, f, args...)
+			if exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Next, "couldn't tell from Home Assistant's registry") {
+				t.Errorf("%s %v: exit %d %+v", name, args, exit, env.Error)
+			}
 		}
 	}
 }
