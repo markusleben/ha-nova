@@ -268,6 +268,7 @@ func runPlanTemplate(paths runtimePaths, args []string) int {
 			return err
 		}
 		env.Result = m
+		addBatchHint(env, plan)
 		return savePlan(paths, plan, s.transport.Credential)
 	})
 }

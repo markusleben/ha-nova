@@ -177,6 +177,7 @@ func runPlanConfig(paths runtimePaths, op string, args []string) int {
 		if err != nil {
 			return err
 		}
+		addBatchHint(env, plan)
 		return savePlan(paths, plan, s.transport.Credential)
 	})
 }
