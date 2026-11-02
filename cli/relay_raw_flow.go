@@ -163,9 +163,8 @@ func readFlowForm(paths runtimePaths, flowID string) ([][]string, error) {
 func formSecretSet(paths runtimePaths, unkept map[string]error, endpoint string, body []byte) (refusal, err error) {
 	payload, _ := decodeObject(body)
 	method, _ := payload["method"].(string)
-	target, _ := payload["path"].(string)
-	target, _, _ = strings.Cut(target, "#")
-	target, _, _ = strings.Cut(target, "?")
+	raw, _ := payload["path"].(string)
+	target, _ := relayCorePath(raw)
 	m := rawFlowPath.FindStringSubmatch(target)
 	if endpoint != "core" || strings.ToUpper(strings.TrimSpace(method)) != http.MethodPost || m == nil || m[2] == "" {
 		return nil, nil
@@ -192,12 +191,14 @@ func formSecretSet(paths runtimePaths, unkept map[string]error, endpoint string,
 	return nil, nil
 }
 
-// flowAnswered keeps the secret fields of the form a flow request at target
-// got back in a newer file (none: null, once the flow has a file) and
-// returns the flow's step path and the hand-off when that form asks for one.
-// A flow that ends (create_entry, abort) or is cancelled (DELETE) loses its
-// files. unkept says why they could not be kept (noteFlowForms).
-func flowAnswered(paths runtimePaths, method, target string, data json.RawMessage) (flow string, asks *rawFlowSecret, unkept error) {
+// flowAnswered keeps the secret fields of the form a flow request at the
+// core path raw got back in a newer file (none: null, once the flow has a
+// file) and returns the flow's step path and the hand-off when that form
+// asks for one. A flow that ends (create_entry, abort) or is cancelled
+// (DELETE) loses its files. unkept says why they could not be kept
+// (noteFlowForms).
+func flowAnswered(paths runtimePaths, method, raw string, data json.RawMessage) (flow string, asks *rawFlowSecret, unkept error) {
+	target, _ := relayCorePath(raw)
 	m := rawFlowPath.FindStringSubmatch(target)
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
@@ -281,7 +282,6 @@ func relayFlowAnswered(paths runtimePaths, method, target string, reply []byte) 
 	if json.Unmarshal(reply, &envelope) != nil {
 		return
 	}
-	target, _, _ = strings.Cut(target, "?")
 	if _, _, unkept := flowAnswered(paths, strings.TrimSpace(method), target, envelope.Data); unkept != nil {
 		printWarn("HA NOVA couldn't keep the setup form this flow answered with (%v): its next step can't be checked against that form", unkept)
 	}

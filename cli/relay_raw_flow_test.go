@@ -262,21 +262,13 @@ func TestRelayFlowFormsAreKeptOnTheComputer(t *testing.T) {
 		},
 		"DELETE /api/config/config_entries/flow/r1": func(map[string]any) any { return map[string]any{"status": 200, "body": map[string]any{}} },
 	})
-	relay := func(method, target, body string) (exit int, stderr string) {
-		args := []string{"core", "--method", method, "--path", target}
-		if body != "" {
-			args = append(args, "--body", body)
-		}
-		stderr = captureStderr(t, func() { exit = runRelayCommand(paths, args) })
-		return exit, stderr
-	}
-	if exit, stderr := relay("POST", "/api/config/config_entries/flow", `{"handler":"demo"}`); exit != 0 {
+	if exit, stderr := relayCore(t, paths, "POST", "/api/config/config_entries/flow", `{"handler":"demo"}`); exit != 0 {
 		t.Fatalf("start: exit %d %s", exit, stderr)
 	}
-	if exit, stderr := relay("POST", "/api/config/config_entries/flow/r1", `{"entry":"hunter2"}`); exit != rawRefusedExit || !strings.Contains(stderr, `"entry"`) {
+	if exit, stderr := relayCore(t, paths, "POST", "/api/config/config_entries/flow/r1", `{"entry":"hunter2"}`); exit != rawRefusedExit || !strings.Contains(stderr, `"entry"`) {
 		t.Fatalf("the password its form asked for: exit %d %s", exit, stderr)
 	}
-	if exit, stderr := relay("DELETE", "/api/config/config_entries/flow/r1", ""); exit != 0 {
+	if exit, stderr := relayCore(t, paths, "DELETE", "/api/config/config_entries/flow/r1", ""); exit != 0 {
 		t.Fatalf("cancel: exit %d %s", exit, stderr)
 	}
 	if found, err := flowFormFiles(paths, "r1"); len(found) != 0 || err != nil {
@@ -284,6 +276,62 @@ func TestRelayFlowFormsAreKeptOnTheComputer(t *testing.T) {
 	}
 	if got := strings.Join(sent(), " | "); got != "POST /api/config/config_entries/flow | DELETE /api/config/config_entries/flow/r1" {
 		t.Fatalf("sent %s", got)
+	}
+}
+
+// relayCore runs ha-nova relay core and returns its exit and stderr.
+func relayCore(t *testing.T, paths runtimePaths, method, target, body string) (exit int, stderr string) {
+	t.Helper()
+	args := []string{"core", "--method", method, "--path", target}
+	if body != "" {
+		args = append(args, "--body", body)
+	}
+	stderr = captureStderr(t, func() { exit = runRelayCommand(paths, args) })
+	return exit, stderr
+}
+
+// The Relay forwards a core path as a URL path (core-proxy.ts): without its
+// fragment or query, %-escapes decoded, backslashes as slashes, dot segments
+// resolved, rooted. The flow guard reads the same path (relayCorePath), so a
+// form that came back is kept however the path that reached it was spelled,
+// and a cancel with a fragment removes the flow's files. Doubled and
+// trailing slashes, which the Relay keeps, are folded too (broader, never
+// narrower).
+func TestRelayFlowFormsKeptWhateverThePathSpelling(t *testing.T) {
+	form := func(map[string]any) any {
+		return map[string]any{"status": 200, "body": map[string]any{"type": "form", "flow_id": "r1", "handler": "demo", "step_id": "user",
+			"data_schema": []any{map[string]any{"name": "entry", "selector": map[string]any{"text": map[string]any{"type": "password"}}}}}}
+	}
+	for _, c := range []struct{ method, path, body string }{
+		{"POST", "/api/config/config_entries/flow#x", `{"handler":"demo"}`},
+		{"POST", "/api/config/config_entries/flow/r1#x", `{"host":"x"}`},
+		{"GET", "/api/config/config_entries/fl%6fw/r1", ""},
+		{"GET", "/api/config/config_entries/flow/%2572%2531", ""},
+		{"GET", "/api/config/config_entries/flow/x/../r1", ""},
+		{"GET", `/api/config/config_entries/flow\r1`, ""},
+		{"GET", "api/config/config_entries/flow/r1", ""},
+		{"GET", "/api/config/config_entries//flow/r1", ""},
+		{"GET", "/api/config/config_entries/flow/r1/", ""},
+	} {
+		paths, _ := rawRelay(t, map[string]func(map[string]any) any{c.method + " " + c.path: form})
+		if exit, stderr := relayCore(t, paths, c.method, c.path, c.body); exit != 0 {
+			t.Errorf("%s %s: exit %d %s", c.method, c.path, exit, stderr)
+			continue
+		}
+		if exit, stderr := relayCore(t, paths, "POST", "/api/config/config_entries/flow/r1", `{"entry":"hunter2"}`); exit != rawRefusedExit {
+			t.Errorf("after %s %s, the password its form asked for: exit %d %s", c.method, c.path, exit, stderr)
+		}
+	}
+	paths, _ := rawRelay(t, map[string]func(map[string]any) any{
+		"POST /api/config/config_entries/flow":        form,
+		"DELETE /api/config/config_entries/flow/r1#x": func(map[string]any) any { return map[string]any{"status": 200, "body": map[string]any{}} },
+	})
+	relayCore(t, paths, "POST", "/api/config/config_entries/flow", `{"handler":"demo"}`)
+	if exit, stderr := relayCore(t, paths, "DELETE", "/api/config/config_entries/flow/r1#x", ""); exit != 0 {
+		t.Fatalf("cancel: exit %d %s", exit, stderr)
+	}
+	if found, err := flowFormFiles(paths, "r1"); len(found) != 0 || err != nil {
+		t.Fatalf("after a cancel with a fragment: files %v %v", found, err)
 	}
 }
 

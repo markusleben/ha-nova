@@ -108,8 +108,7 @@ func checkRawRelayRequest(endpoint string, body []byte) error {
 // image entity's access token (redactSecrets), so a render that names one is
 // not sent. A template built to get around this is not covered.
 func checkRawCoreBody(method, raw string, body any) error {
-	pathPart, _, _ := strings.Cut(raw, "#")
-	pathPart, _, _ = strings.Cut(pathPart, "?")
+	pathPart, _ := relayCorePath(raw)
 	if refusal := flowStepSecret(method, pathPart, body); refusal != nil {
 		return refusal
 	}
@@ -148,18 +147,11 @@ func checkRawCore(method, raw string) error {
 	}
 	pathPart, _, _ := strings.Cut(raw, "#") // the Relay parses as a URL: the fragment is dropped
 	pathPart, _, _ = strings.Cut(pathPart, "?")
-	decoded := pathPart
-	for range 5 {
-		next, err := url.PathUnescape(decoded)
-		if err != nil {
-			return rawRefusal("core path "+raw, "the path is not valid")
-		}
-		if next == decoded {
-			break
-		}
-		decoded = next
+	decoded, valid := relayCorePath(raw)
+	if !valid {
+		return rawRefusal("core path "+raw, "the path is not valid")
 	}
-	decoded = strings.ToLower(path.Clean("/" + strings.ReplaceAll(decoded, "\\", "/")))
+	decoded = strings.ToLower(decoded)
 	if strings.HasPrefix(decoded, "/api/webhook") { // a webhook may accept GET too
 		return rawRefusal("webhook call", rawNextEvent)
 	}
@@ -188,6 +180,29 @@ func checkRawCore(method, raw string) error {
 		}
 	}
 	return rawRefusal(method+" "+decoded, next)
+}
+
+// relayCorePath: the path a raw core request reaches, as the Relay forwards
+// it (nova/src/http/handlers/core-proxy.ts, normalizeCorePath): no fragment
+// or query, %-escapes decoded, backslashes read as slashes, rooted, and
+// cleaned. Cleaning also folds doubled slashes and a trailing slash, which
+// the Relay keeps: broader than Home Assistant's routes, never narrower.
+// Case stays, as Home Assistant routes it. false: escapes the Relay refuses.
+// Every check that matches a flow or scene path reads this one.
+func relayCorePath(raw string) (string, bool) {
+	target, _, _ := strings.Cut(raw, "#")
+	target, _, _ = strings.Cut(target, "?")
+	for range 5 {
+		next, err := url.PathUnescape(target)
+		if err != nil {
+			return "", false
+		}
+		if next == target {
+			break
+		}
+		target = next
+	}
+	return path.Clean("/" + strings.ReplaceAll(target, `\`, "/")), true
 }
 
 // checkRawWS: the exact type must be on the allowlist (Home Assistant

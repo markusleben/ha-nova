@@ -142,7 +142,6 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		out := add(i, "done", "")
 		out.Response = rawResponse(item.Endpoint, data)
 		if target, _ := payload["path"].(string); item.Endpoint == "core" {
-			target, _, _ = strings.Cut(target, "?")
 			method, _ := payload["method"].(string)
 			flow, asks, unkept := flowAnswered(paths, method, target, data)
 			handoffs = slices.DeleteFunc(handoffs, func(h rawFlowSecret) bool { return flow != "" && h.path == flow })

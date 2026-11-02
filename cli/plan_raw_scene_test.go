@@ -51,6 +51,12 @@ func TestRelaySceneSaveThatDropsMembersIsRefused(t *testing.T) {
 			t.Errorf("%s without light.hall: exit %d %s", method, exit, stderr)
 		}
 	}
+	for _, target := range []string{"/api/config/scene/config/evening#x", "/api/config/scene/config/evening?x=1"} { // the Relay sends /evening
+		if exit, stderr := relayCore(t, paths, "POST", target, `{"id":"evening","entities":{"light.desk":"on","light.lamp":"on"}}`); exit != rawRefusedExit ||
+			!strings.Contains(stderr, "would remove light.hall") {
+			t.Errorf("%s without light.hall: exit %d %s", target, exit, stderr)
+		}
+	}
 	if got := sent(); len(got) != 0 {
 		t.Fatalf("refused saves sent %v", got)
 	}
