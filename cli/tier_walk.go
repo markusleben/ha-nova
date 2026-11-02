@@ -159,9 +159,10 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 }
 
 // stepData merges data_template over data, as Home Assistant does; a
-// payload that is itself a template string cannot be known.
-func stepData(step map[string]any) (map[string]any, bool) {
-	merged := map[string]any{}
+// payload that is itself a template string cannot be known, so known is
+// false and only the other one's literal fields are merged.
+func stepData(step map[string]any) (merged map[string]any, known bool) {
+	merged, known = map[string]any{}, true
 	for _, key := range []string{"data", "data_template"} {
 		switch v := step[key].(type) {
 		case nil:
@@ -170,10 +171,10 @@ func stepData(step map[string]any) (map[string]any, bool) {
 				merged[k] = x
 			}
 		default:
-			return nil, false
+			known = false
 		}
 	}
-	return merged, true
+	return merged, known
 }
 
 // collectTargets gathers the literal targets from target, data, and the

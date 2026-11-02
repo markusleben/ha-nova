@@ -119,6 +119,9 @@ func TestCallNeverStopsTheNOVAAppThroughWhatItRuns(t *testing.T) {
 			f.script("stop", addonStop)
 			f.script("leave", map[string]any{"action": "script.stop", "data": "{{ {} }}"})
 		}, []string{"script.turn_on", "script.leave"}, true},
+		{"the App's slug in data_template beside templated data", func(f *fakeHA) {
+			f.script("leave", map[string]any{"action": "hassio.addon_stop", "data": "{{ {} }}", "data_template": map[string]any{"addon": "2368fcfa_ha_nova_relay"}})
+		}, []string{"script.turn_on", "script.leave"}, true},
 		{"the App's device beside a templated entity", func(f *fakeHA) {
 			f.script("leave", map[string]any{"action": "switch.turn_off", "target": map[string]any{"device_id": "app_device", "entity_id": "{{ x }}"}})
 		}, []string{"script.turn_on", "script.leave"}, true},
