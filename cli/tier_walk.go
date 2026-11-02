@@ -97,6 +97,9 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 	data, dataKnown := stepData(step)
 	targets, targetsKnown := collectTargets(step)
 	if !dataKnown || !targetsKnown {
+		if everyEntity(step) {
+			e.everySwitch(name, via)
+		}
 		e.gap(reasonUnresolvedTarget, "", via, name)
 		return
 	}
@@ -138,6 +141,9 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 		ids, name = append(ids, name), "script.turn_on"
 	}
 	if len(ids) == 0 {
+		if len(targets) == 0 {
+			e.everySwitch(name, via)
+		}
 		level, code := classifyTargetless(name, data)
 		e.raise(level, tierReason{Code: code, Via: via})
 		e.members = append(e.members, tierMember{Action: name, Via: via, Class: level.String()})
@@ -147,6 +153,17 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 	for _, id := range ids {
 		e.visit(id, name, data, depth, via)
 	}
+}
+
+// everyEntity: a step whose entity_id is all, in its target, data, or root.
+func everyEntity(step map[string]any) bool {
+	for _, source := range []any{step, step["target"], step["data"], step["data_template"]} {
+		m, _ := source.(map[string]any)
+		if id, _ := m["entity_id"].(string); strings.EqualFold(strings.TrimSpace(id), "all") {
+			return true
+		}
+	}
+	return false
 }
 
 // stepData merges data_template over data, as Home Assistant does; a
@@ -290,6 +307,8 @@ func (e *tierEngine) sceneMember(id string, value any, via string, depth int) {
 	}
 	st, err := e.state(id)
 	if err != nil {
+		service, _ := sceneMemberService(id, value)
+		e.switchOff(id, service, via)
 		e.readFailed(id, via, "state")
 		return
 	}

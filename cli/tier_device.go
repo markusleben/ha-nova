@@ -248,6 +248,38 @@ func (e *tierEngine) latchOwnApp(why, id, via string) {
 	}
 }
 
+// switchOff latches a step that turns id off or toggles it, before its
+// state is read: the registry alone tells the App's switch.
+func (e *tierEngine) switchOff(id, service, via string) {
+	domain, _ := splitID(id)
+	if eff := effectiveService(service, domain); eff == "switch.turn_off" || eff == "switch.toggle" {
+		e.latchOwnApp(e.novaAppSwitch(id), id, via)
+	}
+}
+
+// everySwitch latches a step that turns off or toggles every switch
+// (entity_id all, or no target): the App's is among them unless the
+// registry shows it isn't.
+func (e *tierEngine) everySwitch(service, via string) {
+	if eff := effectiveService(service, "switch"); eff != "switch.turn_off" && eff != "switch.toggle" {
+		return
+	}
+	if e.regFailed {
+		e.latchOwnApp(novaAppUnread, "", via)
+		return
+	}
+	var ids []string
+	for id, entry := range e.reg {
+		if domain, _ := splitID(id); domain == "switch" && entry.pl == "hassio" {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		e.latchOwnApp(e.novaAppSwitch(id), id, via)
+	}
+}
+
 // skipWhy names why that targeting skips id ("" keeps it): hidden, an entity
 // category, or for an area an assignment to another area. An integration
 // resolves its targets itself, so its list stays whole; an id without a

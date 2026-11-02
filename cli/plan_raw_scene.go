@@ -59,37 +59,21 @@ func (n *rawNamer) sceneKept(earlier []rawRequest, payload map[string]any) (refu
 	case again: // each save is checked against the live scene, not the one before it
 		return rawDrop{message: "a plan saves the scene " + id + " once", hint: "Put every change to the scene into one save of the whole scene."}, nil
 	}
-	data, err := rawRead(n.s, "core", map[string]any{"method": http.MethodGet, "path": "/api/config/scene/config/" + id})
-	var core struct {
-		Status int            `json:"status"`
-		Body   map[string]any `json:"body"`
-	}
-	if err == nil {
-		dec := json.NewDecoder(bytes.NewReader(data))
-		dec.UseNumber()
-		err = dec.Decode(&core)
-	}
-	if err == nil && core.Status != http.StatusNotFound && (core.Status != http.StatusOK || core.Body == nil) {
-		err = fmt.Errorf("Home Assistant answered HTTP %d", core.Status)
-	}
+	live, err := readScene(n.s, id)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read the scene %s's config, so nothing was planned or sent: %w", id, err)
 	}
 	if n.scenes == nil {
 		n.scenes, n.dropped = map[string]any{}, map[string][]string{}
 	}
-	if core.Status == http.StatusNotFound {
-		n.scenes[id] = "absent"
-		return nil, nil
-	}
-	live := numbersByValue(core.Body)
 	n.scenes[id] = live
 	entities, _ := body["entities"].(map[string]any)
 	kept := map[string]bool{}
 	for member := range entities {
 		kept[strings.ToLower(member)] = true
 	}
-	was, _ := core.Body["entities"].(map[string]any)
+	config, _ := live.(map[string]any)
+	was, _ := config["entities"].(map[string]any)
 	var dropped []string
 	for member := range was {
 		if !kept[strings.ToLower(member)] {
@@ -114,6 +98,48 @@ func (n *rawNamer) sceneKept(earlier []rawRequest, payload map[string]any) (refu
 			`If the user wants them removed, tell them which ones go, then plan again with a backups save of its current config first: {"endpoint":"backups","payload":{"action":"save","category":"scenes","name":"auto-%s","data":<the body of that read, unchanged>}}.`,
 			members, id, strings.Trim(slug[:min(len(slug), 59)], "-")),
 	}, nil
+}
+
+// readScene: the scene id's live config with numbers by value (the plan's
+// basis), or "absent".
+func readScene(s *relaySession, id string) (any, error) {
+	data, err := rawRead(s, "core", map[string]any{"method": http.MethodGet, "path": "/api/config/scene/config/" + id})
+	var core struct {
+		Status int            `json:"status"`
+		Body   map[string]any `json:"body"`
+	}
+	if err == nil {
+		dec := json.NewDecoder(bytes.NewReader(data))
+		dec.UseNumber()
+		err = dec.Decode(&core)
+	}
+	switch {
+	case err != nil:
+		return nil, err
+	case core.Status == http.StatusNotFound:
+		return "absent", nil
+	case core.Status != http.StatusOK || core.Body == nil:
+		return nil, fmt.Errorf("Home Assistant answered HTTP %d", core.Status)
+	}
+	return numbersByValue(core.Body), nil
+}
+
+// sceneUnchanged runs right before a scene save is sent: the scene must
+// still be the one the plan's basis holds (apply's recompute read it before
+// any step, and a step since may have let another client change it).
+func sceneUnchanged(s *relaySession, payload, basis map[string]any) (refusal, err error) {
+	id := rawSceneSave(payload)
+	if id == "" {
+		return nil, nil
+	}
+	live, err := readScene(s, id)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read the scene %s's config again before its save: %w", id, err)
+	}
+	if scenes, _ := basis["scenes"].(map[string]any); !jsonEqual(live, scenes[id]) {
+		return fmt.Errorf("the scene %s changed in Home Assistant since the preview, so it was not saved over", id), nil
+	}
+	return nil, nil
 }
 
 // sceneNote: the sentence after a scene save's line naming the members it

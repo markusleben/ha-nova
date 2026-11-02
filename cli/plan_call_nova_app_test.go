@@ -87,6 +87,21 @@ func TestCallNeverStopsTheNOVAAppThroughWhatItRuns(t *testing.T) {
 		{"automation addon_restart", func(f *fakeHA) {
 			f.automation("night", "n1", map[string]any{"actions": []any{map[string]any{"action": "hassio.addon_restart", "data": map[string]any{"addon": "local_ha_nova_relay"}}}})
 		}, []string{"automation.trigger", "automation.night"}, true},
+		{"unreadable state", func(f *fakeHA) { f.fail["/api/states"], f.fail["/api/states/switch.nova_relay"] = true, true }, []string{"switch.turn_off", "switch.nova_relay"}, true},
+		{"scene member with unreadable state", func(f *fakeHA) {
+			f.services = append(f.services, map[string]any{"domain": "scene", "services": map[string]any{"apply": map[string]any{}}})
+			f.fail["/api/states"], f.fail["/api/states/switch.nova_relay"] = true, true
+		}, []string{"scene.apply", "--set", `entities={"switch.nova_relay":"off"}`}, true},
+		{"every switch", func(f *fakeHA) {
+			f.script("leave", map[string]any{"action": "switch.turn_off", "target": map[string]any{"entity_id": "all"}})
+		}, []string{"script.turn_on", "script.leave"}, true},
+		{"every entity", func(f *fakeHA) {
+			f.script("leave", map[string]any{"action": "homeassistant.turn_off", "data": map[string]any{"entity_id": "all"}})
+		}, []string{"script.turn_on", "script.leave"}, true},
+		{"a switch step without a target", func(f *fakeHA) { f.script("leave", map[string]any{"action": "switch.toggle"}) }, []string{"script.turn_on", "script.leave"}, true},
+		{"every light", func(f *fakeHA) {
+			f.script("leave", map[string]any{"action": "light.turn_off", "target": map[string]any{"entity_id": "all"}})
+		}, []string{"script.turn_on", "script.leave"}, false},
 		{"another App", func(f *fakeHA) {
 			f.script("leave", map[string]any{"action": "hassio.addon_restart", "data": map[string]any{"addon": "core_mosquitto"}}, step("switch.turn_off", "switch.mosquitto"))
 		}, []string{"script.turn_on", "script.leave"}, false},
@@ -98,6 +113,13 @@ func TestCallNeverStopsTheNOVAAppThroughWhatItRuns(t *testing.T) {
 		if tc.refused != own || !tc.refused && (exit == verbExitRefused || env.Tier == "refused") {
 			t.Errorf("%s: exit %d tier %q %+v %+v", tc.name, exit, env.Tier, env.Reasons, env.Error)
 		}
+	}
+	f := appUpdateHA()
+	f.ent("switch.mosquitto", "hassio", "on", map[string]any{"_di": "mqtt_device"})
+	f.devices = []map[string]any{{"id": "mqtt_device", "identifiers": []any{[]any{"hassio", "core_mosquitto"}}}}
+	f.script("leave", map[string]any{"action": "switch.turn_off", "target": map[string]any{"entity_id": "all"}})
+	if exit, env, _, _ := runPlanForTest(t, f, "script.turn_on", "script.leave"); exit == verbExitRefused || env.Tier == "refused" {
+		t.Errorf("every switch, none the App's: exit %d %+v", exit, env.Error)
 	}
 	h := newWriteHarness(t, app())
 	draft := map[string]any{"alias": "Night", "triggers": []any{map[string]any{"trigger": "time", "at": "03:00:00"}},

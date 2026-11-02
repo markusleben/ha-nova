@@ -258,6 +258,7 @@ func (e *tierEngine) visit(id, service string, data map[string]any, depth int, v
 }
 
 func (e *tierEngine) classify(id, service string, data map[string]any, depth int, via string) {
+	e.switchOff(id, service, via)
 	st, err := e.state(id)
 	if err != nil {
 		e.readFailed(id, via, "state")
@@ -265,9 +266,6 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 	}
 	domain, _ := splitID(id)
 	eff := effectiveService(service, domain)
-	if eff == "switch.turn_off" || eff == "switch.toggle" {
-		e.latchOwnApp(e.novaAppSwitch(id), id, via)
-	}
 	level, code := classifyOnEntity(id, eff, data, st)
 	e.raise(level, tierReason{Code: code, EntityID: id, Via: via})
 	entry, registered := e.reg[id]

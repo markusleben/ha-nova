@@ -39,7 +39,7 @@ type rawApplyResult struct {
 var rawHelperCollections = []string{"input_boolean", "input_number", "input_text", "input_select", "input_datetime",
 	"input_button", "counter", "timer", "schedule"}
 
-func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []rawRequest, noSnapshot bool) (err error) {
+func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []rawRequest, basis map[string]any, noSnapshot bool) (err error) {
 	sent := false
 	defer afterSend(&sent, env, &err)
 	result, copies := rawApplyResult{}, len(rawCopies(items)) // steps are numbered and counted after the copies, as the preview says them
@@ -81,6 +81,9 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		}
 		s.renewBudget() // 20 items may outlast one budget
 		body, refusal, gerr := guardRawRequestIn(s, item.Endpoint, item.Payload)
+		if refusal == nil && gerr == nil && item.Endpoint == "core" {
+			refusal, gerr = sceneUnchanged(s, payload, basis)
+		}
 		switch {
 		case refusal != nil && !sent:
 			return &verbFailure{exit: verbExitRefused, code: "REFUSED", message: fmt.Sprintf("item %d: %s", i+1, refusal.Error()),

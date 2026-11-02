@@ -363,7 +363,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	if isConfig || isRaw || isBatch {
 		execute := func() error { return executeConfig(paths, s, &env, *fresh.ConfigAction, ctx, noSnapshot) }
 		if isRaw {
-			execute = func() error { return executeRaw(paths, s, &env, fresh.RawRequests, noSnapshot) }
+			execute = func() error { return executeRaw(paths, s, &env, fresh.RawRequests, fresh.Basis, noSnapshot) }
 		}
 		if isBatch {
 			execute = func() error { return executeBatch(paths, s, &env, batch, noSnapshot) }

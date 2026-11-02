@@ -174,3 +174,35 @@ func TestPlanRawSceneSaveSaysWhatGoesAndKeepsItsCopy(t *testing.T) {
 		t.Fatalf("sent %s", got)
 	}
 }
+
+// A scene save is checked against the live scene again right before it is
+// sent: another client may change it while an earlier step runs.
+func TestPlanRawSceneSaveRechecksTheSceneBeforeItsSave(t *testing.T) {
+	var mu sync.Mutex
+	scene := map[string]any{"id": "evening", "name": "Evening", "entities": map[string]any{"light.desk": "on", "light.hall": "off"}}
+	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
+		"GET /api/config/scene/config/evening": func(map[string]any) any {
+			mu.Lock()
+			defer mu.Unlock()
+			return map[string]any{"status": 200, "body": scene}
+		},
+		"backups save": func(map[string]any) any {
+			mu.Lock()
+			defer mu.Unlock()
+			scene = map[string]any{"id": "evening", "name": "Evening", "entities": map[string]any{"light.desk": "on", "light.hall": "off", "light.porch": "on"}}
+			return map[string]any{"file": "scenes/auto-evening.json.gz"}
+		},
+	})
+	exit, env := planRaw(t, paths, `[{"endpoint":"backups","payload":{"action":"save","category":"scenes","name":"auto-evening","data":{"id":"evening","name":"Evening","entities":{"light.desk":"on","light.hall":"off"}}}},`+sceneSaveWithoutHall+"]")
+	if exit != verbExitConfirmation {
+		t.Fatalf("plan: exit %d %+v", exit, env.Error)
+	}
+	exit, applied := applyRaw(t, paths, env)
+	outcomes := rawOutcomes(t, applied)
+	if exit == 0 || statuses(outcomes) != "done,refused" || !strings.Contains(outcomes[1].Error, "changed in Home Assistant since the preview") {
+		t.Fatalf("apply: exit %d %+v %s", exit, applied.Error, applied.Result)
+	}
+	if got := strings.Join(sent(), " | "); got != "backups save" {
+		t.Fatalf("sent %s", got)
+	}
+}
