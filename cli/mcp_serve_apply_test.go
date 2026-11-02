@@ -245,7 +245,7 @@ func TestServeJoinReadsOldUsersAgain(t *testing.T) {
 func TestVerbLockGivesUpWithoutTakingIt(t *testing.T) {
 	l := newVerbLock()
 	l.Lock()
-	if l.lockChat(time.Now().Add(-chatCallWait)) == nil || l.TryLock() {
+	if l.lockChat(chatWait(time.Now().Add(-chatCallWait))) == nil || l.TryLock() {
 		t.Fatal("taken twice")
 	}
 	l.Unlock()

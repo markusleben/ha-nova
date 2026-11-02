@@ -242,10 +242,13 @@ func (b *chatBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	method = rpcLabel(body)
-	call, code, message := b.policy(id, false, start)
+	call, code, message := b.policy(id, false, chatWait(start))
 	if call == nil && (code == http.StatusForbidden || message == chatBusyWhy || message == chatQueuedWhy) { // a signed-in user who may not, or must wait: words a chat app can show
-		if code == http.StatusForbidden && b.jobOf(id, "", false) != "" { // taken off the list while their change ran
+		switch {
+		case code == http.StatusForbidden && b.jobOf(id, "", false) != "": // taken off the list while their change ran
 			message = chatJobOffList
+		case message == chatQueuedWhy: // no change ran: calling again is safe
+			message += ", so nothing ran. Calling it again is safe."
 		}
 		status = code
 		refuseRPC(w, body, code, message)

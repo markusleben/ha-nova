@@ -75,21 +75,30 @@ func (l *verbLock) changeRuns() <-chan struct{} {
 	return l.change
 }
 
-// lockChat takes the lock for a chat-app request that came in at since.
-// It waits in line until since+chatCallWait (errBridgeQueued), but past
-// since+chatLockWait not while a change holds the lock (errBridgeBusy). It
-// enters the line once, so it keeps its place: senders on a channel are
-// served in order.
-func (l *verbLock) lockChat(since time.Time) error {
+// lockWait: how long a request waits for mcpVerbLock (lockChat): in line
+// until end, and past busyAt not while a change holds the lock.
+type lockWait struct{ busyAt, end time.Time }
+
+// chatWait: a chat-app request that came in at since waits chatCallWait in
+// all, and chatLockWait for a running change.
+func chatWait(since time.Time) lockWait {
+	return lockWait{since.Add(chatLockWait), since.Add(chatCallWait)}
+}
+
+// lockChat takes the lock as w says: errBridgeQueued at w.end, and
+// errBridgeBusy once a change holds the lock past w.busyAt. One wait
+// enters the line once, so it keeps its place there (senders on a channel
+// are served in order); a request's next wait joins at the back.
+func (l *verbLock) lockChat(w lockWait) error {
 	if l.TryLock() {
 		return nil
 	}
-	busyAt, end := since.Add(chatLockWait), time.NewTimer(time.Until(since.Add(chatCallWait)))
+	end := time.NewTimer(time.Until(w.end))
 	defer end.Stop()
 	busy, stop := make(chan struct{}), make(chan struct{})
 	defer close(stop)
 	go func() {
-		wait := time.NewTimer(time.Until(busyAt))
+		wait := time.NewTimer(time.Until(w.busyAt))
 		defer wait.Stop()
 		select {
 		case <-wait.C:
@@ -116,7 +125,7 @@ func (l *verbLock) lockChat(since time.Time) error {
 // chatCallWait: how long it waits for the lock in all, also behind other
 // requests (such as calls a chat app sent at once): it answers before the
 // chat app gives up on it after about a minute (ha_apply after
-// --confirm-wait more). Variables so tests can shrink them.
+// --confirm-wait, when that is longer). Variables so tests can shrink them.
 var (
 	chatLockWait = 20 * time.Second
 	chatCallWait = 30 * time.Second
@@ -138,7 +147,7 @@ var (
 // as long as it takes: for the checks after a phone tap, which stands.
 func (b *chatBridge) policyNow(user string) (*chatPolicy, int, string) {
 	for {
-		if p, code, why := b.policy(user, true, time.Now()); code != http.StatusServiceUnavailable || why != chatBusyWhy && why != chatQueuedWhy {
+		if p, code, why := b.policy(user, true, chatWait(time.Now())); code != http.StatusServiceUnavailable || why != chatBusyWhy && why != chatQueuedWhy {
 			return p, code, why
 		}
 	}
@@ -151,7 +160,7 @@ func (srv *mcpServer) lockVerb() error {
 		mcpVerbLock.Lock()
 		return nil
 	}
-	return mcpVerbLock.lockChat(srv.since)
+	return mcpVerbLock.lockChat(chatWait(srv.since))
 }
 
 // chatBusy: a tool call that ran nothing because it gave up on the lock:
@@ -162,7 +171,7 @@ func (srv *mcpServer) chatBusy(name string, args map[string]json.RawMessage, why
 	queued := why == chatQueuedWhy
 	next := "This request ran nothing: HA NOVA is still finishing a change. Tell the user in their language that HA NOVA is busy and that they can ask again in a moment. Never retry on your own and never say a change failed."
 	if queued {
-		next = "This request ran nothing: HA NOVA was still answering other requests, such as calls sent at the same time. Calling it again right away is safe: call it again once your other HA NOVA calls have answered. Never say a change failed."
+		next = "Nothing ran: HA NOVA was still answering other requests, such as calls sent at the same time. Calling it again is safe: do that in this same answer, once your other HA NOVA calls have answered. " + chatQueuedStop
 	}
 	say := ""
 	if id := text(args, "plan_id"); name == "ha_apply" && planIDPattern.MatchString(id) {
@@ -172,7 +181,7 @@ func (srv *mcpServer) chatBusy(name string, args map[string]json.RawMessage, why
 				again = "(no new plan): HA NOVA then asks on their phone"
 			}
 			if queued {
-				next = fmt.Sprintf("Nothing was sent for this plan, and it is still valid: HA NOVA was still answering other requests, such as calls sent at the same time. Calling it again right away is safe: once your other HA NOVA calls have answered, call ha_apply again with plan_id %s %s. Never say it failed.", id, again)
+				next = fmt.Sprintf("Nothing was sent for this plan, and it is still valid: HA NOVA was still answering other requests, such as calls sent at the same time. Calling it again is safe: in this same answer, once your other HA NOVA calls have answered, call ha_apply again with plan_id %s %s. %s", id, again, chatQueuedStop)
 			} else {
 				say = confirmT(confirmLanguage(plan.Lang), "say.busy")
 				next = fmt.Sprintf("Nothing was sent for this plan, and it is still valid: HA NOVA is still finishing another change. Tell the user `say`; when they ask again, call ha_apply again with plan_id %s %s. Never retry on your own and never say it failed.", id, again)
@@ -188,6 +197,10 @@ func (srv *mcpServer) chatBusy(name string, args map[string]json.RawMessage, why
 	out, _ := json.Marshal(env)
 	return toolResult(name, string(out), "", verbExitRefused, nil, false)
 }
+
+// chatQueuedStop ends a queued BUSY's next_step: what to say when calling
+// again is busy too.
+const chatQueuedStop = "If it is busy again, tell the user HA NOVA is busy and that they can ask again in a moment. Never say it failed, and never say you will retry later."
 
 func chatJobKey(user, plan string) string { return user + "/" + plan }
 
@@ -209,14 +222,14 @@ func (srv *mcpServer) chatJoin(name string, args map[string]json.RawMessage) map
 	return srv.awaitJob(key, job, id)
 }
 
-// awaitJob waits up to the bridge's wait for job, then hands out its
-// result (once: a later apply starts afresh) or what it is doing. Only a
-// user the owner's settings (chat-apps.json, read now) still let apply the
-// plan's kind gets either, and the result only on Home Assistant's users
-// as read within the last minute.
+// awaitJob waits for job until the bridge's wait after the request came
+// in, then hands out its result (once: a later apply starts afresh) or
+// what it is doing. Only a user the owner's settings (chat-apps.json, read
+// now) still let apply the plan's kind gets either, and the result only on
+// Home Assistant's users as read within the last minute.
 func (srv *mcpServer) awaitJob(key string, job *chatJob, id string) map[string]any {
 	b, p := srv.chat.bridge, srv.chat
-	timer := time.NewTimer(b.wait)
+	timer := time.NewTimer(time.Until(srv.since.Add(b.wait)))
 	defer timer.Stop()
 	var done bool
 	select {
@@ -226,13 +239,17 @@ func (srv *mcpServer) awaitJob(key string, job *chatJob, id string) map[string]a
 		select { // still in line for the lock (until its request's cap): applying means it runs
 		case <-job.locked:
 		case <-job.done:
+		}
+		select {
+		case <-job.done: // also when it ended right after it took the lock
 			done = true
+		default:
 		}
 	}
 	if done { // the request's users may be over a minute old by now
-		now, code, _ := b.policy(p.user, false, srv.since)
+		now, code, _ := b.policy(p.user, false, chatWait(srv.since))
 		if now != nil && now.stale { // read while a change held the lock (homeUsers): read them now
-			now, code, _ = b.policy(p.user, true, srv.since)
+			now, code, _ = b.policy(p.user, true, chatWait(srv.since))
 		}
 		if now == nil && code != http.StatusForbidden {
 			return chatStopped("ha_apply", &verbFailure{exit: verbExitRefused, code: "ACCESS_UNKNOWN",

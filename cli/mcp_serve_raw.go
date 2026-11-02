@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io/fs"
 	"path/filepath"
-	"time"
 )
 
 // Home Assistant's own config APIs (automations, scripts, dashboards,
@@ -18,7 +17,7 @@ import (
 
 // chatAdminRefusal is configAdminFailure as a tool result; nil when allowed.
 func (srv *mcpServer) chatAdminRefusal(name string, args map[string]json.RawMessage) map[string]any {
-	failure := srv.configAdminFailure(name, args, srv.since)
+	failure := srv.configAdminFailure(name, args, chatWait(srv.since))
 	switch {
 	case failure == nil:
 		return nil
@@ -31,8 +30,8 @@ func (srv *mcpServer) chatAdminRefusal(name string, args map[string]json.RawMess
 // configAdminFailure: why this chat-app call may not plan or apply a
 // config plan (its message without "nothing was sent"), or nil: not a chat
 // app, a call plan, or a user who is an owner or administrator right now.
-// Fails closed when the users can't be read; since: as for homeUsers.
-func (srv *mcpServer) configAdminFailure(name string, args map[string]json.RawMessage, since time.Time) *verbFailure {
+// Fails closed when the users can't be read; w: as for homeUsers.
+func (srv *mcpServer) configAdminFailure(name string, args map[string]json.RawMessage, w lockWait) *verbFailure {
 	c := srv.chat
 	if c == nil {
 		return nil
@@ -54,7 +53,7 @@ func (srv *mcpServer) configAdminFailure(name string, args map[string]json.RawMe
 	default:
 		return nil
 	}
-	users, _, err := c.bridge.homeUsers(true, since)
+	users, _, err := c.bridge.homeUsers(true, w)
 	if errors.Is(err, errBridgeBusy) || errors.Is(err, errBridgeQueued) { // chatAdminRefusal answers it (chatBusy); after a phone tap, it asks again
 		return &verbFailure{code: "BUSY", message: err.Error()}
 	}

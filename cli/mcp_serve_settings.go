@@ -26,19 +26,22 @@ const chatNotAllowed = "This Home Assistant user can't use HA NOVA in chat apps.
 // changes nothing while a running change holds mcpVerbLock.
 const chatUsersStale = 15 * time.Minute
 
-// policyFor: the owner's current switches and this user's level, or why
-// they may not use chat apps, with Home Assistant's users as read within
-// the last minute. Read on every request, and again before a phone tap
-// applies (mcp_serve_phone.go).
+// policyFor: policy for the App's control channel. Reading Home
+// Assistant's users waits for the lock at most chatLockWait in all: the
+// App gives up on a control request after 30 s.
 func (b *chatBridge) policyFor(user string) (*chatPolicy, int, string) {
-	return b.policy(user, false, time.Now())
+	by := time.Now().Add(chatLockWait)
+	return b.policy(user, false, lockWait{by, by})
 }
 
-// policy: policyFor, with the users read now when fresh (before a change),
-// for a request that came in at since (homeUsers). The level is the lower
-// of the owner's choice and the user's Home Assistant role (roleCap); no
-// choice stored: the role's.
-func (b *chatBridge) policy(user string, fresh bool, since time.Time) (*chatPolicy, int, string) {
+// policy: the owner's current switches and this user's level, or why they
+// may not use chat apps, with Home Assistant's users as read within the
+// last minute, or read now when fresh (before a change); a read waits for
+// the lock as w says (homeUsers). Read on every request, and again before
+// a phone tap applies (mcp_serve_phone.go). The level is the lower of the
+// owner's choice and the user's Home Assistant role (roleCap); no choice
+// stored: the role's.
+func (b *chatBridge) policy(user string, fresh bool, w lockWait) (*chatPolicy, int, string) {
 	settings, err := readChatSettings(b.dataDir)
 	if err != nil {
 		b.log.Printf("refusing every request: %s", err)
@@ -48,7 +51,7 @@ func (b *chatBridge) policy(user string, fresh bool, since time.Time) (*chatPoli
 	if listed && !slices.Contains(*settings.AllowedUsers, user) { // before any read: never reaches the Relay
 		return nil, http.StatusForbidden, chatNotAllowed
 	}
-	users, stale, err := b.homeUsers(fresh, since)
+	users, stale, err := b.homeUsers(fresh, w)
 	owner := activeOwner(users)
 	switch {
 	case errors.Is(err, errBridgeBusy), errors.Is(err, errBridgeQueued):
@@ -184,9 +187,9 @@ func readChatSettings(dataDir string) (chatSettings, error) {
 // and a failed fresh one leaves the cache as it was. While mcpVerbLock is
 // held (a running change), a request that changes nothing gets the users
 // as read within chatUsersStale instead of waiting (stale: a tool call
-// reads them again in chatGate); a read waits for the lock as lockChat
-// does for a request that came in at since (errBridgeBusy, errBridgeQueued).
-func (b *chatBridge) homeUsers(fresh bool, since time.Time) (users []haUser, stale bool, err error) {
+// reads them again in chatGate); a read waits for the lock as w says
+// (lockChat: errBridgeBusy, errBridgeQueued).
+func (b *chatBridge) homeUsers(fresh bool, w lockWait) (users []haUser, stale bool, err error) {
 	cached := func() ([]haUser, error, bool) {
 		b.mu.Lock()
 		defer b.mu.Unlock()
@@ -209,7 +212,7 @@ func (b *chatBridge) homeUsers(fresh bool, since time.Time) (users []haUser, sta
 	case stale && !locked:
 		return users, true, nil
 	case !locked:
-		if err := mcpVerbLock.lockChat(since); err != nil {
+		if err := mcpVerbLock.lockChat(w); err != nil {
 			return nil, false, err
 		}
 	}

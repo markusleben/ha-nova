@@ -190,7 +190,7 @@ func TestServeLevelIsTheLowerOfChoiceAndRole(t *testing.T) {
 		return fakeRelayFailure{"UPSTREAM_ERROR", "boom"}, endpoint == "ws" && p["type"] == "config/auth/list"
 	}
 	f.mu.Unlock()
-	if p, code, why := s.b.policy(userA, true, time.Now()); p != nil || code != http.StatusServiceUnavailable || !strings.Contains(why, "can't read this home's Home Assistant users") {
+	if p, code, why := s.b.policy(userA, true, chatWait(time.Now())); p != nil || code != http.StatusServiceUnavailable || !strings.Contains(why, "can't read this home's Home Assistant users") {
 		t.Errorf("unreadable users: %+v %d %s", p, code, why)
 	}
 }

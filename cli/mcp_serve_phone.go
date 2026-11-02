@@ -326,9 +326,9 @@ func (srv *mcpServer) phoneJob(job *chatJob, args map[string]json.RawMessage, ar
 	if a.answer == phoneConfirmed { // the tap stands: these reads wait for a running change like the apply
 		now, code, why = srv.chat.bridge.policyNow(srv.chat.user)
 		id, _ := json.Marshal(req.id)
-		demoted = srv.configAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id}, time.Now())
+		demoted = srv.configAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id}, chatWait(time.Now()))
 		for demoted != nil && demoted.code == "BUSY" {
-			demoted = srv.configAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id}, time.Now())
+			demoted = srv.configAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id}, chatWait(time.Now()))
 		}
 	}
 	mcpVerbLock.Lock() // the tap stands: as long as it takes

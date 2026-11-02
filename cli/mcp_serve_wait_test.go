@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -136,8 +138,8 @@ func TestServeRunningChangeStillMakesCallsBusy(t *testing.T) {
 }
 
 // Behind other requests only, a call waits chatCallWait in all, then
-// answers BUSY: nothing ran, and calling again right away is safe (never
-// the change's words or say). Nothing it asked for runs later.
+// answers BUSY: nothing ran, and calling again is safe (never the
+// change's words or say). Nothing it asked for runs later.
 func TestServeQueueCapSaysCallAgain(t *testing.T) {
 	shortLockWait(t)
 	shortCallWait(t, 400*time.Millisecond)
@@ -153,7 +155,7 @@ func TestServeQueueCapSaysCallAgain(t *testing.T) {
 		env := s.tool(userA, name, args)
 		next := nextOf(env)
 		if took := time.Since(start); envCode(env) != "BUSY" || !strings.Contains(errMessage(env), chatQueuedWhy) || took < chatCallWait ||
-			!strings.Contains(next, "HA NOVA was still answering other requests") || !strings.Contains(next, "Calling it again right away is safe") ||
+			!strings.Contains(next, "HA NOVA was still answering other requests") || !strings.Contains(next, "Calling it again is safe: ") || !strings.HasSuffix(next, chatQueuedStop) ||
 			strings.Contains(next, "finishing") || strings.Contains(next, "Never retry") || env["say"] != nil ||
 			(name == "ha_apply") != strings.Contains(next, "call ha_apply again with plan_id "+id+" and the confirm_code") {
 			t.Fatalf("%s after %v: %v", name, took, env)
@@ -169,6 +171,85 @@ func TestServeQueueCapSaysCallAgain(t *testing.T) {
 	}
 }
 
+// readBodies serves s.b behind a handler that signals on the returned
+// channel once each request's body has been read to its end.
+func (s *serveHarness) readBodies(t *testing.T) <-chan struct{} {
+	read := make(chan struct{}, 8)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = &signalBody{ReadCloser: r.Body, read: read}
+		s.b.ServeHTTP(w, r)
+	}))
+	t.Cleanup(server.Close)
+	s.url = server.URL + "/mcp"
+	return read
+}
+
+// signalBody signals on read once the body it wraps is read to its end.
+type signalBody struct {
+	io.ReadCloser
+	read chan<- struct{}
+	once sync.Once
+}
+
+func (b *signalBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if err == io.EOF {
+		b.once.Do(func() { b.read <- struct{}{} })
+	}
+	return n, err
+}
+
+type reply struct {
+	status int
+	out    string
+}
+
+// post sends body as user in the background; the answer arrives on the
+// channel (HTTP 0 and the error when there is none).
+func (s *serveHarness) post(user, body string) <-chan reply {
+	got, url := make(chan reply, 1), s.url
+	go func() {
+		req, _ := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
+		for k, values := range s.as(user) {
+			for _, v := range values {
+				req.Header.Add(k, v)
+			}
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			got <- reply{out: err.Error()}
+			return
+		}
+		defer resp.Body.Close()
+		out, _ := io.ReadAll(resp.Body)
+		got <- reply{resp.StatusCode, string(out)}
+	}()
+	return got
+}
+
+// within: what got delivers, or a fatal error after a generous while.
+func within[V any](t *testing.T, what string, got <-chan V) V {
+	t.Helper()
+	select {
+	case v := <-got:
+		return v
+	case <-time.After(10 * time.Second):
+		t.Fatalf("%s: never came", what)
+	}
+	var none V
+	return none
+}
+
+// pending fails when got already delivered.
+func pending[V any](t *testing.T, what string, got <-chan V) {
+	t.Helper()
+	select {
+	case v := <-got:
+		t.Fatalf("%s: %v", what, v)
+	default:
+	}
+}
+
 // The read of Home Assistant's users before a request waits the same way:
 // behind other requests past chatLockWait, until chatCallWait (then 503
 // with the queue's words); behind a change chatLockWait (the change's).
@@ -176,99 +257,120 @@ func TestServeUsersReadWaitsLikeACall(t *testing.T) {
 	shortLockWait(t)
 	shortCallWait(t, 500*time.Millisecond)
 	s := newServe(t, household(batchHome()), levels([]string{userA}, nil))
+	read := s.readBodies(t)
 	initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`
 	for _, c := range []struct {
-		name     string
-		hold     func(*testing.T) func()
-		release  time.Duration // 0: after the request
-		status   int
-		why      string
-		min, max time.Duration
+		name    string
+		hold    func(*testing.T) func()
+		release bool // once the request waits past chatLockWait
+		status  int
+		why     string
+		min     time.Duration
 	}{
-		{"behind another request, past chatLockWait", otherRequest, 300 * time.Millisecond, http.StatusOK, "", 300 * time.Millisecond, 500 * time.Millisecond},
-		{"behind other requests until chatCallWait", otherRequest, 0, http.StatusServiceUnavailable, chatQueuedWhy, 500 * time.Millisecond, time.Second},
-		{"behind a change", holdVerbLock, 0, http.StatusServiceUnavailable, chatBusyWhy, 100 * time.Millisecond, 400 * time.Millisecond},
+		{"behind another request, past chatLockWait", otherRequest, true, http.StatusOK, `"protocolVersion"`, 0},
+		{"behind other requests until chatCallWait", otherRequest, false, http.StatusServiceUnavailable, chatQueuedWhy + ", so nothing ran. Calling it again is safe.", chatCallWait},
+		{"behind a change", holdVerbLock, false, http.StatusServiceUnavailable, chatBusyWhy, chatLockWait},
 	} {
 		s.b.mu.Lock()
 		s.b.usersAt = time.Now().Add(-20 * time.Minute) // too old to let the request in while the lock is held
 		s.b.mu.Unlock()
 		release := c.hold(t)
-		if c.release != 0 {
-			go func() { time.Sleep(c.release); release() }()
-		}
 		start := time.Now()
-		status, out := s.raw(http.MethodPost, s.as(userA), initialize)
+		got := s.post(userA, initialize)
+		within(t, c.name+": the body read", read)
+		if c.release {
+			time.Sleep(2 * chatLockWait) // the request came in before its body was read
+			pending(t, c.name+": answered in line", got)
+			release()
+		}
+		r := within(t, c.name, got)
 		took := time.Since(start)
 		release()
-		if status != c.status || !strings.Contains(out, c.why) || took < c.min || took > c.max {
-			t.Fatalf("%s: HTTP %d %q after %v", c.name, status, out, took)
+		if r.status != c.status || !strings.Contains(r.out, c.why) || took < c.min {
+			t.Fatalf("%s: HTTP %d %q after %v", c.name, r.status, r.out, took)
 		}
+	}
+}
+
+// The App's control channel waits for the users read at most chatLockWait
+// in all, also behind other requests: the App gives up after 30 s.
+func TestControlUsersReadWaitsLockWaitOnly(t *testing.T) {
+	shortLockWait(t)
+	shortCallWait(t, 10*time.Second)
+	s := newServe(t, household(batchHome()), levels([]string{userA}, nil))
+	s.b.mu.Lock()
+	s.b.usersAt = time.Now().Add(-20 * time.Minute)
+	s.b.mu.Unlock()
+	otherRequest(t)
+	start := time.Now()
+	p, code, why := s.b.policyFor(userA)
+	if took := time.Since(start); p != nil || code != http.StatusServiceUnavailable || why != chatQueuedWhy || took < chatLockWait || took > chatCallWait/2 {
+		t.Fatalf("after %v: %v %d %q", took, p, code, why)
 	}
 }
 
 // Past chatLockWait, a waiter gives up once a change holds the lock, also
 // one that takes it later; until then it waits behind other requests.
 func TestVerbLockGivesUpOnAChangeOnly(t *testing.T) {
-	shortLockWait(t)
-	l := newVerbLock()
-	l.Lock() // another request
-	changing := make(chan struct{})
-	go func() { l.Lock(); l.changing(); close(changing) }() // a change, next in line
-	time.Sleep(50 * time.Millisecond)
-	got := make(chan error, 1)
-	go func() { got <- l.lockChat(time.Now()) }()
-	time.Sleep(3 * chatLockWait)
-	select {
-	case err := <-got:
-		t.Fatalf("gave up behind another request: %v", err)
-	default:
-	}
-	l.Unlock()
-	<-changing
-	select {
-	case err := <-got:
-		if err != errBridgeBusy {
-			t.Fatalf("while a change holds the lock: %v", err)
+	synctest.Test(t, func(t *testing.T) {
+		l := newVerbLock()
+		l.Lock() // another request
+		changing := make(chan struct{})
+		go func() { l.Lock(); l.changing(); close(changing) }() // a change, next in line
+		synctest.Wait()
+		got := make(chan error, 1)
+		go func() { got <- l.lockChat(chatWait(time.Now())) }()
+		time.Sleep((chatLockWait + chatCallWait) / 2)
+		synctest.Wait()
+		pending(t, "gave up behind another request", got)
+		l.Unlock()
+		<-changing
+		synctest.Wait()
+		select {
+		case err := <-got:
+			if err != errBridgeBusy {
+				t.Fatalf("while a change holds the lock: %v", err)
+			}
+		default:
+			t.Fatal("still waiting while a change holds the lock")
 		}
-	case <-time.After(time.Second):
-		t.Fatal("still waiting while a change holds the lock")
-	}
-	l.Unlock()
-	if !l.TryLock() {
-		t.Fatal("held by the waiter that gave up")
-	}
+		l.Unlock()
+		if !l.TryLock() {
+			t.Fatal("held by the waiter that gave up")
+		}
+	})
 }
 
 // A waiter past chatLockWait keeps its place in line ahead of one that
 // came later: first come, first served.
 func TestVerbLockKeepsOrder(t *testing.T) {
-	old := chatLockWait
-	chatLockWait = 400 * time.Millisecond
-	t.Cleanup(func() { chatLockWait = old })
-	l := newVerbLock()
-	l.Lock()
-	order := make(chan int, 2)
-	for i := range 2 {
-		go func() {
-			if l.lockChat(time.Now()) == nil {
-				order <- i
-				l.Unlock()
-			}
-		}()
-		time.Sleep(chatLockWait / 2)
-	}
-	time.Sleep(chatLockWait / 4) // the first waiter is past chatLockWait, the second not yet
-	l.Unlock()
-	for want := range 2 {
-		select {
-		case got := <-order:
-			if got != want {
-				t.Fatalf("served %d as number %d", got, want+1)
-			}
-		case <-time.After(time.Second):
-			t.Fatalf("waiter %d never served", want)
+	synctest.Test(t, func(t *testing.T) {
+		l := newVerbLock()
+		l.Lock()
+		order := make(chan int, 2)
+		for i := range 2 {
+			go func() {
+				if l.lockChat(chatWait(time.Now())) == nil {
+					order <- i
+					l.Unlock()
+				}
+			}()
+			time.Sleep(chatLockWait / 2)
 		}
-	}
+		time.Sleep(chatLockWait / 4) // the first waiter is past chatLockWait, the second not yet
+		l.Unlock()
+		synctest.Wait()
+		for want := range 2 {
+			select {
+			case got := <-order:
+				if got != want {
+					t.Fatalf("served %d as number %d", got, want+1)
+				}
+			default:
+				t.Fatalf("waiter %d never served", want)
+			}
+		}
+	})
 }
 
 // An apply job in line for the lock behind other requests past the
@@ -280,28 +382,32 @@ func TestServeApplyingMeansItRuns(t *testing.T) {
 	shortCallWait(t, 900*time.Millisecond)
 	f := household(batchHome())
 	s := newServe(t, f, levels([]string{userA}, nil)) // the bridge waits 300 ms
-	apply := func(srv *mcpServer, id string) (map[string]any, time.Duration) {
+	apply := func(srv *mcpServer, id string) map[string]any {
 		args := map[string]json.RawMessage{"plan_id": json.RawMessage(strconv.Quote(id))}
 		argv, _ := applyArgv(args, nil)
-		start := time.Now()
-		return srv.chatApply("ha_apply", args, argv)["structuredContent"].(map[string]any), time.Since(start)
+		return srv.chatApply("ha_apply", args, argv)["structuredContent"].(map[string]any)
 	}
 	id, srv := scriptPlan(t, s, userA), serverFor(s, userA)
 	reached, release := holdPost(t, f, "/api/config/script/config/")
 	hold := otherRequest(t)
-	go func() { time.Sleep(600 * time.Millisecond); hold() }()
-	if env, took := apply(srv, id); env["status"] != "applying" || took < 600*time.Millisecond {
-		t.Fatalf("in line, after %v: %v", took, env)
+	got := make(chan map[string]any, 1)
+	go func() { got <- apply(srv, id) }()
+	time.Sleep(time.Until(srv.since.Add((s.b.wait + chatCallWait) / 2))) // past the bridge's wait, before the cap
+	pending(t, "answered in line", got)
+	hold()
+	if env := within(t, "the answer once it holds the lock", got); env["status"] != "applying" {
+		t.Fatalf("once it holds the lock: %v", env)
 	}
 	<-reached
 	release()
 	waitFor(t, "the outcome", func() bool { return s.tool(userA, "ha_apply", map[string]any{"plan_id": id})["status"] != "applying" })
 	id, srv = scriptPlan(t, s, userA), serverFor(s, userA)
 	hold = otherRequest(t)
-	env, took := apply(srv, id)
+	env := apply(srv, id)
+	took := time.Since(srv.since)
 	hold()
 	if envCode(env) != "BUSY" || !strings.Contains(errMessage(env), chatQueuedWhy) || took < chatCallWait || len(s.writes()) != 1 {
-		t.Fatalf("cap first, after %v: %v (writes %d)", took, env, len(s.writes()))
+		t.Fatalf("cap first, %v after the request came in: %v (writes %d)", took, env, len(s.writes()))
 	}
 }
 
@@ -310,18 +416,16 @@ func TestServeApplyingMeansItRuns(t *testing.T) {
 func TestServeReadsTheBodyBeforeWaiting(t *testing.T) {
 	shortLockWait(t)
 	s := newServe(t, household(batchHome()), levels([]string{userA}, nil))
-	server := httptest.NewUnstartedServer(s.b)
-	server.Config.ReadTimeout = 200 * time.Millisecond
-	server.Start()
-	t.Cleanup(server.Close)
-	s.url = server.URL + "/mcp"
+	read := s.readBodies(t)
 	s.b.mu.Lock()
 	s.b.usersAt = time.Now().Add(-20 * time.Minute) // too old to let the request in while the lock is held
 	s.b.mu.Unlock()
 	release := otherRequest(t)
-	go func() { time.Sleep(400 * time.Millisecond); release() }()
-	body := `{"jsonrpc":"2.0","id":7,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"` + strings.Repeat("x", 256<<10) + `","version":"1"}}}`
-	if status, out := s.raw(http.MethodPost, s.as(userA), body); status != http.StatusOK || !strings.Contains(out, `"id":7`) {
-		t.Fatalf("HTTP %d %.300q", status, out)
+	got := s.post(userA, `{"jsonrpc":"2.0","id":7,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"`+strings.Repeat("x", 256<<10)+`","version":"1"}}}`)
+	within(t, "the body read while the lock is held", read)
+	pending(t, "answered while the lock is held", got)
+	release()
+	if r := within(t, "the answer", got); r.status != http.StatusOK || !strings.Contains(r.out, `"id":7`) {
+		t.Fatalf("HTTP %d %.300q", r.status, r.out)
 	}
 }

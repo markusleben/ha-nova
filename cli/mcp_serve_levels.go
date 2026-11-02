@@ -221,7 +221,7 @@ func (srv *mcpServer) chatGate(tool mcpTool, args map[string]json.RawMessage) ma
 		return nil
 	}
 	if tool.name == "ha_call" || tool.name == "ha_apply" || srv.chat.stale && tool.name != mcpSkillTool.name {
-		fresh, code, why := srv.chat.bridge.policy(srv.chat.user, true, srv.since)
+		fresh, code, why := srv.chat.bridge.policy(srv.chat.user, true, chatWait(srv.since))
 		switch {
 		case code == http.StatusServiceUnavailable && (why == chatBusyWhy || why == chatQueuedWhy):
 			return srv.chatBusy(tool.name, args, why)

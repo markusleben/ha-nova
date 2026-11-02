@@ -7,7 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 ## [Relay 0.13.5] - 2026-11-02
 
 ### Fixed
-- Chat apps: several requests sent at once no longer get a "busy" answer when no change is running.
+- Chat apps: several requests sent at once now wait their turn, up to 30 seconds, instead of answering "busy" while no change is running.
 
 ### Upgrade notes
 - Computers on HA NOVA 0.28.0 ask you to update this App.
