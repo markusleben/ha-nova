@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.9] - 2026-11-02
+
+### Changed
+- Chat apps: pausing or skipping music, choosing a source, muting, changing the volume a little, adding to or checking off a to-do list, and switching a room's lights now run right away. A big volume jump, playing something new, removing items, a room with more than 10 lights, and anything that sets off something riskier still ask first.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.0 ask you to update this App.
+
 ## [Relay 0.13.5] - 2026-11-02
 
 ### Fixed

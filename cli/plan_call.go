@@ -434,10 +434,10 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 	if named && len(targets) == 0 {
 		e.gap(reasonUnresolvedTarget, "", "", "no target resolved") // never a targetless call in disguise
 	}
-	single := e.singleExpansion(req, targets)
+	asNamed := e.singleExpansion(req, targets) || e.roomLights(req, targets)
 	var reads []func()
 	for _, t := range targets {
-		if t.By != "exact" && t.By != "match" && !single {
+		if t.By != "exact" && t.By != "match" && !asNamed {
 			e.raise(tierPreview, tierReason{Code: reasonExpanded, EntityID: t.EntityID, Via: t.By})
 		}
 		entityDomain, _ := splitID(t.EntityID)

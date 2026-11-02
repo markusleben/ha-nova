@@ -535,7 +535,7 @@ func TestMCPFormNotShown(t *testing.T) {
 	h := newWriteHarness(t, f)
 	c := startMCP(t, h.paths)
 	formsInit(c)
-	preview := envelopeOf(c.tool("ha_call", map[string]any{"service": "light.turn_off", "area": "kitchen"}))
+	preview := envelopeOf(c.tool("ha_call", map[string]any{"service": "homeassistant.turn_off", "area": "kitchen"}))
 	if applied := c.tool("ha_apply", map[string]any{"plan_id": preview["plan"].(map[string]any)["id"]}); preview["status"] != "needs_confirmation" || envelopeOf(applied)["status"] != "verified" {
 		t.Fatalf("a preview plan needs no form: %v", applied)
 	}

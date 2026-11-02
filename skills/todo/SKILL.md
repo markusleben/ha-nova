@@ -27,9 +27,9 @@ If this fails: `ha-nova setup`
 
 ## Relay Contract
 
-`ha-nova call` returns the preview: confirm it once, then `ha-nova apply --plan <id>`.
+Adds and updates run at once (exit 0); confirm a preview (exit 3) once, then `ha-nova apply --plan <id>`.
 
-Item writes: `ha-nova call <todo.service> todo.<list> --skill ha-nova:todo [--set k=v]…` (the list is the argument, never `entity_id` data). Reads: `ha-nova call todo.get_items todo.<list> --response` (no `--skill`: read-only). Raw service POSTs are refused.
+Item writes: `ha-nova call <todo.service> todo.<list> --skill ha-nova:todo [--set k=v]…` (the list is the argument, never `entity_id` data). Reads: `ha-nova call todo.get_items todo.<list> --response` (no `--skill`: read-only).
 
 ## Feature Gate (critical)
 

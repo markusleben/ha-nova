@@ -42,7 +42,7 @@ Safety invariants (each one has a Go test)
 - **I2** A typed-tier plan never runs without its exact code.
 - **I3** At `apply`, the plan is recomputed. Any hash mismatch gives exit 2 and nothing is sent. One exception: when the preview's check was cut short (`LIMIT_CUT` or `SCAN_FAILED`), a recompute that ran into other timing gaps is still the confirmed plan — same action, tier, and basis, no reason the preview did not show (a cut, a failed read, and the listener scan's per-automation gaps count as their one sentence), and the stored fields still make the plan's hash (`cli/plan_drift.go`). Window, phone, form, and chat plans share that check. A drift's new `say` opens with what changed.
 - **I4** An unread user-authored member, a failed scan, or a limit cut is never classified below typed (`indirect-actuation.md:352-366`).
-- **I5** Expanded targets (area, device, group, stored members) never take the fast path. One exception (2026-10-16): an area or device that resolves to exactly one entity of the service's own domain — no group expanded, no leaf skipped — acts on exactly what naming that entity would, so it is classified as that direct call (every other rule still applies to it, the device-sibling rule of §2.2 step 2 included).
+- **I5** Expanded targets (area, device, group, stored members) never take the fast path. One exception (2026-10-16): an area or device that resolves to exactly one entity of the service's own domain — no group expanded, no leaf skipped — acts on exactly what naming that entity would, so it is classified as that direct call (every other rule still applies to it, the device-sibling rule of §2.2 step 2 included). A second exception (2026-11-02, `docs/work/2026-11-02-fewer-asks-spec.md`): `light.turn_on|turn_off|toggle` on an area, or on one named Home Assistant group, that reaches lights only (at most 10, none without state, none on a device with a lock, alarm panel, or access cover) is classified as naming each light.
 - **I6** The payload sent equals the previewed frozen `entity_id` list (`service-call/SKILL.md:95`).
 - **I7** Exactly one POST per execution. No automatic retry, ever. This is stricter than `relay-api.md:590`.
 - **I8** Plans are single-use and expire.
@@ -187,13 +187,13 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `DESTRUCTIVE_BUTTON` | typed | `button.press` whose entity_id/name has a whole token factory, wipe, or erase — a factory reset wipes the device's configuration (PR4 codex review) |
 | `HACS_INSTALL` | typed | `update.install` on an entity whose registry platform is `hacs`: third-party code that runs in Home Assistant, like `hacs/repository/download` (chat-parity spec, Decision 3) |
 | `OWNED_SERVICE` | refused | the deferral table names another skill (`service-call/SKILL.md` → Owning-Skill Deferrals) |
-| `OWNED_MEMBER` | preview | a stored member is a deferred service (expanding must not downgrade the owner's gate) |
+| `OWNED_MEMBER` | preview | a deferred service, called from its skill or stored (expanding must not downgrade the owner's gate); the §4 media and to-do services are ordinary, except where §4 keeps the preview |
 | `OWNED_TYPED_MEMBER` | typed | a stored `mqtt.publish` or `hassio.*` member (owning-skill escalation) |
 | `HASSIO_NOT_SUPPORTED` | refused | any direct `hassio.*` (non-goal v1) |
 | `UNSUPPORTED_SELECTOR` | refused | direct `floor_id`/`label_id` |
 | `CODE_REQUIRED` | refused | code-bearing lock/alarm or a `code` in the payload (`service-call/SKILL.md` → Alarm Panels And Locks) |
 | `UNSUPPORTED_FEATURE` | refused | missing `supported_features` bit (same section) |
-| `EXPANDED_TARGET` | preview | area, device, or group expansion (I5); not raised for the I5 single-entity area/device exception |
+| `EXPANDED_TARGET` | preview | area, device, or group expansion (I5); not raised for the I5 single-entity area/device exception or a room's lights |
 | `EXPLICIT_BATCH` | preview | more than 10 explicit ids (§4) |
 | `STORED_MEMBERS` | preview | the direct target is a scene, script, or `automation.trigger` run (I5) |
 | `NO_REGISTRY_ROW` | preview | a non-actuator entity without registry row (§2.2 step 1) |
@@ -286,8 +286,10 @@ The Safety Core needs amendments, and they are linter-enforced byte for byte (`d
 | One exact id or unique `--match`, ordinary action, no consumer or only ordinary fully-read consumers, coverage notes only | ordinary | execute + verify, no preview | "turn off the kitchen light", "set the hallway thermostat to 21", "lock the front door", "close the garage door" |
 | Explicitly listed ids (≤ 10), each meeting the row above | ordinary | one call, per-member verification | "turn off kitchen and hallway light" |
 | Area / device resolving to exactly one entity of the service's domain (I5 exception), meeting the first row | ordinary | execute + verify, like naming it | "turn off the kitchen lights" (one light there) |
+| A room's lights (I5 second exception), each meeting the first row | ordinary | one call, per-light verification | "lights off in the kitchen" |
+| From its owning skill: media play/pause/stop/next/previous, source, mute, a moderate volume change (ends ≤ 0.8 and rises ≤ 0.3 from a known level), to-do add/update; not on a device with a lock, alarm panel, or access cover, a `universal` or grouped player, or a stored volume step | ordinary | execute + verify | "pause the music", "add milk to the shopping list" |
 | Helper / trigger-source write whose consumers are all read and ordinary | ordinary | execute; consumers listed in the result | "turn on guest mode" (an automation answers with lights) |
-| Area / device with several entities, group, generic `homeassistant.*` over an area/device, stored-member run (scene, script, `automation.trigger`) | preview | exit 3 → user "yes" → `apply` | "lights off in the kitchen" (several lights there), "activate Movie Night", "run the bedtime script" |
+| Area / device with several entities, group, generic `homeassistant.*` over an area/device, stored-member run (scene, script, `automation.trigger`) | preview | exit 3 → user "yes" → `apply` | "everything off in the kitchen", "activate Movie Night", "run the bedtime script" |
 | Disruptive service; unread integration-owned member; consumer manager present (Q2) | preview | exit 3 → natural confirm → `apply` | "restart Home Assistant", Hue scene |
 | Config create/update/revert | preview | `plan write` shows `diff` → `apply` | "create an automation …" |
 | Ambiguous or zero match | — | exit 5, one question | "turn off the light" (12 lights) |
