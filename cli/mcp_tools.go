@@ -192,6 +192,7 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 			return busy, nil
 		}
 		result := srv.runLocked(tool.name, answered, req.forms, func() int { return tool.run(srv.paths, pinServer(tool.name, argv, srv.pin)) })
+		result = withPlanSteps(result, tool.name, params.Arguments)
 		srv.noteChange(tool.name, what, result)
 		return result, nil
 	}
@@ -260,15 +261,18 @@ func toolResult(name, out, errOut string, exit int, told map[string]bool, forms 
 			errInfo["message"] = mcpArgs(message)
 		}
 	}
+	own, _ := envelope["next_step"].(string)
+	own, batch := strings.CutPrefix(own, batchHint) // in tool terms before every step (plainResult)
+	own = strings.TrimPrefix(own, " Otherwise: ")
 	next := nextStep(envelope)
-	if own, _ := envelope["next_step"].(string); next == "" && own != "" { // the verb's own step, in tool terms
+	if next == "" && own != "" { // the verb's own step, in tool terms
 		next = mcpNext(own)
 	}
 	if forms {
 		next = formsNext(envelope, next)
 	}
-	images := imageContent(envelope)          // before the text: an image is never text
-	text := plainResult(envelope, next, told) // say, next_step, and answer_rule (mcp_plain.go)
+	images := imageContent(envelope)                 // before the text: an image is never text
+	text := plainResult(envelope, next, batch, told) // say, next_step, and answer_rule (mcp_plain.go)
 	return map[string]any{"content": append([]map[string]any{{"type": "text", "text": string(text)}}, images...), "structuredContent": envelope,
 		"isError": exit != 0 && exit != verbExitConfirmation}
 }

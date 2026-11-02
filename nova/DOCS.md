@@ -287,7 +287,7 @@ A healthy answer looks like this (shortened):
   "data": {
     "status": "ok",
     "ha_ws_connected": true,
-    "version": "0.13.5",
+    "version": "0.13.7",
     "uptime_s": 3621
   }
 }
