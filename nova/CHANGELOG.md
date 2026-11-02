@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
-## [Relay 0.13.9] - 2026-11-02
+## [Relay 0.13.7] - 2026-11-02
 
 ### Fixed
 - Chat apps: before a delete, the assistant says what uses the item, and a delete, rename, or disable without a copy is planned again with one first. Several scenes, or several helpers, go into one change with one question. After a YAML file changes, the assistant checks the configuration at once.
