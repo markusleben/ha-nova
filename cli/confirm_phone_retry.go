@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -10,16 +11,34 @@ import (
 // the agent sent its user to the phone's settings). The phone lookup, the
 // listening probe, and the listening lanes' first moment run once more
 // after phoneRetryPause when a read failed, on a fresh read budget, inside
-// the ask's deadline (a plan's lookup inside phonePlanRetryBudget). Only
-// checks before the notification run again: it is never sent twice.
+// the ask's deadline, leaving windowMinWait to answer (a plan's lookup
+// inside phonePlanRetryBudget). Only checks before the notification run
+// again: it is never sent twice.
 
 var (
 	phoneRetryPause = 2 * time.Second // the short pause before the second try
 	// phonePlanRetryBudget: the second lookup's reads where no ask bounds
 	// it (a plan, the window's fallback), so ha_plan stays bounded.
 	phonePlanRetryBudget = 15 * time.Second
-	phoneLanePause       = time.Second // a listening lane that failed subscribes again after it
+	phoneLanePause       = time.Second     // a listening lane that failed subscribes again after it
+	phoneProbeTime       = 5 * time.Second // one probe's longest read (collectPhoneEvents: span + 5 s)
 )
+
+// readFailed: a probe or a lane failed for time or transport (no answer, a
+// timeout, the Relay's link to Home Assistant), so it may pass once more.
+// Any other refusal from the Relay (a subscription Home Assistant refuses)
+// is no slow read: phoneFailed.
+func readFailed(err error) bool {
+	var refused *relayCallError
+	if !errors.As(err, &refused) {
+		return true
+	}
+	switch refused.code {
+	case "UPSTREAM_WS_TIMEOUT", "UPSTREAM_WS_CONNECT_ERROR", "UPSTREAM_WS_ERROR":
+		return true
+	}
+	return false
+}
 
 // phoneRetryWait waits phoneRetryPause, at most half the time left before
 // until; false when none is left or ctx ended.
@@ -112,56 +131,77 @@ func detectAfterWindow(s *relaySession, deadline time.Time) string {
 
 // phoneListens: a short probe window proves the Relay can subscribe at all
 // before any notification goes out, so buttons no listener can hear are
-// never sent. A failed probe runs once more, inside ctx.
-func phoneListens(ctx context.Context, s *relaySession, collect func(context.Context, *relaySession, time.Duration) ([]phoneEvent, error)) bool {
-	if _, err := collect(ctx, s, time.Millisecond); err == nil {
-		return true
-	}
-	deadline, _ := ctx.Deadline()
-	if !phoneRetryWait(ctx, deadline) {
-		return false
-	}
+// never sent. A probe that failed on a read runs once more, ending by
+// until. phoneIgnored: it listens; else why not (phoneUnread, phoneFailed).
+func phoneListens(ctx context.Context, s *relaySession, collect func(context.Context, *relaySession, time.Duration) ([]phoneEvent, error), until time.Time) phoneAnswer {
 	_, err := collect(ctx, s, time.Millisecond)
-	return err == nil
+	if err == nil {
+		return phoneIgnored
+	}
+	if !readFailed(err) {
+		return phoneFailed
+	}
+	ctx, cancel := context.WithDeadline(ctx, until)
+	defer cancel()
+	if !phoneRetryWait(ctx, until) {
+		return phoneUnread
+	}
+	if _, err = collect(ctx, s, time.Millisecond); err == nil {
+		return phoneIgnored
+	}
+	if !readFailed(err) {
+		return phoneFailed
+	}
+	return phoneUnread
 }
 
 // phoneCanListen: the listening probe before a window opens beside the
 // linked phone, ending by until, so the window says the phone asks too only
 // where it can (confirmBoth).
-func phoneCanListen(s *relaySession, until time.Time) bool {
+func phoneCanListen(s *relaySession, until time.Time) phoneAnswer {
 	ctx, cancel := context.WithDeadline(context.Background(), until)
 	defer cancel()
-	return phoneListens(ctx, s, phoneCollect)
+	return phoneListens(ctx, s, phoneCollect, until)
 }
 
 // phoneSettled: the listening lanes have started, and one that fails within
-// phoneSettle can't hear a tap. It subscribes again after phoneLanePause;
-// a second failure within that and the next phoneSettle gives up
-// (phoneUnread). Nothing has been sent yet. ok=false: answer says why not.
+// phoneSettle can't hear a tap. After a failed read it subscribes again
+// after phoneLanePause; a second one within that and the next phoneSettle
+// gives up (phoneUnread), as does the ask's deadline. Nothing has been sent
+// yet. ok=false: answer says why not.
 func phoneSettled(ctx context.Context, failed <-chan error) (answer phoneAnswer, ok bool) {
 	wait := phoneSettle
 	for range 2 {
 		select {
-		case <-failed:
+		case err := <-failed:
+			if !readFailed(err) {
+				return phoneFailed, false
+			}
 			wait = phoneLanePause + phoneSettle
 		case <-time.After(wait):
 			return phoneIgnored, true
 		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return phoneUnread, false
+			}
 			return phoneNoAnswer, false
 		}
 	}
 	return phoneUnread, false
 }
 
-// The agent's texts where a check before the send failed on a read twice:
-// the phone got nothing, and nothing on it needs fixing.
+// The agent's texts where the checks before the send failed on a read (or
+// left too little time to answer): the phone got nothing, and nothing on it
+// needs fixing.
 const (
-	phoneUnreadWhy  = "HA NOVA couldn't check the linked phone in Home Assistant just now (Home Assistant answered too slowly or a read failed, twice), so the phone wasn't asked"
-	phoneUnreadNext = "Tell the user nothing changed and nothing was sent to their phone: HA NOVA couldn't check their linked phone in Home Assistant just now, because Home Assistant answered too slowly or a read failed, twice. Nothing on the phone needs fixing (no notification settings, no limits). They can try again in a moment, or make this change in Home Assistant itself. Never ask them for a code."
+	phoneUnreadWhy  = "HA NOVA couldn't check the linked phone in Home Assistant just now (Home Assistant answered too slowly or a read failed), so the phone wasn't asked"
+	phoneUnreadNext = "Tell the user nothing changed and nothing was sent to their phone: HA NOVA couldn't check their linked phone in Home Assistant just now, because Home Assistant answered too slowly or a read failed. Nothing on the phone needs fixing (no notification settings, no limits). They can try again in a moment, or make this change in Home Assistant itself. Never ask them for a code."
+	// phoneUnreadLine: the terminal's line in the link, Move and Stop flows.
+	phoneUnreadLine = "HA NOVA couldn't check the phone in Home Assistant just now. Nothing on the phone needs fixing. Run this again in a moment."
 )
 
 // phoneMissingRefusal: why a phone plan stops before its ask (the linked
-// phone isn't ready), plainer where the lookup failed on a read twice.
+// phone isn't ready), plainer where its lookup failed on a read.
 func phoneMissingRefusal(why phoneWhy) (code, message, next string) {
 	if why == whyRead {
 		return "CONFIRM_UNAVAILABLE", phoneUnreadWhy, phoneUnreadNext

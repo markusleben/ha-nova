@@ -16,9 +16,9 @@ import (
 var markusLink = phoneLink{Service: "mobile_app_markuss_iphone", DeviceID: "dev-markus", UserID: "owner-id", Name: "Markus’s iPhone", Platform: phoneIOS}
 
 func fastRetry(t *testing.T) {
-	saved, lane := phoneRetryPause, phoneLanePause
-	phoneRetryPause, phoneLanePause = 10*time.Millisecond, 20*time.Millisecond
-	t.Cleanup(func() { phoneRetryPause, phoneLanePause = saved, lane })
+	saved, lane, probe := phoneRetryPause, phoneLanePause, phoneProbeTime
+	phoneRetryPause, phoneLanePause, phoneProbeTime = 10*time.Millisecond, 20*time.Millisecond, time.Second
+	t.Cleanup(func() { phoneRetryPause, phoneLanePause, phoneProbeTime = saved, lane, probe })
 }
 
 // saysHomeAssistantWasSlow: the agent hears that Home Assistant was slow,
@@ -26,7 +26,10 @@ func fastRetry(t *testing.T) {
 // can't be reached.
 func saysHomeAssistantWasSlow(t *testing.T, text string) {
 	t.Helper()
-	for _, want := range []string{"Home Assistant answered too slowly or a read failed, twice", "Nothing on the phone needs fixing (no notification settings, no limits)"} {
+	if strings.Contains(text, "read failed, twice") { // not always two tries (too little time left)
+		t.Errorf("says twice: %q", text)
+	}
+	for _, want := range []string{"Home Assistant answered too slowly or a read failed", "Nothing on the phone needs fixing (no notification settings, no limits)"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q in %q", want, text)
 		}
@@ -200,7 +203,7 @@ func TestPhoneCheckThatFailsTwiceSaysHomeAssistantWasSlow(t *testing.T) {
 			exit, env := h.run(runApplyCommand, "--plan", plan.ID)
 			tries := map[bool]int{false: reads(h, "config/auth/list") - before, true: probes()}[probe]
 			if exit != 4 || env.Error == nil || env.Error.Code != "CONFIRM_UNAVAILABLE" || len(p.sent) != 0 || calls(h) != 0 || tries != 2 ||
-				!strings.Contains(env.Error.Message, "answered too slowly or a read failed, twice") {
+				!strings.Contains(env.Error.Message, "answered too slowly or a read failed") {
 				t.Fatalf("exit %d %+v sent %d tries %d", exit, env.Error, len(p.sent), tries)
 			}
 			plain(t, env.Error.Next)
@@ -216,15 +219,16 @@ func TestPhoneCheckThatFailsTwiceSaysHomeAssistantWasSlow(t *testing.T) {
 			w := useRaceWindow(t, windowNoAnswer, gate, false)
 			plan := h.plan("lock.unlock", "lock.front").Plan
 			windowWait = 10 * time.Second
-			failProbes(map[bool]int{false: 0, true: 9}[probe])
+			probes := failProbes(map[bool]int{false: 0, true: 9}[probe])
 			usersReadable(home, h.f, probe)
 			go func() { time.Sleep(300 * time.Millisecond); close(gate) }() // the phone gave up first
 			var exit int
 			var env verbTestEnvelope
 			stderr := captureStderr(t, func() { exit, env = h.run(runApplyCommand, "--plan", plan.ID) })
-			// The window never says the phone asks too while it can't.
-			if len(w.messages) != 1 || strings.Contains(w.messages[0], windowBoth("en")) || !strings.HasSuffix(w.messages[0], windowAsked("en")) {
-				t.Fatalf("window %q", w.messages)
+			// The window never says the phone asks too while it can't; a failed lookup probes nothing.
+			if len(w.messages) != 1 || strings.Contains(w.messages[0], windowBoth("en")) || !strings.HasSuffix(w.messages[0], windowAsked("en")) ||
+				probes() != map[bool]int{false: 0, true: 2}[probe] {
+				t.Fatalf("window %q probes %d", w.messages, probes())
 			}
 			if exit != 4 || env.Error == nil || env.Error.Code != "CONFIRM_CANCELLED" || len(p.sent) != 0 || calls(h) != 0 ||
 				!strings.Contains(stderr, "so only the window on this computer asks. Nothing on your phone needs fixing.") || strings.Contains(stderr, "can't reach your linked phone") {
@@ -245,11 +249,11 @@ func TestPhoneCheckThatFailsTwiceSaysHomeAssistantWasSlow(t *testing.T) {
 		useRaceWindow(t, windowFailed, open, false)
 		plan := h.plan("lock.unlock", "lock.front").Plan
 		windowWait = 10 * time.Second
-		failProbes(9)
+		probes := failProbes(9)
 		exit, env := h.run(runApplyCommand, "--plan", plan.ID)
-		if exit != 4 || env.Error == nil || env.Error.Code != "CONFIRM_UNAVAILABLE" || len(p.sent) != 0 ||
+		if exit != 4 || env.Error == nil || env.Error.Code != "CONFIRM_UNAVAILABLE" || len(p.sent) != 0 || probes() != 2 ||
 			!strings.Contains(env.Error.Message, "the confirmation window couldn't open, and HA NOVA couldn't check") {
-			t.Fatalf("exit %d %+v sent %d", exit, env.Error, len(p.sent))
+			t.Fatalf("exit %d %+v sent %d probes %d", exit, env.Error, len(p.sent), probes())
 		}
 		plain(t, env.Error.Next)
 	})
@@ -265,7 +269,7 @@ func TestPhoneCheckRetryEndsInsideTheWait(t *testing.T) {
 	previous := relaySessionOverallTimeout
 	relaySessionOverallTimeout = 2 * time.Second
 	t.Cleanup(func() { relaySessionOverallTimeout = previous })
-	windowWait = 5 * time.Second // windowMinWait 1 s: the second try ends 3 s in
+	windowWait, phoneProbeTime = 5*time.Second, 1500*time.Millisecond // windowMinWait 1 s: the second try ends 2.5 s in
 	h.f.mu.Lock()
 	h.f.hang["config/auth/list"] = true
 	h.f.mu.Unlock()
@@ -273,8 +277,8 @@ func TestPhoneCheckRetryEndsInsideTheWait(t *testing.T) {
 	start := time.Now()
 	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
 	took, lookups := time.Since(start), reads(h, "config/auth/list")-before
-	if exit != 4 || env.Error == nil || env.Error.Code != "CONFIRM_UNAVAILABLE" || !strings.Contains(env.Error.Next, "twice") || len(p.sent) != 0 ||
-		lookups != 2 || took < 2900*time.Millisecond || took > 3600*time.Millisecond {
+	if exit != 4 || env.Error == nil || env.Error.Code != "CONFIRM_UNAVAILABLE" || !strings.Contains(env.Error.Next, "answered too slowly") || len(p.sent) != 0 ||
+		lookups != 2 || took < 2400*time.Millisecond || took > 2850*time.Millisecond {
 		t.Fatalf("exit %d %+v sent %d lookups %d after %v", exit, env.Error, len(p.sent), lookups, took)
 	}
 }
@@ -372,7 +376,7 @@ func TestServePhoneCheckRunsOnceMore(t *testing.T) {
 			ok, _ := p.buttons(t)
 			p.events <- tap(ok, userA, "REMOTE")
 			waitFor(t, "the apply after the tap", func() bool { return len(s.posts()) == 1 })
-			if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": id}); env["status"] != "verified" || p.asks() != 1 || lookups() < 2+c.lookup || probes() != 1+c.probe {
+			if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": id}); env["status"] != "verified" || p.asks() != 1 || lookups() != 2+c.lookup || probes() != 1+c.probe {
 				t.Fatalf("after the tap: %v asks %d lookups %d probes %d", env, p.asks(), lookups(), probes())
 			}
 		})
@@ -384,7 +388,7 @@ func TestServePhoneCheckRunsOnceMore(t *testing.T) {
 		info, _ := env["error"].(map[string]any)
 		next, _ := info["next"].(string)
 		if envCode(env) != "CONFIRM_UNAVAILABLE" || p.sentCount() != 0 || lookups() != 2 || next == chatPhoneMissing ||
-			!strings.Contains(next, "Home Assistant answered too slowly or a read failed, twice") || !strings.Contains(next, "Nothing on the phone needs fixing") {
+			!strings.Contains(next, "Home Assistant answered too slowly or a read failed") || !strings.Contains(next, "Nothing on the phone needs fixing") {
 			t.Fatalf("apply: %v sent %d lookups %d", env, p.sentCount(), lookups())
 		}
 	})

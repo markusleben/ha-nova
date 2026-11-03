@@ -152,6 +152,9 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 	setup, status, deadline, inTime := discoverInTime(s, wait)
 	if !inTime {
 		defer s.close()
+		if setup.why == whyRead {
+			return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", phoneUnreadWhy, phoneUnreadNext)
+		}
 		return windowStopped(s, "refused", "PLAN_EXPIRED", "plan "+id+" expires before a confirmation window could get an answer", replan)
 	}
 	again := fmt.Sprintf("Tell the user in plain words: the window closed without an answer, nothing changed, and they can ask again. Run ha-nova apply --plan %s again (the window opens again) only after they say they still want it; never ask them for a code. If they saw no window, they can make this change in Home Assistant itself.", id)

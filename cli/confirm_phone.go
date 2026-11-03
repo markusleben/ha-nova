@@ -31,7 +31,7 @@ const (
 	phoneDeclined                     // the linked user tapped Cancel
 	phoneRejected                     // one of our ids came from someone else: stop, nothing is sent
 	phoneFailed                       // the notification could not be sent: nothing is sent, no fallback
-	phoneUnread                       // a check before the send failed on a read, twice: nothing is sent, no fallback
+	phoneUnread                       // a check before the send failed on a read, or left too little time: nothing is sent, no fallback
 )
 
 const (
@@ -178,16 +178,21 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 			}
 		}
 	}
-	if !phoneListens(ctx, s, collect) { // buttons no listener can hear are never sent
-		return phoneUnread, reply
+	// Buttons no listener can hear are never sent, nor a question left too
+	// little time (windowMinWait) to answer.
+	deadline, _ := ctx.Deadline()
+	if answer := phoneListens(ctx, s, collect, deadline.Add(-windowMinWait)); answer != phoneIgnored {
+		return answer, reply
 	}
 	// Two overlapping lanes: one re-subscribes while the other still listens.
 	go lane(0)
 	go lane(phoneWindowSpan / 2)
-	if answer, ok := phoneSettled(ctx, failed); !ok { // no listener: never send a tap no one can hear
+	if answer, ok := phoneSettled(ctx, failed); !ok {
 		return answer, reply
 	}
-	deadline, _ := ctx.Deadline()
+	if time.Until(deadline) < windowMinWait {
+		return phoneUnread, reply
+	}
 	sent, sending := sendPhones(ctx, s, clearingFirst(phoneLastResults(s.paths), setup.owner, notify), setup.targets, func(t phoneTarget) map[string]any { return phonePayload(ask, t.platform(), tag, ok, no, deadline) })
 	all := make([]string, 0, len(setup.targets))
 	for _, target := range setup.targets {
@@ -214,6 +219,9 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 	}
 	if len(sent) == 0 {
 		return phoneFailed, reply
+	}
+	if ask.sent != nil {
+		ask.sent.Store(true)
 	}
 	if notice != nil {
 		fmt.Fprintf(notice, phoneSentText+"\n", terminalSafeName(setup.targets[0].Name), phoneTapLine("en", setup.targets[0].platform(), ask.button))
@@ -362,7 +370,10 @@ func startPhoneAsk(paths runtimePaths, opts verbOptions, id string, noSnapshot b
 		return nil, env, exit, asked
 	}
 	setup, status, deadline, inTime := discoverInTime(s, wait)
-	if !inTime {
+	switch {
+	case !inTime && setup.why == whyRead:
+		return stop(phoneMissingRefusal(whyRead))
+	case !inTime:
 		return stop("PLAN_EXPIRED", "plan "+id+" expires before the phone could get an answer", replan)
 	}
 	if status != phoneReady {

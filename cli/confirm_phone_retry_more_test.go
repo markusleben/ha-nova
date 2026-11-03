@@ -52,7 +52,7 @@ func TestPhonePlanLookupRunsOnceMore(t *testing.T) {
 		usersReadable(home, h.f, false)
 		exit, env := h.run(runPlanCommand, "call", "lock.unlock", "lock.front")
 		if exit != 4 || env.Plan != nil || env.Error == nil || env.Error.Code != "CONFIRM_UNAVAILABLE" || reads(h, "config/auth/list") != 2 ||
-			!strings.Contains(env.Error.Message, "answered too slowly or a read failed, twice") {
+			!strings.Contains(env.Error.Message, "answered too slowly or a read failed") {
 			t.Fatalf("exit %d %+v lookups %d", exit, env.Error, reads(h, "config/auth/list"))
 		}
 		saysHomeAssistantWasSlow(t, env.Error.Next)
@@ -188,7 +188,7 @@ func TestPhoneListeningLaneThatFailsOnceAsksOnce(t *testing.T) {
 			}
 			if fails == 2 {
 				if exit != 4 || env.Error == nil || env.Error.Code != "CONFIRM_UNAVAILABLE" || len(p.sent) != 0 || calls(h) != 0 ||
-					!strings.Contains(env.Error.Message, "answered too slowly or a read failed, twice") {
+					!strings.Contains(env.Error.Message, "answered too slowly or a read failed") {
 					t.Fatalf("twice: exit %d %+v sent %d", exit, env.Error, len(p.sent))
 				}
 				saysHomeAssistantWasSlow(t, env.Error.Next)

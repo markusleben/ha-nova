@@ -276,7 +276,7 @@ func (srv *mcpServer) awaitJob(key string, job *chatJob, id string) map[string]a
 		return maps.Clone(job.result)
 	}
 	if job.phone && !job.tapped.Load() {
-		return waitingForPhone(id, job.lang, job.tap.Load())
+		return waitingForPhone(id, job.lang, job.tap.Load(), job.sent.Load())
 	}
 	return applying(id, job.lang, job.phone)
 }

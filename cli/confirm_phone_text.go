@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -25,8 +26,9 @@ import (
 type phoneAsk struct {
 	lang                string // the texts' language (phonePayload's hint and Cancel speak it too)
 	title, body, button string
-	urgent              bool // a pending action: iOS time-sensitive; else active
-	unlock              bool // the phone must be unlocked to answer (link, move, stop)
+	urgent              bool         // a pending action: iOS time-sensitive; else active
+	unlock              bool         // the phone must be unlocked to answer (link, move, stop)
+	sent                *atomic.Bool // set once the question went out (a chat app's job: chatJob.sent)
 }
 
 const (

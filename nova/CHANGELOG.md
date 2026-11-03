@@ -7,7 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 ## [Relay 0.13.11] - 2026-11-03
 
 ### Fixed
-- When Home Assistant answers slowly, HA NOVA checks the linked phone a second time before it gives up, on a computer and in chat apps. If that fails too, the assistant says Home Assistant was too slow and that nothing on the phone needs fixing, instead of blaming the phone.
+- Chat apps: when Home Assistant answers slowly, HA NOVA checks the linked phone a second time before it gives up. If that fails too, the assistant says Home Assistant was too slow and that nothing on the phone needs fixing, instead of blaming the phone.
 
 ### Upgrade notes
 - Computers on HA NOVA 0.28.0 ask you to update this App.

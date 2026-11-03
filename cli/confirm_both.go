@@ -21,13 +21,13 @@ import (
 const (
 	phoneQuietText       = "HA NOVA can't reach your linked phone now, so only the window on this computer asks. `ha-nova setup confirm-phone list` says why."
 	phoneQuietNext       = " Their linked phone couldn't be asked; `ha-nova setup confirm-phone list` (it sends nothing) says why."
-	phoneQuietUnreadText = "HA NOVA couldn't check your linked phone in Home Assistant just now (Home Assistant answered too slowly or a read failed, twice), so only the window on this computer asks. Nothing on your phone needs fixing."
-	phoneQuietUnreadNext = " Nothing was sent to their phone: HA NOVA couldn't check it in Home Assistant just now (Home Assistant answered too slowly or a read failed, twice). Nothing on the phone needs fixing (no notification settings, no limits)."
+	phoneQuietUnreadText = "HA NOVA couldn't check your linked phone in Home Assistant just now (Home Assistant answered too slowly or a read failed), so only the window on this computer asks. Nothing on your phone needs fixing."
+	phoneQuietUnreadNext = " Nothing was sent to their phone: HA NOVA couldn't check it in Home Assistant just now (Home Assistant answered too slowly or a read failed). Nothing on the phone needs fixing (no notification settings, no limits)."
 )
 
 // phoneQuiet: why the phone stays quiet while the window asks, for the
-// terminal and for the agent's next step; plainer where its check failed on
-// a read twice (unread).
+// terminal and for the agent's next step; plainer where its checks failed
+// on a read (unread).
 func phoneQuiet(unread bool) (line, next string) {
 	if unread {
 		return phoneQuietUnreadText, phoneQuietUnreadNext
@@ -57,11 +57,11 @@ func (v humanVote) decisive() bool {
 // confirmByWindow. Every path tells the phone how it ended (phoneApplied,
 // which also closes a.s). The window says the phone asks too only once the
 // phone's probe passed (phoneCanListen, ending while windowMinWait is still
-// left for the window); else it asks alone (phoneUnread).
+// left for the window); else it asks alone (phoneUnread, phoneFailed).
 func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 	lang := textLang(a.plan)
-	listens := phoneCanListen(a.s, a.deadline.Add(-windowMinWait))
-	if listens {
+	probe := phoneCanListen(a.s, a.deadline.Add(-windowMinWait))
+	if probe == phoneIgnored {
 		text += windowBoth(lang) + "\n"
 	}
 	ctx, cancel := context.WithDeadline(context.Background(), a.deadline)
@@ -72,8 +72,8 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 		votes <- humanVote{window: answer, ended: ended}
 	}()
 	go func() {
-		a.answer = phoneUnread
-		if listens {
+		a.answer = probe
+		if probe == phoneIgnored {
 			a.answer, a.reply = askPhone(ctx, a.s, a.setup, "ha-nova-"+a.plan.ID, a.ask, time.Until(a.deadline), os.Stderr)
 		}
 		votes <- humanVote{phone: true, answer: a.answer}
@@ -171,12 +171,13 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 // discoverInTime finds the linked phone's setup within wait, which the
 // lookup counts against; inTime=false: too little is left to ask anyone,
 // also when a lookup that failed on a read has no time left to run once
-// more (discoverAgain). That second one ends a second before only
-// windowMinWait is left, so the ask still runs after it.
+// more (discoverAgain; setup.why says so). That second one ends a probe's
+// length (phoneProbeTime) before only windowMinWait is left, so the probe
+// and the ask still run after it.
 func discoverInTime(s *relaySession, wait time.Duration) (setup phoneSetup, status phoneStatus, deadline time.Time, inTime bool) {
 	deadline, inTime = time.Now().Add(wait), wait >= windowMinWait
 	if inTime {
-		setup, status, inTime = discoverAgain(s, deadline.Add(-windowMinWait-time.Second))
+		setup, status, inTime = discoverAgain(s, deadline.Add(-windowMinWait-phoneProbeTime))
 	}
 	return setup, status, deadline, inTime && time.Until(deadline) >= windowMinWait
 }
