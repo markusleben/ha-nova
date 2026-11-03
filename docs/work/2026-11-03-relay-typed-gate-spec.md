@@ -22,12 +22,13 @@ Protects against a principal that holds a paired device credential for a **local
 
 Does not protect against (stated in `safety.md`):
 
-- **Computers paired through Home Assistant Link.** They keep the Home Assistant user's own OAuth refresh token in the same OS store (`cli/cloud_oauth_secret_store.go`). Whoever reads it acts in Home Assistant as that user without the Relay: calls services, opens an ingress session, fires a phone-action event as that user. The gate still checks what such a computer sends through the Relay, but it is not a boundary there (question 2).
+- **Computers paired through Home Assistant Link.** They keep the Home Assistant user's own OAuth refresh token in the same OS store (`cli/cloud_oauth_secret_store.go`). Whoever reads it acts in Home Assistant as that user without the Relay: calls services, opens an ingress session, fires a phone-action event as that user. The gate still checks what such a computer sends through the Relay, but it is not a boundary there (decision 2).
 - **A Home Assistant administrator session or token**, and code that already runs in one (installed dashboard card code runs in the administrator's browser). A process that reads the browser profile or the Companion app's storage acts as that person in Home Assistant itself. Approval in the page is exactly as strong as that session.
 - **Whoever holds the linked phone** during an open ask (no device unlock needed for a notification button, as today).
 - **Writes below typed.** Previewed and ordinary writes pass without a person, as today.
 - **Indirect effects the tier engine does not see** (hardening spec §4: zone or calendar triggers, flows of entries the CLI did not start, a stored scene used later). The gate is exactly as wide as the CLI's tiers.
 - **The in-App chat bridge** (`ha-nova serve`): it runs inside the App with its own confirmation rules (§5).
+- **Camera and image access tokens computed by a template.** `/api/template` renders arbitrary output, so a template can read a camera's `access_token` attribute and reshape it past any redactor. The worker refuses a template answer that contains a live token value (§2), but a transformed one passes. Such a token opens that camera's stream or image for minutes; it never lets a device act.
 - **A phone webhook id that leaks outside the Relay** (Home Assistant's own files, the phone). Through the Relay it is hidden (§2).
 - **Denial of service.** A credential holder can still send asks (capped, §3), previewed writes, and revoke-worthy noise.
 - **Check-to-send race.** The verdict is computed right before the Relay forwards; a concurrent change by another principal in that window is not re-checked.
@@ -66,6 +67,8 @@ Typed under the gate, by changing the shared tier (so the plan asks too):
 
 Redaction: every answer to a device or legacy principal goes through `/redact`, including `collect_events` results, `/supervisor` JSON (on top of the Relay's own App-option hiding), and `/core` responses. This moves the phone webhook id (registry `unique_id` prefix, `data.webhook_id` in traces), lock and alarm codes, the backup password, the Thread dataset, MQTT alarm codes, flow secrets, and camera tokens out of a device credential's reach; the CLI keeps redacting too. Binary answers (camera frames, `/files` `read_file` of a non-text file) pass unchanged, since `redactSecrets` reads only JSON and text.
 
+Key-based redaction is a boundary only for structured answers, whose shape the request can't change: registry lists, traces, settings, flow forms, Supervisor JSON. Every secret that lets a device act (phone webhook ids, lock and alarm codes, the backup password, flow secrets) lives only there; none is reachable from a template. Template output (`POST /api/template`) is computed, so no redactor bounds it: the worker reads the live camera and image tokens and refuses a template answer that contains one, and a reshaped token stays a stated limit (Threat model).
+
 The Relay keeps only transport: the gate middleware, the worker client, the ask and grant store, and the page. `scripts/check-docs.sh` checks [3]–[5] get one named exemption for these files and keep failing on domain handlers anywhere else.
 
 The worker reads Home Assistant through its own internal principal (reserved install id `nova-app-gate`, minted like the bridge's, loopback peer only). The Relay forwards its request only when (a) the worker's own check says `kind: read`, (b) it is a `call_service` with domain `notify` and a service starting `mobile_app_` (the ask itself), or (c) it is a `collect_events` subscription to `mobile_app_notification_action` (the answer). (b) and (c) are allowed for this principal only. A check of a read never reads Home Assistant, so the worker's reads don't loop. Its answers are not redacted: it needs the action ids it sent.
@@ -101,7 +104,7 @@ Both run through `ha-nova serve` inside the App (`/api/ha_nova/mcp` → integrat
 - **Newer CLI, newer App:** the Relay's ask replaces the CLI's own; a typed action is asked about once, never twice.
 - **Newer CLI, older App:** `GET /health` carries `gate: 1` and `/gate/v1/ask` exists only on a gated App. Without both, the CLI asks on its own as today (window, phone, code) and sends. Once a server profile has seen `gate: 1`, the CLI stores `gate_seen` and refuses typed actions there when the gate is gone: "HA NOVA's App was rolled back to a version without its safety check; update it in Home Assistant". `gate_seen` lives in user-writable config, so it guards against an accidental rollback, not an attacker (who can't downgrade the App: the Supervisor allowlist refuses writes to HA NOVA's own App).
 - **App rolled back after a grant:** the person already approved those bytes; an old App forwards them.
-- **`min_relay_version`:** stays a nudge (`cli/version.go`) and is not raised in the gate release, so older Apps keep today's client-side asks. Raising it and dropping the client-side path is a later release (question 5).
+- **`min_relay_version`:** stays a nudge (`cli/version.go`) and is not raised in the gate release, so older Apps keep today's client-side asks. Raising it and dropping the client-side path is a later release (decision 5).
 - **Worker missing or crashed:** every gated request is refused (`503 GATE_UNAVAILABLE`). The standalone image (`nova/Dockerfile.standalone`) must ship the CLI too, or it refuses everything (layer 7).
 - **New request shapes:** a request the App's worker doesn't know is refused until the App updates; a CLI that adds one needs an App release and a `min_relay_version` raise.
 
@@ -116,7 +119,7 @@ Both run through `ha-nova serve` inside the App (`/api/ha_nova/mcp` → integrat
 
 ## Test plan (test bed only, never a live Home Assistant)
 
-- **Go:** a parity oracle: every case in `cli/tier_golden_test.go`, `cli/tier_failopen*_test.go`, `cli/plan_raw_tier_test.go`, and `cli/relay_typed_test.go` gets the same tier from `gateVerdict` as from the plan; every request shape the CLI sends (verbs, plans, setup, doctor, session reads) is recognized; the §2 refusal list → `refuse` (GET webhook, GET flow step, backup download, logs, phone-event subscriptions, duplicate keys); backup-location changes and backup-agent flows → `typed`; a failed read → `typed`. `/redact` vectors from `cli/relay_raw_redact_test.go`. `judgePhoneEvent` vectors: the Relay's user, owner token, wrong id, non-admin, system user.
+- **Go:** a parity oracle: every case in `cli/tier_golden_test.go`, `cli/tier_failopen*_test.go`, `cli/plan_raw_tier_test.go`, and `cli/relay_typed_test.go` gets the same tier from `gateVerdict` as from the plan; every request shape the CLI sends (verbs, plans, setup, doctor, session reads) is recognized; the §2 refusal list → `refuse` (GET webhook, GET flow step, backup download, logs, phone-event subscriptions, duplicate keys); backup-location changes and backup-agent flows → `typed`; a failed read → `typed`. `/redact` vectors from `cli/relay_raw_redact_test.go`, plus a template answer carrying a live camera token → refused. `judgePhoneEvent` vectors: the Relay's user, owner token, wrong id, non-admin, system user.
 - **TypeScript:** the gate in front of every handler and listener (device TLS, bootstrap, Link routes on ingress), every method on `/core`; worker answers `pass`/`typed`/`refuse`, garbage, timeout, refused connection, crash mid-ask → nothing forwarded; `/redact` failure → `503` and no body; bridge credential exempt from `127.0.0.1` only, refused from a LAN peer; pairing refuses both reserved ids; gate principal limited to reads, `notify.mobile_app_*`, and phone-event collection; grants: wrong principal, wrong digest, reused digest, expired, after restart; ask cap, pause on the phone channel only, page still approves; page: non-Supervisor peer, non-admin, the Relay's user, stale and replayed CSRF, `frame-ancestors 'none'`; cancel from any channel, approve only from the two.
 - **End to end (`npm run testbed:up`, `TESTBED_PHONE=1` for fake phones):** with `.state/relay-token` and `curl`: `lock.unlock` on a demo lock → `428`, lock unchanged; the same inside a `collect_events` envelope; `config/entity_registry/list` shows no phone webhook id; ask → fake phone tap (a test administrator's `mobile_app` registration posting the action through its own webhook) → grant → unlock once; replay → `428`; `fire_event` of `mobile_app_notification_action` through the Relay → refused; a tap from the Relay's user → ignored; worker killed during an ask → lock unchanged; an automation write that unlocks on a time trigger → `428`; a `files` YAML write with `readwrite` access → `428`; `GET /api/webhook/<id>` → refused.
 - **Compatibility (test bed):** the last released CLI (`TESTBED_CLI_BIN`) against the new App: typed fails closed, ordinary and previewed work; the new CLI against the last released App image: client-side asks as today; the new CLI after a rollback with `gate_seen` → refused with the update line.
@@ -137,14 +140,16 @@ Layers 3–5 add roughly 1,000–1,200 Relay lines; each raises the Relay LOC ce
 
 Release order: 1 and 6 may ship first (6 probes and falls back; 1 makes files writes and backup-location changes ask on every App). 3–5 and 7 ship in one App release; between their merges `main` refuses typed writes outright (closed) and is not released.
 
-## Product questions (Markus)
+## Decisions (maintainer, 2026-11-03)
 
-1. Unknown request shapes: refuse (default), or hold writes with a generic "unrecognized change" ask?
-2. Computers paired through Home Assistant Link hold a Home Assistant token, so the gate is no boundary there: document it as a limit (default), or later bind Link pairing to a Home Assistant user who may not approve that computer's asks (conflicts with approving on your own phone)?
-3. Who may approve on the page: any active non-system administrator who is not the Relay's user (default), or only the owner?
-4. Typed codes on computers end with a gated App (default), or stay as a weaker, documented channel?
-5. Older Apps: keep today's client-side asks until a later release raises `min_relay_version` (default), or raise it in the gate release?
-6. Standalone container whose Relay token is the owner's: no page, no phone, so typed actions are refused until a separate Home Assistant user is set up (default), or build a Home Assistant sign-in page on the Relay later?
-7. Chat apps keep the bridge exemption and chat codes (default), or move onto Relay asks too?
-8. `files` writes typed everywhere (default), or refused for devices?
-9. Ask limits: 10 per hour per device, phone paused 15 minutes after three unanswered or cancelled asks, page always open (default)?
+Option A approved as specified: the CLI gate worker plus Relay redaction. All open questions took the recommended default:
+
+1. Unknown request shapes are refused; writes are never held with a generic "unrecognized change" ask.
+2. Computers paired through Home Assistant Link are documented as a limit (Threat model), not bound to an approving user.
+3. Page approval: any active, non-system administrator except the Relay's user.
+4. Four-digit codes on computers end with a gated App.
+5. Older Apps keep today's client-side asks until a later release raises `min_relay_version`.
+6. A standalone container whose Relay token is the owner's refuses typed actions until a dedicated Home Assistant user exists; no Relay sign-in page for now.
+7. Chat apps keep the bridge exemption and chat codes.
+8. `files` writes are typed everywhere.
+9. 10 asks per hour per device; phone asks paused 15 minutes after three unanswered or cancelled asks; the page always stays open.
