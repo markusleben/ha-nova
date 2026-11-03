@@ -106,11 +106,7 @@ func (e *tierEngine) scanConsumers(id string, depth int, d stateDelta) {
 		e.gap(reasonLimitCut, "", "", fmt.Sprintf("more than %d acted entities", tierMaxActed))
 		return
 	}
-	var reads []func()
-	for _, item := range items {
-		reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest(item[0], item[1])) })
-	}
-	prefetch(reads)
+	e.readAhead([]string{id}, depth) // its consumers, and theirs, breadth first: the loop below reads the memo
 	seen := map[string]bool{}
 	var automations, containers []string
 	for _, item := range items {
@@ -143,8 +139,7 @@ func (e *tierEngine) scanConsumers(id string, depth int, d stateDelta) {
 	var configReads []func()
 	for _, automation := range automations {
 		if st, err := e.state(automation); err == nil && st.str("id") != "" && len(configReads) < tierMaxConsumers-e.reads {
-			configID := st.str("id")
-			configReads = append(configReads, func() { _, _ = readStoredConfig(e.s, "automation", configID) })
+			configReads = append(configReads, func() { e.warmConfig(automation) })
 		}
 	}
 	prefetch(configReads)
@@ -321,12 +316,17 @@ func (e *tierEngine) switchAsX(id, via string) tierLevel {
 	return tierOrdinary
 }
 
+const readBudgetDetail = "read budget"
+
 // readFailed records a failed read as typed: LIMIT_CUT once the 30 s budget
 // is spent, SCAN_FAILED otherwise. Details are stable words, never error
 // text, so the plan hash stays deterministic.
 func (e *tierEngine) readFailed(entityID, via, what string) {
 	if e.s.ctx.Err() != nil {
-		e.gap(reasonLimitCut, "", "", "read budget")
+		if via != viaListenerScan { // the listener scan's config reads never enter the basis
+			e.lost = append(e.lost, entityID+"|"+via+"|"+what)
+		}
+		e.gap(reasonLimitCut, "", "", readBudgetDetail)
 		return
 	}
 	e.gap(reasonScanFailed, entityID, via, what)

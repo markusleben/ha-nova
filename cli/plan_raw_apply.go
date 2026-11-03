@@ -359,7 +359,8 @@ func saveHelperCheckpoint(paths runtimePaths, s *relaySession, env *verbEnvelope
 	verified := after != nil
 	for key, value := range payload {
 		if key != "type" && key != idKey && verified {
-			verified = jsonEqual(value, after[key])
+			shown, has := after[key]
+			verified = has && jsonEqual(value, shown)
 		}
 	}
 	notice := func(why string) *snapshotSaveReceipt {
