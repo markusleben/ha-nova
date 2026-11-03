@@ -158,7 +158,7 @@ func (f *setupFlow) stepPage() setupStepResult {
 		if app.primary != "" || fix == "retry" || fix == "web" { // Try again (and check again) also checks the App again
 			accepts = append(accepts, "signin")
 		}
-		if f.cfg.HAURL == "" { // no Home Assistant found: the demo house (spec §8)
+		if f.cfg.HAURL == "" && !f.noClient { // no Home Assistant found: the demo house (spec §8); the browser path links the hosted demo
 			accepts = append(accepts, "demo")
 		}
 		if fix == "web" || fix == "web_never" { // chat apps can't work here yet (pageWebCheck)
@@ -307,7 +307,7 @@ func (f *setupFlow) pageAskForClient(ask bool) setupStepResult {
 		action := setupPageAction{Action: "web"}
 		if ask {
 			f.page.update(func(v *setupPageState) {
-				v.Screen, v.Links, v.Desktop = "noclient", map[string]string{"chat": chatAppsGuideURL}, claudeDesktopInstalled(f.paths.Home)
+				v.Screen, v.Links, v.Desktop, v.GetDesktop = "noclient", map[string]string{"chat": chatAppsGuideURL}, claudeDesktopInstalled(f.paths.Home), claudeDesktopPlatformOS == "darwin"
 			})
 			var err error
 			if action, err = f.page.wait("recheck", "web"); err != nil {
