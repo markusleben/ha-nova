@@ -31,6 +31,7 @@
 
   "say.about": "Ich werde gleich {action}.",
   "say.nothing_found": "Nicht erledigt: Ich habe nicht gefunden, was du genannt hast. Es wurde nichts geändert. Sag mir, welche Geräte du meinst.",
+  "say.confirmed_not_sent": "Nicht erledigt: Du hast bestätigt, aber HA NOVA hat Home Assistant nicht erreicht. Es wurde nichts geändert.",
   "say.in_area": "{name} im Bereich {area}",
   "say.changes": "{action} ({changes})",
   "say.field_set": "{field} auf {value}",
