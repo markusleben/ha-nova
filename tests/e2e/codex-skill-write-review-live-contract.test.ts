@@ -202,7 +202,9 @@ describe("codex write-review live e2e contract", () => {
     expect(content).toContain('ha-nova plan delete "$entity_id"');
     expect(content).toContain('applied_json="$(ha-nova apply --plan "$plan_id" --confirm "$plan_code" 2>/dev/null)"');
     expect(content).toContain('select(.platform == "automation" and .unique_id == $id)');
-    expect(content).toContain("'{action:\"delete\",file:$f}'");
+    // The snapshot copy goes through a raw plan: relay refuses a typed delete.
+    expect(content).toContain("'[{endpoint:\"backups\",payload:{action:\"delete\",file:$f}}]'");
+    expect(content).toContain('ha-nova plan raw --file "$OUTPUT_DIR/snapshot-delete.json"');
     expect(content).toContain("/api/states/");
     expect(content).toContain('"type":"search/related"');
     expect(content).toContain("include exactly one Preview Payload slot");

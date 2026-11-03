@@ -30,6 +30,8 @@ type rawNamer struct {
 
 	helpers     map[string]any          // "<collection>/<id>" → the live helper an update replaces (helperKept)
 	helperDrops map[string][]helperDrop // "<collection>/<id>" → what its update removes after a copy (helperKept)
+
+	missed bool // a read a namer without a session could not make (relayTyped); it counted as failed
 }
 
 func newRawNamer(s *relaySession, e *tierEngine) *rawNamer {

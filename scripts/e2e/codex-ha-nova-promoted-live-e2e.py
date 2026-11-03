@@ -221,8 +221,10 @@ def cleanup_dashboard_snapshots(before: set[str] | None) -> None:
         print("dashboard snapshot sweep skipped: the snapshot list could not be read", file=sys.stderr)
         return
     for file in sorted(name for name in after - before if "auto-nova-codex-" in name):
-        subprocess.run(["ha-nova", "relay", "backups", "-d", json.dumps({"action": "delete", "file": file})],
-                       cwd=ROOT, capture_output=True, check=False)
+        try:
+            plan_raw("backups", {"action": "delete", "file": file})
+        except (subprocess.CalledProcessError, KeyError, ValueError, RuntimeError):
+            pass
 
 
 def cleanup_promoted_residue() -> None:
@@ -531,6 +533,18 @@ def plan_and_apply(plan_args: list[str]) -> dict[str, Any]:
     return ha_nova_json(apply_args)
 
 
+def plan_raw(endpoint: str, payload: dict[str, Any]) -> Any:
+    # relay refuses a write a plan types (deletes, dashboard resources): the
+    # harness plans it raw and confirms as the user; returns the item's response.
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:
+        json.dump([{"endpoint": endpoint, "payload": payload}], handle)
+        items_path = handle.name
+    try:
+        return plan_and_apply(["raw", "--file", items_path])["result"]["items"][0].get("response")
+    finally:
+        Path(items_path).unlink(missing_ok=True)
+
+
 DASHBOARD_PLAN_WRITE_RE = re.compile(r"\bha-nova\s+plan\s+write\b[^\n]*--domain(?:=|\s+)['\"]?dashboard\b")
 DASHBOARD_PLAN_CREATE_RE = re.compile(r"\bha-nova\s+plan\s+write\b(?=[^\n]*--domain(?:=|\s+)['\"]?dashboard\b)(?=[^\n]*--create\b)")
 
@@ -608,22 +622,21 @@ def cleanup_resource(resource_id: str | None) -> None:
     if not resource_id:
         return
     try:
-        relay_ws({"type": "lovelace/resources/delete", "resource_id": resource_id})
-    except subprocess.CalledProcessError:
+        plan_raw("ws", {"type": "lovelace/resources/delete", "resource_id": resource_id})
+    except (subprocess.CalledProcessError, KeyError, ValueError, RuntimeError):
         pass
 
 
 def create_resource_seed(url: str, res_type: str = "module") -> dict[str, Any]:
-    created = relay_ws({"type": "lovelace/resources/create", "url": url, "res_type": res_type})
-    return created["data"]
+    return plan_raw("ws", {"type": "lovelace/resources/create", "url": url, "res_type": res_type})
 
 
 def cleanup_area(area_id: str | None) -> None:
     if not area_id:
         return
     try:
-        relay_ws({"type": "config/area_registry/delete", "area_id": area_id})
-    except subprocess.CalledProcessError:
+        plan_raw("ws", {"type": "config/area_registry/delete", "area_id": area_id})
+    except (subprocess.CalledProcessError, KeyError, ValueError, RuntimeError):
         pass
 
 
@@ -631,8 +644,8 @@ def cleanup_floor(floor_id: str | None) -> None:
     if not floor_id:
         return
     try:
-        relay_ws({"type": "config/floor_registry/delete", "floor_id": floor_id})
-    except subprocess.CalledProcessError:
+        plan_raw("ws", {"type": "config/floor_registry/delete", "floor_id": floor_id})
+    except (subprocess.CalledProcessError, KeyError, ValueError, RuntimeError):
         pass
 
 
@@ -640,8 +653,8 @@ def cleanup_label(label_id: str | None) -> None:
     if not label_id:
         return
     try:
-        relay_ws({"type": "config/label_registry/delete", "label_id": label_id})
-    except subprocess.CalledProcessError:
+        plan_raw("ws", {"type": "config/label_registry/delete", "label_id": label_id})
+    except (subprocess.CalledProcessError, KeyError, ValueError, RuntimeError):
         pass
 
 
@@ -730,8 +743,8 @@ def cleanup_category(scope: str, category_id: str | None) -> None:
             cleanup_category(scope, category.get("category_id"))
         return
     try:
-        relay_ws({"type": "config/category_registry/delete", "scope": scope, "category_id": category_id})
-    except subprocess.CalledProcessError:
+        plan_raw("ws", {"type": "config/category_registry/delete", "scope": scope, "category_id": category_id})
+    except (subprocess.CalledProcessError, KeyError, ValueError, RuntimeError):
         pass
 
 

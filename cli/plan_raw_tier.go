@@ -23,7 +23,8 @@ import (
 //	         in Home Assistant or every signed-in browser), an energy save that
 //	         empties a list or drops more than one entry, a new id, area, or
 //	         label carried onto a lock, alarm panel, or access cover, a person
-//	         who follows other devices (skills/device → Access Check), an
+//	         who follows other devices (personFollows; skills/device → Access
+//	         Check), an
 //	         account's administrator flag, active state, or local-only
 //	         sign-in, Home Assistant's time zone or units (they shift
 //	         history and statistics) or language (every later confirmation
@@ -118,7 +119,6 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 		_, labeled := payload["labels"]
 		_, floored := payload["floor_id"]
 		retargets := labeled || floored
-		_, follows := payload["device_trackers"]
 		_, language := payload["language"]
 		access, clock := false, false
 		for _, key := range []string{"group_ids", "is_active", "local_only"} {
@@ -146,7 +146,9 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 			return tierTyped, "access_shown"
 		case wsType == "config/area_registry/update" && retargets && n.accessArea(payload["area_id"]):
 			return tierTyped, "access_area"
-		case wsType == "person/update" && follows:
+		case wsType == "config/entity_registry/update" && n.trackerFollowed(payload):
+			return tierTyped, "person_follows"
+		case (wsType == "person/create" || wsType == "person/update") && n.personFollows(wsType, payload):
 			return tierTyped, "person_follows"
 		case wsType == "config/auth/update" && access:
 			return tierTyped, "account_access"
@@ -309,6 +311,10 @@ type rawDeviceRow struct {
 // either can't be read (a real empty registry is []) or has a row without
 // its id (a null element decodes to an empty row).
 func (n *rawNamer) registries() (entities []rawEntityRow, devices []rawDeviceRow, ok bool) {
+	if n.s == nil {
+		n.missed = true
+		return nil, nil, false
+	}
 	data, err := rawRead(n.s, "ws", map[string]any{"type": "config/entity_registry/list"})
 	if err == nil {
 		err = json.Unmarshal(data, &entities)
@@ -397,6 +403,10 @@ func numbersByValue(v any) any {
 // energyPrefs reads energy/get_prefs once (numbers kept as written); never
 // configured (not_found) reads as no lists.
 func (n *rawNamer) energyPrefs() (map[string]any, bool) {
+	if n.s == nil {
+		n.missed = true
+		return nil, false
+	}
 	if n.prefsRead {
 		return n.prefs, n.prefsOK
 	}
