@@ -92,6 +92,40 @@ func TestPlanRawHelperUpdateThatDropsNeedsACopyFirst(t *testing.T) {
 	}
 }
 
+// A key whose value is null is still a key: an update that leaves it out of
+// a block's data removes it, and one that sends it as null keeps it.
+func TestPlanRawHelperUpdateKeepsANullDataKey(t *testing.T) {
+	paths, _, change := helperRelay(t, nil)
+	change("schedule", map[string]any{"id": "heating", "name": "Heating", "monday": []any{map[string]any{"from": "06:00:00", "to": "08:00:00", "data": map[string]any{"mode": nil}}}})
+	update := `[{"endpoint":"ws","payload":{"type":"schedule/update","schedule_id":"heating","name":"Heating","monday":[{"from":"06:00:00","to":"08:00:00"%s}]}}]`
+	for data, refused := range map[string]bool{"": true, `,"data":{}`: true, `,"data":{"mode":null}`: false} {
+		exit, env := planRaw(t, paths, fmt.Sprintf(update, data))
+		if refused && (exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Message, "monday 06:00:00-08:00:00 (only its data)")) ||
+			!refused && (exit != verbExitConfirmation || env.Tier != "preview") {
+			t.Errorf("data %q: exit %d %+v", data, exit, env.Error)
+		}
+	}
+}
+
+// A field an update sends as null is shown by the read-back only when the
+// helper holds it as null: a read-back without it gets no checkpoint.
+func TestPlanRawHelperCheckpointNeedsANullFieldShown(t *testing.T) {
+	paths, _, change := helperRelay(t, nil)
+	update := `[{"endpoint":"ws","payload":{"type":"input_select/update","input_select_id":"mode","name":"Mode","icon":"mdi:home","options":["Home","Away","Sleep"]%s}}]`
+	for field, checkpoint := range map[string]bool{"": true, `,"initial":null`: false} {
+		_, env := planRaw(t, paths, fmt.Sprintf(update, field))
+		exit, env := applyRaw(t, paths, env)
+		if exit != 0 || (env.Undo != nil) != checkpoint || !checkpoint && !strings.Contains(fmt.Sprint(env.Notices), "its read-back does not show the update") {
+			t.Errorf("field %q: exit %d undo %+v notices %v", field, exit, env.Undo, env.Notices)
+		}
+	}
+	change("input_select", map[string]any{"id": "mode", "name": "Mode", "icon": "mdi:home", "options": []any{"Home", "Away", "Sleep"}, "initial": nil})
+	_, env := planRaw(t, paths, fmt.Sprintf(update, `,"initial":null`))
+	if exit, env := applyRaw(t, paths, env); exit != 0 || env.Undo == nil {
+		t.Errorf("a null the helper holds: exit %d notices %v", exit, env.Notices)
+	}
+}
+
 // The helper's live item is the plan's basis: one edited in Home Assistant
 // since the preview is drift, and an option added there would be dropped, so
 // the update is refused; either way nothing is sent.

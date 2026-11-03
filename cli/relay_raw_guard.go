@@ -232,6 +232,9 @@ func checkRawWS(message map[string]any) error {
 		}
 		return rawRefusal("WS type "+strconv.Quote(wsType), next)
 	}
+	if refusal := rawURLSecret(wsType, message); refusal != nil {
+		return refusal
+	}
 	switch wsType {
 	case "config/device_registry/remove":
 		if device, _ := message["device_id"].(string); device == "" {
