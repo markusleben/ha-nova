@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -58,7 +59,7 @@ type rawPlanItem struct {
 	more     string     // what completes an everyday line's goal: a device delete, a Supervisor item
 	detail   string     // the request behind an everyday line
 	copy     string     // a config snapshot save: the copy's name (rawSteps)
-	drops    string     // a scene save: the sentence naming the members it removes (sceneNote)
+	drops    string     // a scene save or helper update: the sentence naming what it removes (sceneNote, helperNote)
 }
 
 type rawPlanResult struct {
@@ -176,8 +177,8 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 		if refusal == nil && err == nil && item.Endpoint == "backups" && payload["action"] == "delete" {
 			refusal, err = n.snapshotListed(payload)
 		}
-		if refusal == nil && err == nil && item.Endpoint == "core" {
-			refusal, err = n.sceneKept(items[:i], payload)
+		if refusal == nil && err == nil {
+			refusal, err = n.kept(items[:i], item.Endpoint, payload)
 		}
 		if err != nil {
 			return nil, storedPlan{}, err
@@ -236,7 +237,7 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 		}
 		entry := &result.Items[i]
 		entry.line, entry.goal, entry.more, entry.detail = line.text(lang), line.goal, line.more, line.detail
-		entry.drops = n.sceneNote(lang, payload)
+		entry.drops = cmp.Or(n.sceneNote(lang, payload), n.helperNote(lang, item.Endpoint, payload))
 		entry.Change = upperFirst(entry.line)
 	}
 	env.Result = result
