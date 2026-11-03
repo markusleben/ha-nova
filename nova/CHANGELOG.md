@@ -4,10 +4,18 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
-## [Relay 0.13.14] - 2026-11-03
+## [Relay 0.13.15] - 2026-11-03
 
 ### Fixed
 - HA NOVA refuses a password, key, or other secret it can recognize going into an App's settings: you enter it in the App's Configuration tab in Home Assistant (Settings > Apps). This applies to chat apps with this App and to computers with HA NOVA 0.28.1.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.1 ask you to update this App.
+
+## [Relay 0.13.14] - 2026-11-03
+
+### Fixed
+- Reordering a to-do list goes in a change of reorders only. Together with renaming a list or turning one on, a reorder could skip HA NOVA's check of what listens to the list, such as an automation that unlocks a door when the shopping list changes; HA NOVA now refuses that mix and asks you to make the other changes first. This applies to every HA NOVA caller, chat apps and computers alike.
 
 ### Upgrade notes
 - Computers on HA NOVA 0.28.1 ask you to update this App.

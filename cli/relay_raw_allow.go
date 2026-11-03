@@ -107,7 +107,7 @@ var rawWSAllowed = map[string]string{
 	"calendar/event/create":                   "adds a calendar event (recurring; one-off events go through ha-nova call)",
 	"calendar/event/update":                   "changes a calendar event",
 	"calendar/event/delete":                   "deletes a calendar event",
-	"todo/item/move":                          "reorders a to-do item",
+	"todo/item/move":                          "reorders a to-do item; in a plan only, which checks a shopping list's listeners (relayRawChecks)",
 	"blueprint/save":                          "saves a new blueprint; overriding one in use is refused below",
 	"blueprint/delete":                        "deletes a blueprint (Home Assistant refuses one in use)",
 	"config_entries/disable":                  "disables or enables an integration entry (one with a lock, alarm panel, or access cover is refused)",

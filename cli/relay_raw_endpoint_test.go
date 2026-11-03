@@ -116,6 +116,30 @@ func TestRawRelayRefusesDisablingAccessDevice(t *testing.T) {
 	}
 }
 
+// A direct reorder is refused, as a message of its own or inside a
+// collect_events envelope, on any list: only a plan checks the shopping
+// list's listeners (#928). Another write is still sent.
+func TestRawRelayRefusesDirectTodoMove(t *testing.T) {
+	paths, forwarded, _ := rawGuardRelay(t, func() string { return `[]` }, nil, nil)
+	for _, body := range []string{
+		`{"type":"todo/item/move","entity_id":"todo.shopping_list","uid":"a","previous_uid":"b"}`,
+		`{"type":"todo/item/move","entity_id":"todo.chores","uid":"a"}`,
+		`{"message":{"type":"todo/item/move","entity_id":"todo.shopping_list","uid":"a"},"collect_events":{"max_events":1}}`,
+	} {
+		var exit int
+		stderr := captureStderr(t, func() { exit = runRelayCommand(paths, []string{"ws", "--data", body}) })
+		if exit != verbExitRefused || !strings.Contains(stderr, "nothing was sent") || !strings.Contains(stderr, "ha-nova plan raw") || strings.Contains(stderr, "ha-nova setup") {
+			t.Errorf("%s: exit %d, stderr %q; want a refusal naming the plan", body, exit, stderr)
+		}
+	}
+	if n := forwarded.Load(); n != 0 {
+		t.Fatalf("%d refused moves were forwarded", n)
+	}
+	if exit := runRelayCommand(paths, []string{"ws", "--data", `{"type":"config/label_registry/create","name":"Errands"}`}); exit != 0 || forwarded.Load() != 1 {
+		t.Fatalf("another write: exit %d, forwarded %d; want it sent", exit, forwarded.Load())
+	}
+}
+
 // A caller sending several requests re-runs the check before each send on
 // one session: the registry is read again, so an earlier request that
 // renamed switch.gate to lock.gate cannot carry the removal past it.
