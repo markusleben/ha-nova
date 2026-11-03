@@ -108,6 +108,7 @@ type tierEngine struct {
 	ahead        map[string]bool // what readAhead warmed: entities, and "consumer " + automation
 	aheadActed   int             // entities readAhead warmed (≤ tierMaxActed)
 	aheadConfigs int             // consumer configs readAhead warmed (≤ tierMaxConsumers)
+	lost         []string        // "entity|via|what" of each read the budget cut, but the listener scan's config reads (sealPlan)
 }
 
 func newTierEngine(s *relaySession) *tierEngine {

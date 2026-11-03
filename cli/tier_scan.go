@@ -323,6 +323,9 @@ const readBudgetDetail = "read budget"
 // text, so the plan hash stays deterministic.
 func (e *tierEngine) readFailed(entityID, via, what string) {
 	if e.s.ctx.Err() != nil {
+		if via != viaListenerScan { // the listener scan's config reads never enter the basis
+			e.lost = append(e.lost, entityID+"|"+via+"|"+what)
+		}
 		e.gap(reasonLimitCut, "", "", readBudgetDetail)
 		return
 	}

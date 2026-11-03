@@ -53,7 +53,8 @@ func leaveDraft() map[string]any {
 }
 
 // slowHarness answers every read after latency; hangFirst makes the next n
-// reads of a config hang until their request ends (the read budget).
+// reads of a config hang until their request ends (the read budget); hung
+// takes a core path or "related:" + an entity id too.
 type slowHarness struct {
 	*writeHarness
 	mu   sync.Mutex
@@ -67,6 +68,9 @@ func newSlowHarness(t *testing.T, f *fakeHA, latency, budget time.Duration) *slo
 	paths, log := setupFakeRelay(t, func(r *http.Request, endpoint string, p map[string]any) any {
 		h.mu.Lock()
 		path := fmt.Sprint(p["path"])
+		if p["type"] == "search/related" {
+			path = "related:" + fmt.Sprint(p["item_id"])
+		}
 		n := h.hung[path]
 		if n > 0 {
 			h.hung[path] = n - 1
@@ -148,5 +152,29 @@ func TestABlueprintCutByTheBudgetIsACut(t *testing.T) {
 	f.fail["blueprint/substitute"] = true
 	if codes := reasonCodes(h.planLeave()); !strings.Contains(codes, reasonBlueprint) {
 		t.Fatalf("reasons %s", codes)
+	}
+}
+
+// A recompute the read budget cut can have the preview's hash while it
+// missed a read the preview had: here a lamp's consumers, read as none at
+// the preview, that now unlock a door. That is drift, never the confirmed
+// plan.
+func TestACutRecomputeThatMissedAReadIsDrift(t *testing.T) {
+	w := useWindow(t) // no window may open
+	h := newSlowHarness(t, presenceHome(), 0, 300*time.Millisecond)
+	h.mu.Lock()
+	h.hung["/api/states/light.lamp_10"] = 1
+	h.mu.Unlock()
+	planned := h.planLeave()
+	h.f.mu.Lock()
+	h.f.automation("door", "door", map[string]any{"triggers": []any{map[string]any{"trigger": "state", "entity_id": "light.lamp_03"}}, "actions": []any{step("lock.unlock", "lock.front")}})
+	h.f.related["entity:light.lamp_03"] = []string{"automation.door"}
+	h.f.mu.Unlock()
+	h.mu.Lock()
+	h.hung["/api/states/light.lamp_10"], h.hung["related:light.lamp_03"] = 10, 1 // the recompute misses both
+	h.mu.Unlock()
+	exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID)
+	if exit != verbExitDrift || len(w.messages) != 0 || len(h.writes()) != 0 {
+		t.Fatalf("exit %d windows %d writes %d say %q err %+v", exit, len(w.messages), len(h.writes()), env.Say, env.Error)
 	}
 }
