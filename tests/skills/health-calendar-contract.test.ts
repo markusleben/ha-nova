@@ -238,7 +238,8 @@ describe("health and calendar skill contracts", () => {
     expect(calendar).toContain("this event set is the create baseline");
     expect(calendar).toContain("up to three reads over ten seconds");
     expect(calendar).toContain("never repeat a write automatically");
-    expect(calendar).toContain("delete uses the one-time code");
+    expect(calendar).toContain("`ha-nova plan raw --file <requests.json>` for `calendar/event/delete`");
+    expect(calendar).toContain("the delete plan asks itself");
     expect(calendar).toContain("no HA NOVA revert");
     expect(apiMatrix).toContain("### Calendar event writes");
     expect(apiMatrix).toContain("`calendar/event/update`");

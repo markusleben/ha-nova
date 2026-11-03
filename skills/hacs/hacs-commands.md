@@ -75,6 +75,8 @@ never guessed, reused across sessions, or derived from names.
 
 ## Mutations
 
+Plan-only (each needs the user's own confirmation: one `ha-nova plan raw --file <requests.json>` item `{"endpoint":"ws","payload":<the command>}`, then `ha-nova apply`): `hacs/repositories/remove`, `hacs/repository/download`, and `hacs/repository/remove`. The others go through `ha-nova relay ws`.
+
 - `{"type":"hacs/repositories/add","repository":"<url-or-owner/repo>","category":"<category>"}` —
   registers a custom repository; does NOT download. Refused raw (the user
   adds custom repositories in the HACS UI); kept here for reference. The socket cannot

@@ -44,7 +44,7 @@ schema, fail closed with the HACS-UI pointer.
 ## Relay Contract
 
 File-based relay requests only:
-- `ha-nova relay ws --data-file <payload-file> --out <result-file>` — all
+- `ha-nova relay ws --data-file <payload-file> --out <result-file>` — other
   `hacs/*` commands, the WS-only frontend reads
   `{"type":"lovelace/resources"}` and
   `{"type":"lovelace/config","url_path":<dashboard>}`, and the preflight
@@ -55,9 +55,10 @@ File-based relay requests only:
   `{"type":"search/related","item_type":"entity","item_id":<entity_id>}`
 - `ha-nova relay core --method GET --path <path> --out <result-file>` for HA
   REST reads (config entries, states)
-- `ha-nova relay core --method DELETE --path /api/config/config_entries/entry/<entry_id>`
-  — ONLY for a dependent config-entry deletion inside this skill's
-  uninstall/migration flow, after its own typed confirmation
+- `ha-nova plan raw --file <requests.json>`, then `ha-nova apply`: the writes
+  marked plan-only in `hacs-commands.md`, and ONLY inside this skill's
+  uninstall/migration flow the dependent config-entry DELETE
+  `/api/config/config_entries/entry/<entry_id>`
 - `--jq-file <filter-file>` for non-trivial filters
 
 Envelope parsing follows `../ha-nova/relay-api.md` → Standard Envelope;
@@ -97,8 +98,7 @@ act on a name match alone.
    choosing. The list is DISCOVERY, not the complete chooser — it returns
    only the newest page (~30): a user-named tag/ref outside it can still
    be installed one-off; bind that exact ref in the preview and let the
-   download validate it (a rejected ref fails the mutation loudly, which
-   the read-back confirms). Durable-pin rules (2.0.5 `version_to_download`): on a repository WITH
+   download validate it (a rejected ref fails the mutation loudly). Durable-pin rules (2.0.5 `version_to_download`): on a repository WITH
    releases, any non-null `selected_tag` is honored — older tags outside
    the newest page pin durably (confirm with the post-pin read-back that
    `selected_tag` is still set); pinning the CURRENT latest clears itself
@@ -112,7 +112,7 @@ act on a name match alone.
    absent from `published_tags`, so later downloads fall back to the
    default branch — without the toggle, that install is one-off, named
    as such. A repository with NO releases installs its
-   default branch — first-class, not unsupported: name the branch and
+   default branch: name the branch and
    resolved commit in the preview and verify the installed ref on
    read-back. A user-pinned version (`selected_tag`) is never silently
    replaced by a newer release — say the pin exists and ask; prerelease only
@@ -127,8 +127,9 @@ act on a name match alone.
    restart/reload impact, and — for updates — the release-notes summary
    with breaking changes. Install/update/redownload takes the one-time code
    (third-party code in Home Assistant, a card in every signed-in browser
-   with that user's rights), bound to this exact preview.
-3. Apply: `hacs/repository/download` with the chosen `version` — never
+   with that user's rights): a `plan raw` item whose `say` closes this
+   preview.
+3. Apply (`ha-nova apply`): `hacs/repository/download` with the chosen `version` — never
    version-then-download (a version-less download resolves to LATEST, and
    every download clears the selection; see `hacs-commands.md`). Branch-only
    repositories (`releases` empty, `version_or_commit` = `commit`) are the
@@ -151,7 +152,7 @@ act on a name match alone.
   ambiguous), then hand the user the steps: HACS > ⋮ > Custom repositories,
   paste the URL, pick that category. Afterwards re-list for the canonical
   `full_name` to confirm it appeared; registration downloads nothing.
-- Remove registration: one-time code, and only with exact identity
+- Remove registration: plan-only, and only with exact identity
   plus installation state known — and only when `installed == false`.
   Unregistering an installed repository strands its files (the ID vanishes
   from `list`, so a later uninstall would need re-registration): when it is
@@ -182,7 +183,7 @@ HACS-specific consumer discovery FIRST and shows the result in the preview:
   dashboard configs for the package's custom element references; manual YAML
   dashboards and template consumers are not enumerable — name them as an
   unscanned surface, never claim "no consumers"
-Then the Delete Card with the one-time code. On confirmation
+Then the Delete Card, closed by the plan's `say`. On confirmation
 APPLY the uninstall — `hacs/repository/remove` (deletes the downloaded
 files) — and read back until `installed == false` in the repository info
 (reconcile loop on timeout); only that read-back is success. Dependent
@@ -263,7 +264,7 @@ the operation, the observed state, and the next safe step.
 
 Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. List Frame
 for inventories (counts first, Progressive Detail follow-ups), Preview/Delete
-/Result Cards for mutations (both in `../ha-nova/output-cards.md`), no raw JSON. Keep repository `full_name`,
+/Result Cards for mutations (both in `../ha-nova/output-cards.md`). Keep repository `full_name`,
 versions, categories, and HA state values literal; localize everything else
 at runtime.
 

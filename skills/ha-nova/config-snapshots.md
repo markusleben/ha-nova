@@ -14,7 +14,7 @@ the payload sits under `.data`, errors under `.error`.
 - Save: `{"action":"save","category":"<family>","name":"<slug>","data":<full read-back JSON>}` → `.data.file`, `.data.bytes`, `.data.created_at`
 - Load: `{"action":"load","file":"<category>/<name>-<stamp>.json.gz"}` → the snapshot under `.data.data`, plus `.data.created_at`
 - List: `{"action":"list"}` (optional `"category"`) → `.data[]` newest first (`file`, `category`, `bytes`, `created_at`)
-- Delete: `{"action":"delete","file":...}` — one-time code like any destructive op
+- Delete: `{"action":"delete","file":...}` — only as a `ha-nova plan raw --file <requests.json>` item `{"endpoint":"backups","payload":…}`, then `ha-nova apply`; its `say` asks
 - Prune: `{"action":"prune"}` (defaults: 30 days / 100 files, named snapshots exempt) → `.data.deleted[]`. Offer prune when a save fails `SNAPSHOT_STORE_FULL` or the user asks; preview count + age range of the affected auto-snapshots, natural confirmation (they are expendable copies), `keep_named` stays true unless the user explicitly says otherwise.
 
 ## Batch delete (explicit opt-in)
@@ -32,7 +32,8 @@ the `config-snapshots` resource family through
   recovery limits. Never mix another resource type or a prune action into the
   manifest.
 - Cap the manifest at **20** files. Use deterministic bytewise file-path order
-  and one one-time code for the manifest (`../ha-nova/batch-safety.md`).
+  and one one-time code for the manifest: the deletes are one plan raw
+  (`../ha-nova/batch-safety.md`).
 - Record the dependency result per target as not applicable: deleting a
   snapshot copy cannot change the underlying Home Assistant config. State
   plainly that the deleted copy itself has no rollback.
@@ -40,10 +41,10 @@ the `config-snapshots` resource family through
   every selected file and its listed metadata to still match the manifest.
   Missing or changed target evidence expires the confirmation; a new
   unselected file does not.
-- Execute one `{"action":"delete","file":"<literal-file>"}` request at a
-  time in manifest order. After each response, `list` again and verify that
-  exact file is absent before continuing. On timeout, verify first and never
-  retry blindly. Fail fast and report succeeded, failed, and not attempted.
+- `ha-nova apply` sends one `{"action":"delete","file":"<literal-file>"}` at a
+  time in manifest order, checks that exact file is gone before the next, and
+  stops at the first failure. On timeout, `list` first and never retry
+  blindly. Report succeeded, failed, and not attempted.
 - When an unselected snapshot exists, pin one in the manifest and verify it is
   still present at the end as the unrelated-resource invariant.
 

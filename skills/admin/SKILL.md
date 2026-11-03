@@ -27,15 +27,15 @@ If this fails: `ha-nova setup`
 
 ## Relay Contract
 
-- `ha-nova relay ws --data-file <payload-file>` for every command here
+- `ha-nova relay ws --data-file <payload-file>` for reads and other writes
 - `--out <result-file>` for large listings
-- account edits, general settings, Labs, and analytics: one WS item through `ha-nova plan raw --file <requests.json>`, then `ha-nova apply`
+- deletes, accounts, a person's trackers (created with any, or changed), general settings, Labs, and analytics: one WS item through `ha-nova plan raw --file <requests.json>`, then `ha-nova apply`
 
 ## Flow
 
 1. **Persons**: WS `person/list` -> `person/create` / `person/update` / `person/delete`.
    - a person links `device_trackers` (which follow them) and optionally a `user_id` (their login)
-   - update resends every mutable field (read first, or you drop their trackers), addressed by `person_id` — never put `id` in the body, Home Assistant rejects it. Zone and tag updates work the same way (`zone_id` / `tag_id`).
+   - update resends every mutable field (read first: without `device_trackers` Home Assistant empties them, and relay refuses that), addressed by `person_id` — never put `id` in the body, Home Assistant rejects it. Zone and tag updates work the same way (`zone_id` / `tag_id`).
 2. **Zones**: WS `zone/list` -> `zone/create` / `zone/update` / `zone/delete`.
    - a zone is `name`, `latitude`, `longitude`, `radius` (metres), `icon`, `passive`
    - **Zones are presence infrastructure.** Changing a radius or deleting a zone silently changes when every presence automation fires. Before any zone change, run WS `search/related` with `{"item_type":"entity","item_id":"zone.<id>"}` (there is no `zone` item type) and name the automations that depend on it — as an advisory, in the preview.
@@ -43,7 +43,6 @@ If this fails: `ha-nova setup`
 3. **Tags**: WS `tag/list` -> `tag/create` / `tag/update` / `tag/delete`. A tag's `tag_id` is what the NFC/QR tag physically carries; scanning fires an event automations listen for. Deleting a tag breaks those automations, not the sticker.
 4. **Users**: WS `config/auth/list` shows accounts (`id`, `name`, `username`, `is_owner`, `is_active`, `system_generated`, `group_ids`).
    - create payload: `{"type":"config/auth/create","name":"<display name>","group_ids":["system-users"],"local_only":false}` — `system-admin` in `group_ids` makes the account an administrator, so name that in the preview. The password is set in Settings → People, never here
-   - before any delete: WS `auth/current_user` returns the account this relay's token belongs to — that account is never deletable
    - edit: `{"type":"config/auth/update","user_id":"<id>"}` plus requested fields: `name`, `is_active`, `local_only`, `group_ids` (`["system-admin"]` administrator, `["system-users"]` user). Any access field takes the one-time code; the CLI refuses it for the owner, a system account, and the relay's own account
 5. **General settings**: `get_config` reads them; `config/core/detect` suggests location, units, and currency. Change with `config/core/update` plus requested fields: `location_name`, `latitude`, `longitude`, `elevation`, `radius`, `unit_system` (with `update_units` to convert entities), `time_zone`, `currency`, `country`, `language`, `internal_url`, `external_url`. Time zone, units, and language take the one-time code: history and long-term statistics shift, and units can raise unit mismatches (`ha-nova:maintenance`). The location is the `home` zone: name presence automations (step 2's `search/related` on `zone.home`).
 6. **Labs and analytics**: `labs/list` lists features; `labs/update` with `domain`, `preview_feature`, `enabled` takes the one-time code; a backup first runs through `ha-nova:backup`, never `create_backup`. `analytics` reads what is shared; `analytics/preferences` with `preferences` (only changed keys of `base`, `diagnostics`, `usage`, `statistics`, `snapshots`) is previewed.

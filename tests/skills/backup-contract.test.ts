@@ -46,8 +46,9 @@ describe("backup contract", () => {
     expect(backupSkill).toContain("deletion removes it from ALL listed locations, irreversibly");
     expect(backupSkill).toContain("Never delete the only backup or the newest completed backup — manual or automatic — refuse outright");
     expect(backupSkill).toContain("this skill does not carry a bypass");
-    expect(backupSkill).toContain("Require the one-time code — mint four random digits");
-    expect(backupSkill).toContain("proceed only on a reply that is just the code (spaces ignored)");
+    // The CLI plan asks; the agent mints no code (relay refuses code-tier writes).
+    expect(backupSkill).toContain('One `ha-nova plan raw --file <requests.json>` item `{"endpoint":"ws","payload":{"type":"backup/delete","backup_id":"<id>"}}`; its `say` asks.');
+    expect(backupSkill).not.toContain("mint four random digits");
     // A failing backup location is silent data-loss risk.
     expect(backupSkill).toContain("`agent_errors`");
     expect(backupSkill).toContain("say plainly when automatic backups are NOT configured");

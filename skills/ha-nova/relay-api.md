@@ -260,9 +260,7 @@ Dashboard / Lovelace WS (`create`, `config/save`, `delete` run only through `ha-
 - `lovelace/dashboards/update`
 - `lovelace/config`
 - `lovelace/resources`
-- `lovelace/resources/create`
-- `lovelace/resources/update`
-- `lovelace/resources/delete`
+- `lovelace/resources/create`, `lovelace/resources/update`, `lovelace/resources/delete` (only as `ha-nova plan raw` items, then `ha-nova apply`: each is code that runs in every signed-in browser, or its removal)
 
 Recorder statistics WS:
 - `recorder/statistics_during_period`
@@ -286,6 +284,8 @@ CLI examples:
 ha-nova relay ws --data-file <payload-file>
 ha-nova relay ws --data-file <payload-file> --out <result-file>
 ```
+
+A delete goes only as a `ha-nova plan raw --file <requests.json>` item `{"endpoint":"ws","payload":<the delete>}`, then `ha-nova apply`.
 
 No domain reload needed — storage-based helpers take effect immediately.
 
@@ -358,7 +358,7 @@ Use the live current options step as the update merge base:
 - do not submit read-only fields
 - if the entry exposes no options flow on the running HA version, fail loud as unsupported update
 
-Delete:
+Delete, only as a `ha-nova plan raw --file <requests.json>` item (`"endpoint":"core"`), then `ha-nova apply`:
 
 ```json
 {"method":"DELETE","path":"/api/config/config_entries/entry/{entry_id}"}
@@ -440,7 +440,7 @@ Firing an event and calling a webhook are refused on the raw routes (`cli/relay_
 
 ## Calendar Event Writes
 
-`ha-nova:calendar` creates events with `ha-nova call calendar.create_event calendar.example --skill ha-nova:calendar --set summary=Event --set start_date_time=… --set end_date_time=…` and updates/deletes them through WS:
+`ha-nova:calendar` creates events with `ha-nova call calendar.create_event calendar.example --skill ha-nova:calendar --set summary=Event --set start_date_time=… --set end_date_time=…`, updates them through WS, and deletes them only as a `ha-nova plan raw --file <requests.json>` item `{"endpoint":"ws","payload":<the delete>}`, then `ha-nova apply`:
 
 ```json
 {"type":"calendar/event/update","entity_id":"calendar.example","uid":"<uid>","event":{"summary":"Event","dtstart":"2026-07-15T14:00:00+02:00","dtend":"2026-07-15T15:00:00+02:00"}}

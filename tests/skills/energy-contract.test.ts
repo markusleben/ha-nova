@@ -43,8 +43,11 @@ describe("energy contract", () => {
     expect(energySkill).toContain("With no existing grid source to detect from, pick by HA version");
     // Emptying/replacing a whole list is destructive, not a natural-confirmation edit.
     expect(energySkill).toContain(
-      "a save that empties or wholesale-replaces a list on a configured instance is destructive — one-time code",
+      "a save that empties a list or drops more than one entry on a configured instance is destructive (a wholesale replace: `\"typed\":true`)",
     );
+    // Every save is a plan item: the CLI rates it, and its `say` is the one ask.
+    expect(energySkill).toContain("The save is one `ha-nova plan raw --file <requests.json>` item");
+    expect(energySkill).not.toContain("Then WS `energy/save_prefs`");
     // The plausible wrong payload guess is echoing get_prefs back.
     expect(energyReference).toContain("Never echo the whole `get_prefs` object back as the save body");
     expect(energyReference).toContain('{"type":"energy/save_prefs","device_consumption"');

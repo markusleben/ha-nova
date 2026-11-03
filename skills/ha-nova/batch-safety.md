@@ -67,15 +67,16 @@ targets; anything discovered later belongs to a new manifest.
 ## One-Time Code
 
 One one-time code from HA NOVA per manifest (context skill → Confirmation
-Tiers): four random digits minted when the manifest is shown, typed by the
+Tiers): the manifest's requests, in manifest order, are one
+`ha-nova plan raw --file <requests.json>` whose `say` asks; follow its
+`next_step`. Never mint a code yourself; a code is typed by the
 user, never a menu (context skill → Interactive Choices). Never reuse an
-earlier code or take digits from the manifest or Home Assistant data. The code
-belongs to that exact manifest — target set, payloads, and order; the
-behavioral rule below is the real gate.
+earlier code or take digits from the manifest or Home Assistant data. The plan
+belongs to that exact manifest — target set, payloads, and order.
 
 Any change to a target, payload, endpoint, scope, dependency result, or
 execution order expires the confirmation; show a new preview with a new
-manifest and a new code.
+manifest and a new plan.
 
 User-facing wording follows `../ha-nova/output-rules.md` → Localization:
 the code is called the "one-time code from HA NOVA" (localized), never a "token".
@@ -87,13 +88,19 @@ separate manifests, each with its own preview and one-time code:
 
 - config-item families (automations, scripts, helpers, scenes,
   resources, cards within one dashboard, to-do lists, registry
-  categories/labels/areas/floors, config snapshot blobs): **20**
+  categories/labels/areas/floors, config snapshot blobs) and orphan
+  registry entries per config entry: **20**
 - evidence-derived cleanup families (retained discovery topics, orphaned
-  statistics IDs, orphan registry entries per config entry): **100**
+  statistics IDs): **100**
+
+A manifest's raw requests are one plan raw of at most 20 requests, config
+snapshot saves included (a snapshot per target: 10 targets); one
+`recorder/clear_statistics` carries a whole group's IDs.
 
 ## Execution
 
-- Sequential, in manifest order, unless the owning API provides a proven
+- Sequential, in manifest order (`ha-nova apply` sends the plan's items so and
+  stops at the first that fails), unless the owning API provides a proven
   single-call batch endpoint (e.g. `recorder/clear_statistics` for one issue
   group) — then the completion ledger derives from per-target verification
   after that call. Never claim the batch is atomic.
@@ -129,7 +136,8 @@ separate manifests, each with its own preview and one-time code:
 Same rules as `../ha-nova/output-cards.md` → Cards (fixed emoji
 vocabulary, two spaces after 🗑️/⚠️, labels localized at runtime).
 
-**Batch Delete Card** (the code prompt is always the last line). The line
+**Batch Delete Card** (the code prompt is always the last line, and only
+the plan's `say` brings one). The line
 after the 🗑️ title states in plain language what the workset does today and
 that this stops on delete — a bare count plus manifest path is not a preview:
 

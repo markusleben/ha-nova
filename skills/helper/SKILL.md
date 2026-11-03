@@ -38,11 +38,12 @@ Write payloads with the client's native file-writing tool, then use:
 - `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>`
 - `ha-nova relay ... --out <result-file>` for larger read/verify output
 - `--jq-file <filter-file>` for non-trivial filters; keep inline `--jq` for short selectors only
+- deletes: `ha-nova plan raw`, then `ha-nova apply`
 
 Family-specific transport:
 
 - **Storage-based family:** WS CRUD + WS list
-- **Config-entry family:** WS `config_entries/get` + WS entity-registry joins for list/read; relay `/core` config-entry flow, options-flow, and delete writes
+- **Config-entry family:** WS `config_entries/get` + WS entity-registry joins for list/read; relay `/core` config-entry flow and options-flow writes
 
 ## Flow
 
@@ -149,14 +150,10 @@ While `truncated` is true the list proves neither absence nor uniqueness — nar
    - name
    - type
    - entity_id only when the name is missing or shared
-3. One-time code (strict: only the exact code accepted; see context skill → Safety Baseline).
-4. Capture the auto config snapshot of the current list item first (`../ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop). Say in the result that a recreate from it mints a new entity_id.
-5. Execute:
-   ```text
-   ha-nova relay ws --data-file <payload-file>
-   ```
-6. Verify absence from `{type}/list`.
-7. Run storage-family post-write review (see below).
+3. Capture the auto config snapshot of the current list item first, as the leading `backups` save (`../ha-nova/config-snapshots.md`) of one `ha-nova plan raw --file <requests.json>`, then `{"endpoint":"ws","payload":{"type":"{type}/delete","{type}_id":"<id>"}}`; its `say` asks. Say in the result that a recreate from it mints a new entity_id.
+4. `ha-nova apply` per its `next_step`.
+5. Verify absence from `{type}/list`.
+6. Run storage-family post-write review (see below).
 
 ### Family 2: Config-entry helpers
 
@@ -376,11 +373,8 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - if linked entities are known, run `search/related` against up to 3 linked entities before confirmation
    - summarize any related automations/scripts in the preview
    - if linked entities are unknown, say that dependency check coverage is limited
-5. One-time code (strict exact-code rule). This still applies to cleanup and helpers created earlier in the same session. Multi-helper deletes within ONE family follow `../ha-nova/batch-safety.md`; storage and config-entry families never mix. Deleting a helper together with its consumers (cross-family) — and removing a retired device's entities FROM a config-entry group helper as one item of such a cleanup — follows `../ha-nova/grouped-change-set.md` → Cross-Family Destructive Cleanup: one manifest, one code; the group-member removal keeps this skill's normal update preview and drift check inside the manifest.
-6. Execute:
-   ```text
-   ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entry_id}
-   ```
+5. One `ha-nova plan raw --file <requests.json>` item `{"endpoint":"core","payload":{"method":"DELETE","path":"/api/config/config_entries/entry/{entry_id}"}}`; its `say` asks. This still applies to cleanup and helpers created earlier in the same session. Multi-helper deletes within ONE family follow `../ha-nova/batch-safety.md`; storage and config-entry families never mix. Deleting a helper together with its consumers (cross-family) — and removing a retired device's entities FROM a config-entry group helper as one item of such a cleanup — follows `../ha-nova/grouped-change-set.md` → Cross-Family Destructive Cleanup: one manifest, one code; the group-member removal keeps this skill's normal update preview and drift check inside the manifest.
+6. `ha-nova apply` per its `next_step`.
 7. Verify success at the config-entry layer first:
    - re-read `config_entries/get`
    - `passed=true` only when the `entry_id` is absent

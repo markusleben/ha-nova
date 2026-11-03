@@ -37,7 +37,7 @@ If this fails: `ha-nova setup`
 
 ## Relay Contract
 
-Use file-based WS requests only: `ha-nova relay ws --data-file <payload-file>`, plus `--out <result-file>` for large results.
+File-based WS requests only: `ha-nova relay ws --data-file <payload-file>`, `--out <result-file>` for large results; a delete or an entity, device, or area update only as a `ha-nova plan raw --file <requests.json>` item, then `ha-nova apply`.
 
 Registry commands owned here:
 - `config/area_registry/list|create|update|delete`
@@ -57,7 +57,7 @@ Registry commands owned here:
    - devices: use `config/device_registry/list` and match by current name or linked entities
 2. If multiple candidates remain, ask one blocking question.
 3. For create/update:
-   - preview exactly the fields of the smallest valid payload; confirm that preview first
+   - preview exactly the fields of the smallest valid payload; confirm it (plan items: by their `say`)
    - rich metadata owned here:
      - area: `name`, `floor_id`, `icon`, `picture`, `aliases`, `labels`, temperature/humidity sensor
      - floor: `name`, `level`, `icon`, `aliases`
@@ -77,7 +77,7 @@ Registry commands owned here:
    - areas/floors: show linked areas or assignments that will lose placement; run WS `search/related` with the matching item type and name automations/scripts/scenes that target it — the delete leaves those targets dangling
    - labels: run WS `search/related` (`item_type: "label"`) and name the automations/scripts that reference the label
    - categories: show affected entity count and examples
-   - require the one-time code
+   - its plan's `say` asks
    - same-family batch deletes follow `../ha-nova/batch-safety.md`, only when related-item impact is complete for every target
 5. Execute exactly one mutation (or the confirmed batch manifest or grouped change set per `../ha-nova/grouped-change-set.md`, sequentially).
 6. Read back and verify the requested fields:
@@ -92,20 +92,20 @@ For a SET selected by prefix, domain, area, or label, save before previewing, an
 
 ## Entity / Device Update Fields
 
-Use only exposed metadata fields:
+Exposed metadata fields only:
 - entity: `name`, `new_entity_id`, `area_id`, `labels`, `categories`, `disabled_by`, `hidden_by`, `aliases`, `icon`, `device_class`, `options_domain`+`options`
 - `icon`, `device_class`, `options`, and area labels or sensors: read `display-fields.md` first
 - device: `name_by_user`, `area_id`, `labels`, `disabled_by`
 
 Refused here: disabling or enabling a lock, alarm panel, or cover; a device with a lock, alarm panel, or access cover, or a child device with one (disabled with it); or a switch whose device has a `switch_as_x` one (registry `platform: switch_as_x`). Say so before any preview; point at **Settings > Devices & services**.
 
-Re-ENABLING a registry-disabled item depends on WHO disabled it (`disabled_by`): `"user"` or `"integration"` (disabled by default) → the write `{"disabled_by": null}` on the entity record; `"device"` → the entity follows its parent — re-enable the DEVICE record (`{"disabled_by": null}` on the device registry entry, same preview/consumer rules as a device-level disable), never the entity alone; `"config_entry"` (the integration is disabled) → enable the integration itself (`ha-nova:integration-setup`), never the entity. Previewed and confirmed; then read the response: `require_restart: true` → it appears after a restart; `reload_delay: <seconds>` → after ~that delay; never actuate the freshly enabled entity from this skill.
+Re-ENABLING a registry-disabled item depends on WHO disabled it (`disabled_by`): `"user"` or `"integration"` (disabled by default) → the write `{"disabled_by": null}` on the entity record; `"device"` → the entity follows its parent — re-enable the DEVICE record (`{"disabled_by": null}` on the device registry entry, same preview/consumer rules as a device-level disable), never the entity alone; `"config_entry"` (the integration is disabled) → enable the integration itself (`ha-nova:integration-setup`), never the entity. Then read the response: `require_restart: true` → it appears after a restart; `reload_delay: <seconds>` → after ~that delay; never actuate the freshly enabled entity from this skill.
 
 `new_entity_id` and `disabled_by` are NOT low-risk metadata: a rename or disable breaks every automation, scene, script, dashboard, and template that references the entity. Before either, run WS `search/related` on the entity — for a DEVICE-level `disabled_by`, expand the device to its entities first (entity registry by `device_id`, child devices' too) and run `search/related` per entity, because the device relation itself does not collect the child entities' consumers — and name the union of consumers in the preview — and say plainly that it covers automations, scripts, groups, persons, and scenes only: template references and dashboards (storage AND YAML mode) are NOT indexed (`ha-nova get <entity_id> --references` also reads templates and dashboards). After a rename, offer to update the found consumers through their owning skills. Before either write, capture the auto config snapshot of the record actually being mutated — the entity's registry fields for a rename/entity disable, the DEVICE registry record for a device-level `disabled_by` (category `metadata`, `../ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop). For a RENAME, store the target `new_entity_id` with the old record: restore finds it under the new id and renames it back; otherwise restore writes the fields back in place.
 
 ## Delete a Device
 
-HA 2026.9+ (`get_config`; older: **Settings > Devices & services**); the owning entry (`config_entries/get`) needs `supports_remove_device: true`. Refused as for a device disable; also HA NOVA's App. Preview the device, child devices (`parent_device_id`), their entities (same entry and subentry: deleted; others: unlinked), and consumers: `search/related` per device and entity. One `ha-nova plan raw --file <requests.json>`: a `backups` save (`metadata`, `../ha-nova/config-snapshots.md`: full device and entity registry rows), then `{"type":"config/device_registry/remove","device_id":"<id>"}`; `ha-nova apply` per its `next_step`. Unsupported or refused: offer the HA UI or removing its integration entry (`ha-nova:fallback`, own preview: all its devices go). No undo (the copy is a record only); offer `ha-nova:backup` first. Verify it is gone.
+HA 2026.9+ (`get_config`; older: **Settings > Devices & services**); the owning entry (`config_entries/get`) needs `supports_remove_device: true`. Refused as for a device disable; also HA NOVA's App. Preview the device, child devices (`parent_device_id`), their entities (same entry and subentry: deleted; others: unlinked), and consumers: `search/related` per device and entity. One `ha-nova plan raw --file <requests.json>`: a `backups` save (`metadata`, `../ha-nova/config-snapshots.md`: full device and entity registry rows), then `{"endpoint":"ws","payload":{"type":"config/device_registry/remove","device_id":"<id>"}}`; `ha-nova apply` per its `next_step`. Unsupported or refused: offer the HA UI or removing its integration entry (`ha-nova:fallback`, own preview: all its devices go). No undo (the copy is a record only); offer `ha-nova:backup` first. Verify it is gone.
 
 ## Output Format
 
@@ -142,8 +142,7 @@ Metadata reads render the Report shape; registry inventories render the List Fra
 
 ## Guardrails
 
-- One resource at a time — except a confirmed batch manifest per `../ha-nova/batch-safety.md` (its one manifest code replaces the single-target codes for that batch), a non-destructive grouped change set (max 10 registry updates), or this skill's items inside a cross-family destructive cleanup manifest — both per `../ha-nova/grouped-change-set.md`.
+- One resource at a time — except a confirmed batch manifest per `../ha-nova/batch-safety.md` (its one plan's ask replaces the single-target asks), a non-destructive grouped change set (max 10 registry updates), or this skill's items inside a cross-family destructive cleanup manifest — both per `../ha-nova/grouped-change-set.md`.
 - One category scope at a time.
 - Metadata updates only; no destructive registry admin beyond area/floor/label/category and device delete.
-- Verify the changed field values, not just the WS success response.
 - If a delete impact preview is incomplete, say so explicitly before asking for confirmation.

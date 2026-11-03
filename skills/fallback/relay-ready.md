@@ -154,7 +154,9 @@ exact phrase
 through `ha-nova:assist` (`ha-nova call conversation.process --skill ha-nova:assist --response`): a sentence file
 that parses is not a sentence Assist matched. If the phrase does not match, or
 a previously working phrase stops matching, restore immediately — write the
-`.bak` back (or `delete_file` the new file), reload again, and re-test one
+`.bak` back (or delete the new file: a `ha-nova plan raw` item
+`{"endpoint":"files","payload":{"action":"delete_file","path":<it>}}`, then
+`ha-nova apply`; its plan asks), reload again, and re-test one
 known-good phrase before reporting. Leaving the reload in place is what turns
 one bad file into an outage of every custom sentence.
 
