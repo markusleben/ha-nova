@@ -104,6 +104,7 @@ type tierEngine struct {
 	draft        bool                   // a config draft: it runs later, so plan-time state proves nothing
 	services     map[string]serviceSpec // /api/services by "domain.service"; nil when unreadable
 	servicesRead bool
+	ownApp       *tierReason // the first step that would stop the App HA NOVA runs in (latchOwnApp)
 }
 
 func newTierEngine(s *relaySession) *tierEngine {
@@ -249,6 +250,7 @@ func (e *tierEngine) visit(id, service string, data map[string]any, depth int, v
 		return
 	}
 	e.visited[key] = true
+	e.switchOff(id, service, via) // before the cut: the registry alone tells the App's switch
 	if e.cut(depth, id, via) {
 		return
 	}

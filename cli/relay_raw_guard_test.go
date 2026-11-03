@@ -146,6 +146,7 @@ func TestRawRelayRefusesCallServiceSubscriptions(t *testing.T) {
 		rawRefused(t, "ws", `{"message":{"type":"subscribe_trigger","trigger":{"platform":"event","event_type":"`+event+`"}},"collect_events":{}}`)
 	}
 	rawRefused(t, "ws", `{"message":{"type":"subscribe_trigger","trigger":{"platform":"event","event_type":"{{ 'mobile_app_' ~ 'x' }}"}},"collect_events":{}}`)
+	rawRefused(t, "ws", `{"message":{"type":"subscribe_trigger","trigger":{"platform":"event","event_type":"call_ser{##}vice"}},"collect_events":{}}`)
 	rawRefused(t, "ws", `{"type":"cloud/status"}`)
 	rawRefused(t, "ws", `{"message":{"type":"mobile_app/push_notification_channel","webhook_id":"x"},"collect_events":{}}`)
 	rawRefused(t, "ws", `{"type":"webhook/list"}`)

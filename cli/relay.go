@@ -366,7 +366,11 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		printErr("%s", err)
 		return 1
 	}
-	requestBody, refusal, err := guardRawRequest(paths, verbOptions{server: opts.Server, serverSet: opts.ServerSet, via: opts.Via, viaSet: opts.ViaSet}, endpoint, requestBody)
+	target := verbOptions{server: opts.Server, serverSet: opts.ServerSet, via: opts.Via, viaSet: opts.ViaSet}
+	requestBody, refusal, err := guardRawRequest(paths, target, endpoint, requestBody)
+	if refusal == nil && err == nil {
+		refusal, err = relaySceneKept(paths, target, endpoint, requestBody)
+	}
 	if refusal != nil {
 		printErr("%s", refusal)
 		return rawRefusedExit // not 1: an agent must not read a refusal as "run ha-nova setup"

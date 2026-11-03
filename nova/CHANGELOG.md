@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.12] - 2026-11-03
+
+### Fixed
+- Saving a scene no longer drops its other lights and devices when the AI sends only the new one. A save that removes some is refused unless HA NOVA saves a copy of the scene first, the preview names what leaves the scene, and a scene changed in Home Assistant since the preview is never saved over. This applies to every HA NOVA caller, chat apps and computers alike.
+- HA NOVA can't stop or restart the NOVA Relay App itself, directly or through a scene, script, or automation, which would cut it off in the middle of a request. This applies to every HA NOVA caller, chat apps and computers alike. Starting and updating the App still work.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.0 ask you to update this App.
+
 ## [Relay 0.13.11] - 2026-11-03
 
 ### Fixed

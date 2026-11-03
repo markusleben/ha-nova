@@ -14,8 +14,9 @@ import (
 // not go through. Every response is redacted like `relay`'s. Leading
 // backups saves are the config snapshot (skills/ha-nova/config-snapshots.md):
 // when one fails, nothing else is sent and the plan stays valid for
-// --no-snapshot. A helper update gets its update-revert checkpoint from a
-// read before and after (skills/ha-nova/update-revert.md → Manual capture).
+// --no-snapshot, unless a scene save needs the copy (sceneCopyNeeded). A
+// helper update gets its update-revert checkpoint from a read before and
+// after (skills/ha-nova/update-revert.md → Manual capture).
 
 // rawItemOutcome is one item after apply: done (Home Assistant accepted
 // it), rejected (it refused), unknown (it may have run), refused (the guard
@@ -38,7 +39,7 @@ type rawApplyResult struct {
 var rawHelperCollections = []string{"input_boolean", "input_number", "input_text", "input_select", "input_datetime",
 	"input_button", "counter", "timer", "schedule"}
 
-func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []rawRequest, noSnapshot bool) (err error) {
+func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []rawRequest, basis map[string]any, noSnapshot bool) (err error) {
 	sent := false
 	defer afterSend(&sent, env, &err)
 	result, copies := rawApplyResult{}, len(rawCopies(items)) // steps are numbered and counted after the copies, as the preview says them
@@ -59,6 +60,10 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 			message: fmt.Sprintf("step %d's helper could not be read before its change, so no undo could be saved; nothing was sent and the plan stays valid", step(i)),
 			next:    "Tell the user the change could not be made undoable. Only if they want it anyway: apply again with --no-snapshot (no config copy, no undo)."}
 	}
+	if noSnapshot && sceneCopyNeeded(s, items) {
+		return &verbFailure{exit: verbExitRefused, code: "NO_SNAPSHOT_NOT_OFFERED", cause: errSnapshotFailed, next: sceneCopyNext,
+			message: "a scene save in this plan removes members, so it needs the copy saved first; nothing was sent and the plan stays valid"}
+	}
 	for i, item := range items { // every helper's undo before anything is sent
 		payload, _ := decodeObject(item.Payload)
 		if collection, id := rawHelperUpdate(item.Endpoint, payload); !noSnapshot && collection != "" && rawHelperItem(s, collection, id) == nil {
@@ -76,6 +81,9 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		}
 		s.renewBudget() // 20 items may outlast one budget
 		body, refusal, gerr := guardRawRequestIn(s, item.Endpoint, item.Payload)
+		if refusal == nil && gerr == nil && item.Endpoint == "core" {
+			refusal, gerr = sceneUnchanged(s, payload, basis)
+		}
 		switch {
 		case refusal != nil && !sent:
 			return &verbFailure{exit: verbExitRefused, code: "REFUSED", message: fmt.Sprintf("item %d: %s", i+1, refusal.Error()),
@@ -103,10 +111,13 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		data, werr := s.sendWrite(item.Endpoint, body)
 		status, why := rawSent(item.Endpoint, body, data, werr)
 		if status != "done" && snapshot {
-			return &verbFailure{exit: verbExitError, code: "SNAPSHOT_FAILED",
-				message: fmt.Sprintf("no config snapshot could be saved (%s); nothing else was sent and the plan stays valid", why),
-				next:    "Tell the user there is no copy. They choose: prune the snapshot store, take a full backup (ha-nova:backup), or go on without a copy: then apply again with --no-snapshot.",
-				cause:   errSnapshotFailed}
+			next := "Tell the user there is no copy. They choose: prune the snapshot store, take a full backup (ha-nova:backup), or go on without a copy: then apply again with --no-snapshot."
+			code := "SNAPSHOT_FAILED"
+			if sceneCopyNeeded(s, items) {
+				code, next = "SNAPSHOT_REQUIRED", sceneCopyNext
+			}
+			return &verbFailure{exit: verbExitError, code: code, next: next, cause: errSnapshotFailed,
+				message: fmt.Sprintf("no config snapshot could be saved (%s); nothing else was sent and the plan stays valid", why)}
 		}
 		if status == "done" && item.Endpoint == "backups" && payload["action"] == "delete" {
 			status, why = rawSnapshotGone(s, payload)

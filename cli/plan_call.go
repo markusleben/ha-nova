@@ -238,6 +238,8 @@ func staticRefusal(req planCallRequest) *tierReason {
 	switch {
 	case ownerSkill(req.Service) != "" && req.Skill != ownerSkill(req.Service):
 		return &tierReason{Code: reasonOwnedService, Skill: ownerSkill(req.Service)}
+	case domain == "hassio" && (name == "addon_stop" || name == "addon_restart") && novaAppSlug(jsonText(req.Data["addon"])):
+		return &tierReason{Code: reasonHassio, Detail: novaAppStop}
 	case domain == "hassio":
 		// Only the five App/host-control services run through `ha-nova call`,
 		// and only from service-call (raw-routes.md → App And Host Control).
@@ -262,6 +264,10 @@ func refuse(env *verbEnvelope, r tierReason) *verbFailure {
 	switch {
 	case r.Code == reasonResponseOnly:
 		next = "Call it again with --response to get its data."
+	case r.Code == reasonHassio && r.Detail == novaAppUnread:
+		next = "Tell the user nothing was sent: HA NOVA couldn't tell from Home Assistant's registry whether this step stops the NOVA App it runs in (through its switch, or a light or fan showing that switch). If the registry was busy, they can try again in a moment; otherwise they can do it in Home Assistant."
+	case r.Code == reasonHassio && r.Skill == "": // HA NOVA's own App (novaAppStop)
+		next = "Tell the user HA NOVA doesn't stop or restart its own App: it would lose its way into Home Assistant mid-call. They can do it in Home Assistant under Settings > Apps."
 	case ownedCall(r):
 		next = "Load " + r.Skill + " first and follow it; it says when to call again with --skill " + r.Skill + "."
 	case r.Skill != "":
@@ -474,5 +480,5 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 		e.scanConsumers(group, 0, stateDelta{})
 	}
 	e.checkManagers()
-	return nil
+	return e.ownApp // a step anywhere above would stop HA NOVA's own App (latchOwnApp)
 }

@@ -453,11 +453,11 @@ func rawSnapshotList(s *relaySession) (json.RawMessage, error) {
 
 // basis: the energy lists a save replaces, so a source another client added
 // since the preview is drift, never silently dropped (skills/energy →
-// Config edit), the listed entry of every config copy a delete names, and
-// what each device delete removes (its devices and entities: one more since
-// the preview is drift), and every config a listener walk read
-// (rawShoppingList), as a call binds its consumers' (I3); nil when the plan
-// holds none.
+// Config edit), the listed entry of every config copy a delete names, what
+// each device delete removes (its devices and entities: one more since the
+// preview is drift), each scene a save replaces (sceneKept), and every
+// config a listener walk read (rawShoppingList), as a call binds its
+// consumers' (I3); nil when the plan holds none.
 func (n *rawNamer) basis() map[string]any {
 	basis := map[string]any{}
 	switch {
@@ -472,6 +472,9 @@ func (n *rawNamer) basis() map[string]any {
 	}
 	if n.removing != nil {
 		basis["devices"] = n.removing
+	}
+	if n.scenes != nil {
+		basis["scenes"] = n.scenes
 	}
 	if len(n.e.basis) > 0 {
 		basis["configs"] = n.e.basis
