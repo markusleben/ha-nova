@@ -91,7 +91,8 @@ func stillConfirmed(stored, fresh storedPlan) bool {
 // cut short ran into (a 30 s budget over a slow link, a timed-out read) is
 // still the confirmed plan. It needs a preview that was cut short and said
 // so, a plan file whose fields still make its hash, the same action, tier,
-// and basis (before values, acted entities, every config the walk read),
+// and basis (before values, acted entities, every config the walk read,
+// every read the budget cut),
 // and no reason the preview did not show. Timing-made gaps (the budget cut,
 // the listener scan's per-automation gaps) count as the one sentence they
 // all say; a failed read in the walk keeps its own entity. The listener
