@@ -195,13 +195,8 @@ describe("Windows desktop validation helpers contract", () => {
     expect(windowsPublic).toContain("ready_clients");
     expect(windowsPublic).toContain("expected_public_result");
     expect(windowsPublic).toContain("local_install_completed");
-    expect(windowsPublic).toContain("client_prerequisite_guidance_displayed");
-    expect(windowsPublic).toContain(
-      "No supported AI client is ready on this machine yet.",
-    );
-    expect(windowsPublic).toContain(
-      "Install one supported client first, then rerun: ha-nova setup",
-    );
+    expect(windowsPublic).not.toContain("client_prerequisite_guidance_displayed");
+    expect(windowsPublic).not.toContain("No supported AI client");
     expect(windowsPublic).toContain(
       "Invoke-Expression (Get-Content -LiteralPath $InstallScript -Raw)",
     );
