@@ -129,7 +129,7 @@ func finishApply(paths runtimePaths, req applyRequest, env verbEnvelope, exit in
 			env.Plan.Channel = humanWhere // where the human confirmed; a drift's plan stays a new ask
 		}
 	}
-	defer func() { humanAnswer, humanWhere = "", "" }()
+	defer func() { humanAnswer, humanWhere, askedRoute = "", "", nil }()
 	if !printVerbEnvelope(env) {
 		return verbExitError
 	}
@@ -156,7 +156,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(refused("SERVER_MISMATCH", fmt.Sprintf("plan %s belongs to server %q, not %q", id, peek.Server, opts.server)))
 	}
 	opts.server, opts.serverSet = peek.Server, true
-	s, err := newRelaySession(paths, opts)
+	s, err := newApplySession(paths, opts, id)
 	if err != nil {
 		return fail(err)
 	}
@@ -260,6 +260,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			if consumed = os.Rename(claimed, open) != nil; consumed {
 				failure.next = "Nothing was sent, so retrying is safe: " + replan
 			}
+			confirmedNotSent(failure, id, !consumed)
 		}
 		return err
 	}

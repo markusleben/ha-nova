@@ -72,9 +72,7 @@ This narrows the 2026-07-25 non-goal "No automatic retry after a functional requ
 
 - `nova/` and the chat bridge: the bridge runs inside the App and reaches Home Assistant through its own local connection, never through Link.
 - `hooks/session-start` keeps `--connect-timeout 0.5 --max-time 2`. A cold Link login needs more than 2 s, so with the local Relay unreachable the hook can still warn. Follow-up.
-- Each process still logs in to Link once per session, so apply's two sessions log in twice. Follow-up: reuse the verified session inside one process (the 2026-07-25 spec allows that).
-- A late Confirm over Link: apply chooses its route again after the window (90 s CLI, 40 s MCP), so a tap near the end plus a slow login and a slow verify can pass the host's limit (120 s, 60 s). The write is still sent once and verified; the agent may miss the result. Follow-up: hand the asking session's route to apply.
-- When apply's session fails after the human confirmed, the agent gets a plain `RELAY_ERROR` (nothing was sent; the plan is not claimed). Follow-up: a `next` that says so.
+- Each session logs in to Link on its own, except apply after a window or phone Confirm (Follow-up below).
 - Doctor and setup's device check also use a remembered route for up to two minutes.
 - Through an HTTPS proxy the TLS handshake keeps a fixed 5 s (`--max-time` still bounds it). Setup and cleanup calls to Link get the same 5 s connect limit.
 
@@ -88,3 +86,32 @@ This narrows the 2026-07-25 non-goal "No automatic retry after a functional requ
 - A write whose request was sent is never retried. A write whose connection never opened is sent once. A session read goes once more only without an answer from the Relay; a local read never.
 - A refused WebSocket upgrade is not retried; a 504 from Link counts as no answer; the WebSocket closes without waiting for a silent peer; uninstall lists the route file.
 - Guards that pass on base too: a security failure, a shortened probe, or a probe that connected remembers nothing; the caller's own deadline keeps the route; cleanup still uses a healthy local Relay; a rejected grant is final.
+
+## Follow-up: a Confirm hands its route to apply
+
+Date: 2026-11-03. Target: 0.28.1, follow-up to #944. Owner: `cli/confirm_handoff.go`, `cli/confirm_window.go`, `cli/verb_apply.go`.
+
+### Hand-off
+
+- After a Confirm in the window, on the phone, or in the window while the phone asks too (CLI and `ha-nova mcp`), apply takes over the ask's Link route: no second route choice, no local preflight, no second login. Apply opens its own session on that route, with its own 30 s budget and an empty read cache, so its re-plan reads everything again.
+- Only in the same process, only once, only for the plan's server, and only when the configuration apply loads is identical to the one the ask logged in with (profile, Relay instance, route policy, Link generation and state, addresses). Otherwise, and always on the local route (it has no login to save), apply chooses its route as before.
+- No identity check is skipped: the ask's login checked the Relay instance and the Home Assistant user moments before, for this configuration. The device credential is the one the confirmation code was derived from.
+- The Supervisor keeps an Ingress session for 15 minutes after its last use. If it is gone anyway, Link answers 401 before the Relay, the first re-plan read fails, nothing is sent, and the answer below applies.
+- The window's or phone's wait (90 s CLI, 40 s MCP) counts from the start of the ask, so the ask's own login and re-plan are part of it; it never drops below the 15 s an ask needs. After the answer, only apply's re-plan reads, the one write, and its verify remain.
+
+### Failure after a human confirmed
+
+- A failure that sent nothing after a Confirm in a window, on the phone, or in a form answers `CONFIRMED_NOT_SENT` (exit 1) instead of `RELAY_ERROR`: apply's session could not open, or a read or the write failed before reaching Home Assistant (the `errNothingSent` failures). Its `next`: nothing changed; read the target once with `ha-nova get`; never apply again unprompted; only after the user says they still want it, apply again (it asks them again), or plan again when the plan could not be kept.
+- A failure after the write may have reached Home Assistant stays `OUTCOME_UNKNOWN` (exit 7: verify, never retry). Every other code, `say`, and the phone's result texts are unchanged. A code typed in chat keeps `RELAY_ERROR`: retrying is safe there, and nobody is asked again.
+
+### Known limits
+
+- The host's limit holds for Link's share: apply's own reads, its write (30 s), and its verify keep their own bounds, as on the local route.
+- After an MCP form, apply still chooses its route: the form can wait up to 5 minutes, and its credential read is a session of its own.
+
+### Tests (each fails on fc7896f5)
+
+- Window, phone, and both: a Confirm over Link costs one route choice (the ask's), not two.
+- The window's wait shrinks by the time the ask's login took.
+- Confirmed, then a read fails or apply's session cannot open: `CONFIRMED_NOT_SENT`, nothing sent, the plan kept, and a `next` that reads before anything else.
+- Guards that pass on base too: a local route, or a configuration changed while the window was open, is chosen again; a write with an unknown outcome stays `OUTCOME_UNKNOWN`.

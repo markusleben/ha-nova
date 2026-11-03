@@ -324,7 +324,7 @@ func (srv *mcpServer) runLocked(name, answered string, forms bool, run func() in
 		windowWait = chatAskSpan // the phone ask outlives one call (mcp_serve_phone.go)
 	}
 	defer func() {
-		planChannel, humanAnswer, humanWhere, windowWait, formsShown, phoneApplied, chatCall = "", "", "", cliWindowWait, false, nil, nil
+		planChannel, humanAnswer, humanWhere, askedRoute, windowWait, formsShown, phoneApplied, chatCall = "", "", "", nil, cliWindowWait, false, nil, nil
 	}()
 	traceRelayVersion.Store("")
 	out, errOut, exit := captureVerb(run)
