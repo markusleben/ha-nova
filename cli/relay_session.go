@@ -290,6 +290,14 @@ func (s *relaySession) sendIn(parent context.Context, endpoint string, body []by
 		return nil, err
 	}
 	resp, err := s.transport.Client.Do(req)
+	// R4: every caller reads (writes take sendWrite), so a read that got no
+	// answer from the Relay over Link goes once more inside its own deadline.
+	if err != nil && s.transport.Via == relayViaCloud && linkNoRelayAnswer(err) && linkRetryWait(ctx, linkRequestRetryMinLeft) {
+		if req, err = newRelayRequest(ctx, s.transport, endpoint, body); err != nil {
+			return nil, err
+		}
+		resp, err = s.transport.Client.Do(req)
+	}
 	if err != nil {
 		err = sendTransportError(s, endpoint, err)
 		s.mu.Lock()

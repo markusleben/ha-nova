@@ -418,7 +418,7 @@ func (a *phoneAsking) finish() (env verbEnvelope, exit int, asked bool) {
 		case !still:
 			return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the phone that confirmed is no longer the linked phone, or its user may no longer confirm changes", phoneMissingStep())
 		}
-		humanAnswer, humanWhere = confirmCode(s.transport.Credential, a.idHex, a.plan.Channel, a.plan.ExpiresAt), channelPhone
+		humanAnswer, humanWhere, askedRoute = confirmCode(s.transport.Credential, a.idHex, a.plan.Channel, a.plan.ExpiresAt), channelPhone, s
 		handed, phoneApplied = true, func(env verbEnvelope, exit int) {
 			prefix, line := phoneApplyResult(lang, env, exit)
 			reply.say(phoneResultTitle(lang, prefix, a.goal), line)

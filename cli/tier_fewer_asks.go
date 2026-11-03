@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"slices"
 	"strings"
 )
@@ -121,6 +122,23 @@ func (e *tierEngine) rawShoppingList(endpoint string, payload map[string]any) ti
 	}
 	e.done[key] = class
 	return class
+}
+
+// rawMovesAlone: a raw plan with a todo/item/move holds only moves.
+// rawShoppingList reads the registry before any item runs, so an earlier
+// item that renames or enables a list would send a move whose listeners
+// were never classified (#928).
+func rawMovesAlone(items []rawRequest) error {
+	moves := 0
+	for _, item := range items {
+		if payload, _ := decodeObject(item.Payload); item.Endpoint == "ws" && payload["type"] == "todo/item/move" {
+			moves++
+		}
+	}
+	if moves == 0 || moves == len(items) {
+		return nil
+	}
+	return errors.New("a to-do reorder (todo/item/move) goes in a plan of reorders only: an earlier step could rename or turn on a list, and the reorder would skip the check of what listens to it; plan the other changes first, then the reorders on their own")
 }
 
 // storedVolumeStep: a stored step that raises or sets a volume or unmutes;

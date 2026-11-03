@@ -275,6 +275,32 @@ func TestShoppingListMoveDriftsWhenItsListenerChanges(t *testing.T) {
 	}
 }
 
+// A move shares its plan only with moves: an earlier item that renames
+// another list to the move's id, or turns one on, would send a move whose
+// listeners were never classified (#928). Moves alone still plan.
+func TestShoppingListMoveGoesInAPlanOfMovesOnly(t *testing.T) {
+	f := newFakeHA()
+	listensToTheList(f)
+	paths, log := setupVerbRelayTest(t, f.reply)
+	rename := `{"endpoint":"ws","payload":{"type":"config/entity_registry/update","entity_id":"todo.shopping_list","new_entity_id":"todo.einkauf"}}`
+	move := `{"endpoint":"ws","payload":{"type":"todo/item/move","entity_id":"todo.einkauf","uid":"a"}}`
+	snapshot := `{"endpoint":"backups","payload":{"action":"save","category":"helpers","name":"auto-x","data":{}}}`
+	for _, items := range []string{"[" + rename + "," + move + "]", "[" + move + "," + rename + "]", "[" + snapshot + "," + move + "]"} {
+		var stored []rawRequest
+		_ = json.Unmarshal([]byte(items), &stored)
+		exit, env := planRaw(t, paths, items)
+		if env.Plan != nil || env.Error == nil || !strings.Contains(env.Error.Message, "plan of reorders only") || validateRawRequests(stored) == nil {
+			t.Errorf("%s: exit %d plan %+v error %+v; want refused on every route", items, exit, env.Plan, env.Error)
+		}
+	}
+	if sent := strings.Join(log.wsTypes(), ","); strings.Contains(sent, "todo/item/move") || strings.Contains(sent, "entity_registry/update") {
+		t.Fatalf("sent %s", sent)
+	}
+	if exit, env := planRaw(t, paths, "["+move+","+move+"]"); exit != verbExitConfirmation || env.Plan == nil {
+		t.Fatalf("moves alone: exit %d %+v", exit, env.Error)
+	}
+}
+
 // lights: n hue lights light.spot_0… in the kitchen; each switches its own
 // fan through a consumer automation when consumers is set.
 func lights(n int, consumers bool) func(*fakeHA) {

@@ -369,7 +369,7 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 	target := verbOptions{server: opts.Server, serverSet: opts.ServerSet, via: opts.Via, viaSet: opts.ViaSet}
 	requestBody, refusal, err := guardRawRequest(paths, target, endpoint, requestBody)
 	if refusal == nil && err == nil {
-		refusal, err = relaySceneKept(paths, target, endpoint, requestBody)
+		refusal, err = relayRawChecks(paths, target, endpoint, requestBody)
 	}
 	if refusal != nil {
 		printErr("%s", refusal)
@@ -410,7 +410,11 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		return 1
 	}
 	baseURL, client := transport.BaseURL, transport.Client
-	req, err := newRelayRequest(relayCtx, transport, endpoint, requestBody)
+	// The request gets its own budget: on Link the selection is a login of
+	// several round trips (docs/work/2026-11-03-link-route-timeouts-spec.md).
+	requestCtx, cancelRequest := context.WithTimeout(context.Background(), time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)))
+	defer cancelRequest()
+	req, err := newRelayRequest(requestCtx, transport, endpoint, requestBody)
 	if err != nil {
 		printErr("%s", err)
 		return 1
@@ -747,21 +751,18 @@ func runHealth(paths runtimePaths, args []string) int {
 	if connectTimeout > remaining {
 		connectTimeout = remaining
 	}
-	// Transport selection may itself establish network connections: Cloud
-	// refresh, Home Assistant WebSocket, Ingress discovery, or the automatic
-	// local preflight. Apply the explicit connection budget before selection so
-	// --connect-timeout governs those connections as well as the Relay request.
-	transportCtx, cancelTransport := context.WithTimeout(
-		healthCtx,
-		connectTimeout,
-	)
+	// Transport selection may itself open connections: the automatic local
+	// preflight and the Link login (OAuth refresh, WebSocket, Ingress).
+	// --connect-timeout bounds each of them and the Relay request's own;
+	// --max-time bounds the whole selection, which is several round trips
+	// (docs/work/2026-11-03-link-route-timeouts-spec.md).
+	healthCtx = withRelayConnectBudget(healthCtx, connectTimeout)
 	transport, err := selectRelayTransport(
-		transportCtx,
+		healthCtx,
 		cfg,
 		via,
 		healthOpts.ViaSet,
 	)
-	cancelTransport()
 	if err != nil {
 		printErr("%s", relayTransportErrorMessage(err))
 		return 1

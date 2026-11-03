@@ -222,8 +222,18 @@ describe("health and calendar skill contracts", () => {
     expect(calendar).toContain("(uid, recurrence_id)");
     expect(calendar).toContain('`recurrence_range:""`');
     expect(calendar).toContain('`"THISANDFUTURE"`');
-    expect(calendar).toContain("update is a full event replacement");
-    expect(calendar).toContain("omit `rrule` to clear recurrence");
+    // local_calendar merges an update into the stored event and rejects an
+    // empty rrule, so a left-out rrule never clears recurrence.
+    expect(calendar).toContain("update merges");
+    expect(calendar).toContain("recurrence can't be removed");
+    expect(calendar).toContain("delete this and future occurrences");
+    expect(calendar).not.toContain("omit `rrule` to clear recurrence");
+    expect(calendar).toContain("Use this-and-future only for summary/description/location changes");
+    expect(calendar).toContain("`uid` at the requested start");
+    const calendarWrites = relayApi.slice(relayApi.indexOf("## Calendar Event Writes"), relayApi.indexOf("## Registry Queries"));
+    expect(calendarWrites).toContain("an update cannot remove recurrence");
+    expect(calendarWrites).toContain("a new `dtend` is ignored");
+    expect(calendarWrites).not.toContain("full replacement");
     expect(calendar).toContain("Immediately before execution, re-read");
     expect(calendar).toContain("this event set is the create baseline");
     expect(calendar).toContain("up to three reads over ten seconds");

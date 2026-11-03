@@ -160,7 +160,7 @@ Observed locally on a real HA instance on 2026-03-19: raw WS `config_entries/flo
 | WS Type | Purpose |
 |---------|---------|
 | `calendar/event/create` | Recurring event create with RFC 5545 `rrule` (feature bit 1); non-recurring creates use the REST service |
-| `calendar/event/update` | Full-object event update by `entity_id` + `uid` (feature bit 4) |
+| `calendar/event/update` | Event update by `entity_id` + `uid` (feature bit 4); merges into the stored event, cannot remove `rrule` |
 | `calendar/event/delete` | Event delete by `entity_id` + `uid` (feature bit 2) |
 
 Recurring instances add `recurrence_id`; `recurrence_range` is `""` for only that occurrence or `THISANDFUTURE` for that occurrence and later ones.
@@ -263,7 +263,7 @@ guardrails.
 | Updates | `update/release_notes` | updates |
 | Logger | `logger/log_info` (numeric levels; `logger.set_level` takes names) | diagnose |
 | Diagnostics | `diagnostics/list`; REST `/api/diagnostics/config_entry/<entry_id>[/device/<device_id>]` | diagnose |
-| To-do | `todo/item/move`; `ha-nova call todo.* --skill ha-nova:todo` / `todo.get_items --response` | todo |
+| To-do | `todo/item/move` (plan raw only: a shopping list fires `shopping_list_updated`); `ha-nova call todo.* --skill ha-nova:todo` / `todo.get_items --response` | todo |
 | Conversation | `ha-nova call conversation.process --skill ha-nova:assist --response` (typed; raw refused) | assist |
 | Thread / Matter | `otbr/info`, `thread/list_datasets` (dataset is a network credential — `--out` file only), `matter/node_diagnostics` (takes `device_id`) | fallback |
 | Custom-integration config APIs | REST `/api/<integration>/<resource>` (GET only; private, version-dependent — Alarmo, Scheduler, Frigate, ...; raw POSTs are refused) | fallback |

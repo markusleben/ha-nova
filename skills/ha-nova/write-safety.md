@@ -266,8 +266,9 @@ Backups), or recreating the item.
 
 Checkpoints: the store keeps the last 25 updated targets per server, one step
 back each. Automation/script updates (reverts included) are checkpointed by
-`ha-nova apply` itself — repeat the structured receipt it returns as `undo` — a `replaced` receipt means the target's PREVIOUS checkpoint is gone and only the newest update stays revertible; name evicted targets as no longer revertible. Helper storage updates capture their checkpoint by hand:
-`../ha-nova/update-revert.md` → Manual capture.
+`ha-nova apply` itself — repeat the structured receipt it returns as `undo` — a `replaced` receipt means the target's PREVIOUS checkpoint is gone and only the newest update stays revertible; name evicted targets as no longer revertible. Helper storage updates capture their checkpoint by hand
+(`../ha-nova/update-revert.md` → Manual capture), except one applied
+through `ha-nova apply`, which checkpoints it itself.
 
 After reporting the update, offer a localized affordance that names the point-in-time
 rollback option in the same breath — never a bare "undo":

@@ -69,7 +69,7 @@ Items live under `result.service_response["todo.<list>"].items` with `uid`, `sum
 `ha-nova call todo.update_item todo.<list> --skill ha-nova:todo --set item="<uid>" …` — `item` = the `uid` from Read items (a summary is ambiguous when duplicated — always prefer `uid`), plus any of `--set status=completed|needs_action`, `--set rename=…`, `--set due_date=…`/`--set due_datetime=…`, `--set description=…`.
 
 ### Reorder items (feature bit 8)
-No service exists — send WS `{"type":"todo/item/move","entity_id":"todo.<list>","uid":"<uid>","previous_uid":"<uid>"}` via `ha-nova relay ws --data-file <payload-file>`; omit `previous_uid` for the top; read back to confirm.
+No service: `ha-nova plan raw --file <requests.json>` with `[{"endpoint":"ws","payload":{"type":"todo/item/move","entity_id":"todo.<list>","uid":"<uid>","previous_uid":"<uid>"}}]`, then `ha-nova apply`; omit `previous_uid` for the top; read back to confirm.
 
 ### Remove items
 1. Read items first and resolve exact `uid`s — removing a non-existent item is a raw HA error (400 or 500 by version), not a clean message.
