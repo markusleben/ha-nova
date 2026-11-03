@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.18] - 2026-11-03
+
+### Fixed
+- In chat apps, changing which devices a person follows asks for your own confirmation, also when the AI renames a person and leaves the devices out, which Home Assistant would clear, and when the AI renames or turns off a device a person follows. Renaming a person who keeps the same devices no longer asks for it.
+- In chat apps, a web address Home Assistant would store (its own, a blueprint's source, a picture) is refused when it holds a password; enter it in Home Assistant.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.1 ask you to update this App.
+
 ## [Relay 0.13.16] - 2026-11-03
 
 ### Fixed
