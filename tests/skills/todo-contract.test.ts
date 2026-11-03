@@ -46,6 +46,15 @@ describe("todo contract", () => {
     expect(todoSkill).toContain("ha-nova call todo.remove_completed_items todo.<list> --skill ha-nova:todo");
   });
 
+  it("reorders through a raw plan, which checks a shopping list's listeners (#928)", () => {
+    const reorder = todoSkill.split("### Reorder items")[1]?.split("\n### ")[0] ?? "";
+    expect(reorder).toContain('`ha-nova plan raw --file <requests.json>` with `[{"endpoint":"ws","payload":{"type":"todo/item/move"');
+    expect(reorder).toContain("then `ha-nova apply`");
+    // `ha-nova relay ws` refuses a todo/item/move: sent at once, an
+    // automation listening for shopping_list_updated would run unasked.
+    expect(reorder).not.toContain("relay ws");
+  });
+
   it("domain-gates list deletion so integration entries are never deleted as lists", () => {
     expect(todoSkill).toContain("**Domain gate:**");
     expect(todoSkill).toContain("proceed only if its `domain` is `local_todo`");
