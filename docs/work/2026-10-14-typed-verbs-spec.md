@@ -391,7 +391,7 @@ Risks
 - **v1 UX regressions.** `pl:template` targets go typed, and Hue-style scenes go preview.
 - **Known limit: unfiltered `state_changed` listeners.** An automation with an event trigger on `state_changed` (no entity filter) consumes every state change, but neither `search/related` nor the per-type listener check discovers it: core keeps its own `state_changed` listeners, so no baseline separates them. The prose has the same gap. A plan does not see such an automation.
 - **Known limit: physically wired openers.** A plain switch or relay wired to a door opener, with no `switch_as_x` wrapper or access `device_class`, is indistinguishable from a lamp switch and stays ordinary.
-- **Public guarantees change.** `docs/reference/safety.md:16` ("Nothing is written before you see a preview"), README, and the conventions in `AGENTS.md:100` and `PROJECT.md:58-59`. The README change goes only into the release-prep PR (`AGENTS.md:96`); the "What To Watch" note goes into `docs/work/next-release-body.md`.
+- **Public guarantees change.** `docs/reference/safety.md:16` ("Nothing is written before you see a preview"), README, and the conventions in `AGENTS.md:100` and `PROJECT.md:58-59`. The README change goes only into the release-prep PR (`AGENTS.md:96`); the "What To Watch" note goes into the release-body draft (for 0.28.0, archived as `docs/archive/work/0.28.0-release-body.md`).
 
 Decisions (maintainer, 2026-10-14)
 - **Q1 → yes.** Consumer hits whose actions are fully read and ordinary keep the fast path; the result lists them.

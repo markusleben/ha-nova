@@ -119,8 +119,8 @@ Every text that says chat apps can't do something, or gives the old "Always allo
 | `cli/setupweb/strings.en.json` (`setup.page.home.note_chat`), `nova/src/http/handlers/nova-page-view.ts` (Chat apps) | no advice | "Next" block, variant by phone | 5 |
 | `skills/ha-nova/capability-answer.md` | no answer for "why does Claude ask" | the steps, both variants | 5 |
 | `nova/DOCS.md` (Chat apps) | no advice | one line, link to chat-apps.md | 5 |
-| `nova/CHANGELOG.md`, `docs/work/next-release-body.md` | — | new entry: chat apps can do what the computer can; new advice | 5 |
-| `README.md:175`, `:182` | old advice; "Helpers, dashboards, and files still need HA NOVA on a computer" | same as chat-apps.md | 0.28 release-prep (README edits only there), listed in `next-release-body.md` |
+| `nova/CHANGELOG.md`, the release-body draft (`docs/archive/work/0.28.0-release-body.md`) | — | new entry: chat apps can do what the computer can; new advice | 5 |
+| `README.md:175`, `:182` | old advice; "Helpers, dashboards, and files still need HA NOVA on a computer" | same as chat-apps.md | 0.28 release-prep (README edits only there), listed in the release-body draft (`docs/archive/work/0.28.0-release-body.md`) |
 | hanova.app `index.html:478`, `demo/index.html:88` | old advice | site PR after the 0.28 tag, from the README (site rule); the demo has no phone, so its copy is the no-phone variant | after release |
 | `docs/reference/` (`client-integration.md`, `ha-api-matrix.md`, `safety.md`, `skill-architecture.md`) and `docs/work/2026-10-19-chat-bridge-contract.md` | tool and route lists | `ha_read` endpoints, `ha_plan kind raw`, the shared guard | 1-5, each with its change |
 
