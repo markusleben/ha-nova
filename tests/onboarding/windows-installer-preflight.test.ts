@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -32,19 +32,6 @@ ${body}
   };
 }
 
-function createNativeExitProbe(exitCode: number): string {
-  const tempDir = makeTempDir("ha-nova-native-exit-");
-  if (process.platform === "win32") {
-    const probe = join(tempDir, "probe.cmd");
-    writeFileSync(probe, `@exit /b ${exitCode}\r\n`, "utf8");
-    return probe;
-  }
-  const probe = join(tempDir, "probe.sh");
-  writeFileSync(probe, `#!/bin/sh\nexit ${exitCode}\n`, "utf8");
-  chmodSync(probe, 0o755);
-  return probe;
-}
-
 const supportedRuntime = `
 function Get-InstallerWindowsVersion { return [version]"10.0" }
 function Get-InstallerPowerShellVersion { return [version]"5.1" }
@@ -68,7 +55,7 @@ Start-Setup -BinaryPath "never-run.exe"
     );
   });
 
-  it("prints missing-client guidance without launching setup", () => {
+  it("starts setup on a computer without an AI app, as install.sh does", () => {
     if (!hasPowerShell()) return;
     const result = runPreflightProbe(`
 function Test-InteractiveSession { return $true }
@@ -76,65 +63,15 @@ $script:calls = @()
 function Invoke-FakeBinary {
   param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
   $script:calls += ($Arguments -join " ")
-  if ($Arguments[0] -eq "internal-setup-readiness") {
-    $global:LASTEXITCODE = 2
-  }
-}
-Start-Setup -BinaryPath "Invoke-FakeBinary"
-Write-Output ("CALLS:" + ($script:calls -join ","))
-Write-Output ("LASTEXITCODE:" + $LASTEXITCODE)
-`);
-    expect(result.status).toBe(0);
-    expect(result.output).toContain(
-      "No supported AI client is ready on this machine yet.",
-    );
-    expect(result.output).toContain(
-      "Install one supported client first, then rerun: ha-nova setup",
-    );
-    expect(result.output).toContain("CALLS:internal-setup-readiness");
-    expect(result.output).not.toContain("CALLS:internal-setup-readiness,setup");
-    expect(result.output).toContain("LASTEXITCODE:0");
-  });
-
-  it("handles the no-client native exit when PowerShell promotes native errors", () => {
-    if (!hasPowerShell()) return;
-    const fakeBinary = createNativeExitProbe(2).replaceAll("'", "''");
-    const result = runPreflightProbe(`
-function Test-InteractiveSession { return $true }
-$PSNativeCommandUseErrorActionPreference = $true
-Start-Setup -BinaryPath '${fakeBinary}'
-Write-Output ("NATIVE_ERROR_PREFERENCE:" + $PSNativeCommandUseErrorActionPreference)
-Write-Output ("LASTEXITCODE:" + $LASTEXITCODE)
-`);
-    expect(result.status).toBe(0);
-    expect(result.output).toContain(
-      "No supported AI client is ready on this machine yet.",
-    );
-    expect(result.output).toContain(
-      "Install one supported client first, then rerun: ha-nova setup",
-    );
-    expect(result.output).toContain("NATIVE_ERROR_PREFERENCE:True");
-    expect(result.output).toContain("LASTEXITCODE:0");
-  });
-
-  it("launches setup after a successful client-readiness check", () => {
-    if (!hasPowerShell()) return;
-    const result = runPreflightProbe(`
-function Test-InteractiveSession { return $true }
-$script:calls = @()
-function Invoke-FakeBinary {
-  param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
-  $script:calls += ($Arguments -join " ")
-  $global:LASTEXITCODE = 0
+  $global:LASTEXITCODE = if ($Arguments[0] -eq "internal-setup-readiness") { 2 } else { 0 }
 }
 Start-Setup -BinaryPath "Invoke-FakeBinary"
 Write-Output ("CALLS:" + ($script:calls -join ","))
 `);
     expect(result.status).toBe(0);
-    expect(result.output).toContain("CALLS:internal-setup-readiness,setup");
-    expect(result.output).not.toContain(
-      "No supported AI client is ready on this machine yet.",
-    );
+    expect(result.output).toContain("Starting ha-nova setup");
+    expect(result.output).toMatch(/^CALLS:setup\r?$/m);
+    expect(result.output).not.toContain("No supported AI client");
   });
 
   it("passes supported prerequisites in write-then-TLS order", () => {
