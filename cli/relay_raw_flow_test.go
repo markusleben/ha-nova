@@ -291,12 +291,13 @@ func relayCore(t *testing.T, paths runtimePaths, method, target, body string) (e
 }
 
 // The Relay forwards a core path as a URL path (core-proxy.ts): without its
-// fragment or query, %-escapes decoded, backslashes as slashes, dot segments
-// resolved, rooted. The flow guard reads the same path (relayCorePath), so a
-// form that came back is kept however the path that reached it was spelled,
-// and a cancel with a fragment removes the flow's files. Doubled and
-// trailing slashes, which the Relay keeps, are folded too (broader, never
-// narrower).
+// fragment or query, %-escapes decoded (and a ? or # they decode to cuts the
+// path again when fetch parses it), backslashes as slashes, rooted. The flow
+// guard reads the same path (relayCorePath), so a form that came back is
+// kept however the path that reached it was spelled, and a cancel with a
+// fragment removes the flow's files. Doubled and trailing slashes, which the
+// Relay keeps, are folded too (broader, never narrower). A dot segment, which
+// the Relay resolves before it decodes, is refused: nothing is sent.
 func TestRelayFlowFormsKeptWhateverThePathSpelling(t *testing.T) {
 	form := func(map[string]any) any {
 		return map[string]any{"status": 200, "body": map[string]any{"type": "form", "flow_id": "r1", "handler": "demo", "step_id": "user",
@@ -307,7 +308,9 @@ func TestRelayFlowFormsKeptWhateverThePathSpelling(t *testing.T) {
 		{"POST", "/api/config/config_entries/flow/r1#x", `{"host":"x"}`},
 		{"GET", "/api/config/config_entries/fl%6fw/r1", ""},
 		{"GET", "/api/config/config_entries/flow/%2572%2531", ""},
-		{"GET", "/api/config/config_entries/flow/x/../r1", ""},
+		{"GET", "/api/config/config_entries/flow/r1%3f", ""},
+		{"GET", "/api/config/config_entries/flow/r1%23x", ""},
+		{"GET", "/api/config/config_entries/flow/r1%253f", ""},
 		{"GET", `/api/config/config_entries/flow\r1`, ""},
 		{"GET", "api/config/config_entries/flow/r1", ""},
 		{"GET", "/api/config/config_entries//flow/r1", ""},
@@ -321,6 +324,10 @@ func TestRelayFlowFormsKeptWhateverThePathSpelling(t *testing.T) {
 		if exit, stderr := relayCore(t, paths, "POST", "/api/config/config_entries/flow/r1", `{"entry":"hunter2"}`); exit != rawRefusedExit {
 			t.Errorf("after %s %s, the password its form asked for: exit %d %s", c.method, c.path, exit, stderr)
 		}
+	}
+	counted, hits := rawRelayCounter(t)
+	if exit, stderr := relayCore(t, counted, "GET", "/api/config/config_entries/flow/x/../r1", ""); exit != rawRefusedExit || hits.Load() != 0 {
+		t.Errorf("a dot segment: exit %d, %d sent %s", exit, hits.Load(), stderr)
 	}
 	paths, _ := rawRelay(t, map[string]func(map[string]any) any{
 		"POST /api/config/config_entries/flow":        form,
