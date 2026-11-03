@@ -285,6 +285,7 @@ else {
 $installerLog = @($transcript, $result.InstallerOutput) -join [Environment]::NewLine
 
 $setupAutoStarted = (
+  $installerLog -match "Starting ha-nova setup" -or
   $installerLog -match "Press Enter to continue setup" -or
   $installerLog -match "Install the NOVA App" -or
   $installerLog -match "Set up Relay Auth Token" -or
@@ -295,15 +296,11 @@ $manualFallbackDisplayed = (
   $installerLog -match [regex]::Escape("Next step: ha-nova setup") -or
   $installerLog -match [regex]::Escape("Finish setup later from a local PowerShell or Windows Terminal session:")
 )
-$missingClientGuidanceDisplayed = (
-  $installerLog -match [regex]::Escape("No supported AI client is ready on this machine yet.") -and
-  $installerLog -match [regex]::Escape("Install one supported client first, then rerun: ha-nova setup")
-)
 $localInstallCompleted = Test-Path -LiteralPath $InstallDir
 $expectedPublicResult = if ($RequireAntigravityDesktopOnly) {
   "antigravity-desktop-guided-setup"
 }
-elseif ($readyClients.Count -gt 0) { "guided-setup" } else { "missing-client-guidance" }
+elseif ($readyClients.Count -gt 0) { "guided-setup" } else { "no-app-guided-setup" }
 $desktopOnlyProofPassed = (
   $RequireAntigravityDesktopOnly -and
   $antigravityDesktopAvailable -and
@@ -330,11 +327,9 @@ $evidence = [ordered]@{
   setup_auto_started = $setupAutoStarted
   second_terminal_command_needed = $manualFallbackDisplayed
   manual_fallback_displayed = $manualFallbackDisplayed
-  client_prerequisite_guidance_displayed = $missingClientGuidanceDisplayed
   final_verdict = if (
     $desktopOnlyProofPassed -or
-    ((-not $RequireAntigravityDesktopOnly) -and $readyClients.Count -gt 0 -and $result.ExitCode -eq 0 -and $setupAutoStarted -and -not $manualFallbackDisplayed) -or
-    ((-not $RequireAntigravityDesktopOnly) -and $readyClients.Count -eq 0 -and $result.ExitCode -eq 0 -and $localInstallCompleted -and $missingClientGuidanceDisplayed)
+    ((-not $RequireAntigravityDesktopOnly) -and $result.ExitCode -eq 0 -and $setupAutoStarted -and -not $manualFallbackDisplayed)
   ) { "pass" } else { "fail" }
 }
 

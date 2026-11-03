@@ -10,6 +10,9 @@ import (
 
 const setupReadinessNoClientExitCode = 2
 
+// runInternalSetupReadiness exits 2 while no AI app is ready here. Older
+// install.ps1 versions call it and skip setup on 2; the current one starts
+// setup directly, which has its own no-app path.
 func runInternalSetupReadiness(paths runtimePaths, args []string) int {
 	if len(args) != 0 {
 		printHumanErr("internal-setup-readiness does not accept arguments")
