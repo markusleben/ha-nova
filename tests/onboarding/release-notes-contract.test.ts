@@ -49,8 +49,8 @@ describe("release notes contract", () => {
     // The App update leads the notes; the update notice still leads with the first feature.
     expect(stableNotes).toMatch(/^\*\*Update the NOVA App to \d+\.\d+\.\d+\.\*\*/);
     expect(stableNotes).toMatch(/\n {4}## New Features\s+- \*\*Chat apps do what HA NOVA on a computer does\.\*\*/);
-    // Chat apps at CLI parity (#863, #864, #865, #867); only setup and InfluxDB history stay outside the chat.
-    expect(stableNotes).toContain("files (with file access on), and more. Only setup and InfluxDB history stay outside the chat.");
+    // Chat apps at CLI parity at Manage everything (#863, #864, #865, #867); setup and InfluxDB history stay outside the chat.
+    expect(stableNotes).toContain("At Manage everything: rooms, names, helpers, scenes, dashboards, integrations, files (with file access on) and more. Setup and InfluxDB history stay outside the chat.");
     // "Always allow" advice by phone (#867).
     expect(stableNotes).toContain('with a phone linked for chat apps, every tool on "Always allow"; without one, all but "Run a confirmed change".');
     // Codex in the desktop app; stale copies flagged and moved (fix/codex-app-guidance).
@@ -64,11 +64,11 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain("**Setup explains the owner sign-in.** The owner connects each computer once");
     // Every claude call has a deadline (#911); the update to 0.28.0 still runs the old binary's sync, so only later updates.
     expect(stableNotes).toContain("**A stuck Claude Code no longer hangs setup, doctor, or later updates.**");
-    expect(stableNotes).toContain("**Disabling a lock's device is refused.**");
+    expect(stableNotes).toContain("**Disabling or enabling a lock's device is refused.**");
     // Household levels for chat apps (#900 and the NOVA page's list).
     expect(stableNotes).toContain("**Chat apps for everyone in your home.**");
     // Each person's phone, and moving or stopping a chat-app phone (#894, #897, #902).
-    expect(stableNotes).toContain("**Each person confirms on their own phone.**");
+    expect(stableNotes).toContain("**In chat apps, each person confirms on their own phone.**");
     // Confirmations in Home Assistant's language (#890, #898, #901), batch confirmation (#896), everyday lines (#899).
     expect(stableNotes).toContain("**Confirmations in your home's language.**");
     expect(stableNotes).toContain("**One confirmation for up to 20 automation and script changes.**");
@@ -80,6 +80,10 @@ describe("release notes contract", () => {
     // Chat-app applies run as jobs (#921); the phone lookup gets its own read budget (#920); the local adapter gets the jobs in a later update (#919).
     expect(stableNotes).toContain("**Big changes in chat apps no longer time out.**");
     expect(stableNotes).toContain("**The linked phone asks in big homes too.**");
+    // Scene saves keep their members and HA NOVA can't stop its own App (#931); passwords go into Home Assistant (#932).
+    expect(stableNotes).toContain("**Saving a scene keeps its other lights and devices.**");
+    expect(stableNotes).toMatch(/## What To Watch[\s\S]*- \*\*Passwords for setups and repairs go into Home Assistant, not the AI\.\*\*[\s\S]*## Bug Fixes/);
+    expect(stableNotes).toMatch(/## What To Watch[\s\S]*- \*\*HA NOVA no longer stops or restarts its own App\.\*\*[\s\S]*## Bug Fixes/);
     expect(stableNotes).toMatch(/## What To Watch[\s\S]*- \*\*Another AI app on this computer may give up on a big change\.\*\*[\s\S]*## Bug Fixes/);
     expect(stableNotes).toContain("**Setup asks whose phone should confirm on this computer.**");
     expect(stableNotes).not.toContain("Setup proposes your own phone");
@@ -102,7 +106,7 @@ describe("release notes contract", () => {
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
     expect(stableNotes).not.toContain("Cloud Remote is back on Windows and Linux");
-    expect(readme).toContain("only clear everyday actions run right away");
+    expect(readme).toContain("clear everyday actions run right away, like \"turn off the kitchen light\", switching a room's lights");
     expect(readme).toContain("Up to 20 automation and script changes and deletes can share one confirmation");
     expect(readme).toContain("Answered on the phone, the phone shows the result; answered on the computer, HA NOVA withdraws the phone's question.");
     expect(readme).toContain("the owner picks who else may use them, at Ask only, Use the home, or Manage everything");
@@ -112,14 +116,14 @@ describe("release notes contract", () => {
     for (const doc of [readme, readFileSync("nova/DOCS.md", "utf8")]) {
       expect(doc).not.toContain("last release that accepts");
     }
-    expect(readme).toContain("the AI can see it too, so it only counts when you type it yourself");
+    expect(readme).toContain("In the chat, the AI sees the code too and HA NOVA can't tell who typed it");
     expect(readme).toContain("ha-nova setup confirm-window off");
     expect(readme).toContain("or a tap on your iPhone or Android phone.");
     expect(readme).toContain("You pair with a six-digit code:");
     // Chat apps: "Always allow" by phone; only setting up HA NOVA itself stays on a computer; Link sign-in (0.28).
     expect(readme).toContain('With a linked phone, set every tool to "Always allow"');
     expect(readme).toContain('No phone? Set every tool to "Always allow", except "Run a confirmed change"');
-    expect(readme).toContain("Only setting up and updating HA NOVA (setup, pairing, updates) and InfluxDB history stay outside the chat.");
+    expect(readme).toContain("Only setting up and updating HA NOVA (setup, pairing, updates) and InfluxDB history stay outside the chat. A setup or repair step that asks for a password, PIN, or key finishes in Home Assistant.");
     expect(readme).toContain("That only changes which login Link keeps on this computer: the owner still connects it once");
     expect(readme).not.toContain("Codex CLI");
     // claude.ai's connector list lives under Customize, not Settings.
