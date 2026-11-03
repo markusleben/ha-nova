@@ -69,28 +69,35 @@ func flowStepSecret(method, path string, body any) error {
 func flowSecretSet(body any) string {
 	fields, _ := body.(map[string]any)
 	for _, key := range sortedKeys(fields) {
-		name := strings.ToLower(key)
-		switch value := fields[key].(type) {
-		case map[string]any:
-			if field := flowSecretSet(value); field != "" {
+		if section, ok := fields[key].(map[string]any); ok {
+			if field := flowSecretSet(section); field != "" {
 				return field
 			}
-		case string:
-			var password bool
-			if u, err := url.Parse(strings.TrimSpace(value)); err == nil {
-				_, password = u.User.Password() // rtsp://admin:hunter2@camera, whatever the field's name
-			}
-			if value != "" && (password || secretFlowField(map[string]any{"name": key})) {
-				return key
-			}
-		case json.Number: // a token or PSK is never a number
-			if secretFlowNames[name] || strings.Contains(name, "password") || strings.Contains(name, "passphrase") ||
-				slices.ContainsFunc(secretFlowSuffixes, func(suffix string) bool { return strings.HasSuffix(name, suffix) }) {
-				return key
-			}
+		} else if secretFlowValue(key, fields[key]) {
+			return key
 		}
 	}
 	return ""
+}
+
+// secretFlowValue: value, set under key, is a secret: a non-empty string
+// whose name says so (secretFlowField) or a URL with a password, or a
+// number for a PIN, code, key, or password.
+func secretFlowValue(key string, value any) bool {
+	name := strings.ToLower(key)
+	switch value := value.(type) {
+	case string:
+		u, err := url.Parse(strings.TrimSpace(value))
+		password := err != nil && secretURLPassword.MatchString(strings.TrimSpace(value)) // one Go can't parse: mqtt://u:p#ss@broker
+		if err == nil {
+			_, password = u.User.Password() // rtsp://admin:hunter2@camera, whatever the field's name
+		}
+		return value != "" && (password || secretFlowField(map[string]any{"name": key}))
+	case json.Number: // a token or PSK is never a number
+		return secretFlowNames[name] || strings.Contains(name, "password") || strings.Contains(name, "passphrase") ||
+			slices.ContainsFunc(secretFlowSuffixes, func(suffix string) bool { return strings.HasSuffix(name, suffix) })
+	}
+	return false
 }
 
 // flowFormFile: a file that keeps the secret fields of a form a flow
@@ -130,6 +137,10 @@ func flowFormFiles(paths runtimePaths, flowID string) ([]string, error) {
 	}
 	return files, err
 }
+
+// secretURLPassword: a URL with user info and a password that url.Parse
+// refuses (a #, /, {, or non-ASCII letter in the password).
+var secretURLPassword = regexp.MustCompile(`(?i)^[a-z][a-z0-9+.-]*://[^/@\s]*:[^@\s]*@`)
 
 // flowIDPattern: a flow id as Home Assistant makes it, safe as a file name.
 var flowIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)

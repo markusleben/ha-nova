@@ -11,7 +11,8 @@ import (
 )
 
 // The only write surface of the typed verbs (spec §2.3, I7): each request
-// is sent exactly once, never retried, never through the read path (read()
+// is sent exactly once, never retried (a Link attempt whose connection never
+// opened sent nothing; cloud_ingress.go), never through the read path (read()
 // refuses it, I1), and must pass checkWriteRequest — service calls, the
 // automation/script config endpoints, the dashboard save/create/delete WS
 // commands, one device's area (rooms plans), and a config-snapshot save.

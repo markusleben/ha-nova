@@ -81,8 +81,10 @@ func (c *coderHAWebSocketConnection) Write(ctx context.Context, data []byte) err
 	return c.conn.Write(ctx, websocket.MessageText, data)
 }
 
+// Close skips the close handshake: on a stalled network it waits up to 10 s
+// for a peer that has nothing left to say, past every caller's deadline.
 func (c *coderHAWebSocketConnection) Close() error {
-	return c.conn.Close(websocket.StatusNormalClosure, "")
+	return c.conn.CloseNow()
 }
 
 func DialHAWebSocket(
@@ -127,6 +129,9 @@ func dialHAWebSocketForOrigin(
 		}
 		if status == http.StatusUnauthorized {
 			return nil, newCloudHTTPError(CloudErrUnauthorized, "connect Home Assistant WebSocket", status, false)
+		}
+		if status != 0 && status < http.StatusInternalServerError { // rejected, not lost: a Link login is not retried (R1)
+			return nil, newCloudHTTPError(CloudErrNetwork, "connect Home Assistant WebSocket", status, false)
 		}
 		return nil, cloudRequestError("connect Home Assistant WebSocket", err)
 	}

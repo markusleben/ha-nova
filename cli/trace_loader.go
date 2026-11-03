@@ -22,6 +22,7 @@ func loadLatestTrace(paths runtimePaths, entityID, domain string) (traceLatestOu
 		time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)),
 	)
 	defer cancel()
+	ctx = withOneRelaySelection(ctx)
 	return loadLatestTraceWithContext(ctx, paths, entityID, domain)
 }
 
@@ -69,6 +70,7 @@ func loadTraceList(paths runtimePaths, entityID, domain string) (traceListOutput
 		time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)),
 	)
 	defer cancel()
+	ctx = withOneRelaySelection(ctx)
 	return loadTraceListWithContext(ctx, paths, entityID, domain)
 }
 
@@ -113,6 +115,7 @@ func loadTraceGet(paths runtimePaths, entityID, domain, runID string) (traceGetO
 		time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)),
 	)
 	defer cancel()
+	ctx = withOneRelaySelection(ctx)
 	uniqueID, err := resolveTraceUniqueIDContext(ctx, paths, entityID)
 	if err != nil {
 		return traceGetOutput{}, err
@@ -198,14 +201,22 @@ func resolveTraceUniqueIDContext(
 	return string(envelope.Data.UniqueID), nil
 }
 
-func relayWSJSONContext(
-	ctx context.Context,
-	paths runtimePaths,
-	payload any,
-) ([]byte, error) {
+type oneRelaySelectionKey struct{}
+
+// withOneRelaySelection makes the trace calls under ctx share one transport
+// selection: a trace command logs in to Link once, not once per call.
+func withOneRelaySelection(ctx context.Context) context.Context {
+	return context.WithValue(ctx, oneRelaySelectionKey{}, &relayTransportSelection{})
+}
+
+func traceRelayTransport(ctx context.Context, paths runtimePaths) (relayTransportSelection, error) {
+	shared, _ := ctx.Value(oneRelaySelectionKey{}).(*relayTransportSelection)
+	if shared != nil && shared.Client != nil {
+		return *shared, nil
+	}
 	cfg, err := loadConfig(paths)
 	if err != nil {
-		return nil, err
+		return relayTransportSelection{}, err
 	}
 	// Route through the paired device transport when this install is paired,
 	// falling back to the legacy token — the same resolution the other functional
@@ -213,7 +224,22 @@ func relayWSJSONContext(
 	// when a paired credential is missing instead of using the wrong transport.
 	selected, err := selectRelayTransport(ctx, cfg, "", false)
 	if err != nil {
-		return nil, fmt.Errorf("%s", relayTransportErrorMessage(err))
+		return relayTransportSelection{}, fmt.Errorf("%s", relayTransportErrorMessage(err))
+	}
+	if shared != nil {
+		*shared = selected
+	}
+	return selected, nil
+}
+
+func relayWSJSONContext(
+	ctx context.Context,
+	paths runtimePaths,
+	payload any,
+) ([]byte, error) {
+	selected, err := traceRelayTransport(ctx, paths)
+	if err != nil {
+		return nil, err
 	}
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
