@@ -27,14 +27,36 @@ func guardRawRequest(paths runtimePaths, opts verbOptions, endpoint string, body
 
 // guardRawRequestIn is guardRawRequest on an open session: a raw plan runs
 // it at planning and again right before each item is sent (live registry,
-// the flow forms an earlier item got back).
+// the flow forms an earlier item got back, an App's settings form).
 func guardRawRequestIn(s *relaySession, endpoint string, body []byte) (send []byte, refusal, err error) {
-	return guardRaw(endpoint, body, func() (error, error) {
+	send, refusal, err = guardRaw(endpoint, body, func() (error, error) {
 		if refusal, err := formSecretSet(s.paths, s.flowForms, endpoint, body); refusal != nil || err != nil {
 			return refusal, err
 		}
 		return checkRawAccessTargetIn(s, endpoint, body)
 	})
+	if refusal == nil && err == nil && endpoint == "supervisor" {
+		if refusal, err = rawSupervisorFormSecret(s, body); refusal != nil || err != nil {
+			return nil, refusal, err
+		}
+	}
+	return send, refusal, err
+}
+
+// relayRawChecks runs what only `ha-nova relay` checks, after
+// guardRawRequest: it sends a write at once, where a raw plan tiers it and
+// ha_read sends none. A todo/item/move is refused: on a shopping list it
+// fires shopping_list_updated, and only a plan classifies that event's
+// listeners (rawShoppingList), so an automation that unlocks on it would run
+// unasked (#928). A scene save keeps its members (relaySceneKept).
+func relayRawChecks(paths runtimePaths, opts verbOptions, endpoint string, body []byte) (refusal, err error) {
+	payload, _ := decodeObject(body)
+	message, _ := payload["message"].(map[string]any) // a collect_events envelope
+	if endpoint == "ws" && (payload["type"] == "todo/item/move" || message["type"] == "todo/item/move") {
+		return rawRefusal("todo/item/move", "a reorder can start automations that listen to the list (a shopping list fires shopping_list_updated), and only a plan checks them: "+
+			`put [{"endpoint":"ws","payload":<the message itself, without a collect_events envelope>}] in a file, run ha-nova plan raw --file <file>, then ha-nova apply`), nil
+	}
+	return relaySceneKept(paths, opts, endpoint, body)
 }
 
 func guardRaw(endpoint string, body []byte, accessTarget func() (refusal, err error)) (send []byte, refusal, err error) {

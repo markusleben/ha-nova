@@ -263,7 +263,7 @@ guardrails.
 | Updates | `update/release_notes` | updates |
 | Logger | `logger/log_info` (numeric levels; `logger.set_level` takes names) | diagnose |
 | Diagnostics | `diagnostics/list`; REST `/api/diagnostics/config_entry/<entry_id>[/device/<device_id>]` | diagnose |
-| To-do | `todo/item/move`; `ha-nova call todo.* --skill ha-nova:todo` / `todo.get_items --response` | todo |
+| To-do | `todo/item/move` (plan raw only: a shopping list fires `shopping_list_updated`); `ha-nova call todo.* --skill ha-nova:todo` / `todo.get_items --response` | todo |
 | Conversation | `ha-nova call conversation.process --skill ha-nova:assist --response` (typed; raw refused) | assist |
 | Thread / Matter | `otbr/info`, `thread/list_datasets` (dataset is a network credential — `--out` file only), `matter/node_diagnostics` (takes `device_id`) | fallback |
 | Custom-integration config APIs | REST `/api/<integration>/<resource>` (GET only; private, version-dependent — Alarmo, Scheduler, Frigate, ...; raw POSTs are refused) | fallback |
