@@ -7,13 +7,19 @@ import (
 
 // One more try for the checks before a phone is asked (2026-11-02: over a
 // slow Home Assistant Link one failed read gave up on the linked phone, and
-// the agent sent its user to the phone's settings). The phone lookup and
-// the listening probe run once more after phoneRetryPause when a read
-// failed, on a fresh read budget, inside the ask's deadline. Only checks
-// before the notification run again: it is never sent twice.
+// the agent sent its user to the phone's settings). The phone lookup, the
+// listening probe, and the listening lanes' first moment run once more
+// after phoneRetryPause when a read failed, on a fresh read budget, inside
+// the ask's deadline (a plan's lookup inside phonePlanRetryBudget). Only
+// checks before the notification run again: it is never sent twice.
 
-// phoneRetryPause: the short pause before the second try.
-var phoneRetryPause = 2 * time.Second
+var (
+	phoneRetryPause = 2 * time.Second // the short pause before the second try
+	// phonePlanRetryBudget: the second lookup's reads where no ask bounds
+	// it (a plan, the window's fallback), so ha_plan stays bounded.
+	phonePlanRetryBudget = 15 * time.Second
+	phoneLanePause       = time.Second // a listening lane that failed subscribes again after it
+)
 
 // phoneRetryWait waits phoneRetryPause, at most half the time left before
 // until; false when none is left or ctx ended.
@@ -49,11 +55,17 @@ func discoverPhone(s *relaySession, until time.Time) (phoneSetup, phoneStatus) {
 	return home.status(links, err)
 }
 
-// discoverAgain is discoverConfirmer, run once more when a read failed
-// (whyRead); the second lookup's budget ends by until. ok=false: it was due,
-// but until left no time.
-func discoverAgain(s *relaySession, until time.Time) (setup phoneSetup, status phoneStatus, ok bool) {
-	if setup, status = discoverConfirmer(s); status != phoneMissing || setup.why != whyRead {
+// discoverAgain is discoverConfirmer, run once more (onceMore) by until.
+func discoverAgain(s *relaySession, until time.Time) (phoneSetup, phoneStatus, bool) {
+	setup, status := discoverConfirmer(s)
+	return onceMore(s, setup, status, until)
+}
+
+// onceMore: a lookup that failed on a read (whyRead) runs once more after
+// the pause, its read budget ending by until. ok=false: it was due, but
+// until left no time.
+func onceMore(s *relaySession, setup phoneSetup, status phoneStatus, until time.Time) (phoneSetup, phoneStatus, bool) {
+	if status != phoneMissing || setup.why != whyRead {
 		return setup, status, true
 	}
 	if !phoneRetryWait(context.Background(), until) {
@@ -61,6 +73,41 @@ func discoverAgain(s *relaySession, until time.Time) (setup phoneSetup, status p
 	}
 	setup, status = chatConfirmer(phoneDiscover(s, until))
 	return setup, status, true
+}
+
+// detectAfterWindow picks the channel where no window opens: the linked
+// phone, else a form, else chat. A linked phone that can't be asked now
+// refuses (channelPhoneMissing; channelPhoneUnread where its lookup failed
+// on a read twice), so breaking its setup in Home Assistant can't move a
+// plan to a channel the model can answer. The second lookup's reads end
+// phonePlanRetryBudget after the pause, and by deadline: the window's
+// (its fallback), else phonePlanRetryBudget after the plan's own read
+// budget, so ha_plan stays well under an MCP call's 60 s. Past it, no
+// second lookup.
+func detectAfterWindow(s *relaySession, deadline time.Time) string {
+	setup, status := discoverConfirmer(s)
+	if deadline.IsZero() {
+		s.mu.Lock()
+		deadline, _ = s.ctx.Deadline()
+		s.mu.Unlock()
+		deadline = deadline.Add(phonePlanRetryBudget)
+	}
+	until := time.Now().Add(phoneRetryPause + phonePlanRetryBudget)
+	if deadline.Before(until) {
+		until = deadline
+	}
+	setup, status, _ = onceMore(s, setup, status, until)
+	switch {
+	case status == phoneReady:
+		return channelPhone
+	case status == phoneMissing && setup.why == whyRead:
+		return channelPhoneUnread
+	case status == phoneMissing:
+		return channelPhoneMissing
+	case status == phoneLegacy:
+		return channelPhoneUnlinked
+	}
+	return codeChannel()
 }
 
 // phoneListens: a short probe window proves the Relay can subscribe at all
@@ -76,6 +123,34 @@ func phoneListens(ctx context.Context, s *relaySession, collect func(context.Con
 	}
 	_, err := collect(ctx, s, time.Millisecond)
 	return err == nil
+}
+
+// phoneCanListen: the listening probe before a window opens beside the
+// linked phone, ending by until, so the window says the phone asks too only
+// where it can (confirmBoth).
+func phoneCanListen(s *relaySession, until time.Time) bool {
+	ctx, cancel := context.WithDeadline(context.Background(), until)
+	defer cancel()
+	return phoneListens(ctx, s, phoneCollect)
+}
+
+// phoneSettled: the listening lanes have started, and one that fails within
+// phoneSettle can't hear a tap. It subscribes again after phoneLanePause;
+// a second failure within that and the next phoneSettle gives up
+// (phoneUnread). Nothing has been sent yet. ok=false: answer says why not.
+func phoneSettled(ctx context.Context, failed <-chan error) (answer phoneAnswer, ok bool) {
+	wait := phoneSettle
+	for range 2 {
+		select {
+		case <-failed:
+			wait = phoneLanePause + phoneSettle
+		case <-time.After(wait):
+			return phoneIgnored, true
+		case <-ctx.Done():
+			return phoneNoAnswer, false
+		}
+	}
+	return phoneUnread, false
 }
 
 // The agent's texts where a check before the send failed on a read twice:

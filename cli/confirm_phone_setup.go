@@ -423,19 +423,3 @@ func setPhoneLink(paths runtimePaths, owner string, prev phoneEntry, link *phone
 func samePhoneEntry(a, b phoneEntry) bool {
 	return a.legacy == b.legacy && (a.link == nil) == (b.link == nil) && (a.link == nil || *a.link == *b.link)
 }
-
-// detectAfterWindow picks the channel where no window opens: the linked
-// phone, else a form, else chat. A linked phone that can't be asked now
-// refuses (channelPhoneMissing), so breaking its setup in Home Assistant
-// can't move a plan to a channel the model can answer.
-func detectAfterWindow(s *relaySession) string {
-	switch _, status := discoverConfirmer(s); status {
-	case phoneReady:
-		return channelPhone
-	case phoneMissing:
-		return channelPhoneMissing
-	case phoneLegacy:
-		return channelPhoneUnlinked
-	}
-	return codeChannel()
-}

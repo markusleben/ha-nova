@@ -55,17 +55,27 @@ func (v humanVote) decisive() bool {
 
 // confirmBoth asks in the window (text) and on a's phone, and returns like
 // confirmByWindow. Every path tells the phone how it ended (phoneApplied,
-// which also closes a.s).
+// which also closes a.s). The window says the phone asks too only once the
+// phone's probe passed (phoneCanListen, ending while windowMinWait is still
+// left for the window); else it asks alone (phoneUnread).
 func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
+	lang := textLang(a.plan)
+	listens := phoneCanListen(a.s, a.deadline.Add(-windowMinWait))
+	if listens {
+		text += windowBoth(lang) + "\n"
+	}
 	ctx, cancel := context.WithDeadline(context.Background(), a.deadline)
 	defer cancel()
 	votes := make(chan humanVote, 2) // the first vote received decides: the claim
 	go func() {
-		answer, ended := askWindowUntilSignal(ctx, text, a.plan.Lang, time.Until(a.deadline))
+		answer, ended := askWindowUntilSignal(ctx, text+windowAsked(lang), a.plan.Lang, time.Until(a.deadline))
 		votes <- humanVote{window: answer, ended: ended}
 	}()
 	go func() {
-		a.answer, a.reply = askPhone(ctx, a.s, a.setup, "ha-nova-"+a.plan.ID, a.ask, time.Until(a.deadline), os.Stderr)
+		a.answer = phoneUnread
+		if listens {
+			a.answer, a.reply = askPhone(ctx, a.s, a.setup, "ha-nova-"+a.plan.ID, a.ask, time.Until(a.deadline), os.Stderr)
+		}
 		votes <- humanVote{phone: true, answer: a.answer}
 	}()
 	var first humanVote
@@ -92,7 +102,7 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 			windowIn, ended = true, v.ended // a stop still wins over a phone's Confirm
 		}
 	}
-	s, reply, goal, lang := a.s, a.reply, a.goal, textLang(a.plan)
+	s, reply, goal := a.s, a.reply, a.goal
 	if ended != nil { // stopped on the computer, then the process ends (lane E2)
 		if decided && first.phone { // the phone had answered: it hears what came of it
 			reply.say(phoneResultTitle(lang, confirmT(lang, "outcome.cancelled"), goal), confirmT(lang, "outcome.line.stopped_computer"))

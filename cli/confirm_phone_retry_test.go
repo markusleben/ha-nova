@@ -16,9 +16,24 @@ import (
 var markusLink = phoneLink{Service: "mobile_app_markuss_iphone", DeviceID: "dev-markus", UserID: "owner-id", Name: "Markus’s iPhone", Platform: phoneIOS}
 
 func fastRetry(t *testing.T) {
-	saved := phoneRetryPause
-	phoneRetryPause = 10 * time.Millisecond
-	t.Cleanup(func() { phoneRetryPause = saved })
+	saved, lane := phoneRetryPause, phoneLanePause
+	phoneRetryPause, phoneLanePause = 10*time.Millisecond, 20*time.Millisecond
+	t.Cleanup(func() { phoneRetryPause, phoneLanePause = saved, lane })
+}
+
+// saysHomeAssistantWasSlow: the agent hears that Home Assistant was slow,
+// twice, and that nothing on the phone needs fixing; never that the phone
+// can't be reached.
+func saysHomeAssistantWasSlow(t *testing.T, text string) {
+	t.Helper()
+	for _, want := range []string{"Home Assistant answered too slowly or a read failed, twice", "Nothing on the phone needs fixing (no notification settings, no limits)"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("missing %q in %q", want, text)
+		}
+	}
+	if strings.Contains(text, "could not reach") || strings.Contains(text, "confirm-phone list") {
+		t.Fatalf("blames the phone: %q", text)
+	}
 }
 
 // failReads answers the next n reads that match with a Relay timeout, as a
@@ -99,7 +114,8 @@ func usersReadable(home *fakeHome, f *fakeHA, ok bool) {
 }
 
 // A check that fails once on a read runs once more, and the phone gets the
-// question once: alone, and beside the window.
+// question once: alone, and beside the window, which says the phone asks
+// too (its probe runs before the window opens, then the ask's own).
 func TestPhoneCheckThatFailsOnceAsksOnce(t *testing.T) {
 	for _, c := range []struct {
 		name    string
@@ -118,8 +134,9 @@ func TestPhoneCheckThatFailsOnceAsksOnce(t *testing.T) {
 			h, p, _ := familyLink(t)
 			fastRetry(t)
 			seedLink(t, h, &markusLink)
+			var w *raceWindow
 			if c.window {
-				useRaceWindow(t, windowNoAnswer, make(chan struct{}), false)
+				w = useRaceWindow(t, windowNoAnswer, make(chan struct{}), false)
 			}
 			plan := h.plan("lock.unlock", "lock.front").Plan
 			windowWait = 10 * time.Second // the retry runs only inside the ask's wait
@@ -133,8 +150,15 @@ func TestPhoneCheckThatFailsOnceAsksOnce(t *testing.T) {
 				return []phoneEvent{tap(ok, "owner-id", "REMOTE")}
 			}
 			exit, env := h.run(runApplyCommand, "--plan", plan.ID)
-			if exit != 0 || env.Status != "verified" || calls(h) != 1 || p.asks() != 1 || lookups != c.lookups || probed != 1+c.probe {
+			want := 1 + c.probe
+			if c.window {
+				want++
+			}
+			if exit != 0 || env.Status != "verified" || calls(h) != 1 || p.asks() != 1 || lookups != c.lookups || probed != want {
 				t.Fatalf("exit %d %s %+v calls %d asks %d lookups %d probes %d", exit, env.Status, env.Error, calls(h), p.asks(), lookups, probed)
+			}
+			if c.window && (len(w.messages) != 1 || !strings.Contains(w.messages[0], windowBoth("en"))) {
+				t.Fatalf("window %q", w.messages)
 			}
 		})
 	}
@@ -162,17 +186,7 @@ func TestPhoneLookupReadsAFailedServiceListAgain(t *testing.T) {
 // Both tries fail: the phone gets nothing, and the agent hears that Home
 // Assistant was slow and that nothing on the phone needs fixing.
 func TestPhoneCheckThatFailsTwiceSaysHomeAssistantWasSlow(t *testing.T) {
-	plain := func(t *testing.T, next string) {
-		t.Helper()
-		for _, want := range []string{"Home Assistant answered too slowly or a read failed, twice", "Nothing on the phone needs fixing (no notification settings, no limits)"} {
-			if !strings.Contains(next, want) {
-				t.Fatalf("missing %q in %q", want, next)
-			}
-		}
-		if strings.Contains(next, "could not reach") || strings.Contains(next, "confirm-phone list") {
-			t.Fatalf("blames the phone: %q", next)
-		}
-	}
+	plain := saysHomeAssistantWasSlow
 	for _, probe := range []bool{false, true} {
 		what := map[bool]string{false: "lookup", true: "probe"}[probe]
 		t.Run("phone, "+what, func(t *testing.T) {
@@ -199,7 +213,7 @@ func TestPhoneCheckThatFailsTwiceSaysHomeAssistantWasSlow(t *testing.T) {
 			fastRetry(t)
 			seedLink(t, h, &markusLink)
 			gate := make(chan struct{})
-			useRaceWindow(t, windowNoAnswer, gate, false)
+			w := useRaceWindow(t, windowNoAnswer, gate, false)
 			plan := h.plan("lock.unlock", "lock.front").Plan
 			windowWait = 10 * time.Second
 			failProbes(map[bool]int{false: 0, true: 9}[probe])
@@ -208,6 +222,10 @@ func TestPhoneCheckThatFailsTwiceSaysHomeAssistantWasSlow(t *testing.T) {
 			var exit int
 			var env verbTestEnvelope
 			stderr := captureStderr(t, func() { exit, env = h.run(runApplyCommand, "--plan", plan.ID) })
+			// The window never says the phone asks too while it can't.
+			if len(w.messages) != 1 || strings.Contains(w.messages[0], windowBoth("en")) || !strings.HasSuffix(w.messages[0], windowAsked("en")) {
+				t.Fatalf("window %q", w.messages)
+			}
 			if exit != 4 || env.Error == nil || env.Error.Code != "CONFIRM_CANCELLED" || len(p.sent) != 0 || calls(h) != 0 ||
 				!strings.Contains(stderr, "so only the window on this computer asks. Nothing on your phone needs fixing.") || strings.Contains(stderr, "can't reach your linked phone") {
 				t.Fatalf("exit %d %+v sent %d stderr %q", exit, env.Error, len(p.sent), stderr)

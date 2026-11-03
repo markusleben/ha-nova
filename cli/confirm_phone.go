@@ -146,7 +146,7 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 	defer s.renewBudget()
 	// A fresh tag per attempt: a late result of an earlier attempt can't replace this one.
 	tag += "-" + attempt[len(attempt)-8:]
-	collect, notify := phoneCollect, phoneNotify // the lanes may outlive this call
+	collect, notify, pause := phoneCollect, phoneNotify, phoneLanePause // the lanes may outlive this call
 	ctx, cancel := context.WithTimeout(parent, wait)
 	defer cancel()
 	events, failed := make(chan phoneEvent, 16), make(chan error, 4)
@@ -164,7 +164,7 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 				default:
 				}
 				select { // the other lane still listens
-				case <-time.After(time.Second):
+				case <-time.After(pause):
 				case <-ctx.Done():
 				}
 				continue
@@ -184,12 +184,8 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 	// Two overlapping lanes: one re-subscribes while the other still listens.
 	go lane(0)
 	go lane(phoneWindowSpan / 2)
-	select {
-	case <-failed: // no listener: never send a tap no one can hear
-		return phoneFailed, reply
-	case <-time.After(phoneSettle):
-	case <-ctx.Done():
-		return phoneNoAnswer, reply
+	if answer, ok := phoneSettled(ctx, failed); !ok { // no listener: never send a tap no one can hear
+		return answer, reply
 	}
 	deadline, _ := ctx.Deadline()
 	sent, sending := sendPhones(ctx, s, clearingFirst(phoneLastResults(s.paths), setup.owner, notify), setup.targets, func(t phoneTarget) map[string]any { return phonePayload(ask, t.platform(), tag, ok, no, deadline) })
