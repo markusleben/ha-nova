@@ -137,7 +137,7 @@ func TestLinkedIPhoneKeepsItsUnlock(t *testing.T) {
 func TestWaitingForPhoneSaysHowToTap(t *testing.T) {
 	tap := phoneTapLine("en", phoneAndroid, "Unlock")
 	for want, line := range map[string]*string{tap: &tap, "press and hold it on an iPhone, or pull it down on Android": nil} {
-		if say := waitingForPhone("p_1", "en", line)["structuredContent"].(map[string]any)["say"].(string); !strings.Contains(strings.ToLower(say), strings.ToLower(want)) {
+		if say := waitingForPhone("p_1", "en", line, true)["structuredContent"].(map[string]any)["say"].(string); !strings.Contains(strings.ToLower(say), strings.ToLower(want)) {
 			t.Errorf("say %q lacks %q", say, want)
 		}
 	}

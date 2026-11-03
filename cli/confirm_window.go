@@ -67,7 +67,7 @@ func detectChannel(s *relaySession) string {
 	if chatCall == nil && !windowOff(s.paths) && windowAvailable() { // ha-nova serve runs on a server: never a window
 		return channelWindow
 	}
-	return detectAfterWindow(s)
+	return detectAfterWindow(s, time.Time{})
 }
 
 // windowOff: the user turned confirmation windows off
@@ -152,6 +152,9 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 	setup, status, deadline, inTime := discoverInTime(s, wait)
 	if !inTime {
 		defer s.close()
+		if setup.why == whyRead {
+			return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", phoneUnreadWhy, phoneUnreadNext)
+		}
 		return windowStopped(s, "refused", "PLAN_EXPIRED", "plan "+id+" expires before a confirmation window could get an answer", replan)
 	}
 	again := fmt.Sprintf("Tell the user in plain words: the window closed without an answer, nothing changed, and they can ask again. Run ha-nova apply --plan %s again (the window opens again) only after they say they still want it; never ask them for a code. If they saw no window, they can make this change in Home Assistant itself.", id)
@@ -159,11 +162,12 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 	switch status {
 	case phoneReady: // the linked phone asks too (confirm_both.go)
 		a := &phoneAsking{id: id, plan: plan, s: s, idHex: idHex, goal: goal, setup: setup, ask: phonePlanAsk(lang, goal, noSnapshot), deadline: deadline}
-		return confirmBoth(a, text+windowBoth(lang)+"\n"+windowAsked(lang))
+		return confirmBoth(a, text)
 	case phoneMissing, phoneNone, phoneLegacy: // the window still asks; a user waiting at the phone learns why it stays quiet
 		if status == phoneMissing || phoneLinkedHere(paths) {
-			fmt.Fprintln(os.Stderr, phoneQuietText)
-			again += phoneQuietNext
+			line, next := phoneQuiet(status == phoneMissing && setup.why == whyRead)
+			fmt.Fprintln(os.Stderr, line)
+			again += next
 		}
 	}
 	defer s.close()
@@ -175,7 +179,7 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 		return windowStopped(s, "declined", "CONFIRM_DECLINED", "the confirmation window was cancelled",
 			"Tell the user nothing changed. Apply this plan again only if they ask for it.")
 	case windowFailed:
-		return windowFallback(paths, s, plan, noSnapshot)
+		return windowFallback(paths, s, plan, noSnapshot, deadline)
 	case windowClosed:
 		return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "the confirmation window was closed", again)
 	}
@@ -258,14 +262,17 @@ var endBySignal = func(ended os.Signal) {
 // the plan becomes a form plan where the MCP client shows forms, else a
 // chat plan (fallback E) — said, never silent. The new
 // plan replaces the window plan; its `say` carries the code and its limit.
-func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnapshot bool) (verbEnvelope, int, bool) {
+// A second phone lookup ends by the window's deadline.
+func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnapshot bool, deadline time.Time) (verbEnvelope, int, bool) {
 	env := verbEnvelope{SchemaVersion: 1, Verb: "apply", Status: "ok", Server: s.server}
 	// A window that failed late: its wait is not read time.
 	s.renewBudget()
-	channel := detectAfterWindow(s) // the phone, else a form, else chat
+	channel := detectAfterWindow(s, deadline) // the phone, else a form, else chat
 	switch channel {
 	case channelPhoneMissing:
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and HA NOVA can't reach the linked phone either", phoneMissingStep())
+	case channelPhoneUnread:
+		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and "+phoneUnreadWhy, phoneUnreadNext)
 	case channelPhoneUnlinked:
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and "+phoneUnlinkedWhy, phoneUnlinkedNext(s.homeLanguage()))
 	}

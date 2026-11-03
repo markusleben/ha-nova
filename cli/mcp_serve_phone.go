@@ -98,10 +98,14 @@ func codeChannel() string {
 }
 
 // discoverConfirmer: the linked phone, which in a chat app must confirm as
-// the chat app's own user; any other confirmer is refused, never moved to a
-// code.
+// the chat app's own user (chatConfirmer).
 func discoverConfirmer(s *relaySession) (phoneSetup, phoneStatus) {
-	setup, status := phoneDiscover(s)
+	return chatConfirmer(phoneDiscover(s, time.Now().Add(relaySessionOverallTimeout)))
+}
+
+// chatConfirmer: in a chat app, a linked phone that confirms as another
+// user is refused, never moved to a code.
+func chatConfirmer(setup phoneSetup, status phoneStatus) (phoneSetup, phoneStatus) {
 	if chatCall != nil && status == phoneReady && setup.confirmer != chatCall.user {
 		return phoneSetup{why: whyRemoved}, phoneMissing // not "unread": after a tap, "no longer the linked phone"
 	}
@@ -207,7 +211,8 @@ type chatJob struct {
 	phone  bool                   // a phone ask (phoneJob), else an apply (applyJob)
 	kind   string                 // the plan's kind: its outcome only for a user who may still apply it
 	locked chan struct{}          // closed once the job holds mcpVerbLock (never when it gave up on it)
-	tapped atomic.Bool            // the phone answered; apply may be running
+	tapped atomic.Bool            // the phone answered (Confirm, Cancel, someone else's tap); apply may be running
+	sent   atomic.Bool            // the question went out (askPhone): until then HA NOVA is still checking
 	tap    atomic.Pointer[string] // how to answer on the phone asked (phoneTapLine), once known
 }
 
@@ -314,8 +319,9 @@ func (srv *mcpServer) phoneJob(job *chatJob, args map[string]json.RawMessage, ar
 	}
 	tap := a.tapLine(textLang(a.plan))
 	job.tap.Store(&tap)
+	a.ask.sent = &job.sent
 	a.wait(nil)
-	job.tapped.Store(a.answer != phoneNoAnswer)
+	job.tapped.Store(a.answer == phoneConfirmed || a.answer == phoneDeclined || a.answer == phoneRejected)
 	// The owner may have removed this user, lowered their level, or set read
 	// only meanwhile, or the user's Home Assistant role may have changed:
 	// read again, and apply's recompute checks the call with that level.
@@ -362,14 +368,18 @@ func (srv *mcpServer) phoneJob(job *chatJob, args map[string]json.RawMessage, ar
 }
 
 // waitingForPhone: the ask is still open (once the phone answered, the
-// apply that follows answers applying).
-func waitingForPhone(id, lang string, tap *string) map[string]any {
+// apply that follows answers applying); before its question went out
+// (sent), HA NOVA is still checking the phone, so nobody watches it yet.
+func waitingForPhone(id, lang string, tap *string, sent bool) map[string]any {
 	how := confirmT(lang, "say.phone_waiting_how")
 	if tap != nil {
 		how = *tap
 	}
 	say := confirmT(lang, "say.phone_waiting", "tap", how) + " " + sayNotRun(lang)
 	next := fmt.Sprintf("Nothing has run yet: HA NOVA is still waiting for the user's tap on their phone. Tell the user `say`, then call ha_apply again with plan_id %s and no confirm_code right away, in this same answer: it keeps waiting on the same notification and sends no new one. You can't act once your answer ends, so never tell the user you will report back on your own; if you end your answer before the outcome, tell them to ask you again once they tapped. Never ask for a code.", id)
+	if !sent {
+		say, next = sayNotRun(lang), fmt.Sprintf("Nothing has run yet: HA NOVA is still checking the user's linked phone in Home Assistant, and nothing was sent to it yet. Tell the user `say`, then call ha_apply again with plan_id %s and no confirm_code right away, in this same answer. Don't tell the user to watch their phone yet. Never ask for a code.", id)
+	}
 	envelope := map[string]any{"schema_version": 1, "verb": "apply", "status": "waiting_for_phone", "plan": map[string]any{"id": id}, "say": say, "next_step": next}
 	text, _ := json.Marshal(envelope)
 	return map[string]any{"content": []map[string]any{{"type": "text", "text": string(text)}}, "structuredContent": envelope, "isError": false}

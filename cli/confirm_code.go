@@ -61,8 +61,11 @@ const (
 	channelWindow = "window" // a native window on this computer asks (confirm_window.go)
 	channelPhone  = "phone"  // the linked phone asks (confirm_phone.go)
 	// channelPhoneMissing is never stored: the linked phone can't be asked
-	// now, so the plan is refused (confirm_phone_setup.go).
+	// now, so the plan is refused (detectAfterWindow).
 	channelPhoneMissing = "phone-missing"
+	// channelPhoneUnread is never stored: the linked phone's lookup failed on
+	// a read twice (a slow Home Assistant), so the plan is refused.
+	channelPhoneUnread = "phone-unread"
 	// channelPhoneUnlinked is never stored: #719's pin, no phone chosen yet,
 	// so the plan is refused until one is linked, never downgraded.
 	channelPhoneUnlinked = "phone-unlinked"
@@ -78,6 +81,8 @@ func channelRefusal(channel string, lang func() string) *verbFailure {
 	switch channel {
 	case channelPhoneMissing:
 		return refusedWith("CONFIRM_UNAVAILABLE", phoneMissingWhy, phoneMissingStep())
+	case channelPhoneUnread:
+		return refusedWith("CONFIRM_UNAVAILABLE", phoneUnreadWhy, phoneUnreadNext)
 	case channelPhoneUnlinked:
 		return refusedWith("CONFIRM_UNAVAILABLE", phoneUnlinkedWhy, phoneUnlinkedNext(lang()))
 	case channelChatOff:

@@ -204,7 +204,7 @@ func linkedPhone(s *relaySession) *phoneTarget {
 	if !phoneLinkedHere(s.paths) {
 		return nil
 	}
-	setup, status := discoverPhone(s)
+	setup, status := discoverPhone(s, time.Now().Add(relaySessionOverallTimeout))
 	if status != phoneReady || len(setup.targets) == 0 {
 		return nil
 	}
