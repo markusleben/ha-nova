@@ -7,6 +7,7 @@ import (
 	"net/http/httptrace"
 	"os"
 	"path/filepath"
+	"slices"
 	"syscall"
 	"testing"
 	"time"
@@ -201,5 +202,12 @@ func TestAutomaticRouteProbesTheLocalRelayWhileLinkIsClosed(t *testing.T) {
 	selected, err := resolveAutomaticRelayTransport(context.Background(), cfg)
 	if err != nil || selected.Via != relayViaLocal || *cloudCalls != 1 {
 		t.Fatalf("selection = %+v, err = %v, Link logins = %d (want 1)", selected, err, *cloudCalls)
+	}
+}
+
+func TestUninstallRemovesTheRememberedLinkRoute(t *testing.T) {
+	paths := runtimePaths{CacheDir: filepath.Join(t.TempDir(), "cache")}
+	if !slices.Contains(managedCacheArtifactPaths(paths), filepath.Join(paths.CacheDir, linkRouteMemoryName)) {
+		t.Fatal("uninstall leaves the remembered Link route behind")
 	}
 }

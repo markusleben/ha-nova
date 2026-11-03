@@ -29,14 +29,15 @@ Measured on 2026-11-03 with read-only probes, VPN on:
 - One Link login attempt has at most 10 s (`linkLoginAttemptTimeout`), and always ends by the caller's deadline: health `--max-time`, a verb session's 30 s, `relay ws|core` 15 s.
 - `relay ws|core`: the request gets its own 15 s after the route is chosen, so a 10 s `collect_events` window still fits after a slow login.
 - `trace`: one route selection per command, not one per Relay call (three for `trace latest`).
+- The Home Assistant WebSocket closes without the close handshake, which waits up to 10 s for a silent peer, past every caller's deadline.
 
 ### Retries: exactly these, each at most once
 
 | # | What | When | Why it is safe |
 |---|------|------|----------------|
-| R1 | The Link login: OAuth refresh, WebSocket checks, Ingress session | A network or timeout error, or a server-side 5xx; at least 3 s left | No functional request exists yet. A refresh grant only mints a short-lived access token, the WebSocket calls read, and an unused Ingress session expires on its own. |
+| R1 | The Link login: OAuth refresh, WebSocket checks, Ingress session | A network or timeout error without an HTTP answer, or a server-side 5xx; at least 3 s left. A refused WebSocket upgrade (400, 403, 429) is final | No functional request exists yet. A refresh grant only mints a short-lived access token, the WebSocket calls read, and an unused Ingress session expires on its own. |
 | R2 | Any Link request whose connection never opened | DNS, TCP, or TLS failed and no connection was obtained (`GotConn` never fired); at least 1 s left | Nothing was written, so nothing reached the Relay. This holds for writes too. |
-| R3 | A Link GET (`/health`, setup's info reads) | No answer, or a 502/503 that did not come from the Relay; at least 1 s left | A GET only reads. |
+| R3 | A Link GET (`/health`, setup's info reads) | No answer, Ingress unavailable, or a 502–504 that did not come from the Relay; at least 1 s left | A GET only reads. |
 | R4 | A session read over Link (`relaySession.sendIn`: the read allowlist, the phone lookup and listening probes, verify polls) | No answer from the Relay: no HTTP answer, Ingress unavailable, or a status Link or Home Assistant answered instead of the Relay; inside the same per-request deadline, at least 1 s left | Every caller of `sendIn` reads. Writes go through `sendWrite`. |
 
 Never retried:
@@ -54,7 +55,7 @@ This narrows the 2026-07-25 non-goal "No automatic retry after a functional requ
 
 ### Remembered route (automatic only)
 
-- `<cache>/link-route.json` records the profile id, the Relay instance id, the Relay's local address, and an end time at most 2 minutes ahead.
+- `<cache>/link-route.json` records the profile id, the Relay instance id, the Relay's local address, and an end time at most 2 minutes ahead. Uninstall removes it.
 - It is written only when the full 2 s authenticated local preflight (not shortened by `--connect-timeout`) failed with a pure network error without ever obtaining a connection, and the Link login that followed succeeded with its identity checks. A slow but reachable local Relay is never replaced.
 - It is read only by `route_policy: automatic` for the same profile, instance, and address, and only while Link is open (no cleanup checkpoint). It skips only the local preflight. The device-credential read and the full Link identity check still run; during cleanup the local Relay is probed as before.
 - A hit never extends it. When Link fails on a remembered route and the caller still has time, the file is removed and the local Relay is probed in the same command, before any functional request exists: a healthy local Relay is used, otherwise the Link error stands. When the caller's own deadline ends the login, the route stays.
@@ -85,4 +86,5 @@ This narrows the 2026-07-25 non-goal "No automatic retry after a functional requ
 - Local unreachable, then Link: a second automatic selection within 2 minutes skips the preflight; another Relay instance or a far end time is probed again. When Link fails on a remembered route, the local Relay is probed in the same command and used when it is back.
 - `relay ws|core` gets its full request time after a slow route choice; `trace latest` chooses its route once.
 - A write whose request was sent is never retried. A write whose connection never opened is sent once. A session read goes once more only without an answer from the Relay; a local read never.
+- A refused WebSocket upgrade is not retried; a 504 from Link counts as no answer; the WebSocket closes without waiting for a silent peer; uninstall lists the route file.
 - Guards that pass on base too: a security failure, a shortened probe, or a probe that connected remembers nothing; the caller's own deadline keeps the route; cleanup still uses a healthy local Relay; a rejected grant is final.

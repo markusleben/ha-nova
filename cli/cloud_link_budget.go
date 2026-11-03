@@ -23,6 +23,7 @@ const (
 	linkLoginRetryMinLeft   = 3 * time.Second // a second login needs about this much
 	linkRequestRetryMinLeft = time.Second
 	linkRouteMemoryTTL      = 2 * time.Minute
+	linkRouteMemoryName     = "link-route.json" // in the cache directory; uninstall removes it
 )
 
 // Variables so tests can shrink them.
@@ -125,12 +126,12 @@ func linkLoginRetryable(err error) bool {
 	if !errors.As(err, &cloudErr) {
 		return false
 	}
-	return cloudErr.Code == CloudErrNetwork || cloudErr.Code == CloudErrTimeout ||
+	return (cloudErr.Code == CloudErrNetwork || cloudErr.Code == CloudErrTimeout) && cloudErr.StatusCode == 0 ||
 		cloudErr.Retryable && cloudErr.StatusCode >= http.StatusInternalServerError
 }
 
 // linkNoRelayAnswer: a Link request that got no answer from the Relay: no
-// HTTP answer at all, Ingress unavailable, or a 502/503 from Link or Home
+// HTTP answer at all, Ingress unavailable, or a 502–504 from Link or Home
 // Assistant. A GET (R3) and a session read (R4) may go once more; a redirect
 // or any answer from the Relay stays final.
 func linkNoRelayAnswer(err error) bool {
@@ -161,7 +162,7 @@ var linkRouteMemoryFile = sync.OnceValue(func() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(paths.CacheDir, "link-route.json")
+	return filepath.Join(paths.CacheDir, linkRouteMemoryName)
 })
 
 func linkRouteKey(cfg runtimeConfig) string {

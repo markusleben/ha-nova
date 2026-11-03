@@ -238,8 +238,8 @@ func (c *CloudIngressClient) send(
 				Code:       CloudErrOutcomeUnknown,
 				Op:         "dispatch Cloud Relay request",
 				StatusCode: response.StatusCode,
-				gatewayFailed: !reachedRelay && (response.StatusCode == http.StatusBadGateway ||
-					response.StatusCode == http.StatusServiceUnavailable),
+				gatewayFailed: !reachedRelay && response.StatusCode >= http.StatusBadGateway &&
+					response.StatusCode <= http.StatusGatewayTimeout,
 			}
 		}
 	}

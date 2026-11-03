@@ -6,12 +6,15 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/http/httptrace"
 	"strings"
 	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/coder/websocket"
 )
 
 // Home Assistant Link route budgets and its one bounded retry
@@ -181,6 +184,14 @@ func TestCloudIngressRetriesOnlyWhatCannotHaveReachedTheRelay(t *testing.T) {
 			},
 			wantCalls: 2,
 		},
+		"health GET Link timed out on goes once more": {
+			endpoint: CloudEndpointHealth,
+			first: func(request *http.Request) (*http.Response, error) {
+				connected(request)
+				return &http.Response{StatusCode: http.StatusGatewayTimeout, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(""))}, nil
+			},
+			wantCalls: 2,
+		},
 		"health GET answered by the Relay is final": {
 			endpoint: CloudEndpointHealth,
 			first: func(request *http.Request) (*http.Response, error) {
@@ -258,5 +269,30 @@ func TestRelaySessionRetriesOnlyLinkReads(t *testing.T) {
 				t.Fatalf("calls = %d (want %d), err = %v (want error: %v)", calls.Load(), testCase.wantCalls, err, testCase.wantErr)
 			}
 		})
+	}
+}
+
+// The Home Assistant WebSocket closes at once: a peer that never answers the
+// close handshake does not hold a Link login past its deadline.
+func TestHomeAssistantWebSocketClosesWithoutWaitingForThePeer(t *testing.T) {
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		connection, err := websocket.Accept(writer, request, nil)
+		if err != nil {
+			return
+		}
+		defer connection.CloseNow()
+		<-release // never reads, so never answers a close frame
+	}))
+	defer server.Close()
+	defer close(release)
+	connection, _, err := coderHAWebSocketDialer{}.Dial(context.Background(), "ws"+strings.TrimPrefix(server.URL, "http")+"/api/websocket", server.Client(), 1<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now()
+	_ = connection.Close()
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("closing took %s while the peer stayed silent", elapsed)
 	}
 }

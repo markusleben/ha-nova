@@ -16,6 +16,7 @@ import (
 func TestLinkLoginRetriesOnceOnlyAfterANetworkOrServerFailure(t *testing.T) {
 	shortLinkRetryPause(t)
 	for name, testCase := range map[string]struct {
+		path       string // the first request to this path fails; default the OAuth refresh
 		first      func() (*http.Response, error)
 		wantTokens int32
 		wantCode   CloudErrorCode
@@ -39,6 +40,13 @@ func TestLinkLoginRetriesOnceOnlyAfterANetworkOrServerFailure(t *testing.T) {
 				}, nil
 			},
 			wantTokens: 1, wantCode: CloudErrOAuthInvalidGrant,
+		},
+		"WebSocket upgrade refused is final": {
+			path: "/api/websocket",
+			first: func() (*http.Response, error) {
+				return &http.Response{StatusCode: http.StatusForbidden, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(""))}, nil
+			},
+			wantTokens: 1, wantCode: CloudErrNetwork,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -70,10 +78,18 @@ func TestLinkLoginRetriesOnceOnlyAfterANetworkOrServerFailure(t *testing.T) {
 			defer server.Close()
 			mapped := productionCloudMappedClient(t, server).Transport
 			var tokens atomic.Int32
+			var failed atomic.Bool
+			failPath := testCase.path
+			if failPath == "" {
+				failPath = "/auth/token"
+			}
 			oldStore, oldHTTP, oldContext := newCloudSecretStoreForCLI, cloudHTTPClientForCLI, cloudRuntimeSecureStorageContextAvailable
 			newCloudSecretStoreForCLI = func(string) (OAuthSecretStore, error) { return store, nil }
 			cloudHTTPClientForCLI = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-				if request.URL.Path == "/auth/token" && tokens.Add(1) == 1 {
+				if request.URL.Path == "/auth/token" {
+					tokens.Add(1)
+				}
+				if request.URL.Path == failPath && failed.CompareAndSwap(false, true) {
 					return testCase.first()
 				}
 				return mapped.RoundTrip(request)
