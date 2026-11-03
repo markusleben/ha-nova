@@ -182,6 +182,37 @@ func TestRawRelayRefusesFragmentPathTricks(t *testing.T) {
 	rawAllowed(t, "core", `{"method":"POST","path":"/api/template#x"}`)
 }
 
+// Reviews: the Relay's URL parse reads a path that doesn't start with /api/
+// against its own origin (http:/api/webhook/x and //relay.local/api/webhook/x
+// both reach /api/webhook/x), and it resolves dot segments before it
+// decodes, so /api/q%2Fr/../backup reaches /api/backup. The guard read them
+// somewhere else; it now refuses them, and sends nothing.
+func TestRawRelayRefusesPathsTheRelayParsesAnotherWay(t *testing.T) {
+	paths, hits := rawRelayCounter(t)
+	for _, target := range []string{
+		"http:/api/webhook/abc",
+		"HTTP:api/backup/download/abc",
+		`http:\api/webhook/abc`,
+		"/api/q%2Fr/../backup/download/abc",
+		"/api/q%2Fr/%2E%2E/backup/download/abc",
+		"//relay.local/api/backup/download/abc",
+		`\\relay.local/api/webhook/abc`,
+		`/\relay.local/api/webhook/abc`,
+		`\/relay.local/api/webhook/abc`,
+		"//u:p@RELAY.LOCAL:80/api/backup/download/abc",
+		"//relay%2Elocal/api/webhook/abc",
+		"//\uff52elay.local/api/webhook/abc",
+		"api/backup/download/abc",
+		"/API/backup/download/abc",
+	} {
+		before := hits.Load()
+		if exit, stderr := relayCore(t, paths, "GET", target, ""); exit != rawRefusedExit || hits.Load() != before {
+			t.Errorf("GET %s: exit %d, %d sent %s", target, exit, hits.Load()-before, stderr)
+		}
+	}
+	rawAllowed(t, "core", `{"method":"GET","path":"/api/history/period/2026-11-03T00:00:00+00:00?filter_entity_id=sensor.x"}`)
+}
+
 // Codex P1: a JSON number that overflows Go's float64 (but JS JSON.parse
 // accepts) must not fail the guard open. UseNumber keeps call_service visible.
 func TestRawRelayRefusesNumberOverflow(t *testing.T) {
