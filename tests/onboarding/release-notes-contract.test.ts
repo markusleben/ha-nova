@@ -72,6 +72,8 @@ describe("release notes contract", () => {
     // Confirmations in Home Assistant's language (#890, #898, #901), batch confirmation (#896), everyday lines (#899).
     expect(stableNotes).toContain("**Confirmations in your home's language.**");
     expect(stableNotes).toContain("**One confirmation for up to 20 automation and script changes.**");
+    // Media controls, small volume changes, to-do adds and a room's lights run without asking (#933).
+    expect(stableNotes).toContain("**Fewer questions for everyday things.**");
     expect(stableNotes).toContain("**Clearer confirmations for technical requests.**");
     // Answered on the computer, the phone's question goes away (#891); setup asks whose phone (#893).
     expect(stableNotes).toContain("**Answered on the computer, the phone's question disappears.**");

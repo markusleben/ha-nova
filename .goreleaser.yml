@@ -84,6 +84,7 @@ release:
     - **Each person confirms on their own phone.** On the NOVA page, link, change, or stop yours under "Your phone", others' in their row. The phone linked now OKs a change or stop first; a new phone OKs its link on itself.
     - **Confirmations in your home's language.** Is Home Assistant set to German? Then confirmations are in German, on the phone too, with Home Assistant's own words, like Automation or Verriegelt. Other languages get English.
     - **One confirmation for up to 20 automation and script changes.** Deletes too. The window names every item and what happens to it; the phone shows how many and the riskiest one. Undo now covers the last 25 changed items.
+    - **Fewer questions for everyday things.** Pausing or skipping music, a small volume change, adding to a to-do list and switching a room's lights run right away. Big volume jumps, removals and locks still ask.
     - **More of Home Assistant's settings.** Integrations, repairs, users, general settings, backup schedule, Labs, statistics import, deleting a device or blueprint. Preview first; deletes and sensitive changes take your OK.
     - **Apps and their logs, on HA OS.** Read Supervisor, Core, host, and App logs; install or remove an App, or change its settings, after your own OK. Also in chat apps; on a computer, not through Home Assistant Link.
     - **"Your setup" when you run setup again.** What is done and what is left, with a button for each open step (in the terminal, its command). Another AI app on this computer can use HA NOVA too: setup shows what to paste.
