@@ -240,6 +240,7 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 		entry.Change = upperFirst(entry.line)
 	}
 	env.Result = result
+	noteFlowForms(s, env)
 	if err == nil {
 		env.Say, plan.Prompt = confirmationSay(e, env, plan, ""), confirmationPrompt(e, env, plan, "")
 	}

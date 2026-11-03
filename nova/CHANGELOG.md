@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.13] - 2026-11-03
+
+### Fixed
+- HA NOVA refuses a password, PIN, or key it can recognize going into a setup or repair form, and when a form asks for one, the AI sends you to Home Assistant to finish there (Settings > Devices & services, or Settings > System > Repairs). This applies to every HA NOVA caller, chat apps and computers alike.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.0 ask you to update this App.
+
 ## [Relay 0.13.12] - 2026-11-03
 
 ### Fixed

@@ -172,7 +172,8 @@ const (
 var (
 	secretFlowNames = map[string]bool{"code": true, "pin": true, "key": true, "apikey": true, "bindkey": true, "passkey": true,
 		"default_code": true, "pin_code": true, "user_code": true, "usercode": true, "installer_code": true, "master_code": true,
-		"alarm_code": true, "disarm_code": true, "arm_code": true, "access_code": true}
+		"alarm_code": true, "disarm_code": true, "arm_code": true, "access_code": true, "pass": true, "pwd": true, "passcode": true,
+		"pincode": true, "pairing_code": true, "otp": true, "otp_code": true, "mfa_code": true, "2fa": true}
 	secretFlowParts    = []string{"password", "passphrase", "secret", "token", "psk"}
 	secretFlowSuffixes = []string{"_key", "_pin"}
 )
