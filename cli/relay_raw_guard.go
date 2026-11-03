@@ -135,12 +135,12 @@ func checkRawCoreBody(method, raw string, body any) error {
 	return nil
 }
 
-// checkRawCore: a GET is a read unless the Relay parses its path another way
-// (rawReparsedPath); any other method is sent only when its exact path is on
-// the allowlist, in the form the Relay forwards (no scheme, %-escapes, dot
-// segments, doubled slashes, or backslashes), so the path matched is the
-// path Home Assistant routes. The hints and the webhook check compare a
-// decoded, cleaned, lowercased path (broader than HA's routes, never narrower).
+// checkRawCore: a GET is a read if its raw path starts with /api/ and has no
+// dot segment (the Relay's URL parse reads others another way); any other
+// method is sent only when its exact path is on the allowlist, in the form
+// the Relay forwards (no %-escapes, dot segments, doubled slashes, or
+// backslashes), so the path matched is the path Home Assistant routes. The
+// hints and the webhook check read relayCorePath, lowercased (broader).
 func checkRawCore(method, raw string) error {
 	if strings.ContainsFunc(raw, func(r rune) bool { return r <= ' ' || r == 0x7f }) { // the URL parse strips these
 		return rawRefusal("core path "+strconv.Quote(raw), "the path holds whitespace or control characters")
@@ -158,9 +158,9 @@ func checkRawCore(method, raw string) error {
 	if strings.HasPrefix(decoded, "/api/backup") || strings.HasPrefix(decoded, "/api/hassio") { // a backup download holds every stored credential
 		return rawRefusal("backup or Supervisor request", "list backups with WS backup/info; downloads and Supervisor actions stay in the Home Assistant UI")
 	}
-	reparsed := rawReparsedPath.MatchString(pathPart)
+	reparsed := !strings.HasPrefix(pathPart, "/api/") || rawDotSegment.MatchString(pathPart)
 	if method == http.MethodGet && reparsed {
-		return rawRefusal("core path "+strconv.Quote(raw), "send the plain path (no scheme, and no dot segments, %-escaped or not)")
+		return rawRefusal("core path "+strconv.Quote(raw), "send the plain path, starting with /api/ (no dot segments, %-escaped or not)")
 	}
 	if method == http.MethodGet {
 		return nil
@@ -175,7 +175,7 @@ func checkRawCore(method, raw string) error {
 	}
 	next := rawNextOther
 	if !canonical {
-		next = "send the plain path (no scheme, %-escapes, dot segments, or doubled slashes); " + rawNextOther
+		next = "send the plain path, starting with /api/ (no %-escapes, dot segments, or doubled slashes); " + rawNextOther
 	}
 	for _, hint := range rawCoreWriteHints {
 		if strings.HasPrefix(decoded, hint.prefix) {
@@ -211,10 +211,9 @@ func relayCorePath(raw string) (string, bool) {
 	return path.Clean("/" + strings.ReplaceAll(target, `\`, "/")), true
 }
 
-// rawReparsedPath: what the Relay's URL parse reads another way: a scheme
-// first (http:/api/… roots at the Relay's origin) or a dot segment, %-escaped
-// or not (resolved before decoding, so a %2F before one moves where it lands).
-var rawReparsedPath = regexp.MustCompile(`(?i)^[a-z][a-z0-9+.-]*:|(?:^|[/\\])(?:\.|%2e){1,2}(?:[/\\]|$)`)
+// rawDotSegment: a . or .. segment, %-escaped or not, which the Relay's URL
+// parse resolves before decoding (so a %2F before one moves where it lands).
+var rawDotSegment = regexp.MustCompile(`(?i)[/\\](?:\.|%2e){1,2}(?:[/\\]|$)`)
 
 // checkRawWS: the exact type must be on the allowlist (Home Assistant
 // dispatches on the exact string, so no trimming or case folding here), then

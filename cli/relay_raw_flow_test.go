@@ -292,12 +292,13 @@ func relayCore(t *testing.T, paths runtimePaths, method, target, body string) (e
 
 // The Relay forwards a core path as a URL path (core-proxy.ts): without its
 // fragment or query, %-escapes decoded (and a ? or # they decode to cuts the
-// path again when fetch parses it), backslashes as slashes, rooted. The flow
-// guard reads the same path (relayCorePath), so a form that came back is
-// kept however the path that reached it was spelled, and a cancel with a
-// fragment removes the flow's files. Doubled and trailing slashes, which the
-// Relay keeps, are folded too (broader, never narrower). A dot segment, which
-// the Relay resolves before it decodes, is refused: nothing is sent.
+// path again when fetch parses it), backslashes as slashes. The flow guard
+// reads the same path (relayCorePath), so a form that came back is kept
+// however the path that reached it was spelled, and a cancel with a fragment
+// removes the flow's files. Doubled and trailing slashes, which the Relay
+// keeps, are folded too (broader, never narrower). A path that doesn't start
+// with /api/ or holds a dot segment, which the Relay's URL parse reads
+// another way, is refused: nothing is sent.
 func TestRelayFlowFormsKeptWhateverThePathSpelling(t *testing.T) {
 	form := func(map[string]any) any {
 		return map[string]any{"status": 200, "body": map[string]any{"type": "form", "flow_id": "r1", "handler": "demo", "step_id": "user",
@@ -312,7 +313,6 @@ func TestRelayFlowFormsKeptWhateverThePathSpelling(t *testing.T) {
 		{"GET", "/api/config/config_entries/flow/r1%23x", ""},
 		{"GET", "/api/config/config_entries/flow/r1%253f", ""},
 		{"GET", `/api/config/config_entries/flow\r1`, ""},
-		{"GET", "api/config/config_entries/flow/r1", ""},
 		{"GET", "/api/config/config_entries//flow/r1", ""},
 		{"GET", "/api/config/config_entries/flow/r1/", ""},
 	} {
@@ -326,8 +326,11 @@ func TestRelayFlowFormsKeptWhateverThePathSpelling(t *testing.T) {
 		}
 	}
 	counted, hits := rawRelayCounter(t)
-	if exit, stderr := relayCore(t, counted, "GET", "/api/config/config_entries/flow/x/../r1", ""); exit != rawRefusedExit || hits.Load() != 0 {
-		t.Errorf("a dot segment: exit %d, %d sent %s", exit, hits.Load(), stderr)
+	for _, target := range []string{"/api/config/config_entries/flow/x/../r1", "api/config/config_entries/flow/r1", "//relay.local/api/config/config_entries/flow/r1"} {
+		before := hits.Load()
+		if exit, stderr := relayCore(t, counted, "GET", target, ""); exit != rawRefusedExit || hits.Load() != before {
+			t.Errorf("GET %s: exit %d, %d sent %s", target, exit, hits.Load()-before, stderr)
+		}
 	}
 	paths, _ := rawRelay(t, map[string]func(map[string]any) any{
 		"POST /api/config/config_entries/flow":        form,
