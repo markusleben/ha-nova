@@ -248,6 +248,33 @@ func TestShoppingListMoveWakesItsListeners(t *testing.T) {
 	}
 }
 
+// A listener the raw plan walked is in its basis (I3): changed between the
+// preview and apply, here from unlocking to opening the same door, it is
+// drift and nothing is sent.
+func TestShoppingListMoveDriftsWhenItsListenerChanges(t *testing.T) {
+	f := newFakeHA()
+	listensToTheList(f)
+	paths, log := setupVerbRelayTest(t, f.reply)
+	move := `[{"endpoint":"ws","payload":{"type":"todo/item/move","entity_id":"todo.shopping_list","uid":"a"}}]`
+	_, env := planRaw(t, paths, move)
+	if env.Tier != "typed" || env.Plan == nil {
+		t.Fatalf("tier %s reasons %s", env.Tier, reasonCodes(env))
+	}
+	if _, again := planRaw(t, paths, move); again.Plan == nil || again.Plan.Hash != env.Plan.Hash {
+		t.Fatalf("an unchanged listener re-plans to another hash: %+v, was %s", again.Plan, env.Plan.Hash)
+	}
+	f.mu.Lock()
+	f.configs["/api/config/automation/config/g1"] = map[string]any{
+		"triggers": []any{map[string]any{"trigger": "event", "event_type": "shopping_list_updated"}},
+		"actions":  []any{step("lock.open", "lock.front")},
+	}
+	f.mu.Unlock()
+	exit, applied := applyRaw(t, paths, env)
+	if sent := strings.Join(log.wsTypes(), ","); exit != verbExitDrift || applied.Status != "drift" || strings.Contains(sent, "todo/item/move") {
+		t.Fatalf("exit %d status %s reasons %s ws %s", exit, applied.Status, reasonCodes(applied), sent)
+	}
+}
+
 // lights: n hue lights light.spot_0… in the kitchen; each switches its own
 // fan through a consumer automation when consumers is set.
 func lights(n int, consumers bool) func(*fakeHA) {
