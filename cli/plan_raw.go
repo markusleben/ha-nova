@@ -207,6 +207,7 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 		if item.Endpoint == "ws" && payload["type"] == "config/device_registry/remove" {
 			n.deviceEntities(payload["device_id"])
 		}
+		level = max(level, e.rawShoppingList(item.Endpoint, payload))
 		entry := rawPlanItem{Endpoint: item.Endpoint, Tier: level.String()}
 		if i < len(copies) {
 			entry.copy = copies[i]

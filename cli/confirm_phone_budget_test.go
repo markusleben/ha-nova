@@ -96,7 +96,7 @@ func TestPhoneLookupBudgetEndsWithTheLookup(t *testing.T) {
 	}
 	defer s.close()
 	time.Sleep(400 * time.Millisecond)
-	if _, status := discoverPhone(s); status != phoneReady {
+	if _, status := discoverPhone(s, time.Now().Add(relaySessionOverallTimeout)); status != phoneReady {
 		t.Fatalf("lookup after the budget: status %d", status)
 	}
 	var current haUser
@@ -104,7 +104,7 @@ func TestPhoneLookupBudgetEndsWithTheLookup(t *testing.T) {
 		t.Fatal("the session's spent budget came back renewed")
 	}
 	h.f.hang["config/auth/list"] = true
-	if setup, status := discoverPhone(s); status != phoneMissing || setup.why != whyRead {
+	if setup, status := discoverPhone(s, time.Now().Add(relaySessionOverallTimeout)); status != phoneMissing || setup.why != whyRead {
 		t.Fatalf("hung lookup: status %d why %d", status, setup.why)
 	}
 }

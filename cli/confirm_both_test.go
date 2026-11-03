@@ -344,7 +344,7 @@ func TestWindowFallbackFindsThePhoneLate(t *testing.T) {
 	useWindow(t, windowFailed)
 	plan := h.plan("lock.unlock", "lock.front").Plan
 	calls := 0
-	phoneDiscover = func(*relaySession) (phoneSetup, phoneStatus) {
+	phoneDiscover = func(*relaySession, time.Time) (phoneSetup, phoneStatus) {
 		if calls++; calls == 1 {
 			return phoneSetup{}, phoneNone
 		}
@@ -367,7 +367,7 @@ func TestSlowDiscoveryLeavesNoTimeAsksNoOne(t *testing.T) {
 			w = useRaceWindow(t, windowConfirmed, opened(), false)
 		}
 		plan := h.plan("lock.unlock", "lock.front").Plan
-		phoneDiscover = func(*relaySession) (phoneSetup, phoneStatus) {
+		phoneDiscover = func(*relaySession, time.Time) (phoneSetup, phoneStatus) {
 			time.Sleep(1500 * time.Millisecond)
 			return p.setup, phoneReady
 		}

@@ -27,7 +27,7 @@ func TestPhoneAskTexts(t *testing.T) {
 		{phonePlanAsk("en", actionGoal{label: "Cancel", names: []string{"“Timer”"}}, false), "Cancel “Timer”?", requested, "Confirm", true},
 	}
 	for _, c := range cases {
-		if c.got != (phoneAsk{"en", c.title, c.body, c.button, c.urgent, !c.urgent}) { // link, move, stop need the unlocked phone
+		if c.got != (phoneAsk{"en", c.title, c.body, c.button, c.urgent, !c.urgent, nil}) { // link, move, stop need the unlocked phone
 			t.Errorf("ask %+v, want %q %q %q %v", c.got, c.title, c.body, c.button, c.urgent)
 		}
 	}

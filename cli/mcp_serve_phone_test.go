@@ -158,7 +158,7 @@ func TestServePhoneLinksArePerUser(t *testing.T) {
 	// A linked phone whose confirmer is someone else is refused.
 	saved := phoneDiscover
 	defer func() { phoneDiscover = saved }()
-	phoneDiscover = func(*relaySession) (phoneSetup, phoneStatus) {
+	phoneDiscover = func(*relaySession, time.Time) (phoneSetup, phoneStatus) {
 		return phoneSetup{confirmer: userA, targets: []phoneTarget{{Service: "mobile_app_a"}}}, phoneReady
 	}
 	chatCall.user = userB
