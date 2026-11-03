@@ -459,6 +459,9 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 			reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest("device", device)) })
 		}
 	}
+	reads = append(reads, // checkManagers reads them after the walk: how far a cut walk got must not decide them
+		func() { _, _ = e.s.ws(map[string]any{"type": "config_entries/get"}) },
+		func() { _, _ = e.s.ws(map[string]any{"type": "config/entity_registry/list"}) })
 	prefetch(reads) // the consumer scan of every frozen target, warmed in parallel
 	if e.liveEvents()["call_service"] > callServiceListenerBaseline {
 		e.checkEvents("call_service", "")

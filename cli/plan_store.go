@@ -132,6 +132,12 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 	}
 	sort.SliceStable(e.reasons, func(i, j int) bool { return key(e.reasons[i]) < key(e.reasons[j]) })
 	tier := e.level.String()
+	if len(e.lost) > 0 { // which reads the budget cut: a recompute that lost another one, maybe one the preview had, never has this hash
+		if plan.Basis == nil { // a raw plan that read nothing it keeps
+			plan.Basis = map[string]any{}
+		}
+		plan.Basis["lost"] = slices.Compact(slices.Sorted(slices.Values(e.lost)))
+	}
 	sum := planHash(plan.Kind, env.Server, action, tier, e.reasons, plan.Basis)
 	// The per-plan nonce makes every id and code unique, so a re-plan never
 	// overwrites a plan or replays an earlier code; the drift hash stays

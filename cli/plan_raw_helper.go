@@ -53,7 +53,7 @@ var rawHelperLists = map[string]struct {
 					continue
 				}
 				for key, value := range was { // a key added to its data drops nothing
-					if !jsonEqual(value, data[key]) {
+					if now, has := data[key]; !has || !jsonEqual(value, now) {
 						dropped = append(dropped, helperDrop{day: day, from: from, to: to, data: true})
 						break
 					}
