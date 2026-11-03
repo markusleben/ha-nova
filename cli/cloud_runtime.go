@@ -19,7 +19,7 @@ var newCloudSecretStoreForCLI = func(profileID string) (OAuthSecretStore, error)
 	return NewSystemOAuthSecretStore(profileID)
 }
 
-var cloudHTTPClientForCLI = cloudNoRedirectHTTPClient(nil, 2*time.Minute)
+var cloudHTTPClientForCLI = cloudNoRedirectHTTPClient(&http.Client{Transport: newLinkHTTPTransport()}, 2*time.Minute)
 var cloudRuntimeSecureStorageContextAvailable = func() bool {
 	return platformNativeSecretPromptContextAvailable()
 }
@@ -86,17 +86,10 @@ func resolveCloudRelayTransport(
 	if err != nil {
 		return relayTransportSelection{}, err
 	}
-	token, err := oauth.Refresh(ctx, envelope.RefreshToken, envelope.ClientID)
-	if err != nil {
-		return relayTransportSelection{}, err
+	verified, err := loginToLink(ctx, oauth, envelope, origin)
+	if err != nil && linkLoginRetryable(err) && linkRetryWait(ctx, linkLoginRetryMinLeft) {
+		verified, err = loginToLink(ctx, oauth, envelope, origin) // R1: nothing functional was sent yet
 	}
-	verified, err := verifyCloudAccess(
-		ctx,
-		envelope,
-		token.AccessToken,
-		origin,
-		cloudHTTPClientForCLI,
-	)
 	if err != nil {
 		return relayTransportSelection{}, err
 	}
@@ -134,6 +127,23 @@ func resolveCloudRelayTransport(
 		)
 	}
 	return newCloudRelayTransport(verified.Ingress, credential)
+}
+
+// loginToLink is one Link login within linkLoginAttemptTimeout: the OAuth
+// refresh, then the WebSocket checks and the Ingress session.
+func loginToLink(
+	ctx context.Context,
+	oauth *HAOAuthClient,
+	envelope OAuthSecretEnvelope,
+	origin CloudOrigin,
+) (cloudVerifiedSession, error) {
+	ctx, cancel := context.WithTimeout(ctx, linkLoginAttemptTimeout)
+	defer cancel()
+	token, err := oauth.Refresh(ctx, envelope.RefreshToken, envelope.ClientID)
+	if err != nil {
+		return cloudVerifiedSession{}, err
+	}
+	return verifyCloudAccess(ctx, envelope, token.AccessToken, origin, cloudHTTPClientForCLI)
 }
 
 func matchCloudConfigToSecret(
@@ -176,19 +186,32 @@ func resolveAutomaticRelayTransport(
 	if err != nil {
 		return relayTransportSelection{}, err
 	}
-	if err := automaticLocalPreflight(ctx, cfg, local); err == nil {
-		return local, nil
-	} else if !isPureLocalNetworkFailure(err) {
-		return relayTransportSelection{}, &localRelayPreflightError{
-			cause:    err,
-			profile:  activeServerProfile(),
-			relayURL: cfg.RelayBaseURL,
+	// A route remembered moments ago skips only the local preflight; Link
+	// still verifies the Relay instance and the user on every login. While
+	// Link is closed (cleanup), the local Relay is probed as before.
+	remembered := linkRouteRemembered(cfg) && requireFunctionalCloudAccess(cfg) == nil
+	if !remembered {
+		if err := automaticLocalPreflight(ctx, cfg, local); err == nil {
+			return local, nil
+		} else if !isPureLocalNetworkFailure(err) {
+			return relayTransportSelection{}, &localRelayPreflightError{
+				cause:    err,
+				profile:  activeServerProfile(),
+				relayURL: cfg.RelayBaseURL,
+			}
 		}
 	}
 	if err := requireFunctionalCloudAccess(cfg); err != nil {
 		return relayTransportSelection{}, err
 	}
-	return resolveCloudRelayTransportForCLI(ctx, cfg)
+	selected, err := resolveCloudRelayTransportForCLI(ctx, cfg)
+	switch {
+	case err != nil && remembered:
+		forgetLinkRoute() // the next command probes the local Relay again
+	case err == nil && !remembered:
+		rememberLinkRoute(cfg)
+	}
+	return selected, err
 }
 
 func automaticLocalPreflight(
@@ -196,7 +219,8 @@ func automaticLocalPreflight(
 	cfg runtimeConfig,
 	local relayTransportSelection,
 ) error {
-	ctx, cancel := context.WithTimeout(parent, automaticLocalPreflightTimeout)
+	timeout := relayConnectBudget(parent, automaticLocalPreflightTimeout)
+	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 	request, err := http.NewRequestWithContext(
 		ctx,
@@ -209,8 +233,8 @@ func automaticLocalPreflight(
 	}
 	request.Header.Set("Authorization", "Bearer "+local.Credential)
 	request.Header.Set("Accept", "application/json")
-	client := cloudNoRedirectHTTPClient(local.Client, automaticLocalPreflightTimeout)
-	client.Timeout = automaticLocalPreflightTimeout
+	client := cloudNoRedirectHTTPClient(local.Client, timeout)
+	client.Timeout = timeout
 	response, err := client.Do(request)
 	if err != nil {
 		return err

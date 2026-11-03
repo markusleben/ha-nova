@@ -46,6 +46,9 @@ func TestMain(m *testing.M) {
 	// No test opens a real confirmation window: typed plans use chat unless a
 	// test installs its own window (confirm_window_test.go).
 	windowAvailable = func() bool { return false }
+	// No test reads or writes the developer's remembered Link route; tests
+	// that need it install a temp file (cloud_link_budget_test.go).
+	linkRouteMemoryFile = func() string { return "" }
 	// The developer's own Codex desktop app never counts as Codex here; tests
 	// that need it fake this seam (client_codex_test.go).
 	codexAppInstalled = func(string) bool { return false }
