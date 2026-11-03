@@ -63,7 +63,7 @@ Keep registry metadata declarative. Do not add cleanup globs, shell hooks, or dy
 
 ## MCP clients (`ha-nova mcp`)
 
-The local stdio MCP adapter is supported. It shares the tools, skills, and safety checks used by the shipped chat bridge. Any app that supports MCP can use HA NOVA; setup's “Other AI apps” row provides the configuration to copy. HA NOVA does not edit those apps' settings for you.
+The local stdio MCP adapter is supported. It shares the tools, skills, and safety checks used by the shipped chat bridge. Any app on this computer that can start an MCP server can use HA NOVA; setup's “Other AI apps” row provides the configuration to copy. HA NOVA does not edit those apps' settings for you.
 
 `ha-nova mcp` is a local stdio MCP server that reuses this computer's pairing — run `ha-nova setup` first; the server never asks for credentials and never opens a keyring prompt. Add it to the client's MCP configuration (Claude Desktop: `claude_desktop_config.json`; other clients use the same `command`/`args` shape):
 
