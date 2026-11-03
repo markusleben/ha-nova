@@ -69,8 +69,8 @@ Relay-core response body is under `.data.body` (envelope contract: `../ha-nova/r
    - all-day events use `start_date`/`end_date` for REST create and date-only `dtstart`/`dtend` in the WS `event` (recurring create, update); end is exclusive
    - create requires `summary`; optional `description` and `location` are included only when set
    - a recurring create takes an RFC 5545 `rrule` string and goes through WS `calendar/event/create` (the REST service has no recurrence field); non-recurring creates keep the REST service
-   - update is a full event replacement: merge requested changes into the current summary/start/end/description/location/rrule instead of sending a patch; omit absent optional fields, use an empty string only to clear description/location, and omit `rrule` to clear recurrence
-4. For an occurrence with `recurrence_id`, ask whether the scope is **this occurrence** (`recurrence_range:""`) or **this and future occurrences** (`"THISANDFUTURE"`). Bind that scope to the preview. For a single-occurrence update, omit `rrule` from the replacement event. Do not invent an entire-series mode.
+   - update merges: send the target's current or changed `summary`/`dtstart`/`dtend`/`description`/`location`; an empty string clears description/location; an omitted `rrule` stays; recurrence can't be removed (to end a series, delete this and future occurrences from the first one to remove)
+4. For an occurrence with `recurrence_id`, ask whether the scope is **this occurrence** (`recurrence_range:""`) or **this and future occurrences** (`"THISANDFUTURE"`). Bind that scope to the preview. For this occurrence, omit `rrule`. Use this-and-future only for summary/description/location changes. Do not invent an entire-series mode.
 5. Show the Preview Card with operation, calendar, exact event identity, summary, start/end, timezone or all-day range, changed fields, and recurrence scope. A one-off create runs its `ha-nova call` here: the preview. Create/update use natural bound confirmation; delete uses the one-time code from the core rule.
 6. Immediately before execution, re-read the target window and calendar state; this event set is the create baseline. On any drift (capability, identity, fields, recurrence scope), abort and re-preview.
 7. Execute exactly one write:
@@ -81,7 +81,7 @@ Relay-core response body is under `.data.body` (envelope contract: `../ha-nova/r
 8. Verify through bounded REST read-back, up to three reads over ten seconds:
    - create: compared with the baseline, exactly one new event must match the requested normalized fields; the service response alone is not identity evidence
    - recurring create: the read-back window returns the series pre-expanded — new instances sharing one `uid` and matching the `rrule` pattern; report them as ONE series (rule, first occurrence, count inside the window), never as separate events, and say instances beyond the window were not verified; a window that cannot hold the next expected occurrence proves no recurrence — report it unverified
-   - update: the same `(uid, recurrence_id)` must contain the full requested fields; for `THISANDFUTURE`, also check the first later occurrence when one exists in the window and state that later events outside the window were not verified
+   - update: `uid` at the requested start must contain the full requested fields; for `THISANDFUTURE`, also check every later occurrence in the window and state that later events outside the window were not verified
    - delete: the target identity must be absent; for `THISANDFUTURE`, all occurrences with that `uid` from the selected instance onward must be absent within the window
    - ambiguous, stale, or delayed results are reported as not verified; never repeat a write automatically
 

@@ -160,7 +160,7 @@ Observed locally on a real HA instance on 2026-03-19: raw WS `config_entries/flo
 | WS Type | Purpose |
 |---------|---------|
 | `calendar/event/create` | Recurring event create with RFC 5545 `rrule` (feature bit 1); non-recurring creates use the REST service |
-| `calendar/event/update` | Full-object event update by `entity_id` + `uid` (feature bit 4) |
+| `calendar/event/update` | Event update by `entity_id` + `uid` (feature bit 4); merges into the stored event, cannot remove `rrule` |
 | `calendar/event/delete` | Event delete by `entity_id` + `uid` (feature bit 2) |
 
 Recurring instances add `recurrence_id`; `recurrence_range` is `""` for only that occurrence or `THISANDFUTURE` for that occurrence and later ones.
