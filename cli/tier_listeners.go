@@ -153,6 +153,9 @@ func (e *tierEngine) listenerTable() *listenerTable {
 					row.raw, row.err, row.loaded = loaded, nil, true
 				}
 			}
+			if row.err == nil {
+				e.warmBlueprint("automation", row.raw) // parseConfig below reads it from the memo
+			}
 		}(row)
 	}
 	wg.Wait()
