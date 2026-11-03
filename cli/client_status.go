@@ -74,7 +74,7 @@ func clientRuntimeDetected(client string) bool {
 	if err == nil {
 		return true
 	}
-	return executableInUserLocalBin(command)
+	return commandOffPath(command) != ""
 }
 
 func commandRuntimeDetected(command string) bool {
@@ -84,22 +84,43 @@ func commandRuntimeDetected(command string) bool {
 	if _, err := exec.LookPath(command); err == nil {
 		return true
 	}
-	return executableInUserLocalBin(command)
+	return commandOffPath(command) != ""
 }
 
-func executableInUserLocalBin(command string) bool {
+var commandOffPathOS = runtime.GOOS
+
+// commandOffPath: command where installers put it whether or not this
+// process's PATH has it. ~/.local/bin (Claude Code's native installer; on
+// Windows %USERPROFILE%\.local\bin\claude.exe, PATH unchanged), and on
+// Windows WinGet's portable packages: a link in Links with Developer Mode or
+// elevated, else the package folder itself, either one on PATH only for new
+// processes. "" when it isn't there.
+func commandOffPath(command string) string {
 	if strings.ContainsRune(command, os.PathSeparator) {
-		return false
+		return ""
 	}
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
-		return false
+	windows := commandOffPathOS == "windows"
+	var candidates []string
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		candidates = append(candidates, filepath.Join(home, ".local", "bin", command))
 	}
-	info, err := os.Stat(filepath.Join(home, ".local", "bin", command))
-	if err != nil || info.IsDir() {
-		return false
+	if local := os.Getenv("LOCALAPPDATA"); windows && local != "" {
+		winget := filepath.Join(local, "Microsoft", "WinGet")
+		candidates = append(candidates, filepath.Join(winget, "Links", command))
+		packages, _ := os.ReadDir(filepath.Join(winget, "Packages")) // none yet: nothing installed through WinGet
+		for _, pkg := range packages {
+			candidates = append(candidates, filepath.Join(winget, "Packages", pkg.Name(), command))
+		}
 	}
-	return info.Mode().Perm()&0o111 != 0
+	for _, path := range candidates {
+		if windows {
+			path += ".exe" // Windows runs a file by its extension; it has no mode bits
+		}
+		if info, err := os.Stat(path); err == nil && !info.IsDir() && (windows || info.Mode().Perm()&0o111 != 0) {
+			return path
+		}
+	}
+	return ""
 }
 
 func clientRuntimeCommand(client string) string {

@@ -23,10 +23,10 @@ func claudeRuntimePath() (string, error) {
 	if err == nil || !errors.Is(err, exec.ErrNotFound) {
 		return path, err
 	}
-	home, homeErr := os.UserHomeDir()
-	if homeErr == nil && executableInUserLocalBin("claude") {
-		return filepath.Join(home, ".local", "bin", "claude"), nil
+	if installed := commandOffPath("claude"); installed != "" {
+		return installed, nil
 	}
+	home, homeErr := os.UserHomeDir()
 	if homeErr == nil && claudeDesktopPlatformOS == "darwin" {
 		if bundled := claudeDesktopRuntime(home); bundled != "" {
 			return bundled, nil

@@ -72,6 +72,7 @@ type setupPageState struct {
 	Overview   []setupOverviewItem  `json:"overview,omitempty"`
 	Web        bool                 `json:"web,omitempty"`         // no AI app here: Claude or ChatGPT in the browser (chat apps)
 	Desktop    bool                 `json:"desktop,omitempty"`     // Claude Desktop without a usable Code runtime
+	GetDesktop bool                 `json:"get_desktop,omitempty"` // "Get Claude Desktop" only where Check again can find it (macOS)
 	CodexWhere string               `json:"codex_where,omitempty"` // catalog key: where "Codex" works on this OS
 	Handover   string               `json:"handover,omitempty"`    // why the terminal: code (code_install, code_update: the App first), keyring_locked, keyring_setup; "": a question there
 	Accepts    []string             `json:"accepts"`

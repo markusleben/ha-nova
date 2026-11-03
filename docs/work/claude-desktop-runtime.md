@@ -9,8 +9,10 @@ Claude profile an existing terminal installation uses.
 
 - A `claude` on PATH always wins, including its failures. Never retry a failed
   plugin mutation using a different runtime.
-- Preserve detection of `~/.local/bin/claude` outside PATH and use that binary
-  before considering Desktop's bundle.
+- Preserve detection of `~/.local/bin/claude` outside PATH (`claude.exe` on
+  Windows, where the native installer leaves PATH alone; there also WinGet's
+  link in `Links` or its package folder under `%LOCALAPPDATA%\Microsoft\WinGet`)
+  and use that binary before considering Desktop's bundle.
 - Without one, use the newest working macOS Desktop host binary under
   `~/Library/Application Support/Claude/claude-code/<version>/<checksum>/`.
   Require its completed-download marker and executable, then probe only version

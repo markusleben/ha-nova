@@ -61,7 +61,7 @@ describe("setup page step 1", () => {
 
 describe("setup page: no AI app on this computer", () => {
   it("goes on with Claude or ChatGPT in the browser, and keeps the downloads", async () => {
-    const p = page({ screen: "noclient", accepts: ["recheck", "web"] });
+    const p = page({ screen: "noclient", get_desktop: true, accepts: ["recheck", "web"] });
     await p.settle();
     expect(p.screen.textContent).toContain(p.catalog["setup.page.noclient.lead"]);
     expect(p.find("b-web")!.className).toContain("btn-primary");
@@ -111,6 +111,21 @@ describe("setup page: no AI app on this computer", () => {
       await p.settle();
       expect(p.posts).toEqual([{ action: "local" }]);
     }
+  });
+
+  it("links the hosted demo on the browser path, and runs the local demo otherwise", async () => {
+    const asking = { screen: "found", accepts: ["address", "terminal", "demo"] };
+    const local = page(asking);
+    await local.settle();
+    expect(local.find("l-demo")).toBeUndefined();
+    local.find("b-demo")!.dispatch("click");
+    await local.settle();
+    expect(local.posts).toEqual([{ action: "demo" }]);
+    const web = page({ ...asking, web: true, accepts: ["address", "terminal"] });
+    await web.settle();
+    expect(web.find("b-demo")).toBeUndefined();
+    const demo = web.find("l-demo")!;
+    expect([demo.textContent, demo.attributes.href, demo.attributes.target]).toEqual([web.catalog["setup.page.found.demo"], "https://hanova.app/demo/", "_blank"]);
   });
 
   it("names the browser as the AI assistant on step 1, with nothing to set up here and no code", async () => {

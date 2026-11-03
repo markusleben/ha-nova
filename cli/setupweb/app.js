@@ -18,8 +18,9 @@
   const steps = { looking: 1, found: 1, noclient: 1, connect: 2, control: 3, home: 4, done: 4, closed: 4, skipped: 3, incomplete: 4 };
   const downloads = {
     claude_desktop: 'https://claude.com/download',
-    claude_code: 'https://claude.com/claude-code',
+    claude_code: 'https://claude.com/claude-code', claude_code_install: 'https://code.claude.com/docs/en/setup', // outside macOS: its install line, not a Desktop download Check again can't see
     chat_guide: 'https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md', // chatAppsGuideURL
+    demo: 'https://hanova.app/demo/', // the hosted demo, which needs no AI app on this computer
   };
   // Claude Code's install line (code.claude.com/docs/en/setup); the CLI sends desktop only on a Mac.
   const claudeInstall = 'curl -fsSL https://claude.ai/install.sh | bash';
@@ -176,9 +177,10 @@
       state.desktop ? copybar(claudeInstall, 'claude-install', 'setup.page.noclient.copied', 'setup.page.noclient.copy_failed') : null,
       el('div', { class: 'actions' }, button(t('setup.page.noclient.web'), 'web')),
       el('p', { class: 'fine', id: 'web-needs' }, `${t('setup.page.noclient.web_needs')} `, chatHelp()),
+      state.get_desktop ? null : el('p', { class: 'fine', id: 'desktop-chat' }, t('setup.page.noclient.desktop_chat')),
       el('div', { class: 'actions' },
-        state.desktop ? null : link(t('setup.page.link.claude_desktop'), downloads.claude_desktop, 'ghost', 'desktop'),
-        link(t('setup.page.link.claude_code'), downloads.claude_code, 'ghost', 'code'),
+        state.desktop || !state.get_desktop ? null : link(t('setup.page.link.claude_desktop'), downloads.claude_desktop, 'ghost', 'desktop'),
+        link(t('setup.page.link.claude_code'), state.get_desktop ? downloads.claude_code : downloads.claude_code_install, 'ghost', 'code'),
         button(t('setup.page.button.recheck'), 'recheck', 'ghost'))],
 
     terminal: () => head(t('setup.page.terminal.eyebrow'), t('setup.page.terminal.title'), t(terminalLeads[state.handover] || 'setup.page.terminal.lead')),
@@ -222,7 +224,8 @@
         fine = [t('setup.page.found.fine_terminal')];
       }
       if (!haKnown) {
-        fine.push(el('button', { id: 'b-demo', class: 'linkish', type: 'button', onclick: () => post('demo'), ...(accepts('demo') ? {} : { disabled: '' }) }, t('setup.page.found.demo')));
+        fine.push(state.web ? el('p', { class: 'fine' }, el('a', { id: 'l-demo', class: 'linkish', href: downloads.demo, target: '_blank', rel: 'noopener noreferrer' }, t('setup.page.found.demo')))
+          : el('button', { id: 'b-demo', class: 'linkish', type: 'button', onclick: () => post('demo'), ...(accepts('demo') ? {} : { disabled: '' }) }, t('setup.page.found.demo')));
       }
       let [title, lead] = haKnown ? ['setup.page.found.title', 'setup.page.found.lead'] : ['setup.page.found.title_ask', 'setup.page.found.lead_ask'];
       if (haKnown && state.typed) [title, lead] = ['setup.page.found.title_typed', 'setup.page.found.lead_typed'];
