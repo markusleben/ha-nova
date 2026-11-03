@@ -90,7 +90,7 @@ describe("release notes contract", () => {
     expect(stableNotes).toMatch(/## What To Watch[\s\S]*- \*\*Another AI app on this computer may give up on a big change\.\*\*[\s\S]*## Bug Fixes/);
     expect(stableNotes).toContain("**Setup asks whose phone should confirm on this computer.**");
     expect(stableNotes).not.toContain("Setup proposes your own phone");
-    // App 0.13.14 carries the 0.28 chat bridge; its tools changed, so ChatGPT needs a Refresh and Claude asks once more,
+    // App 0.13.17 carries the 0.28 chat bridge; its tools changed, so ChatGPT needs a Refresh and Claude asks once more,
     // and "Always allow" keeps its phone condition there too (0.28 review).
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
     expect(stableNotes).toContain("Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.");

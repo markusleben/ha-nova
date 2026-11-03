@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
-## [Relay 0.13.14] - 2026-11-03
+## [Relay 0.13.17] - 2026-11-03
 
 ### Fixed
 - Chat apps: a change to an automation that many other automations react to no longer fails with "something changed since the preview" every time. HA NOVA checks what the change sets off much faster, and a check that still had to stop early is no longer mistaken for a change in your home. A real change since the preview still means a new preview. This applies to every HA NOVA caller, chat apps and computers alike.

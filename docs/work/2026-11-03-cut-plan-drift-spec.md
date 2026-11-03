@@ -2,7 +2,7 @@
 
 Status: active
 
-Date: 2026-11-03. Owner: tier engine and drift check (`cli/tier_ahead.go`, `cli/tier_scan.go`, `cli/tier_engine.go`, `cli/tier_listeners.go`, `cli/plan_drift.go`, `cli/plan_replay.go`, `cli/relay_session.go`, `cli/plan_store.go`; recompute call sites `cli/verb_apply.go`, `cli/confirm_window.go`, `cli/verb_apply_batch.go`). Target: 0.28.1 (App 0.13.14). Changes typed-verbs spec I3 (`docs/work/2026-10-14-typed-verbs-spec.md`).
+Date: 2026-11-03. Owner: tier engine and drift check (`cli/tier_ahead.go`, `cli/tier_scan.go`, `cli/tier_engine.go`, `cli/tier_listeners.go`, `cli/plan_drift.go`, `cli/plan_replay.go`, `cli/relay_session.go`, `cli/plan_store.go`; recompute call sites `cli/verb_apply.go`, `cli/confirm_window.go`, `cli/verb_apply_batch.go`). Target: 0.28.1 (App 0.13.17). Changes typed-verbs spec I3 (`docs/work/2026-10-14-typed-verbs-spec.md`).
 
 ## Report (Markus, CLI 0.28.0, Relay 0.13.13, local and cloud)
 
