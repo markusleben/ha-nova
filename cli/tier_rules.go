@@ -258,7 +258,7 @@ func classifyAction(service string, data map[string]any, st *entityState) (tierL
 		return tierTyped, reasonUserService
 	case service == "mqtt.publish" || service == "conversation.process" || service == "recorder.purge" || service == "recorder.purge_entities" || domain == "hassio": // each moves a device or irreversibly deletes
 		return tierTyped, reasonOwnedTypedMember
-	case ownerSkill(service) != "":
+	case ownerSkill(service) != "" && !ownedOrdinary(service, data, st):
 		return tierPreview, reasonOwnedMember
 	}
 	return tierOrdinary, ""

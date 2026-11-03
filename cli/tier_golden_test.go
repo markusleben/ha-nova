@@ -170,9 +170,9 @@ func TestPlanCallTierGoldenCases(t *testing.T) {
 				f.full = []map[string]any{{"entity_id": "update.appdaemon_update", "platform": "hassio", "unique_id": "a0d7b954_appdaemon_version_latest"}}
 			},
 			args: []string{"light.turn_off", "light.kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonManager}},
-		{name: "area expansion is preview with the frozen leaf list",
+		{name: "a room's lights freeze the leaf list",
 			setup: func(f *fakeHA) { f.related["area:kitchen"] = []string{"light.kitchen", "switch.kettle", "light.hall"} },
-			args:  []string{"light.turn_off", "--area", "kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded},
+			args:  []string{"light.turn_off", "--area", "kitchen"}, exit: 0, tier: "ordinary", absent: []string{reasonExpanded},
 			check: func(t *testing.T, env verbTestEnvelope) {
 				if got := strings.Join(env.Action.EntityIDs, ","); got != "light.hall,light.kitchen" {
 					t.Fatalf("frozen ids %s", got)
@@ -182,7 +182,7 @@ func TestPlanCallTierGoldenCases(t *testing.T) {
 			setup: func(f *fakeHA) {
 				f.ent("light.all", "group", "on", map[string]any{"entity_id": []any{"light.kitchen", "light.hall"}})
 			},
-			args: []string{"light.turn_off", "light.all"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded},
+			args: []string{"light.turn_off", "light.all"}, exit: 0, tier: "ordinary", absent: []string{reasonExpanded},
 			check: func(t *testing.T, env verbTestEnvelope) {
 				if got := strings.Join(env.Action.EntityIDs, ","); got != "light.kitchen,light.hall" {
 					t.Fatalf("frozen ids %s", got)

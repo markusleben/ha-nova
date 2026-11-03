@@ -26,7 +26,7 @@ If this fails: `ha-nova setup`
 ## Relay Contract
 
 - `ha-nova relay ws --data-file <payload-file>` for WS commands (browse, search)
-- `ha-nova call <domain.service> <entity_id> --skill ha-nova:media [--set k=v]… [--data-file <payload-file>]` for `media_player.*`/`tts.*` calls (the target is an argument, never `entity_id` in the data): show its preview, then `ha-nova apply --plan <id>` (exit codes: `../service-call/SKILL.md` → Flow)
+- `ha-nova call <domain.service> <entity_id> --skill ha-nova:media [--set k=v]… [--data-file <payload-file>]` for `media_player.*`/`tts.*` calls (the target is an argument, never `entity_id` in the data): show any preview, then `ha-nova apply --plan <id>` (exit codes: `../service-call/SKILL.md` → Flow)
 - `ha-nova relay core --method GET --path /api/states/<entity_id>` to read a player's state and attributes
 - `--out <result-file>` for large browse responses; `--jq-file <filter-file>` for non-trivial filters
 
@@ -68,7 +68,7 @@ If a requested feature bit is absent, say so plainly instead of calling the serv
    - name or room: WS `{"type":"config/entity_registry/list_for_display"}`, filter `ei` starting with `media_player.`, and match on `ei`/`en`. For room phrasing, resolve the area and use `search/related` with `item_type: "area"`.
    - several matches: present the candidates (max 5) and ask once. Never guess.
    Then read its state (`/api/states/<entity_id>`) for `state`, `supported_features`, `source_list`, `sound_mode_list`, `group_members`, and current media attributes.
-2. Transport / volume / source: check the bit for the exact action first (play 16384, pause 1, **stop 4096**, next 32, previous 16, seek 2, volume set 4, **volume step 1024**, mute 8, source 2048, sound mode 65536, turn on 128 / off 256), preview the service + target, then call it: `media_player.media_play|media_pause|media_stop|media_next_track|media_previous_track|media_seek` (`seek_position` in seconds; read `media_duration`/`media_position` from the state first) `|volume_set` (`volume_level` 0.0-1.0) `|volume_mute|select_source|select_sound_mode|turn_on|turn_off`.
+2. Transport / volume / source: check the bit for the exact action first (play 16384, pause 1, **stop 4096**, next 32, previous 16, seek 2, volume set 4, **volume step 1024**, mute 8, source 2048, sound mode 65536, turn on 128 / off 256), then call it: `media_player.media_play|media_pause|media_stop|media_next_track|media_previous_track|media_seek` (`seek_position` in seconds; read `media_duration`/`media_position` from the state first) `|volume_set` (`volume_level` 0.0-1.0) `|volume_mute|select_source|select_sound_mode|turn_on|turn_off`.
    - **Relative volume** ("turn it up / down a bit"): that is `media_player.volume_up` / `volume_down`, gated by VOLUME_STEP (1024) — a player can support stepping without absolute `volume_set` (4). Prefer stepping for relative requests, and only fall back to `volume_set` (read the current `volume_level`, add a delta) when the player has 4 but not 1024.
 3. Browse: WS `{"type":"media_player/browse_media","entity_id":"media_player.<id>"}` for the player's own library; drill down by passing `media_content_type` AND `media_content_id` together (they are a pair — one without the other is rejected). For Home Assistant's media sources use WS `media_source/browse_media`, then WS `media_source/resolve_media` to turn a `media-source://...` id into a playable URL.
    - **Search before drilling** when the user names a title, artist, or album: WS `{"type":"media_player/search_media","entity_id":"media_player.<id>","search_query":"<text>"}` (bit 4194304) searches the player's own library — `entity_id` is required, and `media_content_type`/`media_content_id` scope the search only when supplied together; WS `media_source/search_media` with `search_query` (`media_filter_classes` narrows it) searches Home Assistant's sources. Pass a `media_content_id` for the source you mean: the media-source ROOT cannot search, so omitting it fails with `search_media_failed: Search is not supported for media with content ID` even though the payload is valid. Only sources whose `can_search` is true participate. Both return browse-shaped results you can hand straight to step 4. Neither is universal: when the bit is missing or a source cannot search, say so once and fall back to browsing rather than guessing a content id.
@@ -105,7 +105,7 @@ Render the Report shape (output-cards.md): what is playing where — player, sta
 
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 
-- Volume: preview the target level; treat a large jump (or anything above ~0.8) as disruptive and confirm explicitly — a loud announcement at night is a real-world side effect.
+- Volume: the CLI previews a big jump (above 0.8, or up more than 0.3); never split one into small steps — a loud announcement at night is a real-world side effect.
 - Announcements interrupt whatever is playing; say so before sending one.
 - An announcement or TTS to a grouped player plays on every member — name the full member list in the preview, not just the target.
 - Grouping changes affect every listed speaker — preview the full member list.

@@ -73,7 +73,7 @@ func TestExpansionNamesWhatItLeavesOut(t *testing.T) {
 				f.ent("light.zz_all", "group", "on", map[string]any{"entity_id": []any{"light.raw"}})
 				f.related["area:kitchen"] = []string{"light.kitchen", "light.raw", "light.zz_all"}
 			},
-			args: []string{"light.turn_off", "--area", "kitchen"}, exit: 3, tier: "preview",
+			args: []string{"light.turn_off", "--area", "kitchen"}, exit: 0, tier: "ordinary",
 			check: both(acted("light.kitchen,light.raw"), skipped(""))},
 		{name: "a leaf without state is named",
 			setup: func(f *fakeHA) { f.related["area:kitchen"] = []string{"light.kitchen", "light.ghost"} },
