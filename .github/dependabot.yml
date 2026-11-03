@@ -48,6 +48,23 @@ updates:
         patterns:
           - "*"
 
+  - package-ecosystem: gomod
+    directory: "/cli"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      gomod-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      gomod-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

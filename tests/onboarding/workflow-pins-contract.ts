@@ -40,4 +40,19 @@ export function registerWorkflowPinsContractTests(): void {
     expect(codeql.indexOf("go-version-file: cli/go.mod")).toBeGreaterThan(0);
     expect(codeql.indexOf("go-version-file: cli/go.mod")).toBeLessThan(codeql.indexOf("github/codeql-action/init@"));
   });
+
+  it("builds and scans with the Go that cli/go.mod names in every workflow", () => {
+    // A Go security bump must reach every CI, release, and App-image build.
+    const go = readFileSync("cli/go.mod", "utf8").match(/^go (\d+\.\d+\.\d+)$/m)?.[1];
+    expect(go).toBeTruthy();
+    const workflowDir = ".github/workflows";
+    const pins = readdirSync(workflowDir)
+      .filter((name) => /\.ya?ml$/.test(name))
+      .flatMap((name) =>
+        [...readFileSync(join(workflowDir, name), "utf8").matchAll(/^\s*go-version:\s*(.*)$/gm)].map((m) => `${name}: ${m[1]}`),
+      );
+    expect(pins.length).toBeGreaterThan(5);
+    expect(pins.filter((pin) => !pin.endsWith(`: "${go}"`))).toEqual([]);
+    expect(readFileSync("CONTRIBUTING.md", "utf8")).toContain(`Go \`>=${go}\``);
+  });
 }
