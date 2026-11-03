@@ -24,7 +24,7 @@ KEPT="$STATE/chat-sign-ins.json"
 # digest-pinned bases (Go only for the bridge's build stage), never pulled or
 # rebuilt by a reset, labelled so prunes keep them.
 NODE_IMAGE=node:22.23.3-alpine3.24@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
-GO_IMAGE=golang:1.26.5@sha256:705e964a93a2fd2e75c7d59bb7d781b57e30f12293ffde5175c69229e18fb678
+GO_IMAGE=golang:1.26.10@sha256:670bb5aa5349ae03b8516764718486f4f16399134bdc9acd0c46a23f043ab05c
 CADDY_IMAGE=caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52
 KEEP_LABEL=ha-nova-demo.keep=1
 

@@ -87,9 +87,11 @@ func secretFlowValue(key string, value any) bool {
 	name := strings.ToLower(key)
 	switch value := value.(type) {
 	case string:
-		u, err := url.Parse(strings.TrimSpace(value))
-		password := err != nil && secretURLPassword.MatchString(strings.TrimSpace(value)) // one Go can't parse: mqtt://u:p#ss@broker
-		if err == nil {
+		text := strings.TrimSpace(strings.TrimLeftFunc(urlDropped.Replace(value), func(r rune) bool { return r <= ' ' })) // as urlsplit reads it
+		password := secretURLCutPassword.MatchString(text)
+		if u, err := url.Parse(text); err != nil {
+			password = password || secretURLPassword.MatchString(text) // one Go can't parse: mqtt://u:p#ss@broker
+		} else if !password {
 			_, password = u.User.Password() // rtsp://admin:hunter2@camera, whatever the field's name
 		}
 		return value != "" && (password || secretFlowField(map[string]any{"name": key}))
@@ -139,8 +141,17 @@ func flowFormFiles(paths runtimePaths, flowID string) ([]string, error) {
 }
 
 // secretURLPassword: a URL with user info and a password that url.Parse
-// refuses (a #, /, {, or non-ASCII letter in the password).
-var secretURLPassword = regexp.MustCompile(`(?i)^[a-z][a-z0-9+.-]*://[^/@\s]*:[^@\s]*@`)
+// refuses (a #, /, {, space, or non-ASCII letter in the password), read as
+// broadly as Home Assistant's urlsplit, which keeps spaces there.
+// secretURLCutPassword: one Go parses as a host and port because the
+// password has a # or ? after its digits, or starts with /
+// (https://admin:2024#pw@host), which the stored URL still holds.
+// urlDropped: what urlsplit removes before it reads a URL.
+var (
+	secretURLPassword    = regexp.MustCompile(`(?i)^[a-z][a-z0-9+.-]*://[^/?#]*:[^@]*@`)
+	secretURLCutPassword = regexp.MustCompile(`(?i)^[a-z][a-z0-9+.-]*://[^/?#@]*:(?:[0-9]*[#?]|/)[^/?#@]*@`)
+	urlDropped           = strings.NewReplacer("\t", "", "\r", "", "\n", "")
+)
 
 // flowIDPattern: a flow id as Home Assistant makes it, safe as a file name.
 var flowIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
