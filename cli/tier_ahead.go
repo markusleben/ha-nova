@@ -17,15 +17,16 @@ import (
 // only: the walk still decides everything, in its own order, from those
 // answers, so the plan is the one a slower walk would make.
 
-// readAhead warms the memo for the consumer scan of ids and, level by level,
-// of every entity a consumer whose triggers reference them acts on by name,
-// within the walk's own limits (depth, acted entities, consumer configs);
-// ids themselves, which the walk scans next, always.
-func (e *tierEngine) readAhead(ids []string) {
-	for depth := 0; len(ids) > 0 && depth <= tierMaxDepth && e.s.ctx.Err() == nil; depth++ {
+// readAhead warms the memo for the consumer scan of ids, which the walk
+// reached at depth, and, level by level, of every entity a consumer whose
+// triggers reference them acts on by name, within the walk's own limits
+// (depth, acted entities, consumer configs); ids themselves, which the walk
+// scans next, always.
+func (e *tierEngine) readAhead(ids []string, depth int) {
+	for first := true; len(ids) > 0 && depth <= tierMaxDepth && e.s.ctx.Err() == nil; first, depth = false, depth+1 {
 		var level []string
 		for _, id := range ids {
-			if !e.ahead[id] && entityIDPattern.MatchString(id) && (depth == 0 || len(level)+e.aheadActed < tierMaxActed) {
+			if !e.ahead[id] && entityIDPattern.MatchString(id) && (first || len(level)+e.aheadActed < tierMaxActed) {
 				e.ahead[id] = true
 				level = append(level, id)
 			}
@@ -149,7 +150,7 @@ func blueprintRequest(domain string, bp map[string]any) map[string]any {
 }
 
 // actionTargets: the entity ids an action tree names literally, as walk
-// reaches its steps.
+// reaches its steps: only those of a literal service (storedCall).
 func actionTargets(node any) []string {
 	var out []string
 	switch n := node.(type) {
@@ -161,7 +162,11 @@ func actionTargets(node any) []string {
 		if n["enabled"] == false || n["condition"] != nil || n["trigger"] != nil || n["platform"] != nil {
 			return nil
 		}
-		if n["action"] != nil || n["service"] != nil {
+		name, _ := n["action"].(string)
+		if name == "" {
+			name, _ = n["service"].(string)
+		}
+		if name = strings.ToLower(name); name != "" && !isTemplated(name) && entityIDPattern.MatchString(name) {
 			targets, _, _ := collectTargets(n)
 			out = append(out, targets["entity_id"]...)
 		}

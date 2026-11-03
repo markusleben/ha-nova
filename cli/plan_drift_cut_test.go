@@ -178,3 +178,73 @@ func TestACutRecomputeThatMissedAReadIsDrift(t *testing.T) {
 		t.Fatalf("exit %d windows %d writes %d say %q err %+v", exit, len(w.messages), len(h.writes()), env.Say, env.Error)
 	}
 }
+
+// relatedReads counts the consumer lookups of an entity the session made.
+func (h *slowHarness) relatedReads(id string) int {
+	n := 0
+	for _, c := range h.log.all() {
+		if c.payload["type"] == "search/related" && c.payload["item_id"] == id {
+			n++
+		}
+	}
+	return n
+}
+
+// Read-ahead stays inside the walk's depth: it reads no consumers of the
+// entity the walk cuts as too deep (a chain of automations, each turning
+// on the next lamp when the one before it changes).
+func TestReadAheadStopsAtTheWalksDepth(t *testing.T) {
+	f := newFakeHA()
+	f.ent("input_boolean.presence", "input_boolean", "on", nil)
+	on := "input_boolean.presence"
+	for i := range 12 {
+		lamp := fmt.Sprintf("light.c%02d", i)
+		f.ent(lamp, "hue", "off", nil)
+		f.automation(fmt.Sprintf("chain_%02d", i), fmt.Sprintf("c%02d", i), map[string]any{"triggers": []any{map[string]any{"trigger": "state", "entity_id": on}}, "actions": []any{step("light.turn_on", lamp)}})
+		f.related["entity:"+on] = []string{fmt.Sprintf("automation.chain_%02d", i)}
+		on = lamp
+	}
+	f.storeConfig("/api/config/automation/config/leave", leaveDraft())
+	h := newSlowHarness(t, f, 0, 10*time.Second)
+	planned := h.planLeave()
+	deep := ""
+	for _, r := range planned.Reasons {
+		if r.Code == reasonLimitCut && strings.HasPrefix(r.Detail, "deeper than") {
+			deep = r.EntityID
+		}
+	}
+	if deep == "" || h.relatedReads(deep) != 0 {
+		t.Fatalf("cut at %q, its consumers read %d times; reasons %s", deep, h.relatedReads(deep), reasonCodes(planned))
+	}
+}
+
+// Read-ahead follows only a literal service, as the walk does: a templated
+// one is a gap, and the consumers of its target are never read.
+func TestReadAheadSkipsATemplatedActionsTargets(t *testing.T) {
+	f := presenceHome()
+	f.ent("light.porch", "hue", "off", nil)
+	f.automation("templated", "t1", map[string]any{"triggers": []any{map[string]any{"trigger": "state", "entity_id": "input_boolean.presence", "to": "off"}}, "actions": []any{map[string]any{"action": "{{ 'light.turn_on' }}", "target": map[string]any{"entity_id": "light.porch"}}}})
+	f.related["entity:input_boolean.presence"] = append(f.related["entity:input_boolean.presence"], "automation.templated")
+	h := newSlowHarness(t, f, 0, 10*time.Second)
+	planned := h.planLeave()
+	if !strings.Contains(reasonCodes(planned), reasonTemplatedAction) || h.relatedReads("light.porch") != 0 {
+		t.Fatalf("reasons %s, the porch's consumers read %d times", reasonCodes(planned), h.relatedReads("light.porch"))
+	}
+}
+
+// A raw plan whose check was cut before it read anything it keeps (here the
+// event listener counts, at the read budget) is still a plan: typed, the
+// cut said.
+func TestARawPlanCutBeforeItReadAnythingIsAPlan(t *testing.T) {
+	f := newFakeHA()
+	listensToTheList(f)
+	f.hang["/api/events"] = true
+	paths, _ := setupVerbRelayTest(t, f.reply)
+	saved := relaySessionOverallTimeout
+	relaySessionOverallTimeout = 300 * time.Millisecond
+	t.Cleanup(func() { relaySessionOverallTimeout = saved })
+	exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"todo/item/move","entity_id":"todo.shopping_list","uid":"a"}}]`)
+	if exit != verbExitConfirmation || env.Plan == nil || env.Tier != "typed" || !strings.Contains(reasonCodes(env), reasonLimitCut) {
+		t.Fatalf("exit %d tier %s reasons %s err %+v", exit, env.Tier, reasonCodes(env), env.Error)
+	}
+}

@@ -106,7 +106,7 @@ func (e *tierEngine) scanConsumers(id string, depth int, d stateDelta) {
 		e.gap(reasonLimitCut, "", "", fmt.Sprintf("more than %d acted entities", tierMaxActed))
 		return
 	}
-	e.readAhead([]string{id}) // its consumers, and theirs, breadth first: the loop below reads the memo
+	e.readAhead([]string{id}, depth) // its consumers, and theirs, breadth first: the loop below reads the memo
 	seen := map[string]bool{}
 	var automations, containers []string
 	for _, item := range items {
