@@ -11,6 +11,14 @@
 # isolated home (the phone lane keeps its link out of the default home).
 set -euo pipefail
 
+# eval "$(… --env)" evals nothing when this script fails, so a later ha-nova
+# would be the installed one with the real HOME and reach a real home. On any
+# failure, --env prints exports that leave that CLI with no settings, then
+# false, so the eval fails too.
+if [[ "${1:-}" == "--env" ]]; then
+  trap 'rc=$?; (( rc == 0 )) || printf "export HOME=/var/empty/ha-nova-testbed-env-failed XDG_CONFIG_HOME=/var/empty/ha-nova-testbed-env-failed\nfalse\n"' EXIT
+fi
+
 HERE="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 STATE="$HERE/.state"
