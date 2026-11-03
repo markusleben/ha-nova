@@ -573,6 +573,40 @@ func TestAnEditedBatchMemberIsDriftEvenWithItsHash(t *testing.T) {
 	}
 }
 
+// A replay with the preview's hash still passes only sameAsConfirmed: the
+// hash leaves each reason's detail out, here the lock a sibling names.
+func TestAReplayWithThePreviewsHashComparesEveryDetail(t *testing.T) {
+	plan := func(lock string) storedPlan {
+		p := storedPlan{Kind: "write", Server: "default", Tier: "typed", ConfigAction: &configAction{Op: "write", Domain: "automation", ConfigID: "h1"},
+			Reasons: []tierReason{{Code: reasonLimitCut, Detail: readBudgetDetail}, {Code: reasonDeviceAccessSibling, EntityID: "light.porch", Via: "automation.leave", Detail: lock}},
+			Basis:   map[string]any{"current": "c", "draft": "d", "configs": map[string]any{}, "entities": map[string]any{}}}
+		p.Hash = "sha256:" + planHash(p.Kind, p.Server, *p.ConfigAction, p.Tier, p.Reasons, p.Basis)
+		return p
+	}
+	stored, same, other := plan("lock.front"), plan("lock.front"), plan("lock.back")
+	same.replayed, other.replayed = true, true
+	if other.Hash != stored.Hash || !stillConfirmed(stored, same) || stillConfirmed(stored, other) {
+		t.Fatalf("same hash %v, the same lock %v, another lock %v", other.Hash == stored.Hash, stillConfirmed(stored, same), stillConfirmed(stored, other))
+	}
+}
+
+// A cut preview whose recompute completes is replayed like any other: the
+// recompute said nothing the preview did not, so the confirmation the user
+// gave in the window still holds, and the automation is saved once.
+func TestACutPlanWhoseRecomputeCompletesStillApplies(t *testing.T) {
+	w := useWindow(t, windowConfirmed)
+	h := newSlowHarness(t, presenceHome(), 0, 300*time.Millisecond)
+	h.hangFirst("p05", 1)
+	planned := h.planLeave()
+	if planned.Tier != "typed" || planned.Plan.Channel != channelWindow {
+		t.Fatalf("setup: tier %s plan %+v reasons %s", planned.Tier, planned.Plan, reasonCodes(planned))
+	}
+	exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID)
+	if exit != 0 || len(w.messages) != 1 || len(h.writes()) != 1 {
+		t.Fatalf("exit %d windows %d writes %d env %+v", exit, len(w.messages), len(h.writes()), env)
+	}
+}
+
 // A replay that diverged is never the confirmed plan, and neither is the
 // plan computed after it, even with the preview's hash (recheck).
 func TestADivergedReplayIsNeverTheConfirmedPlan(t *testing.T) {

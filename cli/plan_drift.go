@@ -84,9 +84,11 @@ func sayCheckGap(lang string) string { return confirmT(lang, "unseen.all") }
 func cutShort(r tierReason) bool { return r.Code == reasonLimitCut || r.Code == reasonScanFailed }
 
 // stillConfirmed: the recompute is the plan the user confirmed. A cut
-// plan whose replay diverged is not, even with its hash (recheck).
+// plan's replay is so only by sameAsConfirmed, even with its hash, which
+// leaves out each reason's detail; one that diverged, and the plan computed
+// after it, never are (recheck).
 func stillConfirmed(stored, fresh storedPlan) bool {
-	return fresh.Hash == stored.Hash && !fresh.diverged || sameAsConfirmed(stored, fresh)
+	return fresh.Hash == stored.Hash && !fresh.replayed && !fresh.diverged || sameAsConfirmed(stored, fresh)
 }
 
 // sameAsConfirmed: a cut preview's replay (replayReads) whose hash differs
