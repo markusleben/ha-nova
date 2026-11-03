@@ -148,7 +148,7 @@ func validateRawRequests(items []rawRequest) error {
 			return fmt.Errorf("item %d: endpoint must be core, ws, files, backups, or supervisor, not %q", i+1, item.Endpoint)
 		}
 	}
-	return nil
+	return rawMovesAlone(items)
 }
 
 // computeRawPlan checks every item (rawPlanRefusal, then the raw guard),
