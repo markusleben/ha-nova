@@ -176,8 +176,8 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 		if refusal == nil && err == nil && item.Endpoint == "backups" && payload["action"] == "delete" {
 			refusal, err = n.snapshotListed(payload)
 		}
-		if refusal == nil && err == nil && item.Endpoint == "core" {
-			refusal, err = n.sceneKept(items[:i], payload)
+		if refusal == nil && err == nil {
+			refusal, err = n.kept(items[:i], item.Endpoint, payload)
 		}
 		if err != nil {
 			return nil, storedPlan{}, err

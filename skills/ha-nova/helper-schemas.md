@@ -24,7 +24,7 @@ Pick the right helper type for the job:
 ## Common Rules
 
 - **Create:** `name` is always required. Type-specific fields vary.
-- **Update:** `{type}_id` is always required (the internal `id` from `{type}/list`). Only include fields to change.
+- **Update:** `{type}_id` is always required (the internal `id` from `{type}/list`). An update replaces the whole helper: send `name` and every other writable field of its list item (all but `id`), with the change merged in. A field left out goes back to its default; a left-out `input_select` option or `schedule` time block is gone.
 - **Delete:** `{type}_id` only.
 - **Icon:** Optional `icon` field (e.g., `mdi:sleep`) on all types.
 
@@ -40,7 +40,7 @@ Toggle helper (on/off state).
 
 ```json
 {"type":"input_boolean/create","name":"Sleep Mode","icon":"mdi:sleep","initial":false}
-{"type":"input_boolean/update","input_boolean_id":"abc123","name":"Night Mode"}
+{"type":"input_boolean/update","input_boolean_id":"abc123","name":"Night Mode","icon":"mdi:sleep","initial":false}
 ```
 
 ## input_number
@@ -60,7 +60,7 @@ Numeric value holder with range constraints.
 
 ```json
 {"type":"input_number/create","name":"Target Temperature","min":16,"max":30,"step":0.5,"unit_of_measurement":"°C","mode":"slider","icon":"mdi:thermometer"}
-{"type":"input_number/update","input_number_id":"abc123","max":35}
+{"type":"input_number/update","input_number_id":"abc123","name":"Target Temperature","min":16,"max":35,"step":0.5,"unit_of_measurement":"°C","mode":"slider","icon":"mdi:thermometer"}
 ```
 
 ## input_text
@@ -79,7 +79,7 @@ Free-form text value holder.
 
 ```json
 {"type":"input_text/create","name":"Welcome Message","min":0,"max":255,"initial":"Hello!","icon":"mdi:message-text"}
-{"type":"input_text/update","input_text_id":"abc123","initial":"Welcome home!"}
+{"type":"input_text/update","input_text_id":"abc123","name":"Welcome Message","min":0,"max":255,"initial":"Welcome home!","icon":"mdi:message-text"}
 ```
 
 ## input_select
@@ -95,7 +95,7 @@ Dropdown option list.
 
 ```json
 {"type":"input_select/create","name":"House Mode","options":["Home","Away","Sleep","Guest"],"initial":"Home","icon":"mdi:home-variant"}
-{"type":"input_select/update","input_select_id":"abc123","options":["Home","Away","Sleep","Guest","Vacation"]}
+{"type":"input_select/update","input_select_id":"abc123","name":"House Mode","options":["Home","Away","Sleep","Guest","Vacation"],"initial":"Home","icon":"mdi:home-variant"}
 ```
 
 ## input_datetime
@@ -114,7 +114,7 @@ At least one of `has_date` or `has_time` must be true.
 
 ```json
 {"type":"input_datetime/create","name":"Wake Up Time","has_date":false,"has_time":true,"initial":"07:00:00","icon":"mdi:alarm"}
-{"type":"input_datetime/update","input_datetime_id":"abc123","initial":"06:30:00"}
+{"type":"input_datetime/update","input_datetime_id":"abc123","name":"Wake Up Time","has_date":false,"has_time":true,"initial":"06:30:00","icon":"mdi:alarm"}
 ```
 
 ## input_button
@@ -148,7 +148,7 @@ Integer counter with optional bounds.
 
 ```json
 {"type":"counter/create","name":"Guest Count","initial":0,"step":1,"minimum":0,"maximum":20,"icon":"mdi:account-group"}
-{"type":"counter/update","counter_id":"abc123","maximum":50}
+{"type":"counter/update","counter_id":"abc123","name":"Guest Count","initial":0,"step":1,"minimum":0,"maximum":50,"icon":"mdi:account-group"}
 ```
 
 ## timer
@@ -164,7 +164,7 @@ Countdown timer helper.
 
 ```json
 {"type":"timer/create","name":"Laundry Timer","duration":"01:30:00","restore":true,"icon":"mdi:timer"}
-{"type":"timer/update","timer_id":"abc123","duration":"02:00:00"}
+{"type":"timer/update","timer_id":"abc123","name":"Laundry Timer","duration":"02:00:00","restore":true,"icon":"mdi:timer"}
 ```
 
 ## schedule
@@ -181,7 +181,7 @@ Schedule complexity is high. For complex schedules, recommend using the HA UI.
 
 ```json
 {"type":"schedule/create","name":"Heating Schedule","icon":"mdi:calendar-clock","monday":[{"from":"06:00:00","to":"08:00:00"},{"from":"17:00:00","to":"22:00:00"}],"tuesday":[{"from":"06:00:00","to":"08:00:00"},{"from":"17:00:00","to":"22:00:00"}]}
-{"type":"schedule/update","schedule_id":"abc123","monday":[{"from":"07:00:00","to":"09:00:00"}]}
+{"type":"schedule/update","schedule_id":"abc123","name":"Heating Schedule","icon":"mdi:calendar-clock","monday":[{"from":"06:00:00","to":"08:00:00"},{"from":"17:00:00","to":"22:00:00"}],"tuesday":[{"from":"06:00:00","to":"08:00:00"},{"from":"17:00:00","to":"22:00:00"}],"wednesday":[{"from":"06:00:00","to":"08:00:00"}]}
 ```
 
 ## Suggested Defaults

@@ -138,6 +138,7 @@ While `truncated` is true the list proves neither absence nor uniqueness — nar
    ```text
    ha-nova relay ws --data-file <payload-file>
    ```
+   When the confirmed update REMOVES `input_select` options or `schedule` time blocks (moved blocks or changed data too), capture the auto config snapshot first, in one `ha-nova plan raw` with the update.
 7. Verify by re-reading the same list item.
 8. Run storage-family post-write review (see below).
 9. Update-Revert: after the verified update, capture the snapshot (`../ha-nova/update-revert.md` → Manual capture) and offer `revert` — see `../ha-nova/write-safety.md` → Update-Revert. Storage-family restore rebuilds a schema-valid `{type}/update` from `before_config` (typed `{type}_id` from its `id` + writable fields only — never the raw list item, which lacks `{type}_id` and carries read-only `id`/`entity_id`); `expected_after` is the post-update read-back.

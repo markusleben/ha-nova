@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.14] - 2026-11-03
+
+### Fixed
+- Changing a dropdown helper's options or a schedule's times no longer drops the others when the AI sends only the new ones, in chat apps and on computers alike. An update that removes some is refused unless HA NOVA saves a copy of the helper first. A planned update never goes over a helper changed in Home Assistant since its preview.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.1 ask you to update this App.
+
 ## [Relay 0.13.13] - 2026-11-03
 
 ### Fixed

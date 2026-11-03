@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,10 +26,12 @@ func (r rawDrop) next() string  { return r.hint }
 
 var rawSlugGaps = regexp.MustCompile(`[^a-z0-9]+`)
 
-// sceneCopyNext: what to do when a copy a scene save needs can't be saved
-// or would be left out (executeRaw).
-const sceneCopyNext = "Tell the user there is no copy, and this change removes members from a scene, so it doesn't go ahead without one. " +
-	"Once the copy can be saved (a full snapshot store can be pruned), apply this plan again, never with --no-snapshot."
+// copyNext: what to do when a copy a save or update needs can't be saved
+// or would be left out (executeRaw); removes says what it keeps (copyNeeded).
+func copyNext(removes string) string {
+	return "Tell the user there is no copy, and this change removes " + removes + ", so it doesn't go ahead without one. " +
+		"Once the copy can be saved (a full snapshot store can be pruned), apply this plan again, never with --no-snapshot."
+}
 
 // rawSceneSave: the scene id a request saves; "" for any other request.
 func rawSceneSave(payload map[string]any) string {
@@ -85,33 +88,74 @@ func (n *rawNamer) sceneKept(earlier []rawRequest, payload map[string]any) (refu
 	if len(dropped) == 0 {
 		return nil, nil
 	}
+	members := strings.Join(dropped, ", ")
+	removal := fmt.Sprintf("saving the scene %s would remove %s from it", id, members)
+	if hidden := hiddenRemoval(live, removal); hidden != nil {
+		return hidden, nil
+	}
+	if copySaved(earlier, live) {
+		n.dropped[id] = dropped
+		return nil, nil
+	}
+	return rawDrop{
+		message: removal + ", with no copy of its config saved first",
+		hint: fmt.Sprintf("This would remove %s from the scene: a save replaces the whole scene. If the user wants them removed (swapping a member for another removes the old one), tell them which ones go, "+
+			`then plan it with a backups save of its current config first (ha-nova plan raw): {"endpoint":"backups","payload":{"action":"save","category":"scenes","name":"%s","data":<the body of core GET /api/config/scene/config/%s, unchanged>}}. `+
+			"If they were left out by mistake, read that config and send every member with the change.",
+			members, autoName(id), id),
+	}, nil
+}
+
+// copySaved: a backups save of exactly live comes earlier in the plan, and
+// no delete or prune after it may take the copy.
+func copySaved(earlier []rawRequest, live any) bool {
 	for i, item := range earlier {
 		saved, _ := decodeObject(item.Payload)
-		pruned := slices.ContainsFunc(earlier[i+1:], func(later rawRequest) bool { // a delete or prune after it may take the copy
+		pruned := slices.ContainsFunc(earlier[i+1:], func(later rawRequest) bool {
 			action, _ := decodeObject(later.Payload)
 			return later.Endpoint == "backups" && (action["action"] == "delete" || action["action"] == "prune")
 		})
 		if item.Endpoint == "backups" && saved["action"] == "save" && !pruned && jsonEqual(numbersByValue(saved["data"]), live) {
-			n.dropped[id] = dropped
-			return nil, nil
+			return true
 		}
 	}
-	members, slug := strings.Join(dropped, ", "), strings.Trim(rawSlugGaps.ReplaceAllString(strings.ToLower(id), "-"), "-")
-	return rawDrop{
-		message: fmt.Sprintf("saving the scene %s would remove %s from it, with no copy of its config saved first", id, members),
-		hint: fmt.Sprintf("This would remove %s from the scene: a save replaces the whole scene. To keep them, read the scene (core GET /api/config/scene/config/%s) and send every member with the change. "+
-			`If the user wants them removed, tell them which ones go, then plan it with a backups save of its current config first (ha-nova plan raw on a computer): {"endpoint":"backups","payload":{"action":"save","category":"scenes","name":"auto-%s","data":<the body of that read, unchanged>}}.`,
-			members, id, strings.Trim(slug[:min(len(slug), 59)], "-")),
-	}, nil
+	return false
 }
 
-// relaySceneKept is sceneKept for ha-nova relay core, after the shared
-// guard (ha_read sends no write): one request, so no copy comes first, and
-// a save that drops a member of the live scene is refused with the plan
-// that keeps a copy.
-func relaySceneKept(paths runtimePaths, opts verbOptions, endpoint string, body []byte) (refusal, err error) {
+// hiddenRemoval: a removal from live that holds a value HA NOVA hid is
+// refused outright: a copy never keeps a hidden value (guardRaw), so none
+// could bring it back.
+func hiddenRemoval(live any, removal string) error {
+	if text, _ := json.Marshal(live); !holdsHiddenValue(text) {
+		return nil
+	}
+	return rawDrop{message: removal + ", and it holds a value HA NOVA hid, which no copy can keep",
+		hint: "Tell the user HA NOVA can't make this removal: it holds a code or key HA NOVA hides, so no copy could bring it back. They can make the change in Home Assistant."}
+}
+
+// autoName: the name of the config copy of id (skills/ha-nova/config-snapshots.md
+// → Capture), within the store's 64 characters.
+func autoName(id string) string {
+	slug := strings.Trim(rawSlugGaps.ReplaceAllString(strings.ToLower(id), "-"), "-")
+	return "auto-" + strings.Trim(slug[:min(len(slug), 59)], "-")
+}
+
+// relayKept is kept for ha-nova relay core|ws, after the shared guard
+// (ha_read sends no write): one request, so no copy comes first, and a
+// scene save or helper update that drops what the live one holds is refused
+// with the plan that keeps a copy. A ws body is checked as the Relay may
+// send it: itself, and a collect_events envelope's message.
+func relayKept(paths runtimePaths, opts verbOptions, endpoint string, body []byte) (refusal, err error) {
 	payload, _ := decodeObject(body)
-	if endpoint != "core" || rawSceneSave(payload) == "" {
+	message, _ := payload["message"].(map[string]any)
+	var requests []map[string]any
+	for _, request := range []map[string]any{payload, message} {
+		collection, _ := rawHelperUpdate(endpoint, request)
+		if _, helper := rawHelperLists[collection]; helper || endpoint == "core" && rawSceneSave(request) != "" {
+			requests = append(requests, request)
+		}
+	}
+	if len(requests) == 0 {
 		return nil, nil
 	}
 	s, err := newRelaySession(paths, opts)
@@ -119,12 +163,21 @@ func relaySceneKept(paths runtimePaths, opts verbOptions, endpoint string, body 
 		return nil, err
 	}
 	defer s.close()
-	refusal, err = newRawNamer(s, nil).sceneKept(nil, payload)
-	var drop rawDrop
-	if errors.As(refusal, &drop) { // the relay prints the error alone
-		return fmt.Errorf("%v. %s", rawRefusal("scene save", drop.message), drop.hint), nil
+	what := "helper update"
+	if endpoint == "core" {
+		what = "scene save"
 	}
-	return refusal, err
+	for _, request := range requests {
+		refusal, err = newRawNamer(s, nil).kept(nil, endpoint, request)
+		var drop rawDrop
+		if errors.As(refusal, &drop) { // the relay prints the error alone
+			return fmt.Errorf("%v. %s", rawRefusal(what, drop.message), drop.hint), nil
+		}
+		if refusal != nil || err != nil {
+			return refusal, err
+		}
+	}
+	return nil, nil
 }
 
 // readScene: the scene id's live config with numbers by value (the plan's
@@ -183,16 +236,17 @@ func (n *rawNamer) sceneNote(lang string, payload map[string]any) string {
 	return confirmT(lang, "raw.scene_drops", "members", sayList(lang, names))
 }
 
-// sceneCopyNeeded: a scene save in items drops members that only one of the
-// leading copies keeps (sceneKept without them), so apply never goes on
-// without it; a scene that can't be read counts as one.
-func sceneCopyNeeded(s *relaySession, items []rawRequest) bool {
+// copyNeeded: what a scene save or helper update in items removes that
+// only one of the leading copies keeps (kept without them), so apply never
+// goes on without it; one that can't be read counts. "" when none does.
+func copyNeeded(s *relaySession, items []rawRequest) (removes string) {
 	kept, n := items[len(rawCopies(items)):], newRawNamer(s, nil)
 	for i, item := range kept {
 		payload, _ := decodeObject(item.Payload)
-		if refusal, err := n.sceneKept(kept[:i], payload); refusal != nil || err != nil {
-			return true
+		if refusal, err := n.kept(kept[:i], item.Endpoint, payload); refusal != nil || err != nil {
+			collection, _ := rawHelperUpdate(item.Endpoint, payload)
+			return cmp.Or(rawHelperLists[collection].removes, "members from a scene")
 		}
 	}
-	return false
+	return ""
 }

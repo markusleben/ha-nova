@@ -65,7 +65,8 @@ fields before rename/unit change/disable; device deletion's device and entity re
 ## Capture (before destructive ops)
 
 Capture triggers, per family: every DELETE; full-document saves that REMOVE
-content (dropped views, cards, scene members, energy entries); entity renames,
+content (dropped views, cards, scene members, energy entries, `input_select`
+options, `schedule` time blocks); entity renames,
 unit changes, and entity/device disables (`metadata` — consumer-breaking even though nothing
 is deleted); every YAML file overwrite or delete (`yaml` — the `.bak` holds
 only one step). Routine field edits in the other families stay covered by the
@@ -92,7 +93,9 @@ full, any error), STOP and tell the user there will be no snapshot — offer
 the choices: proceed without one, take a full safety backup first
 (`ha-nova:backup`), or prune the store (when full). The already-typed
 confirmation stays valid for "proceed without one"; nothing is re-gated,
-the user just decides informed.
+the user just decides informed. A removal `ha-nova apply` keeps a copy of
+(scene members, `input_select` options, `schedule` time blocks) has no
+proceed-without choice: it answers `SNAPSHOT_REQUIRED`; follow its next step.
 
 ## Restore (always through the family's own write path)
 
