@@ -7,8 +7,10 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -190,28 +192,58 @@ func resolveAutomaticRelayTransport(
 	// still verifies the Relay instance and the user on every login. While
 	// Link is closed (cleanup), the local Relay is probed as before.
 	remembered := linkRouteRemembered(cfg) && requireFunctionalCloudAccess(cfg) == nil
+	unreachable := false
 	if !remembered {
-		if err := automaticLocalPreflight(ctx, cfg, local); err == nil {
-			return local, nil
-		} else if !isPureLocalNetworkFailure(err) {
-			return relayTransportSelection{}, &localRelayPreflightError{
-				cause:    err,
-				profile:  activeServerProfile(),
-				relayURL: cfg.RelayBaseURL,
-			}
+		useLocal, neverConnected, err := probeAutomaticLocalRelay(ctx, cfg, local)
+		if err != nil {
+			return relayTransportSelection{}, err
 		}
+		if useLocal {
+			return local, nil
+		}
+		unreachable = neverConnected
 	}
 	if err := requireFunctionalCloudAccess(cfg); err != nil {
 		return relayTransportSelection{}, err
 	}
 	selected, err := resolveCloudRelayTransportForCLI(ctx, cfg)
-	switch {
-	case err != nil && remembered:
-		forgetLinkRoute() // the next command probes the local Relay again
-	case err == nil && !remembered:
+	if err == nil && unreachable {
 		rememberLinkRoute(cfg)
 	}
+	if err != nil && remembered && ctx.Err() == nil {
+		// Link failed on a remembered route: forget it and probe the local
+		// Relay now, before any functional request exists.
+		forgetLinkRoute()
+		if useLocal, _, probeErr := probeAutomaticLocalRelay(ctx, cfg, local); probeErr != nil {
+			return relayTransportSelection{}, probeErr
+		} else if useLocal {
+			return local, nil
+		}
+	}
 	return selected, err
+}
+
+// probeAutomaticLocalRelay runs the authenticated local preflight. useLocal:
+// the local Relay answered as this instance. unreachable: a full-length probe
+// never obtained a connection, so Link may be remembered; a shortened probe,
+// or one that connected and then timed out, proves nothing. err: a failure
+// that never falls back (pin, TLS, authentication, protocol).
+func probeAutomaticLocalRelay(ctx context.Context, cfg runtimeConfig, local relayTransportSelection) (useLocal, unreachable bool, err error) {
+	var connected atomic.Bool
+	probeCtx := httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
+		GotConn: func(httptrace.GotConnInfo) { connected.Store(true) },
+	})
+	if err := automaticLocalPreflight(probeCtx, cfg, local); err == nil {
+		return true, false, nil
+	} else if !isPureLocalNetworkFailure(err) {
+		return false, false, &localRelayPreflightError{
+			cause:    err,
+			profile:  activeServerProfile(),
+			relayURL: cfg.RelayBaseURL,
+		}
+	}
+	fullProbe := relayConnectBudget(ctx, automaticLocalPreflightTimeout) == automaticLocalPreflightTimeout
+	return false, fullProbe && !connected.Load(), nil
 }
 
 func automaticLocalPreflight(

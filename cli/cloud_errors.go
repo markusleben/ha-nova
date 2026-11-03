@@ -55,6 +55,8 @@ type CloudError struct {
 	StatusCode int
 	Retryable  bool
 	cause      error
+	// gatewayFailed: Link or Home Assistant answered 502/503, not the Relay.
+	gatewayFailed bool
 }
 
 func (e *CloudError) Error() string {

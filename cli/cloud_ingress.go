@@ -144,24 +144,25 @@ func (c *CloudIngressClient) Do(
 		return nil, newCloudError(CloudErrInvalidInput, "prepare Cloud ingress outer request", nil)
 	}
 
-	response, retry, err := c.send(ctx, endpoint, contract, deviceCredential, body)
-	if retry && linkRetryWait(ctx, linkRequestRetryMinLeft) {
-		response, _, err = c.send(ctx, endpoint, contract, deviceCredential, body)
+	ctx, trace := traceLinkConnection(ctx)
+	response, err := c.send(ctx, endpoint, contract, deviceCredential, body)
+	if err != nil && (trace.neverConnected() || contract.method == http.MethodGet && linkNoRelayAnswer(err)) &&
+		linkRetryWait(ctx, linkRequestRetryMinLeft) {
+		response, err = c.send(ctx, endpoint, contract, deviceCredential, body)
 	}
 	return response, err
 }
 
-// send is one attempt of Do. retry: its connection never opened, so nothing
-// was written (R2), or a GET got no answer from the Relay (R3); Do sends it
-// once more. A request that may have reached the Relay is never sent again.
+// send is one attempt of Do. Do sends once more only what cannot have reached
+// the Relay: a request whose connection never opened (R2) or a GET without an
+// answer from the Relay (R3).
 func (c *CloudIngressClient) send(
 	ctx context.Context,
 	endpoint CloudIngressEndpoint,
 	contract cloudIngressEndpointContract,
 	deviceCredential string,
 	body []byte,
-) (*CloudIngressResponse, bool, error) {
-	ctx, trace := traceLinkConnection(ctx)
+) (*CloudIngressResponse, error) {
 	request, err := http.NewRequestWithContext(
 		ctx,
 		contract.method,
@@ -169,7 +170,7 @@ func (c *CloudIngressClient) send(
 		bytes.NewReader(body),
 	)
 	if err != nil {
-		return nil, false, newCloudError(CloudErrInvalidInput, "prepare Cloud ingress request", err)
+		return nil, newCloudError(CloudErrInvalidInput, "prepare Cloud ingress request", err)
 	}
 	request.AddCookie(&http.Cookie{Name: "ingress_session", Value: c.session})
 	request.Header.Set("Accept", "application/json")
@@ -181,15 +182,14 @@ func (c *CloudIngressClient) send(
 	}
 	response, err := c.http.Do(request)
 	if err != nil {
-		retry := trace.neverConnected() || contract.method == http.MethodGet
 		if isCloudOutcomeSensitiveIngressEndpoint(endpoint) {
-			return nil, retry, newCloudError(
+			return nil, newCloudError(
 				CloudErrOutcomeUnknown,
 				"dispatch Cloud Relay request",
 				cloudRequestError("send Cloud ingress request", err),
 			)
 		}
-		return nil, retry, cloudRequestError("send Cloud ingress request", err)
+		return nil, cloudRequestError("send Cloud ingress request", err)
 	}
 	relayVersion := ""
 	relayVersionValues := response.Header.Values(relayVersionHeader)
@@ -199,34 +199,32 @@ func (c *CloudIngressClient) send(
 	reachedRelay := len(relayVersionValues) == 1 &&
 		validIdentifier(relayVersion, 128)
 	outcomeSensitive := isCloudOutcomeSensitiveIngressEndpoint(endpoint)
-	gatewayFailed := !reachedRelay && contract.method == http.MethodGet && // R3: a GET Link or Home Assistant couldn't pass on
-		(response.StatusCode == http.StatusBadGateway || response.StatusCode == http.StatusServiceUnavailable)
 	if isHTTPRedirect(response.StatusCode) {
 		response.Body.Close()
 		if outcomeSensitive {
-			return nil, false, newCloudHTTPError(
+			return nil, newCloudHTTPError(
 				CloudErrOutcomeUnknown,
 				"dispatch Cloud Relay request",
 				response.StatusCode,
 				false,
 			)
 		}
-		return nil, false, newCloudHTTPError(CloudErrRedirectRejected, "send Cloud ingress request", response.StatusCode, false)
+		return nil, newCloudHTTPError(CloudErrRedirectRejected, "send Cloud ingress request", response.StatusCode, false)
 	}
 	if response.StatusCode == http.StatusUnauthorized {
 		if contract.deviceBearer && reachedRelay {
 			response.Body.Close()
-			return nil, false, newCloudHTTPError(CloudErrDeviceRejected, "authorize Cloud ingress device", response.StatusCode, false)
+			return nil, newCloudHTTPError(CloudErrDeviceRejected, "authorize Cloud ingress device", response.StatusCode, false)
 		}
 		if !reachedRelay {
 			response.Body.Close()
-			return nil, false, newCloudHTTPError(CloudErrOuterSessionExpired, "authorize Cloud ingress session", response.StatusCode, true)
+			return nil, newCloudHTTPError(CloudErrOuterSessionExpired, "authorize Cloud ingress session", response.StatusCode, true)
 		}
 	}
 	if outcomeSensitive {
 		if !reachedRelay && response.StatusCode == http.StatusNotFound {
 			response.Body.Close()
-			return nil, false, newCloudHTTPError(
+			return nil, newCloudHTTPError(
 				CloudErrIngressUnavailable,
 				"reach HA NOVA through Cloud ingress",
 				response.StatusCode,
@@ -236,19 +234,20 @@ func (c *CloudIngressClient) send(
 		if !reachedRelay ||
 			response.StatusCode >= http.StatusInternalServerError {
 			response.Body.Close()
-			return nil, gatewayFailed, newCloudHTTPError(
-				CloudErrOutcomeUnknown,
-				"dispatch Cloud Relay request",
-				response.StatusCode,
-				!reachedRelay, // a read may go once more (R4); a write never
-			)
+			return nil, &CloudError{
+				Code:       CloudErrOutcomeUnknown,
+				Op:         "dispatch Cloud Relay request",
+				StatusCode: response.StatusCode,
+				gatewayFailed: !reachedRelay && (response.StatusCode == http.StatusBadGateway ||
+					response.StatusCode == http.StatusServiceUnavailable),
+			}
 		}
 	}
 	if !reachedRelay && (response.StatusCode == http.StatusNotFound ||
 		response.StatusCode == http.StatusBadGateway ||
 		response.StatusCode == http.StatusServiceUnavailable) {
 		response.Body.Close()
-		return nil, gatewayFailed, newCloudHTTPError(CloudErrIngressUnavailable, "reach HA NOVA through Cloud ingress", response.StatusCode, true)
+		return nil, newCloudHTTPError(CloudErrIngressUnavailable, "reach HA NOVA through Cloud ingress", response.StatusCode, true)
 	}
 	return &CloudIngressResponse{
 		StatusCode:   response.StatusCode,
@@ -261,7 +260,7 @@ func (c *CloudIngressClient) send(
 			remaining:        c.maxResponse,
 			outcomeSensitive: outcomeSensitive,
 		},
-	}, false, nil
+	}, nil
 }
 
 type cloudIngressLimitedBody struct {

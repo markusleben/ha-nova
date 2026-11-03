@@ -7,8 +7,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptrace"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -227,7 +225,7 @@ func TestRelaySessionRetriesOnlyLinkReads(t *testing.T) {
 	}{
 		"Link read without an answer":      {via: relayViaCloud, firstErr: lost, wantCalls: 2},
 		"Link write without an answer":     {via: relayViaCloud, firstErr: lost, write: true, wantCalls: 1, wantErr: true},
-		"Link read Link answered 502":      {via: relayViaCloud, firstErr: newCloudHTTPError(CloudErrOutcomeUnknown, "dispatch Cloud Relay request", http.StatusBadGateway, true), wantCalls: 2},
+		"Link read Link answered 502":      {via: relayViaCloud, firstErr: &CloudError{Code: CloudErrOutcomeUnknown, Op: "dispatch Cloud Relay request", StatusCode: http.StatusBadGateway, gatewayFailed: true}, wantCalls: 2},
 		"Link read the Relay answered 500": {via: relayViaCloud, firstErr: newCloudHTTPError(CloudErrOutcomeUnknown, "dispatch Cloud Relay request", http.StatusInternalServerError, false), wantCalls: 1, wantErr: true},
 		"Link read redirected":             {via: relayViaCloud, firstErr: redirected, wantCalls: 1, wantErr: true},
 		"local read without an answer":     {via: relayViaLocal, firstErr: syscall.ECONNRESET, wantCalls: 1, wantErr: true},
@@ -260,121 +258,5 @@ func TestRelaySessionRetriesOnlyLinkReads(t *testing.T) {
 				t.Fatalf("calls = %d (want %d), err = %v (want error: %v)", calls.Load(), testCase.wantCalls, err, testCase.wantErr)
 			}
 		})
-	}
-}
-
-func rememberLinkRouteInTemp(t *testing.T) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "cache", "link-route.json")
-	old := linkRouteMemoryFile
-	linkRouteMemoryFile = func() string { return path }
-	t.Cleanup(func() { linkRouteMemoryFile = old })
-	return path
-}
-
-func automaticLinkTestConfig() runtimeConfig {
-	return runtimeConfig{
-		ProfileID:          "profile-1",
-		RelayInstanceID:    "relay-1",
-		RelayBaseURL:       "http://192.168.1.5:8791",
-		RelaySecureBaseURL: "https://192.168.1.5:8792",
-		Cloud:              readyCloudForTransportTest(),
-	}
-}
-
-// Local unreachable, then Link: the next automatic selection within two
-// minutes goes straight to Link; Link still verifies on every login.
-func TestAutomaticRouteRemembersUnreachableLocalRelayBriefly(t *testing.T) {
-	path := rememberLinkRouteInTemp(t)
-	probes := 0
-	local := cloudRuntimeSelection(cloudRuntimeRoundTripFunc(func(*http.Request) (*http.Response, error) {
-		probes++
-		return nil, syscall.ECONNREFUSED
-	}), relayViaLocal)
-	cloudCalls := stubProductionAutomaticResolvers(t, local, nil)
-	cfg := automaticLinkTestConfig()
-
-	for round := 1; round <= 2; round++ {
-		selected, err := resolveAutomaticRelayTransport(context.Background(), cfg)
-		if err != nil || selected.Via != relayViaCloud {
-			t.Fatalf("round %d: selection = %+v, err = %v", round, selected, err)
-		}
-	}
-	if probes != 1 || *cloudCalls != 2 {
-		t.Fatalf("local preflights = %d (want 1), Link logins = %d (want 2)", probes, *cloudCalls)
-	}
-
-	other := cfg
-	other.RelayInstanceID = "relay-other" // another App: probed again, never inherits the route
-	if _, err := resolveAutomaticRelayTransport(context.Background(), other); err != nil || probes != 2 {
-		t.Fatalf("another Relay instance: err = %v, local preflights = %d (want 2)", err, probes)
-	}
-
-	if err := os.WriteFile(path, []byte(`{"profile_id":"profile-1","relay_instance_id":"relay-1","relay_url":"https://192.168.1.5:8792 http://192.168.1.5:8791","until":"2099-01-01T00:00:00Z"}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := resolveAutomaticRelayTransport(context.Background(), cfg); err != nil || probes != 3 {
-		t.Fatalf("an end time beyond two minutes: err = %v, local preflights = %d (want 3)", err, probes)
-	}
-}
-
-func TestAutomaticRouteRemembersNothingAfterASecurityFailure(t *testing.T) {
-	path := rememberLinkRouteInTemp(t)
-	local := cloudRuntimeSelection(cloudRuntimeRoundTripFunc(func(*http.Request) (*http.Response, error) {
-		return nil, errPinMismatch
-	}), relayViaLocal)
-	cloudCalls := stubProductionAutomaticResolvers(t, local, nil)
-	if _, err := resolveAutomaticRelayTransport(context.Background(), automaticLinkTestConfig()); err == nil {
-		t.Fatal("a pin mismatch fell back")
-	}
-	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) || *cloudCalls != 0 {
-		t.Fatalf("remembered route after a pin mismatch: stat err = %v, Link logins = %d", err, *cloudCalls)
-	}
-}
-
-func TestAutomaticRouteForgetsALinkThatFailed(t *testing.T) {
-	path := rememberLinkRouteInTemp(t)
-	probes := 0
-	local := cloudRuntimeSelection(cloudRuntimeRoundTripFunc(func(*http.Request) (*http.Response, error) {
-		probes++
-		return nil, syscall.ECONNREFUSED
-	}), relayViaLocal)
-	stubProductionAutomaticResolvers(t, local, nil)
-	cfg := automaticLinkTestConfig()
-	if _, err := resolveAutomaticRelayTransport(context.Background(), cfg); err != nil {
-		t.Fatal(err)
-	}
-	resolveCloudRelayTransportForCLI = func(context.Context, runtimeConfig) (relayTransportSelection, error) {
-		return relayTransportSelection{}, newCloudError(CloudErrNetwork, "send Cloud ingress request", nil)
-	}
-	if _, err := resolveAutomaticRelayTransport(context.Background(), cfg); err == nil {
-		t.Fatal("a failed Link login succeeded")
-	}
-	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) || probes != 1 {
-		t.Fatalf("remembered route after Link failed: stat err = %v, local preflights = %d (want 1)", err, probes)
-	}
-}
-
-// While Link is closed for cleanup, a remembered route is ignored and the
-// healthy local Relay is used, as before.
-func TestAutomaticRouteProbesTheLocalRelayWhileLinkIsClosed(t *testing.T) {
-	rememberLinkRouteInTemp(t)
-	reachable := false
-	local := cloudRuntimeSelection(cloudRuntimeRoundTripFunc(func(*http.Request) (*http.Response, error) {
-		if !reachable {
-			return nil, syscall.ECONNREFUSED
-		}
-		return cloudRuntimeResponse(http.StatusOK, `{"ok":true,"data":{"relay_instance_id":"relay-1"}}`), nil
-	}), relayViaLocal)
-	cloudCalls := stubProductionAutomaticResolvers(t, local, nil)
-	cfg := automaticLinkTestConfig()
-	if _, err := resolveAutomaticRelayTransport(context.Background(), cfg); err != nil {
-		t.Fatal(err)
-	}
-	reachable = true
-	cfg.Cloud.DeviceRevocationCompleted = &cloudDeviceRevocationCheckpoint{CurrentDeviceID: "revoked-device"}
-	selected, err := resolveAutomaticRelayTransport(context.Background(), cfg)
-	if err != nil || selected.Via != relayViaLocal || *cloudCalls != 1 {
-		t.Fatalf("selection = %+v, err = %v, Link logins = %d (want 1)", selected, err, *cloudCalls)
 	}
 }

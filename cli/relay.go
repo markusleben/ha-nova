@@ -410,7 +410,11 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		return 1
 	}
 	baseURL, client := transport.BaseURL, transport.Client
-	req, err := newRelayRequest(relayCtx, transport, endpoint, requestBody)
+	// The request gets its own budget: on Link the selection is a login of
+	// several round trips (docs/work/2026-11-03-link-route-timeouts-spec.md).
+	requestCtx, cancelRequest := context.WithTimeout(context.Background(), time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)))
+	defer cancelRequest()
+	req, err := newRelayRequest(requestCtx, transport, endpoint, requestBody)
 	if err != nil {
 		printErr("%s", err)
 		return 1
