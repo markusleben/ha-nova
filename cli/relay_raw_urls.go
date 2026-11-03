@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -93,9 +94,10 @@ func rawYAMLScalar(text string, column int, flow bool) string {
 }
 
 // rawYAMLQuoted: a quoted scalar's text, escapes decoded as the YAML loader
-// does (a doubled ', and \x, \u, \U, \t, \n, \r, an escaped line break,
-// and any other escaped character as itself), a line break and the
-// whitespace around it dropped.
+// does (a doubled ', and \x, \u, \U, \t, \n, \r, an escaped line break;
+// any other escape, and one past U+10FFFF, which the loader refuses, read
+// as its characters after the backslash), a line break and the whitespace
+// around it dropped.
 func rawYAMLQuoted(text string) string {
 	quote := text[0]
 	var value []byte
@@ -118,7 +120,7 @@ func rawYAMLQuoted(text string) string {
 			i++
 			digits := map[byte]int{'x': 2, 'u': 4, 'U': 8}[text[i]]
 			hex := text[i+1 : min(i+1+digits, len(text))]
-			if r, err := strconv.ParseUint(hex, 16, 32); digits > 0 && len(hex) == digits && err == nil {
+			if r, err := strconv.ParseUint(hex, 16, 32); digits > 0 && len(hex) == digits && err == nil && r <= unicode.MaxRune {
 				value, i = utf8.AppendRune(value, rune(r)), i+digits
 			} else if control, ok := map[byte]byte{'t': '\t', 'n': '\n', 'r': '\r', '0': 0}[text[i]]; ok {
 				value = append(value, control)

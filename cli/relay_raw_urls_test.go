@@ -53,6 +53,7 @@ func TestRawURLSettingsWithAPasswordAreRefused(t *testing.T) {
 		{blueprint("blueprint: {source_url: https://github.com/a.yaml, source_url: 'https://me:pw@example.com/a.yaml'}"), "source_url"},
 		{blueprint("blueprint:\n  source_url: \"https://me\\x3apw@example.com/a.yaml\"\n"), "source_url"},
 		{blueprint("blueprint:\n  source_url: \"https://me:pw\\u0040example.com/a.yaml\"\n"), "source_url"},
+		{blueprint("blueprint:\n  source_url: \"https://me:pw\\U00110000@example.com/a.yaml\"\n"), "source_url"},
 		{blueprint("blueprint:\n  source_url: \"https:/\\\n    /me:pw@example.com/a.yaml\"\n"), "source_url"},
 		{blueprint("blueprint:\n  source_url: |-\n    https:/\n    /me:pw@example.com/a.yaml\n"), "source_url"},
 		{blueprint("blueprint:\n  source_url: https:/\n\n    /me:pw@example.com/a.yaml\n"), "source_url"},
