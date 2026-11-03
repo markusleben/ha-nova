@@ -260,7 +260,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			if consumed = os.Rename(claimed, open) != nil; consumed {
 				failure.next = "Nothing was sent, so retrying is safe: " + replan
 			}
-			confirmedNotSent(failure, id, !consumed)
+			confirmedNotSent(failure, id, s.server, !consumed)
 		}
 		return err
 	}

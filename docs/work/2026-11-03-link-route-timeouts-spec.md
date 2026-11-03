@@ -89,29 +89,32 @@ This narrows the 2026-07-25 non-goal "No automatic retry after a functional requ
 
 ## Follow-up: a Confirm hands its route to apply
 
-Date: 2026-11-03. Target: 0.28.1, follow-up to #944. Owner: `cli/confirm_handoff.go`, `cli/confirm_window.go`, `cli/verb_apply.go`.
+Date: 2026-11-03. Target: 0.28.1, follow-up to #944. Owner: `cli/confirm_handoff.go`, `cli/verb_apply.go`, `cli/dashboard_apply.go`.
 
 ### Hand-off
 
 - After a Confirm in the window, on the phone, or in the window while the phone asks too (CLI and `ha-nova mcp`), apply takes over the ask's Link route: no second route choice, no local preflight, no second login. Apply opens its own session on that route, with its own 30 s budget and an empty read cache, so its re-plan reads everything again.
-- Only in the same process, only once, only for the plan's server, and only when the configuration apply loads is identical to the one the ask logged in with (profile, Relay instance, route policy, Link generation and state, addresses). Otherwise, and always on the local route (it has no login to save), apply chooses its route as before.
-- No identity check is skipped: the ask's login checked the Relay instance and the Home Assistant user moments before, for this configuration. The device credential is the one the confirmation code was derived from.
+- Only in the same process, only once, only for the plan's server, and only when the configuration apply loads is identical to the one the ask logged in with (profile, Relay instance, route policy, Link generation and state, addresses). Otherwise, and always on the local route (it has no login to save), apply chooses its route as before. `ha-nova serve` always chooses again: its phone ask can be minutes old.
+- Apply's own Link checks (secret-store match, device-credential read, Relay instance and Home Assistant user) are skipped; the ask's, made at its login before its re-plan and its wait (90 s CLI, 40 s MCP) for this configuration, stand in. The Relay still checks the device credential and the Supervisor the Ingress session on every request: a re-pair, a revoke, or a reinstalled App fails the first re-plan read, and nothing is sent. The device credential is the one the confirmation code was derived from.
 - The Supervisor keeps an Ingress session for 15 minutes after its last use. If it is gone anyway, Link answers 401 before the Relay, the first re-plan read fails, nothing is sent, and the answer below applies.
-- The window's or phone's wait (90 s CLI, 40 s MCP) counts from the start of the ask, so the ask's own login and re-plan are part of it; it never drops below the 15 s an ask needs. After the answer, only apply's re-plan reads, the one write, and its verify remain.
 
 ### Failure after a human confirmed
 
-- A failure that sent nothing after a Confirm in a window, on the phone, or in a form answers `CONFIRMED_NOT_SENT` (exit 1) instead of `RELAY_ERROR`: apply's session could not open, or a read or the write failed before reaching Home Assistant (the `errNothingSent` failures). Its `next`: nothing changed; read the target once with `ha-nova get`; never apply again unprompted; only after the user says they still want it, apply again (it asks them again), or plan again when the plan could not be kept.
-- A failure after the write may have reached Home Assistant stays `OUTCOME_UNKNOWN` (exit 7: verify, never retry). Every other code, `say`, and the phone's result texts are unchanged. A code typed in chat keeps `RELAY_ERROR`: retrying is safe there, and nobody is asked again.
+- A failure that sent nothing after a Confirm in a window, on the phone, or in a form answers `CONFIRMED_NOT_SENT` (exit 1) instead of `RELAY_ERROR`: apply's session could not open, or a read or the write failed before reaching Home Assistant (the `errNothingSent` failures). Its `next`: nothing changed; read the target once with `ha-nova get --server <plan's server>` (a read does not follow the plan; MCP drops the flag, its session is pinned); if that read fails too, say so and don't run setup; never apply again unprompted; only after the user says they still want it, apply again (it asks them again), or plan again when the plan could not be kept.
+- The same class on the dashboard path: a failed re-read right before the save (after the copy) and a save or create the Relay refused before forwarding returned a plain error, so they read as `RELAY_ERROR` and used up the plan though nothing changed. They are nothing-sent failures now: the plan is handed back, as for config and service plans, and after a Confirm they answer `CONFIRMED_NOT_SENT`.
+- A failure after the write may have reached Home Assistant stays `OUTCOME_UNKNOWN` (exit 7: verify, never retry). Every other code, `say`, and the phone's result texts are unchanged. A code typed in chat keeps `RELAY_ERROR`: retrying is safe there, and nobody is asked again. A chat app (`ha-nova serve`) keeps `RELAY_ERROR` and its own step, which says nothing changed and never names a terminal command.
 
 ### Known limits
 
-- The host's limit holds for Link's share: apply's own reads, its write (30 s), and its verify keep their own bounds, as on the local route.
+- The ask's own login still runs before its wait starts (unchanged by this follow-up). With `ha-nova mcp`, a login that needs its retry (over 20 s) plus a tap in the last seconds can still pass 60 s. Counting the login into the wait needs the phone lookup's minimum to move with it (`discoverInTime`); left for a later change.
+- Apply's own reads, its write (30 s), and its verify keep their own bounds, as on the local route.
 - After an MCP form, apply still chooses its route: the form can wait up to 5 minutes, and its credential read is a session of its own.
+- "The user confirmed" also covers a form answered with a wrong code: the session or the re-plan can fail before the code check. A new apply asks again either way.
+- The `next` names `apply --plan` without `--no-snapshot`, as the window's and phone's own steps do; apply then asks about the copy again.
 
 ### Tests (each fails on fc7896f5)
 
 - Window, phone, and both: a Confirm over Link costs one route choice (the ask's), not two.
-- The window's wait shrinks by the time the ask's login took.
-- Confirmed, then a read fails or apply's session cannot open: `CONFIRMED_NOT_SENT`, nothing sent, the plan kept, and a `next` that reads before anything else.
-- Guards that pass on base too: a local route, or a configuration changed while the window was open, is chosen again; a write with an unknown outcome stays `OUTCOME_UNKNOWN`.
+- Confirmed, then a read fails, apply's session cannot open, or a dashboard's re-read after the copy fails: `CONFIRMED_NOT_SENT`, nothing sent, the plan kept, a `next` that reads first, and its MCP form without `--server`.
+- Without a human ask, the dashboard re-read failure keeps the plan, and the same apply then succeeds.
+- Guards that pass on base too: a local route, or a configuration changed while the window was open, is chosen again; a write with an unknown outcome stays `OUTCOME_UNKNOWN`; a chat app keeps `RELAY_ERROR`.

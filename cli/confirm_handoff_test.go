@@ -94,24 +94,6 @@ func TestApplyChoosesItsRouteAgainUnlessTheSameLinkConfig(t *testing.T) {
 	}
 }
 
-// The window's wait counts from the start of the ask: its own login is
-// part of it, so a late Confirm still leaves apply its time.
-func TestWindowWaitCountsTheAskLogin(t *testing.T) {
-	h := newWriteHarness(t, newFakeHA())
-	useWindow(t, windowConfirmed)
-	inner, waited := windowRunner, time.Duration(0)
-	windowRunner = func(ctx context.Context, message, lang string, wait time.Duration) windowAnswer {
-		waited = wait
-		return inner(ctx, message, lang, wait)
-	}
-	route := stubRoute(t)
-	id := h.plan("lock.unlock", "lock.front").Plan.ID
-	route.delay = 400 * time.Millisecond
-	if exit, env := h.run(runApplyCommand, "--plan", id); exit != 0 || waited > cliWindowWait-350*time.Millisecond {
-		t.Fatalf("exit %d err %+v: window wait %v after a 0.4 s login, want at most %v", exit, env.Error, waited, cliWindowWait-350*time.Millisecond)
-	}
-}
-
 // Confirmed, then nothing reached Home Assistant: the answer says so, keeps
 // the plan, and never invites a retry on the agent's own. A write whose
 // outcome is unknown stays OUTCOME_UNKNOWN.
@@ -119,29 +101,30 @@ func TestConfirmedButNotSentSaysWhatIsKnown(t *testing.T) {
 	previous := relayWriteTimeout
 	relayWriteTimeout = 200 * time.Millisecond
 	t.Cleanup(func() { relayWriteTimeout = previous })
-	for _, name := range []string{"read fails", "session fails", "write unknown"} {
+	for _, name := range []string{"read fails", "session fails", "dashboard read fails", "write unknown"} {
 		t.Run(name, func(t *testing.T) {
 			f := newFakeHA()
+			if name == "dashboard read fails" {
+				f = dashboardFake()
+			}
 			f.storeConfig("/api/config/automation/config/n1", map[string]any{"alias": "Night", "actions": []any{}})
 			h := newWriteHarness(t, f)
 			w := useWindow(t, windowConfirmed)
 			route := stubRoute(t)
-			w.before = func() {
-				switch name {
-				case "read fails":
-					h.f.fail["/api/config/automation/config/n1"] = true
-				case "session fails":
-					route.err = errors.New("connection refused")
-				case "write unknown":
-					h.f.fail["/api/services/lock/unlock"] = true
-				}
+			plan := []string{"call", "lock.unlock", "lock.front"}
+			switch name {
+			case "read fails":
+				plan = []string{"delete", "automation.night"}
+				w.before = func() { h.f.fail["/api/config/automation/config/n1"] = true }
+			case "session fails":
+				w.before = func() { route.err = errors.New("connection refused") }
+			case "dashboard read fails": // the plan, the ask, and apply read it; the re-read after the copy fails
+				plan = []string{"delete", "--domain", "dashboard", "--id", "home-main"}
+				f.lovelace.failReadsFrom = 4
+			case "write unknown":
+				w.before = func() { h.f.fail["/api/services/lock/unlock"] = true }
 			}
-			var planned verbTestEnvelope
-			if name == "read fails" {
-				_, planned = h.run(runPlanCommand, "delete", "automation.night")
-			} else {
-				planned = h.plan("lock.unlock", "lock.front")
-			}
+			_, planned := h.run(runPlanCommand, plan...)
 			id := planned.Plan.ID
 			exit, env := h.run(runApplyCommand, "--plan", id)
 			if name == "write unknown" {
@@ -151,11 +134,47 @@ func TestConfirmedButNotSentSaysWhatIsKnown(t *testing.T) {
 				return
 			}
 			if exit != 1 || env.Error == nil || env.Error.Code != "CONFIRMED_NOT_SENT" || !strings.Contains(env.Error.Message, "nothing was sent") ||
-				!strings.Contains(env.Error.Next, "the user confirmed") || !strings.Contains(env.Error.Next, "Read the target once with ha-nova get") ||
+				!strings.Contains(env.Error.Next, "the user confirmed") || !strings.Contains(env.Error.Next, "Read the target once with ha-nova get --server default to check") ||
 				!strings.Contains(env.Error.Next, "Never apply or call it again on your own") || !strings.Contains(env.Error.Next, "ha-nova apply --plan "+id+" again") ||
 				strings.Contains(env.Error.Next, "retrying is safe") || len(h.posts()) != 0 || len(h.planFiles()) != 1 {
 				t.Fatalf("exit %d env %+v posts %d plans %v", exit, env, len(h.posts()), h.planFiles())
 			}
+			if got := mcpNext(env.Error.Next + " Never run it without --server or HA_NOVA_SERVER."); strings.Contains(got, "ha_get --server") || !strings.Contains(got, "without --server or") || !strings.Contains(got, "ha_get to check") || !strings.Contains(got, "ha_apply with plan_id "+id+" again") {
+				t.Fatalf("MCP next %q", got)
+			}
+			if name == "dashboard read fails" && (len(h.lovelaceSaves()) != 0 || len(f.snapshots) != 1) {
+				t.Fatalf("dashboard writes %v snapshots %d", h.lovelaceSaves(), len(f.snapshots))
+			}
 		})
+	}
+}
+
+// Without a human ask, the same dashboard failure keeps the plan for the
+// same apply, as a config or service plan does.
+func TestDashboardReadFailureBeforeSaveKeepsThePlan(t *testing.T) {
+	f := dashboardFake()
+	h := newWriteHarness(t, f)
+	_, planned := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--base", homeBase(), "--file", draftFile(t, editedHome()))
+	f.lovelace.failReadsFrom = 3 // the plan and apply read it; the re-read after the copy fails
+	exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID)
+	if exit != 1 || env.Error == nil || env.Error.Code != "RELAY_ERROR" || !strings.Contains(env.Error.Next, "retrying is safe") || len(h.lovelaceSaves()) != 0 || len(h.planFiles()) != 1 {
+		t.Fatalf("exit %d env %+v saves %v plans %v", exit, env, h.lovelaceSaves(), h.planFiles())
+	}
+	f.lovelace.failReadsFrom = 0
+	if exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID); exit != 0 || env.Status != "verified" || len(h.lovelaceSaves()) != 1 {
+		t.Fatalf("retry: exit %d env %+v", exit, env)
+	}
+}
+
+// A chat app keeps RELAY_ERROR and its own step, which never names a
+// terminal command.
+func TestChatAppKeepsItsRelayStepAfterATap(t *testing.T) {
+	savedAnswer, savedChat := humanAnswer, chatCall
+	humanAnswer, chatCall = "1234", &chatPolicy{}
+	t.Cleanup(func() { humanAnswer, chatCall = savedAnswer, savedChat })
+	failure := nothingSent(errors.New("connection refused"))
+	confirmedNotSent(failure, "p_000000000000", "default", true)
+	if failure.code != "RELAY_ERROR" || strings.Contains(failure.next, "ha-nova get") {
+		t.Fatalf("chat app: %+v", failure)
 	}
 }

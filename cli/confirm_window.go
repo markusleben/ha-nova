@@ -347,11 +347,8 @@ func windowStopped(s *relaySession, status, code, message, next string) (verbEnv
 // humanPlan reads a typed plan of channel and re-plans it like apply, for
 // a window or phone ask (goal: the phone's question, sayAsk). ok=false:
 // apply runs and reports whatever is wrong (drift, expiry, a refusal); s is
-// open only when ok. wait counts from here (at least windowMinWait): the
-// ask's own login and re-plan are part of it, so a late answer still leaves
-// apply its time.
+// open only when ok.
 func humanPlan(paths runtimePaths, opts verbOptions, id string, noSnapshot bool, channel string) (plan, fresh storedPlan, s *relaySession, idHex string, wait time.Duration, goal actionGoal, ok bool) {
-	start := time.Now()
 	if humanAnswer != "" || !planIDPattern.MatchString(id) { // a form already answered
 		return
 	}
@@ -381,5 +378,5 @@ func humanPlan(paths runtimePaths, opts verbOptions, id string, noSnapshot bool,
 	if fresh.Hash != plan.Hash { // still the confirmed plan: ask with its sealed preview, every warning kept
 		fresh.Prompt = plan.Prompt
 	}
-	return plan, fresh, s, idHex, min(max(windowWait-time.Since(start), windowMinWait), expires.Sub(verbNow())), env.ask, true
+	return plan, fresh, s, idHex, min(windowWait, expires.Sub(verbNow())), env.ask, true
 }
