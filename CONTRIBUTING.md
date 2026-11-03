@@ -14,7 +14,7 @@ HA NOVA is still early. Small, focused improvements help most.
 
 Prerequisites:
 - Node.js `>=22.12`
-- Go `>=1.24`
+- Go `>=1.26.10` (the `go` line in `cli/go.mod`)
 
 ```bash
 npm ci
