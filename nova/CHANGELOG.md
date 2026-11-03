@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.14] - 2026-11-03
+
+### Fixed
+- HA NOVA refuses a password, key, or other secret it can recognize going into an App's settings: you enter it in the App's Configuration tab in Home Assistant (Settings > Apps). This applies to chat apps with this App and to computers with HA NOVA 0.28.1.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.1 ask you to update this App.
+
 ## [Relay 0.13.13] - 2026-11-03
 
 ### Fixed

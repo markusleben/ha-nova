@@ -126,6 +126,8 @@ func checkRawSupervisor(payload map[string]any) error {
 		return rawRefusal("App options change", "send exactly {options: {…the keys to change}} or {auto_update: true|false}; the Relay keeps every other stored option")
 	case kind == "options" && strings.Contains(jsonText(data), `"!secret`):
 		return rawRefusal("App option set to a !secret reference", "it would hand a stored secret to the App; set that option in the App's Configuration tab")
+	case kind == "options":
+		return rawAppOptionSecret(data["options"], nil)
 	}
 	return nil
 }
@@ -231,6 +233,8 @@ func rawSupervisorSettings(lang string, s *relaySession, slug string, data map[s
 	for _, key := range sortedKeys(options) {
 		value, err := marshalPlain(options[key])
 		switch {
+		case options[key] == "":
+			changes = append(changes, confirmT(lang, "everyday.app_setting", "key", sayText(key, true), "value", sayText(string(value), false)))
 		case !schemaRead || secret[key] || rawSupervisorSecretKey(key) || rawSupervisorHoldsSecret(key, options[key]):
 			changes = append(changes, confirmT(lang, "everyday.app_setting_secret", "key", sayText(key, true)))
 		case err != nil || len(value) > 120:
@@ -249,31 +253,18 @@ func rawSupervisorPasswordOptions(s *relaySession, slug string) (secret map[stri
 	if s == nil {
 		return nil, false
 	}
-	var info struct {
-		Status int `json:"status"`
-		Body   struct {
-			Data struct {
-				Schema []json.RawMessage `json:"schema"`
-			} `json:"data"`
-		} `json:"body"`
-	}
-	raw, err := s.sendWithin("supervisor", []byte(`{"method":"GET","path":"/addons/`+slug+`/info"}`), relaySessionRequestTimeout)
-	if err != nil || json.Unmarshal(raw, &info) != nil || info.Status != 200 || info.Body.Data.Schema == nil {
+	form, err := rawSupervisorForm(s, slug)
+	if err != nil || form == nil {
 		return nil, false
 	}
 	secret = map[string]bool{}
-	for _, node := range info.Body.Data.Schema {
-		var top struct {
-			Name string `json:"name"`
-		}
-		if json.Unmarshal(node, &top) != nil {
+	for _, node := range form {
+		field, ok := node.(map[string]any)
+		name, named := field["name"].(string)
+		if !ok || !named {
 			return nil, false
 		}
-		var compact bytes.Buffer
-		if json.Compact(&compact, node) != nil {
-			return nil, false
-		}
-		secret[top.Name] = bytes.Contains(compact.Bytes(), []byte(`"format":"password"`))
+		secret[name] = strings.Contains(jsonText(field), `"format":"password"`)
 	}
 	return secret, true
 }

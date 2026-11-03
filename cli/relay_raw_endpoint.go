@@ -27,14 +27,20 @@ func guardRawRequest(paths runtimePaths, opts verbOptions, endpoint string, body
 
 // guardRawRequestIn is guardRawRequest on an open session: a raw plan runs
 // it at planning and again right before each item is sent (live registry,
-// the flow forms an earlier item got back).
+// the flow forms an earlier item got back, an App's settings form).
 func guardRawRequestIn(s *relaySession, endpoint string, body []byte) (send []byte, refusal, err error) {
-	return guardRaw(endpoint, body, func() (error, error) {
+	send, refusal, err = guardRaw(endpoint, body, func() (error, error) {
 		if refusal, err := formSecretSet(s.paths, s.flowForms, endpoint, body); refusal != nil || err != nil {
 			return refusal, err
 		}
 		return checkRawAccessTargetIn(s, endpoint, body)
 	})
+	if refusal == nil && err == nil && endpoint == "supervisor" {
+		if refusal, err = rawSupervisorFormSecret(s, body); refusal != nil || err != nil {
+			return nil, refusal, err
+		}
+	}
+	return send, refusal, err
 }
 
 func guardRaw(endpoint string, body []byte, accessTarget func() (refusal, err error)) (send []byte, refusal, err error) {
