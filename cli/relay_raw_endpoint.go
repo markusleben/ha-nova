@@ -56,7 +56,7 @@ func relayRawChecks(paths runtimePaths, opts verbOptions, endpoint string, body 
 		return rawRefusal("todo/item/move", "a reorder can start automations that listen to the list (a shopping list fires shopping_list_updated), and only a plan checks them: "+
 			`put [{"endpoint":"ws","payload":<the message itself, without a collect_events envelope>}] in a file, run ha-nova plan raw --file <file>, then ha-nova apply`), nil
 	}
-	return relaySceneKept(paths, opts, endpoint, body)
+	return relayKept(paths, opts, endpoint, body)
 }
 
 func guardRaw(endpoint string, body []byte, accessTarget func() (refusal, err error)) (send []byte, refusal, err error) {

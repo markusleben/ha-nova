@@ -455,9 +455,10 @@ func rawSnapshotList(s *relaySession) (json.RawMessage, error) {
 // since the preview is drift, never silently dropped (skills/energy →
 // Config edit), the listed entry of every config copy a delete names, what
 // each device delete removes (its devices and entities: one more since the
-// preview is drift), each scene a save replaces (sceneKept), and every
-// config a listener walk read (rawShoppingList), as a call binds its
-// consumers' (I3); nil when the plan holds none.
+// preview is drift), each scene a save replaces (sceneKept), each helper
+// an update replaces (helperKept), and every config a listener walk read
+// (rawShoppingList), as a call binds its consumers' (I3); nil when the plan
+// holds none.
 func (n *rawNamer) basis() map[string]any {
 	basis := map[string]any{}
 	switch {
@@ -467,14 +468,10 @@ func (n *rawNamer) basis() map[string]any {
 	default:
 		basis["energy"] = numbersByValue(n.prefs) // a stored plan reads its numbers back as float64
 	}
-	if n.deleting != nil {
-		basis["snapshots"] = n.deleting
-	}
-	if n.removing != nil {
-		basis["devices"] = n.removing
-	}
-	if n.scenes != nil {
-		basis["scenes"] = n.scenes
+	for key, read := range map[string]map[string]any{"snapshots": n.deleting, "devices": n.removing, "scenes": n.scenes, "helpers": n.helpers} {
+		if read != nil {
+			basis[key] = read
+		}
 	}
 	if len(n.e.basis) > 0 {
 		basis["configs"] = n.e.basis
