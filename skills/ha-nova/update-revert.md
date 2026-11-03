@@ -48,8 +48,11 @@ selection (a bare `verify` checks the NEWEST snapshot). `drift` (exit 2) → do
 NOT overwrite; show what differs and ask. `match` → rebuild a schema-valid
 `{type}/update` payload from `before_config` (set `{type}_id` from its stored
 `id`, keep only writable fields — `../ha-nova/helper-schemas.md` → Common
-Rules), preview, confirm, write, re-read to confirm. Config-entry helpers have
-no auto-revert — point to HA Backups.
+Rules), preview, confirm, write, re-read to confirm. A revert that removes
+`input_select` options or `schedule` time blocks goes in one `ha-nova plan
+raw` with the auto config snapshot first: its `say` closes the revert's
+preview, and `ha-nova apply` takes the checkpoint (no manual capture).
+Config-entry helpers have no auto-revert — point to HA Backups.
 
 ## Honesty
 

@@ -10,7 +10,7 @@ Underlying HTTP contract (reference only, not for direct use): `Authorization: B
 
 ## Bounded Event Collection (envelope)
 
-Window mode (`on_limit`) and binary responses are supported by every relay at or above the skills' enforced floor — `min_relay_version` in `version.json`, currently **Relay 0.13.13**. The CLI checks that floor on every relay call and prints a relay-outdated warning when the installed relay is older; surface that warning and offer the update instead of version-gating manually. Do not infer individual endpoint support from the floor: unsupported legacy behavior still fails through its documented Relay error or timeout path.
+Window mode (`on_limit`) and binary responses are supported by every relay at or above the skills' enforced floor — `min_relay_version` in `version.json`, currently **Relay 0.13.16**. The CLI checks that floor on every relay call and prints a relay-outdated warning when the installed relay is older; surface that warning and offer the update instead of version-gating manually. Do not infer individual endpoint support from the floor: unsupported legacy behavior still fails through its documented Relay error or timeout path.
 
 
 Some WS commands answer with events instead of a single response. Wrap them:
@@ -451,8 +451,9 @@ Rules:
 
 - read the calendar entity state first; feature bits are create `1`, delete `2`, update `4`
 - REST event reads return `uid` and optional `recurrence_id`; update/delete require exact identity
-- update's `event` is a full replacement object with `summary`, `dtstart`, `dtend`, and any retained optional `description`, `location`, or `rrule`
+- update's `event` merges into the stored event: `summary`, `dtstart`, `dtend` are required; an omitted `description`, `location`, or `rrule` keeps its value, an empty string clears `description`/`location`, and an update cannot remove recurrence (`rrule` `""` is rejected)
 - recurring instances add `recurrence_id` and `recurrence_range`: `""` for one occurrence, `THISANDFUTURE` for that occurrence and later ones
+- Home Assistant's local calendar mishandles a this-and-future time or rule change: a new `dtend` is ignored, a new `COUNT` counts from the series start, a later start on a `COUNT` rule drops occurrences, and a weekday move keeps the old `BYDAY`; so `THISANDFUTURE` changes only `summary`/`description`/`location`
 - the create service has no recurrence field; recurring creates go through WS `calendar/event/create` with an RFC 5545 `rrule` in the `event` object
 
 ## Registry Queries (via /ws)

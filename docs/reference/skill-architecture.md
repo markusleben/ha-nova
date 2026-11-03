@@ -351,7 +351,8 @@ migration:
 - create through `calendar.create_event`; update/delete through WS `calendar/event/update|delete`
 - capability gates use `supported_features` bits 1/2/4 before create/delete/update
 - update/delete identity is `(uid, recurrence_id)`; recurring scope is one occurrence (`""`) or this-and-future (`THISANDFUTURE`)
-- update sends a full merged event object, never a partial patch
+- update merges into the stored event: omitted optional fields keep their value, an empty string clears description/location, and recurrence cannot be removed by an update (ending a series is a this-and-future delete)
+- this-and-future changes only summary/description/location: the local calendar ignores a new end there and can lose occurrences on a time or rule change
 
 Rules:
 - default to the next 7 days

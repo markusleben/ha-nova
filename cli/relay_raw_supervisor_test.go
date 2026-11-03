@@ -148,9 +148,9 @@ func TestPlanRawSupervisorTiers(t *testing.T) {
 	cases := []struct{ path, data, tier, line string }{
 		{"/store/addons/core_mosquitto/install", "", "typed", "Install the App “Mosquitto broker” (core_mosquitto)"},
 		{"/addons/core_mosquitto/uninstall", `,"data":{"remove_config":true}`, "typed", "Uninstall the App “Mosquitto broker” (core_mosquitto): its settings, data, and config folder are deleted"},
-		{"/addons/core_mosquitto/options", `,"data":{"options":{"log_level":"debug","mqtt_pass":"n3w"}}`, "typed", `Change the settings of the App “Mosquitto broker” (core_mosquitto): “log_level” to 'debug', “mqtt_pass” (a new secret value, not shown)`},
-		{"/addons/core_mosquitto/options", `,"data":{"options":{"server":{"password":"nested-new"}}}`, "typed", "“server” (a new secret value, not shown)"},
-		{"/addons/core_mosquitto/options", `,"data":{"options":{"wpa":"wpa-new-1","server":{"host":"h","pw2":"nested-pw2"}}}`, "typed", "“server” (a new secret value, not shown), “wpa” (a new secret value, not shown)"},
+		{"/addons/core_mosquitto/options", `,"data":{"options":{"log_level":"debug","authorized_keys":["ssh-ed25519 AAAAC3 me@laptop"]}}`, "typed", `Change the settings of the App “Mosquitto broker” (core_mosquitto): “authorized_keys” (a new secret value, not shown), “log_level” to 'debug'`},
+		{"/addons/core_mosquitto/options", `,"data":{"options":{"server":{"ssl_cert":"nested-cert.pem"}}}`, "typed", "“server” (a new secret value, not shown)"},
+		{"/addons/core_mosquitto/options", `,"data":{"options":{"wpa":"","password":"","server":{"host":"h","pw2":""}}}`, "typed", "“password” to '', “server” (a new secret value, not shown), “wpa” to ''"},
 		{"/addons/core_mosquitto/options", `,"data":{"auto_update":false}`, "preview", "Turn off automatic updates for the App “Mosquitto broker” (core_mosquitto)"},
 	}
 	for _, tc := range cases {
@@ -162,8 +162,8 @@ func TestPlanRawSupervisorTiers(t *testing.T) {
 			t.Fatalf("%s: apply exit %d %s", tc.path, exit, applied.Result)
 		}
 	}
-	if strings.Contains(fmt.Sprint(sentWrites()), "n3w") == false {
-		t.Fatalf("the new secret value was not sent: %v", sentWrites())
+	if sent := fmt.Sprint(sentWrites()); !strings.Contains(sent, "AAAAC3") || !strings.Contains(sent, "nested-cert.pem") {
+		t.Fatalf("the hidden new values were not sent: %v", sentWrites())
 	}
 	if got := len(sentWrites()); got != len(cases) {
 		t.Fatalf("sent %d supervisor writes, want %d", got, len(cases))
@@ -189,7 +189,7 @@ func rawPreviewLeaks(t *testing.T, paths runtimePaths, env verbTestEnvelope) boo
 		t.Fatal(err)
 	}
 	text := env.Say + string(env.Result) + plan.Prompt // the phone question is built from the same item line (rawGoal)
-	for _, secret := range []string{"nested-new", "n3w", "wpa-new-1", "nested-pw2"} {
+	for _, secret := range []string{"AAAAC3", "nested-cert.pem"} {
 		if strings.Contains(text, secret) {
 			return true
 		}
@@ -197,14 +197,14 @@ func rawPreviewLeaks(t *testing.T, paths runtimePaths, env verbTestEnvelope) boo
 	return false
 }
 
-// The App's schema can't be read: no value is shown.
+// The App's schema can't be read: nothing is planned, so no value is shown.
 func TestPlanRawSupervisorPreviewFailsClosed(t *testing.T) {
 	paths, _ := readRelay(t, func(endpoint string, body map[string]any) any {
 		return map[string]any{"status": 500, "body": map[string]any{"result": "error", "message": "x"}}
 	})
 	exit, env := planRaw(t, paths, `[{"endpoint":"supervisor","payload":{"method":"POST","path":"/addons/core_x/options","data":{"options":{"log_level":"debug"}}}}]`)
-	if exit != verbExitConfirmation || strings.Contains(env.Say, "debug") || !strings.Contains(env.Say, "“log_level” (a new secret value, not shown)") {
-		t.Fatalf("exit %d say %q", exit, env.Say)
+	if exit == verbExitConfirmation || env.Plan != nil || strings.Contains(env.Say, "debug") || env.Error == nil || !strings.Contains(env.Error.Message, "cannot read the App's stored options") {
+		t.Fatalf("exit %d say %q %+v", exit, env.Say, env.Error)
 	}
 }
 
