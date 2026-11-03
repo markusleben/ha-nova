@@ -104,13 +104,17 @@ type tierEngine struct {
 	draft        bool                   // a config draft: it runs later, so plan-time state proves nothing
 	services     map[string]serviceSpec // /api/services by "domain.service"; nil when unreadable
 	servicesRead bool
-	ownApp       *tierReason // the first step that would stop the App HA NOVA runs in (latchOwnApp)
+	ownApp       *tierReason     // the first step that would stop the App HA NOVA runs in (latchOwnApp)
+	ahead        map[string]bool // what readAhead warmed: entities, and "consumer " + automation
+	aheadActed   int             // entities readAhead warmed (≤ tierMaxActed)
+	aheadConfigs int             // consumer configs readAhead warmed (≤ tierMaxConsumers)
+	lost         []string        // "entity|via|what" of each read the budget cut, but the listener scan's config reads (sealPlan)
 }
 
 func newTierEngine(s *relaySession) *tierEngine {
 	return &tierEngine{s: s, reg: map[string]registryEntry{}, states: map[string]*entityState{}, configs: map[string]map[string]any{},
 		basis: map[string]string{}, census: map[string][2]string{}, seen: map[string]bool{}, visited: map[string]bool{}, done: map[string]tierLevel{}, complete: true,
-		routes: map[string][]string{}, firedOn: map[string][]fired{}, runs: map[string][]string{}}
+		routes: map[string][]string{}, firedOn: map[string][]fired{}, runs: map[string][]string{}, ahead: map[string]bool{}}
 }
 
 // raise records a reason and lifts the run (and every open consumer scope).
@@ -475,15 +479,15 @@ func (e *tierEngine) parseConfig(id, domain, configID string, raw json.RawMessag
 		return nil, false
 	}
 	if bp, isBlueprint := cfg["use_blueprint"].(map[string]any); isBlueprint {
-		input := bp["input"]
-		if input == nil {
-			input = map[string]any{}
-		}
 		var sub struct {
 			Config map[string]any `json:"substituted_config"`
 		}
-		err := e.s.wsDecode(map[string]any{"type": "blueprint/substitute", "domain": domain, "path": bp["path"], "input": input}, &sub, "the blueprint substitution")
-		if err != nil || sub.Config == nil {
+		data, err := e.s.ws(blueprintRequest(domain, bp))
+		switch {
+		case err != nil && readFailed(err): // no answer in time (the budget): a failed read, never a missing blueprint
+			e.readFailed(id, via, "blueprint")
+			return nil, false
+		case err != nil || json.Unmarshal(data, &sub) != nil || sub.Config == nil:
 			e.gap(reasonBlueprint, id, via, fmt.Sprint(bp["path"]))
 			return nil, false
 		}
