@@ -130,7 +130,7 @@ func (b *chatBridge) runPhoneJob(job *controlJob, look *controlLook, chosen *pho
 		err := b.policyStill(job.user, want) // first: the link reads as changed once the user may no longer confirm
 		var still, unread bool
 		if err == nil {
-			unread = b.asUser(job.user, func() { still, unread = phoneStillLinked(look.s, look.current) }) != nil || unread
+			unread = b.asUser(job.user, func() { still, unread = phoneStillLinked(look.s, look.current, time.Time{}) }) != nil || unread
 		}
 		switch {
 		case err != nil:
@@ -185,7 +185,7 @@ func (b *chatBridge) runPhoneJob(job *controlJob, look *controlLook, chosen *pho
 	end("done")
 }
 
-var controlAnswer = map[phoneAnswer]string{phoneNoAnswer: "timeout", phoneDeclined: "declined", phoneRejected: "rejected", phoneFailed: "failed"}
+var controlAnswer = map[phoneAnswer]string{phoneNoAnswer: "timeout", phoneDeclined: "declined", phoneRejected: "rejected", phoneFailed: "failed", phoneUnread: "failed"}
 
 // step: the phone a running job asks now, the button its question shows,
 // and a move's new phone.

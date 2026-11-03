@@ -204,6 +204,7 @@ func lookupPhones(s *relaySession, links map[string]phoneEntry) (phoneHome, erro
 	}
 	status, services, err := s.coreGET("/api/services")
 	if err != nil || core.Status != http.StatusOK || status != http.StatusOK {
+		s.forgetCoreGET("/api/services") // a second lookup reads it again
 		return home, errors.New("the Companion phones could not be read")
 	}
 	return home, home.fill(core.Body, services, device)
@@ -347,24 +348,6 @@ func (h phoneHome) status(links map[string]phoneEntry, err error) (phoneSetup, p
 	return setup, phoneReady
 }
 
-// discoverPhone: the linked phone, read only when this computer has a link.
-func discoverPhone(s *relaySession) (phoneSetup, phoneStatus) {
-	if activeServerIsDemo() {
-		return phoneSetup{}, phoneNone // links belong to real homes
-	}
-	links, readable := linksForCall(s.paths)
-	if !readable {
-		return phoneSetup{why: whyRead}, phoneMissing
-	}
-	if len(links) == 0 {
-		return phoneSetup{}, phoneNone
-	}
-	done := s.ownBudget()
-	home, err := lookupPhones(s, links)
-	done()
-	return home.status(links, err)
-}
-
 // The link store (config.json top level, keyed by the Home Assistant owner's
 // user id, unique per Home Assistant): a phoneLink, or #719's "on" pin.
 const phoneSettingKey = "confirm_phone"
@@ -439,20 +422,4 @@ func setPhoneLink(paths runtimePaths, owner string, prev phoneEntry, link *phone
 
 func samePhoneEntry(a, b phoneEntry) bool {
 	return a.legacy == b.legacy && (a.link == nil) == (b.link == nil) && (a.link == nil || *a.link == *b.link)
-}
-
-// detectAfterWindow picks the channel where no window opens: the linked
-// phone, else a form, else chat. A linked phone that can't be asked now
-// refuses (channelPhoneMissing), so breaking its setup in Home Assistant
-// can't move a plan to a channel the model can answer.
-func detectAfterWindow(s *relaySession) string {
-	switch _, status := discoverConfirmer(s); status {
-	case phoneReady:
-		return channelPhone
-	case phoneMissing:
-		return channelPhoneMissing
-	case phoneLegacy:
-		return channelPhoneUnlinked
-	}
-	return codeChannel()
 }

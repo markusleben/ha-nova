@@ -139,6 +139,20 @@ func TestCallNeverStopsTheNOVAAppThroughWhatItRuns(t *testing.T) {
 		}, []string{"script.turn_on", "script.leave"}, true},
 		{"a light on another App's switch", func(f *fakeHA) { f.ent("light.mqtt_lamp", "switch_as_x", "on", map[string]any{"_di": "mqtt_device"}) },
 			[]string{"light.turn_off", "light.mqtt_lamp"}, false},
+		{"a room's lights, one starting an automation that turns off the App's switch", func(f *fakeHA) {
+			f.related["area:kitchen"] = []string{"light.kitchen", "light.hall"}
+			f.related["entity:light.hall"] = []string{"automation.night"}
+			f.automation("night", "n1", map[string]any{
+				"triggers": []any{map[string]any{"trigger": "state", "entity_id": "light.hall"}},
+				"actions":  []any{step("switch.turn_off", "switch.nova_relay")},
+			})
+		}, []string{"light.turn_off", "--area", "kitchen"}, true},
+		{"a room's light group holding a light on the App's switch", func(f *fakeHA) {
+			f.ent("light.nova_lamp", "switch_as_x", "on", map[string]any{"_di": "app_device"})
+			f.ent("light.all", "group", "on", map[string]any{"entity_id": []any{"light.kitchen", "light.nova_lamp"}})
+		}, []string{"light.turn_off", "light.all"}, true},
+		{"a room's lights", func(f *fakeHA) { f.related["area:kitchen"] = []string{"light.kitchen", "light.hall"} },
+			[]string{"light.turn_off", "--area", "kitchen"}, false},
 		{"a script named beside a templated area", func(f *fakeHA) {
 			f.script("stop", addonStop)
 			f.script("leave", map[string]any{"action": "script.turn_on", "target": map[string]any{"entity_id": "script.stop", "area_id": "{{ area }}"}})

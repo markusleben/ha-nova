@@ -455,8 +455,9 @@ func rawSnapshotList(s *relaySession) (json.RawMessage, error) {
 // since the preview is drift, never silently dropped (skills/energy →
 // Config edit), the listed entry of every config copy a delete names, what
 // each device delete removes (its devices and entities: one more since the
-// preview is drift), and each scene a save replaces (sceneKept); nil when
-// the plan holds none.
+// preview is drift), each scene a save replaces (sceneKept), and every
+// config a listener walk read (rawShoppingList), as a call binds its
+// consumers' (I3); nil when the plan holds none.
 func (n *rawNamer) basis() map[string]any {
 	basis := map[string]any{}
 	switch {
@@ -474,6 +475,9 @@ func (n *rawNamer) basis() map[string]any {
 	}
 	if n.scenes != nil {
 		basis["scenes"] = n.scenes
+	}
+	if len(n.e.basis) > 0 {
+		basis["configs"] = n.e.basis
 	}
 	if len(basis) == 0 {
 		return nil

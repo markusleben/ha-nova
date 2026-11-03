@@ -177,7 +177,7 @@ type phoneLinkResult int
 
 const (
 	phoneLinked       phoneLinkResult = iota
-	phoneLinkUnread                   // the re-check after the tap failed
+	phoneLinkUnread                   // a check in Home Assistant failed (before the send, or the re-check after the tap)
 	phoneLinkChanged                  // the phone or its user changed meanwhile
 	phoneLinkRejected                 // the tap came from another user
 	phoneLinkDeclined                 // cancelled on the phone
@@ -217,6 +217,8 @@ func sendPhoneLink(s *relaySession, out io.Writer, lang string, home phoneHome, 
 		return say(phoneLinkRejected, fmt.Sprintf("Nothing linked: the tap came from a phone signed in to Home Assistant as someone other than %s. Sign in as %s in the Home Assistant app on “%s”.%s", person, person, name, retry))
 	case phoneDeclined:
 		return say(phoneLinkDeclined, "Nothing linked: it was cancelled on the phone."+retry)
+	case phoneUnread:
+		return say(phoneLinkUnread, "Nothing linked and nothing was sent: "+phoneUnreadLine)
 	case phoneFailed:
 		return say(phoneLinkFailed, "Nothing linked: HA NOVA couldn't send the notification, or couldn't listen for the tap through the NOVA App. Check that the phone's Home Assistant app is signed in and can reach Home Assistant."+retry)
 	default:
@@ -285,7 +287,7 @@ func allowPhoneChange(s *relaySession, out io.Writer, lang string, home phoneHom
 			reply.say(prefix, line)
 		}()
 		if answer == phoneConfirmed {
-			still, unread := phoneStillLinked(s, current)
+			still, unread := phoneStillLinked(s, current, time.Time{})
 			switch {
 			case still && unlink:
 				reply.say(confirmT(lang, "outcome.approved"), confirmT(lang, "outcome.line.approved_stop", "host", phoneHost(lang)))
@@ -305,6 +307,8 @@ func allowPhoneChange(s *relaySession, out io.Writer, lang string, home phoneHom
 			fmt.Fprintf(out, "  Nothing changed: it was cancelled on “%s”.\n", old)
 		case phoneRejected:
 			fmt.Fprintf(out, "  Nothing changed: the tap came from a phone signed in to Home Assistant as someone other than the person who linked “%s”.\n", old)
+		case phoneUnread:
+			fmt.Fprintln(out, "  Nothing changed and nothing was sent: "+phoneUnreadLine)
 		default:
 			fmt.Fprintf(out, "  Nothing changed: it was not confirmed on “%s” in time, or the notification could not be sent. If that phone is lost, remove it in Home Assistant (Settings → Devices & services → Mobile App), then run this again.\n", old)
 			if answer == phoneNoAnswer {
