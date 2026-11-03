@@ -2,10 +2,11 @@
 
 Pinned against HACS 2.x (verified 2.0.5, `custom_components/hacs/websocket/`).
 All commands are admin-only WS commands and go through `ha-nova relay ws`.
-This map is the ONLY set of `hacs/*` commands the skill may send. Never guess
-schemas; never edit `.storage`; never SSH — every operation reaches Home
-Assistant exclusively through the Relay, and anything outside this map stops
-with the HACS-UI pointer.
+This map is the ONLY set of `hacs/*` and `marketplace/*` commands the skill
+may send. Never guess schemas; never edit `.storage`; never SSH — every
+operation reaches Home Assistant exclusively through the Relay, and anything
+outside this map stops with the HACS-UI pointer (Marketplace mode: its
+Home Assistant steps).
 
 ## Capability gate — read `hacs/info` first
 
@@ -33,6 +34,42 @@ API used `hacs/config`/`hacs/status`, `hacs/repositories`, and action-based
 `hacs/repository`/`hacs/repository/data` commands. An unrecognized schema is
 therefore a real possibility on old installs, and the answer is the HACS UI,
 not improvisation.
+
+### When `hacs/info` fails — classify before naming a cause
+
+- WS error `unauthorized` (from `hacs/info` or `marketplace/info`) → the
+  Relay upstream credential lacks HA admin (HACS and the Marketplace
+  register every command admin-only) — remediation is switching that
+  credential to an admin account, never an install hint.
+- `unknown_command` (through the Relay: `UPSTREAM_WS_COMMAND_ERROR`, "HA
+  rejected 'hacs/info': unknown_command") → send `{"type":"marketplace/info"}`:
+  - a result → Marketplace mode (below). HACS is not missing; it is built in.
+  - error `not_loaded` or `unknown_command` → read `{"type":"get_config"}`.
+    `version` older than 2026.11 → `hacs/info` failing is ambiguous
+    (missing, not loaded, or an unsupported line that does not register the
+    pinned commands): read `{"type":"config_entries/get","domain":"hacs"}` —
+    entry absent → install guidance (alternative: Home Assistant 2026.11+
+    builds it in as the Marketplace); entry present but
+    `not_loaded`/`setup_error`/`setup_retry`/`migration_error` →
+    load/restart/repair remediation; entry present and loaded → unsupported
+    schema, fail closed with the HACS-UI pointer.
+    2026.11 or newer → the Marketplace exists but is not loaded, and HACS
+    cannot be installed there — never install guidance. Take the first match:
+    - `recovery_mode` true → Home Assistant runs in recovery mode, which
+      loads no Marketplace: point to the Home Assistant logs.
+    - `state` not `RUNNING` → Home Assistant is still starting (the
+      Marketplace registers and loads late; the first 2026.11 start also
+      takes over HACS): wait about 30 seconds and run the gate again, at most
+      three times; then say it has not finished starting and stop.
+    - otherwise read `{"type":"config_entries/get","domain":"marketplace"}`:
+      `disabled_by` set → it is disabled: enable it under Settings > Devices
+      & services > Marketplace; `state` `setup_in_progress` → still
+      loading: wait as above; `setup_retry` → Home Assistant retries on its
+      own: give its `reason` and suggest trying again later; `setup_error`
+      → give its `reason` (a GitHub connection that no longer works:
+      reconnect it under that entry's ⋮ > Reconfigure; anything else: the
+      logs); no entry → Home Assistant sets it up again at its next restart;
+      anything else → the Marketplace did not start: the Home Assistant logs.
 
 ## Repository identity (critical)
 
@@ -139,3 +176,60 @@ Home Assistant restarts. Pending state surfaces as
 issue (`restart_required_*`).
 `plugin`/`theme`/`template`/`python_script`/`appdaemon` never set
 pending-restart; frontend packages need a browser/frontend reload instead.
+
+## Marketplace mode (Home Assistant 2026.11+)
+
+Home Assistant 2026.11 ships HACS as the built-in Marketplace
+(`marketplace` integration, Settings > Marketplace, set up by default;
+verified on 2026.11.0b4). On its first start it takes over a HACS
+installation: downloads stay installed and keep getting updates, custom
+repositories and update entities carry over (same entity IDs; their registry
+`platform` becomes `marketplace`), and the HACS integration is removed — it
+cannot be installed again, and every `hacs/*` command answers
+`unknown_command`.
+
+`{"type":"marketplace/info"}` → `categories` (`integration`, `plugin`, `theme`,
+`template`), `disabled_reason`, `github_connected`, `has_pending_tasks`,
+`lovelace_mode`, `stage`, `startup`, `version` (Home Assistant's),
+`warning_accepted` (for the Relay's own user only). A set `disabled_reason` →
+the Marketplace is not operational (inventory reads may still answer): say so
+with its next step — `rate_limit`: GitHub's request limit; wait for it to
+reset, or connect GitHub for a higher limit; `invalid_token`: reconnect GitHub
+under Settings > Devices & services > Marketplace > ⋮ > Reconfigure.
+
+Beyond that gate, HA NOVA reads one thing here:
+`{"type":"marketplace/repositories/list","categories":[...]}` (categories
+optional) → the whole catalog, thousands of rows: always filter with
+`--jq-file` (installed only: `[.data[] | select(.installed == true)]`).
+Rows carry `id`, `name`, `full_name`,
+`category`, `custom`, `installed`, `installed_version`, `available_version`,
+`pending_upgrade`, `status` (`pending-restart` = installed, not yet active), and
+`domain`. Answer inventory questions from it with the List Frame and lifecycle
+wording of SKILL.md → Inventory; a `pending_upgrade` row names the waiting version.
+
+Everything else is not supported through HA NOVA yet: install, update,
+redownload, another version, prereleases, uninstall, custom repositories, and
+migrations. Say so plainly and send nothing beyond the two reads above — no
+other `marketplace/*` command, no `update.install`, no `hacs/*` command, no
+file or `.storage` edit — then give the user the steps in Home Assistant. The
+first time each admin opens Settings > Marketplace it shows a risk notice;
+their installs and updates (Settings > Updates too) fail until they accept it.
+- install: look the repository up in the catalog list first; listed →
+  Settings > Marketplace > the repository > Install; not listed → a custom
+  repository (below)
+- another version: the repository page > ⋮ > Install another version (not
+  for going back after an update: Home Assistant advises restoring a backup
+  from before it)
+- update: Settings > Updates; an updated integration needs a restart, which
+  a repair under Settings > System > Repairs offers
+- uninstall: the repository page > ⋮ > Uninstall (an integration that is
+  still set up: remove its setup first, or pick Delete and uninstall, which
+  also deletes its devices and entities)
+- custom repository: Settings > Marketplace > Add from link (needs a GitHub
+  connection); remove one there under Added from links
+- prereleases: the repository's Pre-release switch on its device under
+  Settings > Devices & services > Marketplace (the entity is disabled by
+  default: enable it first, then turn the switch on)
+
+AppDaemon apps and Python scripts are no longer managed: their files stay and
+keep working without updates (a repair names them).

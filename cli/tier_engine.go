@@ -295,7 +295,7 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 	case eff == "button.press" && (pl == "esphome" || pl == "mqtt"):
 		level = tierTyped
 		e.gap(reasonUserButton, id, via, pl)
-	case eff == "update.install" && pl == "hacs":
+	case eff == "update.install" && (pl == "hacs" || pl == "marketplace"):
 		level = tierTyped
 		e.raise(tierTyped, tierReason{Code: reasonHACSInstall, EntityID: id, Via: via})
 	}
