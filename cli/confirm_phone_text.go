@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -25,8 +26,9 @@ import (
 type phoneAsk struct {
 	lang                string // the texts' language (phonePayload's hint and Cancel speak it too)
 	title, body, button string
-	urgent              bool // a pending action: iOS time-sensitive; else active
-	unlock              bool // the phone must be unlocked to answer (link, move, stop)
+	urgent              bool         // a pending action: iOS time-sensitive; else active
+	unlock              bool         // the phone must be unlocked to answer (link, move, stop)
+	sent                *atomic.Bool // set once the question went out (a chat app's job: chatJob.sent)
 }
 
 const (
@@ -291,7 +293,7 @@ func phoneNothing(lang string, answer phoneAnswer) (string, string) {
 		return confirmT(lang, "outcome.not_confirmed"), confirmT(lang, "outcome.line.other_user")
 	case phoneConfirmed:
 		return confirmT(lang, "outcome.not_done"), confirmT(lang, "outcome.line.stopped", "why", phoneSaysWhy(lang))
-	case phoneFailed:
+	case phoneFailed, phoneUnread:
 		return confirmT(lang, "outcome.not_asked"), confirmT(lang, "outcome.line.not_asked")
 	}
 	return confirmT(lang, "outcome.not_confirmed"), confirmT(lang, "outcome.line.no_answer")
@@ -339,9 +341,10 @@ func phoneResultTitle(lang, prefix string, goal actionGoal) string {
 }
 
 // phoneStillLinked re-reads the link after a tap: unlinked, replaced, or its
-// user demoted while the notification was open, the tap no longer counts.
-func phoneStillLinked(s *relaySession, setup phoneSetup) (linked, unread bool) {
-	again, status := discoverConfirmer(s)
+// user demoted while the notification was open, the tap no longer counts. A
+// failed read runs once more while until leaves time (discoverAgain).
+func phoneStillLinked(s *relaySession, setup phoneSetup, until time.Time) (linked, unread bool) {
+	again, status, _ := discoverAgain(s, until)
 	if status == phoneMissing && again.why == whyRead { // unknown, never "changed"
 		return false, true
 	}

@@ -103,13 +103,16 @@ func checkRawRelayRequest(endpoint string, body []byte) error {
 	return nil
 }
 
-// checkRawCoreBody: a template's output is plain text, where redaction
-// cannot find a camera's or image entity's access token (redactSecrets), so
-// a render that names one is not sent. A template built to get around this
-// is not covered.
+// checkRawCoreBody: a flow step never sends a secret (flowStepSecret). A
+// template's output is plain text, where redaction cannot find a camera's or
+// image entity's access token (redactSecrets), so a render that names one is
+// not sent. A template built to get around this is not covered.
 func checkRawCoreBody(method, raw string, body any) error {
 	pathPart, _, _ := strings.Cut(raw, "#")
 	pathPart, _, _ = strings.Cut(pathPart, "?")
+	if refusal := flowStepSecret(method, pathPart, body); refusal != nil {
+		return refusal
+	}
 	if method == http.MethodPost && pathPart == "/api/config/config_entries/subentries/flow" {
 		inner, _ := body.(map[string]any)
 		handler, _ := inner["handler"].([]any)
@@ -221,7 +224,7 @@ func checkRawWS(message map[string]any) error {
 		trigger, _ := json.Marshal(message["trigger"])
 		text := strings.ToLower(string(trigger))
 		// A template can name any event type, so no template in a raw trigger.
-		if strings.Contains(text, "call_service") || phoneEventName(text) || strings.Contains(text, "{{") || strings.Contains(text, "{%") {
+		if strings.Contains(text, "call_service") || phoneEventName(text) || isTemplated(text) {
 			return rawRefusal("trigger subscription on call_service, phone notification events, or a template", "watch the entity or event you need instead")
 		}
 	case "lovelace/config":

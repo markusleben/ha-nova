@@ -8,6 +8,8 @@ Unreleased claims wait here until they ship (AGENTS.md, Releases: the README des
 
 - **Chat apps for everyone in your home** (App 0.13.0): the README's chat-app section still says "Then sign in to Home Assistant as the owner" and "Only the Home Assistant owner can turn chat apps on and use them." With App 0.13.0 the owner turns them on and picks on the NOVA page who else may use them, at Ask only, Use the home, or Manage everything; each person signs in with their own login. "No phone? You type a four-digit code in the chat" holds only at Manage everything: below it, risky changes need the person's own linked phone and are refused without one.
 
+- **Room lights, media, and to-do adds run at once** (0.28.0, App 0.13.10): the README's example row for "Turn off the kitchen light" ("Whole rooms, scenes, and riskier actions show a preview first") and Safe by Design step 2 ("The one exception: only clear everyday actions run right away, like “turn off the kitchen light”") no longer hold as written: a room's lights (up to 30, none on a device with a lock), media controls with a small volume change, and to-do adds and updates now run right away too. Reword both when 0.28.0 ships.
+
 ## Planned
 
 - **Deeper reviews everywhere**: the full 40+ rule check, for more than automations

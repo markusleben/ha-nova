@@ -16,10 +16,11 @@ const callUsage = `ha-nova call <domain.service> [<entity_id>…] [--match "<phr
 
 const callHelp = callUsage + `
 
-Plans the call like "plan call". An ordinary call — up to 10 named targets
-or a targetless call, nothing behind it — runs now: exactly one request,
-never retried, then verified. Anything else stores the plan and exits 3; run "ha-nova apply"
-after the user confirms the preview (or types the one-time code).
+Plans the call like "plan call". An ordinary call — up to 10 named targets,
+a room's lights (up to 30), or a targetless call, nothing behind it — runs
+now: exactly one request, never retried, then verified. Anything else stores
+the plan and exits 3; run "ha-nova apply" after the user confirms the preview
+(or types the one-time code).
 Exit: 0 verified/accepted, 3 needs confirmation, 4 refused, 5 ambiguous or
 not found, 6 unverified/failed, 7 outcome unknown (verify; never retry).`
 
@@ -363,7 +364,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	if isConfig || isRaw || isBatch {
 		execute := func() error { return executeConfig(paths, s, &env, *fresh.ConfigAction, ctx, noSnapshot) }
 		if isRaw {
-			execute = func() error { return executeRaw(paths, s, &env, fresh.RawRequests, noSnapshot) }
+			execute = func() error { return executeRaw(paths, s, &env, fresh.RawRequests, fresh.Basis, noSnapshot) }
 		}
 		if isBatch {
 			execute = func() error { return executeBatch(paths, s, &env, batch, noSnapshot) }

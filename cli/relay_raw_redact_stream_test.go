@@ -136,7 +136,7 @@ func TestTemplateCannotPrintStreamToken(t *testing.T) {
 		rawRefused(t, "ws", body)
 	}
 	rawAllowed(t, "core", `{"method":"POST","path":"/api/template","body":{"template":"{{ states('camera.door') }}"}}`)
-	rawAllowed(t, "core", `{"method":"POST","path":"/api/config/config_entries/flow/0123abcd","body":{"access_token":"x"}}`)
+	rawAllowed(t, "core", `{"method":"POST","path":"/api/config/config_entries/flow/0123abcd","body":{"mode":"access_token"}}`)
 
 	paths, hits := rawRelayCounter(t)
 	exit, out := captureCommandOutput(t, func() int {

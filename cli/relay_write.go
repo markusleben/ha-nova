@@ -260,14 +260,18 @@ func (s *relaySession) renewBudget() {
 	s.ctx, s.cancel = ctx, func() { cancel(); previous() }
 }
 
-// ownBudget gives the reads until done a fresh overall budget of their own;
-// done hands the session back the budget it had, so a lookup never extends
-// the reads around it. Contexts stay alive until close, as in renewBudget.
-func (s *relaySession) ownBudget() (done func()) {
+// ownBudget gives the reads until done a fresh overall budget of their own,
+// ending at until if that comes before relaySessionOverallTimeout; done
+// hands the session back the budget it had, so a lookup never extends the
+// reads around it. Contexts stay alive until close, as in renewBudget.
+func (s *relaySession) ownBudget(until time.Time) (done func()) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	previous, previousCancel := s.ctx, s.cancel
-	ctx, cancel := context.WithTimeout(context.Background(), relaySessionOverallTimeout)
+	if end := time.Now().Add(relaySessionOverallTimeout); end.Before(until) {
+		until = end
+	}
+	ctx, cancel := context.WithDeadline(context.Background(), until)
 	s.ctx, s.cancel = ctx, func() { cancel(); previousCancel() }
 	return func() {
 		s.mu.Lock()
@@ -276,6 +280,15 @@ func (s *relaySession) ownBudget() (done func()) {
 			s.ctx = previous
 		}
 	}
+}
+
+// forgetCoreGET drops what the session remembered of coreGET(path), so the
+// next one reads Home Assistant again (the phone lookup's second try).
+func (s *relaySession) forgetCoreGET(path string) {
+	body, _ := json.Marshal(map[string]any{"method": http.MethodGet, "path": path}) // read's memo key
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.memo, "core "+string(body))
 }
 
 // reauthSnapshotTimeout bounds the best-effort snapshot so it never delays

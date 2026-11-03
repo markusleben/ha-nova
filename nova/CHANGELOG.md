@@ -4,6 +4,39 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.13] - 2026-11-03
+
+### Fixed
+- HA NOVA refuses a password, PIN, or key it can recognize going into a setup or repair form, and when a form asks for one, the AI sends you to Home Assistant to finish there (Settings > Devices & services, or Settings > System > Repairs). This applies to every HA NOVA caller, chat apps and computers alike.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.0 ask you to update this App.
+
+## [Relay 0.13.12] - 2026-11-03
+
+### Fixed
+- Saving a scene no longer drops its other lights and devices when the AI sends only the new one. A save that removes some is refused unless HA NOVA saves a copy of the scene first, the preview names what leaves the scene, and a scene changed in Home Assistant since the preview is never saved over. This applies to every HA NOVA caller, chat apps and computers alike.
+- HA NOVA can't stop or restart the NOVA Relay App itself, directly or through a scene, script, or automation, which would cut it off in the middle of a request. This applies to every HA NOVA caller, chat apps and computers alike. Starting and updating the App still work.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.0 ask you to update this App.
+
+## [Relay 0.13.11] - 2026-11-03
+
+### Fixed
+- Chat apps: when Home Assistant answers slowly, HA NOVA checks the linked phone a second time before it gives up. If that fails too, the assistant says Home Assistant was too slow and that nothing on the phone needs fixing, instead of blaming the phone.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.0 ask you to update this App.
+
+## [Relay 0.13.10] - 2026-11-02
+
+### Changed
+- Chat apps: pausing or skipping music, choosing a source, muting and a small volume change now run right away. So does switching a room's lights (up to 30 lights, none on a device with a lock) and, at Manage everything, adding to or checking off a to-do list. A big volume jump, playing something new, speaker groups, removing items, and anything that sets off something riskier still ask first.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.0 ask you to update this App.
+
 ## [Relay 0.13.7] - 2026-11-02
 
 ### Fixed

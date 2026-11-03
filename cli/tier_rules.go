@@ -258,7 +258,7 @@ func classifyAction(service string, data map[string]any, st *entityState) (tierL
 		return tierTyped, reasonUserService
 	case service == "mqtt.publish" || service == "conversation.process" || service == "recorder.purge" || service == "recorder.purge_entities" || domain == "hassio": // each moves a device or irreversibly deletes
 		return tierTyped, reasonOwnedTypedMember
-	case ownerSkill(service) != "":
+	case ownerSkill(service) != "" && !ownedOrdinary(service, data, st):
 		return tierPreview, reasonOwnedMember
 	}
 	return tierOrdinary, ""
@@ -423,10 +423,9 @@ var scriptEntityServices = map[string]bool{"turn_on": true, "turn_off": true, "t
 // verification can probe exactly what the scene promised.
 func sceneMemberService(entityID string, value any) (string, map[string]any) {
 	domain, _ := splitID(entityID)
-	state, _ := value.(string)
-	data := map[string]any{}
+	raw, data := value, map[string]any{}
 	if m, isMap := value.(map[string]any); isMap {
-		state, _ = m["state"].(string)
+		raw = m["state"]
 		for key, v := range m {
 			switch key {
 			case "state":
@@ -436,6 +435,10 @@ func sceneMemberService(entityID string, value any) (string, map[string]any) {
 				data[key] = v
 			}
 		}
+	}
+	state, _ := raw.(string)
+	if on, isBool := raw.(bool); isBool { // an unquoted YAML on/off, as Home Assistant reads it (_convert_states)
+		state = map[bool]string{true: "on", false: "off"}[on]
 	}
 	if state != "" {
 		data[sceneStateKey] = state
@@ -492,4 +495,6 @@ func splitID(id string) (string, string) {
 	return domain, rest
 }
 
-func isTemplated(s string) bool { return strings.Contains(s, "{{") || strings.Contains(s, "{%") }
+func isTemplated(s string) bool {
+	return strings.Contains(s, "{{") || strings.Contains(s, "{%") || strings.Contains(s, "{#")
+}

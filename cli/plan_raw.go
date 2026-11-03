@@ -18,7 +18,7 @@ import (
 // (guardRawRequestIn) at planning and again right before apply sends it
 // (plan_raw_apply.go). Reads stay with `relay` and ha_read, except the few
 // only a plan may send (rawPlanOnlyRead). The hash covers the items exactly;
-// the only Home Assistant state in it is the energy lists a save replaces.
+// the only Home Assistant state in it is the basis (rawNamer.basis).
 
 const planRawUsage = "ha-nova plan raw --file <requests.json>"
 
@@ -58,6 +58,7 @@ type rawPlanItem struct {
 	more     string     // what completes an everyday line's goal: a device delete, a Supervisor item
 	detail   string     // the request behind an everyday line
 	copy     string     // a config snapshot save: the copy's name (rawSteps)
+	drops    string     // a scene save: the sentence naming the members it removes (sceneNote)
 }
 
 type rawPlanResult struct {
@@ -175,6 +176,9 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 		if refusal == nil && err == nil && item.Endpoint == "backups" && payload["action"] == "delete" {
 			refusal, err = n.snapshotListed(payload)
 		}
+		if refusal == nil && err == nil && item.Endpoint == "core" {
+			refusal, err = n.sceneKept(items[:i], payload)
+		}
 		if err != nil {
 			return nil, storedPlan{}, err
 		}
@@ -182,6 +186,10 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 			next := "Tell the user which step can't be done this way and why (the message says it). Plan the other steps without it only if they still want them."
 			if errors.As(refusal, new(rawReadRefusal)) {
 				next = "That step only reads: read it with ha_read (ha-nova relay on a computer), then plan the other steps."
+			}
+			var guided interface{ next() string } // a refusal that says what to do instead
+			if errors.As(refusal, &guided) {
+				next = guided.next()
 			}
 			return nil, storedPlan{}, &verbFailure{exit: verbExitRefused, code: "REFUSED", next: next,
 				message: fmt.Sprintf("item %d: %s; nothing was planned or sent", i+1, strings.TrimSuffix(refusal.Error(), "; nothing was sent"))}
@@ -199,6 +207,7 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 		if item.Endpoint == "ws" && payload["type"] == "config/device_registry/remove" {
 			n.deviceEntities(payload["device_id"])
 		}
+		level = max(level, e.rawShoppingList(item.Endpoint, payload))
 		entry := rawPlanItem{Endpoint: item.Endpoint, Tier: level.String()}
 		if i < len(copies) {
 			entry.copy = copies[i]
@@ -227,9 +236,11 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 		}
 		entry := &result.Items[i]
 		entry.line, entry.goal, entry.more, entry.detail = line.text(lang), line.goal, line.more, line.detail
+		entry.drops = n.sceneNote(lang, payload)
 		entry.Change = upperFirst(entry.line)
 	}
 	env.Result = result
+	noteFlowForms(s, env)
 	if err == nil {
 		env.Say, plan.Prompt = confirmationSay(e, env, plan, ""), confirmationPrompt(e, env, plan, "")
 	}
@@ -350,11 +361,14 @@ func rawSteps(env *verbEnvelope) (steps []rawPlanItem, copies []string) {
 // first.
 func rawSayWhat(lang string, env *verbEnvelope) (about, status string) {
 	steps, copies := rawSteps(env)
-	detail := func(item rawPlanItem) string {
-		if item.detail == "" {
-			return ""
+	detail := func(item rawPlanItem) (say string) {
+		if item.drops != "" {
+			say = " " + item.drops
 		}
-		return " " + confirmT(lang, "detail.say", "detail", item.detail)
+		if item.detail != "" {
+			say += " " + confirmT(lang, "detail.say", "detail", item.detail)
+		}
+		return say
 	}
 	copied := rawCopyNote(lang, copies)
 	if len(steps) == 1 {
@@ -392,6 +406,9 @@ func rawAsk(e *tierEngine, env *verbEnvelope, plan storedPlan) actionGoal {
 	}
 	typed := 0
 	for i, item := range steps {
+		if item.drops != "" {
+			why = append(why, strings.TrimSuffix(item.drops, "."))
+		}
 		if len(steps) > 1 && item.Tier == tierTyped.String() {
 			why = append(why, confirmT(lang, "raw.step_why", "number", i+1, "change", item.Change))
 			typed++

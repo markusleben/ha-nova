@@ -44,7 +44,7 @@ func usePhones(t *testing.T, targets ...string) *fakePhones {
 	saved := []any{windowAvailable, phoneDiscover, phoneNotify, phoneCollect, phoneSettle, windowMinWait, windowWait, phoneTellSpan}
 	windowAvailable = func() bool { return false }
 	phoneSettle, windowMinWait, windowWait, phoneTellSpan = 10*time.Millisecond, time.Second, 2*time.Second, time.Second
-	phoneDiscover = func(*relaySession) (phoneSetup, phoneStatus) { return p.setup, p.status }
+	phoneDiscover = func(*relaySession, time.Time) (phoneSetup, phoneStatus) { return p.setup, p.status }
 	phoneNotify = func(_ *relaySession, service string, body map[string]any) error {
 		p.mu.Lock()
 		defer p.mu.Unlock()
@@ -89,7 +89,7 @@ func usePhones(t *testing.T, targets ...string) *fakePhones {
 		}
 	}
 	t.Cleanup(func() {
-		windowAvailable, phoneDiscover = saved[0].(func() bool), saved[1].(func(*relaySession) (phoneSetup, phoneStatus))
+		windowAvailable, phoneDiscover = saved[0].(func() bool), saved[1].(func(*relaySession, time.Time) (phoneSetup, phoneStatus))
 		phoneNotify = saved[2].(func(*relaySession, string, map[string]any) error)
 		phoneCollect = saved[3].(func(context.Context, *relaySession, time.Duration) ([]phoneEvent, error))
 		phoneSettle, windowMinWait, windowWait, phoneTellSpan = saved[4].(time.Duration), saved[5].(time.Duration), saved[6].(time.Duration), saved[7].(time.Duration)

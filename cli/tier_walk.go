@@ -82,6 +82,7 @@ var walkSkipKeys = map[string]bool{
 // deviceForm marks a device action (domain + type), which acts on its own
 // chosen entity, hidden or categorized or not.
 func (e *tierEngine) storedCall(name string, step map[string]any, via string, depth int, deviceForm bool) {
+	name = strings.ToLower(name) // as Home Assistant reads it (cv.service)
 	if isTemplated(name) || !entityIDPattern.MatchString(name) {
 		e.gap(reasonTemplatedAction, "", via, name)
 		return
@@ -95,16 +96,22 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 		}
 	}
 	data, dataKnown := stepData(step)
-	targets, targetsKnown := collectTargets(step)
-	if !dataKnown || !targetsKnown {
-		e.gap(reasonUnresolvedTarget, "", via, name)
-		return
+	targets, targetsKnown, all := collectTargets(step)
+	resolved := dataKnown && targetsKnown
+	if !resolved { // what it names literally is still followed below
+		if all {
+			e.everySwitch(name, via)
+		}
+		defer e.gap(reasonUnresolvedTarget, "", via, name)
 	}
 	if name == "scene.apply" {
 		e.sceneMembers(data["entities"], via, depth)
 		return
 	}
 	domain, service := splitID(name)
+	if domain == "hassio" && (service == "addon_stop" || service == "addon_restart") && novaAppSlug(jsonText(data["addon"])) {
+		e.latchOwnApp(novaAppStop, "", via)
+	}
 	if len(targets["floor_id"])+len(targets["label_id"]) > 0 {
 		e.gap(reasonStoredSelector, "", via, name)
 	}
@@ -134,8 +141,14 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 	if domain == "script" && !scriptEntityServices[service] {
 		ids, name = append(ids, name), "script.turn_on"
 	}
+	if len(ids) == 0 && !resolved {
+		return
+	}
 	if len(ids) == 0 {
-		level, code := classifyTargetless(name, data)
+		if len(targets) == 0 {
+			e.everySwitch(name, via)
+		}
+		level, code := e.targetless(name, data)
 		e.raise(level, tierReason{Code: code, Via: via})
 		e.members = append(e.members, tierMember{Action: name, Via: via, Class: level.String()})
 		return
@@ -147,9 +160,10 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 }
 
 // stepData merges data_template over data, as Home Assistant does; a
-// payload that is itself a template string cannot be known.
-func stepData(step map[string]any) (map[string]any, bool) {
-	merged := map[string]any{}
+// payload that is itself a template string cannot be known, so known is
+// false and only the other one's literal fields are merged.
+func stepData(step map[string]any) (merged map[string]any, known bool) {
+	merged, known = map[string]any{}, true
 	for _, key := range []string{"data", "data_template"} {
 		switch v := step[key].(type) {
 		case nil:
@@ -158,59 +172,57 @@ func stepData(step map[string]any) (map[string]any, bool) {
 				merged[k] = x
 			}
 		default:
-			return nil, false
+			known = false
 		}
 	}
-	return merged, true
+	return merged, known
 }
 
-// collectTargets gathers literal targets from target, data, and the step
-// root; a comma-separated string is a list, as Home Assistant reads it. Any
-// templated, non-literal, or "all"/"none" value makes the step unresolved.
-func collectTargets(step map[string]any) (map[string][]string, bool) {
-	out := map[string][]string{}
-	sources := []map[string]any{step}
-	switch target := step["target"].(type) {
-	case nil:
-	case map[string]any:
-		sources = append(sources, target)
-	default:
-		return nil, false // a whole-target template
+// collectTargets gathers the literal targets from target, data, and the
+// step root; a comma-separated string is a list, as Home Assistant reads it.
+// A templated or other non-literal value (all and none too) is left out and
+// makes known false; all says entity_id all was one.
+func collectTargets(step map[string]any) (out map[string][]string, known, all bool) {
+	out, known = map[string][]string{}, true
+	if _, isMap := step["target"].(map[string]any); step["target"] != nil && !isMap {
+		known = false // a whole-target template
 	}
-	for _, key := range []string{"data", "data_template"} {
-		if m, isMap := step[key].(map[string]any); isMap {
-			sources = append(sources, m)
-		}
-	}
-	for _, source := range sources {
+	for _, source := range []any{step, step["target"], step["data"], step["data_template"]} {
+		m, _ := source.(map[string]any)
 		for _, key := range []string{"entity_id", "area_id", "device_id", "floor_id", "label_id"} {
-			var values []string
-			switch v := source[key].(type) {
+			var values []any
+			switch v := m[key].(type) {
 			case nil:
 				continue
 			case string:
-				values = strings.Split(v, ",")
-			case []any:
-				for _, item := range v {
-					text, isString := item.(string)
-					if !isString {
-						return nil, false
-					}
-					values = append(values, text)
+				for _, part := range strings.Split(v, ",") {
+					values = append(values, part)
 				}
+			case []any:
+				values = v
 			default:
-				return nil, false
+				known = false
+			}
+			if out[key] == nil { // a selector given, even an empty one, is a target
+				out[key] = []string{}
 			}
 			for _, value := range values {
-				value = strings.TrimSpace(value)
-				if value == "" || isTemplated(value) || (key == "entity_id" && !entityIDPattern.MatchString(value)) {
-					return nil, false // includes all/none: not a literal entity_id
+				text, _ := value.(string)
+				if key == "entity_id" { // as Home Assistant reads it (cv.entity_ids)
+					text = strings.ToLower(text)
 				}
-				out[key] = append(out[key], value)
+				switch text = strings.TrimSpace(text); {
+				case key == "entity_id" && strings.EqualFold(text, "all"):
+					all, known = true, false
+				case text == "" || isTemplated(text) || (key == "entity_id" && !entityIDPattern.MatchString(text)):
+					known = false
+				default:
+					out[key] = append(out[key], text)
+				}
 			}
 		}
 	}
-	return out, true
+	return out, known, all
 }
 
 func sortedKeys(m map[string]any) []string {
@@ -281,12 +293,18 @@ func (e *tierEngine) sceneMembers(entities any, via string, depth int) {
 // sceneMember maps a stored target state to its service; a group member
 // reproduces that state on each leaf, mapped per leaf domain.
 func (e *tierEngine) sceneMember(id string, value any, via string, depth int) {
+	id = strings.ToLower(id) // as Home Assistant reads it (cv.entity_id)
 	if !entityIDPattern.MatchString(id) {
 		e.gap(reasonUnresolvedTarget, "", via, id)
 		return
 	}
+	if _, data := sceneMemberService(id, value); isTemplated(jsonText(data[sceneStateKey])) { // rendered at runtime, it may be off
+		e.switchOff(id, "homeassistant.toggle", via)
+	}
 	st, err := e.state(id)
 	if err != nil {
+		service, _ := sceneMemberService(id, value)
+		e.switchOff(id, service, via)
 		e.readFailed(id, via, "state")
 		return
 	}

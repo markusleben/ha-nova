@@ -43,24 +43,30 @@ func TestSingleEntityExpansionIsTheDirectCall(t *testing.T) {
 			args: []string{"cover.close_cover", "--area", "garage"}, exit: 0, tier: "ordinary"},
 
 		// Strict neighbours: scope.
-		{name: "two lights stay preview",
-			setup: area("light.kitchen", "light.hall"),
-			args:  []string{"light.turn_off", "--area", "kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
+		{name: "two switches stay preview",
+			setup: func(f *fakeHA) {
+				f.ent("switch.kettle", "tplink", "on", nil)
+				f.ent("switch.fridge", "tplink", "on", nil)
+				area("switch.kettle", "switch.fridge")(f)
+			},
+			args: []string{"switch.turn_off", "--area", "kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
 		{name: "generic homeassistant service over an area stays preview",
 			setup: func(f *fakeHA) { f.ent("switch.fridge", "tplink", "on", nil); area("switch.fridge")(f) },
 			args:  []string{"homeassistant.turn_off", "--area", "kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
 		{name: "a single group in the area expands to leaves: preview",
 			setup: func(f *fakeHA) {
-				f.ent("light.all", "group", "on", map[string]any{"entity_id": []any{"light.kitchen"}})
-				area("light.all")(f)
+				f.ent("switch.kettle", "tplink", "on", nil)
+				f.ent("switch.all", "group", "on", map[string]any{"entity_id": []any{"switch.kettle"}})
+				area("switch.all")(f)
 			},
-			args: []string{"light.turn_off", "--area", "kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
-		{name: "a light plus a group holding it: preview",
-			setup: func(f *fakeHA) { // the group sorts after the light, so the light is frozen by area
-				f.ent("light.zz_all", "group", "on", map[string]any{"entity_id": []any{"light.kitchen"}})
-				area("light.kitchen", "light.zz_all")(f)
+			args: []string{"switch.turn_off", "--area", "kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
+		{name: "a switch plus a group holding it: preview",
+			setup: func(f *fakeHA) { // the group sorts after the switch, so the switch is frozen by area
+				f.ent("switch.kettle", "tplink", "on", nil)
+				f.ent("switch.zz_all", "group", "on", map[string]any{"entity_id": []any{"switch.kettle"}})
+				area("switch.kettle", "switch.zz_all")(f)
 			},
-			args: []string{"light.turn_off", "--area", "kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
+			args: []string{"switch.turn_off", "--area", "kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
 		{name: "a skipped leaf without state keeps the preview",
 			setup: area("light.kitchen", "light.ghost"),
 			args:  []string{"light.turn_off", "--area", "kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded},
@@ -208,7 +214,8 @@ func TestIntegrationServiceMatchesAcrossDomains(t *testing.T) {
 }
 
 // I3: a stored single-entity plan drifts when a second entity joins the area
-// before apply; nothing is sent.
+// before apply; nothing is sent. Two lights are a room's lights: still
+// ordinary (docs/work/2026-11-02-fewer-asks-spec.md), but a new action.
 func TestSingleEntityAreaPlanDriftsWhenTheAreaGrows(t *testing.T) {
 	f := newFakeHA()
 	f.related["area:kitchen"] = []string{"light.kitchen"}
@@ -218,7 +225,7 @@ func TestSingleEntityAreaPlanDriftsWhenTheAreaGrows(t *testing.T) {
 		t.Fatalf("plan tier %s", planned.Tier)
 	}
 	f.related["area:kitchen"] = []string{"light.kitchen", "light.hall"}
-	if exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID); exit != 2 || env.Tier != "preview" || len(h.posts()) != 0 {
+	if exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID); exit != 2 || env.Tier != "ordinary" || len(h.posts()) != 0 {
 		t.Fatalf("apply after growth: exit %d tier %s posts %d", exit, env.Tier, len(h.posts()))
 	}
 }

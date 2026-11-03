@@ -104,6 +104,7 @@ type tierEngine struct {
 	draft        bool                   // a config draft: it runs later, so plan-time state proves nothing
 	services     map[string]serviceSpec // /api/services by "domain.service"; nil when unreadable
 	servicesRead bool
+	ownApp       *tierReason // the first step that would stop the App HA NOVA runs in (latchOwnApp)
 }
 
 func newTierEngine(s *relaySession) *tierEngine {
@@ -233,6 +234,9 @@ func (e *tierEngine) cut(depth int, id, via string) bool {
 func (e *tierEngine) visit(id, service string, data map[string]any, depth int, via string) {
 	payload, _ := json.Marshal(data)
 	key := id + " " + service + " " + string(payload)
+	if storedVolumeStep(service, depth) { // never the direct call's class: the level has moved by then
+		key += " stored"
+	}
 	if domain, _ := splitID(id); domain == "automation" && isRun(domain, service) {
 		e.runs[id] = append(e.runs[id], via)
 	}
@@ -246,6 +250,7 @@ func (e *tierEngine) visit(id, service string, data map[string]any, depth int, v
 		return
 	}
 	e.visited[key] = true
+	e.switchOff(id, service, via) // before the cut: the registry alone tells the App's switch
 	if e.cut(depth, id, via) {
 		return
 	}
@@ -300,6 +305,7 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 	case eff != "homeassistant.update_entity" && !accessCapable(id, st.str("device_class")):
 		level = max(level, e.accessSibling(id, via, eff, data))
 	}
+	level = e.ownedChecks(id, eff, via, depth, level, st)
 	if domain == "switch" && entry.pl != "switch_as_x" {
 		level = max(level, e.switchAsX(id, via))
 	}

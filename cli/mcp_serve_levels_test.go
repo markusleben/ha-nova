@@ -272,6 +272,31 @@ func TestServeLevelsDecideEachTool(t *testing.T) {
 	}
 }
 
+// Fewer asks (docs/work/2026-11-02-fewer-asks-spec.md): at Use the home, a
+// moderate volume change and a room's lights run at once, with no plan.
+func TestServeUseTheHomeRunsEverydayAtOnce(t *testing.T) {
+	f := household(newFakeHA())
+	f.ent("media_player.living_room", "cast", "playing", map[string]any{"friendly_name": "Living Room", "volume_level": 0.3})
+	f.ent("light.hall", "hue", "on", nil)
+	f.related["area:kitchen"] = []string{"light.kitchen", "light.hall"}
+	f.services = f.defaultServices()
+	for _, d := range f.services {
+		if d["domain"] == "media_player" {
+			d["services"].(map[string]any)["volume_set"] = map[string]any{"target": map[string]any{}}
+		}
+	}
+	s := newServe(t, f, levels([]string{userB}, nil))
+	for _, args := range []map[string]any{
+		{"service": "media_player.volume_set", "entity_ids": []string{"media_player.living_room"}, "data": map[string]any{"volume_level": 0.5}, "skill": "ha-nova:media"},
+		{"service": "light.turn_off", "area": "kitchen"},
+	} {
+		before := len(s.posts())
+		if env := s.tool(userB, "ha_call", args); envCode(env) != "" || env["status"] == "needs_confirmation" || env["plan"] != nil || len(s.posts()) != before+1 {
+			t.Errorf("%v at Use the home: %v", args["service"], env)
+		}
+	}
+}
+
 // Markus's call (2026-10-29): at Use the home, the skill ha-nova:media on a
 // media player, no other skill, and that skill on nothing else; Ask only
 // refuses all of it, and apply checks the same again on both paths.

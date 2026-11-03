@@ -77,10 +77,11 @@ type relaySession struct {
 	mu           sync.Mutex
 	memo         map[string]*relayMemo
 	relayVersion string
-	answered     bool    // the Relay has answered at least one request
-	unreachable  error   // transport failure before the Relay ever answered
-	lang         string  // a sealed typed plan's language while it is re-planned (replanStored, apply)
-	words        haWords // and its Home Assistant words (confirm_words.go)
+	answered     bool             // the Relay has answered at least one request
+	unreachable  error            // transport failure before the Relay ever answered
+	lang         string           // a sealed typed plan's language while it is re-planned (replanStored, apply)
+	words        haWords          // and its Home Assistant words (confirm_words.go)
+	flowForms    map[string]error // flow step path → why its form could not be kept: the plan sends it nothing more (formSecretSet, noteFlowForms)
 }
 
 type relayMemo struct {

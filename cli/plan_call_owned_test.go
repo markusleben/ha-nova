@@ -16,7 +16,7 @@ func TestOwnedServicesRunFromTheirSkill(t *testing.T) {
 		tier, code string
 	}{
 		{[]string{"notify.notify", "--skill", "ha-nova:notify", "--set", "message=hi"}, 3, "preview", reasonOwnedMember},
-		{[]string{"todo.add_item", "todo.shop", "--skill", "ha-nova:todo", "--set", "item=milk"}, 3, "preview", reasonOwnedMember},
+		{[]string{"todo.remove_item", "todo.shop", "--skill", "ha-nova:todo", "--set", "item=milk"}, 3, "preview", reasonOwnedMember},
 		{[]string{"mqtt.publish", "--skill", "ha-nova:mqtt", "--set", "topic=a/b", "--set", "payload=x"}, 3, "typed", reasonOwnedTypedMember},
 		{[]string{"conversation.process", "--skill", "ha-nova:assist", "--set", "text=open the garage"}, 3, "typed", reasonOwnedTypedMember},
 		{[]string{"hassio.host_reboot", "--skill", "ha-nova:service-call"}, 3, "typed", reasonOwnedTypedMember},

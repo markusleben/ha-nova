@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"slices"
 	"strings"
 )
 
@@ -14,8 +15,9 @@ import (
 // not go through. Every response is redacted like `relay`'s. Leading
 // backups saves are the config snapshot (skills/ha-nova/config-snapshots.md):
 // when one fails, nothing else is sent and the plan stays valid for
-// --no-snapshot. A helper update gets its update-revert checkpoint from a
-// read before and after (skills/ha-nova/update-revert.md → Manual capture).
+// --no-snapshot, unless a scene save needs the copy (sceneCopyNeeded). A
+// helper update gets its update-revert checkpoint from a read before and
+// after (skills/ha-nova/update-revert.md → Manual capture).
 
 // rawItemOutcome is one item after apply: done (Home Assistant accepted
 // it), rejected (it refused), unknown (it may have run), refused (the guard
@@ -38,11 +40,20 @@ type rawApplyResult struct {
 var rawHelperCollections = []string{"input_boolean", "input_number", "input_text", "input_select", "input_datetime",
 	"input_button", "counter", "timer", "schedule"}
 
-func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []rawRequest, noSnapshot bool) (err error) {
+func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []rawRequest, basis map[string]any, noSnapshot bool) (err error) {
 	sent := false
 	defer afterSend(&sent, env, &err)
+	defer noteFlowForms(s, env)
 	result, copies := rawApplyResult{}, len(rawCopies(items)) // steps are numbered and counted after the copies, as the preview says them
 	step := func(i int) int { return i + 1 - copies }
+	var handoffs []rawFlowSecret // each flow whose last form asks for a secret (flowAnswered), in order
+	handoff := func() string {
+		var next []string
+		for _, h := range handoffs {
+			next = append(next, h.next())
+		}
+		return strings.Join(next, " ")
+	}
 	add := func(i int, status, why string) *rawItemOutcome {
 		result.Items = append(result.Items, rawItemOutcome{Item: i + 1, Endpoint: items[i].Endpoint, Status: status, Error: why})
 		return &result.Items[len(result.Items)-1]
@@ -52,12 +63,20 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		for j := i + 1; j < len(items); j++ {
 			add(j, "not_sent", "")
 		}
-		return rawStopped(env, result, copies, i, status, why)
+		err := rawStopped(env, result, copies, i, status, why)
+		if len(handoffs) > 0 { // they still hold for those flows
+			env.Error.Next = handoff() + " " + env.Error.Next
+		}
+		return err
 	}
 	undo := func(i int) error {
 		return &verbFailure{exit: verbExitError, code: "UNDO_FAILED", cause: errSnapshotFailed,
 			message: fmt.Sprintf("step %d's helper could not be read before its change, so no undo could be saved; nothing was sent and the plan stays valid", step(i)),
 			next:    "Tell the user the change could not be made undoable. Only if they want it anyway: apply again with --no-snapshot (no config copy, no undo)."}
+	}
+	if noSnapshot && sceneCopyNeeded(s, items) {
+		return &verbFailure{exit: verbExitRefused, code: "NO_SNAPSHOT_NOT_OFFERED", cause: errSnapshotFailed, next: sceneCopyNext,
+			message: "a scene save in this plan removes members, so it needs the copy saved first; nothing was sent and the plan stays valid"}
 	}
 	for i, item := range items { // every helper's undo before anything is sent
 		payload, _ := decodeObject(item.Payload)
@@ -76,6 +95,9 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		}
 		s.renewBudget() // 20 items may outlast one budget
 		body, refusal, gerr := guardRawRequestIn(s, item.Endpoint, item.Payload)
+		if refusal == nil && gerr == nil && item.Endpoint == "core" {
+			refusal, gerr = sceneUnchanged(s, payload, basis)
+		}
 		switch {
 		case refusal != nil && !sent:
 			return &verbFailure{exit: verbExitRefused, code: "REFUSED", message: fmt.Sprintf("item %d: %s", i+1, refusal.Error()),
@@ -103,10 +125,13 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		data, werr := s.sendWrite(item.Endpoint, body)
 		status, why := rawSent(item.Endpoint, body, data, werr)
 		if status != "done" && snapshot {
-			return &verbFailure{exit: verbExitError, code: "SNAPSHOT_FAILED",
-				message: fmt.Sprintf("no config snapshot could be saved (%s); nothing else was sent and the plan stays valid", why),
-				next:    "Tell the user there is no copy. They choose: prune the snapshot store, take a full backup (ha-nova:backup), or go on without a copy: then apply again with --no-snapshot.",
-				cause:   errSnapshotFailed}
+			next := "Tell the user there is no copy. They choose: prune the snapshot store, take a full backup (ha-nova:backup), or go on without a copy: then apply again with --no-snapshot."
+			code := "SNAPSHOT_FAILED"
+			if sceneCopyNeeded(s, items) {
+				code, next = "SNAPSHOT_REQUIRED", sceneCopyNext
+			}
+			return &verbFailure{exit: verbExitError, code: code, next: next, cause: errSnapshotFailed,
+				message: fmt.Sprintf("no config snapshot could be saved (%s); nothing else was sent and the plan stays valid", why)}
 		}
 		if status == "done" && item.Endpoint == "backups" && payload["action"] == "delete" {
 			status, why = rawSnapshotGone(s, payload)
@@ -116,6 +141,21 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		}
 		out := add(i, "done", "")
 		out.Response = rawResponse(item.Endpoint, data)
+		if target, _ := payload["path"].(string); item.Endpoint == "core" {
+			target, _, _ = strings.Cut(target, "?")
+			method, _ := payload["method"].(string)
+			flow, asks, unkept := flowAnswered(paths, method, target, data)
+			handoffs = slices.DeleteFunc(handoffs, func(h rawFlowSecret) bool { return flow != "" && h.path == flow })
+			if asks != nil {
+				handoffs = append(handoffs, *asks)
+			}
+			if unkept != nil {
+				if s.flowForms == nil {
+					s.flowForms = map[string]error{}
+				}
+				s.flowForms[flow] = unkept
+			}
+		}
 		if before != nil {
 			if out.Undo = saveHelperCheckpoint(paths, s, env, collection, id, before, payload); out.Undo != nil {
 				env.Undo = out.Undo
@@ -131,6 +171,9 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		env.Say += " No copy or undo was saved, as you chose."
 	}
 	env.NextStep = "Tell the user what each item's response says where it matters (result.items[].response: a setup flow's next form, a created id). A further step is a new plan."
+	if len(handoffs) > 0 {
+		env.NextStep = handoff()
+	}
 	for _, item := range items {
 		payload, _ := decodeObject(item.Payload)
 		file, _ := payload["path"].(string)
