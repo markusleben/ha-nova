@@ -118,6 +118,9 @@ func sayReason(lang string, e *tierEngine, env *verbEnvelope, plan storedPlan, r
 			}
 		}
 	case reasonHACSInstall:
+		if e.reg[r.EntityID].pl == "marketplace" {
+			return confirmT(lang, "reason.marketplace_install"), true
+		}
 		return confirmT(lang, "reason.hacs_install"), true
 	case reasonConfigWrite, reasonConfigRevert, reasonConfigRestore, reasonAreaAssign, reasonRawWrite:
 		return "", false
