@@ -70,9 +70,9 @@ Rules:
 - Windows uses a single supported install path: `install.ps1`
 - before downloading, the Windows installer requires Windows 10 / Server 2016 or later, PowerShell 5.1 or later, an amd64 process (including x64 emulation on ARM64), a writable per-user install root, and working TLS access to GitHub
 - supported public Windows onboarding means one `irm .../install.ps1 | iex` command in a local PowerShell console or Windows Terminal session
-- if at least one supported client is already runnable, the supported public Windows path must not end with `Next step: ha-nova setup`
-- if at least one supported client is already runnable, the supported public Windows path must positively prove that setup started automatically in the same session
-- if no supported client is ready yet, the same public installer path is still valid when it installs HA NOVA locally, explains the missing client prerequisite, and exits cleanly
+- with or without a supported client on the machine, the supported public Windows path must not end with `Next step: ha-nova setup`
+- with or without a supported client on the machine, the supported public Windows path must positively prove that setup started automatically in the same session
+- with no supported client yet, setup offers "I use Claude or ChatGPT in the browser" on the setup page; in the terminal it connects this computer and names the AI apps to install at the end
 - when an installer cannot start the interactive wizard, it must print `ha-nova setup` as the exact next command and explain that setup asks you to sign in to Home Assistant as the owner or to type the six-digit code from the NOVA page
 - `scripts/dev/windows-desktop-setup.ps1` proves same-version update smoke plus standard/purge uninstall semantics; the cross-version background replace path is still covered by the manual RC/stable matrix above
 - do not present any package-manager alternative as an equal public path
@@ -89,7 +89,7 @@ Prerequisites for this lane:
 
 Supported public outcomes:
 - if at least one supported client is already runnable, the public `install.sh` flow must start `ha-nova setup` in the same Terminal session
-- if no supported client is ready yet, the same public `install.sh` flow is still valid when it installs HA NOVA locally, prints the missing client prerequisite guidance, and exits cleanly
+- if no supported client is ready yet, the same public `install.sh` flow still starts `ha-nova setup`, and setup offers "I use Claude or ChatGPT in the browser" on the setup page
 
 Entry point:
 - `npm run dev:validation:harness`
@@ -98,7 +98,7 @@ Entry point:
 Rules:
 - use the real public `install.sh` flow; do not set `HA_NOVA_NO_SETUP=1`
 - keep this lane manual and host-local; private helpers with `HA_NOVA_NO_SETUP=1` do not prove the same-session setup handoff
-- keep the missing-client outcome explicit; do not treat it as a hard installer failure
+- keep the no-client outcome explicit: setup still starts; do not treat it as an installer failure
 
 ## Windows Public Onboarding Lane
 
@@ -111,7 +111,7 @@ Prerequisites for this lane:
 - for this native Windows lane, counted ready clients are Claude Code with Git Bash, Google Antigravity Desktop/CLI, Codex CLI, and OpenCode; Hermes does not count on native Windows
 
 Additional supported public outcome:
-- if no supported client is ready yet, the same helper may also be used to prove the graceful install-only path: HA NOVA installs locally, shows the missing client prerequisite guidance, and does not fail the installer
+- if no supported client is ready yet, the same helper proves that setup still starts automatically (`expected_public_result` is `no-app-guided-setup`); confirm by eye that the setup page offers "I use Claude or ChatGPT in the browser"
 - optional Desktop-only proof: set `HA_NOVA_REQUIRE_ANTIGRAVITY_DESKTOP_ONLY=1` for the public Windows helper; that lane requires the standard Antigravity Desktop marker and fails if readiness only comes from `agy`
 
 Supported matrix for this lane:
@@ -150,7 +150,6 @@ Evidence record for each run:
 - `setup_auto_started`
 - `second_terminal_command_needed`
 - `manual_fallback_displayed`
-- `client_prerequisite_guidance_displayed`
 - `final_verdict`
 
 Release defaults:
@@ -199,7 +198,7 @@ Rules:
 Public Windows onboarding proof:
 - `scripts/dev/windows-public-onboarding.ps1` is the only helper in this group that targets the public end-user contract
 - it must continue to execute the real installer inline, without extra output piping or suppression around the installer run itself
-- it exists to prove the supported `install.ps1` one-liner either starts setup automatically without a second terminal command or lands in the documented local-install-plus-missing-client-guidance path
+- it exists to prove the supported `install.ps1` one-liner starts setup automatically without a second terminal command, with or without a supported client on the machine
 - it writes a small evidence record for release signoff; keep the record structured, not screenshot-only
 
 Emergency macOS cleanup if a desktop helper was interrupted:

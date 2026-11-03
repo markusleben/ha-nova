@@ -237,6 +237,7 @@
   "setup.page.noclient.copy_failed": "Couldn't copy. Select the line and copy it yourself.",
   "setup.page.noclient.web": "I use Claude or ChatGPT in the browser",
   "setup.page.noclient.web_needs": "For this, Home Assistant must be reachable from the internet: Home Assistant Link or your own HTTPS address.",
+  "setup.page.noclient.desktop_chat": "Using Claude Desktop? Its chat works with the button above too.",
   "setup.page.connect.eyebrow": "Connecting",
   "setup.page.connect.title": "Setting up NOVA in your Home Assistant.",
   "setup.page.connect.lead": "This takes about a minute. You can watch, or get a coffee.",

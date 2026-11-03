@@ -66,7 +66,7 @@ describe("desktop validation helpers contract", () => {
     );
     expect(releasing).toContain("do not set `HA_NOVA_NO_SETUP=1`");
     expect(releasing).toContain(
-      "the same public `install.sh` flow is still valid when it installs HA NOVA locally",
+      "the same public `install.sh` flow still starts `ha-nova setup`",
     );
     expect(releasing).toContain(
       "scripts/dev/macos-private-rc-suite.sh` is the canonical technical start",
@@ -109,7 +109,7 @@ describe("desktop validation helpers contract", () => {
     expect(releasing).toContain("execute the real installer inline");
     expect(releasing).toContain("Additional supported public outcome:");
     expect(releasing).toContain(
-      "local-install-plus-missing-client-guidance path",
+      "starts setup automatically without a second terminal command, with or without a supported client on the machine",
     );
     expect(releasing).toContain("standard per-user Desktop install");
     expect(releasing).toContain(

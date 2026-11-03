@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // The setup page's user stories (the 2026-10-20 review): Claude or ChatGPT
@@ -77,6 +78,53 @@ func TestSetupPageRerunWithoutAnAIAppSkipsTheQuestion(t *testing.T) {
 	if result := flow.pageWaitForClient(); result.done || !flow.noClient || !page.ui.snapshot().Web || page.ui.snapshot().Screen == "noclient" {
 		t.Fatalf("result %+v noClient=%v state %+v", result, flow.noClient, page.ui.snapshot())
 	}
+}
+
+// No AI app here: "Get Claude Desktop" only on macOS, the one system where
+// setup sees Claude Desktop once it's installed, so Check again can find it.
+func TestSetupPageOffersClaudeDesktopOnlyWhereCheckAgainFindsIt(t *testing.T) {
+	previousOS, previousInstalled := claudeDesktopPlatformOS, claudeDesktopInstalled
+	t.Cleanup(func() { claudeDesktopPlatformOS, claudeDesktopInstalled = previousOS, previousInstalled })
+	claudeDesktopInstalled = func(string) bool { return false }
+	for _, platform := range []string{"darwin", "windows", "linux"} {
+		t.Run(platform, func(t *testing.T) {
+			claudeDesktopPlatformOS = platform
+			page := startSetupPageTest(t)
+			page.launch()
+			flow := &setupFlow{page: page.ui, ui: page.ui}
+			result := make(chan setupStepResult, 1)
+			go func() { result <- flow.pageAskForClient(true) }()
+			none := page.waitFor("no AI app", accepting("web"))
+			if none.Screen != "noclient" || none.GetDesktop != (platform == "darwin") {
+				t.Fatalf("no AI app on %s = %+v", platform, none)
+			}
+			page.click("web", "")
+			if r := <-result; r.done || !flow.noClient {
+				t.Fatalf("result %+v noClient=%v", r, flow.noClient)
+			}
+		})
+	}
+}
+
+// Claude or ChatGPT in the browser, and no Home Assistant found: step 1
+// links the hosted demo (the page's link), never `ha-nova try`, which needs
+// an AI app on this computer.
+func TestSetupPageBrowserPathSkipsTheLocalDemo(t *testing.T) {
+	withClientRuntimeAvailability(t, map[string]bool{})
+	setupGoldenHome(t)
+	stubSetupPageHome(t, "http://192.0.2.10:8123", false)
+	discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) { return nil, "" }
+	previousTry, previousIdle := setupPageTry, setupPageIdle
+	t.Cleanup(func() { setupPageTry, setupPageIdle = previousTry, previousIdle })
+	setupPageTry = func(runtimePaths) int { t.Error("ha-nova try ran on the browser path"); return 1 }
+	setupPageIdle = time.Second
+	page, stdout, done := startSetupPageFlow(t, "")
+	page.click("web", "")
+	found := page.waitFor("the address question", accepting("address"))
+	if found.Screen != "found" || !found.Web || found.HA != "" || slices.Contains(found.Accepts, "demo") {
+		t.Fatalf("step 1 on the browser path = %+v", found)
+	}
+	setupPageExit(t, done, stdout)
 }
 
 // After a move, chat apps that are on keep their own phone, and say so;

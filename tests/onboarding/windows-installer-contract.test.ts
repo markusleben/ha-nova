@@ -286,14 +286,9 @@ Write-Output "PROBE_OK"
     expect(content).toContain("Ensure-InstallDirOnPath");
     expect(content).toContain("HA_NOVA_NO_SETUP");
     expect(content).toContain("Start-Setup");
-    expect(content).toContain("internal-setup-readiness");
     expect(content).toContain("& $BinaryPath setup");
-    expect(content).toContain(
-      "No supported AI client is ready on this machine yet.",
-    );
-    expect(content).toContain(
-      "Install one supported client first, then rerun: ha-nova setup",
-    );
+    expect(content).not.toContain("internal-setup-readiness");
+    expect(content).not.toContain("No supported AI client");
     expect(content).toContain("Next step: ha-nova setup");
     expect(content).toContain(
       "Setup will ask you to sign in to Home Assistant as the owner, or to type a six-digit code from the NOVA page.",

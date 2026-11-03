@@ -121,7 +121,7 @@ The line updates in place and ends with `✓ Done: this computer is connected to
   - not owner: "Signed in as Anna, who isn't the owner. Only the owner can connect a computer." [Sign in as the owner] · "Use a code";
   - not admin: "Anna can't install Apps. Ask the owner to sign in here." [Sign in as the owner];
   - Container/Core: "This Home Assistant has no Apps. Follow the container guide." [Open the guide];
-  - no AI client: "No AI app found on this computer." [Get Claude Desktop] · [Get Claude Code] · [Check again];
+  - no AI client: "No AI app found on this computer." [Get Claude Desktop] · [Get Claude Code] · [Check again]; [Get Claude Desktop] on macOS only, the one system where Check again sees it; elsewhere a line says Claude Desktop's chat works with the browser button, and [Get Claude Code] opens its install line;
   - install failed: "Home Assistant couldn't install the NOVA App: <one plain line from the Supervisor job>." [Try again] · "Open the App page" (today's my-link).
 
 **Step 3: "You stay in control."** (eyebrow "Your safety net")
@@ -149,7 +149,7 @@ The line updates in place and ends with `✓ Done: this computer is connected to
 - Step 3 runs once setup is complete (as the terminal's offers do), so its writes never race setup's own config checks. Ctrl+C or idle there shows "connected, choices not applied".
 - The Link row is the Home Assistant Link fallback (D2), shown only while Link remote access answers; its sign-in opens in a tab of its own. A Link failure keeps the terminal's exit code, but step 4 still shows with one line. The chat-app row (B4) is in the contract doc, "Setup and CLI (B4)".
 - Step 4 runs the §7.6 verbs as child processes for the server setup connected (`--server`), in their own signal group (Ctrl+C never stops a save halfway). A save posts the plan id the page shows; the CLI saves only a plan this run stored for that preview, once. An unclear outcome is never offered again; a read-back mismatch shows no ✓. Rooms undo is a preview of its own, then a click, and stays offered until an undo is verified. Done, Ctrl+C, or 30 min idle closes setup.
-- No Home Assistant found: step 1 offers "Try HA NOVA on a demo house" (`ha-nova try`; `setup --demo` is the alias).
+- No Home Assistant found: step 1 offers "Try HA NOVA on a demo house" (`ha-nova try`; `setup --demo` is the alias). On the browser path it links the hosted demo instead: `ha-nova try` needs an AI app on this computer.
 
 **Re-run on a working install** ("HA NOVA is connected"):
 - ✓ rows from doctor's checks;

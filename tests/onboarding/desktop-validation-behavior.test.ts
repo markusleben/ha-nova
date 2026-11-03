@@ -24,9 +24,10 @@ describe("desktop validation helper behavior", () => {
     expect(windowsPublic).toMatch(/function Get-ReadyClients[\s\S]+if \(Test-AntigravityAvailable\) \{[\s\S]+\$clients \+= "antigravity"/);
     expect(windowsPublic).toContain("$expectedPublicResult = if ($RequireAntigravityDesktopOnly) {");
     expect(windowsPublic).toContain('"antigravity-desktop-guided-setup"');
-    expect(windowsPublic).toContain('elseif ($readyClients.Count -gt 0) { "guided-setup" } else { "missing-client-guidance" }');
-    expect(windowsPublic).toContain('$readyClients.Count -gt 0 -and $result.ExitCode -eq 0 -and $setupAutoStarted -and -not $manualFallbackDisplayed');
-    expect(windowsPublic).toContain('$readyClients.Count -eq 0 -and $result.ExitCode -eq 0 -and $localInstallCompleted -and $missingClientGuidanceDisplayed');
+    expect(windowsPublic).toContain('elseif ($readyClients.Count -gt 0) { "guided-setup" } else { "no-app-guided-setup" }');
+    expect(windowsPublic).toContain('((-not $RequireAntigravityDesktopOnly) -and $result.ExitCode -eq 0 -and $setupAutoStarted -and -not $manualFallbackDisplayed)');
+    expect(windowsPublic).not.toContain("missingClientGuidanceDisplayed");
+    expect(windowsPublic).toContain('$installerLog -match "Starting ha-nova setup"');
     expect(windowsPublic).toContain('throw "public Windows onboarding validation failed"');
     expect(windowsPublic).not.toContain('second_terminal_command_needed -eq $true');
   });
@@ -42,17 +43,16 @@ describe("desktop validation helper behavior", () => {
     expect(windowsPublic).toContain("Invoke-PublicInstaller\n$result = $script:PublicInstallerResult");
     expect(windowsPublic).not.toContain("$result = Invoke-PublicInstaller");
     expect(windowsPublic).toContain("$installerLog = @($transcript, $result.InstallerOutput) -join [Environment]::NewLine");
-    expect(windowsPublic).toMatch(/\$missingClientGuidanceDisplayed = \([\s\S]+\$installerLog -match/);
+    expect(windowsPublic).toMatch(/\$setupAutoStarted = \([\s\S]+\$installerLog -match/);
     expect(windowsPublic).not.toMatch(/Invoke-Expression \([^\n]+\)\s*\|\s*ForEach-Object/);
   });
 
-  it("keeps Antigravity Desktop-only proof from passing through agy or missing-client fallback", () => {
+  it("keeps Antigravity Desktop-only proof from passing through agy or the plain setup path", () => {
     expect(windowsPublic).toContain("$desktopOnlyProofPassed = (");
     expect(windowsPublic).toContain("$RequireAntigravityDesktopOnly -and");
     expect(windowsPublic).toContain("$antigravityDesktopAvailable -and");
     expect(windowsPublic).toContain("(-not $agyAvailable) -and");
     expect(windowsPublic).toContain('($readyClients -contains "antigravity") -and');
-    expect(windowsPublic).toContain('((-not $RequireAntigravityDesktopOnly) -and $readyClients.Count -gt 0');
-    expect(windowsPublic).toContain('((-not $RequireAntigravityDesktopOnly) -and $readyClients.Count -eq 0');
+    expect(windowsPublic).toContain('((-not $RequireAntigravityDesktopOnly) -and $result.ExitCode -eq 0');
   });
 });

@@ -8,7 +8,7 @@ const install = "curl -fsSL https://claude.ai/install.sh | bash";
 
 describe("setup page: Claude Desktop without Claude Code", () => {
   it("says Claude Code is still needed, with its install line and Check again", async () => {
-    const p = page({ screen: "noclient", desktop: true, accepts: ["recheck", "web"] });
+    const p = page({ screen: "noclient", desktop: true, get_desktop: true, accepts: ["recheck", "web"] });
     await p.settle();
     expect(p.screen.querySelector("h1")!.textContent).toBe(p.catalog["setup.page.noclient.title_desktop"]);
     expect(p.screen.textContent).toContain(p.catalog["setup.page.noclient.lead_desktop"]);
@@ -21,6 +21,7 @@ describe("setup page: Claude Desktop without Claude Code", () => {
     expect(copied).toEqual([install]);
     expect(p.body.textContent).toContain(p.catalog["setup.page.noclient.copied"]);
     expect(p.find("l-desktop")).toBeUndefined(); // already here
+    expect(p.find("desktop-chat")).toBeUndefined();
     expect(p.find("l-code")!.attributes.href).toBe("https://claude.com/claude-code");
     p.find("b-recheck")!.dispatch("click");
     await p.settle();
@@ -28,12 +29,23 @@ describe("setup page: Claude Desktop without Claude Code", () => {
   });
 
   it("keeps the plain no-app screen without Claude Desktop", async () => {
-    const p = page({ screen: "noclient", accepts: ["recheck", "web"] });
+    const p = page({ screen: "noclient", get_desktop: true, accepts: ["recheck", "web"] });
     await p.settle();
     expect(p.screen.querySelector("h1")!.textContent).toBe(p.catalog["setup.page.noclient.title"]);
     expect(p.find("claude-install")).toBeUndefined();
     expect(p.find("l-desktop")).toBeTruthy();
+    expect(p.find("desktop-chat")).toBeUndefined();
     expect(p.find("l-code")!.textContent).toBe(p.catalog["setup.page.link.claude_code"]);
+  });
+
+  it("offers no Claude Desktop where Check again can't find it (Windows, Linux)", async () => {
+    const p = page({ screen: "noclient", accepts: ["recheck", "web"] });
+    await p.settle();
+    expect(p.screen.querySelector("h1")!.textContent).toBe(p.catalog["setup.page.noclient.title"]);
+    expect(p.find("l-desktop")).toBeUndefined();
+    expect(p.find("desktop-chat")!.textContent).toBe(p.catalog["setup.page.noclient.desktop_chat"]);
+    expect(p.find("l-code")!.attributes.href).toBe("https://code.claude.com/docs/en/setup"); // its install line, not a Desktop download
+    expect(p.find("b-recheck")).toBeTruthy();
   });
 });
 
