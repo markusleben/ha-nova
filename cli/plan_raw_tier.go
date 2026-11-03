@@ -69,9 +69,10 @@ var rawWhys = map[string]func(lang string) string{
 	"app_settings":       func(l string) string { return confirmT(l, "raw.why.app_settings") },
 }
 
-// reasonHACSInstall: update.install on a HACS entity installs third-party
-// code like hacs/repository/download, so a call takes the code too
-// (maintainer decision 3, parity spec; tier_engine.go classify).
+// reasonHACSInstall: update.install on a HACS entity (on Home Assistant
+// 2026.11+ its platform is marketplace) installs third-party code like
+// hacs/repository/download, so a call takes the code too (maintainer
+// decision 3, parity spec; tier_engine.go classify).
 const reasonHACSInstall = "HACS_INSTALL"
 
 // rawTypedWS: the WS writes typed besides the deletes and removals, and why

@@ -268,6 +268,7 @@ guardrails.
 | Thread / Matter | `otbr/info`, `thread/list_datasets` (dataset is a network credential — `--out` file only), `matter/node_diagnostics` (takes `device_id`) | fallback |
 | Custom-integration config APIs | REST `/api/<integration>/<resource>` (GET only; private, version-dependent — Alarmo, Scheduler, Frigate, ...; raw POSTs are refused) | fallback |
 | HACS | `hacs/*` (17 commands) — not a Home Assistant API; the pinned map lives in `skills/hacs/hacs-commands.md` | hacs |
+| Marketplace (Home Assistant 2026.11+, HACS built in) | `marketplace/info`, `marketplace/repositories/list` — read-only; installs, updates, and removals stay in the Home Assistant UI (`skills/hacs/hacs-commands.md` → Marketplace mode) | hacs |
 
 Out of scope: InfluxDB paths (`/api/v2/query`, `/api/v3/query_sql`) pinned in
 `skills/external-sources` are not Home Assistant APIs. Home Assistant's own

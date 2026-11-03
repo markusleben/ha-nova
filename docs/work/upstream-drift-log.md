@@ -473,3 +473,48 @@ stopped.
   `categories`, the flow/blueprint `visible` key in serialized
   `data_schema`, camera two-way audio, the deferred lawn-mower `idle`
   bucket, and the legacy device-registry removal command for 2027.9.
+
+## 2026-11-03 — ad hoc check (HA 2026.11.0b4): HACS becomes the built-in Marketplace
+
+- Window screened: the Marketplace only, one day before 2026.11 stable.
+  Core tag `2026.11.0b4` (`homeassistant/components/marketplace/` with its
+  `websocket/`, `update.py`, `migration.py`; `loader.py`
+  `BLOCKED_CUSTOM_INTEGRATIONS`; `bootstrap.py` `DEFAULT_INTEGRATIONS`), the
+  Marketplace docs, and a live probe on throwaway 2026.11.0b4 and 2026.10.1
+  containers (never a real home). The rest of the 2026.11 beta notes is NOT
+  screened here and carries into the next window.
+- HIT (fixed in fix/hacs-marketplace) — the `hacs` custom integration is
+  blocked (`replaced_by="marketplace"`) and removed; its config entry and
+  update entities migrate to domain/platform `marketplace` (same entity
+  IDs). Every `hacs/*` command answers `unknown_command`; the `marketplace`
+  integration is set up on every install. The HACS skill then found no
+  `hacs` entry and gave install guidance, which is false (HACS cannot be
+  installed on 2026.11+). Now the gate falls through to `marketplace/info`
+  (result; `not_loaded` whenever no entry is loaded: disabled, still starting,
+  `setup_retry`/`setup_error`, or deleted; `unknown_command` during startup)
+  and `skills/hacs` reads the Marketplace inventory only
+  (`marketplace/info` and `marketplace/repositories/list` raw-allowlisted
+  as reads); every write is handed to Home Assistant's UI with its steps.
+- HIT (fixed, same branch) — `update.install` on a migrated update entity
+  (platform `marketplace`) planned at tier preview ("Reply yes"); the tier
+  engine now types it like platform `hacs` (`HACS_INSTALL`), and
+  `skills/updates` no longer plans Marketplace installs.
+- OPEN (parity, follow-up issue) — Marketplace writes through HA NOVA:
+  `marketplace/repository/install|uninstall|version|beta|refresh|ignore`,
+  `marketplace/repositories/add|remove|detect`, `marketplace/critical/*`,
+  `marketplace/repositories/removed`, `marketplace/repository/info`/
+  `releases`, the per-user `warning/accept` precondition (installs and
+  `update.install` fail with `warning_not_accepted` until the Relay's own
+  user accepted it), and consumer discovery before a Marketplace uninstall.
+- WATCH — `integration_entities('hacs')` is empty (use `'marketplace'`);
+  `release_summary` stays empty (restart via a repair); card resources move
+  to `/local/community/` (`/hacsfiles/` keeps working; the raw guard already
+  allows `/local/`); AppDaemon apps and Python scripts are no longer managed.
+- Sources: github.com/home-assistant/core/tree/2026.11.0b4/homeassistant/components/marketplace;
+  www.hacs.xyz/docs/marketplace/;
+  contributors.home-assistant.io/marketplace/how-it-works/;
+  next.home-assistant.io/integrations/marketplace/.
+- Next window starts AFTER HA 2026.10.3 + dev-blog 2026-10-24 (unchanged by
+  this ad hoc check): screen the 2026.11.0 release post and the remaining
+  beta items (entity naming, exclude targets, sun/calendar offset sign, flow
+  `visible`) plus the 2026-10-24 watch list.

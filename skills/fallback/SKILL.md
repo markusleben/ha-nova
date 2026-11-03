@@ -93,6 +93,7 @@ For every Relay-Ready call in this skill:
 | Updates (pending, release notes, install, skip) | Covered | updates |
 | Apps / Supervisor: store, install, uninstall, settings, auto-update, system and storage info (`../updates/apps.md`; start/stop/restart and host reboot: `service-call`; repositories, DNS, network, OS, and Supervisor settings stay in the HA UI: Settings > Apps, Settings > System) | Covered | updates |
 | HACS (registration, download, version switching, uninstall, migration) | Covered | hacs |
+| Marketplace (built-in HACS, Home Assistant 2026.11+): inventory; installs, updates, and removals as Home Assistant steps | Covered read-only | hacs |
 | Zigbee / Z-Wave Config | External | -- (MQTT-level inspection of a Zigbee2MQTT setup: `mqtt`) |
 | Zigbee / Z-Wave network status (read-only device list / network reads) | Relay-Ready | this skill; Z2M bridge topics: `mqtt` |
 | Alarm / lock code management (lock user codes, alarm PINs) | External | -- (Home Assistant UI; codes never enter chat) |
@@ -174,7 +175,10 @@ an action; `ha-nova:mqtt` uses exactly this pattern.
 
 Owned by `ha-nova:hacs` (schema-guarded WS command map, reconcile loops,
 consumer discovery, migration backup gate). Hand off there; never probe
-`hacs/*` WS commands from this skill.
+`hacs/*` WS commands from this skill. Home Assistant 2026.11+ builds HACS in
+as the Marketplace: hand off the same way (never probe `marketplace/*` here);
+`ha-nova:hacs` reads its inventory and gives the Home Assistant steps for the
+rest.
 
 ### Zigbee / Z-Wave / Network Configuration -- EXTERNAL
 
