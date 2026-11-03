@@ -2,7 +2,7 @@
 
 Status: active
 
-Date: 2026-11-03. Issue #926 (follow-up to the scene guard, #931). Owner: raw plans (`cli/plan_raw*.go`) and `ha-nova relay core|ws` (`cli/relay.go`). Target: 0.28.1 (App 0.13.14, placeholder).
+Date: 2026-11-03. Issue #926 (follow-up to the scene guard, #931). Owner: raw plans (`cli/plan_raw*.go`) and `ha-nova relay core|ws` (`cli/relay.go`). Target: 0.28.1 (App 0.13.16, placeholder).
 
 ## Problem
 
@@ -42,7 +42,7 @@ Verified against Home Assistant `dev` on 2026-11-03.
 
 `input_select` options and `schedule` time blocks, in `cli/plan_raw_helper.go`, wired where the scene guard is: `computeRawPlan` (planning and recompute), `executeRaw` (the re-read before the update, the copy that can't be skipped), and `ha-nova relay ws` (`relayKept`, which checks the body and a `collect_events` envelope's `message`, as the raw guard does). The copy check (`copySaved`), the copy's name (`autoName`), and the copy-required texts are shared with the scene guard. The helper's live item enters the basis as `helpers` (`<collection>/<id>`). The existing update-revert read (`rawHelperItem`) uses the same read. An update of a helper its list doesn't hold is `NOT_FOUND`, naming where its id comes from (an entity_id is the usual mistake): at planning for these two helpers, and at apply's undo read for every other helper (it answered `UNDO_FAILED` and offered `--no-snapshot` before).
 
-The preview line that names what goes waits for Markus's approval of its strings (`raw.options_drops`, `raw.schedule_drops`, `raw.schedule_block`, `raw.schedule_block_data`, and the weekday names). Until it is wired, PR 1 must not merge.
+An update after its copy names what it removes in the preview (`helperNote`), with the strings Markus approved on 2026-11-03: `raw.options_drops` (the options, by name), `raw.schedule_drops` with `raw.schedule_block` or `raw.schedule_block_data` (a block whose data alone goes), and `raw.day.*`; times show as HH:MM.
 
 Calendar recurrence is out: see the table. The calendar skill's "omit `rrule` to clear recurrence" (`skills/calendar/SKILL.md`, Create, update, or delete step 3) doesn't hold for `local_calendar`, which keeps the rule. That fix is separate.
 

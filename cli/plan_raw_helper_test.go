@@ -170,6 +170,30 @@ func TestPlanRawHelperUpdateAbsentAndUnreadable(t *testing.T) {
 	}
 }
 
+// An update after its copy says what it removes, in the home's language:
+// options by name, time blocks by weekday and HH:MM, and a block whose data
+// alone goes as its data. One that removes nothing says nothing more.
+func TestPlanRawHelperUpdateSaysWhatGoes(t *testing.T) {
+	dataOnly := strings.Replace(scheduleKeepingAll, `,"data":{"temperature":21.0}`, "", 1)
+	for _, tc := range []struct{ lang, items, says string }{
+		{"en", selectCopy + "," + selectWithoutSleep, "Removes “Sleep” from the dropdown helper."},
+		{"de", selectCopy + "," + selectWithoutSleep, "Entfernt „Sleep“ aus dem Dropdown-Menü-Helfer."},
+		{"en", scheduleCopy + "," + scheduleOnlyMonday, "Removes Monday 17:00–22:00 and Tuesday 06:00–08:00 from the schedule."},
+		{"de", scheduleCopy + "," + dataOnly, "Entfernt die Daten von Dienstag 06:00–08:00 aus dem Zeitplan."},
+		{"en", selectKeepingAll, ""},
+	} {
+		paths, _, _ := helperRelay(t, map[string]func(map[string]any) any{
+			"GET /api/config": func(map[string]any) any {
+				return map[string]any{"status": 200, "body": map[string]any{"language": tc.lang}}
+			},
+		})
+		exit, env := planRaw(t, paths, "["+tc.items+"]")
+		if exit != verbExitConfirmation || !strings.Contains(env.Say, tc.says) || tc.says == "" && strings.Contains(env.Say, "Removes") {
+			t.Errorf("%s %s: exit %d say %q %+v", tc.lang, tc.items, exit, env.Say, env.Error)
+		}
+	}
+}
+
 // A copy never keeps a value HA NOVA hides (guardRaw), so a removal from a
 // helper or scene that holds one is refused, also after its copy: nothing
 // could bring the value back.

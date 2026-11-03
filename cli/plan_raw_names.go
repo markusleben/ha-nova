@@ -26,8 +26,10 @@ type rawNamer struct {
 	removing  map[string]any      // device id → the devices and entities deleting it removes (deviceEntities)
 	scenes    map[string]any      // scene id → the live config a save replaces, or "absent" (sceneKept)
 	dropped   map[string][]string // scene id → the members its save removes after a copy (sceneKept)
-	helpers   map[string]any      // "<collection>/<id>" → the live helper an update replaces (helperKept)
 	listed    []string            // the names the last targets call listed
+
+	helpers     map[string]any          // "<collection>/<id>" → the live helper an update replaces (helperKept)
+	helperDrops map[string][]helperDrop // "<collection>/<id>" → what its update removes after a copy (helperKept)
 }
 
 func newRawNamer(s *relaySession, e *tierEngine) *rawNamer {

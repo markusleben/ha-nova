@@ -20,41 +20,41 @@ import (
 // (copyNeeded), and dropped lists what body leaves out of live.
 var rawHelperLists = map[string]struct {
 	noun, keep, removes string
-	dropped             func(live, body map[string]any) []string
+	dropped             func(live, body map[string]any) []helperDrop
 }{
-	"input_select": {"options", "every option as text", "options from a dropdown helper", func(live, body map[string]any) []string {
+	"input_select": {"options", "every option as text", "options from a dropdown helper", func(live, body map[string]any) []helperDrop {
 		kept := map[string]bool{}
 		for _, option := range ensureList(body["options"]) {
 			if text, ok := option.(string); ok { // the Relay re-encodes a number (1.0 becomes 1) before Home Assistant makes it text
 				kept[text] = true
 			}
 		}
-		var dropped []string
+		var dropped []helperDrop
 		for _, option := range ensureList(live["options"]) {
 			if !kept[fmt.Sprint(option)] {
-				dropped = append(dropped, jsonText(fmt.Sprint(option)))
+				dropped = append(dropped, helperDrop{option: fmt.Sprint(option)})
 			}
 		}
 		return dropped
 	}},
-	"schedule": {"time blocks", "every time block with its data", "time blocks from a schedule", func(live, body map[string]any) []string {
-		var dropped []string
+	"schedule": {"time blocks", "every time block with its data", "time blocks from a schedule", func(live, body map[string]any) []helperDrop {
+		var dropped []helperDrop
 		for _, day := range []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"} {
-			sent := map[string]map[string]any{} // a block's times → the data the update gives it
+			sent := map[[2]string]map[string]any{} // a block's start and end → the data the update gives it
 			for _, block := range ensureList(body[day]) {
-				times, data := scheduleBlock(block)
-				sent[times] = data
+				from, to, data := scheduleBlock(block)
+				sent[[2]string{from, to}] = data
 			}
 			for _, block := range ensureList(live[day]) {
-				times, was := scheduleBlock(block)
-				data, kept := sent[times]
+				from, to, was := scheduleBlock(block)
+				data, kept := sent[[2]string{from, to}]
 				if !kept {
-					dropped = append(dropped, day+" "+times)
+					dropped = append(dropped, helperDrop{day: day, from: from, to: to})
 					continue
 				}
 				for key, value := range was { // a key added to its data drops nothing
 					if !jsonEqual(value, data[key]) {
-						dropped = append(dropped, day+" "+times+" (only its data)")
+						dropped = append(dropped, helperDrop{day: day, from: from, to: to, data: true})
 						break
 					}
 				}
@@ -62,6 +62,62 @@ var rawHelperLists = map[string]struct {
 		}
 		return dropped
 	}},
+}
+
+// helperDrop: an option an update removes, or a schedule time block (data:
+// only its data goes).
+type helperDrop struct {
+	option, day, from, to string
+	data                  bool
+}
+
+// String: the drop as a refusal names it.
+func (d helperDrop) String() string {
+	switch {
+	case d.day == "":
+		return jsonText(d.option)
+	case d.data:
+		return d.day + " " + d.from + "-" + d.to + " (only its data)"
+	}
+	return d.day + " " + d.from + "-" + d.to
+}
+
+// say: the drop as the preview names it, times as HH:MM.
+func (d helperDrop) say(lang string) string {
+	if d.day == "" {
+		return sayText(d.option, true)
+	}
+	day, from, to := scheduleDay(lang, d.day), sayText(strings.TrimSuffix(d.from, ":00"), false), sayText(strings.TrimSuffix(d.to, ":00"), false)
+	if d.data {
+		return confirmT(lang, "raw.schedule_block_data", "day", day, "from", from, "to", to)
+	}
+	return confirmT(lang, "raw.schedule_block", "day", day, "from", from, "to", to)
+}
+
+// scheduleDay: a schedule's weekday key as the preview names it.
+func scheduleDay(lang, day string) string {
+	return map[string]string{
+		"monday": confirmT(lang, "raw.day.monday"), "tuesday": confirmT(lang, "raw.day.tuesday"), "wednesday": confirmT(lang, "raw.day.wednesday"),
+		"thursday": confirmT(lang, "raw.day.thursday"), "friday": confirmT(lang, "raw.day.friday"), "saturday": confirmT(lang, "raw.day.saturday"),
+		"sunday": confirmT(lang, "raw.day.sunday"),
+	}[day]
+}
+
+// helperNote: the sentence after an input_select or schedule update's line
+// naming what it removes after its copy (helperKept); "" for any other.
+func (n *rawNamer) helperNote(lang, endpoint string, payload map[string]any) string {
+	collection, id := rawHelperUpdate(endpoint, payload)
+	var names []string
+	for _, drop := range n.helperDrops[collection+"/"+id] {
+		names = append(names, drop.say(lang))
+	}
+	switch {
+	case len(names) == 0:
+		return ""
+	case collection == "input_select":
+		return confirmT(lang, "raw.options_drops", "options", sayList(lang, names))
+	}
+	return confirmT(lang, "raw.schedule_drops", "blocks", sayList(lang, names))
 }
 
 // kept: sceneKept or helperKept, whichever guards the request.
@@ -74,8 +130,9 @@ func (n *rawNamer) kept(earlier []rawRequest, endpoint string, payload map[strin
 
 // helperKept: an input_select or schedule update that leaves out what the
 // live helper holds needs a backups save of exactly its live item earlier in
-// the plan (sceneKept). Keeps the live item for the basis. A helper that
-// can't be read, or isn't there, is an error: nothing is saved over unseen.
+// the plan (sceneKept). Keeps the live item for the basis, and what the
+// update drops for its line (helperNote). A helper that can't be read, or
+// isn't there, is an error: nothing is saved over unseen.
 func (n *rawNamer) helperKept(earlier []rawRequest, endpoint string, payload map[string]any) (refusal, err error) {
 	collection, id := rawHelperUpdate(endpoint, payload)
 	list, guarded := rawHelperLists[collection]
@@ -94,18 +151,24 @@ func (n *rawNamer) helperKept(earlier []rawRequest, endpoint string, payload map
 		return nil, helperNotFound(collection, id)
 	}
 	if n.helpers == nil {
-		n.helpers = map[string]any{}
+		n.helpers, n.helperDrops = map[string]any{}, map[string][]helperDrop{}
 	}
 	n.helpers[key] = live
-	dropped := strings.Join(list.dropped(live, payload), ", ")
-	if dropped == "" {
+	drops := list.dropped(live, payload)
+	if len(drops) == 0 {
 		return nil, nil
 	}
+	var names []string
+	for _, drop := range drops {
+		names = append(names, drop.String())
+	}
+	dropped := strings.Join(names, ", ")
 	removal := fmt.Sprintf("updating the %s %s would remove the %s %s from it", collection, id, list.noun, dropped)
 	if hidden := hiddenRemoval(live, removal); hidden != nil {
 		return hidden, nil
 	}
 	if copySaved(earlier, live) {
+		n.helperDrops[key] = drops
 		return nil, nil
 	}
 	return rawDrop{
@@ -163,10 +226,10 @@ func helperUnchanged(s *relaySession, endpoint string, payload, basis map[string
 
 // scheduleBlock: a time block's start and end (clockTime), and its data
 // with numbers by value.
-func scheduleBlock(block any) (times string, data map[string]any) {
+func scheduleBlock(block any) (from, to string, data map[string]any) {
 	fields, _ := block.(map[string]any)
 	data, _ = numbersByValue(fields["data"]).(map[string]any)
-	return clockTime(fields["from"]) + "-" + clockTime(fields["to"]), data
+	return clockTime(fields["from"]), clockTime(fields["to"]), data
 }
 
 // clockTime: a schedule time as HH:MM:SS, as Home Assistant reads it (8:00
