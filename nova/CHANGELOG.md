@@ -12,6 +12,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 ### Upgrade notes
 - Computers on HA NOVA 0.28.0 ask you to update this App.
 
+## [Relay 0.13.10] - 2026-11-02
+
+### Changed
+- Chat apps: pausing or skipping music, choosing a source, muting and a small volume change now run right away. So does switching a room's lights (up to 30 lights, none on a device with a lock) and, at Manage everything, adding to or checking off a to-do list. A big volume jump, playing something new, speaker groups, removing items, and anything that sets off something riskier still ask first.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.0 ask you to update this App.
+
 ## [Relay 0.13.7] - 2026-11-02
 
 ### Fixed

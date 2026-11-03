@@ -135,7 +135,7 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 		ids, name = append(ids, name), "script.turn_on"
 	}
 	if len(ids) == 0 {
-		level, code := classifyTargetless(name, data)
+		level, code := e.targetless(name, data)
 		e.raise(level, tierReason{Code: code, Via: via})
 		e.members = append(e.members, tierMember{Action: name, Via: via, Class: level.String()})
 		return

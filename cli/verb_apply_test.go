@@ -177,13 +177,17 @@ func TestApplyDriftSendsNothingAndReplacesThePlan(t *testing.T) {
 	}
 }
 
-// I6 + preview: apply without a code executes exactly the frozen leaves.
+// I6 + preview: apply without a code executes exactly the frozen leaves. A
+// light without state (light.ghost) keeps the room's preview.
 func TestApplyPreviewPlanSendsTheFrozenIDs(t *testing.T) {
 	f := newFakeHA()
 	f.ent("light.hall", "hue", "on", nil)
-	f.related["area:kitchen"] = []string{"light.kitchen", "light.hall", "switch.kettle"}
+	f.related["area:kitchen"] = []string{"light.kitchen", "light.hall", "light.ghost", "switch.kettle"}
 	h := newWriteHarness(t, f)
 	planned := h.plan("light.turn_off", "--area", "kitchen", "--set", "transition=2")
+	if planned.Tier != "preview" {
+		t.Fatalf("tier %q, want preview", planned.Tier)
+	}
 	exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID)
 	posts := h.posts()
 	if exit != 0 || env.Status != "verified" || len(posts) != 1 {
@@ -221,7 +225,7 @@ func TestCallOutcomeUnknownNeverRetries(t *testing.T) {
 func TestApplyIsSingleUseExpiringAndRaceFree(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
 	h.f.related["area:kitchen"] = []string{"light.kitchen", "light.hall"}
-	id := h.plan("light.turn_off", "--area", "kitchen").Plan.ID // preview: no code
+	id := h.plan("light.turn_off", "--area", "kitchen").Plan.ID // a room's lights: no code
 	// Two real processes race for one plan, as two shells would.
 	cmds := make([]*exec.Cmd, 2)
 	for i := range cmds {

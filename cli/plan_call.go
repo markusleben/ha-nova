@@ -71,7 +71,7 @@ func runCallVerb(paths runtimePaths, verb, flagSetName, help string, args []stri
 	fs := flag.NewFlagSet(flagSetName, flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
 	fs.StringVar(&req.Match, "match", "", "resolve exactly one non-disabled entity of the service's domain by phrase")
-	fs.StringVar(&req.Area, "area", "", "expand an area_id to the service domain's entities (previewed unless it resolves to exactly one entity of the service's domain)")
+	fs.StringVar(&req.Area, "area", "", "expand an area_id to the service domain's entities (previewed unless it resolves to exactly one entity of the service's domain, or light.turn_on/turn_off/toggle reaches only a room's lights, up to 30)")
 	fs.StringVar(&req.Device, "device", "", "expand a device_id to the service domain's entities (previewed unless it resolves to exactly one entity of the service's domain)")
 	fs.Func("set", "service data field k=v, JSON-typed when it parses (repeatable)", func(v string) error { sets = append(sets, v); return nil })
 	fs.StringVar(&dataFile, "data-file", "", "JSON object of service data; --set overrides its keys")
@@ -438,10 +438,10 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 	if named && len(targets) == 0 {
 		e.gap(reasonUnresolvedTarget, "", "", "no target resolved") // never a targetless call in disguise
 	}
-	single := e.singleExpansion(req, targets)
+	asNamed := e.singleExpansion(req, targets) || e.roomLights(req, targets)
 	var reads []func()
 	for _, t := range targets {
-		if t.By != "exact" && t.By != "match" && !single {
+		if t.By != "exact" && t.By != "match" && !asNamed {
 			e.raise(tierPreview, tierReason{Code: reasonExpanded, EntityID: t.EntityID, Via: t.By})
 		}
 		entityDomain, _ := splitID(t.EntityID)
@@ -464,7 +464,7 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 	case domain == "script" && !scriptEntityServices[name]:
 		e.visit(req.Service, "script.turn_on", req.Data, 0, "")
 	case len(targets) == 0:
-		level, code := classifyTargetless(req.Service, req.Data)
+		level, code := e.targetless(req.Service, req.Data)
 		e.raise(level, tierReason{Code: code})
 	}
 	for _, t := range targets {
