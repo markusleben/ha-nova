@@ -78,6 +78,9 @@ type storedPlan struct {
 	BatchMembers   []storedPlan    `json:"batch_members,omitempty"` // kind batch (plan_batch.go): the member plans, in order; hashed by id and hash
 	Reasons        []tierReason    `json:"reasons"`
 	Basis          map[string]any  `json:"basis"`
+	Reads          map[string]bool `json:"reads,omitempty"` // a cut plan's reads, true where answered (plan_replay.go); not in the hash
+	replayed       bool            // recheck replayed this recompute on the preview's reads
+	diverged       bool            // and it asked for a read the preview never made
 }
 
 // planHash is the nonce-free drift hash over the full operation identity:
@@ -148,6 +151,9 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 	plan.SchemaVersion, plan.ID, plan.Hash, plan.Server, plan.Nonce = planSchemaVersion, "p_"+idHex[:12], "sha256:"+sum, env.Server, hex.EncodeToString(nonce)
 	plan.CreatedAt, plan.ExpiresAt = now.Format(time.RFC3339), now.Add(planTTL).Format(time.RFC3339)
 	plan.Tier, plan.Reasons, plan.Channel = tier, e.reasons, planChannel
+	if slices.ContainsFunc(e.reasons, cutShort) && !e.s.replaying() {
+		plan.Reads = e.s.reads() // what its replay reads again (recheck)
+	}
 	plan.Confirm = map[tierLevel]string{tierOrdinary: "none", tierPreview: "natural", tierTyped: "code"}[e.level]
 	plan.Lang, plan.Words = planLanguage(e, env, plan) // what every text of a plan that asks speaks; a typed plan's is sealed (channelSeal)
 	shownChannel := ""

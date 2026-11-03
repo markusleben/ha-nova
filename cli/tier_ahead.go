@@ -22,6 +22,9 @@ import (
 // within the walk's own limits (depth, acted entities, consumer configs);
 // ids themselves, which the walk scans next, always.
 func (e *tierEngine) readAhead(ids []string) {
+	if e.s.replaying() { // a replay read the preview's reads first, and only those
+		return
+	}
 	for depth := 0; len(ids) > 0 && depth <= tierMaxDepth && e.s.ctx.Err() == nil; depth++ {
 		var level []string
 		for _, id := range ids {

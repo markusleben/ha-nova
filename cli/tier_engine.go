@@ -395,7 +395,7 @@ func automationActions(cfg map[string]any) any {
 func (e *tierEngine) runConfig(id, domain, via string) (map[string]any, bool) {
 	if cfg, ok := e.configs[id]; ok {
 		if d, read := e.census[id]; read {
-			if e.s.ctx.Err() != nil { // the budget ran out: whether the scan reached it first is timing
+			if !e.s.decide("census "+d[0], e.s.ctx.Err() == nil) { // the budget ran out: whether the scan reached it first is timing
 				e.readFailed(id, via, "config")
 				return nil, false
 			}

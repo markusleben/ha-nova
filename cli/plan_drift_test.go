@@ -182,7 +182,9 @@ func TestApplyRefusesACutPlanThatCouldNotReadAgain(t *testing.T) {
 	if planned.Plan.Code == "" {
 		t.Fatalf("setup: %+v", planned)
 	}
-	h.cutAt("a10") // now the budget runs out before the script is read
+	h.f.mu.Lock()
+	h.f.fail = map[string]bool{"/api/config/script/config/morning": true} // now no read of the script answers, its replay's neither
+	h.f.mu.Unlock()
 	exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID, "--confirm", planned.Plan.Code)
 	if exit != verbExitDrift || len(h.posts()) != 0 {
 		t.Fatalf("exit %d env %+v posts %d", exit, env, len(h.posts()))

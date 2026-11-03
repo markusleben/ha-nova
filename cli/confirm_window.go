@@ -319,20 +319,21 @@ func replanStored(paths runtimePaths, s *relaySession, env *verbEnvelope, plan s
 	planChannel = channel
 	s.lang, s.words = plan.Lang, plan.Words
 	env.Server = s.server
-	var fresh storedPlan
-	var err error
-	switch config := plan.ConfigRequest; {
-	case plan.Kind == "call" && config == nil && plan.Request.validate() == nil && staticRefusal(plan.Request) == nil:
-		_, fresh, err = computeCallPlan(s, env, plan.Request)
-	case config != nil && config.Op == plan.Kind && config.ConfigID != "" && config.validate() == nil:
-		_, fresh, _, err = computeConfigPlan(paths, s, env, *config)
-	case plan.Kind == "raw" && config == nil:
-		_, fresh, err = computeRawPlan(s, env, plan.RawRequests)
-	case plan.Kind == "batch" && config == nil && validBatchMembers(plan.BatchMembers) == nil:
-		_, fresh, err = computeBatchPlan(paths, s, env, plan.BatchMembers)
-	default:
-		return fresh, false
-	}
+	fresh, err := recheck(s, env, plan, func(env *verbEnvelope) (fresh storedPlan, err error) {
+		switch config := plan.ConfigRequest; {
+		case plan.Kind == "call" && config == nil && plan.Request.validate() == nil && staticRefusal(plan.Request) == nil:
+			_, fresh, err = computeCallPlan(s, env, plan.Request)
+		case config != nil && config.Op == plan.Kind && config.ConfigID != "" && config.validate() == nil:
+			_, fresh, _, err = computeConfigPlan(paths, s, env, *config)
+		case plan.Kind == "raw" && config == nil:
+			_, fresh, err = computeRawPlan(s, env, plan.RawRequests)
+		case plan.Kind == "batch" && config == nil && validBatchMembers(plan.BatchMembers) == nil:
+			_, fresh, err = computeBatchPlan(paths, s, env, plan.BatchMembers)
+		default:
+			err = fmt.Errorf("a %s plan is not planned again here", plan.Kind)
+		}
+		return fresh, err
+	})
 	return fresh, err == nil
 }
 

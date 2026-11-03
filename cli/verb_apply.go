@@ -237,21 +237,23 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		s.lang, s.words = plan.Lang, plan.Words // sealed: the re-plan speaks the language and words the human read
 	}
 	var e *tierEngine
-	var fresh storedPlan
 	var ctx configContext
 	var batch batchReplan
-	switch {
-	case isBatch:
-		batch, fresh, err = computeBatchPlan(paths, s, &env, plan.BatchMembers)
-	case isCall:
-		e, fresh, err = computeCallPlan(s, &env, request)
-	case isRooms:
-		e, fresh, err = computeRoomsPlan(s, &env, *plan.RoomsRequest)
-	case isRaw:
-		e, fresh, err = computeRawPlan(s, &env, plan.RawRequests)
-	default:
-		e, fresh, ctx, err = computeConfigPlan(paths, s, &env, *config)
-	}
+	fresh, err := recheck(s, &env, plan, func(env *verbEnvelope) (fresh storedPlan, err error) {
+		switch {
+		case isBatch:
+			batch, fresh, err = computeBatchPlan(paths, s, env, plan.BatchMembers)
+		case isCall:
+			e, fresh, err = computeCallPlan(s, env, request)
+		case isRooms:
+			e, fresh, err = computeRoomsPlan(s, env, *plan.RoomsRequest)
+		case isRaw:
+			e, fresh, err = computeRawPlan(s, env, plan.RawRequests)
+		default:
+			e, fresh, ctx, err = computeConfigPlan(paths, s, env, *config)
+		}
+		return fresh, err
+	})
 	// release hands the claimed plan back after a failure before anything
 	// reached Home Assistant, so the same apply can be retried.
 	release := func(err error) error {
@@ -270,14 +272,14 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	if err != nil {
 		return fail(err)
 	}
-	identity := fresh.Hash // the stored hash once its fields are proven to make it (sameAsConfirmed)
-	if stillConfirmed(plan, fresh) {
+	identity, confirmed := fresh.Hash, stillConfirmed(plan, fresh) // the stored hash once its fields are proven to make it (sameAsConfirmed)
+	if confirmed {
 		identity = plan.Hash
 	}
-	if identity != plan.Hash && isBatch {
+	if !confirmed && isBatch {
 		return fail(refused("PLAN_INVALID", "plan "+id+" does not match its own hash"))
 	}
-	if identity != plan.Hash {
+	if !confirmed { // a diverged replay too, whatever its hash (recheck)
 		// It got there meanwhile: nothing to send or re-confirm — only for the
 		// very targets the user confirmed (a changed area is a new preview).
 		if isCall && slices.Equal(fresh.Action.EntityIDs, plan.Action.EntityIDs) && alreadyDone(e, &env, fresh.Action) {
