@@ -134,7 +134,7 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 		return a.finish()
 	case decided && first.window == windowConfirmed:
 		fmt.Fprintln(os.Stderr, map[bool]string{false: "Confirmed in the window on this computer; the phone's notification is withdrawn.", true: "Confirmed in the window on this computer."}[phoneOut])
-		humanAnswer, humanWhere = confirmCode(s.transport.Credential, a.idHex, a.plan.Channel, a.plan.ExpiresAt), channelWindow
+		humanAnswer, humanWhere, askedRoute = confirmCode(s.transport.Credential, a.idHex, a.plan.Channel, a.plan.ExpiresAt), channelWindow, s
 		withdraw()
 		return verbEnvelope{}, 0, false
 	case decided:

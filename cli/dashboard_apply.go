@@ -38,7 +38,7 @@ func executeDashboard(paths runtimePaths, s *relaySession, env *verbEnvelope, ac
 	if !create {
 		live, err := readDashboardConfig(s, action.ConfigID, action.Default, true)
 		if err != nil {
-			return fmt.Errorf("%w; nothing was saved", err)
+			return nothingSent(err)
 		}
 		if canonicalJSON(live) != canonicalJSON(ctx.current) {
 			return &verbFailure{exit: verbExitDrift, status: "drift", code: "PLAN_DRIFT",
@@ -122,7 +122,7 @@ func dashboardWriteFailure(paths runtimePaths, s *relaySession, env *verbEnvelop
 			message: empty + "but its content never reached Home Assistant (" + err.Error() + "): it is empty",
 			next:    "Plan write again without --create, or delete it."}
 	case !answered:
-		return fmt.Errorf("%w; Home Assistant did not receive the write", err)
+		return nothingSent(err)
 	}
 	s.renewBudget()
 	row, readback, readOK := verifyDashboard(s, action)
@@ -175,7 +175,7 @@ func dashboardCreateFailure(s *relaySession, env *verbEnvelope, urlPath string, 
 		return &verbFailure{exit: verbExitUnknown, status: "unverified", code: "OUTCOME_UNKNOWN", message: err.Error(),
 			next: "Check whether the dashboard exists (`ha-nova get --dashboards`); never retry automatically."}
 	case !answered:
-		return fmt.Errorf("%w; Home Assistant did not receive the write", err)
+		return nothingSent(err)
 	}
 	s.renewBudget()
 	entries, listErr := readDashboardsFresh(s)

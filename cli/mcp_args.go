@@ -290,10 +290,13 @@ var cliCommands = strings.NewReplacer("ha-nova relay core --method POST --path "
 	"ha-nova plan ", "ha_plan kind ", "plan revert ", "ha_plan with kind revert and ", "ha-nova get ", "ha_get ", "ha-nova find", "ha_find",
 	"ha-nova apply --plan ", "ha_apply with plan_id ")
 
+// mcpServerFlag: an MCP session is pinned to one server.
+var mcpServerFlag = regexp.MustCompile(`(ha-nova [a-z]+) --server [a-z0-9-]+`)
+
 // mcpNext rewrites a verb's next for an MCP client: CLI commands and flags
 // become tools and arguments; a named ha-nova:* skill gets its chat route.
 func mcpNext(next string) string {
-	out := cliCommands.Replace(mcpArgs(next))
+	out := cliCommands.Replace(mcpArgs(mcpServerFlag.ReplaceAllString(next, "$1")))
 	switch {
 	case !strings.Contains(out, "ha-nova:"):
 	case strings.Contains(out, "ha-nova:yaml-config") && chatReadOnly():
