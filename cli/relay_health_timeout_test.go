@@ -8,6 +8,9 @@ import (
 	"time"
 )
 
+// --connect-timeout bounds each connection a selection opens (the budget the
+// resolver carries); --max-time bounds the whole selection, which on Link is
+// several round trips (docs/work/2026-11-03-link-route-timeouts-spec.md).
 func TestHealthConnectTimeoutBoundsEveryTransportSelectionPath(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -52,6 +55,7 @@ func TestHealthConnectTimeoutBoundsEveryTransportSelectionPath(t *testing.T) {
 
 			const connectBudget = 80 * time.Millisecond
 			observed := make(chan time.Duration, 1)
+			budgets := make(chan time.Duration, 1)
 			testCase.installStub(func(
 				ctx context.Context,
 				_ runtimeConfig,
@@ -62,6 +66,7 @@ func TestHealthConnectTimeoutBoundsEveryTransportSelectionPath(t *testing.T) {
 						errors.New("transport selection has no deadline")
 				}
 				observed <- time.Until(deadline)
+				budgets <- relayConnectBudget(ctx, time.Hour)
 				<-ctx.Done()
 				return relayTransportSelection{}, ctx.Err()
 			})
@@ -98,23 +103,25 @@ func TestHealthConnectTimeoutBoundsEveryTransportSelectionPath(t *testing.T) {
 			if exit != 1 {
 				t.Fatalf("health exit = %d, want timeout failure", exit)
 			}
-			if elapsed := time.Since(started); elapsed > 500*time.Millisecond {
+			if elapsed := time.Since(started); elapsed > 1500*time.Millisecond {
 				t.Fatalf(
-					"transport selection exceeded connect budget: %s",
+					"transport selection exceeded the --max-time budget: %s",
 					elapsed,
 				)
 			}
 			select {
 			case remaining := <-observed:
-				if remaining <= 0 || remaining > 150*time.Millisecond {
+				if remaining <= 500*time.Millisecond || remaining > time.Second {
 					t.Fatalf(
-						"selection deadline remaining = %s, want about %s",
+						"selection deadline remaining = %s, want about the 1s --max-time",
 						remaining,
-						connectBudget,
 					)
 				}
 			default:
 				t.Fatal("selected resolver did not observe its deadline")
+			}
+			if budget := <-budgets; budget != connectBudget {
+				t.Fatalf("connect budget carried to the resolver = %s, want %s", budget, connectBudget)
 			}
 		})
 	}
