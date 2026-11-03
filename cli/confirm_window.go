@@ -173,7 +173,7 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 	defer s.close()
 	switch askWindow(context.Background(), text+windowAsked(lang), plan.Lang, time.Until(deadline)) {
 	case windowConfirmed:
-		humanAnswer, humanWhere = confirmCode(s.transport.Credential, idHex, channelWindow, plan.ExpiresAt), channelWindow
+		humanAnswer, humanWhere, askedRoute = confirmCode(s.transport.Credential, idHex, channelWindow, plan.ExpiresAt), channelWindow, s
 		return env, 0, false
 	case windowCancelled:
 		return windowStopped(s, "declined", "CONFIRM_DECLINED", "the confirmation window was cancelled",
