@@ -116,6 +116,7 @@ release:
     - **Camera sign-in tokens stay hidden from the AI.** A camera's or image's short-lived token opens its picture or live video without a login. It no longer reaches the AI, also not through a trace or an ordinary template.
     - **A leftover Home Assistant Link is explained.** Setup says what it is and lets you finish or remove it right there. Doctor no longer stops at it: it checks the rest and shows both ways out.
     - **Setup says which Claude gets HA NOVA.** Claude Code is the claude command and the Code tab in Claude Desktop. Setup replaces an old HA NOVA there. On a Mac, Claude Desktop alone is enough once its Code tab was opened.
+    - **Windows: setup no longer needs an AI app first.** Without one, the installer opens setup, which offers Claude or ChatGPT in the browser. Setup also finds Claude Code installed through WinGet.
     - **A stuck Claude Code no longer hangs setup, doctor, or later updates.** Each Claude Code step has a time limit (30 s, or 3 min for downloads). Then HA NOVA stops it and skips Claude Code for the rest of that run.
     - **Setup explains the owner sign-in.** The owner connects each computer once; then anyone using that computer's user account can use HA NOVA. On the NOVA page, other admins see who the owner is.
     - **Disabling or enabling a lock's device is refused.** Also an alarm panel's, garage door's, or gate's, and removing or disabling the integration or switch one runs on. Do that in Home Assistant's settings.

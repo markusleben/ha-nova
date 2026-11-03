@@ -61,6 +61,8 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain("**Camera sign-in tokens stay hidden from the AI.**");
     expect(stableNotes).toContain("**A leftover Home Assistant Link is explained.**");
     expect(stableNotes).toContain("**Setup says which Claude gets HA NOVA.** Claude Code is the claude command and the Code tab in Claude Desktop.");
+    // Windows installs without an AI app go on to setup (#936); the no-app screen and WinGet's Claude Code (#939).
+    expect(stableNotes).toContain("**Windows: setup no longer needs an AI app first.**");
     expect(stableNotes).toContain("**Setup explains the owner sign-in.** The owner connects each computer once");
     // Every claude call has a deadline (#911); the update to 0.28.0 still runs the old binary's sync, so only later updates.
     expect(stableNotes).toContain("**A stuck Claude Code no longer hangs setup, doctor, or later updates.**");
