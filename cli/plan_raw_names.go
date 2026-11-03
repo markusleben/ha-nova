@@ -30,6 +30,9 @@ type rawNamer struct {
 
 	helpers     map[string]any          // "<collection>/<id>" → the live helper an update replaces (helperKept)
 	helperDrops map[string][]helperDrop // "<collection>/<id>" → what its update removes after a copy (helperKept)
+
+	calendars       map[string]any // `<entity> "<uid>" "<recurrence_id>"` → the event an update is tiered on, or "unreadable" (calendarLive)
+	calendarUpdates []string       // "<entity> <uid>" of each calendar update so far (calendarShortens)
 }
 
 func newRawNamer(s *relaySession, e *tierEngine) *rawNamer {
@@ -198,14 +201,12 @@ func (n *rawNamer) entry(id any) string {
 	return n.named(map[string]any{"type": "config_entries/get"}, id, []string{"entry_id"}, []string{"title", "domain"})
 }
 
-// calendarEvent names the event a delete removes, read from the calendar
-// a year around today, and which occurrences.
+// calendarEvent names the event a delete removes, read from the calendar's
+// window (calendarWindow), and which occurrences.
 func (n *rawNamer) calendarEvent(lang string, payload map[string]any) string {
 	uid, _ := payload["uid"].(string)
 	entity, _ := payload["entity_id"].(string)
 	recurrence, _ := payload["recurrence_id"].(string)
-	now := verbNow().UTC()
-	path := fmt.Sprintf("/api/calendars/%s?start=%s&end=%s", entity, now.AddDate(-1, 0, 0).Format("2006-01-02T15:04:05Z"), now.AddDate(1, 0, 0).Format("2006-01-02T15:04:05Z"))
 	var core struct {
 		Body []struct {
 			UID     string `json:"uid"`
@@ -220,7 +221,7 @@ func (n *rawNamer) calendarEvent(lang string, payload map[string]any) string {
 	if !entityIDPattern.MatchString(entity) {
 		return name
 	}
-	if data, err := rawRead(n.s, "core", map[string]any{"method": http.MethodGet, "path": path}); err == nil && json.Unmarshal(data, &core) == nil {
+	if data, err := rawRead(n.s, "core", calendarWindow(entity)); err == nil && json.Unmarshal(data, &core) == nil {
 		matches := 0
 		for _, event := range core.Body {
 			if event.UID != uid || sayText(event.Summary, false) == "" {

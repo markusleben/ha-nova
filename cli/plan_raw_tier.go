@@ -21,7 +21,8 @@ import (
 //	         …/scene/config/…, files delete_file, backups delete), a new
 //	         account, HACS downloads and dashboard resources (code that runs
 //	         in Home Assistant or every signed-in browser), an energy save that
-//	         empties a list or drops more than one entry, a new id, area, or
+//	         empties a list or drops more than one entry, a calendar update
+//	         that can drop dates of a repeating event, a new id, area, or
 //	         label carried onto a lock, alarm panel, or access cover, a person
 //	         who follows other devices (skills/device → Access Check), an
 //	         account's administrator flag, active state, or local-only
@@ -136,6 +137,8 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 			return tierTyped, rawTypedWS[wsType]
 		case wsType == "energy/save_prefs" && n.energyEmptied(payload):
 			return tierTyped, "energy_emptied"
+		case wsType == "calendar/event/update" && n.calendarShortens(payload):
+			return tierTyped, "delete"
 		case wsType == "config/entity_registry/update" && carries && n.accessEntity(payload["entity_id"]):
 			return tierTyped, "access_entity"
 		case wsType == "config/entity_registry/update" && shows && !carries && n.accessEntity(payload["entity_id"]):
@@ -456,7 +459,8 @@ func rawSnapshotList(s *relaySession) (json.RawMessage, error) {
 // Config edit), the listed entry of every config copy a delete names, what
 // each device delete removes (its devices and entities: one more since the
 // preview is drift), each scene a save replaces (sceneKept), each helper
-// an update replaces (helperKept), and every config a listener walk read
+// an update replaces (helperKept), each calendar event an update is tiered
+// on (calendarLive), and every config a listener walk read
 // (rawShoppingList), as a call binds its consumers' (I3); nil when the plan
 // holds none.
 func (n *rawNamer) basis() map[string]any {
@@ -468,7 +472,7 @@ func (n *rawNamer) basis() map[string]any {
 	default:
 		basis["energy"] = numbersByValue(n.prefs) // a stored plan reads its numbers back as float64
 	}
-	for key, read := range map[string]map[string]any{"snapshots": n.deleting, "devices": n.removing, "scenes": n.scenes, "helpers": n.helpers} {
+	for key, read := range map[string]map[string]any{"snapshots": n.deleting, "devices": n.removing, "scenes": n.scenes, "helpers": n.helpers, "calendars": n.calendars} {
 		if read != nil {
 			basis[key] = read
 		}
