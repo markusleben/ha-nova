@@ -455,6 +455,7 @@
   "reason.integration_service": "This runs an integration's own service, which HA NOVA can't fully check",
   "reason.service_not_found": "A step calls {service}, which Home Assistant doesn't have: that step will fail when it runs",
   "reason.hacs_install": "This installs code from HACS that runs in Home Assistant",
+  "reason.marketplace_install": "This installs code from the Marketplace that runs in Home Assistant",
   "reason.unknown": "HA NOVA can't fully check this",
 
   "phrase.unlocks": "unlocks {object}",
