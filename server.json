@@ -1,0 +1,31 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.markusleben/ha-nova",
+  "title": "HA NOVA",
+  "description": "Ask about your Home Assistant and change it from an AI chat, with your OK for risky actions.",
+  "version": "0.28.0",
+  "websiteUrl": "https://hanova.app",
+  "repository": {
+    "url": "https://github.com/markusleben/ha-nova",
+    "source": "github"
+  },
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/markusleben/ha-nova/main/assets/icon.svg",
+      "mimeType": "image/svg+xml"
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://{home_assistant_address}/api/ha_nova/mcp",
+      "variables": {
+        "home_assistant_address": {
+          "description": "Your Home Assistant's public HTTPS address without https://, for example the Home Assistant Link address abc123.ui.nabu.casa. Needs Home Assistant 2026.10 or newer on HA OS or Supervised, the NOVA Relay App, and chat apps turned on on the NOVA page.",
+          "isRequired": true,
+          "placeholder": "abc123.ui.nabu.casa"
+        }
+      }
+    }
+  ]
+}

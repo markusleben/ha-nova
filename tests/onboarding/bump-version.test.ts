@@ -49,6 +49,14 @@ describe("S-11: version bump", () => {
     expect(pkgLock.packages[""].version).toBe(versionJson.skill_version);
   });
 
+  it("server.json version matches version.json skill_version", () => {
+    const server = JSON.parse(readFileSync("server.json", "utf8"));
+    const versionJson = JSON.parse(readFileSync("version.json", "utf8"));
+    expect(readFileSync("scripts/bump-version.sh", "utf8")).toContain('"$REPO_ROOT/server.json"');
+    expect(server.version).toBe(versionJson.skill_version);
+    expect(server.name).toBe("io.github.markusleben/ha-nova");
+  });
+
   it("exposes npm bump shortcut", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
     expect(pkg.scripts?.bump).toContain("bump-version.sh");
