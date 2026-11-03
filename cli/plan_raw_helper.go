@@ -175,8 +175,8 @@ func (n *rawNamer) helperKept(earlier []rawRequest, endpoint string, payload map
 		message: removal + ", with no copy of its current item saved first",
 		hint: fmt.Sprintf(`This would remove the %s %s: an update replaces the whole helper. If the user asked for that (renaming, moving, or changing an entry removes the old one), tell them which ones go, `+
 			`then plan it with a backups save of the helper's current item first (ha-nova plan raw): {"endpoint":"backups","payload":{"action":"save","category":"helpers","name":"%s","data":<its item from ws {"type":"%s/list"}, unchanged>}}. `+
-			`If they were left out by mistake, read that list and send all the helper's fields but its id with the change, %s.`,
-			list.noun, dropped, autoName(id), collection, list.keep),
+			`If they were left out by mistake, read that list and send its item with the change, its id as %s_id, %s.`,
+			list.noun, dropped, autoName(id), collection, collection, list.keep),
 	}, nil
 }
 

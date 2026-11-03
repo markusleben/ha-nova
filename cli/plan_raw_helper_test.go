@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -67,7 +68,7 @@ func TestPlanRawHelperUpdateThatDropsNeedsACopyFirst(t *testing.T) {
 	} {
 		exit, env := planRaw(t, paths, items)
 		if exit != verbExitRefused || env.Error == nil || env.Error.Code != "REFUSED" || !strings.Contains(env.Error.Message, says) ||
-			!strings.Contains(env.Error.Next, "send all the helper's fields but its id with the change") || !strings.Contains(env.Error.Next, `"action":"save","category":"helpers","name":"auto-`) {
+			!regexp.MustCompile(`send its item with the change, its id as (input_select|schedule)_id, every `).MatchString(env.Error.Next) || !strings.Contains(env.Error.Next, `"action":"save","category":"helpers","name":"auto-`) {
 			t.Errorf("%s: exit %d %+v", items, exit, env.Error)
 		}
 	}
