@@ -98,9 +98,39 @@ jobs:
         working-directory: tests/ha_integration
         run: python -m pytest -q
 
+  # Known Go vulnerabilities (vuln.go.dev) the CLI can reach, for each shipped
+  # target with the release build settings: platform files change what it
+  # reaches. A vulnerability only in a module it never calls is reported
+  # without failing. ci-gate needs it, so the required check covers it.
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.10"
+          cache-dependency-path: cli/go.sum
+
+      - name: Scan the Go CLI
+        working-directory: cli
+        run: |
+          GOBIN="$RUNNER_TEMP/bin" go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          status=0
+          for target in darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64; do
+            echo "::group::$target"
+            CGO_ENABLED=0 GOOS="${target%/*}" GOARCH="${target#*/}" "$RUNNER_TEMP/bin/govulncheck" -tags cloudremote_official ./... || status=1
+            echo "::endgroup::"
+          done
+          exit "$status"
+
   ci-gate:
     name: ci-gate
-    needs: [test-inventory, ha-integration]
+    needs: [test-inventory, ha-integration, govulncheck]
     # A skipped required check counts as passed: always run, and fail here
     # when a needed job did not succeed.
     if: ${{ always() }}
@@ -108,9 +138,9 @@ jobs:
 
     steps:
       - name: Require the needed jobs
-        if: ${{ needs.test-inventory.result != 'success' || needs.ha-integration.result != 'success' }}
+        if: ${{ needs.test-inventory.result != 'success' || needs.ha-integration.result != 'success' || needs.govulncheck.result != 'success' }}
         run: |
-          echo "::error::test-inventory=${{ needs.test-inventory.result }} ha-integration=${{ needs.ha-integration.result }}"
+          echo "::error::test-inventory=${{ needs.test-inventory.result }} ha-integration=${{ needs.ha-integration.result }} govulncheck=${{ needs.govulncheck.result }}"
           exit 1
 
       - name: Checkout
@@ -127,7 +157,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.5"
+          go-version: "1.26.10"
           cache-dependency-path: cli/go.sum
 
       # The dev-sync tests shell out to `go build` under a restricted PATH
@@ -169,7 +199,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.5"
+          go-version: "1.26.10"
           cache-dependency-path: cli/go.sum
 
       - name: Build (cross-target)
@@ -198,7 +228,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.5"
+          go-version: "1.26.10"
           cache-dependency-path: cli/go.sum
 
       - name: Verify macOS Keychain no-UI policy
@@ -244,7 +274,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.5"
+          go-version: "1.26.10"
           cache-dependency-path: cli/go.sum
 
       - name: Verify native worker boundaries
@@ -270,7 +300,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.5"
+          go-version: "1.26.10"
           cache-dependency-path: cli/go.sum
 
       - name: Verify PowerShell 5.1 UTF-8 round trip
