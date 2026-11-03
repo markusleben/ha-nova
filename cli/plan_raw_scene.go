@@ -32,9 +32,8 @@ const sceneCopyNext = "Tell the user there is no copy, and this change removes m
 
 // rawSceneSave: the scene id a request saves; "" for any other request.
 func rawSceneSave(payload map[string]any) string {
-	target, _ := payload["path"].(string)
-	target, _, _ = strings.Cut(target, "#")
-	target, _, _ = strings.Cut(target, "?")
+	raw, _ := payload["path"].(string)
+	target, _ := relayCorePath(raw)
 	method, _ := payload["method"].(string) // the relay's guard sends any case
 	if strings.ToUpper(strings.TrimSpace(method)) != http.MethodPost || !rawSceneConfigPath.MatchString(target) {
 		return ""
