@@ -101,7 +101,8 @@ type verbFailure struct {
 	message    string
 	next       string
 	candidates []verbTarget
-	cause      error // optional sentinel for errors.Is
+	cause      error  // optional sentinel for errors.Is
+	say        string // the failure's own say (confirm_strings), else the generic one
 }
 
 func (f *verbFailure) Error() string { return f.message }
@@ -201,6 +202,9 @@ func setVerbError(env *verbEnvelope, err error) int {
 	}
 	if unreachable := relayUnreachableError(""); errors.As(err, &unreachable) && !activeServerIsDemo() {
 		env.Say = relayUnreachableSay
+	}
+	if failure.say != "" {
+		env.Say = failure.say
 	}
 	env.Error = &verbError{Code: failure.code, Message: failure.message, Candidates: failure.candidates, Next: failure.next}
 	return failure.exit

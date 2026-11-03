@@ -156,7 +156,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(refused("SERVER_MISMATCH", fmt.Sprintf("plan %s belongs to server %q, not %q", id, peek.Server, opts.server)))
 	}
 	opts.server, opts.serverSet = peek.Server, true
-	s, err := newApplySession(paths, opts, id)
+	s, err := newApplySession(paths, opts, peek)
 	if err != nil {
 		return fail(err)
 	}
@@ -260,7 +260,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			if consumed = os.Rename(claimed, open) != nil; consumed {
 				failure.next = "Nothing was sent, so retrying is safe: " + replan
 			}
-			confirmedNotSent(failure, id, s.server, !consumed)
+			confirmedNotSent(failure, plan, s.server, !consumed)
 		}
 		return err
 	}

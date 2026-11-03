@@ -31,6 +31,7 @@
 
   "say.about": "I'm about to {action}.",
   "say.nothing_found": "Not done: I couldn't find what you named. Nothing changed. Tell me which devices you mean.",
+  "say.confirmed_not_sent": "Not done: you confirmed, but HA NOVA couldn't reach Home Assistant, so nothing changed.",
   "say.in_area": "{name} in {area}",
   "say.changes": "{action}: {changes}",
   "say.field_set": "{field} set to {value}",

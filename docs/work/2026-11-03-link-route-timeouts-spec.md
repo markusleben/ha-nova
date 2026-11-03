@@ -102,7 +102,8 @@ Date: 2026-11-03. Target: 0.28.1, follow-up to #944. Owner: `cli/confirm_handoff
 
 - A failure that sent nothing after a Confirm in a window, on the phone, or in a form answers `CONFIRMED_NOT_SENT` (exit 1) instead of `RELAY_ERROR`: apply's session could not open, or a read or the write failed before reaching Home Assistant (the `errNothingSent` failures). Its `next`: nothing changed; read the target once with `ha-nova get --server <plan's server>` (a read does not follow the plan; MCP drops the flag, its session is pinned); if that read fails too, say so and don't run setup; never apply again unprompted; only after the user says they still want it, apply again (it asks them again), or plan again when the plan could not be kept.
 - The same class on the dashboard path: a failed re-read right before the save (after the copy) and a save or create the Relay refused before forwarding returned a plain error, so they read as `RELAY_ERROR` and used up the plan though nothing changed. They are nothing-sent failures now: the plan is handed back, as for config and service plans, and after a Confirm they answer `CONFIRMED_NOT_SENT`.
-- A failure after the write may have reached Home Assistant stays `OUTCOME_UNKNOWN` (exit 7: verify, never retry). Every other code, `say`, and the phone's result texts are unchanged. A code typed in chat keeps `RELAY_ERROR`: retrying is safe there, and nobody is asked again. A chat app (`ha-nova serve`) keeps `RELAY_ERROR` and its own step, which says nothing changed and never names a terminal command.
+- Its `say` is `say.confirmed_not_sent` in the plan's language (en: "Not done: you confirmed, but HA NOVA couldn't reach Home Assistant, so nothing changed."; de: "Nicht erledigt: Du hast bestätigt, aber HA NOVA hat Home Assistant nicht erreicht. Es wurde nichts geändert.").
+- A failure after the write may have reached Home Assistant stays `OUTCOME_UNKNOWN` (exit 7: verify, never retry). Every other code and the phone's result texts are unchanged. A code typed in chat keeps `RELAY_ERROR`: retrying is safe there, and nobody is asked again. A chat app (`ha-nova serve`) keeps `RELAY_ERROR` and its own step, which says nothing changed and never names a terminal command.
 
 ### Known limits
 
@@ -115,6 +116,6 @@ Date: 2026-11-03. Target: 0.28.1, follow-up to #944. Owner: `cli/confirm_handoff
 ### Tests (each fails on fc7896f5)
 
 - Window, phone, and both: a Confirm over Link costs one route choice (the ask's), not two.
-- Confirmed, then a read fails, apply's session cannot open, or a dashboard's re-read after the copy fails: `CONFIRMED_NOT_SENT`, nothing sent, the plan kept, a `next` that reads first, and its MCP form without `--server`.
+- Confirmed, then a read fails, apply's session cannot open, or a dashboard's re-read after the copy fails: `CONFIRMED_NOT_SENT`, nothing sent, the plan kept, a `next` that reads first, its MCP form without `--server`, and the approved `say` in English and German.
 - Without a human ask, the dashboard re-read failure keeps the plan, and the same apply then succeeds.
 - Guards that pass on base too: a local route, or a configuration changed while the window was open, is chosen again; a write with an unknown outcome stays `OUTCOME_UNKNOWN`; a chat app keeps `RELAY_ERROR`.
