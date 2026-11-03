@@ -144,6 +144,25 @@ func (c *CloudIngressClient) Do(
 		return nil, newCloudError(CloudErrInvalidInput, "prepare Cloud ingress outer request", nil)
 	}
 
+	ctx, trace := traceLinkConnection(ctx)
+	response, err := c.send(ctx, endpoint, contract, deviceCredential, body)
+	if err != nil && (trace.neverConnected() || contract.method == http.MethodGet && linkNoRelayAnswer(err)) &&
+		linkRetryWait(ctx, linkRequestRetryMinLeft) {
+		response, err = c.send(ctx, endpoint, contract, deviceCredential, body)
+	}
+	return response, err
+}
+
+// send is one attempt of Do. Do sends once more only what cannot have reached
+// the Relay: a request whose connection never opened (R2) or a GET without an
+// answer from the Relay (R3).
+func (c *CloudIngressClient) send(
+	ctx context.Context,
+	endpoint CloudIngressEndpoint,
+	contract cloudIngressEndpointContract,
+	deviceCredential string,
+	body []byte,
+) (*CloudIngressResponse, error) {
 	request, err := http.NewRequestWithContext(
 		ctx,
 		contract.method,
@@ -215,12 +234,13 @@ func (c *CloudIngressClient) Do(
 		if !reachedRelay ||
 			response.StatusCode >= http.StatusInternalServerError {
 			response.Body.Close()
-			return nil, newCloudHTTPError(
-				CloudErrOutcomeUnknown,
-				"dispatch Cloud Relay request",
-				response.StatusCode,
-				false,
-			)
+			return nil, &CloudError{
+				Code:       CloudErrOutcomeUnknown,
+				Op:         "dispatch Cloud Relay request",
+				StatusCode: response.StatusCode,
+				gatewayFailed: !reachedRelay && response.StatusCode >= http.StatusBadGateway &&
+					response.StatusCode <= http.StatusGatewayTimeout,
+			}
 		}
 	}
 	if !reachedRelay && (response.StatusCode == http.StatusNotFound ||

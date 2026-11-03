@@ -16,7 +16,10 @@ remote origin otherwise.
 - No OAuth token, Ingress cookie, or HA credential in config, environment,
   command arguments, logs, or AI-visible output.
 - No file-backed fallback for Cloud credentials.
-- No automatic retry after a functional request may have reached the Relay.
+- No automatic retry of a write that may have reached the Relay. On Link, a
+  read that got no answer from the Relay, and any request whose connection
+  never opened, may go once more
+  (`docs/work/2026-11-03-link-route-timeouts-spec.md`).
 - No partial endpoint rollout presented as a supported Cloud connection.
 
 ## Security contract
@@ -365,6 +368,9 @@ error before the functional request is created or written.
   select local, Cloud, or automatic transport, including OAuth refresh,
   WebSocket/Ingress discovery, and the automatic local preflight. The separate
   `--max-time` budget continues to bound the complete health command.
+- On Link, the login is retried once after a network, timeout, or server
+  error, and `automatic` remembers an unreachable local Relay for two minutes
+  (`docs/work/2026-11-03-link-route-timeouts-spec.md`).
 - `ha-nova server route automatic|local|cloud` persists the policy.
 
 Once a durable device- or authorization-revocation checkpoint exists, the
