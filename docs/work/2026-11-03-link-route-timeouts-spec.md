@@ -45,7 +45,7 @@ Never retried:
 - a write (service call, config save or delete, dashboard or area write, snapshot save, phone notification) once its connection opened;
 - anything that got an answer from the Relay;
 - any authentication, identity (Relay instance, Home Assistant user), redirect, protocol, subscription, or secure-storage failure;
-- anything else on the local route (unchanged). R4 covers local session reads since 0.28.1, but only a connection that was refused, reset, or closed before the Relay answered: a port forward with a small accept backlog (a VM's NAT) refused some of the read-ahead's parallel connections, and each refused read made an ordinary call ask. A local timeout or any TLS failure (an alert, a bad certificate, a wrong pin) stays final.
+- anything else on the local route (unchanged). R4 covers local session reads since 0.28.1, but only a connection that was refused, reset, or closed before the Relay answered: a port forward with a small accept backlog (a VM's NAT) refused some of the read-ahead's parallel connections, and each refused read made an ordinary call ask. A local timeout or any TLS failure (an error alert, a bad certificate, a wrong pin) stays final.
 
 A TLS verification failure counts as a connection that never opened, so R1–R3 may repeat it once; every attempt verifies before anything is sent.
 

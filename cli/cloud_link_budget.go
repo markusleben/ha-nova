@@ -153,7 +153,7 @@ func linkNoRelayAnswer(err error) bool {
 // On the local route only a connection refused, reset, or closed before the
 // answer: a port forward with a small accept backlog (a VM's NAT) refuses or
 // drops some of a session's parallel connections. A timeout or any TLS
-// failure (an alert, a bad certificate, a wrong pin) stays final.
+// failure (an error alert, a bad certificate, a wrong pin) stays final.
 func readNoRelayAnswer(via relayVia, err error) bool {
 	if via == relayViaCloud {
 		return linkNoRelayAnswer(err)

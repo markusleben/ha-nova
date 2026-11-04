@@ -133,7 +133,11 @@ func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Dur
 	}, nil
 }
 
-func (s *relaySession) close() { s.cancel() }
+// close ends the session and drops the idle connections its reads kept.
+func (s *relaySession) close() {
+	s.cancel()
+	s.transport.Client.CloseIdleConnections()
+}
 
 // coreGET reads one Home Assistant REST path and returns the upstream status
 // and body from the Relay envelope.
