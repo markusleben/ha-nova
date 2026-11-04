@@ -221,9 +221,10 @@ func TestCloudIngressRetriesOnlyWhatCannotHaveReachedTheRelay(t *testing.T) {
 	}
 }
 
-// R4: a session read over Link that got no answer goes once more; a write,
-// a redirect, or anything over the local route never does.
-func TestRelaySessionRetriesOnlyLinkReads(t *testing.T) {
+// R4: a session read that got no answer goes once more, over Link and on the
+// local route; a write, a redirect, an answer, a timeout, or a wrong Relay
+// identity never does.
+func TestRelaySessionRetriesOnlyReadsWithoutAnAnswer(t *testing.T) {
 	shortLinkRetryPause(t)
 	lost := newCloudError(CloudErrOutcomeUnknown, "dispatch Cloud Relay request", errors.New("connection reset"))
 	redirected := newCloudHTTPError(CloudErrOutcomeUnknown, "dispatch Cloud Relay request", http.StatusFound, false)
@@ -239,7 +240,11 @@ func TestRelaySessionRetriesOnlyLinkReads(t *testing.T) {
 		"Link read Link answered 502":      {via: relayViaCloud, firstErr: &CloudError{Code: CloudErrOutcomeUnknown, Op: "dispatch Cloud Relay request", StatusCode: http.StatusBadGateway, gatewayFailed: true}, wantCalls: 2},
 		"Link read the Relay answered 500": {via: relayViaCloud, firstErr: newCloudHTTPError(CloudErrOutcomeUnknown, "dispatch Cloud Relay request", http.StatusInternalServerError, false), wantCalls: 1, wantErr: true},
 		"Link read redirected":             {via: relayViaCloud, firstErr: redirected, wantCalls: 1, wantErr: true},
-		"local read without an answer":     {via: relayViaLocal, firstErr: syscall.ECONNRESET, wantCalls: 1, wantErr: true},
+		"local read without an answer":     {via: relayViaLocal, firstErr: syscall.ECONNRESET, wantCalls: 2},
+		"local read refused":               {via: relayViaLocal, firstErr: &net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED}, wantCalls: 2},
+		"local write without an answer":    {via: relayViaLocal, firstErr: syscall.ECONNRESET, write: true, wantCalls: 1, wantErr: true},
+		"local read timed out":             {via: relayViaLocal, firstErr: context.DeadlineExceeded, wantCalls: 1, wantErr: true},
+		"local read wrong Relay identity":  {via: relayViaLocal, firstErr: errPinMismatch, wantCalls: 1, wantErr: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var calls atomic.Int32

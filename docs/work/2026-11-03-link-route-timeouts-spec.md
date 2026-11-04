@@ -38,14 +38,14 @@ Measured on 2026-11-03 with read-only probes, VPN on:
 | R1 | The Link login: OAuth refresh, WebSocket checks, Ingress session | A network or timeout error without an HTTP answer, or a server-side 5xx; at least 3 s left. A refused WebSocket upgrade (400, 403, 429) is final | No functional request exists yet. A refresh grant only mints a short-lived access token, the WebSocket calls read, and an unused Ingress session expires on its own. |
 | R2 | Any Link request whose connection never opened | DNS, TCP, or TLS failed and no connection was obtained (`GotConn` never fired); at least 1 s left | Nothing was written, so nothing reached the Relay. This holds for writes too. |
 | R3 | A Link GET (`/health`, setup's info reads) | No answer, Ingress unavailable, or a 502–504 that did not come from the Relay; at least 1 s left | A GET only reads. |
-| R4 | A session read over Link (`relaySession.sendIn`: the read allowlist, the phone lookup and listening probes, verify polls) | No answer from the Relay: no HTTP answer, Ingress unavailable, or a status Link or Home Assistant answered instead of the Relay; inside the same per-request deadline, at least 1 s left | Every caller of `sendIn` reads. Writes go through `sendWrite`. |
+| R4 | A session read over Link or, since 0.28.1, on the local route (`relaySession.sendIn`: the read allowlist, the phone lookup and listening probes, verify polls) | No answer from the Relay: no HTTP answer, Ingress unavailable, or a status Link or Home Assistant answered instead of the Relay; inside the same per-request deadline, at least 1 s left | Every caller of `sendIn` reads. Writes go through `sendWrite`. |
 
 Never retried:
 
 - a write (service call, config save or delete, dashboard or area write, snapshot save, phone notification) once its connection opened;
 - anything that got an answer from the Relay;
 - any authentication, identity (Relay instance, Home Assistant user), redirect, protocol, subscription, or secure-storage failure;
-- anything on the local route (unchanged).
+- anything else on the local route (unchanged). R4 covers local session reads since 0.28.1: a port forward with a small accept backlog (a VM's NAT) refused some of the read-ahead's parallel connections, and each refused read made an ordinary call ask; a local timeout or a wrong Relay identity is still final.
 
 A TLS verification failure counts as a connection that never opened, so R1–R3 may repeat it once; every attempt verifies before anything is sent.
 
