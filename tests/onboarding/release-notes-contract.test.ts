@@ -38,7 +38,7 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.28.0 release-facing wording aligned to the shipped stack", () => {
+  it("keeps v0.28.1 release-facing wording aligned to the shipped stack", () => {
     const relayVersion = /^version:\s*"([^"]+)"\s*$/m.exec(readFileSync("nova/config.yaml", "utf8"))?.[1] ?? "";
     // Any App version the notes name is the shipped App.
     const notedApps = [...(stableNotes ?? "").matchAll(/NOVA (?:Relay |App to )(\d+\.\d+\.\d+)/g)];
@@ -46,69 +46,38 @@ describe("release notes contract", () => {
     for (const [, noted] of notedApps) {
       expect(noted, "notes name the shipped NOVA Relay version").toBe(relayVersion);
     }
-    // The App update leads the notes; the update notice still leads with the first feature.
+    // The App update leads the notes; without New Features the update notice leads with the first bug fix (#957).
     expect(stableNotes).toMatch(/^\*\*Update the NOVA App to \d+\.\d+\.\d+\.\*\*/);
-    expect(stableNotes).toMatch(/\n {4}## New Features\s+- \*\*Chat apps do what HA NOVA on a computer does\.\*\*/);
-    // Chat apps at CLI parity at Manage everything (#863, #864, #865, #867); setup and InfluxDB history stay outside the chat.
-    expect(stableNotes).toContain("At Manage everything: rooms, names, helpers, scenes, dashboards, integrations, files (with file access on) and more. Setup and InfluxDB history stay outside the chat.");
-    // "Always allow" advice by phone (#867).
-    expect(stableNotes).toContain('with a phone linked for chat apps, every tool on "Always allow"; without one, all but "Run a confirmed change".');
-    // Codex in the desktop app; stale copies flagged and moved (fix/codex-app-guidance).
-    expect(stableNotes).toContain("**Setup finds Codex in the ChatGPT desktop app too.**");
-    expect(stableNotes).toContain("Doctor flags an older HA NOVA copy that Codex would load; setup updates it, or moves HA NOVA's own old copies to a backup.");
-    // HACS and dashboard resources take the typed confirmation (#864, maintainer decision 3).
-    expect(stableNotes).toMatch(/## What To Watch\s+- \*\*HACS installs and updates, and dashboard resources, now take your own confirmation, like a delete\.\*\*/);
-    expect(stableNotes).toContain("**Camera sign-in tokens stay hidden from the AI.**");
-    expect(stableNotes).toContain("**A leftover Home Assistant Link is explained.**");
-    expect(stableNotes).toContain("**Setup says which Claude gets HA NOVA.** Claude Code is the claude command and the Code tab in Claude Desktop.");
-    // Windows installs without an AI app go on to setup (#936); the no-app screen and WinGet's Claude Code (#939).
-    expect(stableNotes).toContain("**Windows: setup no longer needs an AI app first.**");
-    expect(readme).not.toContain("run `ha-nova setup` after the install");
-    expect(stableNotes).toContain("**Setup explains the owner sign-in.** The owner connects each computer once");
-    // Every claude call has a deadline (#911); the update to 0.28.0 still runs the old binary's sync, so only later updates.
-    expect(stableNotes).toContain("**A stuck Claude Code no longer hangs setup, doctor, or later updates.**");
-    expect(stableNotes).toContain("**Disabling or enabling a lock's device is refused.**");
-    // Household levels for chat apps (#900 and the NOVA page's list).
-    expect(stableNotes).toContain("**Chat apps for everyone in your home.**");
-    // Each person's phone, and moving or stopping a chat-app phone (#894, #897, #902).
-    expect(stableNotes).toContain("**In chat apps, each person confirms on their own phone.**");
-    // Confirmations in Home Assistant's language (#890, #898, #901), batch confirmation (#896), everyday lines (#899).
-    expect(stableNotes).toContain("**Confirmations in your home's language.**");
-    expect(stableNotes).toContain("**One confirmation for up to 20 automation and script changes.**");
-    // Media controls, small volume changes, to-do adds and a room's lights run without asking (#933).
-    expect(stableNotes).toContain("**Fewer questions for everyday things.**");
-    expect(stableNotes).toContain("**Clearer confirmations for technical requests.**");
-    // Answered on the computer, the phone's question goes away (#891); setup asks whose phone (#893).
-    expect(stableNotes).toContain("**Answered on the computer, the phone's question disappears.**");
-    // Chat-app applies run as jobs (#921); the phone lookup gets its own read budget (#920); the local adapter gets the jobs in a later update (#919).
-    expect(stableNotes).toContain("**Big changes in chat apps no longer time out.**");
-    expect(stableNotes).toContain("**The linked phone asks in big homes too.**");
-    // Scene saves keep their members and HA NOVA can't stop its own App (#931); passwords go into Home Assistant (#932).
-    expect(stableNotes).toContain("**Saving a scene keeps its other lights and devices.**");
-    expect(stableNotes).toMatch(/## What To Watch[\s\S]*- \*\*Passwords for setups and repairs go into Home Assistant, not the AI\.\*\*[\s\S]*## Bug Fixes/);
-    expect(stableNotes).toMatch(/## What To Watch[\s\S]*- \*\*HA NOVA no longer stops or restarts its own App\.\*\*[\s\S]*## Bug Fixes/);
-    expect(stableNotes).toMatch(/## What To Watch[\s\S]*- \*\*Another AI app on this computer may give up on a big change\.\*\*[\s\S]*## Bug Fixes/);
-    expect(stableNotes).toContain("**Setup asks whose phone should confirm on this computer.**");
-    expect(stableNotes).not.toContain("Setup proposes your own phone");
-    // App 0.13.17 carries the 0.28.1 chat bridge; its tools changed, so ChatGPT needs a Refresh and Claude asks once more,
-    // and "Always allow" keeps its phone condition there too (0.28 review).
+    expect(stableNotes).not.toContain("## New Features");
+    expect(stableNotes).toMatch(/## Bug Fixes\s+- \*\*Works with Home Assistant 2026\.11's Marketplace\.\*\*/);
+    // Marketplace installs and updates stay in Home Assistant's UI (skills/hacs/hacs-commands.md, Marketplace mode).
+    expect(stableNotes).toContain("it shows what's installed and the steps in Home Assistant for the rest.");
+    // Typed actions take the person's own confirmation: window, phone, or code, whichever applies.
+    expect(stableNotes).not.toContain("one-time code");
+    // App 0.13.19 keeps the 0.28.0 tool text (TestMCPToolTextStable), so ChatGPT needs no Refresh and Claude doesn't ask again.
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
-    expect(stableNotes).toContain("Then in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh.");
-    expect(stableNotes).toContain('Claude asks once more before HA NOVA\'s tools: set them again as the NOVA page says. With a phone linked for chat apps, every tool on "Always allow"; without one, all but "Run a confirmed change".');
-    expect(stableNotes).not.toContain('set them to "Always allow" again');
-    // HA UI parity (#873, #875-#877), Supervisor Apps and logs (#883), "Your setup" (#879), Claude Desktop alone (#878), 0.28 review fixes (#885).
-    expect(stableNotes).toContain("**More of Home Assistant's settings.**");
-    expect(stableNotes).toContain("**Apps and their logs, on HA OS.**");
-    expect(stableNotes).toContain("not through Home Assistant Link.");
-    expect(stableNotes).toContain('**"Your setup" when you run setup again.**');
-    expect(stableNotes).toContain("**The NOVA Relay App asks for more Supervisor access.**");
-    expect(stableNotes).toContain("**Moving a device with a lock to another room takes your own confirmation.**");
-    expect(stableNotes).toContain("On a Mac, Claude Desktop alone is enough once its Code tab was opened.");
-    expect(readme).toContain('**Run setup again any time.** "Your setup" then shows what is done');
-    expect(stableNotes).not.toContain("which this release doesn't change");
+    expect(stableNotes).not.toContain("chatgpt.com/plugins");
+    expect(stableNotes).not.toContain("Claude asks once more");
+    // A series that loses dates takes the delete code (#954); a reorder goes alone (#940).
+    expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Shortening a repeating calendar event takes your own confirmation, like a delete\.\*\*/);
+    expect(stableNotes).toMatch(/## What To Watch[\s\S]*- \*\*A shopping-list reorder goes on its own\.\*\*[\s\S]*## Bug Fixes/);
+    // Link confirmations (#944, #947), cut impact checks (#951, #952), helper lists (#943, #948), passwords (#941, #949, #958), calendar previews (#945), Go 1.26.10 (#953).
+    expect(stableNotes).toContain("**Confirmations over Home Assistant Link no longer give up after 5 s.**");
+    expect(stableNotes).toContain("**Changes to an automation many others react to go through.**");
+    // Only a failure that sent nothing says nothing changed (CONFIRMED_NOT_SENT); a cut check keeps its known limit.
+    expect(stableNotes).toContain("When a change you confirmed never reached Home Assistant, HA NOVA now says so: nothing changed.");
+    expect(stableNotes).toContain("A change in what the preview checked still needs a new one.");
+    expect(stableNotes).toContain("**Changing a dropdown helper or a schedule keeps its other options and times.**");
+    expect(stableNotes).toContain("**Passwords stay out of App settings and saved web addresses.**");
+    expect(stableNotes).toContain("**Calendar previews describe repeating events correctly.**");
+    expect(stableNotes).toContain("**Security updates.** HA NOVA and the chat-app part of the NOVA App are built with Go 1.26.10");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
-    expect(stableNotes).not.toContain("Cloud Remote is back on Windows and Linux");
+  });
+
+  it("keeps the README aligned to the shipped stack", () => {
+    expect(readme).not.toContain("run `ha-nova setup` after the install");
+    expect(readme).toContain('**Run setup again any time.** "Your setup" then shows what is done');
     expect(readme).toContain("clear everyday actions run right away, like \"turn off the kitchen light\", switching a room's lights");
     expect(readme).toContain("Up to 20 automation and script changes and deletes can share one confirmation");
     expect(readme).toContain("Answered on the phone, the phone shows the result; answered on the computer, HA NOVA withdraws the phone's question.");
