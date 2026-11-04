@@ -4,6 +4,21 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.17] - 2026-11-03
+
+### Fixed
+- Chat apps: a change to an automation that many other automations react to no longer fails with "something changed since the preview" every time. HA NOVA checks what the change sets off much faster, and a check that still had to stop early is no longer mistaken for a change in your home. A real change since the preview still means a new preview. This applies to every HA NOVA caller, chat apps and computers alike.
+- Home Assistant 2026.11 builds HACS in as the Marketplace. Chat apps no longer say HACS is missing there, and an install from the Marketplace asks for your one-time code, like one from HACS.
+- Changing a repeating calendar event so it keeps fewer dates asks for your one-time code, like a delete: Home Assistant can then remove more dates than the change names. This applies to chat apps with this App and to computers with HA NOVA 0.28.1.
+- HA NOVA refuses a web address with a password in it going into Home Assistant, such as its external URL or a blueprint's source address. This applies to chat apps with this App and to computers with HA NOVA 0.28.1.
+- Chat apps: a dashboard change that never reached Home Assistant stays ready to try again instead of being used up.
+
+### Security
+- The part of this App that talks to chat apps is built with Go 1.26.10, which closes known security holes in its web server, encryption and network code.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.1 ask you to update this App.
+
 ## [Relay 0.13.16] - 2026-11-03
 
 ### Fixed
