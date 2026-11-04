@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"path"
@@ -367,19 +366,6 @@ func sendTransportError(s *relaySession, endpoint string, err error) error {
 		return errors.New(relayConnectErrorMessage(s.transport.BaseURL, err))
 	}
 	return relayUnreachableError(relayConnectErrorMessage(s.transport.BaseURL, err))
-}
-
-// readNoRelayAnswer: a session read that got no answer from the Relay (R4).
-// On the local route that is any failure without an HTTP answer but a
-// timeout or an identity failure: a port forward with a small accept backlog
-// (a VM's NAT) refuses or drops some of a session's parallel connections.
-func readNoRelayAnswer(via relayVia, err error) bool {
-	if via == relayViaCloud {
-		return linkNoRelayAnswer(err)
-	}
-	var netErr net.Error
-	return !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) &&
-		!(errors.As(err, &netErr) && netErr.Timeout()) && !relayIdentityFailure(err)
 }
 
 // relayIdentityFailure: something answered, but not as the pinned TLS Relay

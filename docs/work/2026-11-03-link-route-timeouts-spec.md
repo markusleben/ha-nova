@@ -45,7 +45,7 @@ Never retried:
 - a write (service call, config save or delete, dashboard or area write, snapshot save, phone notification) once its connection opened;
 - anything that got an answer from the Relay;
 - any authentication, identity (Relay instance, Home Assistant user), redirect, protocol, subscription, or secure-storage failure;
-- anything else on the local route (unchanged). R4 covers local session reads since 0.28.1: a port forward with a small accept backlog (a VM's NAT) refused some of the read-ahead's parallel connections, and each refused read made an ordinary call ask; a local timeout or a wrong Relay identity is still final.
+- anything else on the local route (unchanged). R4 covers local session reads since 0.28.1, but only a connection that was refused, reset, or closed before the Relay answered: a port forward with a small accept backlog (a VM's NAT) refused some of the read-ahead's parallel connections, and each refused read made an ordinary call ask. A local timeout or any TLS failure (an alert, a bad certificate, a wrong pin) stays final.
 
 A TLS verification failure counts as a connection that never opened, so R1–R3 may repeat it once; every attempt verifies before anything is sent.
 
@@ -83,7 +83,7 @@ This narrows the 2026-07-25 non-goal "No automatic retry after a functional requ
 - Login fails once (network), then succeeds: one command, two logins, success. Authentication and identity failures are not retried.
 - Local unreachable, then Link: a second automatic selection within 2 minutes skips the preflight; another Relay instance or a far end time is probed again. When Link fails on a remembered route, the local Relay is probed in the same command and used when it is back.
 - `relay ws|core` gets its full request time after a slow route choice; `trace latest` chooses its route once.
-- A write whose request was sent is never retried. A write whose connection never opened is sent once. A session read goes once more only without an answer from the Relay; a local read never.
+- A write whose request was sent is never retried. A write whose connection never opened is sent once. A session read goes once more only without an answer from the Relay; on the local route only after a refused, reset, or dropped connection, never after a timeout or a TLS failure.
 - A refused WebSocket upgrade is not retried; a 504 from Link counts as no answer; the WebSocket closes without waiting for a silent peer; uninstall lists the route file.
 - Guards that pass on base too: a security failure, a shortened probe, or a probe that connected remembers nothing; the caller's own deadline keeps the route; cleanup still uses a healthy local Relay; a rejected grant is final.
 

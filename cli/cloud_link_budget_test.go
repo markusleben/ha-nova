@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httptrace"
+	"os"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -221,13 +222,15 @@ func TestCloudIngressRetriesOnlyWhatCannotHaveReachedTheRelay(t *testing.T) {
 	}
 }
 
-// R4: a session read that got no answer goes once more, over Link and on the
-// local route; a write, a redirect, an answer, a timeout, or a wrong Relay
-// identity never does.
+// R4: a session read that got no answer goes once more: over Link, and on the
+// local route when its connection was refused, reset, or closed before the
+// answer; a write, a redirect, an answer, a timeout, or a TLS failure never does.
 func TestRelaySessionRetriesOnlyReadsWithoutAnAnswer(t *testing.T) {
 	shortLinkRetryPause(t)
 	lost := newCloudError(CloudErrOutcomeUnknown, "dispatch Cloud Relay request", errors.New("connection reset"))
 	redirected := newCloudHTTPError(CloudErrOutcomeUnknown, "dispatch Cloud Relay request", http.StatusFound, false)
+	refused := &net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED}
+	reset := &net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET}
 	for name, testCase := range map[string]struct {
 		via       relayVia
 		firstErr  error
@@ -240,11 +243,15 @@ func TestRelaySessionRetriesOnlyReadsWithoutAnAnswer(t *testing.T) {
 		"Link read Link answered 502":      {via: relayViaCloud, firstErr: &CloudError{Code: CloudErrOutcomeUnknown, Op: "dispatch Cloud Relay request", StatusCode: http.StatusBadGateway, gatewayFailed: true}, wantCalls: 2},
 		"Link read the Relay answered 500": {via: relayViaCloud, firstErr: newCloudHTTPError(CloudErrOutcomeUnknown, "dispatch Cloud Relay request", http.StatusInternalServerError, false), wantCalls: 1, wantErr: true},
 		"Link read redirected":             {via: relayViaCloud, firstErr: redirected, wantCalls: 1, wantErr: true},
-		"local read without an answer":     {via: relayViaLocal, firstErr: syscall.ECONNRESET, wantCalls: 2},
-		"local read refused":               {via: relayViaLocal, firstErr: &net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED}, wantCalls: 2},
-		"local write without an answer":    {via: relayViaLocal, firstErr: syscall.ECONNRESET, write: true, wantCalls: 1, wantErr: true},
+		"local read refused":               {via: relayViaLocal, firstErr: refused, wantCalls: 2},
+		"local read reset":                 {via: relayViaLocal, firstErr: reset, wantCalls: 2},
+		"local read closed before answer":  {via: relayViaLocal, firstErr: io.EOF, wantCalls: 2},
+		"local write reset":                {via: relayViaLocal, firstErr: reset, write: true, wantCalls: 1, wantErr: true},
 		"local read timed out":             {via: relayViaLocal, firstErr: context.DeadlineExceeded, wantCalls: 1, wantErr: true},
+		"local dial timed out":             {via: relayViaLocal, firstErr: &net.OpError{Op: "dial", Net: "tcp", Err: os.ErrDeadlineExceeded}, wantCalls: 1, wantErr: true},
 		"local read wrong Relay identity":  {via: relayViaLocal, firstErr: errPinMismatch, wantCalls: 1, wantErr: true},
+		"local read malformed certificate": {via: relayViaLocal, firstErr: errors.New("tls: failed to parse certificate from server: x509: malformed certificate"), wantCalls: 1, wantErr: true},
+		"local read TLS alert":             {via: relayViaLocal, firstErr: &net.OpError{Op: "remote error", Err: errors.New("tls: bad certificate")}, wantCalls: 1, wantErr: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var calls atomic.Int32
