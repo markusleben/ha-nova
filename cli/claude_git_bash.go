@@ -21,9 +21,10 @@ var (
 )
 
 // claudeGitBashMissing: on Windows, no Git Bash where Claude Code looks for
-// one: CLAUDE_CODE_GIT_BASH_PATH (environment, or Claude Code's
-// settings.json env), next to git on PATH, or Git for Windows' default
-// folders. Elsewhere, never.
+// one: CLAUDE_CODE_GIT_BASH_PATH (environment, or the env of the active
+// Claude Code profile's settings.json), the Git for Windows that git on PATH belongs to
+// (Git\cmd, Git\bin, Git\mingw64\bin), or its default folders.
+// Elsewhere, never.
 func claudeGitBashMissing(home string) bool {
 	if claudeGitBashPlatformOS != "windows" {
 		return false
@@ -32,7 +33,7 @@ func claudeGitBashMissing(home string) bool {
 	var settings struct {
 		Env map[string]string `json:"env"`
 	}
-	if data, err := os.ReadFile(filepath.Join(home, ".claude", "settings.json")); err == nil && json.Unmarshal(data, &settings) == nil {
+	if data, err := os.ReadFile(filepath.Join(claudeConfigRoot(home), "settings.json")); err == nil && json.Unmarshal(data, &settings) == nil {
 		candidates = append(candidates, settings.Env["CLAUDE_CODE_GIT_BASH_PATH"])
 	}
 	if git, err := claudeGitBashLookGit("git"); err == nil {
@@ -52,11 +53,19 @@ func claudeGitBashMissing(home string) bool {
 	return true
 }
 
+// gitForWindowsURL: where Git for Windows comes from.
+const gitForWindowsURL = "https://git-scm.com/downloads/win"
+
+// claudeGitBashMissingHere: claudeGitBashMissing for this user.
+func claudeGitBashMissingHere() bool {
+	home, err := os.UserHomeDir()
+	return err == nil && claudeGitBashMissing(home)
+}
+
 // claudeGitBashLine: what to install, when Git Bash is missing; else "".
 func claudeGitBashLine() string {
-	home, err := os.UserHomeDir()
-	if err != nil || !claudeGitBashMissing(home) {
+	if !claudeGitBashMissingHere() {
 		return ""
 	}
-	return setupT("setup.claude.git_bash_missing", "url", "https://git-scm.com/downloads/win")
+	return setupT("setup.claude.git_bash_missing", "url", gitForWindowsURL)
 }

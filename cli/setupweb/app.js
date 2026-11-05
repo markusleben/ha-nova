@@ -130,7 +130,8 @@
   // Where setup says it got HA NOVA: which Claude "Claude Code" is (with the chat apps guide), and where "Codex" works.
   const codexWhere = (clients) => ((clients || []).includes('Codex') ? el('p', { class: 'fine', id: 'codex-where' }, t(state.codex_where || 'setup.codex.where')) : null);
   const claudeWhere = (clients) => ((clients || []).includes('Claude Code') ? el('p', { class: 'fine', id: 'claude-where' }, `${t('setup.claude.where')} `,
-    el('a', { id: 'l-chat-guide', class: 'linkish', href: downloads.chat_guide, target: '_blank', rel: 'noopener noreferrer' }, t('setup.page.link.chat_guide'))) : null);
+    el('a', { id: 'l-chat-guide', class: 'linkish', href: downloads.chat_guide, target: '_blank', rel: 'noopener noreferrer' }, t('setup.page.link.chat_guide')),
+    state.claude_git_bash ? el('span', { id: 'claude-git-bash' }, ` ${t('setup.claude.git_bash_missing', { url: 'https://git-scm.com/downloads/win' })}`) : null) : null);
   const head = (eyebrow, title, lead, amber) => [
     el('p', { class: amber ? 'eyebrow amber' : 'eyebrow' }, eyebrow),
     el('h1', { tabindex: '-1' }, title),

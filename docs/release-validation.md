@@ -106,7 +106,7 @@ This is the release-bound Windows UX proof. It is separate from `npm run verify`
 
 Prerequisites for this lane:
 - on `clean` / fresh-profile runs, preinstall at least one supported client and verify it already runs from the same local shell
-- native Windows Claude also needs Git for Windows / Git Bash
+- native Windows Claude also needs Git for Windows / Git Bash, for HA NOVA's session hook (Claude Code itself runs without it)
 - native Windows Google Antigravity must provide either a standard per-user Desktop install (`%LOCALAPPDATA%\Programs\antigravity\Antigravity.exe` or `%LOCALAPPDATA%\Programs\Antigravity\Antigravity.exe`) or CLI (`agy`)
 - for this native Windows lane, counted ready clients are Claude Code with Git Bash, Google Antigravity Desktop/CLI, Codex CLI, and OpenCode; Hermes does not count on native Windows
 

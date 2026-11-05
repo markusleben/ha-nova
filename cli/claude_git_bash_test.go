@@ -47,6 +47,22 @@ func TestClaudeGitBashFoundWhereClaudeCodeLooks(t *testing.T) {
 				t.Fatal(err)
 			}
 		}},
+		{name: "the active profile's settings.json (CLAUDE_CONFIG_DIR)", os: "windows", setup: func(t *testing.T, home string) {
+			profile := t.TempDir()
+			t.Setenv("CLAUDE_CONFIG_DIR", profile)
+			if err := os.WriteFile(filepath.Join(profile, "settings.json"), []byte(`{"env":{"CLAUDE_CODE_GIT_BASH_PATH":"`+bash(t, "bash.exe")+`"}}`), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "the default profile's settings.json while another profile is active", os: "windows", missing: true, setup: func(t *testing.T, home string) {
+			t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+			if err := os.MkdirAll(filepath.Join(home, ".claude"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(`{"env":{"CLAUDE_CODE_GIT_BASH_PATH":"`+bash(t, "bash.exe")+`"}}`), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}},
 		{name: "git on PATH (Git\\cmd)", os: "windows", setup: func(t *testing.T, _ string) {
 			root := filepath.Dir(filepath.Dir(bash(t, "Git", "bin", "bash.exe")))
 			claudeGitBashLookGit = func(string) (string, error) { return filepath.Join(root, "cmd", "git.exe"), nil }
@@ -61,7 +77,7 @@ func TestClaudeGitBashFoundWhereClaudeCodeLooks(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			claudeGitBashPlatformOS = tc.os
 			claudeGitBashLookGit = func(string) (string, error) { return "", errors.New("not found") }
-			for _, key := range []string{"CLAUDE_CODE_GIT_BASH_PATH", "ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"} {
+			for _, key := range []string{"CLAUDE_CODE_GIT_BASH_PATH", "CLAUDE_CONFIG_DIR", "ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"} {
 				t.Setenv(key, "")
 			}
 			home := t.TempDir()
