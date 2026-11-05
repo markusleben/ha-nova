@@ -20,6 +20,8 @@ type actionGoal struct {
 	frame string            // what the names are ("script", "automation", "dashboard", "zigbee", "app", "device"); "" = the names alone
 	args  map[string]string // a verb's other placeholders, rendered in the plan's language (goal.zigbee_permit: duration)
 	names []string          // each sayText-quoted, or Home Assistant itself
+	items []string          // the to-do items a todo_remove or todo_update names by summary, each sayText-quoted
+	more  int               // and how many more it removes or changes: unnamed ones, or the ones a cut title counts
 	why   string            // a typed plan's reasons the title doesn't say (sayAsk), for the phone
 	whole string            // a batch's question as one goal (batchPhoneGoal); verb, label, and names stay empty
 }
@@ -188,9 +190,9 @@ func (g actionGoal) phrase(lang, object string) string {
 	case "device_delete_children":
 		return confirmT(lang, "goal.device_delete_children", "object", object, "children", g.args["children"], "entities", g.args["entities"])
 	case "todo_remove":
-		return confirmT(lang, "goal.todo_remove", "items", g.args["items"], "object", object)
+		return confirmT(lang, "goal.todo_remove", "items", g.itemList(lang), "object", object)
 	case "todo_update":
-		return confirmT(lang, "goal.todo_update", "items", g.args["items"], "object", object)
+		return confirmT(lang, "goal.todo_update", "items", g.itemList(lang), "object", object)
 	}
 	panic("confirm goal: unknown verb " + g.verb)
 }
@@ -226,6 +228,12 @@ func (g actionGoal) title(lang, prefix string) string {
 		title := line(sayList(lang, g.names))
 		if len([]rune(title)) <= limit || len(g.names) == 0 {
 			return title
+		}
+		if len(g.items) > 0 { // to-do items first: the first one, cut, and how many more
+			if first := phoneCut(g.items[0], phoneNameRoom*3); len(g.items) > 1 || first != g.items[0] {
+				g.items, g.more = []string{first}, g.more+len(g.items)-1
+				continue
+			}
 		}
 		room := limit - len([]rune(line(first(""))))
 		if room >= phoneNameRoom || g.frame == "" {

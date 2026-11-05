@@ -22,6 +22,10 @@ func TestTodoItemConfirmationNamesTheItem(t *testing.T) {
 			want: "I'm about to remove “Milk” and “Eggs” from “Shopping list”."},
 		{name: "a uid the list doesn't hold", args: []string{"todo.remove_item", "--set", "item=0000"},
 			want: "I'm about to remove an item from “Shopping list”."},
+		{name: "two uids the list doesn't hold", args: []string{"todo.remove_item", "--set", "item=[\"0000\",\"1111\"]"},
+			want: "I'm about to remove an item and 1 more from “Shopping list”."},
+		{name: "a named item and one the list doesn't hold", args: []string{"todo.remove_item", "--set", "item=[\"79d4a1\",\"0000\"]"},
+			want: "I'm about to remove “Milk” and 1 more from “Shopping list”."},
 		{name: "a list that can't be read", failList: true, args: []string{"todo.remove_item", "--set", "item=79d4a1"},
 			want: "I'm about to remove an item from “Shopping list”."},
 		{name: "check off by uid", listener: true, args: []string{"todo.update_item", "--set", "item=79d4a1", "--set", "status=completed"},
@@ -89,5 +93,19 @@ func TestTodoItemNameStaysWithThePlan(t *testing.T) {
 	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
 	if exit != 0 || len(w.messages) != 1 || !strings.Contains(w.messages[0], "change “Milk” on “Shopping list”") || strings.Contains(w.messages[0], "79d4") {
 		t.Fatalf("apply: exit %d %+v window %q", exit, applied.Error, w.messages)
+	}
+}
+
+// The phone title keeps the list's name and counts every item: long item
+// names are cut and the rest counted, within one lock-screen line.
+func TestTodoItemPhoneTitleKeepsTheListAndTheCount(t *testing.T) {
+	long := sayText(strings.Repeat("Organic oat milk, barista edition ", 3), true)
+	goal := actionGoal{verb: "todo_remove", names: []string{"“Shopping list”"}, items: []string{long, long, long}, more: 1}
+	title := goal.title("en", "")
+	if len([]rune(title)) > phoneTitleLimit || !strings.Contains(title, "“Shopping list”") || !strings.Contains(title, "and 3 more") {
+		t.Fatalf("title %q (%d runes)", title, len([]rune(title)))
+	}
+	if short := (actionGoal{verb: "todo_remove", names: []string{"“Shopping list”"}, items: []string{"“Milk”"}}).title("en", ""); short != "Remove “Milk” from “Shopping list”?" {
+		t.Fatalf("short title %q", short)
 	}
 }
