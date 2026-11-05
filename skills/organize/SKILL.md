@@ -94,7 +94,7 @@ For a SET selected by prefix, domain, area, or label, save before previewing, an
 
 Use only exposed metadata fields:
 - entity: `name`, `new_entity_id`, `area_id`, `labels`, `categories`, `disabled_by`, `hidden_by`, `aliases`, `icon`, `device_class`, `options_domain`+`options`
-- `icon`, `device_class`, `options`, and area labels or sensors: read `display-fields.md` first
+- `name`, `name_by_user`, `icon`, `device_class`, `options`, and area labels or sensors: read `display-fields.md` first
 - device: `name_by_user`, `area_id`, `labels`, `disabled_by`
 
 Refused here: disabling or enabling a lock, alarm panel, or cover; a device with a lock, alarm panel, or access cover, or a child device with one (disabled with it); or a switch whose device has a `switch_as_x` one (registry `platform: switch_as_x`). Say so before any preview; point at **Settings > Devices & services**.
