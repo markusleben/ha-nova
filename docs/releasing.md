@@ -6,10 +6,16 @@ live in `docs/release-validation.md`.
 ## 1. Bump and Release-Prep PR
 
 ```bash
+npm run verify:drift-log
 npm run bump -- <version>
 npm run verify:next-release-version -- v<version>
 ```
 
+- every release cycle and every monthly Home Assistant release still needs
+  its own upstream drift check (AGENTS.md → Releases). `verify:drift-log`
+  only catches a forgotten one: it fails when the newest screen in
+  `docs/work/upstream-drift-log.md` is older than 35 days. Run the check,
+  append it to the log (it may ride in the release-prep PR), then rerun
 - never reuse a published stable version; never tag an RC/final whose base
   version is <= the latest published stable
 - tag version, `version.json`, `package.json`, `package-lock.json`,
