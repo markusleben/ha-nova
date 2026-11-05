@@ -170,5 +170,6 @@
   "tests/runtime/chat-apps.test.ts",
   "tests/runtime/chat-phone-control.test.ts",
   "tests/runtime/chat-apps-household.test.ts",
-  "tests/security/pairing-metadata-reserved.test.ts"
+  "tests/security/pairing-metadata-reserved.test.ts",
+  "tests/onboarding/ci-path-scope-contract.test.ts"
 ]

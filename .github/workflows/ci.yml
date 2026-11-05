@@ -17,6 +17,60 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Path scoping: which jobs this change can affect. Every scoped job below
+  # lists its areas in JOB_AREAS and runs only when one of them changed;
+  # ci-gate accepts a skipped job only when this job's run map marks it as
+  # not needed. A push to main, a merge group, a pull request into another
+  # branch, a workflow change, and any path outside the known areas run
+  # everything (scripts/ci/changed-areas.sh).
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      go: ${{ steps.areas.outputs.go }}
+      relay: ${{ steps.areas.outputs.relay }}
+      integration: ${{ steps.areas.outputs.integration }}
+      skills: ${{ steps.areas.outputs.skills }}
+      docs: ${{ steps.areas.outputs.docs }}
+      workflows: ${{ steps.areas.outputs.workflows }}
+      run: ${{ steps.areas.outputs.run }}
+    steps:
+      # A pull request checks out its merge commit: parent 1 is the base it
+      # merged into, so HEAD^1..HEAD is exactly what the PR adds to it.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Select jobs
+        id: areas
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          # The Go tests read skills/, docs/work/, and nova/version.json, and
+          # install skills from the repo, so they run for those areas too.
+          JOB_AREAS: >-
+            {
+              "go-test": ["go", "relay", "skills", "docs"],
+              "go-build": ["go"],
+              "govulncheck": ["go"],
+              "macos-native-secret-boundary": ["go"],
+              "windows-native-secret-boundary": ["go"],
+              "windows-powershell-unicode": ["go"],
+              "ha-integration": ["integration"]
+            }
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT" == pull_request && "$BASE_REF" == "$DEFAULT_BRANCH" ]] \
+            && git rev-parse --verify --quiet HEAD^2 >/dev/null; then
+            bash scripts/ci/changed-areas.sh HEAD^1 HEAD
+          else
+            bash scripts/ci/changed-areas.sh --all
+          fi
+
   repo-hygiene:
     name: repo-hygiene
     runs-on: ubuntu-latest
@@ -78,6 +132,8 @@ jobs:
   # ci-gate needs it, so the required check covers it.
   ha-integration:
     name: ha-integration
+    needs: changes
+    if: ${{ fromJSON(needs.changes.outputs.run)['ha-integration'] }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -104,6 +160,8 @@ jobs:
   # without failing. ci-gate needs it, so the required check covers it.
   govulncheck:
     name: govulncheck
+    needs: changes
+    if: ${{ fromJSON(needs.changes.outputs.run)['govulncheck'] }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -128,21 +186,13 @@ jobs:
           done
           exit "$status"
 
-  ci-gate:
-    name: ci-gate
-    needs: [test-inventory, ha-integration, govulncheck]
-    # A skipped required check counts as passed: always run, and fail here
-    # when a needed job did not succeed.
-    if: ${{ always() }}
+  # npm run verify without the Go suite. Runs for every change: it holds the
+  # skill-text, docs, and onboarding contracts and costs about 2 minutes.
+  verify:
+    name: verify
+    needs: test-inventory
     runs-on: ubuntu-latest
-
     steps:
-      - name: Require the needed jobs
-        if: ${{ needs.test-inventory.result != 'success' || needs.ha-integration.result != 'success' || needs.govulncheck.result != 'success' }}
-        run: |
-          echo "::error::test-inventory=${{ needs.test-inventory.result }} ha-integration=${{ needs.ha-integration.result }} govulncheck=${{ needs.govulncheck.result }}"
-          exit 1
-
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -186,11 +236,86 @@ jobs:
         run: npm ci
 
       - name: Verify repository
-        run: npm run verify
+        run: npm run verify:node
+
+  # The Go suite (npm run test:cli), the rest of npm run verify.
+  go-test:
+    name: go-test
+    needs: [changes, test-inventory]
+    if: ${{ fromJSON(needs.changes.outputs.run)['go-test'] }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.10"
+          cache-dependency-path: cli/go.sum
+
+      - name: Prepare Go like the verify job
+        run: |
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> "$GITHUB_ENV"
+          echo "GOCACHE=$(go env GOCACHE)" >> "$GITHUB_ENV"
+          sudo ln -sf "$(command -v go)" /usr/bin/go
+
+      - name: Install
+        run: npm ci
+
+      - name: Go tests
+        run: npm run test:cli
+
+  # The required check. A skipped required check counts as passed, so this
+  # always runs and fails unless the changes job succeeded and every needed
+  # job succeeded; a job may be skipped only when the run map from changes
+  # marks it false. Anything unexpected fails.
+  ci-gate:
+    name: ci-gate
+    needs: [changes, test-inventory, verify, go-test, ha-integration, govulncheck]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Require the needed jobs
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          problems="$(jq -r '
+            .changes.result as $changes
+            | if $changes != "success" then "changes: \($changes)"
+              else (.changes.outputs.run | fromjson) as $run
+                | if ($run | type) != "object" then error("run map is not an object") else . end
+                | to_entries[]
+                | select(.key != "changes")
+                | .key as $job | .value.result as $result
+                | if $run[$job] == false then
+                    (if $result == "skipped" or $result == "success" then empty
+                     else "\($job): \($result) (not needed)" end)
+                  elif $result == "success" then empty
+                  else "\($job): \($result)" end
+              end
+          ' <<<"$NEEDS")"
+          jq -r 'to_entries[] | "\(.key)=\(.value.result)"' <<<"$NEEDS"
+          if [[ -n "$problems" ]]; then
+            while IFS= read -r line; do echo "::error::$line"; done <<<"$problems"
+            exit 1
+          fi
 
   go-build:
     name: go-build
-    needs: test-inventory
+    needs: [changes, test-inventory]
+    if: ${{ fromJSON(needs.changes.outputs.run)['go-build'] }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -219,7 +344,8 @@ jobs:
 
   macos-native-secret-boundary:
     name: macos-native-secret-boundary
-    needs: test-inventory
+    needs: [changes, test-inventory]
+    if: ${{ fromJSON(needs.changes.outputs.run)['macos-native-secret-boundary'] }}
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -265,7 +391,8 @@ jobs:
 
   windows-native-secret-boundary:
     name: windows-native-secret-boundary
-    needs: test-inventory
+    needs: [changes, test-inventory]
+    if: ${{ fromJSON(needs.changes.outputs.run)['windows-native-secret-boundary'] }}
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -291,7 +418,8 @@ jobs:
 
   windows-powershell-unicode:
     name: windows-powershell-unicode
-    needs: test-inventory
+    needs: [changes, test-inventory]
+    if: ${{ fromJSON(needs.changes.outputs.run)['windows-powershell-unicode'] }}
     runs-on: windows-latest
     steps:
       - name: Checkout
