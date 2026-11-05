@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,7 +32,7 @@ func claudeGitBashMissing(home string) bool {
 	var settings struct {
 		Env map[string]string `json:"env"`
 	}
-	if data, err := os.ReadFile(filepath.Join(claudeConfigRoot(home), "settings.json")); err == nil && json.Unmarshal(data, &settings) == nil {
+	if data, err := os.ReadFile(filepath.Join(claudeConfigRoot(home), "settings.json")); err == nil && unmarshalClaudeJSON(data, &settings) == nil { // a leading BOM too
 		candidates = append(candidates, settings.Env["CLAUDE_CODE_GIT_BASH_PATH"])
 	}
 	if git, err := claudeGitBashLookGit("git"); err == nil {
