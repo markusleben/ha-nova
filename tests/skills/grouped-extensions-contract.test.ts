@@ -191,6 +191,12 @@ describe("cross-family destructive cleanup (issue #583)", () => {
     expect(flat(read("skills/helper/SKILL.md"))).toContain(
       "removing a retired device's entities FROM a config-entry group helper as one item of such a cleanup",
     );
+    // An options flow and a dashboard save can't ride the manifest's raw plan:
+    // each keeps its own ask, runs first, and the card counts the asks.
+    expect(flat(read("skills/helper/SKILL.md"))).toContain("the group-member removal keeps this skill's own preview, ask, and drift check, and goes first");
+    expect(flat(read("skills/ha-nova/grouped-change-set.md"))).toContain(
+      "a dashboard card removal, and a group-member removal (an options flow) keep their own plans and asks; as dependents, they are applied first, and the manifest card says how many asks follow",
+    );
   });
   it("orders dependents before the anchor in cleanup manifests", () => {
     expect(flat(read("skills/ha-nova/grouped-change-set.md"))).toContain(

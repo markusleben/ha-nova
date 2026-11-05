@@ -48,6 +48,9 @@ describe("energy contract", () => {
     // Every save is a plan item: the CLI rates it, and its `say` is the one ask.
     expect(energySkill).toContain("The save is one `ha-nova plan raw --file <requests.json>` item");
     expect(energySkill).not.toContain("Then WS `energy/save_prefs`");
+    // A window or phone plan asks at apply, so the turn must not end before it.
+    expect(energySkill).toContain("item; its `say` asks");
+    expect(energySkill).not.toContain("end the turn with this preview and its `say`");
     // The plausible wrong payload guess is echoing get_prefs back.
     expect(energyReference).toContain("Never echo the whole `get_prefs` object back as the save body");
     expect(energyReference).toContain('{"type":"energy/save_prefs","device_consumption"');

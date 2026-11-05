@@ -190,7 +190,9 @@ of one code per family.
   gate), and a deterministic execution order that deletes DEPENDENTS before their anchor (the consumers of a helper before the helper itself): fail-fast then never leaves a surviving consumer referencing an already-deleted target.
 - ONE one-time code belongs to that exact manifest: the ask of one plan raw
   holding its raw requests (batch-safety's rule). An automation or script
-  delete keeps its own CLI plan and ask; as a dependent, it is applied first. Any change to any operation, target, payload,
+  delete, a dashboard card removal, and a group-member removal (an options
+  flow) keep their own plans and asks; as dependents, they are applied first,
+  and the manifest card says how many asks follow. Any change to any operation, target, payload,
   impact result, or order — or an expired confirmation — invalidates it; show
   a new preview with a new manifest and a new code.
 - Execute sequentially through the owning skills; every operation keeps its
