@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -38,30 +39,17 @@ func TestClaudeGitBashFoundWhereClaudeCodeLooks(t *testing.T) {
 		{name: "a CLAUDE_CODE_GIT_BASH_PATH that isn't there", os: "windows", missing: true, setup: func(t *testing.T, _ string) {
 			t.Setenv("CLAUDE_CODE_GIT_BASH_PATH", filepath.Join(t.TempDir(), "bash.exe"))
 		}},
-		{name: "Claude Code's settings.json", os: "windows", setup: func(t *testing.T, home string) {
-			path := strings.ReplaceAll(bash(t, "Git", "bin", "bash.exe"), "\\", "\\\\")
-			if err := os.MkdirAll(filepath.Join(home, ".claude"), 0o755); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(`{"env":{"CLAUDE_CODE_GIT_BASH_PATH":"`+path+`"}}`), 0o644); err != nil {
-				t.Fatal(err)
-			}
+		{name: "Claude Code's settings.json, with a BOM", os: "windows", setup: func(t *testing.T, home string) {
+			writeClaudeGitBashSettings(t, filepath.Join(home, ".claude"), bash(t, "Git", "bin", "bash.exe"), true)
 		}},
 		{name: "the active profile's settings.json (CLAUDE_CONFIG_DIR)", os: "windows", setup: func(t *testing.T, home string) {
 			profile := t.TempDir()
 			t.Setenv("CLAUDE_CONFIG_DIR", profile)
-			if err := os.WriteFile(filepath.Join(profile, "settings.json"), []byte(`{"env":{"CLAUDE_CODE_GIT_BASH_PATH":"`+bash(t, "bash.exe")+`"}}`), 0o644); err != nil {
-				t.Fatal(err)
-			}
+			writeClaudeGitBashSettings(t, profile, bash(t, "bash.exe"), false)
 		}},
 		{name: "the default profile's settings.json while another profile is active", os: "windows", missing: true, setup: func(t *testing.T, home string) {
 			t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
-			if err := os.MkdirAll(filepath.Join(home, ".claude"), 0o755); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(`{"env":{"CLAUDE_CODE_GIT_BASH_PATH":"`+bash(t, "bash.exe")+`"}}`), 0o644); err != nil {
-				t.Fatal(err)
-			}
+			writeClaudeGitBashSettings(t, filepath.Join(home, ".claude"), bash(t, "bash.exe"), false)
 		}},
 		{name: "git on PATH (Git\\cmd)", os: "windows", setup: func(t *testing.T, _ string) {
 			root := filepath.Dir(filepath.Dir(bash(t, "Git", "bin", "bash.exe")))
@@ -112,5 +100,24 @@ func TestClaudeGitBashLineSaysWhatToInstall(t *testing.T) {
 	renderSetupCompleteBanner(out, []string{"claude"}, nil)
 	if strings.Contains(out.String(), "Git for Windows") {
 		t.Fatalf("banner on macOS:\n%s", out)
+	}
+}
+
+// writeClaudeGitBashSettings writes dir/settings.json naming bash (any
+// path separator), with a leading UTF-8 BOM when bom.
+func writeClaudeGitBashSettings(t *testing.T, dir, bash string, bom bool) {
+	t.Helper()
+	data, err := json.Marshal(map[string]any{"env": map[string]string{"CLAUDE_CODE_GIT_BASH_PATH": bash}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bom {
+		data = append([]byte("\ufeff"), data...)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "settings.json"), data, 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
