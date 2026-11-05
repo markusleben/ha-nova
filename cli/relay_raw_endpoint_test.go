@@ -12,11 +12,30 @@ import (
 	"testing"
 )
 
+// nothingListens answers a read of the listener check (#946) as empty:
+// no automation listens, and no person, tracker, or zone has a position.
+func nothingListens(w http.ResponseWriter, path string, body map[string]any) bool {
+	raw, _ := json.Marshal(body)
+	if !rawRelayRead(strings.TrimPrefix(path, "/"), raw) {
+		return false
+	}
+	switch {
+	case path == "/ws":
+		_, _ = fmt.Fprint(w, `{"ok":true,"data":{}}`)
+	case body["path"] == "/api/states":
+		_, _ = fmt.Fprint(w, `{"ok":true,"data":{"status":200,"body":[]}}`)
+	default:
+		_, _ = fmt.Fprint(w, `{"ok":true,"data":{"status":200,"body":{}}}`)
+	}
+	return true
+}
+
 // rawGuardRelay is a Relay that answers the guard's registry and state
 // reads from registry() and classes (a cover with no class has no state, as
 // a disabled one; its registry entry then answers with stored[id]; the
-// device registry has no child devices), and counts the registry reads and
-// every request it forwards.
+// device registry has no child devices), answers every other read as
+// empty (nothing listens, #946), and counts the registry reads and every
+// write it forwards.
 func rawGuardRelay(t *testing.T, registry func() string, classes, stored map[string]string) (paths runtimePaths, forwarded, registryReads *atomic.Int32) {
 	t.Helper()
 	home := t.TempDir()
@@ -49,6 +68,9 @@ func rawGuardRelay(t *testing.T, registry func() string, classes, stored map[str
 		if body["type"] == "config/entity_registry/list" {
 			registryReads.Add(1)
 			_, _ = fmt.Fprintf(w, `{"ok":true,"data":%s}`, registry())
+			return
+		}
+		if nothingListens(w, r.URL.Path, body) {
 			return
 		}
 		forwarded.Add(1)

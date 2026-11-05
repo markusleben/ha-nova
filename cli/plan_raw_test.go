@@ -38,6 +38,8 @@ func rawRelay(t *testing.T, handlers map[string]func(map[string]any) any) (paths
 		switch {
 		case key == "config/entity_registry/list":
 			return []any{}
+		case key == "GET /api/states":
+			return map[string]any{"status": 200, "body": []any{}}
 		case strings.HasPrefix(key, "GET /api/states/"):
 			return map[string]any{"status": 404, "body": map[string]any{"message": "Entity not found."}}
 		case endpoint == "ws":

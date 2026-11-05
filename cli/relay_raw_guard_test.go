@@ -333,6 +333,9 @@ func TestRawRelayRefusesAccessTargetRemoval(t *testing.T) {
 			_, _ = fmt.Fprint(w, `{"ok":true,"data":[{"entity_id":"lock.garden_gate","config_entry_id":"SWX1"},{"entity_id":"cover.blind","config_entry_id":"BL1"},{"entity_id":"switch.gate_relay","config_entry_id":"SW1"},{"entity_id":"button.node_7","original_name":"Factory reset"},{"entity_id":"button.doorbell"}]}`)
 			return
 		}
+		if nothingListens(w, r.URL.Path, body) {
+			return
+		}
 		forwarded.Add(1)
 		_, _ = fmt.Fprint(w, `{"ok":true,"data":{"status":200,"body":{}}}`)
 	}))

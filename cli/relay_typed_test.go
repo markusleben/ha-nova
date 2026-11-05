@@ -126,6 +126,9 @@ func TestRelayTypedReadsOnlyWhenTheTierNeedsIt(t *testing.T) {
 func TestPersonTrackersTierByTheSetTheyLeave(t *testing.T) {
 	broken := false
 	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
+		"config/entity_registry/list": func(map[string]any) any { // each person's entity (#946)
+			return []any{map[string]any{"entity_id": "person.anna", "platform": "person", "unique_id": "anna"}, map[string]any{"entity_id": "person.ben", "platform": "person", "unique_id": "ben"}}
+		},
 		"person/list": func(map[string]any) any {
 			if broken {
 				return map[string]any{"storage": "unreadable"}
