@@ -24,7 +24,7 @@ Read and follow `../ha-nova/session-bootstrap.md`. An unreachable Relay answers 
 - Scan (read-only): `ha-nova get <entity_id> --references` covers the entity's whole device. `result.references`: `device`, `entities[]` (mapping hints: `platform`, `translation_key`, `original_name`, `device_class`, `unit`, `state`, `registry_id`), `notify_service`, `hits[]` (`family`, `id`, `config_id`, `managed`, `needle`, `paths`, `template`), `scanned`, `not_scanned[]`, `not_covered[]`; `result.related` is search/related. An entity that no longer exists is scanned by its id (`resolved[0].by` = `absent`).
 - Resolve: `ha-nova find "<phrase>"`, `ha-nova get <entity_id> --config`; registry reads (`config/entity_registry/get`, `config/device_registry/list`) per `../organize/SKILL.md`.
 - Re-point: `ha-nova plan write --domain automation|script --id <config_id> --file <draft.json>`, then `ha-nova apply [--confirm <code>] --plan <id>` (`../write/SKILL.md` Phase 2-3 rules).
-- Takeover: `ha-nova relay ws --data-file <payload-file>` with `{"type":"config/entity_registry/update","entity_id":"<new id>","new_entity_id":"<old id>"}`.
+- Takeover: one `ha-nova plan raw --file <requests.json>` item `{"endpoint":"ws","payload":{"type":"config/entity_registry/update","entity_id":"<new id>","new_entity_id":"<old id>"}}`, then `ha-nova apply`.
 
 ## Hit Routing
 
@@ -42,7 +42,7 @@ Read and follow `../ha-nova/session-bootstrap.md`. An unreachable Relay answers 
 
 ## Access Check
 
-A swap can hand a door to a new device without anyone editing a lock automation: a takeover re-points every unlock, disarm, or open that names the old id, a new phone's tracker can feed the person or group an unlock waits for, and an area or label can widen what an access automation targets. Decided in the plan card, before the old device is removed, a step takes the one-time code (minted for a rename; the owning flow's typed confirmation for a hand-off) when:
+A swap can hand a door to a new device without anyone editing a lock automation: a takeover re-points every unlock, disarm, or open that names the old id, a new phone's tracker can feed the person or group an unlock waits for, and an area or label can widen what an access automation targets. Decided in the plan card, before the old device is removed, a step takes the one-time code (a rename or a hand-off's write: `"typed":true` on its `plan raw` item, beside `endpoint` and `payload`) when:
 - the entity is a lock, an alarm panel, or a cover not of class awning, blind, curtain, damper, shade, shutter, or window — or sits on a device (old or new) with one on it, its parent, or their child devices;
 - any automation/script consumer plans `typed` (a consumer the swap re-points: its re-point plan's tier; any other: plan its current config unchanged (`get --config` → `plan write --id`), read only the tier, never apply it). Consumers include one level up: the `related` automations and scripts of every `entity` hit (a person, a group);
 - a consumer's tier cannot be read (`managed: yaml` or `blueprint`, a `not_scanned` automation or script): it counts as typed.
@@ -61,7 +61,7 @@ Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome 
    - **Takeover** — smaller when the old device is gone for good and the mapped entities share a domain: remove the old device, then rename each new entity to its old entity_id. Every reference by entity_id keeps working (dashboards, energy, groups, persons, scenes, templates) and history and long-term statistics continue, because the old id's recorder rows stay. Never rename the old entity away to free the id: its history and statistics move with it, and the energy dashboard loses that source's past.
    - **Rewrite** each consumer — when the old device stays in use, a domain differs, the old entity has no registry row, or the user wants the new ids. A rewritten energy source starts its history fresh: say so.
    - Both paths rewrite device-level hits (`needle` is the device id or a `registry_id`: device triggers, conditions, actions, `device_id` targets) and the notify service. Across integrations a device trigger rarely maps 1:1: use a state trigger on the mapped entity and name the change.
-4. **Plan card** (one Report): the mapping, the path and why in one sentence, hits by route with counts, the steps in order (the old device's removal: `ha-nova:organize` or the HA UI), the Access Check result for every rename and hand-off, and coverage — `scanned` counts, every `not_scanned` row, the `not_covered` line. Never claim "everything" while either applies.
+4. **Plan card** (one Report): the mapping, the path and why in one sentence, hits by route with counts, the steps in order, the Access Check result for every rename and hand-off, and coverage — `scanned` counts, every `not_scanned` row, the `not_covered` line. Never claim "everything" while either applies.
 5. **Execute** in this order (Re-point Group below):
    a. Device-level re-points — and on the rewrite path every re-point — before anything is removed: the new ids are known now, and a removed device's ids can never be scanned again.
    b. Takeover only: remove the old device (`ha-nova:organize` or HA UI). Verify each mapped old id: `ha-nova get <old id>` exits 5 `NOT_FOUND`; a leftover row goes to `ha-nova:maintenance`.

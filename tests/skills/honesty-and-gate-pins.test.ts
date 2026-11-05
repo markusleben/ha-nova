@@ -116,6 +116,8 @@ describe("gates whose loss would silently downgrade a tier (#515)", () => {
     expect(yaml).toContain('`{"result":"invalid"}`');
     expect(yaml).toContain("roll back immediately");
     expect(yaml).toContain("do NOT reload");
+    // A new file has no .bak: its delete is the user's to confirm, through a plan.
+    expect(yaml).toContain("plan its `delete_file` (`plan raw`; declined, a restart loads it)");
     // One .bak deep: a second write would overwrite the rollback.
     expect(yaml).toContain("the `.bak` holds only ONE step");
   });

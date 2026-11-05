@@ -15,7 +15,7 @@ Line, a Session Recap, findings, or review output. The core rules still apply.
 - Keep delete previews structured in this order: preview summary, consumer-check impact, save status, the confirmation ask.
 - Use stable localized labels for those slots across a conversation. If a slot has content, show it under the same label and in the same order; if it has no content, omit that slot instead of printing an empty placeholder.
 - Close every create/update preview with one natural question (save it, show the details, or leave it). Sole exception: intermediate previews inside a grouped change set (`../ha-nova/grouped-change-set.md`) carry none — one final question closes the group.
-- Delete previews must say nothing has been deleted yet and must close with the confirmation ask (a CLI plan's `say`, else the one-time code); never a save question or a selectable menu for destructive confirmation.
+- Delete previews must say nothing has been deleted yet and must close with the confirmation ask (the CLI plan's `say`); never a save question or a selectable menu for destructive confirmation.
 - Never hide the available next actions inside a paragraph.
 - A plan's `say` closes the card, replacing the title, ⚠️ save-status, and options or code lines. Ask and result shapes: `../ha-nova/index.md` → Say it.
 
@@ -39,7 +39,7 @@ Save it? I can also show the details.
 
 Title line: emoji + localized preview label + item type + name. Then one to three plain sentences on what the change DOES. They must cover every collection the diff touches — each added, removed, replaced, or modified entry described by its effect, never only by count or type name; grouped entries may share a sentence, and coverage beats the three-sentence guideline. The changes block: in diff-backed skills you author only the localized header row and the literal separator — the data rows are pasted verbatim from the CLI (`ha-nova plan write` / `ha-nova diff`), never invented and never re-aligned (mechanics: `../ha-nova/write-safety.md`); skills without a CLI diff author one short planned-change row or line per changed field; file-editing skills show the changed section as a snippet instead of a table. Existing per-skill slots map into the card: identity slots (name/target) fold into the title line, `Planned change` is the changes block, `Save status` is the ⚠️ line, `Options` or the one-time-code prompt closes the card.
 
-**Delete Card** (destructive — never a menu; the one-time-code prompt is always the last line; a CLI plan's `say` replaces it, the title, and ⚠️):
+**Delete Card** (destructive — never a menu; the one-time-code prompt is always the last line; only a CLI plan's `say` brings one, and that `say` replaces the prompt, the title, and ⚠️):
 
 ```
 🗑️  Delete: scene "Old movie night"

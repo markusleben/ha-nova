@@ -62,7 +62,7 @@ describe("hacs lifecycle skill (#478)", () => {
     expect(normalized).toContain("verify against the commit-ish `installed_version`");
     expect(normalized).toContain("never silently replaced by a newer release");
     expect(normalized).toContain("prerelease only on explicit request");
-    expect(skill).toContain("Delete Card with the one-time code");
+    expect(skill).toContain("Then the Delete Card, closed by the plan's `say`");
     // Install/update/redownload brings third-party code: the one-time code
     // (maintainer decision 2026-10-25, chat-parity spec Decisions 3).
     expect(normalized).toContain(

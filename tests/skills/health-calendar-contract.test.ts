@@ -238,7 +238,14 @@ describe("health and calendar skill contracts", () => {
     expect(calendar).toContain("this event set is the create baseline");
     expect(calendar).toContain("up to three reads over ten seconds");
     expect(calendar).toContain("never repeat a write automatically");
-    expect(calendar).toContain("delete uses the one-time code");
+    // A plan rates an update too: one that drops dates of a repeating event
+    // needs the delete's confirmation (#954), and relay refuses it.
+    expect(calendar).toContain("`ha-nova plan raw --file <requests.json>` for `calendar/event/update` and `calendar/event/delete`");
+    expect(calendar).toContain("an update or delete its `ha-nova plan raw`: the preview");
+    expect(calendar).toContain("the plan asks itself");
+    expect(calendar).toContain('update item: `{"endpoint":"ws","payload":{"type":"calendar/event/update"');
+    expect(calendar).not.toContain("(recurring creates) and `calendar/event/update`");
+    expect(relayApi).toContain("updates and deletes them only as a `ha-nova plan raw --file <requests.json>` item");
     expect(calendar).toContain("no HA NOVA revert");
     expect(apiMatrix).toContain("### Calendar event writes");
     expect(apiMatrix).toContain("`calendar/event/update`");

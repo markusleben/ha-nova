@@ -38,7 +38,7 @@ Dashboard content goes through typed verbs only:
 
 Raw file-based WS (`ha-nova relay ws --data-file <payload-file>`) only for metadata, resources, and themes:
 - `lovelace/dashboards/update` with `dashboard_id` (`lovelace/dashboards/list` is the source of truth: `dashboard_id` for `lovelace/dashboards/update|delete`, `url_path` for `lovelace/config|save`)
-- `lovelace/resources`, `lovelace/resources/create`, `lovelace/resources/update`, `lovelace/resources/delete`
+- `lovelace/resources`; `lovelace/resources/create`, `lovelace/resources/update`, `lovelace/resources/delete` only through `ha-nova plan raw`, then `ha-nova apply`
 - `frontend/get_themes` (read)
 
 Never send `lovelace/config/save`, `lovelace/dashboards/create`, or `lovelace/dashboards/delete` by hand: the plan does. Shape: `{"type":"lovelace/config/save","url_path":"<url_path>","config":{"views":[...]}}` — the whole document goes under `config`, and whatever the draft leaves out is gone. The default dashboard is `--id lovelace`; the CLI omits `url_path` when it is not listed.
@@ -63,7 +63,7 @@ Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome 
 8. Result: `verified` = the read-back equals the plan (a create: also listed; a delete: no longer listed). Say it can be undone when the result has `undo` or `snapshot`; offer `revert` for an update. A create is cleaned up through the delete flow. A deleted dashboard restores from its snapshot (`../ha-nova/config-snapshots.md`) by the delete result's `restore` (a `--create` with the shell's title and flags; the main `lovelace` dashboard: a plain write) — the `dashboard_id` is new.
 9. Broken-card sweep: `ha-nova get --dashboards`; report per dashboard each `missing_entity` (with its `detail`) and `card_type_unconfirmed` (no installed resource seems to provide it — missing, or loaded another way, e.g. `extra_module_url`). Nothing found: "No broken cards found in <n> dashboards." Fixes: one dashboard at a time, steps 2–8.
 10. Metadata update: preview the exact fields, confirm, then `lovelace/dashboards/update` with `dashboard_id`; only send changed metadata fields supported there: `title`, `icon`, `show_in_sidebar`, `require_admin`; do not resend `url_path`, `mode`, or unrelated config fields in the update payload. Verify through `lovelace/dashboards/list`.
-11. Resources: create/update previews `res_type` and `url`, takes the one-time code (third-party code in every signed-in browser, with its user's rights), calls, verifies via `lovelace/resources`; delete previews the exact resource, requires the one-time code, called with `resource_id`.
+11. Resources: create/update previews `res_type` and `url` (third-party code in every signed-in browser, with its user's rights), delete the exact resource (`resource_id`); each plan asks; verify via `lovelace/resources`.
 12. Several changes in one dashboard are ONE draft and one plan; a card batch within one dashboard executes as ONE merged `lovelace/config/save`. Dashboards delete one at a time (a `plan delete` code binds one); resource batches follow `../ha-nova/batch-safety.md`. An entity reference on an existing dashboard may join a non-destructive grouped change set ONLY as the downstream operation of a dependency-bound set (`../ha-nova/grouped-change-set.md` → Dependency-Bound Outputs); a dashboard-card removal may join a cross-family destructive cleanup only through its manifest (`grouped-change-set.md` → Cross-Family Destructive Cleanup).
 13. Verification fails: stop, report the mismatch; never retry by guessing.
 

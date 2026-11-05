@@ -28,7 +28,7 @@ If this fails: `ha-nova setup`
 
 ## Relay Contract
 
-File-based WS requests: `ha-nova relay ws --data-file <payload-file> --out <result-file>`.
+File-based WS requests: `ha-nova relay ws --data-file <payload-file> --out <result-file>`; delete and settings: `ha-nova plan raw` items.
 WS response body: `.data` (`../ha-nova/relay-api.md` → Standard Envelope).
 
 ## Flow
@@ -65,8 +65,8 @@ Proportionality (`../ha-nova/recovery-coverage.md`):
 ### Delete
 1. Require `state: idle` first (one backup operation at a time). Resolve the exact `backup_id` from Status; show name, date, and locations in the preview — deletion removes it from ALL listed locations, irreversibly.
 2. Never delete the only backup or the newest completed backup — manual or automatic — refuse outright and explain: it is the recovery net every other skill points to. If the user insists, point to the HA UI (Settings > System > Backups) for that deliberate exception; this skill does not carry a bypass.
-3. Require the one-time code — mint four random digits, display them in the Options slot, and proceed only on a reply that is just the code (spaces ignored).
-4. `{"type":"backup/delete","backup_id":"<id>"}`; verify via Status that the backup is gone.
+3. One `ha-nova plan raw --file <requests.json>` item `{"endpoint":"ws","payload":{"type":"backup/delete","backup_id":"<id>"}}`; its `say` asks.
+4. `ha-nova apply` per its `next_step`; verify via Status that the backup is gone.
 
 ## Error Handling
 
@@ -100,6 +100,6 @@ Use stable localized slot labels in this order; omit empty slots. Status renders
 
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 
-- Create and settings use natural confirmation; delete uses the one-time code only.
+- Create and schedule settings use natural confirmation; delete and retention take the one-time code.
 - Restore is never executed here — it reboots the system; always route to the HA UI.
 - A backup is only real once it appears completed in Status — initiation is not success.

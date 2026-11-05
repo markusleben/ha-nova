@@ -740,6 +740,7 @@ Global safety expectations:
 - no guessed ids
 - preview before any write, except the CLI fast path (`tier: ordinary`)
 - delete requires one-time code
+- a write a raw plan types goes through `ha-nova plan raw` → `ha-nova apply`, never a code the agent makes up; `ha-nova relay` refuses it
 - pre-preview approval is never write confirmation; live writes require confirmation after the concrete preview/diff/payload/manifest is shown
 - multi-target writes require a grouped manifest only where the owning skill already supports multi-target writes; otherwise process targets sequentially
 - structured failure output: what failed / why / next step

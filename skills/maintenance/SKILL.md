@@ -38,7 +38,7 @@ If this fails: `ha-nova setup`
 
 `ha-nova call` returns the preview: confirm it once, then `ha-nova apply --plan <id>`.
 
-File-based requests: `ha-nova relay ws --data-file <payload-file>`; `--out <result-file>` for large responses. WS body: `.data`; REST body: `.data.body` (`../ha-nova/relay-api.md` → Standard Envelope).
+File-based requests: `ha-nova relay ws --data-file <payload-file>`, or `ha-nova plan raw` where the reference says; `--out <result-file>` for large responses. WS body: `.data`; REST body: `.data.body` (`../ha-nova/relay-api.md` → Standard Envelope).
 Payloads, issue matrix, and gate checklists: `../maintenance/maintenance-reference.md` — read it before any write.
 
 ## Flow
@@ -66,7 +66,6 @@ Per entity, label the timestamp source: LTS last-data bucket (reliable, years ba
 
 ## Error Handling
 
-- `clear_statistics` timeout: expected on big batches — verify by re-read, never blind-retry.
 - Purge services return before finishing — absence of an error is not completion.
 - Full relay error taxonomy: `../ha-nova/relay-api.md` → Error Handling.
 
