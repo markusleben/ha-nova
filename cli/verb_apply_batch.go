@@ -133,7 +133,10 @@ func replanMember(paths runtimePaths, s *relaySession, m storedPlan) (batchMembe
 	s.renewBudget()
 	member := batchMember{stored: m, env: verbEnvelope{SchemaVersion: 1, Verb: "apply", Status: "ok", Server: s.server}}
 	var err error
-	member.e, member.fresh, member.ctx, err = computeConfigPlan(paths, s, &member.env, *m.ConfigRequest)
+	member.fresh, err = recheck(s, &member.env, m, func(env *verbEnvelope) (fresh storedPlan, err error) {
+		member.e, fresh, member.ctx, err = computeConfigPlan(paths, s, env, *m.ConfigRequest)
+		return fresh, err
+	})
 	return member, err
 }
 
@@ -284,9 +287,10 @@ func executeBatch(paths runtimePaths, s *relaySession, env *verbEnvelope, rp bat
 // verified (written: its draft's digest), or no longer reads it (that write
 // took it out of this member's scan) while live, read once more, is still
 // that digest. Their stored digests go back and the hash must then be the
-// confirmed one, so the action, the tier, the reasons (from this re-plan),
-// every entity, and every other config are still what the user confirmed.
-// Any other content there, or a failed read, is drift.
+// confirmed one, or a cut plan's replay still the confirmed one
+// (sameAsConfirmed), so the action, the tier, the reasons (from this
+// re-plan), every entity, and every other config are still what the user
+// confirmed. Any other content there, or a failed read, is drift.
 func excusedByBatch(stored, fresh storedPlan, written map[string]string, live func(key string) (string, bool)) bool {
 	if stillConfirmed(stored, fresh) {
 		return true
@@ -320,7 +324,9 @@ func excusedByBatch(stored, fresh storedPlan, written map[string]string, live fu
 		configs[key] = digest
 	}
 	basis["configs"] = configs
-	return "sha256:"+planHash(fresh.Kind, fresh.Server, *fresh.ConfigAction, fresh.Tier, fresh.Reasons, basis) == stored.Hash
+	excused := fresh
+	excused.Basis = basis
+	return !fresh.diverged && "sha256:"+planHash(fresh.Kind, fresh.Server, *fresh.ConfigAction, fresh.Tier, fresh.Reasons, basis) == stored.Hash || sameAsConfirmed(stored, excused)
 }
 
 // batchWaysBack: how each kind of item that went through is undone.

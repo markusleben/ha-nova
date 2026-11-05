@@ -58,6 +58,7 @@ var rawWSAllowed = map[string]string{
 	"hacs/info": rawWSRead, "hacs/repositories/list": rawWSRead, "hacs/repository/info": rawWSRead,
 	"hacs/repository/releases": rawWSRead, "hacs/repository/release_notes": rawWSRead,
 	"hacs/repositories/removed": rawWSRead, "hacs/critical/list": rawWSRead,
+	"marketplace/info": rawWSRead, "marketplace/repositories/list": rawWSRead,
 	"person/list": rawWSRead, "zone/list": rawWSRead, "tag/list": rawWSRead,
 	"config/auth/list": rawWSRead, "auth/current_user": rawWSRead,
 	"assist_pipeline/pipeline/list": rawWSRead, "homeassistant/expose_entity/list": rawWSRead, "homeassistant/expose_new_entities/get": rawWSRead,

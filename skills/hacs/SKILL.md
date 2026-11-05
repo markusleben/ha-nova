@@ -1,8 +1,8 @@
 ---
 name: hacs
-description: Use when browsing, installing, version-pinning or downgrading, redownloading, or removing HACS packages, adding custom HACS repositories, or migrating to a custom integration through HA NOVA Relay.
+description: Use when browsing, installing, version-pinning or downgrading, redownloading, or removing HACS packages (the Marketplace since Home Assistant 2026.11), adding custom HACS repositories, or migrating to a custom integration through HA NOVA Relay.
 license: MIT
-compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core). HACS 2.x must already be installed in Home Assistant.
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core). HACS 2.x must already be installed (Home Assistant 2026.10 or older); on 2026.11+ only the Marketplace inventory is read.
 ---
 
 # HA NOVA HACS Lifecycle
@@ -30,26 +30,22 @@ Read and follow `../ha-nova/session-bootstrap.md`.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 
-Then probe HACS once via `hacs/info` and classify the failure before
-advertising any coverage: WS error `unauthorized` → the Relay upstream
-credential lacks HA admin (HACS registers every command admin-only) —
-remediation is switching that credential to an admin account, never an
-install hint. `unknown_command` is ambiguous (missing, not loaded, or an
-unsupported line that does not register the pinned commands): read the HACS
-config entry via the API — entry absent → install guidance; entry present
-but `not_loaded`/`setup_error`/`setup_retry`/`migration_error` →
-load/restart/repair remediation; entry present and loaded → unsupported
-schema, fail closed with the HACS-UI pointer.
+Then run the capability gate in `hacs-commands.md` once, before advertising
+any coverage or naming a cause: `hacs/info`, and on `unknown_command` the
+Marketplace probe. Home Assistant 2026.11+ ships HACS built in as the
+Marketplace and removes the HACS integration: there, never say HACS is
+missing or suggest installing it — only Marketplace mode
+(`hacs-commands.md` → Marketplace mode) applies.
 
 ## Relay Contract
 
 File-based relay requests only:
 - `ha-nova relay ws --data-file <payload-file> --out <result-file>` — all
-  `hacs/*` commands, the WS-only frontend reads
+  `hacs/*` commands and the two Marketplace reads, the WS-only frontend reads
   `{"type":"lovelace/resources"}` and
   `{"type":"lovelace/config","url_path":<dashboard>}`, and the preflight
   reads the uninstall/migration flow depends on:
-  `{"type":"config_entries/get"}`,
+  `{"type":"config_entries/get"}`, `{"type":"get_config"}`,
   `{"type":"config/entity_registry/list"}`,
   `{"type":"config/device_registry/list"}`, and
   `{"type":"search/related","item_type":"entity","item_id":<entity_id>}`
@@ -74,14 +70,15 @@ unrecognized install. Never guess schemas, never edit `.storage`, never SSH.
 
 ### Inventory
 
-1. Capability gate (`hacs/info`), then `hacs/repositories/list` — bounded:
+1. Capability gate, then `hacs/repositories/list` (Marketplace mode:
+   `marketplace/repositories/list`) — bounded:
    filter by requested category/name, render as a List Frame with counts and
    Progressive Detail; never dump the raw list.
 2. Registration, downloaded files, and config entries are three distinct
    lifecycle objects — name them as such in every result (a registered
    repository is not installed; installed files are not a configured
    integration).
-3. Surface `hacs/repositories/removed` matches and unacknowledged
+3. HACS mode: surface `hacs/repositories/removed` matches and unacknowledged
    `hacs/critical/list` entries for installed packages as warnings.
 
 ### Resolve
@@ -149,8 +146,9 @@ act on a name match alone.
   add one (a raw `hacs/repositories/add` is refused). Validate the GitHub
   reference and its category (manifest, topics, structure; ask when
   ambiguous), then hand the user the steps: HACS > ⋮ > Custom repositories,
-  paste the URL, pick that category. Afterwards re-list for the canonical
-  `full_name` to confirm it appeared; registration downloads nothing.
+  paste the URL, pick that category (Marketplace mode: its steps).
+  Afterwards re-list for the canonical `full_name` to confirm it appeared;
+  registration downloads nothing.
 - Remove registration: one-time code, and only with exact identity
   plus installation state known — and only when `installed == false`.
   Unregistering an installed repository strands its files (the ID vanishes
