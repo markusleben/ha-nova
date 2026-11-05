@@ -101,7 +101,7 @@ For every Relay-Ready call in this skill:
 | Integration entry options / reconfigure (standard config-entry flows) | Covered | integration-setup |
 | Integration entry enable/disable, rename, system options, ignoring a discovery | Covered | integration-setup |
 | Matter / Thread status (border router, datasets, node diagnostics) | Relay-Ready | this skill |
-| Matter / Thread commissioning | External | -- (companion app; BLE pairing is not an API surface) |
+| Matter / Thread commissioning | External | -- (not in HA NOVA yet; Home Assistant's Add device screen) |
 | Assist custom sentences / intent scripts | Covered | assist (owning workflow; file mechanics stay in `../fallback/relay-ready.md`) |
 | Creating a calendar (the `local_calendar` integration) | Covered | integration-setup |
 | Device category assignment | Not a Home Assistant surface | -- (devices carry no category; entity categories are `organize`) |
@@ -180,13 +180,13 @@ as the Marketplace: hand off the same way (never probe `marketplace/*` here);
 `ha-nova:hacs` reads its inventory and gives the Home Assistant steps for the
 rest.
 
-### Zigbee / Z-Wave / Network Configuration -- EXTERNAL
+### Zigbee / Z-Wave / Matter Pairing and Network Configuration -- EXTERNAL
 
-Device pairing is hardware-specific, requires direct coordinator access (ZHA, Z2M, Z-Wave JS).
+HA NOVA doesn't pair radio devices yet (ZHA, Zigbee2MQTT, Z-Wave JS, Matter). Say exactly that; never claim pairing is impossible or needs special hardware access.
 
-**Search:** `home assistant zigbee2mqtt zha device pairing configuration 2026`
+**Alternative:** HA UI: Settings > Devices & Services > Devices > Add device (Zigbee2MQTT: its own Permit join).
 
-**Alternative:** HA UI: Settings > Devices & Services > [Zigbee/Z-Wave integration].
+**Search:** `home assistant zigbee2mqtt zha zwave matter network configuration 2026`
 
 ## Error Handling
 

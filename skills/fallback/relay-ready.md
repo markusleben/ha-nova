@@ -166,7 +166,7 @@ the new one — the assist test is what catches that.
 
 Read-only network state for Matter/Thread setups: `otbr/info`,
 `thread/list_datasets`, `matter/node_diagnostics`. Commissioning stays
-external — it needs BLE from the companion app and is not an API surface.
+External: HA NOVA doesn't pair radio devices yet (Capability Map).
 
 **Search:** `home assistant thread otbr websocket api matter diagnostics 2026`
 
