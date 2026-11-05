@@ -117,7 +117,7 @@ Every row fits "Relay stays dumb, Skills stay smart" unless marked ★ (a Relay 
 
 External reasons removed in 0.29: integration enable/disable (a plain WS write). Supervisor: the WS path the frontend uses is closed to Apps too (batch 3b), so the External reason now names the Supervisor's App filter; Apps, Supervisor reads, and logs are covered since through `POST /supervisor`. Backup schedule and retention moved in 0.31.
 
-Stays out, with the reason: passwords, MFA, tokens, profile (a person's own secrets and session); backup restore (reboots Home Assistant, unverifiable); set state (fakes a device); fire event and webhook (untiered fan-out; a webhook id is a secret); Zigbee, Z-Wave, Matter pairing (hardware and BLE, not an API); Home Assistant Link account settings.
+Stays out, with the reason: passwords, MFA, tokens, profile (a person's own secrets and session); backup restore (reboots Home Assistant, unverifiable); set state (fakes a device); fire event and webhook (untiered fan-out; a webhook id is a secret); Zigbee, Z-Wave, Matter pairing (not in HA NOVA yet: #972); Home Assistant Link account settings.
 
 ## 3. And more
 
