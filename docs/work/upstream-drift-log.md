@@ -644,3 +644,16 @@ counts only those, not ad hoc checks or corrections.
   `DeviceInfo` keys (2027.9), `step_id` for custom flows (2027.5), the
   deferred lawn-mower `idle` bucket, and the legacy device-registry removal
   command for 2027.9.
+
+## 2026-11-05 — pre-release screen (v0.28.2 cycle): HA after 2026.11.0 + developer blog after 2026-11-01 + HACS
+
+- Window screened: Core releases after `2026.11.0` (none; `2026.11.0` of
+  2026-11-04 is the latest); contributors.home-assistant.io/blog after
+  2026-11-01 (none; the newest post, "Undefined sentinel changes" of
+  2026-11-01, was screened above); HACS releases and tags after 2.0.5
+  (none).
+- Clean pass: nothing upstream changed since the v0.28.1-cycle screen
+  above. Its four hits ship fixed in 0.28.2: #988 (#982, #983), #992
+  (#984) and #989 (#985).
+- Next screen: before the next release cycle, or on HA 2026.11.1 or
+  2026.12.0, whichever comes first.

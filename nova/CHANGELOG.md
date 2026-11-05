@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.20] - 2026-11-05
+
+### Fixed
+- Chat apps get HA NOVA 0.28.2 and its fixes.
+- Chat apps: a change that would set off an automation that unlocks a door, opens a gate or garage, or disarms an alarm asks you first, also for calendar events, helpers, device and integration settings, renames and new zones.
+- Chat apps: a call with an exclude list, new in Home Assistant 2026.11, is refused, so a call can't do less than its preview says.
+- Chat apps: removing or changing a to-do item names the item in the preview and on the phone, not an internal code.
+
+### Changed
+- Updated libraries, including fixes for reconnect hangs in the App's connection to Home Assistant.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.2 ask you to update this App.
+
 ## [Relay 0.13.19] - 2026-11-04
 
 ### Fixed
