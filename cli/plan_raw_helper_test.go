@@ -23,7 +23,11 @@ func helperRelay(t *testing.T, extra map[string]func(map[string]any) any) (paths
 			"tuesday": []any{map[string]any{"from": "06:00:00", "to": "08:00:00", "data": map[string]any{"temperature": 21}}}},
 	}
 	more := map[string][]any{"input_select": {map[string]any{"id": "levels", "name": "Levels", "options": []any{"1.0", "1.5"}}}}
-	handlers := map[string]func(map[string]any) any{}
+	handlers := map[string]func(map[string]any) any{"config/entity_registry/list": func(map[string]any) any { // each helper's entity (#946)
+		return []any{map[string]any{"entity_id": "input_select.mode", "platform": "input_select", "unique_id": "mode"},
+			map[string]any{"entity_id": "input_select.levels", "platform": "input_select", "unique_id": "levels"},
+			map[string]any{"entity_id": "schedule.heating", "platform": "schedule", "unique_id": "heating"}}
+	}}
 	for collection := range items {
 		handlers[collection+"/list"] = func(map[string]any) any {
 			mu.Lock()

@@ -15,7 +15,8 @@ func TestPlanRawTypedFlagAndAccessCheck(t *testing.T) {
 	paths, _ := rawRelay(t, map[string]func(map[string]any) any{
 		"config/entity_registry/list": func(map[string]any) any {
 			return []any{map[string]any{"entity_id": "lock.front", "device_id": "dlock"}, map[string]any{"entity_id": "sensor.door_battery", "device_id": "dlock"},
-				map[string]any{"entity_id": "light.desk", "device_id": "dlamp"}}
+				map[string]any{"entity_id": "light.desk", "device_id": "dlamp"}, map[string]any{"entity_id": "input_boolean.guest", "platform": "input_boolean", "unique_id": "guest"},
+				map[string]any{"entity_id": "person.anna", "platform": "person", "unique_id": "anna"}}
 		},
 		"config/device_registry/list": func(map[string]any) any { return []any{map[string]any{"id": "dlock"}, map[string]any{"id": "dlamp"}} },
 	})
