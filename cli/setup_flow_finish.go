@@ -266,16 +266,23 @@ func (f *setupFlow) finish() setupStepResult {
 		offerPhoneLink(f.ui.termIn(), f.ui.termOut(), f.paths)
 	}
 	if f.noClient { // connected, but no AI app to try it in yet (lane D1)
-		labels, err := setupInstallableClientLabels(f.paths)
-		if err != nil {
-			return f.failErr(err)
+		web := f.page != nil && f.page.snapshot().Web // Claude or ChatGPT in the browser, handed over to the terminal
+		blocks := []setupBlock{setupSuccess(setupText("setup.done.connected_no_client"))}
+		if !web { // the browser path needs no AI app here, as the page's finish
+			labels, err := setupInstallableClientLabels(f.paths)
+			if err != nil {
+				return f.failErr(err)
+			}
+			blocks = append(blocks, setupParagraph(setupText("setup.clients.none_after_pairing", "clients", strings.Join(labels, ", "))))
 		}
-		f.ui.show(setupView{Blocks: []setupBlock{
-			setupSuccess(setupText("setup.done.connected_no_client")),
-			setupParagraph(setupText("setup.clients.none_after_pairing", "clients", strings.Join(labels, ", "))),
-		}})
+		f.ui.show(setupView{Blocks: blocks})
+		chatURL, chatNote := "", ""
 		if interactive && f.pairedThisRun && !f.cloudSetupPaused && setupOwnerIngress != nil {
-			f.printChatApps(f.offerChatApps()) // Claude and ChatGPT on the web need no AI app here
+			chatURL, chatNote = f.offerChatApps()
+			f.printChatApps(chatURL, chatNote) // Claude and ChatGPT on the web need no AI app here
+		}
+		if web && chatURL == "" && chatNote == "" { // no chat-app offer here (no owner sign-in, or chat apps can't work yet): where to go on
+			f.ui.note(setupT("setup.claude.chat_guide", "url", chatAppsGuideURL))
 		}
 		if !f.serviceMode && f.rerun && !f.pairedThisRun && f.current.ConfigOK {
 			if err := printCompletedSetupOverview(f.ui.termOut(), f.paths, f.cfg); err != nil {
