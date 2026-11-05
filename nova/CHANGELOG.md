@@ -9,7 +9,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 ### Fixed
 - Chat apps get HA NOVA 0.28.2 and its fixes.
 - Chat apps: a change that would set off an automation that unlocks a door, opens a gate or garage, or disarms an alarm asks you first, also for calendar events, helpers, device and integration settings, renames and new zones.
-- Chat apps: turning off the device or integration of a tracker someone follows takes your own confirmation, like turning off the tracker itself.
 - Chat apps: a call with an exclude list, new in Home Assistant 2026.11, is refused, so a call can't do less than its preview says.
 - Chat apps: removing or changing a to-do item names the item in the preview and on the phone, not an internal code.
 
