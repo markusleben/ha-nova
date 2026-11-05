@@ -101,10 +101,10 @@
   "dependencies": {
     "@peculiar/x509": "^2.1.0",
     "@serenity-kit/opaque": "^1.1.0",
-    "home-assistant-js-websocket": "^9.7.1",
+    "home-assistant-js-websocket": "^9.8.1",
     "jose": "^6.2.14",
     "reflect-metadata": "^0.2.2",
-    "ws": "^8.22.0",
+    "ws": "^8.22.1",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
