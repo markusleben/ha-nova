@@ -78,7 +78,7 @@ class Bridge:
 
 
 @pytest.fixture
-async def bridge(hass: HomeAssistant):
+async def bridge(hass: HomeAssistant, socket_enabled: None):
     stub = Bridge()
     port = await stub.start()
     result = await discover(hass, info(port))
