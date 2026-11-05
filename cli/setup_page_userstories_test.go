@@ -257,8 +257,9 @@ func TestSetupPageHandOverSaysWhy(t *testing.T) {
 
 // Claude or ChatGPT in the browser, handed over to the terminal (the page
 // couldn't sign in): the terminal finishes as the page's browser path does,
-// without asking for an AI app here. The terminal's own no-app path still
-// says which one to install.
+// without asking for an AI app here, and with no chat-app offer (no owner
+// sign-in) it links the chat apps guide. The terminal's own no-app path
+// still says which one to install.
 func TestSetupBrowserPathHandedToTheTerminalAsksForNoAIApp(t *testing.T) {
 	withClientRuntimeAvailability(t, map[string]bool{})
 	setupGoldenHome(t)
@@ -276,8 +277,9 @@ func TestSetupBrowserPathHandedToTheTerminalAsksForNoAIApp(t *testing.T) {
 			t.Fatalf("web=%v: finish = %+v\n%s", web, result, out)
 		}
 		asks := strings.Contains(out.String(), "One step left: install one of these AI apps")
-		if !strings.Contains(out.String(), setupT("setup.done.connected_no_client")) || asks == web {
-			t.Fatalf("web=%v: asks for an AI app = %v\n%s", web, asks, out)
+		guide := strings.Contains(out.String(), chatAppsGuideURL)
+		if !strings.Contains(out.String(), setupT("setup.done.connected_no_client")) || asks == web || guide != web {
+			t.Fatalf("web=%v: asks for an AI app = %v, chat apps guide = %v\n%s", web, asks, guide, out)
 		}
 	}
 }
