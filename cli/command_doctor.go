@@ -312,6 +312,9 @@ func runDoctor(paths runtimePaths, args []string) int {
 				for _, line := range doctorClaudeReadyLines(paths) {
 					doctorInfo("%s", line)
 				}
+				if line := claudeGitBashLine(); line != "" {
+					printHumanWarn("%s", line)
+				}
 			case !client.RuntimeDetected:
 				printHumanWarn("HA NOVA is set up for %s, but can't find %s on this computer right now", client.Label, client.Label)
 				printHumanWarn("%s", doctorClientRepairHint(client, installSource))

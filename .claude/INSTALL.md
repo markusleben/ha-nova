@@ -26,9 +26,8 @@ claude --version
 claude doctor
 ```
 
-- Native Windows Claude also needs Git for Windows, because Claude Code requires Git Bash there.
+- Install Git for Windows too. Claude Code itself runs without it (it uses PowerShell then), but HA NOVA's start-up step in Claude Code runs in Git Bash. Without it, Claude Code starts without HA NOVA's session context, update check, and auto-repair. `ha-nova setup` and `ha-nova doctor` say so when Git Bash is missing.
 - Claude is the Windows path we have tested most for this release.
-- If Git Bash is missing, `ha-nova setup all` skips Claude on Windows instead of failing the whole setup run.
 - If you prefer not to install Git for Windows, use Claude inside WSL instead.
 - If Git is installed but Claude still cannot find Git Bash, set `CLAUDE_CODE_GIT_BASH_PATH` to your `bash.exe` location in Claude's `settings.json`.
 - If you are migrating from the older npm install, run:
