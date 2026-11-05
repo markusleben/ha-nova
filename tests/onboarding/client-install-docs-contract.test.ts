@@ -80,7 +80,9 @@ describe("client install docs contract", () => {
     expect(claudeInstall).toContain("irm https://claude.ai/install.ps1 | iex");
     expect(claudeInstall).toContain("claude --version");
     expect(claudeInstall).toContain("claude doctor");
-    expect(claudeInstall).toContain("skips Claude on Windows");
+    // #938: Claude Code runs without Git Bash; HA NOVA's session hook needs it, and setup never skips Claude for it.
+    expect(claudeInstall).not.toContain("skips Claude on Windows");
+    expect(claudeInstall).toContain("HA NOVA's start-up step in Claude Code runs in Git Bash");
     expect(claudeInstall).toContain("WSL");
     expect(claudeInstall).toContain("CLAUDE_CODE_GIT_BASH_PATH");
     expect(claudeInstall).toContain("settings.json");

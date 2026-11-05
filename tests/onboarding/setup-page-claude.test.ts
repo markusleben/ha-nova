@@ -83,6 +83,20 @@ describe("setup page: which Claude got HA NOVA", () => {
     }
   });
 
+  it("says what to install when Windows has no Git Bash for HA NOVA's start-up step (#938)", async () => {
+    for (const missing of [true, false]) {
+      const p = page({ screen: "home", home: { claude: true }, claude_git_bash: missing || undefined, accepts: ["done", "claude"] });
+      await p.settle();
+      const line = p.find("claude-git-bash");
+      if (!missing) {
+        expect(line).toBeUndefined();
+        continue;
+      }
+      expect(line!.textContent).toContain("Git for Windows is missing.");
+      expect(line!.textContent).toContain("https://git-scm.com/downloads/win");
+    }
+  });
+
   it("says it on the terminal path's end too", async () => {
     const p = page({ screen: "done", clients: ["Claude Code"], accepts: [] });
     await p.settle();

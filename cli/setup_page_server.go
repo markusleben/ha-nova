@@ -292,6 +292,7 @@ func (s *setupPageServer) state(w http.ResponseWriter, r *http.Request) {
 	s.opened.Store(true)
 	state := s.ui.snapshot()
 	state.CodexWhere = codexWhereKey()
+	state.ClaudeGitBash = claudeGitBashMissingHere()
 	w.Header().Set("Content-Type", "application/json")
 	if json.NewEncoder(w).Encode(state) == nil && setupPageEnded(state.Screen) {
 		s.shownEndOnce.Do(func() { close(s.shownEnd) })

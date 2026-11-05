@@ -52,30 +52,31 @@ type setupPageRow struct {
 }
 
 type setupPageState struct {
-	Screen     string               `json:"screen"` // looking, found, connect, noclient, control, home, terminal, done, closed, incomplete, failed, stopped
-	HA         string               `json:"ha,omitempty"`
-	Candidates []setupPageCandidate `json:"candidates,omitempty"`
-	Clients    []string             `json:"clients,omitempty"` // product names
-	App        string               `json:"app,omitempty"`     // missing, old, running
-	AppVersion string               `json:"app_version,omitempty"`
-	Primary    string               `json:"primary,omitempty"` // install, update, signin; empty: no sign-in from the page
-	Rows       []setupPageRow       `json:"rows,omitempty"`
-	Problem    *setupPageMsg        `json:"problem,omitempty"`
-	Fix        string               `json:"fix,omitempty"` // retry, owner, web (chat apps can't work here yet), web_never (nor after a change here); app_update (re-run: the App needs an update)
-	Links      map[string]string    `json:"links,omitempty"`
-	AskHA      bool                 `json:"ask_ha,omitempty"` // step 1 opens the address field
-	Typed      bool                 `json:"typed,omitempty"`  // the user typed HA's address: step 1 says so
-	SignInURL  string               `json:"signin_url,omitempty"`
-	Control    *setupPageControl    `json:"control,omitempty"`     // step 3
-	Home       *setupPageHome       `json:"home,omitempty"`        // step 4
-	NewClients []string             `json:"new_clients,omitempty"` // a re-run: AI assistants found since, to set up with a click
-	Overview   []setupOverviewItem  `json:"overview,omitempty"`
-	Web        bool                 `json:"web,omitempty"`         // no AI app here: Claude or ChatGPT in the browser (chat apps)
-	Desktop    bool                 `json:"desktop,omitempty"`     // Claude Desktop without a usable Code runtime
-	GetDesktop bool                 `json:"get_desktop,omitempty"` // "Get Claude Desktop" only where Check again can find it (macOS)
-	CodexWhere string               `json:"codex_where,omitempty"` // catalog key: where "Codex" works on this OS
-	Handover   string               `json:"handover,omitempty"`    // why the terminal: code (code_install, code_update: the App first), keyring_locked, keyring_setup; "": a question there
-	Accepts    []string             `json:"accepts"`
+	Screen        string               `json:"screen"` // looking, found, connect, noclient, control, home, terminal, done, closed, incomplete, failed, stopped
+	HA            string               `json:"ha,omitempty"`
+	Candidates    []setupPageCandidate `json:"candidates,omitempty"`
+	Clients       []string             `json:"clients,omitempty"` // product names
+	App           string               `json:"app,omitempty"`     // missing, old, running
+	AppVersion    string               `json:"app_version,omitempty"`
+	Primary       string               `json:"primary,omitempty"` // install, update, signin; empty: no sign-in from the page
+	Rows          []setupPageRow       `json:"rows,omitempty"`
+	Problem       *setupPageMsg        `json:"problem,omitempty"`
+	Fix           string               `json:"fix,omitempty"` // retry, owner, web (chat apps can't work here yet), web_never (nor after a change here); app_update (re-run: the App needs an update)
+	Links         map[string]string    `json:"links,omitempty"`
+	AskHA         bool                 `json:"ask_ha,omitempty"` // step 1 opens the address field
+	Typed         bool                 `json:"typed,omitempty"`  // the user typed HA's address: step 1 says so
+	SignInURL     string               `json:"signin_url,omitempty"`
+	Control       *setupPageControl    `json:"control,omitempty"`     // step 3
+	Home          *setupPageHome       `json:"home,omitempty"`        // step 4
+	NewClients    []string             `json:"new_clients,omitempty"` // a re-run: AI assistants found since, to set up with a click
+	Overview      []setupOverviewItem  `json:"overview,omitempty"`
+	Web           bool                 `json:"web,omitempty"`             // no AI app here: Claude or ChatGPT in the browser (chat apps)
+	Desktop       bool                 `json:"desktop,omitempty"`         // Claude Desktop without a usable Code runtime
+	GetDesktop    bool                 `json:"get_desktop,omitempty"`     // "Get Claude Desktop" only where Check again can find it (macOS)
+	CodexWhere    string               `json:"codex_where,omitempty"`     // catalog key: where "Codex" works on this OS
+	ClaudeGitBash bool                 `json:"claude_git_bash,omitempty"` // Windows: no Git Bash for HA NOVA's Claude Code hook (claude_git_bash.go)
+	Handover      string               `json:"handover,omitempty"`        // why the terminal: code (code_install, code_update: the App first), keyring_locked, keyring_setup; "": a question there
+	Accepts       []string             `json:"accepts"`
 }
 
 // setupPageCandidate is one Home Assistant discovery found: a name to show
