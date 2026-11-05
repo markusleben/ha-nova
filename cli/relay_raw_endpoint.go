@@ -49,8 +49,9 @@ func guardRawRequestIn(s *relaySession, endpoint string, body []byte) (send []by
 // ha_read sends none. A todo/item/move is refused: on a shopping list it
 // fires shopping_list_updated, and only a plan classifies that event's
 // listeners (rawShoppingList), so an automation that unlocks on it would run
-// unasked (#928). A write a plan types is refused (relayTyped). A scene save
-// keeps its members (relaySceneKept).
+// unasked (#928). A write a plan types is refused (relayTyped), and so is
+// one whose listeners a plan rates typed (relayListeners, #946). A scene
+// save keeps its members (relaySceneKept).
 func relayRawChecks(paths runtimePaths, opts verbOptions, endpoint string, body []byte) (refusal, err error) {
 	payload, _ := decodeObject(body)
 	message, _ := payload["message"].(map[string]any) // a collect_events envelope
@@ -59,6 +60,9 @@ func relayRawChecks(paths runtimePaths, opts verbOptions, endpoint string, body 
 			`put [{"endpoint":"ws","payload":<the message itself, without a collect_events envelope>}] in a file, run ha-nova plan raw --file <file>, then ha-nova apply`), nil
 	}
 	if refusal, err := relayTyped(paths, opts, endpoint, payload, message); refusal != nil || err != nil {
+		return refusal, err
+	}
+	if refusal, err := relayListeners(paths, opts, endpoint, payload, message); refusal != nil || err != nil {
 		return refusal, err
 	}
 	return relayKept(paths, opts, endpoint, body)

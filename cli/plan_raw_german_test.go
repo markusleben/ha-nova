@@ -17,6 +17,9 @@ func TestRawPlanInAGermanHome(t *testing.T) {
 			return map[string]any{"status": 200, "body": map[string]any{"language": "de"}}
 		},
 		"input_boolean/list": func(map[string]any) any { return []any{map[string]any{"id": "guest", "name": "Gäste"}} },
+		"config/entity_registry/list": func(map[string]any) any { // the helper's entity (#946)
+			return []any{map[string]any{"entity_id": "input_boolean.guest", "platform": "input_boolean", "unique_id": "guest"}}
+		},
 	})
 	s, err := newRelaySession(paths, verbOptions{})
 	if err != nil {

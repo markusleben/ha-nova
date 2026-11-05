@@ -89,7 +89,7 @@ func filterDomain(ids []string, domain string) []string {
 func (e *tierEngine) scanConsumers(id string, depth int, d stateDelta) {
 	needles := []string{id}
 	items := [][2]string{{"entity", id}}
-	if device := e.reg[id].di; device != "" {
+	if device := e.deviceOf(id); device != "" {
 		needles = append(needles, device)
 		items = append(items, [2]string{"device", device})
 	}
