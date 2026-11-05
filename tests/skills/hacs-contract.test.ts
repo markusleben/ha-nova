@@ -105,3 +105,71 @@ describe("hacs lifecycle skill (#478)", () => {
     expect(architecture).toContain("`ha-nova:hacs` owns the HACS package lifecycle");
   });
 });
+
+// HA 2026.11 builds HACS into Home Assistant as the Marketplace: hacs/* is
+// gone (unknown_command), the HACS config entry migrates to marketplace, and
+// HACS can no longer be installed. Verified on 2026.11.0b4.
+describe("hacs skill on Home Assistant 2026.11+ (Marketplace)", () => {
+  const flat = (text: string) => text.replace(/\s+/g, " ");
+  const marketplace = flat(commands.slice(commands.indexOf("## Marketplace mode")));
+
+  it("probes the Marketplace before any HACS-missing answer", () => {
+    expect(normalized).toContain("never say HACS is missing or suggest installing it");
+    expect(normalized).toContain("send `{\"type\":\"marketplace/info\"}`");
+    expect(normalized).toContain("a result → Marketplace mode (below). HACS is not missing; it is built in.");
+    // not_loaded also covers startup, setup_retry/setup_error and a deleted
+    // entry, so neither it nor unknown_command may be read as "disabled".
+    expect(normalized).toContain("error `not_loaded` or `unknown_command` → read `{\"type\":\"get_config\"}`");
+    expect(normalized).not.toContain("error `not_loaded` → the Marketplace is disabled");
+    // The old install hint survives only for Home Assistant 2026.10 and older.
+    const older = normalized.indexOf("`version` older than 2026.11 → `hacs/info` failing is ambiguous");
+    const newer = normalized.indexOf("2026.11 or newer → the Marketplace exists but is not loaded, and HACS cannot be installed there — never install guidance");
+    expect(older).toBeGreaterThan(-1);
+    expect(newer).toBeGreaterThan(older);
+    expect(normalized.indexOf("entry absent → install guidance")).toBeGreaterThan(older);
+    expect(normalized.indexOf("entry absent → install guidance")).toBeLessThan(newer);
+    expect(normalized.split("entry absent → install guidance").length).toBe(2);
+    const loading = normalized.slice(newer);
+    for (const branch of [
+      "`recovery_mode` true → Home Assistant runs in recovery mode",
+      "`state` not `RUNNING` → Home Assistant is still starting",
+      "run the gate again, at most three times",
+      "read `{\"type\":\"config_entries/get\",\"domain\":\"marketplace\"}`",
+      "`disabled_by` set → it is disabled",
+      "`setup_retry` → Home Assistant retries on its own",
+      "no entry → Home Assistant sets it up again at its next restart",
+    ]) {
+      expect(loading).toContain(branch);
+    }
+  });
+
+  it("reads only the gate and the inventory, and hands every write to Home Assistant", () => {
+    const sent = [...marketplace.matchAll(/"type":"(marketplace\/[a-z_/]+)"/g)].map((m) => m[1]);
+    expect([...new Set(sent)].sort()).toEqual(["marketplace/info", "marketplace/repositories/list"]);
+    expect(marketplace).toContain("always filter with `--jq-file`");
+    expect(marketplace).toContain("Everything else is not supported through HA NOVA yet");
+    expect(marketplace).toContain("no other `marketplace/*` command, no `update.install`, no `hacs/*` command");
+    for (const step of ["Settings > Marketplace > the repository > Install", "Install another version", "Settings > Updates", "> Uninstall", "Add from link"]) {
+      expect(marketplace).toContain(step);
+    }
+    // The steps carry Home Assistant's own warnings and preconditions.
+    for (const caveat of [
+      "fail until they accept it",
+      "not for going back after an update: Home Assistant advises restoring a backup",
+      "Delete and uninstall, which also deletes its devices and entities",
+      "the entity is disabled by default: enable it first",
+    ]) {
+      expect(marketplace).toContain(caveat);
+    }
+  });
+
+  it("keeps Marketplace update entities out of updates installs and routes the Marketplace here", () => {
+    const updates = flat(readFileSync("skills/updates/SKILL.md", "utf8"));
+    expect(updates).toContain("`platform: hacs` or `marketplace` = integrations");
+    expect(updates).toContain(
+      "`platform: marketplace` (Home Assistant 2026.11+): installs through HA NOVA aren't supported yet — never plan one, single or batched",
+    );
+    expect(flat(readFileSync("skills/fallback/SKILL.md", "utf8"))).toContain("never probe `marketplace/*` here");
+    expect(readFileSync("skills/ha-nova/SKILL.md", "utf8")).toContain("the Marketplace (HACS since Home Assistant 2026.11) | `ha-nova:hacs` |");
+  });
+});

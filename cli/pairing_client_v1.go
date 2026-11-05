@@ -165,6 +165,7 @@ func spkiPinnedClient(expectedPin string) *http.Client {
 			return http.ErrUseLastResponse
 		},
 		Transport: &http.Transport{
+			MaxIdleConnsPerHost: relaySessionMaxConcurrent, // a session's parallel reads keep their connections
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true, //nolint:gosec // pin check below is the trust anchor
 				MinVersion:         tls.VersionTLS13,

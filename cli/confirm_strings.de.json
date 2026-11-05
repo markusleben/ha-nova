@@ -452,6 +452,7 @@
   "reason.integration_service": "Das führt eine eigene Aktion einer Integration aus, die HA NOVA nicht vollständig prüfen kann",
   "reason.service_not_found": "Ein Schritt ruft {service} auf, aber Home Assistant kennt diese Aktion nicht: Dieser Schritt wird beim Ausführen scheitern",
   "reason.hacs_install": "Das installiert Code aus HACS, der in Home Assistant läuft",
+  "reason.marketplace_install": "Das installiert Code aus dem Marketplace, der in Home Assistant läuft",
   "reason.unknown": "HA NOVA kann das nicht vollständig prüfen",
 
   "phrase.unlocks": "entriegelt {object}",

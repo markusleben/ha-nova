@@ -134,7 +134,7 @@ Severity never depends on color alone: `🔴`/`🟠`/`🟡` pairs with plain-lan
   actions. Normalize detail only from validated repair fields (`domain`,
   `issue_id`, `translation_key`, safe `translation_placeholders`, severity,
   created/remediation metadata) — never fuzzy-match update entities to invent
-  targets or versions. HACS restart-required rows show the exact repository
+  targets or versions. HACS/Marketplace restart-required rows show the exact repository
   display name, installed version, target version when available, and whether
   one shared restart resolves several rows; never collapse two distinct
   targets into "two updates require a restart". Missing target/version data
