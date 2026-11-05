@@ -33,7 +33,7 @@ REST reads, one create service, and feature-gated writes:
 - `ha-nova relay core --method GET --path /api/states/<calendar_entity_id> --out <result-file>`
 - `ha-nova relay core --method GET --path <calendar-events-path> --out <result-file>`
 - `ha-nova call calendar.create_event <calendar_entity_id> --skill ha-nova:calendar --set summary=… --set start_date_time=… --set end_date_time=…` (one-off create)
-- `ha-nova relay ws --data-file <payload-file> --out <result-file>` for `calendar/event/create` (recurring creates) and `calendar/event/update`; `ha-nova plan raw --file <requests.json>` for `calendar/event/delete`
+- `ha-nova relay ws --data-file <payload-file> --out <result-file>` for `calendar/event/create` (recurring creates); `ha-nova plan raw --file <requests.json>` for `calendar/event/update` and `calendar/event/delete`
 - `ha-nova relay jq --file <result-file> --jq-file <filter-file>`
 
 `<calendar-events-path>` is:
@@ -71,12 +71,12 @@ Relay-core response body is under `.data.body` (envelope contract: `../ha-nova/r
    - a recurring create takes an RFC 5545 `rrule` string and goes through WS `calendar/event/create` (the REST service has no recurrence field); non-recurring creates keep the REST service
    - update merges: send the target's current or changed `summary`/`dtstart`/`dtend`/`description`/`location`; an empty string clears description/location; an omitted `rrule` stays; recurrence can't be removed (to end a series, delete this and future occurrences from the first one to remove)
 4. For an occurrence with `recurrence_id`, ask whether the scope is **this occurrence** (`recurrence_range:""`) or **this and future occurrences** (`"THISANDFUTURE"`). Bind that scope to the preview. For this occurrence, omit `rrule`. Use this-and-future only for summary/description/location changes. Do not invent an entire-series mode.
-5. Show the Preview Card with operation, calendar, exact event identity, summary, start/end, timezone or all-day range, changed fields, and recurrence scope. A one-off create runs its `ha-nova call` here, a delete its `ha-nova plan raw`: the preview. Create/update use natural bound confirmation; the delete plan asks itself.
+5. Show the Preview Card with operation, calendar, exact event identity, summary, start/end, timezone or all-day range, changed fields, and recurrence scope. A one-off create runs its `ha-nova call` here, an update or delete its `ha-nova plan raw`: the preview. Create uses natural bound confirmation; the plan asks itself.
 6. Immediately before execution, re-read the target window and calendar state; this event set is the create baseline. On any drift (capability, identity, fields, recurrence scope), abort and re-preview.
 7. Execute exactly one write:
-   - create or delete: `ha-nova apply --plan <id>` (the step-5 plan, per its `next_step`)
+   - the step-5 plan: `ha-nova apply --plan <id>` (per its `next_step`)
    - recurring create: WS `{"type":"calendar/event/create","entity_id":"calendar.example","event":{"summary":"Event","dtstart":"<start>","dtend":"<end>","rrule":"FREQ=WEEKLY;BYDAY=MO"}}` — `dtstart`/`dtend` describe the FIRST instance
-   - update: WS `{"type":"calendar/event/update","entity_id":"calendar.example","uid":"<uid>","recurrence_id":"<instance>","recurrence_range":"<range>","event":{"summary":"Event","dtstart":"<start>","dtend":"<end>"}}`; omit recurrence keys for a non-recurring event
+   - update item: `{"endpoint":"ws","payload":{"type":"calendar/event/update","entity_id":"calendar.example","uid":"<uid>","recurrence_id":"<instance>","recurrence_range":"<range>","event":{"summary":"Event","dtstart":"<start>","dtend":"<end>"}}}`; omit recurrence keys for a non-recurring event
    - delete item: `{"endpoint":"ws","payload":{"type":"calendar/event/delete","entity_id":"calendar.example","uid":"<uid>","recurrence_id":"<instance>","recurrence_range":"<range>"}}`; omit recurrence keys for a non-recurring event
 8. Verify through bounded REST read-back, up to three reads over ten seconds:
    - create: compared with the baseline, exactly one new event must match the requested normalized fields; the service response alone is not identity evidence

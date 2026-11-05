@@ -440,7 +440,7 @@ Firing an event and calling a webhook are refused on the raw routes (`cli/relay_
 
 ## Calendar Event Writes
 
-`ha-nova:calendar` creates events with `ha-nova call calendar.create_event calendar.example --skill ha-nova:calendar --set summary=Event --set start_date_time=… --set end_date_time=…`, updates them through WS, and deletes them only as a `ha-nova plan raw --file <requests.json>` item `{"endpoint":"ws","payload":<the delete>}`, then `ha-nova apply`:
+`ha-nova:calendar` creates events with `ha-nova call calendar.create_event calendar.example --skill ha-nova:calendar --set summary=Event --set start_date_time=… --set end_date_time=…`, and updates and deletes them only as a `ha-nova plan raw --file <requests.json>` item `{"endpoint":"ws","payload":<the update or delete>}`, then `ha-nova apply`:
 
 ```json
 {"type":"calendar/event/update","entity_id":"calendar.example","uid":"<uid>","event":{"summary":"Event","dtstart":"2026-07-15T14:00:00+02:00","dtend":"2026-07-15T15:00:00+02:00"}}
