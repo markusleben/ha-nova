@@ -136,6 +136,9 @@ func renderSetupCompleteBanner(out io.Writer, clients []string, look *setupFirst
 			for _, line := range claudeWhereLines() {
 				fmt.Fprintf(out, "  %s\n", line)
 			}
+			if line := claudeGitBashLine(); line != "" {
+				fmt.Fprintf(out, "  %s %s\n", session.style("warning", session.warningMarker()), line)
+			}
 		}
 		if slices.Contains(clients, "codex") {
 			fmt.Fprintf(out, "  %s\n", codexWhereLine())

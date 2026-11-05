@@ -61,6 +61,7 @@
   "setup.codex.where_linux": "Codex is the codex command in a terminal and the Codex IDE extension. Start a new Codex session to load HA NOVA.",
   "setup.claude.where": "Claude Code is the claude command in a terminal and the Code tab in the Claude Desktop app (in a new chat). The chat tab in Claude Desktop doesn't use it. For that tab, see chat apps (needs Home Assistant reachable from the internet).",
   "setup.claude.chat_guide": "Chat apps guide: {url}",
+  "setup.claude.git_bash_missing": "Git for Windows is missing. Claude Code works without it, but HA NOVA's start-up step in Claude Code needs its Git Bash. Install Git for Windows from {url}, then start a new Claude Code session.",
   "setup.done.try_asking_in": "Open {client} and try asking:",
   "setup.done.try_asking": "Try asking:",
   "setup.done.example_light": "Turn off the living room light",
