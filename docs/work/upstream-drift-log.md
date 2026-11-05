@@ -518,3 +518,126 @@ stopped.
   this ad hoc check): screen the 2026.11.0 release post and the remaining
   beta items (entity naming, exclude targets, sun/calendar offset sign, flow
   `visible`) plus the 2026-10-24 watch list.
+
+## 2026-11-05 — pre-release screen (v0.28.1 cycle): HA 2026.11.0 + developer blog 2026-10-25–2026-11-01 + HACS
+
+- Window screened: the 2026.11 release post (2026-11-04) with its whole
+  backward-incompatible list and the feature sections that touch pinned
+  surfaces; Core `2026.11.0` (2026-11-04) against `2026.10.3` for
+  `websocket_api`, `config/*` registries, `helpers/entity_registry`,
+  `helpers/device_registry`, `helpers/target`, `data_entry_flow`,
+  automation/script, sun/calendar triggers, update, climate, lawn_mower,
+  logbook, repairs, backup and `auth/indieauth`; the Marketplace from
+  `2026.11.0b4` to `2026.11.0`; contributors.home-assistant.io/blog posts
+  2026-10-25 through 2026-11-01; HACS releases and tags after 2.0.5 (none).
+  Live checks, never a real home: the rc lane for v0.28.1-rc2 against a
+  test bed on `homeassistant/home-assistant:2026.11.0`, the disposable-HA
+  E2E on `stable` (= 2026.11.0) for 4da8d7dd, and a naming probe on that
+  test bed.
+- HIT (P2) — entity names (core #184340, #184341): an entity's `name` is
+  now its own part, and Home Assistant puts the device name in front of it
+  everywhere, also for names set by a user. Stored names lose their device
+  prefix in a one-time migration; where the full name changes, the old one
+  stays in `compat_name` and in `friendly_name` until the next rename.
+  Probe on 2026.11.0: `config/entity_registry/update` with
+  `name: "Sun Reading Lamp"` on device "Sun" gives `friendly_name`
+  "Sun Sun Reading Lamp"; `name: "Reading Lamp"` gives "Sun Reading Lamp".
+  `skills/organize` renames by writing the name the user says and reads the
+  registry name back, so on 2026.11+ a name that repeats the device name is
+  shown doubled while the skill reports success. A device rename now also
+  renames how every entity of the device is shown and spoken (Assist),
+  which the preview does not say. Fix in `skills/organize`: send only the
+  entity's own part (strip a leading device name, say so in the preview),
+  preview and verify by the resulting `friendly_name`, and name the
+  entities a device rename changes.
+- HIT (P3, same change) — `config/entity_registry/list_for_display` drops
+  `hn` and the registry lists drop `has_entity_name`;
+  `skills/ha-nova/relay-api.md` still documents `hn`. No CLI or skill
+  logic reads either (grep-clean). The CLI names entities by the state's
+  `friendly_name` (confirmations, `find`, `map`, `get`), which 2026.11
+  still sets to the full name, so confirmations are unchanged.
+- HIT (P3) — flow `visible` (watch item from 2026-10-24, now shipped):
+  serialized `data_schema` fields carry `visible` (`{field, value}`, a list
+  of them, or a bool), recursing into sections. A hidden field is not
+  required and its value is dropped. `skills/integration-setup` builds the
+  step body from `data_schema` without it, so an agent can ask for, or
+  preview, a value that is never saved. Fix: ask only for fields whose
+  `visible` holds for the answers given so far.
+- HIT (P3) — target `exclude` (release post "Exclude items from a target"):
+  targets in triggers, conditions and actions, and the target keys of an
+  entity service call, accept an `exclude` block with the same keys. The
+  tier walk (`cli/tier_walk.go`, `cli/tier_fires.go`) ignores it and
+  works on the superset, which can only ask more, never less.
+  `ha-nova plan call` refuses `entity_id`/`area_id`/`device_id`/`target`
+  and `floor_id`/`label_id` in service data but passes `exclude`, so Home
+  Assistant can act on fewer entities than the preview lists (never more).
+  Fix: refuse `exclude` in service data like `floor_id`/`label_id`.
+- CLEAN — sun and calendar offset sign (core #184855): only the new
+  purpose-specific `sun.*` and `calendar.event_*` triggers lose the
+  `offset_type: before` default. `skills/ha-nova/automation-patterns.md`
+  uses `trigger: sun` with a signed offset ("-00:30:00" = before), whose
+  meaning is unchanged.
+- CLEAN — Marketplace `2026.11.0b4` → `2026.11.0`: `marketplace/websocket`
+  unchanged; `marketplace/info` and `marketplace/repositories/list` keep
+  their shape (download URL internals and profiles only). The fix that
+  shipped in #957 stands.
+- CLEAN — registries: `config/device_registry/*` keys unchanged;
+  `config/entity_registry/update` drops its "device is disabled" check
+  (the registry now derives an entity's `disabled_by` from its device); `config_entries/disable` reports
+  `require_restart: false` for an entry in `setup_retry`/`setup_error`;
+  `repairs/list_issues` leaves out issues of a disabled config entry. New,
+  additive: `explain_target`, `logbook/get_action_calls`,
+  `subscribe_system_state`/`dismiss_system_state`. `automation/config`,
+  `script/config`, `get_panels`, `frontend/get_translations` and
+  `manifest/list` keep their command types; `search` is untouched.
+- CLEAN — watch list: update entities keep their attributes (`has_update`
+  only decides `on`); `temperature_unit` on climate is additive; no lawn
+  mower `idle` activity; `DeviceInfo`, `support_mfa` and `debug_console`
+  stay Python- or YAML-only; renaming an `entity_id` updates the entity in
+  place (no wire change).
+- CLEAN — Auth client IDs (core #186537, #186543): a public IP client ID
+  must now match the request address. Link sign-in uses
+  `http://127.0.0.1:<port>/…` (loopback, still accepted), and chat-app
+  connectors use domain names.
+- CLEAN — backups: local agents stay `hassio.local`/`backup.local`; a new
+  local-disk mount is one more Supervisor agent, which
+  `cli/relay_raw_backup.go` treats as remote (refuses a raw unencrypted
+  backup there; the automatic-settings path works).
+- CLEAN — child devices for Z-Wave endpoints and own devices for ZHA groups:
+  device targets already cover child devices (`cli/tier_device.go`;
+  skills fixed with #833). Matter tilt-only covers are blinds now using the
+  `*_cover_tilt` actions; device tracker, MQTT, Telegram (legacy notify
+  removed), SMTP, Python `deps` and the other integration items name no
+  pinned surface.
+- CLEAN — dev-blog 2026-10-25 (backup agents can be renamed), 2026-10-28
+  (custom section strategies, frontend components, repair issues per config
+  entry, ScannerEntity devices and disabled-by-default), 2026-11-01
+  (`Undefined` sentinel): Python or frontend APIs, no wire change.
+- CLEAN — no HACS release after 2.0.5; HACS is superseded by the
+  Marketplace (2026-11-03 entry).
+- Live: the disposable-HA E2E on 2026.11.0 is green (run 41998902372).
+  The rc lane for v0.28.1-rc2 on a 2026.11.0 test bed passed every step on
+  its second run. The first run failed only the DE batch chat check: the
+  model put "Gib beide Codes in einer Nachricht ein." after the codes, which
+  is model wording, not a Home Assistant change.
+- Sources: home-assistant.io/blog/2026/11/04/release-202611/;
+  github.com/home-assistant/core/releases/tag/2026.11.0;
+  github.com/home-assistant/core/compare/2026.10.3...2026.11.0;
+  github.com/home-assistant/core/pull/184340;
+  github.com/home-assistant/core/pull/184341;
+  github.com/home-assistant/core/pull/184855;
+  github.com/home-assistant/core/pull/186537;
+  contributors.home-assistant.io/blog/2026/10/25/rename-backup-agents/;
+  contributors.home-assistant.io/blog/2026/10/28/custom-section-strategies-in-the-dashboard-editor/;
+  contributors.home-assistant.io/blog/2026/10/28/frontend-component-updates-2026.11/;
+  contributors.home-assistant.io/blog/2026/10/28/issue-registry-refresh/;
+  contributors.home-assistant.io/blog/2026/10/28/scanner-entity-devices/;
+  contributors.home-assistant.io/blog/2026/11/01/undefined-helper/;
+  github.com/hacs/integration/releases (and tags).
+- Next window starts AFTER HA 2026.11.0 + dev-blog 2026-11-01 + HACS 2.0.5.
+  Watch the `friendly_name` deprecation (the CLI names entities by it), the
+  Marketplace write parity (2026-11-03 entry), the ScannerEntity default
+  device removal (2027.11), `via_device` (2027.8) and the legacy
+  `DeviceInfo` keys (2027.9), `step_id` for custom flows (2027.5), the
+  deferred lawn-mower `idle` bucket, and the legacy device-registry removal
+  command for 2027.9.
