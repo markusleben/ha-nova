@@ -77,7 +77,7 @@ release:
     ## What To Watch
 
     - **Changes that need your own confirmation always ask through HA NOVA.** Some, like deletes or HACS downloads, could be confirmed in the chat alone. Now HA NOVA asks in its window, on your phone, or with its own code.
-    - **A change that sets off an unlock asks you first, whatever the change.** If an automation reacting to a calendar event, helper, device setting, rename or new zone unlocks a door, opens a gate or disarms, you're asked.
+    - **More changes that set off an unlock ask you first.** If an automation reacting to a calendar event, helper, device or integration setting, rename or new zone unlocks a door, opens a gate or disarms, you're asked.
 
     ## Bug Fixes
 

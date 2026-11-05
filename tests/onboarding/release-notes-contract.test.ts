@@ -52,7 +52,7 @@ describe("release notes contract", () => {
     expect(stableNotes).toMatch(/## Bug Fixes\s+- \*\*Renames on Home Assistant 2026\.11 no longer repeat the device name\.\*\*/);
     // Typed writes go through a plan and the person's own confirmation (#955, #956); raw writes take the listener check (#946).
     expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Changes that need your own confirmation always ask through HA NOVA\.\*\*/);
-    expect(stableNotes).toMatch(/## What To Watch[\s\S]*- \*\*A change that sets off an unlock asks you first, whatever the change\.\*\*[\s\S]*## Bug Fixes/);
+    expect(stableNotes).toMatch(/## What To Watch[\s\S]*- \*\*More changes that set off an unlock ask you first\.\*\*[\s\S]*## Bug Fixes/);
     expect(stableNotes).not.toContain("one-time code");
     // App 0.13.20 keeps the 0.28.0 tool text (TestMCPToolTextStable), so ChatGPT needs no Refresh and Claude doesn't ask again.
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
