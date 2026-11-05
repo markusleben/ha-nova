@@ -133,7 +133,11 @@ func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Dur
 	}, nil
 }
 
-func (s *relaySession) close() { s.cancel() }
+// close ends the session and drops the idle connections its reads kept.
+func (s *relaySession) close() {
+	s.cancel()
+	s.transport.Client.CloseIdleConnections()
+}
 
 // coreGET reads one Home Assistant REST path and returns the upstream status
 // and body from the Relay envelope.
@@ -291,8 +295,8 @@ func (s *relaySession) sendIn(parent context.Context, endpoint string, body []by
 	}
 	resp, err := s.transport.Client.Do(req)
 	// R4: every caller reads (writes take sendWrite), so a read that got no
-	// answer from the Relay over Link goes once more inside its own deadline.
-	if err != nil && s.transport.Via == relayViaCloud && linkNoRelayAnswer(err) && linkRetryWait(ctx, linkRequestRetryMinLeft) {
+	// answer from the Relay goes once more inside its own deadline.
+	if err != nil && readNoRelayAnswer(s.transport.Via, err) && linkRetryWait(ctx, linkRequestRetryMinLeft) {
 		if req, err = newRelayRequest(ctx, s.transport, endpoint, body); err != nil {
 			return nil, err
 		}
