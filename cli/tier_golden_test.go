@@ -227,6 +227,8 @@ func TestPlanCallTierGoldenCases(t *testing.T) {
 			args: []string{"lock.open", "lock.front"}, exit: 4, tier: "refused", reasons: []string{reasonFeature}},
 		{name: "floor selector in data is refused",
 			args: []string{"light.turn_off", "--set", "floor_id=upstairs"}, exit: 4, tier: "refused", reasons: []string{reasonSelector}},
+		{name: "exclude block in data is refused",
+			args: []string{"light.turn_off", "light.kitchen", "--set", `exclude={"entity_id":["light.kitchen"]}`}, exit: 4, tier: "refused", reasons: []string{reasonSelector}},
 		{name: "failed relation scan is typed, never clean",
 			setup: func(f *fakeHA) { f.fail["search/related"] = true },
 			args:  []string{"light.turn_off", "light.kitchen"}, exit: 3, tier: "typed", reasons: []string{reasonScanFailed}},
