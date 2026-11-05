@@ -5,7 +5,7 @@
 #
 # Usage: changed-areas.sh --all | changed-areas.sh <base> <head>
 # Reads JOB_AREAS: JSON object, job id -> non-empty list of areas.
-# Writes to $GITHUB_OUTPUT (stdout when unset): <area>=true|false per area and
+# Writes to $GITHUB_OUTPUT (stdout when unset or empty): <area>=true|false per area and
 # run=<JSON object, job id -> true|false>.
 set -euo pipefail
 
@@ -61,10 +61,10 @@ run="$(jq -ce --argjson on "$flags" '
       else any(.[]; $on[.]) end)
 ' <<<"${JOB_AREAS:?JOB_AREAS is required}")"
 
-out="${GITHUB_OUTPUT:-/dev/stdout}"
-{
+emit() {
   jq -r 'to_entries[] | "\(.key)=\(.value)"' <<<"$flags"
   echo "run=$run"
-} >>"$out"
+}
+if [[ -n ${GITHUB_OUTPUT:-} ]]; then emit >>"$GITHUB_OUTPUT"; else emit; fi
 echo "areas: $flags"
 echo "jobs: $run"
