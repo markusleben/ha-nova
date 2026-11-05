@@ -5,6 +5,7 @@ license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
 
+
 # HA NOVA Admin
 
 ## Scope
