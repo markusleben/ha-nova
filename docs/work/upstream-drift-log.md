@@ -583,8 +583,9 @@ stopped.
   shipped in #957 stands.
 - CLEAN — registries: `config/device_registry/*` keys unchanged;
   `config/entity_registry/update` drops its "device is disabled" check
-  (the registry now derives an entity's `disabled_by` from its device); `config_entries/disable` reports
-  `require_restart: false` for an entry in `setup_retry`/`setup_error`;
+  (the registry now derives an entity's `disabled_by` from its device);
+  `config_entries/disable` reports `require_restart: false` for an entry in
+  `setup_retry`/`setup_error`;
   `repairs/list_issues` leaves out issues of a disabled config entry. New,
   additive: `explain_target`, `logbook/get_action_calls`,
   `subscribe_system_state`/`dismiss_system_state`. `automation/config`,
