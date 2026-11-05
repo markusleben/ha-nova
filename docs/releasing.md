@@ -19,8 +19,8 @@ npm run verify:next-release-version -- v<version>
 - never reuse a published stable version; never tag an RC/final whose base
   version is <= the latest published stable
 - tag version, `version.json`, `package.json`, `package-lock.json`,
-  `.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json` must
-  match; the marketplace entry keeps `source: "./"`
+  `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and
+  `server.json` (MCP Registry entry) must match; the marketplace entry keeps `source: "./"`
 - `README.md` is stable-release truth: unreleased claims collect in the
   version-free `docs/work/next-release-body.md`; the release-prep PR carries
   the bump, every release-bound `README.md` edit, and the `.goreleaser.yml`
@@ -155,6 +155,10 @@ deploy or tag.
 5. `publish-release`: verifies the complete asset set, publishes the draft,
    re-asserts Latest for stable.
 6. `smoke-installers`: public install/update/uninstall on all three OSes.
+7. `publish-mcp-registry` (final tags only): publishes `server.json` to the
+   MCP Registry (registry.modelcontextprotocol.io) with GitHub OIDC and a
+   pinned, checksum-verified `mcp-publisher`; skips a version the registry
+   already lists. A failure leaves the GitHub release untouched; re-run the job.
 
 ## App Images
 
@@ -327,7 +331,9 @@ irm https://raw.githubusercontent.com/markusleben/ha-nova/<stable-tag>/install.p
 After a final stable publish, merge the prepared site PR (see section 1; RCs
 skip it), then run the commands above for the new tag and smoke
 `ha-nova version`, `ha-nova check-update`, same-version `ha-nova update`, and
-`ha-nova uninstall --yes`.
+`ha-nova uninstall --yes`. For a final tag, check that
+`https://registry.modelcontextprotocol.io/v0.1/servers/io.github.markusleben%2Fha-nova/versions/latest`
+shows the new version.
 
 ## 8. Release Notes Style
 
