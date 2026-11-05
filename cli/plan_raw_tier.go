@@ -315,16 +315,12 @@ type rawDeviceRow struct {
 // either can't be read (a real empty registry is []) or has a row without
 // its id (a null element decodes to an empty row).
 func (n *rawNamer) registries() (entities []rawEntityRow, devices []rawDeviceRow, ok bool) {
-	if n.s == nil {
-		n.missed = true
-		return nil, nil, false
-	}
-	data, err := rawRead(n.s, "ws", map[string]any{"type": "config/entity_registry/list"})
+	data, err := n.read("ws", map[string]any{"type": "config/entity_registry/list"})
 	if err == nil {
 		err = json.Unmarshal(data, &entities)
 	}
 	if err == nil {
-		data, err = rawRead(n.s, "ws", map[string]any{"type": "config/device_registry/list"})
+		data, err = n.read("ws", map[string]any{"type": "config/device_registry/list"})
 	}
 	if err == nil {
 		err = json.Unmarshal(data, &devices)
@@ -407,15 +403,11 @@ func numbersByValue(v any) any {
 // energyPrefs reads energy/get_prefs once (numbers kept as written); never
 // configured (not_found) reads as no lists.
 func (n *rawNamer) energyPrefs() (map[string]any, bool) {
-	if n.s == nil {
-		n.missed = true
-		return nil, false
-	}
 	if n.prefsRead {
 		return n.prefs, n.prefsOK
 	}
 	n.prefsRead, n.prefs = true, map[string]any{}
-	data, err := rawRead(n.s, "ws", map[string]any{"type": "energy/get_prefs"})
+	data, err := n.read("ws", map[string]any{"type": "energy/get_prefs"})
 	var call *relayCallError
 	switch {
 	case err == nil:

@@ -92,7 +92,7 @@ func (n *rawNamer) readCalendarLive(entity, uid, rid string) (calendarLiveEvent,
 			Start        struct{ Date, DateTime string }
 		}
 	}
-	data, err := rawRead(n.s, "core", calendarWindow(entity))
+	data, err := n.read("core", calendarWindow(entity))
 	if err != nil || json.Unmarshal(data, &core) != nil || core.Status != http.StatusOK {
 		return calendarLiveEvent{}, false
 	}

@@ -2,18 +2,18 @@
 
 Status: active
 
-Date: 2026-11-03. Owner: CLI raw route (`cli/relay_raw_endpoint.go` `relayTyped`, `cli/plan_raw_tier.go`, `cli/plan_raw_person.go`) and the skills that write raw. Target: 0.28.1. Shipped as two PRs, each safe alone: the skills first, then the CLI.
+Date: 2026-11-03. Owner: CLI raw route (`cli/relay_raw_endpoint.go` `relayTyped`, `cli/plan_raw_tier.go`, `cli/plan_raw_person.go`) and the skills that write raw. Target: 0.28.2 (held back from 0.28.1). Shipped as two PRs, each safe alone: the skills first, then the CLI.
 
 ## Today
 
 `ha-nova relay ws|core|files|backups` sends a write at once. A raw plan (`ha-nova plan raw`) rates the same request, and for a delete, a removal, a new account, a HACS download, a dashboard resource, an emptying energy save, a new id, area, or label on a lock, alarm panel, or door, or a person's trackers it asks the user's own confirmation: the window, the linked phone, or a code the CLI mints and checks. Many skills sent these writes through `relay` and gated them with four digits the agent minted and checked itself. Nothing but the skill text stood between the AI and the write.
 
-Maintainer decision (2026-11-03): in 0.28.1 `relay` refuses them, every skill goes through a plan and its confirmation, person trackers included.
+Maintainer decision (2026-11-03): `relay` refuses them, every skill goes through a plan and its confirmation, person trackers included.
 
 ## Design
 
 1. **Skills.** Every write a plan types goes as a `ha-nova plan raw --file <requests.json>` item, then `ha-nova apply`; the plan's `say` asks. A skill mints no code for these. A batch manifest's one code is the ask of one raw plan of at most 20 items. A device takeover rename the Access Check types carries `"typed":true`. Organize sends entity, device, and area updates as plan items, so the CLI rates the target's family.
-2. **Relay refusal (`relayTyped`).** After the shared guard and the to-do move rule, relay tiers what it would send with the plan's own function (`rawItemTier`): the body, and a `collect_events` envelope's `message`; a core method upper-cased as the Relay sends it (and trimmed, so a padded method fails closed). No second list. The first pass reads nothing: a read the tier needs counts as failed, and a failed read counts as typed. A typed result that came only from such a read opens a session and tiers again live; a read that fails there still refuses. A typed write is refused with exit 4 and nothing is sent:
+2. **Relay refusal (`relayTyped`).** After the shared guard and the to-do move rule, relay tiers what it would send with the plan's own function (`rawItemTier`): the body, and a `collect_events` envelope's `message`; a core method upper-cased as the Relay sends it (and trimmed, so a padded method fails closed). No second list. The first pass reads nothing: every read the tier needs (`rawNamer.read`) records the miss and counts as failed, and a failed read counts as typed. A typed result that came only from such a read opens a session and tiers again live; a read that fails there still refuses. A typed write is refused with exit 4 and nothing is sent:
 
    `refused raw <what> (a safety rule, not a setup or connection problem): <why>, so only the user may confirm it, and only a plan asks them: put [{"endpoint":"<endpoint>","payload":<this request>}] in a file, run ha-nova plan raw --file <file>, show the user its say, and follow its next_step; nothing was sent`
 
@@ -25,7 +25,7 @@ Maintainer decision (2026-11-03): in 0.28.1 `relay` refuses them, every skill go
 
 - Computing the tier keeps previewed writes (renames, settings, creates) on `relay`. Refusing every write would move every skill write into a plan: more churn for the same protection.
 - Fail closed costs a refusal when Home Assistant can't be read; the plan then rates it typed and asks.
-- Chat apps get the person rule only with the App, which bundles the CLI bridge: a same-tracker rename goes from typed to preview; a create with trackers, or an update without the key for a person with trackers, goes from preview to typed. The App bump is a separate commit, so it can move or drop.
+- Chat apps get the person rule only with the App, which bundles the CLI bridge: a same-tracker rename goes from typed to preview; a create with trackers, or an update without the key for a person with trackers, goes from preview to typed. This PR bumps no App: the 0.28.2 release prep bumps it once for every bridge change (maintainer decision, 2026-11-05).
 
 ## Known limits
 
@@ -37,4 +37,4 @@ Maintainer decision (2026-11-03): in 0.28.1 `relay` refuses them, every skill go
 
 ## Proof
 
-`cli/relay_typed_test.go`: every allowlisted write, relay refuses exactly what a plan types (also in an envelope); a static delete is refused with no request; a lock move reads live, a failed read sends nothing; the person and tracker rules on plan and relay. `tests/skills/*` pin the skill routes.
+`cli/relay_typed_test.go`: every allowlisted write, relay refuses exactly what a plan types (also in an envelope); a static delete is refused with no request; a lock move and a calendar update that drops dates read live, a failed read sends nothing; the person and tracker rules on plan and relay. `tests/skills/*` pin the skill routes.

@@ -225,3 +225,30 @@ func TestTrackerRenameTypedWhenAPersonFollowsIt(t *testing.T) {
 		}
 	}
 }
+
+// A calendar update is typed only by the event it reads (calendarShortens),
+// so relay reads the calendar live: an update that drops dates is refused,
+// one that keeps them is sent, and an unreadable calendar refuses.
+func TestRelayTiersACalendarUpdateOnTheLiveEvent(t *testing.T) {
+	paths, sent, setRule := calendarRelay(t, "FREQ=WEEKLY;COUNT=5")
+	update := func(rule string) string {
+		return `{"type":"calendar/event/update","entity_id":"calendar.family",` + calendarFuture + `,"event":{"summary":"Dentist","dtstart":"` + calendarAt + `","dtend":"2026-11-09T15:00:00+01:00","rrule":"` + rule + `"}}`
+	}
+	for _, tc := range []struct {
+		name, live, rule string
+		refused          bool
+	}{
+		{name: "a lower COUNT", live: "FREQ=WEEKLY;COUNT=5", rule: "FREQ=WEEKLY;COUNT=3", refused: true},
+		{name: "a higher COUNT", live: "FREQ=WEEKLY;COUNT=5", rule: "FREQ=WEEKLY;COUNT=8"},
+		{name: "an unreadable calendar", rule: "FREQ=WEEKLY;COUNT=8", refused: true},
+	} {
+		setRule(tc.live)
+		before := len(sent())
+		var exit int
+		stderr := captureStderr(t, func() { exit = runRelayCommand(paths, []string{"ws", "--data", update(tc.rule)}) })
+		refused := exit == verbExitRefused && strings.Contains(stderr, "refused raw calendar/event/update") && len(sent()) == before
+		if refused != tc.refused || !refused && (exit != 0 || len(sent()) != before+1) {
+			t.Errorf("%s: exit %d, stderr %q, sent %v; want refused %v", tc.name, exit, stderr, sent()[before:], tc.refused)
+		}
+	}
+}

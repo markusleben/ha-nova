@@ -21,17 +21,13 @@ func (n *rawNamer) personFollows(wsType string, payload map[string]any) bool {
 	if !ok || wsType == "person/create" {
 		return !ok || len(next) > 0
 	}
-	if n.s == nil {
-		n.missed = true
-		return true
-	}
 	var list struct {
 		Storage []struct {
 			ID       string `json:"id"`
 			Trackers any    `json:"device_trackers"`
 		} `json:"storage"`
 	}
-	data, err := rawRead(n.s, "ws", map[string]any{"type": "person/list"})
+	data, err := n.read("ws", map[string]any{"type": "person/list"})
 	if err != nil || json.Unmarshal(data, &list) != nil {
 		return true
 	}
@@ -66,16 +62,12 @@ func (n *rawNamer) trackerFollowed(payload map[string]any) bool {
 	if len(ids) == 0 {
 		return false
 	}
-	if n.s == nil {
-		n.missed = true
-		return true
-	}
 	var list struct {
 		Storage, Config *[]*struct {
 			Trackers *[]string `json:"device_trackers"`
 		}
 	}
-	data, err := rawRead(n.s, "ws", map[string]any{"type": "person/list"})
+	data, err := n.read("ws", map[string]any{"type": "person/list"})
 	if err != nil || json.Unmarshal(data, &list) != nil || list.Storage == nil || list.Config == nil {
 		return true
 	}
