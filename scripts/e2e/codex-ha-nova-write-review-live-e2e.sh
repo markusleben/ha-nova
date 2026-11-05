@@ -1078,7 +1078,14 @@ cleanup_automation() {
   }
   snapshot="$(jq -r '.snapshot // empty' <<<"$applied_json" 2>/dev/null)" || true
   if [[ -n "$snapshot" ]]; then
-    ha-nova relay backups -d "$(jq -cn --arg f "$snapshot" '{action:"delete",file:$f}')" >/dev/null 2>&1 || true
+    # relay refuses a copy delete: it is typed, so it goes through a raw plan.
+    jq -cn --arg f "$snapshot" '[{endpoint:"backups",payload:{action:"delete",file:$f}}]' >"$OUTPUT_DIR/snapshot-delete.json"
+    plan_json="$(ha-nova plan raw --file "$OUTPUT_DIR/snapshot-delete.json" 2>/dev/null)" || true
+    plan_id="$(jq -r '.plan.id // empty' <<<"$plan_json" 2>/dev/null)" || true
+    plan_code="$(jq -r '.plan.code // empty' <<<"$plan_json" 2>/dev/null)" || true
+    if [[ -n "$plan_id" && -n "$plan_code" ]]; then
+      ha-nova apply --plan "$plan_id" --confirm "$plan_code" >/dev/null 2>&1 || true
+    fi
   fi
 }
 

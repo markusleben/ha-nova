@@ -23,7 +23,8 @@ func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
 	mcpInit(c)
 	wantTyped := []string{"config/entity_registry/remove", "config/device_registry/remove", "lovelace/resources/create", "lovelace/resources/update", "lovelace/resources/delete",
 		"recorder/clear_statistics", "backup/delete", "hacs/repositories/remove", "hacs/repository/download", "hacs/repository/remove",
-		"config/auth/create", "config/auth/delete", "assist_pipeline/pipeline/delete", "calendar/event/delete", "blueprint/delete", "config_entries/subentries/delete", "labs/update", "recorder/import_statistics"}
+		"config/auth/create", "config/auth/delete", "assist_pipeline/pipeline/delete", "calendar/event/delete", "blueprint/delete", "config_entries/subentries/delete", "labs/update", "recorder/import_statistics",
+		"person/update"} // a bare update empties an unknown person's trackers (personFollows)
 	for _, collection := range rawWSCollections {
 		wantTyped = append(wantTyped, collection+"/delete")
 	}

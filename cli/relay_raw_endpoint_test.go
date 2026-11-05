@@ -101,7 +101,7 @@ func TestRawRelayRefusesDisablingAccessDevice(t *testing.T) {
 		t.Fatalf("%d refused requests were forwarded", n)
 	}
 	for _, body := range []string{
-		`{"type":"config/device_registry/update","device_id":"dlock","name_by_user":"Front door","area_id":"hall"}`,
+		`{"type":"config/device_registry/update","device_id":"dlock","name_by_user":"Front door"}`, // a new area is typed (relay_typed_test.go)
 		`{"type":"config/device_registry/update","device_id":"dplug","disabled_by":"user"}`,
 		`{"type":"config/device_registry/update","device_id":"dblind","disabled_by":"user"}`,
 		`{"type":"config/device_registry/update","device_id":"dcurtain","disabled_by":null}`, // a disabled curtain: class from its registry entry
