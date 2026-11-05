@@ -73,7 +73,8 @@ describe("codex live skill e2e contract", () => {
   it("exposes npm scripts for contributor verification and live e2e checks", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
     expect(pkg.scripts?.["onboarding:macos:quick"]).toBeUndefined();
-    const verify = pkg.scripts?.verify ?? "";
+    const verify = `${pkg.scripts?.["verify:node"] ?? ""} && ${pkg.scripts?.verify ?? ""}`;
+    expect(pkg.scripts?.verify).toBe("npm run verify:node && npm run test:cli");
     expectFragmentsInOrder(verify, [
       "npm run verify:security",
       "bash scripts/release/verify-blocked-files.sh",
@@ -82,8 +83,8 @@ describe("codex live skill e2e contract", () => {
       "npm run test:safe:core",
       "npm run verify:onboarding",
       "npm run build",
-      "npm run test:cli",
       "npm run verify:release-contracts",
+      "npm run test:cli",
     ]);
     expectNoFullVitestSweep(verify);
     expect(verify).toContain("npm run verify:release-contracts");
