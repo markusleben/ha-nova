@@ -81,6 +81,14 @@ describe("fallback capability map is complete and truthful (#516)", () => {
     expect(row).not.toContain("Roadmap");
   });
 
+  it("says radio pairing isn't in HA NOVA yet, never that it can't be done (#980)", () => {
+    // zha/devices/permit, zwave_js/add_node, matter/commission are plain WS
+    // commands: no coordinator or hardware access is involved.
+    expect(flat(fallback)).toContain("HA NOVA doesn't pair radio devices yet");
+    expect(flat(fallback)).toContain("Settings > Connectivity > Zigbee, Z-Wave, or Matter > Add device");
+    expect(fallback).not.toMatch(/coordinator access|not an API surface/);
+  });
+
   it("warns that removing a config entry takes its devices with it", () => {
     const f = flat(read("skills/integration-setup/SKILL.md"));
     expect(f).toContain("### Removal");
