@@ -3,9 +3,11 @@
 Status: active
 
 Append-only record of upstream-release screenings against skill-pinned
-surfaces (rule: AGENTS.md → Research → Upstream drift check). Every run is
+surfaces (rule: AGENTS.md → Releases → upstream drift check). Every run is
 logged — hits AND clean passes — so the next run knows where the last one
-stopped.
+stopped. A full screen's heading says "pre-release screen" or "deep-audit
+screen" (`## YYYY-MM-DD — pre-release screen …`); `npm run verify:drift-log`
+counts only those, not ad hoc checks or corrections.
 
 ## 2026-08-05 — HA 2026.7 + HACS 2.0.5 (initial entry)
 
