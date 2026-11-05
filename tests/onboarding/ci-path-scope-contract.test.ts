@@ -5,9 +5,9 @@ import { dirname, join, resolve } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-// scripts/ci/changed-areas.sh decides which CI jobs a pull request may skip.
+// .github/scripts/changed-areas.sh decides which CI jobs a pull request may skip.
 // Every doubt must select every job; only an error may stop it.
-const script = resolve("scripts/ci/changed-areas.sh");
+const script = resolve(".github/scripts/changed-areas.sh");
 const jobAreas = JSON.stringify({
   "go-test": ["go", "relay", "skills", "docs"],
   "go-build": ["go"],

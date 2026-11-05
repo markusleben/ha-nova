@@ -291,9 +291,32 @@ describe("safe test system contract", () => {
       env: { NEEDS: "${{ toJSON(needs) }}" },
     });
     expect(ciGateSteps[0]?.if).toBeUndefined();
-    expect(ciGateSteps[0]?.run).toContain('if $changes != "success"');
-    expect(ciGateSteps[0]?.run).toContain('$run[$job] == false');
-    expect(ciGateSteps[0]?.run).toContain("exit 1");
+    // Run the gate on job results: a job may be skipped only when the run map
+    // marks it false; anything else that is not success fails.
+    const gate = (needs: unknown) =>
+      spawnSync("bash", ["-c", ciGateSteps[0]?.run ?? "exit 0"], {
+        encoding: "utf8",
+        env: { ...process.env, NEEDS: JSON.stringify(needs) },
+      }).status;
+    const results = (run: string, changes: string, scoped: string, rest = "success") => ({
+      changes: { result: changes, outputs: { run } },
+      "test-inventory": { result: rest, outputs: {} },
+      verify: { result: rest, outputs: {} },
+      "go-test": { result: scoped, outputs: {} },
+    });
+    const unneeded = JSON.stringify({ "go-test": false });
+    expect(gate(results(unneeded, "success", "skipped"))).toBe(0);
+    expect(gate(results(JSON.stringify({ "go-test": true }), "success", "success"))).toBe(0);
+    expect(gate(results(JSON.stringify({ "go-test": true }), "success", "skipped"))).not.toBe(0);
+    expect(gate(results("{}", "success", "skipped"))).not.toBe(0);
+    expect(gate(results(JSON.stringify({ "go-test": "false" }), "success", "skipped"))).not.toBe(0);
+    expect(gate(results('"x"', "success", "skipped"))).not.toBe(0);
+    expect(gate(results("", "success", "skipped"))).not.toBe(0);
+    expect(gate(results(unneeded, "failure", "skipped"))).not.toBe(0);
+    expect(gate(results(unneeded, "success", "failure"))).not.toBe(0);
+    expect(gate(results(unneeded, "success", "skipped", "cancelled"))).not.toBe(0);
+    expect(gate(results(unneeded, "success", "skipped", "skipped"))).not.toBe(0);
+    expect(gate({ verify: { result: "success", outputs: {} } })).not.toBe(0);
     for (const job of gated) {
       expect(ci.jobs[job]?.["continue-on-error"]).toBeUndefined();
       expect((ci.jobs[job]?.steps ?? []).filter((step) => step.if || step["continue-on-error"])).toEqual([]);
@@ -304,7 +327,13 @@ describe("safe test system contract", () => {
     const changesSteps = ci.jobs["changes"]?.steps ?? [];
     expect(ci.jobs["changes"]?.if).toBeUndefined();
     const select = changesSteps.find((step) => step.name === "Select jobs");
-    expect(select?.run).toContain("bash scripts/ci/changed-areas.sh --all");
+    // Only a pull request into main or a release train is scoped, never a
+    // change under .github/ (the classifier lives there).
+    expect(select?.run).toContain('[[ "$EVENT" == pull_request ]]');
+    expect(select?.run).toContain('[[ "$BASE_REF" == "$DEFAULT_BRANCH" || "$BASE_REF" == release/* ]]');
+    expect(select?.run).toContain("git rev-parse --verify --quiet HEAD^2");
+    expect(select?.run).toContain("git diff --quiet HEAD^1 HEAD -- .github; then");
+    expect(select?.run).toContain("bash .github/scripts/changed-areas.sh --all");
     const jobAreas = JSON.parse(select?.env?.JOB_AREAS ?? "{}") as Record<string, string[]>;
     expect(Object.keys(jobAreas).sort()).toEqual([
       "go-build",

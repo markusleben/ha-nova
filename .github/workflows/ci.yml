@@ -20,9 +20,11 @@ jobs:
   # Path scoping: which jobs this change can affect. Every scoped job below
   # lists its areas in JOB_AREAS and runs only when one of them changed;
   # ci-gate accepts a skipped job only when this job's run map marks it as
-  # not needed. A push to main, a merge group, a pull request into another
-  # branch, a workflow change, and any path outside the known areas run
-  # everything (scripts/ci/changed-areas.sh).
+  # not needed. Only a pull request into main or a release/* train is scoped
+  # (a train reaches main through its own pull request, scoped by the whole
+  # train's diff). A push, a merge group, any other base, a change under
+  # .github/ (decided here, so an edited classifier cannot scope itself), and
+  # any path outside the known areas run everything.
   changes:
     name: changes
     runs-on: ubuntu-latest
@@ -64,11 +66,13 @@ jobs:
             }
         run: |
           set -euo pipefail
-          if [[ "$EVENT" == pull_request && "$BASE_REF" == "$DEFAULT_BRANCH" ]] \
-            && git rev-parse --verify --quiet HEAD^2 >/dev/null; then
-            bash scripts/ci/changed-areas.sh HEAD^1 HEAD
+          if [[ "$EVENT" == pull_request ]] \
+            && [[ "$BASE_REF" == "$DEFAULT_BRANCH" || "$BASE_REF" == release/* ]] \
+            && git rev-parse --verify --quiet HEAD^2 >/dev/null \
+            && git diff --quiet HEAD^1 HEAD -- .github; then
+            bash .github/scripts/changed-areas.sh HEAD^1 HEAD
           else
-            bash scripts/ci/changed-areas.sh --all
+            bash .github/scripts/changed-areas.sh --all
           fi
 
   repo-hygiene:
