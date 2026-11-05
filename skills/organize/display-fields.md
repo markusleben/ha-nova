@@ -1,11 +1,31 @@
 # Organize — Display Fields
 
 On-demand part of `../organize/SKILL.md`. Read it before changing an entity's
-icon, "Show as", display precision, or unit, or an area's labels or
+or a device's name, an entity's icon, "Show as", display precision, or unit, or an area's labels or
 temperature/humidity sensor. Every rule of the skill still applies: read the
 record first, preview current → new, confirm, write once, read back.
 Previews use Home Assistant's own words, not raw values: "Icon: walking
 person", "Show as: Door → Window".
+
+## Names (Home Assistant 2026.11+)
+
+From Home Assistant 2026.11 (`get_config` `version`), the name Home Assistant
+shows and Assist speaks (the state's `friendly_name`) is the device's name,
+a space, and the entity's `name`, also for a name the user set. An entity
+without a device shows its `name` alone. Older versions show a name the user
+set exactly as written.
+
+- **Entity rename**: send only the entity's own part. When the asked name
+  starts with the device's shown name (`name_by_user`, else `name`), leave
+  that part out: "Sun Reading Lamp" on the device "Sun" is sent as
+  `name: "Reading Lamp"`. The preview shows the resulting name and says that
+  Home Assistant adds the device name in front. If nothing is left, ask what
+  the entity's own part should be.
+- **Device rename** (`name_by_user`): list the device's entities (entity
+  registry by `device_id`) and name each one whose shown name changes,
+  current → new, in the preview.
+- Verify by the resulting `friendly_name` (`ha-nova get <entity_id>`), not
+  only by the registry `name`.
 
 ## Entity (`config/entity_registry/update`)
 
