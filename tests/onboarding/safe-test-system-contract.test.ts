@@ -231,7 +231,13 @@ describe("safe test system contract", () => {
       if?: string;
       needs?: string | string[];
       "continue-on-error"?: boolean;
-      steps?: Array<{ if?: string; name?: string; run?: string; "continue-on-error"?: boolean }>;
+      steps?: Array<{
+        if?: string;
+        name?: string;
+        run?: string;
+        env?: Record<string, string>;
+        "continue-on-error"?: boolean;
+      }>;
     }>;
   };
 
@@ -256,28 +262,98 @@ describe("safe test system contract", () => {
     expect(inventoryJob?.["continue-on-error"]).toBeUndefined();
     expect(inventoryJob?.if).toBeUndefined();
 
-    const ciGateSteps = ci.jobs["ci-gate"]?.steps ?? [];
+    // npm run verify runs in two jobs: verify (everything but the Go suite)
+    // and go-test (the Go suite).
+    expect(pkg.scripts?.verify).toBe("npm run verify:node && npm run test:cli");
+    const verifySteps = ci.jobs["verify"]?.steps ?? [];
     expectFragmentsInOrder(
-      ciGateSteps.map((step) => step.name ?? "").join("\n"),
+      verifySteps.map((step) => step.name ?? "").join("\n"),
       ["Setup Go", "Warm the Go cache", "Install", "Verify repository"],
     );
-    expect(ciGateSteps.find((step) => step.name === "Install")?.run).toBe("npm ci");
+    expect(verifySteps.find((step) => step.name === "Install")?.run).toBe("npm ci");
+    expect(verifySteps.find((step) => step.name === "Verify repository")?.run).toBe("npm run verify:node");
+    const goTestSteps = ci.jobs["go-test"]?.steps ?? [];
+    expect(goTestSteps.find((step) => step.name === "Install")?.run).toBe("npm ci");
+    expect(goTestSteps.find((step) => step.name === "Go tests")?.run).toBe("npm run test:cli");
+    expect(ci.jobs["verify"]?.needs).toBe("test-inventory");
+    expect(ci.jobs["go-test"]?.needs).toEqual(["changes", "test-inventory"]);
 
-    // ci-gate (the required check) also waits for the ha_nova integration tests
-    // and the Go vulnerability scan.
-    expect(ci.jobs["ci-gate"]?.needs).toEqual(["test-inventory", "ha-integration", "govulncheck"]);
+    // ci-gate is the required check and waits for every gating job.
+    const gated = ["changes", "test-inventory", "verify", "go-test", "ha-integration", "govulncheck"];
+    expect(ci.jobs["ci-gate"]?.needs).toEqual(gated);
     // A skipped required check counts as passed: ci-gate always runs and fails
-    // first thing unless every needed job succeeded.
+    // unless the changes job succeeded and every needed job succeeded.
     expect(ci.jobs["ci-gate"]?.if).toBe("${{ always() }}");
+    const ciGateSteps = ci.jobs["ci-gate"]?.steps ?? [];
+    expect(ciGateSteps).toHaveLength(1);
     expect(ciGateSteps[0]).toMatchObject({
       name: "Require the needed jobs",
-      if: "${{ needs.test-inventory.result != 'success' || needs.ha-integration.result != 'success' || needs.govulncheck.result != 'success' }}",
+      env: { NEEDS: "${{ toJSON(needs) }}" },
     });
-    expect(ciGateSteps[0]?.run).toContain("exit 1");
-    for (const job of ["ha-integration", "govulncheck"]) {
-      expect(ci.jobs[job]?.if).toBeUndefined();
+    expect(ciGateSteps[0]?.if).toBeUndefined();
+    // Run the gate on job results: a job may be skipped only when the run map
+    // marks it false; anything else that is not success fails.
+    const gate = (needs: unknown) =>
+      spawnSync("bash", ["-c", ciGateSteps[0]?.run ?? "exit 0"], {
+        encoding: "utf8",
+        env: { ...process.env, NEEDS: JSON.stringify(needs) },
+      }).status;
+    const results = (run: string, changes: string, scoped: string, rest = "success") => ({
+      changes: { result: changes, outputs: { run } },
+      "test-inventory": { result: rest, outputs: {} },
+      verify: { result: rest, outputs: {} },
+      "go-test": { result: scoped, outputs: {} },
+    });
+    const unneeded = JSON.stringify({ "go-test": false });
+    expect(gate(results(unneeded, "success", "skipped"))).toBe(0);
+    expect(gate(results(JSON.stringify({ "go-test": true }), "success", "success"))).toBe(0);
+    expect(gate(results(JSON.stringify({ "go-test": true }), "success", "skipped"))).not.toBe(0);
+    expect(gate(results("{}", "success", "skipped"))).not.toBe(0);
+    expect(gate(results(JSON.stringify({ "go-test": "false" }), "success", "skipped"))).not.toBe(0);
+    expect(gate(results('"x"', "success", "skipped"))).not.toBe(0);
+    expect(gate(results("", "success", "skipped"))).not.toBe(0);
+    expect(gate(results(unneeded, "failure", "skipped"))).not.toBe(0);
+    expect(gate(results(unneeded, "success", "failure"))).not.toBe(0);
+    expect(gate(results(unneeded, "success", "skipped", "cancelled"))).not.toBe(0);
+    expect(gate(results(unneeded, "success", "skipped", "skipped"))).not.toBe(0);
+    expect(gate({ verify: { result: "success", outputs: {} } })).not.toBe(0);
+    for (const job of gated) {
       expect(ci.jobs[job]?.["continue-on-error"]).toBeUndefined();
       expect((ci.jobs[job]?.steps ?? []).filter((step) => step.if || step["continue-on-error"])).toEqual([]);
+    }
+
+    // Path scoping: a job skips only through the run map of the changes job,
+    // which lists its areas. The changes job itself always runs.
+    const changesSteps = ci.jobs["changes"]?.steps ?? [];
+    expect(ci.jobs["changes"]?.if).toBeUndefined();
+    const select = changesSteps.find((step) => step.name === "Select jobs");
+    // Only a pull request into main or a release train is scoped, never a
+    // change under .github/ (the classifier lives there).
+    expect(select?.run).toContain('[[ "$EVENT" == pull_request ]]');
+    expect(select?.run).toContain('[[ "$BASE_REF" == "$DEFAULT_BRANCH" || "$BASE_REF" == release/* ]]');
+    expect(select?.run).toContain("git rev-parse --verify --quiet HEAD^2");
+    expect(select?.run).toContain("git diff --quiet HEAD^1 HEAD -- .github; then");
+    expect(select?.run).toContain("bash .github/scripts/changed-areas.sh --all");
+    const jobAreas = JSON.parse(select?.env?.JOB_AREAS ?? "{}") as Record<string, string[]>;
+    expect(Object.keys(jobAreas).sort()).toEqual([
+      "go-build",
+      "go-test",
+      "govulncheck",
+      "ha-integration",
+      "macos-native-secret-boundary",
+      "windows-native-secret-boundary",
+      "windows-powershell-unicode",
+    ]);
+    // The Go tests read skills/ and docs/work/: they run for those areas too.
+    expect(jobAreas["go-test"]).toEqual(["go", "relay", "skills", "docs"]);
+    for (const [job, config] of Object.entries(ci.jobs)) {
+      if (job === "ci-gate") continue;
+      if (jobAreas[job]) {
+        expect(config.if).toBe(`\${{ fromJSON(needs.changes.outputs.run)['${job}'] }}`);
+        expect([config.needs].flat()).toContain("changes");
+      } else {
+        expect(config.if).toBeUndefined();
+      }
     }
     // The scan fails the job on any finding or load error, never swallows one.
     const scan = ci.jobs["govulncheck"]?.steps?.find((step) => step.run?.includes("govulncheck@v"))?.run ?? "";
@@ -289,8 +365,7 @@ describe("safe test system contract", () => {
       "windows-native-secret-boundary",
       "windows-powershell-unicode",
     ]) {
-      expect(ci.jobs[job]?.needs).toBe("test-inventory");
-      expect(ci.jobs[job]?.if).toBeUndefined();
+      expect(ci.jobs[job]?.needs).toEqual(["changes", "test-inventory"]);
     }
   });
 
@@ -314,7 +389,8 @@ describe("safe test system contract", () => {
     expect(pkg.scripts?.["preverify:release-contracts"]).toBe("node scripts/test/assert-vitest-files-exist.mjs verify:release-contracts");
     expect(pkg.scripts?.["verify:release-contracts"]).toContain("tests/onboarding/release-contract.test.ts");
     expect(pkg.scripts?.["verify:release-contracts"]).toContain("tests/onboarding/desktop-validation-behavior.test.ts");
-    const verify = pkg.scripts?.verify ?? "";
+    const verify = `${pkg.scripts?.["verify:node"] ?? ""} && ${pkg.scripts?.verify ?? ""}`;
+    expect(pkg.scripts?.verify).toBe("npm run verify:node && npm run test:cli");
     expectFragmentsInOrder(verify, [
       "npm run verify:security",
       "bash scripts/release/verify-blocked-files.sh",
@@ -323,8 +399,8 @@ describe("safe test system contract", () => {
       "npm run test:safe:core",
       "npm run verify:onboarding",
       "npm run build",
-      "npm run test:cli",
       "npm run verify:release-contracts",
+      "npm run test:cli",
     ]);
     expectNoFullVitestSweep(verify);
     expect(verify).not.toContain("test:desktop");
