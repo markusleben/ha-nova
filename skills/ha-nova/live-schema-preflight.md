@@ -52,15 +52,21 @@ config/options/subentry and repairs HTTP flow paths.
    `data_schema` decides what is shown and submitted. The preview labels which
    fields came from the live running flow and which remain unavailable (no
    live value exposed) — unavailable fields are named, never guessed.
-   A field with `visible` (Home Assistant 2026.11+) shows only while it
+   A field with `visible` (Home Assistant 2026.11+, for example
+   `"visible":{"field":"all_llm_apis","value":false}`) shows only while it
    holds: a condition `{field, value}` compares another field of the same
-   step (inside a section: of that section), with `operator` `eq` (default),
-   `not_eq`, `in`, `not_in`, `exists`, or `not_exists`; a list must all hold;
-   `true`/`false` is fixed; `visible` on a section hides the whole section.
-   Judge it by the answers so far (an unanswered field counts as its default,
-   a hidden one as empty) and recheck after each answer. Ask for, preview,
-   and submit only visible fields: Home Assistant does not require a hidden
-   field and drops its value.
+   step (inside a section: of that section; a section's own `visible`, which
+   hides the whole section, looks at the step's fields), with `operator`
+   `eq` (default), `not_eq`, `in` / `not_in` (`value` is a list), `exists`
+   (has a value: not missing, null, or `""`; `false` and `0` exist) or
+   `not_exists` (no `value` key); a list must all hold; `true`/`false` is
+   fixed. An unknown shape or operator: stop and finish in the UI. Judge it by
+   the whole body about to be submitted (current values plus the asked
+   changes; a missing field counts as its default, a hidden one as empty),
+   again after each answer, until the visible set stops changing. Ask for,
+   preview, carry forward, and submit only visible fields: Home Assistant
+   does not require a hidden field and drops its value, so a key missing on
+   read-back is not a failure.
 4. Pre-confirmation navigation may advance ONLY through steps proven
    non-persisting and side-effect-free for that family (menu steps, non-final
    form steps of a documented multi-step flow). If a step's persistence
@@ -79,7 +85,7 @@ config/options/subentry and repairs HTTP flow paths.
 
 - Validation errors: show the returned field errors and stop.
 - Schema drift between preview and submit (fields, defaults, enum options,
-  step order, or terminal boundary changed): stop and re-preview against the
+  `visible` conditions, step order, or terminal boundary changed): stop and re-preview against the
   new live schema; the old confirmation is void.
 - Unknown outcomes (timeout, transport error, ambiguous terminal response):
   reconcile the affected resource and FLOW — `GET .../flow/<flow_id>` shows the current `step_id`
