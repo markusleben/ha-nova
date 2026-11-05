@@ -38,7 +38,7 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.28.1 release-facing wording aligned to the shipped stack", () => {
+  it("keeps v0.28.2 release-facing wording aligned to the shipped stack", () => {
     const relayVersion = /^version:\s*"([^"]+)"\s*$/m.exec(readFileSync("nova/config.yaml", "utf8"))?.[1] ?? "";
     // Any App version the notes name is the shipped App.
     const notedApps = [...(stableNotes ?? "").matchAll(/NOVA (?:Relay |App to )(\d+\.\d+\.\d+)/g)];
@@ -46,31 +46,25 @@ describe("release notes contract", () => {
     for (const [, noted] of notedApps) {
       expect(noted, "notes name the shipped NOVA Relay version").toBe(relayVersion);
     }
-    // The App update leads the notes; without New Features the update notice leads with the first bug fix (#957).
+    // The App update leads the notes; without New Features the update notice leads with the first bug fix (#988).
     expect(stableNotes).toMatch(/^\*\*Update the NOVA App to \d+\.\d+\.\d+\.\*\*/);
     expect(stableNotes).not.toContain("## New Features");
-    expect(stableNotes).toMatch(/## Bug Fixes\s+- \*\*Works with Home Assistant 2026\.11's Marketplace\.\*\*/);
-    // Marketplace installs and updates stay in Home Assistant's UI (skills/hacs/hacs-commands.md, Marketplace mode).
-    expect(stableNotes).toContain("it shows what's installed and the steps in Home Assistant for the rest.");
-    // Typed actions take the person's own confirmation: window, phone, or code, whichever applies.
+    expect(stableNotes).toMatch(/## Bug Fixes\s+- \*\*Renames on Home Assistant 2026\.11 no longer repeat the device name\.\*\*/);
+    // Typed writes go through a plan and the person's own confirmation (#955, #956); raw writes take the listener check (#946).
+    expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Changes that need your own confirmation always ask through HA NOVA\.\*\*/);
+    expect(stableNotes).toMatch(/## What To Watch[\s\S]*- \*\*A change that sets off an unlock asks you first, whatever the change\.\*\*[\s\S]*## Bug Fixes/);
     expect(stableNotes).not.toContain("one-time code");
-    // App 0.13.19 keeps the 0.28.0 tool text (TestMCPToolTextStable), so ChatGPT needs no Refresh and Claude doesn't ask again.
+    // App 0.13.20 keeps the 0.28.0 tool text (TestMCPToolTextStable), so ChatGPT needs no Refresh and Claude doesn't ask again.
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
     expect(stableNotes).not.toContain("chatgpt.com/plugins");
     expect(stableNotes).not.toContain("Claude asks once more");
-    // A series that loses dates takes the delete code (#954); a reorder goes alone (#940).
-    expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Shortening a repeating calendar event takes your own confirmation, like a delete\.\*\*/);
-    expect(stableNotes).toMatch(/## What To Watch[\s\S]*- \*\*A shopping-list reorder goes on its own\.\*\*[\s\S]*## Bug Fixes/);
-    // Link confirmations (#944, #947), cut impact checks (#951, #952), helper lists (#943, #948), passwords (#941, #949, #958), calendar previews (#945), Go 1.26.10 (#953).
-    expect(stableNotes).toContain("**Confirmations over Home Assistant Link no longer give up after 5 s.**");
-    expect(stableNotes).toContain("**Changes to an automation many others react to go through.**");
-    // Only a failure that sent nothing says nothing changed (CONFIRMED_NOT_SENT); a cut check keeps its known limit.
-    expect(stableNotes).toContain("When a change you confirmed never reached Home Assistant, HA NOVA now says so: nothing changed.");
-    expect(stableNotes).toContain("A change in what the preview checked still needs a new one.");
-    expect(stableNotes).toContain("**Changing a dropdown helper or a schedule keeps its other options and times.**");
-    expect(stableNotes).toContain("**Passwords stay out of App settings and saved web addresses.**");
-    expect(stableNotes).toContain("**Calendar previews describe repeating events correctly.**");
-    expect(stableNotes).toContain("**Security updates.** HA NOVA and the chat-app part of the NOVA App are built with Go 1.26.10");
+    // HA 2026.11 drift fixes (#989, #992), to-do names (#996), Windows Git (#995), browser path (#987), radio pairing (#986).
+    expect(stableNotes).toContain("**A call no longer does less than its preview says.**");
+    expect(stableNotes).toContain("**Integration setup asks only for what Home Assistant shows.**");
+    expect(stableNotes).toContain("**Removing or changing a to-do item names the item.**");
+    expect(stableNotes).toContain("**Windows: setup says when Claude Code lacks Git for Windows.**");
+    expect(stableNotes).toContain("**Setup in the browser no longer asks for an AI app.**");
+    expect(stableNotes).toContain("It can't pair them yet, so it gives the steps in Home Assistant.");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
   });
