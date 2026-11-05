@@ -29,7 +29,7 @@ func TestPlanRawTypedFlagAndAccessCheck(t *testing.T) {
 		`{"type":"config/entity_registry/update","entity_id":"sensor.door_battery","labels":["door"]}`:  "typed",
 		`{"type":"config/entity_registry/update","entity_id":"light.desk","area_id":"office"}`:          "preview",
 		`{"type":"person/update","person_id":"anna","device_trackers":["device_tracker.new_phone"]}`:    "typed",
-		`{"type":"person/update","person_id":"anna","name":"Anna"}`:                                     "preview",
+		`{"type":"person/update","person_id":"anna","name":"Anna"}`:                                     "typed", // empties her trackers (personFollows)
 	} {
 		if exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":`+payload+`}]`); exit != verbExitConfirmation || env.Tier != tier {
 			t.Errorf("%s: exit %d tier %s, want %s", payload, exit, env.Tier, tier)

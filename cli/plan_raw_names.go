@@ -33,6 +33,8 @@ type rawNamer struct {
 
 	calendars       map[string]any // `<entity> "<uid>" "<recurrence_id>"` → the event an update is tiered on, or "unreadable" (calendarLive)
 	calendarUpdates []string       // "<entity> <uid>" of each calendar update so far (calendarShortens)
+
+	missed bool // a read a namer without a session could not make (relayTyped); it counted as failed
 }
 
 func newRawNamer(s *relaySession, e *tierEngine) *rawNamer {
@@ -52,6 +54,16 @@ func rawRead(s *relaySession, endpoint string, payload map[string]any) (json.Raw
 	return s.sendWithin(endpoint, body, relaySessionRequestTimeout)
 }
 
+// read is rawRead on the namer's session. A namer without one (relayTyped's
+// first pass) sends nothing and records the miss; the read counts as failed.
+func (n *rawNamer) read(endpoint string, payload map[string]any) (json.RawMessage, error) {
+	if n.s == nil {
+		n.missed = true
+		return nil, errors.New("no relay session")
+	}
+	return rawRead(n.s, endpoint, payload)
+}
+
 // names: id → name of one list read; an item's id is the first of idKeys
 // it has, its name the first non-empty of nameKeys.
 func (n *rawNamer) names(request map[string]any, idKeys, nameKeys []string) map[string]string {
@@ -61,7 +73,7 @@ func (n *rawNamer) names(request map[string]any, idKeys, nameKeys []string) map[
 	}
 	m := map[string]string{}
 	n.lists[string(key)] = m
-	data, err := rawRead(n.s, "ws", request)
+	data, err := n.read("ws", request)
 	var rows []map[string]any
 	if err != nil || json.Unmarshal(data, &rows) != nil {
 		// A list inside an object: person/list {storage, config},
@@ -151,12 +163,12 @@ func (n *rawNamer) deviceEntities(id any) {
 		ConfigEntryID    string `json:"config_entry_id"`
 		ConfigSubentryID string `json:"config_subentry_id"`
 	}
-	data, err := rawRead(n.s, "ws", map[string]any{"type": "config/device_registry/list"})
+	data, err := n.read("ws", map[string]any{"type": "config/device_registry/list"})
 	if err == nil {
 		err = json.Unmarshal(data, &devices)
 	}
 	if err == nil {
-		data, err = rawRead(n.s, "ws", map[string]any{"type": "config/entity_registry/list"})
+		data, err = n.read("ws", map[string]any{"type": "config/entity_registry/list"})
 	}
 	if err == nil {
 		err = json.Unmarshal(data, &entities)
@@ -221,7 +233,7 @@ func (n *rawNamer) calendarEvent(lang string, payload map[string]any) string {
 	if !entityIDPattern.MatchString(entity) {
 		return name
 	}
-	if data, err := rawRead(n.s, "core", calendarWindow(entity)); err == nil && json.Unmarshal(data, &core) == nil {
+	if data, err := n.read("core", calendarWindow(entity)); err == nil && json.Unmarshal(data, &core) == nil {
 		matches := 0
 		for _, event := range core.Body {
 			if event.UID != uid || sayText(event.Summary, false) == "" {
@@ -301,7 +313,7 @@ func sayMonth(lang string, month time.Month) string {
 
 // scene: a scene config's name, read through its own config.
 func (n *rawNamer) scene(id string) string {
-	data, err := rawRead(n.s, "core", map[string]any{"method": http.MethodGet, "path": "/api/config/scene/config/" + id})
+	data, err := n.read("core", map[string]any{"method": http.MethodGet, "path": "/api/config/scene/config/" + id})
 	var core struct {
 		Body struct {
 			Name string `json:"name"`

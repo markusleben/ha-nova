@@ -365,17 +365,19 @@ func TestRawRelayRefusesAccessTargetRemoval(t *testing.T) {
 	if n := forwarded.Load(); n != 0 {
 		t.Fatalf("%d refused requests were forwarded", n)
 	}
-	for _, args := range [][]string{
-		{"core", "--method", "DELETE", "--path", "/api/config/config_entries/entry/BL1"},
-		{"ws", "--data", `{"type":"config/entity_registry/remove","entity_id":"switch.gate_relay"}`},
-		{"ws", "--data", `{"type":"config/entity_registry/update","entity_id":"button.doorbell","new_entity_id":"button.front_bell"}`},
+	// The non-access ones pass the shared guard, so a plan sends them; relay
+	// itself refuses them as typed (relayTyped, relay_typed_test.go).
+	for _, tc := range []struct{ endpoint, body string }{
+		{"core", `{"method":"DELETE","path":"/api/config/config_entries/entry/BL1"}`},
+		{"ws", `{"type":"config/entity_registry/remove","entity_id":"switch.gate_relay"}`},
+		{"ws", `{"type":"config/entity_registry/update","entity_id":"button.doorbell","new_entity_id":"button.front_bell"}`},
 	} {
-		if exit := runRelayCommand(paths, args); exit != 0 {
-			t.Errorf("%v: exit %d, want sent", args, exit)
+		if _, refusal, err := guardRawRequest(paths, verbOptions{}, tc.endpoint, []byte(tc.body)); refusal != nil || err != nil {
+			t.Errorf("%s %s: refusal %v, err %v; want it past the guard", tc.endpoint, tc.body, refusal, err)
 		}
 	}
-	if n := forwarded.Load(); n != 3 {
-		t.Fatalf("forwarded %d, want the 3 non-access requests", n)
+	if n := forwarded.Load(); n != 0 {
+		t.Fatalf("the guard forwarded %d requests", n)
 	}
 }
 
