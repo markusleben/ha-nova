@@ -34,7 +34,7 @@ VERSION="$(node -e '
   const newer = cur[0] - from[0] || cur[1] - from[1] || cur[2] - from[2];
   process.stdout.write(newer > 0 ? cur.join(".") : `${from[0]}.${from[1]}.${from[2] + 1}`);
 ' "$(sed -n 's/.*"skill_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SRC/version.json")" "$FROM")"
-# Stamp like a release-prep PR would (version.json, plugin + marketplace manifests).
+# Stamp like a release-prep PR would (version.json, plugin + marketplace manifests, server.json).
 bash "$SRC/scripts/bump-version.sh" "$VERSION" >&2
 
 for target in darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64; do
