@@ -37,7 +37,7 @@ If this fails: `ha-nova setup`
 
 ## Relay Contract
 
-File-based WS requests only: `ha-nova relay ws --data-file <payload-file>`, `--out <result-file>` for large results; a delete or an entity, device, or area update only as a `ha-nova plan raw --file <requests.json>` item, then `ha-nova apply`.
+File-based WS requests only: `ha-nova relay ws --data-file <payload-file>`, `--out <result-file>` for large results; deletes and entity, device, or area updates only as `ha-nova plan raw --file <requests.json>` items, then `ha-nova apply`.
 
 Registry commands owned here:
 - `config/area_registry/list|create|update|delete`
