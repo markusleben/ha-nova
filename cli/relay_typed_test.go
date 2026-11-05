@@ -252,3 +252,52 @@ func TestRelayTiersACalendarUpdateOnTheLiveEvent(t *testing.T) {
 		}
 	}
 }
+
+// Disabling a device or an integration entry disables its entities, so it
+// is typed on plan and relay when one of them is a device tracker a person
+// follows; a re-enable, another device or entry, and a rename are not.
+func TestDisablingATrackersOwnerTypedWhenAPersonFollowsIt(t *testing.T) {
+	people := any(map[string]any{"storage": []any{map[string]any{"id": "anna", "device_trackers": []any{"device_tracker.anna_phone", "device_tracker.Anna_Watch"}}}, "config": []any{}})
+	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
+		"person/list": func(map[string]any) any { return people },
+		"config/entity_registry/list": func(map[string]any) any {
+			return []any{
+				map[string]any{"entity_id": "device_tracker.anna_phone", "device_id": "dphone", "config_entry_id": "emobile"},
+				map[string]any{"entity_id": "device_tracker.anna_watch", "device_id": "dwatch", "config_entry_id": "ewatch"},
+				map[string]any{"entity_id": "sensor.anna_phone_battery", "device_id": "dphone", "config_entry_id": "emobile"},
+				map[string]any{"entity_id": "device_tracker.guest", "device_id": "dguest", "config_entry_id": "eguest"},
+				map[string]any{"entity_id": "light.desk", "device_id": "dlamp", "config_entry_id": "ehue"},
+			}
+		},
+		"config/device_registry/list": func(map[string]any) any {
+			return []any{map[string]any{"id": "dphone"}, map[string]any{"id": "dguest"}, map[string]any{"id": "dlamp"}, map[string]any{"id": "dhub"},
+				map[string]any{"id": "dwatch", "parent_device_id": "dhub"}}
+		},
+	})
+	for payload, tier := range map[string]string{
+		`{"type":"config/device_registry/update","device_id":"dphone","disabled_by":"user"}`:   "typed",
+		`{"type":"config_entries/disable","entry_id":"emobile","disabled_by":"user"}`:          "typed",
+		`{"type":"config/device_registry/update","device_id":"dphone","disabled_by":null}`:     "preview",
+		`{"type":"config_entries/disable","entry_id":"emobile","disabled_by":null}`:            "preview",
+		`{"type":"config/device_registry/update","device_id":"dphone","name_by_user":"Pixel"}`: "preview",
+		`{"type":"config/device_registry/update","device_id":"dguest","disabled_by":"user"}`:   "preview",
+		`{"type":"config/device_registry/update","device_id":"dlamp","disabled_by":"user"}`:    "preview",
+		`{"type":"config_entries/disable","entry_id":"ehue","disabled_by":"user"}`:             "preview",
+		`{"type":"config/device_registry/update","device_id":"dhub","disabled_by":"user"}`:     "typed", // its child device's tracker
+		`{"type":"config_entries/disable","entry_id":"ewatch","disabled_by":"user"}`:           "typed", // followed in another case
+	} {
+		if exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":`+payload+`}]`); exit != verbExitConfirmation || env.Tier != tier {
+			t.Errorf("plan %s: exit %d tier %s, want %s", payload, exit, env.Tier, tier)
+		}
+		before := len(sent())
+		var exit int
+		stderr := captureStderr(t, func() { exit = runRelayCommand(paths, []string{"ws", "--data", payload}) })
+		if refused := exit == verbExitRefused && strings.Contains(stderr, "which devices a person follows") && len(sent()) == before; refused != (tier == "typed") || !refused && exit != 0 {
+			t.Errorf("relay %s: exit %d, stderr %q; want refused %v", payload, exit, stderr, tier == "typed")
+		}
+	}
+	people = map[string]any{"storage": "unreadable"}
+	if exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"config_entries/disable","entry_id":"eguest","disabled_by":"user"}}]`); exit != verbExitConfirmation || env.Tier != "typed" {
+		t.Errorf("unreadable person list: exit %d tier %s, want typed", exit, env.Tier)
+	}
+}

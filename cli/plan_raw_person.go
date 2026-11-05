@@ -44,9 +44,7 @@ func (n *rawNamer) personFollows(wsType string, payload map[string]any) bool {
 // tracker a person follows, or renames one onto such an id. Home Assistant
 // drops a tracker from a person only when it is removed, so a rename leaves
 // the person following an id the next tracker given it takes over, and a
-// disabled tracker stops counting for their presence. A failed read, or a
-// list without both person lists or a person without its tracker ids,
-// counts as followed: fail closed.
+// disabled tracker stops counting for their presence (followsAny).
 func (n *rawNamer) trackerFollowed(payload map[string]any) bool {
 	_, renames := payload["new_entity_id"]
 	disabled, disables := payload["disabled_by"]
@@ -59,9 +57,56 @@ func (n *rawNamer) trackerFollowed(payload map[string]any) bool {
 			ids = append(ids, strings.ToLower(id))
 		}
 	}
-	if len(ids) == 0 {
+	return len(ids) > 0 && n.followsAny(ids)
+}
+
+// trackerOwnerDisabled: disabling a device (with its child devices) or an
+// integration entry disables their entities too (Home Assistant sets their
+// disabled_by to device or config_entry), so it is typed when one of them
+// is a device tracker a person follows. A failed registry read counts as
+// followed. A tracker without a registry row has no device, and no read
+// ties it to an entry.
+func (n *rawNamer) trackerOwnerDisabled(wsType string, payload map[string]any) bool {
+	if disabled, disables := payload["disabled_by"]; !disables || disabled == nil {
 		return false
 	}
+	entry, _ := payload["entry_id"].(string)
+	device, _ := payload["device_id"].(string)
+	var entities []rawEntityRow
+	var ok bool
+	reached := func(e rawEntityRow) bool { return e.ConfigEntryID == entry }
+	if wsType == "config_entries/disable" {
+		data, err := n.read("ws", map[string]any{"type": "config/entity_registry/list"})
+		ok = entry != "" && err == nil && json.Unmarshal(data, &entities) == nil && entities != nil &&
+			!slices.ContainsFunc(entities, func(e rawEntityRow) bool { return e.EntityID == "" }) // a null row
+	} else {
+		var devices []rawDeviceRow
+		entities, devices, ok = n.registries()
+		family := map[string]bool{device: true}
+		for _, d := range devices {
+			if d.Parent == device {
+				family[d.ID] = true
+			}
+		}
+		ok = ok && device != ""
+		reached = func(e rawEntityRow) bool { return family[e.DeviceID] }
+	}
+	if !ok {
+		return true
+	}
+	var ids []string
+	for _, e := range entities {
+		if reached(e) && strings.HasPrefix(e.EntityID, "device_tracker.") {
+			ids = append(ids, e.EntityID)
+		}
+	}
+	return len(ids) > 0 && n.followsAny(ids)
+}
+
+// followsAny: a person follows one of the lowercased tracker ids. A failed
+// read, or a list without both person lists or a person without its
+// tracker ids, counts as followed: fail closed.
+func (n *rawNamer) followsAny(ids []string) bool {
 	var list struct {
 		Storage, Config *[]*struct {
 			Trackers *[]string `json:"device_trackers"`

@@ -19,7 +19,7 @@ Maintainer decision (2026-11-03): `relay` refuses them, every skill goes through
 
    `<why>` is the plan's English reason (`rawWhys`), first letter lowercased; for a person update without `device_trackers` it adds "(an update without device_trackers empties them: to keep them, resend the list person/list shows)". `<this request>` is the exact `{"method":…,"path":…}` for a core request without a body, and `<the message itself, without a collect_events envelope>` for an envelope's message. A session that cannot open is an error (exit 1), nothing sent. `ha_read` and chat plans are unchanged: `ha_read` sends no writes, and `ha_plan` kind raw already tiers.
 3. **Person trackers (`personFollows`, every route).** Home Assistant's `person/update` defaults a missing `device_trackers` to `[]` and replaces the stored list. A create that names trackers is typed. An update is typed when the tracker set it leaves differs from `person/list` (ids lowercased, order ignored), when the person is unknown or listed without `device_trackers`, the read fails, or the value is not a list of ids. Before, any update carrying the key was typed (a rename that resends the same trackers asked for a code) and one without it was a preview (it emptied the trackers on a natural yes).
-4. **Tracker renames (`trackerFollowed`, every route).** Home Assistant drops a tracker from a person only when it is removed (`person`'s entity registry filter). A rename leaves the person following an id that the next tracker given it takes over, and a disabled tracker stops counting for their presence. So a `config/entity_registry/update` that renames or disables a device tracker a person follows (storage or YAML), or renames one onto such an id, is typed. A failed `person/list` read, or one without both lists (`storage`, `config`) or with a person lacking `device_trackers`, counts as followed.
+4. **Tracker renames (`trackerFollowed`, every route).** Home Assistant drops a tracker from a person only when it is removed (`person`'s entity registry filter). A rename leaves the person following an id that the next tracker given it takes over, and a disabled tracker stops counting for their presence. So a `config/entity_registry/update` that renames or disables a device tracker a person follows (storage or YAML), or renames one onto such an id, is typed, and so is a `config/device_registry/update` or `config_entries/disable` that disables the device (or its parent device) or the entry such a tracker belongs to (Home Assistant disables their entities with them; a failed registry read counts as followed). A failed `person/list` read, or one without both lists (`storage`, `config`) or with a person lacking `device_trackers`, counts as followed.
 
 ## Tradeoffs
 
@@ -30,6 +30,7 @@ Maintainer decision (2026-11-03): `relay` refuses them, every skill goes through
 ## Known limits
 
 - Zone and home-location changes that move presence stay previewed.
+- A followed tracker without an entity registry row has no device, and no read ties it to an integration entry: disabling that entry stays previewed.
 - A skill's `"typed":true` raises only its plan: the Access Check's consumer rule (a takeover rename onto an id an unlock automation uses, on a device with no lock) is skill text on `relay`.
 - Relay reads, closes that session, then sends; a change in between is not checked again (a plan re-tiers at apply).
 - A cross-family cleanup's raw requests share one plan and its ask; an automation or script delete in it keeps its own plan and ask.
@@ -37,4 +38,4 @@ Maintainer decision (2026-11-03): `relay` refuses them, every skill goes through
 
 ## Proof
 
-`cli/relay_typed_test.go`: every allowlisted write, relay refuses exactly what a plan types (also in an envelope); a static delete is refused with no request; a lock move and a calendar update that drops dates read live, a failed read sends nothing; the person and tracker rules on plan and relay. `tests/skills/*` pin the skill routes.
+`cli/relay_typed_test.go`: every allowlisted write, relay refuses exactly what a plan types (also in an envelope); a static delete is refused with no request; a lock move and a calendar update that drops dates read live, a failed read sends nothing; the person and tracker rules (a tracker's device or entry disabled too) on plan and relay. `tests/skills/*` pin the skill routes.

@@ -152,6 +152,8 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 			return tierTyped, "access_area"
 		case wsType == "config/entity_registry/update" && n.trackerFollowed(payload):
 			return tierTyped, "person_follows"
+		case (wsType == "config/device_registry/update" || wsType == "config_entries/disable") && n.trackerOwnerDisabled(wsType, payload):
+			return tierTyped, "person_follows"
 		case (wsType == "person/create" || wsType == "person/update") && n.personFollows(wsType, payload):
 			return tierTyped, "person_follows"
 		case wsType == "config/auth/update" && access:
@@ -300,9 +302,10 @@ func (n *rawNamer) capableOnce() func(entityID string) bool {
 }
 
 type rawEntityRow struct {
-	EntityID string `json:"entity_id"`
-	DeviceID string `json:"device_id"`
-	AreaID   string `json:"area_id"`
+	EntityID      string `json:"entity_id"`
+	DeviceID      string `json:"device_id"`
+	ConfigEntryID string `json:"config_entry_id"`
+	AreaID        string `json:"area_id"`
 }
 
 type rawDeviceRow struct {
