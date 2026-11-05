@@ -224,7 +224,7 @@ Once setup is done, try: *"Show me all my automations."*
 - Claude Code is the most tested AI app on Windows today
 - Google Antigravity has basic testing
 - Codex and OpenCode are still early
-- What you need first: Claude Code needs Git for Windows / Git Bash; Google Antigravity Desktop or CLI must be installed
+- What you need first: Claude Code: install Git for Windows too, so HA NOVA's start-up step runs; Google Antigravity Desktop or CLI must be installed
 - See [.claude/INSTALL.md](.claude/INSTALL.md) and [.antigravity/INSTALL.md](.antigravity/INSTALL.md)
 
 > Don't download the `ha-nova-installer-bundle-*.tar.gz` / `.zip` files yourself. The installer uses them in the background. Always use the one-line command or `ha-nova update`.

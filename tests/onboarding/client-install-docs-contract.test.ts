@@ -36,7 +36,7 @@ describe("client install docs contract", () => {
       "irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex"
     );
     expect(readme).toContain("The installer selects the latest stable release.");
-    expect(readme).toContain("Git for Windows / Git Bash");
+    expect(readme).toContain("Claude Code: install Git for Windows too, so HA NOVA's start-up step runs");
     expect(readme).toContain("Google Antigravity Desktop or CLI must be installed");
     expect(readme).toContain("Google Antigravity is the current Google client path");
     expect(readme).toContain("`ha-nova setup gemini` remains a legacy alias");
@@ -210,7 +210,7 @@ describe("client install docs contract", () => {
 
   it("keeps README and Windows client overlays aligned on prerequisites and Windows guidance", () => {
     expect(readme).toContain("Windows");
-    expect(readme).toContain("Git for Windows / Git Bash");
+    expect(readme).toContain("Claude Code: install Git for Windows too, so HA NOVA's start-up step runs");
     expect(readme).toContain("Google Antigravity Desktop or CLI must be installed");
     expect(claudeInstall).toContain("Windows Notes");
     expect(antigravityInstall).toContain("Windows Notes");
