@@ -9,21 +9,24 @@ person", "Show as: Door → Window".
 
 ## Names (Home Assistant 2026.11+)
 
-From Home Assistant 2026.11 (`get_config` `version`), the name Home Assistant
-shows and Assist speaks (the state's `friendly_name`) is the device's name,
-a space, and the entity's `name`, also for a name the user set. An entity
-without a device shows its `name` alone. Older versions show a name the user
-set exactly as written.
+From Home Assistant 2026.11 (`get_config` `version`), an entity's full name
+(the state's `friendly_name`) is the device's name, a space, and the
+entity's `name`, also for a name the user set. An entity without a device
+shows its `name` alone. Before 2026.11, send the asked name as written.
 
 - **Entity rename**: send only the entity's own part. When the asked name
-  starts with the device's shown name (`name_by_user`, else `name`), leave
-  that part out: "Sun Reading Lamp" on the device "Sun" is sent as
-  `name: "Reading Lamp"`. The preview shows the resulting name and says that
-  Home Assistant adds the device name in front. If nothing is left, ask what
-  the entity's own part should be.
+  starts with the device's shown name (`name_by_user`, else `name`) as whole
+  words, in any case, leave those words out: "Sun Reading Lamp" on the device
+  "Sun" is sent as `name: "Reading Lamp"`, while "Sunroom Lamp" stays as
+  asked. The preview shows the resulting full name and says that Home
+  Assistant adds the device name in front. If nothing is left, ask: a short
+  own part, or rename the device instead.
+- A current `name` that already starts with the device's shown name is shown
+  twice ("Sun Sun Reading Lamp"): say so and offer the shortened name in the
+  same preview.
 - **Device rename** (`name_by_user`): list the device's entities (entity
-  registry by `device_id`) and name each one whose shown name changes,
-  current → new, in the preview.
+  registry by `device_id`) and show each whole shown name that changes,
+  current → new ("Sun Next dusk" → "Sonne Next dusk"), in the preview.
 - Verify by the resulting `friendly_name` (`ha-nova get <entity_id>`), not
   only by the registry `name`.
 
