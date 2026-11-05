@@ -61,6 +61,9 @@ var readOnlyWSTypes = map[string]bool{
 	// Home Assistant's own names for a service and its states in the
 	// home's language, for a confirmation (confirm_words.go).
 	"frontend/get_translations": true,
+	// The names of the to-do items a confirmation removes or changes
+	// (confirm_todo_items.go).
+	"todo/item/list": true,
 }
 
 // relaySession resolves config and transport once per invocation and

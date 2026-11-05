@@ -187,6 +187,10 @@ func (g actionGoal) phrase(lang, object string) string {
 		return confirmT(lang, "goal.device_delete", "object", object, "entities", g.args["entities"])
 	case "device_delete_children":
 		return confirmT(lang, "goal.device_delete_children", "object", object, "children", g.args["children"], "entities", g.args["entities"])
+	case "todo_remove":
+		return confirmT(lang, "goal.todo_remove", "items", g.args["items"], "object", object)
+	case "todo_update":
+		return confirmT(lang, "goal.todo_update", "items", g.args["items"], "object", object)
 	}
 	panic("confirm goal: unknown verb " + g.verb)
 }
@@ -315,6 +319,10 @@ func (g actionGoal) ownButton(lang string) string {
 		return confirmT(lang, "button.allow")
 	case "device_delete", "device_delete_children":
 		return confirmT(lang, "button.delete")
+	case "todo_remove":
+		return confirmT(lang, "button.remove")
+	case "todo_update":
+		return confirmT(lang, "button.change")
 	}
 	return ""
 }

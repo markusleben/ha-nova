@@ -159,6 +159,9 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 	}
 	plan.Confirm = map[tierLevel]string{tierOrdinary: "none", tierPreview: "natural", tierTyped: "code"}[e.level]
 	plan.Lang, plan.Words = planLanguage(e, env, plan) // what every text of a plan that asks speaks; a typed plan's is sealed (channelSeal)
+	if e.level != tierOrdinary {
+		plan.Words = todoItemWords(e.s, plan, plan.Words)
+	}
 	shownChannel := ""
 	if e.level == tierTyped {
 		if e.s.transport.Credential == "" { // unreachable: a session always holds one
