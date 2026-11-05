@@ -94,14 +94,14 @@ For every Relay-Ready call in this skill:
 | Apps / Supervisor: store, install, uninstall, settings, auto-update, system and storage info (`../updates/apps.md`; start/stop/restart and host reboot: `service-call`; repositories, DNS, network, OS, and Supervisor settings stay in the HA UI: Settings > Apps, Settings > System) | Covered | updates |
 | HACS (registration, download, version switching, uninstall, migration) | Covered | hacs |
 | Marketplace (built-in HACS, Home Assistant 2026.11+): inventory; installs, updates, and removals as Home Assistant steps | Covered read-only | hacs |
-| Zigbee / Z-Wave Config | External | -- (MQTT-level inspection of a Zigbee2MQTT setup: `mqtt`) |
+| Zigbee / Z-Wave pairing and config | External | -- (pairing: not in HA NOVA yet, see below; MQTT-level inspection of a Zigbee2MQTT setup: `mqtt`) |
 | Zigbee / Z-Wave network status (read-only device list / network reads) | Relay-Ready | this skill; Z2M bridge topics: `mqtt` |
 | Alarm / lock code management (lock user codes, alarm PINs) | External | -- (Home Assistant UI; codes never enter chat) |
 | Integration entry lifecycle (remove, reload, subentry add/reconfigure/rename/delete) | Covered | integration-setup |
 | Integration entry options / reconfigure (standard config-entry flows) | Covered | integration-setup |
 | Integration entry enable/disable, rename, system options, ignoring a discovery | Covered | integration-setup |
 | Matter / Thread status (border router, datasets, node diagnostics) | Relay-Ready | this skill |
-| Matter / Thread commissioning | External | -- (not in HA NOVA yet; Home Assistant's Add device screen) |
+| Matter / Thread commissioning | External | -- (not in HA NOVA yet; the Home Assistant phone app, see below) |
 | Assist custom sentences / intent scripts | Covered | assist (owning workflow; file mechanics stay in `../fallback/relay-ready.md`) |
 | Creating a calendar (the `local_calendar` integration) | Covered | integration-setup |
 | Device category assignment | Not a Home Assistant surface | -- (devices carry no category; entity categories are `organize`) |
@@ -184,7 +184,7 @@ rest.
 
 HA NOVA doesn't pair radio devices yet (ZHA, Zigbee2MQTT, Z-Wave JS, Matter). Say exactly that; never claim pairing is impossible or needs special hardware access.
 
-**Alternative:** HA UI: Settings > Devices & Services > Devices > Add device (Zigbee2MQTT: its own Permit join).
+**Alternative:** in Home Assistant, Settings > Connectivity > Zigbee, Z-Wave, or Matter > Add device. Matter: do this in the Home Assistant phone app, close to the device (it uses Bluetooth). Zigbee2MQTT: in its own web interface, press Permit join (All).
 
 **Search:** `home assistant zigbee2mqtt zha zwave matter network configuration 2026`
 
