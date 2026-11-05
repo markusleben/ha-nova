@@ -487,3 +487,62 @@ jobs:
             }
             throw "Windows uninstall did not remove $installRoot"
           }
+
+  publish-mcp-registry:
+    name: Publish MCP Registry entry
+    needs: smoke-installers
+    # Final tags only: an RC carries the same base version, and a published
+    # registry version is immutable.
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MCP_PUBLISHER_VERSION: v1.8.7
+      MCP_PUBLISHER_SHA256: 00b21004149a4ce66f0782508ae4a2bce67d1bea395a8da0bd8028159fb59579
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
+      - name: Verify release metadata
+        env:
+          VERSION_TAG: ${{ github.ref_name }}
+        run: bash scripts/release/verify-release-metadata.sh "${VERSION_TAG}"
+
+      - name: Detect an already-published registry version
+        id: registry-state
+        run: |
+          set -euo pipefail
+          version="$(jq -r '.version' server.json)"
+          status="$(curl --silent --show-error --retry 3 --retry-all-errors --output /dev/null --write-out '%{http_code}' \
+            "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.markusleben%2Fha-nova/versions/${version}")"
+          case "$status" in
+            200) echo "published=true" >> "$GITHUB_OUTPUT" ;;
+            404) echo "published=false" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::Registry lookup returned HTTP $status."; exit 1 ;;
+          esac
+
+      - name: Download and verify mcp-publisher
+        if: steps.registry-state.outputs.published != 'true'
+        run: |
+          set -euo pipefail
+          archive="mcp-publisher_linux_amd64.tar.gz"
+          curl --fail --location --silent --show-error --output "$RUNNER_TEMP/$archive" \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/$archive"
+          echo "${MCP_PUBLISHER_SHA256}  $RUNNER_TEMP/$archive" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" mcp-publisher
+
+      - name: Publish server.json
+        if: steps.registry-state.outputs.published != 'true'
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/mcp-publisher" login github-oidc
+          "$RUNNER_TEMP/mcp-publisher" publish server.json

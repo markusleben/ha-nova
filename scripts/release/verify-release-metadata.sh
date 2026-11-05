@@ -31,6 +31,7 @@ const packageJson = readJSON("package.json");
 const packageLock = readJSON("package-lock.json");
 const pluginJson = readJSON(".claude-plugin/plugin.json");
 const marketplaceJson = readJSON(".claude-plugin/marketplace.json");
+const serverJson = readJSON("server.json");
 
 const expectedVersion = versionJson.skill_version;
 if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(expectedVersion)) {
@@ -57,6 +58,21 @@ if (!Array.isArray(marketplaceJson.plugins) || marketplaceJson.plugins.length !=
 const pluginEntry = marketplaceJson.plugins[0];
 assertEqual(".claude-plugin/marketplace.json plugins[0].version", pluginEntry.version, expectedVersion);
 assertEqual(".claude-plugin/marketplace.json plugins[0].source", pluginEntry.source, "./");
+
+// MCP Registry entry: the release workflow publishes server.json as is.
+assertEqual("server.json version", serverJson.version, expectedVersion);
+assertEqual("server.json name", serverJson.name, "io.github.markusleben/ha-nova");
+if (serverJson.packages !== undefined) {
+  fail("server.json must not list packages");
+}
+if (!Array.isArray(serverJson.remotes) || serverJson.remotes.length !== 1) {
+  fail("server.json must define exactly one remote");
+}
+assertEqual("server.json remotes[0].type", serverJson.remotes[0].type, "streamable-http");
+assertEqual("server.json remotes[0].url", serverJson.remotes[0].url, "https://{home_assistant_address}/api/ha_nova/mcp");
+if (serverJson.remotes[0].variables?.home_assistant_address?.isRequired !== true) {
+  fail("server.json remotes[0].variables.home_assistant_address must be required");
+}
 
 // Cloud Remote metadata: the CLI bundle (version.json) and the Relay App
 // (nova/version.json) must agree, or one side silently disables Cloud.

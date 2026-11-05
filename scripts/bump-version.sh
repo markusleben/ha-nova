@@ -67,7 +67,11 @@ jq --arg v "$NEW_VERSION" '.version = $v' "$REPO_ROOT/.claude-plugin/plugin.json
 tmp=$(mktemp)
 jq --arg v "$NEW_VERSION" '.metadata.version = $v | .plugins[0].version = $v | .plugins[0].source = "./"' "$REPO_ROOT/.claude-plugin/marketplace.json" > "$tmp" && mv "$tmp" "$REPO_ROOT/.claude-plugin/marketplace.json"
 
-# 5. package-lock.json root metadata
+# 5. server.json (MCP Registry entry)
+tmp=$(mktemp)
+jq --arg v "$NEW_VERSION" '.version = $v' "$REPO_ROOT/server.json" > "$tmp" && mv "$tmp" "$REPO_ROOT/server.json"
+
+# 6. package-lock.json root metadata
 if [[ -f "$REPO_ROOT/package-lock.json" ]]; then
   tmp=$(mktemp)
   jq --arg v "$NEW_VERSION" '.version = $v | .packages[""].version = $v' "$REPO_ROOT/package-lock.json" > "$tmp" && mv "$tmp" "$REPO_ROOT/package-lock.json"
@@ -81,12 +85,13 @@ echo "  package.json"
 echo "  package-lock.json"
 echo "  .claude-plugin/plugin.json"
 echo "  .claude-plugin/marketplace.json"
+echo "  server.json"
 echo ""
 echo "Note: config.yaml (Relay version) is managed independently."
 echo ""
 echo "Next steps:"
 echo "  1. npm install && npm test"
-echo "  2. git add version.json nova/version.json package.json package-lock.json .claude-plugin/plugin.json .claude-plugin/marketplace.json"
+echo "  2. git add version.json nova/version.json package.json package-lock.json .claude-plugin/plugin.json .claude-plugin/marketplace.json server.json"
 echo "  3. git commit -m 'chore: bump skill version to $NEW_VERSION'"
 echo "  4. git tag v$NEW_VERSION"
 echo "  5. git push && git push origin v$NEW_VERSION"

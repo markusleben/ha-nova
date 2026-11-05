@@ -190,6 +190,25 @@ describe("release contract", () => {
     );
   });
 
+  it("publishes the MCP Registry entry only for a final tag after the post-publish smoke", () => {
+    const job = releaseWorkflow.slice(releaseWorkflow.indexOf("  publish-mcp-registry:"));
+    expect(releaseWorkflow.indexOf("smoke-installers:")).toBeLessThan(
+      releaseWorkflow.indexOf("publish-mcp-registry:"),
+    );
+    expect(job).toContain("needs: smoke-installers");
+    expect(job).toContain("if: ${{ !contains(github.ref_name, '-') }}");
+    expect(job).toContain("id-token: write");
+    expect(job).toContain("contents: read");
+    expect(job).not.toContain("secrets.");
+    expect(job).toMatch(/MCP_PUBLISHER_VERSION: v\d+\.\d+\.\d+\n/);
+    expect(job).toMatch(/MCP_PUBLISHER_SHA256: [0-9a-f]{64}\n/);
+    expect(job).toContain("sha256sum --check --strict");
+    expect(job).toContain("verify-release-metadata.sh");
+    expect(job.indexOf("sha256sum --check")).toBeLessThan(job.indexOf("mcp-publisher\" login github-oidc"));
+    expect(job).toContain("publish server.json");
+    expect(job.match(/if: steps\.registry-state\.outputs\.published != 'true'/g)).toHaveLength(2);
+  });
+
   it("uses only the curated release header as the changelog", () => {
     expect(goreleaser).toMatch(
       /changelog:\n\s+#[^\n]*\n(?:\s+#[^\n]*\n)*\s+disable: true/,

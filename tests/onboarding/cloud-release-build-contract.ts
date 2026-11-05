@@ -23,7 +23,7 @@ export function registerCloudReleaseBuildContractTests(): void {
 
   it("rejects Cloud metadata drift between the CLI bundle and the Relay App", () => {
     const root = makeTempDir("ha-nova-metadata-");
-    for (const file of ["version.json", "package.json", "package-lock.json", ".claude-plugin", "nova/version.json", "nova/config.yaml"]) {
+    for (const file of ["version.json", "package.json", "package-lock.json", ".claude-plugin", "nova/version.json", "nova/config.yaml", "server.json"]) {
       cpSync(file, join(root, file), { recursive: true });
     }
     const run = () =>
