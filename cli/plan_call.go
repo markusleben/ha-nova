@@ -228,12 +228,14 @@ func (e *tierEngine) targetRequired(req planCallRequest, spec serviceSpec) bool 
 	return spec.target && !named && req.Service != "scene.apply" && (domain != "script" || scriptEntityServices[name])
 }
 
-// staticRefusal: owned services, hassio.*, floor/label selectors, and codes
+// staticRefusal: owned services, hassio.*, floor/label selectors, exclude
+// blocks (HA 2026.11+: they narrow the call below its preview), and codes
 // in the payload never reach a plan (spec §4, refused row).
 func staticRefusal(req planCallRequest) *tierReason {
 	domain, name := splitID(req.Service)
 	_, floor := req.Data["floor_id"]
 	_, label := req.Data["label_id"]
+	_, exclude := req.Data["exclude"]
 	_, code := req.Data["code"]
 	switch {
 	case ownerSkill(req.Service) != "" && req.Skill != ownerSkill(req.Service):
@@ -249,8 +251,8 @@ func staticRefusal(req planCallRequest) *tierReason {
 		if !serviceCallHassio[name] || req.Skill != "ha-nova:service-call" {
 			return &tierReason{Code: reasonHassio, Skill: hassioOwner(name)}
 		}
-	case floor || label:
-		return &tierReason{Code: reasonSelector, Detail: "floor_id and label_id are unsupported; name entities, an area, or a device"}
+	case floor || label || exclude:
+		return &tierReason{Code: reasonSelector, Detail: "floor_id, label_id and exclude are unsupported; name entities, an area, or a device"}
 	case code:
 		return &tierReason{Code: reasonCodeRequired, Detail: "a code never goes into a payload; finish this in the Home Assistant UI"}
 	}
