@@ -9,26 +9,31 @@ person", "Show as: Door → Window".
 
 ## Names (Home Assistant 2026.11+)
 
-From Home Assistant 2026.11 (`get_config` `version`), an entity's full name
-(the state's `friendly_name`) is the device's name, a space, and the
-entity's `name`, also for a name the user set. An entity without a device
-shows its `name` alone. Before 2026.11, send the asked name as written.
+From Home Assistant 2026.11 (`get_config` `version`), the full name Home
+Assistant shows is built from parts, also for a name the user set: while the
+entity registry's `next_name_part` is `device` (a device and no area of the
+entity's own), it is the device's name, a space, and the entity's `name`;
+otherwise (`area` or none) the `name` alone. Before 2026.11, send the asked
+name as written.
 
-- **Entity rename**: send only the entity's own part. When the asked name
-  starts with the device's shown name (`name_by_user`, else `name`) as whole
+- **Entity rename** with `next_name_part` `device`: send only the entity's
+  own part; any other entity gets the asked name as written. When the asked
+  name starts with the device's shown name (`name_by_user`, else `name`) as whole
   words, in any case, leave those words out: "Sun Reading Lamp" on the device
   "Sun" is sent as `name: "Reading Lamp"`, while "Sunroom Lamp" stays as
   asked. The preview shows the resulting full name and says that Home
   Assistant adds the device name in front. If nothing is left, ask: a short
   own part, or rename the device instead.
-- A current `name` that already starts with the device's shown name is shown
-  twice ("Sun Sun Reading Lamp"): say so and offer the shortened name in the
-  same preview.
+- A current `name` (`next_name_part` `device`) that already starts with the
+  device's shown name is shown twice ("Sun Sun Reading Lamp"): say so and
+  offer the shortened name in the same preview.
 - **Device rename** (`name_by_user`): list the device's entities (entity
-  registry by `device_id`) and show each whole shown name that changes,
-  current → new ("Sun Next dusk" → "Sonne Next dusk"), in the preview.
-- Verify by the resulting `friendly_name` (`ha-nova get <entity_id>`), not
-  only by the registry `name`.
+  registry by `device_id`) and show each full name that changes (those with
+  `next_name_part` `device`), current → new ("Sun Next dusk" → "Sonne Next
+  dusk"), in the preview.
+- Verify the re-read registry `name` and, for `next_name_part` `device`, the
+  state's `friendly_name` (`ha-nova get <entity_id>`). That legacy attribute
+  always puts the device in front, so it is not the shown name for the others.
 
 ## Entity (`config/entity_registry/update`)
 
