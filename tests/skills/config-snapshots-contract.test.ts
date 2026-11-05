@@ -46,7 +46,7 @@ describe("config snapshots contract", () => {
     const organizeSkill = readFileSync("skills/organize/SKILL.md", "utf8");
     expect(energySkill).toContain("Before any save that REMOVES entries (a single source/device removal included)");
     expect(yamlSkill).toContain("data = `{path: <exact logical path>, content: <current file content>}`");
-    expect(yamlSkill).toContain("A user-requested `delete_file` is code-gated like any delete AND captures the auto config snapshot");
+    expect(yamlSkill).toContain("A user-requested `delete_file` is a `plan raw` item AND captures the auto config snapshot");
     expect(organizeSkill).toContain("the DEVICE registry record for a device-level `disabled_by`");
   });
 
@@ -77,8 +77,8 @@ describe("config snapshots contract", () => {
     expect(reference).toContain("one one-time code for the manifest");
     expect(reference).toContain("Run an unfiltered `list` immediately before building the manifest");
     expect(reference).toContain("never expand a category, age, prefix, wildcard, or other\n  selector after the preview");
-    expect(reference).toContain('Execute one `{"action":"delete","file":"<literal-file>"}` request at a\n  time');
-    expect(reference).toContain("After each response, `list` again and verify that\n  exact file is absent before continuing");
+    expect(reference).toContain("the deletes are one plan raw");
+    expect(reference).toContain('`ha-nova apply` sends one `{"action":"delete","file":"<literal-file>"}` at a\n  time in manifest order, checks that exact file is gone before the next');
     expect(reference).toContain("succeeded, failed, and not attempted");
     expect(reference).toContain("the deleted copy itself has no rollback");
     expect(reference).toContain("Never use batch delete to emulate prune or to widen `keep_named`");

@@ -55,7 +55,7 @@ If enum semantics, required/optional behavior, or cross-field rules are uncertai
   - if a requested field is exposed but lacks `description.suggested_value`, fail loud instead of guessing the current value
   - carry forward unchanged required fields from the current options snapshot when building the submit body
 - Delete mutation path:
-  - `DELETE /api/config/config_entries/entry/{entry_id}`
+  - `DELETE /api/config/config_entries/entry/{entry_id}`, only as a `ha-nova plan raw` item (`"endpoint":"core"`), then `ha-nova apply`
 - Verification source of truth:
   - create success = `entry_id` from the terminal flow result confirmed in the after-read, or a constrained before/after `entry_id` diff if the flow result omits it
   - the before/after fallback requires a pre-create `config_entries/get` baseline

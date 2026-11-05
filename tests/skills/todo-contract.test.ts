@@ -67,8 +67,8 @@ describe("todo contract", () => {
     expect(todoSkill).toContain("`todo_list_name`");
     expect(todoSkill).toContain("registry lag: retry once");
     expect(todoSkill).toContain("destroys the list AND all its items irreversibly");
-    expect(todoSkill).toContain("require the one-time code — mint four random digits");
-    expect(todoSkill).toContain("proceed only on a reply that is just the code (spaces ignored)");
+    expect(todoSkill).toContain('One `ha-nova plan raw --file <requests.json>` item `{"endpoint":"core","payload":{"method":"DELETE","path":"/api/config/config_entries/entry/<entry_id>"}}`; its `say` asks.');
+    expect(todoSkill).not.toContain("mint four random digits");
     expect(todoSkill).toContain("Resolve `entry_id` via the entity registry `config_entry_id`");
     expect(todoSkill).toContain("never derive the entity_id by slugifying the name");
     // Other providers configure lists in their own integration.

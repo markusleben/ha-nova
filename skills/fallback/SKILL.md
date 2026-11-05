@@ -34,8 +34,9 @@ For every Relay-Ready call in this skill:
 - write request JSON with the client's native file-writing tool
 - use `ha-nova relay ws --data-file <payload-file>` or `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>`
 - use `--out <result-file>` for large responses
+- a write that Safety below gates with a window, phone, or code goes only as a `ha-nova plan raw --file <requests.json>` item, then `ha-nova apply`; its `say` asks
 - treat inline `-d` as an optional tiny diagnostic path, not the canonical contract
-- raw writes are deny-by-default: the CLI sends only the writes and WebSocket types the skills use; any other write or type is refused (exit 4, nothing sent). That refusal is the answer: point to the Home Assistant UI, never retry through another endpoint
+- raw writes are deny-by-default: the CLI sends only the writes and WebSocket types the skills use; any other write or type is refused (exit 4, nothing sent). That refusal is the answer: one that names a plan goes through it, any other points to the Home Assistant UI; never retry through another endpoint
 - transports diverge on empty write bodies: WS validates missing required fields fail-closed, but a parameterless WS write executes on its bare `type`, and `/core` POST may silently CREATE — read `../ha-nova/relay-api.md` → Write-Probing Asymmetry before any experimental write
 
 ## Capability Map
@@ -239,7 +240,7 @@ Rules for all experimental relay calls in this skill:
 | Full-document overwrite | Entire config replaced | Read → modify → save full document → read back and verify unrelated content survived | `lovelace/config/save` |
 | Field-level list replace | Omitted keys preserved, provided keys fully replaced | Read existing list → append/modify → save full list → read back and verify pre-existing items survived | `energy/save_prefs` |
 | Merge/patch | Only provided fields updated; a list field (`labels`, `aliases`) and an entity's `options` (one whole per-domain object) are replaced whole | Send only changed fields; read first and send the whole list or `options` object | `config/area_registry/update`, `config/entity_registry/update` |
-| Delete | Irreversible for areas/zones/labels | Always `search/related` first, one-time code | `config/area_registry/delete`, `config/label_registry/delete` (entity removal → `ha-nova:maintenance`) |
+| Delete | Irreversible for areas/zones/labels | Always `search/related` first; only as a `ha-nova plan raw` item, then `ha-nova apply` (the plan asks) | `config/area_registry/delete`, `config/label_registry/delete` (entity removal → `ha-nova:maintenance`) |
 
 No HA WS endpoint has optimistic locking (no ETags, no version numbers). Last writer wins silently.
 

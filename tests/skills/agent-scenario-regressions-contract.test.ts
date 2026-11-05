@@ -171,11 +171,30 @@ describe("agent scenario regressions (2026-10-20)", () => {
     expect(index).toContain("Answer in the language of the user's sentence, not of a name in it.");
     // One source of truth: the CLI's `say` is the ask and the result line (#803).
     expect(index).toContain("Relay a CLI `say` (ask or result) verbatim, only translated, line breaks kept; add no other result line.");
-    // The code stands apart at the very end, never inside a sentence.
-    expect(index).toContain('A code you mint: blank line, "To go ahead, type this code:", bold code.');
+    // Only the CLI issues a code, inside its `say`; an agent never makes one up.
+    expect(index).not.toContain("code you mint");
+    const context = flat("skills/ha-nova/SKILL.md");
+    expect(context).not.toContain("four random digits you mint");
+    expect(context).toContain("A typed write without a CLI plan gets one: a `ha-nova plan raw` item");
+    expect(context).toContain("never make up a code");
     expect(index).toContain('Verified raw write (no `say`): `✅ Saved: <type> "<name>"` and what was checked.');
     expect(index).toContain('After an undoable save: "To undo this change, just say so."');
     expect(flat("skills/ha-nova/output-cards.md")).toContain("Ask and result shapes: `../ha-nova/index.md` → Say it.");
+  });
+
+  it("sends what only the user may confirm through a plan, never a code of its own", () => {
+    const cards = flat("skills/ha-nova/output-cards.md");
+    expect(cards).toContain("only a CLI plan's `say` brings one");
+    expect(cards).not.toContain("else the one-time code");
+    const batch = flat("skills/ha-nova/batch-safety.md");
+    expect(batch).toContain("and orphan registry entries per config entry: **20**");
+    expect(batch).toContain("one plan raw of at most 20 requests, config snapshot saves included");
+    expect(batch).not.toContain("the real gate");
+    const refactoring = flat("skills/ha-nova/safe-refactoring.md");
+    expect(refactoring).toContain("# one config/entity_registry/update item with new_entity_id, then ha-nova apply per its next_step ha-nova plan raw --file <requests.json>");
+    expect(refactoring).not.toContain("# Re-enable later ha-nova relay ws");
+    expect(flat("skills/hacs/SKILL.md")).toContain("a `plan raw` item whose `say` closes this preview");
+    expect(flat("skills/yaml-config/SKILL.md")).toContain("A user-requested `delete_file` is a `plan raw` item");
   });
 
   it("saves turns without skipping a confirmation", () => {

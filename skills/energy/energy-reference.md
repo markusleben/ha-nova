@@ -82,7 +82,7 @@ Response: `{energy_sources: Issue[][], device_consumption: Issue[][], device_con
 
 ## Statistics Contract (energy analysis)
 
-All payloads in this document are WS request bodies — write them to a payload file and send via `ha-nova relay ws --data-file <payload-file> --out <result-file>`.
+All payloads in this document are WS request bodies — write them to a payload file and send via `ha-nova relay ws --data-file <payload-file> --out <result-file>`; a `save_prefs` goes only as a `ha-nova plan raw` item (`SKILL.md` → Flow step 5).
 
 ```json
 {"type":"recorder/statistics_during_period","start_time":"<ISO>","end_time":"<ISO>",

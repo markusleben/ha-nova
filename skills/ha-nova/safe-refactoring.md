@@ -37,11 +37,9 @@ Parse the response for `automation`, `script`, and `scene` entries in the relate
 Prefer disabling over deleting when the user is unsure:
 
 ```text
-# Disable entity (reversible)
-ha-nova relay ws --data-file <payload-file>
-
-# Re-enable later
-ha-nova relay ws --data-file <payload-file>
+# Disable entity (reversible), or re-enable it later:
+# one config/entity_registry/update item, then ha-nova apply per its next_step
+ha-nova plan raw --file <requests.json>
 ```
 
 Only proceed with permanent deletion after the delete's typed confirmation (see write skill → Phase 2).
@@ -68,7 +66,8 @@ Template references (`states('old.entity_id')`, `is_state(...)`) are NOT auto-up
 ### Step 3: Rename
 
 ```text
-ha-nova relay ws --data-file <payload-file>
+# one config/entity_registry/update item with new_entity_id, then ha-nova apply per its next_step
+ha-nova plan raw --file <requests.json>
 ```
 
 ### Step 4: Update Consumers

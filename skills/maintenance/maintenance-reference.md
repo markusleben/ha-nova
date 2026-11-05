@@ -2,7 +2,7 @@
 
 Single source of truth for recorder-statistics repair payloads, the issue matrix, purge semantics, and orphan-removal gates. Verified against Home Assistant core source (2026-07) and a live instance.
 
-Payloads below are WS request bodies — write them to a payload file and send via `ha-nova relay ws --data-file <payload-file> --out <result-file>` — EXCEPT the recorder purge section, which runs through `ha-nova call recorder.<service> --skill ha-nova:maintenance` (raw service POST is refused).
+Payloads below are WS request bodies — write them to a payload file and send via `ha-nova relay ws --data-file <payload-file> --out <result-file>` — EXCEPT the recorder purge section, which runs through `ha-nova call recorder.<service> --skill ha-nova:maintenance` (raw service POST is refused), and Clear, Statistics Import, and Removal: each needs the user's own confirmation, so those go only as `ha-nova plan raw --file <requests.json>` items `{"endpoint":"ws","payload":<the body>}` (one plan per manifest, at most 20 requests: `../ha-nova/batch-safety.md` → Caps), then `ha-nova apply` per its `next_step`. The plan's ask is the manifest's one-time code.
 
 ## Statistics Issue Matrix (`recorder/validate_statistics`)
 

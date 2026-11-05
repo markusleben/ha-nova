@@ -28,12 +28,12 @@ If this fails: `ha-nova setup`
 
 ## Relay Contract
 
-Use REST reads, one create service, and feature-gated WebSocket writes:
+REST reads, one create service, and feature-gated writes:
 - `ha-nova relay core --method GET --path /api/calendars --out <result-file>`
 - `ha-nova relay core --method GET --path /api/states/<calendar_entity_id> --out <result-file>`
 - `ha-nova relay core --method GET --path <calendar-events-path> --out <result-file>`
 - `ha-nova call calendar.create_event <calendar_entity_id> --skill ha-nova:calendar --set summary=… --set start_date_time=… --set end_date_time=…` (one-off create)
-- `ha-nova relay ws --data-file <payload-file> --out <result-file>` for `calendar/event/create` (recurring creates), `calendar/event/update`, and `calendar/event/delete`
+- `ha-nova relay ws --data-file <payload-file> --out <result-file>` for `calendar/event/create` (recurring creates); `ha-nova plan raw --file <requests.json>` for `calendar/event/update` and `calendar/event/delete`
 - `ha-nova relay jq --file <result-file> --jq-file <filter-file>`
 
 `<calendar-events-path>` is:
@@ -49,7 +49,7 @@ Relay-core response body is under `.data.body` (envelope contract: `../ha-nova/r
 4. Set a bounded event window:
    - if the user gave start/end, use them
    - otherwise default to now through the next 7 days
-   - if the user asks for an unbounded or very broad range, narrow it before querying
+   - narrow an unbounded or very broad range before querying
 5. Query events with `/api/calendars/<entity_id>?start=<start>&end=<end>`.
 6. Summarize read results:
    - title/summary
@@ -58,7 +58,7 @@ Relay-core response body is under `.data.body` (envelope contract: `../ha-nova/r
    - timed events: render times in the user's local timezone, and say which timezone applies when the returned offset differs from it
    - recurring events arrive pre-expanded as individual instances within the window — count and report them as such, not as one series
    - location only when useful
-   - omit private descriptions unless the user explicitly asks
+   - omit private descriptions unless asked
 
 ### Create, update, or delete
 
@@ -71,13 +71,13 @@ Relay-core response body is under `.data.body` (envelope contract: `../ha-nova/r
    - a recurring create takes an RFC 5545 `rrule` string and goes through WS `calendar/event/create` (the REST service has no recurrence field); non-recurring creates keep the REST service
    - update merges: send the target's current or changed `summary`/`dtstart`/`dtend`/`description`/`location`; an empty string clears description/location; an omitted `rrule` stays; recurrence can't be removed (to end a series, delete this and future occurrences from the first one to remove)
 4. For an occurrence with `recurrence_id`, ask whether the scope is **this occurrence** (`recurrence_range:""`) or **this and future occurrences** (`"THISANDFUTURE"`). Bind that scope to the preview. For this occurrence, omit `rrule`. Use this-and-future only for summary/description/location changes. Do not invent an entire-series mode.
-5. Show the Preview Card with operation, calendar, exact event identity, summary, start/end, timezone or all-day range, changed fields, and recurrence scope. A one-off create runs its `ha-nova call` here: the preview. Create/update use natural bound confirmation; delete uses the one-time code from the core rule.
+5. Show the Preview Card with operation, calendar, exact event identity, summary, start/end, timezone or all-day range, changed fields, and recurrence scope. A one-off create runs its `ha-nova call` here, an update or delete its `ha-nova plan raw`: the preview. Create uses natural bound confirmation; the plan asks itself.
 6. Immediately before execution, re-read the target window and calendar state; this event set is the create baseline. On any drift (capability, identity, fields, recurrence scope), abort and re-preview.
 7. Execute exactly one write:
-   - create: `ha-nova apply --plan <id>` (the step-5 plan)
+   - the step-5 plan: `ha-nova apply --plan <id>` (per its `next_step`)
    - recurring create: WS `{"type":"calendar/event/create","entity_id":"calendar.example","event":{"summary":"Event","dtstart":"<start>","dtend":"<end>","rrule":"FREQ=WEEKLY;BYDAY=MO"}}` — `dtstart`/`dtend` describe the FIRST instance
-   - update: WS `{"type":"calendar/event/update","entity_id":"calendar.example","uid":"<uid>","recurrence_id":"<instance>","recurrence_range":"<range>","event":{"summary":"Event","dtstart":"<start>","dtend":"<end>"}}`; omit recurrence keys for a non-recurring event
-   - delete: WS `{"type":"calendar/event/delete","entity_id":"calendar.example","uid":"<uid>","recurrence_id":"<instance>","recurrence_range":"<range>"}`; omit recurrence keys for a non-recurring event
+   - update item: `{"endpoint":"ws","payload":{"type":"calendar/event/update","entity_id":"calendar.example","uid":"<uid>","recurrence_id":"<instance>","recurrence_range":"<range>","event":{"summary":"Event","dtstart":"<start>","dtend":"<end>"}}}`; omit recurrence keys for a non-recurring event
+   - delete item: `{"endpoint":"ws","payload":{"type":"calendar/event/delete","entity_id":"calendar.example","uid":"<uid>","recurrence_id":"<instance>","recurrence_range":"<range>"}}`; omit recurrence keys for a non-recurring event
 8. Verify through bounded REST read-back, up to three reads over ten seconds:
    - create: compared with the baseline, exactly one new event must match the requested normalized fields; the service response alone is not identity evidence
    - recurring create: the read-back window returns the series pre-expanded — new instances sharing one `uid` and matching the `rrule` pattern; report them as ONE series (rule, first occurrence, count inside the window), never as separate events, and say instances beyond the window were not verified; a window that cannot hold the next expected occurrence proves no recurrence — report it unverified

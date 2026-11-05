@@ -40,8 +40,9 @@ describe("scene contract", () => {
     expect(sceneSkill).toContain('`{"type":"search/related","item_type":"entity","item_id":"scene.<slug>"}`');
     expect(sceneSkill).toContain("only a verified-shape empty `data` object means no consumers");
     expect(sceneSkill).toContain("a failed read is inconclusive, never a no-consumer claim");
-    expect(sceneSkill).toContain("Require the one-time code — mint four random digits");
-    expect(sceneSkill).toContain("proceed only on a reply that is just the code (spaces ignored)");
+    // One plan: the snapshot save, then the DELETE; the plan asks, the agent mints no code.
+    expect(sceneSkill).toContain('as the leading `backups` save (`../ha-nova/config-snapshots.md`) of one `ha-nova plan raw --file <requests.json>`, then `{"endpoint":"core","payload":{"method":"DELETE","path":"/api/config/scene/config/<id>"}}`; its `say` asks.');
+    expect(sceneSkill).not.toContain("mint four random digits");
     expect(sceneSkill).toContain("config GET returns status 404 and the entity is gone");
   });
 

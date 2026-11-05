@@ -96,10 +96,9 @@ Persistence routing per `../ha-nova/best-practices.md` → Persistence Model: a 
 ### Delete
 1. Resolve id + platform (Editability Guard).
 2. Consumer check: `{"type":"search/related","item_type":"entity","item_id":"scene.<slug>"}` — read through `../ha-nova/search-related-consumers.jq` (recreate per `../ha-nova/relay-api.md` → Parsing rule on flat-copy installs); show referencing automations/scripts, or an explicit no-consumer result (only a verified-shape empty `data` object means no consumers; a failed read is inconclusive, never a no-consumer claim).
-3. Require the one-time code — mint four random digits, display them in the Options slot, and proceed only on a reply that is just the code (spaces ignored). Deleting several storage scenes at once follows `../ha-nova/batch-safety.md` (Editability Guard per target).
-4. Capture the auto config snapshot of the current config first (`../ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop).
-5. `ha-nova relay core --method DELETE --path /api/config/scene/config/<id>`
-6. Verify absence: config GET returns status 404 and the entity is gone. Mention the snapshot restore path in the result.
+3. Capture the auto config snapshot of the current config first, as the leading `backups` save (`../ha-nova/config-snapshots.md`) of one `ha-nova plan raw --file <requests.json>`, then `{"endpoint":"core","payload":{"method":"DELETE","path":"/api/config/scene/config/<id>"}}`; its `say` asks. Deleting several storage scenes at once follows `../ha-nova/batch-safety.md` (Editability Guard per target).
+4. `ha-nova apply` per its `next_step`.
+5. Verify absence: config GET returns status 404 and the entity is gone. Mention the snapshot restore path in the result.
 
 ## Error Handling
 
