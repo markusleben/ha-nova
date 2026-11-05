@@ -154,11 +154,21 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 	plan.SchemaVersion, plan.ID, plan.Hash, plan.Server, plan.Nonce = planSchemaVersion, "p_"+idHex[:12], "sha256:"+sum, env.Server, hex.EncodeToString(nonce)
 	plan.CreatedAt, plan.ExpiresAt = now.Format(time.RFC3339), now.Add(planTTL).Format(time.RFC3339)
 	plan.Tier, plan.Reasons, plan.Channel = tier, e.reasons, planChannel
+	var items haWords
+	if e.level != tierOrdinary { // before Reads: a replay answers this read too
+		items = todoItemWords(e.s, plan)
+	}
 	if slices.ContainsFunc(e.reasons, cutShort) && !e.s.replaying() {
 		plan.Reads = e.s.reads() // what its replay reads again (recheck)
 	}
 	plan.Confirm = map[tierLevel]string{tierOrdinary: "none", tierPreview: "natural", tierTyped: "code"}[e.level]
 	plan.Lang, plan.Words = planLanguage(e, env, plan) // what every text of a plan that asks speaks; a typed plan's is sealed (channelSeal)
+	for key, word := range items {
+		if plan.Words == nil {
+			plan.Words = haWords{}
+		}
+		plan.Words[key] = word
+	}
 	shownChannel := ""
 	if e.level == tierTyped {
 		if e.s.transport.Credential == "" { // unreachable: a session always holds one
