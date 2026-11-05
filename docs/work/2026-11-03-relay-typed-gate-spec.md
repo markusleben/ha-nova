@@ -26,7 +26,7 @@ Does not protect against (stated in `safety.md`):
 - **A Home Assistant administrator session or token**, and code that already runs in one (installed dashboard card code runs in the administrator's browser). A process that reads the browser profile or the Companion app's storage acts as that person in Home Assistant itself. Approval in the page is exactly as strong as that session.
 - **Whoever holds the linked phone** during an open ask (no device unlock needed for a notification button, as today).
 - **Writes below typed.** Previewed and ordinary writes pass without a person, as today.
-- **Indirect effects the tier engine does not see** (hardening spec §4: zone or calendar triggers, flows of entries the CLI did not start, a stored scene used later). The gate is exactly as wide as the CLI's tiers.
+- **Indirect effects the tier engine does not see** (hardening spec §4: a new entity's first state, a write's own bus event, flows of entries the CLI did not start, a stored scene used later; zone, calendar, helper, and registry writes are classified since #946). The gate is exactly as wide as the CLI's tiers.
 - **The in-App chat bridge** (`ha-nova serve`): it runs inside the App with its own confirmation rules (§5).
 - **Camera and image access tokens computed by a template.** `/api/template` renders arbitrary output, so a template can read a camera's `access_token` attribute and reshape it past any redactor. The worker refuses a template answer that contains a live token value (§2), but a transformed one passes. Such a token opens that camera's stream or image for minutes; it never lets a device act.
 - **A phone webhook id that leaks outside the Relay** (Home Assistant's own files, the phone). Through the Relay it is hidden (§2).
