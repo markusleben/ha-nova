@@ -148,6 +148,12 @@ describe("live-schema preflight contract (#594)", () => {
       "a LATER form the preview never showed (multi-step `statistics`/`history_stats`) re-previews from its live schema and re-confirms",
     );
   });
+  it("asks for and submits only the fields a visible condition shows (HA 2026.11+)", () => {
+    const doc = flat("skills/ha-nova/live-schema-preflight.md");
+    expect(doc).toContain("A field with `visible` (Home Assistant 2026.11+) shows only while it holds");
+    expect(doc).toContain("a list must all hold");
+    expect(doc).toContain("Ask for, preview, and submit only visible fields");
+  });
   it("defers the flow allowlist to the owning skill's declaration", () => {
     expect(flat("skills/ha-nova/live-schema-preflight.md")).toContain(
       "the owning skill's declaration is the allowlist, never this file",
