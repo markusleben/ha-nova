@@ -263,18 +263,26 @@ describe("safe test system contract", () => {
     );
     expect(ciGateSteps.find((step) => step.name === "Install")?.run).toBe("npm ci");
 
-    // ci-gate (the required check) also waits for the ha_nova integration tests.
-    expect(ci.jobs["ci-gate"]?.needs).toEqual(["test-inventory", "ha-integration"]);
+    // ci-gate (the required check) also waits for the ha_nova integration tests
+    // and the Go vulnerability scan.
+    expect(ci.jobs["ci-gate"]?.needs).toEqual(["test-inventory", "ha-integration", "govulncheck"]);
     // A skipped required check counts as passed: ci-gate always runs and fails
-    // first thing unless both needed jobs succeeded.
+    // first thing unless every needed job succeeded.
     expect(ci.jobs["ci-gate"]?.if).toBe("${{ always() }}");
     expect(ciGateSteps[0]).toMatchObject({
       name: "Require the needed jobs",
-      if: "${{ needs.test-inventory.result != 'success' || needs.ha-integration.result != 'success' }}",
+      if: "${{ needs.test-inventory.result != 'success' || needs.ha-integration.result != 'success' || needs.govulncheck.result != 'success' }}",
     });
     expect(ciGateSteps[0]?.run).toContain("exit 1");
-    expect(ci.jobs["ha-integration"]?.if).toBeUndefined();
-    expect(ci.jobs["ha-integration"]?.["continue-on-error"]).toBeUndefined();
+    for (const job of ["ha-integration", "govulncheck"]) {
+      expect(ci.jobs[job]?.if).toBeUndefined();
+      expect(ci.jobs[job]?.["continue-on-error"]).toBeUndefined();
+      expect((ci.jobs[job]?.steps ?? []).filter((step) => step.if || step["continue-on-error"])).toEqual([]);
+    }
+    // The scan fails the job on any finding or load error, never swallows one.
+    const scan = ci.jobs["govulncheck"]?.steps?.find((step) => step.run?.includes("govulncheck@v"))?.run ?? "";
+    expect(scan).toContain('exit "$status"');
+    expect(scan).not.toMatch(/\|\|\s*(?:true|:)|exit 0/);
     for (const job of [
       "go-build",
       "macos-native-secret-boundary",

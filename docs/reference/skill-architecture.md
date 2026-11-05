@@ -342,6 +342,10 @@ migration:
   distinguishes INSTALLED from ACTIVE (restart pending)
 - update ownership: `update.*` entity flows stay in `ha-nova:updates`; this
   skill owns what the entity flow cannot do
+- Home Assistant 2026.11+ builds HACS in as the Marketplace and removes
+  `hacs/*`: the gate falls through to `marketplace/info`, and the skill then
+  reads the Marketplace inventory only and gives the Home Assistant steps for
+  everything else (never a "HACS is missing" answer)
 
 ## Calendar Architecture
 

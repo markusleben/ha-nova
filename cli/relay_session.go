@@ -82,6 +82,9 @@ type relaySession struct {
 	lang         string           // a sealed typed plan's language while it is re-planned (replanStored, apply)
 	words        haWords          // and its Home Assistant words (confirm_words.go)
 	flowForms    map[string]error // flow step path → why its form could not be kept: the plan sends it nothing more (formSecretSet, noteFlowForms)
+	replay       map[string]bool  // a cut preview's reads while it is replayed (replayReads); nil otherwise
+	diverged     bool             // the replay asked for a read the preview never made
+	census       bool             // the listener scan's config reads are running (lost)
 }
 
 type relayMemo struct {
@@ -130,7 +133,11 @@ func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Dur
 	}, nil
 }
 
-func (s *relaySession) close() { s.cancel() }
+// close ends the session and drops the idle connections its reads kept.
+func (s *relaySession) close() {
+	s.cancel()
+	s.transport.Client.CloseIdleConnections()
+}
 
 // coreGET reads one Home Assistant REST path and returns the upstream status
 // and body from the Relay envelope.
@@ -177,16 +184,28 @@ func (s *relaySession) read(endpoint string, payload map[string]any) (json.RawMe
 	}
 	key := endpoint + " " + string(body)
 	s.mu.Lock()
-	if m, ok := s.memo[key]; ok {
-		s.mu.Unlock()
-		<-m.done
-		return m.data, m.err
+	replaying := s.replay != nil
+	if replaying { // replayReads: only the preview's reads, as they went
+		answered, made := s.replay[key]
+		s.diverged = s.diverged || !made
+		if !answered {
+			s.mu.Unlock()
+			return nil, errNotReplayed
+		}
 	}
-	m := &relayMemo{done: make(chan struct{})}
-	s.memo[key] = m
+	m, ok := s.memo[key]
+	if !ok {
+		m = &relayMemo{done: make(chan struct{})}
+		s.memo[key] = m
+	}
 	s.mu.Unlock()
-	m.data, m.err = s.send(endpoint, body)
-	close(m.done)
+	if ok {
+		<-m.done
+	} else {
+		m.data, m.err = s.send(endpoint, body)
+		close(m.done)
+	}
+	s.lost(replaying, m.err)
 	return m.data, m.err
 }
 
@@ -276,8 +295,8 @@ func (s *relaySession) sendIn(parent context.Context, endpoint string, body []by
 	}
 	resp, err := s.transport.Client.Do(req)
 	// R4: every caller reads (writes take sendWrite), so a read that got no
-	// answer from the Relay over Link goes once more inside its own deadline.
-	if err != nil && s.transport.Via == relayViaCloud && linkNoRelayAnswer(err) && linkRetryWait(ctx, linkRequestRetryMinLeft) {
+	// answer from the Relay goes once more inside its own deadline.
+	if err != nil && readNoRelayAnswer(s.transport.Via, err) && linkRetryWait(ctx, linkRequestRetryMinLeft) {
 		if req, err = newRelayRequest(ctx, s.transport, endpoint, body); err != nil {
 			return nil, err
 		}
