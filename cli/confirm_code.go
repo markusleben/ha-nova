@@ -40,7 +40,12 @@ func channelSeal(credential string, plan storedPlan) string {
 	if len(plan.Words) == 0 {            // as stored: the file drops an empty map
 		words = nil
 	}
-	fields, _ := json.Marshal([]string{plan.ID, plan.Channel, plan.Kind, plan.Lang, plan.Prompt, string(words)}) // unambiguous field bounds
+	sealed := []string{plan.ID, plan.Channel, plan.Kind, plan.Lang, plan.Prompt, string(words)}
+	if len(plan.Reads) > 0 { // a cut plan's replay reads them (plan_replay.go)
+		reads, _ := json.Marshal(plan.Reads)
+		sealed = append(sealed, string(reads))
+	}
+	fields, _ := json.Marshal(sealed) // unambiguous field bounds
 	mac.Write(append([]byte("ha-nova/plan-seal/v3\x00"), fields...))
 	return hex.EncodeToString(mac.Sum(nil))
 }

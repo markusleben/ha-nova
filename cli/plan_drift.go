@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
 	"reflect"
 	"slices"
@@ -82,38 +83,126 @@ func sayCheckGap(lang string) string { return confirmT(lang, "unseen.all") }
 // depends on timing.
 func cutShort(r tierReason) bool { return r.Code == reasonLimitCut || r.Code == reasonScanFailed }
 
-// stillConfirmed: the recompute is the plan the user confirmed.
+// stillConfirmed: the recompute is the plan the user confirmed. A cut
+// plan's replay is so only by sameAsConfirmed, even with its hash, which
+// leaves out each reason's detail; one that diverged, and the plan computed
+// after it, never are (recheck).
 func stillConfirmed(stored, fresh storedPlan) bool {
-	return fresh.Hash == stored.Hash || sameAsConfirmed(stored, fresh)
+	return fresh.Hash == stored.Hash && !fresh.replayed && !fresh.diverged || sameAsConfirmed(stored, fresh)
 }
 
-// sameAsConfirmed: a recompute whose hash differs only in the gaps a check
-// cut short ran into (a 30 s budget over a slow link, a timed-out read) is
-// still the confirmed plan. It needs a preview that was cut short and said
-// so, a plan file whose fields still make its hash, the same action, tier,
-// and basis (before values, acted entities, every config the walk read),
-// and no reason the preview did not show. Timing-made gaps (the budget cut,
-// the listener scan's per-automation gaps) count as the one sentence they
-// all say; a failed read in the walk keeps its own entity. The listener
-// scan's own reads never enter the basis (tierEngine.census), so how far it
-// got cannot make a plan stale.
+// sameAsConfirmed: a cut preview's replay (replayReads) whose hash differs
+// only in the gaps where its reads had no answer is still the confirmed
+// plan. It needs a preview that was cut short and said so, a plan file
+// whose fields still make its hash, a replay that asked for nothing the
+// preview did not, the same action and tier, the same reasons (a read with
+// no answer counts as one cut, as the budget's LIMIT_CUT and SCAN_FAILED say
+// the same sentence; every other one with its detail, count and depth cuts
+// too, which the replay reached as the preview did), a replay that failed
+// reads only where the preview failed them, and the same basis: before
+// values, configs, acted entities, consumers. Only which reads the budget
+// cut (basis "lost") may differ: the replay failed the preview's unanswered
+// reads as it did, without a budget of its own running out.
 func sameAsConfirmed(stored, fresh storedPlan) bool {
-	if !slices.ContainsFunc(stored.Reasons, cutShort) ||
+	if !fresh.replayed || fresh.diverged ||
+		!slices.ContainsFunc(stored.Reasons, cutShort) ||
 		!intact(stored) ||
 		stored.Kind != fresh.Kind || stored.Server != fresh.Server || stored.Tier != fresh.Tier ||
 		!jsonEqual(planActionOf(stored), planActionOf(fresh)) {
 		return false
 	}
+	cutKey := func(r tierReason) string {
+		if r.Code == reasonScanFailed || r.Code == reasonLimitCut && r.Detail == readBudgetDetail {
+			return "cut"
+		}
+		return r.Code + "|" + r.EntityID + "|" + r.Via + "|" + r.Detail
+	}
+	keys := func(p storedPlan) map[string]bool {
+		out := map[string]bool{}
+		for _, r := range p.Reasons {
+			out[cutKey(r)] = true
+		}
+		return out
+	}
+	was, now := asJSON(stored.Basis), asJSON(fresh.Basis)
+	failed := func(basis map[string]any, reasons []tierReason) map[string]bool { // entity|via|what, as readFailed names them; the listener scan's never enter the basis
+		out := map[string]bool{}
+		lost, _ := basis["lost"].([]any)
+		for _, read := range lost {
+			out[fmt.Sprint(read)] = true
+		}
+		for _, r := range reasons {
+			if r.Code == reasonScanFailed && r.Via != viaListenerScan {
+				out[r.EntityID+"|"+r.Via+"|"+r.Detail] = true
+			}
+		}
+		return out
+	}
+	preview := failed(was, stored.Reasons)
+	for read := range failed(now, fresh.Reasons) {
+		if !preview[read] { // a read with no answer the walk now reaches by another way
+			return false
+		}
+	}
+	delete(was, "lost")
+	delete(now, "lost")
+	return maps.Equal(keys(stored), keys(fresh)) && reflect.DeepEqual(was, now)
+}
+
+// saysOnly: every reason of fresh is one the preview said (sayKey).
+func saysOnly(stored, fresh storedPlan) bool {
 	shown := map[string]bool{}
 	for _, r := range stored.Reasons {
 		shown[sayKey(r)] = true
 	}
-	for _, r := range fresh.Reasons {
-		if !shown[sayKey(r)] {
-			return false
+	return !slices.ContainsFunc(fresh.Reasons, func(r tierReason) bool { return !shown[sayKey(r)] })
+}
+
+// recheck recomputes a stored plan. A plan whose preview was cut short is
+// then replayed on the reads that preview made (replayReads), even when
+// the recompute has its hash (the listener scan's reads never enter the
+// basis), unless the recompute found a reason the preview did not say:
+// that is drift as it is, wherever the recompute got to. A replay
+// that diverged is drift too, whatever the hash, and the plan is computed
+// once more as it is now (its new preview). A plan file without its reads
+// (made before they were kept) is not replayed, so only its exact hash
+// passes; one whose seal does not cover them (an edited batch member) is
+// drift.
+func recheck(s *relaySession, env *verbEnvelope, stored storedPlan, compute func(*verbEnvelope) (storedPlan, error)) (storedPlan, error) {
+	start := *env
+	fresh, err := compute(env)
+	if err != nil || len(stored.Reads) == 0 || !slices.ContainsFunc(stored.Reasons, cutShort) || !saysOnly(stored, fresh) {
+		return fresh, err
+	}
+	if !planSealed(stored, s.transport.Credential) { // an edited read list (a batch member): drift, whatever the hash
+		fresh.diverged = true
+		return fresh, nil
+	}
+	*env = start
+	replayed, err := s.replayReads(stored.Reads, func() (storedPlan, error) { return compute(env) })
+	if err == nil && !replayed.diverged {
+		return replayed, nil
+	}
+	*env = start
+	fresh, err = compute(env)
+	fresh.diverged = true
+	return fresh, err
+}
+
+// forgetFailed drops the remembered reads that failed, so the next pass
+// asks Home Assistant again; every answer stays.
+func (s *relaySession) forgetFailed() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for key, m := range s.memo {
+		select {
+		case <-m.done:
+			if m.err != nil {
+				delete(s.memo, key)
+			}
+		default: // still in flight: its caller waits for it
 		}
 	}
-	return reflect.DeepEqual(asJSON(stored.Basis), asJSON(fresh.Basis))
 }
 
 // intact: the plan file's fields still make its hash (and so its id and
@@ -137,9 +226,10 @@ func planActionOf(p storedPlan) any {
 	return p.ConfigAction
 }
 
-// sayKey: a reason as the preview words it.
+// sayKey: a reason as the preview words it; every check gap is the one
+// sentence (sayReason).
 func sayKey(r tierReason) string {
-	if checkGapCodes[r.Code] && (r.Via == viaListenerScan || r.Code == reasonLimitCut && r.EntityID == "" && r.Via == "") {
+	if checkGapCodes[r.Code] {
 		return "gap"
 	}
 	return r.Code + "|" + r.EntityID + "|" + r.Via

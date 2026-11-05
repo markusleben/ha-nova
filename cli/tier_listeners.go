@@ -135,6 +135,7 @@ func (e *tierEngine) listenerTable() *listenerTable {
 		return nil
 	}
 	var wg sync.WaitGroup
+	e.s.censusReads(true)
 	for _, row := range rows {
 		wg.Add(1)
 		go func(row *autoRow) {
@@ -153,9 +154,13 @@ func (e *tierEngine) listenerTable() *listenerTable {
 					row.raw, row.err, row.loaded = loaded, nil, true
 				}
 			}
+			if row.err == nil {
+				e.warmBlueprint("automation", row.raw) // parseConfig below reads it from the memo
+			}
 		}(row)
 	}
 	wg.Wait()
+	e.s.censusReads(false)
 	table := &listenerTable{counts: map[string]int{}, hits: map[string][]listenerHit{}}
 	for _, row := range rows {
 		// An enabled automation this scan cannot read may hold exactly the
