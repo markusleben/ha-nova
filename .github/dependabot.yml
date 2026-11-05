@@ -1,13 +1,19 @@
 version: 2
 updates:
+  # Root and relay share their runtime dependencies, and
+  # tests/app/dev-contract.test.ts requires both to resolve the same versions,
+  # so one entry covers both directories and each group lands as one PR.
   - package-ecosystem: npm
-    directory: "/"
+    directories:
+      - "/"
+      - "/nova"
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      npm-dev-minor-patch:
-        dependency-type: development
+      npm-minor-patch:
+        patterns:
+          - "*"
         exclude-patterns:
           - vitest
           - vite
@@ -19,20 +25,9 @@ updates:
         update-types:
           - minor
           - patch
-      npm-security:
-        applies-to: security-updates
+      # Toolchain bumps need a full local `npm run verify` first (AGENTS.md).
+      npm-toolchain-minor-patch:
         patterns:
-          - "*"
-
-  - package-ecosystem: npm
-    directory: "/nova"
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    groups:
-      npm-dev-minor-patch:
-        dependency-type: development
-        exclude-patterns:
           - vitest
           - vite
           - typescript
