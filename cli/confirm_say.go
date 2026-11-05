@@ -118,6 +118,9 @@ func sayGoal(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 	case service == "script.turn_on":
 		return actionGoal{verb: "run", frame: "script", names: names}
 	}
+	if goal, ok := todoItemGoal(textLang(plan), plan, names); ok {
+		return goal
+	}
 	return actionGoal{verb: verb, label: label, named: word != "", names: names}
 }
 
@@ -203,6 +206,9 @@ func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 	}
 	changes, flags, warnings := []string{}, "", ""
 	for _, d := range env.Deltas {
+		if todoItemField(plan, d.Field) { // the goal names the items
+			continue
+		}
 		before, after := plan.valueText(d.EntityID, d.Field, d.Before), sayValue(d.After)
 		if d.Field == "state" {
 			after = plan.valueText(d.EntityID, d.Field, d.After)

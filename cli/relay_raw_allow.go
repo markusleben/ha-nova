@@ -38,6 +38,7 @@ var rawWSAllowed = map[string]string{
 	"config_entries/get": rawWSRead, "config_entries/flow/progress": rawWSRead, "manifest/list": rawWSRead,
 	"config_entries/subentries/list": rawWSRead,
 	"frontend/get_translations":      rawWSRead,
+	"todo/item/list":                 rawWSRead,
 	"config/entity_registry/list":    rawWSRead, "config/entity_registry/list_for_display": rawWSRead,
 	"config/entity_registry/get": rawWSRead, "config/entity_registry/get_entries": rawWSRead,
 	"config/device_registry/list": rawWSRead, "config/device_registry/list_composite_splits": rawWSRead,
