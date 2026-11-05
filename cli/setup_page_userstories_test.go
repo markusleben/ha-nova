@@ -254,3 +254,30 @@ func TestSetupPageHandOverSaysWhy(t *testing.T) {
 		}
 	}
 }
+
+// Claude or ChatGPT in the browser, handed over to the terminal (the page
+// couldn't sign in): the terminal finishes as the page's browser path does,
+// without asking for an AI app here. The terminal's own no-app path still
+// says which one to install.
+func TestSetupBrowserPathHandedToTheTerminalAsksForNoAIApp(t *testing.T) {
+	withClientRuntimeAvailability(t, map[string]bool{})
+	setupGoldenHome(t)
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, web := range []bool{true, false} {
+		out := &strings.Builder{}
+		ui := newSetupWebUI(strings.NewReader(""), out)
+		ui.update(func(v *setupPageState) { v.Web = web })
+		ui.handover()
+		flow := &setupFlow{page: ui, ui: ui, paths: paths, noClient: true}
+		if result := flow.finish(); !result.done || result.code != 0 {
+			t.Fatalf("web=%v: finish = %+v\n%s", web, result, out)
+		}
+		asks := strings.Contains(out.String(), "One step left: install one of these AI apps")
+		if !strings.Contains(out.String(), setupT("setup.done.connected_no_client")) || asks == web {
+			t.Fatalf("web=%v: asks for an AI app = %v\n%s", web, asks, out)
+		}
+	}
+}
