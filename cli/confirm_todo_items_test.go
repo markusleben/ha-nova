@@ -48,6 +48,11 @@ func TestTodoItemConfirmationNamesTheItem(t *testing.T) {
 			if exit != 3 || !strings.Contains(env.Say, tc.want) || strings.Contains(env.Say, "79d4") {
 				t.Fatalf("exit %d say %q, want it to say %q\n%+v", exit, env.Say, tc.want, env)
 			}
+			for _, d := range env.Deltas { // #1008: no change row names an item by its uid
+				if d.Field == "item" || strings.Contains(d.After+d.Before, "79d4") {
+					t.Fatalf("change rows %+v show the item field", env.Deltas)
+				}
+			}
 		})
 	}
 }
