@@ -187,7 +187,7 @@ Accept numbers (e.g. "1 and 2"), or "skip".
 Applies to `ha-nova:write` AUTOMATION creates ONLY — the replicate pattern
 resolves automation roles, so script creates make no offer. After a VERIFIED
 create (never after an update, delete, or a failed verification), exactly ONE
-closing line may point out replication potential —
+line may point out replication potential —
 and only when the registries actually prove it: other areas holding the same
 device pairing the new item uses, checked in the same session's reads and
 still current (a later write touching those registries invalidates them —
@@ -226,5 +226,5 @@ are named as such, never upgraded to successes in recap.
 
 - Standalone and bulk review keep their full shape because the user explicitly asked for review; a clear "no issues found" result is useful.
 - Post-write review is different: the user asked to write, not to review. Show only sections that carry substance.
-- Do not print empty "none" buckets in post-write review. If every post-write check is clean, the result's `say` is the only line (no `say`: one localized line, scope-honest per `../ha-nova/write-safety.md` → Verification Honesty, never a bare "verified").
+- Do not print empty "none" buckets in post-write review. If every post-write check is clean, the result's `say` is the only review line (no `say`: one localized line, scope-honest per `../ha-nova/write-safety.md` → Verification Honesty, never a bare "verified").
 - In review output, put uncertainty in `Questions to consider`; put only confident recommendations in `Suggestions`.

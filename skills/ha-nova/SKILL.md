@@ -311,7 +311,7 @@ Match user intent to exactly one skill:
 **"Fire the movie_night event"** → `ha-nova:service-call` (refused raw; offer `automation.trigger`)
 **"Install the firmware update for my kitchen light"** → `ha-nova:updates` (never raw `update.install` through service-call)
 **"Publish an MQTT message"** → `ha-nova:mqtt` (never raw `mqtt.publish` through service-call)
-**"Test the automation I just created"** → `ha-nova:write` Phase 5 test offer (plan per `../ha-nova/test-run.md`); a plain manual trigger stays `ha-nova:service-call`
+**"Test the automation I just created"** → `ha-nova:write` Phase 5 test card (plan per `../ha-nova/test-run.md`); a plain manual trigger stays `ha-nova:service-call`
 **"Show my main dashboard"** → `ha-nova:dashboard`
 **"Create a dashboard called Test Board"** → `ha-nova:dashboard`
 **"Delete the Test dashboard"** → `ha-nova:dashboard`
