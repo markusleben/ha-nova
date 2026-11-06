@@ -239,6 +239,7 @@ func TestPlanWriteAppendedStepWidensToWhatARunReads(t *testing.T) {
 		"an event":                           {"event": "check_entry"},
 		"every automation":                   step("automation.trigger", "all"),
 		"a step something reacts to":         step("switch.turn_on", "switch.art"),
+		"a device action":                    {"device_id": "dev_art", "domain": "switch", "type": "turn_on", "entity_id": "switch.art"},
 	} {
 		f := routineHA()
 		f.ent("input_boolean.allow_entry", "input_boolean", "off", nil)
