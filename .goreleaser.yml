@@ -75,6 +75,10 @@ release:
     - No Update button yet? In Home Assistant: Settings > ⋮ (top right) > Check for updates. Or run `ha-nova doctor`: it does that for you and offers the update.
     - A big change you previewed before the update may need a new preview.
 
+    ## What To Watch
+
+    - **Setup no longer updates an installed NOVA App.** When it is too old, setup shows the steps in Home Assistant, and `ha-nova update` asks in the terminal. This way an update can't set off an automation you didn't see.
+
     ## Bug Fixes
 
     - **Reading the weather, a calendar or a to-do list no longer pulls unrelated automations into the check.** A script that only reads the weather no longer makes HA NOVA ask about what reacts to the weather.

@@ -49,7 +49,8 @@ describe("release notes contract", () => {
     // The App update leads the notes; without New Features the update notice leads with the first bug fix (#1010: read-only services).
     expect(stableNotes).toMatch(/^\*\*Update the NOVA App to \d+\.\d+\.\d+\.\*\*/);
     expect(stableNotes).not.toContain("## New Features");
-    expect(stableNotes).not.toContain("## What To Watch");
+    // The setup page no longer updates an installed App (#1017).
+    expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Setup no longer updates an installed NOVA App\.\*\*[\s\S]*## Bug Fixes/);
     expect(stableNotes).toMatch(/## Bug Fixes\s+- \*\*Reading the weather, a calendar or a to-do list no longer pulls unrelated automations into the check\.\*\*/);
     expect(stableNotes).not.toContain("one-time code");
     // App 0.13.21 keeps the 0.28.0 tool text (TestMCPToolTextStable), so ChatGPT needs no Refresh and Claude doesn't ask again.
