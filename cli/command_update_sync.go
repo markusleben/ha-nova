@@ -201,6 +201,36 @@ func offerRelayUpdateAfterUpdate(paths runtimePaths) {
 	offerRelayUpdate(paths, relayUpdateNoticeForUpdate(paths))
 }
 
+// appOfferInNewBinaryAfter: versions after it ship internal-offer-app-update;
+// an update to it or an older version keeps the offer in this process.
+const appOfferInNewBinaryAfter = "0.28.2"
+
+// runNewBinaryAppOffer runs the App offer of the binary `ha-nova update` just
+// installed: this process may still be the old binary, whose offer predates
+// what the new version needs. Test seam.
+var runNewBinaryAppOffer = func(paths runtimePaths) error {
+	args := []string{"internal-offer-app-update"}
+	if serverSelectionOverride != "" { // the same server, still chosen by flag
+		args = append(args, "--server", serverSelectionOverride)
+	}
+	cmd := exec.Command(paths.PublicBinary, args...)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	return cmd.Run()
+}
+
+// offerRelayUpdateAfterInstall: the App half after `ha-nova update` installed
+// targetVersion. Only a new binary that didn't start leaves it to this one;
+// one that ran has made its offer, whatever its exit.
+func offerRelayUpdateAfterInstall(paths runtimePaths, targetVersion string) {
+	if cmp, err := compareReleaseVersions(targetVersion, appOfferInNewBinaryAfter); err == nil && cmp > 0 {
+		var exitErr *exec.ExitError
+		if err := runNewBinaryAppOffer(paths); err == nil || errors.As(err, &exitErr) {
+			return
+		}
+	}
+	offerRelayUpdateAfterUpdate(paths)
+}
+
 // setupPageCanUpdateApp: `ha-nova setup` opens its page here, and the page's
 // owner sign-in can update the official App on this Home Assistant.
 func setupPageCanUpdateApp(paths runtimePaths) bool {
