@@ -240,7 +240,7 @@ func TestACutRecomputeThatMissedAReadIsDrift(t *testing.T) {
 	w := useWindow(t) // no window may open
 	h := newSlowHarness(t, presenceHome(), 0, 300*time.Millisecond)
 	h.mu.Lock()
-	h.hung["/api/states/light.lamp_10"] = 1
+	h.hung["related:light.lamp_10"] = 1
 	h.mu.Unlock()
 	planned := h.planLeave()
 	h.f.mu.Lock()
@@ -248,7 +248,7 @@ func TestACutRecomputeThatMissedAReadIsDrift(t *testing.T) {
 	h.f.related["entity:light.lamp_03"] = []string{"automation.door"}
 	h.f.mu.Unlock()
 	h.mu.Lock()
-	h.hung["/api/states/light.lamp_10"], h.hung["related:light.lamp_03"] = 10, 1 // the recompute misses both
+	h.hung["related:light.lamp_10"], h.hung["related:light.lamp_03"] = 10, 1 // the recompute misses both
 	h.mu.Unlock()
 	exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID)
 	if exit != verbExitDrift || len(w.messages) != 0 || len(h.writes()) != 0 {
@@ -277,25 +277,21 @@ func TestACutRecomputeThatMissedANewListenerIsDrift(t *testing.T) {
 	}
 }
 
-// A replay that reaches a read the preview had no answer to by a new way
-// (here a group that gained the lamp the preview stopped at) is drift: it
-// fails that read where the preview never failed one.
+// A replay that reaches what the preview had no answer to by a new way
+// (here a group that gained the lamp the preview stopped before: its
+// automation's config never answered) is drift.
 func TestANewRouteToAReadThePreviewMissedIsDrift(t *testing.T) {
 	w := useWindow(t) // no window may open
 	f := presenceHome()
 	f.ent("group.garage", "group", "on", map[string]any{"entity_id": []any{"light.lamp_09"}})
 	f.automation("lamp_03", "l03", map[string]any{"triggers": []any{map[string]any{"trigger": "state", "entity_id": "light.room_03"}}, "actions": []any{step("light.turn_on", "light.lamp_03"), step("light.turn_on", "group.garage")}})
 	h := newSlowHarness(t, f, 0, 300*time.Millisecond)
-	h.mu.Lock()
-	h.hung["/api/states/light.lamp_10"] = 1
-	h.mu.Unlock()
+	h.hangFirst("l10", 1)
 	planned := h.planLeave()
 	h.f.mu.Lock()
 	h.f.ent("group.garage", "group", "on", map[string]any{"entity_id": []any{"light.lamp_09", "light.lamp_10"}})
 	h.f.mu.Unlock()
-	h.mu.Lock()
-	h.hung["/api/states/light.lamp_10"] = 10
-	h.mu.Unlock()
+	h.hangFirst("l10", 10)
 	exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID)
 	if exit != verbExitDrift || len(w.messages) != 0 || len(h.writes()) != 0 {
 		t.Fatalf("exit %d windows %d writes %d say %q err %+v", exit, len(w.messages), len(h.writes()), env.Say, env.Error)
@@ -317,7 +313,7 @@ func TestACutCheckSeesANewConsumerWhereThePreviewLooked(t *testing.T) {
 	h.f.related["entity:light.room_03"] = append(h.f.related["entity:light.room_03"], "automation.door")
 	h.f.mu.Unlock()
 	h.mu.Lock()
-	h.hung["/api/states/lock.front"] = 4 // every check: the door's step stays unread
+	h.hung["/api/config/automation/config/door"] = 4 // every check: the door automation stays unread
 	h.mu.Unlock()
 	exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID)
 	if exit != verbExitDrift || len(w.messages) != 0 || len(h.writes()) != 0 {
@@ -381,7 +377,7 @@ func TestAReplayThatLostAReadIsDrift(t *testing.T) {
 	w := useWindow(t) // no window may open
 	h := newSlowHarness(t, presenceHome(), 0, 300*time.Millisecond)
 	h.mu.Lock()
-	h.hung["/api/states/light.lamp_10"] = 1 // the preview stops at the last lamp
+	h.hung["related:light.lamp_10"] = 1 // the preview stops at the last lamp
 	h.mu.Unlock()
 	planned := h.planLeave()
 	if planned.Plan.Channel != channelWindow {
@@ -406,7 +402,7 @@ func TestAnEditedReadListIsRefused(t *testing.T) {
 	w := useWindow(t) // no window may open
 	h := newSlowHarness(t, presenceHome(), 0, 300*time.Millisecond)
 	h.mu.Lock()
-	h.hung["/api/states/light.lamp_10"] = 1
+	h.hung["related:light.lamp_10"] = 1
 	h.mu.Unlock()
 	planned := h.planLeave()
 	path := filepath.Join(planDir(h.paths), planned.Plan.ID+".json")
@@ -446,7 +442,7 @@ func TestABatchMemberWithEditedReadsIsNotReplayed(t *testing.T) {
 	f.automation("desk", "d1", map[string]any{"alias": "Desk", "actions": []any{step("light.turn_on", "light.desk")}})
 	h := newSlowHarness(t, f, 0, 300*time.Millisecond)
 	h.mu.Lock()
-	h.hung["/api/states/light.lamp_10"] = 1
+	h.hung["related:light.lamp_10"] = 1
 	h.mu.Unlock()
 	leave := h.planLeave().Plan.ID
 	exit, batch := h.batch(leave, h.writePlan("automation", "d1", map[string]any{"alias": "Desk", "actions": []any{step("light.turn_off", "light.desk")}}))
@@ -543,7 +539,7 @@ func TestAnEditedBatchMemberIsDriftEvenWithItsHash(t *testing.T) {
 	f.automation("desk", "d1", map[string]any{"alias": "Desk", "actions": []any{step("light.turn_on", "light.desk")}})
 	h := newSlowHarness(t, f, 0, 300*time.Millisecond)
 	h.mu.Lock()
-	h.hung["/api/states/light.lamp_10"] = 1
+	h.hung["related:light.lamp_10"] = 1
 	h.mu.Unlock()
 	leave := h.planLeave().Plan.ID
 	exit, batch := h.batch(leave, h.writePlan("automation", "d1", map[string]any{"alias": "Desk", "actions": []any{step("light.turn_off", "light.desk")}}))
@@ -567,7 +563,7 @@ func TestAnEditedBatchMemberIsDriftEvenWithItsHash(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.mu.Lock()
-	h.hung["/api/states/light.lamp_10"], h.hung["related:light.lamp_03"] = 10, 10 // the recompute stops where the edit says
+	h.hung["related:light.lamp_10"], h.hung["related:light.lamp_03"] = 10, 10 // the recompute stops where the edit says
 	h.mu.Unlock()
 	exit, env := h.run(runApplyCommand, "--plan", batch.Plan.ID)
 	if exit != verbExitDrift || len(w.messages) != 0 || len(h.writes()) != 0 {

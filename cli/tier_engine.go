@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -109,6 +108,8 @@ type tierEngine struct {
 	aheadActed   int             // entities readAhead warmed (≤ tierMaxActed)
 	aheadConfigs int             // consumer configs readAhead warmed (≤ tierMaxConsumers)
 	lost         []string        // "entity|via|what" of each read the budget cut, but the listener scan's config reads (sealPlan)
+
+	stateList func() (map[string]json.RawMessage, error) // a config check's states, one read for all (useStateList); nil: one read each
 }
 
 func newTierEngine(s *relaySession) *tierEngine {
@@ -146,7 +147,7 @@ func (e *tierEngine) prefetchStates(ids []string) {
 	var reads []func()
 	for _, id := range ids {
 		if _, known := e.states[id]; !known && entityIDPattern.MatchString(id) {
-			reads = append(reads, func() { _, _, _ = e.s.coreGET("/api/states/" + id) })
+			reads = append(reads, func() { _, _, _ = e.rawState(id) })
 		}
 	}
 	prefetch(reads)
@@ -202,19 +203,16 @@ func (e *tierEngine) state(id string) (*entityState, error) {
 	if !entityIDPattern.MatchString(id) {
 		return nil, fmt.Errorf("%q is not a literal entity_id", id)
 	}
-	status, body, err := e.s.coreGET("/api/states/" + id)
+	body, present, err := e.rawState(id)
 	if err != nil {
 		return nil, err
 	}
 	var st *entityState
-	switch {
-	case status == http.StatusOK:
+	if present {
 		st = &entityState{raw: body}
 		if err := json.Unmarshal(body, st); err != nil {
 			return nil, fmt.Errorf("cannot parse the state of %s: %w", id, err)
 		}
-	case status != http.StatusNotFound:
-		return nil, fmt.Errorf("Home Assistant answered HTTP %d for %s", status, id)
 	}
 	e.states[id] = st
 	return st, nil
