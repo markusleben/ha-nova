@@ -38,7 +38,8 @@ npm run verify:next-release-version -- v<version>
   `noindex`. A brand change to
   `assets/icon.svg` also updates `scripts/demo/hosted/site/icon.svg` (the
   demo's restarting page; a test keeps them equal)
-- merging the release-prep PR starts the tag sequence immediately
+- the release-prep PR is the train's last PR; merging the train landing PR
+  into `main` starts the tag sequence immediately
 - preflight: audit open PRs (Dependabot, workflows, installer/update,
   release metadata) as `blocker now` vs `separate later`; never pull a red or
   unreviewed workflow/release PR in right before publish
@@ -82,7 +83,8 @@ the final tag may share a commit.
 Keep one immutable `<reviewed-merge-sha>`; no local-only delta enters a
 deploy or tag.
 
-1. Merge the reviewed PR state and record its remote merge commit. If the
+1. Merge the reviewed PR state (for a train: the landing PR into `main`;
+   never tag a `release/*` commit) and record its remote merge commit. If the
    Relay version changed, wait for the `relay-image.yml` push run on that SHA:
    ```bash
    bash scripts/release/verify-relay-image.sh <reviewed-merge-sha> <relay-version>
@@ -167,8 +169,8 @@ Supervisor stores track `main`: once `nova/config.yaml` carries
 MUST already have public images for every `nova/build.yaml` arch, or every
 install/update fails. Spec: `docs/work/2026-10-15-app-prebuilt-images-spec.md`.
 
-- `app-image.yml` publishes from the release-prep PR (same-repo, into main,
-  `image:` set) while the version never reached main; versions on main are
+- `app-image.yml` publishes from the PR that brings the version into main
+  (the train landing PR; same-repo, `image:` set) while the version never reached main; versions on main are
   frozen. Recover a failed publish by re-running the PR's workflow run.
 - `app-image-verify` gates the merge: anonymous existence check, plus a
   build-input fingerprint match on the change that introduces the version or
@@ -192,7 +194,8 @@ install/update fails. Spec: `docs/work/2026-10-15-app-prebuilt-images-spec.md`.
 
 ### Chat-app lanes
 
-Throwaway HAOS VM only (never a real home), results in the App bump PR.
+Throwaway HAOS VM only (never a real home), results in the PR that brings
+the App bump into `main` (with a train: the landing PR).
 Supervisor reads `main`, so an App version is live for every user the moment
 its PR merges: run these BEFORE the merge, on the PR's published image. On
 the VM, switch the official repository's checkout inside the Supervisor to the
