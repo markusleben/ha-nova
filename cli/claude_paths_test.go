@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -43,6 +44,9 @@ func TestMain(m *testing.M) {
 	// override on top (e.g. keyring_linux_test.go stubs keyringGetWithService, or
 	// device-storage tests stub deviceStorageKeyringCanary).
 	keyring.MockInit()
+	// No test starts the installed binary for the post-update App offer; it
+	// runs in-process (update_app_offer_test.go covers the hand-off).
+	runNewBinaryAppOffer = func(runtimePaths) error { return errors.New("tests offer in-process") }
 	// No test opens a real confirmation window: typed plans use chat unless a
 	// test installs its own window (confirm_window_test.go).
 	windowAvailable = func() bool { return false }

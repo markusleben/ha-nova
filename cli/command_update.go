@@ -190,7 +190,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 	// The freshly installed version.json may raise min_relay_version, and Home
 	// Assistant may expose a newer compatible App update. The update moment is
 	// where the user can still act instead of being interrupted later.
-	offerRelayUpdateAfterUpdate(paths)
+	offerRelayUpdateAfterInstall(paths, targetVersion)
 	printPostUpdateSessionInstruction(syncResult)
 	return 0
 }
