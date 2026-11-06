@@ -169,6 +169,9 @@ Supervisor stores track `main`: once `nova/config.yaml` carries
 MUST already have public images for every `nova/build.yaml` arch, or every
 install/update fails. Spec: `docs/work/2026-10-15-app-prebuilt-images-spec.md`.
 
+- Cadence: one App version per release train, bumped in the release-prep PR,
+  never per fix or RC; at most one App update reaches main per day (a second
+  one needs the maintainer's OK; AGENTS.md → Releases).
 - `app-image.yml` publishes from the PR that brings the version into main
   (the train landing PR; same-repo, `image:` set) while the version never reached main; versions on main are
   frozen. Recover a failed publish by re-running the PR's workflow run.
