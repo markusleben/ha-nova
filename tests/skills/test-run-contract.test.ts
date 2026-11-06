@@ -196,12 +196,37 @@ describe("post-write test-offer contract", () => {
     expect(serviceCallSkill).toContain("attribute the result to the user's action, not to the call");
   });
 
-  it("keeps the offer compact and de-escalates after a skip", () => {
+  it("closes every create/update with one test-preview line; a yes shows the card, never a run", () => {
+    // Agent runs ended the turn on the apply `say` and dropped the offer on later
+    // updates in the same session: the post-write turn must carry the line, an
+    // earlier test is no exception, and the always-loaded rules must not end at `say`.
+    const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8");
+    const outputCards = readFileSync("skills/ha-nova/output-cards.md", "utf8");
+    expect(writeSkill).toContain(
+      "Every saved create/update ends, in the same response as the result's `say`, with one closing line offering a test preview",
+    );
+    expect(writeSkill).toContain(
+      "Only exceptions: a one-shot or duration intent; a batch or grouped change set (on request); the user stopped these offers this session. An earlier test is no exception.",
+    );
+    expect(writeSkill).toContain('A "yes" asks for the card, never a run');
+    expect(writeSkill).toContain("the choice confirms only that card");
+    expect(writeSkill).not.toContain("de-escalate");
+    expect(writeSkill).toContain("- `../ha-nova/test-run.md` — every create/update (Phase 5)");
+    expect(writeSafety).toContain("that offer is one closing line after every create/update");
+    expect(outputRules).toContain("the skill's required read-back and test offer follow it");
+    expect(outputCards).toContain("the result's `say` is the only review line");
+    expect(outputCards).not.toContain("the result's `say` is the only line");
+    expect(testRun).toContain('That "yes" asks for the card, not a run: only an option choice');
+    expect(testRun).toContain("only the user's explicit request\n  stops it for the session");
+    expect(testRun).not.toContain("Session de-escalation");
+    expect(writeSkill).toContain("after a verified create; Phase 5's line closes.");
+    expect(testRun).toContain("an actions-only\n   run never claims the trigger works");
+  });
+
+  it("keeps the card compact", () => {
     expect(testRun).toContain("at most 3 options plus `skip`");
-    expect(testRun).toContain("Session de-escalation");
     // Card stays inside the fixed emoji vocabulary (📝 = preview).
     expect(testRun).toContain('📝 Test: automation "Morning lights"');
-    expect(writeSkill).toContain("de-escalate to a single line");
     expect(writeSkill).toContain("Skip this phase for deletes");
   });
 });

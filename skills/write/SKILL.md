@@ -43,7 +43,7 @@ Multi-target logical changes: present the plan first (`../ha-nova/write-safety.m
 
 Input-device remaps: run the capability preflight per `../ha-nova/input-capability-preflight.md` before drafting; the write stays blocked while the chosen gesture is only assumed or its evidence conflicts. Repurposing or cleaning up an input additionally runs `../ha-nova/consumer-discovery-preflight.md`; incomplete coverage is disclosed, never claimed as "unused".
 
-A one-shot intent ("just today", "tell me when the laundry finishes") takes the self-disabling pattern in `../ha-nova/one-shot-automations.md` and skips unsolicited improvement offers — the Suggestion Block AND the Phase 5 test offer (a real-run test would undo the duration). A recovery, watchdog, self-healing, or retry intent reads `../ha-nova/recovery-workflows.md` before drafting; the preview names the attempt bound — and the persistent-fault path only where the intent promises watchdog/self-healing continuity: an explicitly one-shot recovery keeps an attempt bound of one.
+A one-shot intent ("just today", "tell me when the laundry finishes") takes the self-disabling pattern in `../ha-nova/one-shot-automations.md` and skips unsolicited improvement offers — the Suggestion Block and Phase 5 (a test would undo the duration). A recovery, watchdog, self-healing, or retry intent reads `../ha-nova/recovery-workflows.md` before drafting; the preview names the attempt bound — and the persistent-fault path only where the intent promises watchdog/self-healing continuity: an explicitly one-shot recovery keeps an attempt bound of one.
 
 Every draft follows `../ha-nova/smallest-solution.md`.
 
@@ -98,18 +98,18 @@ Not via `ha-nova:review`.
 1. Reviewed config: the draft when `verified`, else `ha-nova get <entity_id> --config`. If `verification[].entity_id` differs from the requested slug, report it — do not silently assume the requested slug won.
 2. Checks: verified → skip what Phase 2 covered, re-run R-18 on the read-back; a differing read-back → full checks per `../review/checks.md` → Application. **Dedup**: findings the user saw in 3b MUST NOT repeat (by check type) — except R-18 still matching the persisted config: report it again as a persisted runtime risk with the reorder fix. Do not auto-trigger or auto-read traces outside an accepted Phase 5 test plan. `R-19` follows normal dedup. Actions referencing helpers: always H-01..H-11.
 3. Collision scan: `ha-nova get <entity_id> --related` on the entities it triggers on and acts on, minus the item itself (3c fail-closed rule); read max 3 related configs.
-4. Localized output (`../ha-nova/output-cards.md` → Findings, Empty States): **Findings** real issues; **Collision check** related items or failed scan ("couldn't check what uses it"); **Advisory** non-empty only — never print an empty "none" bucket; nothing at all → no review line beyond `say`. Never emit `Questions to consider`, `Suggestions`, or `Instant help` post-write; never repeat an item across **Findings** and **Advisory**. Sole exception: the one-line Replication Line after a verified create.
+4. Localized output (`../ha-nova/output-cards.md` → Findings, Empty States): **Findings** real issues; **Collision check** related items or failed scan ("couldn't check what uses it"); **Advisory** non-empty only — never print an empty "none" bucket; nothing at all → no review line beyond `say`. Never emit `Questions to consider`, `Suggestions`, or `Instant help` post-write; never repeat an item across **Findings** and **Advisory**. Sole exception: the one-line Replication Line after a verified create; Phase 5's line closes.
 5. Update-Revert: an update (a revert too) lands on the undo stack automatically — reflect the save receipt in the result — the `undo` receipt (`replaced`: only this newest update stays revertible; evicted targets are no longer revertible) and offer `revert` (write-safety → Update-Revert). Creates → cleanup via normal HA NOVA delete flow (preview, its confirmation, absence verification); never promise a code. Deletes → offer `restore` (one plan + apply), else Home Assistant Backups.
 
 ### Phase 5: Test Offer (create/update only)
 
-After review: Test Plan Card (`../ha-nova/test-run.md`), one recommendation naming switched devices, max 3 options plus `skip`. Never execute anything unconsented; the choice confirms only that card, and the card confirmation never replaces the typed confirmation. Follow service-call rules, then test-run.md's trace/state verification/restore. After one skip, de-escalate to a single line. Skip this phase for deletes.
+Every saved create/update ends, in the same response as the result's `say`, with one closing line offering a test preview. Only exceptions: a one-shot or duration intent; a batch or grouped change set (on request); the user stopped these offers this session. An earlier test is no exception. A "yes" asks for the card, never a run (Test Plan Card mechanics: `../ha-nova/test-run.md`). Never execute anything unconsented; the choice confirms only that card, and the card confirmation never replaces the typed confirmation. Skip this phase for deletes.
 
 ## Output Format
 
 Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.
 
-Render Cards per `../ha-nova/output-cards.md` (Test Plan Card mechanics: `../ha-nova/test-run.md`). A create summary (or a deleted item's restore) names the item and devices, triggers, conditions, actions (scripts: inputs/steps); mode only if not `single`, in plain words; ids and the full config only when asked.
+Render Cards per `../ha-nova/output-cards.md`. A create summary (or a deleted item's restore) names the item and devices, triggers, conditions, actions (scripts: inputs/steps); mode only if not `single`, in plain words; ids and the full config only when asked.
 
 ## Safety
 
@@ -143,7 +143,7 @@ On demand — read only when the trigger applies:
 - `../ha-nova/safe-refactoring.md` — rename, migrate, or orphan cleanup
 - `../ha-nova/update-revert.md` — revert, undo, or restore a verified update
 - `../ha-nova/config-snapshots.md` — restore from a config snapshot
-- `../ha-nova/test-run.md` — Phase 5 test offer
+- `../ha-nova/test-run.md` — every create/update (Phase 5)
 - `../ha-nova/input-capability-preflight.md` — remapping an input device
 - `../ha-nova/consumer-discovery-preflight.md` — repurposing an input's consumers
 - `../ha-nova/threshold-calibration.md` — threshold, `for:`, wait-timeout, or compared-signal changes
