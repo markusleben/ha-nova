@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
@@ -101,6 +102,9 @@ func TestPlanWriteStillWeighsWhatTheChangeReaches(t *testing.T) {
 			map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{step("switch.turn_on", "switch.art"), gate, step("lock.unlock", "lock.front")}}, "typed", reasonAccessLock},
 		{"a removed undo after an unchanged step", map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{step("lock.unlock", "lock.front"), map[string]any{"delay": "00:00:30"}, step("lock.lock", "lock.front")}},
 			map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{step("lock.unlock", "lock.front")}}, "typed", reasonAccessLock},
+		{"an appended write a step before it reads on the next run",
+			map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{map[string]any{"if": []any{gate}, "then": []any{step("lock.unlock", "lock.front")}}}},
+			map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{map[string]any{"if": []any{gate}, "then": []any{step("lock.unlock", "lock.front")}}, step("switch.turn_on", "switch.art")}}, "typed", reasonAccessLock},
 		{"a moved step", nil, func() map[string]any {
 			d := routine()
 			steps := d["actions"].([]any)
@@ -121,6 +125,27 @@ func TestPlanWriteStillWeighsWhatTheChangeReaches(t *testing.T) {
 			env := planRoutine(t, f, tc.draft)
 			if env.Tier != tc.tier || !slices.ContainsFunc(env.Reasons, func(r tierReason) bool { return r.Code == tc.reason }) {
 				t.Fatalf("tier %q reasons %s, want %s with %s", env.Tier, reasonCodes(env), tc.tier, tc.reason)
+			}
+		})
+	}
+}
+
+// Home Assistant renders variables in order: a reordered map is a change.
+func TestPlanWriteVariableOrderIsAChange(t *testing.T) {
+	for name, order := range map[string][2]string{
+		"automation variables": {
+			`{"alias":"V","variables":{"a":"lock","b":"{{ a }}"},"triggers":[],"actions":[{"action":"lock.unlock","target":{"entity_id":"lock.front"}}]}`,
+			`{"alias":"V","variables":{"b":"{{ a }}","a":"lock"},"triggers":[],"actions":[{"action":"lock.unlock","target":{"entity_id":"lock.front"}}]}`},
+		"step variables": {
+			`{"alias":"V","triggers":[],"actions":[{"variables":{"a":"lock","b":"{{ a }}"}},{"action":"lock.unlock","target":{"entity_id":"lock.front"}}]}`,
+			`{"alias":"V","triggers":[],"actions":[{"variables":{"b":"{{ a }}","a":"lock"}},{"action":"lock.unlock","target":{"entity_id":"lock.front"}}]}`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := routineHA()
+			f.configs["/api/config/automation/config/r1"] = json.RawMessage(order[0])
+			_, env := newWriteHarness(t, f).run(runPlanCommand, "write", "--domain", "automation", "--id", "r1", "--file", rawDraft(t, order[1]))
+			if env.Tier != "typed" || !slices.ContainsFunc(env.Reasons, func(r tierReason) bool { return r.Code == reasonAccessLock }) {
+				t.Fatalf("a reordered %s: tier %q reasons %s, want the unlock weighed", name, env.Tier, reasonCodes(env))
 			}
 		})
 	}

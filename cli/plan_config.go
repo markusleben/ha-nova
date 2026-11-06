@@ -427,7 +427,7 @@ func (e *tierEngine) classifyDraft(domain, configID string, draft, current json.
 		steps, via = cfg["sequence"], "draft/sequence"
 	}
 	if list, isList := steps.([]any); isList {
-		e.walkSteps(list, via, 1, draftSteps(domain, cfg, current))
+		e.walkSteps(list, via, 1, draftSteps(domain, cfg, draft, current))
 		return
 	}
 	e.walk(steps, via, 1)
