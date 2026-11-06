@@ -14,7 +14,8 @@ func routineHA() *fakeHA {
 	f := newFakeHA()
 	f.ent("weather.home", "met", "sunny", nil)
 	f.ent("cover.pool", "template", "open", nil)
-	f.ent("switch.art", "hue", "off", nil)
+	f.ent("switch.art", "hue", "off", map[string]any{"_di": "dev_art"})
+	f.script("art_on", step("switch.turn_on", "switch.art"))
 	f.script("briefing", map[string]any{"action": "weather.get_forecasts", "target": map[string]any{"entity_id": "weather.home"},
 		"data": map[string]any{"type": "daily"}, "response_variable": "forecast"})
 	f.automation("pool_weather", "pw", map[string]any{"alias": "Pool weather",
@@ -105,6 +106,14 @@ func TestPlanWriteStillWeighsWhatTheChangeReaches(t *testing.T) {
 		{"an appended write a step before it reads on the next run",
 			map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{map[string]any{"if": []any{gate}, "then": []any{step("lock.unlock", "lock.front")}}}},
 			map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{map[string]any{"if": []any{gate}, "then": []any{step("lock.unlock", "lock.front")}}, step("switch.turn_on", "switch.art")}}, "typed", reasonAccessLock},
+		{"an appended run that sets what a step before it reads",
+			map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{map[string]any{"if": []any{gate}, "then": []any{step("lock.unlock", "lock.front")}}}},
+			map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{map[string]any{"if": []any{gate}, "then": []any{step("lock.unlock", "lock.front")}}, step("script.turn_on", "script.art_on")}}, "typed", reasonAccessLock},
+		{"a step before the insertion with a template that may read any state",
+			map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{map[string]any{"if": []any{map[string]any{"condition": "template", "value_template": "{{ states.switch | selectattr('state', 'eq', 'on') | list | count > 0 }}"}}, "then": []any{step("lock.unlock", "lock.front")}}}},
+			map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{map[string]any{"if": []any{map[string]any{"condition": "template", "value_template": "{{ states.switch | selectattr('state', 'eq', 'on') | list | count > 0 }}"}}, "then": []any{step("lock.unlock", "lock.front")}}, step("switch.turn_on", "switch.art")}}, "typed", reasonAccessLock},
+		{"a new alias a template reads without a dot", map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{map[string]any{"if": []any{map[string]any{"condition": "template", "value_template": "{{ (this | attr('attributes')).friendly_name == 'Open' }}"}}, "then": []any{step("lock.unlock", "lock.front")}}}},
+			map[string]any{"alias": "Open", "triggers": []any{}, "actions": []any{map[string]any{"if": []any{map[string]any{"condition": "template", "value_template": "{{ (this | attr('attributes')).friendly_name == 'Open' }}"}}, "then": []any{step("lock.unlock", "lock.front")}}}}, "typed", reasonAccessLock},
 		{"a moved step", nil, func() map[string]any {
 			d := routine()
 			steps := d["actions"].([]any)
@@ -148,6 +157,17 @@ func TestPlanWriteVariableOrderIsAChange(t *testing.T) {
 				t.Fatalf("a reordered %s: tier %q reasons %s, want the unlock weighed", name, env.Tier, reasonCodes(env))
 			}
 		})
+	}
+}
+
+func TestPlanWriteAppendedDeviceTargetWidensToWhatReadsIt(t *testing.T) {
+	gated := map[string]any{"if": []any{map[string]any{"condition": "state", "entity_id": "switch.art", "state": "on"}}, "then": []any{step("lock.unlock", "lock.front")}}
+	f := routineHA()
+	f.configs["/api/config/automation/config/r1"] = map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{gated}}
+	env := planRoutine(t, f, map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{gated,
+		map[string]any{"action": "switch.turn_on", "target": map[string]any{"device_id": "dev_art"}}}})
+	if env.Tier != "typed" || !slices.ContainsFunc(env.Reasons, func(r tierReason) bool { return r.Code == reasonAccessLock }) {
+		t.Fatalf("an appended device target: tier %q reasons %s members %+v", env.Tier, reasonCodes(env), env.Members)
 	}
 }
 

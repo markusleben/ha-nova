@@ -16,16 +16,21 @@ import (
 // a later step safe: a gate, an undo, an error that stops the run), and
 // triggers, conditions, mode, variables, or a blueprint, which change what
 // every step does, and so does the order of variables or fields. Alias
-// and icon count only when nothing in the draft reads this. An inserted step
-// that acts on an entity the rest of the config names weighs the whole draft
-// too: the next run may read what it set.
+// and icon count only when nothing in the draft names this.
+//
+// The next run may read what an inserted step set, so the rest of the
+// config (its triggers, conditions, and the steps before the insertion) is
+// weighed too when a template there could read any state (outside a data
+// payload), or when it names an entity, or its device, that the weighed
+// steps reach (draftReaches, after their walk).
 
-// draftSteps returns the draft's indexes to weigh, or nil for every step.
-// rawDraft gives the key order of variables and fields, which is content.
-func draftSteps(domain string, draft map[string]any, rawDraft, current json.RawMessage) map[int]bool {
+// draftSteps returns the draft's indexes to weigh, or nil for every step,
+// and the text of what it leaves unweighed. rawDraft gives the key order of
+// variables and fields, which is content.
+func draftSteps(domain string, draft map[string]any, rawDraft, current json.RawMessage) (map[int]bool, string) {
 	var live map[string]any
 	if current == nil || json.Unmarshal(current, &live) != nil || live == nil {
-		return nil
+		return nil, ""
 	}
 	was, now := normalizeConfig(live), normalizeConfig(draft)
 	key := "actions"
@@ -35,15 +40,15 @@ func draftSteps(domain string, draft map[string]any, rawDraft, current json.RawM
 	before, beforeList := was[key].([]any)
 	after, afterList := now[key].([]any)
 	if !beforeList || !afterList {
-		return nil
+		return nil, ""
 	}
 	wasOrder, nowOrder := orderedKeyLists(current), orderedKeyLists(rawDraft)
 	b, a := stepTexts(before, key, wasOrder), stepTexts(after, key, nowOrder)
 	if !reflect.DeepEqual(outsideSteps(wasOrder, key), outsideSteps(nowOrder, key)) {
-		return nil
+		return nil, ""
 	}
 	cosmetic := []string{key, "description"}
-	if text, _ := json.Marshal(draft); !strings.Contains(string(text), "this.") && !strings.Contains(string(text), "this[") {
+	if text, _ := json.Marshal(draft); !strings.Contains(string(text), "this") {
 		cosmetic = append(cosmetic, "alias", "icon")
 	}
 	for _, k := range cosmetic {
@@ -51,7 +56,7 @@ func draftSteps(domain string, draft map[string]any, rawDraft, current json.RawM
 		delete(now, k)
 	}
 	if !reflect.DeepEqual(was, now) {
-		return nil
+		return nil, ""
 	}
 	first := 0
 	for first < len(b) && first < len(a) && a[first] == b[first] {
@@ -59,26 +64,59 @@ func draftSteps(domain string, draft map[string]any, rawDraft, current json.RawM
 	}
 	for i, j := first, first; i < len(b); j++ { // every live step is still there, in order
 		if j == len(a) {
-			return nil
+			return nil, ""
 		}
 		if a[j] == b[i] {
 			i++
 		}
 	}
-	// On its next run, the unweighed steps (and its triggers and
-	// conditions) may read what an inserted step set.
-	read, _ := json.Marshal(now)
-	unweighed := string(read) + strings.Join(a[:first], "")
-	for _, id := range actionTargets(after[first:]) {
-		if strings.Contains(unweighed, id) {
-			return nil
-		}
+	rest := map[string]any{"config": now, "steps": after[:first]}
+	if text, _ := json.Marshal(withoutPayloads(rest)); strings.Contains(string(text), "{{") || strings.Contains(string(text), "{%") {
+		return nil, ""
 	}
+	unweighed, _ := json.Marshal(rest)
 	weigh := map[int]bool{}
 	for j := first; j < len(a); j++ {
 		weigh[j] = true
 	}
-	return weigh
+	return weigh, string(unweighed)
+}
+
+// draftReaches: an entity the walk reached, or its device, is named in the
+// unweighed text.
+func (e *tierEngine) draftReaches(unweighed string) bool {
+	ids := slices.Clone(e.acted)
+	for _, m := range e.members {
+		ids = append(ids, m.EntityID)
+	}
+	for _, id := range ids {
+		if id != "" && strings.Contains(unweighed, id) || e.reg[id].di != "" && strings.Contains(unweighed, e.reg[id].di) {
+			return true
+		}
+	}
+	return false
+}
+
+// withoutPayloads drops data payloads: a template there shapes what a step
+// sends, never whether or where it runs.
+func withoutPayloads(node any) any {
+	switch n := node.(type) {
+	case []any:
+		out := make([]any, len(n))
+		for i, child := range n {
+			out[i] = withoutPayloads(child)
+		}
+		return out
+	case map[string]any:
+		out := map[string]any{}
+		for key, child := range n {
+			if key != "data" && key != "data_template" {
+				out[key] = withoutPayloads(child)
+			}
+		}
+		return out
+	}
+	return node
 }
 
 // stepTexts: each step as JSON (map keys sorted) plus the key order of the

@@ -427,7 +427,15 @@ func (e *tierEngine) classifyDraft(domain, configID string, draft, current json.
 		steps, via = cfg["sequence"], "draft/sequence"
 	}
 	if list, isList := steps.([]any); isList {
-		e.walkSteps(list, via, 1, draftSteps(domain, cfg, draft, current))
+		weigh, unweighed := draftSteps(domain, cfg, draft, current)
+		e.walkSteps(list, via, 1, weigh)
+		if weigh != nil && e.draftReaches(unweighed) { // the next run may read what the weighed steps set
+			rest := map[int]bool{}
+			for i := range list {
+				rest[i] = !weigh[i]
+			}
+			e.walkSteps(list, via, 1, rest)
+		}
 		return
 	}
 	e.walk(steps, via, 1)
