@@ -442,9 +442,6 @@ func (f *setupFlow) pageSignIn(app setupPageApp) (*setupPageFailure, bool) {
 				started = nil
 				p.setRow("app_add", "ok", added)
 				p.setRow("app_start", "run", setupPageText("setup.page.row.app_start"))
-			case "update":
-				added = setupPageText("setup.page.row.app_update")
-				p.setRow("app_add", "run", added)
 			default:
 				added = nil
 				p.setRow("app_add", "run", nil)

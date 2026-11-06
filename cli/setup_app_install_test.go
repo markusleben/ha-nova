@@ -194,7 +194,7 @@ func TestRelayInstallStepsFallBackToTheManualPageOrContinue(t *testing.T) {
 		"no Apps: guide only":       {noHassio: true, input: "yes\n\n", calls: 1},
 		"running current: no offer": {running: true, version: "0.10.0", input: "\n\n", wantSteps: true},
 		"outdated, update later":    {running: true, version: "0.9.2", input: "later\n", wantNote: true},
-		"outdated, updated":         {running: true, version: "0.9.2", input: "yes\n", calls: 1},
+		"outdated, never updated":   {running: true, version: "0.9.2", input: "yes\n", calls: 1, wantNote: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			stubInstalledRelayProbe(t, test.running, test.version)
