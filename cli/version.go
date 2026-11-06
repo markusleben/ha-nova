@@ -315,6 +315,7 @@ func relayNoticeTransport(cfg config) (string, *http.Client, string, bool) {
 const (
 	relayAppUpdatePath       = "In Home Assistant: Settings → Apps → NOVA Relay → Update."
 	relayContainerUpdateLine = "NOVA Relay in your own container? Pull its new image, then recreate the container (a restart keeps the old image)."
+	relayCheckForUpdatesLine = " No Update button yet? In Home Assistant: Settings → ⋮ (top right) → Check for updates first."
 )
 
 // relayUpdateNotice preserves the compatibility-floor warning and, when the
@@ -361,9 +362,8 @@ func relayUpdateNoticeWithContext(ctx context.Context, paths runtimePaths) human
 		if candidate.EntityID != "" {
 			return humanNotice{
 				level: floorNotice.level, appCheck: true,
-				kind: floorNotice.kind,
-				message: floorNotice.message +
-					" No Update button yet? In Home Assistant: Settings → ⋮ (top right) → Check for updates first.",
+				kind:    floorNotice.kind,
+				message: floorNotice.message + relayCheckForUpdatesLine,
 			}
 		}
 		return humanNotice{
