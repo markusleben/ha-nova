@@ -419,6 +419,7 @@ func (e *tierEngine) classifyDraft(domain, configID string, draft, current json.
 		return
 	}
 	e.draft = true
+	e.useStateList()
 	if watchesConfirmation(cfg) {
 		e.raise(tierTyped, tierReason{Code: reasonConfirmWatch, EntityID: domain + "." + configID, Via: "draft"})
 	}
@@ -428,6 +429,14 @@ func (e *tierEngine) classifyDraft(domain, configID string, draft, current json.
 	}
 	if list, isList := steps.([]any); isList {
 		weigh, unweighed := draftSteps(domain, cfg, draft, current)
+		var weighed []any
+		for i, step := range list {
+			if weigh == nil || weigh[i] {
+				weighed = append(weighed, step)
+			}
+		}
+		targets := actionTargets(weighed) // their consumer scans at once, not one acted entity after another (#1025)
+		e.readAhead(targets[:min(len(targets), tierMaxActed)], 1)
 		e.walkSteps(list, via, 1, weigh)
 		if weigh != nil && e.draftReaches(unweighed) { // the next run may read what the weighed steps set
 			rest := map[int]bool{}
