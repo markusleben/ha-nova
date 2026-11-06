@@ -240,7 +240,7 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 // service the tests call, plus script.<id> per script. Entity-domain
 // services take a target; homeassistant.*, reloads, and integration
 // services do not.
-var fakeServices = strings.Fields(`script.turn_on script.turn_off script.toggle lock.unlock lock.lock lock.open
+var fakeServices = strings.Fields(`weather.get_forecasts script.turn_on script.turn_off script.toggle lock.unlock lock.lock lock.open
 	light.turn_on light.turn_off light.toggle text.set_value switch.turn_on switch.turn_off switch.toggle
 	input_boolean.turn_on input_boolean.turn_off input_boolean.toggle cover.set_cover_position cover.open_cover
 	cover.close_cover cover.stop_cover button.press automation.trigger scene.turn_on select.select_option

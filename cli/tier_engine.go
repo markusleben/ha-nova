@@ -328,6 +328,9 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 	if domain == "timer" {
 		e.checkEvents("timer.", id)
 	}
+	if readOnlyResponseServices[eff] { // a read changes no state: nothing reacts to it (issue #1009)
+		return
+	}
 	d := plannedDelta(id, eff, data, st)
 	if e.draft {
 		d.from = ""

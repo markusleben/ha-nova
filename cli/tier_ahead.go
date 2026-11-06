@@ -169,7 +169,7 @@ func actionTargets(node any) []string {
 		if name == "" {
 			name, _ = n["service"].(string)
 		}
-		if name = strings.ToLower(name); name != "" && !isTemplated(name) && entityIDPattern.MatchString(name) {
+		if name = strings.ToLower(name); name != "" && !isTemplated(name) && entityIDPattern.MatchString(name) && !readOnlyResponseServices[name] { // a read's target: classify scans nothing for it
 			targets, _, _ := collectTargets(n)
 			out = append(out, targets["entity_id"]...)
 		}

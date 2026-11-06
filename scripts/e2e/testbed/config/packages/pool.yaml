@@ -1,0 +1,23 @@
+# Morning-routine fixture (issue #1009): a routine automation calls a script
+# that only reads (calendar, to-do, weather); three pool automations react to
+# the weather entity and to a template pool cover. An edit to the routine must
+# not pull the pool automations into its preview.
+template:
+  - cover:
+      - name: Pool Cover
+        unique_id: testbed_template_pool_cover
+        state: "{{ states('input_boolean.pool_cover_closed') == 'on' and 'closed' or 'open' }}"
+        open_cover:
+          - action: input_boolean.turn_off
+            target: { entity_id: input_boolean.pool_cover_closed }
+        close_cover:
+          - action: input_boolean.turn_on
+            target: { entity_id: input_boolean.pool_cover_closed }
+
+input_boolean:
+  pool_cover_closed:
+    name: Pool cover closed
+  pool_auto_open_blocked:
+    name: Pool auto-open blocked
+  vacation_mode:
+    name: Vacation mode
