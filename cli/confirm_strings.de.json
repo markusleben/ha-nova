@@ -523,6 +523,7 @@
   "effect.other": "führt einen weiteren Schritt aus",
 
   "unseen.all": "HA NOVA kann nicht alles prüfen, was das auslösen würde",
+  "unseen.out_of_time": "HA NOVA hatte nicht genug Zeit, alles zu prüfen, was das auslösen würde (bei einer langsamen Verbindung hilft es, es gleich noch einmal zu versuchen; sonst die Änderung in kleineren Schritten machen)",
   "unseen.all_via": "HA NOVA kann nicht alles prüfen, was {via} auslösen würde",
   "unseen.what": "HA NOVA kann nicht sehen, was {name} tut",
   "unseen.how": "HA NOVA kann nicht prüfen, wie {name} funktioniert",

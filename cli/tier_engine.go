@@ -112,6 +112,7 @@ type tierEngine struct {
 }
 
 func newTierEngine(s *relaySession) *tierEngine {
+	s.readUntilDeadline()
 	return &tierEngine{s: s, reg: map[string]registryEntry{}, states: map[string]*entityState{}, configs: map[string]map[string]any{},
 		basis: map[string]string{}, census: map[string][2]string{}, seen: map[string]bool{}, visited: map[string]bool{}, done: map[string]tierLevel{}, complete: true,
 		routes: map[string][]string{}, firedOn: map[string][]fired{}, runs: map[string][]string{}, ahead: map[string]bool{}}

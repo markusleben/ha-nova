@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 )
 
 // Version is set by goreleaser via ldflags.
@@ -41,6 +42,7 @@ func main() {
 	configureCloudRemoteFeature(paths)
 
 	argv0 := filepath.Base(os.Args[0])
+	checkDeadline = time.Now().Add(cliCheckBudget)
 	exitCode := dispatch(paths, argv0, os.Args[1:])
 	os.Exit(exitCode)
 }
