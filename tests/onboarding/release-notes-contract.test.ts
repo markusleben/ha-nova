@@ -50,7 +50,7 @@ describe("release notes contract", () => {
     expect(stableNotes).toMatch(/^\*\*Update the NOVA App to \d+\.\d+\.\d+\.\*\*/);
     expect(stableNotes).not.toContain("## New Features");
     expect(stableNotes).not.toContain("## What To Watch");
-    expect(stableNotes).toMatch(/## Bug Fixes\s+- \*\*Changing an automation no longer asks about things it doesn't touch\.\*\*/);
+    expect(stableNotes).toMatch(/## Bug Fixes\s+- \*\*Reading the weather, a calendar or a to-do list no longer pulls unrelated automations into the check\.\*\*/);
     expect(stableNotes).not.toContain("one-time code");
     // App 0.13.21 keeps the 0.28.0 tool text (TestMCPToolTextStable), so ChatGPT needs no Refresh and Claude doesn't ask again.
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
@@ -58,7 +58,7 @@ describe("release notes contract", () => {
     expect(stableNotes).not.toContain("Claude asks once more");
     // The store check before the App offer (#1012); doctor does it now, update from this version on (#1013).
     expect(stableNotes).toContain("Settings > ⋮ (top right) > Check for updates");
-    expect(stableNotes).toContain("From this version on, `ha-nova update` does the same.");
+    expect(stableNotes).toContain("If something reacts to that, it gives the steps instead. `ha-nova update` does the same from now on.");
     // The per-client deadline (#1014), to-do change rows (#1011).
     expect(stableNotes).toContain("**A check that runs out of time says so.**");
     expect(stableNotes).toContain("You're still asked to confirm.");
