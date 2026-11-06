@@ -342,9 +342,8 @@ func pageResolveAddress(input string) (string, string, bool) {
 
 type setupPageApp struct {
 	state   string // missing, old, running; "" while no address is known
-	primary string // install, update, signin; "": the page can't sign in here
+	primary string // install, signin; "": the page can't sign in here
 	version string
-	minimum string
 }
 
 // pageApp: is the App running, current, and ready for sign-in pairing?
@@ -358,9 +357,8 @@ func (f *setupFlow) pageApp() setupPageApp {
 	running, version := probeInstalledRelayForSetup(f.cfg.RelayBaseURL)
 	app := setupPageApp{state: "missing", version: version}
 	if running {
-		app.minimum = relayVersionBelowMinimum(f.paths, version)
 		app.state = "running"
-		if app.minimum != "" {
+		if relayVersionBelowMinimum(f.paths, version) != "" {
 			app.state = "old"
 		}
 	}
@@ -369,8 +367,6 @@ func (f *setupFlow) pageApp() setupPageApp {
 		app.primary = "signin"
 	case app.state == "missing" && installs:
 		app.primary = "install"
-	case app.state == "old" && installs:
-		app.primary = "update"
 	}
 	return app
 }
@@ -395,12 +391,8 @@ func (f *setupFlow) pageSignIn(app setupPageApp) (*setupPageFailure, bool) {
 	install := app.primary != "signin"
 	rows := []setupPageRow{{ID: "signed_in", State: "run", Msg: setupPageText("setup.page.row.signing_in")}}
 	if install {
-		add := setupPageText("setup.page.row.app_add")
-		if app.primary == "update" {
-			add = setupPageText("setup.page.row.app_update")
-		}
 		rows = append(rows,
-			setupPageRow{ID: "app_add", State: "todo", Msg: add},
+			setupPageRow{ID: "app_add", State: "todo", Msg: setupPageText("setup.page.row.app_add")},
 			setupPageRow{ID: "app_start", State: "todo", Msg: setupPageText("setup.page.row.app_start")})
 	}
 	rows = append(rows, setupPageRow{ID: "connect", State: "todo", Msg: setupPageText("setup.page.row.connect")})
@@ -447,7 +439,7 @@ func (f *setupFlow) pageSignIn(app setupPageApp) (*setupPageFailure, bool) {
 				p.setRow("app_add", "run", nil)
 			}
 		}
-		if err := supervisor.ensure(ctx, out, &state, app.primary == "update", app.minimum); err != nil {
+		if err := supervisor.ensure(ctx, out, &state); err != nil {
 			return err
 		}
 		p.setRow("app_add", "ok", added)

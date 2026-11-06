@@ -140,12 +140,12 @@ func (f *fakeSupervisor) Call(ctx context.Context, commandType string, fields ma
 	return nil
 }
 
-func ensureWithFake(t *testing.T, f *fakeSupervisor, update bool) (novaAppState, error) {
+func ensureWithFake(t *testing.T, f *fakeSupervisor) (novaAppState, error) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var state novaAppState
-	err := newNOVAAppSupervisor(f).ensure(ctx, io.Discard, &state, update, "")
+	err := newNOVAAppSupervisor(f).ensure(ctx, io.Discard, &state)
 	return state, err
 }
 
@@ -197,7 +197,7 @@ func TestNOVAAppSupervisorRefusesEverythingOffTheAllowList(t *testing.T) {
 
 func TestEnsureNOVAAppInstallsFromThePinnedSourceAndStarts(t *testing.T) {
 	f := newFakeSupervisor(t)
-	state, err := ensureWithFake(t, f, false)
+	state, err := ensureWithFake(t, f)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +214,7 @@ func TestEnsureNOVAAppInstallsFromThePinnedSourceAndStarts(t *testing.T) {
 func TestEnsureNOVAAppLeavesARunningCurrentAppAlone(t *testing.T) {
 	f := newFakeSupervisor(t)
 	f.installedApp("0.10.0", "started", "")
-	if _, err := ensureWithFake(t, f, false); err != nil || len(f.writes()) != 0 {
+	if _, err := ensureWithFake(t, f); err != nil || len(f.writes()) != 0 {
 		t.Fatalf("err = %v, writes = %v", err, f.writes())
 	}
 }
@@ -222,33 +222,30 @@ func TestEnsureNOVAAppLeavesARunningCurrentAppAlone(t *testing.T) {
 // The update job and its store reload change the App's update entity, which
 // an automation can react to (a state trigger on it that runs lock.unlock).
 // This sign-in can't classify them like `ha-nova call`, so it never sends
-// them to an installed App and leaves the update to the person (#1017).
+// them to an installed App: an outdated one stays as it is, and is only
+// started when stopped (#1017).
 func TestEnsureNOVAAppNeverUpdatesAnInstalledApp(t *testing.T) {
-	for name, updateTo := range map[string]string{"update offered": "0.10.0", "no update offered yet": ""} {
+	start := "post /addons/" + HAOfficialNOVAAppSlug + "/start"
+	for name, test := range map[string]struct {
+		state, updateTo string
+		writes          []string
+	}{
+		"running, update offered":  {"started", "0.10.0", nil},
+		"running, no update yet":   {"started", "", nil},
+		"starting, update offered": {"startup", "0.10.0", nil},
+		"stopped, update offered":  {"stopped", "0.10.0", []string{start}},
+	} {
 		t.Run(name, func(t *testing.T) {
 			f := newFakeSupervisor(t)
-			f.installedApp("0.9.2", "started", updateTo)
-			state, err := ensureWithFake(t, f, true)
-			var failure *novaAppInstallError
-			if !errors.As(err, &failure) ||
-				failure.line != "HA NOVA can't start the NOVA App update from here. Nothing was installed. "+relayUpdateManualPath {
-				t.Fatalf("err = %v", err)
+			f.installedApp("0.9.2", test.state, test.updateTo)
+			state, err := ensureWithFake(t, f)
+			if err != nil || state.version != "0.9.2" || !state.running {
+				t.Fatalf("err = %v, state = %+v", err, state)
 			}
-			if len(f.calls) != 0 || state != (novaAppState{}) {
-				t.Fatalf("calls = %v, state = %+v; want nothing sent", f.calls, state)
+			if got := f.writes(); strings.Join(got, ",") != strings.Join(test.writes, ",") {
+				t.Fatalf("writes = %v, want %v", got, test.writes)
 			}
 		})
-	}
-
-	// An installed App found while installing is started, never updated.
-	f := newFakeSupervisor(t)
-	f.installedApp("0.9.2", "stopped", "0.10.0")
-	state, err := ensureWithFake(t, f, false)
-	if err != nil || state.version != "0.9.2" || !state.running {
-		t.Fatalf("err = %v, state = %+v", err, state)
-	}
-	if got := strings.Join(f.writes(), ","); got != "post /addons/"+HAOfficialNOVAAppSlug+"/start" {
-		t.Fatalf("writes = %v, want only the start", got)
 	}
 }
 
@@ -273,7 +270,7 @@ func TestEnsureNOVAAppRefusesAnythingButTheOfficialApp(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := newFakeSupervisor(t)
 			setup(f)
-			state, err := ensureWithFake(t, f, false)
+			state, err := ensureWithFake(t, f)
 			var failure *novaAppInstallError
 			if !errors.As(err, &failure) || !strings.Contains(failure.line, "Nothing was installed") {
 				t.Fatalf("err = %v", err)
@@ -293,7 +290,7 @@ func TestEnsureNOVAAppRefusesAnythingButTheOfficialApp(t *testing.T) {
 func TestEnsureNOVAAppNeedsTheSupervisor(t *testing.T) {
 	f := newFakeSupervisor(t)
 	f.noHassio = true
-	if _, err := ensureWithFake(t, f, false); !errors.Is(err, errAppInstallNoSupervisor) ||
+	if _, err := ensureWithFake(t, f); !errors.Is(err, errAppInstallNoSupervisor) ||
 		strings.Join(f.calls, ",") != "get_config" {
 		t.Fatalf("err = %v, calls = %v", err, f.calls)
 	}
@@ -318,7 +315,7 @@ func TestEnsureNOVAAppFailuresSayWhatExists(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := newFakeSupervisor(t)
 			test.setup(f)
-			state, err := ensureWithFake(t, f, false)
+			state, err := ensureWithFake(t, f)
 			var failure *novaAppInstallError
 			if !errors.As(err, &failure) || !strings.Contains(failure.line, test.line) {
 				t.Fatalf("err = %v, want %q", err, test.line)
@@ -339,7 +336,7 @@ func TestEnsureNOVAAppJobTimeoutNeverClaimsNothingHappened(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	var state novaAppState
-	err := newNOVAAppSupervisor(f).ensure(ctx, io.Discard, &state, false, "")
+	err := newNOVAAppSupervisor(f).ensure(ctx, io.Discard, &state)
 	var failure *novaAppInstallError
 	if !errors.As(err, &failure) || !strings.Contains(failure.line, "didn't finish the install") {
 		t.Fatalf("err = %v", err)
@@ -361,63 +358,17 @@ func TestSupervisorJobErrorIsOneBoundedLine(t *testing.T) {
 	}
 }
 
-func TestEnsureNOVAAppUpdateRules(t *testing.T) {
-	update := "post /store/addons/" + HAOfficialNOVAAppSlug + "/update"
-	for name, test := range map[string]struct {
-		setup   func(*fakeSupervisor)
-		update  bool
-		minimum string
-		line    string // "" = success
-		writes  []string
-	}{
-		"update consent never installs": {
-			setup: func(*fakeSupervisor) {}, update: true,
-			line: "can't start the NOVA App update from here", writes: []string{},
-		},
-		"stale listed source is reloaded before install": {
-			setup: func(f *fakeSupervisor) {
-				f.repos = []map[string]string{{"slug": "2368fcfa", "source": haNovaRepositoryURL}}
-			},
-			writes: []string{"post /store/reload", "post /store/addons/" + HAOfficialNOVAAppSlug + "/install", "post /addons/" + HAOfficialNOVAAppSlug + "/start"},
-		},
-		"installed version below the minimum": {
-			setup: func(f *fakeSupervisor) { f.info["version_latest"] = "0.9.0" }, minimum: "0.10.0",
-			line: "only offers NOVA App v0.9.0; this HA NOVA needs v0.10.0",
-		},
-		"version that can't be compared": {
-			setup: func(f *fakeSupervisor) { f.info["version_latest"] = "0.10" }, minimum: "0.10.0",
-			line: "can't tell whether NOVA App v0.10 is new enough",
-		},
-		"an App starting up is not started twice": {
-			setup:  func(f *fakeSupervisor) { f.installedApp("0.9.2", "startup", "0.10.0") },
-			writes: []string{},
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			f := newFakeSupervisor(t)
-			test.setup(f)
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			var state novaAppState
-			err := newNOVAAppSupervisor(f).ensure(ctx, io.Discard, &state, test.update, test.minimum)
-			var failure *novaAppInstallError
-			switch {
-			case test.line == "" && err != nil:
-				t.Fatalf("err = %v", err)
-			case test.line != "" && (!errors.As(err, &failure) || !strings.Contains(failure.line, test.line)):
-				t.Fatalf("err = %v, want %q", err, test.line)
-			}
-			if test.writes != nil && strings.Join(f.writes(), ",") != strings.Join(test.writes, ",") {
-				t.Fatalf("writes = %v, want %v", f.writes(), test.writes)
-			}
-			if test.line != "" && test.writes == nil {
-				for _, write := range f.writes() {
-					if write == update {
-						t.Fatalf("refused update still sent: %v", f.writes())
-					}
-				}
-			}
-		})
+// A source listed before this run may not know the current version yet:
+// like "Check for updates", the store reloads before a first install only.
+func TestEnsureNOVAAppReloadsAStaleSourceBeforeAFirstInstall(t *testing.T) {
+	f := newFakeSupervisor(t)
+	f.repos = []map[string]string{{"slug": "2368fcfa", "source": haNovaRepositoryURL}}
+	if _, err := ensureWithFake(t, f); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"post /store/reload", "post /store/addons/" + HAOfficialNOVAAppSlug + "/install", "post /addons/" + HAOfficialNOVAAppSlug + "/start"}
+	if got := f.writes(); strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("writes = %v, want %v", got, want)
 	}
 }
 
@@ -429,7 +380,7 @@ func TestEnsureNOVAAppLostAnswersStayUnknown(t *testing.T) {
 	f.info["state"] = "stopped"
 	f.info["version"] = "0.10.0"
 	f.repos = []map[string]string{{"slug": "2368fcfa", "source": haNovaRepositoryURL}}
-	state, err := ensureWithFake(t, f, false)
+	state, err := ensureWithFake(t, f)
 	if err == nil || describeNOVAAppState(state) != "Home Assistant may still be starting the NOVA App." {
 		t.Fatalf("err = %v, state line %q", err, describeNOVAAppState(state))
 	}

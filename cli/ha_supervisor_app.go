@@ -190,16 +190,12 @@ func (s novaAppSupervisor) sourceListed(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-// ensure brings the App to installed, at least minimum (min_relay_version,
-// "" for none), and started. It prints one line per step. It never updates
-// an installed App: the update and its store reload change the App's update
-// entity, which automations can react to, and this sign-in can't classify
-// them like `ha-nova call` (relayGuidedCallAllowed). An update is left to
-// the person.
-func (s novaAppSupervisor) ensure(ctx context.Context, out io.Writer, state *novaAppState, update bool, minimum string) error {
-	if update {
-		return &novaAppInstallError{line: "HA NOVA can't start the NOVA App update from here. Nothing was installed. " + relayUpdateManualPath}
-	}
+// ensure brings the App to installed and started. It prints one line per
+// step. It never updates an installed App: the update and its store reload
+// change the App's update entity, which automations can react to, and this
+// sign-in can't classify them like `ha-nova call` (relayGuidedCallAllowed).
+// Setup leaves an update to the person.
+func (s novaAppSupervisor) ensure(ctx context.Context, out io.Writer, state *novaAppState) error {
 	var config struct {
 		Components []string `json:"components"`
 	}
@@ -259,15 +255,6 @@ func (s novaAppSupervisor) ensure(ctx context.Context, out io.Writer, state *nov
 			return err
 		}
 		renderSetupSuccessLine(out, "NOVA App installed (v%s)", state.version)
-	}
-	if minimum != "" {
-		cmp, err := compareReleaseVersions(state.version, minimum)
-		if err != nil {
-			return &novaAppInstallError{line: fmt.Sprintf("HA NOVA can't tell whether NOVA App v%s is new enough (it needs v%s or newer).", state.version, minimum), cause: err}
-		}
-		if cmp < 0 {
-			return &novaAppInstallError{line: fmt.Sprintf("Home Assistant only offers NOVA App v%s; this HA NOVA needs v%s or newer.", state.version, minimum)}
-		}
 	}
 	if state.running {
 		return nil

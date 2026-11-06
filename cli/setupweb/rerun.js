@@ -95,9 +95,8 @@ window.novaRerun = (h) => {
     return [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.title_fix'), t('setup.page.rerun.lead_fix'), true),
       problem(away), ...offer, status,
       el('div', { class: 'actions' },
-        s.problem ? button(t('setup.page.button.recheck'), 'recheck', found.length || s.fix === 'app_update' ? 'ghost' : 'primary') : null,
-        s.fix === 'app_update' ? button(t('setup.page.rerun.update_app'), 'fix', 'primary')
-          : button(t('setup.page.rerun.fix'), 'fix', s.problem ? 'ghost' : 'primary'),
+        s.problem ? button(t('setup.page.button.recheck'), 'recheck', found.length ? 'ghost' : 'primary') : null,
+        button(t('setup.page.rerun.fix'), 'fix', s.problem ? 'ghost' : 'primary'),
         link(t('setup.page.link.app'), links.app, 'ghost', 'app')),
       s.accepts.includes('change') ? el('p', { class: 'fine' }, el('button', { id: 'b-change-ha', class: 'linkish', type: 'button', onclick: () => h.post('change') }, t('setup.page.rerun.change_ha'))) : null];
   };
