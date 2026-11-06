@@ -9,7 +9,7 @@ import (
 func TestAppOfferAfterInstallRunsInTheNewBinary(t *testing.T) {
 	oldRun, oldNotice := runNewBinaryAppOffer, relayUpdateNoticeForUpdate
 	t.Cleanup(func() { runNewBinaryAppOffer, relayUpdateNoticeForUpdate = oldRun, oldNotice })
-	exitErr := exec.Command("sh", "-c", "exit 3").Run()
+	var exitErr error = &exec.ExitError{}
 	cases := []struct {
 		name, target  string
 		newBinary     error
@@ -41,7 +41,8 @@ func TestInternalOfferAppUpdateCommandOffersAndExitsZero(t *testing.T) {
 	asked := false
 	relayUpdateNoticeForUpdate = func(runtimePaths) humanNotice { asked = true; return humanNotice{} }
 	paths := guidedUpdatePaths(t)
-	if code := dispatch(paths, "ha-nova", []string{"internal-offer-app-update"}); code != 0 || !asked {
-		t.Fatalf("exit %d, offer asked %v", code, asked)
+	t.Cleanup(func() { setServerSelectionOverride("") })
+	if code := dispatch(paths, "ha-nova", []string{"internal-offer-app-update", "--server", "default"}); code != 0 || !asked || serverSelectionOverride != "default" {
+		t.Fatalf("exit %d, offer asked %v, server flag %q", code, asked, serverSelectionOverride)
 	}
 }

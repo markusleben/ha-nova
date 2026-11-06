@@ -209,12 +209,12 @@ const appOfferInNewBinaryAfter = "0.28.2"
 // installed: this process may still be the old binary, whose offer predates
 // what the new version needs. Test seam.
 var runNewBinaryAppOffer = func(paths runtimePaths) error {
-	cmd := exec.Command(paths.PublicBinary, "internal-offer-app-update")
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	cmd.Env = os.Environ()
-	if serverSelectionOverride != "" { // the new binary checks this server's App too
-		cmd.Env = append(cmd.Env, serverSelectionEnvVar+"="+serverSelectionOverride)
+	args := []string{"internal-offer-app-update"}
+	if serverSelectionOverride != "" { // the same server, still chosen by flag
+		args = append(args, "--server", serverSelectionOverride)
 	}
+	cmd := exec.Command(paths.PublicBinary, args...)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return cmd.Run()
 }
 
