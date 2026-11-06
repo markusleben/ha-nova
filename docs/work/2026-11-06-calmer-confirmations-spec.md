@@ -19,6 +19,16 @@ So asks can go where a preview catches nothing a user would miss, while the type
 
 Fewer and better-placed asks for explicit, everyday changes. Unchanged: every typed-tier action keeps its window, phone, or code on every route (computer, chat apps, the planned Relay gate), and every error, unreadable state, older CLI, or older App ends at today's tier or stricter.
 
+## Decisions (maintainer, 2026-11-06)
+
+1. The promise in `safety.md` and the Safety Core becomes the sentence under Contracts: the CLI checks every change, and its check, not undo, decides what runs directly.
+2. Deleting an automation, script, or dashboard stays typed, also for items HA NOVA created in the same conversation.
+3. Covers without a `device_class` stay typed; only the reason text changes (item 5). HA NOVA never sets a cover's class.
+4. No comfort levels and no owner switch.
+5. Test offer: after every create or update, one short closing line offers a test preview; the full Test Plan Card only after yes (item 1).
+
+Implementation: 0.29.
+
 ## Design
 
 One rule decides eligibility: **only the CLI rates a plan ordinary.** Skills key on the plan envelope (`status`, `plan.confirm`), never on the kind of change. A newer skill with an older CLI therefore still asks.
