@@ -77,8 +77,7 @@ release:
 
     ## Bug Fixes
 
-    - **Adding a step to an automation no longer asks about things it doesn't touch.** HA NOVA now checks what the new steps can set off. Before, it rechecked the whole automation and every script it calls.
-    - **Reading the weather, a calendar or a to-do list no longer counts as setting something off.** A read changes nothing, so automations that react to the weather, for example, are no longer pulled into the check.
+    - **Changing an automation no longer asks about things it doesn't touch.** A script that only reads the weather, a calendar or a to-do list no longer pulls in every automation that reacts to the weather, for example.
     - **A check that runs out of time says so.** A big check on a slow connection usually gets more time now. If that's not enough, it says so and suggests trying again or smaller steps. You're still asked to confirm.
     - **`ha-nova doctor` finds a new NOVA App right away.** It asks Home Assistant to look and offers the update, instead of waiting up to 3 hours for it. From this version on, `ha-nova update` does the same.
     - **To-do changes no longer show an internal code.** The list of changes in the preview still showed the item's code next to its name.

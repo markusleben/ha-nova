@@ -234,6 +234,7 @@ func TestPlanWriteAppendedStepWidensToWhatARunReads(t *testing.T) {
 		"automation.trigger":                 step("automation.trigger", "automation.entry"),
 		"a nested script":                    step("script.turn_on", "script.outer"),
 		"a python script":                    {"action": "python_script.check_entry"},
+		"a service_template":                 {"service_template": "script.check_entry"},
 		"an automation named like a service": step("automation.trigger", "automation.turn_on"),
 		"an event":                           {"event": "check_entry"},
 		"every automation":                   step("automation.trigger", "all"),

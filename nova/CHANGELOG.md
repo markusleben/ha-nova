@@ -8,7 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 
 ### Fixed
 - Chat apps get HA NOVA 0.28.3 and its fixes.
-- Chat apps: adding a step to an automation checks what the new steps can set off, not the whole automation again, so you're no longer asked about things the change doesn't touch. Reading the weather, a calendar or a to-do list no longer counts as setting other automations off.
+- Chat apps: changing an automation no longer asks about things it doesn't touch. A script that only reads the weather, a calendar or a to-do list no longer pulls in every automation that reacts to the weather, for example.
 - Chat apps: a big check usually gets more time before it stops, and never less than before. If that's not enough, HA NOVA says it ran out of time and suggests trying again or smaller steps. You're still asked to confirm.
 - Chat apps: the list of changes in a to-do preview no longer shows the item's internal code.
 

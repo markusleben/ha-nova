@@ -46,11 +46,11 @@ describe("release notes contract", () => {
     for (const [, noted] of notedApps) {
       expect(noted, "notes name the shipped NOVA Relay version").toBe(relayVersion);
     }
-    // The App update leads the notes; without New Features the update notice leads with the first bug fix (#1010).
+    // The App update leads the notes; without New Features the update notice leads with the first bug fix (#1010: read-only services).
     expect(stableNotes).toMatch(/^\*\*Update the NOVA App to \d+\.\d+\.\d+\.\*\*/);
     expect(stableNotes).not.toContain("## New Features");
     expect(stableNotes).not.toContain("## What To Watch");
-    expect(stableNotes).toMatch(/## Bug Fixes\s+- \*\*Adding a step to an automation no longer asks about things it doesn't touch\.\*\*/);
+    expect(stableNotes).toMatch(/## Bug Fixes\s+- \*\*Changing an automation no longer asks about things it doesn't touch\.\*\*/);
     expect(stableNotes).not.toContain("one-time code");
     // App 0.13.21 keeps the 0.28.0 tool text (TestMCPToolTextStable), so ChatGPT needs no Refresh and Claude doesn't ask again.
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
@@ -59,8 +59,7 @@ describe("release notes contract", () => {
     // The store check before the App offer (#1012); doctor does it now, update from this version on (#1013).
     expect(stableNotes).toContain("Settings > ⋮ (top right) > Check for updates");
     expect(stableNotes).toContain("From this version on, `ha-nova update` does the same.");
-    // Read-only services (#1010), the per-client deadline (#1014), to-do change rows (#1011).
-    expect(stableNotes).toContain("**Reading the weather, a calendar or a to-do list no longer counts as setting something off.**");
+    // The per-client deadline (#1014), to-do change rows (#1011).
     expect(stableNotes).toContain("**A check that runs out of time says so.**");
     expect(stableNotes).toContain("You're still asked to confirm.");
     expect(stableNotes).toContain("**To-do changes no longer show an internal code.**");

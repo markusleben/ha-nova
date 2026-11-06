@@ -92,7 +92,7 @@ func draftSteps(domain string, draft map[string]any, rawDraft, current json.RawM
 // actsPattern: a step that does something (a service call, an event, a
 // scene). What reacts to it may read, on the next run, what the weighed
 // steps set, and a diff can't see those readers.
-var actsPattern = regexp.MustCompile(`"(?:action|service)":"([^"]*)"|"(?:event|scene)":`)
+var actsPattern = regexp.MustCompile(`"(?:action|service|service_template)":"([^"]*)"|"(?:event|scene)":`)
 
 // actsUnweighed: the unweighed part runs a step other than a read-only
 // response service.
