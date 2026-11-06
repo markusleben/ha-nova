@@ -38,6 +38,10 @@ var (
 
 const relayUpdateManualPath = "To update it yourself: " + relayAppUpdatePath + " " + relayContainerUpdateLine
 
+// relayUpdateCheckManualPath: Home Assistant shows no newer App, even after
+// HA NOVA asked it to check.
+const relayUpdateCheckManualPath = "To update it yourself: In Home Assistant: Settings → ⋮ (top right) → Check for updates, then Settings → Apps → NOVA Relay → Update."
+
 // maybeOfferGuidedRelayUpdate follows a printed relay update notice and
 // reports whether the relay ended up updated AND verified — doctor uses that
 // to not fail a run whose below-floor problem the user just fixed. It is
@@ -82,8 +86,13 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 		fmt.Fprintf(out, "HA NOVA can't start the NOVA App update from here. Nothing was installed.\n%s\n", relayUpdateManualPath)
 		return false
 	}
+	candidate, checked := checkHomeAssistantForRelayUpdate(paths, cfg, token, candidate, out)
 	if !candidate.updateAvailable() {
-		fmt.Fprintf(out, "Home Assistant has no NOVA App update ready to install right now. Nothing was installed.\n%s\n", relayUpdateManualPath)
+		manualPath := relayUpdateManualPath
+		if checked {
+			manualPath = relayUpdateCheckManualPath
+		}
+		fmt.Fprintf(out, "Home Assistant has no NOVA App update ready to install right now. Nothing was installed.\n%s\n", manualPath)
 		return false
 	}
 	if !candidate.guidedInstallReady() {
