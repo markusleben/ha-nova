@@ -119,7 +119,7 @@ func buildCallPlan(e *tierEngine, env *verbEnvelope, req planCallRequest, target
 	plan := storedPlan{Kind: "call", Request: req, Action: action, Basis: callPlanBasis(e, req.Service, frozen, req.Data)}
 	plan, err := sealPlan(e, env, plan, action)
 	env.Action = &action
-	env.Deltas = planDeltas(req.Service, frozen, req.Data, e.states)
+	env.Deltas = slices.DeleteFunc(planDeltas(req.Service, frozen, req.Data, e.states), func(d planDelta) bool { return todoItemField(plan, d.Field) }) // say names the items; a row would show their uids (#1008)
 	env.everyday = callEveryday(textLang(plan), e.s, action)
 	if env.Status == "needs_confirmation" {
 		env.Say, plan.Prompt = confirmationSay(e, env, plan, ""), confirmationPrompt(e, env, plan, "")
