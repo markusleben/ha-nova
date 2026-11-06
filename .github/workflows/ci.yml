@@ -279,10 +279,25 @@ jobs:
           cache: npm
 
       - name: Setup Go
+        id: go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.26.10"
-          cache-dependency-path: cli/go.sum
+          cache: false
+
+      # setup-go's own cache keys on go.sum alone and is never updated, so its
+      # build cache goes stale. This one saves an entry per commit and
+      # restores the newest one of the same kind.
+      - name: Go cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: go-test-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('cli/go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-test-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('cli/go.sum') }}-
+            go-test-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-
 
       - name: Prepare Go like the verify job
         run: |
@@ -392,10 +407,23 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Go
+        id: go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.26.10"
-          cache-dependency-path: cli/go.sum
+          cache: false
+
+      # The same cache as go-test, for the -race build.
+      - name: Go cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: go-race-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('cli/go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-race-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('cli/go.sum') }}-
+            go-race-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-
 
       - name: Race detector (setup and confirm)
         run: bash .github/scripts/go-test-shard.sh "$SHARD_INDEX" "$GO_RACE_SHARDS" 'Setup|Confirm|Phone|Window|BothAsk|LegacyPin|SlowDiscovery' -race -count=1
