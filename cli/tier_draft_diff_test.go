@@ -52,6 +52,20 @@ func TestPlanWriteWeighsOnlyTheChangedSteps(t *testing.T) {
 	if len(env.Members) != 1 || env.Members[0].EntityID != "switch.art" || env.Members[0].Via != "draft/actions/2" {
 		t.Fatalf("members %+v, want only the new step", env.Members)
 	}
+	// Inserted in the middle: the new step and every step after it.
+	d := routine()
+	steps := d["actions"].([]any)
+	d["actions"] = []any{steps[0], step("switch.turn_on", "switch.art"), steps[1]}
+	env = planRoutine(t, routineHA(), d)
+	var vias []string
+	for _, m := range env.Members {
+		if strings.HasPrefix(m.Via, "draft/") {
+			vias = append(vias, m.EntityID+" "+m.Via)
+		}
+	}
+	if got := strings.Join(vias, ","); got != "switch.art draft/actions/1,script.briefing draft/actions/2" {
+		t.Fatalf("an insertion weighs %s, want the new step and the one after it", got)
+	}
 }
 
 func TestPlanWriteStillWeighsWhatTheChangeReaches(t *testing.T) {
@@ -83,6 +97,20 @@ func TestPlanWriteStillWeighsWhatTheChangeReaches(t *testing.T) {
 			d["actions"] = append([]any{map[string]any{"variables": map[string]any{"x": 1}}}, d["actions"].([]any)...)
 			return d
 		}(), "typed", reasonAccessLock},
+		{"a new state write before an unchanged gate", map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{gate, step("lock.unlock", "lock.front")}},
+			map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{step("switch.turn_on", "switch.art"), gate, step("lock.unlock", "lock.front")}}, "typed", reasonAccessLock},
+		{"a removed undo after an unchanged step", map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{step("lock.unlock", "lock.front"), map[string]any{"delay": "00:00:30"}, step("lock.lock", "lock.front")}},
+			map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{step("lock.unlock", "lock.front")}}, "typed", reasonAccessLock},
+		{"a moved step", nil, func() map[string]any {
+			d := routine()
+			steps := d["actions"].([]any)
+			d["actions"] = []any{steps[1], steps[0]}
+			return d
+		}(), "typed", reasonAccessLock},
+		{"a removed shorthand gate", map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{map[string]any{"or": []any{gate}}, step("lock.unlock", "lock.front")}},
+			map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{step("lock.unlock", "lock.front")}}, "typed", reasonAccessLock},
+		{"a new alias a step reads", map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{map[string]any{"action": "lock.unlock", "target": map[string]any{"entity_id": "{{ this.attributes.friendly_name }}"}}}},
+			map[string]any{"alias": "lock.front", "triggers": []any{}, "actions": []any{map[string]any{"action": "lock.unlock", "target": map[string]any{"entity_id": "{{ this.attributes.friendly_name }}"}}}}, "typed", reasonUnresolvedTarget},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

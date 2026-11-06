@@ -652,7 +652,9 @@ func TestReadAheadStopsAtTheWalksDepth(t *testing.T) {
 		f.related["entity:"+on] = []string{fmt.Sprintf("automation.chain_%02d", i)}
 		on = lamp
 	}
-	f.storeConfig("/api/config/automation/config/leave", leaveDraft())
+	before := leaveDraft()
+	before["actions"] = []any{} // the draft adds its step: an update weighs what it changes
+	f.storeConfig("/api/config/automation/config/leave", before)
 	h := newSlowHarness(t, f, 0, 10*time.Second)
 	planned := h.planLeave()
 	deep := ""

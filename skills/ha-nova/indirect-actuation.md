@@ -90,8 +90,8 @@ The scan is the target's `search/related` result plus the matching
 `call_service` event consumers below. A zero-hit scan stays ordinary under the
 coverage rules below and escalates nothing by itself. The three read-only
 response services (`weather.get_forecasts`, `calendar.get_events`,
-`todo.get_items`) change no state, so nothing reacts to their target: they
-take only the `call_service` check, never a state-consumer scan.
+`todo.get_items`) change no state, so the automations that react to their
+target's state are not consumers: they take no state-consumer scan.
 
 There is also ONE exception that is an entry condition and not a later
 refinement: any target on the `template` platform (`pl: "template"` in

@@ -66,15 +66,16 @@ func (e *tierEngine) walkSteps(steps []any, via string, depth int, weigh map[int
 }
 
 // gatesRest: an enabled step after which the rest of its sequence may not
-// run: a condition step, or a wait or stop anywhere inside it (a nested stop
-// ends the whole run). A payload key spelled the same only errs toward may.
+// run: a condition step (and/or/not shorthand too), or a wait or stop
+// anywhere inside it (a nested stop ends the whole run). A payload key
+// spelled the same only errs toward may.
 func gatesRest(step any) bool {
 	n, isMap := step.(map[string]any)
 	if !isMap || n["enabled"] == false {
 		return false
 	}
 	raw, _ := json.Marshal(n)
-	return n["condition"] != nil || bytes.Contains(raw, []byte(`"stop":`)) || bytes.Contains(raw, []byte(`"wait_template":`)) || bytes.Contains(raw, []byte(`"wait_for_trigger":`))
+	return n["condition"] != nil || n["and"] != nil || n["or"] != nil || n["not"] != nil || bytes.Contains(raw, []byte(`"stop":`)) || bytes.Contains(raw, []byte(`"wait_template":`)) || bytes.Contains(raw, []byte(`"wait_for_trigger":`))
 }
 
 // Keys holding conditions, triggers, payloads, or targets — never actions.

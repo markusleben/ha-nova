@@ -6,14 +6,14 @@ import (
 	"strings"
 )
 
-// What an update changes (issue #1009). An update weighs only the top-level
-// steps the draft adds or changes against the live config: an unchanged step
-// already runs today, and the write does not change what it reaches. Whatever
-// else the write changes can change what every step does, so the whole draft
-// is weighed then: a create or restore, triggers, conditions, mode, variables,
-// a blueprint. A step that sets or drops a variable changes what the steps
-// after it read, and a removed or changed condition, wait, or stop lets them
-// run where they did not, so the steps after either are weighed too.
+// What an update changes (issue #1009). An update that only inserts steps
+// into a live step list weighs the steps from the first inserted one to the
+// end: the steps before it run as they do today, and those after it may read
+// what it set or waited for. Any other change weighs the whole draft: a
+// create or restore, a removed, changed, or moved step (it can be what made
+// a later step safe: a gate, an undo, an error that stops the run), and
+// triggers, conditions, mode, variables, or a blueprint, which change what
+// every step does. Alias and icon count only when no step reads this.
 
 // draftSteps returns the draft's indexes to weigh, or nil for every step.
 func draftSteps(domain string, draft map[string]any, current json.RawMessage) map[int]bool {
@@ -31,43 +31,33 @@ func draftSteps(domain string, draft map[string]any, current json.RawMessage) ma
 	if !beforeList || !afterList {
 		return nil
 	}
-	for _, cosmetic := range []string{key, "alias", "description", "icon"} {
-		delete(was, cosmetic)
-		delete(now, cosmetic)
+	b, a := stepTexts(before), stepTexts(after)
+	cosmetic := []string{key, "description"}
+	if text, _ := json.Marshal(draft); !strings.Contains(string(text), "this.") {
+		cosmetic = append(cosmetic, "alias", "icon")
+	}
+	for _, k := range cosmetic {
+		delete(was, k)
+		delete(now, k)
 	}
 	if !reflect.DeepEqual(was, now) {
 		return nil
 	}
-	b, a := stepTexts(before), stepTexts(after)
-	// lcs[i][j]: the longest run of identical steps in b[i:] and a[j:].
-	lcs := make([][]int, len(b)+1)
-	for i := range lcs {
-		lcs[i] = make([]int, len(a)+1)
+	first := 0
+	for first < len(b) && first < len(a) && a[first] == b[first] {
+		first++
 	}
-	for i := len(b) - 1; i >= 0; i-- {
-		for j := len(a) - 1; j >= 0; j-- {
-			if b[i] == a[j] {
-				lcs[i][j] = lcs[i+1][j+1] + 1
-			} else {
-				lcs[i][j] = max(lcs[i+1][j], lcs[i][j+1])
-			}
+	for i, j := first, first; i < len(b); j++ { // every live step is still there, in order
+		if j == len(a) {
+			return nil
+		}
+		if a[j] == b[i] {
+			i++
 		}
 	}
 	weigh := map[int]bool{}
-	rest := false // every later step is weighed too
-	for i, j := 0, 0; i < len(b) || j < len(a); {
-		switch {
-		case i < len(b) && j < len(a) && b[i] == a[j]:
-			weigh[j] = rest
-			i, j = i+1, j+1
-		case j < len(a) && (i == len(b) || lcs[i][j+1] >= lcs[i+1][j]):
-			weigh[j] = true
-			rest = rest || carriesData(a[j])
-			j++
-		default:
-			rest = rest || carriesData(b[i]) || gatesRest(before[i])
-			i++
-		}
+	for j := first; j < len(a); j++ {
+		weigh[j] = true
 	}
 	return weigh
 }
@@ -79,10 +69,4 @@ func stepTexts(steps []any) []string {
 		out[i] = string(raw)
 	}
 	return out
-}
-
-// carriesData: a step that sets a variable a later step may read. A payload
-// key spelled the same only errs toward weighing more.
-func carriesData(text string) bool {
-	return strings.Contains(text, `"variables":`) || strings.Contains(text, `"response_variable":`)
 }

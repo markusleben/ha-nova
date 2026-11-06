@@ -215,7 +215,7 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `RUN_EVENT_LISTENER_UNEXPLAINED` | preview | `script_started`/`automation_triggered` listeners beyond the enumerated automations (step 5b) |
 | `DEVICE_ACCESS` | typed | integration service on an entity whose device has a lock, alarm panel, or access cover (step 2) |
 | `DEVICE_ACCESS_SIBLING` | typed | press, switch on/toggle, or cover open on an entity whose device has a lock, alarm panel, or access cover (step 2) |
-| `CONFIG_WRITE` | preview | `plan write` (create or update); typed when the config's actions reach a typed action (PR5 notes). An update whose triggers, conditions, mode, and variables are unchanged weighs only the steps it adds or changes, plus every step after a changed gate or variable (#1009) |
+| `CONFIG_WRITE` | preview | `plan write` (create or update); typed when the config's actions reach a typed action (PR5 notes). An update that only inserts steps (triggers, conditions, mode, variables, and the live steps unchanged and in order) weighs the steps from the first inserted one to the end; any other change weighs the whole draft (#1009) |
 | `CONFIG_REVERT` | preview | `plan revert` of the last verified update (PR5 notes) |
 | `CONFIG_RESTORE` | preview | `plan restore` of a deleted automation/script from its pre-delete snapshot; typed when the config's actions reach a typed action (PR5 notes) |
 | `CONFIG_DELETE` | typed | `plan delete`, always (PR5 notes) |
