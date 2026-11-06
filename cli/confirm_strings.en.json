@@ -526,6 +526,7 @@
   "effect.other": "runs another step",
 
   "unseen.all": "HA NOVA can't check everything this would set off",
+  "unseen.out_of_time": "HA NOVA ran out of time before it finished checking what this would set off (on a slow connection, trying again in a moment helps; otherwise make the change in smaller steps)",
   "unseen.all_via": "HA NOVA can't check everything {via} would set off",
   "unseen.what": "HA NOVA can't see what {name} does",
   "unseen.how": "HA NOVA can't check how {name} works",

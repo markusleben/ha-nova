@@ -55,7 +55,7 @@ func TestApplyKeepsACutPlanThatDidNotChange(t *testing.T) {
 	h := cutHome(t)
 	h.cutAt("a10")
 	_, planned := h.run(runCallCommand, appInstall...)
-	if planned.Tier != "typed" || planned.Plan == nil || planned.Plan.Code == "" || !strings.Contains(planned.Say, sayCheckGap("en")) {
+	if planned.Tier != "typed" || planned.Plan == nil || planned.Plan.Code == "" || !strings.Contains(planned.Say, confirmT("en", "unseen.out_of_time")) {
 		t.Fatalf("setup: %+v", planned)
 	}
 	h.cutAt("a20") // the recompute reads further: a different basis, the same plan
