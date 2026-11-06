@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"reflect"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -23,7 +24,9 @@ import (
 // weighed too when a template there could read any state (outside a data
 // payload, whose targets still count), when it targets a device, area,
 // floor, or label, or when it names an entity the weighed steps reach, or
-// one on its device (draftReaches, after their walk).
+// one on its device (draftReaches, after their walk), or when one of
+// its steps does something other than a read (actsUnweighed): what reacts
+// to it may read what the inserted steps set.
 
 // draftSteps returns the draft's indexes to weigh, or nil for every step,
 // and the text of what it leaves unweighed. rawDraft gives the key order of
@@ -86,8 +89,25 @@ func draftSteps(domain string, draft map[string]any, rawDraft, current json.RawM
 	return weigh, strings.ToLower(string(unweighed))
 }
 
+// actsPattern: a step that does something (a service call, an event, a
+// scene). What reacts to it may read, on the next run, what the weighed
+// steps set, and a diff can't see those readers.
+var actsPattern = regexp.MustCompile(`"(?:action|service|service_template)":"([^"]*)"|"(?:event|scene)":`)
+
+// actsUnweighed: the unweighed part runs a step other than a read-only
+// response service.
+func actsUnweighed(unweighed string) bool {
+	for _, m := range actsPattern.FindAllStringSubmatch(unweighed, -1) {
+		if !readOnlyResponseServices[m[1]] {
+			return true
+		}
+	}
+	return false
+}
+
 // draftReaches: the walk reached a step with no entity (it may set
-// anything), or an entity named in the unweighed text, or one on the same
+// anything), an entity while the unweighed part acts (actsUnweighed), an
+// entity named in the unweighed text, or one on the same
 // device as an entity it reached.
 func (e *tierEngine) draftReaches(unweighed string) bool {
 	ids := slices.Clone(e.acted)
@@ -96,6 +116,9 @@ func (e *tierEngine) draftReaches(unweighed string) bool {
 			return true
 		}
 		ids = append(ids, m.EntityID)
+	}
+	if len(ids) > 0 && actsUnweighed(unweighed) {
+		return true
 	}
 	devices := map[string]bool{}
 	for _, id := range ids {
