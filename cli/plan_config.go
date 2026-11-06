@@ -346,7 +346,7 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 	} else {
 		action.Body = req.Draft
 		e.raise(tierPreview, tierReason{Code: map[string]string{"write": reasonConfigWrite, "revert": reasonConfigRevert, "restore": reasonConfigRestore}[req.Op], Via: req.Domain + "." + req.ConfigID})
-		e.classifyDraft(req.Domain, req.ConfigID, req.Draft)
+		e.classifyDraft(req.Domain, req.ConfigID, req.Draft, current)
 		if env.Verb == "plan" && req.Op == "write" && req.Domain == "automation" { // apply re-plans: the plan said it already
 			env.Notices = append(env.Notices, draftTriggerNotices(req.Draft, current)...)
 		}
@@ -411,8 +411,9 @@ func revertDrift(message string) *verbFailure {
 
 // classifyDraft walks what the written config would run, like a stored
 // member (rules of indirect-actuation.md), so a write that makes an
-// automation unlock a door is typed.
-func (e *tierEngine) classifyDraft(domain, configID string, draft json.RawMessage) {
+// automation unlock a door is typed. An update walks only what it changes
+// against current (draftSteps).
+func (e *tierEngine) classifyDraft(domain, configID string, draft, current json.RawMessage) {
 	cfg, ok := e.parseConfig("draft "+domain+"."+configID, domain, configID+"#draft", draft, "draft")
 	if !ok {
 		return
@@ -421,11 +422,23 @@ func (e *tierEngine) classifyDraft(domain, configID string, draft json.RawMessag
 	if watchesConfirmation(cfg) {
 		e.raise(tierTyped, tierReason{Code: reasonConfirmWatch, EntityID: domain + "." + configID, Via: "draft"})
 	}
+	steps, via := automationActions(cfg), "draft/actions"
 	if domain == "script" {
-		e.walk(cfg["sequence"], "draft/sequence", 1)
+		steps, via = cfg["sequence"], "draft/sequence"
+	}
+	if list, isList := steps.([]any); isList {
+		weigh, unweighed := draftSteps(domain, cfg, draft, current)
+		e.walkSteps(list, via, 1, weigh)
+		if weigh != nil && e.draftReaches(unweighed) { // the next run may read what the weighed steps set
+			rest := map[int]bool{}
+			for i := range list {
+				rest[i] = !weigh[i]
+			}
+			e.walkSteps(list, via, 1, rest)
+		}
 		return
 	}
-	e.walk(automationActions(cfg), "draft/actions", 1)
+	e.walk(steps, via, 1)
 }
 
 // referencedBy lists what references the item a delete removes.
