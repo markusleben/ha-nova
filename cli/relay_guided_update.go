@@ -39,7 +39,8 @@ var (
 const relayUpdateManualPath = "To update it yourself: " + relayAppUpdatePath + " " + relayContainerUpdateLine
 
 // relayUpdateCheckManualPath: Home Assistant shows no newer App, even after
-// HA NOVA asked it to check.
+// HA NOVA asked it to check, or HA NOVA didn't ask because something in the
+// home reacts to that check.
 const relayUpdateCheckManualPath = "To update it yourself: In Home Assistant: Settings → ⋮ (top right) → Check for updates, then Settings → Apps → NOVA Relay → Update."
 
 // maybeOfferGuidedRelayUpdate follows a printed relay update notice and
