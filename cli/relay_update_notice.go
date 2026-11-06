@@ -23,3 +23,22 @@ func relayAvailableUpdateNoticeFromCandidate(candidate relayUpdateCandidate, run
 		message: fmt.Sprintf("The NOVA App in Home Assistant has an update: %s → %s. %s", candidate.InstalledVersion, candidate.LatestVersion, relayAppUpdatePath),
 	}
 }
+
+// doctorFloorNotice: doctor's words for an App below what this HA NOVA
+// needs. At home, check-update's words ("No Update button yet?", a
+// container's step), bounded as the first-use check. Over Home Assistant
+// Link, which reaches only the App, the floor words and the step that makes
+// Home Assistant list a newer App.
+func doctorFloorNotice(paths runtimePaths, notice humanNotice, usingCloud, diagnosticOnly bool) humanNotice {
+	if usingCloud {
+		notice.message += relayCheckForUpdatesLine
+		return notice
+	}
+	if diagnosticOnly {
+		return notice
+	}
+	if full := relayUpdateNoticeWithTimeout(paths, firstUseRelayNoticeTimeout); full.belowFloor || full.kind == humanNoticeKindRelayOutdated {
+		return full
+	}
+	return notice
+}

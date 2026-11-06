@@ -23,6 +23,20 @@ const (
 // budget (tests).
 var checkDeadline time.Time
 
+// commandStart: when the running call began (main for the command, runLocked
+// for each mcp or serve call). A plan's ask ends windowWait after it, so a
+// slow re-plan before the ask shortens the ask instead of pushing the answer
+// past the host's limit (#1026); zero keeps windowWait (tests).
+var commandStart time.Time
+
+// askWait: what is left of windowWait for this call's ask.
+func askWait() time.Duration {
+	if commandStart.IsZero() {
+		return windowWait
+	}
+	return windowWait - time.Since(commandStart)
+}
+
 // chatCheckDeadline: a chat-app request answers about a minute after it
 // came in (since); after a long wait for the lock, the floor below wins.
 func chatCheckDeadline(since time.Time) time.Time { return since.Add(chatCallBudget) }
