@@ -288,7 +288,7 @@ describe("safe test system contract", () => {
         expect(ci.jobs[job]).toMatchObject({ name: job, needs: ["changes", "test-inventory"] });
         expect(ci.jobs[job]?.env).toEqual({ SHARD_INDEX: i });
         expect(ci.jobs[job]?.strategy).toBeUndefined();
-        expect(ci.jobs[job]?.steps).toEqual(ci.jobs[jobs[0]]?.steps);
+        expect(ci.jobs[job]?.steps).toEqual(ci.jobs[`${kind}-1`]?.steps);
       }
       return jobs;
     };
