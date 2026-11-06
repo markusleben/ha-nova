@@ -37,3 +37,17 @@ func withCheckDeadline(t *testing.T, d time.Duration) {
 	checkDeadline = time.Now().Add(d)
 	t.Cleanup(func() { checkDeadline = saved })
 }
+
+// A check the deadline cut still seals its plan in Home Assistant's
+// language: the language read gets the reserve left after the check, so
+// the say isn't English for a German home.
+func TestACheckTheDeadlineCutsStillSpeaksTheHomesLanguage(t *testing.T) {
+	f := presenceHome()
+	f.config = map[string]any{"language": "de"}
+	h := newSlowHarness(t, f, 20*time.Millisecond, 150*time.Millisecond)
+	withCheckDeadline(t, afterCheck+200*time.Millisecond)
+	env := h.planLeave()
+	if env.Tier != "typed" || !strings.Contains(reasonCodes(env), reasonLimitCut) || !strings.Contains(env.Say, confirmT("de", "unseen.out_of_time")) {
+		t.Fatalf("a check the deadline cut in a German home: tier %s reasons %s say %q", env.Tier, reasonCodes(env), env.Say)
+	}
+}
