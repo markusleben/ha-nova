@@ -15,14 +15,7 @@ import (
 func (e *tierEngine) walk(node any, via string, depth int) {
 	switch n := node.(type) {
 	case []any:
-		gated := false
-		for i, child := range n {
-			if gated {
-				e.gated = append(e.gated, via+"/"+strconv.Itoa(i))
-			}
-			e.walk(child, via+"/"+strconv.Itoa(i), depth)
-			gated = gated || gatesRest(child)
-		}
+		e.walkSteps(n, via, depth, nil)
 	case map[string]any:
 		if n["enabled"] == false || n["condition"] != nil || n["trigger"] != nil || n["platform"] != nil {
 			return
@@ -54,6 +47,21 @@ func (e *tierEngine) walk(node any, via string, depth int) {
 				e.walk(n[key], via+"/"+key, depth)
 			}
 		}
+	}
+}
+
+// walkSteps walks a sequence; weigh (nil: every step) names the steps to
+// classify, while every step still gates the ones after it.
+func (e *tierEngine) walkSteps(steps []any, via string, depth int, weigh map[int]bool) {
+	gated := false
+	for i, child := range steps {
+		if weigh == nil || weigh[i] {
+			if gated {
+				e.gated = append(e.gated, via+"/"+strconv.Itoa(i))
+			}
+			e.walk(child, via+"/"+strconv.Itoa(i), depth)
+		}
+		gated = gated || gatesRest(child)
 	}
 }
 

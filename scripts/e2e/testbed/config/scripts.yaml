@@ -29,3 +29,26 @@ good_night:
       target:
         entity_id: lock.entrance_door
   mode: single
+morning_briefing:
+  alias: Morning briefing
+  sequence:
+    - action: calendar.get_events
+      target:
+        entity_id: calendar.calendar_1
+      data:
+        duration: { hours: 24 }
+      response_variable: agenda
+    - action: todo.get_items
+      target:
+        entity_id: todo.shopping_list
+      response_variable: shopping
+    - action: weather.get_forecasts
+      target:
+        entity_id: weather.demo_weather_south
+      data:
+        type: daily
+      response_variable: forecast
+    - action: persistent_notification.create
+      data:
+        message: "{{ agenda | count }} events, {{ forecast['weather.demo_weather_south'].forecast[0].condition }}"
+  mode: single

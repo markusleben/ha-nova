@@ -45,7 +45,9 @@ func presenceHome() *fakeHA {
 		}
 		return map[string]any{"substituted_config": blueprints[fmt.Sprint(p["path"])]}, true
 	}
-	f.storeConfig("/api/config/automation/config/leave", leaveDraft())
+	before := leaveDraft()
+	before["actions"] = []any{} // the draft adds its step: an update weighs what it changes
+	f.storeConfig("/api/config/automation/config/leave", before)
 	return f
 }
 

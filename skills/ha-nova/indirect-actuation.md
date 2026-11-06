@@ -88,7 +88,10 @@ answers with `lock.unlock` grants access just as a helper toggle does, and the
 helper domains are only where that is most likely, never where it is possible.
 The scan is the target's `search/related` result plus the matching
 `call_service` event consumers below. A zero-hit scan stays ordinary under the
-coverage rules below and escalates nothing by itself.
+coverage rules below and escalates nothing by itself. The three read-only
+response services (`weather.get_forecasts`, `calendar.get_events`,
+`todo.get_items`) change no state, so nothing reacts to their target: they
+take only the `call_service` check, never a state-consumer scan.
 
 There is also ONE exception that is an entry condition and not a later
 refinement: any target on the `template` platform (`pl: "template"` in
