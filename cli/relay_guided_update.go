@@ -39,7 +39,8 @@ var (
 const relayUpdateManualPath = "To update it yourself: " + relayAppUpdatePath + " " + relayContainerUpdateLine
 
 // relayUpdateCheckManualPath: Home Assistant shows no newer App, even after
-// HA NOVA asked it to check.
+// HA NOVA asked it to check, or HA NOVA didn't ask because something in the
+// home reacts to that check.
 const relayUpdateCheckManualPath = "To update it yourself: In Home Assistant: Settings → ⋮ (top right) → Check for updates, then Settings → Apps → NOVA Relay → Update."
 
 // maybeOfferGuidedRelayUpdate follows a printed relay update notice and
@@ -116,6 +117,11 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 		return false
 	}
 	candidate = current
+	install := planCallRequest{Service: "update.install", EntityIDs: []string{candidate.EntityID}, Data: map[string]any{"backup": true}, Skill: "ha-nova:updates"}
+	if !relayGuidedCallAllowed(paths, cfg, token, install, tierPreview) {
+		fmt.Fprintf(out, "HA NOVA can't start the NOVA App update from here. Nothing was installed.\n%s\n", relayUpdateManualPath)
+		return false
+	}
 	fmt.Fprintln(out, "Updating the NOVA App, with a backup first. The App restarts while it installs.")
 	// The relay dies mid-call when the install lands, so a dropped response
 	// is the EXPECTED shape of success here; polling decides the outcome.
@@ -129,9 +135,9 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 	}
 	// Not a raw route (relay_raw_guard.go): no model input reaches it. The
 	// service, entity (registry-proven NOVA Relay App), and payload are fixed,
-	// it runs only on an interactive terminal after the person's yes, and
-	// `ha-nova call update.install --skill ha-nova:updates` tiers the same
-	// install preview (a plain yes), so this path skips no tier.
+	// it runs only on an interactive terminal after the person's yes, and only
+	// when the tier engine finds it a preview at most (above), so this path
+	// skips no tier.
 	installBody, marshalErr := json.Marshal(installPayload)
 	if marshalErr != nil {
 		fmt.Fprintln(out, "HA NOVA couldn't start the update. Nothing was installed.")

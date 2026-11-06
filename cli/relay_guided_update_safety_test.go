@@ -279,7 +279,7 @@ func TestRunDoctorClassifiesBelowFloorRelayBeforeAnyInstallPrompt(t *testing.T) 
 				switch r.URL.Path {
 				case "/core":
 					var req struct {
-						Path string `json:"path"`
+						Method, Path string
 					}
 					if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 						t.Errorf("decode core request: %v", err)
@@ -295,6 +295,10 @@ func TestRunDoctorClassifiesBelowFloorRelayBeforeAnyInstallPrompt(t *testing.T) 
 					}
 					if req.Path == "/api/states/update.nova_relay_update" { // the check's poll: still no update
 						w.Write([]byte(`{"ok":true,"data":{"status":200,"body":{"state":"off","attributes":{}}}}`))
+						return
+					}
+					if req.Method == "GET" { // the tier engine's reads before the check: unanswered, so no check is sent
+						http.NotFound(w, r)
 						return
 					}
 					installCalled.Store(true)
