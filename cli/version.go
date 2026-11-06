@@ -363,7 +363,7 @@ func relayUpdateNoticeWithContext(ctx context.Context, paths runtimePaths) human
 				level: floorNotice.level, appCheck: true,
 				kind: floorNotice.kind,
 				message: floorNotice.message +
-					" No Update button yet? In Settings > Apps, check for updates first.",
+					" No Update button yet? In Home Assistant: Settings → ⋮ (top right) → Check for updates first.",
 			}
 		}
 		return humanNotice{

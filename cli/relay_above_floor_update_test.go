@@ -134,7 +134,7 @@ func TestRelayUpdateNoticeClassifiesBelowFloorAppBeforeOfferingGuidedUpdate(t *t
 			name:       "registry proves current App even without pending update",
 			states:     []map[string]interface{}{currentApp},
 			wantKind:   humanNoticeKindRelayOutdated,
-			wantText:   "No Update button yet? In Settings > Apps, check for updates first.",
+			wantText:   "No Update button yet? In Home Assistant: Settings → ⋮ (top right) → Check for updates first.",
 			rejectText: relayContainerUpdateLine,
 			wantCheck:  true,
 		},
@@ -425,7 +425,7 @@ func TestRunDoctorBelowFloorUsesCheckUpdateWords(t *testing.T) {
 
 	exitCode, output := captureCommandOutput(t, func() int { return runDoctor(paths, []string{"--quiet"}) })
 	want := "[ha-nova] The NOVA App in Home Assistant needs an update: it has 0.3.0, HA NOVA needs 0.4.0 or newer. " +
-		relayAppUpdatePath + " No Update button yet? In Settings > Apps, check for updates first."
+		relayAppUpdatePath + " No Update button yet? In Home Assistant: Settings → ⋮ (top right) → Check for updates first."
 	if exitCode != 1 || !strings.Contains(output, want) || !strings.Contains(output, "To fix: update the NOVA App (see above).") {
 		t.Fatalf("exit %d, want 1 and %q:\n%s", exitCode, want, output)
 	}
