@@ -32,16 +32,20 @@ func fakeHARelay(t *testing.T, f *fakeHA) *httptest.Server {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var payload map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&payload) // /health has no body
-		data := f.reply(r, strings.TrimPrefix(r.URL.Path, "/"), payload)
-		if failure, isFailure := data.(fakeRelayFailure); isFailure {
-			w.WriteHeader(http.StatusBadGateway)
-			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": map[string]any{"code": failure.code, "message": failure.message}})
-			return
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": data})
+		serveFakeHA(w, r, f, payload)
 	}))
 	t.Cleanup(server.Close)
 	return server
+}
+
+func serveFakeHA(w http.ResponseWriter, r *http.Request, f *fakeHA, payload map[string]any) {
+	data := f.reply(r, strings.TrimPrefix(r.URL.Path, "/"), payload)
+	if failure, isFailure := data.(fakeRelayFailure); isFailure {
+		w.WriteHeader(http.StatusBadGateway)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": map[string]any{"code": failure.code, "message": failure.message}})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": data})
 }
 
 // staleStoreServer: Home Assistant shows no NOVA App update until
@@ -60,6 +64,7 @@ func newStaleStoreServer(t *testing.T, showsAfter bool, checkStatus int) (*stale
 	s := &staleStoreServer{ha: newFakeHA()}
 	s.ha.ent("update.nova_relay_update", "hassio", "off", nil) // its compact registry row; the states below win
 	s.ha.full = []map[string]any{novaRegistryEntry("update.nova_relay_update")}
+	s.ha.services = appUpdateHA().services
 	s.ha.extra = func(endpoint string, p map[string]any) (any, bool) {
 		entity := completedRelayUpdateEntity("update.nova_relay_update", "0.2.6")
 		switch {

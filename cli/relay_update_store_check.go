@@ -14,7 +14,7 @@ import (
 // first; then the entity shows the new version. It installs nothing and
 // goes through the same /core proxy as the install. It is still a service
 // call automations can react to, so it goes out only when the tier engine
-// finds nothing that does (relayStoreCheckOrdinary).
+// finds nothing that does (relayGuidedCallAllowed).
 
 // Variables so tests can shrink the wait.
 var (
@@ -36,7 +36,8 @@ func checkHomeAssistantForRelayUpdate(paths runtimePaths, cfg config, token stri
 	}
 	body, _ := json.Marshal(map[string]string{"entity_id": candidate.EntityID})
 	checked, _ := runSetupSpinnerWithResult(out, "Checking Home Assistant for a newer NOVA App...", setupSpinnerDebounce, func() (relayUpdateCandidate, error) {
-		if !relayStoreCheckOrdinary(paths, cfg, token, candidate.EntityID) {
+		refresh := planCallRequest{Service: "homeassistant.update_entity", EntityIDs: []string{candidate.EntityID}, Data: map[string]any{}}
+		if !relayGuidedCallAllowed(paths, cfg, token, refresh, tierOrdinary) {
 			return candidate, nil
 		}
 		reply, err := relayCoreRequest(cfg, token, "POST", "/api/services/homeassistant/update_entity", body)
@@ -78,12 +79,12 @@ func checkHomeAssistantForRelayUpdate(paths runtimePaths, cfg config, token stri
 	return checked, true
 }
 
-// relayStoreCheckOrdinary: true only when `ha-nova call
-// homeassistant.update_entity <entity>` would send that call without asking
-// (computeCallPlan: call_service listeners, the entity's consumers, ...).
-// The session reads over the guided update's own server and credential; a
-// failed or cut read is never ordinary.
-func relayStoreCheckOrdinary(paths runtimePaths, cfg config, token, entityID string) bool {
+// relayGuidedCallAllowed: true only when `ha-nova call` would plan req at
+// highest or below (computeCallPlan: call_service listeners, the targets'
+// consumers, ...), with a complete scan and its targets frozen. The session
+// reads over the guided update's own server and credential; a failed or cut
+// read never passes.
+func relayGuidedCallAllowed(paths runtimePaths, cfg config, token string, req planCallRequest, highest tierLevel) bool {
 	base, client, credential, err := functionalEndpoint(cfg, token)
 	if err != nil {
 		return false
@@ -92,13 +93,12 @@ func relayStoreCheckOrdinary(paths runtimePaths, cfg config, token, entityID str
 	s := &relaySession{paths: paths, cfg: cfg, transport: relayTransportSelection{BaseURL: base, Client: client, Credential: credential, Via: relayViaLocal},
 		server: activeServerProfile(), ctx: ctx, cancel: cancel, slots: make(chan struct{}, relaySessionMaxConcurrent), memo: map[string]*relayMemo{}}
 	defer s.close()
-	req := planCallRequest{Service: "homeassistant.update_entity", EntityIDs: []string{entityID}, Data: map[string]any{}}
 	if staticRefusal(req) != nil {
 		return false
 	}
 	env := verbEnvelope{SchemaVersion: 1, Verb: "call", Server: s.server}
 	e, plan, err := computeCallPlan(s, &env, req)
-	return err == nil && e.level == tierOrdinary && e.complete && !frozeNothing(req, plan.Action)
+	return err == nil && e.level <= highest && e.complete && !frozeNothing(req, plan.Action)
 }
 
 // relayUpdateEntityLatest reads one update entity's latest_version when it
