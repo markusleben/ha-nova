@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"net/http"
 	"slices"
 	"sort"
 	"strings"
@@ -37,7 +36,7 @@ func (e *tierEngine) readAhead(ids []string, depth int) {
 		e.aheadActed += len(level)
 		var reads []func()
 		for _, id := range level {
-			reads = append(reads, func() { _, _, _ = e.s.coreGET("/api/states/" + id) })
+			reads = append(reads, func() { _, _, _ = e.rawState(id) })
 			for _, item := range e.relatedItems(id) {
 				reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest(item[0], item[1])) })
 			}
@@ -100,13 +99,13 @@ func (e *tierEngine) needles(id string) []string {
 // config by attributes.id, else the one Home Assistant loaded), blueprint
 // substituted, through the session only; nil when it can't.
 func (e *tierEngine) warmConfig(automation string) map[string]any {
-	status, body, err := e.s.coreGET("/api/states/" + automation)
+	body, present, err := e.rawState(automation)
 	var st struct {
 		Attributes struct {
 			ID string `json:"id"`
 		} `json:"attributes"`
 	}
-	if err != nil || status != http.StatusOK || json.Unmarshal(body, &st) != nil {
+	if err != nil || !present || json.Unmarshal(body, &st) != nil {
 		return nil
 	}
 	var raw json.RawMessage
