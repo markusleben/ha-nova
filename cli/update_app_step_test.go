@@ -8,24 +8,21 @@ import (
 	"time"
 )
 
-// The NOVA App half of `ha-nova update`: at a desktop, an App below what this
-// version needs, with its update pending in Home Assistant, opens the setup
-// page (its "Update the NOVA App" button); a terminal gets the guided offer;
-// an AI app running the command gets one plain line. Nothing installs here.
-func TestUpdateAppStepOpensSetupPageOnlyAtADesktop(t *testing.T) {
+// The NOVA App half of `ha-nova update`: a terminal gets the guided offer;
+// an AI app running the command gets one plain line. The setup page never
+// opens for it: setup doesn't update an installed App (#1017). Nothing
+// installs here.
+func TestUpdateAppStepNeverOpensTheSetupPage(t *testing.T) {
 	resetServerProfileSelection(t)
-	previousAvailable, previousOpen, previousTargets, previousNotice := setupPageAvailable, openSetupPageForAppUpdate, haAppInstallTargetsThisHAForPage, relayUpdateNoticeForUpdate
+	previousAvailable, previousTargets := setupPageAvailable, haAppInstallTargetsThisHAForPage
 	previousIn, previousOut := relayUpdateInputIsTTY, relayUpdateOutputIsTTY
 	t.Cleanup(func() {
-		setupPageAvailable, openSetupPageForAppUpdate, haAppInstallTargetsThisHAForPage, relayUpdateNoticeForUpdate = previousAvailable, previousOpen, previousTargets, previousNotice
+		setupPageAvailable, haAppInstallTargetsThisHAForPage = previousAvailable, previousTargets
 		relayUpdateInputIsTTY, relayUpdateOutputIsTTY = previousIn, previousOut
 	})
 	relayUpdateInputIsTTY, relayUpdateOutputIsTTY = func() bool { return false }, func() bool { return false }
 	haAppInstallTargetsThisHAForPage = func(runtimeConfig) bool { return true }
-	opened := 0
-	openSetupPageForAppUpdate = func(runtimePaths) error { opened++; return nil }
-	stillDue := humanNotice{}
-	relayUpdateNoticeForUpdate = func(runtimePaths) humanNotice { return stillDue }
+	setupPageAvailable = func() bool { return true }
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	paths, err := detectPaths()
@@ -42,41 +39,22 @@ func TestUpdateAppStepOpensSetupPageOnlyAtADesktop(t *testing.T) {
 		_, output := captureCommandOutput(t, func() int { offerRelayUpdate(paths, notice); return 0 })
 		return output
 	}
-	// Without the page: the notice says where to update, once.
+	// The notice says where to update, once; nothing names the setup page.
 	once := func(out string) bool {
-		return strings.Count(out, "Settings → Apps → NOVA Relay") == 1 && strings.Contains(out, relayAppUpdatePath)
+		return strings.Count(out, "Settings → Apps → NOVA Relay") == 1 && strings.Contains(out, relayAppUpdatePath) &&
+			!strings.Contains(out, "Opening HA NOVA setup")
 	}
-
-	setupPageAvailable = func() bool { return true }
-	if out := run(tooOld); opened != 1 || !strings.Contains(out, `click "Update the NOVA App" there`) || !once(out) || strings.Contains(out, "too") {
-		t.Fatalf("desktop: opened=%d\n%s", opened, out)
-	}
-	// Closed the page without updating: where to do it later.
-	stillDue = tooOld
-	if out := run(tooOld); opened != 2 || !strings.Contains(out, "Not updated yet. "+relayAppUpdatePath) {
-		t.Fatalf("closed page: opened=%d\n%s", opened, out)
-	}
-	// An above-floor App update keeps its guided offer with backup: no page.
-	if out := run(newer); opened != 2 || !once(out) {
-		t.Fatalf("above floor: opened=%d\n%s", opened, out)
-	}
-	// The page can't update this App (another address, Link only): no page.
-	haAppInstallTargetsThisHAForPage = func(runtimeConfig) bool { return false }
-	if out := run(tooOld); opened != 2 || !once(out) {
-		t.Fatalf("page can't update: opened=%d\n%s", opened, out)
-	}
-	haAppInstallTargetsThisHAForPage = func(runtimeConfig) bool { return true }
-	// SSH, no display, or an AI app running the command: no page.
-	setupPageAvailable = func() bool { return false }
-	if out := run(tooOld); opened != 2 || !once(out) {
-		t.Fatalf("no desktop: opened=%d\n%s", opened, out)
+	for name, notice := range map[string]humanNotice{"below the floor at a desktop": tooOld, "above the floor": newer} {
+		if out := run(notice); !once(out) {
+			t.Fatalf("%s:\n%s", name, out)
+		}
 	}
 	// No App in Home Assistant to update (a standalone Relay): only its notice.
-	if out := run(container); opened != 2 || strings.Contains(out, relayAppUpdatePath) || !strings.Contains(out, "pull the new image") {
+	if out := run(container); strings.Contains(out, relayAppUpdatePath) || !strings.Contains(out, "pull the new image") {
 		t.Fatalf("container: %s", out)
 	}
 	// No App notice: nothing at all.
-	if out := run(humanNotice{}); opened != 2 || strings.TrimSpace(out) != "" {
+	if out := run(humanNotice{}); strings.TrimSpace(out) != "" {
 		t.Fatalf("no notice: %q", out)
 	}
 }

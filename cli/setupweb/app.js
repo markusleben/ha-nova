@@ -24,7 +24,7 @@
   };
   // Claude Code's install line (code.claude.com/docs/en/setup); the CLI sends desktop only on a Mac.
   const claudeInstall = 'curl -fsSL https://claude.ai/install.sh | bash';
-  const primaryLabels = { install: 'setup.page.button.install', update: 'setup.page.button.update', signin: 'setup.page.button.signin' };
+  const primaryLabels = { install: 'setup.page.button.install', signin: 'setup.page.button.signin' };
   const fixLabels = { retry: 'setup.page.button.retry', owner: 'setup.page.button.owner', web: 'setup.page.button.web_recheck' };
   const rowStatus = { ok: 'setup.page.status.ok', run: 'setup.page.status.run', fail: 'setup.page.status.fail', todo: 'setup.page.status.todo' };
   const endScreens = {
@@ -154,8 +154,8 @@
 
   const problemLine = () => (state.problem ? el('p', { class: 'problem', role: 'alert' }, say(state.problem)) : null);
   // "Use a six-digit code": a text link, since it goes on in the terminal. With
-  // no current App yet, the terminal first shows how to install or update it.
-  const codeLabels = { install: 'setup.page.button.code_install', update: 'setup.page.button.code_update' };
+  // no App yet, the terminal first shows how to install it.
+  const codeLabels = { install: 'setup.page.button.code_install' };
   const codeLink = () => el('p', { class: 'fine' }, `${t('setup.page.found.fine_elsewhere')} `,
     el('button', { id: 'b-terminal', class: 'linkish', type: 'button', onclick: () => post('terminal'), ...(accepts('terminal') ? {} : { disabled: '' }) }, t(codeLabels[state.primary] || 'setup.page.button.code')));
   // "What's this?": what chat apps need (docs/reference/chat-apps.md), in a new tab.
@@ -164,7 +164,7 @@
     return href ? el('a', { id: 'l-chat-help', class: 'linkish', href, target: '_blank', rel: 'noopener noreferrer' }, t('setup.page.link.whats_this')) : null;
   };
   // Why the terminal (state.handover); a question there by default.
-  const terminalLeads = { code: 'setup.page.terminal.lead_code', code_install: 'setup.page.terminal.lead_code_install', code_update: 'setup.page.terminal.lead_code_update', keyring_locked: 'setup.page.terminal.lead_keyring_locked', keyring_setup: 'setup.page.terminal.lead_keyring_setup' };
+  const terminalLeads = { code: 'setup.page.terminal.lead_code', code_install: 'setup.page.terminal.lead_code_install', keyring_locked: 'setup.page.terminal.lead_keyring_locked', keyring_setup: 'setup.page.terminal.lead_keyring_setup' };
 
   const screens = {
     looking: () => [...head(t('setup.page.looking.eyebrow'), t('setup.page.looking.title'), t('setup.page.looking.lead')),
@@ -266,7 +266,7 @@
           // Not owner: the owner connects this computer once; with NOVA
           // already running, the owner can also make a code on any device.
           state.fix === 'owner' && !state.web ? el('p', { class: 'fine' }, t('setup.page.found.owner_once'),
-            state.primary === 'install' || state.primary === 'update' ? null : ` ${t('setup.page.found.owner_away')}`) : null,
+            state.primary === 'install' ? null : ` ${t('setup.page.found.owner_away')}`) : null,
           state.web ? null : codeLink(),
           accepts('change') ? el('p', { class: 'fine' }, el('button', { id: 'b-change-ha', class: 'linkish', type: 'button', onclick: () => post('change') }, t('setup.page.rerun.change_ha'))) : null);
       }

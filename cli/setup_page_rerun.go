@@ -37,10 +37,11 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 		// Skills set up before and now out of date: refreshed without a question.
 		refresh := len(before) == 0 || !slices.ContainsFunc(notReady, func(client string) bool { return !slices.Contains(f.state.InstalledClients, client) })
 		app := f.pageApp()
-		// An App older than this HA NOVA needs, which the owner sign-in can
-		// update: that is the one thing to do, before the switches.
-		appUpdate := app.state == "old" && app.primary == "update"
-		if c.ConfigOK && c.TokenOK && c.RelayOK && c.WSOK && refresh && !appUpdate {
+		// The official App on this Home Assistant, older than this HA NOVA
+		// needs: the person updates it in Home Assistant first, before the
+		// switches.
+		appOld := app.state == "old" && haAppInstallTargetsThisHAForPage(f.cfg)
+		if c.ConfigOK && c.TokenOK && c.RelayOK && c.WSOK && refresh && !appOld {
 			f.pageRerunOK = true
 			if c.SkillsOK {
 				if len(marker) == 0 && len(f.lifecycleMarker) > 0 {
@@ -69,9 +70,9 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 		if appDown && problem.Key == "setup.page.rerun.problem_app_only" { // the App page opens only while Home Assistant answers
 			links["app"] = haInstallRelayAppURL(f.cfg.HAURL)
 		}
-		if appUpdate && !appDown { // its button says what it does; step 1's sign-in updates the App
-			problem, fix, accepts = setupPageText("setup.page.rerun.problem_app_old"), "app_update", []string{"recheck", "fix", "change"}
-			links["app"] = haRelayAppPageURL(f.cfg.HAURL) // or update it in Home Assistant, then Check again
+		if appOld && !appDown { // update it in Home Assistant, then Check again
+			problem, accepts = setupPageText("setup.page.rerun.problem_app_old"), []string{"recheck", "fix", "change"}
+			links["app"] = haRelayAppPageURL(f.cfg.HAURL)
 		}
 		if haDown && picked != nil {
 			problem = picked
@@ -113,7 +114,7 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 			f.current = detectSetupStateForAssessment(f.paths, f.cfg, f.state, f.target, f.savedTokenBeforeSetup, f.hadSavedTokenBeforeSetup)
 			continue
 		}
-		if appDown || appUpdate { // another address, or the sign-in that installs, updates, or starts the App: step 1
+		if appDown || appOld { // another address, the sign-in that installs or starts the App, or step 1's App update steps
 			f.pageRepairing()
 			return setupGoTo(setupStepHost), true
 		}

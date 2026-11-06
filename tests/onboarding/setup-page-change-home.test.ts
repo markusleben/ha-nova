@@ -11,12 +11,15 @@ describe("setup page re-run: another Home Assistant", () => {
     { id: "computer", state: "ok", msg: { key: "setup.page.rerun.computer_ok" } },
     { id: "clients", state: "ok", msg: { key: "setup.page.rerun.clients_ok", args: { clients: ["Claude Code"] } } },
   ];
-  const old = { screen: "rerun_fix", rows, fix: "app_update", accepts: ["recheck", "fix", "change"], problem: { key: "setup.page.rerun.problem_app_old" } };
+  const old = { screen: "rerun_fix", rows, accepts: ["recheck", "fix", "change"], problem: { key: "setup.page.rerun.problem_app_old" }, links: { app: "http://10.85.1.2:8123/_my_redirect/supervisor_addon?addon=2368fcfa_ha_nova_relay" } };
 
-  it("offers it under the App update, and the click asks for the address", async () => {
+  it("offers it under an App too old, and the click asks for the address", async () => {
     const p = page(old);
     await p.settle();
-    expect(p.find("b-fix")!.textContent).toBe(p.catalog["setup.page.rerun.update_app"]);
+    expect(p.screen.textContent).toContain("Your NOVA App in Home Assistant is too old for this HA NOVA.");
+    expect(p.screen.textContent).not.toContain("gets updated");
+    expect(p.find("l-app")!.className).toContain("btn-primary"); // update it there, then check again
+    expect(p.find("b-recheck")!.className).toContain("btn-ghost");
     expect(p.find("b-change-ha")!.textContent).toBe("Use another Home Assistant");
     p.find("b-change-ha")!.dispatch("click");
     await p.settle();
@@ -27,8 +30,8 @@ describe("setup page re-run: another Home Assistant", () => {
     const p = page({ ...old, accepts: ["recheck", "fix"] });
     await p.settle();
     expect(p.find("b-change-ha")).toBeUndefined();
-    expect(p.find("b-fix")!.className).toContain("btn-primary");
-    expect(p.find("b-recheck")!.className).toContain("btn-ghost"); // one main action
+    expect(p.find("b-fix")!.className).toContain("btn-ghost");
+    expect(p.find("b-recheck")!.className).toContain("btn-ghost"); // one main action: the App page
   });
 
   it("names the Link for the old home first, with a button that removes it", async () => {

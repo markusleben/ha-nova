@@ -14,7 +14,7 @@ const ONCE = "The owner's sign-in connects this computer once. After that, anyon
 
 describe("setup page: the owner connects this computer once", () => {
   it("says who signs in and that it connects this computer for anyone using this login on it", async () => {
-    for (const primary of ["signin", "install", "update"]) {
+    for (const primary of ["signin", "install"]) {
       const p = page({ ...found, primary });
       await p.settle();
       expect(p.catalog["setup.page.found.owner_once"]).toBe(ONCE);
@@ -33,8 +33,8 @@ describe("setup page: the owner connects this computer once", () => {
     expect(p.find("b-signin")!.textContent).toBe("Sign in as the owner");
     expect(p.screen.textContent).toContain(ONCE);
     expect(p.screen.textContent).toContain(p.catalog["setup.page.found.owner_away"]);
-    for (const primary of ["install", "update"]) { // no NOVA App to make a code with yet
-      const q = page({ ...notOwner, primary, problem: { key: "setup.page.problem.not_owner_unnamed" } });
+    { // no NOVA App to make a code with yet
+      const q = page({ ...notOwner, primary: "install", problem: { key: "setup.page.problem.not_owner_unnamed" } });
       await q.settle();
       expect(q.screen.textContent).toContain("That account isn't the owner of this Home Assistant. Only the owner can set up HA NOVA. Ask the owner to sign in here.");
       expect(q.screen.textContent).toContain(ONCE);
@@ -44,12 +44,11 @@ describe("setup page: the owner connects this computer once", () => {
   });
 });
 
-describe("setup page: the six-digit code while the App still needs installing or updating", () => {
-  it("asks for the owner to install or update the App first, on the sign-in screen and after a failed sign-in", async () => {
+describe("setup page: the six-digit code while the App still needs installing", () => {
+  it("asks for the owner to install the App first, on the sign-in screen and after a failed sign-in", async () => {
     for (const [primary, label] of [
       ["signin", "Use a six-digit code instead (continues in the terminal)"],
       ["install", "Ask the owner to install the NOVA App, then use a six-digit code (continues in the terminal)"],
-      ["update", "Ask the owner to update the NOVA App, then use a six-digit code (continues in the terminal)"],
     ]) {
       for (const state of [{ ...found, primary }, { ...notOwner, primary }, { ...notOwner, primary, fix: "retry", problem: { key: "setup.page.problem.timeout" } }]) {
         const p = page(state);
@@ -65,13 +64,11 @@ describe("setup page: the six-digit code while the App still needs installing or
   });
 });
 
-describe("setup page: hand-over for the code while the App still needs installing or updating", () => {
-  it("says the terminal first shows how the owner installs or updates the App, then asks for the code", async () => {
-    for (const [handover, verb] of [["code_install", "installs"], ["code_update", "updates"]]) {
-      const p = page({ screen: "terminal", accepts: [], handover });
-      await p.settle();
-      expect(p.screen.textContent).toContain(`It first shows how the owner ${verb} the NOVA App in Home Assistant, then asks for a six-digit code.`);
-      expect(p.screen.textContent).not.toContain(p.catalog["setup.page.terminal.lead_code"]);
-    }
+describe("setup page: hand-over for the code while the App still needs installing", () => {
+  it("says the terminal first shows how the owner installs the App, then asks for the code", async () => {
+    const p = page({ screen: "terminal", accepts: [], handover: "code_install" });
+    await p.settle();
+    expect(p.screen.textContent).toContain("It first shows how the owner installs the NOVA App in Home Assistant, then asks for a six-digit code.");
+    expect(p.screen.textContent).not.toContain(p.catalog["setup.page.terminal.lead_code"]);
   });
 });

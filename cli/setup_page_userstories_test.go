@@ -239,7 +239,7 @@ func TestSetupPageHandOverSaysWhy(t *testing.T) {
 	if s := ui.snapshot(); s.Screen != "terminal" || s.Handover != "code" {
 		t.Fatalf("hand-over = %+v", s)
 	}
-	for primary, want := range map[string]string{"signin": "code", "install": "code_install", "update": "code_update"} {
+	for primary, want := range map[string]string{"signin": "code", "install": "code_install", "": "code"} {
 		if got := codeHandover(primary); got != want {
 			t.Errorf("%s: %q, want %q", primary, got, want)
 		}
