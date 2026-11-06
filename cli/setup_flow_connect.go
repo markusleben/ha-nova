@@ -190,8 +190,7 @@ func (f *setupFlow) stepRelayInstall() setupStepResult {
 	if !skipInstall {
 		f.relaySkipNote = setupMsg{}
 		f.ui.show(setupView{Progress: &setupProgress{Step: steps.RelayInstall, Total: steps.Total, Title: setupText("setup.step.install_app")}})
-		note, err := runRelayInstallSteps(f.ui.termIn(), f.ui.termOut(), f.paths, f.cfg, pairAfterInstall)
-		f.relaySkipNote = note
+		err := runRelayInstallSteps(f.ui.termIn(), f.ui.termOut(), f.paths, f.cfg, pairAfterInstall)
 		if err == errSetupBack {
 			return setupGoTo(setupStepHost)
 		}
@@ -299,10 +298,10 @@ func secureStorageHandover(err error) string {
 }
 
 // codeHandover: why the setup page hands over after "Use a six-digit code"
-// (setupPageState.Handover): an App to install or update comes first there.
+// (setupPageState.Handover): an App to install comes first there.
 func codeHandover(primary string) string {
-	if primary == "install" || primary == "update" {
-		return "code_" + primary
+	if primary == "install" {
+		return "code_install"
 	}
 	return "code"
 }

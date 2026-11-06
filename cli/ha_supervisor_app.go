@@ -67,7 +67,7 @@ type novaAppSupervisor struct {
 	// are then refused, and without it the removal calls are.
 	removal bool
 	// phase, when set, hears each change as it starts: "add", "install",
-	// "update", "start" (the setup page's progress rows).
+	// "start" (the setup page's progress rows).
 	phase func(name string)
 }
 
@@ -105,8 +105,6 @@ func (s novaAppSupervisor) allowed(method, endpoint string, data map[string]any)
 		return !s.removal && len(data) == 1 && data["repository"] == haNovaRepositoryURL
 	case "post /store/addons/" + s.appSlug + "/install":
 		return !s.removal && len(data) == 1 && data["background"] == true
-	case "post /store/addons/" + s.appSlug + "/update": // always with a backup of the App first
-		return !s.removal && len(data) == 2 && data["background"] == true && data["backup"] == true
 	}
 	id, isJob := strings.CutPrefix(endpoint, "/jobs/")
 	return !s.removal && method == "get" && data == nil && isJob && supervisorJobIDPattern.MatchString(id)
@@ -131,16 +129,15 @@ func (s novaAppSupervisor) call(ctx context.Context, method, endpoint string, da
 }
 
 type supervisorAppInfo struct {
-	Name            string `json:"name"`
-	Slug            string `json:"slug"`
-	Repository      string `json:"repository"`
-	State           string `json:"state"`
-	Version         string `json:"version"`
-	VersionLatest   string `json:"version_latest"`
-	UpdateAvailable bool   `json:"update_available"`
-	Build           bool   `json:"build"`
-	Available       bool   `json:"available"`
-	Installed       *bool  `json:"installed"` // store entries only
+	Name          string `json:"name"`
+	Slug          string `json:"slug"`
+	Repository    string `json:"repository"`
+	State         string `json:"state"`
+	Version       string `json:"version"`
+	VersionLatest string `json:"version_latest"`
+	Build         bool   `json:"build"`
+	Available     bool   `json:"available"`
+	Installed     *bool  `json:"installed"` // store entries only
 	// Network maps container ports to host ports ("8792/tcp": 8792; null
 	// when disabled).
 	Network map[string]*int `json:"network"`
@@ -193,10 +190,12 @@ func (s novaAppSupervisor) sourceListed(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-// ensure brings the App to installed, current (when update is set or
-// Supervisor offers an update), at least minimum (min_relay_version, "" for
-// none), and started. It prints one line per step.
-func (s novaAppSupervisor) ensure(ctx context.Context, out io.Writer, state *novaAppState, update bool, minimum string) error {
+// ensure brings the App to installed and started. It prints one line per
+// step. It never updates an installed App: the update and its store reload
+// change the App's update entity, which automations can react to, and this
+// sign-in can't classify them like `ha-nova call` (relayGuidedCallAllowed).
+// Setup leaves an update to the person.
+func (s novaAppSupervisor) ensure(ctx context.Context, out io.Writer, state *novaAppState) error {
 	var config struct {
 		Components []string `json:"components"`
 	}
@@ -231,10 +230,7 @@ func (s novaAppSupervisor) ensure(ctx context.Context, out io.Writer, state *nov
 		return err
 	}
 	state.observe(info)
-	if update && !state.installed {
-		return &novaAppInstallError{line: "Home Assistant doesn't list the NOVA App as installed, so there is nothing to update. Nothing was installed."}
-	}
-	if (update && !info.UpdateAvailable) || (!state.installed && listed) {
+	if !state.installed && listed {
 		// Like "Check for updates" in Home Assistant: a source listed
 		// earlier may not know the current version yet.
 		_, _ = runSetupSpinnerWithResult(out, "Checking Home Assistant for a newer NOVA App...", setupSpinnerDebounce, func() (struct{}, error) {
@@ -245,8 +241,7 @@ func (s novaAppSupervisor) ensure(ctx context.Context, out io.Writer, state *nov
 		}
 		state.observe(info)
 	}
-	switch {
-	case !state.installed:
+	if !state.installed {
 		if !info.Available {
 			return &novaAppInstallError{line: "Home Assistant says this system can't run the NOVA App. Nothing was installed.", cause: errAppInstallUnsupported}
 		}
@@ -260,34 +255,6 @@ func (s novaAppSupervisor) ensure(ctx context.Context, out io.Writer, state *nov
 			return err
 		}
 		renderSetupSuccessLine(out, "NOVA App installed (v%s)", state.version)
-	case info.UpdateAvailable:
-		// The installed manifest's build flag says nothing about the update
-		// target: check the store entry Supervisor would update to.
-		var target supervisorAppInfo
-		if err := s.call(ctx, "get", "/store/addons/"+s.appSlug, nil, 10*time.Second, &target); err != nil {
-			return &novaAppInstallError{line: "Home Assistant couldn't show the NOVA App update.", cause: err}
-		}
-		if target.Slug != s.appSlug || target.Repository != s.repoSlug || target.Name != haNovaAppName ||
-			target.Build || !target.Available || !supervisorVersionPattern.MatchString(target.VersionLatest) {
-			return &novaAppInstallError{line: "Home Assistant can't download the NOVA App update for this system. Nothing was updated."}
-		}
-		s.report("update")
-		if err := s.job(ctx, out, state, "update", "updating the NOVA App",
-			fmt.Sprintf("Updating the NOVA App to v%s...", target.VersionLatest)); err != nil {
-			return err
-		}
-		renderSetupSuccessLine(out, "NOVA App updated (v%s)", state.version)
-	case update:
-		return &novaAppInstallError{line: "Home Assistant doesn't list a newer NOVA App yet."}
-	}
-	if minimum != "" {
-		cmp, err := compareReleaseVersions(state.version, minimum)
-		if err != nil {
-			return &novaAppInstallError{line: fmt.Sprintf("HA NOVA can't tell whether NOVA App v%s is new enough (it needs v%s or newer).", state.version, minimum), cause: err}
-		}
-		if cmp < 0 {
-			return &novaAppInstallError{line: fmt.Sprintf("Home Assistant only offers NOVA App v%s; this HA NOVA needs v%s or newer.", state.version, minimum)}
-		}
 	}
 	if state.running {
 		return nil
@@ -321,14 +288,11 @@ func (state *novaAppState) observe(info supervisorAppInfo) {
 	state.running = info.State == "started" || info.State == "startup"
 }
 
-// job runs install or update in the background and waits for it. The App
+// job runs the install in the background and waits for it. The App
 // info decides success; until Supervisor reports the job done, its outcome
 // stays unknown (busy), because Supervisor keeps going without us.
 func (s novaAppSupervisor) job(ctx context.Context, out io.Writer, state *novaAppState, action, busy, label string) error {
-	before := state.version
-	reached := func(info supervisorAppInfo) bool {
-		return info.Version != "" && (action == "install" || (info.Version != before && !info.UpdateAvailable))
-	}
+	reached := func(info supervisorAppInfo) bool { return info.Version != "" }
 	state.busy = busy
 	deadline, ok := ctx.Deadline()
 	if !ok {
@@ -342,11 +306,7 @@ func (s novaAppSupervisor) job(ctx context.Context, out io.Writer, state *novaAp
 		var started struct {
 			JobID string `json:"job_id"`
 		}
-		data := map[string]any{"background": true}
-		if action == "update" { // Home Assistant saves a backup of the App first
-			data["backup"] = true
-		}
-		if err := s.call(ctx, "post", "/store/addons/"+s.appSlug+"/"+action, data, time.Minute, &started); err != nil {
+		if err := s.call(ctx, "post", "/store/addons/"+s.appSlug+"/"+action, map[string]any{"background": true}, time.Minute, &started); err != nil {
 			return jobResult{}, err
 		}
 		if started.JobID == "" { // Supervisor finished within the call

@@ -31,7 +31,7 @@ func TestSetupPageRerunUseAnotherHomeAssistant(t *testing.T) {
 	page, stdout, done := startSetupPageFlowWith(t, "", rerunFlow(paths, cfg, state, marker))
 
 	old := page.waitFor("the re-run screen", accepting("change"))
-	if old.Screen != "rerun_fix" || old.Fix != "app_update" || !slices.Contains(old.Accepts, "fix") {
+	if old.Screen != "rerun_fix" || old.Problem == nil || old.Problem.Key != "setup.page.rerun.problem_app_old" || !slices.Contains(old.Accepts, "fix") {
 		t.Fatalf("old App = %+v", old)
 	}
 	page.click("change", "")

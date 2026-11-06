@@ -184,15 +184,6 @@ func printUpdateDone(lead string, result postUpdateSyncResult) {
 	printHumanInfo("%s.", lead)
 }
 
-// openSetupPageForAppUpdate runs the NEW binary's `ha-nova setup`: its
-// re-run page leads with "Update the NOVA App", and nothing installs until
-// the owner clicks and signs in. Test seam.
-var openSetupPageForAppUpdate = func(paths runtimePaths) error {
-	cmd := exec.Command(paths.PublicBinary, "setup")
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	return cmd.Run()
-}
-
 // relayUpdateNoticeForUpdate: the App's state after the CLI update. Test seam.
 var relayUpdateNoticeForUpdate = relayUpdateNotice
 
@@ -231,39 +222,15 @@ func offerRelayUpdateAfterInstall(paths runtimePaths, targetVersion string) {
 	offerRelayUpdateAfterUpdate(paths)
 }
 
-// setupPageCanUpdateApp: `ha-nova setup` opens its page here, and the page's
-// owner sign-in can update the official App on this Home Assistant.
-func setupPageCanUpdateApp(paths runtimePaths) bool {
-	cfg, err := loadConfig(paths)
-	if err != nil {
-		return false
-	}
-	_, originErr := parseLocalHAOrigin(cfg.HAURL)
-	return originErr == nil && setupPageCloudOK(cfg) && haAppInstallTargetsThisHAForPage(cfg)
-}
-
-// offerRelayUpdate: an App below what this version needs, with its update
-// pending in Home Assistant, at a desktop: the setup page opens on its
-// "Update the NOVA App" button. In a terminal otherwise: the guided offer
-// (it asks first). Without a terminal (an AI app ran the command): only the
-// notice, which says where to update it. Nothing installs without the
-// user's click or yes.
+// offerRelayUpdate: an App update pending in Home Assistant gets the guided
+// offer in a terminal (it asks first, and sends only what the tier engine
+// allows). Without a terminal (an AI app ran the command): only the notice,
+// which says where to update it. Nothing installs without the user's yes.
 func offerRelayUpdate(paths runtimePaths, notice humanNotice) {
 	if notice.empty() {
 		return
 	}
 	printHumanNotice(notice)
-	if notice.belowFloor && serverSelectionOverride == "" &&
-		activeServerProfile() == defaultServerProfileName && setupPageCanUpdateApp(paths) && setupPageAvailable() {
-		printHumanInfo("Opening HA NOVA setup: click \"Update the NOVA App\" there.")
-		if err := openSetupPageForAppUpdate(paths); err == nil {
-			if relayUpdateNoticeForUpdate(paths).empty() {
-				return
-			}
-			printHumanInfo("Not updated yet. %s", relayAppUpdatePath) // closed without updating: where to do it later
-			return
-		}
-	}
 	if relayUpdateInputIsTTY() && relayUpdateOutputIsTTY() {
 		maybeOfferGuidedRelayUpdate(paths, notice) // says the manual path itself when it can't
 	} // else the notice already said where to update it

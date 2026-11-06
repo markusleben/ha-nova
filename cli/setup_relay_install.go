@@ -81,7 +81,7 @@ func detectInstalledRelay(out io.Writer, paths runtimePaths, cfg runtimeConfig, 
 	note := setupText("setup.app.running")
 	if minimum := relayVersionBelowMinimum(paths, result.version); minimum != "" {
 		if haAppInstallOffered(out, cfg) {
-			return false, setupMsg{} // the App step offers "Sign in and update NOVA"
+			return false, setupMsg{} // the App step shows how to update it
 		}
 		note = outdatedRelayNote(result.version, minimum)
 	}
@@ -108,15 +108,14 @@ func outdatedRelayNote(version, minimum string) setupMsg {
 	return setupText("setup.app.running_outdated", "version", version, "minimum", minimum)
 }
 
-// runRelayInstallSteps first offers "Sign in and install NOVA" (or "Sign in
-// and update NOVA" for an App below min_relay_version) where a desktop
-// sign-in is possible and pairing follows (pairNext). Otherwise, or when that
-// falls back, it announces the install link, opens it on Enter, lists the
-// clicks (Update for an App below min_relay_version), and waits until the
-// user says the App runs. note is the
-// outdated-App reminder for the pairing step. It returns the prompt's
-// errSetupBack/errSetupExit unchanged for the caller's navigation.
-func runRelayInstallSteps(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, pairNext bool) (note setupMsg, err error) {
+// runRelayInstallSteps first offers "Sign in and install NOVA" for a missing
+// App where a desktop sign-in is possible and pairing follows (pairNext).
+// Otherwise, or when that falls back, it announces the install link, opens
+// it on Enter, lists the clicks (Update for an App below min_relay_version:
+// setup never updates an installed App itself), and waits until the user
+// says the App runs. It returns the prompt's errSetupBack/errSetupExit
+// unchanged for the caller's navigation.
+func runRelayInstallSteps(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, pairNext bool) error {
 	// After the page's "Use a six-digit code" the sign-in isn't offered again,
 	// but an App below min_relay_version still gets the update steps below.
 	update := false
@@ -127,16 +126,10 @@ func runRelayInstallSteps(reader *bufio.Reader, out io.Writer, paths runtimePath
 			minimum = relayVersionBelowMinimum(paths, version)
 		}
 		update = minimum != ""
-		if !setupPairWithCode && (!running || update) { // a running, current App needs nothing
-			result, err := runSignInAppInstall(reader, out, cfg, minimum != "", version, minimum)
-			if err != nil || result == appInstallDone {
-				return setupMsg{}, err
-			}
-			if result == appInstallContinue {
-				if minimum != "" {
-					note = outdatedRelayNote(version, minimum)
-				}
-				return note, nil
+		if !setupPairWithCode && !running {
+			result, err := runSignInAppInstall(reader, out, cfg)
+			if err != nil || result != appInstallManual {
+				return err
 			}
 		}
 	}
@@ -144,15 +137,15 @@ func runRelayInstallSteps(reader *bufio.Reader, out io.Writer, paths runtimePath
 	renderSetupParagraph(out, "Your browser opens the NOVA App in Home Assistant (listed as “NOVA Relay”).")
 	renderSetupLink(out, "This will open:", link)
 	if _, err := promptWizardLineFromReader(reader, out, "Press Enter to open your browser", ""); err != nil {
-		return setupMsg{}, err
+		return err
 	}
 	openAnnouncedBrowserURL(out, link)
 	if update {
 		renderSetupParagraphTight(out, "In the browser: sign in if asked, then click Update on NOVA Relay.")
-		_, err = promptWizardLineFromReader(reader, out, "Press Enter when the App is updated", "")
-		return setupMsg{}, err
+		_, err := promptWizardLineFromReader(reader, out, "Press Enter when the App is updated", "")
+		return err
 	}
 	renderSetupParagraphTight(out, `In the browser: sign in and click "Add" if asked, then Install, then Start.`)
-	_, err = promptWizardLineFromReader(reader, out, "Press Enter when the App is running", "")
-	return setupMsg{}, err
+	_, err := promptWizardLineFromReader(reader, out, "Press Enter when the App is running", "")
+	return err
 }
