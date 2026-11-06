@@ -53,7 +53,7 @@ describe("release notes contract", () => {
     expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Setup no longer updates an installed NOVA App\.\*\*[\s\S]*## Bug Fixes/);
     expect(stableNotes).toMatch(/## Bug Fixes\s+- \*\*Reading the weather, a calendar or a to-do list no longer pulls unrelated automations into the check\.\*\*/);
     expect(stableNotes).not.toContain("one-time code");
-    // App 0.13.21 keeps the 0.28.0 tool text (TestMCPToolTextStable), so ChatGPT needs no Refresh and Claude doesn't ask again.
+    // App 0.13.22 keeps the 0.28.0 tool text (TestMCPToolTextStable), so ChatGPT needs no Refresh and Claude doesn't ask again.
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
     expect(stableNotes).not.toContain("chatgpt.com/plugins");
     expect(stableNotes).not.toContain("Claude asks once more");
@@ -64,6 +64,15 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain("**A check that runs out of time says so.**");
     expect(stableNotes).toContain("You're still asked to confirm.");
     expect(stableNotes).toContain("**To-do changes no longer show an internal code.**");
+    // The test-preview line after every write (#1029).
+    expect(stableNotes).toContain("**After you create or change an automation or script, HA NOVA offers a test preview in one line.**");
+    // Faster checks on big homes (#1025).
+    expect(stableNotes).toContain("**On big homes, checking a change to an automation finishes much sooner.**");
+    // rc2: a cut check's language, the ask's end-to-end time (#1026), doctor over Link.
+    expect(stableNotes).toContain("Or, at home, run `ha-nova doctor`");
+    expect(stableNotes).toContain("**Confirmations stay in your language when a check runs out of time.**");
+    expect(stableNotes).toContain("**Confirming no longer waits past the promised time.**");
+    expect(stableNotes).toContain("names the Check for updates step.**");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
   });
