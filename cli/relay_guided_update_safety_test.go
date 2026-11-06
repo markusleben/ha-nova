@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestGuidedRelayUpdateDeclinedTouchesNothing(t *testing.T) {
@@ -237,22 +238,22 @@ func TestRunDoctorClassifiesBelowFloorRelayBeforeAnyInstallPrompt(t *testing.T) 
 		name           string
 		states         []map[string]interface{}
 		wantPreview    bool
-		wantManualPath bool
+		wantManualPath string
 	}{
 		{
 			name:           "standalone container gets no App prompt",
 			states:         nil,
-			wantManualPath: true,
+			wantManualPath: relayUpdateManualPath,
 		},
 		{
 			name:           "current App gets no install prompt",
 			states:         []map[string]interface{}{currentEntity},
-			wantManualPath: true,
+			wantManualPath: relayUpdateCheckManualPath,
 		},
 		{
 			name:           "malformed App version gets no install prompt",
 			states:         []map[string]interface{}{malformedEntity},
-			wantManualPath: true,
+			wantManualPath: relayUpdateCheckManualPath,
 		},
 		{
 			name: "exact pending App gets preview before prompt",
@@ -288,6 +289,14 @@ func TestRunDoctorClassifiesBelowFloorRelayBeforeAnyInstallPrompt(t *testing.T) 
 						w.Write(statesEnvelope(t, tc.states))
 						return
 					}
+					if req.Path == "/api/services/homeassistant/update_entity" { // checks for updates, installs nothing
+						w.Write([]byte(`{"ok":true,"data":{"status":200,"body":[]}}`))
+						return
+					}
+					if req.Path == "/api/states/update.nova_relay_update" { // the check's poll: still no update
+						w.Write([]byte(`{"ok":true,"data":{"status":200,"body":{"state":"off","attributes":{}}}}`))
+						return
+					}
 					installCalled.Store(true)
 					t.Errorf("unexpected install path %q", req.Path)
 				case "/ws":
@@ -315,6 +324,7 @@ func TestRunDoctorClassifiesBelowFloorRelayBeforeAnyInstallPrompt(t *testing.T) 
 				probeRelayWSPingForReadiness = oldPing
 			})
 			forceGuidedUpdateTTY(t, "")
+			shrinkRelayStoreCheck(t, 30*time.Millisecond)
 
 			exitCode, output := captureCommandOutput(t, func() int {
 				return runDoctor(paths, nil)
@@ -334,7 +344,7 @@ func TestRunDoctorClassifiesBelowFloorRelayBeforeAnyInstallPrompt(t *testing.T) 
 			} else if hasPreview || hasPrompt {
 				t.Fatalf("standalone evidence must not produce an App preview or prompt:\n%s", output)
 			}
-			if tc.wantManualPath && !strings.Contains(output, relayUpdateManualPath) {
+			if tc.wantManualPath != "" && !strings.Contains(output, tc.wantManualPath) {
 				t.Fatalf("standalone evidence must produce the manual path:\n%s", output)
 			}
 		})

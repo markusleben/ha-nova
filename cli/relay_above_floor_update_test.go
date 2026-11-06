@@ -111,6 +111,7 @@ func TestRelayUpdateNoticeClassifiesBelowFloorAppBeforeOfferingGuidedUpdate(t *t
 		wantText   string
 		rejectText string
 		wantPage   bool // below the floor with a pending App update: the setup page may update it
+		wantCheck  bool // the App's entity shows no update yet: doctor checks Home Assistant first
 	}{
 		{
 			name: "exact pending App update",
@@ -135,6 +136,7 @@ func TestRelayUpdateNoticeClassifiesBelowFloorAppBeforeOfferingGuidedUpdate(t *t
 			wantKind:   humanNoticeKindRelayOutdated,
 			wantText:   "No Update button yet? In Settings > Apps, check for updates first.",
 			rejectText: relayContainerUpdateLine,
+			wantCheck:  true,
 		},
 	}
 
@@ -188,8 +190,8 @@ func TestRelayUpdateNoticeClassifiesBelowFloorAppBeforeOfferingGuidedUpdate(t *t
 			if strings.Contains(notice.message, tc.rejectText) {
 				t.Fatalf("notice must not contain %q: %s", tc.rejectText, notice.message)
 			}
-			if notice.belowFloor != tc.wantPage || notice.appUpdate != tc.wantPage {
-				t.Fatalf("belowFloor=%v appUpdate=%v, want %v", notice.belowFloor, notice.appUpdate, tc.wantPage)
+			if notice.belowFloor != tc.wantPage || notice.appUpdate != tc.wantPage || notice.appCheck != tc.wantCheck {
+				t.Fatalf("belowFloor=%v appUpdate=%v appCheck=%v, want %v/%v/%v", notice.belowFloor, notice.appUpdate, notice.appCheck, tc.wantPage, tc.wantPage, tc.wantCheck)
 			}
 		})
 	}
