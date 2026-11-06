@@ -8,7 +8,8 @@
 #
 # Usage: go-test-shard.sh <index> <total> <list-regexp> [go test flags...]
 # The flags go to every go test call, so the listing builds the same test
-# binary the run uses.
+# binary the run uses. Every shard of a run must get the same arguments on the
+# same OS and Go version, so that all of them list the same tests.
 set -euo pipefail
 
 if ! [[ $# -ge 3 && $1 =~ ^[0-9]+$ && $2 =~ ^[1-9][0-9]*$ ]] || (($1 >= $2)); then
