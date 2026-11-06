@@ -88,6 +88,7 @@ window.novaRerun = (h) => {
     // offered first, as on a first run; the click goes on to step 1.
     const found = s.candidates || [];
     const several = found.length > 1;
+    const appOld = s.problem && s.problem.key === 'setup.page.rerun.problem_app_old'; // updated on the App page, then checked again
     const away = found.length && s.problem && s.problem.key === 'setup.page.rerun.problem_app' ? { key: 'setup.page.rerun.problem_found' } : s.problem;
     const offer = found.length ? [
       el('p', { class: 'note', role: 'status' }, several ? t('setup.page.rerun.found_several') : t('setup.page.rerun.found_one', { host: found[0].host })),
@@ -95,9 +96,9 @@ window.novaRerun = (h) => {
     return [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.title_fix'), t('setup.page.rerun.lead_fix'), true),
       problem(away), ...offer, status,
       el('div', { class: 'actions' },
-        s.problem ? button(t('setup.page.button.recheck'), 'recheck', found.length ? 'ghost' : 'primary') : null,
+        s.problem ? button(t('setup.page.button.recheck'), 'recheck', found.length || appOld ? 'ghost' : 'primary') : null,
         button(t('setup.page.rerun.fix'), 'fix', s.problem ? 'ghost' : 'primary'),
-        link(t('setup.page.link.app'), links.app, 'ghost', 'app')),
+        link(t('setup.page.link.app'), links.app, appOld ? 'primary' : 'ghost', 'app')),
       s.accepts.includes('change') ? el('p', { class: 'fine' }, el('button', { id: 'b-change-ha', class: 'linkish', type: 'button', onclick: () => h.post('change') }, t('setup.page.rerun.change_ha'))) : null];
   };
   // Fix it, or the skills refresh, while the usual steps run.

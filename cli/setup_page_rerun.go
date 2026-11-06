@@ -37,9 +37,10 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 		// Skills set up before and now out of date: refreshed without a question.
 		refresh := len(before) == 0 || !slices.ContainsFunc(notReady, func(client string) bool { return !slices.Contains(f.state.InstalledClients, client) })
 		app := f.pageApp()
-		// An App older than this HA NOVA needs: the person updates it in
-		// Home Assistant first, before the switches.
-		appOld := app.state == "old"
+		// The official App on this Home Assistant, older than this HA NOVA
+		// needs: the person updates it in Home Assistant first, before the
+		// switches.
+		appOld := app.state == "old" && haAppInstallTargetsThisHAForPage(f.cfg)
 		if c.ConfigOK && c.TokenOK && c.RelayOK && c.WSOK && refresh && !appOld {
 			f.pageRerunOK = true
 			if c.SkillsOK {

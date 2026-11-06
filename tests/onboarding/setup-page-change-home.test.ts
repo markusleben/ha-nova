@@ -18,7 +18,8 @@ describe("setup page re-run: another Home Assistant", () => {
     await p.settle();
     expect(p.screen.textContent).toContain("Your NOVA App in Home Assistant is too old for this HA NOVA.");
     expect(p.screen.textContent).not.toContain("gets updated");
-    expect(p.find("l-app")).toBeDefined();
+    expect(p.find("l-app")!.className).toContain("btn-primary"); // update it there, then check again
+    expect(p.find("b-recheck")!.className).toContain("btn-ghost");
     expect(p.find("b-change-ha")!.textContent).toBe("Use another Home Assistant");
     p.find("b-change-ha")!.dispatch("click");
     await p.settle();
@@ -29,8 +30,8 @@ describe("setup page re-run: another Home Assistant", () => {
     const p = page({ ...old, accepts: ["recheck", "fix"] });
     await p.settle();
     expect(p.find("b-change-ha")).toBeUndefined();
-    expect(p.find("b-recheck")!.className).toContain("btn-primary");
-    expect(p.find("b-fix")!.className).toContain("btn-ghost"); // one main action
+    expect(p.find("b-fix")!.className).toContain("btn-ghost");
+    expect(p.find("b-recheck")!.className).toContain("btn-ghost"); // one main action: the App page
   });
 
   it("names the Link for the old home first, with a button that removes it", async () => {
