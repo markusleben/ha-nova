@@ -320,8 +320,12 @@ func (srv *mcpServer) runLocked(name, answered string, forms bool, run func() in
 	// Channel and form answer come from this server only: the CLI detects
 	// the channel (confirm_window.go), a form only where no window opens.
 	planChannel, humanAnswer, windowWait, formsShown, chatCall = "", answered, mcpWindowWait, forms, srv.chat.reread() // the owner's settings as they are now
+	deadline := checkDeadline
+	defer func() { checkDeadline = deadline }()
+	checkDeadline = time.Now().Add(mcpCheckBudget)
 	if srv.chat != nil {
 		windowWait = chatAskSpan // the phone ask outlives one call (mcp_serve_phone.go)
+		checkDeadline = chatCheckDeadline(srv.since)
 	}
 	defer func() {
 		planChannel, humanAnswer, humanWhere, askedRoute, windowWait, formsShown, phoneApplied, chatCall = "", "", "", nil, cliWindowWait, false, nil, nil
