@@ -69,26 +69,19 @@ release:
     ```
 
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`; if it reports that it needs admin rights, rerun the stable Windows install command instead.
-    {{ else }}**Update the NOVA App to 0.13.20.** It brings the fixes below to Claude and ChatGPT, and HA NOVA on your computer asks for it too.
+    {{ else }}**Update the NOVA App to 0.13.21.** It brings the fixes below to Claude and ChatGPT, and HA NOVA on your computer asks for it too.
 
     - In Home Assistant: Settings > Apps > NOVA Relay > Update.
+    - No Update button yet? In Home Assistant: Settings > ⋮ (top right) > Check for updates. Or run `ha-nova doctor`: it does that for you and offers the update.
     - A big change you previewed before the update may need a new preview.
-
-    ## What To Watch
-
-    - **Changes that need your own confirmation always ask through HA NOVA.** Some, like deletes or HACS downloads, could be confirmed in the chat alone. Now HA NOVA asks in its window, on your phone, or with its own code.
-    - **More changes that set off an unlock ask you first.** If an automation reacting to a calendar event, helper, device or integration setting, rename or new zone unlocks a door, opens a gate or disarms, you're asked.
 
     ## Bug Fixes
 
-    - **Renames on Home Assistant 2026.11 no longer repeat the device name.** "Sun Reading Lamp" on the device "Sun" no longer shows as "Sun Sun Reading Lamp". The preview shows the full name Home Assistant will show.
-    - **A call no longer does less than its preview says.** Home Assistant 2026.11 lets a call leave devices out with an exclude list the preview didn't show. HA NOVA now refuses it; the AI names the devices instead.
-    - **Integration setup asks only for what Home Assistant shows.** Since 2026.11, a setup form can hide fields depending on other answers. HA NOVA no longer asks for them or sends them.
-    - **Removing or changing a to-do item names the item.** The preview showed an internal code instead of, say, "Milk".
-    - **Windows: setup says when Claude Code lacks Git for Windows.** Claude Code works without it, but HA NOVA's start-up step in Claude Code needs it.
-    - **Setup in the browser no longer asks for an AI app.** When you chose Claude or ChatGPT in the browser and setup finished in the terminal, it still told you to install an AI app.
-    - **Pairing Zigbee, Z-Wave or Matter devices: HA NOVA shows the way.** It used to say pairing was impossible. It can't pair them yet, so it gives the steps in Home Assistant.
-    - **Updated libraries.** The NOVA App and HA NOVA use current versions of their libraries, including fixes for reconnect hangs in the App's connection to Home Assistant.
+    - **Adding a step to an automation no longer asks about things it doesn't touch.** HA NOVA now checks what the new steps can set off. Before, it rechecked the whole automation and every script it calls.
+    - **Reading the weather, a calendar or a to-do list no longer counts as setting something off.** A read changes nothing, so automations that react to the weather, for example, are no longer pulled into the check.
+    - **A check that runs out of time says so.** A big check on a slow connection usually gets more time now. If that's not enough, it says so and suggests trying again or smaller steps. You're still asked to confirm.
+    - **`ha-nova doctor` finds a new NOVA App right away.** It asks Home Assistant to look and offers the update, instead of waiting up to 3 hours for it. From this version on, `ha-nova update` does the same.
+    - **To-do changes no longer show an internal code.** The list of changes in the preview still showed the item's code next to its name.
 
     Stable install commands are release-pinned for this tag.
 
