@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.21] - 2026-11-06
+
+### Fixed
+- Chat apps get HA NOVA 0.28.3 and its fixes.
+- Chat apps: adding a step to an automation checks what the new steps can set off, not the whole automation again, so you're no longer asked about things the change doesn't touch. Reading the weather, a calendar or a to-do list no longer counts as setting other automations off.
+- Chat apps: a big check usually gets more time before it stops, and never less than before. If that's not enough, HA NOVA says it ran out of time and suggests trying again or smaller steps. You're still asked to confirm.
+- Chat apps: the list of changes in a to-do preview no longer shows the item's internal code.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.3 ask you to update this App.
+
 ## [Relay 0.13.20] - 2026-11-05
 
 ### Fixed
