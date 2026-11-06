@@ -104,11 +104,12 @@ deploy or tag.
    ```bash
    npm run rc-lane -- vX.Y.Z-rcN
    ```
-   One command, throwaway only, about 5–10 minutes: the client matrix from
-   the last stable and from v0.24.0 (published stable install, then update to
-   the RC), the phone lane (push payloads per platform through fake phones),
-   the chat-bridge "code last" check with headless Claude (SKIP without
-   `claude` and `~/.claude-ha-nova-test`), and the slow-check regression. It
+   One command, throwaway only, about 5–10 minutes: first the chat-bridge
+   "code last" check with headless Claude, while the Claude test account's
+   usage limit is fresh (SKIP without `claude` and `~/.claude-ha-nova-test`),
+   then the client matrix from the last stable and from v0.24.0 (published
+   stable install, then update to the RC), the phone lane (push payloads per
+   platform through fake phones), and the slow-check regression. It
    prints one table and exits non-zero on any FAIL; a WARN row means the bed's
    Relay is not the tag's. Post the table as a comment on the release-prep PR.
    It starts its own test bed, so no other bed may run.
