@@ -83,8 +83,8 @@ the final tag may share a commit.
 Keep one immutable `<reviewed-merge-sha>`; no local-only delta enters a
 deploy or tag.
 
-1. Merge the reviewed PR state (for a train: the landing PR into `main`;
-   never tag a `release/*` commit) and record its remote merge commit. If the
+1. Merge the reviewed PR state (for a train: the landing PR into `main`,
+   after its App proofs in App Images; never tag a `release/*` commit) and record its remote merge commit. If the
    Relay version changed, wait for the `relay-image.yml` push run on that SHA:
    ```bash
    bash scripts/release/verify-relay-image.sh <reviewed-merge-sha> <relay-version>
@@ -172,6 +172,15 @@ install/update fails. Spec: `docs/work/2026-10-15-app-prebuilt-images-spec.md`.
 - Cadence: one App version per release train, bumped in the release-prep PR,
   never per fix or RC; at most one App update reaches main per day (a second
   one needs the maintainer's OK; AGENTS.md → Releases).
+- Before the train landing PR merges, prove the App on its published image
+  (throwaway HAOS VM only): switch the Supervisor store to the landing branch
+  as in Chat-app lanes below, update from the current stable App, and check
+  that it starts from the image (Supervisor log: download, no build), that
+  health reports `ha_ws_connected: true` and the new version, and that a
+  paired computer's read still works; plus the chat-app lanes when they are
+  required. Post the results on the landing PR. A failure is fixed in the
+  train before the landing, so users get one App update per train. The App
+  stays visible to users during the tagged RC that follows.
 - `app-image.yml` publishes from the PR that brings the version into main
   (the train landing PR; same-repo, `image:` set) while the version never reached main; versions on main are
   frozen. Recover a failed publish by re-running the PR's workflow run.
