@@ -171,6 +171,31 @@ func TestPlanWriteAppendedDeviceTargetWidensToWhatReadsIt(t *testing.T) {
 	}
 }
 
+func TestPlanWriteAppendedStepWidensToWhatMayReadIt(t *testing.T) {
+	unlockIf := func(condition map[string]any) map[string]any {
+		return map[string]any{"if": []any{condition}, "then": []any{step("lock.unlock", "lock.front")}}
+	}
+	for name, c := range map[string]struct{ live, appended map[string]any }{
+		"an area condition": {unlockIf(map[string]any{"condition": "light.is_on", "target": map[string]any{"area_id": "studio"}}),
+			step("switch.turn_on", "switch.art")},
+		"a step with no entity": {unlockIf(map[string]any{"condition": "state", "entity_id": "switch.art", "state": "on"}),
+			map[string]any{"action": "mqtt.publish", "data": map[string]any{"topic": "art/set", "payload": "ON"}}},
+		"a templated payload target": {map[string]any{"action": "lock.unlock", "data_template": map[string]any{
+			"entity_id": "{{ 'lock.front' if states.switch | selectattr('state','eq','on') | list else 'lock.none' }}"}},
+			step("switch.turn_on", "switch.art")},
+		"an entity on the same device": {unlockIf(map[string]any{"condition": "numeric_state", "entity_id": "Sensor.Art_Power", "above": 5}),
+			step("switch.turn_on", "switch.art")},
+	} {
+		f := routineHA()
+		f.ent("sensor.art_power", "hue", "0", map[string]any{"_di": "dev_art"})
+		f.configs["/api/config/automation/config/r1"] = map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{c.live}}
+		env := planRoutine(t, f, map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{c.live, c.appended}})
+		if env.Tier != "typed" {
+			t.Errorf("%s before an appended step: tier %q reasons %s", name, env.Tier, reasonCodes(env))
+		}
+	}
+}
+
 func TestPlanWriteAliasOnlyWeighsNoStep(t *testing.T) {
 	d := routine()
 	d["alias"] = "Morning"
