@@ -148,6 +148,9 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return runInternalUninstall(paths, args[1:])
 	case "internal-sync-clients":
 		return runInternalSyncClients(paths, args[1:])
+	case "internal-offer-app-update": // `ha-nova update` runs the new version's App offer here
+		offerRelayUpdateAfterUpdate(paths)
+		return 0
 	case "internal-setup-readiness":
 		return runInternalSetupReadiness(paths, args[1:])
 	case "internal-cloud-release-check":
