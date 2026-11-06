@@ -47,18 +47,20 @@ func consumerNames(env verbTestEnvelope) string {
 }
 
 func TestPlanWriteWeighsOnlyTheChangedSteps(t *testing.T) {
-	env := planRoutine(t, routineHA(), routine(step("switch.turn_on", "switch.art")))
+	f := routineHA()
+	read := map[string]any{"action": "todo.get_items", "target": map[string]any{"entity_id": "todo.list"}, "response_variable": "items"}
+	f.configs["/api/config/automation/config/r1"] = map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{read}}
+	env := planRoutine(t, f, map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{read, step("switch.turn_on", "switch.art")}})
 	if env.Tier != "preview" || reasonCodes(env) != reasonConfigWrite || consumerNames(env) != "" || !env.Coverage.Complete {
 		t.Fatalf("an appended ordinary step: tier %q reasons %s consumers %s coverage %+v", env.Tier, reasonCodes(env), consumerNames(env), env.Coverage)
 	}
-	if len(env.Members) != 1 || env.Members[0].EntityID != "switch.art" || env.Members[0].Via != "draft/actions/2" {
+	if len(env.Members) != 1 || env.Members[0].EntityID != "switch.art" || env.Members[0].Via != "draft/actions/1" {
 		t.Fatalf("members %+v, want only the new step", env.Members)
 	}
 	// Inserted in the middle: the new step and every step after it.
-	d := routine()
-	steps := d["actions"].([]any)
-	d["actions"] = []any{steps[0], step("switch.turn_on", "switch.art"), steps[1]}
-	env = planRoutine(t, routineHA(), d)
+	brief := step("script.turn_on", "script.briefing")
+	f.configs["/api/config/automation/config/r1"] = map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{read, brief}}
+	env = planRoutine(t, f, map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{read, step("switch.turn_on", "switch.art"), brief}})
 	var vias []string
 	for _, m := range env.Members {
 		if strings.HasPrefix(m.Via, "draft/") {
@@ -218,5 +220,41 @@ func TestReadOnlyResponseServiceReachesNoConsumer(t *testing.T) {
 		draftFile(t, map[string]any{"alias": "Brief two", "triggers": []any{}, "actions": []any{step("script.turn_on", "script.briefing")}}))
 	if consumerNames(env) != "automation.pool_weather" {
 		t.Fatalf("an update of the weather entity: consumers %s, want automation.pool_weather", consumerNames(env))
+	}
+}
+
+// What an unchanged step runs or sets off reads on the next run too: an
+// appended step that sets state weighs the whole draft (#1009).
+func TestPlanWriteAppendedStepWidensToWhatARunReads(t *testing.T) {
+	gated := map[string]any{"if": []any{map[string]any{"condition": "state", "entity_id": "input_boolean.allow_entry", "state": "on"}},
+		"then": []any{step("lock.unlock", "lock.front")}}
+	for name, run := range map[string]map[string]any{
+		"script.turn_on":                     step("script.turn_on", "script.check_entry"),
+		"the script's name":                  {"action": "script.check_entry"},
+		"automation.trigger":                 step("automation.trigger", "automation.entry"),
+		"a nested script":                    step("script.turn_on", "script.outer"),
+		"a python script":                    {"action": "python_script.check_entry"},
+		"a service_template":                 {"service_template": "script.check_entry"},
+		"an automation named like a service": step("automation.trigger", "automation.turn_on"),
+		"an event":                           {"event": "check_entry"},
+		"every automation":                   step("automation.trigger", "all"),
+		"a step something reacts to":         step("switch.turn_on", "switch.art"),
+		"a device action":                    {"device_id": "dev_art", "domain": "switch", "type": "turn_on", "entity_id": "switch.art"},
+	} {
+		f := routineHA()
+		f.ent("input_boolean.allow_entry", "input_boolean", "off", nil)
+		f.script("check_entry", gated)
+		f.script("outer", step("script.turn_on", "script.check_entry"))
+		f.automation("entry", "en", map[string]any{"alias": "Entry", "triggers": []any{map[string]any{"trigger": "event", "event_type": "check_entry"}}, "actions": []any{gated}})
+		f.events = append(f.events, map[string]any{"event": "check_entry", "listener_count": 1})
+		f.automation("art_react", "ar", map[string]any{"alias": "Art react", "triggers": []any{map[string]any{"trigger": "state", "entity_id": "switch.art"}}, "actions": []any{gated}})
+		f.related["entity:switch.art"] = []string{"automation.art_react"}
+		f.automation("turn_on", "on", map[string]any{"alias": "Turn on", "triggers": []any{}, "actions": []any{gated}})
+		live := map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{run}}
+		f.configs["/api/config/automation/config/r1"] = live
+		env := planRoutine(t, f, map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{run, step("input_boolean.turn_on", "input_boolean.allow_entry")}})
+		if env.Tier != "typed" {
+			t.Errorf("%s before an appended step it reads: tier %q reasons %s", name, env.Tier, reasonCodes(env))
+		}
 	}
 }
