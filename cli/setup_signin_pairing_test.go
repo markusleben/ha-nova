@@ -40,6 +40,9 @@ type fakeSignInHA struct {
 
 func newFakeSignInHA(t *testing.T) *fakeSignInHA {
 	t.Helper()
+	// A sign-in arms "the next prompt skips a stale Enter" for the whole
+	// process; a test whose flow never prompts afterwards must not hand it on.
+	t.Cleanup(clearSetupNextPromptSkipsStaleBlankInput)
 	ha := &fakeSignInHA{t: t, owner: true}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/auth/token", ha.token)
