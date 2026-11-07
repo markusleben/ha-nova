@@ -8,8 +8,9 @@
 //   c  chat bridge: ha-nova serve over HTTP, server instructions stripped (as claude.ai),
 //      headless Claude, EN + DE, unlock + batch: the code(s) must come last.
 //      SKIP without `claude` or $HOME/.claude-ha-nova-test
-//   d  slow check (#827): 1,500 automations + a call_service listener; an unlock plan
-//      hits the read budget and still applies with its first code
+//   d  slow check (#827): 1,500 automations + a call_service listener, the CLI's relay
+//      behind a proxy that holds every chunk SLOW_RELAY_MS; an unlock plan hits the
+//      read budget and still applies with its first code
 // Order c, a, b, d: the chat bridge runs first, while the Claude test account's
 // usage limit is fresh.
 //
@@ -43,6 +44,8 @@ const rows = [];
 const procs = new Set();
 let startedBed = false;
 let proxy;
+let slowRelay;
+const SLOW_RELAY_MS = 1000; // a slow Link: the check must run into the read budget, however fast the reads get
 
 // ---- helpers --------------------------------------------------------------------
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -90,6 +93,7 @@ function cleanup() {
   cleaned = true;
   for (const p of procs) stopGroup(p);
   proxy?.close();
+  slowRelay?.close();
   if (startedBed) {
     try { execFileSync("bash", [join(TESTBED, "down.sh")], { stdio: "ignore" }); } catch { row("-", "test bed teardown", "FAIL", `down.sh failed; run: bash ${TESTBED}/down.sh`); process.exitCode = 1; }
   }
@@ -288,14 +292,29 @@ async function slow() {
   const cfg = join(STATE, "rc-home/.config/ha-nova/config.json");
   writeFileSync(cfg, JSON.stringify({ ...JSON.parse(readFileSync(cfg, "utf8")), confirm_window: "off" }), { mode: 0o600 }); // codes in chat: no window on this desktop
   await cli(["call", "lock.lock", "lock.front_door"], log);
+  const slowPort = await freePort();
+  slowRelay = net.createServer((client) => {
+    const relay = net.connect(18791, "127.0.0.1");
+    const hold = (from, to) => {
+      from.on("data", (chunk) => setTimeout(() => to.write(chunk), SLOW_RELAY_MS));
+      from.on("end", () => setTimeout(() => to.end(), SLOW_RELAY_MS));
+    };
+    hold(client, relay);
+    hold(relay, client);
+    for (const sock of [client, relay]) sock.on("error", () => { client.destroy(); relay.destroy(); });
+  }).listen(slowPort, "127.0.0.1");
+  const direct = readFileSync(cfg, "utf8");
+  writeFileSync(cfg, JSON.stringify({ ...JSON.parse(direct), relay_base_url: `http://127.0.0.1:${slowPort}` }), { mode: 0o600 });
   let t = Date.now();
   const plan = json((await cli(["plan", "call", "lock.unlock", "lock.front_door"], join(WORK, "slow-plan.json"))).out);
   const planSecs = (Date.now() - t) / 1000;
-  const limit = (plan.reasons ?? []).some((r) => r.code === "LIMIT_CUT");
+  const limit = (plan.reasons ?? []).some((r) => r.code === "LIMIT_CUT" && r.detail === "read budget");
   t = Date.now();
   const applied = plan.plan?.code ? json((await cli(["apply", "--plan", plan.plan.id, "--confirm", plan.plan.code], join(WORK, "slow-apply.json"))).out) : {};
+  writeFileSync(cfg, direct, { mode: 0o600 });
+  slowRelay.close();
   row("d", "slow check: first code applies (#827)", limit && applied.status === "verified" ? "PASS" : "FAIL",
-    `${on} automations on, plan ${planSecs.toFixed(1)} s${limit ? " LIMIT_CUT" : " (read budget NOT hit: no LIMIT_CUT)"}, apply ${((Date.now() - t) / 1000).toFixed(1)} s -> ${applied.status ?? plan.status}${applied.error ? ` ${applied.error.code}` : ""}`, join(WORK, "slow-apply.json"));
+    `${on} automations on, relay +${SLOW_RELAY_MS} ms per chunk, plan ${planSecs.toFixed(1)} s${limit ? " LIMIT_CUT" : " (read budget NOT hit: no LIMIT_CUT)"}, apply ${((Date.now() - t) / 1000).toFixed(1)} s -> ${applied.status ?? plan.status}${applied.error ? ` ${applied.error.code}` : ""}`, join(WORK, "slow-apply.json"));
   await cli(["call", "lock.lock", "lock.front_door"], log);
 }
 
