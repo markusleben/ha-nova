@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"slices"
 	"sort"
 	"strings"
@@ -95,29 +94,12 @@ func (e *tierEngine) needles(id string) []string {
 	return []string{id}
 }
 
-// warmConfig reads an automation's config as runConfig does (its stored
-// config by attributes.id, else the one Home Assistant loaded), blueprint
-// substituted, through the session only; nil when it can't.
+// warmConfig reads an automation's config as runConfig does (the one Home
+// Assistant loaded), blueprint substituted, through the session only; nil
+// when it can't.
 func (e *tierEngine) warmConfig(automation string) map[string]any {
-	body, present, err := e.rawState(automation)
-	var st struct {
-		Attributes struct {
-			ID string `json:"id"`
-		} `json:"attributes"`
-	}
-	if err != nil || !present || json.Unmarshal(body, &st) != nil {
-		return nil
-	}
-	var raw json.RawMessage
-	err = &verbFailure{code: "CONFIG_NOT_FOUND"}
-	if strings.TrimSpace(st.Attributes.ID) != "" {
-		raw, err = readStoredConfig(e.s, "automation", st.Attributes.ID)
-	}
-	var notFound *verbFailure
-	if errors.As(err, &notFound) {
-		raw, _, err = loadedConfig(e.s, automation, "automation")
-	}
-	if err != nil {
+	raw, ok, err := loadedConfig(e.s, automation, "automation")
+	if err != nil || !ok {
 		return nil
 	}
 	return e.warmBlueprint("automation", raw)
@@ -137,10 +119,10 @@ func (e *tierEngine) warmBlueprint(domain string, raw json.RawMessage) map[strin
 	var sub struct {
 		Config map[string]any `json:"substituted_config"`
 	}
-	if e.s.wsDecode(blueprintRequest(domain, bp), &sub, "the blueprint substitution") != nil {
+	if e.s.wsDecode(blueprintRequest(domain, bp), &sub, "the blueprint substitution") != nil || sub.Config == nil {
 		return nil
 	}
-	return sub.Config
+	return withInstanceKeys(domain, sub.Config, cfg)
 }
 
 func blueprintRequest(domain string, bp map[string]any) map[string]any {

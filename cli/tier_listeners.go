@@ -121,7 +121,6 @@ func (e *tierEngine) listenerTable() *listenerTable {
 		entityID, configID string
 		raw                json.RawMessage
 		err                error
-		loaded             bool
 	}
 	var rows []*autoRow
 	for _, st := range states {
@@ -140,21 +139,14 @@ func (e *tierEngine) listenerTable() *listenerTable {
 		wg.Add(1)
 		go func(row *autoRow) {
 			defer wg.Done()
-			row.err = &verbFailure{code: "CONFIG_NOT_FOUND"}
-			if row.configID != "" {
-				row.raw, row.err = readStoredConfig(e.s, "automation", row.configID)
-			}
-			var notFound *verbFailure
-			if errors.As(row.err, &notFound) { // YAML/package: read what Home Assistant loaded
-				loaded, ok, err := loadedConfig(e.s, row.entityID, "automation")
-				switch {
-				case err != nil: // a failed read: typed below, never "no config"
-					row.err = err
-				case ok:
-					row.raw, row.err, row.loaded = loaded, nil, true
-				}
-			}
-			if row.err == nil {
+			loaded, ok, err := loadedConfig(e.s, row.entityID, "automation") // what runs, so what holds the listeners
+			switch {
+			case err != nil: // a failed read: typed below, never "no config"
+				row.err = err
+			case !ok:
+				row.err = &verbFailure{code: "CONFIG_NOT_FOUND"}
+			default:
+				row.raw = loaded
 				e.warmBlueprint("automation", row.raw) // parseConfig below reads it from the memo
 			}
 		}(row)
@@ -181,8 +173,8 @@ func (e *tierEngine) listenerTable() *listenerTable {
 		cfg, cached := e.configs[row.entityID]
 		if !cached {
 			var ok bool
-			key := row.configID
-			if row.loaded {
+			key := row.configID // named as runConfig names it
+			if key == "" {
 				key = loadedConfigKey(row.entityID)
 			}
 			if cfg, ok = e.parseConfig(row.entityID, "automation", key, row.raw, viaListenerScan); !ok {
