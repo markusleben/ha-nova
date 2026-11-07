@@ -38,7 +38,7 @@ Write payloads with the client's native file-writing tool, then use:
 - `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>`
 - `ha-nova relay ... --out <result-file>` for larger read/verify output
 - `--jq-file <filter-file>` for non-trivial filters; keep inline `--jq` for short selectors only
-- writes (create, update, delete): one `ha-nova plan raw` item `{"endpoint":"ws","payload":<the write>}`; its `say` closes the preview; then `ha-nova apply`
+- storage-family writes (create, update, delete): one `ha-nova plan raw` item `{"endpoint":"ws","payload":<the write>}`; its `say` closes the preview; then `ha-nova apply`
 
 Family-specific transport:
 
@@ -129,13 +129,13 @@ While `truncated` is true the list proves neither absence nor uniqueness — nar
 
 1. Resolve target from `{type}/list` by `name` or internal `id`.
 2. Extract `id` from the list response (this is the `{type}_id` for the update command).
-3. Validate the merged current+proposed fields against the same cross-field constraints as create (Creating step 1) — an update can break `min`/`max`, `minimum`/`maximum`, `initial` ∈ `options`, or datetime/timer constraints just as easily. Then preview current vs proposed in the Changes slot with `ha-nova diff` (see `../ha-nova/write-safety.md` → Pre-Write Diff) plus the behavior narrative (write-safety → Behavior narrative) — a count-only diff row never stands alone. Then run a pre-write impact check — `search/related` on this helper entity (max 3 related configs) — and surface affected automations/scripts as an advisory. Advisory only; never block. Include an explicit not-saved-yet line and the save question: the plan's `say`. REMOVING `input_select` options or `schedule` blocks (moved or changed too) puts the auto config snapshot first; `apply` replaces step 9's capture.
+3. Validate the merged current+proposed fields against the same cross-field constraints as create (Creating step 1) — an update can break `min`/`max`, `minimum`/`maximum`, `initial` ∈ `options`, or datetime/timer constraints just as easily. Then preview current vs proposed in the Changes slot with `ha-nova diff` (see `../ha-nova/write-safety.md` → Pre-Write Diff) plus the behavior narrative (write-safety → Behavior narrative) — a count-only diff row never stands alone. Then run a pre-write impact check — `search/related` on this helper entity (max 3 related configs) — and surface affected automations/scripts as an advisory. Advisory only; never block. Include an explicit not-saved-yet line and the save question: the plan's `say`. REMOVING `input_select` options or `schedule` blocks (moved or changed too) puts the auto config snapshot first.
 4. End the turn with this preview; only the user's reply to it confirms (context skill → Active Preview Confirmation).
 5. If the conversation paused since the preview, re-read the list item; a changed basis expires the confirmation (`write-safety.md` → Drift check before apply).
 6. Execute: `ha-nova apply --plan <id>`.
 7. Verify by re-reading the same list item.
 8. Run storage-family post-write review (see below).
-9. Update-Revert: after the verified update, capture the snapshot (`../ha-nova/update-revert.md` → Manual capture) and offer `revert` — see `../ha-nova/write-safety.md` → Update-Revert. Storage-family restore rebuilds a schema-valid `{type}/update` from `before_config` (typed `{type}_id` from its `id` + writable fields only — never the raw list item, which lacks `{type}_id` and carries read-only `id`/`entity_id`); `expected_after` is the post-update read-back.
+9. Update-Revert: `apply` saved the checkpoint (repeat its `undo` receipt); offer `revert` — see `../ha-nova/write-safety.md` → Update-Revert. Storage-family restore rebuilds a schema-valid `{type}/update` from `before_config` (typed `{type}_id` from its `id` + writable fields only — never the raw list item, which lacks `{type}_id` and carries read-only `id`/`entity_id`); `expected_after` is the post-update read-back.
 
 #### Deleting a helper
 
