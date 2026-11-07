@@ -4,6 +4,35 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.23] - 2026-11-07
+
+### Fixed
+- Chat apps: an automation built from a blueprint is checked with its own extra actions, so unlocking a door asks first.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.3 ask you to update this App.
+
+## [Relay 0.13.22] - 2026-11-06
+
+### Fixed
+- Chat apps: after you create or change an automation or script, HA NOVA offers a test preview in one line. Say yes to see what would switch before anything runs.
+- Chat apps: checking a change to a large automation over Home Assistant Link takes much less time, so it runs out of time far less often.
+- Chat apps: confirmations stay in your language when a big check runs out of time, and a phone ask ends in time instead of waiting past it.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.3 ask you to update this App.
+
+## [Relay 0.13.21] - 2026-11-06
+
+### Fixed
+- Chat apps get HA NOVA 0.28.3 and its fixes.
+- Chat apps: reading the weather, a calendar or a to-do list no longer pulls unrelated automations into the check. Changing an automation whose script reads the weather, for example, no longer asks about everything that reacts to the weather.
+- Chat apps: a big check usually gets more time before it stops, and never less than before. If that's not enough, HA NOVA says it ran out of time and suggests trying again or smaller steps. You're still asked to confirm.
+- Chat apps: the list of changes in a to-do preview no longer shows the item's internal code.
+
+### Upgrade notes
+- Computers on HA NOVA 0.28.3 ask you to update this App.
+
 ## [Relay 0.13.20] - 2026-11-05
 
 ### Fixed

@@ -61,7 +61,7 @@ type setupPageState struct {
 	Primary       string               `json:"primary,omitempty"` // install, update, signin; empty: no sign-in from the page
 	Rows          []setupPageRow       `json:"rows,omitempty"`
 	Problem       *setupPageMsg        `json:"problem,omitempty"`
-	Fix           string               `json:"fix,omitempty"` // retry, owner, web (chat apps can't work here yet), web_never (nor after a change here); app_update (re-run: the App needs an update)
+	Fix           string               `json:"fix,omitempty"` // retry, owner, web (chat apps can't work here yet), web_never (nor after a change here)
 	Links         map[string]string    `json:"links,omitempty"`
 	AskHA         bool                 `json:"ask_ha,omitempty"` // step 1 opens the address field
 	Typed         bool                 `json:"typed,omitempty"`  // the user typed HA's address: step 1 says so
@@ -75,7 +75,7 @@ type setupPageState struct {
 	GetDesktop    bool                 `json:"get_desktop,omitempty"`     // "Get Claude Desktop" only where Check again can find it (macOS)
 	CodexWhere    string               `json:"codex_where,omitempty"`     // catalog key: where "Codex" works on this OS
 	ClaudeGitBash bool                 `json:"claude_git_bash,omitempty"` // Windows: no Git Bash for HA NOVA's Claude Code hook (claude_git_bash.go)
-	Handover      string               `json:"handover,omitempty"`        // why the terminal: code (code_install, code_update: the App first), keyring_locked, keyring_setup; "": a question there
+	Handover      string               `json:"handover,omitempty"`        // why the terminal: code (code_install: the App first), keyring_locked, keyring_setup; "": a question there
 	Accepts       []string             `json:"accepts"`
 }
 

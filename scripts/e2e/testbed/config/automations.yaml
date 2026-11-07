@@ -95,3 +95,86 @@
       target:
         entity_id: switch.smart_plug
   mode: single
+# H-K (issue #1009): morning routine plus three pool automations.
+- id: "testbed_h_morning_routine"
+  alias: "H Morning routine"
+  description: "Covers, speakers, and a briefing script that only reads."
+  triggers:
+    - trigger: time
+      at: "07:00:00"
+  conditions:
+    - condition: state
+      entity_id: input_boolean.guest_mode
+      state: "on"
+  actions:
+    - action: cover.open_cover
+      target:
+        entity_id: cover.living_room_window
+    - action: cover.open_cover
+      target:
+        entity_id: cover.hall_window
+    - action: media_player.volume_set
+      target:
+        entity_id: media_player.living_room
+      data:
+        volume_level: 0.3
+    - action: media_player.media_play
+      target:
+        entity_id: media_player.living_room
+    - action: light.turn_on
+      target:
+        entity_id: light.kitchen_lights
+    - action: script.morning_briefing
+    - delay: "00:00:05"
+  mode: single
+- id: "testbed_i_pool_weather_change"
+  alias: "I Pool weather change closes cover"
+  description: "Reacts to the weather entity and closes the pool cover."
+  triggers:
+    - trigger: state
+      entity_id: weather.demo_weather_south
+  conditions:
+    - condition: template
+      value_template: "{{ trigger.to_state.state in ['rainy', 'pouring', 'lightning'] }}"
+  actions:
+    - action: cover.close_cover
+      target:
+        entity_id: cover.pool_cover
+    - action: persistent_notification.create
+      data:
+        message: "Pool cover closed: weather turned."
+  mode: single
+- id: "testbed_j_pool_open_evening"
+  alias: "J Pool open in the evening"
+  description: "Reacts to the pool cover and the weather in the evening."
+  triggers:
+    - trigger: state
+      entity_id: cover.pool_cover
+      to: "open"
+      for: "02:00:00"
+    - trigger: state
+      entity_id: weather.demo_weather_south
+      attribute: temperature
+  conditions:
+    - condition: time
+      after: "20:00:00"
+  actions:
+    - action: persistent_notification.create
+      data:
+        message: "The pool cover is still open."
+  mode: single
+- id: "testbed_k_pool_manual_close_blocks"
+  alias: "K Pool closed manually blocks auto-open"
+  description: "Reacts to the pool cover closing."
+  triggers:
+    - trigger: state
+      entity_id: cover.pool_cover
+      to: "closed"
+  actions:
+    - action: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.pool_auto_open_blocked
+    - action: cover.close_cover
+      target:
+        entity_id: cover.pool_cover
+  mode: single

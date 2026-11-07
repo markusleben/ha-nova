@@ -15,14 +15,7 @@ import (
 func (e *tierEngine) walk(node any, via string, depth int) {
 	switch n := node.(type) {
 	case []any:
-		gated := false
-		for i, child := range n {
-			if gated {
-				e.gated = append(e.gated, via+"/"+strconv.Itoa(i))
-			}
-			e.walk(child, via+"/"+strconv.Itoa(i), depth)
-			gated = gated || gatesRest(child)
-		}
+		e.walkSteps(n, via, depth, nil)
 	case map[string]any:
 		if n["enabled"] == false || n["condition"] != nil || n["trigger"] != nil || n["platform"] != nil {
 			return
@@ -57,16 +50,32 @@ func (e *tierEngine) walk(node any, via string, depth int) {
 	}
 }
 
+// walkSteps walks a sequence; weigh (nil: every step) names the steps to
+// classify, while every step still gates the ones after it.
+func (e *tierEngine) walkSteps(steps []any, via string, depth int, weigh map[int]bool) {
+	gated := false
+	for i, child := range steps {
+		if weigh == nil || weigh[i] {
+			if gated {
+				e.gated = append(e.gated, via+"/"+strconv.Itoa(i))
+			}
+			e.walk(child, via+"/"+strconv.Itoa(i), depth)
+		}
+		gated = gated || gatesRest(child)
+	}
+}
+
 // gatesRest: an enabled step after which the rest of its sequence may not
-// run: a condition step, or a wait or stop anywhere inside it (a nested stop
-// ends the whole run). A payload key spelled the same only errs toward may.
+// run: a condition step (and/or/not shorthand too), or a wait or stop
+// anywhere inside it (a nested stop ends the whole run). A payload key
+// spelled the same only errs toward may.
 func gatesRest(step any) bool {
 	n, isMap := step.(map[string]any)
 	if !isMap || n["enabled"] == false {
 		return false
 	}
 	raw, _ := json.Marshal(n)
-	return n["condition"] != nil || bytes.Contains(raw, []byte(`"stop":`)) || bytes.Contains(raw, []byte(`"wait_template":`)) || bytes.Contains(raw, []byte(`"wait_for_trigger":`))
+	return n["condition"] != nil || n["and"] != nil || n["or"] != nil || n["not"] != nil || bytes.Contains(raw, []byte(`"stop":`)) || bytes.Contains(raw, []byte(`"wait_template":`)) || bytes.Contains(raw, []byte(`"wait_for_trigger":`))
 }
 
 // Keys holding conditions, triggers, payloads, or targets — never actions.

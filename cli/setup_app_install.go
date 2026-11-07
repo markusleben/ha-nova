@@ -11,7 +11,7 @@ import (
 )
 
 // "Sign in and install NOVA" in the App step of setup: the owner signs in
-// once, HA NOVA installs (or updates) and starts its App through the
+// once, HA NOVA installs and starts its App through the
 // Supervisor (ha_supervisor_app.go), and the same sign-in then connects this
 // computer. Only an explicit menu choice starts it; without a terminal and a
 // desktop browser it is never offered.
@@ -61,40 +61,30 @@ const (
 	appInstallContinue                         // go on to pairing without the App page steps
 )
 
-// runSignInAppInstall offers the install (or update) and runs it after an
-// explicit choice. Every failure prints one line, what Home Assistant holds
-// now, and the next step; nothing is ever uninstalled.
-func runSignInAppInstall(reader *bufio.Reader, out io.Writer, cfg runtimeConfig, update bool, installedVersion, minimum string) (appInstallResult, error) {
-	skip := appInstallManual
-	if update {
-		skip = appInstallContinue
-	}
+// runSignInAppInstall offers the install and runs it after an explicit
+// choice. Every failure prints one line, what Home Assistant holds now, and
+// the next step; nothing is ever uninstalled.
+func runSignInAppInstall(reader *bufio.Reader, out io.Writer, cfg runtimeConfig) (appInstallResult, error) {
 	origin, err := resolveHASignInOriginForSetup(context.Background(), cfg.HAURL)
 	if err != nil {
 		renderSetupWarningLine(out, "%s", haSignInFallbackLine(err, HACurrentUser{}))
-		return skip, nil
+		return appInstallManual, nil
 	}
-	lead := "HA NOVA can add its App to your Home Assistant for you."
-	does := "HA NOVA then adds its App source, installs or updates and starts only its own App, and connects this computer."
-	if update {
-		lead = fmt.Sprintf("Your NOVA App (v%s) is older than this HA NOVA needs (v%s).", installedVersion, minimum)
-		does = "HA NOVA then updates only its own App and connects this computer."
-	}
-	renderSetupParagraph(out, lead,
+	renderSetupParagraph(out, "HA NOVA can add its App to your Home Assistant for you.",
 		"Your browser opens Home Assistant: sign in as the owner.",
 		"(Home Assistant asks to give “http://127.0.0.1:…” access: that's this computer.)",
-		does,
+		"HA NOVA then adds its App source, installs and starts only its own App, and connects this computer.",
 	)
 	again := false
 	for {
-		choice, err := promptAppInstallChoice(reader, out, update, again)
+		choice, err := promptAppInstallChoice(reader, out, again)
 		if err != nil || choice != "signin" {
-			return skip, err
+			return appInstallManual, err
 		}
 		var state novaAppState
 		prepare := func(ctx context.Context, socket haWSCaller, user HACurrentUser) error {
 			renderSetupSuccessLine(out, "Signed in to Home Assistant as %s (owner)", haSignInUserName(user))
-			if err := newNOVAAppSupervisor(socket).ensure(ctx, out, &state, update, minimum); err != nil {
+			if err := newNOVAAppSupervisor(socket).ensure(ctx, out, &state); err != nil {
 				return err
 			}
 			return waitForNOVAAppSignIn(ctx, out, socket, cfg.RelayBaseURL)
@@ -137,8 +127,6 @@ func runSignInAppInstall(reader *bufio.Reader, out io.Writer, cfg runtimeConfig,
 		case state.busy != "":
 			renderSetupParagraph(out, "Check the App page: wait until Home Assistant finishes, then click Start.")
 			return appInstallManual, nil
-		case update && !state.installed:
-			return appInstallContinue, nil
 		default:
 			renderSetupParagraph(out, "Finish it on the App page instead.")
 			return appInstallManual, nil
@@ -203,11 +191,8 @@ func describeNOVAAppState(state novaAppState) string {
 
 // promptAppInstallChoice returns "signin" or "manual"; the consent is the
 // named choice itself.
-func promptAppInstallChoice(reader *bufio.Reader, out io.Writer, update, again bool) (string, error) {
+func promptAppInstallChoice(reader *bufio.Reader, out io.Writer, again bool) (string, error) {
 	signIn, other, otherWord := "Sign in and install NOVA", "Install it myself in the browser", "manual"
-	if update {
-		signIn, other, otherWord = "Sign in and update NOVA", "Update later", "later"
-	}
 	if again {
 		signIn = strings.Replace(signIn, "Sign in", "Sign in again", 1)
 	}

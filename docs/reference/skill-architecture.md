@@ -687,7 +687,7 @@ After any mutation (automation, script, or helper):
    - Omit any section with nothing to report — never print an empty "none" bucket. When all are empty, the result's `say` alone (a helper: one scope-honest line; write-safety → Verification Honesty; never a bare "verified").
    - Do not emit `Questions to consider`, `Suggestions`, or `Instant help` in post-write mode.
 
-After the review, the `write` skill offers a structured test plan (feasibility, one recommended option, single bound confirmation) per `skills/ha-nova/test-run.md` (Phase 5: Test Offer) — offer only; execution follows `ha-nova:service-call` → Automation And Script Runtime Calls. The `helper` skill keeps the plain Verification Honesty offer.
+After every saved create/update, the `write` skill closes with one line offering a test preview; its "yes" shows a structured test plan (feasibility, one recommended option, single bound confirmation) per `skills/ha-nova/test-run.md` (Phase 5: Test Offer) — offer only; execution follows `ha-nova:service-call` → Automation And Script Runtime Calls. The `helper` skill keeps the plain Verification Honesty offer.
 
 ## Adding a New Skill — Checklist
 

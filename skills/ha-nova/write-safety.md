@@ -189,8 +189,8 @@ Wording rules for the result and the collapsed no-findings line:
 - Where a real run is meaningful, offer it as an explicit optional step: a
   manual trigger via `ha-nova:service-call` (its own preview + confirmation —
   it may actuate real devices; never run it unrequested). For automations and
-  scripts, structure that offer as the Test Plan Card in
-  `../ha-nova/test-run.md` (write flow → Phase 5); helper writes keep
+  scripts, that offer is one closing line after every create/update; its
+  "yes" shows the Test Plan Card in `../ha-nova/test-run.md`; helper writes keep
   this plain single offer. If the user
   declines, the uncertainty stays in the final wording — do not let the
   closing sentence sound more conclusive than the checks were.

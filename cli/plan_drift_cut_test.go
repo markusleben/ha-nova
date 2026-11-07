@@ -45,7 +45,9 @@ func presenceHome() *fakeHA {
 		}
 		return map[string]any{"substituted_config": blueprints[fmt.Sprint(p["path"])]}, true
 	}
-	f.storeConfig("/api/config/automation/config/leave", leaveDraft())
+	before := leaveDraft()
+	before["actions"] = []any{} // the draft adds its step: an update weighs what it changes
+	f.storeConfig("/api/config/automation/config/leave", before)
 	return f
 }
 
@@ -55,8 +57,9 @@ func leaveDraft() map[string]any {
 }
 
 // slowHarness answers every read after latency; hangFirst makes the next n
-// reads of a config hang until their request ends (the read budget); hung
-// takes a core path or "related:" + an entity id too.
+// reads of an automation's loaded config hang until their request ends (the
+// read budget); hung takes a core path, "related:" + an entity id, or
+// "automation/config " + an entity id.
 type slowHarness struct {
 	*writeHarness
 	mu   sync.Mutex
@@ -70,8 +73,11 @@ func newSlowHarness(t *testing.T, f *fakeHA, latency, budget time.Duration) *slo
 	paths, log := setupFakeRelay(t, func(r *http.Request, endpoint string, p map[string]any) any {
 		h.mu.Lock()
 		path := fmt.Sprint(p["path"])
-		if p["type"] == "search/related" {
+		switch p["type"] {
+		case "search/related":
 			path = "related:" + fmt.Sprint(p["item_id"])
+		case "automation/config":
+			path = "automation/config " + fmt.Sprint(p["entity_id"])
 		}
 		n := h.hung[path]
 		if n > 0 {
@@ -93,15 +99,29 @@ func newSlowHarness(t *testing.T, f *fakeHA, latency, budget time.Duration) *slo
 }
 
 func (h *slowHarness) hangFirst(config string, n int) {
+	entity := h.automationOf(config)
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.hung["/api/config/automation/config/"+config] = n
+	h.hung["automation/config "+entity] = n
+}
+
+// automationOf: the entity of the automation with config id config.
+func (h *slowHarness) automationOf(config string) string {
+	h.f.mu.Lock()
+	defer h.f.mu.Unlock()
+	for id, st := range h.f.states {
+		if attrs, _ := st["attributes"].(map[string]any); strings.HasPrefix(id, "automation.") && attrs["id"] == config {
+			return id
+		}
+	}
+	h.t.Fatalf("no automation with config id %q", config)
+	return ""
 }
 
 func (h *slowHarness) configReads(config string) int {
-	n := 0
+	entity, n := h.automationOf(config), 0
 	for _, c := range h.log.all() {
-		if c.payload["path"] == "/api/config/automation/config/"+config {
+		if c.payload["type"] == "automation/config" && c.payload["entity_id"] == entity {
 			n++
 		}
 	}
@@ -238,7 +258,7 @@ func TestACutRecomputeThatMissedAReadIsDrift(t *testing.T) {
 	w := useWindow(t) // no window may open
 	h := newSlowHarness(t, presenceHome(), 0, 300*time.Millisecond)
 	h.mu.Lock()
-	h.hung["/api/states/light.lamp_10"] = 1
+	h.hung["related:light.lamp_10"] = 1
 	h.mu.Unlock()
 	planned := h.planLeave()
 	h.f.mu.Lock()
@@ -246,7 +266,7 @@ func TestACutRecomputeThatMissedAReadIsDrift(t *testing.T) {
 	h.f.related["entity:light.lamp_03"] = []string{"automation.door"}
 	h.f.mu.Unlock()
 	h.mu.Lock()
-	h.hung["/api/states/light.lamp_10"], h.hung["related:light.lamp_03"] = 10, 1 // the recompute misses both
+	h.hung["related:light.lamp_10"], h.hung["related:light.lamp_03"] = 10, 1 // the recompute misses both
 	h.mu.Unlock()
 	exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID)
 	if exit != verbExitDrift || len(w.messages) != 0 || len(h.writes()) != 0 {
@@ -275,25 +295,21 @@ func TestACutRecomputeThatMissedANewListenerIsDrift(t *testing.T) {
 	}
 }
 
-// A replay that reaches a read the preview had no answer to by a new way
-// (here a group that gained the lamp the preview stopped at) is drift: it
-// fails that read where the preview never failed one.
+// A replay that reaches what the preview had no answer to by a new way
+// (here a group that gained the lamp the preview stopped before: its
+// automation's config never answered) is drift.
 func TestANewRouteToAReadThePreviewMissedIsDrift(t *testing.T) {
 	w := useWindow(t) // no window may open
 	f := presenceHome()
 	f.ent("group.garage", "group", "on", map[string]any{"entity_id": []any{"light.lamp_09"}})
 	f.automation("lamp_03", "l03", map[string]any{"triggers": []any{map[string]any{"trigger": "state", "entity_id": "light.room_03"}}, "actions": []any{step("light.turn_on", "light.lamp_03"), step("light.turn_on", "group.garage")}})
 	h := newSlowHarness(t, f, 0, 300*time.Millisecond)
-	h.mu.Lock()
-	h.hung["/api/states/light.lamp_10"] = 1
-	h.mu.Unlock()
+	h.hangFirst("l10", 1)
 	planned := h.planLeave()
 	h.f.mu.Lock()
 	h.f.ent("group.garage", "group", "on", map[string]any{"entity_id": []any{"light.lamp_09", "light.lamp_10"}})
 	h.f.mu.Unlock()
-	h.mu.Lock()
-	h.hung["/api/states/light.lamp_10"] = 10
-	h.mu.Unlock()
+	h.hangFirst("l10", 10)
 	exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID)
 	if exit != verbExitDrift || len(w.messages) != 0 || len(h.writes()) != 0 {
 		t.Fatalf("exit %d windows %d writes %d say %q err %+v", exit, len(w.messages), len(h.writes()), env.Say, env.Error)
@@ -314,9 +330,7 @@ func TestACutCheckSeesANewConsumerWhereThePreviewLooked(t *testing.T) {
 	h.f.automation("door", "door", map[string]any{"triggers": []any{map[string]any{"trigger": "state", "entity_id": "light.room_03"}}, "actions": []any{step("lock.unlock", "lock.front")}})
 	h.f.related["entity:light.room_03"] = append(h.f.related["entity:light.room_03"], "automation.door")
 	h.f.mu.Unlock()
-	h.mu.Lock()
-	h.hung["/api/states/lock.front"] = 4 // every check: the door's step stays unread
-	h.mu.Unlock()
+	h.hangFirst("door", 4) // every check: the door automation stays unread
 	exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID)
 	if exit != verbExitDrift || len(w.messages) != 0 || len(h.writes()) != 0 {
 		t.Fatalf("exit %d windows %d writes %d say %q", exit, len(w.messages), len(h.writes()), env.Say)
@@ -379,7 +393,7 @@ func TestAReplayThatLostAReadIsDrift(t *testing.T) {
 	w := useWindow(t) // no window may open
 	h := newSlowHarness(t, presenceHome(), 0, 300*time.Millisecond)
 	h.mu.Lock()
-	h.hung["/api/states/light.lamp_10"] = 1 // the preview stops at the last lamp
+	h.hung["related:light.lamp_10"] = 1 // the preview stops at the last lamp
 	h.mu.Unlock()
 	planned := h.planLeave()
 	if planned.Plan.Channel != channelWindow {
@@ -404,7 +418,7 @@ func TestAnEditedReadListIsRefused(t *testing.T) {
 	w := useWindow(t) // no window may open
 	h := newSlowHarness(t, presenceHome(), 0, 300*time.Millisecond)
 	h.mu.Lock()
-	h.hung["/api/states/light.lamp_10"] = 1
+	h.hung["related:light.lamp_10"] = 1
 	h.mu.Unlock()
 	planned := h.planLeave()
 	path := filepath.Join(planDir(h.paths), planned.Plan.ID+".json")
@@ -444,7 +458,7 @@ func TestABatchMemberWithEditedReadsIsNotReplayed(t *testing.T) {
 	f.automation("desk", "d1", map[string]any{"alias": "Desk", "actions": []any{step("light.turn_on", "light.desk")}})
 	h := newSlowHarness(t, f, 0, 300*time.Millisecond)
 	h.mu.Lock()
-	h.hung["/api/states/light.lamp_10"] = 1
+	h.hung["related:light.lamp_10"] = 1
 	h.mu.Unlock()
 	leave := h.planLeave().Plan.ID
 	exit, batch := h.batch(leave, h.writePlan("automation", "d1", map[string]any{"alias": "Desk", "actions": []any{step("light.turn_off", "light.desk")}}))
@@ -541,7 +555,7 @@ func TestAnEditedBatchMemberIsDriftEvenWithItsHash(t *testing.T) {
 	f.automation("desk", "d1", map[string]any{"alias": "Desk", "actions": []any{step("light.turn_on", "light.desk")}})
 	h := newSlowHarness(t, f, 0, 300*time.Millisecond)
 	h.mu.Lock()
-	h.hung["/api/states/light.lamp_10"] = 1
+	h.hung["related:light.lamp_10"] = 1
 	h.mu.Unlock()
 	leave := h.planLeave().Plan.ID
 	exit, batch := h.batch(leave, h.writePlan("automation", "d1", map[string]any{"alias": "Desk", "actions": []any{step("light.turn_off", "light.desk")}}))
@@ -565,7 +579,7 @@ func TestAnEditedBatchMemberIsDriftEvenWithItsHash(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.mu.Lock()
-	h.hung["/api/states/light.lamp_10"], h.hung["related:light.lamp_03"] = 10, 10 // the recompute stops where the edit says
+	h.hung["related:light.lamp_10"], h.hung["related:light.lamp_03"] = 10, 10 // the recompute stops where the edit says
 	h.mu.Unlock()
 	exit, env := h.run(runApplyCommand, "--plan", batch.Plan.ID)
 	if exit != verbExitDrift || len(w.messages) != 0 || len(h.writes()) != 0 {
@@ -650,7 +664,9 @@ func TestReadAheadStopsAtTheWalksDepth(t *testing.T) {
 		f.related["entity:"+on] = []string{fmt.Sprintf("automation.chain_%02d", i)}
 		on = lamp
 	}
-	f.storeConfig("/api/config/automation/config/leave", leaveDraft())
+	before := leaveDraft()
+	before["actions"] = []any{} // the draft adds its step: an update weighs what it changes
+	f.storeConfig("/api/config/automation/config/leave", before)
 	h := newSlowHarness(t, f, 0, 10*time.Second)
 	planned := h.planLeave()
 	deep := ""

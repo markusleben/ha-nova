@@ -91,7 +91,8 @@ Trigger type (drives which options exist):
   while it is off, so actions-only tests never enable it. Only a full
   real-path test needs temporary enablement — name it on the card, and the
   post-run restore returns it to disabled.
-- Multi-target changes (write-safety → Multi-Target Changes): build ONE
+- Multi-target changes (write-safety → Multi-Target Changes): one closing
+  line after the last write (a batch: card only on request); the card is ONE
   consolidated offer for the whole logical change — recommend the riskiest
   or most representative target first, never one card per target.
 
@@ -209,7 +210,8 @@ it without asking again:
 4. Report compactly: path taken, deciding condition, end state of the
    devices, restore status.
 5. Honesty line: one passing run proves this path once — not every branch,
-   not future timing. Keep the untested scope in the wording.
+   not future timing. Keep the untested scope in the wording; an actions-only
+   run never claims the trigger works.
 
 ## When the Test Fails
 
@@ -250,9 +252,13 @@ localized at runtime):
   unlocks the front door for real").
 - `skip` is always valid. On skip, the Verification Honesty wording
   (write-safety) keeps the untested scope in the closing sentence.
-- Session de-escalation: after the user skips once, later writes in the same
-  session shrink the offer to one line ("A test run is available — say the
-  word."). An explicit user request re-expands the full card.
+- Closing offer: after every saved create/update the write flow ends with
+  one line offering a test preview (write flow → Phase 5), localized: "Want a
+  test preview? I'll show which devices would change before anything runs."
+  This card answers its "yes". That "yes" asks for the card, not a run: only an option choice
+  on the card confirms, and typed tiers keep their own ask. The line stays on
+  later writes, an earlier test included; only the user's explicit request
+  stops it for the session (a card `skip` is not a stop). A direct test request shows the card at once.
 
 Example card (labels localized at runtime):
 

@@ -264,3 +264,19 @@ func TestWindowsBoxStyle(t *testing.T) {
 		t.Fatalf("style %#x: want topmost, no foreground request, no service notification", windowsBoxStyle)
 	}
 }
+
+// The ask ends windowWait after the command started (#1026): a re-plan
+// that used most of it leaves too little for an ask, so apply refuses
+// without a window and sends nothing, instead of answering past the
+// host's limit.
+func TestWindowRefusesWhenTheCommandHasTooLittleTimeLeft(t *testing.T) {
+	h := newWriteHarness(t, newFakeHA())
+	useWindow(t) // any window opening fails the test
+	plan := h.plan("lock.unlock", "lock.front").Plan
+	saved := commandStart
+	commandStart = time.Now().Add(-(windowWait - windowMinWait/2))
+	t.Cleanup(func() { commandStart = saved })
+	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error.Code != "PLAN_EXPIRED" || len(h.posts()) != 0 {
+		t.Fatalf("too little time left: exit %d %+v", exit, env.Error)
+	}
+}

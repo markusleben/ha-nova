@@ -47,7 +47,7 @@ func cutHome(t *testing.T) *writeHarness {
 func (h *writeHarness) cutAt(id string) {
 	h.f.mu.Lock()
 	defer h.f.mu.Unlock()
-	h.f.hang = map[string]bool{"/api/config/automation/config/" + id: true}
+	h.f.hang = map[string]bool{"automation/config automation.auto_" + id: true}
 	h.f.fail = map[string]bool{}
 }
 
@@ -55,7 +55,7 @@ func TestApplyKeepsACutPlanThatDidNotChange(t *testing.T) {
 	h := cutHome(t)
 	h.cutAt("a10")
 	_, planned := h.run(runCallCommand, appInstall...)
-	if planned.Tier != "typed" || planned.Plan == nil || planned.Plan.Code == "" || !strings.Contains(planned.Say, sayCheckGap("en")) {
+	if planned.Tier != "typed" || planned.Plan == nil || planned.Plan.Code == "" || !strings.Contains(planned.Say, confirmT("en", "unseen.out_of_time")) {
 		t.Fatalf("setup: %+v", planned)
 	}
 	h.cutAt("a20") // the recompute reads further: a different basis, the same plan
@@ -176,7 +176,7 @@ func TestApplyRefusesACutPlanThatCouldNotReadAgain(t *testing.T) {
 	h := cutHome(t)
 	h.f.script("morning", step("light.turn_on", "light.kitchen"))
 	h.f.mu.Lock()
-	h.f.fail = map[string]bool{"/api/config/automation/config/a10": true} // the scan stops early, the walk goes on
+	h.f.fail = map[string]bool{"automation/config automation.auto_a10": true} // the scan stops early, the walk goes on
 	h.f.mu.Unlock()
 	planned := h.plan("script.turn_on", "script.morning")
 	if planned.Plan.Code == "" {
@@ -228,7 +228,7 @@ func TestApplyRefusesANewAreaMemberWithoutACut(t *testing.T) {
 func TestApplyKeepsACutPlanWhoseGapsDiffer(t *testing.T) {
 	h := cutHome(t)
 	h.f.mu.Lock()
-	h.f.fail = map[string]bool{"/api/config/automation/config/a05": true}
+	h.f.fail = map[string]bool{"automation/config automation.auto_a05": true}
 	h.f.mu.Unlock()
 	planned := h.plan(appInstall...)
 	h.cutAt("a20")

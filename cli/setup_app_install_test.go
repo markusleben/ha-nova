@@ -51,31 +51,28 @@ func stubAppInstallSignIn(t *testing.T, supervisor *fakeSupervisor, results ...e
 	return &calls
 }
 
-func runAppInstallStep(t *testing.T, input string, update bool) (appInstallResult, error, string) {
+func runAppInstallStep(t *testing.T, input string) (appInstallResult, error, string) {
 	t.Helper()
 	var out bytes.Buffer
 	cfg := runtimeConfig{HAURL: "http://ha.local:8123", RelayBaseURL: "http://ha.local:8791"}
-	result, err := runSignInAppInstall(bufio.NewReader(strings.NewReader(input)), &out, cfg, update, "0.9.2", "0.10.0")
+	result, err := runSignInAppInstall(bufio.NewReader(strings.NewReader(input)), &out, cfg)
 	return result, err, out.String()
 }
 
 func TestAppInstallNeedsAnExplicitChoice(t *testing.T) {
 	for name, test := range map[string]struct {
 		input  string
-		update bool
 		err    error
 		output string
 	}{
-		"manual":                      {input: "manual\n", output: "sign in and install NOVA"},
-		"Enter alone is no consent":   {input: "\nmanual\n", output: "Type 'yes' or 'manual'."},
-		"back":                        {input: "back\n", err: errSetupBack},
-		"no answer":                   {input: "", err: io.EOF},
-		"update later":                {input: "later\n", update: true, output: "older than this HA NOVA needs (v0.10.0)"},
-		"update: Enter is no consent": {input: "\nno\n", update: true, output: "Type 'yes' or 'later'."},
+		"manual":                    {input: "manual\n", output: "sign in and install NOVA"},
+		"Enter alone is no consent": {input: "\nmanual\n", output: "Type 'yes' or 'manual'."},
+		"back":                      {input: "back\n", err: errSetupBack},
+		"no answer":                 {input: "", err: io.EOF},
 	} {
 		t.Run(name, func(t *testing.T) {
 			calls := stubAppInstallSignIn(t, newFakeSupervisor(t))
-			result, err, output := runAppInstallStep(t, test.input, test.update)
+			result, err, output := runAppInstallStep(t, test.input)
 			if result == appInstallDone || !errors.Is(err, test.err) || (test.err == nil && err != nil) || *calls != 0 {
 				t.Fatalf("result=%v err=%v sign-ins=%d\n%s", result, err, *calls, output)
 			}
@@ -92,7 +89,7 @@ func TestAppInstallNeedsAnExplicitChoice(t *testing.T) {
 func TestAppInstallAfterYesInstallsAndHandsTheSignInToPairing(t *testing.T) {
 	supervisor := newFakeSupervisor(t)
 	calls := stubAppInstallSignIn(t, supervisor)
-	result, err, output := runAppInstallStep(t, "yes\n", false)
+	result, err, output := runAppInstallStep(t, "yes\n")
 	if result != appInstallDone || err != nil || *calls != 1 || setupInstalledSignIn == nil {
 		t.Fatalf("result=%v err=%v sign-ins=%d session=%v\n%s", result, err, *calls, setupInstalledSignIn, output)
 	}
@@ -106,7 +103,7 @@ func TestAppInstallAfterYesInstallsAndHandsTheSignInToPairing(t *testing.T) {
 func TestAppInstallRetriesOnlyWhileNothingChanged(t *testing.T) {
 	// A wrong account changes nothing: offer the sign-in again.
 	calls := stubAppInstallSignIn(t, newFakeSupervisor(t), errSignInNotOwner)
-	result, err, output := runAppInstallStep(t, "yes\nyes\n", false)
+	result, err, output := runAppInstallStep(t, "yes\nyes\n")
 	if result != appInstallDone || err != nil || *calls != 2 || !strings.Contains(output, "sign in again and install NOVA") ||
 		!strings.Contains(output, "Nothing was changed in Home Assistant.") ||
 		!strings.Contains(output, "Only the owner can install the NOVA App.") {
@@ -119,7 +116,7 @@ func TestAppInstallRetriesOnlyWhileNothingChanged(t *testing.T) {
 	supervisor := newFakeSupervisor(t)
 	supervisor.startFails = true
 	calls = stubAppInstallSignIn(t, supervisor)
-	result, err, output = runAppInstallStep(t, "yes\n", false)
+	result, err, output = runAppInstallStep(t, "yes\n")
 	if result != appInstallManual || err != nil || *calls != 1 || setupInstalledSignIn != nil {
 		t.Fatalf("result=%v err=%v sign-ins=%d\n%s", result, err, *calls, output)
 	}
@@ -144,7 +141,7 @@ func TestAppInstallWithoutAppsPointsToTheContainerGuideOnly(t *testing.T) {
 			supervisor := newFakeSupervisor(t)
 			setup(supervisor)
 			stubAppInstallSignIn(t, supervisor)
-			result, err, output := runAppInstallStep(t, "yes\n\n", false)
+			result, err, output := runAppInstallStep(t, "yes\n\n")
 			if result != appInstallContinue || err != nil || !strings.Contains(output, relayContainerGuideURL) ||
 				strings.Contains(output, "App page") {
 				t.Fatalf("result=%v err=%v\n%s", result, err, output)
@@ -161,7 +158,7 @@ func TestAppInstallFailureWithARunningAppGoesOnToPairing(t *testing.T) {
 	t.Cleanup(func() { haAppReadyTimeout = previous })
 	stubAppInstallSignIn(t, newFakeSupervisor(t))
 	relayAdvertisesSignInForSetup = func(string) bool { return false }
-	result, err, output := runAppInstallStep(t, "yes\n", false)
+	result, err, output := runAppInstallStep(t, "yes\n")
 	if result != appInstallContinue || err != nil || setupInstalledSignIn != nil ||
 		!strings.Contains(output, "didn't get ready") || !strings.Contains(output, "Connect this computer next.") {
 		t.Fatalf("result=%v err=%v\n%s", result, err, output)
@@ -187,14 +184,12 @@ func TestRelayInstallStepsFallBackToTheManualPageOrContinue(t *testing.T) {
 		input     string
 		calls     int
 		wantSteps bool
-		wantNote  bool
 	}{
 		"installed for you":         {input: "yes\n", calls: 1},
 		"install it myself":         {input: "manual\n\n\n", wantSteps: true},
 		"no Apps: guide only":       {noHassio: true, input: "yes\n\n", calls: 1},
 		"running current: no offer": {running: true, version: "0.10.0", input: "\n\n", wantSteps: true},
-		"outdated, update later":    {running: true, version: "0.9.2", input: "later\n", wantNote: true},
-		"outdated, updated":         {running: true, version: "0.9.2", input: "yes\n", calls: 1},
+		"outdated: Update steps":    {running: true, version: "0.9.2", input: "\n\n", wantSteps: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			stubInstalledRelayProbe(t, test.running, test.version)
@@ -208,10 +203,10 @@ func TestRelayInstallStepsFallBackToTheManualPageOrContinue(t *testing.T) {
 			openBrowserForSetup = func(string) error { return nil }
 			t.Cleanup(func() { openBrowserForSetup = previousOpen })
 			var out bytes.Buffer
-			note, err := runRelayInstallSteps(bufio.NewReader(strings.NewReader(test.input)), &out, paths, cfg, true)
+			err := runRelayInstallSteps(bufio.NewReader(strings.NewReader(test.input)), &out, paths, cfg, true)
 			if err != nil || *calls != test.calls || strings.Contains(out.String(), manual) != test.wantSteps ||
-				strings.Contains(note.plain(), "update it to v0.10.0 or newer") != test.wantNote {
-				t.Fatalf("err=%v sign-ins=%d manual steps=%v note=%q\n%s", err, *calls, strings.Contains(out.String(), manual), note.plain(), out.String())
+				strings.Contains(out.String(), "click Update on NOVA Relay") != (test.version == "0.9.2") {
+				t.Fatalf("err=%v sign-ins=%d manual steps=%v\n%s", err, *calls, strings.Contains(out.String(), manual), out.String())
 			}
 		})
 	}
@@ -222,7 +217,7 @@ func TestRelayInstallStepsFallBackToTheManualPageOrContinue(t *testing.T) {
 	openBrowserForSetup = func(string) error { return nil }
 	t.Cleanup(func() { openBrowserForSetup = previousOpen })
 	var out bytes.Buffer
-	if _, err := runRelayInstallSteps(bufio.NewReader(strings.NewReader("\n\n")), &out, paths, cfg, false); err != nil ||
+	if err := runRelayInstallSteps(bufio.NewReader(strings.NewReader("\n\n")), &out, paths, cfg, false); err != nil ||
 		*calls != 0 || !strings.Contains(out.String(), manual) || strings.Contains(out.String(), "Sign in and install") {
 		t.Fatalf("err=%v sign-ins=%d\n%s", err, *calls, out.String())
 	}
@@ -329,7 +324,7 @@ func TestRelayInstallStepsRespectTheCodeChoiceFromThePage(t *testing.T) {
 		stubInstalledRelayProbe(t, test.running, test.version)
 		calls := stubAppInstallSignIn(t, newFakeSupervisor(t))
 		var out bytes.Buffer
-		if _, err := runRelayInstallSteps(bufio.NewReader(strings.NewReader("\n\n")), &out, runtimePaths{VersionFile: versionFile}, cfg, true); err != nil ||
+		if err := runRelayInstallSteps(bufio.NewReader(strings.NewReader("\n\n")), &out, runtimePaths{VersionFile: versionFile}, cfg, true); err != nil ||
 			*calls != 0 || strings.Contains(out.String(), "Sign in and") || !strings.Contains(out.String(), "Your browser opens the NOVA App") ||
 			!strings.Contains(out.String(), test.want) || strings.Contains(out.String(), test.not) {
 			t.Fatalf("running=%v err=%v sign-ins=%d\n%s", test.running, err, *calls, out.String())

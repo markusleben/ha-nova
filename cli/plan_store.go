@@ -119,7 +119,7 @@ func buildCallPlan(e *tierEngine, env *verbEnvelope, req planCallRequest, target
 	plan := storedPlan{Kind: "call", Request: req, Action: action, Basis: callPlanBasis(e, req.Service, frozen, req.Data)}
 	plan, err := sealPlan(e, env, plan, action)
 	env.Action = &action
-	env.Deltas = planDeltas(req.Service, frozen, req.Data, e.states)
+	env.Deltas = slices.DeleteFunc(planDeltas(req.Service, frozen, req.Data, e.states), func(d planDelta) bool { return todoItemField(plan, d.Field) }) // say names the items; a row would show their uids (#1008)
 	env.everyday = callEveryday(textLang(plan), e.s, action)
 	if env.Status == "needs_confirmation" {
 		env.Say, plan.Prompt = confirmationSay(e, env, plan, ""), confirmationPrompt(e, env, plan, "")
@@ -154,6 +154,9 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 	plan.SchemaVersion, plan.ID, plan.Hash, plan.Server, plan.Nonce = planSchemaVersion, "p_"+idHex[:12], "sha256:"+sum, env.Server, hex.EncodeToString(nonce)
 	plan.CreatedAt, plan.ExpiresAt = now.Format(time.RFC3339), now.Add(planTTL).Format(time.RFC3339)
 	plan.Tier, plan.Reasons, plan.Channel = tier, e.reasons, planChannel
+	if e.s.ctx.Err() != nil && time.Now().Before(checkDeadline) { // the deadline cut the check: what seals the plan (its language, item names, channel) reads in the reserve left for it (afterCheck)
+		defer e.s.ownBudget(checkDeadline)()
+	}
 	var items haWords
 	if e.level != tierOrdinary { // before Reads: a replay answers this read too
 		items = todoItemWords(e.s, plan)

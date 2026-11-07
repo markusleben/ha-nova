@@ -66,7 +66,7 @@ func TestHASignInAgainstThrowawayHomeAssistant(t *testing.T) {
 		t.Cleanup(func() { cloudRemoteBuildIdentityForRuntime = previous })
 		prepare = func(ctx context.Context, socket haWSCaller, _ HACurrentUser) error {
 			var state novaAppState
-			if err := newNOVAAppSupervisor(socket).ensure(ctx, &out, &state, false, ""); err != nil {
+			if err := newNOVAAppSupervisor(socket).ensure(ctx, &out, &state); err != nil {
 				return fmt.Errorf("%w (%s)", err, describeNOVAAppState(state))
 			}
 			return waitForNOVAAppSignIn(ctx, &out, socket, os.Getenv("HA_NOVA_SIGNIN_E2E_RELAY_URL"))

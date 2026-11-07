@@ -111,6 +111,18 @@ expect 'plan write of a draft that unlocks a door is typed with a code' 3 \
 expect 'plan write update keeps ordered variables (base before brightness_pct)' 3 \
   "Object.keys(d.config.body.variables).join() === 'base,brightness_pct' && d.diff.length > 0" \
   -- plan write --domain automation --id testbed_f_ordered_variables --file "$TMP/ordered.json"
+cat > "$TMP/routine.json" << 'EOF'
+{"alias":"H Morning routine","description":"Covers, speakers, and a briefing script that only reads.","triggers":[{"trigger":"time","at":"07:00:00"}],"conditions":[{"condition":"state","entity_id":"input_boolean.guest_mode","state":"on"}],"actions":[{"action":"cover.open_cover","target":{"entity_id":"cover.living_room_window"}},{"action":"cover.open_cover","target":{"entity_id":"cover.hall_window"}},{"action":"media_player.volume_set","target":{"entity_id":"media_player.living_room"},"data":{"volume_level":0.3}},{"action":"media_player.media_play","target":{"entity_id":"media_player.living_room"}},{"action":"light.turn_on","target":{"entity_id":"light.kitchen_lights"}},{"action":"script.morning_briefing"},{"delay":"00:00:05"},{"if":[{"condition":"state","entity_id":"input_boolean.guest_mode","state":"on"},{"condition":"state","entity_id":"input_boolean.vacation_mode","state":"off"},{"condition":"state","entity_id":"media_player.bedroom","state":"off"},{"condition":"state","entity_id":"switch.decorative_lights","state":"off"}],"then":[{"action":"switch.turn_on","target":{"entity_id":"switch.decorative_lights"}}]}],"mode":"single"}
+EOF
+cat > "$TMP/routine-pool.json" << 'EOF'
+{"alias":"H Morning routine","description":"Covers, speakers, and a briefing script that only reads.","triggers":[{"trigger":"time","at":"07:00:00"}],"conditions":[{"condition":"state","entity_id":"input_boolean.guest_mode","state":"on"}],"actions":[{"action":"cover.open_cover","target":{"entity_id":"cover.living_room_window"}},{"action":"cover.open_cover","target":{"entity_id":"cover.hall_window"}},{"action":"media_player.volume_set","target":{"entity_id":"media_player.living_room"},"data":{"volume_level":0.3}},{"action":"media_player.media_play","target":{"entity_id":"media_player.living_room"}},{"action":"light.turn_on","target":{"entity_id":"light.kitchen_lights"}},{"action":"script.morning_briefing"},{"delay":"00:00:05"},{"action":"cover.close_cover","target":{"entity_id":"cover.pool_cover"}}],"mode":"single"}
+EOF
+expect 'plan write appending one step to routine H pulls in no pool automation (#1009)' 3 \
+  "!(d.consumers || []).length && !$reasons.includes('LIMIT_CUT') && !$reasons.includes('TEMPLATE_ACTION_UNREAD') && d.members.some(m => m.entity_id === 'switch.decorative_lights') && !d.members.some(m => m.entity_id === 'cover.pool_cover')" \
+  -- plan write --domain automation --id testbed_h_morning_routine --file "$TMP/routine.json"
+expect 'plan write appending a template-cover step to routine H still asks with a code' 3 \
+  "d.tier === 'typed' && $reasons.includes('TEMPLATE_ACTION_UNREAD') && (d.consumers || []).some(c => c.automation === 'automation.k_pool_closed_manually_blocks_auto_open')" \
+  -- plan write --domain automation --id testbed_h_morning_routine --file "$TMP/routine-pool.json"
 expect 'get --config on a package automation returns its loaded config (managed: yaml)' 0 \
   "d.result.managed === 'yaml' && d.result.config.alias === 'Package hall light evening'" -- get automation.package_hall_light_evening --config
 expect 'plan write over a package automation is refused (CONFIG_NOT_UI_MANAGED)' 4 \
