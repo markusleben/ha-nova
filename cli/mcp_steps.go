@@ -98,7 +98,7 @@ func rawStepKind(endpoint string, payload map[string]any) (owner string, sceneOr
 	case endpoint == "ws" && (wsType == "config/device_registry/remove" || wsType == "config/entity_registry/update" && (renames || disables) ||
 		wsType == "config/device_registry/update" && disables):
 		owner = "organize"
-	case endpoint == "files" && payload["action"] == "delete_file" && payload["backup"] != false: // backup false: a new file's rollback (rawYAMLCheck)
+	case endpoint == "files" && payload["action"] == "delete_file": // a new file's rollback too (rawYAMLCheck, fileKept)
 		owner = "yaml-config"
 	}
 	return owner, helper || scene

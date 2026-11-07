@@ -206,7 +206,7 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 // its .bak and is checked once more (skills/yaml-config/SKILL.md → Validate).
 // Writing the .bak back (backup false) takes no step of its own: no loop.
 const rawYAMLCheck = "A YAML file changed: check it now with ha-nova relay core --method POST --path /api/config/core/check_config. " +
-	"If it is invalid, reload nothing and tell the user; if its errors point at this file, put it back with ha-nova plan raw: a backups save of the file as it is now, then its .bak written back with payload backup false (a new file has none: delete it), " +
+	"If it is invalid, reload nothing and tell the user; if its errors point at this file, put it back with ha-nova plan raw: a backups save of the file as it is now, then its .bak written back with payload backup false (a new file has none: delete it, after the same save), " +
 	"then check once more: still invalid, tell the user and write nothing more."
 
 func countStatus(result rawApplyResult, status string) int {

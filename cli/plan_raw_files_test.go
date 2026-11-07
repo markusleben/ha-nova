@@ -18,7 +18,7 @@ func fileRelay(t *testing.T, extra map[string]func(map[string]any) any) (paths r
 		mu.Lock()
 		defer mu.Unlock()
 		switch p["path"] {
-		case "/config/packages/lights.yaml":
+		case "/config/packages/lights.yaml", "/config/lights-link.txt": // the .txt a symlink to it
 			return map[string]any{"content": content, "size": len(content)}
 		}
 		return fakeRelayFailure{"FILE_NOT_FOUND", "not found"}
@@ -64,7 +64,7 @@ func TestPlanRawYAMLOverwriteNeedsACopyFirst(t *testing.T) {
 			t.Errorf("%s: exit %d %+v", items, exit, env.Error)
 		}
 	}
-	if exit, env := planRaw(t, paths, "["+lightsCopy+","+lightsWrite+","+lightsWrite+"]"); exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Message, "writes the file /config/packages/lights.yaml once") {
+	if exit, env := planRaw(t, paths, "["+lightsCopy+","+lightsWrite+","+lightsWrite+"]"); exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Message, "changes the file /config/packages/lights.yaml once") {
 		t.Errorf("two writes: exit %d %+v", exit, env.Error)
 	}
 	off, _ := rawRelay(t, map[string]func(map[string]any) any{"files read_file": func(map[string]any) any { return fakeRelayFailure{"FILE_ACCESS_DISABLED", "File access is disabled."} }})
@@ -106,10 +106,55 @@ func TestPlanRawYAMLOverwriteRechecksAndKeepsItsCopy(t *testing.T) {
 	full.Store(true)
 	paths, _, _ = fileRelay(t, map[string]func(map[string]any) any{"backups save": func(map[string]any) any { return fakeRelayFailure{"SNAPSHOT_STORE_FULL", "full"} }})
 	_, env = planRaw(t, paths, "["+lightsCopy+","+lightsWrite+"]")
-	if exit, failed := applyRaw(t, paths, env); failed.Error == nil || failed.Error.Code != "SNAPSHOT_REQUIRED" || !strings.Contains(failed.Error.Next, "the current content of a YAML file") {
+	if exit, failed := applyRaw(t, paths, env); failed.Error == nil || failed.Error.Code != "SNAPSHOT_REQUIRED" || !strings.Contains(failed.Error.Next, "the current content of a file") {
 		t.Fatalf("copy failed: exit %d %+v", exit, failed.Error)
 	}
 	if exit, skipped := applyRaw(t, paths, env, "--no-snapshot"); skipped.Error == nil || skipped.Error.Code != "NO_SNAPSHOT_NOT_OFFERED" {
 		t.Fatalf("--no-snapshot: exit %d %+v", exit, skipped.Error)
+	}
+}
+
+// A delete of an existing file needs the copy too (the Relay keeps no .bak
+// of it), and so does any writable name: a .txt can be a symlink to a YAML
+// file. A file that isn't there needs none.
+func TestPlanRawFileDeleteAndAliasNeedACopy(t *testing.T) {
+	paths, sent, _ := fileRelay(t, nil)
+	del := `{"endpoint":"files","payload":{"action":"delete_file","path":"/config/packages/lights.yaml"}}`
+	alias := `{"endpoint":"files","payload":{"action":"write_file","path":"/config/lights-link.txt","content":"light: []\n"}}`
+	rollback := strings.Replace(del, `"delete_file"`, `"delete_file","backup":false`, 1)
+	for _, items := range []string{del, alias, rollback} {
+		if exit, env := planRaw(t, paths, "["+items+"]"); exit != verbExitRefused || env.Error == nil || !strings.Contains(env.Error.Message, "with no copy of it saved first") ||
+			strings.Contains(items, "delete_file") != strings.HasPrefix(env.Error.Next, "A delete keeps no .bak.") {
+			t.Errorf("%s: exit %d %+v", items, exit, env.Error)
+		}
+	}
+	aliasCopy := strings.Replace(lightsCopy, `"path":"/config/packages/lights.yaml"`, `"path":"/config/lights-link.txt"`, 1)
+	for _, items := range []string{
+		lightsCopy + "," + del,
+		aliasCopy + "," + alias,
+		`{"endpoint":"files","payload":{"action":"delete_file","path":"/config/packages/gone.yaml"}}`,
+	} {
+		if exit, env := planRaw(t, paths, "["+items+"]"); exit != verbExitConfirmation {
+			t.Errorf("%s: exit %d %+v", items, exit, env.Error)
+		}
+	}
+	if got := sent(); len(got) != 0 {
+		t.Fatalf("planning sent %v", got)
+	}
+}
+
+// A file the Relay can't read can't be copied, so its change is refused
+// with the manual route; a delete edited since the preview isn't sent.
+func TestPlanRawFileUnreadableAndDeleteDrift(t *testing.T) {
+	large, _ := rawRelay(t, map[string]func(map[string]any) any{"files read_file": func(map[string]any) any { return fakeRelayFailure{"FILE_TOO_LARGE", "too large"} }})
+	if exit, env := planRaw(t, large, `[{"endpoint":"files","payload":{"action":"delete_file","path":"/config/big.json"}}]`); exit != verbExitRefused || env.Error == nil ||
+		!strings.Contains(env.Error.Message, "can't read the file /config/big.json (FILE_TOO_LARGE)") || !strings.Contains(env.Error.Next, "File editor") {
+		t.Fatalf("unreadable: exit %d %+v", exit, env.Error)
+	}
+	paths, sent, change := fileRelay(t, nil)
+	_, env := planRaw(t, paths, "["+lightsCopy+`,{"endpoint":"files","payload":{"action":"delete_file","path":"/config/packages/lights.yaml"}}]`)
+	change("light: [edited]\n")
+	if exit, applied := applyRaw(t, paths, env); applied.Error == nil || len(sent()) != 0 {
+		t.Fatalf("edited since the preview: exit %d %+v %v", exit, applied.Error, sent())
 	}
 }
