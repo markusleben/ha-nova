@@ -59,7 +59,7 @@ func relayRawChecks(paths runtimePaths, opts verbOptions, endpoint string, body 
 		return rawRefusal("todo/item/move", "a reorder can start automations that listen to the list (a shopping list fires shopping_list_updated), and only a plan checks them: "+
 			`put [{"endpoint":"ws","payload":<the message itself, without a collect_events envelope>}] in a file, run ha-nova plan raw --file <file>, then ha-nova apply`), nil
 	}
-	if refusal, err := relayTyped(paths, opts, endpoint, payload, message); refusal != nil || err != nil {
+	if refusal, err := relayTyped(paths, opts, endpoint, body, payload); refusal != nil || err != nil {
 		return refusal, err
 	}
 	if refusal, err := relayListeners(paths, opts, endpoint, payload, message); refusal != nil || err != nil {
@@ -68,75 +68,62 @@ func relayRawChecks(paths runtimePaths, opts verbOptions, endpoint string, body 
 	return relayKept(paths, opts, endpoint, body)
 }
 
-// relayTyped refuses a write a raw plan rates typed (rawItemTier): only the
-// user may confirm it, and only a plan asks them
-// (docs/work/2026-11-03-relay-refuses-code-writes-spec.md). It tiers what
-// the Relay sends: a collect_events envelope's message and, when the body
-// has a type, the body. The first pass reads nothing: a read the tier needs
-// counts as failed, so typed. Only a typed result that came from such a
-// read opens a session and tiers again live, where a failed read still
-// counts as typed.
-func relayTyped(paths runtimePaths, opts verbOptions, endpoint string, payload, message map[string]any) (refusal, err error) {
-	requests, hint := []map[string]any{payload}, "<this request>"
-	switch endpoint {
-	case "supervisor": // its writes are refused before this
-		return nil, nil
-	case "core":
-		method, _ := payload["method"].(string)
-		payload["method"] = strings.ToUpper(strings.TrimSpace(method)) // as the Relay sends it
-		if _, body := payload["body"]; !body {
-			exact, _ := json.Marshal(map[string]any{"method": payload["method"], "path": payload["path"]})
-			hint = string(exact)
-		}
-	case "ws":
-		if message != nil {
-			requests = []map[string]any{message}
-			if _, typed := payload["type"]; typed {
-				requests = append(requests, payload)
-			}
-		}
-	}
+// relayTyped refuses a write a raw plan rates typed (gateVerdict, the
+// Relay gate's own rating): only the user may confirm it, and only a plan
+// asks them (docs/work/2026-11-03-relay-refuses-code-writes-spec.md). A
+// failed read counts as typed; a session that doesn't open is err.
+func relayTyped(paths runtimePaths, opts verbOptions, endpoint string, body []byte, payload map[string]any) (refusal, err error) {
+	requests := gateRequests(endpoint, payload) // the core method as the Relay sends it, for the checks after this one too
 	var s *relaySession
 	defer func() {
 		if s != nil {
 			s.close()
 		}
 	}()
-	for i, request := range requests {
-		n := newRawNamer(nil, nil)
-		level, why := rawItemTier(n, rawRequest{Endpoint: endpoint}, request)
-		if level == tierTyped && n.missed {
-			if s == nil {
-				if s, err = newRelaySession(paths, opts); err != nil {
-					return nil, err
-				}
-			}
-			level, why = rawItemTier(newRawNamer(s, nil), rawRequest{Endpoint: endpoint}, request)
+	check, err := gateVerdict(endpoint, body, func() (*relaySession, error) {
+		if s != nil {
+			return s, nil
 		}
-		if level < tierTyped {
-			continue
+		opened, err := newRelaySession(paths, opts)
+		s = opened
+		return opened, err
+	})
+	switch {
+	case err != nil:
+		return nil, err
+	case check.Verdict == gatePass:
+		return nil, nil
+	case check.Verdict == gateRefuse:
+		return rawRefusal(endpoint+" request", rawNextOther), nil
+	}
+	request := requests[check.Item]
+	what, _ := request["type"].(string)
+	shown := "<this request>"
+	switch endpoint {
+	case "core":
+		target, _ := request["path"].(string)
+		what = request["method"].(string) + " " + target
+		if _, body := payload["body"]; !body {
+			exact, _ := json.Marshal(map[string]any{"method": payload["method"], "path": payload["path"]})
+			shown = string(exact)
 		}
-		what, _ := request["type"].(string)
-		switch endpoint {
-		case "core":
-			target, _ := request["path"].(string)
-			what = request["method"].(string) + " " + target
-		case "files", "backups":
-			action, _ := request["action"].(string)
-			what = endpoint + " " + action
-		}
-		reason := rawWhys[why]("en")
-		if _, kept := request["device_trackers"]; why == "person_follows" && request["type"] == "person/update" && !kept {
-			reason += " (an update without device_trackers empties them: to keep them, resend the list person/list shows)"
-		}
-		shown := hint
-		if message != nil && i == 0 {
+	case "files", "backups":
+		action, _ := request["action"].(string)
+		what = endpoint + " " + action
+	case "ws":
+		if _, envelope := payload["message"].(map[string]any); envelope && check.Item == 0 {
 			shown = "<the message itself, without a collect_events envelope>"
 		}
-		return rawRefusal(what, strings.ToLower(reason[:1])+reason[1:]+", so only the user may confirm it, and only a plan asks them: "+
-			fmt.Sprintf(`put [{"endpoint":%q,"payload":%s}] in a file, run ha-nova plan raw --file <file>, show the user its say, and follow its next_step`, endpoint, shown)), nil
 	}
-	return nil, nil
+	reason := "it needs the user's own confirmation"
+	if why := rawWhys[check.Why]; why != nil {
+		reason = why("en")
+	}
+	if _, kept := request["device_trackers"]; check.Why == "person_follows" && request["type"] == "person/update" && !kept {
+		reason += " (an update without device_trackers empties them: to keep them, resend the list person/list shows)"
+	}
+	return rawRefusal(what, strings.ToLower(reason[:1])+reason[1:]+", so only the user may confirm it, and only a plan asks them: "+
+		fmt.Sprintf(`put [{"endpoint":%q,"payload":%s}] in a file, run ha-nova plan raw --file <file>, show the user its say, and follow its next_step`, endpoint, shown)), nil
 }
 
 func guardRaw(endpoint string, body []byte, accessTarget func() (refusal, err error)) (send []byte, refusal, err error) {
