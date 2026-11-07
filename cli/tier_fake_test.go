@@ -22,11 +22,11 @@ type fakeHA struct {
 	events        []map[string]any
 	entries       []map[string]any
 	substitute    any
-	fail          map[string]bool     // ws type or core path answered with a Relay error
-	hang          map[string]bool     // ws type or core path that never answers
+	fail          map[string]bool     // ws type, "<ws type> <entity_id>", or core path answered with a Relay error
+	hang          map[string]bool     // ws type, "<ws type> <entity_id>", or core path that never answers
 	relatedGroups map[string][]string // entity → groups search/related reports
 	aliases       map[string][]string // entity → aliases (get_entries only, as in HA)
-	loaded        map[string]any      // entity → loaded config (WS automation/config, script/config)
+	loaded        map[string]any      // entity → loaded config (WS automation/config, script/config); an automation's defaults to its stored one
 	flows         []map[string]any    // config_entries/flow/progress
 	services      []map[string]any    // GET /api/services (nil: defaultServices; fail it with f.fail["/api/services"])
 	devices       []map[string]any    // config/device_registry/list rows (id, parent_device_id)
@@ -105,7 +105,7 @@ func step(action, target string) map[string]any {
 }
 
 func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
-	if f.hang[fmt.Sprint(p["type"])] || f.hang[fmt.Sprint(p["path"])] {
+	if f.hang[fmt.Sprint(p["type"])] || f.hang[fmt.Sprint(p["path"])] || f.hang[fmt.Sprint(p["type"], " ", p["entity_id"])] {
 		<-r.Context().Done()
 		return nil
 	}
@@ -134,7 +134,7 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 	}
 	if endpoint == "ws" {
 		wsType := fmt.Sprint(p["type"])
-		if f.fail[wsType] {
+		if f.fail[wsType] || f.fail[wsType+" "+fmt.Sprint(p["entity_id"])] {
 			return fakeRelayFailure{"UPSTREAM_ERROR", "boom"}
 		}
 		switch wsType {
@@ -168,6 +168,11 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 		case "automation/config", "script/config":
 			if cfg, ok := f.loaded[fmt.Sprint(p["entity_id"])]; ok {
 				return map[string]any{"config": cfg}
+			}
+			if attrs, _ := f.states[fmt.Sprint(p["entity_id"])]["attributes"].(map[string]any); wsType == "automation/config" && attrs["id"] != nil {
+				if cfg, ok := f.configs["/api/config/automation/config/"+fmt.Sprint(attrs["id"])]; ok { // loaded as stored: a UI save reloads
+					return map[string]any{"config": cfg}
+				}
 			}
 			return fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "not_found: Entity not found"}
 		case "config_entries/flow/progress":

@@ -138,7 +138,7 @@ func (e *tierEngine) scanConsumers(id string, depth int, d stateDelta) {
 	e.prefetchStates(automations)
 	var configReads []func()
 	for _, automation := range automations {
-		if st, err := e.state(automation); err == nil && st.str("id") != "" && len(configReads) < tierMaxConsumers-e.reads {
+		if st, err := e.state(automation); err == nil && st != nil && len(configReads) < tierMaxConsumers-e.reads {
 			configReads = append(configReads, func() { e.warmConfig(automation) })
 		}
 	}

@@ -390,9 +390,11 @@ func automationActions(cfg map[string]any) any {
 	return cfg["action"]
 }
 
-// runConfig reads a stored config by its real config id (never the slug),
-// expanding use_blueprint. Every miss is a named gap, except an integration
-// scene, whose platform bounds what it can reach (indirect-actuation.md
+// runConfig reads a config, expanding use_blueprint: an automation's as
+// Home Assistant loaded it (what runs; its stored-config view answers one
+// read at a time, #1025), a script's or scene's stored one by its real
+// config id (never the slug). Every miss is a named gap, except an
+// integration scene, whose platform bounds what it can reach (indirect-actuation.md
 // → When you cannot see the members).
 func (e *tierEngine) runConfig(id, domain, via string) (map[string]any, bool) {
 	if cfg, ok := e.configs[id]; ok {
@@ -412,19 +414,26 @@ func (e *tierEngine) runConfig(id, domain, via string) (map[string]any, bool) {
 		return nil, false
 	}
 	var notFound *verbFailure
-	configID, err := resolveConfigID(e.s, id, domain, st.raw)
+	configID, err := st.str("id"), error(&verbFailure{code: "CONFIG_NOT_FOUND"})
 	var raw json.RawMessage
+	if domain != "automation" {
+		configID, err = resolveConfigID(e.s, id, domain, st.raw)
+	}
 	if err == nil {
 		raw, err = readStoredConfig(e.s, domain, configID)
 	}
-	if errors.As(err, &notFound) { // YAML/package item: read what Home Assistant loaded
+	if errors.As(err, &notFound) { // an automation, or a YAML/package item: read what Home Assistant loaded
 		loaded, ok, loadErr := loadedConfig(e.s, id, domain)
 		if loadErr != nil {
 			e.readFailed(id, via, "config")
 			return nil, false
 		}
 		if ok {
-			return e.parseConfig(id, domain, loadedConfigKey(id), loaded, via)
+			key := loadedConfigKey(id)
+			if domain == "automation" && configID != "" { // its config id names it: a batch's own verified write still matches (excusedByBatch, batchOrder)
+				key = configID
+			}
+			return e.parseConfig(id, domain, key, loaded, via)
 		}
 	}
 	switch pl := e.reg[id].pl; {
@@ -446,9 +455,9 @@ func (e *tierEngine) runConfig(id, domain, via string) (map[string]any, bool) {
 }
 
 // loadedConfig reads the config Home Assistant has loaded for an automation
-// or script by entity_id (WS automation/config, script/config) — the only
-// view of a YAML or package item that has no UI config. Safe to call
-// concurrently (session reads only).
+// or script by entity_id (WS automation/config, script/config): from
+// memory, blueprint substituted, and the only view of a YAML or package
+// item. Safe to call concurrently (session reads only).
 func loadedConfig(s *relaySession, entityID, domain string) (json.RawMessage, bool, error) {
 	if domain != "automation" && domain != "script" {
 		return nil, false, nil
@@ -468,12 +477,37 @@ func loadedConfig(s *relaySession, entityID, domain string) (json.RawMessage, bo
 	return loaded.Config, true, nil
 }
 
-// loadedConfigKey names a loaded (YAML) config in the plan basis; it never
-// collides with a stored config id.
+// loadedConfigKey names a loaded config without a config id in the plan
+// basis; it never collides with a config id.
 func loadedConfigKey(entityID string) string { return "loaded:" + entityID }
 
-// parseConfig decodes a stored config, substitutes use_blueprint, and
-// records the normalized digest in the plan basis.
+// withInstanceKeys: a blueprint automation or script as Home Assistant
+// runs it (blueprint async_substitute): the substituted blueprint, then
+// every key of the instance itself over it (its alias, or its own actions).
+// An automation's trigger, condition, and action count under the plural on
+// both sides, as its _backward_compat_schema renames them, so one key holds
+// what runs. blueprint/substitute is asked with the inputs only.
+func withInstanceKeys(domain string, substituted, instance map[string]any) map[string]any {
+	canonical := func(m map[string]any, key string) string {
+		if _, both := m[key+"s"]; domain == "automation" && !both && (key == "trigger" || key == "condition" || key == "action") {
+			return key + "s"
+		}
+		return key
+	}
+	merged := map[string]any{}
+	for key, value := range substituted {
+		merged[canonical(substituted, key)] = value
+	}
+	for key, value := range instance {
+		if key != "use_blueprint" {
+			merged[canonical(instance, key)] = value
+		}
+	}
+	return merged
+}
+
+// parseConfig decodes a config, substitutes use_blueprint, and records the
+// normalized digest in the plan basis.
 func (e *tierEngine) parseConfig(id, domain, configID string, raw json.RawMessage, via string) (map[string]any, bool) {
 	var cfg map[string]any
 	if err := json.Unmarshal(raw, &cfg); err != nil {
@@ -493,7 +527,7 @@ func (e *tierEngine) parseConfig(id, domain, configID string, raw json.RawMessag
 			e.gap(reasonBlueprint, id, via, fmt.Sprint(bp["path"]))
 			return nil, false
 		}
-		cfg = sub.Config
+		cfg = withInstanceKeys(domain, sub.Config, cfg)
 	}
 	normalized, _ := json.Marshal(normalizeConfig(cfg))
 	sum := sha256.Sum256(normalized)
