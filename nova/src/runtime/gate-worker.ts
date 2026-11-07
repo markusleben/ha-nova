@@ -17,7 +17,7 @@ import { writeFileAtomicSync } from "../storage/atomic-file.js";
 // mint() on every start). Everything lives in /data/gate.
 
 export const GATE_PORT = 8796;
-const TIMEOUT_MS = 5_000;
+const TIMEOUT_MS = 20_000; // above the worker's own 15 s check budget (cli/command_gate.go)
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 export interface GateWorker extends GateClient {
