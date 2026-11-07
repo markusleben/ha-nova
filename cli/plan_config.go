@@ -349,7 +349,7 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 		action.Body = req.Draft
 		e.raise(tierPreview, tierReason{Code: map[string]string{"write": reasonConfigWrite, "revert": reasonConfigRevert, "restore": reasonConfigRestore}[req.Op], Via: req.Domain + "." + req.ConfigID})
 		e.classifyDraft(req.Domain, req.ConfigID, req.Draft, current)
-		e.reloadListeners(req.Domain)
+		e.reloadListeners(req.Domain, slices.DeleteFunc([]string{req.EntityID}, func(id string) bool { return id == "" }))
 		if env.Verb == "plan" && req.Op == "write" && req.Domain == "automation" { // apply re-plans: the plan said it already
 			env.Notices = append(env.Notices, draftTriggerNotices(req.Draft, current)...)
 		}

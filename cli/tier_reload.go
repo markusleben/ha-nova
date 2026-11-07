@@ -41,7 +41,20 @@ func (e *tierEngine) configReloadTier(service string, data map[string]any) (leve
 			return tierTyped, reasonReload, true
 		}
 		e.classifyDraft("automation", id, raw, nil)
-		e.reloadListeners("automation")
+		e.useStateList()
+		states, _ := e.stateList()
+		var entities []string
+		for entityID, raw := range states {
+			var st struct {
+				Attributes struct {
+					ID string `json:"id"`
+				} `json:"attributes"`
+			}
+			if strings.HasPrefix(entityID, "automation.") && json.Unmarshal(raw, &st) == nil && st.Attributes.ID == id {
+				entities = append(entities, entityID)
+			}
+		}
+		e.reloadListeners("automation", entities)
 	default:
 		e.useStateList()
 		states, err := e.stateList()
@@ -79,16 +92,22 @@ func (e *tierEngine) configReloadTier(service string, data map[string]any) (leve
 			}
 			e.classifyDraft("script", configID, raw, nil)
 		}
+		e.reloadListeners("script", slices.Sorted(maps.Keys(scripts)))
 	}
 	return tierPreview, reasonReload, true
 }
 
 // reloadListeners classifies what a config load sets off besides the config
 // itself: an automation reload, even of one id, fires automation_reloaded
-// (automation/services.py), and Home Assistant's own reload after a config
+// (automation/services.py); Home Assistant's own reload after a config
 // write is a service call, which fires call_service (config/automation.py,
-// config/script.py).
-func (e *tierEngine) reloadListeners(domain string) {
+// config/script.py); and a reload removes and recreates each entity whose
+// config changed (script/util.py), so what watches those entities' states
+// runs too.
+func (e *tierEngine) reloadListeners(domain string, entities []string) {
+	for _, entityID := range entities {
+		e.scanConsumers(entityID, 0, stateDelta{})
+	}
 	if domain == "automation" {
 		e.checkEvents("automation_reloaded", "")
 	}

@@ -47,6 +47,14 @@ func TestConfigReloadIsRatedByItsConfig(t *testing.T) {
 			cfg["actions"] = []any{map[string]any{"action": "automation.reload", "data": map[string]any{"id": "a1"}}}
 			f.automation("hall", "a1", cfg)
 		}, []string{"automation.reload", "--set", "id=a1"}, "typed"},
+		{"a script whose state an unlocking automation watches", func(f *fakeHA) {
+			f.script("dim", step("light.turn_on", "light.hall"))
+			watches(f, "script.dim")
+		}, []string{"script.reload"}, "typed"},
+		{"an automation whose state an unlocking automation watches", func(f *fakeHA) {
+			f.automation("hall", "a1", hallDraft("light.turn_on"))
+			watches(f, "automation.hall")
+		}, []string{"automation.reload", "--set", "id=a1"}, "typed"},
 		{"another reload", func(*fakeHA) {}, []string{"template.reload"}, "typed"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -122,4 +130,14 @@ func TestAutomationWriteRatesItsReloadListeners(t *testing.T) {
 			t.Errorf("listens %v: tier %q (reasons %s), want %s", listens, env.Tier, reasonCodes(env), want)
 		}
 	}
+}
+
+// watches: an automation that unlocks the front door when entityID's state
+// changes, which a reload that recreates it sets off.
+func watches(f *fakeHA, entityID string) {
+	f.related["entity:"+entityID] = []string{"automation.watch"}
+	f.automation("watch", "w1", map[string]any{
+		"triggers": []any{map[string]any{"trigger": "state", "entity_id": entityID}},
+		"actions":  []any{step("lock.unlock", "lock.front")},
+	})
 }
