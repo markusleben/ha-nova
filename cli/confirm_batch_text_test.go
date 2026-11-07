@@ -89,7 +89,7 @@ func TestBatchPhoneAsksWithTheCountAndTheMostSensitive(t *testing.T) {
 		exit          int
 		title, result string
 	}{
-		"done":   {"", 0, "Done: Change or delete 4 automations and scripts", "Home Assistant confirms each one."},
+		"done":   {"", 0, "Done: Change or delete 4 automations and scripts", "Each one worked; HA NOVA checked them in Home Assistant."},
 		"partly": {"/s1", 6, "Partly done: Change or delete 4 automations and scripts", "2 of 4 went through. The computer says why."},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -114,7 +114,7 @@ func TestBatchPhoneAsksWithTheCountAndTheMostSensitive(t *testing.T) {
 			confirm := p.sent[0]["data"].(map[string]any)["actions"].([]any)[0].(map[string]any)
 			message := p.sent[0]["message"].(string)
 			if p.sent[0]["title"] != "Change or delete 4 automations and scripts?" || confirm["title"] != "Confirm" ||
-				!strings.HasPrefix(message, "Most sensitive: Change the script “Arrival”. ") || !strings.Contains(message, "Requested by “"+phoneHost("en")+"”.") ||
+				!strings.HasPrefix(message, "Most sensitive: Change the script “Arrival”. ") || !strings.Contains(message, "Requested by “"+phoneHost("en")+"” through HA NOVA.") ||
 				strings.Contains(message, "Kitchen") || strings.Contains(message, "Night") {
 				t.Fatalf("the ask: %q %q button %v", p.sent[0]["title"], message, confirm["title"])
 			}

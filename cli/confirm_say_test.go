@@ -71,6 +71,13 @@ func TestConfirmationSay(t *testing.T) {
 			},
 			args: []string{"cover.set_cover_position", "cover.garage", "--set", "position=0"},
 			has:  []string{"This closes a garage door, so I need you to confirm it."}},
+		{name: "a cover without a class says how to set Show as, never which (spec 2026-11-06 item 5)",
+			setup: func(f *fakeHA) {
+				f.ent("cover.pool", "zwave_js", "closed", map[string]any{"friendly_name": "Pool cover", "supported_features": 15.0})
+			},
+			args: []string{"cover.open_cover", "cover.pool"},
+			has: []string{"This opens a cover that may be a door, gate, or garage, so I need you to confirm it. This cover has no “Show as” class in Home Assistant, so HA NOVA can't rule out a door. " +
+				"If it really is a shade, awning, or window, you can set that in its settings under “Show as”. Nothing has run yet."}},
 		{name: "a member keeps what it is beside its name",
 			setup: func(f *fakeHA) {
 				f.ent("button.plug_wipe", "zha", "unknown", map[string]any{"friendly_name": "Maintenance"})

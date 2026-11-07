@@ -166,7 +166,7 @@ func TestPhonePlanConfirmsOnTheLinkedPhoneAndReplacesIt(t *testing.T) {
 	// A short question, the computer that asked, and the hint last.
 	if _, auth := confirm["authenticationRequired"]; auth || confirm["destructive"] != true || confirm["title"] != "Unlock" || p.sent[0]["title"] != "Unlock “lock.front”?" ||
 		!strings.HasPrefix(data["tag"].(string), "ha-nova-"+plan.ID+"-") || p.sent[1]["data"].(map[string]any)["tag"] != data["tag"] ||
-		p.sent[0]["message"] != "Requested by “"+phoneHost("en")+"”. "+phoneHint("en", "", "Unlock", false) || data["push"].(map[string]any)["interruption-level"] != "time-sensitive" {
+		p.sent[0]["message"] != "Requested by “"+phoneHost("en")+"” through HA NOVA. "+phoneHint("en", "", "Unlock", false) || data["push"].(map[string]any)["interruption-level"] != "time-sensitive" {
 		t.Fatalf("payload %+v", p.sent[0])
 	}
 	// The ids exist only in the notification: never in output or a plan file.

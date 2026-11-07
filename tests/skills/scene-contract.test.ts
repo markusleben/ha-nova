@@ -19,6 +19,10 @@ describe("scene contract", () => {
     expect(sceneSkill).toContain("managed in that integration's own app");
   });
 
+  it("offers the apply-test in one line and shows the card only after yes", () => {
+    expect(sceneSkill).toContain("end with the one-line test-preview offer (`../ha-nova/test-run.md` → Closing offer; write Phase 5's exceptions apply); only its yes shows one Test-Plan-style card, and that yes runs nothing");
+  });
+
   it("uses unique_id as the config id, never the entity_id slug", () => {
     expect(sceneSkill).toContain("`unique_id` is the scene config id");
     expect(sceneSkill).toContain("never use the entity_id slug as the config id");

@@ -253,7 +253,8 @@ var fakeServices = strings.Fields(`weather.get_forecasts script.turn_on script.t
 	homeassistant.restart homeassistant.update_entity homeassistant.reload_config_entry homeassistant.check_config
 	zwave_js.set_value acme.pulse shelly.blink shelly.trigger hue.activate_scene zha.set_lock_user_code
 	pyscript.open_garage nuki.lock_n_go netdaemon.open_gate esphome.garage_open envisalink.alarm_keypress
-	notify.notify mqtt.publish conversation.process media_player.media_pause hassio.addon_restart hassio.host_reboot todo.add_item todo.remove_item todo.update_item`)
+	notify.notify mqtt.publish conversation.process media_player.media_pause hassio.addon_restart hassio.host_reboot todo.add_item todo.remove_item todo.update_item
+	cover.toggle alarm_control_panel.alarm_disarm alarm_control_panel.alarm_arm_away`)
 
 func (f *fakeHA) defaultServices() []map[string]any {
 	byDomain := map[string]map[string]any{}
