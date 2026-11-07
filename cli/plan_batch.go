@@ -53,7 +53,7 @@ func batchFirst(hint, step string) string {
 // addBatchHint leads a plan's next_step with batchHint when the plan can
 // be a member (batchUnsupported); a chat-code plan has no other step.
 func addBatchHint(env *verbEnvelope, plan storedPlan) {
-	if batchUnsupported(plan) == "" && plan.Confirm != "none" { // an ordinary update asks nothing a batch could share
+	if batchUnsupported(plan) == "" {
 		env.NextStep = batchFirst(batchHint, env.NextStep)
 	}
 }

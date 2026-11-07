@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -51,7 +52,7 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 	var added snapshotSaveReceipt
 	if ctx.calm { // an ordinary update: its way back first, or nothing is sent
 		if added, err = addUndoSnapshot(paths, checkpointRecord(s, action, ctx, action.Body)); err != nil {
-			return &verbFailure{exit: verbExitError, code: "SNAPSHOT_FAILED",
+			return &verbFailure{exit: verbExitError, code: "UNDO_SAVE_FAILED",
 				message: fmt.Sprintf("the checkpoint to put it back could not be saved first (%s); nothing was sent", err),
 				next:    "Plan the change again; it will show a preview to confirm."}
 		}
@@ -80,10 +81,13 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 		env.Restore = restoreCommand(action, env.Snapshot, s.server)
 	}
 	if failure := writeFailure(env, result, err, createdID); failure != nil && !alreadyGone {
-		if errors.As(err, &unknown) && update {
+		switch {
+		case errors.As(err, &unknown) && update:
 			saveCheckpoint(paths, s, env, action, ctx, action.Body)
-		} else if ctx.calm {
-			_ = dropUndoSnapshot(paths, added) // nothing landed: no way back to a state that never changed
+		case ctx.calm && (err != nil || rejectedStatuses[result.status]): // nothing landed: no way back to a state that never changed
+			_ = dropUndoSnapshot(paths, s.server, added)
+		case ctx.calm: // any other answer may have saved it: the checkpoint stays, with the way back
+			env.BeforeConfig, env.Undo = ctx.current, &added
 		}
 		return failure
 	}
@@ -111,8 +115,12 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 			expected = action.Body
 		}
 		saveCheckpoint(paths, s, env, action, ctx, expected)
-		if ctx.calm && env.Undo != nil {
-			env.Undo.Action = added.Action // the same checkpoint, now with what Home Assistant saved
+		if ctx.calm { // the checkpoint saved first stays the way back if this refresh failed
+			if env.Undo == nil {
+				env.Notices = slices.DeleteFunc(env.Notices, func(n verbNotice) bool { return n.Kind == "undo" })
+				env.Undo = &added
+			}
+			env.Undo.Action = added.Action
 			env.undoable = env.Status == "verified"
 		}
 	}

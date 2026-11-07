@@ -3,8 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Calmer confirmations item 6: an update of an existing UI automation or
@@ -49,7 +51,7 @@ func TestPlanWriteUpdateRunsWithItsWayBackSavedFirst(t *testing.T) {
 	h := newWriteHarness(t, calmHome())
 	env := h.planHall("light.turn_off")
 	if env.Tier != "ordinary" || env.Plan == nil || env.Plan.Confirm != "none" || env.Status != "ready" || len(env.Diff) == 0 ||
-		!strings.HasPrefix(env.NextStep, "No ask: the CLI checked this change and saves its way back first. Run ha-nova apply --plan "+env.Plan.ID+" now") {
+		!strings.HasPrefix(env.NextStep, batchHint+" Otherwise: No ask: the CLI checked this change and saves its way back first. Run ha-nova apply --plan "+env.Plan.ID+" now") {
 		t.Fatalf("plan: %+v", env)
 	}
 	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
@@ -137,6 +139,57 @@ func TestApplyOrdinaryUpdateRefusedDropsItsCheckpoint(t *testing.T) {
 	}
 	if exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID); exit == 0 || applied.Undo != nil || len(h.checkpoints()) != 0 {
 		t.Fatalf("exit %d env %+v checkpoints %+v", exit, applied, h.checkpoints())
+	}
+}
+
+// Any other error answer may have saved it: the checkpoint and the way
+// back stay.
+func TestApplyOrdinaryUpdateWithAnUnclearAnswerKeepsItsCheckpoint(t *testing.T) {
+	h := newWriteHarness(t, calmHome())
+	env := h.planHall("light.turn_off")
+	h.f.configWrite = func(f *fakeHA, path string, body map[string]any) any {
+		f.storeConfig(path, body)
+		return coreReply(500, map[string]any{"message": "Internal Server Error"})
+	}
+	if exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID); exit == 0 || applied.Undo == nil || applied.BeforeConfig == nil || len(h.checkpoints()) != 1 {
+		t.Fatalf("exit %d env %+v checkpoints %+v", exit, applied, h.checkpoints())
+	}
+}
+
+// The checkpoint can't be saved first (another command holds the undo
+// list): nothing is sent.
+func TestApplyOrdinaryUpdateSendsNothingWithoutItsCheckpoint(t *testing.T) {
+	h := newWriteHarness(t, calmHome())
+	env := h.planHall("light.turn_off")
+	if err := os.MkdirAll(undoSnapshotStackPath(h.paths)+".lock", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 1 || applied.Error == nil || applied.Error.Code != "UNDO_SAVE_FAILED" || len(h.writes()) != 0 {
+		t.Fatalf("exit %d env %+v writes %v", exit, applied, h.writes())
+	}
+}
+
+// A refused write takes back only its own checkpoint, never another
+// server's saved in the same second.
+func TestDropUndoSnapshotKeepsAnotherServersCheckpoint(t *testing.T) {
+	h := newWriteHarness(t, newFakeHA())
+	snapshotNow = func() time.Time { return time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC) }
+	t.Cleanup(func() { snapshotNow = time.Now })
+	save := func(server string) snapshotSaveReceipt {
+		raw, _ := json.Marshal(map[string]any{"op": "update", "domain": "automation", "target_id": "a1", "server": server,
+			"before_config": map[string]any{"alias": "x"}, "expected_after": map[string]any{"alias": "y"}})
+		receipt, err := addUndoSnapshot(h.paths, raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return receipt
+	}
+	save("home")
+	if err := dropUndoSnapshot(h.paths, "cabin", save("cabin")); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.checkpoints(); len(got) != 1 || got[0].Server != "home" {
+		t.Fatalf("%+v", got)
 	}
 }
 
