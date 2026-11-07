@@ -57,6 +57,7 @@ export function gated(
           throw refused(check.why);
         }
       }
+      await stillAuthorized(context);
       return await handler(send); // the worker needs the action ids it sent: unredacted
     }
 
@@ -70,6 +71,7 @@ export function gated(
     if (check.verdict === "typed") {
       throw new HttpError(428, "GATE_APPROVAL_REQUIRED", APPROVAL_REQUIRED);
     }
+    await stillAuthorized(context);
 
     let status = 200;
     let envelope: unknown;
@@ -95,6 +97,13 @@ export function gated(
     context.response.end(redacted);
     return undefined;
   };
+}
+
+// A credential revoked while the worker checked (up to 20 s) sends nothing.
+async function stillAuthorized(context: RouteContext): Promise<void> {
+  if (context.reauthorize !== undefined && !(await context.reauthorize())) {
+    throw new HttpError(401, "UNAUTHORIZED", "This device's access ended while HA NOVA checked the request; nothing was sent");
+  }
 }
 
 // The worker's own ask (§2, gate principal only): a notification to a phone,
@@ -134,8 +143,8 @@ function unavailable(): HttpError {
   return new HttpError(503, "GATE_UNAVAILABLE", "HA NOVA's safety check is not available, so nothing was sent. Try again in a minute; if it stays, restart the NOVA App.");
 }
 
-// why is the worker's reason id; anything else is left out of the answer.
+// why: the worker's reason id, nothing else. 422: a released CLI reads 403 as a bad credential.
 function refused(why?: string): HttpError {
   const reason = why !== undefined && /^[a-z0-9_.-]{1,64}$/.test(why) ? ` (${why})` : "";
-  return new HttpError(403, "GATE_REFUSED", `HA NOVA's safety check refused this request${reason}; nothing was sent.`);
+  return new HttpError(422, "GATE_REFUSED", `HA NOVA's safety check refused this request${reason}; nothing was sent.`);
 }

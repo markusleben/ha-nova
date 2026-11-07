@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import { createServer as createHttp, type IncomingMessage, type Server } from "node:http";
 import { createServer as createHttps, request as httpsRequest } from "node:https";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -31,7 +31,6 @@ let registry: DeviceRegistry;
 let tls: TlsIdentity;
 let servers: Server[];
 let fakeWorker: Server;
-let workerPort: number;
 let seen: Seen[];
 let reply: (path: string, body: Record<string, string>) => Reply;
 let children: (EventEmitter & { kill: () => boolean })[];
@@ -70,7 +69,8 @@ function upstream(endpoint: GateEndpoint): RouteHandler {
 }
 
 beforeEach(async () => {
-  dir = mkdtempSync(join(tmpdir(), "ha-nova-gate-"));
+  // A short folder: a Unix socket path holds at most 104 bytes (macOS).
+  dir = mkdtempSync(join(process.platform === "win32" ? tmpdir() : "/tmp", "hn-gate-"));
   registry = openDeviceRegistry(dir);
   tls = await loadOrCreateTlsIdentity(dir);
   servers = [];
@@ -94,13 +94,14 @@ beforeEach(async () => {
       response.end(r.text ?? JSON.stringify(r.json));
     });
   });
-  workerPort = await listen(fakeWorker);
+  servers.push(fakeWorker);
+  mkdirSync(join(dir, "gate"), { recursive: true, mode: 0o700 });
+  await new Promise<void>((resolve) => fakeWorker.listen(join(dir, "gate", "worker.sock"), resolve));
   gate = createGateWorker({
     dataDir: dir,
     binary: process.execPath,
     mint: mintGateDevice(registry, () => 1, "https://127.0.0.1:8792", tls.spkiPin),
     logger: { warn: () => {}, error: () => {} },
-    port: workerPort,
     timeoutMs: 300,
     respawnMs: 20,
     spawn: (() => {
@@ -209,10 +210,10 @@ describe("relay gate: verdicts", () => {
     expect(forwarded).toEqual([]);
   });
 
-  it("refuse: 403 GATE_REFUSED, nothing forwarded", async () => {
+  it("refuse: 422 GATE_REFUSED, nothing forwarded", async () => {
     reply = () => ({ json: { verdict: "refuse", kind: "write", why: "fire_event" } });
     const res = await viaBootstrap("/ws", { type: "fire_event", event_type: "x" });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(422);
     expect(JSON.parse(res.text).error).toEqual({ code: "GATE_REFUSED", message: "HA NOVA's safety check refused this request (fire_event); nothing was sent." });
     reply = () => ({ json: { verdict: "refuse", kind: "write", why: "webhook abc123 SECRET" } });
     expect((await viaBootstrap("/ws", { type: "fire_event" })).text).not.toContain("SECRET");
@@ -340,6 +341,18 @@ describe("relay gate: the App's own credentials", () => {
     expect(forwarded).toEqual([]);
   });
 
+  it("a device revoked while the worker checks sends nothing", async () => {
+    const credential = device("laptop-2");
+    const id = registry.list().find((d) => d.clientInstallId === "laptop-2")!.deviceId;
+    reply = (path, body) => {
+      registry.revoke(id);
+      return path === "/check" ? verdict("pass") : redactAll(body);
+    };
+    const res = await viaDevice("/ws", { type: "call_service", domain: "light", service: "turn_on" }, credential);
+    expect(res.status).toBe(401);
+    expect(forwarded).toEqual([]);
+  });
+
   it("the gate worker: its phone ask and the phone's answer go out unchecked", async () => {
     const own = device(GATE_INSTALL_ID);
     const notify = { type: "call_service", domain: "notify", service: "mobile_app_pixel", service_data: { message: "Unlock?" } };
@@ -359,7 +372,7 @@ describe("relay gate: the App's own credentials", () => {
     for (const [v, kind] of [["pass", "write"], ["typed", "read"], ["typed", "write"], ["refuse", "read"]]) {
       reply = () => verdict(v!, kind);
       const res = await viaDevice("/ws", { type: "call_service", domain: "notify", service: "persistent_notification" }, own);
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(422);
     }
     reply = () => ({ text: "garbage" });
     expect((await viaDevice("/core", { method: "GET", path: "/api/states" }, own)).status).toBe(503);
@@ -378,9 +391,9 @@ describe("relay gate: the App's own credentials", () => {
       { message: { type: "subscribe_events" }, collect_events: {} },
     ];
     for (const body of bodies) {
-      expect((await viaDevice("/ws", body, own)).status).toBe(403);
+      expect((await viaDevice("/ws", body, own)).status).toBe(422);
     }
-    expect((await viaDevice("/core", { method: "POST", path: "/api/services/notify/mobile_app_x" }, own)).status).toBe(403);
+    expect((await viaDevice("/core", { method: "POST", path: "/api/services/notify/mobile_app_x" }, own)).status).toBe(422);
     expect(checks()).toHaveLength(bodies.length + 1);
     expect(forwarded).toEqual([]);
   });

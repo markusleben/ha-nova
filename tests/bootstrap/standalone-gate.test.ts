@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { createServer, type Server } from "node:http";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -49,7 +49,8 @@ const upstream = {
 };
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "ha-nova-standalone-gate-"));
+  // A short folder: a Unix socket path holds at most 104 bytes (macOS).
+  dir = mkdtempSync(join(process.platform === "win32" ? tmpdir() : "/tmp", "hn-sgate-"));
   servers = [];
   forwarded = [];
   checks = [];
@@ -109,7 +110,9 @@ describe("standalone Relay: the safety check", () => {
           response.end(JSON.stringify({ response_b64: Buffer.from(Buffer.from(body.response_b64!, "base64").toString().replaceAll("SECRET", "HIDDEN")).toString("base64") }));
         });
       });
-      const workerPort = Number(new URL(await listen(worker)).port);
+      servers.push(worker);
+      mkdirSync(join(dir, "gate"), { recursive: true, mode: 0o700 });
+      await new Promise<void>((resolve) => worker.listen(join(dir, "gate", "worker.sock"), resolve));
       runtime = bootstrapRuntime({
         loadEnv: () => ({ relayAuthToken: "relay-token", haLlat: "llat", haUrl: "http://ha", relayVersion: "0.29.0", cloudRemoteEnabled: false, appOptionsPath: join(dir, "options.json"), relayPort: 8791, logLevel: "info", snapshotDir: join(dir, "snapshots") }),
         readAppOptions: () => ({}),
@@ -119,7 +122,6 @@ describe("standalone Relay: the safety check", () => {
           createGateWorker({
             ...deps,
             binary: process.execPath,
-            port: workerPort,
             respawnMs: 10,
             spawn: (() => {
               const child = Object.assign(new EventEmitter(), { kill: () => true });
@@ -156,7 +158,7 @@ describe("standalone Relay: the safety check", () => {
       expect(JSON.parse(res.text)).toEqual({ ok: true, data: { secret: "SECRET" } });
       expect(checks).toEqual([]);
       verdict = "typed";
-      expect((await post(base, "/ws", { type: "call_service", domain: "lock", service: "unlock" }, first)).status).toBe(403);
+      expect((await post(base, "/ws", { type: "call_service", domain: "lock", service: "unlock" }, first)).status).toBe(422);
       peer = "192.168.1.20";
       expect((await post(base, "/ws", ask, first)).status).toBe(401);
       peer = undefined;

@@ -1,12 +1,15 @@
 import { EventEmitter } from "node:events";
-import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { createServer } from "node:http";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createGateWorker, mintGateDevice, type GateWorkerDeps } from "../../nova/src/runtime/gate-worker.js";
+import { generateCredential } from "../../nova/src/security/device-credential.js";
 import { openDeviceRegistry, type DeviceRegistry } from "../../nova/src/security/device-registry.js";
+import { MAX_ACTIVE_DEVICES, MAX_PENDING_DEVICES } from "../../nova/src/security/device-registry-mutations.js";
 import { GATE_INSTALL_ID } from "../../nova/src/security/pairing-metadata.js";
 import { resolvePrincipal } from "../../nova/src/security/principal.js";
 
@@ -19,7 +22,8 @@ let spawned: { binary: string; args: string[]; env: NodeJS.ProcessEnv; child: Ev
 let errors: string[];
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "ha-nova-gate-worker-"));
+  // A short folder: a Unix socket path holds at most 104 bytes (macOS).
+  dir = mkdtempSync(join(process.platform === "win32" ? tmpdir() : "/tmp", "hn-gw-"));
   registry = openDeviceRegistry(dir);
   spawned = [];
   errors = [];
@@ -61,7 +65,7 @@ describe("gate worker child", () => {
     }
     expect(spawned).toHaveLength(1);
     const gateDir = join(dir, "gate");
-    expect(spawned[0]!.args).toEqual(["gate", "--listen", "127.0.0.1:8796", "--secret-file", join(gateDir, "secret"), "--relay-file", join(gateDir, "relay.json")]);
+    expect(spawned[0]!.args).toEqual(["gate", "--socket", join(gateDir, "worker.sock"), "--secret-file", join(gateDir, "secret"), "--relay-file", join(gateDir, "relay.json")]);
     expect(Object.keys(spawned[0]!.env).sort()).toEqual(["HA_NOVA_NO_BROWSER", "HOME", "PATH", ...(process.env.TZ ? ["TZ"] : [])].sort());
     expect(readFileSync(join(gateDir, "secret"), "utf8")).toMatch(/^[0-9a-f]{64}$/);
     expect(statSync(join(gateDir, "secret")).mode & 0o777).toBe(0o600);
@@ -104,6 +108,62 @@ describe("gate worker child", () => {
     expect(errors).toEqual(["The safety-check worker is missing; every device request is refused"]);
     expect(await gate.check({ kind: "legacy" }, "ws", Buffer.from("{}"))).toBeNull();
     expect(await gate.redact("ws", Buffer.from("{}"), Buffer.from("{}"))).toBeNull();
+  });
+
+  it("starts nothing through a gate folder that is a link, and makes a loose one owner-only", () => {
+    mkdirSync(join(dir, "elsewhere"));
+    symlinkSync(join(dir, "elsewhere"), join(dir, "gate"));
+    worker().start();
+    expect(spawned).toEqual([]);
+    rmSync(join(dir, "gate"));
+    mkdirSync(join(dir, "gate"), { mode: 0o755 });
+    chmodSync(join(dir, "gate"), 0o755);
+    worker().start();
+    expect(spawned).toHaveLength(1);
+    expect(statSync(join(dir, "gate")).mode & 0o777).toBe(0o700);
+  });
+
+  it("a redirect from the worker is no answer, and nothing follows it", async () => {
+    const followed: string[] = [];
+    const server = createServer((request, response) => {
+      if (request.url === "/elsewhere") {
+        followed.push(request.url);
+        response.writeHead(200, { "content-type": "application/json" }).end('{"verdict":"pass","kind":"read","response_b64":"e30="}');
+        return;
+      }
+      response.writeHead(307, { location: "/elsewhere" }).end();
+    });
+    mkdirSync(join(dir, "gate"), { recursive: true, mode: 0o700 });
+    await new Promise<void>((r) => server.listen(join(dir, "gate", "worker.sock"), r));
+    try {
+      const gate = worker();
+      gate.start();
+      expect(await gate.check({ kind: "legacy" }, "ws", Buffer.from("{}"))).toBeNull();
+      expect(await gate.redact("ws", Buffer.from("{}"), Buffer.from("{}"))).toBeNull();
+      expect(followed).toEqual([]);
+    } finally {
+      await new Promise((r) => server.close(r));
+    }
+  });
+
+  it.each([
+    ["every person's slot is taken", MAX_ACTIVE_DEVICES, true],
+    ["every pairing slot is waiting", MAX_PENDING_DEVICES, false],
+  ])("the worker still gets its credential when %s, and takes no slot itself", (_name, count, activate) => {
+    const pair = (i: number) => {
+      const c = generateCredential();
+      registry.createPending({ deviceId: c.deviceId, secretDigest: c.secretDigest, clientInstallId: `install-${i}`, name: "Phone", platform: "iOS", client: "x", createdAtMs: 1 }, 1);
+      if (activate) {
+        registry.activate(c.deviceId, 1);
+      }
+    };
+    for (let i = 0; i < count; i++) {
+      pair(i);
+    }
+    worker().start();
+    expect(spawned).toHaveLength(1);
+    expect(gateDevices().filter((d) => d.state === "active")).toHaveLength(1);
+    expect(() => pair(count)).toThrow(/limit reached/); // still a person's cap
   });
 
   it("a credential that can't be minted (corrupt registry) is retried, never fatal", async () => {

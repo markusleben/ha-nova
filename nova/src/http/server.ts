@@ -128,6 +128,7 @@ export function createRequestListener(
         path,
         body,
         ...(auth.principal ? { principal: auth.principal } : {}),
+        reauthorize: async () => (await options.authorize(request, routeKey)).ok,
       });
 
       if (response.writableEnded) {

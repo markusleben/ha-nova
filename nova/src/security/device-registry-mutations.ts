@@ -1,4 +1,5 @@
 import { isRelayInstanceId } from "../storage/relay-instance.js";
+import { BRIDGE_INSTALL_ID, GATE_INSTALL_ID } from "./pairing-metadata.js";
 import {
   isValidCloudUserId,
   type RegistryData,
@@ -10,6 +11,12 @@ import type {
 
 export const MAX_ACTIVE_DEVICES = 64;
 export const MAX_PENDING_DEVICES = 16;
+
+// The App's own credentials (chat bridge, safety-check worker) take no slot a
+// person's device could use, and a full registry never keeps the App from
+// minting one: without its worker, every device request is refused.
+const appOwned = (device: { clientInstallId: string }): boolean =>
+  device.clientInstallId === BRIDGE_INSTALL_ID || device.clientInstallId === GATE_INSTALL_ID;
 export const MAX_PAIRING_RESPONSES = 32;
 export const PENDING_TTL_MS = 15 * 60 * 1000;
 // Last-used stamps persist at most once per window so the hot auth path does
@@ -64,7 +71,7 @@ export function withPending(
     throw new Error("invalid cloud binding");
   }
   const devices = data.devices.filter((device) => !pendingExpired(device, now));
-  if (pendingCountIn(devices, now) >= MAX_PENDING_DEVICES) {
+  if (!appOwned(record) && pendingCountIn(devices, now) >= MAX_PENDING_DEVICES) {
     throw new Error("pending device limit reached");
   }
   const isReplacement = devices.some(
@@ -72,7 +79,7 @@ export function withPending(
       device.state === "active" &&
       device.clientInstallId === record.clientInstallId,
   );
-  if (!isReplacement && activeCountIn(devices) >= MAX_ACTIVE_DEVICES) {
+  if (!appOwned(record) && !isReplacement && activeCountIn(devices) >= MAX_ACTIVE_DEVICES) {
     throw new Error("active device limit reached");
   }
   return {
@@ -86,12 +93,12 @@ export function withPending(
 
 function pendingCountIn(devices: DeviceRecord[], now: number): number {
   return devices.filter(
-    (device) => device.state === "pending" && !pendingExpired(device, now),
+    (device) => device.state === "pending" && !pendingExpired(device, now) && !appOwned(device),
   ).length;
 }
 
 export function activeCountIn(devices: DeviceRecord[]): number {
-  return devices.filter((device) => device.state === "active").length;
+  return devices.filter((device) => device.state === "active" && !appOwned(device)).length;
 }
 
 export function trimPairingResponses(
@@ -183,7 +190,7 @@ export function withActivated(
   // Count AFTER retiring the same-install active record: re-pairing at the cap
   // is a replacement (net count unchanged) and must be allowed; only a
   // genuinely new install pushing past the cap is rejected.
-  if (activeCountIn(kept) >= MAX_ACTIVE_DEVICES) {
+  if (!appOwned(target) && activeCountIn(kept) >= MAX_ACTIVE_DEVICES) {
     throw new Error("active device limit reached");
   }
   return {

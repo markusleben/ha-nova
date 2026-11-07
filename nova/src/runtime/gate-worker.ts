@@ -1,6 +1,7 @@
 import { spawn as spawnChild, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync } from "node:fs";
+import { request } from "node:http";
 import { join } from "node:path";
 
 import type { GateCheck, GateClient } from "../http/gate.js";
@@ -14,9 +15,8 @@ import { writeFileAtomicSync } from "../storage/atomic-file.js";
 // `ha-nova gate` on loopback, started and restarted like the chat bridge
 // (chat-apps.ts), with the same minimal environment. It reads Home Assistant
 // through the Relay with its own credential (loopback only, minted afresh by
-// mint() on every start). Everything lives in /data/gate.
-
-export const GATE_PORT = 8796;
+// mint() on every start). Everything lives in owner-only /data/gate, its
+// Unix socket too: no other listener can answer in the worker's place.
 const TIMEOUT_MS = 20_000; // above the worker's own 15 s check budget (cli/command_gate.go)
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
@@ -48,7 +48,6 @@ export interface GateWorkerDeps {
   binary: string; // the ha-nova CLI in the image
   mint: () => GateRelay; // a fresh credential that replaces the previous one
   logger: RelayLogger;
-  port?: number;
   spawn?: typeof spawnChild;
   respawnMs?: number;
   timeoutMs?: number;
@@ -56,7 +55,7 @@ export interface GateWorkerDeps {
 
 export function createGateWorker(deps: GateWorkerDeps): GateWorker {
   const file = (name: string): string => join(deps.dataDir, "gate", name);
-  const port = deps.port ?? GATE_PORT;
+  const socket = file("worker.sock");
   const spawn = deps.spawn ?? spawnChild;
   const secret = randomBytes(32).toString("hex"); // fresh on every Relay start
   let child: ChildProcess | null = null;
@@ -71,12 +70,19 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
       deps.logger.error("The safety-check worker is missing; every device request is refused", { binary: deps.binary });
       return;
     }
+    const dir = join(deps.dataDir, "gate");
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const st = lstatSync(dir);
+    if (!st.isDirectory() || (process.getuid !== undefined && st.uid !== process.getuid())) {
+      throw new Error(`${dir} must be a directory owned by the Relay's user`);
+    }
+    chmodSync(dir, 0o700);
     writeFileAtomicSync(file("relay.json"), `${JSON.stringify(deps.mint())}\n`);
     writeFileAtomicSync(file("secret"), secret);
     mkdirSync(file("home"), { recursive: true, mode: 0o700 });
     const proc = spawn(
       deps.binary,
-      ["gate", "--listen", `127.0.0.1:${port}`, "--secret-file", file("secret"), "--relay-file", file("relay.json")],
+      ["gate", "--socket", socket, "--secret-file", file("secret"), "--relay-file", file("relay.json")],
       { stdio: ["ignore", "inherit", "inherit"], env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: file("home"), HA_NOVA_NO_BROWSER: "1", ...(process.env.TZ ? { TZ: process.env.TZ } : {}) } },
     );
     child = proc;
@@ -112,28 +118,53 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
     respawn.unref?.();
   };
 
-  const post = async (path: string, payload: unknown): Promise<Record<string, unknown> | null> => {
+  const post = (path: string, payload: unknown): Promise<Record<string, unknown> | null> => {
     const asked = child;
     if (asked === null) {
-      return null;
+      return Promise.resolve(null);
     }
-    try {
-      const response = await fetch(`http://127.0.0.1:${port}${path}`, {
-        method: "POST",
-        headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(deps.timeoutMs ?? TIMEOUT_MS),
-      });
-      const answer: unknown = await response.json();
-      if (child !== asked || response.status !== 200 || typeof answer !== "object" || answer === null || Array.isArray(answer)) {
-        deps.logger.warn("Safety-check worker answered unusably", { path, status: response.status });
-        return null;
-      }
-      return answer as Record<string, unknown>;
-    } catch (error) {
-      deps.logger.warn("Safety-check worker did not answer", { path, error: String((error as Error).message) });
-      return null;
-    }
+    const body = JSON.stringify(payload);
+    return new Promise((resolve) => {
+      let settled = false;
+      const settle = (answer: Record<string, unknown> | null, warning?: string, context?: Record<string, unknown>): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(deadline);
+        if (warning !== undefined) {
+          deps.logger.warn(warning, { path, ...context });
+        }
+        resolve(answer);
+      };
+      const req = request(
+        { socketPath: socket, path, method: "POST", headers: { authorization: `Bearer ${secret}`, "content-type": "application/json", "content-length": Buffer.byteLength(body) } },
+        (response) => {
+          const chunks: Buffer[] = [];
+          response.on("data", (chunk: Buffer) => chunks.push(chunk));
+          response.on("error", (error) => settle(null, "Safety-check worker did not answer", { error: error.message }));
+          response.on("end", () => {
+            let answer: unknown;
+            try {
+              answer = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+            } catch {
+              answer = null;
+            }
+            if (child !== asked || response.statusCode !== 200 || typeof answer !== "object" || answer === null || Array.isArray(answer)) {
+              settle(null, "Safety-check worker answered unusably", { status: response.statusCode });
+              return;
+            }
+            settle(answer as Record<string, unknown>);
+          });
+        },
+      );
+      const deadline = setTimeout(() => {
+        req.destroy();
+        settle(null, "Safety-check worker did not answer", { error: "timeout" });
+      }, deps.timeoutMs ?? TIMEOUT_MS);
+      req.on("error", (error) => settle(null, "Safety-check worker did not answer", { error: error.message }));
+      req.end(body);
+    });
   };
 
   return {

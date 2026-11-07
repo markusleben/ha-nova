@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -27,7 +28,7 @@ import (
 // CLI's. It reaches Home Assistant only through the Relay, as its own
 // internal principal (--relay-file).
 
-const gateUsage = "ha-nova gate --listen 127.0.0.1:<port> --secret-file <file> --relay-file <file>"
+const gateUsage = "ha-nova gate --socket <file> --secret-file <file> --relay-file <file>"
 
 // gateCheckBudget bounds one check's reads; the Relay waits a little longer
 // (gate-worker.ts). A check the budget cuts stays typed (LIMIT_CUT).
@@ -40,9 +41,9 @@ var gatePictureToken = regexp.MustCompile(`[?&]token=([^&#]+)`)
 var gateRelayToken = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`) // the standalone Relay's token for its worker (start.ts)
 
 func runGateCommand(paths runtimePaths, args []string) int {
-	var listen, secretFile, relayFile string
+	var socket, secretFile, relayFile string
 	fs := flag.NewFlagSet("gate", flag.ContinueOnError)
-	fs.StringVar(&listen, "listen", "", "loopback address to listen on, 127.0.0.1:<port> (required)")
+	fs.StringVar(&socket, "socket", "", "Unix socket to listen on, in a folder only its owner can open (required)")
 	fs.StringVar(&secretFile, "secret-file", "", "file holding the 64-hex-character secret the Relay sends (required)")
 	fs.StringVar(&relayFile, "relay-file", "", "the Relay's credential file for this worker (required)")
 	var opts verbOptions
@@ -50,13 +51,12 @@ func runGateCommand(paths runtimePaths, args []string) int {
 	if errors.Is(err, errHelpShown) {
 		return 0
 	}
-	host, _, splitErr := net.SplitHostPort(listen)
 	switch {
 	case err != nil:
 	case len(positional) != 0 || secretFile == "" || relayFile == "":
 		err = errors.New("Usage: " + gateUsage)
-	case splitErr != nil || !net.ParseIP(host).IsLoopback():
-		err = errors.New("--listen needs a loopback host:port, e.g. 127.0.0.1:8796")
+	case !filepath.IsAbs(socket) || len(socket) >= 104: // a socket path holds at most 104 bytes (macOS)
+		err = errors.New("--socket needs an absolute path shorter than 104 bytes")
 	default:
 		bridgeRelay, err = loadGateRelay(relayFile)
 	}
@@ -69,13 +69,50 @@ func runGateCommand(paths runtimePaths, args []string) int {
 		printErr("%s", err)
 		return 1
 	}
-	server := &http.Server{Addr: listen, Handler: gateHandler(paths, secret), ReadHeaderTimeout: 5 * time.Second,
+	listener, err := gateListen(socket)
+	if err != nil {
+		printErr("%s", err)
+		return 1
+	}
+	server := &http.Server{Handler: gateHandler(paths, secret), ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout: 30 * time.Second, WriteTimeout: time.Minute, IdleTimeout: 2 * time.Minute, MaxHeaderBytes: 16 << 10}
-	if err := server.ListenAndServe(); err != nil {
+	if err := server.Serve(listener); err != nil {
 		printErr("%s", err)
 		return 1
 	}
 	return 0
+}
+
+// gateListen listens on socket, in a folder only its owner can open (the
+// Relay's /data/gate), so no other listener can answer the Relay in the
+// worker's place. A socket left by a worker that stopped is replaced; a live
+// one, or anything else at that path, is not.
+func gateListen(socket string) (net.Listener, error) {
+	dir, err := os.Lstat(filepath.Dir(socket))
+	if err != nil || !dir.IsDir() || runtime.GOOS != "windows" && dir.Mode().Perm()&0o077 != 0 {
+		return nil, errors.New("the socket's folder must be a real folder only its owner can open (chmod 700)")
+	}
+	if info, err := os.Lstat(socket); err == nil {
+		if info.Mode()&os.ModeSocket == 0 {
+			return nil, errors.New("something other than a socket is at " + socket)
+		}
+		if conn, err := net.Dial("unix", socket); err == nil {
+			conn.Close()
+			return nil, errors.New("another worker already answers at " + socket)
+		}
+		if err := os.Remove(socket); err != nil {
+			return nil, err
+		}
+	}
+	listener, err := net.Listen("unix", socket)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(socket, 0o600); err != nil {
+		listener.Close()
+		return nil, err
+	}
+	return listener, nil
 }
 
 // loadGateRelay: the App's pinned TLS listener with the worker's device
