@@ -19,18 +19,20 @@ func TestPlanRawTypedFlagAndAccessCheck(t *testing.T) {
 				map[string]any{"entity_id": "person.anna", "platform": "person", "unique_id": "anna"}}
 		},
 		"config/device_registry/list": func(map[string]any) any { return []any{map[string]any{"id": "dlock"}, map[string]any{"id": "dlamp"}} },
+		"person/list": func(map[string]any) any {
+			return map[string]any{"storage": []any{map[string]any{"id": "anna", "name": "Anna", "device_trackers": []any{"device_tracker.old_phone"}}}, "config": []any{}}
+		},
 	})
 	for payload, tier := range map[string]string{
-		`{"type":"input_boolean/update","input_boolean_id":"guest","name":"Guest"}`:                     "preview",
-		`{"type":"config/entity_registry/update","entity_id":"lock.front","name":"Front door"}`:         "preview",
-		`{"type":"config/entity_registry/update","entity_id":"lock.front","area_id":"hall"}`:            "typed",
-		`{"type":"config/entity_registry/update","entity_id":"LOCK.Front","area_id":"hall"}`:            "typed", // Home Assistant lowercases it
-		`{"type":"config/entity_registry/update","entity_id":"Sensor.Door_Battery","labels":["door"]}`:  "typed",
-		`{"type":"config/entity_registry/update","entity_id":"lock.front","new_entity_id":"lock.door"}`: "typed",
-		`{"type":"config/entity_registry/update","entity_id":"sensor.door_battery","labels":["door"]}`:  "typed",
-		`{"type":"config/entity_registry/update","entity_id":"light.desk","area_id":"office"}`:          "preview",
-		`{"type":"person/update","person_id":"anna","device_trackers":["device_tracker.new_phone"]}`:    "typed",
-		`{"type":"person/update","person_id":"anna","name":"Anna"}`:                                     "typed", // empties her trackers (personFollows)
+		`{"type":"input_boolean/update","input_boolean_id":"guest","name":"Guest"}`:                                             "preview",
+		`{"type":"config/entity_registry/update","entity_id":"lock.front","name":"Front door"}`:                                 "preview",
+		`{"type":"config/entity_registry/update","entity_id":"lock.front","area_id":"hall"}`:                                    "typed",
+		`{"type":"config/entity_registry/update","entity_id":"LOCK.Front","area_id":"hall"}`:                                    "typed", // Home Assistant lowercases it
+		`{"type":"config/entity_registry/update","entity_id":"Sensor.Door_Battery","labels":["door"]}`:                          "typed",
+		`{"type":"config/entity_registry/update","entity_id":"lock.front","new_entity_id":"lock.door"}`:                         "typed",
+		`{"type":"config/entity_registry/update","entity_id":"sensor.door_battery","labels":["door"]}`:                          "typed",
+		`{"type":"config/entity_registry/update","entity_id":"light.desk","area_id":"office"}`:                                  "preview",
+		`{"type":"person/update","person_id":"anna","device_trackers":["device_tracker.old_phone","device_tracker.new_phone"]}`: "typed",
 	} {
 		if exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":`+payload+`}]`); exit != verbExitConfirmation || env.Tier != tier {
 			t.Errorf("%s: exit %d tier %s, want %s", payload, exit, env.Tier, tier)
@@ -40,6 +42,8 @@ func TestPlanRawTypedFlagAndAccessCheck(t *testing.T) {
 		`[{"endpoint":"ws","payload":{"type":"input_boolean/update","input_boolean_id":"guest","name":"G"},"typed":true}]`:  "typed",
 		`[{"endpoint":"ws","payload":{"type":"input_boolean/update","input_boolean_id":"guest","name":"G"},"typed":false}]`: "preview",
 		`[{"endpoint":"ws","payload":{"type":"input_boolean/delete","input_boolean_id":"guest"},"typed":false}]`:            "typed",
+		`[{"endpoint":"backups","payload":{"action":"save","category":"persons","name":"auto-anna","data":{"id":"anna","name":"Anna","device_trackers":["device_tracker.old_phone"]}}},` +
+			`{"endpoint":"ws","payload":{"type":"person/update","person_id":"anna","name":"Anna"}}]`: "typed", // empties her trackers (personFollows), after her copy (helperKept)
 	} {
 		if exit, env := planRaw(t, paths, items); exit != verbExitConfirmation || env.Tier != tier {
 			t.Errorf("%s: exit %d tier %s, want %s", items, exit, env.Tier, tier)

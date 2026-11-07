@@ -209,6 +209,7 @@
   "raw.scene_drops": "Entfernt {members} aus der Szene.",
   "raw.options_drops": "Entfernt {options} aus dem Dropdown-Menü-Helfer.",
   "raw.schedule_drops": "Entfernt {blocks} aus dem Zeitplan.",
+  "raw.omits": "Entfernt {items}.",
   "raw.schedule_block": "{day} {from}–{to}",
   "raw.schedule_block_data": "die Daten von {day} {from}–{to}",
   "raw.day.monday": "Montag",

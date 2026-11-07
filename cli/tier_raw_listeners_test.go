@@ -159,6 +159,7 @@ func TestRawWriteListenersFailClosed(t *testing.T) {
 	}
 	f := listeningHome()
 	f.related["entity:binary_sensor.side_door"] = []string{"automation.opener"}
+	f.unique["binary_sensor.side_door"] = "side_door" // its registry entry, which a labels or aliases update reads (helperKept)
 	paths, searched, _ := listeningRelay(t, f)
 	for _, payload := range []string{`{"type":"config/entity_registry/update","entity_id":"binary_sensor.side_door","area_id":"hall","labels":[],"aliases":["Side"]}`,
 		`{"type":"calendar/event/create","event":{"summary":"x"}}`, `{"type":"config/core/update","currency":"EUR"}`} {

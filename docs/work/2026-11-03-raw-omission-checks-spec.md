@@ -31,11 +31,12 @@ Verified against Home Assistant `dev` on 2026-11-03.
 | `person/update` | Top-level merge; `device_trackers`, when sent, replaces the list. | Live trackers missing from a sent `device_trackers`. | Copy (new `persons` category in `config-snapshots.md`). | New. | 2 |
 | `config/entity_registry/update` | `aliases` and `labels`, when sent, replace the lists; `options_domain` + `options` replace that domain's options. | Live aliases and labels missing from a sent list; live option keys missing from the sent `options`. | Copy: `metadata` (already captures entity fields). | New. | 2 |
 | `config/device_registry/update` | `labels`, when sent, replaces the list. | Live labels missing from the sent list. | Copy: `metadata`. | New. | 2 |
-| `config/area_registry/update`, `config/floor_registry/update` | `aliases` (and an area's `labels`), when sent, replace the lists. | Live entries missing from a sent list. | No copy: snapshots don't cover areas or floors (`config-snapshots.md` → Not covered). The preview names what goes, with no refusal. | New. | 2 |
-| `assist_pipeline/pipeline/update` | `Pipeline(id=item.id, **update)`: every field left out goes back to its default. | Every live field with a value that the body leaves out. | Copy (new `assist` category). A guard of about 50 lines exists on #931's branch, ready to reuse. | New. | 2 |
-| `files write_file` on an existing YAML file | The file is replaced; only the Relay's one-step `.bak` remains. | Not diffed: YAML text has no stable item identity. Every overwrite of an existing file counts. | Copy: `yaml` (`{path, content}`), as `config-snapshots.md` already asks. | The file line exists; no new line. | 2 |
-| Other helper updates (`input_number`, `input_text`, `input_datetime`, `input_boolean`, `input_button`, `counter`, `timer`), `zone/update`, `tag/update` | Expected to replace the whole item like `input_select`; verify per collection in PR 2. | Optional fields left out (icon, unit, initial) go back to their defaults: scalars that update-revert already covers. | Decide in PR 2 (likely the preview only). | New. | 2 |
-| `backup/config/update` | `create_backup.agent_ids`, when sent, replaces the list of backup locations. | Live locations missing from a sent list. | Verify in PR 2. | New. | 2 |
+| `config/area_registry/update`, `config/floor_registry/update` | `aliases` (and an area's `labels`), when sent, replace the lists. | Live entries missing from a sent list. | Copy: `metadata`, the row from its list (PR 2 changed this from preview-only: one rule for every registry, and the row restores in place). | New. | 2 |
+| `assist_pipeline/pipeline/update` | `Pipeline(id=item.id, **update)`: every field left out goes back to its default. Eleven fields are required, so Home Assistant refuses their omission itself. | `prefer_local_intents` or `acknowledge_media_id` held (not false or null) and left out. | Copy (new `assist` category). A guard of about 50 lines exists on #931's branch, ready to reuse. | New. | 2 |
+| `files write_file` on an existing YAML file | The file is replaced; only the Relay's one-step `.bak` remains. | Not diffed: YAML text has no stable item identity. Every overwrite of an existing file counts. | Copy: `yaml` (`{path, content}`), as `config-snapshots.md` already asks. | The file line exists; no new line. | 3 |
+| Other helper updates (`input_number`, `input_text`, `input_datetime`, `input_boolean`, `input_button`, `counter`, `timer`) | Replace the whole item (`{id} \| update`, verified 2026-11-07). | Optional fields left out (icon, unit, initial) go back to their defaults: scalars. | No guard: apply saves an update-revert checkpoint for every helper update. | None. | — |
+| `zone/update`, `tag/update`, `lovelace/dashboards/update` | Merge (`{**item, **update}`, verified 2026-11-07). | Nothing. | No guard. | None. | — |
+| `backup/config/update` | `create_backup.agent_ids`, when sent, replaces the list of backup locations. | Live locations missing from a sent list. | Not a snapshot family: a known limit. | None. | — |
 | `energy/save_prefs` | Whole document. | Already guarded: basis plus the `energy_emptied` reason. | — | — | — |
 
 ## PR 1 (this branch)
@@ -45,6 +46,12 @@ Verified against Home Assistant `dev` on 2026-11-03.
 An update after its copy names what it removes in the preview (`helperNote`), with the strings Markus approved on 2026-11-03: `raw.options_drops` (the options, by name), `raw.schedule_drops` with `raw.schedule_block` or `raw.schedule_block_data` (a block whose data alone goes), and `raw.day.*`; times show as HH:MM.
 
 Calendar recurrence is out: see the table. The calendar skill's "omit `rrule` to clear recurrence" (`skills/calendar/SKILL.md`, Create, update, or delete step 3) doesn't hold for `local_calendar`, which keeps the rule. That fix is separate.
+
+## PR 2
+
+Persons, registry rows, and voice assistants, in the same guard as PR 1: `rawReplaced` (`cli/plan_raw_helper.go`) maps each guarded WS update type to how its live item is read, what it drops, and its copy's category; the new routes live in `cli/plan_raw_replace.go`. A registry update that sends no list it could drop from reads nothing for it. The live item enters the basis under `helpers` (`<type without /update>/<id>`). An update of a person, device, area, floor, or voice assistant its list doesn't hold is `NOT_FOUND` at planning; an entity whose registry entry can't be read plans nothing. List entries compare as text (aliases trimmed, tracker ids lowercased, as Home Assistant stores them); a list sent as null drops nothing. After its copy, the preview names what goes with one new string, `raw.omits` ("Removes {items}." / "Entfernt {items}."). `ha-nova relay ws` refuses a dropping update as `refused raw <type>`.
+
+Each person update now reads `person/list`, so an unreadable list plans nothing (it planned typed before), and an unknown person is `NOT_FOUND` (`ha-nova relay ws` still refuses it as typed first).
 
 ## Known limits (PR 1)
 
