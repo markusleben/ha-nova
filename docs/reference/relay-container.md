@@ -122,7 +122,9 @@ The relay refuses secrets, the recorder database and Home Assistant's internal s
 ## Local build
 
 ```bash
-docker build -f nova/Dockerfile.standalone --build-arg RELAY_VERSION=0.3.0 -t ha-nova-relay:local nova
+docker build -f nova/Dockerfile.standalone --build-context cli=cli --build-arg RELAY_VERSION=0.3.0 -t ha-nova-relay:local nova
 ```
+
+Run it from the repository root with BuildKit (Docker 23 or newer): the image also builds the HA NOVA CLI from `cli/`, which checks every request as the Relay's safety-check worker.
 
 The published image bakes its version in at build time (`RELAY_VERSION`), so `/health` reports a real version and the CLI's compatibility check works. A local build without `--build-arg` reports `dev`.

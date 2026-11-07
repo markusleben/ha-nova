@@ -6,9 +6,27 @@
 # Configuration is environment-only (nova/src/config/env.ts); the App's
 # /data/options.json is optional and simply absent here.
 
-# Base image for both stages; the default is the published behavior. The
-# hosted demo passes a digest-pinned tag (scripts/demo/hosted/host-lib.sh).
+# Base images; the defaults are the published behavior. The hosted demo
+# passes digest-pinned tags (scripts/demo/hosted/host-lib.sh).
 ARG NODE_IMAGE=node:22-alpine
+ARG GO_IMAGE=golang:1.26.10
+
+# The safety-check worker every request goes through (`ha-nova gate`,
+# docs/work/2026-11-03-relay-typed-gate-spec.md): the Go CLI from the same
+# checkout, passed as the named build context "cli" (docker build
+# --build-context cli=cli, compose additional_contexts). Built on the build
+# machine for the target arch, flags as scripts/release/stage-app-bridge.sh.
+FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS gate
+ARG TARGETARCH
+ARG GOFLAGS
+ARG RELAY_VERSION=dev
+ENV CGO_ENABLED=0 GOTOOLCHAIN=local
+WORKDIR /src
+COPY --from=cli go.mod go.sum ./
+RUN go mod download
+COPY --from=cli . ./
+RUN GOOS=linux GOARCH=$TARGETARCH go build -trimpath -tags cloudremote_disabled \
+  -ldflags="-s -w -X main.Version=${RELAY_VERSION}" -o /out/ha-nova .
 
 FROM ${NODE_IMAGE} AS build
 
@@ -35,6 +53,8 @@ WORKDIR /app
 COPY --from=build --chown=nova:nova /app/dist ./dist
 COPY --from=build --chown=nova:nova /app/node_modules ./node_modules
 COPY --from=build --chown=nova:nova /app/package.json ./package.json
+# Root-owned: the relay user runs the worker but cannot replace it.
+COPY --from=gate /out/ha-nova /opt/ha-nova/ha-nova
 
 USER nova
 

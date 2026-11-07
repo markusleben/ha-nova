@@ -27,6 +27,8 @@ services:
     build:
       context: ../../../nova
       dockerfile: Dockerfile.standalone
+      additional_contexts:
+        cli: ../../../cli
       args:
         RELAY_VERSION: "${RELAY_VERSION:-e2e}"
     container_name: nova-e2e-relay
@@ -53,6 +55,8 @@ services:
     build:
       context: ../../../nova
       dockerfile: Dockerfile.standalone
+      additional_contexts:
+        cli: ../../../cli
       args:
         RELAY_VERSION: "${RELAY_VERSION:-e2e}"
     container_name: nova-e2e-relay-appmode
@@ -76,6 +80,8 @@ services:
     build:
       context: ../../../nova
       dockerfile: Dockerfile.standalone
+      additional_contexts:
+        cli: ../../../cli
       args:
         RELAY_VERSION: "${RELAY_VERSION:-e2e}"
     container_name: nova-e2e-relay-files

@@ -21,7 +21,7 @@ PENDING="$STATE/public-gate-pending"
 # keep/restore): demo tokens only, root-only, never served.
 KEPT="$STATE/chat-sign-ins.json"
 # The relay and chat-bridge images: built once per ref by bootstrap.sh from
-# digest-pinned bases (Go only for the bridge's build stage), never pulled or
+# digest-pinned bases (Go only for build stages), never pulled or
 # rebuilt by a reset, labelled so prunes keep them.
 NODE_IMAGE=node:22.23.3-alpine3.24@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
 GO_IMAGE=golang:1.26.10@sha256:670bb5aa5349ae03b8516764718486f4f16399134bdc9acd0c46a23f043ab05c
