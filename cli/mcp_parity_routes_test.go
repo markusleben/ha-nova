@@ -14,6 +14,7 @@ const mcpComputerOnlySays = "this sets up HA NOVA on a computer"
 var mcpParityExempt = map[string]string{
 	"mcp":   "the chat bridge itself: it serves these tools",
 	"serve": "the NOVA Relay App's chat bridge: it serves these tools",
+	"gate":  "the NOVA Relay App's gate worker: it rates what the tools send",
 }
 
 // mcpParityRoutes (item 1): every command, subcommand, and flag the skills
