@@ -227,6 +227,9 @@ func forceGuidedUpdateTTY(t *testing.T, input string) {
 
 func TestGuidedRelayUpdateInstallsThroughTheRestartAndVerifies(t *testing.T) {
 	paths := guidedUpdatePaths(t)
+	readHA := chatAppsReadHA
+	t.Cleanup(func() { chatAppsReadHA = readHA })
+	chatAppsReadHA = func(runtimePaths) (chatAppsHA, error) { return chatAppsHA{loaded: true}, nil } // chat apps on: the Refresh line follows
 	shrinkGuidedUpdatePolling(t, time.Second)
 	var installed atomic.Bool
 	server := httptest.NewServer(withTierReads(appUpdateHA(), func(w http.ResponseWriter, r *http.Request) {
@@ -293,8 +296,8 @@ func TestGuidedRelayUpdateInstallsThroughTheRestartAndVerifies(t *testing.T) {
 	if !installed.Load() {
 		t.Fatalf("update/install was never called; output: %s", out.String())
 	}
-	if !strings.Contains(out.String(), "The NOVA App is updated and works: v0.4.0.") {
-		t.Fatalf("missing verified-version report in output: %s", out.String())
+	if !strings.Contains(out.String(), "The NOVA App is updated and works: v0.4.0.\n"+chatGPTRefreshLine+"\n") {
+		t.Fatalf("missing verified-version report and Refresh line in output: %s", out.String())
 	}
 	previewIndex := strings.Index(out.String(), "HA NOVA installs the newest NOVA App (now v0.4.0)")
 	confirmationIndex := strings.Index(out.String(), "Update the NOVA App now?")
@@ -423,6 +426,9 @@ func TestGuidedRelayUpdateRelayTimeoutEnvelopeStillPolls(t *testing.T) {
 	var out bytes.Buffer
 	if !runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
 		t.Fatalf("relay-side timeout must poll and verify; output: %s", out.String())
+	}
+	if strings.Contains(out.String(), chatGPTRefreshLine) { // chat apps aren't on here
+		t.Fatalf("Refresh line without chat apps: %s", out.String())
 	}
 	if !strings.Contains(out.String(), "The NOVA App is updated and works: v0.4.0.") {
 		t.Fatalf("missing verified report: %s", out.String())
