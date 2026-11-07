@@ -204,6 +204,9 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 	if e.level == tierPreview { // the request is not the approval: an agent once saved in the same turn
 		env.NextStep = fmt.Sprintf("Show the preview ending with `say` and end your turn; run ha-nova apply --plan %s only after the user's own reply approves it.%s", plan.ID, bare)
 	}
+	if e.level == tierOrdinary && plan.ConfigAction != nil { // an update calmUpdate let through: apply saves its way back first
+		env.NextStep = fmt.Sprintf("No ask: the CLI checked this change and saves its way back first. Run ha-nova apply --plan %s now, then show its `say` and the diff.%s", plan.ID, bare)
+	}
 	if plan.Channel == "" { // no code, so where it would be typed does not matter
 		plan.Channel = channelChat
 	}

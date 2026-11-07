@@ -150,7 +150,8 @@ func TestRepeatedPlansOverASlowLinkAreTheSamePlan(t *testing.T) {
 	var hashes []string
 	for range 3 {
 		env := h.planLeave()
-		if env.Tier != "preview" || env.Coverage == nil || !env.Coverage.Complete || len(env.Consumers) != 22 {
+		if env.Tier != "ordinary" || env.Coverage == nil || !env.Coverage.Complete || len(env.Consumers) != 22 { // a full check with nothing to ask (calmUpdate); a cut would be typed
+
 			t.Fatalf("tier %s coverage %+v consumers %d reasons %s", env.Tier, env.Coverage, len(env.Consumers), reasonCodes(env))
 		}
 		hashes = append(hashes, env.Plan.Hash)

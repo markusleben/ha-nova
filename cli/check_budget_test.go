@@ -8,7 +8,8 @@ import (
 
 // #1009: a check reads until its call's deadline, not until the 30 s
 // session budget, and a check that deadline still cuts says it ran out of
-// time and stays typed.
+// time and stays typed. A complete check lets the update run as an
+// ordinary one (calmUpdate).
 
 func TestACheckReadsUntilTheCallsDeadline(t *testing.T) {
 	h := newSlowHarness(t, presenceHome(), 20*time.Millisecond, 150*time.Millisecond)
@@ -17,7 +18,7 @@ func TestACheckReadsUntilTheCallsDeadline(t *testing.T) {
 	}
 	withCheckDeadline(t, afterCheck+10*time.Second)
 	env := h.planLeave()
-	if env.Tier != "preview" || !env.Coverage.Complete || len(env.Consumers) != 22 || strings.Contains(reasonCodes(env), reasonLimitCut) {
+	if env.Tier != "ordinary" || !env.Coverage.Complete || len(env.Consumers) != 22 || strings.Contains(reasonCodes(env), reasonLimitCut) {
 		t.Fatalf("with the call's deadline: tier %s coverage %+v consumers %d reasons %s", env.Tier, env.Coverage, len(env.Consumers), reasonCodes(env))
 	}
 }

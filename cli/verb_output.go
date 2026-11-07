@@ -67,6 +67,7 @@ type verbEnvelope struct {
 	ask          actionGoal      // a typed plan's phone question: its goal and the reasons the title doesn't say (sayAsk)
 	everyday     *everydayLine   // an MQTT or Supervisor call's everyday line (confirm_everyday.go), set with the plan
 	done         string          // what a config or rooms apply did, for its result line (resultSay)
+	undoable     bool            // an ordinary update with its checkpoint saved: the result line says how to undo it
 }
 
 type verbTarget struct {
