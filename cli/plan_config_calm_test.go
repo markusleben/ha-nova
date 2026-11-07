@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -67,6 +68,16 @@ func TestPlanWriteUpdateRunsWithItsWayBackSavedFirst(t *testing.T) {
 	}
 	if again := h.planHall("light.toggle"); again.Tier != "preview" { // never replaces this item's checkpoint
 		t.Fatalf("second update: %+v", again)
+	}
+}
+
+// Template entities are in most homes; their note asks nothing, as on a call.
+func TestPlanWriteUpdateRunsInAHomeWithTemplates(t *testing.T) {
+	f := calmHome()
+	f.ent("sensor.feels_like", "template", "21", nil)
+	h := newWriteHarness(t, f)
+	if env := h.planHall("light.turn_off"); env.Tier != "ordinary" || env.Coverage == nil || !slices.Contains(env.Coverage.Notes, noteTemplates) {
+		t.Fatalf("%+v", env)
 	}
 }
 

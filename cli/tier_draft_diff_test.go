@@ -51,7 +51,7 @@ func TestPlanWriteWeighsOnlyTheChangedSteps(t *testing.T) {
 	read := map[string]any{"action": "todo.get_items", "target": map[string]any{"entity_id": "todo.list"}, "response_variable": "items"}
 	f.configs["/api/config/automation/config/r1"] = map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{read}}
 	env := planRoutine(t, f, map[string]any{"alias": "Routine", "triggers": []any{}, "actions": []any{read, step("switch.turn_on", "switch.art")}})
-	if env.Tier != "preview" || reasonCodes(env) != reasonConfigWrite || consumerNames(env) != "" || !env.Coverage.Complete {
+	if env.Tier != "ordinary" || reasonCodes(env) != reasonConfigWrite || consumerNames(env) != "" || !env.Coverage.Complete { // nothing raised: a calm update (calmUpdate)
 		t.Fatalf("an appended ordinary step: tier %q reasons %s consumers %s coverage %+v", env.Tier, reasonCodes(env), consumerNames(env), env.Coverage)
 	}
 	if len(env.Members) != 1 || env.Members[0].EntityID != "switch.art" || env.Members[0].Via != "draft/actions/1" {
@@ -201,7 +201,7 @@ func TestPlanWriteAppendedStepWidensToWhatMayReadIt(t *testing.T) {
 func TestPlanWriteAliasOnlyWeighsNoStep(t *testing.T) {
 	d := routine()
 	d["alias"] = "Morning"
-	if env := planRoutine(t, routineHA(), d); env.Tier != "preview" || reasonCodes(env) != reasonConfigWrite || len(env.Members) != 0 {
+	if env := planRoutine(t, routineHA(), d); env.Tier != "ordinary" || reasonCodes(env) != reasonConfigWrite || len(env.Members) != 0 { // nothing raised: a calm update
 		t.Fatalf("an alias change: tier %q reasons %s members %+v", env.Tier, reasonCodes(env), env.Members)
 	}
 }

@@ -466,7 +466,7 @@ func (e *tierEngine) calmUpdate(paths runtimePaths, req configRequest, current j
 		return false
 	}
 	if e.level != tierPreview || len(e.reasons) != 1 || e.reasons[0].Code != reasonConfigWrite || !e.complete ||
-		len(e.skipped) > 0 || len(e.lost) > 0 || slices.ContainsFunc(e.notes, func(n string) bool { return n != noteNoManager }) {
+		len(e.skipped) > 0 || len(e.lost) > 0 || !e.onlyInformationalNotes() {
 		return false
 	}
 	if holdsHiddenValue(current) || holdsHiddenValue(req.Draft) {
@@ -499,6 +499,14 @@ func (e *tierEngine) calmUpdate(paths runtimePaths, req configRequest, current j
 	}
 	stack, err := loadUndoSnapshotStack(paths)
 	return err == nil && checkpointFits(stack, e.s.server, req.Domain, req.ConfigID)
+}
+
+// onlyInformationalNotes: the check left no note but those an ordinary call
+// ignores too: no local consumer manager, and template entities or triggers
+// whose dependencies Home Assistant computes at runtime (most homes have
+// some). A skipped or filtered target is not one.
+func (e *tierEngine) onlyInformationalNotes() bool {
+	return !slices.ContainsFunc(e.notes, func(n string) bool { return n != noteNoManager && n != noteTemplates })
 }
 
 // referencedBy lists what references the item a delete removes.
