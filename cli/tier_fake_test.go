@@ -319,11 +319,12 @@ func runTierCases(t *testing.T, cases []tierCase) {
 			if tc.setup != nil {
 				tc.setup(f)
 			}
-			exit, env, _, _ := runPlanForTest(t, f, tc.args...)
+			exit, env, paths, _ := runPlanForTest(t, f, tc.args...)
 			codes := reasonCodes(env)
 			if exit != tc.exit || env.Tier != tc.tier {
 				t.Fatalf("exit %d tier %q (reasons %s, error %+v), want exit %d tier %q", exit, env.Tier, codes, env.Error, tc.exit, tc.tier)
 			}
+			assertGateParity(t, paths, env)
 			for _, want := range tc.reasons {
 				if !strings.Contains(","+codes+",", ","+want+",") {
 					t.Fatalf("reasons %s lack %s", codes, want)

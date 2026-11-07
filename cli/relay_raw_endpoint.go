@@ -88,13 +88,11 @@ func relayTyped(paths runtimePaths, opts verbOptions, endpoint string, body []by
 		s = opened
 		return opened, err
 	})
-	switch {
+	switch { // refusals are its own guard's, which ran first; the gate's own (log reads) are the Relay's
 	case err != nil:
 		return nil, err
-	case check.Verdict == gatePass:
+	case check.Verdict != gateTyped:
 		return nil, nil
-	case check.Verdict == gateRefuse:
-		return rawRefusal(endpoint+" request", rawNextOther), nil
 	}
 	request := requests[check.Item]
 	what, _ := request["type"].(string)

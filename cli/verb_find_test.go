@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -89,6 +90,11 @@ func setupFakeRelay(t *testing.T, reply func(r *http.Request, endpoint string, p
 		// Typed plans also look for the owner's phone (its own fixed allowlist).
 		if err := checkReadOnlyRequest(endpoint, payload); err != nil && !(allowServiceWrites && checkWriteRequest(endpoint, payload) == nil) && checkPhoneRead(endpoint, payload) != nil {
 			t.Errorf("read verb sent a non-read request: %v", err)
+		}
+		// Gate oracle (relay-typed-gate spec → Contract): the Relay's gate
+		// recognizes every request a verb sends but gateRefusesOnPurpose.
+		if check, _ := gateVerdict(endpoint, raw, func() (*relaySession, error) { return nil, errors.New("static check") }); check.Verdict == gateRefuse && !gateRefusesOnPurpose(endpoint, payload) {
+			t.Errorf("the Relay gate would refuse a request a verb sends: %s %s", endpoint, raw)
 		}
 		log.mu.Lock()
 		log.calls = append(log.calls, fakeRelayCall{endpoint: endpoint, payload: payload, raw: raw})

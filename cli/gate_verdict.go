@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"net/http"
 	"slices"
 	"strings"
 )
@@ -65,24 +66,35 @@ func gateRequests(endpoint string, payload map[string]any) []map[string]any {
 // pass), so a typed one never masks a refused one. The first pass reads
 // nothing: a read the tier needs counts as failed, so typed. Only a typed
 // result that came from such a read opens the session and rates again live,
-// where a failed read still counts as typed. A body that is not one JSON
-// object (null and trailing data included), an endpoint the gate doesn't
-// know, or a request the raw guard refuses is refused. Kind is read only
-// for a recognized read that passes. On err (the session didn't open) the
-// check is still the fail-closed typed verdict.
+// where a failed read still counts as typed. Refused: a body that is not
+// exactly one JSON object, an endpoint the gate doesn't know, a request the
+// spec refuses (gateDenied), and any shape the CLI never sends
+// (gateRecognized). Kind is read only for a recognized read that passes. On
+// err (the session didn't open) the check is still the fail-closed typed
+// verdict.
 func gateVerdict(endpoint string, body []byte, session func() (*relaySession, error)) (gateCheck, error) {
+	refused := gateCheck{Verdict: gateRefuse, Kind: "write"}
 	payload, ok := decodeObject(body)
 	if !ok || payload == nil || !json.Valid(body) || !slices.Contains([]string{"ws", "core", "files", "backups", "supervisor"}, endpoint) {
-		return gateCheck{Verdict: gateRefuse, Kind: "write"}, nil
+		return refused, nil
 	}
-	switch { // shapes no classifier here rates yet (service calls, config writes, Supervisor writes) stay refused
-	case (endpoint == "ws" || endpoint == "core") && checkRawRelayRequest(endpoint, body) != nil,
-		endpoint == "supervisor" && (rawSupervisorWrite(payload) || checkRawSupervisor(payload) != nil):
-		return gateCheck{Verdict: gateRefuse, Kind: "write"}, nil
+	requests := gateRequests(endpoint, payload)
+	for _, request := range requests {
+		if gateDenied(endpoint, request) {
+			return refused, nil
+		}
+	}
+	if endpoint == "core" {
+		if level, why, handled, err := gatePlanTier(payload, body, session); handled {
+			return gateCheck{Verdict: gateDecisionOf(level), Kind: "write", Why: why}, err
+		}
+	}
+	if !gateRecognized(endpoint, payload, body) {
+		return refused, nil
 	}
 	check := gateCheck{Verdict: gatePass, Kind: "write"}
 	rank := map[gateDecision]int{gatePass: 0, gateTyped: 1, gateRefuse: 2}
-	for i, request := range gateRequests(endpoint, payload) {
+	for i, request := range requests {
 		n := newRawNamer(nil, nil)
 		level, why := rawItemTier(n, rawRequest{Endpoint: endpoint}, request)
 		if level == tierTyped && n.missed && check.Verdict == gatePass { // a live read can only lower it; once typed, it changes nothing
@@ -100,4 +112,54 @@ func gateVerdict(endpoint string, body []byte, session func() (*relaySession, er
 		check.Kind = "read"
 	}
 	return check, nil
+}
+
+// gateRecognized: a shape the CLI sends to a device-facing endpoint: what
+// `ha-nova relay` passes (its raw guard), what the typed verbs read
+// (checkReadOnlyRequest, checkPhoneRead) or write besides the plans'
+// service calls and config writes (dashboards, a device's area), a listed
+// Supervisor request, and every files or backups action (the Relay checks
+// those itself).
+func gateRecognized(endpoint string, payload map[string]any, body []byte) bool {
+	switch endpoint {
+	case "ws", "core":
+		return checkRawRelayRequest(endpoint, body) == nil || checkReadOnlyRequest(endpoint, payload) == nil ||
+			checkPhoneRead(endpoint, payload) == nil || endpoint == "ws" && (dashboardWrite(payload) || deviceAreaUpdate(payload))
+	case "supervisor":
+		return checkRawSupervisor(payload) == nil
+	}
+	return true
+}
+
+// gateDenied: what the gate refuses whatever allows it elsewhere (spec §2):
+// event firing, execute_script, setting a state, every webhook request,
+// backup downloads and Supervisor paths on core, log reads (free text no
+// redactor bounds), and subscriptions the raw guard refuses (every
+// event, call_service, phone confirmations, templates).
+func gateDenied(endpoint string, request map[string]any) bool {
+	switch endpoint {
+	case "core":
+		method, _ := request["method"].(string)
+		raw, _ := request["path"].(string)
+		decoded, ok := relayCorePath(raw)
+		decoded = strings.ToLower(decoded)
+		for _, prefix := range []string{"/api/webhook", "/api/backup", "/api/hassio", "/api/error_log"} {
+			ok = ok && !strings.HasPrefix(decoded, prefix)
+		}
+		return !ok || method != http.MethodGet && (strings.HasPrefix(decoded, "/api/states") || strings.HasPrefix(decoded, "/api/events"))
+	case "ws":
+		wsType, _ := request["type"].(string)
+		switch {
+		case slices.Contains([]string{"fire_event", "execute_script", "call_service", "system_log/list"}, wsType):
+			return true
+		case strings.HasPrefix(wsType, "subscribe_"):
+			return checkRawWS(request) != nil
+		}
+	case "supervisor":
+		method, _ := request["method"].(string)
+		path, _ := request["path"].(string)
+		kind, _ := rawSupervisorMatch(method, path)
+		return kind == "logs"
+	}
+	return false
 }
