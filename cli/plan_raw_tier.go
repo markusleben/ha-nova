@@ -519,7 +519,7 @@ func rawSnapshotList(s *relaySession) (json.RawMessage, error) {
 // each device delete removes (its devices and entities: one more since the
 // preview is drift), each scene a save replaces (sceneKept), each item
 // a guarded update replaces (helperKept: helpers, persons, registry rows,
-// voice assistants), each YAML file a write replaces (fileKept: its
+// voice assistants), each file a write or delete changes (fileKept: its
 // content's hash), each calendar event an update is tiered
 // on (calendarLive), and every config a listener walk read
 // (rawShoppingList), as a call binds its consumers' (I3); nil when the plan
