@@ -36,8 +36,12 @@ var stdioApplyWait = 50 * time.Second
 // runs. nil: the call runs as usual.
 func (srv *mcpServer) stdioJob(name string, args map[string]json.RawMessage) map[string]any {
 	for old, job := range srv.jobs { // an outcome nobody came back for
-		if !job.ended.IsZero() && time.Since(job.ended) > planTTL {
-			delete(srv.jobs, old)
+		select {
+		case <-job.done: // ended is set before done closes
+			if time.Since(job.ended) > planTTL {
+				delete(srv.jobs, old)
+			}
+		default:
 		}
 	}
 	id := text(args, "plan_id")
@@ -130,6 +134,7 @@ func stdioEndAfterChanges() {
 	if runtime.GOOS == "windows" {
 		return
 	}
+	signal.Ignore(syscall.SIGPIPE) // an AI app that closed its end gets write errors; a running change still finishes
 	signals := make(chan os.Signal, 1)
 	for _, sig := range []os.Signal{syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP} {
 		if !signal.Ignored(sig) {
