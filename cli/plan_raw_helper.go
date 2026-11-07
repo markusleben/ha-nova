@@ -230,9 +230,9 @@ func (n *rawNamer) helperKept(earlier []rawRequest, endpoint string, payload map
 	return rawDrop{
 		message: removal + ", with no copy of its current item saved first",
 		hint: fmt.Sprintf(`This would remove the %s %s: %s. If the user asked for that (renaming, moving, or changing an entry removes the old one), tell them which ones go, `+
-			`then plan it with a backups save of the %s's current item first (ha-nova plan raw): {"endpoint":"backups","payload":{"action":"save","category":"%s","name":%s,"data":<its item from %s, unchanged>}}. `+
+			`then plan it with a backups save of the %s's current item first (ha-nova plan raw): {"endpoint":"backups","payload":{"action":"save","category":"%s","name":"%s","data":<its item from %s, unchanged>}}. `+
 			`If they were left out by mistake, read it again and send %s.`,
-			guard.noun, dropped, guard.why, guard.owner, guard.category, jsonText(autoName(id)), guard.source, guard.keep),
+			guard.noun, dropped, guard.why, guard.owner, guard.category, autoName(id), guard.source, guard.keep),
 	}, nil
 }
 

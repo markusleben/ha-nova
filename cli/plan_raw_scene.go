@@ -100,9 +100,9 @@ func (n *rawNamer) sceneKept(earlier []rawRequest, payload map[string]any) (refu
 	return rawDrop{
 		message: removal + ", with no copy of its config saved first",
 		hint: fmt.Sprintf("This would remove %s from the scene: a save replaces the whole scene. If the user wants them removed (swapping a member for another removes the old one), tell them which ones go, "+
-			`then plan it with a backups save of its current config first (ha-nova plan raw): {"endpoint":"backups","payload":{"action":"save","category":"scenes","name":%s,"data":<the body of core GET /api/config/scene/config/%s, unchanged>}}. `+
+			`then plan it with a backups save of its current config first (ha-nova plan raw): {"endpoint":"backups","payload":{"action":"save","category":"scenes","name":"%s","data":<the body of core GET /api/config/scene/config/%s, unchanged>}}. `+
 			"If they were left out by mistake, read that config and send every member with the change.",
-			members, jsonText(autoName(id)), id),
+			members, autoName(id), id),
 	}, nil
 }
 
@@ -137,7 +137,7 @@ func hiddenRemoval(live any, removal string) error {
 // → Capture), within the store's 64 characters.
 func autoName(id string) string {
 	slug := strings.Trim(rawSlugGaps.ReplaceAllString(strings.ToLower(id), "-"), "-")
-	return "auto-" + strings.Trim(slug[:min(len(slug), 59)], "-")
+	return strings.ReplaceAll("auto-"+strings.Trim(slug[:min(len(slug), 59)], "-"), `"`, "") // a slug holds no quote; said so for the hints that quote it
 }
 
 // relayKept is kept for ha-nova relay core|ws, after the shared guard
