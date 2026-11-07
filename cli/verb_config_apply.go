@@ -85,7 +85,9 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 		case errors.As(err, &unknown) && update:
 			saveCheckpoint(paths, s, env, action, ctx, action.Body)
 		case ctx.calm && (err != nil || rejectedStatuses[result.status]): // nothing landed: no way back to a state that never changed
-			_ = dropUndoSnapshot(paths, s.server, added)
+			if err := dropUndoSnapshot(paths, s.server, added); err != nil {
+				env.Notices = append(env.Notices, verbNotice{Kind: "undo", Text: fmt.Sprintf("the checkpoint saved for this update stays although nothing changed (%s); the next update of it asks first", err)})
+			}
 		case ctx.calm: // any other answer may have saved it: the checkpoint stays, with the way back
 			env.BeforeConfig, env.Undo = ctx.current, &added
 		}
