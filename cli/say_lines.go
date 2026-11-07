@@ -147,6 +147,8 @@ func resultSay(env *verbEnvelope) string {
 	case env.OutcomeUnknown || code == "OUTCOME_UNKNOWN":
 		return "Not sure: it may have been saved, and I can't tell. I didn't try again."
 	case detail == "" || detail == ".": // nothing to name
+	case env.Status == "verified" && env.undoable:
+		return sayDone(strings.TrimSuffix(detail, "."), checked) + " You can put it back with “undo”; what already ran isn't undone."
 	case env.Status == "verified":
 		return sayDone(strings.TrimSuffix(detail, "."), checked)
 	case env.Status == "accepted" && isCall && verified > 0: // part of it only sent: never "Done"

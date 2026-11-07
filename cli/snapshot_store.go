@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -105,6 +106,10 @@ func redactUndoSnapshot(snap *undoSnapshot) {
 // saveUndoSnapshotForServer: a non-empty server (snapshot save --server)
 // tags an untagged record and refuses one tagged for another server.
 func saveUndoSnapshotForServer(paths runtimePaths, data []byte, server string) (snapshotSaveReceipt, error) {
+	return storeUndoSnapshot(paths, data, server, false)
+}
+
+func storeUndoSnapshot(paths runtimePaths, data []byte, server string, onlyAdd bool) (snapshotSaveReceipt, error) {
 	var snap undoSnapshot
 	if err := unmarshalStrictJSON(data, "snapshot payload", &snap); err != nil {
 		return snapshotSaveReceipt{}, err
@@ -126,9 +131,17 @@ func saveUndoSnapshotForServer(paths runtimePaths, data []byte, server string) (
 	// The CLI clock is the single source of the stamp; a caller-supplied
 	// saved_at is overwritten, never trusted.
 	snap.SavedAt = snapshotNow().UTC().Format(time.RFC3339)
+	unlock, err := lockUndoStack(paths)
+	if err != nil {
+		return snapshotSaveReceipt{}, err
+	}
+	defer unlock()
 	stack, err := loadUndoSnapshotStack(paths)
 	if err != nil {
 		return snapshotSaveReceipt{}, err
+	}
+	if onlyAdd && !checkpointFits(stack, snap.Server, snap.Domain, snap.TargetID) {
+		return snapshotSaveReceipt{}, errors.New("it would replace this item's earlier checkpoint or push another one off the undo list")
 	}
 	action := "created"
 	kept := make([]undoSnapshot, 0, len(stack.Snapshots)+1)

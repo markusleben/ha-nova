@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -48,6 +49,14 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 		}
 		env.Snapshot = file
 	}
+	var added snapshotSaveReceipt
+	if ctx.calm { // an ordinary update: its way back first, or nothing is sent
+		if added, err = addUndoSnapshot(paths, checkpointRecord(s, action, ctx, action.Body)); err != nil {
+			return &verbFailure{exit: verbExitError, code: "UNDO_SAVE_FAILED",
+				message: fmt.Sprintf("the checkpoint to put it back could not be saved first (%s); nothing was sent", err),
+				next:    "Plan the change again; it will show a preview to confirm."}
+		}
+	}
 	var result serviceResult
 	sent = true
 	if action.Op == "delete" {
@@ -72,8 +81,15 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 		env.Restore = restoreCommand(action, env.Snapshot, s.server)
 	}
 	if failure := writeFailure(env, result, err, createdID); failure != nil && !alreadyGone {
-		if errors.As(err, &unknown) && update {
+		switch {
+		case errors.As(err, &unknown) && update:
 			saveCheckpoint(paths, s, env, action, ctx, action.Body)
+		case ctx.calm && (err != nil || rejectedStatuses[result.status]): // nothing landed: no way back to a state that never changed
+			if err := dropUndoSnapshot(paths, s.server, added); err != nil {
+				env.Notices = append(env.Notices, verbNotice{Kind: "undo", Text: fmt.Sprintf("the checkpoint saved for this update stays although nothing changed (%s); the next update of it asks first", err)})
+			}
+		case ctx.calm: // any other answer may have saved it: the checkpoint stays, with the way back
+			env.BeforeConfig, env.Undo = ctx.current, &added
 		}
 		return failure
 	}
@@ -101,6 +117,14 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 			expected = action.Body
 		}
 		saveCheckpoint(paths, s, env, action, ctx, expected)
+		if ctx.calm { // the checkpoint saved first stays the way back if this refresh failed
+			if env.Undo == nil {
+				env.Notices = slices.DeleteFunc(env.Notices, func(n verbNotice) bool { return n.Kind == "undo" })
+				env.Undo = &added
+			}
+			env.Undo.Action = added.Action
+			env.undoable = env.Status == "verified"
+		}
 	}
 	return nil
 }
@@ -108,13 +132,17 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 // saveCheckpoint puts an update (a revert is one too, as in update-revert.md)
 // on this server's undo stack: one step back to ctx.current.
 func saveCheckpoint(paths runtimePaths, s *relaySession, env *verbEnvelope, action configAction, ctx configContext, expectedAfter json.RawMessage) {
-	record, _ := json.Marshal(map[string]any{"op": "update", "domain": action.Domain, "target_id": action.ConfigID, "server": s.server,
-		"name": ctx.alias, "before_config": ctx.current, "expected_after": expectedAfter})
-	if receipt, err := saveUndoSnapshotBytes(paths, record); err == nil {
+	if receipt, err := saveUndoSnapshotBytes(paths, checkpointRecord(s, action, ctx, expectedAfter)); err == nil {
 		env.Undo = &receipt
 	} else {
 		env.Notices = append(env.Notices, verbNotice{Kind: "undo", Text: "the update is not revertible: " + err.Error()})
 	}
+}
+
+func checkpointRecord(s *relaySession, action configAction, ctx configContext, expectedAfter json.RawMessage) []byte {
+	record, _ := json.Marshal(map[string]any{"op": "update", "domain": action.Domain, "target_id": action.ConfigID, "server": s.server,
+		"name": ctx.alias, "before_config": ctx.current, "expected_after": expectedAfter})
+	return record
 }
 
 // writeFailure maps one config write's outcome like a service call's;
