@@ -121,7 +121,8 @@ mechanics live here.
 
 **Experimental relay calls (no skill guardrails):**
 ```text
-ha-nova relay files --data-file <payload-file>
+ha-nova relay files --data-file <payload-file>   # list_dir, read_file
+ha-nova plan raw --file <file>                   # write_file, delete_file; then ha-nova apply
 ```
 Write `/config/custom_sentences/<lang>/<name>.yaml` — NOT `/config/ha_nova/`;
 Home Assistant only reads sentences from that fixed path. An `intent_script:`

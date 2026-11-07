@@ -34,7 +34,7 @@ This skill needs a Relay with file access AND file access enabled. Both are the 
 
 `ha-nova call` returns the preview: confirm it once, then `ha-nova apply --plan <id>`.
 
-- `ha-nova relay files --data-file <payload-file>` — file transport. Actions: `list_dir`, `read_file`, `write_file` (`content`, `backup` defaults to true); `delete_file` only through `ha-nova plan raw`, then `ha-nova apply`.
+- `ha-nova relay files --data-file <payload-file>` — reads: `list_dir`, `read_file`. `write_file` (`content`, `backup` defaults to true) and `delete_file` only through `ha-nova plan raw`, then `ha-nova apply`.
 - `ha-nova relay core --method POST --path /api/config/core/check_config` — validate the configuration BEFORE reloading.
 - `ha-nova call <domain>.reload` — apply the reload from Flow step 5 (`template.reload`, `frontend.reload_themes`, ...). `<domain>.reload` is typed (one-time code); `frontend.reload_themes` is not.
 - `ha-nova relay core --method GET --path /api/states/<entity_id>` — verify the entity actually exists afterwards.
@@ -52,7 +52,7 @@ Never skip a step.
    - existing file: `read_file` it once more and compare against the content step 1 read. Changed? STOP — someone edited it during the pause (the File editor app is the common case) and `write_file` would revert them. Show the new content and ask again.
    - brand-new file: absence IS the basis. Probe the exact path with `read_file`: `FILE_NOT_FOUND` is the expected answer and confirms the file is still absent — treat it as success here, not as an error. Any other outcome means the file exists now, so STOP: something created it since step 1 and writing would overwrite a file nobody read. Do not use `list_dir` for this: it returns at most 500 entries and sets `truncated: true`, so a busy directory can report a file as absent when it is not.
 
-   Then `write_file` with `backup: true`. The relay writes `<file>.bak` first — that is your immediate rollback; name it in the preview. A brand-new file gets no `.bak`: say so.
+   Then plan `write_file` with `backup: true`. The relay writes `<file>.bak` first — that is your immediate rollback; name it in the preview. A brand-new file gets no `.bak`: say so.
 4. **Validate**: `POST /api/config/core/check_config`. `{"result":"invalid"}` means Home Assistant would refuse this config: roll back immediately — restore the `.bak` (`read_file` it, `write_file` it back with `"backup": false`, or the `.bak` becomes the invalid file); a NEW file has no `.bak`: say what was wrong, plan its `delete_file` (`plan raw`; declined, a restart loads it), and do NOT reload.
 5. **Reload the right domain** — a full restart is almost never necessary:
    - template sensors -> `template.reload`
