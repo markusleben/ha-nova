@@ -254,7 +254,7 @@ Match user intent to exactly one skill:
 | show history, logbook timelines, or long-term statistics | `ha-nova:history` |
 | "is everything closed / locked / off?", "who is home?", "what is running right now?" — a live state snapshot across a domain | `ha-nova:entity-discovery` |
 | check home status, ignore/fix repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` (the SYSTEM's condition; a snapshot of what things are DOING is entity-discovery, above) |
-| find out WHY a specific automation, script, device, or integration failed or misbehaved (traces, error/system/App logs, root cause) | `ha-nova:diagnose` |
+| find out WHY a specific automation, script, device, or integration failed or misbehaved (traces, history, root cause) | `ha-nova:diagnose` |
 | add/remove, enable/disable, rename an integration, manage subentries, ignore discovery, change options, reconfigure, reload, reauthenticate or recover invalid credentials | `ha-nova:integration-setup` |
 | play, pause, skip, set volume, change source, group speakers, browse media, or announce over a speaker | `ha-nova:media` |
 | send a notification to a phone or another notify target, or manage Home Assistant's persistent notifications | `ha-nova:notify` |
@@ -324,7 +324,7 @@ Match user intent to exactly one skill:
 **"Add an alias to this area"** → `ha-nova:organize`
 **"Show temperature trends for the last month"** → `ha-nova:history`
 **"Are there any repair issues?"** → `ha-nova:health`
-**"Why didn't my morning automation run?"** → `ha-nova:diagnose` (concrete failure → traces + logs)
+**"Why didn't my morning automation run?"** → `ha-nova:diagnose` (concrete failure → traces + history)
 **"Why is the light turning on at random times?"** → `ha-nova:diagnose`
 **"Add the Hue integration"** → `ha-nova:integration-setup`
 **"Reconnect my expired integration login"** → `ha-nova:integration-setup` (continue reauthentication or recover invalid credentials without a pending flow; credentials stay in the HA UI)
@@ -370,7 +370,7 @@ After any `read` or `review` task, re-evaluate intent once before continuing:
 - keep this sequential: one skill at a time, never parallel
 - for multi-target scope, keep the same safety and evidence rules; see `../ha-nova/bulk-patterns.md`
 
-**Problem-description intents** ("X doesn't work", "Y is wrong", "stopped working", "didn't fire last night"): dispatch to `ha-nova:diagnose` (ESPHome YAML or build errors: `ha-nova:esphome`) — a concrete failure is a root-cause task (traces, logs), whether or not the user says "why". Diagnose hands the fix back to `write` / `helper` / `service-call`.
+**Problem-description intents** ("X doesn't work", "Y is wrong", "stopped working", "didn't fire last night"): dispatch to `ha-nova:diagnose` (ESPHome YAML or build errors: `ha-nova:esphome`) — a concrete failure is a root-cause task (traces, history), whether or not the user says "why". Diagnose hands the fix back to `write` / `helper` / `service-call`.
 
 Dispatch to `ha-nova:review` instead when there is no concrete incident: config-quality audits ("check my automations", "review this script", "is this a good automation?"). Review also checks current entity state and may offer a Quick-Fix service call at the end. Bulk review is the exception: it stays read-only and does not offer Quick-Fix.
 

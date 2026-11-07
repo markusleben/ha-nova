@@ -340,7 +340,7 @@ before anything is sent. Routes, write bodies, and tiers:
 `docs/reference/ha-api-matrix.md` → Supervisor.
 
 ```json
-{ "method": "GET", "path": "/addons/core_mosquitto/logs", "lines": 200 }
+{ "method": "GET", "path": "/addons/core_mosquitto/info" }
 { "method": "POST", "path": "/addons/core_mosquitto/options", "data": { "options": { "logins": [] } } }
 ```
 

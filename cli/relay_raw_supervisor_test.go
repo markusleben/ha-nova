@@ -28,8 +28,11 @@ func TestSupervisorGuardTable(t *testing.T) {
 		switch route.kind {
 		case "options":
 			extra = map[string]any{"data": map[string]any{"auto_update": true}}
-		case "logs":
-			extra = map[string]any{"lines": 50}
+		case "logs": // logs stay in Home Assistant: refused before the table
+			if _, refusal, _ := guardRaw("supervisor", []byte(supervisorBody(route.method, path, map[string]any{"lines": 50})), nil); refusal == nil || !strings.Contains(refusal.Error(), "Settings > System > Logs") {
+				t.Errorf("%s: log read not refused: %v", path, refusal)
+			}
+			continue
 		}
 		allowed = append(allowed, supervisorBody(route.method, path, extra))
 	}
@@ -105,7 +108,7 @@ func TestMCPReadSupervisor(t *testing.T) {
 	c := startMCP(t, paths)
 	mcpInit(c)
 	res := c.tool("ha_read", map[string]any{"endpoint": "supervisor", "path": "/addons/core_mosquitto/logs", "lines": 20})
-	if _, code := readEnvelope(res); code != "" || calls()[0].body != `{"lines":20,"method":"GET","path":"/addons/core_mosquitto/logs"}` {
+	if _, code := readEnvelope(res); code != "REFUSED" || len(calls()) != 0 {
 		t.Fatalf("logs: code %q, sent %v", code, calls())
 	}
 	res = c.tool("ha_read", map[string]any{"endpoint": "supervisor", "path": "/addons/core_mosquitto/info"})

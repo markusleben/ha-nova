@@ -250,16 +250,20 @@ func gateRecognized(endpoint string, payload map[string]any, body []byte) bool {
 	return true
 }
 
-// gateLogRead: a log read, which the gate refuses (spec §2: free text no
-// redactor bounds) and `ha-nova relay` still sends to an App without a gate.
+// gateLogRead: a log read, refused at the gate and by the CLI alike (spec
+// section 2: free text no redactor bounds; guardRaw).
 func gateLogRead(endpoint string, request map[string]any) bool {
 	switch endpoint {
 	case "core":
 		raw, _ := request["path"].(string)
 		decoded, ok := relayCorePath(raw)
 		return ok && strings.HasPrefix(strings.ToLower(decoded), "/api/error_log")
-	case "ws":
-		return request["type"] == "system_log/list"
+	case "ws": // the log list, or its lines as events (system_log fire_event)
+		trigger, _ := json.Marshal(request["trigger"])
+		eventType, _ := request["event_type"].(string)
+		return request["type"] == "system_log/list" ||
+			request["type"] == "subscribe_events" && strings.EqualFold(eventType, "system_log_event") ||
+			request["type"] == "subscribe_trigger" && strings.Contains(strings.ToLower(string(trigger)), "system_log_event")
 	case "supervisor":
 		method, _ := request["method"].(string)
 		path, _ := request["path"].(string)
@@ -275,6 +279,9 @@ func gateLogRead(endpoint string, request map[string]any) bool {
 // redactor bounds), and subscriptions the raw guard refuses (every
 // event, call_service, phone confirmations, templates).
 func gateDenied(endpoint string, request map[string]any) bool {
+	if gateLogRead(endpoint, request) {
+		return true
+	}
 	switch endpoint {
 	case "core":
 		method, _ := request["method"].(string)
@@ -282,23 +289,18 @@ func gateDenied(endpoint string, request map[string]any) bool {
 		decoded, ok := relayCorePath(raw)
 		ok = ok && !strings.ContainsAny(raw, "\t\n\r") // a URL parser drops them
 		decoded = strings.ToLower(decoded)
-		for _, prefix := range []string{"/api/webhook", "/api/backup", "/api/hassio", "/api/error_log"} {
+		for _, prefix := range []string{"/api/webhook", "/api/backup", "/api/hassio"} {
 			ok = ok && !strings.HasPrefix(decoded, prefix)
 		}
 		return !ok || method != http.MethodGet && (strings.HasPrefix(decoded, "/api/states") || strings.HasPrefix(decoded, "/api/events"))
 	case "ws":
 		wsType, _ := request["type"].(string)
 		switch {
-		case slices.Contains([]string{"fire_event", "execute_script", "call_service", "system_log/list"}, wsType):
+		case slices.Contains([]string{"fire_event", "execute_script", "call_service"}, wsType):
 			return true
 		case strings.HasPrefix(wsType, "subscribe_"):
 			return checkRawWS(request) != nil
 		}
-	case "supervisor":
-		method, _ := request["method"].(string)
-		path, _ := request["path"].(string)
-		kind, _ := rawSupervisorMatch(method, path)
-		return kind == "logs"
 	}
 	return false
 }

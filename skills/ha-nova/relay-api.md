@@ -40,7 +40,7 @@ Subscription commands are permitted **only inside this envelope** (the relay uns
 { "ok": true, "data": { "status": 200, "body": "<base64>", "body_encoding": "base64", "content_type": "image/jpeg" } }
 ```
 
-Write the raw bytes with `ha-nova relay core --method GET --path <path> --out-binary <file>` — it decodes the marker for you and refuses a body that is not marked binary (use `--out` for those). Binary bodies have a smaller ceiling (8 MiB) than text/JSON responses. JSON and text (including `/api/error_log`) keep their existing shape.
+Write the raw bytes with `ha-nova relay core --method GET --path <path> --out-binary <file>` — it decodes the marker for you and refuses a body that is not marked binary (use `--out` for those). Binary bodies have a smaller ceiling (8 MiB) than text/JSON responses. JSON and text keep their existing shape.
 
 ## Endpoints
 

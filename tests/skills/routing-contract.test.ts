@@ -233,15 +233,12 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
     );
   });
 
-  it("restricts what may be interpolated into the diagnose log filter", () => {
-    expect(flat(read("skills/diagnose/SKILL.md"))).toContain(
-      "Substitute only an `entity_id`, domain, or integration slug",
-    );
-    expect(flat(read("skills/diagnose/SKILL.md"))).toContain("never a friendly name");
-    // entity_id is not literal either: the domain separator is a wildcard.
-    expect(flat(read("skills/diagnose/SKILL.md"))).toContain(
-      "the `.` in `sensor.kitchen` is a regex wildcard",
-    );
+  it("sends the user to Home Assistant's log pages instead of reading logs", () => {
+    const diagnose = flat(read("skills/diagnose/SKILL.md"));
+    expect(diagnose).toContain("**Settings > System > Logs**");
+    expect(diagnose).toContain("Never ask for the whole log.");
+    expect(diagnose).not.toContain("ha-nova relay core --method GET --path /api/error_log");
+    expect(flat(read("skills/updates/apps.md"))).not.toContain("/supervisor/logs`");
   });
 
   // The suite's own frontmatter helper is a regex, which is more permissive
@@ -289,16 +286,12 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
     expect(maintenance).toContain("use ha-nova:health");
   });
 
-  it("keeps the log filter bound to the identifier, never OR-ed with a severity", () => {
+  it("keeps log lines the user reports bound to the incident", () => {
     const diagnose = flat(read("skills/diagnose/SKILL.md"));
-    // `id|ERROR` matches every error line in the log; each one then reads as
-    // evidence for an incident it has nothing to do with.
-    expect(diagnose).toContain("The identifier is the ONLY selector");
-    expect(diagnose).toContain("never OR a severity into it");
-    expect(diagnose).toContain("To narrow by severity, AND it");
-    expect(diagnose).not.toContain('test("<entity_or_integration>|ERROR"');
-    // Finding nothing is an answer, not a reason to loosen the filter.
-    expect(diagnose).toContain("rather than widening the filter until something appears");
+    // Every error line in the log then reads as evidence for an incident it
+    // has nothing to do with; finding nothing is an answer.
+    expect(diagnose).toContain("Lines about other integrations are not evidence for this incident");
+    expect(diagnose).toContain("no line about it is a finding in itself, not a reason to search wider");
   });
 
   it("answers a config-entry flow from the live response, not from research", () => {

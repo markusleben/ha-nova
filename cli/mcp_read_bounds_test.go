@@ -43,9 +43,9 @@ func TestMCPReadErrorReasons(t *testing.T) {
 		switch {
 		case body["path"] == "/api/template":
 			return map[string]any{"status": 400, "body": map[string]any{"message": "Error rendering template: UndefinedError: 'foo' is undefined"}}
-		case body["path"] == "/api/error_log":
+		case body["path"] == "/api/config":
 			return map[string]any{"status": 500, "body": long}
-		case body["type"] == "system_log/list":
+		case body["type"] == "config/entity_registry/list":
 			return fakeRelayFailure{"UPSTREAM_ERROR", "boom " + long}
 		case body["type"] == "logger/log_info":
 			return fakeRelayFailure{"UPSTREAM_ERROR", "echo HANOVA_OK_0123456789abcdef"}
@@ -64,8 +64,8 @@ func TestMCPReadErrorReasons(t *testing.T) {
 		}
 	}
 	check(map[string]any{"endpoint": "core", "method": "POST", "path": "/api/template", "payload": map[string]any{"template": "{{ foo.bar }}"}}, "UPSTREAM_400", "HTTP 400: Error rendering template: UndefinedError", 300)
-	check(map[string]any{"endpoint": "core", "path": "/api/error_log"}, "UPSTREAM_500", "HTTP 500: xxx", mcpReasonMax+64)
-	check(map[string]any{"endpoint": "ws", "payload": map[string]any{"type": "system_log/list"}}, "READ_FAILED", "boom", mcpMessageMax+8)
+	check(map[string]any{"endpoint": "core", "path": "/api/config"}, "UPSTREAM_500", "HTTP 500: xxx", mcpReasonMax+64)
+	check(map[string]any{"endpoint": "ws", "payload": map[string]any{"type": "config/entity_registry/list"}}, "READ_FAILED", "boom", mcpMessageMax+8)
 	check(map[string]any{"endpoint": "ws", "payload": map[string]any{"type": "logger/log_info"}}, "READ_FAILED", "hidden", mcpMessageMax)
 	env, _ := readEnvelope(c.tool("ha_read", map[string]any{"endpoint": "core", "method": "POST", "path": "/api/template", "payload": map[string]any{"template": "x"}}))
 	if next, _ := env["error"].(map[string]any)["next"].(string); !strings.Contains(next, "Home Assistant's reason") {
@@ -88,7 +88,7 @@ func TestMCPReadTooLargeHints(t *testing.T) {
 	c := startMCP(t, paths)
 	mcpInit(c)
 	for hint, args := range map[string]map[string]any{
-		"split(":                 {"endpoint": "core", "path": "/api/error_log"},
+		"split(":                 {"endpoint": "core", "path": "/api/config"},
 		".data.content[0:60000]": {"endpoint": "files", "payload": map[string]any{"action": "read_file", "path": "/config/configuration.yaml"}},
 		".data[0:20]":            {"endpoint": "backups", "payload": map[string]any{"action": "list"}},
 	} {

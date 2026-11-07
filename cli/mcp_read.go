@@ -55,10 +55,10 @@ var mcpCameraTypes = map[string]bool{"image/jpeg": true, "image/png": true, "ima
 
 // mcpTooLargeHint: a filter that fits each endpoint's result.
 var mcpTooLargeHint = map[string]string{
-	"core":       "`.data.body | length`, `.data.body | keys`, or for a text body such as /api/error_log `.data.body | split(\"\\n\") | .[-200:]`",
+	"core":       "`.data.body | length`, `.data.body | keys`, or for a text body such as a rendered template `.data.body | split(\"\\n\") | .[-200:]`",
 	"ws":         "`.data | length` or `[.data[] | select(.entity_id | startswith(\"light.\")) | .entity_id]`",
 	"backups":    "`.data | length` or `.data[0:20]`",
-	"supervisor": "`.data.body.data | keys`, `[.data.body.data.addons[] | {slug, name, state}]`, or for a log `.data.body | split(\"\\n\") | .[-200:]`",
+	"supervisor": "`.data.body.data | keys`, `[.data.body.data.addons[] | {slug, name, state}]`",
 	"files":      "`.data.content[0:60000]` (read_file) or `.data.entries[0:200]` (list_dir)",
 	"snapshot":   "`.[0:20]` for a list, or `{target_id, domain}` for a checkpoint",
 	"diff":       "`.[0:50]`",

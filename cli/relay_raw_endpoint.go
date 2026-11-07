@@ -92,8 +92,6 @@ func relayTyped(paths runtimePaths, opts verbOptions, endpoint string, body []by
 	switch {
 	case err != nil:
 		return nil, err
-	case check.Verdict == gateRefuse && slices.ContainsFunc(requests, func(r map[string]any) bool { return gateLogRead(endpoint, r) }): // the Relay's own refusal (spec §2), not this CLI's yet
-		return nil, nil
 	case check.Verdict == gateRefuse: // fail closed: its own guard passed it, the gate (a number Home Assistant would get as null, a hidden value sent back) doesn't
 		return rawRefusal("request", "HA NOVA's gate refuses it as written; send it without the values it names in its own words, or do this in the Home Assistant UI"), nil
 	case check.Verdict != gateTyped:
@@ -129,7 +127,25 @@ func relayTyped(paths runtimePaths, opts verbOptions, endpoint string, body []by
 		fmt.Sprintf(`put [{"endpoint":%q,"payload":%s}] in a file, run ha-nova plan raw --file <file>, show the user its say, and follow its next_step`, endpoint, shown)), nil
 }
 
+// rawLogNext: logs are free text that can hold passwords, keys, and
+// addresses no redactor bounds (relay-typed-gate spec §2; Markus,
+// 2026-11-07), so the user reads them in Home Assistant.
+const rawLogNext = "Home Assistant's logs can hold passwords, keys, and addresses, so HA NOVA doesn't read them. " +
+	"Ask the user to open Settings > System > Logs in Home Assistant (an App's own log: Settings > Apps > the App > Log), " +
+	"search for the integration or entity, and tell you the few lines that matter, without passwords, keys, or addresses; never ask for the whole log"
+
+// rawLogRefusal refuses a request that reads a log, nil otherwise.
+func rawLogRefusal(endpoint string, payload map[string]any) error {
+	if payload == nil || !slices.ContainsFunc(gateRequests(endpoint, payload), func(r map[string]any) bool { return gateLogRead(endpoint, r) }) {
+		return nil
+	}
+	return rawRefusal("log read", rawLogNext)
+}
+
 func guardRaw(endpoint string, body []byte, accessTarget func() (refusal, err error)) (send []byte, refusal, err error) {
+	if payload, _ := decodeObject(body); rawLogRefusal(endpoint, payload) != nil {
+		return nil, rawLogRefusal(endpoint, payload), nil
+	}
 	switch endpoint {
 	case "files": // the Relay decides: file access is off unless the Relay App turns it on
 		return body, nil, nil
