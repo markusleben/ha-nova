@@ -80,9 +80,9 @@ func TestClaudeApplyRuleMergesIntoExistingSettings(t *testing.T) {
 	if !strings.Contains(out, "This adds to your Claude Code settings:") ||
 		!strings.Contains(out, "    Bash(ha-nova apply --plan *) — so Claude Code can open HA NOVA's confirmation window") ||
 		!strings.Contains(out, "    "+read+" — so Claude Code reads HA NOVA's own instructions without asking") ||
-		!strings.Contains(out, "    Bash(ha-nova plan *) — so Claude Code looks things up and prepares changes without asking; this changes nothing in Home Assistant") ||
+		!strings.Contains(out, "    "+strings.Join(claudeVerbRules, ", ")+" — so Claude Code looks things up and prepares changes without asking; they change nothing in Home Assistant") ||
 		!strings.Contains(out, "You still confirm every unlock or delete yourself.") ||
-		!strings.Contains(out, "asking before other HA NOVA changes you already approved in chat.") ||
+		!strings.Contains(out, "stops asking before other HA NOVA changes you already\n  approved in chat.") ||
 		strings.Count(out, settings) != 1 || !strings.Contains(out, "NOTE: Added 7 rules for HA NOVA to your Claude Code settings.") {
 		t.Fatalf("offer output:\n%s", out)
 	}
@@ -152,7 +152,8 @@ func TestClaudeRulesAddOnlyTheMissingOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := offerAnswer(t, paths, "add\n")
-	if strings.Contains(out, "ha-nova apply --plan *) —") || strings.Contains(out, "You still confirm") || !strings.Contains(out, "NOTE: Added 6 rules for HA NOVA to your Claude Code settings.") {
+	if strings.Contains(out, "ha-nova apply --plan *) —") || !strings.Contains(out, "You still confirm every unlock or delete yourself.") || strings.Contains(out, "approved in chat") ||
+		!strings.Contains(out, "NOTE: Added 6 rules for HA NOVA to your Claude Code settings.") {
 		t.Fatalf("offer output:\n%s", out)
 	}
 	if got := loadStateOrDefault(paths); strings.Join(got.ClaudeRules, "|") != strings.Join(claudeRules(paths), "|") || got.ClaudeRulesFile != settings || got.ClaudeApplyRuleFile != "" {

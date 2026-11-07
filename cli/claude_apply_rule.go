@@ -97,19 +97,24 @@ func offerClaudeRules(reader *bufio.Reader, out io.Writer, paths runtimePaths) s
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "  Let Claude Code work with HA NOVA without extra questions?")
 	fmt.Fprintln(out, "  This adds to your Claude Code settings:")
+	var verbs []string
 	for _, rule := range missing {
-		why := "so Claude Code can open HA NOVA's confirmation window"
 		switch {
 		case slices.Contains(claudeVerbRules, rule):
-			why = "so Claude Code looks things up and prepares changes without asking; this changes nothing in Home Assistant"
-		case rule != claudeApplyRule:
-			why = "so Claude Code reads HA NOVA's own instructions without asking"
+			verbs = append(verbs, rule)
+		case rule == claudeApplyRule:
+			fmt.Fprintf(out, "    %s — so Claude Code can open HA NOVA's confirmation window\n", rule)
+		default:
+			fmt.Fprintf(out, "    %s — so Claude Code reads HA NOVA's own instructions without asking\n", rule)
 		}
-		fmt.Fprintf(out, "    %s — %s\n", rule, why)
 	}
+	if len(verbs) > 0 {
+		fmt.Fprintf(out, "    %s — so Claude Code looks things up and prepares changes without asking; they change nothing in Home Assistant\n", strings.Join(verbs, ", "))
+	}
+	fmt.Fprintln(out, "  You still confirm every unlock or delete yourself.")
 	if slices.Contains(missing, claudeApplyRule) {
-		fmt.Fprintln(out, "  You still confirm every unlock or delete yourself. Claude Code also stops")
-		fmt.Fprintln(out, "  asking before other HA NOVA changes you already approved in chat.")
+		fmt.Fprintln(out, "  Claude Code also stops asking before other HA NOVA changes you already")
+		fmt.Fprintln(out, "  approved in chat.")
 	}
 	fmt.Fprintln(out, "  File: "+path)
 	spec := setupMenuSpec{

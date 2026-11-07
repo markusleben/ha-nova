@@ -292,6 +292,10 @@ func familyAccess(entities []rawEntityRow, devices []rawDeviceRow, device string
 	return false
 }
 
+// coverClassUnread stands for a cover whose class read failed: no class
+// Home Assistant knows, so access-capable, and never "without a class".
+const coverClassUnread = "\x00unread"
+
 // accessWhy: why an access check made a raw item typed, the "_cover" text
 // when only covers without a "Show as" class made it one: the check run
 // again without them finds nothing (HANO-18 D5: the text named a lock or
@@ -308,8 +312,8 @@ func (n *rawNamer) accessWhy(why string, check func() bool) string {
 // capableOnce: accessCapable for one check, each cover's class read live
 // once (coverClass), so a family of many entities costs one read per cover,
 // not one per entity, and once per raw item when rawRequestTier shares the
-// map with accessWhy's second pass. A failed read stays "", which counts as
-// access, except in that second pass (classedOnly).
+// map with accessWhy's second pass. A failed read counts as access in both
+// passes (coverClassUnread).
 func (n *rawNamer) capableOnce() func(entityID string) bool {
 	classes := n.coverClasses
 	if classes == nil {
@@ -318,7 +322,10 @@ func (n *rawNamer) capableOnce() func(entityID string) bool {
 	return func(entityID string) bool {
 		class, read := classes[entityID]
 		if !read {
-			class = coverClass(n.s, entityID)
+			var ok bool
+			if class, ok = coverClassRead(n.s, entityID); !ok {
+				class = coverClassUnread
+			}
 			classes[entityID] = class
 		}
 		if n.classedOnly && class == "" && strings.HasPrefix(entityID, "cover.") {

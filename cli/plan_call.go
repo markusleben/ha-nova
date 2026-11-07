@@ -267,7 +267,7 @@ func refuse(env *verbEnvelope, r tierReason) *verbFailure {
 	case r.Code == reasonResponseOnly:
 		next = "Call it again with --response to get its data."
 	case r.Code == reasonFeature:
-		next = "Tell the user nothing was sent: Home Assistant says this device can't do that (for a cover that only tilts, open or close the tilt instead). Offer what it can do; never retry the same call."
+		next = "Tell the user nothing was sent: Home Assistant says this device can't do that. Offer what it can do instead (a cover that only tilts can open or close its tilt); never retry the same call."
 	case r.Code == reasonHassio && r.Detail == novaAppUnread:
 		next = "Tell the user nothing was sent: HA NOVA couldn't tell from Home Assistant's registry whether this step stops the NOVA App it runs in (through its switch, or a light or fan showing that switch). If the registry was busy, they can try again in a moment; otherwise they can do it in Home Assistant."
 	case r.Code == reasonHassio && r.Skill == "": // HA NOVA's own App (novaAppStop)
@@ -455,7 +455,10 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 			e.raise(tierPreview, tierReason{Code: reasonExpanded, EntityID: t.EntityID, Via: t.By})
 		}
 		entityDomain, _ := splitID(t.EntityID)
-		if code := directRefusal(effectiveService(req.Service, entityDomain), e.states[t.EntityID]); code != "" {
+		// Home Assistant skips a cover an area or device brings in that lacks
+		// the feature; only a named one fails the call.
+		named := t.By == "exact" || t.By == "match"
+		if code := directRefusal(effectiveService(req.Service, entityDomain), e.states[t.EntityID]); code != "" && (named || code != reasonFeature || entityDomain != "cover") {
 			return &tierReason{Code: code, EntityID: t.EntityID}
 		}
 		reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest("entity", t.EntityID)) })

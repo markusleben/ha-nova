@@ -340,8 +340,15 @@ func destructiveButtonText(text string) bool {
 // (accessCapable treats a cover with no known class as access-capable).
 // Read live, never from the session memo: an earlier send may have changed it.
 func coverClass(s *relaySession, entityID string) string {
+	class, _ := coverClassRead(s, entityID)
+	return class
+}
+
+// coverClassRead is coverClass and whether it was read: false when a read
+// failed, so its "" is unknown, not a cover without a class.
+func coverClassRead(s *relaySession, entityID string) (string, bool) {
 	if !strings.HasPrefix(entityID, "cover.") {
-		return ""
+		return "", true
 	}
 	data, err := s.readFresh("core", map[string]any{"method": http.MethodGet, "path": "/api/states/" + entityID}, relaySessionRequestTimeout)
 	var core struct {
@@ -355,12 +362,12 @@ func coverClass(s *relaySession, entityID string) string {
 	}
 	if err == nil && json.Unmarshal(data, &core) == nil && core.Status == 200 {
 		if json.Unmarshal(core.Body, &st) != nil {
-			return ""
+			return "", false
 		}
-		return st.Attributes.DeviceClass
+		return st.Attributes.DeviceClass, true
 	}
 	if err != nil || core.Status != 404 {
-		return ""
+		return "", false
 	}
 	var entry struct {
 		DeviceClass         string `json:"device_class"`
@@ -368,7 +375,7 @@ func coverClass(s *relaySession, entityID string) string {
 	}
 	data, err = s.readFresh("ws", map[string]any{"type": "config/entity_registry/get", "entity_id": entityID}, relaySessionRequestTimeout)
 	if err != nil || json.Unmarshal(data, &entry) != nil {
-		return ""
+		return "", false
 	}
-	return cmp.Or(entry.DeviceClass, entry.OriginalDeviceClass)
+	return cmp.Or(entry.DeviceClass, entry.OriginalDeviceClass), true
 }

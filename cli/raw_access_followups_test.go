@@ -366,10 +366,12 @@ func TestRoomsPlanRefusesAccessDevices(t *testing.T) {
 
 // A new area on a cover without a "Show as" class stays typed, but its
 // reason names a cover that may be a door, not a lock, and says how to set
-// the class (HANO-18 D5); a lock in the same family keeps the lock text.
+// the class (HANO-18 D5); a lock in the same family keeps the lock text,
+// and so does a cover whose class couldn't be read.
 func TestRawAccessReasonNamesACoverWithoutClass(t *testing.T) {
 	entities := []any{map[string]any{"entity_id": "cover.pool", "device_id": "dpool"}, map[string]any{"entity_id": "cover.garage", "device_id": "dgarage"},
-		map[string]any{"entity_id": "lock.shed", "device_id": "dshed"}, map[string]any{"entity_id": "cover.shed", "device_id": "dshed"}}
+		map[string]any{"entity_id": "lock.shed", "device_id": "dshed"}, map[string]any{"entity_id": "cover.shed", "device_id": "dshed"},
+		map[string]any{"entity_id": "cover.unread", "device_id": "dunread"}}
 	cover := func(id, class string) func(map[string]any) any {
 		return func(map[string]any) any {
 			return map[string]any{"status": 200, "body": map[string]any{"entity_id": id, "attributes": map[string]any{"device_class": class}}}
@@ -378,11 +380,14 @@ func TestRawAccessReasonNamesACoverWithoutClass(t *testing.T) {
 	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
 		"config/entity_registry/list": func(map[string]any) any { return entities },
 		"config/device_registry/list": func(map[string]any) any {
-			return []any{map[string]any{"id": "dpool"}, map[string]any{"id": "dgarage"}, map[string]any{"id": "dshed"}}
+			return []any{map[string]any{"id": "dpool"}, map[string]any{"id": "dgarage"}, map[string]any{"id": "dshed"}, map[string]any{"id": "dunread"}}
 		},
 		"GET /api/states/cover.pool":   cover("cover.pool", ""),
 		"GET /api/states/cover.garage": cover("cover.garage", "garage"),
 		"GET /api/states/cover.shed":   cover("cover.shed", ""),
+		"GET /api/states/cover.unread": func(map[string]any) any {
+			return map[string]any{"status": 500, "body": map[string]any{"message": "timeout"}}
+		},
 	})
 	hint := "This cover has no “Show as” class in Home Assistant"
 	for payload, want := range map[string]string{
@@ -390,6 +395,7 @@ func TestRawAccessReasonNamesACoverWithoutClass(t *testing.T) {
 		`{"type":"config/device_registry/update","device_id":"dpool","labels":["outside"]}`:      "access_device_cover",
 		`{"type":"config/entity_registry/update","entity_id":"cover.garage","area_id":"garden"}`: "access_entity",
 		`{"type":"config/entity_registry/update","entity_id":"cover.shed","area_id":"garden"}`:   "access_entity",
+		`{"type":"config/entity_registry/update","entity_id":"cover.unread","area_id":"garden"}`: "access_entity",
 	} {
 		exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":`+payload+`}]`)
 		if exit != verbExitConfirmation || env.Tier != "typed" || !strings.Contains(env.Say, rawWhys[want]("en")) || strings.Contains(env.Say, hint) != strings.HasSuffix(want, "_cover") {

@@ -191,10 +191,10 @@ var alarmFeatureBits = map[string]int{
 	"alarm_arm_custom_bypass": 16, "alarm_arm_vacation": 32,
 }
 
-// Cover feature bits a service needs, any one of them as Home Assistant
-// registers it (cover/__init__.py). Only what can open is refused: close and
-// stop never are, and an unread or zero mask keeps the tier (spec
-// 2026-11-06 item 3).
+// Cover feature bits a service needs, all of them, as Home Assistant
+// registers it (cover/__init__.py: toggle needs OPEN|CLOSE). Only what can
+// open is refused: close and stop never are, and an unread or zero mask
+// keeps the tier (spec 2026-11-06 item 3).
 var coverFeatureBits = map[string]int{
 	"open_cover": 1, "set_cover_position": 4, "toggle": 1 | 2,
 	"open_cover_tilt": 16, "set_cover_tilt_position": 128, "toggle_cover_tilt": 16 | 32,
@@ -383,13 +383,13 @@ func directRefusal(service string, st *entityState) string {
 		if bit := alarmFeatureBits[name]; bit != 0 && features&bit == 0 {
 			return reasonFeature
 		}
-	case "cover":
-		if bits := coverFeatureBits[name]; bits != 0 && features != 0 && features&bits == 0 {
-			return reasonFeature
-		}
 		armCode := strings.HasPrefix(name, "alarm_arm_") && st.attr("code_arm_required") == true
 		if armCode || ((name == "alarm_disarm" || name == "alarm_trigger") && st.str("code_format") != "") {
 			return reasonCodeRequired
+		}
+	case "cover":
+		if bits := coverFeatureBits[name]; bits != 0 && features != 0 && features&bits != bits {
+			return reasonFeature
 		}
 	}
 	return ""

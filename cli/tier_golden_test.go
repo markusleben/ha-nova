@@ -238,6 +238,19 @@ func TestPlanCallTierGoldenCases(t *testing.T) {
 		{name: "closing a cover is never refused for its features",
 			setup: func(f *fakeHA) { f.ent("cover.pool", "zwave_js", "open", map[string]any{"supported_features": 240.0}) },
 			args:  []string{"cover.close_cover", "cover.pool"}, exit: 0, tier: "ordinary"},
+		{name: "a code-protected alarm hands disarming off to the UI",
+			setup: func(f *fakeHA) {
+				f.ent("alarm_control_panel.home", "manual", "armed_away", map[string]any{"code_format": "number", "supported_features": 63.0})
+			},
+			args: []string{"alarm_control_panel.alarm_disarm", "alarm_control_panel.home"}, exit: 4, tier: "refused", reasons: []string{reasonCodeRequired}},
+		{name: "an alarm that needs a code to arm hands arming off to the UI",
+			setup: func(f *fakeHA) {
+				f.ent("alarm_control_panel.home", "manual", "disarmed", map[string]any{"code_arm_required": true, "supported_features": 63.0})
+			},
+			args: []string{"alarm_control_panel.alarm_arm_away", "alarm_control_panel.home"}, exit: 4, tier: "refused", reasons: []string{reasonCodeRequired}},
+		{name: "toggling a cover that can open but not close is refused (Home Assistant needs both)",
+			setup: func(f *fakeHA) { f.ent("cover.pool", "zwave_js", "closed", map[string]any{"supported_features": 1.0}) },
+			args:  []string{"cover.toggle", "cover.pool"}, exit: 4, tier: "refused", reasons: []string{reasonFeature}},
 		{name: "a cover with an unread feature mask keeps its tier",
 			setup: func(f *fakeHA) { f.ent("cover.pool", "zwave_js", "closed", nil) },
 			args:  []string{"cover.open_cover", "cover.pool"}, exit: 3, tier: "typed", reasons: []string{reasonCoverClassUnknown}},

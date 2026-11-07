@@ -20,7 +20,7 @@ describe("scene contract", () => {
   });
 
   it("offers the apply-test in one line and shows the card only after yes", () => {
-    expect(sceneSkill).toContain("end with one short line offering an apply-test; only after the user's yes show one Test-Plan-style card");
+    expect(sceneSkill).toContain("end with the one-line test-preview offer (`../ha-nova/test-run.md` → Closing offer; write Phase 5's exceptions apply); only its yes shows one Test-Plan-style card, and that yes runs nothing");
   });
 
   it("uses unique_id as the config id, never the entity_id slug", () => {
