@@ -11,6 +11,8 @@
 //   d  slow check (#827): 1,500 automations + a call_service listener, the CLI's relay
 //      behind a proxy that holds every chunk SLOW_RELAY_MS; an unlock plan hits the
 //      read budget and still applies with its first code
+// Order c, a, b, d: the chat bridge runs first, while the Claude test account's
+// usage limit is fresh.
 //
 // Throwaway only: its own test bed from this checkout (it stops when any bed is
 // running, from any tree), CLI homes inside the bed's .state or the work dir
@@ -332,7 +334,7 @@ try {
   await fetchBinary();
   setupLog = join(WORK, "testbed-up.log");
   startBed();
-  for (const [step, fn] of [["a", matrix], ["b", phone], ["c", chat], ["d", slow]]) {
+  for (const [step, fn] of [["c", chat], ["a", matrix], ["b", phone], ["d", slow]]) {
     try { await fn(); } catch (err) { row(step, "step ran", "FAIL", err.message); }
   }
 } catch (err) {
