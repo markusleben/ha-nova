@@ -23,7 +23,7 @@ Probe file access once: `list_dir` on `/config/esphome`. `FILE_ACCESS_DISABLED` 
 
 ## Relay Contract
 
-- `ha-nova relay files --data-file <payload-file>`: `{"action":"list_dir","path":"/config/esphome"}`, `{"action":"read_file","path":"/config/esphome/<device>.yaml"}`, `write_file` (`content`, `backup` true).
+- `ha-nova relay files --data-file <payload-file>`: `{"action":"list_dir","path":"/config/esphome"}`, `{"action":"read_file","path":"/config/esphome/<device>.yaml"}`, `write_file` via `plan raw`.
 - Device side: `ha-nova find '<friendly name>'` (single quotes: the name is device data), `ha-nova get <entity_id> --references` (`references.entities[]`: `platform`, `state` for the whole device); `ha-nova relay ws --data-file <payload-file>` with `{"type":"config_entries/get","domain":"esphome"}` (entry `state`), `{"type":"config/device_registry/list"}` with `--jq-file` to the `references.device.id` row (`sw_version`: ESPHome version and build time).
 
 ## Flow

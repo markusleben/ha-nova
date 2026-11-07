@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -91,10 +92,12 @@ func relayTyped(paths runtimePaths, opts verbOptions, endpoint string, body []by
 	switch {
 	case err != nil:
 		return nil, err
-	case check.Verdict == gatePass:
+	case check.Verdict == gateRefuse && slices.ContainsFunc(requests, func(r map[string]any) bool { return gateLogRead(endpoint, r) }): // the Relay's own refusal (spec §2), not this CLI's yet
 		return nil, nil
-	case check.Verdict == gateRefuse:
-		return rawRefusal(endpoint+" request", rawNextOther), nil
+	case check.Verdict == gateRefuse: // fail closed: its own guard passed it, the gate (a number Home Assistant would get as null, a hidden value sent back) doesn't
+		return rawRefusal("request", "HA NOVA's gate refuses it as written; send it without the values it names in its own words, or do this in the Home Assistant UI"), nil
+	case check.Verdict != gateTyped:
+		return nil, nil
 	}
 	request := requests[check.Item]
 	what, _ := request["type"].(string)

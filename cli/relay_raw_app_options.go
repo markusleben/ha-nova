@@ -116,7 +116,8 @@ func rawSupervisorForm(s *relaySession, slug string) ([]any, error) {
 			} `json:"data"`
 		} `json:"body"`
 	}
-	raw, err := s.sendWithin("supervisor", []byte(`{"method":"GET","path":"/addons/`+slug+`/info"}`), relaySessionRequestTimeout)
+	request, _ := json.Marshal(map[string]string{"method": "GET", "path": "/addons/" + slug + "/info"})
+	raw, err := s.sendWithin("supervisor", request, relaySessionRequestTimeout)
 	if err == nil {
 		err = json.Unmarshal(raw, &info)
 	}
