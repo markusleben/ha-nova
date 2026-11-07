@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 
 ### Fixed
 - Chat apps: an automation built from a blueprint is checked with its own extra actions, so unlocking a door asks first.
+- Chat apps: checking a change to a large automation takes much less time.
 
 ### Upgrade notes
 - Computers on HA NOVA 0.28.3 ask you to update this App.
@@ -16,7 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 
 ### Fixed
 - Chat apps: after you create or change an automation or script, HA NOVA offers a test preview in one line. Say yes to see what would switch before anything runs.
-- Chat apps: checking a change to a large automation over Home Assistant Link takes much less time, so it runs out of time far less often.
+- Chat apps: checking a change to a large automation reads fewer states.
 - Chat apps: confirmations stay in your language when a big check runs out of time, and a phone ask ends in time instead of waiting past it.
 
 ### Upgrade notes
