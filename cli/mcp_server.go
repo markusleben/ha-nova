@@ -52,8 +52,9 @@ matching skill (once per skill per session) and follow it; device control and
 lookups need only the tools.
 Read freely with ha_find, ha_get, ha_history, ha_map, ha_trace, and ha_read.
 Change things only with ha_call (devices) or ha_plan followed by ha_apply.
-Ordinary everyday actions run immediately and are verified; anything else
-returns status needs_confirmation with a preview: show that preview to the
+Ordinary everyday actions run immediately and are verified, and a plan whose
+plan.confirm is none is applied at once; anything else returns status
+needs_confirmation with a preview: show that preview to the
 user, end with its say text in the user's language (the reason and how to go
 ahead; add no other reason; keep its lines in order and the bold, so a code
 stays alone on the last line; nothing comes after the code), and follow its
