@@ -660,7 +660,7 @@ Read-only sub-skills open `## Safety` with this block instead:
 
 Skill-specific safety bullets follow the core block; bullets that merely restate a core line are removed, domain nuances (confirmation tiering, no-revert notes, session-cleanup rules) stay.
 
-A skill may declare an explicit, named exception to a single core bullet directly below the core block — it must reference the core rule it narrows ("Declared exception to the core ... rule above") so a bare agent never sees two contradicting instructions. Current declared exceptions: `todo` item removes (`todo.remove_item`, `todo.remove_completed_items`) stay at natural preview confirmation while list deletion keeps the one-time code; `integration-setup` and `health` may cancel only their own unfinished transient flows at preview tier, never an entry, subentry, or issue.
+A skill may declare an explicit, named exception to a single core bullet directly below the core block — it must reference the core rule it narrows ("Declared exception to the core ... rule above") so a bare agent never sees two contradicting instructions. Current declared exceptions: `todo` item removes (`todo.remove_item`, `todo.remove_completed_items`) stay at natural preview confirmation (the CLI runs up to 5 listed items off the built-in shopping list at once) while list deletion keeps the one-time code; `integration-setup` and `health` may cancel only their own unfinished transient flows at preview tier, never an entry, subentry, or issue.
 
 ## Post-Write Review Standard
 

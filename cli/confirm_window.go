@@ -171,7 +171,7 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 		}
 	}
 	defer s.close()
-	switch askWindow(context.Background(), text+windowAsked(lang), plan.Lang, time.Until(deadline)) {
+	switch askWindow(planAsks, text+windowAsked(lang), plan.Lang, time.Until(deadline)) {
 	case windowConfirmed:
 		humanAnswer, humanWhere, askedRoute = confirmCode(s.transport.Credential, idHex, channelWindow, plan.ExpiresAt), channelWindow, s
 		return env, 0, false
@@ -185,6 +185,11 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 	}
 	return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "the confirmation window got no answer in time", again)
 }
+
+// planAsks is the parent of every plan's window and phone ask. ha-nova mcp
+// ends it on a stop signal (stdioEndAfterChanges): an ask that is open or
+// still to come then gets no answer, and nothing is sent.
+var planAsks, endPlanAsks = context.WithCancel(context.Background())
 
 // askWindow shows the window and waits for its answer; our own deadline
 // backs the window's. Once it has stayed up a second, stderr says so (a
@@ -208,6 +213,9 @@ func askWindow(parent context.Context, message, lang string, wait time.Duration)
 // in this process. macOS: an osascript window outlives a SIGKILL until its
 // own timeout.
 func askWindowUntilSignal(parent context.Context, message, lang string, wait time.Duration) (windowAnswer, os.Signal) {
+	if parent.Err() != nil { // withdrawn before it opened: no answer, never the fallback
+		return windowNoAnswer, nil
+	}
 	ctx, cancel := context.WithTimeout(parent, wait+5*time.Second)
 	defer cancel()
 	signals := make(chan os.Signal, 1)

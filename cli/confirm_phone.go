@@ -385,7 +385,7 @@ func startPhoneAsk(paths runtimePaths, opts verbOptions, id string, noSnapshot b
 // wait sends the notification and waits for the answer; notice hears the
 // "sent to" line (nil: nobody).
 func (a *phoneAsking) wait(notice io.Writer) {
-	a.answer, a.reply = askPhone(context.Background(), a.s, a.setup, "ha-nova-"+a.plan.ID, a.ask, time.Until(a.deadline), notice)
+	a.answer, a.reply = askPhone(planAsks, a.s, a.setup, "ha-nova-"+a.plan.ID, a.ask, time.Until(a.deadline), notice)
 }
 
 // refuse: the tap came, but the bridge's policy changed meanwhile; the

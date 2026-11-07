@@ -117,16 +117,17 @@ type rpcRequest struct {
 type mcpServer struct {
 	paths       runtimePaths
 	out         io.Writer
-	legacy      string          // negotiated legacy revision once initialize ran ("" = none)
-	legacyForms bool            // initialize declared form elicitation
-	noForms     bool            // mcp --no-forms
-	pin         string          // mcp --server: every tool call runs against this profile
-	told        map[string]bool // notice kind+server already hinted in next_step
-	lines       <-chan []byte   // client messages, one per line
-	queued      [][]byte        // messages that arrived while a form was open (legacy era)
-	formSeq     int             // ids of this server's elicitation/create requests
-	chat        *chatPolicy     // ha-nova serve: the chat app's HA user and the owner's switches (nil: stdio)
-	since       time.Time       // ha-nova serve: when the request came in; its waits for mcpVerbLock count from it (lockChat)
+	legacy      string              // negotiated legacy revision once initialize ran ("" = none)
+	legacyForms bool                // initialize declared form elicitation
+	noForms     bool                // mcp --no-forms
+	pin         string              // mcp --server: every tool call runs against this profile
+	told        map[string]bool     // notice kind+server already hinted in next_step
+	lines       <-chan []byte       // client messages, one per line
+	queued      [][]byte            // messages that arrived while a form was open (legacy era)
+	formSeq     int                 // ids of this server's elicitation/create requests
+	chat        *chatPolicy         // ha-nova serve: the chat app's HA user and the owner's switches (nil: stdio)
+	jobs        map[string]*chatJob // ha-nova mcp: apply jobs by plan id (mcp_stdio_apply.go)
+	since       time.Time           // when the request came in: serve's waits for mcpVerbLock (lockChat) and stdio's apply wait count from it
 }
 
 func runMCPCommand(paths runtimePaths, args []string) int {
@@ -154,6 +155,7 @@ func runMCPCommand(paths runtimePaths, args []string) int {
 	protocolOut := os.Stdout
 	os.Stdout = os.Stderr
 	reapUpdateRefresh = true // a long-running process reaps its refresh children
+	stdioEndAfterChanges()
 	if err := serveMCP(paths, os.Stdin, protocolOut); err != nil {
 		printErr("mcp: %s", err)
 		return 1
@@ -187,8 +189,10 @@ func serveMCP(paths runtimePaths, in io.Reader, out io.Writer) error {
 	for {
 		line, open := srv.next()
 		if !open {
+			srv.awaitJobs()
 			return readErr // set before the channel closed
 		}
+		srv.since = time.Now()
 		srv.handle(line)
 	}
 }
@@ -333,6 +337,9 @@ func (srv *mcpServer) runLocked(name, answered string, forms bool, run func() in
 	}()
 	traceRelayVersion.Store("")
 	out, errOut, exit := captureVerb(run)
+	if name == "ha_apply" && exit == verbExitUnknown && strings.TrimSpace(out) == "" { // apply crashed after it may have sent
+		return chatStopped(name, applyCrashed(errOut))
+	}
 	if name == "ha_trace" { // trace prints its own object: add the verbs' notices
 		out = withNotices(out, verbNotices(srv.paths, traceRelayVersion.Load().(string)), activeServerProfile())
 	}

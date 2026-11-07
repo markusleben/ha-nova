@@ -232,11 +232,32 @@ func (f *setupFlow) afterSkills() setupStepResult {
 		return setupDone(exit)
 	}
 	result := f.finish()
+	if result.done && result.code == 0 {
+		f.offerAppUpdate()
+	}
 	if linkExit != 0 && result.done && result.code == 0 {
 		f.ui.note(setupT("setup.extras.link_failed")) // its reason is above the other questions
 		return setupDone(linkExit)
 	}
 	return result
+}
+
+// offerAppUpdate: once setup works, a pending NOVA App update gets the
+// offer ha-nova update makes (it asks first and sends only what the tier
+// engine allows; relay_guided_update.go), after the outcome so it stays on
+// screen. Not on the page (its step 3 never reads the terminal), in service
+// mode, with Link paused, or with no one to ask.
+func (f *setupFlow) offerAppUpdate() {
+	if f.pageControlled || f.serviceMode || f.cloudSetupPaused || !f.ui.interactive() {
+		return
+	}
+	offerRelayUpdate(f.paths, relayUpdateNoticeForSetup(f.paths))
+}
+
+// relayUpdateNoticeForSetup: the App's state, within the first-use notice's
+// budget: setup has said it is done, so a slow Relay doesn't hold it. Test seam.
+var relayUpdateNoticeForSetup = func(paths runtimePaths) humanNotice {
+	return relayUpdateNoticeWithTimeout(paths, firstUseRelayNoticeTimeout)
 }
 
 // showExtras gives the optional questions after step 4 their own screen,

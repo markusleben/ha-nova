@@ -247,6 +247,9 @@ func copyNeeded(s *relaySession, items []rawRequest) (removes string) {
 		payload, _ := decodeObject(item.Payload)
 		if refusal, err := n.kept(kept[:i], item.Endpoint, payload); refusal != nil || err != nil {
 			guard, _, _, _ := rawReplaceTarget(item.Endpoint, payload)
+			if rawFileChange(item.Endpoint, payload) != "" {
+				guard.removes = "the current content of a file"
+			}
 			return cmp.Or(guard.removes, "members from a scene")
 		}
 	}

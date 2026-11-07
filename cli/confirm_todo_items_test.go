@@ -35,7 +35,11 @@ func TestTodoItemConfirmationNamesTheItem(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFakeHA()
-			shoppingList(f, "Milk")
+			platform := "local_todo" // the built-in shopping list removes listed items at once
+			if tc.listener {
+				platform = "shopping_list"
+			}
+			todoList(f, platform, "Milk")
 			f.fail["todo/item/list"] = tc.failList
 			if tc.listener {
 				listUnlocks(f)
@@ -58,8 +62,11 @@ func TestTodoItemConfirmationNamesTheItem(t *testing.T) {
 }
 
 // shoppingList: “Shopping list” holding first (uid 79d4a1) and “Eggs”.
-func shoppingList(f *fakeHA, first string) {
-	f.ent("todo.shopping_list", "shopping_list", "2", map[string]any{"friendly_name": "Shopping list"})
+func shoppingList(f *fakeHA, first string) { todoList(f, "shopping_list", first) }
+
+// todoList: the same list on another to-do platform.
+func todoList(f *fakeHA, platform, first string) {
+	f.ent("todo.shopping_list", platform, "2", map[string]any{"friendly_name": "Shopping list"})
 	f.extra = func(endpoint string, p map[string]any) (any, bool) {
 		if endpoint != "ws" || p["type"] != "todo/item/list" || f.fail["todo/item/list"] {
 			return nil, false

@@ -18,6 +18,7 @@ func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
 	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
 		"backups list":                func(map[string]any) any { return []any{map[string]any{"file": "scenes/a.json.gz"}} },
 		"config/device_registry/list": func(map[string]any) any { return []any{map[string]any{"id": "demo", "name": "Demo"}} },
+		"files read_file":             func(map[string]any) any { return fakeRelayFailure{"FILE_NOT_FOUND", "not found"} }, // a new file needs no copy (fileKept)
 	})
 	c := startMCP(t, paths)
 	mcpInit(c)

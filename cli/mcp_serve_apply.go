@@ -188,7 +188,13 @@ func (srv *mcpServer) chatBusy(name string, args map[string]json.RawMessage, why
 			}
 		}
 	}
-	if running := srv.chat.bridge.jobOf(srv.chat.user, text(args, "plan_id"), true); running != "" {
+	running := ""
+	if srv.chat != nil {
+		running = srv.chat.bridge.jobOf(srv.chat.user, text(args, "plan_id"), true)
+	} else if id := srv.runningJob(); id != text(args, "plan_id") { // ha-nova mcp (mcp_stdio_apply.go)
+		running = id
+	}
+	if running != "" {
 		next += fmt.Sprintf(" Their own change (plan_id %s) is still running: call ha_apply with that plan_id for its outcome, and never say it failed or that nothing changed.", running)
 	}
 	env := verbEnvelope{SchemaVersion: 1, Verb: name[len("ha_"):]}

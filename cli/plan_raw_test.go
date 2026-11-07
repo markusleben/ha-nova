@@ -56,7 +56,7 @@ func rawRelay(t *testing.T, handlers map[string]func(map[string]any) any) (paths
 				if rawRelayRead(c.endpoint, []byte(c.body)) && !rawPlanOnlyRead(c.endpoint, body) {
 					continue
 				}
-			} else if body["action"] == "list" || body["action"] == "load" {
+			} else if body["action"] == "list" || body["action"] == "load" || body["action"] == "read_file" {
 				continue
 			}
 			keys = append(keys, rawKey(c.endpoint, body))
@@ -354,6 +354,7 @@ func TestPlanRawReadsAndRefusals(t *testing.T) {
 // item's answer is redacted like relay's.
 func TestPlanRawTypedSayPromptAndRedaction(t *testing.T) {
 	paths, _ := rawRelay(t, map[string]func(map[string]any) any{
+		"files read_file": newYAMLFile["files read_file"],
 		"config/entity_registry/update": func(map[string]any) any {
 			return map[string]any{"entity_entry": map[string]any{"options": map[string]any{"lock": map[string]any{"default_code": "4711"}}}}
 		},
