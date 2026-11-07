@@ -17,6 +17,7 @@ import { writeFileAtomicSync } from "../storage/atomic-file.js";
 // through the Relay with its own credential (loopback only, minted afresh by
 // mint() on every start). Everything lives in owner-only /data/gate, its
 // Unix socket too: no other listener can answer in the worker's place.
+const MAX_ANSWER_BYTES = 192 << 20; // the worker's answer to its largest request (96 MiB, cli/command_gate.go)
 const TIMEOUT_MS = 20_000; // above the worker's own 15 s check budget (cli/command_gate.go)
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
@@ -127,21 +128,27 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
     return new Promise((resolve) => {
       let settled = false;
       const settle = (answer: Record<string, unknown> | null, warning?: string, context?: Record<string, unknown>): void => {
-        if (settled) {
-          return;
+        if (!settled) {
+          settled = true;
+          clearTimeout(deadline);
+          if (warning !== undefined) {
+            req.destroy();
+            deps.logger.warn(warning, { path, ...context });
+          }
+          resolve(answer);
         }
-        settled = true;
-        clearTimeout(deadline);
-        if (warning !== undefined) {
-          deps.logger.warn(warning, { path, ...context });
-        }
-        resolve(answer);
       };
       const req = request(
         { socketPath: socket, path, method: "POST", headers: { authorization: `Bearer ${secret}`, "content-type": "application/json", "content-length": Buffer.byteLength(body) } },
         (response) => {
           const chunks: Buffer[] = [];
-          response.on("data", (chunk: Buffer) => chunks.push(chunk));
+          let size = 0;
+          response.on("data", (chunk: Buffer) => {
+            chunks.push(chunk);
+            if ((size += chunk.length) > MAX_ANSWER_BYTES) {
+              settle(null, "Safety-check worker answered unusably", { status: "over the size limit" });
+            }
+          });
           response.on("error", (error) => settle(null, "Safety-check worker did not answer", { error: error.message }));
           response.on("end", () => {
             let answer: unknown;
@@ -158,10 +165,7 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
           });
         },
       );
-      const deadline = setTimeout(() => {
-        req.destroy();
-        settle(null, "Safety-check worker did not answer", { error: "timeout" });
-      }, deps.timeoutMs ?? TIMEOUT_MS);
+      const deadline = setTimeout(() => settle(null, "Safety-check worker did not answer", { error: "timeout" }), deps.timeoutMs ?? TIMEOUT_MS);
       req.on("error", (error) => settle(null, "Safety-check worker did not answer", { error: error.message }));
       req.end(body);
     });

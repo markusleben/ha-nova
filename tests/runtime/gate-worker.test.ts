@@ -123,6 +123,30 @@ describe("gate worker child", () => {
     expect(statSync(join(dir, "gate")).mode & 0o777).toBe(0o700);
   });
 
+  it("an answer that never ends within the size limit is no answer", async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(200, { "content-type": "application/json" });
+      const chunk = Buffer.alloc(1 << 20, 0x20);
+      const pump = (): void => {
+        while (!response.destroyed && response.write(chunk)) {}
+        if (!response.destroyed) {
+          response.once("drain", pump);
+        }
+      };
+      pump();
+    });
+    mkdirSync(join(dir, "gate"), { recursive: true, mode: 0o700 });
+    await new Promise<void>((r) => server.listen(join(dir, "gate", "worker.sock"), r));
+    try {
+      const gate = worker({ timeoutMs: 60_000 });
+      gate.start();
+      expect(await gate.check({ kind: "legacy" }, "ws", Buffer.from("{}"))).toBeNull();
+    } finally {
+      server.closeAllConnections();
+      await new Promise((r) => server.close(r));
+    }
+  }, 60_000);
+
   it("a redirect from the worker is no answer, and nothing follows it", async () => {
     const followed: string[] = [];
     const server = createServer((request, response) => {
