@@ -53,6 +53,10 @@ Persons, registry rows, and voice assistants, in the same guard as PR 1: `rawRep
 
 Each person update now reads `person/list`, so an unreadable list plans nothing (it planned typed before), and an unknown person is `NOT_FOUND` (`ha-nova relay ws` still refuses it as typed first).
 
+## PR 3
+
+YAML file overwrites in raw plans (`cli/plan_raw_files.go`): a `files write_file` of a `.yaml`/`.yml` file reads the file at planning, at apply's recompute, and right before the send. An existing file whose content the write changes needs a `backups save` (category `yaml`) of exactly `{path, content}` earlier in the plan, with `path` as the write names it; a new file, or a write of the same content, needs none. The config check's rollback (the `.bak` written back) needs the copy too, since a `.bak` may be older than the file; the CLI's next step says so. A copy under another category doesn't count. The basis holds the content's SHA-256 under `files`, so an edit since the preview stops the write (the copy no longer matches). A file the Relay can't read (file access off) plans nothing. The ESPHome folder is included: its skill captures the same copy. `ha-nova relay files write_file` is not checked: the computer flow saves the copy and checks drift as two requests (`skills/yaml-config` step 3), and one request can't prove a copy. That is a known limit, as are: a `files delete_file` of a YAML file is not checked here (the chat-app step asks for its copy first; follow-up), two writes to one file under different spellings (percent-encoded) both plan and the second is refused at apply after the first was sent, and an empty file needs a copy too.
+
 ## Known limits (PR 1)
 
 - An `icon` or an `input_select`'s `initial` left out is not counted (PR 2 decides the scalar fields).

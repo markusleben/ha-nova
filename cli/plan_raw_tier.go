@@ -519,7 +519,8 @@ func rawSnapshotList(s *relaySession) (json.RawMessage, error) {
 // each device delete removes (its devices and entities: one more since the
 // preview is drift), each scene a save replaces (sceneKept), each item
 // a guarded update replaces (helperKept: helpers, persons, registry rows,
-// voice assistants), each calendar event an update is tiered
+// voice assistants), each YAML file a write replaces (fileKept: its
+// content's hash), each calendar event an update is tiered
 // on (calendarLive), and every config a listener walk read
 // (rawShoppingList), as a call binds its consumers' (I3); nil when the plan
 // holds none.
@@ -532,7 +533,7 @@ func (n *rawNamer) basis() map[string]any {
 	default:
 		basis["energy"] = numbersByValue(n.prefs) // a stored plan reads its numbers back as float64
 	}
-	for key, read := range map[string]map[string]any{"snapshots": n.deleting, "devices": n.removing, "scenes": n.scenes, "helpers": n.helpers, "calendars": n.calendars} {
+	for key, read := range map[string]map[string]any{"snapshots": n.deleting, "devices": n.removing, "scenes": n.scenes, "helpers": n.helpers, "files": n.files, "calendars": n.calendars} {
 		if read != nil {
 			basis[key] = read
 		}

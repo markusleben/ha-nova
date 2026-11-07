@@ -34,6 +34,7 @@ type rawNamer struct {
 
 	helpers     map[string]any          // "<type without /update>/<id>" → the live item a guarded update replaces (helperKept)
 	helperDrops map[string][]helperDrop // the same key → what its update removes after a copy (helperKept)
+	files       map[string]any          // a YAML file's clean path → its content's hash, or "absent" (fileKept)
 
 	calendars       map[string]any // `<entity> "<uid>" "<recurrence_id>"` → the event an update is tiered on, or "unreadable" (calendarLive)
 	calendarUpdates []string       // "<entity> <uid>" of each calendar update so far (calendarShortens)
