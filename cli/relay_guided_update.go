@@ -172,8 +172,15 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 	}
 	version = readinessVersion
 	fmt.Fprintf(out, "The NOVA App is updated and works: v%s.\n", version)
+	if ha, err := chatAppsReadHA(paths); err == nil && ha.loaded { // ChatGPT keeps the tools it took until a Refresh (#923)
+		fmt.Fprintln(out, chatGPTRefreshLine)
+	}
 	return true
 }
+
+// chatGPTRefreshLine follows an App update while chat apps are on
+// (docs/reference/chat-apps.md).
+const chatGPTRefreshLine = "If you use HA NOVA in ChatGPT: open chatgpt.com/plugins, choose HA NOVA, then Refresh."
 
 type relayUpdateCandidate struct {
 	EntityID          string

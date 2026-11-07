@@ -25,6 +25,7 @@ func withDeviceStorageTestHome(t *testing.T) string {
 	// tests exercise the REAL keyring/file selection logic (go-keyring is mocked
 	// package-wide by TestMain, so "keyring" here means the in-memory mock).
 	t.Setenv("HA_NOVA_TEST_SECRET_DIR", "")
+	keyring.MockInit() // a fresh in-memory keyring: an earlier test's device credential can't leak in
 	prevForced := deviceCredentialFileModeForced
 	prevExplicit := deviceCredentialFileModeExplicit
 	deviceCredentialFileModeForced = false
