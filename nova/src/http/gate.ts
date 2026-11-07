@@ -6,7 +6,8 @@ import type { RouteContext, RouteHandler } from "./router.js";
 // The safety check in front of every device-facing handler
 // (docs/work/2026-11-03-relay-typed-gate-spec.md §1, §2). The Relay classifies
 // nothing: the worker (`ha-nova gate`) rates the exact bytes the Relay forwards
-// and redacts every answer. Every failure answers 503 and forwards nothing.
+// and redacts every answer. A failure before forwarding answers 503 and sends
+// nothing; one after it withholds the answer (502).
 
 export type GateEndpoint = "ws" | "core" | "files" | "backups" | "supervisor";
 
@@ -86,11 +87,7 @@ export function gated(
     }
     const redacted = await gate.redact(endpoint, bytes, Buffer.from(JSON.stringify(envelope)));
     if (redacted === null || !isJson(redacted)) {
-      throw new HttpError(
-        503,
-        "GATE_UNAVAILABLE",
-        "HA NOVA's safety check could not check Home Assistant's answer, so it is withheld. The request may have been carried out.",
-      );
+      throw new HttpError(502, "GATE_ANSWER_WITHHELD", "Home Assistant may have carried this out; HA NOVA withheld the answer");
     }
     context.response.statusCode = status;
     context.response.setHeader("content-type", "application/json; charset=utf-8");

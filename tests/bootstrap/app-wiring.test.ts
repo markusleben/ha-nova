@@ -43,7 +43,11 @@ describe("app wiring", () => {
         })
       },
       startedAtMs: 1_000,
-      now: () => 5_000
+      now: () => 5_000,
+      gate: {
+        check: async () => ({ verdict: "pass", kind: "read" }),
+        redact: async (_endpoint, _request, response) => response
+      }
     });
     servers.push(app.server);
 

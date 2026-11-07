@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createGateWorker, type GateWorkerDeps } from "../../nova/src/runtime/gate-worker.js";
+import { createGateWorker, mintGateDevice, type GateWorkerDeps } from "../../nova/src/runtime/gate-worker.js";
 import { openDeviceRegistry, type DeviceRegistry } from "../../nova/src/security/device-registry.js";
 import { GATE_INSTALL_ID } from "../../nova/src/security/pairing-metadata.js";
 import { resolvePrincipal } from "../../nova/src/security/principal.js";
@@ -30,10 +30,7 @@ function worker(overrides: Partial<GateWorkerDeps> = {}) {
   return createGateWorker({
     dataDir: dir,
     binary: process.execPath,
-    securePort: 8792,
-    spkiPin: "pin",
-    registry,
-    now: () => 1,
+    mint: mintGateDevice(registry, () => 1, "https://127.0.0.1:8792", "pin"),
     logger: { warn: () => {}, error: (message) => errors.push(message) },
     respawnMs: 10,
     spawn: ((binary: string, args: string[], options: { env: NodeJS.ProcessEnv }) => {

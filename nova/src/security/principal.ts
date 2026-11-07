@@ -113,7 +113,7 @@ export function resolveCloudPrincipal(
   return devicePrincipal(deps.registry, device.deviceId, request.socket?.remoteAddress);
 }
 
-export function isLoopback(peer: string | undefined): boolean {
+export function isLoopback(peer: string | undefined): peer is string {
   return peer === "127.0.0.1" || peer === "::1";
 }
 

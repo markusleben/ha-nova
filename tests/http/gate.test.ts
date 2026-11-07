@@ -11,7 +11,7 @@ import { HttpError } from "../../nova/src/http/errors.js";
 import { gated, type GateEndpoint } from "../../nova/src/http/gate.js";
 import { parseCoreRequest } from "../../nova/src/http/handlers/core-proxy.js";
 import type { RouteHandler } from "../../nova/src/http/router.js";
-import { createGateWorker, type GateWorker } from "../../nova/src/runtime/gate-worker.js";
+import { createGateWorker, mintGateDevice, type GateWorker } from "../../nova/src/runtime/gate-worker.js";
 import { createBootstrapListener, createDeviceListener } from "../../nova/src/runtime/listeners.js";
 import { digestSecret, generateCredential } from "../../nova/src/security/device-credential.js";
 import { openDeviceRegistry, type DeviceRegistry } from "../../nova/src/security/device-registry.js";
@@ -98,10 +98,7 @@ beforeEach(async () => {
   gate = createGateWorker({
     dataDir: dir,
     binary: process.execPath,
-    securePort: 8792,
-    spkiPin: tls.spkiPin,
-    registry,
-    now: () => 1,
+    mint: mintGateDevice(registry, () => 1, "https://127.0.0.1:8792", tls.spkiPin),
     logger: { warn: () => {}, error: () => {} },
     port: workerPort,
     timeoutMs: 300,
@@ -280,13 +277,27 @@ describe("relay gate: redaction", () => {
     ["invalid base64", { json: { response_b64: "%%%" } }],
     ["bytes that are not JSON", { json: { response_b64: Buffer.from("SECRET").toString("base64") } }],
     ["no answer within the timeout", "hang"],
-  ])("%s from /redact: 503 and none of the answer", async (_name, bad) => {
+  ])("%s from /redact: 502 GATE_ANSWER_WITHHELD and none of the answer", async (_name, bad) => {
     reply = (path) => (path === "/check" ? verdict("pass") : bad);
     const res = await viaBootstrap("/ws", { type: "config/entity_registry/list" });
-    expect(res.status).toBe(503);
-    expect(code(res.text)).toBe("GATE_UNAVAILABLE");
+    expect(res.status).toBe(502);
+    expect(JSON.parse(res.text).error).toEqual({ code: "GATE_ANSWER_WITHHELD", message: "Home Assistant may have carried this out; HA NOVA withheld the answer" });
     expect(res.text).not.toContain("SECRET");
     expect(forwarded).toHaveLength(1);
+  });
+
+  it("a worker that stops between the check and the redact: 502, the request was forwarded", async () => {
+    reply = (path) => {
+      if (path === "/redact") {
+        children[0]!.emit("exit", 1, null);
+      }
+      return path === "/check" ? verdict("pass") : redactAll({ response_b64: "" });
+    };
+    const res = await viaBootstrap("/ws", { type: "get_states" });
+    expect(res.status).toBe(502);
+    expect(code(res.text)).toBe("GATE_ANSWER_WITHHELD");
+    expect(forwarded).toHaveLength(1);
+    await new Promise((resolve) => setTimeout(resolve, 100)); // its restart lands inside this test
   });
 
   it("redacts an upstream error answer with its status", async () => {

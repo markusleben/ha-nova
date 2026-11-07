@@ -13,8 +13,8 @@ import { writeFileAtomicSync } from "../storage/atomic-file.js";
 // The safety-check worker (docs/work/2026-11-03-relay-typed-gate-spec.md §2):
 // `ha-nova gate` on loopback, started and restarted like the chat bridge
 // (chat-apps.ts), with the same minimal environment. It reads Home Assistant
-// through the Relay as its own internal device (reserved install id, loopback
-// only, minted afresh on every start). Everything lives in /data/gate.
+// through the Relay with its own credential (loopback only, minted afresh by
+// mint() on every start). Everything lives in /data/gate.
 
 export const GATE_PORT = 8796;
 const TIMEOUT_MS = 5_000;
@@ -25,13 +25,28 @@ export interface GateWorker extends GateClient {
   restart(): void; // after a registry reset: the next start mints a new credential
 }
 
+// What the worker reads from relay.json to reach the Relay.
+export interface GateRelay {
+  relay_url: string;
+  spki_pin?: string;
+  credential: string;
+}
+
+// App mode: the worker is a device under the reserved install id, over the
+// pinned TLS listener; activating a new credential drops the previous one.
+export function mintGateDevice(registry: DeviceRegistry, now: () => number, relayUrl: string, spkiPin: string): () => GateRelay {
+  return () => {
+    const { deviceId, secretDigest, credential } = generateCredential();
+    registry.createPending({ deviceId, secretDigest, clientInstallId: GATE_INSTALL_ID, name: "Safety check", platform: "NOVA App", client: "ha-nova gate", createdAtMs: now() }, now());
+    registry.activate(deviceId, now());
+    return { relay_url: relayUrl, spki_pin: spkiPin, credential };
+  };
+}
+
 export interface GateWorkerDeps {
   dataDir: string; // /data
   binary: string; // the ha-nova CLI in the image
-  securePort: number;
-  spkiPin: string;
-  registry: DeviceRegistry;
-  now: () => number;
+  mint: () => GateRelay; // a fresh credential that replaces the previous one
   logger: RelayLogger;
   port?: number;
   spawn?: typeof spawnChild;
@@ -56,11 +71,7 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
       deps.logger.error("The safety-check worker is missing; every device request is refused", { binary: deps.binary });
       return;
     }
-    // Activating a credential under the reserved id drops the previous one.
-    const minted = generateCredential();
-    deps.registry.createPending({ deviceId: minted.deviceId, secretDigest: minted.secretDigest, clientInstallId: GATE_INSTALL_ID, name: "Safety check", platform: "NOVA App", client: "ha-nova gate", createdAtMs: deps.now() }, deps.now());
-    deps.registry.activate(minted.deviceId, deps.now());
-    writeFileAtomicSync(file("relay.json"), `${JSON.stringify({ relay_url: `https://127.0.0.1:${deps.securePort}`, spki_pin: deps.spkiPin, credential: minted.credential })}\n`);
+    writeFileAtomicSync(file("relay.json"), `${JSON.stringify(deps.mint())}\n`);
     writeFileAtomicSync(file("secret"), secret);
     mkdirSync(file("home"), { recursive: true, mode: 0o700 });
     const proc = spawn(

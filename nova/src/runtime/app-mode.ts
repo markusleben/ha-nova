@@ -26,7 +26,7 @@ import { createPairingV1Manager } from "../security/pairing-v1.js";
 import { loadOrCreateTlsIdentity } from "../security/tls-identity.js";
 import { loadOrCreateRelayInstanceId } from "../storage/relay-instance.js";
 import { chatAppFilesPresent, createChatApps, type ChatApps } from "./chat-apps.js";
-import { createGateWorker, type GateWorker } from "./gate-worker.js";
+import { createGateWorker, mintGateDevice, type GateWorker } from "./gate-worker.js";
 import { createIngressListener } from "./ingress-listener.js";
 import { clearLegacyOptions, importLegacyToken } from "./legacy-migration.js";
 import { ensureSidebarPanel } from "./sidebar-panel.js";
@@ -227,10 +227,7 @@ export async function buildAppMode(
   gate = createGateWorker({
     dataDir,
     binary: "/opt/ha-nova/ha-nova",
-    securePort: SECURE_PORT,
-    spkiPin: tls.spkiPin,
-    registry,
-    now: input.now,
+    mint: mintGateDevice(registry, input.now, `https://127.0.0.1:${SECURE_PORT}`, tls.spkiPin),
     logger: input.logger,
   });
   const functional = buildFunctionalHandlers(input, relayInstanceId, supervisorBase, gate);
