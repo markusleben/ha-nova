@@ -102,10 +102,24 @@ func (n *rawNamer) fileKept(earlier []rawRequest, payload map[string]any) (refus
 	if copySaved(yamlCopies, live) {
 		return nil, nil
 	}
+	type data struct {
+		Path    string `json:"path"`
+		Content string `json:"content"`
+	}
+	type save struct {
+		Action   string `json:"action"`
+		Category string `json:"category"`
+		Name     string `json:"name"`
+		Data     data   `json:"data"`
+	}
+	saveItem, _ := json.Marshal(struct {
+		Endpoint string `json:"endpoint"`
+		Payload  save   `json:"payload"`
+	}{"backups", save{"save", "yaml", autoName(key), data{file, "CONTENT"}}})
 	return rawDrop{
 		message: removal + ", with no copy of it saved first",
-		hint: fmt.Sprintf(`A write replaces the whole file, and the Relay's .bak keeps only one step. Plan it with a backups save of the file first (ha-nova plan raw): {"endpoint":"backups","payload":{"action":"save","category":"yaml","name":%s,"data":{"path":%s,"content":<its content from files read_file, unchanged>}}}; load the yaml-config skill for the flow.`,
-			jsonText(autoName(key)), jsonText(file)),
+		hint: "A write replaces the whole file, and the Relay's .bak keeps only one step. Plan it with a backups save of the file first (ha-nova plan raw): " +
+			strings.Replace(string(saveItem), `"CONTENT"`, "<its content from files read_file, unchanged>", 1) + "; load the yaml-config skill for the flow.",
 	}, nil
 }
 
