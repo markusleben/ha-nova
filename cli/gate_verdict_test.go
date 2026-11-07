@@ -80,6 +80,8 @@ func TestGateVerdict(t *testing.T) {
 		{"a non-ASCII method", "core", `{"method":"poﬆ","path":"/api/services/light/turn_on","body":{"entity_id":["light.hall"]}}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
 		{"a tab in a webhook path", "core", `{"method":"GET","path":"/api/webho	ok/abc"}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
 		{"a hidden value carried back", "ws", `{"type":"config/area_registry/create","name":"(hidden: a stored code, password, or key)"}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
+		{"a duplicate key", "ws", `{"type":"get_states","type":"get_states"}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
+		{"an escaped duplicate key, nested", "core", `{"method":"POST","path":"/api/services/light/turn_on","body":{"entity_id":["light.hall"],"\u0065ntity_id":["lock.front"]}}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
 		{"Link setup", "ws", `{"type":"cloud/status"}`, gateCheck{Verdict: gatePass, Kind: "write"}, false},
 		{"Link setup with more", "ws", `{"type":"cloud/status","x":1}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
 		{"core service call with a code", "core", `{"method":"POST","path":"/api/services/lock/unlock","body":{"entity_id":["lock.front"],"code":"1234"}}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},

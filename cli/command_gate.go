@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -78,6 +79,13 @@ func runGateCommand(paths runtimePaths, args []string) int {
 // credential (the bridge's file format), or the standalone Relay's plain
 // loopback port with its random token.
 func loadGateRelay(file string) (*runtimeConfig, error) {
+	info, err := os.Lstat(file)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read the relay file: %w", err)
+	}
+	if !info.Mode().IsRegular() || runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
+		return nil, errors.New("the relay file must be a regular file readable by its owner only (chmod 600)")
+	}
 	if cfg, err := loadBridgeRelay(file); err == nil {
 		return cfg, nil
 	}
@@ -93,6 +101,9 @@ func loadGateRelay(file string) (*runtimeConfig, error) {
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&relay); err != nil {
 		return nil, fmt.Errorf("the relay file is not valid: %w", err)
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return nil, errors.New("the relay file is not valid: trailing data")
 	}
 	u, err := url.Parse(relay.RelayURL)
 	if err != nil || u.Scheme != "http" || u.Hostname() != "127.0.0.1" || u.Port() == "" || u.Path != "" || u.User != nil || u.RawQuery != "" || !gateRelayToken.MatchString(relay.Credential) {
@@ -173,10 +184,13 @@ func gateRedact(paths runtimePaths, endpoint string, request, response []byte) (
 	if !json.Valid(response) {
 		return nil, errors.New("the answer is not JSON")
 	}
-	redacted := redactRawResponse(endpoint, response)
-	payload, _ := decodeObject(request)
+	payload, ok := decodeObject(request)
 	raw, _ := payload["path"].(string)
-	target, _ := relayCorePath(raw)
+	target, plain := relayCorePath(raw)
+	if !ok || payload == nil || endpoint == "core" && !plain { // the template check needs the request
+		return nil, errors.New("the request is not one JSON object with a readable path")
+	}
+	redacted := redactRawResponse(endpoint, response)
 	if endpoint == "core" && strings.EqualFold(target, "/api/template") {
 		tokens, err := gateAccessTokens(paths)
 		if err != nil {

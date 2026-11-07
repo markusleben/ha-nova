@@ -110,6 +110,11 @@ func TestGateWorkerRedacts(t *testing.T) {
 	if status, got := redact("core", `{"method":"POST","path":"/api/template","body":{"template":"x"}}`, `{"ok":true,"data":{"status":200,"body":"21.5"}}`); status != http.StatusOK || !strings.Contains(got, "21.5") {
 		t.Errorf("plain template: HTTP %d %s", status, got)
 	}
+	for _, request := range []string{"", "not json", `{"method":"POST","path":"/api/%zz"}`} {
+		if status, _ := redact("core", request, `{"ok":true,"data":{"status":200,"body":"tok-0123456789abcdef"}}`); status != http.StatusServiceUnavailable {
+			t.Errorf("request %q: HTTP %d, want withheld", request, status)
+		}
+	}
 	if status, _ := redact("ws", `{"type":"get_states"}`, "not json"); status != http.StatusServiceUnavailable {
 		t.Errorf("non-JSON answer: HTTP %d, want withheld", status)
 	}
@@ -136,6 +141,20 @@ func TestGateRelayFile(t *testing.T) {
 		if _, err := loadGateRelay(write(bad)); err == nil {
 			t.Errorf("%s: accepted", bad)
 		}
+	}
+	loose := write(`{"relay_url":"http://127.0.0.1:8791","credential":"` + token + `"}`)
+	if err := os.Chmod(loose, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadGateRelay(loose); err == nil {
+		t.Error("a relay file others can read: accepted")
+	}
+	link := filepath.Join(dir, "link.json")
+	if err := os.Symlink(write(`{"relay_url":"http://127.0.0.1:8791","credential":"`+token+`"}`), link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadGateRelay(link); err == nil {
+		t.Error("a symlinked relay file: accepted")
 	}
 	if exit := runGateCommand(runtimePaths{}, []string{"--listen", "0.0.0.0:8796", "--secret-file", "x", "--relay-file", "y"}); exit != 1 {
 		t.Errorf("a non-loopback listen: exit %d", exit)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"slices"
@@ -80,7 +81,7 @@ func gateRequests(endpoint string, payload map[string]any) []map[string]any {
 func gateVerdict(endpoint string, body []byte, session func() (*relaySession, error)) (gateCheck, error) {
 	refused := gateCheck{Verdict: gateRefuse, Kind: "write"}
 	payload, ok := decodeObject(body)
-	if !ok || payload == nil || !json.Valid(body) || !slices.Contains([]string{"ws", "core", "files", "backups", "supervisor"}, endpoint) || !gateFinite(payload) {
+	if !ok || payload == nil || !json.Valid(body) || !slices.Contains([]string{"ws", "core", "files", "backups", "supervisor"}, endpoint) || !gateFinite(payload) || gateDuplicateKeys(body) {
 		return refused, nil
 	}
 	requests := gateRequests(endpoint, payload)
@@ -187,6 +188,48 @@ func gateFinite(v any) bool {
 		}
 	}
 	return true
+}
+
+// gateDuplicateKeys: an object anywhere in body names a key twice (after
+// unescaping, as Home Assistant reads it), or body doesn't parse. Readers
+// disagree on which value wins, so the gate never rates such a body (§2).
+func gateDuplicateKeys(body []byte) bool {
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.UseNumber()
+	var walk func() bool
+	walk = func() bool {
+		token, err := dec.Token()
+		if err != nil {
+			return true
+		}
+		delim, isDelim := token.(json.Delim)
+		switch {
+		case !isDelim:
+			return false
+		case delim == '{':
+			seen := map[string]bool{}
+			for dec.More() {
+				key, err := dec.Token()
+				name, isKey := key.(string)
+				if err != nil || !isKey || seen[name] {
+					return true
+				}
+				seen[name] = true
+				if walk() {
+					return true
+				}
+			}
+		case delim == '[':
+			for dec.More() {
+				if walk() {
+					return true
+				}
+			}
+		}
+		_, err = dec.Token()
+		return err != nil
+	}
+	return walk()
 }
 
 // gateRecognized: a shape the CLI sends to a device-facing endpoint: what
