@@ -139,6 +139,9 @@ func (e *tierEngine) targetless(service string, data map[string]any) (tierLevel,
 	if domain, _ := splitID(service); domain == "shopping_list" {
 		e.checkEvents("shopping_list_updated", "")
 	}
+	if level, code, ok := e.configReloadTier(service, data); ok {
+		return level, code
+	}
 	return classifyTargetless(service, data)
 }
 
