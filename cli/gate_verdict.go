@@ -207,6 +207,25 @@ func gateRecognized(endpoint string, payload map[string]any, body []byte) bool {
 	return true
 }
 
+// gateLogRead: a log read, which the gate refuses (spec §2: free text no
+// redactor bounds) and `ha-nova relay` still sends to an App without a gate.
+func gateLogRead(endpoint string, request map[string]any) bool {
+	switch endpoint {
+	case "core":
+		raw, _ := request["path"].(string)
+		decoded, ok := relayCorePath(raw)
+		return ok && strings.HasPrefix(strings.ToLower(decoded), "/api/error_log")
+	case "ws":
+		return request["type"] == "system_log/list"
+	case "supervisor":
+		method, _ := request["method"].(string)
+		path, _ := request["path"].(string)
+		kind, _ := rawSupervisorMatch(method, path)
+		return kind == "logs"
+	}
+	return false
+}
+
 // gateDenied: what the gate refuses whatever allows it elsewhere (spec §2):
 // event firing, execute_script, setting a state, every webhook request,
 // backup downloads and Supervisor paths on core, log reads (free text no

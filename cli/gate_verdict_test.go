@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -257,6 +258,28 @@ func TestSceneCoverPositionDecidesTheService(t *testing.T) {
 	for _, position := range []any{float64(50), "50", json.Number("50"), "0", nil} {
 		if service, _ := sceneMemberService("cover.garage", map[string]any{"state": "closed", "current_position": position}); service != "cover.set_cover_position" {
 			t.Errorf("position %#v: %s, want set_cover_position", position, service)
+		}
+	}
+}
+
+// `ha-nova relay` sends nothing the gate refuses, its own guard passed or
+// not (a file delete with a number Home Assistant would get as null).
+func TestRelayRefusesWhatTheGateRefuses(t *testing.T) {
+	paths, calls := readRelay(t, func(string, map[string]any) any { return nil })
+	for _, args := range [][]string{
+		{"files", "--data", `{"action":"delete_file","path":"scripts.yaml","ignored":1e1000}`},
+		{"files", "--data", `{"action":"write_file","path":"scripts.yaml","content":"","n":1e-999}`},
+		{"ws", "--data", `{"type":"config/area_registry/create","name":"Hall","n":1e999}`},
+	} {
+		var exit int
+		stderr := captureStderr(t, func() { exit = runRelayCommand(paths, args) })
+		if exit != verbExitRefused || !strings.Contains(stderr, "nothing was sent") {
+			t.Errorf("%v: exit %d, stderr %q; want refused", args, exit, stderr)
+		}
+	}
+	for _, c := range calls() {
+		if c.endpoint == "files" || !rawRelayRead(c.endpoint, []byte(c.body)) {
+			t.Errorf("sent %s %s", c.endpoint, c.body)
 		}
 	}
 }
