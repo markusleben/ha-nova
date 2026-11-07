@@ -122,8 +122,18 @@ func TestRelayTypedReadsOnlyWhenTheTierNeedsIt(t *testing.T) {
 // A person's trackers: a create follows what it names; an update replaces
 // the whole list (Home Assistant empties it when the key is missing), so
 // it is typed exactly when the set it leaves differs from person/list's.
-// The plan's tier and relay's refusal agree.
+// The plan's tier and relay's refusal agree. A plan holds a copy of Anna
+// first: an update that drops her trackers needs one (helperKept). A
+// person the list doesn't hold is NOT_FOUND, and an unreadable list plans
+// nothing.
 func TestPersonTrackersTierByTheSetTheyLeave(t *testing.T) {
+	personItems := func(payload string) string { // Anna's copy first
+		item := `{"endpoint":"ws","payload":` + payload + `}`
+		if !strings.Contains(payload, `"person_id":"anna"`) {
+			return "[" + item + "]"
+		}
+		return `[{"endpoint":"backups","payload":{"action":"save","category":"persons","name":"auto-anna","data":{"id":"anna","name":"Anna","device_trackers":["device_tracker.anna_phone","device_tracker.anna_watch"]}}},` + item + "]"
+	}
 	broken := false
 	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
 		"config/entity_registry/list": func(map[string]any) any { // each person's entity (#946)
@@ -149,13 +159,12 @@ func TestPersonTrackersTierByTheSetTheyLeave(t *testing.T) {
 		`{"type":"person/update","person_id":"ben","name":"Benjamin"}`:                                                                                 "preview",
 		`{"type":"person/update","person_id":"ben","device_trackers":["device_tracker.ben_phone"]}`:                                                    "typed",
 		`{"type":"person/update","person_id":"cleo","name":"Cleo B","device_trackers":[]}`:                                                             "typed", // listed without trackers: unknown
-		`{"type":"person/update","person_id":"zed","name":"Zed"}`:                                                                                      "typed", // unknown
 		`{"type":"person/update","person_id":"ben","device_trackers":"device_tracker.ben_phone"}`:                                                      "typed", // not a list
 		`{"type":"person/create","name":"Dana"}`:                                                                                                       "preview",
 		`{"type":"person/create","name":"Dana","device_trackers":[]}`:                                                                                  "preview",
 		`{"type":"person/create","name":"Dana","device_trackers":["device_tracker.dana_phone"]}`:                                                       "typed",
 	} {
-		if exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":`+payload+`}]`); exit != verbExitConfirmation || env.Tier != tier {
+		if exit, env := planRaw(t, paths, personItems(payload)); exit != verbExitConfirmation || env.Tier != tier {
 			t.Errorf("plan %s: exit %d tier %s, want %s", payload, exit, env.Tier, tier)
 		}
 		before := len(sent())
@@ -170,9 +179,17 @@ func TestPersonTrackersTierByTheSetTheyLeave(t *testing.T) {
 	}); !strings.Contains(stderr, "without device_trackers empties them: to keep them, resend the list person/list shows") {
 		t.Errorf("rename without trackers: stderr %q; want how to keep them", stderr)
 	}
+	if exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"person/update","person_id":"zed","name":"Zed"}}]`); exit != verbExitNotFound || env.Error == nil || env.Error.Code != "NOT_FOUND" {
+		t.Errorf("unknown person: exit %d %+v, want NOT_FOUND", exit, env.Error)
+	}
+	if stderr := captureStderr(t, func() {
+		runRelayCommand(paths, []string{"ws", "--data", `{"type":"person/update","person_id":"zed","name":"Zed"}`})
+	}); !strings.Contains(stderr, "which devices a person follows") {
+		t.Errorf("relay, unknown person: stderr %q; want typed", stderr)
+	}
 	broken = true
-	if exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"person/update","person_id":"ben","name":"Benjamin"}}]`); exit != verbExitConfirmation || env.Tier != "typed" {
-		t.Errorf("unreadable person list: exit %d tier %s, want typed", exit, env.Tier)
+	if exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"person/update","person_id":"ben","name":"Benjamin"}}]`); exit != verbExitError || env.Plan != nil || env.Error == nil || !strings.Contains(env.Error.Message, "cannot read the person ben") {
+		t.Errorf("unreadable person list: exit %d %+v, want nothing planned", exit, env.Error)
 	}
 }
 

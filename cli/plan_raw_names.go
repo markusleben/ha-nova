@@ -28,8 +28,8 @@ type rawNamer struct {
 	dropped   map[string][]string // scene id → the members its save removes after a copy (sceneKept)
 	listed    []string            // the names the last targets call listed
 
-	helpers     map[string]any          // "<collection>/<id>" → the live helper an update replaces (helperKept)
-	helperDrops map[string][]helperDrop // "<collection>/<id>" → what its update removes after a copy (helperKept)
+	helpers     map[string]any          // "<type without /update>/<id>" → the live item a guarded update replaces (helperKept)
+	helperDrops map[string][]helperDrop // the same key → what its update removes after a copy (helperKept)
 
 	calendars       map[string]any // `<entity> "<uid>" "<recurrence_id>"` → the event an update is tiered on, or "unreadable" (calendarLive)
 	calendarUpdates []string       // "<entity> <uid>" of each calendar update so far (calendarShortens)
