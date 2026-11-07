@@ -209,7 +209,7 @@ func TestLinkPhoneByTapOnTheChosenPhoneOnly(t *testing.T) {
 		t.Fatalf("exit %d out %q", exit, out)
 	}
 	if strings.Join(p.services, ",") != "mobile_app_annas_pixel,mobile_app_annas_pixel" || p.sent[0]["title"] != phoneLinkTitle("en") ||
-		p.sent[0]["message"] != "Tap “Allow”. No button? Pull down. Requested by “"+phoneHost("en")+"”." || p.sent[0]["data"].(map[string]any)["push"].(map[string]any)["interruption-level"] != "active" ||
+		p.sent[0]["message"] != "Tap “Allow”. No button? Pull down. Requested by “"+phoneHost("en")+"” through HA NOVA." || p.sent[0]["data"].(map[string]any)["push"].(map[string]any)["interruption-level"] != "active" ||
 		p.sent[0]["data"].(map[string]any)["actions"].([]any)[0].(map[string]any)["authenticationRequired"] != "true" || p.sent[1]["title"] != "Linked to HA NOVA" ||
 		p.sent[1]["message"] != "Confirmations from “"+phoneHost("en")+"” now come to you." {
 		t.Fatalf("notified %v %v", p.services, p.sent)

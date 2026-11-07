@@ -174,7 +174,28 @@ func sayReasons(e *tierEngine, env *verbEnvelope, plan storedPlan) []string {
 	for _, text := range rest {
 		parts = append(parts, text+".")
 	}
+	if sayShowAsHint(env) {
+		parts = append(parts, confirmT(lang, "reason.show_as"))
+	}
 	return parts
+}
+
+// sayShowAsHint: a cover without a "Show as" class made the plan ask, so
+// the say tells how a cover that really is a shade, awning, or window gets
+// that class in Home Assistant (spec 2026-11-06 item 5); never a class to
+// pick just to stop the ask.
+func sayShowAsHint(env *verbEnvelope) bool {
+	for _, r := range env.Reasons {
+		if r.Code == reasonCoverClassUnknown {
+			return true
+		}
+		for _, why := range []string{"access_entity_cover", "access_device_cover", "access_area_cover", "access_shown_cover"} {
+			if r.Code == reasonRawTyped && r.Detail == rawWhys[why]("en") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // sayWhat: "I'm about to unlock “Front Door” in “Hall”: locked → unlocked."

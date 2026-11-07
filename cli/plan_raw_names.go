@@ -28,6 +28,10 @@ type rawNamer struct {
 	dropped   map[string][]string // scene id → the members its save removes after a copy (sceneKept)
 	listed    []string            // the names the last targets call listed
 
+	classedOnly  bool              // accessWhy's second pass: covers without a class don't count
+	coverClasses map[string]string // one raw item's cover classes, read once for both passes (capableOnce)
+	registryMemo *rawRegistries    // one raw item's registries, read once for both passes (registries)
+
 	helpers     map[string]any          // "<type without /update>/<id>" → the live item a guarded update replaces (helperKept)
 	helperDrops map[string][]helperDrop // the same key → what its update removes after a copy (helperKept)
 

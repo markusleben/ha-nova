@@ -44,30 +44,34 @@ const (
 // the reason's detail, so the plan's JSON and hash stay English; sayReason
 // finds the id again by that text to say it in the plan's language.
 var rawWhys = map[string]func(lang string) string{
-	"delete":             func(l string) string { return confirmT(l, "raw.why.delete") },
-	"account_create":     func(l string) string { return confirmT(l, "raw.why.account_create") },
-	"hacs_install":       func(l string) string { return confirmT(l, "raw.why.hacs_install") },
-	"resource_create":    func(l string) string { return confirmT(l, "raw.why.resource_create") },
-	"resource_update":    func(l string) string { return confirmT(l, "raw.why.resource_update") },
-	"labs":               func(l string) string { return confirmT(l, "raw.why.labs") },
-	"statistics_import":  func(l string) string { return confirmT(l, "raw.why.statistics_import") },
-	"energy_emptied":     func(l string) string { return confirmT(l, "raw.why.energy_emptied") },
-	"access_entity":      func(l string) string { return confirmT(l, "raw.why.access_entity") },
-	"access_device":      func(l string) string { return confirmT(l, "raw.why.access_device") },
-	"access_area":        func(l string) string { return confirmT(l, "raw.why.access_area") },
-	"access_shown":       func(l string) string { return confirmT(l, "raw.why.access_shown") },
-	"person_follows":     func(l string) string { return confirmT(l, "raw.why.person_follows") },
-	"account_access":     func(l string) string { return confirmT(l, "raw.why.account_access") },
-	"backup_retention":   func(l string) string { return confirmT(l, "raw.why.backup_retention") },
-	"core_clock":         func(l string) string { return confirmT(l, "raw.why.core_clock") },
-	"core_language":      func(l string) string { return confirmT(l, "raw.why.core_language") },
-	"integration_remove": func(l string) string { return confirmT(l, "raw.why.integration_remove") },
-	"file_delete":        func(l string) string { return confirmT(l, "raw.why.file_delete") },
-	"copy_delete":        func(l string) string { return confirmT(l, "raw.why.copy_delete") },
-	"skill_typed":        func(l string) string { return confirmT(l, "raw.why.skill_typed") },
-	"app_install":        func(l string) string { return confirmT(l, "raw.why.app_install") },
-	"app_uninstall":      func(l string) string { return confirmT(l, "raw.why.app_uninstall") },
-	"app_settings":       func(l string) string { return confirmT(l, "raw.why.app_settings") },
+	"delete":              func(l string) string { return confirmT(l, "raw.why.delete") },
+	"account_create":      func(l string) string { return confirmT(l, "raw.why.account_create") },
+	"hacs_install":        func(l string) string { return confirmT(l, "raw.why.hacs_install") },
+	"resource_create":     func(l string) string { return confirmT(l, "raw.why.resource_create") },
+	"resource_update":     func(l string) string { return confirmT(l, "raw.why.resource_update") },
+	"labs":                func(l string) string { return confirmT(l, "raw.why.labs") },
+	"statistics_import":   func(l string) string { return confirmT(l, "raw.why.statistics_import") },
+	"energy_emptied":      func(l string) string { return confirmT(l, "raw.why.energy_emptied") },
+	"access_entity":       func(l string) string { return confirmT(l, "raw.why.access_entity") },
+	"access_device":       func(l string) string { return confirmT(l, "raw.why.access_device") },
+	"access_area":         func(l string) string { return confirmT(l, "raw.why.access_area") },
+	"access_shown":        func(l string) string { return confirmT(l, "raw.why.access_shown") },
+	"access_entity_cover": func(l string) string { return confirmT(l, "raw.why.access_entity_cover") },
+	"access_device_cover": func(l string) string { return confirmT(l, "raw.why.access_device_cover") },
+	"access_area_cover":   func(l string) string { return confirmT(l, "raw.why.access_area_cover") },
+	"access_shown_cover":  func(l string) string { return confirmT(l, "raw.why.access_shown_cover") },
+	"person_follows":      func(l string) string { return confirmT(l, "raw.why.person_follows") },
+	"account_access":      func(l string) string { return confirmT(l, "raw.why.account_access") },
+	"backup_retention":    func(l string) string { return confirmT(l, "raw.why.backup_retention") },
+	"core_clock":          func(l string) string { return confirmT(l, "raw.why.core_clock") },
+	"core_language":       func(l string) string { return confirmT(l, "raw.why.core_language") },
+	"integration_remove":  func(l string) string { return confirmT(l, "raw.why.integration_remove") },
+	"file_delete":         func(l string) string { return confirmT(l, "raw.why.file_delete") },
+	"copy_delete":         func(l string) string { return confirmT(l, "raw.why.copy_delete") },
+	"skill_typed":         func(l string) string { return confirmT(l, "raw.why.skill_typed") },
+	"app_install":         func(l string) string { return confirmT(l, "raw.why.app_install") },
+	"app_uninstall":       func(l string) string { return confirmT(l, "raw.why.app_uninstall") },
+	"app_settings":        func(l string) string { return confirmT(l, "raw.why.app_settings") },
 }
 
 // reasonHACSInstall: update.install on a HACS entity (on Home Assistant
@@ -107,6 +111,8 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 	action, _ := payload["action"].(string)
 	switch endpoint {
 	case "ws":
+		n.coverClasses, n.registryMemo = map[string]string{}, &rawRegistries{}
+		defer func() { n.coverClasses, n.registryMemo = nil, nil }()
 		wsType, _ := payload["type"].(string)
 		_, carries := payload["new_entity_id"]
 		for _, key := range []string{"area_id", "labels"} {
@@ -141,15 +147,15 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 		case wsType == "calendar/event/update" && n.calendarShortens(payload):
 			return tierTyped, "delete"
 		case wsType == "config/entity_registry/update" && carries && n.accessEntity(payload["entity_id"]):
-			return tierTyped, "access_entity"
+			return tierTyped, n.accessWhy("access_entity", func() bool { return n.accessEntity(payload["entity_id"]) })
 		case wsType == "config/entity_registry/update" && shows && !carries && n.accessEntity(payload["entity_id"]):
-			return tierTyped, "access_shown"
+			return tierTyped, n.accessWhy("access_shown", func() bool { return n.accessEntity(payload["entity_id"]) })
 		case wsType == "config/device_registry/update" && carries && n.accessDevice(payload["device_id"]):
-			return tierTyped, "access_device"
+			return tierTyped, n.accessWhy("access_device", func() bool { return n.accessDevice(payload["device_id"]) })
 		case wsType == "config/device_registry/update" && shows && !carries && n.accessDevice(payload["device_id"]):
-			return tierTyped, "access_shown"
+			return tierTyped, n.accessWhy("access_shown", func() bool { return n.accessDevice(payload["device_id"]) })
 		case wsType == "config/area_registry/update" && retargets && n.accessArea(payload["area_id"]):
-			return tierTyped, "access_area"
+			return tierTyped, n.accessWhy("access_area", func() bool { return n.accessArea(payload["area_id"]) })
 		case wsType == "config/entity_registry/update" && n.trackerFollowed(payload):
 			return tierTyped, "person_follows"
 		case (wsType == "config/device_registry/update" || wsType == "config_entries/disable") && n.trackerOwnerDisabled(wsType, payload):
@@ -286,16 +292,44 @@ func familyAccess(entities []rawEntityRow, devices []rawDeviceRow, device string
 	return false
 }
 
+// coverClassUnread stands for a cover whose class read failed: no class
+// Home Assistant knows, so access-capable, and never "without a class".
+const coverClassUnread = "\x00unread"
+
+// accessWhy: why an access check made a raw item typed, the "_cover" text
+// when only covers without a "Show as" class made it one: the check run
+// again without them finds nothing (HANO-18 D5: the text named a lock or
+// door for a pool cover). Text only; the tier is already typed.
+func (n *rawNamer) accessWhy(why string, check func() bool) string {
+	n.classedOnly = true
+	defer func() { n.classedOnly = false }()
+	if check() {
+		return why
+	}
+	return why + "_cover"
+}
+
 // capableOnce: accessCapable for one check, each cover's class read live
 // once (coverClass), so a family of many entities costs one read per cover,
-// not one per entity. A failed read stays "", which counts as access.
+// not one per entity, and once per raw item when rawRequestTier shares the
+// map with accessWhy's second pass. A failed read counts as access in both
+// passes (coverClassUnread).
 func (n *rawNamer) capableOnce() func(entityID string) bool {
-	classes := map[string]string{}
+	classes := n.coverClasses
+	if classes == nil {
+		classes = map[string]string{}
+	}
 	return func(entityID string) bool {
 		class, read := classes[entityID]
 		if !read {
-			class = coverClass(n.s, entityID)
+			var ok bool
+			if class, ok = coverClassRead(n.s, entityID); !ok {
+				class = coverClassUnread
+			}
 			classes[entityID] = class
+		}
+		if n.classedOnly && class == "" && strings.HasPrefix(entityID, "cover.") {
+			return false
 		}
 		return accessCapable(entityID, class)
 	}
@@ -317,7 +351,26 @@ type rawDeviceRow struct {
 // registries: the entity and device registries, read live; ok is false when
 // either can't be read (a real empty registry is []) or has a row without
 // its id (a null element decodes to an empty row).
-func (n *rawNamer) registries() (entities []rawEntityRow, devices []rawDeviceRow, ok bool) {
+type rawRegistries struct {
+	read     bool
+	entities []rawEntityRow
+	devices  []rawDeviceRow
+	ok       bool
+}
+
+func (n *rawNamer) registries() ([]rawEntityRow, []rawDeviceRow, bool) {
+	memo := n.registryMemo
+	if memo == nil {
+		memo = &rawRegistries{}
+	}
+	if !memo.read {
+		memo.entities, memo.devices, memo.ok = n.readRegistries()
+		memo.read = true
+	}
+	return memo.entities, memo.devices, memo.ok
+}
+
+func (n *rawNamer) readRegistries() (entities []rawEntityRow, devices []rawDeviceRow, ok bool) {
 	data, err := n.read("ws", map[string]any{"type": "config/entity_registry/list"})
 	if err == nil {
 		err = json.Unmarshal(data, &entities)
