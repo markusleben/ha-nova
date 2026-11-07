@@ -26,8 +26,17 @@ func leadsWithBatch(env map[string]any, rest string) bool {
 		strings.HasPrefix(rule, batchRule) && strings.Count(step, batchHintMCP) == 1
 }
 
+// callerHome: a1 and s1 each have a caller, so their updates keep the
+// preview (calmUpdate) and can join a batch.
+func callerHome() *fakeHA {
+	f := batchHome()
+	f.related["entity:automation.night_mode"] = []string{"automation.bedtime"}
+	f.related["entity:script.arrival"] = []string{"automation.bedtime"}
+	return f
+}
+
 func TestPlanBatchHintCLI(t *testing.T) {
-	h := newWriteHarness(t, batchHome())
+	h := newWriteHarness(t, callerHome())
 	_, write := h.run(runPlanCommand, "write", "--domain", "automation", "--id", "a1", "--file", draftFile(t, nightMode()))
 	if write.Plan == nil || !strings.HasPrefix(write.NextStep, batchHint+" Otherwise: Show the preview ending with `say` and end your turn; run ha-nova apply --plan "+write.Plan.ID+" only after the user's own reply approves it.") {
 		t.Fatalf("write: %q", write.NextStep)
@@ -58,7 +67,7 @@ func TestPlanBatchHintCLI(t *testing.T) {
 }
 
 func TestPlanBatchHintMCP(t *testing.T) {
-	h := newWriteHarness(t, batchHome())
+	h := newWriteHarness(t, callerHome())
 	c := startMCP(t, h.paths)
 	mcpInit(c)
 	write := envelopeOf(c.tool("ha_plan", map[string]any{"kind": "write", "domain": "automation", "id": "a1", "draft": nightMode()}))
@@ -99,7 +108,7 @@ func TestBatchHintAfterNotices(t *testing.T) {
 // request were 15 of these. An automation's leads with the batch and has no
 // several-codes text; a lock's is as it was, byte for byte.
 func TestServePlanBatchHint(t *testing.T) {
-	s := newServe(t, household(batchHome()), levels([]string{userA}, nil))
+	s := newServe(t, household(callerHome()), levels([]string{userA}, nil))
 	usePhones(t) // no phone linked: the chat code
 	write := s.tool(userA, "ha_plan", map[string]any{"kind": "write", "domain": "script", "id": "s1", "draft": arrival("light.turn_off")})
 	if !leadsWithBatch(write, "Show this preview in plain words (diff rows as printed) and wait for the user's own confirmation") || write["answer_rule"] != batchRule+mcpResultRule {
