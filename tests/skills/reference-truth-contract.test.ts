@@ -68,7 +68,7 @@ describe("fallback capability map is complete and truthful (#516)", () => {
     // Supervisor logs go through the Relay's Supervisor route.
     expect(f).not.toContain("Apps / Supervisor Management -- EXTERNAL");
     expect(f).not.toContain("proxies it under `/api/hassio/*`");
-    expect(f).toContain("| Host / Supervisor / App logs | Covered | diagnose");
+    expect(f).toContain("| Host / Supervisor / App logs | Covered | diagnose (the user reads them in Home Assistant");
     expect(f).toContain("Apps / Supervisor: store, install, uninstall, settings, auto-update, system and storage info (`../updates/apps.md`;");
   });
 

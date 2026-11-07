@@ -166,7 +166,10 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 	result, copies := rawPlanResult{}, rawCopies(items)
 	for i, item := range items {
 		payload, _ := decodeObject(item.Payload)
-		refusal := rawPlanRefusal(item.Endpoint, payload)
+		refusal := rawLogRefusal(item.Endpoint, payload)
+		if refusal == nil {
+			refusal = rawPlanRefusal(item.Endpoint, payload)
+		}
 		if refusal == nil && item.Endpoint == "supervisor" && s.transport.Via == relayViaCloud { // before the user types a code
 			refusal = errSupervisorViaCloud
 		}

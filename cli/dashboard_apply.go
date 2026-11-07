@@ -138,7 +138,7 @@ func dashboardWriteFailure(paths runtimePaths, s *relaySession, env *verbEnvelop
 			landed = "the dashboard is gone"
 		}
 		return &verbFailure{exit: verbExitUnverified, status: "unverified", code: "CONFIG_REJECTED", message: reason + ", yet " + landed,
-			next: "Do not plan again: tell the user, check Home Assistant's log and storage, and read it back (`ha-nova get --dashboard " + action.ConfigID + "`) after a restart."}
+			next: "Do not plan again: tell the user (Home Assistant's reason is on Settings > System > Logs: ask for the few lines that matter), and read it back (`ha-nova get --dashboard " + action.ConfigID + "`) after a restart."}
 	case !readOK:
 		dashboardLanded(paths, s, env, action, ctx)
 		env.OutcomeUnknown = true

@@ -94,7 +94,7 @@ func TestMCPReadEndpoints(t *testing.T) {
 		code, says string // code "" = read and sent to sent
 		sent       string
 	}{
-		{map[string]any{"endpoint": "core", "path": "/api/error_log"}, "", "", "core"},
+		{map[string]any{"endpoint": "core", "path": "/api/error_log"}, "REFUSED", "Settings > System > Logs", ""},
 		{map[string]any{"endpoint": "core", "path": "/api/states", "method": "GET"}, "", "", "core"},
 		{map[string]any{"endpoint": "core", "method": "POST", "path": "/api/template", "payload": map[string]any{"template": "{{ 1 }}"}}, "", "", "core"},
 		{map[string]any{"endpoint": "core", "method": "POST", "path": "/api/config/core/check_config"}, "", "", "core"},
@@ -117,7 +117,7 @@ func TestMCPReadEndpoints(t *testing.T) {
 		{map[string]any{"endpoint": "core", "method": "DELETE", "path": "/api/states"}, "INVALID_ARGUMENTS", "wrong type", ""},
 		{map[string]any{"endpoint": "core"}, "INVALID_ARGUMENTS", "needs path", ""},
 		{map[string]any{"endpoint": "core", "path": "/api/states", "entity_id": "camera.x"}, "INVALID_ARGUMENTS", "does not apply to endpoint core", ""},
-		{ws(`{"type":"system_log/list"}`), "", "", "ws"},
+		{ws(`{"type":"system_log/list"}`), "REFUSED", "never ask for the whole log", ""},
 		{ws(`{"type":"config/entity_registry/list"}`), "", "", "ws"},
 		{ws(`{"message":{"type":"subscribe_events","event_type":"zha_event"},"collect_events":{"max_events":1}}`), "", "", "ws"},
 		{ws(`{"type":"config/area_registry/create","name":"Garden"}`), "REFUSED", "ha_read only reads; to change something, " + planIt, ""},
