@@ -61,13 +61,14 @@ relay-outdated warning when it appears.
 
 All wired for auto-capture: `automations`, `scripts`, `scenes`, `dashboards`,
 `helpers`, `energy` (destructive `save_prefs`), `metadata` (entity registry
-fields before rename/unit change/disable; device deletion's device and entity records), `yaml` (file overwrites and deletes).
+fields before rename/unit change/disable; device deletion's device and entity records; an entity, device, area, or floor row before its update drops aliases, labels, or options), `persons` (a person before its update drops device trackers), `assist` (a voice assistant before its update drops a setting), `yaml` (file overwrites and deletes).
 
 ## Capture (before destructive ops)
 
 Capture triggers, per family: every DELETE; full-document saves that REMOVE
 content (dropped views, cards, scene members, energy entries, `input_select`
-options, `schedule` time blocks); entity renames,
+options, `schedule` time blocks, a person's device trackers, registry aliases,
+labels, and entity options, voice assistant settings); entity renames,
 unit changes, and entity/device disables (`metadata` — consumer-breaking even though nothing
 is deleted); every YAML file overwrite or delete (`yaml` — the `.bak` holds
 only one step). Routine field edits in the other families stay covered by the
@@ -95,7 +96,8 @@ the choices: proceed without one, take a full safety backup first
 (`ha-nova:backup`), or prune the store (when full). The already-typed
 confirmation stays valid for "proceed without one"; nothing is re-gated,
 the user just decides informed. A removal `ha-nova apply` keeps a copy of
-(scene members, `input_select` options, `schedule` time blocks) has no
+(scene members, `input_select` options, `schedule` time blocks, and the other
+removals above: the plan names the copy it needs) has no
 proceed-without choice: it answers `SNAPSHOT_REQUIRED`; follow its next step.
 
 ## Restore (always through the family's own write path)
@@ -106,7 +108,8 @@ proceed-without choice: it answers `SNAPSHOT_REQUIRED`; follow its next step.
    preview, and confirm — a restore is a normal write, never a blind put.
    The restore preview and result render as the Preview and Result Cards
    (`../ha-nova/output-cards.md` → Cards), like any write of that family.
-4. Write IN PLACE via the family's own API — never delete+recreate.
+4. Write IN PLACE via the family's own API — never delete+recreate. A restore
+   that drops what was added since is a removal too: its plan names the copy it needs.
    A deleted item restores as a create that reuses the original identity key
    where the API allows it (see the fidelity table).
 5. Read back and verify like any write of that family.
@@ -131,12 +134,13 @@ then `plan write --domain <d> --id <config id> --file <draft>`.
 | energy prefs | full | whole-document `save_prefs` |
 | yaml files | full | data carries `{path, content}`; restore is `write_file` to that exact stored path (the slug name alone is lossy) |
 | helpers (storage) | update: full / delete: partial | recreate mints a NEW id — inbound references stay broken; say so |
-| metadata (entity/device fields) | full in place | keyed by entity_id/device id; a deleted registry entry is NOT recreatable |
+| metadata (entity/device fields; area and floor rows) | full in place | keyed by entity_id/device id/area_id/floor_id; a list restore sends only the stored `aliases`, `labels`, or one domain's `options`; a deleted registry entry is NOT recreatable |
+| persons / assist | full in place | `person/update` by `person_id` with the stored `device_trackers`; `assist_pipeline/pipeline/update` by `pipeline_id` with every stored field but `id` |
 
 A snapshot restores the ITEM, never the reference graph: when the original op
 had consumers (search/related findings), the restore preview repeats that
 consumers may still point at nothing. NOT covered (never offer): config-entry
-helpers, areas/floors/labels/categories, users, recorder data, update installs,
+helpers, deleted areas/floors, labels/categories, users, recorder data, update installs,
 backup archives, and HACS package/registration state (downloads, config
 entries — a full HA Backup is the recovery net there, per `ha-nova:hacs`) —
 those keep their family's own recovery story.

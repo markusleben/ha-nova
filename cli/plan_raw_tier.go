@@ -464,8 +464,9 @@ func rawSnapshotList(s *relaySession) (json.RawMessage, error) {
 // since the preview is drift, never silently dropped (skills/energy →
 // Config edit), the listed entry of every config copy a delete names, what
 // each device delete removes (its devices and entities: one more since the
-// preview is drift), each scene a save replaces (sceneKept), each helper
-// an update replaces (helperKept), each calendar event an update is tiered
+// preview is drift), each scene a save replaces (sceneKept), each item
+// a guarded update replaces (helperKept: helpers, persons, registry rows,
+// voice assistants), each calendar event an update is tiered
 // on (calendarLive), and every config a listener walk read
 // (rawShoppingList), as a call binds its consumers' (I3); nil when the plan
 // holds none.

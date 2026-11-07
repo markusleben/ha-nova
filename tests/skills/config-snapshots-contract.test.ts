@@ -28,7 +28,7 @@ describe("config snapshots contract", () => {
     // Honesty labels: item vs graph, and the excluded families.
     expect(reference).toContain("A snapshot restores the ITEM, never the reference graph");
     expect(reference).toContain("recreate mints a NEW id");
-    expect(reference).toContain("config-entry\nhelpers, areas/floors/labels/categories, users, recorder data");
+    expect(reference).toContain("config-entry\nhelpers, deleted areas/floors, labels/categories, users, recorder data");
     // Graceful degradation on relays without the store.
     expect(reference).toContain("`404/NOT_FOUND`\nfrom `/backups` means the relay predates the snapshot store");
     // revert stays the quick-undo layer; snapshots never masquerade as full backups.

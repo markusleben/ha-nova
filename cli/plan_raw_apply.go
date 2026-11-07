@@ -90,7 +90,7 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		case err != nil:
 			return undo(i)
 		case live == nil:
-			return helperNotFound(collection, id)
+			return helperNotFound(collection, id, fmt.Sprintf(`ws {"type":"%s/list"}`, collection))
 		}
 	}
 	snapshotting, withoutUndo := true, false // still in the leading backups saves; a helper changed without undo
