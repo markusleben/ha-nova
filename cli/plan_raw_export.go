@@ -72,10 +72,13 @@ func (n *rawNamer) entryDomain(entry any) (domain string, read bool) {
 		EntryID string `json:"entry_id"`
 		Domain  string `json:"domain"`
 	}
-	if err != nil || json.Unmarshal(data, &rows) != nil {
+	if err != nil || json.Unmarshal(data, &rows) != nil || rows == nil {
 		return "", false
 	}
 	for _, row := range rows {
+		if row.EntryID == "" || row.Domain == "" { // null, or a row without its fields: unread
+			return "", false
+		}
 		if row.EntryID == entry {
 			return row.Domain, true
 		}

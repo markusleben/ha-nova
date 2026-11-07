@@ -7,6 +7,9 @@ import "testing"
 // integration that provides one.
 func TestGateExportWritesAreTyped(t *testing.T) {
 	paths, _ := rawRelay(t, map[string]func(map[string]any) any{
+		"backup/config/info": func(map[string]any) any {
+			return map[string]any{"config": map[string]any{"create_backup": map[string]any{"password": "stored"}}}
+		},
 		"config_entries/get": func(map[string]any) any {
 			return []any{map[string]any{"entry_id": "E1", "domain": "webdav"}, map[string]any{"entry_id": "E2", "domain": "hue"}}
 		},
@@ -40,6 +43,26 @@ func TestGateExportWritesAreTyped(t *testing.T) {
 		}
 		if err != nil || check.Verdict != tc.want {
 			t.Errorf("%s: gate %+v err %v, want %s", tc.name, check, err, tc.want)
+		}
+	}
+}
+
+// An entry list that doesn't say each entry's integration is unread, so an
+// options flow on it is typed.
+func TestGateEntryListUnreadIsTyped(t *testing.T) {
+	for _, list := range []any{nil, []any{nil}, []any{map[string]any{"entry_id": "E1"}}} {
+		paths, _ := rawRelay(t, map[string]func(map[string]any) any{"config_entries/get": func(map[string]any) any { return list }})
+		var s *relaySession
+		check, err := gateVerdict("core", []byte(`{"method":"POST","path":"/api/config/config_entries/options/flow","body":{"handler":"E1"}}`), func() (*relaySession, error) {
+			opened, err := newRelaySession(paths, verbOptions{})
+			s = opened
+			return opened, err
+		})
+		if s != nil {
+			s.close()
+		}
+		if err != nil || check.Verdict != gateTyped {
+			t.Errorf("entry list %v: %+v %v, want typed", list, check, err)
 		}
 	}
 }

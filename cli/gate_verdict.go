@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
+	"unicode"
 )
 
 // gateVerdict is the one entry point that rates a request the Relay would
@@ -49,6 +51,9 @@ func gateRequests(endpoint string, payload map[string]any) []map[string]any {
 	switch endpoint {
 	case "core":
 		method, _ := payload["method"].(string)
+		if strings.ContainsFunc(method, func(r rune) bool { return r > unicode.MaxASCII }) { // JavaScript upper-cases "ﬆ" to "ST", Go doesn't
+			method = ""
+		}
 		payload["method"] = strings.ToUpper(strings.TrimSpace(method))
 	case "ws":
 		if message, ok := payload["message"].(map[string]any); ok {
@@ -75,7 +80,7 @@ func gateRequests(endpoint string, payload map[string]any) []map[string]any {
 func gateVerdict(endpoint string, body []byte, session func() (*relaySession, error)) (gateCheck, error) {
 	refused := gateCheck{Verdict: gateRefuse, Kind: "write"}
 	payload, ok := decodeObject(body)
-	if !ok || payload == nil || !json.Valid(body) || !slices.Contains([]string{"ws", "core", "files", "backups", "supervisor"}, endpoint) {
+	if !ok || payload == nil || !json.Valid(body) || !slices.Contains([]string{"ws", "core", "files", "backups", "supervisor"}, endpoint) || !gateFinite(payload) {
 		return refused, nil
 	}
 	requests := gateRequests(endpoint, payload)
@@ -97,12 +102,27 @@ func gateVerdict(endpoint string, body []byte, session func() (*relaySession, er
 	for i, request := range requests {
 		n := newRawNamer(nil, nil)
 		level, why := rawItemTier(n, rawRequest{Endpoint: endpoint}, request)
-		if level == tierTyped && n.missed && check.Verdict == gatePass { // a live read can only lower it; once typed, it changes nothing
+		raw, _ := json.Marshal(request)
+		read := rawRelayRead(endpoint, raw)
+		if endpoint != "files" && endpoint != "backups" && !read && holdsHiddenValue(raw) { // guardRaw: a hidden value carried back
+			return refused, nil
+		}
+		relisten := !read && (rawListened(endpoint, request) != nil || endpoint == "ws" && request["type"] == "todo/item/move")
+		access := !read && (rawAccessTarget(endpoint, raw) != (rawTarget{}) || endpoint == "supervisor" && gateSupervisorOptions(request))
+		reread := level == tierTyped && n.missed && check.Verdict == gatePass // a live read can only lower the static tier
+		if reread || access || relisten && level < tierTyped {                // once typed, a listener changes nothing
 			s, err := session()
 			if err != nil {
 				return gateCheck{Verdict: gateTyped, Kind: "write", Why: why, Item: i}, err
 			}
-			level, why = rawItemTier(newRawNamer(s, nil), rawRequest{Endpoint: endpoint}, request)
+			if reread {
+				level, why = rawItemTier(newRawNamer(s, nil), rawRequest{Endpoint: endpoint}, request)
+			}
+			if access || relisten && level < tierTyped {
+				if liveLevel, liveWhy := gateLiveTier(s, endpoint, request, raw); liveLevel > level {
+					level, why = liveLevel, liveWhy
+				}
+			}
 		}
 		if verdict := gateDecisionOf(level); rank[verdict] > rank[check.Verdict] {
 			check = gateCheck{Verdict: verdict, Kind: "write", Why: why, Item: i}
@@ -114,17 +134,73 @@ func gateVerdict(endpoint string, body []byte, session func() (*relaySession, er
 	return check, nil
 }
 
+// gateLiveTier runs what a raw write's plan and `ha-nova relay` decide from
+// live Home Assistant reads beyond rawItemTier (computeRawPlan,
+// guardRawRequestIn): the access-target refusals (a lock's entry, a factory
+// reset button, an owner's account), an App's stored option secrets, and the
+// listeners a write can start (rawListeners, rawShoppingList). A failed read
+// is typed. Not here, as they need the client's own state, not the request:
+// the setup forms a flow answered earlier (formSecretSet) and the copies
+// earlier in a plan (kept).
+func gateLiveTier(s *relaySession, endpoint string, request map[string]any, raw []byte) (tierLevel, string) {
+	refusal, err := checkRawAccessTargetIn(s, endpoint, raw)
+	if refusal == nil && err == nil && endpoint == "supervisor" {
+		refusal, err = rawSupervisorFormSecret(s, raw)
+	}
+	switch {
+	case err != nil:
+		return tierTyped, "unread"
+	case refusal != nil:
+		return tierRefused, "access_target"
+	}
+	e := newTierEngine(s)
+	return max(e.rawShoppingList(endpoint, request), e.rawListeners(endpoint, request)), "listeners"
+}
+
+// gateSupervisorOptions: an App options write, whose stored secrets
+// rawSupervisorFormSecret reads.
+func gateSupervisorOptions(request map[string]any) bool {
+	method, _ := request["method"].(string)
+	path, _ := request["path"].(string)
+	kind, _ := rawSupervisorMatch(method, path)
+	return kind == "options"
+}
+
+// gateFinite: every number in v is one the Relay passes on unchanged; one
+// JSON.parse turns into Infinity (sent as null) or rounds to zero is not.
+func gateFinite(v any) bool {
+	switch v := v.(type) {
+	case json.Number:
+		f, err := strconv.ParseFloat(string(v), 64)
+		return err == nil && (f != 0 || !strings.ContainsAny(strings.Split(strings.ToLower(string(v)), "e")[0], "123456789"))
+	case map[string]any:
+		for _, inner := range v {
+			if !gateFinite(inner) {
+				return false
+			}
+		}
+	case []any:
+		for _, inner := range v {
+			if !gateFinite(inner) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // gateRecognized: a shape the CLI sends to a device-facing endpoint: what
 // `ha-nova relay` passes (its raw guard), what the typed verbs read
 // (checkReadOnlyRequest, checkPhoneRead) or write besides the plans'
-// service calls and config writes (dashboards, a device's area), a listed
+// service calls and config writes (dashboards, a device's area), Link
+// setup's cloud/status read, a listed
 // Supervisor request, and every files or backups action (the Relay checks
 // those itself).
 func gateRecognized(endpoint string, payload map[string]any, body []byte) bool {
 	switch endpoint {
 	case "ws", "core":
 		return checkRawRelayRequest(endpoint, body) == nil || checkReadOnlyRequest(endpoint, payload) == nil ||
-			checkPhoneRead(endpoint, payload) == nil || endpoint == "ws" && (dashboardWrite(payload) || deviceAreaUpdate(payload))
+			checkPhoneRead(endpoint, payload) == nil || endpoint == "ws" && (dashboardWrite(payload) || deviceAreaUpdate(payload) || len(payload) == 1 && payload["type"] == "cloud/status") // Link setup (cloudLocalDiscovery)
 	case "supervisor":
 		return checkRawSupervisor(payload) == nil
 	}
@@ -142,6 +218,7 @@ func gateDenied(endpoint string, request map[string]any) bool {
 		method, _ := request["method"].(string)
 		raw, _ := request["path"].(string)
 		decoded, ok := relayCorePath(raw)
+		ok = ok && !strings.ContainsAny(raw, "\t\n\r") // a URL parser drops them
 		decoded = strings.ToLower(decoded)
 		for _, prefix := range []string{"/api/webhook", "/api/backup", "/api/hassio", "/api/error_log"} {
 			ok = ok && !strings.HasPrefix(decoded, prefix)

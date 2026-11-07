@@ -8,7 +8,7 @@ import (
 )
 
 // gatePlanTier rates the two core write shapes only a plan's engine can rate
-// (Contract → Closed until rated): a service call (computeCallPlan, as plan
+// (Contract → Recognized shapes): a service call (computeCallPlan, as plan
 // call and apply's recompute run it) and an automation or script config
 // write (computeConfigPlan). handled is false for every other request. A
 // request the CLI never sends in this shape (checkWriteRequest), or one the
@@ -30,7 +30,9 @@ func gatePlanTier(payload map[string]any, body []byte, session func() (*relaySes
 	var req planCallRequest
 	if call {
 		var ok bool
-		if req, ok = gateCallRequest(path, payload["body"]); !ok {
+		var sent map[string]any
+		_ = json.Unmarshal(body, &sent) // numbers as a plan holds them (float64), not decodeObject's json.Number
+		if req, ok = gateCallRequest(path, sent["body"]); !ok {
 			return tierRefused, "", true, nil
 		}
 	}
@@ -52,6 +54,10 @@ func gatePlanTier(payload map[string]any, body []byte, session func() (*relaySes
 	}
 	var failure *verbFailure
 	switch {
+	case errors.As(err, &failure) && len(env.Reasons) > 0 && (env.Reasons[0].Code == reasonServiceListUnread || env.Reasons[0].Detail == novaAppUnread):
+		return tierTyped, env.Reasons[0].Code, true, nil // a failed read is typed (Contract)
+	case errors.As(err, &failure) && len(env.Reasons) > 0:
+		return tierRefused, env.Reasons[0].Code, true, nil
 	case errors.As(err, &failure):
 		return tierRefused, failure.code, true, nil
 	case err != nil:
@@ -83,6 +89,9 @@ func gateCallRequest(path string, body any) (planCallRequest, bool) {
 			continue
 		}
 		ids, isList := value.([]any)
+		if one, isText := value.(string); isText { // the App update and the store check send one id as a string
+			ids, isList = []any{one}, true
+		}
 		for _, id := range ids {
 			text, isText := id.(string)
 			if !isText {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"os"
@@ -69,9 +70,17 @@ func TestGateVerdict(t *testing.T) {
 		{"dashboard save", "ws", `{"type":"lovelace/config/save","config":{"views":[]}}`, gateCheck{Verdict: gatePass, Kind: "write"}, false},
 		{"dashboard delete", "ws", `{"type":"lovelace/dashboards/delete","dashboard_id":"d1"}`, gateCheck{Verdict: gateTyped, Kind: "write", Why: "delete"}, false},
 		{"unknown WS type", "ws", `{"type":"config/auth/delete_all_refresh_tokens"}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
-		{"service call, not rated yet", "ws", `{"type":"call_service","domain":"lock","service":"unlock","target":{"entity_id":"lock.front"}}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
+		{"WS service call", "ws", `{"type":"call_service","domain":"lock","service":"unlock","target":{"entity_id":"lock.front"}}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
 		{"core service call, session down", "core", `{"method":"POST","path":"/api/services/lock/unlock","body":{"entity_id":["lock.front"]}}`, gateCheck{Verdict: gateTyped, Kind: "write"}, true},
-		{"core service call, entity_id not a list", "core", `{"method":"POST","path":"/api/services/lock/unlock","body":{"entity_id":"lock.front"}}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
+		{"core service call, one entity_id as a string", "core", `{"method":"POST","path":"/api/services/lock/unlock","body":{"entity_id":"lock.front"}}`, gateCheck{Verdict: gateTyped, Kind: "write"}, true},
+		{"core service call, a comma list", "core", `{"method":"POST","path":"/api/services/lock/unlock","body":{"entity_id":"lock.front, lock.back"}}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
+		{"a number JavaScript makes Infinity", "ws", `{"type":"config/entity_registry/update","entity_id":"lock.front","hidden_by":1e999}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
+		{"a number JavaScript rounds to zero", "ws", `{"type":"config/entity_registry/update","entity_id":"lock.front","hidden_by":1e-999}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
+		{"a non-ASCII method", "core", `{"method":"poﬆ","path":"/api/services/light/turn_on","body":{"entity_id":["light.hall"]}}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
+		{"a tab in a webhook path", "core", `{"method":"GET","path":"/api/webho	ok/abc"}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
+		{"a hidden value carried back", "ws", `{"type":"config/area_registry/create","name":"(hidden: a stored code, password, or key)"}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
+		{"Link setup", "ws", `{"type":"cloud/status"}`, gateCheck{Verdict: gatePass, Kind: "write"}, false},
+		{"Link setup with more", "ws", `{"type":"cloud/status","x":1}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
 		{"core service call with a code", "core", `{"method":"POST","path":"/api/services/lock/unlock","body":{"entity_id":["lock.front"],"code":"1234"}}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
 		{"core service call, extra field", "core", `{"method":"POST","path":"/api/services/lock/unlock","body":{"entity_id":["lock.front"]},"x":1}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
 		{"config write, session down", "core", `{"method":"POST","path":"/api/config/automation/config/x","body":{}}`, gateCheck{Verdict: gateTyped, Kind: "write"}, true},
@@ -203,4 +212,51 @@ func gateRefusesOnPurpose(endpoint string, payload map[string]any) bool {
 	message, _ := payload["message"].(map[string]any)
 	return endpoint == "ws" && (message["type"] == "subscribe_events" && message["event_type"] == phoneEventType || payload["type"] == "system_log/list") ||
 		endpoint == "core" && payload["method"] == "GET" && payload["path"] == "/api/error_log"
+}
+
+// The gate runs the live checks a raw write's plan runs: an access target
+// is refused, and a write an automation listens to is typed exactly when a
+// plan of it is (spec → Contract, parity).
+func TestGateLiveRawChecks(t *testing.T) {
+	for _, tc := range listenedWrites {
+		for _, listening := range []bool{true, false} {
+			f := listeningHome()
+			if listening {
+				f.automation("opener", "opener", map[string]any{"triggers": []any{tc.trigger}, "actions": []any{step("lock.unlock", "lock.front")}})
+				f.related[tc.related] = []string{"automation.opener"}
+			}
+			paths, _, sent := listeningRelay(t, f)
+			check, err := gateVerdict(cmp.Or(tc.endpoint, "ws"), []byte(tc.payload), func() (*relaySession, error) { return newRelaySession(paths, verbOptions{}) })
+			want := map[bool]gateDecision{true: gateTyped, false: gatePass}[listening]
+			if err != nil || check.Verdict != want || sent() != 0 {
+				t.Errorf("%s (listening %v): %+v %v, want %s", tc.name, listening, check, err, want)
+			}
+		}
+	}
+	f := listeningHome()
+	f.full = append(f.full, map[string]any{"entity_id": "button.node_7", "platform": "zwave_js", "unique_id": "n7", "original_name": "Factory reset"})
+	paths, _, _ := listeningRelay(t, f)
+	for _, body := range []string{
+		`{"type":"config/entity_registry/update","entity_id":"button.node_7","name":"Tidy"}`,
+		`{"type":"config/entity_registry/update","entity_id":"button.node_7","new_entity_id":"button.tidy"}`,
+	} {
+		if check, err := gateVerdict("ws", []byte(body), func() (*relaySession, error) { return newRelaySession(paths, verbOptions{}) }); err != nil || check.Verdict != gateRefuse {
+			t.Errorf("%s: %+v %v, want refused", body, check, err)
+		}
+	}
+}
+
+// A scene closes a cover only without a position or at 0: Home Assistant
+// coerces a string position, so "50" opens a garage door halfway.
+func TestSceneCoverPositionDecidesTheService(t *testing.T) {
+	for _, member := range []any{"closed", map[string]any{"state": "closed"}, map[string]any{"state": "closed", "current_position": float64(0)}} {
+		if service, _ := sceneMemberService("cover.garage", member); service != "cover.close_cover" {
+			t.Errorf("%v: %s, want close_cover", member, service)
+		}
+	}
+	for _, position := range []any{float64(50), "50", json.Number("50"), "0", nil} {
+		if service, _ := sceneMemberService("cover.garage", map[string]any{"state": "closed", "current_position": position}); service != "cover.set_cover_position" {
+			t.Errorf("position %#v: %s, want set_cover_position", position, service)
+		}
+	}
 }
