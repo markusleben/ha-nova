@@ -62,9 +62,8 @@ func TestMCPReadAllowlist(t *testing.T) {
 		}
 	}
 	before := len(h.log.all())
-	c.tool("ha_read", map[string]any{"endpoint": "core", "path": "/api/error_log"}) // what relay core reads
-	if calls := h.log.all(); len(calls) != before+1 || calls[before].payload["path"] != "/api/error_log" {
-		t.Fatalf("the error log was not read")
+	if res := c.tool("ha_read", map[string]any{"endpoint": "core", "path": "/api/error_log"}); res["isError"] != true || len(h.log.all()) != before { // logs stay in Home Assistant
+		t.Fatalf("the error log was read: %v", res)
 	}
 	if res := c.tool("ha_read", map[string]any{"endpoint": "core", "path": "/api/config/automation/config/a1"}); res["structuredContent"].(map[string]any)["error"] != nil &&
 		res["structuredContent"].(map[string]any)["error"].(map[string]any)["code"] == "INVALID_ARGUMENTS" {

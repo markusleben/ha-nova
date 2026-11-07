@@ -18,7 +18,7 @@ Which HA operations require REST, WS, or filesystem?
 | `/api/webhook/{webhook_id}` | POST | Invoke a known JSON webhook (opaque HTTP 200; effect verification required) — raw refused |
 | `/api/history/period/{start_iso}` | GET | State history (with `?filter_entity_id=...&end_time=...`) |
 | `/api/logbook/{timestamp}` | GET | Logbook entries |
-| `/api/error_log` | GET | Error log of the current session — **404 on HA OS/Supervised since 2025.11** (log file moved to journald; official docs are stale). Re-enable: `ha core options --duplicate-log-file=true` + `ha core rebuild` + `ha core restart` (2026.1+). Prefer WS `system_log/list` |
+| `/api/error_log` | GET | Error log of the current session — **404 on HA OS/Supervised since 2025.11** (log file moved to journald; official docs are stale). Refused by the CLI and the gate: logs stay in Home Assistant (Settings > System > Logs) |
 | `/api/calendars` | GET | All calendars |
 | `/api/calendars/{entity_id}` | GET | Calendar events |
 | `/api/services/calendar/create_event` | POST | Create a calendar event (feature bit 1; no recurrence field) |
@@ -224,7 +224,7 @@ The App holds `hassio_role: manager`; `POST /supervisor` (`{method, path, data?,
 | GET | `/info`, `/os/info`, `/host/info`, `/network/info`, `/hardware/info`, `/resolution/info`, `/core/info`, `/supervisor/info` | read | — (`relay supervisor`, `ha_read`) |
 | GET | `/addons`, `/addons/{slug}/info`, `/store`, `/store/addons`, `/store/addons/{slug}` | read | — |
 | GET | `/host/disks/default/usage`, `/os/datadisk/list`, `/host/logs/boots`, `/host/logs/identifiers` | read | — |
-| GET | `/supervisor/logs`, `/core/logs`, `/host/logs`, `/host/logs/identifiers/{identifier}`, `/addons/{slug}/logs` | logs (text; `lines` 1-1000, default 100; cut at 512 KiB with `truncated: true`) | — |
+| GET | `/supervisor/logs`, `/core/logs`, `/host/logs`, `/host/logs/identifiers/{identifier}`, `/addons/{slug}/logs` | logs (text; `lines` 1-1000, default 100; cut at 512 KiB with `truncated: true`); refused by the CLI and the gate: the user reads them in Home Assistant | — |
 | POST | `/store/addons/{slug}/install` | write, `data` empty | typed |
 | POST | `/addons/{slug}/uninstall` | write, `data` empty or `{remove_config: bool}` | typed |
 | POST | `/addons/{slug}/options` | write, `{options: {...}}` (merged onto the stored options by the Relay) | typed |
@@ -247,7 +247,7 @@ guardrails.
 |---|---|---|
 | Relations | `search/related` — the pre-delete and consumer-scan workhorse | the skills that pin it: `write`, `helper`, `scene`, `organize`, `read`, `review`, `service-call`, `entity-discovery`, `maintenance`, `admin`, `media`, `camera`, `todo`, `hacs`, `fallback` |
 | Compact registry | `config/entity_registry/list_for_display` (abbreviated keys) | entity-discovery, review, bulk flows |
-| System log | `system_log/list` (the working log source on HA OS) | diagnose |
+| System log | `system_log/list`: refused by the CLI and the gate; diagnose sends the user to Settings > System > Logs | diagnose |
 | Core state | `get_states` (full state dump; prefer `config/entity_registry/list_for_display` for listings) | ha-nova (`relay-api.md`), used across read paths |
 | Backups | `backup/info`, `backup/generate`, `backup/generate_with_automatic_settings`, `backup/delete`, `backup/agents/info`, `backup/details`, `backup/config/info` (password hidden), `backup/config/update` (preview; typed with any retention, which deletes older automatic backups; `schedule`, `retention`, and `agents.<id>.retention` replace whole and a partial block is refused; `create_backup` merges; the raw guard refuses `create_backup.password`, `agents.<id>.protected`, `automatic_backups_configured`, unreadable `create_backup`/`agents` shapes, and a remote location while no key is saved). `backup/generate` with `password` or a remote location is refused (it would leave unencrypted) | backup |
 | People & access | `person/*` (a create with trackers and an update that leaves a different tracker set than `person/list` are typed; an update without `device_trackers` empties them; renaming or disabling a tracker a person follows through `config/entity_registry/update`, or disabling its device or integration entry, is typed too), `zone/*`, `tag/*`, `config/auth/list`, `config/auth/create`, `config/auth/update` (`name`: preview; `is_active`, `local_only`, `group_ids`: typed and refused for the owner, system accounts, and the Relay's own account), `config/auth/delete`, `auth/current_user` | admin |
