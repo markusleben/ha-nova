@@ -72,17 +72,39 @@ func readNames(s *relaySession, domain, id string) (map[string]any, error) {
 	return live, err
 }
 
+// namesLive: what a rename plan changes as it is now, with the entry's
+// registry id, for the plan's basis: a change before apply, or another
+// entry under the same entity_id, is drift. Nil when it can't be read.
+func namesLive(live map[string]any, domain string, payload map[string]any) map[string]any {
+	if live == nil || domain == "entity_registry" && live["id"] == nil {
+		return nil
+	}
+	held := map[string]any{"id": live["id"]}
+	for key := range payload {
+		if key != "type" && key != "entity_id" && key != "device_id" {
+			held[key] = live[key]
+		}
+	}
+	return held
+}
+
 // calmNames: a rename plan runs without a preview only when the write is
 // its one reason, its target reads live and sits in no access family
 // (accessEntity, accessDevice: a failed read counts as one), and its way
 // back can be added without replacing or evicting another (checkpointFits).
+// Every rename plan's live state enters its basis (namesLive).
 func (e *tierEngine) calmNames(n *rawNamer, items []rawRequest) bool {
-	domain, id, _, ok := rawNamesTarget(items)
-	if !ok || e.level != tierPreview || len(e.reasons) != 1 || e.reasons[0].Code != reasonRawWrite ||
-		len(e.notes) > 0 || len(e.skipped) > 0 || len(e.lost) > 0 {
+	domain, id, payload, ok := rawNamesTarget(items)
+	if !ok {
 		return false
 	}
-	if live, err := readNames(e.s, domain, id); err != nil || live == nil {
+	live, err := readNames(e.s, domain, id)
+	held := namesLive(live, domain, payload)
+	if held != nil {
+		n.renames = map[string]any{domain + "/" + id: held}
+	}
+	if held == nil || err != nil || e.level != tierPreview || len(e.reasons) != 1 || e.reasons[0].Code != reasonRawWrite ||
+		!e.onlyInformationalNotes() || len(e.skipped) > 0 || len(e.lost) > 0 {
 		return false
 	}
 	if domain == "entity_registry" && n.accessEntity(id) || domain == "device_registry" && n.accessDevice(id) {
@@ -115,6 +137,11 @@ func saveNamesUndo(paths runtimePaths, s *relaySession, env *verbEnvelope, items
 			before[key], after[key] = live[key], value
 		}
 	}
+	if domain == "entity_registry" { // the entry's own id: an entity_id can pass to another entry
+		if after["id"] = live["id"]; live["id"] == nil {
+			return nil, failed("its registry entry has no id")
+		}
+	}
 	if aliases, sent := before["aliases"]; sent && aliases == nil {
 		before["aliases"] = []any{}
 	}
@@ -140,7 +167,9 @@ func settleNamesUndo(paths runtimePaths, s *relaySession, env *verbEnvelope, sav
 	switch {
 	case saved == nil:
 	case status == "rejected" || status == "not_sent":
-		_ = dropUndoSnapshot(paths, s.server, *saved)
+		if err := dropUndoSnapshot(paths, s.server, *saved); err != nil {
+			env.Notices = append(env.Notices, verbNotice{Kind: "undo", Text: fmt.Sprintf("the undo record saved for this rename stays although nothing changed (%s); the next rename of it asks first", err)})
+		}
 	default:
 		env.Undo, env.undoable = saved, status == "done"
 	}
@@ -161,15 +190,18 @@ func planNamesUndo(paths runtimePaths, s *relaySession, env *verbEnvelope, snap 
 	}
 	body, _ := json.Marshal(payload)
 	items := []rawRequest{{Endpoint: "ws", Payload: body}}
-	if domain, id, _, ok := rawNamesTarget(items); idKey == "" || !ok || domain != snap.Domain || id != snap.TargetID || len(after) != len(before) {
+	entry, identified := after["id"].(string)
+	delete(after, "id")
+	if domain, id, _, ok := rawNamesTarget(items); idKey == "" || !ok || domain != snap.Domain || id != snap.TargetID || len(after) != len(before) ||
+		domain == "entity_registry" && (!identified || entry == "") {
 		return refused("NO_UNDO_SNAPSHOT", "the rename's undo record is not one HA NOVA saved")
 	}
 	live, err := readNames(s, snap.Domain, snap.TargetID)
 	if err != nil {
 		return err
 	}
-	if live == nil {
-		return refusedWith("NOTHING_TO_UNDO", "it is no longer in Home Assistant", "Tell the user it can't be put back: it is gone.")
+	if live == nil || identified && live["id"] != entry {
+		return refusedWith("NOTHING_TO_UNDO", "what HA NOVA renamed is no longer in Home Assistant", "Tell the user it can't be put back: it is gone.")
 	}
 	same := func(key string, a, b any) bool {
 		if key == "aliases" {
@@ -177,26 +209,38 @@ func planNamesUndo(paths runtimePaths, s *relaySession, env *verbEnvelope, snap 
 		}
 		return jsonEqual(a, b)
 	}
-	back, changed := true, false
-	for key := range before {
-		back = back && same(key, live[key], before[key])
-		changed = changed || !same(key, live[key], after[key])
+	back, changed := true, []string{}
+	for _, key := range []string{"name", "name_by_user", "aliases"} {
+		if _, saved := before[key]; saved {
+			back = back && same(key, live[key], before[key])
+			field := "name"
+			if key == "aliases" {
+				field = key
+			}
+			if !same(key, live[key], after[key]) {
+				changed = append(changed, field)
+			}
+		}
 	}
 	if back {
-		return refusedWith("NOTHING_TO_UNDO", "its name is already back to what it was", "Tell the user nothing needs undoing.")
+		return refusedWith("NOTHING_TO_UNDO", "it is already back to what it was", "Tell the user nothing needs undoing.")
 	}
-	if changed {
+	if len(changed) > 0 {
+		fields := strings.Join(changed, " and ")
 		return &verbFailure{exit: verbExitDrift, status: "drift", code: "REVERT_DRIFT",
-			message: "its name changed again since HA NOVA renamed it, so nothing was planned",
-			next:    "Show the user its current name and ask what they want it to be; that is a new rename."}
+			message: "its " + fields + " changed again since HA NOVA set them, so nothing was planned",
+			next:    "Show the user its current " + fields + " and ask what they want; that is a new change."}
 	}
 	if len(rawEntityUpdate.dropped(live, payload)) > 0 { // putting back removes an alias: its copy first (helperKept)
 		copied, _ := json.Marshal(map[string]any{"action": "save", "category": rawEntityUpdate.category, "name": autoName(snap.TargetID), "data": live})
 		items = append([]rawRequest{{Endpoint: "backups", Payload: copied}}, items...)
 	}
-	_, plan, err := computeRawPlan(s, env, items)
+	e, plan, err := computeRawPlan(s, env, items)
 	if err != nil {
 		return err
+	}
+	if e.level < tierPreview { // its own record keeps a revert previewed (checkpointFits); gone meanwhile: nothing planned
+		return refused("NO_UNDO_SNAPSHOT", "the rename's undo record changed while its revert was planned")
 	}
 	return savePlan(paths, plan, s.transport.Credential)
 }

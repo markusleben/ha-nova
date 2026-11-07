@@ -541,7 +541,7 @@ func (n *rawNamer) basis() map[string]any {
 	default:
 		basis["energy"] = numbersByValue(n.prefs) // a stored plan reads its numbers back as float64
 	}
-	for key, read := range map[string]map[string]any{"snapshots": n.deleting, "devices": n.removing, "scenes": n.scenes, "helpers": n.helpers, "files": n.files, "calendars": n.calendars} {
+	for key, read := range map[string]map[string]any{"snapshots": n.deleting, "devices": n.removing, "scenes": n.scenes, "helpers": n.helpers, "files": n.files, "calendars": n.calendars, "renames": n.renames} {
 		if read != nil {
 			basis[key] = read
 		}

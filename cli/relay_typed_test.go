@@ -211,6 +211,9 @@ func TestTrackerRenameTypedWhenAPersonFollowsIt(t *testing.T) {
 			}
 		},
 		"config/entity_registry/list": func(map[string]any) any { return []any{} },
+		"config/entity_registry/get": func(body map[string]any) any {
+			return map[string]any{"id": "e-" + body["entity_id"].(string), "entity_id": body["entity_id"], "name": nil}
+		},
 		"config/device_registry/list": func(map[string]any) any { return []any{} },
 	})
 	for payload, tier := range map[string]string{

@@ -36,6 +36,9 @@ func TestRawRenameRunsWithItsWayBackSavedFirst(t *testing.T) {
 	var renamed map[string]any
 	var paths runtimePaths
 	paths, _, change := replaceRelay(t, map[string]func(map[string]any) any{
+		"config/entity_registry/list_for_display": func(map[string]any) any { // a template entity, as in most homes
+			return map[string]any{"entities": []any{map[string]any{"ei": "sensor.feels_like", "pl": "template"}}}
+		},
 		"config/entity_registry/update": func(body map[string]any) any {
 			if len(namesRecords(t, paths)) != 1 {
 				t.Errorf("the way back was not saved before the write")
@@ -56,11 +59,11 @@ func TestRawRenameRunsWithItsWayBackSavedFirst(t *testing.T) {
 	}
 	records := namesRecords(t, paths)
 	compact := func(raw []byte) string { var out bytes.Buffer; _ = json.Compact(&out, raw); return out.String() }
-	if len(records) != 1 || compact(records[0].BeforeConfig) != `{"name":null}` || compact(records[0].ExpectedAfter) != `{"name":"Desk lamp"}` || records[0].Domain != "entity_registry" {
+	if len(records) != 1 || compact(records[0].BeforeConfig) != `{"name":null}` || compact(records[0].ExpectedAfter) != `{"id":"e-desk","name":"Desk lamp"}` || records[0].Domain != "entity_registry" {
 		t.Fatalf("record %+v", records)
 	}
 
-	change("entity", map[string]any{"entity_id": "sensor.desk_power", "name": "Desk lamp", "aliases": []any{"Desk", "Lamp"}, "labels": []any{"work"},
+	change("entity", map[string]any{"id": "e-desk", "entity_id": "sensor.desk_power", "name": "Desk lamp", "aliases": []any{"Desk", "Lamp"}, "labels": []any{"work"},
 		"options": map[string]any{"sensor": map[string]any{"display_precision": 1, "unit_of_measurement": "W"}}})
 	if exit, again := planRaw(t, paths, deskRename); exit != verbExitConfirmation || again.Tier != "preview" {
 		t.Fatalf("a second rename replaced the first way back: exit %d tier %s", exit, again.Tier)
@@ -69,14 +72,27 @@ func TestRawRenameRunsWithItsWayBackSavedFirst(t *testing.T) {
 	if exit != verbExitConfirmation || revert.Tier != "preview" || revert.Plan == nil {
 		t.Fatalf("revert: exit %d %+v", exit, revert)
 	}
+	change("entity", map[string]any{"id": "e-desk", "entity_id": "sensor.desk_power", "name": "Lamp 3", "aliases": []any{"Desk", "Lamp"}})
+	if exit, late := applyRaw(t, paths, revert); exit == verbExitOK || renamed["name"] != "Desk lamp" { // renamed again after the revert's preview: drift
+		t.Fatalf("revert after a new rename: exit %d %+v sent %v", exit, late, renamed)
+	}
+	change("entity", map[string]any{"id": "e-desk", "entity_id": "sensor.desk_power", "name": "Desk lamp", "aliases": []any{"Desk", "Lamp"}})
+	exit, revert = runVerbForTest(t, func() int { return runPlanCommand(paths, []string{"revert", "--target", "sensor.desk_power"}) })
+	if exit != verbExitConfirmation {
+		t.Fatalf("revert again: exit %d %+v", exit, revert)
+	}
 	if exit, back := applyRaw(t, paths, revert); exit != verbExitOK || renamed["name"] != nil || len(renamed) != 3 {
 		t.Fatalf("revert apply: exit %d %+v sent %v", exit, back, renamed)
 	}
-	change("entity", map[string]any{"entity_id": "sensor.desk_power", "name": nil, "aliases": []any{"Desk", "Lamp"}})
+	change("entity", map[string]any{"id": "e-desk", "entity_id": "sensor.desk_power", "name": nil, "aliases": []any{"Desk", "Lamp"}})
 	if exit, done := runVerbForTest(t, func() int { return runPlanCommand(paths, []string{"revert"}) }); exit != verbExitRefused || done.Error == nil || done.Error.Code != "NOTHING_TO_UNDO" {
 		t.Fatalf("already back: exit %d %+v", exit, done.Error)
 	}
-	change("entity", map[string]any{"entity_id": "sensor.desk_power", "name": "Lamp 2", "aliases": []any{"Desk", "Lamp"}})
+	change("entity", map[string]any{"id": "e-other", "entity_id": "sensor.desk_power", "name": "Desk lamp", "aliases": []any{"Desk", "Lamp"}})
+	if exit, other := runVerbForTest(t, func() int { return runPlanCommand(paths, []string{"revert"}) }); exit != verbExitRefused || other.Error == nil || other.Error.Code != "NOTHING_TO_UNDO" {
+		t.Fatalf("another entry under the id: exit %d %+v", exit, other.Error)
+	}
+	change("entity", map[string]any{"id": "e-desk", "entity_id": "sensor.desk_power", "name": "Lamp 2", "aliases": []any{"Desk", "Lamp"}})
 	if exit, drift := runVerbForTest(t, func() int { return runPlanCommand(paths, []string{"revert"}) }); exit != verbExitDrift || drift.Error == nil || drift.Error.Code != "REVERT_DRIFT" {
 		t.Fatalf("drift: exit %d %+v", exit, drift.Error)
 	}
@@ -98,7 +114,7 @@ func TestRawRenameOfDeviceAndAliases(t *testing.T) {
 	if exit, applied := applyRaw(t, paths, env); exit != verbExitOK || applied.Undo == nil {
 		t.Fatalf("aliases apply: exit %d %+v", exit, applied)
 	}
-	added := map[string]any{"entity_id": "sensor.desk_power", "name": nil, "aliases": []any{"Lamp", "Desk", "Reading"}, "labels": []any{"work"}}
+	added := map[string]any{"id": "e-desk", "entity_id": "sensor.desk_power", "name": nil, "aliases": []any{"Lamp", "Desk", "Reading"}, "labels": []any{"work"}}
 	change("entity", added)
 	exit, revert := runVerbForTest(t, func() int { return runPlanCommand(paths, []string{"revert", "--target", "sensor.desk_power"}) })
 	if exit != verbExitConfirmation || revert.Plan == nil {
