@@ -9,7 +9,7 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 ## Scope
 
-Run Home Assistant services now — devices, scenes, scripts, automations, locks, alarm panels. No config mutations (`ha-nova:write`, `ha-nova:helper`, `ha-nova:scene`).
+Run Home Assistant services now. No config mutations (`ha-nova:write`, `ha-nova:helper`, `ha-nova:scene`).
 
 ## Bootstrap (once per session)
 
@@ -45,7 +45,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 | 2 | drift since the preview, nothing sent | Show the new preview (typed: new code) and ask again; a relative ask re-derives its value and runs a fresh `call`. |
 | 4 | refused | `reasons[]` (an owner skill wins over `hassio`): owner skill; `TARGET_REQUIRED` → resolve targets first; `SERVICE_NOT_FOUND` → offer `error.next`'s candidates; `SERVICE_LIST_UNREAD` → plan again; `CODE_REQUIRED` → finish the action in the Home Assistant UI; missing feature → the device cannot do it; `hassio` or response-only → `raw-routes.md`. `error` from `apply`: `CODE_REQUIRED`/`CODE_MISMATCH` → ask for the code again; any other → follow `error.next`, never a re-`call`; `PLAN_NOT_FOUND`/`PLAN_CLAIMED`: outcome unknown, never re-plan. |
 | 5 | ambiguous or not found | One question listing `error.candidates` (max 10, else narrow) with each match basis; re-run with the choice. No candidates: say nothing matched; follow `error.next`. |
-| 6 | sent; `unverified` or `failed` | Relay `say` (none: the `error`, per Verb Results); never retry automatically. |
+| 6 | sent; `unverified` or `failed` | Relay `say` (none: the `error`, per Verb Results); never retry automatically, resend, or swap the target. |
 | 7 | outcome unknown | Relay `say`, then read the state (`ha-nova get`) and name it; still unknown even if it matches; never retry. |
 | 1 | operational error, nothing sent | `say` if any; else what failed, why, next step. |
 

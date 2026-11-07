@@ -266,6 +266,8 @@ func refuse(env *verbEnvelope, r tierReason) *verbFailure {
 	switch {
 	case r.Code == reasonResponseOnly:
 		next = "Call it again with --response to get its data."
+	case r.Code == reasonFeature:
+		next = "Tell the user nothing was sent: Home Assistant says this device can't do that (for a cover that only tilts, open or close the tilt instead). Offer what it can do; never retry the same call."
 	case r.Code == reasonHassio && r.Detail == novaAppUnread:
 		next = "Tell the user nothing was sent: HA NOVA couldn't tell from Home Assistant's registry whether this step stops the NOVA App it runs in (through its switch, or a light or fan showing that switch). If the registry was busy, they can try again in a moment; otherwise they can do it in Home Assistant."
 	case r.Code == reasonHassio && r.Skill == "": // HA NOVA's own App (novaAppStop)

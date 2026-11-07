@@ -22,6 +22,12 @@ import (
 // user's settings file can hold it, and only after the user says yes.
 const claudeApplyRule = "Bash(ha-nova apply --plan *)"
 
+// claudeVerbRules let Claude Code run HA NOVA's read and plan verbs without
+// its own prompt: they write nothing to Home Assistant (plan stores a plan
+// on this computer; apply decides). call, relay, and snapshot stay outside,
+// and never Bash(ha-nova *) (spec 2026-11-06 item 4).
+var claudeVerbRules = []string{"Bash(ha-nova find *)", "Bash(ha-nova get *)", "Bash(ha-nova history *)", "Bash(ha-nova trace *)", "Bash(ha-nova plan *)"}
+
 // claudeReadRule lets Claude Code read HA NOVA's own skill files, which the
 // plugin loads in place from claude-marketplace — outside every project, so
 // each session otherwise asks "Read outside the working directories" (auto
@@ -49,10 +55,16 @@ func claudeReadRuleFor(root string) string {
 }
 
 func claudeRules(paths runtimePaths) []string {
+	rules := append([]string{claudeApplyRule}, claudeVerbRules...)
 	if read := claudeReadRule(paths); read != "" {
-		return []string{claudeApplyRule, read}
+		return append(rules, read)
 	}
-	return []string{claudeApplyRule}
+	return rules
+}
+
+// claudeHasReadRule: the rules include the read rule (claudeReadRule).
+func claudeHasReadRule(rules []string) bool {
+	return slices.ContainsFunc(rules, func(rule string) bool { return strings.HasPrefix(rule, "Read(") })
 }
 
 func claudeRulesManual(rules []string) string {
@@ -83,15 +95,14 @@ func offerClaudeRules(reader *bufio.Reader, out io.Writer, paths runtimePaths) s
 		return note
 	}
 	fmt.Fprintln(out)
-	if len(rules) > 1 {
-		fmt.Fprintln(out, "  Let Claude Code work with HA NOVA without extra questions?")
-	} else {
-		fmt.Fprintln(out, "  Let Claude Code open HA NOVA's confirmation window?")
-	}
+	fmt.Fprintln(out, "  Let Claude Code work with HA NOVA without extra questions?")
 	fmt.Fprintln(out, "  This adds to your Claude Code settings:")
 	for _, rule := range missing {
 		why := "so Claude Code can open HA NOVA's confirmation window"
-		if rule != claudeApplyRule {
+		switch {
+		case slices.Contains(claudeVerbRules, rule):
+			why = "so Claude Code looks things up and prepares changes without asking; this changes nothing in Home Assistant"
+		case rule != claudeApplyRule:
 			why = "so Claude Code reads HA NOVA's own instructions without asking"
 		}
 		fmt.Fprintf(out, "    %s — %s\n", rule, why)
@@ -201,7 +212,7 @@ func addClaudeRules(paths runtimePaths, path string, rules, missing []string) (s
 // claudeNoReadRuleNote: without a read rule, Claude Code keeps asking before
 // reading HA NOVA's files; say so instead of promising otherwise.
 func claudeNoReadRuleNote(rules []string) string {
-	if len(rules) > 1 {
+	if claudeHasReadRule(rules) {
 		return ""
 	}
 	return " Claude Code may still ask before it reads HA NOVA's files. That's normal; just allow it."
@@ -244,7 +255,7 @@ func claudeRulesHint(paths runtimePaths) string {
 	switch missing, err := claudeRulesMissing(claudeUserSettingsPath(paths.Home), rules); {
 	case err != nil:
 		return why + "add the rules yourself. " + claudeRulesManual(rules)
-	case len(missing) == 0 && len(rules) > 1:
+	case len(missing) == 0 && claudeHasReadRule(rules):
 		return ""
 	case len(missing) == 0:
 		return strings.TrimSpace(claudeNoReadRuleNote(rules))

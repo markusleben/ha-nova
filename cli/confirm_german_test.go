@@ -129,9 +129,9 @@ func TestGermanHomeAsksOnThePhone(t *testing.T) {
 		t.Fatalf("apply: exit %d %+v sent %v", exit, applied, p.sent)
 	}
 	actions := p.sent[0]["data"].(map[string]any)["actions"].([]any)
-	if p.sent[0]["title"] != "„Haustür“ entriegeln?" || p.sent[0]["message"] != "Angefordert von „"+phoneHost("de")+"“. Zum Antworten gedrückt halten (iPhone) oder runterziehen (Android)." ||
+	if p.sent[0]["title"] != "„Haustür“ entriegeln?" || p.sent[0]["message"] != "Angefordert von „"+phoneHost("de")+"“ über HA NOVA. Zum Antworten gedrückt halten (iPhone) oder runterziehen (Android)." ||
 		actions[0].(map[string]any)["title"] != "Entriegeln" || actions[1].(map[string]any)["title"] != "Abbrechen" ||
-		p.sent[1]["title"] != "Erledigt: „Haustür“ entriegeln" || p.sent[1]["message"] != "Home Assistant bestätigt das." {
+		p.sent[1]["title"] != "Erledigt: „Haustür“ entriegeln" || p.sent[1]["message"] != "Hat geklappt; HA NOVA hat es in Home Assistant geprüft." {
 		t.Fatalf("phone texts %v", p.sent)
 	}
 	// Home Assistant's name never becomes a button: no word list can tell
@@ -229,7 +229,7 @@ func TestSettingsAsksSpeakTheHomesLanguageNow(t *testing.T) {
 	h.f.config = map[string]any{"language": "de"}
 	p.tapBy = tapFrom("mobile_app_annas_pixel", "anna-id", true)
 	if exit, out := runLink(t, h, "1\n", phoneLinkRun{interactive: true, offer: true}); exit != 0 || len(p.sent) != 2 || p.sent[0]["title"] != "HA NOVA hier bestätigen?" ||
-		p.sent[0]["message"] != "„Erlauben“ tippen. Sonst runterziehen. Angefordert von „"+phoneHost("de")+"“." || p.sent[1]["title"] != "Mit HA NOVA verbunden" ||
+		p.sent[0]["message"] != "„Erlauben“ tippen. Sonst runterziehen. Angefordert von „"+phoneHost("de")+"“ über HA NOVA." || p.sent[1]["title"] != "Mit HA NOVA verbunden" ||
 		!strings.Contains(out, "Only “Anna’s Pixel” gets HA NOVA confirmations") {
 		t.Fatalf("link: exit %d %v %q", exit, p.sent, out)
 	}

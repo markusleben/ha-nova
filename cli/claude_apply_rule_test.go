@@ -80,9 +80,10 @@ func TestClaudeApplyRuleMergesIntoExistingSettings(t *testing.T) {
 	if !strings.Contains(out, "This adds to your Claude Code settings:") ||
 		!strings.Contains(out, "    Bash(ha-nova apply --plan *) — so Claude Code can open HA NOVA's confirmation window") ||
 		!strings.Contains(out, "    "+read+" — so Claude Code reads HA NOVA's own instructions without asking") ||
+		!strings.Contains(out, "    Bash(ha-nova plan *) — so Claude Code looks things up and prepares changes without asking; this changes nothing in Home Assistant") ||
 		!strings.Contains(out, "You still confirm every unlock or delete yourself.") ||
 		!strings.Contains(out, "asking before other HA NOVA changes you already approved in chat.") ||
-		strings.Count(out, settings) != 1 || !strings.Contains(out, "NOTE: Added 2 rules for HA NOVA to your Claude Code settings.") {
+		strings.Count(out, settings) != 1 || !strings.Contains(out, "NOTE: Added 7 rules for HA NOVA to your Claude Code settings.") {
 		t.Fatalf("offer output:\n%s", out)
 	}
 	want := `{
@@ -95,6 +96,11 @@ func TestClaudeApplyRuleMergesIntoExistingSettings(t *testing.T) {
             "Bash(npm test && npm run lint)",
             "Read(~/café)",
             "Bash(ha-nova apply --plan *)",
+            "Bash(ha-nova find *)",
+            "Bash(ha-nova get *)",
+            "Bash(ha-nova history *)",
+            "Bash(ha-nova trace *)",
+            "Bash(ha-nova plan *)",
             "` + read + `"
         ],
         "ask": [
@@ -113,7 +119,7 @@ func TestClaudeApplyRuleMergesIntoExistingSettings(t *testing.T) {
 		t.Fatalf("mode = %v, want the file's own 0600", info.Mode().Perm())
 	}
 	state := loadStateOrDefault(paths)
-	if state.ClaudeRulesFile != settings || state.ClaudeApplyRuleFile != "" || strings.Join(state.ClaudeRules, "|") != claudeApplyRule+"|"+read || state.ClaudeAllowCreated != "" {
+	if state.ClaudeRulesFile != settings || state.ClaudeApplyRuleFile != "" || strings.Join(state.ClaudeRules, "|") != strings.Join(claudeRules(paths), "|") || state.ClaudeAllowCreated != "" {
 		t.Fatalf("state records %q %q %q %q", state.ClaudeRulesFile, state.ClaudeApplyRuleFile, state.ClaudeRules, state.ClaudeAllowCreated)
 	}
 }
@@ -146,18 +152,18 @@ func TestClaudeRulesAddOnlyTheMissingOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := offerAnswer(t, paths, "add\n")
-	if strings.Contains(out, "ha-nova apply --plan *) —") || strings.Contains(out, "You still confirm") || !strings.Contains(out, "NOTE: Added 1 rule for HA NOVA to your Claude Code settings.") {
+	if strings.Contains(out, "ha-nova apply --plan *) —") || strings.Contains(out, "You still confirm") || !strings.Contains(out, "NOTE: Added 6 rules for HA NOVA to your Claude Code settings.") {
 		t.Fatalf("offer output:\n%s", out)
 	}
-	if got := loadStateOrDefault(paths); strings.Join(got.ClaudeRules, "|") != claudeApplyRule+"|"+claudeReadRule(paths) || got.ClaudeRulesFile != settings || got.ClaudeApplyRuleFile != "" {
+	if got := loadStateOrDefault(paths); strings.Join(got.ClaudeRules, "|") != strings.Join(claudeRules(paths), "|") || got.ClaudeRulesFile != settings || got.ClaudeApplyRuleFile != "" {
 		t.Fatalf("recorded %+v", got)
 	}
 	// The user removes the apply rule; setup adds it back without a second record.
-	writeClaudeSettings(t, settings, `{"permissions":{"allow":["`+claudeReadRule(paths)+`"]}}`)
+	writeClaudeSettings(t, settings, `{"permissions":{"allow":["`+strings.Join(claudeRules(paths)[1:], `","`)+`"]}}`)
 	if out := offerAnswer(t, paths, "add\n"); !strings.Contains(out, "NOTE: Added 1 rule for HA NOVA to your Claude Code settings.") {
 		t.Fatalf("re-add:\n%s", out)
 	}
-	if got := loadStateOrDefault(paths).ClaudeRules; len(got) != 2 {
+	if got := loadStateOrDefault(paths).ClaudeRules; len(got) != 7 {
 		t.Fatalf("recorded twice: %q", got)
 	}
 }
@@ -181,11 +187,11 @@ func TestClaudeRulesStayWithTheRecordedFile(t *testing.T) {
 
 func TestClaudeApplyRuleIsIdempotent(t *testing.T) {
 	paths, settings := claudeRuleTestPaths(t)
-	if out := offerAnswer(t, paths, "add\n"); !strings.Contains(out, "Added 2 rules for HA NOVA to your Claude Code settings.") {
+	if out := offerAnswer(t, paths, "add\n"); !strings.Contains(out, "Added 7 rules for HA NOVA to your Claude Code settings.") {
 		t.Fatalf("first offer:\n%s", out)
 	}
 	first := readClaudeSettings(t, settings)
-	if first != "{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash(ha-nova apply --plan *)\",\n      \""+claudeReadRule(paths)+"\"\n    ]\n  }\n}\n" {
+	if first != "{\n  \"permissions\": {\n    \"allow\": [\n      \""+strings.Join(claudeRules(paths), "\",\n      \"")+"\"\n    ]\n  }\n}\n" {
 		t.Fatalf("new settings file:\n%s", first)
 	}
 	if got := loadStateOrDefault(paths).ClaudeAllowCreated; got != "permissions" {
@@ -300,7 +306,7 @@ func TestClaudeApplyRuleNotWrittenAfterUninstall(t *testing.T) {
 func TestUninstallRemovesOnlyTheRecordedRule(t *testing.T) {
 	paths, settings := claudeRuleTestPaths(t)
 	writeClaudeSettings(t, settings, existingClaudeSettings)
-	if out := offerAnswer(t, paths, "add\n"); !strings.Contains(out, "Added 2 rules for HA NOVA to your Claude Code settings.") {
+	if out := offerAnswer(t, paths, "add\n"); !strings.Contains(out, "Added 7 rules for HA NOVA to your Claude Code settings.") {
 		t.Fatalf("offer:\n%s", out)
 	}
 	report := &uninstallReport{}
@@ -310,7 +316,7 @@ func TestUninstallRemovesOnlyTheRecordedRule(t *testing.T) {
 		!strings.Contains(got, `"Bash(rm -rf *)"`) || !strings.Contains(got, `"Bash(git push *)"`) || !strings.Contains(got, `"model": "opus"`) {
 		t.Fatalf("after uninstall:\n%s", got)
 	}
-	if len(report.removed) != 2 || report.removed[0] != "Claude Code rule "+claudeApplyRule || report.removed[1] != "Claude Code rule "+claudeReadRule(paths) {
+	if len(report.removed) != 7 || report.removed[0] != "Claude Code rule "+claudeApplyRule || report.removed[6] != "Claude Code rule "+claudeReadRule(paths) {
 		t.Fatalf("report = %+v", report)
 	}
 
@@ -347,7 +353,7 @@ func TestUninstallRemovesOnlyTheKeysSetupCreated(t *testing.T) {
 		if tc.before != "" {
 			writeClaudeSettings(t, settings, tc.before)
 		}
-		if out := offerAnswer(t, paths, "add\n"); !strings.Contains(out, "Added 2 rules for HA NOVA to your Claude Code settings.") {
+		if out := offerAnswer(t, paths, "add\n"); !strings.Contains(out, "Added 7 rules for HA NOVA to your Claude Code settings.") {
 			t.Fatalf("%q: offer:\n%s", tc.before, out)
 		}
 		removeClaudeRulesForUninstall(loadStateOrDefault(paths), &uninstallReport{})
@@ -366,10 +372,10 @@ func TestClaudeApplyRuleHintNeverWrites(t *testing.T) {
 		t.Fatalf("hint created the settings file: %v", err)
 	}
 	writeClaudeSettings(t, settings, `{"permissions":{"allow":["Bash(ha-nova apply --plan *)"]}}`)
-	if hint := claudeRulesHint(paths); strings.Contains(hint, claudeApplyRule) || !strings.Contains(hint, claudeReadRule(paths)) {
+	if hint := claudeRulesHint(paths); strings.Contains(hint, claudeApplyRule) || !strings.Contains(hint, claudeReadRule(paths)) || !strings.Contains(hint, "Bash(ha-nova plan *)") {
 		t.Fatalf("hint with only the apply rule = %q", hint)
 	}
-	writeClaudeSettings(t, settings, `{"permissions":{"allow":["Bash(ha-nova apply --plan *)","`+claudeReadRule(paths)+`"]}}`)
+	writeClaudeSettings(t, settings, `{"permissions":{"allow":["`+strings.Join(claudeRules(paths), `","`)+`"]}}`)
 	if hint := claudeRulesHint(paths); hint != "" {
 		t.Fatalf("hint with the rule present = %q", hint)
 	}
@@ -390,11 +396,11 @@ func TestClaudeApplyRuleLeavesChatCodeFormOutside(t *testing.T) {
 func TestClaudeRulesWithoutASafeReadRule(t *testing.T) {
 	paths, _ := claudeRuleTestPaths(t)
 	paths.ConfigDir = filepath.Join(paths.Home, "ha nova (work)")
-	if rules := claudeRules(paths); len(rules) != 1 {
+	if rules := claudeRules(paths); len(rules) != 6 || claudeHasReadRule(rules) {
 		t.Fatalf("rules = %q", rules)
 	}
 	out := offerAnswer(t, paths, "add\n")
-	if !strings.Contains(out, "open HA NOVA's confirmation window?") || strings.Contains(out, "without extra questions") ||
+	if !strings.Contains(out, "without extra questions") ||
 		!strings.Contains(out, "may still ask before it reads HA NOVA's files") {
 		t.Fatalf("offer:\n%s", out)
 	}
