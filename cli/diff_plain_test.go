@@ -35,7 +35,7 @@ func TestPreviewRowsShowNamesNotRawIDs(t *testing.T) {
 			map[string]any{"delay": map[string]any{"hours": 0, "minutes": 5, "seconds": 0}},
 			map[string]any{"action": "light.turn_off", "target": map[string]any{"entity_id": []any{"light.lamp_a", "light.lamp_b"}}, "data": map[string]any{"transition": 2}}}}
 	exit, env := h.run(runPlanCommand, "write", "--domain", "automation", "--id", "g1", "--file", draftFile(t, after))
-	if exit != 3 || len(env.Diff) == 0 {
+	if exit != verbExitOK || env.Tier != "ordinary" || len(env.Diff) == 0 { // an update calmUpdate lets through still shows its diff
 		t.Fatalf("exit %d env %+v", exit, env)
 	}
 	rows := strings.Join(env.Diff, "\n")
@@ -61,7 +61,7 @@ func TestPreviewRowsShowNamesNotRawIDs(t *testing.T) {
 	if !strings.Contains(string(env.Config.Body), "switch.decorative_lights") {
 		t.Fatalf("the plan must bind the exact ids: %s", env.Config.Body)
 	}
-	if exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 0 || applied.Say != "Done: changed the automation “Heat turns on plug”. I checked that Home Assistant saved it." {
+	if exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 0 || applied.Say != "Done: changed the automation “Heat turns on plug”. I checked that Home Assistant saved it. You can put it back with “undo”; what already ran isn't undone." {
 		t.Fatalf("apply: exit %d say %q", exit, applied.Say)
 	}
 }
