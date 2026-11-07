@@ -36,7 +36,7 @@ func rawRelay(t *testing.T, handlers map[string]func(map[string]any) any) (paths
 			return handle(body)
 		}
 		switch {
-		case key == "config/entity_registry/list":
+		case key == "config/entity_registry/list", key == "config_entries/get":
 			return []any{}
 		case key == "GET /api/states":
 			return map[string]any{"status": 200, "body": []any{}}

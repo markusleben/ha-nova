@@ -67,6 +67,9 @@ var rawWhys = map[string]func(lang string) string{
 	"core_language":       func(l string) string { return confirmT(l, "raw.why.core_language") },
 	"integration_remove":  func(l string) string { return confirmT(l, "raw.why.integration_remove") },
 	"file_delete":         func(l string) string { return confirmT(l, "raw.why.file_delete") },
+	"file_write":          func(l string) string { return confirmT(l, "raw.why.file_write") },
+	"backup_locations":    func(l string) string { return confirmT(l, "raw.why.backup_locations") },
+	"backup_agent":        func(l string) string { return confirmT(l, "raw.why.backup_agent") },
 	"copy_delete":         func(l string) string { return confirmT(l, "raw.why.copy_delete") },
 	"skill_typed":         func(l string) string { return confirmT(l, "raw.why.skill_typed") },
 	"app_install":         func(l string) string { return confirmT(l, "raw.why.app_install") },
@@ -100,6 +103,11 @@ func rawItemTier(n *rawNamer, item rawRequest, payload map[string]any) (tierLeve
 	level, why := rawRequestTier(n, item.Endpoint, payload)
 	if item.Endpoint == "supervisor" {
 		level, why = rawSupervisorTier(payload)
+	}
+	if level < tierTyped {
+		if export, exportWhy := rawExportTier(n, item.Endpoint, payload); export == tierTyped {
+			level, why = export, exportWhy
+		}
 	}
 	if level < tierTyped && item.Typed {
 		return tierTyped, "skill_typed"
