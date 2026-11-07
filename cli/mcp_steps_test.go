@@ -19,7 +19,7 @@ const (
 	stepUsedBy        = "In this plan's preview, tell the user which automations, scripts, or scenes use it (consumers, by name): they break once it is gone."
 	stepUsedByNone    = "In this plan's preview, tell the user HA NOVA found no automation, script, or scene that uses it."
 	stepUsedByUnknown = "In this plan's preview, tell the user HA NOVA couldn't check what uses it."
-	stepYAMLCheck     = "A YAML file changed: check it now with ha_read endpoint core, method POST, path /api/config/core/check_config. If it is invalid, reload nothing and tell the user; if its errors point at this file, put it back with ha_plan kind raw, payload backup false (write its .bak back; a new file has none: delete it), then check once more: still invalid, tell the user and write nothing more."
+	stepYAMLCheck     = "A YAML file changed: check it now with ha_read endpoint core, method POST, path /api/config/core/check_config. If it is invalid, reload nothing and tell the user; if its errors point at this file, put it back with ha_plan kind raw: a backups save of the file as it is now, then its .bak written back with payload backup false (a new file has none: delete it), then check once more: still invalid, tell the user and write nothing more."
 )
 
 // A raw plan that deletes, renames an entity id, or disables something
@@ -181,6 +181,9 @@ func TestMCPOwnedServiceLoadsItsSkillFirst(t *testing.T) {
 	}
 }
 
+// newYAMLFile: a Relay without the file a write creates (fileKept).
+var newYAMLFile = map[string]func(map[string]any) any{"files read_file": func(map[string]any) any { return fakeRelayFailure{"FILE_NOT_FOUND", "not found"} }}
+
 // After a YAML file write, the result says to check the config at once
 // and how to roll back; not after other files or raw writes.
 func TestRawYAMLWriteChecksTheConfig(t *testing.T) {
@@ -196,7 +199,7 @@ func TestRawYAMLWriteChecksTheConfig(t *testing.T) {
 		{".bak written back", map[string]any{"action": "write_file", "path": "/config/packages/lights.yaml", "content": "light: []", "backup": false}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			paths, _ := rawRelay(t, nil)
+			paths, _ := rawRelay(t, newYAMLFile)
 			c := startMCP(t, paths)
 			mcpInit(c)
 			planned, _ := readEnvelope(c.tool("ha_plan", map[string]any{"kind": "raw", "requests": []any{map[string]any{"endpoint": "files", "payload": tc.payload}}}))
@@ -212,9 +215,9 @@ func TestRawYAMLWriteChecksTheConfig(t *testing.T) {
 			}
 		})
 	}
-	paths, _ := rawRelay(t, nil)
+	paths, _ := rawRelay(t, newYAMLFile)
 	_, planned := planRaw(t, paths, `[{"endpoint":"files","payload":{"action":"write_file","path":"/config/packages/a.yml","content":"a: 1"}}]`)
-	if _, env := applyRaw(t, paths, planned); !strings.HasSuffix(env.NextStep, " A YAML file changed: check it now with ha-nova relay core --method POST --path /api/config/core/check_config. If it is invalid, reload nothing and tell the user; if its errors point at this file, put it back with ha-nova plan raw, payload backup false (write its .bak back; a new file has none: delete it), then check once more: still invalid, tell the user and write nothing more.") {
+	if _, env := applyRaw(t, paths, planned); !strings.HasSuffix(env.NextStep, " A YAML file changed: check it now with ha-nova relay core --method POST --path /api/config/core/check_config. If it is invalid, reload nothing and tell the user; if its errors point at this file, put it back with ha-nova plan raw: a backups save of the file as it is now, then its .bak written back with payload backup false (a new file has none: delete it), then check once more: still invalid, tell the user and write nothing more.") {
 		t.Fatalf("CLI: %q", env.NextStep)
 	}
 }

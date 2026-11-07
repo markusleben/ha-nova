@@ -169,10 +169,13 @@ func (n *rawNamer) helperNote(lang, endpoint string, payload map[string]any) str
 	return confirmT(lang, "raw.omits", "items", sayList(lang, names))
 }
 
-// kept: sceneKept or helperKept, whichever guards the request.
+// kept: sceneKept, fileKept, or helperKept, whichever guards the request.
 func (n *rawNamer) kept(earlier []rawRequest, endpoint string, payload map[string]any) (refusal, err error) {
-	if endpoint == "core" {
+	switch {
+	case endpoint == "core":
 		return n.sceneKept(earlier, payload)
+	case rawYAMLWrite(endpoint, payload) != "":
+		return n.fileKept(earlier, payload)
 	}
 	return n.helperKept(earlier, endpoint, payload)
 }
