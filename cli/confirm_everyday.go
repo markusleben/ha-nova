@@ -296,7 +296,8 @@ func appStoreName(s *relaySession, slug string) string {
 	if s == nil {
 		return ""
 	}
-	raw, err := s.sendWithin("supervisor", []byte(`{"method":"GET","path":"/store/addons/`+slug+`"}`), relaySessionRequestTimeout)
+	read, _ := json.Marshal(map[string]string{"method": "GET", "path": "/store/addons/" + slug})
+	raw, err := s.sendWithin("supervisor", read, relaySessionRequestTimeout)
 	if err != nil || json.Unmarshal(raw, &info) != nil || sayText(info.Body.Data.Name, false) == "" {
 		return ""
 	}
