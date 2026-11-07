@@ -30,6 +30,7 @@ type rawNamer struct {
 
 	classedOnly  bool              // accessWhy's second pass: covers without a class don't count
 	coverClasses map[string]string // one raw item's cover classes, read once for both passes (capableOnce)
+	registryMemo *rawRegistries    // one raw item's registries, read once for both passes (registries)
 
 	helpers     map[string]any          // "<collection>/<id>" → the live helper an update replaces (helperKept)
 	helperDrops map[string][]helperDrop // "<collection>/<id>" → what its update removes after a copy (helperKept)

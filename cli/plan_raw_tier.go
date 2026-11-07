@@ -111,8 +111,8 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 	action, _ := payload["action"].(string)
 	switch endpoint {
 	case "ws":
-		n.coverClasses = map[string]string{}
-		defer func() { n.coverClasses = nil }()
+		n.coverClasses, n.registryMemo = map[string]string{}, &rawRegistries{}
+		defer func() { n.coverClasses, n.registryMemo = nil, nil }()
 		wsType, _ := payload["type"].(string)
 		_, carries := payload["new_entity_id"]
 		for _, key := range []string{"area_id", "labels"} {
@@ -351,7 +351,26 @@ type rawDeviceRow struct {
 // registries: the entity and device registries, read live; ok is false when
 // either can't be read (a real empty registry is []) or has a row without
 // its id (a null element decodes to an empty row).
-func (n *rawNamer) registries() (entities []rawEntityRow, devices []rawDeviceRow, ok bool) {
+type rawRegistries struct {
+	read     bool
+	entities []rawEntityRow
+	devices  []rawDeviceRow
+	ok       bool
+}
+
+func (n *rawNamer) registries() ([]rawEntityRow, []rawDeviceRow, bool) {
+	memo := n.registryMemo
+	if memo == nil {
+		memo = &rawRegistries{}
+	}
+	if !memo.read {
+		memo.entities, memo.devices, memo.ok = n.readRegistries()
+		memo.read = true
+	}
+	return memo.entities, memo.devices, memo.ok
+}
+
+func (n *rawNamer) readRegistries() (entities []rawEntityRow, devices []rawDeviceRow, ok bool) {
 	data, err := n.read("ws", map[string]any{"type": "config/entity_registry/list"})
 	if err == nil {
 		err = json.Unmarshal(data, &entities)

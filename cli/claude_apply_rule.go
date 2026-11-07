@@ -22,11 +22,12 @@ import (
 // user's settings file can hold it, and only after the user says yes.
 const claudeApplyRule = "Bash(ha-nova apply --plan *)"
 
-// claudeVerbRules let Claude Code run HA NOVA's read and plan verbs without
-// its own prompt: they write nothing to Home Assistant (plan stores a plan
-// on this computer; apply decides). call, relay, and snapshot stay outside,
-// and never Bash(ha-nova *) (spec 2026-11-06 item 4).
-var claudeVerbRules = []string{"Bash(ha-nova find *)", "Bash(ha-nova get *)", "Bash(ha-nova history *)", "Bash(ha-nova trace *)", "Bash(ha-nova plan *)"}
+// claudeVerbRules let Claude Code run HA NOVA's read verbs without its own
+// prompt: they write nothing to Home Assistant. plan stays outside, since
+// its --file, --data-file, and --draft-file read any JSON file they name,
+// and so do call, relay, and snapshot; never Bash(ha-nova *) (spec
+// 2026-11-06 item 4).
+var claudeVerbRules = []string{"Bash(ha-nova find *)", "Bash(ha-nova get *)", "Bash(ha-nova history *)", "Bash(ha-nova trace *)"}
 
 // claudeReadRule lets Claude Code read HA NOVA's own skill files, which the
 // plugin loads in place from claude-marketplace — outside every project, so
@@ -109,7 +110,7 @@ func offerClaudeRules(reader *bufio.Reader, out io.Writer, paths runtimePaths) s
 		}
 	}
 	if len(verbs) > 0 {
-		fmt.Fprintf(out, "    %s — so Claude Code looks things up and prepares changes without asking; they change nothing in Home Assistant\n", strings.Join(verbs, ", "))
+		fmt.Fprintf(out, "    %s — so Claude Code looks things up without asking; they change nothing in Home Assistant\n", strings.Join(verbs, ", "))
 	}
 	fmt.Fprintln(out, "  You still confirm every unlock or delete yourself.")
 	if slices.Contains(missing, claudeApplyRule) {

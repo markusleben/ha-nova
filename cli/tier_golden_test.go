@@ -251,6 +251,19 @@ func TestPlanCallTierGoldenCases(t *testing.T) {
 		{name: "toggling a cover that can open but not close is refused (Home Assistant needs both)",
 			setup: func(f *fakeHA) { f.ent("cover.pool", "zwave_js", "closed", map[string]any{"supported_features": 1.0}) },
 			args:  []string{"cover.toggle", "cover.pool"}, exit: 4, tier: "refused", reasons: []string{reasonFeature}},
+		{name: "an area whose only cover only tilts is refused like the named cover",
+			setup: func(f *fakeHA) {
+				f.ent("cover.pool", "zwave_js", "closed", map[string]any{"supported_features": 240.0})
+				f.related["area:garden"] = []string{"cover.pool"}
+			},
+			args: []string{"cover.open_cover", "--area", "garden"}, exit: 4, tier: "refused", reasons: []string{reasonFeature}},
+		{name: "an area with more covers skips the one that only tilts, as Home Assistant does",
+			setup: func(f *fakeHA) {
+				f.ent("cover.pool", "zwave_js", "closed", map[string]any{"supported_features": 240.0})
+				f.ent("cover.shade", "zwave_js", "closed", map[string]any{"device_class": "shade", "supported_features": 15.0})
+				f.related["area:garden"] = []string{"cover.pool", "cover.shade"}
+			},
+			args: []string{"cover.open_cover", "--area", "garden"}, exit: 3, tier: "typed", absent: []string{reasonFeature}},
 		{name: "a cover with an unread feature mask keeps its tier",
 			setup: func(f *fakeHA) { f.ent("cover.pool", "zwave_js", "closed", nil) },
 			args:  []string{"cover.open_cover", "cover.pool"}, exit: 3, tier: "typed", reasons: []string{reasonCoverClassUnknown}},

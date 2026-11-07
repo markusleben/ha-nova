@@ -456,8 +456,8 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 		}
 		entityDomain, _ := splitID(t.EntityID)
 		// Home Assistant skips a cover an area or device brings in that lacks
-		// the feature; only a named one fails the call.
-		named := t.By == "exact" || t.By == "match"
+		// the feature; only a named one, or the only target, fails the call.
+		named := t.By == "exact" || t.By == "match" || len(targets) == 1
 		if code := directRefusal(effectiveService(req.Service, entityDomain), e.states[t.EntityID]); code != "" && (named || code != reasonFeature || entityDomain != "cover") {
 			return &tierReason{Code: code, EntityID: t.EntityID}
 		}
