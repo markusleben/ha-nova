@@ -273,6 +273,9 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 	domain, _ := splitID(id)
 	eff := effectiveService(service, domain)
 	level, code := classifyOnEntity(id, eff, data, st)
+	if code == reasonOwnedMember && eff == "todo.remove_item" && depth == 0 && e.shoppingItemsListed(id, data) {
+		level, code = tierOrdinary, ""
+	}
 	e.raise(level, tierReason{Code: code, EntityID: id, Via: via})
 	entry, registered := e.reg[id]
 	switch pl := entry.pl; {

@@ -55,6 +55,55 @@ func ownedOrdinary(service string, data map[string]any, st *entityState) bool {
 	return ownedOrdinaryServices[service]
 }
 
+// shoppingRemoveMax: the most items a shopping-list removal runs at once
+// (calmer confirmations item 7).
+const shoppingRemoveMax = 5
+
+// shoppingItemsListed: a todo.remove_item on the built-in shopping list
+// names 1 to shoppingRemoveMax distinct items (uid or summary, as Home
+// Assistant matches them), each on the list as read now, and nothing else.
+// Any other shape, a missing item, or a failed read keeps the preview.
+func (e *tierEngine) shoppingItemsListed(id string, data map[string]any) bool {
+	if e.reg[id].pl != "shopping_list" || len(data) != 1 {
+		return false
+	}
+	var refs []string
+	switch item := data["item"].(type) {
+	case string:
+		refs = []string{item}
+	case []any:
+		for _, v := range item {
+			ref, isText := v.(string)
+			if !isText {
+				return false
+			}
+			refs = append(refs, ref)
+		}
+	}
+	if len(refs) == 0 || len(refs) > shoppingRemoveMax {
+		return false
+	}
+	type listed struct {
+		UID     string `json:"uid"`
+		Summary string `json:"summary"`
+	}
+	var reply struct {
+		Items []listed `json:"items"`
+	}
+	if e.s.wsDecode(map[string]any{"type": "todo/item/list", "entity_id": id}, &reply, "to-do items") != nil {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, ref := range refs {
+		onList := slices.ContainsFunc(reply.Items, func(it listed) bool { return it.UID == ref || it.Summary == ref })
+		if ref == "" || seen[ref] || !onList {
+			return false
+		}
+		seen[ref] = true
+	}
+	return true
+}
+
 // commandPlayers: media player platforms whose controls run commands or
 // scripts the user wrote.
 var commandPlayers = map[string]bool{"universal": true, "media_player_template": true}
