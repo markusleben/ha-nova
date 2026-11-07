@@ -1,0 +1,144 @@
+import { isLoopback, type Principal } from "../security/principal.js";
+import { decodeUtf8Strict } from "../shared/utf8.js";
+import { HttpError, toErrorResponse } from "./errors.js";
+import type { RouteContext, RouteHandler } from "./router.js";
+
+// The safety check in front of every device-facing handler
+// (docs/work/2026-11-03-relay-typed-gate-spec.md §1, §2). The Relay classifies
+// nothing: the worker (`ha-nova gate`) rates the exact bytes the Relay forwards
+// and redacts every answer. Every failure answers 503 and forwards nothing.
+
+export type GateEndpoint = "ws" | "core" | "files" | "backups" | "supervisor";
+
+export interface GateCheck {
+  verdict: "pass" | "typed" | "refuse";
+  kind: "read" | "write";
+  why?: string;
+}
+
+// null: no usable answer (missing, dead, slow, or malformed worker).
+export interface GateClient {
+  check(principal: Principal, endpoint: GateEndpoint, body: Buffer): Promise<GateCheck | null>;
+  redact(endpoint: GateEndpoint, request: Buffer, response: Buffer): Promise<Buffer | null>;
+}
+
+const APPROVAL_REQUIRED =
+  "Only a person may confirm this, on their phone or in Home Assistant. Update HA NOVA on this computer: ha-nova update";
+
+// prepare: the Relay's own parse and normalization, before the check, so what
+// is rated is what is sent; the handler then runs on exactly the rated bytes.
+export function gated(
+  endpoint: GateEndpoint,
+  handler: RouteHandler,
+  gate: GateClient,
+  prepare: (body: unknown) => unknown = (body) => body,
+): RouteHandler {
+  return async (context: RouteContext) => {
+    const { principal } = context;
+    if (principal === undefined) {
+      throw unavailable();
+    }
+    const bytes = Buffer.from(JSON.stringify(prepare(context.body) ?? null));
+    const send: RouteContext = { ...context, body: JSON.parse(bytes.toString("utf8")) as unknown };
+    if (principal.kind === "device" && principal.internal !== undefined) {
+      if (!isLoopback(principal.peer)) {
+        throw refused();
+      }
+      if (principal.internal === "chat-bridge") {
+        return await handler(send); // keeps its own asks and redaction (§5)
+      }
+      if (!(endpoint === "ws" && phoneAsk(send.body))) {
+        const check = await gate.check(principal, endpoint, bytes);
+        if (check === null) {
+          throw unavailable();
+        }
+        if (check.verdict !== "pass" || check.kind !== "read") {
+          throw refused(check.why);
+        }
+      }
+      return await handler(send); // the worker needs the action ids it sent: unredacted
+    }
+
+    const check = await gate.check(principal, endpoint, bytes);
+    if (check === null) {
+      throw unavailable();
+    }
+    if (check.verdict === "refuse") {
+      throw refused(check.why);
+    }
+    if (check.verdict === "typed") {
+      throw new HttpError(428, "GATE_APPROVAL_REQUIRED", APPROVAL_REQUIRED);
+    }
+
+    let status = 200;
+    let envelope: unknown;
+    try {
+      const data = await handler(send);
+      if (endpoint === "core" && (data as { body_encoding?: unknown } | null)?.body_encoding === "base64") {
+        return data; // a binary answer (camera frame): no JSON or text to redact
+      }
+      envelope = { ok: true, data: data ?? null };
+    } catch (error) {
+      if (!(error instanceof HttpError)) {
+        throw error; // answered as a bare 500
+      }
+      ({ status, body: envelope } = toErrorResponse(error));
+    }
+    const redacted = await gate.redact(endpoint, bytes, Buffer.from(JSON.stringify(envelope)));
+    if (redacted === null || !isJson(redacted)) {
+      throw new HttpError(
+        503,
+        "GATE_UNAVAILABLE",
+        "HA NOVA's safety check could not check Home Assistant's answer, so it is withheld. The request may have been carried out.",
+      );
+    }
+    context.response.statusCode = status;
+    context.response.setHeader("content-type", "application/json; charset=utf-8");
+    context.response.setHeader("content-length", redacted.byteLength);
+    context.response.end(redacted);
+    return undefined;
+  };
+}
+
+// The worker's own ask (§2, gate principal only): a notification to a phone,
+// and collecting the phone's answer.
+function phoneAsk(body: unknown): boolean {
+  if (!isObject(body)) {
+    return false;
+  }
+  if (body.type === "call_service") {
+    return body.domain === "notify" && typeof body.service === "string" && body.service.startsWith("mobile_app_");
+  }
+  const message = body.message;
+  return (
+    !("type" in body) &&
+    isObject(body.collect_events) &&
+    isObject(message) &&
+    Object.keys(message).length === 2 &&
+    message.type === "subscribe_events" &&
+    message.event_type === "mobile_app_notification_action"
+  );
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isJson(bytes: Buffer): boolean {
+  try {
+    JSON.parse(decodeUtf8Strict(bytes));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function unavailable(): HttpError {
+  return new HttpError(503, "GATE_UNAVAILABLE", "HA NOVA's safety check is not available, so nothing was sent. Try again in a minute; if it stays, restart the NOVA App.");
+}
+
+// why is the worker's reason id; anything else is left out of the answer.
+function refused(why?: string): HttpError {
+  const reason = why !== undefined && /^[a-z0-9_.-]{1,64}$/.test(why) ? ` (${why})` : "";
+  return new HttpError(403, "GATE_REFUSED", `HA NOVA's safety check refused this request${reason}; nothing was sent.`);
+}

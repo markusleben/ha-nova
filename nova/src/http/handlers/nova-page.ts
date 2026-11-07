@@ -4,6 +4,7 @@ import { ChatAppsError, type ChatApps, type ChatAppsStatus } from "../../runtime
 import { checkOwner, type HaAuthUser, type OwnerCheckResult } from "../../security/owner-check.js";
 import type { CsrfStore } from "../../security/csrf.js";
 import type { DeviceRegistry } from "../../security/device-registry.js";
+import { GATE_INSTALL_ID } from "../../security/pairing-metadata.js";
 import type { PairingV1Manager } from "../../security/pairing-v1.js";
 import type { RouteHandler } from "../router.js";
 import type { RelayLogger } from "../server.js";
@@ -115,7 +116,7 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
       userId: owner.userId,
       now: deps.now(),
       pairing: deps.pairing.getStatus(),
-      devices: deps.registry.list().filter((d) => d.deviceId !== bridgeDevice),
+      devices: deps.registry.list().filter((d) => d.deviceId !== bridgeDevice && d.clientInstallId !== GATE_INSTALL_ID),
       hasLegacy: deps.registry.hasLegacy(),
       registryCorrupt: deps.registryCorrupt?.() ?? false,
       connection: deps.connection(),

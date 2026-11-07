@@ -4,11 +4,12 @@ import { dirname } from "node:path";
 
 import type { FileAccessConfig } from "../config/file-access.js";
 import { createBackupsHandler } from "../http/handlers/backups.js";
-import { createCoreProxyHandler } from "../http/handlers/core-proxy.js";
+import { createCoreForwarder, parseCoreRequest } from "../http/handlers/core-proxy.js";
 import { createFilesHandler } from "../http/handlers/files.js";
 import { createHealthHandler } from "../http/handlers/health.js";
 import { createSupervisorProxyHandler } from "../http/handlers/supervisor-proxy.js";
 import { createWsProxyHandler } from "../http/handlers/ws-proxy.js";
+import { gated, type GateClient } from "../http/gate.js";
 import { applyServerTimeouts, type RelayLogger } from "../http/server.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 import type { HaWsClient } from "../ha/ws-client.js";
@@ -25,6 +26,7 @@ import { createPairingV1Manager } from "../security/pairing-v1.js";
 import { loadOrCreateTlsIdentity } from "../security/tls-identity.js";
 import { loadOrCreateRelayInstanceId } from "../storage/relay-instance.js";
 import { chatAppFilesPresent, createChatApps, type ChatApps } from "./chat-apps.js";
+import { createGateWorker, type GateWorker } from "./gate-worker.js";
 import { createIngressListener } from "./ingress-listener.js";
 import { clearLegacyOptions, importLegacyToken } from "./legacy-migration.js";
 import { ensureSidebarPanel } from "./sidebar-panel.js";
@@ -117,11 +119,13 @@ export async function buildAppMode(
     active.markLegacyMigrated();
     registryCorrupt = false;
     chatApps?.restartBridge(); // its credential went with the old registry
+    gate?.restart(); // so did the safety-check worker's
     input.logger.info?.(
       "Device registry reset by the owner; device pairing re-enabled",
     );
   };
   let chatApps: ChatApps | undefined;
+  let gate: GateWorker | undefined;
 
   const tls = await loadOrCreateTlsIdentity(dataDir);
 
@@ -219,7 +223,17 @@ export async function buildAppMode(
     });
   }
 
-  const functional = buildFunctionalHandlers(input, relayInstanceId, supervisorBase);
+  // The safety check fronts every device-facing handler on all three listeners.
+  gate = createGateWorker({
+    dataDir,
+    binary: "/opt/ha-nova/ha-nova",
+    securePort: SECURE_PORT,
+    spkiPin: tls.spkiPin,
+    registry,
+    now: input.now,
+    logger: input.logger,
+  });
+  const functional = buildFunctionalHandlers(input, relayInstanceId, supervisorBase, gate);
   const listenerDeps = {
     registry,
     pairingManager: pairing,
@@ -283,7 +297,8 @@ export async function buildAppMode(
         ingress: INGRESS_PORT,
         registry_corrupt: registryCorrupt,
       });
-      await chatApps?.boot(); // the bridge reaches the secure listener just started
+      gate?.start(); // the worker reaches the secure listener just started
+      await chatApps?.boot(); // so does the bridge
     },
   };
 }
@@ -292,7 +307,9 @@ function buildFunctionalHandlers(
   input: AppModeInput,
   relayInstanceId: string,
   supervisorBase: string | undefined,
+  gate: GateClient,
 ): FunctionalHandlers {
+  const forwardCore = createCoreForwarder({ coreClient: input.coreClient });
   return {
     health: createHealthHandler({
       version: input.relayVersion,
@@ -304,17 +321,14 @@ function buildFunctionalHandlers(
       now: input.now,
       logger: input.logger,
     }),
-    ws: createWsProxyHandler({ wsClient: input.wsClient }),
-    core: createCoreProxyHandler({ coreClient: input.coreClient }),
-    files: createFilesHandler({ fileAccess: input.fileAccess }),
-    backups: createBackupsHandler({
-      snapshotRoot: input.snapshotRoot,
-      now: input.now,
-    }),
-    supervisor: createSupervisorProxyHandler(
-      supervisorBase
-        ? { token: input.supervisorToken, base: supervisorBase }
-        : { token: input.supervisorToken },
+    ws: gated("ws", createWsProxyHandler({ wsClient: input.wsClient }), gate),
+    core: gated("core", async ({ body }) => await forwardCore(body as CoreProxyRequest), gate, parseCoreRequest),
+    files: gated("files", createFilesHandler({ fileAccess: input.fileAccess }), gate),
+    backups: gated("backups", createBackupsHandler({ snapshotRoot: input.snapshotRoot, now: input.now }), gate),
+    supervisor: gated(
+      "supervisor",
+      createSupervisorProxyHandler(supervisorBase ? { token: input.supervisorToken, base: supervisorBase } : { token: input.supervisorToken }),
+      gate,
     ),
   };
 }
