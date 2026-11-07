@@ -94,12 +94,12 @@ func (e *tierEngine) shoppingItemsListed(id string, data map[string]any) bool {
 		return false
 	}
 	seen := map[string]bool{}
-	for _, ref := range refs {
-		onList := slices.ContainsFunc(reply.Items, func(it listed) bool { return it.UID == ref || it.Summary == ref })
-		if ref == "" || seen[ref] || !onList {
+	for _, ref := range refs { // Home Assistant removes the first item a reference matches
+		at := slices.IndexFunc(reply.Items, func(it listed) bool { return it.UID == ref || it.Summary == ref })
+		if ref == "" || at < 0 || reply.Items[at].UID == "" || seen[reply.Items[at].UID] {
 			return false
 		}
-		seen[ref] = true
+		seen[reply.Items[at].UID] = true
 	}
 	return true
 }

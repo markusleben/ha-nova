@@ -5,6 +5,23 @@ import "testing"
 // Calmer confirmations item 7: removing up to 5 items, each on the
 // built-in shopping list as read now, runs at once; anything else keeps the
 // preview.
+// A listener that removes the same item again is a stored removal: it keeps
+// its preview, whatever the direct removal reached.
+func TestShoppingListListenerRemovingTheSameItemKeepsThePreview(t *testing.T) {
+	f := newFakeHA()
+	shoppingList(f, "Milk")
+	f.events = []map[string]any{{"event": "shopping_list_updated", "listener_count": 1}}
+	f.automation("again", "g2", map[string]any{
+		"triggers": []any{map[string]any{"trigger": "event", "event_type": "shopping_list_updated"}},
+		"actions": []any{map[string]any{"action": "todo.remove_item", "target": map[string]any{"entity_id": "todo.shopping_list"},
+			"data": map[string]any{"item": "Milk"}}},
+	})
+	_, env, _, _ := runPlanForTest(t, f, "todo.remove_item", "todo.shopping_list", "--skill", "ha-nova:todo", "--set", "item=Milk")
+	if env.Tier == "ordinary" {
+		t.Fatalf("%+v", env)
+	}
+}
+
 func TestShoppingListRemovalOfListedItemsRunsAtOnce(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -22,6 +39,7 @@ func TestShoppingListRemovalOfListedItemsRunsAtOnce(t *testing.T) {
 		{name: "more than five items", platform: "shopping_list", item: `["Milk","Eggs","Milk","Eggs","Milk","Eggs"]`, tier: "preview"},
 		{name: "a list that can't be read", platform: "shopping_list", item: "Milk", failList: true, tier: "preview"},
 		{name: "another to-do platform", platform: "local_todo", item: "Milk", tier: "preview"},
+		{name: "a uid and the name of the same item", platform: "shopping_list", item: `["79d4a1","Milk"]`, tier: "preview"},
 		{name: "a listener that unlocks keeps its code", platform: "shopping_list", item: "Milk", listener: true, tier: "typed"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

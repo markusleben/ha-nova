@@ -237,7 +237,7 @@ func (e *tierEngine) cut(depth int, id, via string) bool {
 func (e *tierEngine) visit(id, service string, data map[string]any, depth int, via string) {
 	payload, _ := json.Marshal(data)
 	key := id + " " + service + " " + string(payload)
-	if storedVolumeStep(service, depth) { // never the direct call's class: the level has moved by then
+	if storedVolumeStep(service, depth) || depth > 0 && service == "todo.remove_item" { // never the direct call's class: the level, or the list, has moved by then
 		key += " stored"
 	}
 	if domain, _ := splitID(id); domain == "automation" && isRun(domain, service) {
