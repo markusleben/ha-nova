@@ -48,6 +48,14 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 		}
 		env.Snapshot = file
 	}
+	var added snapshotSaveReceipt
+	if ctx.calm { // an ordinary update: its way back first, or nothing is sent
+		if added, err = addUndoSnapshot(paths, checkpointRecord(s, action, ctx, action.Body)); err != nil {
+			return &verbFailure{exit: verbExitError, code: "SNAPSHOT_FAILED",
+				message: fmt.Sprintf("the checkpoint to put it back could not be saved first (%s); nothing was sent", err),
+				next:    "Plan the change again; it will show a preview to confirm."}
+		}
+	}
 	var result serviceResult
 	sent = true
 	if action.Op == "delete" {
@@ -74,6 +82,8 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 	if failure := writeFailure(env, result, err, createdID); failure != nil && !alreadyGone {
 		if errors.As(err, &unknown) && update {
 			saveCheckpoint(paths, s, env, action, ctx, action.Body)
+		} else if ctx.calm {
+			_ = dropUndoSnapshot(paths, added) // nothing landed: no way back to a state that never changed
 		}
 		return failure
 	}
@@ -101,6 +111,10 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 			expected = action.Body
 		}
 		saveCheckpoint(paths, s, env, action, ctx, expected)
+		if ctx.calm && env.Undo != nil {
+			env.Undo.Action = added.Action // the same checkpoint, now with what Home Assistant saved
+			env.undoable = env.Status == "verified"
+		}
 	}
 	return nil
 }
@@ -108,13 +122,17 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 // saveCheckpoint puts an update (a revert is one too, as in update-revert.md)
 // on this server's undo stack: one step back to ctx.current.
 func saveCheckpoint(paths runtimePaths, s *relaySession, env *verbEnvelope, action configAction, ctx configContext, expectedAfter json.RawMessage) {
-	record, _ := json.Marshal(map[string]any{"op": "update", "domain": action.Domain, "target_id": action.ConfigID, "server": s.server,
-		"name": ctx.alias, "before_config": ctx.current, "expected_after": expectedAfter})
-	if receipt, err := saveUndoSnapshotBytes(paths, record); err == nil {
+	if receipt, err := saveUndoSnapshotBytes(paths, checkpointRecord(s, action, ctx, expectedAfter)); err == nil {
 		env.Undo = &receipt
 	} else {
 		env.Notices = append(env.Notices, verbNotice{Kind: "undo", Text: "the update is not revertible: " + err.Error()})
 	}
+}
+
+func checkpointRecord(s *relaySession, action configAction, ctx configContext, expectedAfter json.RawMessage) []byte {
+	record, _ := json.Marshal(map[string]any{"op": "update", "domain": action.Domain, "target_id": action.ConfigID, "server": s.server,
+		"name": ctx.alias, "before_config": ctx.current, "expected_after": expectedAfter})
+	return record
 }
 
 // writeFailure maps one config write's outcome like a service call's;

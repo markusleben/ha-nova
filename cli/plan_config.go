@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -76,6 +77,7 @@ type configAction struct {
 type configContext struct {
 	current json.RawMessage
 	alias   string
+	calm    bool // an ordinary update (calmUpdate): its checkpoint is saved before the write
 }
 
 func (req configRequest) validate() error {
@@ -363,6 +365,9 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 		}
 		after, _ := configObjectFromBytes(req.Draft)
 		ctx.alias, _ = after["alias"].(string)
+		if e.calmUpdate(paths, req, current) {
+			e.level, ctx.calm = tierOrdinary, true
+		}
 	}
 	plan := storedPlan{Kind: req.Op, ConfigRequest: &req, ConfigAction: &action, Basis: configPlanBasis(e, current, req.Draft)}
 	plan, err = sealPlan(e, env, plan, action)
@@ -448,6 +453,52 @@ func (e *tierEngine) classifyDraft(domain, configID string, draft, current json.
 		return
 	}
 	e.walk(steps, via, 1)
+}
+
+// calmUpdate: an update of an existing UI automation or script runs without
+// a preview (calmer-confirmations spec item 6) only when the write itself is
+// the one reason, the check is complete, nothing hidden is in its config, no
+// other automation or script calls it, and its checkpoint can be added
+// without replacing or evicting one. Any doubt, a failed read included,
+// keeps the preview; it never touches a typed plan.
+func (e *tierEngine) calmUpdate(paths runtimePaths, req configRequest, current json.RawMessage) bool {
+	if req.Op != "write" || req.Create || current == nil || (req.Domain != "automation" && req.Domain != "script") {
+		return false
+	}
+	if e.level != tierPreview || len(e.reasons) != 1 || e.reasons[0].Code != reasonConfigWrite || !e.complete ||
+		len(e.skipped) > 0 || len(e.lost) > 0 || slices.ContainsFunc(e.notes, func(n string) bool { return n != noteNoManager }) {
+		return false
+	}
+	if holdsHiddenValue(current) || holdsHiddenValue(req.Draft) {
+		return false
+	}
+	rows, err := e.fullRegistry()
+	if err != nil {
+		return false
+	}
+	entity := ""
+	for _, row := range rows {
+		if row.Platform == req.Domain && string(row.UniqueID) == req.ConfigID && strings.HasPrefix(row.EntityID, req.Domain+".") {
+			if entity != "" {
+				return false
+			}
+			entity = row.EntityID
+		}
+	}
+	if entity == "" {
+		return false
+	}
+	related, err := e.related("entity", entity)
+	if err != nil || related == nil {
+		return false
+	}
+	for _, key := range []string{"automation", "script"} {
+		if slices.ContainsFunc(related[key], func(id string) bool { return id != entity }) {
+			return false
+		}
+	}
+	stack, err := loadUndoSnapshotStack(paths)
+	return err == nil && checkpointFits(stack, e.s.server, req.Domain, req.ConfigID)
 }
 
 // referencedBy lists what references the item a delete removes.

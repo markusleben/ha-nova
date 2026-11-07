@@ -3,9 +3,11 @@ package main
 import (
 	"cmp"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -105,6 +107,45 @@ func redactUndoSnapshot(snap *undoSnapshot) {
 // saveUndoSnapshotForServer: a non-empty server (snapshot save --server)
 // tags an untagged record and refuses one tagged for another server.
 func saveUndoSnapshotForServer(paths runtimePaths, data []byte, server string) (snapshotSaveReceipt, error) {
+	return storeUndoSnapshot(paths, data, server, false)
+}
+
+// addUndoSnapshot saves a checkpoint only when it fits (checkpointFits):
+// an ordinary update's way back never costs another one.
+func addUndoSnapshot(paths runtimePaths, data []byte) (snapshotSaveReceipt, error) {
+	return storeUndoSnapshot(paths, data, "", true)
+}
+
+// checkpointFits: a new checkpoint for target replaces none (an untagged
+// one included) and pushes no other target off this server's stack.
+func checkpointFits(stack undoSnapshotStack, server, domain, target string) bool {
+	key, count := cmp.Or(server, defaultServerProfileName), 0
+	for _, existing := range stack.Snapshots {
+		if existing.Domain == domain && existing.TargetID == target && (existing.Server == server || existing.Server == "") {
+			return false
+		}
+		if cmp.Or(existing.Server, defaultServerProfileName) == key {
+			count++
+		}
+	}
+	return count < undoSnapshotStackLimit
+}
+
+// dropUndoSnapshot removes the checkpoint addUndoSnapshot saved for a write
+// that never landed.
+func dropUndoSnapshot(paths runtimePaths, saved snapshotSaveReceipt) error {
+	stack, err := loadUndoSnapshotStack(paths)
+	if err != nil {
+		return err
+	}
+	stack.SchemaVersion = undoSnapshotStackSchemaVersion
+	stack.Snapshots = slices.DeleteFunc(stack.Snapshots, func(s undoSnapshot) bool {
+		return s.Domain == saved.Domain && s.TargetID == saved.TargetID && s.SavedAt == saved.SavedAt
+	})
+	return writeJSONFile(undoSnapshotStackPath(paths), stack, 0o600)
+}
+
+func storeUndoSnapshot(paths runtimePaths, data []byte, server string, onlyAdd bool) (snapshotSaveReceipt, error) {
 	var snap undoSnapshot
 	if err := unmarshalStrictJSON(data, "snapshot payload", &snap); err != nil {
 		return snapshotSaveReceipt{}, err
@@ -129,6 +170,9 @@ func saveUndoSnapshotForServer(paths runtimePaths, data []byte, server string) (
 	stack, err := loadUndoSnapshotStack(paths)
 	if err != nil {
 		return snapshotSaveReceipt{}, err
+	}
+	if onlyAdd && !checkpointFits(stack, snap.Server, snap.Domain, snap.TargetID) {
+		return snapshotSaveReceipt{}, errors.New("it would replace this item's earlier checkpoint or push another one off the undo list")
 	}
 	action := "created"
 	kept := make([]undoSnapshot, 0, len(stack.Snapshots)+1)
