@@ -110,6 +110,9 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		if refusal == nil && gerr == nil {
 			refusal, gerr = helperUnchanged(s, item.Endpoint, payload, basis)
 		}
+		if refusal == nil && gerr == nil {
+			refusal, gerr = fileUnchanged(s, item.Endpoint, payload, basis)
+		}
 		switch {
 		case refusal != nil && !sent:
 			return &verbFailure{exit: verbExitRefused, code: "REFUSED", message: fmt.Sprintf("item %d: %s", i+1, refusal.Error()),
@@ -203,7 +206,7 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 // its .bak and is checked once more (skills/yaml-config/SKILL.md → Validate).
 // Writing the .bak back (backup false) takes no step of its own: no loop.
 const rawYAMLCheck = "A YAML file changed: check it now with ha-nova relay core --method POST --path /api/config/core/check_config. " +
-	"If it is invalid, reload nothing and tell the user; if its errors point at this file, put it back with ha-nova plan raw, payload backup false (write its .bak back; a new file has none: delete it), " +
+	"If it is invalid, reload nothing and tell the user; if its errors point at this file, put it back with ha-nova plan raw: a backups save of the file as it is now, then its .bak written back with payload backup false (a new file has none: delete it), " +
 	"then check once more: still invalid, tell the user and write nothing more."
 
 func countStatus(result rawApplyResult, status string) int {

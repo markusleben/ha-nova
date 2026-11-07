@@ -56,7 +56,7 @@ func rawRelay(t *testing.T, handlers map[string]func(map[string]any) any) (paths
 				if rawRelayRead(c.endpoint, []byte(c.body)) && !rawPlanOnlyRead(c.endpoint, body) {
 					continue
 				}
-			} else if body["action"] == "list" || body["action"] == "load" {
+			} else if body["action"] == "list" || body["action"] == "load" || body["action"] == "read_file" {
 				continue
 			}
 			keys = append(keys, rawKey(c.endpoint, body))
