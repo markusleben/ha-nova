@@ -40,6 +40,9 @@ func sayReason(lang string, e *tierEngine, env *verbEnvelope, plan storedPlan, r
 		domain, _ := splitID(r.EntityID)
 		return sayUnseen(lang, name, via, sayPlainDomains[domain]), true
 	}
+	if r.Code == reasonLimitCut && r.Detail == readBudgetDetail { // the call's deadline, not a gap in what HA NOVA can read
+		return confirmT(lang, "unseen.out_of_time"), true
+	}
 	if checkGapCodes[r.Code] {
 		return sayCheckGap(lang), true
 	}

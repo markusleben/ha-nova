@@ -184,15 +184,6 @@ func printUpdateDone(lead string, result postUpdateSyncResult) {
 	printHumanInfo("%s.", lead)
 }
 
-// openSetupPageForAppUpdate runs the NEW binary's `ha-nova setup`: its
-// re-run page leads with "Update the NOVA App", and nothing installs until
-// the owner clicks and signs in. Test seam.
-var openSetupPageForAppUpdate = func(paths runtimePaths) error {
-	cmd := exec.Command(paths.PublicBinary, "setup")
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	return cmd.Run()
-}
-
 // relayUpdateNoticeForUpdate: the App's state after the CLI update. Test seam.
 var relayUpdateNoticeForUpdate = relayUpdateNotice
 
@@ -201,39 +192,45 @@ func offerRelayUpdateAfterUpdate(paths runtimePaths) {
 	offerRelayUpdate(paths, relayUpdateNoticeForUpdate(paths))
 }
 
-// setupPageCanUpdateApp: `ha-nova setup` opens its page here, and the page's
-// owner sign-in can update the official App on this Home Assistant.
-func setupPageCanUpdateApp(paths runtimePaths) bool {
-	cfg, err := loadConfig(paths)
-	if err != nil {
-		return false
+// appOfferInNewBinaryAfter: versions after it ship internal-offer-app-update;
+// an update to it or an older version keeps the offer in this process.
+const appOfferInNewBinaryAfter = "0.28.2"
+
+// runNewBinaryAppOffer runs the App offer of the binary `ha-nova update` just
+// installed: this process may still be the old binary, whose offer predates
+// what the new version needs. Test seam.
+var runNewBinaryAppOffer = func(paths runtimePaths) error {
+	args := []string{"internal-offer-app-update"}
+	if serverSelectionOverride != "" { // the same server, still chosen by flag
+		args = append(args, "--server", serverSelectionOverride)
 	}
-	_, originErr := parseLocalHAOrigin(cfg.HAURL)
-	return originErr == nil && setupPageCloudOK(cfg) && haAppInstallTargetsThisHAForPage(cfg)
+	cmd := exec.Command(paths.PublicBinary, args...)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	return cmd.Run()
 }
 
-// offerRelayUpdate: an App below what this version needs, with its update
-// pending in Home Assistant, at a desktop: the setup page opens on its
-// "Update the NOVA App" button. In a terminal otherwise: the guided offer
-// (it asks first). Without a terminal (an AI app ran the command): only the
-// notice, which says where to update it. Nothing installs without the
-// user's click or yes.
+// offerRelayUpdateAfterInstall: the App half after `ha-nova update` installed
+// targetVersion. Only a new binary that didn't start leaves it to this one;
+// one that ran has made its offer, whatever its exit.
+func offerRelayUpdateAfterInstall(paths runtimePaths, targetVersion string) {
+	if cmp, err := compareReleaseVersions(targetVersion, appOfferInNewBinaryAfter); err == nil && cmp > 0 {
+		var exitErr *exec.ExitError
+		if err := runNewBinaryAppOffer(paths); err == nil || errors.As(err, &exitErr) {
+			return
+		}
+	}
+	offerRelayUpdateAfterUpdate(paths)
+}
+
+// offerRelayUpdate: an App update pending in Home Assistant gets the guided
+// offer in a terminal (it asks first, and sends only what the tier engine
+// allows). Without a terminal (an AI app ran the command): only the notice,
+// which says where to update it. Nothing installs without the user's yes.
 func offerRelayUpdate(paths runtimePaths, notice humanNotice) {
 	if notice.empty() {
 		return
 	}
 	printHumanNotice(notice)
-	if notice.belowFloor && serverSelectionOverride == "" &&
-		activeServerProfile() == defaultServerProfileName && setupPageCanUpdateApp(paths) && setupPageAvailable() {
-		printHumanInfo("Opening HA NOVA setup: click \"Update the NOVA App\" there.")
-		if err := openSetupPageForAppUpdate(paths); err == nil {
-			if relayUpdateNoticeForUpdate(paths).empty() {
-				return
-			}
-			printHumanInfo("Not updated yet. %s", relayAppUpdatePath) // closed without updating: where to do it later
-			return
-		}
-	}
 	if relayUpdateInputIsTTY() && relayUpdateOutputIsTTY() {
 		maybeOfferGuidedRelayUpdate(paths, notice) // says the manual path itself when it can't
 	} // else the notice already said where to update it

@@ -229,7 +229,7 @@ func TestGuidedRelayUpdateInstallsThroughTheRestartAndVerifies(t *testing.T) {
 	paths := guidedUpdatePaths(t)
 	shrinkGuidedUpdatePolling(t, time.Second)
 	var installed atomic.Bool
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(withTierReads(appUpdateHA(), func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/health":
 			version := "0.2.6"
@@ -306,7 +306,7 @@ func TestGuidedRelayUpdateInstallsThroughTheRestartAndVerifies(t *testing.T) {
 func TestGuidedRelayUpdatePollTimeoutStaysHonest(t *testing.T) {
 	paths := guidedUpdatePaths(t)
 	shrinkGuidedUpdatePolling(t, 20*time.Millisecond)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(withTierReads(appUpdateHA(), func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/health":
 			// The relay never comes back with a new version.
@@ -344,7 +344,7 @@ func TestGuidedRelayUpdatePollTimeoutStaysHonest(t *testing.T) {
 func TestGuidedRelayUpdateRejectedInstallSkipsTheWait(t *testing.T) {
 	paths := guidedUpdatePaths(t)
 	shrinkGuidedUpdatePolling(t, time.Second)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(withTierReads(appUpdateHA(), func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/health" {
 			t.Errorf("an explicit rejection must not start the health poll")
 			return
@@ -386,7 +386,7 @@ func TestGuidedRelayUpdateRelayTimeoutEnvelopeStillPolls(t *testing.T) {
 	paths := guidedUpdatePaths(t)
 	shrinkGuidedUpdatePolling(t, time.Second)
 	var installed atomic.Bool
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(withTierReads(appUpdateHA(), func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/health" {
 			version := "0.2.6"
 			if installed.Load() {
@@ -433,7 +433,7 @@ func TestGuidedRelayUpdateRejectsTargetVersionWhileEntityRemainsPending(t *testi
 	paths := guidedUpdatePaths(t)
 	shrinkGuidedUpdatePolling(t, 20*time.Millisecond)
 	var installed atomic.Bool
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(withTierReads(appUpdateHA(), func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/health":
 			version := "0.2.6"
@@ -480,7 +480,7 @@ func TestGuidedRelayUpdateRejectsSuccessfulInstallWithoutWSReadiness(t *testing.
 	paths := guidedUpdatePaths(t)
 	shrinkGuidedUpdatePolling(t, time.Second)
 	var installed atomic.Bool
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(withTierReads(appUpdateHA(), func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/health":
 			version := "0.2.6"

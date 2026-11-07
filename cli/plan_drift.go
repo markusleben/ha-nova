@@ -70,13 +70,15 @@ func basisConsumers(e *tierEngine, frozen []string) map[string]any {
 }
 
 // checkGapCodes: reasons that mean the check could not see everything the
-// plan sets off; the preview says one sentence for all of them.
+// plan sets off; the preview says one sentence for all of them, but a check
+// the call's deadline cut says it ran out of time.
 var checkGapCodes = map[string]bool{
 	reasonTemplatedAction: true, reasonUnresolvedTarget: true, reasonStoredSelector: true, reasonBlueprint: true,
 	reasonYAMLNoID: true, reasonUnreadConfig: true, reasonListener: true, reasonScanFailed: true, reasonLimitCut: true,
 }
 
-// sayCheckGap: the one sentence for every check gap.
+// sayCheckGap: the one sentence for every check gap but a check the call's
+// deadline cut, which says it ran out of time (sayReason).
 func sayCheckGap(lang string) string { return confirmT(lang, "unseen.all") }
 
 // cutShort: a read failed or ran out of budget, so how far a run got
@@ -226,8 +228,9 @@ func planActionOf(p storedPlan) any {
 	return p.ConfigAction
 }
 
-// sayKey: a reason as the preview words it; every check gap is the one
-// sentence (sayReason).
+// sayKey: a reason as the preview words it; every check gap is one key,
+// since whether a read got no answer or the deadline came first is timing
+// (sameAsConfirmed).
 func sayKey(r tierReason) string {
 	if checkGapCodes[r.Code] {
 		return "gap"

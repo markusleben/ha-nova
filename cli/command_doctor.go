@@ -208,12 +208,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 	} else {
 		doctorInfo("The NOVA App answers at %s", healthBase)
 		if notice := checkRelayVersion(paths, readiness.HealthBody); !notice.empty() {
-			// check-update's words ("No Update button yet?", a container's step)
-			if !usingCloud && !route.diagnosticOnly { // bounded, as the first-use check; Cloud keeps the floor words
-				if full := relayUpdateNoticeWithTimeout(paths, firstUseRelayNoticeTimeout); full.belowFloor || full.kind == humanNoticeKindRelayOutdated {
-					notice = full
-				}
-			}
+			notice = doctorFloorNotice(paths, notice, usingCloud, route.diagnosticOnly)
 			printHumanNotice(notice)
 			// --quiet is a machine/diagnostic contract: warning-only, never
 			// an interactive question that could block or trigger a restart.

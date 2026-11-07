@@ -657,3 +657,13 @@ counts only those, not ad hoc checks or corrections.
   (#984) and #989 (#985).
 - Next screen: before the next release cycle, or on HA 2026.11.1 or
   2026.12.0, whichever comes first.
+## 2026-11-06 — pre-release screen (v0.28.3 cycle): HA after 2026.11.0 + developer blog after 2026-11-01 + HACS
+
+- Window screened: Core releases after `2026.11.0` (none; `2026.11.0` of
+  2026-11-04 is still the latest); contributors.home-assistant.io/blog after
+  2026-11-01 (none; the newest post is still "Undefined sentinel changes" of
+  2026-11-01); home-assistant.io/blog after the 2026.11 release post (none);
+  HACS releases and tags after 2.0.5 (none).
+- Clean pass: nothing upstream changed since the v0.28.2-cycle screen above.
+- Next screen: before the next release cycle, or on HA 2026.11.1 or
+  2026.12.0, whichever comes first.

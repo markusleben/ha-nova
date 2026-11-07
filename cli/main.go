@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 )
 
 // Version is set by goreleaser via ldflags.
@@ -41,6 +42,8 @@ func main() {
 	configureCloudRemoteFeature(paths)
 
 	argv0 := filepath.Base(os.Args[0])
+	commandStart = time.Now()
+	checkDeadline = commandStart.Add(cliCheckBudget)
 	exitCode := dispatch(paths, argv0, os.Args[1:])
 	os.Exit(exitCode)
 }
@@ -148,6 +151,13 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return runInternalUninstall(paths, args[1:])
 	case "internal-sync-clients":
 		return runInternalSyncClients(paths, args[1:])
+	case "internal-offer-app-update": // `ha-nova update` runs the new version's App offer here
+		if rest, err := takeServerArg(args[1:]); err != nil || len(rest) > 0 {
+			printErr("internal-offer-app-update accepts only --server <name>")
+			return 1
+		}
+		offerRelayUpdateAfterUpdate(paths)
+		return 0
 	case "internal-setup-readiness":
 		return runInternalSetupReadiness(paths, args[1:])
 	case "internal-cloud-release-check":

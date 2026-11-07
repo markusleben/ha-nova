@@ -111,6 +111,7 @@ func TestRelayUpdateNoticeClassifiesBelowFloorAppBeforeOfferingGuidedUpdate(t *t
 		wantText   string
 		rejectText string
 		wantPage   bool // below the floor with a pending App update: the setup page may update it
+		wantCheck  bool // the App's entity shows no update yet: doctor checks Home Assistant first
 	}{
 		{
 			name: "exact pending App update",
@@ -133,8 +134,9 @@ func TestRelayUpdateNoticeClassifiesBelowFloorAppBeforeOfferingGuidedUpdate(t *t
 			name:       "registry proves current App even without pending update",
 			states:     []map[string]interface{}{currentApp},
 			wantKind:   humanNoticeKindRelayOutdated,
-			wantText:   "No Update button yet? In Settings > Apps, check for updates first.",
+			wantText:   "No Update button yet? In Home Assistant: Settings → ⋮ (top right) → Check for updates first.",
 			rejectText: relayContainerUpdateLine,
+			wantCheck:  true,
 		},
 	}
 
@@ -188,8 +190,8 @@ func TestRelayUpdateNoticeClassifiesBelowFloorAppBeforeOfferingGuidedUpdate(t *t
 			if strings.Contains(notice.message, tc.rejectText) {
 				t.Fatalf("notice must not contain %q: %s", tc.rejectText, notice.message)
 			}
-			if notice.belowFloor != tc.wantPage || notice.appUpdate != tc.wantPage {
-				t.Fatalf("belowFloor=%v appUpdate=%v, want %v", notice.belowFloor, notice.appUpdate, tc.wantPage)
+			if notice.belowFloor != tc.wantPage || notice.appUpdate != tc.wantPage || notice.appCheck != tc.wantCheck {
+				t.Fatalf("belowFloor=%v appUpdate=%v appCheck=%v, want %v/%v/%v", notice.belowFloor, notice.appUpdate, notice.appCheck, tc.wantPage, tc.wantPage, tc.wantCheck)
 			}
 		})
 	}
@@ -200,7 +202,7 @@ func TestGuidedRelayUpdateWaitsForOfferedAboveFloorVersion(t *testing.T) {
 	shrinkGuidedUpdatePolling(t, time.Second)
 	var installed atomic.Bool
 	var healthPolls atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(withTierReads(appUpdateHA(), func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/health":
 			poll := healthPolls.Add(1)
@@ -423,7 +425,7 @@ func TestRunDoctorBelowFloorUsesCheckUpdateWords(t *testing.T) {
 
 	exitCode, output := captureCommandOutput(t, func() int { return runDoctor(paths, []string{"--quiet"}) })
 	want := "[ha-nova] The NOVA App in Home Assistant needs an update: it has 0.3.0, HA NOVA needs 0.4.0 or newer. " +
-		relayAppUpdatePath + " No Update button yet? In Settings > Apps, check for updates first."
+		relayAppUpdatePath + " No Update button yet? In Home Assistant: Settings → ⋮ (top right) → Check for updates first."
 	if exitCode != 1 || !strings.Contains(output, want) || !strings.Contains(output, "To fix: update the NOVA App (see above).") {
 		t.Fatalf("exit %d, want 1 and %q:\n%s", exitCode, want, output)
 	}
