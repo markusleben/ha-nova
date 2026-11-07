@@ -136,9 +136,14 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		default:
 			return stop(i, "not_sent", "its helper could not be read before the change, so no undo could be saved")
 		}
+		namesUndo, err := saveNamesUndo(paths, s, env, items)
+		if err != nil {
+			return err
+		}
 		sent = true
 		data, werr := s.sendWrite(item.Endpoint, body)
 		status, why := rawSent(item.Endpoint, body, data, werr)
+		settleNamesUndo(paths, s, env, namesUndo, status)
 		if status != "done" && snapshot {
 			next := "Tell the user there is no copy. They choose: prune the snapshot store, take a full backup (ha-nova:backup), or go on without a copy: then apply again with --no-snapshot."
 			code := "SNAPSHOT_FAILED"
@@ -184,9 +189,15 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 	if countStatus(result, "skipped") > 0 || withoutUndo {
 		env.Say += " No copy or undo was saved, as you chose."
 	}
+	if env.undoable {
+		env.Say += " You can put it back with “undo”."
+	}
 	env.NextStep = "Tell the user what each item's response says where it matters (result.items[].response: a setup flow's next form, a created id). A further step is a new plan."
 	if len(handoffs) > 0 {
 		env.NextStep = handoff()
+	}
+	if env.undoable {
+		env.NextStep += fmt.Sprintf(" If they say “undo”: ha-nova plan revert --target %s.", env.Undo.TargetID)
 	}
 	for _, item := range items {
 		payload, _ := decodeObject(item.Payload)

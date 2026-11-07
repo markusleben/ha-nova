@@ -15,7 +15,7 @@ func replaceRelay(t *testing.T, extra map[string]func(map[string]any) any) (path
 	t.Helper()
 	var mu sync.Mutex
 	items := map[string]map[string]any{
-		"entity":   {"entity_id": "sensor.desk_power", "name": nil, "aliases": []any{"Desk", "Lamp"}, "labels": []any{"work"}, "options": map[string]any{"sensor": map[string]any{"display_precision": 1, "unit_of_measurement": "W"}}},
+		"entity":   {"id": "e-desk", "entity_id": "sensor.desk_power", "name": nil, "aliases": []any{"Desk", "Lamp"}, "labels": []any{"work"}, "options": map[string]any{"sensor": map[string]any{"display_precision": 1, "unit_of_measurement": "W"}}},
 		"device":   {"id": "dlamp", "name": "Lamp", "labels": []any{"work"}},
 		"area":     {"area_id": "office", "name": "Office", "aliases": []any{"Study"}, "labels": []any{"work"}},
 		"floor":    {"floor_id": "upstairs", "name": "Upstairs", "aliases": []any{"Up"}},
@@ -42,7 +42,7 @@ func replaceRelay(t *testing.T, extra map[string]func(map[string]any) any) (path
 }
 
 const (
-	entityCopy   = `{"endpoint":"backups","payload":{"action":"save","category":"metadata","name":"auto-sensor-desk-power","data":{"entity_id":"sensor.desk_power","name":null,"aliases":["Desk","Lamp"],"labels":["work"],"options":{"sensor":{"display_precision":1,"unit_of_measurement":"W"}}}}}`
+	entityCopy   = `{"endpoint":"backups","payload":{"action":"save","category":"metadata","name":"auto-sensor-desk-power","data":{"id":"e-desk","entity_id":"sensor.desk_power","name":null,"aliases":["Desk","Lamp"],"labels":["work"],"options":{"sensor":{"display_precision":1,"unit_of_measurement":"W"}}}}}`
 	areaCopy     = `{"endpoint":"backups","payload":{"action":"save","category":"metadata","name":"auto-office","data":{"area_id":"office","name":"Office","aliases":["Study"],"labels":["work"]}}}`
 	areaKeepsAll = `{"endpoint":"ws","payload":{"type":"config/area_registry/update","area_id":"office","aliases":[" Study ","Den"],"labels":["work"]}}`
 )

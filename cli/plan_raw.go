@@ -215,6 +215,9 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 		}
 		result.Items = append(result.Items, entry)
 	}
+	if e.calmNames(n, items) {
+		e.level, result.Items[0].Tier = tierOrdinary, tierOrdinary.String()
+	}
 	for _, removes := range n.removing {
 		if removes == "unreadable" {
 			return nil, storedPlan{}, errors.New("cannot read the device and entity registries to tell what deleting the device removes, so nothing was planned or sent; try again")
