@@ -142,16 +142,15 @@ func autoName(id string) string {
 
 // relayKept is kept for ha-nova relay core|ws, after the shared guard
 // (ha_read sends no write): one request, so no copy comes first, and a
-// scene save or helper update that drops what the live one holds is refused
-// with the plan that keeps a copy. A ws body is checked as the Relay may
-// send it: itself, and a collect_events envelope's message.
+// scene save or guarded update (rawReplaced) that drops what the live one
+// holds is refused with the plan that keeps a copy. A ws body is checked as
+// the Relay may send it: itself, and a collect_events envelope's message.
 func relayKept(paths runtimePaths, opts verbOptions, endpoint string, body []byte) (refusal, err error) {
 	payload, _ := decodeObject(body)
 	message, _ := payload["message"].(map[string]any)
 	var requests []map[string]any
 	for _, request := range []map[string]any{payload, message} {
-		collection, _ := rawHelperUpdate(endpoint, request)
-		if _, helper := rawHelperLists[collection]; helper || endpoint == "core" && rawSceneSave(request) != "" {
+		if _, _, _, guarded := rawReplaceTarget(endpoint, request); guarded || endpoint == "core" && rawSceneSave(request) != "" {
 			requests = append(requests, request)
 		}
 	}
@@ -163,11 +162,14 @@ func relayKept(paths runtimePaths, opts verbOptions, endpoint string, body []byt
 		return nil, err
 	}
 	defer s.close()
-	what := "helper update"
-	if endpoint == "core" {
-		what = "scene save"
-	}
 	for _, request := range requests {
+		what, _ := request["type"].(string)
+		if collection, _ := rawHelperUpdate(endpoint, request); collection != "" {
+			what = "helper update"
+		}
+		if endpoint == "core" {
+			what = "scene save"
+		}
 		refusal, err = newRawNamer(s, nil).kept(nil, endpoint, request)
 		var drop rawDrop
 		if errors.As(refusal, &drop) { // the relay prints the error alone
@@ -236,7 +238,7 @@ func (n *rawNamer) sceneNote(lang string, payload map[string]any) string {
 	return confirmT(lang, "raw.scene_drops", "members", sayList(lang, names))
 }
 
-// copyNeeded: what a scene save or helper update in items removes that
+// copyNeeded: what a scene save or guarded update in items removes that
 // only one of the leading copies keeps (kept without them), so apply never
 // goes on without it; one that can't be read counts. "" when none does.
 func copyNeeded(s *relaySession, items []rawRequest) (removes string) {
@@ -244,8 +246,8 @@ func copyNeeded(s *relaySession, items []rawRequest) (removes string) {
 	for i, item := range kept {
 		payload, _ := decodeObject(item.Payload)
 		if refusal, err := n.kept(kept[:i], item.Endpoint, payload); refusal != nil || err != nil {
-			collection, _ := rawHelperUpdate(item.Endpoint, payload)
-			return cmp.Or(rawHelperLists[collection].removes, "members from a scene")
+			guard, _, _, _ := rawReplaceTarget(item.Endpoint, payload)
+			return cmp.Or(guard.removes, "members from a scene")
 		}
 	}
 	return ""

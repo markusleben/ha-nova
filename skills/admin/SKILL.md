@@ -35,7 +35,7 @@ If this fails: `ha-nova setup`
 
 1. **Persons**: WS `person/list` -> `person/create` / `person/update` / `person/delete`.
    - a person links `device_trackers` (which follow them) and optionally a `user_id` (their login)
-   - update resends every mutable field (read first: without `device_trackers` Home Assistant empties them, and relay refuses that), addressed by `person_id` — never put `id` in the body, Home Assistant rejects it. Zone and tag updates work the same way (`zone_id` / `tag_id`).
+   - update resends every mutable field (read first: without `device_trackers` Home Assistant empties them; dropping one needs a `persons` copy first), addressed by `person_id` — never put `id` in the body, Home Assistant rejects it. Zone and tag updates work the same way (`zone_id` / `tag_id`).
 2. **Zones**: WS `zone/list` -> `zone/create` / `zone/update` / `zone/delete`.
    - a zone is `name`, `latitude`, `longitude`, `radius` (metres), `icon`, `passive`
    - **Zones are presence infrastructure.** Changing a radius or deleting a zone silently changes when every presence automation fires. Before any zone change, run WS `search/related` with `{"item_type":"entity","item_id":"zone.<id>"}` (there is no `zone` item type) and name the automations that depend on it — as an advisory, in the preview.

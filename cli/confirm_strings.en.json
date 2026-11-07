@@ -212,6 +212,7 @@
   "raw.scene_drops": "Removes {members} from the scene.",
   "raw.options_drops": "Removes {options} from the dropdown helper.",
   "raw.schedule_drops": "Removes {blocks} from the schedule.",
+  "raw.omits": "Removes {items}.",
   "raw.schedule_block": "{day} {from}–{to}",
   "raw.schedule_block_data": "the data of {day} {from}–{to}",
   "raw.day.monday": "Monday",

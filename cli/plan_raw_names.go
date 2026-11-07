@@ -32,8 +32,8 @@ type rawNamer struct {
 	coverClasses map[string]string // one raw item's cover classes, read once for both passes (capableOnce)
 	registryMemo *rawRegistries    // one raw item's registries, read once for both passes (registries)
 
-	helpers     map[string]any          // "<collection>/<id>" → the live helper an update replaces (helperKept)
-	helperDrops map[string][]helperDrop // "<collection>/<id>" → what its update removes after a copy (helperKept)
+	helpers     map[string]any          // "<type without /update>/<id>" → the live item a guarded update replaces (helperKept)
+	helperDrops map[string][]helperDrop // the same key → what its update removes after a copy (helperKept)
 
 	calendars       map[string]any // `<entity> "<uid>" "<recurrence_id>"` → the event an update is tiered on, or "unreadable" (calendarLive)
 	calendarUpdates []string       // "<entity> <uid>" of each calendar update so far (calendarShortens)

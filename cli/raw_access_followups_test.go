@@ -198,6 +198,9 @@ func TestRawAreaLabelOrFloorOnAccessAreaIsTyped(t *testing.T) {
 				map[string]any{"entity_id": "light.kitchen", "device_id": "dlamp"}, map[string]any{"entity_id": "light.led", "device_id": "dled"}}
 		},
 		"config/device_registry/list": func(map[string]any) any { return devices },
+		"config/area_registry/list": func(map[string]any) any { // each area a labels update reads (helperKept)
+			return []any{map[string]any{"area_id": "porch"}, map[string]any{"area_id": "yard"}, map[string]any{"area_id": "garden"}, map[string]any{"area_id": "kitchen"}}
+		},
 	})
 	tiers := map[string]string{
 		`{"type":"config/area_registry/update","area_id":"porch","labels":["outside"]}`:                    "typed",
@@ -238,6 +241,7 @@ func TestRawAreaCheckReadsEachCoverOnce(t *testing.T) {
 			return []any{map[string]any{"id": "dshutter", "area_id": "living"}}
 		},
 		"config/entity_registry/list": func(map[string]any) any { return rows },
+		"config/area_registry/list":   func(map[string]any) any { return []any{map[string]any{"area_id": "living"}} }, // the area a labels update reads (helperKept)
 	}
 	for i := range 4 {
 		id := fmt.Sprintf("cover.blind_%d", i)
