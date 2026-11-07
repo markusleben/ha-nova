@@ -129,6 +129,8 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return runMCPCommand(paths, args[1:])
 	case "serve":
 		return runServeCommand(paths, args[1:])
+	case "gate":
+		return runGateCommand(paths, args[1:])
 	case "chat-apps":
 		return runChatAppsCommand(paths, args[1:])
 	case "trace":
