@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # One shard of a Go test run in CI (.github/workflows/ci.yml). Lists the tests
-# of every package in cli/ that match <list-regexp>, deals them round-robin
-# over <total> shards, and runs shard <index> (0-based). Before anything runs
+# of every package in cli/ that match <list-regexp>, deals them over <total>
+# shards by the durations in .github/go-test-durations.txt, and runs shard
+# <index> (0-based). Before anything runs
 # it proves the split: given to go test -list, each shard's -run pattern must
 # select exactly its own tests, and together the shards must hold every listed
 # test exactly once, package-qualified. Anything else fails the shard.
@@ -19,7 +20,9 @@ fi
 index=$1 total=$2 pattern=$3
 shift 3
 flags=("$@")
-cd "$(dirname "${BASH_SOURCE[0]}")/../../cli"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+durations="$root/.github/go-test-durations.txt"
+cd "$root/cli"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 export LC_ALL=C
@@ -47,8 +50,25 @@ if ((count < total)); then
   exit 1
 fi
 
+# Longest test first, each to the shard with the least time so far (ties: by
+# name, then the lowest shard), so every shard computes the same split.
+awk 'FNR == NR {
+    if (/^#/ || NF == 0) next
+    if (NF != 3 || $3 !~ /^[0-9]+(\.[0-9]+)?$/) { print "go-test-shard: bad line in go-test-durations.txt: " $0 > "/dev/stderr"; exit 1 }
+    seconds[$1 " " $2] = $3
+    next
+  }
+  { key = $1 " " $2; print (key in seconds ? seconds[key] : 0.1), $1, $2 }' "$durations" "$work/all" |
+  sort -k1,1gr -k2,3 |
+  awk -v total="$total" '{
+    best = 0
+    for (s = 1; s < total; s++) if (load[s] < load[best]) best = s
+    load[best] += $1
+    print best, $2, $3
+  }' >"$work/dealt"
+
 for ((shard = 0; shard < total; shard++)); do
-  awk -v shard="$shard" -v total="$total" '(NR - 1) % total == shard' "$work/all" >"$work/shard-$shard"
+  awk -v shard="$shard" '$1 == shard { print $2, $3 }' "$work/dealt" >"$work/shard-$shard"
   # One anchored alternation per package: ^(TestA|TestB)$.
   awk '{ names[$1] = ($1 in names ? names[$1] "|" : "") $2 }
     END { for (pkg in names) print pkg, "^(" names[pkg] ")$" }' "$work/shard-$shard" >"$work/run-$shard"
