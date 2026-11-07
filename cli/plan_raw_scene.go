@@ -137,7 +137,7 @@ func hiddenRemoval(live any, removal string) error {
 // → Capture), within the store's 64 characters.
 func autoName(id string) string {
 	slug := strings.Trim(rawSlugGaps.ReplaceAllString(strings.ToLower(id), "-"), "-")
-	return "auto-" + strings.Trim(slug[:min(len(slug), 59)], "-")
+	return strings.ReplaceAll("auto-"+strings.Trim(slug[:min(len(slug), 59)], "-"), `"`, "") // a slug holds no quote; said so for the hints that quote it
 }
 
 // relayKept is kept for ha-nova relay core|ws, after the shared guard

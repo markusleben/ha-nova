@@ -280,7 +280,7 @@ Match user intent to exactly one skill:
 | arm/disarm/trigger an alarm panel; lock/unlock/open a lock | `ha-nova:service-call` |
 | find entities by name, room, area | `ha-nova:entity-discovery` |
 | fix relay/auth/connectivity errors | `ha-nova:onboarding` |
-| undo, revert, or restore the last automation/script/helper/dashboard change | the skill that wrote it — `ha-nova:write` (automation/script), `ha-nova:helper` (helper), or `ha-nova:dashboard`. `revert` applies only to verified updates. Creates clean up through the normal delete flow; a DELETED automation/script/scene/dashboard/STORAGE helper restores from its auto config snapshot in the owning skill (`../ha-nova/config-snapshots.md`); config-entry helpers are not snapshot-covered — their recovery stays Backup/recreate. Run `ha-nova snapshot show` to see the saved update target if unsure |
+| undo, revert, or restore the last automation/script/helper/dashboard change or rename | the skill that wrote it — `ha-nova:write` (automation/script), `ha-nova:helper` (helper), `ha-nova:organize` (rename), or `ha-nova:dashboard`. `revert` applies only to verified updates. Creates clean up through the delete flow; a DELETED automation/script/scene/dashboard/STORAGE helper restores from its auto config snapshot in the owning skill (`../ha-nova/config-snapshots.md`); config-entry helpers are not snapshot-covered — their recovery stays Backup/recreate. Run `ha-nova snapshot show` to see the saved update target if unsure |
 | "what can you do (here)?" — the capability question | `ha-nova` (this context skill); answer per `../ha-nova/capability-answer.md`, grounded in this home |
 | "show me my home", "where is X used?", audit or document the whole home, first look | `ha-nova:home-map` |
 | "can I break something?", "is this safe?" | `ha-nova` (this context skill); Safety Story in `../ha-nova/capability-answer.md` |
@@ -300,7 +300,7 @@ Match user intent to exactly one skill:
 **"Create an automation"** → `ha-nova:write` (NOT read + write)
 **"Create an input_boolean"** → `ha-nova:helper` (NOT write)
 **"Show my helpers"** → `ha-nova:helper` (NOT read)
-**"Revert that"** / **"Undo the last change"** → re-invoke the skill that made it (`ha-nova:write` or `ha-nova:helper`; the undo row above), never `ha-nova:fallback`.
+**"Revert that"** / **"Undo the last change"** → re-invoke the skill that made it (the undo row above), never `ha-nova:fallback`.
 **"Delete these obsolete config snapshots"** → `ha-nova` context skill using `config-snapshots.md`; exact multi-file cleanup may use its declared `config-snapshots` batch family.
 **"Do the same for the kitchen"** (right after a verified AUTOMATION create) → `ha-nova:write`, replicate-across-rooms pattern (`../ha-nova/automation-patterns.md`) — resolve the kitchen's OWN entities, never copy entity ids; after any other operation (updates, deletes, failed verifications included), treat it as a fresh request to the owning skill
 **"Create a scene called Movie Night"** → `ha-nova:scene`

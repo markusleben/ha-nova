@@ -165,8 +165,10 @@ func runPlanConfig(paths runtimePaths, op string, args []string) int {
 		return verbUsageError("plan", err)
 	}
 	return runReadVerb(paths, "plan", opts, func(s *relaySession, env *verbEnvelope) error {
-		if req.Op == "revert" && req.ConfigID != "" { // a named rooms record reverts as a rooms plan (plan_rooms.go)
-			if snap, err := selectServerUndoSnapshot(paths, s.server, req.ConfigID, req.Domain); err == nil && snap.Op == "rooms" {
+		if req.Op == "revert" { // a named rooms record reverts as a rooms plan (plan_rooms.go), a rename's as a raw plan (plan_raw_names_undo.go)
+			if snap, err := selectServerUndoSnapshot(paths, s.server, req.ConfigID, req.Domain); err == nil && snap.Op == namesUndoOp {
+				return planNamesUndo(paths, s, env, snap)
+			} else if err == nil && snap.Op == "rooms" && req.ConfigID != "" {
 				return planRoomsUndo(paths, s, env, snap)
 			}
 		}
