@@ -104,8 +104,8 @@ func (n *rawNamer) fileKept(earlier []rawRequest, payload map[string]any) (refus
 	}
 	return rawDrop{
 		message: removal + ", with no copy of it saved first",
-		hint: fmt.Sprintf(`A write replaces the whole file, and the Relay's .bak keeps only one step. Plan it with a backups save of the file first (ha-nova plan raw): {"endpoint":"backups","payload":{"action":"save","category":"yaml","name":"%s","data":{"path":%s,"content":<its content from files read_file, unchanged>}}}; load the yaml-config skill for the flow.`,
-			autoName(key), jsonText(file)),
+		hint: fmt.Sprintf(`A write replaces the whole file, and the Relay's .bak keeps only one step. Plan it with a backups save of the file first (ha-nova plan raw): {"endpoint":"backups","payload":{"action":"save","category":"yaml","name":%s,"data":{"path":%s,"content":<its content from files read_file, unchanged>}}}; load the yaml-config skill for the flow.`,
+			jsonText(autoName(key)), jsonText(file)),
 	}, nil
 }
 
