@@ -160,3 +160,17 @@ func TestGateRelayFile(t *testing.T) {
 		t.Errorf("a non-loopback listen: exit %d", exit)
 	}
 }
+
+// A camera whose picture holds its token, but no access_token attribute:
+// a template that prints it is withheld too; so is any template answer when
+// the states read back no list.
+func TestGateWorkerTemplatePictureToken(t *testing.T) {
+	f := newFakeHA()
+	f.ent("image.door", "demo", "idle", map[string]any{"entity_picture": "/api/image_proxy/image.door?token=pic-0123456789abcdef"})
+	paths, _ := setupVerbRelayTest(t, f.reply)
+	post := gateTestServer(t, paths)
+	status, _ := post("/redact", gateTestSecret, map[string]any{"endpoint": "core", "request_b64": b64(`{"method":"POST","path":"/api/template","body":{"template":"x"}}`), "response_b64": b64(`{"ok":true,"data":{"status":200,"body":"pic-0123456789abcdef"}}`)})
+	if status != http.StatusServiceUnavailable {
+		t.Errorf("template with a picture token: HTTP %d, want withheld", status)
+	}
+}

@@ -35,6 +35,8 @@ var gateCheckBudget = 15 * time.Second
 
 const gateBodyLimit = 96 << 20 // a base64 answer of the largest registry list
 
+var gatePictureToken = regexp.MustCompile(`[?&]token=([^&#]+)`)
+
 var gateRelayToken = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`) // the standalone Relay's token for its worker (start.ts)
 
 func runGateCommand(paths runtimePaths, args []string) int {
@@ -58,6 +60,7 @@ func runGateCommand(paths runtimePaths, args []string) int {
 	default:
 		bridgeRelay, err = loadGateRelay(relayFile)
 	}
+	checkDeadline = time.Time{} // each check has its own budget (gateCheckBudget), never one from the worker's start
 	var secret [32]byte
 	if err == nil {
 		secret, err = readServeSecret(secretFile, "gate secret")
@@ -234,19 +237,32 @@ func gateAccessTokens(paths runtimePaths) ([]string, error) {
 	var states []struct {
 		EntityID   string `json:"entity_id"`
 		Attributes struct {
-			AccessToken string `json:"access_token"`
+			AccessToken   string `json:"access_token"`
+			EntityPicture string `json:"entity_picture"`
 		} `json:"attributes"`
 	}
 	if err == nil {
 		err = json.Unmarshal(core.Data.Body, &states)
+	}
+	if err == nil && states == nil { // no list is a failed read, not a home without cameras
+		err = errors.New("the states are not a list")
 	}
 	if err != nil {
 		return nil, err
 	}
 	var tokens []string
 	for _, st := range states {
-		if token := st.Attributes.AccessToken; len(token) >= 16 && (strings.HasPrefix(st.EntityID, "camera.") || strings.HasPrefix(st.EntityID, "image.")) {
-			tokens = append(tokens, token)
+		if !strings.HasPrefix(st.EntityID, "camera.") && !strings.HasPrefix(st.EntityID, "image.") {
+			continue
+		}
+		var pictureToken string
+		if m := gatePictureToken.FindStringSubmatch(st.Attributes.EntityPicture); m != nil {
+			pictureToken = m[1]
+		}
+		for _, token := range []string{st.Attributes.AccessToken, pictureToken} { // the picture's token opens it as well
+			if len(token) >= 16 {
+				tokens = append(tokens, token)
+			}
 		}
 	}
 	return tokens, nil
