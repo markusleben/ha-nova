@@ -69,7 +69,7 @@ release:
     ```
 
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`; if it reports that it needs admin rights, rerun the stable Windows install command instead.
-    {{ else }}**Update the NOVA App to 0.13.22.** It brings the fixes below to Claude and ChatGPT, and HA NOVA on your computer asks for it too.
+    {{ else }}**Update the NOVA App to 0.13.23.** It brings the fixes below to Claude and ChatGPT, and HA NOVA on your computer asks for it too.
 
     - In Home Assistant: Settings > Apps > NOVA Relay > Update.
     - No Update button yet? In Home Assistant: Settings > ⋮ (top right) > Check for updates. Or, at home, run `ha-nova doctor`: it does that for you and offers the update.
@@ -86,7 +86,8 @@ release:
     - **`ha-nova doctor` finds a new NOVA App right away.** It asks Home Assistant to look, instead of waiting up to 3 hours. If something reacts to that, it gives the steps instead. `ha-nova update` does the same from now on.
     - **To-do changes no longer show an internal code.** The list of changes in the preview still showed the item's code next to its name.
     - **After you create or change an automation or script, HA NOVA offers a test preview in one line.** Say yes to see what would switch before anything runs.
-    - **On big homes, checking a change to an automation finishes much sooner.** A large routine over Home Assistant Link now takes less than half as long, so chat apps run out of time far less often.
+    - **On big homes, checking a change to an automation finishes much sooner.** HA NOVA reads your other automations the way Home Assistant runs them, so a big check over Home Assistant Link takes far less time.
+    - **An automation built from a blueprint is now checked with its own extra actions.** If it adds one, such as unlocking a door, HA NOVA asks for the confirmation that action needs.
     - **Confirmations stay in your language when a check runs out of time.** A big check that ran out of time could ask in English, in the window and on your phone too.
     - **Confirming no longer waits past the promised time.** On a slow connection the window or phone could ask only after a long recheck. Now the ask ends in time, and nothing changes without your answer.
     - **`ha-nova doctor` over Home Assistant Link names the Check for updates step.** Before, it only pointed to the Update button, which appears only once Home Assistant has looked.

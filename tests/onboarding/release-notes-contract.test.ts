@@ -53,7 +53,7 @@ describe("release notes contract", () => {
     expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Setup no longer updates an installed NOVA App\.\*\*[\s\S]*## Bug Fixes/);
     expect(stableNotes).toMatch(/## Bug Fixes\s+- \*\*Reading the weather, a calendar or a to-do list no longer pulls unrelated automations into the check\.\*\*/);
     expect(stableNotes).not.toContain("one-time code");
-    // App 0.13.22 keeps the 0.28.0 tool text (TestMCPToolTextStable), so ChatGPT needs no Refresh and Claude doesn't ask again.
+    // App 0.13.23 keeps the 0.28.0 tool text (TestMCPToolTextStable), so ChatGPT needs no Refresh and Claude doesn't ask again.
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
     expect(stableNotes).not.toContain("chatgpt.com/plugins");
     expect(stableNotes).not.toContain("Claude asks once more");
@@ -73,6 +73,9 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain("**Confirmations stay in your language when a check runs out of time.**");
     expect(stableNotes).toContain("**Confirming no longer waits past the promised time.**");
     expect(stableNotes).toContain("names the Check for updates step.**");
+    // rc3: other automations read as loaded, and a blueprint automation's own actions (#1033).
+    expect(stableNotes).toContain("**An automation built from a blueprint is now checked with its own extra actions.**");
+    expect(stableNotes).not.toContain("less than half as long");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
   });
