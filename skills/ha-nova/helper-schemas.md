@@ -1,7 +1,7 @@
 # HA NOVA Helper Payload Schemas
 
 Reference for AI agents constructing helper payloads via WebSocket CRUD commands.
-These are JSON payloads for `{type}/create` and `{type}/update` via the `/ws` relay endpoint.
+These are JSON payloads for `{type}/create` and `{type}/update`, sent as `ha-nova plan raw` items (`"endpoint":"ws"`).
 
 ## When to Use Which Helper
 

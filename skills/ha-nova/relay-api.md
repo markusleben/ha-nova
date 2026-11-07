@@ -257,7 +257,7 @@ State/config helpers:
 
 Dashboard / Lovelace WS (`create`, `config/save`, `delete` run only through `ha-nova plan`; raw, they are refused):
 - `lovelace/dashboards/list`
-- `lovelace/dashboards/update`
+- `lovelace/dashboards/update` (only as a `ha-nova plan raw` item, then `ha-nova apply`)
 - `lovelace/config`
 - `lovelace/resources`
 - `lovelace/resources/create`, `lovelace/resources/update`, `lovelace/resources/delete` (only as `ha-nova plan raw` items, then `ha-nova apply`: each is code that runs in every signed-in browser, or its removal)
@@ -285,7 +285,7 @@ ha-nova relay ws --data-file <payload-file>
 ha-nova relay ws --data-file <payload-file> --out <result-file>
 ```
 
-A delete goes only as a `ha-nova plan raw --file <requests.json>` item `{"endpoint":"ws","payload":<the delete>}`, then `ha-nova apply`.
+Create, update, and delete go only as a `ha-nova plan raw --file <requests.json>` item `{"endpoint":"ws","payload":<the write>}`, then `ha-nova apply`.
 
 No domain reload needed — storage-based helpers take effect immediately.
 
