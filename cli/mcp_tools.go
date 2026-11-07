@@ -157,6 +157,11 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		if err := checkArguments(tool.schema, params.Arguments); err != nil {
 			return invalidArguments(tool.name, err), nil
 		}
+		if srv.chat == nil { // ha-nova mcp: a running apply job's plan joins it, any other call is BUSY
+			if result := srv.stdioJob(tool.name, params.Arguments); result != nil {
+				return result, nil
+			}
+		}
 		if joined := srv.chatJoin(tool.name, params.Arguments); joined != nil { // ha-nova serve: this plan's apply job, before any lock
 			return joined, nil
 		}
@@ -185,6 +190,11 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		}
 		if waited := srv.chatApply(tool.name, params.Arguments, argv); waited != nil { // ha-nova serve: an apply job (it notes the change)
 			return waited, nil
+		}
+		if srv.chat == nil && tool.name == "ha_apply" { // ha-nova mcp: the apply as a job (mcp_stdio_apply.go)
+			if waited := srv.stdioApply(params.Arguments, argv, answered, req.forms); waited != nil {
+				return waited, nil
+			}
 		}
 		if err := srv.lockVerb(); err != nil { // ha-nova serve: a running change, or other requests, held the lock too long; nothing ran
 			busy := srv.chatBusy(tool.name, params.Arguments, err.Error())
@@ -303,7 +313,7 @@ func captureVerb(run func() int) (out, errOut string, exit int) {
 	func() {
 		defer func() {
 			if p := recover(); p != nil {
-				exit, crash = verbExitError, fmt.Sprint("internal error: ", p)
+				exit, crash = verbExitUnknown, fmt.Sprint("internal error: ", p) // a change may have been sent (runLocked)
 			}
 		}()
 		os.Stdout, os.Stderr = outW, errW
