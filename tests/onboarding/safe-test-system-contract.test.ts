@@ -227,8 +227,12 @@ describe("safe test system contract", () => {
   const contributing = readFileSync("CONTRIBUTING.md", "utf8");
   const releasing = `${readFileSync("docs/releasing.md", "utf8")}\n${readFileSync("docs/release-validation.md", "utf8")}`;
   const ci = parse(readFileSync(".github/workflows/ci.yml", "utf8")) as {
+    env?: Record<string, number>;
     jobs: Record<string, {
+      name?: string;
       if?: string;
+      env?: Record<string, number>;
+      strategy?: unknown;
       needs?: string | string[];
       "continue-on-error"?: boolean;
       steps?: Array<{
@@ -272,14 +276,36 @@ describe("safe test system contract", () => {
     );
     expect(verifySteps.find((step) => step.name === "Install")?.run).toBe("npm ci");
     expect(verifySteps.find((step) => step.name === "Verify repository")?.run).toBe("npm run verify:node");
-    const goTestSteps = ci.jobs["go-test"]?.steps ?? [];
+    // go-test-N and go-race-N are the shards of one run each: separate jobs
+    // (ci-gate sees every result), the same steps, and one SHARD_INDEX each
+    // from 0 up to the shard count the script deals over.
+    const shards = (kind: string, count: string) => {
+      const total = ci.env?.[count] ?? 0;
+      const jobs = Array.from({ length: total }, (_, i) => `${kind}-${i + 1}`);
+      expect(total).toBeGreaterThan(1);
+      expect(Object.keys(ci.jobs).filter((job) => job.startsWith(`${kind}-`)).sort()).toEqual(jobs);
+      for (const [i, job] of jobs.entries()) {
+        expect(ci.jobs[job]).toMatchObject({ name: job, needs: ["changes", "test-inventory"] });
+        expect(ci.jobs[job]?.env).toEqual({ SHARD_INDEX: i });
+        expect(ci.jobs[job]?.strategy).toBeUndefined();
+        expect(ci.jobs[job]?.steps).toEqual(ci.jobs[`${kind}-1`]?.steps);
+      }
+      return jobs;
+    };
+    const goTests = shards("go-test", "GO_TEST_SHARDS");
+    const goRaces = shards("go-race", "GO_RACE_SHARDS");
+    const goTestSteps = ci.jobs["go-test-1"]?.steps ?? [];
     expect(goTestSteps.find((step) => step.name === "Install")?.run).toBe("npm ci");
-    expect(goTestSteps.find((step) => step.name === "Go tests")?.run).toBe("npm run test:cli");
+    expect(goTestSteps.find((step) => step.name === "Go tests")?.run).toBe(
+      'bash .github/scripts/go-test-shard.sh "$SHARD_INDEX" "$GO_TEST_SHARDS" . -count=1',
+    );
+    expect(ci.jobs["go-race-1"]?.steps?.find((step) => step.name === "Race detector (setup and confirm)")?.run).toMatch(
+      /^bash \.github\/scripts\/go-test-shard\.sh "\$SHARD_INDEX" "\$GO_RACE_SHARDS" '[^']+' -race -count=1$/,
+    );
     expect(ci.jobs["verify"]?.needs).toBe("test-inventory");
-    expect(ci.jobs["go-test"]?.needs).toEqual(["changes", "test-inventory"]);
 
     // ci-gate is the required check and waits for every gating job.
-    const gated = ["changes", "test-inventory", "verify", "go-test", "ha-integration", "govulncheck"];
+    const gated = ["changes", "test-inventory", "verify", ...goTests, "go-build", ...goRaces, "ha-integration", "govulncheck"];
     expect(ci.jobs["ci-gate"]?.needs).toEqual(gated);
     // A skipped required check counts as passed: ci-gate always runs and fails
     // unless the changes job succeeded and every needed job succeeded.
@@ -302,14 +328,14 @@ describe("safe test system contract", () => {
       changes: { result: changes, outputs: { run } },
       "test-inventory": { result: rest, outputs: {} },
       verify: { result: rest, outputs: {} },
-      "go-test": { result: scoped, outputs: {} },
+      "go-test-1": { result: scoped, outputs: {} },
     });
-    const unneeded = JSON.stringify({ "go-test": false });
+    const unneeded = JSON.stringify({ "go-test-1": false });
     expect(gate(results(unneeded, "success", "skipped"))).toBe(0);
-    expect(gate(results(JSON.stringify({ "go-test": true }), "success", "success"))).toBe(0);
-    expect(gate(results(JSON.stringify({ "go-test": true }), "success", "skipped"))).not.toBe(0);
+    expect(gate(results(JSON.stringify({ "go-test-1": true }), "success", "success"))).toBe(0);
+    expect(gate(results(JSON.stringify({ "go-test-1": true }), "success", "skipped"))).not.toBe(0);
     expect(gate(results("{}", "success", "skipped"))).not.toBe(0);
-    expect(gate(results(JSON.stringify({ "go-test": "false" }), "success", "skipped"))).not.toBe(0);
+    expect(gate(results(JSON.stringify({ "go-test-1": "false" }), "success", "skipped"))).not.toBe(0);
     expect(gate(results('"x"', "success", "skipped"))).not.toBe(0);
     expect(gate(results("", "success", "skipped"))).not.toBe(0);
     expect(gate(results(unneeded, "failure", "skipped"))).not.toBe(0);
@@ -337,7 +363,8 @@ describe("safe test system contract", () => {
     const jobAreas = JSON.parse(select?.env?.JOB_AREAS ?? "{}") as Record<string, string[]>;
     expect(Object.keys(jobAreas).sort()).toEqual([
       "go-build",
-      "go-test",
+      ...goRaces,
+      ...goTests,
       "govulncheck",
       "ha-integration",
       "macos-native-secret-boundary",
@@ -345,7 +372,8 @@ describe("safe test system contract", () => {
       "windows-powershell-unicode",
     ]);
     // The Go tests read skills/ and docs/work/: they run for those areas too.
-    expect(jobAreas["go-test"]).toEqual(["go", "relay", "skills", "docs"]);
+    for (const job of goTests) expect(jobAreas[job]).toEqual(["go", "relay", "skills", "docs"]);
+    for (const job of goRaces) expect(jobAreas[job]).toEqual(jobAreas["go-build"]);
     for (const [job, config] of Object.entries(ci.jobs)) {
       if (job === "ci-gate") continue;
       if (jobAreas[job]) {
