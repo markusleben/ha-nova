@@ -108,6 +108,7 @@ type tierEngine struct {
 	aheadActed   int             // entities readAhead warmed (≤ tierMaxActed)
 	aheadConfigs int             // consumer configs readAhead warmed (≤ tierMaxConsumers)
 	lost         []string        // "entity|via|what" of each read the budget cut, but the listener scan's config reads (sealPlan)
+	reloading    bool            // configReloadTier walks a reload's configs: a reload inside them is a cycle, typed
 
 	stateList func() (map[string]json.RawMessage, error) // a config check's states, one read for all (useStateList); nil: one read each
 }
