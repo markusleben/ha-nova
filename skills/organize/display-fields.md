@@ -4,6 +4,8 @@ On-demand part of `../organize/SKILL.md`. Read it before changing an entity's
 or a device's name, an entity's icon, "Show as", display precision, or unit, or an area's labels or
 temperature/humidity sensor. Every rule of the skill still applies: read the
 record first, preview current → new, confirm, write once, read back.
+`plan.confirm: none`: apply at once, show current → new; "undo":
+`ha-nova plan revert --target <id>`.
 Previews use Home Assistant's own words, not raw values: "Icon: walking
 person", "Show as: Door → Window".
 

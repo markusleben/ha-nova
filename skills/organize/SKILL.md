@@ -57,7 +57,7 @@ Registry commands owned here:
    - devices: use `config/device_registry/list` and match by current name or linked entities
 2. If multiple candidates remain, ask one blocking question.
 3. For create/update:
-   - preview exactly the fields of the smallest valid payload; confirm it (plan items: by their `say`)
+   - preview exactly the fields of the smallest valid payload; confirm it (plan items: by their `say`; `none`: apply)
    - rich metadata owned here:
      - area: `name`, `floor_id`, `icon`, `picture`, `aliases`, `labels`, temperature/humidity sensor
      - floor: `name`, `level`, `icon`, `aliases`

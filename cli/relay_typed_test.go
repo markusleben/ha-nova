@@ -218,11 +218,11 @@ func TestTrackerRenameTypedWhenAPersonFollowsIt(t *testing.T) {
 		`{"type":"config/entity_registry/update","entity_id":"device_tracker.new_phone","new_entity_id":"device_tracker.Anna_Phone"}`:      "typed",
 		`{"type":"config/entity_registry/update","entity_id":"device_tracker.ben_watch","disabled_by":"user"}`:                             "typed",
 		`{"type":"config/entity_registry/update","entity_id":"device_tracker.ben_watch","disabled_by":null}`:                               "preview",
-		`{"type":"config/entity_registry/update","entity_id":"device_tracker.anna_phone","name":"Phone"}`:                                  "preview",
+		`{"type":"config/entity_registry/update","entity_id":"device_tracker.anna_phone","name":"Phone"}`:                                  "ordinary", // a rename with its undo (calmNames)
 		`{"type":"config/entity_registry/update","entity_id":"device_tracker.guest","new_entity_id":"device_tracker.guest_old"}`:           "preview",
 		`{"type":"config/entity_registry/update","entity_id":"sensor.anna_phone","new_entity_id":"sensor.phone"}`:                          "preview",
 	} {
-		if exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":`+payload+`}]`); exit != verbExitConfirmation || env.Tier != tier {
+		if exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":`+payload+`}]`); exit != map[bool]int{true: verbExitOK, false: verbExitConfirmation}[tier == "ordinary"] || env.Tier != tier {
 			t.Errorf("plan %s: exit %d tier %s, want %s", payload, exit, env.Tier, tier)
 		}
 		before := len(sent())
@@ -299,14 +299,14 @@ func TestDisablingATrackersOwnerTypedWhenAPersonFollowsIt(t *testing.T) {
 		`{"type":"config_entries/disable","entry_id":"emobile","disabled_by":"user"}`:          "typed",
 		`{"type":"config/device_registry/update","device_id":"dphone","disabled_by":null}`:     "preview",
 		`{"type":"config_entries/disable","entry_id":"emobile","disabled_by":null}`:            "preview",
-		`{"type":"config/device_registry/update","device_id":"dphone","name_by_user":"Pixel"}`: "preview",
+		`{"type":"config/device_registry/update","device_id":"dphone","name_by_user":"Pixel"}`: "ordinary", // a rename with its undo (calmNames)
 		`{"type":"config/device_registry/update","device_id":"dguest","disabled_by":"user"}`:   "preview",
 		`{"type":"config/device_registry/update","device_id":"dlamp","disabled_by":"user"}`:    "preview",
 		`{"type":"config_entries/disable","entry_id":"ehue","disabled_by":"user"}`:             "preview",
 		`{"type":"config/device_registry/update","device_id":"dhub","disabled_by":"user"}`:     "typed", // its child device's tracker
 		`{"type":"config_entries/disable","entry_id":"ewatch","disabled_by":"user"}`:           "typed", // followed in another case
 	} {
-		if exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":`+payload+`}]`); exit != verbExitConfirmation || env.Tier != tier {
+		if exit, env := planRaw(t, paths, `[{"endpoint":"ws","payload":`+payload+`}]`); exit != map[bool]int{true: verbExitOK, false: verbExitConfirmation}[tier == "ordinary"] || env.Tier != tier {
 			t.Errorf("plan %s: exit %d tier %s, want %s", payload, exit, env.Tier, tier)
 		}
 		before := len(sent())
