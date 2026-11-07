@@ -36,6 +36,10 @@ describe("ha safety contract", () => {
     // PR6: the apply precondition is the plan itself — a preview plan is
     // applied only after the confirmation, a typed plan needs the user's code.
     expect(writeSkill).toContain("Pre-preview consent is draft-only; a changed draft needs a new plan and preview.");
+    // Calmer confirmations: a skill skips the preview only on the CLI's own
+    // verdict, never on the kind of change.
+    expect(architecture).toContain("Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`");
+    expect(writeSkill).toContain("Exit 0 (`none`): no preview or ask; apply per `next_step`.");
     expect(writeSkill).toContain("A code counts only as a reply that is only the code, after the preview");
     expect(applyVerb).toContain('refused("CODE_REQUIRED", "this plan needs the four digits of its one-time code from HA NOVA, typed by the user")');
 
