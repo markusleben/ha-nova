@@ -21,19 +21,7 @@ var (
 	relaySessionOverallTimeout = 30 * time.Second
 )
 
-// A session's reads in flight. Over Home Assistant Link each read waits a
-// round trip through the internet, so a check gets twice as many (#1025).
-const (
-	relaySessionMaxConcurrent = 8
-	linkSessionMaxConcurrent  = 16
-)
-
-func readSlots(via relayVia) chan struct{} {
-	if via == relayViaCloud {
-		return make(chan struct{}, linkSessionMaxConcurrent)
-	}
-	return make(chan struct{}, relaySessionMaxConcurrent)
-}
+const relaySessionMaxConcurrent = 8
 
 // readOnlyWSTypes is the fixed WS allowlist behind invariant I1: read verbs
 // can only ever send these message types. Extending it is a reviewed change.
@@ -143,7 +131,7 @@ func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Dur
 		server:    activeServerProfile(),
 		ctx:       ctx,
 		cancel:    cancel,
-		slots:     readSlots(transport.Via),
+		slots:     make(chan struct{}, relaySessionMaxConcurrent),
 		memo:      map[string]*relayMemo{},
 	}, nil
 }

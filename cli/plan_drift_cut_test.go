@@ -57,8 +57,9 @@ func leaveDraft() map[string]any {
 }
 
 // slowHarness answers every read after latency; hangFirst makes the next n
-// reads of a config hang until their request ends (the read budget); hung
-// takes a core path or "related:" + an entity id too.
+// reads of an automation's loaded config hang until their request ends (the
+// read budget); hung takes a core path, "related:" + an entity id, or
+// "automation/config " + an entity id.
 type slowHarness struct {
 	*writeHarness
 	mu   sync.Mutex
@@ -72,8 +73,11 @@ func newSlowHarness(t *testing.T, f *fakeHA, latency, budget time.Duration) *slo
 	paths, log := setupFakeRelay(t, func(r *http.Request, endpoint string, p map[string]any) any {
 		h.mu.Lock()
 		path := fmt.Sprint(p["path"])
-		if p["type"] == "search/related" {
+		switch p["type"] {
+		case "search/related":
 			path = "related:" + fmt.Sprint(p["item_id"])
+		case "automation/config":
+			path = "automation/config " + fmt.Sprint(p["entity_id"])
 		}
 		n := h.hung[path]
 		if n > 0 {
@@ -95,15 +99,29 @@ func newSlowHarness(t *testing.T, f *fakeHA, latency, budget time.Duration) *slo
 }
 
 func (h *slowHarness) hangFirst(config string, n int) {
+	entity := h.automationOf(config)
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.hung["/api/config/automation/config/"+config] = n
+	h.hung["automation/config "+entity] = n
+}
+
+// automationOf: the entity of the automation with config id config.
+func (h *slowHarness) automationOf(config string) string {
+	h.f.mu.Lock()
+	defer h.f.mu.Unlock()
+	for id, st := range h.f.states {
+		if attrs, _ := st["attributes"].(map[string]any); strings.HasPrefix(id, "automation.") && attrs["id"] == config {
+			return id
+		}
+	}
+	h.t.Fatalf("no automation with config id %q", config)
+	return ""
 }
 
 func (h *slowHarness) configReads(config string) int {
-	n := 0
+	entity, n := h.automationOf(config), 0
 	for _, c := range h.log.all() {
-		if c.payload["path"] == "/api/config/automation/config/"+config {
+		if c.payload["type"] == "automation/config" && c.payload["entity_id"] == entity {
 			n++
 		}
 	}
@@ -312,9 +330,7 @@ func TestACutCheckSeesANewConsumerWhereThePreviewLooked(t *testing.T) {
 	h.f.automation("door", "door", map[string]any{"triggers": []any{map[string]any{"trigger": "state", "entity_id": "light.room_03"}}, "actions": []any{step("lock.unlock", "lock.front")}})
 	h.f.related["entity:light.room_03"] = append(h.f.related["entity:light.room_03"], "automation.door")
 	h.f.mu.Unlock()
-	h.mu.Lock()
-	h.hung["/api/config/automation/config/door"] = 4 // every check: the door automation stays unread
-	h.mu.Unlock()
+	h.hangFirst("door", 4) // every check: the door automation stays unread
 	exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID)
 	if exit != verbExitDrift || len(w.messages) != 0 || len(h.writes()) != 0 {
 		t.Fatalf("exit %d windows %d writes %d say %q", exit, len(w.messages), len(h.writes()), env.Say)

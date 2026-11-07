@@ -89,7 +89,7 @@ func noteLinkSetupFailure(ctx context.Context, err error) {
 func newLinkHTTPTransport() *http.Transport {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.ForceAttemptHTTP2 = false // Home Assistant speaks HTTP/1.1; a WebSocket upgrade needs it
-	transport.MaxIdleConnsPerHost = linkSessionMaxConcurrent
+	transport.MaxIdleConnsPerHost = relaySessionMaxConcurrent
 	transport.TLSHandshakeTimeout = linkConnectTimeout // through a proxy; DialTLSContext covers the rest
 	bounded := func(dial func(context.Context, string, string) (net.Conn, error)) func(context.Context, string, string) (net.Conn, error) {
 		return func(ctx context.Context, network, address string) (net.Conn, error) {
