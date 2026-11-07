@@ -1,6 +1,6 @@
 import { createServer, type Server } from "node:http";
 import { request as httpsRequest } from "node:https";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -109,10 +109,13 @@ async function build(): Promise<{ local: string; link: string }> {
   return { local: local.credential, link: link.credential };
 }
 
+// The device listener's own certificate, pinned as the CLI pins it.
+const deviceTls = () => ({ ca: readFileSync(join(dir, "tls-cert.pem")), checkServerIdentity: () => undefined });
+
 function viaDevice(path: string, body: unknown, credential: string): Promise<{ status: number; text: string }> {
   return new Promise((resolve, reject) => {
     const request = httpsRequest(
-      { host: "127.0.0.1", port: ports.device, path, method: "POST", rejectUnauthorized: false, headers: { authorization: `Bearer ${credential}`, "content-type": "application/json" } },
+      { host: "127.0.0.1", port: ports.device, path, method: "POST", ...deviceTls(), headers: { authorization: `Bearer ${credential}`, "content-type": "application/json" } },
       (response) => {
         let text = "";
         response.on("data", (chunk) => (text += chunk));
@@ -169,7 +172,7 @@ describe("app mode: the safety check fronts every device-facing handler", () => 
   it("leaves /health ungated", async () => {
     const { local } = await build();
     const response = await new Promise<number>((resolve, reject) => {
-      const request = httpsRequest({ host: "127.0.0.1", port: ports.device, path: "/health", rejectUnauthorized: false, headers: { authorization: `Bearer ${local}` } }, (res) => {
+      const request = httpsRequest({ host: "127.0.0.1", port: ports.device, path: "/health", ...deviceTls(), headers: { authorization: `Bearer ${local}` } }, (res) => {
         res.resume();
         resolve(res.statusCode ?? 0);
       });
