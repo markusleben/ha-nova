@@ -2,8 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"net/http"
 	"slices"
+	"strconv"
 	"strings"
+	"unicode"
 )
 
 // gateVerdict is the one entry point that rates a request the Relay would
@@ -48,6 +51,9 @@ func gateRequests(endpoint string, payload map[string]any) []map[string]any {
 	switch endpoint {
 	case "core":
 		method, _ := payload["method"].(string)
+		if strings.ContainsFunc(method, func(r rune) bool { return r > unicode.MaxASCII }) { // JavaScript upper-cases "ﬆ" to "ST", Go doesn't
+			method = ""
+		}
 		payload["method"] = strings.ToUpper(strings.TrimSpace(method))
 	case "ws":
 		if message, ok := payload["message"].(map[string]any); ok {
@@ -65,32 +71,58 @@ func gateRequests(endpoint string, payload map[string]any) []map[string]any {
 // pass), so a typed one never masks a refused one. The first pass reads
 // nothing: a read the tier needs counts as failed, so typed. Only a typed
 // result that came from such a read opens the session and rates again live,
-// where a failed read still counts as typed. A body that is not one JSON
-// object (null and trailing data included), an endpoint the gate doesn't
-// know, or a request the raw guard refuses is refused. Kind is read only
-// for a recognized read that passes. On err (the session didn't open) the
-// check is still the fail-closed typed verdict.
+// where a failed read still counts as typed. Refused: a body that is not
+// exactly one JSON object, an endpoint the gate doesn't know, a request the
+// spec refuses (gateDenied), and any shape the CLI never sends
+// (gateRecognized). Kind is read only for a recognized read that passes. On
+// err (the session didn't open) the check is still the fail-closed typed
+// verdict.
 func gateVerdict(endpoint string, body []byte, session func() (*relaySession, error)) (gateCheck, error) {
+	refused := gateCheck{Verdict: gateRefuse, Kind: "write"}
 	payload, ok := decodeObject(body)
-	if !ok || payload == nil || !json.Valid(body) || !slices.Contains([]string{"ws", "core", "files", "backups", "supervisor"}, endpoint) {
-		return gateCheck{Verdict: gateRefuse, Kind: "write"}, nil
+	if !ok || payload == nil || !json.Valid(body) || !slices.Contains([]string{"ws", "core", "files", "backups", "supervisor"}, endpoint) || !gateFinite(payload) {
+		return refused, nil
 	}
-	switch { // shapes no classifier here rates yet (service calls, config writes, Supervisor writes) stay refused
-	case (endpoint == "ws" || endpoint == "core") && checkRawRelayRequest(endpoint, body) != nil,
-		endpoint == "supervisor" && (rawSupervisorWrite(payload) || checkRawSupervisor(payload) != nil):
-		return gateCheck{Verdict: gateRefuse, Kind: "write"}, nil
+	requests := gateRequests(endpoint, payload)
+	for _, request := range requests {
+		if gateDenied(endpoint, request) {
+			return refused, nil
+		}
+	}
+	if endpoint == "core" {
+		if level, why, handled, err := gatePlanTier(payload, body, session); handled {
+			return gateCheck{Verdict: gateDecisionOf(level), Kind: "write", Why: why}, err
+		}
+	}
+	if !gateRecognized(endpoint, payload, body) {
+		return refused, nil
 	}
 	check := gateCheck{Verdict: gatePass, Kind: "write"}
 	rank := map[gateDecision]int{gatePass: 0, gateTyped: 1, gateRefuse: 2}
-	for i, request := range gateRequests(endpoint, payload) {
+	for i, request := range requests {
 		n := newRawNamer(nil, nil)
 		level, why := rawItemTier(n, rawRequest{Endpoint: endpoint}, request)
-		if level == tierTyped && n.missed && check.Verdict == gatePass { // a live read can only lower it; once typed, it changes nothing
+		raw, _ := json.Marshal(request)
+		read := rawRelayRead(endpoint, raw)
+		if endpoint != "files" && endpoint != "backups" && !read && holdsHiddenValue(raw) { // guardRaw: a hidden value carried back
+			return refused, nil
+		}
+		relisten := !read && (rawListened(endpoint, request) != nil || endpoint == "ws" && request["type"] == "todo/item/move")
+		access := !read && (rawAccessTarget(endpoint, raw) != (rawTarget{}) || endpoint == "supervisor" && gateSupervisorOptions(request))
+		reread := level == tierTyped && n.missed && check.Verdict == gatePass // a live read can only lower the static tier
+		if reread || access || relisten && level < tierTyped {                // once typed, a listener changes nothing
 			s, err := session()
 			if err != nil {
 				return gateCheck{Verdict: gateTyped, Kind: "write", Why: why, Item: i}, err
 			}
-			level, why = rawItemTier(newRawNamer(s, nil), rawRequest{Endpoint: endpoint}, request)
+			if reread {
+				level, why = rawItemTier(newRawNamer(s, nil), rawRequest{Endpoint: endpoint}, request)
+			}
+			if access || relisten && level < tierTyped {
+				if liveLevel, liveWhy := gateLiveTier(s, endpoint, request, raw); liveLevel > level {
+					level, why = liveLevel, liveWhy
+				}
+			}
 		}
 		if verdict := gateDecisionOf(level); rank[verdict] > rank[check.Verdict] {
 			check = gateCheck{Verdict: verdict, Kind: "write", Why: why, Item: i}
@@ -100,4 +132,130 @@ func gateVerdict(endpoint string, body []byte, session func() (*relaySession, er
 		check.Kind = "read"
 	}
 	return check, nil
+}
+
+// gateLiveTier runs what a raw write's plan and `ha-nova relay` decide from
+// live Home Assistant reads beyond rawItemTier (computeRawPlan,
+// guardRawRequestIn): the access-target refusals (a lock's entry, a factory
+// reset button, an owner's account), an App's stored option secrets, and the
+// listeners a write can start (rawListeners, rawShoppingList). A failed read
+// is typed. Not here, as they need the client's own state, not the request:
+// the setup forms a flow answered earlier (formSecretSet) and the copies
+// earlier in a plan (kept).
+func gateLiveTier(s *relaySession, endpoint string, request map[string]any, raw []byte) (tierLevel, string) {
+	refusal, err := checkRawAccessTargetIn(s, endpoint, raw)
+	if refusal == nil && err == nil && endpoint == "supervisor" {
+		refusal, err = rawSupervisorFormSecret(s, raw)
+	}
+	switch {
+	case err != nil:
+		return tierTyped, "unread"
+	case refusal != nil:
+		return tierRefused, "access_target"
+	}
+	e := newTierEngine(s)
+	return max(e.rawShoppingList(endpoint, request), e.rawListeners(endpoint, request)), "listeners"
+}
+
+// gateSupervisorOptions: an App options write, whose stored secrets
+// rawSupervisorFormSecret reads.
+func gateSupervisorOptions(request map[string]any) bool {
+	method, _ := request["method"].(string)
+	path, _ := request["path"].(string)
+	kind, _ := rawSupervisorMatch(method, path)
+	return kind == "options"
+}
+
+// gateFinite: every number in v is one the Relay passes on unchanged; one
+// JSON.parse turns into Infinity (sent as null) or rounds to zero is not.
+func gateFinite(v any) bool {
+	switch v := v.(type) {
+	case json.Number:
+		f, err := strconv.ParseFloat(string(v), 64)
+		return err == nil && (f != 0 || !strings.ContainsAny(strings.Split(strings.ToLower(string(v)), "e")[0], "123456789"))
+	case map[string]any:
+		for _, inner := range v {
+			if !gateFinite(inner) {
+				return false
+			}
+		}
+	case []any:
+		for _, inner := range v {
+			if !gateFinite(inner) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// gateRecognized: a shape the CLI sends to a device-facing endpoint: what
+// `ha-nova relay` passes (its raw guard), what the typed verbs read
+// (checkReadOnlyRequest, checkPhoneRead) or write besides the plans'
+// service calls and config writes (dashboards, a device's area), Link
+// setup's cloud/status read, a listed
+// Supervisor request, and every files or backups action (the Relay checks
+// those itself).
+func gateRecognized(endpoint string, payload map[string]any, body []byte) bool {
+	switch endpoint {
+	case "ws", "core":
+		return checkRawRelayRequest(endpoint, body) == nil || checkReadOnlyRequest(endpoint, payload) == nil ||
+			checkPhoneRead(endpoint, payload) == nil || endpoint == "ws" && (dashboardWrite(payload) || deviceAreaUpdate(payload) || len(payload) == 1 && payload["type"] == "cloud/status") // Link setup (cloudLocalDiscovery)
+	case "supervisor":
+		return checkRawSupervisor(payload) == nil
+	}
+	return true
+}
+
+// gateLogRead: a log read, which the gate refuses (spec §2: free text no
+// redactor bounds) and `ha-nova relay` still sends to an App without a gate.
+func gateLogRead(endpoint string, request map[string]any) bool {
+	switch endpoint {
+	case "core":
+		raw, _ := request["path"].(string)
+		decoded, ok := relayCorePath(raw)
+		return ok && strings.HasPrefix(strings.ToLower(decoded), "/api/error_log")
+	case "ws":
+		return request["type"] == "system_log/list"
+	case "supervisor":
+		method, _ := request["method"].(string)
+		path, _ := request["path"].(string)
+		kind, _ := rawSupervisorMatch(method, path)
+		return kind == "logs"
+	}
+	return false
+}
+
+// gateDenied: what the gate refuses whatever allows it elsewhere (spec §2):
+// event firing, execute_script, setting a state, every webhook request,
+// backup downloads and Supervisor paths on core, log reads (free text no
+// redactor bounds), and subscriptions the raw guard refuses (every
+// event, call_service, phone confirmations, templates).
+func gateDenied(endpoint string, request map[string]any) bool {
+	switch endpoint {
+	case "core":
+		method, _ := request["method"].(string)
+		raw, _ := request["path"].(string)
+		decoded, ok := relayCorePath(raw)
+		ok = ok && !strings.ContainsAny(raw, "\t\n\r") // a URL parser drops them
+		decoded = strings.ToLower(decoded)
+		for _, prefix := range []string{"/api/webhook", "/api/backup", "/api/hassio", "/api/error_log"} {
+			ok = ok && !strings.HasPrefix(decoded, prefix)
+		}
+		return !ok || method != http.MethodGet && (strings.HasPrefix(decoded, "/api/states") || strings.HasPrefix(decoded, "/api/events"))
+	case "ws":
+		wsType, _ := request["type"].(string)
+		switch {
+		case slices.Contains([]string{"fire_event", "execute_script", "call_service", "system_log/list"}, wsType):
+			return true
+		case strings.HasPrefix(wsType, "subscribe_"):
+			return checkRawWS(request) != nil
+		}
+	case "supervisor":
+		method, _ := request["method"].(string)
+		path, _ := request["path"].(string)
+		kind, _ := rawSupervisorMatch(method, path)
+		return kind == "logs"
+	}
+	return false
 }

@@ -99,7 +99,7 @@ func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
 			t.Errorf("no sample path for %s %s: add one and its tier", allowed.method, allowed.path)
 		}
 	}
-	for _, tc := range []struct{ endpoint, action, tier string }{{"files", "write_file", "preview"}, {"files", "delete_file", "typed"},
+	for _, tc := range []struct{ endpoint, action, tier string }{{"files", "write_file", "typed"}, {"files", "delete_file", "typed"},
 		{"backups", "save", "preview"}, {"backups", "delete", "typed"}, {"backups", "prune", "preview"}} {
 		exit, env := plan(tc.endpoint, map[string]any{"action": tc.action, "path": "packages/a.yaml", "content": "a: 1", "file": "scenes/a.json.gz",
 			"category": "scenes", "name": "auto-a", "data": map[string]any{}})
@@ -420,7 +420,7 @@ func batch3aTiersAndGuards(t *testing.T, keySaved bool) {
 		`{"type":"labs/update","domain":"frontend","preview_feature":"winter_mode","enabled":true,"create_backup":true}`:      "Labs change with create_backup",
 	}
 	if keySaved {
-		planned[remote] = struct{ tier, line string }{"preview", "onedrive.01ABC"}
+		planned[remote] = struct{ tier, line string }{"typed", "onedrive.01ABC"} // a backup location (relay-typed-gate spec §2)
 	} else {
 		refused[remote] = "remote backup location without a saved encryption key"
 	}

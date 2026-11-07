@@ -474,7 +474,7 @@ func sceneMemberService(entityID string, value any) (string, map[string]any) {
 		}
 		return "alarm_control_panel.alarm_disarm", data // unknown target state fails closed
 	case "cover":
-		if pos, isNumber := data["position"].(float64); state == "closed" && (!isNumber || pos == 0) {
+		if pos, present := data["position"]; state == "closed" && (!present || pos == float64(0)) { // Home Assistant coerces "50" to 50
 			return "cover.close_cover", data
 		}
 		return "cover.set_cover_position", data
