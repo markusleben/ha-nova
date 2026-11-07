@@ -174,7 +174,7 @@ func (n *rawNamer) kept(earlier []rawRequest, endpoint string, payload map[strin
 	switch {
 	case endpoint == "core":
 		return n.sceneKept(earlier, payload)
-	case rawYAMLWrite(endpoint, payload) != "":
+	case rawFileChange(endpoint, payload) != "":
 		return n.fileKept(earlier, payload)
 	}
 	return n.helperKept(earlier, endpoint, payload)

@@ -19,7 +19,7 @@ const (
 	stepUsedBy        = "In this plan's preview, tell the user which automations, scripts, or scenes use it (consumers, by name): they break once it is gone."
 	stepUsedByNone    = "In this plan's preview, tell the user HA NOVA found no automation, script, or scene that uses it."
 	stepUsedByUnknown = "In this plan's preview, tell the user HA NOVA couldn't check what uses it."
-	stepYAMLCheck     = "A YAML file changed: check it now with ha_read endpoint core, method POST, path /api/config/core/check_config. If it is invalid, reload nothing and tell the user; if its errors point at this file, put it back with ha_plan kind raw: a backups save of the file as it is now, then its .bak written back with payload backup false (a new file has none: delete it), then check once more: still invalid, tell the user and write nothing more."
+	stepYAMLCheck     = "A YAML file changed: check it now with ha_read endpoint core, method POST, path /api/config/core/check_config. If it is invalid, reload nothing and tell the user; if its errors point at this file, put it back with ha_plan kind raw: a backups save of the file as it is now, then its .bak written back with payload backup false (a new file has none: delete it, after the same save), then check once more: still invalid, tell the user and write nothing more."
 )
 
 // A raw plan that deletes, renames an entity id, or disables something
@@ -50,11 +50,12 @@ func TestMCPRawPlanStepsAtTheDecision(t *testing.T) {
 		{"scene delete without a copy", []any{core("DELETE", "/api/config/scene/config/s1")}, "scene", true},
 		{"scene save", []any{core("POST", "/api/config/scene/config/s1")}, "", true},
 		{"YAML file delete", []any{map[string]any{"endpoint": "files", "payload": map[string]any{"action": "delete_file", "path": "/config/packages/a.yaml"}}}, "yaml-config", false},
-		{"new file's rollback", []any{map[string]any{"endpoint": "files", "payload": map[string]any{"action": "delete_file", "path": "/config/packages/a.yaml", "backup": false}}}, "", false},
+		{"new file's rollback", []any{map[string]any{"endpoint": "files", "payload": map[string]any{"action": "delete_file", "path": "/config/packages/a.yaml", "backup": false}}}, "yaml-config", false},
 		{"area create", []any{ws(map[string]any{"type": "config/area_registry/create", "name": "Attic"})}, "", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			paths, _ := rawRelay(t, map[string]func(map[string]any) any{"config/device_registry/list": func(map[string]any) any { return []any{} }})
+			paths, _ := rawRelay(t, map[string]func(map[string]any) any{"config/device_registry/list": func(map[string]any) any { return []any{} },
+				"files read_file": newYAMLFile["files read_file"]}) // no such file yet: an existing one needs its copy at planning (fileKept)
 			c := startMCP(t, paths)
 			mcpInit(c)
 			env, code := readEnvelope(c.tool("ha_plan", map[string]any{"kind": "raw", "requests": tc.requests}))
@@ -217,7 +218,7 @@ func TestRawYAMLWriteChecksTheConfig(t *testing.T) {
 	}
 	paths, _ := rawRelay(t, newYAMLFile)
 	_, planned := planRaw(t, paths, `[{"endpoint":"files","payload":{"action":"write_file","path":"/config/packages/a.yml","content":"a: 1"}}]`)
-	if _, env := applyRaw(t, paths, planned); !strings.HasSuffix(env.NextStep, " A YAML file changed: check it now with ha-nova relay core --method POST --path /api/config/core/check_config. If it is invalid, reload nothing and tell the user; if its errors point at this file, put it back with ha-nova plan raw: a backups save of the file as it is now, then its .bak written back with payload backup false (a new file has none: delete it), then check once more: still invalid, tell the user and write nothing more.") {
+	if _, env := applyRaw(t, paths, planned); !strings.HasSuffix(env.NextStep, " A YAML file changed: check it now with ha-nova relay core --method POST --path /api/config/core/check_config. If it is invalid, reload nothing and tell the user; if its errors point at this file, put it back with ha-nova plan raw: a backups save of the file as it is now, then its .bak written back with payload backup false (a new file has none: delete it, after the same save), then check once more: still invalid, tell the user and write nothing more.") {
 		t.Fatalf("CLI: %q", env.NextStep)
 	}
 }
