@@ -67,7 +67,7 @@ Say what you want. HA NOVA works out the rest.
 | *"Build a dashboard for the living room"* | Builds whole dashboards and views, also with custom cards you installed. It lists every view and card that changes and saves a copy first. "Undo that" brings the old one back |
 | *"Move all kitchen devices to the Kitchen area"* | Moves the devices and entities and shows what will change first. Moving a device with a lock, alarm panel, garage door, or gate takes your own confirmation |
 | *"Turn off the integration I don't use anymore and fix the open repairs"* | Turns integrations on or off, renames or removes them, fixes or ignores repairs, and changes users, general settings, and the backup schedule. Shows what changes first. Deletes and sensitive changes take your own confirmation. Turning off a lock's device or integration, or removing the integration or switch it runs on, is refused. A step that asks for a password, PIN, or key finishes in Home Assistant |
-| *"Why does my MQTT broker App keep restarting?"* | On HA OS, reads the Supervisor, Core, host, and App logs. It can also install or remove an App, or change its settings, after your own confirmation. This needs HA NOVA's local connection, not Home Assistant Link |
+| *"Why does my MQTT broker App keep restarting?"* | On HA OS, checks the App's state, version, and settings, and asks you for the lines that matter from its log page in Home Assistant: HA NOVA doesn't read logs, which can hold passwords. It can also install or remove an App, or change its settings, after your own confirmation. This needs HA NOVA's local connection, not Home Assistant Link |
 | *"Turn off the kitchen light"* | Turns it off right away and checks that it really is off. A room's lights work the same way, up to 30. Everything else in a room, scenes, and riskier actions show a preview first |
 | *"Unlock the front door"* | Shows what will happen, then waits for you: Confirm in a window on your computer, a tap on your linked phone, or a four-digit code (in Claude and ChatGPT, only at Manage everything with codes on) |
 | *"What do I have, and where is this sensor used?"* | Counts rooms, devices, automations, and integrations itself. Lists the automations, scripts, scenes, groups, helpers, and dashboard cards that use a sensor, and says what it couldn't check. Exact numbers, never a guess |
@@ -185,7 +185,7 @@ Ask about your home and change it from Claude (web, desktop, and phone apps) or 
 - Access belongs to your Home Assistant account, not to a device. Anyone who can use your Claude or ChatGPT account can reach your home through it.
 - Claude or ChatGPT then holds a Home Assistant sign-in for your account. It works for all of Home Assistant, not only HA NOVA. Turning chat apps off cuts HA NOVA there. To sign Claude or ChatGPT out, open your Home Assistant profile (Security, refresh tokens).
 - Turn chat apps off before you remove the NOVA Relay App or go back to an older version.
-- At Manage everything, helpers, scenes, dashboards, rooms and names, integrations and Home Assistant's settings, files (with file access on), the error log, camera pictures, and on HA OS also logs and Apps work in the chat, with the same preview and confirmation as on a computer. Turn chat apps on or off on the NOVA page or in setup. Only setting up and updating HA NOVA (setup, pairing, updates) and InfluxDB history stay outside the chat. A setup or repair step that asks for a password, PIN, or key finishes in Home Assistant.
+- At Manage everything, helpers, scenes, dashboards, rooms and names, integrations and Home Assistant's settings, files (with file access on), camera pictures, and on HA OS also Apps work in the chat, with the same preview and confirmation as on a computer. Turn chat apps on or off on the NOVA page or in setup. Only setting up and updating HA NOVA (setup, pairing, updates) and InfluxDB history stay outside the chat. A setup or repair step that asks for a password, PIN, or key finishes in Home Assistant.
 
 Step by step, ChatGPT plans, and what to do if it doesn't connect: [Use HA NOVA in Claude and ChatGPT](docs/reference/chat-apps.md).
 
@@ -306,7 +306,7 @@ Every safety promise above is backed by a file and a test. The **[safety page](d
 | 📅 **calendar** | Read calendars and events in a time window; create, change, and delete events |
 | ✅ **todo** | Manage to-do and shopping-list items, create Local To-do lists |
 | 💾 **backup** | Check backups and create them, also as a safety net before risky changes; set the automatic schedule |
-| ⬆️ **updates** | See waiting updates, read release notes, and install them with safety checks; on HA OS, install, remove, and set up Apps and read their logs (over the local connection) |
+| ⬆️ **updates** | See waiting updates, read release notes, and install them with safety checks; on HA OS, install, remove, and set up Apps (over the local connection) |
 | 📦 **hacs** | Browse, install, pin, update, and remove HACS packages, with previews and a required backup before you switch to a replacement integration |
 | ⚡ **energy** | Look at use, solar, battery, and cost per device; manage Energy dashboard sources |
 | 🧹 **maintenance** | Repair and import statistics, clear out recorder history, and clean up dead entities, with strict safety checks |

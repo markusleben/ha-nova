@@ -46,7 +46,7 @@ func runGateCommand(paths runtimePaths, args []string) int {
 	fs.StringVar(&secretFile, "secret-file", "", "file holding the 64-hex-character secret the Relay sends (required)")
 	fs.StringVar(&relayFile, "relay-file", "", "the Relay's credential file for this worker (required)")
 	var opts verbOptions
-	positional, err := parseVerbArgs(fs, &opts, args, gateUsage+"\n\nInternal: the NOVA App runs it. Answers the Relay's safety checks.")
+	positional, err := parseVerbArgs(fs, &opts, args, gateUsage+"\n\nInternal, for the NOVA App. Not for direct use.")
 	if errors.Is(err, errHelpShown) {
 		return 0
 	}
