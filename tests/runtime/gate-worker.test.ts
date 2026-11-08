@@ -147,6 +147,38 @@ describe("gate worker child", () => {
     }
   }, 60_000);
 
+  it("an ask's answer is used only in the worker's own shape", async () => {
+    let answer: unknown = {};
+    let asked: unknown;
+    const server = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on("data", (c: Buffer) => chunks.push(c));
+      request.on("end", () => {
+        asked = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(answer));
+      });
+    });
+    mkdirSync(join(dir, "gate"), { recursive: true, mode: 0o700 });
+    await new Promise<void>((r) => server.listen(join(dir, "gate", "worker.sock"), r));
+    try {
+      const gate = worker();
+      gate.start();
+      const requests = [{ endpoint: "core" as const, body: Buffer.from('{"method":"GET","path":"/api/states"}') }];
+      const typed = { verdict: "typed", lang: "en", title: "Unlock?", body: "Requested by “Mac”.", button: "Unlock", items: [{ verdict: "typed" }] };
+      answer = typed;
+      expect(await gate.ask!("Mac", requests)).toEqual(typed);
+      expect(asked).toEqual({ device: "Mac", requests: [{ endpoint: "core", body_b64: requests[0]!.body.toString("base64") }] });
+      answer = { verdict: "pass", items: [{}] };
+      expect(await gate.ask!("Mac", requests)).toEqual({ verdict: "pass", items: [{}] });
+      for (const bad of [{ ...typed, title: "" }, { ...typed, items: [] }, { ...typed, verdict: "maybe" }, { verdict: "pass" }]) {
+        answer = bad;
+        expect(await gate.ask!("Mac", requests)).toBeNull();
+      }
+    } finally {
+      await new Promise((r) => server.close(r));
+    }
+  });
+
   it("a redirect from the worker is no answer, and nothing follows it", async () => {
     const followed: string[] = [];
     const server = createServer((request, response) => {
