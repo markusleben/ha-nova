@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.24] - 2026-11-08
+
+### Changed
+- Chat apps get HA NOVA 0.29.0.
+- Chat apps: HA NOVA no longer reads Home Assistant's logs, which can hold passwords and keys. When a log would help, it asks you to open Settings > System > Logs and share only the lines that matter.
+- Chat apps: writing a file in your config folder, or changing where backups go, asks for the same confirmation as unlocking a door.
+- Chat apps: editing one of your own automations or scripts, or renaming a device or entity, runs right away when HA NOVA can put it back, and "undo" restores it. New ones, deletes, and anything that unlocks still ask.
+
+### Fixed
+- Chat apps: changes that would drop aliases, labels, trackers, or voice-assistant settings save a copy first, and so does overwriting or deleting a file in your config folder.
+
+### Upgrade notes
+- Computers on HA NOVA 0.29.0 ask you to update this App.
+
 ## [Relay 0.13.23] - 2026-11-07
 
 ### Fixed

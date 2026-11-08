@@ -3,7 +3,7 @@
   "name": "io.github.markusleben/ha-nova",
   "title": "HA NOVA",
   "description": "Ask about your Home Assistant and change it from an AI chat, with your OK for risky actions.",
-  "version": "0.28.3",
+  "version": "0.29.0",
   "websiteUrl": "https://hanova.app",
   "repository": {
     "url": "https://github.com/markusleben/ha-nova",
