@@ -34,6 +34,10 @@ type undoSnapshot struct {
 	SavedAt       string          `json:"saved_at,omitempty"`
 	BeforeConfig  json.RawMessage `json:"before_config"`
 	ExpectedAfter json.RawMessage `json:"expected_after"`
+	// Calm marks a checkpoint a calm update saved (calmUpdate): only such a
+	// step may give way to the next calm update of its item (ownCalmStep).
+	// Never taken from a `snapshot save` record.
+	Calm bool `json:"calm,omitempty"`
 }
 
 // snapshotSaveReceipt makes every checkpoint operation self-describing (#483):
@@ -48,6 +52,9 @@ type snapshotSaveReceipt struct {
 	SavedAt  string                 `json:"saved_at"`
 	Coverage string                 `json:"coverage"`
 	Evicted  []snapshotListingEntry `json:"evicted,omitempty"`
+	// displaced is the step addUndoSnapshot replaced, put back when the
+	// write never landed (dropUndoSnapshot).
+	displaced *undoSnapshot
 }
 
 // snapshotListingEntry is one row of `snapshot show --list` and of a receipt's
@@ -95,7 +102,7 @@ func undoSnapshotStackPath(paths runtimePaths) string {
 }
 
 func saveUndoSnapshotBytes(paths runtimePaths, data []byte) (snapshotSaveReceipt, error) {
-	return saveUndoSnapshotForServer(paths, data, "")
+	return storeUndoSnapshot(paths, data, "", storeInternal)
 }
 
 func redactUndoSnapshot(snap *undoSnapshot) {
@@ -106,13 +113,25 @@ func redactUndoSnapshot(snap *undoSnapshot) {
 // saveUndoSnapshotForServer: a non-empty server (snapshot save --server)
 // tags an untagged record and refuses one tagged for another server.
 func saveUndoSnapshotForServer(paths runtimePaths, data []byte, server string) (snapshotSaveReceipt, error) {
-	return storeUndoSnapshot(paths, data, server, false)
+	return storeUndoSnapshot(paths, data, server, storeAgent)
 }
 
-func storeUndoSnapshot(paths runtimePaths, data []byte, server string, onlyAdd bool) (snapshotSaveReceipt, error) {
+// storeMode: who saves a record, and what it may replace.
+type storeMode int
+
+const (
+	storeInternal storeMode = iota // a verb's own record: replaces its target's
+	storeAgent                     // `snapshot save`: never a calm step
+	storeAdd                       // addUndoSnapshot: fits, or replaces only its item's own calm step
+)
+
+func storeUndoSnapshot(paths runtimePaths, data []byte, server string, mode storeMode) (snapshotSaveReceipt, error) {
 	var snap undoSnapshot
 	if err := unmarshalStrictJSON(data, "snapshot payload", &snap); err != nil {
 		return snapshotSaveReceipt{}, err
+	}
+	if mode == storeAgent {
+		snap.Calm = false
 	}
 	// Never a stored code on disk, even one an agent got elsewhere (after
 	// the strict parse: it has stripped a BOM and checked UTF-8).
@@ -140,17 +159,19 @@ func storeUndoSnapshot(paths runtimePaths, data []byte, server string, onlyAdd b
 	if err != nil {
 		return snapshotSaveReceipt{}, err
 	}
-	if onlyAdd && !checkpointFits(stack, snap.Server, snap.Domain, snap.TargetID) {
-		return snapshotSaveReceipt{}, errors.New("it would replace this item's earlier checkpoint or push another one off the undo list")
+	if mode == storeAdd && !checkpointFits(stack, snap.Server, snap.Domain, snap.TargetID) &&
+		!(snap.Calm && ownCalmStep(stack, snap.Server, snap.Domain, snap.TargetID, snap.BeforeConfig)) {
+		return snapshotSaveReceipt{}, errors.New("it would replace another checkpoint of this item or push one off the undo list")
 	}
 	action := "created"
+	var displaced *undoSnapshot
 	kept := make([]undoSnapshot, 0, len(stack.Snapshots)+1)
 	kept = append(kept, snap)
 	for _, existing := range stack.Snapshots {
 		if existing.Domain == snap.Domain && existing.TargetID == snap.TargetID && existing.Server == snap.Server {
 			// Same-target update: the previous checkpoint is replaced — only
 			// the newest state stays revertible, and the receipt says so.
-			action = "replaced"
+			action, displaced = "replaced", &existing
 			continue
 		}
 		redactUndoSnapshot(&existing) // a record saved before codes were hidden
@@ -170,6 +191,9 @@ func storeUndoSnapshot(paths runtimePaths, data []byte, server string, onlyAdd b
 		capped = append(capped, existing)
 	}
 	kept = capped
+	if mode == storeAdd && len(evicted) > 0 {
+		return snapshotSaveReceipt{}, errors.New("it would push another checkpoint off the undo list")
+	}
 	stack = undoSnapshotStack{SchemaVersion: undoSnapshotStackSchemaVersion, Snapshots: kept}
 	if err := writeJSONFile(undoSnapshotStackPath(paths), stack, 0o600); err != nil {
 		return snapshotSaveReceipt{}, fmt.Errorf("cannot write snapshot: %s", err)
@@ -181,14 +205,15 @@ func storeUndoSnapshot(paths runtimePaths, data []byte, server string, onlyAdd b
 		printHumanWarn("legacy undo-snapshot cleanup skipped: %s", err)
 	}
 	return snapshotSaveReceipt{
-		Action:   action,
-		Op:       snap.Op,
-		Domain:   snap.Domain,
-		TargetID: snap.TargetID,
-		Name:     snap.Name,
-		SavedAt:  snap.SavedAt,
-		Coverage: snapshotCoverage,
-		Evicted:  evicted,
+		Action:    action,
+		Op:        snap.Op,
+		Domain:    snap.Domain,
+		TargetID:  snap.TargetID,
+		Name:      snap.Name,
+		SavedAt:   snap.SavedAt,
+		Coverage:  snapshotCoverage,
+		Evicted:   evicted,
+		displaced: displaced,
 	}, nil
 }
 
