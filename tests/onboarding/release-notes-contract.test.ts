@@ -38,7 +38,7 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.28.3 release-facing wording aligned to the shipped stack", () => {
+  it("keeps v0.29.0 release-facing wording aligned to the shipped stack", () => {
     const relayVersion = /^version:\s*"([^"]+)"\s*$/m.exec(readFileSync("nova/config.yaml", "utf8"))?.[1] ?? "";
     // Any App version the notes name is the shipped App.
     const notedApps = [...(stableNotes ?? "").matchAll(/NOVA (?:Relay |App to )(\d+\.\d+\.\d+)/g)];
@@ -46,36 +46,30 @@ describe("release notes contract", () => {
     for (const [, noted] of notedApps) {
       expect(noted, "notes name the shipped NOVA Relay version").toBe(relayVersion);
     }
-    // The App update leads the notes; without New Features the update notice leads with the first bug fix (#1010: read-only services).
+    // The App update leads; the update notice shows the first New Features bullet (calm edits, #1053).
     expect(stableNotes).toMatch(/^\*\*Update the NOVA App to \d+\.\d+\.\d+\.\*\*/);
-    expect(stableNotes).not.toContain("## New Features");
-    // The setup page no longer updates an installed App (#1017).
-    expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Setup no longer updates an installed NOVA App\.\*\*[\s\S]*## Bug Fixes/);
-    expect(stableNotes).toMatch(/## Bug Fixes\s+- \*\*Reading the weather, a calendar or a to-do list no longer pulls unrelated automations into the check\.\*\*/);
-    expect(stableNotes).not.toContain("one-time code");
-    // App 0.13.23 keeps the 0.28.0 tool text (TestMCPToolTextStable), so ChatGPT needs no Refresh and Claude doesn't ask again.
+    expect(stableNotes).toMatch(/## New Features\s+- \*\*Editing one of your own automations or scripts now runs right away when HA NOVA can put it back\.\*\*/);
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
-    expect(stableNotes).not.toContain("chatgpt.com/plugins");
-    expect(stableNotes).not.toContain("Claude asks once more");
-    // The store check before the App offer (#1012); doctor does it now, update from this version on (#1013).
     expect(stableNotes).toContain("Settings > ⋮ (top right) > Check for updates");
-    expect(stableNotes).toContain("If something reacts to that, it gives the steps instead. `ha-nova update` does the same from now on.");
-    // The per-client deadline (#1014), to-do change rows (#1011).
-    expect(stableNotes).toContain("**A check that runs out of time says so.**");
-    expect(stableNotes).toContain("You're still asked to confirm.");
-    expect(stableNotes).toContain("**To-do changes no longer show an internal code.**");
-    // The test-preview line after every write (#1029).
-    expect(stableNotes).toContain("**After you create or change an automation or script, HA NOVA offers a test preview in one line.**");
-    // Faster checks on big homes (#1025).
-    expect(stableNotes).toContain("**On big homes, checking a change to an automation finishes much sooner.**");
-    // rc2: a cut check's language, the ask's end-to-end time (#1026), doctor over Link.
-    expect(stableNotes).toContain("Or, at home, run `ha-nova doctor`");
-    expect(stableNotes).toContain("**Confirmations stay in your language when a check runs out of time.**");
-    expect(stableNotes).toContain("**Confirming no longer waits past the promised time.**");
-    expect(stableNotes).toContain("names the Check for updates step.**");
-    // rc3: other automations read as loaded, and a blueprint automation's own actions (#1033).
-    expect(stableNotes).toContain("**An automation built from a blueprint is now checked with its own extra actions.**");
-    expect(stableNotes).not.toContain("less than half as long");
+    // App 0.13.24 keeps the 0.28.0 tool text (TestMCPToolTextStable), so Claude doesn't ask again; the server instructions changed (plan.confirm none), so ChatGPT needs a Refresh (#1045 reminds).
+    expect(stableNotes).not.toContain("Claude asks once more");
+    expect(stableNotes).toContain("open chatgpt.com/plugins, choose HA NOVA, then Refresh.");
+    // Logs stay in Home Assistant (#1056); file writes and backup locations are typed (#1046).
+    expect(stableNotes).toMatch(/## What To Watch\s+- \*\*HA NOVA no longer reads Home Assistant's logs, which can hold passwords and keys\.\*\*[\s\S]*## Bug Fixes/);
+    expect(stableNotes).toContain("Settings > System > Logs");
+    expect(stableNotes).toContain("changing where backups go, now asks for the same confirmation as unlocking a door.");
+    // 0.29 ships no Relay gate: the notes never say the Relay checks or refuses anything.
+    expect(stableNotes).not.toMatch(/Relay (?:now )?(?:checks|refuses|enforces|blocks)/i);
+    // Renames (#1054), shopping list (#1048), setup offer (#1045), stdio apply jobs (#1047), copies first (#1042, #1044, #1049), helpers (#1051), reloads (#1055), same-item edits (#1058).
+    expect(stableNotes).toContain("**Renaming a device or entity now runs right away and can be undone.**");
+    expect(stableNotes).toContain("**Removing up to five items you named from the shopping list runs right away.**");
+    expect(stableNotes).toContain("**When a NOVA App update is waiting, setup in a terminal offers it once setup works.**");
+    expect(stableNotes).toContain("**Fewer prompts in Claude Code: setup can allow HA NOVA's read commands once.**");
+    expect(stableNotes).toContain("Asking again gets the result, and nothing runs twice.");
+    expect(stableNotes).toContain("only once a copy of it is saved.");
+    expect(stableNotes).toContain("**Helper and dashboard-name changes are now checked before they are saved");
+    expect(stableNotes).toContain("**Reloading an automation or your scripts is now checked like what it loads.**");
+    expect(stableNotes).toContain("**Changing the same automation or script again right away no longer asks.**");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
   });

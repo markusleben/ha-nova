@@ -667,3 +667,24 @@ counts only those, not ad hoc checks or corrections.
 - Clean pass: nothing upstream changed since the v0.28.2-cycle screen above.
 - Next screen: before the next release cycle, or on HA 2026.11.1 or
   2026.12.0, whichever comes first.
+## 2026-11-08 — pre-release screen (v0.29.0 cycle): HA after 2026.11.0 + developer blog after 2026-11-01 + HACS
+
+- Window screened: Core releases after `2026.11.0` (none; `2026.11.0` of
+  2026-11-04 is still the latest); contributors.home-assistant.io/blog after
+  2026-11-01 (one post: "Apps will lose four default Linux capabilities" of
+  2026-11-06); home-assistant.io/blog after the 2026.11 release post (none);
+  HACS releases and tags after 2.0.5 (none).
+- Hit, no change needed: the Supervisor stops granting `NET_RAW`, `MKNOD`,
+  `AUDIT_WRITE`, and `SETFCAP` to App containers unless an App lists them
+  in `privileged` (behind feature flags since Supervisor 2026.09.3; the
+  default for new installations from Supervisor 2026.12, later for all). The
+  NOVA App (`nova/config.yaml`, `nova/Dockerfile`) is a Node.js HTTP and
+  WebSocket service with the bundled CLI: no raw or packet sockets, no
+  `mknod`, `sshd`, or `setcap`, so it needs no `privileged` entry. No
+  skill pins a capability, and the App install preview in
+  `skills/updates/apps.md` reads no new field.
+- Source checked: contributors.home-assistant.io/blog/2026/11/06/apps-fewer-default-capabilities/;
+  github.com/home-assistant/core/releases; github.com/hacs/integration/releases (and tags).
+- Next screen: before the next release cycle, or on HA 2026.11.1 or
+  2026.12.0, whichever comes first. Watch Supervisor 2026.12, which turns
+  the smaller capability set on.

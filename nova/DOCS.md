@@ -93,7 +93,7 @@ instead.
 | POST | `/core` | Passes requests to Home Assistant's REST API (`/api/...`) |
 | POST | `/files` | Config-file access, only when you turn it on |
 | POST | `/backups` | Saved copies of configs, for undo |
-| POST | `/supervisor` | Supervisor logs and Apps, from a fixed list (local ports only, not through Home Assistant Link) |
+| POST | `/supervisor` | Supervisor logs and Apps, from a fixed list (local ports only, not through Home Assistant Link). The HA NOVA program, on a computer and in chat apps, doesn't read the logs |
 
 For Apps and logs, this App has the Supervisor's `manager` access, which Home
 Assistant shows on this App's page. The Relay reaches only that fixed list.
@@ -287,7 +287,7 @@ A healthy answer looks like this (shortened):
   "data": {
     "status": "ok",
     "ha_ws_connected": true,
-    "version": "0.13.23",
+    "version": "0.13.24",
     "uptime_s": 3621
   }
 }
