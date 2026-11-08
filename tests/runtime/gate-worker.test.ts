@@ -164,14 +164,26 @@ describe("gate worker child", () => {
       const gate = worker();
       gate.start();
       const requests = [{ endpoint: "core" as const, body: Buffer.from('{"method":"GET","path":"/api/states"}') }];
-      const typed = { verdict: "typed", lang: "en", title: "Unlock?", body: "Requested by “Mac”.", button: "Unlock", items: [{ verdict: "typed" }] };
+      const typed = { verdict: "typed", lang: "en", title: "Unlock?", body: "Requested by “Mac”.", button: "Unlock", items: [{ verdict: "typed", text: "Unlock “Front”" }] };
       answer = typed;
       expect(await gate.ask!("Mac", requests)).toEqual(typed);
       expect(asked).toEqual({ device: "Mac", requests: [{ endpoint: "core", body_b64: requests[0]!.body.toString("base64") }] });
-      answer = { verdict: "pass", items: [{}] };
-      expect(await gate.ask!("Mac", requests)).toEqual({ verdict: "pass", items: [{}] });
-      for (const bad of [{ ...typed, title: "" }, { ...typed, items: [] }, { ...typed, verdict: "maybe" }, { verdict: "pass" }]) {
-        answer = bad;
+      answer = { verdict: "refuse", items: [{ verdict: "refuse", why: "code" }] };
+      expect(await gate.ask!("Mac", requests)).toEqual(answer);
+      const bad = [
+        { ...typed, title: "" },
+        { ...typed, items: [] },
+        { ...typed, verdict: "maybe" },
+        { verdict: "pass" },
+        { ...typed, items: [null] },
+        { ...typed, items: [{ verdict: "typed" }] }, // not worded
+        { ...typed, items: [{ verdict: "maybe", text: "x" }] },
+        { ...typed, items: [{ verdict: "typed", text: "x", entity_ids: [1] }] },
+        { ...typed, items: [{ verdict: "pass" }] }, // the answer says typed, no item is
+        { verdict: "pass", items: [{ verdict: "typed" }] },
+      ];
+      for (const shape of bad) {
+        answer = shape;
         expect(await gate.ask!("Mac", requests)).toBeNull();
       }
     } finally {

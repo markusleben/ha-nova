@@ -5,7 +5,7 @@ import { request } from "node:http";
 import { join } from "node:path";
 
 import type { GateCheck, GateClient } from "../http/gate.js";
-import type { PreparedAsk } from "../http/gate-asks.js";
+import type { AskItem, PreparedAsk } from "../http/gate-asks.js";
 import type { RelayLogger } from "../http/server.js";
 import { generateCredential } from "../security/device-credential.js";
 import type { DeviceRegistry } from "../security/device-registry.js";
@@ -211,19 +211,49 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
   };
 }
 
-// preparedAsk: the worker's /ask answer, or null for any other shape.
+const RANK = { pass: 0, typed: 1, refuse: 2 } as const;
+const optionalText = (value: unknown): boolean => value === undefined || typeof value === "string";
+
+// askItem: one rated request; when the ask is typed, a typed one is worded.
+function askItem(item: unknown, worded: boolean): AskItem | null {
+  if (typeof item !== "object" || item === null || Array.isArray(item)) {
+    return null;
+  }
+  const { verdict, why, text, detail, entity_ids: ids } = item as Record<string, unknown>;
+  if (!Object.hasOwn(RANK, String(verdict)) || ![why, text, detail].every(optionalText)) {
+    return null;
+  }
+  if (ids !== undefined && !(Array.isArray(ids) && ids.every((id) => typeof id === "string"))) {
+    return null;
+  }
+  if (worded && verdict === "typed" && (typeof text !== "string" || text === "")) {
+    return null;
+  }
+  return item as AskItem;
+}
+
+// preparedAsk: the worker's /ask answer, or null for any other shape: each
+// item valid, and the answer's verdict the strictest item's.
 function preparedAsk(answer: Record<string, unknown> | null, count: number): PreparedAsk | null {
   const verdict = answer?.verdict;
-  const items = answer?.items;
-  if ((verdict !== "pass" && verdict !== "typed" && verdict !== "refuse") || !Array.isArray(items) || items.length !== count) {
+  const raw = answer?.items;
+  if ((verdict !== "pass" && verdict !== "typed" && verdict !== "refuse") || !Array.isArray(raw) || raw.length !== count) {
+    return null;
+  }
+  const items = raw.map((item) => askItem(item, verdict === "typed"));
+  if (items.some((item) => item === null)) {
+    return null;
+  }
+  const strictest = (items as AskItem[]).reduce<AskItem["verdict"]>((top, item) => (RANK[item.verdict] > RANK[top] ? item.verdict : top), "pass");
+  if (strictest !== verdict) {
     return null;
   }
   if (verdict !== "typed") {
-    return { verdict, items };
+    return { verdict, items: items as AskItem[] };
   }
   const { lang, title, body, button } = answer as Record<string, unknown>;
   if (![lang, title, body, button].every((text) => typeof text === "string" && text !== "")) {
     return null;
   }
-  return { verdict, items, lang: lang as string, title: title as string, body: body as string, button: button as string };
+  return { verdict, items: items as AskItem[], lang: lang as string, title: title as string, body: body as string, button: button as string };
 }

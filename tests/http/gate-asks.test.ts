@@ -1,4 +1,5 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
 import { describe, expect, it } from "vitest";
 
 import { createGateAsks, gateDigest, gateWithAsks, type GateRequest, type PreparedAsk } from "../../nova/src/http/gate-asks.js";
@@ -10,26 +11,27 @@ import type { Principal } from "../../nova/src/security/principal.js";
 const laptop: Principal = { kind: "device", deviceId: "laptop" };
 const phone: Principal = { kind: "device", deviceId: "phone" };
 const unlock = { method: "POST", path: "/api/services/lock/unlock", body: { entity_id: ["lock.front"] } };
-const typed: PreparedAsk = { verdict: "typed", lang: "en", title: "Unlock “Front”?", body: "Requested by “Mac”.", button: "Unlock", items: [{ verdict: "typed" }] };
+const typed: PreparedAsk = { verdict: "typed", lang: "en", title: "Unlock “Front”?", body: "Requested by “Mac”.", button: "Unlock", items: [{ verdict: "typed", text: "Unlock “Front”" }] };
 
 function context(principal: Principal | undefined, body: unknown, headers: Record<string, string> = {}): RouteContext {
   const request = { headers, once: () => request, off: () => request } as unknown as IncomingMessage;
-  return { request, response: {} as ServerResponse, path: "/gate/v1/ask", body, ...(principal ? { principal } : {}) };
+  const response = { destroyed: false, once: () => response, off: () => response } as unknown as ServerResponse;
+  return { request, response, path: "/gate/v1/ask", body, ...(principal ? { principal } : {}) };
 }
 
-function setup(answer: PreparedAsk | null = typed, channels: string[] = ["phone"]) {
+function setup(answer: PreparedAsk | null | (() => Promise<PreparedAsk | null>) = typed, channels: string[] = ["phone"], pollMs = 5) {
   let now = 1_000;
   const seen: { device: string; requests: GateRequest[] }[] = [];
   const asks = createGateAsks({
     ask: async (device, requests) => {
       seen.push({ device, requests });
-      return answer;
+      return typeof answer === "function" ? await answer() : answer;
     },
     prepare: { core: (body) => ({ ...(body as object), method: String((body as { method: string }).method).toUpperCase() }) },
     deviceName: (p) => (p.kind === "device" ? `device ${p.deviceId}` : "token"),
     channels: () => channels,
     now: () => now,
-    pollMs: 5,
+    pollMs,
   });
   const ask = async (principal: Principal, requests: unknown[]) =>
     (await asks.handler(context(principal, { requests: requests.map((body) => ({ endpoint: "core", body_b64: Buffer.from(JSON.stringify(body)).toString("base64") })) }))) as Record<string, unknown>;
@@ -48,8 +50,8 @@ async function status(run: () => Promise<unknown>): Promise<number> {
 
 describe("gate asks", () => {
   it("asks only for typed requests, and only where someone can approve", async () => {
-    expect(await setup({ verdict: "pass", items: [{}] }).ask(laptop, [unlock])).toEqual({ needed: false });
-    expect(await status(() => setup({ verdict: "refuse", items: [{}] }).ask(laptop, [unlock]))).toBe(422);
+    expect(await setup({ verdict: "pass", items: [{ verdict: "pass" }] }).ask(laptop, [unlock])).toEqual({ needed: false });
+    expect(await status(() => setup({ verdict: "refuse", items: [{ verdict: "refuse" }] }).ask(laptop, [unlock]))).toBe(422);
     expect(await status(() => setup(null).ask(laptop, [unlock]))).toBe(503);
     expect(await status(() => setup(typed, []).ask(laptop, [unlock]))).toBe(409);
     const t = setup();
@@ -99,6 +101,54 @@ describe("gate asks", () => {
     expect(await t.op(laptop, second.ask_id, "cancel")).toEqual({ state: "cancelled" });
     expect(t.asks.approve(String(second.ask_id))).toBe(false);
     expect(t.asks.approve(String(first.ask_id))).toBe(false);
+  });
+
+  it("a grant covers only the requests the person was shown", async () => {
+    const t = setup({ verdict: "typed", lang: "en", title: "Run 2 steps?", body: "Requested by “Mac”.", button: "Run", items: [{ verdict: "pass" }, { verdict: "typed", text: "Unlock “Front”" }] });
+    const reload = { method: "POST", path: "/api/services/script/reload", body: {} };
+    const opened = await t.ask(laptop, [reload, unlock]);
+    t.asks.approve(String(opened.ask_id));
+    const grant = String((await t.op(laptop, opened.ask_id, "wait")).grant_id);
+    const [passing, shown] = t.seen[0]!.requests;
+    expect(t.asks.consume(laptop, grant, "core", passing!.body)).toBe(false); // rated typed later, it needs its own ask
+    expect(t.asks.consume(laptop, grant, "core", shown!.body)).toBe(true);
+  });
+
+  it("one ask at a time is prepared per device", async () => {
+    let answer: (value: PreparedAsk) => void = () => {};
+    let calls = 0;
+    const t = setup(async () => (++calls === 1 ? await new Promise<PreparedAsk>((resolve) => (answer = resolve)) : typed));
+    const first = t.ask(laptop, [unlock]);
+    await new Promise((r) => setImmediate(r));
+    expect(await status(() => t.ask(laptop, [unlock]))).toBe(429);
+    answer(typed);
+    expect(await first).toMatchObject({ needed: true });
+    expect(await t.ask(laptop, [unlock])).toMatchObject({ needed: true }); // free again
+  });
+
+  it("a caller that hangs up ends its long poll", async () => {
+    const t = setup(typed, ["phone"], 60_000);
+    const opened = await t.ask(laptop, [unlock]);
+    let ended!: () => void;
+    const pollEnded = new Promise<void>((r) => (ended = r));
+    const server = createServer((request, response) => {
+      request.resume();
+      request.on("end", () => {
+        void Promise.resolve(t.asks.handler({ request, response, path: "/gate/v1/ask", body: { ask_id: opened.ask_id, op: "wait" }, principal: laptop })).then(() => ended());
+      });
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    try {
+      const client = httpRequest({ port: (server.address() as AddressInfo).port, host: "127.0.0.1", method: "POST" });
+      client.on("error", () => {});
+      client.end("{}");
+      await new Promise((r) => setTimeout(r, 50));
+      client.destroy();
+      await expect(Promise.race([pollEnded.then(() => "ended"), new Promise((r) => setTimeout(() => r("still polling"), 2_000))])).resolves.toBe("ended");
+    } finally {
+      server.closeAllConnections();
+      await new Promise((r) => server.close(r));
+    }
   });
 
   it("an ask belongs to its device; the App's own credentials can't ask", async () => {

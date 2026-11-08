@@ -24,15 +24,22 @@ export interface GateRequest {
 }
 
 // The worker's /ask answer (cli/gate_ask.go): title, body, and button are the
-// phone's; items are the page's.
-export interface PreparedAsk {
+// phone's; items are the page's, one per request, worded only when typed.
+export interface AskItem {
   verdict: "pass" | "typed" | "refuse";
   why?: string;
+  text?: string;
+  detail?: string;
+  entity_ids?: string[];
+}
+
+export interface PreparedAsk {
+  verdict: "pass" | "typed" | "refuse";
   lang?: string;
   title?: string;
   body?: string;
   button?: string;
-  items: unknown[];
+  items: AskItem[];
 }
 
 export type AskState =
@@ -87,6 +94,7 @@ function ownerOf(principal: Principal): string {
 export function createGateAsks(deps: GateAsksDeps): GateAsks {
   const asks = new Map<string, Ask>();
   const grants = new Map<string, Grant>();
+  const preparing = new Set<string>(); // owners whose ask the worker is rating now
 
   const settle = (ask: Ask, state: AskState): void => {
     ask.state = state;
@@ -139,7 +147,12 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
       const prepare = deps.prepare[endpoint as GateEndpoint] ?? ((value: unknown) => value);
       return { endpoint: endpoint as GateEndpoint, body: Buffer.from(JSON.stringify(prepare(body) ?? null)) };
     });
-    const prepared = await deps.ask(deps.deviceName(principal), requests);
+    const owner = ownerOf(principal);
+    if (preparing.has(owner)) {
+      throw new HttpError(429, "GATE_ASK_BUSY", "An ask from this device is still being prepared; nothing was asked or sent");
+    }
+    preparing.add(owner);
+    const prepared = await deps.ask(deps.deviceName(principal), requests).finally(() => preparing.delete(owner));
     if (prepared === null) {
       throw new HttpError(503, "GATE_UNAVAILABLE", "HA NOVA's safety check is not available; nothing was asked or sent");
     }
@@ -154,7 +167,6 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
       throw new HttpError(409, "GATE_NO_CHANNEL", "No one can confirm this now: no linked phone answers and the approval page is not available; nothing was sent");
     }
     prune();
-    const owner = ownerOf(principal);
     for (const ask of asks.values()) {
       if (ask.owner === owner && ask.state.state === "waiting") {
         settle(ask, { state: "cancelled" }); // one open ask per device: a new one replaces it
@@ -162,23 +174,24 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     }
     const askId = randomBytes(32).toString("base64url");
     const expiresAt = deps.now() + ASK_MS;
-    asks.set(key(askId), { owner, digests: requests.map((r) => gateDigest(r.endpoint, r.body)), prepared, expiresAt, state: { state: "waiting", expires_at: expiresAt }, waiters: new Set() });
+    asks.set(key(askId), { owner, digests: requests.filter((_, i) => prepared.items[i]?.verdict === "typed").map((r) => gateDigest(r.endpoint, r.body)), prepared, expiresAt, state: { state: "waiting", expires_at: expiresAt }, waiters: new Set() });
     return { needed: true, ask_id: askId, expires_at: expiresAt, channels };
   };
 
   // Long-polls up to POLL_MS (or the ask's end) for a change from waiting.
-  const wait = async (ask: Ask, context: RouteContext): Promise<AskState> => {
-    if (ask.state.state === "waiting") {
+  // A caller that hangs up ends its poll (the response's close, not the request's).
+  const wait = async (ask: Ask, { response }: RouteContext): Promise<AskState> => {
+    if (ask.state.state === "waiting" && !response.destroyed) {
       await new Promise<void>((resolve) => {
         const done = (): void => {
           clearTimeout(timer);
           ask.waiters.delete(done);
-          context.request.off("close", done);
+          response.off("close", done);
           resolve();
         };
         const timer = setTimeout(done, Math.max(0, Math.min(deps.pollMs ?? POLL_MS, ask.expiresAt - deps.now())));
         ask.waiters.add(done);
-        context.request.once("close", done);
+        response.once("close", done);
       });
       prune();
     }
