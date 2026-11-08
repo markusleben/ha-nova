@@ -137,16 +137,26 @@ type gateWords struct {
 }
 
 // gateAskWords words one request as its plan does (sayAsk: the goal and the
-// reasons its title doesn't say), read as the gate reads it (gateRequests).
-// A raw shape no raw plan holds (a dashboard delete) is worded by its line
-// and the gate's own reason (why).
+// reasons its title doesn't say), read as the gate reads it (gateRequests:
+// a collect_events envelope as its message). A raw shape no raw plan holds
+// (a dashboard delete) is worded by its line and the gate's own reason
+// (why); any other planner failure is a failure.
 func gateAskWords(s *relaySession, endpoint string, body []byte, why string) (gateWords, error) {
 	payload, ok := decodeObject(body)
 	if !ok || payload == nil {
 		return gateWords{}, errors.New("not one JSON object")
 	}
-	if endpoint == "core" {
-		payload = gateRequests(endpoint, payload)[0]
+	switch requests := gateRequests(endpoint, payload); {
+	case len(requests) != 1:
+		return gateWords{}, errors.New("an envelope with a type of its own")
+	case endpoint == "ws" && payload["message"] != nil: // a collect_events envelope runs its message: word that
+		payload = requests[0]
+		if body, err := json.Marshal(payload); err == nil {
+			return gateAskWords(s, endpoint, body, why)
+		}
+		return gateWords{}, errors.New("the envelope's message can't be read")
+	default:
+		payload = requests[0] // a core method as the Relay sends it
 	}
 	env := verbEnvelope{SchemaVersion: 1, Verb: "gate"}
 	path, _ := payload["path"].(string)
@@ -185,8 +195,9 @@ func gateAskWords(s *relaySession, endpoint string, body []byte, why string) (ga
 	if err == nil {
 		return gateWords{sayAsk(e, &env, plan, ""), textLang(plan), ids}, nil
 	}
+	var failure *verbFailure
 	say, known := rawWhys[why]
-	if !known {
+	if !errors.As(err, &failure) || failure.exit != verbExitRefused || !known { // only a shape no raw plan holds; a failed read stays a failure
 		return gateWords{}, err
 	}
 	lang := s.language()

@@ -110,6 +110,24 @@ func TestGateWorkerAsk(t *testing.T) {
 	if status, out := post("/ask", gateTestSecret, map[string]any{"device": "Mac", "requests": requests}); status != http.StatusOK || out["verdict"] != "typed" || out["title"] == nil {
 		t.Errorf("a dashboard delete (no raw plan holds it): HTTP %d %v", status, out)
 	}
+	// An enveloped write is worded as the message it runs, never as "Send".
+	envelope := `{"message":{"type":"lovelace/dashboards/delete","dashboard_id":"dash_1"},"collect_events":{"max_events":1}}`
+	plain := `{"type":"lovelace/dashboards/delete","dashboard_id":"dash_1"}`
+	s, err := newRelaySession(paths, verbOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.close()
+	wrapped, errWrapped := gateAskWords(s, "ws", []byte(envelope), "delete")
+	bare, errBare := gateAskWords(s, "ws", []byte(plain), "delete")
+	if errWrapped != nil || errBare != nil || wrapped.goal.text("en") != bare.goal.text("en") {
+		t.Errorf("envelope %q (%v), bare %q (%v)", wrapped.goal.text("en"), errWrapped, bare.goal.text("en"), errBare)
+	}
+	// A failed read while a raw plan words it is a failure, not a generic ask.
+	f.fail["config/device_registry/list"], f.fail["config/entity_registry/list"] = true, true
+	if _, err := gateAskWords(s, "ws", []byte(`{"type":"config/device_registry/remove","device_id":"d1"}`), "delete"); err == nil {
+		t.Error("an unreadable registry was worded as a generic delete")
+	}
 	if got := gateIDs([]string{"sensor." + strings.Repeat("a", 80) + "_1"}); !strings.Contains(got, "_1)") {
 		t.Errorf("a long entity id is cut: %q", got)
 	}
