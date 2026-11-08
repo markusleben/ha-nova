@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 )
@@ -164,8 +165,12 @@ func gateHandler(paths runtimePaths, secret [32]byte) http.Handler {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if r.Method != http.MethodPost || r.URL.Path != "/check" && r.URL.Path != "/redact" {
+		if r.Method != http.MethodPost || !slices.Contains([]string{"/check", "/redact", "/ask", "/phone"}, r.URL.Path) {
 			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		if r.URL.Path == "/ask" || r.URL.Path == "/phone" {
+			gateAskHandler(paths, w, r)
 			return
 		}
 		var in struct {

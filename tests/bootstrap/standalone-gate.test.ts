@@ -153,20 +153,20 @@ describe("standalone Relay: the safety check", () => {
     it("lets the worker reach this listener from loopback only, with a token replaced on every start", async () => {
       expect(JSON.parse(readFileSync(join(dir, "gate", "relay.json"), "utf8"))).toEqual({ relay_url: "http://127.0.0.1:8791", credential: gateToken() });
       const first = gateToken();
-      const ask = { type: "call_service", domain: "notify", service: "mobile_app_pixel" };
-      const res = await post(base, "/ws", ask, first);
-      expect(JSON.parse(res.text)).toEqual({ ok: true, data: { secret: "SECRET" } });
+      const ask = { method: "POST", path: "/api/services/notify/mobile_app_pixel", body: { message: "Unlock?" } };
+      const res = await post(base, "/core", ask, first);
+      expect(JSON.parse(res.text)).toEqual({ ok: true, data: { status: 200, body: {} } });
       expect(checks).toEqual([]);
       verdict = "typed";
       expect((await post(base, "/ws", { type: "call_service", domain: "lock", service: "unlock" }, first)).status).toBe(422);
       peer = "192.168.1.20";
-      expect((await post(base, "/ws", ask, first)).status).toBe(401);
+      expect((await post(base, "/core", ask, first)).status).toBe(401);
       peer = undefined;
       children[0]!.emit("exit", 1, null);
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(gateToken()).not.toBe(first);
-      expect((await post(base, "/ws", ask, first)).status).toBe(401);
-      expect(forwarded).toEqual(["ws call_service"]);
+      expect((await post(base, "/core", ask, first)).status).toBe(401);
+      expect(forwarded).toEqual(["core POST /api/services/notify/mobile_app_pixel"]);
     });
   });
 });
