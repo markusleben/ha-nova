@@ -118,6 +118,7 @@ beforeEach(async () => {
     files: gated("files", upstream("files"), gate),
     backups: gated("backups", upstream("backups"), gate),
     supervisor: gated("supervisor", upstream("supervisor"), gate),
+    ask: () => ({}),
   };
   const deps = { registry, pairingManager: { getStatus: () => ({ phase: "inactive" }) } as unknown as PairingV1Manager, functional, relayVersion: "0.29.0", now: () => 1 };
   bootBase = `http://127.0.0.1:${await listen(createHttp(createBootstrapListener(deps)))}`;

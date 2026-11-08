@@ -85,17 +85,20 @@ echo ""
 # own credentials from loopback only, the worker's internal principal and its three allowances, and
 # the gate with redaction in front of every device-facing handler on all three App listeners and the
 # standalone container's one (its shared token a legacy principal, the worker's own token), and the
-# credential checked again before forwarding: about 12254.
+# credential checked again before forwarding: about 12254;
+# and to 12650 for layer 4b: asks and grants in memory (one open ask per device, three minutes; a
+# grant of the asked bytes' digests, each usable once by that device for two minutes), the ask route
+# on the App's functional listeners, and the grant checked before a typed request is forwarded: about 12565.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 12300 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–12300 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 12650 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–12650 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–12300 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–12650 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──

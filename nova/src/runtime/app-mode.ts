@@ -10,6 +10,7 @@ import { createHealthHandler } from "../http/handlers/health.js";
 import { createSupervisorProxyHandler } from "../http/handlers/supervisor-proxy.js";
 import { createWsProxyHandler } from "../http/handlers/ws-proxy.js";
 import { gated, type GateClient } from "../http/gate.js";
+import { gateWithAsks } from "../http/gate-asks.js";
 import { applyServerTimeouts, type RelayLogger } from "../http/server.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 import type { HaWsClient } from "../ha/ws-client.js";
@@ -230,7 +231,7 @@ export async function buildAppMode(
     mint: mintGateDevice(registry, input.now, `https://127.0.0.1:${SECURE_PORT}`, tls.spkiPin),
     logger: input.logger,
   });
-  const functional = buildFunctionalHandlers(input, relayInstanceId, supervisorBase, gate);
+  const functional = buildFunctionalHandlers(input, relayInstanceId, supervisorBase, gate, registry);
   const listenerDeps = {
     registry,
     pairingManager: pairing,
@@ -304,10 +305,18 @@ function buildFunctionalHandlers(
   input: AppModeInput,
   relayInstanceId: string,
   supervisorBase: string | undefined,
-  gate: GateClient,
+  worker: GateClient,
+  registry: DeviceRegistry,
 ): FunctionalHandlers {
   const forwardCore = createCoreForwarder({ coreClient: input.coreClient });
+  const { gate, ask } = gateWithAsks(worker, {
+    prepare: { core: parseCoreRequest },
+    deviceName: (p) => (p.kind === "device" ? registry.list().find((d) => d.deviceId === p.deviceId)?.name : undefined) ?? "the shared Relay token",
+    channels: () => [], // the linked phone and the approval page come with their layers
+    now: input.now,
+  });
   return {
+    ask,
     health: createHealthHandler({
       version: input.relayVersion,
       wsClient: input.wsClient,
