@@ -149,12 +149,14 @@ func gateAskWords(s *relaySession, endpoint string, body []byte, why string) (ga
 	switch requests := gateRequests(endpoint, payload); {
 	case len(requests) != 1:
 		return gateWords{}, errors.New("an envelope with a type of its own")
-	case endpoint == "ws" && payload["message"] != nil: // a collect_events envelope runs its message: word that
-		payload = requests[0]
-		if body, err := json.Marshal(payload); err == nil {
-			return gateAskWords(s, endpoint, body, why)
+	case endpoint == "ws" && payload["message"] != nil: // a collect_events envelope runs its message: word that, as sent
+		var envelope struct {
+			Message json.RawMessage `json:"message"`
 		}
-		return gateWords{}, errors.New("the envelope's message can't be read")
+		if json.Unmarshal(body, &envelope) != nil {
+			return gateWords{}, errors.New("the envelope's message can't be read")
+		}
+		return gateAskWords(s, endpoint, envelope.Message, why)
 	default:
 		payload = requests[0] // a core method as the Relay sends it
 	}
