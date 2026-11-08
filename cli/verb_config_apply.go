@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
-	"slices"
 	"strings"
 )
 
@@ -82,14 +81,14 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 	}
 	if failure := writeFailure(env, result, err, createdID); failure != nil && !alreadyGone {
 		switch {
-		case errors.As(err, &unknown) && update:
-			saveCheckpoint(paths, s, env, action, ctx, action.Body)
-		case ctx.calm && (err != nil || rejectedStatuses[result.status]): // nothing landed: no way back to a state that never changed
+		case ctx.calm && (errors.As(err, &unknown) || err == nil && !rejectedStatuses[result.status]): // it may have landed: the checkpoint saved first stays, with the way back
+			env.BeforeConfig, env.Undo = ctx.current, &added
+		case ctx.calm: // nothing landed: no way back to a state that never changed
 			if err := dropUndoSnapshot(paths, s.server, added); err != nil {
 				env.Notices = append(env.Notices, verbNotice{Kind: "undo", Text: fmt.Sprintf("the checkpoint saved for this update stays although nothing changed (%s); the next update of it asks first", err)})
 			}
-		case ctx.calm: // any other answer may have saved it: the checkpoint stays, with the way back
-			env.BeforeConfig, env.Undo = ctx.current, &added
+		case errors.As(err, &unknown) && update:
+			saveCheckpoint(paths, s, env, action, ctx, action.Body)
 		}
 		return failure
 	}
@@ -116,14 +115,11 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 		if expected == nil {
 			expected = action.Body
 		}
-		saveCheckpoint(paths, s, env, action, ctx, expected)
-		if ctx.calm { // the checkpoint saved first stays the way back if this refresh failed
-			if env.Undo == nil {
-				env.Notices = slices.DeleteFunc(env.Notices, func(n verbNotice) bool { return n.Kind == "undo" })
-				env.Undo = &added
-			}
-			env.Undo.Action = added.Action
-			env.undoable = env.Status == "verified"
+		if !ctx.calm {
+			saveCheckpoint(paths, s, env, action, ctx, expected)
+		} else { // the checkpoint saved first stays the way back if this refresh failed; one Home Assistant kept differently is no calm step
+			_ = refreshUndoSnapshot(paths, s.server, added, expected, !strings.HasPrefix(row.Note, readBackDiffers))
+			env.Undo, env.undoable = &added, env.Status == "verified"
 		}
 	}
 	return nil
@@ -141,7 +137,7 @@ func saveCheckpoint(paths runtimePaths, s *relaySession, env *verbEnvelope, acti
 
 func checkpointRecord(s *relaySession, action configAction, ctx configContext, expectedAfter json.RawMessage) []byte {
 	record, _ := json.Marshal(map[string]any{"op": "update", "domain": action.Domain, "target_id": action.ConfigID, "server": s.server,
-		"name": ctx.alias, "before_config": ctx.current, "expected_after": expectedAfter})
+		"name": ctx.alias, "before_config": ctx.current, "expected_after": expectedAfter, "calm": ctx.calm})
 	return record
 }
 

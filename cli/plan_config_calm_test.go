@@ -66,7 +66,7 @@ func TestPlanWriteUpdateRunsWithItsWayBackSavedFirst(t *testing.T) {
 	if _, reverted := h.run(runPlanCommand, "revert"); reverted.Tier != "preview" { // an undo keeps its preview
 		t.Fatalf("revert: %+v", reverted)
 	}
-	if again := h.planHall("light.toggle"); again.Tier != "preview" { // never replaces this item's checkpoint
+	if again := h.planHall("light.toggle"); again.Tier != "ordinary" { // replaces its own calm step
 		t.Fatalf("second update: %+v", again)
 	}
 }

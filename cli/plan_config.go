@@ -462,7 +462,8 @@ func (e *tierEngine) classifyDraft(domain, configID string, draft, current json.
 // a preview (calmer-confirmations spec item 6) only when the write itself is
 // the one reason, the check is complete, nothing hidden is in its config, no
 // other automation or script calls it, and its checkpoint can be added
-// without replacing or evicting one. Any doubt, a failed read included,
+// without evicting one, replacing at most its own last calm step
+// (ownCalmStep). Any doubt, a failed read included,
 // keeps the preview; it never touches a typed plan.
 func (e *tierEngine) calmUpdate(paths runtimePaths, req configRequest, current json.RawMessage) bool {
 	if req.Op != "write" || req.Create || current == nil || (req.Domain != "automation" && req.Domain != "script") {
@@ -501,7 +502,7 @@ func (e *tierEngine) calmUpdate(paths runtimePaths, req configRequest, current j
 		}
 	}
 	stack, err := loadUndoSnapshotStack(paths)
-	return err == nil && checkpointFits(stack, e.s.server, req.Domain, req.ConfigID)
+	return err == nil && (checkpointFits(stack, e.s.server, req.Domain, req.ConfigID) || ownCalmStep(stack, e.s.server, req.Domain, req.ConfigID, current))
 }
 
 // onlyInformationalNotes: the check left no note but those an ordinary call
