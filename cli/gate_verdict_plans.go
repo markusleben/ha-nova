@@ -28,7 +28,7 @@ func gatePlanTier(payload map[string]any, body []byte, session func() (*relaySes
 		return tierTyped, reasonConfigDelete, true, nil
 	}
 	env := verbEnvelope{SchemaVersion: 1, Verb: "gate"}
-	e, _, refusedShape, opened, err := gatePlan(session, &env, payload, body)
+	e, _, refusedShape, opened, err := gatePlan(session, &env, payload, body, "")
 	switch {
 	case refusedShape:
 		return tierRefused, "", true, nil
@@ -55,8 +55,9 @@ func gatePlanTier(payload map[string]any, body []byte, session func() (*relaySes
 // gatePlan runs the plan engine for a service call or a config write, as
 // plan call, plan config, and apply's recompute run it. refusedShape: a call
 // body the CLI never sends, checked before the session opens; opened is
-// false when the session didn't open (err).
-func gatePlan(session func() (*relaySession, error), env *verbEnvelope, payload map[string]any, body []byte) (e *tierEngine, plan storedPlan, refusedShape, opened bool, err error) {
+// false when the session didn't open (err). A config delete names its
+// entity (entity), as plan config's does.
+func gatePlan(session func() (*relaySession, error), env *verbEnvelope, payload map[string]any, body []byte, entity string) (e *tierEngine, plan storedPlan, refusedShape, opened bool, err error) {
 	path, _ := payload["path"].(string)
 	if payload["method"] == http.MethodPost && servicePathPattern.MatchString(path) {
 		var sent map[string]any
@@ -83,7 +84,7 @@ func gatePlan(session func() (*relaySession, error), env *verbEnvelope, payload 
 	domain, id, _ := strings.Cut(strings.TrimPrefix(path, "/api/config/"), "/config/")
 	req := configRequest{Op: "write", Domain: domain, ConfigID: id, Draft: core.Body}
 	if payload["method"] == http.MethodDelete {
-		req = configRequest{Op: "delete", Domain: domain, ConfigID: id}
+		req = configRequest{Op: "delete", Domain: domain, ConfigID: id, EntityID: entity}
 	}
 	e, plan, _, err = computeConfigPlan(runtimePaths{}, s, env, req)
 	return e, plan, false, true, err

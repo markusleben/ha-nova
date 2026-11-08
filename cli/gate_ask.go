@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -32,11 +33,12 @@ type gateAskItem struct {
 	Verdict   gateDecision `json:"verdict"`
 	Why       string       `json:"why,omitempty"`
 	Text      string       `json:"text,omitempty"`
+	Detail    string       `json:"detail,omitempty"` // the reasons the text doesn't say, uncut, for the page
 	EntityIDs []string     `json:"entity_ids,omitempty"`
 }
 
 // gateAsk: the strictest item's verdict; for typed, the phone's title, body,
-// and button, and every item's text for the page.
+// and button, and each typed item's text for the page.
 type gateAsk struct {
 	Verdict gateDecision  `json:"verdict"`
 	Lang    string        `json:"lang,omitempty"`
@@ -47,11 +49,14 @@ type gateAsk struct {
 }
 
 // gatePrepareAsk rates each request on its own fresh session (Contract),
-// then words them all on one session. Nothing is worded unless one is typed
-// and none is refused. err: a check or a wording failed (unavailable).
+// then words the typed ones on one session. Only typed items are worded and
+// listed: a grant covers only them, and the rest run without one. Nothing
+// is worded unless one is typed and none is refused. err: a check or a
+// wording failed (unavailable).
 func gatePrepareAsk(paths runtimePaths, device string, requests []gateAskRequest) (gateAsk, error) {
 	ask := gateAsk{Verdict: gatePass, Items: make([]gateAskItem, len(requests))}
 	rank := map[gateDecision]int{gatePass: 0, gateTyped: 1, gateRefuse: 2}
+	var typed []int
 	for i, r := range requests {
 		check, err := gateCheckRequest(paths, r.Endpoint, r.Body)
 		if err != nil {
@@ -60,6 +65,9 @@ func gatePrepareAsk(paths runtimePaths, device string, requests []gateAskRequest
 		ask.Items[i] = gateAskItem{Verdict: check.Verdict, Why: check.Why}
 		if rank[check.Verdict] > rank[ask.Verdict] {
 			ask.Verdict = check.Verdict
+		}
+		if check.Verdict == gateTyped {
+			typed = append(typed, i)
 		}
 	}
 	if ask.Verdict != gateTyped {
@@ -70,41 +78,44 @@ func gatePrepareAsk(paths runtimePaths, device string, requests []gateAskRequest
 		return gateAsk{}, err
 	}
 	defer s.close()
-	goals := make([]actionGoal, len(requests))
-	langs := make([]string, len(requests))
-	for i, r := range requests {
-		if goals[i], langs[i], ask.Items[i].EntityIDs, err = gateAskWords(s, r.Endpoint, r.Body); err != nil {
-			return gateAsk{}, fmt.Errorf("item %d can't be worded: %w", i+1, err)
-		}
-	}
-	var typed []int
-	for i, item := range ask.Items {
-		if item.Verdict == gateTyped {
-			typed = append(typed, i)
-		}
-	}
-	lang := langs[typed[0]]
-	if slices.ContainsFunc(typed, func(i int) bool { return langs[i] != lang }) {
-		lang = "en" // never mixed (confirmation localization, Design 9)
-	}
-	ask.Lang = lang
-	for i := range ask.Items {
-		ask.Items[i].Text = upperFirst(goals[i].text(lang)) + gateIDs(ask.Items[i].EntityIDs)
-	}
-	goal := goals[typed[0]]
-	var why []string
-	if len(requests) > 1 {
-		goal = actionGoal{raw: "confirm", names: []string{confirmT(lang, "raw.steps", "count", len(requests))}}
+	words := map[int]gateWords{}
+	wordAll := func() (mixed bool, err error) {
 		for _, i := range typed {
-			why = append(why, confirmT(lang, "raw.step_why", "number", i+1, "change", ask.Items[i].Text))
+			if words[i], err = gateAskWords(s, requests[i].Endpoint, requests[i].Body, ask.Items[i].Why); err != nil {
+				return false, fmt.Errorf("item %d can't be worded: %w", i+1, err)
+			}
+			mixed = mixed || words[i].lang != words[typed[0]].lang
 		}
-	} else if ids := gateIDs(ask.Items[0].EntityIDs); ids != "" {
-		why = append(why, strings.TrimSpace(ids))
+		return mixed, nil
+	}
+	mixed, err := wordAll()
+	if err == nil && mixed { // never mixed (confirmation localization, Design 9): all of it in English
+		s.lang, s.words = "en", nil
+		_, err = wordAll()
+	}
+	if err != nil {
+		return gateAsk{}, err
+	}
+	lang := words[typed[0]].lang
+	ask.Lang = lang
+	var why []string
+	for _, i := range typed {
+		w := words[i]
+		ask.Items[i].Text, ask.Items[i].Detail, ask.Items[i].EntityIDs = upperFirst(w.goal.text(lang))+gateIDs(w.ids), w.goal.why, w.ids
+		if len(requests) > 1 {
+			why = append(why, confirmT(lang, "raw.step_why", "number", i+1, "change", ask.Items[i].Text))
+		} else if ids := gateIDs(w.ids); ids != "" {
+			why = append(why, strings.TrimSpace(ids))
+		}
 	}
 	for _, i := range typed {
-		if goals[i].why != "" && !slices.Contains(why, goals[i].why) {
-			why = append(why, goals[i].why)
+		if detail := words[i].goal.why; detail != "" && !slices.Contains(why, detail) {
+			why = append(why, detail)
 		}
+	}
+	goal := words[typed[0]].goal
+	if len(requests) > 1 {
+		goal = actionGoal{raw: "confirm", names: []string{confirmT(lang, "raw.steps", "count", len(requests))}}
 	}
 	body := confirmT(lang, "phone.requested_by", "host", sayText(device, false))
 	if text := strings.Join(why, ". "); text != "" {
@@ -117,38 +128,70 @@ func gatePrepareAsk(paths runtimePaths, device string, requests []gateAskRequest
 	return ask, nil
 }
 
+// gateWords: one request as its plan words it, in lang, with the entity ids
+// it acts on.
+type gateWords struct {
+	goal actionGoal
+	lang string
+	ids  []string
+}
+
 // gateAskWords words one request as its plan does (sayAsk: the goal and the
-// reasons its title doesn't say), with the entity ids it names.
-func gateAskWords(s *relaySession, endpoint string, body []byte) (actionGoal, string, []string, error) {
+// reasons its title doesn't say), read as the gate reads it (gateRequests).
+// A raw shape no raw plan holds (a dashboard delete) is worded by its line
+// and the gate's own reason (why).
+func gateAskWords(s *relaySession, endpoint string, body []byte, why string) (gateWords, error) {
 	payload, ok := decodeObject(body)
 	if !ok || payload == nil {
-		return actionGoal{}, "", nil, errors.New("not one JSON object")
+		return gateWords{}, errors.New("not one JSON object")
+	}
+	if endpoint == "core" {
+		payload = gateRequests(endpoint, payload)[0]
 	}
 	env := verbEnvelope{SchemaVersion: 1, Verb: "gate"}
-	var e *tierEngine
-	var plan storedPlan
-	var err error
 	path, _ := payload["path"].(string)
-	if endpoint == "core" && payload["method"] != http.MethodGet && (servicePathPattern.MatchString(path) || configPathPattern.MatchString(path)) {
-		var refusedShape bool
-		e, plan, refusedShape, _, err = gatePlan(func() (*relaySession, error) { return s, nil }, &env, payload, body)
+	method, _ := payload["method"].(string)
+	switch {
+	case endpoint == "core" && method == http.MethodPost && servicePathPattern.MatchString(path):
+		e, plan, refusedShape, _, err := gatePlan(func() (*relaySession, error) { return s, nil }, &env, payload, body, "")
 		if refusedShape {
 			err = errors.New("a service call the CLI never sends")
 		}
-	} else {
-		e, plan, err = computeRawPlan(s, &env, []rawRequest{{Endpoint: endpoint, Payload: body}})
+		if err != nil {
+			return gateWords{}, err
+		}
+		ids := plan.Action.EntityIDs
+		if domain, name := splitID(plan.Action.Service); domain == "script" && !scriptEntityServices[name] {
+			ids = []string{plan.Action.Service} // the script it runs
+		}
+		return gateWords{sayAsk(e, &env, plan, ""), textLang(plan), gateValidIDs(ids)}, nil
+	case endpoint == "core" && method != http.MethodGet && configPathPattern.MatchString(path):
+		domain, id, _ := strings.Cut(strings.TrimPrefix(path, "/api/config/"), "/config/")
+		entity, _, err := registryEntityFor(s, domain, id)
+		if err != nil {
+			return gateWords{}, err
+		}
+		e, plan, _, _, err := gatePlan(func() (*relaySession, error) { return s, nil }, &env, payload, body, entity)
+		if err == nil && method == http.MethodDelete && (plan.ConfigAction == nil || plan.ConfigAction.ConfigID != id || plan.ConfigAction.Domain != domain) {
+			err = errors.New("the delete resolved to another config")
+		}
+		if err != nil {
+			return gateWords{}, err
+		}
+		return gateWords{sayAsk(e, &env, plan, ""), textLang(plan), gateValidIDs([]string{entity})}, nil
 	}
-	if err != nil {
-		return actionGoal{}, "", nil, err
+	ids := gateEntityIDs(payload, nil, 0)
+	e, plan, err := computeRawPlan(s, &env, []rawRequest{{Endpoint: endpoint, Payload: body}})
+	if err == nil {
+		return gateWords{sayAsk(e, &env, plan, ""), textLang(plan), ids}, nil
 	}
-	ids := plan.Action.EntityIDs
-	if plan.ConfigAction != nil && plan.ConfigAction.EntityID != "" {
-		ids = []string{plan.ConfigAction.EntityID}
+	say, known := rawWhys[why]
+	if !known {
+		return gateWords{}, err
 	}
-	if plan.Kind == "raw" {
-		ids = gateEntityIDs(payload, nil, 0)
-	}
-	return sayAsk(e, &env, plan, ""), textLang(plan), ids, nil
+	lang := s.language()
+	verb, object := rawItemLine(newRawNamer(s, nil), lang, endpoint, payload)
+	return gateWords{actionGoal{raw: verb, names: rawNames(lang, object, nil), why: say(lang)}, lang, ids}, nil
 }
 
 // gateEntityIDs: every entity id a raw request names, in order, once.
@@ -184,24 +227,31 @@ func gateAppendIDs(ids []string, v any) []string {
 		values = []any{v}
 	}
 	for _, value := range values {
-		if id, ok := value.(string); ok && entityIDPattern.MatchString(id) && !slices.Contains(ids, id) {
+		if id, ok := value.(string); ok {
 			ids = append(ids, id)
 		}
 	}
-	return ids
+	return gateValidIDs(ids)
 }
 
-// gateIDs: " (lock.front_door, cover.garage)", so a renamed entity can't pass
-// for another (spec §3).
+// gateValidIDs: the well-formed entity ids, once each.
+func gateValidIDs(ids []string) []string {
+	var valid []string
+	for _, id := range ids {
+		if entityIDPattern.MatchString(id) && !slices.Contains(valid, id) {
+			valid = append(valid, id)
+		}
+	}
+	return valid
+}
+
+// gateIDs: " (lock.front_door, cover.garage)", whole (only [a-z0-9_.]), so
+// a renamed entity can't pass for another (spec §3).
 func gateIDs(ids []string) string {
 	if len(ids) == 0 {
 		return ""
 	}
-	said := make([]string, len(ids))
-	for i, id := range ids {
-		said[i] = sayText(id, false)
-	}
-	return " (" + strings.Join(said, ", ") + ")"
+	return " (" + strings.Join(ids, ", ") + ")"
 }
 
 type gatePhoneRequest struct {
@@ -268,7 +318,7 @@ func gatePhone(ctx context.Context, paths runtimePaths, in gatePhoneRequest) (ga
 	defer reply.withdraw()
 	switch answer {
 	case phoneConfirmed:
-		return gatePhoneAnswer{Answer: "approved", UserID: setup.confirmer}, nil
+		return gatePhoneStill(paths, in.Link, setup), nil
 	case phoneDeclined:
 		return gatePhoneAnswer{Answer: "declined"}, nil
 	case phoneRejected:
@@ -279,13 +329,29 @@ func gatePhone(ctx context.Context, paths runtimePaths, in gatePhoneRequest) (ga
 	return gatePhoneAnswer{Answer: "unavailable", Why: "send"}, nil
 }
 
+// gatePhoneStill: a tap counts only if, read again after it on a fresh
+// session, the same administrator may still confirm on the same phone; a
+// demotion during the wait, or a failed read, is no approval.
+func gatePhoneStill(paths runtimePaths, link phoneLink, setup phoneSetup) gatePhoneAnswer {
+	s, err := newRelaySessionWithin(paths, verbOptions{}, gateCheckBudget)
+	if err != nil {
+		return gatePhoneAnswer{Answer: "unavailable", Why: "read"}
+	}
+	defer s.close()
+	again, status := gatePhoneSetup(s, link)
+	if status != phoneReady || again.confirmer != setup.confirmer || again.targets[0].DeviceID != setup.targets[0].DeviceID {
+		return gatePhoneAnswer{Answer: "unavailable", Why: cmp.Or(gatePhoneWhy(again.why), "changed")}
+	}
+	return gatePhoneAnswer{Answer: "approved", UserID: setup.confirmer}
+}
+
 func gatePhoneWhy(why phoneWhy) string {
 	return map[phoneWhy]string{whyRead: "read", whyOwnerToken: "owner_token", whyRelayUser: "relay_user", whyDemoted: "not_admin",
 		whyRemoved: "removed", whyShared: "shared_name", whyUnreachable: "unreachable"}[why]
 }
 
 // gateAskHandler answers /ask and /phone; the caller checked the bearer.
-// /ask rates up to 20 requests, so it may take a check budget for each.
+// /ask rates up to 20 requests and words them, a check budget for each, twice.
 func gateAskHandler(paths runtimePaths, w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, gateBodyLimit))
 	dec.DisallowUnknownFields()
@@ -301,7 +367,7 @@ func gateAskHandler(paths runtimePaths, w http.ResponseWriter, r *http.Request) 
 			http.Error(w, "the request must be one JSON object with device and 1-20 requests, each with endpoint", http.StatusBadRequest)
 			return
 		}
-		_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(time.Duration(len(in.Requests)+2) * gateCheckBudget))
+		_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(time.Duration(2*len(in.Requests)+2) * gateCheckBudget))
 		out, err = gatePrepareAsk(paths, in.Device, in.Requests)
 	} else {
 		var in gatePhoneRequest

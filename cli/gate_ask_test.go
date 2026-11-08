@@ -85,8 +85,36 @@ func TestGateWorkerAsk(t *testing.T) {
 	if !strings.Contains(body, "Step 2: Unlock") || strings.Contains(body, "Step 1") {
 		t.Errorf("the body names only the typed step: %q", body)
 	}
-	if first := items[0].(map[string]any); first["verdict"] != "pass" || !strings.HasSuffix(first["text"].(string), "(light.kitchen)") {
-		t.Errorf("the passing step is listed too, for the page: %v", first)
+	if first := items[0].(map[string]any); first["verdict"] != "pass" || first["text"] != nil {
+		t.Errorf("a passing step is not worded (no grant covers it): %v", first)
+	}
+
+	// A read beside it, a lower-case method, a script's own name, and an
+	// automation delete are worded as their plans word them.
+	out = ask(`{"method":"GET","path":"/api/config"}`, `{"method":"post","path":"/api/services/lock/unlock","body":{"entity_id":["lock.front"]}}`)
+	if items, _ = out["items"].([]any); out["verdict"] != "typed" || len(items) != 2 || !strings.HasSuffix(items[1].(map[string]any)["text"].(string), "(lock.front)") {
+		t.Errorf("a read and a lower-case unlock: %v", out)
+	}
+	f.automation("hall", "hall_id", map[string]any{"alias": "Hall", "triggers": []any{}, "actions": []any{}})
+	f.full = append(f.full, map[string]any{"entity_id": "automation.hall", "platform": "automation", "unique_id": "hall_id"})
+	for body, id := range map[string]string{
+		`{"method":"DELETE","path":"/api/config/automation/config/hall_id"}`: "automation.hall",
+	} {
+		out = ask(body)
+		items, _ = out["items"].([]any)
+		if out["verdict"] != "typed" || len(items) != 1 || !strings.HasSuffix(items[0].(map[string]any)["text"].(string), "("+id+")") {
+			t.Errorf("%s: %v", body, out)
+		}
+	}
+	requests := []any{map[string]any{"endpoint": "ws", "body_b64": b64(`{"type":"lovelace/dashboards/delete","dashboard_id":"dash_1"}`)}}
+	if status, out := post("/ask", gateTestSecret, map[string]any{"device": "Mac", "requests": requests}); status != http.StatusOK || out["verdict"] != "typed" || out["title"] == nil {
+		t.Errorf("a dashboard delete (no raw plan holds it): HTTP %d %v", status, out)
+	}
+	if got := gateIDs([]string{"sensor." + strings.Repeat("a", 80) + "_1"}); !strings.Contains(got, "_1)") {
+		t.Errorf("a long entity id is cut: %q", got)
+	}
+	if got := gateValidIDs([]string{"lock.front", "lock.front", "not an id", "light.x"}); strings.Join(got, ",") != "lock.front,light.x" {
+		t.Errorf("valid ids: %v", got)
 	}
 
 	for name, in := range map[string]map[string]any{
@@ -108,7 +136,7 @@ func TestGateWorkerAsk(t *testing.T) {
 // /phone asks the Relay's link for the device and counts only the linked
 // administrator's own tap; anything else is no approval.
 func TestGateWorkerPhone(t *testing.T) {
-	h, p, _ := familyLink(t)
+	h, p, home := familyLink(t)
 	post := gateTestServer(t, h.paths)
 	anna := map[string]any{"service": "mobile_app_annas_pixel", "device_id": "dev-anna", "user_id": "anna-id"}
 	phone := func(link map[string]any, wait int) (int, map[string]any) {
@@ -142,6 +170,19 @@ func TestGateWorkerPhone(t *testing.T) {
 		if tc.asked && p.sent[0]["title"] != "Unlock “Front”?" {
 			t.Errorf("%s: title %v", tc.name, p.sent[0]["title"])
 		}
+	}
+	// Anna is demoted while the notification is open: her tap is no approval.
+	p.sent = nil
+	p.tapBy = func(service, ok, no string) []phoneEvent {
+		for _, u := range home.users {
+			if u["id"] == "anna-id" {
+				u["group_ids"] = []string{"system-users"}
+			}
+		}
+		return tapFrom("mobile_app_annas_pixel", "anna-id", true)(service, ok, no)
+	}
+	if status, out := phone(anna, 3000); status != http.StatusOK || out["answer"] != "unavailable" || out["why"] != "not_admin" {
+		t.Errorf("a tap after a demotion: HTTP %d %v", status, out)
 	}
 	for name, wait := range map[string]int{"no wait": 0, "past the ask's lifetime": 180001} {
 		if status, _ := phone(anna, wait); status != http.StatusBadRequest {
