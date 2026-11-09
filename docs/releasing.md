@@ -124,9 +124,9 @@ deploy or tag.
    `~/.claude-ha-nova-test`); then, with the tag's binary, the test bed's
    assertions (`testbed/verify.sh`), chat-app files under `/config` at
    Ask only, Use the home, and Manage everything (read, write, delete; a
-   refusal names its real cause, never the sign-in or a setting), and the
-   NOVA App update notice (home route); then the client matrix from the last
-   stable and from v0.24.0 (published stable install, then update to the RC),
+   refusal names its real cause, never the sign-in or a setting); then the
+   client matrix from the last stable and from v0.24.0 (published stable
+   install, then update to the RC),
    the phone lane (push payloads per platform through fake phones), calm
    edits in a bed with real-home listeners (two edits of one automation run
    without an ask and undo puts back the latest; an unlock or garage member
@@ -149,7 +149,11 @@ deploy or tag.
    from the last stable, doctor, a read and an ordinary call, client wiring,
    rerun, stale uninstall marker, uninstall and purge, as fresh standard
    users in PowerShell 7 and 5.1 (`docs/release-validation.md` "Windows
-   Public Onboarding Lane"). It never starts or stops a VM, checks the HAOS
+   Public Onboarding Lane"); and one chat-app file delete in `www` through
+   Home Assistant's chat-app endpoint into the App's own bridge, which must
+   end refused with `FILE_PATH_DENIED` (set up once on the HAOS VM: chat
+   apps on, the setup token's user at Manage everything, the App's file
+   access read or readwrite). It never starts or stops a VM, checks the HAOS
    VM is the throwaway one before any write, and revokes its devices at the
    end. Post its table on the release-prep PR too.
    This replaces only the Windows 11 proof; other platform-specific gates in

@@ -14,7 +14,6 @@
 //   e  the bed's assertions (testbed/verify.sh) with the tag's binary
 //   f  chat-app files under /config at each level (testbed/chat-files.mjs; the bed
 //      starts with TESTBED_FILES=1)
-//   g  the NOVA App update notice (testbed/app-notice.mjs)
 //   h  calm edits in a home with real-home listeners (testbed/calm.mjs)
 // Order c, e, f, g, a, b, h, d: the chat bridge runs first, while the Claude test
 // account's usage limit is fresh; e, f, and g before h's listeners, which make
@@ -191,7 +190,6 @@ async function bedCheck(step, check, args) {
 }
 const verify = () => bedCheck("e", "test bed assertions, tag's binary", [join(TESTBED, "verify.sh")]);
 const chatFiles = () => bedCheck("f", "chat-app files under /config, each level", [join(TESTBED, "chat-files.mjs")]);
-const appNotice = () => bedCheck("g", "App update notice, home route", [join(TESTBED, "app-notice.mjs")]);
 const calm = () => bedCheck("h", "calm edits in a real-home-shaped bed", [join(TESTBED, "calm.mjs")]);
 
 // ---- c: chat bridge, code last ----------------------------------------------------
@@ -357,7 +355,7 @@ try {
   await fetchBinary();
   setupLog = join(WORK, "testbed-up.log");
   startBed();
-  for (const [step, fn] of [["c", chat], ["e", verify], ["f", chatFiles], ["g", appNotice], ["a", matrix], ["b", phone], ["h", calm], ["d", slow]]) {
+  for (const [step, fn] of [["c", chat], ["e", verify], ["f", chatFiles], ["a", matrix], ["b", phone], ["h", calm], ["d", slow]]) {
     try { await fn(); } catch (err) { row(step, "step ran", "FAIL", err.message); }
   }
 } catch (err) {

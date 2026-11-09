@@ -134,9 +134,16 @@ expect 'history of a light is readable' 0 "d.status === 'ok'" -- history light.k
 
 echo "--- Relay refusals (a Relay 403 names its own code, never a sign-in problem)"
 printf '%s' '[{"endpoint":"files","payload":{"action":"delete_file","path":"/config/www/mailbox/latest.jpg"}}]' > "$TMP/delete-www.json"
+if curl -fsS -H "Authorization: Bearer $(cat "$STATE/relay-token")" http://127.0.0.1:18791/health | grep -q '"file_access":"readwrite"'; then
+  # TESTBED_FILES=1 (the rc lane's bed): file access on, but www is never served.
+  expect 'a file delete in www the Relay refuses (file access on) names FILE_PATH_DENIED' 4 \
+    "d.error.code === 'REFUSED' && d.error.message.includes('FILE_PATH_DENIED') && !/credential|ha-nova setup/.test(d.error.message + ' ' + d.error.next)" \
+    -- plan raw --file "$TMP/delete-www.json"
+else
 expect 'a file delete the Relay refuses (file access off) names FILE_ACCESS_DISABLED' 1 \
   "d.error.message.includes('FILE_ACCESS_DISABLED') && !/credential|ha-nova setup/.test(d.error.message + ' ' + d.error.next)" \
   -- plan raw --file "$TMP/delete-www.json"
+fi
 
 echo "--- webhook-read protection (MCP ha_read never reaches /api/webhook)"
 mcp_read() {

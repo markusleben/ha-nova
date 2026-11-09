@@ -5,8 +5,9 @@
 // claude.ai and ChatGPT take, as the lane's owner token) into the bridge
 // inside the NOVA App: a delete of a file in www must end REFUSED with
 // FILE_PATH_DENIED. Nothing is sent to the file: the plan stops at its read.
-// Needs, once on the throwaway VM: chat apps on (its NOVA page) and the
-// App's file_access read or readwrite; without them the row FAILs saying so.
+// Needs, once on the throwaway VM: chat apps on (its NOVA page), the setup
+// token's user at Manage everything, and the App's file_access read or
+// readwrite; without them the row FAILs saying so.
 const WRONG_CAUSE = /sign[- ]?in|credential|ha-nova setup|file access (setting|option)|turn on file access|can't reach (its|the) (NOVA )?Relay/i;
 
 export async function chatFileRefusal({ ha, llat, app, sup, check }) {

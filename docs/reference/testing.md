@@ -32,7 +32,7 @@ For CLI verbs, the tier engine, skills, and agent scenarios, use the seeded **te
 
 For client-side release regression (public install of the last stable tag, setup against the test bed, client wiring, update to the candidate, uninstall — macOS and Linux lanes in throwaway HOMEs), run `bash scripts/e2e/client-matrix/run.sh --from <stable-tag> --to local`. See [scripts/e2e/client-matrix/README.md](../../scripts/e2e/client-matrix/README.md).
 
-For a release candidate, `npm run rc-lane -- <tag>` runs the client matrix, the test bed's phone lane (`TESTBED_PHONE=1 npm run testbed:verify`: push payloads per platform through fake phones), a headless chat-bridge check, the bed's assertions and real-home checks with the tag's binary (chat-app files at each level, the App update notice, calm edits; `scripts/e2e/testbed/README.md`), and the slow-check regression in one go, with its own test bed. See `docs/releasing.md` §4.
+For a release candidate, `npm run rc-lane -- <tag>` runs the client matrix, the test bed's phone lane (`TESTBED_PHONE=1 npm run testbed:verify`: push payloads per platform through fake phones), a headless chat-bridge check, the bed's assertions and real-home checks with the tag's binary (chat-app files at each level, calm edits; `scripts/e2e/testbed/README.md`), and the slow-check regression in one go, with its own test bed. See `docs/releasing.md` §4.
 
 The Windows onboarding proof runs on the maintainer's throwaway UTM VMs: `npm run vm-lane -- <tag>` (`scripts/e2e/vm-lane/run.mjs`) drives the Win11 VM over SSH as fresh standard users against the HAOS VM, and the Ubuntu VM when it runs. Every `ha-nova` command runs inside a VM, never on the host.
 

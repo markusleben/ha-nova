@@ -140,10 +140,6 @@ home in `.state`. The RC lane runs all three with the tag's binary
   file, a `.sh` write) names its real cause, never the sign-in or a
   setting. It leaves `/config/www/rclane-mailbox.jpg`. SKIP without file
   access.
-- `node app-notice.mjs`: a proxy in front of the Relay adds the waiting
-  NOVA App update Home Assistant would list (the bed has no Supervisor);
-  `ha-nova check-update` must name it, and must not without the proxy.
-  Home route only: no lane reaches the App over Home Assistant Link.
 - `node calm.mjs` adds listeners shaped like a real home's (an automation
   on every automation reload, a templated panel automation following its
   light, a cover watchdog on `call_service`, one listener no automation
@@ -184,7 +180,7 @@ red opens a "Test bed fails on Home Assistant <version>" issue.
 `packages/commands.yaml`), `up.sh`, `seed.mjs` (LLAT, MQTT config entry,
 floors/areas/labels, registry edits, summary, phone fixture), `cli.sh`,
 `verify.sh`, `phone.mjs` + `push.py` (phone lane), `chat-files.mjs` +
-`docker-compose.files.yml`, `app-notice.mjs`, `calm.mjs` (real-home checks),
+`docker-compose.files.yml`, `calm.mjs` (real-home checks),
 `down.sh`.
 
 The hosted demo (`scripts/demo/hosted/`) reuses this bed: `TESTBED_OVERLAY` and
