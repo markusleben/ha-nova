@@ -24,11 +24,12 @@ const appUpdateTooLine = "The NOVA App in Home Assistant needs an update too."
 // App with nothing pending (or a standalone Relay), or an offer whose step
 // is not `ha-nova update` (a legacy Windows reinstall), keeps both notices:
 // only the App's own text says where to update it. So does another server's
-// App (--server): a plain `ha-nova update` offers only the default one's.
+// App (--server): a plain `ha-nova update` offers only the default one's,
+// and an App read over Home Assistant Link: the offer runs only at home.
 // The second result is what is left to print on its own.
 func withAppUpdateToo(notice, relayNotice humanNotice) (humanNotice, humanNotice) {
 	const step = "\nTo update, run: ha-nova update"
-	if name, _ := requestedServerSelection(); name != "" ||
+	if name, _ := requestedServerSelection(); name != "" || relayNotice.viaLink ||
 		notice.kind != humanNoticeKindUpdateAvailable || !relayNotice.appUpdate || !strings.Contains(notice.message, step) {
 		return notice, relayNotice
 	}

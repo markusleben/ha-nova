@@ -231,7 +231,7 @@ func offerRelayUpdate(paths runtimePaths, notice humanNotice) {
 		return
 	}
 	printHumanNotice(notice)
-	if relayUpdateInputIsTTY() && relayUpdateOutputIsTTY() {
+	if !notice.viaLink && relayUpdateInputIsTTY() && relayUpdateOutputIsTTY() { // over Link: the notice's Home Assistant path, as in doctor
 		maybeOfferGuidedRelayUpdate(paths, notice) // says the manual path itself when it can't
 	} // else the notice already said where to update it
 }
