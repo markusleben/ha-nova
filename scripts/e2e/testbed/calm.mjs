@@ -16,8 +16,7 @@
 // integration's). The CLI runs in a new home in .state. Prints PASS/FAIL lines;
 // exits non-zero on any FAIL.
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,9 +24,12 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const STATE = join(HERE, ".state");
 const HA = "http://127.0.0.1:18123";
 const LLAT = readFileSync(join(STATE, "ha-llat"), "utf8").trim();
-const TMP = mkdtempSync(join(tmpdir(), "ha-nova-testbed-calm-"));
-const HOME = join(STATE, `calm-home-${Date.now()}`); // an empty undo list on every run
-process.on("exit", () => rmSync(TMP, { recursive: true, force: true }));
+// Its own home in the bed's state (testbed:down wipes it): an empty undo list on
+// every run, and codes in the answer (no confirmation window on a desktop).
+const HOME = join(STATE, `calm-home-${Date.now()}`), TMP = join(HOME, "drafts");
+for (const dir of [".config/ha-nova", ".cache/ha-nova", "drafts"]) mkdirSync(join(HOME, dir), { recursive: true, mode: 0o700 });
+writeFileSync(join(HOME, ".config/ha-nova/config.json"), JSON.stringify({ ha_url: HA, relay_base_url: "http://127.0.0.1:18791", confirm_window: "off" }), { mode: 0o600 });
+writeFileSync(join(HOME, ".test-relay-token"), readFileSync(join(STATE, "relay-token"), "utf8"), { mode: 0o600 });
 let failed = 0;
 const check = (name, ok, detail) => {
   if (!ok) failed++;
@@ -118,10 +120,10 @@ try {
 
   for (const [name, target] of [["lock.unlock", "lock.entrance_door"], ["cover.open_cover", "cover.testbed_garage"]]) {
     const plan = planWrite([{ action: name, target: { entity_id: target } }]);
-    check(`an edit that adds ${name} ${target} still asks with a code`, plan.tier === "typed" && plan.plan?.confirm === "code", `tier ${plan.tier ?? plan.error?.code}, reasons ${reasons(plan)}`);
+    check(`an edit that adds ${name} ${target} still asks with a code`, plan.tier === "typed" && plan.plan?.confirm === "code" && /^\d{4}$/.test(plan.plan?.code ?? ""), `tier ${plan.tier ?? plan.error?.code}, reasons ${reasons(plan)}`);
   }
   const reload = cli("plan", "call", "automation.reload", "--set", `id=${TARGET}`);
-  check("a reload you call is still rated by what it sets off: asks with a code", reload.tier === "typed", `tier ${reload.tier ?? reload.error?.code}, reasons ${reasons(reload)}`);
+  check("a reload you call is still rated by what it sets off: asks with a code", reload.tier === "typed" && /^\d{4}$/.test(reload.plan?.code ?? ""), `tier ${reload.tier ?? reload.error?.code}, reasons ${reasons(reload)}`);
 } catch (err) {
   check("calm check ran", false, err.message);
 } finally {
