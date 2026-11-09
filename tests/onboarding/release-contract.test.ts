@@ -422,10 +422,13 @@ describe("release contract", () => {
     );
     const orderedMarkers = [
       "Merge the reviewed PR state",
-      "verify-relay-image.sh <reviewed-merge-sha> <relay-version>",
+      "open the App promote PR",
       "npm run vm-lane -- vX.Y.Z-rcN",
       "Still manual, for the maintainer: the Cloud checklist's accounts lane",
+      "verify-relay-image.sh <promote-merge-sha> <relay-version>",
       "cut the final tag",
+      "bash scripts/release/verify-app-promoted.sh vX.Y.Z <final-sha>",
+      "git tag vX.Y.Z <final-sha>",
     ];
     let previousIndex = -1;
     for (const marker of orderedMarkers) {
@@ -440,6 +443,17 @@ describe("release contract", () => {
       "whose `headSha` equals `<reviewed-merge-sha>`",
     );
     expect(rehearsal).toContain("does not replace the dispatched run");
+  });
+
+  it("refuses a final tag whose App code never got its App bump", () => {
+    const metadataJob = releaseWorkflow.slice(
+      releaseWorkflow.indexOf("  verify-release-metadata:"),
+      releaseWorkflow.indexOf("  build-signed-darwin-release-assets:"),
+    );
+    expect(metadataJob).toContain("fetch-depth: 0");
+    expect(metadataJob).toContain(
+      'bash scripts/release/verify-app-promoted.sh "${VERSION_TAG}" "${GITHUB_SHA}"',
+    );
   });
 
   it("requires a dispatched live e2e run as release evidence", () => {

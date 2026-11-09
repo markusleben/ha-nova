@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -27,6 +29,11 @@ jobs:
         env:
           VERSION_TAG: ${{ github.ref_name }}
         run: bash scripts/release/verify-release-metadata.sh "${VERSION_TAG}"
+
+      - name: Verify App changes were promoted
+        env:
+          VERSION_TAG: ${{ github.ref_name }}
+        run: bash scripts/release/verify-app-promoted.sh "${VERSION_TAG}" "${GITHUB_SHA}"
 
   build-signed-darwin-release-assets:
     name: Build signed Darwin release artifacts
