@@ -69,6 +69,12 @@ func TestGateWorkerPhoneLink(t *testing.T) {
 		}
 	}
 
+	p.sent = nil
+	if status, out := link(nil, map[string]any{"service": "mobile_app_annas_pixel", "device_id": "dev-anna", "user_id": "owner-id"}); status != http.StatusOK ||
+		out["answer"] != "unavailable" || out["why"] != "not_eligible" || len(p.sent) != 0 {
+		t.Errorf("another administrator's phone under the owner's user: HTTP %d %v, sent %d", status, out, len(p.sent))
+	}
+
 	for name, body := range map[string]map[string]any{
 		"words and text":             {"words": "link", "device": "Mac", "lang": "en", "title": "T", "body": "B", "button": "OK", "link": anna, "wait_ms": 3000},
 		"no device":                  {"words": "link", "link": anna, "wait_ms": 3000},

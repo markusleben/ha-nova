@@ -166,7 +166,7 @@ describe("device-registry persistence and integrity", () => {
     const phone = { service: "mobile_app_iphone", deviceId: "ha-iphone", userId: "u1", platform: "ios" };
     write(phone);
     expect(openDeviceRegistry(dir).list()[0]?.confirmPhone).toEqual(phone);
-    for (const bad of [{ ...phone, service: "notify.mobile_app_iphone" }, { ...phone, userId: "" }, { ...phone, platform: 1 }, "phone"]) {
+    for (const bad of [{ ...phone, service: "notify.mobile_app_iphone" }, { ...phone, userId: "" }, { ...phone, platform: 1 }, { ...phone, platform: "windows" }, { ...phone, deviceId: "d".repeat(129) }, "phone"]) {
       write(bad);
       expect(() => openDeviceRegistry(dir)).toThrow(RegistryCorruptError);
     }

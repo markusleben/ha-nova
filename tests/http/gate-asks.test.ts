@@ -303,7 +303,9 @@ describe("gate asks", () => {
     });
     expect(await status(() => t.linkTo({ kind: "legacy" }, link))).toBe(404);
     expect(await status(() => setup().linkTo(laptop, link))).toBe(404); // no registry: no link route
-    expect(await status(() => t.linkTo(laptop, { ...link, service: "persistent_notification" }))).toBe(400);
+    for (const bad of [{ ...link, service: "persistent_notification" }, { ...link, platform: "x".repeat(600_000) }, { ...link, device_id: "d".repeat(129) }, { ...link, user_id: "" }]) {
+      expect(await status(() => t.linkTo(laptop, bad))).toBe(400); // the registry could not load it again
+    }
     const first = await t.linkTo(laptop, link);
     expect(first).toMatchObject({ needed: true, channels: ["phone"] });
     expect(p.calls[0]).toMatchObject({ link, text: { words: "link", device: "device laptop" }, waitMs: 180_000 });
@@ -328,6 +330,21 @@ describe("gate asks", () => {
       expect(await t.op(laptop, opened.ask_id, "wait")).toMatchObject({ state });
     }
     expect(sets).toHaveLength(2);
+  });
+
+  it("a link ask waits for an ask being prepared, and a link that can't be saved sets nothing", async () => {
+    const p = phones();
+    let release: (a: PreparedAsk) => void = () => {};
+    const t = setup(() => new Promise<PreparedAsk>((r) => (release = r)), [], 5, { link: () => undefined, phone: p.phone, setLink: () => { throw new Error("ENOSPC"); } });
+    const preparing = t.ask(laptop, [unlock]);
+    await settled();
+    expect(await failure(() => t.linkTo(laptop, link))).toEqual({ status: 429, code: "GATE_ASK_BUSY" });
+    release({ verdict: "pass", items: [{ verdict: "pass" }] });
+    await preparing;
+    const opened = await t.linkTo(laptop, link);
+    p.calls[0]!.answer({ answer: "approved", user_id: "markus" });
+    await settled();
+    expect(await t.op(laptop, opened.ask_id, "wait")).toEqual({ state: "cancelled" });
   });
 
   it("link asks count toward the hour and the phone pause", async () => {

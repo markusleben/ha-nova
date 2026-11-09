@@ -61,7 +61,7 @@ export interface GateAsksDeps {
   // Sets the device's link while it is active and still has current; none: no link route.
   setLink?: (principal: Principal, link: PhoneLink, current: PhoneLink | undefined) => boolean;
   now: () => number;
-  logger?: Pick<RelayLogger, "info">;
+  logger?: Pick<RelayLogger, "info" | "warn">;
   pollMs?: number; // tests
 }
 
@@ -266,9 +266,9 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
       throw new HttpError(404, "NOT_FOUND", "Not found");
     }
     const { service, device_id, user_id, platform } = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
-    if (typeof service !== "string" || !/^mobile_app_[a-z0-9_]+$/.test(service) || typeof device_id !== "string" || device_id === "" ||
-      typeof user_id !== "string" || user_id === "" || (platform !== undefined && typeof platform !== "string")) {
-      throw new HttpError(400, "VALIDATION_ERROR", "Send link with service (mobile_app_…), device_id, user_id, and optionally platform");
+    const id = (v: unknown): v is string => typeof v === "string" && v !== "" && v.length <= 128; // as the registry keeps it
+    if (!id(service) || !/^mobile_app_[a-z0-9_]+$/.test(service) || !id(device_id) || !id(user_id) || (platform !== undefined && platform !== "ios" && platform !== "android")) {
+      throw new HttpError(400, "VALIDATION_ERROR", "Send link with service (mobile_app_…), device_id, user_id, and optionally platform (ios or android)");
     }
     const link: PhoneLink = { service, device_id, user_id, ...(platform !== undefined ? { platform } : {}) };
     const current = deps.link(principal);
@@ -277,6 +277,9 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     }
     const owner = ownerOf(principal);
     limit(owner);
+    if (preparing.has(owner)) {
+      throw new HttpError(429, "GATE_ASK_BUSY", "An ask from this device is still being prepared; nothing was asked or sent");
+    }
     ownerState(owner).opened.push(deps.now());
     replaceOpen(owner);
     if (paused(owner)) {
@@ -290,7 +293,12 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
         return;
       }
       if (answer?.answer === "approved" && answer.user_id === link.user_id) {
-        const linked = deps.setLink?.(principal, link, current) === true;
+        let linked = false;
+        try {
+          linked = deps.setLink?.(principal, link, current) === true;
+        } catch (error) {
+          deps.logger?.warn?.("A phone link could not be saved; nothing was set", { error: String(error) }); // the disk, not the person: it stays unlinked
+        }
         settle(ask, { state: linked ? "linked" : "cancelled" });
         deps.logger?.info?.(linked ? "A device's phone link was set on the phone" : "A phone link changed meanwhile; nothing was set", { user_id: answer.user_id });
       } else if (answer?.answer === "declined" || answer?.answer === "rejected") {

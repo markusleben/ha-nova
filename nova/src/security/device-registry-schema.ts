@@ -179,11 +179,10 @@ function validateDevice(value: unknown): DeviceRecord {
 export function validateConfirmPhone(value: unknown): ConfirmPhoneLink {
   const raw = (typeof value === "object" && value !== null ? value : {}) as Record<string, unknown>;
   const { service, deviceId, userId, platform } = raw;
+  const id = (v: unknown): v is string => typeof v === "string" && v !== "" && v.length <= 128;
   if (
-    typeof service !== "string" || !/^mobile_app_[a-z0-9_]+$/.test(service) ||
-    typeof deviceId !== "string" || deviceId === "" ||
-    typeof userId !== "string" || userId === "" ||
-    (platform !== undefined && typeof platform !== "string")
+    !id(service) || !/^mobile_app_[a-z0-9_]+$/.test(service) || !id(deviceId) || !id(userId) ||
+    (platform !== undefined && platform !== "ios" && platform !== "android")
   ) {
     throw new RegistryCorruptError("device.confirmPhone is invalid");
   }

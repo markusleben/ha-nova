@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 )
@@ -35,6 +36,9 @@ func gatePhoneLink(ctx context.Context, paths runtimePaths, in gatePhoneRequest)
 	if status != phoneReady {
 		return gatePhoneAnswer{Answer: "unavailable", Why: gatePhoneWhy(setup.why)}, nil
 	}
+	if !gatePhoneEligible(s, in.Link) {
+		return gatePhoneAnswer{Answer: "unavailable", Why: "not_eligible"}, nil
+	}
 	requested := confirmT(lang, "phone.requested_by", "host", sayText(in.Device, false))
 	if in.Current != nil {
 		current, status := gatePhoneSetup(s, *in.Current)
@@ -48,7 +52,29 @@ func gatePhoneLink(ctx context.Context, paths runtimePaths, in gatePhoneRequest)
 		}
 	}
 	link := phoneAsk{lang: lang, title: phoneLinkTitle(lang), body: requested, button: phoneLinkButton(lang), unlock: true}
-	return gatePhoneTap(ctx, s, paths, in.Link, setup, link, time.Until(deadline)), nil
+	answer := gatePhoneTap(ctx, s, paths, in.Link, setup, link, time.Until(deadline))
+	if answer.Answer != "approved" {
+		return answer, nil
+	}
+	again, err := newRelaySessionWithin(paths, verbOptions{}, gateCheckBudget)
+	if err != nil {
+		return gatePhoneAnswer{Answer: "unavailable", Why: "read"}, nil
+	}
+	defer again.close()
+	if !gatePhoneEligible(again, in.Link) {
+		return gatePhoneAnswer{Answer: "unavailable", Why: "not_eligible"}, nil
+	}
+	return answer, nil
+}
+
+// gatePhoneEligible: the link names a phone the CLI's own link flow would
+// offer (home.eligible): a mobile app device of a person whose user is that
+// administrator, on its own notify service, its name not shared.
+func gatePhoneEligible(s *relaySession, link phoneLink) bool {
+	home, err := lookupPhones(s, nil)
+	return err == nil && slices.ContainsFunc(home.eligible(""), func(t phoneTarget) bool {
+		return t.DeviceID == link.DeviceID && t.UserID == link.UserID && t.Service == link.Service
+	})
 }
 
 // gatePhoneTap asks one phone and judges its tap. The question never stays
