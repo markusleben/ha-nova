@@ -194,6 +194,9 @@ func setVerbError(env *verbEnvelope, err error) int {
 	var failure *verbFailure
 	if !errors.As(err, &failure) {
 		failure = &verbFailure{exit: verbExitError, code: "RELAY_ERROR", message: err.Error()}
+		if call := (*relayCallError)(nil); errors.As(err, &call) {
+			failure.next = relayAnsweredNext
+		}
 	}
 	if failure.status != "" {
 		env.Status = failure.status
@@ -254,6 +257,12 @@ func refused(code, message string) *verbFailure {
 func refusedWith(code, message, next string) *verbFailure {
 	return &verbFailure{exit: verbExitRefused, code: code, message: message + "; nothing was sent", next: next}
 }
+
+// relayAnsweredNext: a RELAY_ERROR whose cause is the Relay's own answer (a
+// refusal such as FILE_ACCESS_DISABLED, or Home Assistant's error): HA NOVA
+// reached its Relay and signed in, so its message, not a setup or App check,
+// names the cause.
+const relayAnsweredNext = "The Relay answered and refused or failed this request; its message names why. Tell the user what it says in plain words: HA NOVA's own sign-in and connection to its Relay work."
 
 // errNothingSent: the write failed before reaching Home Assistant, so the
 // claimed plan is released and a retry is safe.

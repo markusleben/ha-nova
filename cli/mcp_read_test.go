@@ -40,6 +40,11 @@ func readRelay(t *testing.T, reply func(endpoint string, body map[string]any) an
 			}
 		}
 		w.Header().Set("content-type", "application/json")
+		if answer, ok := data.(fakeRelayStatus); ok {
+			w.WriteHeader(answer.status)
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": map[string]any{"code": answer.code, "message": answer.message}})
+			return
+		}
 		if failure, ok := data.(fakeRelayFailure); ok {
 			w.WriteHeader(http.StatusBadGateway)
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": map[string]any{"code": failure.code, "message": failure.message}})
