@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -78,7 +79,7 @@ func TestRelayNoticeTransportDoesNotDowngradePairedToLegacy(t *testing.T) {
 		RelaySecureBaseURL: "https://192.168.1.5:8792",
 		RelaySpkiPin:       "pin",
 	}
-	if _, _, _, ok := relayNoticeTransport(cfg); ok {
+	if _, ok := relayNoticeTransport(context.Background(), cfg); ok {
 		t.Fatal("paired config with no device credential must not downgrade to the legacy plain port")
 	}
 }

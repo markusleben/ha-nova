@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -266,46 +265,46 @@ func relayFloorNotice(paths runtimePaths) humanNotice {
 	if err != nil || cfg.RelayBaseURL == "" {
 		return humanNotice{}
 	}
-	base, client, credential, ok := relayNoticeTransport(cfg)
+	route, ok := relayNoticeTransport(context.Background(), cfg)
 	if !ok {
 		return humanNotice{}
 	}
-	body, err := fetchRelayHealthWith(client, base, credential)
+	body, err := fetchRelayHealthWith(route.Client, route.BaseURL, route.Credential)
 	if err != nil {
 		return humanNotice{}
 	}
 	return checkRelayVersion(paths, body)
 }
 
-// relayNoticeTransport picks the credential path for the best-effort update
-// notices: the device transport for paired installs (which store no legacy
-// token at all), the legacy token otherwise. false means "no usable auth" —
-// the notices stay silent, matching their best-effort contract.
-func relayNoticeTransport(cfg config) (string, *http.Client, string, bool) {
+// relayNoticeTransport picks the route for the best-effort update notices:
+// a paired install's selected route (home, or Home Assistant Link where its
+// route policy allows it), the legacy token otherwise. false means "no usable
+// route" — the notices stay silent, matching their best-effort contract.
+func relayNoticeTransport(ctx context.Context, cfg config) (relayTransportSelection, bool) {
 	if cfg.demoToken != "" {
-		return "", nil, "", false // the demo house's Relay is not the user's to update
+		return relayTransportSelection{}, false // the demo house's Relay is not the user's to update
 	}
-	if base, client, credential, device, err := relayFunctionalTransportForDoctor(cfg); err == nil && device {
-		return base, client, credential, true
+	if selected, err := selectRelayTransport(ctx, cfg, "", false); err == nil && (selected.DeviceMode || selected.Via == relayViaCloud) {
+		return selected, true
 	}
 	// A paired config must not downgrade to the legacy plain, unpinned port when
 	// its device credential is missing/unreadable — respect the same fail-closed
 	// contract as relayFunctionalTransport and stay silent (the notice is
 	// best-effort).
 	if cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != "" {
-		return "", nil, "", false
+		return relayTransportSelection{}, false
 	}
 	// Non-default profiles are device-credential-only: a best-effort notice
 	// must never send the default profile's machine-wide token to another
 	// server's URL. Stay silent instead.
 	if activeServerProfile() != defaultServerProfileName {
-		return "", nil, "", false
+		return relayTransportSelection{}, false
 	}
 	token, err := readRelayAuthTokenForDoctor()
 	if err != nil || token == "" {
-		return "", nil, "", false
+		return relayTransportSelection{}, false
 	}
-	return cfg.RelayBaseURL, httpClient, token, true
+	return relayTransportSelection{BaseURL: cfg.RelayBaseURL, Client: httpClient, Credential: token, Via: relayViaLocal}, true
 }
 
 // Relay notices are plain words for a person (terminal, notices[] text).
@@ -337,10 +336,17 @@ func relayUpdateNoticeWithContext(ctx context.Context, paths runtimePaths) human
 	if err != nil || cfg.RelayBaseURL == "" {
 		return humanNotice{}
 	}
-	base, client, credential, ok := relayNoticeTransport(cfg)
+	route, ok := relayNoticeTransport(ctx, cfg)
 	if !ok {
 		return humanNotice{}
 	}
+	notice := relayUpdateNoticeOverRoute(ctx, paths, route)
+	notice.viaLink = !notice.empty() && route.Via == relayViaCloud
+	return notice
+}
+
+func relayUpdateNoticeOverRoute(ctx context.Context, paths runtimePaths, route relayTransportSelection) humanNotice {
+	base, client, credential := route.BaseURL, route.Client, route.Credential
 	floorNotice, running := humanNotice{}, ""
 	if body, healthErr := fetchRelayHealthWithContext(ctx, client, base, credential); healthErr == nil {
 		floorNotice, running = checkRelayVersion(paths, body), parseRelayHealthVersion(body)

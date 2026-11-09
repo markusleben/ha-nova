@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -98,7 +99,7 @@ func TestTryConnectsDemoOutsideConfigAndNeverAsDefault(t *testing.T) {
 	if got := verbNotices(paths, "0.1.0"); len(got) == 0 || got[0].Kind != "demo" {
 		t.Fatalf("demo verbs must carry the demo notice: %+v", got)
 	}
-	if _, _, _, ok := relayNoticeTransport(cfg); ok {
+	if _, ok := relayNoticeTransport(context.Background(), cfg); ok {
 		t.Fatal("the demo relay must get no update notices")
 	}
 }
