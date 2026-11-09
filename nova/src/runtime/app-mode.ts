@@ -312,8 +312,13 @@ function buildFunctionalHandlers(
   const { gate, ask } = gateWithAsks(worker, {
     prepare: { core: parseCoreRequest },
     deviceName: (p) => (p.kind === "device" ? registry.list().find((d) => d.deviceId === p.deviceId)?.name : undefined) ?? "the shared Relay token",
-    channels: () => [], // the linked phone and the approval page come with their layers
+    channels: () => [], // the approval page comes with layer 5
+    link: (p) => {
+      const phone = p.kind === "device" ? registry.list().find((d) => d.deviceId === p.deviceId && d.state === "active")?.confirmPhone : undefined;
+      return phone && { service: phone.service, device_id: phone.deviceId, user_id: phone.userId, ...(phone.platform !== undefined ? { platform: phone.platform } : {}) };
+    },
     now: input.now,
+    logger: input.logger,
   });
   return {
     ask,

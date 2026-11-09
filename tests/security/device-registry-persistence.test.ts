@@ -160,6 +160,18 @@ describe("device-registry persistence and integrity", () => {
     expect(() => openDeviceRegistry(dir)).toThrow(RegistryCorruptError);
   });
 
+  it("keeps a device's linked phone, and fails closed on a malformed one", () => {
+    const write = (confirmPhone: unknown) =>
+      writeFileSync(join(dir, "device-registry.json"), JSON.stringify({ version: 1, devices: [{ ...base("x", "d"), state: "active", confirmPhone }], legacy: null }));
+    const phone = { service: "mobile_app_iphone", deviceId: "ha-iphone", userId: "u1", platform: "ios" };
+    write(phone);
+    expect(openDeviceRegistry(dir).list()[0]?.confirmPhone).toEqual(phone);
+    for (const bad of [{ ...phone, service: "notify.mobile_app_iphone" }, { ...phone, userId: "" }, { ...phone, platform: 1 }, "phone"]) {
+      write(bad);
+      expect(() => openDeviceRegistry(dir)).toThrow(RegistryCorruptError);
+    }
+  });
+
   it("fails closed on a pending record with no expiry (would occupy the cap forever)", () => {
     writeFileSync(
       join(dir, "device-registry.json"),
