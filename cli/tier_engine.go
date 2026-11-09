@@ -109,6 +109,9 @@ type tierEngine struct {
 	aheadConfigs int             // consumer configs readAhead warmed (≤ tierMaxConsumers)
 	lost         []string        // "entity|via|what" of each read the budget cut, but the listener scan's config reads (sealPlan)
 	reloading    bool            // configReloadTier walks a reload's configs: a reload inside them is a cycle, typed
+	calls        callSet         // the service calls the cascade makes (tier_callset.go)
+	callAdded    map[int]bool    // call_service listeners already consumers, by their place in the listener table
+	manifests    map[string]bool // integration → built in; nil until read
 
 	stateList func() (map[string]json.RawMessage, error) // a config check's states, one read for all (useStateList); nil: one read each
 }
@@ -254,6 +257,8 @@ func (e *tierEngine) visit(id, service string, data map[string]any, depth int, v
 		return
 	}
 	e.visited[key] = true
+	e.called(service)
+	e.calledOn(id)
 	e.switchOff(id, service, via) // before the cut: the registry alone tells the App's switch
 	if e.cut(depth, id, via) {
 		return

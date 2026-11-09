@@ -32,6 +32,7 @@ func (e *tierEngine) walk(node any, via string, depth int) {
 		case n["service_template"] != nil:
 			e.gap(reasonTemplatedAction, "", via, "service_template")
 		case domain != "" && actionType != "" && n["device_id"] != nil:
+			e.calls.add(domain + ".*") // a device action calls its integration's services
 			e.storedCall(deviceActionService(domain, actionType), map[string]any{"device_id": n["device_id"], "data": map[string]any{"position": n["position"]}}, via, depth, true)
 		case n["scene"] != nil:
 			e.storedCall("scene.turn_on", map[string]any{"entity_id": n["scene"]}, via, depth, false)
@@ -92,6 +93,7 @@ var walkSkipKeys = map[string]bool{
 // chosen entity, hidden or categorized or not.
 func (e *tierEngine) storedCall(name string, step map[string]any, via string, depth int, deviceForm bool) {
 	name = strings.ToLower(name) // as Home Assistant reads it (cv.service)
+	e.called(name)
 	if isTemplated(name) || !entityIDPattern.MatchString(name) {
 		e.gap(reasonTemplatedAction, "", via, name)
 		return
@@ -154,6 +156,7 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 		return
 	}
 	if len(ids) == 0 {
+		e.calls.unknown = true // a targetless service: what it calls in turn isn't bounded
 		if len(targets) == 0 {
 			e.everySwitch(name, via)
 		}

@@ -135,10 +135,8 @@ deploy or tag.
    table and exits non-zero on any FAIL; a WARN row means the bed's Relay is
    not the tag's. Post the table as a comment on the release-prep PR. It
    starts its own test bed (with file access), so no other bed may run.
-   Known limits: no lane reaches the App over Home Assistant Link (the
-   Cloud checklist's `app_notice` row does), and the calm check's cover
-   watchdog makes every call on the bed ask (the listener scan ignores an
-   `event_data` domain filter), so its row runs after the others.
+   Known limit: no lane reaches the App over Home Assistant Link (the
+   Cloud checklist's `app_notice` row does).
    Then the Windows onboarding proof, automated on the maintainer's
    throwaway UTM VMs ("HA NOVA Win11 Test" and "HA NOVA HAOS Test" running;
    "HA NOVA Ubuntu Test" optional):

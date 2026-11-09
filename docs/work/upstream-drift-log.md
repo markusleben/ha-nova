@@ -688,3 +688,14 @@ counts only those, not ad hoc checks or corrections.
 - Next screen: before the next release cycle, or on HA 2026.11.1 or
   2026.12.0, whichever comes first. Watch Supervisor 2026.12, which turns
   the smaller capability set on.
+
+## 2026-11-09 — service-calling platforms (MAR-127), HA 2026.11.0
+
+- Source checked: `homeassistant/home-assistant:2026.11.0` (the test bed's
+  image), grepped for `services.async_call`, `Script(`, and device actions.
+- Pinned: `callingPlatforms` (built-in platforms whose entities call
+  services when actuated) and `reactors` (built-in integrations that call
+  services when other entities change) in `cli/tier_callset.go`.
+- Re-check both tables on each HA release: a built-in platform that calls
+  services and is missing from them makes a `call_service` listener look
+  unreachable.
