@@ -16,6 +16,11 @@ import (
 
 var bareVariable = regexp.MustCompile(`^\s*\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}\s*$`)
 
+// plainIDs: ids, or ids separated by commas, that Home Assistant's native
+// rendering keeps a string ("['garage']" would render as a list, "12" as a
+// number); anything else stays a template.
+var plainIDs = regexp.MustCompile(`^[a-z_][a-z0-9_]*(\.[a-z0-9_]+)?(\s*,\s*[a-z_][a-z0-9_]*(\.[a-z0-9_]+)?)*$`)
+
 var runVariables = map[string]bool{"trigger": true, "this": true, "repeat": true, "wait": true, "context": true, "variables": true}
 
 // literalActions answers an automation's actions with each bare reference to
@@ -42,14 +47,14 @@ func literalActions(cfg map[string]any) any {
 	return substitute(actions, values)
 }
 
-// literalValue: a string or a list of strings, none of them a template.
+// literalValue: plain ids, or a list of them.
 func literalValue(value any) bool {
 	switch v := value.(type) {
 	case string:
-		return !isTemplated(v)
+		return plainIDs.MatchString(v)
 	case []any:
 		for _, item := range v {
-			if s, isString := item.(string); !isString || isTemplated(s) {
+			if s, isString := item.(string); !isString || !plainIDs.MatchString(s) {
 				return false
 			}
 		}

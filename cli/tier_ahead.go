@@ -69,7 +69,7 @@ func (e *tierEngine) readAhead(ids []string, depth int) {
 		ids = nil
 		for i, automation := range automations {
 			if slices.ContainsFunc(on[automation], func(id string) bool { return triggerMatch(configs[i], id, e.needles(id), stateDelta{}) != "" }) {
-				ids = append(ids, actionTargets(automationActions(configs[i]))...)
+				ids = append(ids, actionTargets(literalActions(configs[i]))...)
 			}
 		}
 		sort.Strings(ids)

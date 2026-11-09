@@ -18,6 +18,7 @@ func TestLiteralVariablesResolveTargets(t *testing.T) {
 		unwanted         string // reason it must not
 		triggerVariables map[string]any
 		call             []string
+		area             string
 	}{
 		{name: "a literal blind", variables: map[string]any{"blind": "cover.blind"}, target: "{{ blind }}", tier: "ordinary", unwanted: reasonUnresolvedTarget},
 		{name: "a literal garage door", variables: map[string]any{"door": "cover.garage"}, target: "{{door}}", tier: "typed", want: reasonAccessCover, unwanted: reasonUnresolvedTarget},
@@ -25,6 +26,7 @@ func TestLiteralVariablesResolveTargets(t *testing.T) {
 		{name: "a variables step rebinds it", variables: map[string]any{"blind": "cover.blind"}, extra: map[string]any{"variables": map[string]any{"blind": "cover.garage"}}, target: "{{ blind }}", tier: "typed", want: reasonUnresolvedTarget},
 		{name: "a response_variable binds it", variables: map[string]any{"blind": "cover.blind"}, extra: map[string]any{"action": "script.pick", "response_variable": "blind"}, target: "{{ blind }}", tier: "typed", want: reasonUnresolvedTarget},
 		{name: "trigger is never a literal", variables: map[string]any{"trigger": "cover.blind"}, target: "{{ trigger }}", tier: "typed", want: reasonUnresolvedTarget},
+		{name: "a string Home Assistant renders as a list", variables: map[string]any{"rooms": "['garage']"}, area: "{{ rooms }}", target: "cover.blind", tier: "typed", want: reasonUnresolvedTarget},
 		{name: "a template around it", variables: map[string]any{"blind": "cover.blind"}, target: "{{ blind ~ '' }}", tier: "typed", want: reasonUnresolvedTarget},
 		{name: "a trigger's own variables bind it", variables: map[string]any{"blind": "cover.blind"}, triggerVariables: map[string]any{"blind": "cover.garage"}, target: "{{ blind }}", tier: "typed", want: reasonUnresolvedTarget},
 		{name: "automation.trigger can pass it", variables: map[string]any{"blind": "cover.blind"}, call: []string{"call", "automation.trigger", "automation.follow"}, target: "{{ blind }}", tier: "typed", want: reasonUnresolvedTarget},
@@ -37,7 +39,11 @@ func TestLiteralVariablesResolveTargets(t *testing.T) {
 			if c.extra != nil {
 				actions = append(actions, c.extra)
 			}
-			actions = append(actions, step("cover.open_cover", c.target))
+			open := step("cover.open_cover", c.target)
+			if c.area != "" {
+				open["target"].(map[string]any)["area_id"] = c.area
+			}
+			actions = append(actions, open)
 			f.automation("follow", "follow", map[string]any{
 				"variables": c.variables,
 				"triggers":  []any{map[string]any{"trigger": "state", "entity_id": "light.kitchen", "variables": c.triggerVariables}},
