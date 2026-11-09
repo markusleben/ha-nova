@@ -116,19 +116,63 @@ func reloadUnlocks(f *fakeHA) {
 	})
 }
 
-// Home Assistant reloads an automation right after its config write, so the
-// write is rated with what that reload sets off.
-func TestAutomationWriteRatesItsReloadListeners(t *testing.T) {
+// Home Assistant reloads an automation right after its config write; what
+// that reload sets off is not rated, as in 0.28.3 (Markus, 2026-11-09: "Nicht
+// mitbewerten, wie in 0.28.3"). A reload the user asks for still is.
+func TestAutomationWriteDoesNotRateItsReloadListeners(t *testing.T) {
 	for _, listens := range []bool{false, true} {
 		f := newFakeHA()
 		if listens {
 			reloadUnlocks(f)
 		}
 		h := newWriteHarness(t, f)
-		_, env := h.run(runPlanCommand, "write", "--domain", "automation", "--file", draftFile(t, hallDraft("light.turn_on")))
-		if want := map[bool]string{false: "preview", true: "typed"}[listens]; env.Tier != want {
-			t.Errorf("listens %v: tier %q (reasons %s), want %s", listens, env.Tier, reasonCodes(env), want)
+		if _, env := h.run(runPlanCommand, "write", "--domain", "automation", "--file", draftFile(t, hallDraft("light.turn_on"))); env.Tier != "preview" {
+			t.Errorf("listens %v: tier %q (reasons %s), want preview", listens, env.Tier, reasonCodes(env))
 		}
+	}
+}
+
+// reloadHome is shaped like the home of 2026-11-09: a kitchen light that
+// runs on every automation reload, a panel blueprint whose templated
+// actions follow that light, one more reload listener nobody can attribute,
+// and a cover watchdog on call_service.
+func reloadHome(f *fakeHA) {
+	f.ent("cover.garage", "zwave_js", "closed", map[string]any{"device_class": "garage", "friendly_name": "Garage", "supported_features": 15.0})
+	f.events = append(f.events, map[string]any{"event": "automation_reloaded", "listener_count": 2.0}, map[string]any{"event": "call_service", "listener_count": 1.0})
+	f.automation("kitchen", "k1", map[string]any{
+		"triggers": []any{map[string]any{"trigger": "homeassistant", "event": "start"}, map[string]any{"trigger": "event", "event_type": "automation_reloaded"}},
+		"actions":  []any{step("light.turn_off", "light.kitchen")},
+	})
+	f.related["entity:light.kitchen"] = []string{"automation.panel"}
+	f.automation("panel", "p1", map[string]any{
+		"triggers": []any{map[string]any{"trigger": "state", "entity_id": "light.kitchen"}},
+		"actions":  []any{map[string]any{"action": "esphome.{{ panel_name }}_component_text", "data": map[string]any{"text": "{{ states('light.kitchen') }}"}}},
+	})
+	f.automation("watchdog", "w1", map[string]any{
+		"triggers": []any{map[string]any{"trigger": "event", "event_type": "call_service", "event_data": map[string]any{"domain": "cover"}}},
+		"actions":  []any{map[string]any{"action": "cover.open_cover", "target": map[string]any{"entity_id": "{{ trigger.event.data.service_data.entity_id }}"}}},
+	})
+}
+
+// In that home a calm edit runs again, a reload call still asks, and an edit
+// whose own actions open the garage or unlock still asks.
+func TestReloadHomeEditsRunCalmly(t *testing.T) {
+	h := newWriteHarness(t, calmHome())
+	reloadHome(h.f)
+	if env := h.planHall("light.turn_off"); env.Tier != "ordinary" || env.Plan == nil || env.Plan.Confirm != "none" {
+		t.Errorf("edit: tier %q (reasons %s) %+v", env.Tier, reasonCodes(env), env.Plan)
+	}
+	for _, action := range []string{"lock.unlock", "cover.open_cover"} {
+		draft := hallDraft("light.turn_off")
+		target := map[string]string{"lock.unlock": "lock.front", "cover.open_cover": "cover.garage"}[action]
+		draft["actions"] = []any{step(action, target)}
+		if _, env := h.run(runPlanCommand, "write", "--domain", "automation", "--id", "a1", "--file", draftFile(t, draft)); env.Tier != "typed" {
+			t.Errorf("%s: tier %q (reasons %s), want typed", action, env.Tier, reasonCodes(env))
+		}
+	}
+	withReloads(h.f)
+	if _, env := h.run(runPlanCommand, "call", "automation.reload", "--set", "id=a1"); env.Tier != "typed" {
+		t.Errorf("reload call: tier %q (reasons %s), want typed", env.Tier, reasonCodes(env))
 	}
 }
 
