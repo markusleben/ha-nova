@@ -11,6 +11,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as pause } from "node:timers/promises";
 import { winTransport } from "./transport.mjs";
+import { chatFileRefusal } from "./chat-files.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const REPO = "markusleben/ha-nova";
@@ -502,6 +503,7 @@ try {
   if (!backupSlug) throw new Error("preflight failed; no lane writes");
   start = snapshot;
   if (stopping || !(await appVersion(appInfo))) throw new Error("preflight failed or interrupted");
+  await chatFileRefusal({ ha: CFG.ha, llat, app: CFG.app, sup, check });
   if (await winIdentity() && await winIsolation()) {
     users = true;
     for (const shell of ["ps7", "ps51"]) {

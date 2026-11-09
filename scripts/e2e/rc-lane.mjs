@@ -11,8 +11,14 @@
 //   d  slow check (#827): 1,500 automations + a call_service listener, the CLI's relay
 //      behind a proxy that holds every chunk SLOW_RELAY_MS; an unlock plan hits the
 //      read budget and still applies with its first code
-// Order c, a, b, d: the chat bridge runs first, while the Claude test account's
-// usage limit is fresh.
+//   e  the bed's assertions (testbed/verify.sh) with the tag's binary
+//   f  chat-app files under /config at each level (testbed/chat-files.mjs; the bed
+//      starts with TESTBED_FILES=1)
+//   g  the NOVA App update notice (testbed/app-notice.mjs)
+//   h  calm edits in a home with real-home listeners (testbed/calm.mjs)
+// Order c, e, f, g, a, b, h, d: the chat bridge runs first, while the Claude test
+// account's usage limit is fresh; e, f, and g before h's listeners, which make
+// every call on the bed ask (a known limit, docs/releasing.md); d last.
 //
 // Throwaway only: its own test bed from this checkout (it stops when any bed is
 // running, from any tree), CLI homes inside the bed's .state or the work dir
@@ -133,7 +139,7 @@ function startBed() {
   say("starting the test bed (torn down at exit)");
   try {
     const fd = openSync(join(WORK, "testbed-up.log"), "a");
-    execFileSync("bash", [join(TESTBED, "up.sh")], { stdio: ["ignore", fd, fd] });
+    execFileSync("bash", [join(TESTBED, "up.sh")], { stdio: ["ignore", fd, fd], env: { ...process.env, TESTBED_FILES: "1" } });
   } finally {
     // Ours once up.sh got past its own checks (it made .state); a bed that
     // won the race in between (up.sh says so) is someone else's.
@@ -173,6 +179,20 @@ async function phone() {
   const n = (r) => (out.match(new RegExp(`^${r}  `, "gm")) ?? []).length;
   row("b", `phone lane, ${tag} binary`, code === 0 ? "PASS" : "FAIL", `${n("PASS")} PASS, ${n("FAIL")} FAIL: link, move, stop, confirm, result on iOS + Android`, log);
 }
+
+// ---- e-h: the bed's own checks with the tag's binary (PASS/FAIL lines) ------------
+async function bedCheck(step, check, args) {
+  const log = join(WORK, `${step}.log`);
+  const { code, out } = await run(args[0].endsWith(".sh") ? "bash" : "node", args, { log, env: { ...process.env, TESTBED_CLI_BIN: join(WORK, "bin/ha-nova") } });
+  const n = (r) => (out.match(new RegExp(`^${r}  `, "gm")) ?? []).length;
+  const failing = out.split("\n").filter((l) => l.startsWith("FAIL  ")).map((l) => l.slice(6, 70));
+  const result = code === 0 && n("PASS") && !n("FAIL") && !n("SKIP") ? "PASS" : "FAIL";
+  row(step, check, result, `${n("PASS")} PASS, ${n("FAIL")} FAIL${n("SKIP") ? `, ${n("SKIP")} SKIP` : ""}${failing.length ? `: ${failing.join("; ")}` : ""}`, log);
+}
+const verify = () => bedCheck("e", "test bed assertions, tag's binary", [join(TESTBED, "verify.sh")]);
+const chatFiles = () => bedCheck("f", "chat-app files under /config, each level", [join(TESTBED, "chat-files.mjs")]);
+const appNotice = () => bedCheck("g", "App update notice, home route", [join(TESTBED, "app-notice.mjs")]);
+const calm = () => bedCheck("h", "calm edits in a real-home-shaped bed", [join(TESTBED, "calm.mjs")]);
 
 // ---- c: chat bridge, code last ----------------------------------------------------
 const PROMPTS = {
@@ -223,12 +243,15 @@ async function chat() {
   try { user = await testbedOwner(); } catch (err) { return row("c", "chat bridge started", "FAIL", err.message); }
   mkdirSync(join(home, ".config/ha-nova"), { recursive: true, mode: 0o700 });
   mkdirSync(data, { mode: 0o700 });
-  writeFileSync(join(home, ".config/ha-nova/demo.json"), JSON.stringify({ ha_url: "http://127.0.0.1:18123", relay_url: "http://127.0.0.1:18791", relay_token: readFileSync(join(STATE, "relay-token"), "utf8").trim() }), { mode: 0o600 });
+  // The local transport, as the App's bridge reaches its Relay; never the demo
+  // house's profile, which words every Relay refusal as the demo's own.
+  writeFileSync(join(home, ".config/ha-nova/config.json"), JSON.stringify({ ha_url: "http://127.0.0.1:18123", relay_base_url: "http://127.0.0.1:18791" }), { mode: 0o600 });
+  writeFileSync(join(home, ".test-relay-token"), readFileSync(join(STATE, "relay-token"), "utf8").trim(), { mode: 0o600 });
   writeFileSync(join(data, "chat-apps.json"), JSON.stringify({ allowed_users: [user] }), { mode: 0o600 });
   writeFileSync(join(WORK, "secret"), secret, { mode: 0o600 });
   const [bridgePort, proxyPort] = [await freePort(), await freePort()];
   const log = join(WORK, "chat.log");
-  run(join(WORK, "bin/ha-nova"), ["serve", "--server", "demo", "--listen", `127.0.0.1:${bridgePort}`, "--data-dir", data, "--secret-file", join(WORK, "secret")], {
+  run(join(WORK, "bin/ha-nova"), ["serve", "--listen", `127.0.0.1:${bridgePort}`, "--data-dir", data, "--secret-file", join(WORK, "secret")], {
     // HA_NOVA_DEV_ROOT: ha_skill serves this checkout's skills (the App ships them beside the bridge).
     log, env: { PATH: process.env.PATH, HOME: home, HA_NOVA_DEV_ROOT: ROOT, XDG_CONFIG_HOME: join(home, ".config"), XDG_CACHE_HOME: join(home, ".cache"), HA_NOVA_NO_BROWSER: "1",
       HA_NOVA_ALLOW_INSECURE_TEST_KEYRING: "1", HA_NOVA_TEST_KEYRING_FILE: join(home, ".test-relay-token"), HA_NOVA_KEYRING_SERVICE: "ha-nova-rc-lane" },
@@ -334,7 +357,7 @@ try {
   await fetchBinary();
   setupLog = join(WORK, "testbed-up.log");
   startBed();
-  for (const [step, fn] of [["c", chat], ["a", matrix], ["b", phone], ["d", slow]]) {
+  for (const [step, fn] of [["c", chat], ["e", verify], ["f", chatFiles], ["g", appNotice], ["a", matrix], ["b", phone], ["h", calm], ["d", slow]]) {
     try { await fn(); } catch (err) { row(step, "step ran", "FAIL", err.message); }
   }
 } catch (err) {
