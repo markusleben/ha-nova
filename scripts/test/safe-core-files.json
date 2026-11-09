@@ -66,6 +66,7 @@
   "tests/http/supervisor-deny.test.ts",
   "tests/http/supervisor-proxy.test.ts",
   "tests/http/ws-proxy.test.ts",
+  "tests/runtime/gate-phone-store.test.ts",
   "tests/runtime/gate-worker.test.ts",
   "tests/runtime/phone-link.test.ts",
   "tests/security/auth.test.ts",
