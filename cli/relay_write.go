@@ -181,10 +181,10 @@ func (s *relaySession) sendWrite(endpoint string, body []byte) (json.RawMessage,
 	if isHTTPRedirect(resp.StatusCode) {
 		return nil, relayHTTPOutcomeUnknownError(resp.StatusCode)
 	}
-	if s.transport.Via == relayViaLocal && (resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden) {
+	raw, err := readAllLimited(resp.Body, maxRelayResponseBytes)
+	if s.transport.Via == relayViaLocal && localRelayRefusedCredential(resp.StatusCode, raw) {
 		return nil, errors.New(localRelayAuthRepairMessage(resp.StatusCode, s.server, s.cfg.RelayBaseURL))
 	}
-	raw, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	if err == nil {
 		raw, err = normalizeUTF8Bytes(raw, "Relay response")
 	}

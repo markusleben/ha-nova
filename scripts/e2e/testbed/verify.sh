@@ -132,6 +132,12 @@ expect 'plan write over a package automation is refused (CONFIG_NOT_UI_MANAGED)'
 echo "--- reads"
 expect 'history of a light is readable' 0 "d.status === 'ok'" -- history light.kitchen_lights --since 1h
 
+echo "--- Relay refusals (a Relay 403 names its own code, never a sign-in problem)"
+printf '%s' '[{"endpoint":"files","payload":{"action":"delete_file","path":"/config/www/mailbox/latest.jpg"}}]' > "$TMP/delete-www.json"
+expect 'a file delete the Relay refuses (file access off) names FILE_ACCESS_DISABLED' 1 \
+  "d.error.message.includes('FILE_ACCESS_DISABLED') && !/credential|ha-nova setup/.test(d.error.message + ' ' + d.error.next)" \
+  -- plan raw --file "$TMP/delete-www.json"
+
 echo "--- webhook-read protection (MCP ha_read never reaches /api/webhook)"
 mcp_read() {
   printf '%s\n' \

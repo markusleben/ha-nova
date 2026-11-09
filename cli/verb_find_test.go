@@ -106,6 +106,11 @@ func setupFakeRelay(t *testing.T, reply func(r *http.Request, endpoint string, p
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": map[string]any{"code": refusal.code, "message": "refused"}})
 			return
 		}
+		if answer, isStatus := data.(fakeRelayStatus); isStatus {
+			w.WriteHeader(answer.status)
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": map[string]any{"code": answer.code, "message": answer.message}})
+			return
+		}
 		if failure, isFailure := data.(fakeRelayFailure); isFailure {
 			w.WriteHeader(http.StatusBadGateway)
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": map[string]any{"code": failure.code, "message": failure.message}})
@@ -361,6 +366,13 @@ func TestRelaySessionBoundsEachRequest(t *testing.T) {
 type fakeRelayFailure struct{ code, message string }
 
 type fakeRelayRefusal struct{ code string }
+
+// fakeRelayStatus: the Relay answers ok:false with this HTTP status, code,
+// and message (a 403 file refusal, a 401 for a revoked credential).
+type fakeRelayStatus struct {
+	status        int
+	code, message string
+}
 
 func TestTokensMatchDecomposedAccents(t *testing.T) {
 	decomposed := "Éclair Küche"
