@@ -48,9 +48,8 @@ type humanNotice struct {
 	// Relay notices: Home Assistant reports a pending NOVA App update
 	// (appUpdate), for an App below what this version needs (belowFloor), or
 	// shows the App's update entity without one yet, so a check may find it
-	// (appCheck). viaLink: read over Home Assistant Link, where HA NOVA
-	// neither checks the store nor installs the App update itself.
-	appUpdate, belowFloor, appCheck, viaLink bool
+	// (appCheck).
+	appUpdate, belowFloor, appCheck bool
 }
 
 var uiEnvLookup = os.Getenv

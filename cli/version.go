@@ -333,16 +333,14 @@ func relayUpdateNoticeWithTimeout(paths runtimePaths, timeout time.Duration) hum
 
 func relayUpdateNoticeWithContext(ctx context.Context, paths runtimePaths) humanNotice {
 	cfg, err := loadConfig(paths)
-	if err != nil || cfg.RelayBaseURL == "" {
+	if err != nil || cfg.RelayBaseURL == "" && !remoteOnlyCloudSetup(cfg) {
 		return humanNotice{}
 	}
 	route, ok := relayNoticeTransport(ctx, cfg)
 	if !ok {
 		return humanNotice{}
 	}
-	notice := relayUpdateNoticeOverRoute(ctx, paths, route)
-	notice.viaLink = !notice.empty() && route.Via == relayViaCloud
-	return notice
+	return relayUpdateNoticeOverRoute(ctx, paths, route)
 }
 
 func relayUpdateNoticeOverRoute(ctx context.Context, paths runtimePaths, route relayTransportSelection) humanNotice {
