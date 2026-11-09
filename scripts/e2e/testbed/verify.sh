@@ -63,8 +63,10 @@ expect 'MQTT gate cover open is typed (ACCESS_COVER, device_class gate)' 3 \
   "d.tier === 'typed' && $reasons.includes('ACCESS_COVER') && d.say.includes('opens a gate')" -- plan call cover.open_cover cover.driveway_gate
 expect 'device_class override (kitchen_window -> shutter) makes open ordinary' 0 \
   "d.tier === 'ordinary'" -- plan call cover.open_cover cover.kitchen_window
-expect 'registry-less demo lock unlock is typed with a four-digit one-time code' 3 \
-  "d.tier === 'typed' && $reasons.includes('ACCESS_LOCK') && $reasons.includes('UNREGISTERED_ACTUATOR') && /^[0-9]{4}$/.test(d.plan.code) && d.say.endsWith('\n\nTo go ahead, type this code:  \n**' + d.plan.code + '**')" -- plan call lock.unlock lock.front_door
+# Where this computer can open a confirmation window (a desktop session), the
+# window asks and no code is shown; elsewhere the four-digit code ends `say`.
+expect 'registry-less demo lock unlock is typed: the window asks, else a four-digit one-time code' 3 \
+  "d.tier === 'typed' && $reasons.includes('ACCESS_LOCK') && $reasons.includes('UNREGISTERED_ACTUATOR') && (d.plan.channel === 'window' ? d.plan.code === undefined && d.say.endsWith('Confirm in the window on this computer.') : /^[0-9]{4}$/.test(d.plan.code) && d.say.endsWith('\n\nTo go ahead, type this code:  \n**' + d.plan.code + '**'))" -- plan call lock.unlock lock.front_door
 expect '"Plug factory reset" press is typed (DESTRUCTIVE_BUTTON)' 3 \
   "d.tier === 'typed' && $reasons.includes('DESTRUCTIVE_BUTTON')" -- plan call button.press button.plug_factory_reset
 expect 'restart-class button (demo, non-user-authored) press is preview' 3 \
@@ -108,7 +110,8 @@ expect 'plan write --create (ordinary draft) is preview' 3 \
 expect 'plan write of a draft that unlocks a door is typed with a code' 3 \
   "d.tier === 'typed' && d.plan.confirm === 'code' && $reasons.includes('ACCESS_LOCK')" \
   -- plan write --domain automation --create --file "$TMP/unlock.json"
-expect 'plan write update keeps ordered variables (base before brightness_pct)' 3 \
+# An edit HA NOVA can put back runs without a preview (#1053): ordinary, exit 0.
+expect 'plan write update keeps ordered variables (base before brightness_pct)' 0 \
   "Object.keys(d.config.body.variables).join() === 'base,brightness_pct' && d.diff.length > 0" \
   -- plan write --domain automation --id testbed_f_ordered_variables --file "$TMP/ordered.json"
 cat > "$TMP/routine.json" << 'EOF'

@@ -60,7 +60,7 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain("changing where backups go, now asks for the same confirmation as unlocking a door.");
     // 0.29 ships no Relay gate: the notes never say the Relay checks or refuses anything.
     expect(stableNotes).not.toMatch(/Relay (?:now )?(?:checks|refuses|enforces|blocks)/i);
-    // Renames (#1054), shopping list (#1048), setup offer (#1045), stdio apply jobs (#1047), copies first (#1042, #1044, #1049), helpers (#1051), reloads (#1055), same-item edits (#1058), the App notice over Link (#1064).
+    // Renames (#1054), shopping list (#1048), setup offer (#1045), stdio apply jobs (#1047), copies first (#1042, #1044, #1049), helpers (#1051), reloads (#1055), same-item edits (#1058), the App notice over Link (#1064), file refusals (#1072).
     expect(stableNotes).toContain("**Renaming a device or entity now runs right away and can be undone.**");
     expect(stableNotes).toContain("**Removing up to five items you named from the shopping list runs right away.**");
     expect(stableNotes).toContain("**When a NOVA App update is waiting, setup in a terminal offers it once setup works.**");
@@ -71,6 +71,7 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain("**Reloading an automation or your scripts is now checked like what it loads.**");
     expect(stableNotes).toContain("**Changing the same automation or script again right away no longer asks.**");
     expect(stableNotes).toContain("**Over Home Assistant Link, `ha-nova update` now says when the NOVA App needs an update.**");
+    expect(stableNotes).toContain("**When the NOVA App refuses a file (for example anything under /config/www), HA NOVA now says why");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
   });
