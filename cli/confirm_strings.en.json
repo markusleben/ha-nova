@@ -624,6 +624,8 @@
   "outcome.line.stopped": "Your tap arrived, but HA NOVA stopped. Nothing changed. {why}",
   "outcome.line.stopped_computer": "Stopped on the computer. Nothing changed.",
   "outcome.line.confirmed_computer": "Nothing more to do; the computer shows the result.",
+  "outcome.ended": "Ended",
+  "outcome.line.ended_elsewhere": "Answered or stopped somewhere else; the computer shows the result.",
   "outcome.line.not_asked": "HA NOVA couldn't ask. Nothing changed.",
   "outcome.line.no_answer": "No answer reached Home Assistant. Nothing changed.",
   "outcome.line.why_chat": "The chat says why.",

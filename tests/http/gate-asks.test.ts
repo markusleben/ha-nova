@@ -199,10 +199,18 @@ describe("gate asks", () => {
     expect(await status(() => t.ask(phone, [unlock]))).toBe(409); // another device has no link of its own here
   });
 
-  it("a decline or another person's tap ends the ask; no answer leaves it waiting", async () => {
-    for (const [answer, state] of [[{ answer: "declined" }, "cancelled"], [{ answer: "rejected" }, "cancelled"], [{ answer: "none" }, "waiting"], [{ answer: "unavailable" }, "waiting"], [null, "waiting"]] as const) {
+  it("a decline or another person's tap ends the ask; a phone that can't be asked ends it only without another channel", async () => {
+    for (const [answer, others, state] of [
+      [{ answer: "declined" }, [], "cancelled"],
+      [{ answer: "rejected" }, [], "cancelled"],
+      [{ answer: "none" }, [], "waiting"],
+      [{ answer: "unavailable" }, [], "unavailable"],
+      [null, [], "unavailable"],
+      [{ answer: "unavailable" }, ["page"], "waiting"],
+      [null, ["page"], "waiting"],
+    ] as const) {
       const p = phones();
-      const t = setup(typed, [], 5, { link: () => link, phone: p.phone });
+      const t = setup(typed, [...others], 5, { link: () => link, phone: p.phone });
       const opened = await t.ask(laptop, [unlock]);
       p.calls[0]!.answer(answer);
       await settled();

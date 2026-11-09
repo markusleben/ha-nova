@@ -69,7 +69,8 @@ export type AskState =
   | { state: "waiting"; expires_at: number }
   | { state: "approved"; grant_id: string; until: number }
   | { state: "cancelled" }
-  | { state: "expired" };
+  | { state: "expired" }
+  | { state: "unavailable" }; // its only channel, the phone, can't be asked
 
 interface Ask {
   owner: string;
@@ -153,7 +154,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     const owner = ownerState(ask.owner);
     if (state.state === "approved") {
       owner.misses = 0;
-    } else if (++owner.misses >= PAUSE_AFTER) {
+    } else if (state.state !== "unavailable" && ++owner.misses >= PAUSE_AFTER) {
       owner.misses = 0;
       owner.pausedUntil = deps.now() + PAUSE_MS;
     }
@@ -246,7 +247,8 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     }
     const link = deps.link(principal);
     const paused = deps.now() < (owners.get(owner)?.pausedUntil ?? 0);
-    const channels = [...(link !== undefined && !paused ? ["phone"] : []), ...deps.channels(principal)];
+    const others = deps.channels(principal);
+    const channels = [...(link !== undefined && !paused ? ["phone"] : []), ...others];
     if (channels.length === 0 && link !== undefined) {
       throw new HttpError(429, "GATE_PAUSED", "Phone asks from this device are paused for 15 minutes after three in a row went unanswered or were cancelled; nothing was sent");
     }
@@ -279,6 +281,8 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
           deps.logger?.info?.("A typed request was approved on the linked phone", { user_id: answer.user_id });
         } else if (answer?.answer === "declined" || answer?.answer === "rejected") {
           settle(ask, { state: "cancelled" });
+        } else if ((answer === null || answer.answer === "unavailable") && others.length === 0) {
+          settle(ask, { state: "unavailable" }); // no weaker channel: nobody can approve it now
         }
       });
     }
