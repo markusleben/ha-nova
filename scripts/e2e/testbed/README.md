@@ -145,9 +145,14 @@ home in `.state`. The RC lane runs all three with the tag's binary
   light, a cover watchdog on `call_service`, one listener no automation
   owns) and checks that two edits of one automation run without an ask,
   that undo puts back the latest one, and that an edit adding an unlock or
-  a garage opening, and a reload you call, still ask. Known limit: the
-  watchdog makes every call on this bed ask, because the CLI's listener scan
-  ignores an `event_data` domain filter, so run other checks before it.
+  a garage opening, and a reload you call, still ask. Then (`calls.mjs`)
+  a light call stays ordinary beside the cover watchdog, a cover call still
+  asks, and an oracle applies calls through a scene with a climate member, a
+  light group in a script, `switch_as_x` lights on a template switch and on a
+  relay with an automation, and a chain of service-call listeners: every
+  automation that really ran (Home Assistant's traces) must be among the
+  plan's consumers. It leaves its automations on the bed, so run other
+  checks before it.
 
 ## Determinism and versions
 

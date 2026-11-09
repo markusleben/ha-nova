@@ -18,7 +18,10 @@ import (
 // found; how far it gets depends on the read budget (plan_drift.go).
 const viaListenerScan = "listener scan"
 
-type listenerHit struct{ automation, entityFilter string }
+type listenerHit struct {
+	automation, entityFilter string
+	filter                   map[string]any // the trigger's event_data
+}
 
 type listenerTable struct {
 	counts map[string]int
@@ -29,6 +32,19 @@ type listenerTable struct {
 // for one event type (or every type under a "timer." prefix). Listeners
 // that cannot be enumerated make the run typed (indirect-actuation.md).
 func (e *tierEngine) checkEvents(eventType, entityID string) {
+	table, types := e.eventCounts(eventType, entityID)
+	for _, t := range types {
+		for _, hit := range table.hits[t] {
+			if entityID == "" || hit.entityFilter == "" || hit.entityFilter == entityID {
+				e.consumer(hit.automation, "event:"+t, "", 1, nil)
+			}
+		}
+	}
+}
+
+// eventCounts compares the counts and answers the listener table and the
+// matching event types; nil when no listener beyond the baseline listens.
+func (e *tierEngine) eventCounts(eventType, entityID string) (*listenerTable, []string) {
 	live := e.liveEvents()
 	matchesType := func(t string) bool {
 		return t == eventType || (strings.HasSuffix(eventType, ".") && strings.HasPrefix(t, eventType))
@@ -40,11 +56,11 @@ func (e *tierEngine) checkEvents(eventType, entityID string) {
 		}
 	}
 	if !surplus {
-		return
+		return nil, nil
 	}
 	table := e.listenerTable()
 	if table == nil {
-		return
+		return nil, nil
 	}
 	types := map[string]bool{}
 	for t := range live {
@@ -53,7 +69,8 @@ func (e *tierEngine) checkEvents(eventType, entityID string) {
 	for t := range table.counts {
 		types[t] = types[t] || matchesType(t)
 	}
-	for _, t := range sortedBoolKeys(types) {
+	matched := sortedBoolKeys(types)
+	for _, t := range matched {
 		enumerated := table.counts[t] + baselineFor(t)
 		switch detail := fmt.Sprintf("%s: %d live, %d enumerated", t, live[t], table.counts[t]); {
 		case frontendListenedEvents[t] != "" && live[t] > enumerated:
@@ -66,12 +83,8 @@ func (e *tierEngine) checkEvents(eventType, entityID string) {
 		case enumerated != live[t]:
 			e.gap(reasonListener, entityID, "", detail)
 		}
-		for _, hit := range table.hits[t] {
-			if entityID == "" || hit.entityFilter == "" || hit.entityFilter == entityID {
-				e.consumer(hit.automation, "event:"+t, "", 1, nil)
-			}
-		}
 	}
+	return table, matched
 }
 
 func baselineFor(eventType string) int {
@@ -203,7 +216,7 @@ func (e *tierEngine) listenerTable() *listenerTable {
 					continue
 				}
 				table.counts[name]++
-				table.hits[name] = append(table.hits[name], listenerHit{automation: row.entityID, entityFilter: entityFilter})
+				table.hits[name] = append(table.hits[name], listenerHit{automation: row.entityID, entityFilter: entityFilter, filter: filter})
 			}
 		}
 	}
