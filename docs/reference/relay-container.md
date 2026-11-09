@@ -20,6 +20,7 @@ docker run -d --name ha-nova-relay --restart unless-stopped \
   -e HA_LLAT='<your Home Assistant long-lived access token>' \
   -e HA_URL='http://<home-assistant-host>:8123' \
   -v ha-nova-data:/data \
+  -v ha-nova-snapshots:/data/ha_nova_snapshots \
   ghcr.io/markusleben/ha-nova-relay:latest
 ```
 
@@ -39,9 +40,11 @@ services:
       HA_URL: "http://homeassistant:8123"
     volumes:
       - ha-nova-data:/data
+      - ha-nova-snapshots:/data/ha_nova_snapshots
 
 volumes:
   ha-nova-data:
+  ha-nova-snapshots:
 ```
 
 If Home Assistant runs in the same Compose project, `HA_URL` can use its service name; otherwise use the host's IP.

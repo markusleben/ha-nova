@@ -1,7 +1,7 @@
-import { randomBytes } from "node:crypto";
-import { closeSync, constants, fstatSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { closeSync, constants, fstatSync, openSync, readFileSync } from "node:fs";
 
 import type { PhoneLink } from "../http/gate-asks.js";
+import { writeFileAtomicSync } from "../storage/atomic-file.js";
 
 // The standalone container's phone link (spec §3): one link for its one
 // principal, the shared Relay token, in the Relay's own data folder, which
@@ -47,9 +47,7 @@ export function createPhoneLinkStore(file: string): PhoneLinkStore {
       if (JSON.stringify(link()) !== JSON.stringify(current)) {
         return false;
       }
-      const temp = file + "." + randomBytes(8).toString("hex") + ".tmp";
-      writeFileSync(temp, JSON.stringify(next), { mode: 0o600, flag: "wx" }); // a new file, never through a link
-      renameSync(temp, file);
+      writeFileAtomicSync(file, JSON.stringify(next)); // a new file, never through a link, synced
       return true;
     },
   };
