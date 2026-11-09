@@ -97,13 +97,12 @@ func (e *tierEngine) configReloadTier(service string, data map[string]any) (leve
 	return tierPreview, reasonReload, true
 }
 
-// reloadListeners classifies what a config load sets off besides the config
-// itself: an automation reload, even of one id, fires automation_reloaded
-// (automation/services.py); Home Assistant's own reload after a config
-// write is a service call, which fires call_service (config/automation.py,
-// config/script.py); and a reload removes and recreates each entity whose
-// config changed (script/util.py), so what watches those entities' states
-// runs too.
+// reloadListeners classifies what a reload call sets off besides the config
+// it loads: an automation reload, even of one id, fires automation_reloaded
+// (automation/services.py); the call fires call_service; and a reload
+// removes and recreates each entity whose config changed (script/util.py),
+// so what watches those entities' states runs too. A config write's own
+// reload is not rated this way (computeConfigPlan).
 func (e *tierEngine) reloadListeners(domain string, entities []string) {
 	for _, entityID := range entities {
 		e.scanConsumers(entityID, 0, stateDelta{})
