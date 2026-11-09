@@ -51,8 +51,10 @@ async function fixture() {
     writeFileSync(file, out, { mode: 0o600 });
   }
   const fx = JSON.parse(readFileSync(file, "utf8"));
-  // Compose recreates the Relay only when its token changed.
-  execFileSync("docker", ["compose", "-f", join(HERE, "docker-compose.yml"), "up", "-d", "--no-deps", "--no-build", "relay", "push"], {
+  // Compose recreates the Relay only when its token changed; it keeps file
+  // access where up.sh gave it (TESTBED_FILES=1 leaves .state/files).
+  const files = existsSync(join(STATE, "files")) ? ["-f", join(HERE, "docker-compose.files.yml")] : [];
+  execFileSync("docker", ["compose", "-f", join(HERE, "docker-compose.yml"), ...files, "up", "-d", "--no-deps", "--no-build", "relay", "push"], {
     env: { ...process.env, RELAY_AUTH_TOKEN: read("relay-token"), HA_LLAT: fx.relay_llat }, stdio: ["ignore", "ignore", "pipe"], // its error says why
   });
   const health = async () => (await (await fetch("http://127.0.0.1:18791/health", { headers: { authorization: `Bearer ${read("relay-token")}` } })).json()).data?.status === "ok"; // it connects to Home Assistant on first use

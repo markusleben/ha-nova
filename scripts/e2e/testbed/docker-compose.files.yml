@@ -1,0 +1,12 @@
+# Opt-in file access (TESTBED_FILES=1 npm run testbed:up): the Relay gets the
+# bed's /config with file_access readwrite, as the App's option gives it. Root
+# only because Home Assistant writes .state/config as root (as
+# scripts/e2e/disposable-ha does). The default bed and the hosted demo keep
+# file access off.
+services:
+  relay:
+    user: "0:0"
+    volumes:
+      - ./.state/config:/config
+    environment:
+      FILE_ACCESS: readwrite
