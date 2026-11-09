@@ -94,17 +94,20 @@ echo ""
 # for 15 minutes after three asks in a row end cancelled or unanswered: about 12766;
 # and to 12920 for layer 4d: the phone link route (POST /gate/v1/phone, a link ask under the same
 # limits that sets the link only after the taps the worker asks for) and the registry's
-# compare-and-set write of a device's link: about 12888.
+# compare-and-set write of a device's link: about 12888;
+# and to 13000 for layer 4e: the standalone container's asks and phone link (the same ask
+# routes, its one link in /data/gate-phone.json, and file access kept off when the
+# configuration folder overlaps the Relay's data folder): about 12990.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 12920 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–12920 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 13000 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–13000 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–12920 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–13000 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──
@@ -241,9 +244,12 @@ done
 
 # ── 9. Route count — verify relay stays minimal ──
 echo "[9] Relay route count"
+# The standalone listener's routes. 7 until layer 4e, then 9: the two ask routes
+# (POST /gate/v1/ask, POST /gate/v1/phone) without which a standalone container
+# could never approve a typed request; the App's listeners have them already.
 ROUTE_COUNT=$(grep -c "router.register" "$REPO_ROOT/nova/src/index.ts" 2>/dev/null || true)
-if (( ROUTE_COUNT <= 7 )); then
-  pass "Relay has ${ROUTE_COUNT} routes (≤7 — still minimal)"
+if (( ROUTE_COUNT <= 9 )); then
+  pass "Relay has ${ROUTE_COUNT} routes (≤9 — still minimal)"
 else
   fail "Relay has ${ROUTE_COUNT} routes — growing beyond 'minimal'. Review architecture claims."
 fi

@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { resolveFileAccess, type RootProbe } from "../../nova/src/config/file-access.js";
@@ -61,5 +65,26 @@ describe("file access resolution", () => {
     );
     expect(result.configRoot).toBe("/custom/ha");
     expect(seen).toEqual(["/custom/ha"]);
+  });
+  // The Relay's data folder holds the phone link and the safety check's
+  // credentials: a configuration folder that is it, holds it, or lies in it
+  // (through a symlink too) would hand both to /files.
+  it("stays off when the configuration folder overlaps the Relay's data folder", () => {
+    const dir = mkdtempSync(join(tmpdir(), "hn-fa-"));
+    try {
+      mkdirSync(join(dir, "data", "inner"), { recursive: true });
+      mkdirSync(join(dir, "config"));
+      symlinkSync(join(dir, "data"), join(dir, "alias"));
+      const data = join(dir, "data");
+      for (const root of [data, dir, join(data, "inner"), join(dir, "alias"), "/"]) {
+        const result = resolveFileAccess({ mode: "readwrite", configRootOverride: root, dataDir: data }, () => mounted);
+        expect([root, result.mode, result.configRoot]).toEqual([root, "off", ""]);
+        expect(result.warnings.join(" ")).toContain("overlaps the Relay's own data folder");
+      }
+      expect(resolveFileAccess({ mode: "readwrite", configRootOverride: join(dir, "config"), dataDir: data }, () => mounted).mode).toBe("readwrite");
+      expect(resolveFileAccess({ mode: "readwrite", configRootOverride: join(dir, "data-other"), dataDir: data }, () => mounted).mode).toBe("readwrite");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

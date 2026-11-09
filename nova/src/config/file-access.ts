@@ -1,3 +1,6 @@
+import { realpathSync } from "node:fs";
+import { isAbsolute, relative, resolve, sep } from "node:path";
+
 export type FileAccessMode = "off" | "read" | "readwrite";
 
 export interface FileAccessConfig {
@@ -42,7 +45,7 @@ export function parseFileAccessMode(raw: unknown): FileAccessMode {
  * capability the relay can hand an agent, so it is never on by accident.
  */
 export function resolveFileAccess(
-  input: { mode?: unknown; configRootOverride?: string | undefined },
+  input: { mode?: unknown; configRootOverride?: string | undefined; dataDir?: string },
   probeRoot: (path: string) => RootProbe
 ): FileAccessConfig {
   // The two values are passed explicitly rather than handing this function the
@@ -58,6 +61,13 @@ export function resolveFileAccess(
     const probe = probeRoot(candidate);
     if (!probe.isDirectory) {
       continue;
+    }
+    if (input.dataDir !== undefined && overlaps(candidate, input.dataDir)) {
+      // The data folder holds the phone link and the safety check's credentials.
+      if (requested !== "off") {
+        warnings.push("The configuration folder overlaps the Relay's own data folder — file access stays off.");
+      }
+      return { mode: "off", configRoot: "", warnings };
     }
     return {
       mode: effectiveMode(requested, probe, candidate, warnings),
@@ -100,4 +110,21 @@ function effectiveMode(
     return "read";
   }
   return requested;
+}
+
+// overlaps: one folder is the other or lies inside it, symlinks resolved.
+function overlaps(a: string, b: string): boolean {
+  const real = (path: string): string => {
+    try {
+      return realpathSync(path);
+    } catch {
+      return resolve(path);
+    }
+  };
+  const inside = (outer: string, inner: string): boolean => {
+    const rel = relative(outer, inner);
+    return rel === "" || (rel !== ".." && !rel.startsWith(".." + sep) && !isAbsolute(rel));
+  };
+  const [x, y] = [real(a), real(b)];
+  return inside(x, y) || inside(y, x);
 }

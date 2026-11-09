@@ -16,9 +16,11 @@ import { createHomeHandler } from "./http/handlers/home.js";
 import { createPairHandler } from "./http/handlers/pair.js";
 import { createWsProxyHandler } from "./http/handlers/ws-proxy.js";
 import { gated, type GateClient } from "./http/gate.js";
+import { gateWithAsks } from "./http/gate-asks.js";
 import { createRouter, type Router } from "./http/router.js";
 import { createHttpServer } from "./http/server.js";
 import { createPairingManager, type PairingManager } from "./security/pairing.js";
+import type { PhoneLinkStore } from "./runtime/gate-phone-store.js";
 
 const PAIR_PATH = "/pair";
 const PAIR_ROUTE = `POST ${PAIR_PATH}`;
@@ -54,6 +56,8 @@ export interface AppOptions {
   // request is refused as unavailable.
   gate?: GateClient;
   gateToken?: () => string | null;
+  // The shared token's linked phone (runtime/gate-phone-store.ts); none: no link route.
+  phoneLink?: PhoneLinkStore;
 }
 
 const NO_GATE: GateClient = { check: async () => null, redact: async () => null };
@@ -110,7 +114,19 @@ export function createApp(options: AppOptions): App {
     })
   );
 
-  const gate = options.gate ?? NO_GATE;
+  // No Supervisor ingress, so no NOVA page: the linked phone is the only channel.
+  const phoneLink = options.phoneLink;
+  const { gate, ask } = gateWithAsks(options.gate ?? NO_GATE, {
+    prepare: { core: parseCoreRequest },
+    deviceName: () => "the shared Relay token",
+    channels: () => [],
+    link: (p) => (p.kind === "legacy" ? phoneLink?.link() : undefined),
+    ...(phoneLink ? { setLink: (p, link, current) => p.kind === "legacy" && phoneLink.setLink(link, current), linkable: (p) => p.kind === "legacy" } : {}),
+    now: options.now ?? Date.now,
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
+  router.register("POST", "/gate/v1/ask", ask);
+  router.register("POST", "/gate/v1/phone", ask);
   const forwardCore = createCoreForwarder({ coreClient: options.coreClient });
   router.register("POST", "/ws", gated("ws", createWsProxyHandler({ wsClient: options.wsClient }), gate));
   router.register("POST", "/core", gated("core", async ({ body }) => await forwardCore(body as CoreProxyRequest), gate, parseCoreRequest));

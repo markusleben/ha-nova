@@ -60,6 +60,7 @@ export interface GateAsksDeps {
   phone: (link: PhoneLink, text: PhoneText | LinkWords, waitMs: number, stop: AbortSignal) => Promise<PhoneAnswer | null>;
   // Sets the device's link while it is active and still has current; none: no link route.
   setLink?: (principal: Principal, link: PhoneLink, current: PhoneLink | undefined) => boolean;
+  linkable?: (principal: Principal) => boolean; // whose link setLink keeps (default: a device's)
   now: () => number;
   logger?: Pick<RelayLogger, "info" | "warn">;
   pollMs?: number; // tests
@@ -262,7 +263,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
   // A link ask (§3): the new phone's tap, after the tap of the phone linked
   // now, sets the device's link; a link changed meanwhile sets nothing.
   const openLink = (principal: Principal, raw: unknown): unknown => {
-    if (deps.setLink === undefined || principal.kind !== "device") {
+    if (deps.setLink === undefined || !(deps.linkable?.(principal) ?? principal.kind === "device")) {
       throw new HttpError(404, "NOT_FOUND", "Not found");
     }
     const { service, device_id, user_id, platform } = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;

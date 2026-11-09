@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { createServer, type Server } from "node:http";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -21,6 +21,7 @@ let checks: Record<string, unknown>[];
 let verdict: string;
 let children: (EventEmitter & { kill: () => boolean })[];
 let peer: string | undefined;
+let phones: Record<string, unknown>[];
 
 async function listen(server: Server): Promise<string> {
   servers.push(server);
@@ -57,6 +58,7 @@ beforeEach(() => {
   children = [];
   verdict = "pass";
   peer = undefined;
+  phones = [];
 });
 
 afterEach(async () => {
@@ -90,6 +92,8 @@ describe("standalone Relay: the safety check", () => {
     }
     expect(forwarded).toEqual([]);
     expect((await fetch(`${base}/health`, { headers: { authorization: "Bearer relay-token" } })).status).toBe(200);
+    // Without a link store (and a worker) no phone can be linked.
+    expect((await post(base, "/gate/v1/phone", { link: { service: "mobile_app_pixel", device_id: "dev1", user_id: "admin1" } }, "relay-token")).status).toBe(404);
   });
 
   describe("with its worker", () => {
@@ -105,6 +109,16 @@ describe("standalone Relay: the safety check", () => {
           if (request.url === "/check") {
             checks.push(body);
             response.end(JSON.stringify({ verdict, kind: "write" }));
+            return;
+          }
+          if (request.url === "/ask") {
+            const items = (body.requests as unknown as unknown[]).map(() => ({ verdict, text: "Unlock Front door" }));
+            response.end(JSON.stringify({ verdict, items, lang: "en", title: "HA NOVA", body: "Unlock Front door?", button: "Unlock" }));
+            return;
+          }
+          if (request.url === "/phone") {
+            phones.push(body);
+            response.end(JSON.stringify({ answer: "approved", user_id: "admin1" }));
             return;
           }
           response.end(JSON.stringify({ response_b64: Buffer.from(Buffer.from(body.response_b64!, "base64").toString().replaceAll("SECRET", "HIDDEN")).toString("base64") }));
@@ -148,6 +162,37 @@ describe("standalone Relay: the safety check", () => {
       verdict = "typed";
       expect((await post(base, "/core", { method: "POST", path: "/api/services/lock/unlock" }, "relay-token")).status).toBe(428);
       expect(forwarded).toEqual(["ws get_states"]);
+    });
+
+    it("links the shared token's phone on its taps, then asks it; no link or a broken one asks no one", async () => {
+      verdict = "typed";
+      const unlock = { method: "POST", path: "/api/services/lock/unlock", body: { entity_id: "lock.front" } };
+      const requests = [{ endpoint: "core", body_b64: Buffer.from(JSON.stringify(unlock)).toString("base64") }];
+      const code = (res: { text: string }) => (JSON.parse(res.text) as { error?: { code: string } }).error?.code;
+      const data = <T>(res: { text: string }) => (JSON.parse(res.text) as { data: T }).data;
+      expect(code(await post(base, "/gate/v1/ask", { requests }, "relay-token"))).toBe("GATE_NO_CHANNEL");
+
+      const link = { service: "mobile_app_pixel", device_id: "dev1", user_id: "admin1" };
+      const opened = data<{ needed: boolean; ask_id: string; channels: string[] }>(await post(base, "/gate/v1/phone", { link }, "relay-token"));
+      expect(opened).toMatchObject({ needed: true, channels: ["phone"] });
+      expect(data(await post(base, "/gate/v1/ask", { ask_id: opened.ask_id, op: "wait" }, "relay-token"))).toEqual({ state: "linked" });
+      const file = join(dir, "gate-phone.json");
+      expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(link);
+      expect(statSync(file).mode & 0o777).toBe(0o600);
+      expect(phones[0]).toMatchObject({ words: "link", device: "the shared Relay token", link });
+
+      const asked = data<{ ask_id: string; channels: string[] }>(await post(base, "/gate/v1/ask", { requests }, "relay-token"));
+      expect(asked.channels).toEqual(["phone"]);
+      const approved = data<{ state: string; grant_id: string }>(await post(base, "/gate/v1/ask", { ask_id: asked.ask_id, op: "wait" }, "relay-token"));
+      expect(approved.state).toBe("approved");
+      expect(phones[1]).toMatchObject({ link, title: "HA NOVA" });
+      const sent = await fetch(`${base}/core`, { method: "POST", headers: { authorization: "Bearer relay-token", "content-type": "application/json", "x-ha-nova-grant": approved.grant_id }, body: JSON.stringify(unlock) });
+      expect(sent.status).toBe(200);
+      expect(forwarded).toEqual(["core POST /api/services/lock/unlock"]);
+
+      writeFileSync(file, "{");
+      expect(code(await post(base, "/gate/v1/ask", { requests }, "relay-token"))).toBe("GATE_NO_CHANNEL");
+      expect(forwarded).toEqual(["core POST /api/services/lock/unlock"]);
     });
 
     it("lets the worker reach this listener from loopback only, with a token replaced on every start", async () => {

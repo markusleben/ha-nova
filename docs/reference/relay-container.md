@@ -89,6 +89,8 @@ The credential boundary matches the App even though the upstream credential diff
 
 ## Config snapshots
 
+From 0.30, unlocking, opening a door or gate, disarming, and deletes are confirmed on your linked phone; this container has no approval page. HA NOVA links the phone the first time it needs one, after a tap on that phone. The link lives in `/data/gate-phone.json`: mount a volume at `/data` to keep it, or link again after you recreate the container. Two containers sharing one `/data` volume don't coordinate their links, so give each its own. File access (`FILE_ACCESS`) stays off when `CONFIG_ROOT` is, holds, or lies inside the data folder.
+
 The relay stores config snapshots (relay 0.5.0, `POST /backups`) under `/data/ha_nova_snapshots`. The image creates that directory writable, but it is EPHEMERAL unless you mount a volume there (the `-v ha-nova-snapshots:...` line above / the Compose volume). `SNAPSHOT_DIR` overrides the location. On App installs this needs no setup — the App data directory persists and full HA backups sweep it up.
 
 ## File access (optional)
