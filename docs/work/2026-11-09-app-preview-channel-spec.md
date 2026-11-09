@@ -52,10 +52,12 @@ rc, stable users are offered it whatever channel exists. Also rejected:
 tagging rcs on `release/*`. That would give the signing secrets to a branch
 with no protection and no CI.
 
-## Recommendation: C, where the promote PR is the preview
+## Decision: C, where the promote PR is the preview
 
-Shaped by the KISS review: no beta slug, no beta branch, no -rcN App version,
-and no CLI change. Outside testers (B) wait until there are any.
+Shaped by the KISS review and decided by the maintainer on 2026-11-09 (see
+Decisions): no beta slug, no beta branch, no -rcN App version, no CLI change,
+and no preview in anyone's real home. Outside testers (B) wait until there
+are any.
 
 1. **Landing.** The train landing PR carries the CLI, the skills and the
    `nova/` source, but not the App version. `nova/config.yaml` and
@@ -66,20 +68,18 @@ and no CLI change. Outside testers (B) wait until there are any.
    `min_relay_version` to X+1 in `version.json` and `nova/version.json`.
    `app-image.yml` publishes X+1 from it, because that version was never on
    `main`. Stable stores still read X.
-3. **Preview.** The VMs, and the maintainer's home if he decides so, switch
-   the official store checkout to the promote branch. That takes a root host
-   shell and a Supervisor restart. Then they update the App in place
-   (proven, commands below). The rc test bed already builds the Relay from
-   the tag.
-4. **Final.** After the rc lanes and the maintainer's preview, merge the
+3. **Preview, on the throwaway VMs only.** `vm-lane` switches the HAOS VM's
+   official store checkout to the promote branch and updates the App in place
+   (Appendix). The rc test bed already builds the Relay from the tag. The
+   maintainer's home and every user get the App with the final.
+4. **Final.** After the rc lanes, merge the
    promote PR under the merge steps. Dispatch `e2e-disposable-ha.yml` on its
    merge commit and push the final tag there. Keep the post-merge checks of
    §4 step 1: `verify-relay-image.sh` and the `app-image-verify` push run on
    the merge commit. Users get exactly one App update per train, and it is the
    image the testers ran (see Image identity).
-5. **Back to stable.** Run `ha store repair 2368fcfa` and restart the
-   Supervisor on every switched store (a runbook step, no root shell). The
-   App stays at X+1, which `main` now offers as well.
+5. **Back to stable.** `vm-lane`'s cleanup restores the VM's App backup and
+   returns its store to `main` (`ha store repair`, Supervisor restart).
 
 A train with no App change has no promote PR, and the rc and the final share
 the landing commit as today.
@@ -130,107 +130,12 @@ While the promote PR is open, nothing merges into `main` except rc landings.
 Otherwise its update-branch would rebuild the App from inputs the testers
 never ran. Dependabot and docs PRs wait.
 
-### Store switch (VMs; the maintainer's home only by his own hand)
-
-**What Supervisor does** (`home-assistant/supervisor` 2026.10.5, the VM's version):
-
-- `store/git.py` `GitRepo.pull` fetches with the clone's refspec, which
-  covers `main` only. It then compares the *active* branch with
-  `origin/<active branch>` and resets only when they differ. A switched
-  checkout therefore stays where it is.
-- `store/__init__.py` `StoreManager.reload` re-reads App metadata only for a
-  repository whose pull changed something. So after a switch, `ha store
-  reload` and Check for updates (`api/root.py` `refresh_updates` → `store.reload`)
-  keep showing the old version. The periodic refresh (`misc/tasks.py`
-  `_reload_store`, every 3 h) behaves the same.
-- `StoreManager.load` runs at every Supervisor start (`core.py`), and with it
-  every host reboot. It loads the existing clone without re-cloning and
-  always re-reads the metadata. A restart is what makes the switch visible,
-  in both directions.
-- `GitRepo.load` never checks the branch. Only a repository reset re-clones
-  the configured branch (`main`). That happens through `ha store repair`
-  (`api/store.py` `repositories_repository_repair`) or through the
-  automatic fix for a corrupt repository (`resolution/fixups/store_execute_reset.py`,
-  `auto: True`). Either one returns the store to stable, which is the safe
-  direction.
-
-**Proof on the throwaway HAOS VM** (2026-11-09, App 0.13.23 installed, `main`
-offering 0.13.24). The checkout was switched to tag v0.28.2 (App 0.13.20) as
-a stand-in preview:
-
-- right after the switch, a store reload still offered 0.13.24;
-- after the Supervisor restart it offered 0.13.20, and a second reload plus
-  `refresh_updates` still offered 0.13.20 with the checkout unchanged. Note
-  that this offer was a downgrade: Supervisor offers any different version
-  as an update;
-- switching back with a plain `git checkout main` plus a reload kept
-  0.13.20, and only the restart showed 0.13.24 again;
-- with the checkout on `release/0.29` (App 0.13.24) and a restart, the
-  update installed in place on the same slug. The log showed "Downloading
-  docker image … 0.13.24" with no build. The device registry stayed the
-  same (10 devices, same canonical SHA-256), and so did the TLS key that
-  pairing pins (same SPKI hash on 8792);
-- `ha store repair 2368fcfa` plus a restart put the store back on `main`,
-  offering 0.13.24;
-- at the end, the App backup was restored: 0.13.23, the same registry hash
-  and the same key.
-
-**Commands.** First make a backup of the NOVA App and check that it is listed.
-Getting in needs a root shell on the host, because `git` only exists inside
-the Supervisor container:
-
-```bash
-docker exec hassio_supervisor sh -c 'cd /data/apps/git/2368fcfa && git fetch --depth 1 origin +refs/heads/<promote-branch>:refs/remotes/origin/<promote-branch> && git checkout -B <promote-branch> origin/<promote-branch>'
-ha supervisor restart     # required: a reload doesn't show the switch
-# then Settings → Apps → NOVA Relay: check the offered version, Update
-```
-
-Older Supervisors use `/data/addons/git`. Getting back needs no root shell.
-Any terminal with the `ha` command works, the official Terminal & SSH app
-included:
-
-```bash
-ha store repair 2368fcfa
-ha supervisor restart
-```
-
-**Root shell options.**
-
-- The HAOS console: the machine's own screen and keyboard, or a VM console.
-  Type `login` at the `ha >` prompt. No setting changes.
-- The community Advanced SSH & Web Terminal app with protection mode off.
-  It needs to stay off only for the switch, about five minutes per preview
-  version, then go back on (an app restart). While it is off, whoever can
-  open that terminal (any Home Assistant admin, or anyone with its SSH key
-  or password) has root on the host and its Docker. So would a compromised
-  build of that app. The official Terminal & SSH app has no Docker access.
-- The HAOS debug SSH on port 22222. It needs a key imported over USB, and the
-  root access then lasts until removed. Too heavy.
-
-Neither the Supervisor API nor the NOVA App's `manager` role can change a
-repository's branch: the branch is part of the repository's URL, and with
-it the slug. **There is no way in without a root shell**, so the switch is
-for the maintainer and the VMs only, never for a non-technical tester.
-Outside testers need B.
-
-Each new preview version (rc2 → X+2) needs the fetch, the checkout and the
-restart again.
-
-Going back early, before the final: `ha store repair`, then restart, then
-restore the App backup. Don't take the store's offer of X: X has never read
-X+1's data.
-
-Known limit: a store left on the promote branch gets no more App updates.
-Supervisor keeps comparing it with its own stale ref. The final checklist
-repairs every switched store and checks that it offers the stable version. A
-CLI below a later floor warns too. Agents run the switch only on the
-throwaway VMs (AGENTS.md → Hard rules).
-
 ### Effect on `docs/releasing.md` and AGENTS.md
 
 - §1 and AGENTS.md → Releases: the App bump moves from the release-prep PR to
   the promote PR, still once per train. The rule of at most one App update a
-  day counts promote merges. Preview pushes only reach switched stores.
+  day counts promote merges. Preview pushes reach only the VMs and don't
+  count.
 - App Images: the App proof moves from the landing PR to the promote PR's
   image. It checks the update from the stable App, an image download with no
   local build, `ha_ws_connected: true`, and a paired read. The chat-app lanes
@@ -240,8 +145,8 @@ throwaway VMs (AGENTS.md → Hard rules).
 - §3 RC gate: a train that changes the App always runs an rc, because the rc
   lanes are where the preview App is tested.
 - §4: step 1 waits for the App image on the promote PR, not on the landing.
-  `vm-lane` runs on the preview App. Step 5 adds the promote merge, its own
-  e2e dispatch and the switch back. The final tag goes on the promote merge
+  `vm-lane` runs on the preview App. Step 5 adds the promote merge and its own
+  e2e dispatch. The final tag goes on the promote merge
   commit, not on the rc commit. The two commits differ only in the version
   lines.
 - §6: the rule that `min_relay_version` equals the App version now changes
@@ -312,32 +217,92 @@ Then the store switch itself was traced in Supervisor's code and proven on
 the throwaway VM (Store switch section). It is robust: it survives reloads,
 the periodic refresh, Check for updates and restarts, and only a repository
 reset returns the store to stable. But it shows only after a Supervisor
-restart, and getting in needs a root host shell. That narrowed decision 2.
+restart, and getting in needs a root host shell. The maintainer then chose
+no home preview (Decisions, 2).
 
-## Decisions for the maintainer
+## Decisions (2026-11-09)
 
-1. The order for trains that change the App: landing, then the rc on the
-   landing commit, then the promote PR merged at the final, with the final
-   tag on that merge commit. The rc and the final no longer share a commit.
-   Recommended: yes.
-2. Your home's preview, given that getting in needs a root host shell:
-   - (a) the switch from the HAOS console (`login`), or from Advanced SSH &
-     Web Terminal with protection mode off for about five minutes per preview
-     version, with an App backup first. The way back is `ha store repair` and
-     needs no root shell.
-   - (b) B for your home, at the fresh-App cost: pair again, turn chat apps on
-     again, link the phone again, each way.
-   - (c) no preview at home: the VMs carry the App proof, and your home updates
-     at the final like everyone else.
+1. Trains that change the App: landing, rc on the landing commit, then the
+   promote PR merged at the final, with the final tag on that merge commit.
+   Maintainer: yes.
+2. No preview at home: the VMs check the App, and the maintainer's home gets
+   it with the final. Maintainer: option (c), of (a) the store switch from a
+   root shell, (b) the `#beta` repository, (c) no home preview.
+3. `main` is frozen while the promote PR is open, except for rc landings.
+   Maintainer: yes.
+4. Preview updates don't count toward one App update a day. Maintainer: yes.
+5. An App fix during an rc gets the next patch version (stable users may see
+   X → X+2). Release lead: yes.
+6. Outside beta testers (`#beta`, with a CLI change): later. Release lead:
+   later.
 
-   Recommended: (a) when the console is reachable or the five-minute
-   protection-mode window is acceptable, else (c). Outside testers never get
-   (a).
-3. An App fix during the rc gets the next patch version, so stable users may
-   see version gaps (X → X+2). Recommended: yes.
-4. `main` is frozen while the promote PR is open: Dependabot and docs PRs
-   wait about one to three days. Recommended: yes.
-5. Outside beta testers (B, with a CLI change): later, once someone asks.
-   Recommended: later.
-6. Preview pushes reach only switched stores, so they don't count toward the
-   limit of one App update a day. Recommended: they don't count.
+## Appendix: store switch (VMs only)
+
+Agents run this only on the throwaway VMs (AGENTS.md → Hard rules), and
+`vm-lane` does it for them. No real home switches: getting in needs a root
+host shell, and the maintainer decided against a home preview.
+
+**What Supervisor does** (`home-assistant/supervisor` 2026.10.5, the VM's version):
+
+- `store/git.py` `GitRepo.pull` fetches with the clone's refspec, which
+  covers `main` only. It then compares the *active* branch with
+  `origin/<active branch>` and resets only when they differ. A switched
+  checkout therefore stays where it is.
+- `store/__init__.py` `StoreManager.reload` re-reads App metadata only for a
+  repository whose pull changed something. So after a switch, `ha store
+  reload` and Check for updates (`api/root.py` `refresh_updates` → `store.reload`)
+  keep showing the old version. The periodic refresh (`misc/tasks.py`
+  `_reload_store`, every 3 h) behaves the same.
+- `StoreManager.load` runs at every Supervisor start (`core.py`), and with it
+  every host reboot. It loads the existing clone without re-cloning and
+  always re-reads the metadata. A restart is what makes the switch visible,
+  in both directions.
+- `GitRepo.load` never checks the branch. Only a repository reset re-clones
+  the configured branch (`main`). That happens through `ha store repair`
+  (`api/store.py` `repositories_repository_repair`) or through the
+  automatic fix for a corrupt repository (`resolution/fixups/store_execute_reset.py`,
+  `auto: True`). Either one returns the store to stable, which is the safe
+  direction.
+
+**Proof on the throwaway HAOS VM** (2026-11-09, App 0.13.23 installed, `main`
+offering 0.13.24). The checkout was switched to tag v0.28.2 (App 0.13.20) as
+a stand-in preview:
+
+- right after the switch, a store reload still offered 0.13.24;
+- after the Supervisor restart it offered 0.13.20, and a second reload plus
+  `refresh_updates` still offered 0.13.20 with the checkout unchanged. Note
+  that this offer was a downgrade: Supervisor offers any different version
+  as an update;
+- switching back with a plain `git checkout main` plus a reload kept
+  0.13.20, and only the restart showed 0.13.24 again;
+- with the checkout on `release/0.29` (App 0.13.24) and a restart, the
+  update installed in place on the same slug. The log showed "Downloading
+  docker image … 0.13.24" with no build. The device registry stayed the
+  same (10 devices, same canonical SHA-256), and so did the TLS key that
+  pairing pins (same SPKI hash on 8792);
+- `ha store repair 2368fcfa` plus a restart put the store back on `main`,
+  offering 0.13.24;
+- at the end, the App backup was restored: 0.13.23, the same registry hash
+  and the same key.
+
+**Commands** (what `vm-lane` runs on the VM's host shell, after its App
+backup):
+
+```bash
+docker exec hassio_supervisor sh -c 'cd /data/apps/git/2368fcfa && git fetch --depth 1 origin +refs/heads/<promote-branch>:refs/remotes/origin/<promote-branch> && git checkout -B <promote-branch> origin/<promote-branch>'
+ha supervisor restart     # required: a reload doesn't show the switch
+# update the App; at cleanup: restore the backup, then
+ha store repair 2368fcfa
+ha supervisor restart
+```
+
+No Supervisor API and no App role can change a repository's branch: the
+branch is part of the repository's URL, and with it the slug. Getting in
+needs `git` inside the Supervisor container, so a root host shell.
+
+Each new preview version (rc2 → X+2) needs the fetch, the checkout and the
+restart again.
+
+A VM store left on the promote branch gets no more App updates, because
+Supervisor keeps comparing it with its own stale ref. That is why the
+cleanup always ends with `ha store repair` and checks the offered version.
