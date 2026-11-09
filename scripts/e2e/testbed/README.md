@@ -122,6 +122,33 @@ questions. The weekly `testbed-ha-stable.yml` job runs it too.
 - It leaves the front door locked and no phone linked. The Relay stays on
   the second user until `testbed:down`; the other verify checks pass either way.
 
+## Real-home checks (opt-in)
+
+Each prints PASS/FAIL lines against a running bed with the CLI built from
+this checkout (`TESTBED_CLI_BIN=<binary>` runs another build) in its own
+home in `.state`. The RC lane runs all three with the tag's binary
+(`docs/releasing.md` §4).
+
+- `TESTBED_FILES=1 npm run testbed:up` gives the Relay the bed's `/config`
+  with file access readwrite (`docker-compose.files.yml`; never for the
+  hosted demo). `node chat-files.mjs` then runs the chat bridge
+  (`ha-nova serve` on the local transport, no model) and calls its tools as
+  a chat app would, for the owner at Ask only, Use the home, and Manage
+  everything: file reads, writes, and deletes are refused below Manage
+  everything; at Manage everything a read runs, a write and a delete need
+  the code, and a refusal by the Relay itself (a file in `www`, the log
+  file, a `.sh` write) names its real cause, never the sign-in or a
+  setting. It leaves `/config/www/rclane-mailbox.jpg`. SKIP without file
+  access.
+- `node calm.mjs` adds listeners shaped like a real home's (an automation
+  on every automation reload, a templated panel automation following its
+  light, a cover watchdog on `call_service`, one listener no automation
+  owns) and checks that two edits of one automation run without an ask,
+  that undo puts back the latest one, and that an edit adding an unlock or
+  a garage opening, and a reload you call, still ask. Known limit: the
+  watchdog makes every call on this bed ask, because the CLI's listener scan
+  ignores an `event_data` domain filter, so run other checks before it.
+
 ## Determinism and versions
 
 `down` + `up` always yields the same entity ids, area/floor/label ids, and
@@ -152,7 +179,9 @@ red opens a "Test bed fails on Home Assistant <version>" issue.
 `.state/config` per run; command-running platforms live in
 `packages/commands.yaml`), `up.sh`, `seed.mjs` (LLAT, MQTT config entry,
 floors/areas/labels, registry edits, summary, phone fixture), `cli.sh`,
-`verify.sh`, `phone.mjs` + `push.py` (phone lane), `down.sh`.
+`verify.sh`, `phone.mjs` + `push.py` (phone lane), `chat-files.mjs` +
+`docker-compose.files.yml`, `calm.mjs` (real-home checks),
+`down.sh`.
 
 The hosted demo (`scripts/demo/hosted/`) reuses this bed: `TESTBED_OVERLAY` and
 `TESTBED_OWNER_PASSWORD` in `up.sh`/`down.sh` exist for it only; local runs
