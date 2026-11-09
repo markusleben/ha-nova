@@ -2,7 +2,7 @@ import { createServer, request as httpRequest, type IncomingMessage, type Server
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createGateAsks, gateDigest, gateWithAsks, type GateAsksDeps, type GateRequest, type PhoneAnswer, type PhoneLink, type PhoneText, type PreparedAsk } from "../../nova/src/http/gate-asks.js";
+import { createGateAsks, gateDigest, gateWithAsks, type GateAsksDeps, type GateRequest, type PhoneAnswer, type PhoneLink, type LinkWords, type PhoneText, type PreparedAsk } from "../../nova/src/http/gate-asks.js";
 import { gated, type GateClient } from "../../nova/src/http/gate.js";
 import { HttpError } from "../../nova/src/http/errors.js";
 import type { RouteContext } from "../../nova/src/http/router.js";
@@ -13,10 +13,10 @@ const phone: Principal = { kind: "device", deviceId: "phone" };
 const unlock = { method: "POST", path: "/api/services/lock/unlock", body: { entity_id: ["lock.front"] } };
 const typed: PreparedAsk = { verdict: "typed", lang: "en", title: "Unlock “Front”?", body: "Requested by “Mac”.", button: "Unlock", items: [{ verdict: "typed", text: "Unlock “Front”" }] };
 
-function context(principal: Principal | undefined, body: unknown, headers: Record<string, string> = {}): RouteContext {
+function context(principal: Principal | undefined, body: unknown, headers: Record<string, string> = {}, path = "/gate/v1/ask"): RouteContext {
   const request = { headers, once: () => request, off: () => request } as unknown as IncomingMessage;
   const response = { destroyed: false, once: () => response, off: () => response } as unknown as ServerResponse;
-  return { request, response, path: "/gate/v1/ask", body, ...(principal ? { principal } : {}) };
+  return { request, response, path, body, ...(principal ? { principal } : {}) };
 }
 
 function setup(answer: PreparedAsk | null | (() => Promise<PreparedAsk | null>) = typed, channels: string[] = ["page"], pollMs = 5, extra: Partial<GateAsksDeps> = {}) {
@@ -39,7 +39,8 @@ function setup(answer: PreparedAsk | null | (() => Promise<PreparedAsk | null>) 
   const ask = async (principal: Principal, requests: unknown[]) =>
     (await asks.handler(context(principal, { requests: requests.map((body) => ({ endpoint: "core", body_b64: Buffer.from(JSON.stringify(body)).toString("base64") })) }))) as Record<string, unknown>;
   const op = async (principal: Principal | undefined, askId: unknown, name: string) => (await asks.handler(context(principal, { ask_id: askId, op: name }))) as Record<string, unknown>;
-  return { asks, ask, op, seen, tick: (ms: number) => (now += ms) };
+  const linkTo = async (principal: Principal, to: unknown) => (await asks.handler(context(principal, { link: to }, {}, "/gate/v1/phone"))) as Record<string, unknown>;
+  return { asks, ask, op, linkTo, seen, tick: (ms: number) => (now += ms) };
 }
 
 async function status(run: () => Promise<unknown>): Promise<number> {
@@ -59,8 +60,8 @@ const link: PhoneLink = { service: "mobile_app_iphone", device_id: "ha-iphone", 
 
 // phones: each phone ask waits until the test answers it.
 function phones() {
-  const calls: { link: PhoneLink; text: PhoneText; waitMs: number; stop: AbortSignal; answer: (a: PhoneAnswer | null) => void }[] = [];
-  const phone = (l: PhoneLink, text: PhoneText, waitMs: number, stop: AbortSignal) =>
+  const calls: { link: PhoneLink; text: PhoneText | LinkWords; waitMs: number; stop: AbortSignal; answer: (a: PhoneAnswer | null) => void }[] = [];
+  const phone = (l: PhoneLink, text: PhoneText | LinkWords, waitMs: number, stop: AbortSignal) =>
     new Promise<PhoneAnswer | null>((answer) => calls.push({ link: l, text, waitMs, stop, answer }));
   return { calls, phone };
 }
@@ -288,6 +289,63 @@ describe("gate asks", () => {
     expect(await status(() => t.op(laptop, opened.ask_id, "approve"))).toBe(400);
     expect(await status(() => t.ask({ kind: "device", deviceId: "w", internal: "gate", peer: "127.0.0.1" }, [unlock]))).toBe(404);
     expect(await status(() => t.op(undefined, opened.ask_id, "wait"))).toBe(404);
+  });
+
+  it("a phone link is set only on the new phone's tap, after the tap of the phone linked now", async () => {
+    const p = phones();
+    let current: PhoneLink | undefined;
+    const sets: unknown[][] = [];
+    let accept = true;
+    const t = setup(typed, [], 5, {
+      link: (who) => (who.kind === "device" && who.deviceId === "laptop" ? current : undefined),
+      phone: p.phone,
+      setLink: (...a) => (sets.push(a), accept),
+    });
+    expect(await status(() => t.linkTo({ kind: "legacy" }, link))).toBe(404);
+    expect(await status(() => setup().linkTo(laptop, link))).toBe(404); // no registry: no link route
+    expect(await status(() => t.linkTo(laptop, { ...link, service: "persistent_notification" }))).toBe(400);
+    const first = await t.linkTo(laptop, link);
+    expect(first).toMatchObject({ needed: true, channels: ["phone"] });
+    expect(p.calls[0]).toMatchObject({ link, text: { words: "link", device: "device laptop" }, waitMs: 180_000 });
+    expect(t.asks.approve(String(first.ask_id))).toBe(false); // the page can't set a link
+    p.calls[0]!.answer({ answer: "approved", user_id: "markus" });
+    await settled();
+    expect(await t.op(laptop, first.ask_id, "wait")).toEqual({ state: "linked" });
+    expect(sets).toEqual([[laptop, link, undefined]]);
+    current = link;
+    expect(await t.linkTo(laptop, link)).toEqual({ needed: false });
+    const moved = { service: "mobile_app_pixel", device_id: "ha-pixel", user_id: "anna" };
+    const second = await t.linkTo(laptop, moved);
+    expect(p.calls[1]!.text).toEqual({ words: "link", device: "device laptop", current: link });
+    accept = false; // the link changed meanwhile
+    p.calls[1]!.answer({ answer: "approved", user_id: "anna" });
+    await settled();
+    expect(await t.op(laptop, second.ask_id, "wait")).toEqual({ state: "cancelled" });
+    for (const [answer, state] of [[null, "unavailable"], [{ answer: "declined" }, "cancelled"], [{ answer: "approved", user_id: "markus" }, "waiting"]] as const) {
+      const opened = await t.linkTo(laptop, moved);
+      p.calls.at(-1)!.answer(answer);
+      await settled();
+      expect(await t.op(laptop, opened.ask_id, "wait")).toMatchObject({ state });
+    }
+    expect(sets).toHaveLength(2);
+  });
+
+  it("link asks count toward the hour and the phone pause", async () => {
+    const p = phones();
+    const t = setup(typed, [], 5, { link: () => undefined, phone: p.phone, setLink: () => true });
+    for (let i = 0; i < 3; i++) {
+      const opened = await t.linkTo(laptop, link);
+      await t.op(laptop, opened.ask_id, "cancel");
+    }
+    expect(await failure(() => t.linkTo(laptop, link))).toEqual({ status: 429, code: "GATE_PAUSED" }); // counted too
+    t.tick(900_000);
+    for (let i = 0; i < 6; i++) {
+      await t.linkTo(laptop, link);
+      p.calls.at(-1)!.answer({ answer: "approved", user_id: "markus" });
+      await settled();
+    }
+    expect(await failure(() => t.linkTo(laptop, link))).toEqual({ status: 429, code: "GATE_ASK_LIMIT" });
+    expect(p.calls).toHaveLength(9);
   });
 
   it("the gate forwards a typed request only with a matching, unused grant", async () => {

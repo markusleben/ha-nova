@@ -176,7 +176,7 @@ function validateDevice(value: unknown): DeviceRecord {
   return record;
 }
 
-function validateConfirmPhone(value: unknown): ConfirmPhoneLink {
+export function validateConfirmPhone(value: unknown): ConfirmPhoneLink {
   const raw = (typeof value === "object" && value !== null ? value : {}) as Record<string, unknown>;
   const { service, deviceId, userId, platform } = raw;
   if (
