@@ -1,6 +1,6 @@
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -179,6 +179,7 @@ describe("files handler — the Relay's data folder", () => {
     }
     expect(readFileSync(join(data, "gate-phone.json"), "utf8")).toContain("mobile_app_pixel");
     expect(await files({ body: { action: "read_file", path: "/config/configuration.yaml" } } as never)).toBeTruthy();
+    await expectHttpError(Promise.resolve(withData(dirname(root))({ body: { action: "read_file", path: "/config/configuration.yaml" } } as never)), 403, "FILE_PATH_DENIED");
     await expectHttpError(Promise.resolve(withData(join(outside, "missing"))({ body: { action: "read_file", path: "/config/configuration.yaml" } } as never)), 403, "FILE_PATH_DENIED");
   });
 });

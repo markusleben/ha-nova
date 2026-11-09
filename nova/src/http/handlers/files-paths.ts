@@ -160,7 +160,7 @@ export async function resolveTargetPath(configRoot: string, logicalPath: string,
  * up to the root is compared by identity, not by name. A data folder that
  * can't be read refuses.
  */
-export async function assertOutsideData(target: string, configRoot: string, dataDir: string | undefined): Promise<void> {
+export async function assertOutsideData(target: string, dataDir: string | undefined): Promise<void> {
   if (dataDir === undefined) {
     return;
   }
@@ -174,13 +174,11 @@ export async function assertOutsideData(target: string, configRoot: string, data
   if (same(await stat(start).catch(() => null))) {
     throw denied;
   }
-  const realRoot = await realpath(configRoot);
   for (let dir = await realpath(dirname(start)); ; dir = dirname(dir)) {
     if (same(await stat(dir).catch(() => null))) {
       throw denied;
     }
-    const rel = relative(realRoot, dir);
-    if (rel === "" || rel === ".." || rel.startsWith(".." + sep) || isAbsolute(rel)) {
+    if (dirname(dir) === dir) {
       return;
     }
   }

@@ -41,7 +41,7 @@ export function createFilesHandler(options: FilesHandlerOptions): RouteHandler {
     }
 
     const target = await resolveTargetPath(configRoot, request.path, request.action);
-    await assertOutsideData(target, configRoot, options.fileAccess.dataDir);
+    await assertOutsideData(target, options.fileAccess.dataDir);
 
     switch (request.action) {
       case "list_dir":
