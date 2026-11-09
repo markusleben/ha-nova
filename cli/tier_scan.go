@@ -210,7 +210,7 @@ func (e *tierEngine) consumer(automation, match, on string, depth int, fires fun
 	e.matchConsumer(automation, match, on)
 	class := tierOrdinary
 	e.scopes = append(e.scopes, &class)
-	e.walk(automationActions(cfg), automation+"/actions", depth+1)
+	e.walk(literalActions(cfg), automation+"/actions", depth+1)
 	e.checkEvents("automation_triggered", automation) // a consumer run fires one too
 	e.scopes = e.scopes[:len(e.scopes)-1]
 	e.done[key] = class
