@@ -1,12 +1,13 @@
-import { readFileSync, renameSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { closeSync, constants, fstatSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 
 import type { PhoneLink } from "../http/gate-asks.js";
 
 // The standalone container's phone link (spec §3): one link for its one
 // principal, the shared Relay token, in the Relay's own data folder, which
-// /files never reaches (resolveFileAccess keeps file access off when the
-// configuration folder overlaps it). Read fresh on every call; a missing,
-// unreadable, or invalid file is no link, so an ask has no channel and
+// /files never reaches (files-paths.ts assertOutsideData). Read fresh on
+// every call, never through a link: anything but a plain file with one name,
+// or unreadable, or invalid, is no link, so an ask has no channel and
 // nothing runs. Two containers sharing one data folder don't coordinate.
 
 export interface PhoneLinkStore {
@@ -27,10 +28,17 @@ function parsed(raw: unknown): PhoneLink | undefined {
 
 export function createPhoneLinkStore(file: string): PhoneLinkStore {
   const link = (): PhoneLink | undefined => {
+    let fd: number | undefined;
     try {
-      return parsed(JSON.parse(readFileSync(file, "utf8")));
+      fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+      const info = fstatSync(fd);
+      return info.isFile() && info.nlink === 1 ? parsed(JSON.parse(readFileSync(fd, "utf8"))) : undefined;
     } catch {
-      return undefined; // missing or unreadable: no link
+      return undefined; // missing, a link, or unreadable: no link
+    } finally {
+      if (fd !== undefined) {
+        closeSync(fd);
+      }
     }
   };
   return {
@@ -39,8 +47,9 @@ export function createPhoneLinkStore(file: string): PhoneLinkStore {
       if (JSON.stringify(link()) !== JSON.stringify(current)) {
         return false;
       }
-      writeFileSync(file + ".tmp", JSON.stringify(next), { mode: 0o600 });
-      renameSync(file + ".tmp", file);
+      const temp = file + "." + randomBytes(8).toString("hex") + ".tmp";
+      writeFileSync(temp, JSON.stringify(next), { mode: 0o600, flag: "wx" }); // a new file, never through a link
+      renameSync(temp, file);
       return true;
     },
   };

@@ -155,3 +155,30 @@ describe("files handler — always-denied paths", () => {
     expect(readFileSync(join(root, "secrets.yaml"), "utf8")).toContain("super-secret");
   });
 });
+
+// The Relay's data folder seen inside the configuration folder (a bind mount
+// shows it there under another name; here it simply lies inside): nothing in
+// it is readable, writable, or deletable through /files, and a data folder
+// that can't be checked refuses everything.
+describe("files handler — the Relay's data folder", () => {
+  const withData = (dataDir: string) => createFilesHandler({ fileAccess: { mode: "readwrite", configRoot: root, warnings: [], dataDir } });
+
+  it("refuses every action on the data folder and keeps the rest", async () => {
+    const data = join(root, "nova-data");
+    mkdirSync(join(data, "gate"), { recursive: true });
+    writeFileSync(join(data, "gate-phone.json"), '{"service":"mobile_app_pixel"}');
+    const files = withData(data);
+    for (const body of [
+      { action: "read_file", path: "/config/nova-data/gate-phone.json" },
+      { action: "write_file", path: "/config/nova-data/gate-phone.json", content: "{}" },
+      { action: "write_file", path: "/config/nova-data/gate/new.json", content: "{}" },
+      { action: "delete_file", path: "/config/nova-data/gate-phone.json" },
+      { action: "list_dir", path: "/config/nova-data" },
+    ]) {
+      await expectHttpError(Promise.resolve(files({ body } as never)), 403, "FILE_PATH_DENIED");
+    }
+    expect(readFileSync(join(data, "gate-phone.json"), "utf8")).toContain("mobile_app_pixel");
+    expect(await files({ body: { action: "read_file", path: "/config/configuration.yaml" } } as never)).toBeTruthy();
+    await expectHttpError(Promise.resolve(withData(join(outside, "missing"))({ body: { action: "read_file", path: "/config/configuration.yaml" } } as never)), 403, "FILE_PATH_DENIED");
+  });
+});

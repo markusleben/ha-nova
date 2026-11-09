@@ -179,7 +179,7 @@ describe("standalone Relay: the safety check", () => {
       const file = join(dir, "gate-phone.json");
       expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(link);
       expect(statSync(file).mode & 0o777).toBe(0o600);
-      expect(phones[0]).toMatchObject({ words: "link", device: "the shared Relay token", link });
+      expect(phones[0]).toMatchObject({ words: "link", device: "your HA NOVA container", link });
 
       const asked = data<{ ask_id: string; channels: string[] }>(await post(base, "/gate/v1/ask", { requests }, "relay-token"));
       expect(asked.channels).toEqual(["phone"]);

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { linkSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -26,6 +26,17 @@ describe("the standalone phone link store", () => {
     expect(store.setLink(iphone, undefined)).toBe(false); // changed meanwhile
     expect(store.setLink(iphone, pixel)).toBe(true);
     expect(JSON.parse(readFileSync(join(dir, "gate-phone.json"), "utf8"))).toEqual(iphone);
+  });
+
+  it("never reads a link through a symlink or a second name", () => {
+    const file = join(dir, "gate-phone.json");
+    const store = createPhoneLinkStore(file);
+    writeFileSync(join(dir, "elsewhere.json"), JSON.stringify(pixel));
+    symlinkSync(join(dir, "elsewhere.json"), file);
+    expect(store.link()).toBeUndefined();
+    rmSync(file);
+    linkSync(join(dir, "elsewhere.json"), file);
+    expect(store.link()).toBeUndefined();
   });
 
   it("reads a broken or foreign file as no link", () => {

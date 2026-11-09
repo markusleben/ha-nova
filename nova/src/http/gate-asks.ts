@@ -236,7 +236,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
       throw new HttpError(429, "GATE_PAUSED", PAUSED);
     }
     if (channels.length === 0) {
-      throw new HttpError(409, "GATE_NO_CHANNEL", "No one can confirm this now: no linked phone answers and the approval page is not available; nothing was sent");
+      throw new HttpError(409, "GATE_NO_CHANNEL", "No one can confirm this now: no linked administrator's phone answers, and no approval page is available here; nothing was sent");
     }
     const digests = requests.filter((_, i) => prepared.items[i]?.verdict === "typed").map((r) => gateDigest(r.endpoint, r.body));
     const { askId, ask } = start(owner, digests, prepared);

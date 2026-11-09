@@ -118,7 +118,7 @@ export function createApp(options: AppOptions): App {
   const phoneLink = options.phoneLink;
   const { gate, ask } = gateWithAsks(options.gate ?? NO_GATE, {
     prepare: { core: parseCoreRequest },
-    deviceName: () => "the shared Relay token",
+    deviceName: () => "your HA NOVA container",
     channels: () => [],
     link: (p) => (p.kind === "legacy" ? phoneLink?.link() : undefined),
     ...(phoneLink ? { setLink: (p, link, current) => p.kind === "legacy" && phoneLink.setLink(link, current), linkable: (p) => p.kind === "legacy" } : {}),

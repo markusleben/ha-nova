@@ -1,4 +1,4 @@
-import { access, realpath } from "node:fs/promises";
+import { access, realpath, stat } from "node:fs/promises";
 import { constants } from "node:fs";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 
@@ -153,6 +153,39 @@ export async function resolveTargetPath(configRoot: string, logicalPath: string,
 
   return absolute;
 }
+/**
+ * The Relay's data folder (the phone link, the safety check's credentials) is
+ * never reached through /files, by any name: a bind mount can show it inside
+ * the configuration folder under another path, so every folder from the target
+ * up to the root is compared by identity, not by name. A data folder that
+ * can't be read refuses.
+ */
+export async function assertOutsideData(target: string, configRoot: string, dataDir: string | undefined): Promise<void> {
+  if (dataDir === undefined) {
+    return;
+  }
+  const denied = new HttpError(403, "FILE_PATH_DENIED", "the Relay's own data folder is never readable or writable");
+  const data = await stat(dataDir).catch(() => null);
+  if (data === null) {
+    throw denied;
+  }
+  const same = (info: { dev: number; ino: number } | null): boolean => info !== null && info.dev === data.dev && info.ino === data.ino;
+  const start = await deepestExisting(target);
+  if (same(await stat(start).catch(() => null))) {
+    throw denied;
+  }
+  const realRoot = await realpath(configRoot);
+  for (let dir = await realpath(dirname(start)); ; dir = dirname(dir)) {
+    if (same(await stat(dir).catch(() => null))) {
+      throw denied;
+    }
+    const rel = relative(realRoot, dir);
+    if (rel === "" || rel === ".." || rel.startsWith(".." + sep) || isAbsolute(rel)) {
+      return;
+    }
+  }
+}
+
 export function assertWritableExtension(logicalPath: string): void {
   const name = logicalPath.split("/").pop() ?? "";
   const dot = name.lastIndexOf(".");
