@@ -122,9 +122,12 @@ deploy or tag.
    ```bash
    npm run vm-lane -- vX.Y.Z-rcN
    ```
-   For a train that changes the App, install the preview on the HAOS VM
-   first (App Images → App proof): the lane only checks that the App meets
-   the tag's `min_relay_version`, which is still the stable App.
+   For a train that changes the App, add
+   `--app-branch chore/app-<app-version>`: the lane switches the HAOS VM's
+   store to the App promote PR, updates the App in place, runs every lane on
+   that preview, then restores the stable App and returns the store to
+   `main` (App Images → App proof). Without it the lane only checks the
+   tag's `min_relay_version`, which is still the stable App.
    The published public one-liners, pairing with a six-digit code, update
    from the last stable, doctor, a read and an ordinary call, client wiring,
    rerun, stale uninstall marker, uninstall and purge, as fresh standard
@@ -139,7 +142,14 @@ deploy or tag.
    (section 6: real Home Assistant Link, claude.ai, and ChatGPT accounts) and
    the confirmations on a real iPhone and Android phone.
 5. Final. A train without an App change tags the same commit as the RC. A
-   train that changes the App first merges the App promote PR under the
+   train that changes the App first compares the preview's images with the
+   digests the `vm-lane` table recorded on the App promote PR, right before
+   its merge (a changed digest voids the proof and needs the next patch
+   version):
+   ```bash
+   bash scripts/release/verify-app-image.sh <app-version>
+   ```
+   Then it merges the App promote PR under the
    merge steps (AGENTS.md) and records its remote merge commit as
    `<promote-merge-sha>`. Wait for the `relay-image.yml` push run on it:
    ```bash
@@ -215,17 +225,16 @@ install/update fails. Spec: `docs/work/2026-10-15-app-prebuilt-images-spec.md`.
   changelog section), because Supervisor never offers a re-pushed image
   under an installed version; the App proof and `vm-lane` run again on it.
 - Before the App promote PR merges, prove the App on its published image
-  (throwaway HAOS VM only): make your own backup of the NOVA App, switch the
-  Supervisor store to the promote branch as in Chat-app lanes below, update
-  from the current stable App, and check
-  that it starts from the image (Supervisor log: download, no build), that
-  health reports `ha_ws_connected: true` and the new version, and that a
-  paired computer's read still works; plus the chat-app lanes when they are
-  required. Post the results on the promote PR. Keep the preview installed
-  for the RC's `vm-lane` (section 4 step 4): its own backup then holds the
-  preview, and its cleanup puts the preview back. After the lane, restore
-  your backup and return the store to `main` (Chat-app lanes). A failure is fixed in the
-  train before the final, so users get one App update per train.
+  (throwaway HAOS VM only) with the RC's
+  `npm run vm-lane -- vX.Y.Z-rcN --app-branch chore/app-<app-version>`
+  (section 4 step 4). It updates from the current stable App and checks that
+  the preview is newer than `main`'s App, runs the image pulled at the
+  per-arch digest `verify-app-image.sh` printed (a local build has no
+  registry digest), keeps its pairing, and shows Home Assistant connected with the
+  new version; the lanes' reads and calls then run against it. Post its
+  table, digests included, on the promote PR; plus the chat-app lanes when
+  they are required. A failure is fixed in the train before the final, so
+  users get one App update per train.
 - `app-image.yml` publishes from the PR that brings the version into main
   (the App promote PR; same-repo, `image:` set) while the version never reached main; versions on main are
   frozen. Recover a failed publish by re-running the PR's workflow run.
@@ -263,7 +272,9 @@ PR branch:
 then restart the Supervisor (`ha supervisor restart`): a store reload never
 re-reads a switched checkout, only a Supervisor start does. Check the
 offered version before the lanes. To return the store to `main`, run
-`ha store repair 2368fcfa` and restart the Supervisor again. Don't add a `…#<branch>` repository: that is a second App
+`ha store repair 2368fcfa` and restart the Supervisor again. `vm-lane
+--app-branch` does its own switch and undoes it at exit, so run these lanes
+before or after it with your own backup of the NOVA App, never during. Don't add a `…#<branch>` repository: that is a second App
 with the same ports, invisible to the CLI's slug checks. A failure found after
 the merge needs the next patch version. Required for the
 first chat-app release and after a change to the bridge, `nova/integration/`,

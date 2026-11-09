@@ -53,6 +53,11 @@ for arch in $build_archs; do
   manifest="$(curl -fsS -H "Authorization: Bearer ${token}" -H "Accept: ${accept}" \
     "https://ghcr.io/v2/${repo}/manifests/${version}")" \
     || fail "${ref}: missing or not public (anonymous manifest fetch failed)"
+  # The tag's own digest (an index for multi-platform pushes) is what Supervisor's pull records.
+  tag_digest="$(curl -fsSI -H "Authorization: Bearer ${token}" -H "Accept: ${accept}" \
+    "https://ghcr.io/v2/${repo}/manifests/${version}" | tr -d '\r' | sed -n 's/^[Dd]ocker-[Cc]ontent-[Dd]igest: //p')" \
+    || fail "${ref}: tag digest fetch failed"
+  [[ "$tag_digest" =~ ^sha256:[0-9a-f]{64}$ ]] || fail "${ref}: no Docker-Content-Digest for the tag"
   if jq -e '.manifests' >/dev/null <<<"$manifest"; then
     digest="$(jq -r --arg os "${platform%%/*}" --arg a "${platform#*/}" \
       '[.manifests[] | select(.platform.os == $os and .platform.architecture == $a)][0].digest // empty' <<<"$manifest")"
@@ -73,5 +78,5 @@ for arch in $build_archs; do
     and .config.Labels["org.opencontainers.image.source"] == "https://github.com/markusleben/ha-nova"
     and ($inputs == "" or .config.Labels["io.ha-nova.inputs"] == $inputs)
   ' >/dev/null <<<"$config" || fail "${ref}: platform/labels mismatch (want ${platform}, io.hass.version=${version}, io.hass.arch=${arch}${inputs:+, io.ha-nova.inputs=${inputs}}); got $(jq -c '{os, architecture, labels: .config.Labels}' <<<"$config")"
-  echo "[verify-app-image] OK: ${ref} (${platform})"
+  echo "[verify-app-image] OK: ${ref} (${platform}) ${arch}=${tag_digest}"
 done
