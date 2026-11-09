@@ -83,8 +83,8 @@ interface Ask {
 }
 
 interface Owner {
-  opened: number[]; // when its asks of the last hour opened
-  misses: number; // its asks in a row that ended cancelled or unanswered
+  opened: number[]; // when it asked, in the last hour (each ask the worker rated)
+  misses: number; // its asks in a row that ended cancelled or unanswered; an idle hour forgets them
   pausedUntil: number; // its phone asks
 }
 
@@ -179,7 +179,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     }
     for (const [id, owner] of owners) {
       owner.opened = owner.opened.filter((at) => now - at < HOUR_MS);
-      if (owner.opened.length === 0 && owner.misses === 0 && now >= owner.pausedUntil) {
+      if (owner.opened.length === 0 && now >= owner.pausedUntil) {
         owners.delete(id);
       }
     }
@@ -227,6 +227,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
       throw new HttpError(429, "GATE_ASK_BUSY", "An ask from this device is still being prepared; nothing was asked or sent");
     }
     preparing.add(owner);
+    ownerState(owner).opened.push(deps.now()); // counted whatever the worker answers
     const prepared = await deps.ask(deps.deviceName(principal), requests).finally(() => preparing.delete(owner));
     if (prepared === null) {
       throw new HttpError(503, "GATE_UNAVAILABLE", "HA NOVA's safety check is not available; nothing was asked or sent");
@@ -266,10 +267,10 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     };
     ask.timer.unref?.();
     asks.set(key(askId), ask);
-    ownerState(owner).opened.push(deps.now());
     if (link !== undefined && channels.includes("phone")) {
       const text = { lang: prepared.lang ?? "", title: prepared.title ?? "", body: prepared.body ?? "", button: prepared.button ?? "" };
       void deps.phone(link, text, ASK_MS, ask.stop.signal).then((answer) => {
+        prune(); // an answer past the deadline finds the ask expired
         if (ask.state.state !== "waiting" || !sameLink(deps.link(principal), link)) {
           return; // ended, or the link changed or went with its device
         }

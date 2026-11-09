@@ -245,6 +245,24 @@ describe("gate asks", () => {
     expect(await t.op(laptop, c.ask_id, "wait")).toMatchObject({ state: "approved" }); // and the run starts over
   });
 
+  it("asks the worker rated count toward the hour, whatever it answered", async () => {
+    const t = setup({ verdict: "pass", items: [{ verdict: "pass" }] });
+    for (let i = 0; i < 10; i++) {
+      expect(await t.ask(laptop, [unlock])).toEqual({ needed: false });
+    }
+    expect(await failure(() => t.ask(laptop, [unlock]))).toEqual({ status: 429, code: "GATE_ASK_LIMIT" });
+  });
+
+  it("a tap that arrives after the ask's three minutes grants nothing", async () => {
+    const p = phones();
+    const t = setup(typed, [], 5, { link: () => link, phone: p.phone });
+    const opened = await t.ask(laptop, [unlock]);
+    t.tick(180_000);
+    p.calls[0]!.answer({ answer: "approved", user_id: "markus" });
+    await settled();
+    expect(await t.op(laptop, opened.ask_id, "wait")).toEqual({ state: "expired" });
+  });
+
   it("an ask expires on its own and hangs up its phone, polled or not", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const p = phones();
