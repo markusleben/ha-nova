@@ -17,8 +17,9 @@ import (
 // preview and ask for confirmation to install the latest available version —
 // never automatic.
 // Supervisor App updates cannot bind a target version. Everything here is
-// client-side and generic HA transport through the existing /core proxy; the
-// relay stays dumb.
+// client-side and generic HA transport through the existing /core proxy, at
+// home or over Home Assistant Link (its Ingress carries /core too); the relay
+// stays dumb.
 
 const (
 	relayUpdateUniqueID        = haNovaRelayAppSlug + "_version_latest"
@@ -57,37 +58,26 @@ func maybeOfferGuidedRelayUpdate(paths runtimePaths, notice humanNotice) bool {
 		return false
 	}
 	cfg, err := loadConfig(paths)
-	if err != nil || cfg.RelayBaseURL == "" {
+	if err != nil || cfg.RelayBaseURL == "" && !remoteOnlyCloudSetup(cfg) {
 		return false
 	}
-	// Paired devices use their device credential; legacy installs their token.
-	_, _, credential, deviceMode, err := relayFunctionalTransportForDoctor(cfg)
-	if err != nil || credential == "" {
-		if deviceMode {
-			return false
-		}
-		// A paired config must not downgrade to the legacy token over the plain,
-		// unpinned port when the device credential is missing — respect the
-		// fail-closed contract and skip the guided update.
-		if cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != "" {
-			return false
-		}
-		token, tokenErr := readRelayAuthTokenForDoctor()
-		if tokenErr != nil || token == "" {
-			return false
-		}
-		credential = token
+	// The notice's route: home or Home Assistant Link with the device
+	// credential, or a legacy install's token. A paired or Link install never
+	// writes with a legacy token, whatever its route's problem.
+	selected, ok := relayNoticeTransport(context.Background(), cfg)
+	if !ok || !selected.DeviceMode && (cfg.RelaySecureBaseURL != "" || cfg.Cloud.configured()) {
+		return false
 	}
-	return runGuidedRelayUpdate(paths, cfg, credential, relayUpdateInput(), relayUpdateOutput())
+	return runGuidedRelayUpdate(paths, &relayUpdateRoute{selected, cfg}, relayUpdateInput(), relayUpdateOutput())
 }
 
-func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufio.Reader, out io.Writer) bool {
-	candidate, _ := resolveRelayUpdateCandidate(cfg, token)
+func runGuidedRelayUpdate(paths runtimePaths, route *relayUpdateRoute, in *bufio.Reader, out io.Writer) bool {
+	candidate, _ := route.candidate()
 	if candidate.EntityID == "" {
 		fmt.Fprintf(out, "HA NOVA can't start the NOVA App update from here. Nothing was installed.\n%s\n", relayUpdateManualPath)
 		return false
 	}
-	candidate, checked := checkHomeAssistantForRelayUpdate(paths, cfg, token, candidate, out)
+	candidate, checked := checkHomeAssistantForRelayUpdate(paths, route, candidate, out)
 	if !candidate.updateAvailable() {
 		manualPath := relayUpdateManualPath
 		if checked {
@@ -109,7 +99,7 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 	if err != nil || !yes {
 		return false
 	}
-	current, _ := resolveRelayUpdateCandidate(cfg, token)
+	current, _ := route.candidate()
 	if !current.updateAvailable() ||
 		!current.guidedInstallReady() ||
 		!current.samePreview(candidate) {
@@ -118,7 +108,7 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 	}
 	candidate = current
 	install := planCallRequest{Service: "update.install", EntityIDs: []string{candidate.EntityID}, Data: map[string]any{"backup": true}, Skill: "ha-nova:updates"}
-	if !relayGuidedCallAllowed(paths, cfg, token, install, tierPreview) {
+	if !relayGuidedCallAllowed(paths, route, install, tierPreview) {
 		fmt.Fprintf(out, "HA NOVA can't start the NOVA App update from here. Nothing was installed.\n%s\n", relayUpdateManualPath)
 		return false
 	}
@@ -143,7 +133,7 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 		fmt.Fprintln(out, "HA NOVA couldn't start the update. Nothing was installed.")
 		return false
 	}
-	body, err := relayCoreRequest(cfg, token, "POST", "/api/services/update/install", installBody)
+	body, err := route.core("POST", "/api/services/update/install", installBody)
 	if err == nil {
 		var envelope struct {
 			OK   bool `json:"ok"`
@@ -156,16 +146,16 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 			return false
 		}
 	}
-	version, ok := waitForRelayVersion(paths, cfg, token, candidate.LatestVersion)
+	version, ok := waitForRelayVersion(paths, route, candidate.LatestVersion)
 	if !ok {
 		fmt.Fprintf(out, "The NOVA App didn't show the new version within %s.\n%s\n", relayUpdatePollTimeout, relayUpdateManualPath)
 		return false
 	}
-	if !waitForRelayUpdateCompletion(cfg, token, candidate) {
+	if !waitForRelayUpdateCompletion(route, candidate) {
 		fmt.Fprintf(out, "The NOVA App runs v%s now, but Home Assistant didn't say the update was done within %s.\n%s\n", version, relayUpdatePollTimeout, relayUpdateManualPath)
 		return false
 	}
-	readiness, readinessVersion := verifyUpdatedRelayReadiness(paths, cfg, token, candidate.LatestVersion)
+	readiness, readinessVersion := verifyUpdatedRelayReadiness(paths, route, candidate.LatestVersion)
 	if !readiness {
 		fmt.Fprintf(out, "The NOVA App runs v%s now, but HA NOVA couldn't check that it reaches Home Assistant.\n%s\n", version, relayUpdateManualPath)
 		return false
@@ -233,17 +223,9 @@ func relayRegistryEntryMatchesNOVA(uniqueID string) bool {
 	return uniqueID == relayUpdateUniqueID
 }
 
-// resolveRelayUpdateCandidate joins state with immutable entity-registry
-// provenance. States alone cannot distinguish the Supervisor App entity from a
-// custom/MQTT update entity carrying the same title.
-func resolveRelayUpdateCandidate(cfg config, token string) (relayUpdateCandidate, string) {
-	base, client, credential, endpointErr := functionalEndpoint(cfg, token)
-	if endpointErr != nil {
-		return relayUpdateCandidate{}, fmt.Sprintf("could not resolve Relay transport (%s)", endpointErr)
-	}
-	return resolveRelayUpdateCandidateWithTransport(context.Background(), base, client, credential)
-}
-
+// resolveRelayUpdateCandidateWithTransport joins state with immutable
+// entity-registry provenance. States alone cannot distinguish the Supervisor
+// App entity from a custom/MQTT update entity carrying the same title.
 func resolveRelayUpdateCandidateWithTransport(
 	ctx context.Context,
 	base string,
@@ -341,21 +323,19 @@ func resolveRelayUpdateCandidateWithTransport(
 // waitForRelayVersion polls GET /health until the reported version reaches the
 // update entity's offered target. Older update entities without version
 // metadata retain the floor-based verification used before above-floor update
-// offers existed. Connection errors are the normal restart window.
-func waitForRelayVersion(paths runtimePaths, cfg config, token, targetVersion string) (string, bool) {
+// offers existed. Connection errors (over Link: Ingress without the App) are
+// the normal restart window; a lost Link Ingress session gets a new route.
+func waitForRelayVersion(paths runtimePaths, route *relayUpdateRoute, targetVersion string) (string, bool) {
 	deadline := time.Now().Add(relayUpdatePollTimeout)
-	base, client, credential, endpointErr := functionalEndpoint(cfg, token)
-	if endpointErr != nil {
-		return "", false
-	}
 	for {
-		body, err := fetchRelayHealthWith(client, base, credential)
+		body, err := fetchRelayHealthWith(route.Client, route.BaseURL, route.Credential)
 		if err == nil {
 			version := parseRelayHealthVersion(body)
 			if relayVersionMeetsUpdateGate(paths, version, targetVersion) {
 				return version, true
 			}
 		}
+		route.reopenAfter(err)
 		if time.Now().After(deadline) {
 			return "", false
 		}
@@ -374,10 +354,10 @@ func relayVersionMeetsUpdateGate(paths runtimePaths, version, targetVersion stri
 	return err == nil && cmp >= 0
 }
 
-func waitForRelayUpdateCompletion(cfg config, token string, before relayUpdateCandidate) bool {
+func waitForRelayUpdateCompletion(route *relayUpdateRoute, before relayUpdateCandidate) bool {
 	deadline := time.Now().Add(relayUpdatePollTimeout)
 	for {
-		current, _ := resolveRelayUpdateCandidate(cfg, token)
+		current, _ := route.candidate()
 		if current.completedFrom(before) {
 			return true
 		}
@@ -388,16 +368,12 @@ func waitForRelayUpdateCompletion(cfg config, token string, before relayUpdateCa
 	}
 }
 
-func verifyUpdatedRelayReadiness(paths runtimePaths, cfg config, token, targetVersion string) (bool, string) {
-	base, client, credential, err := functionalEndpoint(cfg, token)
-	if err != nil {
-		return false, ""
-	}
+func verifyUpdatedRelayReadiness(paths runtimePaths, route *relayUpdateRoute, targetVersion string) (bool, string) {
 	readiness := checkRelayReadinessWithProbes(
-		base,
-		credential,
-		func(u, t string) ([]byte, error) { return fetchRelayHealthWith(client, u, t) },
-		func(u, t string) (relayWSPingResponse, error) { return probeRelayWSPingWith(client, u, t) },
+		route.BaseURL,
+		route.Credential,
+		func(u, t string) ([]byte, error) { return fetchRelayHealthWith(route.Client, u, t) },
+		func(u, t string) (relayWSPingResponse, error) { return probeRelayWSPingWith(route.Client, u, t) },
 		true,
 	)
 	version := parseRelayHealthVersion(readiness.HealthBody)

@@ -137,7 +137,7 @@ func TestGuidedRelayUpdateChecksHomeAssistantBeforeOffering(t *testing.T) {
 			shrinkRelayStoreCheck(t, time.Second)
 			s, server := newStaleStoreServer(t, true, 200)
 			var out bytes.Buffer
-			verified := runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader(tc.input)), &out)
+			verified := runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader(tc.input)), &out)
 			if s.checks.Load() != 1 || s.installs.Load() != tc.wantInstalls || verified != (tc.wantInstalls == 1) {
 				t.Fatalf("checks=%d installs=%d verified=%t; output: %s", s.checks.Load(), s.installs.Load(), verified, out.String())
 			}
@@ -166,7 +166,7 @@ func TestGuidedRelayUpdateCheckFindsNothingNamesCheckForUpdates(t *testing.T) {
 			shrinkRelayStoreCheck(t, 30*time.Millisecond)
 			s, server := newStaleStoreServer(t, false, tc.status)
 			var out bytes.Buffer
-			if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("\n")), &out) {
+			if runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader("\n")), &out) {
 				t.Fatalf("nothing to install must not report success")
 			}
 			if s.checks.Load() != 1 || s.installs.Load() != 0 || (s.statesAfterCheck.Load() > 0) != tc.wantStateChecks {
@@ -202,7 +202,7 @@ func TestRelayStoreCheckSkipsAnUpdateAlreadyInstalling(t *testing.T) {
 	}))
 	defer server.Close()
 	var out bytes.Buffer
-	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("\n")), &out) || checks.Load() != 0 {
+	if runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader("\n")), &out) || checks.Load() != 0 {
 		t.Fatalf("an update in progress must be neither checked nor installed (calls %d): %s", checks.Load(), out.String())
 	}
 	if !strings.Contains(out.String(), relayUpdateManualPath) || strings.Contains(out.String(), "Checking Home Assistant") {
@@ -246,7 +246,7 @@ func TestRelayStoreCheckLooksPastAnOfferBelowTheFloor(t *testing.T) {
 	}
 	server := fakeHARelay(t, f)
 	var out bytes.Buffer
-	runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("n\n")), &out)
+	runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader("n\n")), &out)
 	if checks.Load() != 1 || !strings.Contains(out.String(), "HA NOVA installs the newest NOVA App (now v0.4.0)") {
 		t.Fatalf("checks=%d; want the check and the newer App in the offer: %s", checks.Load(), out.String())
 	}
@@ -278,7 +278,7 @@ func TestRelayStoreCheckSendsNothingAnAutomationReactsTo(t *testing.T) {
 			s, server := newStaleStoreServer(t, true, 200)
 			tc.setup(s.ha)
 			var out bytes.Buffer
-			if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("\n")), &out) {
+			if runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader("\n")), &out) {
 				t.Fatalf("nothing to install must not report success")
 			}
 			s.ha.mu.Lock()
