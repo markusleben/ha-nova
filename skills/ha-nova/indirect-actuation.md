@@ -300,7 +300,7 @@ Then:
 ## When you cannot see the members
 
 Integration-owned scenes (Hue and similar) have no Home Assistant config and
-return 404. Templated targets resolve only at runtime. An utterance is never
+return 404. Templated targets resolve only at runtime; one exception: when an automation runs on its own trigger, a target written `{{ name }}`, whose `name` is a literal top-level `variables` entry that no step, trigger, or `response_variable` rebinds, is that value. An utterance is never
 enumerable at all.
 
 Not every unreadable scene is the same, and the registry `pl` field separates
