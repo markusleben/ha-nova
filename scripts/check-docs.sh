@@ -97,7 +97,7 @@ echo ""
 # compare-and-set write of a device's link: about 12888;
 # and to 13020 for layer 4e: the standalone container's asks and phone link (the same ask
 # routes, its one link in /data/gate-phone.json read never through a link, and /files refusing
-# the Relay's data folder by identity, so a bind mount can't show it under another name): about 13007.
+# the Relay's data folder by identity, so a bind mount can't show it under another name): about 13008.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE

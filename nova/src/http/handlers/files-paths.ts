@@ -1,4 +1,4 @@
-import { access, realpath, stat } from "node:fs/promises";
+import { access, readdir, realpath, stat } from "node:fs/promises";
 import { constants } from "node:fs";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 
@@ -165,17 +165,20 @@ export async function assertOutsideData(target: string, dataDir: string | undefi
     return;
   }
   const denied = new HttpError(403, "FILE_PATH_DENIED", "the Relay's own data folder is never readable or writable");
+  const names = await readdir(dataDir).catch(() => null);
   const data = await stat(dataDir).catch(() => null);
-  if (data === null) {
+  if (names === null || data === null) {
     throw denied;
   }
-  const same = (info: { dev: number; ino: number } | null): boolean => info !== null && info.dev === data.dev && info.ino === data.ino;
-  const start = await deepestExisting(target);
-  if (same(await stat(start).catch(() => null))) {
+  const entries = await Promise.all(names.map((name) => stat(join(dataDir, name)).catch(() => null)));
+  const guarded = new Set([data, ...entries].flatMap((info) => (info === null ? [] : [info.dev + ":" + info.ino])));
+  const real = await realpath(await deepestExisting(target)).catch(() => null);
+  if (real === null) {
     throw denied;
   }
-  for (let dir = await realpath(dirname(start)); ; dir = dirname(dir)) {
-    if (same(await stat(dir).catch(() => null))) {
+  for (let dir = real; ; dir = dirname(dir)) {
+    const info = await stat(dir).catch(() => null);
+    if (info !== null && guarded.has(info.dev + ":" + info.ino)) {
       throw denied;
     }
     if (dirname(dir) === dir) {

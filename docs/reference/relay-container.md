@@ -101,7 +101,7 @@ From 0.30, unlocking, opening a door, gate, or garage, disarming, deletes, and f
 - **Use a dedicated Home Assistant user for `HA_LLAT`.** A tap by the user the relay acts as can't be told apart from the relay itself, so that user's phone is never linked, and a relay acting as the owner refuses these actions. Create an administrator just for the relay, make its token, and confirm on your own phone.
 - **Keep `/data` on a volume** (the examples above do). The link lives in `/data/gate-phone.json`; without the volume, recreating the container drops it and the phone is linked again.
 - **A lost phone:** while the linked phone can't be asked, the link can't be moved. Remove it with `docker exec ha-nova-relay rm /data/gate-phone.json` and link again.
-- **Limits:** everything holding the relay token asks as one: 10 asks an hour, and phone asks pause for 15 minutes after three in a row end unanswered or cancelled (a restart clears both). Two containers sharing one `/data` volume don't coordinate their links, so give each its own. `/files` never reads or writes the relay's data folder, under any name.
+- **Limits:** everything holding the relay token asks as one: 10 asks an hour, and phone asks pause for 15 minutes after three in a row end unanswered or cancelled (a restart clears both). Two containers sharing one `/data` volume don't coordinate their links, so give each its own. `/files` never reads or writes the relay's data folder or anything directly in it, under any name; don't mount files from deeper inside it into Home Assistant's configuration folder.
 
 ## File access (optional)
 
