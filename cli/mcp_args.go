@@ -180,6 +180,8 @@ func nextStep(envelope map[string]any) string {
 		return fmt.Sprintf("Show this preview in plain words (diff rows as printed). When the user has asked for this change and your workflow has reached this step (a skill's order comes first), call ha_apply with plan_id %v and no confirm_code: %s asks them. Never ask for a code in chat.", plan["id"], where) + say
 	case pending && plan != nil:
 		return fmt.Sprintf("Show this preview in plain words (diff rows as printed) and wait for the user's own confirmation; only then call ha_apply with plan_id %v.", plan["id"]) + say
+	case errInfo != nil && errInfo["code"] == "RELAY_ERROR" && errInfo["next"] == relayAnsweredNext:
+		return relayAnsweredNext
 	case errInfo != nil && errInfo["code"] == "RELAY_ERROR" && chatCall != nil:
 		return chatRelayNext
 	case errInfo != nil && (errInfo["code"] == "SECURE_STORAGE_LOCKED" || errInfo["code"] == "SECURE_STORAGE_UNAVAILABLE"):
