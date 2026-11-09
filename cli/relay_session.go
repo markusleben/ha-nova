@@ -39,6 +39,7 @@ var readOnlyWSTypes = map[string]bool{
 	// presence); blueprint/substitute renders a blueprint with inputs and
 	// returns it without storing anything.
 	"config_entries/get": true,
+	"manifest/list":      true, // which integrations ship with Home Assistant (tier_callset.go)
 	// call/apply reauth correlation (spec §2.3): lists pending config flows.
 	"config_entries/flow/progress": true,
 	// find alias fallback: get_entries returns extended rows incl. aliases

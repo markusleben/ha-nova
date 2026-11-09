@@ -470,9 +470,7 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 		func() { _, _ = e.s.ws(map[string]any{"type": "config_entries/get"}) },
 		func() { _, _ = e.s.ws(map[string]any{"type": "config/entity_registry/list"}) })
 	prefetch(reads) // the consumer scan of every frozen target, warmed in parallel
-	if e.liveEvents()["call_service"] > callServiceListenerBaseline {
-		e.checkEvents("call_service", "")
-	}
+	e.called(req.Service)
 	switch {
 	case req.Service == "scene.apply":
 		e.raise(tierPreview, tierReason{Code: reasonStoredMembers, Via: req.Service})
@@ -480,6 +478,7 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 	case domain == "script" && !scriptEntityServices[name]:
 		e.visit(req.Service, "script.turn_on", req.Data, 0, "")
 	case len(targets) == 0:
+		e.calls.unknown = true
 		level, code := e.targetless(req.Service, req.Data)
 		e.raise(level, tierReason{Code: code})
 	}
@@ -490,5 +489,6 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 		e.scanConsumers(group, 0, stateDelta{})
 	}
 	e.checkManagers()
-	return e.ownApp // a step anywhere above would stop HA NOVA's own App (latchOwnApp)
+	e.callServiceListeners() // last: every call above, and each listener's own, may set one off; a manager's calls aren't read
+	return e.ownApp          // a step anywhere above would stop HA NOVA's own App (latchOwnApp)
 }

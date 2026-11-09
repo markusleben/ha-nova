@@ -110,7 +110,6 @@ func (e *tierEngine) reloadListeners(domain string, entities []string) {
 	if domain == "automation" {
 		e.checkEvents("automation_reloaded", "")
 	}
-	if e.liveEvents()["call_service"] > callServiceListenerBaseline {
-		e.checkEvents("call_service", "")
-	}
+	e.calls.unknown = true // a reload restarts what it loads: its calls aren't bounded, so every listener counts
+	e.callServiceListeners()
 }

@@ -13,12 +13,17 @@
 // light (as an NSPanel blueprint does), a cover watchdog on call_service
 // filtered to cover, and the automation it edits. While it runs it holds one
 // more automation_reloaded listener that no automation owns (as an
-// integration's). The CLI runs in a new home in .state. Prints PASS/FAIL lines;
+// integration's). Then the service-call checks (calls.mjs, MAR-127): a light
+// call stays ordinary beside the cover watchdog, a cover call still asks, and
+// on this real Home Assistant every listener a plan's calls set off is among
+// its consumers. The CLI runs in a new home in .state. Prints PASS/FAIL lines;
 // exits non-zero on any FAIL.
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { callChecks } from "./calls.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const STATE = join(HERE, ".state");
@@ -90,17 +95,39 @@ async function holdListener(eventType) {
   return ws;
 }
 
+// One WebSocket command (helpers have no REST API).
+async function ws(type, payload) {
+  const socket = new WebSocket(`${HA.replace(/^http/, "ws")}/api/websocket`);
+  try {
+    return await new Promise((resolve, reject) => {
+      socket.onerror = () => reject(new Error("Home Assistant's WebSocket failed"));
+      socket.onmessage = (event) => {
+        const m = JSON.parse(event.data);
+        if (m.type === "auth_required") socket.send(JSON.stringify({ type: "auth", access_token: LLAT }));
+        else if (m.type === "auth_ok") socket.send(JSON.stringify({ id: 1, type, ...payload }));
+        else if (m.id === 1) m.success ? resolve(m.result) : reject(new Error(`${type}: ${m.error?.message}`));
+      };
+    });
+  } finally {
+    socket.close();
+  }
+}
+
+// One at a time: each save rewrites automations.yaml and reloads it.
+async function loadAutomations(configs) {
+  const ids = Object.keys(configs);
+  let loaded = 0;
+  for (const [i, [id, config]] of Object.entries(configs).entries()) {
+    await ha("POST", `/api/config/automation/config/${id}`, config);
+    for (let tries = 0; tries < 30 && loaded <= i; tries++, await sleep(500)) loaded = (await ha("GET", "/api/states")).filter((s) => ids.includes(s.attributes?.id) && s.state === "on").length;
+  }
+  return { loaded, ids };
+}
+
 let listener;
 try {
   listener = await holdListener("automation_reloaded");
-  // One at a time: each save rewrites automations.yaml and reloads it.
-  const ids = [];
-  let loaded = 0;
-  for (const [id, config] of Object.entries({ ...SHAPES, [TARGET]: edited(light("light.turn_on")) })) {
-    await ha("POST", `/api/config/automation/config/${id}`, config);
-    ids.push(id);
-    for (let i = 0; i < 30 && loaded < ids.length; i++, await sleep(500)) loaded = (await ha("GET", "/api/states")).filter((s) => ids.includes(s.attributes?.id) && s.state === "on").length;
-  }
+  const { loaded, ids } = await loadAutomations({ ...SHAPES, [TARGET]: edited(light("light.turn_on")) });
   const events = Object.fromEntries((await ha("GET", "/api/events")).map((e) => [e.event, e.listener_count]));
   check("home shapes loaded: reload light, panel, cover watchdog, edited automation", loaded === ids.length,
     `${loaded}/${ids.length} on; listeners: automation_reloaded ${events.automation_reloaded ?? 0}, call_service ${events.call_service ?? 0}`);
@@ -124,6 +151,7 @@ try {
   }
   const reload = cli("plan", "call", "automation.reload", "--set", `id=${TARGET}`);
   check("a reload you call is still rated by what it sets off: asks with a code", reload.tier === "typed" && /^\d{4}$/.test(reload.plan?.code ?? ""), `tier ${reload.tier ?? reload.error?.code}, reasons ${reasons(reload)}`);
+  await callChecks({ ha, ws, cli, check, watchdogID: "rclane_home_cover_watchdog", loadAutomations });
 } catch (err) {
   check("calm check ran", false, err.message);
 } finally {
