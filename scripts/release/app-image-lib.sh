@@ -57,6 +57,12 @@ app_image_inputs() { # <git-rev>
     | git -C "$APP_IMAGE_ROOT" hash-object --stdin
 }
 
+app_source_paths() { # paths whose change needs an App bump before a final tag
+  printf '%s\n' nova/Dockerfile nova/Dockerfile.standalone nova/build.yaml nova/run nova/package.json \
+    nova/package-lock.json nova/tsconfig.json nova/src nova/bridge nova/integration \
+    nova/translations scripts/release/stage-app-bridge.sh
+}
+
 # True while <version> may still be (re)pushed: newer than <git-ref>'s App
 # version AND never present in <git-ref>'s nova/config.yaml history. A version
 # that ever reached main is frozen forever (users and backup restores pull it).

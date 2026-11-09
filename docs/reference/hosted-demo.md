@@ -476,7 +476,8 @@ Go for the bridge build (`host-lib.sh`; Go follows `cli/go.mod`),
 Node and cosign on the host (`bootstrap.sh`, version + SHA256). Then rebuild
 with the new sha. When a release raises `min_relay_version`, the demo's
 relay (built from the provisioned ref) is too old for that CLI: re-provision
-with the release's merge commit (`docs/releasing.md`).
+with the release's final-tag commit; for a train that changes the App that is
+the App promote merge, never an rc landing (`docs/releasing.md`).
 
 ## Open items and questions
 

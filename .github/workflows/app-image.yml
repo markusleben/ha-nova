@@ -77,7 +77,7 @@ jobs:
           echo "publish=${publish}" >> "$GITHUB_OUTPUT"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
-  # The ONLY job holding packages:write, and only in real release-prep runs.
+  # The ONLY job holding packages:write, and only in App promote PR runs.
   # Recovery = re-run the PR's workflow run.
   publish:
     needs: plan

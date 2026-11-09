@@ -39,7 +39,9 @@ npm run verify:next-release-version -- v<version>
   `assets/icon.svg` also updates `scripts/demo/hosted/site/icon.svg` (the
   demo's restarting page; a test keeps them equal)
 - the release-prep PR is the train's last PR; merging the train landing PR
-  into `main` starts the tag sequence immediately
+  into `main` starts the tag sequence immediately. The release-prep PR never
+  bumps the App: a train that changes the App gets its bump in the App
+  promote PR (App Images), which carries the final tag
 - preflight: audit open PRs (Dependabot, workflows, installer/update,
   release metadata) as `blocker now` vs `separate later`; never pull a red or
   unreviewed workflow/release PR in right before publish
@@ -68,8 +70,9 @@ The **tag-first dress rehearsal** runs the exact stable pipeline against a
 green `release.yml` run: `install.sh` / `install.ps1` / `scripts/release/`,
 `.goreleaser.yml` beyond notes text, release workflows or the
 `release-tags-protection` ruleset, Go code, or the onboarding/update flow the
-installed artifacts execute. **RC skippable** for skills/docs-only releases.
-When in doubt, run the RC.
+installed artifacts execute, or a train that changes the App (App Images →
+App promote PR: the RC lanes are where its preview is tested). **RC
+skippable** for skills/docs-only releases. When in doubt, run the RC.
 
 Workflows: `ci.yml` = PR/main gate; `release-candidate.yml` = manual
 build + 3-runner bundle smoke, never publishes; `release.yml` = tagged
@@ -83,14 +86,12 @@ the final tag may share a commit.
 Keep one immutable `<reviewed-merge-sha>`; no local-only delta enters a
 deploy or tag.
 
-1. Merge the reviewed PR state (for a train: the landing PR into `main`,
-   after its App proofs in App Images; never tag a `release/*` commit) and record its remote merge commit. If the
-   Relay version changed, wait for the `relay-image.yml` push run on that SHA:
-   ```bash
-   bash scripts/release/verify-relay-image.sh <reviewed-merge-sha> <relay-version>
-   ```
-   and for the `app-image.yml` push run on that SHA (`app-image-verify` green;
-   see App Images below).
+1. Merge the reviewed PR state (for a train: the landing PR into `main`;
+   never tag a `release/*` commit) and record its remote merge commit. A
+   landing never changes the App version. For a train that changes the App,
+   open the App promote PR right after this merge (App Images): its
+   published images are the preview the throwaway VM tests, and stable
+   users keep the current App until step 5.
 2. Every release needs one green `e2e-disposable-ha.yml` run (dispatched, not the weekly cron) on the commit being tagged.
    Dispatch it and select the run whose `headSha` equals `<reviewed-merge-sha>`:
    ```bash
@@ -121,6 +122,9 @@ deploy or tag.
    ```bash
    npm run vm-lane -- vX.Y.Z-rcN
    ```
+   For a train that changes the App, install the preview on the HAOS VM
+   first (App Images → App proof): the lane only checks that the App meets
+   the tag's `min_relay_version`, which is still the stable App.
    The published public one-liners, pairing with a six-digit code, update
    from the last stable, doctor, a read and an ordinary call, client wiring,
    rerun, stale uninstall marker, uninstall and purge, as fresh standard
@@ -134,14 +138,32 @@ deploy or tag.
    Still manual, for the maintainer: the Cloud checklist's accounts lane
    (section 6: real Home Assistant Link, claude.ai, and ChatGPT accounts) and
    the confirmations on a real iPhone and Android phone.
-5. Then cut the final tag on the same commit
-   (`git tag vX.Y.Z <reviewed-merge-sha> && git push origin vX.Y.Z`) and
-   run the post-publish verification (section 7). A skipped RC still needs
-   steps 1–2 of the rehearsal completed.
+5. Final. A train without an App change tags the same commit as the RC. A
+   train that changes the App first merges the App promote PR under the
+   merge steps (AGENTS.md) and records its remote merge commit as
+   `<promote-merge-sha>`. Wait for the `relay-image.yml` push run on it:
+   ```bash
+   bash scripts/release/verify-relay-image.sh <promote-merge-sha> <relay-version>
+   ```
+   and for the `app-image.yml` push run on it (`app-image-verify` green; App
+   Images below). Then dispatch `e2e-disposable-ha.yml` on it as in step 2.
+   `<final-sha>` is `<promote-merge-sha>` for a train that changes the App,
+   else `<reviewed-merge-sha>`. A pushed tag can't be reused, so check it
+   first, then cut the final tag on it:
+   ```bash
+   bash scripts/release/verify-app-promoted.sh vX.Y.Z <final-sha>
+   git tag vX.Y.Z <final-sha> && git push origin vX.Y.Z
+   ```
+   `release.yml` runs the same check and refuses a final tag whose App sources
+   changed without an App bump. Then run the post-publish verification
+   (section 7). A skipped RC still needs steps 1–2 of the rehearsal
+   completed.
 
 ## 5. What `release.yml` Does
 
-1. `verify-release-metadata`: tag matches every version file.
+1. `verify-release-metadata`: tag matches every version file; a final tag
+   also passes `verify-app-promoted.sh` (App sources unchanged since the App
+   version reached history).
 2. `build-signed-darwin-release-assets` (macOS, `production` environment):
    refuses tags not on `main`, builds and signs Darwin binaries with the
    Developer ID identity, verifies Team ID and hardened runtime.
@@ -170,25 +192,49 @@ Supervisor stores track `main`: once `nova/config.yaml` carries
 MUST already have public images for every `nova/build.yaml` arch, or every
 install/update fails. Spec: `docs/work/2026-10-15-app-prebuilt-images-spec.md`.
 
-- Cadence: one App version per release train, bumped in the release-prep PR,
+- Cadence: one App version per release train, bumped in the App promote PR,
   never per fix or RC; at most one App update reaches main per day (a second
-  one needs the maintainer's OK; AGENTS.md → Releases).
-- Before the train landing PR merges, prove the App on its published image
-  (throwaway HAOS VM only): switch the Supervisor store to the landing branch
-  as in Chat-app lanes below, update from the current stable App, and check
+  one needs the maintainer's OK; AGENTS.md → Releases). Preview versions
+  reach only the throwaway VMs and don't count.
+- App promote PR (spec: `docs/work/2026-11-09-app-preview-channel-spec.md`):
+  a train changes the App when it changes an App source
+  (`app_source_paths` in `scripts/release/app-image-lib.sh`, `nova/config.yaml`
+  beyond its version, or `nova/version.json` beyond `skill_version`) or needs a newer chat-app bridge inside the App
+  (`cli/`, `skills/`; the final-tag check doesn't cover those). Such a train
+  lands without the App bump. Right after the landing, open one PR into
+  `main` from `chore/app-<app-version>` that changes only the version lines
+  and the changelog: `npm run bump -- --relay <app-version>`, `min_relay_version`
+  set to the same version in `version.json` and `nova/version.json`, and the
+  `## [Relay <app-version>]` section in `nova/CHANGELOG.md`. Stable stores keep reading `main`, so only a switched
+  store sees it. It merges at the final (section 4 step 5). While it is open,
+  nothing else merges into `main` except RC landings: every push to it, an
+  update-branch included, rebuilds its images. An App or bridge fix during
+  the RC lands in the train, and the train lands again for the next RC
+  (section 4 steps 1–4, e2e included). The promote PR then takes the new
+  `main` and the next patch version (all three version lines and a new
+  changelog section), because Supervisor never offers a re-pushed image
+  under an installed version; the App proof and `vm-lane` run again on it.
+- Before the App promote PR merges, prove the App on its published image
+  (throwaway HAOS VM only): make your own backup of the NOVA App, switch the
+  Supervisor store to the promote branch as in Chat-app lanes below, update
+  from the current stable App, and check
   that it starts from the image (Supervisor log: download, no build), that
   health reports `ha_ws_connected: true` and the new version, and that a
   paired computer's read still works; plus the chat-app lanes when they are
-  required. Post the results on the landing PR. A failure is fixed in the
-  train before the landing, so users get one App update per train. The App
-  stays visible to users during the tagged RC that follows.
+  required. Post the results on the promote PR. Keep the preview installed
+  for the RC's `vm-lane` (section 4 step 4): its own backup then holds the
+  preview, and its cleanup puts the preview back. After the lane, restore
+  your backup and return the store to `main` (Chat-app lanes). A failure is fixed in the
+  train before the final, so users get one App update per train.
 - `app-image.yml` publishes from the PR that brings the version into main
-  (the train landing PR; same-repo, `image:` set) while the version never reached main; versions on main are
+  (the App promote PR; same-repo, `image:` set) while the version never reached main; versions on main are
   frozen. Recover a failed publish by re-running the PR's workflow run.
 - `app-image-verify` gates the merge: anonymous existence check, plus a
   build-input fingerprint match on the change that introduces the version or
-  `image:`. For a PR that changes the App version: `gh pr update-branch`,
-  wait for green on the new head, only then merge — also before `--admin`.
+  `image:`. For a PR that changes the App version: if it is behind, `gh pr
+  update-branch`, wait for green on the new head, only then merge — also
+  before `--admin`. On the App promote PR that rebuilds its images, so the
+  App proof runs again on the new head.
   A red main-push run on the merge SHA means: ship the next patch version.
 - New GHCR packages start private: flip them to Public once (first release).
 - Manual check: `bash scripts/release/verify-app-image.sh <app-version>`.
@@ -208,16 +254,16 @@ install/update fails. Spec: `docs/work/2026-10-15-app-prebuilt-images-spec.md`.
 ### Chat-app lanes
 
 Throwaway HAOS VM only (never a real home), results in the PR that brings
-the App bump into `main` (with a train: the landing PR).
+the App bump into `main` (with a train: the App promote PR).
 Supervisor reads `main`, so an App version is live for every user the moment
 its PR merges: run these BEFORE the merge, on the PR's published image. On
 the VM, switch the official repository's checkout inside the Supervisor to the
 PR branch:
 `docker exec hassio_supervisor sh -c 'cd /data/apps/git/2368fcfa && git fetch --depth 1 origin +refs/heads/<branch>:refs/remotes/origin/<branch> && git checkout -B <branch> origin/<branch>'`,
-then `store/reload`. A reload that finds no git change keeps the cached
-metadata: if the App page doesn't offer the PR's version, restart the
-Supervisor (`ha supervisor restart`) and check the offered version before the
-lanes. Don't add a `…#<branch>` repository: that is a second App
+then restart the Supervisor (`ha supervisor restart`): a store reload never
+re-reads a switched checkout, only a Supervisor start does. Check the
+offered version before the lanes. To return the store to `main`, run
+`ha store repair 2368fcfa` and restart the Supervisor again. Don't add a `…#<branch>` repository: that is a second App
 with the same ports, invisible to the CLI's slug checks. A failure found after
 the merge needs the next patch version. Required for the
 first chat-app release and after a change to the bridge, `nova/integration/`,
@@ -262,7 +308,8 @@ rotation is a reviewed source change: generate offline, commit only the public
 half, install the private PEM, verify an RC on every platform, retire the old
 key. While Cloud is enabled, `min_relay_version` equals the App version in
 `nova/config.yaml`. Every such rise also outdates the hosted demo's relay (built from
-the provisioned ref): re-provision it with the release's merge commit
+the provisioned ref): re-provision it with the release's final-tag commit
+(for a train that changes the App: the App promote merge, never an RC landing)
 (`docs/reference/hosted-demo.md`).
 
 macOS signing secrets (`HA_NOVA_MACOS_CERTIFICATE_P12_BASE64`,
@@ -278,11 +325,12 @@ results in the release PR, no private Cloud URLs). Real-device rows repeat for
 first support or after a change touching their path:
 
 - [ ] `provenance`: `release.yml` bundle smokes green on every enabled OS
-- [ ] `installed_relay_app`: the real App runs the prebuilt image for the
+- [ ] `installed_relay_app` (a train that changes the App: after the promote
+      merge, before the final tag): the real App runs the prebuilt image for the
       `nova/config.yaml` version (Supervisor log: download, no build) — or,
       while `image:` is absent, Supervisor's local build of the release commit
       — and reports that version
-- [ ] `health`: reference smoke below returns `ha_ws_connected: true` and the expected App version
+- [ ] `health` (same timing): reference smoke below returns `ha_ws_connected: true` and the expected App version
 - [ ] `parity`: `/health`, `/ws`, `/core`, `/files`, `/backups` through real Cloud (transport changes)
 - [ ] `stress_10000`: `internal-cloud-stress` on one reference OS (transport or stress-harness changes)
 - [ ] `keyrings`: real happy path and fail-closed no-UI on each enabled OS (adapter changes: affected OS)
