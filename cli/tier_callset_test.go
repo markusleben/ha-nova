@@ -15,7 +15,7 @@ func callHome(t *testing.T, components ...string) (*writeHarness, *fakeHA) {
 	f.ent("climate.hall", "zwave_js", "off", map[string]any{"friendly_name": "Hall"})
 	f.config = map[string]any{"components": append([]string{"automation", "hue.light", "zwave_js.cover"}, components...)}
 	f.manifests = []map[string]any{}
-	for _, d := range []string{"hue", "zwave_js", "automation", "script", "homeassistant", "template", "switch_as_x", "group", "alert", "generic_thermostat"} {
+	for _, d := range []string{"hue", "zwave_js", "automation", "script", "homeassistant", "template", "switch_as_x", "group", "alert", "generic_thermostat", "shelly", "tts"} {
 		f.manifests = append(f.manifests, map[string]any{"domain": d, "is_built_in": true})
 	}
 	f.manifests = append(f.manifests, map[string]any{"domain": "custom_lights", "is_built_in": false})
@@ -91,6 +91,19 @@ func TestCallServiceListenersByFilter(t *testing.T) {
 			f.ent("light.strip", "custom_lights", "off", nil)
 			return []string{"call", "light.turn_on", "light.strip"}
 		},
+		"a script's text-to-speech call plays on a media player": func(f *fakeHA) []string {
+			f.ent("tts.cloud", "tts", "unknown", nil)
+			f.script("say", map[string]any{"action": "tts.speak", "target": map[string]any{"entity_id": "tts.cloud"}, "data": map[string]any{"media_player_entity_id": "media_player.kitchen", "message": "hi"}})
+			return []string{"call", "script.turn_on", "script.say"}
+		},
+		"a listener that calls a templated target": func(f *fakeHA) []string {
+			listen(f, "follow", map[string]any{"domain": "light", "service": "turn_off"}, step("light.turn_off", "{{ states('input_text.lamp') }}"))
+			return []string{"call", "light.turn_off", "light.kitchen"}
+		},
+		"alert in the home": func(f *fakeHA) []string {
+			f.config["components"] = append(f.config["components"].([]string), "alert")
+			return []string{"call", "light.turn_off", "light.kitchen"}
+		},
 		"a targetless call": func(f *fakeHA) []string {
 			f.services = append(f.defaultServices(), map[string]any{"domain": "doorbell", "services": map[string]any{"announce": map[string]any{}}})
 			return []string{"call", "doorbell.announce"}
@@ -117,12 +130,23 @@ func TestCallServiceListenersByFilter(t *testing.T) {
 		})
 	}
 
-	// alert calls notify when what it watches changes: a notify listener
-	// counts for a light call, the cover watchdog still doesn't.
-	h, f := callHome(t, "alert")
-	listen(f, "notified", map[string]any{"domain": "notify"}, step("cover.stop_cover", "cover.blind"))
-	if _, env := h.run(runPlanCommand, "call", "light.turn_off", "light.kitchen"); !slices.Contains(consumerList(env), "automation.notified") {
-		t.Errorf("alert in the home: consumers %v, want the notify listener", consumerList(env))
+	// A switch_as_x light switches its relay: an automation on the relay's
+	// state stops the blind, and that call sets the watchdog off.
+	for _, follows := range []bool{false, true} {
+		h, f := callHome(t)
+		f.ent("light.porch", "switch_as_x", "off", map[string]any{"_di": "d2"})
+		f.ent("switch.porch_relay", "shelly", "off", map[string]any{"_di": "d2"})
+		if follows {
+			f.automation("relay_follow", "relay_follow", map[string]any{
+				"triggers": []any{map[string]any{"trigger": "state", "entity_id": "switch.porch_relay"}},
+				"actions":  []any{step("cover.stop_cover", "cover.blind")},
+			})
+			f.related["entity:switch.porch_relay"] = []string{"automation.relay_follow"}
+		}
+		_, env := h.run(runPlanCommand, "call", "light.turn_on", "light.porch")
+		if got := consumerList(env); slices.Contains(got, "automation.watchdog") != follows || slices.Contains(got, "automation.relay_follow") != follows {
+			t.Errorf("relay automation %v: tier %q (reasons %s), consumers %v", follows, env.Tier, reasonCodes(env), got)
+		}
 	}
 }
 

@@ -488,7 +488,7 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 	for _, group := range e.groups { // its consumers react to the leaves' change
 		e.scanConsumers(group, 0, stateDelta{})
 	}
-	e.callServiceListeners() // last: every call above, and each listener's own, may set one off
 	e.checkManagers()
-	return e.ownApp // a step anywhere above would stop HA NOVA's own App (latchOwnApp)
+	e.callServiceListeners() // last: every call above, and each listener's own, may set one off; a manager's calls aren't read
+	return e.ownApp          // a step anywhere above would stop HA NOVA's own App (latchOwnApp)
 }

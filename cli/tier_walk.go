@@ -110,6 +110,7 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 	targets, targetsKnown, all := collectTargets(step)
 	resolved := dataKnown && targetsKnown
 	if !resolved { // what it names literally is still followed below
+		e.calls.unknown = true // and what the rest is, and calls in turn, isn't known
 		if all {
 			e.everySwitch(name, via)
 		}

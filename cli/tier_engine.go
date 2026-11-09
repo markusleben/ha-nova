@@ -258,7 +258,7 @@ func (e *tierEngine) visit(id, service string, data map[string]any, depth int, v
 	}
 	e.visited[key] = true
 	e.called(service)
-	e.calledOn(id)
+	backing := e.calledOn(id)
 	e.switchOff(id, service, via) // before the cut: the registry alone tells the App's switch
 	if e.cut(depth, id, via) {
 		return
@@ -266,6 +266,10 @@ func (e *tierEngine) visit(id, service string, data map[string]any, depth int, v
 	class := tierOrdinary
 	e.scopes = append(e.scopes, &class)
 	e.classify(id, service, data, depth, via)
+	for _, other := range backing { // a switch_as_x entity switches its switch: its platform, and what watches it, run too
+		e.calledOn(other)
+		e.scanConsumers(other, depth+1, stateDelta{})
+	}
 	e.scopes = e.scopes[:len(e.scopes)-1]
 	e.done[key] = class
 }

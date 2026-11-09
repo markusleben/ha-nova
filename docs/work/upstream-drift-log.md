@@ -693,9 +693,10 @@ counts only those, not ad hoc checks or corrections.
 
 - Source checked: `homeassistant/home-assistant:2026.11.0` (the test bed's
   image), grepped for `services.async_call`, `Script(`, and device actions.
-- Pinned: `callingPlatforms` (built-in platforms whose entities call
-  services when actuated) and `reactors` (built-in integrations that call
-  services when other entities change) in `cli/tier_callset.go`.
-- Re-check both tables on each HA release: a built-in platform that calls
-  services and is missing from them makes a `call_service` listener look
-  unreachable.
+- Pinned in `cli/tier_callset.go`: `callingPlatforms` (built-in platforms
+  whose entities call services when actuated), `forwards` (built-in services
+  whose handlers call other services), and `reactors` (built-in
+  integrations that call services when other entities change).
+- Re-check the three tables on each HA release: a built-in platform or
+  service that calls services and is missing from them makes a
+  `call_service` listener look unreachable.

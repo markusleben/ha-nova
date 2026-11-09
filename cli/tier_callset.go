@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
 )
 
@@ -26,17 +27,26 @@ type callSet struct {
 // switch_as_x, and scenes are modeled instead (their members are visited).
 var callingPlatforms = map[string]string{
 	"template": "", "universal": "", "generic_thermostat": "", "generic_hygrostat": "", "flux": "", "wake_on_lan": "",
-	"alert": "", "lifx": "light", "panasonic_viera": "media_player", "demo": "vacuum", "marketplace": "update",
+	"alert": "", "pilight": "", "lifx": "light", "panasonic_viera": "media_player", "cast": "media_player", "demo": "vacuum", "marketplace": "update",
 }
 
-// reactors: built-in integrations that call services when other entities
-// change, outside automations, with the calls they make (Markus, 2026-11-09,
-// option B); "" can't be bounded. YAML trigger-based template entities with
-// actions, custom integrations, and device firmware (an ESPHome
-// homeassistant.action) are outside the model (safety.md).
-var reactors = map[string]string{
-	"alert": "notify.*", "flux": "light.*", "device_sun_light_trigger": "light.*", "generic_thermostat": "", "generic_hygrostat": "",
+// forwards: built-in services whose handlers call other services the engine
+// doesn't follow (tts.speak plays on a media player, a notify platform may
+// speak or notify a group, conversation runs intents, a mobile_app device
+// action notifies); "" every service of the domain. Calling one makes the
+// set unknown.
+var forwards = map[string]string{
+	"tts": "", "notify": "", "conversation": "", "python_script": "", "color_extractor": "", "media_extractor": "", "mobile_app": "", "camera": "play_stream",
 }
+
+// reactors: built-in integrations that call services on their own when other
+// entities change, outside automations. What they call, and what that sets
+// off in turn, isn't bounded (Markus, 2026-11-09, option B; made unknown
+// after Astra's review), so a home with one loaded makes the set unknown.
+// YAML trigger-based template entities with actions, custom integrations,
+// and device firmware (an ESPHome homeassistant.action) are outside the
+// model (safety.md).
+var reactors = map[string]bool{"alert": true, "flux": true, "device_sun_light_trigger": true, "generic_thermostat": true, "generic_hygrostat": true}
 
 // called records a service the cascade calls by name.
 func (e *tierEngine) called(name string) {
@@ -52,33 +62,33 @@ func (e *tierEngine) called(name string) {
 // platform turns it into (a toggle into turn_on/turn_off, a scene's state
 // into attribute services, homeassistant.* into the entity's domain) is a
 // service of that domain; a platform that calls services itself, or one the
-// engine can't name, makes the set unknown.
-func (e *tierEngine) calledOn(id string) {
+// engine can't name, makes the set unknown. A switch_as_x entity answers the
+// switches it actuates (on its device), for the caller to visit.
+func (e *tierEngine) calledOn(id string) []string {
 	domain, _ := splitID(id)
 	e.calls.add(domain + ".*")
 	entry, registered := e.reg[id]
 	if !registered || entry.pl == "" {
 		e.calls.unknown = true
-		return
+		return nil
 	}
-	if entry.pl == "switch_as_x" { // it calls its backing switch, whose platform decides in turn
+	if entry.pl == "switch_as_x" {
 		var backing []string
 		for other, row := range e.reg {
-			if row.di == entry.di && row.pl != "switch_as_x" && strings.HasPrefix(other, "switch.") {
+			if entry.di != "" && row.di == entry.di && row.pl != "switch_as_x" && strings.HasPrefix(other, "switch.") {
 				backing = append(backing, other)
 			}
 		}
-		if entry.di == "" || len(backing) == 0 {
+		if len(backing) == 0 {
 			e.calls.unknown = true
 		}
-		for _, other := range backing {
-			e.calledOn(other)
-		}
-		return
+		slices.Sort(backing)
+		return backing
 	}
 	if scope, calls := callingPlatforms[entry.pl]; calls && (scope == "" || scope == domain) || !e.builtIn(entry.pl) {
 		e.calls.unknown = true
 	}
+	return nil
 }
 
 func (c *callSet) add(entry string) {
@@ -86,6 +96,10 @@ func (c *callSet) add(entry string) {
 		c.calls = map[string]bool{}
 	}
 	c.calls[entry] = true
+	domain, service := splitID(entry)
+	if forwarded, forwards := forwards[domain]; forwards && (forwarded == "" || forwarded == service) {
+		c.unknown = true
+	}
 }
 
 // mayFire: an event trigger fires when every event_data key matches; only a
@@ -127,8 +141,8 @@ func (e *tierEngine) builtIn(platform string) bool {
 	return e.manifests[platform]
 }
 
-// reactorCalls adds the calls of the reactors loaded in this home
-// (/api/config components: "flux" or "flux.switch"); an unread list is unknown.
+// reactorCalls makes the set unknown when a reactor is loaded in this home
+// (/api/config components: "flux" or "flux.switch"), or the list is unread.
 func (e *tierEngine) reactorCalls() {
 	var config struct {
 		Components []string `json:"components"`
@@ -139,11 +153,8 @@ func (e *tierEngine) reactorCalls() {
 		return
 	}
 	for _, component := range config.Components {
-		name, _, _ := strings.Cut(component, ".")
-		if calls, reacts := reactors[name]; reacts && calls == "" {
+		if name, _, _ := strings.Cut(component, "."); reactors[name] {
 			e.calls.unknown = true
-		} else if reacts {
-			e.calls.add(calls)
 		}
 	}
 }
