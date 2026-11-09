@@ -27,7 +27,7 @@ var (
 // candidate as Home Assistant shows it afterwards, and whether it checked:
 // it asked, or found something that reacts to asking and left it to the
 // person (relayUpdateCheckManualPath).
-func checkHomeAssistantForRelayUpdate(paths runtimePaths, cfg config, token string, candidate relayUpdateCandidate, out io.Writer) (relayUpdateCandidate, bool) {
+func checkHomeAssistantForRelayUpdate(paths runtimePaths, route *relayUpdateRoute, candidate relayUpdateCandidate, out io.Writer) (relayUpdateCandidate, bool) {
 	enough := func(c relayUpdateCandidate) bool {
 		return c.updateAvailable() && relayVersionMeetsUpdateGate(paths, c.LatestVersion, "")
 	}
@@ -37,10 +37,10 @@ func checkHomeAssistantForRelayUpdate(paths runtimePaths, cfg config, token stri
 	body, _ := json.Marshal(map[string]string{"entity_id": candidate.EntityID})
 	checked, _ := runSetupSpinnerWithResult(out, "Checking Home Assistant for a newer NOVA App...", setupSpinnerDebounce, func() (relayUpdateCandidate, error) {
 		refresh := planCallRequest{Service: "homeassistant.update_entity", EntityIDs: []string{candidate.EntityID}, Data: map[string]any{}}
-		if !relayGuidedCallAllowed(paths, cfg, token, refresh, tierOrdinary) {
+		if !relayGuidedCallAllowed(paths, route, refresh, tierOrdinary) {
 			return candidate, nil
 		}
-		reply, err := relayCoreRequest(cfg, token, "POST", "/api/services/homeassistant/update_entity", body)
+		reply, err := route.core("POST", "/api/services/homeassistant/update_entity", body)
 		var envelope struct {
 			OK   bool `json:"ok"`
 			Data struct {
@@ -57,11 +57,11 @@ func checkHomeAssistantForRelayUpdate(paths runtimePaths, cfg config, token stri
 		best, seen := candidate, ""
 		for deadline := time.Now().Add(relayStoreCheckTimeout); time.Now().Before(deadline); {
 			time.Sleep(relayStoreCheckPollInterval)
-			latest := relayUpdateEntityLatest(cfg, token, candidate.EntityID)
+			latest := relayUpdateEntityLatest(route, candidate.EntityID)
 			if latest == "" || latest == seen {
 				continue
 			}
-			current, _ := resolveRelayUpdateCandidate(cfg, token)
+			current, _ := route.candidate()
 			if current.EntityID != candidate.EntityID {
 				continue
 			}
@@ -82,15 +82,10 @@ func checkHomeAssistantForRelayUpdate(paths runtimePaths, cfg config, token stri
 // relayGuidedCallAllowed: true only when `ha-nova call` would plan req at
 // highest or below (computeCallPlan: call_service listeners, the targets'
 // consumers, ...), with a complete scan and its targets frozen. The session
-// reads over the guided update's own server and credential; a failed or cut
-// read never passes.
-func relayGuidedCallAllowed(paths runtimePaths, cfg config, token string, req planCallRequest, highest tierLevel) bool {
-	base, client, credential, err := functionalEndpoint(cfg, token)
-	if err != nil {
-		return false
-	}
+// reads over the guided update's own route; a failed or cut read never passes.
+func relayGuidedCallAllowed(paths runtimePaths, route *relayUpdateRoute, req planCallRequest, highest tierLevel) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), relaySessionOverallTimeout)
-	s := &relaySession{paths: paths, cfg: cfg, transport: relayTransportSelection{BaseURL: base, Client: client, Credential: credential, Via: relayViaLocal},
+	s := &relaySession{paths: paths, cfg: route.cfg, transport: route.relayTransportSelection,
 		server: activeServerProfile(), ctx: ctx, cancel: cancel, slots: make(chan struct{}, relaySessionMaxConcurrent), memo: map[string]*relayMemo{}}
 	defer s.close()
 	if staticRefusal(req) != nil {
@@ -103,8 +98,8 @@ func relayGuidedCallAllowed(paths runtimePaths, cfg config, token string, req pl
 
 // relayUpdateEntityLatest reads one update entity's latest_version when it
 // shows an update, else "".
-func relayUpdateEntityLatest(cfg config, token, entityID string) string {
-	reply, err := relayCoreRequest(cfg, token, "GET", "/api/states/"+entityID, nil)
+func relayUpdateEntityLatest(route *relayUpdateRoute, entityID string) string {
+	reply, err := route.core("GET", "/api/states/"+entityID, nil)
 	if err != nil {
 		return ""
 	}
