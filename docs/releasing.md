@@ -136,7 +136,7 @@ deploy or tag.
    not the tag's. Post the table as a comment on the release-prep PR. It
    starts its own test bed (with file access), so no other bed may run.
    Known limit: no lane reaches the App over Home Assistant Link (the
-   Cloud checklist's `app_notice` row does).
+   Cloud checklist's `app_update_over_link` row does).
    Then the Windows onboarding proof, automated on the maintainer's
    throwaway UTM VMs ("HA NOVA Win11 Test" and "HA NOVA HAOS Test" running;
    "HA NOVA Ubuntu Test" optional):
@@ -316,10 +316,14 @@ first support or after a change touching their path:
 - [ ] `roles`: one real standard non-administrator binding
 - [ ] `owner_no_code`: one real owner OAuth `cloud add` pairs with no code (Link owner pairing changes)
 - [ ] `lifecycle`: `cloud add` → App restart/reinstall → CLI uninstall/reinstall → purge revokes the device
-- [ ] `app_notice` (a release that bumps the App, before updating it in the
-      real home): reached only over Home Assistant Link, `ha-nova check-update`
-      and `ha-nova update` name the App update and where to install it in Home
-      Assistant, and offer no guided install
+- [ ] `app_update_over_link` (a release that bumps the App, before updating
+      it in the real home any other way): reached only over Home Assistant
+      Link, `ha-nova check-update` names the App update with `ha-nova update`;
+      `ha-nova update` in a terminal asks "Update the NOVA App now?", and yes
+      installs it, waits through the App's restart, and ends with "The NOVA App
+      is updated and works: v<new>" while Home Assistant shows that version.
+      Any other end says so and names Settings → Apps → NOVA Relay → Update.
+      Note how long the wait took
 - [ ] `routing`: one real automatic fallback; `redirects_non_disclosure`: no credential in config, argv, logs, diagnostics, or AI-visible output
 - [ ] `signing_and_update_matrix`: real install/update after installer, updater, signing, or native-authorization changes
 

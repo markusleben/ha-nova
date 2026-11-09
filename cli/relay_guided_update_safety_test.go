@@ -38,7 +38,7 @@ func TestGuidedRelayUpdateDeclinedTouchesNothing(t *testing.T) {
 	defer server.Close()
 
 	var out bytes.Buffer
-	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("n\n")), &out) {
+	if runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader("n\n")), &out) {
 		t.Fatalf("a declined prompt must not report success")
 	}
 	if installCalled.Load() {
@@ -76,7 +76,7 @@ func TestGuidedRelayUpdateRejectsStateDriftAfterConfirmation(t *testing.T) {
 	defer server.Close()
 
 	var out bytes.Buffer
-	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
+	if runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader("y\n")), &out) {
 		t.Fatal("changed update state must not report success")
 	}
 	if installCalled.Load() {
@@ -122,7 +122,7 @@ func TestGuidedRelayUpdateRejectsRegistryDriftAfterConfirmation(t *testing.T) {
 	defer server.Close()
 
 	var out bytes.Buffer
-	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
+	if runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader("y\n")), &out) {
 		t.Fatal("changed registry provenance must not report success")
 	}
 	if installCalled.Load() {
@@ -184,7 +184,7 @@ func TestGuidedRelayUpdateRequiresIdleInstallAndBackupSupport(t *testing.T) {
 			defer server.Close()
 
 			var out bytes.Buffer
-			if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
+			if runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader("y\n")), &out) {
 				t.Fatal("unsafe candidate must not report success")
 			}
 			if installCalled.Load() {
@@ -215,7 +215,7 @@ func TestGuidedRelayUpdateContainerFallsBackToManualPath(t *testing.T) {
 	defer server.Close()
 
 	var out bytes.Buffer
-	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("")), &out) {
+	if runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader("")), &out) {
 		t.Fatalf("container fallback must not report success")
 	}
 	if !strings.Contains(out.String(), "can't start the NOVA App update from here") || strings.Contains(out.String(), "registry") {

@@ -8,14 +8,34 @@ import (
 	"strings"
 )
 
-// relayCoreRequest posts one request through the relay's /core proxy and
-// returns the raw envelope body.
-func relayCoreRequest(cfg config, token, method, path string, requestBody []byte) ([]byte, error) {
-	base, client, credential, endpointErr := functionalEndpoint(cfg, token)
-	if endpointErr != nil {
-		return nil, endpointErr
+// relayUpdateRoute is the one route a guided NOVA App update reads and
+// writes over: home, or Home Assistant Link (relayNoticeTransport).
+type relayUpdateRoute struct {
+	relayTransportSelection
+	cfg config
+}
+
+// core posts one request through the Relay's /core proxy and returns the raw
+// envelope body.
+func (route *relayUpdateRoute) core(method, path string, requestBody []byte) ([]byte, error) {
+	return relayCoreRequestWithTransport(context.Background(), route.BaseURL, route.Client, route.Credential, method, path, requestBody)
+}
+
+func (route *relayUpdateRoute) candidate() (relayUpdateCandidate, string) {
+	return resolveRelayUpdateCandidateWithTransport(context.Background(), route.BaseURL, route.Client, route.Credential)
+}
+
+// reopenAfter: over Link, a request Home Assistant turned down because the
+// Ingress session is gone gets a new Link route: a fresh sign-in and session,
+// with the same Relay and user identity checks. Opening one fails while the
+// App restarts; the next poll tries again.
+func (route *relayUpdateRoute) reopenAfter(err error) {
+	if route.Via != relayViaCloud || !IsCloudErrorCode(err, CloudErrOuterSessionExpired) {
+		return
 	}
-	return relayCoreRequestWithTransport(context.Background(), base, client, credential, method, path, requestBody)
+	if fresh, ok := relayNoticeTransport(context.Background(), route.cfg); ok && fresh.Via == relayViaCloud {
+		route.relayTransportSelection = fresh
+	}
 }
 
 func relayCoreRequestWithTransport(
@@ -45,14 +65,6 @@ func relayCoreRequestWithTransport(
 	}
 	defer resp.Body.Close()
 	return readAllLimited(resp.Body, maxRelayResponseBytes)
-}
-
-func relayWSRequest(cfg config, token string, requestBody []byte) ([]byte, error) {
-	base, client, credential, endpointErr := functionalEndpoint(cfg, token)
-	if endpointErr != nil {
-		return nil, endpointErr
-	}
-	return relayWSRequestWithTransport(context.Background(), base, client, credential, requestBody)
 }
 
 func relayWSRequestWithTransport(

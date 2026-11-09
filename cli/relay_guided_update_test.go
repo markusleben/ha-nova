@@ -33,6 +33,11 @@ func guidedUpdatePaths(t *testing.T) runtimePaths {
 	return paths
 }
 
+// homeUpdateRoute: the home route a legacy install's guided update takes.
+func homeUpdateRoute(cfg config, token string) *relayUpdateRoute {
+	return &relayUpdateRoute{relayTransportSelection{BaseURL: cfg.RelayBaseURL, Client: httpClient, Credential: token, Via: relayViaLocal}, cfg}
+}
+
 func statesEnvelope(t *testing.T, states []map[string]interface{}) []byte {
 	t.Helper()
 	body, err := json.Marshal(map[string]interface{}{
@@ -182,7 +187,7 @@ func TestResolveRelayUpdateEntity(t *testing.T) {
 				}
 			}))
 			defer server.Close()
-			candidate, reason := resolveRelayUpdateCandidate(config{RelayBaseURL: server.URL}, "token")
+			candidate, reason := homeUpdateRoute(config{RelayBaseURL: server.URL}, "token").candidate()
 			entity := candidate.EntityID
 			if entity != tc.wantEntity {
 				t.Fatalf("entity = %q, want %q (reason %q)", entity, tc.wantEntity, reason)
@@ -289,7 +294,7 @@ func TestGuidedRelayUpdateInstallsThroughTheRestartAndVerifies(t *testing.T) {
 	defer server.Close()
 
 	var out bytes.Buffer
-	verified := runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("\n")), &out)
+	verified := runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader("\n")), &out)
 	if !verified {
 		t.Fatalf("verified install must report success; output: %s", out.String())
 	}
@@ -333,7 +338,7 @@ func TestGuidedRelayUpdatePollTimeoutStaysHonest(t *testing.T) {
 	defer server.Close()
 
 	var out bytes.Buffer
-	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
+	if runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader("y\n")), &out) {
 		t.Fatalf("timeout must not report success")
 	}
 	if !strings.Contains(out.String(), "didn't show the new version") {
@@ -371,7 +376,7 @@ func TestGuidedRelayUpdateRejectedInstallSkipsTheWait(t *testing.T) {
 	defer server.Close()
 
 	var out bytes.Buffer
-	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
+	if runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader("y\n")), &out) {
 		t.Fatalf("rejection must not report success")
 	}
 	if !strings.Contains(out.String(), "Home Assistant didn't start the update.") {
@@ -424,7 +429,7 @@ func TestGuidedRelayUpdateRelayTimeoutEnvelopeStillPolls(t *testing.T) {
 	defer server.Close()
 
 	var out bytes.Buffer
-	if !runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
+	if !runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader("y\n")), &out) {
 		t.Fatalf("relay-side timeout must poll and verify; output: %s", out.String())
 	}
 	if strings.Contains(out.String(), chatGPTRefreshLine) { // chat apps aren't on here
@@ -471,7 +476,7 @@ func TestGuidedRelayUpdateRejectsTargetVersionWhileEntityRemainsPending(t *testi
 	defer server.Close()
 
 	var out bytes.Buffer
-	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
+	if runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader("y\n")), &out) {
 		t.Fatalf("pending update entity must not verify; output: %s", out.String())
 	}
 	if !strings.Contains(out.String(), "didn't say the update was done") {
@@ -532,7 +537,7 @@ func TestGuidedRelayUpdateRejectsSuccessfulInstallWithoutWSReadiness(t *testing.
 	defer server.Close()
 
 	var out bytes.Buffer
-	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
+	if runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader("y\n")), &out) {
 		t.Fatalf("unready WebSocket must not verify; output: %s", out.String())
 	}
 	if !strings.Contains(out.String(), "couldn't check that it reaches Home Assistant") {

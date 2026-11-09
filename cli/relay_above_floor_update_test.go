@@ -86,7 +86,7 @@ func TestRelayAvailableUpdateNoticeRequiresExactPendingEvidence(t *testing.T) {
 			}))
 			defer server.Close()
 
-			notice := relayAvailableUpdateNotice(config{RelayBaseURL: server.URL}, "token", "")
+			notice := relayAvailableUpdateNotice(homeUpdateRoute(config{RelayBaseURL: server.URL}, "token").relayTransportSelection, "")
 			if tc.wantNotice {
 				if notice.kind != humanNoticeKindRelayUpdateAvailable {
 					t.Fatalf("notice kind = %q, want %q", notice.kind, humanNoticeKindRelayUpdateAvailable)
@@ -245,7 +245,7 @@ func TestGuidedRelayUpdateWaitsForOfferedAboveFloorVersion(t *testing.T) {
 	defer server.Close()
 
 	var out bytes.Buffer
-	if !runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
+	if !runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader("y\n")), &out) {
 		t.Fatalf("above-floor update must verify the offered target; output: %s", out.String())
 	}
 	if healthPolls.Load() < 3 {
@@ -273,7 +273,7 @@ func TestWaitForRelayVersionKeepsFloorForStaleTarget(t *testing.T) {
 	}))
 	defer server.Close()
 
-	version, ok := waitForRelayVersion(paths, config{RelayBaseURL: server.URL}, "token", "0.3.0")
+	version, ok := waitForRelayVersion(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), "0.3.0")
 	if !ok || version != "0.4.0" {
 		t.Fatalf("verification = (%q, %v), want floor-compatible v0.4.0", version, ok)
 	}
