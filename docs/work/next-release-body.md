@@ -20,6 +20,8 @@ Unreleased claims wait here until they ship (AGENTS.md, Releases: the README des
 
 - **Claude asks again before "Advanced read".** Its description changed (it no longer offers logs), so the "Always allow" you chose for that tool resets once: choose "Always allow" again. In ChatGPT, open chatgpt.com/plugins, choose HA NOVA, then Refresh. Chat apps otherwise keep their own confirmations: the linked phone, or a code in the chat at Manage everything.
 
+- **UI thermostats may ask more often.** On an App with the safety check, HA NOVA can't read the heater setting of a thermostat you made in Home Assistant's UI, so changing such a thermostat asks on your phone. This is more often than needed, never less; a later release fixes it.
+
 - **Going back to an older NOVA App:** computers that saw the safety check refuse unlocks, deletes, and other big changes until you update the App again.
 
 - **Standalone container:** it has no NOVA page, so only a linked phone confirms. Give it the token of a Home Assistant user who isn't the owner, keep `/data` on a volume, and run it with a port mapping, not host networking (`docs/reference/relay-container.md`).
