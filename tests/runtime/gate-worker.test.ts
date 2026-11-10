@@ -191,6 +191,58 @@ describe("gate worker child", () => {
     }
   });
 
+  it("asks the linked phone through the worker, hangs up on stop, and takes only its answer shapes", async () => {
+    let asked: unknown;
+    let answer: unknown = {};
+    let hold = false;
+    let hungUp = 0;
+    const server = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on("data", (c: Buffer) => chunks.push(c));
+      request.on("end", () => {
+        asked = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        if (hold) {
+          response.on("close", () => (hungUp += 1));
+          return;
+        }
+        response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(answer));
+      });
+    });
+    mkdirSync(join(dir, "gate"), { recursive: true, mode: 0o700 });
+    await new Promise<void>((r) => server.listen(join(dir, "gate", "worker.sock"), r));
+    try {
+      const gate = worker();
+      gate.start();
+      const link = { service: "mobile_app_iphone", device_id: "ha-iphone", user_id: "u1" };
+      const text = { lang: "en", title: "Unlock “Front”?", body: "Requested by “Mac”.", button: "Unlock" };
+      const go = () => new AbortController().signal;
+      answer = { answer: "approved", user_id: "u1" };
+      expect(await gate.phone!(link, text, 5_000, go())).toEqual(answer);
+      expect(asked).toEqual({ ...text, link, wait_ms: 5_000 });
+      for (const [shape, want] of [
+        [{ answer: "declined" }, { answer: "declined" }],
+        [{ answer: "none", user_id: "u1" }, { answer: "none" }],
+        [{ answer: "approved" }, null],
+        [{ answer: "approved", user_id: "" }, null],
+        [{ answer: "maybe" }, null],
+      ] as const) {
+        answer = shape;
+        expect(await gate.phone!(link, text, 5_000, go())).toEqual(want);
+      }
+      hold = true;
+      const stop = new AbortController();
+      const pending = gate.phone!(link, text, 5_000, stop.signal);
+      await new Promise((r) => setTimeout(r, 50));
+      stop.abort();
+      expect(await pending).toBeNull();
+      await new Promise((r) => setTimeout(r, 50));
+      expect(hungUp).toBe(1);
+    } finally {
+      server.closeAllConnections();
+      await new Promise((r) => server.close(r));
+    }
+  });
+
   it("a redirect from the worker is no answer, and nothing follows it", async () => {
     const followed: string[] = [];
     const server = createServer((request, response) => {

@@ -1,8 +1,8 @@
 import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createGateAsks, gateDigest, gateWithAsks, type GateRequest, type PreparedAsk } from "../../nova/src/http/gate-asks.js";
+import { createGateAsks, gateDigest, gateWithAsks, type GateAsksDeps, type GateRequest, type PhoneAnswer, type PhoneLink, type PhoneText, type PreparedAsk } from "../../nova/src/http/gate-asks.js";
 import { gated, type GateClient } from "../../nova/src/http/gate.js";
 import { HttpError } from "../../nova/src/http/errors.js";
 import type { RouteContext } from "../../nova/src/http/router.js";
@@ -19,7 +19,7 @@ function context(principal: Principal | undefined, body: unknown, headers: Recor
   return { request, response, path: "/gate/v1/ask", body, ...(principal ? { principal } : {}) };
 }
 
-function setup(answer: PreparedAsk | null | (() => Promise<PreparedAsk | null>) = typed, channels: string[] = ["phone"], pollMs = 5) {
+function setup(answer: PreparedAsk | null | (() => Promise<PreparedAsk | null>) = typed, channels: string[] = ["page"], pollMs = 5, extra: Partial<GateAsksDeps> = {}) {
   let now = 1_000;
   const seen: { device: string; requests: GateRequest[] }[] = [];
   const asks = createGateAsks({
@@ -30,8 +30,11 @@ function setup(answer: PreparedAsk | null | (() => Promise<PreparedAsk | null>) 
     prepare: { core: (body) => ({ ...(body as object), method: String((body as { method: string }).method).toUpperCase() }) },
     deviceName: (p) => (p.kind === "device" ? `device ${p.deviceId}` : "token"),
     channels: () => channels,
+    link: () => undefined,
+    phone: async () => null,
     now: () => now,
     pollMs,
+    ...extra,
   });
   const ask = async (principal: Principal, requests: unknown[]) =>
     (await asks.handler(context(principal, { requests: requests.map((body) => ({ endpoint: "core", body_b64: Buffer.from(JSON.stringify(body)).toString("base64") })) }))) as Record<string, unknown>;
@@ -40,13 +43,33 @@ function setup(answer: PreparedAsk | null | (() => Promise<PreparedAsk | null>) 
 }
 
 async function status(run: () => Promise<unknown>): Promise<number> {
+  return (await failure(run)).status;
+}
+
+async function failure(run: () => Promise<unknown>): Promise<{ status: number; code?: string }> {
   try {
     await run();
-    return 200;
+    return { status: 200 };
   } catch (error) {
-    return (error as HttpError).status;
+    return { status: (error as HttpError).status, code: (error as HttpError).code };
   }
 }
+
+const link: PhoneLink = { service: "mobile_app_iphone", device_id: "ha-iphone", user_id: "markus" };
+
+// phones: each phone ask waits until the test answers it.
+function phones() {
+  const calls: { link: PhoneLink; text: PhoneText; waitMs: number; stop: AbortSignal; answer: (a: PhoneAnswer | null) => void }[] = [];
+  const phone = (l: PhoneLink, text: PhoneText, waitMs: number, stop: AbortSignal) =>
+    new Promise<PhoneAnswer | null>((answer) => calls.push({ link: l, text, waitMs, stop, answer }));
+  return { calls, phone };
+}
+
+const settled = () => new Promise((r) => setImmediate(r));
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("gate asks", () => {
   it("asks only for typed requests, and only where someone can approve", async () => {
@@ -63,7 +86,7 @@ describe("gate asks", () => {
   it("an approval grants exactly the asked bytes, once each, to the device that asked", async () => {
     const t = setup();
     const opened = await t.ask(laptop, [{ ...unlock, method: "post" }]);
-    expect(opened).toMatchObject({ needed: true, channels: ["phone"] });
+    expect(opened).toMatchObject({ needed: true, channels: ["page"] });
     expect(t.seen[0]!.device).toBe("device laptop");
     const sent = t.seen[0]!.requests[0]!.body; // as the Relay prepares it
     expect(JSON.parse(sent.toString("utf8")).method).toBe("POST");
@@ -151,6 +174,112 @@ describe("gate asks", () => {
     }
   });
 
+  it("the linked phone approves its device's ask, only by its own administrator and only while linked", async () => {
+    const p = phones();
+    let current: PhoneLink | undefined = link;
+    const t = setup(typed, [], 5, { link: (who) => (who.kind === "device" && who.deviceId === "laptop" ? current : undefined), phone: p.phone });
+    const first = await t.ask(laptop, [unlock]);
+    expect(first.channels).toEqual(["phone"]);
+    expect(p.calls[0]).toMatchObject({ link, text: { lang: "en", title: typed.title, body: typed.body, button: typed.button }, waitMs: 180_000 });
+    p.calls[0]!.answer({ answer: "approved", user_id: "guest" });
+    await settled();
+    expect(await t.op(laptop, first.ask_id, "wait")).toMatchObject({ state: "waiting" });
+    const second = await t.ask(laptop, [unlock]);
+    expect(p.calls[0]!.stop.aborted).toBe(true); // the replaced ask hangs up its phone
+    current = { ...link, user_id: "new" };
+    p.calls[1]!.answer({ answer: "approved", user_id: "markus" });
+    await settled();
+    expect(await t.op(laptop, second.ask_id, "wait")).toMatchObject({ state: "waiting" }); // the link changed meanwhile
+    current = link;
+    const third = await t.ask(laptop, [unlock]);
+    p.calls[2]!.answer({ answer: "approved", user_id: "markus" });
+    await settled();
+    expect(await t.op(laptop, third.ask_id, "wait")).toMatchObject({ state: "approved" });
+    expect(p.calls[2]!.stop.aborted).toBe(true);
+    expect(await status(() => t.ask(phone, [unlock]))).toBe(409); // another device has no link of its own here
+  });
+
+  it("a decline or another person's tap ends the ask; a phone that can't be asked ends it only without another channel", async () => {
+    for (const [answer, others, state] of [
+      [{ answer: "declined" }, [], "cancelled"],
+      [{ answer: "rejected" }, [], "cancelled"],
+      [{ answer: "none" }, [], "waiting"],
+      [{ answer: "unavailable" }, [], "unavailable"],
+      [null, [], "unavailable"],
+      [{ answer: "unavailable" }, ["page"], "waiting"],
+      [null, ["page"], "waiting"],
+    ] as const) {
+      const p = phones();
+      const t = setup(typed, [...others], 5, { link: () => link, phone: p.phone });
+      const opened = await t.ask(laptop, [unlock]);
+      p.calls[0]!.answer(answer);
+      await settled();
+      expect(await t.op(laptop, opened.ask_id, "wait")).toMatchObject({ state });
+    }
+  });
+
+  it("a device opens at most 10 asks an hour", async () => {
+    const t = setup();
+    for (let i = 0; i < 10; i++) {
+      await t.ask(laptop, [unlock]);
+    }
+    expect(await failure(() => t.ask(laptop, [unlock]))).toEqual({ status: 429, code: "GATE_ASK_LIMIT" });
+    expect(t.seen).toHaveLength(10); // refused before the worker rates it
+    expect(await t.ask(phone, [unlock])).toMatchObject({ needed: true });
+    t.tick(3_600_000);
+    expect(await t.ask(laptop, [unlock])).toMatchObject({ needed: true });
+  });
+
+  it("three unanswered or cancelled asks in a row pause the phone for 15 minutes; other channels still ask", async () => {
+    const p = phones();
+    let others: string[] = [];
+    const t = setup(typed, [], 5, { link: () => link, phone: p.phone, channels: () => others });
+    const a = await t.ask(laptop, [unlock]);
+    await t.op(laptop, a.ask_id, "cancel");
+    const b = await t.ask(laptop, [unlock]);
+    t.tick(180_000);
+    expect(await t.op(laptop, b.ask_id, "wait")).toEqual({ state: "expired" });
+    await t.ask(laptop, [unlock]);
+    expect(await failure(() => t.ask(laptop, [unlock]))).toEqual({ status: 429, code: "GATE_PAUSED" }); // it replaced the third
+    expect(p.calls).toHaveLength(3);
+    others = ["page"];
+    expect(await t.ask(laptop, [unlock])).toMatchObject({ channels: ["page"] });
+    expect(p.calls).toHaveLength(3);
+    t.tick(900_000);
+    const c = await t.ask(laptop, [unlock]);
+    expect(c.channels).toEqual(["phone", "page"]);
+    p.calls[3]!.answer({ answer: "approved", user_id: "markus" });
+    await settled();
+    expect(await t.op(laptop, c.ask_id, "wait")).toMatchObject({ state: "approved" }); // and the run starts over
+  });
+
+  it("asks the worker rated count toward the hour, whatever it answered", async () => {
+    const t = setup({ verdict: "pass", items: [{ verdict: "pass" }] });
+    for (let i = 0; i < 10; i++) {
+      expect(await t.ask(laptop, [unlock])).toEqual({ needed: false });
+    }
+    expect(await failure(() => t.ask(laptop, [unlock]))).toEqual({ status: 429, code: "GATE_ASK_LIMIT" });
+  });
+
+  it("a tap that arrives after the ask's three minutes grants nothing", async () => {
+    const p = phones();
+    const t = setup(typed, [], 5, { link: () => link, phone: p.phone });
+    const opened = await t.ask(laptop, [unlock]);
+    t.tick(180_000);
+    p.calls[0]!.answer({ answer: "approved", user_id: "markus" });
+    await settled();
+    expect(await t.op(laptop, opened.ask_id, "wait")).toEqual({ state: "expired" });
+  });
+
+  it("an ask expires on its own and hangs up its phone, polled or not", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const p = phones();
+    const t = setup(typed, [], 5, { link: () => link, phone: p.phone });
+    await t.ask(laptop, [unlock]);
+    vi.advanceTimersByTime(180_000);
+    expect(p.calls[0]!.stop.aborted).toBe(true);
+  });
+
   it("an ask belongs to its device; the App's own credentials can't ask", async () => {
     const t = setup();
     const opened = await t.ask(laptop, [unlock]);
@@ -168,7 +297,7 @@ describe("gate asks", () => {
       redact: async (_e, _req, response) => response,
       ask: async () => typed,
     };
-    const { gate, asks, ask } = gateWithAsks(worker, { prepare: {}, deviceName: () => "Mac", channels: () => ["phone"], now: () => 1 });
+    const { gate, asks, ask } = gateWithAsks(worker, { prepare: {}, deviceName: () => "Mac", channels: () => ["page"], link: () => undefined, now: () => 1 });
     const handler = gated("core", () => {
       forwarded += 1;
       return { status: 200, body: {} };

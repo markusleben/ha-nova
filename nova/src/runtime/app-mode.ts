@@ -10,7 +10,7 @@ import { createHealthHandler } from "../http/handlers/health.js";
 import { createSupervisorProxyHandler } from "../http/handlers/supervisor-proxy.js";
 import { createWsProxyHandler } from "../http/handlers/ws-proxy.js";
 import { gated, type GateClient } from "../http/gate.js";
-import { gateWithAsks } from "../http/gate-asks.js";
+import { gateWithAsks, type PhoneLink } from "../http/gate-asks.js";
 import { applyServerTimeouts, type RelayLogger } from "../http/server.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 import type { HaWsClient } from "../ha/ws-client.js";
@@ -22,6 +22,7 @@ import {
   type DeviceRegistry,
 } from "../security/device-registry.js";
 import { opaqueReady } from "../security/opaque-server.js";
+import type { Principal } from "../security/principal.js";
 import { createFileResponseStore } from "../security/pairing-response-store.js";
 import { createPairingV1Manager } from "../security/pairing-v1.js";
 import { loadOrCreateTlsIdentity } from "../security/tls-identity.js";
@@ -301,6 +302,15 @@ export async function buildAppMode(
   };
 }
 
+// phoneLinkOf: an active device's linked phone from the registry, on the
+// worker's wire; none for a pending device or the shared token.
+export function phoneLinkOf(registry: Pick<DeviceRegistry, "list">): (principal: Principal) => PhoneLink | undefined {
+  return (p) => {
+    const phone = p.kind === "device" ? registry.list().find((d) => d.deviceId === p.deviceId && d.state === "active")?.confirmPhone : undefined;
+    return phone && { service: phone.service, device_id: phone.deviceId, user_id: phone.userId, ...(phone.platform !== undefined ? { platform: phone.platform } : {}) };
+  };
+}
+
 function buildFunctionalHandlers(
   input: AppModeInput,
   relayInstanceId: string,
@@ -312,8 +322,10 @@ function buildFunctionalHandlers(
   const { gate, ask } = gateWithAsks(worker, {
     prepare: { core: parseCoreRequest },
     deviceName: (p) => (p.kind === "device" ? registry.list().find((d) => d.deviceId === p.deviceId)?.name : undefined) ?? "the shared Relay token",
-    channels: () => [], // the linked phone and the approval page come with their layers
+    channels: () => [], // the approval page comes with layer 5
+    link: phoneLinkOf(registry),
     now: input.now,
+    logger: input.logger,
   });
   return {
     ask,

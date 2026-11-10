@@ -314,8 +314,10 @@ var gatePhoneSetup = func(s *relaySession, link phoneLink) (phoneSetup, phoneSta
 }
 
 // gatePhone asks the linked phone and waits for its answer, at most the
-// request's wait or until the Relay hangs up (ctx). The notification is
-// withdrawn whatever the answer: the Relay says how it ended.
+// request's wait or until the Relay hangs up (ctx). The result replaces
+// the question; when the Relay hung up (the ask ended on the NOVA page, on
+// the computer, or a newer ask replaced it), a quiet note and a clear
+// withdraw it.
 func gatePhone(ctx context.Context, paths runtimePaths, in gatePhoneRequest) (gatePhoneAnswer, error) {
 	s, err := newRelaySessionWithin(paths, verbOptions{}, gateCheckBudget)
 	if err != nil {
@@ -328,15 +330,31 @@ func gatePhone(ctx context.Context, paths runtimePaths, in gatePhoneRequest) (ga
 	}
 	ask := phoneAsk{lang: in.Lang, title: phoneCut(in.Title, phoneTitleLimit), body: in.Body, button: in.Button, urgent: true}
 	answer, reply := askPhone(ctx, s, setup, gatePhoneTag, ask, time.Duration(in.WaitMS)*time.Millisecond, nil)
-	defer reply.withdraw(ask.title, ask.body)
+	lang := ask.lang
+	title := func(prefix string) string {
+		return confirmT(lang, "phone.result_title", "prefix", prefix, "goal", strings.TrimSuffix(ask.title, "?"))
+	}
 	switch answer {
 	case phoneConfirmed:
-		return gatePhoneStill(paths, in.Link, setup), nil
+		still := gatePhoneStill(paths, in.Link, setup)
+		if still.Answer != "approved" {
+			reply.say(title(confirmT(lang, "outcome.not_done")), confirmT(lang, "outcome.line.nothing_changed"))
+			return still, nil
+		}
+		reply.say(title(confirmT(lang, "outcome.approved")), confirmT(lang, "outcome.line.confirmed_computer"))
+		return still, nil
 	case phoneDeclined:
+		reply.say(title(confirmT(lang, "outcome.cancelled")), confirmT(lang, "outcome.line.nothing_changed"))
 		return gatePhoneAnswer{Answer: "declined"}, nil
 	case phoneRejected:
+		reply.say(title(confirmT(lang, "outcome.cancelled")), confirmT(lang, "outcome.line.other_user"))
 		return gatePhoneAnswer{Answer: "rejected"}, nil
 	case phoneNoAnswer:
+		if ctx.Err() != nil {
+			reply.withdraw(title(confirmT(lang, "outcome.ended")), confirmT(lang, "outcome.line.ended_elsewhere"))
+			return gatePhoneAnswer{Answer: "none"}, nil
+		}
+		reply.say(title(confirmT(lang, "outcome.not_confirmed")), confirmT(lang, "outcome.line.no_answer"))
 		return gatePhoneAnswer{Answer: "none"}, nil
 	}
 	return gatePhoneAnswer{Answer: "unavailable", Why: "send"}, nil

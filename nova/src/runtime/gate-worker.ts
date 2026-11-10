@@ -5,7 +5,7 @@ import { request } from "node:http";
 import { join } from "node:path";
 
 import type { GateCheck, GateClient } from "../http/gate.js";
-import type { AskItem, PreparedAsk } from "../http/gate-asks.js";
+import type { AskItem, PhoneAnswer, PreparedAsk } from "../http/gate-asks.js";
 import type { RelayLogger } from "../http/server.js";
 import { generateCredential } from "../security/device-credential.js";
 import type { DeviceRegistry } from "../security/device-registry.js";
@@ -120,9 +120,10 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
     respawn.unref?.();
   };
 
-  const post = (path: string, payload: unknown, timeoutMs = deps.timeoutMs ?? TIMEOUT_MS): Promise<Record<string, unknown> | null> => {
+  // stop hangs up: no answer, and the worker reads it as the Relay gone.
+  const post = (path: string, payload: unknown, timeoutMs = deps.timeoutMs ?? TIMEOUT_MS, stop?: AbortSignal): Promise<Record<string, unknown> | null> => {
     const asked = child;
-    if (asked === null) {
+    if (asked === null || stop?.aborted === true) {
       return Promise.resolve(null);
     }
     const body = JSON.stringify(payload);
@@ -167,6 +168,7 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
         },
       );
       const deadline = setTimeout(() => settle(null, "Safety-check worker did not answer", { error: "timeout" }), timeoutMs);
+      stop?.addEventListener("abort", () => (req.destroy(), settle(null)), { once: true });
       req.on("error", (error) => settle(null, "Safety-check worker did not answer", { error: error.message }));
       req.end(body);
     });
@@ -203,6 +205,11 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
       );
       return preparedAsk(answer, requests.length);
     },
+    // The worker asks the linked phone and waits up to waitMs for a tap.
+    async phone(link, text, waitMs, stop) {
+      const answer = await post("/phone", { ...text, link, wait_ms: waitMs }, waitMs + (deps.timeoutMs ?? TIMEOUT_MS), stop);
+      return phoneAnswer(answer);
+    },
     async redact(endpoint, request, response) {
       const answer = await post("/redact", { endpoint, request_b64: request.toString("base64"), response_b64: response.toString("base64") });
       const encoded = answer?.response_b64;
@@ -230,6 +237,16 @@ function askItem(item: unknown, worded: boolean): AskItem | null {
     return null;
   }
   return item as AskItem;
+}
+
+// phoneAnswer: the worker's /phone answer, or null for any other shape.
+function phoneAnswer(answer: Record<string, unknown> | null): PhoneAnswer | null {
+  const value = answer?.answer;
+  if (value === "approved") {
+    const user = answer?.user_id;
+    return typeof user === "string" && user !== "" ? { answer: value, user_id: user } : null;
+  }
+  return value === "declined" || value === "rejected" || value === "none" || value === "unavailable" ? { answer: value } : null;
 }
 
 // preparedAsk: the worker's /ask answer, or null for any other shape: each
