@@ -93,6 +93,7 @@ release:
 
     ## Bug Fixes
 
+    - **Confirmation windows are short and readable.** Same-kind steps share one line, names and months replace ids and timestamps, and the instruction always shows. Too long for the window: refused, never cut.
     - **Changes that would drop aliases or labels, a person's trackers, or voice-assistant settings now save a copy first.**
     - **HA NOVA overwrites or deletes a file in your config folder only once a copy of it is saved.** It stops if the file changed since the preview.
     - **Helper and dashboard-name changes are now checked before they are saved, and a helper change can be undone.**
