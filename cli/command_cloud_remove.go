@@ -385,7 +385,7 @@ func runCloudRemove(paths runtimePaths, options cloudCommandFlags) int {
 	if updated.RelaySecureBaseURL != "" && updated.RelaySpkiPin != "" {
 		printHumanInfo("%s Local access remains ready.", removed)
 	} else if legacySharedAccess(updated) && legacyTokenReadable() {
-		printHumanInfo("%s This computer still uses the old shared access, which the updated NOVA App no longer accepts: run ha-nova setup to pair it, then add Link again if you use it.", removed)
+		printHumanInfo("%s %s Add Link again afterwards if you use it.", removed, sharedAccessEndedFor(updated, activeServerProfile()))
 	} else {
 		printHumanInfo("%s This profile now needs a local pairing before it can be used.", removed)
 	}

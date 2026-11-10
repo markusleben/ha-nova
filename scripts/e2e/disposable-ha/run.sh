@@ -348,7 +348,7 @@ done
 
 # The first start retired the shared token's record and kept the device.
 registry="$( cd "$HERE" && docker compose exec -T relay-appmode cat /data/device-registry.json 2>/dev/null || true )"
-if python3 -c 'import json,sys; d=json.loads(sys.argv[1]); dev=sys.argv[2].split(".")[1]; sys.exit(0 if d["legacy"] is None and d["legacyImportCompleted"] is True and d["version"]==1 and [x["deviceId"] for x in d["devices"]]==[dev] else 1)' "$registry" "$E2E_DEVICE_CREDENTIAL" 2>/dev/null; then
+if python3 -c 'import json,sys; d=json.loads(sys.argv[1]); dev=sys.argv[2].split(".")[1]; sys.exit(0 if d["legacy"] is None and d["legacyImportCompleted"] is True and d["version"]==1 and any(x["deviceId"]==dev and x["state"]=="active" for x in d["devices"]) else 1)' "$registry" "$E2E_DEVICE_CREDENTIAL" 2>/dev/null; then
   pass "the registry dropped the shared token's record, kept the device, and stays schema 1"
 else
   fail "the registry should be retired (legacy null, legacyImportCompleted true) with the device kept: ${registry:0:300}"

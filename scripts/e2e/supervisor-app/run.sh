@@ -167,10 +167,10 @@ expect_running() { # <version> <image-repo> <label>
 # seeded; every other step holds either way.
 OLD_TAKES_TOKEN=0
 grep -q '^  relay_auth_token:' "$WORK/old/config.yaml" && OLD_TAKES_TOKEN=1
-seed_token() { # the shared token as an App option, as an App before 0.30 took it
-  [[ "$OLD_TAKES_TOKEN" == 1 ]] || return 0
-  in_c docker exec hassio_cli sh -c 'curl -sf -X POST -H "Authorization: Bearer $SUPERVISOR_TOKEN" -H content-type:application/json -d "{\"options\":{\"relay_auth_token\":\"'"$TOKEN"'\",\"ha_llat\":\"\",\"file_access\":\"off\"}}" http://supervisor/addons/'"$SLUG"'/options' >/dev/null
-  ha apps restart "$SLUG" >/dev/null
+seed_token() { # the shared token as an App option (an App before 0.30), then (re)start
+  [[ "$OLD_TAKES_TOKEN" == 1 ]] &&
+    in_c docker exec hassio_cli sh -c 'curl -sf -X POST -H "Authorization: Bearer $SUPERVISOR_TOKEN" -H content-type:application/json -d "{\"options\":{\"relay_auth_token\":\"'"$TOKEN"'\",\"ha_llat\":\"\",\"file_access\":\"off\"}}" http://supervisor/addons/'"$SLUG"'/options' >/dev/null
+  ha apps restart "$SLUG" >/dev/null 2>&1 || ha apps start "$SLUG" >/dev/null
   for i in $(seq 1 40); do
     [[ "$(in_c curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8791/health || true)" == 401 ]] && return
     sleep 2
@@ -211,7 +211,7 @@ shared_refused() { # <label> [marked]: 401 on both ports; marked: with the re-pa
 }
 registry_retired() { # <label>
   in_c sh -c 'cat "$1/device-registry.json"' sh "$(data_dir)" |
-    jq -e --arg id "$DEVICE_ID" '.version == 1 and .legacy == null and .legacyImportCompleted == true and [.devices[].deviceId] == [$id]' >/dev/null \
+    jq -e --arg id "$DEVICE_ID" '.version == 1 and .legacy == null and .legacyImportCompleted == true and any(.devices[]; .deviceId == $id and .state == "active")' >/dev/null \
     && ok "$1: registry retired the shared token's record, kept the device, schema 1" \
     || bad "$1: registry not retired or the device lost"
 }

@@ -85,6 +85,7 @@
   "setup.incomplete.skills_fix": "Run setup again to finish.",
   "setup.incomplete.link": "HA NOVA works at home, but Home Assistant Link isn't ready yet.",
   "setup.incomplete.link_fix": "Run setup again to finish Home Assistant Link.",
+  "setup.incomplete.shared_access": "Nothing changed in Home Assistant. Pair this computer again as shown above.",
   "setup.incomplete.generic": "HA NOVA saved your setup, but it isn't ready yet.",
   "setup.incomplete.rerun": "Then run \"ha-nova setup\" again — it continues where you left off.",
 

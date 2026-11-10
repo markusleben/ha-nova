@@ -205,8 +205,9 @@ they can still approve risky changes there (see [The safety check](#the-safety-c
 Each computer gets its own key. It is saved in this computer's password store.
 With no password store (for example a server), or with `--service` or
 `ha-nova pair --credential-store=file`, it goes in a private file instead.
-Saved old tokens, `--relay-token`, service token files, and standalone
-Container/Core setups still work the old way.
+Standalone Container/Core setups keep their own token (`--relay-token`). This
+App no longer accepts a saved old token or a service token file: pair again
+with `ha-nova setup`.
 
 ### Away from home with Home Assistant Link
 
