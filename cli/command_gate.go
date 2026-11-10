@@ -24,7 +24,8 @@ import (
 // `ha-nova gate`: the NOVA App's safety-check worker
 // (docs/work/2026-11-03-relay-typed-gate-spec.md §2 and Contract). The
 // Relay asks it, on loopback with a bearer secret, how to treat each request
-// a device sends (/check) and to hide secrets in each answer (/redact). It
+// a device sends (/check), to hide secrets in each answer (/redact), and for
+// the approval page's words (/texts). It
 // decides nothing of its own: gateVerdict and redactRawResponse are the
 // CLI's. It reaches Home Assistant only through the Relay, as its own
 // internal principal (--relay-file).
@@ -165,12 +166,16 @@ func gateHandler(paths runtimePaths, secret [32]byte) http.Handler {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if r.Method != http.MethodPost || !slices.Contains([]string{"/check", "/redact", "/ask", "/phone"}, r.URL.Path) {
+		if r.Method != http.MethodPost || !slices.Contains([]string{"/check", "/redact", "/ask", "/phone", "/texts"}, r.URL.Path) {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
 		if r.URL.Path == "/ask" || r.URL.Path == "/phone" {
 			gateAskHandler(paths, w, r)
+			return
+		}
+		if r.URL.Path == "/texts" {
+			gateTextsHandler(paths, w, r)
 			return
 		}
 		var in struct {
