@@ -311,6 +311,12 @@ export function phoneLinkOf(registry: Pick<DeviceRegistry, "list">): (principal:
   };
 }
 
+// setPhoneLinkOf: the link route's registry write, from the worker's wire.
+export function setPhoneLinkOf(registry: Pick<DeviceRegistry, "setConfirmPhone">): (principal: Principal, link: PhoneLink, current: PhoneLink | undefined) => boolean {
+  const record = (l: PhoneLink) => ({ service: l.service, deviceId: l.device_id, userId: l.user_id, ...(l.platform !== undefined ? { platform: l.platform } : {}) });
+  return (p, link, current) => p.kind === "device" && registry.setConfirmPhone(p.deviceId, record(link), current && record(current));
+}
+
 function buildFunctionalHandlers(
   input: AppModeInput,
   relayInstanceId: string,
@@ -324,6 +330,7 @@ function buildFunctionalHandlers(
     deviceName: (p) => (p.kind === "device" ? registry.list().find((d) => d.deviceId === p.deviceId)?.name : undefined) ?? "the shared Relay token",
     channels: () => [], // the approval page comes with layer 5
     link: phoneLinkOf(registry),
+    setLink: setPhoneLinkOf(registry),
     now: input.now,
     logger: input.logger,
   });
@@ -374,6 +381,7 @@ function openInertRegistry(): DeviceRegistry {
     activatePendingForCloud: () => ({ ok: false, reason: "unknown" }),
     revokeCloudDevice: () => ({ ok: false, reason: "unknown" }),
     revoke: () => false,
+    setConfirmPhone: () => false,
     importLegacy: nope,
     markLegacyMigrated: nope,
     revokeLegacy: nope,
@@ -439,6 +447,7 @@ function swappableRegistry(get: () => DeviceRegistry): DeviceRegistry {
         now,
       ),
     revoke: (deviceId) => get().revoke(deviceId),
+    setConfirmPhone: (deviceId, link, expected) => get().setConfirmPhone(deviceId, link, expected),
     importLegacy: (secretDigest, now) => get().importLegacy(secretDigest, now),
     markLegacyMigrated: () => get().markLegacyMigrated(),
     revokeLegacy: () => get().revokeLegacy(),

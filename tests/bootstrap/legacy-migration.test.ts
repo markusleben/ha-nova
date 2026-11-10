@@ -43,6 +43,7 @@ function fakeRegistry(state: { imported?: boolean; hasLegacy?: boolean }) {
     activatePendingForCloud: () => ({ ok: false, reason: "unknown" }),
     revokeCloudDevice: () => ({ ok: false, reason: "unknown" }),
     revoke: () => false,
+    setConfirmPhone: () => false,
     importLegacy,
     markLegacyMigrated: () => {},
     revokeLegacy: () => {},

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The phone lookup's reads are reads at the gate, so the Relay forwards them
@@ -209,5 +211,67 @@ func TestGateWorkerPhone(t *testing.T) {
 	}
 	if status, _ := phone(map[string]any{"service": "persistent_notification", "device_id": "dev-anna", "user_id": "anna-id"}, 3000); status != http.StatusBadRequest {
 		t.Errorf("a notify service that is no phone: HTTP %d, want 400", status)
+	}
+}
+
+// The gate's phone question never stays answerable: the result replaces it
+// (same tag, no buttons), or, when the Relay hung up, a quiet note does and a
+// clear follows.
+func TestGatePhoneSaysHowItEnded(t *testing.T) {
+	h, p, home := familyLink(t)
+	link := phoneLink{Service: "mobile_app_annas_pixel", DeviceID: "dev-anna", UserID: "anna-id"}
+	demote := func(group string) {
+		for _, u := range home.users {
+			if u["id"] == "anna-id" {
+				u["group_ids"] = []string{group}
+			}
+		}
+	}
+	for _, tc := range []struct {
+		name, answer, title, message string
+		tap                          func(string, string, string) []phoneEvent
+		demoted, hangUp              bool
+	}{
+		{"approved", "approved", "Approved: Unlock “Front”", "Nothing more to do; the computer shows the result.", tapFrom(link.Service, "anna-id", true), false, false},
+		{"approved, then demoted", "unavailable", "Not done: Unlock “Front”", "Nothing changed.", tapFrom(link.Service, "anna-id", true), true, false},
+		{"declined", "declined", "Cancelled: Unlock “Front”", "Nothing changed.", tapFrom(link.Service, "anna-id", false), false, false},
+		{"another user's tap", "rejected", "Cancelled: Unlock “Front”", "The tap came from another Home Assistant user. Nothing changed.", tapFrom(link.Service, "kid-id", true), false, false},
+		{"the wait elapsed", "none", "Not confirmed: Unlock “Front”", "No answer reached Home Assistant. Nothing changed.", nil, false, false},
+		{"the Relay hung up", "none", "Ended: Unlock “Front”", "Answered or stopped somewhere else; the computer shows the result.", nil, false, true},
+	} {
+		ctx, hangUp := context.WithCancel(context.Background())
+		p.sent, p.cleared, p.tapBy = nil, nil, func(service, ok, no string) []phoneEvent {
+			if tc.demoted {
+				demote("system-users")
+			}
+			if tc.hangUp { // once the question went out
+				time.AfterFunc(200*time.Millisecond, hangUp)
+			}
+			if tc.tap == nil {
+				return nil
+			}
+			return tc.tap(service, ok, no)
+		}
+		out, err := gatePhone(ctx, h.paths, gatePhoneRequest{Lang: "en", Title: "Unlock “Front”?", Body: "Requested by “Mac” through HA NOVA.", Button: "Unlock", Link: link, WaitMS: 3000})
+		hangUp()
+		demote("system-admin")
+		if err != nil || out.Answer != tc.answer {
+			t.Errorf("%s: %+v %v, want %s", tc.name, out, err, tc.answer)
+		}
+		if len(p.sent) != 2 {
+			t.Errorf("%s: sent %v, want the question and how it ended", tc.name, p.sent)
+			continue
+		}
+		asked, ended := p.sent[0]["data"].(map[string]any), p.sent[1]["data"].(map[string]any)
+		if p.sent[1]["title"] != tc.title || p.sent[1]["message"] != tc.message || ended["tag"] != asked["tag"] || ended["actions"] != nil {
+			t.Errorf("%s: ended with %v after %v", tc.name, p.sent[1], p.sent[0])
+		}
+		level, cleared := ended["push"].(map[string]any)["interruption-level"], slices.Contains(p.cleared, link.Service+" "+fmt.Sprint(asked["tag"])) // a question first clears the last result
+		if tc.hangUp && (level != "passive" || ended["alert_once"] != true || !cleared) {
+			t.Errorf("%s: a quiet note, then a clear: %v, cleared %v", tc.name, ended, p.cleared)
+		}
+		if !tc.hangUp && (level != "active" || cleared) {
+			t.Errorf("%s: the result stays: %v, cleared %v", tc.name, ended, p.cleared)
+		}
 	}
 }

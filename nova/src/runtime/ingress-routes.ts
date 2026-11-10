@@ -243,6 +243,14 @@ function registerFunctionalRoutes(
     functional("json"),
     handlers.ask,
   );
+  registerIngressRoute(
+    router,
+    policies,
+    "POST",
+    "/gate/v1/phone",
+    functional("json"),
+    handlers.ask,
+  );
 }
 
 function registerOwnerRoutes(

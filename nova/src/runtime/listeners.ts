@@ -27,7 +27,7 @@ export interface FunctionalHandlers {
   // Device and legacy listeners only: not a Home Assistant Link functional
   // route (docs/work/2026-10-26-supervisor-role-spec.md → Decisions).
   supervisor: RouteHandler;
-  ask: RouteHandler; // POST /gate/v1/ask (gate-asks.ts)
+  ask: RouteHandler; // POST /gate/v1/ask and /gate/v1/phone (gate-asks.ts)
 }
 
 export interface PairingListenerDeps {
@@ -61,6 +61,7 @@ function registerFunctional(router: Router, fns: FunctionalHandlers): void {
   router.register("POST", "/backups", fns.backups);
   router.register("POST", "/supervisor", fns.supervisor);
   router.register("POST", "/gate/v1/ask", fns.ask);
+  router.register("POST", "/gate/v1/phone", fns.ask);
 }
 
 // The auth hook for functional routes on a given transport: resolve a device or

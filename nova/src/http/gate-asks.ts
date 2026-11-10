@@ -1,10 +1,13 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import type { Principal } from "../security/principal.js";
+import type { AskState, GateRequest, LinkWords, PhoneAnswer, PhoneLink, PhoneText, PreparedAsk } from "./gate-ask-types.js";
 import { HttpError } from "./errors.js";
 import type { RelayLogger } from "./server.js";
 import type { GateClient, GateEndpoint } from "./gate.js";
 import type { RouteContext, RouteHandler } from "./router.js";
+
+export type { AskItem, AskState, GateRequest, LinkWords, PhoneAnswer, PhoneLink, PhoneText, PreparedAsk } from "./gate-ask-types.js";
 
 // Asks and grants (docs/work/2026-11-03-relay-typed-gate-spec.md §3, §4). A
 // device asks for exactly the request bytes it will send; the worker rates
@@ -21,61 +24,14 @@ const ASKS_PER_HOUR = 10;
 const HOUR_MS = 3_600_000;
 const PAUSE_AFTER = 3; // asks in a row that end cancelled or unanswered
 const PAUSE_MS = 900_000;
+const PHONE_PATH = "/gate/v1/phone";
+const PAUSED = "Phone asks from this device are paused for 15 minutes after three in a row went unanswered or were cancelled; nothing was sent";
 const ENDPOINTS: readonly GateEndpoint[] = ["ws", "core", "files", "backups", "supervisor"];
-
-export interface GateRequest {
-  endpoint: GateEndpoint;
-  body: Buffer;
-}
-
-// The worker's /ask answer (cli/gate_ask.go): title, body, and button are the
-// phone's; items are the page's, one per request, worded only when typed.
-export interface AskItem {
-  verdict: "pass" | "typed" | "refuse";
-  why?: string;
-  text?: string;
-  detail?: string;
-  entity_ids?: string[];
-}
-
-export interface PreparedAsk {
-  verdict: "pass" | "typed" | "refuse";
-  lang?: string;
-  title?: string;
-  body?: string;
-  button?: string;
-  items: AskItem[];
-}
-
-// A device's linked phone (§3), on the worker's wire (cli/gate_ask.go).
-export interface PhoneLink {
-  service: string;
-  device_id: string;
-  user_id: string;
-  platform?: string;
-}
-
-export interface PhoneText {
-  lang: string;
-  title: string;
-  body: string;
-  button: string;
-}
-
-// The worker's /phone answer: approved names the administrator who tapped.
-export type PhoneAnswer = { answer: "approved"; user_id: string } | { answer: "declined" | "rejected" | "none" | "unavailable" };
-
-export type AskState =
-  | { state: "waiting"; expires_at: number }
-  | { state: "approved"; grant_id: string; until: number }
-  | { state: "cancelled" }
-  | { state: "expired" }
-  | { state: "unavailable" }; // its only channel, the phone, can't be asked
 
 interface Ask {
   owner: string;
   digests: string[];
-  prepared: PreparedAsk;
+  prepared?: PreparedAsk; // none: a link ask
   expiresAt: number;
   state: AskState;
   waiters: Set<() => void>;
@@ -101,9 +57,11 @@ export interface GateAsksDeps {
   deviceName: (principal: Principal) => string;
   channels: (principal: Principal) => string[]; // where a person can approve now, besides the phone
   link: (principal: Principal) => PhoneLink | undefined; // its linked phone, read fresh
-  phone: (link: PhoneLink, text: PhoneText, waitMs: number, stop: AbortSignal) => Promise<PhoneAnswer | null>;
+  phone: (link: PhoneLink, text: PhoneText | LinkWords, waitMs: number, stop: AbortSignal) => Promise<PhoneAnswer | null>;
+  // Sets the device's link while it is active and still has current; none: no link route.
+  setLink?: (principal: Principal, link: PhoneLink, current: PhoneLink | undefined) => boolean;
   now: () => number;
-  logger?: Pick<RelayLogger, "info">;
+  logger?: Pick<RelayLogger, "info" | "warn">;
   pollMs?: number; // tests
 }
 
@@ -152,7 +110,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     clearTimeout(ask.timer);
     ask.stop.abort();
     const owner = ownerState(ask.owner);
-    if (state.state === "approved") {
+    if (state.state === "approved" || state.state === "linked") {
       owner.misses = 0;
     } else if (state.state !== "unavailable" && ++owner.misses >= PAUSE_AFTER) {
       owner.misses = 0;
@@ -200,6 +158,39 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     return ask;
   };
 
+  const limit = (owner: string): void => {
+    prune();
+    if ((owners.get(owner)?.opened.length ?? 0) >= ASKS_PER_HOUR) {
+      throw new HttpError(429, "GATE_ASK_LIMIT", `This device asked ${ASKS_PER_HOUR} times in the last hour; try again later. Nothing was asked or sent`);
+    }
+  };
+  const paused = (owner: string): boolean => deps.now() < (owners.get(owner)?.pausedUntil ?? 0);
+  const replaceOpen = (owner: string): void => {
+    prune();
+    for (const ask of asks.values()) {
+      if (ask.owner === owner && ask.state.state === "waiting") {
+        settle(ask, { state: "cancelled" }); // one open ask per device: a new one replaces it (and may pause the phone)
+      }
+    }
+  };
+  const start = (owner: string, digests: string[], prepared?: PreparedAsk): { askId: string; ask: Ask } => {
+    const askId = randomBytes(32).toString("base64url");
+    const expiresAt = deps.now() + ASK_MS;
+    const ask: Ask = {
+      owner,
+      digests,
+      ...(prepared !== undefined ? { prepared } : {}),
+      expiresAt,
+      state: { state: "waiting", expires_at: expiresAt },
+      waiters: new Set(),
+      stop: new AbortController(),
+      timer: setTimeout(() => settle(ask, { state: "expired" }), ASK_MS),
+    };
+    ask.timer.unref?.();
+    asks.set(key(askId), ask);
+    return { askId, ask };
+  };
+
   const open = async (principal: Principal, raw: unknown): Promise<unknown> => {
     if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_ITEMS) {
       throw new HttpError(400, "VALIDATION_ERROR", `An ask holds 1 to ${MAX_ITEMS} requests`);
@@ -220,10 +211,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
       return { endpoint: endpoint as GateEndpoint, body: Buffer.from(JSON.stringify(prepare(body) ?? null)) };
     });
     const owner = ownerOf(principal);
-    prune();
-    if ((owners.get(owner)?.opened.length ?? 0) >= ASKS_PER_HOUR) {
-      throw new HttpError(429, "GATE_ASK_LIMIT", `This device asked ${ASKS_PER_HOUR} times in the last hour; try again later. Nothing was asked or sent`);
-    }
+    limit(owner);
     if (preparing.has(owner)) {
       throw new HttpError(429, "GATE_ASK_BUSY", "An ask from this device is still being prepared; nothing was asked or sent");
     }
@@ -239,36 +227,18 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     if (prepared.verdict === "pass") {
       return { needed: false };
     }
-    prune();
-    for (const ask of asks.values()) {
-      if (ask.owner === owner && ask.state.state === "waiting") {
-        settle(ask, { state: "cancelled" }); // one open ask per device: a new one replaces it (and may pause the phone)
-      }
-    }
+    replaceOpen(owner);
     const link = deps.link(principal);
-    const paused = deps.now() < (owners.get(owner)?.pausedUntil ?? 0);
     const others = deps.channels(principal);
-    const channels = [...(link !== undefined && !paused ? ["phone"] : []), ...others];
+    const channels = [...(link !== undefined && !paused(owner) ? ["phone"] : []), ...others];
     if (channels.length === 0 && link !== undefined) {
-      throw new HttpError(429, "GATE_PAUSED", "Phone asks from this device are paused for 15 minutes after three in a row went unanswered or were cancelled; nothing was sent");
+      throw new HttpError(429, "GATE_PAUSED", PAUSED);
     }
     if (channels.length === 0) {
       throw new HttpError(409, "GATE_NO_CHANNEL", "No one can confirm this now: no linked phone answers and the approval page is not available; nothing was sent");
     }
-    const askId = randomBytes(32).toString("base64url");
-    const expiresAt = deps.now() + ASK_MS;
-    const ask: Ask = {
-      owner,
-      digests: requests.filter((_, i) => prepared.items[i]?.verdict === "typed").map((r) => gateDigest(r.endpoint, r.body)),
-      prepared,
-      expiresAt,
-      state: { state: "waiting", expires_at: expiresAt },
-      waiters: new Set(),
-      stop: new AbortController(),
-      timer: setTimeout(() => settle(ask, { state: "expired" }), ASK_MS),
-    };
-    ask.timer.unref?.();
-    asks.set(key(askId), ask);
+    const digests = requests.filter((_, i) => prepared.items[i]?.verdict === "typed").map((r) => gateDigest(r.endpoint, r.body));
+    const { askId, ask } = start(owner, digests, prepared);
     if (link !== undefined && channels.includes("phone")) {
       const text = { lang: prepared.lang ?? "", title: prepared.title ?? "", body: prepared.body ?? "", button: prepared.button ?? "" };
       void deps.phone(link, text, ASK_MS, ask.stop.signal).then((answer) => {
@@ -286,7 +256,58 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
         }
       });
     }
-    return { needed: true, ask_id: askId, expires_at: expiresAt, channels };
+    return { needed: true, ask_id: askId, expires_at: ask.expiresAt, channels };
+  };
+
+  // A link ask (§3): the new phone's tap, after the tap of the phone linked
+  // now, sets the device's link; a link changed meanwhile sets nothing.
+  const openLink = (principal: Principal, raw: unknown): unknown => {
+    if (deps.setLink === undefined || principal.kind !== "device") {
+      throw new HttpError(404, "NOT_FOUND", "Not found");
+    }
+    const { service, device_id, user_id, platform } = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
+    const id = (v: unknown): v is string => typeof v === "string" && v !== "" && v.length <= 128; // as the registry keeps it
+    if (!id(service) || !/^mobile_app_[a-z0-9_]+$/.test(service) || !id(device_id) || !id(user_id) || (platform !== undefined && platform !== "ios" && platform !== "android")) {
+      throw new HttpError(400, "VALIDATION_ERROR", "Send link with service (mobile_app_…), device_id, user_id, and optionally platform (ios or android)");
+    }
+    const link: PhoneLink = { service, device_id, user_id, ...(platform !== undefined ? { platform } : {}) };
+    const current = deps.link(principal);
+    if (sameLink(current, link)) {
+      return { needed: false };
+    }
+    const owner = ownerOf(principal);
+    limit(owner);
+    if (preparing.has(owner)) {
+      throw new HttpError(429, "GATE_ASK_BUSY", "An ask from this device is still being prepared; nothing was asked or sent");
+    }
+    ownerState(owner).opened.push(deps.now());
+    replaceOpen(owner);
+    if (paused(owner)) {
+      throw new HttpError(429, "GATE_PAUSED", PAUSED);
+    }
+    const { askId, ask } = start(owner, []);
+    const words: LinkWords = { words: "link", device: deps.deviceName(principal), ...(current !== undefined ? { current } : {}) };
+    void deps.phone(link, words, ASK_MS, ask.stop.signal).then((answer) => {
+      prune();
+      if (ask.state.state !== "waiting") {
+        return;
+      }
+      if (answer?.answer === "approved" && answer.user_id === link.user_id) {
+        let linked = false;
+        try {
+          linked = deps.setLink?.(principal, link, current) === true;
+        } catch (error) {
+          deps.logger?.warn?.("A phone link could not be saved; nothing was set", { error: String(error) }); // the disk, not the person: it stays unlinked
+        }
+        settle(ask, { state: linked ? "linked" : "cancelled" });
+        deps.logger?.info?.(linked ? "A device's phone link was set on the phone" : "A phone link changed meanwhile; nothing was set", { user_id: answer.user_id });
+      } else if (answer?.answer === "declined" || answer?.answer === "rejected") {
+        settle(ask, { state: "cancelled" });
+      } else if (answer === null || answer.answer === "unavailable") {
+        settle(ask, { state: "unavailable" });
+      }
+    });
+    return { needed: true, ask_id: askId, expires_at: ask.expiresAt, channels: ["phone"] };
   };
 
   // Long-polls up to POLL_MS (or the ask's end) for a change from waiting.
@@ -315,7 +336,10 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
       if (principal === undefined || (principal.kind === "device" && principal.internal !== undefined)) {
         throw new HttpError(404, "NOT_FOUND", "Not found");
       }
-      const body = (context.body ?? {}) as { requests?: unknown; ask_id?: unknown; op?: unknown };
+      const body = (context.body ?? {}) as { requests?: unknown; ask_id?: unknown; op?: unknown; link?: unknown };
+      if (context.path === PHONE_PATH) {
+        return openLink(principal, body.link);
+      }
       if (body.requests !== undefined) {
         return await open(principal, body.requests);
       }
@@ -334,8 +358,8 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     approve(askId) {
       prune();
       const ask = asks.get(key(askId));
-      if (ask === undefined || ask.state.state !== "waiting") {
-        return false;
+      if (ask?.prepared === undefined || ask.state.state !== "waiting") {
+        return false; // a link ask is set only on the phones (§3)
       }
       grant(ask);
       return true;
@@ -361,7 +385,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
 }
 
 // gateWithAsks: the gate that forwards a typed request only on a grant, and
-// the ask route (POST /gate/v1/ask) that leads to one.
+// the ask route (POST /gate/v1/ask, and POST /gate/v1/phone for a link) that leads to one.
 export function gateWithAsks(gate: GateClient, deps: Omit<GateAsksDeps, "ask" | "phone">): { gate: GateClient; ask: RouteHandler; asks: GateAsks } {
   const asks = createGateAsks({
     ...deps,

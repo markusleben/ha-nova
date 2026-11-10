@@ -268,12 +268,15 @@ func gateIDs(ids []string) string {
 }
 
 type gatePhoneRequest struct {
-	Lang   string    `json:"lang"`
-	Title  string    `json:"title"`
-	Body   string    `json:"body"`
-	Button string    `json:"button"`
-	Link   phoneLink `json:"link"`
-	WaitMS int64     `json:"wait_ms"`
+	Lang    string     `json:"lang,omitempty"`
+	Title   string     `json:"title,omitempty"`
+	Body    string     `json:"body,omitempty"`
+	Button  string     `json:"button,omitempty"`
+	Words   string     `json:"words,omitempty"` // "link": the worker words a link ask itself (gate_phone_link.go)
+	Device  string     `json:"device,omitempty"`
+	Current *phoneLink `json:"current,omitempty"`
+	Link    phoneLink  `json:"link"`
+	WaitMS  int64      `json:"wait_ms"`
 }
 
 // gatePhoneAnswer: approved (only from the linked user's own app), declined,
@@ -284,13 +287,6 @@ type gatePhoneAnswer struct {
 	Answer string `json:"answer"`
 	UserID string `json:"user_id,omitempty"`
 	Why    string `json:"why,omitempty"`
-}
-
-func (in gatePhoneRequest) valid() bool {
-	_, known := confirmCatalogs[in.Lang]
-	wait := time.Duration(in.WaitMS) * time.Millisecond
-	return known && in.Title != "" && in.Body != "" && in.Button != "" && phoneServicePattern.MatchString(in.Link.Service) &&
-		in.Link.DeviceID != "" && in.Link.UserID != "" && wait >= time.Second && wait <= gatePhoneMaxWait
 }
 
 // gatePhoneSetup reads the home with the Relay's own link for this device
@@ -314,11 +310,12 @@ var gatePhoneSetup = func(s *relaySession, link phoneLink) (phoneSetup, phoneSta
 }
 
 // gatePhone asks the linked phone and waits for its answer, at most the
-// request's wait or until the Relay hangs up (ctx). The result replaces
-// the question; when the Relay hung up (the ask ended on the NOVA page, on
-// the computer, or a newer ask replaced it), a quiet note and a clear
-// withdraw it.
+// request's wait or until the Relay hangs up (ctx). The notification says
+// how it ended, or is withdrawn when the Relay hung up (gatePhoneTap).
 func gatePhone(ctx context.Context, paths runtimePaths, in gatePhoneRequest) (gatePhoneAnswer, error) {
+	if in.Words == "link" {
+		return gatePhoneLink(ctx, paths, in)
+	}
 	s, err := newRelaySessionWithin(paths, verbOptions{}, gateCheckBudget)
 	if err != nil {
 		return gatePhoneAnswer{}, err
@@ -329,35 +326,7 @@ func gatePhone(ctx context.Context, paths runtimePaths, in gatePhoneRequest) (ga
 		return gatePhoneAnswer{Answer: "unavailable", Why: gatePhoneWhy(setup.why)}, nil
 	}
 	ask := phoneAsk{lang: in.Lang, title: phoneCut(in.Title, phoneTitleLimit), body: in.Body, button: in.Button, urgent: true}
-	answer, reply := askPhone(ctx, s, setup, gatePhoneTag, ask, time.Duration(in.WaitMS)*time.Millisecond, nil)
-	lang := ask.lang
-	title := func(prefix string) string {
-		return confirmT(lang, "phone.result_title", "prefix", prefix, "goal", strings.TrimSuffix(ask.title, "?"))
-	}
-	switch answer {
-	case phoneConfirmed:
-		still := gatePhoneStill(paths, in.Link, setup)
-		if still.Answer != "approved" {
-			reply.say(title(confirmT(lang, "outcome.not_done")), confirmT(lang, "outcome.line.nothing_changed"))
-			return still, nil
-		}
-		reply.say(title(confirmT(lang, "outcome.approved")), confirmT(lang, "outcome.line.confirmed_computer"))
-		return still, nil
-	case phoneDeclined:
-		reply.say(title(confirmT(lang, "outcome.cancelled")), confirmT(lang, "outcome.line.nothing_changed"))
-		return gatePhoneAnswer{Answer: "declined"}, nil
-	case phoneRejected:
-		reply.say(title(confirmT(lang, "outcome.cancelled")), confirmT(lang, "outcome.line.other_user"))
-		return gatePhoneAnswer{Answer: "rejected"}, nil
-	case phoneNoAnswer:
-		if ctx.Err() != nil {
-			reply.withdraw(title(confirmT(lang, "outcome.ended")), confirmT(lang, "outcome.line.ended_elsewhere"))
-			return gatePhoneAnswer{Answer: "none"}, nil
-		}
-		reply.say(title(confirmT(lang, "outcome.not_confirmed")), confirmT(lang, "outcome.line.no_answer"))
-		return gatePhoneAnswer{Answer: "none"}, nil
-	}
-	return gatePhoneAnswer{Answer: "unavailable", Why: "send"}, nil
+	return gatePhoneTap(ctx, s, paths, in.Link, setup, ask, time.Duration(in.WaitMS)*time.Millisecond), nil
 }
 
 // gatePhoneStill: a tap counts only if, read again after it on a fresh
@@ -403,7 +372,7 @@ func gateAskHandler(paths runtimePaths, w http.ResponseWriter, r *http.Request) 
 	} else {
 		var in gatePhoneRequest
 		if dec.Decode(&in) != nil || !in.valid() {
-			http.Error(w, "the request must be one JSON object with lang, title, body, button, link, and wait_ms up to 180000", http.StatusBadRequest)
+			http.Error(w, "the request must be one JSON object with lang, title, body, and button, or words link and device; link; and wait_ms up to 180000", http.StatusBadRequest)
 			return
 		}
 		_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(time.Duration(in.WaitMS)*time.Millisecond + time.Minute))
