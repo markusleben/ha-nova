@@ -75,7 +75,9 @@ func gateRequests(endpoint string, payload map[string]any) []map[string]any {
 // where a failed read still counts as typed. Refused: a body that is not
 // exactly one JSON object, an endpoint the gate doesn't know, a request the
 // spec refuses (gateDenied), and any shape the CLI never sends
-// (gateRecognized). Kind is read only for a recognized read that passes. On
+// (gateRecognized). Kind is read only for a recognized read that passes,
+// a files or backups read included: the worker's own plan reads
+// (readLiveFile, rawSnapshotList) pass the Relay only as reads. On
 // err (the session didn't open) the check is still the fail-closed typed
 // verdict.
 func gateVerdict(endpoint string, body []byte, session func() (*relaySession, error)) (gateCheck, error) {
@@ -129,7 +131,9 @@ func gateVerdict(endpoint string, body []byte, session func() (*relaySession, er
 			check = gateCheck{Verdict: verdict, Kind: "write", Why: why, Item: i}
 		}
 	}
-	if check.Verdict == gatePass && (rawRelayRead(endpoint, body) || checkPhoneRead(endpoint, payload) == nil) { // the phone lookup's template only renders
+	action, _ := payload["action"].(string)
+	storeRead := map[string]bool{"files read_file": true, "files list_dir": true, "backups list": true, "backups load": true}[endpoint+" "+action]
+	if check.Verdict == gatePass && (rawRelayRead(endpoint, body) || checkPhoneRead(endpoint, payload) == nil || storeRead) { // the phone lookup's template only renders
 		check.Kind = "read"
 	}
 	return check, nil
