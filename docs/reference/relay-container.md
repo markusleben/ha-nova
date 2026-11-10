@@ -101,6 +101,7 @@ From 0.30, unlocking, opening a door, gate, or garage, disarming, deletes, and f
 - **Use a dedicated Home Assistant user for `HA_LLAT`.** A tap by the user the relay acts as can't be told apart from the relay itself, so that user's phone is never linked, and a relay acting as the owner refuses these actions. Create an administrator just for the relay, make its token, and confirm on your own phone.
 - **Keep `/data` on a volume** (the examples above do). The link lives in `/data/gate-phone.json`; without the volume, recreating the container drops it and the phone is linked again.
 - **A lost phone:** while the linked phone can't be asked, the link can't be moved. Remove it with `docker exec ha-nova-relay rm /data/gate-phone.json` and link again.
+- **Use a port mapping, not host networking.** The safety check's own key works only from inside the container (loopback). With `--network host`, every program on the host counts as inside, so one that can read the relay's data folder could use that key, which reads Home Assistant without the hiding and asks phones. Keep `-p 8791:8791` as above.
 - **Limits:** everything holding the relay token asks as one: 10 asks an hour, and phone asks pause for 15 minutes after three in a row end unanswered or cancelled (a restart clears both). Two containers sharing one `/data` volume don't coordinate their links, so give each its own. `/files` never reads or writes the relay's data folder or anything directly in it, under any name; don't mount files from deeper inside it into Home Assistant's configuration folder.
 
 ## File access (optional)
@@ -118,7 +119,7 @@ The relay refuses secrets, the recorder database and Home Assistant's internal s
 
 ## Notes
 
-- **No Supervisor access.** `POST /supervisor` (Apps, store, logs) needs the App; this relay has no such route (`404 NOT_FOUND`). The relay also refuses WS types starting `supervisor/` or `hassio/` and `/core` paths starting `/api/hassio`, so a container pointed at a Home Assistant OS or Supervised install cannot reach the Supervisor through Home Assistant's own token.
+- **No Supervisor access.** `POST /supervisor` (Apps, store, system reads) needs the App; this relay has no such route (`404 NOT_FOUND`). The relay also refuses WS types starting `supervisor/` or `hassio/` and `/core` paths starting `/api/hassio`, so a container pointed at a Home Assistant OS or Supervised install cannot reach the Supervisor through Home Assistant's own token.
 - **No Supervisor watchdog.** Use `--restart unless-stopped` (or Compose's `restart:`) so the relay comes back after a reboot.
 - **Updating**: pull the new image and **recreate** the container — `docker restart` would keep running the old image:
   ```bash

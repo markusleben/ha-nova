@@ -45,10 +45,70 @@ There you can:
 - turn **chat apps** (HA NOVA in Claude and ChatGPT) on or off, let them only
   read, or turn off codes in the chat (see [Chat apps](#chat-apps-claude-and-chatgpt)),
 - pick **who can use** chat apps and at what level, link each person's phone,
-  and see **recent changes from chat apps**.
+  and see **recent changes from chat apps**,
+- **approve** a risky change one of your computers asked for ("Waiting for
+  your OK"; see [The safety check](#the-safety-check)).
 
-Only the Home Assistant owner can open this page. It opens only from inside
+Only the Home Assistant owner can open this page. Other administrators can
+open its "Waiting for your OK" view to approve. It opens only from inside
 Home Assistant, never by its network address.
+
+## The safety check
+
+This App checks every request from your computers before it reaches Home
+Assistant, with the same rules HA NOVA uses on the computer. It also hides
+secrets in every answer, such as lock codes and the secret ids your phones
+use to talk to Home Assistant. `ha-nova doctor` says "Safety check in Home
+Assistant: on", or why not.
+
+Unlocking, opening a door, gate, or garage, turning off the alarm, deletes,
+file writes, and other risky changes wait for a person's OK:
+
+- **On your linked phone:** a notification with the action's button. Press and
+  hold it on an iPhone, or pull it down on Android, then tap the button.
+- **On the NOVA page:** open NOVA in the sidebar. Under "Waiting for your OK",
+  choose Open, then Approve or Cancel. Any Home Assistant administrator can
+  approve there, except the user this App signs in as; other administrators
+  find the link "Requests waiting for your OK" when they open NOVA.
+
+The OK covers exactly the change shown, once. Nothing is sent before it, and a
+request no one answers ends after 3 minutes. The window on your computer only
+waits: it says where to confirm, opens Home Assistant, or cancels. It can't
+confirm. Dashboard and room changes are the exception: they still ask on the
+computer (the window, or a four-digit code).
+
+While a change waits, your AI app may say it is waiting for your OK
+(`waiting_for_approval`): the change hasn't been sent yet. Approve it, then
+tell your AI app to go on. Asking again picks up the same change; it never
+runs twice.
+
+The phone you linked on a computer moves here once: the first time a change
+needs your OK, that phone asks whether it should get HA NOVA's confirmations.
+Allow it, then confirm the change itself.
+
+Some requests are never sent: firing events, webhooks, backup downloads, and
+reading Home Assistant's logs (open those in Settings → System → Logs). If the
+safety check isn't running, nothing that needs it is sent; restart this App.
+
+Good to know:
+
+- Each computer asks at most 10 times an hour. After three of its requests in a
+  row go unanswered or are cancelled, its phone asks pause for 15 minutes. The
+  NOVA page still works and lists that computer with "Revoke this device…".
+- Whoever holds your linked phone can answer the open request; its buttons
+  don't need an unlocked phone.
+- A computer connected through Home Assistant Link also keeps your Home
+  Assistant sign-in, which works without this App, so the check protects less
+  there.
+- Chat apps don't wait here: they run inside this App with their own rules
+  (see [Chat apps](#chat-apps-claude-and-chatgpt)).
+- Went back to an older App without the check? Computers that saw it refuse
+  risky changes until you update this App again.
+- A standalone container has no NOVA page, so only a linked phone can confirm
+  ([standalone container](https://github.com/markusleben/ha-nova/blob/main/docs/reference/relay-container.md#confirmations-on-your-phone-030)).
+  Run it with a port mapping (`-p 8791:8791`), not host networking: the safety
+  check's own key works only from inside the container, and with host
+  networking every program on that computer counts as inside.
 
 ## Configuration
 
@@ -93,7 +153,8 @@ instead.
 | POST | `/core` | Passes requests to Home Assistant's REST API (`/api/...`) |
 | POST | `/files` | Config-file access, only when you turn it on |
 | POST | `/backups` | Saved copies of configs, for undo |
-| POST | `/supervisor` | Supervisor logs and Apps, from a fixed list (local ports only, not through Home Assistant Link). The HA NOVA program, on a computer and in chat apps, doesn't read the logs |
+| POST | `/gate/v1/ask`, `/gate/v1/phone` | Ask a person to approve a risky change, or to link a phone for that (the safety check) |
+| POST | `/supervisor` | Supervisor system and App reads, from a fixed list (local ports only, not through Home Assistant Link). The HA NOVA program, on a computer and in chat apps, doesn't read the logs |
 
 For Apps and logs, this App has the Supervisor's `manager` access, which Home
 Assistant shows on this App's page. The Relay reaches only that fixed list.
@@ -133,7 +194,8 @@ login on that computer (its user account, not a Home Assistant one) can use HA
 NOVA; there is no separate sign-in per person. The owner is the first account
 made when Home Assistant was set up. An admin with Advanced mode on (in their
 Home Assistant profile) sees it under Settings → People → Users, marked Owner.
-Other admins see NOVA in the sidebar too, but only the owner can open it.
+Other admins see NOVA in the sidebar too, but only the owner can open it;
+they can still approve risky changes there (see [The safety check](#the-safety-check)).
 
 Each computer gets its own key. It is saved in this computer's password store.
 With no password store (for example a server), or with `--service` or
