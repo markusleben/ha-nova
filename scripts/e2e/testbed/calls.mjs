@@ -22,7 +22,7 @@ const ORACLE = {
 };
 const RELAY = "switch.decorative_lights"; // a demo switch on its own device, switched by a switch_as_x light
 
-export async function callChecks({ ha, ws, cli, check, watchdogID, loadAutomations }) {
+export async function callChecks({ ha, ws, cli, check, watchdogID, loadAutomations, planWrite }) {
   const watchdog = (await ha("GET", "/api/states")).find((s) => s.attributes?.id === watchdogID)?.entity_id;
   // Before any light listener exists: here a light call sets nothing off.
   const light = cli("plan", "call", "light.turn_off", "light.bed_light");
@@ -31,6 +31,7 @@ export async function callChecks({ ha, ws, cli, check, watchdogID, loadAutomatio
   const cover = cli("plan", "call", "cover.close_cover", "cover.kitchen_window");
   check("a cover call still asks: the cover watchdog is its consumer", cover.tier === "typed" && names(cover).includes(watchdog) && codes(cover).includes("UNRESOLVED_TARGET"),
     "tier " + (cover.tier ?? cover.error?.code) + ", consumers " + (names(cover).join(",") || "-") + ", reasons " + (codes(cover).join(",") || "-"));
+  await placeChecks({ ha, ws, cli, check, loadAutomations, planWrite });
 
   const shapes = {};
   for (const [name, filter] of Object.entries(ORACLE)) {
@@ -95,4 +96,41 @@ export async function callChecks({ ha, ws, cli, check, watchdogID, loadAutomatio
   check("a call whose calls can't be bounded counts every service-call listener", listeners.every((a) => a && names(unbounded).includes(a)),
     "tier " + (unbounded.tier ?? unbounded.error?.code) + ", listener consumers " + listeners.filter((a) => names(unbounded).includes(a)).length + "/" + listeners.length);
   for (const entry of entries.filter(Boolean)) await ha("DELETE", "/api/config/config_entries/entry/" + entry);
+}
+
+// Triggers that target an area, a floor, or a label (MAR-142): Home Assistant
+// indexes such a trigger there, never under the light it covers. A light call
+// that sets one off asks like a trigger naming the light, and so does an edit
+// that adds that call to an automation (the edited one turns the bed light
+// off by now). Everything it adds is removed again; nothing is applied.
+async function placeChecks({ ha, ws, cli, check, loadAutomations, planWrite }) {
+  const LABELED = "light.entrance_color_white_lights"; // no area, no label in the bed
+  let label;
+  const door = (target) => ({ alias: "RC places " + Object.keys(target)[0], mode: "single", triggers: [{ trigger: "light.turned_on", target }],
+    actions: [{ action: "lock.unlock", target: { entity_id: "lock.entrance_door" } }] });
+  const PLACES = {
+    rclane_places_area: [door({ area_id: "kuche" }), "light.kitchen_lights"],
+    rclane_places_floor: [door({ floor_id: "obergeschoss" }), "light.bed_light"],
+  };
+  try {
+    label = await ws("config/label_registry/create", { name: "RC places probe" });
+    await ws("config/entity_registry/update", { entity_id: LABELED, labels: [label.label_id] });
+    PLACES.rclane_places_label = [door({ label_id: label.label_id }), LABELED];
+    await loadAutomations(Object.fromEntries(Object.entries(PLACES).map(([id, [config]]) => [id, config])));
+    const placed = Object.fromEntries((await ha("GET", "/api/states")).filter((s) => PLACES[s.attributes?.id]).map((s) => [s.attributes.id, s.entity_id]));
+    const asks = (plan, consumer) => plan.tier === "typed" && plan.plan?.confirm === "code" && names(plan).includes(consumer);
+    const detail = (plan) => "tier " + (plan.tier ?? plan.error?.code) + ", confirm " + plan.plan?.confirm + ", consumers " + (names(plan).join(",") || "-");
+    for (const [id, [, lamp]] of Object.entries(PLACES)) {
+      const plan = cli("plan", "call", "light.turn_on", lamp);
+      check("a light call whose " + id.slice(14) + " trigger unlocks a door asks with a code", asks(plan, placed[id]), detail(plan));
+    }
+    const edit = planWrite([{ action: "light.turn_off", target: { entity_id: "light.bed_light" } }, { action: "light.turn_on", target: { entity_id: "light.kitchen_lights" } }]);
+    check("an edit that adds the kitchen light beside the area-triggered unlock asks with a code", asks(edit, placed.rclane_places_area), detail(edit));
+  } finally {
+    for (const id of Object.keys(PLACES)) await ha("DELETE", "/api/config/automation/config/" + id).catch(() => {});
+    if (label) {
+      await ws("config/entity_registry/update", { entity_id: LABELED, labels: [] });
+      await ws("config/label_registry/delete", { label_id: label.label_id });
+    }
+  }
 }

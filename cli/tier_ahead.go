@@ -36,14 +36,16 @@ func (e *tierEngine) readAhead(ids []string, depth int) {
 		var reads []func()
 		for _, id := range level {
 			reads = append(reads, func() { _, _, _ = e.rawState(id) })
-			for _, item := range e.relatedItems(id) {
+			items, _, _ := e.relatedItems(id) // an unreadable registry: the walk's scan says so
+			for _, item := range items {
 				reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest(item[0], item[1])) })
 			}
 		}
 		prefetch(reads)
 		on := map[string][]string{} // consumer → the entities of this level it is related to
 		for _, id := range level {
-			for _, item := range e.relatedItems(id) {
+			items, _, _ := e.relatedItems(id)
+			for _, item := range items {
 				related, _ := e.related(item[0], item[1])
 				for _, automation := range related["automation"] {
 					on[automation] = append(on[automation], id)
@@ -75,15 +77,6 @@ func (e *tierEngine) readAhead(ids []string, depth int) {
 		sort.Strings(ids)
 		ids = slices.Compact(ids)
 	}
-}
-
-// relatedItems: the search/related reads of an entity's consumer scan.
-func (e *tierEngine) relatedItems(id string) [][2]string {
-	items := [][2]string{{"entity", id}}
-	if device := e.reg[id].di; device != "" {
-		items = append(items, [2]string{"device", device})
-	}
-	return items
 }
 
 // needles: what a consumer's trigger names when it reacts to id.

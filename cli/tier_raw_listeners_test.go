@@ -32,7 +32,7 @@ func listeningHome() *fakeHA {
 		{"entity_id": "input_boolean.guest", "platform": "input_boolean", "unique_id": "guest"},
 		{"entity_id": "zone.work", "platform": "zone", "unique_id": "work"},
 		{"entity_id": "binary_sensor.side_door", "platform": "zha", "unique_id": "z1"},
-		{"entity_id": "binary_sensor.doorbell", "platform": "esphome", "unique_id": "b1", "device_id": "dbell", "disabled_by": "user"},
+		{"entity_id": "binary_sensor.doorbell", "platform": "esphome", "unique_id": "b1", "device_id": "dbell", "disabled_by": "user", "area_id": "porch", "labels": []any{"ring"}},
 		{"entity_id": "binary_sensor.motion", "platform": "hue", "unique_id": "m1", "device_id": "dmotion", "config_entry_id": "Emotion"},
 		{"entity_id": "binary_sensor.hub_child", "platform": "zwave_js", "unique_id": "hc", "device_id": "dchild"},
 	}
@@ -61,6 +61,10 @@ var listenedWrites = []struct {
 		"entity:binary_sensor.porch", map[string]any{"trigger": "state", "entity_id": "binary_sensor.porch", "to": "on"}, ""},
 	{"a disabled entity's enable", `{"type":"config/entity_registry/update","entity_id":"binary_sensor.doorbell","disabled_by":null}`,
 		"device:dbell", map[string]any{"trigger": "device", "device_id": "dbell", "domain": "binary_sensor", "type": "turned_on"}, ""},
+	{"a disabled entity's enable, by its own area (MAR-142)", `{"type":"config/entity_registry/update","entity_id":"binary_sensor.doorbell","disabled_by":null}`,
+		"area-automation:porch", map[string]any{"trigger": "binary_sensor.turned_on", "target": map[string]any{"area_id": "porch"}}, ""},
+	{"a disabled entity's enable, by its own label (MAR-142)", `{"type":"config/entity_registry/update","entity_id":"binary_sensor.doorbell","disabled_by":null}`,
+		"label:ring", map[string]any{"trigger": "binary_sensor.turned_on", "target": map[string]any{"label_id": "ring"}}, ""},
 	{"a device rename", `{"type":"config/device_registry/update","device_id":"dmotion","name_by_user":"Hall motion"}`,
 		"entity:binary_sensor.motion", map[string]any{"trigger": "state", "entity_id": "binary_sensor.motion"}, ""},
 	{"an integration enable", `{"type":"config_entries/disable","entry_id":"Emotion","disabled_by":null}`,
@@ -104,8 +108,7 @@ func TestRawWriteListenersRaiseTheTier(t *testing.T) {
 			if listening && !strings.Contains(env.Say, "unlock") {
 				t.Errorf("%s: say %q names no unlock", tc.name, env.Say)
 			}
-			item, _ := strings.CutPrefix(tc.related, "entity:")
-			if item, _ = strings.CutPrefix(item, "device:"); !searched(item) {
+			if _, item, _ := strings.Cut(tc.related, ":"); !searched(item) {
 				t.Errorf("%s (listening %v): never searched what relates to %s", tc.name, listening, item)
 			}
 		}

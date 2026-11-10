@@ -21,6 +21,8 @@ type fullRegistryRow struct {
 	ConfigEntryID string     `json:"config_entry_id"`
 	DeviceID      string     `json:"device_id"`
 	DisabledBy    string     `json:"disabled_by"`
+	AreaID        string     `json:"area_id"`
+	Labels        []string   `json:"labels"`
 }
 
 func (e *tierEngine) fullRegistry() ([]fullRegistryRow, error) {
@@ -84,14 +86,13 @@ func filterDomain(ids []string, domain string) []string {
 }
 
 // scanConsumers runs once per acted entity: automations related to the
-// entity or its device whose triggers reference it are read and classified;
+// entity, its device, or where it sits (relatedItems) whose triggers
+// reference it are read and classified;
 // d (the entity's planned change) only words the consumer list.
 func (e *tierEngine) scanConsumers(id string, depth int, d stateDelta) {
 	needles := []string{id}
-	items := [][2]string{{"entity", id}}
 	if device := e.deviceOf(id); device != "" {
 		needles = append(needles, device)
-		items = append(items, [2]string{"device", device})
 	}
 	if slices.Contains(e.acted, id) { // scanned already: this change may fire what the first did not
 		for automation, ons := range e.firedOn {
@@ -107,15 +108,25 @@ func (e *tierEngine) scanConsumers(id string, depth int, d stateDelta) {
 		return
 	}
 	e.readAhead([]string{id}, depth) // its consumers, and theirs, breadth first: the loop below reads the memo
-	seen := map[string]bool{}
+	items, direct, ok := e.relatedItems(id)
+	if !ok {
+		e.readFailed(id, "", "related")
+		return
+	}
+	var places []string
+	for _, item := range items[direct:] {
+		places = append(places, item[1])
+	}
+	seen, named := map[string]bool{}, map[string]bool{} // named: related to the entity or its device
 	var automations, containers []string
-	for _, item := range items {
+	for i, item := range items {
 		related, err := e.related(item[0], item[1])
 		if err != nil {
 			e.readFailed(id, "", "related")
 			return
 		}
 		for _, automation := range related["automation"] {
+			named[automation] = named[automation] || i < direct
 			if !seen[automation] {
 				seen[automation] = true
 				automations = append(automations, automation)
@@ -144,7 +155,12 @@ func (e *tierEngine) scanConsumers(id string, depth int, d stateDelta) {
 	}
 	prefetch(configReads)
 	for _, automation := range automations {
-		e.consumer(automation, "", id, depth, func(cfg map[string]any) string { return triggerMatch(cfg, id, needles, d) })
+		e.consumer(automation, "", id, depth, func(cfg map[string]any) string {
+			if !named[automation] && !targetsPlace(cfg, places) {
+				return ""
+			}
+			return triggerMatch(cfg, id, needles, d)
+		})
 	}
 	for _, group := range slices.Compact(containers) {
 		e.scanConsumers(group, depth, stateDelta{}) // a group's own change is not derived
