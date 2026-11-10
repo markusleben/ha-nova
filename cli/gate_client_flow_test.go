@@ -21,7 +21,7 @@ func TestGateTypedBatchAsksForEveryMemberFirst(t *testing.T) {
 	}
 	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
 	asks, ops, sends := g.snapshot()
-	if exit != 0 || len(asks) != 1 || len(asks[0]) != 4 || len(sends) != 4 || strings.Join(ops, ",") != "open,wait" {
+	if exit != 0 || len(asks) != 1 || len(asks[0]) != 2 || len(sends) != 2 || strings.Join(ops, ",") != "open,wait" {
 		t.Fatalf("exit %d %+v; asks %q sends %+v", exit, applied.Error, asks, sends)
 	}
 	for i, send := range sends {

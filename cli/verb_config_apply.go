@@ -5,14 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"regexp"
 	"strings"
 )
 
 // Config execution (typed-verbs spec §2.3 config writes): one write, a
-// reload, a read-back compared with the plan, the registry entity and its
-// state. A delete is preceded by a pre-delete config snapshot.
+// read-back compared with the plan, the wait for Home Assistant's own reload
+// (awaitLoaded), the registry entity and its state. A delete is preceded by
+// a pre-delete config snapshot and followed by a reload.
 
 // errSnapshotFailed: nothing was deleted or saved, so apply releases the
 // plan (a typed code stays valid for --no-snapshot).
@@ -92,10 +94,11 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 		}
 		return failure
 	}
-	reload, reloadErr := s.postService(action.Domain+".reload", configReloadData(action.Domain, action.ConfigID), false)
-	reloaded := reloadErr == nil && reload.status < 400
+	if action.Op == "delete" { // Home Assistant's own hook after a delete only drops the registry entry
+		_, _ = s.postService(action.Domain+".reload", configReloadData(action.Domain, action.ConfigID), false)
+	}
 	s.renewBudget()
-	row, readback := verifyConfig(s, action, reloaded)
+	row, readback := verifyConfig(s, action)
 	if alreadyGone && row.Outcome == "verified" {
 		row.Note = "already gone when the delete arrived (removed concurrently)"
 	}
@@ -172,10 +175,9 @@ func writeFailure(env *verbEnvelope, result serviceResult, err error, createdID 
 }
 
 // verifyConfig: a write is verified only when the read-back equals the
-// planned body (normalized), the reload succeeded, and the registry entity
-// for the config id exists with a state; a delete when config and entity
-// are gone.
-func verifyConfig(s *relaySession, action configAction, reloaded bool) (verifyRow, json.RawMessage) {
+// planned body (normalized), Home Assistant has loaded it (awaitLoaded), and
+// its registry entity has a state; a delete when config and entity are gone.
+func verifyConfig(s *relaySession, action configAction) (verifyRow, json.RawMessage) {
 	row := verifyRow{EntityID: action.EntityID, Outcome: "unverified"}
 	status, readback, err := coreGETFresh(s, action.Path)
 	if action.Op == "delete" {
@@ -190,7 +192,7 @@ func verifyConfig(s *relaySession, action configAction, reloaded bool) (verifyRo
 		}
 		return row, nil
 	}
-	row.Expect = "read-back equals the plan, reload ok, entity present"
+	row.Expect = "read-back equals the plan, loaded by Home Assistant, entity present"
 	differences, parseErr := configChanges(action.Body, readback)
 	if err != nil || status != http.StatusOK || parseErr != nil {
 		row.Observed = fmt.Sprintf("read-back failed (HTTP %d)", status)
@@ -199,11 +201,18 @@ func verifyConfig(s *relaySession, action configAction, reloaded bool) (verifyRo
 		}
 		return row, nil
 	}
-	entityID, disabled, registryErr := registryEntityFor(s, action.Domain, action.ConfigID)
+	wait := configLoadWait
+	switch {
+	case len(differences) > 0: // never the plan: one look for the entity, no wait
+		wait = 0
+	case gateApproval == nil: // ha-nova mcp's apply job has its own life (gateOpenWait)
+		wait = min(wait, askWait())
+	}
+	entityID, disabled, loaded, waited, registryErr := awaitLoaded(s, action, wait)
 	row.EntityID = entityID
 	var st *entityState
 	var stateErr error
-	if entityID != "" && !disabled {
+	if loaded {
 		st, stateErr = s.stateFresh(entityID, relaySessionRequestTimeout)
 	}
 	present := fmt.Sprint(st != nil)
@@ -213,17 +222,14 @@ func verifyConfig(s *relaySession, action configAction, reloaded bool) (verifyRo
 	case stateErr != nil:
 		present = "read failed"
 	}
-	row.Observed = fmt.Sprintf("%d differences, reload ok: %v, entity: %q present: %s", len(differences), reloaded, entityID, present)
+	row.Observed = fmt.Sprintf("%d differences, loaded: %v, entity: %q present: %s", len(differences), loaded, entityID, present)
 	switch {
 	case len(differences) > 0:
 		row.Note = readBackDiffers + strings.Join(differences, " ")
-		if !reloaded {
-			row.Note += " (and the reload barrier failed)"
-		}
-	case !reloaded:
-		row.Note = "saved, but the reload barrier failed: whether the change is running is unknown"
 	case disabled: // a registry-disabled item has no state to check
 		row.Outcome, row.Note = "verified", "disabled in the entity registry: saved, not running"
+	case !loaded:
+		row.Note = fmt.Sprintf("saved, but Home Assistant hadn't loaded it within %d s: whether the change is running is unknown", int(math.Ceil(waited.Seconds())))
 	case st != nil && st.State == "unavailable": // Home Assistant could not load the config
 		row.Note = "the entity is unavailable: Home Assistant rejected the config when loading it"
 	case st != nil:
@@ -239,7 +245,7 @@ const readBackDiffers = "the read-back differs: "
 // a real difference the agent must not explain away.
 func sayReadBackDiffers(env *verbEnvelope) {
 	env.Say = sayReadBackDiffersText
-	env.NextStep = "Show `say`, then what differs (verification[].note; each row: field | approved | saved) in plain words. It is a real difference: never call it harmless or say it works anyway. Read the saved version again and offer a new plan to fix it; if the note says the reload failed, also offer a reload."
+	env.NextStep = "Show `say`, then what differs (verification[].note; each row: field | approved | saved) in plain words. It is a real difference: never call it harmless or say it works anyway. Read the saved version again and offer a new plan to fix it."
 }
 
 func coreGETFresh(s *relaySession, path string) (int, json.RawMessage, error) {

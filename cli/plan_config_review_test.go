@@ -190,14 +190,14 @@ func TestConfigApplyDetails(t *testing.T) {
 	f.configs["/api/config/automation/config/a1"] = json.RawMessage(`{"alias":"Hall motion","triggers":[],"actions":[],"x":1.10}`)
 	h := newWriteHarness(t, f)
 	_, env := h.run(runPlanCommand, "write", "--domain", "automation", "--id", "a1", "--file", draftFile(t, hallDraft("light.turn_off")))
-	h.run(runApplyCommand, "--plan", env.Plan.ID)
-	for _, c := range h.posts() {
-		if c.payload["path"] == "/api/services/automation/reload" && strings.Contains(string(c.raw), `"body":{"id":"a1"}`) {
-			goto scoped
+	if exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 0 || applied.Status != "verified" {
+		t.Fatalf("update: exit %d env %+v", exit, applied)
+	}
+	for _, c := range h.posts() { // Home Assistant reloads after a save on its own
+		if strings.HasPrefix(fmt.Sprint(c.payload["path"]), "/api/services/") {
+			t.Fatalf("a save sent %+v", c.payload)
 		}
 	}
-	t.Fatalf("automation reload not scoped to a1: %+v", h.posts())
-scoped:
 	h.f.configWrite = func(f *fakeHA, path string, body map[string]any) any {
 		f.storeConfig(path, body)
 		f.states["automation.hall_motion"]["state"] = "unavailable"
@@ -221,4 +221,10 @@ scoped:
 			t.Fatalf("snapshot payload lost the exact number: %s", c.raw)
 		}
 	}
+	for _, c := range h.posts() {
+		if c.payload["path"] == "/api/services/automation/reload" && strings.Contains(string(c.raw), `"body":{"id":"a1"}`) {
+			return
+		}
+	}
+	t.Fatalf("the delete's automation reload not scoped to a1: %+v", h.posts())
 }

@@ -77,7 +77,7 @@ func gateStillApproved(stored, again storedPlan, err error, asked, now []gateReq
 
 // gateFirstRequests: what a relay plan sends first, byte for byte as its
 // executor sends it (executeAction, executeConfig, executeRaw); for a
-// batch, every member's write and reload, so one approval covers it.
+// batch, every member's write, so one approval covers it.
 func gateFirstRequests(fresh storedPlan, batch batchReplan) []gateRequest {
 	switch {
 	case fresh.Kind == "call":
@@ -104,7 +104,7 @@ func gateFirstRequests(fresh storedPlan, batch batchReplan) []gateRequest {
 	return nil
 }
 
-// configRequests: an automation or script write or delete and its reload.
+// configRequests: an automation or script write, or a delete and its reload.
 func configRequests(action configAction) []gateRequest {
 	if action.Domain == "dashboard" {
 		return nil
@@ -116,14 +116,15 @@ func configRequests(action configAction) []gateRequest {
 	return append([]gateRequest{write}, gateFollowUps(write)...)
 }
 
-// gateFollowUps: the reload apply sends after a config write (executeConfig),
-// so one approval covers both (spec §4).
+// gateFollowUps: the reload apply sends after a config delete (executeConfig),
+// so one approval covers both (spec §4). A save needs none: Home Assistant
+// reloads after it on its own.
 func gateFollowUps(r gateRequest) []gateRequest {
 	var core struct {
 		Method string `json:"method"`
 		Path   string `json:"path"`
 	}
-	if r.endpoint != "core" || json.Unmarshal(r.body, &core) != nil || core.Method == http.MethodGet || !configPathPattern.MatchString(core.Path) {
+	if r.endpoint != "core" || json.Unmarshal(r.body, &core) != nil || core.Method != http.MethodDelete || !configPathPattern.MatchString(core.Path) {
 		return nil
 	}
 	parts := strings.Split(core.Path, "/") // "", api, config, <domain>, config, <id>

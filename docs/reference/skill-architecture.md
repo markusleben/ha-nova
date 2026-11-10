@@ -105,7 +105,7 @@ Current mapping:
 | Skill | Execution | Why |
 |-------|-------|-----|
 | read | inline | 1-2 calls, direct output |
-| write | inline + CLI | `find`/`get` resolve; `plan write|delete|revert` + `apply` write, reload, and verify the read-back |
+| write | inline + CLI | `find`/`get` resolve; `plan write|delete|revert` + `apply` write, wait until Home Assistant loaded it, and verify the read-back |
 | helper | inline | response-driven relay flows, direct preview/confirm loop, no agent-only normalization requirement |
 | integration-setup | inline | response-driven config flows with direct preview/confirm and HA UI handoff for secrets/external steps |
 | dashboard | inline | read → merge → preview → full-save → readback verify, all user-facing |
@@ -153,9 +153,11 @@ Current mapping:
    diff; full YAML only when asked. Pre-preview wording authorizes draft
    and preview only; a changed draft needs a new plan.
 3. Apply + Verify — `ha-nova apply --plan <id>` re-plans (exit 2 on drift),
-   takes the pre-delete config snapshot, sends the body byte-exactly once,
-   reloads, and verifies the read-back (content and the order of
-   `variables`/`trigger_variables`/`fields`), the reload, and the live entity.
+   takes the pre-delete config snapshot, sends the body byte-exactly once
+   (no reload of its own after a save: Home Assistant reloads; a delete
+   reloads), and verifies the read-back (content and the order of
+   `variables`/`trigger_variables`/`fields`), that Home Assistant loaded
+   it (read-only), and the live entity.
 4. Review (inline, never `ha-nova:review`) — post-write checks, collision
    scan; findings are advisory. An update lands on the per-server undo stack
    automatically (`revert` → `plan revert`); creates clean up through the

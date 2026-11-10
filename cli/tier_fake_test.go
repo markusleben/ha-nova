@@ -177,6 +177,11 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 					return map[string]any{"config": cfg}
 				}
 			}
+			if id, ok := f.unique[fmt.Sprint(p["entity_id"])]; ok && wsType == "script/config" {
+				if cfg, ok := f.configs["/api/config/script/config/"+id]; ok { // loaded as stored: a UI save reloads
+					return map[string]any{"config": cfg}
+				}
+			}
 			return fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "not_found: Entity not found"}
 		case "config_entries/flow/progress":
 			return append([]map[string]any{}, f.flows...)
