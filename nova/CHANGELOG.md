@@ -10,6 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 - Chat apps get HA NOVA 0.29.0 with the fixes from its test phase.
 - Chat apps: when this App refuses a file (for example anything under /config/www), HA NOVA says why instead of reporting a sign-in problem.
 - Chat apps: an edit to one of your own automations or scripts no longer asks just because other automations react when it reloads, or listen for a service call that can't match.
+- Chat apps: a confirmation for several steps of the same kind says them in one line, with names and months instead of ids and timestamps.
 
 ### Upgrade notes
 - Computers on HA NOVA 0.29.0 ask you to update this App.
