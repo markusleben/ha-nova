@@ -42,25 +42,38 @@ func (e *tierEngine) readAhead(ids []string, depth int) {
 			}
 		}
 		prefetch(reads)
-		on := map[string][]string{} // consumer → the entities of this level it is related to
+		on := map[string][]string{}                               // consumer → the entities of this level it is related to
+		named, places := map[string]bool{}, map[string][]string{} // places: where it was found, when not by name (scanConsumers)
 		for _, id := range level {
-			items, _, _ := e.relatedItems(id)
-			for _, item := range items {
+			items, direct, _ := e.relatedItems(id)
+			for i, item := range items {
 				related, _ := e.related(item[0], item[1])
 				for _, automation := range related["automation"] {
 					on[automation] = append(on[automation], id)
+					if i < direct {
+						named[automation] = true
+					} else {
+						places[automation] = append(places[automation], item[1])
+					}
 				}
 			}
 		}
-		var automations []string
+		var automations, placeOnly []string
 		for automation := range on {
-			if !e.ahead["consumer "+automation] {
+			if e.ahead["consumer "+automation] {
+				continue
+			}
+			if named[automation] {
 				automations = append(automations, automation)
+			} else {
+				placeOnly = append(placeOnly, automation)
 			}
 		}
 		sort.Strings(automations)
+		sort.Strings(placeOnly)
 		automations = automations[:min(len(automations), max(tierMaxConsumers-e.aheadConfigs, 0))]
 		e.aheadConfigs += len(automations)
+		automations = append(automations, placeOnly...) // uncapped, like scanConsumers: the read deadline bounds them
 		configs := make([]map[string]any, len(automations))
 		reads = nil
 		for i, automation := range automations {
@@ -70,7 +83,7 @@ func (e *tierEngine) readAhead(ids []string, depth int) {
 		prefetch(reads)
 		ids = nil
 		for i, automation := range automations {
-			if slices.ContainsFunc(on[automation], func(id string) bool { return triggerMatch(configs[i], id, e.needles(id), stateDelta{}) != "" }) {
+			if (named[automation] || targetsPlace(configs[i], places[automation])) && slices.ContainsFunc(on[automation], func(id string) bool { return triggerMatch(configs[i], id, e.needles(id), stateDelta{}) != "" }) {
 				ids = append(ids, actionTargets(literalActions(configs[i]))...)
 			}
 		}

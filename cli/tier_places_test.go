@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 )
@@ -97,6 +98,17 @@ func TestConsumerScanReadsWhereTheEntitySits(t *testing.T) {
 		{name: "an automation that only acts on the area is no consumer", setup: func(f *fakeHA) {
 			home(f, map[string]any{"trigger": "state", "entity_id": "binary_sensor.hall"}, map[string]any{"_ai": "kuche"}, nil, nil)
 			f.related["area-automation:kuche"] = []string{"automation.door"}
+		}, args: args, exit: 0, tier: "ordinary"},
+		{name: "120 automations of the room's other devices cost no consumer read (Home Assistant relates them to the area)", setup: func(f *fakeHA) {
+			home(f, area, map[string]any{"_ai": "kuche"}, nil, nil)
+			for i := range 120 {
+				object := fmt.Sprintf("room_%03d", i)
+				f.automation(object, object, map[string]any{
+					"triggers": []any{map[string]any{"trigger": "state", "entity_id": "binary_sensor.kitchen_motion"}},
+					"actions":  []any{step("light.turn_on", "light.kitchen")},
+				})
+				f.related["area-automation:kuche"] = append(f.related["area-automation:kuche"], "automation."+object)
+			}
 		}, args: args, exit: 0, tier: "ordinary"},
 		{name: "one that acts on the area but reacts to another area is no consumer", setup: func(f *fakeHA) {
 			home(f, turnedOn(map[string]any{"area_id": "flur"}), map[string]any{"_ai": "kuche"}, nil, nil)
