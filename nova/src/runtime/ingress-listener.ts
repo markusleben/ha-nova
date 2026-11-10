@@ -15,6 +15,7 @@ import { resolveIngressIdentity } from "../security/ingress-identity.js";
 import type { PairingV1Manager } from "../security/pairing-v1.js";
 import { resolveCloudPrincipal } from "../security/principal.js";
 import type { FunctionalHandlers } from "./listeners.js";
+import type { GatePage } from "../http/gate-asks.js";
 import {
   createIngressRoutes,
   type IngressRoutePolicy,
@@ -38,6 +39,7 @@ export interface IngressListenerDeps {
   logger: RelayLogger;
   iconPath?: string;
   chatApps?: ChatApps; // only with HA_NOVA_CHAT_APPS=1
+  gatePage?: GatePage; // the approval view; none: no gate
 }
 
 export function createIngressListener(

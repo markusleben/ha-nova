@@ -97,17 +97,21 @@ echo ""
 # compare-and-set write of a device's link: about 12888;
 # and to 13020 for layer 4e: the standalone container's asks and phone link (the same ask
 # routes, its one link in /data/gate-phone.json read never through a link, and /files refusing
-# the Relay's data folder by identity, so a bind mount can't show it under another name): about 13008.
+# the Relay's data folder by identity, so a bind mount can't show it under another name): about 13008;
+# and to 13320 for layer 5: the approval view (any active, non-system administrator except the
+# Relay's own user approves or cancels, each button single-use and bound to that person and ask,
+# never framed), the owner page's "Waiting for your OK" and paused devices, the per-asker limits
+# moved to their own file, and /health's gate flag: about 13275.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 13020 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–13020 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 13320 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–13320 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–13020 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–13320 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──

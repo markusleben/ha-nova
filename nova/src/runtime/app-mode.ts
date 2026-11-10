@@ -10,7 +10,7 @@ import { createHealthHandler } from "../http/handlers/health.js";
 import { createSupervisorProxyHandler } from "../http/handlers/supervisor-proxy.js";
 import { createWsProxyHandler } from "../http/handlers/ws-proxy.js";
 import { gated, type GateClient } from "../http/gate.js";
-import { gateWithAsks, type PhoneLink } from "../http/gate-asks.js";
+import { gateWithAsks, type GatePage, type PhoneLink } from "../http/gate-asks.js";
 import { applyServerTimeouts, type RelayLogger } from "../http/server.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 import type { HaWsClient } from "../ha/ws-client.js";
@@ -232,7 +232,7 @@ export async function buildAppMode(
     mint: mintGateDevice(registry, input.now, `https://127.0.0.1:${SECURE_PORT}`, tls.spkiPin),
     logger: input.logger,
   });
-  const functional = buildFunctionalHandlers(input, relayInstanceId, supervisorBase, gate, registry);
+  const { functional, page: gatePage } = buildFunctionalHandlers(input, relayInstanceId, supervisorBase, gate, registry);
   const listenerDeps = {
     registry,
     pairingManager: pairing,
@@ -261,6 +261,7 @@ export async function buildAppMode(
       registry,
       pairing,
       functional,
+      gatePage,
       relayInstanceId,
       relayVersion: input.relayVersion,
       cloudRemoteEnabled: input.cloudRemoteEnabled,
@@ -323,18 +324,18 @@ function buildFunctionalHandlers(
   supervisorBase: string | undefined,
   worker: GateClient,
   registry: DeviceRegistry,
-): FunctionalHandlers {
+): { functional: FunctionalHandlers; page: GatePage } {
   const forwardCore = createCoreForwarder({ coreClient: input.coreClient });
-  const { gate, ask } = gateWithAsks(worker, {
+  const { gate, ask, asks } = gateWithAsks(worker, {
     prepare: { core: parseCoreRequest },
     deviceName: (p) => (p.kind === "device" ? registry.list().find((d) => d.deviceId === p.deviceId)?.name : undefined) ?? "the shared Relay token",
-    channels: () => [], // the approval page comes with layer 5
+    channels: () => ["page"], // the approval view (nova-approve.ts), always there in the App
     link: phoneLinkOf(registry),
     setLink: setPhoneLinkOf(registry),
     now: input.now,
     logger: input.logger,
   });
-  return {
+  const functional: FunctionalHandlers = {
     ask,
     health: createHealthHandler({
       version: input.relayVersion,
@@ -343,6 +344,7 @@ function buildFunctionalHandlers(
       fileAccessMode: input.fileAccess.mode,
       snapshotRoot: input.snapshotRoot,
       relayInstanceId,
+      gate: true,
       now: input.now,
       logger: input.logger,
     }),
@@ -356,6 +358,7 @@ function buildFunctionalHandlers(
       gate,
     ),
   };
+  return { functional, page: asks };
 }
 
 // A no-op registry used only when the on-disk registry is corrupt: every read

@@ -72,3 +72,38 @@ export async function checkOwner(
     users,
   };
 }
+// The approval view's check (gate spec §3, item 2): any active, non-system
+// administrator except the user the Relay itself signs in as (a tap or click
+// from that user can't be told apart from the Relay). Read fresh each time;
+// a read that fails approves nothing (503).
+export type ApproverCheckResult = { ok: true; userId: string; name: string } | { ok: false; status: 403 | 503; message: string };
+
+export async function checkApprover(
+  request: IncomingMessage,
+  deps: OwnerCheckDeps & { relayUserId: () => Promise<string> },
+): Promise<ApproverCheckResult> {
+  const identity = resolveIngressIdentity(request);
+  if (!identity.ok) {
+    return { ok: false, status: 403, message: "Couldn't tell who you are. Open NOVA from the Home Assistant sidebar." };
+  }
+  let users: HaAuthUser[];
+  let relayUser: string;
+  try {
+    [users, relayUser] = await Promise.all([deps.fetchAuthUsers(), deps.relayUserId()]);
+  } catch (error) {
+    deps.logger?.warn("approver verification unavailable", { error: error instanceof Error ? error.message : String(error) });
+    return { ok: false, status: 503, message: "Could not verify who may approve. Try again shortly." };
+  }
+  const user = users.find((u) => u.id === identity.userId);
+  const admin = user !== undefined && user.is_active === true && user.system_generated !== true && (user.is_owner === true || (user.group_ids ?? []).includes("system-admin"));
+  if (!admin) {
+    return { ok: false, status: 403, message: "Only a Home Assistant administrator can approve HA NOVA's requests." };
+  }
+  if (typeof relayUser !== "string" || relayUser === "") {
+    return { ok: false, status: 503, message: "Could not verify who may approve. Try again shortly." };
+  }
+  if (relayUser === identity.userId) {
+    return { ok: false, status: 403, message: "HA NOVA signs in to Home Assistant as you, so your OK can't be told apart from HA NOVA's own. Another administrator can approve it." };
+  }
+  return { ok: true, userId: identity.userId, name: typeof user.name === "string" ? user.name : "" };
+}

@@ -85,6 +85,7 @@ export function createApp(options: AppOptions): App {
     startedAtMs,
     fileAccessMode: options.fileAccess.mode,
     snapshotRoot: options.snapshotRoot,
+    gate: options.gate !== undefined,
     ...(options.logger ? { logger: options.logger } : {})
   } as const;
 

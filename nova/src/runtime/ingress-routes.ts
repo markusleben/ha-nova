@@ -7,6 +7,7 @@ import {
   createCloudInfoHandler,
 } from "../http/handlers/cloud.js";
 import { createChatAppsHandlers } from "../http/handlers/chat-apps.js";
+import { approveRoutes } from "../http/handlers/nova-approve.js";
 import {
   createNovaActionHandler,
   createNovaPageHandler,
@@ -280,12 +281,18 @@ function registerOwnerRoutes(
     relayVersion: deps.relayVersion,
     now: deps.now,
     logger: deps.logger,
+    ...(deps.gatePage !== undefined ? { gatePage: deps.gatePage } : {}),
     ...(deps.chatApps !== undefined
       ? { chatApps: deps.chatApps, connectorUrl: () => readConnectorUrl((type) => deps.wsClient.sendMessage({ type })) }
       : {}),
   };
   const page = createNovaPageHandler(novaDeps);
   const action = createNovaActionHandler(novaDeps);
+  if (deps.gatePage !== undefined) {
+    for (const [method, path, body, handler] of approveRoutes({ fetchAuthUsers, wsClient: deps.wsClient, page: deps.gatePage, now: deps.now, logger: deps.logger })) {
+      registerIngressRoute(router, policies, method, path, { auth: "identity", body }, handler);
+    }
+  }
   // These handlers perform the fresh Home Assistant owner lookup after the
   // shared listener establishes genuine Ingress identity.
   registerIngressRoute(
