@@ -166,6 +166,12 @@ func TestHelperOptionsFailClosed(t *testing.T) {
 			f.ent("switch.heater", "shelly", "off", map[string]any{"friendly_name": "Heater"})
 			f.ent("light.wrapped", "switch_as_x", "off", nil)
 		}, true},
+		"an automation on its room": {func(f *fakeHA, fl *thermoFlows) {
+			f.ent("switch.heater", "shelly", "off", map[string]any{"friendly_name": "Heater", "_di": "dh", "_ai": "bad"})
+			f.areas = []map[string]any{{"area_id": "bad"}}
+			f.automation("room_heat", "room_heat", map[string]any{"triggers": []any{map[string]any{"trigger": "switch.turned_on", "target": map[string]any{"area_id": "bad"}}}, "actions": []any{step("cover.stop_cover", "cover.blind")}})
+			f.related["area-automation:bad"] = []string{"automation.room_heat"}
+		}, true},
 		"a script that waits on it": {func(f *fakeHA, fl *thermoFlows) { fl.scripts = []string{"script.heater_wait"} }, true},
 		"an automation on state_changed events": {func(f *fakeHA, fl *thermoFlows) {
 			f.automation("state_watch", "state_watch", map[string]any{

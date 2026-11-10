@@ -60,7 +60,7 @@ Starting the entry's options flow returns the current options as suggested value
 ## Coordination
 
 - **Gate (HANO-24, layer 3+).** The gate worker rates with the same engine on its own session through the Relay, so its options read is itself a gated request. The gate rates an options-flow start like the entry's reload (`rawListened` → the consumers of the helper's entities), without a service-call scan, so the rating can't start a nested flow. If that rating is typed (an automation on the thermostat's state unlocks), the read gets 428 and the set stays unknown, in the CLI and the gate alike. Needs from HANO-24: the worker serves a nested `/check` while one is open (else the read times out: unknown, fail closed, but every gated plan in a thermostat home waits out the timeout).
-- **F1 (MAR-142, HANO-27)** changes the read budget in `tier_scan.go`/`tier_ahead.go`. This change stays in its own file plus small edits in `tier_callset.go` and `relay_session.go`, and rebases onto F1.
+- **F1 (MAR-142, HANO-27)** changes the read budget in `tier_scan.go`/`tier_ahead.go`. This change stays in its own file plus small edits in `tier_callset.go` and `relay_session.go`; merged with F1, it reads where the heater and helper sit as the consumer scan does.
 - No plan-file field and no MCP tool text changes.
 
 ## Tests
@@ -74,7 +74,7 @@ Starting the entry's options flow returns the current options as suggested value
 - YAML thermostats and hygrostats stay unknown.
 - A device-less heater in a home with any device-less `switch_as_x` stays unknown: the wrapper can't be attributed.
 - The heater's own state listeners are not scanned when a plan targets the thermostat (as today); while something listens to the heater the set stays unknown.
-- A heater listened to only by an area, floor, or label trigger (F1) or a template is not seen by `search/related`; when F1 lands, its trigger search joins this check (rebase item).
+- A heater or helper listened to only through a template is not seen by `search/related`. Area, floor, and label triggers are (F1, MAR-142): an automation found where it sits counts when a trigger targets that place, as in the consumer scan; any script found there counts.
 - Planning in a chat app below Manage everything also starts and aborts these flows: fixed in code, never chosen by the model.
 - Presets are a second step and are not read; they call nothing.
 - Every plan in such a home counts the heater's switch listeners, since the helper may react to anything the plan changes (the reactor rule, as today).

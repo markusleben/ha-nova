@@ -210,23 +210,29 @@ func (e *tierEngine) plainSwitched(id string) bool {
 	return e.quiet(id)
 }
 
-// quiet: nothing reacts to id's state, which would call more: no script (a
-// wait on its state) or group that search/related ties to it or its device,
-// no automation there whose triggers match it or its device (a thermostat
-// sits on its heater's device: automations that only set it don't count),
-// and no automation on state_changed events, which search/related doesn't
-// index.
+// quiet: nothing reacts to id's state, which would call more: no group that
+// search/related ties to it or its device, no script there or where it sits
+// (a wait on its state), no automation tied to it or its device whose
+// triggers match either (a thermostat sits on its heater's device:
+// automations that only set it don't count), none where it sits whose
+// triggers target that place (as scanConsumers), and no automation on
+// state_changed events, which search/related doesn't index.
 func (e *tierEngine) quiet(id string) bool {
 	if e.listeners == nil || len(e.listeners.hits["state_changed"]) > 0 {
 		return false
 	}
-	for _, item := range e.relatedItems(id) {
+	items, direct, ok := e.relatedItems(id)
+	if !ok {
+		return false
+	}
+	for i, item := range items {
 		related, err := e.related(item[0], item[1])
-		if err != nil || len(related["script"]) > 0 || len(related["group"]) > 0 {
+		if err != nil || len(related["script"]) > 0 || i < direct && len(related["group"]) > 0 {
 			return false
 		}
 		for _, automation := range related["automation"] {
-			if cfg := e.warmConfig(automation); cfg == nil || triggerMatch(cfg, id, e.needles(id), stateDelta{}) != "" {
+			cfg := e.warmConfig(automation)
+			if cfg == nil || i < direct && triggerMatch(cfg, id, e.needles(id), stateDelta{}) != "" || i >= direct && targetsPlace(cfg, items[direct:]) {
 				return false
 			}
 		}
