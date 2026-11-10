@@ -328,7 +328,7 @@ func gatePhone(ctx context.Context, paths runtimePaths, in gatePhoneRequest) (ga
 	}
 	ask := phoneAsk{lang: in.Lang, title: phoneCut(in.Title, phoneTitleLimit), body: in.Body, button: in.Button, urgent: true}
 	answer, reply := askPhone(ctx, s, setup, gatePhoneTag, ask, time.Duration(in.WaitMS)*time.Millisecond, nil)
-	defer reply.withdraw()
+	defer reply.withdraw(ask.title, ask.body)
 	switch answer {
 	case phoneConfirmed:
 		return gatePhoneStill(paths, in.Link, setup), nil
