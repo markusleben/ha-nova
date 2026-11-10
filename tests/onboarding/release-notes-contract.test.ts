@@ -58,6 +58,7 @@ describe("release notes contract", () => {
     expect(stableNotes).toMatch(/## What To Watch\s+- \*\*HA NOVA no longer reads Home Assistant's logs, which can hold passwords and keys\.\*\*[\s\S]*## Bug Fixes/);
     expect(stableNotes).toContain("Settings > System > Logs");
     expect(stableNotes).toContain("changing where backups go, now asks for the same confirmation as unlocking a door.");
+    expect(stableNotes).toContain("**In a home with a thermostat helper or an integration that watches service calls (such as Adaptive Lighting), a light call needs a confirmation");
     // 0.29 ships no Relay gate: the notes never say the Relay checks or refuses anything.
     expect(stableNotes).not.toMatch(/Relay (?:now )?(?:checks|refuses|enforces|blocks)/i);
     // Renames (#1054), shopping list (#1048), setup offer (#1045), stdio apply jobs (#1047), copies first (#1042, #1044, #1049), helpers (#1051), reloads (#1055), same-item edits (#1058), the App notice over Link (#1064), file refusals (#1072), confirmation windows (#1083).

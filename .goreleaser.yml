@@ -90,6 +90,7 @@ release:
 
     - **HA NOVA no longer reads Home Assistant's logs, which can hold passwords and keys.** When a log would help, your AI asks you to open Settings > System > Logs and share only the lines that matter.
     - **Writing a file in your Home Assistant config folder, or changing where backups go, now asks for the same confirmation as unlocking a door.**
+    - **In a home with a thermostat helper or an integration that watches service calls (such as Adaptive Lighting), a light call needs a confirmation when an automation listens for cover calls.**
 
     ## Bug Fixes
 
