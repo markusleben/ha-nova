@@ -217,7 +217,10 @@ const lockState = async () => (await (await fetch(`${HA}/api/states/lock.front_d
 // An unlock plan of the demo lock, through the Relay (channel relay, no
 // code), applied: the linked phone's tap (answer 0) or Cancel (answer 1).
 export async function confirmUnlock(platform, answer = 0) {
-  await cli(["call", "lock.lock", "lock.front_door"]).done; // locked again (ordinary, no confirmation)
+  const locked = await cli(["call", "lock.lock", "lock.front_door"]).done; // locked again (ordinary, no confirmation)
+  let before = await lockState();
+  for (let i = 0; i < 10 && before !== "locked"; i++) before = await new Promise((r) => setTimeout(r, 500)).then(lockState);
+  report("the door is locked before the unlock", before === "locked" ? [] : [`exit ${locked.code}, lock ${before}: ${(locked.stdout + locked.stderr).slice(0, 300)}`]);
   const planned = await cli(["plan", "call", "lock.unlock", "lock.front_door"]).done;
   const plan = JSON.parse(planned.stdout || "{}");
   report("unlock plan asks through the Relay, no code", plan.plan?.channel === "relay" && plan.plan.code === undefined && (plan.say ?? "").includes("Confirm on your linked phone or in Home Assistant (NOVA).")
@@ -227,7 +230,7 @@ export async function confirmUnlock(platform, answer = 0) {
   await withdrawn(await question(platform, "Unlock", { unlock: false, urgent: true, answer }));
   const done = await run.done, state = await lockState();
   if (answer === 0) finished(`unlock confirmed on ${PHONES[platform]}`, done, { out: '"status":"verified"' });
-  else report(`unlock cancelled on ${PHONES[platform]} sends nothing`, done.code !== 0 && state === "locked" ? [] : [`exit ${done.code}, lock ${state}`]);
+  else report(`unlock cancelled on ${PHONES[platform]} sends nothing`, done.code !== 0 && state === "locked" ? [] : [`exit ${done.code}, lock ${state}: ${(done.stdout + done.stderr).slice(0, 300)}`]);
 }
 
 // Pushes past the lane's own questions and their withdraws.
