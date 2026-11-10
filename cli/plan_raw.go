@@ -60,6 +60,8 @@ type rawPlanItem struct {
 	detail   string     // the request behind an everyday line
 	copy     string     // a config snapshot save: the copy's name (rawSteps)
 	drops    string     // a scene save or helper update: the sentence naming what it removes (sceneNote, helperNote)
+	stats    *rawImport // a statistics import's figures (rawRunLine)
+	kind     string     // the request's endpoint and type or action: steps alike are of one kind (rawAlike)
 }
 
 type rawPlanResult struct {
@@ -239,12 +241,15 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 			line = n.deviceDelete(lang, payload["device_id"])
 		default:
 			verb, object := rawItemLine(n, lang, item.Endpoint, payload)
-			line.goal = actionGoal{raw: verb, names: rawNames(lang, object, n.listed)}
+			line.goal = actionGoal{raw: verb, names: rawNames(lang, object, n.listed), all: true}
 		}
 		entry := &result.Items[i]
 		entry.line, entry.goal, entry.more, entry.detail = line.text(lang), line.goal, line.more, line.detail
 		entry.drops = cmp.Or(n.sceneNote(lang, payload), n.helperNote(lang, item.Endpoint, payload))
-		entry.Change = upperFirst(entry.line)
+		wsType, _ := payload["type"].(string)
+		action, _ := payload["action"].(string)
+		method, _ := payload["method"].(string)
+		entry.Change, entry.stats, entry.kind = upperFirst(entry.line), n.statsImport(item.Endpoint, payload), item.Endpoint+" "+wsType+action+method
 	}
 	env.Result = result
 	noteFlowForms(s, env)
@@ -363,34 +368,6 @@ func rawSteps(env *verbEnvelope) (steps []rawPlanItem, copies []string) {
 	return result.Items[len(copies):], copies
 }
 
-// rawSayWhat opens a raw plan's confirmation with what happens in the home:
-// one line per step, in order, each with its detail, and the copies saved
-// first.
-func rawSayWhat(lang string, env *verbEnvelope) (about, status string) {
-	steps, copies := rawSteps(env)
-	detail := func(item rawPlanItem) (say string) {
-		if item.drops != "" {
-			say = " " + item.drops
-		}
-		if item.detail != "" {
-			say += " " + confirmT(lang, "detail.say", "detail", item.detail)
-		}
-		return say
-	}
-	copied := rawCopyNote(lang, copies)
-	if len(steps) == 1 {
-		return strings.TrimSpace(sayAbout(lang, steps[0].line) + detail(steps[0]) + " " + copied), sayNotRun(lang)
-	}
-	lines := []string{confirmT(lang, "raw.steps_intro", "count", len(steps))}
-	if copied != "" {
-		lines = append(lines, copied)
-	}
-	for i, item := range steps {
-		lines = append(lines, confirmT(lang, "raw.step_line", "number", i+1, "change", item.Change)+detail(item))
-	}
-	return strings.Join(lines, "\n"), sayNotRun(lang)
-}
-
 // rawGoal: the phone's verb and object, the step's own for one step.
 func rawGoal(lang string, env *verbEnvelope) actionGoal {
 	steps, _ := rawSteps(env)
@@ -398,39 +375,4 @@ func rawGoal(lang string, env *verbEnvelope) actionGoal {
 		return steps[0].goal
 	}
 	return actionGoal{raw: "confirm", names: []string{confirmT(lang, "raw.steps", "count", len(steps))}}
-}
-
-// rawAsk: a typed raw plan's phone question. With several items the
-// notification names the typed steps first, by number, then the reasons,
-// then how many other steps come along, so a cut keeps what needs the tap.
-func rawAsk(e *tierEngine, env *verbEnvelope, plan storedPlan) actionGoal {
-	lang := textLang(plan)
-	goal := rawGoal(lang, env)
-	steps, _ := rawSteps(env)
-	var why []string
-	if len(steps) == 1 && steps[0].more != "" { // what completes the title
-		why = append(why, upperFirst(steps[0].more))
-	}
-	typed := 0
-	for i, item := range steps {
-		if item.drops != "" {
-			why = append(why, strings.TrimSuffix(item.drops, "."))
-		}
-		if len(steps) > 1 && item.Tier == tierTyped.String() {
-			why = append(why, confirmT(lang, "raw.step_why", "number", i+1, "change", item.Change))
-			typed++
-		}
-	}
-	reasons := map[string]bool{}
-	for _, r := range env.Reasons {
-		if text, typed := sayReason(lang, e, env, plan, r); typed && text != "" && !reasons[text] {
-			reasons[text] = true
-			why = append(why, text)
-		}
-	}
-	if others := len(steps) - typed; len(steps) > 1 && others > 0 {
-		why = append(why, confirmT(lang, "raw.others", "count", others))
-	}
-	goal.why = strings.Join(why, ". ")
-	return goal
 }

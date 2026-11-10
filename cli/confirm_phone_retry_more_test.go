@@ -223,7 +223,7 @@ func TestWindowKeepsItsTimeWhileThePhoneProbeHangs(t *testing.T) {
 	}
 	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
 	if exit != 0 || calls(h) != 1 || p.asks() != 0 || left < windowMinWait-500*time.Millisecond ||
-		len(w.messages) != 1 || strings.Contains(w.messages[0], windowBoth("en")) || !strings.HasSuffix(w.messages[0], windowAsked("en")) {
+		len(w.messages) != 1 || strings.Contains(w.messages[0], windowBoth("en")) || !strings.HasPrefix(w.messages[0], windowAsked("en")) {
 		t.Fatalf("exit %d %+v asks %d window left %v messages %q", exit, env.Error, p.asks(), left, w.messages)
 	}
 }

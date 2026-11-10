@@ -1,9 +1,12 @@
 package main
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
-func relayAvailableUpdateNotice(cfg config, token, running string) humanNotice {
-	candidate, _ := resolveRelayUpdateCandidate(cfg, token)
+func relayAvailableUpdateNotice(route relayTransportSelection, running string) humanNotice {
+	candidate, _ := resolveRelayUpdateCandidateWithTransport(context.Background(), route.BaseURL, route.Client, route.Credential)
 	return relayAvailableUpdateNoticeFromCandidate(candidate, running)
 }
 

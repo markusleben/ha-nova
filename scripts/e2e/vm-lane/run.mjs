@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { setTimeout as pause } from "node:timers/promises";
 import { APP_BRANCH_RE, appPreview } from "./app-preview.mjs";
 import { winTransport } from "./transport.mjs";
+import { chatFileRefusal } from "./chat-files.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const REPO = "markusleben/ha-nova";
@@ -511,6 +512,7 @@ try {
     if (!(await preview.install(appBranch, snapshot.registry))) throw new Error("App preview failed; no lane runs");
   }
   if (stopping || !(await appVersion(appBranch ? await sup(`/addons/${CFG.app}/info`) : appInfo))) throw new Error("preflight failed or interrupted");
+  await chatFileRefusal({ ha: CFG.ha, llat, app: CFG.app, sup, check });
   if (await winIdentity() && await winIsolation()) {
     users = true;
     for (const shell of ["ps7", "ps51"]) {

@@ -24,6 +24,8 @@ OVERLAY="${TESTBED_OVERLAY:-}"
 OWNER_PASSWORD="${TESTBED_OWNER_PASSWORD:-testbed-password-1234}"
 COMPOSE=(docker compose -f "$HERE/docker-compose.yml")
 if [[ -n "$OVERLAY" ]]; then COMPOSE+=(-f "$OVERLAY/docker-compose.yml"); fi
+# TESTBED_FILES=1: the Relay reads and writes /config (docker-compose.files.yml).
+if [[ "${TESTBED_FILES:-}" == 1 ]]; then COMPOSE+=(-f "$HERE/docker-compose.files.yml"); fi
 start_ts=$(date +%s)
 
 die() { echo "testbed: $*" >&2; exit 1; }
@@ -39,6 +41,7 @@ if [[ -z "$OVERLAY" ]]; then
   command -v go > /dev/null || die "go is required to build the CLI (see CONTRIBUTING.md)"
   (cd "$ROOT/cli" && go build -o /dev/null .) || die "the CLI does not build with $(go version); cli/go.mod names the required Go toolchain"
 fi
+[[ -z "$OVERLAY" || "${TESTBED_FILES:-}" != 1 ]] || die "TESTBED_FILES is for the local bed, never the hosted demo"
 [[ "$OWNER_PASSWORD" =~ ^[A-Za-z0-9._-]{12,}$ ]] || die "TESTBED_OWNER_PASSWORD must be 12+ chars of [A-Za-z0-9._-]"
 command -v curl > /dev/null || die "curl is required"
 if [[ -n "$("${COMPOSE[@]}" ps -q 2> /dev/null)" ]]; then
@@ -58,6 +61,7 @@ step "preparing runtime config in .state/config"
 # A failed boot is left running for inspection; say how to look and clean up.
 trap 'code=$?; [[ $code == 0 ]] || echo "testbed: up failed; inspect: docker compose -p ha-nova-testbed logs; clean up: npm run testbed:down" >&2' EXIT
 mkdir -p "$STATE/config"
+[[ "${TESTBED_FILES:-}" != 1 ]] || touch "$STATE/files" # phone.mjs recreates the Relay with it
 cp -R "$HERE/config/." "$STATE/config/"
 if [[ -n "$OVERLAY" ]]; then cp -R "$OVERLAY/config/." "$STATE/config/"; fi
 # Automation D uses the built-in motion_light blueprint. HA copies built-ins

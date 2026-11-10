@@ -96,7 +96,7 @@ After a Home Assistant task, the agent offers an available update once per sessi
 ha-nova update
 ```
 
-`ha-nova update` refreshes HA NOVA in every installed AI app, checks that Claude Code uses the new version, and ends with one line naming the apps it updated (and any it could not, with the next step). If Home Assistant then offers a NOVA App update, a terminal gets the guided App update offer; without a terminal (an AI app ran the command) it prints where to update the App in Home Assistant.
+`ha-nova update` refreshes HA NOVA in every installed AI app, checks that Claude Code uses the new version, and ends with one line naming the apps it updated (and any it could not, with the next step). If Home Assistant then offers a NOVA App update, a terminal gets the guided App update offer; without a terminal (an AI app ran the command) it prints where to update the App in Home Assistant. Over Home Assistant Link the offer is the same (as in `ha-nova doctor`): the install goes through Link, and HA NOVA waits across the App's restart, opening a new Link connection if the old one is gone. It says the App is updated only after it reads back the new version; otherwise it says what it saw and where to update the App in Home Assistant.
 
 After `ha-nova update` succeeds, start a new AI client session to load the updated HA NOVA skills.
 

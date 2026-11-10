@@ -237,7 +237,7 @@ func TestPhoneResultTitleAndButtons(t *testing.T) {
 // quoted values that are no list stay one name, cut.
 func TestRawTitleCountsItsList(t *testing.T) {
 	listed := []string{"“sensor.kitchen_energy_total”", "“sensor.living_room_energy_total”", "“sensor.bedroom_energy_total”", "“sensor.office_energy_total”"}
-	goal := actionGoal{raw: "delete", names: rawNames("en", "the long-term statistics of "+sayList("en", listed), listed)}
+	goal := actionGoal{raw: "delete", names: rawNames("en", "the long-term statistics of "+sayAll("en", listed), listed)}
 	if got := goal.title("en", ""); got != "Delete the long-term statistics of “sensor.kitchen_energy_total” and 3 more?" {
 		t.Fatalf("title = %q", got)
 	}

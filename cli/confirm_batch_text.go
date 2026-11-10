@@ -14,14 +14,6 @@ import (
 // (confirm_strings.en.json, batch.*); names come from Home Assistant through
 // sayText, a member's reasons from sayReason, as its own preview words them.
 
-// The longest batch window that shows uncut; provisional until the window
-// lanes pass (the spec → Lanes for the window budget). Over it, plan batch
-// refuses the list: it is never shown cut.
-const (
-	batchWindowLines = 34
-	batchWindowChars = 2400
-)
-
 // batchAccessCodes: what makes a member the most sensitive one for the
 // phone, ahead of any delete.
 var batchAccessCodes = map[string]bool{reasonAccessLock: true, reasonAccessAlarm: true, reasonAccessCover: true, reasonCoverClassUnknown: true,
@@ -102,14 +94,27 @@ func (m batchMember) sensitivity() int {
 }
 
 // batchText: the list in order, one line per member with what happens to
-// it and why it needs the user, then what one confirmation covers.
+// it and why it needs the user, then what one confirmation covers. Members
+// in a row that do the same to the same kind, with no reason of their own,
+// share one line that names every one; a member with a reason keeps its own.
 func batchText(rp batchReplan, typed bool) string {
 	lang, n := rp.lang, len(rp.members)
 	lines := []string{confirmT(lang, "batch.head", "count", n)}
 	deletes := false
-	for i, m := range rp.members {
-		lines = append(lines, strings.Join(append([]string{confirmT(lang, "batch.item", "n", i+1, "goal", m.goal(lang))}, m.reasons(lang)...), " "))
-		deletes = deletes || m.op() == "delete"
+	alike := func(a, b batchMember) bool {
+		return a.op() == b.op() && a.stored.ConfigAction.Domain == b.stored.ConfigAction.Domain && len(b.reasons(lang)) == 0
+	}
+	for i := 0; i < n; {
+		m, reasons, j := rp.members[i], rp.members[i].reasons(lang), i+1
+		for len(reasons) == 0 && j < n && alike(m, rp.members[j]) {
+			j++
+		}
+		if j-i == 1 {
+			lines = append(lines, strings.Join(append([]string{confirmT(lang, "batch.item", "n", i+1, "goal", m.goal(lang))}, reasons...), " "))
+		} else {
+			lines = append(lines, confirmT(lang, "batch.items", "first", i+1, "last", j, "goal", batchGroupGoal(lang, rp.members[i:j])))
+		}
+		deletes, i = deletes || m.op() == "delete", j
 	}
 	var tail []string
 	if typed {
@@ -120,6 +125,28 @@ func batchText(rp batchReplan, typed bool) string {
 	}
 	tail = append(tail, confirmT(lang, "batch.order"), confirmT(lang, "batch.status"))
 	return strings.Join(lines, "\n") + "\n" + strings.Join(tail, " ")
+}
+
+// batchGroupGoal: what members alike do (batchText), every name listed.
+func batchGroupGoal(lang string, members []batchMember) string {
+	var names []string
+	for _, m := range members {
+		names = append(names, m.name())
+	}
+	list, n := sayAll(lang, names), len(members)
+	switch members[0].op() + "." + members[0].stored.ConfigAction.Domain {
+	case "create.automation":
+		return confirmT(lang, "batch.group.create.automation", "count", n, "names", list)
+	case "create.script":
+		return confirmT(lang, "batch.group.create.script", "count", n, "names", list)
+	case "update.automation":
+		return confirmT(lang, "batch.group.change.automation", "count", n, "names", list)
+	case "update.script":
+		return confirmT(lang, "batch.group.change.script", "count", n, "names", list)
+	case "delete.automation":
+		return confirmT(lang, "batch.group.delete.automation", "count", n, "names", list)
+	}
+	return confirmT(lang, "batch.group.delete.script", "count", n, "names", list)
 }
 
 // batchSay: the list and the plan's ask, as a single plan's say ends.
@@ -210,16 +237,16 @@ func batchWindowFits(plan storedPlan, verb string) error {
 	if noCopies := batchNoCopies(plan.Lang, text); utf8.RuneCountInString(noCopies) > utf8.RuneCountInString(text) {
 		text = noCopies
 	}
-	text += "\n\n" + windowBoth(textLang(plan)) + "\n" + windowAsked(textLang(plan))
-	lines, chars := strings.Count(text, "\n")+1, utf8.RuneCountInString(text)
-	if lines <= batchWindowLines && chars <= batchWindowChars {
+	lines, fits := windowFits(textLang(plan), text)
+	if fits {
 		return nil
 	}
-	next := "Split the list into two batches (each gets its own confirmation), then make them again with the same plan ids."
+	size := windowSplitSize(len(plan.BatchMembers), lines)
+	next := fmt.Sprintf("Split the list, in its order, into batches of at most %d (each gets its own confirmation), make them one after another with the same plan ids, and tell the user why there are several.", size)
 	if verb != "plan" {
-		next = "Nothing was sent, and this batch is used up (a name in it grew longer): plan every item again, then make two shorter batches, each with its own confirmation."
+		next = fmt.Sprintf("Nothing was sent, and this batch is used up (a name in it grew longer): plan every item again, then make batches of at most %d, in order, each with its own confirmation, and tell the user why there are several.", size)
 	}
-	return refusedWith("BATCH_TOO_LONG", fmt.Sprintf("the confirmation of these %d changes is too long for one window (%d lines and %d characters; at most %d and %d)", len(plan.BatchMembers), lines, chars, batchWindowLines, batchWindowChars), next)
+	return refusedWith("BATCH_TOO_LONG", fmt.Sprintf("the confirmation of these %d changes is too long for one window (%d lines; at most %d)", len(plan.BatchMembers), lines, windowMaxLines), next)
 }
 
 // batchCopyText: a batch's window and form text; after the user chose to go

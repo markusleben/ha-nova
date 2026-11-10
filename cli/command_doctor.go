@@ -121,9 +121,6 @@ func runDoctor(paths runtimePaths, args []string) int {
 	)
 	defer cancelDoctorRelay()
 	route := selectDoctorRoute(doctorRelayCtx, paths, cfg, state, doctorInfo)
-	// The App check gets its own time: a slow route choice must not use it up.
-	readinessCtx, cancelReadiness := context.WithTimeout(context.Background(), time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)))
-	defer cancelReadiness()
 	if route.failed {
 		status = 1
 	}
@@ -168,6 +165,10 @@ func runDoctor(paths runtimePaths, args []string) int {
 
 	healthBase := transportBase
 	runReadiness := func() relayReadiness {
+		// Its own time on every run: a slow route choice must not use it up,
+		// and the second run follows a guided App update that took minutes.
+		readinessCtx, cancelReadiness := context.WithTimeout(context.Background(), time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)))
+		defer cancelReadiness()
 		if route.diagnosticOnly {
 			return route.healthOnlyReadiness(readinessCtx, cfg)
 		}
@@ -180,6 +181,17 @@ func runDoctor(paths runtimePaths, args []string) int {
 			)
 		}
 		return checkRelayReadiness(cfg.RelayBaseURL, token)
+	}
+	// After a guided App update over Home Assistant Link, the Ingress session
+	// doctor opened may be gone with the App's restart: check over a new one.
+	readinessAfterUpdate := func() relayReadiness {
+		if !usingCloud {
+			return runReadiness()
+		}
+		if fresh, ok := relayNoticeTransport(context.Background(), cfg); ok && fresh.Via == relayViaCloud {
+			transportBase, transportClient, token = fresh.BaseURL, fresh.Client, fresh.Credential
+		}
+		return runReadiness()
 	}
 	// Over Home Assistant Link, a turned-down computer is Link's to explain.
 	printNotAccepted := func() {
@@ -215,7 +227,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 			// A guided update that ends verified clears THIS failure — doctor
 			// must not exit 1 over a problem the user just fixed.
 			fixed := false
-			if !*quiet && !usingCloud && !route.diagnosticOnly {
+			if !*quiet && !route.diagnosticOnly {
 				fixed = maybeOfferGuidedRelayUpdate(paths, notice)
 			}
 			if !fixed {
@@ -225,16 +237,20 @@ func runDoctor(paths runtimePaths, args []string) int {
 				// update is stale (its WS may still be reconnecting, or fail
 				// on the new version) — the checks below must judge the relay
 				// that is running NOW.
-				readiness = runReadiness()
+				readiness = readinessAfterUpdate()
 			}
-		} else if !*quiet && !usingCloud && !route.diagnosticOnly {
+		} else if !*quiet && !route.diagnosticOnly {
 			// A newer App may be available even while the running Relay remains
 			// compatible with min_relay_version. That is an optional update, not
 			// a failed doctor check; decline/non-TTY keeps status unchanged.
-			if notice := relayAvailableUpdateNotice(cfg, token, parseRelayHealthVersion(readiness.HealthBody)); !notice.empty() {
+			appRoute := transport // a device's route: home or Home Assistant Link
+			if !deviceMode {
+				appRoute = relayTransportSelection{BaseURL: cfg.RelayBaseURL, Client: httpClient, Credential: token}
+			}
+			if notice := relayAvailableUpdateNotice(appRoute, parseRelayHealthVersion(readiness.HealthBody)); !notice.empty() {
 				printHumanNotice(notice)
 				if maybeOfferGuidedRelayUpdate(paths, notice) {
-					readiness = runReadiness()
+					readiness = readinessAfterUpdate()
 				}
 			}
 		}

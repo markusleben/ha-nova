@@ -74,6 +74,18 @@ installed artifacts execute, or a train that changes the App (App Images →
 App promote PR: the RC lanes are where its preview is tested). **RC
 skippable** for skills/docs-only releases. When in doubt, run the RC.
 
+An RC passes the gate only when every row of `npm run rc-lane` (section 4)
+is PASS on it (the one SKIP section 4 allows, named in the release PR) and
+`npm run vm-lane` has no FAIL. A failing row is fixed or its check is,
+never waived for the final.
+
+**A late find gets a lane check.** A defect found after an RC tag (the
+real-home preview, the phone test, a tester) gets a check that fails on the
+RC that shipped it and passes on the fix, in the rc lane, the vm lane, or a
+test CI runs, before the final tag. Where no lane can reach its path (a real
+Home Assistant Link account, a real phone), it gets a row in the maintainer's
+checklist (section 6 or the phone test) and the release PR says so.
+
 Workflows: `ci.yml` = PR/main gate; `release-candidate.yml` = manual
 build + 3-runner bundle smoke, never publishes; `release.yml` = tagged
 publish for both `-rcN` and final tags. The `release-tags-protection` ruleset
@@ -107,15 +119,25 @@ deploy or tag.
    ```bash
    npm run rc-lane -- vX.Y.Z-rcN
    ```
-   One command, throwaway only, about 5–10 minutes: first the chat-bridge
+   One command, throwaway only, about 10–15 minutes: first the chat-bridge
    "code last" check with headless Claude, while the Claude test account's
-   usage limit is fresh (SKIP without `claude` and `~/.claude-ha-nova-test`),
-   then the client matrix from the last stable and from v0.24.0 (published
-   stable install, then update to the RC), the phone lane (push payloads per
-   platform through fake phones), and the slow-check regression. It
-   prints one table and exits non-zero on any FAIL; a WARN row means the bed's
-   Relay is not the tag's. Post the table as a comment on the release-prep PR.
-   It starts its own test bed, so no other bed may run.
+   usage limit is fresh (the one row that may SKIP, without `claude` and
+   `~/.claude-ha-nova-test`); then, with the tag's binary, the test bed's
+   assertions (`testbed/verify.sh`), chat-app files under `/config` at
+   Ask only, Use the home, and Manage everything (read, write, delete; a
+   refusal names its real cause, never the sign-in or a setting); then the
+   client matrix from the last stable and from v0.24.0 (published stable
+   install, then update to the RC),
+   the phone lane (push payloads per platform through fake phones), calm
+   edits in a bed with real-home listeners (two edits of one automation run
+   without an ask and undo puts back the latest; an unlock or garage member
+   and a reload you call still ask), and the slow-check regression
+   (`scripts/e2e/testbed/README.md`, "Real-home checks"). It prints one
+   table and exits non-zero on any FAIL; a WARN row means the bed's Relay is
+   not the tag's. Post the table as a comment on the release-prep PR. It
+   starts its own test bed (with file access), so no other bed may run.
+   Known limit: no lane reaches the App over Home Assistant Link (the
+   Cloud checklist's `app_update_over_link` row does).
    Then the Windows onboarding proof, automated on the maintainer's
    throwaway UTM VMs ("HA NOVA Win11 Test" and "HA NOVA HAOS Test" running;
    "HA NOVA Ubuntu Test" optional):
@@ -132,7 +154,11 @@ deploy or tag.
    from the last stable, doctor, a read and an ordinary call, client wiring,
    rerun, stale uninstall marker, uninstall and purge, as fresh standard
    users in PowerShell 7 and 5.1 (`docs/release-validation.md` "Windows
-   Public Onboarding Lane"). It never starts or stops a VM, checks the HAOS
+   Public Onboarding Lane"); and one chat-app file delete in `www` through
+   Home Assistant's chat-app endpoint into the App's own bridge, which must
+   end refused with `FILE_PATH_DENIED` (set up once on the HAOS VM: chat
+   apps on, the setup token's user at Manage everything, the App's file
+   access read or readwrite). It never starts or stops a VM, checks the HAOS
    VM is the throwaway one before any write, and revokes its devices at the
    end. Post its table on the release-prep PR too.
    This replaces only the Windows 11 proof; other platform-specific gates in
@@ -349,6 +375,14 @@ first support or after a change touching their path:
 - [ ] `roles`: one real standard non-administrator binding
 - [ ] `owner_no_code`: one real owner OAuth `cloud add` pairs with no code (Link owner pairing changes)
 - [ ] `lifecycle`: `cloud add` → App restart/reinstall → CLI uninstall/reinstall → purge revokes the device
+- [ ] `app_update_over_link` (a release that bumps the App, before updating
+      it in the real home any other way): reached only over Home Assistant
+      Link, `ha-nova check-update` names the App update with `ha-nova update`;
+      `ha-nova update` in a terminal asks "Update the NOVA App now?", and yes
+      installs it, waits through the App's restart, and ends with "The NOVA App
+      is updated and works: v<new>" while Home Assistant shows that version.
+      Any other end says so and names Settings → Apps → NOVA Relay → Update.
+      Note how long the wait took
 - [ ] `routing`: one real automatic fallback; `redirects_non_disclosure`: no credential in config, argv, logs, diagnostics, or AI-visible output
 - [ ] `signing_and_update_matrix`: real install/update after installer, updater, signing, or native-authorization changes
 

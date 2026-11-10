@@ -269,6 +269,9 @@ func planIdentity(sum, nonceHex string) string {
 // savePlan writes CacheDir/plans/<id>.json (0600, atomic) after pruning
 // expired files and keeping at most planMaxFiles plans.
 func savePlan(paths runtimePaths, plan storedPlan, credential string) error {
+	if err := windowTooLong(plan); err != nil {
+		return err
+	}
 	if plan.Tier == tierTyped.String() {
 		plan.ChannelSeal = channelSeal(credential, plan) // after Prompt is final
 	}

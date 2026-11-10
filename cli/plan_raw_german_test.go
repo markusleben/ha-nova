@@ -72,7 +72,7 @@ func TestRawTitlesKeepTheVerb(t *testing.T) {
 	for lang, catalog := range confirmCatalogs {
 		opening := string([]rune(confirmQuote(lang, "“x”"))[0])
 		listed := []string{sayText(name, true), sayText(name+" 2", true), sayText(name+" 3", true), sayText(name+" 4", true)}
-		targets := " " + sayList(lang, listed)
+		targets := " " + sayAll(lang, listed)
 		objects := []string{confirmT(lang, "raw.ws.statistics", "targets", targets), confirmT(lang, "raw.ws.exposed", "targets", targets), confirmT(lang, "raw.ws.hacs", "targets", targets)}
 		for key := range catalog {
 			id, ok := strings.CutPrefix(key, "raw.verb.")

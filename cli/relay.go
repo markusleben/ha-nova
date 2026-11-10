@@ -441,13 +441,14 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		}
 	}
 	maybeNudgeSkillUpdate(paths, true)
+
+	bodyBytes, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	printLocalRelayAuthRepair(
 		resp.StatusCode,
+		bodyBytes,
 		transport,
 		cfg,
 	)
-
-	bodyBytes, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	if err != nil {
 		printRelayFailure(read, "reading the Relay response", err)
 		return 1
@@ -806,12 +807,13 @@ func runHealth(paths runtimePaths, args []string) int {
 		printRelayHTTPOutcomeUnknown(resp.StatusCode)
 		return 1
 	}
+	bodyBytes, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	printLocalRelayAuthRepair(
 		resp.StatusCode,
+		bodyBytes,
 		transport,
 		cfg,
 	)
-	bodyBytes, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	if err != nil {
 		printRelayPostRequestError("reading the Relay health response", err)
 		return 1
@@ -855,12 +857,11 @@ func runHealth(paths runtimePaths, args []string) int {
 
 func printLocalRelayAuthRepair(
 	status int,
+	body []byte,
 	transport relayTransportSelection,
 	cfg runtimeConfig,
 ) {
-	if transport.Via != relayViaLocal ||
-		(status != http.StatusUnauthorized &&
-			status != http.StatusForbidden) {
+	if transport.Via != relayViaLocal || !localRelayRefusedCredential(status, body) {
 		return
 	}
 	printErr(

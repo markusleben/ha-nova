@@ -55,6 +55,8 @@ type fakeHA struct {
 	translations map[string]map[string]string
 	// users answers config/auth/list when extra doesn't (nil: none).
 	users []map[string]any
+	// manifests answers manifest/list (nil: none listed, so no platform reads as built in).
+	manifests []map[string]any
 }
 
 func newFakeHA() *fakeHA {
@@ -207,6 +209,8 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 			if f.users != nil {
 				return f.users
 			}
+		case "manifest/list":
+			return append([]map[string]any{}, f.manifests...)
 		}
 		return []any{}
 	}

@@ -231,7 +231,8 @@ func TestPlanRawSubentryReconfigureNamesTarget(t *testing.T) {
 	}
 }
 
-// On the phone, every typed step comes first, by number, and survives the
+// On the phone, every typed step comes first, by number (deletes alike in a
+// row on one line), and survives the
 // cut to the notification's length; the other steps are counted, and the
 // copy saved first is no step.
 func TestPlanRawPhoneAskKeepsTypedSteps(t *testing.T) {
@@ -255,12 +256,10 @@ func TestPlanRawPhoneAskKeepsTypedSteps(t *testing.T) {
 		t.Fatal(err)
 	}
 	ask := phonePlanAsk("en", sayAsk(newTierEngine(s), &env, plan, ""), false)
-	for i, id := range []string{"guest_mode_living_room", "holiday_lights_garden", "night_mode_upstairs"} {
-		if want := "Step " + string(rune('1'+i)) + ": Delete the toggle helper “" + id + "”"; !strings.Contains(ask.body, want) {
-			t.Errorf("phone body lacks %q: %q", want, ask.body)
-		}
+	if want := "Steps 1–3: Delete the toggle helper “guest_mode_living_room”, the toggle helper “holiday_lights_garden” and the toggle helper “night_mode_upstairs”"; !strings.Contains(ask.body, want) {
+		t.Errorf("phone body lacks %q: %q", want, ask.body)
 	}
-	if !strings.Contains(ask.body, "And 1 other step") || strings.Index(ask.body, "Step 3") > strings.Index(ask.body, "This deletes") || ask.title != "Confirm 4 steps in Home Assistant?" {
+	if !strings.Contains(ask.body, "And 1 other step") || strings.Index(ask.body, "Steps 1–3") > strings.Index(ask.body, "This deletes") || ask.title != "Confirm 4 steps in Home Assistant?" {
 		t.Fatalf("phone body %q", ask.body)
 	}
 }
