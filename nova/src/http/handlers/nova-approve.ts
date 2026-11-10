@@ -54,7 +54,7 @@ function base(request: IncomingMessage): string {
 function renderAsk(ask: PageAsk, form: (action: string) => string, now: number): string {
   const minutes = Math.max(1, Math.ceil((ask.expiresAt - now) / 60_000));
   const items = ask.items.map((item) => `<li>${escapeHtml(item.text ?? "")}${item.detail ? ` <span class="muted">${escapeHtml(item.detail)}</span>` : ""}${(item.entity_ids ?? []).map((id) => ` <code>${escapeHtml(id)}</code>`).join("")}</li>`).join("");
-  return `<section><p>From <strong>${escapeHtml(ask.device)}</strong> <span class="muted">· ends in ${minutes} min</span></p><ul>${items}</ul>${form("approve")}<button type="submit">Approve</button></form>${form("cancel")}<button type="submit">Cancel</button></form></section>`;
+  return `<section><ul>${items}</ul><p>${escapeHtml(ask.body)} <span class="muted">Ends in ${minutes} min.</span></p>${form("approve")}<button type="submit">Approve</button></form>${form("cancel")}<button type="submit">Cancel</button></form></section>`;
 }
 
 export function createApprovePageHandler(deps: ApprovePageDeps): RouteHandler {
@@ -62,8 +62,8 @@ export function createApprovePageHandler(deps: ApprovePageDeps): RouteHandler {
     const who = await checkApprover(request, deps);
     if (!who.ok) return send(response, who.status, `<p>${escapeHtml(who.message)}</p>`);
     const done = DONE.get(new URLSearchParams((request.url ?? "").split("?")[1] ?? "").get("done") ?? "");
-    // An ask the worker didn't word for every typed request isn't shown: nobody approves what they can't read.
-    const all = deps.page.waiting().filter((ask) => ask.items.length > 0 && ask.items.every((item) => (item.text ?? "") !== "")).sort((a, b) => a.expiresAt - b.expiresAt);
+    // An ask the worker didn't word isn't shown: nobody approves what they can't read.
+    const all = deps.page.waiting().filter((ask) => ask.body !== "" && ask.items.length > 0 && ask.items.every((item) => (item.text ?? "") !== "")).sort((a, b) => a.expiresAt - b.expiresAt);
     const asks = all.slice(0, SHOWN);
     const more = all.length > SHOWN ? `<p class="muted">${all.length - SHOWN} more after these.</p>` : "";
     const now = deps.now();
@@ -104,7 +104,7 @@ export function approveRoutes(input: Omit<ApprovePageDeps, "relayUserId" | "csrf
   const deps: ApprovePageDeps = {
     ...input,
     relayUserId: () => relayUserId(input.wsClient),
-    csrf: createCsrfStore(), // its own: the view's tokens never evict the owner page's
+    csrf: createCsrfStore(64), // its own, roomy: several people's open pages keep their buttons
   };
   const [view, act] = [createApprovePageHandler(deps), createApproveActionHandler(deps)];
   return ["", "/home"].flatMap((prefix): ["GET" | "POST", string, "none" | "form", RouteHandler][] => [["GET", prefix + "/approve", "none", view], ["POST", prefix + "/approve", "form", act]]);

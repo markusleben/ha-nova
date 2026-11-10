@@ -101,7 +101,7 @@ echo ""
 # and to 13320 for layer 5: the approval view (any active, non-system administrator except the
 # Relay's own user approves or cancels, each button single-use and bound to that person and ask,
 # never framed), the owner page's "Waiting for your OK" and paused devices, the per-asker limits
-# moved to their own file, and /health's gate flag: about 13296.
+# moved to their own file, and /health's gate flag: about 13295.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE

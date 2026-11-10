@@ -26,7 +26,6 @@ const ENDPOINTS: readonly GateEndpoint[] = ["ws", "core", "files", "backups", "s
 
 interface Ask {
   owner: string;
-  device: string; // as the page names it
   digests: string[];
   prepared?: PreparedAsk; // none: a link ask
   expiresAt: number;
@@ -152,12 +151,11 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
       }
     }
   };
-  const start = (owner: string, device: string, digests: string[], prepared?: PreparedAsk): { askId: string; ask: Ask } => {
+  const start = (owner: string, digests: string[], prepared?: PreparedAsk): { askId: string; ask: Ask } => {
     const askId = randomBytes(32).toString("base64url");
     const expiresAt = deps.now() + ASK_MS;
     const ask: Ask = {
       owner,
-      device,
       digests,
       ...(prepared !== undefined ? { prepared } : {}),
       expiresAt,
@@ -218,7 +216,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
       throw new HttpError(409, "GATE_NO_CHANNEL", "No one can confirm this now: no linked administrator's phone answers, and no approval page is available here; nothing was sent");
     }
     const digests = requests.filter((_, i) => prepared.items[i]?.verdict === "typed").map((r) => gateDigest(r.endpoint, r.body));
-    const { askId, ask } = start(owner, device, digests, prepared);
+    const { askId, ask } = start(owner, digests, prepared);
     if (link !== undefined && channels.includes("phone")) {
       const text = { lang: prepared.lang ?? "", title: prepared.title ?? "", body: prepared.body ?? "", button: prepared.button ?? "" };
       void deps.phone(link, text, ASK_MS, ask.stop.signal).then((answer) => {
@@ -266,7 +264,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
       throw new HttpError(429, "GATE_PAUSED", PAUSED);
     }
     const device = deps.deviceName(principal);
-    const { askId, ask } = start(owner, device, []);
+    const { askId, ask } = start(owner, []);
     const words: LinkWords = { words: "link", device, ...(current !== undefined ? { current } : {}) };
     void deps.phone(link, words, ASK_MS, ask.stop.signal).then((answer) => {
       prune();
@@ -339,7 +337,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     waiting() {
       prune();
       return [...asks].flatMap(([ref, ask]) => (ask.prepared === undefined || ask.state.state !== "waiting" ? []
-        : [{ ref, device: ask.device, items: ask.prepared.items.filter((item) => item.verdict === "typed"), expiresAt: ask.expiresAt }]));
+        : [{ ref, body: ask.prepared.body ?? "", items: ask.prepared.items.filter((item) => item.verdict === "typed"), expiresAt: ask.expiresAt }]));
     },
     pausedDevices() {
       return limits.pausedOwners().flatMap((owner) => (owner.startsWith("device:") ? [owner.slice("device:".length)] : []));

@@ -18,7 +18,7 @@ const ADMIN: HaAuthUser = { id: "admin-1", name: "Anna", is_owner: false, is_act
 const USER: HaAuthUser = { id: "user-1", name: "Kim", is_owner: false, is_active: true, system_generated: false, group_ids: ["system-users"] };
 const RELAY: HaAuthUser = { id: "relay-1", name: "HA NOVA", is_owner: false, is_active: true, system_generated: false, group_ids: ["system-admin"] };
 const laptop: Principal = { kind: "device", deviceId: "laptop" };
-const typed: PreparedAsk = { verdict: "typed", lang: "en", title: "Unlock?", body: "", button: "Unlock", items: [{ verdict: "typed", text: "Unlock <Front>", detail: "lock", entity_ids: ["lock.front"] }] };
+const typed: PreparedAsk = { verdict: "typed", lang: "en", title: "Unlock?", body: "Requested by <Mac> through HA NOVA.", button: "Unlock", items: [{ verdict: "typed", text: "Unlock <Front>", detail: "lock", entity_ids: ["lock.front"] }] };
 
 function bed(users: HaAuthUser[] = [OWNER, ADMIN, USER, RELAY], relay: () => Promise<string> = async () => RELAY.id) {
   let now = 1_000;
@@ -67,7 +67,7 @@ describe("approval view", () => {
     expect(page.statusCode).toBe(200);
     expect(page.headers["content-security-policy"]).toContain("frame-ancestors 'none'");
     expect(page.headers["x-frame-options"]).toBe("DENY");
-    expect(page.body).toContain("Markus&#39; &lt;MacBook&gt;");
+    expect(page.body).toContain("Requested by &lt;Mac&gt; through HA NOVA.");
     expect(page.body).toContain("Unlock &lt;Front&gt;");
     expect(page.body).toContain("<code>lock.front</code>");
     expect(page.body).not.toContain(ask_id);
@@ -180,12 +180,12 @@ describe("the page as a channel, and what it shows", () => {
   });
 
   it("never shows an ask it can't word, and says when more wait", async () => {
-    const page = { waiting: () => [{ ref: "r1", device: "Mac", items: [{ verdict: "typed" as const }], expiresAt: 9_000 }], pausedDevices: () => [], approve: () => false, cancel: () => false };
+    const page = { waiting: () => [{ ref: "r1", body: "Requested by Mac.", items: [{ verdict: "typed" as const }], expiresAt: 9_000 }], pausedDevices: () => [], approve: () => false, cancel: () => false };
     const t = bed();
     const blank = await call(createApprovePageHandler({ ...t.deps, page }), ADMIN.id);
     expect(blank.body).not.toContain('name="ref"');
     expect(blank.body).toContain("Nothing is waiting for your OK.");
-    const many = Array.from({ length: 5 }, (_, i) => ({ ref: "r" + i, device: "Mac " + i, items: [{ verdict: "typed" as const, text: "Unlock" }], expiresAt: 9_000 + i }));
+    const many = Array.from({ length: 5 }, (_, i) => ({ ref: "r" + i, body: "Requested by Mac " + i + ".", items: [{ verdict: "typed" as const, text: "Unlock" }], expiresAt: 9_000 + i }));
     const shown = await call(createApprovePageHandler({ ...t.deps, page: { ...page, waiting: () => many } }), ADMIN.id);
     expect(shown.body.match(/name="action" value="approve"/g)).toHaveLength(3);
     expect(shown.body).toContain("2 more after these.");

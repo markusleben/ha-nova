@@ -27,10 +27,11 @@ export interface PreparedAsk {
   items: AskItem[];
 }
 
-// An ask on the approval page: ref is the id's hash; items are the typed ones.
+// An ask on the approval page: ref is the id's hash; body is the worker's
+// wording (who asked, names through sayText); items are the typed ones.
 export interface PageAsk {
   ref: string;
-  device: string;
+  body: string;
   items: AskItem[];
   expiresAt: number;
 }

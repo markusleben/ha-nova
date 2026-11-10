@@ -24,7 +24,7 @@ export interface CsrfStore {
   consume(userId: string, action: string, token: string, now: number): boolean;
 }
 
-export function createCsrfStore(): CsrfStore {
+export function createCsrfStore(maxPending = CSRF_MAX_PENDING): CsrfStore {
   let entries: Entry[] = [];
 
   function prune(now: number): void {
@@ -34,7 +34,7 @@ export function createCsrfStore(): CsrfStore {
   return {
     issue(userId, action, now) {
       prune(now);
-      if (entries.length >= CSRF_MAX_PENDING) {
+      if (entries.length >= maxPending) {
         // Evict the oldest (soonest to expire) to make room.
         entries.sort((a, b) => a.expiresAtMs - b.expiresAtMs);
         entries.shift();
