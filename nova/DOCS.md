@@ -75,7 +75,7 @@ The OK covers exactly the change shown, once. Nothing is sent before it, and a
 request no one answers ends after 3 minutes. The window on your computer only
 waits: it says where to confirm, opens Home Assistant, or cancels. It can't
 confirm. Dashboard and room changes are the exception: they still ask on the
-computer (the window, or a one-time code).
+computer (the window, or a four-digit code).
 
 While a change waits, your AI app may say it is waiting for your OK
 (`waiting_for_approval`): the change hasn't been sent yet. Approve it, then
