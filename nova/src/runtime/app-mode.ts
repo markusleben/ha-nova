@@ -12,6 +12,7 @@ import { createWsProxyHandler } from "../http/handlers/ws-proxy.js";
 import { gated } from "../http/gate.js";
 import { gateWithAsks, type GatePage, type PhoneLink } from "../http/gate-asks.js";
 import { pageChannel } from "../http/handlers/nova-approve.js";
+import { pageTexts } from "../http/page-texts.js";
 import { applyServerTimeouts, type RelayLogger } from "../http/server.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 import type { HaWsClient } from "../ha/ws-client.js";
@@ -360,7 +361,7 @@ function buildFunctionalHandlers(
       gate,
     ),
   };
-  return { functional, page: { ...asks, texts: (name) => worker.texts(name) } };
+  return { functional, page: { ...asks, texts: pageTexts((name) => worker.texts(name), input.now, input.logger) } };
 }
 
 async function listen(server: Server, port: number): Promise<void> {

@@ -46,7 +46,7 @@
   "page.ends_in": "Ends in {minutes} min.",
   "page.approve": "Approve",
   "page.empty": "Nothing is waiting for your OK. When your computer asks, reload this page.",
-  "page.more": "{count} more after these.",
+  "page.more": "More requests after these: {count}.",
   "page.signed_in": "Signed in as {name}. Approve only what you asked your AI app to do.",
   "page.back": "Back to Home Assistant",
   "page.cross_site": "This request came from another website, so it was refused.",
@@ -59,7 +59,7 @@
   "page.waiting_one": "One request from your computers waits for your OK.",
   "page.waiting_many": "{count} requests from your computers wait for your OK.",
   "page.open": "Open",
-  "page.paused": "three of its requests in a row were cancelled or went unanswered, so its phone asks pause for 15 minutes",
+  "page.paused": "Three of its requests in a row were cancelled or went unanswered, so its phone asks pause for 15 minutes.",
   "page.revoke_device": "Revoke this device…",
   "page.link": "Requests waiting for your OK",
 

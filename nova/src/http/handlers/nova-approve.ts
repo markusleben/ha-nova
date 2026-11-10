@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import type { GatePage, PageAsk } from "../gate-asks.js";
-import { loadPageTexts, type PageKey, type PageTexts } from "../page-texts.js";
+import type { PageKey, PageTexts } from "../page-texts.js";
 import { createCsrfStore, type CsrfStore } from "../../security/csrf.js";
 import type { DeviceRecord } from "../../security/device-registry.js";
 import { checkApprover, isApprover, type HaAuthUser } from "../../security/owner-check.js";
@@ -16,8 +16,9 @@ import { escapeHtml } from "./nova-page-view.js";
 // person and that ask. No dashboard card can frame it (frame-ancestors 'none'),
 // so the owner page links to it top-level. Asks appear by ref (the id's hash),
 // which can approve or cancel but never wait for the grant. Every word comes
-// from the worker (page-texts.ts), read on each request; without them the
-// page answers 503 with none.
+// from the worker (page-texts.ts); without them the page answers 503 with
+// none. A button's approval waits for no words: nothing between the check
+// and the grant.
 
 const CSP = ["default-src 'none'", "style-src 'unsafe-inline'", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'"].join("; ");
 const SHOWN = 3; // two tokens each: two people's pages fit the CSRF store's 16
@@ -64,7 +65,7 @@ function renderAsk(ask: PageAsk, form: (action: string) => string, now: number, 
 export function createApprovePageHandler(deps: ApprovePageDeps): RouteHandler {
   return async ({ request, response }) => {
     const who = await checkApprover(request, deps);
-    const t = await loadPageTexts(deps.page, who.ok ? who.name : "");
+    const t = await deps.page.texts(who.ok ? who.name : "");
     if (t === null) return send(response, 503, null);
     if (!who.ok) return send(response, who.status, t, `<p>${t.say(who.text)}</p>`);
     const done = DONE.get(new URLSearchParams((request.url ?? "").split("?")[1] ?? "").get("done") ?? "");
@@ -81,19 +82,24 @@ export function createApprovePageHandler(deps: ApprovePageDeps): RouteHandler {
 
 export function createApproveActionHandler(deps: ApprovePageDeps): RouteHandler {
   return async ({ request, response, body }) => {
+    const refuse = async (status: 403 | 503, words: (t: PageTexts) => string): Promise<void> => {
+      const t = await deps.page.texts("");
+      send(response, status, t, t === null ? "" : words(t));
+    };
     const who = await checkApprover(request, deps);
-    const t = await loadPageTexts(deps.page, "");
-    if (t === null) return send(response, 503, null);
-    if (!who.ok) return send(response, who.status, t, `<p>${t.say(who.text)}</p>`);
+    if (!who.ok) {
+      const key = who.text;
+      return await refuse(who.status, (t) => `<p>${t.say(key)}</p>`);
+    }
     const site = request.headers["sec-fetch-site"];
     if (typeof site === "string" && site !== "same-origin" && site !== "same-site" && site !== "none") {
-      return send(response, 403, t, `<p>${t.say("page.cross_site")}</p>`);
+      return await refuse(403, (t) => `<p>${t.say("page.cross_site")}</p>`);
     }
     const form = (body ?? {}) as Record<string, unknown>;
     const action = form.action === "approve" || form.action === "cancel" ? form.action : null;
     const ref = typeof form.ref === "string" ? form.ref : "";
     if (action === null || !deps.csrf.consume(who.userId, `${action}:${ref}`, typeof form.csrf === "string" ? form.csrf : "", deps.now())) {
-      return send(response, 403, t, `<p>${t.say("page.expired")} <a href="${escapeHtml(`${base(request)}approve`)}">${t.say("page.open_again")}</a></p>`);
+      return await refuse(403, (t) => `<p>${t.say("page.expired")} <a href="${escapeHtml(`${base(request)}approve`)}">${t.say("page.open_again")}</a></p>`);
     }
     const ended = action === "approve" ? deps.page.approve(ref) : deps.page.cancel(ref);
     if (ended) {
@@ -144,16 +150,16 @@ export async function renderGateSection(page: GatePage, devices: DeviceRecord[],
   const root = `${ingressPath.replace(/\/$/, "")}/`;
   const waiting = page.waiting().length;
   const paused = page.pausedDevices().flatMap((id) => devices.filter((d) => d.deviceId === id));
-  const t = waiting === 0 && paused.length === 0 ? null : await loadPageTexts(page, "");
+  const t = waiting === 0 && paused.length === 0 ? null : await page.texts("");
   if (t === null) return "";
   const open = waiting === 0 ? "" : `<p>${waiting === 1 ? t.say("page.waiting_one") : t.say("page.waiting_many", { count: waiting })} <a class="linkbtn" target="_top" href="${escapeHtml(`${root}approve`)}">${t.say("page.open")}</a></p>`;
-  const rows = paused.map((d) => `<li><strong>${escapeHtml(d.name)}</strong> <span class="muted">${t.say("page.paused")}</span> <a class="linkbtn danger" href="${escapeHtml(`${root}?confirm=revoke_device&device=${encodeURIComponent(d.deviceId)}`)}">${t.say("page.revoke_device")}</a></li>`).join("");
+  const rows = paused.map((d) => `<li><strong>${escapeHtml(d.name)}</strong>: <span class="muted">${t.say("page.paused")}</span> <a class="linkbtn danger" href="${escapeHtml(`${root}?confirm=revoke_device&device=${encodeURIComponent(d.deviceId)}`)}">${t.say("page.revoke_device")}</a></li>`).join("");
   return `<section><h2>${t.say("page.heading")}</h2>${open}${rows ? `<ul>${rows}</ul>` : ""}</section>`;
 }
 
 // The link a non-owner administrator gets on the owner page's refusal;
 // without the worker's words, none.
 export async function approveLink(request: IncomingMessage, page: GatePage): Promise<string> {
-  const t = await loadPageTexts(page, "");
+  const t = await page.texts("");
   return t === null ? "" : `<p><a target="_top" href="${escapeHtml(`${base(request)}approve`)}">${t.say("page.link")}</a></p>`;
 }

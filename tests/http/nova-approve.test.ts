@@ -1,5 +1,6 @@
 // The approval view (gate spec §3, item 2): who may approve, the single-use
 // buttons, framing, and that an approval reaches only the device that asked.
+import { readFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { describe, expect, it } from "vitest";
@@ -10,7 +11,7 @@ import { createNovaPageHandler, type NovaPageDeps } from "../../nova/src/http/ha
 import type { RouteContext } from "../../nova/src/http/router.js";
 import { createCsrfStore } from "../../nova/src/security/csrf.js";
 import type { DeviceRecord } from "../../nova/src/security/device-registry.js";
-import { PAGE_KEYS } from "../../nova/src/http/page-texts.js";
+import { PAGE_KEYS, pageTexts } from "../../nova/src/http/page-texts.js";
 import type { HaAuthUser } from "../../nova/src/security/owner-check.js";
 import type { Principal } from "../../nova/src/security/principal.js";
 
@@ -24,7 +25,7 @@ const TEXTS: Record<string, string> = { ...Object.fromEntries(PAGE_KEYS.map((key
 const words = (lang = "en", over: Record<string, unknown> = {}) => async (name: string): Promise<unknown> => ({ lang, texts: { ...TEXTS, "page.signed_in": `‹signed in› “${name}” <b>`, ...over } });
 const typed: PreparedAsk = { verdict: "typed", lang: "en", title: "Unlock?", body: "Requested by <Mac> through HA NOVA.", button: "Unlock", items: [{ verdict: "typed", text: "Unlock <Front>", detail: "lock", entity_ids: ["lock.front"] }] };
 
-function bed(users: HaAuthUser[] = [OWNER, ADMIN, USER, RELAY], relay: () => Promise<string> = async () => RELAY.id, texts = words()) {
+function bed(users: HaAuthUser[] = [OWNER, ADMIN, USER, RELAY], relay: () => Promise<string> = async () => RELAY.id, load = words()) {
   let now = 1_000;
   const asks = createGateAsks({
     ask: async () => typed,
@@ -36,7 +37,7 @@ function bed(users: HaAuthUser[] = [OWNER, ADMIN, USER, RELAY], relay: () => Pro
     now: () => now,
     pollMs: 5,
   });
-  const deps: ApprovePageDeps = { fetchAuthUsers: async () => users, relayUserId: relay, csrf: createCsrfStore(), page: { ...asks, texts }, now: () => now };
+  const deps: ApprovePageDeps = { fetchAuthUsers: async () => users, relayUserId: relay, csrf: createCsrfStore(), page: { ...asks, texts: pageTexts(load, () => now) }, now: () => now };
   const ctx = (principal: Principal, body: unknown): RouteContext => {
     const request = { headers: {}, once: () => request, off: () => request } as unknown as IncomingMessage;
     const response = { destroyed: false, once: () => response, off: () => response } as unknown as ServerResponse;
@@ -114,16 +115,31 @@ describe("approval view", () => {
       async () => null,
       async () => ({ lang: "en", texts: missing }),
       async () => ({ lang: "en", texts: { ...TEXTS, "page.approve": 1 } }),
+      async () => ({ lang: "en", texts: { ...TEXTS, "page.open": "" } }),
       words('en"><script>'),
     ];
-    for (const texts of broken) {
-      const deps = { ...t.deps, page: { ...t.deps.page, texts } };
-      for (const [handler, user, body] of [[createApprovePageHandler(deps), ADMIN.id, null], [createApproveActionHandler(deps), ADMIN.id, button], [createApprovePageHandler(deps), USER.id, null]] as const) {
+    const expired = { ...button, csrf: "x" };
+    for (const load of broken) {
+      const deps = { ...t.deps, page: { ...t.deps.page, texts: pageTexts(load, () => 0) } };
+      for (const [handler, user, body] of [[createApprovePageHandler(deps), ADMIN.id, null], [createApproveActionHandler(deps), ADMIN.id, expired], [createApprovePageHandler(deps), USER.id, null], [createApproveActionHandler(deps), USER.id, button]] as const) {
         const r = await call(handler, user, body);
         expect([r.statusCode, r.body]).toEqual([503, ""]);
       }
     }
     expect((await t.wait(ask_id)).state).toBe("waiting");
+  });
+
+  it("a button's approval waits for no words: none are read between the check and the grant", async () => {
+    for (const texts of [async () => { throw new Error("worker down"); }, () => new Promise<never>(() => {})]) {
+      const t = bed();
+      const { ask_id } = await t.open();
+      const approve = form((await call(createApprovePageHandler(t.deps), ADMIN.id)).body, "approve");
+      let read = 0;
+      const deps = { ...t.deps, page: { ...t.deps.page, texts: () => { read++; return texts(); } } };
+      const done = await call(createApproveActionHandler(deps), ADMIN.id, approve);
+      expect([done.statusCode, done.headers.location, read]).toEqual([303, "/api/hassio_ingress/tok/approve?done=approved", 0]);
+      expect((await t.wait(ask_id)).state).toBe("approved");
+    }
   });
 
   it("an approval grants the device's ask once; its button works once", async () => {
@@ -207,7 +223,7 @@ describe("owner page: waiting asks and paused devices", () => {
     const two = { ...t.deps.page, waiting: () => [...t.asks.waiting(), ...t.asks.waiting()], pausedDevices: () => [] };
     expect(await renderGateSection(two, [device], "/x")).toContain("2 ‹page.waiting_many›");
     expect(await renderGateSection(bed().deps.page, [device], "/x")).toBe("");
-    expect(await renderGateSection({ ...t.deps.page, texts: async () => { throw new Error("down"); } }, [device], "/x")).toBe("");
+    expect(await renderGateSection({ ...t.deps.page, texts: async () => null }, [device], "/x")).toBe("");
   });
 
   it("points an administrator who isn't the owner to the view", async () => {
@@ -218,6 +234,14 @@ describe("owner page: waiting asks and paused devices", () => {
     expect(r.body).toContain('<a target="_top" href="/api/hassio_ingress/tok/approve">‹page.link›</a>');
     const silent = { ...deps, gatePage: { ...t.deps.page, texts: async () => null } } as unknown as NovaPageDeps;
     expect((await call(createNovaPageHandler(silent), ADMIN.id, null, {}, "172.30.32.2", "/")).body).not.toContain("approve");
+  });
+});
+
+describe("the page's words", () => {
+  it("are exactly the catalog's page texts, plus the shared Cancel", () => {
+    const catalog = JSON.parse(readFileSync(new URL("../../cli/confirm_strings.en.json", import.meta.url), "utf8")) as Record<string, unknown>;
+    const keys = [...Object.keys(catalog).filter((key) => key.startsWith("page.")), "window.cancel"].sort();
+    expect([...PAGE_KEYS].sort()).toEqual(keys);
   });
 });
 
@@ -240,7 +264,7 @@ describe("the page as a channel, and what it shows", () => {
   });
 
   it("never shows an ask it can't word, and says when more wait", async () => {
-    const page = { waiting: () => [{ ref: "r1", body: "Requested by Mac.", items: [{ verdict: "typed" as const }], expiresAt: 9_000 }], pausedDevices: () => [], approve: () => false, cancel: () => false, texts: words() };
+    const page = { waiting: () => [{ ref: "r1", body: "Requested by Mac.", items: [{ verdict: "typed" as const }], expiresAt: 9_000 }], pausedDevices: () => [], approve: () => false, cancel: () => false, texts: pageTexts(words(), () => 0) };
     const t = bed();
     const blank = await call(createApprovePageHandler({ ...t.deps, page }), ADMIN.id);
     expect(blank.body).not.toContain('name="ref"');

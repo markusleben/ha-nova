@@ -106,7 +106,7 @@ echo ""
 # (supervise-child.ts), the ask table and grants split out of gate-asks.ts, and the registry
 # facades out of app-mode.ts, each new file's imports and interfaces, no new behavior: about 13384;
 # and to 13500 for the approval page's words from cli/confirm_strings.*.json (page-texts.ts,
-# the worker's /texts, every page literal replaced by a catalog key): about 13447.
+# the worker's /texts, every page literal replaced by a catalog key, kept a minute per name): about 13491.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
