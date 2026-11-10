@@ -103,7 +103,7 @@ release:
     - **Your linked phone moves into Home Assistant once.** The first time a change needs your OK, it asks whether it should get HA NOVA's confirmations. Allow it, then confirm the change.
     - **Your AI app may say it is waiting for your OK.** Nothing was sent yet. Approve it, then tell your AI app to go on; nothing runs twice.
     - **Saving an automation or script no longer reloads it from HA NOVA.** Home Assistant reloads it after the save, and HA NOVA checks, without changing anything, that the saved version runs. A delete still reloads.
-    - **A thermostat made in Home Assistant's UI can make everyday changes ask.** The NOVA App can't see which switch it turns on, so automations reacting to actions count for every change. More asks than needed, not fewer.
+    - **With a UI-made thermostat or hygrostat, everyday changes can ask.** If an automation reacts to actions with a step that needs an OK or can't be read, a light call asks on your phone. Standalone chat refuses it.
     - **Going back to an older NOVA App:** computers that saw the safety check refuse unlocks, deletes, and other big changes until you update the App again.
     - **Standalone container:** only a linked phone confirms, as it has no NOVA page. Use a non-owner user's token, keep `/data` on a volume, and map the port. Chat apps there can't make a change that needs an OK.
 
