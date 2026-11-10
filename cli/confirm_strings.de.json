@@ -38,6 +38,7 @@
   "gate.windows_hide": "OK blendet dieses Fenster aus; Abbrechen stoppt diese Änderung.",
   "gate.waiting": "HA NOVA fragt auf deinem verbundenen Handy oder in Home Assistant (NOVA) und wartet; vor einem OK dort wird nichts gesendet.",
   "gate.link_waiting": "HA NOVA fragt zuerst auf deinem Handy (und auf dem Handy, das jetzt in Home Assistant verbunden ist, falls es eins gibt), ob es die Bestätigungen bekommen soll, und wartet; vorher wird nichts gesendet.",
+  "gate.chat_held": "Dein NOVA-Relay-Container hält diese Änderung zurück, bis eine Person sie freigibt; in einer Chat-App geht das nicht. Es wurde nichts gesendet.",
   "page.title": "HA NOVA: wartet auf dein OK",
   "page.heading": "Wartet auf dein OK",
   "page.done_approved": "Genehmigt. Der Computer, der gefragt hat, sendet es jetzt.",

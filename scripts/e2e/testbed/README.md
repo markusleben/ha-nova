@@ -176,14 +176,19 @@ home in `.state`. The RC lane runs all three with the tag's binary
   everything; at Manage everything a read runs, a write and a delete need
   the code, and a refusal by the Relay itself (a file in `www`, the log
   file, a `.sh` write) names its real cause, never the sign-in or a
-  setting. It leaves `/config/www/rclane-mailbox.jpg`. SKIP without file
+  setting. On the gated bed this bridge runs on the shared token, so the
+  Relay holds its write, delete, and `.sh` write: each is refused in the
+  bridge's own words and the file stays as it was; the App's chat-code
+  path can't run here (one WARN line). It leaves `/config/www/rclane-mailbox.jpg`. SKIP without file
   access.
 - `node calm.mjs` adds listeners shaped like a real home's (an automation
   on every automation reload, a templated panel automation following its
   light, a cover watchdog on `call_service`, one listener no automation
   owns) and checks that two edits of one automation run without an ask,
   that undo puts back the latest one, and that an edit adding an unlock or
-  a garage opening, and a reload you call, still ask. Then (`calls.mjs`)
+  a garage opening, and a reload you call, still ask (the bed's Relay gates:
+  the linked phone, no code; calm links the phone lane's fake iPhone on a
+  fresh Relay and taps every typed apply there). Then (`calls.mjs`)
   a light call stays ordinary beside the cover watchdog, a cover call still
   asks, and an oracle applies calls through a scene with a climate member, a
   light group in a script, `switch_as_x` lights on a template switch and on a

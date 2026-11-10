@@ -49,7 +49,7 @@ async function thermostatNow(ha, entry, climate) {
     state: (await ha("GET", "/api/states/" + climate)).last_updated });
 }
 
-export async function callChecks({ ha, ws, cli, check, watchdogID, loadAutomations, planWrite }) {
+export async function callChecks({ ha, ws, cli, apply, check, watchdogID, loadAutomations, planWrite }) {
   const watchdog = (await ha("GET", "/api/states")).find((s) => s.attributes?.id === watchdogID)?.entity_id;
   // Before any light listener exists: here a light call sets nothing off.
   const light = cli("plan", "call", "light.turn_off", "light.bed_light");
@@ -133,7 +133,7 @@ export async function callChecks({ ha, ws, cli, check, watchdogID, loadAutomatio
       const before = await states();
       const start = Math.max(...Object.values(before).map((s) => Date.parse(s.last_updated)));
       const plan = cli("plan", "call", ...c.call);
-      const applied = plan.plan?.id ? cli("apply", "--plan", plan.plan.id, ...(plan.plan.code ? ["--confirm", plan.plan.code] : [])) : {};
+      const applied = plan.plan?.id ? await apply(plan) : {};
       const runs = async () => (await ws("trace/list", { domain: "automation" })).filter((t) => !t.not_triggered && Date.parse(t.timestamp.start) > start && automationOf[t.item_id]);
       let seen = [];
       for (let i = 0, quiet = 0; i < 30 && quiet < 4; i++, await sleep(500)) { // until 2 s without a new run

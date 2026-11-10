@@ -24,7 +24,7 @@ Unreleased claims wait here until they ship (AGENTS.md, Releases: the README des
 
 - **Going back to an older NOVA App:** computers that saw the safety check refuse unlocks, deletes, and other big changes until you update the App again.
 
-- **Standalone container:** it has no NOVA page, so only a linked phone confirms. Give it the token of a Home Assistant user who isn't the owner, keep `/data` on a volume, and run it with a port mapping, not host networking (`docs/reference/relay-container.md`).
+- **Standalone container:** it has no NOVA page, so only a linked phone confirms. Give it the token of a Home Assistant user who isn't the owner, keep `/data` on a volume, and run it with a port mapping, not host networking (`docs/reference/relay-container.md`). A chat app on it can't make a change that needs an OK: it's refused and nothing is sent; make it from a paired computer or in Home Assistant.
 
 ## New in 0.30
 

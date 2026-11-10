@@ -66,11 +66,15 @@ export async function fixture() {
   const fx = JSON.parse(readFileSync(file, "utf8"));
   // A fresh Relay (its link, asks, and grants live in it) signed in as
   // Testbed Relay; it keeps file access where up.sh gave it (TESTBED_FILES=1
-  // leaves .state/files).
+  // leaves .state/files). The push service is started once and never
+  // recreated: Home Assistant's notify keeps reaching the old container for
+  // a while ("Error sending notification"), and the next question never arrives.
   const files = existsSync(join(STATE, "files")) ? ["-f", join(HERE, "docker-compose.files.yml")] : [];
-  execFileSync("docker", ["compose", "-f", join(HERE, "docker-compose.yml"), ...files, "up", "-d", "--no-deps", "--no-build", "--force-recreate", "relay", "push"], {
-    env: { ...process.env, RELAY_AUTH_TOKEN: read("relay-token"), HA_LLAT: fx.relay_llat }, stdio: ["ignore", "ignore", "pipe"], // its error says why
-  });
+  for (const service of [["push"], ["--force-recreate", "relay"]]) {
+    execFileSync("docker", ["compose", "-f", join(HERE, "docker-compose.yml"), ...files, "up", "-d", "--no-deps", "--no-build", ...service], {
+      env: { ...process.env, RELAY_AUTH_TOKEN: read("relay-token"), HA_LLAT: fx.relay_llat }, stdio: ["ignore", "ignore", "pipe"], // its error says why
+    });
+  }
   const health = async () => (await (await fetch("http://127.0.0.1:18791/health", { headers: { authorization: `Bearer ${read("relay-token")}` } })).json()).data?.status === "ok"; // it connects to Home Assistant on first use
   await waitFor("the Relay as Testbed Relay", health);
   // Docker's own health check too (30 s interval): a client matrix after this lane needs "healthy".
