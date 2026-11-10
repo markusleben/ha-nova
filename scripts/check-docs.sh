@@ -101,17 +101,20 @@ echo ""
 # and to 13320 for layer 5: the approval view (any active, non-system administrator except the
 # Relay's own user approves or cancels, each button single-use and bound to that person and ask,
 # never framed), the owner page's "Waiting for your OK" and paused devices, the per-asker limits
-# moved to their own file, and /health's gate flag: about 13295.
+# moved to their own file, and /health's gate flag: about 13295;
+# and to 13400 for the gate tidy-up before landing: the two children's shared supervision
+# (supervise-child.ts), the ask table and grants split out of gate-asks.ts, and the registry
+# facades out of app-mode.ts, each new file's imports and interfaces, no new behavior: about 13384.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 13320 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–13320 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 13400 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–13400 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–13320 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–13400 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──
