@@ -10,16 +10,21 @@ export interface CoreProxyHandlerOptions {
 }
 
 export function createCoreProxyHandler(options: CoreProxyHandlerOptions): RouteHandler {
-  return async ({ body }: RouteContext) => {
-    const request = parseCoreRequestBody(body);
-    const normalizedPath = normalizeCorePath(request.path);
+  const forward = createCoreForwarder(options);
+  return async ({ body }: RouteContext) => await forward(parseCoreRequest(body));
+}
 
+// The safety check rates the parsed, normalized request, and then exactly that
+// request is forwarded (nova/src/http/gate.ts).
+export function parseCoreRequest(body: unknown): CoreProxyRequest {
+  const request = parseCoreRequestBody(body);
+  return { method: request.method, path: normalizeCorePath(request.path), body: request.body };
+}
+
+export function createCoreForwarder(options: CoreProxyHandlerOptions): (request: CoreProxyRequest) => Promise<CoreProxyResponse> {
+  return async (request) => {
     try {
-      return await options.coreClient.request({
-        method: request.method,
-        path: normalizedPath,
-        body: request.body
-      });
+      return await options.coreClient.request(request);
     } catch (error) {
       if (error instanceof HaRestClientError) {
         throw new HttpError(502, error.code, error.message);

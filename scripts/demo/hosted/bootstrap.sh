@@ -186,11 +186,12 @@ curl -sf -m 15 -o /dev/null https://hanova.app/demo/ \
   || die "https://hanova.app/demo/ does not answer: publish the site's demo page first"
 edge_up --force
 
-step "relay image for this ref (digest-pinned Node base; resets never build or pull it)"
+step "relay image for this ref (digest-pinned Node and Go bases; resets never build or pull it)"
 relay="$(relay_image "$REF")"
 if ! docker image inspect "$relay" > /dev/null 2>&1; then
   docker build -q -f /opt/ha-nova/nova/Dockerfile.standalone \
-    --build-arg "NODE_IMAGE=$NODE_IMAGE" \
+    --build-context cli=/opt/ha-nova/cli \
+    --build-arg "NODE_IMAGE=$NODE_IMAGE" --build-arg "GO_IMAGE=$GO_IMAGE" --build-arg GOFLAGS=-p=1 \
     --build-arg "RELAY_VERSION=$(sed -nE 's/^version:[[:space:]]*"?([^"]+)"?/\1/p' /opt/ha-nova/nova/config.yaml | head -1)" \
     --label "$KEEP_LABEL" -t "$relay" /opt/ha-nova/nova > /dev/null
 fi

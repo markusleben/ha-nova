@@ -2,6 +2,7 @@ import type { IncomingMessage } from "node:http";
 
 import { digestSecret, parseCredential } from "./device-credential.js";
 import type { DeviceRegistry } from "./device-registry.js";
+import { BRIDGE_INSTALL_ID, GATE_INSTALL_ID } from "./pairing-metadata.js";
 
 // Resolves an inbound bearer credential to a principal, replacing the single
 // shared-token model. Two credential kinds exist:
@@ -15,8 +16,12 @@ import type { DeviceRegistry } from "./device-registry.js";
 
 export type Transport = "secure" | "plain";
 
+// peer: the request's socket address. internal: a credential the App minted
+// for its own chat bridge or safety-check worker (reserved install ids),
+// accepted only from a loopback peer.
 export type Principal =
-  { kind: "device"; deviceId: string } | { kind: "legacy" };
+  | { kind: "device"; deviceId: string; peer?: string; internal?: "chat-bridge" | "gate" }
+  | { kind: "legacy"; peer?: string };
 
 export type PrincipalResult =
   | { ok: true; principal: Principal }
@@ -40,6 +45,7 @@ export function resolvePrincipal(
   authorizationHeader: string | undefined,
   transport: Transport,
   deps: PrincipalResolverDeps,
+  peer?: string,
 ): PrincipalResult {
   const token = bearerToken(authorizationHeader);
   if (token === null) {
@@ -67,17 +73,14 @@ export function resolvePrincipal(
     if (principal === null) {
       return unauthorized("Unknown or revoked device credential");
     }
-    return {
-      ok: true,
-      principal: { kind: "device", deviceId: device.deviceId },
-    };
+    return devicePrincipal(deps.registry, device.deviceId, peer);
   }
 
   // Not a device credential: the only other accepted shape is the legacy shared
   // token (an opaque string). It works on either transport while it exists.
   const legacy = deps.registry.resolveLegacySecret(digestSecret(token));
   if (legacy !== null) {
-    return { ok: true, principal: { kind: "legacy" } };
+    return { ok: true, principal: { kind: "legacy", ...(peer !== undefined ? { peer } : {}) } };
   }
 
   return unauthorized("Invalid credential");
@@ -107,7 +110,29 @@ export function resolveCloudPrincipal(
   if (principal === null) {
     return unauthorized(CLOUD_DEVICE_UNAUTHORIZED_MESSAGE);
   }
-  return { ok: true, principal: { kind: "device", deviceId: device.deviceId } };
+  return devicePrincipal(deps.registry, device.deviceId, request.socket?.remoteAddress);
+}
+
+export function isLoopback(peer: string | undefined): peer is string {
+  return peer === "127.0.0.1" || peer === "::1";
+}
+
+// The App's own credentials work only from inside the App: from any other
+// peer the bridge's would skip the safety check, the worker's its limits.
+function devicePrincipal(registry: DeviceRegistry, deviceId: string, peer: string | undefined): PrincipalResult {
+  const installId = registry.list().find((d) => d.deviceId === deviceId)?.clientInstallId;
+  if (installId === undefined) {
+    return unauthorized("Unknown or revoked device credential");
+  }
+  const base = { kind: "device" as const, deviceId, ...(peer !== undefined ? { peer } : {}) };
+  const internal = installId === BRIDGE_INSTALL_ID ? "chat-bridge" : installId === GATE_INSTALL_ID ? "gate" : null;
+  if (internal === null) {
+    return { ok: true, principal: base };
+  }
+  if (!isLoopback(peer)) {
+    return unauthorized("This credential is accepted only from inside the NOVA App");
+  }
+  return { ok: true, principal: { ...base, internal } };
 }
 
 export function bearerToken(header: string | undefined): string | null {

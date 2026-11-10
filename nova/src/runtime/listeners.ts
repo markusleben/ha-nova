@@ -65,7 +65,7 @@ function registerFunctional(router: Router, fns: FunctionalHandlers): void {
 // legacy principal, mapping the resolver's outcome to the listener contract.
 function functionalAuthorize(deps: PairingListenerDeps, transport: Transport) {
   return (request: IncomingMessage): AuthOutcome => {
-    const r = resolvePrincipal(request.headers.authorization, transport, { registry: deps.registry, now: deps.now });
+    const r = resolvePrincipal(request.headers.authorization, transport, { registry: deps.registry, now: deps.now }, request.socket.remoteAddress);
     if (r.ok) {
       return { ok: true, principal: r.principal };
     }

@@ -79,17 +79,23 @@ echo ""
 # Home Assistant's users with the rollback guard, each listed user's phone with tokens bound to that user,
 # a removed user's link dropped, the phone's own button quoted, and the recent changes, with its review
 # fixes (a re-added user's old link dropped before the save, removals with an unreadable links file,
-# turned-off users the next save clears, one way back on a listed user's phone panel): about 11830.
+# turned-off users the next save clears, one way back on a listed user's phone panel): about 11830;
+# and to 12300 for the Relay safety check, layer 3 (docs/work/2026-11-03-relay-typed-gate-spec.md):
+# the `ha-nova gate` worker child and its owner-only socket client with bounded answers, the socket peer on the principal, the App's
+# own credentials from loopback only, the worker's internal principal and its three allowances, and
+# the gate with redaction in front of every device-facing handler on all three App listeners and the
+# standalone container's one (its shared token a legacy principal, the worker's own token), and the
+# credential checked again before forwarding: about 12254.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 11850 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–11850 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 12300 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–12300 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–11850 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–12300 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──

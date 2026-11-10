@@ -1,4 +1,6 @@
+import { randomBytes } from "node:crypto";
 import { type Server } from "node:http";
+import { dirname } from "node:path";
 
 import {
   createConnection,
@@ -8,6 +10,7 @@ import {
 
 import { createApp, type App } from "../index.js";
 import { buildAppMode } from "./app-mode.js";
+import { createGateWorker, type GateWorker, type GateWorkerDeps } from "./gate-worker.js";
 import { readAppOptions, type AppOptions } from "../config/app-options.js";
 import {
   resolveFileAccess,
@@ -41,6 +44,7 @@ export { createConsoleLogger, levelAtLeast } from "./start-support.js";
 
 export interface RuntimeBootstrapResult {
   app: App;
+  gate?: GateWorker; // standalone only; started once the Relay listens
   env: EnvConfig;
   appOptions: AppOptions;
   fileAccess: FileAccessConfig;
@@ -52,6 +56,7 @@ export interface RuntimeDependencies {
   readAppOptions?: (path: string) => AppOptions;
   createWsClient?: (input: RuntimeWsClientInput) => HaWsClient;
   createRestClient?: (input: RuntimeRestClientInput) => HaRestClient;
+  createGate?: (deps: GateWorkerDeps) => GateWorker;
   logger?: Logger;
   listen?: (server: Server, port: number) => Promise<void>;
 }
@@ -112,7 +117,21 @@ export function bootstrapRuntime(
     (path: string) => probeConfigRoot(path),
   );
   const serverLogger = dependencies.logger ?? createConsoleLogger(env.logLevel);
+  // The standalone safety-check worker reaches this one listener over loopback
+  // with its own random token, replaced on every start.
+  let gateToken: string | null = null;
+  const gate = (dependencies.createGate ?? createGateWorker)({
+    dataDir: dirname(env.appOptionsPath),
+    binary: "/opt/ha-nova/ha-nova",
+    mint: () => {
+      gateToken = randomBytes(32).toString("base64url");
+      return { relay_url: `http://127.0.0.1:${env.relayPort}`, credential: gateToken };
+    },
+    logger: serverLogger,
+  });
   const app = createApp({
+    gate,
+    gateToken: () => gateToken,
     authToken: env.relayAuthToken,
     version: env.relayVersion,
     requiredRelayVersion: env.minRelayVersion ?? env.relayVersion,
@@ -128,6 +147,7 @@ export function bootstrapRuntime(
 
   return {
     app,
+    gate,
     env,
     appOptions,
     fileAccess,
@@ -160,6 +180,7 @@ export async function startRelay(
   logger.info("Relay listening", {
     port: runtime.env.relayPort,
   });
+  runtime.gate?.start(); // the worker reaches the listener just started
 
   return {
     ...runtime,
