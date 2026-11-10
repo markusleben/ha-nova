@@ -17,8 +17,9 @@ import (
 // its way.
 
 // Stopped on the computer (SIGTERM) while both ask: nothing is sent. The
-// phone's question is cleared, unless the phone had answered first: then it
-// hears that the computer stopped it, so the tap isn't left unanswered.
+// phone's question is withdrawn (a quiet note, then a clear), unless the
+// phone had answered first: then it hears that the computer stopped it, so
+// the tap isn't left unanswered. Both say the same.
 func TestBothAskStoppedOnTheComputer(t *testing.T) {
 	if runtime.GOOS == "windows" || signal.Ignored(syscall.SIGTERM) {
 		t.Skip("no catchable SIGTERM here")
@@ -62,8 +63,8 @@ func TestBothAskStoppedOnTheComputer(t *testing.T) {
 			if !phoneFirst && !p.withdrawn() {
 				t.Fatalf("the phone's question was not cleared alone: sent %v cleared %v", p.sent, p.cleared)
 			}
-			if last := p.last(); phoneFirst && (last["title"] != "Cancelled: Unlock “lock.front”" ||
-				last["message"] != "Stopped on the computer. Nothing changed." || last["data"].(map[string]any)["actions"] != nil) {
+			if last := p.last(); last["title"] != "Cancelled: Unlock “lock.front”" ||
+				last["message"] != "Stopped on the computer. Nothing changed." || last["data"].(map[string]any)["actions"] != nil {
 				t.Fatalf("phone result %+v", last)
 			}
 		})
@@ -71,8 +72,8 @@ func TestBothAskStoppedOnTheComputer(t *testing.T) {
 }
 
 // Confirmed in the window while the question is still on its way to the
-// phone: the clear waits for it, so it can't arrive first and leave the
-// question standing.
+// phone: the withdrawal waits for it, so it can't arrive first and leave
+// the question standing.
 func TestWithdrawalWaitsForTheQuestionInFlight(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
 	p := usePhones(t, "mobile_app_iphone")
@@ -98,7 +99,7 @@ func TestWithdrawalWaitsForTheQuestionInFlight(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(order) != 2 || order[0] == "clear_notification" || order[1] != "clear_notification" || !p.withdrawn() {
-		t.Fatalf("sent in order %q, cleared %v: want the question, then its clear", order, p.cleared)
+	if len(order) != 3 || order[0] == "clear_notification" || order[1] != "Nothing more to do; the computer shows the result." || order[2] != "clear_notification" || !p.withdrawn() {
+		t.Fatalf("sent in order %q, cleared %v: want the question, then its note, then its clear", order, p.cleared)
 	}
 }

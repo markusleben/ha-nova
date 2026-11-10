@@ -115,17 +115,22 @@ async function fetchBinary() {
   const os = { darwin: "darwin", linux: "linux" }[process.platform];
   const arch = { arm64: "arm64", x64: "amd64" }[process.arch];
   if (!os || !arch) throw new Error(`no published binary for ${process.platform}/${process.arch}`);
-  const asset = `ha-nova-${os}-${arch}`;
   const get = async (name) => {
     const res = await fetch(`https://github.com/${REPO}/releases/download/${tag}/${name}`);
     if (!res.ok) throw new Error(`download ${tag}/${name}: HTTP ${res.status}`);
     return Buffer.from(await res.arrayBuffer());
   };
-  const [bin, sums] = await Promise.all([get(asset), get("checksums.txt")]);
-  const want = sums.toString().split("\n").find((l) => l.trim().endsWith(` ${asset}`))?.split(/\s+/)[0];
-  if (!want || createHash("sha256").update(bin).digest("hex") !== want) throw new Error(`${asset} does not match ${tag}'s checksums.txt`);
+  const sums = (await get("checksums.txt")).toString();
   mkdirSync(join(WORK, "bin"));
-  writeFileSync(join(WORK, "bin/ha-nova"), bin, { mode: 0o755 });
+  // The host's binary, and on a Mac the Linux one too: the phone lane's
+  // window case runs it in a container (Docker's VM has the host's arch).
+  const assets = { "ha-nova": `ha-nova-${os}-${arch}`, ...(os === "linux" ? {} : { "ha-nova-linux": `ha-nova-linux-${arch}` }) };
+  for (const [file, asset] of Object.entries(assets)) {
+    const bin = await get(asset);
+    const want = sums.split("\n").find((l) => l.trim().endsWith(` ${asset}`))?.split(/\s+/)[0];
+    if (!want || createHash("sha256").update(bin).digest("hex") !== want) throw new Error(`${asset} does not match ${tag}'s checksums.txt`);
+    writeFileSync(join(WORK, "bin", file), bin, { mode: 0o755 });
+  }
 }
 
 function startBed() {
@@ -174,9 +179,10 @@ async function matrix() {
 // ---- b: phone lane ---------------------------------------------------------------
 async function phone() {
   const log = join(WORK, "phone.log");
-  const { code, out } = await run("node", [join(TESTBED, "phone.mjs")], { log, env: { ...process.env, TESTBED_CLI_BIN: join(WORK, "bin/ha-nova") } });
+  const linux = join(WORK, "bin/ha-nova-linux");
+  const { code, out } = await run("node", [join(TESTBED, "phone.mjs")], { log, env: { ...process.env, TESTBED_CLI_BIN: join(WORK, "bin/ha-nova"), ...(existsSync(linux) ? { TESTBED_CLI_BIN_LINUX: linux } : {}) } });
   const n = (r) => (out.match(new RegExp(`^${r}  `, "gm")) ?? []).length;
-  row("b", `phone lane, ${tag} binary`, code === 0 ? "PASS" : "FAIL", `${n("PASS")} PASS, ${n("FAIL")} FAIL: link, move, stop, confirm, result on iOS + Android`, log);
+  row("b", `phone lane, ${tag} binary`, code === 0 && n("SKIP") === 0 ? "PASS" : "FAIL", `${n("PASS")} PASS, ${n("FAIL")} FAIL, ${n("SKIP")} SKIP: link, move, stop, confirm, result, answered in the window on iOS + Android`, log);
 }
 
 // ---- e-h: the bed's own checks with the tag's binary (PASS/FAIL lines) ------------
