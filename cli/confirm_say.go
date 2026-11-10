@@ -18,7 +18,8 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 		// apply refuses such a plan (UNRESOLVED_TARGET): never ask for it.
 		return confirmT(lang, "say.nothing_found")
 	}
-	parts := sayBody(e, env, plan, subject)
+	about, rest := sayBody(e, env, plan, subject)
+	parts := []string{about + map[bool]string{false: " ", true: "\n"}[strings.Contains(about, "\n")] + rest}
 	if plan.Kind == "delete" {
 		parts = append(parts, sayCopyNote(lang))
 	}
@@ -51,16 +52,13 @@ func textLang(plan storedPlan) string {
 	return cmp.Or(plan.Lang, "en")
 }
 
-// sayBody: the action, its reasons, and what has not happened yet (the
-// fixed shape of say_lines.go up to the ask). After a list of steps the
-// reasons start a line of their own.
-func sayBody(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) []string {
+// sayBody: the action, then its reasons and what has not happened yet (the
+// fixed shape of say_lines.go up to the ask). In chat the reasons follow
+// the action, on a line of their own after a list of steps; a window or
+// form has a shape of its own (confirmationPrompt).
+func sayBody(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) (about, rest string) {
 	about, status := sayWhat(e, env, plan, subject)
-	rest := append(sayReasons(e, env, plan), status)
-	if strings.Contains(about, "\n") {
-		return []string{about + "\n" + strings.Join(rest, " ")}
-	}
-	return append([]string{about}, rest...)
+	return about, strings.Join(append(sayReasons(e, env, plan, false), status), " ")
 }
 
 // demoPrefix names the demo house in every confirmation it asks for.
@@ -72,15 +70,24 @@ func demoPrefix(lang, text string) string {
 }
 
 // confirmationPrompt is a typed plan's code-free text for a confirmation
-// form or window (subject: the live item's alias, else the draft's; the
-// copy note is added where it is shown, confirmText). Empty when apply
-// would refuse the plan anyway.
+// form or window, read at a glance (docs/work/2026-11-10-wider-confirm-
+// window-spec.md): the action as one question, what it acts on (one line
+// each), and why it needs the user in short sentences, each a block of its
+// own (subject: the live item's alias, else the draft's; the copy note is
+// added where it is shown, confirmText). Empty when apply would refuse the
+// plan anyway.
 func confirmationPrompt(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) string {
 	if plan.Confirm != "code" || plan.ConfigAction == nil && frozeNothing(plan.Request, plan.Action) {
 		return ""
 	}
 	env.ask = sayAsk(e, env, plan, subject) // a phone plan's question
-	return demoPrefix(textLang(plan), strings.Join(sayBody(e, env, plan, subject), " "))
+	title, what := promptWhat(e, env, plan, subject)
+	blocks := []string{title}
+	if what != "" {
+		blocks = append(blocks, what)
+	}
+	blocks = append(blocks, strings.Join(sayReasons(e, env, plan, true), " "))
+	return demoPrefix(textLang(plan), strings.Join(blocks, "\n\n"))
 }
 
 // sayGoal: unlock “Front Door”, delete the automation “Night” — the plan's
@@ -132,8 +139,10 @@ func sayGoal(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 }
 
 // sayReasons: one sentence per distinct reason; a typed plan's first one
-// ends "so I need you to confirm it" (sayNeedsYou).
-func sayReasons(e *tierEngine, env *verbEnvelope, plan storedPlan) []string {
+// ends "so I need you to confirm it" (sayNeedsYou). short: a window's or
+// form's, which asks by itself: no such ending, and every typed reason said
+// (the window budget refuses what doesn't fit).
+func sayReasons(e *tierEngine, env *verbEnvelope, plan storedPlan, short bool) []string {
 	lang := textLang(plan)
 	var parts, typed, other []string
 	seen := map[string]bool{}
@@ -167,11 +176,11 @@ func sayReasons(e *tierEngine, env *verbEnvelope, plan storedPlan) []string {
 		if len(typed) > 0 {
 			first, typed = typed[0], typed[1:]
 		}
-		parts = append(parts, sayNeedsYou(lang, first))
+		parts = append(parts, map[bool]string{false: sayNeedsYou(lang, first), true: first + "."}[short])
 	}
 	// Every code-tier clause is shown (up to 8); the milder ones fill up to
 	// four sentences and the rest are counted, never dropped silently.
-	if len(typed) > 8 {
+	if len(typed) > 8 && !short {
 		typed = append(typed[:8], sayMore(lang, len(typed)-8, true))
 	}
 	if room := max(4-len(typed), 1); len(other) > room {

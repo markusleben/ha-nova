@@ -112,12 +112,26 @@ func rawRunLine(lang string, run []rawPlanItem, all bool) string {
 	if len(run) == 1 {
 		return upperFirst(first.line)
 	}
-	var names []string
+	names, total, span := rawRunNames(lang, run)
+	if first.stats == nil {
+		return upperFirst(actionGoal{raw: first.goal.raw}.phrase(lang, sayAll(lang, names)))
+	}
+	if !all {
+		return upperFirst(confirmT(lang, "raw.import_count", "values", total, "count", len(names), "span", span))
+	}
+	return upperFirst(confirmT(lang, "raw.import_group", "values", total, "count", len(names), "span", span, "names", sayAll(lang, names)))
+}
+
+// rawRunNames: what a run of alike steps acts on: the item each deletes, or
+// each statistic it imports into, once, with the values in all (as the
+// language writes the number) and their months.
+func rawRunNames(lang string, run []rawPlanItem) (names []string, total, span string) {
+	first := run[0]
 	if first.stats == nil {
 		for _, item := range run {
 			names = append(names, item.goal.names[0])
 		}
-		return upperFirst(actionGoal{raw: first.goal.raw}.phrase(lang, sayAll(lang, names)))
+		return names, "", ""
 	}
 	values, from, to := 0, first.stats.first, first.stats.last
 	at := func(s string) time.Time { t, _ := time.Parse(time.RFC3339, s); return t }
@@ -134,14 +148,11 @@ func rawRunLine(lang string, run []rawPlanItem, all bool) string {
 			to = item.stats.last
 		}
 	}
-	total := strconv.Itoa(values)
+	total = strconv.Itoa(values)
 	for i := len(total) - 3; i > 0; i -= 3 {
 		total = total[:i] + confirmT(lang, "number.thousands") + total[i:]
 	}
-	if !all {
-		return upperFirst(confirmT(lang, "raw.import_count", "values", total, "count", len(names), "span", rawSpan(lang, from, to)))
-	}
-	return upperFirst(confirmT(lang, "raw.import_group", "values", total, "count", len(names), "span", rawSpan(lang, from, to), "names", sayAll(lang, names)))
+	return names, total, rawSpan(lang, from, to)
 }
 
 // rawSayWhat opens a raw plan's confirmation with what happens in the home:

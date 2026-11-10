@@ -36,15 +36,22 @@ func nativeWindowAvailable() bool {
 	return (os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != "") && executable(linuxDialog)
 }
 
-func nativeWindow(ctx context.Context, message, lang string, wait time.Duration) windowAnswer {
-	return nativeButtons(ctx, message, confirmT(lang, "window.confirm"), confirmT(lang, "window.cancel"), wait)
+// zenityArgs: the window as wide as macOS's (windowFits counts for it),
+// Confirm named for the action, Cancel the default, the text never read as
+// markup (so its title isn't bold).
+func zenityArgs(w windowText, wait time.Duration) []string {
+	return []string{"--question", "--title=HA NOVA", "--text=" + w.plain(), "--ok-label=" + w.button, "--cancel-label=" + w.cancel,
+		"--default-cancel", "--no-markup", "--width=600", "--timeout=" + strconv.Itoa(int(wait.Seconds()))}
 }
 
-// nativeButtons: the window with these two labels; the first answers
-// windowConfirmed, Cancel stays the default.
+// nativeButtons: a window with these two labels (gate_client.go); the first
+// answers windowConfirmed, Cancel stays the default.
 func nativeButtons(ctx context.Context, message, first, cancel string, wait time.Duration) windowAnswer {
-	args := []string{"--question", "--title=HA NOVA", "--text=" + message, "--ok-label=" + first, "--cancel-label=" + cancel,
-		"--default-cancel", "--no-markup", "--timeout=" + strconv.Itoa(int(wait.Seconds()))}
+	return nativeWindow(ctx, windowText{body: message, button: first, cancel: cancel}, wait)
+}
+
+func nativeWindow(ctx context.Context, w windowText, wait time.Duration) windowAnswer {
+	args := zenityArgs(w, wait)
 	// The window dies with this process, even a SIGKILLed one (lane E2).
 	// Pdeathsig follows the OS thread that started zenity, so hold it.
 	runtime.LockOSThread()

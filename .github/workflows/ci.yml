@@ -430,7 +430,7 @@ jobs:
           /usr/bin/sandbox-exec \
             -p '(version 1)(allow default)(deny process-exec (literal "/usr/bin/security"))' \
             go test -count=1 \
-              -run '^(TestDecodeDarwinGoKeyringValue|TestNativeSecretWorkerAcceptsRelayTokenKey|Test(Read|Set|Delete)DarwinKeychainSecretInProcess.*|TestDarwin(KeychainNoUI.*|Device.*|RelayToken.*|Interactive.*|ExplicitPair.*|PairCommand.*|DoctorResume.*))$' \
+              -run '^(TestDecodeDarwinGoKeyringValue|TestNativeSecretWorkerAcceptsRelayTokenKey|Test(Read|Set|Delete)DarwinKeychainSecretInProcess.*|TestDarwin(KeychainNoUI.*|Device.*|RelayToken.*|Interactive.*|ExplicitPair.*|PairCommand.*|DoctorResume.*|Window(Script|Answers)))$' \
               .
 
       - name: Reject a non-hardened executable
