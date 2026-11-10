@@ -92,11 +92,7 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 		}
 		return failure
 	}
-	reloadData := map[string]any{}
-	if action.Domain == "automation" { // the scope Home Assistant's own config hook reloads
-		reloadData["id"] = action.ConfigID
-	}
-	reload, reloadErr := s.postService(action.Domain+".reload", reloadData, false)
+	reload, reloadErr := s.postService(action.Domain+".reload", configReloadData(action.Domain, action.ConfigID), false)
 	reloaded := reloadErr == nil && reload.status < 400
 	s.renewBudget()
 	row, readback := verifyConfig(s, action, reloaded)
@@ -123,6 +119,14 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 		}
 	}
 	return nil
+}
+
+// configReloadData: the scope Home Assistant's own config hook reloads.
+func configReloadData(domain, configID string) map[string]any {
+	if domain == "automation" {
+		return map[string]any{"id": configID}
+	}
+	return map[string]any{}
 }
 
 // saveCheckpoint puts an update (a revert is one too, as in update-revert.md)

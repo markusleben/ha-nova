@@ -159,6 +159,8 @@ func batchSay(s *relaySession, plan storedPlan, goal actionGoal, text string, n 
 		return demoPrefix(lang, text+" "+sayWindowAsk(lang))
 	case plan.Confirm == "code" && plan.Channel == channelPhone:
 		return demoPrefix(lang, text+" "+sayPhoneAsk(lang, goal.button(lang), linkedPlatform(s.paths)))
+	case plan.Confirm == "code" && plan.Channel == channelRelay:
+		return demoPrefix(lang, text+" "+confirmT(lang, "say.relay_ask"))
 	case plan.Confirm == "code":
 		if plan.Channel == channelChat && chatCall == nil {
 			text += "\n" + sayChatNote(lang)

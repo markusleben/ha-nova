@@ -86,7 +86,9 @@ func (srv *mcpServer) stdioApply(args map[string]json.RawMessage, argv []string,
 	srv.jobs[id] = job
 	mcpVerbLock.Lock() // free: no job runs, and the loop holds it only inside a call
 	go func() {
+		gateApproval = &job.asking // one job at a time: every other call answers BUSY
 		defer func() {
+			gateApproval = nil
 			if p := recover(); p != nil { // after runLocked, which has unlocked
 				job.result = chatStopped("ha_apply", applyCrashed(fmt.Sprint("internal error: ", p)))
 			}
@@ -100,7 +102,8 @@ func (srv *mcpServer) stdioApply(args map[string]json.RawMessage, argv []string,
 }
 
 // stdioAwait waits for job until stdioApplyWait after the call came in, then
-// hands out its outcome (once) or answers applying.
+// hands out its outcome (once), or answers waiting_for_approval while its
+// Relay ask waits for the person, else applying.
 func (srv *mcpServer) stdioAwait(id string, job *chatJob) map[string]any {
 	timer := time.NewTimer(time.Until(srv.since.Add(stdioApplyWait)))
 	defer timer.Stop()
@@ -110,11 +113,23 @@ func (srv *mcpServer) stdioAwait(id string, job *chatJob) map[string]any {
 		select {
 		case <-job.done: // ended as the wait did
 		default:
+			if job.asking.Load() {
+				return waitingForApproval(id, job.lang)
+			}
 			return applying(id, job.lang, false)
 		}
 	}
 	delete(srv.jobs, id)
 	return maps.Clone(job.result)
+}
+
+// waitingForApproval: the job's Relay ask waits for the person; nothing of
+// this step was sent (gate_client.go).
+func waitingForApproval(id, lang string) map[string]any {
+	next := fmt.Sprintf("Nothing of this step was sent yet: HA NOVA waits for the user's OK on their linked phone or in Home Assistant (the NOVA page). Tell the user `say`, then call ha_apply again with plan_id %s and no confirm_code right away, in this same answer: it joins the same run, and nothing is sent twice. You can't act once your answer ends, so never tell the user you will report back on your own; if you end your answer before the outcome, tell them to ask you again once they confirmed. Never ask for a code.", id)
+	envelope := map[string]any{"schema_version": 1, "verb": "apply", "status": "waiting_for_approval", "plan": map[string]any{"id": id}, "say": confirmT(lang, "say.relay_waiting"), "next_step": next}
+	text, _ := json.Marshal(envelope)
+	return map[string]any{"content": []map[string]any{{"type": "text", "text": string(text)}}, "structuredContent": envelope, "isError": false}
 }
 
 // applyCrashed: apply failed with an internal error, maybe after it sent.

@@ -96,6 +96,7 @@ type relaySession struct {
 	replay       map[string]bool  // a cut preview's reads while it is replayed (replayReads); nil otherwise
 	diverged     bool             // the replay asked for a read the preview never made
 	census       bool             // the listener scan's config reads are running (lost)
+	gate         *relayGate       // the Relay's safety check as this session knows it (gate_client.go)
 }
 
 type relayMemo struct {

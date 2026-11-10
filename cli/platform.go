@@ -63,10 +63,16 @@ func printErr(format string, args ...interface{}) {
 // never launches anything: tests must not open pages on the developer's
 // machine; a test that needs an opener injects its own.
 func openBrowser(url string) error {
-	if testing.Testing() || os.Getenv("HA_NOVA_NO_BROWSER") == "1" {
+	if !isInteractiveTTY() {
 		return nil
 	}
-	if !isInteractiveTTY() {
+	return launchBrowser(url)
+}
+
+// launchBrowser opens url without a terminal: a click in a window asked for
+// it (gate_client.go). Never under go test.
+func launchBrowser(url string) error {
+	if testing.Testing() || os.Getenv("HA_NOVA_NO_BROWSER") == "1" {
 		return nil
 	}
 	switch runtime.GOOS {

@@ -17,17 +17,10 @@ var rejectedStatuses = map[int]bool{400: true, 404: true, 422: true}
 func executeAction(s *relaySession, e *tierEngine, env *verbEnvelope, action planAction) (err error) {
 	sent := false
 	defer afterSend(&sent, env, &err)
-	body := map[string]any{}
-	for key, value := range action.Data {
-		body[key] = value
-	}
-	if len(action.EntityIDs) > 0 {
-		body["entity_id"] = slices.Clone(action.EntityIDs)
-	}
 	s.renewBudget()
 	flowsBefore := s.reauthFlows() // best effort, bounded; nil means no correlation
 	sent = true
-	result, err := s.postService(action.Service, body, action.Response)
+	result, err := s.postService(action.Service, serviceBody(action), action.Response)
 	s.renewBudget() // verification and correlation get their own budget
 	var unknown *relayOutcomeUnknownError
 	switch {
@@ -64,6 +57,18 @@ func executeAction(s *relaySession, e *tierEngine, env *verbEnvelope, action pla
 		env.exit = verbExitUnverified
 	}
 	return nil
+}
+
+// serviceBody: the frozen entity_ids plus the planned data, nothing else.
+func serviceBody(action planAction) map[string]any {
+	body := map[string]any{}
+	for key, value := range action.Data {
+		body[key] = value
+	}
+	if len(action.EntityIDs) > 0 {
+		body["entity_id"] = slices.Clone(action.EntityIDs)
+	}
+	return body
 }
 
 // newReauthFlows reports reauth flows that opened during the call and belong

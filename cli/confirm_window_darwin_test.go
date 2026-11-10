@@ -28,6 +28,7 @@ func TestDarwinWindowAnswers(t *testing.T) {
 		{"", exited("1"), false, true, windowNoAnswer},  // interrupted after reaching the window
 		{"", errors.New("exec: no such file"), false, false, windowFailed},
 		{"button Confirm", nil, true, true, windowNoAnswer},                                 // our own deadline ended it
+		{"cancel", nil, true, true, windowCancelled},                                        // a Cancel given just before we withdrew it still counts
 		{"", exec.Command("/bin/sh", "-c", "kill -9 $$").Run(), false, false, windowClosed}, // killed from outside (lane D9)
 		{"button Cancel", nil, false, true, windowNoAnswer},
 		{"button Confirm extra", nil, false, true, windowNoAnswer},

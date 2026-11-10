@@ -26,6 +26,7 @@ const (
 	CloudEndpointCore           CloudIngressEndpoint = "core"
 	CloudEndpointFiles          CloudIngressEndpoint = "files"
 	CloudEndpointBackups        CloudIngressEndpoint = "backups"
+	CloudEndpointGateAsk        CloudIngressEndpoint = "gate_ask"
 	CloudEndpointChatApps       CloudIngressEndpoint = "chat_apps"
 	CloudEndpointChatAppsSet    CloudIngressEndpoint = "chat_apps_set"
 )
@@ -71,6 +72,7 @@ var cloudIngressEndpointContracts = map[CloudIngressEndpoint]cloudIngressEndpoin
 	CloudEndpointCore:           {method: http.MethodPost, path: "/core", deviceBearer: true},
 	CloudEndpointFiles:          {method: http.MethodPost, path: "/files", deviceBearer: true},
 	CloudEndpointBackups:        {method: http.MethodPost, path: "/backups", deviceBearer: true},
+	CloudEndpointGateAsk:        {method: http.MethodPost, path: "/gate/v1/ask", deviceBearer: true},
 	CloudEndpointChatApps:       {method: http.MethodGet, path: CloudPathChatApps},
 	CloudEndpointChatAppsSet:    {method: http.MethodPost, path: CloudPathChatApps},
 }
@@ -180,6 +182,9 @@ func (c *CloudIngressClient) send(
 	if contract.deviceBearer {
 		request.Header.Set("Authorization", "Bearer "+deviceCredential)
 	}
+	if grant, _ := ctx.Value(gateGrantKey{}).(string); grant != "" { // a gate grant for exactly this body (gate_client.go)
+		request.Header.Set(gateGrantHeader, grant)
+	}
 	response, err := c.http.Do(request)
 	if err != nil {
 		if isCloudOutcomeSensitiveIngressEndpoint(endpoint) {
@@ -221,6 +226,10 @@ func (c *CloudIngressClient) send(
 			return nil, newCloudHTTPError(CloudErrOuterSessionExpired, "authorize Cloud ingress session", response.StatusCode, true)
 		}
 	}
+	gateRefused := false // the Relay's own gate refusal: nothing was forwarded (gate_client.go)
+	if outcomeSensitive && reachedRelay && response.StatusCode >= http.StatusInternalServerError {
+		response.Body, gateRefused = gateRefusalPeek(response.Body)
+	}
 	if outcomeSensitive {
 		if !reachedRelay && response.StatusCode == http.StatusNotFound {
 			response.Body.Close()
@@ -232,7 +241,7 @@ func (c *CloudIngressClient) send(
 			)
 		}
 		if !reachedRelay ||
-			response.StatusCode >= http.StatusInternalServerError {
+			response.StatusCode >= http.StatusInternalServerError && !gateRefused {
 			response.Body.Close()
 			return nil, &CloudError{
 				Code:       CloudErrOutcomeUnknown,
@@ -339,7 +348,8 @@ func isCloudFunctionalIngressEndpoint(endpoint CloudIngressEndpoint) bool {
 		CloudEndpointWS,
 		CloudEndpointCore,
 		CloudEndpointFiles,
-		CloudEndpointBackups:
+		CloudEndpointBackups,
+		CloudEndpointGateAsk:
 		return true
 	default:
 		return false

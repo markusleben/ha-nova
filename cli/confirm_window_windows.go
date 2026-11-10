@@ -213,6 +213,11 @@ func nativeWindowAvailable() bool {
 	return syscall.UTF16ToString(name[:]) == "Default"
 }
 
+// nativeButtons: Windows' stock OK/Cancel take no labels; the message says what OK does.
+func nativeButtons(ctx context.Context, message, _, _ string, wait time.Duration) windowAnswer {
+	return nativeWindow(ctx, message, "", wait)
+}
+
 // nativeWindow: Windows' stock OK/Cancel follow Windows' own language (lang unused).
 func nativeWindow(ctx context.Context, message, _ string, wait time.Duration) windowAnswer {
 	text, err1 := syscall.UTF16PtrFromString(message)
@@ -247,10 +252,15 @@ func nativeWindow(ctx context.Context, message, _ string, wait time.Duration) wi
 	defer close(stop) // before release: deferred calls run last-in first-out
 	select {
 	case <-ctx.Done():
+		select { // an answer the box gave before the withdrawal
+		case r := <-done:
+			return windowsWithdrawn(r)
+		default:
+		}
 		// Withdraw it by its window handle, retried while the box may not
-		// exist yet; its answer is never read. A box that won't close within
-		// two seconds stays until its own timeout, and its text says a later
-		// answer changes nothing.
+		// exist yet; its answer is never read (our WM_CLOSE makes it IDCANCEL).
+		// A box that won't close within two seconds stays until its own
+		// timeout, and its text says a later answer changes nothing.
 		for give := time.Now().Add(2 * time.Second); time.Now().Before(give); {
 			_, _, _ = enumThreadWindows.Call(id, closeBox, 0)
 			select {
@@ -261,14 +271,28 @@ func nativeWindow(ctx context.Context, message, _ string, wait time.Duration) wi
 		}
 		return windowNoAnswer
 	case r := <-done:
-		switch r {
-		case 0: // the box could not be created
-			return windowFailed
-		case 1: // IDOK
-			return windowConfirmed
-		case 2: // IDCANCEL (also Esc and the close box)
-			return windowCancelled
-		}
-		return windowNoAnswer // 32000: MB_TIMEDOUT
+		return windowsAnswer(r)
 	}
+}
+
+// windowsAnswer maps MessageBoxTimeout's result.
+func windowsAnswer(r uintptr) windowAnswer {
+	switch r {
+	case 0: // the box could not be created
+		return windowFailed
+	case 1: // IDOK
+		return windowConfirmed
+	case 2: // IDCANCEL (also Esc and the close box)
+		return windowCancelled
+	}
+	return windowNoAnswer // 32000: MB_TIMEDOUT
+}
+
+// windowsWithdrawn: an answer the box gave before we withdrew it; only its
+// Cancel counts (a Confirm then never does).
+func windowsWithdrawn(r uintptr) windowAnswer {
+	if windowsAnswer(r) == windowCancelled {
+		return windowCancelled
+	}
+	return windowNoAnswer
 }

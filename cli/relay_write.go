@@ -104,23 +104,32 @@ type serviceResult struct {
 // postService sends one service call; response asks for its
 // service_response (?return_response).
 func (s *relaySession) postService(service string, body map[string]any, response bool) (serviceResult, error) {
+	return s.writeCore(http.MethodPost, servicePath(service, response), body)
+}
+
+func servicePath(service string, response bool) string {
 	domain, name := splitID(service)
-	path := "/api/services/" + domain + "/" + name
 	if response {
-		path += "?return_response"
+		return "/api/services/" + domain + "/" + name + "?return_response"
 	}
-	return s.writeCore(http.MethodPost, path, body)
+	return "/api/services/" + domain + "/" + name
+}
+
+// corePayload: one core request as writeCore sends it (a Relay ask names
+// the same bytes, gate_client.go).
+func corePayload(method, path string, body any) map[string]any {
+	payload := map[string]any{"method": method, "path": path}
+	if body != nil {
+		payload["body"] = body
+	}
+	return payload
 }
 
 // writeCore sends one core write. Errors are either a relayCallError / plain
 // error (nothing reached Home Assistant: exit 1) or a
 // relayOutcomeUnknownError (it may have run: exit 7, never retry).
 func (s *relaySession) writeCore(method, path string, body any) (serviceResult, error) {
-	payload := map[string]any{"method": method, "path": path}
-	if body != nil {
-		payload["body"] = body
-	}
-	data, err := s.write("core", payload)
+	data, err := s.write("core", corePayload(method, path, body))
 	if err != nil {
 		return serviceResult{}, err
 	}
@@ -162,16 +171,23 @@ func (s *relaySession) write(endpoint string, payload map[string]any) (json.RawM
 	return s.sendWrite(endpoint, body)
 }
 
-// sendWrite sends one checked write body exactly once and returns the
-// envelope data: a relayCallError when Home Assistant or the Relay refused
-// it, a relayOutcomeUnknownError when it may have run. write and raw plans
-// (plan_raw_apply.go) check their own allowlist first.
-func (s *relaySession) sendWrite(endpoint string, body []byte) (json.RawMessage, error) {
+// sendWriteOnce sends one checked write body exactly once, with the Relay's
+// grant for these bytes when an ask got one (gate_client.go), and returns
+// the envelope data: a relayCallError when Home Assistant or the Relay
+// refused it, a relayOutcomeUnknownError when it may have run. write and
+// raw plans (plan_raw_apply.go) check their own allowlist first.
+func (s *relaySession) sendWriteOnce(endpoint string, body []byte, grant string) (json.RawMessage, error) {
+	if grant != "" && planAsks.Err() != nil { // stopped after the person approved: nothing goes out
+		return nil, errors.New("HA NOVA was stopped before it sent the approved change")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), relayWriteTimeout)
 	defer cancel()
 	req, err := newRelayRequest(ctx, s.transport, endpoint, body)
 	if err != nil {
 		return nil, err
+	}
+	if grant != "" {
+		req.Header.Set(gateGrantHeader, grant)
 	}
 	resp, err := s.transport.Client.Do(req)
 	if err != nil {
@@ -207,7 +223,8 @@ func (s *relaySession) sendWrite(endpoint string, body []byte) (json.RawMessage,
 		// Home Assistant answered a WS command with its own error: rejected,
 		// not unknown (the Relay wraps it as 502 UPSTREAM_WS_COMMAND_ERROR).
 		rejectedByHA := endpoint == "ws" && envelope.Error.Code == "UPSTREAM_WS_COMMAND_ERROR"
-		if resp.StatusCode >= http.StatusInternalServerError && !rejectedByHA { // upstream error or timeout: it may have run
+		// The Relay's safety check refused it before forwarding (503 GATE_UNAVAILABLE too).
+		if resp.StatusCode >= http.StatusInternalServerError && !rejectedByHA && !gateRefusal(envelope.Error.Code) { // upstream error or timeout: it may have run
 			return nil, relayHTTPOutcomeUnknownError(resp.StatusCode)
 		}
 		return nil, &relayCallError{endpoint: endpoint, status: resp.StatusCode, code: envelope.Error.Code, message: envelope.Error.Message}
