@@ -355,9 +355,9 @@ describe("relay gate: the App's own credentials", () => {
 
   it("the gate worker: its phone ask and the phone's answer go out unchecked", async () => {
     const own = device(GATE_INSTALL_ID);
-    const notify = { type: "call_service", domain: "notify", service: "mobile_app_pixel", service_data: { message: "Unlock?" } };
+    const notify = { method: "POST", path: "/api/services/notify/mobile_app_pixel", body: { message: "Unlock?" } };
     const collect = { message: { type: "subscribe_events", event_type: "mobile_app_notification_action" }, collect_events: { max_events: 1 } };
-    expect((await viaDevice("/ws", notify, own)).status).toBe(200);
+    expect((await viaDevice("/core", notify, own)).status).toBe(200);
     expect((await viaDevice("/ws", collect, own)).status).toBe(200);
     expect(seen).toEqual([]);
     expect(forwarded.map((f) => f.body)).toEqual([notify, collect]);
@@ -383,8 +383,7 @@ describe("relay gate: the App's own credentials", () => {
     const own = device(GATE_INSTALL_ID);
     reply = () => verdict("refuse");
     const bodies = [
-      { type: "call_service", domain: "notify", service: "notify" },
-      { type: "call_service", domain: "lock", service: "mobile_app_x" },
+      { type: "call_service", domain: "notify", service: "mobile_app_x" },
       { message: { type: "call_service", domain: "notify", service: "mobile_app_x" } },
       { message: { type: "subscribe_events", event_type: "mobile_app_notification_action", extra: 1 }, collect_events: {} },
       { message: { type: "subscribe_events", event_type: "state_changed" }, collect_events: {} },
@@ -393,16 +392,25 @@ describe("relay gate: the App's own credentials", () => {
     for (const body of bodies) {
       expect((await viaDevice("/ws", body, own)).status).toBe(422);
     }
-    expect((await viaDevice("/core", { method: "POST", path: "/api/services/notify/mobile_app_x" }, own)).status).toBe(422);
-    expect(checks()).toHaveLength(bodies.length + 1);
+    const cores = [
+      { method: "POST", path: "/api/services/notify/notify", body: {} },
+      { method: "POST", path: "/api/services/lock/mobile_app_x", body: {} },
+      { method: "POST", path: "/api/services/notify/mobile_app_x?return_response", body: {} },
+      { method: "POST", path: "/api/services/notify/mobile_app_x" },
+      { method: "GET", path: "/api/services/notify/mobile_app_x", body: {} },
+    ];
+    for (const body of cores) {
+      expect((await viaDevice("/core", body, own)).status).toBe(422);
+    }
+    expect(checks()).toHaveLength(bodies.length + cores.length);
     expect(forwarded).toEqual([]);
   });
 
   it("the gate worker's credential from a LAN peer is refused", async () => {
     const own = device(GATE_INSTALL_ID);
     devicePeer = "192.168.1.20";
-    const notify = { type: "call_service", domain: "notify", service: "mobile_app_pixel" };
-    expect((await viaDevice("/ws", notify, own)).status).toBe(401);
+    const notify = { method: "POST", path: "/api/services/notify/mobile_app_pixel", body: {} };
+    expect((await viaDevice("/core", notify, own)).status).toBe(401);
     expect(forwarded).toEqual([]);
   });
 });

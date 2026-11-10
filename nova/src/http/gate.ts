@@ -48,7 +48,7 @@ export function gated(
       if (principal.internal === "chat-bridge") {
         return await handler(send); // keeps its own asks and redaction (§5)
       }
-      if (!(endpoint === "ws" && phoneAsk(send.body))) {
+      if (!phoneAsk(endpoint, send.body)) {
         const check = await gate.check(principal, endpoint, bytes);
         if (check === null) {
           throw unavailable();
@@ -107,16 +107,25 @@ async function stillAuthorized(context: RouteContext): Promise<void> {
 }
 
 // The worker's own ask (§2, gate principal only): a notification to a phone,
-// and collecting the phone's answer.
-function phoneAsk(body: unknown): boolean {
+// sent as the CLI sends every service call, and collecting the phone's answer.
+const PHONE_NOTIFY = /^\/api\/services\/notify\/mobile_app_[a-z0-9_]+$/;
+
+function phoneAsk(endpoint: GateEndpoint, body: unknown): boolean {
   if (!isObject(body)) {
     return false;
   }
-  if (body.type === "call_service") {
-    return body.domain === "notify" && typeof body.service === "string" && body.service.startsWith("mobile_app_");
+  if (endpoint === "core") {
+    return (
+      Object.keys(body).length === 3 &&
+      body.method === "POST" &&
+      typeof body.path === "string" &&
+      PHONE_NOTIFY.test(body.path) &&
+      isObject(body.body)
+    );
   }
   const message = body.message;
   return (
+    endpoint === "ws" &&
     !("type" in body) &&
     isObject(body.collect_events) &&
     isObject(message) &&

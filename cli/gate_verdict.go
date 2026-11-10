@@ -129,7 +129,7 @@ func gateVerdict(endpoint string, body []byte, session func() (*relaySession, er
 			check = gateCheck{Verdict: verdict, Kind: "write", Why: why, Item: i}
 		}
 	}
-	if check.Verdict == gatePass && rawRelayRead(endpoint, body) {
+	if check.Verdict == gatePass && (rawRelayRead(endpoint, body) || checkPhoneRead(endpoint, payload) == nil) { // the phone lookup's template only renders
 		check.Kind = "read"
 	}
 	return check, nil
