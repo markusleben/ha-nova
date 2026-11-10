@@ -168,7 +168,7 @@ semantic placeholders; localize them before showing the user:
 ## Verification Honesty (post-write wording)
 
 Post-write checks prove persistence, not behavior. What they establish: the
-write was accepted, the read-back matches, the domain reloaded, the runtime
+write was accepted, the read-back matches and is loaded, the runtime
 entity exists. What they do NOT establish: that conditions carry the intended
 meaning, that every branch is reachable, that timing assumptions hold, or that
 the physical action succeeds.

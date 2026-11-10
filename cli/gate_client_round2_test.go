@@ -89,12 +89,12 @@ func TestGateAsksAgainWhenAGrantExpired(t *testing.T) {
 				grants = append(grants, send.grant)
 			}
 			items := batchItems(t, applied)
-			want, second, status := "grant-ask1,grant-ask1,grant-ask1,grant-ask2,grant-ask2", "verified", 0
+			want, second, status := "grant-ask1,grant-ask1,grant-ask2", "verified", 0
 			if !approve {
-				want, second, status = "grant-ask1,grant-ask1,grant-ask1", "not_sent", exit
+				want, second, status = "grant-ask1,grant-ask1", "not_sent", exit
 			}
-			if exit != status || len(asks) != 2 || len(asks[1]) != 2 || strings.Join(grants, ",") != want || len(items) != 2 ||
-				items[0].Status != "verified" || items[1].Status != second || !slices.Contains(asks[1], sends[2].key) {
+			if exit != status || len(asks) != 2 || len(asks[1]) != 1 || strings.Join(grants, ",") != want || len(items) != 2 ||
+				items[0].Status != "verified" || items[1].Status != second || !slices.Contains(asks[1], sends[1].key) {
 				t.Fatalf("exit %d %+v; asks %q grants %s items %+v", exit, applied.Error, asks, strings.Join(grants, ","), items)
 			}
 			if !approve && (exit == 0 || !strings.Contains(applied.Error.Next, gateEnded("cancelled").next)) {

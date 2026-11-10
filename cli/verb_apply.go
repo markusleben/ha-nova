@@ -41,8 +41,8 @@ time and the first answer counts; if the window can't open, the phone alone
 decides, else apply returns a new plan. One with "channel": "phone" sends
 Confirm/Cancel to the phone linked to HA NOVA (Companion app) and waits the
 same way. After apply, "plan.channel" says where the user confirmed.
-Config plans (plan write/delete/revert) save the config once, reload, and
-verify the read-back; an update lands on the undo stack, and a delete (and
+Config plans (plan write/delete/revert) save the config once (a delete also
+reloads), wait read-only until Home Assistant has loaded it, and verify; an update lands on the undo stack, and a delete (and
 every dashboard save) takes a config snapshot first (--no-snapshot only
 after that snapshot failed and the user chose to proceed without one).
 Rooms plans (plan rooms, or plan revert of a rooms record) set each device's

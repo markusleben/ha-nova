@@ -161,7 +161,7 @@ Use the resolved `unique_id` with:
 
 For create/update verification:
 1. read back config via `GET /api/config/{domain}/config/{unique_id}`
-2. reload the domain service
+2. no reload: wait until WS `{domain}/config` returns it
 3. query entity registry and match `unique_id` to the actual `entity_id`
 4. read `/api/states/{entity_id}` to confirm runtime presence
 
@@ -559,7 +559,7 @@ The relay server has its own internal upstream timeout of 10 seconds per WS/HTTP
 On `502 / UPSTREAM_*_TIMEOUT` or CLI-level timeout:
 - verify state/config first before retrying
 - for a SERVICE call: retry exactly once only when verification shows no state change AND the call is a direct, consumer-free state-changing action whose read-back proves non-application — never for indirect or asynchronous runs (their effects are delayed), never for consumer-bearing calls (a listener can have fired on the first accepted call), and never for disruptive or restart-class actions (`../ha-nova/outcome-verification.md`). Config writes verified by read-back and reload retries keep their own adjacent rules — this clause narrows service-call retries only
-- if config read-back succeeded but reload timed out, treat it as partial verification and confirm registry/state before retrying
+- if config read-back succeeded but it never loaded, treat it as partial verification and confirm registry/state before retrying
 
 ## Safe Bulk Patterns
 

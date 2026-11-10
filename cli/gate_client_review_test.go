@@ -97,10 +97,14 @@ func TestGateChecksThePlanAgainAfterTheApproval(t *testing.T) {
 // before anything is asked or sent.
 func TestGateRefusesABatchTooLargeForOneAsk(t *testing.T) {
 	g := &fakeGate{}
-	h := gatedHarness(t, batchHome(), g)
+	f := batchHome()
+	for i := range 11 { // a delete asks with its reload: 22 requests
+		f.storeConfig(fmt.Sprint("/api/config/script/config/door_", i), map[string]any{"alias": fmt.Sprint("Door ", i), "sequence": []any{step("lock.unlock", "lock.front")}})
+	}
+	h := gatedHarness(t, f, g)
 	var ids []string
 	for i := range 11 {
-		ids = append(ids, h.writePlan("script", "", map[string]any{"alias": fmt.Sprint("Door ", i), "sequence": []any{step("lock.unlock", "lock.front")}}))
+		ids = append(ids, h.member("delete", fmt.Sprint("script.door_", i)))
 	}
 	_, env := h.batch(ids...)
 	if env.Plan == nil || env.Plan.Channel != channelRelay {

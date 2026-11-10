@@ -125,11 +125,11 @@ func TestUpdateCheckpointsAndNotices(t *testing.T) {
 		return env.Plan.ID
 	}
 	id := plan("light.turn_off")
-	h.f.service = func(*fakeHA, string, map[string]any) any { return coreReply(500, map[string]any{"message": "boom"}) }
+	h.f.loaded = map[string]any{"automation.hall_motion": hallDraft("light.turn_on")} // saved, never seen running
 	if exit, applied := h.run(runApplyCommand, "--plan", id); exit != 6 || applied.Undo == nil || len(applied.BeforeConfig) == 0 {
 		t.Fatalf("unverified update: exit %d env %+v", exit, applied)
 	}
-	h.f.service = applies
+	h.f.loaded = nil
 	_, reverted := h.run(runPlanCommand, "revert")
 	if exit, env := h.run(runApplyCommand, "--plan", reverted.Plan.ID); exit != 0 || env.Undo == nil {
 		t.Fatalf("revert: exit %d env %+v", exit, env)
@@ -190,14 +190,14 @@ func TestConfigApplyDetails(t *testing.T) {
 	f.configs["/api/config/automation/config/a1"] = json.RawMessage(`{"alias":"Hall motion","triggers":[],"actions":[],"x":1.10}`)
 	h := newWriteHarness(t, f)
 	_, env := h.run(runPlanCommand, "write", "--domain", "automation", "--id", "a1", "--file", draftFile(t, hallDraft("light.turn_off")))
-	h.run(runApplyCommand, "--plan", env.Plan.ID)
-	for _, c := range h.posts() {
-		if c.payload["path"] == "/api/services/automation/reload" && strings.Contains(string(c.raw), `"body":{"id":"a1"}`) {
-			goto scoped
+	if exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 0 || applied.Status != "verified" {
+		t.Fatalf("update: exit %d env %+v", exit, applied)
+	}
+	for _, c := range h.posts() { // Home Assistant reloads after a save on its own
+		if strings.HasPrefix(fmt.Sprint(c.payload["path"]), "/api/services/") {
+			t.Fatalf("a save sent %+v", c.payload)
 		}
 	}
-	t.Fatalf("automation reload not scoped to a1: %+v", h.posts())
-scoped:
 	h.f.configWrite = func(f *fakeHA, path string, body map[string]any) any {
 		f.storeConfig(path, body)
 		f.states["automation.hall_motion"]["state"] = "unavailable"
@@ -221,4 +221,10 @@ scoped:
 			t.Fatalf("snapshot payload lost the exact number: %s", c.raw)
 		}
 	}
+	for _, c := range h.posts() {
+		if c.payload["path"] == "/api/services/automation/reload" && strings.Contains(string(c.raw), `"body":{"id":"a1"}`) {
+			return
+		}
+	}
+	t.Fatalf("the delete's automation reload not scoped to a1: %+v", h.posts())
 }

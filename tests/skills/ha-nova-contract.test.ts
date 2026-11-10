@@ -741,7 +741,7 @@ describe("ha-nova contract", () => {
   it("runs automation/script writes through the typed verbs, not agent templates (PR6)", () => {
     const write = readFileSync("skills/write/SKILL.md", "utf8");
     // The resolve/apply agent templates are retired: the CLI resolves,
-    // writes, reloads, and verifies.
+    // writes and verifies.
     expect(existsSync("skills/ha-nova/agents")).toBe(false);
     expect(write).not.toContain("agents/");
     expect(write).toContain("`ha-nova get <entity_id> --config`");

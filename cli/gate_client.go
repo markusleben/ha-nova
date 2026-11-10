@@ -67,7 +67,7 @@ func (s *relaySession) gateExempt() bool { return chatCall != nil || s.cfg.bridg
 // sendWrite sends one checked write body exactly once (sendWriteOnce), with
 // the grant an ask got for these bytes. A typed request the Relay holds
 // (428: no grant covered it, or its grant expired, two minutes after the
-// approval) is asked for once more, with the reload a config write needs
+// approval) is asked for once more, with the reload a config delete needs
 // after it, and sent once more with that grant; a 428 after that is the
 // answer. An ask that ends without an approval answers its own
 // *verbFailure: nothing of this request was sent.

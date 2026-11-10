@@ -175,7 +175,7 @@ describe("ha cross-skill integration", () => {
     // The CLI maps the config id to the registry unique_id (never the slug)
     // and requires a live entity for `verified`.
     expect(configApply).toContain("row.Platform == domain && string(row.UniqueID) == configID");
-    expect(configApply).toContain('row.Expect = "read-back equals the plan, reload ok, entity present"');
+    expect(configApply).toContain('row.Expect = "read-back equals the plan, loaded by Home Assistant, entity present"');
 
     expect(writeSkill).toContain("never the slug");
     expect(writeSkill).toContain("If `verification[].entity_id` differs from the requested slug");

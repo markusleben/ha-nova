@@ -157,18 +157,26 @@ func TestGateTypedPlanAsksTheRelayBeforeItSends(t *testing.T) {
 
 // A config write and the reload sent after it are one ask; both go out with
 // its grant, byte for byte as asked.
-func TestGateConfigWriteAsksWithItsReload(t *testing.T) {
+// A save asks for the save alone (Home Assistant reloads after it on its
+// own); a delete asks with the reload apply sends after it.
+func TestGateConfigWriteAsksForWhatIsSent(t *testing.T) {
 	g := &fakeGate{}
 	h := gatedHarness(t, batchHome(), g)
 	id := h.writePlan("script", "s1", map[string]any{"alias": "Arrival", "sequence": []any{step("lock.unlock", "lock.front")}})
 	exit, applied := h.run(runApplyCommand, "--plan", id)
 	asks, _, sends := g.snapshot()
-	if exit != 0 || len(asks) != 1 || len(asks[0]) != 2 || len(sends) != 2 || !strings.Contains(asks[0][1], `"path":"/api/services/script/reload"`) {
+	if exit != 0 || applied.Status != "verified" || len(asks) != 1 || len(asks[0]) != 1 || len(sends) != 1 || !strings.Contains(asks[0][0], `"path":"/api/config/script/config/s1"`) {
 		t.Fatalf("exit %d %+v; asks %q sends %+v", exit, applied.Error, asks, sends)
 	}
-	for i, send := range sends {
-		if send != (gateSend{asks[0][i], "grant-ask1"}) {
-			t.Fatalf("send %d %+v, asked %q", i, send, asks[0][i])
+	_, env := h.run(runPlanCommand, "delete", "script.old_arrival")
+	exit, applied = h.run(runApplyCommand, "--plan", env.Plan.ID)
+	asks, _, sends = g.snapshot()
+	if exit != 0 || len(asks) != 2 || len(asks[1]) != 2 || len(sends) != 3 || !strings.Contains(asks[1][0], `"method":"DELETE"`) || !strings.Contains(asks[1][1], `"path":"/api/services/script/reload"`) {
+		t.Fatalf("delete: exit %d %+v; asks %q sends %+v", exit, applied.Error, asks, sends)
+	}
+	for i, want := range []gateSend{{asks[0][0], "grant-ask1"}, {asks[1][0], "grant-ask2"}, {asks[1][1], "grant-ask2"}} {
+		if sends[i] != want {
+			t.Fatalf("send %d %+v, want %+v", i, sends[i], want)
 		}
 	}
 }
