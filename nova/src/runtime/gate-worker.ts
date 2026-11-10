@@ -19,7 +19,9 @@ import { childEnv, superviseChild } from "./supervise-child.js";
 // Assistant through the Relay with its own credential (loopback only, minted
 // afresh by mint() on every start). Everything lives in owner-only /data/gate,
 // its Unix socket too: no other listener can answer in the worker's place.
-const MAX_ANSWER_BYTES = 192 << 20; // the worker's answer to its largest request (96 MiB, cli/command_gate.go)
+// Each route's answer is capped at the largest the worker gives
+// (cli/command_gate.go, cli/gate_ask.go); a longer one is no answer.
+const MAX_ANSWER_BYTES = { "/check": 64 << 10, "/ask": 16 << 20, "/phone": 64 << 10, "/redact": 192 << 20 } as const;
 const TIMEOUT_MS = 20_000; // above the worker's own 15 s check budget (cli/command_gate.go)
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
@@ -86,7 +88,7 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
   const worker = superviseChild({ name: "Safety-check worker", logger: deps.logger, launch, respawnMs: deps.respawnMs });
 
   // stop hangs up: no answer, and the worker reads it as the Relay gone.
-  const post = (path: string, payload: unknown, timeoutMs = deps.timeoutMs ?? TIMEOUT_MS, stop?: AbortSignal): Promise<Record<string, unknown> | null> => {
+  const post = (path: keyof typeof MAX_ANSWER_BYTES, payload: unknown, timeoutMs = deps.timeoutMs ?? TIMEOUT_MS, stop?: AbortSignal): Promise<Record<string, unknown> | null> => {
     const asked = worker.current();
     if (asked === null || stop?.aborted === true) {
       return Promise.resolve(null);
@@ -112,7 +114,7 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
           let size = 0;
           response.on("data", (chunk: Buffer) => {
             chunks.push(chunk);
-            if ((size += chunk.length) > MAX_ANSWER_BYTES) {
+            if ((size += chunk.length) > MAX_ANSWER_BYTES[path]) {
               settle(null, "Safety-check worker answered unusably", { status: "over the size limit" });
             }
           });

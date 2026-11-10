@@ -147,6 +147,28 @@ describe("gate worker child", () => {
     }
   }, 60_000);
 
+  it("caps each answer at its own route's limit: a check's is small, a redaction's is not", async () => {
+    const big = Buffer.alloc(100 << 10, 0x61);
+    const server = createServer((request, response) => {
+      request.resume();
+      request.on("end", () => {
+        const answer = request.url === "/check" ? { verdict: "pass", kind: "read", pad: big.toString() } : { response_b64: big.toString("base64") };
+        response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(answer));
+      });
+    });
+    mkdirSync(join(dir, "gate"), { recursive: true, mode: 0o700 });
+    await new Promise<void>((r) => server.listen(join(dir, "gate", "worker.sock"), r));
+    try {
+      const gate = worker();
+      gate.start();
+      expect(await gate.check({ kind: "legacy" }, "ws", Buffer.from("{}"))).toBeNull();
+      expect(await gate.redact("ws", Buffer.from("{}"), Buffer.from("{}"))).toEqual(big);
+    } finally {
+      server.closeAllConnections();
+      await new Promise((r) => server.close(r));
+    }
+  });
+
   it("an ask's answer is used only in the worker's own shape", async () => {
     let answer: unknown = {};
     let asked: unknown;
