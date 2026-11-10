@@ -13,8 +13,12 @@
 // one-time code, a delete needs its copy saved first) and that a refusal
 // names its real cause, never the sign-in, setup, or the file access
 // setting. Leaves /config/www/rclane-mailbox.jpg (it must survive); the
-// bridge's home and data live in .state. Prints PASS/FAIL lines; exits
-// non-zero on any FAIL.
+// bridge's home and data live in .state. On a gated Relay (0.30, /health
+// gate 1) this bridge runs on the shared token, not the App's own bridge
+// credential, so the Relay holds its typed writes: each write and delete is
+// refused with the bridge's own words, and the file stays as it was. The
+// App's chat-code path can't run on a standalone bed (one WARN line).
+// Prints PASS/FAIL/WARN lines; exits non-zero on any FAIL.
 import { execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -93,8 +97,13 @@ const plan = (requests) => tool("ha_plan", { kind: "raw", requests });
 try {
   level("manage");
   for (let i = 0; i < 60 && !(await fetch(`http://127.0.0.1:${port}/mcp`).then(() => true, () => false)); i++) await sleep(500);
-  inHA("mkdir -p /config/www && printf 'not a real photo' > /config/www/rclane-mailbox.jpg && rm -f /config/rclane-note.txt /config/rclane-run.sh");
-  const NOTE = "/config/rclane-note.txt";
+  inHA("mkdir -p /config/www && printf 'not a real photo' > /config/www/rclane-mailbox.jpg && rm -f /config/rclane-note.txt /config/rclane-run.sh && printf 'rc lane\\n' > /config/rclane-delete.txt");
+  const NOTE = "/config/rclane-note.txt", DEL = "/config/rclane-delete.txt";
+  const onDisk = (path) => inHA(`test -f ${path} && echo kept || echo gone`).trim();
+  const gated = health.data?.gate === 1;
+  // The bridge's refusal when the Relay holds a write (confirm_strings gate.chat_held, en or de).
+  const held = (d) => /until a person approves it, which a chat app can't do|in einer Chat-App geht das nicht/.test(words(d)) && !WRONG_CAUSE.test(words(d));
+  if (gated) console.log("WARN  App chat-code path not covered on a standalone bed: its Relay gates this bridge's shared token");
 
   for (const name of ["ask", "use"]) {
     level(name);
@@ -113,13 +122,24 @@ try {
   const wrote = await plan([fileOp("write_file", NOTE, "rc lane\n")]);
   const wroteApplied = code(wrote) ? await tool("ha_apply", { plan_id: wrote.plan.id, confirm_code: code(wrote) }) : {};
   const back = await readFile(NOTE);
-  check("manage: a new file needs the code, then is written", wrote.tier === "typed" && Boolean(code(wrote)) && !wroteApplied.error && JSON.stringify(back).includes("rc lane"),
-    `plan ${wrote.tier ?? short(wrote)}, apply ${wroteApplied.status ?? short(wroteApplied)}`);
-  const del = await plan([{ endpoint: "backups", payload: { action: "save", category: "yaml", name: "rclane-note", data: { path: NOTE, content: "rc lane\n" } } }, fileOp("delete_file", NOTE)]);
+  if (gated) {
+    const note = onDisk(NOTE);
+    check("manage, gated Relay: a new file needs the code, then the Relay holds it: refused, naming why; nothing is written", wrote.tier === "typed" && Boolean(code(wrote)) && held(wroteApplied) && note === "gone",
+      `plan ${wrote.tier ?? short(wrote)}, apply ${short(wroteApplied)}; file ${note}`);
+  } else {
+    check("manage: a new file needs the code, then is written", wrote.tier === "typed" && Boolean(code(wrote)) && !wroteApplied.error && JSON.stringify(back).includes("rc lane"),
+      `plan ${wrote.tier ?? short(wrote)}, apply ${wroteApplied.status ?? short(wroteApplied)}`);
+  }
+  const del = await plan([{ endpoint: "backups", payload: { action: "save", category: "yaml", name: "rclane-delete", data: { path: DEL, content: "rc lane\n" } } }, fileOp("delete_file", DEL)]);
   const delApplied = code(del) ? await tool("ha_apply", { plan_id: del.plan.id, confirm_code: code(del) }) : {};
-  const gone = inHA(`test -f ${NOTE} && echo kept || echo gone`).trim();
-  check("manage: a delete with its copy saved first needs the code, then the file is gone", del.tier === "typed" && Boolean(code(del)) && !delApplied.error && gone === "gone",
-    `plan ${del.tier ?? short(del)}, apply ${delApplied.status ?? short(delApplied)}, file ${gone}`);
+  const gone = onDisk(DEL);
+  if (gated) {
+    check("manage, gated Relay: a delete with its copy saved first needs the code, then the Relay holds it: refused, naming why; the file stays", del.tier === "typed" && Boolean(code(del)) && held(delApplied) && gone === "kept",
+      `plan ${del.tier ?? short(del)}, apply ${short(delApplied)}; file ${gone}`);
+  } else {
+    check("manage: a delete with its copy saved first needs the code, then the file is gone", del.tier === "typed" && Boolean(code(del)) && !delApplied.error && gone === "gone",
+      `plan ${del.tier ?? short(del)}, apply ${delApplied.status ?? short(delApplied)}, file ${gone}`);
+  }
 
   // The Relay refuses these itself (an HTTP 403): the answer must say why.
   const photo = await plan([fileOp("delete_file", "/config/www/rclane-mailbox.jpg")]);
@@ -130,7 +150,8 @@ try {
   const script = await plan([fileOp("write_file", "/config/rclane-run.sh", "#!/bin/sh\n")]);
   const scriptApplied = code(script) ? await tool("ha_apply", { plan_id: script.plan.id, confirm_code: code(script) }) : script;
   const made = inHA("test -f /config/rclane-run.sh && echo written || echo absent").trim();
-  check("manage: writing a .sh file is refused, naming why; nothing is written", words(scriptApplied).includes("FILE_TYPE_DENIED") && !WRONG_CAUSE.test(words(scriptApplied)) && made === "absent",
+  check(`manage: writing a .sh file is refused, naming why${gated ? " (the Relay holds it first)" : ""}; nothing is written`,
+    (gated ? held(scriptApplied) : words(scriptApplied).includes("FILE_TYPE_DENIED") && !WRONG_CAUSE.test(words(scriptApplied))) && made === "absent",
     `plan ${script.tier ?? "-"}, ${short(scriptApplied)}; ${made}`);
 } catch (err) {
   check("chat-app files check ran", false, err.message);
