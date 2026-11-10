@@ -3,7 +3,7 @@ import { claudeConnectorLink } from "../../runtime/chat-connector.js";
 import type { CsrfStore } from "../../security/csrf.js";
 import type { DeviceRecord } from "../../security/device-registry.js";
 import { chatPhoneLine, chatPhoneWaiting, renderChatPhone, renderChatPhoneError, type ChatPhoneAction, type ChatPhoneModel } from "./nova-page-chat-phone.js";
-import { renderChatActivity, renderChatUsers, type ChatPhoneUser, type ChatUsersModel } from "./nova-page-chat-users.js";
+import { renderChatActivity, renderChatUsers, renderToolsChanged, type ChatPhoneUser, type ChatUsersModel } from "./nova-page-chat-users.js";
 
 // Presentation layer of the NOVA owner console: page model, HTML/CSS rendering,
 // the armed confirm section, and formatting helpers. The HTTP/action/CSRF
@@ -270,7 +270,7 @@ ${m.chatPhone === null ? "" : renderChatPhone(m.chatPhone, { id: who?.id ?? m.us
       ? "In Claude, open Customize → Connectors → HA NOVA. Set every tool to “Always allow”, except “Run a confirmed change”: leave it on “Needs approval”. Then Claude still asks before each bigger change. The AI can see a chat code, so that question is your own check. Link a phone, and you can allow that one too."
       : "In Claude, open Customize → Connectors → HA NOVA and set every tool to “Always allow”. HA NOVA still shows you a preview before bigger changes, and your phone asks before unlocks, the alarm, and deletes.";
     const url = m.chatConnectorUrl;
-    body = `${url === null
+    body = `${renderToolsChanged(m.chatUsers?.toolsChangedAt ?? null, m.now)}${url === null
       ? `<p>On, but HA NOVA can't find an address Claude and ChatGPT can reach. Turn on remote access in Home Assistant Link, or set your own public HTTPS address (valid certificate) as the external URL under Settings → System → Network, then reload this page.</p>`
       : `<p>On. Add HA NOVA to Claude in one click, or add this address as a plugin in ChatGPT. Then sign in with your own Home Assistant login.</p>
 <p><a class="linkbtn primary" href="${escapeAttr(claudeConnectorLink(url))}" target="_blank" rel="noopener noreferrer">Add to Claude</a> <span class="muted meta">Adds ${escapeHtml(new URL(url).host)}</span></p>

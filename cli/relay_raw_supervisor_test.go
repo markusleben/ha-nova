@@ -107,7 +107,7 @@ func TestMCPReadSupervisor(t *testing.T) {
 	})
 	c := startMCP(t, paths)
 	mcpInit(c)
-	res := c.tool("ha_read", map[string]any{"endpoint": "supervisor", "path": "/addons/core_mosquitto/logs", "lines": 20})
+	res := c.tool("ha_read", map[string]any{"endpoint": "supervisor", "path": "/addons/core_mosquitto/logs"})
 	if _, code := readEnvelope(res); code != "REFUSED" || len(calls()) != 0 {
 		t.Fatalf("logs: code %q, sent %v", code, calls())
 	}

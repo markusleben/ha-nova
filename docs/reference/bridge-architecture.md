@@ -26,6 +26,8 @@ POST /core
 POST /files
 POST /backups
 POST /supervisor   # App mode only
+POST /gate/v1/ask  # the safety check: ask a person, wait, cancel
+POST /gate/v1/phone
 ```
 
 ### Home Assistant Link routes
@@ -43,6 +45,7 @@ Supervisor-ingress-only machine surface. `nova/DOCS.md` links here.
 | GET | `/health` | The same bounded health route through Ingress |
 | GET/POST | `/chat-apps/v1/state` | Read or change the chat-app switch (owner only, through Ingress) |
 | POST | `/ws`, `/core`, `/files`, `/backups` | The same bounded functional routes through Ingress |
+| POST | `/gate/v1/ask`, `/gate/v1/phone` | The safety check's ask and phone-link routes through Ingress |
 
 `POST /supervisor` is not among them: Supervisor access needs the local
 connection.
@@ -515,7 +518,7 @@ Contract:
 - No business logic
 - No validation rules (beyond request format and path safety)
 - No Home Assistant domain-state caching
-- No consent gating
+- No consent rules of its own: the safety check holds a typed request until a person approves it, but the rating comes from the bundled CLI (`ha-nova gate`, `cli/gate_verdict.go`), never from Relay code (`docs/reference/safety.md`)
 - No session management
 - No metrics (structured JSON logging only)
 - No MCP protocol

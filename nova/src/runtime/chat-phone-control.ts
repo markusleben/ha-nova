@@ -73,6 +73,7 @@ export interface ChatPhoneControl {
   job(user: string, id: string): Promise<ChatPhoneJob>; // a job reads only as the user it was started for
   activity(): Promise<ChatActivity[]>; // the last 20 changes
   seen(): Promise<Record<string, string>>; // each user's last request, to the hour (RFC 3339)
+  toolsChangedAt(): Promise<string>; // when the bridge's tools or instructions last changed (RFC 3339); "": not since its first start
 }
 
 const JOB = /^[0-9a-f]{32}$/;
@@ -181,6 +182,13 @@ export function createChatPhoneControl(secret: () => string | null, port = CONTR
         throw unreadable();
       }
       return users as Record<string, string>;
+    },
+    toolsChangedAt: async () => {
+      const answer = await call("GET", "tools");
+      if (typeof answer.version !== "string" || typeof answer.changed_at !== "string") {
+        throw unreadable();
+      }
+      return answer.changed_at;
     },
   };
 }

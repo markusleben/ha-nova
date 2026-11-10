@@ -129,6 +129,8 @@ type mcpServer struct {
 	chat        *chatPolicy         // ha-nova serve: the chat app's HA user and the owner's switches (nil: stdio)
 	jobs        map[string]*chatJob // ha-nova mcp: apply jobs by plan id (mcp_stdio_apply.go)
 	since       time.Time           // when the request came in: serve's waits for mcpVerbLock (lockChat) and stdio's apply wait count from it
+	toolsHint   string              // ha-nova serve: the refresh hint this request may carry (mcp_serve_tools.go)
+	toolsHinted bool                // a tool result carried it
 }
 
 func runMCPCommand(paths runtimePaths, args []string) int {
@@ -295,7 +297,9 @@ func (srv *mcpServer) route(req rpcRequest) (map[string]any, *rpcError) {
 	case "tools/list":
 		return map[string]any{"tools": mcpToolList(srv.paths)}, nil
 	case "tools/call":
-		return srv.callTool(req)
+		result, rpcErr := srv.callTool(req)
+		srv.addToolsHint(result)
+		return result, rpcErr
 	case "prompts/list":
 		return srv.listPrompts()
 	case "prompts/get":
