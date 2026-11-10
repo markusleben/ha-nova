@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -22,10 +24,10 @@ func TestDarwinWindowAnswers(t *testing.T) {
 		{"cancel", nil, false, true, windowCancelled},
 		{"timeout", nil, false, true, windowNoAnswer},
 		{"error -1712", nil, false, true, windowNoAnswer},
-		{"error -1713", nil, false, true, windowFailed}, // no user interaction: it never showed
-		{"error -50", nil, false, true, windowNoAnswer}, // any other error once the script reached the window
-		{"", exited("1"), false, false, windowFailed},   // did not compile (sandbox, -2740)
-		{"", exited("1"), false, true, windowNoAnswer},  // interrupted after reaching the window
+		{"error -1713", nil, false, true, windowNoAnswer}, // any error once the script reached the window
+		{"error -50", nil, false, true, windowNoAnswer},   // any other error once the script reached the window
+		{"", exited("1"), false, false, windowFailed},     // did not compile (sandbox, -2740)
+		{"", exited("1"), false, true, windowNoAnswer},    // interrupted after reaching the window
 		{"", errors.New("exec: no such file"), false, false, windowFailed},
 		{"button Confirm", nil, true, true, windowNoAnswer},                                 // our own deadline ended it
 		{"", exec.Command("/bin/sh", "-c", "kill -9 $$").Run(), false, false, windowClosed}, // killed from outside (lane D9)
@@ -35,6 +37,39 @@ func TestDarwinWindowAnswers(t *testing.T) {
 		if got := darwinAnswer(c.out, c.err, c.ended, c.showing); got != c.want {
 			t.Errorf("darwinAnswer(%q, %v, %v, %v) = %v, want %v", c.out, c.err, c.ended, c.showing, got, c.want)
 		}
+	}
+}
+
+// The window script compiles (one that doesn't never shows: windowFailed),
+// takes the plan's text only as an argument, adds Cancel first (the
+// default: Return) and Confirm without a key, scrolls with a scroller that
+// stays visible, and says it shows only right before it does.
+func TestDarwinWindowScript(t *testing.T) {
+	args := []string{"-l", "JavaScript", "-o", filepath.Join(t.TempDir(), "window.scpt")}
+	for _, line := range windowScript {
+		args = append(args, "-e", line)
+	}
+	if out, err := exec.Command("/usr/bin/osacompile", args...).CombinedOutput(); err != nil {
+		t.Fatalf("the window script doesn't compile: %v %s", err, out)
+	}
+	marker := exec.Command("/usr/bin/osascript", "-l", "JavaScript", "-e", "console.log('"+windowShowing+"');")
+	var stderr strings.Builder
+	marker.Stderr = &stderr
+	if out, err := marker.Output(); err != nil || len(out) > 0 || !strings.Contains(stderr.String(), windowShowing) { // nativeWindow reads it from stderr
+		t.Fatalf("console.log: stdout %q stderr %q %v", out, stderr.String(), err)
+	}
+	script := strings.Join(windowScript, "\n")
+	order := []string{"$.NSScreen.mainScreen", "try {", "$(argv[0])", "view.scrollerStyle = 0;", "addButtonWithTitle($(argv[3]));", "addButtonWithTitle($(argv[2])).keyEquivalent = $('');", "console.log('" + windowShowing + "')", "alert.runModal", "== 1001) return 'button Confirm'", "} catch (e) { return 'error ' + e; }"}
+	at := -1
+	for _, part := range order {
+		next := strings.Index(script, part)
+		if next <= at || strings.Count(script, part) != 1 {
+			t.Fatalf("%q out of order or not once in:\n%s", part, script)
+		}
+		at = next
+	}
+	if strings.Count(script, "argv[") != 4 || strings.Contains(script, "eval") || strings.Contains(script, "doShellScript") {
+		t.Fatalf("arguments are data only:\n%s", script)
 	}
 }
 

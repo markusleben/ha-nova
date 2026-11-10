@@ -43,7 +43,12 @@ func germanHome(t *testing.T) (*writeHarness, func(id string) storedPlan) {
 	}
 }
 
-const germanUnlock = "Ich werde gleich „Haustür“ entriegeln (Verriegelt → Entriegelt). Das entriegelt eine Tür, deshalb musst du das bestätigen. Noch wurde nichts ausgeführt."
+const (
+	germanUnlockWhat = "Ich werde gleich „Haustür“ entriegeln (Verriegelt → Entriegelt)."
+	germanUnlockWhy  = "Das entriegelt eine Tür, deshalb musst du das bestätigen. Noch wurde nichts ausgeführt."
+	germanUnlock     = germanUnlockWhat + " " + germanUnlockWhy    // the chat
+	germanPrompt     = germanUnlockWhat + "\n\n" + germanUnlockWhy // the window and the form
+)
 
 // A German home gets the confirmation in German, with Home Assistant's own
 // names for the states of what it acts on and for an action HA NOVA has no
@@ -53,7 +58,7 @@ func TestGermanHomeConfirmsInGerman(t *testing.T) {
 	h, stored := germanHome(t)
 	env := h.plan("lock.unlock", "lock.front")
 	plan := stored(env.Plan.ID)
-	if !strings.HasPrefix(env.Say, germanUnlock+"\n"+confirmT("de", "say.chat_note")) || !strings.Contains(env.Say, "**"+env.Plan.Code+"**") || plan.Prompt != germanUnlock ||
+	if !strings.HasPrefix(env.Say, germanUnlock+"\n"+confirmT("de", "say.chat_note")) || !strings.Contains(env.Say, "**"+env.Plan.Code+"**") || plan.Prompt != germanPrompt ||
 		plan.Lang != "de" || plan.Words["state:lock.jammed"] != "Blockiert" || plan.Words["state:light.on"] != "" || plan.Words["service:lock.unlock"] != "" || strings.Contains(env.Say, "Aufsperren") {
 		t.Fatalf("say %q\nplan %s %v", env.Say, plan.Lang, plan.Words)
 	}
@@ -151,7 +156,7 @@ func TestGermanHomeAsksInTheWindow(t *testing.T) {
 		t.Fatalf("window plan: %q", env.Say)
 	}
 	if exit, _ := h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 0 || len(w.messages) != 1 || w.langs[0] != "de" ||
-		w.messages[0] != windowMessage("de", germanUnlock, false) {
+		w.messages[0] != windowMessage("de", germanPrompt, false) {
 		t.Fatalf("window: exit %d %q %v", exit, w.messages, w.langs)
 	}
 }
@@ -176,7 +181,7 @@ func TestHomeAssistantWordsStayWithThePlan(t *testing.T) {
 	h.f.translations["de/entity_component"] = original
 	id = h.plan("lock.unlock", "lock.front").Plan.ID
 	h.f.translations["de/entity_component"] = renamed
-	if exit, _ := h.run(runApplyCommand, "--plan", id); exit != 0 || len(w.messages) != 1 || !strings.HasPrefix(w.messages[0], windowMessage("de", germanUnlock, false)) {
+	if exit, _ := h.run(runApplyCommand, "--plan", id); exit != 0 || len(w.messages) != 1 || !strings.HasPrefix(w.messages[0], windowMessage("de", germanPrompt, false)) {
 		t.Fatalf("apply after a rename: exit %d %q", exit, w.messages)
 	}
 }

@@ -18,7 +18,8 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 		// apply refuses such a plan (UNRESOLVED_TARGET): never ask for it.
 		return confirmT(lang, "say.nothing_found")
 	}
-	parts := sayBody(e, env, plan, subject)
+	about, rest := sayBody(e, env, plan, subject)
+	parts := []string{about + map[bool]string{false: " ", true: "\n"}[strings.Contains(about, "\n")] + rest}
 	if plan.Kind == "delete" {
 		parts = append(parts, sayCopyNote(lang))
 	}
@@ -49,16 +50,13 @@ func textLang(plan storedPlan) string {
 	return cmp.Or(plan.Lang, "en")
 }
 
-// sayBody: the action, its reasons, and what has not happened yet (the
-// fixed shape of say_lines.go up to the ask). After a list of steps the
-// reasons start a line of their own.
-func sayBody(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) []string {
+// sayBody: the action, then its reasons and what has not happened yet (the
+// fixed shape of say_lines.go up to the ask). In chat the reasons follow
+// the action, on a line of their own after a list of steps; a window or
+// form puts a blank line between them (confirmationPrompt).
+func sayBody(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) (about, rest string) {
 	about, status := sayWhat(e, env, plan, subject)
-	rest := append(sayReasons(e, env, plan), status)
-	if strings.Contains(about, "\n") {
-		return []string{about + "\n" + strings.Join(rest, " ")}
-	}
-	return append([]string{about}, rest...)
+	return about, strings.Join(append(sayReasons(e, env, plan), status), " ")
 }
 
 // demoPrefix names the demo house in every confirmation it asks for.
@@ -70,7 +68,8 @@ func demoPrefix(lang, text string) string {
 }
 
 // confirmationPrompt is a typed plan's code-free text for a confirmation
-// form or window (subject: the live item's alias, else the draft's; the
+// form or window, what happens and why in blocks of their own (subject: the
+// live item's alias, else the draft's; the
 // copy note is added where it is shown, confirmText). Empty when apply
 // would refuse the plan anyway.
 func confirmationPrompt(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) string {
@@ -78,7 +77,8 @@ func confirmationPrompt(e *tierEngine, env *verbEnvelope, plan storedPlan, subje
 		return ""
 	}
 	env.ask = sayAsk(e, env, plan, subject) // a phone plan's question
-	return demoPrefix(textLang(plan), strings.Join(sayBody(e, env, plan, subject), " "))
+	about, rest := sayBody(e, env, plan, subject)
+	return demoPrefix(textLang(plan), about+"\n\n"+rest)
 }
 
 // sayGoal: unlock “Front Door”, delete the automation “Night” — the plan's

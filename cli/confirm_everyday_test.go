@@ -161,18 +161,19 @@ func TestSupervisorCallEveryday(t *testing.T) {
 func TestEverydayLineOnEverySurface(t *testing.T) {
 	payload, _ := json.Marshal(map[string]any{"id": "Rollladen Links Wohnzimmer", "options": map[string]any{"invert_cover": true}})
 	args := []string{"mqtt.publish", "--skill", "ha-nova:mqtt", "--data-file", draftFile(t, map[string]any{"topic": "zigbee2mqtt/bridge/request/device/options", "payload": string(payload)})}
-	opening := "I'm about to change the Zigbee device “Rollladen Links Wohnzimmer”: open and closed are swapped. " +
-		"Detail: Zigbee2MQTT request “device/options” (id → “Rollladen Links Wohnzimmer”, options.invert_cover → true), MQTT topic “zigbee2mqtt/bridge/request/device/options”. " +
-		"This goes straight to a device or bridge, which HA NOVA can't check, so I need you to confirm it."
+	what := "I'm about to change the Zigbee device “Rollladen Links Wohnzimmer”: open and closed are swapped. " +
+		"Detail: Zigbee2MQTT request “device/options” (id → “Rollladen Links Wohnzimmer”, options.invert_cover → true), MQTT topic “zigbee2mqtt/bridge/request/device/options”."
+	why := "This goes straight to a device or bridge, which HA NOVA can't check, so I need you to confirm it."
+	opening, prompt := what+" "+why, what+"\n\n"+why // the chat; the window and the form
 	t.Run("say, form, window", func(t *testing.T) {
 		h := newWriteHarness(t, newFakeHA())
 		w := useWindow(t, windowConfirmed)
 		planned := h.plan(args...)
 		plan, err := readPlanFile(filepath.Join(planDir(h.paths), planned.Plan.ID+".json"))
-		if err != nil || !strings.HasPrefix(planned.Say, opening) || !strings.HasPrefix(plan.Prompt, opening) {
+		if err != nil || !strings.HasPrefix(planned.Say, opening) || !strings.HasPrefix(plan.Prompt, prompt) {
 			t.Fatalf("say %q\nprompt %q (%v)", planned.Say, plan.Prompt, err)
 		}
-		if exit, _ := h.run(runApplyCommand, "--plan", planned.Plan.ID); exit != 0 || len(w.messages) != 1 || !strings.HasPrefix(w.messages[0], windowMessage("en", opening, false)) {
+		if exit, _ := h.run(runApplyCommand, "--plan", planned.Plan.ID); exit != 0 || len(w.messages) != 1 || !strings.HasPrefix(w.messages[0], windowMessage("en", prompt, false)) {
 			t.Fatalf("exit %d windows %q", exit, w.messages)
 		}
 	})

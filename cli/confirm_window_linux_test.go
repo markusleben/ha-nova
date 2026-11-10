@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"os/exec"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -23,6 +24,13 @@ func TestZenityAnswer(t *testing.T) {
 		if got := zenityAnswer(c.code, c.stderr); got != c.want {
 			t.Errorf("zenityAnswer(%d, %q) = %v, want %v", c.code, c.stderr, got, c.want)
 		}
+	}
+}
+
+func TestZenityArgs(t *testing.T) {
+	args := strings.Join(zenityArgs("-x\n\ny", "de", 90*time.Second), "|")
+	if args != "--question|--title=HA NOVA|--text=-x\n\ny|--ok-label=Bestätigen|--cancel-label=Abbrechen|--default-cancel|--no-markup|--width=600|--timeout=90" {
+		t.Fatalf("zenity args: %s", args)
 	}
 }
 

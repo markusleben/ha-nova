@@ -99,7 +99,7 @@ func TestStatisticsImportsReadAtAGlance(t *testing.T) {
 		e, env, plan := klimaPlan(t, c.lang)
 		window := windowMessage(c.lang, confirmText(plan, false), true)
 		ask := phonePlanAsk(c.lang, sayAsk(e, &env, plan, ""), false)
-		if window != windowAsked(c.lang)+"\n"+windowBoth(c.lang)+"\n\n"+c.list {
+		if window != windowAsked(c.lang)+"\n"+windowBoth(c.lang)+"\n\n"+strings.Replace(c.list, ".\n", ".\n\n", 1) { // blocks: ask, what happens, why
 			t.Errorf("%s window:\n%s", c.lang, window)
 		}
 		if lines, fits := windowFits(c.lang, confirmText(plan, false)); !fits || lines > 20 {
@@ -126,11 +126,13 @@ func TestStatisticsImportsReadAtAGlance(t *testing.T) {
 }
 
 // The window budget is a ratchet: never loosen it to fit a text (shorten
-// the text or split the plan). A typed plan names everything it confirms,
-// never "N more"; one too long for the window is refused when planned,
-// never shown cut; deletes alike in a row share one line naming each one.
+// the text or split the plan); a wider wrap or more lines loosen it, and
+// only a new measurement of the window may (confirm_window.go). A typed
+// plan names everything it confirms, never "N more"; one too long for the
+// window is refused when planned, never shown cut; deletes alike in a row
+// share one line naming each one.
 func TestWindowBudgetRatchet(t *testing.T) {
-	if windowWrap < 46 || windowMaxLines > 44 || phoneWhyLimit > 300 {
+	if windowWrap > 64 || windowMaxLines > 32 || phoneWhyLimit > 300 {
 		t.Fatalf("a loosened budget: wrap %d, lines %d, phone %d", windowWrap, windowMaxLines, phoneWhyLimit)
 	}
 	f := newFakeHA()

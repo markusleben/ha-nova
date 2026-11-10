@@ -9,34 +9,63 @@ import (
 	"time"
 )
 
-// macOS: /usr/bin/osascript `display dialog` (SIP-protected, by absolute
-// path, with an empty environment). Clicking it from another process needs
-// Accessibility or input-posting permission, which a model can't grant
-// itself; Cancel is the default button, so Return cancels.
+// macOS: /usr/bin/osascript running JavaScript for Automation with AppKit's
+// NSAlert (SIP-protected, by absolute path, with an empty environment). The
+// text sits in a fixed-width view, 560 points wide (windowFits counts for
+// it); a text taller than the screen scrolls, never cut. Clicking it from
+// another process needs Accessibility or input-posting permission, which a
+// model can't grant itself; Cancel is the default button, so Return
+// cancels, and Confirm has no key at all.
 
 const windowShowing = "ha-nova-window-showing"
 
 // windowScript prints exactly one answer line; the message, the wait, and
 // the Confirm and Cancel labels of the plan's language arrive as arguments,
-// so no Home Assistant text is ever script source. The Confirm answer is
-// matched against the label passed for this ask, never a fixed word. "--"
-// ends osascript's options: a message starting with "-" stays an argument.
+// so no Home Assistant text is ever script source. Confirm is the second
+// button by position, never a label matched as text. "--" ends osascript's
+// options: a message starting with "-" stays an argument. Only no window
+// server (a sandbox: no screen) ends the script without windowShowing
+// (windowFailed); any other error, before or after the window shows, prints
+// "error …" and is no answer.
 var windowScript = []string{
-	"on run argv",
-	"activate", // in front of the terminal or app that started it
-	"try",
-	`log "` + windowShowing + `"`, // stderr: the script runs and is about to show the window
-	"with timeout of 600 seconds",
-	`set r to display dialog (item 1 of argv) with title "HA NOVA" buttons {(item 4 of argv), (item 3 of argv)} default button (item 4 of argv) cancel button (item 4 of argv) with icon caution giving up after ((item 2 of argv) as integer)`,
-	"end timeout",
-	"on error number n",
-	`if n is -128 then return "cancel"`,
-	`return "error " & n`,
-	"end try",
-	`if gave up of r then return "timeout"`,
-	`if button returned of r is (item 3 of argv) then return "button Confirm"`,
-	`return "button " & (button returned of r)`,
-	"end run",
+	"ObjC.import('AppKit');",
+	"function run(argv) {",
+	"const room = $.NSScreen.mainScreen.visibleFrame.size.height - 200;", // no screen: throws; minus the alert's own frame
+	"try {",
+	"const app = $.NSApplication.sharedApplication;",
+	"app.setActivationPolicy(1);", // accessory: no Dock icon
+	"const width = 560;",
+	"const text = $.NSTextView.alloc.initWithFrame($.NSMakeRect(0, 0, width, 0));",
+	"text.string = $(argv[0]);",
+	"text.font = $.NSFont.systemFontOfSize(13);",
+	"text.editable = false;",
+	"text.drawsBackground = false;",
+	"text.textContainer.lineFragmentPadding = 0;",
+	"text.layoutManager.ensureLayoutForTextContainer(text.textContainer);",
+	"const height = Math.ceil(text.layoutManager.usedRectForTextContainer(text.textContainer).size.height);",
+	"text.setFrame($.NSMakeRect(0, 0, width, height));",
+	"const bar = height > room ? $.NSScroller.scrollerWidthForControlSizeScrollerStyle(0, 0) : 0;", // the scroller beside the text, never over it
+	"const view = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, width + bar, Math.min(height, room)));",
+	"view.documentView = text;",
+	"view.hasVerticalScroller = height > room;",
+	"view.scrollerStyle = 0;", // legacy: a scroller that never hides, so more text below is visible
+	"view.autohidesScrollers = false;",
+	"view.drawsBackground = false;",
+	"const alert = $.NSAlert.alloc.init;",
+	"alert.messageText = $('HA NOVA');",
+	"alert.icon = $.NSImage.imageNamed('NSCaution');",
+	"alert.accessoryView = view;",
+	"alert.addButtonWithTitle($(argv[3]));",                       // first: the default, Return
+	"alert.addButtonWithTitle($(argv[2])).keyEquivalent = $('');", // Confirm: no key
+	"app.performSelectorWithObjectAfterDelayInModes('abortModal', $(), Number(argv[1]), $([$.NSModalPanelRunLoopMode]));",
+	"$.NSRunningApplication.currentApplication.activateWithOptions(1);", // in front of the terminal or app that started it
+	"console.log('" + windowShowing + "');",                             // stderr: about to show the window
+	"const answer = alert.runModal;",
+	"if (answer == 1000) return 'cancel';",         // NSAlertFirstButtonReturn
+	"if (answer == 1001) return 'button Confirm';", // NSAlertSecondButtonReturn
+	"return 'timeout';", // abortModal: the wait ran out
+	"} catch (e) { return 'error ' + e; }",
+	"}",
 }
 
 // nativeWindowAvailable: a logged-in desktop session (Aqua); SSH and
@@ -49,7 +78,7 @@ func nativeWindowAvailable() bool {
 }
 
 func nativeWindow(ctx context.Context, message, lang string, wait time.Duration) windowAnswer {
-	args := []string{}
+	args := []string{"-l", "JavaScript"}
 	for _, line := range windowScript {
 		args = append(args, "-e", line)
 	}
@@ -62,11 +91,10 @@ func nativeWindow(ctx context.Context, message, lang string, wait time.Duration)
 }
 
 // darwinAnswer reads osascript's result. Only a window that provably never
-// showed is windowFailed (fallback E): osascript could not start, the script
-// never reached the window (it did not compile: the scripting addition can't
-// load in a sandbox), or display dialog refused at once (-1713: no user
-// interaction, e.g. no window server). Anything after the script reached the
-// window — killed, interrupted, another error — is no answer, never a fallback.
+// showed is windowFailed (fallback E): osascript could not start, or the
+// script never reached the window (it did not compile, or AppKit can't reach
+// the window server, as in a sandbox). Anything after the script reached the
+// window — killed, interrupted, an error — is no answer, never a fallback.
 func darwinAnswer(out string, err error, ended, showing bool) windowAnswer {
 	var exitErr *exec.ExitError
 	switch {
@@ -80,8 +108,6 @@ func darwinAnswer(out string, err error, ended, showing bool) windowAnswer {
 		return windowConfirmed
 	case err == nil && out == "cancel":
 		return windowCancelled
-	case err == nil && out == "error -1713":
-		return windowFailed
 	case exitErr != nil && exitErr.ExitCode() == -1: // ended by a signal: closed from outside
 		return windowClosed
 	}

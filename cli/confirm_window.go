@@ -54,14 +54,20 @@ func windowMessage(lang, body string, both bool) string {
 	return head + "\n\n" + body
 }
 
-// The window budget, on every OS: macOS's dialog neither scrolls nor grows
-// past the screen. A batch of 8 statistics imports (about 1,950
-// characters) showed cut after about 55 lines of about 50 characters, so a
-// window text wraps to at most windowMaxLines lines of windowWrap runes,
-// with room for a smaller screen. Over it, a plan is refused, never cut.
+// The window budget, on every OS: a window text wraps to at most
+// windowMaxLines lines of windowWrap runes. Measured on macOS's window
+// (confirm_window_darwin.go: 560 points of 13-point text, 16 points a
+// line): ordinary text fits about 85 characters a line and names in
+// capitals about 63, so 64 never counts fewer lines than it shows. 32 lines
+// fit everywhere without scrolling: 512 points under the alert's frame on a
+// 1280×800 Mac, and about 615 px for Windows' box at 15 px a line on a
+// 1920×1080 screen at 150% (a 672 px work area), which wraps at about 65
+// characters and widens when too tall. Over the budget, a plan is refused,
+// never cut; a text that still needs more height (only wide letters) scrolls
+// on macOS.
 const (
-	windowWrap     = 46
-	windowMaxLines = 44
+	windowWrap     = 64
+	windowMaxLines = 32
 )
 
 // windowTooLong refuses a window plan whose text, with or without its copy

@@ -20,6 +20,10 @@ const batchFourList = "I'm about to make these 4 changes in Home Assistant, in t
 	"One confirmation covers all 4, so I need you to confirm it. A copy of each one deleted is saved first, so it can be restored. " +
 	"HA NOVA checks each one again right before it is sent and stops at the first one that doesn't go through. Nothing has changed yet."
 
+// batchFourPrompt: the same list in the window and the form, a blank line
+// before what the one confirmation covers.
+var batchFourPrompt = strings.Replace(batchFourList, "\nOne confirmation", "\n\nOne confirmation", 1)
+
 // The window shows the list the chat shows; one answer sends all four.
 func TestBatchWindowShowsEveryItem(t *testing.T) {
 	h := newWriteHarness(t, batchHome())
@@ -31,7 +35,7 @@ func TestBatchWindowShowsEveryItem(t *testing.T) {
 		t.Fatalf("plan batch: exit %d say %q next %q", exit, env.Say, env.NextStep)
 	}
 	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
-	if exit != 0 || itemStatuses(batchItems(t, applied)) != "verified,verified,verified,verified" || len(w.messages) != 1 || w.messages[0] != windowMessage("en", batchFourList, false) {
+	if exit != 0 || itemStatuses(batchItems(t, applied)) != "verified,verified,verified,verified" || len(w.messages) != 1 || w.messages[0] != windowMessage("en", batchFourPrompt, false) {
 		t.Fatalf("apply: exit %d %+v window %q", exit, applied.Error, w.messages)
 	}
 }
@@ -50,7 +54,7 @@ func TestBatchWindowAndPhoneRaceSendOnce(t *testing.T) {
 			_, env := h.batch(batchFour(h)...)
 			go func() { p.waitSent(); close(first); time.Sleep(250 * time.Millisecond); close(late) }()
 			exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
-			if exit != 0 || applied.Status != "verified" || len(h.writes()) != 4 || w.messages[0] != windowMessage("en", batchFourList, true) {
+			if exit != 0 || applied.Status != "verified" || len(h.writes()) != 4 || w.messages[0] != windowMessage("en", batchFourPrompt, true) {
 				t.Fatalf("exit %d %+v writes %d window %q", exit, applied.Error, len(h.writes()), w.messages)
 			}
 			<-late

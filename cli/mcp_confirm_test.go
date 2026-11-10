@@ -427,7 +427,7 @@ func TestMCPFormDriftAndDelete(t *testing.T) {
 	noCode(t, "drift", drift, storedCode(t, h, fresh["id"].(string)))
 	call = c.startCall(applyArgs(fresh["id"].(string), nil))
 	formID, params, _ := c.form()
-	if message := params["message"].(string); !strings.HasPrefix(message, "Since the last preview, “lock.front” changed: state was locked, now jammed. I'm about to unlock") {
+	if message := params["message"].(string); !strings.HasPrefix(message, "Since the last preview, “lock.front” changed: state was locked, now jammed.\n\nI'm about to unlock") {
 		t.Fatalf("the form after a drift: %q", message)
 	}
 	c.answer(formID, map[string]any{"action": "cancel"})
@@ -440,7 +440,7 @@ func TestMCPFormDriftAndDelete(t *testing.T) {
 	h.f.snapshotErr = true
 	call = c.startCall(applyArgs(id, nil))
 	formID, params, typed = c.form()
-	if message := params["message"].(string); !strings.HasPrefix(message, "I'm about to delete the automation “Night”. This removes it from Home Assistant, so I need you to confirm it. Nothing is deleted yet.") || !strings.Contains(message, sayCopyNote("en")) {
+	if message := params["message"].(string); !strings.HasPrefix(message, "I'm about to delete the automation “Night”.\n\nThis removes it from Home Assistant, so I need you to confirm it. Nothing is deleted yet.") || !strings.Contains(message, sayCopyNote("en")) {
 		t.Fatalf("delete form: %q", message)
 	}
 	c.answer(formID, map[string]any{"action": "accept", "content": map[string]any{"code": typed}})
@@ -507,8 +507,8 @@ func TestMCPFormBindingAndWording(t *testing.T) {
 	unlocking := hallDraft("light.turn_on")
 	unlocking["alias"], unlocking["actions"] = "Porch light", []any{step("lock.unlock", "lock.front")}
 	for args, want := range map[*map[string]any]string{
-		{"kind": "write", "domain": "automation", "id": "a1", "draft": unlocking}:     "I'm about to change the automation “Hall motion”. This also unlocks",
-		{"kind": "write", "domain": "automation", "create": true, "draft": unlocking}: "I'm about to create the automation “Porch light”. This also unlocks",
+		{"kind": "write", "domain": "automation", "id": "a1", "draft": unlocking}:     "I'm about to change the automation “Hall motion”.\n\nThis also unlocks",
+		{"kind": "write", "domain": "automation", "create": true, "draft": unlocking}: "I'm about to create the automation “Porch light”.\n\nThis also unlocks",
 	} {
 		planned := call(map[string]any{"name": "ha_plan", "arguments": *args})
 		id := envelopeOf(planned)["plan"].(map[string]any)["id"].(string)
