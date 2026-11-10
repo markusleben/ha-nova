@@ -135,7 +135,7 @@ func listeningRelay(t *testing.T, f *fakeHA) (paths runtimePaths, searched func(
 			return false
 		}, func() (n int) {
 			for _, c := range calls() {
-				if !rawRelayRead(c.endpoint, []byte(c.body)) {
+				if c.endpoint != "health" && !rawRelayRead(c.endpoint, []byte(c.body)) { // GET /health: a typed recompute reads the gate (gate_client_plan.go)
 					n++
 				}
 			}

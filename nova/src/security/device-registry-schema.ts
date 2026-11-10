@@ -1,5 +1,6 @@
 import type {
   CloudRevocationRecord,
+  ConfirmPhoneLink,
   DeviceRecord,
   LegacyRecord,
   PairingResponseRecord,
@@ -148,6 +149,9 @@ function validateDevice(value: unknown): DeviceRecord {
   if (raw.cloudRelayInstanceId !== undefined) {
     record.cloudRelayInstanceId = stringField("cloudRelayInstanceId");
   }
+  if (raw.confirmPhone !== undefined) {
+    record.confirmPhone = validateConfirmPhone(raw.confirmPhone);
+  }
   if (record.state === "pending" && record.pendingExpiresAtMs === undefined) {
     throw new RegistryCorruptError("pending device without pendingExpiresAtMs");
   }
@@ -170,6 +174,19 @@ function validateDevice(value: unknown): DeviceRecord {
     throw new RegistryCorruptError("device.cloudRelayInstanceId is invalid");
   }
   return record;
+}
+
+export function validateConfirmPhone(value: unknown): ConfirmPhoneLink {
+  const raw = (typeof value === "object" && value !== null ? value : {}) as Record<string, unknown>;
+  const { service, deviceId, userId, platform } = raw;
+  const id = (v: unknown): v is string => typeof v === "string" && v !== "" && v.length <= 128;
+  if (
+    !id(service) || !/^mobile_app_[a-z0-9_]+$/.test(service) || !id(deviceId) || !id(userId) ||
+    (platform !== undefined && platform !== "ios" && platform !== "android")
+  ) {
+    throw new RegistryCorruptError("device.confirmPhone is invalid");
+  }
+  return { service, deviceId, userId, ...(platform !== undefined ? { platform } : {}) };
 }
 
 function validateLegacy(value: unknown): LegacyRecord {

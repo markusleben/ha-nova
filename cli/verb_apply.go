@@ -41,8 +41,8 @@ time and the first answer counts; if the window can't open, the phone alone
 decides, else apply returns a new plan. One with "channel": "phone" sends
 Confirm/Cancel to the phone linked to HA NOVA (Companion app) and waits the
 same way. After apply, "plan.channel" says where the user confirmed.
-Config plans (plan write/delete/revert) save the config once, reload, and
-verify the read-back; an update lands on the undo stack, and a delete (and
+Config plans (plan write/delete/revert) save the config once (a delete also
+reloads), wait read-only until Home Assistant has loaded it, and verify; an update lands on the undo stack, and a delete (and
 every dashboard save) takes a config snapshot first (--no-snapshot only
 after that snapshot failed and the user chose to proceed without one).
 Rooms plans (plan rooms, or plan revert of a rooms record) set each device's
@@ -239,7 +239,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	var e *tierEngine
 	var ctx configContext
 	var batch batchReplan
-	fresh, err := recheck(s, &env, plan, func(env *verbEnvelope) (fresh storedPlan, err error) {
+	compute := func(env *verbEnvelope) (fresh storedPlan, err error) {
 		switch {
 		case isBatch:
 			batch, fresh, err = computeBatchPlan(paths, s, env, plan.BatchMembers)
@@ -253,7 +253,8 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			e, fresh, ctx, err = computeConfigPlan(paths, s, env, *config)
 		}
 		return fresh, err
-	})
+	}
+	fresh, err := recheck(s, &env, plan, compute)
 	// release hands the claimed plan back after a failure before anything
 	// reached Home Assistant, so the same apply can be retried.
 	release := func(err error) error {
@@ -321,7 +322,14 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	if humanAnswer != "" { // the human's answer in a form or window replaces any argv code
 		code = humanAnswer
 	}
-	if fresh.Tier == tierTyped.String() {
+	if plan.Channel == channelRelay && code != "" { // no code exists: the gate's ask confirms it (gateBeforeSend)
+		if os.Rename(claimed, open) == nil {
+			consumed = false
+		}
+		return fail(refusedWith("CONFIRM_IN_HOME_ASSISTANT", "plan "+id+" is confirmed on the linked phone or in Home Assistant, not with a typed code",
+			"Run ha-nova apply --plan "+id+" again without --confirm: HA NOVA asks the user on their linked phone or in Home Assistant. Never ask the user for a code."))
+	}
+	if fresh.Tier == tierTyped.String() && plan.Channel != channelRelay {
 		wantCode = confirmCode(s.transport.Credential, idHex, plan.Channel, plan.ExpiresAt)
 		if humanChannel(plan.Channel) && humanAnswer == "" { // its code was never shown: no attempt is used
 			if os.Rename(claimed, open) == nil {
@@ -357,6 +365,17 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		wantCode = "" // never shown, not even once used
 	}
 	env.Plan = &verbPlan{ID: plan.ID, Hash: identity, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode}
+	if asked, err := gateBeforeSend(s, plan.Channel, fresh, batch); err != nil {
+		return fail(release(err))
+	} else if asked != nil { // approved minutes later, maybe: check it again right before the first send
+		s.forgetReads()
+		scratch := env
+		again, err := recheck(s, &scratch, plan, compute)
+		if err := gateStillApproved(plan, again, err, asked, gateFirstRequests(again, batch), expires); err != nil {
+			return fail(err)
+		}
+		fresh = again
+	}
 	env.done = applyDone(e, &env, fresh, ctx)
 	if isRooms {
 		previewed, _ := env.Result.(roomsResult)

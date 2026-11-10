@@ -165,8 +165,13 @@ home in `.state`. The RC lane runs all three with the tag's binary
   light group in a script, `switch_as_x` lights on a template switch and on a
   relay with an automation, and a chain of service-call listeners: every
   automation that really ran (Home Assistant's traces) must be among the
-  plan's consumers. It leaves its automations on the bed, so run other
-  checks before it.
+  plan's consumers. With a UI generic thermostat whose heater is a fan
+  nothing listens to, a light call stays ordinary and planning leaves the
+  thermostat's entry and state as they were (MAR-131: its options flow is
+  started and aborted); setting it to heat turns the fan on through
+  `homeassistant.turn_on`, a consumer; a second thermostat whose heater the
+  relay automation follows makes every listener count. It leaves its
+  automations on the bed, so run other checks before it.
 
 
 ## Agent lane (opt-in, not an RC lane step)
@@ -189,6 +194,21 @@ then sign in); without `claude` or the account it prints SKIP and exits 0.
   means: set `F1_EXPECTED` to false.
 - It writes to the bed (a probe automation, the kitchen lamp): run it alone,
   before `calm.mjs`. FAIL, XPASS, or a broken run exits 1.
+
+`node scripts/e2e/testbed/agent-statistics.mjs` (same needs, shell path only)
+asks the agent for a Statistics helper through all three flow steps
+(characteristic `change`, max age 3 hours, no sampling size, keep the last
+sample) and checks Home Assistant: one new entry, loaded, its options read
+back from an aborted options flow, its sensor through the registry, hydrated
+from the recorder with a valid source; and in the agent's run the terminal
+`result.entry_id`, the entries read back, the new sensor's state read, and
+the sensor named in the reply. A second run hides the terminal id (the
+bed's `ha-nova` drops it), so the agent must find its helper by the
+before/after diff (#976). Two steps agents still skip report XFAIL (#1105):
+the options flow reopened and aborted, and the baseline read before the flow;
+until the baseline passes, the fixture doesn't prove the diff itself.
+It removes both helpers. About $1 per run; run it alone too, before
+`calm.mjs`.
 
 ## Determinism and versions
 
@@ -222,7 +242,7 @@ red opens a "Test bed fails on Home Assistant <version>" issue.
 floors/areas/labels, registry edits, summary, phone fixture), `cli.sh`,
 `verify.sh`, `phone.mjs` + `push.py` (phone lane), `chat-files.mjs` +
 `docker-compose.files.yml`, `calm.mjs` (real-home checks), `agent.mjs` +
-`agent-unlock.mjs` (agent runs),
+`agent-unlock.mjs`, `agent-statistics.mjs` (agent runs),
 `down.sh`.
 
 The hosted demo (`scripts/demo/hosted/`) reuses this bed: `TESTBED_OVERLAY` and

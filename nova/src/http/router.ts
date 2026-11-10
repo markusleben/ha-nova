@@ -11,6 +11,7 @@ export interface RouteContext {
   // Present only on listeners that resolve a principal (device/legacy functional
   // routes); absent on bearer-exempt and ingress routes.
   principal?: Principal;
+  reauthorize?: () => Promise<boolean>; // the listener's own check again, before acting after a wait
 }
 
 export type RouteHandler = (context: RouteContext) => unknown | Promise<unknown>;

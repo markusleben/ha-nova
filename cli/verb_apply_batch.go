@@ -258,7 +258,12 @@ func executeBatch(paths runtimePaths, s *relaySession, env *verbEnvelope, rp bat
 		case errors.Is(werr, errNothingSent) && !sent:
 			return werr
 		case errors.Is(werr, errNothingSent):
-			return batchStopped(env, &result, i, "not_sent", werr.Error(), "")
+			var failure *verbFailure
+			itemNext := ""
+			if errors.As(werr, &failure) {
+				itemNext = failure.next
+			}
+			return batchStopped(env, &result, i, "not_sent", werr.Error(), itemNext)
 		case werr == nil:
 			sent = true
 			return batchStopped(env, &result, i, "unverified", "it was sent, but the check after it did not pass", menv.NextStep)

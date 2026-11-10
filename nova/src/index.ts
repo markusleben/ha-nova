@@ -9,15 +9,18 @@ import type {
   HaWsRequest,
 } from "./ha/ws-client.js";
 import { createBackupsHandler } from "./http/handlers/backups.js";
-import { createCoreProxyHandler } from "./http/handlers/core-proxy.js";
+import { createCoreForwarder, parseCoreRequest } from "./http/handlers/core-proxy.js";
 import { createFilesHandler } from "./http/handlers/files.js";
 import { createHealthHandler } from "./http/handlers/health.js";
 import { createHomeHandler } from "./http/handlers/home.js";
 import { createPairHandler } from "./http/handlers/pair.js";
 import { createWsProxyHandler } from "./http/handlers/ws-proxy.js";
+import { gated, type GateClient } from "./http/gate.js";
+import { gateWithAsks } from "./http/gate-asks.js";
 import { createRouter, type Router } from "./http/router.js";
 import { createHttpServer } from "./http/server.js";
 import { createPairingManager, type PairingManager } from "./security/pairing.js";
+import type { PhoneLinkStore } from "./runtime/gate-phone-store.js";
 
 const PAIR_PATH = "/pair";
 const PAIR_ROUTE = `POST ${PAIR_PATH}`;
@@ -49,7 +52,15 @@ export interface AppOptions {
   now?: () => number;
   pairingManager?: PairingManager;
   requiredRelayVersion?: string;
+  // The safety check (nova/src/http/gate.ts); without one every device-facing
+  // request is refused as unavailable.
+  gate?: GateClient;
+  gateToken?: () => string | null;
+  // The shared token's linked phone (runtime/gate-phone-store.ts); none: no link route.
+  phoneLink?: PhoneLinkStore;
 }
+
+const NO_GATE: GateClient = { check: async () => null, redact: async () => null };
 
 export interface App {
   version: string;
@@ -74,6 +85,7 @@ export function createApp(options: AppOptions): App {
     startedAtMs,
     fileAccessMode: options.fileAccess.mode,
     snapshotRoot: options.snapshotRoot,
+    gate: options.gate !== undefined,
     ...(options.logger ? { logger: options.logger } : {})
   } as const;
 
@@ -103,38 +115,27 @@ export function createApp(options: AppOptions): App {
     })
   );
 
-  router.register(
-    "POST",
-    "/ws",
-    createWsProxyHandler({
-      wsClient: options.wsClient
-    })
-  );
-
-  router.register(
-    "POST",
-    "/core",
-    createCoreProxyHandler({
-      coreClient: options.coreClient
-    })
-  );
-
-  router.register(
-    "POST",
-    "/files",
-    createFilesHandler({
-      fileAccess: options.fileAccess
-    })
-  );
-
+  // No Supervisor ingress, so no NOVA page: the linked phone is the only channel.
+  const phoneLink = options.phoneLink;
+  const { gate, ask } = gateWithAsks(options.gate ?? NO_GATE, {
+    prepare: { core: parseCoreRequest },
+    deviceName: () => "your HA NOVA container",
+    channels: () => [],
+    link: (p) => (p.kind === "legacy" ? phoneLink?.link() : undefined),
+    ...(phoneLink ? { setLink: (p, link, current) => p.kind === "legacy" && phoneLink.setLink(link, current), linkable: (p) => p.kind === "legacy" } : {}),
+    now: options.now ?? Date.now,
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
+  router.register("POST", "/gate/v1/ask", ask);
+  router.register("POST", "/gate/v1/phone", ask);
+  const forwardCore = createCoreForwarder({ coreClient: options.coreClient });
+  router.register("POST", "/ws", gated("ws", createWsProxyHandler({ wsClient: options.wsClient }), gate));
+  router.register("POST", "/core", gated("core", async ({ body }) => await forwardCore(body as CoreProxyRequest), gate, parseCoreRequest));
+  router.register("POST", "/files", gated("files", createFilesHandler({ fileAccess: options.fileAccess }), gate));
   router.register(
     "POST",
     "/backups",
-    createBackupsHandler(
-      options.now
-        ? { snapshotRoot: options.snapshotRoot, now: options.now }
-        : { snapshotRoot: options.snapshotRoot }
-    )
+    gated("backups", createBackupsHandler(options.now ? { snapshotRoot: options.snapshotRoot, now: options.now } : { snapshotRoot: options.snapshotRoot }), gate)
   );
 
   const server = createHttpServer({
@@ -143,6 +144,7 @@ export function createApp(options: AppOptions): App {
     version: options.version,
     bearerExemptRoutes: new Set([PAIR_ROUTE, HOME_ROUTE]),
     noStorePaths: new Set([PAIR_PATH, HOME_PATH]),
+    ...(options.gateToken ? { gateToken: options.gateToken } : {}),
     ...(options.logger ? { logger: options.logger } : {})
   });
 

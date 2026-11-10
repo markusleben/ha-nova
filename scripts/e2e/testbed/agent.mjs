@@ -13,7 +13,7 @@
 // process itself carries the bed's config dir and test keyring, so even the
 // installed ha-nova would only see the bed.
 import { execFileSync, spawn } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,7 +38,8 @@ export function agentSetup({ model = process.env.AGENT_MODEL || "sonnet" } = {})
   const home = join(STATE, "agent-home-" + stamp), bin = join(STATE, "agent-bin-" + stamp), mcp = join(STATE, "agent-mcp-" + stamp + ".json");
   for (const dir of [join(home, ".config/ha-nova"), join(home, ".cache/ha-nova"), bin]) mkdirSync(dir, { recursive: true, mode: 0o700 });
   // Outside the repo: Claude Code would load this checkout's CLAUDE.md and answer as a coding agent.
-  const cwd = mkdtempSync(join(tmpdir(), "ha-nova-agent-"));
+  // Its real path: on macOS /var is /private/var, and the Write rule below must name the path the agent writes to.
+  const cwd = realpathSync(mkdtempSync(join(tmpdir(), "ha-nova-agent-")));
   // No confirmation window on this desktop: a code plan shows its code in the answer.
   writeFileSync(join(home, ".config/ha-nova/config.json"), JSON.stringify({ ha_url: HA, relay_base_url: "http://127.0.0.1:18791", confirm_window: "off" }), { mode: 0o600 });
   writeFileSync(join(home, ".test-relay-token"), readFileSync(join(STATE, "relay-token"), "utf8"), { mode: 0o600 });
@@ -73,7 +74,7 @@ export async function agentTurn(agent, { path, prompt, resume, timeoutMs = 6 * 6
   if (resume) args.push("--resume", resume);
   if (path === "mcp") args.push("--mcp-config", agent.mcp, "--tools", "", "--allowedTools", "mcp__hanova__*");
   else args.push("--plugin-dir", ROOT, "--tools", "Bash,Read,Write,Skill", "--allowedTools", ...VERBS.map((v) => "Bash(ha-nova " + v + ":*)"),
-    "Read(/" + join(ROOT, "skills") + "/**)", "Read(/" + agent.cwd + "/**)", "Write(/" + agent.cwd + "/**)", "Skill");
+    "Read(/" + join(ROOT, "skills") + "/**)", "Read(/" + agent.cwd + "/**)", "Edit(/" + agent.cwd + "/**)", "Write(/" + agent.cwd + "/**)", "Skill");
   const logged = wrapperCalls(agent).length;
   const events = await new Promise((resolveRun, reject) => {
     const child = spawn(agent.claude, args, { cwd: agent.cwd, env: agent.env, stdio: ["ignore", "pipe", "pipe"] });
@@ -95,12 +96,14 @@ export async function agentTurn(agent, { path, prompt, resume, timeoutMs = 6 * 6
   if (path === "mcp" && !init?.mcp_servers?.some((s) => s.name === "hanova" && s.status === "connected")) throw new Error("the ha-nova MCP server did not connect: " + JSON.stringify(init?.mcp_servers));
   const blocks = (type) => events.filter((e) => e.type === type).flatMap((e) => e.message?.content ?? []);
   const calls = blocks("assistant").filter((c) => c.type === "tool_use")
-    .map((c) => ({ name: c.name, input: c.input, text: c.name === "Bash" ? c.input?.command ?? "" : JSON.stringify(c.input ?? {}) }));
+    .map((c) => ({ id: c.id, name: c.name, input: c.input, text: c.name === "Bash" ? c.input?.command ?? "" : JSON.stringify(c.input ?? {}) }));
   const results = blocks("user").filter((c) => c.type === "tool_result")
     .map((c) => (Array.isArray(c.content) ? c.content.map((x) => x.text ?? "").join("\n") : String(c.content ?? "")));
   const ran = wrapperCalls(agent).slice(logged);
-  // Every ha-nova command the agent ran must have gone through the wrapper.
-  const asked = calls.filter((c) => c.name === "Bash").reduce((n, c) => n + (c.text.match(/(^|[\s;&|("'])ha-nova\s+[a-z]/g) ?? []).length, 0);
+  // Every ha-nova command the agent ran must have gone through the wrapper;
+  // one Claude Code refused to run (a permission rule) never ran at all.
+  const refused = new Set((result.permission_denials ?? []).map((d) => d.tool_use_id));
+  const asked = calls.filter((c) => c.name === "Bash" && !refused.has(c.id)).reduce((n, c) => n + (c.text.match(/(^|[\s;&|("'])ha-nova\s+[a-z]/g) ?? []).length, 0);
   if (path === "shell" && ran.length < asked) throw new Error("ha-nova ran outside the bed's wrapper: " + asked + " commands, " + ran.length + " logged");
   return { session: result.session_id, reply: result.result ?? "", calls, results, ran, cost: result.total_cost_usd ?? 0 };
 }

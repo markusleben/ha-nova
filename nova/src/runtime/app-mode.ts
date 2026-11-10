@@ -4,11 +4,14 @@ import { dirname } from "node:path";
 
 import type { FileAccessConfig } from "../config/file-access.js";
 import { createBackupsHandler } from "../http/handlers/backups.js";
-import { createCoreProxyHandler } from "../http/handlers/core-proxy.js";
+import { createCoreForwarder, parseCoreRequest } from "../http/handlers/core-proxy.js";
 import { createFilesHandler } from "../http/handlers/files.js";
 import { createHealthHandler } from "../http/handlers/health.js";
 import { createSupervisorProxyHandler } from "../http/handlers/supervisor-proxy.js";
 import { createWsProxyHandler } from "../http/handlers/ws-proxy.js";
+import { gated, type GateClient } from "../http/gate.js";
+import { gateWithAsks, type GatePage, type PhoneLink } from "../http/gate-asks.js";
+import { pageChannel } from "../http/handlers/nova-approve.js";
 import { applyServerTimeouts, type RelayLogger } from "../http/server.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 import type { HaWsClient } from "../ha/ws-client.js";
@@ -20,11 +23,13 @@ import {
   type DeviceRegistry,
 } from "../security/device-registry.js";
 import { opaqueReady } from "../security/opaque-server.js";
+import type { Principal } from "../security/principal.js";
 import { createFileResponseStore } from "../security/pairing-response-store.js";
 import { createPairingV1Manager } from "../security/pairing-v1.js";
 import { loadOrCreateTlsIdentity } from "../security/tls-identity.js";
 import { loadOrCreateRelayInstanceId } from "../storage/relay-instance.js";
 import { chatAppFilesPresent, createChatApps, type ChatApps } from "./chat-apps.js";
+import { createGateWorker, mintGateDevice, type GateWorker } from "./gate-worker.js";
 import { createIngressListener } from "./ingress-listener.js";
 import { clearLegacyOptions, importLegacyToken } from "./legacy-migration.js";
 import { ensureSidebarPanel } from "./sidebar-panel.js";
@@ -117,11 +122,13 @@ export async function buildAppMode(
     active.markLegacyMigrated();
     registryCorrupt = false;
     chatApps?.restartBridge(); // its credential went with the old registry
+    gate?.restart(); // so did the safety-check worker's
     input.logger.info?.(
       "Device registry reset by the owner; device pairing re-enabled",
     );
   };
   let chatApps: ChatApps | undefined;
+  let gate: GateWorker | undefined;
 
   const tls = await loadOrCreateTlsIdentity(dataDir);
 
@@ -219,7 +226,14 @@ export async function buildAppMode(
     });
   }
 
-  const functional = buildFunctionalHandlers(input, relayInstanceId, supervisorBase);
+  // The safety check fronts every device-facing handler on all three listeners.
+  gate = createGateWorker({
+    dataDir,
+    binary: "/opt/ha-nova/ha-nova",
+    mint: mintGateDevice(registry, input.now, `https://127.0.0.1:${SECURE_PORT}`, tls.spkiPin),
+    logger: input.logger,
+  });
+  const { functional, page: gatePage } = buildFunctionalHandlers(input, relayInstanceId, supervisorBase, gate, registry);
   const listenerDeps = {
     registry,
     pairingManager: pairing,
@@ -248,6 +262,7 @@ export async function buildAppMode(
       registry,
       pairing,
       functional,
+      gatePage,
       relayInstanceId,
       relayVersion: input.relayVersion,
       cloudRemoteEnabled: input.cloudRemoteEnabled,
@@ -283,17 +298,46 @@ export async function buildAppMode(
         ingress: INGRESS_PORT,
         registry_corrupt: registryCorrupt,
       });
-      await chatApps?.boot(); // the bridge reaches the secure listener just started
+      gate?.start(); // the worker reaches the secure listener just started
+      await chatApps?.boot(); // so does the bridge
     },
   };
+}
+
+// phoneLinkOf: an active device's linked phone from the registry, on the
+// worker's wire; none for a pending device or the shared token.
+export function phoneLinkOf(registry: Pick<DeviceRegistry, "list">): (principal: Principal) => PhoneLink | undefined {
+  return (p) => {
+    const phone = p.kind === "device" ? registry.list().find((d) => d.deviceId === p.deviceId && d.state === "active")?.confirmPhone : undefined;
+    return phone && { service: phone.service, device_id: phone.deviceId, user_id: phone.userId, ...(phone.platform !== undefined ? { platform: phone.platform } : {}) };
+  };
+}
+
+// setPhoneLinkOf: the link route's registry write, from the worker's wire.
+export function setPhoneLinkOf(registry: Pick<DeviceRegistry, "setConfirmPhone">): (principal: Principal, link: PhoneLink, current: PhoneLink | undefined) => boolean {
+  const record = (l: PhoneLink) => ({ service: l.service, deviceId: l.device_id, userId: l.user_id, ...(l.platform !== undefined ? { platform: l.platform } : {}) });
+  return (p, link, current) => p.kind === "device" && registry.setConfirmPhone(p.deviceId, record(link), current && record(current));
 }
 
 function buildFunctionalHandlers(
   input: AppModeInput,
   relayInstanceId: string,
   supervisorBase: string | undefined,
-): FunctionalHandlers {
-  return {
+  worker: GateClient,
+  registry: DeviceRegistry,
+): { functional: FunctionalHandlers; page: GatePage } {
+  const forwardCore = createCoreForwarder({ coreClient: input.coreClient });
+  const { gate, ask, asks } = gateWithAsks(worker, {
+    prepare: { core: parseCoreRequest },
+    deviceName: (p) => (p.kind === "device" ? registry.list().find((d) => d.deviceId === p.deviceId)?.name : undefined) ?? "the shared Relay token",
+    channels: () => pageChannel(input.wsClient), // the approval view, while someone may approve there
+    link: phoneLinkOf(registry),
+    setLink: setPhoneLinkOf(registry),
+    now: input.now,
+    logger: input.logger,
+  });
+  const functional: FunctionalHandlers = {
+    ask,
     health: createHealthHandler({
       version: input.relayVersion,
       wsClient: input.wsClient,
@@ -301,22 +345,21 @@ function buildFunctionalHandlers(
       fileAccessMode: input.fileAccess.mode,
       snapshotRoot: input.snapshotRoot,
       relayInstanceId,
+      gate: true,
       now: input.now,
       logger: input.logger,
     }),
-    ws: createWsProxyHandler({ wsClient: input.wsClient }),
-    core: createCoreProxyHandler({ coreClient: input.coreClient }),
-    files: createFilesHandler({ fileAccess: input.fileAccess }),
-    backups: createBackupsHandler({
-      snapshotRoot: input.snapshotRoot,
-      now: input.now,
-    }),
-    supervisor: createSupervisorProxyHandler(
-      supervisorBase
-        ? { token: input.supervisorToken, base: supervisorBase }
-        : { token: input.supervisorToken },
+    ws: gated("ws", createWsProxyHandler({ wsClient: input.wsClient }), gate),
+    core: gated("core", async ({ body }) => await forwardCore(body as CoreProxyRequest), gate, parseCoreRequest),
+    files: gated("files", createFilesHandler({ fileAccess: input.fileAccess }), gate),
+    backups: gated("backups", createBackupsHandler({ snapshotRoot: input.snapshotRoot, now: input.now }), gate),
+    supervisor: gated(
+      "supervisor",
+      createSupervisorProxyHandler(supervisorBase ? { token: input.supervisorToken, base: supervisorBase } : { token: input.supervisorToken }),
+      gate,
     ),
   };
+  return { functional, page: asks };
 }
 
 // A no-op registry used only when the on-disk registry is corrupt: every read
@@ -342,6 +385,7 @@ function openInertRegistry(): DeviceRegistry {
     activatePendingForCloud: () => ({ ok: false, reason: "unknown" }),
     revokeCloudDevice: () => ({ ok: false, reason: "unknown" }),
     revoke: () => false,
+    setConfirmPhone: () => false,
     importLegacy: nope,
     markLegacyMigrated: nope,
     revokeLegacy: nope,
@@ -407,6 +451,7 @@ function swappableRegistry(get: () => DeviceRegistry): DeviceRegistry {
         now,
       ),
     revoke: (deviceId) => get().revoke(deviceId),
+    setConfirmPhone: (deviceId, link, expected) => get().setConfirmPhone(deviceId, link, expected),
     importLegacy: (secretDigest, now) => get().importLegacy(secretDigest, now),
     markLegacyMigrated: () => get().markLegacyMigrated(),
     revokeLegacy: () => get().revokeLegacy(),

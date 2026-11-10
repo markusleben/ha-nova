@@ -40,8 +40,14 @@ func nativeWindowAvailable() bool {
 // Confirm named for the action, Cancel the default, the text never read as
 // markup (so its title isn't bold).
 func zenityArgs(w windowText, wait time.Duration) []string {
-	return []string{"--question", "--title=HA NOVA", "--text=" + w.plain(), "--ok-label=" + w.button, "--cancel-label=" + confirmT(w.lang, "window.cancel"),
+	return []string{"--question", "--title=HA NOVA", "--text=" + w.plain(), "--ok-label=" + w.button, "--cancel-label=" + w.cancel,
 		"--default-cancel", "--no-markup", "--width=600", "--timeout=" + strconv.Itoa(int(wait.Seconds()))}
+}
+
+// nativeButtons: a window with these two labels (gate_client.go); the first
+// answers windowConfirmed, Cancel stays the default.
+func nativeButtons(ctx context.Context, message, first, cancel string, wait time.Duration) windowAnswer {
+	return nativeWindow(ctx, windowText{body: message, button: first, cancel: cancel}, wait)
 }
 
 func nativeWindow(ctx context.Context, w windowText, wait time.Duration) windowAnswer {
@@ -64,26 +70,29 @@ func nativeWindow(ctx context.Context, w windowText, wait time.Duration) windowA
 	var exitErr *exec.ExitError
 	code := 0
 	switch {
-	case ctx.Err() != nil:
+	case err != nil && !errors.As(err, &exitErr) && ctx.Err() != nil:
 		return windowNoAnswer
 	case err != nil && !errors.As(err, &exitErr):
 		return windowFailed // could not start
 	case err != nil:
 		code = exitErr.ExitCode()
 	}
-	return zenityAnswer(code, stderr.String())
+	return zenityAnswer(code, stderr.String(), ctx.Err() != nil)
 }
 
 // zenityAnswer maps zenity's exit code (-1: ended by a signal) and stderr.
-func zenityAnswer(code int, stderr string) windowAnswer {
+// ended: we withdrew the window; only a Cancel it gave before that counts.
+func zenityAnswer(code int, stderr string, ended bool) windowAnswer {
 	failure := strings.ToLower(stderr)
 	switch {
-	case code == 0:
+	case code == 0 && !ended:
 		return windowConfirmed
 	case strings.Contains(failure, "open display") || strings.Contains(failure, "connect to display"): // GTK at startup only
 		return windowFailed
-	case code == 1: // Cancel or close
+	case code == 1: // Cancel or close, also one given before we withdrew it
 		return windowCancelled
+	case ended:
+		return windowNoAnswer
 	case code == -1: // ended by a signal: closed from outside
 		return windowClosed
 	}

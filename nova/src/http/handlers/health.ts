@@ -17,6 +17,7 @@ export interface HealthHandlerOptions {
   fileAccessMode: string;
   snapshotRoot: string;
   relayInstanceId?: string;
+  gate?: boolean; // the safety check fronts this Relay (gate spec, Compatibility)
   now?: () => number;
   logger?: RelayLogger;
 }
@@ -34,6 +35,7 @@ export interface HealthPayload {
   file_access: string;
   snapshots: { files: number; bytes: number };
   relay_instance_id?: string;
+  gate?: 1;
 }
 
 export function createHealthHandler(
@@ -81,5 +83,6 @@ export async function readHealthPayload(
     ...(options.relayInstanceId !== undefined
       ? { relay_instance_id: options.relayInstanceId }
       : {}),
+    ...(options.gate === true ? { gate: 1 as const } : {}),
   };
 }

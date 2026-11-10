@@ -65,6 +65,7 @@ const (
 	channelForm   = "form"   // the client showed confirmation forms and no window could open when the plan was made
 	channelWindow = "window" // a native window on this computer asks (confirm_window.go)
 	channelPhone  = "phone"  // the linked phone asks (confirm_phone.go)
+	channelRelay  = "relay"  // a gated App asks on the linked phone or in Home Assistant (gate_client.go); no code exists
 	// channelPhoneMissing is never stored: the linked phone can't be asked
 	// now, so the plan is refused (detectAfterWindow).
 	channelPhoneMissing = "phone-missing"
@@ -96,9 +97,15 @@ func channelRefusal(channel string, lang func() string) *verbFailure {
 	return nil
 }
 
-// humanChannel: the human answers in a window or on a phone; the plan's
-// code never leaves this process.
-func humanChannel(channel string) bool { return channel == channelWindow || channel == channelPhone }
+// humanChannel: the human answers in a window, on a phone, or through the
+// Relay; the plan's code never leaves this process.
+func humanChannel(channel string) bool {
+	return channel == channelWindow || channel == channelPhone || channel == channelRelay
+}
+
+// channelAsks: who asks the human for a plan of that channel (next_step).
+var channelAsks = map[string]string{channelWindow: "a confirmation window on their computer", channelPhone: "a notification on their phone",
+	channelRelay: "their linked phone or Home Assistant (the NOVA page)"}
 
 // planChannel is set only by the MCP server, from the client's handshake,
 // for the verb it runs; empty means the CLI detects it (detectChannel).

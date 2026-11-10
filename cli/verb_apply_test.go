@@ -14,10 +14,10 @@ import (
 // fastVerify shrinks the verification windows so tests do not wait seconds.
 func fastVerify(t *testing.T) {
 	t.Helper()
-	interval, fast, slow, settle := verifyInterval, verifyWindowFast, verifyWindowSlow, reauthSettle
-	verifyInterval, verifyWindowFast, verifyWindowSlow, reauthSettle = 10*time.Millisecond, 200*time.Millisecond, 200*time.Millisecond, 10*time.Millisecond
+	interval, fast, slow, settle, poll, wait := verifyInterval, verifyWindowFast, verifyWindowSlow, reauthSettle, configLoadPoll, configLoadWait
+	verifyInterval, verifyWindowFast, verifyWindowSlow, reauthSettle, configLoadPoll, configLoadWait = 10*time.Millisecond, 200*time.Millisecond, 200*time.Millisecond, 10*time.Millisecond, 10*time.Millisecond, 200*time.Millisecond
 	t.Cleanup(func() {
-		verifyInterval, verifyWindowFast, verifyWindowSlow, reauthSettle = interval, fast, slow, settle
+		verifyInterval, verifyWindowFast, verifyWindowSlow, reauthSettle, configLoadPoll, configLoadWait = interval, fast, slow, settle, poll, wait
 	})
 }
 

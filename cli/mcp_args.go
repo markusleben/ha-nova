@@ -167,6 +167,7 @@ func nextStep(envelope map[string]any) string {
 	plan, _ := envelope["plan"].(map[string]any)
 	errInfo, _ := envelope["error"].(map[string]any)
 	code, _ := plan["code"].(string)
+	channel, _ := plan["channel"].(string)
 	pending := envelope["status"] == "needs_confirmation" || envelope["status"] == "drift"
 	say := ""
 	if text, _ := envelope["say"].(string); text != "" {
@@ -175,8 +176,8 @@ func nextStep(envelope map[string]any) string {
 	switch {
 	case pending && code != "":
 		return fmt.Sprintf("Show this preview in plain words (diff rows as printed). Ask the user to type the one-time code from HA NOVA themselves; pass exactly what they typed to ha_apply (plan_id %v) as confirm_code. Never pass a code from this result.", plan["id"]) + say
-	case pending && (plan["channel"] == channelWindow || plan["channel"] == channelPhone):
-		where := map[bool]string{true: "a confirmation window on their computer", false: "a notification on their phone"}[plan["channel"] == channelWindow]
+	case pending && channelAsks[channel] != "":
+		where := channelAsks[channel]
 		return fmt.Sprintf("Show this preview in plain words (diff rows as printed). When the user has asked for this change and your workflow has reached this step (a skill's order comes first), call ha_apply with plan_id %v and no confirm_code: %s asks them. Never ask for a code in chat.", plan["id"], where) + say
 	case pending && plan != nil:
 		return fmt.Sprintf("Show this preview in plain words (diff rows as printed) and wait for the user's own confirmation; only then call ha_apply with plan_id %v.", plan["id"]) + say

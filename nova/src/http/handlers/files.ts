@@ -2,7 +2,7 @@ import type { FileAccessConfig } from "../../config/file-access.js";
 import { HttpError } from "../errors.js";
 import type { RouteContext, RouteHandler } from "../router.js";
 import { deleteFile, listDir, MAX_WRITE_BYTES, readTextFile, writeTextFile } from "./files-ops.js";
-import { assertWritableExtension, resolveTargetPath, type FileAction } from "./files-paths.js";
+import { assertOutsideData, assertWritableExtension, resolveTargetPath, type FileAction } from "./files-paths.js";
 
 export interface FilesHandlerOptions {
   fileAccess: FileAccessConfig;
@@ -41,6 +41,7 @@ export function createFilesHandler(options: FilesHandlerOptions): RouteHandler {
     }
 
     const target = await resolveTargetPath(configRoot, request.path, request.action);
+    await assertOutsideData(target, options.fileAccess.dataDir);
 
     switch (request.action) {
       case "list_dir":

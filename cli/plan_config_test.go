@@ -207,10 +207,8 @@ func TestApplyWriteVerificationHonesty(t *testing.T) {
 				return coreReply(200, map[string]any{"result": "ok"})
 			}
 		},
-		"reload failed": func(f *fakeHA) {
-			f.service = func(f *fakeHA, path string, body map[string]any) any {
-				return coreReply(500, map[string]any{"message": "boom"})
-			}
+		"never loaded": func(f *fakeHA) {
+			f.loaded = map[string]any{"automation.hall_motion": map[string]any{"alias": "Hall motion"}} // Home Assistant still runs what it had
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

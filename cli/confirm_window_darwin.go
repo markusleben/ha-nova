@@ -88,12 +88,18 @@ func nativeWindowAvailable() bool {
 	return err == nil && strings.TrimSpace(string(out)) == "Aqua"
 }
 
+// nativeButtons: a window with these two labels (gate_client.go); the first
+// answers windowConfirmed, Cancel stays the default.
+func nativeButtons(ctx context.Context, message, first, cancel string, wait time.Duration) windowAnswer {
+	return nativeWindow(ctx, windowText{body: message, button: first, cancel: cancel}, wait)
+}
+
 func nativeWindow(ctx context.Context, w windowText, wait time.Duration) windowAnswer {
 	args := []string{"-l", "JavaScript"}
 	for _, line := range windowScript {
 		args = append(args, "-e", line)
 	}
-	cmd := exec.CommandContext(ctx, "/usr/bin/osascript", append(args, "--", cmp.Or(w.title, "HA NOVA"), w.body, w.footer, strconv.Itoa(int(wait.Seconds())), w.button, confirmT(w.lang, "window.cancel"))...)
+	cmd := exec.CommandContext(ctx, "/usr/bin/osascript", append(args, "--", cmp.Or(w.title, "HA NOVA"), w.body, w.footer, strconv.Itoa(int(wait.Seconds())), w.button, w.cancel)...)
 	cmd.Env = []string{} // nothing from the caller's environment reaches the window
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
@@ -109,6 +115,8 @@ func nativeWindow(ctx context.Context, w windowText, wait time.Duration) windowA
 func darwinAnswer(out string, err error, ended, showing bool) windowAnswer {
 	var exitErr *exec.ExitError
 	switch {
+	case err == nil && out == "cancel": // a Cancel given before we withdrew the window still counts
+		return windowCancelled
 	case ended:
 		return windowNoAnswer
 	case err != nil && !errors.As(err, &exitErr): // osascript could not be started
@@ -117,8 +125,6 @@ func darwinAnswer(out string, err error, ended, showing bool) windowAnswer {
 		return windowFailed
 	case err == nil && out == "button Confirm":
 		return windowConfirmed
-	case err == nil && out == "cancel":
-		return windowCancelled
 	case exitErr != nil && exitErr.ExitCode() == -1: // ended by a signal: closed from outside
 		return windowClosed
 	}

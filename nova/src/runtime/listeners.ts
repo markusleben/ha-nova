@@ -27,6 +27,7 @@ export interface FunctionalHandlers {
   // Device and legacy listeners only: not a Home Assistant Link functional
   // route (docs/work/2026-10-26-supervisor-role-spec.md → Decisions).
   supervisor: RouteHandler;
+  ask: RouteHandler; // POST /gate/v1/ask and /gate/v1/phone (gate-asks.ts)
 }
 
 export interface PairingListenerDeps {
@@ -59,13 +60,15 @@ function registerFunctional(router: Router, fns: FunctionalHandlers): void {
   router.register("POST", "/files", fns.files);
   router.register("POST", "/backups", fns.backups);
   router.register("POST", "/supervisor", fns.supervisor);
+  router.register("POST", "/gate/v1/ask", fns.ask);
+  router.register("POST", "/gate/v1/phone", fns.ask);
 }
 
 // The auth hook for functional routes on a given transport: resolve a device or
 // legacy principal, mapping the resolver's outcome to the listener contract.
 function functionalAuthorize(deps: PairingListenerDeps, transport: Transport) {
   return (request: IncomingMessage): AuthOutcome => {
-    const r = resolvePrincipal(request.headers.authorization, transport, { registry: deps.registry, now: deps.now });
+    const r = resolvePrincipal(request.headers.authorization, transport, { registry: deps.registry, now: deps.now }, request.socket.remoteAddress);
     if (r.ok) {
       return { ok: true, principal: r.principal };
     }

@@ -160,6 +160,35 @@ describe("device-registry persistence and integrity", () => {
     expect(() => openDeviceRegistry(dir)).toThrow(RegistryCorruptError);
   });
 
+  it("keeps a device's linked phone, and fails closed on a malformed one", () => {
+    const write = (confirmPhone: unknown) =>
+      writeFileSync(join(dir, "device-registry.json"), JSON.stringify({ version: 1, devices: [{ ...base("x", "d"), state: "active", confirmPhone }], legacy: null }));
+    const phone = { service: "mobile_app_iphone", deviceId: "ha-iphone", userId: "u1", platform: "ios" };
+    write(phone);
+    expect(openDeviceRegistry(dir).list()[0]?.confirmPhone).toEqual(phone);
+    for (const bad of [{ ...phone, service: "notify.mobile_app_iphone" }, { ...phone, userId: "" }, { ...phone, platform: 1 }, { ...phone, platform: "windows" }, { ...phone, deviceId: "d".repeat(129) }, "phone"]) {
+      write(bad);
+      expect(() => openDeviceRegistry(dir)).toThrow(RegistryCorruptError);
+    }
+  });
+
+  it("sets a phone link only on an active device that still has the expected one, durably", () => {
+    writeFileSync(join(dir, "device-registry.json"), JSON.stringify({ version: 1, devices: [{ ...base("x", "d"), state: "active" }, { ...base("p", "e"), state: "pending", pendingExpiresAtMs: Date.now() + 60_000 }], legacy: null }));
+    const registry = openDeviceRegistry(dir);
+    const phone = { service: "mobile_app_iphone", deviceId: "ha-iphone", userId: "u1", platform: "ios" };
+    const pixel = { service: "mobile_app_pixel", deviceId: "ha-pixel", userId: "u2" };
+    expect(registry.setConfirmPhone("p", phone, undefined)).toBe(false);
+    expect(registry.setConfirmPhone("gone", phone, undefined)).toBe(false);
+    expect(registry.setConfirmPhone("x", pixel, phone)).toBe(false); // it has none yet
+    expect(registry.setConfirmPhone("x", phone, undefined)).toBe(true);
+    expect(registry.setConfirmPhone("x", pixel, undefined)).toBe(false); // it has one now
+    expect(registry.setConfirmPhone("x", pixel, { ...phone, platform: "android" })).toBe(false);
+    expect(registry.setConfirmPhone("x", pixel, phone)).toBe(true);
+    expect(openDeviceRegistry(dir).list().find((d) => d.deviceId === "x")?.confirmPhone).toEqual(pixel);
+    expect(() => registry.setConfirmPhone("x", { ...phone, service: "notify.x" }, pixel)).toThrow(RegistryCorruptError);
+    expect(openDeviceRegistry(dir).list().find((d) => d.deviceId === "x")?.confirmPhone).toEqual(pixel);
+  });
+
   it("fails closed on a pending record with no expiry (would occupy the cap forever)", () => {
     writeFileSync(
       join(dir, "device-registry.json"),

@@ -1,5 +1,6 @@
 import { digestSecret, parseCredential } from "../../security/device-credential.js";
 import type { DeviceRegistry } from "../../security/device-registry.js";
+import { GATE_INSTALL_ID } from "../../security/pairing-metadata.js";
 import { bearerToken } from "../../security/principal.js";
 import { HttpError } from "../errors.js";
 import type { RouteContext, RouteHandler } from "../router.js";
@@ -52,7 +53,7 @@ export function createDevicePeersHandler(deps: { registry: DeviceRegistry; pairi
       throw new HttpError(403, "DEVICE_REQUIRED", "Only a paired device can read this");
     }
     const bridge = deps.bridgeDevice?.() ?? null;
-    const others = deps.registry.list().filter((d) => d.deviceId !== principal.deviceId && d.deviceId !== bridge);
+    const others = deps.registry.list().filter((d) => d.deviceId !== principal.deviceId && d.deviceId !== bridge && d.clientInstallId !== GATE_INSTALL_ID);
     return { other_devices: others.length, pairing_open: deps.pairingOpen(), legacy_access: deps.registry.hasLegacy(), chat_app_files: deps.chatAppFiles() };
   };
 }

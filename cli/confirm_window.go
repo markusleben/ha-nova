@@ -40,10 +40,10 @@ const (
 )
 
 // windowText is what a window shows: the title (bold on macOS), the body,
-// one small footer line, and the confirm button's label (lang picks Cancel's).
+// one small footer line, and the labels of its confirm and Cancel buttons.
 type windowText struct {
-	lang, title, body, footer, button string
-	both                              bool // the linked phone asks too
+	lang, title, body, footer, button, cancel string
+	both                                      bool // the linked phone asks too
 }
 
 // planWindow: a plan's window. Its text (confirmText) is the title, a blank
@@ -55,13 +55,13 @@ func planWindow(lang, text string, both bool, button string) windowText {
 	if both {
 		footer = confirmT(lang, "window.footer_both")
 	}
-	return windowText{lang: lang, title: title, body: body, footer: footer, button: button, both: both}
+	return windowText{lang: lang, title: title, body: body, footer: footer, button: button, cancel: confirmT(lang, "window.cancel"), both: both}
 }
 
 // plainWindow: a window that asks one question of its own (a setting, a
 // phone link), with Confirm; on macOS its bold title is "HA NOVA".
 func plainWindow(lang, message string) windowText {
-	return windowText{lang: lang, body: message, button: confirmT(lang, "window.confirm")}
+	return windowText{lang: lang, body: message, button: confirmT(lang, "window.confirm"), cancel: confirmT(lang, "window.cancel")}
 }
 
 // plain: the whole text as one string, for a window without a bold title

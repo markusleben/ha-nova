@@ -7,10 +7,11 @@ import {
   DEVICE_REGISTRY_FILE,
   RegistryCorruptError,
   loadRegistryData,
+  validateConfirmPhone,
   type RegistryData,
 } from "./device-registry-schema.js";
 import { withCloudDeviceRevoked } from "./device-registry-cloud.js";
-import type { DeviceRecord, DeviceRegistry } from "./device-registry-types.js";
+import type { ConfirmPhoneLink, DeviceRecord, DeviceRegistry } from "./device-registry-types.js";
 import { digestsEqual } from "./device-credential.js";
 import {
   PENDING_TTL_MS,
@@ -318,6 +319,17 @@ export function openDeviceRegistry(
           ),
       );
       persist({ ...data, devices: next });
+      return true;
+    },
+    setConfirmPhone(deviceId, link, expected) {
+      const same = (a?: ConfirmPhoneLink, b?: ConfirmPhoneLink): boolean =>
+        a?.service === b?.service && a?.deviceId === b?.deviceId && a?.userId === b?.userId && a?.platform === b?.platform;
+      const device = data.devices.find((d) => d.deviceId === deviceId && d.state === "active");
+      if (device === undefined || !same(device.confirmPhone, expected)) {
+        return false;
+      }
+      const confirmPhone = validateConfirmPhone(link);
+      persist({ ...data, devices: data.devices.map((d) => (d === device ? { ...d, confirmPhone } : d)) });
       return true;
     },
     importLegacy(secretDigest, now) {

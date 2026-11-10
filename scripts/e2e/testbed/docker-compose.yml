@@ -35,6 +35,8 @@ services:
     build:
       context: ../../../nova
       dockerfile: Dockerfile.standalone
+      additional_contexts:
+        cli: ../../../cli
       args:
         RELAY_VERSION: "${RELAY_VERSION:-testbed}"
     container_name: ha-nova-testbed-relay

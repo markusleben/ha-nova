@@ -13,22 +13,26 @@ func TestZenityAnswer(t *testing.T) {
 	for _, c := range []struct {
 		code   int
 		stderr string
+		ended  bool
 		want   windowAnswer
 	}{
-		{0, "", windowConfirmed},
-		{1, "", windowCancelled},
-		{5, "", windowNoAnswer}, // its own timeout
-		{-1, "", windowClosed},  // killed from outside (lane D9)
-		{1, "cannot open display", windowFailed},
+		{0, "", false, windowConfirmed},
+		{1, "", false, windowCancelled},
+		{5, "", false, windowNoAnswer}, // its own timeout
+		{-1, "", false, windowClosed},  // killed from outside (lane D9)
+		{1, "cannot open display", false, windowFailed},
+		{1, "", true, windowCancelled}, // a Cancel given just before we withdrew it still counts
+		{-1, "", true, windowNoAnswer}, // our own withdrawal
+		{0, "", true, windowNoAnswer},  // a Confirm after the withdrawal began never counts
 	} {
-		if got := zenityAnswer(c.code, c.stderr); got != c.want {
-			t.Errorf("zenityAnswer(%d, %q) = %v, want %v", c.code, c.stderr, got, c.want)
+		if got := zenityAnswer(c.code, c.stderr, c.ended); got != c.want {
+			t.Errorf("zenityAnswer(%d, %q, %v) = %v, want %v", c.code, c.stderr, c.ended, got, c.want)
 		}
 	}
 }
 
 func TestZenityArgs(t *testing.T) {
-	args := strings.Join(zenityArgs(windowText{lang: "de", title: "-x", body: "y", footer: "z", button: "Entriegeln"}, 90*time.Second), "|")
+	args := strings.Join(zenityArgs(windowText{lang: "de", title: "-x", body: "y", footer: "z", button: "Entriegeln", cancel: "Abbrechen"}, 90*time.Second), "|")
 	if args != "--question|--title=HA NOVA|--text=-x\n\ny\n\nz|--ok-label=Entriegeln|--cancel-label=Abbrechen|--default-cancel|--no-markup|--width=600|--timeout=90" {
 		t.Fatalf("zenity args: %s", args)
 	}

@@ -178,6 +178,12 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 			return storedPlan{}, errors.New("cannot derive the one-time code: no Relay credential")
 		}
 		if plan.Channel == "" {
+			var err error
+			if plan.Channel, err = gateChannel(e, plan); err != nil {
+				return storedPlan{}, err
+			}
+		}
+		if plan.Channel == "" {
 			plan.Channel = detectChannel(e.s)
 		}
 		if refusal := channelRefusal(plan.Channel, e.s.homeLanguage); refusal != nil {
@@ -188,7 +194,7 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 		}
 		shownChannel = plan.Channel
 	}
-	where := map[string]string{channelWindow: "a confirmation window on their computer", channelPhone: "a notification on their phone"}[shownChannel]
+	where := channelAsks[shownChannel]
 	if shownChannel == channelWindow && phoneLinkedHere(e.s.paths) {
 		where = "a confirmation window on their computer and a notification on their linked phone (the first answer counts)"
 	}

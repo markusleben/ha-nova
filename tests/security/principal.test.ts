@@ -13,6 +13,7 @@ import {
   openDeviceRegistry,
   type DeviceRegistry,
 } from "../../nova/src/security/device-registry.js";
+import { BRIDGE_INSTALL_ID, GATE_INSTALL_ID } from "../../nova/src/security/pairing-metadata.js";
 import {
   CLOUD_DEVICE_UNAUTHORIZED_MESSAGE,
   resolveCloudPrincipal,
@@ -111,6 +112,20 @@ describe("principal resolver", () => {
     const r = resolvePrincipal(auth("some-random-token"), "secure", deps());
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.status).toBe(401);
+  });
+
+  it("accepts the App's own credentials from loopback only, on no other route", () => {
+    for (const installId of [BRIDGE_INSTALL_ID, GATE_INSTALL_ID]) {
+      const c = generateCredential();
+      registry.createPending({ deviceId: c.deviceId, secretDigest: c.secretDigest, clientInstallId: installId, name: "n", platform: "p", client: "c", createdAtMs: 1 }, now());
+      registry.activate(c.deviceId, now());
+      const internal = installId === BRIDGE_INSTALL_ID ? "chat-bridge" : "gate";
+      expect(resolvePrincipal(auth(c.credential), "secure", deps(), "127.0.0.1")).toEqual({ ok: true, principal: { kind: "device", deviceId: c.deviceId, peer: "127.0.0.1", internal } });
+      expect(resolvePrincipal(auth(c.credential), "secure", deps(), "192.168.1.20")).toMatchObject({ ok: false, status: 401 });
+      expect(registry.bindCloudUser(c.deviceId, c.secretDigest, "user-1", RELAY_ID).ok).toBe(true);
+      const request = { headers: { authorization: auth(c.credential) }, rawHeaders: ["Authorization", auth(c.credential)], socket: { remoteAddress: "172.30.32.2" } } as unknown as IncomingMessage;
+      expect(resolveCloudPrincipal(request, "user-1", RELAY_ID, deps())).toMatchObject({ ok: false, status: 401 });
+    }
   });
 
   it("resolves Cloud auth only for the bound HA user and never accepts legacy", () => {
