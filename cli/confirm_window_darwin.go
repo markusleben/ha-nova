@@ -49,11 +49,17 @@ func nativeWindowAvailable() bool {
 }
 
 func nativeWindow(ctx context.Context, message, lang string, wait time.Duration) windowAnswer {
+	return nativeButtons(ctx, message, confirmT(lang, "window.confirm"), confirmT(lang, "window.cancel"), wait)
+}
+
+// nativeButtons: the window with these two labels; the first answers
+// windowConfirmed, Cancel stays the default.
+func nativeButtons(ctx context.Context, message, first, cancel string, wait time.Duration) windowAnswer {
 	args := []string{}
 	for _, line := range windowScript {
 		args = append(args, "-e", line)
 	}
-	cmd := exec.CommandContext(ctx, "/usr/bin/osascript", append(args, "--", message, strconv.Itoa(int(wait.Seconds())), confirmT(lang, "window.confirm"), confirmT(lang, "window.cancel"))...)
+	cmd := exec.CommandContext(ctx, "/usr/bin/osascript", append(args, "--", message, strconv.Itoa(int(wait.Seconds())), first, cancel)...)
 	cmd.Env = []string{} // nothing from the caller's environment reaches the window
 	var stderr strings.Builder
 	cmd.Stderr = &stderr

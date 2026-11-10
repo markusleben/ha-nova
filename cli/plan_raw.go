@@ -213,7 +213,9 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 		if item.Endpoint == "ws" && payload["type"] == "config/device_registry/remove" {
 			n.deviceEntities(payload["device_id"])
 		}
-		level = max(level, e.rawShoppingList(item.Endpoint, payload), e.rawListeners(item.Endpoint, payload))
+		flows := max(e.rawShoppingList(item.Endpoint, payload), e.rawListeners(item.Endpoint, payload))
+		e.requestTyped = e.requestTyped || flows == tierTyped || level == tierTyped && why != "skill_typed"
+		level = max(level, flows)
 		entry := rawPlanItem{Endpoint: item.Endpoint, Tier: level.String()}
 		if i < len(copies) {
 			entry.copy = copies[i]

@@ -320,7 +320,14 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	if humanAnswer != "" { // the human's answer in a form or window replaces any argv code
 		code = humanAnswer
 	}
-	if fresh.Tier == tierTyped.String() {
+	if plan.Channel == channelRelay && code != "" { // no code exists: the gate's ask confirms it (gateBeforeSend)
+		if os.Rename(claimed, open) == nil {
+			consumed = false
+		}
+		return fail(refusedWith("CONFIRM_IN_HOME_ASSISTANT", "plan "+id+" is confirmed on the linked phone or in Home Assistant, not with a typed code",
+			"Run ha-nova apply --plan "+id+" again without --confirm: HA NOVA asks the user on their linked phone or in Home Assistant. Never ask the user for a code."))
+	}
+	if fresh.Tier == tierTyped.String() && plan.Channel != channelRelay {
 		wantCode = confirmCode(s.transport.Credential, idHex, plan.Channel, plan.ExpiresAt)
 		if humanChannel(plan.Channel) && humanAnswer == "" { // its code was never shown: no attempt is used
 			if os.Rename(claimed, open) == nil {
@@ -356,6 +363,9 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		wantCode = "" // never shown, not even once used
 	}
 	env.Plan = &verbPlan{ID: plan.ID, Hash: identity, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode}
+	if err := gateBeforeSend(s, plan.Channel, fresh, batch); err != nil {
+		return fail(release(err))
+	}
 	env.done = applyDone(e, &env, fresh, ctx)
 	if isRooms {
 		previewed, _ := env.Result.(roomsResult)

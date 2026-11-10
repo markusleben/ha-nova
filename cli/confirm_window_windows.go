@@ -213,6 +213,11 @@ func nativeWindowAvailable() bool {
 	return syscall.UTF16ToString(name[:]) == "Default"
 }
 
+// nativeButtons: Windows' stock OK/Cancel take no labels; the message says what OK does.
+func nativeButtons(ctx context.Context, message, _, _ string, wait time.Duration) windowAnswer {
+	return nativeWindow(ctx, message, "", wait)
+}
+
 // nativeWindow: Windows' stock OK/Cancel follow Windows' own language (lang unused).
 func nativeWindow(ctx context.Context, message, _ string, wait time.Duration) windowAnswer {
 	text, err1 := syscall.UTF16PtrFromString(message)

@@ -28,6 +28,9 @@
   "window.cancel": "Cancel",
   "window.asked": "Requested by your AI assistant. Confirm only if you want what follows.",
   "window.both": "Your linked phone asks too. The first answer counts; a later one changes nothing.",
+  "gate.window": "Confirm this change on your phone or in Home Assistant. This window can't confirm it, and nothing has been sent yet.",
+  "gate.open": "Open Home Assistant",
+  "gate.windows_ok": "OK opens Home Assistant; Cancel stops this change.",
 
   "say.about": "I'm about to {action}.",
   "say.nothing_found": "Not done: I couldn't find what you named. Nothing changed. Tell me which devices you mean.",
@@ -65,6 +68,7 @@
   "say.window_ask": "Confirm in the window on this computer.",
   "say.window_phone_ask": "Confirm in the window on this computer or on your phone. On the phone: {tap} The first answer counts.",
   "say.phone_ask": "Confirm on your phone. {tap}",
+  "say.relay_ask": "Confirm on your linked phone or in Home Assistant (NOVA).",
   "say.form_ask": "Type the one-time code from HA NOVA in the form your app shows — a plain yes can't confirm this.",
   "say.chat_note": "I can see this code too, so it only counts if you type it yourself.",
   "say.code_lead": "To go ahead, type this code:",
@@ -81,6 +85,7 @@
   "say.phone_waiting_how": "Press and hold it on an iPhone, or pull it down on Android, then tap the button for this change.",
   "say.phone_finishing": "Your phone answered; HA NOVA is finishing.",
   "say.applying": "HA NOVA is still making this change. This can take a few minutes. Ask me again in a moment, and I'll tell you the result.",
+  "say.relay_waiting": "I'm waiting for your OK on your phone or in Home Assistant; this step hasn't been sent yet.",
   "say.busy": "HA NOVA is still busy with another change, so nothing has happened yet. Try again in a moment.",
 
   "form.code_title": "One-time code from HA NOVA",
