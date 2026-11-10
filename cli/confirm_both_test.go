@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -95,15 +96,21 @@ func (p *fakePhones) last() map[string]any {
 	return p.sent[len(p.sent)-1]
 }
 
-// withdrawn: the question was the only notification sent, and it was
-// cleared (answered on the computer), with nothing in its place.
+// withdrawn: answered on the computer, the question was replaced on its
+// phone by a quiet note without buttons (same tag), and then cleared.
 func (p *fakePhones) withdrawn() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if len(p.sent) != 1 || p.sent[0]["data"].(map[string]any)["actions"] == nil {
+	if len(p.sent) != 2 || p.sent[0]["data"].(map[string]any)["actions"] == nil || p.services[1] != p.services[0] {
 		return false
 	}
-	return slices.Contains(p.cleared, p.services[0]+" "+p.sent[0]["data"].(map[string]any)["tag"].(string))
+	tag := p.sent[0]["data"].(map[string]any)["tag"].(string)
+	return reflect.DeepEqual(p.sent[1]["data"], withdrawnNoteData(tag)) && slices.Contains(p.cleared, p.services[0]+" "+tag)
+}
+
+func withdrawnNoteData(tag string) map[string]any {
+	return map[string]any{"tag": tag, "push": map[string]any{"interruption-level": "passive"}, "channel": "HA NOVA", "importance": "high",
+		"priority": "high", "alert_once": true, "timeout": 600}
 }
 
 func opened() chan struct{} { c := make(chan struct{}); close(c); return c }
@@ -283,8 +290,9 @@ func TestBothAskExpireTogether(t *testing.T) {
 }
 
 // A question withdrawn because the computer answered is kept like a
-// result: its clear may never reach an iPhone whose app wasn't used lately,
-// so the next question to that phone clears it again first.
+// result: its clear may never reach an iPhone whose app wasn't used lately
+// (its note stays then), so the next question to that phone clears it
+// again first.
 func TestWithdrawnQuestionIsClearedAgainByTheNext(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
 	p := usePhones(t, "mobile_app_iphone")
@@ -309,14 +317,14 @@ func TestWithdrawnQuestionIsClearedAgainByTheNext(t *testing.T) {
 		t.Fatalf("exit %d sent %v cleared %v", exit, p.sent, p.cleared)
 	}
 	gone := "mobile_app_iphone " + p.sent[0]["data"].(map[string]any)["tag"].(string)
-	confirmOnceSent(2)
+	confirmOnceSent(3) // the first question and its note are out
 	second := h.plan("lock.unlock", "lock.front").Plan
 	if exit, _ := h.run(runApplyCommand, "--plan", second.ID); exit != 0 {
 		t.Fatalf("second apply exit %d", exit)
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if len(p.sent) != 2 || len(p.cleared) != 3 || p.cleared[0] != gone || p.cleared[1] != gone {
+	if len(p.sent) != 4 || len(p.cleared) != 3 || p.cleared[0] != gone || p.cleared[1] != gone {
 		t.Fatalf("sent %d, cleared %v: want %q cleared by its withdrawal and again before the next question", len(p.sent), p.cleared, gone)
 	}
 }
