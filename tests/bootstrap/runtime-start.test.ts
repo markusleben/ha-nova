@@ -149,6 +149,7 @@ describe("runtime bootstrap", () => {
         uptime_s: expect.any(Number),
         file_access: "off",
         snapshots: { files: 0, bytes: 0 },
+        gate: 1,
       },
     });
 

@@ -68,6 +68,7 @@ export interface PageModel {
   chatPhoneUserGone: boolean; // ?chat_user= named someone who can't have a phone now: the owner's is shown
   chatUsers: ChatUsersModel | null; // null: chat apps are off
   chatRestarting: boolean;
+  gateSection: string; // nova-approve.ts renderGateSection; "" without a gate
 }
 
 export function renderPage(m: PageModel): string {
@@ -240,7 +241,7 @@ export function renderPage(m: PageModel): string {
 <main>
 <h1>${star}NOVA</h1>
 <p class="intro">Let your AI app work with Home Assistant, safely. Each computer connects once and gets its own connection. Most computers connect when you sign in on them. Can't sign in there? Make a code here.</p>
-${errorSection}${confirmSection}<section><h2>Home Assistant</h2><p>${m.connection.haConnected ? "Connected." : `<span class="muted">Not connected — check the App logs.</span>`}</p></section>
+${errorSection}${confirmSection}${m.gateSection}<section><h2>Home Assistant</h2><p>${m.connection.haConnected ? "Connected." : `<span class="muted">Not connected — check the App logs.</span>`}</p></section>
 ${recoverySection}<section><h2>Update</h2><p>${updateLine}</p></section>
 <section><h2>Pairing</h2>${pairingSection}</section>
 <section><h2>Devices</h2>${deviceRows}</section>

@@ -2,7 +2,7 @@ import { createServer, request as httpRequest, type IncomingMessage, type Server
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createGateAsks, gateDigest, gateWithAsks, type GateAsksDeps, type GateRequest, type PhoneAnswer, type PhoneLink, type LinkWords, type PhoneText, type PreparedAsk } from "../../nova/src/http/gate-asks.js";
+import { askRef, createGateAsks, gateDigest, gateWithAsks, type GateAsksDeps, type GateRequest, type PhoneAnswer, type PhoneLink, type LinkWords, type PhoneText, type PreparedAsk } from "../../nova/src/http/gate-asks.js";
 import { gated, type GateClient } from "../../nova/src/http/gate.js";
 import { HttpError } from "../../nova/src/http/errors.js";
 import type { RouteContext } from "../../nova/src/http/router.js";
@@ -92,7 +92,7 @@ describe("gate asks", () => {
     const sent = t.seen[0]!.requests[0]!.body; // as the Relay prepares it
     expect(JSON.parse(sent.toString("utf8")).method).toBe("POST");
     expect(await t.op(laptop, opened.ask_id, "wait")).toMatchObject({ state: "waiting" });
-    expect(t.asks.approve(String(opened.ask_id))).toBe(true);
+    expect(t.asks.approve(askRef(String(opened.ask_id)))).toBe(true);
     const approved = await t.op(laptop, opened.ask_id, "wait");
     expect(approved).toMatchObject({ state: "approved" });
     const grant = String(approved.grant_id);
@@ -101,20 +101,20 @@ describe("gate asks", () => {
     expect(t.asks.consume(laptop, grant, "ws", sent)).toBe(false); // another endpoint
     expect(t.asks.consume(laptop, grant, "core", sent)).toBe(true);
     expect(t.asks.consume(laptop, grant, "core", sent)).toBe(false); // used
-    expect(t.asks.approve(String(opened.ask_id))).toBe(false); // approved once
+    expect(t.asks.approve(askRef(String(opened.ask_id)))).toBe(false); // approved once
   });
 
   it("a grant ends after two minutes, an ask after three", async () => {
     const t = setup();
     const first = await t.ask(laptop, [unlock]);
-    t.asks.approve(String(first.ask_id));
+    t.asks.approve(askRef(String(first.ask_id)));
     const grant = String((await t.op(laptop, first.ask_id, "wait")).grant_id);
     t.tick(120_001);
     expect(t.asks.consume(laptop, grant, "core", t.seen[0]!.requests[0]!.body)).toBe(false);
     const second = await t.ask(laptop, [unlock]);
     t.tick(180_000);
     expect(await t.op(laptop, second.ask_id, "wait")).toEqual({ state: "expired" });
-    expect(t.asks.approve(String(second.ask_id))).toBe(false);
+    expect(t.asks.approve(askRef(String(second.ask_id)))).toBe(false);
   });
 
   it("a cancel ends the ask for good; a new ask replaces the open one", async () => {
@@ -123,15 +123,15 @@ describe("gate asks", () => {
     const second = await t.ask(laptop, [unlock]);
     expect(await t.op(laptop, first.ask_id, "wait")).toEqual({ state: "cancelled" });
     expect(await t.op(laptop, second.ask_id, "cancel")).toEqual({ state: "cancelled" });
-    expect(t.asks.approve(String(second.ask_id))).toBe(false);
-    expect(t.asks.approve(String(first.ask_id))).toBe(false);
+    expect(t.asks.approve(askRef(String(second.ask_id)))).toBe(false);
+    expect(t.asks.approve(askRef(String(first.ask_id)))).toBe(false);
   });
 
   it("a grant covers only the requests the person was shown", async () => {
     const t = setup({ verdict: "typed", lang: "en", title: "Run 2 steps?", body: "Requested by “Mac”.", button: "Run", items: [{ verdict: "pass" }, { verdict: "typed", text: "Unlock “Front”" }] });
     const reload = { method: "POST", path: "/api/services/script/reload", body: {} };
     const opened = await t.ask(laptop, [reload, unlock]);
-    t.asks.approve(String(opened.ask_id));
+    t.asks.approve(askRef(String(opened.ask_id)));
     const grant = String((await t.op(laptop, opened.ask_id, "wait")).grant_id);
     const [passing, shown] = t.seen[0]!.requests;
     expect(t.asks.consume(laptop, grant, "core", passing!.body)).toBe(false); // rated typed later, it needs its own ask
@@ -309,7 +309,7 @@ describe("gate asks", () => {
     const first = await t.linkTo(laptop, link);
     expect(first).toMatchObject({ needed: true, channels: ["phone"] });
     expect(p.calls[0]).toMatchObject({ link, text: { words: "link", device: "device laptop" }, waitMs: 180_000 });
-    expect(t.asks.approve(String(first.ask_id))).toBe(false); // the page can't set a link
+    expect(t.asks.approve(askRef(String(first.ask_id)))).toBe(false); // the page can't set a link
     p.calls[0]!.answer({ answer: "approved", user_id: "markus" });
     await settled();
     expect(await t.op(laptop, first.ask_id, "wait")).toEqual({ state: "linked" });
@@ -384,7 +384,7 @@ describe("gate asks", () => {
     };
     expect(await run({})).toBe(428);
     const opened = (await ask(context(laptop, { requests: [{ endpoint: "core", body_b64: Buffer.from(JSON.stringify(unlock)).toString("base64") }] }))) as Record<string, string>;
-    asks.approve(opened.ask_id!);
+    asks.approve(askRef(opened.ask_id!));
     const grant = String(((await ask(context(laptop, { ask_id: opened.ask_id, op: "wait" }))) as Record<string, unknown>).grant_id);
     expect(gateDigest("core", Buffer.from(JSON.stringify(unlock)))).toHaveLength(64);
     expect(await run({ "x-ha-nova-grant": "wrong" })).toBe(428);

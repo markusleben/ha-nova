@@ -6,7 +6,9 @@ import type { CsrfStore } from "../../security/csrf.js";
 import type { DeviceRegistry } from "../../security/device-registry.js";
 import { GATE_INSTALL_ID } from "../../security/pairing-metadata.js";
 import type { PairingV1Manager } from "../../security/pairing-v1.js";
+import type { GatePage } from "../gate-asks.js";
 import type { RouteHandler } from "../router.js";
+import { approveLink, renderGateSection } from "./nova-approve.js";
 import type { RelayLogger } from "../server.js";
 import { applyChatPhoneAction, CHAT_PHONE_ACTIONS, chatPhoneErrorCode, readChatPhone, type ChatPhoneAction, type ChatPhoneModel } from "./nova-page-chat-phone.js";
 import { applyChatUsers, chatPhoneUser, readChatUsers, type ChatUsersModel } from "./nova-page-chat-users.js";
@@ -57,6 +59,7 @@ export interface NovaPageDeps {
   logger?: RelayLogger;
   chatApps?: ChatApps; // only with HA_NOVA_CHAT_APPS=1
   connectorUrl?: () => Promise<string | null>; // null: Link remote access isn't ready
+  gatePage?: GatePage; // the gate's asks: "Waiting for your OK" and paused devices
 }
 
 function setHeaders(response: ServerResponse): void {
@@ -67,24 +70,24 @@ function setHeaders(response: ServerResponse): void {
   response.setHeader("referrer-policy", "no-referrer");
 }
 
-function fail(response: ServerResponse, status: number, message: string): void {
+function fail(response: ServerResponse, status: number, message: string, extra = ""): void {
   setHeaders(response);
   response.statusCode = status;
   response.setHeader("content-type", "text/html; charset=utf-8");
-  response.end(`<!doctype html><meta charset="utf-8"><title>NOVA</title><p>${escapeHtml(message)}</p>`);
+  response.end(`<!doctype html><meta charset="utf-8"><title>NOVA</title><p>${escapeHtml(message)}</p>${extra}`);
 }
 
 // A non-owner admin sees NOVA in the sidebar (panel_admin): name who can open it (fail() escapes the name).
-function refuse(response: ServerResponse, owner: Extract<OwnerCheckResult, { ok: false }>): void {
+function refuse(response: ServerResponse, owner: Extract<OwnerCheckResult, { ok: false }>, approve = ""): void {
   const [who, them] = owner.ownerName ? [`the owner, ${owner.ownerName},`, "them"] : ["the owner of this Home Assistant", "the owner"];
   fail(response, owner.status, owner.status === 503 ? "Could not verify owner access. Try again shortly."
-    : owner.unknownUser ? "Couldn't tell who you are. Open NOVA from the Home Assistant sidebar." : `Only ${who} can open NOVA. Ask ${them} to open it and click Connect a device. That shows a six-digit code for your computer.`);
+    : owner.unknownUser ? "Couldn't tell who you are. Open NOVA from the Home Assistant sidebar." : `Only ${who} can open NOVA. Ask ${them} to open it and click Connect a device. That shows a six-digit code for your computer.`, approve);
 }
 
 export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
   return async ({ request, response }) => {
     const owner = await checkOwner(request, { fetchAuthUsers: deps.fetchAuthUsers, logger: deps.logger });
-    if (!owner.ok) return refuse(response, owner);
+    if (!owner.ok) return refuse(response, owner, deps.gatePage !== undefined && owner.status === 403 && owner.unknownUser !== true ? approveLink(request) : "");
     const [update] = await Promise.all([safeUpdate(deps)]);
     const query = new URLSearchParams((request.url ?? "").split("?")[1] ?? "");
     // The bridge's internal device is shown under Chat apps, never as a
@@ -134,6 +137,7 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
       chatPhoneUserGone: chatWhoGone,
       chatUsers,
       chatRestarting: query.get("chat") === "restarting",
+      gateSection: deps.gatePage === undefined ? "" : renderGateSection(deps.gatePage, deps.registry.list(), singleHeader(request, "x-ingress-path") ?? "/home"),
     });
     setHeaders(response);
     response.statusCode = 200;

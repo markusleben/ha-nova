@@ -27,6 +27,15 @@ export interface PreparedAsk {
   items: AskItem[];
 }
 
+// An ask on the approval page: ref is the id's hash; body is the worker's
+// wording (who asked, names through sayText); items are the typed ones.
+export interface PageAsk {
+  ref: string;
+  body: string;
+  items: AskItem[];
+  expiresAt: number;
+}
+
 // A device's linked phone (§3), on the worker's wire (cli/gate_ask.go).
 export interface PhoneLink {
   service: string;
