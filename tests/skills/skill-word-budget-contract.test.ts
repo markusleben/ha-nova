@@ -518,6 +518,7 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/ha-nova/bulk-patterns.md",
   "skills/ha-nova/capability-answer.md",
   "skills/ha-nova/config-snapshots.md",
+  "skills/ha-nova/confirmed-actions.md",
   "skills/ha-nova/consumer-discovery-preflight.md",
   "skills/ha-nova/grouped-change-set.md",
   "skills/ha-nova/helper-flow-schemas.md",
