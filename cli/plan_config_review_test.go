@@ -125,11 +125,11 @@ func TestUpdateCheckpointsAndNotices(t *testing.T) {
 		return env.Plan.ID
 	}
 	id := plan("light.turn_off")
-	h.f.service = func(*fakeHA, string, map[string]any) any { return coreReply(500, map[string]any{"message": "boom"}) }
+	h.f.loaded = map[string]any{"automation.hall_motion": hallDraft("light.turn_on")} // saved, never seen running
 	if exit, applied := h.run(runApplyCommand, "--plan", id); exit != 6 || applied.Undo == nil || len(applied.BeforeConfig) == 0 {
 		t.Fatalf("unverified update: exit %d env %+v", exit, applied)
 	}
-	h.f.service = applies
+	h.f.loaded = nil
 	_, reverted := h.run(runPlanCommand, "revert")
 	if exit, env := h.run(runApplyCommand, "--plan", reverted.Plan.ID); exit != 0 || env.Undo == nil {
 		t.Fatalf("revert: exit %d env %+v", exit, env)
