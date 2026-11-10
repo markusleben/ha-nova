@@ -24,7 +24,7 @@ pip install websockets   # one-time; used by the token-minting step
 bash scripts/e2e/disposable-ha/run.sh
 ```
 
-It boots a real, throwaway Home Assistant in containers, completes its onboarding through the API, mints a long-lived token, starts the standalone relay against it, asserts the guarantees only a live system can prove (auth enforced, version reported, no lazy WebSocket connect, real REST/WS proxy data, bounded subscriptions), and **destroys everything afterwards**. Nothing of yours is touched.
+It boots a real, throwaway Home Assistant in containers, completes its onboarding through the API, mints a long-lived token, starts the standalone relay against it, asserts the guarantees only a live system can prove (auth enforced, version reported, no lazy WebSocket connect, real REST/WS proxy data, bounded subscriptions, and the safety check's refusals: an unconfirmed write is held and changes nothing, a bogus grant confirms nothing, an ask no one can confirm is refused; it proves no approval, that is the test bed's job), and **destroys everything afterwards**. Nothing of yours is touched.
 
 CI runs the same script weekly and on demand via `.github/workflows/e2e-disposable-ha.yml` (`workflow_dispatch`), so you can also trigger it from GitHub without a local Docker setup.
 

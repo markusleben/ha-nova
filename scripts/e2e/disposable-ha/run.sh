@@ -10,6 +10,12 @@
 #   - ...but /health honestly reports the connection once real traffic opened it
 #   - REST and WS proxy calls return real Home Assistant data
 #   - a bare subscription is rejected, but a bounded window is served
+#   - HA NOVA's safety check fronts all three relays (/health gate: 1), and
+#     refuses every typed write that no person confirmed: held (428, nothing
+#     changes), a bogus grant (428), and an ask no one can confirm (409).
+#     Refusals only: nothing here can approve (the relays use the owner's
+#     token, so no phone channel; no Supervisor, so no NOVA page). The
+#     approval itself is proven on the test bed lane.
 #
 # Everything is destroyed afterwards. Run: bash scripts/e2e/disposable-ha/run.sh
 set -euo pipefail
@@ -23,6 +29,19 @@ export RELAY_VERSION="$(grep -E '^version:' "$HERE/../../../nova/config.yaml" | 
 pass() { echo "  ok: $*"; }
 fail() { echo "  FAIL: $*" >&2; FAILED=1; }
 FAILED=0
+AUTH=(-H "Authorization: Bearer $RELAY_AUTH_TOKEN" -H 'Content-Type: application/json')
+
+# The safety-check worker starts after the listener; until it answers, every
+# request gets 503. Wait until a read gets through it.
+wait_gate() {
+  local code=""
+  for _ in $(seq 1 30); do
+    code="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$1/core" "${AUTH[@]}" -d '{"method":"GET","path":"/api/config"}' || true)"
+    if [[ "$code" == "200" ]]; then return 0; fi
+    sleep 2
+  done
+  fail "$1: the safety check never let a read through (last: HTTP ${code:-none})"
+}
 
 cleanup() {
   echo "--- tearing down"
@@ -124,8 +143,14 @@ if health.get("ha_ws_connected") is True:
     ok = False
 else:
     print("  ok: a health probe does not open the upstream WebSocket (no lazy-connect)")
+if health.get("gate") != 1:
+    print(f"  FAIL: /health reports gate {health.get('gate')!r}, expected 1 (the safety check fronts this relay)", file=sys.stderr)
+    ok = False
+else:
+    print("  ok: /health reports the safety check (gate: 1)")
 sys.exit(0 if ok else 1)
 PY
+wait_gate "$RELAY_URL"
 
 # REST proxy: real Home Assistant config comes back.
 core_body="$(curl -sf -X POST "$RELAY_URL/core" \
@@ -157,12 +182,13 @@ else
   fail "health should report ha_ws_connected=true after a WS call: $health_after"
 fi
 
-# A bare subscription must be rejected — the relay holds no long-lived subscriptions.
+# A bare subscription must be rejected — the relay holds no long-lived
+# subscriptions. The safety check refuses it before the handler (422).
 bare="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RELAY_URL/ws" \
   -H "Authorization: Bearer $RELAY_AUTH_TOKEN" -H 'Content-Type: application/json' \
   -d '{"type":"subscribe_events"}')"
-if [[ "$bare" == "400" ]]; then
-  pass "bare subscription rejected (400)"
+if [[ "$bare" == "422" ]]; then
+  pass "bare subscription refused by the safety check (422)"
 else
   fail "bare subscription should be rejected, got HTTP $bare"
 fi
@@ -188,10 +214,11 @@ else
   fail "file access should be disabled by default, got HTTP $files_off"
 fi
 
-# The opted-in side of the same guarantee: a second relay mounts the real HA
-# config directory with FILE_ACCESS=readwrite and must serve the full
-# write -> read-back -> deny -> delete roundtrip the yaml-config skill uses.
-echo "--- file access: readwrite roundtrip (second relay on :8792)"
+# The opted-in side: a second relay mounts the real HA config directory with
+# FILE_ACCESS=readwrite. Reads are served; every write is typed, so the
+# safety check holds it until a person confirms, which nobody can here.
+# (The path and file-type 403s behind it: tests/http/files-access.test.ts.)
+echo "--- file access: reads served, writes held (second relay on :8792)"
 ( cd "$HERE" && docker compose up -d --build relay-files > /dev/null 2>&1 )
 FILES_URL="http://127.0.0.1:8792"
 for i in $(seq 1 30); do
@@ -200,14 +227,13 @@ for i in $(seq 1 30); do
   if [[ "$i" == "30" ]]; then echo "relay-files did not start (last: ${code:-none})" >&2; ( cd "$HERE" && docker compose logs relay-files ); exit 1; fi
   sleep 2
 done
+wait_gate "$FILES_URL"
 
 files_call() {
-  curl -s -X POST "$FILES_URL/files" \
-    -H "Authorization: Bearer $RELAY_AUTH_TOKEN" -H 'Content-Type: application/json' -d "$1"
+  curl -s -X POST "$FILES_URL/files" "${AUTH[@]}" -d "$1"
 }
-files_code() {
-  curl -s -o /dev/null -w '%{http_code}' -X POST "$FILES_URL/files" \
-    -H "Authorization: Bearer $RELAY_AUTH_TOKEN" -H 'Content-Type: application/json' -d "$1"
+files_code() { # $1 the body, then any extra curl arguments
+  curl -s -o /dev/null -w '%{http_code}' -X POST "$FILES_URL/files" "${AUTH[@]}" "${@:2}" -d "$1"
 }
 
 listing="$(files_call '{"action":"list_dir","path":"/config"}')"
@@ -217,40 +243,35 @@ else
   fail "list_dir did not show configuration.yaml: $listing"
 fi
 
-wrote="$(files_call '{"action":"write_file","path":"/config/ha_nova/e2e-roundtrip.yaml","content":"e2e_marker: disposable-ha\n"}')"
-if echo "$wrote" | grep -q '"ok":true'; then
-  pass "write_file creates a file under /config/ha_nova/"
-else
-  fail "write_file failed: $wrote"
-fi
-
-readback="$(files_call '{"action":"read_file","path":"/config/ha_nova/e2e-roundtrip.yaml"}')"
-if echo "$readback" | grep -q 'e2e_marker: disposable-ha'; then
-  pass "read_file returns the written content verbatim"
-else
-  fail "read-back did not match: $readback"
-fi
-
-secrets_deny="$(files_code '{"action":"write_file","path":"/config/secrets.yaml","content":"x: y\n"}')"
-if [[ "$secrets_deny" == "403" ]]; then
-  pass "secrets.yaml stays unreachable even with readwrite (403)"
-else
-  fail "secrets.yaml write should be denied, got HTTP $secrets_deny"
-fi
-
-exec_deny="$(files_code '{"action":"write_file","path":"/config/ha_nova/evil.sh","content":"#!/bin/sh\n"}')"
-if [[ "$exec_deny" == "403" ]]; then
-  pass "non-configuration file types are refused (403)"
-else
-  fail ".sh write should be denied, got HTTP $exec_deny"
-fi
-
-deleted="$(files_call '{"action":"delete_file","path":"/config/ha_nova/e2e-roundtrip.yaml"}')"
+write_body='{"action":"write_file","path":"/config/ha_nova/e2e-roundtrip.yaml","content":"e2e_marker: disposable-ha\n"}'
+held="$(files_code "$write_body")"
+bogus="$(files_code "$write_body" -H 'X-HA-Nova-Grant: e2e-bogus-grant')"
+deleted="$(files_code '{"action":"delete_file","path":"/config/ha_nova/e2e-roundtrip.yaml"}')"
 gone="$(files_code '{"action":"read_file","path":"/config/ha_nova/e2e-roundtrip.yaml"}')"
-if echo "$deleted" | grep -q '"ok":true' && [[ "$gone" == "404" ]]; then
-  pass "delete_file removes the file (read-back 404)"
+if [[ "$held" == "428" && "$gone" == "404" ]]; then
+  pass "a write no person confirmed is held (428) and nothing changed (read-back 404)"
 else
-  fail "delete roundtrip failed: delete=$deleted read-back=HTTP $gone"
+  fail "an unconfirmed write should be held with nothing written: write=HTTP $held read-back=HTTP $gone"
+fi
+if [[ "$bogus" == "428" ]]; then
+  pass "a bogus grant confirms nothing (428)"
+else
+  fail "a write with a bogus grant should be held, got HTTP $bogus"
+fi
+if [[ "$deleted" == "428" ]]; then
+  pass "a delete is held too (428)"
+else
+  fail "an unconfirmed delete should be held, got HTTP $deleted"
+fi
+
+# Asking for a confirmation: the owner's token leaves no phone, and without a
+# Supervisor there is no NOVA page, so no one can confirm (409).
+ask_body="$(python3 -c 'import base64,json,sys; print(json.dumps({"requests":[{"endpoint":"files","body_b64":base64.b64encode(sys.argv[1].encode()).decode()}]}))' "$write_body")"
+asked="$(curl -s -X POST "$FILES_URL/gate/v1/ask" "${AUTH[@]}" -d "$ask_body" -w '\n%{http_code}')"
+if [[ "${asked##*$'\n'}" == "409" ]] && echo "$asked" | grep -q '"GATE_NO_CHANNEL"'; then
+  pass "an ask no one can confirm is refused (409 GATE_NO_CHANNEL)"
+else
+  fail "the ask should find no channel: ${asked:0:300}"
 fi
 
 echo "--- app mode: the relay authenticates upstream with the supervisor token"
@@ -265,10 +286,11 @@ for i in $(seq 1 30); do
   if [[ "$i" == "30" ]]; then fail "app-mode relay did not become reachable"; fi
   sleep 2
 done
+wait_gate "$APPMODE_URL"
 
 am_health="$(curl -sf -H "Authorization: Bearer $RELAY_AUTH_TOKEN" "$APPMODE_URL/health" || true)"
-if echo "$am_health" | grep -q "\"version\":\"$RELAY_VERSION\""; then
-  pass "app-mode relay is healthy and reports its version"
+if echo "$am_health" | grep -q "\"version\":\"$RELAY_VERSION\"" && echo "$am_health" | grep -q '"gate":1'; then
+  pass "app-mode relay is healthy, reports its version, and runs the safety check without a Supervisor (gate: 1)"
 else
   fail "app-mode /health unexpected: $am_health"
 fi
