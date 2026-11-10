@@ -59,6 +59,21 @@ Assertions per question push:
 Per result push: same tag as its question (it replaces exactly that one), no
 buttons, `importance: high`, `interruption-level: active`, the expected title.
 
+Window case (after the iPhone unlock; escape from 0.29: a question answered on
+the computer left live buttons on the iPhone, because only a silent
+`clear_notification` went out and iOS runs it only if the Companion app wakes).
+The window is a real dialog on macOS, so this `plan` + `apply` of an unlock
+runs in a throwaway Linux container with a fake `/usr/bin/zenity` (waits 8 s,
+exits 1 = Cancel) and a temp copy of the phone home with the window on. After
+the question (tag T) the next push is a buttonless note with T (`passive`,
+`alert_once`, priority `high`, title `Cancelled: …`), then the clear for T;
+apply exits 4 `CONFIRM_DECLINED`; the lock stays locked. A clear of an open
+question fails the whole lane. Linux binary: `TESTBED_CLI_BIN_LINUX`, else
+`TESTBED_CLI_BIN` if it is a Linux binary of the Docker arch, else a build of
+the checkout. In the rc lane on macOS the tag's binary is a darwin one, so the
+case prints `SKIP` (not counted as PASS or FAIL) until rc-lane also fetches
+`ha-nova-linux-<arch>` and passes it as `TESTBED_CLI_BIN_LINUX`.
+
 `TESTBED_CLI_BIN` runs a given binary instead of the checkout's build
 (`cli.sh` honors it, and `TESTBED_CLI_HOME` for a separate home).
 
