@@ -183,7 +183,9 @@ home in `.state`. The RC lane runs all three with the tag's binary
   light, a cover watchdog on `call_service`, one listener no automation
   owns) and checks that two edits of one automation run without an ask,
   that undo puts back the latest one, and that an edit adding an unlock or
-  a garage opening, and a reload you call, still ask. Then (`calls.mjs`)
+  a garage opening, and a reload you call, still ask (the bed's Relay gates:
+  the linked phone, no code; calm links the phone lane's fake iPhone on a
+  fresh Relay and taps every typed apply there). Then (`calls.mjs`)
   a light call stays ordinary beside the cover watchdog, a cover call still
   asks, and an oracle applies calls through a scene with a climate member, a
   light group in a script, `switch_as_x` lights on a template switch and on a
