@@ -102,7 +102,7 @@ func (e *tierEngine) relatedItems(id string) (items [][2]string, direct int, ok 
 // which can't be ruled out. An automation found only where the entity sits
 // is a consumer only then: one found there for what its actions target is
 // not.
-func targetsPlace(cfg map[string]any, places []string) bool {
+func targetsPlace(cfg map[string]any, places [][2]string) bool {
 	for _, trigger := range flattenTriggers(firstPresent(cfg, "triggers", "trigger")) {
 		target, present := trigger["target"]
 		if !present {
@@ -112,8 +112,8 @@ func targetsPlace(cfg map[string]any, places []string) bool {
 		if raw, _ := json.Marshal(target); !isMap || isTemplated(string(raw)) {
 			return true
 		}
-		for _, key := range []string{"device_id", "area_id", "floor_id", "label_id"} {
-			if slices.ContainsFunc(literalIDs(m[key]), func(id string) bool { return slices.Contains(places, id) }) {
+		for _, kind := range []string{"device", "area", "floor", "label"} { // each registry has its own ids: a floor may share an area's
+			if slices.ContainsFunc(literalIDs(m[kind+"_id"]), func(id string) bool { return slices.Contains(places, [2]string{kind, id}) }) {
 				return true
 			}
 		}

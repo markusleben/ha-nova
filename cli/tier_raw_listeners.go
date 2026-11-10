@@ -78,7 +78,7 @@ func rawListened(endpoint string, payload map[string]any) func(e *tierEngine) []
 	enables := toggles && disabled == nil
 	collection, op, idKey := rawCollection(wsType)
 	movedToo := func(e *tierEngine, id string) { // the scan reads where it sits now, not where the write puts it (MAR-142)
-		if sets("area_id", "labels") {
+		if (enables || sets("new_entity_id")) && sets("area_id", "labels") {
 			e.gap(reasonUnresolvedTarget, "", "", id+" also moves to another area or label")
 		}
 	}

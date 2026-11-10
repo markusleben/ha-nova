@@ -42,8 +42,8 @@ func (e *tierEngine) readAhead(ids []string, depth int) {
 			}
 		}
 		prefetch(reads)
-		on := map[string][]string{}                               // consumer → the entities of this level it is related to
-		named, places := map[string]bool{}, map[string][]string{} // places: where it was found, when not by name (scanConsumers)
+		on := map[string][]string{}                                  // consumer → the entities of this level it is related to
+		named, places := map[string]bool{}, map[string][][2]string{} // places: where it was found, when not by name (scanConsumers)
 		for _, id := range level {
 			items, direct, _ := e.relatedItems(id)
 			for i, item := range items {
@@ -53,7 +53,7 @@ func (e *tierEngine) readAhead(ids []string, depth int) {
 					if i < direct {
 						named[automation] = true
 					} else {
-						places[automation] = append(places[automation], item[1])
+						places[automation] = append(places[automation], item)
 					}
 				}
 			}

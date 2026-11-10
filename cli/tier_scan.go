@@ -113,9 +113,9 @@ func (e *tierEngine) scanConsumers(id string, depth int, d stateDelta) {
 		e.readFailed(id, "", "related")
 		return
 	}
-	var places []string
+	var places [][2]string
 	for _, item := range items[direct:] {
-		places = append(places, item[1])
+		places = append(places, item)
 	}
 	seen, named := map[string]bool{}, map[string]bool{} // named: related to the entity or its device
 	var automations, containers []string

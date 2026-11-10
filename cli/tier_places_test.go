@@ -110,6 +110,10 @@ func TestConsumerScanReadsWhereTheEntitySits(t *testing.T) {
 				f.related["area-automation:kuche"] = append(f.related["area-automation:kuche"], "automation."+object)
 			}
 		}, args: args, exit: 0, tier: "ordinary"},
+		{name: "a floor that shares the area's id is another place", setup: func(f *fakeHA) {
+			home(f, turnedOn(map[string]any{"floor_id": "kuche"}), map[string]any{"_ai": "kuche"}, nil, nil)
+			f.related["area-automation:kuche"] = []string{"automation.door"}
+		}, args: args, exit: 0, tier: "ordinary"},
 		{name: "one that acts on the area but reacts to another area is no consumer", setup: func(f *fakeHA) {
 			home(f, turnedOn(map[string]any{"area_id": "flur"}), map[string]any{"_ai": "kuche"}, nil, nil)
 			f.related["area-automation:kuche"] = []string{"automation.door"}
