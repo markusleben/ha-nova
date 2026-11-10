@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import type { GatePage, PageAsk } from "../gate-asks.js";
+import type { PageKey, PageTexts } from "../page-texts.js";
 import { createCsrfStore, type CsrfStore } from "../../security/csrf.js";
 import type { DeviceRecord } from "../../security/device-registry.js";
 import { checkApprover, isApprover, type HaAuthUser } from "../../security/owner-check.js";
@@ -14,15 +15,14 @@ import { escapeHtml } from "./nova-page-view.js";
 // fresh on every request; each button's single-use token is bound to that
 // person and that ask. No dashboard card can frame it (frame-ancestors 'none'),
 // so the owner page links to it top-level. Asks appear by ref (the id's hash),
-// which can approve or cancel but never wait for the grant.
+// which can approve or cancel but never wait for the grant. Every word comes
+// from the worker (page-texts.ts); without them the page answers 503 with
+// none. A button's approval waits for no words: nothing between the check
+// and the grant.
 
 const CSP = ["default-src 'none'", "style-src 'unsafe-inline'", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'"].join("; ");
 const SHOWN = 3; // two tokens each: two people's pages fit the CSRF store's 16
-const DONE = new Map(Object.entries({
-  approved: "Approved. The computer that asked sends it now.",
-  cancelled: "Cancelled. Nothing was sent.",
-  gone: "That request had already ended. Nothing changed.",
-}));
+const DONE = new Map<string, PageKey>([["approved", "page.done_approved"], ["cancelled", "page.done_cancelled"], ["gone", "page.done_gone"]]);
 type WsClient = { sendMessage(message: { type: string }): Promise<unknown> };
 
 export interface ApprovePageDeps {
@@ -34,16 +34,21 @@ export interface ApprovePageDeps {
   logger?: RelayLogger;
 }
 
-function send(response: ServerResponse, status: number, body: string): void {
+// t null: the worker gave no words, so the page says nothing (503).
+function send(response: ServerResponse, status: number, t: PageTexts | null, body = ""): void {
   response.setHeader("content-security-policy", CSP);
   response.setHeader("x-frame-options", "DENY");
   response.setHeader("cache-control", "no-store");
   response.setHeader("x-content-type-options", "nosniff");
   response.setHeader("referrer-policy", "no-referrer");
-  response.statusCode = status;
+  response.statusCode = t === null ? 503 : status;
   response.setHeader("content-type", "text/html; charset=utf-8");
-  response.end(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>HA NOVA: waiting for your OK</title>
-<style>body{font-family:system-ui,sans-serif;max-width:40rem;margin:2rem auto;padding:0 1rem;line-height:1.45}section{border:1px solid #8884;border-radius:12px;padding:1rem;margin:1rem 0}.muted{opacity:.7}button{font:inherit;padding:.45rem .9rem;border-radius:10px;margin-right:.5rem}code{font-size:.9em}</style></head><body><main><h1>Waiting for your OK</h1>${body}<p><a href="/">Back to Home Assistant</a></p></main></body></html>`);
+  if (t === null) {
+    response.end();
+    return;
+  }
+  response.end(`<!doctype html><html lang="${t.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${t.say("page.title")}</title>
+<style>body{font-family:system-ui,sans-serif;max-width:40rem;margin:2rem auto;padding:0 1rem;line-height:1.45}section{border:1px solid #8884;border-radius:12px;padding:1rem;margin:1rem 0}.muted{opacity:.7}button{font:inherit;padding:.45rem .9rem;border-radius:10px;margin-right:.5rem}code{font-size:.9em}</style></head><body><main><h1>${t.say("page.heading")}</h1>${body}<p><a href="/">${t.say("page.back")}</a></p></main></body></html>`);
 }
 
 function base(request: IncomingMessage): string {
@@ -51,41 +56,50 @@ function base(request: IncomingMessage): string {
   return `${(typeof path === "string" ? path : "").replace(/\/$/, "")}/`;
 }
 
-function renderAsk(ask: PageAsk, form: (action: string) => string, now: number): string {
+function renderAsk(ask: PageAsk, form: (action: string) => string, now: number, t: PageTexts): string {
   const minutes = Math.max(1, Math.ceil((ask.expiresAt - now) / 60_000));
   const items = ask.items.map((item) => `<li>${escapeHtml(item.text ?? "")}${item.detail ? ` <span class="muted">${escapeHtml(item.detail)}</span>` : ""}${(item.entity_ids ?? []).map((id) => ` <code>${escapeHtml(id)}</code>`).join("")}</li>`).join("");
-  return `<section><ul>${items}</ul><p>${escapeHtml(ask.body)} <span class="muted">Ends in ${minutes} min.</span></p>${form("approve")}<button type="submit">Approve</button></form>${form("cancel")}<button type="submit">Cancel</button></form></section>`;
+  return `<section><ul>${items}</ul><p>${escapeHtml(ask.body)} <span class="muted">${t.say("page.ends_in", { minutes })}</span></p>${form("approve")}<button type="submit">${t.say("page.approve")}</button></form>${form("cancel")}<button type="submit">${t.say("window.cancel")}</button></form></section>`;
 }
 
 export function createApprovePageHandler(deps: ApprovePageDeps): RouteHandler {
   return async ({ request, response }) => {
     const who = await checkApprover(request, deps);
-    if (!who.ok) return send(response, who.status, `<p>${escapeHtml(who.message)}</p>`);
+    const t = await deps.page.texts(who.ok ? who.name : "");
+    if (t === null) return send(response, 503, null);
+    if (!who.ok) return send(response, who.status, t, `<p>${t.say(who.text)}</p>`);
     const done = DONE.get(new URLSearchParams((request.url ?? "").split("?")[1] ?? "").get("done") ?? "");
     // An ask the worker didn't word isn't shown: nobody approves what they can't read.
     const all = deps.page.waiting().filter((ask) => ask.body !== "" && ask.items.length > 0 && ask.items.every((item) => (item.text ?? "") !== "")).sort((a, b) => a.expiresAt - b.expiresAt);
     const asks = all.slice(0, SHOWN);
-    const more = all.length > SHOWN ? `<p class="muted">${all.length - SHOWN} more after these.</p>` : "";
+    const more = all.length > SHOWN ? `<p class="muted">${t.say("page.more", { count: all.length - SHOWN })}</p>` : "";
     const now = deps.now();
     const action = `${base(request)}approve`;
-    const html = asks.map((ask) => renderAsk(ask, (kind) => `<form method="post" action="${escapeHtml(action)}"><input type="hidden" name="action" value="${kind}"><input type="hidden" name="ref" value="${ask.ref}"><input type="hidden" name="csrf" value="${escapeHtml(deps.csrf.issue(who.userId, `${kind}:${ask.ref}`, now))}">`, now)).join("");
-    send(response, 200, `${done ? `<p><strong>${done}</strong></p>` : ""}${html || '<p class="muted">Nothing is waiting for your OK. When your computer asks, reload this page.</p>'}${more}<p class="muted">Signed in as ${escapeHtml(who.name)}. Approve only what you asked your AI app to do.</p>`);
+    const html = asks.map((ask) => renderAsk(ask, (kind) => `<form method="post" action="${escapeHtml(action)}"><input type="hidden" name="action" value="${kind}"><input type="hidden" name="ref" value="${ask.ref}"><input type="hidden" name="csrf" value="${escapeHtml(deps.csrf.issue(who.userId, `${kind}:${ask.ref}`, now))}">`, now, t)).join("");
+    send(response, 200, t, `${done ? `<p><strong>${t.say(done)}</strong></p>` : ""}${html || `<p class="muted">${t.say("page.empty")}</p>`}${more}<p class="muted">${t.say("page.signed_in")}</p>`);
   };
 }
 
 export function createApproveActionHandler(deps: ApprovePageDeps): RouteHandler {
   return async ({ request, response, body }) => {
+    const refuse = async (status: 403 | 503, words: (t: PageTexts) => string): Promise<void> => {
+      const t = await deps.page.texts("");
+      send(response, status, t, t === null ? "" : words(t));
+    };
     const who = await checkApprover(request, deps);
-    if (!who.ok) return send(response, who.status, `<p>${escapeHtml(who.message)}</p>`);
+    if (!who.ok) {
+      const key = who.text;
+      return await refuse(who.status, (t) => `<p>${t.say(key)}</p>`);
+    }
     const site = request.headers["sec-fetch-site"];
     if (typeof site === "string" && site !== "same-origin" && site !== "same-site" && site !== "none") {
-      return send(response, 403, "<p>Cross-site request refused.</p>");
+      return await refuse(403, (t) => `<p>${t.say("page.cross_site")}</p>`);
     }
     const form = (body ?? {}) as Record<string, unknown>;
     const action = form.action === "approve" || form.action === "cancel" ? form.action : null;
     const ref = typeof form.ref === "string" ? form.ref : "";
     if (action === null || !deps.csrf.consume(who.userId, `${action}:${ref}`, typeof form.csrf === "string" ? form.csrf : "", deps.now())) {
-      return send(response, 403, `<p>This form expired. <a href="${escapeHtml(`${base(request)}approve`)}">Open the requests again</a>.</p>`);
+      return await refuse(403, (t) => `<p>${t.say("page.expired")} <a href="${escapeHtml(`${base(request)}approve`)}">${t.say("page.open_again")}</a></p>`);
     }
     const ended = action === "approve" ? deps.page.approve(ref) : deps.page.cancel(ref);
     if (ended) {
@@ -131,18 +145,21 @@ export async function pageChannel(ws: WsClient): Promise<string[]> {
 
 // The owner page's part: how many asks wait (a top-level link, so the view
 // can't be framed) and the devices whose phone asks are paused, each with
-// the owner page's own revoke step.
-export function renderGateSection(page: GatePage, devices: DeviceRecord[], ingressPath: string): string {
+// the owner page's own revoke step. Without the worker's words: none.
+export async function renderGateSection(page: GatePage, devices: DeviceRecord[], ingressPath: string): Promise<string> {
   const root = `${ingressPath.replace(/\/$/, "")}/`;
   const waiting = page.waiting().length;
   const paused = page.pausedDevices().flatMap((id) => devices.filter((d) => d.deviceId === id));
-  if (waiting === 0 && paused.length === 0) return "";
-  const open = waiting === 0 ? "" : `<p>${waiting === 1 ? "One request" : `${waiting} requests`} from your computers ${waiting === 1 ? "waits" : "wait"} for your OK. <a class="linkbtn" target="_top" href="${escapeHtml(`${root}approve`)}">Open</a></p>`;
-  const rows = paused.map((d) => `<li><strong>${escapeHtml(d.name)}</strong> <span class="muted">three of its requests in a row were cancelled or went unanswered, so its phone asks pause for 15 minutes</span> <a class="linkbtn danger" href="${escapeHtml(`${root}?confirm=revoke_device&device=${encodeURIComponent(d.deviceId)}`)}">Revoke this device…</a></li>`).join("");
-  return `<section><h2>Waiting for your OK</h2>${open}${rows ? `<ul>${rows}</ul>` : ""}</section>`;
+  const t = waiting === 0 && paused.length === 0 ? null : await page.texts("");
+  if (t === null) return "";
+  const open = waiting === 0 ? "" : `<p>${waiting === 1 ? t.say("page.waiting_one") : t.say("page.waiting_many", { count: waiting })} <a class="linkbtn" target="_top" href="${escapeHtml(`${root}approve`)}">${t.say("page.open")}</a></p>`;
+  const rows = paused.map((d) => `<li><strong>${escapeHtml(d.name)}</strong>: <span class="muted">${t.say("page.paused")}</span> <a class="linkbtn danger" href="${escapeHtml(`${root}?confirm=revoke_device&device=${encodeURIComponent(d.deviceId)}`)}">${t.say("page.revoke_device")}</a></li>`).join("");
+  return `<section><h2>${t.say("page.heading")}</h2>${open}${rows ? `<ul>${rows}</ul>` : ""}</section>`;
 }
 
-// The link a non-owner administrator gets on the owner page's refusal.
-export function approveLink(request: IncomingMessage): string {
-  return `<p><a target="_top" href="${escapeHtml(`${base(request)}approve`)}">Requests waiting for your OK</a></p>`;
+// The link a non-owner administrator gets on the owner page's refusal;
+// without the worker's words, none.
+export async function approveLink(request: IncomingMessage, page: GatePage): Promise<string> {
+  const t = await page.texts("");
+  return t === null ? "" : `<p><a target="_top" href="${escapeHtml(`${base(request)}approve`)}">${t.say("page.link")}</a></p>`;
 }

@@ -1,4 +1,5 @@
 import type { Principal } from "../security/principal.js";
+import type { PageTextSource } from "./page-texts.js";
 import type { GateRequest, LinkWords, PageAsk, PhoneAnswer, PhoneLink, PhoneText, PreparedAsk } from "./gate-ask-types.js";
 import { ASK_MS, createAskTable } from "./gate-ask-table.js";
 import { HttpError } from "./errors.js";
@@ -50,7 +51,8 @@ export interface GateAsks {
   consume(principal: Principal, grantId: string, endpoint: GateEndpoint, body: Buffer): boolean;
 }
 
-export type GatePage = Pick<GateAsks, "waiting" | "pausedDevices" | "approve" | "cancel">;
+// The page also reads its words from the worker (page-texts.ts).
+export type GatePage = Pick<GateAsks, "waiting" | "pausedDevices" | "approve" | "cancel"> & { texts: PageTextSource };
 
 export const askRef = idKey; // an ask's ref on the page
 

@@ -87,8 +87,11 @@ function refuse(response: ServerResponse, owner: Extract<OwnerCheckResult, { ok:
 export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
   return async ({ request, response }) => {
     const owner = await checkOwner(request, { fetchAuthUsers: deps.fetchAuthUsers, logger: deps.logger });
-    if (!owner.ok) return refuse(response, owner, deps.gatePage !== undefined && owner.status === 403 && owner.unknownUser !== true ? approveLink(request) : "");
-    const [update] = await Promise.all([safeUpdate(deps)]);
+    if (!owner.ok) return refuse(response, owner, deps.gatePage !== undefined && owner.status === 403 && owner.unknownUser !== true ? await approveLink(request, deps.gatePage) : "");
+    const [update, gateSection] = await Promise.all([
+      safeUpdate(deps),
+      deps.gatePage === undefined ? "" : renderGateSection(deps.gatePage, deps.registry.list(), singleHeader(request, "x-ingress-path") ?? "/home"),
+    ]);
     const query = new URLSearchParams((request.url ?? "").split("?")[1] ?? "");
     // The bridge's internal device is shown under Chat apps, never as a
     // computer that could be revoked by mistake. Unreadable chat-app files
@@ -137,7 +140,7 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
       chatPhoneUserGone: chatWhoGone,
       chatUsers,
       chatRestarting: query.get("chat") === "restarting",
-      gateSection: deps.gatePage === undefined ? "" : renderGateSection(deps.gatePage, deps.registry.list(), singleHeader(request, "x-ingress-path") ?? "/home"),
+      gateSection,
     });
     setHeaders(response);
     response.statusCode = 200;

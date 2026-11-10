@@ -21,13 +21,14 @@ import { childEnv, superviseChild } from "./supervise-child.js";
 // its Unix socket too: no other listener can answer in the worker's place.
 // Each route's answer is capped at the largest the worker gives
 // (cli/command_gate.go, cli/gate_ask.go); a longer one is no answer.
-const MAX_ANSWER_BYTES = { "/check": 64 << 10, "/ask": 16 << 20, "/phone": 64 << 10, "/redact": 192 << 20 } as const;
+const MAX_ANSWER_BYTES = { "/check": 64 << 10, "/ask": 16 << 20, "/phone": 64 << 10, "/redact": 192 << 20, "/texts": 64 << 10 } as const;
 const TIMEOUT_MS = 20_000; // above the worker's own 15 s check budget (cli/command_gate.go)
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 export interface GateWorker extends GateClient {
   start(): void;
   restart(): void; // after a registry reset: the next start mints a new credential
+  texts(name: string): Promise<Record<string, unknown> | null>; // the approval page's words (page-texts.ts checks them)
 }
 
 // What the worker reads from relay.json to reach the Relay.
@@ -169,6 +170,9 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
     async phone(link, text, waitMs, stop) {
       const answer = await post("/phone", { ...text, link, wait_ms: waitMs }, waitMs + (deps.timeoutMs ?? TIMEOUT_MS), stop);
       return phoneAnswer(answer);
+    },
+    async texts(name) {
+      return await post("/texts", { name });
     },
     async redact(endpoint, request, response) {
       const answer = await post("/redact", { endpoint, request_b64: request.toString("base64"), response_b64: response.toString("base64") });
