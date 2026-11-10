@@ -24,9 +24,10 @@ type callSet struct {
 // actuated, from Home Assistant 2026.11's own code (services.async_call,
 // Script(, device actions); re-checked in docs/work/upstream-drift-log.md.
 // "domain" scopes one entity domain of a platform; "" every domain. group,
-// switch_as_x, and scenes are modeled instead (their members are visited).
+// switch_as_x, and scenes are modeled instead (their members are visited);
+// a generic thermostat or hygrostat calls what helperCalls bounds.
 var callingPlatforms = map[string]string{
-	"template": "", "universal": "", "generic_thermostat": "", "generic_hygrostat": "", "flux": "", "wake_on_lan": "",
+	"template": "", "universal": "", "flux": "", "wake_on_lan": "",
 	"alert": "", "pilight": "", "lifx": "light", "panasonic_viera": "media_player", "cast": "media_player", "demo": "vacuum", "marketplace": "update",
 }
 
@@ -45,8 +46,9 @@ var forwards = map[string]string{
 // after Astra's review), so a home with one loaded makes the set unknown.
 // YAML trigger-based template entities with actions, custom integrations,
 // and device firmware (an ESPHome homeassistant.action) are outside the
-// model (safety.md).
-var reactors = map[string]bool{"alert": true, "flux": true, "device_sun_light_trigger": true, "generic_thermostat": true, "generic_hygrostat": true}
+// model (safety.md). A generic thermostat or hygrostat is bounded by its
+// options instead (helperCalls).
+var reactors = map[string]bool{"alert": true, "flux": true, "device_sun_light_trigger": true}
 
 // called records a service the cascade calls by name.
 func (e *tierEngine) called(name string) {
@@ -142,7 +144,8 @@ func (e *tierEngine) builtIn(platform string) bool {
 }
 
 // reactorCalls makes the set unknown when a reactor is loaded in this home
-// (/api/config components: "flux" or "flux.switch"), or the list is unread.
+// (/api/config components: "flux" or "flux.switch"), or the list is unread;
+// a loaded thermostat or hygrostat helper adds what it calls.
 func (e *tierEngine) reactorCalls() {
 	var config struct {
 		Components []string `json:"components"`
@@ -152,10 +155,14 @@ func (e *tierEngine) reactorCalls() {
 		e.calls.unknown = true
 		return
 	}
+	helpers := false
 	for _, component := range config.Components {
-		if name, _, _ := strings.Cut(component, "."); reactors[name] {
-			e.calls.unknown = true
-		}
+		name, _, _ := strings.Cut(component, ".")
+		e.calls.unknown = e.calls.unknown || reactors[name]
+		helpers = helpers || helperOptionFields[name] != ""
+	}
+	if helpers {
+		e.helperCalls()
 	}
 }
 

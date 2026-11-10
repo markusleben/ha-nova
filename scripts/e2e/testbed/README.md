@@ -151,8 +151,13 @@ home in `.state`. The RC lane runs all three with the tag's binary
   light group in a script, `switch_as_x` lights on a template switch and on a
   relay with an automation, and a chain of service-call listeners: every
   automation that really ran (Home Assistant's traces) must be among the
-  plan's consumers. It leaves its automations on the bed, so run other
-  checks before it.
+  plan's consumers. With a UI generic thermostat whose heater is a fan
+  nothing listens to, a light call stays ordinary and planning leaves the
+  thermostat's entry and state as they were (MAR-131: its options flow is
+  started and aborted); setting it to heat turns the fan on through
+  `homeassistant.turn_on`, a consumer; a second thermostat whose heater the
+  relay automation follows makes every listener count. It leaves its
+  automations on the bed, so run other checks before it.
 
 
 ## Agent lane (opt-in, not an RC lane step)
