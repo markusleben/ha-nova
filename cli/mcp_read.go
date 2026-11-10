@@ -297,8 +297,8 @@ func mcpReadRefusal(endpoint string, body []byte) error {
 			return fmt.Errorf("ha_read only reads; to change something, %s; nothing was sent", mcpPlanRoute())
 		}
 	case "files":
-		if action, _ := payload["action"].(string); action != "list_dir" && action != "read_file" {
-			return fmt.Errorf("ha_read reads files with list_dir and read_file only; to write or delete one, %s; nothing was sent", mcpPlanRoute())
+		if action, _ := payload["action"].(string); action != "list_dir" && action != "read_file" && action != "list_deleted" {
+			return fmt.Errorf("ha_read reads files with list_dir, read_file, and list_deleted only; to write, delete, or put back one, %s; nothing was sent", mcpPlanRoute())
 		}
 	case "backups":
 		if action, _ := payload["action"].(string); action != "list" && action != "load" {

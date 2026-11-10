@@ -26,7 +26,7 @@ import (
 // any other request.
 func rawFileChange(endpoint string, payload map[string]any) string {
 	file, _ := payload["path"].(string)
-	if endpoint != "files" || payload["action"] != "write_file" && payload["action"] != "delete_file" {
+	if endpoint != "files" || !slices.Contains([]any{"write_file", "delete_file", "restore_file"}, payload["action"]) {
 		return ""
 	}
 	return file
@@ -81,6 +81,13 @@ func (n *rawNamer) fileKept(earlier []rawRequest, payload map[string]any) (refus
 	if _, again := n.files[key]; again {
 		return rawDrop{message: "a plan changes the file " + file + " once", hint: "Plan one change per file: one write of the whole file, or its delete."}, nil
 	}
+	if n.files == nil {
+		n.files = map[string]any{}
+	}
+	if payload["action"] != "write_file" && wwwFile(file) || payload["action"] == "restore_file" { // the Relay keeps the copy (plan_raw_www.go)
+		n.files[key] = "kept by the Relay"
+		return n.mediaKept(payload)
+	}
 	live, err := readLiveFile(n.s, file)
 	var call *relayCallError
 	if errors.As(err, &call) && slices.Contains([]string{"FILE_TOO_LARGE", "FILE_NOT_TEXT", "FILE_NOT_REGULAR", "FILE_IS_DIRECTORY", "FILE_PATH_DENIED", "FILE_PATH_INVALID"}, call.code) {
@@ -89,9 +96,6 @@ func (n *rawNamer) fileKept(earlier []rawRequest, payload map[string]any) (refus
 	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot read the file %s, so nothing was planned or sent: %w", file, err)
-	}
-	if n.files == nil {
-		n.files = map[string]any{}
 	}
 	n.files[key] = fileBasis(live)
 	deletes := payload["action"] == "delete_file"
@@ -138,7 +142,7 @@ func (n *rawNamer) fileKept(earlier []rawRequest, payload map[string]any) (refus
 // be the one the plan's basis holds (sceneUnchanged).
 func fileUnchanged(s *relaySession, endpoint string, payload, basis map[string]any) (refusal, err error) {
 	file := rawFileChange(endpoint, payload)
-	if file == "" {
+	if file == "" || payload["action"] != "write_file" && wwwFile(file) || payload["action"] == "restore_file" { // the Relay checks what it deletes or puts back
 		return nil, nil
 	}
 	live, err := readLiveFile(s, file)

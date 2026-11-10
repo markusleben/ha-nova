@@ -44,6 +44,7 @@ App notice (the version changes with 0.30): Claude and ChatGPT get the release's
 - **Removing up to five items you named from the shopping list runs right away.**
 - **When a NOVA App update is waiting, setup in a terminal offers it once setup works.** It asks first and uses the same safety check as `ha-nova update`.
 - **Fewer prompts in Claude Code: setup can allow HA NOVA's read commands once.** You still confirm every unlock or delete yourself.
+- **HA NOVA can now list and delete the pictures and videos in your www folder.** Each delete asks like unlocking a door, and the NOVA App keeps a copy for 30 days, so "undo" puts it back. HACS's files there stay untouched, and HA NOVA still never writes in www.
 - **Long changes from other AI apps on your computer keep running past the app's time limit.** That covers apps added through setup's "Other AI apps" row. Asking again gets the result, and nothing runs twice.
 
 ### What To Watch
@@ -59,7 +60,7 @@ App notice (the version changes with 0.30): Claude and ChatGPT get the release's
 - **HA NOVA overwrites or deletes a file in your config folder only once a copy of it is saved.** It stops if the file changed since the preview.
 - **Helper and dashboard-name changes are now checked before they are saved, and a helper change can be undone.**
 - **Reloading an automation or your scripts is now checked like what it loads.** A harmless reload no longer asks like unlocking a door; one that can unlock still does. A change also checks what its reload sets off.
-- **When the NOVA App refuses a file (for example anything under /config/www), HA NOVA now says why instead of reporting a sign-in problem.**
+- **When the NOVA App refuses a file (for example anything under /config/custom_components), HA NOVA now says why instead of reporting a sign-in problem.**
 - **Over Home Assistant Link, `ha-nova update` now offers the NOVA App update too.** In a terminal it installs the App after your yes, waits while it restarts, and checks the new version.
 - **Updating a Marketplace item now stops before anything is sent and says where to do it.** HA NOVA can't install Marketplace updates yet: Home Assistant asks for its warning to be accepted first.
 

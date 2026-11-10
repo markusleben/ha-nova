@@ -163,7 +163,7 @@ deploy or tag.
    from the last stable, doctor, a read and an ordinary call, client wiring,
    rerun, stale uninstall marker, uninstall and purge, as fresh standard
    users in PowerShell 7 and 5.1 (`docs/release-validation.md` "Windows
-   Public Onboarding Lane"); and one chat-app file delete in `www` through
+   Public Onboarding Lane"); and one chat-app file delete in `custom_components` through
    Home Assistant's chat-app endpoint into the App's own bridge, which must
    end refused with `FILE_PATH_DENIED` (set up once on the HAOS VM: chat
    apps on, the setup token's user at Manage everything, the App's file

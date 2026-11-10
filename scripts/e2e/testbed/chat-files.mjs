@@ -10,10 +10,11 @@
 //
 // Asserts the designed outcome (below Manage everything: refused for the
 // level; at Manage everything: reads run, writes and deletes need the
-// one-time code, a delete needs its copy saved first) and that a refusal
+// one-time code, a delete needs its copy saved first, except a picture in
+// www, whose copy the App keeps) and that a refusal
 // names its real cause, never the sign-in, setup, or the file access
-// setting. Leaves /config/www/rclane-mailbox.jpg (it must survive); the
-// bridge's home and data live in .state. On a gated Relay (0.30, /health
+// setting. Leaves /config/custom_components/rclane/camera.py (it must
+// survive); the bridge's home and data live in .state. On a gated Relay (0.30, /health
 // gate 1) this bridge runs on the shared token, not the App's own bridge
 // credential, so the Relay holds its typed writes: each write and delete is
 // refused with the bridge's own words, and the file stays as it was. The
@@ -97,7 +98,7 @@ const plan = (requests) => tool("ha_plan", { kind: "raw", requests });
 try {
   level("manage");
   for (let i = 0; i < 60 && !(await fetch(`http://127.0.0.1:${port}/mcp`).then(() => true, () => false)); i++) await sleep(500);
-  inHA("mkdir -p /config/www && printf 'not a real photo' > /config/www/rclane-mailbox.jpg && rm -f /config/rclane-note.txt /config/rclane-run.sh && printf 'rc lane\\n' > /config/rclane-delete.txt");
+  inHA("mkdir -p /config/custom_components/rclane /config/www/rclane && printf 'pass\\n' > /config/custom_components/rclane/camera.py && printf 'not a real photo' > /config/www/rclane/door.jpg && rm -f /config/rclane-note.txt /config/rclane-run.sh && printf 'rc lane\\n' > /config/rclane-delete.txt");
   const NOTE = "/config/rclane-note.txt", DEL = "/config/rclane-delete.txt";
   const onDisk = (path) => inHA(`test -f ${path} && echo kept || echo gone`).trim();
   const gated = health.data?.gate === 1;
@@ -108,7 +109,7 @@ try {
   for (const name of ["ask", "use"]) {
     level(name);
     for (const [what, d] of [["read", await readFile("/config/configuration.yaml")], ["write", await plan([fileOp("write_file", NOTE, "rc lane\n")])],
-      ["delete", await plan([fileOp("delete_file", "/config/www/rclane-mailbox.jpg")])]]) {
+      ["delete", await plan([fileOp("delete_file", "/config/custom_components/rclane/camera.py")])]]) {
       check(`${name}: a file ${what} is refused for the level, naming it`, d.error?.code === "CHAT_LEVEL" && !WRONG_CAUSE.test(words(d)), short(d));
     }
     const call = await tool("ha_call", { service: "light.turn_off", entity_ids: ["light.living_room_rgbww_lights"] });
@@ -141,10 +142,30 @@ try {
       `plan ${del.tier ?? short(del)}, apply ${delApplied.status ?? short(delApplied)}, file ${gone}`);
   }
 
+  // A picture in www (0.30): the code, no copy to save first, the App keeps
+  // one; ha_read lists it, and the apply names the undo. A gated Relay holds
+  // it like the other deletes: refused, naming why, and no copy is made.
+  const pic = await plan([fileOp("delete_file", "/config/www/rclane/door.jpg")]);
+  const picApplied = code(pic) ? await tool("ha_apply", { plan_id: pic.plan.id, confirm_code: code(pic) }) : {};
+  const copies = JSON.stringify(await tool("ha_read", { endpoint: "files", payload: { action: "list_deleted" } }));
+  const picGone = onDisk("/config/www/rclane/door.jpg");
+  const asked = pic.tier === "typed" && Boolean(code(pic)) && !/backups save/.test(pic.next_step ?? "");
+  if (gated) {
+    check("manage, gated Relay: a picture in www needs the code, then the Relay holds it: refused, naming why; the picture stays, no copy",
+      asked && held(picApplied) && picGone === "kept" && !copies.includes("/config/www/rclane/door.jpg") && /"copies"/.test(copies),
+      `plan ${pic.tier ?? short(pic)}, apply ${short(picApplied)}; file ${picGone}, ${copies.slice(0, 200)}`);
+  } else {
+    check("manage: a picture in www needs the code, is deleted, and its copy is listed with the undo named",
+      asked && !picApplied.error && picGone === "gone" &&
+        copies.includes("/config/www/rclane/door.jpg") && (picApplied.next_step ?? "").includes("restore_file"),
+      `plan ${pic.tier ?? short(pic)}, apply ${picApplied.status ?? short(picApplied)}, file ${picGone}, ${copies.slice(0, 200)}`);
+  }
+  inHA("rm -rf /config/www/rclane");
+
   // The Relay refuses these itself (an HTTP 403): the answer must say why.
-  const photo = await plan([fileOp("delete_file", "/config/www/rclane-mailbox.jpg")]);
-  const kept = inHA("test -f /config/www/rclane-mailbox.jpg && echo kept || echo gone").trim();
-  check("manage: deleting a file in www is refused, naming why; the file stays", !photo.plan?.code && words(photo).includes("FILE_PATH_DENIED") && !WRONG_CAUSE.test(words(photo)) && kept === "kept", `${short(photo)}; ${kept}`);
+  const photo = await plan([fileOp("delete_file", "/config/custom_components/rclane/camera.py")]);
+  const kept = inHA("test -f /config/custom_components/rclane/camera.py && echo kept || echo gone").trim();
+  check("manage: deleting a file in custom_components is refused, naming why; the file stays", !photo.plan?.code && words(photo).includes("FILE_PATH_DENIED") && !WRONG_CAUSE.test(words(photo)) && kept === "kept", `${short(photo)}; ${kept}`);
   const log = await readFile("/config/home-assistant.log");
   check("manage: reading the log file is refused, naming why", words(log).includes("FILE_PATH_DENIED") && !WRONG_CAUSE.test(words(log)), short(log));
   const script = await plan([fileOp("write_file", "/config/rclane-run.sh", "#!/bin/sh\n")]);

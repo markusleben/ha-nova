@@ -67,6 +67,9 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		if len(handoffs) > 0 { // they still hold for those flows
 			env.Error.Next = handoff() + " " + env.Error.Next
 		}
+		if restores := wwwRestores(items, result); len(restores) > 0 && env.Error != nil {
+			env.Error.Next += " The images and videos deleted before the stop can be put back: ha-nova plan raw with [" + strings.Join(restores, ",") + "]."
+		}
 		return err
 	}
 	undo := func(i int) error {
@@ -205,6 +208,10 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 	}
 	if env.undoable {
 		env.NextStep += fmt.Sprintf(" If they say “undo”: ha-nova plan revert --target %s.", env.Undo.TargetID)
+	}
+	if restores := wwwRestores(items, result); len(restores) > 0 {
+		env.Say += " HA NOVA keeps a copy of what it deleted for 30 days."
+		env.NextStep += " If they say “undo”: ha-nova plan raw with [" + strings.Join(restores, ",") + "] (ha-nova relay files with {\"action\":\"list_deleted\"} lists every kept copy and until when)."
 	}
 	for _, item := range items {
 		payload, _ := decodeObject(item.Payload)

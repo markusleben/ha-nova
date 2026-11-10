@@ -99,7 +99,7 @@ release:
     - **HA NOVA overwrites or deletes a file in your config folder only once a copy of it is saved.** It stops if the file changed since the preview.
     - **Helper and dashboard-name changes are now checked before they are saved, and a helper change can be undone.**
     - **Reloading an automation or your scripts is now checked like what it loads.** A harmless reload no longer asks like unlocking a door; one that can unlock still does. A change also checks what its reload sets off.
-    - **When the NOVA App refuses a file (for example anything under /config/www), HA NOVA now says why instead of reporting a sign-in problem.**
+    - **When the NOVA App refuses a file (for example anything under /config/custom_components), HA NOVA now says why instead of reporting a sign-in problem.**
     - **Over Home Assistant Link, `ha-nova update` now offers the NOVA App update too.** In a terminal it installs the App after your yes, waits while it restarts, and checks the new version.
     - **Updating a Marketplace item now stops before anything is sent and says where to do it.** HA NOVA can't install Marketplace updates yet: Home Assistant asks for its warning to be accepted first.
 

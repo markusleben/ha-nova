@@ -307,7 +307,7 @@ Limits: max 300s duration, max 5 concurrent subscriptions.
 
 Security:
 - Paths must be within `/config` (HA config root)
-- Deny-list segments: `.storage`, `.cloud`, `.ssh`, `.git`, `deps`, `ssl`, `tts`, `backups`, `custom_components`, `python_scripts`, `www` — plus secret/db/env/log filename patterns
+- Deny-list segments: `.storage`, `.cloud`, `.ssh`, `.git`, `deps`, `ssl`, `tts`, `backups`, `custom_components`, `python_scripts`, `www` — plus secret/db/env/log filename patterns. `/config/www` (by name, and by device and inode for links and bind mounts) allows only `list_dir`, a `delete_file` of a plain image or video (`.jpg` `.jpeg` `.png` `.gif` `.webp` `.mp4`) that first keeps a copy in the Relay's data folder (`www-undo`: 25 MiB per file, 100 MiB in total, 30 days), `restore_file` of such a copy to its own path (never over an existing entry), and `list_deleted`; `/config/www/community` stays denied (docs/work/2026-11-10-www-media-delete-spec.md)
 - Symlink traversal check
 - Writes gated by extension (`.yaml`, `.yml`, `.conf`, `.json`, `.txt`, `.md`); there is no directory whitelist — keeping HA NOVA files under `/config/ha_nova/` is skill convention, not relay enforcement
 

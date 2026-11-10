@@ -67,6 +67,7 @@ var confirmedActions = []confirmedGroup{
 		{confirmedRawPrefix + "resource_create", "Add a dashboard resource (code every browser runs)"},
 		{confirmedRawPrefix + "resource_update", "Change a dashboard resource"},
 		{confirmedRawPrefix + "file_write", "Write a file in the config folder"},
+		{confirmedRawPrefix + "file_restore", "Put a deleted image or video back in the www folder"},
 		{confirmedRawPrefix + "app_install", "Install an App"},
 		{confirmedRawPrefix + "app_settings", "Change an App's settings"},
 	}},

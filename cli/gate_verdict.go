@@ -134,7 +134,7 @@ func gateVerdict(endpoint string, body []byte, session func() (*relaySession, er
 		}
 	}
 	action, _ := payload["action"].(string)
-	storeRead := map[string]bool{"files read_file": true, "files list_dir": true, "backups list": true, "backups load": true}[endpoint+" "+action]
+	storeRead := map[string]bool{"files read_file": true, "files list_dir": true, "files list_deleted": true, "backups list": true, "backups load": true}[endpoint+" "+action]
 	target, _ := payload["path"].(string)
 	target, _ = relayCorePath(target)
 	verbRead := checkReadOnlyRequest(endpoint, payload) == nil && !flowStepPath.MatchString(target)
@@ -246,7 +246,7 @@ func gateDuplicateKeys(body []byte) bool {
 // (checkReadOnlyRequest, checkPhoneRead) or write besides the plans'
 // service calls and config writes (dashboards, a device's area), Link
 // setup's cloud/status read, a listed
-// Supervisor request, and every files or backups action (the Relay checks
+// Supervisor request, every files action the Relay knows, and every backups action (the Relay checks
 // those itself).
 func gateRecognized(endpoint string, payload map[string]any, body []byte) bool {
 	switch endpoint {
@@ -255,6 +255,8 @@ func gateRecognized(endpoint string, payload map[string]any, body []byte) bool {
 			checkPhoneRead(endpoint, payload) == nil || endpoint == "ws" && (dashboardWrite(payload) || deviceAreaUpdate(payload) || len(payload) == 1 && payload["type"] == "cloud/status") // Link setup (cloudLocalDiscovery)
 	case "supervisor":
 		return checkRawSupervisor(payload) == nil
+	case "files": // the actions the Relay knows: a new one passes only a worker that rates it
+		return slices.Contains([]any{"list_dir", "read_file", "write_file", "delete_file", "restore_file", "list_deleted"}, payload["action"])
 	}
 	return true
 }

@@ -72,7 +72,7 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain("**Reloading an automation or your scripts is now checked like what it loads.**");
     expect(stableNotes).toContain("**Changing the same automation or script again right away no longer asks.**");
     expect(stableNotes).toContain("**Over Home Assistant Link, `ha-nova update` now offers the NOVA App update too.**");
-    expect(stableNotes).toContain("**When the NOVA App refuses a file (for example anything under /config/www), HA NOVA now says why");
+    expect(stableNotes).toContain("**When the NOVA App refuses a file (for example anything under /config/custom_components), HA NOVA now says why");
     expect(stableNotes).toContain("**Confirmation windows are short and readable.** Same-kind steps share one line");
     expect(stableNotes).toContain("**Updating a Marketplace item now stops before anything is sent and says where to do it.**");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.

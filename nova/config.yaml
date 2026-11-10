@@ -43,6 +43,12 @@ panel_admin: true
 discovery:
   - ha_nova
 
+# The copies of images and videos HA NOVA deleted from /config/www
+# (nova/src/http/handlers/files-www.ts) stay out of Home Assistant backups:
+# a picture the user deleted shouldn't live on in every backup.
+backup_exclude:
+  - "*/www-undo/**"
+
 # Read-write access to the Home Assistant configuration directory. The relay
 # only USES it when the file_access option is set (default: off), or, for chat
 # apps, to write custom_components/ha_nova when the owner turns them on (and

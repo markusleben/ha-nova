@@ -1,14 +1,18 @@
+import { join } from "node:path";
+
 import type { FileAccessConfig } from "../../config/file-access.js";
 import { HttpError } from "../errors.js";
 import type { RouteContext, RouteHandler } from "../router.js";
 import { deleteFile, listDir, MAX_WRITE_BYTES, readTextFile, writeTextFile } from "./files-ops.js";
 import { assertOutsideData, assertWritableExtension, resolveTargetPath, type FileAction } from "./files-paths.js";
+import { COPY_ID, deleteMedia, listDeleted, restoreMedia } from "./files-www.js";
 
 export interface FilesHandlerOptions {
   fileAccess: FileAccessConfig;
+  now?: () => number;
 }
 
-const WRITE_ACTIONS = new Set<FileAction>(["write_file", "delete_file"]);
+const WRITE_ACTIONS = new Set<FileAction>(["write_file", "delete_file", "restore_file"]);
 
 /**
  * Generic file transport for Home Assistant's configuration directory — the one
@@ -40,18 +44,37 @@ export function createFilesHandler(options: FilesHandlerOptions): RouteHandler {
       assertWritableExtension(request.path);
     }
 
+    const now = options.now ?? Date.now;
+    // The copies of deleted www media live in the Relay's own data folder;
+    // without one nothing in www is deleted or put back.
+    const store = (): string => {
+      const { dataDir } = options.fileAccess;
+      if (dataDir === undefined) {
+        throw new HttpError(500, "UNDO_STORE_UNAVAILABLE", "This Relay has no data folder to keep copies in, so it deletes nothing in www; nothing was changed");
+      }
+      return join(dataDir, "www-undo");
+    };
+    if (request.action === "list_deleted") {
+      return await listDeleted(store(), now);
+    }
+
     const target = await resolveTargetPath(configRoot, request.path, request.action);
-    await assertOutsideData(target, options.fileAccess.dataDir);
+    await assertOutsideData(target.absolute, options.fileAccess.dataDir);
 
     switch (request.action) {
       case "list_dir":
-        return await listDir(target, request.path);
+        return await listDir(target.absolute, request.path);
       case "read_file":
-        return await readTextFile(target, request.path);
+        return await readTextFile(target.absolute, request.path);
       case "write_file":
-        return await writeTextFile(target, request.path, request.content, request.backup, configRoot);
+        return await writeTextFile(target.absolute, request.path, request.content, request.backup, configRoot);
       case "delete_file":
-        return await deleteFile(target, request.path);
+        return target.www ? await deleteMedia(target, store(), now) : await deleteFile(target.absolute, request.path);
+      case "restore_file":
+        if (!target.www) {
+          throw new HttpError(403, "FILE_PATH_DENIED", "the relay puts back only images and videos it deleted from www");
+        }
+        return await restoreMedia(target, request.copy, store(), now);
     }
   };
 }
@@ -61,6 +84,7 @@ interface FilesRequest {
   path: string;
   content: string;
   backup: boolean;
+  copy: string;
 }
 
 function parseFilesRequest(body: unknown): FilesRequest {
@@ -74,18 +98,31 @@ function parseFilesRequest(body: unknown): FilesRequest {
     action !== "list_dir" &&
     action !== "read_file" &&
     action !== "write_file" &&
-    action !== "delete_file"
+    action !== "delete_file" &&
+    action !== "restore_file" &&
+    action !== "list_deleted"
   ) {
     throw new HttpError(
       400,
       "VALIDATION_ERROR",
-      "action must be one of: list_dir, read_file, write_file, delete_file"
+      "action must be one of: list_dir, read_file, write_file, delete_file, restore_file, list_deleted"
     );
+  }
+  if (action === "list_deleted") {
+    return { action, path: "", content: "", backup: true, copy: "" };
   }
 
   const path = raw.path;
   if (typeof path !== "string" || path.trim().length === 0 || path.length > 2048) {
     throw new HttpError(400, "VALIDATION_ERROR", "path must be a non-empty string");
+  }
+
+  let copy = "";
+  if (action === "restore_file") {
+    if (typeof raw.copy !== "string" || !COPY_ID.test(raw.copy)) {
+      throw new HttpError(400, "VALIDATION_ERROR", "restore_file requires 'copy': the id delete_file or list_deleted answered");
+    }
+    copy = raw.copy;
   }
 
   let content = "";
@@ -120,5 +157,5 @@ function parseFilesRequest(body: unknown): FilesRequest {
   }
   const backup = raw.backup ?? true;
 
-  return { action, path, content, backup };
+  return { action, path, content, backup, copy };
 }

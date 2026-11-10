@@ -114,7 +114,7 @@ Good to know:
 
 | Option | Description |
 |--------|-------------|
-| **File access (advanced)** | Lets HA NOVA read or change some Home Assistant config files. Off by default. |
+| **File access (advanced)** | Lets HA NOVA read or change some Home Assistant config files, and delete pictures and videos in the `www` folder. Off by default. The App keeps a copy of each deleted picture or video for 30 days; uninstalling the App or restoring a Home Assistant backup drops those copies. |
 
 Each computer gets its own key when it connects. Earlier versions also had a
 "Relay Auth Token" option, one shared key for every computer. This App no

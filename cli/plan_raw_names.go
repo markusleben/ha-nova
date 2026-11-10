@@ -15,18 +15,19 @@ import (
 
 // rawNamer reads names for the lines, each list once per plan.
 type rawNamer struct {
-	s         *relaySession
-	e         *tierEngine
-	lists     map[string]map[string]string // list request → id → name
-	prefs     map[string]any               // energy/get_prefs (rawItemTier)
-	prefsOK   bool
-	prefsRead bool
-	snapshots map[string]any      // the snapshot store's list, by file (snapshotListed)
-	deleting  map[string]any      // the listed entries of the copies the plan deletes
-	removing  map[string]any      // device id → the devices and entities deleting it removes (deviceEntities)
-	scenes    map[string]any      // scene id → the live config a save replaces, or "absent" (sceneKept)
-	dropped   map[string][]string // scene id → the members its save removes after a copy (sceneKept)
-	listed    []string            // the names the last targets call listed
+	wwwPlanned int64 // bytes of the www deletes planned so far, whose copies the Relay will keep (mediaRoom)
+	s          *relaySession
+	e          *tierEngine
+	lists      map[string]map[string]string // list request → id → name
+	prefs      map[string]any               // energy/get_prefs (rawItemTier)
+	prefsOK    bool
+	prefsRead  bool
+	snapshots  map[string]any      // the snapshot store's list, by file (snapshotListed)
+	deleting   map[string]any      // the listed entries of the copies the plan deletes
+	removing   map[string]any      // device id → the devices and entities deleting it removes (deviceEntities)
+	scenes     map[string]any      // scene id → the live config a save replaces, or "absent" (sceneKept)
+	dropped    map[string][]string // scene id → the members its save removes after a copy (sceneKept)
+	listed     []string            // the names the last targets call listed
 
 	classedOnly  bool              // accessWhy's second pass: covers without a class don't count
 	coverClasses map[string]string // one raw item's cover classes, read once for both passes (capableOnce)
