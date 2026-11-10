@@ -15,6 +15,7 @@ const writeSkill = read("skills/write/SKILL.md");
 const tierScan = read("cli/tier_scan.go");
 const tierWalk = read("cli/tier_walk.go");
 const tierListeners = read("cli/tier_listeners.go");
+const tierCallset = read("cli/tier_callset.go");
 const tierRules = read("cli/tier_rules.go");
 // Contract docs hard-wrap at ~72 columns, so a pinned sentence must not also
 // pin the column it happens to break at.
@@ -29,6 +30,7 @@ describe("indirect actuation and tier classification (#513)", () => {
       expect(tierScan).toContain("// scanConsumers runs once per acted entity");
       expect(tierWalk).toContain('if name == "scene.apply" {');
       expect(tierListeners).toContain('if eventType == "call_service" {');
+      expect(tierCallset).toContain("func (e *tierEngine) callServiceListeners() {");
       // The gate itself has to say it too — pinning only service-call left the
       // shared contract free to drop the rule, which a mutation proved.
       expect(flat(indirectActuation)).toContain(
@@ -104,11 +106,14 @@ describe("indirect actuation and tier classification (#513)", () => {
       expect(gate).toContain("helper toggle that another automation answers by unlocking a door");
       // Every service call emits an event before its handler; relation scans
       // cannot see an automation that listens to that event.
-      expect(gate).toContain("Every requested or expanded service call also emits a `call_service` event");
+      expect(gate).toContain("and every call Home Assistant makes for it");
+      expect(gate).toContain("emits a `call_service` event before its handler runs");
       expect(gate).toContain("`search/related` does not index those listeners");
-      expect(gate).toContain("apply their literal `event_data` filters");
+      expect(gate).toContain("match their literal `event_data` `domain` and `service` against those calls");
+      expect(gate).toContain("repeat for each match's own calls");
+      expect(gate).toContain("When the calls can't be bounded");
+      expect(gate).toContain("every listener counts");
       expect(gate).toContain("an unenumerable listener escalates");
-      expect(gate).toContain("Repeat for nested calls");
       // A stored event: action reaches its listeners, which the config being
       // read does not name.
       expect(gate).toContain("A stored `event:` action reaches further");

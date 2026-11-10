@@ -64,11 +64,11 @@ func TestGuidedRelayUpdateInstallsOnlyAtPreview(t *testing.T) {
 			tc.setup(s.ha)
 			install := planCallRequest{Service: "update.install", EntityIDs: []string{"update.nova_relay_update"}, Data: map[string]any{"backup": true}, Skill: "ha-nova:updates"}
 			cfg := config{RelayBaseURL: server.URL}
-			if tc.wantInstalls == 1 && (relayGuidedCallAllowed(paths, cfg, "token", install, tierOrdinary) || !relayGuidedCallAllowed(paths, cfg, "token", install, tierPreview)) {
+			if tc.wantInstalls == 1 && (relayGuidedCallAllowed(paths, homeUpdateRoute(cfg, "token"), install, tierOrdinary) || !relayGuidedCallAllowed(paths, homeUpdateRoute(cfg, "token"), install, tierPreview)) {
 				t.Fatalf("setup: the install must classify as exactly preview")
 			}
 			var out bytes.Buffer
-			verified := runGuidedRelayUpdate(paths, cfg, "token", bufio.NewReader(strings.NewReader("\n")), &out)
+			verified := runGuidedRelayUpdate(paths, homeUpdateRoute(cfg, "token"), bufio.NewReader(strings.NewReader("\n")), &out)
 			s.ha.mu.Lock()
 			posts := s.posts
 			s.ha.mu.Unlock()

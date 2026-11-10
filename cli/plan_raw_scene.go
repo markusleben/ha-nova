@@ -235,7 +235,7 @@ func (n *rawNamer) sceneNote(lang string, payload map[string]any) string {
 	for _, id := range dropped {
 		names = append(names, n.entity(id))
 	}
-	return confirmT(lang, "raw.scene_drops", "members", sayList(lang, names))
+	return confirmT(lang, "raw.scene_drops", "members", sayAll(lang, names))
 }
 
 // copyNeeded: what a scene save or guarded update in items removes that

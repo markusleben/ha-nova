@@ -31,7 +31,7 @@ func TestBatchWindowShowsEveryItem(t *testing.T) {
 		t.Fatalf("plan batch: exit %d say %q next %q", exit, env.Say, env.NextStep)
 	}
 	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
-	if exit != 0 || itemStatuses(batchItems(t, applied)) != "verified,verified,verified,verified" || len(w.messages) != 1 || w.messages[0] != batchFourList+"\n\n"+windowAsked("en") {
+	if exit != 0 || itemStatuses(batchItems(t, applied)) != "verified,verified,verified,verified" || len(w.messages) != 1 || w.messages[0] != windowMessage("en", batchFourList, false) {
 		t.Fatalf("apply: exit %d %+v window %q", exit, applied.Error, w.messages)
 	}
 }
@@ -50,7 +50,7 @@ func TestBatchWindowAndPhoneRaceSendOnce(t *testing.T) {
 			_, env := h.batch(batchFour(h)...)
 			go func() { p.waitSent(); close(first); time.Sleep(250 * time.Millisecond); close(late) }()
 			exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
-			if exit != 0 || applied.Status != "verified" || len(h.writes()) != 4 || w.messages[0] != batchFourList+"\n\n"+windowBoth("en")+"\n"+windowAsked("en") {
+			if exit != 0 || applied.Status != "verified" || len(h.writes()) != 4 || w.messages[0] != windowMessage("en", batchFourList, true) {
 				t.Fatalf("exit %d %+v writes %d window %q", exit, applied.Error, len(h.writes()), w.messages)
 			}
 			<-late
@@ -157,13 +157,16 @@ func TestBatchPhoneTitles(t *testing.T) {
 	}
 }
 
-// The longest list that may show (20 deletes, 60-character names) fits the
-// window; a longer one is refused, never cut, and its plans come back.
+// 20 deletes (30-character names) fit the window on one shared line that
+// names every one; 20 with 60-character names, or 20 members with a
+// reason each, are refused, never cut, and their plans come back.
 func TestBatchWindowBudget(t *testing.T) {
 	f := newFakeHA()
-	name := func(i int) string { return fmt.Sprintf("Long automation name %02d %s", i, strings.Repeat("y", 36)) }
+	name := func(i int) string { return fmt.Sprintf("Long automation name %02d %s", i, strings.Repeat("y", 6)) }
+	longer := func(i int) string { return fmt.Sprintf("Long automation name %02d %s", i, strings.Repeat("y", 36)) }
 	for i := 1; i <= batchMaxMembers; i++ {
 		f.storeConfig(fmt.Sprintf("/api/config/automation/config/l%d", i), map[string]any{"alias": name(i), "actions": []any{step("light.turn_on", "light.hall")}})
+		f.storeConfig(fmt.Sprintf("/api/config/automation/config/m%d", i), map[string]any{"alias": longer(i), "actions": []any{step("light.turn_on", "light.hall")}})
 	}
 	h := newWriteHarness(t, f)
 	var deletes, unlocks []string
@@ -175,13 +178,26 @@ func TestBatchWindowBudget(t *testing.T) {
 		t.Fatalf("20 deletes: exit %d %+v", exit, env.Error)
 	}
 	stored, err := readPlanFile(filepath.Join(planDir(h.paths), env.Plan.ID+".json"))
-	text := confirmText(stored, false) + "\n\n" + windowBoth("en") + "\n" + windowAsked("en")
-	lines, chars := strings.Count(text, "\n")+1, utf8.RuneCountInString(text)
-	t.Logf("the longest window: %d lines, %d characters", lines, chars)
-	if err != nil || lines > batchWindowLines || chars > batchWindowChars || !strings.Contains(text, "\n20. Delete the automation “"+name(20)+"”.\n") {
-		t.Fatalf("%d lines, %d characters (%v): %s", lines, chars, err, text)
+	text := confirmText(stored, false)
+	lines, fits := windowFits("en", text)
+	t.Logf("the longest window: %d lines", lines)
+	if err != nil || !fits || !strings.Contains(text, "\n1–20. Delete 20 automations: “"+name(1)+"”, “"+name(2)+"”, ") || !strings.Contains(text, " and “"+name(20)+"”.\n") {
+		t.Fatalf("%d lines (%v): %s", lines, err, text)
 	}
 	useWindow(t)
+	var long []string
+	for i := 1; i <= batchMaxMembers; i++ {
+		long = append(long, h.member("delete", "automation."+strings.ReplaceAll(strings.ToLower(longer(i)), " ", "_")))
+	}
+	exit, refused := h.batch(long...)
+	if exit != 4 || refused.Error.Code != "BATCH_TOO_LONG" {
+		t.Fatalf("20 deletes, 60-character names: exit %d %+v", exit, refused.Error)
+	}
+	if size := splitSize(t, refused.Error.Next, "[(]each"); size < 2 || size >= batchMaxMembers {
+		t.Fatalf("split into batches of %d: %q", size, refused.Error.Next)
+	} else if exit, env := h.batch(long[:size]...); exit != 3 || env.Plan.Channel != channelWindow {
+		t.Fatalf("a batch of %d: exit %d %+v", size, exit, env.Error)
+	}
 	for i := 1; i <= batchMaxMembers; i++ {
 		unlocks = append(unlocks, h.writePlan("automation", fmt.Sprintf("l%d", i), map[string]any{"alias": name(i), "actions": []any{step("lock.unlock", "lock.front")}}))
 	}
@@ -191,7 +207,7 @@ func TestBatchWindowBudget(t *testing.T) {
 		t.Fatalf("20 unlocks: exit %d %+v files %d", exit, env.Error, len(h.planFiles()))
 	}
 	var failure *verbFailure
-	if err := batchWindowFits(storedPlan{Lang: "en", Prompt: strings.Repeat("A name that grew.\n", batchWindowLines)}, "apply"); !errors.As(err, &failure) ||
+	if err := batchWindowFits(storedPlan{Lang: "en", Prompt: strings.Repeat("A name that grew.\n", windowMaxLines)}, "apply"); !errors.As(err, &failure) ||
 		failure.code != "BATCH_TOO_LONG" || !strings.Contains(failure.next, "used up") {
 		t.Fatalf("at apply: %v", err)
 	}

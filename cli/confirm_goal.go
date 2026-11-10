@@ -24,6 +24,7 @@ type actionGoal struct {
 	more  int               // and how many more it removes or changes: unnamed ones, or the ones a cut title counts
 	why   string            // a typed plan's reasons the title doesn't say (sayAsk), for the phone
 	whole string            // a batch's question as one goal (batchPhoneGoal); verb, label, and names stay empty
+	all   bool              // text names every one, never "N more" (a typed plan's: none of what it confirms is hidden)
 }
 
 // goalVerbs: a service's catalog verb by its name, in every domain. Any
@@ -53,6 +54,9 @@ func sayVerb(name string) (verb, label string) {
 // text: the action as one phrase, as a sentence continues it ("unlock
 // “Front Door”").
 func (g actionGoal) text(lang string) string {
+	if g.all {
+		return g.phrase(lang, g.object(lang, sayAll(lang, g.names)))
+	}
 	return g.phrase(lang, g.object(lang, sayList(lang, g.names)))
 }
 
@@ -337,14 +341,18 @@ func (g actionGoal) ownButton(lang string) string {
 
 // sayList: “A”, “B” and “C”, or the first three and "N more".
 func sayList(lang string, names []string) string {
-	switch n := len(names); {
-	case n > 3:
+	if n := len(names); n > 3 {
 		return confirmT(lang, "list.more", "list", strings.Join(names[:3], ", "), "count", n-3)
-	case n <= 1:
-		return strings.Join(names, "")
-	default:
+	}
+	return sayAll(lang, names)
+}
+
+// sayAll: every name (“A”, “B” and “C”), for a list that never shortens.
+func sayAll(lang string, names []string) string {
+	if n := len(names); n > 1 {
 		return confirmT(lang, "list.and", "list", strings.Join(names[:n-1], ", "), "last", names[n-1])
 	}
+	return strings.Join(names, "")
 }
 
 // upperFirst: "unlock “Door”" → "Unlock “Door”".

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -129,8 +130,8 @@ func TestNonDefaultProfileNoticeAndEndpointPathsStayFailClosed(t *testing.T) {
 	// The best-effort notice transport must stay silent, never fall back to
 	// the default profile's machine-wide token against cabin's URL.
 	cfg := runtimeConfig{RelayBaseURL: "http://cabin:8791"}
-	if base, _, token, ok := relayNoticeTransport(cfg); ok || base != "" || token != "" {
-		t.Fatalf("notice transport must stay silent for an unpaired non-default profile, got base=%q ok=%v", base, ok)
+	if route, ok := relayNoticeTransport(context.Background(), cfg); ok || route.BaseURL != "" || route.Credential != "" {
+		t.Fatalf("notice transport must stay silent for an unpaired non-default profile, got base=%q ok=%v", route.BaseURL, ok)
 	}
 
 	// The guided-update endpoint resolver must propagate the fail-closed error.

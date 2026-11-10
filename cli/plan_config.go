@@ -350,8 +350,9 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 	} else {
 		action.Body = req.Draft
 		e.raise(tierPreview, tierReason{Code: map[string]string{"write": reasonConfigWrite, "revert": reasonConfigRevert, "restore": reasonConfigRestore}[req.Op], Via: req.Domain + "." + req.ConfigID})
+		// What Home Assistant's own reload after the write sets off is not
+		// rated, as in 0.28.3 (Markus, 2026-11-09; safety.md → Writes).
 		e.classifyDraft(req.Domain, req.ConfigID, req.Draft, current)
-		e.reloadListeners(req.Domain, slices.DeleteFunc([]string{req.EntityID}, func(id string) bool { return id == "" }))
 		if env.Verb == "plan" && req.Op == "write" && req.Domain == "automation" { // apply re-plans: the plan said it already
 			env.Notices = append(env.Notices, draftTriggerNotices(req.Draft, current)...)
 		}

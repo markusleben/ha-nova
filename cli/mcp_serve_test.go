@@ -68,7 +68,12 @@ func newServe(t *testing.T, f *fakeHA, settings string) *serveHarness {
 		f.users = []map[string]any{{"id": userA, "name": "A", "is_active": true, "group_ids": []string{"system-admin"}},
 			{"id": userB, "name": "B", "is_active": true, "group_ids": []string{"system-admin"}}}
 	}
-	h := newWriteHarness(t, f)
+	return serveOn(t, newWriteHarness(t, f), settings)
+}
+
+// serveOn starts the bridge on h's fake Relay.
+func serveOn(t *testing.T, h *writeHarness, settings string) *serveHarness {
+	t.Helper()
 	dir := t.TempDir()
 	secret := randomHex(t, 32)
 	secretFile := filepath.Join(dir, "secret")

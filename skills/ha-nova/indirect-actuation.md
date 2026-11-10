@@ -197,14 +197,19 @@ Then:
 - Trigger sources expand the other way: `search/related` on the target, then
   read the actions of every automation it triggers. The classic pattern is a
   helper toggle that another automation answers by unlocking a door.
-- Every requested or expanded service call also emits a `call_service` event
-  before its handler runs. `search/related` does not index those listeners.
-  For the pending event's literal `domain`, `service`, and `service_data`
-  (which contains the target), scan readable automation configs for current
-  or legacy event triggers on that exact event type, apply their literal
-  `event_data` filters, and classify every match. Apply the stored-`event:`
-  rules to blueprint-backed, templated, and user-authored non-automation
-  listeners: an unenumerable listener escalates. Repeat for nested calls.
+- Every requested or expanded service call, and every call Home Assistant
+  makes for it (a toggle's turn_on, a scene's or group's members, a
+  `switch_as_x` entity's switch), emits a `call_service` event before its
+  handler runs. `search/related` does not index those listeners. Scan
+  readable automation configs for current or legacy event triggers on that
+  event type, match their literal `event_data` `domain` and `service` against
+  those calls, and classify every match; repeat for each match's own calls.
+  When the calls can't be bounded (a templated or targetless call, a
+  reload, a service that passes on like `tts.speak`, a platform that calls
+  services itself, an integration like `alert` that reacts on its own),
+  every listener counts. Apply the stored-`event:` rules to
+  blueprint-backed, templated, and user-authored non-automation listeners:
+  an unenumerable listener escalates.
 - A `timer` target needs the EVENT scan on top of that relation scan, because
   its consumers need not reference the entity at all. An automation triggered
   on a timer event with a literal `event_data.entity_id` produces no relation
@@ -295,7 +300,7 @@ Then:
 ## When you cannot see the members
 
 Integration-owned scenes (Hue and similar) have no Home Assistant config and
-return 404. Templated targets resolve only at runtime. An utterance is never
+return 404. Templated targets resolve only at runtime; one exception: when an automation runs on its own trigger, a target written `{{ name }}`, whose `name` is a top-level `variables` entry holding plain ids (no brackets, quotes, or numbers) that no step, trigger, or `response_variable` rebinds, is that value. An utterance is never
 enumerable at all.
 
 Not every unreadable scene is the same, and the registry `pl` field separates

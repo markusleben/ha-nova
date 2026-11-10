@@ -162,11 +162,11 @@ func (n *rawNamer) helperNote(lang, endpoint string, payload map[string]any) str
 	case len(names) == 0:
 		return ""
 	case guard.kind == "input_select":
-		return confirmT(lang, "raw.options_drops", "options", sayList(lang, names))
+		return confirmT(lang, "raw.options_drops", "options", sayAll(lang, names))
 	case guard.kind == "schedule":
-		return confirmT(lang, "raw.schedule_drops", "blocks", sayList(lang, names))
+		return confirmT(lang, "raw.schedule_drops", "blocks", sayAll(lang, names))
 	}
-	return confirmT(lang, "raw.omits", "items", sayList(lang, names))
+	return confirmT(lang, "raw.omits", "items", sayAll(lang, names))
 }
 
 // kept: sceneKept, fileKept, or helperKept, whichever guards the request.

@@ -39,6 +39,7 @@ var readOnlyWSTypes = map[string]bool{
 	// presence); blueprint/substitute renders a blueprint with inputs and
 	// returns it without storing anything.
 	"config_entries/get": true,
+	"manifest/list":      true, // which integrations ship with Home Assistant (tier_callset.go)
 	// call/apply reauth correlation (spec §2.3): lists pending config flows.
 	"config_entries/flow/progress": true,
 	// find alias fallback: get_entries returns extended rows incl. aliases
@@ -326,11 +327,10 @@ func (s *relaySession) sendIn(parent context.Context, endpoint string, body []by
 	if isHTTPRedirect(resp.StatusCode) {
 		return nil, fmt.Errorf("Relay answered HTTP %d (redirect); redirects are never followed", resp.StatusCode)
 	}
-	if s.transport.Via == relayViaLocal &&
-		(resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden) {
+	raw, err := readAllLimited(resp.Body, maxRelayResponseBytes)
+	if s.transport.Via == relayViaLocal && localRelayRefusedCredential(resp.StatusCode, raw) {
 		return nil, errors.New(localRelayAuthRepairMessage(resp.StatusCode, s.server, s.cfg.RelayBaseURL))
 	}
-	raw, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	if err == nil {
 		raw, err = normalizeUTF8Bytes(raw, "Relay response")
 	}

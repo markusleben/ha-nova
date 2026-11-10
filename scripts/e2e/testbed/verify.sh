@@ -63,8 +63,10 @@ expect 'MQTT gate cover open is typed (ACCESS_COVER, device_class gate)' 3 \
   "d.tier === 'typed' && $reasons.includes('ACCESS_COVER') && d.say.includes('opens a gate')" -- plan call cover.open_cover cover.driveway_gate
 expect 'device_class override (kitchen_window -> shutter) makes open ordinary' 0 \
   "d.tier === 'ordinary'" -- plan call cover.open_cover cover.kitchen_window
-expect 'registry-less demo lock unlock is typed with a four-digit one-time code' 3 \
-  "d.tier === 'typed' && $reasons.includes('ACCESS_LOCK') && $reasons.includes('UNREGISTERED_ACTUATOR') && /^[0-9]{4}$/.test(d.plan.code) && d.say.endsWith('\n\nTo go ahead, type this code:  \n**' + d.plan.code + '**')" -- plan call lock.unlock lock.front_door
+# Where this computer can open a confirmation window (a desktop session), the
+# window asks and no code is shown; elsewhere the four-digit code ends `say`.
+expect 'registry-less demo lock unlock is typed: the window asks, else a four-digit one-time code' 3 \
+  "d.tier === 'typed' && $reasons.includes('ACCESS_LOCK') && $reasons.includes('UNREGISTERED_ACTUATOR') && (d.plan.channel === 'window' ? d.plan.code === undefined && d.say.endsWith('Confirm in the window on this computer.') : /^[0-9]{4}$/.test(d.plan.code) && d.say.endsWith('\n\nTo go ahead, type this code:  \n**' + d.plan.code + '**'))" -- plan call lock.unlock lock.front_door
 expect '"Plug factory reset" press is typed (DESTRUCTIVE_BUTTON)' 3 \
   "d.tier === 'typed' && $reasons.includes('DESTRUCTIVE_BUTTON')" -- plan call button.press button.plug_factory_reset
 expect 'restart-class button (demo, non-user-authored) press is preview' 3 \
@@ -108,7 +110,8 @@ expect 'plan write --create (ordinary draft) is preview' 3 \
 expect 'plan write of a draft that unlocks a door is typed with a code' 3 \
   "d.tier === 'typed' && d.plan.confirm === 'code' && $reasons.includes('ACCESS_LOCK')" \
   -- plan write --domain automation --create --file "$TMP/unlock.json"
-expect 'plan write update keeps ordered variables (base before brightness_pct)' 3 \
+# An edit HA NOVA can put back runs without a preview (#1053): ordinary, exit 0.
+expect 'plan write update keeps ordered variables (base before brightness_pct)' 0 \
   "Object.keys(d.config.body.variables).join() === 'base,brightness_pct' && d.diff.length > 0" \
   -- plan write --domain automation --id testbed_f_ordered_variables --file "$TMP/ordered.json"
 cat > "$TMP/routine.json" << 'EOF'
@@ -131,6 +134,19 @@ expect 'plan write over a package automation is refused (CONFIG_NOT_UI_MANAGED)'
 
 echo "--- reads"
 expect 'history of a light is readable' 0 "d.status === 'ok'" -- history light.kitchen_lights --since 1h
+
+echo "--- Relay refusals (a Relay 403 names its own code, never a sign-in problem)"
+printf '%s' '[{"endpoint":"files","payload":{"action":"delete_file","path":"/config/www/mailbox/latest.jpg"}}]' > "$TMP/delete-www.json"
+if curl -fsS -H "Authorization: Bearer $(cat "$STATE/relay-token")" http://127.0.0.1:18791/health | grep -q '"file_access":"readwrite"'; then
+  # TESTBED_FILES=1 (the rc lane's bed): file access on, but www is never served.
+  expect 'a file delete in www the Relay refuses (file access on) names FILE_PATH_DENIED' 4 \
+    "d.error.code === 'REFUSED' && d.error.message.includes('FILE_PATH_DENIED') && !/credential|ha-nova setup/.test(d.error.message + ' ' + d.error.next)" \
+    -- plan raw --file "$TMP/delete-www.json"
+else
+expect 'a file delete the Relay refuses (file access off) names FILE_ACCESS_DISABLED' 1 \
+  "d.error.message.includes('FILE_ACCESS_DISABLED') && !/credential|ha-nova setup/.test(d.error.message + ' ' + d.error.next)" \
+  -- plan raw --file "$TMP/delete-www.json"
+fi
 
 echo "--- webhook-read protection (MCP ha_read never reaches /api/webhook)"
 mcp_read() {

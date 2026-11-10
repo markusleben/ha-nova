@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -41,6 +42,9 @@ func localRelayAuthRepairMessage(
 		}
 		return "The demo house's access changed. Run: ha-nova try"
 	}
+	if bridgeRelay != nil { // ha-nova serve inside the NOVA App: no setup to run; a restart mints its sign-in again
+		return "the NOVA Relay App refused the chat-app bridge's own built-in sign-in (not a setting); restart the NOVA Relay App in Home Assistant (Settings → Apps → NOVA Relay → Restart)"
+	}
 	action := "rejected"
 	if status == http.StatusForbidden {
 		action = "denied"
@@ -50,6 +54,32 @@ func localRelayAuthRepairMessage(
 		action,
 		localRelayRepairCommand(profile, relayURL),
 	)
+}
+
+// localRelayRefusedCredential: a local Relay's answer that means the saved
+// credential needs repair: a 401, or a 403 that names the credential or
+// carries no Relay error code (the demo house: any 403). Every other 403 is
+// the Relay refusing this one request (FILE_PATH_DENIED, FILE_TYPE_DENIED,
+// FILE_ACCESS_READONLY, CORE_PATH_REFUSED, ...), and its own code and message
+// must reach the caller, never a sign-in repair.
+func localRelayRefusedCredential(status int, body []byte) bool {
+	if status == http.StatusUnauthorized {
+		return true
+	}
+	if status != http.StatusForbidden {
+		return false
+	}
+	var envelope struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	_ = json.Unmarshal(body, &envelope)
+	switch envelope.Error.Code {
+	case "", "UNAUTHORIZED", "SECURE_TRANSPORT_REQUIRED", "DEVICE_REQUIRED":
+		return true
+	}
+	return activeServerIsDemo()
 }
 
 func relayURLSafeForCopyPaste(value string) bool {
