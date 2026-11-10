@@ -201,12 +201,12 @@ func linkedPlatform(paths runtimePaths) string {
 
 // phoneLinkedHere: a phone is linked on this computer (for any Home
 // Assistant: a local read for a window plan's `say`; apply asks the phone
-// only where discovery finds it ready).
-func phoneLinkedHere(paths runtimePaths) bool {
-	if activeServerIsDemo() {
+// only where discovery finds it ready), and it may ask it (phoneDeaf).
+func phoneLinkedHere(s *relaySession) bool {
+	if activeServerIsDemo() || s.phoneDeaf() {
 		return false // a link belongs to a real home; the demo house never has one
 	}
-	links, _ := phoneLinks(paths)
+	links, _ := phoneLinks(s.paths)
 	for _, entry := range links {
 		if entry.link != nil && entry.link.Service != "" {
 			return true

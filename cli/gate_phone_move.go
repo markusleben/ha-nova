@@ -18,6 +18,17 @@ import (
 
 const gatePhoneRoute = "gate/v1/phone"
 
+// phoneDeaf: on a gated App this computer can't hear a tap (the gate
+// refuses phone-event subscriptions for devices), so it asks no phone
+// itself: its linked phone counts as one it can't ask, and the Relay asks
+// for the typed requests. A gate state that can't be read keeps today's paths.
+func (s *relaySession) phoneDeaf() bool {
+	on, err := s.gateOn()
+	return err == nil && on
+}
+
+const phoneDeafLine = "On this NOVA App, a tap on your phone can't reach HA NOVA on this computer, so a confirmation window here decides."
+
 // gateMovePhone asks the Relay to hold link for this device and waits:
 // "same" when it holds it already, else how the link ask ended ("linked",
 // or one of gateWait's states). err: the Relay's refusal or no answer.

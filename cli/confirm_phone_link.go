@@ -284,8 +284,12 @@ func unlinkPhone(s *relaySession, out io.Writer) int {
 func allowPhoneChange(s *relaySession, out io.Writer, lang string, home phoneHome, links map[string]phoneEntry, question, newPhone string, unlink bool, wait time.Duration) bool {
 	current, status := home.status(links, nil)
 	question += "\n\n" + confirmT(lang, "settings.requested", "host", phoneHost(lang))
+	deaf := status == phoneReady && s.phoneDeaf()
+	if deaf {
+		fmt.Fprintln(out, "  "+phoneDeafLine)
+	}
 	switch {
-	case status == phoneReady:
+	case status == phoneReady && !deaf:
 		old := terminalSafeName(current.targets[0].Name)
 		fmt.Fprintf(out, "  First confirm on the phone linked now, “%s”.\n", old)
 		answer, reply := askPhone(context.Background(), s, current, "ha-nova-setting", phoneChangeAsk(lang, newPhone), wait, os.Stderr)
@@ -326,7 +330,7 @@ func allowPhoneChange(s *relaySession, out io.Writer, lang string, home phoneHom
 	case status == phoneMissing && !current.why.replaceable():
 		return false // missingLine said why and what to do
 	}
-	windowOnly := unlink || status == phoneMissing
+	windowOnly := unlink || status == phoneMissing || deaf
 	if windowOff(s.paths) || !windowAvailable() {
 		if windowOnly {
 			fmt.Fprintf(out, "  No confirmation window can open here (or windows are turned off), so HA NOVA can't check that this is you. Nothing changed. Run this at the computer's desktop, where a confirmation window opens, or remove \"%s\" from %s yourself.\n", phoneSettingKey, s.paths.ConfigFile)

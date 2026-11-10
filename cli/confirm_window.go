@@ -259,7 +259,7 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 		a := &phoneAsking{id: id, plan: plan, s: s, idHex: idHex, goal: goal, setup: setup, ask: phonePlanAsk(lang, goal, noSnapshot), deadline: deadline}
 		return confirmBoth(a, text)
 	case phoneMissing, phoneNone, phoneLegacy: // the window still asks; a user waiting at the phone learns why it stays quiet
-		if status == phoneMissing || phoneLinkedHere(paths) {
+		if status == phoneMissing || phoneLinkedHere(s) {
 			line, next := phoneQuiet(status == phoneMissing && setup.why == whyRead)
 			fmt.Fprintln(os.Stderr, line)
 			again += next

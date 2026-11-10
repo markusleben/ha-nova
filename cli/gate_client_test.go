@@ -44,6 +44,7 @@ type fakeGate struct {
 	links       []map[string]any // every link sent to the phone route
 	phoneAnswer any              // the phone route's answer instead of a link ask
 	linkEnd     string           // how a link ask's wait ends ("": linked)
+	wsHeld      bool             // WS writes are sends too (hold sees them)
 }
 
 func (g *fakeGate) snapshot() (asks [][]string, ops []string, sends []gateSend) {
@@ -142,10 +143,11 @@ func gatedHarness(t *testing.T, f *fakeHA, g *fakeGate) *writeHarness {
 		if endpoint == gatePhoneRoute {
 			return g.phone(p)
 		}
-		if path := fmt.Sprint(p["path"]); endpoint == "core" && p["method"] != "GET" && (strings.HasPrefix(path, "/api/services/") || strings.HasPrefix(path, "/api/config/")) {
+		wsWrite := g.wsHeld && endpoint == "ws" && checkReadOnlyRequest(endpoint, p) != nil
+		if path := fmt.Sprint(p["path"]); wsWrite || endpoint == "core" && p["method"] != "GET" && (strings.HasPrefix(path, "/api/services/") || strings.HasPrefix(path, "/api/config/")) {
 			raw, _ := io.ReadAll(r.Body)
 			r.Body = io.NopCloser(bytes.NewReader(raw)) // Home Assistant's fake reads it too
-			send := gateSend{"core " + string(raw), r.Header.Get(gateGrantHeader)}
+			send := gateSend{endpoint + " " + string(raw), r.Header.Get(gateGrantHeader)}
 			g.mu.Lock()
 			g.sends = append(g.sends, send)
 			g.mu.Unlock()

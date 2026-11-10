@@ -201,7 +201,7 @@ func (x *homeIndex) batteryReminder(phone *phoneTarget) (templateMatch, bool) {
 // linkedPhone: the phone linked for confirmations when it can be reached
 // now, else nil (no reminder is offered).
 func linkedPhone(s *relaySession) *phoneTarget {
-	if !phoneLinkedHere(s.paths) {
+	if !phoneLinkedHere(s) {
 		return nil
 	}
 	setup, status := discoverPhone(s, time.Now().Add(relaySessionOverallTimeout))

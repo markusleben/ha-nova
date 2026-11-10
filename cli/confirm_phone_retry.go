@@ -65,7 +65,7 @@ func discoverPhone(s *relaySession, until time.Time) (phoneSetup, phoneStatus) {
 	if !readable {
 		return phoneSetup{why: whyRead}, phoneMissing
 	}
-	if len(links) == 0 {
+	if len(links) == 0 || s.phoneDeaf() { // gated: the window, else a code; the Relay asks for the typed requests
 		return phoneSetup{}, phoneNone
 	}
 	done := s.ownBudget(until)

@@ -153,7 +153,7 @@ func batchGroupGoal(lang string, members []batchMember) string {
 func batchSay(s *relaySession, plan storedPlan, goal actionGoal, text string, n int) string {
 	lang := textLang(plan)
 	switch {
-	case plan.Confirm == "code" && plan.Channel == channelWindow && phoneLinkedHere(s.paths):
+	case plan.Confirm == "code" && plan.Channel == channelWindow && phoneLinkedHere(s):
 		return demoPrefix(lang, text+" "+sayWindowPhoneAsk(lang, goal.button(lang), linkedPlatform(s.paths)))
 	case plan.Confirm == "code" && plan.Channel == channelWindow:
 		return demoPrefix(lang, text+" "+sayWindowAsk(lang))

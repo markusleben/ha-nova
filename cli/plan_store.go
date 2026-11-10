@@ -195,7 +195,7 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 		shownChannel = plan.Channel
 	}
 	where := channelAsks[shownChannel]
-	if shownChannel == channelWindow && phoneLinkedHere(e.s.paths) {
+	if shownChannel == channelWindow && phoneLinkedHere(e.s) {
 		where = "a confirmation window on their computer and a notification on their linked phone (the first answer counts)"
 	}
 	// A selected server tempts the agent to prefix apply too; Claude Code's

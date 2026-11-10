@@ -162,8 +162,8 @@ func TestSetupConfirmPhoneOnAGatedAppLinksThroughTheRelay(t *testing.T) {
 	if exit, out := runLink(t, h, "", phoneLinkRun{pick: "Markus’s iPhone"}); exit != 0 || g.link["device_id"] != "dev-markus" || g.link["platform"] != "ios" || linked(t, h).DeviceID != "dev-markus" || len(p.sent) != 0 {
 		t.Fatalf("relink: %d %q relay %v", exit, out, g.link)
 	}
-	p.tapBy = tapFrom("mobile_app_markuss_iphone", "owner-id", true)
-	if exit, out := runUnlink(t, h); exit != 0 || !strings.Contains(out, phoneOffGated) || linked(t, h) != nil || g.link["device_id"] != "dev-markus" {
+	useWindow(t, windowConfirmed) // this computer can't hear the phone here (phoneDeaf)
+	if exit, out := runUnlink(t, h); exit != 0 || !strings.Contains(out, phoneOffGated) || linked(t, h) != nil || g.link["device_id"] != "dev-markus" || len(p.sent) != 0 {
 		t.Fatalf("off: %d %q", exit, out)
 	}
 }
