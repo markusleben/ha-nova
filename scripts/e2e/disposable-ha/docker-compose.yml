@@ -47,8 +47,9 @@ services:
   # Third relay in APP MODE (SUPERVISOR_TOKEN present) — proves the passwordless
   # onboarding upstream path: the relay authenticates to Home Assistant with the
   # supervisor token (here a real LLAT, exactly what the Supervisor proxy holds)
-  # instead of HA_LLAT. Runs as root only to seed the legacy credential file the
-  # app-mode registry migrates, so a plain-token client can exercise the proxy.
+  # instead of HA_LLAT. Runs as root only to seed its device registry
+  # (seed-registry.mjs): one paired device, plus the old shared token's record
+  # that this App must refuse and retire.
   # No Supervisor is present: the self-info port probe just warns (pairing code
   # activation is disabled), which does not affect the upstream assertions.
   relay-appmode:
@@ -67,10 +68,14 @@ services:
     environment:
       SUPERVISOR_TOKEN: "${HA_LLAT:-}"
       RELAY_AUTH_TOKEN: "${RELAY_AUTH_TOKEN:-}"
+      E2E_DEVICE_CREDENTIAL: "${E2E_DEVICE_CREDENTIAL:-}"
       HA_URL: "http://homeassistant:8123"
-    command: ["sh", "-c", "mkdir -p /data && printf '%s' \"$RELAY_AUTH_TOKEN\" > /data/relay_auth_token && exec node dist/src/runtime/main.js"]
+    volumes:
+      - ./seed-registry.mjs:/seed-registry.mjs:ro
+    command: ["sh", "-c", "node /seed-registry.mjs && exec node dist/src/runtime/main.js"]
     ports:
       - "8793:8791"
+      - "8794:8792"
 
   # Second relay with file access opted in — proves the /files readwrite path
   # live, while the primary relay above keeps proving the off-by-default

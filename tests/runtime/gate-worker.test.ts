@@ -106,7 +106,7 @@ describe("gate worker child", () => {
     gate.start();
     expect(spawned).toEqual([]);
     expect(errors).toEqual(["The safety-check worker is missing; every device request is refused"]);
-    expect(await gate.check({ kind: "legacy" }, "ws", Buffer.from("{}"))).toBeNull();
+    expect(await gate.check({ kind: "shared" }, "ws", Buffer.from("{}"))).toBeNull();
     expect(await gate.redact("ws", Buffer.from("{}"), Buffer.from("{}"))).toBeNull();
   });
 
@@ -140,7 +140,7 @@ describe("gate worker child", () => {
     try {
       const gate = worker({ timeoutMs: 60_000 });
       gate.start();
-      expect(await gate.check({ kind: "legacy" }, "ws", Buffer.from("{}"))).toBeNull();
+      expect(await gate.check({ kind: "shared" }, "ws", Buffer.from("{}"))).toBeNull();
     } finally {
       server.closeAllConnections();
       await new Promise((r) => server.close(r));
@@ -161,7 +161,7 @@ describe("gate worker child", () => {
     try {
       const gate = worker();
       gate.start();
-      expect(await gate.check({ kind: "legacy" }, "ws", Buffer.from("{}"))).toBeNull();
+      expect(await gate.check({ kind: "shared" }, "ws", Buffer.from("{}"))).toBeNull();
       expect(await gate.redact("ws", Buffer.from("{}"), Buffer.from("{}"))).toEqual(big);
     } finally {
       server.closeAllConnections();
@@ -314,7 +314,7 @@ describe("gate worker child", () => {
     try {
       const gate = worker();
       gate.start();
-      expect(await gate.check({ kind: "legacy" }, "ws", Buffer.from("{}"))).toBeNull();
+      expect(await gate.check({ kind: "shared" }, "ws", Buffer.from("{}"))).toBeNull();
       expect(await gate.redact("ws", Buffer.from("{}"), Buffer.from("{}"))).toBeNull();
       expect(followed).toEqual([]);
     } finally {

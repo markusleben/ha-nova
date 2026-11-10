@@ -88,7 +88,7 @@ func TestLocalSessionKeepsTheRelaysOwnRefusal(t *testing.T) {
 func TestBridgeCredentialRefusalNamesTheAppRestart(t *testing.T) {
 	bridgeRelay = &runtimeConfig{}
 	t.Cleanup(func() { bridgeRelay = nil })
-	message := localRelayAuthRepairMessage(http.StatusUnauthorized, defaultServerProfileName, "https://127.0.0.1:8792")
+	message := localRelayAuthRepairMessage(http.StatusUnauthorized, nil, defaultServerProfileName, runtimeConfig{RelayBaseURL: "https://127.0.0.1:8792"})
 	if !strings.Contains(message, "restart the NOVA Relay App") || strings.Contains(message, "ha-nova setup") {
 		t.Fatalf("%q", message)
 	}

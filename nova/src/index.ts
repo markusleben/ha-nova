@@ -121,8 +121,8 @@ export function createApp(options: AppOptions): App {
     prepare: { core: parseCoreRequest },
     deviceName: () => "your HA NOVA container",
     channels: () => [],
-    link: (p) => (p.kind === "legacy" ? phoneLink?.link() : undefined),
-    ...(phoneLink ? { setLink: (p, link, current) => p.kind === "legacy" && phoneLink.setLink(link, current), linkable: (p) => p.kind === "legacy" } : {}),
+    link: (p) => (p.kind === "shared" ? phoneLink?.link() : undefined),
+    ...(phoneLink ? { setLink: (p, link, current) => p.kind === "shared" && phoneLink.setLink(link, current), linkable: (p) => p.kind === "shared" } : {}),
     now: options.now ?? Date.now,
     ...(options.logger ? { logger: options.logger } : {}),
   });

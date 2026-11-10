@@ -44,7 +44,7 @@ For maintainers with an HA instance, when you need to exercise the interactive s
 
 ### Deploy an isolated test App
 
-`scripts/dev/ha-app-bootstrap.sh` syncs `nova/` to your HA over SSH and installs it as a local App (env: `HA_HOST`, `HA_SSH_KEY`, `RELAY_AUTH_TOKEN` required; `SSH_USER`/`SSH_PORT`/`APP_SLUG`/`SUPERVISOR_SLUG` optional, also read from `.env` / `.env.local`).
+`scripts/dev/ha-app-bootstrap.sh` syncs `nova/` to your HA over SSH and installs it as a local App (env: `HA_HOST`, `HA_SSH_KEY` required; `SSH_USER`/`SSH_PORT`/`APP_SLUG`/`SUPERVISOR_SLUG` optional, also read from `.env` / `.env.local`).
 
 **Isolation is not automatic.** The script syncs `nova/` verbatim, so the deployed `config.yaml` keeps the production `slug`, `name`, and host ports `8791`/`8792`. `APP_SLUG` only changes the target directory — it does **not** edit `config.yaml`, so on its own it collides with your production NOVA Relay on the same ports. To deploy a genuinely separate instance, work from a **copy** of `nova/` whose `config.yaml` you have edited:
 

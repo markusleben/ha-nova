@@ -381,3 +381,35 @@ func TestVerifySetupConnectionRepairPromptInputEndStopsWithProgressSaved(t *test
 		t.Fatalf("expected invalid-choice re-prompt before input end:\n%s", output.String())
 	}
 }
+
+// The NOVA App refused the old shared access: setup names how to pair again
+// and stops, with no token-repair menu (its key field no longer exists) and no
+// "start the App" banner, on reused, --relay-token and service runs alike.
+func TestVerifySetupConnectionStopsOnTheEndedSharedAccess(t *testing.T) {
+	resetServerProfileSelection(t)
+	originalProbeHTTP := probeHTTPForSetup
+	originalFetchRelayHealth := fetchRelayHealthForSetup
+	defer func() {
+		probeHTTPForSetup = originalProbeHTTP
+		fetchRelayHealthForSetup = originalFetchRelayHealth
+	}()
+	probeHTTPForSetup = func(string) error { return nil }
+	fetchRelayHealthForSetup = func(string, string) ([]byte, error) { return nil, errSharedAccessEnded }
+
+	for _, repair := range []setupCredentialRepairMode{setupCredentialRepairNone, setupCredentialRepairToken, setupCredentialRepairPairing} {
+		output := &bytes.Buffer{}
+		issue, ok, err := verifySetupConnection(bufio.NewReader(strings.NewReader("")), output,
+			runtimeConfig{HAURL: "http://ha", RelayBaseURL: "http://relay"}, "token", true, repair, false)
+		if ok || err != nil || issue != setupIssueSharedAccessEnded {
+			t.Fatalf("repair %v: issue=%q ok=%v err=%v\n%s", repair, issue, ok, err, output)
+		}
+		if !strings.Contains(output.String(), "no longer accepts") || strings.Contains(output.String(), "Relay Auth Token") {
+			t.Fatalf("repair %v: want only the re-pair text:\n%s", repair, output)
+		}
+	}
+	banner := &bytes.Buffer{}
+	renderSetupIncompleteBanner(banner, setupIssueSharedAccessEnded)
+	if !strings.Contains(banner.String(), "Pair this computer again") || strings.Contains(banner.String(), "start it") {
+		t.Fatalf("banner:\n%s", banner)
+	}
+}

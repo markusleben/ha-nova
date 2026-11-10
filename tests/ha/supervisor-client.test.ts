@@ -118,24 +118,8 @@ describe("supervisor-client", () => {
     ).rejects.toThrow("unexpected supervisor response shape");
   });
 
-  it("sends the bearer token and wraps options for setOptions", async () => {
-    let seen: { url: string; init: RequestInit } | null = null;
-    mockFetch((url, init) => {
-      seen = { url, init: init ?? {} };
-      return { status: 200 };
-    });
-    await createSupervisorClient("secret-token").setOptions({
-      relay_auth_token: "x",
-      ha_llat: "",
-    });
-    expect(seen!.url).toContain("/addons/self/options");
-    expect(seen!.init!.redirect).toBe("error");
-    expect((seen!.init!.headers as Record<string, string>).authorization).toBe(
-      "Bearer secret-token",
-    );
-    expect(JSON.parse(seen!.init!.body as string)).toEqual({
-      options: { relay_auth_token: "x", ha_llat: "" },
-    });
+  it("has no way to write App options", () => {
+    expect(createSupervisorClient("secret-token")).not.toHaveProperty("setOptions");
   });
 
   it("throws on a non-2xx supervisor response", async () => {

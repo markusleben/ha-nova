@@ -257,6 +257,10 @@ func relayWSJSONContext(
 	if version := resp.Header.Get(relayVersionHeader); version != "" {
 		traceRelayVersion.Store(version)
 	}
+	if selected.Via == relayViaLocal && sharedAccessEnded(resp.StatusCode, resp.Header) {
+		cfg, _ := loadConfig(paths)
+		return nil, errors.New(sharedAccessEndedFor(cfg, activeServerProfile()))
+	}
 	return readRelayWSJSONResponse(resp, maxRelayResponseBytes)
 }
 

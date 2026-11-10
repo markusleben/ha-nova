@@ -11,7 +11,7 @@ import { createGateWorker } from "../../nova/src/runtime/gate-worker.js";
 import { bootstrapRuntime, type RuntimeBootstrapResult } from "../../nova/src/runtime/start.js";
 
 // The standalone container (single listener, shared token) gates the same
-// handlers through the same worker: the shared token is a legacy principal,
+// handlers through the same worker: the shared token is a shared principal,
 // and the worker reaches the Relay with its own loopback-only token.
 
 let dir: string;
@@ -155,10 +155,10 @@ describe("standalone Relay: the safety check", () => {
 
     const gateToken = () => (JSON.parse(readFileSync(join(dir, "gate", "relay.json"), "utf8")) as { credential: string }).credential;
 
-    it("rates the shared token as a legacy principal and redacts its answer", async () => {
+    it("rates the shared token as a shared principal and redacts its answer", async () => {
       const res = await post(base, "/ws", { type: "get_states" }, "relay-token");
       expect(JSON.parse(res.text)).toEqual({ ok: true, data: { secret: "HIDDEN" } });
-      expect(checks[0]).toMatchObject({ principal: { kind: "legacy" }, endpoint: "ws" });
+      expect(checks[0]).toMatchObject({ principal: { kind: "shared" }, endpoint: "ws" });
       verdict = "typed";
       expect((await post(base, "/core", { method: "POST", path: "/api/services/lock/unlock" }, "relay-token")).status).toBe(428);
       expect(forwarded).toEqual(["ws get_states"]);

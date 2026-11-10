@@ -57,7 +57,7 @@ export type GatePage = Pick<GateAsks, "waiting" | "pausedDevices" | "approve" | 
 export const askRef = idKey; // an ask's ref on the page
 
 function ownerOf(principal: Principal): string {
-  return principal.kind === "device" ? `device:${principal.deviceId}` : "legacy";
+  return principal.kind === "device" ? `device:${principal.deviceId}` : "shared";
 }
 
 const sameLink = (a: PhoneLink | undefined, b: PhoneLink): boolean =>

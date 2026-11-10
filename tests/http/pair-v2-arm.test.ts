@@ -435,7 +435,6 @@ function deps(cloudRemoteEnabled: boolean): IngressListenerDeps {
       network: {},
     }),
     getMappedHostPort: async () => null,
-    setOptions: async () => {},
     setIngressPanel: async () => {},
     sendDiscovery: async () => "",
     deleteDiscovery: async () => true,

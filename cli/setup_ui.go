@@ -13,6 +13,9 @@ const (
 	setupIssueWSDegraded       = "ws_degraded"
 	setupIssueSkillsInstall    = "skills_install"
 	setupIssueCloudAccess      = "cloud_access"
+	// The NOVA App refused the old shared access; the line above the banner
+	// names how this computer pairs again.
+	setupIssueSharedAccessEnded = "shared_access_ended"
 )
 
 func hasAvailableSetupClientChoice(choices []setupClientChoice) bool {
@@ -212,11 +215,14 @@ func renderSetupIncompleteBanner(out io.Writer, issue string) {
 		lines = []string{setupT("setup.incomplete.skills"), setupT("setup.incomplete.skills_fix")}
 	case setupIssueCloudAccess:
 		lines = []string{setupT("setup.incomplete.link"), setupT("setup.incomplete.link_fix")}
+	case setupIssueSharedAccessEnded:
+		lines = []string{setupT("setup.incomplete.shared_access")}
 	default:
 		lines = []string{setupT("setup.incomplete.generic")}
 	}
 	if issue != setupIssueSkillsInstall &&
-		issue != setupIssueCloudAccess {
+		issue != setupIssueCloudAccess &&
+		issue != setupIssueSharedAccessEnded {
 		lines = append(lines, setupT("setup.incomplete.rerun"))
 	}
 	renderSetupIndentedLines(out, "  ", lines...)

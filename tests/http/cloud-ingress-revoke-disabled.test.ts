@@ -125,7 +125,6 @@ function deps(): IngressListenerDeps {
       network: {},
     }),
     getMappedHostPort: async () => null,
-    setOptions: async () => {},
     setIngressPanel: async () => {},
     sendDiscovery: async () => "",
     deleteDiscovery: async () => true,

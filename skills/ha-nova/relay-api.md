@@ -522,6 +522,7 @@ These are top-level HTTP errors produced by the relay itself. The response has `
 - `400 / VALIDATION_ERROR`: missing required fields (e.g. ws `type`, core `method`/`path`)
 - `400 / CORE_PATH_INVALID`: core API path failed validation
 - `401 / UNAUTHORIZED`: relay auth token missing or invalid
+- `401 / PAIRING_REQUIRED`: the NOVA App no longer accepts this computer's old shared access; pass on the CLI's message (the user runs the named command in their own terminal)
 - `404 / NOT_FOUND`: unknown relay route
 - `500 / INTERNAL_ERROR`: unexpected relay server error
 - `502 / UPSTREAM_WS_CONNECT_ERROR`: the Relay could not establish the HA WebSocket connection; inspect the post-call health reason

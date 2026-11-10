@@ -134,8 +134,8 @@
   [ok] Everything is already set up!
 
   This computer still uses the old shared access.
-  The next HA NOVA release won't accept it.
-  Run ha-nova setup again any time to switch. It takes a minute.
+  The updated NOVA App no longer accepts it.
+  Switch before you update the NOVA App: run ha-nova setup again. It takes a minute.
 
   Run 'ha-nova doctor' to check everything.
 

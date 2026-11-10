@@ -114,8 +114,8 @@ describe("device peers handler", () => {
     expect(withBridge(asDevice(self.deviceId))).toMatchObject({ other_devices: 0, chat_app_files: true });
   });
 
-  it("refuses legacy and missing principals (403)", () => {
-    expect(status(() => peers()({ ...ctx(undefined), principal: { kind: "legacy" } }))).toBe(403);
+  it("refuses shared and missing principals (403)", () => {
+    expect(status(() => peers()({ ...ctx(undefined), principal: { kind: "shared" } }))).toBe(403);
     expect(status(() => peers()(ctx(undefined)))).toBe(403);
   });
 });

@@ -18,6 +18,9 @@
 #     approval itself, with the readwrite roundtrip, is proven on the test
 #     bed's gate lane (scripts/e2e/testbed/gate.mjs).
 #   - secrets.yaml stays unreachable even with readwrite
+#   - in app mode only paired devices get in: the old shared token gets the
+#     re-pair answer (401 + x-ha-nova-auth: pairing-required) on both ports,
+#     and the first start retires its record in the device registry
 #
 # Everything is destroyed afterwards. Run: bash scripts/e2e/disposable-ha/run.sh
 set -euo pipefail
@@ -35,14 +38,18 @@ AUTH=(-H "Authorization: Bearer $RELAY_AUTH_TOKEN" -H 'Content-Type: application
 
 # The safety-check worker starts after the listener; until it answers, every
 # request gets 503. Wait until a read gets through it.
+# Optional curl arguments after the URL replace the shared-token AUTH.
 wait_gate() {
-  local code=""
+  local url="$1" code=""
+  shift
+  local -a auth=("${AUTH[@]}")
+  if [[ $# -gt 0 ]]; then auth=("$@"); fi
   for _ in $(seq 1 30); do
-    code="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$1/core" "${AUTH[@]}" -d '{"method":"GET","path":"/api/config"}' || true)"
+    code="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$url/core" "${auth[@]}" -d '{"method":"GET","path":"/api/config"}' || true)"
     if [[ "$code" == "200" ]]; then return 0; fi
     sleep 2
   done
-  fail "$1: the safety check never let a read through (last: HTTP ${code:-none})"
+  fail "$url: the safety check never let a read through (last: HTTP ${code:-none})"
 }
 
 cleanup() {
@@ -285,18 +292,23 @@ fi
 echo "--- app mode: the relay authenticates upstream with the supervisor token"
 # The passwordless onboarding path: SUPERVISOR_TOKEN present, no HA_LLAT. The
 # relay reaches Home Assistant with the supervisor token and serves the same
-# proxy routes; the client authenticates with the migrated legacy token.
+# proxy routes to a paired device over its pinned-TLS port (8794 here; curl -k
+# stands in for the CLI's certificate pin). seed-registry.mjs seeds one paired
+# device and the old shared token's record an App before 0.30 migrated.
+export E2E_DEVICE_CREDENTIAL="$(python3 -c 'import base64,secrets; e=lambda n: base64.urlsafe_b64encode(secrets.token_bytes(n)).rstrip(b"=").decode(); print("hanova-dev-v1."+e(16)+"."+e(32))')"
 ( cd "$HERE" && docker compose up -d --build relay-appmode )
 APPMODE_URL="http://127.0.0.1:8793"
+APPMODE_TLS="https://127.0.0.1:8794"
+DEVICE=(-k -H "Authorization: Bearer $E2E_DEVICE_CREDENTIAL" -H 'Content-Type: application/json')
 for i in $(seq 1 30); do
-  code="$(curl -s -o /dev/null -w '%{http_code}' "$APPMODE_URL/health" || true)"
+  code="$(curl -sk -o /dev/null -w '%{http_code}' "$APPMODE_TLS/health" || true)"
   if [[ "$code" == "200" || "$code" == "401" ]]; then break; fi
   if [[ "$i" == "30" ]]; then fail "app-mode relay did not become reachable"; fi
   sleep 2
 done
-wait_gate "$APPMODE_URL"
+wait_gate "$APPMODE_TLS" "${DEVICE[@]}"
 
-am_health="$(curl -sf -H "Authorization: Bearer $RELAY_AUTH_TOKEN" "$APPMODE_URL/health" || true)"
+am_health="$(curl -sf "${DEVICE[@]}" "$APPMODE_TLS/health" || true)"
 if echo "$am_health" | grep -q "\"version\":\"$RELAY_VERSION\"" && echo "$am_health" | grep -q '"gate":1'; then
   pass "app-mode relay is healthy, reports its version, and runs the safety check without a Supervisor (gate: 1)"
 else
@@ -306,8 +318,7 @@ fi
 # A real REST proxy call must return real Home Assistant data over the
 # supervisor-token upstream — this is the assertion the passwordless path exists
 # to guarantee.
-am_core="$(curl -sf -X POST "$APPMODE_URL/core" \
-  -H "Authorization: Bearer $RELAY_AUTH_TOKEN" -H 'Content-Type: application/json' \
+am_core="$(curl -sf -X POST "$APPMODE_TLS/core" "${DEVICE[@]}" \
   -d '{"method":"GET","path":"/api/config"}' || true)"
 if echo "$am_core" | grep -q '"ok":true' && echo "$am_core" | grep -q '"version"'; then
   pass "app-mode /core returns real Home Assistant config via the supervisor token"
@@ -315,13 +326,32 @@ else
   fail "app-mode /core unexpected: ${am_core:0:200}"
 fi
 
-am_ws="$(curl -sf -X POST "$APPMODE_URL/ws" \
-  -H "Authorization: Bearer $RELAY_AUTH_TOKEN" -H 'Content-Type: application/json' \
+am_ws="$(curl -sf -X POST "$APPMODE_TLS/ws" "${DEVICE[@]}" \
   -d '{"type":"get_config"}' || true)"
 if echo "$am_ws" | grep -q '"ok":true'; then
   pass "app-mode /ws proxies a Home Assistant WebSocket command via the supervisor token"
 else
   fail "app-mode /ws unexpected: ${am_ws:0:200}"
+fi
+
+# The old shared token: refused everywhere with the marked answer the CLI
+# turns into its re-pair text, never a bare 401 and never data.
+for target in "GET $APPMODE_URL/health" "POST $APPMODE_URL/core" "POST $APPMODE_URL/ws" "GET $APPMODE_TLS/health" "POST $APPMODE_TLS/core"; do
+  read -r method url <<<"$target"
+  hdr="$(curl -sk -D - -o /dev/null -X "$method" "$url" "${AUTH[@]}" | tr -d '\r' || true)"
+  if [[ "$(head -1 <<<"$hdr")" == *" 401"* ]] && grep -qi '^x-ha-nova-auth: pairing-required$' <<<"$hdr"; then
+    pass "the old shared token gets the re-pair answer: $method $url"
+  else
+    fail "the old shared token should get 401 + x-ha-nova-auth on $method $url: $(head -1 <<<"$hdr")"
+  fi
+done
+
+# The first start retired the shared token's record and kept the device.
+registry="$( cd "$HERE" && docker compose exec -T relay-appmode cat /data/device-registry.json 2>/dev/null || true )"
+if python3 -c 'import json,sys; d=json.loads(sys.argv[1]); dev=sys.argv[2].split(".")[1]; sys.exit(0 if d["legacy"] is None and d["legacyImportCompleted"] is True and d["version"]==1 and any(x["deviceId"]==dev and x["state"]=="active" for x in d["devices"]) else 1)' "$registry" "$E2E_DEVICE_CREDENTIAL" 2>/dev/null; then
+  pass "the registry dropped the shared token's record, kept the device, and stays schema 1"
+else
+  fail "the registry should be retired (legacy null, legacyImportCompleted true) with the device kept: ${registry:0:300}"
 fi
 
 # A device credential must never be accepted over the plain bootstrap port, even

@@ -301,7 +301,7 @@ describe("gate asks", () => {
       phone: p.phone,
       setLink: (...a) => (sets.push(a), accept),
     });
-    expect(await status(() => t.linkTo({ kind: "legacy" }, link))).toBe(404);
+    expect(await status(() => t.linkTo({ kind: "shared" }, link))).toBe(404);
     expect(await status(() => setup().linkTo(laptop, link))).toBe(404); // no registry: no link route
     for (const bad of [{ ...link, service: "persistent_notification" }, { ...link, platform: "x".repeat(600_000) }, { ...link, device_id: "d".repeat(129) }, { ...link, user_id: "" }]) {
       expect(await status(() => t.linkTo(laptop, bad))).toBe(400); // the registry could not load it again

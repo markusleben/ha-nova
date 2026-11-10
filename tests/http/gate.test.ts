@@ -13,7 +13,7 @@ import { parseCoreRequest } from "../../nova/src/http/handlers/core-proxy.js";
 import type { RouteHandler } from "../../nova/src/http/router.js";
 import { createGateWorker, mintGateDevice, type GateWorker } from "../../nova/src/runtime/gate-worker.js";
 import { createBootstrapListener, createDeviceListener } from "../../nova/src/runtime/listeners.js";
-import { digestSecret, generateCredential } from "../../nova/src/security/device-credential.js";
+import { generateCredential } from "../../nova/src/security/device-credential.js";
 import { openDeviceRegistry, type DeviceRegistry } from "../../nova/src/security/device-registry.js";
 import { BRIDGE_INSTALL_ID, GATE_INSTALL_ID } from "../../nova/src/security/pairing-metadata.js";
 import type { PairingV1Manager } from "../../nova/src/security/pairing-v1.js";
@@ -40,6 +40,8 @@ let answer: unknown;
 let bootBase: string;
 let devicePort: number;
 let devicePeer: string | undefined;
+// Runs when a request reaches the device listener, after the TLS handshake.
+let onDeviceRequest: (() => void) | undefined;
 
 const decode = (b64: string): string => Buffer.from(b64, "base64").toString("utf8");
 const verdict = (v: string, kind = "write"): Reply => ({ json: { verdict: v, kind } });
@@ -79,6 +81,7 @@ beforeEach(async () => {
   children = [];
   answer = { result: "SECRET" };
   devicePeer = undefined;
+  onDeviceRequest = undefined;
   reply = (path, body) => (path === "/check" ? verdict("pass") : redactAll(body));
   fakeWorker = createHttp((request, response) => {
     let raw = "";
@@ -127,9 +130,9 @@ beforeEach(async () => {
     if (devicePeer !== undefined) {
       Object.defineProperty(request.socket, "remoteAddress", { configurable: true, value: devicePeer });
     }
+    onDeviceRequest?.();
     deviceListener(request, response);
   }) as unknown as Server);
-  registry.importLegacy(digestSecret("legacy-token"), 1);
 });
 
 afterEach(async () => {
@@ -140,8 +143,12 @@ afterEach(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-async function viaBootstrap(path: string, body: unknown): Promise<{ status: number; text: string }> {
-  const response = await fetch(`${bootBase}${path}`, { method: "POST", headers: { authorization: "Bearer legacy-token", "content-type": "application/json" }, body: JSON.stringify(body) });
+function viaLaptop(path: string, body: unknown): Promise<{ status: number; text: string }> {
+  return viaDevice(path, body, device("laptop-0"));
+}
+
+async function viaBootstrap(path: string, body: unknown, credential: string): Promise<{ status: number; text: string }> {
+  const response = await fetch(`${bootBase}${path}`, { method: "POST", headers: { authorization: `Bearer ${credential}`, "content-type": "application/json" }, body: JSON.stringify(body) });
   return { status: response.status, text: await response.text() };
 }
 
@@ -166,12 +173,12 @@ const checks = (): Seen[] => seen.filter((s) => s.path === "/check");
 describe("relay gate: verdicts", () => {
   it("pass: forwards exactly the rated bytes, and the answer comes back redacted", async () => {
     const body = { type: "call_service", domain: "light", service: "turn_on", service_data: { entity_id: "light.kitchen" } };
-    const res = await viaBootstrap("/ws", body);
+    const res = await viaLaptop("/ws", body);
     expect(res.status).toBe(200);
     expect(JSON.parse(res.text)).toEqual({ ok: true, data: { result: "HIDDEN" } });
     expect(forwarded).toEqual([{ endpoint: "ws", body }]);
     const [check, redact] = seen;
-    expect(check).toMatchObject({ path: "/check", body: { principal: { kind: "legacy" }, endpoint: "ws" } });
+    expect(check).toMatchObject({ path: "/check", body: { principal: { kind: "device" }, endpoint: "ws" } });
     expect(decode(check!.body.body_b64!)).toBe(JSON.stringify(body));
     expect(check!.auth).toMatch(/^Bearer [0-9a-f]{64}$/);
     expect(redact).toMatchObject({ path: "/redact", auth: check!.auth, body: { endpoint: "ws", request_b64: check!.body.body_b64 } });
@@ -180,7 +187,7 @@ describe("relay gate: verdicts", () => {
 
   it("rates every endpoint under its own name, reads included", async () => {
     for (const endpoint of ["ws", "files", "backups", "supervisor"] as const) {
-      expect((await viaBootstrap(`/${endpoint}`, { action: "list_dir", path: "." })).status).toBe(200);
+      expect((await viaLaptop(`/${endpoint}`, { action: "list_dir", path: "." })).status).toBe(200);
     }
     expect(checks().map((s) => s.body.endpoint)).toEqual(["ws", "files", "backups", "supervisor"]);
     expect(forwarded.map((f) => f.endpoint)).toEqual(["ws", "files", "backups", "supervisor"]);
@@ -188,7 +195,7 @@ describe("relay gate: verdicts", () => {
 
   it("core: every method is rated after the Relay's own normalization, and that request is forwarded", async () => {
     for (const method of ["get", "POST", "DELETE"]) {
-      expect((await viaBootstrap("/core", { method, path: "/api/%73tates/light.x?y=1", body: { a: 1 } })).status).toBe(200);
+      expect((await viaLaptop("/core", { method, path: "/api/%73tates/light.x?y=1", body: { a: 1 } })).status).toBe(200);
     }
     const rated = checks().map((s) => JSON.parse(decode(s.body.body_b64!)) as unknown);
     expect(rated).toEqual([
@@ -202,22 +209,22 @@ describe("relay gate: verdicts", () => {
   it("typed: 428 with the update line, nothing forwarded, on every method", async () => {
     reply = () => verdict("typed");
     for (const method of ["GET", "POST", "DELETE"]) {
-      const res = await viaBootstrap("/core", { method, path: "/api/services/lock/unlock", body: { entity_id: "lock.front" } });
+      const res = await viaLaptop("/core", { method, path: "/api/services/lock/unlock", body: { entity_id: "lock.front" } });
       expect(res.status).toBe(428);
       expect(JSON.parse(res.text).error).toEqual({ code: "GATE_APPROVAL_REQUIRED", message: "Only a person may confirm this, on their phone or in Home Assistant. Update HA NOVA on this computer: ha-nova update" });
     }
-    const envelope = await viaBootstrap("/ws", { message: { type: "call_service", domain: "lock", service: "unlock" }, collect_events: {} });
+    const envelope = await viaLaptop("/ws", { message: { type: "call_service", domain: "lock", service: "unlock" }, collect_events: {} });
     expect(envelope.status).toBe(428);
     expect(forwarded).toEqual([]);
   });
 
   it("refuse: 422 GATE_REFUSED, nothing forwarded", async () => {
     reply = () => ({ json: { verdict: "refuse", kind: "write", why: "fire_event" } });
-    const res = await viaBootstrap("/ws", { type: "fire_event", event_type: "x" });
+    const res = await viaLaptop("/ws", { type: "fire_event", event_type: "x" });
     expect(res.status).toBe(422);
     expect(JSON.parse(res.text).error).toEqual({ code: "GATE_REFUSED", message: "HA NOVA's safety check refused this request (fire_event); nothing was sent." });
     reply = () => ({ json: { verdict: "refuse", kind: "write", why: "webhook abc123 SECRET" } });
-    expect((await viaBootstrap("/ws", { type: "fire_event" })).text).not.toContain("SECRET");
+    expect((await viaLaptop("/ws", { type: "fire_event" })).text).not.toContain("SECRET");
     expect(forwarded).toEqual([]);
   });
 
@@ -226,7 +233,7 @@ describe("relay gate: verdicts", () => {
       children[0]!.emit("exit", 1, null);
       return path === "/check" ? verdict("pass") : { json: {} };
     };
-    const res = await viaBootstrap("/ws", { type: "get_states" });
+    const res = await viaLaptop("/ws", { type: "get_states" });
     expect(res.status).toBe(503);
     expect(forwarded).toEqual([]);
     await new Promise((resolve) => setTimeout(resolve, 100)); // its restart lands inside this test
@@ -245,7 +252,7 @@ describe("relay gate: verdicts", () => {
     ["no answer within the timeout", "hang"],
   ])("%s: 503 GATE_UNAVAILABLE, nothing forwarded", async (_name, bad) => {
     reply = () => bad;
-    const res = await viaBootstrap("/files", { action: "read_file", path: "configuration.yaml" });
+    const res = await viaLaptop("/files", { action: "read_file", path: "configuration.yaml" });
     expect(res.status).toBe(503);
     expect(code(res.text)).toBe("GATE_UNAVAILABLE");
     expect(forwarded).toEqual([]);
@@ -255,20 +262,35 @@ describe("relay gate: verdicts", () => {
     fakeWorker.closeAllConnections();
     await new Promise<void>((resolve) => fakeWorker.close(() => resolve()));
     servers = servers.filter((s) => s !== fakeWorker);
-    const res = await viaBootstrap("/ws", { type: "get_states" });
+    const res = await viaLaptop("/ws", { type: "get_states" });
     expect(res.status).toBe(503);
     expect(forwarded).toEqual([]);
   });
 
   it("a crashed worker: 503 without asking anyone, and it is started again", async () => {
-    children[0]!.emit("exit", 1, null);
-    const res = await viaBootstrap("/ws", { type: "get_states" });
+    // Crash it once the request is in (a TLS handshake can outlast the respawn).
+    onDeviceRequest = () => {
+      onDeviceRequest = undefined;
+      children[0]!.emit("exit", 1, null);
+    };
+    const res = await viaLaptop("/ws", { type: "get_states" });
     expect(res.status).toBe(503);
     expect(seen).toEqual([]);
     expect(forwarded).toEqual([]);
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(children).toHaveLength(2);
-    expect((await viaBootstrap("/ws", { type: "get_states" })).status).toBe(200);
+    expect((await viaLaptop("/ws", { type: "get_states" })).status).toBe(200);
+  });
+});
+
+describe("relay gate: the pairing listener", () => {
+  it("refuses every functional route before the gate: 401 for the shared token, 403 for a device credential", async () => {
+    for (const path of ["/ws", "/core", "/files", "/backups", "/supervisor"]) {
+      expect((await viaBootstrap(path, { type: "get_states" }, "shared-token")).status).toBe(401);
+      expect((await viaBootstrap(path, { type: "get_states" }, device(`laptop-${path}`))).status).toBe(403);
+    }
+    expect(seen).toEqual([]);
+    expect(forwarded).toEqual([]);
   });
 });
 
@@ -281,7 +303,7 @@ describe("relay gate: redaction", () => {
     ["no answer within the timeout", "hang"],
   ])("%s from /redact: 502 GATE_ANSWER_WITHHELD and none of the answer", async (_name, bad) => {
     reply = (path) => (path === "/check" ? verdict("pass") : bad);
-    const res = await viaBootstrap("/ws", { type: "config/entity_registry/list" });
+    const res = await viaLaptop("/ws", { type: "config/entity_registry/list" });
     expect(res.status).toBe(502);
     expect(JSON.parse(res.text).error).toEqual({ code: "GATE_ANSWER_WITHHELD", message: "Home Assistant may have carried this out; HA NOVA withheld the answer" });
     expect(res.text).not.toContain("SECRET");
@@ -295,7 +317,7 @@ describe("relay gate: redaction", () => {
       }
       return path === "/check" ? verdict("pass") : redactAll({ response_b64: "" });
     };
-    const res = await viaBootstrap("/ws", { type: "get_states" });
+    const res = await viaLaptop("/ws", { type: "get_states" });
     expect(res.status).toBe(502);
     expect(code(res.text)).toBe("GATE_ANSWER_WITHHELD");
     expect(forwarded).toHaveLength(1);
@@ -304,14 +326,14 @@ describe("relay gate: redaction", () => {
 
   it("redacts an upstream error answer with its status", async () => {
     answer = new HttpError(502, "UPSTREAM_WS_ERROR", "SECRET in an error");
-    const res = await viaBootstrap("/ws", { type: "get_states" });
+    const res = await viaLaptop("/ws", { type: "get_states" });
     expect(res.status).toBe(502);
     expect(JSON.parse(res.text)).toEqual({ ok: false, error: { code: "UPSTREAM_WS_ERROR", message: "HIDDEN in an error" } });
   });
 
   it("passes a binary core answer (camera frame) unchanged", async () => {
     answer = { status: 200, body: "U0VDUkVU", body_encoding: "base64", content_type: "image/jpeg" };
-    const res = await viaBootstrap("/core", { method: "GET", path: "/api/camera_proxy/camera.door" });
+    const res = await viaLaptop("/core", { method: "GET", path: "/api/camera_proxy/camera.door" });
     expect(JSON.parse(res.text)).toEqual({ ok: true, data: answer });
     expect(seen.map((s) => s.path)).toEqual(["/check"]);
   });

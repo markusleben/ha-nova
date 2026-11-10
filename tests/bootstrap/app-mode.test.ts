@@ -188,7 +188,7 @@ describe("app mode assembly", () => {
     expect(() => registerCode("123456", "owner-user")).not.toThrow();
   });
 
-  it("clears an unused legacy ha_llat from options during startup", async () => {
+  it("leaves a stored ha_llat option alone during startup", async () => {
     const dir = mkdtempSync(join(tmpdir(), "ha-nova-appmode-llat-"));
     cleanup.push(() => rmSync(dir, { recursive: true, force: true }));
     writeFileSync(
@@ -202,10 +202,7 @@ describe("app mode assembly", () => {
 
     await build(dir, mock);
 
-    const cleared = mock.optionWrites.find((options) => "ha_llat" in options);
-    expect(cleared).toBeDefined();
-    expect(cleared?.ha_llat).toBe("");
-    expect(cleared?.file_access).toBe("off");
+    expect(mock.optionWrites).toEqual([]);
   });
 
   it("tolerates a transient Supervisor failure at startup instead of bricking pairing", async () => {

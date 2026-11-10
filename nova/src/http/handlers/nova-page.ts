@@ -40,7 +40,7 @@ const CSP = [
   "frame-ancestors 'self'",
 ].join("; ");
 
-const ACTIONS = new Set<NovaAction>(["generate_code", "cancel_code", "revoke_device", "revoke_legacy", "reset_registry"]);
+const ACTIONS = new Set<NovaAction>(["generate_code", "cancel_code", "revoke_device", "reset_registry"]);
 const CHAT_ACTIONS = new Set<NovaAction>(["chat_apps_on", "chat_apps_off", "chat_read_only", "chat_codes", "chat_users"]);
 
 export interface NovaPageDeps {
@@ -123,7 +123,6 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
       now: deps.now(),
       pairing: deps.pairing.getStatus(),
       devices: deps.registry.list().filter((d) => d.deviceId !== bridgeDevice && d.clientInstallId !== GATE_INSTALL_ID),
-      hasLegacy: deps.registry.hasLegacy(),
       registryCorrupt: deps.registryCorrupt?.() ?? false,
       connection: deps.connection(),
       update,
@@ -271,11 +270,6 @@ async function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<
       }
       return false;
     }
-    case "revoke_legacy":
-      // Cut off the migrated shared token so a pre-pairing credential cannot
-      // outlive the devices; paired devices keep working.
-      deps.registry.revokeLegacy();
-      return false;
     case "reset_registry":
       // Recover from a corrupt registry: archive the damaged file and start a
       // fresh, empty one so pairing works again.

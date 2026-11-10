@@ -337,33 +337,15 @@ describe("nova-page", () => {
     expect(confirm.body).toContain("Home Assistant Link");
   });
 
-  it("shows a legacy-access section only while a legacy credential exists, and revokes it through the confirm flow", async () => {
-    // No legacy credential -> no section, no way to revoke something that
-    // does not exist.
+  it("has no legacy-access section and rejects the retired revoke_legacy action", async () => {
     let r = await call(createNovaPageHandler(deps), req());
-    expect(r.body).not.toContain("Revoke legacy access");
+    expect(r.body).not.toContain("Legacy access");
+    expect(r.body).not.toContain("revoke_legacy");
 
-    registry.importLegacy("legacy-digest-abc", now());
-    r = await call(createNovaPageHandler(deps), req());
-    expect(r.body).toContain("Revoke legacy access");
-    // The base render arms only — no legacy form or token exists yet.
-    expect(r.body).not.toContain('name="action" value="revoke_legacy"');
-    expect(r.body).toContain("confirm=revoke_legacy");
-
-    // Arm, then confirm with the token minted by the confirm render.
     r = await call(createNovaPageHandler(deps), req({ url: "/?confirm=revoke_legacy" }));
-    expect(r.body).toContain("Confirm revoke of legacy access");
-    const token = extractCsrf(r.body);
-    const ar = await call(createNovaActionHandler(deps), req(), {
-      action: "revoke_legacy",
-      csrf: token,
-    });
-    expect(ar.statusCode).toBe(303);
-    expect(registry.hasLegacy()).toBe(false);
-
-    // Gone again once revoked — and the armed confirm renders nothing.
-    r = await call(createNovaPageHandler(deps), req({ url: "/?confirm=revoke_legacy" }));
-    expect(r.body).not.toContain("Revoke legacy access");
+    expect(r.body).not.toContain("legacy access");
+    const ar = await call(createNovaActionHandler(deps), req(), { action: "revoke_legacy", csrf: "x" });
+    expect(ar.statusCode).toBe(400);
   });
 
   it("gates the registry reset behind the confirm screen plus typed RESET", async () => {

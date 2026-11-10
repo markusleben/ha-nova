@@ -10,13 +10,14 @@ Environment:
   SUPERVISOR_URL     Optional. Default: http://supervisor
   APP_SLUG           Optional. Default: ha_nova_relay
   RELAY_BASE_URL     Required. Base URL for nova relay (example: http://homeassistant.local:8791)
-  RELAY_AUTH_TOKEN   Required. Relay auth bearer token.
+  RELAY_AUTH_TOKEN   Required. The Relay's bearer: a standalone Relay's own token.
+                     The NOVA App (0.30+) answers a shared token 401 PAIRING_REQUIRED.
   WS_TYPE            Optional. Default: ping
   Also loaded (if present): .env.local, .env
 
 Behavior:
   - If SUPERVISOR_TOKEN is set: reads/validates app options via Supervisor API.
-  - With --apply: writes options + restarts app (requires SUPERVISOR_TOKEN).
+  - With --apply: writes options (file_access) + restarts app (requires SUPERVISOR_TOKEN).
   - Verifies /health and /ws against current runtime.
 `;
 
@@ -55,13 +56,11 @@ if (supervisorToken) {
     headers: supervisorHeaders
   });
 
-  const currentOptions = toObject(appInfo.data?.options);
-  // Spread first so a stored legacy `ha_llat` (or any future option) survives
-  // the options rewrite — the App no longer needs an LLAT, but wiping a stored
-  // one would break the one-time legacy migration.
+  // Spread first so any future option survives the rewrite; the removed shared
+  // token and LLAT options are dropped (the App's schema no longer has them).
+  const { relay_auth_token: _token, ha_llat: _llat, ...currentOptions } = toObject(appInfo.data?.options);
   const nextOptions = {
     ...currentOptions,
-    relay_auth_token: relayAuthToken,
     file_access: readOptionalFromUnknown(currentOptions.file_access) ?? "off"
   };
 

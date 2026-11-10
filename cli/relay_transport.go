@@ -33,8 +33,9 @@ func localRelayRepairCommand(
 
 func localRelayAuthRepairMessage(
 	status int,
+	header http.Header,
 	profile string,
-	relayURL string,
+	cfg runtimeConfig,
 ) string {
 	if activeServerIsDemo() {
 		if status == http.StatusForbidden {
@@ -45,6 +46,9 @@ func localRelayAuthRepairMessage(
 	if bridgeRelay != nil { // ha-nova serve inside the NOVA App: no setup to run; a restart mints its sign-in again
 		return "the NOVA Relay App refused the chat-app bridge's own built-in sign-in (not a setting); restart the NOVA Relay App in Home Assistant (Settings → Apps → NOVA Relay → Restart)"
 	}
+	if sharedAccessEnded(status, header) {
+		return sharedAccessEndedFor(cfg, profile)
+	}
 	action := "rejected"
 	if status == http.StatusForbidden {
 		action = "denied"
@@ -52,7 +56,7 @@ func localRelayAuthRepairMessage(
 	return fmt.Sprintf(
 		"local Relay %s the saved local credential; run: %s",
 		action,
-		localRelayRepairCommand(profile, relayURL),
+		localRelayRepairCommand(profile, cfg.RelayBaseURL),
 	)
 }
 

@@ -1,7 +1,7 @@
 // Minimal Supervisor self-API client (App mode only). Reads /addons/self/info
 // for the update status shown on the NOVA page and for the effective host port
-// the secure device listener is mapped to, and writes /addons/self/options to
-// clear a migrated legacy option. Uses the process-local SUPERVISOR_TOKEN; it is
+// the secure device listener is mapped to, and writes /addons/self/options for
+// the sidebar entry. Uses the process-local SUPERVISOR_TOKEN; it is
 // never reachable in standalone Container/Core, so callers guard on App mode.
 //
 // Confirmed live against a real Supervisor (hassio_role: default): self/info
@@ -29,12 +29,8 @@ export interface SupervisorClient {
   // port is not mapped/exposed — the pairing flow treats null as "no secure
   // endpoint" and refuses to activate a code.
   getMappedHostPort(containerPort: string): Promise<number | null>;
-  // Replace the App options (used to clear a migrated legacy token). The caller
-  // passes the full desired options object.
-  setOptions(options: Record<string, unknown>): Promise<void>;
   // Toggle the App's sidebar entry. `ingress_panel` is a sibling field of
-  // `options` on the same Supervisor endpoint, so this must not be merged into
-  // setOptions payloads.
+  // `options` on the same Supervisor endpoint: it never sends options.
   setIngressPanel(enabled: boolean): Promise<void>;
   // Supervisor discovery (chat apps): publish or update this App's message for
   // a service and return its uuid; Supervisor keeps one message per App and
@@ -103,13 +99,6 @@ export function createSupervisorClient(
       const data = dataOf(await request("/addons/self/info"));
       const mapped = parseNetwork(data.network, "strict")[containerPort];
       return mapped ?? null;
-    },
-    async setOptions(options) {
-      await request("/addons/self/options", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ options }),
-      });
     },
     async setIngressPanel(enabled) {
       await request("/addons/self/options", {

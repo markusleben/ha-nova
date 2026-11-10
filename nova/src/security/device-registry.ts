@@ -7,6 +7,7 @@ import {
   DEVICE_REGISTRY_FILE,
   RegistryCorruptError,
   loadRegistryData,
+  serializeRegistry,
   validateConfirmPhone,
   type RegistryData,
 } from "./device-registry-schema.js";
@@ -43,7 +44,6 @@ export type {
   DeviceRecord,
   DeviceRegistry,
   DeviceState,
-  LegacyRecord,
   PairingResponseRecord,
   ResolvedPrincipal,
 } from "./device-registry-types.js";
@@ -69,7 +69,8 @@ export function openDeviceRegistry(
   logger?: RelayLogger,
 ): DeviceRegistry {
   const path = join(dataDir, DEVICE_REGISTRY_FILE);
-  let data = loadRegistryData(path);
+  const loaded = loadRegistryData(path);
+  let data = loaded.data;
   let mutating = false;
 
   function persist(next: RegistryData): void {
@@ -81,7 +82,7 @@ export function openDeviceRegistry(
     }
     mutating = true;
     try {
-      writeFileAtomicSync(path, JSON.stringify(next));
+      writeFileAtomicSync(path, serializeRegistry(next));
       data = next;
     } finally {
       mutating = false;
@@ -110,15 +111,17 @@ export function openDeviceRegistry(
     }
   }
 
+  // A file from an older App may still hold the old shared token's record, or
+  // lack the tombstone (serializeRegistry); a fresh install has no file yet.
+  // Write it before anything is served, so a rollback to an older App stays
+  // closed. A failed write fails the open, loud.
+  if (!loaded.retired) {
+    persist(data);
+  }
+
   return {
     list() {
       return data.devices.map((d) => ({ ...d }));
-    },
-    hasLegacy() {
-      return data.legacy !== null;
-    },
-    legacyImportCompleted() {
-      return data.legacyImportCompleted;
     },
     resolveDeviceSecret(deviceId, secretDigest, now) {
       const device = data.devices.find(
@@ -153,15 +156,6 @@ export function openDeviceRegistry(
       }
       touchLastUsed(device, now);
       return { kind: "device", deviceId };
-    },
-    resolveLegacySecret(secretDigest) {
-      if (
-        !data.legacy ||
-        !digestsEqual(data.legacy.secretDigest, secretDigest)
-      ) {
-        return null;
-      }
-      return { kind: "legacy" };
     },
     getPairingResponse(handshakeId, contextKey, now) {
       const response = data.pairingResponses.find(
@@ -331,28 +325,6 @@ export function openDeviceRegistry(
       const confirmPhone = validateConfirmPhone(link);
       persist({ ...data, devices: data.devices.map((d) => (d === device ? { ...d, confirmPhone } : d)) });
       return true;
-    },
-    importLegacy(secretDigest, now) {
-      if (data.legacyImportCompleted) {
-        return; // tombstone wins; never re-import
-      }
-      persist({
-        ...data,
-        legacy: { secretDigest, createdAtMs: now },
-        legacyImportCompleted: true,
-      });
-    },
-    markLegacyMigrated() {
-      // Stamp the tombstone WITHOUT importing a record, so an owner reset of a
-      // corrupt registry cuts pre-pairing shared access instead of re-importing
-      // the lingering plaintext token on the next boot.
-      if (data.legacyImportCompleted) {
-        return;
-      }
-      persist({ ...data, legacyImportCompleted: true });
-    },
-    revokeLegacy() {
-      persist({ ...data, legacy: null });
     },
   };
 

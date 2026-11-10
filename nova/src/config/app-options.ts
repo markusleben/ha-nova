@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 
 export interface AppOptions {
-  ha_llat?: string;
   [key: string]: unknown;
 }
 

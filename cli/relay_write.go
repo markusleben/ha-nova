@@ -199,7 +199,7 @@ func (s *relaySession) sendWriteOnce(endpoint string, body []byte, grant string)
 	}
 	raw, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	if s.transport.Via == relayViaLocal && localRelayRefusedCredential(resp.StatusCode, raw) {
-		return nil, errors.New(localRelayAuthRepairMessage(resp.StatusCode, s.server, s.cfg.RelayBaseURL))
+		return nil, errors.New(localRelayAuthRepairMessage(resp.StatusCode, resp.Header, s.server, s.cfg))
 	}
 	if err == nil {
 		raw, err = normalizeUTF8Bytes(raw, "Relay response")

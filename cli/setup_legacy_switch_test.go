@@ -100,15 +100,16 @@ func stubLegacySwitchProbe(t *testing.T, canPair bool) {
 	probePairingV1ForSetup = func(string) bool { return canPair }
 }
 
-// In the terminal: the notice, then the question; Enter switches (setup's
-// pairing step), Not now goes on as before. Nobody to ask: the notice only.
+// In the terminal, while the App still takes the token: the notice, then the
+// question; Enter switches (setup's pairing step), Not now goes on as before.
+// Nobody to ask: the notice only.
 func TestSetupTerminalLegacyInstallAsksToSwitchFirst(t *testing.T) {
 	resetServerProfileSelection(t)
 	stubLegacySwitchProbe(t, true)
 	run := func(input string, tty bool) (*setupFlow, setupStepResult, bool, string) {
 		var out strings.Builder
 		ui := setupTextUI{reader: bufio.NewReader(strings.NewReader(input)), out: &out}
-		flow := &setupFlow{existingToken: "shared", ui: ui,
+		flow := &setupFlow{existingToken: "shared", ui: ui, current: setupState{RelayOK: true},
 			cfg: runtimeConfig{HAHost: "ha.local", HAURL: "http://ha.local:8123", RelayBaseURL: "http://ha.local:8791"}}
 		if tty {
 			flow.ui = ttySetupTextUI{ui}
@@ -128,6 +129,54 @@ func TestSetupTerminalLegacyInstallAsksToSwitchFirst(t *testing.T) {
 	flow, _, switched, out = run("", false)
 	if switched || flow.existingToken != "shared" || strings.Contains(out, "Switch to your own access now?") {
 		t.Fatalf("no tty switched=%v\n%s", switched, out)
+	}
+}
+
+// An App that no longer takes the token: nothing to put off, the terminal
+// switches without the question. Nobody to ask: no switch, as before (the
+// next check names the way back).
+func TestSetupTerminalLegacyInstallSwitchesWhenTheAppRefusesTheToken(t *testing.T) {
+	resetServerProfileSelection(t)
+	stubLegacySwitchProbe(t, true)
+	run := func(tty bool) (*setupFlow, setupStepResult, bool, string) {
+		var out strings.Builder
+		ui := setupTextUI{reader: bufio.NewReader(strings.NewReader("2\n")), out: &out}
+		flow := &setupFlow{existingToken: "shared", ui: ui, current: setupState{SharedAccessEnded: true},
+			cfg: runtimeConfig{HAHost: "ha.local", HAURL: "http://ha.local:8123", RelayBaseURL: "http://ha.local:8791"}}
+		if tty {
+			flow.ui = ttySetupTextUI{ui}
+		}
+		result, switched := flow.offerLegacySwitch(false)
+		return flow, result, switched, out.String()
+	}
+	flow, result, switched, out := run(true)
+	if !switched || result.next != setupStepPairing || flow.existingToken != "" ||
+		!strings.Contains(out, "no longer accepts") || strings.Contains(out, "Switch to your own access now?") {
+		t.Fatalf("refused: %+v %v token=%q\n%s", result, switched, flow.existingToken, out)
+	}
+	if flow, _, switched, _ = run(false); switched || flow.existingToken != "shared" {
+		t.Fatalf("no tty switched=%v token=%q", switched, flow.existingToken)
+	}
+}
+
+// Home Assistant Link saved: pairing waits until it is removed, so setup
+// stops on the refusal with the way through Link instead of the token step.
+func TestSetupLegacyInstallWithLinkStopsOnTheRefusal(t *testing.T) {
+	resetServerProfileSelection(t)
+	stubLegacySwitchProbe(t, true)
+	var out strings.Builder
+	flow := &setupFlow{existingToken: "shared", ui: setupTextUI{out: &out}, current: setupState{SharedAccessEnded: true},
+		cfg: runtimeConfig{HAHost: "ha.local", HAURL: "http://ha.local:8123", RelayBaseURL: "http://ha.local:8791", Cloud: &cloudLifecycleMetadata{}}}
+	stderr := captureStderr(t, func() {
+		result, switched := flow.offerLegacySwitch(false)
+		if !switched || !result.done || result.code != 1 {
+			t.Fatalf("link: %+v %v", result, switched)
+		}
+	})
+	for _, want := range []string{"no longer accepts", "ha-nova cloud remove --server default", "ha-nova setup", "ha-nova cloud add --server default"} {
+		if !strings.Contains(stderr, want) {
+			t.Fatalf("missing %q:\n%s", want, stderr)
+		}
 	}
 }
 
