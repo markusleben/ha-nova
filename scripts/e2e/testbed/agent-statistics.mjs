@@ -156,7 +156,7 @@ try {
     check(terminal >= 0 && run.ran.slice(terminal + 1).some((l) => /relay ws/.test(l)), "the agent read the config entries back after the last flow step", run.ran.slice(terminal + 1).join(" | ") || "nothing after it");
     const reopened = run.ran.findIndex((l) => /POST.*options\/flow( |$)/.test(l)), aborted = run.ran.findIndex((l) => /DELETE.*options\/flow\//.test(l));
     known(reopened >= 0 && aborted > reopened && !run.ran.some((l) => /POST.*options\/flow\//.test(l)), "the agent reopened the options flow and aborted it, unsubmitted", run.ran.filter((l) => /options\/flow/.test(l)).join(" | ") || "no options flow call");
-    check(terminal >= 0 && run.ran.slice(terminal + 1).some((l) => /api\/states\/|state /.test(l) && l.includes(entity)), "the agent read the new sensor's state after the create", run.ran.slice(terminal + 1).join(" | ") || "nothing after it");
+    check(terminal >= 0 && run.ran.slice(terminal + 1).some((l) => /api\/states\/|(^|\s)(get|state)\s/.test(l) && l.includes(entity)), "the agent read the new sensor's state after the create", run.ran.slice(terminal + 1).join(" | ") || "nothing after it");
     // Results name entities by their Home Assistant name, not their id (output-rules.md).
     check(state && run.reply.includes(state.attributes.friendly_name), "the reply names the new sensor", state?.attributes.friendly_name);
   }
