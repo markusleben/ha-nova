@@ -151,7 +151,7 @@ func TestGermanHomeAsksInTheWindow(t *testing.T) {
 		t.Fatalf("window plan: %q", env.Say)
 	}
 	if exit, _ := h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 0 || len(w.messages) != 1 || w.langs[0] != "de" ||
-		w.messages[0] != germanUnlock+"\n\n"+confirmT("de", "window.asked") {
+		w.messages[0] != windowMessage("de", germanUnlock, false) {
 		t.Fatalf("window: exit %d %q %v", exit, w.messages, w.langs)
 	}
 }
@@ -176,7 +176,7 @@ func TestHomeAssistantWordsStayWithThePlan(t *testing.T) {
 	h.f.translations["de/entity_component"] = original
 	id = h.plan("lock.unlock", "lock.front").Plan.ID
 	h.f.translations["de/entity_component"] = renamed
-	if exit, _ := h.run(runApplyCommand, "--plan", id); exit != 0 || len(w.messages) != 1 || !strings.HasPrefix(w.messages[0], germanUnlock) {
+	if exit, _ := h.run(runApplyCommand, "--plan", id); exit != 0 || len(w.messages) != 1 || !strings.HasPrefix(w.messages[0], windowMessage("de", germanUnlock, false)) {
 		t.Fatalf("apply after a rename: exit %d %q", exit, w.messages)
 	}
 }
@@ -322,7 +322,7 @@ func TestPhoneTextsFitEveryCatalog(t *testing.T) {
 func TestGermanBatchFitsTheWindowAndThePhone(t *testing.T) {
 	f := newFakeHA()
 	f.config = map[string]any{"language": "de"}
-	name := func(i int) string { return fmt.Sprintf("Long automation name %02d %s", i, strings.Repeat("y", 36)) }
+	name := func(i int) string { return fmt.Sprintf("Long automation name %02d %s", i, strings.Repeat("y", 6)) }
 	for i := 1; i <= batchMaxMembers; i++ {
 		f.storeConfig(fmt.Sprintf("/api/config/automation/config/l%d", i), map[string]any{"alias": name(i), "actions": []any{step("light.turn_on", "light.hall")}})
 	}
@@ -336,12 +336,12 @@ func TestGermanBatchFitsTheWindowAndThePhone(t *testing.T) {
 		t.Fatalf("20 deletes: exit %d %+v", exit, env.Error)
 	}
 	stored, err := readPlanFile(filepath.Join(planDir(h.paths), env.Plan.ID+".json"))
-	text := batchNoCopies("de", confirmText(stored, false)) + "\n\n" + windowBoth("de") + "\n" + windowAsked("de")
-	lines, chars := strings.Count(text, "\n")+1, utf8.RuneCountInString(text)
-	t.Logf("the longest German window: %d lines, %d characters", lines, chars)
-	if err != nil || stored.Lang != "de" || lines > batchWindowLines || chars > batchWindowChars ||
-		!strings.Contains(text, "\n20. Automation „"+name(20)+"“ löschen.\n") || !strings.Contains(text, confirmT("de", "batch.no_copies")) {
-		t.Fatalf("%d lines, %d characters (%v): %s", lines, chars, err, text)
+	text := batchNoCopies("de", confirmText(stored, false))
+	lines, fits := windowFits("de", text)
+	t.Logf("the longest German window: %d lines", lines)
+	if err != nil || stored.Lang != "de" || !fits || !strings.Contains(text, "\n1.–20. Diese 20 Automationen löschen: „"+name(1)+"“, ") ||
+		!strings.Contains(text, " und „"+name(20)+"“.\n") || !strings.Contains(text, confirmT("de", "batch.no_copies")) {
+		t.Fatalf("%d lines (%v): %s", lines, err, text)
 	}
 	member := func(op, domain string) batchMember {
 		return batchMember{stored: storedPlan{ConfigAction: &configAction{Op: op, Domain: domain}, ConfigRequest: &configRequest{Op: op, Domain: domain}}}

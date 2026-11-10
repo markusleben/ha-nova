@@ -11,6 +11,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode"
 )
 
 // A typed plan's human channel outside an MCP form (docs/work/2026-10-17-
@@ -36,11 +37,78 @@ const (
 	windowOpened     = "A confirmation window opened on this computer — confirm there."
 	windowOpenedBoth = "A confirmation window opened on this computer — confirm there or on your phone."
 	windowSetting    = "confirm_window" // config.json top level; "off" = codes in chat
+	windowSplit      = "Nothing changed. Plan it again as several smaller plans, each with its own confirmation, and tell the user why there are several. If one step alone is too long, tell the user to make this change in Home Assistant itself; never shorten what it does."
 )
 
-// windowAsked ends a plan's window text; windowBoth: the linked phone asks too.
+// windowAsked heads a plan's window text; windowBoth: the linked phone asks too.
 func windowAsked(lang string) string { return confirmT(lang, "window.asked") }
 func windowBoth(lang string) string  { return confirmT(lang, "window.both") }
+
+// windowMessage: a plan's window text with its instruction lines first,
+// so a window too small for the rest never hides them; both: the linked
+// phone asks too.
+func windowMessage(lang, body string, both bool) string {
+	head := windowAsked(lang)
+	if both {
+		head += "\n" + windowBoth(lang)
+	}
+	return head + "\n\n" + body
+}
+
+// The window budget, on every OS: macOS's dialog neither scrolls nor grows
+// past the screen. A batch of 8 statistics imports (about 1,950
+// characters) showed cut after about 55 lines of about 50 characters, so a
+// window text wraps to at most windowMaxLines lines of windowWrap runes,
+// with room for a smaller screen. Over it, a plan is refused, never cut.
+const (
+	windowWrap     = 46
+	windowMaxLines = 44
+)
+
+// windowTooLong refuses a window plan whose text, with or without its copy
+// note, the window can't show uncut, before it is stored.
+func windowTooLong(plan storedPlan) error {
+	if plan.Channel != channelWindow || plan.Tier != tierTyped.String() {
+		return nil
+	}
+	lang := textLang(plan)
+	lines, fits := windowFits(lang, confirmText(plan, false))
+	if more, fit := windowFits(lang, confirmText(plan, true)); more > lines {
+		lines, fits = more, fit
+	}
+	if fits {
+		return nil
+	}
+	return refusedWith("PLAN_TOO_LONG", fmt.Sprintf("the confirmation is too long for one window (%d lines; at most %d)", lines, windowMaxLines), windowSplit)
+}
+
+// windowFits: the lines body's window wraps to at word edges, its
+// instruction lines included (the phone's too), and whether they stay
+// within the budget.
+func windowFits(lang, body string) (lines int, fits bool) {
+	for _, line := range strings.Split(windowMessage(lang, body, true), "\n") {
+		width := 0
+		lines++
+		for _, word := range strings.Fields(line) {
+			w := 0
+			for _, r := range word { // a CJK letter takes two places
+				w += map[bool]int{false: 1, true: 2}[unicode.In(r, unicode.Han, unicode.Hangul, unicode.Hiragana, unicode.Katakana)]
+			}
+			switch {
+			case width == 0:
+				width = w
+			case width+1+w <= windowWrap:
+				width += 1 + w
+			default:
+				lines, width = lines+1, w
+			}
+			for ; width > windowWrap; width -= windowWrap {
+				lines++
+			}
+		}
+	}
+	return lines, lines <= windowMaxLines
+}
 
 // windowsBoxStyle (confirm_window_windows.go): MB_OKCANCEL, MB_ICONWARNING,
 // MB_DEFBUTTON2 (Cancel is the default), MB_TOPMOST. No MB_SETFOREGROUND:
@@ -158,7 +226,11 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 		return windowStopped(s, "refused", "PLAN_EXPIRED", "plan "+id+" expires before a confirmation window could get an answer", replan)
 	}
 	again := fmt.Sprintf("Tell the user in plain words: the window closed without an answer, nothing changed, and they can ask again. Run ha-nova apply --plan %s again (the window opens again) only after they say they still want it; never ask them for a code. If they saw no window, they can make this change in Home Assistant itself.", id)
-	text, lang := confirmText(fresh, noSnapshot)+"\n\n", textLang(plan)
+	text, lang := confirmText(fresh, noSnapshot), textLang(plan)
+	if lines, fits := windowFits(lang, text); !fits { // never shown cut
+		s.close()
+		return windowStopped(s, "refused", "PLAN_TOO_LONG", fmt.Sprintf("the confirmation of plan %s is too long for one window (%d lines; at most %d)", id, lines, windowMaxLines), windowSplit)
+	}
 	switch status {
 	case phoneReady: // the linked phone asks too (confirm_both.go)
 		a := &phoneAsking{id: id, plan: plan, s: s, idHex: idHex, goal: goal, setup: setup, ask: phonePlanAsk(lang, goal, noSnapshot), deadline: deadline}
@@ -171,7 +243,7 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 		}
 	}
 	defer s.close()
-	switch askWindow(planAsks, text+windowAsked(lang), plan.Lang, time.Until(deadline)) {
+	switch askWindow(planAsks, windowMessage(lang, text, false), plan.Lang, time.Until(deadline)) {
 	case windowConfirmed:
 		humanAnswer, humanWhere, askedRoute = confirmCode(s.transport.Credential, idHex, channelWindow, plan.ExpiresAt), channelWindow, s
 		return env, 0, false

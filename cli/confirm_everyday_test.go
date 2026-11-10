@@ -172,7 +172,7 @@ func TestEverydayLineOnEverySurface(t *testing.T) {
 		if err != nil || !strings.HasPrefix(planned.Say, opening) || !strings.HasPrefix(plan.Prompt, opening) {
 			t.Fatalf("say %q\nprompt %q (%v)", planned.Say, plan.Prompt, err)
 		}
-		if exit, _ := h.run(runApplyCommand, "--plan", planned.Plan.ID); exit != 0 || len(w.messages) != 1 || !strings.HasPrefix(w.messages[0], opening) {
+		if exit, _ := h.run(runApplyCommand, "--plan", planned.Plan.ID); exit != 0 || len(w.messages) != 1 || !strings.HasPrefix(w.messages[0], windowMessage("en", opening, false)) {
 			t.Fatalf("exit %d windows %q", exit, w.messages)
 		}
 	})

@@ -61,14 +61,12 @@ func (v humanVote) decisive() bool {
 func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 	lang := textLang(a.plan)
 	probe := phoneCanListen(a.s, a.deadline.Add(-windowMinWait))
-	if probe == phoneIgnored {
-		text += windowBoth(lang) + "\n"
-	}
+	message := windowMessage(lang, text, probe == phoneIgnored)
 	ctx, cancel := context.WithDeadline(planAsks, a.deadline)
 	defer cancel()
 	votes := make(chan humanVote, 2) // the first vote received decides: the claim
 	go func() {
-		answer, ended := askWindowUntilSignal(ctx, text+windowAsked(lang), a.plan.Lang, time.Until(a.deadline))
+		answer, ended := askWindowUntilSignal(ctx, message, a.plan.Lang, time.Until(a.deadline))
 		votes <- humanVote{window: answer, ended: ended}
 	}()
 	go func() {
