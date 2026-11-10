@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Apply sends no reload after a save (Home Assistant's config view reloads
@@ -83,10 +84,37 @@ func TestConfigSaveNeverLoadedStaysUnverified(t *testing.T) {
 	exit, applied := applyAll(h, env)
 	if exit != verbExitUnverified || applied.Status != "unverified" || applied.BeforeConfig == nil ||
 		!strings.HasPrefix(applied.Verification[0].Note, "saved, but Home Assistant hadn't loaded it within ") ||
-		!strings.HasSuffix(applied.Verification[0].Note, " s: whether the change is running is unknown") {
+		!strings.HasSuffix(applied.Verification[0].Note, " s: whether the change is running is unknown") ||
+		!strings.Contains(applied.NextStep, "ha-nova get automation.night_mode --config") || !strings.HasSuffix(applied.NextStep, "never apply it again.") {
 		t.Fatalf("exit %d env %+v", exit, applied)
 	}
 	noServiceSent(t, h)
+}
+
+// A late approval or a long batch spends the command's budget; the save still
+// gets a short look, since Home Assistant reloads only after its 200.
+func TestConfigSaveWithASpentBudgetStillLooks(t *testing.T) {
+	saved := commandStart
+	commandStart = time.Now().Add(-2 * windowWait)
+	t.Cleanup(func() { commandStart = saved })
+	f := batchHome()
+	old := f.configs["/api/config/automation/config/a1"]
+	reads := 0
+	afterSave(f, func(endpoint string, p map[string]any) (any, bool) {
+		if p["type"] != "automation/config" {
+			return nil, false
+		}
+		if reads++; reads <= 2 {
+			return map[string]any{"config": old}, true
+		}
+		return nil, false
+	})
+	h := newWriteHarness(t, f)
+	draft := map[string]any{"alias": "Changed", "actions": []any{step("light.turn_off", "light.attic")}}
+	_, env := h.run(runPlanCommand, "write", "--domain", "automation", "--id", "a1", "--file", draftFile(t, draft))
+	if exit, applied := applyAll(h, env); exit != 0 || applied.Status != "verified" || reads != 3 {
+		t.Fatalf("exit %d reads %d env %+v", exit, reads, applied)
+	}
 }
 
 func TestConfigCreateWaitsForItsRegistryEntity(t *testing.T) {

@@ -96,7 +96,7 @@ The context skill (`ha-nova`) stays the stable entrypoint; sub-skills remain ind
 ## Execution Model
 
 Every skill runs inline in the main thread. Deterministic multi-call work —
-target resolution, tiering, drift checks, writes, reloads, read-back
+target resolution, tiering, drift checks, writes, read-back and load
 verification — lives in the typed CLI verbs (`ha-nova find|get|plan|call|apply`),
 not in agent templates.
 

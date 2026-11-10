@@ -106,8 +106,11 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 	if row.Outcome != "verified" {
 		env.exit = verbExitUnverified
 	}
-	if strings.HasPrefix(row.Note, readBackDiffers) {
+	switch {
+	case strings.HasPrefix(row.Note, readBackDiffers):
 		sayReadBackDiffers(env)
+	case strings.HasPrefix(row.Note, notLoaded):
+		env.NextStep = "Tell the user it is saved but not yet confirmed running. Read it once more in a moment (`ha-nova get " + row.EntityID + " --config` and its state); never apply it again."
 	}
 	if update {
 		expected := readback
@@ -205,8 +208,8 @@ func verifyConfig(s *relaySession, action configAction) (verifyRow, json.RawMess
 	switch {
 	case len(differences) > 0: // never the plan: one look for the entity, no wait
 		wait = 0
-	case gateApproval == nil: // ha-nova mcp's apply job has its own life (gateOpenWait)
-		wait = min(wait, askWait())
+	case gateApproval == nil: // ha-nova mcp's apply job has its own life (gateOpenWait); a spent budget still gets a short look
+		wait = min(wait, max(askWait(), configLoadFloor))
 	}
 	entityID, disabled, loaded, waited, registryErr := awaitLoaded(s, action, wait)
 	row.EntityID = entityID
@@ -228,8 +231,10 @@ func verifyConfig(s *relaySession, action configAction) (verifyRow, json.RawMess
 		row.Note = readBackDiffers + strings.Join(differences, " ")
 	case disabled: // a registry-disabled item has no state to check
 		row.Outcome, row.Note = "verified", "disabled in the entity registry: saved, not running"
+	case !loaded && registryErr != nil:
+		row.Note = notLoaded + "HA NOVA couldn't read whether Home Assistant loaded it: whether the change is running is unknown"
 	case !loaded:
-		row.Note = fmt.Sprintf("saved, but Home Assistant hadn't loaded it within %d s: whether the change is running is unknown", int(math.Ceil(waited.Seconds())))
+		row.Note = fmt.Sprintf(notLoaded+"Home Assistant hadn't loaded it within %d s: whether the change is running is unknown", int(math.Ceil(waited.Seconds())))
 	case st != nil && st.State == "unavailable": // Home Assistant could not load the config
 		row.Note = "the entity is unavailable: Home Assistant rejected the config when loading it"
 	case st != nil:
@@ -239,6 +244,9 @@ func verifyConfig(s *relaySession, action configAction) (verifyRow, json.RawMess
 }
 
 const readBackDiffers = "the read-back differs: "
+
+// notLoaded: saved, but not seen running (awaitLoaded); never applied again.
+const notLoaded = "saved, but "
 
 // sayReadBackDiffers: what Home Assistant kept is not what the user
 // approved. Equivalent spellings never get here (configChanges), so this is

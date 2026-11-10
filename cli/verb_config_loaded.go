@@ -11,6 +11,10 @@ import (
 // own and only reads. Tests shorten both.
 var configLoadPoll, configLoadWait = 500 * time.Millisecond, 15 * time.Second
 
+// configLoadFloor: the shortest look on the CLI once the command's budget is
+// spent (a late approval, a long batch): Home Assistant reloads after its 200.
+const configLoadFloor = 3 * time.Second
+
 // awaitLoaded polls, read-only, until Home Assistant has loaded the planned
 // config: the registry holds the entity for the config id (a create waits
 // for it) and WS automation/config or script/config returns the plan
