@@ -16,10 +16,9 @@
 //   node scripts/e2e/testbed/agent-statistics.mjs     (a running bed you own)
 //
 // Shell path only (agent.mjs): the helper skill is the plugin's. Writes to
-// the bed (two helpers, removed at the end, and sensor values). The post-write
-// steps the agent skips today (#1105) report XFAIL instead of FAIL.
-// PASS/FAIL/XFAIL/SKIP lines; exits non-zero on FAIL or a broken run; SKIP
-// exits 0.
+// the bed (two helpers, removed at the end, and sensor values). Steps agents
+// still skip (#1105) report XFAIL. PASS/FAIL/XFAIL/SKIP lines; exits non-zero
+// on FAIL or a broken run; SKIP exits 0.
 import { execFileSync } from "node:child_process";
 import { chmodSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -35,7 +34,7 @@ const line = (status, name, detail) => {
   console.log(status.padEnd(6) + name + (detail ? " (" + detail + ")" : ""));
 };
 const check = (ok, name, detail) => line(ok ? "PASS" : "FAIL", name, detail);
-const known = (ok, name, detail) => line(ok ? "PASS" : "XFAIL", name, (detail ? detail + ", " : "") + "skill gap #1105");
+const known = (ok, name, detail) => line(ok ? "PASS" : "XFAIL", name, (detail ? detail + ", " : "") + "#1105");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function ha(method, path, body) {
@@ -155,9 +154,11 @@ try {
     check(/create_entry/.test(run.results) && run.results.includes(entry), "the agent saw the terminal result.entry_id");
     const terminal = run.ran.findLastIndex((l) => /config_entries\/flow\//.test(l));
     check(terminal >= 0 && run.ran.slice(terminal + 1).some((l) => /relay ws/.test(l)), "the agent read the config entries back after the last flow step", run.ran.slice(terminal + 1).join(" | ") || "nothing after it");
-    known(run.ran.some((l) => /options\/flow/.test(l)) && run.ran.some((l) => /DELETE.*options\/flow\//.test(l)), "the agent reopened the options flow and aborted it", run.ran.filter((l) => /options\/flow/.test(l)).join(" | ") || "no options flow call");
-    known(/source_value_valid|age_coverage_ratio/.test(run.results), "the agent read the state and source-validity attributes");
-    known(entity && run.reply.includes(entity), "the reply names the new entity", entity);
+    const reopened = run.ran.findIndex((l) => /POST.*options\/flow( |$)/.test(l)), aborted = run.ran.findIndex((l) => /DELETE.*options\/flow\//.test(l));
+    known(reopened >= 0 && aborted > reopened && !run.ran.some((l) => /POST.*options\/flow\//.test(l)), "the agent reopened the options flow and aborted it, unsubmitted", run.ran.filter((l) => /options\/flow/.test(l)).join(" | ") || "no options flow call");
+    check(terminal >= 0 && run.ran.slice(terminal + 1).some((l) => /api\/states\/|state /.test(l) && l.includes(entity)), "the agent read the new sensor's state after the create", run.ran.slice(terminal + 1).join(" | ") || "nothing after it");
+    // Results name entities by their Home Assistant name, not their id (output-rules.md).
+    check(state && run.reply.includes(state.attributes.friendly_name), "the reply names the new sensor", state?.attributes.friendly_name);
   }
 
   const reveal = hideTerminalID(agent);
@@ -168,9 +169,15 @@ try {
   check(stripped.length > 0, "fixture: the terminal result lost its entry_id", stripped.join(",") || "no create_entry result passed the bed's ha-nova: the case proves nothing");
   check(hidden.added.length === 1 && stripped.includes(hidden.added[0]), "fixture: one new helper, the one whose id was hidden", hidden.added.join(",") || "none: " + hidden.reply.slice(0, 200));
   if (hidden.added.length === 1) {
-    // The terminal result lost the id, so the agent only has it from the entries it read after.
-    check(hidden.results.includes(hidden.added[0]) && !/ambiguous/i.test(hidden.reply),
-      "fixture: the agent found its helper by the before/after diff", hidden.added[0] + ": " + hidden.reply.slice(0, 160));
+    // The terminal result lost the id, so the agent only has it from the entries it read after;
+    // the diff needs the baseline it read before the flow started.
+    const start = hidden.ran.findIndex((l) => /config_entries\/flow/.test(l)), end = hidden.ran.findLastIndex((l) => /config_entries\/flow\//.test(l));
+    const [hiddenEntity] = await entityOf(hidden.added[0]);
+    const named = (await ha("GET", "/api/states/" + hiddenEntity)).attributes.friendly_name;
+    check(hidden.ran.slice(end + 1).some((l) => /relay ws/.test(l)) && (hidden.results.includes(hidden.added[0]) || hidden.reply.includes(named)) && !/ambiguous/i.test(hidden.reply),
+      "fixture: the agent found its helper in the entries it read after the flow", named + ": " + hidden.ran.slice(end + 1).join(" | ").slice(0, 300));
+    known(start > 0 && hidden.ran.slice(0, start).some((l) => /relay ws/.test(l)), "fixture: the agent read the entries before the flow, the diff's baseline",
+      hidden.ran.slice(0, Math.max(start, 0)).join(" | ").slice(0, 300) || "no command before the flow");
   }
 } catch (err) {
   line("FAIL", "the run itself", err.message);

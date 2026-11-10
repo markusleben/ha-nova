@@ -285,8 +285,8 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - if the diff fallback yields zero or multiple new `entry_id` values, or the new entry metadata is inconsistent with the request, fail loud as ambiguous create verification
    - `domain`/`title` are fallback tie-breakers only; they never override a terminal-flow `entry_id`
 10. Resolve `linked_entities[]` through the entity registry as secondary evidence only.
-11. If the created entry exposes `supports_options: true`, reopen the options flow and store the current editable options snapshot for the post-write response.
-12. Run config-entry-family post-write review (see below).
+11. If the re-read entry shows `supports_options: true`, reopen the options flow (Reading a single helper, steps 4-5), then `ha-nova relay core --method DELETE --path /api/config/config_entries/options/flow/{flow_id}`; never submit.
+12. Run the whole post-write review before any result (`statistics`/`history_stats`: the state-attribute read).
 
 #### Updating a helper
 
@@ -335,10 +335,10 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
 11. Verify success:
    - re-read `config_entries/get`
    - `passed=true` only when the same `entry_id` still exists
-   - reopen the options flow
+   - reopen the options flow, then DELETE it unsubmitted
    - `passed=true` only when the changed fields now appear in `description.suggested_value` as requested
    - if a requested changed field is exposed in the verification step but lacks `description.suggested_value`, fail loud as unverifiable update on this HA version
-12. Resolve `linked_entities[]` again as secondary evidence only.
+12. Resolve `linked_entities[]` as secondary evidence only.
 13. Run config-entry-family post-write review (see below).
 
 #### Deleting a helper
