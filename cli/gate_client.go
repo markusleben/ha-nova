@@ -336,6 +336,9 @@ var gateNext = map[string]string{
 // gateChatHeldNext: what the agent does after the Relay held a chat bridge's change (sendWrite).
 const gateChatHeldNext = "Tell the user nothing changed: this change needs a person's OK, which a chat app can't give here. They make it from a paired computer or directly in Home Assistant."
 
+// gateChatHeldPartNext: the same, after earlier steps of a raw plan went through.
+const gateChatHeldPartNext = "Tell the user which steps went through; the next one needs a person's OK, which a chat app can't give here, so nothing more was sent. They make the rest from a paired computer or directly in Home Assistant."
+
 // gateEnded: an ask that ended without an approval sent nothing.
 func gateEnded(state string) *verbFailure {
 	switch state {

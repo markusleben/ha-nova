@@ -75,3 +75,22 @@ func TestGateChatBridgeHoldInRawPlan(t *testing.T) {
 		t.Fatalf("%+v %s sent %v", env.Error, env.Result, sent())
 	}
 }
+
+// After an earlier step went through, the held step's Next keeps that step
+// in the report instead of saying nothing changed.
+func TestGateChatBridgeHoldInRawPlanAfterADoneStep(t *testing.T) {
+	saved := chatCall
+	chatCall = &chatPolicy{codes: true, level: levelManage}
+	t.Cleanup(func() { chatCall = saved })
+	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
+		"input_number/create": func(map[string]any) any {
+			return fakeRelayStatus{428, "GATE_APPROVAL_REQUIRED", "Only a person may confirm this"}
+		},
+	})
+	_, env := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"input_boolean/create","name":"Guest mode"}},{"endpoint":"ws","payload":{"type":"input_number/create","name":"Level","min":0,"max":10}}]`)
+	_, env = applyRaw(t, paths, env)
+	if env.Error == nil || env.Error.Code != "RAW_FAILED" || env.Error.Next != gateChatHeldPartNext ||
+		!strings.Contains(env.Error.Message, "1 earlier step went through") || strings.Join(sent(), " | ") != "input_boolean/create | input_number/create" {
+		t.Fatalf("%+v %s sent %v", env.Error, env.Result, sent())
+	}
+}
