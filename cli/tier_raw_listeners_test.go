@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -32,7 +33,7 @@ func listeningHome() *fakeHA {
 		{"entity_id": "input_boolean.guest", "platform": "input_boolean", "unique_id": "guest"},
 		{"entity_id": "zone.work", "platform": "zone", "unique_id": "work"},
 		{"entity_id": "binary_sensor.side_door", "platform": "zha", "unique_id": "z1"},
-		{"entity_id": "binary_sensor.doorbell", "platform": "esphome", "unique_id": "b1", "device_id": "dbell", "disabled_by": "user"},
+		{"entity_id": "binary_sensor.doorbell", "platform": "esphome", "unique_id": "b1", "device_id": "dbell", "disabled_by": "user", "area_id": "porch", "labels": []any{"ring"}},
 		{"entity_id": "binary_sensor.motion", "platform": "hue", "unique_id": "m1", "device_id": "dmotion", "config_entry_id": "Emotion"},
 		{"entity_id": "binary_sensor.hub_child", "platform": "zwave_js", "unique_id": "hc", "device_id": "dchild"},
 	}
@@ -61,6 +62,10 @@ var listenedWrites = []struct {
 		"entity:binary_sensor.porch", map[string]any{"trigger": "state", "entity_id": "binary_sensor.porch", "to": "on"}, ""},
 	{"a disabled entity's enable", `{"type":"config/entity_registry/update","entity_id":"binary_sensor.doorbell","disabled_by":null}`,
 		"device:dbell", map[string]any{"trigger": "device", "device_id": "dbell", "domain": "binary_sensor", "type": "turned_on"}, ""},
+	{"a disabled entity's enable, by its own area (MAR-142)", `{"type":"config/entity_registry/update","entity_id":"binary_sensor.doorbell","disabled_by":null}`,
+		"area-automation:porch", map[string]any{"trigger": "binary_sensor.turned_on", "target": map[string]any{"area_id": "porch"}}, ""},
+	{"a disabled entity's enable, by its own label (MAR-142)", `{"type":"config/entity_registry/update","entity_id":"binary_sensor.doorbell","disabled_by":null}`,
+		"label:ring", map[string]any{"trigger": "binary_sensor.turned_on", "target": map[string]any{"label_id": "ring"}}, ""},
 	{"a device rename", `{"type":"config/device_registry/update","device_id":"dmotion","name_by_user":"Hall motion"}`,
 		"entity:binary_sensor.motion", map[string]any{"trigger": "state", "entity_id": "binary_sensor.motion"}, ""},
 	{"an integration enable", `{"type":"config_entries/disable","entry_id":"Emotion","disabled_by":null}`,
@@ -104,8 +109,7 @@ func TestRawWriteListenersRaiseTheTier(t *testing.T) {
 			if listening && !strings.Contains(env.Say, "unlock") {
 				t.Errorf("%s: say %q names no unlock", tc.name, env.Say)
 			}
-			item, _ := strings.CutPrefix(tc.related, "entity:")
-			if item, _ = strings.CutPrefix(item, "device:"); !searched(item) {
+			if _, item, _ := strings.Cut(tc.related, ":"); !searched(item) {
 				t.Errorf("%s (listening %v): never searched what relates to %s", tc.name, listening, item)
 			}
 		}
@@ -223,6 +227,38 @@ func TestRawWriteListenerChangedBeforeApplyIsDrift(t *testing.T) {
 	f.mu.Unlock()
 	if exit, applied := applyRaw(t, paths, env); exit != verbExitDrift || applied.Status != "drift" || sent() != 0 {
 		t.Fatalf("exit %d status %s reasons %s, %d sent", exit, applied.Status, reasonCodes(applied), sent())
+	}
+}
+
+// A raw write calls nothing itself, but the automations it sets off do, and
+// an automation listening for those calls counts (MAR-148); a write that
+// also moves what it changes to another area or label is typed, since the
+// scan reads only where it sits now (MAR-142).
+func TestRawWriteConsumersCallsAndMovesCount(t *testing.T) {
+	f := listeningHome()
+	f.automation("closer", "closer", map[string]any{"triggers": []any{listenedWrites[2].trigger}, "actions": []any{step("lock.lock", "lock.front")}})
+	f.related["entity:input_boolean.guest"] = []string{"automation.closer"}
+	listen(f, "lockwatch", map[string]any{"domain": "lock"}, step("lock.unlock", "lock.front"))
+	paths, _, sent := listeningRelay(t, f)
+	if exit, env := planRaw(t, paths, "["+rawItem("", listenedWrites[2].payload)+"]"); exit != verbExitConfirmation || env.Tier != "typed" || !slices.Contains(consumerList(env), "automation.lockwatch") {
+		t.Errorf("a helper update whose consumer locks, beside a lock listener: exit %d tier %s consumers %v", exit, env.Tier, consumerList(env))
+	}
+	before := sent()
+	var exit int
+	stderr := captureStderr(t, func() { exit = runRelayCommand(paths, []string{"ws", "--data", listenedWrites[2].payload}) })
+	if exit != verbExitRefused || !strings.Contains(stderr, "nothing was sent") || sent() != before {
+		t.Errorf("relay of that update: exit %d, stderr %q; want refused", exit, stderr)
+	}
+
+	paths, _, _ = listeningRelay(t, listeningHome())
+	for _, payload := range []string{
+		`{"type":"config/entity_registry/update","entity_id":"binary_sensor.doorbell","disabled_by":null,"area_id":"hall"}`,
+		`{"type":"config/entity_registry/update","entity_id":"binary_sensor.doorbell","disabled_by":null,"area_id":null}`,
+		`{"type":"config/device_registry/update","device_id":"dhub","disabled_by":null,"labels":["night"]}`,
+	} {
+		if exit, env := planRaw(t, paths, "["+rawItem("", payload)+"]"); exit != verbExitConfirmation || env.Tier != "typed" || !slices.Contains(reasonList(env), reasonUnresolvedTarget) {
+			t.Errorf("%s: exit %d tier %s reasons %s; want typed", payload, exit, env.Tier, reasonCodes(env))
+		}
 	}
 }
 

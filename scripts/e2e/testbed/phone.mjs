@@ -12,13 +12,19 @@
 // does: fire_event on the phone's own webhook (its user, origin REMOTE).
 // The CLI runs with its own home (.state/phone-home, windows off), so the
 // link never leaks into the verify home. TESTBED_CLI_BIN picks the binary.
-// Prints PASS/FAIL lines; exits non-zero on any FAIL.
-import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+// One case answers a question on the computer: its confirmation window needs
+// a Linux container with a fake zenity (see windowCancel; a real window would
+// open on your screen). Needs Docker; TESTBED_CLI_BIN_LINUX picks its Linux
+// binary (else TESTBED_CLI_BIN if that is one, else a build of this checkout).
+// Prints PASS/FAIL/SKIP lines; exits non-zero on any FAIL.
+import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const ROOT = join(HERE, "../../..");
 const STATE = join(HERE, ".state");
 const HOME = join(STATE, "phone-home");
 const HA = "http://127.0.0.1:18123";
@@ -32,6 +38,8 @@ function report(name, problems) {
   if (problems.length) failed++;
   console.log(problems.length ? `FAIL  ${name}: ${problems.join("; ")}` : `PASS  ${name}`);
 }
+
+const skip = (name, why) => console.log(`SKIP  ${name}: ${why}`);
 
 async function waitFor(what, check, ms = 60_000) {
   for (const end = Date.now() + ms; Date.now() < end; await sleep(500)) {
@@ -81,18 +89,26 @@ function cli(args) {
   return { child, done: new Promise((resolve) => child.on("close", (code) => resolve({ code, stdout, stderr }))) };
 }
 
+const boxes = new Set(); // names of the case's containers
 // An unanswered ask must not outlive the lane, however it ends.
-process.on("exit", () => { for (const child of children) child.kill(); });
+process.on("exit", () => {
+  for (const child of children) child.kill();
+  for (const name of boxes) spawnSync("docker", ["rm", "-f", name], { stdio: "ignore" });
+});
 for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => process.exit(130));
 
 let seen = 0;
 const lastResult = {}; // per platform: the tag of the last result shown
-async function nextPush() {
+async function rawPush() {
   let list = [];
   await waitFor("a push", async () => (list = await (await fetch(`${PUSH}/pushes`)).json()).length > seen, 30_000);
-  const push = list[seen++];
+  return list[seen++];
+}
+async function nextPush() {
+  const push = await rawPush();
   // Since 0.27.3 the CLI clears a phone's last result before the next
-  // question: when it does, it may clear only that result, never a question.
+  // question: when it does, it may clear only that result, never a question
+  // (a result's tag is lastResult, an open question's is not).
   if (push.body.message === "clear_notification") {
     const platform = push.path.split("/").pop(), tag = push.body.data?.tag;
     report(`clear on ${PHONES[platform]} removes only its last result`, tag && tag === lastResult[platform] ? [] : [`cleared ${tag}, last result ${lastResult[platform]}`]);
@@ -204,11 +220,92 @@ async function confirmUnlock(platform) {
   finished(`unlock confirmed on ${PHONES[platform]}`, await run.done, { out: '"status":"verified"', tap: [platform, "Unlock"] });
 }
 
+// A question answered on the computer (Cancel in the window): the phone's
+// question must not stay answerable. Escaped in 0.29: the CLI only sent a
+// silent clear_notification, which iOS runs only if it wakes the Companion
+// app, so the buttons stayed live. The CLI now sends a visible note without
+// buttons under the question's tag, then the clear. The window is a real
+// dialog on macOS, so this one apply runs in a throwaway Linux container
+// (docker run --rm) with a fake zenity that waits, then exits 1 (Cancel), and
+// a copy of the phone home with the window on.
+async function windowCancel(platform) {
+  const name = `computer-settled question on ${PHONES[platform]}`;
+  const goarch = { aarch64: "arm64", x86_64: "amd64" }[spawnSync("docker", ["info", "--format", "{{.Architecture}}"], { encoding: "utf8" }).stdout?.trim()];
+  if (!goarch) return skip(name, "Docker is not available");
+  const elf = (file) => { const h = readFileSync(file).subarray(0, 20); return h.readUInt32BE(0) === 0x7f454c46 ? { 62: "amd64", 183: "arm64" }[h.readUInt16LE(18)] : undefined; };
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), "ha-nova-phone-window-")));
+  try {
+    let bin = process.env.TESTBED_CLI_BIN_LINUX || process.env.TESTBED_CLI_BIN;
+    if (bin) {
+      if (elf(bin) !== goarch) return skip(name, `${bin} is not a linux/${goarch} binary; set TESTBED_CLI_BIN_LINUX to one`);
+    } else {
+      bin = join(tmp, "ha-nova");
+      execFileSync("go", ["build", "-o", bin, "."], { cwd: join(ROOT, "cli"), env: { ...process.env, CGO_ENABLED: "0", GOOS: "linux", GOARCH: goarch }, stdio: ["ignore", "ignore", "inherit"] });
+    }
+    const zenity = join(tmp, "zenity");
+    writeFileSync(zenity, "#!/bin/sh\nsleep 8\nexit 1\n");
+    chmodSync(zenity, 0o755);
+    const home = join(tmp, "home");
+    cpSync(HOME, home, { recursive: true });
+    const linux = process.platform === "linux";
+    const host = linux ? "127.0.0.1" : "host.docker.internal";
+    const config = join(home, ".config/ha-nova/config.json");
+    const { confirm_window: _, ...rest } = JSON.parse(readFileSync(config, "utf8")); // window on = the setting absent
+    writeFileSync(config, JSON.stringify({ ...rest, ha_url: `http://${host}:18123`, relay_base_url: `http://${host}:18791` }), { mode: 0o600 });
+    let n = 0;
+    const box = (args) => {
+      const id = `ha-nova-testbed-window-${process.pid}-${n++}`;
+      boxes.add(id);
+      const env = { HOME: "/h", XDG_CONFIG_HOME: "/h/.config", XDG_CACHE_HOME: "/h/.cache", XDG_DATA_HOME: "/h/.local/share", HA_NOVA_ALLOW_INSECURE_TEST_KEYRING: "1", HA_NOVA_TEST_KEYRING_FILE: "/h/.test-relay-token", HA_NOVA_NO_BROWSER: "1", DISPLAY: ":99" };
+      const net = linux ? ["--network", "host"] : ["--add-host=host.docker.internal:host-gateway"];
+      const child = spawn("docker", ["run", "--rm", "--name", id, "--user", `${process.getuid()}:${process.getgid()}`, ...net, ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
+        "-v", `${home}:/h`, "-v", `${zenity}:/usr/bin/zenity:ro`, "-v", `${bin}:/usr/local/bin/ha-nova:ro`, "ubuntu:24.04", "ha-nova", ...args], { stdio: ["ignore", "pipe", "pipe"] });
+      let stdout = "", stderr = "";
+      child.stdout.on("data", (d) => (stdout += d));
+      child.stderr.on("data", (d) => (stderr += d));
+      children.add(child);
+      return new Promise((resolve) => child.on("close", (code) => { children.delete(child); boxes.delete(id); resolve({ code, stdout, stderr }); }));
+    };
+    const p = [], want = (ok, why) => ok || p.push(why);
+    const lockState = async () => (await (await fetch(`${HA}/api/states/lock.front_door`, { headers: { authorization: `Bearer ${read("ha-llat")}` } })).json()).state;
+    await fetch(`${HA}/api/services/lock/lock`, { method: "POST", headers: { authorization: `Bearer ${read("ha-llat")}`, "content-type": "application/json" }, body: JSON.stringify({ entity_id: "lock.front_door" }) }); // the previous unlock left it open; a linked phone would ask for the CLI's lock
+    await waitFor("the front door locked", async () => (await lockState()) === "locked");
+    const planned = await box(["plan", "call", "lock.unlock", "lock.front_door"]);
+    const plan = JSON.parse(planned.stdout || "{}");
+    if (!plan.plan?.id) return report(name, [`no plan: ${(planned.stdout + planned.stderr).slice(0, 300)}`]);
+    want(plan.plan.channel === "window", `plan channel ${plan.plan.channel}, want window`);
+    const run = box(["apply", "--plan", plan.plan.id]);
+    const ask = await nextPush(); // after the clear of the last result, if any
+    const a = ask.data.actions ?? [], tag = ask.data.tag;
+    want(ask.platform === platform && a.length === 2, `question: ${ask.path}, ${a.length} actions`);
+    tags.add(tag);
+    const note = await rawPush(), d = note.body.data ?? {};
+    // The old CLI sends only the silent clear here.
+    want(note.body.message !== "clear_notification", "only a silent clear_notification followed the question; its buttons stay live on an iPhone");
+    want(note.path === ask.path && d.tag === tag, `note to ${note.path} tag ${d.tag}, question ${ask.path} ${tag}`);
+    want(d.actions === undefined, "the note has buttons");
+    want(note.body.title?.startsWith("Cancelled: ") && note.body.message === "Stopped on the computer. Nothing changed.", `note ${JSON.stringify(note.body.title)} / ${JSON.stringify(note.body.message)}`);
+    want(d.push?.["interruption-level"] === "passive" && [true, "true"].includes(d.alert_once), `passive / alert_once ${d.push?.["interruption-level"]} / ${d.alert_once}`);
+    want(d.channel === "HA NOVA" && d.importance === "high" && d.priority === "high", `channel/importance/priority ${d.channel}/${d.importance}/${d.priority}`);
+    const clear = note.body.message === "clear_notification" ? note : await rawPush();
+    want(clear.body.message === "clear_notification" && clear.path === ask.path && clear.body.data?.tag === tag && clear.body.data?.priority === "high", `after the note: ${JSON.stringify(clear.body)}`);
+    // lastResult stays: the container's home (with its record of this tag) is thrown away, so the next question clears the unlock's result once more.
+    const done = await run;
+    want(done.code === 4 && done.stdout.includes("CONFIRM_DECLINED"), `apply exit ${done.code}, stdout ${done.stdout.slice(0, 200)}`);
+    const lock = await lockState();
+    want(lock === "locked", `the lock is ${lock}`);
+    report(name, p);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
 try {
   await fixture();
   seen = (await (await fetch(`${PUSH}/pushes`)).json()).length;
   await link("ios");
   await confirmUnlock("ios");
+  await windowCancel("ios");
   await move("ios", "android");
   await confirmUnlock("android");
   await move("android", "ios");
