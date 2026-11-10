@@ -4,28 +4,28 @@ import { digestSecret, parseCredential } from "./device-credential.js";
 import type { DeviceRegistry } from "./device-registry.js";
 import { BRIDGE_INSTALL_ID, GATE_INSTALL_ID } from "./pairing-metadata.js";
 
-// Resolves an inbound bearer credential to a principal, replacing the single
-// shared-token model. Two credential kinds exist:
-//   - device: the per-device token minted by pairing. Accepted ONLY over the
-//     pinned TLS listener; presenting it on plain HTTP returns a distinct
-//     "secure transport required" so the client knows to use the secure port.
-//   - legacy: the one global "legacy shared access" record migrated from the
-//     old relay token. Accepted on either transport WHILE it exists, so
-//     pre-migration clients keep working until the owner revokes it.
-// Anything else is unauthorized.
+// Resolves an inbound bearer credential to a principal. The NOVA App accepts
+// one credential kind: the per-device token minted by pairing, and ONLY over
+// the pinned TLS listener; presenting it on plain HTTP returns a distinct
+// "secure transport required" so the client knows to use the secure port. Any
+// other bearer is the old shared access, which the App no longer accepts: it
+// gets PAIRING_REQUIRED, so the client can say how to pair again. The
+// standalone container's own token is checked in http/server.ts, never here.
 
 export type Transport = "secure" | "plain";
 
 // peer: the request's socket address. internal: a credential the App minted
 // for its own chat bridge or safety-check worker (reserved install ids),
 // accepted only from a loopback peer.
+// shared: the standalone container's own token (http/server.ts); the App never
+// produces it.
 export type Principal =
   | { kind: "device"; deviceId: string; peer?: string; internal?: "chat-bridge" | "gate" }
-  | { kind: "legacy"; peer?: string };
+  | { kind: "shared"; peer?: string };
 
 export type PrincipalResult =
   | { ok: true; principal: Principal }
-  | { ok: false; status: 401; code: "UNAUTHORIZED"; message: string }
+  | { ok: false; status: 401; code: "UNAUTHORIZED" | "PAIRING_REQUIRED"; message: string }
   | {
       ok: false;
       status: 403;
@@ -37,6 +37,9 @@ export interface PrincipalResolverDeps {
   registry: DeviceRegistry;
   now: () => number;
 }
+
+export const PAIRING_REQUIRED_MESSAGE =
+  "The NOVA App no longer accepts the old shared access. Pair this computer again: run ha-nova setup.";
 
 export const CLOUD_DEVICE_UNAUTHORIZED_MESSAGE =
   "Unknown or inactive device credential";
@@ -76,17 +79,10 @@ export function resolvePrincipal(
     return devicePrincipal(deps.registry, device.deviceId, peer);
   }
 
-  // Not a device credential: the only other accepted shape is the legacy shared
-  // token (an opaque string). It works on either transport while it exists.
-  const legacy = deps.registry.resolveLegacySecret(digestSecret(token));
-  if (legacy !== null) {
-    return { ok: true, principal: { kind: "legacy", ...(peer !== undefined ? { peer } : {}) } };
-  }
-
-  return unauthorized("Invalid credential");
+  return { ok: false, status: 401, code: "PAIRING_REQUIRED", message: PAIRING_REQUIRED_MESSAGE };
 }
 
-// Cloud ingress never accepts the migrated shared token. The exact Supervisor
+// Cloud ingress accepts device credentials only. The exact Supervisor
 // user identity is an additional required factor and must match the binding on
 // the active device record.
 export function resolveCloudPrincipal(

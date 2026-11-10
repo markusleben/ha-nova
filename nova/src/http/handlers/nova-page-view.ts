@@ -9,7 +9,7 @@ import { renderChatActivity, renderChatUsers, type ChatPhoneUser, type ChatUsers
 // the armed confirm section, and formatting helpers. The HTTP/action/CSRF
 // handling lives in nova-page.ts; this module never touches the request.
 
-export type NovaAction = "generate_code" | "cancel_code" | "revoke_device" | "revoke_legacy" | "reset_registry" | ChatAction | ChatPhoneAction;
+export type NovaAction = "generate_code" | "cancel_code" | "revoke_device" | "reset_registry" | ChatAction | ChatPhoneAction;
 export type ChatAction = "chat_apps_on" | "chat_apps_off" | "chat_read_only" | "chat_codes" | "chat_users";
 
 export interface ConnectionStatus {
@@ -28,7 +28,6 @@ export interface UpdateStatus {
 // below — any other navigation simply never mints one.
 export type ConfirmTarget =
   | { action: "revoke_device"; deviceId: string }
-  | { action: "revoke_legacy" }
   | { action: "reset_registry" };
 
 export function parseConfirm(query: URLSearchParams): ConfirmTarget | null {
@@ -37,8 +36,6 @@ export function parseConfirm(query: URLSearchParams): ConfirmTarget | null {
       const deviceId = query.get("device") ?? "";
       return deviceId === "" ? null : { action: "revoke_device", deviceId };
     }
-    case "revoke_legacy":
-      return { action: "revoke_legacy" };
     case "reset_registry":
       return { action: "reset_registry" };
     default:
@@ -53,7 +50,6 @@ export interface PageModel {
   now: number;
   pairing: { phase: string; code?: string; expiresAtMs?: number };
   devices: DeviceRecord[];
-  hasLegacy: boolean;
   registryCorrupt: boolean;
   connection: ConnectionStatus;
   update: UpdateStatus;
@@ -75,7 +71,7 @@ export function renderPage(m: PageModel): string {
   const formOpen = `<form method="post" action="${escapeAttr(joinIngress(m.ingressPath, "action"))}">`;
   const base = `${m.ingressPath.replace(/\/$/, "")}/`;
   // One token per action per render, not per form. Destructive actions
-  // (revoke_device, revoke_legacy, reset_registry) mint their token ONLY inside
+  // (revoke_device, reset_registry) mint their token ONLY inside
   // the confirm section, and the revoke token's bound action carries the device
   // id — that is what makes the two-step flow enforceable server-side.
   const csrfTokens = new Map<string, string>();
@@ -148,12 +144,6 @@ export function renderPage(m: PageModel): string {
               `<li><span class="device"><strong>${escapeHtml(d.name)}</strong>${cloudBadge(d)}<span class="muted">${escapeHtml(d.platform)} · ${escapeHtml(d.client)}</span><span class="muted meta">added ${escapeHtml(formatWhen(d.createdAtMs))} · last used ${escapeHtml(formatLastUsed(d.lastUsedAtMs))}</span></span>${armLink(`confirm=revoke_device&device=${encodeURIComponent(d.deviceId)}`, "Revoke…")}</li>`
           )
           .join("")}</ul>`;
-
-  // Shown only while a migrated shared token still exists, so the owner can
-  // cut off pre-pairing access that would otherwise outlive every device.
-  const legacySection = m.hasLegacy
-    ? `<section><h2>Legacy access</h2><p class="muted">A shared token from before device pairing can still control Home Assistant. Once every computer is paired, revoke it so only paired devices keep access.</p>${armLink("confirm=revoke_legacy", "Revoke legacy access…")}</section>`
-    : "";
 
   const updateLine = m.update.error
     ? `<span class="muted">Update status unavailable.</span>`
@@ -245,7 +235,7 @@ ${errorSection}${confirmSection}${m.gateSection}<section><h2>Home Assistant</h2>
 ${recoverySection}<section><h2>Update</h2><p>${updateLine}</p></section>
 <section><h2>Pairing</h2>${pairingSection}</section>
 <section><h2>Devices</h2>${deviceRows}</section>
-${renderChatApps(m, formOpen, csrfField)}${renderChatActivity(m.chatUsers?.activity ?? null, m.now)}${legacySection}<footer>Signed in as ${escapeHtml(m.ownerName)} · Relay ${escapeHtml(m.relayVersion)}</footer>
+${renderChatApps(m, formOpen, csrfField)}${renderChatActivity(m.chatUsers?.activity ?? null, m.now)}<footer>Signed in as ${escapeHtml(m.ownerName)} · Relay ${escapeHtml(m.relayVersion)}</footer>
 </main>
 </body></html>`;
 }
@@ -335,14 +325,6 @@ function renderConfirmSection(
 <p class="muted meta">added ${escapeHtml(formatWhen(device.createdAtMs))} · last used ${escapeHtml(formatLastUsed(device.lastUsedAtMs))} · reaches NOVA via ${cloudLine}</p>
 <p>Revoking cuts this computer's access immediately. It can pair again later with a new code.</p>
 ${formOpen}${csrfField("revoke_device", `revoke_device:${device.deviceId}`)}<input type="hidden" name="device_id" value="${escapeAttr(device.deviceId)}"><button class="danger-solid" type="submit">Revoke this device</button></form> ${cancel}</section>`;
-    }
-    case "revoke_legacy": {
-      if (!m.hasLegacy) {
-        return "";
-      }
-      return `<section class="confirm"><h2>Confirm revoke of legacy access</h2>
-<p>The shared token from before device pairing stops working immediately. Paired devices keep their access.</p>
-${formOpen}${csrfField("revoke_legacy")}<button class="danger-solid" type="submit">Revoke legacy access</button></form> ${cancel}</section>`;
     }
     case "reset_registry": {
       if (!m.registryCorrupt) {

@@ -10,7 +10,6 @@
   "tests/bootstrap/app-mode-gate.test.ts",
   "tests/bootstrap/app-mode.test.ts",
   "tests/bootstrap/app-wiring.test.ts",
-  "tests/bootstrap/legacy-migration.test.ts",
   "tests/bootstrap/runtime-start.test.ts",
   "tests/bootstrap/sidebar-panel.test.ts",
   "tests/bootstrap/standalone-gate.test.ts",

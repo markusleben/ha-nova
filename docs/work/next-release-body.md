@@ -37,6 +37,22 @@ App notice (the version changes with 0.30): Claude and ChatGPT get the release's
 - **Over Home Assistant Link, `ha-nova update` now offers the NOVA App update too.** In a terminal it installs the App after your yes, waits while it restarts, and checks the new version.
 - **Updating a Marketplace item now stops before anything is sent and says where to do it.** HA NOVA can't install Marketplace updates yet: Home Assistant asks for its warning to be accepted first.
 
+## 0.30.0: the old shared access ends (#905)
+
+Breaking, decided by the maintainer (10.11.): the NOVA App no longer accepts the old shared key ("Relay Auth Token"). The standalone container keeps its own token.
+
+### What To Watch
+
+- **The NOVA App no longer accepts the old shared key.** A computer that still uses it says "Pair this computer again": run `ha-nova setup` once on it (a `--service` install: `ha-nova pair --credential-store=file`). With Home Assistant Link saved, remove Link first, then run setup, then add Link again. Computers that already paired, and chat apps, are not affected.
+- **The App's "Relay Auth Token" and "Home Assistant token" options are gone, and so is "Revoke legacy access" on the NOVA page.** The App removes the old key's record on its first start, so going back to an earlier App version does not bring the shared key back. Restoring a Home Assistant backup from before this update does.
+- **HA NOVA 0.28.3 or older on a computer, after the App update:** it reports a sign-in problem and offers `ha-nova setup`; choose to switch there. Its "Not now" leads to a key field the App no longer has.
+
+### App changelog (release-prep PR)
+
+- Upgrade notes line for the App version 0.30 ships: "Computers that still use the shared key (Relay Auth Token) must pair again: run ha-nova setup once on each (a --service install: ha-nova pair --credential-store=file)." This is the only text a user sees when Home Assistant updates the App before the computer.
+
 ## README for the release-prep PR
+
+- **Shared access** (#905): line 116 ("The standalone container uses one shared token instead") stays true. Line 212 ("Upgrading from an earlier HA NOVA?") describes the old shared access as still working and names "Revoke legacy access": replace it with the "What To Watch" item above.
 
 - **Logs** (#1061, already on `main`): the README's App-log example row and the updates skill row already say HA NOVA doesn't read logs. That holds for chat apps on App 0.13.24, but the terminal stops reading logs only with 0.30.0. Keep the wording when 0.30.0 ships.

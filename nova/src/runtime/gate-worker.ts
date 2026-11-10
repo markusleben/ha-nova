@@ -146,7 +146,7 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
     start: worker.tryStart,
     restart: worker.restart,
     async check(principal, endpoint, body) {
-      const who = principal.kind === "device" ? { kind: "device", device_id: principal.deviceId } : { kind: "legacy" };
+      const who = principal.kind === "device" ? { kind: "device", device_id: principal.deviceId } : { kind: "shared" };
       const answer = await post("/check", { principal: who, endpoint, body_b64: body.toString("base64") });
       const verdict = answer?.verdict;
       const kind = answer?.kind;

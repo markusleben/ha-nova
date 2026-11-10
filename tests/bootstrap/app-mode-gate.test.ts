@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { buildAppMode, type AppModeInput, type AppModeRuntime } from "../../nova/src/runtime/app-mode.js";
-import { digestSecret, generateCredential } from "../../nova/src/security/device-credential.js";
+import { generateCredential } from "../../nova/src/security/device-credential.js";
 import { openDeviceRegistry } from "../../nova/src/security/device-registry.js";
 import { loadOrCreateRelayInstanceId } from "../../nova/src/storage/relay-instance.js";
 
@@ -64,7 +64,6 @@ function seedDevice(registry: ReturnType<typeof openDeviceRegistry>, installId: 
 async function build(): Promise<{ local: string; link: string }> {
   const relayInstanceId = loadOrCreateRelayInstanceId(dir);
   const registry = openDeviceRegistry(dir);
-  registry.importLegacy(digestSecret("legacy-token"), 1);
   const local = seedDevice(registry, "laptop-1");
   const link = seedDevice(registry, "laptop-2");
   expect(registry.bindCloudUser(link.deviceId, link.secretDigest, "user-1", relayInstanceId).ok).toBe(true);
@@ -158,14 +157,24 @@ describe("app mode: the safety check fronts every device-facing handler", () => 
     const record = (where: string, res: { status: number; text: string }) =>
       answers.push({ where, status: res.status, code: (JSON.parse(res.text) as { error?: { code: string } }).error?.code ?? "" });
     for (const [path, body] of requests) {
-      record(`bootstrap ${path}`, await viaHttp(ports.bootstrap, path, body, "legacy-token"));
       record(`device ${path}`, await viaDevice(path, body, local));
       if (path !== "/supervisor") {
         record(`ingress ${path}`, await viaHttp(ports.ingress, path, body, link, true));
       }
     }
-    expect(answers).toHaveLength(requests.length * 3 - 1);
+    expect(answers).toHaveLength(requests.length * 2 - 1);
     expect(answers.filter((a) => a.status !== 503 || a.code !== "GATE_UNAVAILABLE")).toEqual([]);
+    expect(upstream).toEqual([]);
+  });
+
+  it("refuses every functional route on the pairing listener before the gate", async () => {
+    const { local } = await build();
+    for (const [path, body] of requests) {
+      const shared = await viaHttp(ports.bootstrap, path, body, "shared-token");
+      expect([path, shared.status, (JSON.parse(shared.text) as { error?: { code: string } }).error?.code]).toEqual([path, 401, "PAIRING_REQUIRED"]);
+      const device = await viaHttp(ports.bootstrap, path, body, local);
+      expect([path, device.status, (JSON.parse(device.text) as { error?: { code: string } }).error?.code]).toEqual([path, 403, "SECURE_TRANSPORT_REQUIRED"]);
+    }
     expect(upstream).toEqual([]);
   });
 

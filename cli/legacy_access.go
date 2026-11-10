@@ -2,18 +2,33 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/http"
 	"strings"
 	"time"
 )
 
-// The shared legacy token: 0.27 is the last release that accepts it. Every
-// place a person (or their AI assistant) meets HA NOVA says so in the same
-// words: setup, doctor, update, and check-update (each AI session's first
-// HA task). Typed-verb/MCP results don't: read verbs send only reads.
-const legacyAccessNoticeText = "This computer still uses the old shared access. It works today, but the next HA NOVA release won't accept it. Run ha-nova setup once (takes a minute) to switch."
+// The old shared token: the NOVA App no longer accepts it (#905). Every place
+// a person (or their AI assistant) meets HA NOVA says how to pair again in the
+// same words: setup, doctor, update, and check-update (each AI session's first
+// HA task) while an older App still takes the token, and every refusal from an
+// App that no longer does. Typed-verb/MCP results carry the refusal only.
+const sharedAccessEndedFormat = "This computer still uses the old shared access, which the updated NOVA App no longer accepts. %s"
 
-// A service install's setup keeps its token; its switch is the file-backed pair.
-const legacyAccessServiceNoticeText = "This computer still uses the old shared access. It works today, but the next HA NOVA release won't accept it. Run ha-nova pair --credential-store=file once (takes a minute) to switch."
+// relayPairingRequiredHeader marks the NOVA App's 401 to the old shared token
+// (nova/src/runtime/listeners.ts), so a refusal is told apart without reading
+// the body.
+const relayPairingRequiredHeader = "X-Ha-Nova-Auth"
+
+// errSharedAccessEnded: a health check met that refusal. Its text keeps
+// "HTTP 401", so setup still reads it as a sign-in problem.
+var errSharedAccessEnded = errors.New("HTTP 401: the NOVA App no longer accepts the old shared access")
+
+// sharedAccessEnded: the local NOVA App refused the old shared token.
+func sharedAccessEnded(status int, header http.Header) bool {
+	return status == http.StatusUnauthorized && header.Get(relayPairingRequiredHeader) == "pairing-required"
+}
 
 // legacyNoticeProbeTimeout bounds the notice's probe where a person waits
 // (doctor, update).
@@ -30,10 +45,23 @@ func legacySharedAccess(cfg runtimeConfig) bool {
 }
 
 func legacyAccessNoticeFor(cfg runtimeConfig) string {
+	return sharedAccessEndedFor(cfg, defaultServerProfileName)
+}
+
+// sharedAccessEndedFor: how this computer pairs again. A service install's
+// setup keeps its token, so it pairs file-backed; a named server pairs with
+// pair --server; pairing waits until Home Assistant Link is removed, and Link
+// is added again after it.
+func sharedAccessEndedFor(cfg runtimeConfig, profile string) string {
+	command := localRelayRepairCommand(profile, cfg.RelayBaseURL)
 	if strings.TrimSpace(cfg.RelayTokenFile) != "" {
-		return legacyAccessServiceNoticeText
+		command = "ha-nova pair --credential-store=file"
 	}
-	return legacyAccessNoticeText
+	next := fmt.Sprintf("Run %s in a terminal once (takes a minute) to pair this computer again.", command)
+	if cfg.Cloud != nil {
+		next = fmt.Sprintf("Remove Home Assistant Link first (%s), then run %s in a terminal to pair this computer again. Add Link again afterwards if you use it (%s).", cloudProfileCommandFor("remove", profile), command, cloudProfileCommandFor("add", profile))
+	}
+	return fmt.Sprintf(sharedAccessEndedFormat, next)
 }
 
 // legacyAccessSwitchable: shared access, and its NOVA App can pair this
@@ -55,7 +83,7 @@ func legacyAccessNotice(ctx context.Context, paths runtimePaths) string {
 	return legacyAccessNoticeFor(cfg)
 }
 
-// legacyTokenReadable: "it works today" needs the shared token itself, read
+// legacyTokenReadable: the notice needs the shared token itself, read
 // without a prompt (a missing or unreadable one is doctor's error to name).
 func legacyTokenReadable() bool {
 	token, err := readRelayAuthTokenForDoctor()

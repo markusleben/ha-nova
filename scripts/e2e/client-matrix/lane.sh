@@ -7,6 +7,7 @@
 #   B  SHELL=bash  install FROM -> setup -> update TO -> uninstall --purge
 #                  (Linux: real headless `setup --service hermes`)
 # In:  LANE FROM TO TO_VERSION BUNDLE_BASE RELAY_URL HA_URL RELAY_TOKEN WORK RESULTS
+#      APP_RELAY_URL (an App that no longer takes the shared token, #905)
 #      CLAUDE_BIN (optional; macOS lane only)
 # Out: "lane|scenario|step|PASS/FAIL/SKIP|detail" lines appended to RESULTS.
 set -uo pipefail
@@ -265,6 +266,25 @@ check_rc_clean() {
   echo "note: PATH block removed from ${RC##*/}, user line kept"
 }
 
+# The App no longer takes the old shared token (#905). repoint <url>: this
+# install's Relay address, as if Home Assistant had updated the App in place.
+repoint() {
+  sed -i.bak "s#\"relay_base_url\": *\"[^\"]*\"#\"relay_base_url\": \"$1\"#g" "$H/.config/ha-nova/config.json" &&
+    rm -f "$H/.config/ha-nova/config.json.bak"
+}
+# app_refusal <ERE> <cmd...>: against that App the command fails, and its
+# output names the way back (never a bare 401).
+app_refusal() {
+  local re="$1" out rc=0; shift
+  repoint "$APP_RELAY_URL" || return 1
+  out="$("$@" 2>&1)" || rc=$?
+  repoint "$RELAY_URL" || return 1
+  printf '%s\n' "$out"
+  ((rc != 0)) || { echo "expected a refusal"; return 1; }
+  grep -Eq -- "$re" <<<"$out" && echo "note: refused, names: $(grep -Eo -- "$re" <<<"$out" | head -n 1)"
+}
+REPAIR_RE='no longer accepts\. Run ha-nova setup'
+
 check_relay_alive() { shows '"ok":true' curl -fsS -H "Authorization: Bearer $RELAY_TOKEN" "$RELAY_URL/health" && echo "note: test bed relay still answers"; }
 
 # The macOS keychain is per OS user: never purge in a login session whose
@@ -290,6 +310,7 @@ scenario_a() {
   else skip claude "no claude binary on this lane; real Claude config never used"; fi
   if has_verb mcp; then run_step mcp do_mcp
   else skip mcp "ha-nova mcp not in $FROM"; fi
+  run_step app-refusal app_refusal 'ha-nova setup' hn doctor
   snapshot >"$S/before.txt"
   run_step update do_update || return
   run_step update-survived check_survived
@@ -300,6 +321,8 @@ scenario_a() {
   run_step update-read do_read
   if has_verb mcp; then run_step update-mcp do_mcp
   else skip update-mcp "ha-nova mcp not in $TO"; fi
+  run_step update-app-refusal-doctor app_refusal "$REPAIR_RE" hn doctor
+  run_step update-app-refusal-health app_refusal "$REPAIR_RE" hn relay health
   run_step uninstall do_uninstall || return
   run_step uninstall-leftovers check_leftovers yes
   run_step uninstall-rc check_rc_clean

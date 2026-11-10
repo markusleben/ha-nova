@@ -186,8 +186,8 @@ export interface HttpServerOptions {
   gateToken?: () => string | null;
 }
 
-// Backward-compatible single-token server: the historical auth model expressed
-// as one listener over createRequestListener.
+// The standalone container's single-token server: its own token (never the
+// App's old shared access) as one listener over createRequestListener.
 export function createHttpServer(options: HttpServerOptions): Server {
   const maxJsonBodyBytes =
     options.maxJsonBodyBytes ?? DEFAULT_MAX_JSON_BODY_BYTES;
@@ -213,7 +213,7 @@ export function createHttpServer(options: HttpServerOptions): Server {
         options.authToken,
       );
       return result.ok
-        ? { ok: true, principal: { kind: "legacy", ...(peer !== undefined ? { peer } : {}) } }
+        ? { ok: true, principal: { kind: "shared", ...(peer !== undefined ? { peer } : {}) } }
         : {
             ok: false,
             status: result.status,

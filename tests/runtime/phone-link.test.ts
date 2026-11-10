@@ -32,7 +32,7 @@ describe("phoneLinkOf", () => {
     expect(link({ kind: "device", deviceId: "bare" })).toBeUndefined();
     expect(link({ kind: "device", deviceId: "new" })).toBeUndefined();
     expect(link({ kind: "device", deviceId: "gone" })).toBeUndefined();
-    expect(link({ kind: "legacy" })).toBeUndefined();
+    expect(link({ kind: "shared" })).toBeUndefined();
   });
 
   it("drops the link with its revoked device", () => {

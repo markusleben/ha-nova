@@ -8,8 +8,12 @@
 # Supervisor runs its real install/update/pull/build code paths.
 #
 #   (a) fresh install with image:   -> pull, no build
-#   (b) update locally built OLD -> NEW via pull -> /data + credential kept
-#   (c) rollback: NEW+1 without image: -> local build again, /data kept
+#   (b) update locally built OLD -> NEW via pull -> the paired device and the
+#       TLS identity kept; the old shared token refused with the re-pair mark
+#       and its registry record retired (#905)
+#   (c) rollback: NEW+1 without image: -> local build again, the same holds
+#   (d) back to OLD (built again): the shared token, set again as an App
+#       option, stays refused; the paired device still works (fail closed)
 #
 # OLD  = nova/ from E2E_OLD_REF (default origin/main), always built locally.
 # NEW  = this checkout's nova/. E2E_IMAGE_SOURCE=local (default) builds it for
@@ -126,8 +130,23 @@ in_c mkdir -p "$(dirname "$APP_DIR")"
 
 # grep a captured copy: piping the log into grep -q would SIGPIPE under pipefail.
 sv_has() { grep -q "$1" <<<"$(in_c docker logs hassio_supervisor 2>&1)"; }
-data_hash() {
-  in_c sh -c 'cd "$(ls -d /mnt/supervisor/apps/data/'"$SLUG"' /mnt/supervisor/addons/data/'"$SLUG"' 2>/dev/null | head -1)" && sha256sum device-registry.json tls-cert.pem tls-key.pem relay-instance-id'
+data_dir() { in_c sh -c 'ls -d /mnt/supervisor/apps/data/'"$SLUG"' /mnt/supervisor/addons/data/'"$SLUG"' 2>/dev/null | head -1'; }
+# The registry is rewritten once (the shared token's record retired), so the
+# identity is the TLS key pair and the instance id.
+identity_hash() { in_c sh -c 'cd "$1" && sha256sum tls-cert.pem tls-key.pem relay-instance-id' sh "$(data_dir)"; }
+# One paired computer: its credential, and the record the App keeps for it.
+DEVICE="$(python3 -c 'import base64,secrets; e=lambda n: base64.urlsafe_b64encode(secrets.token_bytes(n)).rstrip(b"=").decode(); print("hanova-dev-v1."+e(16)+"."+e(32))')"
+DEVICE_ID="$(cut -d. -f2 <<<"$DEVICE")"
+seed_device() { # with the App stopped; OLD imports the shared token on its next start
+  ha apps stop "$SLUG" >/dev/null
+  python3 - "$DEVICE" <<'PY' | docker exec -i "$C" sh -c 'umask 077 && cat >"$1/device-registry.json"' sh "$(data_dir)"
+import base64, hashlib, json, sys, time
+_, device_id, secret = sys.argv[1].split(".")
+digest = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest()).rstrip(b"=").decode()
+device = {"deviceId": device_id, "secretDigest": digest, "state": "active", "clientInstallId": "e2e-install",
+          "name": "e2e", "platform": "linux", "client": "e2e", "createdAtMs": int(time.time() * 1000)}
+print(json.dumps({"version": 1, "devices": [device], "pairingResponses": [], "cloudRevocations": []}))
+PY
 }
 expect_running() { # <version> <image-repo> <label>
   local version="$1" ref="$2:$1" label="$3" code=""
@@ -144,9 +163,18 @@ expect_running() { # <version> <image-repo> <label>
     || in_c docker inspect -f '{{.Config.Image}}|{{index .Config.Labels "io.hass.version"}}' "addon_$SLUG")"
   [[ "$image" == "$ref|$version" ]] && ok "$label: container runs $ref" || bad "$label: container is $image, want $ref|$version"
 }
-seed_token() {
+# OLD still takes the shared token (an App before 0.30): only then can it be
+# seeded; every other step holds either way.
+OLD_TAKES_TOKEN=0
+grep -q '^  relay_auth_token:' "$WORK/old/config.yaml" && OLD_TAKES_TOKEN=1
+seed_token() { # the shared token as an App option, as an App before 0.30 took it
+  [[ "$OLD_TAKES_TOKEN" == 1 ]] || return 0
   in_c docker exec hassio_cli sh -c 'curl -sf -X POST -H "Authorization: Bearer $SUPERVISOR_TOKEN" -H content-type:application/json -d "{\"options\":{\"relay_auth_token\":\"'"$TOKEN"'\",\"ha_llat\":\"\",\"file_access\":\"off\"}}" http://supervisor/addons/'"$SLUG"'/options' >/dev/null
   ha apps restart "$SLUG" >/dev/null
+  for i in $(seq 1 40); do
+    [[ "$(in_c curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8791/health || true)" == 401 ]] && return
+    sleep 2
+  done
 }
 token_works() { # <version> <label>
   local body=""
@@ -155,8 +183,37 @@ token_works() { # <version> <label>
     [[ -n "$body" ]] && break
     sleep 2
   done
-  grep -qF "\"version\":\"$1\"" <<<"$body" && ok "$2: pre-update credential works, reports $1" \
+  grep -qF "\"version\":\"$1\"" <<<"$body" && ok "$2: the old shared token works, reports $1" \
     || bad "$2: credential/version check failed: ${body:-no response}"
+}
+device_works() { # <version> <label>: the paired computer over the TLS port
+  local body=""
+  for i in $(seq 1 20); do
+    body="$(in_c curl -skf -H "Authorization: Bearer $DEVICE" https://127.0.0.1:8792/health || true)"
+    [[ -n "$body" ]] && break
+    sleep 2
+  done
+  grep -qF "\"version\":\"$1\"" <<<"$body" && ok "$2: the paired device works, reports $1" \
+    || bad "$2: the paired device was refused: ${body:-no response}"
+}
+shared_refused() { # <label> [marked]: 401 on both ports; marked: with the re-pair mark the CLI reads
+  local hdr
+  for url in http://127.0.0.1:8791/health https://127.0.0.1:8792/health; do
+    hdr="$(in_c curl -sk -D - -o /dev/null -H "Authorization: Bearer $TOKEN" "$url" | tr -d '\r' || true)"
+    if [[ "$(head -1 <<<"$hdr")" != *" 401"* ]]; then
+      bad "$1: the old shared token got $(head -1 <<<"$hdr") on $url"; return
+    fi
+    if [[ -n "${2:-}" ]] && ! grep -qi '^x-ha-nova-auth: pairing-required$' <<<"$hdr"; then
+      bad "$1: the refusal on $url lacks x-ha-nova-auth: pairing-required"; return
+    fi
+  done
+  ok "$1: the old shared token is refused on both ports"
+}
+registry_retired() { # <label>
+  in_c sh -c 'cat "$1/device-registry.json"' sh "$(data_dir)" |
+    jq -e --arg id "$DEVICE_ID" '.version == 1 and .legacy == null and .legacyImportCompleted == true and [.devices[].deviceId] == [$id]' >/dev/null \
+    && ok "$1: registry retired the shared token's record, kept the device, schema 1" \
+    || bad "$1: registry not retired or the device lost"
 }
 
 echo "--- (a) fresh install of NEW with image:"
@@ -173,14 +230,18 @@ set_config "$WORK/old" "$OLD_VERSION" ""
 deploy "$WORK/old" "$OLD_VERSION"
 ha apps install "$SLUG" >/dev/null
 expect_running "$OLD_VERSION" "local/$ARCH-addon-ha_nova_relay" "(b) old"
+seed_device
 seed_token
-token_works "$OLD_VERSION" "(b) old"
-before="$(data_hash)"
+if [[ "$OLD_TAKES_TOKEN" == 1 ]]; then token_works "$OLD_VERSION" "(b) old"; fi
+device_works "$OLD_VERSION" "(b) old"
+before="$(identity_hash)"
 deploy "$WORK/new" "$NEW_VERSION"
 ha apps update "$SLUG" >/dev/null
 expect_running "$NEW_VERSION" "${NEW_REF%:*}" "(b) new"
-token_works "$NEW_VERSION" "(b) new"
-[[ "$(data_hash)" == "$before" ]] && ok "(b) /data byte-identical (registry, TLS identity, instance id)" || bad "(b) /data changed"
+shared_refused "(b) new" marked
+device_works "$NEW_VERSION" "(b) new"
+registry_retired "(b) new"
+[[ "$(identity_hash)" == "$before" ]] && ok "(b) TLS identity and instance id byte-identical" || bad "(b) TLS identity or instance id changed"
 
 echo "--- (c) rollback: $ROLLBACK_VERSION without image: builds locally"
 set_config "$WORK/new" "$ROLLBACK_VERSION" ""
@@ -188,7 +249,20 @@ deploy "$WORK/new" "$ROLLBACK_VERSION"
 ha apps update "$SLUG" >/dev/null
 sv_has "Starting build for .*:$ROLLBACK_VERSION" && ok "(c) local build" || bad "(c) Supervisor did not build $ROLLBACK_VERSION"
 expect_running "$ROLLBACK_VERSION" "local/$ARCH-addon-ha_nova_relay" "(c)"
-token_works "$ROLLBACK_VERSION" "(c)"
-[[ "$(data_hash)" == "$before" ]] && ok "(c) /data byte-identical" || bad "(c) /data changed"
+shared_refused "(c)" marked
+device_works "$ROLLBACK_VERSION" "(c)"
+registry_retired "(c)"
+[[ "$(identity_hash)" == "$before" ]] && ok "(c) TLS identity and instance id byte-identical" || bad "(c) TLS identity or instance id changed"
+
+OLD_AGAIN_VERSION="$(bump_patch "$ROLLBACK_VERSION")"
+echo "--- (d) back to OLD's code as $OLD_AGAIN_VERSION (built): the shared token stays refused"
+set_config "$WORK/old" "$OLD_AGAIN_VERSION" ""
+deploy "$WORK/old" "$OLD_AGAIN_VERSION"
+ha apps update "$SLUG" >/dev/null
+expect_running "$OLD_AGAIN_VERSION" "local/$ARCH-addon-ha_nova_relay" "(d)"
+seed_token
+shared_refused "(d)"
+device_works "$OLD_AGAIN_VERSION" "(d)"
+registry_retired "(d)"
 
 [[ "$FAILED" == 0 ]] && echo "--- PASS" || { echo "--- FAIL" >&2; exit 1; }

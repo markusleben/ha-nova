@@ -2,7 +2,6 @@ import type {
   CloudRevocationRecord,
   ConfirmPhoneLink,
   DeviceRecord,
-  LegacyRecord,
   PairingResponseRecord,
 } from "./device-registry-types.js";
 import {
@@ -19,15 +18,23 @@ const SCHEMA_VERSION = 1;
 export interface RegistryData {
   version: number;
   devices: DeviceRecord[];
-  legacy: LegacyRecord | null;
-  legacyImportCompleted: boolean;
   pairingResponses: PairingResponseRecord[];
   cloudRevocations: CloudRevocationRecord[];
 }
 
 export class RegistryCorruptError extends Error {}
 
-export function loadRegistryData(path: string): RegistryData {
+// The old shared access is gone. Older Apps imported the shared token into a
+// "legacy" record once, unless "legacyImportCompleted" was set. Every write
+// clears the record and sets that tombstone, so an older App after a rollback
+// never imports the token again (fail closed); this App never reads either.
+export function serializeRegistry(data: RegistryData): string {
+  return JSON.stringify({ ...data, legacy: null, legacyImportCompleted: true });
+}
+
+// retired: the file already says what serializeRegistry writes (false for a
+// missing file).
+export function loadRegistryData(path: string): { data: RegistryData; retired: boolean } {
   let raw: Buffer | null;
   try {
     raw = readPrivateFileSync(path, MAX_REGISTRY_BYTES);
@@ -46,12 +53,8 @@ export function loadRegistryData(path: string): RegistryData {
   }
   if (raw === null) {
     return {
-      version: SCHEMA_VERSION,
-      devices: [],
-      legacy: null,
-      legacyImportCompleted: false,
-      pairingResponses: [],
-      cloudRevocations: [],
+      data: { version: SCHEMA_VERSION, devices: [], pairingResponses: [], cloudRevocations: [] },
+      retired: false,
     };
   }
   let parsed: unknown;
@@ -60,7 +63,9 @@ export function loadRegistryData(path: string): RegistryData {
   } catch {
     throw new RegistryCorruptError("device registry is not valid JSON");
   }
-  return validate(parsed);
+  const data = validate(parsed);
+  const { legacy, legacyImportCompleted } = parsed as Record<string, unknown>;
+  return { data, retired: legacy === null && legacyImportCompleted === true };
 }
 
 function validate(parsed: unknown): RegistryData {
@@ -84,10 +89,6 @@ function validate(parsed: unknown): RegistryData {
     }
     seen.add(device.deviceId);
   }
-  const legacy =
-    obj.legacy === null || obj.legacy === undefined
-      ? null
-      : validateLegacy(obj.legacy);
   const pairingResponses =
     obj.pairingResponses === undefined
       ? []
@@ -99,8 +100,6 @@ function validate(parsed: unknown): RegistryData {
   return {
     version: SCHEMA_VERSION,
     devices,
-    legacy,
-    legacyImportCompleted: obj.legacyImportCompleted === true,
     pairingResponses,
     cloudRevocations,
   };
@@ -187,21 +186,6 @@ export function validateConfirmPhone(value: unknown): ConfirmPhoneLink {
     throw new RegistryCorruptError("device.confirmPhone is invalid");
   }
   return { service, deviceId, userId, ...(platform !== undefined ? { platform } : {}) };
-}
-
-function validateLegacy(value: unknown): LegacyRecord {
-  if (typeof value !== "object" || value === null) {
-    throw new RegistryCorruptError("legacy record is not an object");
-  }
-  const raw = value as Record<string, unknown>;
-  if (
-    typeof raw.secretDigest !== "string" ||
-    typeof raw.createdAtMs !== "number" ||
-    !Number.isFinite(raw.createdAtMs)
-  ) {
-    throw new RegistryCorruptError("legacy record fields invalid");
-  }
-  return { secretDigest: raw.secretDigest, createdAtMs: raw.createdAtMs };
 }
 
 function validatePairingResponses(value: unknown): PairingResponseRecord[] {

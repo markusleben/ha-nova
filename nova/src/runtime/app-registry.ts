@@ -9,11 +9,8 @@ export function openInertRegistry(): DeviceRegistry {
   };
   return {
     list: () => [],
-    hasLegacy: () => false,
-    legacyImportCompleted: () => false,
     resolveDeviceSecret: () => null,
     resolveCloudDeviceSecret: () => null,
-    resolveLegacySecret: () => null,
     getPairingResponse: () => null,
     createPending: nope,
     createPendingWithResponse: nope,
@@ -24,9 +21,6 @@ export function openInertRegistry(): DeviceRegistry {
     revokeCloudDevice: () => ({ ok: false, reason: "unknown" }),
     revoke: () => false,
     setConfirmPhone: () => false,
-    importLegacy: nope,
-    markLegacyMigrated: nope,
-    revokeLegacy: nope,
   };
 }
 
@@ -36,8 +30,6 @@ export function openInertRegistry(): DeviceRegistry {
 export function swappableRegistry(get: () => DeviceRegistry): DeviceRegistry {
   return {
     list: () => get().list(),
-    hasLegacy: () => get().hasLegacy(),
-    legacyImportCompleted: () => get().legacyImportCompleted(),
     resolveDeviceSecret: (deviceId, secretDigest, now) =>
       get().resolveDeviceSecret(deviceId, secretDigest, now),
     resolveCloudDeviceSecret: (
@@ -54,8 +46,6 @@ export function swappableRegistry(get: () => DeviceRegistry): DeviceRegistry {
         relayInstanceId,
         now,
       ),
-    resolveLegacySecret: (secretDigest) =>
-      get().resolveLegacySecret(secretDigest),
     getPairingResponse: (handshakeId, contextKey, now) =>
       get().getPairingResponse(handshakeId, contextKey, now),
     createPending: (record, now) => get().createPending(record, now),
@@ -90,8 +80,5 @@ export function swappableRegistry(get: () => DeviceRegistry): DeviceRegistry {
       ),
     revoke: (deviceId) => get().revoke(deviceId),
     setConfirmPhone: (deviceId, link, expected) => get().setConfirmPhone(deviceId, link, expected),
-    importLegacy: (secretDigest, now) => get().importLegacy(secretDigest, now),
-    markLegacyMigrated: () => get().markLegacyMigrated(),
-    revokeLegacy: () => get().revokeLegacy(),
   };
 }

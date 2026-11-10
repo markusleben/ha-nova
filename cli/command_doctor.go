@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -77,13 +78,15 @@ func runDoctor(paths runtimePaths, args []string) int {
 		printHumanErr("%s", cfgErr)
 		return 1
 	}
-	// Shared access still works in this release: a warning first, never a
-	// failure, and not in --quiet's machine contract.
+	// Shared access while the App still takes it: a warning, never a failure,
+	// and not in --quiet's machine contract. An App that refuses it fails the
+	// check below with the same words instead.
+	legacyNotice := ""
 	if !*quiet {
 		legacyCtx, cancelLegacy := context.WithTimeout(context.Background(), legacyNoticeProbeTimeout)
 		if legacySharedAccess(cfg) && legacyTokenReadable() &&
 			legacyAccessSwitchable(cfg, func(url string) bool { return probePairingV1ForDoctor(legacyCtx, url) }) {
-			printHumanWarn("%s", legacyAccessNoticeFor(cfg))
+			legacyNotice = legacyAccessNoticeFor(cfg)
 		}
 		cancelLegacy()
 	}
@@ -208,6 +211,9 @@ func runDoctor(paths runtimePaths, args []string) int {
 		// No way to reach the App: the reason is above.
 	} else if readiness := runReadiness(); readiness.HealthErr != nil {
 		switch {
+		case errors.Is(readiness.HealthErr, errSharedAccessEnded):
+			printHumanErr("%s", sharedAccessEndedFor(cfg, activeServerProfile()))
+			legacyNotice = ""
 		case deviceMode && relayHealthIssueLooksLikeRelayAuth(readiness.HealthErr):
 			printNotAccepted()
 		case haHinted && reachProblem(cfg.HAURL, readiness.HealthErr) != "": // same cause: the hint above says why
@@ -276,6 +282,9 @@ func runDoctor(paths runtimePaths, args []string) int {
 			}
 		}
 		status = max(status, doctorGate(paths, route.diagnosticOnly, readiness.HealthBody, cfg.Cloud != nil && cfg.Cloud.Current != nil, deviceMode, doctorInfo))
+	}
+	if legacyNotice != "" {
+		printHumanWarn("%s", legacyNotice)
 	}
 
 	clientStatuses, err := configuredClientStatuses(paths, state)
@@ -392,6 +401,9 @@ func fetchRelayHealthWithContext(ctx context.Context, client *http.Client, relay
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if sharedAccessEnded(resp.StatusCode, resp.Header) {
+		return nil, errSharedAccessEnded
+	}
 	if resp.StatusCode == http.StatusUnauthorized ||
 		resp.StatusCode == http.StatusForbidden {
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)

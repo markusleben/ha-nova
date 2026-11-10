@@ -114,6 +114,7 @@ func TestLocalFunctionalAuthFailureUsesSelectedProfileRepair(
 			printLocalRelayAuthRepair(
 				status,
 				nil,
+				nil,
 				relayTransportSelection{Via: relayViaLocal},
 				cfg,
 			)
@@ -133,6 +134,7 @@ func TestLocalFunctionalAuthFailureUsesSelectedProfileRepair(
 		printLocalRelayAuthRepair(
 			http.StatusUnauthorized,
 			nil,
+			nil,
 			relayTransportSelection{Via: relayViaCloud},
 			cfg,
 		)
@@ -144,6 +146,7 @@ func TestLocalFunctionalAuthFailureUsesSelectedProfileRepair(
 	_, output = captureCommandOutput(t, func() int {
 		printLocalRelayAuthRepair(
 			http.StatusForbidden,
+			nil,
 			[]byte(`{"ok":false,"error":{"code":"FILE_PATH_DENIED","message":"'www' is never accessible through the relay"}}`),
 			relayTransportSelection{Via: relayViaLocal},
 			cfg,

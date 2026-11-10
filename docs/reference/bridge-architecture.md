@@ -360,13 +360,13 @@ The Relay keeps inbound client authentication separate from upstream Home Assist
 
 | Distribution/path | Credential | Purpose |
 |--------------|------------|---------|
-| Legacy/standalone inbound | `RELAY_AUTH_TOKEN` | Authenticates direct client requests to the Relay |
+| Standalone inbound | `RELAY_AUTH_TOKEN` | Authenticates direct client requests to the standalone Relay |
 | App paired-device inbound | Per-device credential | Authenticates direct TLS requests on the pinned device listener |
 | App Cloud Ingress inbound | User- and Relay-bound per-device credential | Authenticates functional requests after the Supervisor Ingress identity gate |
 | Home Assistant App upstream | `SUPERVISOR_TOKEN` | Authenticates upstream REST and WebSocket requests through the Supervisor Core proxies, and the allowlisted `/supervisor` requests |
 | Standalone Container/Core upstream | `HA_LLAT` | Authenticates upstream requests directly with Home Assistant |
 
-**Legacy/standalone inbound (client -> Relay):**
+**Standalone inbound (client -> Relay):**
 ```
 Authorization: Bearer {RELAY_AUTH_TOKEN}
 ```
@@ -377,7 +377,10 @@ and returns the same relay token after a successful exchange.
 The normal App path uses an OPAQUE-derived per-device credential over SPKI-pinned
 TLS. Cloud sends it through a process-local Supervisor Ingress session. Pairing
 v2 atomically activates a user-bound device; existing devices bind only when the
-Relay instance matches. Legacy shared tokens are rejected on Ingress routes.
+Relay instance matches. The App takes no shared token (#905): any other bearer
+gets `401 PAIRING_REQUIRED` with the header `x-ha-nova-auth: pairing-required`
+on every App listener, which the CLI turns into its re-pair text, and the plain
+listener (8791) serves only the pairing routes.
 
 Home Assistant sign-in pairing arms the pairing slot with `POST /pair/v2/arm`:
 the Home Assistant owner only (fresh `config/auth/list` check on every call),
@@ -405,13 +408,14 @@ allowlisted `POST /supervisor` requests. Standalone Container/Core uses
 `HA_LLAT` against its configured Home Assistant URL. When both variables exist,
 Supervisor auth wins so an obsolete legacy App LLAT cannot break the App.
 
-Inbound and upstream credentials are independent. New App installs create and
-persist a random 32-byte relay token under `/data` with owner-only permissions.
-Existing App relay-token option values remain authoritative. The App
-configuration still ships an `ha_llat` field, but only as a one-time
-legacy-migration source: a normal App install leaves it empty and authenticates
-upstream with its Supervisor token. Standalone Container/Core installs must
-provide both `RELAY_AUTH_TOKEN` and `HA_LLAT` server-side.
+Inbound and upstream credentials are independent. The App has no shared relay
+token and no `relay_auth_token` or `ha_llat` option. Apps before 0.30 imported
+their shared token once into a `legacy` record of the device registry; this App
+drops that record and writes the tombstone (`legacy: null`,
+`legacyImportCompleted: true`, schema 1) before any listener serves, and stops
+if that write fails, so an older App after a rollback never imports the token
+again. Standalone Container/Core installs must provide both `RELAY_AUTH_TOKEN`
+and `HA_LLAT` server-side.
 
 The interactive CLI's normal App path never asks the user to copy the relay
 token. In a local desktop terminal it first offers Home Assistant sign-in: the
@@ -423,7 +427,8 @@ Home Base code, sends it only in the JSON body of
 and verifies both `/health` and `/ws`. Pairing requests do not follow redirects;
 the code is not accepted through argv and is not persisted in normal config.
 Saved credentials, `--relay-token`, service token files, and standalone
-Container/Core setups retain their explicit-token paths.
+Container/Core setups retain their explicit-token paths; against the App they
+end in the re-pair text.
 
 The Cloud Beta contract is
 `docs/work/2026-07-25-home-assistant-cloud-remote-spec.md`.
@@ -443,10 +448,10 @@ All configuration is via environment variables. The `run` entrypoint script
 resolves values from HA app options and sets them before starting Node.
 
 ```yaml
-# App: set RELAY_AUTH_TOKEN_FILE; RELAY_AUTH_TOKEN remains a legacy override.
-# Standalone: RELAY_AUTH_TOKEN is required.
+# Standalone only (the App reads neither): RELAY_AUTH_TOKEN, else a token
+# created once in RELAY_AUTH_TOKEN_FILE.
 RELAY_AUTH_TOKEN: "<operator-chosen-secret>"   # Inbound client auth override
-RELAY_AUTH_TOKEN_FILE: "/data/relay_auth_token" # App-owned persistent token
+RELAY_AUTH_TOKEN_FILE: "/data/relay_auth_token" # Persistent token file
 SUPERVISOR_TOKEN: "<injected-by-supervisor>"   # App upstream auth; never configured by the user
 HA_LLAT: "<ha-long-lived-access-token>"        # Standalone upstream auth fallback
 MIN_RELAY_VERSION: "<from nova/version.json>" # Required Relay floor shown in Home Base

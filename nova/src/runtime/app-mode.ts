@@ -33,7 +33,6 @@ import { openInertRegistry, swappableRegistry } from "./app-registry.js";
 import { chatAppFilesPresent, createChatApps, type ChatApps } from "./chat-apps.js";
 import { createGateWorker, mintGateDevice, type GateWorker } from "./gate-worker.js";
 import { createIngressListener } from "./ingress-listener.js";
-import { clearLegacyOptions, importLegacyToken } from "./legacy-migration.js";
 import { ensureSidebarPanel } from "./sidebar-panel.js";
 import {
   createBootstrapListener,
@@ -116,12 +115,6 @@ export async function buildAppMode(
     }
     archiveCorruptRegistry(dataDir, input.now());
     active = openDeviceRegistry(dataDir, input.logger); // a fresh, empty registry
-    // A reset is a full fresh start ("every computer will need to pair again"),
-    // so cut pre-pairing legacy access too: tombstone the migration so a lingering
-    // plaintext relay_auth_token is NOT re-imported into the fresh registry on the
-    // next boot. The next boot's importLegacyToken + clearLegacyOptions then remove
-    // the plaintext file and option.
-    active.markLegacyMigrated();
     registryCorrupt = false;
     chatApps?.restartBridge(); // its credential went with the old registry
     gate?.restart(); // so did the safety-check worker's
@@ -134,25 +127,6 @@ export async function buildAppMode(
 
   const tls = await loadOrCreateTlsIdentity(dataDir);
 
-  // One-time legacy migration: import a pre-existing shared token into the
-  // registry as a digest, then clear the option. Skipped on a corrupt registry.
-  if (!registryCorrupt) {
-    await importLegacyToken({
-      registry,
-      supervisor,
-      dataDir,
-      appOptionsPath: input.appOptionsPath,
-      now: input.now,
-      logger: input.logger,
-    });
-  }
-  // Clear the plaintext options in ONE write (relay token only when the registry
-  // is healthy enough to have migrated it; ha_llat always). A corrupt registry
-  // keeps the shared token recoverable until the owner resets.
-  await clearLegacyOptions(
-    { supervisor, appOptionsPath: input.appOptionsPath, logger: input.logger },
-    !registryCorrupt,
-  );
   // First-boot default: make the NOVA sidebar entry appear without a manual
   // "Add to sidebar" toggle. Once-ever via marker; never overrides an owner
   // who hides the panel later.
@@ -307,7 +281,7 @@ export async function buildAppMode(
 }
 
 // phoneLinkOf: an active device's linked phone from the registry, on the
-// worker's wire; none for a pending device or the shared token.
+// worker's wire; none for a pending device.
 export function phoneLinkOf(registry: Pick<DeviceRegistry, "list">): (principal: Principal) => PhoneLink | undefined {
   return (p) => {
     const phone = p.kind === "device" ? registry.list().find((d) => d.deviceId === p.deviceId && d.state === "active")?.confirmPhone : undefined;
@@ -331,7 +305,7 @@ function buildFunctionalHandlers(
   const forwardCore = createCoreForwarder({ coreClient: input.coreClient });
   const { gate, ask, asks } = gateWithAsks(worker, {
     prepare: { core: parseCoreRequest },
-    deviceName: (p) => (p.kind === "device" ? registry.list().find((d) => d.deviceId === p.deviceId)?.name : undefined) ?? "the shared Relay token",
+    deviceName: (p) => (p.kind === "device" ? registry.list().find((d) => d.deviceId === p.deviceId)?.name : undefined) ?? "a computer that is no longer paired",
     channels: () => pageChannel(input.wsClient), // the approval view, while someone may approve there
     link: phoneLinkOf(registry),
     setLink: setPhoneLinkOf(registry),

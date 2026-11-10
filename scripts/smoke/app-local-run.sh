@@ -20,13 +20,10 @@ esac
 PLATFORM="${PLATFORM:-$DEFAULT_PLATFORM}"
 : "${HA_LLAT:?HA_LLAT is required for app-local-run.sh}"
 
+# No Supervisor here: the App image runs as the standalone Relay, with its own
+# shared token and Home Assistant token from the environment.
 mkdir -p "$DATA_DIR"
-cat > "$DATA_DIR/options.json" <<EOF
-{
-  "relay_auth_token": "${RELAY_AUTH_TOKEN:-dev-relay-token}",
-  "ha_llat": "${HA_LLAT}"
-}
-EOF
+printf '{"file_access":"off"}\n' > "$DATA_DIR/options.json"
 
 if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
   docker rm -f "$CONTAINER_NAME" >/dev/null

@@ -445,6 +445,7 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 	bodyBytes, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	printLocalRelayAuthRepair(
 		resp.StatusCode,
+		resp.Header,
 		bodyBytes,
 		transport,
 		cfg,
@@ -810,6 +811,7 @@ func runHealth(paths runtimePaths, args []string) int {
 	bodyBytes, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	printLocalRelayAuthRepair(
 		resp.StatusCode,
+		resp.Header,
 		bodyBytes,
 		transport,
 		cfg,
@@ -857,6 +859,7 @@ func runHealth(paths runtimePaths, args []string) int {
 
 func printLocalRelayAuthRepair(
 	status int,
+	header http.Header,
 	body []byte,
 	transport relayTransportSelection,
 	cfg runtimeConfig,
@@ -868,8 +871,9 @@ func printLocalRelayAuthRepair(
 		"%s",
 		localRelayAuthRepairMessage(
 			status,
+			header,
 			activeServerProfile(),
-			cfg.RelayBaseURL,
+			cfg,
 		),
 	)
 }

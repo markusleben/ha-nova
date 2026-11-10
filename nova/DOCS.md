@@ -54,8 +54,14 @@ Home Assistant, never by its network address.
 
 | Option | Description |
 |--------|-------------|
-| **Relay Auth Token (legacy/advanced)** | Old installs may still use this shared key. The App accepts it on the local connection, never through Home Assistant Link. Run `ha-nova setup` once on each computer to switch (a `--service` install: `ha-nova pair --credential-store=file`). When every computer has switched, choose "Revoke legacy access…" on the NOVA page. New installs leave this empty: each computer gets its own key when it connects. |
 | **File access (advanced)** | Lets HA NOVA read or change some Home Assistant config files. Off by default. |
+
+Each computer gets its own key when it connects. Earlier versions also had a
+"Relay Auth Token" option, one shared key for every computer. This App no
+longer accepts that key: a computer that still uses it says "Pair this computer
+again". Run `ha-nova setup` once on it (a `--service` install:
+`ha-nova pair --credential-store=file`); with Home Assistant Link saved, remove
+Link first and add it again afterwards.
 
 The App logs in to Home Assistant by itself. Don't create or paste a Home
 Assistant access token for a normal App install. A standalone Container/Core
@@ -70,25 +76,24 @@ Relay keeps its `HA_LLAT` on the server, as described in
 
 | Port | Description |
 |------|-------------|
-| 8791/tcp | Connecting computers, and the old shared access |
+| 8791/tcp | Connecting computers |
 | 8792/tcp | Everything a connected computer sends (encrypted, locked to this App) |
 
 ## Endpoints
 
 You normally never call these yourself. The CLI and the NOVA page do it for
 you. Connected devices use their own key over the encrypted port (8792), sent
-as `Authorization: Bearer <token>`. Requests on the plain port (8791),
-including `GET /health`, work only with the old shared access or a standalone
-container's token, in the same header: a connected device's key is refused there.
-Connecting uses the six-digit code, or the owner's Home Assistant sign-in,
-instead.
+as `Authorization: Bearer <token>`. The plain port (8791) only connects
+devices, with the six-digit code or the owner's Home Assistant sign-in. Every
+other request there is refused, `GET /health` included: a connected device's
+key gets 403, the old shared key 401 with "pair this computer again".
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Relay health check (version, uptime, Home Assistant connection) |
 | GET/POST | `/pair/v1/*` | Connect a device (OPAQUE) — the code is the key |
 | POST | `/auth/device/*` | Start a device's key, or revoke it for good (encrypted port only) |
-| GET | `/auth/device/peers` | Whether other devices, an open code, the old shared access, or chat-app files still use this App (encrypted port only; for `ha-nova uninstall`) |
+| GET | `/auth/device/peers` | Whether other devices, an open code, or chat-app files still use this App (encrypted port only; for `ha-nova uninstall`) |
 | POST | `/ws` | Passes commands to Home Assistant's WebSocket API |
 | POST | `/core` | Passes requests to Home Assistant's REST API (`/api/...`) |
 | POST | `/files` | Config-file access, only when you turn it on |
@@ -270,8 +275,8 @@ your AI app isn't ready yet? Run `ha-nova setup --server <name>`. With
 JSON object (`verification_error` and `next_command` when something fails). It
 never prints passwords or keys.
 
-With the old shared access or a standalone container, you can also ask the
-Relay yourself (a connected computer's key doesn't work on this port):
+With a standalone container, you can also ask the Relay yourself with its own
+token (this App answers only connected computers, on the encrypted port):
 
 ```bash
 curl \
@@ -357,8 +362,7 @@ Link only: then its pairing is revoked as well.
   connection, this computer's key, and the Link sign-in.
   `ha-nova uninstall --yes` does the same; add `--purge` to remove everything.
 - "Remove, and remove the NOVA App too" shows only when this App says that no
-  other device, no pairing under way, no old shared access, and no chat-app
-  files use it, and no Home Assistant Link is saved on this computer. The Home
+  other device, no pairing under way, and no chat-app files use it, and no Home Assistant Link is saved on this computer. The Home
   Assistant owner must sign in first.
 
 Removing this App disconnects every computer. Turn chat apps off on the NOVA

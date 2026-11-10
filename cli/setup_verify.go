@@ -78,6 +78,10 @@ func verifySetupConnectionOnce(out io.Writer, cfg runtimeConfig, token string, f
 	}
 
 	readiness := checkRelayReadinessWithProbes(cfg.RelayBaseURL, token, fetchRelayHealthForSetup, probeRelayWSPingForSetup, forceWSPing)
+	if errors.Is(readiness.HealthErr, errSharedAccessEnded) {
+		renderSetupErrorLine(out, "%s", sharedAccessEndedFor(cfg, activeServerProfile()))
+		return readiness, setupIssueRelayUnreachable, false
+	}
 	if readiness.HealthErr != nil {
 		renderSetupErrorLine(out, "HA NOVA couldn't check the NOVA App. Details: %s", readiness.HealthErr)
 		fmt.Fprintln(out, `  Check that the NOVA App is running, and that the saved key matches its "Relay Auth Token".`)

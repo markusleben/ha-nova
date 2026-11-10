@@ -44,8 +44,9 @@ export function createDeviceRevokeSelfHandler(deps: DeviceAuthDeps): RouteHandle
 }
 
 // GET /auth/device/peers — whether uninstall may remove the App: other device
-// records (pending included), an open pairing window, legacy shared access, and
-// chat-app files (null: unknown). Paired devices learn nothing new.
+// records (pending included), an open pairing window, and chat-app files
+// (null: unknown). Paired devices learn nothing new. legacy_access stays false:
+// the old shared access is gone, and a CLI reads a missing field as unknown.
 // The chat-app bridge's own device (bridgeDevice) is covered by chat_app_files.
 export function createDevicePeersHandler(deps: { registry: DeviceRegistry; pairingOpen: () => boolean; chatAppFiles: () => boolean | null; bridgeDevice?: () => string | null }): RouteHandler {
   return ({ principal }: RouteContext) => {
@@ -54,7 +55,7 @@ export function createDevicePeersHandler(deps: { registry: DeviceRegistry; pairi
     }
     const bridge = deps.bridgeDevice?.() ?? null;
     const others = deps.registry.list().filter((d) => d.deviceId !== principal.deviceId && d.deviceId !== bridge && d.clientInstallId !== GATE_INSTALL_ID);
-    return { other_devices: others.length, pairing_open: deps.pairingOpen(), legacy_access: deps.registry.hasLegacy(), chat_app_files: deps.chatAppFiles() };
+    return { other_devices: others.length, pairing_open: deps.pairingOpen(), legacy_access: false, chat_app_files: deps.chatAppFiles() };
   };
 }
 

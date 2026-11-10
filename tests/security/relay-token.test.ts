@@ -47,22 +47,21 @@ describe("relay auth token persistence", () => {
     }
   });
 
-  it("keeps a configured legacy token and does not create a file", () => {
+  it("keeps a configured standalone token and does not create a file", () => {
     const path = tokenPath();
 
     const token = resolveRelayAuthToken({
-      RELAY_AUTH_TOKEN: "  legacy-token  ",
+      RELAY_AUTH_TOKEN: "  standalone-token  ",
       RELAY_AUTH_TOKEN_FILE: path
     });
 
-    expect(token).toBe("legacy-token");
+    expect(token).toBe("standalone-token");
     expect(() => statSync(path)).toThrow();
   });
 
   it("does not auto-create a shared token in App mode (SUPERVISOR_TOKEN, no configured token)", () => {
-    // App mode authenticates per device via pairing; auto-creating a shared
-    // token would be imported as a spurious legacy credential and churn a
-    // plaintext file on every restart after revoke.
+    // App mode authenticates per device via pairing only; it has no shared
+    // token to create.
     const path = tokenPath();
 
     const token = resolveRelayAuthToken({
@@ -74,16 +73,16 @@ describe("relay auth token persistence", () => {
     expect(() => statSync(path)).toThrow(); // no file created
   });
 
-  it("still honors an explicit token in App mode (a genuine pre-pairing credential)", () => {
+  it("ignores an explicit RELAY_AUTH_TOKEN in App mode: the App has no shared access", () => {
     const path = tokenPath();
 
     const token = resolveRelayAuthToken({
       SUPERVISOR_TOKEN: "supervisor-abc",
-      RELAY_AUTH_TOKEN: "real-legacy-token",
+      RELAY_AUTH_TOKEN: "stale-shared-token",
       RELAY_AUTH_TOKEN_FILE: path
     });
 
-    expect(token).toBe("real-legacy-token");
+    expect(token).toBe("");
     expect(() => statSync(path)).toThrow();
   });
 

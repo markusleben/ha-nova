@@ -5,10 +5,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  digestSecret,
-  generateCredential,
-} from "../../nova/src/security/device-credential.js";
+import { generateCredential } from "../../nova/src/security/device-credential.js";
 import {
   openDeviceRegistry,
   type DeviceRegistry,
@@ -16,6 +13,7 @@ import {
 import { BRIDGE_INSTALL_ID, GATE_INSTALL_ID } from "../../nova/src/security/pairing-metadata.js";
 import {
   CLOUD_DEVICE_UNAUTHORIZED_MESSAGE,
+  PAIRING_REQUIRED_MESSAGE,
   resolveCloudPrincipal,
   resolvePrincipal,
 } from "../../nova/src/security/principal.js";
@@ -77,20 +75,16 @@ describe("principal resolver", () => {
     if (!r.ok) expect(r.status).toBe(401);
   });
 
-  it("resolves the legacy shared token on either transport while it exists", () => {
-    const legacy = "legacy-shared-token-value";
-    registry.importLegacy(digestSecret(legacy), now());
-    expect(resolvePrincipal(auth(legacy), "plain", deps())).toEqual({
-      ok: true,
-      principal: { kind: "legacy" },
-    });
-    expect(resolvePrincipal(auth(legacy), "secure", deps())).toEqual({
-      ok: true,
-      principal: { kind: "legacy" },
-    });
-    // After revoke it no longer resolves.
-    registry.revokeLegacy();
-    expect(resolvePrincipal(auth(legacy), "plain", deps()).ok).toBe(false);
+  it("answers PAIRING_REQUIRED to the old shared token on either transport", () => {
+    const shared = "old-shared-token-value";
+    for (const transport of ["plain", "secure"] as const) {
+      expect(resolvePrincipal(auth(shared), transport, deps())).toEqual({
+        ok: false,
+        status: 401,
+        code: "PAIRING_REQUIRED",
+        message: PAIRING_REQUIRED_MESSAGE,
+      });
+    }
   });
 
   it("rejects missing/malformed authorization (401)", () => {
@@ -128,7 +122,7 @@ describe("principal resolver", () => {
     }
   });
 
-  it("resolves Cloud auth only for the bound HA user and never accepts legacy", () => {
+  it("resolves Cloud auth only for the bound HA user and never accepts the old shared token", () => {
     const credential = activeDevice();
     registry.bindCloudUser(
       credential.deviceId,
@@ -170,9 +164,8 @@ describe("principal resolver", () => {
       ).ok,
     ).toBe(false);
 
-    registry.importLegacy(digestSecret("legacy"), now());
     expect(
-      resolveCloudPrincipal(request("legacy"), "user-1", RELAY_ID, deps()).ok,
+      resolveCloudPrincipal(request("old-shared-token"), "user-1", RELAY_ID, deps()).ok,
     ).toBe(false);
   });
 
