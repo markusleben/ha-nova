@@ -89,10 +89,11 @@ func todoItemGoal(lang string, plan storedPlan, names []string) (actionGoal, boo
 }
 
 // itemList: the named to-do items, then how many more ("“Milk” and 2
-// more"); none named, "an item" ("an item and 2 more").
+// more"); none named, "an item" ("an item and 2 more"). A typed plan's
+// (all) names every named one.
 func (g actionGoal) itemList(lang string) string {
 	items, more := g.items, g.more
-	if len(items) > 3 {
+	if len(items) > 3 && !g.all {
 		items, more = items[:3], more+len(items)-3
 	}
 	switch {
@@ -101,7 +102,7 @@ func (g actionGoal) itemList(lang string) string {
 	case len(items) == 0:
 		return confirmT(lang, "list.more", "list", confirmT(lang, "noun.todo_item_unknown"), "count", more-1)
 	case more == 0:
-		return sayList(lang, items)
+		return sayAll(lang, items)
 	}
 	return confirmT(lang, "list.more", "list", strings.Join(items, ", "), "count", more)
 }

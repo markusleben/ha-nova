@@ -226,7 +226,7 @@ func TestPhoneCheckThatFailsTwiceSaysHomeAssistantWasSlow(t *testing.T) {
 			var env verbTestEnvelope
 			stderr := captureStderr(t, func() { exit, env = h.run(runApplyCommand, "--plan", plan.ID) })
 			// The window never says the phone asks too while it can't; a failed lookup probes nothing.
-			if len(w.messages) != 1 || strings.Contains(w.messages[0], windowBoth("en")) || !strings.HasSuffix(w.messages[0], windowAsked("en")) ||
+			if len(w.messages) != 1 || strings.Contains(w.messages[0], windowBoth("en")) || !strings.HasPrefix(w.messages[0], windowAsked("en")) ||
 				probes() != map[bool]int{false: 0, true: 2}[probe] {
 				t.Fatalf("window %q probes %d", w.messages, probes())
 			}
