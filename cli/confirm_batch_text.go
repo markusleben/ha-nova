@@ -241,9 +241,10 @@ func batchWindowFits(plan storedPlan, verb string) error {
 	if fits {
 		return nil
 	}
-	next := "Split the list into several batches (each gets its own confirmation, and tell the user why), then make them again with the same plan ids."
+	size := windowSplitSize(len(plan.BatchMembers), lines)
+	next := fmt.Sprintf("Split the list, in its order, into batches of at most %d (each gets its own confirmation), make them one after another with the same plan ids, and tell the user why there are several.", size)
 	if verb != "plan" {
-		next = "Nothing was sent, and this batch is used up (a name in it grew longer): plan every item again, then make several shorter batches, each with its own confirmation, and tell the user why there are several."
+		next = fmt.Sprintf("Nothing was sent, and this batch is used up (a name in it grew longer): plan every item again, then make batches of at most %d, in order, each with its own confirmation, and tell the user why there are several.", size)
 	}
 	return refusedWith("BATCH_TOO_LONG", fmt.Sprintf("the confirmation of these %d changes is too long for one window (%d lines; at most %d)", len(plan.BatchMembers), lines, windowMaxLines), next)
 }

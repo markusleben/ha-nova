@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -146,9 +148,12 @@ func TestWindowBudgetRatchet(t *testing.T) {
 		t.Fatalf("12 locks: %v %q", err, stored.Prompt)
 	}
 	before := h.planFiles()
-	if exit, env := h.run(runPlanCommand, append([]string{"call", "lock.unlock"}, locks...)...); exit != verbExitRefused || env.Error.Code != "PLAN_TOO_LONG" ||
-		strings.Join(h.planFiles(), ",") != strings.Join(before, ",") {
-		t.Fatalf("30 locks: exit %d %+v", exit, env.Error)
+	exit, refused := h.run(runPlanCommand, append([]string{"call", "lock.unlock"}, locks...)...)
+	if exit != verbExitRefused || refused.Error.Code != "PLAN_TOO_LONG" || strings.Join(h.planFiles(), ",") != strings.Join(before, ",") {
+		t.Fatalf("30 locks: exit %d %+v", exit, refused.Error)
+	}
+	if size := splitSize(t, refused.Error.Next, "targets"); size < 2 || h.plan(append([]string{"lock.unlock"}, locks[:size]...)...).Plan.Channel != channelWindow {
+		t.Fatalf("30 locks split into plans of %d: %q", size, refused.Error.Next)
 	}
 	paths, _ := rawRelay(t, nil)
 	kinds := []string{"input_boolean", "counter"}
@@ -166,6 +171,11 @@ func TestWindowBudgetRatchet(t *testing.T) {
 		switch {
 		case mixed && (exit != verbExitRefused || env.Error.Code != "PLAN_TOO_LONG"):
 			t.Errorf("20 deletes of two kinds: exit %d %+v", exit, env.Error)
+		case mixed:
+			size := splitSize(t, env.Error.Next, "steps")
+			if exit, env := planRaw(t, paths, "["+strings.Join(items[:size], ",")+"]"); size < 2 || exit != verbExitConfirmation || env.Plan.Channel != channelWindow {
+				t.Errorf("20 deletes split into plans of %d: exit %d %+v", size, exit, env.Error)
+			}
 		case !mixed && (exit != verbExitConfirmation || env.Plan.Channel != channelWindow || !strings.Contains(env.Say, "\nSteps 1–20: Delete the toggle helper “helper_01_"+pad+"”, ") ||
 			!strings.Contains(env.Say, " and the toggle helper “helper_20_"+pad+"”.\n")):
 			t.Errorf("20 deletes alike: exit %d %+v %q", exit, env.Error, env.Say)
@@ -199,4 +209,16 @@ func TestPhoneCutKeepsTheReasons(t *testing.T) {
 		!strings.HasSuffix(why, "And 1 other step. ") || len([]rune(why)) > phoneWhyLimit+2 {
 		t.Fatalf("phone body %q", ask.body)
 	}
+}
+
+// splitSize: the plan size a too-long plan's next step asks for ("at most
+// 14 steps each"); the plan that size must then fit.
+func splitSize(t *testing.T, next, what string) int {
+	t.Helper()
+	match := regexp.MustCompile(`at most (\d+) ` + what).FindStringSubmatch(next)
+	if match == nil {
+		t.Fatalf("no size in %q", next)
+	}
+	size, _ := strconv.Atoi(match[1])
+	return size
 }
