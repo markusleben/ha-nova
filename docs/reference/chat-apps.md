@@ -53,7 +53,7 @@ ChatGPT has no button that fills this in, so you paste the address. You need a p
 3. Sign in to Home Assistant with your own login. Right after you create the plugin, ChatGPT may say the OAuth callback data is missing ("OAuth-Callback-Daten fehlen"). Choose Connect on the plugin again.
 4. Type `@HA NOVA` in a chat to use it.
 
-After an HA NOVA update, open chatgpt.com/plugins, choose HA NOVA, then Refresh. ChatGPT then gets HA NOVA's new instructions.
+ChatGPT keeps HA NOVA's tools and instructions until you refresh the plugin. When a NOVA App update changes them, HA NOVA tells each chat-app user once in the chat, and the NOVA page shows the date for 30 days. Then open chatgpt.com/plugins, choose HA NOVA, then Refresh. Claude needs nothing.
 
 Menu names in Claude and ChatGPT change now and then; look for "connector", "plugin", or "MCP".
 

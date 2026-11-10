@@ -88,7 +88,7 @@ Spec: `docs/work/2026-10-24-chat-app-phone-move-spec.md`. Code: `cli/mcp_serve_c
 - **Writes** are atomic and `0600` and run under one lock. Each compares the entry the action read first, and the user's access, right before it writes. So a change made meanwhile is never overwritten, and a dropped link never comes back.
 - **Phone texts** come from the confirmation catalog (`chat_phone.*`) in Home Assistant's language.
 - **Who confirms:** a chat-app phone belongs to its own user while their level is Use the home or more (`phoneAllowed`, read when the bridge reads the phones); a computer keeps `phoneAdmin`. `adopt` and `move` write only while it still holds.
-- `GET /control/v1/activity` answers `{"changes": [{at, user, name, tool, what, targets?, result}]}`, the last 20 lines of `activity.jsonl`, newest first. `GET /control/v1/seen` answers `{"users": {"<HA user id>": "<RFC 3339 hour>"}}`.
+- `GET /control/v1/activity` answers `{"changes": [{at, user, name, tool, what, targets?, result}]}`, the last 20 lines of `activity.jsonl`, newest first. `GET /control/v1/seen` answers `{"users": {"<HA user id>": "<RFC 3339 hour>"}}`. `GET /control/v1/tools` answers `{"version": "<12 hex>", "changed_at": "<RFC 3339>" | ""}`: the tools version and when it last changed (docs/work/2026-11-10-chat-tools-version-spec.md).
 
 ## App side (B2)
 

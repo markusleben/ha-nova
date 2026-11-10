@@ -165,17 +165,14 @@ export function renderChatActivity(activity: ChatActivity[] | null, now: number)
 // For 30 days after HA NOVA's tools changed: ChatGPT keeps the old ones
 // until a Refresh (docs/work/2026-11-10-chat-tools-version-spec.md).
 export function renderToolsChanged(changedAt: string | null, now: number): string {
-  const at = changedAt === null || changedAt === "" ? Number.NaN : Date.parse(changedAt);
-  if (!(now - at >= 0 && now - at < 30 * 86_400_000)) {
-    return "";
-  }
-  return `<p class="ok">HA NOVA's tools changed on ${dayOf(new Date(at))}. Using HA NOVA in ChatGPT? Open chatgpt.com/plugins, choose HA NOVA, then Refresh. Claude needs nothing.</p>`;
+  const at = Date.parse(changedAt ?? ""); // "": not changed, NaN
+  return now - at >= 0 && now - at < 30 * 86_400_000
+    ? `<p class="ok">HA NOVA's tools changed on ${dayOf(new Date(at))}. Using HA NOVA in ChatGPT? Open chatgpt.com/plugins, choose HA NOVA, then Refresh. Claude needs nothing.</p>`
+    : "";
 }
 
 const pad = (n: number): string => String(n).padStart(2, "0");
-
-// Server-local date, as the device list.
-const dayOf = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const dayOf = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; // server-local, as the device list
 
 // Server-local time (as the device list): the hour and minute today, else with the date.
 function clock(at: string, now: number): string {

@@ -26,6 +26,10 @@ Unreleased claims wait here until they ship (AGENTS.md, Releases: the README des
 
 - **Standalone container:** it has no NOVA page, so only a linked phone confirms. Give it the token of a Home Assistant user who isn't the owner, keep `/data` on a volume, and run it with a port mapping, not host networking (`docs/reference/relay-container.md`).
 
+## New in 0.30
+
+- **ChatGPT users hear when to refresh HA NOVA.** When a NOVA App update changes HA NOVA's tools, each chat-app user is told once in the chat, and the NOVA page shows it for 30 days: open chatgpt.com/plugins, choose HA NOVA, then Refresh.
+
 ## Carried over from 0.29.0
 
 0.29.0 was not released: its release candidates (v0.29.0-rc1 to rc4) stay, and everything in them ships with 0.30.0. The 0.30.0 notes in `.goreleaser.yml` cover these items next to 0.30's own, with the App version 0.30 ships. The NOVA App 0.13.24 that the release candidates brought is already live, so the App lines below describe what chat-app users have now; the terminal part reaches stable users only with 0.30.0.
