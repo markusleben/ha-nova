@@ -214,13 +214,20 @@ export async function link(platform, from) {
 
 const lockState = async () => (await (await fetch(`${HA}/api/states/lock.front_door`, { headers: { authorization: `Bearer ${read("ha-llat")}` } })).json()).state;
 
+// Locks the door again through Home Assistant itself: the lane's own setup,
+// not a step under test (HA NOVA rates locking this registry-less lock typed).
+export async function relock() {
+  await fetch(`${HA}/api/services/lock/lock`, { method: "POST", headers: { authorization: `Bearer ${read("ha-llat")}`, "content-type": "application/json" }, body: JSON.stringify({ entity_id: "lock.front_door" }) });
+  let state = await lockState();
+  for (let i = 0; i < 20 && state !== "locked"; i++) state = await new Promise((r) => setTimeout(r, 500)).then(lockState);
+  return state;
+}
+
 // An unlock plan of the demo lock, through the Relay (channel relay, no
 // code), applied: the linked phone's tap (answer 0) or Cancel (answer 1).
 export async function confirmUnlock(platform, answer = 0) {
-  const locked = await cli(["call", "lock.lock", "lock.front_door"]).done; // locked again (ordinary, no confirmation)
-  let before = await lockState();
-  for (let i = 0; i < 10 && before !== "locked"; i++) before = await new Promise((r) => setTimeout(r, 500)).then(lockState);
-  report("the door is locked before the unlock", before === "locked" ? [] : [`exit ${locked.code}, lock ${before}: ${(locked.stdout + locked.stderr).slice(0, 300)}`]);
+  const before = await relock();
+  report("the door is locked before the unlock", before === "locked" ? [] : [`lock ${before}`]);
   const planned = await cli(["plan", "call", "lock.unlock", "lock.front_door"]).done;
   const plan = JSON.parse(planned.stdout || "{}");
   report("unlock plan asks through the Relay, no code", plan.plan?.channel === "relay" && plan.plan.code === undefined && (plan.say ?? "").includes("Confirm on your linked phone or in Home Assistant (NOVA).")
@@ -250,7 +257,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     await link("android", "ios");
     await confirmUnlock("android");
     await link("ios", "android");
-    await cli(["call", "lock.lock", "lock.front_door"]).done;
+    await relock();
     await noExtraPushes();
   } catch (err) {
     report("phone lane ran to the end", [err.message]);

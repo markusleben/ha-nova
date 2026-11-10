@@ -34,7 +34,7 @@ import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { approve, resetPushes } from "./testbed/phone.mjs";
+import { approve, relock, resetPushes } from "./testbed/phone.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const TESTBED = join(ROOT, "scripts/e2e/testbed");
@@ -321,7 +321,7 @@ async function slow() {
   await cli(["version"], log);
   const cfg = join(STATE, "rc-home/.config/ha-nova/config.json");
   writeFileSync(cfg, JSON.stringify({ ...JSON.parse(readFileSync(cfg, "utf8")), confirm_window: "off" }), { mode: 0o600 }); // codes in chat: no window on this desktop
-  await cli(["call", "lock.lock", "lock.front_door"], log);
+  await relock();
   const slowPort = await freePort();
   slowRelay = net.createServer((client) => {
     const relay = net.connect(18791, "127.0.0.1");
@@ -349,7 +349,7 @@ async function slow() {
   slowRelay.close();
   row("d", `slow check: first ${gated ? "tap" : "code"} applies (#827)`, limit && applied.status === "verified" ? "PASS" : "FAIL",
     `${on} automations on, relay +${SLOW_RELAY_MS} ms per chunk, plan ${planSecs.toFixed(1)} s${limit ? " LIMIT_CUT" : " (read budget NOT hit: no LIMIT_CUT)"}${tapped ? "" : ", no question reached the phone"}, apply ${((Date.now() - t) / 1000).toFixed(1)} s -> ${applied.status ?? plan.status}${applied.error ? ` ${applied.error.code}` : ""}`, join(WORK, "slow-apply.json"));
-  await cli(["call", "lock.lock", "lock.front_door"], log);
+  await relock();
 }
 
 // ---- main ---------------------------------------------------------------------------

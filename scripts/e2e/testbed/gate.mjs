@@ -21,7 +21,7 @@
 // the phone, "Not confirmed" on a timeout).
 // Prints PASS/FAIL lines, and WARN for a part this bed can't run (no file
 // access); exits non-zero on any FAIL. The release workflow fails on WARN too.
-import { cli, confirmUnlock, failures, fixture, link, noExtraPushes, question, read, relay, report, resetPushes, withdrawn } from "./phone.mjs";
+import { confirmUnlock, failures, fixture, link, noExtraPushes, question, read, relay, relock, report, resetPushes, withdrawn } from "./phone.mjs";
 
 const FILE = "/config/ha_nova/gate-lane.yaml";
 const CONTENT = "gate_lane: testbed\n";
@@ -71,7 +71,7 @@ try {
   }
   await confirmUnlock("ios", 1);
   await confirmUnlock("ios");
-  await cli(["call", "lock.lock", "lock.front_door"]).done;
+  await relock();
   await noExtraPushes();
 } catch (err) {
   report("gate lane ran to the end", [err.message]);
