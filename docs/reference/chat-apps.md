@@ -60,7 +60,7 @@ Menu names in Claude and ChatGPT change now and then; look for "connector", "plu
 ## Use HA NOVA from your phone
 
 - **Claude app:** once the connector is added, open the Claude app on your phone and ask, for example "Is the garage door open?" or "Close it."
-- **From your computer, away from it:** if you use HA NOVA on a computer, the computer's own remote apps work too (Claude Code Remote Control, or Codex on your phone). The computer must be on. A change that needs your OK asks on your linked phone, and you can also approve it on the NOVA page in Home Assistant; the computer's window only waits. With an older NOVA App (without the safety check), the window and the phone ask at the same time, and the first answer counts.
+- **From your computer, away from it:** if you use HA NOVA on a computer, the computer's own remote apps work too (Claude Code Remote Control, or Codex on your phone). The computer must be on. A change that needs your OK asks on your linked phone, and you can also approve it on the NOVA page in Home Assistant; the computer's window only waits (dashboard and room changes still ask on the computer). With an older NOVA App (without the safety check), the window and the phone ask at the same time, and the first answer counts.
 
 ## Who can use it
 

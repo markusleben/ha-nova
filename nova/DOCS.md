@@ -74,7 +74,8 @@ file writes, and other risky changes wait for a person's OK:
 The OK covers exactly the change shown, once. Nothing is sent before it, and a
 request no one answers ends after 3 minutes. The window on your computer only
 waits: it says where to confirm, opens Home Assistant, or cancels. It can't
-confirm.
+confirm. Dashboard and room changes are the exception: they still ask on the
+computer (the window, or a one-time code).
 
 While a change waits, your AI app may say it is waiting for your OK
 (`waiting_for_approval`): the change hasn't been sent yet. Approve it, then
@@ -153,7 +154,7 @@ instead.
 | POST | `/files` | Config-file access, only when you turn it on |
 | POST | `/backups` | Saved copies of configs, for undo |
 | POST | `/gate/v1/ask`, `/gate/v1/phone` | Ask a person to approve a risky change, or to link a phone for that (the safety check) |
-| POST | `/supervisor` | Supervisor logs and Apps, from a fixed list (local ports only, not through Home Assistant Link). The HA NOVA program, on a computer and in chat apps, doesn't read the logs |
+| POST | `/supervisor` | Supervisor system and App reads, from a fixed list (local ports only, not through Home Assistant Link). The HA NOVA program, on a computer and in chat apps, doesn't read the logs |
 
 For Apps and logs, this App has the Supervisor's `manager` access, which Home
 Assistant shows on this App's page. The Relay reaches only that fixed list.
