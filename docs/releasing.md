@@ -112,6 +112,15 @@ deploy or tag.
    gh run watch <exact-e2e-run-id> --exit-status
    ```
    A local `bash scripts/e2e/disposable-ha/run.sh` pass is useful but does not replace the dispatched run.
+   It proves the safety check's refusals only. The approval itself (a typed
+   write, delete, and unlock that run only after a tap on the linked phone)
+   is proven on the test bed's gate lane, so every release also needs one green `testbed-ha-stable.yml` run (dispatched, not the weekly cron) on the commit being tagged,
+   with no WARN row in its gate lane:
+   ```bash
+   gh workflow run testbed-ha-stable.yml --ref main
+   gh run list --workflow testbed-ha-stable.yml --event workflow_dispatch --commit <reviewed-merge-sha>
+   gh run watch <exact-testbed-run-id> --exit-status
+   ```
 3. Push the RC tag
    (`git tag vX.Y.Z-rcN <reviewed-merge-sha> && git push origin vX.Y.Z-rcN`).
 4. Wait for `release.yml` to finish green. Run the standard RC check from a
