@@ -169,6 +169,9 @@ describe("hacs skill on Home Assistant 2026.11+ (Marketplace)", () => {
     expect(updates).toContain(
       "`platform: marketplace` (Home Assistant 2026.11+): installs through HA NOVA aren't supported yet — never plan one, single or batched",
     );
+    // The CLI's refusal speaks for itself: its say is relayed, not reworded.
+    expect(updates).toContain("point to Settings > Marketplace, and relay a `MARKETPLACE_WARNING` refusal's `say` verbatim");
+    expect(readFileSync("cli/marketplace_update.go", "utf8")).toContain('const reasonMarketplaceWarning = "MARKETPLACE_WARNING"');
     expect(flat(readFileSync("skills/fallback/SKILL.md", "utf8"))).toContain("never probe `marketplace/*` here");
     expect(readFileSync("skills/ha-nova/SKILL.md", "utf8")).toContain("the Marketplace (HACS since Home Assistant 2026.11) | `ha-nova:hacs` |");
   });
