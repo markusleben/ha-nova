@@ -119,11 +119,16 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 	for i, r := range reqs {
 		items[i] = map[string]string{"endpoint": r.endpoint, "body_b64": base64.StdEncoding.EncodeToString(r.body)}
 	}
-	var opened struct {
-		Needed bool   `json:"needed"`
-		AskID  string `json:"ask_id"`
+	open := func() (opened gateOpened, err error) {
+		err = s.gateCall(planAsks, gateAskRoute, gateOpenWait(len(reqs)), map[string]any{"requests": items}, &opened)
+		return opened, err
 	}
-	err := s.gateCall(planAsks, gateOpenWait(len(reqs)), map[string]any{"requests": items}, &opened)
+	opened, err := open()
+	if reopen, stop := s.gateMoveFirst(opened, err); stop != nil {
+		return stop
+	} else if reopen {
+		opened, err = open()
+	}
 	var call *relayCallError
 	switch {
 	case errors.As(err, &call) && strings.HasPrefix(call.code, "GATE_"):
@@ -138,7 +143,7 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 	case opened.AskID == "":
 		return gateStop("refused", "CONFIRM_UNAVAILABLE", "the NOVA App's answer named no ask; nothing was sent", gateNext[""])
 	}
-	state, grant := s.gateWait(opened.AskID)
+	state, grant := s.gateWait(opened.AskID, false)
 	if state != "approved" || grant == "" {
 		return gateEnded(state)
 	}
@@ -161,8 +166,9 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 // life), or HA NOVA is stopped (planAsks). An end without an approval
 // cancels the ask. The waiting window only opens Home Assistant or
 // cancels; its answer is read before an approval counts, so a Cancel that
-// raced the approval wins.
-func (s *relaySession) gateWait(askID string) (state, grant string) {
+// raced the approval wins. A link ask (gateMovePhone) ends linked, only
+// on the phones: no window.
+func (s *relaySession) gateWait(askID string, link bool) (state, grant string) {
 	deadline := time.Now().Add(askWait())
 	if flag := gateApproval; flag != nil {
 		deadline = time.Now().Add(gateAskLife + 5*time.Second)
@@ -179,7 +185,7 @@ func (s *relaySession) gateWait(askID string) (state, grant string) {
 				State   string `json:"state"`
 				GrantID string `json:"grant_id"`
 			}
-			if err := s.gateCall(ctx, gatePollTimeout, map[string]any{"ask_id": askID, "op": "wait"}, &answer); err != nil {
+			if err := s.gateCall(ctx, gateAskRoute, gatePollTimeout, map[string]any{"ask_id": askID, "op": "wait"}, &answer); err != nil {
 				polls <- end{state: "lost"}
 				return
 			}
@@ -190,8 +196,14 @@ func (s *relaySession) gateWait(askID string) (state, grant string) {
 		}
 	}()
 	page := s.gatePageURL()
-	window, raced := s.gateWindow(ctx, deadline, page)
-	fmt.Fprintln(os.Stderr, confirmT(confirmLanguage(s.lang), "gate.waiting"))
+	waiting := confirmT(confirmLanguage(s.lang), "gate.waiting")
+	window, raced := (<-chan windowAnswer)(nil), func(<-chan windowAnswer) bool { return false }
+	if link {
+		waiting = confirmT(confirmLanguage(s.lang), "gate.link_waiting")
+	} else {
+		window, raced = s.gateWindow(ctx, deadline, page)
+	}
+	fmt.Fprintln(os.Stderr, waiting)
 	stopped := func() (string, string) {
 		s.gateCancel(askID)
 		if planAsks.Err() != nil {
@@ -219,7 +231,7 @@ func (s *relaySession) gateWait(askID string) (state, grant string) {
 			case got.state == "approved" && raced(window):
 				s.gateCancel(askID)
 				return "cancelled", ""
-			case got.state != "approved" && got.state != "cancelled" && got.state != "expired":
+			case got.state != "approved" && got.state != "cancelled" && got.state != "expired" && got.state != "linked":
 				s.gateCancel(askID) // lost or unavailable: end it there too
 			}
 			return got.state, got.grant

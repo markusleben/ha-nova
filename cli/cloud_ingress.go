@@ -27,6 +27,7 @@ const (
 	CloudEndpointFiles          CloudIngressEndpoint = "files"
 	CloudEndpointBackups        CloudIngressEndpoint = "backups"
 	CloudEndpointGateAsk        CloudIngressEndpoint = "gate_ask"
+	CloudEndpointGatePhone      CloudIngressEndpoint = "gate_phone"
 	CloudEndpointChatApps       CloudIngressEndpoint = "chat_apps"
 	CloudEndpointChatAppsSet    CloudIngressEndpoint = "chat_apps_set"
 )
@@ -73,6 +74,7 @@ var cloudIngressEndpointContracts = map[CloudIngressEndpoint]cloudIngressEndpoin
 	CloudEndpointFiles:          {method: http.MethodPost, path: "/files", deviceBearer: true},
 	CloudEndpointBackups:        {method: http.MethodPost, path: "/backups", deviceBearer: true},
 	CloudEndpointGateAsk:        {method: http.MethodPost, path: "/gate/v1/ask", deviceBearer: true},
+	CloudEndpointGatePhone:      {method: http.MethodPost, path: "/gate/v1/phone", deviceBearer: true},
 	CloudEndpointChatApps:       {method: http.MethodGet, path: CloudPathChatApps},
 	CloudEndpointChatAppsSet:    {method: http.MethodPost, path: CloudPathChatApps},
 }
@@ -349,7 +351,8 @@ func isCloudFunctionalIngressEndpoint(endpoint CloudIngressEndpoint) bool {
 		CloudEndpointCore,
 		CloudEndpointFiles,
 		CloudEndpointBackups,
-		CloudEndpointGateAsk:
+		CloudEndpointGateAsk,
+		CloudEndpointGatePhone:
 		return true
 	default:
 		return false

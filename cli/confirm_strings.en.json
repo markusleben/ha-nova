@@ -35,6 +35,7 @@
   "gate.hide": "Hide",
   "gate.windows_hide": "OK hides this window; Cancel stops this change.",
   "gate.waiting": "HA NOVA asks on your linked phone or in Home Assistant (NOVA) and waits; nothing is sent before an OK there.",
+  "gate.link_waiting": "HA NOVA first asks your phone (and the phone linked in Home Assistant now, if there is one) to get its confirmations, and waits; nothing is sent before that.",
 
   "say.about": "I'm about to {action}.",
   "say.nothing_found": "Not done: I couldn't find what you named. Nothing changed. Tell me which devices you mean.",

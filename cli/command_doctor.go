@@ -275,6 +275,9 @@ func runDoctor(paths runtimePaths, args []string) int {
 				status = 1
 			}
 		}
+		if !route.diagnosticOnly && !doctorGate(paths, readiness.HealthBody, usingCloud, deviceMode, doctorInfo) {
+			status = 1
+		}
 	}
 
 	clientStatuses, err := configuredClientStatuses(paths, state)

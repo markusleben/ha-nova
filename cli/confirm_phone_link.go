@@ -144,6 +144,9 @@ func linkPhone(s *relaySession, reader *bufio.Reader, out io.Writer, run phoneLi
 			return 0
 		}
 	}
+	if code, gated := linkPhoneAtRelay(s, out, lang, home, prev, chosen); gated {
+		return code
+	}
 	name := terminalSafeName(chosen.Name)
 	if status == phoneReady && current.targets[0].DeviceID == chosen.DeviceID && current.confirmer == chosen.UserID {
 		fmt.Fprintf(out, "  “%s” is already the phone that confirms HA NOVA actions from “%s”.\n", name, phoneHost("en"))
@@ -263,6 +266,10 @@ func unlinkPhone(s *relaySession, out io.Writer) int {
 	if err := setPhoneLink(s.paths, home.owner, prev, nil); err != nil {
 		fmt.Fprintf(out, "  Nothing changed: %s.\n", err)
 		return 1
+	}
+	if gated, _ := s.gateOn(); gated { // the Relay has no unlink, and the NOVA page no control for it
+		fmt.Fprintln(out, "  "+phoneOffGated)
+		return 0
 	}
 	fmt.Fprintf(out, "  Phone confirmation is off: no phone gets HA NOVA confirmations from “%s”.\n", phoneHost("en"))
 	return 0

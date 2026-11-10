@@ -35,6 +35,7 @@
   "gate.hide": "Ausblenden",
   "gate.windows_hide": "OK blendet dieses Fenster aus; Abbrechen stoppt diese Änderung.",
   "gate.waiting": "HA NOVA fragt auf deinem verbundenen Handy oder in Home Assistant (NOVA) und wartet; vor einem OK dort wird nichts gesendet.",
+  "gate.link_waiting": "HA NOVA fragt zuerst auf deinem Handy (und auf dem Handy, das jetzt in Home Assistant verbunden ist, falls es eins gibt), ob es die Bestätigungen bekommen soll, und wartet; vorher wird nichts gesendet.",
 
   "say.about": "Ich werde gleich {action}.",
   "say.nothing_found": "Nicht erledigt: Ich habe nicht gefunden, was du genannt hast. Es wurde nichts geändert. Sag mir, welche Geräte du meinst.",

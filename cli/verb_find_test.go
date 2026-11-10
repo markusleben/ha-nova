@@ -100,7 +100,7 @@ func setupFakeRelay(t *testing.T, reply func(r *http.Request, endpoint string, p
 		// Invariant I1 oracle: every verb test fails on a non-read request.
 		// Typed plans also look for the owner's phone (its own fixed allowlist),
 		// and the tier engine starts and aborts a helper's options flow.
-		asking := endpoint == gateAskRoute // the Relay's ask route, not a request to Home Assistant
+		asking := endpoint == gateAskRoute || endpoint == gatePhoneRoute // the Relay's ask routes, not requests to Home Assistant
 		if err := checkReadOnlyRequest(endpoint, payload); err != nil && !asking && !(allowServiceWrites && checkWriteRequest(endpoint, payload) == nil) && checkPhoneRead(endpoint, payload) != nil && !helperFlowRequest(endpoint, payload) {
 			t.Errorf("read verb sent a non-read request: %v", err)
 		}

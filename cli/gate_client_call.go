@@ -52,16 +52,24 @@ func gateRefusalPeek(body io.ReadCloser) (io.ReadCloser, bool) {
 	}{io.MultiReader(bytes.NewReader(head), body), body}, refused
 }
 
-// gateCall sends one request to the ask route within wait, never twice (a
-// second open would replace the first), and decodes its data into into.
-func (s *relaySession) gateCall(parent context.Context, wait time.Duration, body map[string]any, into any) error {
+// gateOpened: the ask route's answer to an open.
+type gateOpened struct {
+	Needed   bool     `json:"needed"`
+	AskID    string   `json:"ask_id"`
+	Channels []string `json:"channels"`
+}
+
+// gateCall sends one request to route (the ask route, or the phone route)
+// within wait, never twice (a second open would replace the first), and
+// decodes its data into into.
+func (s *relaySession) gateCall(parent context.Context, route string, wait time.Duration, body map[string]any, into any) error {
 	raw, err := json.Marshal(body)
 	if err != nil {
 		return err
 	}
 	ctx, cancel := context.WithTimeout(parent, wait)
 	defer cancel()
-	req, err := newRelayRequest(ctx, s.transport, gateAskRoute, raw)
+	req, err := newRelayRequest(ctx, s.transport, route, raw)
 	if err != nil {
 		return err
 	}
@@ -94,5 +102,5 @@ func (s *relaySession) gateCall(parent context.Context, wait time.Duration, body
 // Its answer never sends anything, an approval that came first included.
 func (s *relaySession) gateCancel(askID string) {
 	var ended struct{}
-	_ = s.gateCall(context.Background(), 5*time.Second, map[string]any{"ask_id": askID, "op": "cancel"}, &ended)
+	_ = s.gateCall(context.Background(), gateAskRoute, 5*time.Second, map[string]any{"ask_id": askID, "op": "cancel"}, &ended)
 }
