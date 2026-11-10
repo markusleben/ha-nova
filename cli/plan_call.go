@@ -212,6 +212,9 @@ func computeCallPlan(s *relaySession, env *verbEnvelope, req planCallRequest) (*
 	if e.targetRequired(req, spec) {
 		return nil, storedPlan{}, refuse(env, tierReason{Code: reasonTargetRequired, Detail: "without a target this service acts on every entity of its domain; name the entities, or use --area/--device"})
 	}
+	if failure := e.marketplaceRefusal(env, req, targets); failure != nil {
+		return nil, storedPlan{}, failure
+	}
 	if refusal := e.evaluate(req, targets); refusal != nil {
 		return e, storedPlan{}, refuse(env, *refusal) // e: call's no-op check (noChangeCall)
 	}
