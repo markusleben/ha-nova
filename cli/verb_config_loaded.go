@@ -43,7 +43,9 @@ func awaitLoaded(s *relaySession, action configAction, wait time.Duration) (enti
 // loadedAsPlanned: whether the config Home Assistant runs for entityID (its
 // raw_config) is the plan. That is the planned body as saved, or for a
 // blueprint item, which Home Assistant keeps substituted, the substitution
-// with the plan's own keys over it (withInstanceKeys), compared by content.
+// with the plan's own keys over it (withInstanceKeys), compared by content,
+// plus the key order of the plan's own order-semantic maps, read from its
+// bytes (the substitution went through a map, which keeps no order).
 func loadedAsPlanned(s *relaySession, action configAction, entityID string, expected *json.RawMessage) bool {
 	data, err := s.readFresh("ws", map[string]any{"type": action.Domain + "/config", "entity_id": entityID}, relaySessionRequestTimeout)
 	var got struct {
@@ -68,5 +70,5 @@ func loadedAsPlanned(s *relaySession, action configAction, entityID string, expe
 	}
 	want, wantErr := configObjectFromBytes(*expected)
 	loaded, err := configObjectFromBytes(got.Config)
-	return wantErr == nil && err == nil && len(renderConfigChanges(want, loaded)) == 0
+	return wantErr == nil && err == nil && len(renderConfigChanges(want, loaded)) == 0 && len(orderChanges(action.Body, got.Config)) == 0
 }

@@ -1,7 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -182,6 +185,39 @@ func TestConfigBlueprintSaveComparesTheSubstitution(t *testing.T) {
 				t.Fatalf("exit %d env %+v", exit, applied)
 			}
 		})
+	}
+}
+
+// The order of a blueprint item's own variables is content (config_order.go):
+// a save that only reorders them isn't loaded while the old order runs.
+func TestConfigBlueprintSaveComparesVariableOrder(t *testing.T) {
+	substituted := map[string]any{"triggers": []any{map[string]any{"trigger": "state", "entity_id": "binary_sensor.hall"}}, "actions": []any{step("light.turn_on", "light.hall")}}
+	f := newFakeHA()
+	f.ent("binary_sensor.hall", "", "off", nil)
+	f.substitute = map[string]any{"substituted_config": substituted}
+	served := func(variables string) json.RawMessage {
+		return json.RawMessage(`{"alias":"Hall","variables":` + variables + `,"triggers":[{"trigger":"state","entity_id":"binary_sensor.hall"}],"actions":[{"action":"light.turn_on","target":{"entity_id":"light.hall"}}]}`)
+	}
+	reads := 0
+	afterSave(f, func(endpoint string, p map[string]any) (any, bool) {
+		if p["type"] != "automation/config" {
+			return nil, false
+		}
+		if reads++; reads <= 3 { // the old order still runs
+			return map[string]any{"config": served(`{"level":20,"boost":"{{ level * 2 }}"}`)}, true
+		}
+		return map[string]any{"config": served(`{"boost":"{{ level * 2 }}","level":20}`)}, true
+	})
+	f.loaded = map[string]any{"automation.hall": map[string]any{"alias": "Hall", "variables": map[string]any{"level": 20, "boost": "{{ level * 2 }}"}, "triggers": substituted["triggers"], "actions": substituted["actions"]}}
+	h := newWriteHarness(t, f)
+	file := filepath.Join(t.TempDir(), "draft.json")
+	if err := os.WriteFile(file, []byte(`{"alias":"Hall","use_blueprint":{"path":"motion.yaml","input":{"light":"light.hall"}},"variables":{"boost":"{{ level * 2 }}","level":20}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, env := h.run(runPlanCommand, "write", "--domain", "automation", "--file", file)
+	exit, applied := applyAll(h, env)
+	if exit != 0 || applied.Status != "verified" || reads != 4 {
+		t.Fatalf("exit %d reads %d env %+v", exit, reads, applied)
 	}
 }
 

@@ -4,6 +4,28 @@ Status: active
 
 Unreleased claims wait here until they ship (AGENTS.md, Releases: the README describes the stable release only). Each item moves into the README or the release notes only when it is in a stable release.
 
+## Migration notes for 0.30 (the NOVA App's safety check)
+
+- **Update HA NOVA on every computer together with the NOVA App.** The App now checks every request a computer sends. An older HA NOVA on a computer can't get an OK through it: its unlocks, deletes, and other big changes are refused, and nothing is sent. Run ha-nova update on each computer. Everyday actions and previews keep working.
+
+- **Approve big changes on your phone or on the NOVA page.** Unlocking, opening a door, gate, or garage, turning off the alarm, deletes, and file writes wait for an OK on your linked phone or in Home Assistant: open NOVA in the sidebar, then "Waiting for your OK". Any Home Assistant administrator can approve there, except the user the NOVA App signs in as. The OK covers exactly that change, once.
+
+- **The window on your computer only waits.** It says where to confirm, opens Home Assistant, or cancels; it can't confirm. For these changes the four-digit code on a computer ends too. A dashboard change, a rooms change, and a change HA NOVA's instructions mark as needing your OK still ask on the computer as before, and the App may ask once more.
+
+- **Your linked phone moves into Home Assistant once.** The first time a change needs your OK, the phone you linked on this computer asks whether it should get HA NOVA's confirmations. Allow it, then confirm the change itself. After that, `ha-nova setup confirm-phone` links or changes the phone in Home Assistant.
+
+- **Your AI app may say it is waiting for your OK.** The change hasn't been sent yet. Approve it, then tell your AI app to go on; nothing runs twice.
+
+- **Saving an automation or script no longer reloads it from HA NOVA.** Home Assistant reloads it after the save, as it does for a save in its own editor, and HA NOVA then checks, without changing anything, that Home Assistant runs the saved version. A delete still reloads.
+
+- **Claude asks again before "Advanced read".** Its description changed (it no longer offers logs), so the "Always allow" you chose for that tool resets once: choose "Always allow" again. In ChatGPT, open chatgpt.com/plugins, choose HA NOVA, then Refresh. Chat apps otherwise keep their own confirmations: the linked phone, or a code in the chat at Manage everything.
+
+- **UI thermostats may ask more often.** On an App with the safety check, HA NOVA can't read the heater setting of a thermostat you made in Home Assistant's UI, so changing such a thermostat asks on your phone. This is more often than needed, never less; a later release fixes it.
+
+- **Going back to an older NOVA App:** computers that saw the safety check refuse unlocks, deletes, and other big changes until you update the App again.
+
+- **Standalone container:** it has no NOVA page, so only a linked phone confirms. Give it the token of a Home Assistant user who isn't the owner, keep `/data` on a volume, and run it with a port mapping, not host networking (`docs/reference/relay-container.md`).
+
 ## Carried over from 0.29.0
 
 0.29.0 was not released: its release candidates (v0.29.0-rc1 to rc4) stay, and everything in them ships with 0.30.0. The 0.30.0 notes in `.goreleaser.yml` cover these items next to 0.30's own, with the App version 0.30 ships. The NOVA App 0.13.24 that the release candidates brought is already live, so the App lines below describe what chat-app users have now; the terminal part reaches stable users only with 0.30.0.

@@ -41,7 +41,7 @@ var mcpReadArgs = map[string][]string{
 	"ws":         {"endpoint", "payload", "jq"},
 	"files":      {"endpoint", "payload", "jq"},
 	"backups":    {"endpoint", "payload", "jq"},
-	"supervisor": {"endpoint", "path", "lines", "jq"},
+	"supervisor": {"endpoint", "path", "jq"},
 	"snapshot":   {"endpoint", "action", "list", "target", "domain", "against", "jq"},
 	"diff":       {"endpoint", "before", "after", "jq"},
 }
@@ -65,12 +65,11 @@ var mcpTooLargeHint = map[string]string{
 }
 
 var mcpReadTool = mcpTool{name: "ha_read", title: "Advanced read", readOnly: true, idempotent: true,
-	description: "Reads Home Assistant's own API, read only: a path of its REST API (https://developers.home-assistant.io/docs/api/rest/) or a message of its WebSocket API (https://developers.home-assistant.io/docs/api/websocket/), a camera's current image, files under /config (when file access is on in the NOVA Relay App), the Supervisor's system, App, and log reads, and HA NOVA's config snapshots and undo checkpoints; it also compares two configs. Only requests on HA NOVA's read list are accepted. A result over 64 KiB is refused: filter it with jq.",
+	description: "Reads Home Assistant's own API, read only: a path of its REST API (https://developers.home-assistant.io/docs/api/rest/) or a message of its WebSocket API (https://developers.home-assistant.io/docs/api/websocket/), a camera's current image, files under /config (when file access is on in the NOVA Relay App), the Supervisor's system and App reads, and HA NOVA's config snapshots and undo checkpoints; it also compares two configs. Only requests on HA NOVA's read list are accepted; it reads no logs (the user opens them in Home Assistant). A result over 64 KiB is refused: filter it with jq.",
 	schema: object([]string{"endpoint"}, map[string]any{
 		"endpoint": map[string]any{"type": "string", "enum": []string{"core", "camera", "ws", "files", "backups", "supervisor", "snapshot", "diff"},
-			"description": "core: REST API; camera: a camera's image; ws: WebSocket API; files: files under /config; backups: config snapshots; supervisor: Supervisor reads and logs; snapshot: undo checkpoints; diff: two configs"},
-		"path":      prop("string", "core: a REST API path under /api/; supervisor: a listed Supervisor path, e.g. /addons or /addons/<slug>/logs"),
-		"lines":     prop("integer", "supervisor logs: the newest lines, 1-1000 (default 100)"),
+			"description": "core: REST API; camera: a camera's image; ws: WebSocket API; files: files under /config; backups: config snapshots; supervisor: Supervisor reads; snapshot: undo checkpoints; diff: two configs"},
+		"path":      prop("string", "core: a REST API path under /api/; supervisor: a listed Supervisor path, e.g. /addons or /addons/<slug>/info"),
 		"method":    map[string]any{"type": "string", "enum": []string{"GET", "POST"}, "description": "core: GET (default); POST only for /api/template and /api/config/core/check_config"},
 		"payload":   prop("object", "core POST: the body; ws: the message, e.g. {\"type\":\"search/related\",...}, or {message, collect_events}; files: {action: list_dir or read_file, path}; backups: {action: list or load, ...}"),
 		"entity_id": prop("string", "camera: camera.x"),
@@ -150,11 +149,7 @@ func readArgv(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, er
 		body, err := json.Marshal(map[string]string{"method": http.MethodGet, "path": "/api/camera_proxy/" + id})
 		return append(argv, "--body="+string(body)), err
 	case "supervisor":
-		body := map[string]any{"method": http.MethodGet, "path": text(args, "path")}
-		if raw, set := args["lines"]; set {
-			body["lines"] = raw
-		}
-		encoded, err := json.Marshal(body)
+		encoded, err := json.Marshal(map[string]any{"method": http.MethodGet, "path": text(args, "path")})
 		return append(argv, "--body="+string(encoded)), err
 	case "ws", "files", "backups":
 		payload, set := args["payload"]
