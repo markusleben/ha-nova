@@ -60,6 +60,7 @@ export interface GateAsksDeps {
   phone: (link: PhoneLink, text: PhoneText | LinkWords, waitMs: number, stop: AbortSignal) => Promise<PhoneAnswer | null>;
   // Sets the device's link while it is active and still has current; none: no link route.
   setLink?: (principal: Principal, link: PhoneLink, current: PhoneLink | undefined) => boolean;
+  linkable?: (principal: Principal) => boolean; // whose link setLink keeps (default: a device's)
   now: () => number;
   logger?: Pick<RelayLogger, "info" | "warn">;
   pollMs?: number; // tests
@@ -235,7 +236,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
       throw new HttpError(429, "GATE_PAUSED", PAUSED);
     }
     if (channels.length === 0) {
-      throw new HttpError(409, "GATE_NO_CHANNEL", "No one can confirm this now: no linked phone answers and the approval page is not available; nothing was sent");
+      throw new HttpError(409, "GATE_NO_CHANNEL", "No one can confirm this now: no linked administrator's phone answers, and no approval page is available here; nothing was sent");
     }
     const digests = requests.filter((_, i) => prepared.items[i]?.verdict === "typed").map((r) => gateDigest(r.endpoint, r.body));
     const { askId, ask } = start(owner, digests, prepared);
@@ -262,7 +263,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
   // A link ask (§3): the new phone's tap, after the tap of the phone linked
   // now, sets the device's link; a link changed meanwhile sets nothing.
   const openLink = (principal: Principal, raw: unknown): unknown => {
-    if (deps.setLink === undefined || principal.kind !== "device") {
+    if (deps.setLink === undefined || !(deps.linkable?.(principal) ?? principal.kind === "device")) {
       throw new HttpError(404, "NOT_FOUND", "Not found");
     }
     const { service, device_id, user_id, platform } = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
