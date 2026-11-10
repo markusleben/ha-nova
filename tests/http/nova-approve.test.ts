@@ -5,7 +5,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it } from "vitest";
 
 import { askRef, createGateAsks, type PreparedAsk } from "../../nova/src/http/gate-asks.js";
-import { createApproveActionHandler, createApprovePageHandler, renderGateSection, type ApprovePageDeps } from "../../nova/src/http/handlers/nova-approve.js";
+import { approveRoutes, createApproveActionHandler, createApprovePageHandler, pageChannel, renderGateSection, type ApprovePageDeps } from "../../nova/src/http/handlers/nova-approve.js";
 import { createNovaPageHandler, type NovaPageDeps } from "../../nova/src/http/handlers/nova-page.js";
 import type { RouteContext } from "../../nova/src/http/router.js";
 import { createCsrfStore } from "../../nova/src/security/csrf.js";
@@ -158,5 +158,36 @@ describe("owner page: waiting asks and paused devices", () => {
     const r = await call(createNovaPageHandler(deps), ADMIN.id, null, {}, "172.30.32.2", "/");
     expect(r.statusCode).toBe(403);
     expect(r.body).toContain('<a target="_top" href="/api/hassio_ingress/tok/approve">');
+  });
+});
+
+describe("the page as a channel, and what it shows", () => {
+  const ws = (users: unknown, relay: unknown) => ({ sendMessage: async ({ type }: { type: string }) => (type === "config/auth/list" ? users : { id: relay }) });
+
+  it("is a channel only while an administrator other than the Relay's user exists; a failed read is no channel", async () => {
+    expect(await pageChannel(ws([OWNER, RELAY], RELAY.id))).toEqual(["page"]);
+    expect(await pageChannel(ws([OWNER], OWNER.id))).toEqual([]);
+    expect(await pageChannel(ws([USER, RELAY, { ...ADMIN, is_active: false }], RELAY.id))).toEqual([]);
+    expect(await pageChannel(ws([OWNER], ""))).toEqual([]);
+    expect(await pageChannel(ws(null, RELAY.id))).toEqual([]);
+    expect(await pageChannel({ sendMessage: async () => { throw new Error("down"); } })).toEqual([]);
+  });
+
+  it("serves the view and its buttons under / and /home", () => {
+    const t = bed();
+    const routes = approveRoutes({ fetchAuthUsers: t.deps.fetchAuthUsers, wsClient: ws([], RELAY.id), page: t.asks, now: t.deps.now });
+    expect(routes.map(([method, path, body]) => [method, path, body])).toEqual([["GET", "/approve", "none"], ["POST", "/approve", "form"], ["GET", "/home/approve", "none"], ["POST", "/home/approve", "form"]]);
+  });
+
+  it("never shows an ask it can't word, and says when more wait", async () => {
+    const page = { waiting: () => [{ ref: "r1", device: "Mac", items: [{ verdict: "typed" as const }], expiresAt: 9_000 }], pausedDevices: () => [], approve: () => false, cancel: () => false };
+    const t = bed();
+    const blank = await call(createApprovePageHandler({ ...t.deps, page }), ADMIN.id);
+    expect(blank.body).not.toContain('name="ref"');
+    expect(blank.body).toContain("Nothing is waiting for your OK.");
+    const many = Array.from({ length: 5 }, (_, i) => ({ ref: "r" + i, device: "Mac " + i, items: [{ verdict: "typed" as const, text: "Unlock" }], expiresAt: 9_000 + i }));
+    const shown = await call(createApprovePageHandler({ ...t.deps, page: { ...page, waiting: () => many } }), ADMIN.id);
+    expect(shown.body.match(/name="action" value="approve"/g)).toHaveLength(3);
+    expect(shown.body).toContain("2 more after these.");
   });
 });

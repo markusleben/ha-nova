@@ -46,7 +46,7 @@ export interface GateAsksDeps {
   ask: (device: string, requests: GateRequest[]) => Promise<PreparedAsk | null>;
   prepare: Partial<Record<GateEndpoint, (body: unknown) => unknown>>; // as the gated handler prepares it (gated())
   deviceName: (principal: Principal) => string;
-  channels: (principal: Principal) => string[]; // where a person can approve now, besides the phone
+  channels: (principal: Principal) => string[] | Promise<string[]>; // where a person can approve now, besides the phone
   link: (principal: Principal) => PhoneLink | undefined; // its linked phone, read fresh
   phone: (link: PhoneLink, text: PhoneText | LinkWords, waitMs: number, stop: AbortSignal) => Promise<PhoneAnswer | null>;
   // Sets the device's link while it is active and still has current; none: no link route.
@@ -198,7 +198,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     preparing.add(owner);
     limits.count(owner);
     const device = deps.deviceName(principal);
-    const prepared = await deps.ask(device, requests).finally(() => preparing.delete(owner));
+    const [prepared, others] = await Promise.all([deps.ask(device, requests), deps.channels(principal)]).finally(() => preparing.delete(owner));
     if (prepared === null) {
       throw new HttpError(503, "GATE_UNAVAILABLE", "HA NOVA's safety check is not available; nothing was asked or sent");
     }
@@ -210,7 +210,6 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     }
     replaceOpen(owner);
     const link = deps.link(principal);
-    const others = deps.channels(principal);
     const channels = [...(link !== undefined && !paused(owner) ? ["phone"] : []), ...others];
     if (channels.length === 0 && link !== undefined) {
       throw new HttpError(429, "GATE_PAUSED", PAUSED);

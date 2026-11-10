@@ -11,6 +11,7 @@ import { createSupervisorProxyHandler } from "../http/handlers/supervisor-proxy.
 import { createWsProxyHandler } from "../http/handlers/ws-proxy.js";
 import { gated, type GateClient } from "../http/gate.js";
 import { gateWithAsks, type GatePage, type PhoneLink } from "../http/gate-asks.js";
+import { pageChannel } from "../http/handlers/nova-approve.js";
 import { applyServerTimeouts, type RelayLogger } from "../http/server.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 import type { HaWsClient } from "../ha/ws-client.js";
@@ -329,7 +330,7 @@ function buildFunctionalHandlers(
   const { gate, ask, asks } = gateWithAsks(worker, {
     prepare: { core: parseCoreRequest },
     deviceName: (p) => (p.kind === "device" ? registry.list().find((d) => d.deviceId === p.deviceId)?.name : undefined) ?? "the shared Relay token",
-    channels: () => ["page"], // the approval view (nova-approve.ts), always there in the App
+    channels: () => pageChannel(input.wsClient), // the approval view, while someone may approve there
     link: phoneLinkOf(registry),
     setLink: setPhoneLinkOf(registry),
     now: input.now,

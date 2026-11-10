@@ -76,6 +76,11 @@ export async function checkOwner(
 // administrator except the user the Relay itself signs in as (a tap or click
 // from that user can't be told apart from the Relay). Read fresh each time;
 // a read that fails approves nothing (503).
+// is_active must be true (not merely absent): an approval needs a positive read.
+export function isApprover(user: HaAuthUser, relayUserId: string): boolean {
+  return user.id !== relayUserId && user.is_active === true && user.system_generated !== true && (user.is_owner === true || (user.group_ids ?? []).includes("system-admin"));
+}
+
 export type ApproverCheckResult = { ok: true; userId: string; name: string } | { ok: false; status: 403 | 503; message: string };
 
 export async function checkApprover(
@@ -95,8 +100,7 @@ export async function checkApprover(
     return { ok: false, status: 503, message: "Could not verify who may approve. Try again shortly." };
   }
   const user = users.find((u) => u.id === identity.userId);
-  const admin = user !== undefined && user.is_active === true && user.system_generated !== true && (user.is_owner === true || (user.group_ids ?? []).includes("system-admin"));
-  if (!admin) {
+  if (user === undefined || !isApprover(user, "")) {
     return { ok: false, status: 403, message: "Only a Home Assistant administrator can approve HA NOVA's requests." };
   }
   if (typeof relayUser !== "string" || relayUser === "") {
