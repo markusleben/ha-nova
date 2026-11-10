@@ -14,8 +14,9 @@
 // filtered to cover, and the automation it edits. While it runs it holds one
 // more automation_reloaded listener that no automation owns (as an
 // integration's). Then the service-call checks (calls.mjs, MAR-127): a light
-// call stays ordinary beside the cover watchdog, a cover call still asks, and
-// on this real Home Assistant every listener a plan's calls set off is among
+// call stays ordinary beside the cover watchdog, a cover call still asks, a
+// light call or edit that sets off an area, floor, or label trigger asks
+// (MAR-142), and on this real Home Assistant every listener a plan's calls set off is among
 // its consumers. The CLI runs in a new home in .state. Prints PASS/FAIL lines;
 // exits non-zero on any FAIL.
 import { execFileSync } from "node:child_process";
@@ -151,7 +152,7 @@ try {
   }
   const reload = cli("plan", "call", "automation.reload", "--set", `id=${TARGET}`);
   check("a reload you call is still rated by what it sets off: asks with a code", reload.tier === "typed" && /^\d{4}$/.test(reload.plan?.code ?? ""), `tier ${reload.tier ?? reload.error?.code}, reasons ${reasons(reload)}`);
-  await callChecks({ ha, ws, cli, check, watchdogID: "rclane_home_cover_watchdog", loadAutomations });
+  await callChecks({ ha, ws, cli, check, watchdogID: "rclane_home_cover_watchdog", loadAutomations, planWrite });
 } catch (err) {
   check("calm check ran", false, err.message);
 } finally {

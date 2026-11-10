@@ -65,6 +65,7 @@ func (st *entityState) num(key string) float64 { n, _ := st.attr(key).(float64);
 // own area, and whether it is hidden or has an entity category.
 type registryEntry struct {
 	pl, di, ai          string
+	lb                  []string
 	hidden, categorized bool
 }
 
@@ -92,9 +93,10 @@ type tierEngine struct {
 	events       map[string]int
 	listeners    *listenerTable
 	full         []fullRegistryRow
-	regFailed    bool         // the compact registry could not be read
-	devices      *deviceGraph // device registry links; nil until read
-	groups       []string     // expanded direct group targets: consumer-scanned, never frozen
+	regFailed    bool                           // the compact registry could not be read
+	devices      *deviceGraph                   // device registry links; nil until read
+	places       map[string]map[string]placeRow // "device"/"area" registry by id; a nil map: unreadable (tier_places.go)
+	groups       []string                       // expanded direct group targets: consumer-scanned, never frozen
 	fullRead     bool
 	routes       map[string][]string    // extra ways an entity is reached: "" direct, else a deduplicated visit's via
 	firedOn      map[string][]fired     // consumer automation → each scanned entity its triggers matched, with that verdict
@@ -118,7 +120,7 @@ type tierEngine struct {
 
 func newTierEngine(s *relaySession) *tierEngine {
 	s.readUntilDeadline()
-	return &tierEngine{s: s, reg: map[string]registryEntry{}, states: map[string]*entityState{}, configs: map[string]map[string]any{},
+	return &tierEngine{s: s, reg: map[string]registryEntry{}, places: map[string]map[string]placeRow{}, states: map[string]*entityState{}, configs: map[string]map[string]any{},
 		basis: map[string]string{}, census: map[string][2]string{}, seen: map[string]bool{}, visited: map[string]bool{}, done: map[string]tierLevel{}, complete: true,
 		routes: map[string][]string{}, firedOn: map[string][]fired{}, runs: map[string][]string{}, ahead: map[string]bool{}}
 }
@@ -184,6 +186,7 @@ func (e *tierEngine) loadRegistry() {
 	var compact struct {
 		Entities []struct {
 			EI, PL, DI, AI string
+			LB             []string
 			HB, EC         any // present only when set
 		} `json:"entities"`
 	}
@@ -193,7 +196,7 @@ func (e *tierEngine) loadRegistry() {
 		return
 	}
 	for _, row := range compact.Entities {
-		e.reg[row.EI] = registryEntry{pl: row.PL, di: row.DI, ai: row.AI, hidden: row.HB != nil && row.HB != false, categorized: row.EC != nil}
+		e.reg[row.EI] = registryEntry{pl: row.PL, di: row.DI, ai: row.AI, lb: row.LB, hidden: row.HB != nil && row.HB != false, categorized: row.EC != nil}
 		if row.PL == "template" {
 			e.note(noteTemplates)
 		}

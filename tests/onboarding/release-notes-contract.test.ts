@@ -62,6 +62,7 @@ describe("release notes contract", () => {
     expect(stableNotes).not.toMatch(/Relay (?:now )?(?:checks|refuses|enforces|blocks)/i);
     // Renames (#1054), shopping list (#1048), setup offer (#1045), stdio apply jobs (#1047), copies first (#1042, #1044, #1049), helpers (#1051), reloads (#1055), same-item edits (#1058), the App notice over Link (#1064), file refusals (#1072), confirmation windows (#1083).
     expect(stableNotes).toContain("**Renaming a device or entity now runs right away and can be undone.**");
+    expect(stableNotes).toContain("**Automations that react to a whole room, floor, or label are now checked.**");
     expect(stableNotes).toContain("**Removing up to five items you named from the shopping list runs right away.**");
     expect(stableNotes).toContain("**When a NOVA App update is waiting, setup in a terminal offers it once setup works.**");
     expect(stableNotes).toContain("**Fewer prompts in Claude Code: setup can allow HA NOVA's read commands once.**");
