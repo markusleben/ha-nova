@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -226,6 +227,38 @@ func TestRawWriteListenerChangedBeforeApplyIsDrift(t *testing.T) {
 	f.mu.Unlock()
 	if exit, applied := applyRaw(t, paths, env); exit != verbExitDrift || applied.Status != "drift" || sent() != 0 {
 		t.Fatalf("exit %d status %s reasons %s, %d sent", exit, applied.Status, reasonCodes(applied), sent())
+	}
+}
+
+// A raw write calls nothing itself, but the automations it sets off do, and
+// an automation listening for those calls counts (MAR-148); a write that
+// also moves what it changes to another area or label is typed, since the
+// scan reads only where it sits now (MAR-142).
+func TestRawWriteConsumersCallsAndMovesCount(t *testing.T) {
+	f := listeningHome()
+	f.automation("closer", "closer", map[string]any{"triggers": []any{listenedWrites[2].trigger}, "actions": []any{step("lock.lock", "lock.front")}})
+	f.related["entity:input_boolean.guest"] = []string{"automation.closer"}
+	listen(f, "lockwatch", map[string]any{"domain": "lock"}, step("lock.unlock", "lock.front"))
+	paths, _, sent := listeningRelay(t, f)
+	if exit, env := planRaw(t, paths, "["+rawItem("", listenedWrites[2].payload)+"]"); exit != verbExitConfirmation || env.Tier != "typed" || !slices.Contains(consumerList(env), "automation.lockwatch") {
+		t.Errorf("a helper update whose consumer locks, beside a lock listener: exit %d tier %s consumers %v", exit, env.Tier, consumerList(env))
+	}
+	before := sent()
+	var exit int
+	stderr := captureStderr(t, func() { exit = runRelayCommand(paths, []string{"ws", "--data", listenedWrites[2].payload}) })
+	if exit != verbExitRefused || !strings.Contains(stderr, "nothing was sent") || sent() != before {
+		t.Errorf("relay of that update: exit %d, stderr %q; want refused", exit, stderr)
+	}
+
+	paths, _, _ = listeningRelay(t, listeningHome())
+	for _, payload := range []string{
+		`{"type":"config/entity_registry/update","entity_id":"binary_sensor.doorbell","disabled_by":null,"area_id":"hall"}`,
+		`{"type":"config/entity_registry/update","entity_id":"binary_sensor.doorbell","disabled_by":null,"area_id":null}`,
+		`{"type":"config/device_registry/update","device_id":"dhub","disabled_by":null,"labels":["night"]}`,
+	} {
+		if exit, env := planRaw(t, paths, "["+rawItem("", payload)+"]"); exit != verbExitConfirmation || env.Tier != "typed" || !slices.Contains(reasonList(env), reasonUnresolvedTarget) {
+			t.Errorf("%s: exit %d tier %s reasons %s; want typed", payload, exit, env.Tier, reasonCodes(env))
+		}
 	}
 }
 
