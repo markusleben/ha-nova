@@ -289,7 +289,8 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		}
 		changed := driftSay(e, &env, plan, fresh)
 		if fresh.Prompt != "" { // a confirmation form shows it without the preview (mcp_confirm.go)
-			fresh.Prompt = changed + "\n\n" + fresh.Prompt // a block of its own in the window
+			title, rest, _ := strings.Cut(fresh.Prompt, "\n\n") // a block of its own, under the window's question
+			fresh.Prompt = title + "\n\n" + changed + "\n\n" + rest
 		}
 		if err := savePlan(paths, fresh, s.transport.Credential); err != nil {
 			return fail(err)

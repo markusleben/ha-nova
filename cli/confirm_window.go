@@ -39,19 +39,41 @@ const (
 	windowSetting    = "confirm_window" // config.json top level; "off" = codes in chat
 )
 
-// windowAsked heads a plan's window text; windowBoth: the linked phone asks too.
-func windowAsked(lang string) string { return confirmT(lang, "window.asked") }
-func windowBoth(lang string) string  { return confirmT(lang, "window.both") }
+// windowText is what a window shows: the title (bold on macOS), the body,
+// one small footer line, and the confirm button's label (lang picks Cancel's).
+type windowText struct {
+	lang, title, body, footer, button string
+	both                              bool // the linked phone asks too
+}
 
-// windowMessage: a plan's window text with its instruction lines first,
-// so a window too small for the rest never hides them; both: the linked
-// phone asks too.
-func windowMessage(lang, body string, both bool) string {
-	head := windowAsked(lang)
+// planWindow: a plan's window. Its text (confirmText) is the title, a blank
+// line, and the rest; the footer says who asked and whether the phone asks
+// too; button names the action (actionGoal.button).
+func planWindow(lang, text string, both bool, button string) windowText {
+	title, body, _ := strings.Cut(text, "\n\n")
+	footer := confirmT(lang, "window.footer")
 	if both {
-		head += "\n" + windowBoth(lang)
+		footer = confirmT(lang, "window.footer_both")
 	}
-	return head + "\n\n" + body
+	return windowText{lang: lang, title: title, body: body, footer: footer, button: button, both: both}
+}
+
+// plainWindow: a window that asks one question of its own (a setting, a
+// phone link), with Confirm.
+func plainWindow(lang, message string) windowText {
+	return windowText{lang: lang, title: "HA NOVA", body: message, button: confirmT(lang, "window.confirm")}
+}
+
+// plain: the whole text as one string, for a window without a bold title
+// (Windows, Linux) and for windowFits.
+func (w windowText) plain() string {
+	var parts []string
+	for _, part := range []string{w.title, w.body, w.footer} {
+		if part != "" {
+			parts = append(parts, part)
+		}
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 // The window budget, on every OS: a window text wraps to at most
@@ -111,11 +133,11 @@ func windowSplit(plan storedPlan, lines int) string {
 	return fmt.Sprintf("Nothing changed. Plan it again as several plans of at most %d %s each, one after another, each with its own confirmation, and tell the user why there are several.", windowSplitSize(items, lines), what)
 }
 
-// windowFits: the lines body's window wraps to at word edges, its
-// instruction lines included (the phone's too), and whether they stay
-// within the budget.
-func windowFits(lang, body string) (lines int, fits bool) {
-	for _, line := range strings.Split(windowMessage(lang, body, true), "\n") {
+// windowFits: the lines a plan's window wraps to at word edges, its title
+// and footer included (the phone's too), and whether they stay within the
+// budget.
+func windowFits(lang, text string) (lines int, fits bool) {
+	for _, line := range strings.Split(planWindow(lang, text, true, "").plain(), "\n") {
 		width := 0
 		lines++
 		for _, word := range strings.Fields(line) {
@@ -206,7 +228,7 @@ func runConfirmWindowSetting(paths runtimePaths, args []string) int {
 			lang = s.homeLanguage()
 			s.close()
 		}
-		switch askWindow(context.Background(), confirmT(lang, "settings.window_off"), lang, cliWindowWait) {
+		switch askWindow(context.Background(), plainWindow(lang, confirmT(lang, "settings.window_off")), cliWindowWait) {
 		case windowConfirmed:
 		case windowFailed:
 			printHumanInfo("The confirmation window couldn't open here, so HA NOVA asks on your linked phone, in your app's form, or with a four-digit code in chat anyway. Nothing changed.")
@@ -272,7 +294,7 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 		}
 	}
 	defer s.close()
-	switch askWindow(planAsks, windowMessage(lang, text, false), plan.Lang, time.Until(deadline)) {
+	switch askWindow(planAsks, planWindow(lang, text, false, goal.button(lang)), time.Until(deadline)) {
 	case windowConfirmed:
 		humanAnswer, humanWhere, askedRoute = confirmCode(s.transport.Credential, idHex, channelWindow, plan.ExpiresAt), channelWindow, s
 		return env, 0, false
@@ -300,8 +322,8 @@ var planAsks, endPlanAsks = context.WithCancel(context.Background())
 // A signal that ends this process closes the window first, then ends the
 // process as the signal would (lane E2): a window left behind takes a
 // Confirm nothing reads.
-func askWindow(parent context.Context, message, lang string, wait time.Duration) windowAnswer {
-	answer, ended := askWindowUntilSignal(parent, message, lang, wait)
+func askWindow(parent context.Context, w windowText, wait time.Duration) windowAnswer {
+	answer, ended := askWindowUntilSignal(parent, w, wait)
 	endBySignal(ended)
 	return answer
 }
@@ -313,7 +335,7 @@ func askWindow(parent context.Context, message, lang string, wait time.Duration)
 // the window gets Pdeathsig (confirm_window_linux.go); Windows' box lives
 // in this process. macOS: an osascript window outlives a SIGKILL until its
 // own timeout.
-func askWindowUntilSignal(parent context.Context, message, lang string, wait time.Duration) (windowAnswer, os.Signal) {
+func askWindowUntilSignal(parent context.Context, w windowText, wait time.Duration) (windowAnswer, os.Signal) {
 	if parent.Err() != nil { // withdrawn before it opened: no answer, never the fallback
 		return windowNoAnswer, nil
 	}
@@ -326,7 +348,7 @@ func askWindowUntilSignal(parent context.Context, message, lang string, wait tim
 		}
 	}
 	done := make(chan windowAnswer, 1)
-	go func() { done <- windowRunner(ctx, message, lang, wait) }()
+	go func() { done <- windowRunner(ctx, w, wait) }()
 	opened := time.After(time.Second)
 	for {
 		select {
@@ -340,7 +362,7 @@ func askWindowUntilSignal(parent context.Context, message, lang string, wait tim
 			}
 		case <-opened:
 			if ctx.Err() == nil {
-				fmt.Fprintln(os.Stderr, map[bool]string{false: windowOpened, true: windowOpenedBoth}[strings.Contains(message, windowBoth(lang))])
+				fmt.Fprintln(os.Stderr, map[bool]string{false: windowOpened, true: windowOpenedBoth}[w.both])
 			}
 		case ended := <-signals:
 			cancel() // the window closes; a stuck one doesn't hold the ending up

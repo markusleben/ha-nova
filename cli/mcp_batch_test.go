@@ -67,7 +67,8 @@ func TestMCPBatchForm(t *testing.T) {
 	h.f.snapshotErr = true
 	call := c.startCall(applyArgs(id, nil))
 	formID, params, typed := c.form()
-	if message := params["message"].(string); !strings.HasPrefix(message, list) || !strings.Contains(message, confirmT("en", "batch.copies")) {
+	form := "Change or delete 2 automations?\n\n1. Change the automation “Night mode”.\n2. Delete the automation “Kitchen motion old”.\n\nOne confirmation covers all 2."
+	if message := params["message"].(string); !strings.HasPrefix(message, form) || !strings.Contains(message, confirmT("en", "batch.copies")) {
 		t.Fatalf("the form: %q", message)
 	}
 	c.answer(formID, map[string]any{"action": "accept", "content": map[string]any{"code": typed}})
@@ -76,7 +77,7 @@ func TestMCPBatchForm(t *testing.T) {
 	}
 	call = c.startCall(applyArgs(id, map[string]any{"no_snapshot": true}))
 	formID, params, typed = c.form()
-	if message := params["message"].(string); !strings.HasPrefix(message, list) || strings.Contains(message, confirmT("en", "batch.copies")) ||
+	if message := params["message"].(string); !strings.HasPrefix(message, form) || strings.Contains(message, confirmT("en", "batch.copies")) ||
 		!strings.Contains(message, "No copies could be saved, so once deleted they can't be restored.") {
 		t.Fatalf("the no-copy form: %q", message)
 	}

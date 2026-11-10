@@ -19,10 +19,11 @@ import (
 
 const windowShowing = "ha-nova-window-showing"
 
-// windowScript prints exactly one answer line; the message, the wait, and
-// the Confirm and Cancel labels of the plan's language arrive as arguments,
-// so no Home Assistant text is ever script source. Confirm is the second
-// button by position, never a label matched as text. "--" ends osascript's
+// windowScript prints exactly one answer line; the title, the body, the
+// footer, the wait, and the Confirm and Cancel labels arrive as arguments,
+// so no Home Assistant text is ever script source. The title is the alert's
+// bold one; the footer is the text's last line, smaller and grey. Confirm
+// is the second button by position, never a label matched as text. "--" ends osascript's
 // options: a message starting with "-" stays an argument. Only no window
 // server (a sandbox: no screen) ends the script without windowShowing
 // (windowFailed); any other error, before or after the window shows, prints
@@ -30,34 +31,43 @@ const windowShowing = "ha-nova-window-showing"
 var windowScript = []string{
 	"ObjC.import('AppKit');",
 	"function run(argv) {",
-	"const room = $.NSScreen.mainScreen.visibleFrame.size.height - 200;", // no screen: throws; minus the alert's own frame
+	"const room = $.NSScreen.mainScreen.visibleFrame.size.height - 200;", // no screen: throws; minus the alert's own frame with a one-line title
 	"try {",
+	"const [title, body, footer, wait, confirm, cancel] = argv;",
 	"const app = $.NSApplication.sharedApplication;",
 	"app.setActivationPolicy(1);", // accessory: no Dock icon
 	"const width = 560;",
+	"const head = $.NSTextField.wrappingLabelWithString($(title));", // measured only: a longer title leaves the text less room
+	"head.font = $.NSFont.boldSystemFontOfSize(13);",
+	"head.preferredMaxLayoutWidth = width;",
+	"const fit = room - Math.max(0, Math.ceil(head.fittingSize.height) - 16);",
+	"const shown = footer ? body + '\\n\\n' + footer : body;",
 	"const text = $.NSTextView.alloc.initWithFrame($.NSMakeRect(0, 0, width, 0));",
-	"text.string = $(argv[0]);",
+	"text.string = $(shown);",
 	"text.font = $.NSFont.systemFontOfSize(13);",
+	"const small = $.NSMakeRange(shown.length - footer.length, footer.length);", // UTF-16 units, as NSString counts
+	"text.textStorage.addAttributeValueRange($.NSFontAttributeName, $.NSFont.systemFontOfSize(11), small);",
+	"text.textStorage.addAttributeValueRange($.NSForegroundColorAttributeName, $.NSColor.secondaryLabelColor, small);",
 	"text.editable = false;",
 	"text.drawsBackground = false;",
 	"text.textContainer.lineFragmentPadding = 0;",
 	"text.layoutManager.ensureLayoutForTextContainer(text.textContainer);",
 	"const height = Math.ceil(text.layoutManager.usedRectForTextContainer(text.textContainer).size.height);",
 	"text.setFrame($.NSMakeRect(0, 0, width, height));",
-	"const bar = height > room ? $.NSScroller.scrollerWidthForControlSizeScrollerStyle(0, 0) : 0;", // the scroller beside the text, never over it
-	"const view = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, width + bar, Math.min(height, room)));",
+	"const bar = height > fit ? $.NSScroller.scrollerWidthForControlSizeScrollerStyle(0, 0) : 0;", // the scroller beside the text, never over it
+	"const view = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, width + bar, Math.min(height, fit)));",
 	"view.documentView = text;",
-	"view.hasVerticalScroller = height > room;",
+	"view.hasVerticalScroller = height > fit;",
 	"view.scrollerStyle = 0;", // legacy: a scroller that never hides, so more text below is visible
 	"view.autohidesScrollers = false;",
 	"view.drawsBackground = false;",
 	"const alert = $.NSAlert.alloc.init;",
-	"alert.messageText = $('HA NOVA');",
+	"alert.messageText = $(title);", // bold
 	"alert.icon = $.NSImage.imageNamed('NSCaution');",
 	"alert.accessoryView = view;",
-	"alert.addButtonWithTitle($(argv[3]));",                       // first: the default, Return
-	"alert.addButtonWithTitle($(argv[2])).keyEquivalent = $('');", // Confirm: no key
-	"app.performSelectorWithObjectAfterDelayInModes('abortModal', $(), Number(argv[1]), $([$.NSModalPanelRunLoopMode]));",
+	"alert.addButtonWithTitle($(cancel));",                        // first: the default, Return
+	"alert.addButtonWithTitle($(confirm)).keyEquivalent = $('');", // Confirm: no key
+	"app.performSelectorWithObjectAfterDelayInModes('abortModal', $(), Number(wait), $([$.NSModalPanelRunLoopMode]));",
 	"$.NSRunningApplication.currentApplication.activateWithOptions(1);", // in front of the terminal or app that started it
 	"console.log('" + windowShowing + "');",                             // stderr: about to show the window
 	"const answer = alert.runModal;",
@@ -77,12 +87,12 @@ func nativeWindowAvailable() bool {
 	return err == nil && strings.TrimSpace(string(out)) == "Aqua"
 }
 
-func nativeWindow(ctx context.Context, message, lang string, wait time.Duration) windowAnswer {
+func nativeWindow(ctx context.Context, w windowText, wait time.Duration) windowAnswer {
 	args := []string{"-l", "JavaScript"}
 	for _, line := range windowScript {
 		args = append(args, "-e", line)
 	}
-	cmd := exec.CommandContext(ctx, "/usr/bin/osascript", append(args, "--", message, strconv.Itoa(int(wait.Seconds())), confirmT(lang, "window.confirm"), confirmT(lang, "window.cancel"))...)
+	cmd := exec.CommandContext(ctx, "/usr/bin/osascript", append(args, "--", w.title, w.body, w.footer, strconv.Itoa(int(wait.Seconds())), w.button, confirmT(w.lang, "window.cancel"))...)
 	cmd.Env = []string{} // nothing from the caller's environment reaches the window
 	var stderr strings.Builder
 	cmd.Stderr = &stderr

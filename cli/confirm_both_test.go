@@ -28,9 +28,9 @@ func useRaceWindow(t *testing.T, answer windowAnswer, gate <-chan struct{}, stuc
 	w := &raceWindow{}
 	savedAvailable, savedRunner := windowAvailable, windowRunner
 	windowAvailable = func() bool { return true }
-	windowRunner = func(ctx context.Context, message, _ string, wait time.Duration) windowAnswer {
+	windowRunner = func(ctx context.Context, shown windowText, wait time.Duration) windowAnswer {
 		w.mu.Lock()
-		w.messages = append(w.messages, message)
+		w.messages = append(w.messages, shown.plain())
 		w.mu.Unlock()
 		if stuck {
 			<-gate
@@ -164,7 +164,7 @@ func TestBothAskFirstAnswerWins(t *testing.T) {
 				if len(h.posts()) != posts {
 					t.Fatalf("a late answer sent: %d", len(h.posts()))
 				}
-				if !strings.Contains(w.messages[0], windowBoth("en")) {
+				if !strings.Contains(w.messages[0], confirmT("en", "window.footer_both")) {
 					t.Fatalf("window text %q", w.messages[0])
 				}
 			})
@@ -267,7 +267,7 @@ func TestBothAskOneSideOut(t *testing.T) {
 		var exit int
 		var env verbTestEnvelope
 		stderr := captureStderr(t, func() { exit, env = h.run(runApplyCommand, "--plan", plan.ID) })
-		if exit != 0 || len(h.posts()) != 1 || len(p.sent) != 0 || !strings.Contains(stderr, phoneQuietText) || strings.Contains(w.messages[0], windowBoth("en")) || env.Plan.Channel != channelWindow {
+		if exit != 0 || len(h.posts()) != 1 || len(p.sent) != 0 || !strings.Contains(stderr, phoneQuietText) || strings.Contains(w.messages[0], confirmT("en", "window.footer_both")) || env.Plan.Channel != channelWindow {
 			t.Fatalf("exit %d %+v sent %d stderr %q", exit, env.Error, len(p.sent), stderr)
 		}
 	})

@@ -110,9 +110,11 @@ func computeBatchPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, st
 	if err != nil {
 		return rp, plan, err
 	}
-	list, tail := batchText(rp, plan.Tier == tierTyped.String())
-	if plan.Tier == tierTyped.String() { // the window's blocks: a blank line before what it covers
-		plan.Prompt = demoPrefix(textLang(plan), list+"\n\n"+tail)
+	list, tail := batchText(rp, plan.Tier == tierTyped.String(), false)
+	if plan.Tier == tierTyped.String() { // the window's blocks: the question, the list, what it covers
+		lang := textLang(plan)
+		items, covers := batchText(rp, true, true)
+		plan.Prompt = demoPrefix(lang, promptQuestion(lang, batchPhoneTitle(rp))+"\n\n"+items+"\n\n"+covers)
 	}
 	if plan.Channel == channelWindow { // checked again at every apply: a name in a reason may have grown
 		if err := batchWindowFits(plan, env.Verb); err != nil {

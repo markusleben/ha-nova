@@ -17,7 +17,13 @@ type fakeWindow struct {
 	answers  []windowAnswer
 	messages []string
 	langs    []string
+	buttons  []string
 	before   func() // runs while the window is open
+}
+
+// windowShown: a plan's window as the fake window records it (windowText.plain).
+func windowShown(lang, text string, both bool) string {
+	return planWindow(lang, text, both, "").plain()
 }
 
 func useWindow(t *testing.T, answers ...windowAnswer) *fakeWindow {
@@ -25,7 +31,8 @@ func useWindow(t *testing.T, answers ...windowAnswer) *fakeWindow {
 	w := &fakeWindow{answers: answers}
 	savedAvailable, savedRunner := windowAvailable, windowRunner
 	windowAvailable = func() bool { return true }
-	windowRunner = func(_ context.Context, message, lang string, wait time.Duration) windowAnswer {
+	windowRunner = func(_ context.Context, shown windowText, wait time.Duration) windowAnswer {
+		message := shown.plain()
 		if wait <= 0 || wait > cliWindowWait {
 			t.Errorf("window wait %v", wait)
 		}
@@ -33,7 +40,7 @@ func useWindow(t *testing.T, answers ...windowAnswer) *fakeWindow {
 			t.Errorf("an unexpected window: %q", message)
 			return windowNoAnswer
 		}
-		w.messages, w.langs = append(w.messages, message), append(w.langs, lang)
+		w.messages, w.langs, w.buttons = append(w.messages, message), append(w.langs, shown.lang), append(w.buttons, shown.button)
 		if w.before != nil {
 			w.before()
 		}
@@ -80,8 +87,11 @@ func TestWindowPlanConfirmsInTheWindow(t *testing.T) {
 	if exit != 0 || applied.Status != "verified" || len(h.posts()) != 1 || applied.Plan.Code != "" || applied.NextStep != "" || applied.Say != "Done: 1 device is unlocked now. I checked it." {
 		t.Fatalf("confirm: exit %d %+v posts %d", exit, applied, len(h.posts()))
 	}
-	if !strings.HasPrefix(w.messages[0], windowAsked("en")+"\n\nI'm about to unlock “lock.front”") || !strings.Contains(w.messages[0], "so I need you to confirm it. Nothing has run yet.") ||
-		!strings.HasPrefix(w.messages[0], windowAsked("en")) || strings.Contains(w.messages[0], code) {
+	// The question first, the button named for it; no "so I need you to
+	// confirm it" or "Nothing has run yet": the window asks by itself.
+	if !strings.HasPrefix(w.messages[0], "Unlock “lock.front”?\n\nI'm about to unlock “lock.front”") || !strings.Contains(w.messages[0], "\n\nThis unlocks a door.") ||
+		strings.Contains(w.messages[0], "so I need you to confirm it") || strings.Contains(w.messages[0], "Nothing has run yet") ||
+		!strings.HasSuffix(w.messages[0], confirmT("en", "window.footer")) || strings.Contains(w.messages[0], code) || w.buttons[0] != "Unlock" {
 		t.Fatalf("window text: %q", w.messages[0])
 	}
 }

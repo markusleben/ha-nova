@@ -71,6 +71,42 @@ Date: 2026-11-10. Owner: CLI confirmation window (`cli/confirm_window.go`, `cli/
 - Astra (gpt-6-astra, medium): agree with changes. Adopted: separate the action and the reasons in `sayBody` (raw plans), measure the final texts and wide glyphs, give a real-window check list, and remove the "only blank lines" claim for Windows. Kept a single budget for every OS (Fable agrees) because the Windows numbers above support it. The fallback point is noted under "Not changed".
 - Fable (claude-fable-5-2, medium): agree with changes. Adopted: a legacy scroller that never hides (P1: overlay scrollers hid the tail), rewording "never undercounts", the Windows look, the `sayBody` split, the `-1713` change, and the Escape note. Fable says 520 pt would read slightly better; 560 is kept for "clearly wider", and it is one number to change.
 
+
+## Rework after Markus's real-window test (10.11.)
+
+Markus on the wide window (statistics, DE): "besser als vorher aber immer noch sehr viel Text und schlecht auf einen Blick zu erfassen". The width stays. What changes is the content, so it can be read at a glance (Captain's direction):
+
+1. **Title = the action as one question**, the alert's bold `messageText` on macOS (it was "HA NOVA"):
+   - One name: the goal as a question, never cut ("„Haustür“ entriegeln?").
+   - Several names: a count where the verb says what they are ("Diese 23 entriegeln?", `window.these`), with any service data ("… mit Helligkeit 50"), and the names below. Names of a kind (scripts, Zigbee devices, apps) keep it: "Das Skript „A“, „B“, „C“ und 2 weitere ausführen?", with every name below.
+   - Raw plans: one step, that step's goal. Steps that are one run of statistics imports: "6.671 Stundenwerte in 7 Statistiken importieren?" (`raw.import_title`). One run of deletes: its names, as the chat says them ("„A“, „B“, „C“ und 2 weitere löschen?"). Anything else: today's "8 Schritte in Home Assistant bestätigen?".
+   - Batch: the phone's title ("4 Automationen löschen?").
+   - Config plans (create, change, delete, restore): the goal; no second line restates it.
+2. **What: one line per item.** Several names are bullets ("• „Haustür“"), every name as `sayText` quotes it, never "N more" (the budget refuses a plan that doesn't fit). A raw run of imports adds "Zeitraum: Nov. 2024 – Jan. 2026". A single target keeps today's sentence (its area and its change "verriegelt → entriegelt"). Raw plans with different kinds of steps keep their numbered lines, each with its detail. Batch keeps its numbered lines (the order matters) without the "Ich nehme gleich …" head.
+   - Not taken: factoring a shared prefix out of the names ("„Klimagerät … Energie“:" above "• Arbeitszimmer EG"). KISS and Astra both advised against it: `sayText` already cuts names at 60 characters, so factored fragments of two cut names can look alike, and an unquoted fragment can read like an instruction. Plain quoted bullets already give one line per item.
+3. **Why: short sentences.** Every typed reason (no "and N more" cap, as chat has), without "…, deshalb musst du das bestätigen" ("Das entriegelt eine Tür. Das wirkt auf 23 Geräte auf einmal."), then the copy note where it applies. "Noch wurde nichts ausgeführt" goes from the window and the form: the open window is that state. `raw.why.statistics_import` becomes "Das überschreibt schon gespeicherte Werte derselben Stunden" (phone and chat too). Batch: "Eine Bestätigung gilt für alle 4." and the order note, without the status line.
+4. **Footer: one small line at the bottom** (11 pt, secondary colour on macOS): "HA NOVA · Angefordert von deinem KI-Assistenten · Dein Handy fragt auch; die erste Antwort zählt." (`window.footer` / `window.footer_both`, replacing `window.asked` / `window.both`). "Bestätige nur, wenn du das Folgende willst" goes; the title is a question with Cancel as the default.
+5. **The confirm button names the action** on macOS and Linux, like the phone's (`actionGoal.button`: "Entriegeln", "Importieren" only where the verb has its own button, else "Bestätigen"). A raw plan of alike steps (imports, deletes) gets that button on the phone too, under the phone's unchanged question. Cancel stays first and the default; Confirm is still matched by position, never by label.
+
+The plan's `Prompt` (window and form, sealed in the plan) carries title, what, and why as three blocks: `title\n\nwhat\n\nwhy`; the form shows the same. The window takes the first block as its title and adds the footer. A drift notice goes after the title, not before it. The chat `say` is unchanged.
+
+Per OS, still only what it ships:
+- **macOS:** argv = title, body, footer, wait, button, cancel (data only, read once into names). The footer is styled in the same text view by range. A title longer than one line is measured (an `NSTextField` at the same width) and leaves the text that much less room before it scrolls.
+- **Linux:** zenity `--title=HA NOVA`, text = title, blank, body, blank, footer (`--no-markup` stays, so no bold), `--ok-label` = the action's button.
+- **Windows:** caption "HA NOVA", the same plain text; OK and Cancel stay Windows' own. Renaming OK after the box laid out its buttons could clip a longer label, and that can't be checked without the VM: a known limit.
+
+Budget: unchanged (64 × 32). `windowFits` counts title, blank, body, blank, footer at 64. Measured: statistics and 23 unlocks both fit.
+
+Not changed: answer codes, the fallback, the chat `say`, the phone.
+
+Reviews of the rework diff:
+- Adversarial (Sonnet, fail-open + sibling sweep + UX): no P1; nothing that runs is dropped, argv stays data, the script still fails closed, the copy-note swaps still match, `windowFits` counts title, body, and footer. Fixed: "these N" without a kind ("Remove these 3?") now keeps the kind for framed names and raw deletes; the window's language is `textLang` (an empty plan language no longer reaches the Cancel label). Accepted: the phone button for alike raw steps (above).
+- Local Codex CLI (gpt-6-luna): no finding.
+
+Reviews of this design:
+- KISS (Sonnet): drop the factoring, derive titles from `actionGoal`, keep Windows unchanged beyond the text, keep the batch change minimal. Adopted, except: the title keeps service data ("Diese 3 mit Helligkeit 50 einschalten?"), as it is one existing call (`sayWithData`), and the footer is small by range (the Captain asked for it small; checked on the real window).
+- Astra (gpt-6-astra, medium): agree with changes. Adopted: every typed reason in the window (P1: the chat's cap at 8 must not apply), no factoring of cut names (P2), and the title's real height on macOS (P2). It confirms that dropping "Bestätige nur, wenn …" and "Noch wurde nichts ausgeführt" doesn't weaken consent: a question, Cancel as default, and an action-named button still ask.
+
 ## Verify
 
 - Unit: the zenity arguments (`--width=600`, Cancel the default, no markup; runs on the Linux CI job). The window and form texts have blank lines between their blocks (single, raw, batch; DE and EN), and the chat `say` is unchanged. The budget ratchet. The 8-import and 23-unlock fixtures. The text that showed cut in the old window is still refused. The batch budget. The answer mapping. The script test above.

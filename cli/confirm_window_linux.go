@@ -37,14 +37,15 @@ func nativeWindowAvailable() bool {
 }
 
 // zenityArgs: the window as wide as macOS's (windowFits counts for it),
-// Cancel the default, the text never read as markup.
-func zenityArgs(message, lang string, wait time.Duration) []string {
-	return []string{"--question", "--title=HA NOVA", "--text=" + message, "--ok-label=" + confirmT(lang, "window.confirm"), "--cancel-label=" + confirmT(lang, "window.cancel"),
+// Confirm named for the action, Cancel the default, the text never read as
+// markup (so its title isn't bold).
+func zenityArgs(w windowText, wait time.Duration) []string {
+	return []string{"--question", "--title=HA NOVA", "--text=" + w.plain(), "--ok-label=" + w.button, "--cancel-label=" + confirmT(w.lang, "window.cancel"),
 		"--default-cancel", "--no-markup", "--width=600", "--timeout=" + strconv.Itoa(int(wait.Seconds()))}
 }
 
-func nativeWindow(ctx context.Context, message, lang string, wait time.Duration) windowAnswer {
-	args := zenityArgs(message, lang, wait)
+func nativeWindow(ctx context.Context, w windowText, wait time.Duration) windowAnswer {
+	args := zenityArgs(w, wait)
 	// The window dies with this process, even a SIGKILLed one (lane E2).
 	// Pdeathsig follows the OS thread that started zenity, so hold it.
 	runtime.LockOSThread()

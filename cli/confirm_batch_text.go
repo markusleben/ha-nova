@@ -97,10 +97,15 @@ func (m batchMember) sensitivity() int {
 // it and why it needs the user, and the tail: what one confirmation covers.
 // Members in a row that do the same to the same kind, with no reason of
 // their own, share one line that names every one; a member with a reason
-// keeps its own.
-func batchText(rp batchReplan, typed bool) (list, tail string) {
+// keeps its own. prompt: the window's and form's, under its question
+// (batchPhoneTitle): no head, and no "so I need you to confirm it" or
+// "nothing has changed yet", as the window itself asks.
+func batchText(rp batchReplan, typed, prompt bool) (list, tail string) {
 	lang, n := rp.lang, len(rp.members)
-	lines := []string{confirmT(lang, "batch.head", "count", n)}
+	var lines []string
+	if !prompt {
+		lines = append(lines, confirmT(lang, "batch.head", "count", n))
+	}
 	deletes := false
 	alike := func(a, b batchMember) bool {
 		return a.op() == b.op() && a.stored.ConfigAction.Domain == b.stored.ConfigAction.Domain && len(b.reasons(lang)) == 0
@@ -118,13 +123,19 @@ func batchText(rp batchReplan, typed bool) (list, tail string) {
 		deletes, i = deletes || m.op() == "delete", j
 	}
 	var covers []string
-	if typed {
+	switch {
+	case prompt:
+		covers = append(covers, confirmT(lang, "batch.covers", "count", n))
+	case typed:
 		covers = append(covers, confirmT(lang, "batch.needs_you", "count", n))
 	}
 	if deletes {
 		covers = append(covers, confirmT(lang, "batch.copies"))
 	}
-	covers = append(covers, confirmT(lang, "batch.order"), confirmT(lang, "batch.status"))
+	covers = append(covers, confirmT(lang, "batch.order"))
+	if !prompt {
+		covers = append(covers, confirmT(lang, "batch.status"))
+	}
 	return strings.Join(lines, "\n"), strings.Join(covers, " ")
 }
 

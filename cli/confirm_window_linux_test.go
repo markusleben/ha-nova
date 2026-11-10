@@ -28,8 +28,8 @@ func TestZenityAnswer(t *testing.T) {
 }
 
 func TestZenityArgs(t *testing.T) {
-	args := strings.Join(zenityArgs("-x\n\ny", "de", 90*time.Second), "|")
-	if args != "--question|--title=HA NOVA|--text=-x\n\ny|--ok-label=Bestätigen|--cancel-label=Abbrechen|--default-cancel|--no-markup|--width=600|--timeout=90" {
+	args := strings.Join(zenityArgs(windowText{lang: "de", title: "-x", body: "y", footer: "z", button: "Entriegeln"}, 90*time.Second), "|")
+	if args != "--question|--title=HA NOVA|--text=-x\n\ny\n\nz|--ok-label=Entriegeln|--cancel-label=Abbrechen|--default-cancel|--no-markup|--width=600|--timeout=90" {
 		t.Fatalf("zenity args: %s", args)
 	}
 }

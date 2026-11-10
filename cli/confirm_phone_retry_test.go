@@ -160,7 +160,7 @@ func TestPhoneCheckThatFailsOnceAsksOnce(t *testing.T) {
 			if exit != 0 || env.Status != "verified" || calls(h) != 1 || p.asks() != 1 || lookups != c.lookups || probed != want {
 				t.Fatalf("exit %d %s %+v calls %d asks %d lookups %d probes %d", exit, env.Status, env.Error, calls(h), p.asks(), lookups, probed)
 			}
-			if c.window && (len(w.messages) != 1 || !strings.Contains(w.messages[0], windowBoth("en"))) {
+			if c.window && (len(w.messages) != 1 || !strings.Contains(w.messages[0], confirmT("en", "window.footer_both"))) {
 				t.Fatalf("window %q", w.messages)
 			}
 		})
@@ -226,7 +226,7 @@ func TestPhoneCheckThatFailsTwiceSaysHomeAssistantWasSlow(t *testing.T) {
 			var env verbTestEnvelope
 			stderr := captureStderr(t, func() { exit, env = h.run(runApplyCommand, "--plan", plan.ID) })
 			// The window never says the phone asks too while it can't; a failed lookup probes nothing.
-			if len(w.messages) != 1 || strings.Contains(w.messages[0], windowBoth("en")) || !strings.HasPrefix(w.messages[0], windowAsked("en")) ||
+			if len(w.messages) != 1 || strings.Contains(w.messages[0], confirmT("en", "window.footer_both")) || !strings.HasSuffix(w.messages[0], confirmT("en", "window.footer")) ||
 				probes() != map[bool]int{false: 0, true: 2}[probe] {
 				t.Fatalf("window %q probes %d", w.messages, probes())
 			}

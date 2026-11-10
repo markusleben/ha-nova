@@ -217,13 +217,13 @@ func TestWindowKeepsItsTimeWhileThePhoneProbeHangs(t *testing.T) {
 	}
 	var left time.Duration
 	runner := windowRunner
-	windowRunner = func(ctx context.Context, message, lang string, wait time.Duration) windowAnswer {
+	windowRunner = func(ctx context.Context, shown windowText, wait time.Duration) windowAnswer {
 		left = wait
-		return runner(ctx, message, lang, wait)
+		return runner(ctx, shown, wait)
 	}
 	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
 	if exit != 0 || calls(h) != 1 || p.asks() != 0 || left < windowMinWait-500*time.Millisecond ||
-		len(w.messages) != 1 || strings.Contains(w.messages[0], windowBoth("en")) || !strings.HasPrefix(w.messages[0], windowAsked("en")) {
+		len(w.messages) != 1 || strings.Contains(w.messages[0], confirmT("en", "window.footer_both")) || !strings.HasSuffix(w.messages[0], confirmT("en", "window.footer")) {
 		t.Fatalf("exit %d %+v asks %d window left %v messages %q", exit, env.Error, p.asks(), left, w.messages)
 	}
 }

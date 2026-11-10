@@ -46,8 +46,8 @@ func germanHome(t *testing.T) (*writeHarness, func(id string) storedPlan) {
 const (
 	germanUnlockWhat = "Ich werde gleich „Haustür“ entriegeln (Verriegelt → Entriegelt)."
 	germanUnlockWhy  = "Das entriegelt eine Tür, deshalb musst du das bestätigen. Noch wurde nichts ausgeführt."
-	germanUnlock     = germanUnlockWhat + " " + germanUnlockWhy    // the chat
-	germanPrompt     = germanUnlockWhat + "\n\n" + germanUnlockWhy // the window and the form
+	germanUnlock     = germanUnlockWhat + " " + germanUnlockWhy                                        // the chat
+	germanPrompt     = "„Haustür“ entriegeln?\n\n" + germanUnlockWhat + "\n\nDas entriegelt eine Tür." // the window and the form: the question, what, why
 )
 
 // A German home gets the confirmation in German, with Home Assistant's own
@@ -156,7 +156,7 @@ func TestGermanHomeAsksInTheWindow(t *testing.T) {
 		t.Fatalf("window plan: %q", env.Say)
 	}
 	if exit, _ := h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 0 || len(w.messages) != 1 || w.langs[0] != "de" ||
-		w.messages[0] != windowMessage("de", germanPrompt, false) {
+		w.messages[0] != windowShown("de", germanPrompt, false) {
 		t.Fatalf("window: exit %d %q %v", exit, w.messages, w.langs)
 	}
 }
@@ -181,7 +181,7 @@ func TestHomeAssistantWordsStayWithThePlan(t *testing.T) {
 	h.f.translations["de/entity_component"] = original
 	id = h.plan("lock.unlock", "lock.front").Plan.ID
 	h.f.translations["de/entity_component"] = renamed
-	if exit, _ := h.run(runApplyCommand, "--plan", id); exit != 0 || len(w.messages) != 1 || !strings.HasPrefix(w.messages[0], windowMessage("de", germanPrompt, false)) {
+	if exit, _ := h.run(runApplyCommand, "--plan", id); exit != 0 || len(w.messages) != 1 || !strings.HasPrefix(w.messages[0], windowShown("de", germanPrompt, false)) {
 		t.Fatalf("apply after a rename: exit %d %q", exit, w.messages)
 	}
 }

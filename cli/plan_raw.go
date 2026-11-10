@@ -369,10 +369,16 @@ func rawSteps(env *verbEnvelope) (steps []rawPlanItem, copies []string) {
 }
 
 // rawGoal: the phone's verb and object, the step's own for one step.
+// Steps all alike (imports, deletes) keep the question but get their own
+// button ("Import", like the window's question).
 func rawGoal(lang string, env *verbEnvelope) actionGoal {
 	steps, _ := rawSteps(env)
 	if len(steps) == 1 {
 		return steps[0].goal
 	}
-	return actionGoal{raw: "confirm", names: []string{confirmT(lang, "raw.steps", "count", len(steps))}}
+	goal := actionGoal{raw: "confirm", names: []string{confirmT(lang, "raw.steps", "count", len(steps))}}
+	if len(rawRuns(steps)) == 1 {
+		goal.whole, goal.raw, goal.names = upperFirst(goal.text(lang)), steps[0].goal.raw, nil
+	}
+	return goal
 }

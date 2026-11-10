@@ -41,9 +41,9 @@ func TestDarwinWindowAnswers(t *testing.T) {
 }
 
 // The window script compiles (one that doesn't never shows: windowFailed),
-// takes the plan's text only as an argument, adds Cancel first (the
-// default: Return) and Confirm without a key, scrolls with a scroller that
-// stays visible, and says it shows only right before it does.
+// takes the title, the text, and the labels only as arguments, adds Cancel
+// first (the default: Return) and Confirm without a key, scrolls with a
+// scroller that stays visible, and says it shows only right before it does.
 func TestDarwinWindowScript(t *testing.T) {
 	args := []string{"-l", "JavaScript", "-o", filepath.Join(t.TempDir(), "window.scpt")}
 	for _, line := range windowScript {
@@ -59,7 +59,8 @@ func TestDarwinWindowScript(t *testing.T) {
 		t.Fatalf("console.log: stdout %q stderr %q %v", out, stderr.String(), err)
 	}
 	script := strings.Join(windowScript, "\n")
-	order := []string{"$.NSScreen.mainScreen", "try {", "$(argv[0])", "view.scrollerStyle = 0;", "addButtonWithTitle($(argv[3]));", "addButtonWithTitle($(argv[2])).keyEquivalent = $('');", "console.log('" + windowShowing + "')", "alert.runModal", "== 1001) return 'button Confirm'", "} catch (e) { return 'error ' + e; }"}
+	order := []string{"$.NSScreen.mainScreen", "try {", "= argv;", "wrappingLabelWithString($(title))", "text.string = $(shown);", "view.scrollerStyle = 0;", "alert.messageText = $(title);",
+		"addButtonWithTitle($(cancel));", "addButtonWithTitle($(confirm)).keyEquivalent = $('');", "console.log('" + windowShowing + "')", "alert.runModal", "== 1001) return 'button Confirm'", "} catch (e) { return 'error ' + e; }"}
 	at := -1
 	for _, part := range order {
 		next := strings.Index(script, part)
@@ -68,7 +69,7 @@ func TestDarwinWindowScript(t *testing.T) {
 		}
 		at = next
 	}
-	if strings.Count(script, "argv[") != 4 || strings.Contains(script, "eval") || strings.Contains(script, "doShellScript") {
+	if strings.Count(script, "argv") != 2 || strings.Contains(script, "eval") || strings.Contains(script, "doShellScript") {
 		t.Fatalf("arguments are data only:\n%s", script)
 	}
 }
@@ -92,7 +93,7 @@ func TestRealWindow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), limit)
 	defer cancel()
 	start := time.Now()
-	if got := nativeWindow(ctx, "HA NOVA test — nothing happens. Unlock “Front Door”?\n\n"+windowAsked("en"), "en", wait); got != expected || time.Since(start) > limit+2*time.Second {
+	if got := nativeWindow(ctx, planWindow("en", "HA NOVA test — nothing happens. Unlock “Front Door”?\n\nI'm about to unlock “Front Door”.\n\nThis unlocks a door.", true, "Unlock"), wait); got != expected || time.Since(start) > limit+2*time.Second {
 		t.Fatalf("real window: %v after %v, want %v", got, time.Since(start), expected)
 	}
 	if out, _ := exec.Command("/usr/bin/pgrep", "-x", "osascript").Output(); mode == "withdrawn" && len(out) > 0 {

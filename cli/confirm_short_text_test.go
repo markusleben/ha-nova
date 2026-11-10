@@ -75,37 +75,45 @@ func klimaPlan(t *testing.T, lang string) (*tierEngine, verbEnvelope, storedPlan
 }
 
 // The window, the chat, and the phone say the 8 imports at a glance, in
-// both languages: one line, every statistic by name, months instead of
-// timestamps, the overwrite once, and the instruction first. The text
-// Markus saw is over the window budget (it showed cut).
+// both languages: every statistic by name, months instead of timestamps,
+// the overwrite once. The window asks one question with a line per
+// statistic (spec 2026-11-10, rework). The text Markus saw is over the
+// window budget (it showed cut).
 func TestStatisticsImportsReadAtAGlance(t *testing.T) {
-	names := "„Klimagerät Arbeitszimmer EG Energie“, „Klimagerät Wintergarten EG Energie“, „Klimagerät Arbeitszimmer OG Energie“, „Klimagerät Kinderzimmer OG Energie“, " +
-		"„Klimagerät Fernsehzimmer EG Energie“, „Klimagerät Spielzimmer EG Energie“ und „Klimagerät Schlafzimmer OG Energie“"
-	enNames := strings.NewReplacer("„", "“", "“", "”", " und ", " and ").Replace(names)
+	rooms := []string{"Arbeitszimmer EG", "Wintergarten EG", "Arbeitszimmer OG", "Kinderzimmer OG", "Fernsehzimmer EG", "Spielzimmer EG", "Schlafzimmer OG"}
+	var quoted, bullets []string
+	for _, room := range rooms {
+		quoted, bullets = append(quoted, "„Klimagerät "+room+" Energie“"), append(bullets, "• „Klimagerät "+room+" Energie“")
+	}
+	names := strings.Join(quoted[:6], ", ") + " und " + quoted[6]
+	toEnglish := strings.NewReplacer("„", "“", "“", "”", " und ", " and ")
+	enNames, list := toEnglish.Replace(names), strings.Join(bullets, "\n")
 	for _, c := range []struct {
-		lang, list, overwrite, title, phone string
+		lang, say, window, overwrite, title, phone string
 	}{
 		{"de", "Ich führe gleich diese 8 Schritte in Home Assistant aus, in dieser Reihenfolge:\n" +
 			"Schritte 1–8: In 7 Langzeitstatistiken insgesamt 6.671 Stundenwerte importieren (Nov. 2024 – Jan. 2026): " + names + ".\n" +
-			"Das schreibt Langzeitstatistiken; schon gespeicherte Werte für dieselben Stunden werden überschrieben, deshalb musst du das bestätigen. Noch wurde nichts ausgeführt.",
-			"überschrieben", "8 Schritte in Home Assistant bestätigen?", "Schritte 1–8: In 7 Langzeitstatistiken insgesamt 6.671 Stundenwerte importieren (Nov. 2024 – Jan. 2026). " +
-				"Das schreibt Langzeitstatistiken; schon gespeicherte Werte für dieselben Stunden werden überschrieben. "},
+			"Das überschreibt schon gespeicherte Werte derselben Stunden, deshalb musst du das bestätigen. Noch wurde nichts ausgeführt.",
+			"6.671 Stundenwerte in 7 Statistiken importieren?\n\nZeitraum: Nov. 2024 – Jan. 2026\n" + list + "\n\nDas überschreibt schon gespeicherte Werte derselben Stunden.",
+			"überschreibt", "8 Schritte in Home Assistant bestätigen?", "Schritte 1–8: In 7 Langzeitstatistiken insgesamt 6.671 Stundenwerte importieren (Nov. 2024 – Jan. 2026). " +
+				"Das überschreibt schon gespeicherte Werte derselben Stunden. "},
 		{"en", "I'm about to do these 8 steps in Home Assistant, in this order:\n" +
 			"Steps 1–8: Import 6,671 hourly values into 7 long-term statistics (Nov 2024 – Jan 2026): " + enNames + ".\n" +
-			"This writes long-term statistics; values already stored for the same hours are overwritten, so I need you to confirm it. Nothing has run yet.",
-			"overwritten", "Confirm 8 steps in Home Assistant?", "Steps 1–8: Import 6,671 hourly values into 7 long-term statistics (Nov 2024 – Jan 2026). " +
-				"This writes long-term statistics; values already stored for the same hours are overwritten. "},
+			"This overwrites values already stored for the same hours, so I need you to confirm it. Nothing has run yet.",
+			"Import 6,671 hourly values into 7 statistics?\n\nPeriod: Nov 2024 – Jan 2026\n" + toEnglish.Replace(list) + "\n\nThis overwrites values already stored for the same hours.",
+			"overwrites", "Confirm 8 steps in Home Assistant?", "Steps 1–8: Import 6,671 hourly values into 7 long-term statistics (Nov 2024 – Jan 2026). " +
+				"This overwrites values already stored for the same hours. "},
 	} {
 		e, env, plan := klimaPlan(t, c.lang)
-		window := windowMessage(c.lang, confirmText(plan, false), true)
+		window := windowShown(c.lang, confirmText(plan, false), true)
 		ask := phonePlanAsk(c.lang, sayAsk(e, &env, plan, ""), false)
-		if window != windowAsked(c.lang)+"\n"+windowBoth(c.lang)+"\n\n"+strings.Replace(c.list, ".\n", ".\n\n", 1) { // blocks: ask, what happens, why
+		if window != c.window+"\n\n"+confirmT(c.lang, "window.footer_both") { // blocks: the question, what, why, who asked
 			t.Errorf("%s window:\n%s", c.lang, window)
 		}
 		if lines, fits := windowFits(c.lang, confirmText(plan, false)); !fits || lines > 20 {
 			t.Errorf("%s window: %d lines", c.lang, lines)
 		}
-		if !strings.HasPrefix(env.Say, c.list) || ask.title != c.title || ask.body != c.phone+phoneRequested(c.lang) {
+		if !strings.HasPrefix(env.Say, c.say) || ask.title != c.title || ask.body != c.phone+phoneRequested(c.lang) || ask.button != map[string]string{"de": "Importieren", "en": "Import"}[c.lang] {
 			t.Errorf("%s say %q\nphone %q %q", c.lang, env.Say, ask.title, ask.body)
 		}
 		for surface, text := range map[string]string{"window": window, "say": env.Say, "phone": ask.body} {
@@ -146,7 +154,8 @@ func TestWindowBudgetRatchet(t *testing.T) {
 	useWindow(t, windowConfirmed)
 	env := h.plan(append([]string{"lock.unlock"}, locks[:12]...)...)
 	stored, err := readPlanFile(filepath.Join(planDir(h.paths), env.Plan.ID+".json"))
-	if err != nil || env.Plan.Channel != channelWindow || !strings.Contains(stored.Prompt, " and “Haustür Nebeneingang Garage Nord 12 "+strings.Repeat("y", 20)+"”.") || strings.Contains(stored.Prompt, "more") {
+	if err != nil || env.Plan.Channel != channelWindow || !strings.HasPrefix(stored.Prompt, "Unlock these 12?\n\n• “Haustür Nebeneingang Garage Nord 01 ") ||
+		!strings.Contains(stored.Prompt, "\n• “Haustür Nebeneingang Garage Nord 12 "+strings.Repeat("y", 20)+"”\n\n") || strings.Contains(stored.Prompt, "more") {
 		t.Fatalf("12 locks: %v %q", err, stored.Prompt)
 	}
 	before := h.planFiles()
