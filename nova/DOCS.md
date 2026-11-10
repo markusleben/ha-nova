@@ -145,8 +145,8 @@ You normally never call these yourself. The CLI and the NOVA page do it for
 you. Connected devices use their own key over the encrypted port (8792), sent
 as `Authorization: Bearer <token>`. The plain port (8791) only connects
 devices, with the six-digit code or the owner's Home Assistant sign-in. Every
-other request there is refused, `GET /health` included: a connected device's
-key gets 403, the old shared key 401 with "pair this computer again".
+other request there is refused, including `GET /health`: a connected
+device's key gets 403, the old shared key 401 with "pair this computer again".
 
 | Method | Path | Description |
 |--------|------|-------------|
