@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"os/exec"
@@ -92,7 +93,7 @@ func nativeWindow(ctx context.Context, w windowText, wait time.Duration) windowA
 	for _, line := range windowScript {
 		args = append(args, "-e", line)
 	}
-	cmd := exec.CommandContext(ctx, "/usr/bin/osascript", append(args, "--", w.title, w.body, w.footer, strconv.Itoa(int(wait.Seconds())), w.button, confirmT(w.lang, "window.cancel"))...)
+	cmd := exec.CommandContext(ctx, "/usr/bin/osascript", append(args, "--", cmp.Or(w.title, "HA NOVA"), w.body, w.footer, strconv.Itoa(int(wait.Seconds())), w.button, confirmT(w.lang, "window.cancel"))...)
 	cmd.Env = []string{} // nothing from the caller's environment reaches the window
 	var stderr strings.Builder
 	cmd.Stderr = &stderr

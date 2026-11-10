@@ -59,9 +59,9 @@ func planWindow(lang, text string, both bool, button string) windowText {
 }
 
 // plainWindow: a window that asks one question of its own (a setting, a
-// phone link), with Confirm.
+// phone link), with Confirm; on macOS its bold title is "HA NOVA".
 func plainWindow(lang, message string) windowText {
-	return windowText{lang: lang, title: "HA NOVA", body: message, button: confirmT(lang, "window.confirm")}
+	return windowText{lang: lang, body: message, button: confirmT(lang, "window.confirm")}
 }
 
 // plain: the whole text as one string, for a window without a bold title
