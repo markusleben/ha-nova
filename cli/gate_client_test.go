@@ -34,6 +34,17 @@ type fakeGate struct {
 	onWait     func()
 	openDelay  time.Duration           // the Relay's worker prepares an open this long
 	hold       func(send gateSend) any // a write's answer instead of Home Assistant's (nil: Home Assistant's)
+	// The phone channel (gate_phone_move_test.go): with phones, an open
+	// offers channels plus "phone" while a link is held and not paused,
+	// and none at all is 409 GATE_NO_CHANNEL.
+	phones      bool
+	channels    []string
+	link        map[string]any // the link the Relay holds
+	paused      bool
+	links       []map[string]any // every link sent to the phone route
+	phoneAnswer any              // the phone route's answer instead of a link ask
+	linkEnd     string           // how a link ask's wait ends ("": linked; "waiting": not yet; "lost": no answer)
+	wsHeld      bool             // WS writes are sends too (hold sees them)
 }
 
 func (g *fakeGate) snapshot() (asks [][]string, ops []string, sends []gateSend) {
@@ -70,7 +81,36 @@ func (g *fakeGate) ask(ctx context.Context, p map[string]any) any {
 		if g.openAnswer != nil {
 			return g.openAnswer
 		}
+		if g.phones {
+			g.mu.Lock()
+			defer g.mu.Unlock()
+			channels := append([]string(nil), g.channels...)
+			if g.link != nil && !g.paused {
+				channels = append(channels, "phone")
+			}
+			if len(channels) == 0 {
+				return fakeRelayStatus{409, "GATE_NO_CHANNEL", "No one can confirm this now"}
+			}
+			return map[string]any{"needed": !g.notNeeded, "ask_id": id, "channels": channels}
+		}
 		return map[string]any{"needed": !g.notNeeded, "ask_id": id}
+	case p["op"] == "wait" && strings.HasPrefix(fmt.Sprint(p["ask_id"]), "link"):
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		g.ops = append(g.ops, "wait "+fmt.Sprint(p["ask_id"]))
+		if g.linkEnd == "lost" { // the answer never arrives
+			return fakeRelayStatus{502, "RELAY_UPSTREAM_ERROR", "connection dropped"}
+		}
+		if g.linkEnd == "waiting" { // nobody taps: one long-poll answers waiting
+			g.mu.Unlock()
+			time.Sleep(100 * time.Millisecond)
+			g.mu.Lock()
+		}
+		if g.linkEnd != "" {
+			return map[string]any{"state": g.linkEnd}
+		}
+		g.link = g.links[len(g.links)-1]
+		return map[string]any{"state": "linked"}
 	case p["op"] == "wait":
 		g.op("wait")
 		if g.onWait != nil {
@@ -108,10 +148,14 @@ func gatedHarness(t *testing.T, f *fakeHA, g *fakeGate) *writeHarness {
 		if endpoint == gateAskRoute {
 			return g.ask(r.Context(), p)
 		}
-		if path := fmt.Sprint(p["path"]); endpoint == "core" && p["method"] != "GET" && (strings.HasPrefix(path, "/api/services/") || strings.HasPrefix(path, "/api/config/")) {
+		if endpoint == gatePhoneRoute {
+			return g.phone(p)
+		}
+		wsWrite := g.wsHeld && endpoint == "ws" && checkReadOnlyRequest(endpoint, p) != nil
+		if path := fmt.Sprint(p["path"]); wsWrite || endpoint == "core" && p["method"] != "GET" && (strings.HasPrefix(path, "/api/services/") || strings.HasPrefix(path, "/api/config/")) {
 			raw, _ := io.ReadAll(r.Body)
 			r.Body = io.NopCloser(bytes.NewReader(raw)) // Home Assistant's fake reads it too
-			send := gateSend{"core " + string(raw), r.Header.Get(gateGrantHeader)}
+			send := gateSend{endpoint + " " + string(raw), r.Header.Get(gateGrantHeader)}
 			g.mu.Lock()
 			g.sends = append(g.sends, send)
 			g.mu.Unlock()

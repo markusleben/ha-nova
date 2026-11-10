@@ -35,6 +35,7 @@
   "gate.hide": "Ausblenden",
   "gate.windows_hide": "OK blendet dieses Fenster aus; Abbrechen stoppt diese Änderung.",
   "gate.waiting": "HA NOVA fragt auf deinem verbundenen Handy oder in Home Assistant (NOVA) und wartet; vor einem OK dort wird nichts gesendet.",
+  "gate.link_waiting": "HA NOVA fragt zuerst auf deinem Handy (und auf dem Handy, das jetzt in Home Assistant verbunden ist, falls es eins gibt), ob es die Bestätigungen bekommen soll, und wartet; vorher wird nichts gesendet.",
 
   "say.about": "Ich werde gleich {action}.",
   "say.nothing_found": "Nicht erledigt: Ich habe nicht gefunden, was du genannt hast. Es wurde nichts geändert. Sag mir, welche Geräte du meinst.",
@@ -90,6 +91,7 @@
   "say.phone_finishing": "Dein Handy hat geantwortet; HA NOVA schließt ab.",
   "say.applying": "HA NOVA führt die Änderung noch aus. Das kann ein paar Minuten dauern. Frag mich gleich noch einmal, dann sage ich dir das Ergebnis.",
   "say.relay_waiting": "Ich warte auf dein OK auf deinem Handy oder in Home Assistant; dieser Schritt wurde noch nicht gesendet.",
+  "say.relay_link_waiting": "Dein Handy fragt zuerst, ob es die Bestätigungen von HA NOVA bekommen soll; erlaube es dort. Danach bestätigst du die Änderung selbst. Sagst du dort nein, ändert sich nichts; gesendet wurde noch nichts.",
   "say.busy": "HA NOVA ist noch mit einer anderen Änderung beschäftigt. Es ist noch nichts passiert. Versuch es gleich noch einmal.",
 
   "form.code_title": "Einmalcode von HA NOVA",
@@ -642,6 +644,7 @@
 
   "settings.link_ask": "Soll „{phone}“ Aktionen bestätigen, die HA NOVA auf „{host}“ ausführt?",
   "settings.stop_ask": "Aktionen von HA NOVA nicht mehr auf deinem verbundenen Handy bestätigen? HA NOVA fragt dann in einem Fenster, im Formular deiner KI-App oder mit einem vierstelligen Code im Chat, den auch dein KI-Assistent sehen kann.",
+  "settings.stop_ask_gated": "Auf diesem Computer keine Aktionen von HA NOVA mehr auf deinem verbundenen Handy bestätigen? Die Handy-Verbindung in Home Assistant bleibt: Die NOVA App fragt weiter auf diesem Handy nach, wenn dieser Computer etwas entsperren oder löschen will.",
   "settings.requested": "Angefordert auf „{host}“ (von dir oder deinem KI-Assistenten). Bestätige nur, wenn du das willst.",
   "settings.window_off": "Bestätigungsfenster ausschalten? HA NOVA fragt dann auf deinem verbundenen Handy, sonst im Bestätigungsformular deiner App, oder zeigt einen vierstelligen Code im Chat, den auch dein KI-Assistent sehen kann.",
 

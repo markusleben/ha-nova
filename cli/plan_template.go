@@ -199,12 +199,13 @@ func (x *homeIndex) batteryReminder(phone *phoneTarget) (templateMatch, bool) {
 }
 
 // linkedPhone: the phone linked for confirmations when it can be reached
-// now, else nil (no reminder is offered).
+// now, else nil (no reminder is offered). A gated App's phone counts: the
+// reminder notifies it, nothing waits for its tap.
 func linkedPhone(s *relaySession) *phoneTarget {
-	if !phoneLinkedHere(s.paths) {
+	if !phoneLinkedOn(s.paths) {
 		return nil
 	}
-	setup, status := discoverPhone(s, time.Now().Add(relaySessionOverallTimeout))
+	setup, status := findPhone(s, time.Now().Add(relaySessionOverallTimeout), false)
 	if status != phoneReady || len(setup.targets) == 0 {
 		return nil
 	}

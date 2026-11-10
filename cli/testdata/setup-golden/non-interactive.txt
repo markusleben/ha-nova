@@ -11,3 +11,4 @@ exit 0
 [ha-nova] Connected to Home Assistant
 [ha-nova] Google Antigravity is ready
 [ha-nova] All checks passed
+[ha-nova] WARNING: Safety check in Home Assistant: not on. The NOVA App is too old for it; update it in Home Assistant (Settings → Apps → NOVA Relay).

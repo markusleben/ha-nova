@@ -26,17 +26,19 @@ import (
 const (
 	gateGrantHeader = "X-HA-Nova-Grant"
 	gateAskRoute    = "gate/v1/ask"
-	gateAskLife     = 3 * time.Minute // the Relay ends an ask after this
 )
+
+var gateAskLife = 3 * time.Minute // the Relay ends an ask after this; tests shorten it
 
 // gateGrantKey carries a grant through a Link request's context (cloud_ingress.go).
 type gateGrantKey struct{}
 
 // relayGate: what one session knows of the Relay's safety check. grants:
-// a request's digest → the grants that cover one send of it each.
+// a request's digest → the grants that cover one send of it each. moved:
+// a phone-link move was tried in this session (gateMoveFirst).
 type relayGate struct {
-	checked, on bool
-	grants      map[[32]byte][]string
+	checked, on, moved bool
+	grants             map[[32]byte][]string
 }
 
 type gateRequest struct {
@@ -49,10 +51,15 @@ func gateKey(r gateRequest) [32]byte {
 }
 
 // gateApproval is set by ha-nova mcp (stdio) for its apply job
-// (mcp_stdio_apply.go): an ask then waits its whole life, and the flag is
-// true while it waits for the person. nil (the CLI): an ask ends with the
-// command's own wait (askWait).
-var gateApproval *atomic.Bool
+// (mcp_stdio_apply.go): an ask then waits its whole life, and the flag says
+// what waits for the person (gateAsking, gateLinking; 0: nothing). nil (the
+// CLI): an ask ends with the command's own wait (askWait).
+var gateApproval *atomic.Int32
+
+const (
+	gateAsking  int32 = 1 // the change's own ask
+	gateLinking int32 = 2 // a phone-link ask before it (gateMoveFirst)
+)
 
 // The waiting window (nativeWindow's code with other buttons) and what its
 // first button opens; tests replace both.
@@ -119,11 +126,20 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 	for i, r := range reqs {
 		items[i] = map[string]string{"endpoint": r.endpoint, "body_b64": base64.StdEncoding.EncodeToString(r.body)}
 	}
-	var opened struct {
-		Needed bool   `json:"needed"`
-		AskID  string `json:"ask_id"`
+	open := func() (opened gateOpened, err error) {
+		err = s.gateCall(planAsks, gateAskRoute, gateOpenWait(len(reqs)), map[string]any{"requests": items}, &opened)
+		return opened, err
 	}
-	err := s.gateCall(planAsks, gateOpenWait(len(reqs)), map[string]any{"requests": items}, &opened)
+	opened, err := open()
+	end := time.Now().Add(askWait()) // the CLI: the command's wait; ha-nova mcp's job: the ask's life, a move's link included
+	if gateApproval != nil {
+		end = time.Now().Add(gateAskLife + 5*time.Second)
+	}
+	if reopen, stop := s.gateMoveFirst(opened, err, time.Until(end)/2); stop != nil {
+		return stop
+	} else if reopen {
+		opened, err = open()
+	}
 	var call *relayCallError
 	switch {
 	case errors.As(err, &call) && strings.HasPrefix(call.code, "GATE_"):
@@ -138,7 +154,7 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 	case opened.AskID == "":
 		return gateStop("refused", "CONFIRM_UNAVAILABLE", "the NOVA App's answer named no ask; nothing was sent", gateNext[""])
 	}
-	state, grant := s.gateWait(opened.AskID)
+	state, grant := s.gateWait(opened.AskID, false, time.Until(end))
 	if state != "approved" || grant == "" {
 		return gateEnded(state)
 	}
@@ -156,18 +172,18 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 	return nil
 }
 
-// gateWait long-polls the ask until it ends, our wait runs out (the CLI:
-// what is left of the command's wait, askWait; ha-nova mcp's job: the ask's
-// life), or HA NOVA is stopped (planAsks). An end without an approval
+// gateWait long-polls the ask until it ends, wait runs out (gateAsk's
+// share of the command's wait, or of ha-nova mcp's ask life; a setup link's
+// own), or HA NOVA is stopped (planAsks). An end without an approval
 // cancels the ask. The waiting window only opens Home Assistant or
 // cancels; its answer is read before an approval counts, so a Cancel that
-// raced the approval wins.
-func (s *relaySession) gateWait(askID string) (state, grant string) {
-	deadline := time.Now().Add(askWait())
+// raced the approval wins. A link ask (gateMovePhone) ends linked, only
+// on the phones: no window.
+func (s *relaySession) gateWait(askID string, link bool, wait time.Duration) (state, grant string) {
+	deadline := time.Now().Add(wait)
 	if flag := gateApproval; flag != nil {
-		deadline = time.Now().Add(gateAskLife + 5*time.Second)
-		flag.Store(true)
-		defer flag.Store(false)
+		flag.Store(map[bool]int32{false: gateAsking, true: gateLinking}[link])
+		defer flag.Store(0)
 	}
 	ctx, cancel := context.WithDeadline(planAsks, deadline)
 	defer cancel()
@@ -179,7 +195,7 @@ func (s *relaySession) gateWait(askID string) (state, grant string) {
 				State   string `json:"state"`
 				GrantID string `json:"grant_id"`
 			}
-			if err := s.gateCall(ctx, gatePollTimeout, map[string]any{"ask_id": askID, "op": "wait"}, &answer); err != nil {
+			if err := s.gateCall(ctx, gateAskRoute, gatePollTimeout, map[string]any{"ask_id": askID, "op": "wait"}, &answer); err != nil {
 				polls <- end{state: "lost"}
 				return
 			}
@@ -190,8 +206,14 @@ func (s *relaySession) gateWait(askID string) (state, grant string) {
 		}
 	}()
 	page := s.gatePageURL()
-	window, raced := s.gateWindow(ctx, deadline, page)
-	fmt.Fprintln(os.Stderr, confirmT(confirmLanguage(s.lang), "gate.waiting"))
+	waiting := confirmT(confirmLanguage(s.lang), "gate.waiting")
+	window, raced := (<-chan windowAnswer)(nil), func(<-chan windowAnswer) bool { return false }
+	if link {
+		waiting = confirmT(confirmLanguage(s.lang), "gate.link_waiting")
+	} else {
+		window, raced = s.gateWindow(ctx, deadline, page)
+	}
+	fmt.Fprintln(os.Stderr, waiting)
 	stopped := func() (string, string) {
 		s.gateCancel(askID)
 		if planAsks.Err() != nil {
@@ -219,7 +241,7 @@ func (s *relaySession) gateWait(askID string) (state, grant string) {
 			case got.state == "approved" && raced(window):
 				s.gateCancel(askID)
 				return "cancelled", ""
-			case got.state != "approved" && got.state != "cancelled" && got.state != "expired":
+			case got.state != "approved" && got.state != "cancelled" && got.state != "expired" && got.state != "linked":
 				s.gateCancel(askID) // lost or unavailable: end it there too
 			}
 			return got.state, got.grant
@@ -298,7 +320,7 @@ func (s *relaySession) gateWindow(ctx context.Context, deadline time.Time, page 
 var gateNext = map[string]string{
 	"":                 "Tell the user nothing changed; they can try again in a moment.",
 	"GATE_REFUSED":     "Tell the user HA NOVA's safety check in Home Assistant refuses this change, so nothing changed. Never try it another way.",
-	"GATE_NO_CHANNEL":  "Tell the user nothing changed: no one can confirm it now. Their phone must be linked to HA NOVA, or the NOVA page in Home Assistant open to an administrator; then they ask again.",
+	"GATE_NO_CHANNEL":  "Tell the user nothing changed: no one can confirm it now. They link their phone with `ha-nova setup confirm-phone` (in a terminal; it links it in Home Assistant too), or an administrator opens the NOVA page in Home Assistant where the App has one; `ha-nova doctor` says what is missing. Then they ask again.",
 	"GATE_PAUSED":      "Tell the user nothing changed: confirmations on their phone are paused for a few minutes after unanswered ones. They can confirm on the NOVA page in Home Assistant, or ask again later.",
 	"GATE_ASK_LIMIT":   "Tell the user nothing changed: this computer asked too often in the last hour. They can ask again later.",
 	"GATE_ASK_BUSY":    "Tell the user nothing changed: another ask from this computer is still being prepared. Try again in a moment.",
