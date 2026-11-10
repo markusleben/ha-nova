@@ -95,6 +95,7 @@ function files() {
     job: async () => ({ status: "lost" }),
     activity: async () => [],
     seen: async () => ({}),
+    toolsChangedAt: async () => "",
     start: async (user: string, change: ChatPhoneChange) => {
       // what chat-apps.json lists while the bridge is asked to drop this user's link
       calls.push(`${change.action}:${user}:${JSON.stringify((JSON.parse(readFileSync(bridge("chat-apps.json"), "utf8")) as { allowed_users?: string[] }).allowed_users ?? null)}`);

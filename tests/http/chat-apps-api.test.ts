@@ -52,6 +52,7 @@ function fakeChatApps(): ChatApps {
       job: async (user, id) => (calls.push(`job:${user}:${id}`), await phoneJob()),
       activity: async () => [],
       seen: async () => ({}),
+      toolsChangedAt: async () => "",
     },
     restartSoon: () => void calls.push("restart"),
     boot: async () => {},

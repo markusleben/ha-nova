@@ -54,12 +54,14 @@ type chatBridge struct {
 	limiter rateLimiter   // --rate-limit (mcp_serve_limit.go)
 	log     *log.Logger
 
-	mu      sync.Mutex
-	jobs    map[string]*chatJob        // user/plan → its phone ask (mcp_serve_phone.go)
-	told    map[string]map[string]bool // per user: notice hints already given
-	users   []haUser                   // Home Assistant's users: roles cap the levels (mcp_serve_settings.go)
-	usersAt time.Time
-	usersNo time.Time // the last failed read: retried after 5 s
+	mu       sync.Mutex
+	jobs     map[string]*chatJob        // user/plan → its phone ask (mcp_serve_phone.go)
+	told     map[string]map[string]bool // per user: notice hints already given
+	tools    toolsVersionState          // at start (mcp_serve_tools.go)
+	toolsDue map[string]bool            // user folders whose request carries the refresh hint now
+	users    []haUser                   // Home Assistant's users: roles cap the levels (mcp_serve_settings.go)
+	usersAt  time.Time
+	usersNo  time.Time // the last failed read: retried after 5 s
 
 	control     [32]byte               // sha256 of the control secret (mcp_serve_control.go)
 	controlJobs map[string]*controlJob // job id → a phone change (under mu)
@@ -151,7 +153,11 @@ func newChatBridge(paths runtimePaths, dataDir, secretFile string, wait time.Dur
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return nil, fmt.Errorf("cannot create the data directory: %w", err)
 	}
-	return &chatBridge{paths: paths, dataDir: dataDir, secret: secret, wait: wait,
+	tools, err := noteToolsVersion(dataDir, mcpToolsVersion(paths), time.Now())
+	if err != nil {
+		return nil, fmt.Errorf("cannot record the tools version: %w", err)
+	}
+	return &chatBridge{paths: paths, dataDir: dataDir, secret: secret, wait: wait, tools: tools,
 		log: log.New(logTo, "ha-nova serve: ", log.LstdFlags), jobs: map[string]*chatJob{}, told: map[string]map[string]bool{}}, nil
 }
 
@@ -266,13 +272,17 @@ func (b *chatBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userPaths := b.paths
-	userPaths.CacheDir = filepath.Join(b.dataDir, "users", call.key) // plans are bound to their user
-	if err := os.MkdirAll(userPaths.CacheDir, 0o700); err != nil {
+	userPaths.CacheDir, err = b.userDir(call.key) // plans are bound to their user
+	if err != nil {
 		refuse(http.StatusInternalServerError, "cannot prepare this user's data")
 		return
 	}
 	var out bytes.Buffer
-	srv := &mcpServer{paths: userPaths, out: &out, pin: b.pin, noForms: true, told: b.toldFor(call.user), chat: call, since: start}
+	srv := &mcpServer{paths: userPaths, out: &out, pin: b.pin, noForms: true, told: b.toldFor(call.user), chat: call, since: start,
+		toolsHint: b.toolsHintFor(userPaths.CacheDir)}
+	if srv.toolsHint != "" {
+		defer func() { b.toolsHintDone(userPaths.CacheDir, srv.toolsHinted) }()
+	}
 	// Stateless: a legacy client's revision comes from the header (none:
 	// the newest legacy one); 2026-07-28 requests carry their own _meta.
 	switch version := r.Header.Get("Mcp-Protocol-Version"); {
