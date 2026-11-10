@@ -150,17 +150,7 @@ func rawItemLine(n *rawNamer, lang, endpoint string, payload map[string]any) (ve
 		}
 		return "turn_off", confirmT(lang, "raw.object.labs_off", "feature", sayText(feature, true), "domain", sayText(domain, true))
 	case wsType == "recorder/import_statistics":
-		metadata, _ := payload["metadata"].(map[string]any)
-		rows, _ := payload["stats"].([]any)
-		id, _ := metadata["statistic_id"].(string)
-		if len(rows) == 0 {
-			return "import", confirmT(lang, "raw.object.import", "statistic", sayText(id, true))
-		}
-		firstRow, _ := rows[0].(map[string]any)
-		lastRow, _ := rows[len(rows)-1].(map[string]any)
-		first, _ := firstRow["start"].(string)
-		last, _ := lastRow["start"].(string)
-		return "import", confirmT(lang, "raw.object.import_span", "count", len(rows), "statistic", sayText(id, true), "first", sayText(first, true), "last", sayText(last, true))
+		return "import", n.statsImport(endpoint, payload).object(lang)
 	case wsType == "analytics/preferences":
 		preferences, _ := payload["preferences"].(map[string]any)
 		return "change", withFields(lang, confirmT(lang, "raw.object.sharing"), n.fields(lang, preferences, ""))
@@ -261,7 +251,7 @@ func rawPruneLine(lang string, payload map[string]any) string {
 // the words before the list go with its first name. Any other object is
 // one name, cut if long.
 func rawNames(lang, object string, listed []string) []string {
-	lead, isList := strings.CutSuffix(object, sayList(lang, listed))
+	lead, isList := strings.CutSuffix(object, sayAll(lang, listed))
 	if len(listed) < 2 || !isList {
 		return []string{object}
 	}

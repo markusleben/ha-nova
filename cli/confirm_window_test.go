@@ -80,8 +80,8 @@ func TestWindowPlanConfirmsInTheWindow(t *testing.T) {
 	if exit != 0 || applied.Status != "verified" || len(h.posts()) != 1 || applied.Plan.Code != "" || applied.NextStep != "" || applied.Say != "Done: 1 device is unlocked now. I checked it." {
 		t.Fatalf("confirm: exit %d %+v posts %d", exit, applied, len(h.posts()))
 	}
-	if !strings.HasPrefix(w.messages[0], "I'm about to unlock “lock.front”") || !strings.Contains(w.messages[0], "so I need you to confirm it. Nothing has run yet.") ||
-		!strings.HasSuffix(w.messages[0], windowAsked("en")) || strings.Contains(w.messages[0], code) {
+	if !strings.HasPrefix(w.messages[0], windowAsked("en")+"\n\nI'm about to unlock “lock.front”") || !strings.Contains(w.messages[0], "so I need you to confirm it. Nothing has run yet.") ||
+		!strings.HasPrefix(w.messages[0], windowAsked("en")) || strings.Contains(w.messages[0], code) {
 		t.Fatalf("window text: %q", w.messages[0])
 	}
 }

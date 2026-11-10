@@ -50,10 +50,15 @@ func textLang(plan storedPlan) string {
 }
 
 // sayBody: the action, its reasons, and what has not happened yet (the
-// fixed shape of say_lines.go up to the ask).
+// fixed shape of say_lines.go up to the ask). After a list of steps the
+// reasons start a line of their own.
 func sayBody(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) []string {
 	about, status := sayWhat(e, env, plan, subject)
-	return append(append([]string{about}, sayReasons(e, env, plan)...), status)
+	rest := append(sayReasons(e, env, plan), status)
+	if strings.Contains(about, "\n") {
+		return []string{about + "\n" + strings.Join(rest, " ")}
+	}
+	return append([]string{about}, rest...)
 }
 
 // demoPrefix names the demo house in every confirmation it asks for.
@@ -217,6 +222,7 @@ func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 	domain, verb := splitID(plan.Action.Service)
 	targets := plan.Action.EntityIDs
 	goal := sayGoal(e, env, plan, "")
+	goal.all = plan.Tier == tierTyped.String()
 	if len(targets) != 1 || domain == "script" && !scriptEntityServices[verb] {
 		return sayAbout(lang, sayWithData(lang, goal.text(lang), plan.Action.Data)), sayNotRun(lang)
 	}

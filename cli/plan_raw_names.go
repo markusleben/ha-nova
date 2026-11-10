@@ -377,5 +377,5 @@ func (n *rawNamer) targets(lang string, payload map[string]any) string {
 	if len(names) == 0 {
 		return ""
 	}
-	return " " + sayList(lang, names)
+	return " " + sayAll(lang, names) // a step names all it acts on
 }
