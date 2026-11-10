@@ -248,7 +248,8 @@ install/update fails. Spec: `docs/work/2026-10-15-app-prebuilt-images-spec.md`.
   (`cli/`, `skills/`; the final-tag check doesn't cover those). Such a train
   lands without the App bump. Right after the landing, open one PR into
   `main` from `chore/app-<app-version>` that changes only the version lines
-  and the changelog: `npm run bump -- --relay <app-version>`, `min_relay_version`
+  and the changelog: `npm run bump -- --relay <app-version>` (it also sets the
+  App version the stable notes in `.goreleaser.yml` name), `min_relay_version`
   set to the same version in `version.json` and `nova/version.json`, and the
   `## [Relay <app-version>]` section in `nova/CHANGELOG.md`. Stable stores keep reading `main`, so only a switched
   store sees it. It merges at the final (section 4 step 5). While it is open,

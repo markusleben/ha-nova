@@ -59,6 +59,6 @@ The App marks its refusal with the header `x-ha-nova-auth: pairing-required`; th
 - A leftover `/data/relay_auth_token` from an App before 0.27 stays on disk (dead; the tombstone keeps an older App from importing it).
 - HA NOVA 0.28.3 and older can't be changed: after the App update its setup still offers the switch (the right answer), but its "Not now" and a service install land in the token step, which asks for an App option that no longer exists. The release notes say so.
 - The notice and the refusal text name the default profile's state only (`legacySharedAccess`); a named profile on the shared token gets the refusal text when it is used.
-- The pre-0.30 App's update notice in CHANGELOG is written in the release-prep PR (the App version is bumped once per train); its line is queued in `docs/work/next-release-body.md`, with the README changes.
+- The pre-0.30 App's update notice in CHANGELOG is written in the App promote PR (the App version is bumped once per train); its line is in `docs/archive/work/0.30.0-release-body.md`. The README changes ship in the release-prep PR.
 
 - An App option `relay_auth_token` stored by Supervisor before 0.27 and never cleared stays in Supervisor's own storage (the token is dead; an older App clears it on a rollback).

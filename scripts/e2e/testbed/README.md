@@ -220,9 +220,9 @@ then sign in); without `claude` or the account it prints SKIP and exits 0.
   its own, and on the shell path its reply shows the plan's code (#974); a
   plan the App asks for (channel `relay`, no code) needs an apply without one.
 - A lamp call whose area-triggered automation unlocks the door must wait for
-  a person too. A control run proves the automation fires. Until the F1 fix
-  (MAR-142) is in the checkout this case reports XFAIL; XPASS exits 1 and
-  means: set `F1_EXPECTED` to false.
+  a person too. A control run proves the automation fires. The F1 stopgap
+  (MAR-142) is in, so this case must PASS (`F1_EXPECTED` is false); with it
+  set to true the case reports XFAIL, and an XPASS exits 1.
 - It writes to the bed (a probe automation, the kitchen lamp): run it alone,
   before `calm.mjs`. FAIL, XPASS, or a broken run exits 1.
 
