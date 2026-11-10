@@ -97,12 +97,12 @@ triggers:
 
 ### Time Pattern Trigger
 
-For sub-minute precision (P-04: template trigger with `now()` re-evaluates only once/min):
+Event or state change before polling: trigger on the state, numeric_state, or event that carries the change; never poll a value that has its own trigger. `time_pattern` is only for a true cadence with nothing to wait for (a stall watchdog, a randomized loop, a periodic re-apply below).
 
 ```yaml
 triggers:
   - trigger: time_pattern
-    minutes: "/5"   # every 5 minutes
+    minutes: "/30"   # a true cadence only, never to poll a state
 ```
 
 ## Native Conditions (prefer over templates)

@@ -1,6 +1,6 @@
 ---
 name: integration-setup
-description: Use when adding, removing, configuring, reloading, enabling, disabling, or renaming Home Assistant integrations, managing their subentries, ignoring discoveries, or recovering invalid integration credentials when no reauth flow is pending — through HA NOVA Relay.
+description: Use when adding a device, or adding, removing, configuring, reconfiguring, reloading, enabling, disabling, or renaming Home Assistant integrations, managing their subentries, ignoring discoveries, or recovering invalid integration credentials when no reauth flow is pending — through HA NOVA Relay.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -22,8 +22,6 @@ Credential-bearing, external/OAuth, and progress steps finish in the Home Assist
 ## Bootstrap (once per session)
 
 Read and follow `../ha-nova/session-bootstrap.md`.
-Verify relay CLI: `ha-nova relay health`
-If this fails: `ha-nova setup`
 
 ## Relay Contract
 
@@ -83,12 +81,18 @@ Cancel: DELETE only this skill's unfinished flow. Never delete a pre-existing re
 3. Reauth passes only when the same `entry_id` still exists, the matching reauth flow is gone, and the terminal result reports success. Report the current config-entry state exactly; do not call a non-`loaded` entry healthy.
 4. Linked devices/entities are secondary evidence only.
 
+### Add a Device
+
+- discovered, cloud, or network: the add flow above;
+- Zigbee, Z-Wave, Matter: HA NOVA doesn't pair them yet; name the step, Settings > Connectivity > Zigbee, Z-Wave, or Matter > Add device (Matter: Home Assistant phone app, near the device; Zigbee2MQTT: Permit join in its UI);
+- then offer areas and names (`ha-nova:organize`) or automations (`ha-nova:write`).
+
 ### Options, Reconfigure, and Reload
 
 Resolve `entry_id` from `config_entries/get`; use the same live-step rules. An integration's OWN API stays with `ha-nova:fallback`.
 
 - **Options** (requires `supports_options: true` on the entry): start with POST `{"handler":"<entry_id>"}` to `/api/config/config_entries/options/flow`, iterate `.../options/flow/<flow_id>`. Read `description.suggested_value` as the current values (one shown as hidden: hand the form to the UI), merge only the requested changes over them, preserve unrelated existing options, and never submit a field the live step does not expose. Verify by reopening the options flow and reading the changed fields back — the terminal response alone is not evidence, and neither is unrelated entity state. Then DELETE the reopened verification flow (same cleanup rule as an unfinished add flow).
-- **Reconfigure**: start POST `{"handler":"<domain>","entry_id":"<entry_id>"}` to `/api/config/config_entries/flow` — `entry_id` selects reconfigure mode (a body `source` key is ignored by the API); without `entry_id` Home Assistant starts a normal ADD flow. The first response must be this entry's reconfigure step; integrations without reconfigure support typically fail the flow start — treat any non-reconfigure form (a plain add form included) as unsupported: DELETE the flow and stop. A secret, OAuth `external`, or `progress` step here: DELETE the transient flow and point at the entry's own Configure/Reconfigure control under **Settings > Devices & services**. Verify: the same `entry_id` persists and the before/after `config_entries/get` diff shows NO new entry.
+- **Reconfigure**: start POST `{"handler":"<domain>","entry_id":"<entry_id>"}` to `/api/config/config_entries/flow` — `entry_id` selects reconfigure mode (a body `source` key is ignored by the API); without `entry_id` Home Assistant starts a normal ADD flow. The first response must be this entry's reconfigure step; integrations without reconfigure support typically fail the flow start — treat any non-reconfigure form (a plain add form included) as unsupported: DELETE the flow and stop. Verify: the same `entry_id` persists and the before/after `config_entries/get` diff shows NO new entry.
 - **Reload**: preview with the disruption disclosure — reload re-runs setup and briefly drops the entry's entities — confirm, run the reload call, then re-read `config_entries/get` and report the entry's ACTUAL state; a `false` result or non-`loaded` entry is the outcome to report, never a success.
 
 ### Enable, Disable, Rename, Ignore
@@ -161,7 +165,7 @@ Use the Preview Card for flow start, menu selection, each non-secret form submit
 
 ## Safety
 
-- The CLI checks every change. Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none` (everyday actions, undoable edits); everything else waits for the user's confirmation of the shown preview. Unlocking or opening a lock, entry door, gate, or garage, disarming (also through a scene or script), and deletes or other destructive operations need the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
+- The CLI rates every action; relay its `say` and never second-guess it. Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
 - Relay a plan's `say` in full, localized; never drop or shorten sentences.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.

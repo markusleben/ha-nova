@@ -109,7 +109,7 @@ describe("batch safety contract (issue #327)", () => {
   it("pins the batch cards to the shared card rules", () => {
     expect(batchSafety).toContain("**Batch Delete Card**");
     expect(batchSafety).toContain("**Batch Result Card**");
-    expect(batchSafety).toContain("the code prompt is always the last line");
+    expect(batchSafety).toContain("the code prompt shown here, always the last line");
     expect(batchSafety).toContain("🗑️  Delete: 8 timer helpers");
     expect(batchSafety).toContain("⚠️  Nothing deleted yet.");
     expect(outputRules).toContain("Destructive batch previews and results render the Batch Cards");

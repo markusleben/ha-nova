@@ -61,13 +61,12 @@ Delete: `blueprint/delete` with `domain`, `path` through a typed raw plan. First
 
 1. Bare undo-update: `plan revert`; undo-delete: result's `restore` verbatim. Update/delete/named revert: `ha-nova find` (exact `entity_id` wins; disabled: `--include-disabled`), then `ha-nova get <entity_id> --config`. `managed: yaml`/`CONFIG_NOT_FOUND`: YAML/package item, `ha-nova:yaml-config`, never `plan write`/`plan delete`. Ambiguity, no match, or an open choice (which garage door): ask one blocking question before any draft, not inside a preview. No second ambiguity question. Correct invalid premises.
 2. Resolve every entity the draft uses with `ha-nova find`/`get`.
-3. Automations: `bp_status` per `../ha-nova/best-practices.md` → BP Cache Policy (scripts and deletes: `n/a`).
-4. Suggestion candidates per `../ha-nova/smallest-solution.md` → Write Suggestion Candidates.
+3. Suggestion candidates per `../ha-nova/smallest-solution.md` → Write Suggestion Candidates.
 
 ### Phase 2: Preview + Confirm
 
 1. Build the draft. Update: full-replacement merge (base=current, overlay=user changes); never rewrite unrelated structure, aliases, or formatting (key order included). Treat notification copy as user-authored content: preserve notification titles, messages, templates, metadata; rename/timing changes must not restyle, relocalize, or restructure existing text, and requested wording changes change only the requested copy. A create gets a one-sentence `description`. New or explicitly edited notification actions follow the canonical contract `../ha-nova/mobile-notification-composition.md`. Its recurring-workflow INTENT classification is not so limited: it runs before the write preview on EVERY recurring-workflow write — existing notification actions and trigger-only edits included, their payloads staying byte-for-byte untouched — and may add an exception-only Suggestion Block item.
-2. BP gate (not for delete; `../ha-nova/write-safety.md`; refresh: `../ha-nova/best-practices.md`): fresh, or any status on a simple change → continue; stale/missing/invalid + complex → block.
+2. Scope: draft only what the user asked for. A plan with `plan.confirm: none` saves without any ask, so the user never sees an unasked edit first: never rewrite the name, alias, or description unasked, even one quoting the old value; offer other edits as a question.
 3. Suggestions + Pre-Write Checks (skip for delete and revert):
    - **3a) Suggestions**: the candidates as the Suggestion Block (output-cards.md; max 2, smallest intervention first). Accepted numbers merge into the draft BEFORE the preview; no block when there is no candidate and no intent-classification item.
    - **3b) Static Checks**: `../review/checks.md` → Application, analytically on the draft — no relay calls (scripts: F-01..F-08; helper refs: H-01..H-08. Defer H-09/H-10 to Phase 4). A draft with a finding gets one verdict line ("Pre-write check: this draft may not behave as intended."), a clean one none; 🔴 inline with a fix, 🟠🟡 as advisory below the preview, code-free. Advisories do not block the write and do not require extra confirmation:
@@ -82,7 +81,7 @@ Delete: `blueprint/delete` with `domain`, `path` through a typed raw plan. First
 5. Preview (fixed shape: `../ha-nova/write-safety.md`):
    - update/revert: the plan's `diff` rows **verbatim** in the Changes slot — never write it yourself; state the behavioral effect in the summary sentence (write-safety → Behavior narrative). create: summary. Close the card with the plan's `say` (it names the `members[]` that set the tier — never repeat them, except those it says the preview lists; it ends with the save or confirmation ask); several plans in one preview keep each reason and ask once: each plan's ask, the note once.
    - Delete preview MUST include the consumer-check result before confirmation, from the plan's `consumers` (who references the item's OWN `entity_id`): the consumers; `[]` is an explicit none among automations, scripts, and scenes; absent (`coverage.complete` false) is "couldn't check what uses it", never a no-consumer result. No menu — only `say`.
-6. Confirmation: create/update=natural, delete=one-time code — the plan's CLI-minted `plan.code` (absent: `next_step`); delete is the one-time code, never a menu. Follow raised tiers. Duration requests are typed when EITHER half grants access or is physically irreversible. Relay `say` and add no other reason; never cite, link, or name this skill or any HA NOVA rule file. A code counts only as a reply that is only the code, after the preview. After a "yes" to a code plan, repeat `say`'s note and code block. Never pass a code they did not type. Pre-preview consent is draft-only; a changed draft needs a new plan and preview. An answer to a clarifying question is never a confirmation: end the turn with each new or changed plan's preview (except Phase 3 step 4's natural-confirmation duration call re-plan with action and tier unchanged).
+6. Confirmation: the CLI decides — `plan.confirm` none → apply; natural → show the preview and wait for the user's reply; code → follow `say`/`next_step` (window, phone, form, or chat code), never a menu. A duration request takes the stricter of its two plans. Relay `say` and add no other reason; never cite, link, or name this skill or any HA NOVA rule file. A code counts only as a reply that is only the code, after the preview. After a "yes" to a code plan, repeat `say`'s note and code block. Never pass a code they did not type. Pre-preview consent is draft-only; a changed draft needs a new plan and preview. An answer to a clarifying question is never a confirmation: end the turn with each new or changed plan's preview (except Phase 3 step 4's natural-confirmation duration call re-plan with action and tier unchanged).
 
 ### Phase 3: Apply + Verify
 
@@ -103,7 +102,7 @@ Not via `ha-nova:review`.
 
 ### Phase 5: Test Offer (create/update only)
 
-Every saved create/update ends, in the same response as the result's `say`, with one closing line offering a test preview. Only exceptions: a one-shot or duration intent; a batch or grouped change set (on request); the user stopped these offers this session. An earlier test is no exception. A "yes" asks for the card, never a run (Test Plan Card mechanics: `../ha-nova/test-run.md`). Never execute anything unconsented; the choice confirms only that card, and the card confirmation never replaces the typed confirmation. Skip this phase for deletes.
+Every saved create/update ends, in the same response as the result's `say`, with one closing line offering a test preview ("Want a test preview? I'll show which devices would change before anything runs.", localized). Only exceptions: a one-shot or duration intent; a batch or grouped change set (on request); the user stopped these offers this session. An earlier test is no exception. A "yes" asks for the card, never a run (Test Plan Card mechanics: `../ha-nova/test-run.md`). Never execute anything unconsented; the choice confirms only that card, and the card confirmation never replaces the typed confirmation. Skip this phase for deletes.
 
 ## Output Format
 
@@ -113,7 +112,7 @@ Render Cards per `../ha-nova/output-cards.md`. A create summary (or a deleted it
 
 ## Safety
 
-- The CLI checks every change. Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none` (everyday actions, undoable edits); everything else waits for the user's confirmation of the shown preview. Unlocking or opening a lock, entry door, gate, or garage, disarming (also through a scene or script), and deletes or other destructive operations need the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
+- The CLI rates every action; relay its `say` and never second-guess it. Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
 - Relay a plan's `say` in full, localized; never drop or shorten sentences.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
@@ -143,7 +142,7 @@ On demand — read only when the trigger applies:
 - `../ha-nova/safe-refactoring.md` — rename, migrate, or orphan cleanup
 - `../ha-nova/update-revert.md` — revert, undo, or restore a verified update
 - `../ha-nova/config-snapshots.md` — restore from a config snapshot
-- `../ha-nova/test-run.md` — every create/update (Phase 5)
+- `../ha-nova/test-run.md` — only after the user accepts the Phase 5 test offer
 - `../ha-nova/input-capability-preflight.md` — remapping an input device
 - `../ha-nova/consumer-discovery-preflight.md` — repurposing an input's consumers
 - `../ha-nova/threshold-calibration.md` — threshold, `for:`, wait-timeout, or compared-signal changes

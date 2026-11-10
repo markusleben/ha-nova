@@ -86,12 +86,14 @@ preserve existing notification wording and templates exactly; do not restyle,
 relocalize, or restructure them unless the user explicitly asks for notification
 copy changes.
 
+Names in new templates (Home Assistant 2026.11+): `entity_name()`, `device_name()`, `area_name()` give each part of the shown name; the `friendly_name` attribute is on its way out, so never build a new template on it.
+
 ```yaml
 actions:
   - action: notify.mobile
     data:
       message: >
-        {{ state_attr('weather.home', 'friendly_name') }}:
+        {{ entity_name('weather.home') }}:
         {{ states('weather.home') }},
         {{ state_attr('weather.home', 'temperature') }}°C
 ```

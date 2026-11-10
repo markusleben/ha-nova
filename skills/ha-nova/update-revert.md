@@ -20,8 +20,8 @@ update — any of those intents, not only the literal word `revert`.
 `ha-nova plan revert [--target <config_id>] [--domain automation|script|dashboard]`
 (a dashboard's target is its `url_path`)
 plans the newest checkpoint of this server (or the named target) as a normal
-update: show its `diff` and behavior narrative, take natural confirmation,
-`ha-nova apply --plan <id>`. The checkpoint is the **only** source of `before_config` — never reconstruct the previous config from memory. A revert
+update: show its `diff` and behavior narrative, confirm as the CLI decides
+(`plan.confirm`; `say`/`next_step`), then `ha-nova apply --plan <id>`. The checkpoint is the **only** source of `before_config` — never reconstruct the previous config from memory. A revert
 is checkpointed too, so a second revert reverts the revert.
 - `REVERT_DRIFT` (exit 2): the item changed since its last verified update
   (e.g. an edit in the HA UI); nothing was planned. Do NOT overwrite blindly:

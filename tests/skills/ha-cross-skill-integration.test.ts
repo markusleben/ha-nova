@@ -15,7 +15,7 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("../review/checks.md");
     expect(writeSkill).not.toContain("../review/SKILL.md");
     expect(writeSkill).toContain("full-replacement merge (base=current, overlay=user changes)");
-    expect(writeSkill).toContain("delete=one-time code — the plan's CLI-minted `plan.code`");
+    expect(writeSkill).toContain("6. Confirmation: the CLI decides — `plan.confirm` none → apply; natural → show the preview and wait for the user's reply; code → follow `say`/`next_step`");
     expect(writeSkill).toContain("Changes slot");
     // The full config is opt-in ("only when asked"), never a `show yaml` token.
     expect(writeSkill).toContain("the full config only when asked");

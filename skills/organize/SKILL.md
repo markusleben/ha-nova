@@ -32,8 +32,6 @@ Hand off per line; anything else goes to `ha-nova:fallback`.
 ## Bootstrap (once per session)
 
 Read and follow `../ha-nova/session-bootstrap.md`.
-Verify relay CLI: `ha-nova relay health`
-If this fails: `ha-nova setup`
 
 ## Relay Contract
 
@@ -126,7 +124,7 @@ Metadata reads render the Report shape; registry inventories render the List Fra
 
 ## Safety
 
-- The CLI checks every change. Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none` (everyday actions, undoable edits); everything else waits for the user's confirmation of the shown preview. Unlocking or opening a lock, entry door, gate, or garage, disarming (also through a scene or script), and deletes or other destructive operations need the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
+- The CLI rates every action; relay its `say` and never second-guess it. Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
 - Relay a plan's `say` in full, localized; never drop or shorten sentences.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
@@ -137,7 +135,7 @@ Metadata reads render the Report shape; registry inventories render the List Fra
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 - `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`../ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
 
-- Delete uses the one-time code only, even for cleanup of items created earlier in the same session.
+- A delete keeps its full confirmation (the plan's `say`), even for cleanup of items created earlier in the same session.
 - Registry deletes are irreversible (areas, floors, labels, categories), have no `revert`, and a recreate mints a new id — inbound references stay broken. Before confirming one, say so plainly, offer a safety backup via `ha-nova:backup` (never for metadata edits), and name Home Assistant Backups (Settings > System > Backups) as the recovery path.
 
 ## Guardrails

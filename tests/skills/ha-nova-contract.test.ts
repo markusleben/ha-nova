@@ -229,7 +229,7 @@ describe("ha-nova contract", () => {
     );
     expect(organize).toContain("Device categories do not exist");
     expect(organize).toContain(
-      "Delete uses the one-time code only, even for cleanup of items created earlier in the same session.",
+      "A delete keeps its full confirmation (the plan's `say`), even for cleanup of items created earlier in the same session.",
     );
     expect(organize).toContain("Active Preview Confirmation");
     expect(organize).toContain("One category scope at a time.");
@@ -287,7 +287,7 @@ describe("ha-nova contract", () => {
       "If shell is not bash-compatible, stop and ask user to switch shell.",
     );
     expect(context).toContain("Safety Baseline");
-    expect(context).toContain("- `delete`/destructive: the one-time code.");
+    expect(context).toContain("- `delete`/destructive: the person's own confirmation (`plan.confirm: code`).");
     expect(context).toContain("Do not ask user to paste tokens in chat.");
   });
 
@@ -594,14 +594,13 @@ describe("ha-nova contract", () => {
     }
   });
 
-  it("documents tiered best-practice gate", () => {
+  it("keeps best practice as static rules, with no freshness gate", () => {
     const bp = readFileSync("skills/ha-nova/best-practices.md", "utf8");
 
-    expect(bp).toContain("Tiered policy for automation writes");
-    expect(bp).toContain("Simple automation");
-    expect(bp).toContain("Complex automation");
-    expect(bp).toContain("hard gate");
+    expect(bp).toContain("## Automation Mode Selection");
     expect(bp).toContain("Enforcement Checklist");
+    expect(bp).not.toContain("hard gate");
+    expect(bp).not.toContain("automation-bp-snapshot");
   });
 
   it("gates input-device remaps on the capability preflight", () => {
@@ -1000,7 +999,6 @@ describe("ha-nova contract", () => {
     expect(bestPractices).not.toContain(
       'cat > "${HOME}/.cache/ha-nova/automation-bp-snapshot.json"',
     );
-    expect(bestPractices).toContain("native file-writing tool");
 
     const relayApi = readFileSync("skills/ha-nova/relay-api.md", "utf8");
     expect(relayApi).toContain(
@@ -1198,7 +1196,7 @@ describe("ha-nova contract", () => {
     expect(context).toContain("numbered list");
     // Destructive confirmation must never become a one-click menu.
     expect(context).toContain("Destructive confirmation is never a menu");
-    expect(context).toContain("Deletes still require the one-time code");
+    expect(context).toContain("Deletes still need the person's own confirmation");
     // Firewall against a self-written "always use a menu" memory overriding deletes.
     expect(context).toContain("NEVER extends to deletes");
   });

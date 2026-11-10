@@ -21,6 +21,7 @@ The user is not technical. Unless they used the term first or asked:
 
 ## Localization
 
+- Answer in the language of the user's sentence, not of a name in it.
 - Localize section headings and labels idiomatically to the user's language; never mix English slot labels (`Changes`, `Options`, `Pre-write check`) into another language unless the user used them first.
 - Keep Home Assistant state values literal when quoted as evidence, and a one-time code's digits as printed (0-9).
 - The user-facing name for the typed code is the "one-time code from HA NOVA" (localized). Never call it a bare "code", "PIN", or "token" in user-facing output.
