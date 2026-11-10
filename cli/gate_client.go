@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"crypto/sha256"
@@ -9,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -28,8 +26,7 @@ import (
 const (
 	gateGrantHeader = "X-HA-Nova-Grant"
 	gateAskRoute    = "gate/v1/ask"
-	gatePollTimeout = 40 * time.Second // the Relay answers a wait within 25 s
-	gateAskLife     = 3 * time.Minute  // the Relay ends an ask after this
+	gateAskLife     = 3 * time.Minute // the Relay ends an ask after this
 )
 
 // gateGrantKey carries a grant through a Link request's context (cloud_ingress.go).
@@ -67,45 +64,29 @@ var (
 // gateExempt: the App's chat bridge and gate worker keep their own asks (spec §1, §5).
 func (s *relaySession) gateExempt() bool { return chatCall != nil || s.cfg.bridgeCredential != "" }
 
-// gateRefusal: the Relay's safety check refused the request before it
-// forwarded anything; only GATE_ANSWER_WITHHELD came after Home Assistant ran it.
-func gateRefusal(code string) bool {
-	return strings.HasPrefix(code, "GATE_") && code != "GATE_ANSWER_WITHHELD"
-}
-
-// gateRefusalPeek reads the head of a Relay answer of 5xx (cloud_ingress.go):
-// true when it is the Relay's own gate refusal, so nothing was forwarded.
-// The bytes read go back in front of the body.
-func gateRefusalPeek(body io.ReadCloser) (io.ReadCloser, bool) {
-	head, _ := io.ReadAll(io.LimitReader(body, 8<<10))
-	var envelope struct {
-		OK    *bool `json:"ok"`
-		Error struct {
-			Code string `json:"code"`
-		} `json:"error"`
-	}
-	refused := json.Unmarshal(head, &envelope) == nil && envelope.OK != nil && !*envelope.OK && gateRefusal(envelope.Error.Code)
-	return struct {
-		io.Reader
-		io.Closer
-	}{io.MultiReader(bytes.NewReader(head), body), body}, refused
-}
-
 // sendWrite sends one checked write body exactly once (sendWriteOnce), with
 // the grant an ask got for these bytes. A typed request the Relay holds
-// (428) that carried no grant is asked for now, with the reload a config
-// write needs after it, and sent once more with that grant; a 428 that
-// carried a grant is never asked again. An ask that ends without an
-// approval answers its own *verbFailure: nothing of this request was sent.
+// (428: no grant covered it, or its grant expired, two minutes after the
+// approval) is asked for once more, with the reload a config write needs
+// after it, and sent once more with that grant; a 428 after that is the
+// answer. An ask that ends without an approval answers its own
+// *verbFailure: nothing of this request was sent.
 func (s *relaySession) sendWrite(endpoint string, body []byte) (json.RawMessage, error) {
 	request := gateRequest{endpoint, body}
-	grant := s.takeGrant(request)
-	data, err := s.sendWriteOnce(endpoint, body, grant)
+	data, err := s.sendWriteOnce(endpoint, body, s.takeGrant(request))
 	var held *relayCallError
-	if grant != "" || s.gateExempt() || !errors.As(err, &held) || held.code != "GATE_APPROVAL_REQUIRED" {
+	if s.gateExempt() || !errors.As(err, &held) || held.code != "GATE_APPROVAL_REQUIRED" {
 		return data, err
 	}
-	if err := s.gateAsk(append([]gateRequest{request}, gateFollowUps(request)...)); err != nil {
+	reqs := append([]gateRequest{request}, gateFollowUps(request)...)
+	s.mu.Lock()
+	for _, r := range reqs { // an older grant for them expired with this one
+		if s.gate != nil {
+			delete(s.gate.grants, gateKey(r))
+		}
+	}
+	s.mu.Unlock()
+	if err := s.gateAsk(reqs); err != nil {
 		return nil, err
 	}
 	return s.sendWriteOnce(endpoint, body, s.takeGrant(request))
@@ -142,7 +123,7 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 		Needed bool   `json:"needed"`
 		AskID  string `json:"ask_id"`
 	}
-	err := s.gateCall(planAsks, map[string]any{"requests": items}, &opened)
+	err := s.gateCall(planAsks, gateOpenWait(len(reqs)), map[string]any{"requests": items}, &opened)
 	var call *relayCallError
 	switch {
 	case errors.As(err, &call) && strings.HasPrefix(call.code, "GATE_"):
@@ -198,7 +179,7 @@ func (s *relaySession) gateWait(askID string) (state, grant string) {
 				State   string `json:"state"`
 				GrantID string `json:"grant_id"`
 			}
-			if err := s.gateCall(ctx, map[string]any{"ask_id": askID, "op": "wait"}, &answer); err != nil {
+			if err := s.gateCall(ctx, gatePollTimeout, map[string]any{"ask_id": askID, "op": "wait"}, &answer); err != nil {
 				polls <- end{state: "lost"}
 				return
 			}
@@ -311,53 +292,6 @@ func (s *relaySession) gateWindow(ctx context.Context, deadline time.Time, page 
 			return false
 		}
 	}
-}
-
-// gateCall sends one request to the ask route, never twice (a second open
-// would replace the first), and decodes its data into into.
-func (s *relaySession) gateCall(parent context.Context, body map[string]any, into any) error {
-	raw, err := json.Marshal(body)
-	if err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(parent, gatePollTimeout)
-	defer cancel()
-	req, err := newRelayRequest(ctx, s.transport, gateAskRoute, raw)
-	if err != nil {
-		return err
-	}
-	resp, err := s.transport.Client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	data, err := readAllLimited(resp.Body, maxRelayResponseBytes)
-	var envelope struct {
-		OK    *bool           `json:"ok"`
-		Data  json.RawMessage `json:"data"`
-		Error struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	switch {
-	case err != nil:
-		return err
-	case json.Unmarshal(data, &envelope) != nil || envelope.OK == nil:
-		return &relayCallError{endpoint: "gate", status: resp.StatusCode, message: "not a result envelope"}
-	case !*envelope.OK:
-		return &relayCallError{endpoint: "gate", status: resp.StatusCode, code: envelope.Error.Code, message: envelope.Error.Message}
-	}
-	return json.Unmarshal(envelope.Data, into)
-}
-
-// gateCancel ends the ask on the Relay, best effort (planAsks may be done).
-// Its answer never sends anything, an approval that came first included.
-func (s *relaySession) gateCancel(askID string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	var ended struct{}
-	_ = s.gateCall(ctx, map[string]any{"ask_id": askID, "op": "cancel"}, &ended)
 }
 
 // gateNext: what the agent does after the Relay refused an ask ("": no answer).

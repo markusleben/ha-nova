@@ -159,7 +159,10 @@ func (s *relaySession) gateOn() (bool, error) {
 	case !on && seen:
 		return false, gateRolledBack()
 	case on && !seen:
-		markGateSeen(s.paths, s.server)
+		if err := markGateSeen(s.paths, s.server); err != nil { // unrecorded, a rollback would go unnoticed: fail closed, and try again next time
+			return false, gateStop("refused", "CONFIRM_UNAVAILABLE", "HA NOVA couldn't save in its settings file that the NOVA App's safety check is on ("+err.Error()+"); nothing was sent",
+				"Tell the user nothing changed: HA NOVA couldn't save its settings file on this computer. They check that HA NOVA's settings folder is writable (ha-nova doctor shows where it is), then ask again.")
+		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -210,20 +213,28 @@ func gateSeen(paths runtimePaths, server string) bool {
 	return err == nil && doc.servers != nil && json.Unmarshal(doc.servers[server], &profile) == nil && profile.GateSeen
 }
 
-// markGateSeen records gate_seen in the profile, best effort: a failed write
-// only means the next session checks again.
-func markGateSeen(paths runtimePaths, server string) {
+// markGateSeen records gate_seen in the profile. A profile the settings
+// file doesn't hold has nowhere to record it (nil); any other failure is
+// an error, so a rollback can't go unnoticed (gateOn refuses).
+func markGateSeen(paths runtimePaths, server string) error {
 	doc, err := loadConfigDocument(paths.ConfigFile)
-	if err != nil || !doc.hasProfile(server) {
-		return
+	if err != nil {
+		return err
+	}
+	if !doc.hasProfile(server) {
+		return nil
 	}
 	servers, err := documentServersCopy(doc)
+	if err != nil {
+		return err
+	}
 	var profile map[string]json.RawMessage
-	if err != nil || json.Unmarshal(servers[server], &profile) != nil || profile == nil {
-		return
+	if err := json.Unmarshal(servers[server], &profile); err != nil || profile == nil {
+		return fmt.Errorf("server profile %q can't be read", server)
 	}
 	profile["gate_seen"] = json.RawMessage("true")
-	if servers[server], err = json.Marshal(profile); err == nil {
-		_ = writeServersDocument(paths, doc, servers, doc.defaultServerName())
+	if servers[server], err = json.Marshal(profile); err != nil {
+		return err
 	}
+	return writeServersDocument(paths, doc, servers, doc.defaultServerName())
 }

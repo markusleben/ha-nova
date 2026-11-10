@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // The CLI on a gated App (gate_client.go). fakeGate is the Relay's ask
@@ -30,6 +32,7 @@ type fakeGate struct {
 	endFor     map[string]string // how one ask's wait ends (by ask id), before state
 	release    chan struct{}     // non-nil: a wait answers once it is closed
 	onWait     func()
+	openDelay  time.Duration           // the Relay's worker prepares an open this long
 	hold       func(send gateSend) any // a write's answer instead of Home Assistant's (nil: Home Assistant's)
 }
 
@@ -59,6 +62,11 @@ func (g *fakeGate) ask(ctx context.Context, p map[string]any) any {
 		g.asks, g.ops = append(g.asks, keys), append(g.ops, "open")
 		id := fmt.Sprint("ask", len(g.asks))
 		g.mu.Unlock()
+		select {
+		case <-time.After(g.openDelay):
+		case <-ctx.Done():
+			return nil
+		}
 		if g.openAnswer != nil {
 			return g.openAnswer
 		}
@@ -229,8 +237,8 @@ func TestGateOlderAppKeepsTodaysConfirmation(t *testing.T) {
 
 // A granted send's answer: 502 GATE_ANSWER_WITHHELD came after Home
 // Assistant ran it (unknown, never retried); any other GATE_ code was
-// refused before it (not unknown), and a 428 that carried a grant is never
-// asked again.
+// refused before it (not unknown), and a 428 that carried a grant (it
+// expired) is asked for once more, never a third time.
 func TestGateGrantedSendOutcomes(t *testing.T) {
 	for name, answer := range map[string]fakeRelayStatus{
 		"answer withheld": {502, "GATE_ANSWER_WITHHELD", "ran"},
@@ -244,7 +252,11 @@ func TestGateGrantedSendOutcomes(t *testing.T) {
 			exit, env := h.run(runApplyCommand, "--plan", plan.ID)
 			asks, _, sends := g.snapshot()
 			unknown := exit == verbExitUnknown && env.Error != nil && env.Error.Code == "OUTCOME_UNKNOWN"
-			if len(asks) != 1 || len(sends) != 1 || sends[0].grant != "grant-ask1" || unknown != (answer.status == 502) || exit == 0 {
+			grants := []gateSend{{gateUnlock, "grant-ask1"}}
+			if answer.status == http.StatusPreconditionRequired {
+				grants = append(grants, gateSend{gateUnlock, "grant-ask2"})
+			}
+			if len(asks) != len(grants) || !slices.Equal(sends, grants) || unknown != (answer.status == 502) || exit == 0 {
 				t.Fatalf("exit %d %+v asks %q sends %+v", exit, env.Error, asks, sends)
 			}
 		})

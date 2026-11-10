@@ -252,31 +252,47 @@ func nativeWindow(ctx context.Context, message, _ string, wait time.Duration) wi
 	defer close(stop) // before release: deferred calls run last-in first-out
 	select {
 	case <-ctx.Done():
+		select { // an answer the box gave before the withdrawal
+		case r := <-done:
+			return windowsWithdrawn(r)
+		default:
+		}
 		// Withdraw it by its window handle, retried while the box may not
-		// exist yet; its answer is never read. A box that won't close within
-		// two seconds stays until its own timeout, and its text says a later
-		// answer changes nothing.
+		// exist yet; its answer is never read (our WM_CLOSE makes it IDCANCEL).
+		// A box that won't close within two seconds stays until its own
+		// timeout, and its text says a later answer changes nothing.
 		for give := time.Now().Add(2 * time.Second); time.Now().Before(give); {
 			_, _, _ = enumThreadWindows.Call(id, closeBox, 0)
 			select {
-			case r := <-done:
-				if r == 2 { // IDCANCEL given before the withdrawal still counts
-					return windowCancelled
-				}
+			case <-done:
 				return windowNoAnswer
 			case <-time.After(50 * time.Millisecond):
 			}
 		}
 		return windowNoAnswer
 	case r := <-done:
-		switch r {
-		case 0: // the box could not be created
-			return windowFailed
-		case 1: // IDOK
-			return windowConfirmed
-		case 2: // IDCANCEL (also Esc and the close box)
-			return windowCancelled
-		}
-		return windowNoAnswer // 32000: MB_TIMEDOUT
+		return windowsAnswer(r)
 	}
+}
+
+// windowsAnswer maps MessageBoxTimeout's result.
+func windowsAnswer(r uintptr) windowAnswer {
+	switch r {
+	case 0: // the box could not be created
+		return windowFailed
+	case 1: // IDOK
+		return windowConfirmed
+	case 2: // IDCANCEL (also Esc and the close box)
+		return windowCancelled
+	}
+	return windowNoAnswer // 32000: MB_TIMEDOUT
+}
+
+// windowsWithdrawn: an answer the box gave before we withdrew it; only its
+// Cancel counts (a Confirm then never does).
+func windowsWithdrawn(r uintptr) windowAnswer {
+	if windowsAnswer(r) == windowCancelled {
+		return windowCancelled
+	}
+	return windowNoAnswer
 }
