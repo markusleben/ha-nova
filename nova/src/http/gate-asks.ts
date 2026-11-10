@@ -1,14 +1,15 @@
-import { createHash, randomBytes } from "node:crypto";
-
 import type { Principal } from "../security/principal.js";
-import type { AskState, GateRequest, LinkWords, PageAsk, PhoneAnswer, PhoneLink, PhoneText, PreparedAsk } from "./gate-ask-types.js";
+import type { GateRequest, LinkWords, PageAsk, PhoneAnswer, PhoneLink, PhoneText, PreparedAsk } from "./gate-ask-types.js";
+import { ASK_MS, createAskTable } from "./gate-ask-table.js";
 import { HttpError } from "./errors.js";
+import { createGateGrants, gateDigest, idKey } from "./gate-grants.js";
 import { createOwnerLimits, PAUSED } from "./gate-owners.js";
 import type { RelayLogger } from "./server.js";
 import type { GateClient, GateEndpoint } from "./gate.js";
-import type { RouteContext, RouteHandler } from "./router.js";
+import type { RouteHandler } from "./router.js";
 
 export type { AskItem, AskState, GateRequest, LinkWords, PageAsk, PhoneAnswer, PhoneLink, PhoneText, PreparedAsk } from "./gate-ask-types.js";
+export { gateDigest };
 
 // Asks and grants (docs/work/2026-11-03-relay-typed-gate-spec.md §3, §4). A
 // device asks for exactly the request bytes it will send; the worker rates
@@ -17,29 +18,9 @@ export type { AskItem, AskState, GateRequest, LinkWords, PageAsk, PhoneAnswer, P
 // once by that device for two minutes. The Relay decides nothing itself, and
 // keeps asks and grants in memory only: a restart drops them and nothing runs.
 
-const ASK_MS = 180_000;
-const GRANT_MS = 120_000;
-const POLL_MS = 25_000;
 const MAX_ITEMS = 20;
 const PHONE_PATH = "/gate/v1/phone";
 const ENDPOINTS: readonly GateEndpoint[] = ["ws", "core", "files", "backups", "supervisor"];
-
-interface Ask {
-  owner: string;
-  digests: string[];
-  prepared?: PreparedAsk; // none: a link ask
-  expiresAt: number;
-  state: AskState;
-  waiters: Set<() => void>;
-  stop: AbortController; // its phone request, if any, hangs up when it ends
-  timer: ReturnType<typeof setTimeout>;
-}
-
-interface Grant {
-  owner: string;
-  until: number;
-  unused: string[]; // one per request, a repeated request once per occurrence
-}
 
 export interface GateAsksDeps {
   ask: (device: string, requests: GateRequest[]) => Promise<PreparedAsk | null>;
@@ -71,13 +52,7 @@ export interface GateAsks {
 
 export type GatePage = Pick<GateAsks, "waiting" | "pausedDevices" | "approve" | "cancel">;
 
-export function gateDigest(endpoint: GateEndpoint, body: Buffer): string {
-  return createHash("sha256").update(endpoint).update(Buffer.from([0])).update(body).digest("hex");
-}
-
-// Ids are looked up by their hash, so a lookup's timing says nothing about an id.
-const key = (id: string): string => createHash("sha256").update(id).digest("hex");
-export const askRef = key; // an ask's ref on the page
+export const askRef = idKey; // an ask's ref on the page
 
 function ownerOf(principal: Principal): string {
   return principal.kind === "device" ? `device:${principal.deviceId}` : "legacy";
@@ -87,87 +62,16 @@ const sameLink = (a: PhoneLink | undefined, b: PhoneLink): boolean =>
   a !== undefined && a.service === b.service && a.device_id === b.device_id && a.user_id === b.user_id;
 
 export function createGateAsks(deps: GateAsksDeps): GateAsks {
-  const asks = new Map<string, Ask>();
-  const grants = new Map<string, Grant>();
-  const preparing = new Set<string>(); // owners whose ask the worker is rating now
+  const grants = createGateGrants(deps.now);
   const limits = createOwnerLimits(deps.now);
-
-  // An ask ends once: its phone hangs up, and its end counts toward a pause.
-  const settle = (ask: Ask, state: AskState): void => {
-    if (ask.state.state !== "waiting") {
-      return;
-    }
-    ask.state = state;
-    clearTimeout(ask.timer);
-    ask.stop.abort();
-    limits.ended(ask.owner, state.state);
-    for (const wake of ask.waiters) {
-      wake();
-    }
-    ask.waiters.clear();
-  };
-  const prune = (): void => {
-    const now = deps.now();
-    for (const [id, ask] of asks) {
-      if (ask.state.state === "waiting" && now >= ask.expiresAt) {
-        settle(ask, { state: "expired" });
-      }
-      if (ask.state.state !== "waiting" && now >= ask.expiresAt + GRANT_MS) {
-        asks.delete(id);
-      }
-    }
-    for (const [id, grant] of grants) {
-      if (now > grant.until) {
-        grants.delete(id);
-      }
-    }
-    limits.prune();
-  };
-  const grant = (ask: Ask): void => {
-    const grantId = randomBytes(32).toString("base64url");
-    const until = deps.now() + GRANT_MS;
-    grants.set(key(grantId), { owner: ask.owner, until, unused: [...ask.digests] });
-    settle(ask, { state: "approved", grant_id: grantId, until });
-  };
-  const find = (principal: Principal, askId: unknown): Ask => {
-    prune();
-    const ask = typeof askId === "string" ? asks.get(key(askId)) : undefined;
-    if (ask === undefined || ask.owner !== ownerOf(principal)) {
-      throw new HttpError(404, "GATE_ASK_UNKNOWN", "No such ask from this device");
-    }
-    return ask;
-  };
+  const { prune, settle, start, grant, find, get, entries, replaceOpen, wait } = createAskTable(deps.now, grants, limits, deps.pollMs);
+  const preparing = new Set<string>(); // owners whose ask the worker is rating now
 
   const limit = (owner: string): void => {
     prune();
     limits.limit(owner);
   };
   const paused = (owner: string): boolean => limits.paused(owner);
-  const replaceOpen = (owner: string): void => {
-    prune();
-    for (const ask of asks.values()) {
-      if (ask.owner === owner && ask.state.state === "waiting") {
-        settle(ask, { state: "cancelled" }); // one open ask per device: a new one replaces it (and may pause the phone)
-      }
-    }
-  };
-  const start = (owner: string, digests: string[], prepared?: PreparedAsk): { askId: string; ask: Ask } => {
-    const askId = randomBytes(32).toString("base64url");
-    const expiresAt = deps.now() + ASK_MS;
-    const ask: Ask = {
-      owner,
-      digests,
-      ...(prepared !== undefined ? { prepared } : {}),
-      expiresAt,
-      state: { state: "waiting", expires_at: expiresAt },
-      waiters: new Set(),
-      stop: new AbortController(),
-      timer: setTimeout(() => settle(ask, { state: "expired" }), ASK_MS),
-    };
-    ask.timer.unref?.();
-    asks.set(key(askId), ask);
-    return { askId, ask };
-  };
 
   const open = async (principal: Principal, raw: unknown): Promise<unknown> => {
     if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_ITEMS) {
@@ -289,26 +193,6 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     return { needed: true, ask_id: askId, expires_at: ask.expiresAt, channels: ["phone"] };
   };
 
-  // Long-polls up to POLL_MS (or the ask's end) for a change from waiting.
-  // A caller that hangs up ends its poll (the response's close, not the request's).
-  const wait = async (ask: Ask, { response }: RouteContext): Promise<AskState> => {
-    if (ask.state.state === "waiting" && !response.destroyed) {
-      await new Promise<void>((resolve) => {
-        const done = (): void => {
-          clearTimeout(timer);
-          ask.waiters.delete(done);
-          response.off("close", done);
-          resolve();
-        };
-        const timer = setTimeout(done, Math.max(0, Math.min(deps.pollMs ?? POLL_MS, ask.expiresAt - deps.now())));
-        ask.waiters.add(done);
-        response.once("close", done);
-      });
-      prune();
-    }
-    return ask.state;
-  };
-
   return {
     async handler(context) {
       const { principal } = context;
@@ -322,7 +206,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
       if (body.requests !== undefined) {
         return await open(principal, body.requests);
       }
-      const ask = find(principal, body.ask_id);
+      const ask = find(ownerOf(principal), body.ask_id);
       if (body.op === "wait") {
         return await wait(ask, context);
       }
@@ -336,7 +220,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     },
     waiting() {
       prune();
-      return [...asks].flatMap(([ref, ask]) => (ask.prepared === undefined || ask.state.state !== "waiting" ? []
+      return entries().flatMap(([ref, ask]) => (ask.prepared === undefined || ask.state.state !== "waiting" ? []
         : [{ ref, body: ask.prepared.body ?? "", items: ask.prepared.items.filter((item) => item.verdict === "typed"), expiresAt: ask.expiresAt }]));
     },
     pausedDevices() {
@@ -344,7 +228,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     },
     approve(ref) {
       prune();
-      const ask = asks.get(ref);
+      const ask = get(ref);
       if (ask?.prepared === undefined || ask.state.state !== "waiting") {
         return false; // a link ask is set only on the phones (§3)
       }
@@ -353,7 +237,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     },
     cancel(ref) {
       prune();
-      const ask = asks.get(ref);
+      const ask = get(ref);
       if (ask?.prepared === undefined || ask.state.state !== "waiting") {
         return false;
       }
@@ -362,20 +246,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     },
     consume(principal, grantId, endpoint, body) {
       prune();
-      const id = key(grantId);
-      const grant = grants.get(id);
-      if (grant === undefined || grant.owner !== ownerOf(principal) || deps.now() > grant.until) {
-        return false;
-      }
-      const at = grant.unused.indexOf(gateDigest(endpoint, body));
-      if (at === -1) {
-        return false;
-      }
-      grant.unused.splice(at, 1);
-      if (grant.unused.length === 0) {
-        grants.delete(id);
-      }
-      return true;
+      return grants.consume(ownerOf(principal), grantId, endpoint, body);
     },
   };
 }

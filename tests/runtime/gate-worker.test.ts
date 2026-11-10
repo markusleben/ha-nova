@@ -147,6 +147,28 @@ describe("gate worker child", () => {
     }
   }, 60_000);
 
+  it("caps each answer at its own route's limit: a check's is small, a redaction's is not", async () => {
+    const big = Buffer.alloc(100 << 10, 0x61);
+    const server = createServer((request, response) => {
+      request.resume();
+      request.on("end", () => {
+        const answer = request.url === "/check" ? { verdict: "pass", kind: "read", pad: big.toString() } : { response_b64: big.toString("base64") };
+        response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(answer));
+      });
+    });
+    mkdirSync(join(dir, "gate"), { recursive: true, mode: 0o700 });
+    await new Promise<void>((r) => server.listen(join(dir, "gate", "worker.sock"), r));
+    try {
+      const gate = worker();
+      gate.start();
+      expect(await gate.check({ kind: "legacy" }, "ws", Buffer.from("{}"))).toBeNull();
+      expect(await gate.redact("ws", Buffer.from("{}"), Buffer.from("{}"))).toEqual(big);
+    } finally {
+      server.closeAllConnections();
+      await new Promise((r) => server.close(r));
+    }
+  });
+
   it("an ask's answer is used only in the worker's own shape", async () => {
     let answer: unknown = {};
     let asked: unknown;
@@ -237,6 +259,40 @@ describe("gate worker child", () => {
       expect(await pending).toBeNull();
       await new Promise((r) => setTimeout(r, 50));
       expect(hungUp).toBe(1);
+    } finally {
+      server.closeAllConnections();
+      await new Promise((r) => server.close(r));
+    }
+  });
+
+  it("a nested check is answered while the outer one is still open (the worker's own read under the gate)", async () => {
+    const held: (() => void)[] = [];
+    const server = createServer((request, response) => {
+      request.resume();
+      request.on("end", () => {
+        const answer = (kind: string) => () => response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ verdict: "pass", kind }));
+        if (held.length === 0) {
+          held.push(answer("write")); // the outer check waits for its nested read's check
+          return;
+        }
+        answer("read")();
+      });
+    });
+    mkdirSync(join(dir, "gate"), { recursive: true, mode: 0o700 });
+    await new Promise<void>((r) => server.listen(join(dir, "gate", "worker.sock"), r));
+    try {
+      const gate = worker({ timeoutMs: 5_000 });
+      gate.start();
+      let outerDone = false;
+      const outer = gate.check({ kind: "device", deviceId: "d1" }, "core", Buffer.from('{"method":"POST","path":"/api/services/climate/set_temperature","body":{}}')).finally(() => (outerDone = true));
+      while (held.length === 0) {
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      const inner = await gate.check({ kind: "device", deviceId: "gate", internal: "gate", peer: "127.0.0.1" }, "core", Buffer.from('{"method":"GET","path":"/api/states"}'));
+      expect(inner).toEqual({ verdict: "pass", kind: "read" });
+      expect(outerDone).toBe(false);
+      held[0]!();
+      expect(await outer).toEqual({ verdict: "pass", kind: "write" });
     } finally {
       server.closeAllConnections();
       await new Promise((r) => server.close(r));

@@ -1,4 +1,4 @@
-import { spawn as spawnChild, type ChildProcess } from "node:child_process";
+import { spawn as spawnChild } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { chmodSync, existsSync, lstatSync, mkdirSync } from "node:fs";
 import { request } from "node:http";
@@ -11,14 +11,17 @@ import { generateCredential } from "../security/device-credential.js";
 import type { DeviceRegistry } from "../security/device-registry.js";
 import { GATE_INSTALL_ID } from "../security/pairing-metadata.js";
 import { writeFileAtomicSync } from "../storage/atomic-file.js";
+import { childEnv, superviseChild } from "./supervise-child.js";
 
 // The safety-check worker (docs/work/2026-11-03-relay-typed-gate-spec.md §2):
 // `ha-nova gate` on loopback, started and restarted like the chat bridge
-// (chat-apps.ts), with the same minimal environment. It reads Home Assistant
-// through the Relay with its own credential (loopback only, minted afresh by
-// mint() on every start). Everything lives in owner-only /data/gate, its
-// Unix socket too: no other listener can answer in the worker's place.
-const MAX_ANSWER_BYTES = 192 << 20; // the worker's answer to its largest request (96 MiB, cli/command_gate.go)
+// (supervise-child.ts), with the same minimal environment. It reads Home
+// Assistant through the Relay with its own credential (loopback only, minted
+// afresh by mint() on every start). Everything lives in owner-only /data/gate,
+// its Unix socket too: no other listener can answer in the worker's place.
+// Each route's answer is capped at the largest the worker gives
+// (cli/command_gate.go, cli/gate_ask.go); a longer one is no answer.
+const MAX_ANSWER_BYTES = { "/check": 64 << 10, "/ask": 16 << 20, "/phone": 64 << 10, "/redact": 192 << 20 } as const;
 const TIMEOUT_MS = 20_000; // above the worker's own 15 s check budget (cli/command_gate.go)
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
@@ -60,17 +63,11 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
   const socket = file("worker.sock");
   const spawn = deps.spawn ?? spawnChild;
   const secret = randomBytes(32).toString("hex"); // fresh on every Relay start
-  let child: ChildProcess | null = null;
-  let respawn: NodeJS.Timeout | undefined;
-  let failures = 0;
 
-  const launch = (): void => {
-    if (child !== null) {
-      return;
-    }
+  const launch = () => {
     if (!existsSync(deps.binary)) {
       deps.logger.error("The safety-check worker is missing; every device request is refused", { binary: deps.binary });
-      return;
+      return null;
     }
     const dir = join(deps.dataDir, "gate");
     mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -82,47 +79,17 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
     writeFileAtomicSync(file("relay.json"), `${JSON.stringify(deps.mint())}\n`);
     writeFileAtomicSync(file("secret"), secret);
     mkdirSync(file("home"), { recursive: true, mode: 0o700 });
-    const proc = spawn(
+    return spawn(
       deps.binary,
       ["gate", "--socket", socket, "--secret-file", file("secret"), "--relay-file", file("relay.json")],
-      { stdio: ["ignore", "inherit", "inherit"], env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: file("home"), HA_NOVA_NO_BROWSER: "1", ...(process.env.TZ ? { TZ: process.env.TZ } : {}) } },
+      { stdio: ["ignore", "inherit", "inherit"], env: childEnv(file("home")) },
     );
-    child = proc;
-    const started = Date.now();
-    let ended = false;
-    const end = (why: string): void => {
-      if (ended || child !== proc) {
-        ended = true;
-        return;
-      }
-      ended = true;
-      child = null;
-      failures = Date.now() - started > 60_000 ? 1 : failures + 1;
-      deps.logger.warn("Safety-check worker stopped; restarting it", { why });
-      startLater();
-    };
-    proc.on("error", (error) => end(error.message));
-    proc.once("exit", (code, signal) => end(`exit ${code ?? signal}`));
   };
-  const start = (): void => {
-    try {
-      launch();
-    } catch (error) {
-      failures += 1;
-      deps.logger.error("Safety-check worker could not start", { error: String((error as Error).message) });
-      startLater();
-    }
-  };
-  // Restarts back off from 5 s to 5 min while the worker keeps failing.
-  const startLater = (): void => {
-    clearTimeout(respawn);
-    respawn = setTimeout(start, Math.min((deps.respawnMs ?? 5_000) * 2 ** Math.max(0, failures - 1), 300_000));
-    respawn.unref?.();
-  };
+  const worker = superviseChild({ name: "Safety-check worker", logger: deps.logger, launch, respawnMs: deps.respawnMs });
 
   // stop hangs up: no answer, and the worker reads it as the Relay gone.
-  const post = (path: string, payload: unknown, timeoutMs = deps.timeoutMs ?? TIMEOUT_MS, stop?: AbortSignal): Promise<Record<string, unknown> | null> => {
-    const asked = child;
+  const post = (path: keyof typeof MAX_ANSWER_BYTES, payload: unknown, timeoutMs = deps.timeoutMs ?? TIMEOUT_MS, stop?: AbortSignal): Promise<Record<string, unknown> | null> => {
+    const asked = worker.current();
     if (asked === null || stop?.aborted === true) {
       return Promise.resolve(null);
     }
@@ -147,7 +114,7 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
           let size = 0;
           response.on("data", (chunk: Buffer) => {
             chunks.push(chunk);
-            if ((size += chunk.length) > MAX_ANSWER_BYTES) {
+            if ((size += chunk.length) > MAX_ANSWER_BYTES[path]) {
               settle(null, "Safety-check worker answered unusably", { status: "over the size limit" });
             }
           });
@@ -159,7 +126,7 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
             } catch {
               answer = null;
             }
-            if (child !== asked || response.statusCode !== 200 || typeof answer !== "object" || answer === null || Array.isArray(answer)) {
+            if (worker.current() !== asked || response.statusCode !== 200 || typeof answer !== "object" || answer === null || Array.isArray(answer)) {
               settle(null, "Safety-check worker answered unusably", { status: response.statusCode });
               return;
             }
@@ -175,15 +142,8 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
   };
 
   return {
-    start,
-    restart() {
-      failures = 0;
-      if (child !== null) {
-        child.kill("SIGTERM"); // its exit starts it again
-      } else {
-        startLater();
-      }
-    },
+    start: worker.tryStart,
+    restart: worker.restart,
     async check(principal, endpoint, body) {
       const who = principal.kind === "device" ? { kind: "device", device_id: principal.deviceId } : { kind: "legacy" };
       const answer = await post("/check", { principal: who, endpoint, body_b64: body.toString("base64") });

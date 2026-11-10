@@ -36,7 +36,8 @@ func gateTestServer(t *testing.T, paths runtimePaths) (post func(path, token str
 		}
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			t.Fatal(err)
+			t.Errorf("%s: %v", path, err) // not Fatal: concurrent tests post from other goroutines
+			return 0, nil
 		}
 		defer resp.Body.Close()
 		var out map[string]any
