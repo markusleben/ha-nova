@@ -82,7 +82,13 @@ func (s *relaySession) sendWrite(endpoint string, body []byte) (json.RawMessage,
 	request := gateRequest{endpoint, body}
 	data, err := s.sendWriteOnce(endpoint, body, s.takeGrant(request))
 	var held *relayCallError
-	if s.gateExempt() || !errors.As(err, &held) || held.code != "GATE_APPROVAL_REQUIRED" {
+	if !errors.As(err, &held) || held.code != "GATE_APPROVAL_REQUIRED" {
+		return data, err
+	}
+	if chatCall != nil && s.cfg.bridgeCredential == "" { // a chat bridge outside the App: the Relay gates it, and it can't ask
+		return nil, gateStop("refused", "CONFIRM_UNAVAILABLE", confirmT(confirmLanguage(s.lang), "gate.chat_held"), gateChatHeldNext)
+	}
+	if s.gateExempt() {
 		return data, err
 	}
 	reqs := append([]gateRequest{request}, gateFollowUps(request)...)
@@ -326,6 +332,9 @@ var gateNext = map[string]string{
 	"GATE_ASK_BUSY":    "Tell the user nothing changed: another ask from this computer is still being prepared. Try again in a moment.",
 	"GATE_UNAVAILABLE": "Tell the user nothing changed: HA NOVA's safety check in Home Assistant isn't available. Try again in a minute; if it stays, they restart the NOVA App.",
 }
+
+// gateChatHeldNext: what the agent does after the Relay held a chat bridge's change (sendWrite).
+const gateChatHeldNext = "Tell the user nothing changed: this change needs a person's OK, which a chat app can't give here. They make it from a paired computer or directly in Home Assistant."
 
 // gateEnded: an ask that ended without an approval sent nothing.
 func gateEnded(state string) *verbFailure {

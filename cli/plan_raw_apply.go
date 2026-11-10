@@ -157,7 +157,11 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 			status, why = rawSnapshotGone(s, payload)
 		}
 		if status != "done" {
-			return stop(i, status, why)
+			err := stop(i, status, why)
+			if failure := (*verbFailure)(nil); errors.As(werr, &failure) && failure.code == "CONFIRM_UNAVAILABLE" && errors.Is(werr, errNothingSent) {
+				env.Error.Next = failure.next // planning it again would meet the same refusal (gate_client.go)
+			}
+			return err
 		}
 		out := add(i, "done", "")
 		out.Response = rawResponse(item.Endpoint, data)
