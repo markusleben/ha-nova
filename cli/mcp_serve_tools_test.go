@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -117,6 +118,12 @@ func TestServeToolsHintOncePerChange(t *testing.T) {
 	if err := os.Remove(filepath.Join(s.data, "users", other.key, toolsUserFile)); err != nil {
 		t.Fatal(err)
 	}
+	if hinted(s.tool(userB, "ha_get", get)) { // a record that failed: remembered in memory
+		t.Fatal("hint again without a record")
+	}
+	s.b.mu.Lock()
+	clear(s.b.toolsHints) // as after a restart
+	s.b.mu.Unlock()
 	msg = s.rpc(userB, "tools/call", map[string]any{"name": "ha_skill", "arguments": map[string]any{"name": "ha-nova"}})
 	content, _ := msg["result"].(map[string]any)["content"].([]any)
 	if last, _ := content[len(content)-1].(map[string]any)["text"].(string); len(content) < 2 || last != "next_step: "+toolsRefreshHint {
@@ -124,5 +131,27 @@ func TestServeToolsHintOncePerChange(t *testing.T) {
 	}
 	if _, body := s.b.controlTools(); body["version"] != s.b.tools.Version || body["changed_at"] != "" {
 		t.Fatalf("control: %v", body)
+	}
+}
+
+// A shared result (an apply job's) stays as it was; a chat code's ask
+// leaves the hint for the next result.
+func TestAddToolsHintCopiesAndSkipsCodeAsks(t *testing.T) {
+	envelope := map[string]any{"status": "ok", "next_step": "Go on."}
+	addOutcomeSay(envelope)
+	shared := map[string]any{"content": []map[string]any{{"type": "text", "text": string(ruleFirst(envelope))}}, "structuredContent": envelope}
+	before, _ := json.Marshal(shared)
+	result := maps.Clone(shared)
+	srv := &mcpServer{toolsHint: "Refresh."}
+	srv.addToolsHint(result)
+	if after, _ := json.Marshal(shared); string(after) != string(before) || !srv.toolsHinted ||
+		result["structuredContent"].(map[string]any)["next_step"] != "Go on. Refresh." {
+		t.Fatalf("shared %s, result %v", after, result)
+	}
+	ask := map[string]any{"status": "needs_confirmation", "plan": map[string]any{"code": "1234"}}
+	srv = &mcpServer{toolsHint: "Refresh."}
+	srv.addToolsHint(map[string]any{"content": []map[string]any{{"type": "text", "text": "x"}}, "structuredContent": ask})
+	if srv.toolsHinted || ask["next_step"] != nil {
+		t.Fatalf("code ask: %v", ask)
 	}
 }

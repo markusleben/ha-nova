@@ -5,9 +5,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -21,7 +23,7 @@ import (
 const (
 	toolsVersionFile = "tools-version.json"
 	toolsUserFile    = "tools-version"
-	toolsRefreshHint = "Tell the user once, above any one-time code: HA NOVA was updated. If they use HA NOVA in ChatGPT, they open chatgpt.com/plugins, choose HA NOVA, then Refresh, so ChatGPT gets its new tools and instructions; Claude needs nothing."
+	toolsRefreshHint = "Tell the user once, in their language, above any one-time code: HA NOVA was updated. If they use HA NOVA in ChatGPT, they open chatgpt.com/plugins, choose HA NOVA, then Refresh, so ChatGPT gets its new tools and instructions; Claude needs nothing."
 )
 
 type toolsVersionState struct {
@@ -66,7 +68,10 @@ func noteToolsVersion(dataDir, version string, now time.Time) (toolsVersionState
 // new folder starts at the current tools version: nothing to refresh.
 func (b *chatBridge) userDir(key string) (string, error) {
 	dir := filepath.Join(b.dataDir, "users", key)
-	b.mu.Lock() // a folder is never seen before its record (toolsHintFor)
+	if _, err := os.Stat(dir); err == nil {
+		return dir, nil
+	}
+	b.mu.Lock() // a new folder is never read before its record (toolsHintFor)
 	defer b.mu.Unlock()
 	if _, err := os.Stat(dir); err == nil {
 		return dir, nil
@@ -82,28 +87,36 @@ func (b *chatBridge) userDir(key string) (string, error) {
 // "" for none. A folder with another version, or none (an older App made
 // it), is due the hint, which one request at a time carries.
 func (b *chatBridge) toolsHintFor(dir string) string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
 	raw, _ := os.ReadFile(filepath.Join(dir, toolsUserFile))
-	if b.pin == demoProfileName || strings.TrimSpace(string(raw)) == b.tools.Version || b.toolsDue[dir] {
+	if b.pin == demoProfileName || strings.TrimSpace(string(raw)) == b.tools.Version {
 		return ""
 	}
-	if b.toolsDue == nil {
-		b.toolsDue = map[string]bool{}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.toolsHints[dir] != "" {
+		return ""
 	}
-	b.toolsDue[dir] = true
+	if b.toolsHints == nil {
+		b.toolsHints = map[string]string{}
+	}
+	b.toolsHints[dir] = "due"
 	return toolsRefreshHint
 }
 
 // toolsHintDone ends a request that carried the hint: given, the version is
-// recorded; not given, the next request carries it.
+// recorded (and remembered, should the record fail); not given, the next
+// request carries it.
 func (b *chatBridge) toolsHintDone(dir string, given bool) {
 	if given {
 		b.recordTools(dir)
 	}
 	b.mu.Lock()
-	delete(b.toolsDue, dir)
-	b.mu.Unlock()
+	defer b.mu.Unlock()
+	if given {
+		b.toolsHints[dir] = "given"
+	} else {
+		delete(b.toolsHints, dir)
+	}
 }
 
 func (b *chatBridge) recordTools(dir string) {
@@ -114,26 +127,32 @@ func (b *chatBridge) recordTools(dir string) {
 
 // addToolsHint puts the hint after a tool result's own next_step, its text
 // rendered as before; a result without an envelope (a skill's text) gets it
-// as a text of its own.
+// as a text of its own. A chat code's ask (only the bridge's plans show a
+// code) carries no note (chatCodeResult): the next result does. Copies only: a job's result is shared.
 func (srv *mcpServer) addToolsHint(result map[string]any) {
 	content, _ := result["content"].([]map[string]any)
-	if srv.toolsHint == "" || srv.toolsHinted || len(content) == 0 {
+	envelope, _ := result["structuredContent"].(map[string]any)
+	plan, _ := envelope["plan"].(map[string]any)
+	if srv.toolsHint == "" || srv.toolsHinted || len(content) == 0 || plan["code"] != nil {
 		return
 	}
 	srv.toolsHinted = true
-	envelope, _ := result["structuredContent"].(map[string]any)
+	content = slices.Clone(content)
 	raw, _ := json.Marshal(envelope)
 	plain, bare := envelope != nil && content[0]["text"] == string(ruleFirst(envelope)), envelope != nil && content[0]["text"] == string(raw)
 	if !plain && !bare {
 		result["content"] = append(content, map[string]any{"type": "text", "text": "next_step: " + srv.toolsHint})
 		return
 	}
+	envelope = maps.Clone(envelope)
 	step, _ := envelope["next_step"].(string)
 	envelope["next_step"] = strings.TrimSpace(step + " " + srv.toolsHint)
 	if raw, _ = json.Marshal(envelope); plain {
 		raw = ruleFirst(envelope)
 	}
+	content[0] = maps.Clone(content[0])
 	content[0]["text"] = string(raw)
+	result["content"], result["structuredContent"] = content, envelope
 }
 
 func (b *chatBridge) controlTools() (int, map[string]any) {

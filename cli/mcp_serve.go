@@ -54,14 +54,14 @@ type chatBridge struct {
 	limiter rateLimiter   // --rate-limit (mcp_serve_limit.go)
 	log     *log.Logger
 
-	mu       sync.Mutex
-	jobs     map[string]*chatJob        // user/plan → its phone ask (mcp_serve_phone.go)
-	told     map[string]map[string]bool // per user: notice hints already given
-	tools    toolsVersionState          // at start (mcp_serve_tools.go)
-	toolsDue map[string]bool            // user folders whose request carries the refresh hint now
-	users    []haUser                   // Home Assistant's users: roles cap the levels (mcp_serve_settings.go)
-	usersAt  time.Time
-	usersNo  time.Time // the last failed read: retried after 5 s
+	mu         sync.Mutex
+	jobs       map[string]*chatJob        // user/plan → its phone ask (mcp_serve_phone.go)
+	told       map[string]map[string]bool // per user: notice hints already given
+	tools      toolsVersionState          // at start (mcp_serve_tools.go)
+	toolsHints map[string]string          // user folder → "due" while a request carries the refresh hint, "given" after
+	users      []haUser                   // Home Assistant's users: roles cap the levels (mcp_serve_settings.go)
+	usersAt    time.Time
+	usersNo    time.Time // the last failed read: retried after 5 s
 
 	control     [32]byte               // sha256 of the control secret (mcp_serve_control.go)
 	controlJobs map[string]*controlJob // job id → a phone change (under mu)
