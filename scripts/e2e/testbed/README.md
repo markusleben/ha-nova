@@ -201,12 +201,14 @@ asks the agent for a Statistics helper through all three flow steps
 sample) and checks Home Assistant: one new entry, loaded, its options read
 back from an aborted options flow, its sensor through the registry, hydrated
 from the recorder with a valid source; and in the agent's run the terminal
-`result.entry_id` and the entries read back. The post-write steps agents
-skip today (options flow reopened, state attributes read, entity id in the
-reply) report XFAIL until #1105. A second run hides the terminal id (the bed's `ha-nova` drops it),
-so the agent must find its helper by the before/after diff (#976). It
-removes both helpers. About $1 per run; run it
-alone too, before `calm.mjs`.
+`result.entry_id`, the entries read back, the new sensor's state read, and
+the sensor named in the reply. A second run hides the terminal id (the
+bed's `ha-nova` drops it), so the agent must find its helper by the
+before/after diff (#976). Two steps agents still skip report XFAIL (#1105):
+the options flow reopened and aborted, and the baseline read before the flow;
+until the baseline passes, the fixture doesn't prove the diff itself.
+It removes both helpers. About $1 per run; run it alone too, before
+`calm.mjs`.
 
 ## Determinism and versions
 
