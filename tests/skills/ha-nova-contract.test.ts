@@ -952,7 +952,8 @@ describe("ha-nova contract", () => {
     expect(entityDiscovery).toContain("Never call external `jq`");
 
     const review = readFileSync("skills/review/SKILL.md", "utf8");
-    expect(review).toContain("ha-nova relay health");
+    expect(review).toContain("../ha-nova/session-bootstrap.md");
+    expect(review).not.toContain("Preflight: `ha-nova relay health`");
   });
 
   it("moves complex relay filtering to jq files and native file tools", () => {

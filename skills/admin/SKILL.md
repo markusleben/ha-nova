@@ -66,7 +66,7 @@ Render the Report shape (output-cards.md); person/zone/user inventories render t
 
 ## Safety
 
-- The CLI rates every action; relay its `say` and never second-guess it. Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
+- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `"typed":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
 - Relay a plan's `say` in full, localized; never drop or shorten sentences.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
@@ -77,9 +77,9 @@ Render the Report shape (output-cards.md); person/zone/user inventories render t
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 - `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`../ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
 
-- Zone and person deletes take the one-time code, and the preview must first name the automations that depend on them (`search/related`).
-- User deletion is the strictest operation in HA NOVA: owner, system-generated, and the relay's own account are refused outright, and everything else needs the one-time code plus a plain statement of what is lost.
-- Creating a user account grants durable system access, so it takes the one-time code too — not the ordinary create tier. The preview names the login name, whether the account is an administrator (`group_ids`), and that the password is set in the Home Assistant UI, never here.
+- Zone and person deletes ask the person (the plan's `say`), and the preview must first name the automations that depend on them (`search/related`).
+- User deletion is the strictest operation in HA NOVA: owner, system-generated, and the relay's own account are refused outright, and everything else needs the person's own confirmation plus a plain statement of what is lost.
+- Creating a user account grants durable system access, so the person confirms it too — not the ordinary create tier. The preview names the login name, whether the account is an administrator (`group_ids`), and that the password is set in the Home Assistant UI, never here.
 - No delete here has a `revert`. Zones, persons, and tags are recreatable from their previewed fields — a tag keeps its physical `tag_id`, but other recreates mint new internal ids, so inbound references stay broken. A deleted user's password, tokens, and history are unrecoverable; the delete preview must say so.
 - Offer a safety backup via `ha-nova:backup` before zone, person, and user deletes (not for tag deletes or routine updates).
 

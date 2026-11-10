@@ -73,7 +73,7 @@ describe("hacs lifecycle skill (#478)", () => {
 
   it("carries the canonical mutation Safety Core and file-based relay usage", () => {
     expect(skill).toContain(
-      "- The CLI rates every action; relay its `say` and never second-guess it. Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; \"yes\" or any other reply is invalid.",
+      "- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `\"typed\":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; \"yes\" or any other reply is invalid.",
     );
     expect(skill).toContain(
       "Home Assistant is reached exclusively through the `ha-nova` CLI.",

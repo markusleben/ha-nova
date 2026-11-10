@@ -79,18 +79,23 @@ describe("the CLI decides how a change is confirmed", () => {
     // Test bed 10.11.: "25 → 27 degrees" also rewrote the alias and the
     // description, and plan.confirm none saved it with no preview.
     expect(flat("skills/write/SKILL.md")).toContain(
-      "2. Scope: draft only what the user asked for. A plan with `plan.confirm: none` saves without any ask, so the user never sees an unasked edit first: never rewrite the name, alias, or description unasked, even one quoting the old value; offer other edits as a question.",
+      "2. Scope: draft only what was asked; never rewrite the name, alias, or description unasked, even one quoting the old value (`../ha-nova/smallest-solution.md` rule 7).",
+    );
+    // Every plan-writing skill drafts through the smallest-solution contract.
+    expect(flat("skills/ha-nova/smallest-solution.md")).toContain(
+      "7. Change only what the user asked for: never rewrite a name, alias, or description unasked (a plan with `plan.confirm: none` saves with no preview); offer other edits as a question.",
     );
   });
 
   it("picks the answer language in the always-loaded output rules", () => {
     expect(flat("skills/ha-nova/output-rules.md")).toContain("Answer in the language of the user's sentence, not of a name in it.");
-    expect(flat("skills/ha-nova/index.md")).not.toContain("Answer in the language");
+    // The injected index keeps the short form for the fast call path, where no skill loads.
+    expect(flat("skills/ha-nova/index.md")).toContain("Answer in the language of the user's sentence.");
   });
 
   it("routes adding a device and integration options to integration-setup", () => {
     const index = flat("skills/ha-nova/index.md");
-    expect(index).toContain("`ha-nova:integration-setup` — add a new device (pairing, discovered or cloud integrations)");
+    expect(index).toContain("`ha-nova:integration-setup` — add a new device (discovered, cloud, or Zigbee/Z-Wave/Matter steps)");
     expect(index).toContain("`ha-nova:integration-setup` — integrations: add, options (Configure), reconfigure, subentries, reauthentication");
     const setup = flat("skills/integration-setup/SKILL.md");
     expect(setup).toContain("### Add a Device");

@@ -21,6 +21,7 @@ tasks, and steps citing "context skill → …" (not Safety Core) also load the 
 ## Say it (Home Assistant tasks)
 
 - Unless asked: names, not ids; local time, never UTC; no automation modes, plan ids, HA NOVA skill or rule-file names.
+- Answer in the language of the user's sentence.
 - Relay a CLI `say` (ask or result) verbatim, only translated, line breaks kept; add no other result line.
 - Verified raw write (no `say`): `✅ Saved: <type> "<name>"`, what was checked, and, if undoable, "To undo this change, just say so."
 
@@ -35,7 +36,7 @@ tasks, and steps citing "context skill → …" (not Safety Core) also load the 
 - `ha-nova:scene` — scene setup
 - `ha-nova:organize` — areas, floors, labels, categories, metadata
 - `ha-nova:device` — swap, onboard, retire a device
-- `ha-nova:integration-setup` — add a new device (pairing, discovered or cloud integrations)
+- `ha-nova:integration-setup` — add a new device (discovered, cloud, or Zigbee/Z-Wave/Matter steps)
 - `ha-nova:home-map` — home inventory, "where is X used", whole-setup review
 - `ha-nova:migrate` — rules from Node-RED, Homey, legacy YAML
 - `ha-nova:health` — repair fixes, unavailable entities, batteries

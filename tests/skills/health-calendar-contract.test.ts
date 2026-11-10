@@ -42,7 +42,7 @@ describe("health and calendar skill contracts", () => {
     );
     expect(health).toContain("data.events");
     expect(health).toContain("need a relay at the enforced floor");
-    expect(health).toContain("Read `data.version` from the health response.");
+    expect(health).toContain("Read `data.version` from `ha-nova relay health` when a step needs it.");
     expect(health).toContain(
       "If a relay-outdated warning appeared this session, skip `system_health/info`",
     );

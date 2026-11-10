@@ -261,7 +261,7 @@ Applied by `ha-nova:yaml-config` before writing sensor YAML; review applies them
 
 `now()` in a template trigger is re-evaluated only when another tracked entity in the template changes, or once per minute as a fallback. For sub-minute precision the trigger is materially broken — it cannot fire at the resolution the surrounding logic implies.
 
-- Default severity: **MEDIUM**. Suggested wording: *"This template trigger uses `now()`, which only re-evaluates when a tracked entity changes or once per minute. For sub-minute precision use a `time_pattern` trigger or a dedicated time sensor."*
+- Default severity: **MEDIUM**. Suggested wording: *"This template trigger uses `now()`, which only re-evaluates when a tracked entity changes or once per minute. Trigger on the state or event that carries the change, or use a `time` trigger for a clock time."*
 - Escalate to **HIGH** with concrete sub-minute precision evidence:
   - A sibling `for:` or `timeout:` shorter than 60 seconds — the trigger cannot resolve before the deadline.
   - The template compares `now()` to a timestamp delta below 60 seconds (e.g., `(now() - states(...).last_changed).total_seconds() < 30`).

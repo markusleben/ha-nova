@@ -83,9 +83,9 @@ Cancel: DELETE only this skill's unfinished flow. Never delete a pre-existing re
 
 ### Add a Device
 
-- discovered, cloud, or network: the add flow above;
-- Zigbee, Z-Wave, Matter: HA NOVA doesn't pair them yet; name the step, Settings > Connectivity > Zigbee, Z-Wave, or Matter > Add device (Matter: Home Assistant phone app, near the device; Zigbee2MQTT: Permit join in its UI);
-- then offer areas and names (`ha-nova:organize`) or automations (`ha-nova:write`).
+- discovered, cloud, network: the add flow above;
+- Zigbee, Z-Wave, Matter: not paired by HA NOVA yet; name the step: Settings > Connectivity > Zigbee, Z-Wave, or Matter > Add device (Matter: phone app near the device; Zigbee2MQTT: Permit join);
+- then offer rooms and names (`ha-nova:organize`).
 
 ### Options, Reconfigure, and Reload
 
@@ -165,7 +165,7 @@ Use the Preview Card for flow start, menu selection, each non-secret form submit
 
 ## Safety
 
-- The CLI rates every action; relay its `say` and never second-guess it. Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
+- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `"typed":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
 - Relay a plan's `say` in full, localized; never drop or shorten sentences.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
