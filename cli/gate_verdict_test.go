@@ -60,6 +60,7 @@ func TestGateVerdict(t *testing.T) {
 		{"folder list", "files", `{"action":"list_dir","path":"packages"}`, gateCheck{Verdict: gatePass, Kind: "read"}, false},
 		{"copy list", "backups", `{"action":"list"}`, gateCheck{Verdict: gatePass, Kind: "read"}, false},
 		{"copy load", "backups", `{"action":"load","file":"automation/a1.json"}`, gateCheck{Verdict: gatePass, Kind: "read"}, false},
+		{"escaped config read", "core", `{"method":"GET","path":"/api/config/automation/config/morning%20lights"}`, gateCheck{Verdict: gatePass, Kind: "read"}, false},
 		{"copy save", "backups", `{"action":"save","category":"yaml","name":"scripts","data":{}}`, gateCheck{Verdict: gatePass, Kind: "write"}, false},
 		{"App install", "supervisor", `{"method":"POST","path":"/store/addons/core_ssh/install"}`, gateCheck{Verdict: gateTyped, Kind: "write", Why: "app_install"}, false},
 		{"Supervisor log read", "supervisor", `{"method":"GET","path":"/core/logs"}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
