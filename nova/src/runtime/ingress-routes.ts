@@ -235,6 +235,14 @@ function registerFunctionalRoutes(
     functional("json"),
     handlers.backups,
   );
+  registerIngressRoute(
+    router,
+    policies,
+    "POST",
+    "/gate/v1/ask",
+    functional("json"),
+    handlers.ask,
+  );
 }
 
 function registerOwnerRoutes(

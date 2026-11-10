@@ -1,6 +1,7 @@
 import { isLoopback, type Principal } from "../security/principal.js";
 import { decodeUtf8Strict } from "../shared/utf8.js";
 import { HttpError, toErrorResponse } from "./errors.js";
+import type { GateRequest, PreparedAsk } from "./gate-asks.js";
 import type { RouteContext, RouteHandler } from "./router.js";
 
 // The safety check in front of every device-facing handler
@@ -18,9 +19,13 @@ export interface GateCheck {
 }
 
 // null: no usable answer (missing, dead, slow, or malformed worker).
+// consume: a grant for exactly these bytes, used up now (gate-asks.ts);
+// without it no typed request is ever forwarded.
 export interface GateClient {
   check(principal: Principal, endpoint: GateEndpoint, body: Buffer): Promise<GateCheck | null>;
   redact(endpoint: GateEndpoint, request: Buffer, response: Buffer): Promise<Buffer | null>;
+  consume?(principal: Principal, grantId: string, endpoint: GateEndpoint, body: Buffer): boolean;
+  ask?(device: string, requests: GateRequest[]): Promise<PreparedAsk | null>;
 }
 
 const APPROVAL_REQUIRED =
@@ -69,7 +74,10 @@ export function gated(
       throw refused(check.why);
     }
     if (check.verdict === "typed") {
-      throw new HttpError(428, "GATE_APPROVAL_REQUIRED", APPROVAL_REQUIRED);
+      const grant = context.request.headers["x-ha-nova-grant"];
+      if (typeof grant !== "string" || gate.consume?.(principal, grant, endpoint, bytes) !== true) {
+        throw new HttpError(428, "GATE_APPROVAL_REQUIRED", APPROVAL_REQUIRED);
+      }
     }
     await stillAuthorized(context);
 

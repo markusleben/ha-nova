@@ -313,6 +313,7 @@ function deps(): IngressListenerDeps {
       files: () => ({ route: "files" }),
       backups: () => ({ route: "backups" }),
       supervisor: () => ({ route: "supervisor" }),
+      ask: () => ({ route: "ask" }),
     },
     relayInstanceId: RELAY_ID,
     relayVersion: RELAY_VERSION,

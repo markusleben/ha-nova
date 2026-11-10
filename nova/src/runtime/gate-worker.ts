@@ -5,6 +5,7 @@ import { request } from "node:http";
 import { join } from "node:path";
 
 import type { GateCheck, GateClient } from "../http/gate.js";
+import type { AskItem, PreparedAsk } from "../http/gate-asks.js";
 import type { RelayLogger } from "../http/server.js";
 import { generateCredential } from "../security/device-credential.js";
 import type { DeviceRegistry } from "../security/device-registry.js";
@@ -119,7 +120,7 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
     respawn.unref?.();
   };
 
-  const post = (path: string, payload: unknown): Promise<Record<string, unknown> | null> => {
+  const post = (path: string, payload: unknown, timeoutMs = deps.timeoutMs ?? TIMEOUT_MS): Promise<Record<string, unknown> | null> => {
     const asked = child;
     if (asked === null) {
       return Promise.resolve(null);
@@ -165,7 +166,7 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
           });
         },
       );
-      const deadline = setTimeout(() => settle(null, "Safety-check worker did not answer", { error: "timeout" }), deps.timeoutMs ?? TIMEOUT_MS);
+      const deadline = setTimeout(() => settle(null, "Safety-check worker did not answer", { error: "timeout" }), timeoutMs);
       req.on("error", (error) => settle(null, "Safety-check worker did not answer", { error: error.message }));
       req.end(body);
     });
@@ -192,10 +193,67 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
       const result: GateCheck = { verdict, kind };
       return typeof answer?.why === "string" ? { ...result, why: answer.why } : result;
     },
+    // The worker rates every request, then words the typed ones: a check
+    // budget for each, twice (cli/gate_ask.go).
+    async ask(device, requests) {
+      const answer = await post(
+        "/ask",
+        { device, requests: requests.map((r) => ({ endpoint: r.endpoint, body_b64: r.body.toString("base64") })) },
+        (deps.timeoutMs ?? TIMEOUT_MS) * (2 * requests.length + 2),
+      );
+      return preparedAsk(answer, requests.length);
+    },
     async redact(endpoint, request, response) {
       const answer = await post("/redact", { endpoint, request_b64: request.toString("base64"), response_b64: response.toString("base64") });
       const encoded = answer?.response_b64;
       return typeof encoded === "string" && BASE64.test(encoded) ? Buffer.from(encoded, "base64") : null;
     },
   };
+}
+
+const RANK = { pass: 0, typed: 1, refuse: 2 } as const;
+const optionalText = (value: unknown): boolean => value === undefined || typeof value === "string";
+
+// askItem: one rated request; when the ask is typed, a typed one is worded.
+function askItem(item: unknown, worded: boolean): AskItem | null {
+  if (typeof item !== "object" || item === null || Array.isArray(item)) {
+    return null;
+  }
+  const { verdict, why, text, detail, entity_ids: ids } = item as Record<string, unknown>;
+  if (!Object.hasOwn(RANK, String(verdict)) || ![why, text, detail].every(optionalText)) {
+    return null;
+  }
+  if (ids !== undefined && !(Array.isArray(ids) && ids.every((id) => typeof id === "string"))) {
+    return null;
+  }
+  if (worded && verdict === "typed" && (typeof text !== "string" || text === "")) {
+    return null;
+  }
+  return item as AskItem;
+}
+
+// preparedAsk: the worker's /ask answer, or null for any other shape: each
+// item valid, and the answer's verdict the strictest item's.
+function preparedAsk(answer: Record<string, unknown> | null, count: number): PreparedAsk | null {
+  const verdict = answer?.verdict;
+  const raw = answer?.items;
+  if ((verdict !== "pass" && verdict !== "typed" && verdict !== "refuse") || !Array.isArray(raw) || raw.length !== count) {
+    return null;
+  }
+  const items = raw.map((item) => askItem(item, verdict === "typed"));
+  if (items.some((item) => item === null)) {
+    return null;
+  }
+  const strictest = (items as AskItem[]).reduce<AskItem["verdict"]>((top, item) => (RANK[item.verdict] > RANK[top] ? item.verdict : top), "pass");
+  if (strictest !== verdict) {
+    return null;
+  }
+  if (verdict !== "typed") {
+    return { verdict, items: items as AskItem[] };
+  }
+  const { lang, title, body, button } = answer as Record<string, unknown>;
+  if (![lang, title, body, button].every((text) => typeof text === "string" && text !== "")) {
+    return null;
+  }
+  return { verdict, items: items as AskItem[], lang: lang as string, title: title as string, body: body as string, button: button as string };
 }
