@@ -13,6 +13,7 @@ import type { HaAuthUser } from "../../security/owner-check.js";
 export interface ChatUsersModel {
   users: HaAuthUser[]; // the people listed: the owner first, then every other active login
   seen: Record<string, string> | null; // each user's last request; null: the bridge can't say now
+  toolsChangedAt: string | null; // when HA NOVA's tools last changed ("": not since the first start); null: the bridge can't say now
   activity: ChatActivity[] | null;
   saved: boolean;
   removed: string[]; // the names of the people the last save removed
@@ -30,7 +31,8 @@ const HA_USER = /^[0-9a-f]{32}$/;
 const LEVEL: Record<ChatLevel, string> = { ask: "Ask only", use: "Use the home", manage: "Manage everything" };
 
 export async function readChatUsers(chat: ChatApps, ownerId: string, users: HaAuthUser[], query: URLSearchParams): Promise<ChatUsersModel> {
-  const [seen, activity] = await Promise.all([chat.phone.seen().catch(() => null), chat.phone.activity().catch(() => null)]);
+  const [seen, activity, toolsChangedAt] = await Promise.all([chat.phone.seen().catch(() => null), chat.phone.activity().catch(() => null),
+    chat.phone.toolsChangedAt().catch(() => null)]);
   const allowed = chat.status(ownerId).allowedUsers ?? [];
   const listed = [...users.filter((u) => u.id === ownerId), ...users.filter((u) => u.id !== ownerId && pickable(u))];
   // Only someone who can still sign in and isn't on the list now: never a notice from a crafted link.
@@ -40,6 +42,7 @@ export async function readChatUsers(chat: ChatApps, ownerId: string, users: HaAu
     stale: allowed.filter((id) => !listed.some((u) => u.id === id)).map((id) => nameOf(users.find((u) => u.id === id))),
     seen,
     activity,
+    toolsChangedAt,
     saved: query.get("chat_users") === "saved",
     removed: listed.filter((u) => removed.includes(u.id)).map((u) => nameOf(u)),
   };
@@ -159,17 +162,27 @@ export function renderChatActivity(activity: ChatActivity[] | null, now: number)
   return `<section><h2>Recent changes from chat apps</h2><ul>${rows.join("")}</ul></section>\n`;
 }
 
+// For 30 days after HA NOVA's tools changed: ChatGPT keeps the old ones
+// until a Refresh (docs/work/2026-11-10-chat-tools-version-spec.md).
+export function renderToolsChanged(changedAt: string | null, now: number): string {
+  const at = Date.parse(changedAt ?? ""); // "": not changed, NaN
+  return now - at >= 0 && now - at < 30 * 86_400_000
+    ? `<p class="ok">HA NOVA's tools changed on ${dayOf(new Date(at))}. Using HA NOVA in ChatGPT? Open chatgpt.com/plugins, choose HA NOVA, then Refresh. Claude needs nothing.</p>`
+    : "";
+}
+
+const pad = (n: number): string => String(n).padStart(2, "0");
+const dayOf = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; // server-local, as the device list
+
 // Server-local time (as the device list): the hour and minute today, else with the date.
 function clock(at: string, now: number): string {
   const d = new Date(at);
   if (Number.isNaN(d.getTime())) {
     return "";
   }
-  const pad = (n: number): string => String(n).padStart(2, "0");
-  const day = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  const today = new Date(now);
+  const day = dayOf(d);
   const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  return day === `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}` ? time : `${day} ${time}`;
+  return day === dayOf(new Date(now)) ? time : `${day} ${time}`;
 }
 
 function nameOf(user: HaAuthUser | undefined): string {

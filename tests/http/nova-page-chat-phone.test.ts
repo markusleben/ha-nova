@@ -62,6 +62,7 @@ function chatApps(): ChatApps {
       job: async () => await job(),
       activity: async () => [],
       seen: async () => ({}),
+      toolsChangedAt: async () => "",
     },
     restartSoon: () => {},
     boot: async () => {},

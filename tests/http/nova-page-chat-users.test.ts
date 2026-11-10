@@ -47,6 +47,7 @@ let started: string[];
 let job: ChatPhoneJob;
 let activity: ChatActivity[];
 let seen: Record<string, string>;
+let toolsChangedAt: string | null;
 let phones: ChatPhones;
 let users: HaAuthUser[];
 let startError: Error | null;
@@ -61,6 +62,7 @@ beforeEach(() => {
   job = { status: "running", step: "new", phone: "Anna's Pixel", platform: "android", button: "Erlauben" };
   activity = [];
   seen = {};
+  toolsChangedAt = "";
   phones = { phones: [{ device_id: PIXEL, name: "Anna's Pixel", platform: "android" }], link: null };
   users = USERS;
   startError = null;
@@ -89,6 +91,12 @@ function chatApps(): ChatApps {
       job: async () => job,
       activity: async () => activity,
       seen: async () => seen,
+      toolsChangedAt: async () => {
+        if (toolsChangedAt === null) {
+          throw new Error("bridge down");
+        }
+        return toolsChangedAt;
+      },
     },
     restartSoon: () => {},
     boot: async () => {},
@@ -355,5 +363,17 @@ describe("NOVA page: recent changes from chat apps", () => {
     expect(odd).not.toContain("native code");
     activity = [];
     expect(await page()).not.toContain("Recent changes from chat apps");
+  });
+});
+
+describe("NOVA page: HA NOVA's tools changed", () => {
+  it("asks ChatGPT users for a Refresh for 30 days after a change, and not when the bridge can't say", async () => {
+    const box = "Using HA NOVA in ChatGPT? Open chatgpt.com/plugins, choose HA NOVA, then Refresh. Claude needs nothing.";
+    toolsChangedAt = "2026-10-20T08:00:00Z"; // page time 2026-10-29T18:30:00Z
+    expect(await page()).toMatch(/HA NOVA's tools changed on 2026-10-20\. Using HA NOVA in ChatGPT\?/);
+    for (const at of ["", "2026-09-29T18:00:00Z", "2026-10-30T08:00:00Z", "soon", null]) {
+      toolsChangedAt = at;
+      expect(await page()).not.toContain(box);
+    }
   });
 });
