@@ -50,7 +50,8 @@ export interface GateAsks {
   consume(principal: Principal, grantId: string, endpoint: GateEndpoint, body: Buffer): boolean;
 }
 
-export type GatePage = Pick<GateAsks, "waiting" | "pausedDevices" | "approve" | "cancel">;
+// The page also reads its words from the worker for each view (page-texts.ts).
+export type GatePage = Pick<GateAsks, "waiting" | "pausedDevices" | "approve" | "cancel"> & { texts(name: string): Promise<unknown> };
 
 export const askRef = idKey; // an ask's ref on the page
 

@@ -9,7 +9,7 @@ import { createFilesHandler } from "../http/handlers/files.js";
 import { createHealthHandler } from "../http/handlers/health.js";
 import { createSupervisorProxyHandler } from "../http/handlers/supervisor-proxy.js";
 import { createWsProxyHandler } from "../http/handlers/ws-proxy.js";
-import { gated, type GateClient } from "../http/gate.js";
+import { gated } from "../http/gate.js";
 import { gateWithAsks, type GatePage, type PhoneLink } from "../http/gate-asks.js";
 import { pageChannel } from "../http/handlers/nova-approve.js";
 import { applyServerTimeouts, type RelayLogger } from "../http/server.js";
@@ -324,7 +324,7 @@ function buildFunctionalHandlers(
   input: AppModeInput,
   relayInstanceId: string,
   supervisorBase: string | undefined,
-  worker: GateClient,
+  worker: GateWorker,
   registry: DeviceRegistry,
 ): { functional: FunctionalHandlers; page: GatePage } {
   const forwardCore = createCoreForwarder({ coreClient: input.coreClient });
@@ -360,7 +360,7 @@ function buildFunctionalHandlers(
       gate,
     ),
   };
-  return { functional, page: asks };
+  return { functional, page: { ...asks, texts: (name) => worker.texts(name) } };
 }
 
 async function listen(server: Server, port: number): Promise<void> {

@@ -10,6 +10,7 @@ const passingGate: GateWorker = {
   restart: () => {},
   check: async () => ({ verdict: "pass", kind: "read" }),
   redact: async (_endpoint, _request, response) => response,
+  texts: async () => null,
 };
 
 describe("runtime bootstrap", () => {

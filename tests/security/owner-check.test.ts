@@ -3,6 +3,7 @@ import type { IncomingMessage } from "node:http";
 import { describe, expect, it } from "vitest";
 
 import {
+  checkApprover,
   checkOwner,
   type HaAuthUser,
 } from "../../nova/src/security/owner-check.js";
@@ -110,5 +111,25 @@ describe("owner-check", () => {
     const r = await checkOwner(req({ userId: "owner-1" }), fails());
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.status).toBe(503);
+  });
+});
+
+// The approval view's refusals name their page text; the worker words it
+// (page-texts.ts), so no English sits here.
+describe("approver check", () => {
+  const ADMIN_GROUP = { ...ADMIN, group_ids: ["system-admin"] };
+  const deps = (relay = "relay-1", u: HaAuthUser[] = [OWNER, ADMIN_GROUP]) => ({ ...users(u), relayUserId: async () => relay });
+  it("names the text for each refusal", async () => {
+    const cases: [IncomingMessage, Parameters<typeof checkApprover>[1], unknown][] = [
+      [req({}), deps(), { ok: false, status: 403, text: "page.approver_unknown" }],
+      [req({ userId: "owner-1" }), { ...fails(), relayUserId: async () => "relay-1" }, { ok: false, status: 503, text: "page.approver_unavailable" }],
+      [req({ userId: "owner-1" }), deps(""), { ok: false, status: 503, text: "page.approver_unavailable" }],
+      [req({ userId: "ghost" }), deps(), { ok: false, status: 403, text: "page.approver_not_admin" }],
+      [req({ userId: "owner-1" }), deps("owner-1"), { ok: false, status: 403, text: "page.approver_relay_user" }],
+      [req({ userId: "admin-1" }), deps(), { ok: true, userId: "admin-1", name: "Admin" }],
+    ];
+    for (const [request, d, want] of cases) {
+      expect(await checkApprover(request, d)).toEqual(want);
+    }
   });
 });
