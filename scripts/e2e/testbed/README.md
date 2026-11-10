@@ -176,6 +176,19 @@ then sign in); without `claude` or the account it prints SKIP and exits 0.
 - It writes to the bed (a probe automation, the kitchen lamp): run it alone,
   before `calm.mjs`. FAIL, XPASS, or a broken run exits 1.
 
+`node scripts/e2e/testbed/agent-statistics.mjs` (same needs, shell path only)
+asks the agent for a Statistics helper through all three flow steps
+(characteristic `change`, max age 3 hours, no sampling size, keep the last
+sample) and checks Home Assistant: one new entry, loaded, its options read
+back from an aborted options flow, its sensor through the registry, hydrated
+from the recorder with a valid source; and in the agent's run the terminal
+`result.entry_id` and the entries read back. The post-write steps agents
+skip today (options flow reopened, state attributes read, entity id in the
+reply) report XFAIL until #1105. A second run hides the terminal id (the bed's `ha-nova` drops it),
+so the agent must find its helper by the before/after diff (#976). It
+removes both helpers. About $1 per run; run it
+alone too, before `calm.mjs`.
+
 ## Determinism and versions
 
 `down` + `up` always yields the same entity ids, area/floor/label ids, and
@@ -208,7 +221,7 @@ red opens a "Test bed fails on Home Assistant <version>" issue.
 floors/areas/labels, registry edits, summary, phone fixture), `cli.sh`,
 `verify.sh`, `phone.mjs` + `push.py` (phone lane), `chat-files.mjs` +
 `docker-compose.files.yml`, `calm.mjs` (real-home checks), `agent.mjs` +
-`agent-unlock.mjs` (agent runs),
+`agent-unlock.mjs`, `agent-statistics.mjs` (agent runs),
 `down.sh`.
 
 The hosted demo (`scripts/demo/hosted/`) reuses this bed: `TESTBED_OVERLAY` and
