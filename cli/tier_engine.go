@@ -114,7 +114,7 @@ type tierEngine struct {
 	calls        callSet         // the service calls the cascade makes (tier_callset.go)
 	callAdded    map[int]bool    // call_service listeners already consumers, by their place in the listener table
 	manifests    map[string]bool // integration → built in; nil until read
-	requestTyped bool            // a raw plan's requests make it typed, not only a skill's typed mark (gateChannel)
+	markTyped    bool            // a raw item is typed only by its skill's mark, which the Relay neither sees nor needs (gateChannel)
 
 	stateList func() (map[string]json.RawMessage, error) // a config check's states, one read for all (useStateList); nil: one read each
 }

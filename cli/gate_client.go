@@ -1,13 +1,17 @@
 package main
 
 import (
+	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"runtime"
 	"strings"
@@ -49,27 +53,50 @@ func gateKey(r gateRequest) [32]byte {
 
 // gateApproval is set by ha-nova mcp (stdio) for its apply job
 // (mcp_stdio_apply.go): an ask then waits its whole life, and the flag is
-// true while it waits for the person. nil (the CLI): an ask ends after
-// windowWait.
+// true while it waits for the person. nil (the CLI): an ask ends with the
+// command's own wait (askWait).
 var gateApproval *atomic.Bool
 
 // The waiting window (nativeWindow's code with other buttons) and what its
 // first button opens; tests replace both.
 var (
-	gateWindow = func(ctx context.Context, message, lang string, wait time.Duration) windowAnswer {
-		return nativeButtons(ctx, message, confirmT(lang, "gate.open"), confirmT(lang, "window.cancel"), wait)
-	}
+	gateWindow = nativeButtons
 	gateOpenHA = launchBrowser
 )
 
 // gateExempt: the App's chat bridge and gate worker keep their own asks (spec §1, §5).
 func (s *relaySession) gateExempt() bool { return chatCall != nil || s.cfg.bridgeCredential != "" }
 
+// gateRefusal: the Relay's safety check refused the request before it
+// forwarded anything; only GATE_ANSWER_WITHHELD came after Home Assistant ran it.
+func gateRefusal(code string) bool {
+	return strings.HasPrefix(code, "GATE_") && code != "GATE_ANSWER_WITHHELD"
+}
+
+// gateRefusalPeek reads the head of a Relay answer of 5xx (cloud_ingress.go):
+// true when it is the Relay's own gate refusal, so nothing was forwarded.
+// The bytes read go back in front of the body.
+func gateRefusalPeek(body io.ReadCloser) (io.ReadCloser, bool) {
+	head, _ := io.ReadAll(io.LimitReader(body, 8<<10))
+	var envelope struct {
+		OK    *bool `json:"ok"`
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	refused := json.Unmarshal(head, &envelope) == nil && envelope.OK != nil && !*envelope.OK && gateRefusal(envelope.Error.Code)
+	return struct {
+		io.Reader
+		io.Closer
+	}{io.MultiReader(bytes.NewReader(head), body), body}, refused
+}
+
 // sendWrite sends one checked write body exactly once (sendWriteOnce), with
 // the grant an ask got for these bytes. A typed request the Relay holds
 // (428) that carried no grant is asked for now, with the reload a config
 // write needs after it, and sent once more with that grant; a 428 that
-// carried a grant is never asked again.
+// carried a grant is never asked again. An ask that ends without an
+// approval answers its own *verbFailure: nothing of this request was sent.
 func (s *relaySession) sendWrite(endpoint string, body []byte) (json.RawMessage, error) {
 	request := gateRequest{endpoint, body}
 	grant := s.takeGrant(request)
@@ -79,7 +106,7 @@ func (s *relaySession) sendWrite(endpoint string, body []byte) (json.RawMessage,
 		return data, err
 	}
 	if err := s.gateAsk(append([]gateRequest{request}, gateFollowUps(request)...)); err != nil {
-		return nil, errors.New(strings.TrimSuffix(err.Error(), "; nothing was sent")) // the caller says so
+		return nil, err
 	}
 	return s.sendWriteOnce(endpoint, body, s.takeGrant(request))
 }
@@ -103,6 +130,10 @@ func (s *relaySession) takeGrant(r gateRequest) string {
 // ask route (rolled back), or an ask the Relay doesn't need although this
 // computer rated it typed (they disagree, so nothing is sent).
 func (s *relaySession) gateAsk(reqs []gateRequest) error {
+	if len(reqs) > gateAskMax {
+		return gateStop("refused", "GATE_ASK_TOO_LARGE", fmt.Sprintf("this change sends %d requests, more than one confirmation on the phone or in Home Assistant covers (%d); nothing was sent", len(reqs), gateAskMax),
+			"Tell the user nothing changed. Plan it again in smaller parts (a batch of at most 10 automations or scripts).")
+	}
 	items := make([]map[string]string, len(reqs))
 	for i, r := range reqs {
 		items[i] = map[string]string{"endpoint": r.endpoint, "body_b64": base64.StdEncoding.EncodeToString(r.body)}
@@ -115,7 +146,7 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 	var call *relayCallError
 	switch {
 	case errors.As(err, &call) && strings.HasPrefix(call.code, "GATE_"):
-		return gateStop("refused", call.code, call.message, gateNext[call.code])
+		return gateStop("refused", call.code, call.message+"; nothing was sent", gateNext[call.code])
 	case errors.As(err, &call) && call.status == http.StatusNotFound:
 		return gateRolledBack()
 	case err != nil:
@@ -145,12 +176,13 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 }
 
 // gateWait long-polls the ask until it ends, our wait runs out (the CLI:
-// windowWait; ha-nova mcp's job: the ask's life), or HA NOVA is stopped
-// (planAsks). An end without an approval cancels the ask. The waiting window
-// only opens Home Assistant or cancels; its answer is read before an
-// approval counts, so a Cancel that raced the approval wins.
+// what is left of the command's wait, askWait; ha-nova mcp's job: the ask's
+// life), or HA NOVA is stopped (planAsks). An end without an approval
+// cancels the ask. The waiting window only opens Home Assistant or
+// cancels; its answer is read before an approval counts, so a Cancel that
+// raced the approval wins.
 func (s *relaySession) gateWait(askID string) (state, grant string) {
-	deadline := time.Now().Add(windowWait)
+	deadline := time.Now().Add(askWait())
 	if flag := gateApproval; flag != nil {
 		deadline = time.Now().Add(gateAskLife + 5*time.Second)
 		flag.Store(true)
@@ -176,8 +208,9 @@ func (s *relaySession) gateWait(askID string) (state, grant string) {
 			}
 		}
 	}()
-	window, raced := s.gateWindow(ctx, deadline)
-	fmt.Fprintln(os.Stderr, "HA NOVA asks on your linked phone or in Home Assistant (NOVA) and waits; nothing is sent before an OK there.")
+	page := s.gatePageURL()
+	window, raced := s.gateWindow(ctx, deadline, page)
+	fmt.Fprintln(os.Stderr, confirmT(confirmLanguage(s.lang), "gate.waiting"))
 	stopped := func() (string, string) {
 		s.gateCancel(askID)
 		if planAsks.Err() != nil {
@@ -193,9 +226,9 @@ func (s *relaySession) gateWait(askID string) (state, grant string) {
 			case windowCancelled, windowClosed:
 				s.gateCancel(askID)
 				return "cancelled", ""
-			case windowConfirmed: // its only button besides Cancel: open Home Assistant, never approve
-				if target, err := haNOVAAppPanelURL(s.cfg.HAURL); err == nil && s.cfg.HAURL != "" {
-					_ = gateOpenHA(target.URL)
+			case windowConfirmed: // its only button besides Cancel: open Home Assistant (or hide the window), never approve
+				if page != "" {
+					_ = gateOpenHA(page)
 				}
 			}
 		case got := <-polls:
@@ -215,26 +248,56 @@ func (s *relaySession) gateWait(askID string) (state, grant string) {
 	}
 }
 
+// gatePageURL: the NOVA page from the paired profile only, never Home
+// Assistant's own internal or external URL: through Link, the Link
+// connection's address first; else the profile's Home Assistant URL first.
+// "" when the profile holds neither.
+func (s *relaySession) gatePageURL() string {
+	local, link := "", ""
+	if u, err := url.Parse(s.cfg.HAURL); err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" {
+		local = s.cfg.HAURL
+	}
+	if s.cfg.Cloud != nil && s.cfg.Cloud.Current != nil {
+		if origin, err := ParseCanonicalNabuOrigin(s.cfg.Cloud.Current.CanonicalOrigin); err == nil {
+			link = origin.String()
+		}
+	}
+	base := cmp.Or(local, link)
+	if s.transport.Via == relayViaCloud {
+		base = cmp.Or(link, local)
+	}
+	target, err := haNOVAAppPanelURL(base)
+	if base == "" || err != nil {
+		return ""
+	}
+	return target.URL
+}
+
 // gateWindow shows the waiting window where one can open (as for window
-// plans): the worker-free text, a first button that opens Home Assistant,
-// and Cancel. Windows' stock OK/Cancel get a line saying what OK does.
-// raced withdraws a window still showing and reports whether its last
-// answer was a Cancel. No window: a nil channel, and raced says false.
-func (s *relaySession) gateWindow(ctx context.Context, deadline time.Time) (<-chan windowAnswer, func(<-chan windowAnswer) bool) {
+// plans): the worker-free text, a first button that opens the NOVA page
+// (without a page: one that only hides the window, and the text says
+// where the page is), and Cancel. Windows' stock OK/Cancel get a line
+// saying what OK does. raced withdraws a window still showing and reports
+// whether its last answer was a Cancel. No window: a nil channel, and
+// raced says false.
+func (s *relaySession) gateWindow(ctx context.Context, deadline time.Time, page string) (<-chan windowAnswer, func(<-chan windowAnswer) bool) {
 	none := func(<-chan windowAnswer) bool { return false }
 	if chatCall != nil || windowOff(s.paths) || !windowAvailable() {
 		return nil, none
 	}
 	lang := confirmLanguage(s.lang)
-	text := confirmT(lang, "gate.window")
+	text, first, ok := confirmT(lang, "gate.window"), confirmT(lang, "gate.open"), confirmT(lang, "gate.windows_ok")
+	if page == "" {
+		text, first, ok = confirmT(lang, "gate.window_page"), confirmT(lang, "gate.hide"), confirmT(lang, "gate.windows_hide")
+	}
 	if runtime.GOOS == "windows" {
-		text += "\n\n" + confirmT(lang, "gate.windows_ok")
+		text += "\n\n" + ok
 	}
 	answers := make(chan windowAnswer, 1)
 	windowCtx, closeWindow := context.WithCancel(ctx)
 	go func() {
 		defer closeWindow()
-		answers <- gateWindow(windowCtx, text, lang, time.Until(deadline))
+		answers <- gateWindow(windowCtx, text, first, confirmT(lang, "window.cancel"), time.Until(deadline))
 	}()
 	return answers, func(window <-chan windowAnswer) bool {
 		if window == nil {

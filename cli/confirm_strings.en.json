@@ -31,6 +31,10 @@
   "gate.window": "Confirm this change on your phone or in Home Assistant. This window can't confirm it, and nothing has been sent yet.",
   "gate.open": "Open Home Assistant",
   "gate.windows_ok": "OK opens Home Assistant; Cancel stops this change.",
+  "gate.window_page": "Confirm this change on your phone or in Home Assistant (the HA NOVA entry in its sidebar). This window can't confirm it, and nothing has been sent yet.",
+  "gate.hide": "Hide",
+  "gate.windows_hide": "OK hides this window; Cancel stops this change.",
+  "gate.waiting": "HA NOVA asks on your linked phone or in Home Assistant (NOVA) and waits; nothing is sent before an OK there.",
 
   "say.about": "I'm about to {action}.",
   "say.nothing_found": "Not done: I couldn't find what you named. Nothing changed. Tell me which devices you mean.",

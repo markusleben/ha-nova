@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
+	"time"
 )
 
 // Where the gate meets plans and apply (spec → CLI client): a typed plan on
@@ -13,13 +16,14 @@ import (
 // requests before it sends anything.
 
 // gateChannel: a typed plan on a gated App is confirmed through the Relay
-// (channelRelay). A raw plan only a skill's typed mark makes typed keeps
-// this computer's asks (the gate may pass it), and so do dashboard and rooms
-// plans, whose requests apply can't name before it sends them. "" without
-// a gate, as on an older App.
+// (channelRelay). A raw plan with an item only a skill's typed mark makes
+// typed keeps this computer's asks (the Relay neither sees nor needs the
+// mark; an item typed by itself meets the gate when the Relay holds it, as
+// on any such plan), and so do dashboard and rooms plans, whose requests
+// apply can't name before it sends them. "" without a gate, as on an older App.
 func gateChannel(e *tierEngine, plan storedPlan) (string, error) {
 	on, err := e.s.gateOn()
-	local := plan.Kind == "raw" && !e.requestTyped || plan.Kind == "rooms" || plan.ConfigAction != nil && plan.ConfigAction.Domain == "dashboard"
+	local := plan.Kind == "raw" && e.markTyped || plan.Kind == "rooms" || plan.ConfigAction != nil && plan.ConfigAction.Domain == "dashboard"
 	if err != nil || !on || local {
 		return "", err
 	}
@@ -28,33 +32,52 @@ func gateChannel(e *tierEngine, plan storedPlan) (string, error) {
 
 // gateBeforeSend runs before a typed plan's first write (applyPlan): a
 // profile that saw the gate refuses once it is gone, and a relay plan asks
-// for the requests it sends first and waits for the person. Later requests
+// for the requests it sends first and waits for the person. It answers the
+// requests the person approved (none: nothing was asked). Later requests
 // ask when the Relay holds them (sendWrite).
-func gateBeforeSend(s *relaySession, channel string, fresh storedPlan, batch batchReplan) error {
+func gateBeforeSend(s *relaySession, channel string, fresh storedPlan, batch batchReplan) ([]gateRequest, error) {
 	if fresh.Tier != tierTyped.String() {
-		return nil
+		return nil, nil
 	}
 	on, err := s.gateOn()
 	switch {
 	case err != nil || channel != channelRelay:
-		return err
+		return nil, err
 	case !on:
-		return gateRolledBack()
+		return nil, gateRolledBack()
 	}
 	reqs := gateFirstRequests(fresh, batch)
 	if len(reqs) == 0 {
-		return nil
+		return nil, nil
 	}
 	if err := s.gateAsk(reqs); err != nil {
-		return err
+		return nil, err
 	}
 	humanWhere = channelRelay
+	return reqs, nil
+}
+
+// gateStillApproved: after the person approved (which may take minutes),
+// the plan checked again right before the first send (again, from
+// recheck) is still the one they approved, unexpired, and sends the very
+// bytes they approved. Otherwise nothing is sent and the grant expires
+// unused; the plan is gone, as after any drift.
+func gateStillApproved(stored, again storedPlan, err error, asked, now []gateRequest, expires time.Time) error {
+	same := slices.EqualFunc(asked, now, func(a, b gateRequest) bool { return a.endpoint == b.endpoint && bytes.Equal(a.body, b.body) })
+	switch {
+	case err != nil || !stillConfirmed(stored, again) || again.Tier != stored.Tier || !same:
+		return &verbFailure{exit: verbExitDrift, status: "drift", code: "PLAN_DRIFT",
+			message: "something changed in Home Assistant while the user confirmed; nothing was sent and the plan is gone",
+			next:    "Tell the user nothing changed because the home changed meanwhile. Plan it again only if they still want it; it shows the new preview and asks them again."}
+	case !verbNow().Before(expires):
+		return refused("PLAN_EXPIRED", "plan "+stored.ID+" expired while the user confirmed; nothing was sent")
+	}
 	return nil
 }
 
 // gateFirstRequests: what a relay plan sends first, byte for byte as its
-// executor sends it (executeAction, executeConfig, executeRaw); a batch's
-// first member when that one is typed.
+// executor sends it (executeAction, executeConfig, executeRaw); for a
+// batch, every member's write and reload, so one approval covers it.
 func gateFirstRequests(fresh storedPlan, batch batchReplan) []gateRequest {
 	switch {
 	case fresh.Kind == "call":
@@ -69,8 +92,12 @@ func gateFirstRequests(fresh storedPlan, batch batchReplan) []gateRequest {
 			reqs = append(reqs, gateRequest{item.Endpoint, body})
 		}
 		return reqs
-	case fresh.Kind == "batch" && len(batch.members) > 0 && batch.members[0].fresh.Tier == tierTyped.String():
-		return configRequests(*batch.members[0].fresh.ConfigAction)
+	case fresh.Kind == "batch":
+		var reqs []gateRequest
+		for _, m := range batch.members {
+			reqs = append(reqs, configRequests(*m.fresh.ConfigAction)...)
+		}
+		return reqs
 	case fresh.ConfigAction != nil:
 		return configRequests(*fresh.ConfigAction)
 	}

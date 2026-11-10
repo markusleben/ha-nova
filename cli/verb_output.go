@@ -270,6 +270,9 @@ var errNothingSent = errors.New("nothing was sent")
 
 // nothingSent words a failure before anything reached Home Assistant.
 func nothingSent(err error) *verbFailure {
+	if failure := (*verbFailure)(nil); errors.As(err, &failure) && errors.Is(failure, errNothingSent) { // already worded (a Relay ask, gate_client.go)
+		return failure
+	}
 	next := "Nothing was sent, so retrying is safe: run the same command again once the Relay answers, and tell the user it was retried."
 	return &verbFailure{exit: verbExitError, code: "RELAY_ERROR", message: err.Error() + "; nothing was sent to Home Assistant", next: next, cause: errors.Join(errNothingSent, err)}
 }

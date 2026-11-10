@@ -226,6 +226,10 @@ func (c *CloudIngressClient) send(
 			return nil, newCloudHTTPError(CloudErrOuterSessionExpired, "authorize Cloud ingress session", response.StatusCode, true)
 		}
 	}
+	gateRefused := false // the Relay's own gate refusal: nothing was forwarded (gate_client.go)
+	if outcomeSensitive && reachedRelay && response.StatusCode >= http.StatusInternalServerError {
+		response.Body, gateRefused = gateRefusalPeek(response.Body)
+	}
 	if outcomeSensitive {
 		if !reachedRelay && response.StatusCode == http.StatusNotFound {
 			response.Body.Close()
@@ -237,7 +241,7 @@ func (c *CloudIngressClient) send(
 			)
 		}
 		if !reachedRelay ||
-			response.StatusCode >= http.StatusInternalServerError {
+			response.StatusCode >= http.StatusInternalServerError && !gateRefused {
 			response.Body.Close()
 			return nil, &CloudError{
 				Code:       CloudErrOutcomeUnknown,

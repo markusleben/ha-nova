@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
-	"strings"
 	"time"
 )
 
@@ -224,10 +223,8 @@ func (s *relaySession) sendWriteOnce(endpoint string, body []byte, grant string)
 		// Home Assistant answered a WS command with its own error: rejected,
 		// not unknown (the Relay wraps it as 502 UPSTREAM_WS_COMMAND_ERROR).
 		rejectedByHA := endpoint == "ws" && envelope.Error.Code == "UPSTREAM_WS_COMMAND_ERROR"
-		// The Relay's safety check refused it before forwarding (503 GATE_UNAVAILABLE
-		// too); only GATE_ANSWER_WITHHELD came after Home Assistant ran it.
-		gateRefused := strings.HasPrefix(envelope.Error.Code, "GATE_") && envelope.Error.Code != "GATE_ANSWER_WITHHELD"
-		if resp.StatusCode >= http.StatusInternalServerError && !rejectedByHA && !gateRefused { // upstream error or timeout: it may have run
+		// The Relay's safety check refused it before forwarding (503 GATE_UNAVAILABLE too).
+		if resp.StatusCode >= http.StatusInternalServerError && !rejectedByHA && !gateRefusal(envelope.Error.Code) { // upstream error or timeout: it may have run
 			return nil, relayHTTPOutcomeUnknownError(resp.StatusCode)
 		}
 		return nil, &relayCallError{endpoint: endpoint, status: resp.StatusCode, code: envelope.Error.Code, message: envelope.Error.Message}

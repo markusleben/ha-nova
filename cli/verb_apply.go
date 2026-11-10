@@ -239,7 +239,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	var e *tierEngine
 	var ctx configContext
 	var batch batchReplan
-	fresh, err := recheck(s, &env, plan, func(env *verbEnvelope) (fresh storedPlan, err error) {
+	compute := func(env *verbEnvelope) (fresh storedPlan, err error) {
 		switch {
 		case isBatch:
 			batch, fresh, err = computeBatchPlan(paths, s, env, plan.BatchMembers)
@@ -253,7 +253,8 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			e, fresh, ctx, err = computeConfigPlan(paths, s, env, *config)
 		}
 		return fresh, err
-	})
+	}
+	fresh, err := recheck(s, &env, plan, compute)
 	// release hands the claimed plan back after a failure before anything
 	// reached Home Assistant, so the same apply can be retried.
 	release := func(err error) error {
@@ -363,8 +364,16 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		wantCode = "" // never shown, not even once used
 	}
 	env.Plan = &verbPlan{ID: plan.ID, Hash: identity, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode}
-	if err := gateBeforeSend(s, plan.Channel, fresh, batch); err != nil {
+	if asked, err := gateBeforeSend(s, plan.Channel, fresh, batch); err != nil {
 		return fail(release(err))
+	} else if asked != nil { // approved minutes later, maybe: check it again right before the first send
+		s.forgetReads()
+		scratch := env
+		again, err := recheck(s, &scratch, plan, compute)
+		if err := gateStillApproved(plan, again, err, asked, gateFirstRequests(again, batch), expires); err != nil {
+			return fail(err)
+		}
+		fresh = again
 	}
 	env.done = applyDone(e, &env, fresh, ctx)
 	if isRooms {

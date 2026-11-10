@@ -31,6 +31,10 @@
   "gate.window": "Bestätige diese Änderung auf deinem Handy oder in Home Assistant. Dieses Fenster kann sie nicht bestätigen, und noch wurde nichts gesendet.",
   "gate.open": "Home Assistant öffnen",
   "gate.windows_ok": "OK öffnet Home Assistant; Abbrechen stoppt diese Änderung.",
+  "gate.window_page": "Bestätige diese Änderung auf deinem Handy oder in Home Assistant (Eintrag „HA NOVA“ in der Seitenleiste). Dieses Fenster kann sie nicht bestätigen, und noch wurde nichts gesendet.",
+  "gate.hide": "Ausblenden",
+  "gate.windows_hide": "OK blendet dieses Fenster aus; Abbrechen stoppt diese Änderung.",
+  "gate.waiting": "HA NOVA fragt auf deinem verbundenen Handy oder in Home Assistant (NOVA) und wartet; vor einem OK dort wird nichts gesendet.",
 
   "say.about": "Ich werde gleich {action}.",
   "say.nothing_found": "Nicht erledigt: Ich habe nicht gefunden, was du genannt hast. Es wurde nichts geändert. Sag mir, welche Geräte du meinst.",

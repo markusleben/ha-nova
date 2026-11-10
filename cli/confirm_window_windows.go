@@ -259,7 +259,10 @@ func nativeWindow(ctx context.Context, message, _ string, wait time.Duration) wi
 		for give := time.Now().Add(2 * time.Second); time.Now().Before(give); {
 			_, _, _ = enumThreadWindows.Call(id, closeBox, 0)
 			select {
-			case <-done:
+			case r := <-done:
+				if r == 2 { // IDCANCEL given before the withdrawal still counts
+					return windowCancelled
+				}
 				return windowNoAnswer
 			case <-time.After(50 * time.Millisecond):
 			}

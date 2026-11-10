@@ -8,33 +8,26 @@ import (
 	"time"
 )
 
-// A later batch member the first ask didn't cover is asked for when the
-// Relay holds it (428 without a grant), with its reload, and sent once more
-// with that grant.
-func TestGateAsksALaterBatchMemberWhenTheRelayHoldsIt(t *testing.T) {
-	g := &fakeGate{hold: func(send gateSend) any {
-		if send.grant == "" {
-			return fakeRelayStatus{428, "GATE_APPROVAL_REQUIRED", "held"}
-		}
-		return nil
-	}}
+// A typed batch is approved before any member runs, also when its first
+// member isn't typed: one ask names every member's write and reload, and
+// each goes out with that grant, byte for byte as asked.
+func TestGateTypedBatchAsksForEveryMemberFirst(t *testing.T) {
+	g := &fakeGate{}
 	h := gatedHarness(t, batchHome(), g)
-	unlock := func(alias string) map[string]any {
-		return map[string]any{"alias": alias, "sequence": []any{step("lock.unlock", "lock.front")}}
-	}
-	_, env := h.batch(h.writePlan("script", "s1", unlock("Arrival")), h.writePlan("script", "s2", unlock("Old arrival")))
-	if env.Plan == nil || env.Plan.Channel != channelRelay || env.Plan.Code != "" {
+	unlock := map[string]any{"alias": "Old arrival", "sequence": []any{step("lock.unlock", "lock.front")}}
+	_, env := h.batch(h.writePlan("script", "s1", arrival("light.turn_off")), h.writePlan("script", "s2", unlock))
+	if env.Plan == nil || env.Tier != "typed" || env.Plan.Channel != channelRelay || env.Plan.Code != "" {
 		t.Fatalf("batch plan: %+v", env)
 	}
 	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
-	asks, _, sends := g.snapshot()
-	var grants []string
-	for _, send := range sends {
-		grants = append(grants, send.grant)
-	}
-	if exit != 0 || len(asks) != 2 || strings.Join(grants, ",") != "grant-ask1,grant-ask1,,grant-ask2,grant-ask2" ||
-		sends[2].key != asks[1][0] || sends[3].key != asks[1][0] || sends[4].key != asks[1][1] || sends[0].key != asks[0][0] {
+	asks, ops, sends := g.snapshot()
+	if exit != 0 || len(asks) != 1 || len(asks[0]) != 4 || len(sends) != 4 || strings.Join(ops, ",") != "open,wait" {
 		t.Fatalf("exit %d %+v; asks %q sends %+v", exit, applied.Error, asks, sends)
+	}
+	for i, send := range sends {
+		if send != (gateSend{asks[0][i], "grant-ask1"}) {
+			t.Fatalf("send %d %+v, asked %q", i, send, asks[0][i])
+		}
 	}
 }
 
@@ -61,7 +54,10 @@ func TestGateWaitingWindow(t *testing.T) {
 				g.release = make(chan struct{}) // the approval comes after the window's answer
 			}
 			var texts, opened []string
-			gateWindow = func(ctx context.Context, message, lang string, wait time.Duration) windowAnswer {
+			gateWindow = func(ctx context.Context, message, first, cancel string, wait time.Duration) windowAnswer {
+				if first != confirmT("en", "gate.open") || cancel != confirmT("en", "window.cancel") {
+					t.Errorf("buttons %q, %q", first, cancel)
+				}
 				texts = append(texts, message)
 				return tc.answer(ctx)
 			}
@@ -113,24 +109,40 @@ func TestGateStopSignalEndsTheAskUnsent(t *testing.T) {
 	}
 }
 
-// ha-nova mcp answers waiting_for_approval while its job's ask waits; a
+// ha-nova mcp refuses a code for a relay plan (nothing sent), then answers
+// waiting_for_approval in the home's language while its job's ask waits; a
 // second call joins the same job, and the outcome comes once the person
 // approved, sent once.
 func TestGateMCPApplyWaitsForApproval(t *testing.T) {
+	for _, lang := range []string{"en", "de"} {
+		t.Run(lang, func(t *testing.T) { gateMCPApply(t, lang) })
+	}
+}
+
+func gateMCPApply(t *testing.T, lang string) {
 	shortApplyWait(t)
 	g := &fakeGate{release: make(chan struct{})}
-	h := gatedHarness(t, newFakeHA(), g)
+	f := newFakeHA()
+	f.config = map[string]any{"language": lang}
+	h := gatedHarness(t, f, g)
 	plan := h.plan("lock.unlock", "lock.front").Plan
 	c := startMCP(t, h.paths)
 	mcpInit(c)
-	apply := map[string]any{"plan_id": plan.ID}
 	var env map[string]any
+	waitFor(t, "the refusal", func() bool {
+		env = envelopeOf(c.tool("ha_apply", map[string]any{"plan_id": plan.ID, "confirm_code": "1234"}))
+		return env["status"] != "applying"
+	})
+	if _, _, sends := g.snapshot(); envCode(env) != "CONFIRM_IN_HOME_ASSISTANT" || !strings.Contains(nextOf(env), "without confirm_code") || len(sends) != 0 {
+		t.Fatalf("a code through MCP: %v (sends %+v)", env, sends)
+	}
+	apply := map[string]any{"plan_id": plan.ID}
 	waitFor(t, "the ask", func() bool {
 		env = envelopeOf(c.tool("ha_apply", apply))
 		return env["status"] == "waiting_for_approval"
 	})
 	env = envelopeOf(c.tool("ha_apply", apply))
-	if env["status"] != "waiting_for_approval" || env["say"] != confirmT("en", "say.relay_waiting") || !strings.Contains(nextOf(env), "call ha_apply again with plan_id "+plan.ID) {
+	if env["status"] != "waiting_for_approval" || env["say"] != confirmT(lang, "say.relay_waiting") || !strings.Contains(nextOf(env), "call ha_apply again with plan_id "+plan.ID) {
 		t.Fatalf("joined call: %v", env)
 	}
 	close(g.release)
@@ -143,9 +155,10 @@ func TestGateMCPApplyWaitsForApproval(t *testing.T) {
 	}
 }
 
-// A raw plan typed only by a skill's mark keeps this computer's asks (the
-// gate may pass it); one typed by its own request is a relay plan that asks
-// for exactly the bytes it sends.
+// A raw plan with an item typed only by a skill's mark keeps this
+// computer's asks (the Relay neither sees nor needs the mark), also when
+// another item is typed by itself; one typed by its own requests alone is
+// a relay plan that asks for exactly the bytes it sends.
 func TestGateRawPlans(t *testing.T) {
 	g := &fakeGate{}
 	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
@@ -161,6 +174,10 @@ func TestGateRawPlans(t *testing.T) {
 	_, marked := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"input_boolean/update","input_boolean_id":"guest","name":"G"},"typed":true}]`)
 	if marked.Tier != "typed" || marked.Plan == nil || marked.Plan.Channel == channelRelay || marked.Plan.Code == "" {
 		t.Fatalf("skill-typed plan: %+v", marked)
+	}
+	_, mixed := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"input_boolean/update","input_boolean_id":"guest","name":"G"},"typed":true},{"endpoint":"ws","payload":{"type":"input_boolean/delete","input_boolean_id":"guest"}}]`)
+	if mixed.Tier != "typed" || mixed.Plan == nil || mixed.Plan.Channel == channelRelay || mixed.Plan.Code == "" {
+		t.Fatalf("mixed plan: %+v", mixed)
 	}
 	_, typed := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"input_boolean/delete","input_boolean_id":"guest"}}]`)
 	if typed.Tier != "typed" || typed.Plan == nil || typed.Plan.Channel != channelRelay || typed.Plan.Code != "" {

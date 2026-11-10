@@ -63,26 +63,29 @@ func nativeButtons(ctx context.Context, message, first, cancel string, wait time
 	var exitErr *exec.ExitError
 	code := 0
 	switch {
-	case ctx.Err() != nil:
+	case err != nil && !errors.As(err, &exitErr) && ctx.Err() != nil:
 		return windowNoAnswer
 	case err != nil && !errors.As(err, &exitErr):
 		return windowFailed // could not start
 	case err != nil:
 		code = exitErr.ExitCode()
 	}
-	return zenityAnswer(code, stderr.String())
+	return zenityAnswer(code, stderr.String(), ctx.Err() != nil)
 }
 
 // zenityAnswer maps zenity's exit code (-1: ended by a signal) and stderr.
-func zenityAnswer(code int, stderr string) windowAnswer {
+// ended: we withdrew the window; only a Cancel it gave before that counts.
+func zenityAnswer(code int, stderr string, ended bool) windowAnswer {
 	failure := strings.ToLower(stderr)
 	switch {
-	case code == 0:
+	case code == 0 && !ended:
 		return windowConfirmed
 	case strings.Contains(failure, "open display") || strings.Contains(failure, "connect to display"): // GTK at startup only
 		return windowFailed
-	case code == 1: // Cancel or close
+	case code == 1: // Cancel or close, also one given before we withdrew it
 		return windowCancelled
+	case ended:
+		return windowNoAnswer
 	case code == -1: // ended by a signal: closed from outside
 		return windowClosed
 	}

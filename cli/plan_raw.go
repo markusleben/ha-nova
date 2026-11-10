@@ -214,7 +214,7 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 			n.deviceEntities(payload["device_id"])
 		}
 		flows := max(e.rawShoppingList(item.Endpoint, payload), e.rawListeners(item.Endpoint, payload))
-		e.requestTyped = e.requestTyped || flows == tierTyped || level == tierTyped && why != "skill_typed"
+		e.markTyped = e.markTyped || why == "skill_typed" && flows < tierTyped
 		level = max(level, flows)
 		entry := rawPlanItem{Endpoint: item.Endpoint, Tier: level.String()}
 		if i < len(copies) {

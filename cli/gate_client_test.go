@@ -25,9 +25,10 @@ type fakeGate struct {
 	ops        []string   // open, wait, cancel in order
 	sends      []gateSend // every config or service write
 	notNeeded  bool
-	openAnswer any           // the open's answer instead of an ask (a fakeRelayStatus)
-	state      string        // how a wait ends; "" approved
-	release    chan struct{} // non-nil: a wait answers once it is closed
+	openAnswer any               // the open's answer instead of an ask (a fakeRelayStatus)
+	state      string            // how a wait ends; "" approved
+	endFor     map[string]string // how one ask's wait ends (by ask id), before state
+	release    chan struct{}     // non-nil: a wait answers once it is closed
 	onWait     func()
 	hold       func(send gateSend) any // a write's answer instead of Home Assistant's (nil: Home Assistant's)
 }
@@ -73,6 +74,9 @@ func (g *fakeGate) ask(ctx context.Context, p map[string]any) any {
 			case <-ctx.Done():
 				return nil
 			}
+		}
+		if end := g.endFor[fmt.Sprint(p["ask_id"])]; end != "" {
+			return map[string]any{"state": end}
 		}
 		if g.state != "" {
 			return map[string]any{"state": g.state}

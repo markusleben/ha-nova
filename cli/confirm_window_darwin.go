@@ -76,6 +76,8 @@ func nativeButtons(ctx context.Context, message, first, cancel string, wait time
 func darwinAnswer(out string, err error, ended, showing bool) windowAnswer {
 	var exitErr *exec.ExitError
 	switch {
+	case err == nil && out == "cancel": // a Cancel given before we withdrew the window still counts
+		return windowCancelled
 	case ended:
 		return windowNoAnswer
 	case err != nil && !errors.As(err, &exitErr): // osascript could not be started
@@ -84,8 +86,6 @@ func darwinAnswer(out string, err error, ended, showing bool) windowAnswer {
 		return windowFailed
 	case err == nil && out == "button Confirm":
 		return windowConfirmed
-	case err == nil && out == "cancel":
-		return windowCancelled
 	case err == nil && out == "error -1713":
 		return windowFailed
 	case exitErr != nil && exitErr.ExitCode() == -1: // ended by a signal: closed from outside
