@@ -86,14 +86,20 @@ func TestGatePhoneMoveSkipsWithoutCause(t *testing.T) {
 			t.Fatalf("exit %d ops %v", exit, ops)
 		}
 	})
-	t.Run("no local link", func(t *testing.T) {
-		g := &fakeGate{phones: true}
-		h := gatedFamily(t, g, false)
-		exit, applied := h.run(runApplyCommand, "--plan", h.plan("lock.unlock", "lock.front").Plan.ID)
-		if _, ops, sends := g.snapshot(); exit != verbExitRefused || applied.Error.Code != "GATE_NO_CHANNEL" || strings.Join(ops, ",") != "open" || len(sends) != 0 {
-			t.Fatalf("exit %d %+v ops %v", exit, applied.Error, ops)
-		}
-	})
+	for name, link := range map[string]*phoneLink{"no local link": nil, "its phone gone": {Service: "mobile_app_old", DeviceID: "dev-gone", UserID: "owner-id", Name: "Old Phone"}} {
+		t.Run(name, func(t *testing.T) {
+			g := &fakeGate{phones: true}
+			h := gatedFamily(t, g, false)
+			if link != nil {
+				seedLink(t, h, link)
+			}
+			exit, applied := h.run(runApplyCommand, "--plan", h.plan("lock.unlock", "lock.front").Plan.ID)
+			if _, ops, sends := g.snapshot(); exit != verbExitRefused || applied.Error.Code != "GATE_NO_CHANNEL" || strings.Join(ops, ",") != "open" || len(sends) != 0 ||
+				!strings.Contains(applied.Error.Next, "ha-nova setup confirm-phone") || !strings.Contains(applied.Error.Next, "ha-nova doctor") {
+				t.Fatalf("exit %d %+v ops %v", exit, applied.Error, ops)
+			}
+		})
+	}
 }
 
 // A move that ends without a link refuses, nothing sent, unless it expired,
@@ -132,6 +138,10 @@ func TestGatePhoneMoveThatFails(t *testing.T) {
 			if c.code != "" {
 				if exit != verbExitRefused || applied.Error == nil || applied.Error.Code != c.code || len(sends) != 0 {
 					t.Fatalf("exit %d %+v ops %v sends %v", exit, applied.Error, ops, sends)
+				}
+				if c.typedAnswer == "" && (!strings.Contains(applied.Error.Message, "the phone link to HA NOVA wasn't confirmed") ||
+					!strings.Contains(applied.Error.Next, "ha-nova setup confirm-phone") || !strings.Contains(applied.Error.Next, "ha-nova doctor") || strings.Contains(applied.Error.Next, "NOVA page")) {
+					t.Fatalf("link words: %+v", applied.Error)
 				}
 				return
 			}
@@ -185,7 +195,7 @@ func TestDoctorGateStates(t *testing.T) {
 	run := func(h *writeHarness, health []byte, link, device bool) (bool, string) {
 		var ok bool
 		_, out := captureCommandOutput(t, func() int {
-			ok = doctorGate(h.paths, health, link, device, func(f string, a ...any) { printHumanInfo(f, a...) })
+			ok = doctorGate(h.paths, false, health, link, device, func(f string, a ...any) { printHumanInfo(f, a...) }) == 0
 			return 0
 		})
 		return ok, out
@@ -208,9 +218,13 @@ func TestDoctorGateStates(t *testing.T) {
 	home := newFamilyHome()
 	home.install(t, f)
 	family := f.extra
+	registryFails := false
 	f.extra = func(endpoint string, p map[string]any) (any, bool) {
 		if p["type"] == "auth/current_user" && home.relay == "down" {
 			return fakeRelayStatus{503, "GATE_UNAVAILABLE", "down"}, true
+		}
+		if p["type"] == "config/device_registry/list" && registryFails {
+			return fakeRelayStatus{500, "UPSTREAM_ERROR", "busy"}, true
 		}
 		return family(endpoint, p)
 	}
@@ -224,12 +238,27 @@ func TestDoctorGateStates(t *testing.T) {
 	if lines := strings.Count(out, "Safety check limits:"); !ok || lines != 1 || !strings.Contains(out, "as the owner, so only the NOVA page can confirm") || !strings.Contains(out, "Home Assistant Link") {
 		t.Fatalf("limits: %v %q", ok, out)
 	}
-	home.relay = "supervisor-id"
-	seedLink(t, h, &phoneLink{Service: "mobile_app_old", DeviceID: "dev-gone", UserID: "owner-id", Name: "Old Phone"})
-	if _, out := run(h, on, false, false); !strings.Contains(out, "can't be replaced without that phone") {
-		t.Fatalf("gone phone, container: %q", out)
+	// The Relay on its own has no page: the owner's token leaves nothing that can confirm.
+	if _, out := run(h, on, false, false); !strings.Contains(out, "nothing can confirm") || !strings.Contains(out, "a Home Assistant user who isn't the owner") || strings.Contains(out, "NOVA page can confirm") {
+		t.Fatalf("owner token, standalone: %q", out)
 	}
-	if _, out := run(h, on, false, true); strings.Contains(out, "can't be replaced") {
+	registryFails = true // a lookup that fails after the owner was read: no "on", the owner check still runs
+	if ok, out := run(h, on, false, true); !ok || strings.Contains(out, "Safety check in Home Assistant: on.") || !strings.Contains(out, "couldn't check that it runs") || !strings.Contains(out, "as the owner") {
+		t.Fatalf("lookup failed: %v %q", ok, out)
+	}
+	registryFails = false
+	home.relay = "supervisor-id"
+	if _, out := run(h, on, false, false); !strings.Contains(out, "No phone is linked for confirmations on this computer") || !strings.Contains(out, "ha-nova setup confirm-phone") {
+		t.Fatalf("no phone, standalone: %q", out)
+	}
+	if _, out := run(h, on, false, true); strings.Contains(out, "No phone is linked") {
+		t.Fatalf("no phone, App: %q", out)
+	}
+	seedLink(t, h, &phoneLink{Service: "mobile_app_old", DeviceID: "dev-gone", UserID: "owner-id", Name: "Old Phone"})
+	if _, out := run(h, on, false, false); !strings.Contains(out, "no longer in Home Assistant. Link another one: ha-nova setup confirm-phone") {
+		t.Fatalf("gone phone, standalone: %q", out)
+	}
+	if _, out := run(h, on, false, true); strings.Contains(out, "no longer in Home Assistant") {
 		t.Fatalf("gone phone, App: %q", out)
 	}
 }
@@ -262,7 +291,7 @@ func TestGatePhoneMoveOverLink(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	s := &relaySession{transport: transport, ctx: ctx, cancel: cancel, slots: make(chan struct{}, relaySessionMaxConcurrent), memo: map[string]*relayMemo{}}
-	state, err := s.gateMovePhone(phoneLink{Service: "mobile_app_annas_pixel", DeviceID: "dev-anna", UserID: "anna-id", Platform: "android"})
+	state, err := s.gateMovePhone(phoneLink{Service: "mobile_app_annas_pixel", DeviceID: "dev-anna", UserID: "anna-id", Platform: "android"}, 5*time.Second)
 	if err != nil || state != "linked" || !reflect.DeepEqual(sent, annaWire) || len(paths) != 2 {
 		t.Fatalf("state %q err %v sent %v paths %v", state, err, sent, paths)
 	}

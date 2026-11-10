@@ -91,6 +91,7 @@
   "say.phone_finishing": "Your phone answered; HA NOVA is finishing.",
   "say.applying": "HA NOVA is still making this change. This can take a few minutes. Ask me again in a moment, and I'll tell you the result.",
   "say.relay_waiting": "I'm waiting for your OK on your phone or in Home Assistant; this step hasn't been sent yet.",
+  "say.relay_link_waiting": "Your phone first asks whether it should get HA NOVA's confirmations; allow it there. Then you confirm the change itself. If you say no there, nothing changes; nothing has been sent yet.",
   "say.busy": "HA NOVA is still busy with another change, so nothing has happened yet. Try again in a moment.",
 
   "form.code_title": "One-time code from HA NOVA",
@@ -646,6 +647,7 @@
 
   "settings.link_ask": "Link “{phone}” to confirm HA NOVA actions from “{host}”?",
   "settings.stop_ask": "Stop confirming HA NOVA actions on your linked phone? HA NOVA then asks in a window, in your AI app's form, or with a four-digit code in chat that your AI assistant can see too.",
+  "settings.stop_ask_gated": "Stop confirming HA NOVA actions on your linked phone from this computer? The phone link in Home Assistant stays: the NOVA App keeps asking that phone to confirm this computer's unlocks and deletes.",
   "settings.requested": "Requested on “{host}” (by you, or your AI assistant). Confirm only if you want this.",
   "settings.window_off": "Turn off confirmation windows? HA NOVA then asks on your linked phone, else in your app's confirmation form, or shows a four-digit code in chat that your AI assistant can see too.",
 

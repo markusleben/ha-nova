@@ -93,7 +93,8 @@ func TestGatedPhoneOffNeedsTheWindow(t *testing.T) {
 	if exit, out := runUnlink(t, h); exit != 1 || linked(t, h) == nil || !strings.Contains(out, "the confirmation window was cancelled") {
 		t.Fatalf("off, window cancelled: %d %q", exit, out)
 	}
-	if exit, out := runUnlink(t, h); exit != 0 || linked(t, h) != nil || !strings.Contains(out, phoneOffGated) || len(w.messages) != 2 || len(p.sent) != 0 || subscribed(h) {
+	if exit, out := runUnlink(t, h); exit != 0 || linked(t, h) != nil || !strings.Contains(out, phoneOffGated) || len(w.messages) != 2 || len(p.sent) != 0 || subscribed(h) ||
+		!strings.Contains(w.messages[1], confirmT("en", "settings.stop_ask_gated")) {
 		t.Fatalf("off, window confirmed: %d %q", exit, out)
 	}
 }

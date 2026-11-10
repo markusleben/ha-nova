@@ -113,8 +113,8 @@ func (srv *mcpServer) stdioAwait(id string, job *chatJob) map[string]any {
 		select {
 		case <-job.done: // ended as the wait did
 		default:
-			if job.asking.Load() {
-				return waitingForApproval(id, job.lang)
+			if phase := job.asking.Load(); phase != 0 {
+				return waitingForApproval(id, job.lang, phase == gateLinking)
 			}
 			return applying(id, job.lang, false)
 		}
@@ -123,11 +123,15 @@ func (srv *mcpServer) stdioAwait(id string, job *chatJob) map[string]any {
 	return maps.Clone(job.result)
 }
 
-// waitingForApproval: the job's Relay ask waits for the person; nothing of
-// this step was sent (gate_client.go).
-func waitingForApproval(id, lang string) map[string]any {
-	next := fmt.Sprintf("Nothing of this step was sent yet: HA NOVA waits for the user's OK on their linked phone or in Home Assistant (the NOVA page). Tell the user `say`, then call ha_apply again with plan_id %s and no confirm_code right away, in this same answer: it joins the same run, and nothing is sent twice. You can't act once your answer ends, so never tell the user you will report back on your own; if you end your answer before the outcome, tell them to ask you again once they confirmed. Never ask for a code.", id)
-	envelope := map[string]any{"schema_version": 1, "verb": "apply", "status": "waiting_for_approval", "plan": map[string]any{"id": id}, "say": confirmT(lang, "say.relay_waiting"), "next_step": next}
+// waitingForApproval: the job's Relay ask waits for the person (link: the
+// phone-link ask before it); nothing of this step was sent (gate_client.go).
+func waitingForApproval(id, lang string, link bool) map[string]any {
+	wait, say := "HA NOVA waits for the user's OK on their linked phone or in Home Assistant (the NOVA page)", confirmT(lang, "say.relay_waiting")
+	if link {
+		wait, say = "the user's phone first asks whether it gets HA NOVA's confirmations; the change itself is confirmed after that, and a no there stops it", confirmT(lang, "say.relay_link_waiting")
+	}
+	next := fmt.Sprintf("Nothing of this step was sent yet: %s. Tell the user `say`, then call ha_apply again with plan_id %s and no confirm_code right away, in this same answer: it joins the same run, and nothing is sent twice. You can't act once your answer ends, so never tell the user you will report back on your own; if you end your answer before the outcome, tell them to ask you again once they confirmed. Never ask for a code.", wait, id)
+	envelope := map[string]any{"schema_version": 1, "verb": "apply", "status": "waiting_for_approval", "plan": map[string]any{"id": id}, "say": say, "next_step": next}
 	text, _ := json.Marshal(envelope)
 	return map[string]any{"content": []map[string]any{{"type": "text", "text": string(text)}}, "structuredContent": envelope, "isError": false}
 }

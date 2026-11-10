@@ -33,10 +33,11 @@ const (
 type gateGrantKey struct{}
 
 // relayGate: what one session knows of the Relay's safety check. grants:
-// a request's digest → the grants that cover one send of it each.
+// a request's digest → the grants that cover one send of it each. moved:
+// a phone-link move was tried in this session (gateMoveFirst).
 type relayGate struct {
-	checked, on bool
-	grants      map[[32]byte][]string
+	checked, on, moved bool
+	grants             map[[32]byte][]string
 }
 
 type gateRequest struct {
@@ -49,10 +50,15 @@ func gateKey(r gateRequest) [32]byte {
 }
 
 // gateApproval is set by ha-nova mcp (stdio) for its apply job
-// (mcp_stdio_apply.go): an ask then waits its whole life, and the flag is
-// true while it waits for the person. nil (the CLI): an ask ends with the
-// command's own wait (askWait).
-var gateApproval *atomic.Bool
+// (mcp_stdio_apply.go): an ask then waits its whole life, and the flag says
+// what waits for the person (gateAsking, gateLinking; 0: nothing). nil (the
+// CLI): an ask ends with the command's own wait (askWait).
+var gateApproval *atomic.Int32
+
+const (
+	gateAsking  int32 = 1 // the change's own ask
+	gateLinking int32 = 2 // a phone-link ask before it (gateMoveFirst)
+)
 
 // The waiting window (nativeWindow's code with other buttons) and what its
 // first button opens; tests replace both.
@@ -143,7 +149,7 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 	case opened.AskID == "":
 		return gateStop("refused", "CONFIRM_UNAVAILABLE", "the NOVA App's answer named no ask; nothing was sent", gateNext[""])
 	}
-	state, grant := s.gateWait(opened.AskID, false)
+	state, grant := s.gateWait(opened.AskID, false, askWait())
 	if state != "approved" || grant == "" {
 		return gateEnded(state)
 	}
@@ -162,18 +168,18 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 }
 
 // gateWait long-polls the ask until it ends, our wait runs out (the CLI:
-// what is left of the command's wait, askWait; ha-nova mcp's job: the ask's
-// life), or HA NOVA is stopped (planAsks). An end without an approval
+// wait, a share of what is left of the command's; ha-nova mcp's job: the
+// ask's life), or HA NOVA is stopped (planAsks). An end without an approval
 // cancels the ask. The waiting window only opens Home Assistant or
 // cancels; its answer is read before an approval counts, so a Cancel that
 // raced the approval wins. A link ask (gateMovePhone) ends linked, only
 // on the phones: no window.
-func (s *relaySession) gateWait(askID string, link bool) (state, grant string) {
-	deadline := time.Now().Add(askWait())
+func (s *relaySession) gateWait(askID string, link bool, wait time.Duration) (state, grant string) {
+	deadline := time.Now().Add(wait)
 	if flag := gateApproval; flag != nil {
 		deadline = time.Now().Add(gateAskLife + 5*time.Second)
-		flag.Store(true)
-		defer flag.Store(false)
+		flag.Store(map[bool]int32{false: gateAsking, true: gateLinking}[link])
+		defer flag.Store(0)
 	}
 	ctx, cancel := context.WithDeadline(planAsks, deadline)
 	defer cancel()
@@ -310,7 +316,7 @@ func (s *relaySession) gateWindow(ctx context.Context, deadline time.Time, page 
 var gateNext = map[string]string{
 	"":                 "Tell the user nothing changed; they can try again in a moment.",
 	"GATE_REFUSED":     "Tell the user HA NOVA's safety check in Home Assistant refuses this change, so nothing changed. Never try it another way.",
-	"GATE_NO_CHANNEL":  "Tell the user nothing changed: no one can confirm it now. Their phone must be linked to HA NOVA, or the NOVA page in Home Assistant open to an administrator; then they ask again.",
+	"GATE_NO_CHANNEL":  "Tell the user nothing changed: no one can confirm it now. They link their phone with `ha-nova setup confirm-phone` (in a terminal; it links it in Home Assistant too), or an administrator opens the NOVA page in Home Assistant where the App has one; `ha-nova doctor` says what is missing. Then they ask again.",
 	"GATE_PAUSED":      "Tell the user nothing changed: confirmations on their phone are paused for a few minutes after unanswered ones. They can confirm on the NOVA page in Home Assistant, or ask again later.",
 	"GATE_ASK_LIMIT":   "Tell the user nothing changed: this computer asked too often in the last hour. They can ask again later.",
 	"GATE_ASK_BUSY":    "Tell the user nothing changed: another ask from this computer is still being prepared. Try again in a moment.",

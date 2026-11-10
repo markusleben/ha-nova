@@ -203,10 +203,16 @@ func linkedPlatform(paths runtimePaths) string {
 // Assistant: a local read for a window plan's `say`; apply asks the phone
 // only where discovery finds it ready), and it may ask it (phoneDeaf).
 func phoneLinkedHere(s *relaySession) bool {
-	if activeServerIsDemo() || s.phoneDeaf() {
+	return !s.phoneDeaf() && phoneLinkedOn(s.paths)
+}
+
+// phoneLinkedOn: a phone is linked on this computer, whether or not it can
+// confirm from here (a battery reminder only notifies it).
+func phoneLinkedOn(paths runtimePaths) bool {
+	if activeServerIsDemo() {
 		return false // a link belongs to a real home; the demo house never has one
 	}
-	links, _ := phoneLinks(s.paths)
+	links, _ := phoneLinks(paths)
 	for _, entry := range links {
 		if entry.link != nil && entry.link.Service != "" {
 			return true

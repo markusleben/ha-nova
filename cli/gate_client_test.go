@@ -43,7 +43,7 @@ type fakeGate struct {
 	paused      bool
 	links       []map[string]any // every link sent to the phone route
 	phoneAnswer any              // the phone route's answer instead of a link ask
-	linkEnd     string           // how a link ask's wait ends ("": linked)
+	linkEnd     string           // how a link ask's wait ends ("": linked; "waiting": not yet)
 	wsHeld      bool             // WS writes are sends too (hold sees them)
 }
 
@@ -98,6 +98,11 @@ func (g *fakeGate) ask(ctx context.Context, p map[string]any) any {
 		g.mu.Lock()
 		defer g.mu.Unlock()
 		g.ops = append(g.ops, "wait "+fmt.Sprint(p["ask_id"]))
+		if g.linkEnd == "waiting" { // nobody taps: one long-poll answers waiting
+			g.mu.Unlock()
+			time.Sleep(100 * time.Millisecond)
+			g.mu.Lock()
+		}
 		if g.linkEnd != "" {
 			return map[string]any{"state": g.linkEnd}
 		}

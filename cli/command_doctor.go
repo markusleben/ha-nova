@@ -275,9 +275,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 				status = 1
 			}
 		}
-		if !route.diagnosticOnly && !doctorGate(paths, readiness.HealthBody, usingCloud, deviceMode, doctorInfo) {
-			status = 1
-		}
+		status = max(status, doctorGate(paths, route.diagnosticOnly, readiness.HealthBody, cfg.Cloud != nil && cfg.Cloud.Current != nil, deviceMode, doctorInfo))
 	}
 
 	clientStatuses, err := configuredClientStatuses(paths, state)
@@ -375,10 +373,6 @@ func runDoctor(paths runtimePaths, args []string) int {
 		doctorInfo("All checks passed")
 	}
 	return status
-}
-
-func fetchRelayHealth(relayBaseURL, token string) ([]byte, error) {
-	return fetchRelayHealthWith(httpClient, relayBaseURL, token)
 }
 
 func fetchRelayHealthWith(client *http.Client, relayBaseURL, token string) ([]byte, error) {

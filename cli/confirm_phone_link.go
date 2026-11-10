@@ -36,7 +36,7 @@ const (
 
 func runConfirmPhoneSetting(paths runtimePaths, args []string) int {
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Println("Usage: " + confirmPhoneUsage + "\n\nWhere no confirmation window can open, HA NOVA asks one phone you link (Home Assistant\napp) to confirm unlocks and deletes. Only that phone ever gets these confirmations.\n\n  (nothing)     pick a phone from a list, then allow it on that phone\n  \"<name>\"      link that phone (list shows the names)\n  list          show the phones and which one is linked; sends nothing\n  off           stop asking on the phone (you confirm that on the phone)")
+		fmt.Println("Usage: " + confirmPhoneUsage + "\n\nWhere no confirmation window can open, HA NOVA asks one phone you link (Home Assistant\napp) to confirm unlocks and deletes. Only that phone ever gets these confirmations.\n\n  (nothing)     pick a phone from a list, then allow it on that phone\n  \"<name>\"      link that phone (list shows the names)\n  list          show the phones and which one is linked; sends nothing\n  off           stop asking on the phone from this computer (you confirm that on the phone,\n                or in a window; with the NOVA App's safety check on, the link in Home Assistant stays)")
 		return 0
 	}
 	if len(args) > 1 {
@@ -144,8 +144,12 @@ func linkPhone(s *relaySession, reader *bufio.Reader, out io.Writer, run phoneLi
 			return 0
 		}
 	}
-	if code, gated := linkPhoneAtRelay(s, out, lang, home, prev, chosen); gated {
-		return code
+	relayWait := windowWait
+	if !run.interactive {
+		relayWait = min(windowWait, time.Until(start.Add(phoneLinkBudget)))
+	}
+	if result, gated := linkPhoneAtRelay(s, out, lang, home, prev, chosen, relayWait); gated {
+		return map[bool]int{true: 0, false: 1}[result == phoneLinked]
 	}
 	name := terminalSafeName(chosen.Name)
 	if status == phoneReady && current.targets[0].DeviceID == chosen.DeviceID && current.confirmer == chosen.UserID {
@@ -235,44 +239,6 @@ func sendPhoneLink(s *relaySession, out io.Writer, lang string, home phoneHome, 
 	say(phoneLinked, fmt.Sprintf("Linked “%s”. Only “%s” gets HA NOVA confirmations from “%s”.", name, name, phoneHost("en")))
 	reply.say(confirmT(lang, "outcome.linked"), confirmT(lang, "outcome.line.linked", "host", phoneHost(lang)))
 	return phoneLinked
-}
-
-// unlinkPhone: a downgrade (the next channel is the form or chat), so it is
-// confirmed on the linked phone, or in the window when that phone can never
-// answer again; never without either.
-func unlinkPhone(s *relaySession, out io.Writer) int {
-	lang := s.homeLanguage()
-	links, readable := phoneLinks(s.paths)
-	home, err := lookupPhones(s, links)
-	if !readable || err != nil {
-		fmt.Fprintln(out, "  "+phoneReadFailed)
-		return 1
-	}
-	prev := links[home.owner]
-	current, status := home.status(links, nil)
-	switch status {
-	case phoneNone:
-		fmt.Fprintln(out, "  No phone is linked for this Home Assistant on this computer. Nothing changed.")
-		return 0
-	case phoneLegacy:
-		fmt.Fprintln(out, "  HA NOVA now asks on one phone you choose. Link yours first (ha-nova setup confirm-phone); you can then turn it off from that phone. Nothing changed.")
-		return 1
-	case phoneMissing:
-		fmt.Fprintln(out, "  "+home.missingLine(prev, current.why))
-	}
-	if !allowPhoneChange(s, out, lang, home, links, confirmT(lang, "settings.stop_ask"), "", true, windowWait) {
-		return 1
-	}
-	if err := setPhoneLink(s.paths, home.owner, prev, nil); err != nil {
-		fmt.Fprintf(out, "  Nothing changed: %s.\n", err)
-		return 1
-	}
-	if gated, _ := s.gateOn(); gated { // the Relay has no unlink, and the NOVA page no control for it
-		fmt.Fprintln(out, "  "+phoneOffGated)
-		return 0
-	}
-	fmt.Fprintf(out, "  Phone confirmation is off: no phone gets HA NOVA confirmations from “%s”.\n", phoneHost("en"))
-	return 0
 }
 
 // allowPhoneChange asks whoever may approve changing this home's phone: the
