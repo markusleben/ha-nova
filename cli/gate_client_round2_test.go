@@ -70,7 +70,7 @@ func TestGateAsksAgainWhenAGrantExpired(t *testing.T) {
 		t.Run(map[bool]string{true: "approved", false: "declined"}[approve], func(t *testing.T) {
 			g := &fakeGate{hold: func(send gateSend) any {
 				if strings.Contains(send.key, "/api/config/script/config/s2") && send.grant == "grant-ask1" {
-					return fakeRelayAnswer{428, "GATE_APPROVAL_REQUIRED", "grant expired"}
+					return fakeRelayStatus{428, "GATE_APPROVAL_REQUIRED", "grant expired"}
 				}
 				return nil
 			}}

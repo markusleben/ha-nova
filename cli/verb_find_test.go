@@ -30,12 +30,6 @@ type fakeRelayLog struct {
 	gate  atomic.Bool // GET /health says gate: 1 (a gated App); else an older App
 }
 
-// fakeRelayAnswer: the Relay answers ok false with this status and code.
-type fakeRelayAnswer struct {
-	status        int
-	code, message string
-}
-
 func (l *fakeRelayLog) all() []fakeRelayCall {
 	l.mu.Lock()
 	defer l.mu.Unlock()
