@@ -116,15 +116,33 @@ or grant carries over).
   push leaves the machine.
 - A tap is what the Companion app sends: `fire_event` on the phone's own
   webhook. The CLI runs in `.state/phone-home` with windows off.
-- Run: link iPhone, unlock on iPhone, move to Pixel, unlock on Pixel, move
-  back. Asserted per question: only the asked phone gets it,
+- Run: link iPhone, unlock on iPhone, the window case, move to Pixel, unlock
+  on Pixel, move back. Asserted per question: only the asked phone gets it,
   `authenticationRequired` is the bool `true` on iOS and the string `"true"`
   on Android (none on a plan confirm), every Android action value is a
   string, the hint and the CLI's tap line match the platform,
   `importance: high`, and each ask has its own tag. After each answer the
-  Relay withdraws the question: a clear of exactly its tag. An unlock plan
+  result replaces the question: its tag, no buttons, `importance: high`,
+  title `Approved: …` (or `Cancelled: …` for a Cancel). An unlock plan
   asks through the Relay (channel `relay`, no code). `setup confirm-phone
   off` isn't run: on a gated App it needs a confirmation window.
+- Window case (after the iPhone unlock): a question answered on the computer
+  must not stay answerable on the phone. On a gated App the apply's window is
+  the gate's waiting window, and its Cancel stops the Relay's ask. A window is
+  a real dialog on macOS, so this one `plan` + `apply` of an unlock runs in a
+  throwaway `ubuntu:24.04` container (`docker run --rm`, the bed via
+  `host.docker.internal` or host networking on Linux) with a fake
+  `/usr/bin/zenity` that waits 8 s and exits 1 (Cancel), `DISPLAY` set, and a
+  temp copy of the phone home with the window on. Asserted: the plan's channel
+  is `relay`; after the question (2 buttons, tag T) the next push to that
+  phone is a note with T, no buttons, `passive`, `alert_once`, priority
+  `high`, title `Ended: …` (the Relay hangs up on its worker, which can't
+  tell where the ask ended); then `clear_notification` for T (a clear of an
+  open question fails the lane); the apply exits 4 `CONFIRM_DECLINED` and the
+  lock stays locked. Needs Docker (SKIP line without). Linux binary:
+  `TESTBED_CLI_BIN_LINUX`, else `TESTBED_CLI_BIN` if it is a Linux binary of
+  the container's arch, else a `GOOS=linux` build of this checkout; a macOS
+  `TESTBED_CLI_BIN` alone (rc lane) gives a SKIP line.
 - It leaves the front door locked and the Relay linked to the iPhone (the RC
   lane's slow check approves there). The Relay stays on the second user until
   `testbed:down`; the other verify checks pass either way.

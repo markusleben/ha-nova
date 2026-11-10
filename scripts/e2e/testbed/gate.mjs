@@ -14,14 +14,12 @@
 // exactly those bytes: sent with the grant it lands once (the readwrite
 // roundtrip), and the same grant again is held. A delete the same way.
 // Through the CLI (ha-nova apply): an unlock cancelled on the phone sends
-// nothing; an approved one unlocks.
-// TODO(MAR-143): once #1090 is in the base, the Relay replaces each answered
-// question instead of clearing it: switch withdrawn() in phone.mjs to that
-// result ("Approved on the NOVA page", the answer itself when answered on
-// the phone, "Not confirmed" on a timeout).
+// nothing; an approved one unlocks. Each answered question is replaced by
+// its result (answered() in phone.mjs): same tag, no buttons, "Approved: …"
+// or "Cancelled: …".
 // Prints PASS/FAIL lines, and WARN for a part this bed can't run (no file
 // access); exits non-zero on any FAIL. The release workflow fails on WARN too.
-import { confirmUnlock, failures, fixture, link, noExtraPushes, question, read, relay, relock, report, resetPushes, withdrawn } from "./phone.mjs";
+import { answered, confirmUnlock, failures, fixture, link, noExtraPushes, question, read, relay, relock, report, resetPushes } from "./phone.mjs";
 
 const FILE = "/config/ha_nova/gate-lane.yaml";
 const CONTENT = "gate_lane: testbed\n";
@@ -43,7 +41,7 @@ async function held(kind, body, landed) {
   report(`the ${kind}'s ask goes to the linked phone`, opened.status === 200 && opened.data?.needed === true && opened.data.channels?.includes("phone")
     ? [] : [`HTTP ${opened.status} ${JSON.stringify(opened.error ?? opened.data)}`]);
   if (!opened.data?.ask_id) return;
-  await withdrawn(await question("ios", undefined, { unlock: false, urgent: true }));
+  await answered(await question("ios", undefined, { unlock: false, urgent: true }));
   let state = { state: "waiting" };
   for (let i = 0; i < 8 && state?.state === "waiting"; i++) state = (await relay("/gate/v1/ask", { ask_id: opened.data.ask_id, op: "wait" })).data;
   report(`the tap grants the ${kind}`, state?.state === "approved" && state.grant_id ? [] : [`ask ${JSON.stringify(state)}`]);
