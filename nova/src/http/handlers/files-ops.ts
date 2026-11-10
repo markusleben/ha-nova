@@ -31,14 +31,15 @@ export async function listDir(absolute: string, logicalPath: string): Promise<un
       // lstat, not stat: stat FOLLOWS a symlink, so listing a directory that
       // contains a link to secrets.yaml (or to something outside the root)
       // would leak the target's metadata — a path the endpoint refuses to serve
-      // directly. A link is reported as a link, with no size.
+      // directly. A link is reported as a link, with no size and no time.
       const info = entry.isSymbolicLink()
         ? null
         : await lstat(join(absolute, entry.name)).catch(() => null);
       return {
         name: entry.name,
         type: entry.isSymbolicLink() ? "symlink" : entry.isDirectory() ? "dir" : "file",
-        size: info?.size ?? null
+        size: info?.size ?? null,
+        modified: info === null ? null : info.mtime.toISOString()
       };
     })
   );

@@ -9,6 +9,7 @@ npm run testbed:cli -- find "Leselampe"     # the CLI built from this checkout, 
 npm run testbed:verify                     # PASS/FAIL smoke assertions, read-only
 TESTBED_PHONE=1 npm run testbed:verify     # + the phone lane (fake phones, push payloads)
 node scripts/e2e/testbed/gate.mjs          # the gate lane: approvals on the phone (bed up with TESTBED_FILES=1)
+node scripts/e2e/testbed/www-media.mjs     # www pictures: delete, undo, community, copy limit (same bed)
 npm run testbed:down                       # containers, volumes, tokens, runtime config: gone
 ```
 
@@ -270,7 +271,7 @@ red opens a "Test bed fails on Home Assistant <version>" issue.
 `.state/config` per run; command-running platforms live in
 `packages/commands.yaml`), `up.sh`, `seed.mjs` (LLAT, MQTT config entry,
 floors/areas/labels, registry edits, summary, phone fixture), `cli.sh`,
-`verify.sh`, `phone.mjs` + `push.py` (phone lane), `gate.mjs` (gate lane), `chat-files.mjs` +
+`verify.sh`, `phone.mjs` + `push.py` (phone lane), `gate.mjs` (gate lane), `www-media.mjs` (www pictures), `chat-files.mjs` +
 `docker-compose.files.yml`, `calm.mjs` (real-home checks), `agent.mjs` +
 `agent-unlock.mjs`, `agent-statistics.mjs` (agent runs),
 `down.sh`.

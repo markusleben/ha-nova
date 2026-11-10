@@ -244,7 +244,7 @@ Command success alone is never a result. Verify by category:
   HACS UI / AppDaemon's own logs for activation proof.
 Also verify survival of unrelated objects and absence of duplicates after
 adds/migrations. Evidence comes from the HACS/HA APIs ONLY — never file
-reads; the Relay file endpoint denies `custom_components` and `www` by
+reads; the Relay file endpoint denies `custom_components` and `www/community` by
 design.
 
 ## Error Handling

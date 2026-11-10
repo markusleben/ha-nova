@@ -109,16 +109,19 @@ echo ""
 # the worker's /texts, every page literal replaced by a catalog key, kept a minute per name): about 13491;
 # and to 13520 for the ChatGPT refresh note (#923): the bridge's GET /control/v1/tools read and
 # the NOVA page's dated note for 30 days after HA NOVA's tools changed: about 13512.
+# and to 13940 for media files in /config/www (MAR-128): listing it, deleting a picture only
+# after its exact bytes are kept outside www (files-www.ts: the copy store, its quota, lock, and
+# put-back), restoring only that copy, and community refused by identity: about 13922.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 13520 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–13520 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 13940 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–13940 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–13520 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–13940 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──

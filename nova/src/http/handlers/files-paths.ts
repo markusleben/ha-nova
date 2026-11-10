@@ -4,7 +4,20 @@ import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep 
 
 import { HttpError } from "../errors.js";
 
-export type FileAction = "list_dir" | "read_file" | "write_file" | "delete_file";
+export type FileAction = "list_dir" | "read_file" | "write_file" | "delete_file" | "restore_file" | "list_deleted";
+
+// What a resolved request points at: its real path, its logical path after
+// decoding and normalization, and whether it lies in the www area.
+export interface ResolvedTarget {
+  absolute: string;
+  logical: string;
+  www: boolean;
+}
+
+// www is served to every browser, so nothing is ever written there. Its
+// images and videos may be listed, deleted with a kept copy, and put back
+// (files-www.ts); community holds HACS's frontend code and stays denied.
+const WWW_ACTIONS = new Set<FileAction>(["list_dir", "delete_file", "restore_file"]);
 
 export const LOGICAL_PREFIX = "/config";
 
@@ -27,7 +40,8 @@ const DENIED_SEGMENTS = [
   // runs in the HA process, python_scripts likewise, and www is served to every
   // browser session. Allowing writes there would turn "edit my YAML" into
   // arbitrary code execution on the user's home server — a different capability
-  // entirely, and not one this endpoint exists to grant.
+  // entirely, and not one this endpoint exists to grant. Inside www only
+  // WWW_ACTIONS pass (wwwArea, files-www.ts).
   "custom_components",
   "python_scripts",
   "www"
@@ -67,7 +81,7 @@ const DENIED_PATTERNS = [
  * iteratively, then verify containment with realpath so a symlink cannot point
  * outside either.
  */
-export async function resolveTargetPath(configRoot: string, logicalPath: string, action: FileAction): Promise<string> {
+export async function resolveTargetPath(configRoot: string, logicalPath: string, action: FileAction): Promise<ResolvedTarget> {
   const decoded = decodeIterative(logicalPath);
   if (containsControlChars(decoded)) {
     throw new HttpError(400, "FILE_PATH_INVALID", "path contains control characters");
@@ -85,7 +99,9 @@ export async function resolveTargetPath(configRoot: string, logicalPath: string,
     throw new HttpError(400, "FILE_PATH_INVALID", "path must stay inside the config directory");
   }
 
-  assertNotDenied(normalized);
+  assertNotDenied(normalized, action);
+  const logical = normalized === "." ? LOGICAL_PREFIX : `${LOGICAL_PREFIX}/${normalized.split(sep).join("/")}`;
+  const named = normalized.split(sep)[0] === "www";
 
   const absolute = resolve(join(configRoot, normalized));
   assertInsideRoot(configRoot, absolute);
@@ -99,13 +115,14 @@ export async function resolveTargetPath(configRoot: string, logicalPath: string,
   // by unlink, so /config/escape-dir -> /tmp/outside would otherwise let a
   // delete reach /tmp/outside/loot.txt. The parent is therefore resolved and
   // checked exactly like any other path; only the leaf is left alone.
-  if (action === "delete_file") {
+  if (action === "delete_file" || action === "restore_file") {
     try {
       const realRoot = await realpath(configRoot);
       const realParent = await realpath(dirname(absolute));
       assertInsideRoot(realRoot, realParent);
-      assertNotDenied(relative(realRoot, realParent));
-      return join(realParent, basename(absolute));
+      assertNotDenied(relative(realRoot, realParent), action);
+      const www = (await wwwArea(realRoot, realParent, action)) || named;
+      return { absolute: join(realParent, basename(absolute)), logical, www };
     } catch (error) {
       if (isNotFound(error)) {
         throw new HttpError(404, "FILE_NOT_FOUND", `not found: ${logicalPath}`);
@@ -127,7 +144,8 @@ export async function resolveTargetPath(configRoot: string, logicalPath: string,
     // (/config/secrets.yaml, .storage/auth). The deny list was applied to the
     // requested NAME; it must be applied again to what the path actually
     // resolves to, or a symlink becomes a bypass.
-    assertNotDenied(relative(realRoot, real));
+    assertNotDenied(relative(realRoot, real), action);
+    const www = (await wwwArea(realRoot, real, action)) || named;
 
     // A write to an EXISTING path goes through the link to its real target: a
     // rename would otherwise replace the symlink with a regular file, silently
@@ -142,7 +160,7 @@ export async function resolveTargetPath(configRoot: string, logicalPath: string,
       // laundering the deny list is re-checked for, one line above. Re-check it
       // against what the path really resolves to.
       assertWritableExtension(real);
-      return real;
+      return { absolute: real, logical, www };
     }
   } catch (error) {
     if (isNotFound(error)) {
@@ -151,7 +169,36 @@ export async function resolveTargetPath(configRoot: string, logicalPath: string,
     throw error;
   }
 
-  return absolute;
+  return { absolute, logical, www: named };
+}
+
+// By identity, not by name: a symlink or a bind mount can show www, or its
+// community folder, under another path. Every folder from real up is compared
+// with <root>/www and <root>/www/community by device and inode. community is
+// denied for every action; www only for those outside WWW_ACTIONS. True when
+// real lies in www.
+async function wwwArea(realRoot: string, real: string, action: FileAction): Promise<boolean> {
+  const id = (info: { dev: number; ino: number } | null): string | null => (info === null ? null : `${info.dev}:${info.ino}`);
+  const www = id(await stat(join(realRoot, "www")).catch(() => null));
+  if (www === null) {
+    return false;
+  }
+  const community = id(await stat(join(realRoot, "www", "community")).catch(() => null));
+  let inside = false;
+  for (let dir = real; ; dir = dirname(dir)) {
+    const here = id(await stat(dir).catch(() => null));
+    if (here !== null && here === community) {
+      throw deniedSegment("community");
+    }
+    inside ||= here === www;
+    if (dirname(dir) === dir) {
+      break;
+    }
+  }
+  if (inside && !WWW_ACTIONS.has(action)) {
+    throw deniedSegment("www");
+  }
+  return inside;
 }
 /**
  * The Relay's data folder (the phone link, the safety check's credentials) is
@@ -200,15 +247,15 @@ export function assertWritableExtension(logicalPath: string): void {
   }
 }
 
-function assertNotDenied(relativePath: string): void {
+function assertNotDenied(relativePath: string, action: FileAction): void {
   const segments = relativePath.split(sep).filter(Boolean);
+  if (segments[0] === "www" && segments[1]?.toLowerCase() === "community") {
+    throw deniedSegment("community");
+  }
+  const media = segments[0] === "www" && WWW_ACTIONS.has(action);
   for (const segment of segments) {
-    if (DENIED_SEGMENTS.includes(segment)) {
-      throw new HttpError(
-        403,
-        "FILE_PATH_DENIED",
-        `'${segment}' is never accessible through the relay (credentials, Home Assistant's own state store, or binary data)`
-      );
+    if (DENIED_SEGMENTS.includes(segment) && !(media && segment === "www")) {
+      throw deniedSegment(segment);
     }
   }
   const name = segments[segments.length - 1] ?? "";
@@ -219,6 +266,18 @@ function assertNotDenied(relativePath: string): void {
       `'${name}' is never accessible through the relay`
     );
   }
+}
+
+function deniedSegment(segment: string): HttpError {
+  const why: Record<string, string> = {
+    www: "'www' is served to every browser: the relay lists it and deletes its images and videos with a kept copy, but never reads or writes there",
+    community: "'www/community' holds HACS's frontend cards and is never accessible through the relay"
+  };
+  return new HttpError(
+    403,
+    "FILE_PATH_DENIED",
+    why[segment] ?? `'${segment}' is never accessible through the relay (credentials, Home Assistant's own state store, or binary data)`
+  );
 }
 
 // Containment is the last line of defense: whatever the path looked like, the

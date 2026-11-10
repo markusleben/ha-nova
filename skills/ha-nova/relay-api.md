@@ -47,10 +47,10 @@ Write the raw bytes with `ha-nova relay core --method GET --path <path> --out-bi
 - `GET /health`
 - `POST /ws`
 - `POST /core`
-- `POST /files` — opt-in filesystem ops (`list_dir` / `read_file` / `write_file` / `delete_file`), default off; CLI: `ha-nova relay files` (flows owned by `../yaml-config/SKILL.md` and, for `/config/esphome/`, `../esphome/SKILL.md`)
+- `POST /files` — opt-in filesystem ops (`list_dir` / `read_file` / `write_file` / `delete_file`; in `/config/www` also `restore_file` / `list_deleted`, `../yaml-config/www-media.md`), default off; CLI: `ha-nova relay files` (flows owned by `../yaml-config/SKILL.md` and, for `/config/esphome/`, `../esphome/SKILL.md`)
 - `POST /backups` — config-snapshot blob store (`save` / `load` / `list` / `delete` / `prune`); CLI: `ha-nova relay backups` (flows owned by `../ha-nova/config-snapshots.md`)
 
-Relay-enforced limits: request bodies up to 1 MiB (413 above); text/JSON `/core` responses and individual upstream WS frames up to 256 MiB — a `collect_events` response aggregates up to 100 events with no additional aggregate cap; binary responses up to 8 MiB; `/files` reads up to 1 MiB and writes up to 768 KiB.
+Relay-enforced limits: request bodies up to 1 MiB (413 above); text/JSON `/core` responses and individual upstream WS frames up to 256 MiB — a `collect_events` response aggregates up to 100 events with no additional aggregate cap; binary responses up to 8 MiB; `/files` reads up to 1 MiB and writes up to 768 KiB; a `/config/www` delete keeps a copy of at most 25 MiB, 100 MiB in total, for 30 days.
 
 ## Relay CLI Wrapper
 

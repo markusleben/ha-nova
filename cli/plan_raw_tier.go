@@ -68,6 +68,7 @@ var rawWhys = map[string]func(lang string) string{
 	"integration_remove":  func(l string) string { return confirmT(l, "raw.why.integration_remove") },
 	"file_delete":         func(l string) string { return confirmT(l, "raw.why.file_delete") },
 	"file_write":          func(l string) string { return confirmT(l, "raw.why.file_write") },
+	"file_restore":        func(l string) string { return confirmT(l, "raw.why.file_restore") },
 	"backup_locations":    func(l string) string { return confirmT(l, "raw.why.backup_locations") },
 	"backup_agent":        func(l string) string { return confirmT(l, "raw.why.backup_agent") },
 	"copy_delete":         func(l string) string { return confirmT(l, "raw.why.copy_delete") },
@@ -191,8 +192,11 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 			return tierTyped, "delete"
 		}
 	case "files":
-		if action == "delete_file" {
+		switch action {
+		case "delete_file":
 			return tierTyped, "file_delete"
+		case "restore_file": // www is served without sign-in: a restore publishes it again
+			return tierTyped, "file_restore"
 		}
 	case "backups":
 		if action == "delete" {

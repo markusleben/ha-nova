@@ -44,8 +44,11 @@ func rawItemLine(n *rawNamer, lang, endpoint string, payload map[string]any) (ve
 	switch endpoint {
 	case "files":
 		file := confirmT(lang, "raw.object.file", "path", sayText(target, true))
-		if action == "delete_file" {
+		switch action {
+		case "delete_file":
 			return "delete", file
+		case "restore_file":
+			return "restore", file
 		}
 		return "write", file
 	case "backups":

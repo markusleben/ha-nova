@@ -141,10 +141,10 @@ echo "--- reads"
 expect 'history of a light is readable' 0 "d.status === 'ok'" -- history light.kitchen_lights --since 1h
 
 echo "--- Relay refusals (a Relay 403 names its own code, never a sign-in problem)"
-printf '%s' '[{"endpoint":"files","payload":{"action":"delete_file","path":"/config/www/mailbox/latest.jpg"}}]' > "$TMP/delete-www.json"
+printf '%s' '[{"endpoint":"files","payload":{"action":"delete_file","path":"/config/custom_components/mailbox/camera.py"}}]' > "$TMP/delete-www.json"
 if curl -fsS -H "Authorization: Bearer $(cat "$STATE/relay-token")" http://127.0.0.1:18791/health | grep -q '"file_access":"readwrite"'; then
-  # TESTBED_FILES=1 (the rc lane's bed): file access on, but www is never served.
-  expect 'a file delete in www the Relay refuses (file access on) names FILE_PATH_DENIED' 4 \
+  # TESTBED_FILES=1 (the rc lane's bed): file access on, but custom_components is never served.
+  expect 'a file delete in custom_components the Relay refuses (file access on) names FILE_PATH_DENIED' 4 \
     "d.error.code === 'REFUSED' && d.error.message.includes('FILE_PATH_DENIED') && !/credential|ha-nova setup/.test(d.error.message + ' ' + d.error.next)" \
     -- plan raw --file "$TMP/delete-www.json"
 else

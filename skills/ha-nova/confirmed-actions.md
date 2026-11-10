@@ -58,6 +58,7 @@ The examples read as single actions, but running or saving an automation, script
 | Add a dashboard resource (code every browser runs) | `RAW_TYPED` (resource_create) |
 | Change a dashboard resource | `RAW_TYPED` (resource_update) |
 | Write a file in the config folder | `RAW_TYPED` (file_write) |
+| Put a deleted image or video back in the www folder | `RAW_TYPED` (file_restore) |
 | Install an App | `RAW_TYPED` (app_install) |
 | Change an App's settings | `RAW_TYPED` (app_settings) |
 
