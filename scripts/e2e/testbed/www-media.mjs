@@ -9,7 +9,8 @@
 // linked phone's tap), whose copy the App then lists; puts it back through
 // the undo item the apply named (the same way); refuses www/community even
 // after an approval; fills the copies (four videos just under 25 MiB) and refuses the
-// next delete with UNDO_STORE_FULL, the file still there. Prints PASS/FAIL
+// next delete with UNDO_STORE_FULL, the file still there. Leaves no copies, so
+// a later lane on the same bed starts with an empty store. Prints PASS/FAIL
 // lines, WARN when the bed has no file access; exits non-zero on any FAIL.
 import { execFileSync } from "node:child_process";
 import { rmSync, writeFileSync } from "node:fs";
@@ -94,5 +95,6 @@ try {
 } finally {
   rmSync(PLAN, { force: true });
   try { inHA(`rm -rf ${DIR} ${CARDS}`); } catch { /* the bed is gone */ }
+  try { execFileSync("docker", ["exec", "ha-nova-testbed-relay", "rm", "-rf", "/data/www-undo"]); } catch { /* the bed is gone */ }
 }
 process.exit(failures() ? 1 : 0);
