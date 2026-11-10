@@ -37,7 +37,6 @@ const (
 	windowOpened     = "A confirmation window opened on this computer — confirm there."
 	windowOpenedBoth = "A confirmation window opened on this computer — confirm there or on your phone."
 	windowSetting    = "confirm_window" // config.json top level; "off" = codes in chat
-	windowSplit      = "Nothing changed. Plan it again as several smaller plans, each with its own confirmation, and tell the user why there are several. If one step alone is too long, tell the user to make this change in Home Assistant itself; never shorten what it does."
 )
 
 // windowAsked heads a plan's window text; windowBoth: the linked phone asks too.
@@ -79,7 +78,31 @@ func windowTooLong(plan storedPlan) error {
 	if fits {
 		return nil
 	}
-	return refusedWith("PLAN_TOO_LONG", fmt.Sprintf("the confirmation is too long for one window (%d lines; at most %d)", lines, windowMaxLines), windowSplit)
+	return refusedWith("PLAN_TOO_LONG", fmt.Sprintf("the confirmation is too long for one window (%d lines; at most %d)", lines, windowMaxLines), windowSplit(plan, lines))
+}
+
+// windowSplitSize: how many of items fit one window whose text came to
+// lines, if about windowFixedLines of them are the same for any number (the
+// instruction lines, the intro, the reasons, what has not happened yet).
+func windowSplitSize(items, lines int) int {
+	const windowFixedLines = 12
+	return max(1, items*(windowMaxLines-windowFixedLines)/max(lines-windowFixedLines, 1))
+}
+
+// windowSplit: a too-long plan's next step, with the size of the plans to
+// make instead; a plan of one step can't be split.
+func windowSplit(plan storedPlan, lines int) string {
+	items, what := 1, "steps"
+	switch {
+	case plan.Kind == "raw":
+		items = len(plan.RawRequests) - len(rawCopies(plan.RawRequests))
+	case plan.Kind == "call" && plan.ConfigAction == nil:
+		items, what = len(plan.Action.EntityIDs), "targets"
+	}
+	if items < 2 {
+		return "Nothing changed. This one change is too long for the confirmation window: tell the user to make it in Home Assistant itself; never shorten what it does."
+	}
+	return fmt.Sprintf("Nothing changed. Plan it again as several plans of at most %d %s each, one after another, each with its own confirmation, and tell the user why there are several.", windowSplitSize(items, lines), what)
 }
 
 // windowFits: the lines body's window wraps to at word edges, its
@@ -229,7 +252,7 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 	text, lang := confirmText(fresh, noSnapshot), textLang(plan)
 	if lines, fits := windowFits(lang, text); !fits { // never shown cut
 		s.close()
-		return windowStopped(s, "refused", "PLAN_TOO_LONG", fmt.Sprintf("the confirmation of plan %s is too long for one window (%d lines; at most %d)", id, lines, windowMaxLines), windowSplit)
+		return windowStopped(s, "refused", "PLAN_TOO_LONG", fmt.Sprintf("the confirmation of plan %s is too long for one window (%d lines; at most %d)", id, lines, windowMaxLines), windowSplit(fresh, lines))
 	}
 	switch status {
 	case phoneReady: // the linked phone asks too (confirm_both.go)
