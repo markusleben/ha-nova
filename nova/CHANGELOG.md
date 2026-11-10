@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.25] - 2026-11-10
+
+### Fixed
+- Chat apps get HA NOVA 0.29.0 with the fixes from its test phase.
+- Chat apps: when this App refuses a file (for example anything under /config/www), HA NOVA says why instead of reporting a sign-in problem.
+- Chat apps: an edit to one of your own automations or scripts no longer asks just because other automations react when it reloads, or listen for a service call that can't match.
+
+### Upgrade notes
+- Computers on HA NOVA 0.29.0 ask you to update this App.
+
 ## [Relay 0.13.24] - 2026-11-08
 
 ### Changed
