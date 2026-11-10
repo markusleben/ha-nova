@@ -26,8 +26,9 @@ import (
 const (
 	gateGrantHeader = "X-HA-Nova-Grant"
 	gateAskRoute    = "gate/v1/ask"
-	gateAskLife     = 3 * time.Minute // the Relay ends an ask after this
 )
+
+var gateAskLife = 3 * time.Minute // the Relay ends an ask after this; tests shorten it
 
 // gateGrantKey carries a grant through a Link request's context (cloud_ingress.go).
 type gateGrantKey struct{}
@@ -130,7 +131,11 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 		return opened, err
 	}
 	opened, err := open()
-	if reopen, stop := s.gateMoveFirst(opened, err); stop != nil {
+	end := time.Now().Add(askWait()) // the CLI: the command's wait; ha-nova mcp's job: the ask's life, a move's link included
+	if gateApproval != nil {
+		end = time.Now().Add(gateAskLife + 5*time.Second)
+	}
+	if reopen, stop := s.gateMoveFirst(opened, err, time.Until(end)/2); stop != nil {
 		return stop
 	} else if reopen {
 		opened, err = open()
@@ -149,7 +154,7 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 	case opened.AskID == "":
 		return gateStop("refused", "CONFIRM_UNAVAILABLE", "the NOVA App's answer named no ask; nothing was sent", gateNext[""])
 	}
-	state, grant := s.gateWait(opened.AskID, false, askWait())
+	state, grant := s.gateWait(opened.AskID, false, time.Until(end))
 	if state != "approved" || grant == "" {
 		return gateEnded(state)
 	}
@@ -167,9 +172,9 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 	return nil
 }
 
-// gateWait long-polls the ask until it ends, our wait runs out (the CLI:
-// wait, a share of what is left of the command's; ha-nova mcp's job: the
-// ask's life), or HA NOVA is stopped (planAsks). An end without an approval
+// gateWait long-polls the ask until it ends, wait runs out (gateAsk's
+// share of the command's wait, or of ha-nova mcp's ask life; a setup link's
+// own), or HA NOVA is stopped (planAsks). An end without an approval
 // cancels the ask. The waiting window only opens Home Assistant or
 // cancels; its answer is read before an approval counts, so a Cancel that
 // raced the approval wins. A link ask (gateMovePhone) ends linked, only
@@ -177,7 +182,6 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 func (s *relaySession) gateWait(askID string, link bool, wait time.Duration) (state, grant string) {
 	deadline := time.Now().Add(wait)
 	if flag := gateApproval; flag != nil {
-		deadline = time.Now().Add(gateAskLife + 5*time.Second)
 		flag.Store(map[bool]int32{false: gateAsking, true: gateLinking}[link])
 		defer flag.Store(0)
 	}

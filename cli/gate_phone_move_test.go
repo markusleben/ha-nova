@@ -122,6 +122,7 @@ func TestGatePhoneMoveThatFails(t *testing.T) {
 		{name: "expired without the page", end: "expired", code: "CONFIRM_CANCELLED"},
 		{name: "unavailable without the page", end: "unavailable", code: "CONFIRM_UNAVAILABLE"},
 		{name: "paused without the page", answer: paused, code: "GATE_PAUSED"},
+		{name: "lost answer, even with the page", end: "lost", page: true, code: "CONFIRM_UNAVAILABLE"},
 		{name: "page declines the reopened ask", end: "expired", page: true, typedAnswer: "cancelled", code: "CONFIRM_DECLINED"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -248,7 +249,12 @@ func TestDoctorGateStates(t *testing.T) {
 	}
 	registryFails = false
 	home.relay = "supervisor-id"
-	if _, out := run(h, on, false, false); !strings.Contains(out, "No phone is linked for confirmations on this computer") || !strings.Contains(out, "ha-nova setup confirm-phone") {
+	seedLink(t, h, &annaLink) // then off: the Relay keeps its link, and doctor can't read it
+	useWindow(t, windowConfirmed)
+	if exit, out := runUnlink(t, h); exit != 0 || linked(t, h) != nil {
+		t.Fatalf("off: %d %q", exit, out)
+	}
+	if _, out := run(h, on, false, false); !strings.Contains(out, "No phone is linked for confirmations on this computer; your NOVA Relay may still have one") || !strings.Contains(out, "ha-nova setup confirm-phone") {
 		t.Fatalf("no phone, standalone: %q", out)
 	}
 	if _, out := run(h, on, false, true); strings.Contains(out, "No phone is linked") {

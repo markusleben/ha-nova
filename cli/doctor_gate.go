@@ -67,8 +67,8 @@ func doctorGate(paths runtimePaths, skip bool, health []byte, linkSignIn, device
 	case deviceMode || owner || err != nil:
 	case status == phoneMissing && setup.why == whyRemoved:
 		printHumanWarn("The phone this computer linked for confirmations is no longer in Home Assistant. Link another one: ha-nova setup confirm-phone. Your NOVA Relay runs on its own, without a NOVA page; if it still asks the old phone, delete the file gate-phone.json in its data folder first.")
-	case status == phoneNone:
-		printHumanWarn("No phone is linked for confirmations on this computer. Your NOVA Relay runs on its own, without a NOVA page, so until a phone is linked nothing can confirm unlocks, deletes, or other big changes. Link one: ha-nova setup confirm-phone.")
+	case status == phoneNone: // the Relay's own link can't be read, and `off` leaves it there
+		printHumanWarn("No phone is linked for confirmations on this computer; your NOVA Relay may still have one (HA NOVA can't read it there). It runs on its own, without a NOVA page, so without a linked phone nothing can confirm unlocks, deletes, or other big changes. To link one: ha-nova setup confirm-phone.")
 	}
 	return 0
 }

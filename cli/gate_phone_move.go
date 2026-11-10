@@ -30,10 +30,14 @@ func (s *relaySession) phoneDeaf() bool {
 
 const phoneDeafLine = "On this NOVA App, a tap on your phone can't reach HA NOVA on this computer, so a confirmation window here decides."
 
-// gateMovePhone asks the Relay to hold link for this device and waits up to
-// wait: "same" when it holds it already, else how the link ask ended
-// ("linked", or one of gateWait's states). err: the Relay's refusal or no answer.
+// gateMovePhone asks the Relay to hold link for this device, opening and
+// waiting within wait, counted from now (never the command's start: a
+// setup page may have waited long): "same" when it holds it already, else
+// how the link ask ended ("linked", or one of gateWait's states; "lost":
+// its answer never came, so the outcome is unknown). err: the Relay's
+// refusal or no answer.
 func (s *relaySession) gateMovePhone(link phoneLink, wait time.Duration) (string, error) {
+	start := time.Now()
 	var opened struct {
 		Needed bool   `json:"needed"`
 		AskID  string `json:"ask_id"`
@@ -42,7 +46,7 @@ func (s *relaySession) gateMovePhone(link phoneLink, wait time.Duration) (string
 	if link.Platform != "" {
 		wire["platform"] = link.Platform
 	}
-	if err := s.gateCall(planAsks, gatePhoneRoute, gateOpenWait(0), map[string]any{"link": wire}, &opened); err != nil {
+	if err := s.gateCall(planAsks, gatePhoneRoute, min(2*gateWorkerStep+5*time.Second, wait), map[string]any{"link": wire}, &opened); err != nil {
 		return "", err
 	}
 	if !opened.Needed {
@@ -51,18 +55,21 @@ func (s *relaySession) gateMovePhone(link phoneLink, wait time.Duration) (string
 	if opened.AskID == "" {
 		return "", errors.New("the NOVA App's answer named no ask")
 	}
-	state, _ := s.gateWait(opened.AskID, true, wait)
+	state, _ := s.gateWait(opened.AskID, true, wait-time.Since(start))
 	return state, nil
 }
 
 // gateLocalPhone: this computer's link for this Home Assistant, as the
-// Relay takes it, while that phone can be asked (phoneReady).
+// Relay takes it, while that phone can be asked (phoneReady). Its lookup
+// has a read budget of its own: preparing the ask may have spent the session's.
 func (s *relaySession) gateLocalPhone() (phoneLink, bool) {
 	links, readable := phoneLinks(s.paths)
 	if !readable || len(links) == 0 {
 		return phoneLink{}, false
 	}
+	done := s.ownBudget(time.Now().Add(relaySessionOverallTimeout))
 	home, err := lookupPhones(s, links)
+	done()
 	setup, status := home.status(links, err)
 	if status != phoneReady {
 		return phoneLink{}, false
@@ -74,12 +81,12 @@ func (s *relaySession) gateLocalPhone() (phoneLink, bool) {
 // gateMoveFirst runs on evidence only, once per session (a move that ended
 // without a link isn't tried again): the ask found no phone (409
 // GATE_NO_CHANNEL, or channels without "phone") and this computer has a
-// link. The link waits half of what is left of the command's wait, so the
-// reopened typed ask keeps the rest. reopen: open the typed ask again (the
+// link. The link waits linkWait (gateAsk: half of its budget, so the
+// reopened typed ask keeps the rest). reopen: open the typed ask again (the
 // link ask replaced it). A move that ends without a link refuses, nothing
 // sent; only an unanswered, unavailable, or paused one goes on where the
 // first open offered another channel (the NOVA page), never a weaker one.
-func (s *relaySession) gateMoveFirst(opened gateOpened, openErr error) (reopen bool, stop error) {
+func (s *relaySession) gateMoveFirst(opened gateOpened, openErr error, linkWait time.Duration) (reopen bool, stop error) {
 	var call *relayCallError
 	noChannel := errors.As(openErr, &call) && call.code == "GATE_NO_CHANNEL"
 	offered := openErr == nil && opened.Needed && opened.AskID != "" && len(opened.Channels) > 0
@@ -100,7 +107,7 @@ func (s *relaySession) gateMoveFirst(opened gateOpened, openErr error) (reopen b
 	if !ok {
 		return false, nil
 	}
-	state, err := s.gateMovePhone(link, askWait()/2)
+	state, err := s.gateMovePhone(link, linkWait)
 	ended := state == "expired" || state == "timeout" || state == "unavailable" || errors.As(err, &call) && call.code == "GATE_PAUSED"
 	switch {
 	case state == "same" || errors.As(err, &call) && call.status == http.StatusNotFound: // held already, or no link route for this device
@@ -127,6 +134,8 @@ func gateLinkFailed(state string, err error) *verbFailure {
 		status, code, why = "declined", "CONFIRM_DECLINED", "it was declined on a phone"
 	case state == "expired" || state == "timeout":
 		status, code, why = "cancelled", "CONFIRM_CANCELLED", "nobody allowed it on the phone in time"
+	case state == "lost":
+		why = "the NOVA App's answer was lost, so whether the phone is linked now is unknown"
 	case errors.As(err, &call) && strings.HasPrefix(call.code, "GATE_"):
 		code, why = call.code, call.message
 		if n := gateNext[call.code]; n != "" && call.code != "GATE_PAUSED" {
@@ -171,6 +180,9 @@ func linkPhoneAtRelay(s *relaySession, out io.Writer, lang string, home phoneHom
 		nothing = "this NOVA App doesn't take a phone link from this computer"
 	case err != nil:
 		nothing = "HA NOVA couldn't ask its safety check in Home Assistant (" + err.Error() + ")"
+	case state == "lost": // the Relay may hold the new phone already: neither side is known, so the setting stays
+		fmt.Fprintf(out, "  HA NOVA lost the NOVA App's answer, so it can't tell whether “%s” is linked in Home Assistant now. This computer's setting stays as it was. Run ha-nova setup confirm-phone again and pick the phone that should confirm: that sets both right.\n", name)
+		return phoneLinkUnread, true
 	case state == "cancelled":
 		result = phoneLinkDeclined
 	case state == "expired" || state == "timeout":

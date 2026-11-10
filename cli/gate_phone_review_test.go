@@ -112,6 +112,9 @@ func TestSetupPageLinksThroughTheRelayOnAGatedApp(t *testing.T) {
 	phones := usePhones(t)
 	phoneDiscover = discoverPhone
 	w := useWindow(t)
+	saved := commandStart // the page waited long: the command's own wait is spent, the link's isn't
+	t.Cleanup(func() { commandStart = saved })
+	commandStart = time.Now().Add(-10 * time.Minute)
 	p := newPageStepsTest(t, h.paths, "codex")
 	ctl := setupPageControl{PhoneButtons: &phoneButtons{Allow: phoneLinkButton("en"), Move: confirmT("en", "phone.move.button"), lang: "en"}}
 	p.flow.pageLinkPhone(&ctl, "dev-anna")
@@ -121,6 +124,62 @@ func TestSetupPageLinksThroughTheRelayOnAGatedApp(t *testing.T) {
 	ctl.PhoneName = "Anna’s Pixel"
 	if !p.flow.pageMovePhone(&ctl, "dev-markus") || g.link["device_id"] != "dev-markus" || linked(t, h).DeviceID != "dev-markus" || len(w.messages) != 0 || len(phones.sent) != 0 {
 		t.Fatalf("move: %+v relay %v windows %q", ctl, g.link, w.messages)
+	}
+}
+
+// Under ha-nova mcp one ask life covers the link and the reopened ask: an
+// unanswered link waits half, and the page approves the change in the rest.
+func TestGateMCPLinkAndAskShareOneLife(t *testing.T) {
+	shortApplyWait(t)
+	saved := gateAskLife
+	t.Cleanup(func() { gateAskLife = saved })
+	gateAskLife = time.Second // with the 5 s margin: 6 s in all, the link 3 s
+	g := &fakeGate{phones: true, channels: []string{"page"}, linkEnd: "waiting"}
+	h := gatedFamily(t, g, true)
+	plan := h.plan("lock.unlock", "lock.front").Plan
+	c := startMCP(t, h.paths)
+	mcpInit(c)
+	start, apply := time.Now(), map[string]any{"plan_id": plan.ID}
+	var env map[string]any
+	for env = envelopeOf(c.tool("ha_apply", apply)); env["status"] == "applying" || env["status"] == "waiting_for_approval"; env = envelopeOf(c.tool("ha_apply", apply)) {
+		if time.Since(start) > 5*time.Second {
+			t.Fatalf("still %v after %v: the link took the whole life", env["status"], time.Since(start))
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if _, ops, sends := g.snapshot(); env["status"] != "verified" || !slices.Contains(ops, "cancel") || len(sends) != 1 || sends[0].grant != "grant-ask2" {
+		t.Fatalf("outcome %v; ops %v sends %+v", env, ops, sends)
+	}
+}
+
+// The move's phone lookup has a read budget of its own: a session whose
+// budget preparing the ask spent still finds the linked phone.
+func TestGateMoveLooksUpThePhoneOnItsOwnBudget(t *testing.T) {
+	h := gatedFamily(t, &fakeGate{phones: true}, true)
+	previous := relaySessionOverallTimeout
+	relaySessionOverallTimeout = 300 * time.Millisecond
+	t.Cleanup(func() { relaySessionOverallTimeout = previous })
+	s, err := newRelaySession(h.paths, verbOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.close()
+	time.Sleep(400 * time.Millisecond)
+	if link, ok := s.gateLocalPhone(); !ok || link.DeviceID != "dev-anna" {
+		t.Fatalf("lookup after the session's budget: %+v %v", link, ok)
+	}
+}
+
+// A link answer that never arrives leaves the outcome unknown: setup says
+// so and keeps this computer's setting; confirm-phone again sets both right.
+func TestSetupConfirmPhoneLostAnswerIsUnknown(t *testing.T) {
+	g := &fakeGate{phones: true, linkEnd: "lost"}
+	h := gatedFamily(t, g, true)
+	usePhones(t)
+	phoneDiscover = discoverPhone
+	exit, out := runLink(t, h, "", phoneLinkRun{pick: "Markus’s iPhone"})
+	if exit != 1 || !strings.Contains(out, "can't tell whether “Markus’s iPhone” is linked") || strings.Contains(out, "Nothing linked") || linked(t, h) == nil || *linked(t, h) != annaLink {
+		t.Fatalf("lost: %d %q local %+v", exit, out, linked(t, h))
 	}
 }
 
