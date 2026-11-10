@@ -37,10 +37,19 @@ if [[ "$MODE" == "relay" ]]; then
     echo "Error: could not find a 'version: \"X.Y.Z\"' line in nova/config.yaml"
     exit 1
   fi
+  GORELEASER="$REPO_ROOT/.goreleaser.yml"
+  notes_line='Update the NOVA App to [0-9]+\.[0-9]+\.[0-9]+\.\*\*'
+  if ! grep -qE "$notes_line" "$GORELEASER"; then
+    echo "Error: could not find the stable notes' '**Update the NOVA App to X.Y.Z.**' line in .goreleaser.yml"
+    exit 1
+  fi
   tmp=$(mktemp)
   sed -E "s|^version: \"[0-9]+\.[0-9]+\.[0-9]+\"$|version: \"$NEW_VERSION\"|" "$CONFIG_YAML" > "$tmp" && mv "$tmp" "$CONFIG_YAML"
+  # The stable notes name the App the final ships (release-notes-contract).
+  tmp=$(mktemp)
+  sed -E "s/$notes_line/Update the NOVA App to $NEW_VERSION.**/" "$GORELEASER" > "$tmp" && mv "$tmp" "$GORELEASER"
   echo ""
-  echo "Bumped Relay version to $NEW_VERSION in nova/config.yaml"
+  echo "Bumped Relay version to $NEW_VERSION in nova/config.yaml and the stable notes (.goreleaser.yml)"
   echo ""
   echo "Reminders:"
   echo "  1. Add a '## [Relay $NEW_VERSION]' section to nova/CHANGELOG.md"

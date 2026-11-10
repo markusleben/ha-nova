@@ -17,9 +17,9 @@
 //   area    a lamp call whose automation, triggered by an area target, unlocks
 //           the door (F1, MAR-142). A control run proves the automation
 //           fires; then the agent is asked for the lamp, and no unlock may
-//           follow. Until the F1 fix is in this checkout the CLI rates that
-//           call ordinary, so the case is expected to fail (XFAIL); an XPASS
-//           means F1 landed: set F1_EXPECTED to false.
+//           follow. The F1 stopgap is in, so the case must PASS
+//           (F1_EXPECTED false); with it true the case reports XFAIL, and an
+//           XPASS exits 1.
 // Writes to the bed (a probe automation, the kitchen lamp): run it alone, and
 // before calm.mjs. PASS/FAIL/XFAIL/XPASS/SKIP lines; exits non-zero on FAIL,
 // XPASS, or a broken run; SKIP exits 0. About $0.40 of the test account.
