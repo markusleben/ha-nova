@@ -118,6 +118,14 @@ Both run through `ha-nova serve` inside the App (`/api/ha_nova/mcp` → integrat
 - `ha-nova doctor` and setup's summary say "Safety check in Home Assistant: on", or why not (App too old, worker down, the Relay signs in as the owner so only the page can approve, a Link computer where the check is not a boundary).
 - Texts follow the confirmation-localization spec; Relay-side copy (`428`, `503`, page chrome) is English like other Relay errors.
 
+### 8. CLI client (layer 6)
+
+- **Gated mode.** A session reads `GET /health` once, when a typed plan is made or applied. `gate: 1` records `gate_seen` in the server profile. A profile with `gate_seen` whose App no longer shows `gate: 1` refuses typed plans with §6's update line; nothing is sent. Never seen: today's flow, unchanged.
+- **Plans.** On a gated App a typed plan gets the sealed channel `relay`: no code, no window or phone ask from the CLI. `say` and `next_step` send the person to their linked phone or the NOVA page and the agent to `ha-nova apply --plan <id>` without `--confirm`; a code on a relay plan is refused (`CONFIRM_IN_HOME_ASSISTANT`). A raw plan typed only by a skill's mark, a rooms plan, and a dashboard plan keep today's local asks (the gate may pass the first; apply can't name the others' requests before it sends them).
+- **Ask before the first send.** Apply opens one ask with the exact bytes it sends first (a call; a config write plus its reload; a raw plan's requests; a batch's first member when typed), waits, and sends each once with the grant. A later write the Relay holds (`428` without a grant) is asked for then, with its reload, and sent once more; a `428` that carried a grant is never asked again. No ask route (`404`), `needed: false` for a plan the CLI rates typed, a refused ask, or one that is cancelled, expires, or times out: refused, nothing sent.
+- **Outcomes.** A `GATE_*` answer on any status except `502 GATE_ANSWER_WITHHELD` means refused, not sent; `502` and a lost answer to a granted send stay `OUTCOME_UNKNOWN`, never retried. Releasing a plan stays each executor's own logic.
+- **Waiting.** The waiting window (texts from `cli/confirm_strings.*.json`) has [Open Home Assistant] (the NOVA page from the paired profile; it never approves) and Cancel (ends the ask); a Cancel that raced an approval wins. A stop signal ends a waiting ask unsent. `ha-nova mcp` answers `waiting_for_approval` while its `ha_apply` job's ask waits; calling again joins the same job.
+
 ## Contract
 
 Shared by the gate layers and every change to a tier (layer 1 lands it first).
