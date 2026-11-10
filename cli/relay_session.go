@@ -40,6 +40,7 @@ var readOnlyWSTypes = map[string]bool{
 	// returns it without storing anything.
 	"config_entries/get": true,
 	"manifest/list":      true, // which integrations ship with Home Assistant (tier_callset.go)
+	"entity/source":      true, // every entity's integration, registry row or not (tier_helper_options.go)
 	// call/apply reauth correlation (spec §2.3): lists pending config flows.
 	"config_entries/flow/progress": true,
 	// find alias fallback: get_entries returns extended rows incl. aliases
@@ -72,7 +73,10 @@ var readOnlyWSTypes = map[string]bool{
 
 // relaySession resolves config and transport once per invocation and
 // memoizes identical reads. It is the only Relay path of the read verbs and
-// refuses anything not provably read-only before sending (I1).
+// refuses anything not provably read-only before sending (I1). The one
+// exception is fixed in code: a thermostat or hygrostat helper's options
+// flow, started and aborted unsubmitted, which saves nothing
+// (helperOptionsEndpoint).
 type relaySession struct {
 	paths        runtimePaths
 	cfg          runtimeConfig
@@ -209,7 +213,11 @@ func (s *relaySession) read(endpoint string, payload map[string]any) (json.RawMe
 	if ok {
 		<-m.done
 	} else {
-		m.data, m.err = s.send(endpoint, body)
+		if endpoint == helperOptionsEndpoint {
+			m.data, m.err = s.helperOptions(body)
+		} else {
+			m.data, m.err = s.send(endpoint, body)
+		}
 		close(m.done)
 	}
 	s.lost(replaying, m.err)
@@ -231,6 +239,11 @@ func checkReadOnlyRequest(endpoint string, payload map[string]any) error {
 			return nil
 		}
 		return fmt.Errorf("WS type %q is not on the read-only allowlist; nothing was sent", payload["type"])
+	case helperOptionsEndpoint: // a thermostat or hygrostat helper's options: an options flow started and aborted (tier_helper_options.go)
+		if entry, _ := payload["entry_id"].(string); entry != "" && len(payload) == 1 {
+			return nil
+		}
+		return errors.New("helper options take exactly one entry_id; nothing was sent")
 	case "backups": // plan restore: loading one automation/script snapshot
 		if file, _ := payload["file"].(string); payload["action"] == "load" && len(payload) == 2 && restoreDomain(file) != "" {
 			return nil
@@ -288,6 +301,13 @@ func (s *relaySession) sendWithin(endpoint string, body []byte, timeout time.Dur
 // sendIn is sendWithin under parent instead of the session budget (the
 // phone confirmation waits longer than that budget).
 func (s *relaySession) sendIn(parent context.Context, endpoint string, body []byte, timeout time.Duration) (json.RawMessage, error) {
+	return s.exchange(parent, endpoint, body, timeout, true)
+}
+
+// exchange sends one request; retry sends a read that got no answer from
+// the Relay once more (R4). The helper options' flow start and abort go
+// once (tier_helper_options.go).
+func (s *relaySession) exchange(parent context.Context, endpoint string, body []byte, timeout time.Duration, retry bool) (json.RawMessage, error) {
 	select {
 	case s.slots <- struct{}{}:
 	case <-parent.Done():
@@ -303,7 +323,7 @@ func (s *relaySession) sendIn(parent context.Context, endpoint string, body []by
 	resp, err := s.transport.Client.Do(req)
 	// R4: every caller reads (writes take sendWrite), so a read that got no
 	// answer from the Relay goes once more inside its own deadline.
-	if err != nil && readNoRelayAnswer(s.transport.Via, err) && linkRetryWait(ctx, linkRequestRetryMinLeft) {
+	if err != nil && retry && readNoRelayAnswer(s.transport.Via, err) && linkRetryWait(ctx, linkRequestRetryMinLeft) {
 		if req, err = newRelayRequest(ctx, s.transport, endpoint, body); err != nil {
 			return nil, err
 		}

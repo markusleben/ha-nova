@@ -700,3 +700,18 @@ counts only those, not ad hoc checks or corrections.
 - Re-check the three tables on each HA release: a built-in platform or
   service that calls services and is missing from them makes a
   `call_service` listener look unreachable.
+
+## 2026-11-10 — thermostat and hygrostat helper options (MAR-131), HA 2026.11.1
+
+- Source checked: `home-assistant/core` tag 2026.11.1:
+  `generic_thermostat/config_flow.py`, `generic_thermostat/climate.py`,
+  `generic_hygrostat/config_flow.py`, `generic_hygrostat/humidifier.py`,
+  `helpers/schema_config_entry_flow.py`.
+- Pinned in `cli/tier_helper_options.go` (`helperOptionFields`): each helper
+  calls only `homeassistant.turn_on`/`turn_off` on its options' `heater`
+  (climate.py:681,710) or `humidifier` (humidifier.py:579,584); the options
+  flow's `init` step is a `SchemaFlowFormStep` with no callback whose
+  `suggested_value`s are the stored options, and an abort saves nothing.
+- Re-check on each HA release: a new service call in either platform, a
+  renamed field, a callback or preview on the `init` step, or a second step
+  before `init` breaks the read (it then fails closed to unbounded).

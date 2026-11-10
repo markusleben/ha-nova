@@ -35,7 +35,7 @@ const rawWSRead = "read"
 var rawWSAllowed = map[string]string{
 	// Reads.
 	"ping": rawWSRead, "get_states": rawWSRead, "get_config": rawWSRead, "get_panels": rawWSRead,
-	"config_entries/get": rawWSRead, "config_entries/flow/progress": rawWSRead, "manifest/list": rawWSRead,
+	"config_entries/get": rawWSRead, "config_entries/flow/progress": rawWSRead, "manifest/list": rawWSRead, "entity/source": rawWSRead,
 	"config_entries/subentries/list": rawWSRead,
 	"frontend/get_translations":      rawWSRead,
 	"todo/item/list":                 rawWSRead,
