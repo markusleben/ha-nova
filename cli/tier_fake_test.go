@@ -18,7 +18,7 @@ type fakeHA struct {
 	configs       map[string]any      // core path → stored config; absent → 404
 	config        map[string]any      // GET /api/config (nil: 404)
 	unique        map[string]string   // entity_id → registry unique_id
-	related       map[string][]string // "entity:<id>" → automations, "area:<id>" → entities
+	related       map[string][]string // "<item type>:<id>" → automations, but "area:<id>" → entities ("area-automation:<id>" → automations)
 	events        []map[string]any
 	entries       []map[string]any
 	substitute    any
@@ -29,7 +29,8 @@ type fakeHA struct {
 	loaded        map[string]any      // entity → loaded config (WS automation/config, script/config); an automation's defaults to its stored one
 	flows         []map[string]any    // config_entries/flow/progress
 	services      []map[string]any    // GET /api/services (nil: defaultServices; fail it with f.fail["/api/services"])
-	devices       []map[string]any    // config/device_registry/list rows (id, parent_device_id)
+	devices       []map[string]any    // config/device_registry/list rows (id, parent_device_id, area_id, labels)
+	areas         []map[string]any    // config/area_registry/list rows (area_id, floor_id, labels)
 	splits        map[string]any      // config/device_registry/list_composite_splits (nil: {})
 	splitsUnknown bool                // that command is unknown (a core before 2026.8)
 	// service answers POST /api/services/<d>/<s> (nil: 200 and no effect);
@@ -75,7 +76,7 @@ func (f *fakeHA) ent(id, pl, state string, attrs map[string]any) *fakeHA {
 	f.states[id] = map[string]any{"entity_id": id, "state": state, "attributes": attrs}
 	if pl != "" {
 		row := map[string]any{"ei": id, "en": attrs["friendly_name"], "pl": pl, "di": attrs["_di"]}
-		for _, key := range []string{"ai", "hb", "ec"} { // present only when set, as in HA
+		for _, key := range []string{"ai", "hb", "ec", "lb"} { // present only when set, as in HA
 			if v, set := attrs["_"+key]; set {
 				row[key] = v
 			}
@@ -157,7 +158,7 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 		case "search/related":
 			items := f.related[fmt.Sprint(p["item_type"])+":"+fmt.Sprint(p["item_id"])]
 			if p["item_type"] == "area" {
-				return map[string]any{"entity": items, "device": f.related["area-devices:"+fmt.Sprint(p["item_id"])]}
+				return map[string]any{"entity": items, "device": f.related["area-devices:"+fmt.Sprint(p["item_id"])], "automation": f.related["area-automation:"+fmt.Sprint(p["item_id"])]}
 			}
 			return map[string]any{"automation": items, "group": f.relatedGroups[fmt.Sprint(p["item_id"])]}
 		case "config/entity_registry/get_entries":
@@ -181,6 +182,8 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 			return append([]map[string]any{}, f.flows...)
 		case "config/device_registry/list":
 			return append([]map[string]any{}, f.devices...)
+		case "config/area_registry/list":
+			return append([]map[string]any{}, f.areas...)
 		case "config/device_registry/list_composite_splits":
 			if f.splitsUnknown {
 				return fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "unknown_command: Unknown command."}

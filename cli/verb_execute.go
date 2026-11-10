@@ -41,6 +41,9 @@ func executeAction(s *relaySession, e *tierEngine, env *verbEnvelope, action pla
 			message: fmt.Sprintf("Home Assistant rejected the call (HTTP %d): %s", result.status, truncate(string(result.body), 300)),
 			next:    "Nothing ran; check the service data and the target."}
 	}
+	if failure := marketplaceRejected(s, env, action, result); failure != nil { // Home Assistant stopped it before it ran
+		return failure
+	}
 	if action.Response && result.status < 400 && len(result.body) > 0 {
 		// The whole upstream body, so the skills' `result.service_response[...]`
 		// path matches what the old raw `.data.body.service_response` gave.

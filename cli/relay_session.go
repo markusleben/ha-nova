@@ -66,6 +66,9 @@ var readOnlyWSTypes = map[string]bool{
 	// The names of the to-do items a confirmation removes or changes
 	// (confirm_todo_items.go).
 	"todo/item/list": true,
+	// Whether the Relay's user accepted the Marketplace warning, before an
+	// update.install on a Marketplace item (marketplace_update.go).
+	"marketplace/info": true,
 }
 
 // relaySession resolves config and transport once per invocation and

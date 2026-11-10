@@ -41,27 +41,31 @@ func basisEntities(e *tierEngine) map[string]any {
 }
 
 // basisConsumers: what the consumer scan starts from for each frozen
-// target — the automations and groups Home Assistant relates to it and the
-// automations related to its device. evaluate reads them before any long
-// scan, so a consumer added since the preview is drift even when a cut
-// check could not read it.
+// target — the automations and groups Home Assistant relates to it, and the
+// automations related to its device and to where it sits (relatedItems).
+// evaluate reads them before any long scan, so a consumer added since the
+// preview is drift even when a cut check could not read it.
 func basisConsumers(e *tierEngine, frozen []string) map[string]any {
 	out := map[string]any{}
 	for _, id := range frozen {
-		items := [][2]string{{"entity", id}}
-		if device := e.reg[id].di; device != "" {
-			items = append(items, [2]string{"device", device})
-		}
+		items, direct, ok := e.relatedItems(id)
 		bound := map[string]any{}
-		for _, item := range items {
+		if !ok {
+			bound["places"] = "unread"
+		}
+		for i, item := range items {
+			key := item[0]
+			if i >= direct {
+				key += " " + item[1] // two devices: its own and its parent
+			}
 			related, err := e.related(item[0], item[1]) // memoized: evaluate read it first
 			switch {
 			case err != nil:
-				bound[item[0]] = "unread"
-			case item[0] == "entity":
+				bound[key] = "unread"
+			case key == "entity":
 				bound["entity"] = map[string]any{"automation": related["automation"], "group": related["group"]}
 			default:
-				bound[item[0]] = related["automation"]
+				bound[key] = related["automation"]
 			}
 		}
 		out[id] = bound

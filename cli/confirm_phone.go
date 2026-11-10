@@ -199,23 +199,21 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 		all = append(all, target.Service)
 	}
 	// Every phone: a send still in flight at the deadline may land later.
-	// The result or the clear waits for an ask still in flight (bounded): a
-	// late ask would land after it. The tag is kept either way, so the next
-	// question clears whatever stays (a clear iOS didn't deliver).
-	end := func(body map[string]any) {
-		until := time.Now().Add(phoneTellSpan) // one bound for both: an MCP call stays under its 60 s
+	// The result or the withdrawal waits for an ask still in flight
+	// (bounded): a late ask would land after it. The tag is kept either way,
+	// so the next question clears whatever stays (a clear iOS didn't run).
+	end := func(bodies ...map[string]any) {
+		until := time.Now().Add(phoneTellSpan) // one bound for all: an MCP call stays under its 60 s
 		select {
 		case <-sending:
 		case <-time.After(phoneTellSpan):
 		}
 		notePhoneResult(s.paths, setup.owner, all, tag)
-		tellPhones(s, notify, all, body, until)
+		tellPhones(s, notify, all, bodies, until)
 	}
 	reply = phoneReply{once: &sync.Once{},
-		tell: func(title, body string) { end(phoneResultPayload(title, body, tag)) },
-		clear: func() {
-			end(map[string]any{"message": "clear_notification", "data": map[string]any{"tag": tag, "priority": "high"}})
-		},
+		tell:  func(title, body string) { end(phoneResultPayload(title, body, tag)) },
+		quiet: func(title, body string) { end(phoneWithdrawnPayloads(title, body, tag)...) },
 	}
 	if len(sent) == 0 {
 		return phoneFailed, reply
@@ -239,6 +237,9 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 			fmt.Fprintln(notice, phoneNothingHint(setup.targets[0].platform()))
 		case <-failed:
 		case ev := <-events:
+			if ctx.Err() != nil { // ended (the deadline, a stop) as the tap came: select picks either, so it never counts
+				return phoneNoAnswer, reply
+			}
 			if ev.Context.ID != "" && seen[ev.Context.ID] { // both lanes saw it
 				continue
 			}
@@ -284,14 +285,20 @@ func sendPhones(ctx context.Context, s *relaySession, notify func(*relaySession,
 	return sent, sending
 }
 
-// tellPhones sends body to every phone the ask reached, in parallel and for
-// at most until (best effort: a stale ask has dead buttons, since its ids
-// died with the wait; a slow Relay never delays apply).
-func tellPhones(s *relaySession, notify func(*relaySession, string, map[string]any) error, services []string, body map[string]any, until time.Time) {
+// tellPhones sends bodies to every phone the ask reached, in order per
+// phone, phones in parallel, for at most until (best effort: a stale ask
+// has dead buttons, since its ids died with the wait; a slow Relay never
+// delays apply).
+func tellPhones(s *relaySession, notify func(*relaySession, string, map[string]any) error, services []string, bodies []map[string]any, until time.Time) {
 	done := make(chan struct{}, len(services))
 	for _, service := range services {
 		go func() {
-			_ = notify(s, service, body)
+			for i, body := range bodies {
+				if i > 0 && time.Now().After(until) { // the first always goes, as a single body did
+					break
+				}
+				_ = notify(s, service, body)
+			}
 			done <- struct{}{}
 		}()
 	}

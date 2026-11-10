@@ -77,6 +77,11 @@ func rawListened(endpoint string, payload map[string]any) func(e *tierEngine) []
 	trackers, _ := payload["device_trackers"].([]any)
 	enables := toggles && disabled == nil
 	collection, op, idKey := rawCollection(wsType)
+	movedToo := func(e *tierEngine, id string) { // the scan reads where it sits now, not where the write puts it (MAR-142)
+		if (enables || sets("new_entity_id")) && sets("area_id", "labels") {
+			e.gap(reasonUnresolvedTarget, "", "", id+" also moves to another area or label")
+		}
+	}
 	switch id := rawEntityID(payload["entity_id"]); {
 	case (wsType == "calendar/event/create" || wsType == "calendar/event/update" || wsType == "calendar/event/delete") && id != "":
 		return func(*tierEngine) []string { return []string{id} }
@@ -89,6 +94,7 @@ func rawListened(endpoint string, payload map[string]any) func(e *tierEngine) []
 					e.readFailed(id, "", "registry")
 				}
 			}
+			movedToo(e, id)
 			ids := []string{id, rawEntityID(payload["new_entity_id"])}
 			if enables {
 				ids = append(ids, e.entryMates(ids[:1])...)
@@ -97,6 +103,7 @@ func rawListened(endpoint string, payload map[string]any) func(e *tierEngine) []
 		}
 	case (wsType == "config/device_registry/update" || wsType == "config/device_registry/remove") && text("device_id") != "":
 		return func(e *tierEngine) []string {
+			movedToo(e, text("device_id"))
 			family := []string{text("device_id")}
 			if toggles || wsType == "config/device_registry/remove" { // its child devices go with it (rawDeviceFamily)
 				family = e.deviceFamily(text("device_id"))
@@ -163,6 +170,7 @@ func (e *tierEngine) rawListeners(endpoint string, payload map[string]any) tierL
 	}
 	class := tierOrdinary
 	e.scopes = append(e.scopes, &class)
+	consumers := len(e.consumers)
 	if len(e.reg) == 0 && !e.regFailed {
 		e.loadRegistry()
 	}
@@ -193,6 +201,9 @@ func (e *tierEngine) rawListeners(endpoint string, payload map[string]any) tierL
 		}
 		e.scopes = e.scopes[:len(e.scopes)-1]
 		e.done[key] = own
+	}
+	if len(e.consumers) > consumers { // a raw write calls nothing itself: only what its consumers call may set off a call_service listener (MAR-148)
+		e.callServiceListeners()
 	}
 	e.scopes = e.scopes[:len(e.scopes)-1]
 	if e.regFailed {
