@@ -189,8 +189,14 @@ func TestBatchWindowBudget(t *testing.T) {
 	for i := 1; i <= batchMaxMembers; i++ {
 		long = append(long, h.member("delete", "automation."+strings.ReplaceAll(strings.ToLower(longer(i)), " ", "_")))
 	}
-	if exit, env := h.batch(long...); exit != 4 || env.Error.Code != "BATCH_TOO_LONG" {
-		t.Fatalf("20 deletes, 60-character names: exit %d %+v", exit, env.Error)
+	exit, refused := h.batch(long...)
+	if exit != 4 || refused.Error.Code != "BATCH_TOO_LONG" {
+		t.Fatalf("20 deletes, 60-character names: exit %d %+v", exit, refused.Error)
+	}
+	if size := splitSize(t, refused.Error.Next, "[(]each"); size < 2 || size >= batchMaxMembers {
+		t.Fatalf("split into batches of %d: %q", size, refused.Error.Next)
+	} else if exit, env := h.batch(long[:size]...); exit != 3 || env.Plan.Channel != channelWindow {
+		t.Fatalf("a batch of %d: exit %d %+v", size, exit, env.Error)
 	}
 	for i := 1; i <= batchMaxMembers; i++ {
 		unlocks = append(unlocks, h.writePlan("automation", fmt.Sprintf("l%d", i), map[string]any{"alias": name(i), "actions": []any{step("lock.unlock", "lock.front")}}))
