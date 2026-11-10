@@ -28,7 +28,7 @@ It boots a real, throwaway Home Assistant in containers, completes its onboardin
 
 CI runs the same script weekly and on demand via `.github/workflows/e2e-disposable-ha.yml` (`workflow_dispatch`), so you can also trigger it from GitHub without a local Docker setup.
 
-For CLI verbs, the tier engine, skills, and agent scenarios, use the seeded **test bed** instead: a furnished house (MQTT devices, areas, aliases, automations covering the tier edge cases) on isolated ports — `npm run testbed:up`, `npm run testbed:verify`, `npm run testbed:down`. See [scripts/e2e/testbed/README.md](../../scripts/e2e/testbed/README.md).
+For CLI verbs, the tier engine, skills, and agent scenarios, use the seeded **test bed** instead: a furnished house (MQTT devices, areas, aliases, automations covering the tier edge cases) on isolated ports — `npm run testbed:up`, `npm run testbed:verify`, `npm run testbed:down`. See [scripts/e2e/testbed/README.md](../../scripts/e2e/testbed/README.md). `node scripts/e2e/testbed/agent-unlock.mjs` runs a headless agent on that bed over the shell and MCP paths: an unlock must still wait for a person (#974), and a lamp call whose area-triggered automation unlocks reports XFAIL until the F1 fix.
 
 For client-side release regression (public install of the last stable tag, setup against the test bed, client wiring, update to the candidate, uninstall — macOS and Linux lanes in throwaway HOMEs), run `bash scripts/e2e/client-matrix/run.sh --from <stable-tag> --to local`. See [scripts/e2e/client-matrix/README.md](../../scripts/e2e/client-matrix/README.md).
 

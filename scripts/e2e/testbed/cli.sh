@@ -41,6 +41,8 @@ fi
 
 ENV_VARS=(
   "HOME=$CLI_HOME"
+  # Overrides the config dir whatever HOME is: an inherited one would be the real home's.
+  "HA_NOVA_CONFIG_DIR=$CLI_HOME/.config/ha-nova"
   "XDG_CONFIG_HOME=$CLI_HOME/.config"
   "XDG_CACHE_HOME=$CLI_HOME/.cache"
   "XDG_DATA_HOME=$CLI_HOME/.local/share"
