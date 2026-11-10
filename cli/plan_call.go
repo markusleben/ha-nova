@@ -212,6 +212,9 @@ func computeCallPlan(s *relaySession, env *verbEnvelope, req planCallRequest) (*
 	if e.targetRequired(req, spec) {
 		return nil, storedPlan{}, refuse(env, tierReason{Code: reasonTargetRequired, Detail: "without a target this service acts on every entity of its domain; name the entities, or use --area/--device"})
 	}
+	if failure := e.marketplaceRefusal(env, req, targets); failure != nil {
+		return nil, storedPlan{}, failure
+	}
 	if refusal := e.evaluate(req, targets); refusal != nil {
 		return e, storedPlan{}, refuse(env, *refusal) // e: call's no-op check (noChangeCall)
 	}
@@ -461,9 +464,9 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 		if code := directRefusal(effectiveService(req.Service, entityDomain), e.states[t.EntityID]); code != "" && (named || code != reasonFeature || entityDomain != "cover") {
 			return &tierReason{Code: code, EntityID: t.EntityID}
 		}
-		reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest("entity", t.EntityID)) })
-		if device := e.reg[t.EntityID].di; device != "" { // before any long scan: the plan basis binds both (basisConsumers)
-			reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest("device", device)) })
+		items, _, _ := e.relatedItems(t.EntityID) // before any long scan: the plan basis binds them (basisConsumers)
+		for _, item := range items {
+			reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest(item[0], item[1])) })
 		}
 	}
 	reads = append(reads, // checkManagers reads them after the walk: how far a cut walk got must not decide them

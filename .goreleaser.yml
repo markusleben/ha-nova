@@ -93,6 +93,7 @@ release:
 
     ## Bug Fixes
 
+    - **Automations that react to a whole room, floor, or label are now checked.** Turning on a lamp that sets one off asks first when that automation unlocks or opens something; before, it could run without asking.
     - **Confirmation windows are short and readable.** Same-kind steps share one line, names and months replace ids and timestamps, and the instruction always shows. Too long for the window: refused, never cut.
     - **Changes that would drop aliases or labels, a person's trackers, or voice-assistant settings now save a copy first.**
     - **HA NOVA overwrites or deletes a file in your config folder only once a copy of it is saved.** It stops if the file changed since the preview.
@@ -100,6 +101,7 @@ release:
     - **Reloading an automation or your scripts is now checked like what it loads.** A harmless reload no longer asks like unlocking a door; one that can unlock still does. A change also checks what its reload sets off.
     - **When the NOVA App refuses a file (for example anything under /config/www), HA NOVA now says why instead of reporting a sign-in problem.**
     - **Over Home Assistant Link, `ha-nova update` now offers the NOVA App update too.** In a terminal it installs the App after your yes, waits while it restarts, and checks the new version.
+    - **Updating a Marketplace item now stops before anything is sent and says where to do it.** HA NOVA can't install Marketplace updates yet: Home Assistant asks for its warning to be accepted first.
 
     Stable install commands are release-pinned for this tag.
 

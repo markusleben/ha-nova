@@ -119,6 +119,20 @@ questions. The weekly `testbed-ha-stable.yml` job runs it too.
   Android action value is a string, the hint and the CLI's tap line match the
   platform, `importance: high`, and each ask has its own tag. Per result: the
   question's tag, no buttons, `importance: high`.
+- Window case (after the iPhone unlock): a question answered on the computer
+  must not stay answerable on the phone. A window is a real dialog on macOS, so
+  this one `plan` + `apply` of an unlock runs in a throwaway `ubuntu:24.04`
+  container (`docker run --rm`, the bed via `host.docker.internal` or host
+  networking on Linux) with a fake `/usr/bin/zenity` that waits 8 s and exits 1
+  (Cancel), `DISPLAY` set, and a temp copy of the phone home with the window
+  on. Asserted: after the question (2 buttons, tag T) the next push to that
+  phone is a note with T, no buttons, `passive`, `alert_once`, priority
+  `high`, title `Cancelled: …`; then `clear_notification` for T (a clear of
+  an open question fails the lane); the apply exits 4 `CONFIRM_DECLINED` and
+  the lock stays locked. Needs Docker (SKIP line without). Linux binary: `TESTBED_CLI_BIN_LINUX`,
+  else `TESTBED_CLI_BIN` if it is a Linux binary of the container's arch, else a
+  `GOOS=linux` build of this checkout; a macOS `TESTBED_CLI_BIN` alone (rc lane)
+  gives a SKIP line.
 - It leaves the front door locked and no phone linked. The Relay stays on
   the second user until `testbed:down`; the other verify checks pass either way.
 

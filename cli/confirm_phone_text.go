@@ -251,13 +251,13 @@ func phoneSharedLine(name string) string {
 // phoneReply closes an ask on the phone: the result replaces the
 // notification (same tag, so it replaces instead of stacking), with no
 // buttons and no ids, so a tap on a watch or a locked phone gets an answer.
-// Answered on the computer, withdraw takes the question off instead, with
-// nothing in its place (confirm_both.go). Only the first say or withdraw
+// Answered on the computer, withdraw replaces the question with a quiet
+// note, then clears it (confirm_both.go). Only the first say or withdraw
 // counts; the zero value (nothing was sent) says nothing.
 type phoneReply struct {
 	once  *sync.Once
 	tell  func(title, body string)
-	clear func()
+	quiet func(title, body string)
 }
 
 func (r phoneReply) say(title, body string) {
@@ -266,9 +266,9 @@ func (r phoneReply) say(title, body string) {
 	}
 }
 
-func (r phoneReply) withdraw() {
+func (r phoneReply) withdraw(title, body string) {
 	if r.once != nil {
-		r.once.Do(r.clear)
+		r.once.Do(func() { r.quiet(phoneCut(title, phoneTitleLimit), body) })
 	}
 }
 
@@ -281,6 +281,20 @@ func phoneResultPayload(title, body, tag string) map[string]any {
 	return map[string]any{"title": title, "message": body, "data": map[string]any{
 		"tag": tag, "push": map[string]any{"interruption-level": "active"}, "channel": "HA NOVA", "importance": "high", "timeout": 600,
 	}}
+}
+
+// phoneWithdrawnPayloads: a question answered elsewhere. A clear alone
+// stays undone on an iPhone whose app iOS doesn't wake for it (a silent
+// push), so a buttonless note replaces the question first: a visible push
+// with its tag, which the phone itself applies. Quiet: passive on iOS (no
+// sound, no screen), alert_once on Android (an update doesn't pop up), high
+// priority so a dozing Android gets it now. The clear then removes the
+// note where the phone runs it.
+func phoneWithdrawnPayloads(title, body, tag string) []map[string]any {
+	note := phoneResultPayload(title, body, tag)
+	data := note["data"].(map[string]any)
+	data["push"], data["alert_once"], data["priority"] = map[string]any{"interruption-level": "passive"}, true, "high"
+	return []map[string]any{note, {"message": "clear_notification", "data": map[string]any{"tag": tag, "priority": "high"}}}
 }
 
 // phoneNothing: the result of an ask that changed nothing (a title

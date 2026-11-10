@@ -12,7 +12,8 @@ import (
 // deadline, and the first decisive answer (Confirm or Cancel) wins. The
 // other is withdrawn at once: the window closes, and the phone stops
 // listening (its ids die with the ask). One answer, one place: answered on
-// the computer, the phone's question is cleared with nothing in its place;
+// the computer, the phone's question goes (a quiet note without buttons
+// replaces it, then a clear removes that where the phone runs it);
 // answered on the phone, the phone shows the result; no answer anywhere,
 // the phone says so. A later answer on either changes nothing: no one
 // reads it. Settings changes (confirm-window, confirm-phone) never race:
@@ -105,7 +106,7 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 		if decided && first.phone { // the phone had answered: it hears what came of it
 			reply.say(phoneResultTitle(lang, confirmT(lang, "outcome.cancelled"), goal), confirmT(lang, "outcome.line.stopped_computer"))
 		} else {
-			reply.withdraw()
+			reply.withdraw(phoneResultTitle(lang, confirmT(lang, "outcome.cancelled"), goal), confirmT(lang, "outcome.line.stopped_computer"))
 		}
 		s.close()
 		endBySignal(ended)
@@ -114,12 +115,12 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 	tell := func(prefix, line string) {
 		phoneApplied = func(verbEnvelope, int) { reply.say(phoneResultTitle(lang, prefix, goal), line); s.close() }
 	}
-	// Answered on the computer: the phone's question goes at once, and
-	// nothing takes its place (one answer, one place). Apply doesn't wait
-	// for it; the session closes once it went.
-	withdraw := func() {
+	// Answered on the computer: the phone's question goes at once (one
+	// answer, one place). Apply doesn't wait for it; the session closes
+	// once it went.
+	withdraw := func(prefix, line string) {
 		gone := make(chan struct{})
-		go func() { reply.withdraw(); close(gone) }()
+		go func() { reply.withdraw(phoneResultTitle(lang, prefix, goal), line); close(gone) }()
 		phoneApplied = func(verbEnvelope, int) { <-gone; s.close() }
 	}
 	unread := a.answer == phoneUnread
@@ -133,10 +134,10 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 	case decided && first.window == windowConfirmed:
 		fmt.Fprintln(os.Stderr, map[bool]string{false: "Confirmed in the window on this computer; the phone's notification is withdrawn.", true: "Confirmed in the window on this computer."}[phoneOut])
 		humanAnswer, humanWhere, askedRoute = confirmCode(s.transport.Credential, a.idHex, a.plan.Channel, a.plan.ExpiresAt), channelWindow, s
-		withdraw()
+		withdraw(confirmT(lang, "outcome.confirmed_computer"), confirmT(lang, "outcome.line.confirmed_computer"))
 		return verbEnvelope{}, 0, false
 	case decided:
-		withdraw()
+		withdraw(confirmT(lang, "outcome.cancelled"), confirmT(lang, "outcome.line.stopped_computer"))
 		return windowStopped(s, "declined", "CONFIRM_DECLINED", "the confirmation window was cancelled",
 			"Tell the user nothing changed. Apply this plan again only if they ask for it.")
 	case window == windowFailed && unread:

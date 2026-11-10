@@ -23,11 +23,7 @@ func TestRawRelayMarketplaceIsReadOnly(t *testing.T) {
 // The Marketplace migrates HACS update entities to platform marketplace:
 // installing one still brings third-party code, so it takes the code.
 func TestMarketplaceUpdateInstallIsTyped(t *testing.T) {
-	f := newFakeHA()
-	f.ent("update.card_mod_update", "marketplace", "on", map[string]any{"friendly_name": "card-mod update"})
-	f.services = append(f.defaultServices(), map[string]any{"domain": "update", "services": map[string]any{
-		"install": map[string]any{"target": map[string]any{}}}})
-	h := newWriteHarness(t, f)
+	h := newWriteHarness(t, marketplaceHA(map[string]any{"warning_accepted": true}))
 	got := h.plan("update.install", "update.card_mod_update", "--skill", "ha-nova:updates")
 	if got.Tier != "typed" || !strings.Contains(fmt.Sprint(got.Reasons), reasonHACSInstall) ||
 		!strings.Contains(got.Say, "This installs code from the Marketplace that runs in Home Assistant") || strings.Contains(got.Say, "HACS") {
