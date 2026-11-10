@@ -96,3 +96,6 @@ lines:
 - When something is outside these guarantees (scene, energy, and
   calendar writes have no revert; config-entry helpers have no snapshot), the
   owning skill names the limit — the honest limit is part of the story.
+
+Only when asked which actions need that confirmation: `../ha-nova/confirmed-actions.md`
+lists them to explain; the plan's own tier and `say` decide, never the list.
