@@ -299,7 +299,7 @@ describe("safe test system contract", () => {
     expect(goTestSteps.find((step) => step.name === "Go tests")?.run).toBe(
       'bash .github/scripts/go-test-shard.sh "$SHARD_INDEX" "$GO_TEST_SHARDS" . -count=1',
     );
-    expect(ci.jobs["go-race-1"]?.steps?.find((step) => step.name === "Race detector (setup and confirm)")?.run).toMatch(
+    expect(ci.jobs["go-race-1"]?.steps?.find((step) => step.name === "Race detector (setup, confirm, and gate)")?.run).toMatch(
       /^bash \.github\/scripts\/go-test-shard\.sh "\$SHARD_INDEX" "\$GO_RACE_SHARDS" '[^']+' -race -count=1$/,
     );
     expect(ci.jobs["verify"]?.needs).toBe("test-inventory");
