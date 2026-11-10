@@ -125,10 +125,8 @@ describe("write delete safety contract", () => {
     expect(writeSafety).toContain("Output hygiene");
     // The live test leaked a raw config-id and "Best-Practice-Snapshot is older".
     expect(writeSafety).toContain("no raw numeric config-id");
-    expect(writeSafety).toContain("bp_status");
-    expect(writeSafety).toContain("internal gate input only");
-    // On a simple change, staleness must be silent (no jargon in user output).
-    expect(writeSafety).toContain("continue silently");
+    // The best-practice freshness gate is gone (0.30): nothing left to leak.
+    expect(writeSafety).not.toContain("bp_status");
   });
 
   it("keeps scratch files out of user-facing output", () => {
@@ -198,7 +196,7 @@ describe("write delete safety contract", () => {
   });
 
   it("keeps delete a typed confirmation code even under menu pressure", () => {
-    expect(writeSkill).toContain("delete is the one-time code, never a menu");
+    expect(writeSkill).toContain("code → follow `say`/`next_step` (window, phone, form, or chat code), never a menu");
   });
 
   it("requires the typed confirmation code for same-session cleanup", () => {

@@ -39,7 +39,7 @@ Save it? I can also show the details.
 
 Title line: emoji + localized preview label + item type + name. Then one to three plain sentences on what the change DOES. They must cover every collection the diff touches — each added, removed, replaced, or modified entry described by its effect, never only by count or type name; grouped entries may share a sentence, and coverage beats the three-sentence guideline. The changes block: in diff-backed skills you author only the localized header row and the literal separator — the data rows are pasted verbatim from the CLI (`ha-nova plan write` / `ha-nova diff`), never invented and never re-aligned (mechanics: `../ha-nova/write-safety.md`); skills without a CLI diff author one short planned-change row or line per changed field; file-editing skills show the changed section as a snippet instead of a table. Existing per-skill slots map into the card: identity slots (name/target) fold into the title line, `Planned change` is the changes block, `Save status` is the ⚠️ line, `Options` or the one-time-code prompt closes the card.
 
-**Delete Card** (destructive — never a menu; the one-time-code prompt is always the last line; only a CLI plan's `say` brings one, and that `say` replaces the prompt, the title, and ⚠️):
+**Delete Card** (destructive — never a menu; the CLI decides how the person confirms: the plan's `say` closes the card and replaces the prompt, the title, and ⚠️ — a window or phone ask, or, with neither, the one-time-code prompt shown here, always the last line):
 
 ```
 🗑️  Delete: scene "Old movie night"
@@ -54,7 +54,7 @@ To go ahead, type this code:
 Destructive batch previews and results render the Batch Cards defined in
 `../ha-nova/batch-safety.md` — same emoji vocabulary and rules.
 
-**Result Card** (after verification; a result's `say` replaces its ✅ and checked lines — name only the proven scope, per `../ha-nova/write-safety.md` → Verification Honesty; findings, if any, follow with 🔴🟠🟡):
+**Result Card** (after verification; a result's `say` replaces the whole card, its undo line included — name only the proven scope, per `../ha-nova/write-safety.md` → Verification Honesty; findings, if any, follow with 🔴🟠🟡):
 
 ```
 ✅ Saved: automation "Morning routine"
@@ -85,7 +85,7 @@ write flow renders outside this system:
 | Flow | Cards |
 |---|---|
 | Create / update (any supported family) | Preview Card → Result Card |
-| Delete / destructive operation (one-time code) | Delete Card → Result Card |
+| Delete / destructive operation (the person confirms) | Delete Card → Result Card |
 | Natural-confirmation removals (e.g. snapshot prune, todo item removes) | Preview Card → Result Card |
 | Batch mutation (manifest-gated) | Batch Cards (`../ha-nova/batch-safety.md`) |
 | Grouped change set (non-destructive, one logical task) | Preview Cards without options → one final action block → Result Card (`../ha-nova/grouped-change-set.md`) |

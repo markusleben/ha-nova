@@ -26,8 +26,6 @@ Not in scope: energy dashboard preferences (`ha-nova:energy`), installing a cust
 ## Bootstrap (once per session)
 
 Read and follow `../ha-nova/session-bootstrap.md`.
-Verify relay CLI: `ha-nova relay health`
-If this fails: `ha-nova setup`
 
 ## Relay Contract
 
@@ -58,9 +56,9 @@ Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome 
    - Resolve every entity with `ha-nova find`; never guess an id. The card fits the device: `climate` → `thermostat`; other controllable devices → a `tile` with their main control `features` (`light-brightness`, `cover-open-close`).
 4. Plan: `ha-nova plan write …`. Exit 3 is normal (`plan.confirm` `natural`). Exit 4: `UNKNOWN_ENTITY` → resolve and fix the draft; `DASHBOARD_NOT_STORAGE` → read-only, explain; `CONFIG_ID_IN_USE` on a create → first check whether an earlier apply created it (then never create another), else another `url_path`. Exit 2 `PLAN_DRIFT` → the dashboard changed since that read (an edit in the UI): read again, re-merge, plan again. Exit 5 `NOT_FOUND` → its candidates.
 5. Preview: the plan's `diff` rows verbatim in the Changes slot, plus a plain-language behavior line (write-safety → Behavior narrative) that names every removed view and card. Name each `result.issues` entry with `new: true`: a new `card_type_unconfirmed` card blocks the save until the user confirms it is installed; say a disabled entity plainly. Say: a dashboard editor left open in Home Assistant would write its old copy back — close it first. Close the card with the plan's `say`.
-6. Confirm: writes take a natural "yes". Delete takes the plan's one-time code (`plan.code`; none: follow `next_step`), never a menu.
+6. Confirm: the CLI decides — `plan.confirm` none → apply; natural → show the preview and wait for the user's reply; code → follow `say`/`next_step` (window, phone, form, or chat code), never a menu.
 7. Apply: `ha-nova apply --plan <id>` (a delete: `--confirm <the user's exact text>` before `--plan`). Apply re-reads the live dashboard first, and again right before the save: exit 2 means it changed since the preview — nothing was saved; read it again, re-merge, re-preview. Exit 6 `CONFIG_REJECTED`: relay `say`, then follow `next`. Exit 7: unknown; never retry. `SNAPSHOT_FAILED` saved nothing: offer pruning the snapshot store, a full safety backup (`ha-nova:backup`), or proceeding without one; only after the user picks the last, `apply [--confirm <code>] --plan <id> --no-snapshot` (`--confirm` for a delete).
-8. Result: `verified` = the read-back equals the plan (a create: also listed; a delete: no longer listed). Say it can be undone when the result has `undo` or `snapshot`; offer `revert` for an update. A create is cleaned up through the delete flow. A deleted dashboard restores from its snapshot (`../ha-nova/config-snapshots.md`) by the delete result's `restore` (a `--create` with the shell's title and flags; the main `lovelace` dashboard: a plain write) — the `dashboard_id` is new.
+8. Result: `verified` = the read-back equals the plan (a create: also listed; a delete: no longer listed). `undo` or `snapshot`, and no way back in `say`: say it can be undone; offer `revert` for an update. A create is cleaned up through the delete flow. A deleted dashboard restores from its snapshot (`../ha-nova/config-snapshots.md`) by the delete result's `restore` (a `--create` with the shell's title and flags; the main `lovelace` dashboard: a plain write) — the `dashboard_id` is new.
 9. Broken-card sweep: `ha-nova get --dashboards`; report per dashboard each `missing_entity` (with its `detail`) and `card_type_unconfirmed` (no installed resource seems to provide it — missing, or loaded another way, e.g. `extra_module_url`). Nothing found: "No broken cards found in <n> dashboards." Fixes: one dashboard at a time, steps 2–8.
 10. Metadata update: preview the exact fields and the plan's `say`, confirm, then apply; only send changed metadata fields supported there: `title`, `icon`, `show_in_sidebar`, `require_admin`; do not resend `url_path`, `mode`, or unrelated config fields in the update payload. Verify through `lovelace/dashboards/list`.
 11. Resources: create/update previews `res_type` and `url` (third-party code in every signed-in browser, with its user's rights), delete the exact resource (`resource_id`); each plan asks; verify via `lovelace/resources`.
@@ -83,7 +81,7 @@ Never dump the full dashboard config unasked.
 
 ## Safety
 
-- The CLI checks every change. Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none` (everyday actions, undoable edits); everything else waits for the user's confirmation of the shown preview. Unlocking or opening a lock, entry door, gate, or garage, disarming (also through a scene or script), and deletes or other destructive operations need the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
+- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `"typed":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
 - Relay a plan's `say` in full, localized; never drop or shorten sentences.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.

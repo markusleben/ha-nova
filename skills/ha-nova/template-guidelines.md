@@ -86,12 +86,14 @@ preserve existing notification wording and templates exactly; do not restyle,
 relocalize, or restructure them unless the user explicitly asks for notification
 copy changes.
 
+Names in new templates: from Home Assistant 2026.11 (`get_config` `version`), `entity_name()`, `device_name()`, `area_name()` give each part of the shown name; the `friendly_name` attribute is on its way out, so use it only before 2026.11.
+
 ```yaml
 actions:
   - action: notify.mobile
     data:
       message: >
-        {{ state_attr('weather.home', 'friendly_name') }}:
+        {{ entity_name('weather.home') }}:
         {{ states('weather.home') }},
         {{ state_attr('weather.home', 'temperature') }}°C
 ```
@@ -161,7 +163,7 @@ These are caught by review checks — listed here for reference:
 | `trigger: template` for single entity state | P-01 | Performance overhead | Use `trigger: state` with `to:` |
 | `float(0)` on physical sensor | R-01, R-11 | 0 is wrong for temperature/humidity | Use `float(none)` + `has_value()` guard |
 | `wait_template` without `timeout:` | R-04 | Blocks forever if condition never met | Add `timeout:` |
-| Template trigger using `now()` | P-04 | Re-evaluates only once per minute | Use `time_pattern` for sub-minute precision |
+| Template trigger using `now()` | P-04 | Re-evaluates only once per minute | Trigger on the state or event that carries the change; a `time` trigger for a clock time |
 | `states()` in `trigger_variables` | R-20 | Evaluated at attach time, immediately stale | Move to `variables:` or use in template directly |
 | Templated event trigger name | R-16 | Event trigger names are attached literally; dynamic `event_type` never matches the intended event | Event trigger names must be literal strings; do not template `event_type:` |
 | Same-block sibling variable dependency in one `variables:` mapping | R-18 | Home Assistant renders a `variables:` mapping top-down, so a variable used above its sibling renders before that sibling exists | Use a self-contained template with internal `{% set %}`, or split the dependency into ordered `variables` actions |

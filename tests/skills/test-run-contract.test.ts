@@ -211,7 +211,7 @@ describe("post-write test-offer contract", () => {
     expect(writeSkill).toContain('A "yes" asks for the card, never a run');
     expect(writeSkill).toContain("the choice confirms only that card");
     expect(writeSkill).not.toContain("de-escalate");
-    expect(writeSkill).toContain("- `../ha-nova/test-run.md` — every create/update (Phase 5)");
+    expect(writeSkill).toContain("- `../ha-nova/test-run.md` — only after the user accepts the Phase 5 test offer");
     expect(writeSafety).toContain("that offer is one closing line after every create/update");
     expect(outputRules).toContain("the skill's required read-back and test offer follow it");
     expect(outputCards).toContain("the result's `say` is the only review line");

@@ -51,8 +51,8 @@ var mcpParityRoutes = map[string]string{
 	"relay --out": "ha_read", "relay --out-binary": "ha_read endpoint=camera", "relay --strict-status": "ha_read",
 	"relay --jq": "ha_read jq", "relay --jq-file": "ha_read jq", "relay jq": "ha_read jq", "relay jq --file": "ha_read jq",
 	"relay jq -r": "results are JSON already: no raw-string flag", "relay jq -c": "results are JSON already: no compact flag",
-	"relay jq -e": "the header tells the model to check for null or false itself",
-	"snapshot":    "ha_read endpoint=snapshot", "snapshot show": "ha_read action=show", "snapshot verify": "ha_read action=verify",
+	"relay jq -e":   "the header tells the model to check for null or false itself",
+	"snapshot show": "ha_read action=show", "snapshot verify": "ha_read action=verify",
 	"snapshot --list": "ha_read list", "snapshot --target": "ha_read target", "snapshot --domain": "ha_read domain", "snapshot --against": "ha_read against",
 	"snapshot --server": "a chat connection is pinned to one home",
 	"snapshot save":     "ha_apply", "snapshot save --data-file": "ha_apply", // apply saves a helper update's checkpoint itself

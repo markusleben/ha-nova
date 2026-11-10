@@ -25,15 +25,7 @@ for. Never surface internal bookkeeping in that user-facing write text:
 
 - no internal check codes (S/R/P/M/F/H, R-18, …);
 - no raw numeric config-id / `target_id` — it is an internal handle; identify the
-  item by its name/alias, not by its number;
-- no `bp_status`, "best-practice snapshot", "baseline", or cache wording.
-
-Best-practice freshness (`bp_status`) is an **internal gate input only**:
-
-- `fresh`, or `stale`/`missing`/`invalid` on a simple change → continue silently; never mention it.
-- `stale`/`missing`/`invalid` on a complex change → you may decline, but say it in
-  plain language and point to a Home Assistant Backup as the safety net — never
-  name the snapshot or its age.
+  item by its name/alias, not by its number.
 
 ## Pre-Write Diff (`## Changes`)
 
@@ -270,7 +262,8 @@ back each. Automation/script updates (reverts included) are checkpointed by
 (`../ha-nova/update-revert.md` → Manual capture), except one applied
 through `ha-nova apply`, which checkpoints it itself.
 
-After reporting the update, offer a localized affordance that names the point-in-time
+A result's `say` already names the way back; add nothing. Only without one,
+after reporting the update, offer a localized affordance that names the point-in-time
 rollback option in the same breath — never a bare "undo":
 
 > to undo this change, just say so; for an older state, restore a suitable Home Assistant Backup.

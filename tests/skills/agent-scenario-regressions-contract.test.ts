@@ -159,7 +159,7 @@ describe("agent scenario regressions (2026-10-20)", () => {
     expect(index).toContain('Any request about the user\'s Home Assistant — rooms, devices, sensors ("room temperature"), lights, locks, modes or toggles ("guest mode"), automations, dashboards, or "where is X used / why didn\'t X happen" — is a Home Assistant task unless it is about files or code in the open folder');
     expect(index).toContain("not file search");
     expect(index).toContain("## Say it (Home Assistant tasks)");
-    expect(index).toContain("(like unlocking,");
+    expect(index).toContain("The CLI rates every action; relay its `say`.");
     expect(index).not.toContain("For Home Assistant tasks only");
     expect(index).toContain("`ha-nova:service-call` — control now: devices, toggles, modes");
     expect(index).toContain('`ha-nova:home-map` — home inventory, "where is X used"');
@@ -168,7 +168,7 @@ describe("agent scenario regressions (2026-10-20)", () => {
 
   it("carries one ask shape and one result shape in the injected index", () => {
     expect(index).toContain("Unless asked: names, not ids; local time, never UTC; no automation modes, plan ids, HA NOVA skill or rule-file names.");
-    expect(index).toContain("Answer in the language of the user's sentence, not of a name in it.");
+    expect(flat("skills/ha-nova/output-rules.md")).toContain("Answer in the language of the user's sentence, not of a name in it.");
     // One source of truth: the CLI's `say` is the ask and the result line (#803).
     expect(index).toContain("Relay a CLI `say` (ask or result) verbatim, only translated, line breaks kept; add no other result line.");
     // Only the CLI issues a code, inside its `say`; an agent never makes one up.
@@ -177,14 +177,15 @@ describe("agent scenario regressions (2026-10-20)", () => {
     expect(context).not.toContain("four random digits you mint");
     expect(context).toContain("A typed write without a CLI plan gets one: a `ha-nova plan raw` item");
     expect(context).toContain("never make up a code");
-    expect(index).toContain('Verified raw write (no `say`): `✅ Saved: <type> "<name>"` and what was checked.');
-    expect(index).toContain('After an undoable save: "To undo this change, just say so."');
+    // One undo line: a `say` already names the way back, so the index adds it only without one.
+    expect(index).toContain('Verified raw write (no `say`): `✅ Saved: <type> "<name>"`, what was checked, and, if undoable, "To undo this change, just say so."');
+    expect(index).not.toContain("After an undoable save");
     expect(flat("skills/ha-nova/output-cards.md")).toContain("Ask and result shapes: `../ha-nova/index.md` → Say it.");
   });
 
   it("sends what only the user may confirm through a plan, never a code of its own", () => {
     const cards = flat("skills/ha-nova/output-cards.md");
-    expect(cards).toContain("only a CLI plan's `say` brings one");
+    expect(cards).toContain("the CLI decides how the person confirms: the plan's `say` closes the card");
     expect(cards).not.toContain("else the one-time code");
     const batch = flat("skills/ha-nova/batch-safety.md");
     expect(batch).toContain("and orphan registry entries per config entry: **20**");
