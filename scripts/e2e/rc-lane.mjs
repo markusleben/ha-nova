@@ -10,7 +10,8 @@
 //      SKIP without `claude` or $HOME/.claude-ha-nova-test
 //   d  slow check (#827): 1,500 automations + a call_service listener, the CLI's relay
 //      behind a proxy that holds every chunk SLOW_RELAY_MS; an unlock plan hits the
-//      read budget and still applies with its first code
+//      read budget and still applies with its first code, or on a gated Relay with
+//      the first tap on the phone b linked (testbed/phone.mjs)
 //   e  the bed's assertions (testbed/verify.sh) with the tag's binary
 //   f  chat-app files under /config at each level (testbed/chat-files.mjs; the bed
 //      starts with TESTBED_FILES=1)
@@ -32,6 +33,8 @@ import net from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { approve, resetPushes } from "./testbed/phone.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const TESTBED = join(ROOT, "scripts/e2e/testbed");
@@ -337,11 +340,15 @@ async function slow() {
   const planSecs = (Date.now() - t) / 1000;
   const limit = (plan.reasons ?? []).some((r) => r.code === "LIMIT_CUT" && r.detail === "read budget");
   t = Date.now();
-  const applied = plan.plan?.code ? json((await cli(["apply", "--plan", plan.plan.id, "--confirm", plan.plan.code], join(WORK, "slow-apply.json"))).out) : {};
+  const gated = plan.plan?.channel === "relay"; // no code: the Relay asks the linked phone
+  if (gated) await resetPushes();
+  const applying = gated || plan.plan?.code ? cli(["apply", "--plan", plan.plan.id, ...(gated ? [] : ["--confirm", plan.plan.code])], join(WORK, "slow-apply.json")) : null;
+  const tapped = gated && applying ? await approve(180_000).then(() => true, () => false) : true;
+  const applied = applying ? json((await applying).out) : {};
   writeFileSync(cfg, direct, { mode: 0o600 });
   slowRelay.close();
-  row("d", "slow check: first code applies (#827)", limit && applied.status === "verified" ? "PASS" : "FAIL",
-    `${on} automations on, relay +${SLOW_RELAY_MS} ms per chunk, plan ${planSecs.toFixed(1)} s${limit ? " LIMIT_CUT" : " (read budget NOT hit: no LIMIT_CUT)"}, apply ${((Date.now() - t) / 1000).toFixed(1)} s -> ${applied.status ?? plan.status}${applied.error ? ` ${applied.error.code}` : ""}`, join(WORK, "slow-apply.json"));
+  row("d", `slow check: first ${gated ? "tap" : "code"} applies (#827)`, limit && applied.status === "verified" ? "PASS" : "FAIL",
+    `${on} automations on, relay +${SLOW_RELAY_MS} ms per chunk, plan ${planSecs.toFixed(1)} s${limit ? " LIMIT_CUT" : " (read budget NOT hit: no LIMIT_CUT)"}${tapped ? "" : ", no question reached the phone"}, apply ${((Date.now() - t) / 1000).toFixed(1)} s -> ${applied.status ?? plan.status}${applied.error ? ` ${applied.error.code}` : ""}`, join(WORK, "slow-apply.json"));
   await cli(["call", "lock.lock", "lock.front_door"], log);
 }
 

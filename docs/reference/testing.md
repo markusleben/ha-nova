@@ -34,6 +34,8 @@ For client-side release regression (public install of the last stable tag, setup
 
 For a release candidate, `npm run rc-lane -- <tag>` runs the client matrix, the test bed's phone lane (`TESTBED_PHONE=1 npm run testbed:verify`: push payloads per platform through fake phones), a headless chat-bridge check, the bed's assertions and real-home checks with the tag's binary (chat-app files at each level, calm edits; `scripts/e2e/testbed/README.md`), and the slow-check regression in one go, with its own test bed. See `docs/releasing.md` §4.
 
+The safety check's approval is proven on the test bed's gate lane (`node scripts/e2e/testbed/gate.mjs` on a bed with `TESTBED_FILES=1`: a typed write, delete, and unlock run only after a tap on the linked fake phone, and a grant counts once). `testbed-ha-stable.yml` runs it; a green dispatch on the commit being tagged is release evidence next to the disposable-HA run (`docs/releasing.md` step 2).
+
 The Windows onboarding proof runs on the maintainer's throwaway UTM VMs: `npm run vm-lane -- <tag>` (`scripts/e2e/vm-lane/run.mjs`) drives the Win11 VM over SSH as fresh standard users against the HAOS VM, and the Ubuntu VM when it runs. Every `ha-nova` command runs inside a VM, never on the host.
 
 ## 3. Live against your own HA

@@ -15,7 +15,9 @@
 #     changes), a bogus grant (428), and an ask no one can confirm (409).
 #     Refusals only: nothing here can approve (the relays use the owner's
 #     token, so no phone channel; no Supervisor, so no NOVA page). The
-#     approval itself is proven on the test bed lane.
+#     approval itself, with the readwrite roundtrip, is proven on the test
+#     bed's gate lane (scripts/e2e/testbed/gate.mjs).
+#   - secrets.yaml stays unreachable even with readwrite
 #
 # Everything is destroyed afterwards. Run: bash scripts/e2e/disposable-ha/run.sh
 set -euo pipefail
@@ -262,6 +264,12 @@ if [[ "$deleted" == "428" ]]; then
   pass "a delete is held too (428)"
 else
   fail "an unconfirmed delete should be held, got HTTP $deleted"
+fi
+secrets="$(files_code '{"action":"read_file","path":"/config/secrets.yaml"}')"
+if [[ "$secrets" == "403" ]]; then
+  pass "secrets.yaml stays unreachable even with readwrite (403)"
+else
+  fail "a secrets.yaml read should be denied, got HTTP $secrets"
 fi
 
 # Asking for a confirmation: the owner's token leaves no phone, and without a

@@ -8,6 +8,7 @@ npm run testbed:up                         # ~35 s warm; first run also pulls im
 npm run testbed:cli -- find "Leselampe"     # the CLI built from this checkout, isolated HOME
 npm run testbed:verify                     # PASS/FAIL smoke assertions, read-only
 TESTBED_PHONE=1 npm run testbed:verify     # + the phone lane (fake phones, push payloads)
+node scripts/e2e/testbed/gate.mjs          # the gate lane: approvals on the phone (bed up with TESTBED_FILES=1)
 npm run testbed:down                       # containers, volumes, tokens, runtime config: gone
 ```
 
@@ -100,7 +101,10 @@ Scenes: `scene.movie_night` (lights + media), `scene.door_scene` (group with a l
 
 `TESTBED_PHONE=1 npm run testbed:verify` (or `node scripts/e2e/testbed/phone.mjs`)
 checks what Home Assistant hands the push relay for HA NOVA's phone
-questions. The weekly `testbed-ha-stable.yml` job runs it too.
+questions. The weekly `testbed-ha-stable.yml` job runs it too. The bed's
+Relay gates (0.30): it holds the phone link and its safety-check worker asks
+the phone, so every run starts on a freshly recreated Relay (no link, ask,
+or grant carries over).
 
 - Fixture, once per bed (`seed.mjs phones`, marked by `.state/phone.json`):
   two admin users with random passwords, "Testbed Relay" (the Relay now
@@ -113,28 +117,30 @@ questions. The weekly `testbed-ha-stable.yml` job runs it too.
 - A tap is what the Companion app sends: `fire_event` on the phone's own
   webhook. The CLI runs in `.state/phone-home` with windows off.
 - Run: link iPhone, unlock on iPhone, move to Pixel, unlock on Pixel, move
-  back, stop on iPhone, link Pixel, stop on Pixel. Asserted per question:
-  only the asked phone gets it, `authenticationRequired` is the bool `true`
-  on iOS and the string `"true"` on Android (none on a plan confirm), every
-  Android action value is a string, the hint and the CLI's tap line match the
-  platform, `importance: high`, and each ask has its own tag. Per result: the
-  question's tag, no buttons, `importance: high`.
-- Window case (after the iPhone unlock): a question answered on the computer
-  must not stay answerable on the phone. A window is a real dialog on macOS, so
-  this one `plan` + `apply` of an unlock runs in a throwaway `ubuntu:24.04`
-  container (`docker run --rm`, the bed via `host.docker.internal` or host
-  networking on Linux) with a fake `/usr/bin/zenity` that waits 8 s and exits 1
-  (Cancel), `DISPLAY` set, and a temp copy of the phone home with the window
-  on. Asserted: after the question (2 buttons, tag T) the next push to that
-  phone is a note with T, no buttons, `passive`, `alert_once`, priority
-  `high`, title `Cancelled: …`; then `clear_notification` for T (a clear of
-  an open question fails the lane); the apply exits 4 `CONFIRM_DECLINED` and
-  the lock stays locked. Needs Docker (SKIP line without). Linux binary: `TESTBED_CLI_BIN_LINUX`,
-  else `TESTBED_CLI_BIN` if it is a Linux binary of the container's arch, else a
-  `GOOS=linux` build of this checkout; a macOS `TESTBED_CLI_BIN` alone (rc lane)
-  gives a SKIP line.
-- It leaves the front door locked and no phone linked. The Relay stays on
-  the second user until `testbed:down`; the other verify checks pass either way.
+  back. Asserted per question: only the asked phone gets it,
+  `authenticationRequired` is the bool `true` on iOS and the string `"true"`
+  on Android (none on a plan confirm), every Android action value is a
+  string, the hint and the CLI's tap line match the platform,
+  `importance: high`, and each ask has its own tag. After each answer the
+  Relay withdraws the question: a clear of exactly its tag. An unlock plan
+  asks through the Relay (channel `relay`, no code). `setup confirm-phone
+  off` isn't run: on a gated App it needs a confirmation window.
+- It leaves the front door locked and the Relay linked to the iPhone (the RC
+  lane's slow check approves there). The Relay stays on the second user until
+  `testbed:down`; the other verify checks pass either way.
+
+## Gate lane (opt-in)
+
+`node scripts/e2e/testbed/gate.mjs` on a bed started with
+`TESTBED_FILES=1` proves the approval of HA NOVA's safety check with the
+phone lane's fixture: linked to the iPhone, a typed file write is held (428)
+and changes nothing; its ask goes to the phone; the tap grants exactly those
+bytes, which then land once (read back), and the same grant again is held.
+A delete the same way. Through the CLI, an unlock cancelled on the phone
+sends nothing and an approved one unlocks. Without file access the file part
+prints a WARN row. `testbed-ha-stable.yml` runs it after `verify.sh` and
+fails on any WARN; one green dispatch on the commit being tagged is release
+evidence (`docs/releasing.md`).
 
 ## Real-home checks (opt-in)
 
@@ -240,7 +246,7 @@ red opens a "Test bed fails on Home Assistant <version>" issue.
 `.state/config` per run; command-running platforms live in
 `packages/commands.yaml`), `up.sh`, `seed.mjs` (LLAT, MQTT config entry,
 floors/areas/labels, registry edits, summary, phone fixture), `cli.sh`,
-`verify.sh`, `phone.mjs` + `push.py` (phone lane), `chat-files.mjs` +
+`verify.sh`, `phone.mjs` + `push.py` (phone lane), `gate.mjs` (gate lane), `chat-files.mjs` +
 `docker-compose.files.yml`, `calm.mjs` (real-home checks), `agent.mjs` +
 `agent-unlock.mjs`, `agent-statistics.mjs` (agent runs),
 `down.sh`.
