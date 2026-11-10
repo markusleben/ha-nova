@@ -377,9 +377,10 @@ jobs:
           GOOS=linux GOARCH=amd64 go build -o /dev/null .
           GOOS=linux GOARCH=arm64 go build -o /dev/null .
 
-  # The race detector over setup and the confirm lanes (window, phone, both),
-  # which run work in goroutines with timeouts, in GO_RACE_SHARDS shards like
-  # go-test. The full package under -race takes far longer than this slice.
+  # The race detector over setup, the confirm lanes (window, phone, both), and
+  # the gate worker, which run work in goroutines with timeouts or serve
+  # concurrent requests, in GO_RACE_SHARDS shards like go-test. The full
+  # package under -race takes far longer than this slice.
   go-race-1:
     name: go-race-1
     needs: [changes, test-inventory]
@@ -397,8 +398,8 @@ jobs:
           go-version: "1.26.10"
           cache-dependency-path: cli/go.sum
 
-      - name: Race detector (setup and confirm)
-        run: bash .github/scripts/go-test-shard.sh "$SHARD_INDEX" "$GO_RACE_SHARDS" 'Setup|Confirm|Phone|Window|BothAsk|LegacyPin|SlowDiscovery' -race -count=1
+      - name: Race detector (setup, confirm, and gate)
+        run: bash .github/scripts/go-test-shard.sh "$SHARD_INDEX" "$GO_RACE_SHARDS" 'Setup|Confirm|Phone|Window|BothAsk|LegacyPin|SlowDiscovery|Gate' -race -count=1
 
   go-race-2:
     name: go-race-2
