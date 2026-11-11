@@ -69,7 +69,7 @@ release:
     ```
 
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`; if it reports that it needs admin rights, rerun the stable Windows install command instead.
-    {{ else }}**Update the NOVA App to 0.13.24.** It now checks every change a computer sends, so update HA NOVA on every computer with it. Claude and ChatGPT get this release's changes through the App.
+    {{ else }}**Update the NOVA App to 0.13.26.** It now checks every change a computer sends, so update HA NOVA on every computer with it. Claude and ChatGPT get this release's changes through the App.
 
     - In Home Assistant: Settings > Apps > NOVA Relay > Update.
     - No Update button yet? In Home Assistant: Settings > ⋮ (top right) > Check for updates. Or, at home, run `ha-nova doctor`: it does that for you and offers the update.
