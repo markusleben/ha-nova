@@ -402,6 +402,23 @@ describe("relay gate: the App's own credentials", () => {
     expect(forwarded).toHaveLength(1);
   });
 
+  it("the gate worker: its helper options read only as a passed probe; a computer's probe is a plain pass", async () => {
+    const own = device(GATE_INSTALL_ID);
+    const start = { method: "POST", path: "/api/config/config_entries/options/flow", body: { handler: "E1" } };
+    for (const v of ["typed", "refuse"]) {
+      reply = () => verdict(v, "probe");
+      expect((await viaDevice("/core", start, own)).status).toBe(422);
+    }
+    expect(forwarded).toEqual([]);
+    reply = () => verdict("pass", "probe");
+    const read = await viaDevice("/core", start, own);
+    expect(JSON.parse(read.text)).toEqual({ ok: true, data: { result: "SECRET" } });
+    expect(seen.map((s) => s.path)).toEqual(["/check", "/check", "/check"]);
+    reply = (path, body) => (path === "/check" ? verdict("pass", "probe") : redactAll(body));
+    expect(JSON.parse((await viaLaptop("/core", start)).text)).toEqual({ ok: true, data: { result: "HIDDEN" } });
+    expect(forwarded).toHaveLength(2);
+  });
+
   it("the gate worker: a notify to something else, or the answer in another wrapper, is rated", async () => {
     const own = device(GATE_INSTALL_ID);
     reply = () => verdict("refuse");
