@@ -4,6 +4,22 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.26] - 2026-11-11
+
+### Changed
+- Chat apps get HA NOVA 0.30.0.
+- The safety check: this App checks every change a computer sends. Unlocking, opening a door, gate, or garage, turning off the alarm, deletes, and file writes wait for an OK on your linked phone or on the NOVA page ("Waiting for your OK"). The window on the computer only waits.
+- Chat apps: HA NOVA can list and delete the pictures and videos in your www folder. Each delete asks like unlocking a door, and this App keeps a copy for 30 days, so "undo" puts it back.
+- When an update changes HA NOVA's tools, chat-app users are told once to refresh ChatGPT, and the NOVA page shows it for 30 days.
+- The part of this App that checks changes and talks to chat apps is built with Go 1.26.11, which closes a security hole in its web server.
+
+### Removed
+- The old shared key ("Relay Auth Token"), the "Home Assistant token" option, and "Revoke legacy access" on the NOVA page.
+
+### Upgrade notes
+- Computers that still use the shared key (Relay Auth Token) must pair again: run ha-nova setup once on each (a --service install: ha-nova pair --credential-store=file).
+- Update HA NOVA on every computer to 0.30.0: an older HA NOVA can't get unlocks, deletes, and other big changes through this App.
+
 ## [Relay 0.13.24] - 2026-11-08
 
 ### Changed
