@@ -66,7 +66,7 @@ describe("release notes contract", () => {
     expect(stableNotes).toMatch(/## What To Watch\s+- \*\*The NOVA App no longer accepts the old shared key\.\*\*[^\n]*run `ha-nova setup` once on it \(a `--service` install: `ha-nova pair --credential-store=file`\)/);
     expect(stableNotes).toContain("Remove Link first, then run setup, then add Link again.");
     expect(stableNotes).toContain("a Home Assistant backup from before this update does.");
-    expect(stableNotes).toContain('Its "Not now" leads to a key field the App no longer has.');
+    expect(stableNotes).toContain('0.27 and later offer `ha-nova setup`: switch there, not "Not now". Older ones offer `ha-nova update`: run it, then setup.');
     // Logs stay in Home Assistant (#1056); file writes and backup locations are typed (#1046).
     expect(stableNotes).toMatch(/## What To Watch[\s\S]*- \*\*HA NOVA no longer reads Home Assistant's logs, which can hold passwords and keys\.\*\*[\s\S]*## Bug Fixes/);
     expect(stableNotes).toContain("Settings > System > Logs");
