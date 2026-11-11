@@ -9,7 +9,7 @@
 # Base images; the defaults are the published behavior. The hosted demo
 # passes digest-pinned tags (scripts/demo/hosted/host-lib.sh).
 ARG NODE_IMAGE=node:22-alpine
-ARG GO_IMAGE=golang:1.26.10
+ARG GO_IMAGE=golang:1.26.11
 
 # The safety-check worker every request goes through (`ha-nova gate`,
 # docs/work/2026-11-03-relay-typed-gate-spec.md): the Go CLI from the same
