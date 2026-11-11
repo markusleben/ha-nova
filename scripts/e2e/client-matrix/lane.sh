@@ -310,7 +310,9 @@ scenario_a() {
   else skip claude "no claude binary on this lane; real Claude config never used"; fi
   if has_verb mcp; then run_step mcp do_mcp
   else skip mcp "ha-nova mcp not in $FROM"; fi
-  run_step app-refusal app_refusal 'ha-nova setup' hn doctor
+  # Before 0.27 doctor has no switch notice: the 401 comes with the update notice.
+  if ver_lt "${FROM#v}" 0.27.0; then run_step app-refusal app_refusal 'Run: ha-nova update' hn doctor
+  else run_step app-refusal app_refusal 'ha-nova setup' hn doctor; fi
   snapshot >"$S/before.txt"
   run_step update do_update || return
   run_step update-survived check_survived
