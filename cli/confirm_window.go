@@ -450,7 +450,7 @@ func replanStored(paths runtimePaths, s *relaySession, env *verbEnvelope, plan s
 	planChannel = channel
 	s.lang, s.words = plan.Lang, plan.Words
 	env.Server = s.server
-	fresh, err := recheck(s, env, plan, func(env *verbEnvelope) (fresh storedPlan, err error) {
+	fresh, err := recheckBeforeAsk(s, env, plan, func(env *verbEnvelope) (fresh storedPlan, err error) {
 		switch config := plan.ConfigRequest; {
 		case plan.Kind == "call" && config == nil && plan.Request.validate() == nil && staticRefusal(plan.Request) == nil:
 			_, fresh, err = computeCallPlan(s, env, plan.Request)

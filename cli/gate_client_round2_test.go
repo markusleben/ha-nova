@@ -103,3 +103,27 @@ func TestGateAsksAgainWhenAGrantExpired(t *testing.T) {
 		})
 	}
 }
+
+// A gated plan whose checks spend the whole read budget (LIMIT_CUT on a large
+// home or a slow Link) still asks through the Relay, in plan and in apply:
+// the gate read has a time of its own, so a profile that saw the gate never
+// refuses with CONFIRM_UNAVAILABLE for want of read time.
+func TestGateReadAfterChecksSpentTheReadBudget(t *testing.T) {
+	g := &fakeGate{}
+	h := gatedHarness(t, newFakeHA(), g)
+	if plan := h.plan("lock.unlock", "lock.front").Plan; plan.Channel != channelRelay || !gateSeen(h.paths, activeServerProfile()) {
+		t.Fatalf("gate not seen: %+v", plan)
+	}
+	previous, previousDeadline := relaySessionOverallTimeout, checkDeadline
+	relaySessionOverallTimeout, checkDeadline = 300*time.Millisecond, time.Now() // each check reads a session budget, as after a wait
+	t.Cleanup(func() { relaySessionOverallTimeout, checkDeadline = previous, previousDeadline })
+	h.f.hang["/api/events"] = true
+	_, env := h.run(runPlanCommand, "call", "lock.unlock", "lock.front")
+	if env.Plan == nil || env.Plan.Channel != channelRelay || !strings.Contains(reasonCodes(env), reasonLimitCut) {
+		t.Fatalf("plan: %+v reasons %s", env.Error, reasonCodes(env))
+	}
+	exit, env := h.run(runApplyCommand, "--plan", env.Plan.ID)
+	if asks, _, sends := g.snapshot(); exit != 0 || env.Status != "verified" || len(asks) != 1 || len(sends) != 1 {
+		t.Fatalf("apply: exit %d %s %+v asks %q sends %+v", exit, env.Status, env.Error, asks, sends)
+	}
+}
