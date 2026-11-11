@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 - The safety check: this App checks every change a computer sends. Unlocking, opening a door, gate, or garage, turning off the alarm, deletes, and file writes wait for an OK on your linked phone or on the NOVA page ("Waiting for your OK"). The window on the computer only waits.
 - Chat apps: HA NOVA can list and delete the pictures and videos in your www folder. Each delete asks like unlocking a door, and this App keeps a copy for 30 days, so "undo" puts it back.
 - When an update changes HA NOVA's tools, chat-app users are told once to refresh ChatGPT, and the NOVA page shows it for 30 days.
+- The part of this App that checks changes and talks to chat apps is built with Go 1.26.11, which closes a security hole in its web server.
 
 ### Removed
 - The old shared key ("Relay Auth Token"), the "Home Assistant token" option, and "Revoke legacy access" on the NOVA page.
