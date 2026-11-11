@@ -11,7 +11,8 @@
 //   d  slow check (#827): 1,500 automations + a call_service listener, the CLI's relay
 //      behind a proxy that holds every chunk SLOW_RELAY_MS; an unlock plan hits the
 //      read budget and still applies with its first code, or on a gated Relay with
-//      the first tap on the phone b linked (testbed/phone.mjs)
+//      the first tap on the phone b linked (testbed/phone.mjs); then the same plan
+//      through ha-nova mcp (stdio), whose ask has MCP's shorter horizon
 //   e  the bed's assertions (testbed/verify.sh) with the tag's binary
 //   f  chat-app files under /config at each level (testbed/chat-files.mjs; the bed
 //      starts with TESTBED_FILES=1)
@@ -345,11 +346,64 @@ async function slow() {
   const applying = gated || plan.plan?.code ? cli(["apply", "--plan", plan.plan.id, ...(gated ? [] : ["--confirm", plan.plan.code])], join(WORK, "slow-apply.json")) : null;
   const tapped = gated && applying ? await approve(180_000).then(() => true, () => false) : true;
   const applied = applying ? json((await applying).out) : {};
+  const applySecs = (Date.now() - t) / 1000;
+  await relock();
+  const viaMCP = await slowMCP();
   writeFileSync(cfg, direct, { mode: 0o600 });
   slowRelay.close();
   row("d", `slow check: first ${gated ? "tap" : "code"} applies (#827)`, limit && applied.status === "verified" ? "PASS" : "FAIL",
-    `${on} automations on, relay +${SLOW_RELAY_MS} ms per chunk, plan ${planSecs.toFixed(1)} s${limit ? " LIMIT_CUT" : " (read budget NOT hit: no LIMIT_CUT)"}${tapped ? "" : ", no question reached the phone"}, apply ${((Date.now() - t) / 1000).toFixed(1)} s -> ${applied.status ?? plan.status}${applied.error ? ` ${applied.error.code}` : ""}`, join(WORK, "slow-apply.json"));
+    `${on} automations on, relay +${SLOW_RELAY_MS} ms per chunk, plan ${planSecs.toFixed(1)} s${limit ? " LIMIT_CUT" : " (read budget NOT hit: no LIMIT_CUT)"}${tapped ? "" : ", no question reached the phone"}, apply ${applySecs.toFixed(1)} s -> ${applied.status ?? plan.status}${applied.error ? ` ${applied.error.code}` : ""}`, join(WORK, "slow-apply.json"));
+  row("d", "slow check over MCP: first tap applies", viaMCP.pass ? "PASS" : "FAIL", viaMCP.detail, join(WORK, "slow-mcp.json"));
   await relock();
+}
+
+// d over ha-nova mcp (stdio): ha_plan, then ha_apply until its job ends; the job's
+// Relay ask is tapped on the phone. Its check before the ask leaves the ask time (#827).
+async function slowMCP() {
+  const mcp = spawn("bash", [join(TESTBED, "cli.sh"), "mcp"], { env: { ...process.env, TESTBED_CLI_BIN: join(WORK, "bin/ha-nova"), TESTBED_CLI_HOME: join(STATE, "rc-home") }, stdio: ["pipe", "pipe", "ignore"], detached: true });
+  procs.add(mcp);
+  const answers = new Map(), seen = [];
+  let buf = "", n = 0;
+  mcp.stdout.on("data", (d) => {
+    for (buf += d; buf.includes("\n"); buf = buf.slice(buf.indexOf("\n") + 1)) {
+      try { const m = JSON.parse(buf.slice(0, buf.indexOf("\n"))); answers.get(m.id)?.(m); } catch { /* not a reply */ }
+    }
+  });
+  const rpc = (method, params) => new Promise((done) => {
+    answers.set(++n, done);
+    setTimeout(() => done({}), 4 * 60_000); // no answer: the row fails, the lane goes on
+    mcp.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: n, method, params }) + "\n");
+  });
+  const tool = async (name, args) => {
+    const text = (await rpc("tools/call", { name, arguments: args })).result?.content?.[0]?.text ?? "";
+    seen.push(text);
+    try { return JSON.parse(text); } catch { return {}; }
+  };
+  try {
+    await rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "rc-lane", version: "1" } });
+    mcp.stdin.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\n");
+    let t = Date.now();
+    const plan = await tool("ha_plan", { kind: "call", service: "lock.unlock", entity_ids: ["lock.front_door"] });
+    const planSecs = (Date.now() - t) / 1000;
+    const limit = (plan.reasons ?? []).some((r) => r.code === "LIMIT_CUT" && r.detail === "read budget");
+    if (!plan.plan?.id) return { pass: false, detail: `no plan: ${plan.status ?? "-"} ${plan.error?.code ?? ""}` };
+    if (plan.plan.channel !== "relay") return { pass: false, detail: `plan channel ${plan.plan.channel ?? "-"}, want relay (a gated App asks the phone)` };
+    t = Date.now();
+    await resetPushes();
+    const tapped = approve(180_000).then(() => true, () => false);
+    let applied = {};
+    for (let i = 0; i < 6 && [undefined, "applying", "waiting_for_approval"].includes(applied.status); i++) {
+      applied = await tool("ha_apply", { plan_id: plan.plan.id });
+      if (!applied.status) { applied = { status: "no answer from ha-nova mcp" }; break; }
+    }
+    return { pass: limit && applied.status === "verified",
+      detail: `plan ${planSecs.toFixed(1)} s${limit ? " LIMIT_CUT" : " (no LIMIT_CUT)"}${await tapped ? "" : ", no question reached the phone"}, apply ${((Date.now() - t) / 1000).toFixed(1)} s -> ${applied.status ?? "-"}${applied.error ? ` ${applied.error.code}` : ""}` };
+  } finally {
+    writeFileSync(join(WORK, "slow-mcp.json"), seen.join("\n") + "\n");
+    mcp.stdin.end();
+    stopGroup(mcp);
+    procs.delete(mcp);
+  }
 }
 
 // ---- main ---------------------------------------------------------------------------

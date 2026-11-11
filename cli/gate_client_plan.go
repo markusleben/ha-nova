@@ -174,12 +174,12 @@ func (s *relaySession) gateOn() (bool, error) {
 	return on, nil
 }
 
-// readGate reads the Relay's /health once: gate 1 means it gates.
+// readGate reads the Relay's /health once: gate 1 means it gates. The read
+// has a time of its own, the reserve a check leaves (afterCheck): the checks
+// before it may have spent the session's read budget (a large home or a
+// slow Link, #827).
 func (s *relaySession) readGate() (bool, error) {
-	s.mu.Lock()
-	parent := s.ctx
-	s.mu.Unlock()
-	ctx, cancel := context.WithTimeout(parent, relaySessionRequestTimeout)
+	ctx, cancel := context.WithTimeout(planAsks, afterCheck)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(s.transport.BaseURL, "/")+"/health", nil)
 	if err != nil {
