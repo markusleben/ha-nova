@@ -285,13 +285,15 @@ func replaceInstallRootWithBackup(installRoot, stageRoot string) (installRootRep
 		oldExists = true
 		if err := renameInstallPathWithRetry(installRoot, backupRoot); err != nil {
 			_ = os.RemoveAll(nextRoot)
-			return installRootReplacement{}, err
+			return installRootReplacement{}, installRootInUse(installRoot, err)
 		}
 	}
 
 	if err := renameInstallPathWithRetry(nextRoot, installRoot); err != nil {
 		if oldExists {
-			_ = renameInstallPathWithRetry(backupRoot, installRoot)
+			if restoreErr := renameInstallPathWithRetry(backupRoot, installRoot); restoreErr != nil {
+				return installRootReplacement{}, fmt.Errorf("%w; putting the previous version back failed too (%v): it is in %s, the new one in %s; rename one of them to %s", err, restoreErr, backupRoot, nextRoot, installRoot)
+			}
 		}
 		_ = os.RemoveAll(nextRoot)
 		return installRootReplacement{}, err

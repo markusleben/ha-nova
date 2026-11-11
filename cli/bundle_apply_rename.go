@@ -40,9 +40,14 @@ func renameInstallPathWithRetry(from, to string) error {
 		time.Sleep(installRenameDelay)
 		err = renameInstallPath(from, to)
 	}
-	if err != nil && windowsFolderInUse(err) {
-		return fmt.Errorf("Windows still has a file in %s open after %s (another HA NOVA window, a virus scan, or the search indexer). Close other HA NOVA windows and run ha-nova update again: %w",
-			from, time.Duration(installRenameAttempts-1)*installRenameDelay, err)
-	}
 	return err
+}
+
+// installRootInUse words the first swap step's failure: nothing was moved yet.
+func installRootInUse(installRoot string, err error) error {
+	if !windowsFolderInUse(err) {
+		return err
+	}
+	return fmt.Errorf("Windows refused to move %s for %s, usually because a file in it is still open (another HA NOVA window, a virus scan, or the search indexer). Nothing was changed. Close other HA NOVA windows and run ha-nova update again: %w",
+		installRoot, time.Duration(installRenameAttempts-1)*installRenameDelay, err)
 }

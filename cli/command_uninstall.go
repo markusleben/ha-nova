@@ -403,7 +403,7 @@ func waitForParentExit(parentPID int) {
 	deadline := time.Now().Add(parentReleaseTimeout)
 	for parentProcessRunning(parentPID) {
 		if !time.Now().Before(deadline) {
-			printHumanWarn("The HA NOVA window that started this (process %d) is still running after %s; continuing, but Windows may still hold its folder.", parentPID, parentReleaseTimeout)
+			printHumanWarn("The HA NOVA window that started this (process %d) still runs, or Windows couldn't check it, after %s; continuing, but Windows may still hold its folder.", parentPID, parentReleaseTimeout)
 			return
 		}
 		time.Sleep(parentReleasePoll)
