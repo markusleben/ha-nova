@@ -6,6 +6,8 @@ export interface FileAccessConfig {
   configRoot: string;
   /** Why the effective mode is lower than the one that was asked for. */
   warnings: string[];
+  /** The Relay's own data folder, never reached through /files (files-paths.ts). */
+  dataDir?: string;
 }
 
 export interface RootProbe {
@@ -42,7 +44,7 @@ export function parseFileAccessMode(raw: unknown): FileAccessMode {
  * capability the relay can hand an agent, so it is never on by accident.
  */
 export function resolveFileAccess(
-  input: { mode?: unknown; configRootOverride?: string | undefined },
+  input: { mode?: unknown; configRootOverride?: string | undefined; dataDir?: string },
   probeRoot: (path: string) => RootProbe
 ): FileAccessConfig {
   // The two values are passed explicitly rather than handing this function the
@@ -62,7 +64,8 @@ export function resolveFileAccess(
     return {
       mode: effectiveMode(requested, probe, candidate, warnings),
       configRoot: candidate,
-      warnings
+      warnings,
+      ...(input.dataDir !== undefined ? { dataDir: input.dataDir } : {})
     };
   }
 

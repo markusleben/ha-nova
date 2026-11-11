@@ -6,8 +6,7 @@ describe("ha entity-discovery contract", () => {
   it("uses relay-cli bootstrap instead of repo-root env eval", () => {
     const content = readFileSync("skills/entity-discovery/SKILL.md", "utf8");
 
-    expect(content).toContain("ha-nova relay health");
-    expect(content).toContain("ha-nova setup");
+    expect(content).toContain("../ha-nova/session-bootstrap.md");
     expect(content).not.toContain("git rev-parse");
     expect(content).not.toContain("macos-onboarding.sh");
   });

@@ -82,7 +82,8 @@ func (f *setupFlow) pageReadPhones() (phoneHome, map[string]phoneEntry, string, 
 // in the language whose buttons the row quotes. The click on the page is
 // the consent at this computer (the window's part in `ha-nova setup
 // confirm-phone`); the tap on that phone, from its own administrator, still
-// links it. A fresh read first: the page may have waited a while.
+// links it (on a gated App through the Relay, as there). A fresh read first:
+// the page may have waited a while.
 func (f *setupFlow) pageLinkPhone(ctl *setupPageControl, deviceID string) {
 	result, person, buttons := phoneLinkUnread, "", *ctl.PhoneButtons
 	if s, err := newRelaySession(f.paths, verbOptions{}); err == nil {
@@ -93,7 +94,11 @@ func (f *setupFlow) pageLinkPhone(ctl *setupPageControl, deviceID string) {
 		i := slices.IndexFunc(all, func(t phoneTarget) bool { return t.DeviceID == deviceID })
 		if readable && err == nil && home.relay != home.owner && status == phoneNone && i >= 0 {
 			person = terminalSafeName(all[i].Person)
-			result = sendPhoneLink(s, f.ui.termOut(), buttons.lang, home, links, links[home.owner], all[i], windowWait)
+			if r, gated := linkPhoneAtRelay(s, f.ui.termOut(), buttons.lang, home, links[home.owner], all[i], windowWait); gated {
+				result = r
+			} else {
+				result = sendPhoneLink(s, f.ui.termOut(), buttons.lang, home, links, links[home.owner], all[i], windowWait)
+			}
 		}
 		s.close()
 	}
@@ -119,7 +124,8 @@ func movePhones(home phoneHome, current phoneSetup) []setupPagePhone {
 // pageMovePhone: "Use another phone" on a linked row. The click is no
 // consent here: as `ha-nova setup confirm-phone`, the change goes through
 // allowPhoneChange (the phone linked now OKs it while it can answer, else
-// the window), then the tap on the new phone links it. A fresh read first.
+// the window), then the tap on the new phone links it; on a gated App the
+// Relay asks both phones, and no window opens first. A fresh read first.
 // Both asks speak the language whose buttons the row quotes. True once the
 // new phone is linked; else the row shows the linked one again, with one
 // line.
@@ -136,8 +142,9 @@ func (f *setupFlow) pageMovePhone(ctl *setupPageControl, deviceID string) bool {
 		if readable && err == nil && home.relay != home.owner && status == phoneReady && i >= 0 &&
 			!slices.ContainsFunc(current.targets, func(c phoneTarget) bool { return c.DeviceID == deviceID }) {
 			asked, name, person = true, terminalSafeName(all[i].Name), terminalSafeName(all[i].Person)
-			allowed = allowPhoneChange(s, out, buttons.lang, home, links, phoneLinkQuestion(buttons.lang, name), name, false, windowWait)
-			if allowed {
+			if r, gated := linkPhoneAtRelay(s, out, buttons.lang, home, links[home.owner], all[i], windowWait); gated {
+				allowed, result = true, r
+			} else if allowed = allowPhoneChange(s, out, buttons.lang, home, links, phoneLinkQuestion(buttons.lang, name), name, false, windowWait); allowed {
 				result = sendPhoneLink(s, out, buttons.lang, home, links, links[home.owner], all[i], windowWait)
 			}
 		}

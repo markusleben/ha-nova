@@ -28,8 +28,6 @@ Use `ha-nova:diagnose` for traces (it owns trace analysis; `ha-nova:read` only s
 ## Bootstrap (once per session)
 
 Read and follow `../ha-nova/session-bootstrap.md`.
-Verify relay CLI: `ha-nova relay health`
-If this fails: `ha-nova setup`
 
 ## Relay Contract
 

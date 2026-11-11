@@ -69,38 +69,57 @@ release:
     ```
 
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`; if it reports that it needs admin rights, rerun the stable Windows install command instead.
-    {{ else }}**Update the NOVA App to 0.13.24.** Claude and ChatGPT get this release's changes through it, and HA NOVA on your computer asks for it too.
+    {{ else }}**Update the NOVA App to 0.13.24.** It now checks every change a computer sends, so update HA NOVA on every computer with it. Claude and ChatGPT get this release's changes through the App.
 
     - In Home Assistant: Settings > Apps > NOVA Relay > Update.
     - No Update button yet? In Home Assistant: Settings > ⋮ (top right) > Check for updates. Or, at home, run `ha-nova doctor`: it does that for you and offers the update.
+    - Then run `ha-nova update` on each computer. An older HA NOVA can't get big changes through the new App; everyday actions and previews keep working.
     - A big change you previewed before the update may need a new preview.
-    - Using HA NOVA in ChatGPT? After the update, open chatgpt.com/plugins, choose HA NOVA, then Refresh. From this version on, the terminal reminds you after an App update.
+    - Using HA NOVA in ChatGPT? After the update, open chatgpt.com/plugins, choose HA NOVA, then Refresh. HA NOVA also says so once in the chat and on the NOVA page.
+    - In Claude, "Advanced read" asks once more: its description changed. Choose "Always allow" again.
 
     ## New Features
 
     - **Editing one of your own automations or scripts now runs right away when HA NOVA can put it back.** It says so, and "undo" restores it. New ones, deletes, and anything that unlocks still ask.
+    - **Big changes wait for your OK on your linked phone or on the NOVA page.** Unlocks, doors, gates, garages, the alarm, deletes, and file writes: an administrator approves exactly that change, once.
+    - **HA NOVA can now list and delete the pictures and videos in your www folder.** Each delete asks like unlocking a door, and the NOVA App keeps a copy for 30 days, so "undo" puts it back.
     - **Changing the same automation or script again right away no longer asks.** "Undo" takes back the latest change.
     - **Renaming a device or entity now runs right away and can be undone.** That covers its name and voice aliases. Locks, alarms, doors, gates, and garages still ask.
     - **Removing up to five items you named from the shopping list runs right away.**
     - **When a NOVA App update is waiting, setup in a terminal offers it once setup works.** It asks first and uses the same safety check as `ha-nova update`.
     - **Fewer prompts in Claude Code: setup can allow HA NOVA's read commands once.** You still confirm every unlock or delete yourself.
     - **Long changes from other AI apps on your computer keep running past the app's time limit.** That covers apps added through setup's "Other AI apps" row. Asking again gets the result, and nothing runs twice.
+    - **ChatGPT users hear when to refresh HA NOVA.** After an App update that changes HA NOVA's tools, each chat-app user is told once, and the NOVA page shows it for 30 days.
 
     ## What To Watch
 
+    - **The NOVA App no longer accepts the old shared key.** A computer that still uses it says "Pair this computer again": run `ha-nova setup` once on it (a `--service` install: `ha-nova pair --credential-store=file`).
+    - **Home Assistant Link on such a computer?** Remove Link first, then run setup, then add Link again. Computers that already paired, and chat apps, are not affected.
+    - **The App's "Relay Auth Token" and "Home Assistant token" options are gone, and so is "Revoke legacy access".** An older App doesn't bring the shared key back; a Home Assistant backup from before this update does.
+    - **HA NOVA 0.28.3 or older on a computer, after the App update:** it reports a sign-in problem and offers `ha-nova setup`; choose to switch there. Its "Not now" leads to a key field the App no longer has.
     - **HA NOVA no longer reads Home Assistant's logs, which can hold passwords and keys.** When a log would help, your AI asks you to open Settings > System > Logs and share only the lines that matter.
     - **Writing a file in your Home Assistant config folder, or changing where backups go, now asks for the same confirmation as unlocking a door.**
+    - **The window on your computer only waits.** It says where to confirm, opens Home Assistant, or cancels. For big changes the four-digit code on a computer ends too; a dashboard or rooms change still asks there.
+    - **Your linked phone moves into Home Assistant once.** The first time a change needs your OK, it asks whether it should get HA NOVA's confirmations. Allow it, then confirm the change.
+    - **Your AI app may say it is waiting for your OK.** Nothing was sent yet. Approve it, then tell your AI app to go on; nothing runs twice.
+    - **Saving an automation or script no longer reloads it from HA NOVA.** Home Assistant reloads it after the save, and HA NOVA checks, without changing anything, that the saved version runs. A delete still reloads.
+    - **With a UI-made thermostat or hygrostat, everyday changes can ask.** If an automation reacts to actions with a step that needs an OK or can't be read, a light call asks on your phone. Standalone chat refuses it.
+    - **Going back to an older NOVA App:** computers that saw the safety check refuse unlocks, deletes, and other big changes until you update the App again.
+    - **Standalone container:** only a linked phone confirms, as it has no NOVA page. Use a non-owner user's token, keep `/data` on a volume, and map the port. Chat apps there can't make a change that needs an OK.
 
     ## Bug Fixes
 
     - **Automations that react to a whole room, floor, or label are now checked.** Turning on a lamp that sets one off asks first when that automation unlocks or opens something; before, it could run without asking.
-    - **Confirmation windows are short and readable.** Same-kind steps share one line, names and months replace ids and timestamps, and the instruction always shows. Too long for the window: refused, never cut.
+    - **Confirmation windows are short, wide, and readable.** Same-kind steps share one line, names and months replace ids and timestamps, and the instruction always shows. Too long for the window: refused, never cut.
     - **Changes that would drop aliases or labels, a person's trackers, or voice-assistant settings now save a copy first.**
     - **HA NOVA overwrites or deletes a file in your config folder only once a copy of it is saved.** It stops if the file changed since the preview.
     - **Helper and dashboard-name changes are now checked before they are saved, and a helper change can be undone.**
     - **Reloading an automation or your scripts is now checked like what it loads.** A harmless reload no longer asks like unlocking a door; one that can unlock still does. A change also checks what its reload sets off.
-    - **When the NOVA App refuses a file (for example anything under /config/www), HA NOVA now says why instead of reporting a sign-in problem.**
+    - **When the NOVA App refuses a file (for example anything under /config/custom_components), HA NOVA now says why instead of reporting a sign-in problem.**
     - **Over Home Assistant Link, `ha-nova update` now offers the NOVA App update too.** In a terminal it installs the App after your yes, waits while it restarts, and checks the new version.
+    - **Updating a Marketplace item now stops before anything is sent and says where to do it.** HA NOVA can't install Marketplace updates yet: Home Assistant asks for its warning to be accepted first.
+    - **Saving a blueprint that only reorders its variables now waits until Home Assistant has the new order.**
+    - **A new helper's sensor is read before HA NOVA reports the helper as created.**
 
     Stable install commands are release-pinned for this tag.
 

@@ -62,4 +62,8 @@ describe("file access resolution", () => {
     expect(result.configRoot).toBe("/custom/ha");
     expect(seen).toEqual(["/custom/ha"]);
   });
+  // /files refuses the Relay's data folder by identity (files-paths.ts).
+  it("carries the Relay's data folder to /files", () => {
+    expect(resolveFileAccess({ mode: "readwrite", dataDir: "/data" }, () => mounted)).toMatchObject({ mode: "readwrite", dataDir: "/data" });
+  });
 });

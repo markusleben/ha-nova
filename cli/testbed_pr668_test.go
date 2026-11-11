@@ -119,6 +119,7 @@ func TestGetConfigOfAnUnloadedEntity(t *testing.T) {
 
 // S6: a write whose registry read fails during verification says so.
 func TestConfigVerifyRegistryReadFailed(t *testing.T) {
+	fastVerify(t)
 	f := newFakeHA()
 	var written atomic.Bool
 	paths, log := setupFakeRelay(t, func(r *http.Request, endpoint string, p map[string]any) any {

@@ -150,7 +150,6 @@ async function start(cloudRemoteEnabled: boolean): Promise<string> {
 function deps(cloudRemoteEnabled: boolean): IngressListenerDeps {
   const registry = {
     list: () => [],
-    hasLegacy: () => false,
   } as unknown as DeviceRegistry;
   const pairing = {
     getStatus: () => ({ phase: "inactive" }),
@@ -166,7 +165,6 @@ function deps(cloudRemoteEnabled: boolean): IngressListenerDeps {
       network: {},
     }),
     getMappedHostPort: async () => null,
-    setOptions: async () => {},
     setIngressPanel: async () => {},
     sendDiscovery: async () => "",
     deleteDiscovery: async () => true,
@@ -200,6 +198,7 @@ function deps(cloudRemoteEnabled: boolean): IngressListenerDeps {
       files: () => ({ route: "files" }),
       backups: () => ({ route: "backups" }),
       supervisor: () => ({ route: "supervisor" }),
+      ask: () => ({ route: "ask" }),
     },
     relayInstanceId: RELAY_ID,
     relayVersion: RELAY_VERSION,

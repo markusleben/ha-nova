@@ -27,8 +27,6 @@ Not handled here:
 ## Bootstrap (once per session)
 
 Read and follow `../ha-nova/session-bootstrap.md`.
-Verify relay CLI: `ha-nova relay health`
-If this fails: `ha-nova setup`
 
 ## Relay Contract
 
@@ -135,7 +133,7 @@ While `truncated` is true the list proves neither absence nor uniqueness — nar
 6. Execute: `ha-nova apply --plan <id>`.
 7. Verify by re-reading the same list item.
 8. Run storage-family post-write review (see below).
-9. Update-Revert: `apply` saved the checkpoint (repeat its `undo` receipt); offer `revert` — see `../ha-nova/write-safety.md` → Update-Revert. Storage-family restore rebuilds a schema-valid `{type}/update` from `before_config` (typed `{type}_id` from its `id` + writable fields only — never the raw list item, which lacks `{type}_id` and carries read-only `id`/`entity_id`); `expected_after` is the post-update read-back.
+9. Update-Revert: `apply` saved the checkpoint (repeat its `undo` receipt); offer `revert` unless its `say` already names the way back — see `../ha-nova/write-safety.md` → Update-Revert. Storage-family restore rebuilds a schema-valid `{type}/update` from `before_config` (typed `{type}_id` from its `id` + writable fields only — never the raw list item, which lacks `{type}_id` and carries read-only `id`/`entity_id`); `expected_after` is the post-update read-back.
 
 #### Deleting a helper
 
@@ -287,8 +285,8 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - if the diff fallback yields zero or multiple new `entry_id` values, or the new entry metadata is inconsistent with the request, fail loud as ambiguous create verification
    - `domain`/`title` are fallback tie-breakers only; they never override a terminal-flow `entry_id`
 10. Resolve `linked_entities[]` through the entity registry as secondary evidence only.
-11. If the created entry exposes `supports_options: true`, reopen the options flow and store the current editable options snapshot for the post-write response.
-12. Run config-entry-family post-write review (see below).
+11. If the re-read entry shows `supports_options: true`, reopen the options flow (Reading a single helper, steps 4-5), then `ha-nova relay core --method DELETE --path /api/config/config_entries/options/flow/{flow_id}`; never submit.
+12. Run the whole post-write review before any result (`statistics`/`history_stats`: the state-attribute read).
 
 #### Updating a helper
 
@@ -337,10 +335,10 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
 11. Verify success:
    - re-read `config_entries/get`
    - `passed=true` only when the same `entry_id` still exists
-   - reopen the options flow
+   - reopen the options flow, then DELETE it unsubmitted
    - `passed=true` only when the changed fields now appear in `description.suggested_value` as requested
    - if a requested changed field is exposed in the verification step but lacks `description.suggested_value`, fail loud as unverifiable update on this HA version
-12. Resolve `linked_entities[]` again as secondary evidence only.
+12. Resolve `linked_entities[]` as secondary evidence only.
 13. Run config-entry-family post-write review (see below).
 
 #### Deleting a helper
@@ -453,7 +451,7 @@ Never show raw JSON to the user.
 
 ## Safety
 
-- The CLI checks every change. Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none` (everyday actions, undoable edits); everything else waits for the user's confirmation of the shown preview. Unlocking or opening a lock, entry door, gate, or garage, disarming (also through a scene or script), and deletes or other destructive operations need the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
+- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `"typed":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
 - Relay a plan's `say` in full, localized; never drop or shorten sentences.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
@@ -462,7 +460,7 @@ Never show raw JSON to the user.
 - Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 - `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`../ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
 - `entry_id` is the canonical write identity for the config-entry family
-- Destructive cleanup still requires the one-time code, even for helpers created earlier in the same session.
+- Destructive cleanup keeps its full confirmation (the plan's `say`), even for helpers created earlier in the same session.
 - Declared exception to the core delete rule above: abandoning an unfinished create flow this skill started (cancel or expired confirmation) DELETEs only that ephemeral `flow_id` — transient flow state, never a config entry; the user's cancel is sufficient, and this exception never applies to anything already created.
 - Every write MUST end with the Post-Write Review slot; use terminal-friendly labels where Markdown headings add noise.
 

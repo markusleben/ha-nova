@@ -30,7 +30,7 @@ let bootBase: string;
 let devicePort: number;
 
 const echo: RouteHandler = () => ({ echoed: true });
-const functional = { health: echo, ws: echo, core: echo, files: echo, backups: echo, supervisor: echo };
+const functional = { health: echo, ws: echo, core: echo, files: echo, backups: echo, supervisor: echo, ask: echo };
 
 async function listen(server: Server): Promise<number> {
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
@@ -44,7 +44,7 @@ async function postBoot(path: string, body: unknown, auth?: string) {
     headers: { "content-type": "application/json", ...(auth ? { authorization: `Bearer ${auth}` } : {}) },
     body: JSON.stringify(body),
   });
-  return { status: res.status, json: (await res.json()) as { ok: boolean; data?: Record<string, unknown> } };
+  return { status: res.status, json: (await res.json()) as { ok: boolean; data?: Record<string, unknown>; error?: { code: string } } };
 }
 
 // https to the self-signed device listener (pin already proven elsewhere; here
@@ -150,6 +150,34 @@ describe("pairing listeners wiring", () => {
     expect((await deviceReq("/auth/device/revoke-self", credential)).status).toBe(200);
     expect((await deviceReq("/core", credential)).status).toBe(401);
     expect((await deviceReq("/auth/device/peers", credential, "GET")).status).toBe(401);
+  });
+
+  it("serves only the pairing routes on the plain listener and refuses every other route before dispatch", async () => {
+    const { credential } = await completePairing();
+    for (const path of ["/health", "/ws", "/core", "/files", "/backups", "/supervisor", "/gate/v1/ask", "/gate/v1/phone", "/auth/device/peers", "/nope"]) {
+      const device = await postBoot(path, {}, credential);
+      expect([path, device.status, device.json.error?.code]).toEqual([path, 403, "SECURE_TRANSPORT_REQUIRED"]);
+      const res = await fetch(`${bootBase}${path}`, { method: "POST", headers: { authorization: "Bearer old-shared-token", "content-type": "application/json" }, body: "{}" });
+      expect([path, res.status, res.headers.get("x-ha-nova-auth"), ((await res.json()) as { error: { code: string } }).error.code]).toEqual([path, 401, "pairing-required", "PAIRING_REQUIRED"]);
+      const anonymous = await postBoot(path, {});
+      expect([path, anonymous.status, anonymous.json.error?.code]).toEqual([path, 401, "UNAUTHORIZED"]);
+    }
+  });
+
+  it("answers the old shared token with PAIRING_REQUIRED and the header on the device listener too", async () => {
+    const res = await new Promise<{ status: number; header: string | undefined; code: string }>((resolve, reject) => {
+      const req = httpsRequest(
+        { host: "127.0.0.1", port: devicePort, path: "/core", method: "POST", ca: tls.certPem, checkServerIdentity: () => undefined, headers: { authorization: "Bearer old-shared-token" } },
+        (r) => {
+          let b = "";
+          r.on("data", (c) => (b += c));
+          r.on("end", () => resolve({ status: r.statusCode ?? 0, header: r.headers["x-ha-nova-auth"] as string | undefined, code: JSON.parse(b).error.code }));
+        }
+      );
+      req.on("error", reject);
+      req.end();
+    });
+    expect(res).toEqual({ status: 401, header: "pairing-required", code: "PAIRING_REQUIRED" });
   });
 
   it("rejects an unknown credential on the device listener (401)", async () => {

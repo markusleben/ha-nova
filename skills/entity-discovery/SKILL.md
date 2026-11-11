@@ -23,8 +23,6 @@ Read-only behavior.
 ## Bootstrap (once per session)
 
 Read and follow `../ha-nova/session-bootstrap.md`.
-Verify relay CLI: `ha-nova relay health`
-If this fails: `ha-nova setup`
 
 ## Relay Contract
 
@@ -128,7 +126,7 @@ Automations rarely have reliable direct `area_id` data in the compact registry. 
 
 ### Step 4: Return shortlist
 
-- `friendly_name` (verbatim), `state` (if fetched), short relevance reason; `entity_id` only for a missing or clashing name
+- the name as Home Assistant shows it (verbatim), `state` (if fetched), short relevance reason; `entity_id` only for a missing or clashing name
 - for bulk inventory: matched count, displayed rows
 - do not fetch full YAML for every matched item in one response
 

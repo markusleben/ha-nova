@@ -220,7 +220,7 @@ func TestRunDoctorLegacyHintsAtPairingCapableRelay(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("doctor exit = %d, want 0:\n%s", exitCode, output)
 	}
-	if !strings.Contains(output, "WARNING: "+legacyAccessNoticeText) {
+	if !strings.Contains(output, "WARNING: This computer still uses the old shared access") || !strings.Contains(output, "Run ha-nova setup in a terminal") {
 		t.Fatalf("expected pairing upgrade hint for a working legacy install:\n%s", output)
 	}
 

@@ -273,7 +273,8 @@ func TestWaitForRelayVersionKeepsFloorForStaleTarget(t *testing.T) {
 	}))
 	defer server.Close()
 
-	version, ok := waitForRelayVersion(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), "0.3.0")
+	version, err := waitForRelayVersion(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), "0.3.0")
+	ok := err == nil
 	if !ok || version != "0.4.0" {
 		t.Fatalf("verification = (%q, %v), want floor-compatible v0.4.0", version, ok)
 	}

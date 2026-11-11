@@ -19,7 +19,9 @@ RUN chmod a+x /run.sh
 # The chat-app bridge (`ha-nova serve`) and its skills, version-locked to this
 # image: .github/workflows/app-image.yml stages them into bridge/ per arch
 # (scripts/release/stage-app-bridge.sh). A local Supervisor build copies only
-# the placeholder, so chat apps stay unavailable there.
+# the placeholder: chat apps stay unavailable there, and with no safety-check
+# worker every device request answers 503 (scripts/deploy/ha-app-deploy.sh
+# stages the bridge first).
 COPY bridge /opt/ha-nova
 # The ha_nova Home Assistant integration (chat apps): the App copies it into
 # /config/custom_components/ha_nova when the owner turns chat apps on.

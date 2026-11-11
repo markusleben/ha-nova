@@ -53,14 +53,14 @@ ChatGPT has no button that fills this in, so you paste the address. You need a p
 3. Sign in to Home Assistant with your own login. Right after you create the plugin, ChatGPT may say the OAuth callback data is missing ("OAuth-Callback-Daten fehlen"). Choose Connect on the plugin again.
 4. Type `@HA NOVA` in a chat to use it.
 
-After an HA NOVA update, open chatgpt.com/plugins, choose HA NOVA, then Refresh. ChatGPT then gets HA NOVA's new instructions.
+ChatGPT keeps HA NOVA's tools and instructions until you refresh the plugin. When a NOVA App update changes them, HA NOVA tells each chat-app user once in the chat, and the NOVA page shows the date for 30 days. Then open chatgpt.com/plugins, choose HA NOVA, then Refresh. Claude needs nothing.
 
 Menu names in Claude and ChatGPT change now and then; look for "connector", "plugin", or "MCP".
 
 ## Use HA NOVA from your phone
 
 - **Claude app:** once the connector is added, open the Claude app on your phone and ask, for example "Is the garage door open?" or "Close it."
-- **From your computer, away from it:** if you use HA NOVA on a computer, the computer's own remote apps work too (Claude Code Remote Control, or Codex on your phone). The computer must be on. A change that needs your OK asks on the computer's window and on your linked phone at the same time; the first answer counts.
+- **From your computer, away from it:** if you use HA NOVA on a computer, the computer's own remote apps work too (Claude Code Remote Control, or Codex on your phone). The computer must be on. A change that needs your OK asks on your linked phone, and you can also approve it on the NOVA page in Home Assistant; the computer's window only waits (dashboard and room changes still ask on the computer). With an older NOVA App (without the safety check), the window and the phone ask at the same time, and the first answer counts.
 
 ## Who can use it
 
@@ -88,6 +88,7 @@ With anyone besides you on the list, going back to an older NOVA App refuses eve
   - **Without a linked phone,** the chat shows a code to type back, only at Manage everything; below it, the change is refused. The AI can see this code too, so it protects less than a tap on your phone. For real protection, link your phone on the NOVA page (Chat apps, then "Link a phone…"), or on your computer (`ha-nova setup confirm-phone`) and then run `ha-nova chat-apps on` once more: it adds that phone for chat apps.
 - **Another phone:** open NOVA in Home Assistant, then Chat apps, then "Change phone…", and pick the phone. The phone that confirms now asks first, then the new one. "Stop phone confirmations" asks that phone too; chat apps then show a code, or refuse risky changes when codes are off. If the phone was removed from Home Assistant, the page lets you link a new one without it. Setup offers the same move after "Use another phone".
 - **A lost phone:** until you remove it in Home Assistant (Settings → Devices & services → Mobile App), chat apps refuse changes that need your OK; they don't fall back to a code. Once it's removed, link a new phone on the NOVA page (Chat apps, then "Link a new phone…").
+- **Chat apps and the safety check:** the NOVA App checks every request from your computers and holds risky ones until someone approves them on their phone or on the NOVA page. Chat apps don't wait there: they reach Home Assistant through HA NOVA inside the App, which runs the same checks and keeps the rules above (the linked phone of whoever asked, or a code in the chat at Manage everything). The App lets that path through only from inside itself.
 - On the NOVA page you can also turn off codes in the chat (risky changes then need a linked phone), or let chat apps only read.
 - If you stop setup while Home Assistant restarts, chat apps may still turn on; NOVA in Home Assistant shows whether they are on.
 
@@ -122,4 +123,5 @@ To stay on the older App: removing the NOVA App clears them too, but then every 
 - At Manage everything, helpers, scenes, dashboards, room and name changes, setting up integrations, and file edits work in the chat, with the same preview and confirmation as on a computer. Only setting up HA NOVA itself (pairing a computer, updates, turning chat apps on or off) happens outside the chat. A setup or repair step that needs a password, PIN, or key also finishes in Home Assistant (Settings → Devices & services, or Settings → System → Repairs), and so does an App setting that needs one (the App's Configuration tab): HA NOVA refuses one it can recognize.
 - Changes beyond controlling devices (automations, scripts, dashboards, rooms, helpers, files) need Manage everything, which only Home Assistant administrators can have.
 - The assistant can look at a camera's current picture; it stays in your chat.
+- On the standalone Relay container, a chat app can't make a change that needs an OK (an unlock, a delete, a file change): HA NOVA refuses it and sends nothing. Make that change from a paired computer or in Home Assistant.
 - With file access on in the NOVA Relay App, the assistant can read files in your configuration folder (never `secrets.yaml` or `.storage`) and, after you confirm the change, write or delete them. A file reaches the chat as written: a password or key typed straight into a YAML file, not into `secrets.yaml`, is seen by the AI, as it is with HA NOVA on a computer.

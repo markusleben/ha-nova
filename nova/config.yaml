@@ -16,14 +16,14 @@ ingress: true
 ingress_port: 8793
 ingress_entry: /home
 ports:
-  # OPAQUE pairing bootstrap + legacy HTTP access. Device credentials are never
-  # accepted here — only over the TLS port below.
+  # OPAQUE pairing bootstrap only. Device credentials are never accepted here —
+  # only over the TLS port below.
   8791/tcp: 8791
   # Pinned TLS 1.3 for all device-credential traffic. Its mapped host port is
   # read back from Supervisor self-info and pinned into each pairing response.
   8792/tcp: 8792
 ports_description:
-  8791/tcp: Relay pairing + legacy HTTP
+  8791/tcp: Relay pairing
   8792/tcp: Relay secure device API (TLS)
 # TCP liveness only: /health requires bearer auth, an HTTP watchdog would 401-loop.
 watchdog: tcp://[HOST]:[PORT:8791]
@@ -43,6 +43,12 @@ panel_admin: true
 discovery:
   - ha_nova
 
+# The copies of images and videos HA NOVA deleted from /config/www
+# (nova/src/http/handlers/files-www.ts) stay out of Home Assistant backups:
+# a picture the user deleted shouldn't live on in every backup.
+backup_exclude:
+  - "*/www-undo/**"
+
 # Read-write access to the Home Assistant configuration directory. The relay
 # only USES it when the file_access option is set (default: off), or, for chat
 # apps, to write custom_components/ha_nova when the owner turns them on (and
@@ -57,15 +63,7 @@ map:
     path: /config
 
 options:
-  # A null default marks an option as REQUIRED in Supervisor (the App refuses to
-  # start until the user fills it) — the opposite of passwordless onboarding. An
-  # empty string keeps the field optional and matches what the legacy-migration
-  # clear writes back after importing a token.
-  relay_auth_token: ""
-  ha_llat: ""
   file_access: "off"
 
 schema:
-  relay_auth_token: password?
-  ha_llat: password?
   file_access: list(off|read|readwrite)?

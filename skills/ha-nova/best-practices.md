@@ -1,54 +1,5 @@
 # HA NOVA Automation Best Practices
 
-Tiered policy for automation writes.
-
-## BP Cache Policy
-
-Freshness cache for best-practice research. Unrelated to `ha-nova snapshot` (update-revert, see `../ha-nova/write-safety.md`).
-
-- BP cache file: `${HOME}/.cache/ha-nova/automation-bp-snapshot.json`
-- BP cache fields:
-  - `automation_bp_refreshed`
-  - `automation_bp_refreshed_at`
-  - `automation_bp_sources`
-  - `automation_bp_ha_version`
-- Stale threshold: 30 days.
-- `bp_status` (automations; scripts are `n/a`): `fresh` = `automation_bp_refreshed` is boolean `true`, `automation_bp_refreshed_at` a parseable timestamp within the last 30 days (a future one is `invalid`), `automation_bp_sources` a non-empty list, and `automation_bp_ha_version` a non-empty string; older → `stale`; file absent → `missing`; anything else (unparsable, a field absent, empty, or null) → `invalid`.
-
-## Tiered Gate
-
-- Simple automation:
-  - Complexity under 3 triggers and under 3 actions.
-  - Stale/missing BP cache => continue silently (`write-safety.md`: `bp_status` is an internal gate input, never mentioned to the user).
-- Complex automation:
-  - 3+ triggers or 3+ actions.
-  - Stale/missing/invalid BP cache => hard gate.
-  - Main thread refresh required before apply.
-
-## Refresh Scope (minimum)
-
-Refresh step checks:
-- run modes and overlap behavior
-- trigger/condition modeling guidance
-- automation services + tracing guidance
-- release notes affecting automation semantics
-
-### How to Refresh
-
-1. Research current HA automation best practices via web search (target: `home-assistant.io/docs/automation` + recent release notes).
-2. Update the BP cache file with findings:
-   Write `${HOME}/.cache/ha-nova/automation-bp-snapshot.json` with your native file-writing tool:
-   ```json
-   {
-     "automation_bp_refreshed": true,
-     "automation_bp_refreshed_at": "YYYY-MM-DDTHH:MM:SSZ",
-     "automation_bp_sources": ["home-assistant.io/docs/automation", "home-assistant.io/blog"],
-     "automation_bp_ha_version": "2026.X"
-   }
-   ```
-3. Replace `YYYY-MM-DD...` with current timestamp, `2026.X` with the HA version the sources cover.
-4. The BP cache is now `fresh` for 30 days.
-
 ## Automation Mode Selection
 
 Pick the right `mode` based on the automation's behavior:
@@ -159,15 +110,6 @@ triggers:
 | Persistent ID | `device_ieee` | `device_id` (autodiscovered) |
 | Event source | `zha_event` | MQTT device trigger |
 | Button actions | `command` field | `type` + `subtype` |
-
-## Failure Semantics
-
-- BP cache refresh failure on simple automation: continue silently.
-- BP cache refresh failure on complex automation: block apply.
-- Return structured failure with:
-  - what failed
-  - why
-  - next concrete step
 
 ## Persistence Model (restart survival)
 

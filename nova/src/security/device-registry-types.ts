@@ -1,5 +1,14 @@
 export type DeviceState = "pending" | "active";
 
+// The phone that confirms this device's typed requests (relay typed gate §3);
+// set only after a tap on it (POST /gate/v1/phone, setConfirmPhone).
+export interface ConfirmPhoneLink {
+  service: string; // mobile_app_<id>, its notify service
+  deviceId: string; // the phone's Home Assistant device
+  userId: string; // the administrator whose tap counts
+  platform?: string;
+}
+
 export interface DeviceRecord {
   deviceId: string;
   secretDigest: string;
@@ -14,11 +23,7 @@ export interface DeviceRecord {
   pendingExpiresAtMs?: number;
   cloudUserId?: string;
   cloudRelayInstanceId?: string;
-}
-
-export interface LegacyRecord {
-  secretDigest: string;
-  createdAtMs: number;
+  confirmPhone?: ConfirmPhoneLink;
 }
 
 export interface PairingResponseRecord {
@@ -40,7 +45,7 @@ export interface CloudRevocationRecord {
 }
 
 export interface ResolvedPrincipal {
-  kind: "device" | "legacy";
+  kind: "device";
   deviceId?: string;
 }
 
@@ -54,8 +59,6 @@ export type CloudDeviceRevocationResult =
 
 export interface DeviceRegistry {
   list(): DeviceRecord[];
-  hasLegacy(): boolean;
-  legacyImportCompleted(): boolean;
   resolveDeviceSecret(
     deviceId: string,
     secretDigest: string,
@@ -68,7 +71,6 @@ export interface DeviceRegistry {
     relayInstanceId: string,
     now: number,
   ): ResolvedPrincipal | null;
-  resolveLegacySecret(secretDigest: string): ResolvedPrincipal | null;
   getPairingResponse(
     handshakeId: string,
     contextKey: string,
@@ -110,7 +112,6 @@ export interface DeviceRegistry {
     now: number,
   ): CloudDeviceRevocationResult;
   revoke(deviceId: string): boolean;
-  importLegacy(secretDigest: string, now: number): void;
-  markLegacyMigrated(): void;
-  revokeLegacy(): void;
+  // Sets an active device's phone link only while it still is expected; false: nothing changed.
+  setConfirmPhone(deviceId: string, link: ConfirmPhoneLink, expected: ConfirmPhoneLink | undefined): boolean;
 }

@@ -214,6 +214,7 @@ type chatJob struct {
 	tapped atomic.Bool            // the phone answered (Confirm, Cancel, someone else's tap); apply may be running
 	sent   atomic.Bool            // the question went out (askPhone): until then HA NOVA is still checking
 	tap    atomic.Pointer[string] // how to answer on the phone asked (phoneTapLine), once known
+	asking atomic.Int32           // ha-nova mcp: what of its Relay ask waits for the person; nothing was sent yet (gateApproval)
 }
 
 // chatApply: in a chat app, ha_apply of this user's plan starts (or joins)

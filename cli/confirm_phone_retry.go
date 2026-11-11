@@ -58,6 +58,12 @@ func phoneRetryWait(ctx context.Context, until time.Time) bool {
 // discoverPhone: the linked phone, read only when this computer has a link,
 // on a read budget of its own that ends by until.
 func discoverPhone(s *relaySession, until time.Time) (phoneSetup, phoneStatus) {
+	return findPhone(s, until, true)
+}
+
+// findPhone is discoverPhone; asks=false finds a phone this computer can't
+// ask (phoneDeaf) too, for a reminder that only notifies it.
+func findPhone(s *relaySession, until time.Time, asks bool) (phoneSetup, phoneStatus) {
 	if activeServerIsDemo() {
 		return phoneSetup{}, phoneNone // links belong to real homes
 	}
@@ -65,7 +71,7 @@ func discoverPhone(s *relaySession, until time.Time) (phoneSetup, phoneStatus) {
 	if !readable {
 		return phoneSetup{why: whyRead}, phoneMissing
 	}
-	if len(links) == 0 {
+	if len(links) == 0 || asks && s.phoneDeaf() { // gated: the window, else a code; the Relay asks for the typed requests
 		return phoneSetup{}, phoneNone
 	}
 	done := s.ownBudget(until)

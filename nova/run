@@ -40,14 +40,8 @@ if [[ -z "${HA_URL:-}" ]]; then
 fi
 export RELAY_VERSION="$(bashio::addon.version 2>/dev/null || echo "dev-local")"
 
-if [[ -z "${RELAY_AUTH_TOKEN:-}" ]]; then
-  export RELAY_AUTH_TOKEN="$(bashio::config 'relay_auth_token' 2>/dev/null || echo "")"
-fi
 export RELAY_AUTH_TOKEN="$(normalize_token "${RELAY_AUTH_TOKEN:-}")"
 
-if [[ -z "${SUPERVISOR_TOKEN:-}" && -z "${HA_LLAT:-}" ]]; then
-  export HA_LLAT="$(bashio::config 'ha_llat' 2>/dev/null || echo "")"
-fi
 export HA_LLAT="$(normalize_token "${HA_LLAT:-}")"
 
 if [[ -z "${FILE_ACCESS:-}" ]]; then

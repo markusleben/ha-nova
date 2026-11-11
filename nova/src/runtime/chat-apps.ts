@@ -1,4 +1,4 @@
-import { spawn as spawnChild, type ChildProcess } from "node:child_process";
+import { spawn as spawnChild } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { hostname } from "node:os";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
@@ -15,6 +15,7 @@ import { chatAppsFiles, type ChatAppsChoices } from "./chat-apps-files.js";
 import { ChatAppsError, chatAppFilesPresent, clearChatAppsInHA, customComponentsMissing, installIntegration, integrationOwner, removeEmptyCustomComponents, removeIntegration, SERVICE } from "./chat-apps-ha.js";
 import type { ChatUsers } from "./chat-apps-household.js";
 import { CONTROL_PORT, createChatPhoneControl, type ChatPhoneControl } from "./chat-phone-control.js";
+import { childEnv, superviseChild } from "./supervise-child.js";
 
 // Chat apps (spec docs/work/2026-10-18-onboarding-0.27-spec.md §11; contract
 // docs/work/2026-10-19-chat-bridge-contract.md, "App side"): the owner's
@@ -80,10 +81,6 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
   // or a backup restore that rewound /data (lane R1).
   const leftover = (state: State): boolean =>
     state.discovery_uuid !== undefined || bridgeDeviceId() !== null || integrationOwner(deps.configRoot) === owner;
-  let child: ChildProcess | null = null;
-  let wanted = false;
-  let respawn: NodeJS.Timeout | undefined;
-  let failures = 0;
   let restartTimer: NodeJS.Timeout | undefined; // turning off cancels a restart not yet sent
   // On and off never interleave (the NOVA page and the CLI may both ask).
   let queue: Promise<unknown> = Promise.resolve();
@@ -141,69 +138,22 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
     writeJson(file("relay.json"), { relay_url: url, spki_pin: deps.spkiPin, credential: minted.credential });
   };
 
-  const startChild = (): void => {
-    wanted = true;
-    if (child !== null) {
-      return;
-    }
-    ensureCredential();
-    ensureSecret("control-secret");
-    mkdirSync(file("home"), { recursive: true, mode: 0o700 });
-    // A minimal environment: the App's Supervisor and Home Assistant tokens
-    // never reach the bridge; it talks to Home Assistant only through the Relay.
-    const proc = spawn(
-      deps.binary,
-      ["serve", "--listen", `0.0.0.0:${BRIDGE_PORT}`, "--data-dir", bridgeDir, "--secret-file", file("secret"), "--relay-file", file("relay.json"),
-        "--control-listen", `127.0.0.1:${CONTROL_PORT}`, "--control-secret-file", file("control-secret")],
-      { stdio: ["ignore", "inherit", "inherit"], env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: file("home"), HA_NOVA_NO_BROWSER: "1", ...(process.env.TZ ? { TZ: process.env.TZ } : {}) } },
-    );
-    child = proc;
-    clearTimeout(respawn);
-    const started = Date.now();
-    let ended = false;
-    const end = (why: string): void => {
-      if (ended) {
-        return;
-      }
-      ended = true;
-      if (child !== proc) {
-        return; // a stopped process: its end changes nothing
-      }
-      child = null;
-      failures = Date.now() - started > 60_000 ? 1 : failures + 1;
-      if (wanted) {
-        deps.logger.warn("Chat-app bridge stopped; restarting it", { why });
-        startLater();
-      }
-    };
-    proc.on("error", (error) => end(error.message));
-    proc.once("exit", (code, signal) => end(`exit ${code ?? signal}`));
-  };
-  // Restarts back off from 5 s to 5 min while serve keeps failing.
-  const startLater = (): void => {
-    clearTimeout(respawn);
-    respawn = setTimeout(() => {
-      try {
-        startChild();
-      } catch (error) {
-        failures += 1;
-        deps.logger.error("Chat-app bridge could not start", { error: String((error as Error).message) });
-        startLater();
-      }
-    }, Math.min((deps.respawnMs ?? 5_000) * 2 ** Math.max(0, failures - 1), 300_000));
-  };
-  // serve finishes running calls for up to 5 s; a hung one must not keep the port.
-  const kill = (proc: ChildProcess | null): void => {
-    proc?.kill("SIGTERM");
-    setTimeout(() => proc?.exitCode === null && proc.signalCode === null && proc.kill("SIGKILL"), 7_000).unref();
-  };
-  const stopChild = (): void => {
-    wanted = false;
-    clearTimeout(respawn);
-    const proc = child;
-    child = null;
-    kill(proc);
-  };
+  const bridge = superviseChild({
+    name: "Chat-app bridge",
+    logger: deps.logger,
+    respawnMs: deps.respawnMs,
+    launch: () => {
+      ensureCredential();
+      ensureSecret("control-secret");
+      mkdirSync(file("home"), { recursive: true, mode: 0o700 });
+      return spawn(
+        deps.binary,
+        ["serve", "--listen", `0.0.0.0:${BRIDGE_PORT}`, "--data-dir", bridgeDir, "--secret-file", file("secret"), "--relay-file", file("relay.json"),
+          "--control-listen", `127.0.0.1:${CONTROL_PORT}`, "--control-secret-file", file("control-secret")],
+        { stdio: ["ignore", "inherit", "inherit"], env: childEnv(file("home")) },
+      );
+    },
+  });
   // Turning off, in this order: serve stops and its credential is revoked
   // before any file can fail (so a request still finishing can no longer
   // reach the Relay); the state says off before the revoke can fail (so a
@@ -212,7 +162,7 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
   // sign of an older message).
   const off = async (lookup = true): Promise<void> => {
     const mine = (state: State): boolean => state.discovery_uuid !== undefined || bridgeDeviceId() !== null;
-    stopChild();
+    bridge.stop();
     clearTimeout(restartTimer);
     let state: State = { enabled: false };
     let unreadable: unknown = null;
@@ -290,15 +240,15 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
         deps.logger.error("Chat apps are on, but this App version has no bridge; turn them off on the NOVA page");
         return;
       }
-      startChild();
+      bridge.start();
       await publish(); // Supervisor keeps one message per App and service: a repeat is a no-op
     } catch (error) {
       deps.logger.error(cleaning ? "Chat apps could not finish turning off" : "Chat apps could not resume", { error: String((error as Error).message) });
       if (cleaning) {
         cleanupRetry = setTimeout(() => void boot(), (deps.respawnMs ?? 5_000) * 12);
         cleanupRetry.unref?.();
-      } else if (wanted && child === null) {
-        startLater(); // e.g. the credential could not be minted yet
+      } else if (bridge.wanted() && bridge.current() === null) {
+        bridge.startLater(); // e.g. the credential could not be minted yet
       }
     }
   });
@@ -342,22 +292,22 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
       if (!wasOn) {
         await clearChatAppsInHA(deps, before.discovery_uuid, chatAppFilesPresent(deps.configRoot) === true); // left over from an older App or a restore: start clean
       }
-      failures = 0;
+      bridge.resetFailures();
       try {
         ensureSecret();
         if (customComponentsMissing(deps.configRoot)) {
           save({ ...load(), made_custom_components: true }); // before the folder exists: a failed turn-on cleans it up too
         }
         installIntegration(deps.configRoot, deps.integrationSource, owner);
-        startChild();
+        bridge.start();
         await publish();
         save({ ...load(), enabled: true });
       } catch (error) {
         if (!wasOn) {
           // Leave nothing behind: off is what the page shows, and [Turn on] the retry.
           await off(false).catch((cleanup: unknown) => deps.logger.error("Chat apps: cleanup after a failed turn-on failed", { error: String((cleanup as Error).message) }));
-        } else if (child === null && wanted) {
-          startLater();
+        } else if (bridge.current() === null && bridge.wanted()) {
+          bridge.startLater();
         }
         throw error;
       }
@@ -383,7 +333,7 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
       };
       clearTimeout(restartTimer);
       restartTimer = setTimeout(() => {
-        if (!wanted) {
+        if (!bridge.wanted()) {
           return; // turned off meanwhile
         }
         deps.core.request({ method: "POST", path: "/api/services/homeassistant/restart", body: {} })
@@ -394,14 +344,7 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
     boot,
 
     // After a registry reset: the (re)start mints a fresh credential.
-    restartBridge() {
-      failures = 0;
-      if (child !== null) {
-        kill(child); // its exit restarts it
-      } else if (wanted) {
-        startLater();
-      }
-    },
+    restartBridge: bridge.restart,
 
     bridgeDeviceId,
   };

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -14,6 +15,9 @@ type setupState struct {
 	RelayOK  bool
 	WSOK     bool
 	SkillsOK bool
+	// SharedAccessEnded: the NOVA App refused the saved shared token for
+	// good (it no longer accepts the old shared access).
+	SharedAccessEnded bool
 }
 
 func (s setupState) IsComplete() bool {
@@ -108,6 +112,7 @@ func detectSetupStateWithToken(paths runtimePaths, cfg runtimeConfig, state inst
 
 	readiness := checkRelayReadiness(cfg.RelayBaseURL, token)
 	if readiness.HealthErr != nil {
+		current.SharedAccessEnded = errors.Is(readiness.HealthErr, errSharedAccessEnded)
 		return current
 	}
 	current.RelayOK = true

@@ -132,4 +132,15 @@ describe("chat-app phone control client", () => {
       await expect(control.seen()).rejects.toMatchObject({ status: 503, code: "CHAT_PHONE_UNAVAILABLE" });
     }
   });
+
+  it("reads when the tools last changed", async () => {
+    const control = createChatPhoneControl(() => SECRET, port);
+    reply = answer(200, { version: "0123456789ab", changed_at: "2026-11-10T12:00:00Z" });
+    expect(await control.toolsChangedAt()).toBe("2026-11-10T12:00:00Z");
+    expect(seen.map((s) => `${s.method} ${s.url}`)).toEqual(["GET /control/v1/tools"]);
+    for (const bad of [{}, { version: "v" }, { version: 1, changed_at: "" }, { version: "v", changed_at: null }]) {
+      reply = answer(200, bad);
+      await expect(control.toolsChangedAt()).rejects.toMatchObject({ status: 503, code: "CHAT_PHONE_UNAVAILABLE" });
+    }
+  });
 });

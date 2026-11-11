@@ -38,6 +38,7 @@ Which HA operations require REST, WS, or filesystem?
 | `/api/config/config_entries/flow_handlers` | GET | List config-flow handler domains |
 | `/api/config/config_entries/flow` | POST | Start an integration/helper config flow |
 | `/api/config/config_entries/flow/{flow_id}` | GET / POST / DELETE | Read, submit, or cancel one config flow |
+| `/api/config/config_entries/options/flow` + `/{flow_id}` | POST, then DELETE | Tier engine only: a UI generic thermostat's or hygrostat's stored `heater`/`humidifier`, from the `init` form's `suggested_value`; the flow is always aborted, never submitted (`cli/tier_helper_options.go`) |
 
 **Auth:** callers go through the Relay (`ha-nova relay core`), which authenticates inbound with the Relay/device credential and injects the upstream HA credential server-side (`SUPERVISOR_TOKEN` on the App, `HA_LLAT` on the standalone container) — never send an HA token yourself. A raw `Authorization: Bearer {LONG_LIVED_TOKEN}` applies only to direct server-side use outside HA NOVA. The webhook endpoint itself is unauthenticated and treats its ID as the bearer secret; calls through HA NOVA still require Relay authentication.
 
@@ -95,6 +96,7 @@ Raw `ha-nova relay ws` sends only the types on `cli/relay_raw_allow.go` (raw `re
 |-----------|----------------|---------|
 | WS | `config_entries/get` | Retrieve config-entry metadata |
 | WS | `manifest/list` | Map integration domains to manifest names and config-flow capability |
+| WS | `entity/source` | Every entity's integration, with or without a registry row (tier engine: the generic thermostats and hygrostats in a home) |
 | WS | `config_entries/flow/progress` | Retrieve in-progress flows, including `reauth` |
 | WS | `config_entries/disable` | Disable (`disabled_by: "user"`) or enable (`null`) an entry; integration-setup, raw plan; an entry with a lock, alarm panel, or access cover is refused |
 | WS | `config_entries/update` | Entry `title`, `pref_disable_polling`, `pref_disable_new_entities`; integration-setup. Polling changes reload loaded entries and use the enable/disable access-target refusal |
@@ -201,7 +203,7 @@ against the issue and actual affected resources, never retried blindly.
 
 ## Filesystem (via the Relay's opt-in `/files` endpoint)
 
-File access defaults to off. When enabled, the Relay enforces a deny-list (`.storage`, `.cloud`, `.ssh`, `.git`, `deps`, `ssl`, `tts`, `backups`, `custom_components`, `python_scripts`, `www`, plus secret/db/env/log patterns) and a writable-extension gate (`.yaml` / `.yml` / `.conf` / `.json` / `.txt` / `.md`) — there is no directory whitelist. Keeping HA NOVA's own additions under `/config/ha_nova/` is a convention (`skills/yaml-config/SKILL.md`), not relay enforcement.
+File access defaults to off. When enabled, the Relay enforces a deny-list (`.storage`, `.cloud`, `.ssh`, `.git`, `deps`, `ssl`, `tts`, `backups`, `custom_components`, `python_scripts`, `www`, plus secret/db/env/log patterns; in `www`, outside `www/community`, images and videos may be listed, deleted with a kept copy, and put back) and a writable-extension gate (`.yaml` / `.yml` / `.conf` / `.json` / `.txt` / `.md`) — there is no directory whitelist. Keeping HA NOVA's own additions under `/config/ha_nova/` is a convention (`skills/yaml-config/SKILL.md`), not relay enforcement.
 
 | Operation | Path | When needed |
 |-----------|------|-----------|
@@ -268,7 +270,7 @@ guardrails.
 | Thread / Matter | `otbr/info`, `thread/list_datasets` (dataset is a network credential — `--out` file only), `matter/node_diagnostics` (takes `device_id`) | fallback |
 | Custom-integration config APIs | REST `/api/<integration>/<resource>` (GET only; private, version-dependent — Alarmo, Scheduler, Frigate, ...; raw POSTs are refused) | fallback |
 | HACS | `hacs/*` (17 commands) — not a Home Assistant API; the pinned map lives in `skills/hacs/hacs-commands.md` | hacs |
-| Marketplace (Home Assistant 2026.11+, HACS built in) | `marketplace/info`, `marketplace/repositories/list` — read-only; installs, updates, and removals stay in the Home Assistant UI (`skills/hacs/hacs-commands.md` → Marketplace mode) | hacs |
+| Marketplace (Home Assistant 2026.11+, HACS built in) | `marketplace/info`, `marketplace/repositories/list` — read-only; installs, updates, and removals stay in the Home Assistant UI (`skills/hacs/hacs-commands.md` → Marketplace mode). `ha-nova call update.install` on a Marketplace update reads `marketplace/info` first and refuses (`MARKETPLACE_WARNING`) before sending unless the Relay's user accepted the Marketplace warning (`cli/marketplace_update.go`) | hacs |
 
 Out of scope: InfluxDB paths (`/api/v2/query`, `/api/v3/query_sql`) pinned in
 `skills/external-sources` are not Home Assistant APIs. Home Assistant's own

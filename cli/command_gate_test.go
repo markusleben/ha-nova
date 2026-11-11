@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -34,7 +36,8 @@ func gateTestServer(t *testing.T, paths runtimePaths) (post func(path, token str
 		}
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			t.Fatal(err)
+			t.Errorf("%s: %v", path, err) // not Fatal: concurrent tests post from other goroutines
+			return 0, nil
 		}
 		defer resp.Body.Close()
 		var out map[string]any
@@ -156,8 +159,8 @@ func TestGateRelayFile(t *testing.T) {
 	if _, err := loadGateRelay(link); err == nil {
 		t.Error("a symlinked relay file: accepted")
 	}
-	if exit := runGateCommand(runtimePaths{}, []string{"--listen", "0.0.0.0:8796", "--secret-file", "x", "--relay-file", "y"}); exit != 1 {
-		t.Errorf("a non-loopback listen: exit %d", exit)
+	if exit := runGateCommand(runtimePaths{}, []string{"--socket", "worker.sock", "--secret-file", "x", "--relay-file", "y"}); exit != 1 {
+		t.Errorf("a relative socket: exit %d", exit)
 	}
 }
 
@@ -172,5 +175,54 @@ func TestGateWorkerTemplatePictureToken(t *testing.T) {
 	status, _ := post("/redact", gateTestSecret, map[string]any{"endpoint": "core", "request_b64": b64(`{"method":"POST","path":"/api/template","body":{"template":"x"}}`), "response_b64": b64(`{"ok":true,"data":{"status":200,"body":"pic-0123456789abcdef"}}`)})
 	if status != http.StatusServiceUnavailable {
 		t.Errorf("template with a picture token: HTTP %d, want withheld", status)
+	}
+}
+
+// The worker's socket: only in an owner-only folder, a stale one replaced,
+// a live one or anything else at its path left alone.
+func TestGateListen(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the worker runs in Linux containers")
+	}
+	dir, err := os.MkdirTemp("/tmp", "hn-gate-") // short: a socket path holds at most 104 bytes
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	socket := filepath.Join(dir, "worker.sock")
+	if err := os.Chmod(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gateListen(socket); err == nil {
+		t.Fatal("a folder others can open: accepted")
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	live, err := gateListen(socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info, _ := os.Stat(socket); info.Mode().Perm() != 0o600 {
+		t.Errorf("socket mode %v", info.Mode().Perm())
+	}
+	if _, err := gateListen(socket); err == nil {
+		t.Error("a second worker took over a live socket")
+	}
+	if unix, ok := live.(*net.UnixListener); ok {
+		unix.SetUnlinkOnClose(false) // a worker that died: its socket stays behind
+	}
+	live.Close()
+	again, err := gateListen(socket)
+	if err != nil {
+		t.Fatalf("a stale socket: %v", err)
+	}
+	again.Close()
+	plain := filepath.Join(dir, "plain")
+	if err := os.WriteFile(plain, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gateListen(plain); err == nil {
+		t.Error("a regular file at the socket path was replaced")
 	}
 }

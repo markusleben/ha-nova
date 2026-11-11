@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// npm run vm-lane -- <tag> [--from <stable>] [--wait <0..60>] [--no-ubuntu]
+// npm run vm-lane -- <tag> [--from <stable>] [--wait <0..60>] [--no-ubuntu] [--app-branch chore/app-X.Y.Z]
 // Throwaway UTM VMs only; every HA NOVA command runs in a guest, never on macOS.
 // Contract and limits: docs/work/2026-10-26-vm-lane-spec.md; release gate: docs/releasing.md §4.
 import { execFileSync, spawn } from "node:child_process";
@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as pause } from "node:timers/promises";
+import { APP_BRANCH_RE, appPreview } from "./app-preview.mjs";
 import { winTransport } from "./transport.mjs";
 import { chatFileRefusal } from "./chat-files.mjs";
 
@@ -39,9 +40,10 @@ const VMS = { win: ["HA NOVA Win11 Test", CFG.win.port], haos: ["HA NOVA HAOS Te
 
 const [tag, ...flags] = process.argv.slice(2);
 const opt = (name) => { const i = flags.indexOf(name); return i >= 0 ? flags[i + 1] : undefined; };
-const badFlag = flags.some((f, i) => !["--from", "--wait"].includes(flags[i - 1]) && !["--from", "--wait", "--no-ubuntu"].includes(f));
-if (!TAG_RE.test(tag ?? "") || badFlag || (flags.includes("--from") && !/^v\d+\.\d+\.\d+$/.test(opt("--from") ?? "")) || (flags.includes("--wait") && (!/^\d+$/.test(opt("--wait") ?? "") || Number(opt("--wait")) > 60))) {
-  console.error("usage: npm run vm-lane -- <vX.Y.Z[-rcN]> [--from <vX.Y.Z>] [--wait <0..60>] [--no-ubuntu]");
+const valued = ["--from", "--wait", "--app-branch"], appBranch = opt("--app-branch");
+const badFlag = flags.some((f, i) => !valued.includes(flags[i - 1]) && ![...valued, "--no-ubuntu"].includes(f));
+if (!TAG_RE.test(tag ?? "") || badFlag || (flags.includes("--from") && !/^v\d+\.\d+\.\d+$/.test(opt("--from") ?? "")) || (flags.includes("--wait") && (!/^\d+$/.test(opt("--wait") ?? "") || Number(opt("--wait")) > 60)) || (flags.includes("--app-branch") && !APP_BRANCH_RE.test(appBranch ?? ""))) {
+  console.error("usage: npm run vm-lane -- <vX.Y.Z[-rcN]> [--from <vX.Y.Z>] [--wait <0..60>] [--no-ubuntu] [--app-branch chore/app-X.Y.Z]");
   process.exit(2);
 }
 const WORK = mkdtempSync(join(tmpdir(), "ha-nova-vm-lane-"));
@@ -208,6 +210,7 @@ async function nova() {
       if (code?.length !== 6) throw new Error("the NOVA page showed no six-digit code");
       return code;
     },
+    html: () => get(),
     cancelCode: async () => { const html = await get(); if (html.includes('value="cancel_code"')) await post(html, "cancel_code"); },
     revoke: async (id) => post(await get(`?confirm=revoke_device&device=${encodeURIComponent(id)}`), "revoke_device"),
   };
@@ -251,10 +254,11 @@ async function haosIdentity() {
   check("p", "HAOS VM is the throwaway one", ok, `127.0.0.1:8123 owner ${isQemu ? "QEMU" : "NOT QEMU"}, creds token ok, location "${conf.location_name}", ${conf.time_zone}, HA ${conf.version}, HAOS ${os?.version ?? "?"}, demo entry ${entries?.length ? "yes" : "NO"}, App ${appInfo?.version ?? "missing"} ${appInfo?.state ?? ""}`);
   return ok ? appInfo : null;
 }
+const host = (cmd, t = 60) => execFileSync("python3", [join(TOOLS, "haos/sh.py"), cmd, String(t)], { encoding: "utf8", timeout: (t + 15) * 1000 });
 function registryHash() {
   if (!/^[a-z0-9_]+$/.test(CFG.app)) throw new Error("invalid VM App slug");
-  const script = 'const fs=require("node:fs"),crypto=require("node:crypto"); const data=JSON.parse(fs.readFileSync("/data/device-registry.json","utf8")); for(const device of data.devices)delete device.lastUsedAtMs; const sorted=(v)=>Array.isArray(v)?v.map(sorted):v&&typeof v==="object"?Object.fromEntries(Object.keys(v).sort().map(k=>[k,sorted(v[k])])):v; console.log(crypto.createHash("sha256").update(JSON.stringify(sorted(data))).digest("hex"));';
-  const output = execFileSync("python3", [join(TOOLS, "haos/sh.py"), `docker exec app_${CFG.app} node -e '${script}'`, "15"], { encoding: "utf8", timeout: 25_000 });
+  const script = 'const fs=require("node:fs"),crypto=require("node:crypto"); const data=JSON.parse(fs.readFileSync("/data/device-registry.json","utf8")); for(const device of data.devices)delete device.lastUsedAtMs; const sorted=(v)=>Array.isArray(v)?v.map(sorted):v&&typeof v==="object"?Object.fromEntries(Object.keys(v).sort().map(k=>[k,sorted(v[k])])):v; console.log(crypto.createHash("sha256").update(JSON.stringify(sorted(data))).update(fs.readFileSync("/data/tls-key.pem")).digest("hex"));';
+  const output = host(`docker exec app_${CFG.app} node -e '${script}'`, 15);
   const hash = output.match(/^([0-9a-f]{64})\s/m)?.[1];
   if (!hash) throw new Error("cannot hash the throwaway App registry through its serial helper");
   return hash;
@@ -474,7 +478,7 @@ async function ubuntuRun(stable) {
 
 // ---- main ----------------------------------------------------------------------------------
 const started = Date.now();
-let start = null, backupSlug, users = false;
+let start = null, backupSlug, users = false, preview;
 try {
   await new Promise((done, fail) => { lease.once("error", () => fail(new Error("VM lane lock 127.0.0.1:4557 is busy; do not run two lanes against the same VMs"))); lease.listen(4557, "127.0.0.1", done); });
   say(`candidate ${tag}; VM tools ${TOOLS}; work dir ${WORK}`);
@@ -502,7 +506,12 @@ try {
   backupSlug = backup?.slug;
   if (!backupSlug) throw new Error("preflight failed; no lane writes");
   start = snapshot;
-  if (stopping || !(await appVersion(appInfo))) throw new Error("preflight failed or interrupted");
+  if (appBranch) {
+    preview = appPreview({ repo: REPO, app: CFG.app, fetch, sup, host, page: async () => (await nova()).html(), registryHash, check, sleep,
+      imageCheck: (v) => execFileSync("bash", [join(ROOT, "scripts/release/verify-app-image.sh"), v], { encoding: "utf8", timeout: 120_000 }) });
+    if (!(await preview.install(appBranch, snapshot.registry))) throw new Error("App preview failed; no lane runs");
+  }
+  if (stopping || !(await appVersion(appBranch ? await sup(`/addons/${CFG.app}/info`) : appInfo))) throw new Error("preflight failed or interrupted");
   await chatFileRefusal({ ha: CFG.ha, llat, app: CFG.app, sup, check });
   if (await winIdentity() && await winIsolation()) {
     users = true;
@@ -519,6 +528,9 @@ try {
 
 // ---- cleanup: leave the VMs as found -----------------------------------------------------------
 cleaning = true;
+if (preview) {
+  try { await preview.restoreStore(); } catch (err) { row("c", "store back on main", "FAIL", `${err.message}; run ha store repair ${CFG.app.split("_")[0]} and restart the Supervisor`); }
+}
 if (users) {
   const r = await admin(laneUsers(), { timeoutMs: 3 * 60_000 });
   const kept = Number(r.out.match(/profiles_kept=(\d+)/)?.[1] ?? NaN);
@@ -552,7 +564,7 @@ if (backupSlug) {
     for (let i = 0; i < 60 && !ids; i++) { info = await sup(`/addons/${CFG.app}/info`); if (info.state === "started" && info.version === start.version) ids = await listed().catch(() => undefined); if (!ids) await sleep(3000); }
     ids ??= await listed();
     const sameRegistry = registryHash() === start.registry;
-    const matched = check("c", "HAOS App and credential registry match snapshot", info.state === "started" && info.version === start.version && sameRegistry && JSON.stringify(ids) === JSON.stringify([...start.devices].sort()), `backup ${backupSlug}; App ${info.version} ${info.state}; original device IDs ${ids.length}; registry SHA-256 ${sameRegistry ? "unchanged" : "DIFFERS"} (only lastUsedAtMs excluded)${!sameRegistry && restored?.error ? JSON.stringify(restored.error) : ""}`);
+    const matched = check("c", "HAOS App and credential registry match snapshot", info.state === "started" && info.version === start.version && sameRegistry && JSON.stringify(ids) === JSON.stringify([...start.devices].sort()), `backup ${backupSlug}; App ${info.version} ${info.state}; original device IDs ${ids.length}; registry + TLS key SHA-256 ${sameRegistry ? "unchanged" : "DIFFERS"} (only lastUsedAtMs excluded)${!sameRegistry && restored?.error ? JSON.stringify(restored.error) : ""}`);
     if (matched) {
       await sup(`/backups/${backupSlug}`, "delete");
       const listing = await sup("/backups/info");

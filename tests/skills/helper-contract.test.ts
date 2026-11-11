@@ -99,7 +99,7 @@ describe("helper contract", () => {
       // Suite r101 H1: a create ran in the request's own turn, no preview.
       expect(skillDoc).toContain("4. End the turn with this preview; only the user's reply to it confirms, never the request");
       expect(skillDoc).not.toContain("bound to this exact preview");
-      expect(skillDoc).toContain("Destructive cleanup still requires the one-time code");
+      expect(skillDoc).toContain("Destructive cleanup keeps its full confirmation (the plan's `say`)");
     });
 
     it("documents the two-family helper split", () => {

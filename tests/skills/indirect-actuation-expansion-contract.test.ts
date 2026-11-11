@@ -66,10 +66,10 @@ describe("indirect actuation and tier classification (#513)", () => {
     it("binds the tier to the performed action, not the entity or the service", () => {
       // Entity-scoped wording would make LOCKING a door high-consequence.
       expect(skillDoc).toContain(
-        "take the typed tier — also when a scene, script, or automation run reaches one. Locking, closing, and arming stay ordinary; the CLI's tier wins.",
+        "The CLI rates every action, also what a scene, script, or automation run reaches; relay its `say` and never predict a tier.",
       );
-      expect(contextSkill).toContain("The tier follows the action that ends up performed");
-      expect(contextSkill).toContain("Locking, closing, and arming stay ordinary");
+      expect(contextSkill).toContain("The CLI rates every action, members and consumers included");
+      expect(flat(readFileSync("skills/ha-nova/capability-answer.md", "utf8"))).toContain("Locking, closing, and arming need no extra step.");
     });
 
     it("keeps disruptive services distinct from the access-granting tier", () => {
@@ -77,7 +77,6 @@ describe("indirect actuation and tier classification (#513)", () => {
       // reload (2026-10-17); siren stays disruptive/preview.
       expect(tierRules).toContain('"siren.turn_on": true, "siren.toggle": true');
       expect(tierRules).toContain('service == "homeassistant.restart" || service == "homeassistant.stop"');
-      expect(skillDoc).toContain("`homeassistant.restart`/`stop` and App/host control (`hassio.*`) take the typed tier");
       expect(flat(testRunDoc)).toContain(
         "a deliberate superset of the context skill's high-consequence confirmation tier",
       );

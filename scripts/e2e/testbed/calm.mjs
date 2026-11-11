@@ -17,14 +17,17 @@
 // call stays ordinary beside the cover watchdog, a cover call still asks, a
 // light call or edit that sets off an area, floor, or label trigger asks
 // (MAR-142), and on this real Home Assistant every listener a plan's calls set off is among
-// its consumers. The CLI runs in a new home in .state. Prints PASS/FAIL lines;
-// exits non-zero on any FAIL.
-import { execFileSync } from "node:child_process";
+// its consumers. The CLI runs in a new home in .state. On a gated Relay (0.30,
+// /health gate 1) a typed plan asks the linked phone, not with a code: the
+// lane links the phone lane's fake iPhone (phone.mjs, a fresh Relay) and taps
+// each typed apply there. Prints PASS/FAIL lines; exits non-zero on any FAIL.
+import { execFile, execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { callChecks } from "./calls.mjs";
+import { answered, approve, failures, fixture, link, resetPushes } from "./phone.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const STATE = join(HERE, ".state");
@@ -49,6 +52,7 @@ async function ha(method, path, body) {
   return res.json();
 }
 // The CLI prints its envelope as one JSON line.
+const envelope = (out) => { try { return JSON.parse(out.split("\n").find((l) => l.startsWith("{")) ?? "{}"); } catch { return {}; } };
 function cli(...args) {
   let out;
   try {
@@ -56,9 +60,29 @@ function cli(...args) {
   } catch (err) {
     out = err.stdout ?? "";
   }
-  try { return JSON.parse(out.split("\n").find((l) => l.startsWith("{")) ?? "{}"); } catch { return {}; }
+  return envelope(out);
 }
 const reasons = (d) => (d.reasons ?? []).map((r) => r.code).join(",") || "-";
+const gated = (await (await fetch("http://127.0.0.1:18791/health", { headers: { authorization: `Bearer ${readFileSync(join(STATE, "relay-token"), "utf8").trim()}` } })).json()).data?.gate === 1;
+// A typed plan asks a person: on a gated Relay the linked phone (no code), else a four-digit code.
+const asksPerson = (plan) => plan.tier === "typed" && plan.plan?.confirm === "code" && (gated ? plan.plan.channel === "relay" && plan.plan.code === undefined : /^\d{4}$/.test(plan.plan?.code ?? ""));
+// Applies a plan; a relay plan only after the linked fake phone's tap.
+async function apply(plan) {
+  const args = ["apply", "--plan", plan.plan.id, ...(plan.plan.code ? ["--confirm", plan.plan.code] : [])];
+  if (plan.plan.channel !== "relay") return cli(...args);
+  let out = "";
+  const child = execFile("bash", [join(HERE, "cli.sh"), ...args], { env: { ...process.env, TESTBED_CLI_HOME: HOME } });
+  child.stdout.on("data", (d) => (out += d));
+  const done = new Promise((resolve) => child.on("close", resolve));
+  try {
+    await answered(await approve(60_000));
+  } catch (err) {
+    child.kill();
+    throw err;
+  }
+  await done;
+  return envelope(out);
+}
 
 const OFFICE = "light.office_rgbw_lights";
 const TARGET = "rclane_calm_hall";
@@ -127,6 +151,11 @@ async function loadAutomations(configs) {
 
 let listener;
 try {
+  if (gated) {
+    await fixture();
+    await resetPushes();
+    await link("ios");
+  }
   listener = await holdListener("automation_reloaded");
   const { loaded, ids } = await loadAutomations({ ...SHAPES, [TARGET]: edited(light("light.turn_on")) });
   const events = Object.fromEntries((await ha("GET", "/api/events")).map((e) => [e.event, e.listener_count]));
@@ -148,14 +177,14 @@ try {
 
   for (const [name, target] of [["lock.unlock", "lock.entrance_door"], ["cover.open_cover", "cover.testbed_garage"]]) {
     const plan = planWrite([{ action: name, target: { entity_id: target } }]);
-    check(`an edit that adds ${name} ${target} still asks with a code`, plan.tier === "typed" && plan.plan?.confirm === "code" && /^\d{4}$/.test(plan.plan?.code ?? ""), `tier ${plan.tier ?? plan.error?.code}, reasons ${reasons(plan)}`);
+    check(`an edit that adds ${name} ${target} still asks a person`, asksPerson(plan), `tier ${plan.tier ?? plan.error?.code}, channel ${plan.plan?.channel ?? "-"}, reasons ${reasons(plan)}`);
   }
   const reload = cli("plan", "call", "automation.reload", "--set", `id=${TARGET}`);
-  check("a reload you call is still rated by what it sets off: asks with a code", reload.tier === "typed" && /^\d{4}$/.test(reload.plan?.code ?? ""), `tier ${reload.tier ?? reload.error?.code}, reasons ${reasons(reload)}`);
-  await callChecks({ ha, ws, cli, check, watchdogID: "rclane_home_cover_watchdog", loadAutomations, planWrite });
+  check("a reload you call is still rated by what it sets off: asks a person", asksPerson(reload), `tier ${reload.tier ?? reload.error?.code}, channel ${reload.plan?.channel ?? "-"}, reasons ${reasons(reload)}`);
+  await callChecks({ ha, ws, cli, apply, check, watchdogID: "rclane_home_cover_watchdog", loadAutomations, planWrite });
 } catch (err) {
   check("calm check ran", false, err.message);
 } finally {
   listener?.close();
 }
-process.exit(failed ? 1 : 0);
+process.exit(failed || failures() ? 1 : 0);

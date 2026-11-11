@@ -52,6 +52,9 @@ func rawRelay(t *testing.T, handlers map[string]func(map[string]any) any) (paths
 		for _, c := range calls() {
 			var body map[string]any
 			_ = json.Unmarshal([]byte(c.body), &body)
+			if c.endpoint == "health" { // GET /health: a typed plan reads the gate (gate_client_plan.go)
+				continue
+			}
 			if c.endpoint == "core" || c.endpoint == "ws" {
 				if rawRelayRead(c.endpoint, []byte(c.body)) && !rawPlanOnlyRead(c.endpoint, body) {
 					continue

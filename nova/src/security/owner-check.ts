@@ -1,5 +1,6 @@
 import type { IncomingMessage } from "node:http";
 
+import type { PageKey } from "../http/page-texts.js";
 import type { RelayLogger } from "../http/server.js";
 import { resolveIngressIdentity } from "./ingress-identity.js";
 
@@ -71,4 +72,44 @@ export async function checkOwner(
     name: typeof user.name === "string" ? user.name : "",
     users,
   };
+}
+// The approval view's check (gate spec §3, item 2): any active, non-system
+// administrator except the user the Relay itself signs in as (a tap or click
+// from that user can't be told apart from the Relay). Read fresh each time;
+// a read that fails approves nothing (503).
+// is_active must be true (not merely absent): an approval needs a positive read.
+export function isApprover(user: HaAuthUser, relayUserId: string): boolean {
+  return user.id !== relayUserId && user.is_active === true && user.system_generated !== true && (user.is_owner === true || (user.group_ids ?? []).includes("system-admin"));
+}
+
+// A refusal names its page text (page-texts.ts); the page words it.
+export type ApproverCheckResult = { ok: true; userId: string; name: string } | { ok: false; status: 403 | 503; text: PageKey };
+
+export async function checkApprover(
+  request: IncomingMessage,
+  deps: OwnerCheckDeps & { relayUserId: () => Promise<string> },
+): Promise<ApproverCheckResult> {
+  const identity = resolveIngressIdentity(request);
+  if (!identity.ok) {
+    return { ok: false, status: 403, text: "page.approver_unknown" };
+  }
+  let users: HaAuthUser[];
+  let relayUser: string;
+  try {
+    [users, relayUser] = await Promise.all([deps.fetchAuthUsers(), deps.relayUserId()]);
+  } catch (error) {
+    deps.logger?.warn("approver verification unavailable", { error: error instanceof Error ? error.message : String(error) });
+    return { ok: false, status: 503, text: "page.approver_unavailable" };
+  }
+  const user = users.find((u) => u.id === identity.userId);
+  if (user === undefined || !isApprover(user, "")) {
+    return { ok: false, status: 403, text: "page.approver_not_admin" };
+  }
+  if (typeof relayUser !== "string" || relayUser === "") {
+    return { ok: false, status: 503, text: "page.approver_unavailable" };
+  }
+  if (relayUser === identity.userId) {
+    return { ok: false, status: 403, text: "page.approver_relay_user" };
+  }
+  return { ok: true, userId: identity.userId, name: typeof user.name === "string" ? user.name : "" };
 }

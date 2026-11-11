@@ -41,7 +41,7 @@ func TestBothAskStoppedOnTheComputer(t *testing.T) {
 			var ended os.Signal
 			endBySignal = func(sig os.Signal) { ended = sig }
 			windowAvailable = func() bool { return true }
-			windowRunner = func(ctx context.Context, _, _ string, _ time.Duration) windowAnswer {
+			windowRunner = func(ctx context.Context, _ windowText, _ time.Duration) windowAnswer {
 				if !phoneFirst {
 					p.waitSent()
 					stop()

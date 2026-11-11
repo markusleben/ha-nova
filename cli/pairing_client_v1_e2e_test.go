@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -64,12 +66,37 @@ func TestPairingClientV1EndToEnd(t *testing.T) {
 		t.Fatalf("plain-http functional expected 403, got %d", code)
 	}
 
+	// 2b) the old shared token: the plain port serves pairing only, so every
+	// functional route refuses it with the mark the CLI turns into the way back.
+	for _, route := range []string{"GET /health", "POST /ws", "POST /core", "POST /files", "POST /backups", "POST /supervisor", "POST /gate/v1/ask"} {
+		method, path, _ := strings.Cut(route, " ")
+		req, _ := http.NewRequest(method, bootstrapURL+path, strings.NewReader("{}"))
+		req.Header.Set("authorization", "Bearer old-shared-token")
+		resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if !sharedAccessEnded(resp.StatusCode, resp.Header) {
+			t.Fatalf("%s with the old shared token: %d %v", route, resp.StatusCode, resp.Header)
+		}
+	}
+	if _, err := fetchRelayHealthWithContext(context.Background(), &http.Client{Timeout: 5 * time.Second}, bootstrapURL, "old-shared-token"); !errors.Is(err, errSharedAccessEnded) {
+		t.Fatalf("the CLI health check must name the ended shared access, got %v", err)
+	}
+	if code := plainFunctional(t, bootstrapURL, ""); code != http.StatusUnauthorized {
+		t.Fatalf("plain-http functional without a credential expected 401, got %d", code)
+	}
+
 	// 3) activate + functional over pinned TLS.
 	if err := activateDeviceV1(secureBase, prov.SpkiPin, prov.Credential); err != nil {
 		t.Fatalf("activateDeviceV1: %v", err)
 	}
 	if code := securedFunctional(t, secureBase, prov.SpkiPin, prov.Credential); code != http.StatusOK {
 		t.Fatalf("secured functional expected 200, got %d", code)
+	}
+	if code := securedFunctional(t, secureBase, prov.SpkiPin, "old-shared-token"); code != http.StatusUnauthorized {
+		t.Fatalf("the old shared token over TLS expected 401, got %d", code)
 	}
 
 	// 4) revoke-self, then functional is unauthorized.

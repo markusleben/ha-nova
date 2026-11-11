@@ -24,7 +24,6 @@ function fakeSupervisor(overrides: { ingressPanel?: boolean; infoError?: Error; 
   return {
     getSelfInfo,
     getMappedHostPort: vi.fn(),
-    setOptions: vi.fn(),
     setIngressPanel,
   } as unknown as Parameters<typeof ensureSidebarPanel>[0]["supervisor"] & {
     getSelfInfo: ReturnType<typeof vi.fn>;

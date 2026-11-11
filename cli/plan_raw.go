@@ -213,7 +213,9 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 		if item.Endpoint == "ws" && payload["type"] == "config/device_registry/remove" {
 			n.deviceEntities(payload["device_id"])
 		}
-		level = max(level, e.rawShoppingList(item.Endpoint, payload), e.rawListeners(item.Endpoint, payload))
+		flows := max(e.rawShoppingList(item.Endpoint, payload), e.rawListeners(item.Endpoint, payload))
+		e.markTyped = e.markTyped || why == "skill_typed" && flows < tierTyped
+		level = max(level, flows)
 		entry := rawPlanItem{Endpoint: item.Endpoint, Tier: level.String()}
 		if i < len(copies) {
 			entry.copy = copies[i]
@@ -268,12 +270,12 @@ func rawPlanRefusal(endpoint string, payload map[string]any) error {
 	switch endpoint {
 	case "files":
 		switch action {
-		case "write_file", "delete_file":
+		case "write_file", "delete_file", "restore_file":
 			return nil
-		case "list_dir", "read_file":
+		case "list_dir", "read_file", "list_deleted":
 			return read
 		}
-		return errors.New("a plan writes a file with write_file or deletes one with delete_file")
+		return errors.New("a plan writes a file with write_file, deletes one with delete_file, or puts back a deleted image with restore_file")
 	case "backups":
 		switch action {
 		case "save", "delete", "prune":
@@ -369,10 +371,16 @@ func rawSteps(env *verbEnvelope) (steps []rawPlanItem, copies []string) {
 }
 
 // rawGoal: the phone's verb and object, the step's own for one step.
+// Steps all alike (imports, deletes) keep the question but get their own
+// button ("Import", like the window's question).
 func rawGoal(lang string, env *verbEnvelope) actionGoal {
 	steps, _ := rawSteps(env)
 	if len(steps) == 1 {
 		return steps[0].goal
 	}
-	return actionGoal{raw: "confirm", names: []string{confirmT(lang, "raw.steps", "count", len(steps))}}
+	goal := actionGoal{raw: "confirm", names: []string{confirmT(lang, "raw.steps", "count", len(steps))}}
+	if len(rawRuns(steps)) == 1 {
+		goal.whole, goal.raw, goal.names = upperFirst(goal.text(lang)), steps[0].goal.raw, nil
+	}
+	return goal
 }

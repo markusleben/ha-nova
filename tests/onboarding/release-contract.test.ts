@@ -422,10 +422,15 @@ describe("release contract", () => {
     );
     const orderedMarkers = [
       "Merge the reviewed PR state",
-      "verify-relay-image.sh <reviewed-merge-sha> <relay-version>",
+      "open the App promote PR",
       "npm run vm-lane -- vX.Y.Z-rcN",
+      "`--app-branch chore/app-<app-version>`",
       "Still manual, for the maintainer: the Cloud checklist's accounts lane",
+      "bash scripts/release/verify-app-image.sh <app-version>",
+      "verify-relay-image.sh <promote-merge-sha> <relay-version>",
       "cut the final tag",
+      "bash scripts/release/verify-app-promoted.sh vX.Y.Z <final-sha>",
+      "git tag vX.Y.Z <final-sha>",
     ];
     let previousIndex = -1;
     for (const marker of orderedMarkers) {
@@ -442,6 +447,17 @@ describe("release contract", () => {
     expect(rehearsal).toContain("does not replace the dispatched run");
   });
 
+  it("refuses a final tag whose App code never got its App bump", () => {
+    const metadataJob = releaseWorkflow.slice(
+      releaseWorkflow.indexOf("  verify-release-metadata:"),
+      releaseWorkflow.indexOf("  build-signed-darwin-release-assets:"),
+    );
+    expect(metadataJob).toContain("fetch-depth: 0");
+    expect(metadataJob).toContain(
+      'bash scripts/release/verify-app-promoted.sh "${VERSION_TAG}" "${GITHUB_SHA}"',
+    );
+  });
+
   it("requires a dispatched live e2e run as release evidence", () => {
     // The weekly cron is monitoring, not release evidence: v0.14.0 shipped
     // before the workflow had ever fired. The rehearsal must dispatch it on
@@ -451,8 +467,23 @@ describe("release contract", () => {
       "one green `e2e-disposable-ha.yml` run (dispatched, not the weekly cron) on the commit being tagged",
     );
     const e2e = readFileSync("scripts/e2e/disposable-ha/run.sh", "utf8");
-    expect(e2e).toContain("readwrite roundtrip");
     expect(e2e).toContain("secrets.yaml stays unreachable even with readwrite");
+  });
+
+  it("requires a dispatched test bed run whose gate lane proves the approval", () => {
+    // The disposable-HA run proves the safety check's refusals only; the
+    // approval on the linked phone is proven on the test bed's gate lane.
+    expect(releasing).toContain("gh workflow run testbed-ha-stable.yml");
+    expect(releasing).toContain(
+      "one green `testbed-ha-stable.yml` run (dispatched, not the weekly cron) on the commit being tagged",
+    );
+    const testbed = readFileSync(".github/workflows/testbed-ha-stable.yml", "utf8");
+    expect(testbed).toContain("ref: ${{ github.sha }}");
+    expect(testbed).toContain('TESTBED_FILES: "1"');
+    expect(testbed).toContain("node scripts/e2e/testbed/gate.mjs");
+    expect(testbed).toContain("! grep -q '^WARN'");
+    const gate = readFileSync("scripts/e2e/testbed/gate.mjs", "utf8");
+    expect(gate).toContain("readwrite roundtrip");
   });
 
   it("keeps the Linux real-machine onboarding lane documented for Linux setup changes", () => {

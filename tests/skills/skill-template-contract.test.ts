@@ -329,7 +329,7 @@ describe("skill template v2 contract", () => {
 
   it("opens every mutation-capable Safety section with the canonical Safety Core", () => {
     expect(SAFETY_CORE_BLOCKS.mutation, "SSOT block missing in skill-architecture.md").toContain(
-      "The CLI checks every change.",
+      "The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `\"typed\":true`).",
     );
     for (const name of SUBSKILLS) {
       if (!MUTATION_SKILLS.has(name)) continue;

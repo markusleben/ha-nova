@@ -5,16 +5,15 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  digestSecret,
-  generateCredential,
-} from "../../nova/src/security/device-credential.js";
+import { generateCredential } from "../../nova/src/security/device-credential.js";
 import {
   openDeviceRegistry,
   type DeviceRegistry,
 } from "../../nova/src/security/device-registry.js";
+import { BRIDGE_INSTALL_ID, GATE_INSTALL_ID } from "../../nova/src/security/pairing-metadata.js";
 import {
   CLOUD_DEVICE_UNAUTHORIZED_MESSAGE,
+  PAIRING_REQUIRED_MESSAGE,
   resolveCloudPrincipal,
   resolvePrincipal,
 } from "../../nova/src/security/principal.js";
@@ -76,20 +75,16 @@ describe("principal resolver", () => {
     if (!r.ok) expect(r.status).toBe(401);
   });
 
-  it("resolves the legacy shared token on either transport while it exists", () => {
-    const legacy = "legacy-shared-token-value";
-    registry.importLegacy(digestSecret(legacy), now());
-    expect(resolvePrincipal(auth(legacy), "plain", deps())).toEqual({
-      ok: true,
-      principal: { kind: "legacy" },
-    });
-    expect(resolvePrincipal(auth(legacy), "secure", deps())).toEqual({
-      ok: true,
-      principal: { kind: "legacy" },
-    });
-    // After revoke it no longer resolves.
-    registry.revokeLegacy();
-    expect(resolvePrincipal(auth(legacy), "plain", deps()).ok).toBe(false);
+  it("answers PAIRING_REQUIRED to the old shared token on either transport", () => {
+    const shared = "old-shared-token-value";
+    for (const transport of ["plain", "secure"] as const) {
+      expect(resolvePrincipal(auth(shared), transport, deps())).toEqual({
+        ok: false,
+        status: 401,
+        code: "PAIRING_REQUIRED",
+        message: PAIRING_REQUIRED_MESSAGE,
+      });
+    }
   });
 
   it("rejects missing/malformed authorization (401)", () => {
@@ -113,7 +108,21 @@ describe("principal resolver", () => {
     if (!r.ok) expect(r.status).toBe(401);
   });
 
-  it("resolves Cloud auth only for the bound HA user and never accepts legacy", () => {
+  it("accepts the App's own credentials from loopback only, on no other route", () => {
+    for (const installId of [BRIDGE_INSTALL_ID, GATE_INSTALL_ID]) {
+      const c = generateCredential();
+      registry.createPending({ deviceId: c.deviceId, secretDigest: c.secretDigest, clientInstallId: installId, name: "n", platform: "p", client: "c", createdAtMs: 1 }, now());
+      registry.activate(c.deviceId, now());
+      const internal = installId === BRIDGE_INSTALL_ID ? "chat-bridge" : "gate";
+      expect(resolvePrincipal(auth(c.credential), "secure", deps(), "127.0.0.1")).toEqual({ ok: true, principal: { kind: "device", deviceId: c.deviceId, peer: "127.0.0.1", internal } });
+      expect(resolvePrincipal(auth(c.credential), "secure", deps(), "192.168.1.20")).toMatchObject({ ok: false, status: 401 });
+      expect(registry.bindCloudUser(c.deviceId, c.secretDigest, "user-1", RELAY_ID).ok).toBe(true);
+      const request = { headers: { authorization: auth(c.credential) }, rawHeaders: ["Authorization", auth(c.credential)], socket: { remoteAddress: "172.30.32.2" } } as unknown as IncomingMessage;
+      expect(resolveCloudPrincipal(request, "user-1", RELAY_ID, deps())).toMatchObject({ ok: false, status: 401 });
+    }
+  });
+
+  it("resolves Cloud auth only for the bound HA user and never accepts the old shared token", () => {
     const credential = activeDevice();
     registry.bindCloudUser(
       credential.deviceId,
@@ -155,9 +164,8 @@ describe("principal resolver", () => {
       ).ok,
     ).toBe(false);
 
-    registry.importLegacy(digestSecret("legacy"), now());
     expect(
-      resolveCloudPrincipal(request("legacy"), "user-1", RELAY_ID, deps()).ok,
+      resolveCloudPrincipal(request("old-shared-token"), "user-1", RELAY_ID, deps()).ok,
     ).toBe(false);
   });
 

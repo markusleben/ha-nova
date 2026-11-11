@@ -96,7 +96,7 @@ The context skill (`ha-nova`) stays the stable entrypoint; sub-skills remain ind
 ## Execution Model
 
 Every skill runs inline in the main thread. Deterministic multi-call work —
-target resolution, tiering, drift checks, writes, reloads, read-back
+target resolution, tiering, drift checks, writes, read-back and load
 verification — lives in the typed CLI verbs (`ha-nova find|get|plan|call|apply`),
 not in agent templates.
 
@@ -105,7 +105,7 @@ Current mapping:
 | Skill | Execution | Why |
 |-------|-------|-----|
 | read | inline | 1-2 calls, direct output |
-| write | inline + CLI | `find`/`get` resolve; `plan write|delete|revert` + `apply` write, reload, and verify the read-back |
+| write | inline + CLI | `find`/`get` resolve; `plan write|delete|revert` + `apply` write, wait until Home Assistant loaded it, and verify the read-back |
 | helper | inline | response-driven relay flows, direct preview/confirm loop, no agent-only normalization requirement |
 | integration-setup | inline | response-driven config flows with direct preview/confirm and HA UI handoff for secrets/external steps |
 | dashboard | inline | read → merge → preview → full-save → readback verify, all user-facing |
@@ -153,9 +153,11 @@ Current mapping:
    diff; full YAML only when asked. Pre-preview wording authorizes draft
    and preview only; a changed draft needs a new plan.
 3. Apply + Verify — `ha-nova apply --plan <id>` re-plans (exit 2 on drift),
-   takes the pre-delete config snapshot, sends the body byte-exactly once,
-   reloads, and verifies the read-back (content and the order of
-   `variables`/`trigger_variables`/`fields`), the reload, and the live entity.
+   takes the pre-delete config snapshot, sends the body byte-exactly once
+   (no reload of its own after a save: Home Assistant reloads; a delete
+   reloads), and verifies the read-back (content and the order of
+   `variables`/`trigger_variables`/`fields`), that Home Assistant loaded
+   it (read-only), and the live entity.
 4. Review (inline, never `ha-nova:review`) — post-write checks, collision
    scan; findings are advisory. An update lands on the per-server undo stack
    automatically (`revert` → `plan revert`); creates clean up through the
@@ -639,10 +641,10 @@ Scope → Bootstrap (once per session) → Relay Contract → [domain] → Flow 
 
 ### Safety Core (canonical text)
 
-Every mutation-capable sub-skill opens its `## Safety` section with this block, byte-identical (linter-enforced; the linter extracts this fenced block as the SSOT). It carries the bootstrap-independent guarantees — preview binding, delete one-time-code gating, and the fallback write gate — so a bare agent that never auto-loads the context skill still gets them:
+Every mutation-capable sub-skill opens its `## Safety` section with this block, byte-identical (linter-enforced; the linter extracts this fenced block as the SSOT). It carries the bootstrap-independent guarantees — preview binding, the CLI-decided confirmation (a person's own for deletes and high-consequence actions), and the fallback write gate — so a bare agent that never auto-loads the context skill still gets them:
 
 ```text
-- The CLI checks every change. Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none` (everyday actions, undoable edits); everything else waits for the user's confirmation of the shown preview. Unlocking or opening a lock, entry door, gate, or garage, disarming (also through a scene or script), and deletes or other destructive operations need the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
+- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `"typed":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
 - Relay a plan's `say` in full, localized; never drop or shorten sentences.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.

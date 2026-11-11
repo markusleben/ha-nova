@@ -14,6 +14,9 @@ func verifySetupConnection(reader *bufio.Reader, out io.Writer, cfg runtimeConfi
 		if ok {
 			return "", true, nil
 		}
+		if issue == setupIssueSharedAccessEnded { // no repair here: pairing again is the way
+			return issue, false, nil
+		}
 		lastIssue = issue
 		// Connection and classified credential failures get the repair menu on
 		// first runs too. A wrong address or rejected inbound/upstream token
@@ -78,6 +81,10 @@ func verifySetupConnectionOnce(out io.Writer, cfg runtimeConfig, token string, f
 	}
 
 	readiness := checkRelayReadinessWithProbes(cfg.RelayBaseURL, token, fetchRelayHealthForSetup, probeRelayWSPingForSetup, forceWSPing)
+	if errors.Is(readiness.HealthErr, errSharedAccessEnded) {
+		renderSetupErrorLine(out, "%s", sharedAccessEndedFor(cfg, activeServerProfile()))
+		return readiness, setupIssueSharedAccessEnded, false
+	}
 	if readiness.HealthErr != nil {
 		renderSetupErrorLine(out, "HA NOVA couldn't check the NOVA App. Details: %s", readiness.HealthErr)
 		fmt.Fprintln(out, `  Check that the NOVA App is running, and that the saved key matches its "Relay Auth Token".`)

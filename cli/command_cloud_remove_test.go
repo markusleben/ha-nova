@@ -385,7 +385,7 @@ func TestCloudRemoveSaysWhetherSharedAccessStillWorks(t *testing.T) {
 			exit, output := captureCommandOutput(t, func() int {
 				return runCloudRemoveCommand(paths, []string{"--yes"})
 			})
-			shared := strings.Contains(output, "still works here with the old shared access")
+			shared := strings.Contains(output, "still uses the old shared access")
 			if exit != 0 || shared != sharedToken || strings.Contains(output, "needs a local pairing") == sharedToken {
 				t.Fatalf("exit=%d output=%s", exit, output)
 			}

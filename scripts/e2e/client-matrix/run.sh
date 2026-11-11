@@ -14,6 +14,7 @@ HERE="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 TESTBED="$ROOT/scripts/e2e/testbed"
 FROM="" TO="" LANES="" KEEP=0 STARTED_TESTBED=0 SERVER_PID="" REPORTED=0
+APP_C="ha-nova-client-matrix-app-$$" APP_PORT=18795
 
 usage() { sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 die() { echo "client-matrix: $*" >&2; exit 1; }
@@ -61,6 +62,7 @@ cleanup() {
   local rc=$?
   ((rc == 0 || REPORTED)) || echo "client-matrix: aborted (exit $rc); work dir: $WORK" >&2
   [[ -n "$SERVER_PID" ]] && kill "$SERVER_PID" 2>/dev/null || true
+  docker rm -f "$APP_C" >/dev/null 2>&1 || true
   if ((STARTED_TESTBED)); then bash "$TESTBED/down.sh" >/dev/null 2>&1 || echo "client-matrix: testbed down failed" >&2; fi
 }
 trap cleanup EXIT
@@ -90,6 +92,22 @@ RELAY_TOKEN="$(cat "$STATE/relay-token")" || die "no relay token in $STATE"
 curl -fsS -m 120 -H "Authorization: Bearer $RELAY_TOKEN" http://127.0.0.1:18791/health | grep -q '"ok":true' ||
   die "test bed relay on 127.0.0.1:18791 is not healthy"
 
+# An App that no longer takes the old shared token (#905): the bed's own Relay
+# image in app mode (SUPERVISOR_TOKEN present), on the bed's network, no
+# Supervisor. Scenario A points its CLI here to show the way back to pairing,
+# before and after the update. Removed at exit.
+docker run -d --rm --name "$APP_C" --user 0:0 \
+  --network "$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}' ha-nova-testbed-relay)" \
+  -e SUPERVISOR_TOKEN="$(tr -d '[:space:]' <"$STATE/ha-llat")" -e HA_URL=http://homeassistant:8123 \
+  -p "127.0.0.1:$APP_PORT:8791" "$(docker inspect -f '{{.Config.Image}}' ha-nova-testbed-relay)" >/dev/null ||
+  die "could not start the app-mode Relay"
+for i in $(seq 1 30); do
+  curl -s -D - -o /dev/null -H "Authorization: Bearer $RELAY_TOKEN" "http://127.0.0.1:$APP_PORT/health" 2>/dev/null |
+    grep -qi '^x-ha-nova-auth: pairing-required' && break
+  ((i < 30)) || die "the app-mode Relay on 127.0.0.1:$APP_PORT never refused the shared token with the re-pair mark"
+  sleep 2
+done
+
 # Linux lane addressing: Docker Desktop reaches host loopback via
 # host.docker.internal; a native Linux host shares its network instead.
 DOCKER_NET=(--add-host=host.docker.internal:host-gateway) CHOST=host.docker.internal
@@ -116,6 +134,7 @@ run_macos() {
   if command -v claude >/dev/null; then claude="$(cd -P "$(dirname "$(command -v claude)")" && pwd -P)/$(basename "$(command -v claude)")"; fi
   LANE=macos FROM="$FROM" TO="$TO" TO_VERSION="$TO_VERSION" RELAY_TOKEN="$RELAY_TOKEN" \
     BUNDLE_BASE="http://127.0.0.1:$PORT" RELAY_URL=http://127.0.0.1:18791 HA_URL=http://127.0.0.1:18123 \
+    APP_RELAY_URL="http://127.0.0.1:$APP_PORT" \
     WORK="$WORK" RESULTS="$RESULTS" CLAUDE_BIN="$claude" bash "$HERE/lane.sh" ||
     echo "macos|-|lane|FAIL|lane.sh crashed (exit $?); rows above may be partial" >>"$RESULTS"
 }
@@ -126,6 +145,7 @@ run_linux() {
   RELAY_TOKEN="$RELAY_TOKEN" docker run --rm "${DOCKER_NET[@]}" \
     -e FROM="$FROM" -e TO="$TO" -e TO_VERSION="$TO_VERSION" -e RELAY_TOKEN \
     -e BUNDLE_BASE="http://$CHOST:$PORT" -e RELAY_URL="http://$CHOST:18791" -e HA_URL="http://$CHOST:18123" \
+    -e APP_RELAY_URL="http://$CHOST:$APP_PORT" \
     -e HOST_IDS="$(id -u):$(id -g)" \
     -v "$HERE:/harness:ro" -v "$WORK/linux:/out" ubuntu:24.04 bash -c '
       set -e
@@ -133,7 +153,7 @@ run_linux() {
       useradd -m tester && mkdir -p /work && chown tester /work /out
       runuser -u tester -- env LANE=linux WORK=/work RESULTS=/out/results.txt \
         FROM="$FROM" TO="$TO" TO_VERSION="$TO_VERSION" RELAY_TOKEN="$RELAY_TOKEN" BUNDLE_BASE="$BUNDLE_BASE" \
-        RELAY_URL="$RELAY_URL" HA_URL="$HA_URL" bash /harness/lane.sh && rc=0 || rc=$?
+        RELAY_URL="$RELAY_URL" HA_URL="$HA_URL" APP_RELAY_URL="$APP_RELAY_URL" bash /harness/lane.sh && rc=0 || rc=$?
       echo "$rc" >/out/lane-exit
       for d in /work/*/logs; do mkdir -p "/out/${d#/work/}"; cp -R "$d/." "/out/${d#/work/}/"; done
       chown -R "$HOST_IDS" /out' >"$WORK/linux/container.log" 2>&1 ||

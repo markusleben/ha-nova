@@ -62,12 +62,12 @@ func (v humanVote) decisive() bool {
 func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 	lang := textLang(a.plan)
 	probe := phoneCanListen(a.s, a.deadline.Add(-windowMinWait))
-	message := windowMessage(lang, text, probe == phoneIgnored)
+	asked := planWindow(lang, text, probe == phoneIgnored, a.goal.button(lang))
 	ctx, cancel := context.WithDeadline(planAsks, a.deadline)
 	defer cancel()
 	votes := make(chan humanVote, 2) // the first vote received decides: the claim
 	go func() {
-		answer, ended := askWindowUntilSignal(ctx, message, a.plan.Lang, time.Until(a.deadline))
+		answer, ended := askWindowUntilSignal(ctx, asked, time.Until(a.deadline))
 		votes <- humanVote{window: answer, ended: ended}
 	}()
 	go func() {
@@ -201,8 +201,14 @@ func linkedPlatform(paths runtimePaths) string {
 
 // phoneLinkedHere: a phone is linked on this computer (for any Home
 // Assistant: a local read for a window plan's `say`; apply asks the phone
-// only where discovery finds it ready).
-func phoneLinkedHere(paths runtimePaths) bool {
+// only where discovery finds it ready), and it may ask it (phoneDeaf).
+func phoneLinkedHere(s *relaySession) bool {
+	return !s.phoneDeaf() && phoneLinkedOn(s.paths)
+}
+
+// phoneLinkedOn: a phone is linked on this computer, whether or not it can
+// confirm from here (a battery reminder only notifies it).
+func phoneLinkedOn(paths runtimePaths) bool {
 	if activeServerIsDemo() {
 		return false // a link belongs to a real home; the demo house never has one
 	}

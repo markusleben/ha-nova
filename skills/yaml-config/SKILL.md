@@ -1,6 +1,6 @@
 ---
 name: yaml-config
-description: Use when creating or editing Home Assistant configuration that only exists as YAML files — template sensors beyond the helper UI, REST and command-line sensors, packages, and themes — through HA NOVA Relay's opt-in file access.
+description: Use when creating or editing Home Assistant configuration that only exists as YAML files — template sensors beyond the helper UI, REST and command-line sensors, packages, and themes, plus images and videos in /config/www — through HA NOVA Relay's opt-in file access.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -21,8 +21,6 @@ Not in scope: anything with an API — config-entry template helpers (`ha-nova:h
 ## Bootstrap (once per session)
 
 Read and follow `../ha-nova/session-bootstrap.md`.
-Verify relay CLI: `ha-nova relay health`
-If this fails: `ha-nova setup`
 
 This skill needs a Relay with file access AND file access enabled. Both are the user's decision, not yours:
 - Probe once: `ha-nova relay files --data-file <payload-file>` with `{"action":"list_dir","path":"/config"}`.
@@ -34,7 +32,7 @@ This skill needs a Relay with file access AND file access enabled. Both are the 
 
 `ha-nova call` returns the preview: confirm it once, then `ha-nova apply --plan <id>`.
 
-- `ha-nova relay files --data-file <payload-file>` — reads: `list_dir`, `read_file`. `write_file` (`content`, `backup` defaults to true) and `delete_file` only through `ha-nova plan raw`, then `ha-nova apply`.
+- `ha-nova relay files --data-file <payload-file>` — reads: `list_dir`, `read_file`. Images and videos in `/config/www`: `www-media.md`. `write_file` (`content`, `backup` defaults to true) and `delete_file` only through `ha-nova plan raw`, then `ha-nova apply`.
 - `ha-nova relay core --method POST --path /api/config/core/check_config` — validate the configuration BEFORE reloading.
 - `ha-nova call <domain>.reload` — apply the reload from Flow step 5 (`template.reload`, `frontend.reload_themes`, ...). `<domain>.reload` is typed (one-time code); `frontend.reload_themes` is not.
 - `ha-nova relay core --method GET --path /api/states/<entity_id>` — verify the entity actually exists afterwards.
@@ -67,7 +65,7 @@ Never skip a step.
 
 - Keep HA NOVA's own additions in `/config/ha_nova/` and include them from `configuration.yaml` — a small, reviewable footprint the user can delete in one go. Add the `!include` line only once, and show it before writing it.
 - Never touch `secrets.yaml`, `.storage/`, or the recorder database: the relay refuses them anyway, and needing them means the approach is wrong.
-- Code is not configuration: the relay refuses `custom_components/`, `python_scripts/`, `www/` and writes only `.yaml`/`.yml`/`.conf`/`.json`/`.txt`/`.md` — never offer to place scripts there.
+- Code is not configuration: the relay never writes in `custom_components/`, `python_scripts/`, `www/`; it writes only `.yaml`/`.yml`/`.conf`/`.json`/`.txt`/`.md` — never offer to place scripts there.
 
 ## File-Change Preview
 
@@ -109,7 +107,7 @@ Previews: the File-Change Preview; results: the Result Card. Report which item a
 
 ## Safety
 
-- The CLI checks every change. Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none` (everyday actions, undoable edits); everything else waits for the user's confirmation of the shown preview. Unlocking or opening a lock, entry door, gate, or garage, disarming (also through a scene or script), and deletes or other destructive operations need the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
+- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `"typed":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
 - Relay a plan's `say` in full, localized; never drop or shorten sentences.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
@@ -126,6 +124,6 @@ Previews: the File-Change Preview; results: the Result Card. Report which item a
 
 - One file per operation.
 - Never write a file without a preceding read and a shown File-Change Preview.
-- A user-requested `delete_file` is a `plan raw` item AND captures the auto config snapshot of the file first (it has no `.bak`; `../ha-nova/config-snapshots.md`).
+- A user-requested `delete_file` is a `plan raw` item AND captures the auto config snapshot first (no `.bak`; not in `/config/www`; `../ha-nova/config-snapshots.md`).
 - Never claim success from a reload alone — the entity must exist in `/api/states`.
 - Do not add `!include` lines that already exist, and never rewrite `configuration.yaml` wholesale to add one.

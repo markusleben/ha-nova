@@ -1,12 +1,19 @@
 name: Test bed vs HA stable
 
 # Boots the seeded test bed (scripts/e2e/testbed) on the CURRENT stable Home
-# Assistant and runs verify.sh, with the phone lane (TESTBED_PHONE=1: push
-# payloads per platform through fake Companion phones). Outcomes:
+# Assistant with file access (TESTBED_FILES=1) and runs verify.sh with the
+# phone lane (TESTBED_PHONE=1: push payloads per platform through fake
+# Companion phones), then the gate lane (gate.mjs: a typed write, delete, and
+# unlock run only after the phone's approval; www-media.mjs: a picture in
+# /config/www deleted and put back after the phone's tap, community refused,
+# the copies' limit). A WARN row in either lane
+# fails the run: a skipped part is no evidence. Outcomes, on the default branch:
 #   - stable == pin, green          -> nothing to do
 #   - stable != pin, green          -> open/update the pin-bump PR
 #   - red (any version)             -> open/update the early-warning issue
-# Scheduled evidence, not a merge gate (like e2e-disposable-ha.yml).
+# A dispatch on any ref tests exactly that commit; on another branch a red run
+# just fails. Not a merge gate, but release evidence: docs/releasing.md needs
+# one green dispatch on the commit being tagged (like e2e-disposable-ha.yml).
 #
 # Schedule: HA ships the monthly release on the first Wednesday and patch
 # releases (.1, .2, ...) on the following Fridays; Tuesday morning picks up the
@@ -27,18 +34,18 @@ concurrency:
 jobs:
   testbed:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     outputs:
       stable: ${{ steps.versions.outputs.stable }}
       pin: ${{ steps.versions.outputs.pin }}
       verified: ${{ steps.verify.outcome == 'success' }}
       log_tail: ${{ steps.tail.outputs.log_tail }}
     steps:
-      # Always the default branch: a dispatch on another ref must not leak its
-      # changes into the bump PR.
+      # The dispatched commit (the schedule: the default branch's). The bump PR
+      # and the issue come only from the default branch (their own checkout).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -70,9 +77,13 @@ jobs:
         env:
           TESTBED_HA_IMAGE: homeassistant/home-assistant:${{ steps.versions.outputs.stable }}
           TESTBED_PHONE: "1"
+          TESTBED_FILES: "1"
         run: |
           set -o pipefail
-          { bash scripts/e2e/testbed/up.sh && bash scripts/e2e/testbed/verify.sh; } 2>&1 | tee "$RUNNER_TEMP/testbed.log"
+          { bash scripts/e2e/testbed/up.sh && bash scripts/e2e/testbed/verify.sh \
+            && node scripts/e2e/testbed/gate.mjs | tee "$RUNNER_TEMP/gate.log" \
+            && node scripts/e2e/testbed/www-media.mjs | tee -a "$RUNNER_TEMP/gate.log" \
+            && ! grep -q '^WARN' "$RUNNER_TEMP/gate.log"; } 2>&1 | tee "$RUNNER_TEMP/testbed.log"
 
       - name: Keep the log tail
         id: tail
@@ -85,9 +96,17 @@ jobs:
         if: always()
         run: bash scripts/e2e/testbed/down.sh
 
+      - name: Fail a red run off the default branch
+        if: steps.verify.outcome != 'success' && github.ref_name != github.event.repository.default_branch
+        env:
+          REF: ${{ github.ref_name }}
+        run: |
+          echo "::error::test bed or gate lane failed on $REF"
+          exit 1
+
   bump-pin:
     needs: testbed
-    if: needs.testbed.outputs.verified == 'true' && needs.testbed.outputs.stable != needs.testbed.outputs.pin
+    if: github.ref_name == github.event.repository.default_branch && needs.testbed.outputs.verified == 'true' && needs.testbed.outputs.stable != needs.testbed.outputs.pin
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -136,7 +155,7 @@ jobs:
 
   report-failure:
     needs: testbed
-    if: needs.testbed.result == 'success' && needs.testbed.outputs.verified != 'true'
+    if: github.ref_name == github.event.repository.default_branch && needs.testbed.result == 'success' && needs.testbed.outputs.verified != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

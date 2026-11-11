@@ -98,7 +98,7 @@ func rawStepKind(endpoint string, payload map[string]any) (owner string, sceneOr
 	case endpoint == "ws" && (wsType == "config/device_registry/remove" || wsType == "config/entity_registry/update" && (renames || disables) ||
 		wsType == "config/device_registry/update" && disables):
 		owner = "organize"
-	case endpoint == "files" && payload["action"] == "delete_file": // a new file's rollback too (rawYAMLCheck, fileKept)
+	case endpoint == "files" && payload["action"] == "delete_file" && !wwwFile(fmt.Sprint(payload["path"])): // a new file's rollback too (rawYAMLCheck, fileKept); www: the Relay keeps the copy
 		owner = "yaml-config"
 	}
 	return owner, helper || scene

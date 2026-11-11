@@ -25,8 +25,6 @@ Home Assistant or Relay-Ready task in this session.
 
 Relay health is needed only when executing experimental relay calls, not for
 Roadmap/External guidance.
-Verify relay CLI: `ha-nova relay health`
-If this fails: `ha-nova setup`
 
 ## Relay Contract
 
@@ -205,7 +203,7 @@ Every experimental call result carries the plain caution line where required and
 
 ## Safety
 
-- The CLI checks every change. Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none` (everyday actions, undoable edits); everything else waits for the user's confirmation of the shown preview. Unlocking or opening a lock, entry door, gate, or garage, disarming (also through a scene or script), and deletes or other destructive operations need the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
+- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `"typed":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
 - Relay a plan's `say` in full, localized; never drop or shorten sentences.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.

@@ -79,17 +79,49 @@ echo ""
 # Home Assistant's users with the rollback guard, each listed user's phone with tokens bound to that user,
 # a removed user's link dropped, the phone's own button quoted, and the recent changes, with its review
 # fixes (a re-added user's old link dropped before the save, removals with an unreadable links file,
-# turned-off users the next save clears, one way back on a listed user's phone panel): about 11830.
+# turned-off users the next save clears, one way back on a listed user's phone panel): about 11830;
+# and to 12300 for the Relay safety check, layer 3 (docs/work/2026-11-03-relay-typed-gate-spec.md):
+# the `ha-nova gate` worker child and its owner-only socket client with bounded answers, the socket peer on the principal, the App's
+# own credentials from loopback only, the worker's internal principal and its three allowances, and
+# the gate with redaction in front of every device-facing handler on all three App listeners and the
+# standalone container's one (its shared token a legacy principal, the worker's own token), and the
+# credential checked again before forwarding: about 12254;
+# and to 12650 for layer 4b: asks and grants in memory (one open ask per device, three minutes; a
+# grant of the asked bytes' digests, each usable once by that device for two minutes), the ask route
+# on the App's functional listeners, and the grant checked before a typed request is forwarded: about 12565;
+# and to 12800 for layer 4c: the device's linked phone in the registry, the phone asked through the
+# worker for each ask and hung up when the ask ends, 10 asks an hour per device, and the phone paused
+# for 15 minutes after three asks in a row end cancelled or unanswered: about 12766;
+# and to 12920 for layer 4d: the phone link route (POST /gate/v1/phone, a link ask under the same
+# limits that sets the link only after the taps the worker asks for) and the registry's
+# compare-and-set write of a device's link: about 12888;
+# and to 13020 for layer 4e: the standalone container's asks and phone link (the same ask
+# routes, its one link in /data/gate-phone.json read never through a link, and /files refusing
+# the Relay's data folder by identity, so a bind mount can't show it under another name): about 13008;
+# and to 13320 for layer 5: the approval view (any active, non-system administrator except the
+# Relay's own user approves or cancels, each button single-use and bound to that person and ask,
+# never framed), the owner page's "Waiting for your OK" and paused devices, the per-asker limits
+# moved to their own file, and /health's gate flag: about 13295;
+# and to 13400 for the gate tidy-up before landing: the two children's shared supervision
+# (supervise-child.ts), the ask table and grants split out of gate-asks.ts, and the registry
+# facades out of app-mode.ts, each new file's imports and interfaces, no new behavior: about 13384;
+# and to 13500 for the approval page's words from cli/confirm_strings.*.json (page-texts.ts,
+# the worker's /texts, every page literal replaced by a catalog key, kept a minute per name): about 13491;
+# and to 13520 for the ChatGPT refresh note (#923): the bridge's GET /control/v1/tools read and
+# the NOVA page's dated note for 30 days after HA NOVA's tools changed: about 13512.
+# and to 13940 for media files in /config/www (MAR-128): listing it, deleting a picture only
+# after its exact bytes are kept outside www (files-www.ts: the copy store, its quota, lock, and
+# put-back), restoring only that copy, and community refused by identity: about 13922.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 11850 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–11850 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 13940 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–13940 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–11850 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–13940 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──
@@ -226,9 +258,12 @@ done
 
 # ── 9. Route count — verify relay stays minimal ──
 echo "[9] Relay route count"
+# The standalone listener's routes. 7 until layer 4e, then 9: the two ask routes
+# (POST /gate/v1/ask, POST /gate/v1/phone) without which a standalone container
+# could never approve a typed request; the App's listeners have them already.
 ROUTE_COUNT=$(grep -c "router.register" "$REPO_ROOT/nova/src/index.ts" 2>/dev/null || true)
-if (( ROUTE_COUNT <= 7 )); then
-  pass "Relay has ${ROUTE_COUNT} routes (≤7 — still minimal)"
+if (( ROUTE_COUNT <= 9 )); then
+  pass "Relay has ${ROUTE_COUNT} routes (≤9 — still minimal)"
 else
   fail "Relay has ${ROUTE_COUNT} routes — growing beyond 'minimal'. Review architecture claims."
 fi

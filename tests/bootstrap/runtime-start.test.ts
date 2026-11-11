@@ -1,6 +1,17 @@
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { GateWorker } from "../../nova/src/runtime/gate-worker.js";
 import { bootstrapRuntime, startRelay } from "../../nova/src/runtime/start.js";
+
+// A worker that passes everything and redacts nothing: these tests cover the
+// runtime wiring; the safety check has its own (tests/http/gate.test.ts).
+const passingGate: GateWorker = {
+  start: () => {},
+  restart: () => {},
+  check: async () => ({ verdict: "pass", kind: "read" }),
+  redact: async (_endpoint, _request, response) => response,
+  texts: async () => null,
+};
 
 describe("runtime bootstrap", () => {
   const servers: Array<ReturnType<typeof bootstrapRuntime>["app"]["server"]> =
@@ -108,6 +119,7 @@ describe("runtime bootstrap", () => {
         snapshotDir: "/tmp/nova-snapshots-test",
       }),
       readAppOptions: () => ({}),
+      createGate: () => passingGate,
       createWsClient: () => ({
         isConnected: () => true,
         getConnectionStatus: () =>
@@ -138,6 +150,7 @@ describe("runtime bootstrap", () => {
         uptime_s: expect.any(Number),
         file_access: "off",
         snapshots: { files: 0, bytes: 0 },
+        gate: 1,
       },
     });
 
@@ -178,6 +191,7 @@ describe("runtime bootstrap", () => {
         snapshotDir: "/tmp/nova-snapshots-test",
       }),
       readAppOptions: () => ({}),
+      createGate: () => passingGate,
       createWsClient: () => ({
         isConnected: () => true,
         getConnectionStatus: () =>
@@ -263,6 +277,7 @@ describe("runtime bootstrap", () => {
         snapshotDir: "/tmp/nova-snapshots-test",
       }),
       readAppOptions: () => ({}),
+      createGate: () => passingGate,
       createWsClient: () => ({
         isConnected: () => true,
         getConnectionStatus: () =>

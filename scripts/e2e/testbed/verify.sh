@@ -41,6 +41,10 @@ expect() {
   fi
 }
 reasons='d.reasons.map(r => r.code)'
+# A gated Relay (0.30, /health gate 1) asks the linked phone for every typed
+# plan: channel relay, no code, no window.
+gated=0
+curl -fsS -H "Authorization: Bearer $(cat "$STATE/relay-token")" http://127.0.0.1:18791/health | grep -q '"gate":1' && gated=1
 
 echo "--- resolution"
 expect 'find "Leselampe" resolves light.bed_light by alias' 0 \
@@ -65,8 +69,9 @@ expect 'device_class override (kitchen_window -> shutter) makes open ordinary' 0
   "d.tier === 'ordinary'" -- plan call cover.open_cover cover.kitchen_window
 # Where this computer can open a confirmation window (a desktop session), the
 # window asks and no code is shown; elsewhere the four-digit code ends `say`.
-expect 'registry-less demo lock unlock is typed: the window asks, else a four-digit one-time code' 3 \
-  "d.tier === 'typed' && $reasons.includes('ACCESS_LOCK') && $reasons.includes('UNREGISTERED_ACTUATOR') && (d.plan.channel === 'window' ? d.plan.code === undefined && d.say.endsWith('Confirm in the window on this computer.') : /^[0-9]{4}$/.test(d.plan.code) && d.say.endsWith('\n\nTo go ahead, type this code:  \n**' + d.plan.code + '**'))" -- plan call lock.unlock lock.front_door
+# On a gated Relay the linked phone or Home Assistant asks.
+expect 'registry-less demo lock unlock is typed: the Relay, else the window, else a four-digit one-time code asks' 3 \
+  "d.tier === 'typed' && $reasons.includes('ACCESS_LOCK') && $reasons.includes('UNREGISTERED_ACTUATOR') && ($gated ? d.plan.channel === 'relay' && d.plan.code === undefined && d.say.includes('Confirm on your linked phone or in Home Assistant (NOVA).') : d.plan.channel === 'window' ? d.plan.code === undefined && d.say.endsWith('Confirm in the window on this computer.') : /^[0-9]{4}$/.test(d.plan.code) && d.say.endsWith('\n\nTo go ahead, type this code:  \n**' + d.plan.code + '**'))" -- plan call lock.unlock lock.front_door
 expect '"Plug factory reset" press is typed (DESTRUCTIVE_BUTTON)' 3 \
   "d.tier === 'typed' && $reasons.includes('DESTRUCTIVE_BUTTON')" -- plan call button.press button.plug_factory_reset
 expect 'restart-class button (demo, non-user-authored) press is preview' 3 \
@@ -107,8 +112,8 @@ EOF
 expect 'plan write --create (ordinary draft) is preview' 3 \
   "d.tier === 'preview' && $reasons.includes('CONFIG_WRITE') && d.config.op === 'write'" \
   -- plan write --domain automation --create --file "$TMP/create.json"
-expect 'plan write of a draft that unlocks a door is typed with a code' 3 \
-  "d.tier === 'typed' && d.plan.confirm === 'code' && $reasons.includes('ACCESS_LOCK')" \
+expect 'plan write of a draft that unlocks a door is typed (a code, or the Relay asks)' 3 \
+  "d.tier === 'typed' && d.plan.confirm === 'code' && $reasons.includes('ACCESS_LOCK') && ($gated ? d.plan.channel === 'relay' && d.plan.code === undefined : true)" \
   -- plan write --domain automation --create --file "$TMP/unlock.json"
 # An edit HA NOVA can put back runs without a preview (#1053): ordinary, exit 0.
 expect 'plan write update keeps ordered variables (base before brightness_pct)' 0 \
@@ -136,10 +141,10 @@ echo "--- reads"
 expect 'history of a light is readable' 0 "d.status === 'ok'" -- history light.kitchen_lights --since 1h
 
 echo "--- Relay refusals (a Relay 403 names its own code, never a sign-in problem)"
-printf '%s' '[{"endpoint":"files","payload":{"action":"delete_file","path":"/config/www/mailbox/latest.jpg"}}]' > "$TMP/delete-www.json"
+printf '%s' '[{"endpoint":"files","payload":{"action":"delete_file","path":"/config/custom_components/mailbox/camera.py"}}]' > "$TMP/delete-www.json"
 if curl -fsS -H "Authorization: Bearer $(cat "$STATE/relay-token")" http://127.0.0.1:18791/health | grep -q '"file_access":"readwrite"'; then
-  # TESTBED_FILES=1 (the rc lane's bed): file access on, but www is never served.
-  expect 'a file delete in www the Relay refuses (file access on) names FILE_PATH_DENIED' 4 \
+  # TESTBED_FILES=1 (the rc lane's bed): file access on, but custom_components is never served.
+  expect 'a file delete in custom_components the Relay refuses (file access on) names FILE_PATH_DENIED' 4 \
     "d.error.code === 'REFUSED' && d.error.message.includes('FILE_PATH_DENIED') && !/credential|ha-nova setup/.test(d.error.message + ' ' + d.error.next)" \
     -- plan raw --file "$TMP/delete-www.json"
 else

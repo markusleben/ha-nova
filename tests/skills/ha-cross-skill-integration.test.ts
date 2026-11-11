@@ -15,7 +15,7 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("../review/checks.md");
     expect(writeSkill).not.toContain("../review/SKILL.md");
     expect(writeSkill).toContain("full-replacement merge (base=current, overlay=user changes)");
-    expect(writeSkill).toContain("delete=one-time code — the plan's CLI-minted `plan.code`");
+    expect(writeSkill).toContain("6. Confirmation: the CLI decides — `plan.confirm` none → apply; natural → show the preview and wait for the user's reply; code → follow `say`/`next_step`");
     expect(writeSkill).toContain("Changes slot");
     // The full config is opt-in ("only when asked"), never a `show yaml` token.
     expect(writeSkill).toContain("the full config only when asked");
@@ -175,7 +175,7 @@ describe("ha cross-skill integration", () => {
     // The CLI maps the config id to the registry unique_id (never the slug)
     // and requires a live entity for `verified`.
     expect(configApply).toContain("row.Platform == domain && string(row.UniqueID) == configID");
-    expect(configApply).toContain('row.Expect = "read-back equals the plan, reload ok, entity present"');
+    expect(configApply).toContain('row.Expect = "read-back equals the plan, loaded by Home Assistant, entity present"');
 
     expect(writeSkill).toContain("never the slug");
     expect(writeSkill).toContain("If `verification[].entity_id` differs from the requested slug");

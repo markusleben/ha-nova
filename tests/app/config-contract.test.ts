@@ -30,24 +30,18 @@ describe("app config contract", () => {
       "8792/tcp": 8792
     });
     expect(parsed.ports_description).toMatchObject({
-      "8791/tcp": "Relay pairing + legacy HTTP",
+      "8791/tcp": "Relay pairing",
       "8792/tcp": "Relay secure device API (TLS)"
     });
 
     expect(parsed.options).toEqual({
-      // MUST stay "" and never null: a null default marks the option as
-      // REQUIRED in Supervisor, so a fresh install refuses to start until the
-      // user fills a token — breaking passwordless onboarding (proven live:
-      // "Missing required option 'relay_auth_token'").
-      relay_auth_token: "",
-      ha_llat: "",
+      // The old shared-access options (relay_auth_token, ha_llat) are gone:
+      // the App accepts paired devices only.
       // File access is a capability, not a default: the App ships it OFF.
       file_access: "off"
     });
 
     expect(parsed.schema).toEqual({
-      relay_auth_token: "password?",
-      ha_llat: "password?",
       file_access: "list(off|read|readwrite)?"
     });
 
@@ -82,11 +76,8 @@ describe("app config contract", () => {
     expect(fileAccess).toContain("off");
     expect(fileAccess).toContain("Secrets");
 
-    const relayToken = translations.configuration.relay_auth_token?.description ?? "";
-    expect(relayToken).toContain("leave this empty");
-    expect(relayToken).toContain("never through Home Assistant Link");
-    expect(relayToken).toContain("each computer gets its own key");
-    expect(relayToken).not.toContain("last release");
+    expect(translations.configuration).not.toHaveProperty("relay_auth_token");
+    expect(translations.configuration).not.toHaveProperty("ha_llat");
   });
 
   // Supervisor pulls `image:` per arch; an arch without a build_from base has

@@ -24,15 +24,17 @@ pip install websockets   # one-time; used by the token-minting step
 bash scripts/e2e/disposable-ha/run.sh
 ```
 
-It boots a real, throwaway Home Assistant in containers, completes its onboarding through the API, mints a long-lived token, starts the standalone relay against it, asserts the guarantees only a live system can prove (auth enforced, version reported, no lazy WebSocket connect, real REST/WS proxy data, bounded subscriptions), and **destroys everything afterwards**. Nothing of yours is touched.
+It boots a real, throwaway Home Assistant in containers, completes its onboarding through the API, mints a long-lived token, starts the standalone relay against it, asserts the guarantees only a live system can prove (auth enforced, version reported, no lazy WebSocket connect, real REST/WS proxy data, bounded subscriptions, and the safety check's refusals: an unconfirmed write is held and changes nothing, a bogus grant confirms nothing, an ask no one can confirm is refused; it proves no approval, that is the test bed's job), and **destroys everything afterwards**. Nothing of yours is touched.
 
 CI runs the same script weekly and on demand via `.github/workflows/e2e-disposable-ha.yml` (`workflow_dispatch`), so you can also trigger it from GitHub without a local Docker setup.
 
-For CLI verbs, the tier engine, skills, and agent scenarios, use the seeded **test bed** instead: a furnished house (MQTT devices, areas, aliases, automations covering the tier edge cases) on isolated ports — `npm run testbed:up`, `npm run testbed:verify`, `npm run testbed:down`. See [scripts/e2e/testbed/README.md](../../scripts/e2e/testbed/README.md).
+For CLI verbs, the tier engine, skills, and agent scenarios, use the seeded **test bed** instead: a furnished house (MQTT devices, areas, aliases, automations covering the tier edge cases) on isolated ports — `npm run testbed:up`, `npm run testbed:verify`, `npm run testbed:down`. See [scripts/e2e/testbed/README.md](../../scripts/e2e/testbed/README.md). `node scripts/e2e/testbed/agent-unlock.mjs` runs a headless agent on that bed over the shell and MCP paths: an unlock must still wait for a person (#974), and a lamp call whose area-triggered automation unlocks must wait for a person too (the F1 stopgap, MAR-142).
 
 For client-side release regression (public install of the last stable tag, setup against the test bed, client wiring, update to the candidate, uninstall — macOS and Linux lanes in throwaway HOMEs), run `bash scripts/e2e/client-matrix/run.sh --from <stable-tag> --to local`. See [scripts/e2e/client-matrix/README.md](../../scripts/e2e/client-matrix/README.md).
 
 For a release candidate, `npm run rc-lane -- <tag>` runs the client matrix, the test bed's phone lane (`TESTBED_PHONE=1 npm run testbed:verify`: push payloads per platform through fake phones), a headless chat-bridge check, the bed's assertions and real-home checks with the tag's binary (chat-app files at each level, calm edits; `scripts/e2e/testbed/README.md`), and the slow-check regression in one go, with its own test bed. See `docs/releasing.md` §4.
+
+The safety check's approval is proven on the test bed's gate lane (`node scripts/e2e/testbed/gate.mjs` on a bed with `TESTBED_FILES=1`: a typed write, delete, and unlock run only after a tap on the linked fake phone, and a grant counts once). Pictures and videos in `/config/www` are proven next to it (`node scripts/e2e/testbed/www-media.mjs`: list, a delete and its undo after the phone's tap, `www/community` refused even once approved, the copies' 100 MiB limit). `testbed-ha-stable.yml` runs both; a green dispatch on the commit being tagged is release evidence next to the disposable-HA run (`docs/releasing.md` step 2).
 
 The Windows onboarding proof runs on the maintainer's throwaway UTM VMs: `npm run vm-lane -- <tag>` (`scripts/e2e/vm-lane/run.mjs`) drives the Win11 VM over SSH as fresh standard users against the HAOS VM, and the Ubuntu VM when it runs. Every `ha-nova` command runs inside a VM, never on the host.
 
@@ -42,7 +44,7 @@ For maintainers with an HA instance, when you need to exercise the interactive s
 
 ### Deploy an isolated test App
 
-`scripts/dev/ha-app-bootstrap.sh` syncs `nova/` to your HA over SSH and installs it as a local App (env: `HA_HOST`, `HA_SSH_KEY`, `RELAY_AUTH_TOKEN` required; `SSH_USER`/`SSH_PORT`/`APP_SLUG`/`SUPERVISOR_SLUG` optional, also read from `.env` / `.env.local`).
+`scripts/dev/ha-app-bootstrap.sh` syncs `nova/` to your HA over SSH and installs it as a local App (env: `HA_HOST`, `HA_SSH_KEY` required; `SSH_USER`/`SSH_PORT`/`APP_SLUG`/`SUPERVISOR_SLUG` optional, also read from `.env` / `.env.local`).
 
 **Isolation is not automatic.** The script syncs `nova/` verbatim, so the deployed `config.yaml` keeps the production `slug`, `name`, and host ports `8791`/`8792`. `APP_SLUG` only changes the target directory — it does **not** edit `config.yaml`, so on its own it collides with your production NOVA Relay on the same ports. To deploy a genuinely separate instance, work from a **copy** of `nova/` whose `config.yaml` you have edited:
 

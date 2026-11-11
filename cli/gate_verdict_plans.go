@@ -27,30 +27,13 @@ func gatePlanTier(payload map[string]any, body []byte, session func() (*relaySes
 	if method == http.MethodDelete {
 		return tierTyped, reasonConfigDelete, true, nil
 	}
-	var req planCallRequest
-	if call {
-		var ok bool
-		var sent map[string]any
-		_ = json.Unmarshal(body, &sent) // numbers as a plan holds them (float64), not decodeObject's json.Number
-		if req, ok = gateCallRequest(path, sent["body"]); !ok {
-			return tierRefused, "", true, nil
-		}
-	}
-	s, err := session()
-	if err != nil {
-		return tierTyped, "", true, err
-	}
-	var e *tierEngine
 	env := verbEnvelope{SchemaVersion: 1, Verb: "gate"}
-	if call {
-		e, _, err = computeCallPlan(s, &env, req)
-	} else {
-		var core struct {
-			Body json.RawMessage `json:"body"`
-		}
-		_ = json.Unmarshal(body, &core) // gateVerdict decoded it already
-		domain, id, _ := strings.Cut(strings.TrimPrefix(path, "/api/config/"), "/config/")
-		e, _, _, err = computeConfigPlan(runtimePaths{}, s, &env, configRequest{Op: "write", Domain: domain, ConfigID: id, Draft: core.Body})
+	e, _, refusedShape, opened, err := gatePlan(session, &env, payload, body, "")
+	switch {
+	case refusedShape:
+		return tierRefused, "", true, nil
+	case !opened:
+		return tierTyped, "", true, err
 	}
 	var failure *verbFailure
 	switch {
@@ -67,6 +50,44 @@ func gatePlanTier(payload map[string]any, body []byte, session func() (*relaySes
 		why = e.reasons[0].Code
 	}
 	return e.level, why, true, nil
+}
+
+// gatePlan runs the plan engine for a service call or a config write, as
+// plan call, plan config, and apply's recompute run it. refusedShape: a call
+// body the CLI never sends, checked before the session opens; opened is
+// false when the session didn't open (err). A config delete names its
+// entity (entity), as plan config's does.
+func gatePlan(session func() (*relaySession, error), env *verbEnvelope, payload map[string]any, body []byte, entity string) (e *tierEngine, plan storedPlan, refusedShape, opened bool, err error) {
+	path, _ := payload["path"].(string)
+	if payload["method"] == http.MethodPost && servicePathPattern.MatchString(path) {
+		var sent map[string]any
+		_ = json.Unmarshal(body, &sent) // numbers as a plan holds them (float64), not decodeObject's json.Number
+		req, ok := gateCallRequest(path, sent["body"])
+		if !ok {
+			return nil, storedPlan{}, true, false, nil
+		}
+		s, err := session()
+		if err != nil {
+			return nil, storedPlan{}, false, false, err
+		}
+		e, plan, err = computeCallPlan(s, env, req)
+		return e, plan, false, true, err
+	}
+	s, err := session()
+	if err != nil {
+		return nil, storedPlan{}, false, false, err
+	}
+	var core struct {
+		Body json.RawMessage `json:"body"`
+	}
+	_ = json.Unmarshal(body, &core) // gateVerdict decoded it already
+	domain, id, _ := strings.Cut(strings.TrimPrefix(path, "/api/config/"), "/config/")
+	req := configRequest{Op: "write", Domain: domain, ConfigID: id, Draft: core.Body}
+	if payload["method"] == http.MethodDelete {
+		req = configRequest{Op: "delete", Domain: domain, ConfigID: id, EntityID: entity}
+	}
+	e, plan, _, err = computeConfigPlan(runtimePaths{}, s, env, req)
+	return e, plan, false, true, err
 }
 
 // gateCallRequest turns the body executeAction sends (the planned data plus

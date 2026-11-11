@@ -136,8 +136,8 @@ snapshot saves included (a snapshot per target: 10 targets); one
 Same rules as `../ha-nova/output-cards.md` → Cards (fixed emoji
 vocabulary, two spaces after 🗑️/⚠️, labels localized at runtime).
 
-**Batch Delete Card** (the code prompt is always the last line, and only
-the plan's `say` brings one). The line
+**Batch Delete Card** (the plan's `say` closes it: a window or phone ask,
+or, with neither, the code prompt shown here, always the last line). The line
 after the 🗑️ title states in plain language what the workset does today and
 that this stops on delete — a bare count plus manifest path is not a preview:
 

@@ -31,6 +31,7 @@ on:
       - "nova/tsconfig.json"
       - "nova/config.yaml"
       - "nova/Dockerfile.standalone"
+      - "cli/**"
       - "scripts/ci/relay-smoke.sh"
       - ".github/workflows/relay-image.yml"
   pull_request:
@@ -41,6 +42,7 @@ on:
       - "nova/tsconfig.json"
       - "nova/config.yaml"
       - "nova/Dockerfile.standalone"
+      - "cli/**"
       - "scripts/ci/relay-smoke.sh"
       - ".github/workflows/relay-image.yml"
   workflow_dispatch:
@@ -91,6 +93,8 @@ jobs:
         with:
           context: ./nova
           file: ./nova/Dockerfile.standalone
+          build-contexts: |
+            cli=./cli
           platforms: linux/amd64,linux/arm64
           push: false
           build-args: |
@@ -101,6 +105,8 @@ jobs:
         with:
           context: ./nova
           file: ./nova/Dockerfile.standalone
+          build-contexts: |
+            cli=./cli
           platforms: linux/amd64
           load: true
           tags: relay-smoke-candidate:local
@@ -200,6 +206,8 @@ jobs:
         with:
           context: ./nova
           file: ./nova/Dockerfile.standalone
+          build-contexts: |
+            cli=./cli
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |

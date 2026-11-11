@@ -94,12 +94,18 @@ func (m batchMember) sensitivity() int {
 }
 
 // batchText: the list in order, one line per member with what happens to
-// it and why it needs the user, then what one confirmation covers. Members
-// in a row that do the same to the same kind, with no reason of their own,
-// share one line that names every one; a member with a reason keeps its own.
-func batchText(rp batchReplan, typed bool) string {
+// it and why it needs the user, and the tail: what one confirmation covers.
+// Members in a row that do the same to the same kind, with no reason of
+// their own, share one line that names every one; a member with a reason
+// keeps its own. prompt: the window's and form's, under its question
+// (batchPhoneTitle): no head, and no "so I need you to confirm it" or
+// "nothing has changed yet", as the window itself asks.
+func batchText(rp batchReplan, typed, prompt bool) (list, tail string) {
 	lang, n := rp.lang, len(rp.members)
-	lines := []string{confirmT(lang, "batch.head", "count", n)}
+	var lines []string
+	if !prompt {
+		lines = append(lines, confirmT(lang, "batch.head", "count", n))
+	}
 	deletes := false
 	alike := func(a, b batchMember) bool {
 		return a.op() == b.op() && a.stored.ConfigAction.Domain == b.stored.ConfigAction.Domain && len(b.reasons(lang)) == 0
@@ -116,15 +122,21 @@ func batchText(rp batchReplan, typed bool) string {
 		}
 		deletes, i = deletes || m.op() == "delete", j
 	}
-	var tail []string
-	if typed {
-		tail = append(tail, confirmT(lang, "batch.needs_you", "count", n))
+	var covers []string
+	switch {
+	case prompt:
+		covers = append(covers, confirmT(lang, "batch.covers", "count", n))
+	case typed:
+		covers = append(covers, confirmT(lang, "batch.needs_you", "count", n))
 	}
 	if deletes {
-		tail = append(tail, confirmT(lang, "batch.copies"))
+		covers = append(covers, confirmT(lang, "batch.copies"))
 	}
-	tail = append(tail, confirmT(lang, "batch.order"), confirmT(lang, "batch.status"))
-	return strings.Join(lines, "\n") + "\n" + strings.Join(tail, " ")
+	covers = append(covers, confirmT(lang, "batch.order"))
+	if !prompt {
+		covers = append(covers, confirmT(lang, "batch.status"))
+	}
+	return strings.Join(lines, "\n"), strings.Join(covers, " ")
 }
 
 // batchGroupGoal: what members alike do (batchText), every name listed.
@@ -153,12 +165,14 @@ func batchGroupGoal(lang string, members []batchMember) string {
 func batchSay(s *relaySession, plan storedPlan, goal actionGoal, text string, n int) string {
 	lang := textLang(plan)
 	switch {
-	case plan.Confirm == "code" && plan.Channel == channelWindow && phoneLinkedHere(s.paths):
+	case plan.Confirm == "code" && plan.Channel == channelWindow && phoneLinkedHere(s):
 		return demoPrefix(lang, text+" "+sayWindowPhoneAsk(lang, goal.button(lang), linkedPlatform(s.paths)))
 	case plan.Confirm == "code" && plan.Channel == channelWindow:
 		return demoPrefix(lang, text+" "+sayWindowAsk(lang))
 	case plan.Confirm == "code" && plan.Channel == channelPhone:
 		return demoPrefix(lang, text+" "+sayPhoneAsk(lang, goal.button(lang), linkedPlatform(s.paths)))
+	case plan.Confirm == "code" && plan.Channel == channelRelay:
+		return demoPrefix(lang, text+" "+confirmT(lang, "say.relay_ask"))
 	case plan.Confirm == "code":
 		if plan.Channel == channelChat && chatCall == nil {
 			text += "\n" + sayChatNote(lang)

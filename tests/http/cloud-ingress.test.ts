@@ -11,7 +11,6 @@ import {
   type IngressListenerDeps,
 } from "../../nova/src/runtime/ingress-listener.js";
 import {
-  digestSecret,
   generateCredential,
 } from "../../nova/src/security/device-credential.js";
 import {
@@ -114,7 +113,7 @@ describe("Cloud ingress listener", () => {
     });
   });
 
-  it("binds an existing active device once, rejects mismatch/rebind/legacy, and gates every functional route", async () => {
+  it("binds an existing active device once, rejects mismatch/rebind/shared token, and gates every functional route", async () => {
     const base = await start(true);
     const device = activeDevice();
 
@@ -208,9 +207,8 @@ describe("Cloud ingress listener", () => {
     expect(conflict.status).toBe(401);
     expect(await conflict.json()).toEqual(mismatchBody);
 
-    registry.importLegacy(digestSecret("legacy-token"), clock);
     expect(
-      (await request(base, "GET", "/health", "user-1", "legacy-token")).status,
+      (await request(base, "GET", "/health", "user-1", "shared-token")).status,
     ).toBe(401);
   });
 });
@@ -267,6 +265,7 @@ function deps(): IngressListenerDeps {
     files: () => ({ route: "files" }),
     backups: () => ({ route: "backups" }),
     supervisor: () => ({ route: "supervisor" }),
+    ask: () => ({ route: "ask" }),
   };
   const supervisor: SupervisorClient = {
     getSelfInfo: async () => ({
@@ -278,7 +277,6 @@ function deps(): IngressListenerDeps {
       network: {},
     }),
     getMappedHostPort: async () => null,
-    setOptions: async () => {},
     setIngressPanel: async () => {},
     sendDiscovery: async () => "",
     deleteDiscovery: async () => true,

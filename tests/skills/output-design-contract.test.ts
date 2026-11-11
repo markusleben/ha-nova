@@ -67,7 +67,7 @@ describe("output design system (Cards)", () => {
   it("asks a natural save question and keeps the confirmation-code prompt literal", () => {
     expect(outputRules).toContain("Save it? I can also show the details.");
     expect(outputRules).toContain("\n\nTo go ahead, type this code:  \n**<four digits>**\n```");
-    expect(outputRules).toContain("the one-time-code prompt is always the last line");
+    expect(outputRules).toContain("the CLI decides how the person confirms");
   });
 
   it("maps existing per-skill slots into the cards centrally", () => {
@@ -200,7 +200,7 @@ describe("output design system (Cards)", () => {
       "| Create / update (any supported family) | Preview Card → Result Card |",
     );
     expect(outputRules).toContain(
-      "| Delete / destructive operation (one-time code) | Delete Card → Result Card |",
+      "| Delete / destructive operation (the person confirms) | Delete Card → Result Card |",
     );
     // Natural-confirmation removals (snapshot prune, todo item removes) never
     // pull the Delete Card's typed gate.

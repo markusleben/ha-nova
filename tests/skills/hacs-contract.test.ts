@@ -73,7 +73,7 @@ describe("hacs lifecycle skill (#478)", () => {
 
   it("carries the canonical mutation Safety Core and file-based relay usage", () => {
     expect(skill).toContain(
-      "- The CLI checks every change. Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none` (everyday actions, undoable edits); everything else waits for the user's confirmation of the shown preview. Unlocking or opening a lock, entry door, gate, or garage, disarming (also through a scene or script), and deletes or other destructive operations need the user's window click or phone tap, else their one-time code from HA NOVA; \"yes\" or any other reply is invalid.",
+      "- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `\"typed\":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; \"yes\" or any other reply is invalid.",
     );
     expect(skill).toContain(
       "Home Assistant is reached exclusively through the `ha-nova` CLI.",
@@ -169,6 +169,9 @@ describe("hacs skill on Home Assistant 2026.11+ (Marketplace)", () => {
     expect(updates).toContain(
       "`platform: marketplace` (Home Assistant 2026.11+): installs through HA NOVA aren't supported yet — never plan one, single or batched",
     );
+    // The CLI's refusal speaks for itself: its say is relayed, not reworded.
+    expect(updates).toContain("point to Settings > Marketplace, and relay a `MARKETPLACE_WARNING` refusal's `say` verbatim");
+    expect(readFileSync("cli/marketplace_update.go", "utf8")).toContain('const reasonMarketplaceWarning = "MARKETPLACE_WARNING"');
     expect(flat(readFileSync("skills/fallback/SKILL.md", "utf8"))).toContain("never probe `marketplace/*` here");
     expect(readFileSync("skills/ha-nova/SKILL.md", "utf8")).toContain("the Marketplace (HACS since Home Assistant 2026.11) | `ha-nova:hacs` |");
   });

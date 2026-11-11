@@ -52,6 +52,7 @@ function fakeChatApps(): ChatApps {
       job: async (user, id) => (calls.push(`job:${user}:${id}`), await phoneJob()),
       activity: async () => [],
       seen: async () => ({}),
+      toolsChangedAt: async () => "",
     },
     restartSoon: () => void calls.push("restart"),
     boot: async () => {},
@@ -83,7 +84,7 @@ async function start(chatApps?: ChatApps, peer = "172.30.32.2"): Promise<string>
   const deps: IngressListenerDeps = {
     registry,
     pairing: createPairingV1Manager({ registry, secureEndpoint: () => null, now: () => 1_000 }),
-    functional: { health: () => ({}), ws: () => ({}), core: () => ({}), files: () => ({}), backups: () => ({}), supervisor: () => ({}) },
+    functional: { health: () => ({}), ws: () => ({}), core: () => ({}), files: () => ({}), backups: () => ({}), supervisor: () => ({}), ask: () => ({}) },
     relayInstanceId: "relay-1",
     relayVersion: "0.11.0",
     cloudRemoteEnabled: false,

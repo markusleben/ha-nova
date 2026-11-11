@@ -7,7 +7,9 @@ import {
 } from "node:http";
 
 import { authorizeRequest } from "../security/auth.js";
-import type { Principal } from "../security/principal.js";
+import { GATE_INSTALL_ID } from "../security/pairing-metadata.js";
+import { bearerToken, isLoopback, type Principal } from "../security/principal.js";
+import { constantTimeEqualSecret } from "../security/secret-compare.js";
 import { decodeUtf8Strict } from "../shared/utf8.js";
 import {
   invalidJson,
@@ -126,6 +128,7 @@ export function createRequestListener(
         path,
         body,
         ...(auth.principal ? { principal: auth.principal } : {}),
+        reauthorize: async () => (await options.authorize(request, routeKey)).ok,
       });
 
       if (response.writableEnded) {
@@ -179,10 +182,12 @@ export interface HttpServerOptions {
   bearerExemptRoutes?: ReadonlySet<string>;
   noStorePaths?: ReadonlySet<string>;
   logger?: RelayLogger;
+  // The safety-check worker's current token: its principal, from loopback only.
+  gateToken?: () => string | null;
 }
 
-// Backward-compatible single-token server: the historical auth model expressed
-// as one listener over createRequestListener.
+// The standalone container's single-token server: its own token (never the
+// App's old shared access) as one listener over createRequestListener.
 export function createHttpServer(options: HttpServerOptions): Server {
   const maxJsonBodyBytes =
     options.maxJsonBodyBytes ?? DEFAULT_MAX_JSON_BODY_BYTES;
@@ -195,12 +200,20 @@ export function createHttpServer(options: HttpServerOptions): Server {
       if (options.bearerExemptRoutes?.has(routeKey)) {
         return { ok: true };
       }
+      const peer = request.socket.remoteAddress;
+      const presented = bearerToken(request.headers.authorization);
+      const gateToken = options.gateToken?.() ?? null;
+      if (presented !== null && gateToken !== null && constantTimeEqualSecret(presented, gateToken)) {
+        return isLoopback(peer)
+          ? { ok: true, principal: { kind: "device", deviceId: GATE_INSTALL_ID, internal: "gate", peer } }
+          : { ok: false, status: 401, code: "UNAUTHORIZED", message: "This credential is accepted only from inside the NOVA Relay" };
+      }
       const result = authorizeRequest(
         request.headers.authorization,
         options.authToken,
       );
       return result.ok
-        ? { ok: true }
+        ? { ok: true, principal: { kind: "shared", ...(peer !== undefined ? { peer } : {}) } }
         : {
             ok: false,
             status: result.status,

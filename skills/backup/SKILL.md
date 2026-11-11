@@ -23,8 +23,6 @@ Not in scope:
 ## Bootstrap (once per session)
 
 Read and follow `../ha-nova/session-bootstrap.md`.
-Verify relay CLI: `ha-nova relay health`
-If this fails: `ha-nova setup`
 
 ## Relay Contract
 
@@ -90,7 +88,7 @@ Use stable localized slot labels in this order; omit empty slots. Status renders
 
 ## Safety
 
-- The CLI checks every change. Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none` (everyday actions, undoable edits); everything else waits for the user's confirmation of the shown preview. Unlocking or opening a lock, entry door, gate, or garage, disarming (also through a scene or script), and deletes or other destructive operations need the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
+- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `"typed":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
 - Relay a plan's `say` in full, localized; never drop or shorten sentences.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
@@ -100,6 +98,6 @@ Use stable localized slot labels in this order; omit empty slots. Status renders
 
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 
-- Create and schedule settings use natural confirmation; delete and retention take the one-time code.
+- The CLI decides how each change is confirmed; relay its `say` (delete and retention ask the person).
 - Restore is never executed here — it reboots the system; always route to the HA UI.
 - A backup is only real once it appears completed in Status — initiation is not success.

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -69,8 +70,12 @@ func (transport *cloudRelayRoundTripper) RoundTrip(
 	if err != nil {
 		return nil, err
 	}
+	ctx := request.Context()
+	if grant := request.Header.Get(gateGrantHeader); grant != "" {
+		ctx = context.WithValue(ctx, gateGrantKey{}, grant)
+	}
 	ingressResponse, err := transport.ingress.Do(
-		request.Context(),
+		ctx,
 		endpoint,
 		transport.credential,
 		body,
@@ -123,6 +128,10 @@ func cloudFunctionalEndpoint(method, path string) (CloudIngressEndpoint, bool) {
 		return CloudEndpointFiles, true
 	case method == http.MethodPost && path == "/backups":
 		return CloudEndpointBackups, true
+	case method == http.MethodPost && path == "/gate/v1/ask":
+		return CloudEndpointGateAsk, true
+	case method == http.MethodPost && path == "/gate/v1/phone":
+		return CloudEndpointGatePhone, true
 	default:
 		return "", false
 	}

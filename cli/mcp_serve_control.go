@@ -9,8 +9,6 @@ import (
 	"errors"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -121,6 +119,8 @@ func (b *chatBridge) serveControl(w http.ResponseWriter, r *http.Request) {
 		answer(b.controlActivity())
 	case r.URL.Path == controlPrefix+"seen" && r.Method == http.MethodGet:
 		answer(b.controlSeen())
+	case r.URL.Path == controlPrefix+"tools" && r.Method == http.MethodGet:
+		answer(b.controlTools())
 	default:
 		answer(controlError(http.StatusNotFound, "NOT_FOUND", "not found"))
 	}
@@ -169,8 +169,7 @@ func (b *chatBridge) look(user string, s *relaySession) (*controlLook, error) {
 	unread := b.asUser(user, func() {
 		if own {
 			paths := b.paths
-			paths.CacheDir = filepath.Join(b.dataDir, "users", chatUserKey(user))
-			if err = os.MkdirAll(paths.CacheDir, 0o700); err != nil {
+			if paths.CacheDir, err = b.userDir(chatUserKey(user)); err != nil {
 				return
 			}
 			if s, err = b.session(paths); err != nil {

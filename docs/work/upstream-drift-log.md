@@ -700,3 +700,54 @@ counts only those, not ad hoc checks or corrections.
 - Re-check the three tables on each HA release: a built-in platform or
   service that calls services and is missing from them makes a
   `call_service` listener look unreachable.
+
+## 2026-11-10 — thermostat and hygrostat helper options (MAR-131), HA 2026.11.1
+
+- Source checked: `home-assistant/core` tag 2026.11.1:
+  `generic_thermostat/config_flow.py`, `generic_thermostat/climate.py`,
+  `generic_hygrostat/config_flow.py`, `generic_hygrostat/humidifier.py`,
+  `helpers/schema_config_entry_flow.py`.
+- Pinned in `cli/tier_helper_options.go` (`helperOptionFields`): each helper
+  calls only `homeassistant.turn_on`/`turn_off` on its options' `heater`
+  (climate.py:681,710) or `humidifier` (humidifier.py:579,584); the options
+  flow's `init` step is a `SchemaFlowFormStep` with no callback whose
+  `suggested_value`s are the stored options, and an abort saves nothing.
+- Re-check on each HA release: a new service call in either platform, a
+  renamed field, a callback or preview on the `init` step, or a second step
+  before `init` breaks the read (it then fails closed to unbounded).
+
+## 2026-11-10 — pre-release screen (v0.30.0 cycle): HA after 2026.11.0 + developer blog after 2026-11-06 + HACS
+
+- Window screened: Core releases after `2026.11.0` (one: `2026.11.1` of
+  2026-11-09; no `.2`); contributors.home-assistant.io/blog after
+  2026-11-06 (two posts: "Revised standard event types for button event
+  entities" of 2026-11-09, "Deprecated device info constants" of
+  2026-11-10); home-assistant.io/blog after the 2026.11 release post
+  (none); HACS releases and tags after 2.0.5 (none; 2.0.5 is still the
+  latest); Supervisor releases since 2026-11-06 (`2026.11.0`, published
+  2026-11-06).
+- Hit, no change needed: `2026.11.1` is bug fixes and dependency bumps
+  only. Its changelog lists no change to WebSocket/REST APIs, config
+  entries or flows, registries, automation/script config, blueprints,
+  backup, lovelace, media_source, camera, todo, calendar,
+  history/logbook/statistics, or `generic_thermostat`/`generic_hygrostat`.
+- Hit, no change needed: the button event type revision changes only the
+  integration-side event types (`PRESS_END`, new `SINGLE_PRESS` and
+  `MULTI_PRESS`; old multi-press names removed in 2027.5). No skill or CLI
+  file references them (grep of `skills/`, `cli/`: no match).
+- Hit, no change needed: the device info constants deprecation (Core
+  2026.12, removal 2027.12) is integration code only. Nothing in `skills/`
+  or `cli/` pins those constants.
+- Hit, no change needed: Supervisor `2026.11.0` caps App slugs at 60
+  characters and adds the user's group IDs to the App auth endpoint
+  response. The NOVA App slug `ha_nova_relay` (`nova/config.yaml`) is
+  13 characters. The skills only read `/addons/<slug>/info` and the
+  App list (`skills/service-call/raw-routes.md`, `skills/updates/apps.md`),
+  and neither route is listed as changed.
+- Source checked: github.com/home-assistant/core/releases (API listing);
+  contributors.home-assistant.io/blog/ and the 2026/11/09 post;
+  home-assistant.io/blog/; github.com/hacs/integration/releases and tags;
+  github.com/home-assistant/supervisor/releases.
+- Next screen: before the next release cycle, or on HA 2026.11.2 or
+  2026.12.0, whichever comes first. Watch Supervisor 2026.12, which turns
+  the smaller App capability set on.

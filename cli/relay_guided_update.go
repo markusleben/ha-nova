@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -146,8 +147,12 @@ func runGuidedRelayUpdate(paths runtimePaths, route *relayUpdateRoute, in *bufio
 			return false
 		}
 	}
-	version, ok := waitForRelayVersion(paths, route, candidate.LatestVersion)
-	if !ok {
+	version, err := waitForRelayVersion(paths, route, candidate.LatestVersion)
+	if errors.Is(err, errSharedAccessEnded) {
+		fmt.Fprintf(out, "The NOVA App is updated. %s\n", sharedAccessEndedFor(route.cfg, activeServerProfile()))
+		return false
+	}
+	if err != nil {
 		fmt.Fprintf(out, "The NOVA App didn't show the new version within %s.\n%s\n", relayUpdatePollTimeout, relayUpdateManualPath)
 		return false
 	}
@@ -325,19 +330,24 @@ func resolveRelayUpdateCandidateWithTransport(
 // metadata retain the floor-based verification used before above-floor update
 // offers existed. Connection errors (over Link: Ingress without the App) are
 // the normal restart window; a lost Link Ingress session gets a new route.
-func waitForRelayVersion(paths runtimePaths, route *relayUpdateRoute, targetVersion string) (string, bool) {
+// An App that no longer takes this computer's old shared access ends the wait
+// (errSharedAccessEnded).
+func waitForRelayVersion(paths runtimePaths, route *relayUpdateRoute, targetVersion string) (string, error) {
 	deadline := time.Now().Add(relayUpdatePollTimeout)
 	for {
 		body, err := fetchRelayHealthWith(route.Client, route.BaseURL, route.Credential)
 		if err == nil {
 			version := parseRelayHealthVersion(body)
 			if relayVersionMeetsUpdateGate(paths, version, targetVersion) {
-				return version, true
+				return version, nil
 			}
+		}
+		if errors.Is(err, errSharedAccessEnded) {
+			return "", err
 		}
 		route.reopenAfter(err)
 		if time.Now().After(deadline) {
-			return "", false
+			return "", errors.New("the NOVA App didn't show the new version in time")
 		}
 		time.Sleep(relayUpdatePollInterval)
 	}

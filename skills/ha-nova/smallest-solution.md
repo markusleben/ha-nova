@@ -24,6 +24,9 @@ mention KISS, MVP, or this contract unless the user asks about the approach.
    not couple unrelated behaviour. Never overload an existing helper,
    automation, or script merely to keep the object count down — two small
    independent items beat one entangled one.
+7. Change only what the user asked for: never rewrite a name, alias, or
+   description unasked (a plan with `plan.confirm: none` saves with no
+   preview); offer other edits as a question.
 
 ## Unsolicited improvements
 

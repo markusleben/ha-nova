@@ -51,7 +51,7 @@ than generic device documentation claims.
 ## Mutation Gate
 
 While the selected gesture is only assumed or conflicting, the remap write is
-blocked (same hard-block shape as the best-practice stale+complex gate). Offer:
+blocked until the gesture is confirmed. Offer:
 
 1. a supported alternative from the advertised/observed set (continue after the
    user selects it);

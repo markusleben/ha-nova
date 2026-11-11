@@ -128,7 +128,7 @@ func setupCloudPausedSteps(paths runtimePaths, cfg runtimeConfig, legacyToken bo
 		fmt.Fprintln(&out, "    "+setupT("setup.link.remove_does"))
 	}
 	if legacyToken {
-		fmt.Fprintln(&out, "  Switch to your own access after Link is removed: run ha-nova setup again.")
+		fmt.Fprintln(&out, "  After Link is removed, run ha-nova setup again to pair this computer: the updated NOVA App no longer accepts the old shared access.")
 	}
 	return out.String()
 }

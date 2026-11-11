@@ -1,5 +1,6 @@
 import { digestSecret, parseCredential } from "../../security/device-credential.js";
 import type { DeviceRegistry } from "../../security/device-registry.js";
+import { GATE_INSTALL_ID } from "../../security/pairing-metadata.js";
 import { bearerToken } from "../../security/principal.js";
 import { HttpError } from "../errors.js";
 import type { RouteContext, RouteHandler } from "../router.js";
@@ -43,8 +44,9 @@ export function createDeviceRevokeSelfHandler(deps: DeviceAuthDeps): RouteHandle
 }
 
 // GET /auth/device/peers — whether uninstall may remove the App: other device
-// records (pending included), an open pairing window, legacy shared access, and
-// chat-app files (null: unknown). Paired devices learn nothing new.
+// records (pending included), an open pairing window, and chat-app files
+// (null: unknown). Paired devices learn nothing new. legacy_access stays false:
+// the old shared access is gone, and a CLI reads a missing field as unknown.
 // The chat-app bridge's own device (bridgeDevice) is covered by chat_app_files.
 export function createDevicePeersHandler(deps: { registry: DeviceRegistry; pairingOpen: () => boolean; chatAppFiles: () => boolean | null; bridgeDevice?: () => string | null }): RouteHandler {
   return ({ principal }: RouteContext) => {
@@ -52,8 +54,8 @@ export function createDevicePeersHandler(deps: { registry: DeviceRegistry; pairi
       throw new HttpError(403, "DEVICE_REQUIRED", "Only a paired device can read this");
     }
     const bridge = deps.bridgeDevice?.() ?? null;
-    const others = deps.registry.list().filter((d) => d.deviceId !== principal.deviceId && d.deviceId !== bridge);
-    return { other_devices: others.length, pairing_open: deps.pairingOpen(), legacy_access: deps.registry.hasLegacy(), chat_app_files: deps.chatAppFiles() };
+    const others = deps.registry.list().filter((d) => d.deviceId !== principal.deviceId && d.deviceId !== bridge && d.clientInstallId !== GATE_INSTALL_ID);
+    return { other_devices: others.length, pairing_open: deps.pairingOpen(), legacy_access: false, chat_app_files: deps.chatAppFiles() };
   };
 }
 

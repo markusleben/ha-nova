@@ -33,6 +33,8 @@ describe("app run contract", () => {
     );
     expect(content).toContain("export CLOUD_REMOTE_ENABLED");
     expect(content).toContain("HA_LLAT");
+    expect(content).not.toContain("bashio::config 'relay_auth_token'");
+    expect(content).not.toContain("bashio::config 'ha_llat'");
     expect(content).not.toContain("RELAY_AUTH_TOKEN is required");
 
     expect(content).not.toContain("resolveUpstreamToken");

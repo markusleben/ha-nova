@@ -43,7 +43,11 @@ describe("app wiring", () => {
         })
       },
       startedAtMs: 1_000,
-      now: () => 5_000
+      now: () => 5_000,
+      gate: {
+        check: async () => ({ verdict: "pass", kind: "read" }),
+        redact: async (_endpoint, _request, response) => response
+      }
     });
     servers.push(app.server);
 
@@ -62,7 +66,8 @@ describe("app wiring", () => {
         version: "1.0.0",
         uptime_s: 4,
         file_access: "off",
-        snapshots: { files: 0, bytes: 0 }
+        snapshots: { files: 0, bytes: 0 },
+        gate: 1
       }
     });
 

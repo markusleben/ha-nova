@@ -9,13 +9,13 @@ import (
 )
 
 // The Relay refuses some requests with HTTP 403 and its own code (a file
-// under /config/www, a file type it never writes, file access set to read).
+// under /config/custom_components, a file type it never writes, file access set to read).
 // Over the local transport (the NOVA App's chat-app bridge, a paired device
 // on the home network), that refusal must reach the AI as itself, never as
 // "the Relay denied the saved credential". Only a 401, or a 403 that names
 // the credential or carries no Relay code, is a sign-in problem.
 
-const wwwDenied = "'www' is never accessible through the relay (credentials, Home Assistant's own state store, or binary data)"
+const codeDenied = "'custom_components' is never accessible through the relay (credentials, Home Assistant's own state store, or binary data)"
 
 func TestLocalRelayRefusalIsNotACredentialProblem(t *testing.T) {
 	envelope := func(code string) []byte {
@@ -51,8 +51,8 @@ func TestLocalRelayRefusalIsNotACredentialProblem(t *testing.T) {
 func TestLocalSessionKeepsTheRelaysOwnRefusal(t *testing.T) {
 	paths, _ := readRelay(t, func(endpoint string, body map[string]any) any {
 		switch body["path"] {
-		case "/config/www/mailbox":
-			return fakeRelayStatus{http.StatusForbidden, "FILE_PATH_DENIED", wwwDenied}
+		case "/config/custom_components/mailbox":
+			return fakeRelayStatus{http.StatusForbidden, "FILE_PATH_DENIED", codeDenied}
 		case "/config/packages/a.yaml":
 			return fakeRelayStatus{http.StatusForbidden, "FILE_ACCESS_READONLY", "File access is set to 'read'."}
 		case "/config/revoked.yaml":
@@ -66,9 +66,9 @@ func TestLocalSessionKeepsTheRelaysOwnRefusal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.send("files", []byte(`{"action":"list_dir","path":"/config/www/mailbox"}`))
+	_, err = s.send("files", []byte(`{"action":"list_dir","path":"/config/custom_components/mailbox"}`))
 	var call *relayCallError
-	if !errors.As(err, &call) || call.code != "FILE_PATH_DENIED" || call.message != wwwDenied || strings.Contains(err.Error(), "saved local credential") {
+	if !errors.As(err, &call) || call.code != "FILE_PATH_DENIED" || call.message != codeDenied || strings.Contains(err.Error(), "saved local credential") {
 		t.Fatalf("read of a denied path: %v", err)
 	}
 	_, err = s.sendWrite("files", []byte(`{"action":"write_file","path":"/config/packages/a.yaml","content":"a: 1"}`))
@@ -88,21 +88,21 @@ func TestLocalSessionKeepsTheRelaysOwnRefusal(t *testing.T) {
 func TestBridgeCredentialRefusalNamesTheAppRestart(t *testing.T) {
 	bridgeRelay = &runtimeConfig{}
 	t.Cleanup(func() { bridgeRelay = nil })
-	message := localRelayAuthRepairMessage(http.StatusUnauthorized, defaultServerProfileName, "https://127.0.0.1:8792")
+	message := localRelayAuthRepairMessage(http.StatusUnauthorized, nil, defaultServerProfileName, runtimeConfig{RelayBaseURL: "https://127.0.0.1:8792"})
 	if !strings.Contains(message, "restart the NOVA Relay App") || strings.Contains(message, "ha-nova setup") {
 		t.Fatalf("%q", message)
 	}
 }
 
-// The reported case: deleting a camera picture under /config/www. The plan
+// A delete in a folder the Relay denies (custom_components). The plan
 // is refused with the real reason and who can remove it, not as a sign-in.
 func TestPlanRawDeleteInADeniedFolderSaysWhy(t *testing.T) {
 	paths, sent := rawRelay(t, map[string]func(map[string]any) any{"files read_file": func(map[string]any) any {
-		return fakeRelayStatus{http.StatusForbidden, "FILE_PATH_DENIED", wwwDenied}
+		return fakeRelayStatus{http.StatusForbidden, "FILE_PATH_DENIED", codeDenied}
 	}})
-	exit, env := planRaw(t, paths, `[{"endpoint":"files","payload":{"action":"delete_file","path":"/config/www/mailbox/latest.jpg"}}]`)
+	exit, env := planRaw(t, paths, `[{"endpoint":"files","payload":{"action":"delete_file","path":"/config/custom_components/mailbox/camera.py"}}]`)
 	if exit != verbExitRefused || env.Error == nil || len(sent()) != 0 ||
-		!strings.Contains(env.Error.Message, "can't read the file /config/www/mailbox/latest.jpg (FILE_PATH_DENIED)") ||
+		!strings.Contains(env.Error.Message, "can't read the file /config/custom_components/mailbox/camera.py (FILE_PATH_DENIED)") ||
 		!strings.Contains(env.Error.Next, "File editor") || strings.Contains(env.Error.Message+env.Error.Next, "saved local credential") {
 		t.Fatalf("exit %d %+v sent %v", exit, env.Error, sent())
 	}
@@ -116,8 +116,8 @@ func TestServeFileRefusalNamesTheRealCause(t *testing.T) {
 	fastVerify(t)
 	f := household(newFakeHA())
 	paths, calls := readRelay(t, func(endpoint string, body map[string]any) any {
-		if file, _ := body["path"].(string); endpoint == "files" && strings.HasPrefix(file, "/config/www/") {
-			return fakeRelayStatus{http.StatusForbidden, "FILE_PATH_DENIED", wwwDenied}
+		if file, _ := body["path"].(string); endpoint == "files" && strings.HasPrefix(file, "/config/custom_components/") {
+			return fakeRelayStatus{http.StatusForbidden, "FILE_PATH_DENIED", codeDenied}
 		}
 		if file, _ := body["path"].(string); endpoint == "files" && strings.HasPrefix(file, "/config/off/") {
 			return fakeRelayStatus{http.StatusForbidden, "FILE_ACCESS_DISABLED", "File access is disabled. Set the 'file_access' option (read or readwrite) on the NOVA Relay App and restart it."}
@@ -132,9 +132,9 @@ func TestServeFileRefusalNamesTheRealCause(t *testing.T) {
 		}
 		return n
 	}
-	read := map[string]any{"endpoint": "files", "payload": map[string]any{"action": "list_dir", "path": "/config/www/mailbox"}}
+	read := map[string]any{"endpoint": "files", "payload": map[string]any{"action": "list_dir", "path": "/config/custom_components/mailbox"}}
 	remove := map[string]any{"kind": "raw", "requests": []any{map[string]any{"endpoint": "files",
-		"payload": map[string]any{"action": "delete_file", "path": "/config/www/mailbox/latest.jpg"}}}}
+		"payload": map[string]any{"action": "delete_file", "path": "/config/custom_components/mailbox/camera.py"}}}}
 	s := serveOn(t, &writeHarness{t: t, f: f, paths: paths, log: &fakeRelayLog{}}, levels([]string{userA}, map[string]string{userA: "manage"}))
 	for name, args := range map[string]map[string]any{"ha_read": read, "ha_plan": remove} {
 		env := s.tool(userA, name, args)

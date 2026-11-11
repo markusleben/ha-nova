@@ -78,14 +78,17 @@ preview/confirm flow:
 ## Safety Story — "Can I break something?"
 
 Render the ENFORCED guarantees user-facing, on request only, in about five
-lines:
+lines. This is the one example list of what a person confirms; it explains,
+never decides: the CLI rates every action.
 
 - Nothing is written without a preview you confirm first; confirmations bind
   to exactly what was shown (secret values stay masked and bind to the
   stored value behind the mask).
 - Deleting things (an automation, scene, helper, dashboard) and big actions
-  like unlocking a door or opening the garage need you to confirm yourself.
-  A plain "yes" in chat is never enough. Often a window on your computer or
+  need you to confirm yourself: for example unlocking or opening a lock, door,
+  gate, or garage, disarming the alarm, or restarting Home Assistant, also
+  when a scene, script, or automation would do it. Locking, closing, and
+  arming need no extra step. A plain "yes" in chat is never enough. Often a window on your computer or
   your linked phone asks you. Otherwise you type a four-digit one-time code
   from HA NOVA.
 - Automation, script, dashboard-content, and storage-helper updates keep a revert path; deleted
@@ -96,3 +99,6 @@ lines:
 - When something is outside these guarantees (scene, energy, and
   calendar writes have no revert; config-entry helpers have no snapshot), the
   owning skill names the limit — the honest limit is part of the story.
+
+Only when asked which actions need that confirmation: `../ha-nova/confirmed-actions.md`
+lists them to explain; the plan's own tier and `say` decide, never the list.

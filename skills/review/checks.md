@@ -158,7 +158,7 @@ Orphan/no-consumer verdicts (F-09, H-07, SC-07, collision scans) fail closed: re
 - P-01: `trigger: template` trigger that could be a `trigger: state` trigger (see `../ha-nova/template-guidelines.md` → Decision Tree)
 - P-02: `homeassistant.update_entity` inside a `repeat:` loop without meaningful delay
 - P-03: Polling loop (`repeat: while:` + short `delay:`) instead of `wait_for_trigger`
-- P-04 [MEDIUM → HIGH]: Template trigger using `now()` for time-sensitive logic — re-evaluates only once per minute; for sub-minute precision use `time_pattern` trigger or a dedicated sensor. Default MEDIUM. Escalate to HIGH only with concrete sub-minute precision needs (see P-04 Evidence Boundary).
+- P-04 [MEDIUM → HIGH]: Template trigger using `now()` for time-sensitive logic — re-evaluates only once per minute; trigger on the state or event that carries the change (or a `time` trigger for a clock time) instead; `time_pattern` only for a true cadence, never to poll. Default MEDIUM. Escalate to HIGH only with concrete sub-minute precision needs (see P-04 Evidence Boundary).
 - P-05 [LOW]: `trigger: device` with `device_id` where a `trigger: state` with `entity_id` would work — `device_id` is not persistent across device re-adds; exception: Zigbee2MQTT autodiscovered device triggers and ZHA button/remote events (see `../ha-nova/best-practices.md` → Zigbee Button Patterns)
 
 ## Style (Low)

@@ -47,10 +47,10 @@ Write the raw bytes with `ha-nova relay core --method GET --path <path> --out-bi
 - `GET /health`
 - `POST /ws`
 - `POST /core`
-- `POST /files` — opt-in filesystem ops (`list_dir` / `read_file` / `write_file` / `delete_file`), default off; CLI: `ha-nova relay files` (flows owned by `../yaml-config/SKILL.md` and, for `/config/esphome/`, `../esphome/SKILL.md`)
+- `POST /files` — opt-in filesystem ops (`list_dir` / `read_file` / `write_file` / `delete_file`; in `/config/www` also `restore_file` / `list_deleted`, `../yaml-config/www-media.md`), default off; CLI: `ha-nova relay files` (flows owned by `../yaml-config/SKILL.md` and, for `/config/esphome/`, `../esphome/SKILL.md`)
 - `POST /backups` — config-snapshot blob store (`save` / `load` / `list` / `delete` / `prune`); CLI: `ha-nova relay backups` (flows owned by `../ha-nova/config-snapshots.md`)
 
-Relay-enforced limits: request bodies up to 1 MiB (413 above); text/JSON `/core` responses and individual upstream WS frames up to 256 MiB — a `collect_events` response aggregates up to 100 events with no additional aggregate cap; binary responses up to 8 MiB; `/files` reads up to 1 MiB and writes up to 768 KiB.
+Relay-enforced limits: request bodies up to 1 MiB (413 above); text/JSON `/core` responses and individual upstream WS frames up to 256 MiB — a `collect_events` response aggregates up to 100 events with no additional aggregate cap; binary responses up to 8 MiB; `/files` reads up to 1 MiB and writes up to 768 KiB; a `/config/www` delete keeps a copy of at most 25 MiB, 100 MiB in total, for 30 days.
 
 ## Relay CLI Wrapper
 
@@ -161,7 +161,7 @@ Use the resolved `unique_id` with:
 
 For create/update verification:
 1. read back config via `GET /api/config/{domain}/config/{unique_id}`
-2. reload the domain service
+2. no reload: wait until WS `{domain}/config` returns it
 3. query entity registry and match `unique_id` to the actual `entity_id`
 4. read `/api/states/{entity_id}` to confirm runtime presence
 
@@ -522,6 +522,7 @@ These are top-level HTTP errors produced by the relay itself. The response has `
 - `400 / VALIDATION_ERROR`: missing required fields (e.g. ws `type`, core `method`/`path`)
 - `400 / CORE_PATH_INVALID`: core API path failed validation
 - `401 / UNAUTHORIZED`: relay auth token missing or invalid
+- `401 / PAIRING_REQUIRED`: the NOVA App no longer accepts this computer's old shared access; pass on the CLI's message (the user runs the named command in their own terminal)
 - `404 / NOT_FOUND`: unknown relay route
 - `500 / INTERNAL_ERROR`: unexpected relay server error
 - `502 / UPSTREAM_WS_CONNECT_ERROR`: the Relay could not establish the HA WebSocket connection; inspect the post-call health reason
@@ -559,7 +560,7 @@ The relay server has its own internal upstream timeout of 10 seconds per WS/HTTP
 On `502 / UPSTREAM_*_TIMEOUT` or CLI-level timeout:
 - verify state/config first before retrying
 - for a SERVICE call: retry exactly once only when verification shows no state change AND the call is a direct, consumer-free state-changing action whose read-back proves non-application — never for indirect or asynchronous runs (their effects are delayed), never for consumer-bearing calls (a listener can have fired on the first accepted call), and never for disruptive or restart-class actions (`../ha-nova/outcome-verification.md`). Config writes verified by read-back and reload retries keep their own adjacent rules — this clause narrows service-call retries only
-- if config read-back succeeded but reload timed out, treat it as partial verification and confirm registry/state before retrying
+- if config read-back succeeded but it never loaded, treat it as partial verification and confirm registry/state before retrying
 
 ## Safe Bulk Patterns
 

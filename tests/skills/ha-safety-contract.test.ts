@@ -8,9 +8,9 @@ describe("ha safety contract", () => {
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 
     expect(router).toContain("Never guess entity IDs, service names, or config IDs.");
-    expect(router).toContain("create`/`update`: natural confirmation");
-    expect(router).toContain("high-consequence runtime action (grants physical access or is physically irreversible): the one-time code");
-    expect(writeSkill).toContain("Confirmation: create/update=natural, delete=one-time code — the plan's CLI-minted `plan.code`");
+    expect(router).toContain("- config writes (`plan write|delete|revert|raw`): the CLI decides");
+    expect(router).toContain("high-consequence runtime action (grants physical access or is physically irreversible): the person's own confirmation");
+    expect(writeSkill).toContain("Confirmation: the CLI decides — `plan.confirm` none → apply");
     // Safety Core wording (A3): the no-guessing rule now arrives via the
     // byte-identical core block in every mutation-capable skill.
     expect(writeSkill).toContain("Never guess entity, service, or config IDs — resolve them or ask.");

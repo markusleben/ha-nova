@@ -20,6 +20,13 @@ const batchFourList = "I'm about to make these 4 changes in Home Assistant, in t
 	"One confirmation covers all 4, so I need you to confirm it. A copy of each one deleted is saved first, so it can be restored. " +
 	"HA NOVA checks each one again right before it is sent and stops at the first one that doesn't go through. Nothing has changed yet."
 
+// batchFourPrompt: the same list in the window and the form, under its
+// question, and what the one confirmation covers.
+const batchFourPrompt = "Change or delete 4 automations and scripts?\n\n" +
+	"1. Change the automation “Night mode”.\n2. Change the script “Arrival”.\n3. Delete the automation “Kitchen motion old”.\n4. Delete the script “Old arrival”.\n\n" +
+	"One confirmation covers all 4. A copy of each one deleted is saved first, so it can be restored. " +
+	"HA NOVA checks each one again right before it is sent and stops at the first one that doesn't go through."
+
 // The window shows the list the chat shows; one answer sends all four.
 func TestBatchWindowShowsEveryItem(t *testing.T) {
 	h := newWriteHarness(t, batchHome())
@@ -31,7 +38,7 @@ func TestBatchWindowShowsEveryItem(t *testing.T) {
 		t.Fatalf("plan batch: exit %d say %q next %q", exit, env.Say, env.NextStep)
 	}
 	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
-	if exit != 0 || itemStatuses(batchItems(t, applied)) != "verified,verified,verified,verified" || len(w.messages) != 1 || w.messages[0] != windowMessage("en", batchFourList, false) {
+	if exit != 0 || itemStatuses(batchItems(t, applied)) != "verified,verified,verified,verified" || len(w.messages) != 1 || w.messages[0] != windowShown("en", batchFourPrompt, false) {
 		t.Fatalf("apply: exit %d %+v window %q", exit, applied.Error, w.messages)
 	}
 }
@@ -50,7 +57,7 @@ func TestBatchWindowAndPhoneRaceSendOnce(t *testing.T) {
 			_, env := h.batch(batchFour(h)...)
 			go func() { p.waitSent(); close(first); time.Sleep(250 * time.Millisecond); close(late) }()
 			exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
-			if exit != 0 || applied.Status != "verified" || len(h.writes()) != 4 || w.messages[0] != windowMessage("en", batchFourList, true) {
+			if exit != 0 || applied.Status != "verified" || len(h.writes()) != 4 || w.messages[0] != windowShown("en", batchFourPrompt, true) {
 				t.Fatalf("exit %d %+v writes %d window %q", exit, applied.Error, len(h.writes()), w.messages)
 			}
 			<-late
@@ -157,9 +164,10 @@ func TestBatchPhoneTitles(t *testing.T) {
 	}
 }
 
-// 20 deletes (30-character names) fit the window on one shared line that
-// names every one; 20 with 60-character names, or 20 members with a
-// reason each, are refused, never cut, and their plans come back.
+// 20 deletes fit the window on one shared line that names every one, also
+// with 60-character names (the longest sayText keeps) under the window's
+// question; 20 members with a reason each are refused, never cut, and their
+// plans come back.
 func TestBatchWindowBudget(t *testing.T) {
 	f := newFakeHA()
 	name := func(i int) string { return fmt.Sprintf("Long automation name %02d %s", i, strings.Repeat("y", 6)) }
@@ -189,22 +197,22 @@ func TestBatchWindowBudget(t *testing.T) {
 	for i := 1; i <= batchMaxMembers; i++ {
 		long = append(long, h.member("delete", "automation."+strings.ReplaceAll(strings.ToLower(longer(i)), " ", "_")))
 	}
-	exit, refused := h.batch(long...)
-	if exit != 4 || refused.Error.Code != "BATCH_TOO_LONG" {
-		t.Fatalf("20 deletes, 60-character names: exit %d %+v", exit, refused.Error)
-	}
-	if size := splitSize(t, refused.Error.Next, "[(]each"); size < 2 || size >= batchMaxMembers {
-		t.Fatalf("split into batches of %d: %q", size, refused.Error.Next)
-	} else if exit, env := h.batch(long[:size]...); exit != 3 || env.Plan.Channel != channelWindow {
-		t.Fatalf("a batch of %d: exit %d %+v", size, exit, env.Error)
+	if exit, env := h.batch(long...); exit != 3 || env.Plan.Channel != channelWindow {
+		t.Fatalf("20 deletes, 60-character names: exit %d %+v", exit, env.Error)
 	}
 	for i := 1; i <= batchMaxMembers; i++ {
 		unlocks = append(unlocks, h.writePlan("automation", fmt.Sprintf("l%d", i), map[string]any{"alias": name(i), "actions": []any{step("lock.unlock", "lock.front")}}))
 	}
 	before := h.planFiles()
-	if exit, env := h.batch(unlocks...); exit != 4 || env.Error.Code != "BATCH_TOO_LONG" || !strings.Contains(env.Error.Next, "Split the list") ||
+	exit, refused := h.batch(unlocks...)
+	if exit != 4 || refused.Error.Code != "BATCH_TOO_LONG" || !strings.Contains(refused.Error.Next, "Split the list") ||
 		strings.Join(h.planFiles(), ",") != strings.Join(before, ",") {
-		t.Fatalf("20 unlocks: exit %d %+v files %d", exit, env.Error, len(h.planFiles()))
+		t.Fatalf("20 unlocks: exit %d %+v files %d", exit, refused.Error, len(h.planFiles()))
+	}
+	if size := splitSize(t, refused.Error.Next, "[(]each"); size < 2 || size >= batchMaxMembers {
+		t.Fatalf("split into batches of %d: %q", size, refused.Error.Next)
+	} else if exit, env := h.batch(unlocks[:size]...); exit != 3 || env.Plan.Channel != channelWindow {
+		t.Fatalf("a batch of %d: exit %d %+v", size, exit, env.Error)
 	}
 	var failure *verbFailure
 	if err := batchWindowFits(storedPlan{Lang: "en", Prompt: strings.Repeat("A name that grew.\n", windowMaxLines)}, "apply"); !errors.As(err, &failure) ||

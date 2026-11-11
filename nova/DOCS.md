@@ -45,17 +45,83 @@ There you can:
 - turn **chat apps** (HA NOVA in Claude and ChatGPT) on or off, let them only
   read, or turn off codes in the chat (see [Chat apps](#chat-apps-claude-and-chatgpt)),
 - pick **who can use** chat apps and at what level, link each person's phone,
-  and see **recent changes from chat apps**.
+  and see **recent changes from chat apps**,
+- **approve** a risky change one of your computers asked for ("Waiting for
+  your OK"; see [The safety check](#the-safety-check)).
 
-Only the Home Assistant owner can open this page. It opens only from inside
+Only the Home Assistant owner can open this page. Other administrators can
+open its "Waiting for your OK" view to approve. It opens only from inside
 Home Assistant, never by its network address.
+
+## The safety check
+
+This App checks every request from your computers before it reaches Home
+Assistant, with the same rules HA NOVA uses on the computer. It also hides
+secrets in every answer, such as lock codes and the secret ids your phones
+use to talk to Home Assistant. `ha-nova doctor` says "Safety check in Home
+Assistant: on", or why not.
+
+Unlocking, opening a door, gate, or garage, turning off the alarm, deletes,
+file writes, and other risky changes wait for a person's OK:
+
+- **On your linked phone:** a notification with the action's button. Press and
+  hold it on an iPhone, or pull it down on Android, then tap the button.
+- **On the NOVA page:** open NOVA in the sidebar. Under "Waiting for your OK",
+  choose Open, then Approve or Cancel. Any Home Assistant administrator can
+  approve there, except the user this App signs in as; other administrators
+  find the link "Requests waiting for your OK" when they open NOVA.
+
+The OK covers exactly the change shown, once. Nothing is sent before it, and a
+request no one answers ends after 3 minutes. The window on your computer only
+waits: it says where to confirm, opens Home Assistant, or cancels. It can't
+confirm. Dashboard and room changes are the exception: they still ask on the
+computer (the window, or a four-digit code).
+
+While a change waits, your AI app may say it is waiting for your OK
+(`waiting_for_approval`): the change hasn't been sent yet. Approve it, then
+tell your AI app to go on. Asking again picks up the same change; it never
+runs twice.
+
+The phone you linked on a computer moves here once: the first time a change
+needs your OK, that phone asks whether it should get HA NOVA's confirmations.
+Allow it, then confirm the change itself.
+
+Some requests are never sent: firing events, webhooks, backup downloads, and
+reading Home Assistant's logs (open those in Settings → System → Logs). If the
+safety check isn't running, nothing that needs it is sent; restart this App.
+
+Good to know:
+
+- Each computer asks at most 10 times an hour. After three of its requests in a
+  row go unanswered or are cancelled, its phone asks pause for 15 minutes. The
+  NOVA page still works and lists that computer with "Revoke this device…".
+- Whoever holds your linked phone can answer the open request; its buttons
+  don't need an unlocked phone.
+- A computer connected through Home Assistant Link also keeps your Home
+  Assistant sign-in, which works without this App, so the check protects less
+  there.
+- Chat apps don't wait here: they run inside this App with their own rules
+  (see [Chat apps](#chat-apps-claude-and-chatgpt)).
+- Went back to an older App without the check? Computers that saw it refuse
+  risky changes until you update this App again.
+- A standalone container has no NOVA page, so only a linked phone can confirm
+  ([standalone container](https://github.com/markusleben/ha-nova/blob/main/docs/reference/relay-container.md#confirmations-on-your-phone-030)).
+  Run it with a port mapping (`-p 8791:8791`), not host networking: the safety
+  check's own key works only from inside the container, and with host
+  networking every program on that computer counts as inside.
 
 ## Configuration
 
 | Option | Description |
 |--------|-------------|
-| **Relay Auth Token (legacy/advanced)** | Old installs may still use this shared key. The App accepts it on the local connection, never through Home Assistant Link. Run `ha-nova setup` once on each computer to switch (a `--service` install: `ha-nova pair --credential-store=file`). When every computer has switched, choose "Revoke legacy access…" on the NOVA page. New installs leave this empty: each computer gets its own key when it connects. |
-| **File access (advanced)** | Lets HA NOVA read or change some Home Assistant config files. Off by default. |
+| **File access (advanced)** | Lets HA NOVA read or change some Home Assistant config files, and delete pictures and videos in the `www` folder. Off by default. The App keeps a copy of each deleted picture or video for 30 days; uninstalling the App or restoring a Home Assistant backup drops those copies. |
+
+Each computer gets its own key when it connects. Earlier versions also had a
+"Relay Auth Token" option, one shared key for every computer. This App no
+longer accepts that key: a computer that still uses it says "Pair this computer
+again". Run `ha-nova setup` once on it (a `--service` install:
+`ha-nova pair --credential-store=file`); with Home Assistant Link saved, remove
+Link first and add it again afterwards.
 
 The App logs in to Home Assistant by itself. Don't create or paste a Home
 Assistant access token for a normal App install. A standalone Container/Core
@@ -70,30 +136,30 @@ Relay keeps its `HA_LLAT` on the server, as described in
 
 | Port | Description |
 |------|-------------|
-| 8791/tcp | Connecting computers, and the old shared access |
+| 8791/tcp | Connecting computers |
 | 8792/tcp | Everything a connected computer sends (encrypted, locked to this App) |
 
 ## Endpoints
 
 You normally never call these yourself. The CLI and the NOVA page do it for
 you. Connected devices use their own key over the encrypted port (8792), sent
-as `Authorization: Bearer <token>`. Requests on the plain port (8791),
-including `GET /health`, work only with the old shared access or a standalone
-container's token, in the same header: a connected device's key is refused there.
-Connecting uses the six-digit code, or the owner's Home Assistant sign-in,
-instead.
+as `Authorization: Bearer <token>`. The plain port (8791) only connects
+devices, with the six-digit code or the owner's Home Assistant sign-in. Every
+other request there is refused, including `GET /health`: a connected
+device's key gets 403, the old shared key 401 with "pair this computer again".
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Relay health check (version, uptime, Home Assistant connection) |
 | GET/POST | `/pair/v1/*` | Connect a device (OPAQUE) — the code is the key |
 | POST | `/auth/device/*` | Start a device's key, or revoke it for good (encrypted port only) |
-| GET | `/auth/device/peers` | Whether other devices, an open code, the old shared access, or chat-app files still use this App (encrypted port only; for `ha-nova uninstall`) |
+| GET | `/auth/device/peers` | Whether other devices, an open code, or chat-app files still use this App (encrypted port only; for `ha-nova uninstall`) |
 | POST | `/ws` | Passes commands to Home Assistant's WebSocket API |
 | POST | `/core` | Passes requests to Home Assistant's REST API (`/api/...`) |
 | POST | `/files` | Config-file access, only when you turn it on |
 | POST | `/backups` | Saved copies of configs, for undo |
-| POST | `/supervisor` | Supervisor logs and Apps, from a fixed list (local ports only, not through Home Assistant Link). The HA NOVA program, on a computer and in chat apps, doesn't read the logs |
+| POST | `/gate/v1/ask`, `/gate/v1/phone` | Ask a person to approve a risky change, or to link a phone for that (the safety check) |
+| POST | `/supervisor` | Supervisor system and App reads, from a fixed list (local ports only, not through Home Assistant Link). The HA NOVA program, on a computer and in chat apps, doesn't read the logs |
 
 For Apps and logs, this App has the Supervisor's `manager` access, which Home
 Assistant shows on this App's page. The Relay reaches only that fixed list.
@@ -133,13 +199,15 @@ login on that computer (its user account, not a Home Assistant one) can use HA
 NOVA; there is no separate sign-in per person. The owner is the first account
 made when Home Assistant was set up. An admin with Advanced mode on (in their
 Home Assistant profile) sees it under Settings → People → Users, marked Owner.
-Other admins see NOVA in the sidebar too, but only the owner can open it.
+Other admins see NOVA in the sidebar too, but only the owner can open it;
+they can still approve risky changes there (see [The safety check](#the-safety-check)).
 
 Each computer gets its own key. It is saved in this computer's password store.
 With no password store (for example a server), or with `--service` or
 `ha-nova pair --credential-store=file`, it goes in a private file instead.
-Saved old tokens, `--relay-token`, service token files, and standalone
-Container/Core setups still work the old way.
+Standalone Container/Core setups keep their own token (`--relay-token`). This
+App no longer accepts a saved old token or a service token file: pair again
+with `ha-nova setup`.
 
 ### Away from home with Home Assistant Link
 
@@ -270,8 +338,8 @@ your AI app isn't ready yet? Run `ha-nova setup --server <name>`. With
 JSON object (`verification_error` and `next_command` when something fails). It
 never prints passwords or keys.
 
-With the old shared access or a standalone container, you can also ask the
-Relay yourself (a connected computer's key doesn't work on this port):
+With a standalone container, you can also ask the Relay yourself with its own
+token (this App answers only connected computers, on the encrypted port):
 
 ```bash
 curl \
@@ -357,8 +425,7 @@ Link only: then its pairing is revoked as well.
   connection, this computer's key, and the Link sign-in.
   `ha-nova uninstall --yes` does the same; add `--purge` to remove everything.
 - "Remove, and remove the NOVA App too" shows only when this App says that no
-  other device, no pairing under way, no old shared access, and no chat-app
-  files use it, and no Home Assistant Link is saved on this computer. The Home
+  other device, no pairing under way, and no chat-app files use it, and no Home Assistant Link is saved on this computer. The Home
   Assistant owner must sign in first.
 
 Removing this App disconnects every computer. Turn chat apps off on the NOVA

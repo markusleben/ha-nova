@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -26,6 +27,7 @@ type fakeRelayCall struct {
 type fakeRelayLog struct {
 	mu    sync.Mutex
 	calls []fakeRelayCall
+	gate  atomic.Bool // GET /health says gate: 1 (a gated App); else an older App
 }
 
 func (l *fakeRelayLog) all() []fakeRelayCall {
@@ -80,6 +82,15 @@ func setupFakeRelay(t *testing.T, reply func(r *http.Request, endpoint string, p
 	log := &fakeRelayLog{}
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		endpoint := strings.TrimPrefix(r.URL.Path, "/")
+		if r.Method == http.MethodGet && endpoint == "health" { // read once per session where a typed plan needs it (gate_client_plan.go)
+			health := map[string]any{"status": "ok"}
+			if log.gate.Load() {
+				health["gate"] = 1
+			}
+			w.Header().Set("content-type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": health})
+			return
+		}
 		raw, _ := io.ReadAll(r.Body)
 		r.Body = io.NopCloser(bytes.NewReader(raw)) // reply may read it again
 		var payload map[string]any
@@ -87,13 +98,15 @@ func setupFakeRelay(t *testing.T, reply func(r *http.Request, endpoint string, p
 			t.Errorf("decode payload: %v", err)
 		}
 		// Invariant I1 oracle: every verb test fails on a non-read request.
-		// Typed plans also look for the owner's phone (its own fixed allowlist).
-		if err := checkReadOnlyRequest(endpoint, payload); err != nil && !(allowServiceWrites && checkWriteRequest(endpoint, payload) == nil) && checkPhoneRead(endpoint, payload) != nil {
+		// Typed plans also look for the owner's phone (its own fixed allowlist),
+		// and the tier engine starts and aborts a helper's options flow.
+		asking := endpoint == gateAskRoute || endpoint == gatePhoneRoute // the Relay's ask routes, not requests to Home Assistant
+		if err := checkReadOnlyRequest(endpoint, payload); err != nil && !asking && !(allowServiceWrites && checkWriteRequest(endpoint, payload) == nil) && checkPhoneRead(endpoint, payload) != nil && !helperFlowRequest(endpoint, payload) {
 			t.Errorf("read verb sent a non-read request: %v", err)
 		}
 		// Gate oracle (relay-typed-gate spec → Contract): the Relay's gate
 		// recognizes every request a verb sends but gateRefusesOnPurpose.
-		if check, _ := gateVerdict(endpoint, raw, func() (*relaySession, error) { return nil, errors.New("static check") }); check.Verdict == gateRefuse && !gateRefusesOnPurpose(endpoint, payload) {
+		if check, _ := gateVerdict(endpoint, raw, func() (*relaySession, error) { return nil, errors.New("static check") }); !asking && check.Verdict == gateRefuse && !gateRefusesOnPurpose(endpoint, payload) {
 			t.Errorf("the Relay gate would refuse a request a verb sends: %s %s", endpoint, raw)
 		}
 		log.mu.Lock()

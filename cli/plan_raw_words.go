@@ -52,6 +52,8 @@ func rawVerb(lang, id string) string {
 		return confirmT(lang, "raw.verb.delete")
 	case "write":
 		return confirmT(lang, "raw.verb.write")
+	case "restore":
+		return confirmT(lang, "raw.verb.restore")
 	case "save":
 		return confirmT(lang, "raw.verb.save")
 	case "change":
