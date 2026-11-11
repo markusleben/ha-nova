@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"slices"
 	"time"
 )
 
@@ -51,8 +52,10 @@ func later(a, b time.Time) time.Time {
 // readUntilDeadline extends the session's read budget for one check to
 // afterCheck before checkDeadline, and never to less than a session budget
 // from now (a check after a long wait, such as apply's after the window,
-// reads as it did before #1009). A replay keeps its own budget
-// (replayReads). Earlier contexts stay alive until close, as in renewBudget.
+// reads as it did before #1009). Before a person's ask, a cut plan's check
+// ends at askCeiling instead, even sooner than that floor: its replay
+// decides. A replay keeps its own budget (replayReads). Earlier contexts
+// stay alive until close, as in renewBudget.
 func (s *relaySession) readUntilDeadline() {
 	if checkDeadline.IsZero() {
 		return
@@ -63,10 +66,39 @@ func (s *relaySession) readUntilDeadline() {
 	if s.replay != nil {
 		return
 	}
-	if current, set := s.ctx.Deadline(); set && !until.After(current) {
+	capped := !s.askCeiling.IsZero() && until.After(s.askCeiling)
+	if capped {
+		until = s.askCeiling
+	}
+	if current, set := s.ctx.Deadline(); set && !until.After(current) && !capped {
 		return
 	}
 	previous := s.cancel
 	ctx, cancel := context.WithDeadline(context.Background(), until)
 	s.ctx, s.cancel = ctx, func() { cancel(); previous() }
+}
+
+// recheckBeforeAsk is recheck before a person's ask. A cut plan's check
+// (or a batch's cut member's) then ends at askCeiling: its replay, the gate
+// read or phone lookup (afterCheck), opening the ask (one gate worker
+// step), and windowMinWait for the person still fit in the call's ask
+// (askWait); the CLI's check gets 30 s, as the cut-plan spec planned. Read to checkDeadline, a big home on a slow link left the
+// ask no time (#827 on a gated App). An uncut plan checks as before, and so
+// does a plan whose ask has a life of its own (gateApproval: an MCP or chat
+// job) or whose call leaves no time for a capped check (MCP's 40 s window):
+// there the ask refuses once its time is gone.
+func recheckBeforeAsk(s *relaySession, env *verbEnvelope, stored storedPlan, compute func(*verbEnvelope) (storedPlan, error)) (storedPlan, error) {
+	ceiling := commandStart.Add(windowWait - windowMinWait - replayBudget - afterCheck - gateWorkerStep)
+	cut := func(p storedPlan) bool { return len(p.Reads) > 0 && slices.ContainsFunc(p.Reasons, cutShort) }
+	if gateApproval == nil && !commandStart.IsZero() && ceiling.After(time.Now()) && (cut(stored) || slices.ContainsFunc(stored.BatchMembers, cut)) {
+		s.mu.Lock()
+		s.askCeiling = ceiling
+		s.mu.Unlock()
+		defer func() {
+			s.mu.Lock()
+			s.askCeiling = time.Time{}
+			s.mu.Unlock()
+		}()
+	}
+	return recheck(s, env, stored, compute)
 }
