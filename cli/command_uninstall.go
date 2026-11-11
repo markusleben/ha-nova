@@ -379,12 +379,27 @@ func scheduleWindowsSelfDelete(path string) error {
 
 // parentReleaseTimeout bounds the helper's wait for the ha-nova.exe that
 // started it: Windows keeps that image, in the install root, locked until
-// it exits. A probe that fails to start counts as still running.
+// it exits. A probe that fails to start or to finish in time counts as
+// still running.
 var (
 	parentReleaseTimeout = 90 * time.Second
 	parentReleasePoll    = 500 * time.Millisecond
+	parentProbeTimeout   = 10 * time.Second
 	parentProcessRunning = func(parentPID int) bool {
-		return buildWindowsHiddenPowerShellCommand(fmt.Sprintf(`if (Get-Process -Id %d -ErrorAction SilentlyContinue) { exit 1 }`, parentPID)).Run() != nil
+		cmd := buildWindowsHiddenPowerShellCommand(fmt.Sprintf(`if (Get-Process -Id %d -ErrorAction SilentlyContinue) { exit 1 }`, parentPID))
+		if cmd.Start() != nil {
+			return true
+		}
+		done := make(chan error, 1)
+		go func() { done <- cmd.Wait() }()
+		select {
+		case err := <-done:
+			return err != nil
+		case <-time.After(parentProbeTimeout):
+			_ = cmd.Process.Kill()
+			<-done
+			return true
+		}
 	}
 )
 
