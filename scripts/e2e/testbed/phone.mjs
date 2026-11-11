@@ -293,7 +293,9 @@ async function windowCancel(platform) {
     const host = linux ? "127.0.0.1" : "host.docker.internal";
     const config = join(home, ".config/ha-nova/config.json");
     const { confirm_window: _, ...rest } = JSON.parse(readFileSync(config, "utf8")); // window on = the setting absent
-    writeFileSync(config, JSON.stringify({ ...rest, ha_url: `http://${host}:18123`, relay_base_url: `http://${host}:18791` }), { mode: 0o600 });
+    const urls = { ha_url: `http://${host}:18123`, relay_base_url: `http://${host}:18791` };
+    const servers = rest.servers && Object.fromEntries(Object.entries(rest.servers).map(([k, v]) => [k, { ...v, ...urls, ha_host: host }])); // a paired setup reads its profile
+    writeFileSync(config, JSON.stringify({ ...rest, ...urls, ...(servers && { servers }) }), { mode: 0o600 });
     let n = 0;
     const box = (args) => {
       const id = `ha-nova-testbed-window-${process.pid}-${n++}`;
