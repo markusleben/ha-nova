@@ -97,6 +97,7 @@ type relaySession struct {
 	diverged     bool             // the replay asked for a read the preview never made
 	census       bool             // the listener scan's config reads are running (lost)
 	gate         *relayGate       // the Relay's safety check as this session knows it (gate_client.go)
+	askCeiling   time.Time        // a cut plan's check before a person's ask ends here (recheck)
 }
 
 type relayMemo struct {

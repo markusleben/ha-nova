@@ -96,7 +96,7 @@ release:
     - **The NOVA App no longer accepts the old shared key.** A computer that still uses it says "Pair this computer again": run `ha-nova setup` once on it (a `--service` install: `ha-nova pair --credential-store=file`).
     - **Home Assistant Link on such a computer?** Remove Link first, then run setup, then add Link again. Computers that already paired, and chat apps, are not affected.
     - **The App's "Relay Auth Token" and "Home Assistant token" options are gone, and so is "Revoke legacy access".** An older App doesn't bring the shared key back; a Home Assistant backup from before this update does.
-    - **HA NOVA 0.28.3 or older on a computer, after the App update:** it reports a sign-in problem and offers `ha-nova setup`; choose to switch there. Its "Not now" leads to a key field the App no longer has.
+    - **HA NOVA 0.28.3 or older on a computer, after the App update:** it reports a sign-in problem. 0.27 and later offer `ha-nova setup`: switch there, not "Not now". Older ones offer `ha-nova update`: run it, then setup.
     - **HA NOVA no longer reads Home Assistant's logs, which can hold passwords and keys.** When a log would help, your AI asks you to open Settings > System > Logs and share only the lines that matter.
     - **Writing a file in your Home Assistant config folder, or changing where backups go, now asks for the same confirmation as unlocking a door.**
     - **The window on your computer only waits.** It says where to confirm, opens Home Assistant, or cancels. For big changes the four-digit code on a computer ends too; a dashboard or rooms change still asks there.

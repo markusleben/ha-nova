@@ -254,7 +254,11 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		}
 		return fresh, err
 	}
-	fresh, err := recheck(s, &env, plan, compute)
+	check := recheck
+	if plan.Channel == channelRelay { // the gate asks the person next (gateBeforeSend)
+		check = recheckBeforeAsk
+	}
+	fresh, err := check(s, &env, plan, compute)
 	// release hands the claimed plan back after a failure before anything
 	// reached Home Assistant, so the same apply can be retried.
 	release := func(err error) error {
