@@ -1,6 +1,6 @@
 module github.com/markusleben/ha-nova/cli
 
-go 1.26.10
+go 1.26.11
 
 require (
 	github.com/brutella/dnssd v1.2.14
