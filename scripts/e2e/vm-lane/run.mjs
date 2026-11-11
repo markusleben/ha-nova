@@ -257,7 +257,7 @@ async function haosIdentity() {
 const host = (cmd, t = 60) => execFileSync("python3", [join(TOOLS, "haos/sh.py"), cmd, String(t)], { encoding: "utf8", timeout: (t + 15) * 1000 });
 function registryHash() {
   if (!/^[a-z0-9_]+$/.test(CFG.app)) throw new Error("invalid VM App slug");
-  const script = 'const fs=require("node:fs"),crypto=require("node:crypto"); const data=JSON.parse(fs.readFileSync("/data/device-registry.json","utf8")); for(const device of data.devices)delete device.lastUsedAtMs; const sorted=(v)=>Array.isArray(v)?v.map(sorted):v&&typeof v==="object"?Object.fromEntries(Object.keys(v).sort().map(k=>[k,sorted(v[k])])):v; console.log(crypto.createHash("sha256").update(JSON.stringify(sorted(data))).update(fs.readFileSync("/data/tls-key.pem")).digest("hex"));';
+  const script = 'const fs=require("node:fs"),crypto=require("node:crypto"); const data=JSON.parse(fs.readFileSync("/data/device-registry.json","utf8")); data.devices=data.devices.filter(d=>d.clientInstallId!=="nova-app-gate"); for(const device of data.devices)delete device.lastUsedAtMs; const sorted=(v)=>Array.isArray(v)?v.map(sorted):v&&typeof v==="object"?Object.fromEntries(Object.keys(v).sort().map(k=>[k,sorted(v[k])])):v; console.log(crypto.createHash("sha256").update(JSON.stringify(sorted(data))).update(fs.readFileSync("/data/tls-key.pem")).digest("hex"));';
   const output = host(`docker exec app_${CFG.app} node -e '${script}'`, 15);
   const hash = output.match(/^([0-9a-f]{64})\s/m)?.[1];
   if (!hash) throw new Error("cannot hash the throwaway App registry through its serial helper");
@@ -564,7 +564,7 @@ if (backupSlug) {
     for (let i = 0; i < 60 && !ids; i++) { info = await sup(`/addons/${CFG.app}/info`); if (info.state === "started" && info.version === start.version) ids = await listed().catch(() => undefined); if (!ids) await sleep(3000); }
     ids ??= await listed();
     const sameRegistry = registryHash() === start.registry;
-    const matched = check("c", "HAOS App and credential registry match snapshot", info.state === "started" && info.version === start.version && sameRegistry && JSON.stringify(ids) === JSON.stringify([...start.devices].sort()), `backup ${backupSlug}; App ${info.version} ${info.state}; original device IDs ${ids.length}; registry + TLS key SHA-256 ${sameRegistry ? "unchanged" : "DIFFERS"} (only lastUsedAtMs excluded)${!sameRegistry && restored?.error ? JSON.stringify(restored.error) : ""}`);
+    const matched = check("c", "HAOS App and credential registry match snapshot", info.state === "started" && info.version === start.version && sameRegistry && JSON.stringify(ids) === JSON.stringify([...start.devices].sort()), `backup ${backupSlug}; App ${info.version} ${info.state}; original device IDs ${ids.length}; registry + TLS key SHA-256 ${sameRegistry ? "unchanged" : "DIFFERS"} (lastUsedAtMs and the App's own safety-check record excluded)${!sameRegistry && restored?.error ? JSON.stringify(restored.error) : ""}`);
     if (matched) {
       await sup(`/backups/${backupSlug}`, "delete");
       const listing = await sup("/backups/info");
