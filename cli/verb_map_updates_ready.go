@@ -107,8 +107,9 @@ func errText(err error, missing string) string {
 func (a *updateAdvisor) checkBackups() {
 	var info struct {
 		Backups *[]struct {
-			Date   string         `json:"date"`
-			Agents map[string]any `json:"agents"`
+			Date       string         `json:"date"`
+			Agents     map[string]any `json:"agents"`
+			HAIncluded bool           `json:"homeassistant_included"`
 		} `json:"backups"`
 		State string `json:"state"`
 	}
@@ -126,8 +127,8 @@ func (a *updateAdvisor) checkBackups() {
 	}
 	var newest time.Time
 	var agents map[string]any
-	for _, b := range *info.Backups {
-		if at, err := time.Parse(time.RFC3339Nano, b.Date); err == nil && at.After(newest) {
+	for _, b := range *info.Backups { // only a backup with Home Assistant in it restores an update
+		if at, err := time.Parse(time.RFC3339Nano, b.Date); err == nil && b.HAIncluded && at.After(newest) {
 			newest, agents = at, b.Agents
 		}
 	}

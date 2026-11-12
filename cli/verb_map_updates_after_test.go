@@ -153,3 +153,22 @@ func TestAfterUpdateOnlyNewFailuresAndSeenRecoveries(t *testing.T) {
 		t.Fatalf("failing %+v back %d", got.NewFailing, got.AvailableAgain)
 	}
 }
+
+func TestAfterUpdateKeepsAutomationsWithTheSameNameApart(t *testing.T) {
+	f := haosHome()
+	f.states = append(f.states, st("automation.a", "on", map[string]any{"friendly_name": "Lights", "id": "1"}), st("automation.b", "on", map[string]any{"friendly_name": "Lights", "id": "2"}))
+	run := runSections(t, &f)
+	run("updates")
+	time.Sleep(5 * time.Millisecond)
+	base := time.Now()
+	at := func(d time.Duration) string { return base.Add(d).UTC().Format(time.RFC3339Nano) }
+	f.traces = []map[string]any{
+		{"item_id": "1", "error": "new", "timestamp": map[string]any{"start": at(time.Millisecond)}},
+		{"item_id": "2", "error": "b", "timestamp": map[string]any{"start": at(0)}},
+		{"item_id": "1", "error": "older", "timestamp": map[string]any{"start": at(0)}},
+	}
+	got := decodeInto[afterResult](t, run("after_update").Result)
+	if len(got.AutomationErrs) != 2 || got.AutomationErrs[0]["entity_id"] != "automation.a" || got.AutomationErrs[0]["errors"] != float64(2) || got.AutomationErrs[0]["last_error"] != "new" {
+		t.Fatalf("automation errors %+v", got.AutomationErrs)
+	}
+}
