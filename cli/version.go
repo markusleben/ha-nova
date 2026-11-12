@@ -370,6 +370,9 @@ func relayUpdateNoticeOverRoute(ctx context.Context, paths runtimePaths, route r
 				message: floorNotice.message + relayCheckForUpdatesLine,
 			}
 		}
+		if ctx.Err() != nil { // the deadline cut the read: no word on how it was installed
+			return floorNotice
+		}
 		return humanNotice{
 			level:   floorNotice.level,
 			kind:    floorNotice.kind,
