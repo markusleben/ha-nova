@@ -449,7 +449,7 @@ Alarm/lock rules:
 
 `ha-nova:diagnose` is the failure-root-cause skill (read-only apart from one gated mutation):
 - traces first (`ha-nova trace latest <entity_id> --json`, plus `trace list` / `trace get`) for automation/script symptoms
-- no log reads (`system_log/list`, `/api/error_log`, Supervisor logs are refused): the user reads the few lines that matter on Settings > System > Logs
+- no log lines (`/api/error_log`, Supervisor logs, and `system_log/list` in any other shape are refused): `system_log/list` alone answers log facts (counts and times per integration and level, `cli/log_facts.go`); the user reads the few lines that matter on Settings > System > Logs
 - bounded logbook/history windows around the incident (default ±30 min)
 - `POST /api/template` to probe suspect conditions against live state
 - WS `diagnostics/list` + `/api/diagnostics/config_entry/<entry_id>` when an integration is the suspect

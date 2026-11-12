@@ -122,7 +122,7 @@ func TestMCPReadEndpoints(t *testing.T) {
 		{map[string]any{"endpoint": "core", "method": "DELETE", "path": "/api/states"}, "INVALID_ARGUMENTS", "wrong type", ""},
 		{map[string]any{"endpoint": "core"}, "INVALID_ARGUMENTS", "needs path", ""},
 		{map[string]any{"endpoint": "core", "path": "/api/states", "entity_id": "camera.x"}, "INVALID_ARGUMENTS", "does not apply to endpoint core", ""},
-		{ws(`{"type":"system_log/list"}`), "REFUSED", "never ask for the whole log", ""},
+		{ws(`{"type":"system_log/list","limit":5}`), "REFUSED", "never ask for the whole log", ""}, // the exact read answers log facts (log_facts_test.go)
 		{ws(`{"type":"config/entity_registry/list"}`), "", "", "ws"},
 		{ws(`{"message":{"type":"subscribe_events","event_type":"zha_event"},"collect_events":{"max_events":1}}`), "", "", "ws"},
 		{ws(`{"type":"config/area_registry/create","name":"Garden"}`), "REFUSED", "ha_read only reads; to change something, " + planIt, ""},

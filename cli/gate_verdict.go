@@ -88,6 +88,9 @@ func gateVerdict(endpoint string, body []byte, session func() (*relaySession, er
 	if !ok || payload == nil || !json.Valid(body) || !slices.Contains([]string{"ws", "core", "files", "backups", "supervisor"}, endpoint) || !gateFinite(payload) || gateDuplicateKeys(body) {
 		return refused, nil
 	}
+	if logFactsRequest(endpoint, body) { // answered as log facts (/redact), never as the log
+		return gateCheck{Verdict: gatePass, Kind: "read"}, nil
+	}
 	requests := gateRequests(endpoint, payload)
 	if endpoint == "core" && payload["method"] == http.MethodPost && payload["path"] == optionsFlowPath { // a check of the start never starts a flow (MAR-153)
 		open := session
