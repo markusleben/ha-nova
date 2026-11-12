@@ -19,9 +19,7 @@ import (
 // It returns the count of App checks (/health requests).
 func quietAppCheckSetup(t *testing.T, relayVersion string, registryFails bool, onHealth func()) (runtimePaths, *atomic.Int32) {
 	t.Helper()
-	previous := selectionOverride()
-	setServerSelectionOverride("")
-	t.Cleanup(func() { setServerSelectionOverride(previous) })
+	resetServerProfileSelection(t)
 	paths, cfg := doctorTestSetup(t)
 	var checks atomic.Int32
 	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -58,6 +58,7 @@ func TestInternalOfferAppUpdateCommandOffersAndExitsZero(t *testing.T) {
 // a progress line, and a cut check says so and names doctor; it offers
 // nothing.
 func TestUpdateAppCheckIsBoundedAndSaysWhenItGivesUp(t *testing.T) {
+	resetServerProfileSelection(t) // the doctor command it names follows a --server another test left set
 	paths := guidedUpdatePaths(t)
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
 	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(t.TempDir(), "relay-token"))
