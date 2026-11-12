@@ -59,7 +59,7 @@ func backupInfo(age time.Duration, agents ...string) map[string]any {
 	for _, agent := range agents {
 		held[agent] = map[string]any{"protected": true, "size": 1}
 	}
-	return map[string]any{"state": "idle", "backups": []map[string]any{{"backup_id": "b1", "date": ago(age), "agents": held}}}
+	return map[string]any{"state": "idle", "backups": []map[string]any{{"backup_id": "b1", "date": ago(age), "agents": held, "homeassistant_included": true}}}
 }
 
 // haosHome: Core 2026.10.2 → 2026.11.1 on a healthy HAOS, an App that needs
@@ -273,12 +273,23 @@ func TestUpdatesOddAnswersAreNotChecked(t *testing.T) {
 	f := haosHome()
 	f.components = []string{"zwave_js"} // hassio failed to load; its update entities still say Supervisor runs
 	f.supervisor["/store/addons/core_mosquitto"] = map[string]any{"name": "Mosquitto"}
-	f.backups = map[string]any{"backups": []map[string]any{{"date": ago(time.Hour), "agents": map[string]any{}}}}
+	f.backups = map[string]any{"backups": []map[string]any{{"date": ago(time.Hour), "agents": map[string]any{}, "homeassistant_included": true}}}
 	got, _ := runUpdates(t, f)
 	if gaps := codes(got.NotChecked); !slices.Equal(gaps, []string{"backup_running", "backup_copy", "app_minimum"}) || got.Ready != "no" {
 		t.Fatalf("gaps %v ready %s readiness %+v", gaps, got.Ready, got.Readiness)
 	}
 	if slices.Contains(codes(got.Readiness), "SUPERVISOR_NOT_APPLICABLE") {
 		t.Fatal("Supervisor's own update entities were ignored")
+	}
+}
+
+func TestUpdatesAppOnlyBackupIsNoSafetyBackup(t *testing.T) {
+	f := haosHome()
+	info := backupInfo(48*time.Hour, "hassio.local", "cloud.backup")
+	info["backups"] = append(info["backups"].([]map[string]any), map[string]any{"backup_id": "b2", "date": ago(time.Hour), "agents": map[string]any{"cloud.backup": map[string]any{}}, "homeassistant_included": false})
+	f.backups = info
+	got, _ := runUpdates(t, f)
+	if !slices.Contains(codes(got.Readiness), "NO_RECENT_BACKUP") || got.Order[0] != "backup" {
+		t.Fatalf("readiness %+v order %v", got.Readiness, got.Order)
 	}
 }
