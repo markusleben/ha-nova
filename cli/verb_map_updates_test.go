@@ -105,6 +105,7 @@ type updatesResult struct {
 
 func runUpdates(t *testing.T, f updatesFixture, args ...string) (updatesResult, *fakeRelayLog) {
 	t.Helper()
+	releaseNotesServer(t, nil) // never the network
 	paths, log := setupVerbRelayTest(t, f.reply)
 	exit, env := runVerbForTest(t, func() int { return runMapCommand(paths, append([]string{"--section", "updates"}, args...)) })
 	if exit != 0 {
@@ -204,6 +205,7 @@ func TestUpdatesMissingFieldsAreNotChecked(t *testing.T) {
 }
 
 func TestUpdatesRefusesLimit(t *testing.T) {
+	releaseNotesServer(t, nil)
 	paths, log := setupVerbRelayTest(t, haosHome().reply)
 	exit, env := runVerbForTest(t, func() int { return runMapCommand(paths, []string{"--section", "updates", "--limit", "5"}) })
 	if exit == 0 || len(log.all()) != 0 || !strings.Contains(env.Error.Message, "--limit") {
