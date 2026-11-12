@@ -12,6 +12,8 @@ node scripts/e2e/testbed/gate.mjs          # the gate lane: approvals on the pho
 node scripts/e2e/testbed/www-media.mjs     # www pictures: delete, undo, community, copy limit (same bed)
 node scripts/e2e/testbed/marketplace.mjs   # Marketplace: typed install, the warning only for the App's user, gate holds and refusals
 node scripts/e2e/testbed/agent-updates.mjs # update advisor: an agent checks before installing and after (headless Claude test account)
+node scripts/e2e/testbed/checkup.mjs       # system check-up: the map section on the bed (no Supervisor), log facts as counts
+node scripts/e2e/testbed/agent-checkup.mjs # system check-up: an agent answers "is my HA OK, would my backup work" and changes nothing
 npm run testbed:down                       # containers, volumes, tokens, runtime config: gone
 ```
 

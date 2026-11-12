@@ -338,7 +338,7 @@ Match user intent to exactly one skill:
 **"Install browser_mod from HACS"** → `ha-nova:hacs` (add, pin, or remove a HACS package)
 **"Update my HACS integration to the latest"** → `ha-nova:updates` (an update entity, like any other update); an explicit version or a downgrade goes to `ha-nova:hacs`
 **"HA NOVA is not connecting"** / **"relay auth error"** → `ha-nova:onboarding` (diagnostics only, never a config write)
-**"Is everything OK with my home?"** → `ha-nova:health` (current status, no concrete incident)
+**"Is everything OK?", "Why is everything slow?", "Would my backup work?"** → `ha-nova:health`
 **"Why are devices unavailable?"** → `ha-nova:health`
 **"Add milk to my shopping list"** → `ha-nova:todo`
 **"Update Home Assistant"** → `ha-nova:updates` (offers a safety backup first)

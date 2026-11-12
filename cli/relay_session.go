@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -243,6 +244,10 @@ func (s *relaySession) read(endpoint string, payload map[string]any) (json.RawMe
 	return m.data, m.err
 }
 
+// readVerbSupervisorPaths: the Supervisor reads of the update advisor and the
+// check-up; App store entries and App stats are matched by route.
+var readVerbSupervisorPaths = []string{"/resolution/info", "/host/info", "/addons", "/core/stats", "/supervisor/stats"}
+
 func checkReadOnlyRequest(endpoint string, payload map[string]any) error {
 	switch endpoint {
 	case "core":
@@ -268,13 +273,14 @@ func checkReadOnlyRequest(endpoint string, payload map[string]any) error {
 			return nil
 		}
 		return errors.New("read verbs only load automation/script config snapshots from relay backups; nothing was sent")
-	case "supervisor": // the update advisor's readiness: health, free disk, an App's store entry
+	case "supervisor": // the update advisor's readiness and the check-up: health, disk, Apps, their store entries and stats
 		path, _ := payload["path"].(string)
 		kind, slug := rawSupervisorMatch(http.MethodGet, path)
-		if payload["method"] == http.MethodGet && len(payload) == 2 && (path == "/resolution/info" || path == "/host/info" || kind == "read" && slug != "" && strings.HasPrefix(path, "/store/addons/")) {
+		if payload["method"] == http.MethodGet && len(payload) == 2 && (slices.Contains(readVerbSupervisorPaths, path) ||
+			kind == "read" && slug != "" && (strings.HasPrefix(path, "/store/addons/") || strings.HasSuffix(path, "/stats"))) {
 			return nil
 		}
-		return errors.New("read verbs only send the update advisor's Supervisor reads; nothing was sent")
+		return errors.New("read verbs only send the update advisor's and the check-up's Supervisor reads; nothing was sent")
 	default:
 		return fmt.Errorf("read verbs never use relay %s; nothing was sent", endpoint)
 	}

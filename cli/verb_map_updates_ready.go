@@ -157,6 +157,7 @@ type repairIssue struct {
 	Domain       string         `json:"domain"`
 	IssueID      string         `json:"issue_id"`
 	Ignored      bool           `json:"ignored"`
+	IsFixable    bool           `json:"is_fixable"`
 	Created      string         `json:"created"`
 	BreaksIn     string         `json:"breaks_in_ha_version"`
 	Placeholders map[string]any `json:"translation_placeholders"`

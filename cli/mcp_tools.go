@@ -65,7 +65,7 @@ var mcpTools = []mcpTool{mcpSkillTool,
 			return flagsThen(a, []string{"logbook"}, []string{"since", "until"}, "entity_id")
 		}, run: historyVerb},
 	{name: "ha_map", title: "Map the home", description: "Exact, computed home facts — never count by hand: areas/floors with device and entity counts, automations/scripts/scenes/helpers, integrations, unavailable entities, low batteries. section gives one full list; entity gives where-used (automations, scripts, scenes, groups, helpers, dashboard cards; not_checked names what was not searched); first_look gives the onboarding summary; insights gives ranked insights with room suggestions and one automation template that fit this home. " + mcpAnswerRules, readOnly: true, idempotent: true,
-		schema: object(nil, map[string]any{"section": map[string]any{"type": "string", "enum": []string{"areas", "integrations", "automations", "unavailable", "batteries", "updates", "after_update"}},
+		schema: object(nil, map[string]any{"section": map[string]any{"type": "string", "enum": []string{"areas", "integrations", "automations", "unavailable", "batteries", "updates", "after_update", "checkup"}},
 			"entity": prop("string", "exact entity_id: where it is used"), "first_look": prop("boolean", "the onboarding first look"),
 			"insights": prop("boolean", "stats, ranked insights, room suggestions (ha_plan kind rooms), and a template (ha_plan kind template)"),
 			"limit":    prop("integer", "1-200 rows for section or entity")}),
