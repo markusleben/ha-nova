@@ -42,11 +42,18 @@ func (a *updateAdvisor) flagCustomIntegrations() {
 		a.gap("custom_integrations", err.Error())
 		return
 	}
-	names := []string{}
+	names, unknown := []string{}, 0
 	for _, m := range manifests {
-		if m.BuiltIn != nil && !*m.BuiltIn && a.domains[m.Domain] {
+		switch {
+		case !a.domains[m.Domain]:
+		case m.BuiltIn == nil:
+			unknown++
+		case !*m.BuiltIn:
 			names = append(names, sayText(firstNonEmpty(m.Name, m.Domain), false))
 		}
+	}
+	if unknown > 0 {
+		a.gap("custom_integrations", strconv.Itoa(unknown)+" integrations don't say whether they ship with Home Assistant")
 	}
 	if len(names) > 0 {
 		sort.Strings(names)

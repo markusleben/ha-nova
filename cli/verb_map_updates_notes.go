@@ -73,17 +73,14 @@ func (a *updateAdvisor) scanBreaking() map[string]any {
 		out["status"] = "unavailable"
 		return out
 	}
-	months := releaseMonths(a.coreFrom, a.coreTo)
+	months, skipped := releaseMonths(a.coreFrom, a.coreTo)
 	if len(months) == 0 {
 		out["status"] = "not_scanned" // a patch release: no such section
 		return out
 	}
 	missing := []map[string]string{}
-	if len(months) > releaseNotesMaxMonths {
-		for _, m := range months[:len(months)-releaseNotesMaxMonths] {
-			missing = append(missing, map[string]string{"release": m, "reason": "more than 12 releases: only the newest 12 are scanned"})
-		}
-		months = months[len(months)-releaseNotesMaxMonths:]
+	if skipped != "" {
+		missing = append(missing, map[string]string{"release": skipped, "reason": "more than 12 releases: only the newest 12 are scanned"})
 	}
 	read := make([]releaseMonth, len(months))
 	var wg sync.WaitGroup
@@ -126,22 +123,27 @@ func (a *updateAdvisor) scanBreaking() map[string]any {
 	return out
 }
 
-// releaseMonths: the monthly releases after from's, up to to's ("2026.9").
-func releaseMonths(from, to string) []string {
+// releaseMonths: the monthly releases after from's, up to to's ("2026.9"),
+// the newest releaseNotesMaxMonths of them; skipped names the older ones
+// ("2024.1 to 2025.10").
+func releaseMonths(from, to string) (months []string, skipped string) {
 	f, okF := haVersion(from)
 	t, okT := haVersion(to)
 	if !okF || !okT {
-		return nil
+		return nil, ""
 	}
-	var out []string
-	for i := f[0]*12 + f[1]; i < t[0]*12+t[1]; i++ { // months stored 1-12
-		y, m := (i+1)/12, (i+1)%12
-		if m == 0 {
-			y, m = y-1, 12
-		}
-		out = append(out, strconv.Itoa(y)+"."+strconv.Itoa(m))
+	name := func(i int) string { // i counts months from year 0; months 1-12
+		return strconv.Itoa((i-1)/12) + "." + strconv.Itoa((i-1)%12+1)
 	}
-	return out
+	first, last := f[0]*12+f[1]+1, t[0]*12+t[1]
+	if last-first+1 > releaseNotesMaxMonths {
+		skipped = name(first) + " to " + name(last-releaseNotesMaxMonths)
+		first = last - releaseNotesMaxMonths + 1
+	}
+	for i := first; i <= last; i++ {
+		months = append(months, name(i))
+	}
+	return months, skipped
 }
 
 // readReleaseMonth: the changelog page's header links the release post; the

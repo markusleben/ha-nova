@@ -220,11 +220,17 @@ func TestBreakingChangesPatchAndNoCoreUpdate(t *testing.T) {
 }
 
 func TestReleaseMonthsCrossYears(t *testing.T) {
-	if got := releaseMonths("2025.11.3", "2026.2.0b1"); !slices.Equal(got, []string{"2025.12", "2026.1", "2026.2"}) {
+	if got, skipped := releaseMonths("2025.11.3", "2026.2.0b1"); !slices.Equal(got, []string{"2025.12", "2026.1", "2026.2"}) || skipped != "" {
+		t.Fatalf("%v %q", got, skipped)
+	}
+	if got, _ := releaseMonths("2026.11.0", "2026.11.1"); len(got) != 0 {
 		t.Fatalf("%v", got)
 	}
-	if got := releaseMonths("2026.11.0", "2026.11.1"); len(got) != 0 {
-		t.Fatalf("%v", got)
+	if got, skipped := releaseMonths("2024.12.0", "2026.1.0"); len(got) != 12 || got[0] != "2025.2" || got[11] != "2026.1" || skipped != "2025.1 to 2025.1" {
+		t.Fatalf("%v %q", got, skipped)
+	}
+	if got, skipped := releaseMonths("2026.1.0", "999999999.1.0"); len(got) != 12 || skipped != "2026.2 to 999999998.1" {
+		t.Fatalf("a far-off version is bounded: %d %q", len(got), skipped)
 	}
 }
 
@@ -240,6 +246,15 @@ func TestUpdateRisks(t *testing.T) {
 	}
 	if risks[1]["names"].([]any)[0] != "Blue (b)" || risks[2]["entity_id"] != "update.future_update" || risks[3]["controls"].([]any)[0] != "lock.front_door" {
 		t.Fatalf("risks %+v", risks)
+	}
+}
+
+func TestCustomIntegrationsUnknownIsNotChecked(t *testing.T) {
+	releaseNotesServer(t, map[string]string{})
+	f := breakingHome()
+	f.manifests = []map[string]any{{"domain": "bluesound", "name": "Blue"}}
+	if _, _, risks, gaps := runBreaking(t, f); slices.Contains(codes(risks), "CUSTOM_INTEGRATIONS") || !slices.Contains(codes(gaps), "custom_integrations") {
+		t.Fatalf("risks %+v gaps %+v", risks, gaps)
 	}
 }
 
