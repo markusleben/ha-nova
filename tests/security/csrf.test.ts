@@ -40,4 +40,13 @@ describe("csrf store", () => {
     // The oldest (first) was evicted.
     expect(s.consume("owner", "a", first, 1000)).toBe(false);
   });
+
+  it("caps per user, so another user's page loads never evict the owner's token", () => {
+    const s = createCsrfStore();
+    const ownerToken = s.issue("owner", "a", 1000);
+    for (let i = 0; i < CSRF_MAX_PENDING * 3; i++) {
+      s.issue("admin", "a", 1000 + i + 1);
+    }
+    expect(s.consume("owner", "a", ownerToken, 2000)).toBe(true);
+  });
 });

@@ -226,14 +226,18 @@ describe("owner page: waiting asks and paused devices", () => {
     expect(await renderGateSection({ ...t.deps.page, texts: async () => null }, [device], "/x")).toBe("");
   });
 
-  it("points an administrator who isn't the owner to the view", async () => {
+  it("shows an administrator who isn't the owner the waiting asks on the page itself", async () => {
     const t = bed();
-    const deps = { fetchAuthUsers: async () => [OWNER, ADMIN], gatePage: t.deps.page } as unknown as NovaPageDeps;
+    await t.open();
+    const deps = {
+      fetchAuthUsers: async () => [OWNER, ADMIN], gatePage: t.deps.page, csrf: createCsrfStore(), now: () => 1000,
+      registry: { list: () => [] }, pairing: { getStatus: () => ({ phase: "idle" }) }, connection: () => ({ haConnected: true }),
+      update: async () => ({ version: "0.7.0", versionLatest: "0.7.0", updateAvailable: false, error: false }), relayVersion: "0.7.0",
+    } as unknown as NovaPageDeps;
     const r = await call(createNovaPageHandler(deps), ADMIN.id, null, {}, "172.30.32.2", "/");
-    expect(r.statusCode).toBe(403);
-    expect(r.body).toContain('<a target="_top" href="/api/hassio_ingress/tok/approve">‹page.link›</a>');
-    const silent = { ...deps, gatePage: { ...t.deps.page, texts: async () => null } } as unknown as NovaPageDeps;
-    expect((await call(createNovaPageHandler(silent), ADMIN.id, null, {}, "172.30.32.2", "/")).body).not.toContain("approve");
+    expect(r.statusCode).toBe(200);
+    expect(r.body).toContain("‹page.heading›");
+    expect(r.body).toContain('target="_top" href="/api/hassio_ingress/tok/approve"');
   });
 });
 

@@ -149,20 +149,19 @@ func (e *tierEngine) scanConsumers(id string, depth int, d stateDelta) {
 	e.prefetchStates(automations)
 	var configReads []func()
 	for _, automation := range automations {
-		if st, err := e.state(automation); err == nil && st != nil && (!named[automation] || len(configReads) < tierMaxConsumers-e.reads) {
+		if st, err := e.state(automation); err == nil && st != nil && !named[automation] {
+			configReads = append(configReads, func() { e.placeOnlyMiss(automation, places) })
+		} else if err == nil && st != nil && len(configReads) < tierMaxConsumers-e.reads {
 			configReads = append(configReads, func() { e.warmConfig(automation) })
 		}
 	}
 	prefetch(configReads)
 	for _, automation := range automations {
-		if !named[automation] && !e.visited["consumer "+automation] {
-			// Home Assistant relates every automation of an area's or a floor's
-			// entities and devices to it: one whose trigger targets none of
-			// these places is no consumer, and costs no consumer read. A config
-			// it can't read goes on as a consumer: typed, never clean.
-			if cfg := e.warmConfig(automation); cfg != nil && !targetsPlace(cfg, places) {
-				continue
-			}
+		// Home Assistant relates every automation of an area's or a floor's
+		// entities and devices to it: one whose trigger targets none of these
+		// places is no consumer, and costs no consumer read (tier_place_index.go).
+		if !named[automation] && !e.visited["consumer "+automation] && e.placeOnlyMiss(automation, places) {
+			continue
 		}
 		e.consumer(automation, "", id, depth, func(cfg map[string]any) string {
 			if !named[automation] && !targetsPlace(cfg, places) {

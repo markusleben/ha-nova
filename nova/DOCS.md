@@ -49,9 +49,10 @@ There you can:
 - **approve** a risky change one of your computers asked for ("Waiting for
   your OK"; see [The safety check](#the-safety-check)).
 
-Only the Home Assistant owner can open this page. Other administrators can
-open its "Waiting for your OK" view to approve. It opens only from inside
-Home Assistant, never by its network address.
+Every Home Assistant administrator can open this page, connect a computer,
+revoke one, and approve. Chat apps and their settings stay with the owner:
+other administrators see who to ask instead. It opens only from inside Home
+Assistant, never by its network address.
 
 ## The safety check
 
@@ -68,8 +69,7 @@ file writes, and other risky changes wait for a person's OK:
   hold it on an iPhone, or pull it down on Android, then tap the button.
 - **On the NOVA page:** open NOVA in the sidebar. Under "Waiting for your OK",
   choose Open, then Approve or Cancel. Any Home Assistant administrator can
-  approve there, except the user this App signs in as; other administrators
-  find the link "Requests waiting for your OK" when they open NOVA.
+  approve there, except the user this App signs in as.
 
 The OK covers exactly the change shown, once. Nothing is sent before it, and a
 request no one answers ends after 3 minutes. The window on your computer only
@@ -192,15 +192,16 @@ one. None? You type its address. If this App already runs (for another
 computer), setup skips the install step. Then it opens your Home Assistant
 login. Sign in as the owner, and this computer connects by itself. Over SSH,
 as another Home Assistant user, or if sign-in fails, setup asks for a six-digit
-code instead. The owner makes it on the NOVA page.
+code instead. An administrator makes it on the NOVA page.
 
-The owner connects each computer once. After that, anyone who uses the same
+Each computer connects once. After that, anyone who uses the same
 login on that computer (its user account, not a Home Assistant one) can use HA
 NOVA; there is no separate sign-in per person. The owner is the first account
 made when Home Assistant was set up. An admin with Advanced mode on (in their
 Home Assistant profile) sees it under Settings → People → Users, marked Owner.
-Other admins see NOVA in the sidebar too, but only the owner can open it;
-they can still approve risky changes there (see [The safety check](#the-safety-check)).
+Other administrators open NOVA in the sidebar too: they can make a code,
+revoke a computer, and approve risky changes there (see [The safety check](#the-safety-check)).
+Chat apps stay with the owner.
 
 Each computer gets its own key. It is saved in this computer's password store.
 With no password store (for example a server), or with `--service` or
@@ -223,9 +224,9 @@ switch adds Local + Home Assistant Link. In the terminal, a first setup offers:
 
 Sign in to Link as the owner, and this computer connects with no code. Don't
 want the owner's login saved on this computer? Sign in to Link as a standard
-user instead. That only changes which login Link keeps here: the owner still
-connects this computer, with a code made on the NOVA page in a separate private
-browser window (setup calls it the "Owner session"). Either way, HA NOVA then
+user instead. That only changes which login Link keeps here: the owner, or any Home
+Assistant administrator, still connects this computer, with a code made on the
+NOVA page in a separate private browser window (setup calls it the "Owner session"). Either way, HA NOVA then
 works the same for anyone who uses this login on this computer.
 
 Your Link sign-in is saved only in this computer's password store, nowhere

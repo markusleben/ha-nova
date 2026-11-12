@@ -3,8 +3,10 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 // CSRF tokens for the NOVA page's POST /home/action. Each token is 256-bit,
 // single-use, valid for five minutes, and bound to BOTH the owner user id and
 // the specific action it was issued for — so a token minted for "generate code"
-// cannot drive "revoke device". At most 16 tokens are pending at once
-// (a page with chat apps issues up to eight; the 17th evicts the oldest), bounding memory and stale-token surface.
+// cannot drive "revoke device". At most 16 tokens are pending per user at
+// once (a page with chat apps issues up to eight; the 17th evicts that user's
+// oldest), bounding memory and stale-token surface; one administrator's page
+// loads never evict another user's tokens.
 
 export const CSRF_TTL_MS = 5 * 60 * 1_000;
 export const CSRF_MAX_PENDING = 16;
@@ -34,10 +36,11 @@ export function createCsrfStore(maxPending = CSRF_MAX_PENDING): CsrfStore {
   return {
     issue(userId, action, now) {
       prune(now);
-      if (entries.length >= maxPending) {
-        // Evict the oldest (soonest to expire) to make room.
-        entries.sort((a, b) => a.expiresAtMs - b.expiresAtMs);
-        entries.shift();
+      const mine = entries.filter((e) => e.userId === userId);
+      if (mine.length >= maxPending) {
+        // Evict this user's oldest (soonest to expire) to make room.
+        const oldest = mine.reduce((a, b) => (b.expiresAtMs < a.expiresAtMs ? b : a));
+        entries = entries.filter((e) => e !== oldest);
       }
       const token = randomBytes(TOKEN_BYTES).toString("base64url");
       entries.push({ token, userId, action, expiresAtMs: now + CSRF_TTL_MS });

@@ -11,7 +11,7 @@ startup: services
 boot: auto
 init: false
 ingress: true
-# Ingress serves the owner-only NOVA console on an internal, unmapped port so it
+# Ingress serves the administrators' NOVA console on an internal, unmapped port so it
 # is never reachable from the LAN; 8791/8792 are the public transport ports.
 ingress_port: 8793
 ingress_entry: /home

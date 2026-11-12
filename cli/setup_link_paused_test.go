@@ -156,7 +156,7 @@ func TestCloudSecurityHoldAdviceFollowsWhatRemoveFinds(t *testing.T) {
 	out := render(cfg, true)
 	for _, want := range []string{
 		"It can't tell if an earlier Link sign-in still works.",
-		"1. As the owner, open the NOVA App page.",
+		"1. As a Home Assistant administrator, open the NOVA App page.",
 		"Open: http://ha:8123/app/" + HAOfficialNOVAAppSlug,
 		"Open: http://ha:8123/profile/security",
 		"3. Run: ha-nova cloud remove --server default --yes --confirm-remote-access-revoked default",

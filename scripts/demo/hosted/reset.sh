@@ -63,6 +63,7 @@ main() {
     || gate_failed "chat bridge image $DEMO_BRIDGE_IMAGE missing; re-run bootstrap.sh"
   DEMO_EXTERNAL_URL="https://$DEMO_DOMAIN"
   # down.sh wipes .state with this image: in use by Caddy, so never pruned.
+  # The host runs one bed, the demo's own: down.sh --force skips the owner check.
   export TESTBED_OVERLAY="$HOSTED" TESTBED_HA_IMAGE DEMO_RELAY_IMAGE DEMO_BRIDGE_IMAGE DEMO_EXTERNAL_URL DEMO_DOMAIN ABUSE_CONTACT TESTBED_WIPE_IMAGE="$CADDY_IMAGE"
 
   # Chat-app sign-ins (Claude, ChatGPT) outlive the wipe: HA flushes its auth
@@ -78,7 +79,7 @@ main() {
     timeout 60 node "$HOSTED/chat.mjs" keep "$TB/.state" "$KEPT" \
       || { rm -f "$KEPT"; logger -p user.warning -t ha-nova-demo-reset "chat-app sign-ins not kept"; }
   fi
-  RELAY_AUTH_TOKEN="" HA_LLAT="" timeout 300 bash "$TB/down.sh"
+  RELAY_AUTH_TOKEN="" HA_LLAT="" timeout 300 bash "$TB/down.sh" --force
   git -C "$REPO" checkout -q --force --detach "$DEMO_REF"
   git -C "$REPO" clean -qffdx
   edge_up
@@ -173,7 +174,7 @@ gate_failed() {
   if [[ "${RESTORED:-}" == 1 && -e "$KEPT" ]]; then mv -f "$KEPT" "$KEPT.failed"; fi
   logger -p user.err -t ha-nova-demo-reset "gate failed, house taken down: $1"
   echo "reset.sh: gate failed: $1" >&2
-  RELAY_AUTH_TOKEN="" HA_LLAT="" timeout 300 bash "$TB/down.sh" || true
+  RELAY_AUTH_TOKEN="" HA_LLAT="" timeout 300 bash "$TB/down.sh" --force || true
   exit 1
 }
 

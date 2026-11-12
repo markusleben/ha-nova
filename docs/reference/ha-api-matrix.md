@@ -224,6 +224,7 @@ The App holds `hassio_role: manager`; `POST /supervisor` (`{method, path, data?,
 |--------|------|------|------|
 | GET | `/info`, `/os/info`, `/host/info`, `/network/info`, `/hardware/info`, `/resolution/info`, `/core/info`, `/supervisor/info` | read | — (`relay supervisor`, `ha_read`) |
 | GET | `/addons`, `/addons/{slug}/info`, `/store`, `/store/addons`, `/store/addons/{slug}` | read | — |
+| GET | `/core/stats`, `/supervisor/stats`, `/addons/{slug}/stats` | read (CPU and memory numbers; the system check-up, `map --section checkup`) | — |
 | GET | `/host/disks/default/usage`, `/os/datadisk/list`, `/host/logs/boots`, `/host/logs/identifiers` | read | — |
 | GET | `/supervisor/logs`, `/core/logs`, `/host/logs`, `/host/logs/identifiers/{identifier}`, `/addons/{slug}/logs` | logs (text; `lines` 1-1000, default 100; cut at 512 KiB with `truncated: true`); refused by the CLI and the gate: the user reads them in Home Assistant | — |
 | POST | `/store/addons/{slug}/install` | write, `data` empty | typed |
