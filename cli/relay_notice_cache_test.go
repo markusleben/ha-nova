@@ -19,6 +19,9 @@ import (
 // It returns the count of App checks (/health requests).
 func quietAppCheckSetup(t *testing.T, relayVersion string, registryFails bool, onHealth func()) (runtimePaths, *atomic.Int32) {
 	t.Helper()
+	previous := selectionOverride()
+	setServerSelectionOverride("")
+	t.Cleanup(func() { setServerSelectionOverride(previous) })
 	paths, cfg := doctorTestSetup(t)
 	var checks atomic.Int32
 	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -118,18 +121,15 @@ func TestQuietCheckUpdateSkipsASilentAppCheckWithinTheHour(t *testing.T) {
 		expect("a marker past the hour or from the future", true)
 	}
 
-	if err := os.Remove(marker); err != nil {
-		t.Fatalf("remove marker: %v", err)
-	}
-	t.Setenv(serverSelectionEnvVar, "other")
-	runQuietCheckUpdate(t, paths)
-	before := checks.Load()
-	if err := os.Unsetenv(serverSelectionEnvVar); err != nil {
-		t.Fatalf("unset %s: %v", serverSelectionEnvVar, err)
-	}
-	runQuietCheckUpdate(t, paths)
-	if got := checks.Load(); got != before+1 {
-		t.Fatalf("a check under another server must not answer for the default: %d App checks, want %d", got, before+1)
+}
+
+// A silent check under one server never answers for another.
+func TestRelayNoticeSilentKeyNamesTheServer(t *testing.T) {
+	paths, _ := quietAppCheckSetup(t, "9.9.9", false, nil)
+	defaultKey := relayNoticeSilentKey(paths)
+	setServerSelectionOverride("other")
+	if relayNoticeSilentKey(paths) == defaultKey {
+		t.Fatal("the key must name the selected server")
 	}
 }
 
