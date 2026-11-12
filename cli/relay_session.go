@@ -106,6 +106,7 @@ type relaySession struct {
 	askCeiling   time.Time        // a cut plan's check before a person's ask ends here (recheck)
 	startCheck   bool             // the gate rates a helper's options-flow start on it: it starts no flow itself (gateProbe)
 	call         *verbCall        // the verb run it serves (nil: the CLI's): where its progress lines go
+	placeIdx     *placeIndex      // trigger targets of place-only automations (tier_place_index.go); nil until used
 }
 
 type relayMemo struct {
@@ -159,10 +160,14 @@ func relaySessionOn(paths runtimePaths, cfg runtimeConfig, transport relayTransp
 	}
 }
 
-// close ends the session and drops the idle connections its reads kept.
+// close ends the session, drops the idle connections its reads kept, and
+// saves what the place index learned.
 func (s *relaySession) close() {
 	s.cancel()
 	s.transport.Client.CloseIdleConnections()
+	if s.placeIdx != nil {
+		s.placeIdx.save()
+	}
 }
 
 // coreGET reads one Home Assistant REST path and returns the upstream status

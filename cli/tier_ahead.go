@@ -78,7 +78,11 @@ func (e *tierEngine) readAhead(ids []string, depth int) {
 		reads = nil
 		for i, automation := range automations {
 			e.ahead["consumer "+automation] = true
-			reads = append(reads, func() { configs[i] = e.warmConfig(automation) })
+			reads = append(reads, func() {
+				if named[automation] || !e.placeOnlyMiss(automation, places[automation]) {
+					configs[i] = e.warmConfig(automation)
+				}
+			})
 		}
 		prefetch(reads)
 		ids = nil
