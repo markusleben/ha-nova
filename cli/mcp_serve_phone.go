@@ -329,28 +329,29 @@ func (srv *mcpServer) phoneJob(job *chatJob, args map[string]json.RawMessage, ar
 	a.ask.sent = &job.sent
 	a.wait(nil)
 	job.tapped.Store(a.answer == phoneConfirmed || a.answer == phoneDeclined || a.answer == phoneRejected)
-	// The owner may have removed this user, lowered their level, or set read
-	// only meanwhile, or the user's Home Assistant role may have changed:
-	// read again, and apply's recompute checks the call with that level.
-	var now *chatPolicy
-	var code int
-	var why string
-	var demoted *verbFailure
-	if a.answer == phoneConfirmed { // the tap stands: these reads wait for a running change like the apply
-		now, code, why = srv.chat.bridge.policyNow(srv.chat.user)
-		id, _ := json.Marshal(req.id)
-		demoted = srv.configAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id}, chatWait(time.Now()))
-		for demoted != nil && demoted.code == "BUSY" {
-			demoted = srv.configAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id}, chatWait(time.Now()))
-		}
-	}
 	mcpVerbLock.Lock() // the tap stands: as long as it takes
 	job.result = srv.runLocked("ha_apply", "", false, func(call *verbCall) int {
 		req.opts.call, a.s.call = call, call // this run's output: the phone ask above ran in the first one
 		var env verbEnvelope
 		var exit int
 		var asked bool
-		now = now.reread() // under the lock: the owner's settings as they are now
+		// The owner may have removed this user, lowered their level, or set
+		// read only meanwhile, or the user's Home Assistant role may have
+		// changed: read again under the lock, so nothing changes it before the
+		// apply, and apply's recompute checks the call with that level.
+		var now *chatPolicy
+		var code int
+		var why string
+		var demoted *verbFailure
+		if a.answer == phoneConfirmed {
+			now, code, why = srv.chat.bridge.policyNow(srv.chat.user)
+			id, _ := json.Marshal(req.id)
+			demoted = srv.configAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id}, chatWait(time.Now()))
+			for demoted != nil && demoted.code == "BUSY" {
+				demoted = srv.configAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id}, chatWait(time.Now()))
+			}
+			now = now.reread() // the owner's settings saved while the users were read (the App writes them without this lock)
+		}
 		switch {
 		case a.answer != phoneConfirmed:
 			env, exit, asked = a.finish()
