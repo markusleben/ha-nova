@@ -12,6 +12,7 @@ export const PAGE_KEYS = [
   "page.empty", "page.more", "page.signed_in", "page.back", "page.cross_site", "page.expired", "page.open_again",
   "page.approver_unknown", "page.approver_unavailable", "page.approver_not_admin", "page.approver_relay_user",
   "page.waiting_one", "page.waiting_many", "page.open", "page.paused", "page.revoke_device", "page.link",
+  "page.paused_heading", "page.paused_left", "page.resume",
 ] as const;
 export type PageKey = (typeof PAGE_KEYS)[number];
 

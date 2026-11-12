@@ -144,15 +144,27 @@ export async function pageChannel(ws: WsClient): Promise<string[]> {
 }
 
 // The NOVA page's part: how many asks wait (a top-level link, so the view
-// can't be framed) and the devices whose phone asks are paused, each with
-// the page's own revoke step. Without the worker's words: none.
-export async function renderGateSection(page: GatePage, devices: DeviceRecord[], ingressPath: string): Promise<string> {
+// can't be framed), and each device whose phone asks are paused, with the
+// asks that paused them, a way to ask on the phone again (resume: the
+// CSRF-guarded form's opening tags), and the page's own revoke step.
+// Without the worker's words: none.
+export async function renderGateSection(page: GatePage, devices: DeviceRecord[], ingressPath: string, now: number, resume: (deviceId: string) => string): Promise<string> {
   const root = `${ingressPath.replace(/\/$/, "")}/`;
   const waiting = page.waiting().length;
-  const paused = page.pausedDevices().flatMap((id) => devices.filter((d) => d.deviceId === id));
+  const paused = page.pausedDevices().flatMap((p) => devices.filter((d) => d.deviceId === p.deviceId).map((d) => ({ ...p, name: d.name })));
   const t = waiting === 0 && paused.length === 0 ? null : await page.texts("");
   if (t === null) return "";
-  const open = waiting === 0 ? "" : `<p>${waiting === 1 ? t.say("page.waiting_one") : t.say("page.waiting_many", { count: waiting })} <a class="linkbtn" target="_top" href="${escapeHtml(`${root}approve`)}">${t.say("page.open")}</a></p>`;
-  const rows = paused.map((d) => `<li><strong>${escapeHtml(d.name)}</strong>: <span class="muted">${t.say("page.paused")}</span> <a class="linkbtn danger" href="${escapeHtml(`${root}?confirm=revoke_device&device=${encodeURIComponent(d.deviceId)}`)}">${t.say("page.revoke_device")}</a></li>`).join("");
-  return `<section><h2>${t.say("page.heading")}</h2>${open}${rows ? `<ul>${rows}</ul>` : ""}</section>`;
+  const open = waiting === 0 ? "" : `<section><h2>${t.say("page.heading")}</h2><p>${waiting === 1 ? t.say("page.waiting_one") : t.say("page.waiting_many", { count: waiting })} <a class="linkbtn" target="_top" href="${escapeHtml(`${root}approve`)}">${t.say("page.open")}</a></p></section>`;
+  const pauses = paused.map((p) => {
+    const misses = p.misses.map((m) => `<li><span>${clock(m.at)}${m.what ? ` · ${escapeHtml(m.what)}` : ""}</span></li>`).join("");
+    const revoke = `<a class="linkbtn danger" href="${escapeHtml(`${root}?confirm=revoke_device&device=${encodeURIComponent(p.deviceId)}`)}">${t.say("page.revoke_device")}</a>`;
+    return `<section><h2>${t.say("page.paused_heading")}</h2><p><strong>${escapeHtml(p.name)}</strong> · ${t.say("page.paused_left", { minutes: Math.max(1, Math.ceil((p.until - now) / 60_000)) })}</p><p class="muted">${t.say("page.paused")}</p>${misses ? `<ul>${misses}</ul>` : ""}<p>${resume(p.deviceId)}<button type="submit">${t.say("page.resume")}</button></form> ${revoke}</p></section>`;
+  });
+  return open + pauses.join("");
+}
+
+// Server-local hour and minute, as the device list.
+function clock(ms: number): string {
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }

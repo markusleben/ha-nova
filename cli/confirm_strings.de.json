@@ -61,9 +61,12 @@
   "page.waiting_one": "Eine Anfrage von deinen Computern wartet auf dein OK.",
   "page.waiting_many": "{count} Anfragen von deinen Computern warten auf dein OK.",
   "page.open": "Öffnen",
-  "page.paused": "Drei seiner Anfragen hintereinander wurden abgebrochen oder blieben unbeantwortet, deshalb fragt es 15 Minuten lang nicht mehr auf dem Handy.",
+  "page.paused": "Seine letzten fünf Anfragen blieben unbeantwortet, deshalb fragt es vorerst nicht auf dem Handy. Es wurde nichts gesendet.",
   "page.revoke_device": "Dieses Gerät widerrufen…",
   "page.link": "Anfragen, die auf dein OK warten",
+  "page.paused_heading": "Rückfragen aufs Handy pausiert",
+  "page.paused_left": "Noch {minutes} Min. pausiert.",
+  "page.resume": "Wieder aufs Handy fragen",
 
   "say.about": "Ich werde gleich {action}.",
   "say.nothing_found": "Nicht erledigt: Ich habe nicht gefunden, was du genannt hast. Es wurde nichts geändert. Sag mir, welche Geräte du meinst.",

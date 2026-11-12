@@ -40,7 +40,7 @@ function setup(answer: PreparedAsk | null | (() => Promise<PreparedAsk | null>) 
     (await asks.handler(context(principal, { requests: requests.map((body) => ({ endpoint: "core", body_b64: Buffer.from(JSON.stringify(body)).toString("base64") })) }))) as Record<string, unknown>;
   const op = async (principal: Principal | undefined, askId: unknown, name: string) => (await asks.handler(context(principal, { ask_id: askId, op: name }))) as Record<string, unknown>;
   const linkTo = async (principal: Principal, to: unknown) => (await asks.handler(context(principal, { link: to }, {}, "/gate/v1/phone"))) as Record<string, unknown>;
-  return { asks, ask, op, linkTo, seen, tick: (ms: number) => (now += ms) };
+  return { asks, ask, op, linkTo, seen, tick: (ms: number) => (now += ms), now: () => now };
 }
 
 async function status(run: () => Promise<unknown>): Promise<number> {
@@ -231,27 +231,68 @@ describe("gate asks", () => {
     expect(await t.ask(laptop, [unlock])).toMatchObject({ needed: true });
   });
 
-  it("three unanswered or cancelled asks in a row pause the phone for 15 minutes; other channels still ask", async () => {
+  it("five asks in a row that go unanswered pause the phone for 5 minutes; other channels still ask", async () => {
     const p = phones();
     let others: string[] = [];
     const t = setup(typed, [], 5, { link: () => link, phone: p.phone, channels: () => others });
-    const a = await t.ask(laptop, [unlock]);
-    await t.op(laptop, a.ask_id, "cancel");
+    for (let i = 0; i < 3; i++) {
+      const a = await t.ask(laptop, [unlock]);
+      t.tick(180_000);
+      expect(await t.op(laptop, a.ask_id, "wait")).toEqual({ state: "expired" });
+    }
     const b = await t.ask(laptop, [unlock]);
+    t.tick(40_000);
+    await t.op(laptop, b.ask_id, "cancel"); // an MCP tool stops waiting at 40 s, unanswered: the fourth
+    const c = await t.ask(laptop, [unlock]);
+    t.tick(14_000);
+    await t.op(laptop, c.ask_id, "cancel"); // the computer's own cancel within 15 s (its window, or the AI): neither counts nor resets
+    await t.ask(laptop, [unlock]); // replaced by the next at once: neither counts nor resets
+    const e = await t.ask(laptop, [unlock]);
     t.tick(180_000);
-    expect(await t.op(laptop, b.ask_id, "wait")).toEqual({ state: "expired" });
-    await t.ask(laptop, [unlock]);
-    expect(await failure(() => t.ask(laptop, [unlock]))).toEqual({ status: 429, code: "GATE_PAUSED" }); // it replaced the third
-    expect(p.calls).toHaveLength(3);
+    expect(await t.op(laptop, e.ask_id, "wait")).toEqual({ state: "expired" }); // the fifth
+    expect(await failure(() => t.ask(laptop, [unlock]))).toEqual({ status: 429, code: "GATE_PAUSED" });
+    expect(p.calls).toHaveLength(7);
     others = ["page"];
     expect(await t.ask(laptop, [unlock])).toMatchObject({ channels: ["page"] });
-    expect(p.calls).toHaveLength(3);
-    t.tick(900_000);
-    const c = await t.ask(laptop, [unlock]);
-    expect(c.channels).toEqual(["phone", "page"]);
-    p.calls[3]!.answer({ answer: "approved", user_id: "markus" });
+    expect(p.calls).toHaveLength(7);
+    t.tick(300_000);
+    const f = await t.ask(laptop, [unlock]);
+    expect(f.channels).toEqual(["phone", "page"]);
+    p.calls[7]!.answer({ answer: "approved", user_id: "markus" });
     await settled();
-    expect(await t.op(laptop, c.ask_id, "wait")).toMatchObject({ state: "approved" }); // and the run starts over
+    expect(await t.op(laptop, f.ask_id, "wait")).toMatchObject({ state: "approved" });
+  });
+
+  it("a person's answer resets the run: a decline on the phone or the page, and an approval", async () => {
+    const p = phones();
+    const t = setup(typed, ["page"], 5, { link: () => link, phone: p.phone });
+    const expireFour = async () => {
+      for (let i = 0; i < 4; i++) {
+        const a = await t.ask(laptop, [unlock]);
+        t.tick(180_000);
+        await t.op(laptop, a.ask_id, "wait");
+      }
+    };
+    await expireFour();
+    await t.ask(laptop, [unlock]);
+    p.calls.at(-1)!.answer({ answer: "declined" });
+    await settled();
+    t.tick(3_600_000); // a new hour for the hourly limit, not for the run
+    await expireFour();
+    const d = await t.ask(laptop, [unlock]);
+    expect(t.asks.cancel(askRef(String(d.ask_id)))).toBe(true); // declined on the NOVA page
+    t.tick(3_600_000);
+    await expireFour();
+    expect(t.asks.pausedDevices()).toEqual([]);
+    expect((await t.ask(laptop, [unlock])).channels).toEqual(["phone", "page"]);
+    t.tick(180_000);
+    t.asks.waiting(); // the fifth in a row
+    expect(t.asks.pausedDevices()).toMatchObject([{ deviceId: "laptop", until: t.now() + 300_000 }]);
+    expect(t.asks.pausedDevices()[0]!.misses.map((m) => m.what)).toEqual(Array(5).fill(typed.items[0]!.text));
+    expect(t.asks.resume("laptop")).toBe(true); // the NOVA page's "ask on the phone again"
+    expect(t.asks.resume("laptop")).toBe(false);
+    expect(t.asks.pausedDevices()).toEqual([]);
+    expect((await t.ask(laptop, [unlock])).channels).toEqual(["phone", "page"]);
   });
 
   it("asks the worker rated count toward the hour, whatever it answered", async () => {
@@ -350,19 +391,20 @@ describe("gate asks", () => {
   it("link asks count toward the hour and the phone pause", async () => {
     const p = phones();
     const t = setup(typed, [], 5, { link: () => undefined, phone: p.phone, setLink: () => true });
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       const opened = await t.linkTo(laptop, link);
-      await t.op(laptop, opened.ask_id, "cancel");
+      t.tick(180_000);
+      await t.op(laptop, opened.ask_id, "wait");
     }
     expect(await failure(() => t.linkTo(laptop, link))).toEqual({ status: 429, code: "GATE_PAUSED" }); // counted too
-    t.tick(900_000);
-    for (let i = 0; i < 6; i++) {
+    t.tick(3_600_000);
+    for (let i = 0; i < 10; i++) {
       await t.linkTo(laptop, link);
       p.calls.at(-1)!.answer({ answer: "approved", user_id: "markus" });
       await settled();
     }
     expect(await failure(() => t.linkTo(laptop, link))).toEqual({ status: 429, code: "GATE_ASK_LIMIT" });
-    expect(p.calls).toHaveLength(9);
+    expect(p.calls).toHaveLength(15);
   });
 
   it("the gate forwards a typed request only with a matching, unused grant", async () => {

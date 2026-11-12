@@ -9,7 +9,7 @@ import { renderChatActivity, renderChatUsers, renderToolsChanged, type ChatPhone
 // the armed confirm section, and formatting helpers. The HTTP/action/CSRF
 // handling lives in nova-page.ts; this module never touches the request.
 
-export type NovaAction = "generate_code" | "cancel_code" | "revoke_device" | "reset_registry" | ChatAction | ChatPhoneAction;
+export type NovaAction = "generate_code" | "cancel_code" | "revoke_device" | "reset_registry" | "resume_phone_asks" | ChatAction | ChatPhoneAction;
 export type ChatAction = "chat_apps_on" | "chat_apps_off" | "chat_read_only" | "chat_codes" | "chat_users";
 
 export interface ConnectionStatus {

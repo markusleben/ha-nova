@@ -45,7 +45,7 @@ const CSP = [
 const ACTIONS = new Set<NovaAction>(["generate_code", "cancel_code", "revoke_device", "reset_registry"]);
 const CHAT_ACTIONS = new Set<NovaAction>(["chat_apps_on", "chat_apps_off", "chat_read_only", "chat_codes", "chat_users"]);
 // What an administrator who isn't the owner may do; every other action needs the owner.
-const ADMIN_ACTIONS = new Set<string>(["generate_code", "cancel_code", "revoke_device"]);
+const ADMIN_ACTIONS = new Set<string>(["generate_code", "cancel_code", "revoke_device", "resume_phone_asks"]);
 
 export interface NovaPageDeps {
   fetchAuthUsers: () => Promise<HaAuthUser[]>;
@@ -99,9 +99,14 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
   return async ({ request, response }) => {
     const owner = await checkOwner(request, { fetchAuthUsers: deps.fetchAuthUsers, logger: deps.logger }, { admins: true });
     if (!owner.ok) return refuse(response, owner);
+    const ingressPath = singleHeader(request, "x-ingress-path") ?? "/home";
+    const now = deps.now();
+    // A paused device's "ask on the phone again": a POST whose token is bound to that device.
+    const resumeForm = (deviceId: string): string =>
+      `<form method="post" action="${escapeHtml(`${ingressPath.replace(/\/$/, "")}/action`)}"><input type="hidden" name="csrf" value="${escapeHtml(deps.csrf.issue(owner.userId, `resume_phone_asks:${deviceId}`, now))}"><input type="hidden" name="action" value="resume_phone_asks"><input type="hidden" name="device_id" value="${escapeHtml(deviceId)}">`;
     const [update, gateSection] = await Promise.all([
       safeUpdate(deps),
-      deps.gatePage === undefined ? "" : renderGateSection(deps.gatePage, deps.registry.list(), singleHeader(request, "x-ingress-path") ?? "/home"),
+      deps.gatePage === undefined ? "" : renderGateSection(deps.gatePage, deps.registry.list(), ingressPath, now, resumeForm),
     ]);
     const query = new URLSearchParams((request.url ?? "").split("?")[1] ?? "");
     // The bridge's internal device is shown under Chat apps, never as a
@@ -134,14 +139,14 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
       houseOwner: owner.isOwner ? owner.name : ownerOf(owner.users),
       csrf: deps.csrf,
       userId: owner.userId,
-      now: deps.now(),
+      now,
       pairing: deps.pairing.getStatus(),
       devices: deps.registry.list().filter((d) => d.deviceId !== bridgeDevice && d.clientInstallId !== GATE_INSTALL_ID),
       registryCorrupt: deps.registryCorrupt?.() ?? false,
       connection: deps.connection(),
       update,
       relayVersion: deps.relayVersion,
-      ingressPath: singleHeader(request, "x-ingress-path") ?? "/home",
+      ingressPath,
       // The action handler redirects here with ?err=<code> when an owner action
       // threw ("1") or the typed reset confirmation did not match ("confirm").
       errorCode: query.get("err"),
@@ -177,7 +182,7 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
     const action = typeof form.action === "string" ? form.action : "";
     const token = typeof form.csrf === "string" ? form.csrf : "";
     const phoneAction = CHAT_PHONE_ACTIONS.has(action);
-    if (!ACTIONS.has(action as NovaAction) && !(deps.chatApps !== undefined && (CHAT_ACTIONS.has(action as NovaAction) || phoneAction))) {
+    if (!ACTIONS.has(action as NovaAction) && !(deps.chatApps !== undefined && (CHAT_ACTIONS.has(action as NovaAction) || phoneAction)) && !(deps.gatePage !== undefined && action === "resume_phone_asks")) {
       fail(response, 400, "Unknown action.");
       return;
     }
@@ -195,7 +200,7 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
     // A phone form names its user (the owner, or one on the list), and its token is bound to that user.
     const phoneUser = !phoneAction ? "" : typeof form.user === "string" ? form.user : owner.userId;
     const csrfAction =
-      action === "revoke_device" ? `revoke_device:${deviceId}` : phoneAction ? `${action}:${phoneUser}` : action;
+      action === "revoke_device" || action === "resume_phone_asks" ? `${action}:${deviceId}` : phoneAction ? `${action}:${phoneUser}` : action;
     if (!deps.csrf.consume(owner.userId, csrfAction, token, deps.now())) {
       fail(response, 403, "This form expired. Reload the page and try again.");
       return;
@@ -284,6 +289,10 @@ async function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<
     case "generate_code":
       deps.pairing.generateCode();
       return false;
+    case "resume_phone_asks": {
+      deps.gatePage?.resume(typeof form.device_id === "string" ? form.device_id : ""); // false: the pause already ended
+      return false;
+    }
     case "cancel_code":
       deps.pairing.cancel();
       return false;

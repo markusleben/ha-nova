@@ -61,9 +61,12 @@
   "page.waiting_one": "One request from your computers waits for your OK.",
   "page.waiting_many": "{count} requests from your computers wait for your OK.",
   "page.open": "Open",
-  "page.paused": "Three of its requests in a row were cancelled or went unanswered, so its phone asks pause for 15 minutes.",
+  "page.paused": "Its last five requests got no answer, so for now it doesn't ask on the phone. Nothing was sent.",
   "page.revoke_device": "Revoke this device…",
   "page.link": "Requests waiting for your OK",
+  "page.paused_heading": "Phone asks paused",
+  "page.paused_left": "Paused for {minutes} more min.",
+  "page.resume": "Ask on the phone again",
 
   "say.about": "I'm about to {action}.",
   "say.nothing_found": "Not done: I couldn't find what you named. Nothing changed. Tell me which devices you mean.",
