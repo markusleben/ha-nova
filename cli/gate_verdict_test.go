@@ -296,3 +296,27 @@ func TestRelayRefusesWhatTheGateRefuses(t *testing.T) {
 		}
 	}
 }
+
+// A GET on a flow step re-runs it (Home Assistant's FlowManagerResourceView
+// calls async_configure), so the gate rates it as that step's POST: typed for
+// a repair or subentry flow, as the step itself for any other flow.
+func TestGateFlowStepGETRatedAsItsPOST(t *testing.T) {
+	noSession := func() (*relaySession, error) { return nil, errors.New("no session") }
+	for path, want := range map[string]gateDecision{
+		"/api/repairs/issues/fix/f1":                    gateTyped,
+		"/api/config/config_entries/subentries/flow/f1": gateTyped,
+		"/api/config/config_entries/options/flow/f1":    gatePass,
+		"/api/config/config_entries/flow/f1":            gatePass,
+	} {
+		post, err := gateVerdict("core", mustJSON(map[string]any{"method": "POST", "path": path, "body": map[string]any{}}), noSession)
+		if err != nil || post.Verdict != want {
+			t.Errorf("POST %s: %+v %v, want %s", path, post, err, want)
+		}
+		for _, get := range [][2]string{{"GET", path}, {" get", path}, {"GET", path + "?x=1"}, {"GET", strings.TrimSuffix(path, "f1") + "%66%31"}} {
+			check, err := gateVerdict("core", mustJSON(map[string]any{"method": get[0], "path": get[1]}), noSession)
+			if err != nil || check.Verdict != want || check.Kind != "write" {
+				t.Errorf("%q %s: %+v %v, want %s write", get[0], get[1], check, err, want)
+			}
+		}
+	}
+}

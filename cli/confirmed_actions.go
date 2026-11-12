@@ -52,6 +52,8 @@ var confirmedActions = []confirmedGroup{
 		{confirmedRawPrefix + "energy_emptied", "Empty a list of the Energy dashboard or drop several of its entries"},
 		{confirmedRawPrefix + "backup_retention", "Keep fewer automatic backups, so older ones are deleted"},
 		{confirmedRawPrefix + "integration_remove", "Remove an integration and its devices"},
+		{confirmedRawPrefix + "repair_flow", "Fix a repair issue (a fix may remove devices or entities)"},
+		{confirmedRawPrefix + "subentry_flow", "Change part of an integration's setup (a sub-entry)"},
 		{confirmedRawPrefix + "file_delete", "Delete a file in the config folder"},
 		{confirmedRawPrefix + "copy_delete", "Delete a saved config copy"},
 		{confirmedRawPrefix + "app_uninstall", "Remove an App"},

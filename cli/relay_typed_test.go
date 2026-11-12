@@ -324,3 +324,20 @@ func TestDisablingATrackersOwnerTypedWhenAPersonFollowsIt(t *testing.T) {
 		t.Errorf("unreadable person list: exit %d tier %s, want typed", exit, env.Tier)
 	}
 }
+
+// A GET on a repair or subentry flow step re-runs it, so ha-nova relay
+// refuses it as typed however the path is spelled; nothing is sent.
+func TestRelayRefusesATypedFlowStepGET(t *testing.T) {
+	paths, sent := rawRelay(t, nil)
+	for _, path := range []string{"/api/repairs/issues/fix/f1", "/api/repairs/issues/%66ix/f1", "/api/config/config_entries/subentries/%66low/f1",
+		`/api/config/config_entries/subentries/flow\f1`, "/api/config/config_entries/subentries//flow/f1?x=1"} {
+		var exit int
+		stderr := captureStderr(t, func() { exit = runRelayCommand(paths, []string{"core", "--method", "GET", "--path", path}) })
+		if exit != verbExitRefused || !strings.Contains(stderr, "only a plan asks them") {
+			t.Errorf("GET %s: exit %d, stderr %q; want refused as typed", path, exit, stderr)
+		}
+	}
+	if got := sent(); len(got) != 0 {
+		t.Errorf("sent %v", got)
+	}
+}

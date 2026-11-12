@@ -52,12 +52,15 @@ Subentry deletion and flow starts reuse the integration entry's access-target
 guard: a parent owning a lock, alarm panel, or access cover is refused before
 planning and sending, even if another subentry was selected. Flow handlers must
 be arrays of two strings; alternative shapes HA coerces are refused. Title-only renames
-stay previewed. Repair flows expose no machine-readable deletion indicator;
-health reads `frontend/get_translations` (issues category) and marks a
-deletion/removal repair's existing raw request `typed: true` from the issue
-domain and translated description, including a by-id GET
-that can advance the flow. This is skill guidance, not CLI semantic analysis
-of integration-specific repair code (`cli/plan_raw_tier_test.go`).
+stay previewed. A subentry flow's step (a GET on it too: Home Assistant re-runs
+the step), and a reconfigure start (it names a
+`subentry_id`), are typed on every route: what a step drops is the
+integration's code, and a flow id can't be told from an add's. Repair flows
+expose no machine-readable deletion indicator, and the integration's own code
+runs from the start, so every repair fix start and step, and a GET on a step,
+is typed on every route (0.30; before, only the health skill's mark raised a deletion repair,
+which the gate couldn't see); cancelling an unfinished one stays a preview
+(`cli/plan_raw_tier_test.go`).
 
 ## Tokens and privacy
 
