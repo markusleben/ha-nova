@@ -242,3 +242,38 @@ func TestServeOneOpenPhoneAskPerUser(t *testing.T) {
 		t.Fatalf("second after cancel: %v", env)
 	}
 }
+
+// Settings the owner saves while a tap's checks read Home Assistant's users
+// (the App writes chat-apps.json without the verb lock) still hold: read
+// only then sends nothing.
+func TestServeTapRereadsSettingsAfterTheUsers(t *testing.T) {
+	f := newFakeHA()
+	s := newServe(t, f, `{"allowed_users":["`+userA+`"]}`)
+	p := usePhones(t, "mobile_app_a")
+	p.setup.confirmer = userA
+	id := phonePlanFor(t, s, userA)
+	if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": id}); env["status"] != "waiting_for_phone" {
+		t.Fatalf("before the tap: %v", env)
+	}
+	reached, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	f.mu.Lock()
+	f.extra = func(endpoint string, p map[string]any) (any, bool) { // runs under f.mu
+		if endpoint == "ws" && p["type"] == "config/auth/list" {
+			once.Do(func() { close(reached); <-release })
+		}
+		return nil, false
+	}
+	f.mu.Unlock()
+	ok, _ := p.buttons(t)
+	p.events <- tap(ok, userA, "REMOTE")
+	<-reached // the checks after the tap read the settings, then the users
+	if err := os.WriteFile(filepath.Join(s.data, "chat-apps.json"), []byte(`{"allowed_users":["`+userA+`"],"read_only":true}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	waitFor(t, "the result on the phone", func() bool { return p.sentCount() == 2 })
+	if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": id}); envCode(env) != "READ_ONLY" || len(s.posts()) != 0 {
+		t.Fatalf("after the tap: %v (sent %d)", env, len(s.posts()))
+	}
+}

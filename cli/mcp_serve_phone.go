@@ -350,6 +350,7 @@ func (srv *mcpServer) phoneJob(job *chatJob, args map[string]json.RawMessage, ar
 			for demoted != nil && demoted.code == "BUSY" {
 				demoted = srv.configAdminFailure("ha_apply", map[string]json.RawMessage{"plan_id": id}, chatWait(time.Now()))
 			}
+			now = now.reread() // the owner's settings saved while the users were read (the App writes them without this lock)
 		}
 		switch {
 		case a.answer != phoneConfirmed:
