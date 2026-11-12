@@ -1,8 +1,8 @@
 # Update advisor
 
-Run before every install, one update or a batch, and when the user asks whether they can update. In a chat app: `ha_map` with `section: updates`, no `limit`.
+Run before every install, one update or a batch, and when the user asks whether they can update; check again after each install (step 7). In a chat app: `ha_map` with `section: updates` or `section: after_update`, no `limit`.
 
-1. `ha-nova map --section updates`. It only reads; it changes nothing in Home Assistant.
+1. `ha-nova map --section updates`. It only reads; it changes nothing in Home Assistant (it keeps a note on this computer for step 7).
 2. Present it plainly (`../ha-nova/output-rules.md`: no codes, ids, or raw error text). `ready` is a summary; decide per item:
    - Blockers, each with its fix:
      - `SUPERVISOR_UNHEALTHY`: Home Assistant refuses Core and OS updates until the system is healthy again (Settings > System > Repairs); other updates may go on.
@@ -22,3 +22,10 @@ Run before every install, one update or a batch, and when the user asks whether 
 4. Risks (`risks`): `CORE_SKIPS_RELEASES` → several releases at once, more to check; `MAJOR_VERSION` → read that item's notes first; `CUSTOM_INTEGRATIONS` → check they support the new version before Core; `ACCESS_DEVICE_FIRMWARE` → the lock or door may be unreachable during the update, so do it with someone at home.
 5. Order: follow `order`, a sequence, not a batch. `backup` = offer the safety backup first, its own step with its own confirmation. It is a default (`order_basis: default`); a prerequisite the release notes name comes first. `after_core` Apps need the new Core; `blocked` ones are left out.
 6. Every install keeps its own preview, gates, and confirmation (`SKILL.md` → Install). The advisor adds facts and an order, never a confirmation: Supervisor, OS, and Core each stay their own confirmed step; "update everything" is still the explicitly confirmed batch of the rest; auto-update, skipped, running, pinned, and blocked items never ride along.
+7. After each install, verified, failed, or still pending once Home Assistant answers again (Install step 6), `ha-nova map --section after_update` compares with the check before (`baseline`; a check from the last 12 hours is kept, so it covers the whole session):
+   - `rollback.rolled_back`: Home Assistant went back to the version before because the new one did not start; say plainly that the update did not happen and offer the release notes and repairs. Don't offer it again until the cause is looked at. `rollback.failed`: that update failed. `rollback.rolled_back_earlier`: that version already rolled back before the check; if it was installed again since, it rolled back again. `rollback: unknown`: it could not be checked; say so.
+   - `updated`: what changed; `reached: false` means a version other than the one offered at the check, say so.
+   - `new_failing_integrations`, `new_repairs`, `newly_unavailable` (count and names), `automation_errors`: what broke since the check; `available_again` is good news. No automation errors means none in the stored runs, not that every automation works.
+   - `baseline: null`: there was no check before; report `failing_integrations_now` (a rollback listed may be older than this update) and run the check before the next install. A list that is `null` was not checked: say so, never "nothing".
+   - `not_checked` `started`: Home Assistant is still starting; check again in a few minutes before calling anything broken.
+   - The user wants to undo an update: there is no downgrade. Offer restoring the backup from before the update (`ha-nova:backup`, its own confirmation; changes made since are lost); no such backup: say so.
