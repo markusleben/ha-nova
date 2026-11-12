@@ -62,6 +62,7 @@ func (srv *mcpServer) askOutside(job *chatJob, call *verbCall) func(func() bool,
 		for demoted != nil && demoted.code == "BUSY" {
 			demoted = admin()
 		}
+		now = now.reread() // the owner's settings saved while the users were read (the App writes them without this lock)
 		switch {
 		case now == nil && code == http.StatusServiceUnavailable:
 			return gateStop("refused", "ACCESS_UNKNOWN", why+"; nothing was sent", "Tell the user nothing changed: HA NOVA couldn't check their Home Assistant account just now. They can try again in a moment.")
