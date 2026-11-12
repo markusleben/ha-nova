@@ -197,7 +197,7 @@ func (e *tierEngine) rawCarry(endpoint string, payload map[string]any) {
 	}
 	sort.Strings(automations)
 	for _, automation := range slices.Compact(automations) {
-		if cfg := e.warmConfig(automation); cfg != nil && !targetsPlace(cfg, places) {
+		if e.placeOnlyMiss(automation, places) {
 			continue // there for what its actions target, or for another entity: no consumer
 		}
 		e.consumer(automation, "", subject, 0, func(cfg map[string]any) string {
