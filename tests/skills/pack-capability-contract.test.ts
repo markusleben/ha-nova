@@ -292,8 +292,9 @@ describe("HA UI parity flow ownership", () => {
       "raw_data", "validation_errors", "source_url", "substituted_config",
       "use_blueprint", "plan write --create", "automation_blueprint", "script_blueprint",
     ]) {
-      expect(write).toContain(text);
+      expect(read("skills/write/blueprints.md")).toContain(text);
     }
+    expect(write).toContain("`../write/blueprints.md`");
     expect(fallback).not.toContain("### Blueprints -- RELAY-READY");
   });
 });
@@ -316,7 +317,7 @@ describe("HA UI parity batch 1", () => {
     for (const pin of ["repairs/ignore_issue", "Ignoring hides, never fixes", "re-reading its `ignored` flag", "ha-nova plan raw", "ha-nova apply"]) {
       expect(health).toContain(pin);
     }
-    const blueprints = read("skills/write/SKILL.md");
+    const blueprints = read("skills/write/blueprints.md");
     for (const pin of ["blueprint/delete", "automation_blueprint", "script_blueprint", "search/related", "Home Assistant refuses a blueprint in use", "typed raw plan"]) {
       expect(blueprints).toContain(pin);
     }

@@ -79,3 +79,62 @@ listens to these events is `../ha-nova/consumer-discovery-preflight.md`.
 Report evidence quality without dumping unrelated device data (output-rules →
 Technical Noise). Name the checked sources in one line; internal class labels
 (advertised/observed/assumed) stay internal — the user sees the tier wording.
+
+## Zigbee Button Patterns
+
+<!-- Portions adapted from homeassistant-ai/skills (MIT License)       -->
+<!-- https://github.com/homeassistant-ai/skills                        -->
+<!-- Copyright (c) Sergey Kadentsev (@sergeykad), Julien Lapointe (@julienld) -->
+
+Zigbee buttons/remotes are stateless devices — they fire events, not state changes. The trigger pattern depends on the integration.
+
+The Developer-Tools discovery below stays the manual fallback to the preflight above.
+
+### ZHA (Zigbee Home Automation)
+
+Use `event` trigger with `device_ieee` (persistent across re-adds):
+
+```yaml
+triggers:
+  - trigger: event
+    event_type: zha_event
+    event_data:
+      device_ieee: "00:15:8d:00:07:26:f2:8a"
+      command: "toggle"
+    id: button_toggle
+```
+
+Find `device_ieee` and `command` values: Tools → Events (named Developer Tools before HA 2026.8) → subscribe to `zha_event` → press button.
+
+### Zigbee2MQTT (Z2M)
+
+Use autodiscovered `device` trigger (acceptable despite using `device_id`, because Z2M manages the mapping):
+
+```yaml
+triggers:
+  - trigger: device
+    device_id: abc123def456
+    domain: mqtt
+    type: action
+    subtype: single
+    id: button_single
+```
+
+Alternative — explicit MQTT topic trigger:
+
+```yaml
+triggers:
+  - trigger: mqtt
+    topic: "zigbee2mqtt/Bedroom Button/action"
+    payload: "single"
+    id: button_single
+```
+
+### ZHA vs Z2M Quick Reference
+
+| Aspect | ZHA | Zigbee2MQTT |
+|--------|-----|-------------|
+| Trigger type | `event` | `device` or `mqtt` |
+| Persistent ID | `device_ieee` | `device_id` (autodiscovered) |
+| Event source | `zha_event` | MQTT device trigger |
+| Button actions | `command` field | `type` + `subtype` |

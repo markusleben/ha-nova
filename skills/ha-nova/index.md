@@ -4,7 +4,7 @@ Any request about the user's Home Assistant — rooms, devices, sensors ("room
 temperature"), lights, locks, modes or toggles ("guest mode"), automations,
 dashboards, or "where is X used / why didn't X happen" — is a Home Assistant
 task unless it is about files or code in the open folder: load its task skill
-and use `ha-nova find …`, not file search. Home Assistant reviews, multi-step
+and use `ha-nova find …`, not file search. Multi-target reviews, multi-step
 tasks, and steps citing "context skill → …" (not Safety Core) also load the full context skill `ha-nova:ha-nova`.
 
 ## Safety Core (Home Assistant tasks)

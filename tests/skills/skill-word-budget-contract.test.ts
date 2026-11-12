@@ -502,7 +502,8 @@ const FOLDED_INTO_BUDGET: Record<string, string[]> = {
   // measured 4252 while the skill really costs 5109, and the next split would
   // have reset it again.
   "service-call": ["domain-fields.md", "raw-routes.md", "../ha-nova/indirect-actuation.md"],
-  write: ["../ha-nova/one-shot-automations.md"],
+  // Blueprints split out of write/SKILL.md (the write route diet).
+  write: ["../ha-nova/one-shot-automations.md", "blueprints.md"],
 };
 
 // Secondary Markdown that is a standalone reference, not prose split out of
@@ -566,7 +567,7 @@ describe("skill word-budget contract", () => {
     expect(FOLDED_INTO_BUDGET).toEqual({
       fallback: ["relay-ready.md"],
       "service-call": ["domain-fields.md", "raw-routes.md", "../ha-nova/indirect-actuation.md"],
-      write: ["../ha-nova/one-shot-automations.md"],
+      write: ["../ha-nova/one-shot-automations.md", "blueprints.md"],
     });
     const folded = Object.entries(FOLDED_INTO_BUDGET).flatMap(([name, files]) => {
       const dir = dirname(subskillPath(name));

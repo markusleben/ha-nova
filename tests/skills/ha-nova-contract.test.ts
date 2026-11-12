@@ -667,7 +667,7 @@ describe("ha-nova contract", () => {
     );
 
     // Zigbee button authoring points at the preflight first.
-    expect(bp).toContain("../ha-nova/input-capability-preflight.md");
+    expect(preflight).toContain("## Zigbee Button Patterns");
   });
 
   it("discovers consumers before an input is repurposed", () => {

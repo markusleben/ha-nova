@@ -482,6 +482,12 @@ Extra fields a trigger supports:
 {"type":"device_automation/trigger/capabilities","trigger":{"platform":"device","domain":"mqtt","device_id":"{device_id}","type":"action","subtype":"single"}}
 ```
 
+Purpose-specific triggers and conditions (HA 2026.7+) a target can use (names such as `light.turned_on`, `light.is_on`):
+```json
+{"type":"get_triggers_for_target","target":{"area_id":["{area_id}"]}}
+```
+The same with `"type":"get_conditions_for_target"`. Before 2026.7 Home Assistant answers `unknown_command`.
+
 For event-entity devices, the advertised set is the `event.*` entity's `event_types` attribute — read `/api/states/{entity_id}`. An empty trigger list is a valid answer (the integration advertises nothing), not an error. Advertised metadata is not proof an action fires — see `../ha-nova/input-capability-preflight.md`.
 
 ## Trace Queries (via /ws)

@@ -113,7 +113,6 @@ Resolve the config key via entity registry first; UI-created items often use num
      if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end
      ```
    - if the contents differ, overwrite the same `<filter-file>` with the canonical line before the first config read; do not create alternate config-filter filenames
-   - POSIX heredocs shown elsewhere are examples only; on Windows/PowerShell preserve the same jq body with native file writing
 3. Validate:
    - `ha-nova relay jq --file <result-file> -e --jq-file <filter-file>`
    - use `type == "object"`
@@ -152,6 +151,8 @@ After reading a config, present (the bold labels below are semantic slots — lo
 - **Actions:** {short description of each action, grouped by trigger if applicable}
 - **Mode:** {only if not `single`, in plain words}
 ```
+
+A trigger or condition with a `target` (2026.7+, `trigger: motion.detected`) reads as what happens where: area, floor, label by name; `behavior` as any, the first, or all; `exclude` as "except …".
 
 Explain mode: lead with the behavior narrative; offer the YAML instead of dumping it unless the user also asked for it.
 
@@ -214,7 +215,6 @@ Manual relay path:
 
 ## Latency Policy
 
-- no agent dispatch for simple reads
 - no proactive `/health` preflight
 - no exploratory retry loops without concrete failure
 
