@@ -82,7 +82,7 @@ Write `<filter-file>` with:
 
 ### Create from current state ("save this room as a scene")
 Same as Create, but the entities map IS the live state: read each requested entity's state and copy it (attribute rules from Create step 3). Show captured entities and values before confirming.
-Persistence routing per `../ha-nova/best-practices.md` → Persistence Model: a stored scene is a static capture that never updates itself; `scene.create` snapshots and automation-driven save → modify → restore cycles hand off to `ha-nova:write` (helpers, not scenes).
+Persistence routing per `../ha-nova/automation-patterns.md` → Persistence Model: a stored scene is a static capture that never updates itself; `scene.create` snapshots and automation-driven save → modify → restore cycles hand off to `ha-nova:write` (helpers, not scenes).
 
 ### Update
 1. Read the current config (Read flow).

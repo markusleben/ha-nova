@@ -3,6 +3,8 @@
 Reference for AI agents constructing automation and script config payloads.
 These are JSON payloads for `POST /api/config/{domain}/config/{id}` via the `/core` relay endpoint.
 
+Room, floor, or group triggers and conditions (HA 2026.7+): `best-practices.md` → Triggers, Conditions, and Targets.
+
 ## Automation Payloads
 
 Required fields: `alias`, `triggers`, `conditions`, `actions`, `mode`.

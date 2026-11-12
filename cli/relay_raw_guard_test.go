@@ -297,6 +297,17 @@ func TestRawRelayAllowlistedWritesPass(t *testing.T) {
 	}
 }
 
+// The 2026.7+ trigger and condition catalog for a target is a plain read.
+func TestRawRelayTargetCatalogReadsPass(t *testing.T) {
+	for _, wsType := range []string{"get_triggers_for_target", "get_conditions_for_target"} {
+		if rawWSAllowed[wsType] != rawWSRead {
+			t.Errorf("%s is not a raw read", wsType)
+		}
+		rawAllowed(t, "ws", `{"type":"`+wsType+`","target":{"area_id":["hallway"]}}`)
+	}
+	rawRefused(t, "ws", `{"type":"get_services_for_target","target":{"area_id":["hallway"]}}`)
+}
+
 // The read verbs' WS allowlist stays readable raw, and no write the guard
 // names a better route for is allowlisted.
 func TestRawAllowlistCoversReadVerbsOnly(t *testing.T) {

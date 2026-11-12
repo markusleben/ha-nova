@@ -1,6 +1,6 @@
 ---
 name: ha-nova
-description: Questions about the user's Home Assistant — rooms, devices, modes, where something is used — go through ha-nova, not file search. Use for reviews and multi-step or multi-target Home Assistant work through HA NOVA (App + Relay; the demo house via `--server demo`), or when no other HA NOVA skill fits. Single device actions, lookups, and single automation/script changes need only their own skill. If you can run ha-nova in a shell, use it, never a "HA NOVA…" connector.
+description: Questions about the user's Home Assistant — rooms, devices, modes, where something is used — go through ha-nova, not file search. Use for multi-step or multi-target Home Assistant work (multi-target reviews included) through HA NOVA (App + Relay; the demo house via `--server demo`), or when no other HA NOVA skill fits. Single device actions, lookups, and single automation/script changes need only their own skill. If you can run ha-nova in a shell, use it, never a "HA NOVA…" connector.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---

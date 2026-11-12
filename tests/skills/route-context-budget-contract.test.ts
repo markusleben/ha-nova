@@ -17,9 +17,25 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // the official templating page is fetched only when a template check
   // needs a signature checks.md lacks. Measured after the cut: 22211.
   review: {
-    // The ha-nova:device dispatch row and its one example (measured 22249);
-    // home-map's whole-home row and "review my whole setup" example (measured 22264).
-    limit: 22265, // cards: `say` closes the card; bootstrap chaining, narrower router description (measured 22205)
+    // Measured 22205 with the router and checks-extended.md always loaded.
+    // A single-item review now skips the router (Evidence and the Quick-Fix
+    // confirmation are inline in review/SKILL.md), and checks-extended.md is
+    // read per boundary or family as checks.md says (measured 12765).
+    limit: 12766,
+    noRouter: true,
+    files: [
+      "skills/ha-nova/session-bootstrap.md",
+      "skills/ha-nova/output-rules.md",
+      "skills/ha-nova/output-cards.md",
+      "skills/review/SKILL.md",
+      "skills/review/checks.md",
+    ],
+  },
+  // A multi-target or whole-setup review loads the context skill (index.md,
+  // router description). Kept as its own honest row (measured 18630).
+  "review-multi-step": {
+    limit: 18631,
+    skill: "review",
     files: [
       "skills/ha-nova/SKILL.md",
       "skills/ha-nova/session-bootstrap.md",
@@ -27,7 +43,6 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
       "skills/ha-nova/output-cards.md",
       "skills/review/SKILL.md",
       "skills/review/checks.md",
-      "skills/review/checks-extended.md",
     ],
   },
   // Typed-verbs PR6: writes run through `ha-nova find|get` and
@@ -51,14 +66,17 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
     // (measured 15566).
     // The CLI's `say` replaced the inline reason and "yes" sentences (measured 15553).
     // Batch review: `say` closes the write card; literal names/state values (measured 15571).
-    limit: 15570, // spec target <= 15500; delete reads only write-safety, bootstrap chaining (measured 15569)
+    // payload-schemas.md, blueprints, Zigbee buttons, and the persistence
+    // model moved to on-demand reads; HA 2026.7+ triggers and targets joined
+    // best-practices.md, and write/SKILL.md names the trigger choice itself
+    // (measured 14114).
+    limit: 14115,
     noRouter: true,
     files: [
       "skills/ha-nova/session-bootstrap.md",
       "skills/ha-nova/output-rules.md",
       "skills/ha-nova/output-cards.md",
       "skills/write/SKILL.md",
-      "skills/ha-nova/payload-schemas.md",
       "skills/ha-nova/best-practices.md",
       "skills/ha-nova/write-safety.md",
       "skills/ha-nova/smallest-solution.md",
@@ -71,7 +89,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   "write-multi-step": {
     // The ha-nova:device dispatch row and its one example (measured 21385);
     // home-map's routing rows (measured 21400).
-    limit: 21401, // Confirmation Reasons + PR-review narrowing; `say` replaced the inline sentences and closes the card; bootstrap chaining (measured 21345)
+    limit: 19980, // the write row's on-demand moves (measured 19979)
     skill: "write",
     files: [
       "skills/ha-nova/SKILL.md",
@@ -79,7 +97,6 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
       "skills/ha-nova/output-rules.md",
       "skills/ha-nova/output-cards.md",
       "skills/write/SKILL.md",
-      "skills/ha-nova/payload-schemas.md",
       "skills/ha-nova/best-practices.md",
       "skills/ha-nova/write-safety.md",
       "skills/ha-nova/smallest-solution.md",
@@ -192,10 +209,9 @@ describe("route context ratchet (#521)", () => {
         // The checks catalog is read on every review (Verify-before-flag rule).
         expect(text).toContain("`../review/checks.md`");
         expected.add("skills/review/checks.md");
-        // Reviews flag findings routinely, so the evidence boundaries and the
-        // scene/dashboard/cross-item/TS families are read every time.
-        expect(text).toContain("`../review/checks-extended.md`");
-        expected.add("skills/review/checks-extended.md");
+        // The evidence boundaries and the scene/dashboard/cross-item/TS
+        // families are read per check or family, as checks.md says.
+        expect(text).toContain("`../review/checks-extended.md` as checks.md says");
       }
       expect([...files].sort(), `${name} route file list must mirror its declarations`).toEqual(
         [...expected].sort(),

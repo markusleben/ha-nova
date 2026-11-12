@@ -46,6 +46,7 @@ var rawWSAllowed = map[string]string{
 	"config/label_registry/list": rawWSRead, "config/category_registry/list": rawWSRead,
 	"search/related": rawWSRead, "trace/list": rawWSRead, "trace/get": rawWSRead,
 	"device_automation/trigger/list": rawWSRead, "device_automation/trigger/capabilities": rawWSRead,
+	"get_triggers_for_target": rawWSRead, "get_conditions_for_target": rawWSRead, // HA 2026.7+: the triggers/conditions a target can use
 	"blueprint/list": rawWSRead, "blueprint/substitute": rawWSRead, "blueprint/import": rawWSRead, // import fetches and previews, never saves
 	"automation/config": rawWSRead, "script/config": rawWSRead,
 	"lovelace/dashboards/list": rawWSRead, "lovelace/config": rawWSRead, "lovelace/resources": rawWSRead, "lovelace/info": rawWSRead,

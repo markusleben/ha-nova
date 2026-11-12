@@ -223,7 +223,7 @@ Analyze config against the review catalog plus any additional issues found in th
 Traverse all `variables:` mappings in the config, not just the top-level block. Include root `variables:` on the automation/script plus local `variables:` actions inside `choose`, `if` / `then` / `else`, `default`, `repeat`, and nested `sequence` blocks.
 
 **Rule Catalog**
-- Load `../review/checks.md` and `../review/checks-extended.md` (evidence boundaries and the scene/dashboard/cross-item/TS families) before evaluating findings.
+- Load `../review/checks.md` before evaluating findings. Read `../review/checks-extended.md` as checks.md says: a check's evidence boundary before flagging or escalating that check, and the family section before reviewing a scene, dashboard, YAML sensor, or bulk/cross-item set.
 - `../review/SKILL.md` is the stable review entrypoint; `../review/checks.md` plus `../review/checks-extended.md` are the full rule catalog.
 
 **Apply the catalog:**
@@ -241,7 +241,7 @@ Branch by target family:
 - config-entry helper metadata item: use `linked_entities[]` from the canonical metadata item; do not attempt action extraction
 
 1. Build the candidate entity list:
-   - automation/script: extract all target entity_ids from config actions (the entities being controlled)
+   - automation/script: extract all target entity_ids from config actions (the entities being controlled); area, floor, or label targets anywhere get their own `search/related` (`item_type: area|floor|label`); `exclude` narrows only at run time
    - helper (storage-based family): use the helper entity_id
    - helper (config-entry family): use up to 3 `linked_entities[]` from the canonical metadata item
 2. For the top 3 most significant candidate entities, run `search/related`:
@@ -271,7 +271,7 @@ In that case:
 1. Prefer the normalized CLI helper fields from `ha-nova trace latest <automation_or_script_entity_id> --json`, `ha-nova trace list <automation_or_script_entity_id> --json`, and `ha-nova trace get <automation_or_script_entity_id> <run_id> --json`; they are enough for run selection, result status, timestamp, item binding, and most review findings.
 2. Inspect raw trace internals only when step-level evidence is required. Raw trace nodes can be arrays of event records; type-check before reading `path`, `result`, `changed_variables`, or `error`, and avoid large jq projections as the standard path.
 3. Cross-reference trace findings with config quality findings from Step 1
-4. Verify `item_id` in every trace matches the target's `unique_id` before attributing results. see `../ha-nova/SKILL.md` → Claim-Evidence Binding.
+4. Verify `item_id` in every trace matches the target's `unique_id` before attributing results (Evidence below).
 5. Include trace-based findings in the Findings section with a descriptive title (e.g., `🔴 Condition blocked — condition was never met in last 3 runs`). Localize at runtime per `../ha-nova/output-rules.md`.
 
 ### Step 3: Conflict Analysis
@@ -314,7 +314,7 @@ After completing Steps 1-3, check if the current entity state (from the earlier 
 **If qualified:**
 1. Show current state vs expected state
 2. Show exact service call that would fix it
-3. Ask for natural confirmation bound to this exact service-call preview (same tier as `ha-nova:service-call`; see context skill → Active Preview Confirmation; no one-time code needed for ordinary service calls)
+3. Ask for natural confirmation bound to this exact service-call preview (same tier as `ha-nova:service-call`; relay the plan's `say`; Safety below).
 
 **On confirmation:**
 Execute the planned call once, verified by the CLI:
@@ -468,6 +468,10 @@ For resolved targets `> 1`, return exactly these 6 sections:
 - separate true conflicts from safe/redundant clusters
 - if clean: localized "no conflicts"
 
+## Evidence
+
+Each finding's data belongs to the reviewed item (matching `entity_id`, `unique_id`, or `item_id`, never a name alone), is complete (say when a read was truncated or failed), and is current. Unverified findings say so ("this likely means …", "could not verify …"), never in a verified tone.
+
 ## Safety
 
 - The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `"typed":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
@@ -480,17 +484,13 @@ For resolved targets `> 1`, return exactly these 6 sections:
 
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 
-- Read-only analysis: no config writes through the relay (see Scope for the single Quick-Fix exception).
 - The Quick-Fix service call requires confirmation bound to its exact preview; bulk mode disables it entirely.
 
 ## Guardrails
 
-- Read-only analysis (exception: Quick-Fix service call after user confirmation)
 - Quick-Fix: max 1 service call per review, only after explicit user confirmation, only simple state corrections (no config mutations)
-- Any multi-target review: no Quick-Fix, no service calls, no write exception
-- Only communicate with HA through `ha-nova relay`
 - Never guess entity IDs
-- Limit collision scan to top 3 target entities, max 5 related configs for a single standalone target (post-write scans in `write`/`helper` use max 3 by design)
+- Limit collision scan to top 3 target entities, max 5 related configs for a single standalone target
 - For a bulk workset, trim before deep reads (the Static Pass precedes trimming) and keep a shared related-config budget
 - Never build a config snapshot for the full matched set during bulk review
 - Batch reviews: the Static Pass covers every matched automation/script; bulk workset max 5 targets for deep checks — more flagged → the first 5 in deterministic order, then offer to continue.

@@ -2,10 +2,6 @@
 
 Canonical path: `../ha-nova/one-shot-automations.md`
 
-Automations that must not outlive their purpose: fire-once notifications,
-and actions bounded by a duration.
-
-
 "Only today", "just once", "remind me when the laundry finishes" — the most
 common everyday automation request is one that should not outlive its purpose.
 A permanent automation the user has to remember to delete is the wrong answer.
