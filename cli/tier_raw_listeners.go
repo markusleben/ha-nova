@@ -64,7 +64,12 @@ func rawListened(endpoint string, payload map[string]any) func(e *tierEngine) []
 		for key := range payload {
 			changes = changes || !slices.Contains(keep, key)
 		}
-		if !changes {
+		_, moves := payload["area_id"]
+		_, labeled := payload["labels"]
+		switch {
+		case !changes && (moves || labeled) && wsType != "config_entries/update": // a place carry: no state changes, the place's triggers widen (rawCarry)
+			return func(*tierEngine) []string { return nil }
+		case !changes:
 			return nil
 		}
 	}
@@ -202,6 +207,8 @@ func (e *tierEngine) rawListeners(endpoint string, payload map[string]any) tierL
 		e.scopes = e.scopes[:len(e.scopes)-1]
 		e.done[key] = own
 	}
+	e.rawTakeover(endpoint, payload)
+	e.rawCarry(endpoint, payload)
 	if len(e.consumers) > consumers { // a raw write calls nothing itself: only what its consumers call may set off a call_service listener (MAR-148)
 		e.callServiceListeners()
 	}
