@@ -196,25 +196,21 @@ describe("helper contract", () => {
 
     it("uses config-entry-first verification for the config-entry family", () => {
       expect(skillDoc).toContain("config-entry layer first");
-      expect(skillDoc).toContain("Capture a pre-create baseline");
-      expect(skillDoc).toContain("<entries-before-file>");
-      expect(skillDoc).toContain("re-read `config_entries/get` into `<entries-after-file>`");
-      expect(skillDoc).toContain("if the terminal flow result includes `entry_id`");
-      expect(skillDoc).toContain("if the terminal flow result omits `entry_id`");
-      expect(skillDoc).toContain("diff `config_entries/get` before vs after by `entry_id`");
-      expect(skillDoc).toContain("exactly one new `entry_id` appeared");
-      expect(skillDoc).toContain("metadata is consistent with the requested create");
-      expect(skillDoc).toContain("ambiguous create verification");
-      expect(skillDoc).toContain("fallback tie-breakers only");
+      // #1105: the CLI verifies a create; the skill reads its verification.
+      expect(skillDoc).toContain("carries the CLI's `verification`");
+      expect(skillDoc).toContain("never use `--jq` on a submit");
+      expect(skillDoc).toContain("`passed: false` → the helper may exist but is unverified");
+      expect(skillDoc).toContain("no `verification` → the CLI is older than this skill");
+      expect(skillDoc).toContain("never re-run the flow or its submit");
+      expect(skillDoc).not.toContain("Capture a pre-create baseline");
+      expect(skillDoc).not.toContain("diff `config_entries/get` before vs after");
       expect(skillDoc).toContain("Entity disappearance is secondary evidence only");
       expect(skillDoc).toContain("reopen the options flow");
       expect(skillDoc).toContain("description.suggested_value");
       expect(flowSchemasDoc).toContain("Verification source of truth");
-      expect(flowSchemasDoc).toContain("terminal flow result confirmed in the after-read");
-      expect(flowSchemasDoc).toContain("before/after `entry_id` diff");
-      expect(flowSchemasDoc).toContain("pre-create `config_entries/get` baseline");
-      expect(flowSchemasDoc).toContain("exactly one new `entry_id` appeared");
-      expect(flowSchemasDoc).toContain("ambiguous create verification");
+      expect(flowSchemasDoc).toContain("terminal flow result's `entry_id` (built-in, `loaded`) in the after-read");
+      expect(flowSchemasDoc).toContain("anything else is an unverified create, never re-run");
+      expect(flowSchemasDoc).not.toContain("before/after `entry_id` diff");
       expect(flowSchemasDoc).toContain("entry absent in `config_entries/get`");
       expect(flowSchemasDoc).toContain("reopened options flow shows the requested changed fields");
     });

@@ -122,6 +122,7 @@ exposes no identity there, the constrained before/after `config_entries/get`
 diff is the
 fallback: it passes only when exactly one new `entry_id` appeared and its
 metadata is consistent with the request; empty, plural, or inconsistent diffs
-fail loud as ambiguous verification.
+fail loud as ambiguous verification. A helper create (`ha-nova:helper`) needs
+neither: its terminal submit's output carries the CLI's `verification`.
 Subentry and repair terminals need their owner's reconciliation, not this
 config-entry identity extraction.
