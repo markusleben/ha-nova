@@ -467,6 +467,8 @@
   "raw.why.core_clock": "Das ändert die Zeitzone oder die Einheiten von Home Assistant und damit, wie Verlauf und Langzeitstatistiken zu lesen sind",
   "raw.why.core_language": "Das ändert die Sprache von Home Assistant, in der jede spätere Bestätigung von HA NOVA spricht",
   "raw.why.integration_remove": "Das entfernt eine Integration und ihre Geräte aus Home Assistant",
+  "raw.why.repair_flow": "Eine Reparatur kann Geräte oder Entitäten entfernen, und nur die Integration weiß, was sie tut",
+  "raw.why.subentry_flow": "Das ändert einen Teil der Einrichtung einer Integration, und nur die Integration weiß, was dabei wegfällt",
   "raw.why.file_delete": "Das löscht eine Datei im Konfigurationsordner von Home Assistant",
   "raw.why.file_write": "Das schreibt eine Datei im Konfigurationsordner von Home Assistant; nach einem Neuladen kann sie ändern, was Home Assistant ausführt",
   "raw.why.file_restore": "Das legt ein gelöschtes Bild oder Video zurück in den www-Ordner von Home Assistant, wo es jeder mit seiner Adresse öffnen kann",

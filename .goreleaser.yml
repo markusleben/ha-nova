@@ -109,6 +109,7 @@ release:
 
     ## Bug Fixes
 
+    - **Fixing a repair or changing part of an integration's setup now asks for your OK.** The integration decides what such a step does, and it may remove devices or entities. Before, it was only previewed.
     - **Automations that react to a whole room, floor, or label are now checked.** Turning on a lamp that sets one off asks first when that automation unlocks or opens something; before, it could run without asking.
     - **Confirmation windows are short, wide, and readable.** Same-kind steps share one line, names and months replace ids and timestamps, and the instruction always shows. Too long for the window: refused, never cut.
     - **Changes that would drop aliases or labels, a person's trackers, or voice-assistant settings now save a copy first.**

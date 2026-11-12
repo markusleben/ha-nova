@@ -66,6 +66,8 @@ var rawWhys = map[string]func(lang string) string{
 	"core_clock":          func(l string) string { return confirmT(l, "raw.why.core_clock") },
 	"core_language":       func(l string) string { return confirmT(l, "raw.why.core_language") },
 	"integration_remove":  func(l string) string { return confirmT(l, "raw.why.integration_remove") },
+	"repair_flow":         func(l string) string { return confirmT(l, "raw.why.repair_flow") },
+	"subentry_flow":       func(l string) string { return confirmT(l, "raw.why.subentry_flow") },
 	"file_delete":         func(l string) string { return confirmT(l, "raw.why.file_delete") },
 	"file_write":          func(l string) string { return confirmT(l, "raw.why.file_write") },
 	"file_restore":        func(l string) string { return confirmT(l, "raw.why.file_restore") },
@@ -184,7 +186,15 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 		target, _ := payload["path"].(string)
 		target, _, _ = strings.Cut(target, "#")
 		target, _, _ = strings.Cut(target, "?")
+		body, _ := payload["body"].(map[string]any)
+		_, reconfigures := body["subentry_id"]
+		step, _ := relayCorePath(target)                                                                                         // as Home Assistant gets it: a GET may be %-escaped
+		submits := payload["method"] == http.MethodPost || payload["method"] == http.MethodGet && flowStepPath.MatchString(step) // a GET re-runs the step (async_configure): rated as its POST
 		switch {
+		case submits && rawRepairFlowPath.MatchString(step): // what a fix does is the integration's: its start runs the first step
+			return tierTyped, "repair_flow"
+		case submits && rawSubentryStepPath.MatchString(step) || payload["method"] == http.MethodPost && target == "/api/config/config_entries/subentries/flow" && reconfigures:
+			return tierTyped, "subentry_flow" // a step can't be told from an add's, nor what a reconfigure drops
 		case payload["method"] != http.MethodDelete:
 		case rawEntryDeletePath.MatchString(target):
 			return tierTyped, "integration_remove"
@@ -558,3 +568,11 @@ func (n *rawNamer) basis() map[string]any {
 	}
 	return basis
 }
+
+// A repair fix flow (its start and each step) and a subentry flow's step or
+// reconfigure start: what they change is the integration's own code, and
+// the gate keeps no state to tell a flow id's issue or kind.
+var (
+	rawRepairFlowPath   = regexp.MustCompile(`^/api/repairs/issues/fix(/[A-Za-z0-9_-]+)?$`)
+	rawSubentryStepPath = regexp.MustCompile(`^/api/config/config_entries/subentries/flow/[A-Za-z0-9_-]+$`)
+)
