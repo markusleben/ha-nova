@@ -97,7 +97,7 @@ func TestBatchHintAfterNotices(t *testing.T) {
 		"plan":      map[string]any{"id": "p_1", "confirm": "natural", "expires_at": "2026-11-02T20:10:30Z"},
 		"next_step": batchHint + " Otherwise: Show the preview ending with `say` and end your turn; run ha-nova apply --plan p_1 only after the user's own reply approves it.",
 		"notices":   []any{map[string]any{"kind": "relay_outdated", "text": "update"}}}
-	got := toolResult("ha_plan", string(mustJSON(env)), "", verbExitConfirmation, map[string]bool{}, false)["structuredContent"].(map[string]any)
+	got := toolResult("ha_plan", string(mustJSON(env)), "", verbExitConfirmation, map[string]bool{}, false, chatCall != nil)["structuredContent"].(map[string]any)
 	if step, _ := got["next_step"].(string); !strings.HasPrefix(step, mcpNoticeHints["relay_outdated"]+" "+batchHintMCP+" Otherwise: Show this preview in plain words") ||
 		strings.Count(step, "Tell the user once") != 1 || got["answer_rule"] != batchRule+mcpResultRule {
 		t.Fatalf("%v", got)

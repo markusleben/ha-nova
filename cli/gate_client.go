@@ -132,15 +132,15 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 		items[i] = map[string]string{"endpoint": r.endpoint, "body_b64": base64.StdEncoding.EncodeToString(r.body)}
 	}
 	open := func() (opened gateOpened, err error) {
-		err = s.gateCall(planAsks, gateAskRoute, gateOpenWait(len(reqs)), map[string]any{"requests": items}, &opened)
+		err = s.gateCall(planAsks, gateAskRoute, s.gateOpenWait(len(reqs)), map[string]any{"requests": items}, &opened)
 		return opened, err
 	}
-	if gateApproval == nil && askWait() <= 0 { // the check before took the time this call has to ask
+	if gateApproval == nil && s.askWait() <= 0 { // the check before took the time this call has to ask
 		return gateStop("refused", "CONFIRM_UNAVAILABLE", "checking this change took the time this call has to ask on the linked phone or in Home Assistant; nothing was sent",
 			"Tell the user nothing changed: checking this change in their home took too long to still ask them in time. They can ask again; if it keeps happening, they make the change in Home Assistant itself.")
 	}
 	opened, err := open()
-	end := time.Now().Add(askWait()) // the CLI: the command's wait; ha-nova mcp's job: the ask's life, a move's link included
+	end := time.Now().Add(s.askWait()) // the CLI: the command's wait; ha-nova mcp's job: the ask's life, a move's link included
 	if gateApproval != nil {
 		end = time.Now().Add(gateAskLife + 5*time.Second)
 	}

@@ -210,7 +210,7 @@ func runMCPRead(call *verbCall, paths runtimePaths, argv []string) int {
 	var run jqRun
 	switch {
 	case *filter == "":
-	case chatCall != nil: // ha-nova serve: the filter is parsed and run only in the child (mcp_read_jq.go)
+	case call.chatPolicy() != nil: // ha-nova serve: the filter is parsed and run only in the child (mcp_read_jq.go)
 		run = childJQ(*filter)
 	default:
 		program, err := mcpCompileJQ(*filter)
@@ -230,7 +230,7 @@ func runMCPRead(call *verbCall, paths runtimePaths, argv []string) int {
 	if endpoint == "camera" {
 		relayEndpoint = "core"
 	}
-	send, refusal, err := guardRawRequest(paths, verbOptions{}, relayEndpoint, []byte(*body))
+	send, refusal, err := guardRawRequest(paths, verbOptions{call: call}, relayEndpoint, []byte(*body))
 	if refusal == nil && err == nil {
 		refusal = mcpReadRefusal(endpoint, send)
 	}

@@ -249,7 +249,8 @@ func withNotices(out string, notices []verbNotice, server string) string {
 // a client that reads only one still gets the guidance (next_step, say). isError for
 // failures, not needs_confirmation. told (nil = no memory) keeps each update
 // notice's hint to once per session. forms: the client shows forms, so no code.
-func toolResult(name, out, errOut string, exit int, told map[string]bool, forms bool) map[string]any {
+// chat: a chat app's call (ha-nova serve).
+func toolResult(name, out, errOut string, exit int, told map[string]bool, forms, chat bool) map[string]any {
 	var envelope map[string]any
 	// A verb envelope carries schema_version; anything else (trace prints
 	// plain JSON, failures print to stderr) is wrapped into one.
@@ -272,15 +273,15 @@ func toolResult(name, out, errOut string, exit int, told map[string]bool, forms 
 	own, _ := envelope["next_step"].(string)
 	own, batch := strings.CutPrefix(own, batchHint) // in tool terms before every step (plainResult)
 	own = strings.TrimPrefix(own, " Otherwise: ")
-	next := nextStep(envelope)
+	next := nextStep(envelope, chat)
 	if next == "" && own != "" { // the verb's own step, in tool terms
 		next = mcpNext(own)
 	}
 	if forms {
 		next = formsNext(envelope, next)
 	}
-	images := imageContent(envelope)                 // before the text: an image is never text
-	text := plainResult(envelope, next, batch, told) // say, next_step, and answer_rule (mcp_plain.go)
+	images := imageContent(envelope)                       // before the text: an image is never text
+	text := plainResult(envelope, next, batch, told, chat) // say, next_step, and answer_rule (mcp_plain.go)
 	return map[string]any{"content": append([]map[string]any{{"type": "text", "text": string(text)}}, images...), "structuredContent": envelope,
 		"isError": exit != 0 && exit != verbExitConfirmation}
 }

@@ -19,23 +19,24 @@ const (
 	afterCheck     = 10 * time.Second
 )
 
-// checkDeadline: when the running call must answer (main sets it for the
-// command, runLocked for each mcp or serve call); zero keeps the session
-// budget (tests).
+// checkDeadline: when the CLI command must answer (main sets it); an mcp or
+// serve call has its own (verbCall.deadline). Zero keeps the session budget
+// (tests).
 var checkDeadline time.Time
 
-// commandStart: when the running call began (main for the command, runLocked
-// for each mcp or serve call). A plan's ask ends windowWait after it, so a
+// commandStart: when the CLI command began (main); an mcp or serve call has
+// its own (verbCall.start). A plan's ask ends windowWait after it, so a
 // slow re-plan before the ask shortens the ask instead of pushing the answer
 // past the host's limit (#1026); zero keeps windowWait (tests).
 var commandStart time.Time
 
 // askWait: what is left of windowWait for this call's ask.
-func askWait() time.Duration {
-	if commandStart.IsZero() {
+func (s *relaySession) askWait() time.Duration {
+	start := s.call.began()
+	if start.IsZero() {
 		return windowWait
 	}
-	return windowWait - time.Since(commandStart)
+	return windowWait - time.Since(start)
 }
 
 // chatCheckDeadline: a chat-app request answers about a minute after it
@@ -57,10 +58,14 @@ func later(a, b time.Time) time.Time {
 // decides. A replay keeps its own budget (replayReads). Earlier contexts
 // stay alive until close, as in renewBudget.
 func (s *relaySession) readUntilDeadline() {
-	if checkDeadline.IsZero() {
+	if s == nil { // an engine without a session reads nothing (tests)
 		return
 	}
-	until := later(checkDeadline.Add(-afterCheck), time.Now().Add(relaySessionOverallTimeout))
+	deadline := s.call.answerBy()
+	if deadline.IsZero() {
+		return
+	}
+	until := later(deadline.Add(-afterCheck), time.Now().Add(relaySessionOverallTimeout))
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.replay != nil {
@@ -88,9 +93,10 @@ func (s *relaySession) readUntilDeadline() {
 // job) or whose call leaves no time for a capped check (MCP's 40 s window):
 // there the ask refuses once its time is gone.
 func recheckBeforeAsk(s *relaySession, env *verbEnvelope, stored storedPlan, compute func(*verbEnvelope) (storedPlan, error)) (storedPlan, error) {
-	ceiling := commandStart.Add(windowWait - windowMinWait - replayBudget - afterCheck - gateWorkerStep)
+	start := s.call.began()
+	ceiling := start.Add(windowWait - windowMinWait - replayBudget - afterCheck - gateWorkerStep)
 	cut := func(p storedPlan) bool { return len(p.Reads) > 0 && slices.ContainsFunc(p.Reasons, cutShort) }
-	if gateApproval == nil && !commandStart.IsZero() && ceiling.After(time.Now()) && (cut(stored) || slices.ContainsFunc(stored.BatchMembers, cut)) {
+	if gateApproval == nil && !start.IsZero() && ceiling.After(time.Now()) && (cut(stored) || slices.ContainsFunc(stored.BatchMembers, cut)) {
 		s.mu.Lock()
 		s.askCeiling = ceiling
 		s.mu.Unlock()

@@ -154,8 +154,8 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 	plan.SchemaVersion, plan.ID, plan.Hash, plan.Server, plan.Nonce = planSchemaVersion, "p_"+idHex[:12], "sha256:"+sum, env.Server, hex.EncodeToString(nonce)
 	plan.CreatedAt, plan.ExpiresAt = now.Format(time.RFC3339), now.Add(planTTL).Format(time.RFC3339)
 	plan.Tier, plan.Reasons, plan.Channel = tier, e.reasons, planChannel
-	if e.s.ctx.Err() != nil && time.Now().Before(checkDeadline) { // the deadline cut the check: what seals the plan (its language, item names, channel) reads in the reserve left for it (afterCheck)
-		defer e.s.ownBudget(checkDeadline)()
+	if deadline := e.s.call.answerBy(); e.s.ctx.Err() != nil && time.Now().Before(deadline) { // the deadline cut the check: what seals the plan (its language, item names, channel) reads in the reserve left for it (afterCheck)
+		defer e.s.ownBudget(deadline)()
 	}
 	var items haWords
 	if e.level != tierOrdinary { // before Reads: a replay answers this read too

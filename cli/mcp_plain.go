@@ -17,8 +17,8 @@ import (
 // chat app's code ask keeps only say and machine fields (chatCodeResult).
 // batch: the plan can join a batch, so batchHintMCP leads its step and
 // batchRule its answer_rule.
-func plainResult(envelope map[string]any, next string, batch bool, told map[string]bool) []byte {
-	if !chatCodeResult(envelope, batch, told) {
+func plainResult(envelope map[string]any, next string, batch bool, told map[string]bool, chat bool) []byte {
+	if !chatCodeResult(envelope, batch, told, chat) {
 		next = strings.TrimSpace(next + " " + sayAboveCode(envelope, batch)) // after formsNext: a withheld code has no block
 		notices := noticeHints(envelope, told)
 		step := strings.TrimSpace(next + " " + notices)
@@ -180,12 +180,12 @@ const chatCodeRule = "Show `say` in the user's language, every line translated (
 // and only a plan carries it); the rule goes first in the text
 // (ruleFirst). false: not a chat code ask. A plan that can join a batch
 // (batch) leads with batchHintMCP instead of several codes.
-func chatCodeResult(envelope map[string]any, batch bool, told map[string]bool) bool {
+func chatCodeResult(envelope map[string]any, batch bool, told map[string]bool, chat bool) bool {
 	plan, _ := envelope["plan"].(map[string]any)
 	code, _ := plan["code"].(string)
 	say, _ := envelope["say"].(string)
 	head, lang, found := sayCodeHead(say, code)
-	if code == "" || !found || chatCall == nil { // chatCall last: only a code ask reads it, and that runs under mcpVerbLock (refusals outside it carry no code)
+	if code == "" || !found || !chat {
 		return false
 	}
 	envelope["say"] = head + codeBlock(chatCodeLead(lang, plan), code)

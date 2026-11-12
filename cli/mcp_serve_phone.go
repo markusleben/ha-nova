@@ -198,7 +198,7 @@ func chatStopped(name string, failure *verbFailure) map[string]any {
 	env := verbEnvelope{SchemaVersion: 1, Verb: name[len("ha_"):]}
 	setVerbError(&env, failure)
 	out, _ := json.Marshal(env)
-	return toolResult(name, string(out), "", verbExitRefused, nil, false)
+	return toolResult(name, string(out), "", verbExitRefused, nil, false, false) // never a RELAY_ERROR or a code: chat changes nothing
 }
 
 // chatJob is one phone ask of one user's plan, run once in the background.
@@ -361,7 +361,7 @@ func (srv *mcpServer) phoneJob(job *chatJob, args map[string]json.RawMessage, ar
 		case !now.mayApply(a.plan.Kind):
 			env, exit, asked = a.refuse(chatLevelWords(now, false))
 		default:
-			chatCall = now // apply's recompute checks the call against this level (chatCallFailure)
+			chatCall, call.chat = now, now // apply's recompute checks the call against this level (chatCallFailure)
 			env, exit, asked = a.finish()
 		}
 		return finishApply(srv.paths, req, env, exit, asked)

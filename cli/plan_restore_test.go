@@ -158,7 +158,7 @@ func TestMCPPlanRestore(t *testing.T) {
 	if _, err := planArgv(map[string]json.RawMessage{"kind": json.RawMessage(`"restore"`), "snapshot": json.RawMessage(`"--id=x"`)}, nil); err == nil {
 		t.Fatal("a flag-shaped snapshot was accepted")
 	}
-	step := nextStep(map[string]any{"status": "verified", "restore": "ha-nova plan restore --snapshot " + snapScript + " --id night_mode --server home"})
+	step := nextStep(map[string]any{"status": "verified", "restore": "ha-nova plan restore --snapshot " + snapScript + " --id night_mode --server home"}, chatCall != nil)
 	if step != "If the user asks to undo this delete: ha_plan kind restore snapshot "+snapScript+" id night_mode." {
 		t.Fatalf("next_step %q", step)
 	}

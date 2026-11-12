@@ -329,27 +329,25 @@ func (srv *mcpServer) runLocked(name, answered string, forms bool, run func(*ver
 	setServerSelectionOverride(srv.pin)
 	// Channel and form answer come from this server only: the CLI detects
 	// the channel (confirm_window.go), a form only where no window opens.
-	planChannel, humanAnswer, windowWait, formsShown, chatCall = "", answered, mcpWindowWait, forms, srv.chat.reread() // the owner's settings as they are now
-	deadline, start := checkDeadline, commandStart
-	defer func() { checkDeadline, commandStart = deadline, start }()
-	commandStart = time.Now()
-	checkDeadline = commandStart.Add(mcpCheckBudget)
+	call := &verbCall{start: time.Now(), chat: srv.chat.reread()} // the owner's settings as they are now
+	call.deadline = call.start.Add(mcpCheckBudget)
+	planChannel, humanAnswer, windowWait, formsShown, chatCall = "", answered, mcpWindowWait, forms, call.chat
 	if srv.chat != nil {
 		windowWait = chatAskSpan // the phone ask outlives one call (mcp_serve_phone.go)
-		commandStart, checkDeadline = srv.since, chatCheckDeadline(srv.since)
+		call.start, call.deadline = srv.since, chatCheckDeadline(srv.since)
 	}
 	defer func() {
 		planChannel, humanAnswer, humanWhere, askedRoute, windowWait, formsShown, phoneApplied, chatCall = "", "", "", nil, cliWindowWait, false, nil, nil
 	}()
 	traceRelayVersion.Store("")
-	out, errOut, exit := runCaptured(run)
+	out, errOut, exit := runCaptured(call, run)
 	if name == "ha_apply" && exit == verbExitUnknown && strings.TrimSpace(out) == "" { // apply crashed after it may have sent
 		return chatStopped(name, applyCrashed(errOut))
 	}
 	if name == "ha_trace" { // trace prints its own object: add the verbs' notices
 		out = withNotices(out, verbNotices(srv.paths, traceRelayVersion.Load().(string)), activeServerProfile())
 	}
-	return toolResult(name, out, errOut, exit, srv.told, forms)
+	return toolResult(name, out, errOut, exit, srv.told, forms, srv.chat != nil)
 }
 
 // scalarID: a JSON-RPC id is a string or a number.
