@@ -184,8 +184,15 @@ func (a *updateAdvisor) checkAppMinimums() {
 			a.gap("app_minimum", row.Name+": "+err.Error())
 			continue
 		}
-		var needs string // null: no minimum
-		if json.Unmarshal(raw, &needs) != nil || needs == "" {
+		if string(raw) == "null" { // no minimum
+			continue
+		}
+		var needs string
+		if json.Unmarshal(raw, &needs) != nil {
+			a.gap("app_minimum", row.Name+": the store entry's minimum is not a version")
+			continue
+		}
+		if needs == "" {
 			continue
 		}
 		aboveLatest, ok1 := haVersionLess(a.coreTo, needs)

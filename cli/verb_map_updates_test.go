@@ -245,6 +245,18 @@ func TestHAVersionOrder(t *testing.T) {
 	if _, ok := haVersionLess("2026.11", "latest"); ok {
 		t.Fatal("unreadable version compared")
 	}
+	if _, ok := haVersionLess("99999999999999999999.1.0", "2026.11.0"); ok {
+		t.Fatal("an overflowing version compared")
+	}
+}
+
+func TestUpdatesAppMinimumThatIsNoVersionIsNotChecked(t *testing.T) {
+	f := haosHome()
+	f.supervisor["/store/addons/core_mosquitto"] = map[string]any{"homeassistant": 2026}
+	got, _ := runUpdates(t, f)
+	if !slices.Contains(codes(got.NotChecked), "app_minimum") {
+		t.Fatalf("not checked %+v", got.NotChecked)
+	}
 }
 
 func TestUpdatesOddAnswersAreNotChecked(t *testing.T) {

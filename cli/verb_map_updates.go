@@ -233,13 +233,16 @@ func haVersion(v string) ([4]int, bool) {
 	if m == nil {
 		return [4]int{}, false
 	}
-	var out [4]int
-	for i, part := range m[1:4] {
-		out[i], _ = strconv.Atoi(part)
-	}
-	out[3] = 1 << 30
-	if m[4] != "" {
-		out[3], _ = strconv.Atoi(m[4])
+	out := [4]int{3: 1 << 30}
+	for i, part := range m[1:5] {
+		if part == "" {
+			continue
+		}
+		n, err := strconv.Atoi(part)
+		if err != nil || n >= 1<<30 {
+			return [4]int{}, false
+		}
+		out[i] = n
 	}
 	return out, true
 }
