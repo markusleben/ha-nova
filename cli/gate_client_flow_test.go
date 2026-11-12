@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"runtime"
 	"strings"
 	"testing"
@@ -32,8 +34,9 @@ func TestGateTypedBatchAsksForEveryMemberFirst(t *testing.T) {
 }
 
 // The waiting window says where to confirm; its first button only opens
-// Home Assistant's NOVA page (from the paired profile), Cancel ends the ask,
-// and a Cancel that raced the approval wins: nothing is sent.
+// this ask on Home Assistant's NOVA page (from the paired profile, by the
+// ask's ref, never its id), Cancel ends the ask, and a Cancel that raced
+// the approval wins: nothing is sent.
 func TestGateWaitingWindow(t *testing.T) {
 	savedAvailable, savedWindow, savedOpen := windowAvailable, gateWindow, gateOpenHA
 	t.Cleanup(func() { windowAvailable, gateWindow, gateOpenHA = savedAvailable, savedWindow, savedOpen })
@@ -70,15 +73,16 @@ func TestGateWaitingWindow(t *testing.T) {
 			plan := h.plan("lock.unlock", "lock.front").Plan
 			exit, env := h.run(runApplyCommand, "--plan", plan.ID)
 			_, ops, sends := g.snapshot()
-			want := confirmT("en", "gate.window")
+			want := "Confirm this change in Home Assistant: open it on the NOVA page in your browser and press “Approve” there. Or confirm it on your phone. This window can't confirm it, and nothing has been sent yet."
 			if runtime.GOOS == "windows" {
 				want += "\n\n" + confirmT("en", "gate.windows_ok")
 			}
 			if len(sends) != tc.sent || len(texts) != 1 || texts[0] != want || (tc.code != "" && (env.Error == nil || env.Error.Code != tc.code || !strings.Contains(strings.Join(ops, ","), "cancel"))) {
 				t.Fatalf("exit %d %+v; sends %+v ops %v texts %q", exit, env.Error, sends, ops, texts)
 			}
-			if wantOpened := map[bool]int{true: 1, false: 0}[name == "open Home Assistant"]; len(opened) != wantOpened || (wantOpened == 1 && opened[0] != panel.URL) {
-				t.Fatalf("opened %q, want %s", opened, panel.URL)
+			ask := panel.URL + "?nova_ask=" + fmt.Sprintf("%x", sha256.Sum256([]byte("ask1")))
+			if wantOpened := map[bool]int{true: 1, false: 0}[name == "open Home Assistant"]; len(opened) != wantOpened || (wantOpened == 1 && (opened[0] != ask || strings.Contains(opened[0], "ask1"))) {
+				t.Fatalf("opened %q, want %s", opened, ask)
 			}
 		})
 	}

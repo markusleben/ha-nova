@@ -265,7 +265,7 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration) (st
 			}
 		}
 	}()
-	page := s.gatePageURL()
+	page := s.gatePageURL(askID)
 	waiting := confirmT(confirmLanguage(s.lang), "gate.waiting")
 	window, raced := (<-chan windowAnswer)(nil), func(<-chan windowAnswer) bool { return false }
 	if link {
@@ -314,8 +314,11 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration) (st
 // gatePageURL: the NOVA page from the paired profile only, never Home
 // Assistant's own internal or external URL: through Link, the Link
 // connection's address first; else the profile's Home Assistant URL first.
-// "" when the profile holds neither.
-func (s *relaySession) gatePageURL() string {
+// "" when the profile holds neither. nova_ask names the ask by its ref (the
+// id's hash, as on the approval page), so the NOVA page opens it there
+// top-level; the ref can't wait for the grant, and approving still takes
+// the person's Home Assistant session and the page's button.
+func (s *relaySession) gatePageURL(askID string) string {
 	local, link := "", ""
 	if u, err := url.Parse(s.cfg.HAURL); err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" {
 		local = s.cfg.HAURL
@@ -333,7 +336,7 @@ func (s *relaySession) gatePageURL() string {
 	if base == "" || err != nil {
 		return ""
 	}
-	return target.URL
+	return target.URL + "?nova_ask=" + fmt.Sprintf("%x", sha256.Sum256([]byte(askID)))
 }
 
 // gateWindow shows the waiting window where one can open (as for window
@@ -349,7 +352,7 @@ func (s *relaySession) gateWindow(ctx context.Context, deadline time.Time, page 
 		return nil, none
 	}
 	lang := confirmLanguage(s.lang)
-	text, first, ok := confirmT(lang, "gate.window"), confirmT(lang, "gate.open"), confirmT(lang, "gate.windows_ok")
+	text, first, ok := confirmT(lang, "gate.window", "approve", confirmT(lang, "page.approve")), confirmT(lang, "gate.open"), confirmT(lang, "gate.windows_ok")
 	if page == "" {
 		text, first, ok = confirmT(lang, "gate.window_page"), confirmT(lang, "gate.hide"), confirmT(lang, "gate.windows_hide")
 	}
