@@ -157,9 +157,3 @@ export async function renderGateSection(page: GatePage, devices: DeviceRecord[],
   return `<section><h2>${t.say("page.heading")}</h2>${open}${rows ? `<ul>${rows}</ul>` : ""}</section>`;
 }
 
-// The link a non-owner administrator gets on the owner page's refusal;
-// without the worker's words, none.
-export async function approveLink(request: IncomingMessage, page: GatePage): Promise<string> {
-  const t = await page.texts("");
-  return t === null ? "" : `<p><a target="_top" href="${escapeHtml(`${base(request)}approve`)}">${t.say("page.link")}</a></p>`;
-}
