@@ -10,13 +10,14 @@ import (
 
 type updatesFixture struct {
 	mapFixture
-	components []string
-	repairs    []map[string]any
-	backups    any
-	manifests  []map[string]any
-	traces     []map[string]any
-	coreState  string
-	supervisor map[string]any // path → data; a missing path fails upstream
+	components  []string
+	repairs     []map[string]any
+	backups     any
+	manifests   []map[string]any
+	traces      []map[string]any
+	coreState   string
+	repairsFail bool
+	supervisor  map[string]any // path → data; a missing path fails upstream
 }
 
 func (f updatesFixture) reply(r *http.Request, endpoint string, payload map[string]any) any {
@@ -31,6 +32,9 @@ func (f updatesFixture) reply(r *http.Request, endpoint string, payload map[stri
 	}
 	switch payload["type"] {
 	case "repairs/list_issues":
+		if f.repairsFail {
+			return fakeRelayFailure{code: "UPSTREAM_WS_COMMAND_ERROR", message: "unknown_error"}
+		}
 		return map[string]any{"issues": append([]map[string]any{}, f.repairs...)}
 	case "backup/info":
 		return f.backups

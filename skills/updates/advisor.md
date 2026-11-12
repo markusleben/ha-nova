@@ -26,6 +26,6 @@ Run before every install, one update or a batch, and when the user asks whether 
    - `rollback.rolled_back`: Home Assistant went back to the version before because the new one did not start; say plainly that the update did not happen and offer the release notes and repairs. Don't offer it again until the cause is looked at. `rollback.failed`: that update failed. `rollback: unknown`: it could not be checked; say so.
    - `updated`: what changed; `reached: false` means a version other than the one offered at the check, say so.
    - `new_failing_integrations`, `new_repairs`, `newly_unavailable` (count and names), `automation_errors`: what broke since the check; `available_again` is good news. No automation errors means none in the stored runs, not that every automation works.
-   - `baseline: null`: there was no check before; report what is failing now (a rollback listed may be older than this update) and run the check before the next install.
+   - `baseline: null`: there was no check before; report `failing_integrations_now` (a rollback listed may be older than this update) and run the check before the next install. A list that is `null` was not checked: say so, never "nothing".
    - `not_checked` `started`: Home Assistant is still starting; check again in a few minutes before calling anything broken.
    - The user wants to undo an update: there is no downgrade. Offer restoring the backup from before the update (`ha-nova:backup`, its own confirmation; changes made since are lost); no such backup: say so.

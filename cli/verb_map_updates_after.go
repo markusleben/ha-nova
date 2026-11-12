@@ -42,10 +42,12 @@ func loadBaseline(file, server string) *updateBaseline {
 	return &b
 }
 
-// snapshot: the state the after-update check compares with.
+// snapshot: the state the after-update check compares with. Repairs
+// and Resolution stay nil when unread.
 func (a *updateAdvisor) snapshot() updateBaseline {
-	b := updateBaseline{Server: a.s.server, TakenAt: a.x.now.UTC(), Versions: a.versions, Repairs: []string{}, Resolution: a.resolution, Failing: map[string]string{}, Unavailable: []string{}}
+	b := updateBaseline{Server: a.s.server, TakenAt: a.x.now.UTC(), Versions: a.versions, Resolution: a.resolution, Failing: map[string]string{}, Unavailable: []string{}}
 	if issues, err := a.repairs(); err == nil {
+		b.Repairs = []string{}
 		for _, issue := range issues {
 			b.Repairs = append(b.Repairs, issue.Domain+"/"+issue.IssueID)
 		}
@@ -63,10 +65,15 @@ func (a *updateAdvisor) snapshot() updateBaseline {
 	return b
 }
 
-// saveBaseline keeps a baseline younger than baselineKeep for this server.
+// saveBaseline keeps a baseline younger than baselineKeep for this server,
+// and saves none while an update runs (its state is half done).
 func (a *updateAdvisor) saveBaseline(file string) map[string]any {
-	if old := loadBaseline(file, a.s.server); old != nil && a.x.now.Sub(old.TakenAt) < baselineKeep {
+	old := loadBaseline(file, a.s.server)
+	if old != nil && !old.TakenAt.After(a.x.now) && a.x.now.Sub(old.TakenAt) < baselineKeep {
 		return map[string]any{"state": "kept", "taken_at": old.TakenAt}
+	}
+	if slices.ContainsFunc(a.ready, func(r map[string]any) bool { return r["code"] == "UPDATE_RUNNING" }) {
+		return map[string]any{"state": "not_saved", "reason": "an update is running"}
 	}
 	b := a.snapshot()
 	raw, err := json.Marshal(b)
@@ -100,13 +107,22 @@ func afterUpdate(s *relaySession, x *homeIndex, file string) (map[string]any, er
 	}
 	now := a.snapshot()
 	base := loadBaseline(file, s.server)
+	if base != nil && base.TakenAt.After(x.now) {
+		base = nil // a clock that went back: no usable comparison
+	}
 	out := map[string]any{"section": "after_update", "baseline": nil, "still_pending": a.rows, "rollback": a.rollback(base)}
 	if base == nil {
 		a.gap("since_check", "no check before the update: run --section updates before the next install")
-		base = &updateBaseline{TakenAt: x.now, Versions: map[string][2]string{}, Failing: map[string]string{}}
-	} else {
-		out["baseline"] = map[string]any{"taken_at": base.TakenAt}
+		failing := []map[string]any{}
+		for _, e := range x.h.entries {
+			if state, bad := now.Failing[e.EntryID]; bad {
+				failing = append(failing, map[string]any{"integration": e.Domain, "state": state})
+			}
+		}
+		out["failing_integrations_now"], out["not_checked"] = failing, a.gaps
+		return out, nil
 	}
+	out["baseline"] = map[string]any{"taken_at": base.TakenAt}
 	updated := []map[string]any{}
 	for _, id := range slices.Sorted(maps.Keys(now.Versions)) {
 		before, ok := base.Versions[id]
@@ -120,11 +136,17 @@ func afterUpdate(s *relaySession, x *homeIndex, file string) (map[string]any, er
 			failing = append(failing, map[string]any{"integration": e.Domain, "state": state})
 		}
 	}
-	newRepairs := []string{}
-	for _, key := range now.Repairs {
-		if !slices.Contains(base.Repairs, key) {
-			newRepairs = append(newRepairs, key)
+	out["new_repairs"] = nil
+	if now.Repairs == nil || base.Repairs == nil {
+		a.gap("repairs", "the repairs list was not read before and after the update")
+	} else {
+		newRepairs := []string{}
+		for _, key := range now.Repairs {
+			if !slices.Contains(base.Repairs, key) {
+				newRepairs = append(newRepairs, sayText(key, false))
+			}
 		}
+		out["new_repairs"] = newRepairs
 	}
 	gone, back := []string{}, 0
 	for _, id := range now.Unavailable {
@@ -137,7 +159,7 @@ func afterUpdate(s *relaySession, x *homeIndex, file string) (map[string]any, er
 			back++
 		}
 	}
-	out["updated"], out["new_failing_integrations"], out["new_repairs"] = updated, failing, newRepairs
+	out["updated"], out["new_failing_integrations"] = updated, failing
 	out["newly_unavailable"] = map[string]any{"count": len(gone), "names": gone[:min(len(gone), 20)]}
 	out["available_again"] = back
 	out["automation_errors"], out["traces_read"] = a.automationErrors(base.TakenAt)
@@ -146,8 +168,10 @@ func afterUpdate(s *relaySession, x *homeIndex, file string) (map[string]any, er
 }
 
 // rollback: Supervisor's update_rollback issues (Core went back to the
-// version before) and update_failed issues that the check before did not
-// see. Unreadable Supervisor: unknown, never "none".
+// version before) and update_failed issues. One the check before already
+// listed counts again when it names a version offered then that is still
+// not installed (Supervisor may keep one issue for a repeated failure).
+// Unreadable Supervisor: unknown, never "none".
 func (a *updateAdvisor) rollback(base *updateBaseline) any {
 	if !a.hassio {
 		return "not_applicable"
@@ -156,16 +180,24 @@ func (a *updateAdvisor) rollback(base *updateBaseline) any {
 		a.gap("rollback", "the Supervisor's issue list was not read before and after the update")
 		return "unknown"
 	}
+	retried := func(version string) bool {
+		for id, v := range base.Versions {
+			if v[1] == version && a.versions[id][0] != version {
+				return true
+			}
+		}
+		return false
+	}
 	out := map[string]any{"rolled_back": []string{}, "failed": []string{}}
 	for _, issue := range a.resolutionIssues {
-		if base != nil && slices.Contains(base.Resolution, issue.UUID) {
+		if base != nil && slices.Contains(base.Resolution, issue.UUID) && !(issue.Type == "update_rollback" && retried(issue.Reference)) {
 			continue
 		}
 		switch issue.Type {
 		case "update_rollback":
-			out["rolled_back"] = append(out["rolled_back"].([]string), issue.Reference)
+			out["rolled_back"] = append(out["rolled_back"].([]string), sayText(issue.Reference, false))
 		case "update_failed":
-			out["failed"] = append(out["failed"].([]string), issue.Context)
+			out["failed"] = append(out["failed"].([]string), sayText(issue.Context, false))
 		}
 	}
 	return out
@@ -185,7 +217,7 @@ func (a *updateAdvisor) automationErrors(since time.Time) ([]map[string]any, int
 	}
 	if err := a.s.wsDecode(tracesRequest, &traces, "the automation runs"); err != nil {
 		a.gap("automation_errors", err.Error())
-		return []map[string]any{}, 0
+		return nil, 0
 	}
 	var states []struct {
 		EntityID   string `json:"entity_id"`

@@ -13,6 +13,7 @@ type afterResult struct {
 	Rollback       any              `json:"rollback"`
 	NewFailing     []map[string]any `json:"new_failing_integrations"`
 	NewRepairs     []string         `json:"new_repairs"`
+	FailingNow     []map[string]any `json:"failing_integrations_now"`
 	NewlyUnavail   map[string]any   `json:"newly_unavailable"`
 	AvailableAgain int              `json:"available_again"`
 	AutomationErrs []map[string]any `json:"automation_errors"`
@@ -99,7 +100,7 @@ func TestAfterUpdateWithoutCheckOrSupervisorSaysSo(t *testing.T) {
 	f.supervisor["/resolution/info"] = resolutionInfo()
 	run := runSections(t, &f)
 	got := decodeInto[afterResult](t, run("after_update").Result)
-	if got.Baseline != nil || !slices.Equal(codes(got.NotChecked), []string{"since_check"}) || len(got.StillPending) != 6 {
+	if got.Baseline != nil || !slices.Equal(codes(got.NotChecked), []string{"since_check"}) || len(got.StillPending) != 6 || got.FailingNow == nil || got.AutomationErrs != nil || got.NewRepairs != nil {
 		t.Fatalf("no baseline %+v", got)
 	}
 	if rb, ok := got.Rollback.(map[string]any); !ok || len(rb["rolled_back"].([]any)) != 0 {
@@ -120,5 +121,21 @@ func TestAfterUpdateIgnoresAnotherServersBaseline(t *testing.T) {
 	}
 	if loadBaseline(file, "default") != nil || loadBaseline(file, "other") == nil {
 		t.Fatal("baseline server binding")
+	}
+}
+
+func TestAfterUpdateRepeatedRollbackAndUnreadRepairs(t *testing.T) {
+	f := haosHome()
+	same := map[string]any{"uuid": "u1", "type": "update_rollback", "context": "core", "reference": "2026.11.1"}
+	f.supervisor["/resolution/info"] = resolutionInfo(same) // an earlier try of the same version already rolled back
+	run := runSections(t, &f)
+	run("updates")
+	f.repairsFail = true
+	got := decodeInto[afterResult](t, run("after_update").Result)
+	if rb := got.Rollback.(map[string]any); !slices.Equal(rb["rolled_back"].([]any), []any{"2026.11.1"}) {
+		t.Fatalf("a repeated rollback was missed: %+v", rb)
+	}
+	if got.NewRepairs != nil || !slices.Contains(codes(got.NotChecked), "repairs") {
+		t.Fatalf("unread repairs reported as none: %v %+v", got.NewRepairs, got.NotChecked)
 	}
 }
