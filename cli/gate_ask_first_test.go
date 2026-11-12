@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -49,25 +52,67 @@ func TestGateAsksBeforeItChecksThePlanAgain(t *testing.T) {
 	}
 }
 
-// A plan file edited after its preview (its action no longer makes its
+// A plan file edited after its preview (what it sends no longer makes its
 // hash) never reaches the phone: the ask shows only what the person saw.
 func TestGateAskFirstRefusesAnEditedPlanWithoutAsking(t *testing.T) {
-	g := &fakeGate{}
-	h := gatedHarness(t, newFakeHA(), g)
-	plan := h.plan("lock.unlock", "lock.front").Plan
-	file := filepath.Join(planDir(h.paths), plan.ID+".json")
-	stored, err := readPlanFile(file)
-	if err != nil {
-		t.Fatalf("read plan: %v", err)
+	edit := func(t *testing.T, paths runtimePaths, id string, change func(*storedPlan)) {
+		t.Helper()
+		file := filepath.Join(planDir(paths), id+".json")
+		stored, err := readPlanFile(file)
+		if err != nil {
+			t.Fatalf("read plan: %v", err)
+		}
+		change(&stored)
+		if err := writePlanFile(file, stored); err != nil {
+			t.Fatalf("write plan: %v", err)
+		}
 	}
-	stored.Action.EntityIDs = []string{"lock.back"}
-	if err := writePlanFile(file, stored); err != nil {
-		t.Fatalf("write plan: %v", err)
+	for name, plan := range map[string]func(h *writeHarness) (string, func(*storedPlan)){
+		"call": func(h *writeHarness) (string, func(*storedPlan)) {
+			return h.plan("lock.unlock", "lock.front").Plan.ID, func(p *storedPlan) { p.Action.EntityIDs = []string{"lock.back"} }
+		},
+		"config write": func(h *writeHarness) (string, func(*storedPlan)) {
+			id := h.writePlan("script", "s1", map[string]any{"alias": "Arrival", "sequence": []any{step("lock.unlock", "lock.front")}})
+			return id, func(p *storedPlan) {
+				p.ConfigAction.Body = json.RawMessage(`{"alias":"Arrival","sequence":[{"action":"lock.unlock","target":{"entity_id":"lock.back"}}]}`)
+			}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			g := &fakeGate{}
+			h := gatedHarness(t, batchHome(), g)
+			id, change := plan(h)
+			edit(t, h.paths, id, change)
+			exit, env := h.run(runApplyCommand, "--plan", id)
+			if asks, _, sends := g.snapshot(); exit != verbExitRefused || env.Error == nil || env.Error.Code != "PLAN_INVALID" || len(asks)+len(sends) != 0 {
+				t.Fatalf("exit %d %+v asks %q sends %+v", exit, env.Error, asks, sends)
+			}
+		})
 	}
-	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
-	if asks, _, sends := g.snapshot(); exit != verbExitRefused || env.Error == nil || env.Error.Code != "PLAN_INVALID" || len(asks)+len(sends) != 0 {
-		t.Fatalf("exit %d %+v asks %q sends %+v", exit, env.Error, asks, sends)
-	}
+	t.Run("raw", func(t *testing.T) {
+		g := &fakeGate{}
+		paths, sent := rawRelay(t, map[string]func(map[string]any) any{
+			"health <nil>":          func(map[string]any) any { return map[string]any{"status": "ok", "gate": 1} },
+			gateAskRoute + " <nil>": func(p map[string]any) any { return g.ask(context.Background(), p) },
+			"input_boolean/list": func(map[string]any) any {
+				return []any{map[string]any{"id": "guest", "name": "Guest"}, map[string]any{"id": "host", "name": "Host"}}
+			},
+			"config/entity_registry/list": func(map[string]any) any {
+				return []any{map[string]any{"entity_id": "input_boolean.guest", "platform": "input_boolean", "unique_id": "guest"}}
+			},
+		})
+		_, typed := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"input_boolean/delete","input_boolean_id":"guest"}}]`)
+		if typed.Plan == nil || typed.Plan.Channel != channelRelay {
+			t.Fatalf("typed raw plan: %+v", typed)
+		}
+		edit(t, paths, typed.Plan.ID, func(p *storedPlan) {
+			p.RawRequests[0].Payload = json.RawMessage(`{"type":"input_boolean/delete","input_boolean_id":"host"}`)
+		})
+		exit, applied := applyRaw(t, paths, typed)
+		if asks, _, _ := g.snapshot(); exit != verbExitRefused || applied.Error == nil || applied.Error.Code != "PLAN_INVALID" || len(asks) != 0 || strings.Contains(strings.Join(sent(), "|"), "input_boolean/delete") {
+			t.Fatalf("exit %d %+v asks %q sent %v", exit, applied.Error, asks, sent())
+		}
+	})
 }
 
 // A batch member that changed while the phone asked sends nothing after
