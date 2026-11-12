@@ -474,6 +474,8 @@
   "raw.why.core_clock": "This changes Home Assistant's time zone or units, which shifts how history and long-term statistics read",
   "raw.why.core_language": "This changes Home Assistant's language, which every later HA NOVA confirmation speaks",
   "raw.why.integration_remove": "This removes an integration and its devices from Home Assistant",
+  "raw.why.repair_flow": "A repair fix can remove devices or entities, and only the integration knows what it does",
+  "raw.why.subentry_flow": "This changes part of an integration's setup, and only the integration knows what it drops",
   "raw.why.file_delete": "This deletes a file in Home Assistant's config folder",
   "raw.why.file_write": "This writes a file in Home Assistant's config folder; after a reload it can change what Home Assistant runs",
   "raw.why.file_restore": "This puts a deleted image or video back in Home Assistant's www folder, where anyone with its address can open it",

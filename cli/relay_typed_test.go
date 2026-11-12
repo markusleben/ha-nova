@@ -91,6 +91,10 @@ func TestRelayTypedReadsOnlyWhenTheTierNeedsIt(t *testing.T) {
 			return []any{map[string]any{"entity_id": "lock.front", "device_id": "dlock"}, map[string]any{"entity_id": "light.desk", "device_id": "dlamp"}}
 		case body["type"] == "config/device_registry/list":
 			return []any{map[string]any{"id": "dlock"}, map[string]any{"id": "dlamp"}}
+		case body["type"] == "config/area_registry/list": // where a move goes: the triggers there (rawCarry)
+			return []any{map[string]any{"area_id": "office"}, map[string]any{"area_id": "hall"}}
+		case body["type"] == "search/related":
+			return map[string]any{}
 		}
 		return nil
 	})

@@ -59,12 +59,21 @@ func rawListened(endpoint string, payload map[string]any) func(e *tierEngine) []
 	if endpoint != "ws" {
 		return nil
 	}
+	_, floored := payload["floor_id"]
+	if _, labeled := payload["labels"]; wsType == "config/area_registry/update" && (floored || labeled) {
+		return func(*tierEngine) []string { return nil } // a place carry (rawCarry)
+	}
 	if keep, listed := rawStateless[wsType]; listed {
 		changes := false
 		for key := range payload {
 			changes = changes || !slices.Contains(keep, key)
 		}
-		if !changes {
+		_, moves := payload["area_id"]
+		_, labeled := payload["labels"]
+		switch {
+		case !changes && (moves || labeled) && wsType != "config_entries/update": // a place carry: no state changes, the place's triggers widen (rawCarry)
+			return func(*tierEngine) []string { return nil }
+		case !changes:
 			return nil
 		}
 	}
@@ -202,7 +211,9 @@ func (e *tierEngine) rawListeners(endpoint string, payload map[string]any) tierL
 		e.scopes = e.scopes[:len(e.scopes)-1]
 		e.done[key] = own
 	}
-	if len(e.consumers) > consumers { // a raw write calls nothing itself: only what its consumers call may set off a call_service listener (MAR-148)
+	ran := e.rawTakeover(endpoint, payload)
+	e.rawCarry(endpoint, payload)
+	if len(e.consumers) > consumers || ran { // a raw write calls nothing itself: only what its consumers, or the scripts a takeover hands the id to, call may set off a call_service listener (MAR-148)
 		e.callServiceListeners()
 	}
 	e.scopes = e.scopes[:len(e.scopes)-1]

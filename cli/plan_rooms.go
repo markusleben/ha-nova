@@ -214,6 +214,9 @@ func computeRoomsPlan(s *relaySession, env *verbEnvelope, req roomsRequest) (*ti
 	if err == nil {
 		err = roomsAccessRefusal(s, req, reg)
 	}
+	if err == nil {
+		err = roomsCarryRefusal(s, req, reg)
+	}
 	if err != nil {
 		return nil, storedPlan{}, err
 	}
@@ -273,12 +276,17 @@ func roomsSay(lang string, changes []roomsChange, undo bool) string {
 }
 
 func deviceAreaWrite(s *relaySession, device, area string) error {
+	_, err := s.write("ws", deviceAreaPayload(device, area))
+	return err
+}
+
+// deviceAreaPayload: the write that puts a device in an area ("": none).
+func deviceAreaPayload(device, area string) map[string]any {
 	payload := map[string]any{"type": deviceAreaRequest, "device_id": device, "area_id": nil}
 	if area != "" {
 		payload["area_id"] = area
 	}
-	_, err := s.write("ws", payload)
-	return err
+	return payload
 }
 
 // executeRooms writes the items in order. A failed write rolls back every
