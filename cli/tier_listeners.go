@@ -58,6 +58,10 @@ func (e *tierEngine) eventCounts(eventType, entityID string) (*listenerTable, []
 	if !surplus {
 		return nil, nil
 	}
+	if e.censusMoot { // the call asks anyway; as after a cut census, the person hears these listeners went unread
+		e.gap(reasonListener, entityID, "", "listeners not read: the call asks anyway")
+		return nil, nil
+	}
 	table := e.listenerTable()
 	if table == nil {
 		return nil, nil
@@ -88,10 +92,10 @@ func (e *tierEngine) eventCounts(eventType, entityID string) (*listenerTable, []
 }
 
 // callTargetTyped: a call whose own target classifies typed (an unlock, a
-// garage opening) asks whatever else it sets off, and the listener census can
-// only add reasons to it, so the call skips the census: about one read per
-// automation over Home Assistant Link. Only call plans set it; a raw item
-// keeps its own class (scopes).
+// garage opening) asks whatever else it sets off, so the call skips the
+// listener census (one read per automation over Home Assistant Link) and
+// says, as a cut census does, that those listeners went unread. Only call
+// plans set it; a raw item keeps its own class (scopes).
 func (e *tierEngine) callTargetTyped(req planCallRequest, targets []verbTarget) bool {
 	for _, t := range targets {
 		st := e.states[t.EntityID]
@@ -128,7 +132,7 @@ func sortedBoolKeys(m map[string]bool) []string {
 // within the session's request slots) and counts the event-trigger
 // listeners of the automations that are on.
 func (e *tierEngine) listenerTable() *listenerTable {
-	if e.listeners != nil || e.censusMoot {
+	if e.listeners != nil {
 		return e.listeners
 	}
 	status, body, err := e.s.coreGET("/api/states")

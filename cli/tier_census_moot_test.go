@@ -48,8 +48,8 @@ func TestATypedTargetSkipsTheListenerCensus(t *testing.T) {
 	reads := countReads(f)
 	exit, env, _, _ := runPlanForTest(t, f, "lock.unlock", "lock.front")
 	codes := reasonCodes(env)
-	if exit != 3 || env.Tier != "typed" || !strings.Contains(codes, reasonAccessLock) || strings.Contains(codes, reasonListenerUnexpl) {
-		t.Fatalf("exit %d tier %s reasons %s", exit, env.Tier, codes)
+	if exit != 3 || env.Tier != "typed" || !strings.Contains(codes, reasonAccessLock) || !strings.Contains(codes, reasonListener) || strings.Contains(codes, reasonListenerUnexpl) || env.Coverage.Complete {
+		t.Fatalf("exit %d tier %s reasons %s coverage %+v: want the unread listeners said, as after a cut census", exit, env.Tier, codes, env.Coverage)
 	}
 	if n := countPrefix(reads(), "ws automation/config"); n != 0 {
 		t.Fatalf("the census read %d automation configs for a typed target: %v", n, reads())
