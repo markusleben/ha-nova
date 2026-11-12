@@ -8,7 +8,7 @@ Draft for HA NOVA 0.31.0, from the PRs merged into `release/0.31` (#1130–#1166
 
 ## Upgrade notes for 0.31
 
-- **Update the NOVA App together with HA NOVA.** Log facts, the check-up's memory and CPU numbers, the NOVA page for every administrator, the new NOVA page and approval page, the window's "Open in Home Assistant" button, the shorter phone-ask pause, and the UI thermostat fix need the NOVA App of HA NOVA 0.31. With an older App, HA NOVA 0.31 works as 0.30 did for these.
+- **Update the NOVA App together with HA NOVA.** Log facts, the check-up's memory and CPU numbers, the NOVA page for every administrator, the new NOVA page and approval page, the window's "Open in Home Assistant" button, the shorter phone-ask pause, the UI thermostat fix, and the fix for large homes' entity lists need the NOVA App of HA NOVA 0.31. With an older App, HA NOVA 0.31 works as 0.30 did for these.
 - **Using HA NOVA in ChatGPT:** after the App update, open chatgpt.com/plugins, choose HA NOVA, then Refresh.
 
 ## New Features
@@ -34,6 +34,7 @@ Draft for HA NOVA 0.31.0, from the PRs merged into `release/0.31` (#1130–#1166
 ## Bug Fixes
 
 - **Fewer phone asks in homes with a UI thermostat.** On a NOVA App with the safety check, a thermostat or hygrostat helper you made in Home Assistant's UI, in a home where an automation reacts to service calls, made everyday changes such as a light wait for your OK on the phone. The App now reads which switch the helper turns on, as HA NOVA on your computer already did, so those changes run without an ask again. Changes that need your OK still ask.
+- **Large homes: everyday changes no longer ask on the phone because the entity list failed.** On a NOVA App with the safety check, a home whose full entity list is several MB (thousands of entities) got "HTTP 500" when HA NOVA read it. HA NOVA then couldn't tell which automations react to a change, so it asked for your OK on everyday changes such as a light. The App now passes the full list. Changes that need your OK still ask.
 - **The guided NOVA App update no longer refuses in homes with automations that react to service calls.** `ha-nova update` offered the App update and then refused without a reason. It now checks first and asks for your confirmation like any change that needs your OK.
 - **After `ha-nova update`, the NOVA App check no longer hangs.** It shows a progress line and gives up after 10 seconds with a pointer to `ha-nova doctor`; it never offers an update it couldn't check. Checking for updates also runs the App check alongside the release lookup.
 - **Windows: `ha-nova update` retries a briefly locked install folder.** Before, a busy computer could make the update fail with "access denied"; it failed safe, and running it again worked.
