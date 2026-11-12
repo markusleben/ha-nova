@@ -246,7 +246,7 @@ describe("HA UI parity flow ownership", () => {
   it("owns repair start and live steps with destructive tier escalation", () => {
     for (const text of [
       "/api/repairs/issues/fix", "issue_id", "is_fixable", "translation",
-      "The CLI asks for the user's OK at the start and every step", "live-schema-preflight.md", "next_flow",
+      "typed:true", "live-schema-preflight.md", "next_flow",
     ]) {
       expect(health).toContain(text);
     }

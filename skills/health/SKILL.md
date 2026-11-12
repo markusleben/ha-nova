@@ -182,7 +182,7 @@ Resolve `domain` and `issue_id` from `repairs/list_issues`. One WS item `{"type"
 
 ### Fix a Repair
 
-Resolve `domain`, `issue_id`, `is_fixable:true`. Follow `../ha-nova/live-schema-preflight.md` repair-description lookup: POST `{"handler":"<domain>","issue_id":"<id>"}` to `/api/repairs/issues/fix`; GET/POST at `/api/repairs/issues/fix/<flow_id>`. Each uses `plan raw` + `apply`, including GET/empty submits. Inspect domain/translation and live schema BEFORE start/EVERY step. The CLI asks for the user's OK at the start and every step. Unknown effects/boundaries: UI.
+Resolve `domain`, `issue_id`, `is_fixable:true`. Follow `../ha-nova/live-schema-preflight.md` repair-description lookup: POST `{"handler":"<domain>","issue_id":"<id>"}` to `/api/repairs/issues/fix`; GET/POST at `/api/repairs/issues/fix/<flow_id>`. Each uses `plan raw` + `apply`, including GET/empty submits. Inspect domain/translation and live schema BEFORE start/EVERY step. Delete/remove: request `typed:true` onward; new destruction needs fresh typed confirmation. Unknown effects/boundaries: UI.
 
 Secrets/external/progress: hand off to **Settings > System > Repairs**, never collect secrets. Declared exception to the core delete rule above: cancel only this skill's unfinished flow (ephemeral DELETE on cancel/UI restart). `abort` is not success. After `create_entry`, re-read issue AND affected resource: absence proves dismissal, not remediation; missing effect evidence means unverified. Uncertainty/`next_flow`: shared preflight, never blind retries.
 

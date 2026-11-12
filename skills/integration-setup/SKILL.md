@@ -110,7 +110,7 @@ Verify by re-reading `config_entries/get` or the progress list.
 Read `supported_subentry_types` from the resolved parent and `{"type":"config_entries/subentries/list","entry_id":"<id>"}` (WS `.data` array). Resolve the exact subentry and type; retain a before-list.
 
 - Add: POST `{"handler":["<entry_id>","<subentry_type>"]}` to `/api/config/config_entries/subentries/flow`.
-- Reconfigure: same start plus `"subentry_id":"<id>"`; require that type's `supports_reconfigure`. Iterate its by-id path with the live-step rules; no guessed fields or terminal boundary. Hidden current values: UI, not an invented replacement.
+- Reconfigure: same start plus `"subentry_id":"<id>"`; require that type's `supports_reconfigure`. Iterate its by-id path with the live-step rules; no guessed fields or terminal boundary. Destructive changes require `typed:true`. Hidden current values: UI, not an invented replacement.
 - Rename: WS `config_entries/subentries/update` with `entry_id`, `subentry_id`, `title` only.
 - Delete: WS `config_entries/subentries/delete` with both ids, typed; use Removal's scoped impact scan first.
 
