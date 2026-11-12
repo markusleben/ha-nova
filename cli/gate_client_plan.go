@@ -62,7 +62,7 @@ func gateBeforeSend(s *relaySession, channel string, fresh storedPlan, batch bat
 	if len(reqs) == 0 {
 		return nil, nil
 	}
-	if err := s.gateAsk(reqs); err != nil {
+	if err := s.gateAsk(reqs, false); err != nil {
 		return nil, err
 	}
 	humanWhere = channelRelay

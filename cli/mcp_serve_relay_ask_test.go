@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -141,5 +142,40 @@ func TestServeContainerAskRefusals(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A write the container holds mid-apply (its grant expired) asks the phone
+// again with mcpVerbLock held: its basis was checked just before and isn't
+// checked after the ask, so no other change of the bridge lands under it.
+func TestServeContainerHeldWriteKeepsTheLock(t *testing.T) {
+	var mu sync.Mutex
+	var free []bool
+	g := &fakeGate{onWait: func() {
+		got := mcpVerbLock.TryLock()
+		if got {
+			mcpVerbLock.Unlock()
+		}
+		mu.Lock()
+		free = append(free, got)
+		mu.Unlock()
+	}, hold: func(send gateSend) any {
+		if send.key == gateUnlock && send.grant == "grant-ask1" {
+			return fakeRelayStatus{428, "GATE_APPROVAL_REQUIRED", "Only a person may confirm this"}
+		}
+		return nil
+	}}
+	s := containerServe(t, g)
+	id := relayPlanFor(t, s, userA)
+	var env map[string]any
+	waitFor(t, "the outcome", func() bool {
+		env = s.tool(userA, "ha_apply", map[string]any{"plan_id": id})
+		return env["status"] != "waiting_for_phone" && env["status"] != "applying"
+	})
+	asks, _, _ := g.snapshot()
+	mu.Lock()
+	defer mu.Unlock()
+	if env["status"] != "verified" || len(asks) != 2 || len(free) != 2 || free[1] {
+		t.Fatalf("%v; asks %q, lock free during each wait %v", env, asks, free)
 	}
 }

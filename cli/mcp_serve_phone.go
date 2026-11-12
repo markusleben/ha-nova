@@ -213,7 +213,7 @@ type chatJob struct {
 	what    string                 // the plan's service or kind, for its activity line (noted once, by the job)
 	ended   time.Time              // under bridge.mu
 	phone   bool                   // a phone ask (phoneJob), else an apply (applyJob)
-	relay   bool                   // a relay plan's apply: it asks the phone linked to the Relay (askOutside)
+	relay   bool                   // an apply that may ask the phone linked to the Relay (askOutside): a relay plan's, or outside the App a chat-code plan's
 	kind    string                 // the plan's kind: its outcome only for a user who may still apply it
 	locked  chan struct{}          // closed once the job holds mcpVerbLock (never when it gave up on it)
 	tapped  atomic.Bool            // the phone answered (Confirm, Cancel, someone else's tap), or approved the Relay's ask; apply may be running
@@ -257,7 +257,7 @@ func (srv *mcpServer) chatApply(name string, args map[string]json.RawMessage, ar
 			b.mu.Unlock()
 			return nil
 		}
-		phone, relay := plan.Channel == channelPhone, plan.Channel == channelRelay
+		phone, relay := plan.Channel == channelPhone, plan.Channel == channelRelay || bridgeRelay == nil && plan.Channel == channelChat // outside the App the Relay may hold a chat-code plan's step too
 		for k, old := range b.jobs {
 			switch {
 			case !old.ended.IsZero() && time.Since(old.ended) > planTTL: // a result nobody came back for

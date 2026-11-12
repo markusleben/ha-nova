@@ -15,43 +15,44 @@ import (
 // own phone, so other chat users aren't BUSY for the ask's three minutes;
 // ha_apply answers waiting_for_phone meanwhile.
 
-// askOutside is an apply job's verbCall.outside. The run's process-wide
-// state goes aside and stays clean for others while the lock is free; the
-// lock comes back, as long as it takes (an approval stands), with that
-// state, also when the ask panics. After an approval, the user's access is
-// read again under the lock, so nothing changes it before the apply: a user
-// the owner removed, lowered, or set to read only meanwhile, or who is no
-// longer an administrator for a config plan, sends nothing, and the grant
-// expires unused. gateStillApproved then checks the plan again.
-func (srv *mcpServer) askOutside(job *chatJob, call *verbCall) func(func() bool) error {
-	return func(ask func() bool) error {
-		mine := takeVerbState()
-		verbState{windowWait: cliWindowWait}.put()
+// askOutside is an apply job's verbCall.outside. With unlock (an apply's
+// first ask, gateBeforeSend, checked again after it by gateStillApproved)
+// the run's process-wide state goes aside and stays clean for others while
+// the lock is free; the lock comes back, as long as it takes (an approval
+// stands), with that state, also when the ask panics. After an approval,
+// the user's access is read again under the lock, so nothing changes it
+// before the apply: a user the owner removed, lowered, or set to read only
+// meanwhile, or who is no longer an administrator for a config plan, sends
+// nothing, and the grant expires unused.
+func (srv *mcpServer) askOutside(job *chatJob, call *verbCall) func(func() bool, bool) error {
+	return func(ask func() bool, unlock bool) error {
 		job.tapped.Store(false) // a later ask of this apply (an expired grant) waits for the phone again
 		job.sent.Store(false)
 		job.outside.Store(true)
-		mcpVerbLock.Unlock()
-		locked := false
-		relock := func() {
-			mcpVerbLock.Lock()
-			mcpVerbLock.changing()
-			mine.put()
-			job.outside.Store(false)
-			locked = true
-		}
-		defer func() {
-			if !locked { // the ask panicked: runLocked unlocks the lock it holds again
-				relock()
+		defer job.outside.Store(false)
+		relock := func() {}
+		if unlock {
+			mine := takeVerbState()
+			verbState{windowWait: cliWindowWait}.put()
+			mcpVerbLock.Unlock()
+			locked := false
+			relock = func() {
+				if !locked {
+					mcpVerbLock.Lock()
+					mcpVerbLock.changing()
+					mine.put()
+					locked = true
+				}
 			}
-		}()
+			defer relock() // also when the ask panicked: runLocked unlocks the lock it holds again
+		}
 		approved := ask()
 		job.sent.Store(true) // the ask ended: until the lock is back, ha_apply still says the phone was asked
+		job.tapped.Store(approved)
+		relock()
 		if !approved {
-			relock()
 			return nil // gateAsk says how it ended; nothing was sent
 		}
-		job.tapped.Store(true)
-		relock()
 		now, code, why := srv.chat.bridge.policyNow(srv.chat.user)
 		kind, _ := json.Marshal(job.kind) // the plan is claimed now: its kind decides, as when it was planned
 		admin := func() *verbFailure {

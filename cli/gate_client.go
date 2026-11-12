@@ -109,7 +109,7 @@ func (s *relaySession) sendWrite(endpoint string, body []byte) (json.RawMessage,
 		}
 	}
 	s.mu.Unlock()
-	if err := s.gateAsk(reqs); err != nil {
+	if err := s.gateAsk(reqs, true); err != nil {
 		return nil, err
 	}
 	return s.sendWriteOnce(endpoint, body, s.takeGrant(request))
@@ -132,8 +132,11 @@ func (s *relaySession) takeGrant(r gateRequest) string {
 // person (gateWait). nil: approved, and each request carries the grant
 // once. Every failure sent nothing: the Relay's refusal, an App without the
 // ask route (rolled back), or an ask the Relay doesn't need although this
-// computer rated it typed (they disagree, so nothing is sent).
-func (s *relaySession) gateAsk(reqs []gateRequest) error {
+// computer rated it typed (they disagree, so nothing is sent). held: a
+// write the Relay held mid-apply (sendWrite), whose basis was checked just
+// before and isn't checked again after the ask, so a chat app's wait keeps
+// mcpVerbLock: no other change of this bridge lands under it.
+func (s *relaySession) gateAsk(reqs []gateRequest, held bool) error {
 	if len(reqs) > gateAskMax {
 		return gateStop("refused", "GATE_ASK_TOO_LARGE", fmt.Sprintf("this change sends %d requests, more than one confirmation on the phone or in Home Assistant covers (%d); nothing was sent", len(reqs), gateAskMax),
 			"Tell the user nothing changed. Plan it again in smaller parts (a batch of at most 10 automations or scripts).")
@@ -179,7 +182,7 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 	}
 	if !chat {
 		ask()
-	} else if err := s.call.outside(ask); err != nil { // the user's access, read again after the OK, refused it
+	} else if err := s.call.outside(ask, !held); err != nil { // the user's access, read again after the OK, refused it
 		return err
 	}
 	switch {
