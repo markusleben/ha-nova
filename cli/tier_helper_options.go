@@ -67,43 +67,9 @@ func (s *relaySession) helperOptions(body []byte) (json.RawMessage, error) {
 		return nil, fmt.Errorf("helper options: %s is not the built-in integration; nothing was sent", domain)
 	}
 
-	start, _ := json.Marshal(map[string]any{"method": http.MethodPost, "path": optionsFlowPath, "body": map[string]any{"handler": req.EntryID}})
-	s.mu.Lock()
-	ctx := s.ctx
-	s.mu.Unlock()
-	data, err := s.exchange(ctx, "core", start, relaySessionRequestTimeout, false) // once: a retry could open a second flow
-	var core struct {
-		Status int             `json:"status"`
-		Body   json.RawMessage `json:"body"`
-	}
-	var form struct {
-		Type       string `json:"type"`
-		FlowID     string `json:"flow_id"`
-		Handler    string `json:"handler"`
-		StepID     string `json:"step_id"`
-		DataSchema []struct {
-			Name        string         `json:"name"`
-			Selector    map[string]any `json:"selector"`
-			Description struct {
-				Suggested any `json:"suggested_value"`
-			} `json:"description"`
-		} `json:"data_schema"`
-	}
-	if err == nil {
-		_ = json.Unmarshal(data, &core)
-		_ = json.Unmarshal(core.Body, &form)
-	}
-	abort := errors.New("its answer named no flow to abort")
-	if form.FlowID != "" {
-		abort = s.abortOptionsFlow(ctx, form.FlowID)
-	}
-	switch {
-	case err != nil:
-		return nil, err
-	case abort != nil:
-		return nil, fmt.Errorf("helper options: the options flow of %s was not aborted: %w", req.EntryID, abort)
-	case core.Status != http.StatusOK || form.Type != "form" || form.Handler != req.EntryID || form.StepID != "init":
-		return nil, fmt.Errorf("helper options: entry %s answered HTTP %d, %q step %q", req.EntryID, core.Status, form.Type, form.StepID)
+	form, err := s.optionsForm(req.EntryID)
+	if err != nil {
+		return nil, fmt.Errorf("helper options: %w", err)
 	}
 	for _, f := range form.DataSchema {
 		stored, literal := f.Description.Suggested.(string)
@@ -116,6 +82,54 @@ func (s *relaySession) helperOptions(body []byte) (json.RawMessage, error) {
 		return json.Marshal(stored)
 	}
 	return nil, fmt.Errorf("helper options: entry %s shows no %s", req.EntryID, field)
+}
+
+// optionsFormAnswer: the first answer of an entry's options flow.
+type optionsFormAnswer struct {
+	Type       string `json:"type"`
+	FlowID     string `json:"flow_id"`
+	Handler    string `json:"handler"`
+	StepID     string `json:"step_id"`
+	DataSchema []struct {
+		Name        string         `json:"name"`
+		Selector    map[string]any `json:"selector"`
+		Description struct {
+			Suggested any `json:"suggested_value"`
+		} `json:"description"`
+	} `json:"data_schema"`
+}
+
+// optionsForm starts entryID's options flow once (a retry could open a
+// second one), aborts it whenever its answer names one, before anything is
+// checked, and returns that answer only when it is the entry's init form.
+func (s *relaySession) optionsForm(entryID string) (optionsFormAnswer, error) {
+	start, _ := json.Marshal(map[string]any{"method": http.MethodPost, "path": optionsFlowPath, "body": map[string]any{"handler": entryID}})
+	s.mu.Lock()
+	ctx := s.ctx
+	s.mu.Unlock()
+	data, err := s.exchange(ctx, "core", start, relaySessionRequestTimeout, false)
+	var core struct {
+		Status int             `json:"status"`
+		Body   json.RawMessage `json:"body"`
+	}
+	var form optionsFormAnswer
+	if err == nil {
+		_ = json.Unmarshal(data, &core)
+		_ = json.Unmarshal(core.Body, &form)
+	}
+	abort := errors.New("its answer named no flow to abort")
+	if form.FlowID != "" {
+		abort = s.abortOptionsFlow(ctx, form.FlowID)
+	}
+	switch {
+	case err != nil:
+		return form, err
+	case abort != nil:
+		return form, fmt.Errorf("the options flow of %s was not aborted: %w", entryID, abort)
+	case core.Status != http.StatusOK || form.Type != "form" || form.Handler != entryID || form.StepID != "init":
+		return form, fmt.Errorf("entry %s answered HTTP %d, %q step %q", entryID, core.Status, form.Type, form.StepID)
+	}
+	return form, nil
 }
 
 // abortOptionsFlow deletes a started options flow on a context of its own,

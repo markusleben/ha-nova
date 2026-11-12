@@ -248,27 +248,22 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - all fields already known at this point
    - for unobserved `group` or `template` subtypes, say that the final subtype form will be previewed after the menu step returns live fields
    - include an explicit not-saved-yet line and the save question
-4. Start the flow BEFORE confirming (steps 5-7 below run first; reading a
+4. Start the flow BEFORE confirming (steps 5-6 below run first; reading a
    form step persists nothing — only the terminal submit does), then re-render
    the preview from the LIVE form: label every field live-confirmed or
    draft-only, and end the turn with that live preview for confirmation
    (context skill → Active Preview Confirmation;
    `../ha-nova/live-schema-preflight.md`). On cancel or expiry, abandon
    the transient flow without submitting (DELETE the `flow_id`).
-5. Capture a pre-create baseline:
-   ```text
-   ha-nova relay ws --data-file <entries-request-file> --out <entries-before-file>
-   ```
-   with `<entries-request-file>` containing `{"type":"config_entries/get"}`.
-6. Start the flow:
+5. Start the flow:
    ```text
    ha-nova relay core --method POST --path /api/config/config_entries/flow --body-file <start-payload-file>
    ```
    `<start-payload-file>` must contain the handler-start body only.
-7. Read the start response and extract `flow_id` before continuing.
+6. Read the start response and extract `flow_id` before continuing.
    - persist it in a variable or note file
    - fail loud if the start response did not return `flow_id`
-8. Iterate the flow until terminal success:
+7. Iterate the flow until terminal success:
    - if the current response is a menu step, submit only the selected `next_step_id`
    - if that menu step leads to an unobserved `group` or `template` subtype form, stop and preview the live subtype fields before the terminal submit
    - after that live subtype preview, end the turn for a second natural confirmation before sending the terminal subtype-specific payload
@@ -276,17 +271,10 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - the submit body for a form step must contain form fields only
    - if a required field is still unresolved and there is no safe value, stop and ask one blocking question
    - if HA returns a form with validation errors, fail loud instead of guessing
-9. Verify success at the config-entry layer first:
-   - re-read `config_entries/get` into `<entries-after-file>`
-   - if the terminal flow result includes `entry_id`, `passed=true` only when that same `entry_id` is present in `<entries-after-file>`
-   - if the terminal flow result omits `entry_id`, diff `config_entries/get` before vs after by `entry_id`
-   - in the diff fallback, collect the new `entry_id` values that were absent before and present after
-   - in the diff fallback, `passed=true` only when exactly one new `entry_id` appeared and its metadata is consistent with the requested create
-   - if the diff fallback yields zero or multiple new `entry_id` values, or the new entry metadata is inconsistent with the request, fail loud as ambiguous create verification
-   - `domain`/`title` are fallback tie-breakers only; they never override a terminal-flow `entry_id`
-10. Resolve `linked_entities[]` through the entity registry as secondary evidence only.
-11. If the re-read entry shows `supports_options: true`, reopen the options flow (Reading a single helper, steps 4-5), then `ha-nova relay core --method DELETE --path /api/config/config_entries/options/flow/{flow_id}`; never submit.
-12. Run the whole post-write review before any result (`statistics`/`history_stats`: the state-attribute read).
+8. Verify at the config-entry layer first: the terminal submit's output (no `--jq` on it) carries the CLI's `verification`. The CLI re-read the entry by the terminal `entry_id`, its `linked_entities`, and its `options` (suggested values, `null` when none, from an options flow it aborted unsubmitted).
+   - `passed: true` → report from it; linked entities are secondary evidence only
+   - anything else (`passed: false`, or no `verification`) → the helper may exist but is unverified: say so with its `problem`; never re-run the flow or its submit
+9. Run the whole post-write review before any result (`statistics`/`history_stats`: the state-attribute read).
 
 #### Updating a helper
 
