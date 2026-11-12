@@ -340,7 +340,7 @@ func (srv *mcpServer) phoneJob(job *chatJob, args map[string]json.RawMessage, ar
 	}
 	mcpVerbLock.Lock() // the tap stands: as long as it takes
 	job.result = srv.runLocked("ha_apply", "", false, func(call *verbCall) int {
-		req.opts.call = call // this run's output: the phone ask above ran in the first one
+		req.opts.call, a.s.call = call, call // this run's output: the phone ask above ran in the first one
 		var env verbEnvelope
 		var exit int
 		var asked bool
