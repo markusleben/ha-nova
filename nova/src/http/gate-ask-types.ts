@@ -23,15 +23,18 @@ export interface PreparedAsk {
   lang?: string;
   title?: string;
   body?: string;
+  from?: string; // who asked, the page's line (names through sayText)
   button?: string;
   items: AskItem[];
 }
 
-// An ask on the approval page: ref is the id's hash; body is the worker's
-// wording (who asked, names through sayText); items are the typed ones.
+// An ask on the approval page: ref is the id's hash; body and from are the
+// worker's wording (from: who asked, names through sayText); items are the
+// typed ones.
 export interface PageAsk {
   ref: string;
   body: string;
+  from: string;
   items: AskItem[];
   expiresAt: number;
 }

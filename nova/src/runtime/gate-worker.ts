@@ -232,9 +232,9 @@ function preparedAsk(answer: Record<string, unknown> | null, count: number): Pre
   if (verdict !== "typed") {
     return { verdict, items: items as AskItem[] };
   }
-  const { lang, title, body, button } = answer as Record<string, unknown>;
+  const { lang, title, body, from, button } = answer as Record<string, unknown>;
   if (![lang, title, body, button].every((text) => typeof text === "string" && text !== "")) {
     return null;
   }
-  return { verdict, items: items as AskItem[], lang: lang as string, title: title as string, body: body as string, button: button as string };
+  return { verdict, items: items as AskItem[], lang: lang as string, title: title as string, body: body as string, ...(typeof from === "string" && from !== "" ? { from } : {}), button: button as string };
 }

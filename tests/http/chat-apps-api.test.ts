@@ -389,11 +389,12 @@ describe("NOVA page: Chat apps", () => {
     const page = await run(createNovaPageHandler({ ...pageDeps(on), connectorUrl: async () => url }), request("owner-1"));
     const href = /<a class="linkbtn primary" href="([^"]+)" target="_blank" rel="noopener noreferrer">Add to Claude<\/a>/.exec(page.body)?.[1];
     expect(href).toBe("https://claude.ai/customize/connectors?modal=add-custom-connector&amp;connectorName=HA%20NOVA&amp;connectorUrl=https%3A%2F%2Fabc123.ui.nabu.casa%2Fapi%2Fha_nova%2Fmcp");
-    expect(page.body).toContain(`<p class="address">${url}</p>`);
-    expect(page.body).toContain("Adds abc123.ui.nabu.casa</span>");
+    expect(page.body).toContain(`<p class="field address" id="chat-address">${url}</p>`);
+    expect(page.body).toContain("adds abc123.ui.nabu.casa</span>");
     // Team and Enterprise: the owner of the Claude plan adds it; no form: paste the address shown right after.
     expect(page.body).toContain(`The owner of your Claude plan adds it once for everyone: <a href="https://claude.ai/admin-settings/connectors?modal=add-custom-connector&amp;connectorName=HA%20NOVA&amp;connectorUrl=https%3A%2F%2Fabc123.ui.nabu.casa%2Fapi%2Fha_nova%2Fmcp" target="_blank" rel="noopener noreferrer">Add for my organization</a>. Then click Connect next to HA NOVA in Customize → Connectors.`);
-    expect(page.body).toContain(`paste this address:</p>\n<p class="address">${url}</p>`);
+    expect(page.body).toContain("then Add custom connector, and paste the address below.</p>"); // the one address field, shown once
+    expect(page.body.split(url).length - 1).toBe(1);
     for (const connectorUrl of [async () => null, async () => { throw new Error("ws down"); }]) {
       const plain = await run(createNovaPageHandler({ ...pageDeps(on), connectorUrl }), request("owner-1"));
       expect(plain.statusCode).toBe(200);
@@ -414,7 +415,7 @@ describe("NOVA page: Chat apps", () => {
       const on = { ...fakeChatApps(), status: () => ({ ...status, enabled: true, ownerPhone }) };
       return (await run(createNovaPageHandler({ ...pageDeps(on), connectorUrl: async () => url }), request("owner-1"))).body;
     };
-    const lead = "<p><strong>Next: stop Claude from asking every time.</strong> At first, Claude asks before each step. That's Claude, not HA NOVA. In Claude, open Customize → Connectors → HA NOVA";
+    const lead = "<summary>Next: stop Claude asking before every step</summary><p>At first, Claude asks before each step. That's Claude, not HA NOVA. In Claude, open Customize → Connectors → HA NOVA";
     const phone = await render("Pixel");
     expect(phone).toContain(`${lead} and set every tool to “Always allow”. HA NOVA still shows you a preview before bigger changes, and your phone asks before unlocks, the alarm, and deletes. Claude may ask again after an update.</p>`);
     expect(phone).not.toContain("Run a confirmed change");

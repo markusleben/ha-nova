@@ -9,7 +9,7 @@ import type { RelayLogger } from "./server.js";
 
 export const PAGE_KEYS = [
   "page.title", "page.heading", "page.done_approved", "page.done_cancelled", "page.done_gone", "page.ends_in", "page.approve", "window.cancel",
-  "page.empty", "page.more", "page.signed_in", "page.back", "page.cross_site", "page.expired", "page.open_again",
+  "page.empty", "page.more", "page.signed_in", "page.back", "page.returning", "page.cross_site", "page.expired", "page.open_again",
   "page.approver_unknown", "page.approver_unavailable", "page.approver_not_admin", "page.approver_relay_user",
   "page.waiting_one", "page.waiting_many", "page.open", "page.paused", "page.revoke_device", "page.link",
   "page.paused_heading", "page.paused_left", "page.resume",

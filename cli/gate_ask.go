@@ -38,12 +38,14 @@ type gateAskItem struct {
 }
 
 // gateAsk: the strictest item's verdict; for typed, the phone's title, body,
-// and button, and each typed item's text for the page.
+// and button, who asked (the page's line), and each typed item's text for
+// the page.
 type gateAsk struct {
 	Verdict gateDecision  `json:"verdict"`
 	Lang    string        `json:"lang,omitempty"`
 	Title   string        `json:"title,omitempty"`
 	Body    string        `json:"body,omitempty"`
+	From    string        `json:"from,omitempty"`
 	Button  string        `json:"button,omitempty"`
 	Items   []gateAskItem `json:"items"`
 }
@@ -120,14 +122,15 @@ func gatePrepareAsk(paths runtimePaths, device string, requests []gateAskRequest
 	if len(requests) > 1 {
 		goal = actionGoal{raw: "confirm", names: []string{confirmT(lang, "raw.steps", "count", len(requests))}}
 	}
-	body := confirmT(lang, "phone.requested_by", "host", sayText(device, false))
+	from := confirmT(lang, "phone.requested_by", "host", sayText(device, false))
+	body := from
 	if text := strings.Join(why, ". "); text != "" {
 		if len([]rune(text)) > phoneWhyLimit {
 			text = phoneCut(text, phoneWhyLimit-25) + " " + confirmT(lang, "phone.more_on_computer")
 		}
 		body = text + ". " + body
 	}
-	ask.Title, ask.Body, ask.Button = goal.title(lang, ""), body, goal.button(lang)
+	ask.Title, ask.Body, ask.From, ask.Button = goal.title(lang, ""), body, from, goal.button(lang)
 	return ask, nil
 }
 
