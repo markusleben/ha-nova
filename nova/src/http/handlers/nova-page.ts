@@ -106,6 +106,9 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
     // A paused device's "ask on the phone again": a POST whose token is bound to that device.
     const resumeForm = (deviceId: string): string =>
       `<form method="post" action="${escapeHtml(`${ingressPath.replace(/\/$/, "")}/action`)}"><input type="hidden" name="csrf" value="${escapeHtml(deps.csrf.issue(owner.userId, `resume_phone_asks:${deviceId}`, now))}"><input type="hidden" name="action" value="resume_phone_asks"><input type="hidden" name="device_id" value="${escapeHtml(deviceId)}">`;
+    // The live digest of the asks the gate section reads now, so one that
+    // arrives while the page renders differs from it and the poll reloads.
+    const live = deps.gatePage === undefined ? null : liveState(deps.gatePage);
     const [update, gateSection] = await Promise.all([
       safeUpdate(deps),
       deps.gatePage === undefined ? "" : renderGateSection(deps.gatePage, deps.registry.list(), ingressPath, now, resumeForm),
@@ -161,7 +164,7 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
       chatUsers,
       chatRestarting: query.get("chat") === "restarting",
       gateSection,
-      live: deps.gatePage === undefined ? null : liveState(deps.gatePage),
+      live,
     });
     setHeaders(response);
     response.statusCode = 200;
