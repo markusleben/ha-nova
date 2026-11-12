@@ -338,9 +338,14 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		if env.Say != "" {
 			env.Say = changed + " " + env.Say
 		}
+		next := "Show the new `say` (it starts with what changed) and ask again with its new code (no code: follow next_step; a relative ask: plan it fresh from the new value). If it changes again, stop and tell the user. Never run it another way (raw requests, another skill, the fallback)."
+		if askFirst && asked != nil { // the person already said OK to the old preview
+			env.Say = strings.TrimSpace(confirmT(textLang(fresh), "say.drift_after_ok") + " " + env.Say)
+			next = "The user already confirmed the old preview; that OK was not used and nothing was sent. " + next
+		}
 		return fail(&verbFailure{exit: verbExitDrift, status: "drift", code: "PLAN_DRIFT",
 			message: "something changed since the preview; nothing was sent and the old plan is gone",
-			next:    "Show the new `say` (it starts with what changed) and ask again with its new code (no code: follow next_step; a relative ask: plan it fresh from the new value). If it changes again, stop and tell the user. Never run it another way (raw requests, another skill, the fallback)."})
+			next:    next})
 	}
 	// From here every envelope shows the STORED plan: the recompute's own
 	// id and code were never saved, and typing them would burn this plan.

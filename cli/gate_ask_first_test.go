@@ -71,6 +71,15 @@ func TestGateAskFirstRefusesAnEditedPlanWithoutAsking(t *testing.T) {
 		"call": func(h *writeHarness) (string, func(*storedPlan)) {
 			return h.plan("lock.unlock", "lock.front").Plan.ID, func(p *storedPlan) { p.Action.EntityIDs = []string{"lock.back"} }
 		},
+		"batch member": func(h *writeHarness) (string, func(*storedPlan)) {
+			unlock := func(alias string) map[string]any {
+				return map[string]any{"alias": alias, "sequence": []any{step("lock.unlock", "lock.front")}}
+			}
+			_, env := h.batch(h.writePlan("script", "s1", unlock("Arrival")), h.writePlan("script", "s2", unlock("Old arrival")))
+			return env.Plan.ID, func(p *storedPlan) {
+				p.BatchMembers[0].ConfigAction.Body = json.RawMessage(`{"alias":"Arrival","sequence":[{"action":"lock.unlock","target":{"entity_id":"lock.back"}}]}`)
+			}
+		},
 		"config write": func(h *writeHarness) (string, func(*storedPlan)) {
 			id := h.writePlan("script", "s1", map[string]any{"alias": "Arrival", "sequence": []any{step("lock.unlock", "lock.front")}})
 			return id, func(p *storedPlan) {
@@ -157,5 +166,24 @@ func TestGateAskFirstRecheckErrorAfterTheApprovalSendsNothing(t *testing.T) {
 	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
 	if asks, _, sends := g.snapshot(); exit == 0 || env.Error == nil || len(asks) != 1 || len(sends) != 0 {
 		t.Fatalf("exit %d %+v asks %d sends %+v", exit, env.Error, len(asks), sends)
+	}
+}
+
+// A plan that changed after the person's OK says first that the OK was
+// not used and nothing was sent, then shows the new preview.
+func TestGateAskFirstDriftAfterTheOKSaysItWasNotUsed(t *testing.T) {
+	f := newFakeHA()
+	g := &fakeGate{onWait: func() {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		f.states["lock.front"]["state"] = "jammed" // the basis changed
+	}}
+	h := gatedHarness(t, f, g)
+	plan := h.plan("lock.unlock", "lock.front").Plan
+	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
+	asks, _, sends := g.snapshot()
+	if exit != verbExitDrift || env.Error == nil || env.Error.Code != "PLAN_DRIFT" || len(asks) != 1 || len(sends) != 0 ||
+		!strings.HasPrefix(env.Say, confirmT("en", "say.drift_after_ok")) || !strings.HasPrefix(env.Error.Next, "The user already confirmed the old preview") {
+		t.Fatalf("exit %d %+v say %q asks %d sends %+v", exit, env.Error, env.Say, len(asks), sends)
 	}
 }

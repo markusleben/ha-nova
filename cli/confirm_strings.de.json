@@ -72,6 +72,7 @@
   "say.about": "Ich werde gleich {action}.",
   "say.nothing_found": "Nicht erledigt: Ich habe nicht gefunden, was du genannt hast. Es wurde nichts geändert. Sag mir, welche Geräte du meinst.",
   "say.confirmed_not_sent": "Nicht erledigt: Du hast bestätigt, aber HA NOVA hat Home Assistant nicht erreicht. Es wurde nichts geändert.",
+  "say.drift_after_ok": "Nicht erledigt: Deine Bestätigung wurde nicht verwendet, es wurde nichts gesendet.",
   "say.marketplace_update": "Nicht erledigt: Home Assistant installiert Marketplace-Updates erst, wenn seine Warnung für den Benutzer von HA NOVA akzeptiert ist, und das kann HA NOVA hier nicht. Es wurde nichts geändert. Aktualisiere es in Home Assistant: Einstellungen → Marketplace.",
   "say.marketplace_accept": "Nicht erledigt: Home Assistant installiert Marketplace-Updates erst, wenn seine Warnung für den Benutzer von HA NOVA akzeptiert ist. Es wurde nichts geändert. HA NOVA kann sie nach deiner eigenen Bestätigung für diesen Benutzer akzeptieren, oder du aktualisierst es in Home Assistant: Einstellungen → Marketplace.",
   "say.in_area": "{name} im Bereich {area}",
