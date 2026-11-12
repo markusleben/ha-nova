@@ -23,7 +23,6 @@ import { childEnv, superviseChild } from "./supervise-child.js";
 // (cli/command_gate.go, cli/gate_ask.go); a longer one is no answer.
 const MAX_ANSWER_BYTES = { "/check": 64 << 10, "/ask": 16 << 20, "/phone": 64 << 10, "/redact": 192 << 20, "/texts": 64 << 10 } as const;
 const TIMEOUT_MS = 20_000; // above the worker's own 15 s check budget (cli/command_gate.go)
-const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 export interface GateWorker extends GateClient {
   start(): void;
@@ -177,7 +176,17 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
     async redact(endpoint, request, response) {
       const answer = await post("/redact", { endpoint, request_b64: request.toString("base64"), response_b64: response.toString("base64") });
       const encoded = answer?.response_b64;
-      return typeof encoded === "string" && BASE64.test(encoded) ? Buffer.from(encoded, "base64") : null;
+      if (typeof encoded !== "string") {
+        return null;
+      }
+      // A round trip, not a regex: V8 runs out of stack matching one against a
+      // multi-MB answer (a full entity registry), and the throw became a bare 500.
+      const decoded = Buffer.from(encoded, "base64");
+      if (decoded.toString("base64") !== encoded) {
+        deps.logger.warn("Safety-check worker answered unusably", { path: "/redact", status: "not base64" });
+        return null;
+      }
+      return decoded;
     },
   };
 }

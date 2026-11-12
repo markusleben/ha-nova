@@ -147,6 +147,30 @@ describe("gate worker child", () => {
     }
   }, 60_000);
 
+  it("a redaction of a full entity registry (several MB) comes back intact, and one that is not base64 is no answer", async () => {
+    const registry = Buffer.from(JSON.stringify({ ok: true, data: Array.from({ length: 9000 }, (_, i) => ({ entity_id: `light.room_${i}`, name: "x".repeat(800) })) }));
+    let reply = registry.toString("base64");
+    const server = createServer((request, response) => {
+      request.resume();
+      request.on("end", () => response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ response_b64: reply })));
+    });
+    mkdirSync(join(dir, "gate"), { recursive: true, mode: 0o700 });
+    await new Promise<void>((r) => server.listen(join(dir, "gate", "worker.sock"), r));
+    try {
+      const gate = worker({ timeoutMs: 20_000 });
+      gate.start();
+      expect(registry.byteLength).toBeGreaterThan(7 << 20);
+      expect(await gate.redact("ws", Buffer.from("{}"), registry)).toEqual(registry);
+      for (const bad of ["e30", "e30=\n", "%%%", "e3 0="]) {
+        reply = bad;
+        expect(await gate.redact("ws", Buffer.from("{}"), Buffer.from("{}"))).toBeNull();
+      }
+    } finally {
+      server.closeAllConnections();
+      await new Promise((r) => server.close(r));
+    }
+  }, 30_000);
+
   it("caps each answer at its own route's limit: a check's is small, a redaction's is not", async () => {
     const big = Buffer.alloc(100 << 10, 0x61);
     const server = createServer((request, response) => {
