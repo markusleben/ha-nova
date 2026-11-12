@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { askRef, createGateAsks, type PreparedAsk } from "../../nova/src/http/gate-asks.js";
 import { approveRoutes, createApproveActionHandler, createApprovePageHandler, novaPanel, pageChannel, renderGateSection, type ApprovePageDeps } from "../../nova/src/http/handlers/nova-approve.js";
 import { createNovaActionHandler, createNovaPageHandler, type NovaPageDeps } from "../../nova/src/http/handlers/nova-page.js";
-import { createLiveHandler, LIVE_CSP, LIVE_SCRIPT } from "../../nova/src/http/handlers/nova-page-live.js";
+import { createLiveHandler, LIVE_CSP, LIVE_SCRIPT, liveState } from "../../nova/src/http/handlers/nova-page-live.js";
 import { createHash } from "node:crypto";
 import type { RouteContext } from "../../nova/src/http/router.js";
 import { createCsrfStore } from "../../nova/src/security/csrf.js";
@@ -319,6 +319,25 @@ describe("owner page: waiting asks and paused devices", () => {
     expect(page.body).toContain(`<script>${LIVE_SCRIPT}</script>`);
     expect(page.headers["content-security-policy"]).toContain(`script-src 'sha256-${createHash("sha256").update(LIVE_SCRIPT).digest("base64")}'`);
     expect(LIVE_CSP).not.toContain("unsafe");
+  });
+
+  it("embeds the digest of the asks it shows, so an ask that arrives while the page renders still reloads it", async () => {
+    const t = bed();
+    let release = (): void => {};
+    const deps = {
+      fetchAuthUsers: async () => [OWNER, ADMIN], gatePage: t.deps.page, csrf: createCsrfStore(), now: () => 1000,
+      registry: { list: () => [] }, pairing: { getStatus: () => ({ phase: "idle" }) }, connection: () => ({ haConnected: true }),
+      update: () => new Promise((resolve) => { release = () => resolve({ version: "0.7.0", versionLatest: "0.7.0", updateAvailable: false, error: false }); }), relayVersion: "0.7.0",
+    } as unknown as NovaPageDeps;
+    const quiet = liveState(t.deps.page);
+    const rendering = call(createNovaPageHandler(deps), ADMIN.id, null, {}, "172.30.32.2", "/");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await t.open(); // arrives after the page read the asks
+    release();
+    const r = await rendering;
+    expect(r.body).not.toContain("‹page.waiting_one›");
+    expect(r.body).toContain(`data-state="${quiet}"`);
+    expect(liveState(t.deps.page)).not.toBe(quiet); // the next poll reloads it
   });
 
   it("shows an administrator who isn't the owner the waiting asks on the page itself", async () => {
