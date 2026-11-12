@@ -179,7 +179,7 @@ func TestMCPReadEndpoints(t *testing.T) {
 func TestMCPReadRefusesWhatRelayRefuses(t *testing.T) {
 	paths, forwarded, _ := rawGuardRelay(t, func() string { return `[]` }, nil, nil)
 	read := func(endpoint, body string) (int, verbTestEnvelope) {
-		exit, out := captureCommandOutput(t, func() int { return runMCPRead(paths, []string{endpoint, "--body=" + body}) })
+		exit, out := captureCommandOutput(t, func() int { return runMCPRead(nil, paths, []string{endpoint, "--body=" + body}) })
 		var env verbTestEnvelope
 		if err := json.Unmarshal([]byte(out), &env); err != nil {
 			t.Fatalf("%s %s: %v in %q", endpoint, body, err, out)

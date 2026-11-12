@@ -73,8 +73,8 @@ type roomsResult struct {
 	Changes []roomsChange `json:"changes"`
 }
 
-func runPlanRooms(paths runtimePaths, args []string) int {
-	var opts verbOptions
+func runPlanRooms(call *verbCall, paths runtimePaths, args []string) int {
+	opts := verbOptions{call: call}
 	fs := flag.NewFlagSet("plan rooms", flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
 	positional, err := parseVerbArgs(fs, &opts, args, planRoomsUsage+"\n\nRead-only: plans the confident room suggestions of ha-nova map --insights (up to 25 devices, existing rooms only); \"ha-nova apply\" saves them all or none. Undo: ha-nova plan revert --target <the result's undo.target_id>.")
@@ -82,7 +82,7 @@ func runPlanRooms(paths runtimePaths, args []string) int {
 		err = errors.New("Usage: " + planRoomsUsage)
 	}
 	if err != nil {
-		return verbUsageError("plan", err)
+		return verbUsageError(call, "plan", err)
 	}
 	return runReadVerb(paths, "plan", opts, func(s *relaySession, env *verbEnvelope) error {
 		home, err := loadHome(s)

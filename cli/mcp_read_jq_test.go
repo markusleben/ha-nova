@@ -60,7 +60,7 @@ func TestMCPReadJQChildInServe(t *testing.T) {
 	fakeJQChild(t, `cat >/dev/null; echo '{"output":"\"from the child\""}'`)
 	read := func() string {
 		_, out := captureCommandOutput(t, func() int {
-			return runMCPRead(paths, []string{"ws", `--body={"type":"get_states"}`, "--jq=.data | length"})
+			return runMCPRead(nil, paths, []string{"ws", `--body={"type":"get_states"}`, "--jq=.data | length"})
 		})
 		var env verbTestEnvelope
 		_ = json.Unmarshal([]byte(out), &env)
@@ -160,7 +160,7 @@ func TestMCPReadJQChildOnlyCompiles(t *testing.T) {
 	chatCall = &chatPolicy{}
 	t.Cleanup(func() { chatCall = nil })
 	fakeJQChild(t, `read -r filter; cat >/dev/null; case "$filter" in '"[[['*) echo '{"output":"\"child got it\""}';; *) exit 1;; esac`)
-	_, out := captureCommandOutput(t, func() int { return runMCPRead(paths, argv) })
+	_, out := captureCommandOutput(t, func() int { return runMCPRead(nil, paths, argv) })
 	var env verbTestEnvelope
 	if json.Unmarshal([]byte(out), &env) != nil || string(env.Result) != `"child got it"` {
 		t.Fatalf("serve: %s", out)

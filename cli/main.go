@@ -138,7 +138,7 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 	case "snapshot":
 		return runSnapshotCommand(paths, args[1:])
 	case "diff":
-		return runDiffCommand(paths, args[1:])
+		return runDiffCommand(nil, paths, args[1:])
 	case "version":
 		if len(args) > 1 && (args[1] == "--help" || args[1] == "-h") {
 			fmt.Fprintln(os.Stdout, "Usage: ha-nova version")

@@ -102,7 +102,7 @@ func TestMCPEndOfInputWaitsForTheChange(t *testing.T) {
 // OUTCOME_UNKNOWN, never a plain tool error; another verb's crash stays one.
 func TestMCPApplyCrashIsUnknown(t *testing.T) {
 	srv := &mcpServer{paths: runtimePaths{ConfigDir: t.TempDir()}, told: map[string]bool{}}
-	crash := func() int { panic("boom") }
+	crash := func(*verbCall) int { panic("boom") }
 	mcpVerbLock.Lock()
 	if env := envelopeOf(srv.runLocked("ha_apply", "", false, crash)); envCode(env) != "OUTCOME_UNKNOWN" || !strings.Contains(nextOf(env), "Never apply this plan again") {
 		t.Fatalf("apply: %v", env)

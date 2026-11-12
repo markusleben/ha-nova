@@ -28,8 +28,10 @@ type getResult struct {
 	References *referencesResult `json:"references,omitempty"`
 }
 
-func runGetCommand(paths runtimePaths, args []string) int {
-	var opts verbOptions
+func runGetCommand(paths runtimePaths, args []string) int { return getVerb(nil, paths, args) }
+
+func getVerb(call *verbCall, paths runtimePaths, args []string) int {
+	opts := verbOptions{call: call}
 	fs := flag.NewFlagSet("get", flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
 	withConfig := fs.Bool("config", false, "also read the stored config (automation/script/scene) by its config id")
@@ -40,7 +42,7 @@ func runGetCommand(paths runtimePaths, args []string) int {
 	positional, err := parseVerbArgs(fs, &opts, args, getUsage)
 	if err == nil && (*dashboard != "" || *dashboards) {
 		if len(positional) != 0 || *withRelated || *withReferences || (*dashboards && (*dashboard != "" || *withConfig)) || (*dashboard != "" && !dashboardPathPattern.MatchString(*dashboard)) {
-			return verbUsageError("get", errors.New("Usage: "+getUsage))
+			return verbUsageError(call, "get", errors.New("Usage: "+getUsage))
 		}
 		return runReadVerb(paths, "get", opts, func(s *relaySession, env *verbEnvelope) error {
 			return runGetDashboards(s, env, *dashboard, *withConfig)
@@ -55,7 +57,7 @@ func runGetCommand(paths runtimePaths, args []string) int {
 		err = errors.New("--config supports only automation, script, and scene entities")
 	}
 	if err != nil {
-		return verbUsageError("get", err)
+		return verbUsageError(call, "get", err)
 	}
 	return runReadVerb(paths, "get", opts, func(s *relaySession, env *verbEnvelope) error {
 		state, target, err := readEntityState(s, entityID)

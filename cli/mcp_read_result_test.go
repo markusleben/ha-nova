@@ -205,7 +205,7 @@ func TestMCPReadSnapshotAndDiff(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(dir, "b.json"), []byte(before), 0o600)
 	_ = os.WriteFile(filepath.Join(dir, "a.json"), []byte(after), 0o600)
 	exit, cli := captureCommandOutput(t, func() int {
-		return runDiffCommand(paths, []string{"--before", filepath.Join(dir, "b.json"), "--after", filepath.Join(dir, "a.json")})
+		return runDiffCommand(nil, paths, []string{"--before", filepath.Join(dir, "b.json"), "--after", filepath.Join(dir, "a.json")})
 	})
 	var beforeObj, afterObj map[string]any
 	_ = json.Unmarshal([]byte(before), &beforeObj)

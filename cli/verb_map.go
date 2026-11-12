@@ -18,8 +18,10 @@ const mapUsage = "ha-nova map [--section areas|integrations|automations|unavaila
 
 var mapSections = map[string]bool{"areas": true, "integrations": true, "automations": true, "unavailable": true, "batteries": true}
 
-func runMapCommand(paths runtimePaths, args []string) int {
-	var opts verbOptions
+func runMapCommand(paths runtimePaths, args []string) int { return mapVerb(nil, paths, args) }
+
+func mapVerb(call *verbCall, paths runtimePaths, args []string) int {
+	opts := verbOptions{call: call}
 	fs := flag.NewFlagSet("map", flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
 	section := fs.String("section", "", "full list of one part: areas, integrations, automations, unavailable, batteries")
@@ -52,7 +54,7 @@ func runMapCommand(paths runtimePaths, args []string) int {
 		err = errors.New("--limit must be between 1 and 200")
 	}
 	if err != nil {
-		return verbUsageError("map", err)
+		return verbUsageError(call, "map", err)
 	}
 	return runReadVerb(paths, "map", opts, func(s *relaySession, env *verbEnvelope) error {
 		home, err := loadHome(s)

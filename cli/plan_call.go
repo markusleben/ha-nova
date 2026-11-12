@@ -34,37 +34,39 @@ type planCallRequest struct {
 	Response bool   `json:"response,omitempty"`
 }
 
-func runPlanCommand(paths runtimePaths, args []string) int {
+func runPlanCommand(paths runtimePaths, args []string) int { return planVerb(nil, paths, args) }
+
+func planVerb(call *verbCall, paths runtimePaths, args []string) int {
 	switch {
 	case len(args) > 0 && args[0] == "call":
-		return runPlanCall(paths, args[1:])
+		return runPlanCall(call, paths, args[1:])
 	case len(args) > 0 && (args[0] == "write" || args[0] == "delete" || args[0] == "revert" || args[0] == "restore"):
-		return runPlanConfig(paths, args[0], args[1:])
+		return runPlanConfig(call, paths, args[0], args[1:])
 	case len(args) > 0 && args[0] == "rooms":
-		return runPlanRooms(paths, args[1:])
+		return runPlanRooms(call, paths, args[1:])
 	case len(args) > 0 && args[0] == "template":
-		return runPlanTemplate(paths, args[1:])
+		return runPlanTemplate(call, paths, args[1:])
 	case len(args) > 0 && args[0] == "raw":
-		return runPlanRaw(paths, args[1:])
+		return runPlanRaw(call, paths, args[1:])
 	case len(args) > 0 && args[0] == "batch":
-		return runPlanBatch(paths, args[1:])
+		return runPlanBatch(call, paths, args[1:])
 	case len(args) > 0 && (args[0] == "--help" || args[0] == "-h"):
-		fmt.Println("Usage: " + planCallHelp)
+		fmt.Fprintln(call.stdout(), "Usage: "+planCallHelp)
 		return verbExitOK
 	}
-	return verbUsageError("plan", errors.New("Usage: "+planCallUsage+" | "+planWriteUsage+" | "+planDeleteUsage+" | "+planRevertUsage+" | "+planRestoreUsage+" | "+planRoomsUsage+" | "+planTemplateUsage+" | "+planRawUsage+" | "+planBatchUsage))
+	return verbUsageError(call, "plan", errors.New("Usage: "+planCallUsage+" | "+planWriteUsage+" | "+planDeleteUsage+" | "+planRevertUsage+" | "+planRestoreUsage+" | "+planRoomsUsage+" | "+planTemplateUsage+" | "+planRawUsage+" | "+planBatchUsage))
 }
 
-func runPlanCall(paths runtimePaths, args []string) int {
-	return runCallVerb(paths, "plan", "plan call", planCallHelp, args, func(s *relaySession, env *verbEnvelope, req planCallRequest) error {
+func runPlanCall(call *verbCall, paths runtimePaths, args []string) int {
+	return runCallVerb(call, paths, "plan", "plan call", planCallHelp, args, func(s *relaySession, env *verbEnvelope, req planCallRequest) error {
 		return planCall(paths, s, env, req)
 	})
 }
 
 // runCallVerb parses the shared plan/call flags, answers static refusals
 // without any Relay contact, and runs body on one session.
-func runCallVerb(paths runtimePaths, verb, flagSetName, help string, args []string, body func(*relaySession, *verbEnvelope, planCallRequest) error) int {
-	var opts verbOptions
+func runCallVerb(call *verbCall, paths runtimePaths, verb, flagSetName, help string, args []string, body func(*relaySession, *verbEnvelope, planCallRequest) error) int {
+	opts := verbOptions{call: call}
 	req := planCallRequest{Data: map[string]any{}}
 	var sets []string
 	dataFile := ""
@@ -82,12 +84,12 @@ func runCallVerb(paths runtimePaths, verb, flagSetName, help string, args []stri
 		err = req.parse(positional, sets, dataFile)
 	}
 	if err != nil {
-		return verbUsageError(verb, err)
+		return verbUsageError(call, verb, err)
 	}
 	if refusal := staticRefusal(req); refusal != nil { // needs no Relay at all
 		env := verbEnvelope{SchemaVersion: 1, Verb: verb}
 		exit := setVerbError(&env, refuse(&env, *refusal))
-		if !printVerbEnvelope(env) {
+		if !printVerbEnvelope(call, env) {
 			return verbExitError
 		}
 		return exit

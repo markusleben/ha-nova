@@ -153,7 +153,7 @@ func readResult(endpoint string, input []byte, run jqRun) (json.RawMessage, erro
 
 // runOfflineRead runs a read that needs no Relay (snapshot, diff) into the
 // verb envelope.
-func runOfflineRead(paths runtimePaths, endpoint string, run jqRun, read func() (json.RawMessage, error)) int {
+func runOfflineRead(call *verbCall, paths runtimePaths, endpoint string, run jqRun, read func() (json.RawMessage, error)) int {
 	env := verbEnvelope{SchemaVersion: 1, Verb: "read", Status: "ok"}
 	result, err := read()
 	if err == nil {
@@ -166,7 +166,7 @@ func runOfflineRead(paths runtimePaths, endpoint string, run jqRun, read func() 
 	} else {
 		env.Result = result
 	}
-	if !printVerbEnvelope(env) {
+	if !printVerbEnvelope(call, env) {
 		return verbExitError
 	}
 	return exit
@@ -174,8 +174,8 @@ func runOfflineRead(paths runtimePaths, endpoint string, run jqRun, read func() 
 
 // offlineVerb runs a CLI verb in process and returns its stdout; a failure
 // carries its stderr.
-func offlineVerb(run func() int, ok func(exit int) bool) (string, error) {
-	out, errOut, exit := captureVerb(run)
+func offlineVerb(run func(*verbCall) int, ok func(exit int) bool) (string, error) {
+	out, errOut, exit := runCaptured(run)
 	if !ok(exit) {
 		return "", &verbFailure{exit: verbExitError, code: "READ_FAILED", message: mcpMessage(errOut, mcpMessageMax)}
 	}
@@ -186,10 +186,10 @@ func offlineVerb(run func() int, ok func(exit int) bool) (string, error) {
 // "match" or "drift".
 func readSnapshot(paths runtimePaths, action string, args []string) (json.RawMessage, error) {
 	if action == "show" {
-		out, err := offlineVerb(func() int { return runSnapshotShow(paths, args) }, func(exit int) bool { return exit == 0 })
+		out, err := offlineVerb(func(call *verbCall) int { return runSnapshotShow(call, paths, args) }, func(exit int) bool { return exit == 0 })
 		return json.RawMessage(out), err
 	}
-	out, err := offlineVerb(func() int { return runSnapshotVerify(paths, args) }, func(exit int) bool { return exit == 0 || exit == snapshotExitDrift })
+	out, err := offlineVerb(func(call *verbCall) int { return runSnapshotVerify(call, paths, args) }, func(exit int) bool { return exit == 0 || exit == snapshotExitDrift })
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +198,7 @@ func readSnapshot(paths runtimePaths, action string, args []string) (json.RawMes
 
 // readDiff is `ha-nova diff`: its table rows, one string each.
 func readDiff(paths runtimePaths, args []string) (json.RawMessage, error) {
-	out, err := offlineVerb(func() int { return runDiffCommand(paths, args) }, func(exit int) bool { return exit == 0 })
+	out, err := offlineVerb(func(call *verbCall) int { return runDiffCommand(call, paths, args) }, func(exit int) bool { return exit == 0 })
 	if err != nil {
 		return nil, err
 	}

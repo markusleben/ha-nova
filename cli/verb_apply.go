@@ -59,8 +59,10 @@ var planIDPattern = regexp.MustCompile(`^p_[0-9a-f]{12}$`)
 // failing call; one re-read after this pause correlates it.
 var reauthSettle = 2 * time.Second
 
-func runCallCommand(paths runtimePaths, args []string) int {
-	return runCallVerb(paths, "call", "call", callHelp, args, func(s *relaySession, env *verbEnvelope, req planCallRequest) error {
+func runCallCommand(paths runtimePaths, args []string) int { return callVerb(nil, paths, args) }
+
+func callVerb(call *verbCall, paths runtimePaths, args []string) int {
+	return runCallVerb(call, paths, "call", "call", callHelp, args, func(s *relaySession, env *verbEnvelope, req planCallRequest) error {
 		e, plan, err := computeCallPlan(s, env, req)
 		if noChangeCall(e, env, req, err) { // nothing to confirm or send (call_no_change.go)
 			return nil
@@ -79,8 +81,10 @@ func runCallCommand(paths runtimePaths, args []string) int {
 	})
 }
 
-func runApplyCommand(paths runtimePaths, args []string) int {
-	req, exit, ok := parseApplyArgs(args)
+func runApplyCommand(paths runtimePaths, args []string) int { return applyVerb(nil, paths, args) }
+
+func applyVerb(call *verbCall, paths runtimePaths, args []string) int {
+	req, exit, ok := parseApplyArgs(call, args)
 	if !ok {
 		return exit
 	}
@@ -97,7 +101,8 @@ type applyRequest struct {
 	noSnapshot bool
 }
 
-func parseApplyArgs(args []string) (req applyRequest, exit int, ok bool) {
+func parseApplyArgs(call *verbCall, args []string) (req applyRequest, exit int, ok bool) {
+	req.opts.call = call
 	fs := flag.NewFlagSet("apply", flag.ContinueOnError)
 	addVerbFlags(fs, &req.opts)
 	fs.StringVar(&req.id, "plan", "", "plan id from plan/call (p_ + 12 hex)")
@@ -108,7 +113,7 @@ func parseApplyArgs(args []string) (req applyRequest, exit int, ok bool) {
 		err = errors.New("Usage: " + applyUsage)
 	}
 	if err != nil {
-		return req, verbUsageError("apply", err), false
+		return req, verbUsageError(call, "apply", err), false
 	}
 	return req, 0, true
 }
@@ -130,7 +135,7 @@ func finishApply(paths runtimePaths, req applyRequest, env verbEnvelope, exit in
 		}
 	}
 	defer func() { humanAnswer, humanWhere, askedRoute = "", "", nil }()
-	if !printVerbEnvelope(env) {
+	if !printVerbEnvelope(req.opts.call, env) {
 		return verbExitError
 	}
 	return exit

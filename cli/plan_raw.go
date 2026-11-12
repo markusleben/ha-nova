@@ -69,8 +69,8 @@ type rawPlanResult struct {
 	Items []rawPlanItem `json:"items"`
 }
 
-func runPlanRaw(paths runtimePaths, args []string) int {
-	var opts verbOptions
+func runPlanRaw(call *verbCall, paths runtimePaths, args []string) int {
+	opts := verbOptions{call: call}
 	file := ""
 	fs := flag.NewFlagSet("plan raw", flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
@@ -84,7 +84,7 @@ func runPlanRaw(paths runtimePaths, args []string) int {
 		items, err = readRawRequests(file)
 	}
 	if err != nil {
-		return verbUsageError("plan", err)
+		return verbUsageError(call, "plan", err)
 	}
 	return runReadVerb(paths, "plan", opts, func(s *relaySession, env *verbEnvelope) error {
 		_, plan, err := computeRawPlan(s, env, items)

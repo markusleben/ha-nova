@@ -3,32 +3,31 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 )
 
-func printTraceLatestJSON(out traceLatestOutput) {
+func printTraceLatestJSON(call *verbCall, out traceLatestOutput) {
 	data, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
-		printErr("cannot render trace result: %s", err)
+		call.errorf("cannot render trace result: %s", err)
 		return
 	}
-	fmt.Fprintln(os.Stdout, string(data))
+	fmt.Fprintln(call.stdout(), string(data))
 }
 
-func printTraceListJSON(out traceListOutput) {
+func printTraceListJSON(call *verbCall, out traceListOutput) {
 	data, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
-		printErr("cannot render trace list: %s", err)
+		call.errorf("cannot render trace list: %s", err)
 		return
 	}
-	fmt.Fprintln(os.Stdout, string(data))
+	fmt.Fprintln(call.stdout(), string(data))
 }
 
-func printTraceGetJSON(out traceGetOutput) {
+func printTraceGetJSON(call *verbCall, out traceGetOutput) {
 	data, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
-		printErr("cannot render trace detail: %s", err)
+		call.errorf("cannot render trace detail: %s", err)
 		return
 	}
-	fmt.Fprintln(os.Stdout, string(data))
+	fmt.Fprintln(call.stdout(), string(data))
 }

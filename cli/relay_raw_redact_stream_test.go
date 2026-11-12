@@ -87,7 +87,7 @@ func TestStreamTokenNeverLeaves(t *testing.T) {
 		check("--jq on "+id, out, secretHidden)
 	}
 	exit, out = captureCommandOutput(t, func() int {
-		return runMCPRead(h.paths, []string{"core", `--body={"method":"GET","path":"/api/states/camera.door"}`})
+		return runMCPRead(nil, h.paths, []string{"core", `--body={"method":"GET","path":"/api/states/camera.door"}`})
 	})
 	if exit != 0 {
 		t.Fatalf("ha_read: exit %d %s", exit, out)

@@ -19,7 +19,7 @@ import (
 // The output is a stable artifact — like `git diff` — and keeping the
 // rendering here, not in the LLM, makes it identical on every run and across
 // clients/models. Presentation helpers (labels, cells) live in diff_format.go.
-func runDiffCommand(_ runtimePaths, args []string) int {
+func runDiffCommand(call *verbCall, _ runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("diff", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	var beforePath, afterPath, outPath string
@@ -32,7 +32,7 @@ func runDiffCommand(_ runtimePaths, args []string) int {
 		if helpRequested(err, fs, "ha-nova diff --before <file> --after <file> [--out <file>]") {
 			return 0
 		}
-		printErr("%s", err)
+		call.errorf("%s", err)
 		return 1
 	}
 	fs.Visit(func(f *flag.Flag) {
@@ -41,25 +41,25 @@ func runDiffCommand(_ runtimePaths, args []string) int {
 		}
 	})
 	if fs.NArg() != 0 {
-		printErr("diff does not accept positional arguments; no diff was rendered")
+		call.errorf("diff does not accept positional arguments; no diff was rendered")
 		return 1
 	}
 	if outPathSet && strings.TrimSpace(outPath) == "" {
-		printErr("--out requires a non-empty path; no diff was rendered")
+		call.errorf("--out requires a non-empty path; no diff was rendered")
 		return 1
 	}
 	if strings.TrimSpace(beforePath) == "" || strings.TrimSpace(afterPath) == "" {
-		printErr("--before <file> and --after <file> are required")
+		call.errorf("--before <file> and --after <file> are required")
 		return 1
 	}
 	before, err := readConfigObject(beforePath)
 	if err != nil {
-		printErr("cannot read before config: %s", err)
+		call.errorf("cannot read before config: %s", err)
 		return 1
 	}
 	after, err := readConfigObject(afterPath)
 	if err != nil {
-		printErr("cannot read after config: %s", err)
+		call.errorf("cannot read after config: %s", err)
 		return 1
 	}
 	beforeRaw, _ := os.ReadFile(beforePath) // already read and validated above
@@ -71,13 +71,13 @@ func runDiffCommand(_ runtimePaths, args []string) int {
 			rendered = strings.Join(lines, "\n") + "\n"
 		}
 		if err := os.WriteFile(outPath, []byte(rendered), 0o644); err != nil {
-			printErr("cannot write diff output: %s", err)
+			call.errorf("cannot write diff output: %s", err)
 			return 1
 		}
 		return 0
 	}
 	for _, line := range lines {
-		fmt.Fprintln(os.Stdout, line)
+		fmt.Fprintln(call.stdout(), line)
 	}
 	return 0
 }

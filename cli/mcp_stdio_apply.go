@@ -95,7 +95,7 @@ func (srv *mcpServer) stdioApply(args map[string]json.RawMessage, argv []string,
 			job.ended = time.Now()
 			close(job.done)
 		}()
-		result := srv.runLocked("ha_apply", answered, forms, func() int { return runApplyCommand(srv.paths, pinServer("ha_apply", argv, srv.pin)) })
+		result := srv.runLocked("ha_apply", answered, forms, func(call *verbCall) int { return applyVerb(call, srv.paths, pinServer("ha_apply", argv, srv.pin)) })
 		job.result = withPlanSteps(result, "ha_apply", args)
 	}()
 	return srv.stdioAwait(id, job)

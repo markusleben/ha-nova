@@ -184,7 +184,7 @@ func TestSnapshotRejectsEmptyOrAmbiguousSelectionBeforeNewestFallback(t *testing
 	}
 	for name, tc := range showCases {
 		t.Run("show "+name, func(t *testing.T) {
-			exitCode, output := captureCommandOutput(t, func() int { return runSnapshotShow(paths, tc.args) })
+			exitCode, output := captureCommandOutput(t, func() int { return runSnapshotShow(nil, paths, tc.args) })
 			if exitCode != 1 || !strings.Contains(output, tc.want) || strings.Contains(output, `"target_id": "t2"`) {
 				t.Fatalf("exit/output = %d, %q", exitCode, output)
 			}
@@ -201,7 +201,7 @@ func TestSnapshotRejectsEmptyOrAmbiguousSelectionBeforeNewestFallback(t *testing
 	}
 	for name, tc := range verifyCases {
 		t.Run("verify "+name, func(t *testing.T) {
-			exitCode, output := captureCommandOutput(t, func() int { return runSnapshotVerify(paths, tc.args) })
+			exitCode, output := captureCommandOutput(t, func() int { return runSnapshotVerify(nil, paths, tc.args) })
 			if exitCode != 1 || !strings.Contains(output, tc.want) || strings.TrimSpace(output) == "match" {
 				t.Fatalf("exit/output = %d, %q", exitCode, output)
 			}
@@ -213,10 +213,10 @@ func TestSnapshotRejectsDomainWithoutTargetBeforeStoreAccess(t *testing.T) {
 	paths := testSnapshotPaths(t)
 	for name, run := range map[string]func() int{
 		"show": func() int {
-			return runSnapshotShow(paths, []string{"--domain", "automation"})
+			return runSnapshotShow(nil, paths, []string{"--domain", "automation"})
 		},
 		"verify": func() int {
-			return runSnapshotVerify(paths, []string{"--against", filepath.Join(t.TempDir(), "missing.json"), "--domain", "automation"})
+			return runSnapshotVerify(nil, paths, []string{"--against", filepath.Join(t.TempDir(), "missing.json"), "--domain", "automation"})
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -253,7 +253,7 @@ func TestDiffRejectsEmptyOutputAndPositionalsBeforeRendering(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			exitCode, output := captureCommandOutput(t, func() int { return runDiffCommand(runtimePaths{}, tc.args) })
+			exitCode, output := captureCommandOutput(t, func() int { return runDiffCommand(nil, runtimePaths{}, tc.args) })
 			if exitCode != 1 || !strings.Contains(output, tc.want) || strings.Contains(output, "| mode |") {
 				t.Fatalf("exit/output = %d, %q", exitCode, output)
 			}

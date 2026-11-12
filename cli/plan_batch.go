@@ -69,8 +69,8 @@ func (l *planIDList) Set(id string) error {
 	return nil
 }
 
-func runPlanBatch(paths runtimePaths, args []string) int {
-	var opts verbOptions
+func runPlanBatch(call *verbCall, paths runtimePaths, args []string) int {
+	opts := verbOptions{call: call}
 	var ids planIDList
 	fs := flag.NewFlagSet("plan batch", flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
@@ -80,7 +80,7 @@ func runPlanBatch(paths runtimePaths, args []string) int {
 		err = errors.New("Usage: " + planBatchUsage)
 	}
 	if err != nil {
-		return verbUsageError("plan", err)
+		return verbUsageError(call, "plan", err)
 	}
 	return runReadVerb(paths, "plan", opts, func(s *relaySession, env *verbEnvelope) error {
 		return planBatch(paths, s, env, ids)

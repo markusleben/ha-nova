@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 )
 
@@ -112,6 +111,7 @@ func (f *verbFailure) Unwrap() error { return f.cause }
 type verbOptions struct {
 	server, via       string
 	serverSet, viaSet bool
+	call              *verbCall // the run's own output (nil: the CLI's); never a flag
 }
 
 func addVerbFlags(fs *flag.FlagSet, opts *verbOptions) {
@@ -172,19 +172,19 @@ func runReadVerb(paths runtimePaths, verb string, opts verbOptions, body func(*r
 	if err != nil {
 		exit = setVerbError(&env, err)
 	}
-	if !printVerbEnvelope(env) {
+	if !printVerbEnvelope(opts.call, env) {
 		return verbExitError
 	}
 	return exit
 }
 
-func verbUsageError(verb string, err error) int {
+func verbUsageError(call *verbCall, verb string, err error) int {
 	if errors.Is(err, errHelpShown) {
 		return verbExitOK
 	}
 	env := verbEnvelope{SchemaVersion: 1, Verb: verb}
 	setVerbError(&env, &verbFailure{exit: verbExitError, code: "USAGE", message: err.Error() + "; nothing was sent"})
-	printVerbEnvelope(env)
+	printVerbEnvelope(call, env)
 	return verbExitError
 }
 
@@ -233,14 +233,14 @@ func verbNotices(paths runtimePaths, relayVersion string) []verbNotice {
 	return notices
 }
 
-func printVerbEnvelope(env verbEnvelope) bool {
+func printVerbEnvelope(call *verbCall, env verbEnvelope) bool {
 	env.Say = resultSay(&env)
 	out, err := json.Marshal(env)
 	if err == nil {
-		_, err = os.Stdout.Write(append(out, '\n'))
+		_, err = call.stdout().Write(append(out, '\n'))
 	}
 	if err != nil {
-		printErr("cannot write %s output: %s", env.Verb, err)
+		call.errorf("cannot write %s output: %s", env.Verb, err)
 		return false
 	}
 	return true

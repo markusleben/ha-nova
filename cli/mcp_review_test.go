@@ -148,7 +148,7 @@ func TestMCPReviewProtocolDetails(t *testing.T) {
 	t.Cleanup(func() { mcpTools = previous })
 	mcpTools = append(append([]mcpTool{}, previous...), mcpTool{name: "ha_panic", schema: object(nil, map[string]any{}),
 		argv: func(map[string]json.RawMessage, *mcpTempFiles) ([]string, error) { return nil, nil },
-		run:  func(runtimePaths, []string) int { panic("boom") }})
+		run:  func(*verbCall, runtimePaths, []string) int { panic("boom") }})
 	stdout := os.Stdout
 	c := startMCP(t, h.paths)
 	init := c.request("initialize", map[string]any{"protocolVersion": "2025-11-25", "capabilities": map[string]any{}})

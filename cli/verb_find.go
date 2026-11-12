@@ -45,8 +45,10 @@ type registryRow struct {
 	disabled                     bool
 }
 
-func runFindCommand(paths runtimePaths, args []string) int {
-	var opts verbOptions
+func runFindCommand(paths runtimePaths, args []string) int { return findVerb(nil, paths, args) }
+
+func findVerb(call *verbCall, paths runtimePaths, args []string) int {
+	opts := verbOptions{call: call}
 	query := findQuery{}
 	fs := flag.NewFlagSet("find", flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
@@ -70,7 +72,7 @@ func runFindCommand(paths runtimePaths, args []string) int {
 		err = errors.New("--limit must be between 1 and 200")
 	}
 	if err != nil {
-		return verbUsageError("find", err)
+		return verbUsageError(call, "find", err)
 	}
 	return runReadVerb(paths, "find", opts, func(s *relaySession, env *verbEnvelope) error {
 		result, err := findEntities(s, query)

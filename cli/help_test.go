@@ -33,7 +33,7 @@ func TestSubcommandHelpFlagPrintsUsageAndFlags(t *testing.T) {
 		{"uninstall", func() int { return runUninstall(paths, []string{"--help"}) }, "Usage: ha-nova uninstall", "-purge"},
 		{"setup", func() int { return runSetup(paths, []string{"--help"}) }, "Usage: ha-nova setup", "-non-interactive"},
 		{"status", func() int { return runStatus(paths, []string{"--help"}) }, "Usage: ha-nova status", "-json"},
-		{"diff", func() int { return runDiffCommand(paths, []string{"--help"}) }, "Usage: ha-nova diff", "-before"},
+		{"diff", func() int { return runDiffCommand(nil, paths, []string{"--help"}) }, "Usage: ha-nova diff", "-before"},
 		{"snapshot save", func() int { return runSnapshotCommand(paths, []string{"save", "--help"}) }, "Usage: ha-nova snapshot save", "-data-file"},
 		{"snapshot show", func() int { return runSnapshotCommand(paths, []string{"show", "--help"}) }, "Usage: ha-nova snapshot show", "-list"},
 		{"snapshot verify", func() int { return runSnapshotCommand(paths, []string{"verify", "--help"}) }, "Usage: ha-nova snapshot verify", "-against"},

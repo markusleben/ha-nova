@@ -47,8 +47,10 @@ type historyResult struct {
 	Note    string          `json:"note,omitempty"`
 }
 
-func runHistoryCommand(paths runtimePaths, args []string) int {
-	var opts verbOptions
+func runHistoryCommand(paths runtimePaths, args []string) int { return historyVerb(nil, paths, args) }
+
+func historyVerb(call *verbCall, paths runtimePaths, args []string) int {
+	opts := verbOptions{call: call}
 	fs := flag.NewFlagSet("history", flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
 	sinceRaw := fs.String("since", "", "window start: a duration ago (90m, 24h, 7d) or an RFC3339 time (default 24h before --until)")
@@ -64,7 +66,7 @@ func runHistoryCommand(paths runtimePaths, args []string) int {
 		since, until, err = historyBounds(*sinceRaw, *untilRaw, verbNow().UTC().Truncate(time.Second))
 	}
 	if err != nil {
-		return verbUsageError("history", err)
+		return verbUsageError(call, "history", err)
 	}
 	return runReadVerb(paths, "history", opts, func(s *relaySession, env *verbEnvelope) error {
 		_, target, err := readEntityState(s, entityID)

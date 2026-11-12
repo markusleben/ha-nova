@@ -194,17 +194,17 @@ func readArgv(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, er
 
 // runMCPRead is ha_read. argv: the endpoint, its --flag=value options, and
 // after "--" the arguments of the CLI verb behind snapshot and diff.
-func runMCPRead(paths runtimePaths, argv []string) int {
+func runMCPRead(call *verbCall, paths runtimePaths, argv []string) int {
 	fs := flag.NewFlagSet("ha_read", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	body, filter, action := fs.String("body", "", ""), fs.String("jq", "", ""), fs.String("action", "", "")
 	if err := fs.Parse(argv[1:]); err != nil {
-		return verbUsageError("read", err)
+		return verbUsageError(call, "read", err)
 	}
 	stop := func(err error) int {
 		env := verbEnvelope{SchemaVersion: 1, Verb: "read"}
 		exit := setVerbError(&env, err)
-		printVerbEnvelope(env)
+		printVerbEnvelope(call, env)
 		return exit
 	}
 	var run jqRun
@@ -222,9 +222,9 @@ func runMCPRead(paths runtimePaths, argv []string) int {
 	endpoint := argv[0]
 	switch endpoint {
 	case "snapshot":
-		return runOfflineRead(paths, endpoint, run, func() (json.RawMessage, error) { return readSnapshot(paths, *action, fs.Args()) })
+		return runOfflineRead(call, paths, endpoint, run, func() (json.RawMessage, error) { return readSnapshot(paths, *action, fs.Args()) })
 	case "diff":
-		return runOfflineRead(paths, endpoint, run, func() (json.RawMessage, error) { return readDiff(paths, fs.Args()) })
+		return runOfflineRead(call, paths, endpoint, run, func() (json.RawMessage, error) { return readDiff(paths, fs.Args()) })
 	}
 	relayEndpoint := endpoint
 	if endpoint == "camera" {
@@ -240,7 +240,7 @@ func runMCPRead(paths runtimePaths, argv []string) int {
 	if err != nil {
 		return stop(err)
 	}
-	return runReadVerb(paths, "read", verbOptions{}, func(s *relaySession, env *verbEnvelope) error {
+	return runReadVerb(paths, "read", verbOptions{call: call}, func(s *relaySession, env *verbEnvelope) error {
 		if refusal := mcpDemoRefusal(activeServerIsDemo(), endpoint, send); refusal != nil { // known once the session loaded the profile
 			return &verbFailure{exit: verbExitRefused, code: "REFUSED", message: refusal.Error()}
 		}

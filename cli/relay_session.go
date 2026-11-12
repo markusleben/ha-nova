@@ -99,6 +99,7 @@ type relaySession struct {
 	gate         *relayGate       // the Relay's safety check as this session knows it (gate_client.go)
 	askCeiling   time.Time        // a cut plan's check before a person's ask ends here (recheck)
 	startCheck   bool             // the gate rates a helper's options-flow start on it: it starts no flow itself (gateProbe)
+	call         *verbCall        // the verb run it serves (nil: the CLI's): where its progress lines go
 }
 
 type relayMemo struct {
@@ -135,7 +136,9 @@ func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Dur
 		}
 		return nil, errors.New(relayTransportErrorMessage(err))
 	}
-	return relaySessionOn(paths, cfg, transport, ctx, cancel), nil
+	s := relaySessionOn(paths, cfg, transport, ctx, cancel)
+	s.call = opts.call
+	return s, nil
 }
 
 // relaySessionOn: a session on a transport already selected (relay core's

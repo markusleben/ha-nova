@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 )
 
 type traceLatestOutput struct {
@@ -57,46 +56,48 @@ type traceListEntry struct {
 	Trigger         string `json:"trigger,omitempty"`
 }
 
-func runTraceCommand(paths runtimePaths, args []string) int {
+func runTraceCommand(paths runtimePaths, args []string) int { return traceVerb(nil, paths, args) }
+
+func traceVerb(call *verbCall, paths runtimePaths, args []string) int {
 	args, err := takeServerArg(args)
 	if err != nil {
-		printErr("%s", err)
+		call.errorf("%s", err)
 		return 1
 	}
 	if len(args) == 0 {
-		printErr("Usage: ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json] [--server <name>]")
+		call.errorf("Usage: ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json] [--server <name>]")
 		return 1
 	}
 	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
-		fmt.Println("Usage: ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json] [--server <name>]")
-		fmt.Println("Run 'ha-nova trace <subcommand> --help' to see that subcommand's flags.")
+		fmt.Fprintln(call.stdout(), "Usage: ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json] [--server <name>]")
+		fmt.Fprintln(call.stdout(), "Run 'ha-nova trace <subcommand> --help' to see that subcommand's flags.")
 		return 0
 	}
 	switch args[0] {
 	case "latest":
-		return runTraceLatest(paths, args[1:])
+		return runTraceLatest(call, paths, args[1:])
 	case "list":
-		return runTraceList(paths, args[1:])
+		return runTraceList(call, paths, args[1:])
 	case "get":
-		return runTraceGet(paths, args[1:])
+		return runTraceGet(call, paths, args[1:])
 	default:
-		printErr("Unknown trace command: %s", args[0])
+		call.errorf("Unknown trace command: %s", args[0])
 		return 1
 	}
 }
 
-func runTraceLatest(paths runtimePaths, args []string) int {
+func runTraceLatest(call *verbCall, paths runtimePaths, args []string) int {
 	entityID, jsonOut, err := parseTraceLatestArgs(args)
 	if err != nil {
 		if errors.Is(err, errHelpShown) {
 			return 0
 		}
-		printErr("%s", err)
+		call.errorf("%s", err)
 		return 1
 	}
 	domain, ok := traceDomainFromEntityID(entityID)
 	if !ok {
-		printErr("trace latest supports only automation.<id> or script.<id>")
+		call.errorf("trace latest supports only automation.<id> or script.<id>")
 		return 1
 	}
 
@@ -110,41 +111,41 @@ func runTraceLatest(paths runtimePaths, args []string) int {
 			Error:         err.Error(),
 		}
 		if jsonOut {
-			printTraceLatestJSON(out)
+			printTraceLatestJSON(call, out)
 		} else {
-			printErr("%s", err)
+			call.errorf("%s", err)
 		}
 		return 1
 	}
 	if jsonOut {
-		printTraceLatestJSON(out)
+		printTraceLatestJSON(call, out)
 		return 0
 	}
-	fmt.Fprintf(os.Stdout, "entity_id: %s\n", out.EntityID)
-	fmt.Fprintf(os.Stdout, "domain: %s\n", out.Domain)
-	fmt.Fprintf(os.Stdout, "unique_id: %s\n", out.UniqueID)
-	fmt.Fprintf(os.Stdout, "run_id: %s\n", out.RunID)
+	fmt.Fprintf(call.stdout(), "entity_id: %s\n", out.EntityID)
+	fmt.Fprintf(call.stdout(), "domain: %s\n", out.Domain)
+	fmt.Fprintf(call.stdout(), "unique_id: %s\n", out.UniqueID)
+	fmt.Fprintf(call.stdout(), "run_id: %s\n", out.RunID)
 	if out.Timestamp != "" {
-		fmt.Fprintf(os.Stdout, "timestamp: %s\n", out.Timestamp)
+		fmt.Fprintf(call.stdout(), "timestamp: %s\n", out.Timestamp)
 	}
 	if out.LastStep != "" {
-		fmt.Fprintf(os.Stdout, "last_step: %s\n", out.LastStep)
+		fmt.Fprintf(call.stdout(), "last_step: %s\n", out.LastStep)
 	}
 	return 0
 }
 
-func runTraceList(paths runtimePaths, args []string) int {
+func runTraceList(call *verbCall, paths runtimePaths, args []string) int {
 	entityID, jsonOut, err := parseTraceEntityArgs("trace list", args)
 	if err != nil {
 		if errors.Is(err, errHelpShown) {
 			return 0
 		}
-		printErr("%s", err)
+		call.errorf("%s", err)
 		return 1
 	}
 	domain, ok := traceDomainFromEntityID(entityID)
 	if !ok {
-		printErr("trace list supports only automation.<id> or script.<id>")
+		call.errorf("trace list supports only automation.<id> or script.<id>")
 		return 1
 	}
 
@@ -158,48 +159,48 @@ func runTraceList(paths runtimePaths, args []string) int {
 			Error:         err.Error(),
 		}
 		if jsonOut {
-			printTraceListJSON(out)
+			printTraceListJSON(call, out)
 		} else {
-			printErr("%s", err)
+			call.errorf("%s", err)
 		}
 		return 1
 	}
 	if jsonOut {
-		printTraceListJSON(out)
+		printTraceListJSON(call, out)
 		return 0
 	}
-	fmt.Fprintf(os.Stdout, "entity_id: %s\n", out.EntityID)
-	fmt.Fprintf(os.Stdout, "domain: %s\n", out.Domain)
-	fmt.Fprintf(os.Stdout, "unique_id: %s\n", out.UniqueID)
-	fmt.Fprintf(os.Stdout, "count: %d\n", out.Count)
+	fmt.Fprintf(call.stdout(), "entity_id: %s\n", out.EntityID)
+	fmt.Fprintf(call.stdout(), "domain: %s\n", out.Domain)
+	fmt.Fprintf(call.stdout(), "unique_id: %s\n", out.UniqueID)
+	fmt.Fprintf(call.stdout(), "count: %d\n", out.Count)
 	for _, trace := range out.Traces {
-		fmt.Fprintf(os.Stdout, "- run_id: %s", trace.RunID)
+		fmt.Fprintf(call.stdout(), "- run_id: %s", trace.RunID)
 		if trace.Timestamp != "" {
-			fmt.Fprintf(os.Stdout, " timestamp: %s", trace.Timestamp)
+			fmt.Fprintf(call.stdout(), " timestamp: %s", trace.Timestamp)
 		}
 		if trace.LastStep != "" {
-			fmt.Fprintf(os.Stdout, " last_step: %s", trace.LastStep)
+			fmt.Fprintf(call.stdout(), " last_step: %s", trace.LastStep)
 		}
 		if trace.Error != "" {
-			fmt.Fprintf(os.Stdout, " error: %s", trace.Error)
+			fmt.Fprintf(call.stdout(), " error: %s", trace.Error)
 		}
-		fmt.Fprintln(os.Stdout)
+		fmt.Fprintln(call.stdout())
 	}
 	return 0
 }
 
-func runTraceGet(paths runtimePaths, args []string) int {
+func runTraceGet(call *verbCall, paths runtimePaths, args []string) int {
 	entityID, runID, jsonOut, err := parseTraceGetArgs(args)
 	if err != nil {
 		if errors.Is(err, errHelpShown) {
 			return 0
 		}
-		printErr("%s", err)
+		call.errorf("%s", err)
 		return 1
 	}
 	domain, ok := traceDomainFromEntityID(entityID)
 	if !ok {
-		printErr("trace get supports only automation.<id> or script.<id>")
+		call.errorf("trace get supports only automation.<id> or script.<id>")
 		return 1
 	}
 	out, err := loadTraceGet(paths, entityID, domain, runID)
@@ -213,28 +214,28 @@ func runTraceGet(paths runtimePaths, args []string) int {
 			Error:         err.Error(),
 		}
 		if jsonOut {
-			printTraceGetJSON(out)
+			printTraceGetJSON(call, out)
 		} else {
-			printErr("%s", err)
+			call.errorf("%s", err)
 		}
 		return 1
 	}
 	if jsonOut {
-		printTraceGetJSON(out)
+		printTraceGetJSON(call, out)
 		return 0
 	}
-	fmt.Fprintf(os.Stdout, "entity_id: %s\n", out.EntityID)
-	fmt.Fprintf(os.Stdout, "domain: %s\n", out.Domain)
-	fmt.Fprintf(os.Stdout, "unique_id: %s\n", out.UniqueID)
-	fmt.Fprintf(os.Stdout, "run_id: %s\n", out.RunID)
+	fmt.Fprintf(call.stdout(), "entity_id: %s\n", out.EntityID)
+	fmt.Fprintf(call.stdout(), "domain: %s\n", out.Domain)
+	fmt.Fprintf(call.stdout(), "unique_id: %s\n", out.UniqueID)
+	fmt.Fprintf(call.stdout(), "run_id: %s\n", out.RunID)
 	if out.Timestamp != "" {
-		fmt.Fprintf(os.Stdout, "timestamp: %s\n", out.Timestamp)
+		fmt.Fprintf(call.stdout(), "timestamp: %s\n", out.Timestamp)
 	}
 	if out.LastStep != "" {
-		fmt.Fprintf(os.Stdout, "last_step: %s\n", out.LastStep)
+		fmt.Fprintf(call.stdout(), "last_step: %s\n", out.LastStep)
 	}
 	if out.Error != "" {
-		fmt.Fprintf(os.Stdout, "error: %s\n", out.Error)
+		fmt.Fprintf(call.stdout(), "error: %s\n", out.Error)
 	}
 	return 0
 }
