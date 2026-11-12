@@ -91,7 +91,7 @@ describe("updates contract", () => {
     expect(updatesSkill).toContain("30+ minutes and a temporarily `unavailable` device are normal");
     // Batch order and readiness come from the advisor (Apps after the Core
     // they may need; update-advisor spec).
-    expect(updatesSkill).toContain("Order and readiness: run `advisor.md` before every install.");
+    expect(updatesSkill).toContain("1. First `ha-nova map --section updates`, even for one update (`advisor.md`). Feature Gate");
     // Breaking changes first for core.
     expect(updatesSkill).toContain("Surface breaking-changes sections first");
   });
@@ -163,8 +163,8 @@ describe("update advisor contract", () => {
   const advisor = readFileSync("skills/updates/advisor.md", "utf8");
 
   it("runs the read-only check before every install and never confirms", () => {
-    expect(updatesSkill).toContain("Before any install or update question: `advisor.md`.");
     expect(advisor).toContain("Run before every install, one update or a batch");
+    expect(updatesSkill).toContain("Asked whether they can update: `ha-nova map --section updates` (`advisor.md`) instead.");
     expect(advisor).toContain("`ha-nova map --section updates`");
     expect(advisor).toContain("Every install keeps its own preview, gates, and confirmation");
     expect(advisor).toContain("never a confirmation");
