@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // Lever 1 (HANO-58): a plan confirmed through the gate asks first, then
@@ -185,5 +186,47 @@ func TestGateAskFirstDriftAfterTheOKSaysItWasNotUsed(t *testing.T) {
 	if exit != verbExitDrift || env.Error == nil || env.Error.Code != "PLAN_DRIFT" || len(asks) != 1 || len(sends) != 0 ||
 		!strings.HasPrefix(env.Say, confirmT("en", "say.drift_after_ok")) || !strings.HasPrefix(env.Error.Next, "The user already confirmed the old preview") {
 		t.Fatalf("exit %d %+v say %q asks %d sends %+v", exit, env.Error, env.Say, len(asks), sends)
+	}
+}
+
+// A config write takes the same order: the ask first, then a recheck that
+// reads Home Assistant again before the one send.
+func TestGateAskFirstConfigWriteRechecksAfterTheAnswer(t *testing.T) {
+	f := batchHome()
+	var reads atomic.Int32
+	f.extra = func(string, map[string]any) (any, bool) {
+		reads.Add(1)
+		return nil, false
+	}
+	var atAsk, atSend int32 = -1, -1
+	g := &fakeGate{onWait: func() { atAsk = reads.Load() }}
+	g.hold = func(gateSend) any {
+		atSend = reads.Load()
+		return nil
+	}
+	h := gatedHarness(t, f, g)
+	id := h.writePlan("script", "s1", map[string]any{"alias": "Arrival", "sequence": []any{step("lock.unlock", "lock.front")}})
+	start := reads.Load()
+	exit, env := h.run(runApplyCommand, "--plan", id)
+	asks, _, sends := g.snapshot()
+	if exit != 0 || len(asks) != 1 || len(sends) != 1 {
+		t.Fatalf("exit %d %+v asks %q sends %+v", exit, env.Error, asks, sends)
+	}
+	if atAsk != start || atSend <= atAsk {
+		t.Fatalf("reads: start %d, at answer %d, at send %d; the ask comes first and a recheck before the send", start, atAsk, atSend)
+	}
+}
+
+// An expired plan is refused before the phone shows anything.
+func TestGateAskFirstExpiredPlanNeverAsks(t *testing.T) {
+	previous := verbNow
+	t.Cleanup(func() { verbNow = previous })
+	g := &fakeGate{}
+	h := gatedHarness(t, newFakeHA(), g)
+	plan := h.plan("lock.unlock", "lock.front").Plan
+	verbNow = func() time.Time { return previous().Add(planTTL + time.Minute) }
+	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
+	if asks, _, sends := g.snapshot(); exit != verbExitRefused || env.Error == nil || env.Error.Code != "PLAN_EXPIRED" || len(asks)+len(sends) != 0 {
+		t.Fatalf("exit %d %+v asks %q sends %+v", exit, env.Error, asks, sends)
 	}
 }
