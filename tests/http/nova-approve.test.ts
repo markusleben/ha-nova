@@ -315,7 +315,7 @@ describe("owner page: waiting asks and paused devices", () => {
     expect(await state(USER.id)).toEqual([403, "{}"]);
     const page = await call(createApprovePageHandler(t.deps), ADMIN.id);
     expect(page.body).toContain(`data-state="${JSON.parse(busy).state}"`);
-    expect(page.body.match(/<script>/g)).toHaveLength(1);
+    expect(page.body.match(/<script\b/gi)).toHaveLength(1);
     expect(page.body).toContain(`<script>${LIVE_SCRIPT}</script>`);
     expect(page.headers["content-security-policy"]).toContain(`script-src 'sha256-${createHash("sha256").update(LIVE_SCRIPT).digest("base64")}'`);
     expect(LIVE_CSP).not.toContain("unsafe");
