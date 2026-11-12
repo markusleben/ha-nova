@@ -6,7 +6,6 @@ import (
 	"errors"
 	"maps"
 	"math"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -27,8 +26,21 @@ const (
 	checkupMemoryHigh   = 90.0
 )
 
+// The Supervisor's resolution words (supervisor/resolution/const.py, main
+// and 2026.10 names); any other word is "other", never passed through.
 var (
-	checkupWord       = regexp.MustCompile(`^[a-z_]{1,64}$`)
+	checkupContexts  = []string{"addon", "core", "dns_server", "mount", "os", "plugin", "supervisor", "store", "system"}
+	checkupUnhealthy = []string{"data_filesystem_check_error", "docker", "docker_gateway_unprotected", "duplicate_os_installation", "oserror_bad_message",
+		"os_filesystem_check_error", "privileged", "setup", "supervisor", "untrusted"}
+	checkupIssueTypes = []string{"addon_port_conflict", "app_port_conflict", "boot_fail", "corrupt_docker", "corrupt_repository", "corrupt_filesystem",
+		"deprecated_addon", "deprecated_app", "deprecated_arch_addon", "deprecated_arch_app", "deprecated_tcp_api_request", "detached_addon_missing",
+		"detached_addon_removed", "detached_app_missing", "detached_app_removed", "device_access_missing", "disabled_data_disk", "disk_lifetime",
+		"dns_loop", "duplicate_os_installation", "dns_server_failed", "dns_server_ipv6_error", "docker_config", "docker_ratelimit", "fatal_error",
+		"free_space", "ipv4_connection_problem", "missing_image", "mount_failed", "multiple_data_disks", "no_current_backup", "ntp_sync_failed",
+		"pwned", "reboot_required", "rpi_firmware_update_blocked", "security", "systemd_unit_failed", "update_failed", "update_rollback"}
+)
+
+var (
 	checkupFolders    = []string{"share", "addons/local", "ssl", "media"}
 	checkupLocal      = []string{"backup.local", "hassio.local"}
 	errCheckupShape   = errors.New("unknown shape")
@@ -177,11 +189,11 @@ func (c *checkup) checkSystem() {
 		return
 	}
 	if len(*res.Unhealthy) > 0 {
-		c.find("SUPERVISOR_UNHEALTHY", "problem", "system", map[string]any{"reasons": checkupWords(*res.Unhealthy)})
+		c.find("SUPERVISOR_UNHEALTHY", "problem", "system", map[string]any{"reasons": checkupWords(checkupUnhealthy, *res.Unhealthy...)})
 	}
 	rows := []map[string]any{}
 	for _, issue := range *res.Issues {
-		row := map[string]any{"type": checkupWords([]string{issue.Type})[0], "context": checkupWords([]string{issue.Context})[0], "fix": "ui"}
+		row := map[string]any{"type": checkupWords(checkupIssueTypes, issue.Type)[0], "context": checkupWords(checkupContexts, issue.Context)[0], "fix": "ui"}
 		if name, ok := c.apps[issue.Reference]; ok && issue.Context == "addon" {
 			row["app"] = name
 		}
@@ -199,11 +211,11 @@ func (c *checkup) checkSystem() {
 	}
 }
 
-// checkupWords: plain enum words pass; anything else is "other".
-func checkupWords(words []string) []string {
+// checkupWords: the known words pass; anything else is "other".
+func checkupWords(known []string, words ...string) []string {
 	out := []string{}
 	for _, w := range words {
-		if checkupWord.MatchString(w) {
+		if slices.Contains(known, w) {
 			out = append(out, w)
 		} else {
 			out = append(out, "other")

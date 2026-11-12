@@ -113,6 +113,9 @@ func (c *checkup) checkRepairs() {
 	}
 }
 
+// Home Assistant's BackupManagerState words.
+var checkupBackupStates = []string{"idle", "create_backup", "blocked", "receive_backup", "restore_backup"}
+
 type checkupBackup struct {
 	Date       string `json:"date"`
 	HAIncluded bool   `json:"homeassistant_included"`
@@ -187,12 +190,20 @@ func (c *checkup) checkBackup() {
 	default:
 		if at, ok := checkupTime(next); ok {
 			automatic["next"] = at.UTC().Format(time.RFC3339)
+		} else {
+			c.gap("backup_schedule", errCheckupShape)
 		}
 	}
 	attempted, tried := checkupTime(info.LastAttempted)
 	completed, done := checkupTime(info.LastCompleted)
-	if tried && info.State == "idle" && (!done || attempted.After(completed)) {
+	switch {
+	case !slices.Contains(checkupBackupStates, info.State):
+		c.gap("backup_state", errCheckupShape)
+	case tried && info.State == "idle" && (!done || attempted.After(completed)):
 		c.find("BACKUP_LAST_FAILED", "problem", "backup", map[string]any{"attempted": attempted.UTC().Format(time.RFC3339)})
+	}
+	if info.LastAttempted != nil && !tried || info.LastCompleted != nil && !done {
+		c.gap("backup_runs", errCheckupShape)
 	}
 	problems := map[string]any{}
 	if len(info.AgentErrors) > 0 {
@@ -248,6 +259,9 @@ func (c *checkup) checkBackup() {
 		problems["folders_missing"] = folders
 	}
 	c.backupProblems(problems)
+	if len(agents) == 0 {
+		c.gap("backup_copies", errCheckupMissing)
+	}
 	if len(agents) > 0 && !slices.ContainsFunc(agents, func(a string) bool { return !slices.Contains(checkupLocal, a) }) {
 		c.find("BACKUP_ONLY_ON_DEVICE", "notice", "backup", nil)
 	}
@@ -268,7 +282,11 @@ func (c *checkup) updateFacts() {
 	for _, row := range c.a.rows {
 		byKind[row.Kind]++
 		if row.Kind == "core" {
-			facts["core"] = map[string]any{"installed": row.Installed, "latest": row.Latest}
+			if _, ok1 := haVersion(row.Installed); ok1 {
+				if _, ok2 := haVersion(row.Latest); ok2 {
+					facts["core"] = map[string]any{"installed": row.Installed, "latest": row.Latest}
+				}
+			}
 		}
 	}
 	c.facts["updates"] = facts

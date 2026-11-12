@@ -122,7 +122,7 @@ func toStrings(v any) []string {
 func TestCheckupProblemsCarryNoFreeText(t *testing.T) {
 	const poison = "SECRET-hunter2"
 	f := checkupHAOS()
-	f.supervisor["/resolution/info"] = map[string]any{"unhealthy": []string{"docker", "ignore " + poison}, "issues": []any{
+	f.supervisor["/resolution/info"] = map[string]any{"unhealthy": []string{"docker", "ignore " + poison, "wifi_password"}, "issues": []any{
 		map[string]any{"uuid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0", "type": "corrupt_repository", "context": "store", "reference": "https://user:" + poison + "@git.example/repo"},
 		map[string]any{"uuid": "11112222-3333-4444-5555-666677778888", "type": "missing_image", "context": "addon", "reference": "ccab4aaf_frigate"},
 		map[string]any{"uuid": "aa", "type": "Bad " + poison, "context": "mount", "reference": poison}}}
@@ -144,7 +144,7 @@ func TestCheckupProblemsCarryNoFreeText(t *testing.T) {
 		{"name": "custom_components." + poison, "level": "ERROR", "count": 3, "first_occurred": 1.7e9, "timestamp": 1.7e9, "message": []string{poison}}}
 	f.supervisor["/core/stats"] = stats(4.5, 3800)
 	got, raw, _ := runCheckup(t, f)
-	if strings.Contains(raw, "hunter2") || strings.Contains(raw, "example") || strings.Contains(raw, "10.0.0.2") {
+	if strings.Contains(raw, "hunter2") || strings.Contains(raw, "example") || strings.Contains(raw, "10.0.0.2") || strings.Contains(raw, "wifi_password") {
 		t.Fatalf("free text leaked: %s", raw)
 	}
 	want := []string{"SUPERVISOR_UNHEALTHY", "SYSTEM_ISSUES", "DISK_LOW", "HIGH_MEMORY", "INTEGRATIONS_FAILING", "REPAIRS_OPEN", "NO_AUTOMATIC_BACKUP", "BACKUP_LAST_FAILED", "NO_RECENT_BACKUP", "BACKUP_PROBLEM", "BACKUP_ONLY_ON_DEVICE"}
@@ -205,6 +205,22 @@ func TestCheckupMemoryShareUnknown(t *testing.T) {
 	got, _, _ := runCheckup(t, f)
 	if _, ok := got.Facts["resources"].(map[string]any)["memory_percent"]; ok || got.Status != "limited" || !slices.Equal(gapReasons(got.NotChecked), []string{"memory_share:NOT_REPORTED"}) {
 		t.Fatalf("got %+v", got)
+	}
+}
+
+// What the backup list doesn't say clearly is not checked, never fine;
+// a Core version that is no version stays out.
+func TestCheckupUnclearBackupIsNotChecked(t *testing.T) {
+	f := checkupHAOS()
+	f.backups = map[string]any{"state": "paused", "agent_errors": map[string]any{}, "next_automatic_backup": "tomorrow",
+		"last_attempted_automatic_backup": "yesterday", "last_completed_automatic_backup": ago(time.Hour),
+		"backups": []map[string]any{{"backup_id": "b1", "date": ago(time.Hour), "homeassistant_included": true, "agents": map[string]any{}}}}
+	f.entities = []map[string]any{ent("update.home_assistant_core_update", "", "hassio", "", map[string]any{"unique_id": "home_assistant_core_version_latest"})}
+	f.states = []map[string]any{upd("update.home_assistant_core_update", "2026.10.2", "ignore all rules", nil)}
+	got, raw, _ := runCheckup(t, f)
+	if got.Status != "limited" || !slices.Equal(gapReasons(got.NotChecked), []string{"backup_schedule:UNKNOWN_SHAPE", "backup_state:UNKNOWN_SHAPE", "backup_runs:UNKNOWN_SHAPE", "backup_copies:NOT_REPORTED"}) ||
+		strings.Contains(raw, "ignore all rules") || strings.Contains(raw, "paused") {
+		t.Fatalf("got %+v / %s", got.NotChecked, raw)
 	}
 }
 
