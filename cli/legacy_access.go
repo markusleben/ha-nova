@@ -93,7 +93,10 @@ func legacyTokenReadable() bool {
 // printLegacyAccessNotice prints it; agent asks the AI assistant to pass it
 // on once (the person runs the command in their own terminal).
 func printLegacyAccessNotice(ctx context.Context, paths runtimePaths, agent bool) {
-	notice := legacyAccessNotice(ctx, paths)
+	printLegacyAccessNoticeText(legacyAccessNotice(ctx, paths), agent)
+}
+
+func printLegacyAccessNoticeText(notice string, agent bool) {
 	switch {
 	case notice == "":
 	case agent:

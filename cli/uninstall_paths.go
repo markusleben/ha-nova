@@ -168,6 +168,7 @@ func managedCacheArtifactPaths(paths runtimePaths) []string {
 		filepath.Join(paths.CacheDir, updateNudgeMarkerName),
 		filepath.Join(paths.CacheDir, updateRefreshMarkerName),
 		filepath.Join(paths.CacheDir, "relay-outdated-warned"),
+		filepath.Join(paths.CacheDir, relayNoticeSilentMarkerName),
 		filepath.Join(paths.CacheDir, "automation-bp-snapshot.json"),
 		filepath.Join(paths.CacheDir, sessionBootstrapVerifiedMarker),
 		filepath.Join(paths.CacheDir, sessionBootstrapRepairPendingFile),
