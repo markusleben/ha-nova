@@ -5,7 +5,7 @@ Status: active
 Unreleased claims wait here until they ship (AGENTS.md, Releases: the README describes the stable release only). Each item moves into the README or the release notes only when it is in a stable release.
 
 - **Marketplace through HA NOVA (Home Assistant 2026.11+).** HA NOVA now installs, updates, and uninstalls Marketplace items, each after your own confirmation. With the NOVA App, if Home Assistant still needs its Marketplace risk notice accepted, HA NOVA first asks you, as a step of its own, to accept it for the App's Home Assistant user: the Supervisor system user, which every App with access to Home Assistant shares. Home Assistant offers no way to withdraw that. A standalone Relay can't do this step: sign in to Home Assistant as HA NOVA's user and accept it under Settings → Marketplace (#1099).
-- **Every Home Assistant administrator can use the NOVA page.** Not only the owner: any administrator can now open NOVA in the sidebar, make a code for their computer, revoke a computer, and approve. Turning chat apps on or off and their settings stay with the owner. (README: the "Waiting for your OK" line about other administrators finding a link changes with this.)
+- **Every Home Assistant administrator can use the NOVA page.** Not only the owner: any administrator can now open NOVA in the sidebar, make a code for their computer, revoke a computer, and approve. Turning chat apps on or off and their settings stay with the owner. (README at release prep: the "Waiting for your OK" line about other administrators finding a link, and the lines where only the owner makes the six-digit code or clicks Connect a device — today around lines 41, 148, and 156 — change with this.)
 
 ## Fixed in 0.31
 

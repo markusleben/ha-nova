@@ -67,7 +67,7 @@ func TestUnprovenSignInStopIsPlain(t *testing.T) {
 	want := strings.Join([]string{
 		"Home Assistant Link: Your sign-in on this computer didn't finish. HA NOVA can't tell if Home Assistant saved it, so it stopped.",
 		"Next, in Home Assistant:",
-		`1. As the owner, open the NOVA App page. If this computer is listed with a "cloud" tag, click Revoke next to it.`,
+		`1. As a Home Assistant administrator, open the NOVA App page. If this computer is listed with a "cloud" tag, click Revoke next to it.`,
 		`2. Each person who uses HA NOVA: open Profile > Security, and under "Refresh tokens", delete every entry that ends in "/ha-nova". This turns off Home Assistant Link on your other computers too. Their local connection keeps working.`,
 		"   If you don't find any, that's fine. Go to step 3.",
 		"3. Run: ha-nova cloud remove --server default --yes --confirm-remote-access-revoked default",
@@ -375,7 +375,7 @@ func TestCloudStopTextFindsTheStopProblem(t *testing.T) {
 		"",
 	)
 	text, ok := cloudAuthorizationStopText(errors.Join(other, errorsWrap("inspect", stop)))
-	if !ok || !strings.Contains(text, "1. As the owner") || !strings.Contains(text, "relay busy") {
+	if !ok || !strings.Contains(text, "1. As a Home Assistant administrator") || !strings.Contains(text, "relay busy") {
 		t.Fatalf("text:\n%s", text)
 	}
 }

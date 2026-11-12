@@ -45,7 +45,7 @@ func TestCloudRemoveMissingCurrentDeviceFailsBeforeOAuthAndKeepsProfile(
 	for _, expected := range []string{
 		"current Cloud device credential",
 		`server "cabin"`,
-		"Home Assistant Owner",
+		"Home Assistant administrator",
 		"NOVA",
 		"Devices",
 		"Revoke",

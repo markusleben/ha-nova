@@ -223,6 +223,10 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
         } else {
           restart = await applyAction(deps, action as NovaAction, form);
         }
+        // Who connected or revoked a computer: any administrator may, so the log names them.
+        if (ADMIN_ACTIONS.has(action)) {
+          deps.logger?.info?.("NOVA page action", { action, user_id: owner.userId, ...(deviceId ? { device_id: deviceId } : {}) });
+        }
       } catch (error) {
         // Do not leak internals, but tell the owner it failed via ?err=1 below
         // so a failed "Connect a device" is not a silent reload with no code —

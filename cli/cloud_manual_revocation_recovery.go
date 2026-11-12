@@ -134,7 +134,7 @@ func cloudAuthorizationRecoverySteps(profileName, client, haURL string) string {
 	panel, security := ownerStepLinks(haURL)
 	steps := []string{
 		"Next, in Home Assistant:",
-		"1. As the owner, open the NOVA App page. If this computer is listed with a \"cloud\" tag, click Revoke next to it.",
+		"1. As a Home Assistant administrator, open the NOVA App page. If this computer is listed with a \"cloud\" tag, click Revoke next to it.",
 	}
 	if panel != "" {
 		steps = append(steps, "   Open: "+panel)

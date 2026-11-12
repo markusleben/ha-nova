@@ -192,7 +192,7 @@ describe("setup page sign-in", () => {
       problem: { key: "setup.page.problem.not_owner", args: { name: "Anna" } } };
     const p = page(notOwner);
     await p.settle();
-    expect(p.screen.textContent).toContain("Anna isn't the owner of this Home Assistant. Only the owner can set up HA NOVA. Ask the owner to sign in here.");
+    expect(p.screen.textContent).toContain("Anna isn't the owner of this Home Assistant. Only the owner can sign in here. Any Home Assistant administrator can make a six-digit code instead: open NOVA, then Connect a device.");
     expect(p.find("b-signin")!.textContent).toBe(p.catalog["setup.page.button.owner"]);
     expect(p.screen.textContent).toContain(p.catalog["setup.page.found.owner_away"]);
     expect(p.find("b-terminal")!.className).toBe("linkish");

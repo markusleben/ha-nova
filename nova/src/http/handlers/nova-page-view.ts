@@ -5,7 +5,7 @@ import type { DeviceRecord } from "../../security/device-registry.js";
 import { chatPhoneLine, chatPhoneWaiting, renderChatPhone, renderChatPhoneError, type ChatPhoneAction, type ChatPhoneModel } from "./nova-page-chat-phone.js";
 import { renderChatActivity, renderChatUsers, renderToolsChanged, type ChatPhoneUser, type ChatUsersModel } from "./nova-page-chat-users.js";
 
-// Presentation layer of the NOVA owner console: page model, HTML/CSS rendering,
+// Presentation layer of the NOVA console: page model, HTML/CSS rendering,
 // the armed confirm section, and formatting helpers. The HTTP/action/CSRF
 // handling lives in nova-page.ts; this module never touches the request.
 

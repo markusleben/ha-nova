@@ -44,7 +44,8 @@ Why administrators may connect and revoke computers: a paired computer reaches H
 - Any administrator can revoke any computer, the owner's included. Home Assistant already lets them remove the App.
 - A computer an administrator connected keeps its access after that person loses the role; revoke it on the page (as with the owner's computers today).
 - `page.link` (the approval link on the old refusal) stays in the worker's text catalog unused; dropping it touches every language file and the CLI.
-- Two administrators share one open code at a time (the pairing manager holds one); the second "Connect a device" replaces the first code, as two clicks by the owner do today.
+- Two administrators share one open code at a time (the pairing manager holds one); the second "Connect a device" replaces the first code, as two clicks by the owner do today. The same holds for an owner's sign-in being set up at that moment: a code an administrator makes replaces it, and the owner's setup asks them to try again.
+- The CSRF store caps pending tokens per user, so an administrator's page (it refreshes every five seconds while a code is open) can't push the owner's tokens out.
 
 ## Tests
 

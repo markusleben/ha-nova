@@ -224,9 +224,9 @@ switch adds Local + Home Assistant Link. In the terminal, a first setup offers:
 
 Sign in to Link as the owner, and this computer connects with no code. Don't
 want the owner's login saved on this computer? Sign in to Link as a standard
-user instead. That only changes which login Link keeps here: the owner still
-connects this computer, with a code made on the NOVA page in a separate private
-browser window (setup calls it the "Owner session"). Either way, HA NOVA then
+user instead. That only changes which login Link keeps here: the owner, or any Home
+Assistant administrator, still connects this computer, with a code made on the
+NOVA page in a separate private browser window (setup calls it the "Owner session"). Either way, HA NOVA then
 works the same for anyone who uses this login on this computer.
 
 Your Link sign-in is saved only in this computer's password store, nowhere
