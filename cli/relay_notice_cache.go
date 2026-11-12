@@ -9,17 +9,20 @@ import (
 	"time"
 )
 
-// relayNoticeSilentMarkerName: when the quiet first-use App check last came
-// back with nothing to say, for this config and this HA NOVA version. Every
-// AI session starts with that check, and over Home Assistant Link it costs
-// several round trips (up to firstUseRelayNoticeTimeout): within the hour
-// the quiet check skips it, as the release check reuses its cache. A notice
-// is never remembered, so a pending App update or an App below the floor is
-// rechecked every session; a changed config, server, or version rechecks too.
+// relayNoticeSilentMarkerName: when the quiet first-use App check last got
+// its full answer (the App's version and its update entity) with nothing to
+// say, for this config and this HA NOVA version. Every AI session starts with
+// that check, and over Home Assistant Link it costs several round trips (up
+// to firstUseRelayNoticeTimeout): within the hour the quiet check skips it, as
+// the release check reuses its cache. A notice, and a check that failed or
+// timed out, is never remembered; a changed config, server, or version
+// rechecks.
 const relayNoticeSilentMarkerName = "relay-notice-silent"
 
 const relayNoticeSilentTTL = time.Hour
 
+// relayNoticeSilentKey is taken before the check, so a config rewritten while
+// it ran never inherits its result.
 func relayNoticeSilentKey(paths runtimePaths) string {
 	config, _ := os.ReadFile(paths.ConfigFile)
 	version, _ := os.ReadFile(paths.VersionFile)
@@ -32,21 +35,24 @@ func relayNoticeSilentKey(paths runtimePaths) string {
 	return hex.EncodeToString(sum.Sum(nil))
 }
 
-func relayNoticeSilentRecently(paths runtimePaths) bool {
+func relayNoticeSilentRecently(paths runtimePaths, key string) bool {
 	marker := filepath.Join(paths.CacheDir, relayNoticeSilentMarkerName)
 	info, err := os.Stat(marker)
-	if err != nil || time.Since(info.ModTime()) >= relayNoticeSilentTTL {
+	if err != nil {
+		return false
+	}
+	if age := time.Since(info.ModTime()); age < 0 || age >= relayNoticeSilentTTL {
 		return false
 	}
 	stored, err := os.ReadFile(marker)
-	return err == nil && strings.TrimSpace(string(stored)) == relayNoticeSilentKey(paths)
+	return err == nil && strings.TrimSpace(string(stored)) == key
 }
 
-func rememberRelayNoticeSilent(paths runtimePaths) {
+func rememberRelayNoticeSilent(paths runtimePaths, key string) {
 	mutateActiveInstallCache(paths, func() {
 		if err := os.MkdirAll(paths.CacheDir, 0o755); err != nil {
 			return
 		}
-		_ = os.WriteFile(filepath.Join(paths.CacheDir, relayNoticeSilentMarkerName), []byte(relayNoticeSilentKey(paths)+"\n"), 0o644)
+		_ = os.WriteFile(filepath.Join(paths.CacheDir, relayNoticeSilentMarkerName), []byte(key+"\n"), 0o644)
 	})
 }

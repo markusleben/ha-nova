@@ -77,29 +77,38 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 	// first-skill-use path must include this exact check too: relay response
 	// headers prove only the compatibility floor and cannot expose a compatible
 	// above-floor App update. Stderr-only, exit code unchanged; --json returned
-	// above and stays machine-clean. It runs while the release lookup does.
-	// The quiet path's one deadline covers the legacy-access notice too.
-	// Within the hour after a silent quiet check, the quiet check skips it
-	// (relay_notice_cache.go).
-	relayNotices := make(chan humanNotice, 1)
-	relayChecked := !*quiet || !relayNoticeSilentRecently(paths)
-	var noticeCtx context.Context
-	var cancelNotices context.CancelFunc
+	// above and stays machine-clean. It and the legacy-access probe run while
+	// the release lookup does; the quiet path's one deadline covers both.
+	// Within the hour after a quiet check that answered silently, the quiet
+	// check skips it (relay_notice_cache.go).
+	type relayCheck struct {
+		notice  humanNotice
+		checked bool
+	}
+	relayChecks, legacyNotices := make(chan relayCheck, 1), make(chan string, 1)
+	silentKey := relayNoticeSilentKey(paths)
 	client := httpClient
 	if *quiet {
-		noticeCtx, cancelNotices = context.WithTimeout(context.Background(), firstUseRelayNoticeTimeout)
+		noticeCtx, cancelNotices := context.WithTimeout(context.Background(), firstUseRelayNoticeTimeout)
 		defer cancelNotices()
-		if relayChecked {
-			go func() { relayNotices <- relayUpdateNoticeWithContext(noticeCtx, paths) }()
+		if relayNoticeSilentRecently(paths, silentKey) {
+			relayChecks <- relayCheck{}
 		} else {
-			relayNotices <- humanNotice{}
+			go func() {
+				notice, checked := checkedRelayUpdateNotice(noticeCtx, paths)
+				relayChecks <- relayCheck{notice, checked}
+			}()
 		}
+		go func() { legacyNotices <- legacyAccessNotice(noticeCtx, paths) }()
 		// The quiet check runs before a user's first task: a slow network
 		// must never hold that task up. On a timeout the cached release
 		// still answers; with no cache, quiet stays silent.
 		client = &http.Client{Transport: httpClient.Transport, CheckRedirect: httpClient.CheckRedirect, Timeout: quietUpdateCheckTimeout}
 	} else {
-		go func() { relayNotices <- relayUpdateNotice(paths) }()
+		legacyCtx, cancelLegacy := context.WithTimeout(context.Background(), legacyNoticeProbeTimeout)
+		defer cancelLegacy()
+		go func() { relayChecks <- relayCheck{notice: relayUpdateNotice(paths)} }()
+		go func() { legacyNotices <- legacyAccessNotice(legacyCtx, paths) }()
 	}
 	result := buildUpdateCheckResultWithClient(paths, client)
 
@@ -115,18 +124,14 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 	defer markSessionBootstrapLayoutVerified(paths)
 
 	notice := humanNoticeFromUpdateCheckResult(result, *quiet)
-	relayNotice := <-relayNotices
-	if *quiet && relayChecked && relayNotice.empty() {
-		rememberRelayNoticeSilent(paths)
+	relay := <-relayChecks
+	if *quiet && relay.checked && relay.notice.empty() {
+		rememberRelayNoticeSilent(paths, silentKey)
 	}
-	if !*quiet {
-		noticeCtx, cancelNotices = context.WithTimeout(context.Background(), legacyNoticeProbeTimeout)
-		defer cancelNotices()
-	}
-	notice, relayNotice = withAppUpdateToo(notice, relayNotice)
+	notice, relayNotice := withAppUpdateToo(notice, relay.notice)
 	printHumanNotice(notice)
 	printHumanNotice(relayNotice)
-	printLegacyAccessNotice(noticeCtx, paths, *quiet)
+	printLegacyAccessNoticeText(<-legacyNotices, *quiet)
 	if *quiet {
 		deadline := time.Now()
 		if migrationContended {

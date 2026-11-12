@@ -332,21 +332,30 @@ func relayUpdateNoticeWithTimeout(paths runtimePaths, timeout time.Duration) hum
 }
 
 func relayUpdateNoticeWithContext(ctx context.Context, paths runtimePaths) humanNotice {
+	notice, _ := checkedRelayUpdateNotice(ctx, paths)
+	return notice
+}
+
+// checkedRelayUpdateNotice also says whether the check got its answer: the
+// App's version and its one registry-proven update entity. An empty notice
+// without it is a check that failed, timed out, or found no App entity.
+func checkedRelayUpdateNotice(ctx context.Context, paths runtimePaths) (humanNotice, bool) {
 	cfg, err := loadConfig(paths)
 	if err != nil || cfg.RelayBaseURL == "" && !remoteOnlyCloudSetup(cfg) {
-		return humanNotice{}
+		return humanNotice{}, false
 	}
 	route, ok := relayNoticeTransport(ctx, cfg)
 	if !ok {
-		return humanNotice{}
+		return humanNotice{}, false
 	}
 	return relayUpdateNoticeOverRoute(ctx, paths, route)
 }
 
-func relayUpdateNoticeOverRoute(ctx context.Context, paths runtimePaths, route relayTransportSelection) humanNotice {
+func relayUpdateNoticeOverRoute(ctx context.Context, paths runtimePaths, route relayTransportSelection) (humanNotice, bool) {
 	base, client, credential := route.BaseURL, route.Client, route.Credential
 	floorNotice, running := humanNotice{}, ""
-	if body, healthErr := fetchRelayHealthWithContext(ctx, client, base, credential); healthErr == nil {
+	body, healthErr := fetchRelayHealthWithContext(ctx, client, base, credential)
+	if healthErr == nil {
 		floorNotice, running = checkRelayVersion(paths, body), parseRelayHealthVersion(body)
 	}
 	// Resolve the exact HA update entity even when the Relay is below the
@@ -355,28 +364,29 @@ func relayUpdateNoticeOverRoute(ctx context.Context, paths runtimePaths, route r
 	// relayCoreRequest resolves the actual transport itself; the credential
 	// only matters for the legacy path.
 	candidate, _ := resolveRelayUpdateCandidateWithTransport(ctx, base, client, credential)
+	checked := healthErr == nil && candidate.EntityID != ""
 	if !floorNotice.empty() {
 		if candidate.updateAvailable() { // the guided update checks the entity itself
 			return humanNotice{
 				level: humanNoticeNote, appUpdate: true, belowFloor: true,
 				kind:    humanNoticeKindRelayUpdateAvailable,
 				message: floorNotice.message,
-			}
+			}, checked
 		}
 		if candidate.EntityID != "" {
 			return humanNotice{
 				level: floorNotice.level, appCheck: true,
 				kind:    floorNotice.kind,
 				message: floorNotice.message + relayCheckForUpdatesLine,
-			}
+			}, checked
 		}
 		return humanNotice{
 			level:   floorNotice.level,
 			kind:    floorNotice.kind,
 			message: floorNotice.message + " " + relayContainerUpdateLine,
-		}
+		}, checked
 	}
-	return relayAvailableUpdateNoticeFromCandidate(candidate, running)
+	return relayAvailableUpdateNoticeFromCandidate(candidate, running), checked
 }
 
 // checkRelayVersionValue compares a bare relay version (from the /health body
