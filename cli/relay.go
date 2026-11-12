@@ -476,6 +476,17 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		if taskSucceeded { // as a raw plan does: a flow's form, or its end
 			relayFlowAnswered(paths, opts.Method, opts.Path, reply)
 		}
+		if handler, entryID, created := helperCreated(opts.Method, opts.Path, reply); taskSucceeded && created {
+			verification := verifyHelperCreate(paths, cfg, transport, handler, entryID)
+			if !verification.Passed {
+				printWarn("%s", verification.Problem)
+			}
+			if verified, err := withHelperVerification(bodyBytes, verification); err != nil { // the create stands: say it, keep its answer
+				printWarn("The helper was created, but HA NOVA could not add its check to the output: %v. Don't run the flow again.", err)
+			} else {
+				bodyBytes = redactRawResponse(endpoint, verified)
+			}
+		}
 	}
 
 	if compiledJQ != nil {

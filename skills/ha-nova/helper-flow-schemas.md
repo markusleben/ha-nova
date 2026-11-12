@@ -57,10 +57,7 @@ If enum semantics, required/optional behavior, or cross-field rules are uncertai
 - Delete mutation path:
   - `DELETE /api/config/config_entries/entry/{entry_id}`, only as a `ha-nova plan raw` item (`"endpoint":"core"`), then `ha-nova apply`
 - Verification source of truth:
-  - create success = `entry_id` from the terminal flow result confirmed in the after-read, or a constrained before/after `entry_id` diff if the flow result omits it
-  - the before/after fallback requires a pre-create `config_entries/get` baseline
-  - the before/after fallback passes only when exactly one new `entry_id` appeared and that new entry is consistent with the requested `domain` and `title`
-  - if the create diff is empty, plural, or metadata-inconsistent, fail loud as ambiguous create verification
+  - create success = `verification.passed` in the terminal submit's output: the CLI confirmed the terminal flow result's `entry_id` (built-in, `loaded`) in the after-read and, when it supports options, read them back; anything else is an unverified create, never re-run
   - update success = the same `entry_id` still exists in `config_entries/get` and a reopened options flow shows the requested changed fields in `description.suggested_value`
   - if a requested changed field is exposed in the verification step but lacks `description.suggested_value`, fail loud as unverifiable update on this HA version
   - delete success = entry absent in `config_entries/get`

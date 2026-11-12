@@ -136,6 +136,14 @@ func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Dur
 		}
 		return nil, errors.New(relayTransportErrorMessage(err))
 	}
+	s := relaySessionOn(paths, cfg, transport, ctx, cancel)
+	s.call = opts.call
+	return s, nil
+}
+
+// relaySessionOn: a session on a transport already selected (relay core's
+// helper-create verification uses the command's own).
+func relaySessionOn(paths runtimePaths, cfg runtimeConfig, transport relayTransportSelection, ctx context.Context, cancel context.CancelFunc) *relaySession {
 	return &relaySession{
 		paths:     paths,
 		cfg:       cfg,
@@ -145,8 +153,7 @@ func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Dur
 		cancel:    cancel,
 		slots:     make(chan struct{}, relaySessionMaxConcurrent),
 		memo:      map[string]*relayMemo{},
-		call:      opts.call,
-	}, nil
+	}
 }
 
 // close ends the session and drops the idle connections its reads kept.
