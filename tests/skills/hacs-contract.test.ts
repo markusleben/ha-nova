@@ -143,12 +143,22 @@ describe("hacs skill on Home Assistant 2026.11+ (Marketplace)", () => {
     }
   });
 
-  it("reads only the gate and the inventory, and hands every write to Home Assistant", () => {
+  it("plans only the typed lifecycle and hands every other write to Home Assistant", () => {
     const sent = [...marketplace.matchAll(/"type":"(marketplace\/[a-z_/]+)"/g)].map((m) => m[1]);
-    expect([...new Set(sent)].sort()).toEqual(["marketplace/info", "marketplace/repositories/list"]);
+    const lifecycle = ["marketplace/repository/install", "marketplace/repository/uninstall", "marketplace/warning/accept"];
+    expect([...new Set(sent)].sort()).toEqual(["marketplace/info", "marketplace/repositories/list", ...lifecycle]);
+    // Each lifecycle write is typed in the CLI, so a person confirms it.
+    const tiers = readFileSync("cli/plan_raw_tier.go", "utf8");
+    for (const type of lifecycle) {
+      expect(tiers).toMatch(new RegExp(`"${type}":\\s+"marketplace_`));
+    }
     expect(marketplace).toContain("always filter with `--jq-file`");
-    expect(marketplace).toContain("Everything else is not supported through HA NOVA yet");
-    expect(marketplace).toContain("no other `marketplace/*` command, no `update.install`, no `hacs/*` command");
+    expect(marketplace).toContain("no other `marketplace/*` command, no `hacs/*` command");
+    // The acceptance lasts and covers every App: asked for on its own, worded by the CLI.
+    for (const rule of ["ask first whether HA NOVA may accept the notice for its own user, as a separate step", "ALWAYS a plan of its own", "show its `say` verbatim", "Never plan it unasked or bundled", "only `true` counts"]) {
+      expect(marketplace).toContain(rule);
+    }
+    expect(marketplace).toContain("offered as its own confirmed step (`ha-nova:service-call`, `homeassistant.restart`)");
     for (const step of ["Settings > Marketplace > the repository > Install", "Install another version", "Settings > Updates", "> Uninstall", "Add from link"]) {
       expect(marketplace).toContain(step);
     }
@@ -163,14 +173,15 @@ describe("hacs skill on Home Assistant 2026.11+ (Marketplace)", () => {
     }
   });
 
-  it("keeps Marketplace update entities out of updates installs and routes the Marketplace here", () => {
+  it("installs Marketplace updates once accepted and routes the acceptance here", () => {
     const updates = flat(readFileSync("skills/updates/SKILL.md", "utf8"));
     expect(updates).toContain("`platform: hacs` or `marketplace` = integrations");
+    expect(updates).toContain("`platform: marketplace` (Home Assistant 2026.11+): installs only the latest; restart as for HACS below.");
+    // The CLI's refusal speaks for itself: its say is relayed, not reworded,
+    // and the acceptance is offered only when that say offers it.
     expect(updates).toContain(
-      "`platform: marketplace` (Home Assistant 2026.11+): installs through HA NOVA aren't supported yet — never plan one, single or batched",
+      "Relay a `MARKETPLACE_WARNING` refusal's `say` verbatim; only when it offers the acceptance and the user wants it, hand that step to `ha-nova:hacs` (Marketplace mode), then plan the install again.",
     );
-    // The CLI's refusal speaks for itself: its say is relayed, not reworded.
-    expect(updates).toContain("point to Settings > Marketplace, and relay a `MARKETPLACE_WARNING` refusal's `say` verbatim");
     expect(readFileSync("cli/marketplace_update.go", "utf8")).toContain('const reasonMarketplaceWarning = "MARKETPLACE_WARNING"');
     expect(flat(readFileSync("skills/fallback/SKILL.md", "utf8"))).toContain("never probe `marketplace/*` here");
     expect(readFileSync("skills/ha-nova/SKILL.md", "utf8")).toContain("the Marketplace (HACS since Home Assistant 2026.11) | `ha-nova:hacs` |");

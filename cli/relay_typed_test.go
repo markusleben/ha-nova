@@ -13,6 +13,10 @@ import (
 func TestRelayRefusesWhatAPlanTypes(t *testing.T) {
 	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
 		"config/device_registry/list": func(map[string]any) any { return []any{map[string]any{"id": "demo"}} },
+		"auth/current_user":           func(map[string]any) any { return map[string]any{"id": "u-sup"} }, // the Marketplace warning is accepted for the Supervisor only
+		"config/auth/list": func(map[string]any) any {
+			return []any{map[string]any{"id": "u-sup", "name": "Supervisor", "system_generated": true}}
+		},
 	})
 	s, err := newRelaySession(paths, verbOptions{})
 	if err != nil {
@@ -48,6 +52,9 @@ func TestRelayRefusesWhatAPlanTypes(t *testing.T) {
 		payload := map[string]any{"type": wsType}
 		if wsType == "config/device_registry/remove" {
 			payload["device_id"] = "demo"
+		}
+		if strings.HasPrefix(wsType, "marketplace/repository/") {
+			payload["repository"] = "123"
 		}
 		body, _ := json.Marshal(payload)
 		check("ws", payload, "ws", "--data", string(body))

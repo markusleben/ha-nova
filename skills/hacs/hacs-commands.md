@@ -193,7 +193,7 @@ cannot be installed again, and every `hacs/*` command answers
 `{"type":"marketplace/info"}` → `categories` (`integration`, `plugin`, `theme`,
 `template`), `disabled_reason`, `github_connected`, `has_pending_tasks`,
 `lovelace_mode`, `stage`, `startup`, `version` (Home Assistant's),
-`warning_accepted` (for the Relay's own user only). A set `disabled_reason` →
+`warning_accepted` (for HA NOVA's own user only). A set `disabled_reason` →
 the Marketplace is not operational (inventory reads may still answer): say so
 with its next step — `rate_limit`: GitHub's request limit; wait for it to
 reset, or connect GitHub for a higher limit; `invalid_token`: reconnect GitHub
@@ -209,24 +209,49 @@ Rows carry `id`, `name`, `full_name`,
 `domain`. Answer inventory questions from it with the List Frame and lifecycle
 wording of SKILL.md → Inventory; a `pending_upgrade` row names the waiting version.
 
-Everything else is not supported through HA NOVA yet: install, update,
-redownload, another version, prereleases, uninstall, custom repositories, and
-migrations. Say so plainly and send nothing beyond the two reads above — no
-other `marketplace/*` command, no `update.install`, no `hacs/*` command, no
-file or `.storage` edit — then give the user the steps in Home Assistant. The
-first time each admin opens Settings > Marketplace it shows a risk notice;
-their installs and updates (Settings > Updates too) fail until they accept it.
-- install: look the repository up in the catalog list first; listed →
-  Settings > Marketplace > the repository > Install; not listed → a custom
-  repository (below)
+HA NOVA installs and uninstalls catalog repositories and accepts the
+Marketplace's risk notice for its own user, each only as a plan the user
+confirms (`ha-nova plan raw --file <requests.json>`, one item
+`{"endpoint":"ws","payload":<the command>}` each, then `ha-nova apply`).
+Send nothing else: no other `marketplace/*` command, no `hacs/*` command, no
+file or `.storage` edit. The first time each admin opens Settings >
+Marketplace it shows a risk notice; their installs and updates (Settings >
+Updates too) fail until they accept it, and so do HA NOVA's.
+- `{"type":"marketplace/warning/accept"}` — only when `marketplace/info`
+  says `warning_accepted` is `false` and the user wants an install or update:
+  ask first whether HA NOVA may accept the notice for its own user, as a
+  separate step. ALWAYS a plan of its own (one with anything else is
+  refused); show its `say` verbatim — it names HA NOVA's user, the Supervisor
+  system user every App shares, and that Home Assistant can't withdraw it.
+  Never plan it unasked or bundled. A refusal because HA NOVA uses a person's
+  account: that person signs in and accepts it in Settings > Marketplace.
+  After apply, read `marketplace/info` again; only `true` counts.
+- `{"type":"marketplace/repository/install","repository":"<id>"}` — installs
+  the newest version of a catalog row (`id` from
+  `marketplace/repositories/list`, never guessed). Preview: `full_name`,
+  `category`, `domain`, `available_version`. An update of an installed
+  repository goes through its update entity (`ha-nova:updates`).
+- `{"type":"marketplace/repository/uninstall","repository":"<id>"}` — after
+  the consumer discovery of SKILL.md → Uninstall. Home Assistant refuses it
+  while an integration is still set up (`repository_in_use`): remove its
+  setup first, as its own confirmed step.
+After apply, read the row back: `installed` and `status`; an integration at
+`pending-restart` loads only after a Home Assistant restart, offered as its
+own confirmed step (`ha-nova:service-call`, `homeassistant.restart`); a card
+or theme needs a browser reload. An install error `replaces_built_in` means
+the repository replaces an integration built into Home Assistant: only its
+Install dialog does that.
+
+The rest stays in Home Assistant: give the user the steps and send nothing.
+- install or uninstall by hand: Settings > Marketplace > the repository >
+  Install, or its ⋮ > Uninstall (an integration that is still set up: remove
+  its setup first, or pick Delete and uninstall, which also deletes its
+  devices and entities)
 - another version: the repository page > ⋮ > Install another version (not
   for going back after an update: Home Assistant advises restoring a backup
   from before it)
-- update: Settings > Updates; an updated integration needs a restart, which
-  a repair under Settings > System > Repairs offers
-- uninstall: the repository page > ⋮ > Uninstall (an integration that is
-  still set up: remove its setup first, or pick Delete and uninstall, which
-  also deletes its devices and entities)
+- update by hand: Settings > Updates; an updated integration needs a restart,
+  which a repair under Settings > System > Repairs offers
 - custom repository: Settings > Marketplace > Add from link (needs a GitHub
   connection); remove one there under Added from links
 - prereleases: the repository's Pre-release switch on its device under

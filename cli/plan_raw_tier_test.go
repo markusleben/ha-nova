@@ -19,11 +19,16 @@ func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
 		"backups list":                func(map[string]any) any { return []any{map[string]any{"file": "scenes/a.json.gz"}} },
 		"config/device_registry/list": func(map[string]any) any { return []any{map[string]any{"id": "demo", "name": "Demo"}} },
 		"files read_file":             func(map[string]any) any { return fakeRelayFailure{"FILE_NOT_FOUND", "not found"} }, // a new file needs no copy (fileKept)
+		"auth/current_user":           func(map[string]any) any { return map[string]any{"id": "u-sup"} },                   // the Marketplace warning is accepted for the Supervisor only
+		"config/auth/list": func(map[string]any) any {
+			return []any{map[string]any{"id": "u-sup", "name": "Supervisor", "system_generated": true}}
+		},
 	})
 	c := startMCP(t, paths)
 	mcpInit(c)
 	wantTyped := []string{"config/entity_registry/remove", "config/device_registry/remove", "lovelace/resources/create", "lovelace/resources/update", "lovelace/resources/delete",
 		"recorder/clear_statistics", "backup/delete", "hacs/repositories/remove", "hacs/repository/download", "hacs/repository/remove",
+		"marketplace/warning/accept", "marketplace/repository/install", "marketplace/repository/uninstall",
 		"config/auth/create", "config/auth/delete", "assist_pipeline/pipeline/delete", "calendar/event/delete", "blueprint/delete", "config_entries/subentries/delete", "labs/update", "recorder/import_statistics",
 		"person/update"} // a bare update empties an unknown person's trackers (personFollows)
 	for _, collection := range rawWSCollections {
@@ -40,6 +45,9 @@ func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
 		}
 		if wsType == "subscribe_events" {
 			payload["event_type"] = "state_changed"
+		}
+		if strings.HasPrefix(wsType, "marketplace/repository/") {
+			payload["repository"] = "123"
 		}
 		body, _ := json.Marshal(payload)
 		exit, env := plan("ws", payload)

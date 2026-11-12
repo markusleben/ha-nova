@@ -269,6 +269,8 @@ func checkRawWS(message map[string]any) error {
 				return rawRefusal("dashboard resource from "+strconv.Quote(u), "only /hacsfiles/… and /local/… resources are added from here; add another URL in the Home Assistant UI (Settings > Dashboards > Resources)")
 			}
 		}
+	case "marketplace/warning/accept", "marketplace/repository/install", "marketplace/repository/uninstall":
+		return checkRawMarketplace(wsType, message)
 	case "blueprint/save":
 		if message["allow_override"] == true {
 			return rawRefusal("blueprint override (it changes every automation that uses it)", rawNextUI)
