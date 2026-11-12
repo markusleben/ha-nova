@@ -59,6 +59,10 @@ func rawListened(endpoint string, payload map[string]any) func(e *tierEngine) []
 	if endpoint != "ws" {
 		return nil
 	}
+	_, floored := payload["floor_id"]
+	if _, labeled := payload["labels"]; wsType == "config/area_registry/update" && (floored || labeled) {
+		return func(*tierEngine) []string { return nil } // a place carry (rawCarry)
+	}
 	if keep, listed := rawStateless[wsType]; listed {
 		changes := false
 		for key := range payload {

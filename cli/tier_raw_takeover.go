@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strings"
 )
 
 // Raw writes the skills marked typed and the CLI now rates itself
@@ -29,13 +30,24 @@ func (e *tierEngine) rawTakeover(endpoint string, payload map[string]any) {
 		return
 	}
 	automations, scripts := related["automation"], related["script"]
-	for _, holder := range append(slices.Clone(related["group"]), related["person"]...) {
+	holders, seen := append(slices.Clone(related["group"]), related["person"]...), map[string]bool{id: true}
+	for len(holders) > 0 { // a group in a group, or a person through a group, holds it too
+		holder := holders[0]
+		if holders = holders[1:]; seen[holder] {
+			continue
+		}
+		seen[holder] = true
+		if e.reads++; e.reads > tierMaxConsumers {
+			e.gap(reasonLimitCut, "", "", fmt.Sprintf("more than %d consumer configs", tierMaxConsumers))
+			return
+		}
 		up, err := e.related("entity", holder)
 		if err != nil {
 			e.readFailed(holder, "", "related")
 			return
 		}
 		automations, scripts = append(automations, up["automation"]...), append(scripts, up["script"]...)
+		holders = append(append(holders, up["group"]...), up["person"]...)
 	}
 	sort.Strings(automations)
 	for _, automation := range slices.Compact(automations) {
@@ -55,51 +67,122 @@ func (e *tierEngine) rawTakeover(endpoint string, payload map[string]any) {
 	}
 }
 
-// rawCarry walks the automations whose triggers target a place an entity or
-// device registry update moves it to: the new area (an entity's cleared area
-// is its device's), that area's floor and labels, and the labels it sets.
+// rawCarry walks the automations whose triggers target a place a registry
+// update newly puts something in: for an entity or device, the area it lands
+// in (an empty own area is its device's, then its parent device's), that
+// area's floor and labels, and its labels; for an area, its floor and
+// labels. A place it is already in widens nothing; one it can't tell is
+// walked.
 func (e *tierEngine) rawCarry(endpoint string, payload map[string]any) {
 	wsType, _ := payload["type"].(string)
-	area, moves := payload["area_id"]
-	labels, labeled := payload["labels"].([]any)
-	if endpoint != "ws" || wsType != "config/entity_registry/update" && wsType != "config/device_registry/update" || !moves && !labeled {
+	_, moves := payload["area_id"]
+	_, labeled := payload["labels"]
+	_, floored := payload["floor_id"]
+	text := func(v any) string { s, _ := v.(string); return s }
+	texts := func(v any) []string {
+		var out []string
+		list, _ := v.([]any)
+		for _, item := range list {
+			if s, ok := item.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	var subject string
+	switch {
+	case endpoint != "ws":
+		return
+	case wsType == "config/entity_registry/update" && (moves || labeled):
+		subject = rawEntityID(payload["entity_id"])
+	case wsType == "config/device_registry/update" && (moves || labeled):
+		subject = text(payload["device_id"])
+	case wsType == "config/area_registry/update" && (floored || labeled):
+		subject = text(payload["area_id"])
+	default:
 		return
 	}
-	subject, _ := payload["device_id"].(string)
-	if wsType == "config/entity_registry/update" {
-		subject = rawEntityID(payload["entity_id"])
+	areas, devices := e.placeRows("area"), e.placeRows("device")
+	if areas == nil || devices == nil {
+		e.readFailed(subject, "", "registry")
+		return
+	}
+	in := func(area string, labels []string) map[[2]string]bool { // the places something there is in
+		places := map[[2]string]bool{}
+		if area != "" {
+			places[[2]string{"area", area}] = true
+			if floor := areas[area].FloorID; floor != "" {
+				places[[2]string{"floor", floor}] = true
+			}
+			for _, label := range areas[area].Labels {
+				places[[2]string{"label", label}] = true
+			}
+		}
+		for _, label := range labels {
+			places[[2]string{"label", label}] = true
+		}
+		return places
+	}
+	inherited := func(device string) string {
+		for seen := map[string]bool{}; device != "" && !seen[device]; device = e.deviceGraph().parent[device] {
+			if seen[device] = true; devices[device].AreaID != "" {
+				return devices[device].AreaID
+			}
+		}
+		return ""
+	}
+	var before, after map[[2]string]bool
+	switch wsType {
+	case "config/area_registry/update":
+		now := areas[subject]
+		floor, labels := now.FloorID, now.Labels
+		if floored {
+			floor = text(payload["floor_id"])
+		}
+		if labeled {
+			labels = texts(payload["labels"])
+		}
+		before, after = in("", now.Labels), in("", labels)
+		if now.FloorID != "" {
+			before[[2]string{"floor", now.FloorID}] = true
+		}
+		if floor != "" {
+			after[[2]string{"floor", floor}] = true
+		}
+	default:
+		own, labels, up, known := "", []string(nil), "", false
+		if wsType == "config/entity_registry/update" {
+			row, listed := e.reg[subject]
+			own, labels, up, known = row.ai, row.lb, e.deviceOf(subject), listed
+		} else {
+			row, listed := devices[subject]
+			own, labels, up, known = row.AreaID, row.Labels, e.deviceGraph().parent[subject], listed
+		}
+		if known { // a disabled entity, which the compact registry leaves out, is walked in full
+			lands := own
+			if lands == "" {
+				lands = inherited(up)
+			}
+			before = in(lands, labels)
+		}
+		if moves {
+			own = text(payload["area_id"])
+		}
+		if labeled {
+			labels = texts(payload["labels"])
+		}
+		if own == "" {
+			own = inherited(up)
+		}
+		after = in(own, labels)
 	}
 	var places [][2]string
-	to, _ := area.(string)
-	if moves && area == nil && wsType == "config/entity_registry/update" { // it sits where its device does
-		devices := e.placeRows("device")
-		if devices == nil {
-			e.readFailed(subject, "", "registry")
-			return
-		}
-		for cur, seen := e.deviceOf(subject), map[string]bool{}; to == "" && cur != "" && !seen[cur]; cur = e.deviceGraph().parent[cur] {
-			seen[cur], to = true, devices[cur].AreaID
+	for place := range after {
+		if !before[place] {
+			places = append(places, place)
 		}
 	}
-	if to != "" {
-		areas := e.placeRows("area")
-		if areas == nil {
-			e.readFailed(subject, "", "registry")
-			return
-		}
-		places = append(places, [2]string{"area", to})
-		if floor := areas[to].FloorID; floor != "" {
-			places = append(places, [2]string{"floor", floor})
-		}
-		for _, label := range areas[to].Labels {
-			places = append(places, [2]string{"label", label})
-		}
-	}
-	for _, label := range labels {
-		if text, ok := label.(string); ok {
-			places = append(places, [2]string{"label", text})
-		}
-	}
+	slices.SortFunc(places, func(a, b [2]string) int { return strings.Compare(a[0]+" "+a[1], b[0]+" "+b[1]) })
 	var automations []string
 	for _, place := range places {
 		related, err := e.related(place[0], place[1])

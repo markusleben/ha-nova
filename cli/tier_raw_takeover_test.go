@@ -72,9 +72,55 @@ func TestRawTypedParity(t *testing.T) {
 			func(f *fakeHA) {
 				porch(f)
 				f.devices = append(f.devices, map[string]any{"id": "dmotion", "area_id": "porch"})
+				for _, row := range f.compact {
+					if row["ei"] == "binary_sensor.motion" {
+						row["ai"] = "hall" // its own area until now
+					}
+				}
 				f.automation("opener", "opener", map[string]any{"triggers": []any{map[string]any{"trigger": "binary_sensor.turned_on", "target": map[string]any{"area_id": "porch"}}}, "actions": unlocks})
 				f.related["area-automation:porch"] = []string{"automation.opener"}
 			}, nil},
+		{"a child device's cleared area: it sits where its parent does", `{"type":"config/device_registry/update","device_id":"dchild","area_id":null}`,
+			func(f *fakeHA) {
+				porch(f)
+				f.devices = []map[string]any{{"id": "dhub", "area_id": "porch"}, {"id": "dchild", "parent_device_id": "dhub", "area_id": "hall"}}
+				f.automation("opener", "opener", map[string]any{"triggers": []any{map[string]any{"trigger": "binary_sensor.turned_on", "target": map[string]any{"area_id": "porch"}}}, "actions": unlocks})
+				f.related["area-automation:porch"] = []string{"automation.opener"}
+			},
+			func(f *fakeHA) { // it already sits there
+				porch(f)
+				f.devices = []map[string]any{{"id": "dhub", "area_id": "porch"}, {"id": "dchild", "parent_device_id": "dhub"}}
+				f.automation("opener", "opener", map[string]any{"triggers": []any{map[string]any{"trigger": "binary_sensor.turned_on", "target": map[string]any{"area_id": "porch"}}}, "actions": unlocks})
+				f.related["area-automation:porch"] = []string{"automation.opener"}
+			}},
+		{"a takeover rename onto an id a group in a group holds", `{"type":"config/entity_registry/update","entity_id":"binary_sensor.side_door","new_entity_id":"binary_sensor.porch"}`,
+			func(f *fakeHA) {
+				f.automation("opener", "opener", map[string]any{"triggers": []any{map[string]any{"trigger": "state", "entity_id": "group.house", "to": "on"}}, "actions": unlocks})
+				f.relatedGroups = map[string][]string{"binary_sensor.porch": {"group.doors"}, "group.doors": {"group.house"}}
+				f.related["entity:group.house"] = []string{"automation.opener"}
+			}, nil},
+		{"an area put on a floor a trigger targets", `{"type":"config/area_registry/update","area_id":"porch","floor_id":"ground"}`,
+			func(f *fakeHA) {
+				f.areas = []map[string]any{{"area_id": "porch"}}
+				f.automation("opener", "opener", map[string]any{"triggers": []any{map[string]any{"trigger": "binary_sensor.turned_on", "target": map[string]any{"floor_id": "ground"}}}, "actions": unlocks})
+				f.related["floor:ground"] = []string{"automation.opener"}
+			},
+			func(f *fakeHA) { // already on it
+				porch(f)
+				f.automation("opener", "opener", map[string]any{"triggers": []any{map[string]any{"trigger": "binary_sensor.turned_on", "target": map[string]any{"floor_id": "ground"}}}, "actions": unlocks})
+				f.related["floor:ground"] = []string{"automation.opener"}
+			}},
+		{"a label added beside one it already has", `{"type":"config/device_registry/update","device_id":"dmotion","labels":["ring","favorite"]}`,
+			func(f *fakeHA) {
+				f.devices = append(f.devices, map[string]any{"id": "dmotion", "labels": []any{"favorite"}})
+				f.automation("opener", "opener", map[string]any{"triggers": []any{map[string]any{"trigger": "binary_sensor.turned_on", "target": map[string]any{"label_id": "ring"}}}, "actions": unlocks})
+				f.related["label:ring"] = []string{"automation.opener"}
+			},
+			func(f *fakeHA) { // the label the trigger targets is already there
+				f.devices = append(f.devices, map[string]any{"id": "dmotion", "labels": []any{"ring"}})
+				f.automation("opener", "opener", map[string]any{"triggers": []any{map[string]any{"trigger": "binary_sensor.turned_on", "target": map[string]any{"label_id": "ring"}}}, "actions": unlocks})
+				f.related["label:ring"] = []string{"automation.opener"}
+			}},
 	} {
 		for _, typed := range []bool{true, false} {
 			f := listeningHome()

@@ -114,7 +114,7 @@ Current mapping:
 | device | inline + CLI | `get --references` scans; `plan write` + `apply` re-point; every other family hands off to its owner |
 | migrate | inline + CLI | the agent reads the export; `find`/`get` map; `plan write`/`plan call` + `apply` in one group per source rule; helpers and YAML hand off |
 | history | inline | read-only bounded timeline lookups |
-| health | inline | status aggregation, best-effort diagnostics; previewed repair ignore/fix, typed when removing configuration |
+| health | inline | status aggregation, best-effort diagnostics; previewed repair ignore; a repair fix is typed at its start and each step |
 | home-map | inline + CLI | `ha-nova map` computes every count; the skill renders and hands fixes to owning skills |
 | calendar | inline | bounded REST reads plus feature-gated service/WS event writes |
 | todo | inline | service-based item CRUD with feature gate, single-step list flow |

@@ -241,6 +241,9 @@ func computeRoomsPlan(s *relaySession, env *verbEnvelope, req roomsRequest) (*ti
 	}
 	e := newTierEngine(s)
 	e.raise(tierPreview, tierReason{Code: reasonAreaAssign, Via: roomsUndoDomain})
+	for _, it := range req.Items { // a room whose triggers set off an unlock asks first, as the same raw write does
+		e.rawListeners("ws", deviceAreaPayload(it.DeviceID, it.To))
+	}
 	plan := storedPlan{Kind: "rooms", RoomsRequest: &req, Basis: map[string]any{"names": names, "areas": areaNames, "effective": effective}}
 	plan, err = sealPlan(e, env, plan, req)
 	lang := textLang(plan)
@@ -273,12 +276,17 @@ func roomsSay(lang string, changes []roomsChange, undo bool) string {
 }
 
 func deviceAreaWrite(s *relaySession, device, area string) error {
+	_, err := s.write("ws", deviceAreaPayload(device, area))
+	return err
+}
+
+// deviceAreaPayload: the write that puts a device in an area ("": none).
+func deviceAreaPayload(device, area string) map[string]any {
 	payload := map[string]any{"type": deviceAreaRequest, "device_id": device, "area_id": nil}
 	if area != "" {
 		payload["area_id"] = area
 	}
-	_, err := s.write("ws", payload)
-	return err
+	return payload
 }
 
 // executeRooms writes the items in order. A failed write rolls back every

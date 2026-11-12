@@ -113,9 +113,9 @@ Raw `ha-nova relay ws` sends only the types on `cli/relay_raw_allow.go` (raw `re
 | `/core` | `GET /api/config/config_entries/options/flow/{flow_id}` | Read current options-flow step |
 | `/core` | `POST /api/config/config_entries/options/flow/{flow_id}` | Submit options-flow step |
 | `/core` | `DELETE /api/config/config_entries/options/flow/{flow_id}` | Cancel an unfinished options flow |
-| `/core` | `POST /api/config/config_entries/subentries/flow` | Start add (`handler: [entry_id, subentry_type]`) or reconfigure (also `subentry_id`); preview raw plan; an access-capable parent entry is refused |
+| `/core` | `POST /api/config/config_entries/subentries/flow` | Start add (`handler: [entry_id, subentry_type]`) or reconfigure (also `subentry_id`); an add is a preview raw plan, a reconfigure typed; an access-capable parent entry is refused |
 | `/core` | `GET /api/config/config_entries/subentries/flow/{flow_id}` | Continue subentry flow; plan-only, can finish it |
-| `/core` | `POST /api/config/config_entries/subentries/flow/{flow_id}` | Submit live subentry step; preview, typed if removing configuration |
+| `/core` | `POST /api/config/config_entries/subentries/flow/{flow_id}` | Submit live subentry step; typed (the integration decides what it changes) |
 | `/core` | `DELETE /api/config/config_entries/subentries/flow/{flow_id}` | Cancel an unfinished subentry flow; preview |
 | `/core` | `DELETE /api/config/config_entries/entry/{entry_id}` | Delete config entry; integration-setup, typed raw plan with owned device/entity counts and consumers |
 

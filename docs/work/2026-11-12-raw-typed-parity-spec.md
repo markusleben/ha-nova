@@ -23,8 +23,8 @@ Every place a skill sets the mark (`grep -rn typed skills`):
 
 ## Change
 
-1. **Takeover** (`rawTakeover`). `config/entity_registry/update` that sets `new_entity_id`: `search/related` for the new id (Home Assistant 2026.11 `search` lists automations, scripts, groups, and persons that name an id whether or not an entity holds it), and for each group or person it lists, theirs. Every automation listed is walked as a consumer whatever its triggers (`consumer`, `tierMaxConsumers`), every script as a run (`expandRun`, counted against the same budget); a typed reach makes the write typed, a failed read or the budget cut is typed.
-2. **Place carry** (`rawCarry`). An entity or device registry update that sets `area_id` or `labels`: the destination places are the new area (an entity whose area is cleared sits where its device, or its parent, does), that area's floor and labels, and the labels it sets. Every automation `search/related` lists there whose triggers target one of them (`targetsPlace`, MAR-142) is walked as a consumer. `rawListened` now answers a place-only update (no ids), so `ha-nova relay` and the gate run this live scan too; before, `rawStateless` skipped it on every route.
+1. **Takeover** (`rawTakeover`). `config/entity_registry/update` that sets `new_entity_id`: `search/related` for the new id (Home Assistant 2026.11 `search` lists automations, scripts, groups, and persons that name an id whether or not an entity holds it), and for each group or person it lists, theirs, following a group in a group (each holder read once, counted against the budget). Every automation listed is walked as a consumer whatever its triggers (`consumer`, `tierMaxConsumers`), every script as a run (`expandRun`, counted against the same budget); a typed reach makes the write typed, a failed read or the budget cut is typed.
+2. **Place carry** (`rawCarry`). An entity or device registry update that sets `area_id` or `labels`, or an area registry update that sets `floor_id` or `labels`: the places it newly sits in, after minus before. After: the new area (an entity or device whose own area is cleared sits where its device or parent device does), that area's floor and labels, the labels it carries; for an area, its floor and labels. Before: the same from the live registries; an entity the compact registry leaves out (disabled) counts as in no place, so all of after is walked. A rooms plan (`computeRoomsPlan`) rates each device move with the same walk; a typed one asks once through the Relay for every move (`gateFirstRequests`), like a batch. Every automation `search/related` lists there whose triggers target one of them (`targetsPlace`, MAR-142) is walked as a consumer. `rawListened` now answers a place-only update (no ids), so `ha-nova relay` and the gate run this live scan too; before, `rawStateless` skipped it on every route.
 3. **Flows only the integration knows** (`rawRequestTier`). Typed: a repair fix flow's start and each step (`POST /api/repairs/issues/fix[/<flow_id>]`), a subentry flow's step (`POST …/subentries/flow/<flow_id>`), and a subentry reconfigure start (its body names `subentry_id`). The gate keeps no state to tell a flow id's issue or kind, and Home Assistant runs the integration's first step at the start (`RepairsFlowManager`). A subentry add's start, and cancelling (DELETE), stay previews; the by-id GET stays refused at the gate.
 
 The skill mark stays accepted as a floor (plan file schema); dropping it from the skills is a follow-up that needs a bed agent run.
@@ -33,13 +33,15 @@ The skill mark stays accepted as a floor (plan file schema); dropping it from th
 
 - Every repair fix asks twice (start and step: window, phone, or the App's ask), also a harmless one; every subentry add asks once per step. Repairs and subentries are rare admin work; the alternative (rating the start by English translation text) can't bind the step.
 - A takeover rename reads one `search/related` per id, group, and person, and the configs they list.
-- An area or label move reads the destination's `search/related`; it asks only where an automation triggered on that place has a typed action.
+- An area, floor, or label change reads the registries and each new place's `search/related`; it asks only where an automation whose trigger targets that place has an action that needs confirmation (or one of its reads fails).
+- A typed rooms plan of more than 20 devices on a gated App is refused before anything moves (`GATE_ASK_TOO_LARGE`: one ask covers 20 requests); a rollback after a failed move asks again if the Relay holds it.
 
 ## Known limits (stay)
 
 - The id's previous device: a takeover can't see which device the id sat on before (the old entity is gone), so "a door on the old device" stays the skill's check (its mark still raises the plan).
 - References `search/related` doesn't index (computed in a template).
 - A new entity an integration creates under an id an automation already names (not a write HA NOVA sends).
+- A trigger that targets the place only through a condition (as MAR-142).
 
 ## Tests
 

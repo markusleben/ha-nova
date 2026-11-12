@@ -19,11 +19,11 @@ import (
 // (channelRelay). A raw plan with an item only a skill's typed mark makes
 // typed keeps this computer's asks (the Relay neither sees nor needs the
 // mark; an item typed by itself meets the gate when the Relay holds it, as
-// on any such plan), and so do dashboard and rooms plans, whose requests
-// apply can't name before it sends them. "" without a gate, as on an older App.
+// on any such plan), and so do dashboard plans, whose requests apply can't
+// name before it sends them. "" without a gate, as on an older App.
 func gateChannel(e *tierEngine, plan storedPlan) (string, error) {
 	on, err := e.s.gateOn()
-	local := plan.Kind == "raw" && e.markTyped || plan.Kind == "rooms" || plan.ConfigAction != nil && plan.ConfigAction.Domain == "dashboard"
+	local := plan.Kind == "raw" && e.markTyped || plan.ConfigAction != nil && plan.ConfigAction.Domain == "dashboard"
 	if err != nil || !on || local {
 		return "", err
 	}
@@ -90,6 +90,13 @@ func gateFirstRequests(fresh storedPlan, batch batchReplan) []gateRequest {
 				body = redactSecrets(body, false)
 			}
 			reqs = append(reqs, gateRequest{item.Endpoint, body})
+		}
+		return reqs
+	case fresh.Kind == "rooms" && fresh.RoomsRequest != nil: // a rollback's writes ask when the Relay holds them
+		var reqs []gateRequest
+		for _, it := range fresh.RoomsRequest.Items {
+			body, _ := json.Marshal(deviceAreaPayload(it.DeviceID, it.To))
+			reqs = append(reqs, gateRequest{"ws", body})
 		}
 		return reqs
 	case fresh.Kind == "batch":
