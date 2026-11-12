@@ -259,11 +259,6 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		}
 		return fresh, err
 	}
-	check := recheck
-	if plan.Channel == channelRelay { // the gate asks the person next (gateBeforeSend)
-		check = recheckBeforeAsk
-	}
-	fresh, err := check(s, &env, plan, compute)
 	// release hands the claimed plan back after a failure before anything
 	// reached Home Assistant, so the same apply can be retried.
 	release := func(err error) error {
@@ -276,6 +271,38 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		}
 		return err
 	}
+	if plan.Channel == channelRelay && (code != "" || humanAnswer != "") { // no code exists: the gate's ask confirms it (gateBeforeSend)
+		if os.Rename(claimed, open) == nil {
+			consumed = false
+		}
+		return fail(refusedWith("CONFIRM_IN_HOME_ASSISTANT", "plan "+id+" is confirmed on the linked phone or in Home Assistant, not with a typed code",
+			"Run ha-nova apply --plan "+id+" again without --confirm: HA NOVA asks the user on their linked phone or in Home Assistant. Never ask the user for a code."))
+	}
+	// A typed plan confirmed through the gate asks first, with the requests
+	// of the stored plan its fields still hash to. Its one full recheck runs
+	// after the person's answer and decides: nothing is sent unless it still
+	// confirms the plan on the very bytes the person approved
+	// (gateStillApproved). A recheck before the ask would only delay it.
+	askFirst := plan.Channel == channelRelay && plan.Tier == tierTyped.String()
+	var asked []gateRequest
+	if askFirst {
+		if !memberIntact(plan) {
+			return fail(refused("PLAN_INVALID", "plan "+id+" does not match its own hash"))
+		}
+		var stored batchReplan
+		for _, m := range plan.BatchMembers {
+			stored.members = append(stored.members, batchMember{stored: m, fresh: m})
+		}
+		if asked, err = gateBeforeSend(s, plan.Channel, plan, stored); err != nil {
+			return fail(release(err))
+		}
+		s.forgetReads() // the recheck reads Home Assistant as it is after the answer
+	}
+	check := recheck
+	if plan.Channel == channelRelay && !askFirst { // the gate asks the person next (gateBeforeSend)
+		check = recheckBeforeAsk
+	}
+	fresh, err := check(s, &env, plan, compute)
 	var expected *verbFailure
 	if err != nil && !errors.As(err, &expected) {
 		return fail(release(nothingSent(err))) // the Relay is unreachable: nothing was sent
@@ -331,13 +358,6 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	if humanAnswer != "" { // the human's answer in a form or window replaces any argv code
 		code = humanAnswer
 	}
-	if plan.Channel == channelRelay && code != "" { // no code exists: the gate's ask confirms it (gateBeforeSend)
-		if os.Rename(claimed, open) == nil {
-			consumed = false
-		}
-		return fail(refusedWith("CONFIRM_IN_HOME_ASSISTANT", "plan "+id+" is confirmed on the linked phone or in Home Assistant, not with a typed code",
-			"Run ha-nova apply --plan "+id+" again without --confirm: HA NOVA asks the user on their linked phone or in Home Assistant. Never ask the user for a code."))
-	}
 	if fresh.Tier == tierTyped.String() && plan.Channel != channelRelay {
 		wantCode = confirmCode(s.transport.Credential, idHex, plan.Channel, plan.ExpiresAt)
 		if humanChannel(plan.Channel) && humanAnswer == "" { // its code was never shown: no attempt is used
@@ -374,7 +394,11 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		wantCode = "" // never shown, not even once used
 	}
 	env.Plan = &verbPlan{ID: plan.ID, Hash: identity, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode}
-	if asked, err := gateBeforeSend(s, plan.Channel, fresh, batch); err != nil {
+	if askFirst && asked != nil {
+		if err := gateStillApproved(plan, fresh, nil, asked, gateFirstRequests(fresh, batch), expires); err != nil {
+			return fail(err)
+		}
+	} else if asked, err := gateBeforeSend(s, plan.Channel, fresh, batch); err != nil {
 		return fail(release(err))
 	} else if asked != nil { // approved minutes later, maybe: check it again right before the first send
 		s.forgetReads()

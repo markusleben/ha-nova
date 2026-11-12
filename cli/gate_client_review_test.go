@@ -63,7 +63,8 @@ func TestGateLazyAskRefusalKeepsItsWords(t *testing.T) {
 }
 
 // After the person approved, the plan is checked again right before the
-// first send: a home that changed meanwhile, or a plan that expired, sends
+// first send: a home that changed meanwhile (here: the door is already
+// unlocked, so there is nothing to do), or a plan that expired, sends
 // nothing, and the grant expires unused.
 func TestGateChecksThePlanAgainAfterTheApproval(t *testing.T) {
 	previous := verbNow
@@ -77,7 +78,7 @@ func TestGateChecksThePlanAgainAfterTheApproval(t *testing.T) {
 			f.mu.Lock()
 			defer f.mu.Unlock()
 			f.states["lock.front"]["state"] = "unlocked"
-		}, verbExitDrift, "PLAN_DRIFT"},
+		}, verbExitOK, ""},
 		"plan expired": {func(*fakeHA) { verbNow = func() time.Time { return previous().Add(planTTL + time.Minute) } }, verbExitRefused, "PLAN_EXPIRED"},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -87,7 +88,7 @@ func TestGateChecksThePlanAgainAfterTheApproval(t *testing.T) {
 			h := gatedHarness(t, f, g)
 			plan := h.plan("lock.unlock", "lock.front").Plan
 			exit, env := h.run(runApplyCommand, "--plan", plan.ID)
-			if asks, _, sends := g.snapshot(); exit != tc.exit || env.Error == nil || env.Error.Code != tc.code || len(asks) != 1 || len(sends) != 0 {
+			if asks, _, sends := g.snapshot(); exit != tc.exit || (env.Error == nil) != (tc.code == "") || env.Error != nil && env.Error.Code != tc.code || len(asks) != 1 || len(sends) != 0 {
 				t.Fatalf("exit %d %+v asks %q sends %+v", exit, env.Error, asks, sends)
 			}
 		})
