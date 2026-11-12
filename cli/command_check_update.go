@@ -107,7 +107,7 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 	} else {
 		legacyCtx, cancelLegacy := context.WithTimeout(context.Background(), legacyNoticeProbeTimeout)
 		defer cancelLegacy()
-		go func() { relayChecks <- relayCheck{notice: relayUpdateNotice(paths)} }()
+		go func() { relayChecks <- relayCheck{notice: relayUpdateNoticeWithTimeout(paths, relayUpdateCheckWait)} }() // #1156: never an unbounded wait
 		go func() { legacyNotices <- legacyAccessNotice(legacyCtx, paths) }()
 	}
 	result := buildUpdateCheckResultWithClient(paths, client)
