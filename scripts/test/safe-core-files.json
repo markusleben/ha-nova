@@ -53,6 +53,7 @@
   "tests/http/gate-asks.test.ts",
   "tests/http/gate.test.ts",
   "tests/http/nova-approve.test.ts",
+  "tests/http/nova-ask-handoff.test.ts",
   "tests/http/health.test.ts",
   "tests/http/home.test.ts",
   "tests/http/nova-page.test.ts",
