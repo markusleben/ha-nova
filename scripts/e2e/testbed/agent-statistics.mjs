@@ -169,7 +169,7 @@ try {
   check(after.length === 1 && withheld.includes(after[0]), "fixture: exactly one new helper, the one whose check was withheld", after.join(",") || "none: " + unchecked.reply.slice(0, 200));
   const starts = unchecked.ran.filter((l) => /\bPOST\b/.test(l) && /config_entries\/flow(\s|$)/.test(l));
   check(starts.length === 1, "fixture: the agent started exactly one create flow", unchecked.ran.filter((l) => /config_entries\/flow/.test(l)).join(" | "));
-  check(/unverif|(not|n't|never) (been |be |yet )?(verified|confirmed|checked)|could(n't| not) (be )?(check|confirm|verif)/i.test(unchecked.reply), "fixture: the reply says the helper is unverified", unchecked.reply.slice(0, 300));
+  check(/unverif|(not|n['’]t|never) (been |be |yet )?(verified|confirmed|checked)|(can|could)(n['’]t| ?not) (yet )?(be )?(check|confirm|verif)|\bcheck\b[^.]{0,30}\b(didn['’]t|did not|never|wasn['’]t|was not) (run|complete|finish|happen)/i.test(unchecked.reply), "fixture: the reply says the helper is unverified", unchecked.reply.slice(0, 300));
 } catch (err) {
   line("FAIL", "the run itself", err.message);
 } finally {
