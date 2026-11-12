@@ -7,6 +7,7 @@ import (
 	"maps"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -365,6 +366,9 @@ func (n *rawNamer) targets(lang string, payload map[string]any) string {
 				names = append(names, n.device(text))
 			case rawTargetLists[key].request != "":
 				list := rawTargetLists[key]
+				if wsType, _ := payload["type"].(string); key == "repository" && strings.HasPrefix(wsType, "marketplace/") {
+					list.request = "marketplace/repositories/list"
+				}
 				names = append(names, n.named(map[string]any{"type": list.request}, text, list.ids, list.names))
 			default:
 				names = append(names, sayText(text, true))

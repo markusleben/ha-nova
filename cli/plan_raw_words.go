@@ -128,6 +128,8 @@ func rawVerb(lang, id string) string {
 		return confirmT(lang, "raw.verb.send")
 	case "confirm":
 		return confirmT(lang, "raw.verb.confirm")
+	case "accept":
+		return confirmT(lang, "raw.verb.accept")
 	}
 	panic("raw line: unknown verb " + id)
 }
@@ -164,6 +166,13 @@ var rawWSPhrases = map[string]func(lang, targets string) (verb, object string){
 	"hacs/repository/ignore":  func(l, t string) (string, string) { return "hide", confirmT(l, "raw.ws.hacs_update", "targets", t) },
 	"hacs/critical/acknowledge": func(l, t string) (string, string) {
 		return "acknowledge", confirmT(l, "raw.ws.hacs_notice", "targets", t)
+	},
+	"marketplace/warning/accept": func(l, t string) (string, string) {
+		return "accept", confirmT(l, "raw.ws.marketplace_warning", "targets", t)
+	},
+	"marketplace/repository/install": func(l, t string) (string, string) { return "install", confirmT(l, "raw.ws.marketplace", "targets", t) },
+	"marketplace/repository/uninstall": func(l, t string) (string, string) {
+		return "uninstall", confirmT(l, "raw.ws.marketplace", "targets", t)
 	},
 	"config/auth/create":              func(l, t string) (string, string) { return "create", confirmT(l, "raw.ws.account", "targets", t) },
 	"config/auth/delete":              func(l, t string) (string, string) { return "delete", confirmT(l, "raw.ws.account", "targets", t) },

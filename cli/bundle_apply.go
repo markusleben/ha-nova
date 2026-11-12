@@ -283,15 +283,17 @@ func replaceInstallRootWithBackup(installRoot, stageRoot string) (installRootRep
 	oldExists := false
 	if _, err := os.Stat(installRoot); err == nil {
 		oldExists = true
-		if err := os.Rename(installRoot, backupRoot); err != nil {
+		if err := renameInstallPathWithRetry(installRoot, backupRoot); err != nil {
 			_ = os.RemoveAll(nextRoot)
-			return installRootReplacement{}, err
+			return installRootReplacement{}, installRootInUse(installRoot, err)
 		}
 	}
 
-	if err := os.Rename(nextRoot, installRoot); err != nil {
+	if err := renameInstallPathWithRetry(nextRoot, installRoot); err != nil {
 		if oldExists {
-			_ = os.Rename(backupRoot, installRoot)
+			if restoreErr := renameInstallPathWithRetry(backupRoot, installRoot); restoreErr != nil {
+				return installRootReplacement{}, fmt.Errorf("%w; putting the previous version back failed too (%v): it is in %s, the new one in %s; rename one of them to %s", err, restoreErr, backupRoot, nextRoot, installRoot)
+			}
 		}
 		_ = os.RemoveAll(nextRoot)
 		return installRootReplacement{}, err
@@ -314,15 +316,15 @@ func (r installRootReplacement) rollback(paths runtimePaths) error {
 	failedRoot := ""
 	if _, err := os.Stat(paths.InstallRoot); err == nil {
 		failedRoot = filepath.Join(filepath.Dir(paths.InstallRoot), installBackupPrefixFailed+strconv.FormatInt(time.Now().UnixNano(), 10))
-		if err := os.Rename(paths.InstallRoot, failedRoot); err != nil {
+		if err := renameInstallPathWithRetry(paths.InstallRoot, failedRoot); err != nil {
 			return err
 		}
 	}
 
 	if r.hadOld && strings.TrimSpace(r.backupRoot) != "" {
-		if err := os.Rename(r.backupRoot, paths.InstallRoot); err != nil {
+		if err := renameInstallPathWithRetry(r.backupRoot, paths.InstallRoot); err != nil {
 			if failedRoot != "" {
-				_ = os.Rename(failedRoot, paths.InstallRoot)
+				_ = renameInstallPathWithRetry(failedRoot, paths.InstallRoot)
 			}
 			return err
 		}

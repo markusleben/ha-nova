@@ -70,6 +70,9 @@ func gatePrepareAsk(paths runtimePaths, device string, requests []gateAskRequest
 			typed = append(typed, i)
 		}
 	}
+	if len(requests) > 1 && slices.ContainsFunc(requests, func(r gateAskRequest) bool { return rawAccessTarget(r.Endpoint, r.Body).warning != "" }) {
+		ask.Verdict = gateRefuse // the Marketplace warning is approved on its own (marketplace_raw.go)
+	}
 	if ask.Verdict != gateTyped {
 		return ask, nil
 	}

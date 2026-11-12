@@ -197,6 +197,8 @@ func gateLiveTier(s *relaySession, endpoint string, request map[string]any, raw 
 		refusal, err = rawSupervisorFormSecret(s, raw)
 	}
 	switch {
+	case err != nil && rawAccessTarget(endpoint, raw).warning != "": // whose warning it accepts is never left to a grant
+		return tierRefused, "access_target"
 	case err != nil:
 		return tierTyped, "unread"
 	case refusal != nil:
