@@ -105,7 +105,7 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 		noticeCtx, cancelNotices = context.WithTimeout(context.Background(), firstUseRelayNoticeTimeout)
 		relayNotice = relayUpdateNoticeWithContext(noticeCtx, paths)
 	} else {
-		relayNotice = relayUpdateNotice(paths)
+		relayNotice = relayUpdateNoticeWithTimeout(paths, relayUpdateCheckWait) // #1156: never an unbounded wait
 		noticeCtx, cancelNotices = context.WithTimeout(context.Background(), legacyNoticeProbeTimeout)
 	}
 	defer cancelNotices()
