@@ -179,3 +179,48 @@ func TestServeContainerHeldWriteKeepsTheLock(t *testing.T) {
 		t.Fatalf("%v; asks %q, lock free during each wait %v", env, asks, free)
 	}
 }
+
+// Settings the owner saves while the checks after the container phone's OK
+// read Home Assistant's users (the App writes chat-apps.json without the
+// verb lock) still hold: read only then sends nothing (as for the user's own
+// phone, TestServeTapRereadsSettingsAfterTheUsers).
+func TestServeContainerAskRereadsSettingsAfterTheUsers(t *testing.T) {
+	g := &fakeGate{release: make(chan struct{})}
+	s := containerServe(t, g)
+	id := relayPlanFor(t, s, userA)
+	waitingOnRelay(t, s, userA, id)
+	reached, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	s.f.mu.Lock()
+	prev := s.f.extra
+	s.f.extra = func(endpoint string, p map[string]any) (any, bool) { // runs under f.mu
+		if endpoint == "ws" && p["type"] == "config/auth/list" {
+			once.Do(func() { close(reached); <-release })
+		}
+		if prev != nil {
+			return prev(endpoint, p)
+		}
+		return nil, false
+	}
+	s.f.mu.Unlock()
+	close(g.release)
+	<-reached // the checks after the OK read the settings, then the users
+	if err := os.WriteFile(filepath.Join(s.data, "chat-apps.json"), []byte(`{"allowed_users":["`+userA+`"],"read_only":true}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	var env map[string]any
+	waitFor(t, "the refusal", func() bool {
+		env = s.tool(userA, "ha_apply", map[string]any{"plan_id": id})
+		return env["status"] != "waiting_for_phone" && env["status"] != "applying"
+	})
+	_, _, sends := g.snapshot()
+	for _, send := range sends {
+		if send.key == gateUnlock {
+			t.Fatalf("sent: %+v", sends)
+		}
+	}
+	if envCode(env) != "READ_ONLY" {
+		t.Fatalf("after the OK: %v", env)
+	}
+}
