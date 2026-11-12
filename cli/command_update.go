@@ -351,8 +351,8 @@ func buildWindowsReplaceCommand(paths runtimePaths, tempHelper, stageRoot string
 		"--self-path", tempHelper,
 	)
 	cmd.Env = append(os.Environ(), helperInstallRootEnv(paths.InstallRoot)...)
-	if serverSelectionOverride != "" { // the helper checks this server's Relay App too
-		cmd.Env = append(cmd.Env, serverSelectionEnvVar+"="+serverSelectionOverride)
+	if override := selectionOverride(); override != "" { // the helper checks this server's Relay App too
+		cmd.Env = append(cmd.Env, serverSelectionEnvVar+"="+override)
 	}
 	return cmd
 }

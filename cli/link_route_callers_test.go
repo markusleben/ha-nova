@@ -46,7 +46,7 @@ func TestTraceSelectsItsRouteOnce(t *testing.T) {
 		}
 		return relayAnswer(http.StatusOK, `{"ok":true,"data":`+data+`}`), nil
 	})
-	if _, err := loadLatestTrace(paths, "automation.hall", "automation"); err != nil {
+	if _, err := loadLatestTrace(nil, paths, "automation.hall", "automation"); err != nil {
 		t.Fatal(err)
 	}
 	if *selections != 1 {

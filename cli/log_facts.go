@@ -252,7 +252,7 @@ func runRelayLogFacts(paths runtimePaths, target verbOptions, jq *jqProgram, out
 	s, err := newRelaySession(paths, target)
 	var facts json.RawMessage
 	if err == nil {
-		if refusal := mcpDemoRefusal(activeServerIsDemo(), "ws", []byte(logFactsBody)); refusal != nil { // as ha_read: the demo's log is other visitors'
+		if refusal := mcpDemoRefusal(s.cfg.demoToken != "", "ws", []byte(logFactsBody)); refusal != nil { // as ha_read: the demo's log is other visitors'
 			s.close()
 			printErr("%s", refusal)
 			return rawRefusedExit

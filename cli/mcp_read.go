@@ -245,7 +245,7 @@ func runMCPRead(call *verbCall, paths runtimePaths, argv []string) int {
 		return stop(err)
 	}
 	return runReadVerb(paths, "read", verbOptions{call: call}, func(s *relaySession, env *verbEnvelope) error {
-		if refusal := mcpDemoRefusal(activeServerIsDemo(), endpoint, send); refusal != nil { // known once the session loaded the profile
+		if refusal := mcpDemoRefusal(s.cfg.demoToken != "", endpoint, send); refusal != nil { // known once the session loaded the profile
 			return &verbFailure{exit: verbExitRefused, code: "REFUSED", message: refusal.Error()}
 		}
 		var data json.RawMessage

@@ -223,7 +223,7 @@ func confirmText(plan storedPlan, noSnapshot bool) string {
 func (srv *mcpServer) planCredential(server string) (string, error) {
 	mcpVerbLock.Lock()
 	defer mcpVerbLock.Unlock()
-	override, active := serverSelectionOverride, activeServerProfile()
+	override, active := selectionOverride(), activeServerProfile()
 	defer func() { setServerSelectionOverride(override); setActiveServerProfile(active) }()
 	s, err := newRelaySession(srv.paths, verbOptions{server: server, serverSet: true})
 	if err != nil {
