@@ -162,6 +162,7 @@ function deps(cloudRemoteEnabled: boolean): IngressListenerDeps {
       updateAvailable: false,
       ingressPanel: true,
       hostname: "",
+      slug: "2368fcfa_ha_nova_relay",
       network: {},
     }),
     getMappedHostPort: async () => null,

@@ -4,6 +4,8 @@ import type { CsrfStore } from "../../security/csrf.js";
 import type { DeviceRecord } from "../../security/device-registry.js";
 import { chatPhoneLine, chatPhoneWaiting, renderChatPhone, renderChatPhoneError, type ChatPhoneAction, type ChatPhoneModel } from "./nova-page-chat-phone.js";
 import { renderChatActivity, renderChatUsers, renderToolsChanged, type ChatPhoneUser, type ChatUsersModel } from "./nova-page-chat-users.js";
+import { liveScript } from "./nova-page-live.js";
+import { PAGE_CSS } from "./nova-page-style.js";
 
 // Presentation layer of the NOVA console: page model, HTML/CSS rendering,
 // the armed confirm section, and formatting helpers. The HTTP/action/CSRF
@@ -68,6 +70,7 @@ export interface PageModel {
   chatUsers: ChatUsersModel | null; // null: chat apps are off
   chatRestarting: boolean;
   gateSection: string; // nova-approve.ts renderGateSection; "" without a gate
+  live: string | null; // nova-page-live.ts liveState; null without a gate
 }
 
 export function renderPage(m: PageModel): string {
@@ -121,126 +124,57 @@ export function renderPage(m: PageModel): string {
 
   const confirmSection = renderConfirmSection(m, formOpen, csrfField, base);
 
+  const connect = `${formOpen}${csrfField("generate_code")}<button type="submit">Connect a device</button></form>`;
+  const cancelCode = `${formOpen}${csrfField("cancel_code")}<button class="secondary" type="submit">Cancel</button></form>`;
   const pairingSection = m.registryCorrupt
     ? `<p class="muted">Unavailable until the device registry is reset (see Recovery above).</p>`
     : m.pairing.phase === "active" && m.pairing.code
-      ? `<p class="muted">On your computer, run <code>ha-nova setup</code> and enter this code when asked. It works once and expires in 10 minutes. Click the code to select it for copying.</p>
+      ? `<div class="field"><p class="muted">On your computer, run <code>ha-nova setup</code> and enter this code when asked. It works once and expires in 10 minutes. Click the code to select it for copying.</p>
          <p class="code">${escapeHtml(formatCode(m.pairing.code))}</p>
          <p class="muted waiting">Waiting for the device… this page updates on its own once it connects.</p>
-         ${formOpen}${csrfField("cancel_code")}<button class="secondary" type="submit">Cancel</button></form>`
+         <div class="actions">${cancelCode}</div></div>`
       : m.pairing.phase === "armed"
         ? `<p class="muted waiting">A computer is connecting through Home Assistant sign-in… this page updates on its own once it connects. If your computer asks for a code instead, click “Connect a device”.</p>
-         ${formOpen}${csrfField("generate_code")}<button type="submit">Connect a device</button></form>${formOpen}${csrfField("cancel_code")}<button class="secondary" type="submit">Cancel</button></form>`
-      : `<p class="muted">Make a code here only if your computer asks for one. It works once, for 10 minutes. Each computer gets its own secure connection.</p>
-         ${formOpen}${csrfField("generate_code")}<button type="submit">Connect a device</button></form>${
-          m.pairing.phase === "consumed" ? `<p class="ok">✓ A device was just connected.</p>` : ""
-        }`;
+         <div class="actions">${connect}${cancelCode}</div>`
+        : `${m.pairing.phase === "consumed" ? `<p class="ok">✓ A device was just connected.</p>` : ""}<div class="actions">${connect}<span class="muted meta">Most computers connect when you sign in on them. Make a code here only if your computer asks for one. It works once, for 10 minutes.</span></div>`;
 
   const activeDevices = m.devices.filter((d) => d.state === "active");
   const deviceRows = m.registryCorrupt
     ? `<p class="muted">Device access is disabled until the registry is reset.</p>`
     : activeDevices.length === 0
-      ? `<p class="muted">No devices are connected yet. Use “Connect a device” above to add your first one.</p>`
-      : `<p class="muted">Computers allowed to control Home Assistant through NOVA. Revoking asks for confirmation first.</p><ul>${activeDevices
+      ? `<p class="muted">No computers are connected yet.</p>`
+      : `<ul>${activeDevices
           .map(
             (d) =>
-              `<li><span class="device"><strong>${escapeHtml(d.name)}</strong>${cloudBadge(d)}<span class="muted">${escapeHtml(d.platform)} · ${escapeHtml(d.client)}</span><span class="muted meta">added ${escapeHtml(formatWhen(d.createdAtMs))} · last used ${escapeHtml(formatLastUsed(d.lastUsedAtMs))}</span></span>${armLink(`confirm=revoke_device&device=${encodeURIComponent(d.deviceId)}`, "Revoke…")}</li>`
+              `<li><span class="device"><span><strong>${escapeHtml(d.name)}</strong>${cloudBadge(d)}</span><span class="muted meta">${escapeHtml(platformName(d.platform))} · ${escapeHtml(d.client)}</span><span class="muted meta">added ${escapeHtml(formatWhen(d.createdAtMs))} · last used ${escapeHtml(formatLastUsed(d.lastUsedAtMs))}</span></span>${armLink(`confirm=revoke_device&device=${encodeURIComponent(d.deviceId)}`, "Revoke…")}</li>`
           )
           .join("")}</ul>`;
 
   const updateLine = m.update.error
     ? `<span class="muted">Update status unavailable.</span>`
     : m.update.updateAvailable
-      ? `Update available: <strong>${escapeHtml(m.update.versionLatest ?? "")}</strong> (installed ${escapeHtml(m.update.version)}). Update from the Apps page.`
-      : `<span class="muted">Up to date (${escapeHtml(m.update.version)}).</span>`;
+      ? `<span>Update available: <strong>${escapeHtml(m.update.versionLatest ?? "")}</strong> <span class="muted meta">(installed ${escapeHtml(m.update.version)}). Update from the Apps page.</span></span>`
+      : `<span class="pill good">Up to date · ${escapeHtml(m.update.version)}</span>`;
 
   const star = `<svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z"/></svg>`;
 
-  // Colours are Home Assistant's own default theme tokens; prefers-color-scheme
-  // follows the dark/light preference (HA does not inject theme CSS into ingress
-  // iframes, and this page runs without JavaScript by design).
-  // While a code is active we auto-refresh so the owner sees the device appear
-  // without reloading — pure HTML (this page runs no JavaScript by design). The
+  // While a code is active the page refreshes itself (plain HTML, also
+  // without the live script) so the owner sees the device appear; the
   // refresh stops the moment pairing is consumed or cancelled.
   const autoRefresh = m.pairing.phase === "active" || m.pairing.phase === "armed" || chatPhoneWaiting(m.chatPhone) ? `<meta http-equiv="refresh" content="5">` : "";
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">${autoRefresh}
 <title>NOVA</title>
-<style>
-  :root {
-    --bg: #f5f5f7; --card: #ffffff; --text: #212121; --muted: #727272;
-    --border: rgba(0,0,0,.10); --primary: #03a9f4; --on-primary: #ffffff;
-    --danger: #db4437; --shadow: 0 2px 6px rgba(0,0,0,.08);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #111111; --card: #1c1c1c; --text: #e1e1e1; --muted: #9b9b9b;
-      --border: rgba(225,225,225,.12); --primary: #03a9f4; --on-primary: #ffffff;
-      --danger: #e57373; --shadow: none;
-    }
-  }
-  * { box-sizing: border-box; }
-  body { font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: var(--bg); color: var(--text); margin: 0; padding: 1.5rem 1rem;
-    -webkit-font-smoothing: antialiased; line-height: 1.5; }
-  main { max-width: 34rem; margin: 0 auto; }
-  h1 { display: flex; align-items: center; gap: .55rem; font-size: 1.5rem; font-weight: 500; margin: 0 0 1.25rem; }
-  .logo { width: 1.7rem; height: 1.7rem; color: var(--primary); }
-  section { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-    box-shadow: var(--shadow); padding: 1rem 1.25rem; margin: 0 0 1rem; }
-  section h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em;
-    color: var(--muted); margin: 0 0 .5rem; font-weight: 600; }
-  p { margin: .35rem 0; }
-  .muted { color: var(--muted); }
-  .ok { color: var(--primary); }
-  .error { border-color: var(--danger); }
-  .error h2, .error p { color: var(--danger); }
-  .waiting { font-style: italic; animation: pulse 1.6s ease-in-out infinite; }
-  @keyframes pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
-  /* One click selects the whole code for copying — the page runs no
-     JavaScript (CSP), so this replaces a clipboard button. */
-  .code { font-size: 2.25rem; letter-spacing: .3rem; font-weight: 700; color: var(--primary); margin: .5rem 0; user-select: all; -webkit-user-select: all; cursor: pointer; }
-  form { display: inline; margin: 0; }
-  button { font: inherit; font-weight: 500; padding: .5rem 1.1rem; border-radius: 10px;
-    border: none; background: var(--primary); color: var(--on-primary); cursor: pointer; }
-  button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
-  button.danger-solid { background: var(--danger); color: var(--on-primary); }
-  .linkbtn { display: inline-block; font-weight: 500; padding: .5rem 1.1rem; border-radius: 10px;
-    border: 1px solid var(--border); color: var(--text); text-decoration: none; }
-  .linkbtn.danger { color: var(--danger); }
-  .linkbtn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
-  .address { font-family: ui-monospace, monospace; font-size: .85rem; overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; cursor: pointer; }
-  .badge { display: inline-block; font-size: .7rem; text-transform: uppercase; letter-spacing: .04em;
-    border: 1px solid var(--primary); color: var(--primary); border-radius: 6px;
-    padding: 0 .35rem; margin-left: .45rem; vertical-align: middle; }
-  .meta { font-size: .8rem; } .meta a { color: var(--primary); }
-  .confirm { border-color: var(--danger); }
-  .confirm input[type="text"] { font: inherit; padding: .45rem .7rem; border-radius: 10px;
-    border: 1px solid var(--border); background: var(--bg); color: var(--text); width: 7rem; }
-  ul { list-style: none; padding: 0; margin: 0; }
-  li { display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-    padding: .6rem 0; border-top: 1px solid var(--border); }
-  li:first-child { border-top: none; }
-  .device { display: flex; flex-direction: column; }
-  footer { color: var(--muted); font-size: .8rem; margin-top: 1.5rem; text-align: center; }
-  code { background: var(--border); padding: .05rem .35rem; border-radius: 5px; font-size: .9em; }
-  .intro { color: var(--muted); margin: -.75rem 0 1.5rem; }
-  section h3 { font-size: 1rem; font-weight: 500; margin: 1rem 0 .35rem; }
-  .person { display: flex; flex-direction: column; }
-  select { font: inherit; padding: .35rem .5rem; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
-  details { font-size: .85rem; } details ol { margin: .25rem 0; padding-left: 1.25rem; }
-</style></head><body>
+<style>${PAGE_CSS}</style></head><body${m.live === null ? "" : ` data-live="${escapeAttr(`${base}live`)}" data-state="${m.live}"`}>
 <main>
 <h1>${star}NOVA</h1>
-<p class="intro">Let your AI app work with Home Assistant, safely. Each computer connects once and gets its own connection. Most computers connect when you sign in on them. Can't sign in there? Make a code here.</p>
-${errorSection}${confirmSection}${m.gateSection}<section><h2>Home Assistant</h2><p>${m.connection.haConnected ? "Connected." : `<span class="muted">Not connected — check the App logs.</span>`}</p></section>
-${recoverySection}<section><h2>Update</h2><p>${updateLine}</p></section>
-<section><h2>Pairing</h2>${pairingSection}</section>
-<section><h2>Devices</h2>${deviceRows}</section>
+<p class="intro">Let your AI app work with Home Assistant, safely.</p>
+${errorSection}${confirmSection}${m.gateSection}<section><h2>Status</h2><ul class="facts"><li><span>Home Assistant</span>${m.connection.haConnected ? `<span class="pill good">Connected</span>` : `<span class="pill bad">Not connected — check the App logs</span>`}</li><li><span>NOVA App</span>${updateLine}</li></ul></section>
+${recoverySection}<section id="computers"><h2>Computers</h2>${m.pairing.phase === "active" ? pairingSection + deviceRows : deviceRows + pairingSection}</section>
 ${m.isOwner ? `${renderChatApps(m, formOpen, csrfField)}${renderChatActivity(m.chatUsers?.activity ?? null, m.now)}` : !m.chatFeature ? "" : `<section><h2>Chat apps</h2><p class="muted">Chat apps and their settings: only ${ownerWords(m)} can change them.</p></section>`}<footer>Signed in as ${escapeHtml(m.ownerName)} · Relay ${escapeHtml(m.relayVersion)}</footer>
 </main>
-</body></html>`;
+${liveScript()}</body></html>`;
 }
 
 // "the owner, Markus," for an administrator's page (names only through escapeHtml).
@@ -278,24 +212,32 @@ ${m.chatPhone === null ? "" : renderChatPhone(m.chatPhone, { id: who?.id ?? m.us
       ? "In Claude, open Customize → Connectors → HA NOVA. Set every tool to “Always allow”, except “Run a confirmed change”: leave it on “Needs approval”. Then Claude still asks before each bigger change. The AI can see a chat code, so that question is your own check. Link a phone, and you can allow that one too."
       : "In Claude, open Customize → Connectors → HA NOVA and set every tool to “Always allow”. HA NOVA still shows you a preview before bigger changes, and your phone asks before unlocks, the alarm, and deletes.";
     const url = m.chatConnectorUrl;
-    body = `${renderToolsChanged(m.chatUsers?.toolsChangedAt ?? null, m.now)}${url === null
-      ? `<p>On, but HA NOVA can't find an address Claude and ChatGPT can reach. Turn on remote access in Home Assistant Link, or set your own public HTTPS address (valid certificate) as the external URL under Settings → System → Network, then reload this page.</p>`
-      : `<p>On. Add HA NOVA to Claude in one click, or add this address as a plugin in ChatGPT. Then sign in with your own Home Assistant login.</p>
-<p><a class="linkbtn primary" href="${escapeAttr(claudeConnectorLink(url))}" target="_blank" rel="noopener noreferrer">Add to Claude</a> <span class="muted meta">Adds ${escapeHtml(new URL(url).host)}</span></p>
-<p class="muted meta">On a Claude Team or Enterprise plan? The owner of your Claude plan adds it once for everyone: <a href="${escapeAttr(claudeConnectorLink(url, true))}" target="_blank" rel="noopener noreferrer">Add for my organization</a>. Then click Connect next to HA NOVA in Customize → Connectors.</p>
-<p class="muted meta">No form? In Claude, open Customize → Connectors, click +, then Add custom connector, and paste this address:</p>
-<p class="address">${escapeHtml(url)}</p>
-<p><strong>Next: stop Claude from asking every time.</strong> At first, Claude asks before each step. That's Claude, not HA NOVA. ${next} Claude may ask again after an update.</p>
-<p class="muted meta">ChatGPT on the web, on a computer: open chatgpt.com/plugins → + → “Add custom MCP server”, name it HA NOVA, paste the address under “Connection”, pick “OAuth”, tick “I understand and want to continue”, then “Create as a plugin”. Sign in with your own Home Assistant login. If ChatGPT shows an error right after, choose Connect on the plugin again. Then type @HA NOVA in a chat. Name already taken? Find your old HA NOVA under your own plugins. If it has this address, choose Install; if not, use another name.</p>`}
-${users}
-${phone}${m.chatRestarting ? `<p class="ok">Home Assistant is restarting (usually under a minute). Reload this page afterwards.</p>` : ""}
+    const settings = `<details><summary>Settings · can only read: ${c.readOnly ? "on" : "off"} · codes in the chat: ${c.chatCodes ? "on" : "off"}</summary>
 <ul>${toggle("Chat apps can only read", c.readOnly, "chat_read_only")}${toggle("Codes in the chat", c.chatCodes, "chat_codes")}</ul>
 <p class="muted meta">To sign a chat app out, remove its token in Home Assistant under Profile → Security. Turn chat apps off before you remove the NOVA App or go back to an older version.</p>
-${button("chat_apps_off", "Turn off chat apps", "", "secondary")}`;
+<div class="actions">${button("chat_apps_off", "Turn off chat apps", "", "secondary")}</div></details>`;
+    body = `${m.chatRestarting ? `<p class="ok">Home Assistant is restarting (usually under a minute). Reload this page afterwards.</p>` : ""}${url === null
+      ? `<p>On, but HA NOVA can't find an address Claude and ChatGPT can reach. Turn on remote access in Home Assistant Link, or set your own public HTTPS address (valid certificate) as the external URL under Settings → System → Network, then reload this page.</p>`
+      : `<p><span class="pill good">On</span> Add HA NOVA to Claude or ChatGPT, then sign in with your own Home Assistant login.</p>
+<div class="clients"><div class="client"><h3>Claude</h3><p class="muted meta">On a computer and in its phone app.</p>
+<div class="actions"><a class="linkbtn primary" href="${escapeAttr(claudeConnectorLink(url))}" target="_blank" rel="noopener noreferrer">Add to Claude</a></div>
+${c.ownerPhone === null ? `<p class="meta"><strong>Keep “Run a confirmed change” on “Needs approval” in Claude</strong> until you link a phone: the AI can see a chat code.</p>` : ""}
+<details><summary>Next: stop Claude asking before every step</summary><p>At first, Claude asks before each step. That's Claude, not HA NOVA. ${next} Claude may ask again after an update.</p></details>
+<details><summary>Claude Team or Enterprise plan</summary><p>The owner of your Claude plan adds it once for everyone: <a href="${escapeAttr(claudeConnectorLink(url, true))}" target="_blank" rel="noopener noreferrer">Add for my organization</a>. Then click Connect next to HA NOVA in Customize → Connectors.</p></details>
+<details><summary>No form opens?</summary><p>In Claude, open Customize → Connectors, click +, then Add custom connector, and paste the address below.</p></details></div>
+<div class="client"><h3>ChatGPT</h3><p class="muted meta">On the web, on a computer, as a plugin.</p>
+<details><summary>How to add it</summary><ol><li>Open chatgpt.com/plugins → + → “Add custom MCP server”.</li><li>Name it HA NOVA and paste the address below under “Connection”.</li><li>Pick “OAuth”, tick “I understand and want to continue”, then “Create as a plugin”.</li><li>Sign in with your own Home Assistant login, then type @HA NOVA in a chat.</li></ol>
+<p class="muted meta">If ChatGPT shows an error right after, choose Connect on the plugin again. Name already taken? Find your old HA NOVA under your own plugins. If it has this address, choose Install; if not, use another name.</p></details>${renderToolsChanged(m.chatUsers?.toolsChangedAt ?? null, m.now)}</div></div>
+<p class="label">Address for chat apps <span class="muted meta">· adds ${escapeHtml(new URL(url).host)}</span></p>
+<p class="field address" id="chat-address">${escapeHtml(url)}</p><button type="button" class="secondary" data-copy="chat-address" data-done="Copied" hidden>Copy address</button>`}
+${phone}
+${users}
+${settings}`;
   } else {
     body = `${c.unfinished ? `<p class="error">Chat apps are not fully off: parts are still in Home Assistant.</p>${button("chat_apps_off", "Finish turning off", "", "secondary")}` : ""}
-<p class="muted">Use HA NOVA in Claude, also in its phone app, and in ChatGPT on a computer. ChatGPT needs a paid plan that lets you add your own plugins (we tested Pro); on a phone, it can only answer. You need Home Assistant Link or your own HTTPS address with a valid certificate. Once they're on, you pick who else in your home may use them.</p>
-<p class="muted">Home Assistant restarts once if needed, always the first time (usually under a minute, longer on small devices).</p>${button("chat_apps_on", "Turn on chat apps")}`;
+<p>Use HA NOVA in Claude, also in its phone app, and in ChatGPT on a computer. Once they're on, you pick who else in your home may use them.</p>
+<details><summary>What you need</summary><p>Home Assistant Link or your own HTTPS address with a valid certificate. ChatGPT needs a paid plan that lets you add your own plugins (we tested Pro); on a phone, it can only answer.</p></details>
+<p class="muted meta">Home Assistant restarts once if needed, always the first time (usually under a minute, longer on small devices).</p><div class="actions">${button("chat_apps_on", "Turn on chat apps")}</div>`;
   }
   return `<section><h2>Chat apps</h2>${body}</section>
 `;
@@ -343,6 +285,11 @@ ${formOpen}${csrfField("revoke_device", `revoke_device:${device.deviceId}`)}<inp
 ${formOpen}${csrfField("reset_registry")}<input type="text" name="confirm_text" autocomplete="off" placeholder="RESET" required> <button class="danger-solid" type="submit">Reset device registry</button></form> ${cancel}</section>`;
     }
   }
+}
+
+const PLATFORM: Record<string, string> = { darwin: "macOS", windows: "Windows", linux: "Linux" };
+function platformName(platform: string): string {
+  return PLATFORM[platform] ?? platform;
 }
 
 function cloudBadge(device: DeviceRecord): string {

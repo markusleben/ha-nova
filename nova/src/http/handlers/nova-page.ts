@@ -9,6 +9,7 @@ import type { PairingV1Manager } from "../../security/pairing-v1.js";
 import type { GatePage } from "../gate-asks.js";
 import type { RouteHandler } from "../router.js";
 import { renderGateSection } from "./nova-approve.js";
+import { LIVE_CSP, liveState } from "./nova-page-live.js";
 import type { RelayLogger } from "../server.js";
 import { applyChatPhoneAction, CHAT_PHONE_ACTIONS, chatPhoneErrorCode, readChatPhone, type ChatPhoneAction, type ChatPhoneModel } from "./nova-page-chat-phone.js";
 import { applyChatUsers, chatPhoneUser, readChatUsers, type ChatUsersModel } from "./nova-page-chat-users.js";
@@ -40,6 +41,7 @@ const CSP = [
   "base-uri 'none'",
   "form-action 'self'",
   "frame-ancestors 'self'",
+  LIVE_CSP,
 ].join("; ");
 
 const ACTIONS = new Set<NovaAction>(["generate_code", "cancel_code", "revoke_device", "reset_registry"]);
@@ -159,6 +161,7 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
       chatUsers,
       chatRestarting: query.get("chat") === "restarting",
       gateSection,
+      live: deps.gatePage === undefined ? null : liveState(deps.gatePage),
     });
     setHeaders(response);
     response.statusCode = 200;

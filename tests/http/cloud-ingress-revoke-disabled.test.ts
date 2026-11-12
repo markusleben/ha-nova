@@ -122,6 +122,7 @@ function deps(): IngressListenerDeps {
       updateAvailable: false,
       ingressPanel: true,
       hostname: "",
+      slug: "",
       network: {},
     }),
     getMappedHostPort: async () => null,

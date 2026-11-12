@@ -231,7 +231,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     waiting() {
       prune();
       return entries().flatMap(([ref, ask]) => (ask.prepared === undefined || ask.state.state !== "waiting" ? []
-        : [{ ref, body: ask.prepared.body ?? "", items: ask.prepared.items.filter((item) => item.verdict === "typed"), expiresAt: ask.expiresAt }]));
+        : [{ ref, body: ask.prepared.body ?? "", from: ask.prepared.from ?? "", items: ask.prepared.items.filter((item) => item.verdict === "typed"), expiresAt: ask.expiresAt }]));
     },
     pausedDevices() {
       return limits.pauses().flatMap(({ owner, until, misses }) => (owner.startsWith("device:") ? [{ deviceId: owner.slice("device:".length), until, misses }] : []));

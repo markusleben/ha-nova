@@ -186,7 +186,7 @@ describe("gate worker child", () => {
       const gate = worker();
       gate.start();
       const requests = [{ endpoint: "core" as const, body: Buffer.from('{"method":"GET","path":"/api/states"}') }];
-      const typed = { verdict: "typed", lang: "en", title: "Unlock?", body: "Requested by “Mac”.", button: "Unlock", items: [{ verdict: "typed", text: "Unlock “Front”" }] };
+      const typed = { verdict: "typed", lang: "en", title: "Unlock?", body: "Requested by “Mac”.", from: "Requested by “Mac”.", button: "Unlock", items: [{ verdict: "typed", text: "Unlock “Front”" }] };
       answer = typed;
       expect(await gate.ask!("Mac", requests)).toEqual(typed);
       expect(asked).toEqual({ device: "Mac", requests: [{ endpoint: "core", body_b64: requests[0]!.body.toString("base64") }] });

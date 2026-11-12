@@ -192,7 +192,7 @@ func TestMarketplaceGateAskAndUnreadAccount(t *testing.T) {
 	if err != nil || ask.Verdict != gateRefuse || ask.Body != "" {
 		t.Fatalf("bundled ask: %+v %v", ask, err)
 	}
-	if ask, err := gatePrepareAsk(paths, "Laptop", []gateAskRequest{{Endpoint: "ws", Body: []byte(marketplaceAccept)}}); err != nil || ask.Verdict != gateTyped || !strings.Contains(ask.Body, "Supervisor") {
+	if ask, err := gatePrepareAsk(paths, "Laptop", []gateAskRequest{{Endpoint: "ws", Body: []byte(marketplaceAccept)}}); err != nil || ask.Verdict != gateTyped || !strings.Contains(ask.Body, "Supervisor") || ask.From != "Requested by “Laptop” through HA NOVA." || !strings.HasSuffix(ask.Body, ask.From) {
 		t.Fatalf("alone: %+v %v", ask, err)
 	}
 	unread, _ := rawRelay(t, map[string]func(map[string]any) any{

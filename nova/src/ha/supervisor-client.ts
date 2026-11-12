@@ -19,6 +19,8 @@ export interface SelfInfo {
   ingressPanel: boolean;
   // The App's stable hostname on the Supervisor network ("" when absent).
   hostname: string;
+  // The App's slug, which names its sidebar panel /app/<slug> ("" when absent).
+  slug: string;
   // Container port ("8792/tcp") -> mapped host port, or null when unmapped.
   network: Record<string, number | null>;
 }
@@ -86,6 +88,7 @@ export function createSupervisorClient(
       updateAvailable: data.update_available === true,
       ingressPanel: data.ingress_panel === true,
       hostname: asString(data.hostname, ""),
+      slug: asString(data.slug, ""),
       // Lenient here: the sidebar and update card never read the port map
       // and must not break on a malformed entry; the strict parse lives at
       // the one consumer that does (getMappedHostPort).
