@@ -404,9 +404,9 @@ var gateChatPart = map[string]string{gateChatHeldNext: gateChatHeldPartNext, gat
 
 // gateChatNext: gateNext in the container's words for a chat app. Everyone
 // holding the container's token asks as one: a new ask replaces the open
-// one, and three unanswered or replaced asks in a row pause the phone.
+// one, and five asks in a row that go unanswered pause the phone.
 var gateChatNext = map[string]string{
-	"GATE_PAUSED":      "Tell the user nothing changed: asks on the phone linked to their NOVA Relay container are paused for up to 15 minutes, because earlier asks there went unanswered or were replaced by newer ones (from anyone using that container, computers included). They ask again later, or make the change in Home Assistant itself.",
+	"GATE_PAUSED":      "Tell the user nothing changed: asks on the phone linked to their NOVA Relay container are paused for up to 5 minutes, because five asks there in a row went unanswered (from anyone using that container, computers included). They ask again later, or make the change in Home Assistant itself.",
 	"GATE_ASK_LIMIT":   "Tell the user nothing changed: everyone using their NOVA Relay container together asked too often in the last hour. They ask again later, or make the change in Home Assistant itself.",
 	"GATE_ASK_BUSY":    "Tell the user nothing changed: another ask through their NOVA Relay container is still being prepared. They ask again in a moment.",
 	"GATE_UNAVAILABLE": "Tell the user nothing changed: HA NOVA's safety check in their NOVA Relay container isn't available. They try again in a minute; if it stays, whoever runs the container restarts it.",

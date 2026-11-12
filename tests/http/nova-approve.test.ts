@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { askRef, createGateAsks, type PreparedAsk } from "../../nova/src/http/gate-asks.js";
 import { approveRoutes, createApproveActionHandler, createApprovePageHandler, pageChannel, renderGateSection, type ApprovePageDeps } from "../../nova/src/http/handlers/nova-approve.js";
-import { createNovaPageHandler, type NovaPageDeps } from "../../nova/src/http/handlers/nova-page.js";
+import { createNovaActionHandler, createNovaPageHandler, type NovaPageDeps } from "../../nova/src/http/handlers/nova-page.js";
 import type { RouteContext } from "../../nova/src/http/router.js";
 import { createCsrfStore } from "../../nova/src/security/csrf.js";
 import type { DeviceRecord } from "../../nova/src/security/device-registry.js";
@@ -205,25 +205,60 @@ describe("approval view", () => {
 describe("owner page: waiting asks and paused devices", () => {
   const device = { deviceId: "laptop", name: "Laptop <1>" } as DeviceRecord;
 
-  it("links the view top-level and lists a paused device with its revoke step", async () => {
+  it("links the view top-level and shows a paused device with its five asks, a way to ask again, and revoke", async () => {
     const t = bed();
-    for (let i = 0; i < 3; i++) {
-      const { ask_id } = await t.open();
-      t.asks.cancel(askRef(ask_id));
+    for (let i = 0; i < 5; i++) {
+      await t.open();
+      t.tick(181_000);
+      t.asks.waiting(); // expires it
     }
-    expect(t.asks.pausedDevices()).toEqual(["laptop"]);
+    expect(t.asks.pausedDevices()).toMatchObject([{ deviceId: "laptop", until: 1_000 + 5 * 181_000 + 300_000 }]);
+    expect(t.asks.pausedDevices()[0]!.misses).toHaveLength(5);
     await t.open();
-    const html = await renderGateSection(t.deps.page, [device], "/api/hassio_ingress/tok");
+    const html = await renderGateSection(t.deps.page, [device], "/api/hassio_ingress/tok", t.deps.now(), (id) => `<form data-device="${id}">`);
     expect(html).toContain('target="_top" href="/api/hassio_ingress/tok/approve"');
-    expect(html).toContain("Laptop &lt;1&gt;");
+    expect(html).toContain("<strong>Laptop &lt;1&gt;</strong> · ‹page.paused_left›");
+    expect(html.match(/· Unlock &lt;Front&gt;<\/span><\/li>/g)).toHaveLength(5);
+    expect(html).toContain('<form data-device="laptop"><button type="submit">‹page.resume›</button></form>');
     expect(html).toContain('href="/api/hassio_ingress/tok/?confirm=revoke_device&amp;device=laptop"');
-    for (const key of ["page.heading", "page.waiting_one", "page.open", "page.paused", "page.revoke_device"]) {
+    for (const key of ["page.heading", "page.waiting_one", "page.open", "page.paused_heading", "page.paused", "page.revoke_device"]) {
       expect(html).toContain(`‹${key}›`);
     }
     const two = { ...t.deps.page, waiting: () => [...t.asks.waiting(), ...t.asks.waiting()], pausedDevices: () => [] };
-    expect(await renderGateSection(two, [device], "/x")).toContain("2 ‹page.waiting_many›");
-    expect(await renderGateSection(bed().deps.page, [device], "/x")).toBe("");
-    expect(await renderGateSection({ ...t.deps.page, texts: async () => null }, [device], "/x")).toBe("");
+    expect(await renderGateSection(two, [device], "/x", 0, () => "")).toContain("2 ‹page.waiting_many›");
+    expect(await renderGateSection(bed().deps.page, [device], "/x", 0, () => "")).toBe("");
+    expect(await renderGateSection({ ...t.deps.page, texts: async () => null }, [device], "/x", 0, () => "")).toBe("");
+  });
+
+  it("asks on the phone again only from an administrator's page, with a token bound to that device, and logs who", async () => {
+    const t = bed();
+    for (let i = 0; i < 5; i++) {
+      await t.open();
+      t.tick(181_000);
+      t.asks.waiting();
+    }
+    const logged: unknown[] = [];
+    const csrf = createCsrfStore();
+    const deps = {
+      fetchAuthUsers: async () => [OWNER, ADMIN, USER], gatePage: t.deps.page, csrf, now: t.deps.now,
+      registry: { list: () => [device] }, pairing: { getStatus: () => ({ phase: "idle" }) }, connection: () => ({ haConnected: true }),
+      update: async () => ({ version: "0.7.0", versionLatest: "0.7.0", updateAvailable: false, error: false }), relayVersion: "0.7.0",
+      logger: { info: (...args: unknown[]) => void logged.push(args), warn: () => undefined, error: () => undefined },
+    } as unknown as NovaPageDeps;
+    const page = await call(createNovaPageHandler(deps), ADMIN.id, null, {}, "172.30.32.2", "/");
+    const token = /name="csrf" value="([^"]+)"><input type="hidden" name="action" value="resume_phone_asks"><input type="hidden" name="device_id" value="laptop">/.exec(page.body)?.[1];
+    expect(token).toBeDefined();
+    const act = (user: string, body: Record<string, string>) => call(createNovaActionHandler(deps), user, body, {}, "172.30.32.2", "/action");
+    expect((await act(ADMIN.id, { action: "resume_phone_asks", csrf: token!, device_id: "other" })).statusCode).toBe(403); // bound to the device
+    expect((await act(USER.id, { action: "resume_phone_asks", csrf: csrf.issue(USER.id, "resume_phone_asks:laptop", t.deps.now()), device_id: "laptop" })).statusCode).toBe(403);
+    expect(t.asks.pausedDevices()).toHaveLength(1);
+    const fresh = /name="csrf" value="([^"]+)"><input type="hidden" name="action" value="resume_phone_asks">/.exec((await call(createNovaPageHandler(deps), ADMIN.id, null, {}, "172.30.32.2", "/")).body)![1]!;
+    expect((await act(ADMIN.id, { action: "resume_phone_asks", csrf: fresh, device_id: "laptop" })).statusCode).toBe(303);
+    expect(t.asks.pausedDevices()).toEqual([]);
+    expect(logged).toContainEqual(["NOVA page action", { action: "resume_phone_asks", user_id: ADMIN.id, device_id: "laptop" }]);
+    expect((await act(ADMIN.id, { action: "resume_phone_asks", csrf: fresh, device_id: "laptop" })).statusCode).toBe(403); // once
+    const noGate = { ...deps, gatePage: undefined } as unknown as NovaPageDeps;
+    expect((await call(createNovaActionHandler(noGate), ADMIN.id, { action: "resume_phone_asks", csrf: csrf.issue(ADMIN.id, "resume_phone_asks:laptop", t.deps.now()), device_id: "laptop" }, {}, "172.30.32.2", "/action")).statusCode).toBe(400);
   });
 
   it("shows an administrator who isn't the owner the waiting asks on the page itself", async () => {
@@ -268,7 +303,7 @@ describe("the page as a channel, and what it shows", () => {
   });
 
   it("never shows an ask it can't word, and says when more wait", async () => {
-    const page = { waiting: () => [{ ref: "r1", body: "Requested by Mac.", items: [{ verdict: "typed" as const }], expiresAt: 9_000 }], pausedDevices: () => [], approve: () => false, cancel: () => false, texts: pageTexts(words(), () => 0) };
+    const page = { waiting: () => [{ ref: "r1", body: "Requested by Mac.", items: [{ verdict: "typed" as const }], expiresAt: 9_000 }], pausedDevices: () => [], approve: () => false, cancel: () => false, resume: () => false, texts: pageTexts(words(), () => 0) };
     const t = bed();
     const blank = await call(createApprovePageHandler({ ...t.deps, page }), ADMIN.id);
     expect(blank.body).not.toContain('name="ref"');

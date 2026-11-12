@@ -92,9 +92,9 @@ safety check isn't running, nothing that needs it is sent; restart this App.
 
 Good to know:
 
-- Each computer asks at most 10 times an hour. After three of its requests in a
-  row go unanswered or are cancelled, its phone asks pause for 15 minutes. The
-  NOVA page still works and lists that computer with "Revoke this device…".
+- Each computer asks at most 10 times an hour. After five of its requests in a
+  row go unanswered, its phone asks pause for 5 minutes. The NOVA page still
+  works, shows those requests, and can ask on the phone again right away.
 - Whoever holds your linked phone can answer the open request; its buttons
   don't need an unlocked phone.
 - A computer connected through Home Assistant Link also keeps your Home
