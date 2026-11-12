@@ -238,18 +238,20 @@ func (a *updateAdvisor) automationErrors(since time.Time) ([]map[string]any, int
 			entity[st.Attributes.ID] = st.EntityID
 		}
 	}
-	counts, last := map[string]int{}, map[string]string{}
+	counts, last, lastAt := map[string]int{}, map[string]string{}, map[string]time.Time{}
 	for _, t := range traces {
 		if t.Error == "" || !t.Timestamp.Start.After(since) {
 			continue
 		}
-		name := a.x.name(firstNonEmpty(entity[t.ItemID], "automation."+t.ItemID))
-		counts[name]++
-		last[name] = sayTextUpTo(t.Error, 200, false)
+		id := firstNonEmpty(entity[t.ItemID], "automation."+t.ItemID)
+		counts[id]++
+		if !t.Timestamp.Start.Before(lastAt[id]) {
+			last[id], lastAt[id] = sayTextUpTo(t.Error, 200, false), t.Timestamp.Start
+		}
 	}
 	out := []map[string]any{}
-	for _, name := range slices.Sorted(maps.Keys(counts)) {
-		out = append(out, map[string]any{"name": name, "errors": counts[name], "last_error": last[name]})
+	for _, id := range slices.Sorted(maps.Keys(counts)) {
+		out = append(out, map[string]any{"entity_id": id, "name": a.x.name(id), "errors": counts[id], "last_error": last[id]})
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i]["errors"].(int) > out[j]["errors"].(int) })
 	return out, len(traces)
