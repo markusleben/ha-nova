@@ -30,7 +30,7 @@ Home Assistant keeps an automation entity across a reload only when its name and
 
 ### Home scope
 
-The scope is a hash of the profile id, the paired Relay instance id, and the Home Assistant URL. A profile without a Relay instance id gets no index, and a file with another scope is ignored and then replaced. The App's safety-check worker keeps its own files in the App.
+The scope is a hash of every id the profile holds for its Relay and home: the profile id, the Relay instance id (Link pairings), the Relay's TLS pin (secure pairings), the Relay URL, and the Home Assistant URL. A profile without a Relay URL gets no index, and a file with another scope is ignored and then replaced. Home Assistant has no instance id the CLI can read, so a standalone Relay repointed to another home under the same profile and URLs keeps its scope. A wrong skip there would still need the same entity id with an on/off state of the same microsecond `last_changed`. The App's safety-check worker keeps its own files in the App.
 
 ### Replay of a cut preview
 

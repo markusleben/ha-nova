@@ -53,8 +53,8 @@ func (s *relaySession) placeIndex() *placeIndex {
 	defer s.mu.Unlock()
 	if s.placeIdx == nil {
 		x := &placeIndex{path: filepath.Join(s.paths.CacheDir, "place-index.json"), changed: map[string]placeIndexEntry{}}
-		if s.cfg.RelayInstanceID != "" {
-			sum := sha256.Sum256([]byte(s.cfg.ProfileID + "\n" + s.cfg.RelayInstanceID + "\n" + s.cfg.HAURL))
+		if s.cfg.RelayBaseURL != "" { // the profile and every id of the Relay and home it is paired with
+			sum := sha256.Sum256([]byte(fmt.Sprintf("%q", []string{s.cfg.ProfileID, s.cfg.RelayInstanceID, s.cfg.RelaySpkiPin, s.cfg.RelayBaseURL, s.cfg.HAURL})))
 			x.scope = hex.EncodeToString(sum[:])
 		}
 		x.entries = x.read()
