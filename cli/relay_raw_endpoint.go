@@ -132,7 +132,7 @@ func relayTyped(paths runtimePaths, opts verbOptions, endpoint string, body []by
 // 2026-11-07), so the user reads them in Home Assistant. The one log read
 // HA NOVA answers is log facts (log_facts.go).
 const rawLogNext = "Home Assistant's logs can hold passwords, keys, and addresses, so HA NOVA doesn't read their lines. " +
-	"Which integration has been failing since when: WS {\"type\":\"system_log/list\"} with no other key answers log facts (counts and times). " +
+	"Which integration has been failing since when: read WS {\"type\":\"system_log/list\"} with no other key (ha_read, or ha-nova relay ws), which answers log facts (counts and times). " +
 	"For the lines, ask the user to open Settings > System > Logs in Home Assistant (an App's own log: Settings > Apps > the App > Log), " +
 	"search for the integration or entity, and tell you the few lines that matter, without passwords, keys, or addresses; never ask for the whole log"
 

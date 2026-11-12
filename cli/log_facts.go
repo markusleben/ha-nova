@@ -23,7 +23,7 @@ const logFactsBody = `{"type":"system_log/list"}`
 
 var (
 	logFactsLevels  = []string{"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
-	logFactsDomain  = regexp.MustCompile(`^[a-z0-9_]+$`)
+	logFactsDomain  = regexp.MustCompile(`^[a-z0-9_]{1,64}$`)
 	logFactsCode    = regexp.MustCompile(`^[A-Z][A-Z0-9_]{0,63}$`)
 	logFactsLatest  = time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC)
 	errLogFactsForm = errors.New("Home Assistant's log answer has an unknown shape; nothing of it is returned")
@@ -66,23 +66,23 @@ func readLogFacts(s *relaySession) (json.RawMessage, error) {
 	return projectLogFacts(data, domains)
 }
 
-// logFactsFailure words a failed read with what HA NOVA itself knows: the
-// Relay's HTTP status and its fixed error code, never a message.
+// logFactsFailure: an answer of the Relay or Home Assistant (its message
+// could quote the log) is worded with its HTTP status and fixed error code
+// only; HA NOVA's own words (unreachable, pairing, timeouts) pass.
 func logFactsFailure(err error) error {
-	var unreachable relayUnreachableError
-	if errors.As(err, &unreachable) { // HA NOVA's own words: the App isn't reachable
-		return err
-	}
 	var call *relayCallError
 	if !errors.As(err, &call) {
-		return errors.New("HA NOVA could not read the log facts; nothing was changed")
+		return err
 	}
 	code := "ERROR"
 	if logFactsCode.MatchString(call.code) {
 		code = call.code
 	}
-	return &relayCallError{endpoint: "ws", status: call.status, code: code, message: "HA NOVA could not read the log facts; nothing was changed. " +
-		"A NOVA App older than 0.31 refuses them: then ask the user to read Settings > System > Logs"}
+	message := "HA NOVA could not read the log facts; nothing was changed"
+	if code == "GATE_REFUSED" { // the 0.30 gate refuses every log read
+		message += ". This NOVA App is older than 0.31 and refuses them: update it, or ask the user to read Settings > System > Logs"
+	}
+	return &relayCallError{endpoint: "ws", status: call.status, code: code, message: message}
 }
 
 // logFactsDomains: this home's integrations (manifest/list, a read the AI
@@ -252,8 +252,18 @@ func runRelayLogFacts(paths runtimePaths, target verbOptions, jq *jqProgram, out
 	s, err := newRelaySession(paths, target)
 	var facts json.RawMessage
 	if err == nil {
+		if refusal := mcpDemoRefusal(activeServerIsDemo(), "ws", []byte(logFactsBody)); refusal != nil { // as ha_read: the demo's log is other visitors'
+			s.close()
+			printErr("%s", refusal)
+			return rawRefusedExit
+		}
 		facts, err = readLogFacts(s)
 		s.close()
+	}
+	var call *relayCallError
+	if errors.As(err, &call) && call.code == "GATE_REFUSED" {
+		printErr("%s", err)
+		return rawRefusedExit
 	}
 	if err != nil {
 		printErr("%s", relayReadFailed(err.Error()))
