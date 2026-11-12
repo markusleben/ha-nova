@@ -89,14 +89,14 @@ func (s *relaySession) readUntilDeadline() {
 // step), and windowMinWait for the person still fit in the call's ask
 // (askWait); the CLI's check gets 30 s, as the cut-plan spec planned. Read to checkDeadline, a big home on a slow link left the
 // ask no time (#827 on a gated App). An uncut plan checks as before, and so
-// does a plan whose ask has a life of its own (gateApproval: an MCP or chat
+// does a plan whose ask has a life of its own (approval: an MCP or chat
 // job) or whose call leaves no time for a capped check (MCP's 40 s window):
 // there the ask refuses once its time is gone.
 func recheckBeforeAsk(s *relaySession, env *verbEnvelope, stored storedPlan, compute func(*verbEnvelope) (storedPlan, error)) (storedPlan, error) {
 	start := s.call.began()
 	ceiling := start.Add(windowWait - windowMinWait - replayBudget - afterCheck - gateWorkerStep)
 	cut := func(p storedPlan) bool { return len(p.Reads) > 0 && slices.ContainsFunc(p.Reasons, cutShort) }
-	if gateApproval == nil && !start.IsZero() && ceiling.After(time.Now()) && (cut(stored) || slices.ContainsFunc(stored.BatchMembers, cut)) {
+	if s.approval() == nil && !start.IsZero() && ceiling.After(time.Now()) && (cut(stored) || slices.ContainsFunc(stored.BatchMembers, cut)) {
 		s.mu.Lock()
 		s.askCeiling = ceiling
 		s.mu.Unlock()

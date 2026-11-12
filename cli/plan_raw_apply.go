@@ -161,10 +161,10 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		}
 		if status != "done" {
 			err := stop(i, status, why)
-			if failure := (*verbFailure)(nil); errors.As(werr, &failure) && failure.next == gateChatHeldNext && errors.Is(werr, errNothingSent) {
-				env.Error.Next = gateChatHeldNext // planning it again would meet the same refusal (gate_client.go)
+			if failure := (*verbFailure)(nil); errors.As(werr, &failure) && gateChatPart[failure.next] != "" && errors.Is(werr, errNothingSent) {
+				env.Error.Next = failure.next // a chat app's own words: planning it again the same way meets the same refusal (gate_client.go)
 				if countStatus(rawApplyResult{Items: result.Items[copies:]}, "done") > 0 {
-					env.Error.Next = gateChatHeldPartNext
+					env.Error.Next = gateChatPart[failure.next]
 				}
 			}
 			return err

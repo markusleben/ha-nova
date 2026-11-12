@@ -19,11 +19,11 @@ var gatePollTimeout = 40 * time.Second
 // gateOpenWait: how long opening an ask for n requests may take. The
 // Relay's worker may spend a step on each request twice and two more
 // (gate-worker.ts), within what is left of this command's wait (askWait;
-// ha-nova mcp's job: the ask's life).
+// an MCP or chat job: the ask's life, read without process-wide state).
 func (s *relaySession) gateOpenWait(n int) time.Duration {
-	budget := s.askWait()
-	if gateApproval != nil {
-		budget = gateAskLife
+	budget := gateAskLife
+	if s.approval() == nil {
+		budget = s.askWait()
 	}
 	return min(time.Duration(2*n+2)*gateWorkerStep+5*time.Second, budget)
 }
