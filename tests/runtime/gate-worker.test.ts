@@ -160,7 +160,7 @@ describe("gate worker child", () => {
       const gate = worker({ timeoutMs: 20_000 });
       gate.start();
       expect(registry.byteLength).toBeGreaterThan(7 << 20);
-      expect(await gate.redact("ws", Buffer.from("{}"), registry)).toEqual(registry);
+      expect((await gate.redact("ws", Buffer.from("{}"), registry))?.equals(registry)).toBe(true);
       for (const bad of ["e30", "e30=\n", "%%%", "e3 0=", "QR==", "e3_9"]) {
         reply = bad;
         expect(await gate.redact("ws", Buffer.from("{}"), Buffer.from("{}"))).toBeNull();
