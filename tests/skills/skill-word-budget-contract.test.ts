@@ -551,6 +551,7 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/organize/display-fields.md",
   "skills/review/checks.md",
   "skills/review/checks-extended.md",
+  "skills/updates/advisor.md",
   "skills/updates/apps.md",
   "skills/yaml-config/www-media.md",
 ].map((file) => resolve(file)));

@@ -89,8 +89,9 @@ describe("updates contract", () => {
     // Long-running hand-off and firmware patience.
     expect(updatesSkill).toContain("continues in the background");
     expect(updatesSkill).toContain("30+ minutes and a temporarily `unavailable` device are normal");
-    // Batch ordering keeps the batch alive across restarts.
-    expect(updatesSkill).toContain("Order Apps and firmware before core/OS");
+    // Batch order and readiness come from the advisor (Apps after the Core
+    // they may need; update-advisor spec).
+    expect(updatesSkill).toContain("Order and readiness: run `advisor.md` before every install.");
     // Breaking changes first for core.
     expect(updatesSkill).toContain("Surface breaking-changes sections first");
   });
@@ -155,5 +156,27 @@ describe("updates contract", () => {
     expect(updatesSkill).toMatch(/--(data-file|body-file|out)\b/);
     expect(updatesSkill).toContain("../ha-nova/output-rules.md");
     expect(updatesSkill).toContain("Use stable localized slot labels in this order; omit empty slots.");
+  });
+});
+
+describe("update advisor contract", () => {
+  const advisor = readFileSync("skills/updates/advisor.md", "utf8");
+
+  it("runs the read-only check before every install and never confirms", () => {
+    expect(updatesSkill).toContain("- the update advisor before installs: `advisor.md`");
+    expect(advisor).toContain("Run before every install, one update or a batch");
+    expect(advisor).toContain("`ha-nova map --section updates`");
+    expect(advisor).toContain("Every install keeps its own preview, gates, and confirmation");
+    expect(advisor).toContain("never a confirmation");
+  });
+
+  it("never turns an unchecked or default result into a promise", () => {
+    expect(advisor).toContain("Never say an update is safe.");
+    expect(advisor).toContain("no blockers found in the checks HA NOVA made");
+    expect(advisor).toContain("`not_checked`: say which checks could not run and why.");
+    expect(advisor).toContain("It is a default (`order_basis: default`)");
+    for (const code of ["SUPERVISOR_UNHEALTHY", "DISK_LOW", "UPDATE_RUNNING", "APP_NEEDS_NEWER_CORE", "NO_RECENT_BACKUP", "BACKUP_ONLY_ON_DEVICE", "BACKUP_RUNNING", "REPAIRS_OPEN"]) {
+      expect(advisor).toContain(`\`${code}\``);
+    }
   });
 });

@@ -14,15 +14,15 @@ import (
 // ha-nova map: exact, CLI-computed home facts (home-map spec
 // docs/work/2026-10-16-home-map-spec.md). Read-only; the model never counts.
 
-const mapUsage = "ha-nova map [--section areas|integrations|automations|unavailable|batteries] [--entity <entity_id>] [--first-look | --insights] [--limit N]"
+const mapUsage = "ha-nova map [--section areas|integrations|automations|unavailable|batteries|updates] [--entity <entity_id>] [--first-look | --insights] [--limit N]"
 
-var mapSections = map[string]bool{"areas": true, "integrations": true, "automations": true, "unavailable": true, "batteries": true}
+var mapSections = map[string]bool{"areas": true, "integrations": true, "automations": true, "unavailable": true, "batteries": true, "updates": true}
 
 func runMapCommand(paths runtimePaths, args []string) int {
 	var opts verbOptions
 	fs := flag.NewFlagSet("map", flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
-	section := fs.String("section", "", "full list of one part: areas, integrations, automations, unavailable, batteries")
+	section := fs.String("section", "", "full list of one part: areas, integrations, automations, unavailable, batteries; updates: the update advisor's check before installs")
 	entity := fs.String("entity", "", "where-used of one entity_id (automations, scripts, scenes, groups, helpers, dashboards)")
 	firstLook := fs.Bool("first-look", false, "the onboarding first look: one-line counts, up to 2 observations, prompt seeds")
 	insights := fs.Bool("insights", false, "setup step 4: stats, ranked insights with room suggestions, and one automation made for this home")
@@ -43,7 +43,9 @@ func runMapCommand(paths runtimePaths, args []string) int {
 	case modes > 1:
 		err = errors.New("use only one of --section, --entity, --first-look, --insights")
 	case *section != "" && !mapSections[*section]:
-		err = fmt.Errorf("unknown --section %q (areas, integrations, automations, unavailable, batteries)", *section)
+		err = fmt.Errorf("unknown --section %q (areas, integrations, automations, unavailable, batteries, updates)", *section)
+	case limitSet && *section == "updates":
+		err = errors.New("--limit does not apply to --section updates")
 	case *entity != "" && !entityIDPattern.MatchString(*entity):
 		err = fmt.Errorf("%q is not an entity_id (domain.object_id)", *entity)
 	case limitSet && (*section == "" && *entity == ""):
@@ -65,6 +67,8 @@ func runMapCommand(paths runtimePaths, args []string) int {
 			env.Result = idx.firstLook()
 		case *insights:
 			env.Result = idx.insights(linkedPhone(s), templateOffered(paths, s))
+		case *section == "updates":
+			env.Result, err = adviseUpdates(s, idx)
 		case *section != "":
 			env.Result = idx.section(*section, limitOr(*limit, 50))
 		case *entity != "":
@@ -110,6 +114,7 @@ type homeData struct {
 		DeviceID     string `json:"device_id"`
 		DisabledBy   string `json:"disabled_by"`
 		Platform     string `json:"platform"`
+		UniqueID     string `json:"unique_id"`
 		Category     string `json:"entity_category"`
 		HiddenBy     string `json:"hidden_by"`
 		ConfigEntry  string `json:"config_entry_id"`

@@ -69,6 +69,10 @@ var readOnlyWSTypes = map[string]bool{
 	// Whether the Relay's user accepted the Marketplace warning, before an
 	// update.install on a Marketplace item (marketplace_update.go).
 	"marketplace/info": true,
+	// The update advisor's readiness (verb_map_updates_ready.go): open
+	// repairs and the backup list.
+	"repairs/list_issues": true,
+	"backup/info":         true,
 }
 
 // relaySession resolves config and transport once per invocation and
@@ -258,6 +262,13 @@ func checkReadOnlyRequest(endpoint string, payload map[string]any) error {
 			return nil
 		}
 		return errors.New("read verbs only load automation/script config snapshots from relay backups; nothing was sent")
+	case "supervisor": // the update advisor's readiness: health, free disk, an App's store entry
+		path, _ := payload["path"].(string)
+		kind, slug := rawSupervisorMatch(http.MethodGet, path)
+		if payload["method"] == http.MethodGet && len(payload) == 2 && (path == "/resolution/info" || path == "/host/info" || kind == "read" && slug != "" && strings.HasPrefix(path, "/store/addons/")) {
+			return nil
+		}
+		return errors.New("read verbs only send the update advisor's Supervisor reads; nothing was sent")
 	default:
 		return fmt.Errorf("read verbs never use relay %s; nothing was sent", endpoint)
 	}
