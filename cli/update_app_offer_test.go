@@ -1,9 +1,15 @@
 package main
 
 import (
+	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestAppOfferAfterInstallRunsInTheNewBinary(t *testing.T) {
@@ -26,7 +32,7 @@ func TestAppOfferAfterInstallRunsInTheNewBinary(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var ranNew, ranHere bool
 			runNewBinaryAppOffer = func(runtimePaths) error { ranNew = true; return tc.newBinary }
-			relayUpdateNoticeForUpdate = func(runtimePaths) humanNotice { ranHere = true; return humanNotice{} }
+			relayUpdateNoticeForUpdate = func(context.Context, runtimePaths) humanNotice { ranHere = true; return humanNotice{} }
 			offerRelayUpdateAfterInstall(runtimePaths{}, tc.target)
 			if ranNew != tc.wantNewBinary || ranHere != tc.wantInProcess {
 				t.Fatalf("new binary %v, in-process %v; want %v, %v", ranNew, ranHere, tc.wantNewBinary, tc.wantInProcess)
@@ -39,10 +45,45 @@ func TestInternalOfferAppUpdateCommandOffersAndExitsZero(t *testing.T) {
 	oldNotice := relayUpdateNoticeForUpdate
 	t.Cleanup(func() { relayUpdateNoticeForUpdate = oldNotice })
 	asked := false
-	relayUpdateNoticeForUpdate = func(runtimePaths) humanNotice { asked = true; return humanNotice{} }
+	relayUpdateNoticeForUpdate = func(context.Context, runtimePaths) humanNotice { asked = true; return humanNotice{} }
 	paths := guidedUpdatePaths(t)
 	t.Cleanup(func() { setServerSelectionOverride("") })
 	if code := dispatch(paths, "ha-nova", []string{"internal-offer-app-update", "--server", "default"}); code != 0 || !asked || serverSelectionOverride != "default" {
 		t.Fatalf("exit %d, offer asked %v, server flag %q", code, asked, serverSelectionOverride)
+	}
+}
+
+// The App check after an update is bounded (#1156): a Relay that never
+// answers no longer keeps `ha-nova update` silent for 40 s. A terminal sees
+// a progress line, and a cut check says so and names doctor; it offers
+// nothing.
+func TestUpdateAppCheckIsBoundedAndSaysWhenItGivesUp(t *testing.T) {
+	paths := guidedUpdatePaths(t)
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(t.TempDir(), "relay-token"))
+	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done() // a route that never answers
+	}))
+	t.Cleanup(relay.Close)
+	if err := saveConfig(paths, runtimeConfig{HAHost: "127.0.0.1", HAURL: "http://127.0.0.1:8123", RelayBaseURL: relay.URL}); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+	if err := writeRelayAuthToken("token"); err != nil {
+		t.Fatalf("writeRelayAuthToken() error: %v", err)
+	}
+	oldWait, oldTTY := relayUpdateCheckWait, relayUpdateOutputIsTTY
+	t.Cleanup(func() { relayUpdateCheckWait, relayUpdateOutputIsTTY = oldWait, oldTTY })
+	relayUpdateCheckWait = 100 * time.Millisecond
+	relayUpdateOutputIsTTY = func() bool { return true }
+
+	started := time.Now()
+	_, output := captureCommandOutput(t, func() int { offerRelayUpdateAfterUpdate(paths); return 0 })
+	if elapsed := time.Since(started); elapsed > 3*time.Second {
+		t.Fatalf("the App check took %s", elapsed)
+	}
+	if !strings.Contains(output, "Checking the NOVA App in Home Assistant...") ||
+		!strings.Contains(output, "HA NOVA couldn't check the NOVA App in time. To check it, run `ha-nova doctor`.") ||
+		strings.Contains(output, "Update the NOVA App now?") {
+		t.Fatalf("output:\n%s", output)
 	}
 }
