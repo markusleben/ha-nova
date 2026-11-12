@@ -14,7 +14,7 @@ export type GateEndpoint = "ws" | "core" | "files" | "backups" | "supervisor";
 
 export interface GateCheck {
   verdict: "pass" | "typed" | "refuse";
-  kind: "read" | "write";
+  kind: "read" | "write" | "probe"; // probe: the worker's own helper options read (cli/gate_verdict.go gateProbe)
   why?: string;
 }
 
@@ -59,7 +59,7 @@ export function gated(
         if (check === null) {
           throw unavailable();
         }
-        if (check.verdict !== "pass" || check.kind !== "read") {
+        if (check.verdict !== "pass" || (check.kind !== "read" && (check.kind !== "probe" || endpoint !== "core"))) {
           throw refused(check.why);
         }
       }

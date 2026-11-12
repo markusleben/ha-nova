@@ -267,6 +267,7 @@ describe("gate worker child", () => {
 
   it("a nested check is answered while the outer one is still open (the worker's own read under the gate)", async () => {
     const held: (() => void)[] = [];
+    const kinds: string[] = [];
     const server = createServer((request, response) => {
       request.resume();
       request.on("end", () => {
@@ -275,7 +276,7 @@ describe("gate worker child", () => {
           held.push(answer("write")); // the outer check waits for its nested read's check
           return;
         }
-        answer("read")();
+        answer(kinds.shift() ?? "read")();
       });
     });
     mkdirSync(join(dir, "gate"), { recursive: true, mode: 0o700 });
@@ -290,6 +291,9 @@ describe("gate worker child", () => {
       }
       const inner = await gate.check({ kind: "device", deviceId: "gate", internal: "gate", peer: "127.0.0.1" }, "core", Buffer.from('{"method":"GET","path":"/api/states"}'));
       expect(inner).toEqual({ verdict: "pass", kind: "read" });
+      kinds.push("probe");
+      const probe = await gate.check({ kind: "device", deviceId: "gate", internal: "gate", peer: "127.0.0.1" }, "core", Buffer.from('{"method":"DELETE","path":"/api/config/config_entries/options/flow/f1"}'));
+      expect(probe).toEqual({ verdict: "pass", kind: "probe" });
       expect(outerDone).toBe(false);
       held[0]!();
       expect(await outer).toEqual({ verdict: "pass", kind: "write" });

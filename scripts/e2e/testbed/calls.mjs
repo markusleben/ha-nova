@@ -14,7 +14,14 @@
 // the thermostat's entry; setting it to heat turns the fan on through
 // homeassistant.turn_on, a consumer. A second thermostat whose heater the
 // relay automation follows makes every listener count again.
+//
+// The same read through the App's own check (MAR-153): with that thermostat
+// and an unlock listener on climate calls, a light call sent to the gated
+// Relay passes with no ask, a call on the thermostat is still held, and the
+// thermostat's entry stays as it was. 0.30 held the light call too: its
+// thermostat checks were the computer's own plans, never a gated request.
 import { execFileSync } from "node:child_process";
+import { relay } from "./phone.mjs";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const names = (plan) => (plan.consumers ?? []).map((c) => c.automation);
@@ -49,7 +56,7 @@ async function thermostatNow(ha, entry, climate) {
     state: (await ha("GET", "/api/states/" + climate)).last_updated });
 }
 
-export async function callChecks({ ha, ws, cli, apply, check, watchdogID, loadAutomations, planWrite }) {
+export async function callChecks({ ha, ws, cli, apply, check, watchdogID, loadAutomations, planWrite, gated }) {
   const watchdog = (await ha("GET", "/api/states")).find((s) => s.attributes?.id === watchdogID)?.entity_id;
   // Before any light listener exists: here a light call sets nothing off.
   const light = cli("plan", "call", "light.turn_off", "light.bed_light");
@@ -73,6 +80,23 @@ export async function callChecks({ ha, ws, cli, apply, check, watchdogID, loadAu
     await sleep(3000); // a reload would be scheduled by now
     const after = await thermostatNow(ha, thermostats[0], fanThermostat);
     check("reading its heater changes nothing: entry as stored, no reload", before === after, before === after ? "" : before + " → " + after);
+    if (gated) {
+      await loadAutomations({ rclane_probe_unlock: { alias: "RC probe climate unlock", mode: "queued", triggers: [{ trigger: "event", event_type: "call_service", event_data: { domain: "climate" } }],
+        actions: [{ action: "lock.unlock", target: { entity_id: "lock.entrance_door" } }] } });
+      try {
+        const gatedLight = await relay("/core", { method: "POST", path: "/api/services/light/turn_off", body: { entity_id: "light.bed_light" } });
+        check("the gated Relay passes a light call beside a UI thermostat and an unlock listener on climate calls", gatedLight.status === 200,
+          "HTTP " + gatedLight.status + " " + (gatedLight.error?.code ?? ""));
+        const gatedClimate = await relay("/core", { method: "POST", path: "/api/services/climate/set_temperature", body: { entity_id: fanThermostat, temperature: 21 } });
+        check("the gated Relay still holds a call on that thermostat", gatedClimate.status === 428 && gatedClimate.error?.code === "GATE_APPROVAL_REQUIRED",
+          "HTTP " + gatedClimate.status + " " + (gatedClimate.error?.code ?? ""));
+      } finally {
+        await ha("DELETE", "/api/config/automation/config/rclane_probe_unlock").catch(() => {});
+      }
+      await sleep(3000);
+      const probed = await thermostatNow(ha, thermostats[0], fanThermostat);
+      check("the App's own read changes nothing either", probed === after, probed === after ? "" : after + " → " + probed);
+    }
 
     const shapes = {};
     for (const [name, filter] of Object.entries(ORACLE)) {

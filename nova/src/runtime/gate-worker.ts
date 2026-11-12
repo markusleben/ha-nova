@@ -150,7 +150,7 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
       const answer = await post("/check", { principal: who, endpoint, body_b64: body.toString("base64") });
       const verdict = answer?.verdict;
       const kind = answer?.kind;
-      if ((verdict !== "pass" && verdict !== "typed" && verdict !== "refuse") || (kind !== "read" && kind !== "write")) {
+      if ((verdict !== "pass" && verdict !== "typed" && verdict !== "refuse") || (kind !== "read" && kind !== "write" && kind !== "probe")) {
         return null;
       }
       const result: GateCheck = { verdict, kind };
