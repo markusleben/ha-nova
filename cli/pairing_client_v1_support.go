@@ -10,7 +10,7 @@ import (
 // Sentinel errors the setup/uninstall flows branch on.
 var (
 	errPairingCodeRejected   = errors.New("pairing code is invalid or expired")
-	errPairingInactive       = errors.New("no active pairing code; ask the owner to click Connect a device in NOVA")
+	errPairingInactive       = errors.New("no active pairing code; ask a Home Assistant administrator to click Connect a device in NOVA")
 	errPinMismatch           = errors.New("relay TLS identity did not match the pinned fingerprint")
 	errDeviceUnauthorized    = errors.New("device credential was rejected")
 	errRelayNotV1            = errors.New("this relay does not support secure device pairing; update the NOVA Relay App")

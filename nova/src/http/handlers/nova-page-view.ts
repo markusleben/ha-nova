@@ -5,7 +5,7 @@ import type { DeviceRecord } from "../../security/device-registry.js";
 import { chatPhoneLine, chatPhoneWaiting, renderChatPhone, renderChatPhoneError, type ChatPhoneAction, type ChatPhoneModel } from "./nova-page-chat-phone.js";
 import { renderChatActivity, renderChatUsers, renderToolsChanged, type ChatPhoneUser, type ChatUsersModel } from "./nova-page-chat-users.js";
 
-// Presentation layer of the NOVA owner console: page model, HTML/CSS rendering,
+// Presentation layer of the NOVA console: page model, HTML/CSS rendering,
 // the armed confirm section, and formatting helpers. The HTTP/action/CSRF
 // handling lives in nova-page.ts; this module never touches the request.
 
@@ -44,7 +44,10 @@ export function parseConfirm(query: URLSearchParams): ConfirmTarget | null {
 }
 
 export interface PageModel {
-  ownerName: string;
+  ownerName: string; // who is signed in
+  isOwner: boolean; // false: an administrator, who sees no chat apps and no registry reset
+  chatFeature: boolean; // this App has chat apps (an administrator's page names who changes them)
+  houseOwner: string; // the owner's name, "" unknown
   csrf: CsrfStore;
   userId: string;
   now: number;
@@ -92,7 +95,7 @@ export function renderPage(m: PageModel): string {
   // owner staring at an empty page or editing /data by hand. The reset itself
   // is armed via its confirm screen (strongest gate: typed RESET).
   const recoverySection = m.registryCorrupt
-    ? `<section><h2>Recovery needed</h2><p class="muted">The device registry is damaged, so device pairing and existing device access are disabled. Reset it to start fresh — the damaged file is kept aside, and every computer will need to pair again.</p>${armLink("confirm=reset_registry", "Reset device registry…")}</section>`
+    ? `<section><h2>Recovery needed</h2><p class="muted">The device registry is damaged, so device pairing and existing device access are disabled. Reset it to start fresh — the damaged file is kept aside, and every computer will need to pair again.</p>${m.isOwner ? armLink("confirm=reset_registry", "Reset device registry…") : `<p>Only ${ownerWords(m)} can reset it.</p>`}</section>`
     : "";
 
   // Shown after an owner action failed (redirected here with ?err=<code>) so a
@@ -235,9 +238,14 @@ ${errorSection}${confirmSection}${m.gateSection}<section><h2>Home Assistant</h2>
 ${recoverySection}<section><h2>Update</h2><p>${updateLine}</p></section>
 <section><h2>Pairing</h2>${pairingSection}</section>
 <section><h2>Devices</h2>${deviceRows}</section>
-${renderChatApps(m, formOpen, csrfField)}${renderChatActivity(m.chatUsers?.activity ?? null, m.now)}<footer>Signed in as ${escapeHtml(m.ownerName)} · Relay ${escapeHtml(m.relayVersion)}</footer>
+${m.isOwner ? `${renderChatApps(m, formOpen, csrfField)}${renderChatActivity(m.chatUsers?.activity ?? null, m.now)}` : !m.chatFeature ? "" : `<section><h2>Chat apps</h2><p class="muted">Chat apps and their settings: only ${ownerWords(m)} can change them.</p></section>`}<footer>Signed in as ${escapeHtml(m.ownerName)} · Relay ${escapeHtml(m.relayVersion)}</footer>
 </main>
 </body></html>`;
+}
+
+// "the owner, Markus," for an administrator's page (names only through escapeHtml).
+function ownerWords(m: PageModel): string {
+  return m.houseOwner ? `the owner, ${escapeHtml(m.houseOwner)},` : "the owner of this Home Assistant";
 }
 
 // "Chat apps": Claude and ChatGPT through Home Assistant Link or a public HTTPS address (spec §11.6).

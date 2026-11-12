@@ -209,11 +209,13 @@ describe("NOVA page: who can use chat apps", () => {
     expect(saved).toEqual([]);
   });
 
-  it("refuses a Home Assistant administrator who isn't the owner", async () => {
+  it("keeps the list with the owner: an administrator who isn't the owner can't save it or see it", async () => {
     const html = await page();
     const answer = await post({ action: "chat_users", csrf: token(html, "chat_users")!, [`on_${CLARA}`]: "1", [`level_${CLARA}`]: "manage" }, CLARA);
     expect(answer.statusCode).toBe(403);
-    expect((await run(createNovaPageHandler(deps()), request("/", CLARA))).statusCode).toBe(403);
+    const theirs = await run(createNovaPageHandler(deps()), request("/", CLARA));
+    expect(theirs.statusCode).toBe(200);
+    expect(token(theirs.body, "chat_users")).toBeUndefined();
     expect(saved).toEqual([]);
   });
 

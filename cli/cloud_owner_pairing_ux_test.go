@@ -32,7 +32,7 @@ func TestRemoteOwnerPairingKeepsOAuthAndOwnerBrowserSessionsSeparate(
 	for _, required := range []string{
 		"OAuth sign-in is complete",
 		"separate private/incognito window",
-		"Home Assistant Owner",
+		"Home Assistant administrator",
 		"Link works with a standard Home Assistant user or with the owner",
 	} {
 		if !strings.Contains(output.String(), required) {

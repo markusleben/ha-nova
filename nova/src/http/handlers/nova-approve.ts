@@ -143,9 +143,9 @@ export async function pageChannel(ws: WsClient): Promise<string[]> {
   }
 }
 
-// The owner page's part: how many asks wait (a top-level link, so the view
+// The NOVA page's part: how many asks wait (a top-level link, so the view
 // can't be framed) and the devices whose phone asks are paused, each with
-// the owner page's own revoke step. Without the worker's words: none.
+// the page's own revoke step. Without the worker's words: none.
 export async function renderGateSection(page: GatePage, devices: DeviceRecord[], ingressPath: string): Promise<string> {
   const root = `${ingressPath.replace(/\/$/, "")}/`;
   const waiting = page.waiting().length;
@@ -155,11 +155,4 @@ export async function renderGateSection(page: GatePage, devices: DeviceRecord[],
   const open = waiting === 0 ? "" : `<p>${waiting === 1 ? t.say("page.waiting_one") : t.say("page.waiting_many", { count: waiting })} <a class="linkbtn" target="_top" href="${escapeHtml(`${root}approve`)}">${t.say("page.open")}</a></p>`;
   const rows = paused.map((d) => `<li><strong>${escapeHtml(d.name)}</strong>: <span class="muted">${t.say("page.paused")}</span> <a class="linkbtn danger" href="${escapeHtml(`${root}?confirm=revoke_device&device=${encodeURIComponent(d.deviceId)}`)}">${t.say("page.revoke_device")}</a></li>`).join("");
   return `<section><h2>${t.say("page.heading")}</h2>${open}${rows ? `<ul>${rows}</ul>` : ""}</section>`;
-}
-
-// The link a non-owner administrator gets on the owner page's refusal;
-// without the worker's words, none.
-export async function approveLink(request: IncomingMessage, page: GatePage): Promise<string> {
-  const t = await page.texts("");
-  return t === null ? "" : `<p><a target="_top" href="${escapeHtml(`${base(request)}approve`)}">${t.say("page.link")}</a></p>`;
 }

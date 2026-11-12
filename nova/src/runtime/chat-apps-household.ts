@@ -25,10 +25,11 @@ const HA_USER = /^[0-9a-f]{32}$/;
 // The most a level gives user: owner or administrator, Manage everything;
 // a user, Use the home; any other role (or none), Ask only.
 export function roleCap(user: HaAuthUser): ChatLevel {
-  if (user.is_owner === true || user.group_ids?.includes("system-admin") === true) {
+  const groups = Array.isArray(user.group_ids) ? user.group_ids : []; // a role HA NOVA can't read is none
+  if (user.is_owner === true || groups.includes("system-admin")) {
     return "manage";
   }
-  return user.group_ids?.includes("system-users") === true ? "use" : "ask";
+  return groups.includes("system-users") ? "use" : "ask";
 }
 
 // A person's own active login, not one Home Assistant made for itself.
