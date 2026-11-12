@@ -194,11 +194,12 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 		target, _, _ = strings.Cut(target, "?")
 		body, _ := payload["body"].(map[string]any)
 		_, reconfigures := body["subentry_id"]
-		submits := payload["method"] == http.MethodPost || payload["method"] == http.MethodGet && flowStepPath.MatchString(target) // a GET re-runs the step (async_configure): rated as its POST
+		step, _ := relayCorePath(target)                                                                                         // as Home Assistant gets it: a GET may be %-escaped
+		submits := payload["method"] == http.MethodPost || payload["method"] == http.MethodGet && flowStepPath.MatchString(step) // a GET re-runs the step (async_configure): rated as its POST
 		switch {
-		case submits && rawRepairFlowPath.MatchString(target): // what a fix does is the integration's: its start runs the first step
+		case submits && rawRepairFlowPath.MatchString(step): // what a fix does is the integration's: its start runs the first step
 			return tierTyped, "repair_flow"
-		case submits && rawSubentryStepPath.MatchString(target) || payload["method"] == http.MethodPost && target == "/api/config/config_entries/subentries/flow" && reconfigures:
+		case submits && rawSubentryStepPath.MatchString(step) || payload["method"] == http.MethodPost && target == "/api/config/config_entries/subentries/flow" && reconfigures:
 			return tierTyped, "subentry_flow" // a step can't be told from an add's, nor what a reconfigure drops
 		case payload["method"] != http.MethodDelete:
 		case rawEntryDeletePath.MatchString(target):

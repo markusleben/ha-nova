@@ -314,7 +314,7 @@ func TestGateFlowStepGETRatedAsItsPOST(t *testing.T) {
 		if err != nil || post.Verdict != want {
 			t.Errorf("POST %s: %+v %v, want %s", path, post, err, want)
 		}
-		for _, get := range [][2]string{{"GET", path}, {" get", path}, {"GET", path + "?x=1"}} {
+		for _, get := range [][2]string{{"GET", path}, {" get", path}, {"GET", path + "?x=1"}, {"GET", strings.TrimSuffix(path, "f1") + "%66%31"}} {
 			check, err := gateVerdict("core", mustJSON(map[string]any{"method": get[0], "path": get[1]}), noSession)
 			if err != nil || check.Verdict != want || check.Kind != "write" {
 				t.Errorf("%q %s: %+v %v, want %s write", get[0], get[1], check, err, want)
