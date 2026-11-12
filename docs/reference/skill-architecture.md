@@ -114,7 +114,7 @@ Current mapping:
 | device | inline + CLI | `get --references` scans; `plan write` + `apply` re-point; every other family hands off to its owner |
 | migrate | inline + CLI | the agent reads the export; `find`/`get` map; `plan write`/`plan call` + `apply` in one group per source rule; helpers and YAML hand off |
 | history | inline | read-only bounded timeline lookups |
-| health | inline | status aggregation, best-effort diagnostics; previewed repair ignore/fix, typed when removing configuration |
+| health | inline | status aggregation, best-effort diagnostics; previewed repair ignore; a repair fix is typed at its start and each step |
 | home-map | inline + CLI | `ha-nova map` computes every count; the skill renders and hands fixes to owning skills |
 | calendar | inline | bounded REST reads plus feature-gated service/WS event writes |
 | todo | inline | service-based item CRUD with feature gate, single-step list flow |
@@ -346,8 +346,10 @@ migration:
   skill owns what the entity flow cannot do
 - Home Assistant 2026.11+ builds HACS in as the Marketplace and removes
   `hacs/*`: the gate falls through to `marketplace/info`, and the skill then
-  reads the Marketplace inventory only and gives the Home Assistant steps for
-  everything else (never a "HACS is missing" answer)
+  reads the Marketplace inventory, installs and uninstalls as typed plans
+  (accepting the Marketplace warning for HA NOVA's user first, as a plan of
+  its own), and gives the Home Assistant steps for everything else (never a
+  "HACS is missing" answer)
 
 ## Calendar Architecture
 

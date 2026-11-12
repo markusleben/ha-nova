@@ -7,10 +7,11 @@ import (
 	"testing"
 )
 
-const marketplaceSayEN = "Not done: HA NOVA can't install Marketplace updates yet, because Home Assistant first asks for the Marketplace warning to be read and accepted. Nothing changed. Update it in Home Assistant: Settings → Marketplace. HA NOVA will support this in a later release."
+const marketplaceSayEN = "Not done: Home Assistant installs Marketplace updates only once its warning is accepted for the user HA NOVA uses, and HA NOVA can't do that here. Nothing changed. Update it in Home Assistant: Settings → Marketplace."
 
 // marketplaceHA: a home with a Marketplace update and a HACS one; info is
-// what marketplace/info answers (nil: the read fails).
+// what marketplace/info answers (nil: the read fails). Its users can't be
+// read, so HA NOVA's user is never known to be the Supervisor.
 func marketplaceHA(info map[string]any) *fakeHA {
 	f := newFakeHA()
 	f.ent("update.card_mod_update", "marketplace", "on", map[string]any{"friendly_name": "card-mod update"})
@@ -39,8 +40,12 @@ func marketplaceReads(h *writeHarness) int {
 
 func wantMarketplaceRefusal(t *testing.T, h *writeHarness, exit int, env verbTestEnvelope, say string) {
 	t.Helper()
+	next := marketplaceNext
+	if say == confirmT("en", "say.marketplace_accept") {
+		next = marketplaceNextAccept
+	}
 	if exit != verbExitRefused || env.Error == nil || env.Error.Code != "REFUSED" || !strings.Contains(env.Error.Message, "refused (MARKETPLACE_WARNING)") ||
-		env.Error.Next != marketplaceNext || env.Say != say || env.Plan != nil {
+		env.Error.Next != next || env.Say != say || env.Plan != nil {
 		t.Fatalf("exit %d say %q error %+v plan %+v", exit, env.Say, env.Error, env.Plan)
 	}
 	if !slices.ContainsFunc(env.Reasons, func(r tierReason) bool { return r.Code == reasonMarketplaceWarning }) {
@@ -65,6 +70,35 @@ func TestMarketplaceUpdateRefusedWhenWarningNotAccepted(t *testing.T) {
 	}
 }
 
+// On the NOVA App (HA NOVA's user is the Supervisor) the refusal offers
+// the acceptance; only a known "not accepted" does, never a failed read.
+func TestMarketplaceUpdateRefusalOffersTheAcceptance(t *testing.T) {
+	for name, tc := range map[string]struct {
+		info map[string]any
+		say  string
+	}{
+		"not accepted": {map[string]any{"warning_accepted": false}, confirmT("en", "say.marketplace_accept")},
+		"no flag":      {map[string]any{"version": "2026.11.1"}, marketplaceSayEN},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := marketplaceHA(tc.info)
+			info := f.extra
+			f.extra = func(endpoint string, p map[string]any) (any, bool) {
+				switch p["type"] {
+				case "auth/current_user":
+					return map[string]any{"id": "u-sup"}, true
+				case "config/auth/list":
+					return []any{map[string]any{"id": "u-sup", "name": "Supervisor", "system_generated": true}}, true
+				}
+				return info(endpoint, p)
+			}
+			h := newWriteHarness(t, f)
+			exit, env := h.run(runPlanCommand, "call", "update.install", "update.card_mod_update", "--skill", "ha-nova:updates")
+			wantMarketplaceRefusal(t, h, exit, env, tc.say)
+		})
+	}
+}
+
 // A read that fails, or an answer without the flag, refuses the same way.
 func TestMarketplaceUpdateRefusedWhenInfoUnread(t *testing.T) {
 	for name, info := range map[string]map[string]any{"read fails": nil, "no flag": {"version": "2026.11.1"}} {
@@ -86,7 +120,7 @@ func TestMarketplaceUpdateRefusalSpeaksGerman(t *testing.T) {
 	h := newWriteHarness(t, f)
 	exit, env := h.run(runPlanCommand, "call", "update.install", "update.card_mod_update", "--skill", "ha-nova:updates")
 	wantMarketplaceRefusal(t, h, exit, env, confirmT("de", "say.marketplace_update"))
-	if !strings.HasPrefix(env.Say, "Nicht erledigt: HA NOVA kann Marketplace-Updates noch nicht installieren") {
+	if !strings.HasPrefix(env.Say, "Nicht erledigt: Home Assistant installiert Marketplace-Updates erst") {
 		t.Fatalf("say %q", env.Say)
 	}
 }

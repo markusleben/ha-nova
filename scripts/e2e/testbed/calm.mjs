@@ -181,7 +181,7 @@ try {
   }
   const reload = cli("plan", "call", "automation.reload", "--set", `id=${TARGET}`);
   check("a reload you call is still rated by what it sets off: asks a person", asksPerson(reload), `tier ${reload.tier ?? reload.error?.code}, channel ${reload.plan?.channel ?? "-"}, reasons ${reasons(reload)}`);
-  await callChecks({ ha, ws, cli, apply, check, watchdogID: "rclane_home_cover_watchdog", loadAutomations, planWrite });
+  await callChecks({ ha, ws, cli, apply, check, watchdogID: "rclane_home_cover_watchdog", loadAutomations, planWrite, gated });
 } catch (err) {
   check("calm check ran", false, err.message);
 } finally {

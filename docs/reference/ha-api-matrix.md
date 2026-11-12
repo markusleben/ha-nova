@@ -38,7 +38,7 @@ Which HA operations require REST, WS, or filesystem?
 | `/api/config/config_entries/flow_handlers` | GET | List config-flow handler domains |
 | `/api/config/config_entries/flow` | POST | Start an integration/helper config flow |
 | `/api/config/config_entries/flow/{flow_id}` | GET / POST / DELETE | Read, submit, or cancel one config flow |
-| `/api/config/config_entries/options/flow` + `/{flow_id}` | POST, then DELETE | Tier engine only: a UI generic thermostat's or hygrostat's stored `heater`/`humidifier`, from the `init` form's `suggested_value`; the flow is always aborted, never submitted (`cli/tier_helper_options.go`) |
+| `/api/config/config_entries/options/flow` + `/{flow_id}` | POST, then DELETE | Tier engine only: a UI generic thermostat's or hygrostat's stored `heater`/`humidifier`, from the `init` form's `suggested_value`; the flow is aborted, never submitted (`cli/tier_helper_options.go`); on a gated App the worker sends both through the Relay as `kind: probe` (`cli/gate_verdict.go` `gateProbe`). A start whose answer is lost leaves one unsaved flow until Home Assistant restarts |
 
 **Auth:** callers go through the Relay (`ha-nova relay core`), which authenticates inbound with the Relay/device credential and injects the upstream HA credential server-side (`SUPERVISOR_TOKEN` on the App, `HA_LLAT` on the standalone container) — never send an HA token yourself. A raw `Authorization: Bearer {LONG_LIVED_TOKEN}` applies only to direct server-side use outside HA NOVA. The webhook endpoint itself is unauthenticated and treats its ID as the bearer secret; calls through HA NOVA still require Relay authentication.
 
@@ -113,9 +113,9 @@ Raw `ha-nova relay ws` sends only the types on `cli/relay_raw_allow.go` (raw `re
 | `/core` | `GET /api/config/config_entries/options/flow/{flow_id}` | Read current options-flow step |
 | `/core` | `POST /api/config/config_entries/options/flow/{flow_id}` | Submit options-flow step |
 | `/core` | `DELETE /api/config/config_entries/options/flow/{flow_id}` | Cancel an unfinished options flow |
-| `/core` | `POST /api/config/config_entries/subentries/flow` | Start add (`handler: [entry_id, subentry_type]`) or reconfigure (also `subentry_id`); preview raw plan; an access-capable parent entry is refused |
+| `/core` | `POST /api/config/config_entries/subentries/flow` | Start add (`handler: [entry_id, subentry_type]`) or reconfigure (also `subentry_id`); an add is a preview raw plan, a reconfigure typed; an access-capable parent entry is refused |
 | `/core` | `GET /api/config/config_entries/subentries/flow/{flow_id}` | Continue subentry flow; plan-only, can finish it |
-| `/core` | `POST /api/config/config_entries/subentries/flow/{flow_id}` | Submit live subentry step; preview, typed if removing configuration |
+| `/core` | `POST /api/config/config_entries/subentries/flow/{flow_id}` | Submit live subentry step; typed (the integration decides what it changes) |
 | `/core` | `DELETE /api/config/config_entries/subentries/flow/{flow_id}` | Cancel an unfinished subentry flow; preview |
 | `/core` | `DELETE /api/config/config_entries/entry/{entry_id}` | Delete config entry; integration-setup, typed raw plan with owned device/entity counts and consumers |
 
@@ -194,9 +194,8 @@ Recurring instances add `recurrence_id`; `recurrence_range` is `""` for only tha
 
 **Repairs fix flows:** health owns `POST /api/repairs/issues/fix` with
 `handler: <issue domain>, issue_id`, then `POST /api/repairs/issues/fix/{flow_id}`
-with the live form body. Preview each step; the existing raw-item `typed: true`
-raises deletion/removal repairs, identified from the issue domain/translation
-and live description because HA declares no deletion flag. The by-id GET can
+with the live form body. The CLI types the start and every step itself (HA
+declares no deletion flag, and the gate can't tell a flow id's issue). The by-id GET can
 advance/finish a flow, so it is plan-only too. DELETE the by-id path cancels
 an unfinished agent-owned flow at preview tier. Unknown outcomes are reconciled
 against the issue and actual affected resources, never retried blindly.
@@ -270,7 +269,7 @@ guardrails.
 | Thread / Matter | `otbr/info`, `thread/list_datasets` (dataset is a network credential — `--out` file only), `matter/node_diagnostics` (takes `device_id`) | fallback |
 | Custom-integration config APIs | REST `/api/<integration>/<resource>` (GET only; private, version-dependent — Alarmo, Scheduler, Frigate, ...; raw POSTs are refused) | fallback |
 | HACS | `hacs/*` (17 commands) — not a Home Assistant API; the pinned map lives in `skills/hacs/hacs-commands.md` | hacs |
-| Marketplace (Home Assistant 2026.11+, HACS built in) | `marketplace/info`, `marketplace/repositories/list` — read-only; installs, updates, and removals stay in the Home Assistant UI (`skills/hacs/hacs-commands.md` → Marketplace mode). `ha-nova call update.install` on a Marketplace update reads `marketplace/info` first and refuses (`MARKETPLACE_WARNING`) before sending unless the Relay's user accepted the Marketplace warning (`cli/marketplace_update.go`) | hacs |
+| Marketplace (Home Assistant 2026.11+, HACS built in) | `marketplace/info`, `marketplace/repositories/list` (reads); `marketplace/warning/accept`, `marketplace/repository/install`, `marketplace/repository/uninstall` — typed plan items only, the acceptance alone in its plan and only for the Supervisor user (`cli/marketplace_raw.go`); every other Marketplace write stays in the Home Assistant UI (`skills/hacs/hacs-commands.md` → Marketplace mode). `ha-nova call update.install` on a Marketplace update reads `marketplace/info` first and refuses (`MARKETPLACE_WARNING`) before sending unless the Relay's user accepted the Marketplace warning (`cli/marketplace_update.go`) | hacs |
 
 Out of scope: InfluxDB paths (`/api/v2/query`, `/api/v3/query_sql`) pinned in
 `skills/external-sources` are not Home Assistant APIs. Home Assistant's own

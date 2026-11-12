@@ -66,6 +66,8 @@ var rawWhys = map[string]func(lang string) string{
 	"core_clock":          func(l string) string { return confirmT(l, "raw.why.core_clock") },
 	"core_language":       func(l string) string { return confirmT(l, "raw.why.core_language") },
 	"integration_remove":  func(l string) string { return confirmT(l, "raw.why.integration_remove") },
+	"repair_flow":         func(l string) string { return confirmT(l, "raw.why.repair_flow") },
+	"subentry_flow":       func(l string) string { return confirmT(l, "raw.why.subentry_flow") },
 	"file_delete":         func(l string) string { return confirmT(l, "raw.why.file_delete") },
 	"file_write":          func(l string) string { return confirmT(l, "raw.why.file_write") },
 	"file_restore":        func(l string) string { return confirmT(l, "raw.why.file_restore") },
@@ -76,6 +78,9 @@ var rawWhys = map[string]func(lang string) string{
 	"app_install":         func(l string) string { return confirmT(l, "raw.why.app_install") },
 	"app_uninstall":       func(l string) string { return confirmT(l, "raw.why.app_uninstall") },
 	"app_settings":        func(l string) string { return confirmT(l, "raw.why.app_settings") },
+	"marketplace_warning": func(l string) string { return confirmT(l, "raw.why.marketplace_warning") },
+	"marketplace_install": func(l string) string { return confirmT(l, "raw.why.marketplace_install") },
+	"marketplace_remove":  func(l string) string { return confirmT(l, "raw.why.marketplace_remove") },
 }
 
 // reasonHACSInstall: update.install on a HACS entity (on Home Assistant
@@ -87,13 +92,16 @@ const reasonHACSInstall = "HACS_INSTALL"
 // rawTypedWS: the WS writes typed besides the deletes and removals, and why
 // (rawWhys).
 var rawTypedWS = map[string]string{
-	"recorder/clear_statistics":  "delete",
-	"config/auth/create":         "account_create",
-	"hacs/repository/download":   "hacs_install",
-	"lovelace/resources/create":  "resource_create",
-	"lovelace/resources/update":  "resource_update",
-	"labs/update":                "labs",
-	"recorder/import_statistics": "statistics_import",
+	"recorder/clear_statistics":        "delete",
+	"config/auth/create":               "account_create",
+	"hacs/repository/download":         "hacs_install",
+	"marketplace/warning/accept":       "marketplace_warning",
+	"marketplace/repository/install":   "marketplace_install",
+	"marketplace/repository/uninstall": "marketplace_remove",
+	"lovelace/resources/create":        "resource_create",
+	"lovelace/resources/update":        "resource_update",
+	"labs/update":                      "labs",
+	"recorder/import_statistics":       "statistics_import",
 }
 
 var rawSceneConfigPath = regexp.MustCompile(`^/api/config/scene/config/[A-Za-z0-9_.-]+$`)
@@ -184,7 +192,13 @@ func rawRequestTier(n *rawNamer, endpoint string, payload map[string]any) (tierL
 		target, _ := payload["path"].(string)
 		target, _, _ = strings.Cut(target, "#")
 		target, _, _ = strings.Cut(target, "?")
+		body, _ := payload["body"].(map[string]any)
+		_, reconfigures := body["subentry_id"]
 		switch {
+		case payload["method"] == http.MethodPost && rawRepairFlowPath.MatchString(target): // what a fix does is the integration's: its start runs the first step
+			return tierTyped, "repair_flow"
+		case payload["method"] == http.MethodPost && (rawSubentryStepPath.MatchString(target) || target == "/api/config/config_entries/subentries/flow" && reconfigures):
+			return tierTyped, "subentry_flow" // a step can't be told from an add's, nor what a reconfigure drops
 		case payload["method"] != http.MethodDelete:
 		case rawEntryDeletePath.MatchString(target):
 			return tierTyped, "integration_remove"

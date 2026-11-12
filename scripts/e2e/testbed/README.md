@@ -10,6 +10,7 @@ npm run testbed:verify                     # PASS/FAIL smoke assertions, read-on
 TESTBED_PHONE=1 npm run testbed:verify     # + the phone lane (fake phones, push payloads)
 node scripts/e2e/testbed/gate.mjs          # the gate lane: approvals on the phone (bed up with TESTBED_FILES=1)
 node scripts/e2e/testbed/www-media.mjs     # www pictures: delete, undo, community, copy limit (same bed)
+node scripts/e2e/testbed/marketplace.mjs   # Marketplace: typed install, the warning only for the App's user, gate holds and refusals
 npm run testbed:down                       # containers, volumes, tokens, runtime config: gone
 ```
 
@@ -200,7 +201,10 @@ home in `.state`. The RC lane runs all three with the tag's binary
   thermostat's entry and state as they were (MAR-131: its options flow is
   started and aborted); setting it to heat turns the fan on through
   `homeassistant.turn_on`, a consumer; a second thermostat whose heater the
-  relay automation follows makes every listener count. It leaves its
+  relay automation follows makes every listener count. On the gated bed,
+  beside that thermostat and an unlock listener on climate calls, a light
+  call sent to the Relay passes with no ask, a call on the thermostat is
+  held, and the App's own read leaves the entry as it was (MAR-153). It leaves its
   automations on the bed, so run other checks before it.
 
 

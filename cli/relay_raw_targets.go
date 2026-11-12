@@ -33,8 +33,9 @@ const rawNextAccessTarget = "it controls a lock, alarm panel, or access cover, a
 // switch it would disable or enable (a switch_as_x lock or cover runs on it),
 // the device it would delete, the integration entry it would disable or
 // enable, the account whose access it would change, or a remote backup
-// location it would add (zero = none of these).
-type rawTarget struct{ entry, entity, button, device, source, deleted, toggled, account, backup string }
+// location it would add, or the account a Marketplace warning acceptance
+// is for (zero = none of these).
+type rawTarget struct{ entry, entity, button, device, source, deleted, toggled, account, backup, warning string }
 
 func rawAccessTarget(endpoint string, body []byte) rawTarget {
 	payload, ok := decodeObject(body)
@@ -91,6 +92,8 @@ func rawAccessTarget(endpoint string, body []byte) rawTarget {
 				return rawTarget{toggled: cmp.Or(entry, "(none)")}
 			case m["type"] == "config/auth/update" && access:
 				return rawTarget{account: cmp.Or(user, "(none)")}
+			case m["type"] == "marketplace/warning/accept":
+				return rawTarget{warning: "HA NOVA's"}
 			case m["type"] == "backup/config/update" && rawRemoteBackupAgents(m):
 				return rawTarget{backup: "remote"}
 			case m["type"] == "config/entity_registry/remove":
@@ -135,6 +138,9 @@ func checkRawAccessTargetIn(s *relaySession, endpoint string, body []byte) (refu
 	}
 	if target.account != "" {
 		return rawAccountKept(s, target.account)
+	}
+	if target.warning != "" {
+		return rawMarketplaceUser(s)
 	}
 	if target.backup != "" {
 		return rawBackupKeySaved(s)

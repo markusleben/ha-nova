@@ -200,7 +200,7 @@ func TestRelayCoreHelperVerificationFailsLoudButNotTheCreate(t *testing.T) {
 }
 
 // Only a helper's config-flow step that created an entry is verified: not
-// another integration, an options or subentry flow, a flow's start, a form,
+// another integration, an options flow, a flow's start, a form,
 // or an error. Those send nothing more and print the Relay's answer as is.
 func TestRelayCoreVerifiesNothingElse(t *testing.T) {
 	created := func(handler string) map[string]any {
@@ -212,7 +212,6 @@ func TestRelayCoreVerifiesNothingElse(t *testing.T) {
 	}{
 		"integration":  {"/api/config/config_entries/flow/f1", created("fritz")},
 		"options flow": {"/api/config/config_entries/options/flow/f1", created("statistics")},
-		"subentry":     {"/api/config/config_entries/subentries/flow/f1", created("statistics")},
 		"flow start":   {"/api/config/config_entries/flow", created("statistics")},
 		"form":         {"/api/config/config_entries/flow/f1", map[string]any{"status": 200, "body": map[string]any{"type": "form", "flow_id": "f1", "handler": "statistics", "step_id": "options", "data_schema": []any{}}}},
 		"error":        {"/api/config/config_entries/flow/f1", map[string]any{"status": 400, "body": map[string]any{"message": "bad"}}},

@@ -160,7 +160,7 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 			if p["item_type"] == "area" {
 				return map[string]any{"entity": items, "device": f.related["area-devices:"+fmt.Sprint(p["item_id"])], "automation": f.related["area-automation:"+fmt.Sprint(p["item_id"])]}
 			}
-			return map[string]any{"automation": items, "group": f.relatedGroups[fmt.Sprint(p["item_id"])]}
+			return map[string]any{"automation": items, "group": f.relatedGroups[fmt.Sprint(p["item_id"])], "script": f.related["scripts:"+fmt.Sprint(p["item_id"])], "person": f.related["persons:"+fmt.Sprint(p["item_id"])]}
 		case "config/entity_registry/get_entries":
 			entries := map[string]any{}
 			ids, _ := p["entity_ids"].([]any)

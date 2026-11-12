@@ -19,11 +19,16 @@ func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
 		"backups list":                func(map[string]any) any { return []any{map[string]any{"file": "scenes/a.json.gz"}} },
 		"config/device_registry/list": func(map[string]any) any { return []any{map[string]any{"id": "demo", "name": "Demo"}} },
 		"files read_file":             func(map[string]any) any { return fakeRelayFailure{"FILE_NOT_FOUND", "not found"} }, // a new file needs no copy (fileKept)
+		"auth/current_user":           func(map[string]any) any { return map[string]any{"id": "u-sup"} },                   // the Marketplace warning is accepted for the Supervisor only
+		"config/auth/list": func(map[string]any) any {
+			return []any{map[string]any{"id": "u-sup", "name": "Supervisor", "system_generated": true}}
+		},
 	})
 	c := startMCP(t, paths)
 	mcpInit(c)
 	wantTyped := []string{"config/entity_registry/remove", "config/device_registry/remove", "lovelace/resources/create", "lovelace/resources/update", "lovelace/resources/delete",
 		"recorder/clear_statistics", "backup/delete", "hacs/repositories/remove", "hacs/repository/download", "hacs/repository/remove",
+		"marketplace/warning/accept", "marketplace/repository/install", "marketplace/repository/uninstall",
 		"config/auth/create", "config/auth/delete", "assist_pipeline/pipeline/delete", "calendar/event/delete", "blueprint/delete", "config_entries/subentries/delete", "labs/update", "recorder/import_statistics",
 		"person/update"} // a bare update empties an unknown person's trackers (personFollows)
 	for _, collection := range rawWSCollections {
@@ -40,6 +45,9 @@ func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
 		}
 		if wsType == "subscribe_events" {
 			payload["event_type"] = "state_changed"
+		}
+		if strings.HasPrefix(wsType, "marketplace/repository/") {
+			payload["repository"] = "123"
 		}
 		body, _ := json.Marshal(payload)
 		exit, env := plan("ws", payload)
@@ -73,7 +81,8 @@ func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
 		"/api/config/config_entries/flow/0123abcd", "/api/config/config_entries/options/flow/0123abcd", "/api/config/config_entries/entry/0123abcd",
 		"/api/config/config_entries/subentries/flow", "/api/config/config_entries/subentries/flow/0123abcd", "/api/repairs/issues/fix", "/api/repairs/issues/fix/0123abcd",
 		"/api/config/scene/config/evening"}
-	typedCore := []string{"DELETE /api/config/config_entries/entry/0123abcd", "DELETE /api/config/scene/config/evening"}
+	typedCore := []string{"DELETE /api/config/config_entries/entry/0123abcd", "DELETE /api/config/scene/config/evening",
+		"POST /api/config/config_entries/subentries/flow/0123abcd", "POST /api/repairs/issues/fix", "POST /api/repairs/issues/fix/0123abcd"}
 	for _, allowed := range rawCoreWrites {
 		matched := false
 		for _, sample := range samples {
@@ -150,7 +159,8 @@ func TestPlanRawBatch2FlowParity(t *testing.T) {
 				body, _ := json.Marshal(items)
 				exit, env := planRaw(t, paths, string(body))
 				chat, code := readEnvelope(c.tool("ha_plan", map[string]any{"kind": "raw", "requests": items}))
-				want := map[bool]string{false: "preview", true: "typed"}[typed]
+				flowTyped := method == "POST" && (strings.HasPrefix(target, "/api/repairs/") || target == "/api/config/config_entries/subentries/flow/f1") // the CLI's own rule (raw-typed-parity spec)
+				want := map[bool]string{false: "preview", true: "typed"}[typed || flowTyped]
 				if exit != verbExitConfirmation || env.Tier != want || code != "" || chat["tier"] != want {
 					t.Errorf("%s %s typed=%v: exit %d CLI %+v chat %v", method, target, typed, exit, env, chat)
 				}

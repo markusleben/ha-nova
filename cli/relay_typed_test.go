@@ -13,6 +13,10 @@ import (
 func TestRelayRefusesWhatAPlanTypes(t *testing.T) {
 	paths, sent := rawRelay(t, map[string]func(map[string]any) any{
 		"config/device_registry/list": func(map[string]any) any { return []any{map[string]any{"id": "demo"}} },
+		"auth/current_user":           func(map[string]any) any { return map[string]any{"id": "u-sup"} }, // the Marketplace warning is accepted for the Supervisor only
+		"config/auth/list": func(map[string]any) any {
+			return []any{map[string]any{"id": "u-sup", "name": "Supervisor", "system_generated": true}}
+		},
 	})
 	s, err := newRelaySession(paths, verbOptions{})
 	if err != nil {
@@ -49,6 +53,9 @@ func TestRelayRefusesWhatAPlanTypes(t *testing.T) {
 		if wsType == "config/device_registry/remove" {
 			payload["device_id"] = "demo"
 		}
+		if strings.HasPrefix(wsType, "marketplace/repository/") {
+			payload["repository"] = "123"
+		}
 		body, _ := json.Marshal(payload)
 		check("ws", payload, "ws", "--data", string(body))
 		envelope, _ := json.Marshal(map[string]any{"message": payload, "collect_events": map[string]any{"max_events": 1}})
@@ -84,6 +91,10 @@ func TestRelayTypedReadsOnlyWhenTheTierNeedsIt(t *testing.T) {
 			return []any{map[string]any{"entity_id": "lock.front", "device_id": "dlock"}, map[string]any{"entity_id": "light.desk", "device_id": "dlamp"}}
 		case body["type"] == "config/device_registry/list":
 			return []any{map[string]any{"id": "dlock"}, map[string]any{"id": "dlamp"}}
+		case body["type"] == "config/area_registry/list": // where a move goes: the triggers there (rawCarry)
+			return []any{map[string]any{"area_id": "office"}, map[string]any{"area_id": "hall"}}
+		case body["type"] == "search/related":
+			return map[string]any{}
 		}
 		return nil
 	})

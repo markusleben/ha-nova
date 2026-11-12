@@ -377,17 +377,51 @@ func scheduleWindowsSelfDelete(path string) error {
 	return cmd.Start()
 }
 
+// parentReleaseTimeout bounds the helper's wait for the ha-nova.exe that
+// started it: Windows keeps that image, in the install root, locked until
+// it exits. A probe that fails to start or to finish in time counts as
+// still running.
+var (
+	parentReleaseTimeout = 90 * time.Second
+	parentReleasePoll    = 500 * time.Millisecond
+	parentProbeTimeout   = 10 * time.Second
+	parentProcessRunning = func(parentPID int) bool {
+		cmd := buildWindowsHiddenPowerShellCommand(fmt.Sprintf(`if (Get-Process -Id %d -ErrorAction SilentlyContinue) { exit 1 }`, parentPID))
+		if cmd.Start() != nil {
+			return true
+		}
+		done := make(chan error, 1)
+		go func() { done <- cmd.Wait() }()
+		select {
+		case err := <-done:
+			return err != nil
+		case <-time.After(parentProbeTimeout):
+			_ = cmd.Process.Kill()
+			<-done
+			return true
+		}
+	}
+)
+
 func waitForParentRelease(parentPID int) {
 	if parentPID <= 0 || runtime.GOOS != "windows" {
 		time.Sleep(2 * time.Second)
 		return
 	}
-	for i := 0; i < 60; i++ {
-		cmd := buildWindowsHiddenPowerShellCommand(fmt.Sprintf(`if (Get-Process -Id %d -ErrorAction SilentlyContinue) { exit 1 }`, parentPID))
-		if err := cmd.Run(); err == nil {
-			break
+	waitForParentExit(parentPID)
+}
+
+// waitForParentExit returns once the parent is gone, or warns when it still
+// runs at the deadline: the caller goes on, and a still-locked install root
+// then fails safe after its own bounded retry (renameInstallPathWithRetry).
+func waitForParentExit(parentPID int) {
+	deadline := time.Now().Add(parentReleaseTimeout)
+	for parentProcessRunning(parentPID) {
+		if !time.Now().Before(deadline) {
+			printHumanWarn("The HA NOVA window that started this (process %d) still runs, or Windows couldn't check it, after %s; continuing, but Windows may still hold its folder.", parentPID, parentReleaseTimeout)
+			return
 		}
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(parentReleasePoll)
 	}
 }
 

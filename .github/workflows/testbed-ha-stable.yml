@@ -6,7 +6,8 @@ name: Test bed vs HA stable
 # Companion phones), then the gate lane (gate.mjs: a typed write, delete, and
 # unlock run only after the phone's approval; www-media.mjs: a picture in
 # /config/www deleted and put back after the phone's tap, community refused,
-# the copies' limit). A WARN row in either lane
+# the copies' limit; marketplace.mjs: a Marketplace install held by the gate,
+# its warning never accepted for a person's account). A WARN row in any lane
 # fails the run: a skipped part is no evidence. Outcomes, on the default branch:
 #   - stable == pin, green          -> nothing to do
 #   - stable != pin, green          -> open/update the pin-bump PR
@@ -83,6 +84,7 @@ jobs:
           { bash scripts/e2e/testbed/up.sh && bash scripts/e2e/testbed/verify.sh \
             && node scripts/e2e/testbed/gate.mjs | tee "$RUNNER_TEMP/gate.log" \
             && node scripts/e2e/testbed/www-media.mjs | tee -a "$RUNNER_TEMP/gate.log" \
+            && node scripts/e2e/testbed/marketplace.mjs | tee -a "$RUNNER_TEMP/gate.log" \
             && ! grep -q '^WARN' "$RUNNER_TEMP/gate.log"; } 2>&1 | tee "$RUNNER_TEMP/testbed.log"
 
       - name: Keep the log tail
