@@ -42,12 +42,7 @@ Read and follow `../ha-nova/session-bootstrap.md`. An unreachable Relay answers 
 
 ## Access Check
 
-A swap can hand a door to a new device without anyone editing a lock automation: a takeover re-points every unlock, disarm, or open that names the old id, a new phone's tracker can feed the person or group an unlock waits for, and an area or label can widen what an access automation targets. Decided in the plan card, before the old device is removed, a step takes the one-time code (a rename or a hand-off's write: `"typed":true` on its `plan raw` item, beside `endpoint` and `payload`) when:
-- the entity is a lock, an alarm panel, or a cover not of class awning, blind, curtain, damper, shade, shutter, or window — or sits on a device (old or new) with one on it, its parent, or their child devices;
-- any automation/script consumer plans `typed` (a consumer the swap re-points: its re-point plan's tier; any other: plan its current config unchanged (`get --config` → `plan write --id`), read only the tier, never apply it). Consumers include one level up: the `related` automations and scripts of every `entity` hit (a person, a group);
-- a consumer's tier cannot be read (`managed: yaml` or `blueprint`, a `not_scanned` automation or script): it counts as typed.
-
-It covers takeover renames, person and group hand-offs, and carrying an area or label onto such an entity.
+A swap can hand a door to a new device without anyone editing a lock automation: a takeover re-points every unlock, disarm, or open that names the old id, a new phone's tracker can feed the person or group an unlock waits for, and an area or label can widen what an access automation targets. The CLI rates what each rename, hand-off, or area or label carry sets off in automations and scripts (persons and groups holding the id included); relay its tier. Decided in the plan card, before the old device is removed, a step also takes the one-time code (`"typed":true` on its `plan raw` item, beside `endpoint` and `payload`) when the entity is a lock, an alarm panel, or a cover not of class awning, blind, curtain, damper, shade, shutter, or window, or sits on a device (old or new) with one on it, its parent, or their child devices.
 
 ## Flow
 
