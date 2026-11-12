@@ -57,6 +57,9 @@ func TestUninstallManagedArtifactsIncludeWriteSafetyState(t *testing.T) {
 	if got := managedCacheArtifactPaths(paths); !contains(got, filepath.Join("/cache", "automation-bp-snapshot.json")) {
 		t.Errorf("cache artifacts missing automation-bp-snapshot.json: %v", got)
 	}
+	if got := managedCacheArtifactPaths(paths); !contains(got, filepath.Join("/cache", "place-index.json")) {
+		t.Errorf("cache artifacts missing place-index.json (room automations' trigger targets): %v", got)
+	}
 	if got := managedCacheArtifactPaths(paths); !contains(got, filepath.Join("/cache", "flow-forms")) {
 		t.Errorf("cache artifacts missing flow-forms (setup forms' secret fields): %v", got)
 	}

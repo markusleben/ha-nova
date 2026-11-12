@@ -203,6 +203,43 @@ func TestPlaceIndexFailsToALiveRead(t *testing.T) {
 			t.Fatalf("a skip the preview never made: want a read the replay lacks (diverged), got diverged %v", s.diverged)
 		}
 	})
+	t.Run("an entry of another shape is no entry", func(t *testing.T) {
+		for _, triggers := range [][]any{nil, {1.0}, {[]any{}}, {map[string]any{"target": nil, "trigger": "state"}}, {map[string]any{}}} {
+			if wellFormed(triggers) {
+				t.Fatalf("%#v passed as an entry", triggers)
+			}
+		}
+		if !wellFormed([]any{}) || !wellFormed([]any{map[string]any{"target": nil}}) {
+			t.Fatal("an entry placeOnlyMiss writes was refused")
+		}
+	})
+	t.Run("an entry decides as its whole config does", func(t *testing.T) {
+		target := func(m map[string]any) map[string]any {
+			return map[string]any{"trigger": "light.turned_on", "target": m}
+		}
+		configs := []map[string]any{
+			{"triggers": []any{target(map[string]any{"area_id": "kuche"})}},
+			{"trigger": []any{target(map[string]any{"floor_id": "eg"})}},
+			{"triggers": []any{map[string]any{"triggers": []any{target(map[string]any{"label_id": "night"})}}}},
+			{"triggers": []any{map[string]any{"enabled": false, "trigger": "light.turned_on", "target": map[string]any{"area_id": "kuche"}}}},
+			{"triggers": []any{target(map[string]any{"area_id": "{{ a }}"}), map[string]any{"trigger": "state", "entity_id": "x.y"}}},
+			{"triggers": []any{target(map[string]any{"device_id": []any{"dev_hub"}, "exclude": map[string]any{"area_id": "kuche"}})}},
+			{"triggers": []any{map[string]any{"trigger": "state", "entity_id": "light.kitchen"}}},
+		}
+		for _, places := range [][][2]string{{{"area", "kuche"}}, {{"floor", "eg"}, {"label", "night"}}, {{"device", "dev_hub"}}} {
+			for _, cfg := range configs {
+				var projected []any
+				for _, trigger := range flattenTriggers(firstPresent(cfg, "triggers", "trigger")) {
+					if v, present := trigger["target"]; present {
+						projected = append(projected, map[string]any{"target": v})
+					}
+				}
+				if targetsPlace(cfg, places) != targetsPlace(map[string]any{"triggers": projected}, places) {
+					t.Fatalf("config %v at %v: the entry decides otherwise", cfg, places)
+				}
+			}
+		}
+	})
 	t.Run("a target that is no map, or null, targets the place", func(t *testing.T) {
 		for _, target := range []any{nil, "{{ area }}", []any{"kuche"}} {
 			if !targetsPlace(map[string]any{"triggers": []any{map[string]any{"target": target}}}, [][2]string{{"area", "kuche"}}) {

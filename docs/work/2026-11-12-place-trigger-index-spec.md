@@ -19,7 +19,7 @@ One engine method, `placeOnlyMiss(automation, places)`, replaces "warm the confi
 
 1. Stamp: the automation's state, if it is `on` or `off` with a `last_changed`; else no stamp.
 2. No stamp, or this session has already sent the automation's config read: decide from that config, as today, and record nothing. An earlier config read may predate the state, so it proves no pair, and the session's own evidence wins over the disk.
-3. An entry for this home whose stamp equals the current one and whose targets miss `places`: skip, with no config read. A hit that targets a place is read live, for its scan.
+3. A well-formed entry (each element exactly `{"target": …}`) for this home and build, whose stamp equals the current one and whose targets miss `places`, while the check's time isn't up: skip, with no config read. Past the deadline it falls to step 4, whose failed read is typed as before. A hit that targets a place is read live, for its scan.
 4. Otherwise read the config now. The state answered before this read went out, so a reload in between only gives the config a stamp that is already stale. Record the pair, except for a config that still names `use_blueprint` (Home Assistant answers an instance already substituted; one that isn't depends on the blueprint file). An unreadable config returns false: it goes on as a consumer, typed as today.
 
 The session loads the file once and saves it when it closes (`relaySession.close`). A missing, malformed, oversized, other-version, or other-home file is an empty index, and a failed write is ignored: both cost only reads. Two processes writing at once lose cache hits, never correctness.
@@ -30,7 +30,7 @@ Home Assistant keeps an automation entity across a reload only when its name and
 
 ### Home scope
 
-The scope is a hash of every id the profile holds for its Relay and home: the profile id, the Relay instance id (Link pairings), the Relay's TLS pin (secure pairings), the Relay URL, and the Home Assistant URL. A profile without a Relay URL gets no index, and a file with another scope is ignored and then replaced. Home Assistant has no instance id the CLI can read, so a standalone Relay repointed to another home under the same profile and URLs keeps its scope. A wrong skip there would still need the same entity id with an on/off state of the same microsecond `last_changed`. The App's safety-check worker keeps its own files in the App.
+The scope also names the CLI build (`Version`, `BuildStamp`), so a later `targetsPlace` that reads more than `target` starts from an empty index. Uninstall removes the file with the other cache files. The scope is a hash of every id the profile holds for its Relay and home: the profile id, the Relay instance id (Link pairings), the Relay's TLS pin (secure pairings), the Relay URL, and the Home Assistant URL. A profile without a Relay URL gets no index, and a file with another scope is ignored and then replaced. Home Assistant has no instance id the CLI can read, so a standalone Relay repointed to another home under the same profile and URLs keeps its scope. A wrong skip there would still need the same entity id with an on/off state of the same microsecond `last_changed`. The App's safety-check worker keeps its own files in the App.
 
 ### Replay of a cut preview
 

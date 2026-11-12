@@ -52,15 +52,19 @@ func (s *relaySession) placeIndex() *placeIndex {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.placeIdx == nil {
-		x := &placeIndex{path: filepath.Join(s.paths.CacheDir, "place-index.json"), changed: map[string]placeIndexEntry{}}
-		if s.cfg.RelayBaseURL != "" { // the profile and every id of the Relay and home it is paired with
-			sum := sha256.Sum256([]byte(fmt.Sprintf("%q", []string{s.cfg.ProfileID, s.cfg.RelayInstanceID, s.cfg.RelaySpkiPin, s.cfg.RelayBaseURL, s.cfg.HAURL})))
+		x := &placeIndex{path: placeIndexPath(s.paths), changed: map[string]placeIndexEntry{}}
+		if s.cfg.RelayBaseURL != "" { // the profile, every id of the Relay and home it is paired with, and this build (targetsPlace may read more next time)
+			sum := sha256.Sum256([]byte(fmt.Sprintf("%q", []string{s.cfg.ProfileID, s.cfg.RelayInstanceID, s.cfg.RelaySpkiPin, s.cfg.RelayBaseURL, s.cfg.HAURL, Version, BuildStamp})))
 			x.scope = hex.EncodeToString(sum[:])
 		}
 		x.entries = x.read()
 		s.placeIdx = x
 	}
 	return s.placeIdx
+}
+
+func placeIndexPath(paths runtimePaths) string {
+	return filepath.Join(paths.CacheDir, "place-index.json")
 }
 
 func (x *placeIndex) read() map[string]placeIndexEntry {
@@ -129,7 +133,7 @@ func (e *tierEngine) placeOnlyMiss(automation string, places [][2]string) bool {
 	x.mu.Lock()
 	entry, hit := x.entries[automation]
 	x.mu.Unlock()
-	if hit && entry.Stamp == stamp && entry.Triggers != nil && !targetsPlace(map[string]any{"triggers": entry.Triggers}, places) {
+	if hit && entry.Stamp == stamp && wellFormed(entry.Triggers) && e.s.ctx.Err() == nil && !targetsPlace(map[string]any{"triggers": entry.Triggers}, places) {
 		return e.s.decide(key, true)
 	}
 	// The state answered before this config read went out: a reload in
@@ -172,6 +176,21 @@ func (e *tierEngine) stateStamp(id string) string {
 		return ""
 	}
 	return st.LastChanged
+}
+
+// wellFormed: triggers as placeOnlyMiss writes them, each {"target": …} and
+// nothing else; anything else proves nothing.
+func wellFormed(triggers []any) bool {
+	if triggers == nil {
+		return false
+	}
+	for _, t := range triggers {
+		m, isMap := t.(map[string]any)
+		if _, has := m["target"]; !isMap || !has || len(m) != 1 {
+			return false
+		}
+	}
+	return true
 }
 
 // unresolvedBlueprint: Home Assistant answers a blueprint instance already
