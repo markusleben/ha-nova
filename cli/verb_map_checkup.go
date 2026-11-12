@@ -20,8 +20,9 @@ import (
 // backup name, or location label from Home Assistant passes.
 
 const (
-	checkupBackupMaxAge = 7 * 24 * time.Hour
-	checkupDiskFloorGB  = 2.0 // Supervisor refuses updates and backups below it
+	checkupBackupMaxAge = 8 * 24 * time.Hour // a weekly schedule, a day late
+	checkupDiskFloorGB  = 2.0                // Supervisor refuses updates and backups below it
+	checkupDiskTightGB  = 5.0
 	checkupStatsApps    = 40
 	checkupMemoryHigh   = 90.0
 )
@@ -229,7 +230,7 @@ func (c *checkup) checkDisk() {
 	switch {
 	case free < checkupDiskFloorGB:
 		c.find("DISK_LOW", "problem", "disk", map[string]any{"free_gb": round1(free)})
-	case free < total/10:
+	case free < min(total/10, checkupDiskTightGB):
 		c.find("DISK_LOW", "notice", "disk", map[string]any{"free_gb": round1(free), "free_percent": round1(free / total * 100)})
 	}
 }
@@ -314,6 +315,8 @@ func (c *checkup) checkResources() {
 		if share >= checkupMemoryHigh {
 			c.find("HIGH_MEMORY", "notice", "resources", map[string]any{"memory_percent": share})
 		}
+	} else {
+		c.gap("memory_share", errCheckupMissing)
 	}
 	c.facts["resources"] = facts
 }

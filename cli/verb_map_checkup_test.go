@@ -99,7 +99,7 @@ func TestCheckupHealthyHome(t *testing.T) {
 	}
 	backup := got.Facts["backup"].(map[string]any)
 	newest := backup["newest"].(map[string]any)
-	if backup["restore_tested"] != false || newest["protected"] != true || !slices.Equal(toStrings(newest["locations"]), []string{"cloud", "hassio"}) || newest["size_mb"] != float64(300) {
+	if backup["restore_tested"] != false || newest["protected"] != true || !slices.Equal(toStrings(newest["locations"]), []string{"cloud", "hassio"}) || newest["size_mb"] != float64(300) || newest["off_device_copies"] != float64(1) {
 		t.Fatalf("backup %+v", backup)
 	}
 	for _, call := range log.all() {
@@ -192,6 +192,19 @@ func TestCheckupOldAppAndMissingCPU(t *testing.T) {
 	res := got.Facts["resources"].(map[string]any)
 	if _, ok := res["cpu_percent"]; ok || !slices.Equal(gapReasons(got.NotChecked), []string{"cpu:NOT_REPORTED"}) || res["memory_mb"] == nil {
 		t.Fatalf("got %+v / %+v", res, got.NotChecked)
+	}
+}
+
+// An App with its own memory limit: no share of the machine, and the
+// check-up says so instead of passing quietly.
+func TestCheckupMemoryShareUnknown(t *testing.T) {
+	f := checkupHAOS()
+	limited := stats(40.0, 1500)
+	limited["memory_limit"] = float64(2 << 30)
+	f.supervisor["/addons/ccab4aaf_frigate/stats"] = limited
+	got, _, _ := runCheckup(t, f)
+	if _, ok := got.Facts["resources"].(map[string]any)["memory_percent"]; ok || got.Status != "limited" || !slices.Equal(gapReasons(got.NotChecked), []string{"memory_share:NOT_REPORTED"}) {
+		t.Fatalf("got %+v", got)
 	}
 }
 

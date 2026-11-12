@@ -218,7 +218,8 @@ func (c *checkup) checkBackup() {
 		size = max(size, agent.Size)
 	}
 	facts["newest"] = map[string]any{"date": newestAt.UTC().Format(time.RFC3339), "age_days": round1(age.Hours() / 24),
-		"database_included": newest.DBIncluded, "protected": protected, "locations": checkupLocations(agents), "size_mb": round1(size / (1 << 20))}
+		"database_included": newest.DBIncluded, "protected": protected, "locations": checkupLocations(agents),
+		"off_device_copies": len(slices.DeleteFunc(slices.Clone(agents), func(a string) bool { return slices.Contains(checkupLocal, a) })), "size_mb": round1(size / (1 << 20))}
 	if age > checkupBackupMaxAge {
 		c.find("NO_RECENT_BACKUP", "problem", "backup", map[string]any{"age_days": round1(age.Hours() / 24)})
 	}

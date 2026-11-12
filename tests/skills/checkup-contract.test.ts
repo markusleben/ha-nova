@@ -13,7 +13,7 @@ const go = ["cli/verb_map_checkup.go", "cli/verb_map_checkup_home.go"].map((f) =
 describe("system check-up contract", () => {
   it("is reached from the health skill and the router", () => {
     expect(health).toContain("0. \"Is my HA OK\", slow, or backup works: §checkup.md§ first.".replaceAll("§", "\x60"));
-    expect(router).toContain("**\"Is everything OK?\" / \"Why so slow?\" / \"Would my backup work?\"** → §ha-nova:health§".replaceAll("§", "\x60"));
+    expect(router).toContain("**\"Is everything OK?\", \"Why is everything slow?\", \"Would my backup work?\"** → §ha-nova:health§".replaceAll("§", "\x60"));
   });
 
   it("reads once through the CLI and never judges by itself", () => {
@@ -30,6 +30,7 @@ describe("system check-up contract", () => {
     expect(checkup).toContain("HA NOVA did not test a restore");
     expect(checkup).toContain("keep the emergency kit outside Home Assistant");
     expect(checkup).toContain("never on this home");
+    expect(checkup).toContain("Never answer \"yes\" or \"your backup works\".");
   });
 
   it("words every code the CLI can return", () => {

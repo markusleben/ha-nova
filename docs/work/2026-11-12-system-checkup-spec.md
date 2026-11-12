@@ -39,20 +39,20 @@ Compatibility: an App older than 0.31 refuses the stats paths (`SUPERVISOR_REQUE
 |---|---|---|---|
 | system | `SUPERVISOR_UNHEALTHY` | problem | `/resolution/info` `unhealthy` not empty (reasons as enum words). |
 | system | `SYSTEM_ISSUES` | problem | Supervisor resolution issues `{type, context, app?, fix}`. `fix: repair` when Home Assistant mirrors the issue as a fixable repair (domain `hassio`, `issue_id` = the issue's uuid hex, `is_fixable`; Core 2026.11 `hassio/coordinator.py` `_create_or_update_issue_repair`), else `fix: ui`. At most 20 rows. |
-| disk | `DISK_LOW` | problem / notice | `disk_free` < 2 GB (Supervisor refuses updates and backups): problem; < 10 % of `disk_total`: notice. |
-| resources | `HIGH_MEMORY` | notice | Core, Supervisor and running Apps together use ≥ 90 % of the memory limit they all report; computed only when every container reports the same limit (none has its own, so it is the machine's memory). |
+| disk | `DISK_LOW` | problem / notice | `disk_free` < 2 GB (Supervisor refuses updates and backups): problem; < 10 % of `disk_total` and < 5 GB: notice. |
+| resources | `HIGH_MEMORY` | notice | Core, Supervisor and running Apps together use ≥ 90 % of the memory limit they all report; computed only when every container reports the same limit (none has its own, so it is the machine's memory); otherwise `not_checked: memory_share`. |
 | integrations | `INTEGRATIONS_FAILING` | problem | enabled config entries in `setup_error`, `setup_retry`, `migration_error`, `failed_unload`: `{domain, name, state, count}`. |
 | repairs | `REPAIRS_OPEN` | problem | not-ignored repairs minus those under `SYSTEM_ISSUES`: `{count, alerts, domains}`. |
 | backup | `NO_BACKUP` | problem | no backup that includes Home Assistant. |
-| backup | `NO_RECENT_BACKUP` | problem | the newest such backup is older than 7 days. |
+| backup | `NO_RECENT_BACKUP` | problem | the newest such backup is older than 8 days (a weekly schedule, a day late). |
 | backup | `BACKUP_LAST_FAILED` | problem | `last_attempted_automatic_backup` newer than `last_completed_automatic_backup` (or none completed) while no backup runs. |
 | backup | `BACKUP_PROBLEM` | problem | reasons: `failed_copy` (the newest backup's `failed_agent_ids`), `location_unreachable` (`agent_errors`), `apps_missing` (`failed_addons`), `folders_missing` (`failed_folders`: `share`, `addons/local`, `ssl`, `media`, else `other`). |
 | backup | `BACKUP_ONLY_ON_DEVICE` | notice | the newest lives only on `backup.local`/`hassio.local`. |
 | backup | `NO_AUTOMATIC_BACKUP` | notice | `next_automatic_backup` is null. |
 
-Facts: `disk` {free_gb, total_gb, used_percent}; `resources` {memory_mb, memory_percent?, cpu_percent?, top_memory (3), top_cpu (3)}: a reading of this moment, of these containers only, never the whole machine's load; `integrations` {failing, logging_errors: top 5 domains with ERROR/CRITICAL log facts, count, since, last}; `backup` {restore_tested: false, newest {date, age_days, database_included, protected, locations, size_mb}, automatic {last_completed, next}}; `updates` {pending, by_kind, core?, running}.
+Facts: `disk` {free_gb, total_gb, used_percent}; `resources` {memory_mb, memory_percent?, cpu_percent?, top_memory (3), top_cpu (3)}: a reading of this moment, of these containers only, never the whole machine's load; `integrations` {failing, logging_errors: top 5 domains with ERROR/CRITICAL log facts, count, since, last}; `backup` {restore_tested: false, newest {date, age_days, database_included, protected, locations, off_device_copies, size_mb}, automatic {last_completed, next}}; `updates` {pending, by_kind, core?, running}.
 
-`not_checked` checks: `apps`, `system`, `disk`, `resources`, `cpu`, `log_facts`, `repairs`, `backups`, `backup_schedule`. Without Supervisor its areas are not applicable, not gaps.
+`not_checked` checks: `apps`, `system`, `disk`, `resources`, `cpu`, `memory_share`, `log_facts`, `repairs`, `backups`, `backup_schedule`. Without Supervisor its areas are not applicable, not gaps.
 
 ### Resolution suggestions: never applied here
 
@@ -63,6 +63,8 @@ The check-up applies nothing. A `SYSTEM_ISSUES` row with `fix: repair` is fixed 
 `skills/health/checkup.md` (a reference; health's Flow step 0 sends check-up questions there; the router's health example names "why so slow" and "would my backup work"): run the section, lead with `status` in plain words, problems with their next step, notices, then what was not checked and why (an older App: update it). Backup answers always say HA NOVA did not test a restore, that a protected backup needs its emergency kit kept outside Home Assistant, and that a real proof is a test restore on a spare device, never on this home. A skill contract test checks that `checkup.md` words every code the Go code can return.
 
 ## Known limits
+
+- Backup locations are integration domains: a network share and the device's own disk can share one (`hassio`); `off_device_copies` counts the copies not on `backup.local`/`hassio.local`.
 
 - Database size is not read (`system_health/info` is a subscription; the files deny list covers the DB).
 - Decryptability and restorability of a backup are not checked; age, completeness and copies are metadata.
@@ -78,4 +80,5 @@ Go (`cli/verb_map_checkup_test.go`): a healthy HAOS (status `ok`, resources and 
 ## Review record
 
 - KISS (claude-sonnet-5-5): taken: `HIGH_CPU` dropped (CPU stays a fact), backup codes merged into `BACKUP_PROBLEM` with reasons, `DISK_TIGHT` merged into `DISK_LOW`'s notice level, `SUPERVISOR_UNSUPPORTED` (HA mirrors it as a repair), `UPDATE_RUNNING` and `UPDATES_PENDING` (facts), `BACKUP_WONT_FIT` dropped, log facts a fact not a finding, no "older App" special case in Go. Not taken: dropping per-App stats (an App is the usual reason a home is slow; the requirement names resources), dropping `BACKUP_ONLY_ON_DEVICE` and `NO_AUTOMATIC_BACKUP` (the two most common reasons a backup won't save a home; computing them in the skill would put the model in the verdict), dropping the repair de-duplication (one line, avoids counting one problem twice).
+- Adversarial reviews (claude-sonnet-5-5; privacy/fail-open and UX lenses): no P1. Fixed: a memory share that can't be computed is `not_checked` (it passed quietly); the skill now words every unread part, `facts.supervisor: not_applicable`, `DISK_LOW` by level, CPU and memory as numbers without a judgment, and "never say your backup works"; `off_device_copies`; the router line names "why is everything slow" (a whole-home question; a named automation stays `diagnose`); 8 days instead of 7; the disk notice also needs < 5 GB. Not taken (P3): an enum allowlist for Supervisor words (the pattern already stops text with spaces or capitals), the update advisor's error text in its gaps and its unsanitized App names (every read verb shows Relay error messages today; the check-up is stricter because the 0.32 worker will push it), undated backups counted as none.
 - Astra (gpt-6-astra, medium): D1 agrees (a `map` section, a health reference). D2 partly: exact GET-only routes are right; an older App must give partial coverage (done), don't diagnose the cause from every refusal (the reason is the Relay's own code; the skill words only `SUPERVISOR_REQUEST_REFUSED` as an older App). D3 partly: the repair flow is right; all repair POSTs are already typed (spec now says so); the uuid join is confirmed against Core 2026.11's coordinator (`issue.uuid.hex`, `is_fixable=bool(presentable)`) and `is_fixable` was added; `fix: ui` promises no Repairs entry. D4 disagreed with "no free text": taken: the spec names the display names that pass, failures carry fixed reasons, backup locations are domains only, unknown App slugs are a count, the alert titles the advisor shows are not used. D5 partly: taken: gaps stay listed beside problems, resources are "these containers at this moment", the memory share only with one shared limit, `BACKUP_WONT_FIT` dropped, the skill always says no restore was tested.
