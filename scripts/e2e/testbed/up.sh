@@ -44,11 +44,11 @@ fi
 [[ -z "$OVERLAY" || "${TESTBED_FILES:-}" != 1 ]] || die "TESTBED_FILES is for the local bed, never the hosted demo"
 [[ "$OWNER_PASSWORD" =~ ^[A-Za-z0-9._-]{12,}$ ]] || die "TESTBED_OWNER_PASSWORD must be 12+ chars of [A-Za-z0-9._-]"
 command -v curl > /dev/null || die "curl is required"
-if [[ -n "$("${COMPOSE[@]}" ps -q 2> /dev/null)" ]]; then
-  bed_dirs="$(docker ps -a --filter label=com.docker.compose.project=ha-nova-testbed \
-    --format '{{.Label "com.docker.compose.project.working_dir"}}' | sort -u)"
-  die "the test bed is already running (started from ${bed_dirs//$'\n'/ }); only whoever started it runs down.sh"
-fi
+# Stopped containers count: compose would take them over from their checkout.
+bed_dirs="$(docker ps -a --filter label=com.docker.compose.project=ha-nova-testbed \
+  --format '{{.Label "com.docker.compose.project.working_dir"}}' | sort -u)" || die "cannot list Docker containers"
+[[ -z "$bed_dirs" ]] ||
+  die "the test bed is already running (started from ${bed_dirs//$'\n'/ }); it belongs to whoever started it: wait for them, never tear it down"
 # The hosted demo publishes nothing from this project (its Caddy, in another
 # project, already holds 127.0.0.1:18123).
 [[ -n "$OVERLAY" ]] || for port in 18123 18791 11883 18792; do
