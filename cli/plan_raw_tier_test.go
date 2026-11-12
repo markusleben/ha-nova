@@ -151,7 +151,7 @@ func TestPlanRawBatch2FlowParity(t *testing.T) {
 				body, _ := json.Marshal(items)
 				exit, env := planRaw(t, paths, string(body))
 				chat, code := readEnvelope(c.tool("ha_plan", map[string]any{"kind": "raw", "requests": items}))
-				flowTyped := method != "DELETE" && (strings.HasPrefix(target, "/api/repairs/") || target == "/api/config/config_entries/subentries/flow/f1") // the CLI's own rule (raw-typed-parity spec)
+				flowTyped := method != "DELETE" && (strings.HasPrefix(target, "/api/repairs/") || target == "/api/config/config_entries/subentries/flow/f1") // the CLI's own rule (#1134)
 				want := map[bool]string{false: "preview", true: "typed"}[typed || flowTyped]
 				if exit != verbExitConfirmation || env.Tier != want || code != "" || chat["tier"] != want {
 					t.Errorf("%s %s typed=%v: exit %d CLI %+v chat %v", method, target, typed, exit, env, chat)
