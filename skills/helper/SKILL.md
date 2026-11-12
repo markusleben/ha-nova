@@ -233,7 +233,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
 #### Creating a helper
 
 1. Confirm the requested domain is supported in `../ha-nova/helper-flow-schemas.md`.
-   - treat that file as observed field inventory for the DRAFT, not a full validation schema — the live form is the authority, enforced by the drift check in step 8
+   - treat that file as observed field inventory for the DRAFT, not a full validation schema — the live form is the authority, enforced by the drift check in step 7
    - if required field semantics remain uncertain, fail loud and ask one blocking question
 2. Prepare the full create plan using `../ha-nova/helper-flow-schemas.md`:
    - for one-step domains, the plan is one submit body
@@ -271,9 +271,12 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - the submit body for a form step must contain form fields only
    - if a required field is still unresolved and there is no safe value, stop and ask one blocking question
    - if HA returns a form with validation errors, fail loud instead of guessing
-8. Verify at the config-entry layer first: the terminal submit's output (no `--jq` on it) carries the CLI's `verification`. The CLI re-read the entry by the terminal `entry_id`, its `linked_entities`, and its `options` (suggested values, `null` when none, from an options flow it aborted unsubmitted).
+   - never use `--jq` on a submit: the terminal one carries `verification`
+8. Verify at the config-entry layer first: the terminal submit's output carries the CLI's `verification`. The CLI re-read the entry by the terminal `entry_id` (built-in integration, `loaded`), its `linked_entities`, and, when it supports options, its `options` (suggested values, `null` when none) from an options flow it aborted unsubmitted.
    - `passed: true` → report from it; linked entities are secondary evidence only
-   - anything else (`passed: false`, or no `verification`) → the helper may exist but is unverified: say so with its `problem`; never re-run the flow or its submit
+   - `passed: false` → the helper may exist but is unverified: say so with its `problem`
+   - no `verification` → the CLI is older than this skill: say the create is unverified and HA NOVA needs an update
+   - never re-run the flow or its submit
 9. Run the whole post-write review before any result (`statistics`/`history_stats`: the state-attribute read).
 
 #### Updating a helper

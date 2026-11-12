@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 )
 
 // The CLI verifies a config-entry helper create itself (GitHub #1105):
@@ -71,15 +72,19 @@ func helperCreated(method, rawPath string, reply []byte) (handler, entryID strin
 	return envelope.Data.Body.Handler, envelope.Data.Body.Result.EntryID, true
 }
 
+// helperVerifyBudget bounds the read-back: the create's answer waits for it,
+// and a caller that gave up before seeing that answer might create again.
+var helperVerifyBudget = 15 * time.Second
+
 // verifyHelperCreate reads the created entry back on the command's own
-// transport, within one session budget.
+// transport, within helperVerifyBudget (an options flow's abort has its own).
 func verifyHelperCreate(paths runtimePaths, cfg runtimeConfig, transport relayTransportSelection, handler, entryID string) helperCreateVerification {
-	ctx, cancel := context.WithTimeout(context.Background(), relaySessionOverallTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), helperVerifyBudget)
 	s := relaySessionOn(paths, cfg, transport, ctx, cancel)
 	defer s.cancel()
 	v := helperCreateVerification{LinkedEntities: []string{}}
 	fail := func(problem string) helperCreateVerification {
-		v.Problem = "The helper was created, but HA NOVA could not check it: " + problem + ". Don't run the flow again; check it under Settings > Devices & services > Helpers."
+		v.Problem = "The helper was created, but HA NOVA could not confirm it: " + problem + ". Don't run the flow again; check it under Settings > Devices & services > Helpers."
 		return v
 	}
 	failErr := func(err error) helperCreateVerification {
@@ -105,10 +110,22 @@ func verifyHelperCreate(paths runtimePaths, cfg runtimeConfig, transport relayTr
 		return failErr(err)
 	}
 	i := slices.IndexFunc(entries, func(e entryRow) bool { return e.EntryID == entryID })
-	if i < 0 {
-		return fail("entry " + entryID + " is not in the config entries")
+	if i < 0 || entries[i].Domain != handler {
+		return fail("entry " + entryID + " is not a " + handler + " entry in the config entries")
 	}
 	v.Entry = &entries[i].helperEntry
+	// As the tier engine's options read: never trust, or start a flow of, a
+	// custom integration that took over a helper's domain.
+	var manifests []manifest
+	if err := s.wsDecode(map[string]any{"type": "manifest/list"}, &manifests, "the integrations"); err != nil {
+		return failErr(err)
+	}
+	if !slices.ContainsFunc(manifests, func(m manifest) bool { return m.Domain == handler && m.BuiltIn }) {
+		return fail(handler + " is not Home Assistant's built-in integration")
+	}
+	if v.Entry.State != "loaded" {
+		return fail("its entry is " + v.Entry.State + ", not loaded")
+	}
 	var rows []struct {
 		EntityID      string `json:"entity_id"`
 		ConfigEntryID string `json:"config_entry_id"`
@@ -123,15 +140,6 @@ func verifyHelperCreate(paths runtimePaths, cfg runtimeConfig, transport relayTr
 	}
 	slices.Sort(v.LinkedEntities)
 	if entries[i].SupportsOptions {
-		// As the tier engine's options read: never start a custom
-		// integration's flow that took over a helper's domain.
-		var manifests []manifest
-		if err := s.wsDecode(map[string]any{"type": "manifest/list"}, &manifests, "the integrations"); err != nil {
-			return failErr(err)
-		}
-		if !slices.ContainsFunc(manifests, func(m manifest) bool { return m.Domain == handler && m.BuiltIn }) {
-			return fail(handler + " is not Home Assistant's built-in integration, so its options were not read")
-		}
 		form, err := s.optionsForm(entryID)
 		if err != nil {
 			return failErr(err)

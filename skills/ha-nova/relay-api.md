@@ -367,7 +367,7 @@ Delete, only as a `ha-nova plan raw --file <requests.json>` item (`"endpoint":"c
 Verification rules:
 
 - create/delete success is decided at the config-entry layer first
-- create success = `verification.passed` in the terminal submit's output: the CLI confirmed the terminal flow result's `entry_id` in the after-read and read its options back; anything else is an unverified create, never re-run
+- create success = `verification.passed` in the terminal submit's output: the CLI confirmed the terminal flow result's `entry_id` (built-in, `loaded`) in the after-read and, when it supports options, read them back; anything else is an unverified create, never re-run
 - update success = the same `entry_id` still exists in `config_entries/get` and a reopened options flow shows the requested changed editable fields in `description.suggested_value`
 - if a requested changed field is exposed in the verification step but lacks `description.suggested_value`, fail loud as unverifiable update on this HA version
 - use `config_entries/get` as the source of truth for identity/existence

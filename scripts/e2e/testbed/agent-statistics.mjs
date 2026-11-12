@@ -147,10 +147,11 @@ try {
       "its sensor is hydrated from the recorder with a valid source", state ? entity + " = " + state.state + ", " + JSON.stringify({ valid: state.attributes.source_value_valid, coverage: state.attributes.age_coverage_ratio, buffer: state.attributes.buffer_usage_ratio }) : "no state");
     check(/create_entry/.test(run.results) && run.results.includes(entry), "the agent saw the terminal result.entry_id");
     const terminal = run.ran.findLastIndex((l) => /config_entries\/flow\//.test(l));
-    // #1105: the CLI read the entry back by that id and its options from a flow it aborted.
+    // #1105: the CLI read the entry back by that id and its options from a flow it aborted
+    // (key order as helperCreateVerification marshals it: passed, entry, linked_entities, options).
     const verified = new RegExp('"verification":\\s*\\{\\s*"passed":\\s*true,\\s*"entry":\\s*\\{\\s*"entry_id":\\s*"' + entry + '"[\\s\\S]{0,2000}?"options":\\s*\\{[\\s\\S]{0,1500}?"state_characteristic":\\s*"change"').test(run.results);
     check(verified, "the terminal submit's output carried the CLI's verification: the entry and its options read back", run.results.match(/"verification":\{.{0,300}/)?.[0] || "no verification in the agent's tool results");
-    check(!run.ran.some((l) => /POST.*options\/flow\//.test(l)), "no options flow was submitted", run.ran.filter((l) => /options\/flow/.test(l)).join(" | "));
+    check(!run.ran.some((l) => /\bPOST\b/.test(l) && /options\/flow\/\S/.test(l)), "no options flow was submitted", run.ran.filter((l) => /options\/flow/.test(l)).join(" | "));
     check(terminal >= 0 && run.ran.slice(terminal + 1).some((l) => /api\/states\/|(^|\s)(get|state)\s/.test(l) && l.includes(entity)), "the agent read the new sensor's state after the create", run.ran.slice(terminal + 1).join(" | ") || "nothing after it");
     // Results name entities by their Home Assistant name, not their id (output-rules.md).
     check(state && run.reply.includes(state.attributes.friendly_name), "the reply names the new sensor", state?.attributes.friendly_name);
@@ -166,9 +167,9 @@ try {
   await sleep(2000);
   const after = (await entries()).filter((e) => !before.includes(e));
   check(after.length === 1 && withheld.includes(after[0]), "fixture: exactly one new helper, the one whose check was withheld", after.join(",") || "none: " + unchecked.reply.slice(0, 200));
-  const terminal = unchecked.ran.findLastIndex((l) => /config_entries\/flow\//.test(l)), first = unchecked.ran.findIndex((l) => /config_entries\/flow\//.test(l) && /POST/.test(l));
-  check(first >= 0 && !unchecked.ran.slice(first + 1).some((l) => /POST.*config_entries\/flow( |$)/.test(l)), "fixture: the agent started no second create flow", unchecked.ran.filter((l) => /config_entries\/flow/.test(l)).join(" | "));
-  check(/verif|could(n't| not) (be )?(check|confirm)/i.test(unchecked.reply) && terminal >= 0, "fixture: the reply says the helper is unverified", unchecked.reply.slice(0, 300));
+  const starts = unchecked.ran.filter((l) => /\bPOST\b/.test(l) && /config_entries\/flow(\s|$)/.test(l));
+  check(starts.length === 1, "fixture: the agent started exactly one create flow", unchecked.ran.filter((l) => /config_entries\/flow/.test(l)).join(" | "));
+  check(/unverif|not (been |be )?(verified|confirmed)|could(n't| not) (be )?(checked|check|confirmed|confirm|verif)/i.test(unchecked.reply), "fixture: the reply says the helper is unverified", unchecked.reply.slice(0, 300));
 } catch (err) {
   line("FAIL", "the run itself", err.message);
 } finally {

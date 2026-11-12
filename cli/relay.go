@@ -481,11 +481,11 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 			if !verification.Passed {
 				printWarn("%s", verification.Problem)
 			}
-			if bodyBytes, err = withHelperVerification(bodyBytes, verification); err != nil {
-				printRelayFailure(read, "verifying the created helper", err)
-				return 1
+			if verified, err := withHelperVerification(bodyBytes, verification); err != nil { // the create stands: say it, keep its answer
+				printWarn("The helper was created, but HA NOVA could not add its check to the output: %v. Don't run the flow again.", err)
+			} else {
+				bodyBytes = redactRawResponse(endpoint, verified)
 			}
-			bodyBytes = redactRawResponse(endpoint, bodyBytes)
 		}
 	}
 

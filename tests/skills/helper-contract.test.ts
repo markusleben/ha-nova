@@ -198,8 +198,9 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("config-entry layer first");
       // #1105: the CLI verifies a create; the skill reads its verification.
       expect(skillDoc).toContain("carries the CLI's `verification`");
-      expect(skillDoc).toContain("(no `--jq` on it)");
-      expect(skillDoc).toContain("anything else (`passed: false`, or no `verification`) → the helper may exist but is unverified");
+      expect(skillDoc).toContain("never use `--jq` on a submit");
+      expect(skillDoc).toContain("`passed: false` → the helper may exist but is unverified");
+      expect(skillDoc).toContain("no `verification` → the CLI is older than this skill");
       expect(skillDoc).toContain("never re-run the flow or its submit");
       expect(skillDoc).not.toContain("Capture a pre-create baseline");
       expect(skillDoc).not.toContain("diff `config_entries/get` before vs after");
@@ -207,7 +208,7 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("reopen the options flow");
       expect(skillDoc).toContain("description.suggested_value");
       expect(flowSchemasDoc).toContain("Verification source of truth");
-      expect(flowSchemasDoc).toContain("terminal flow result's `entry_id` in the after-read");
+      expect(flowSchemasDoc).toContain("terminal flow result's `entry_id` (built-in, `loaded`) in the after-read");
       expect(flowSchemasDoc).toContain("anything else is an unverified create, never re-run");
       expect(flowSchemasDoc).not.toContain("before/after `entry_id` diff");
       expect(flowSchemasDoc).toContain("entry absent in `config_entries/get`");

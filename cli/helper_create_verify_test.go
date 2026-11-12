@@ -81,7 +81,7 @@ func verificationOf(t *testing.T, envelope map[string]any) map[string]any {
 // flow that is aborted, never submitted.
 func TestRelayCoreVerifiesAHelperCreate(t *testing.T) {
 	exit, output, envelope, keys := submitHelperStep(t, helperHome(), "/api/config/config_entries/flow/f1")
-	if exit != 0 || strings.Contains(output, "could not check") {
+	if exit != 0 || strings.Contains(output, "could not confirm") {
 		t.Fatalf("exit %d\n%s", exit, output)
 	}
 	v := verificationOf(t, envelope)
@@ -96,7 +96,7 @@ func TestRelayCoreVerifiesAHelperCreate(t *testing.T) {
 	if body := envelope["data"].(map[string]any)["body"].(map[string]any); body["type"] != "create_entry" {
 		t.Fatalf("the create's own answer changed: %v", body)
 	}
-	want := []string{"POST /api/config/config_entries/flow/f1", "config_entries/get", "config/entity_registry/list", "manifest/list",
+	want := []string{"POST /api/config/config_entries/flow/f1", "config_entries/get", "manifest/list", "config/entity_registry/list",
 		"POST /api/config/config_entries/options/flow", "DELETE /api/config/config_entries/options/flow/o1"}
 	if !slices.Equal(keys, want) {
 		t.Fatalf("requests = %v", keys)
@@ -115,13 +115,14 @@ func TestRelayCoreHelperVerificationReachesJQAndStdout(t *testing.T) {
 	}
 }
 
-// An entry without options support gets no options flow.
+// An entry without options support gets no options flow, and still the
+// built-in check.
 func TestRelayCoreHelperWithoutOptionsStartsNoOptionsFlow(t *testing.T) {
 	home := helperHome()
 	home["config_entries/get"] = []any{map[string]any{"entry_id": "e1", "domain": "statistics", "title": "Change", "state": "loaded", "supports_options": false}}
 	exit, _, envelope, keys := submitHelperStep(t, home, "/api/config/config_entries/flow/f1")
 	v := verificationOf(t, envelope)
-	if exit != 0 || v["passed"] != true || v["options"] != nil || slices.ContainsFunc(keys, func(k string) bool { return strings.Contains(k, "options") || k == "manifest/list" }) {
+	if exit != 0 || v["passed"] != true || v["options"] != nil || slices.ContainsFunc(keys, func(k string) bool { return strings.Contains(k, "options") }) || !slices.Contains(keys, "manifest/list") {
 		t.Fatalf("exit %d, verification %v, requests %v", exit, v, keys)
 	}
 }
@@ -138,9 +139,19 @@ func TestRelayCoreHelperVerificationFailsLoudButNotTheCreate(t *testing.T) {
 		"no entry id": {func(h map[string]any) {
 			h["POST /api/config/config_entries/flow/f1"] = map[string]any{"status": 200, "body": map[string]any{"type": "create_entry", "handler": "statistics", "result": map[string]any{}}}
 		}, "named no entry", false},
-		"entry missing": {func(h map[string]any) { h["config_entries/get"] = []any{} }, "not in the config entries", false},
+		"entry missing": {func(h map[string]any) { h["config_entries/get"] = []any{} }, "not a statistics entry", false},
+		"another domain's entry": {func(h map[string]any) {
+			h["config_entries/get"] = []any{map[string]any{"entry_id": "e1", "domain": "derivative", "title": "Change", "state": "loaded", "supports_options": true}}
+		}, "not a statistics entry", false},
+		"not loaded": {func(h map[string]any) {
+			h["config_entries/get"] = []any{map[string]any{"entry_id": "e1", "domain": "statistics", "title": "Change", "state": "setup_error", "supports_options": true}}
+		}, "setup_error, not loaded", false},
 		"custom integration": {func(h map[string]any) {
 			h["manifest/list"] = []any{map[string]any{"domain": "statistics", "is_built_in": false}}
+		}, "not Home Assistant's built-in integration", false},
+		"custom integration without options": {func(h map[string]any) {
+			h["manifest/list"] = []any{map[string]any{"domain": "statistics", "is_built_in": false}}
+			h["config_entries/get"] = []any{map[string]any{"entry_id": "e1", "domain": "statistics", "title": "Change", "state": "loaded", "supports_options": false}}
 		}, "not Home Assistant's built-in integration", false},
 		"options form unexpected": {func(h map[string]any) {
 			h["POST /api/config/config_entries/options/flow"] = map[string]any{"status": 200, "body": map[string]any{"type": "menu", "flow_id": "o1", "handler": "e1", "step_id": "init"}}
@@ -191,9 +202,11 @@ func TestRelayCoreVerifiesNothingElse(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			home := helperHome()
 			home["POST "+tc.path] = tc.answer
-			_, _, envelope, keys := submitHelperStep(t, home, tc.path)
-			if _, has := envelope["verification"]; has || len(keys) != 1 {
-				t.Fatalf("envelope %v, requests %v", envelope, keys)
+			exit, _, envelope, keys := submitHelperStep(t, home, tc.path)
+			want, _ := json.Marshal(tc.answer)
+			got, _ := json.Marshal(envelope["data"])
+			if _, has := envelope["verification"]; has || len(keys) != 1 || exit != 0 || string(got) != string(want) {
+				t.Fatalf("exit %d, envelope %v, requests %v", exit, envelope, keys)
 			}
 		})
 	}
