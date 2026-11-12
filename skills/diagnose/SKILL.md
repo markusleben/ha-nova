@@ -45,7 +45,7 @@ Diagnostics redaction is integration-controlled, so downloads are potentially se
 
 ### Logs
 
-HA NOVA does not read Home Assistant's logs (`/api/error_log`, `system_log/list`, Core, Supervisor, host, and App logs): they can hold passwords, keys, and addresses, so every log read is refused (exit 4). When a log line would decide the diagnosis, ask the user to open **Settings > System > Logs** (an App's own log: **Settings > Apps > the App > Log**), search for the integration or entity, and tell you the few lines around the incident time, without passwords, keys, or addresses. Never ask for the whole log. Lines about other integrations are not evidence for this incident, and no line about it is a finding in itself, not a reason to search wider. The Core log reaches back only to the last restart: for older incidents use logbook/history windows, and say so.
+HA NOVA never reads log lines (`/api/error_log`, Core, Supervisor, host, and App logs are refused, exit 4): they can hold passwords, keys, and addresses. It reads **log facts** instead: WS `{"type":"system_log/list"}` with no other key answers `log_facts` (per integration `domain` and `level`: `count`, `first_retained`, `last`, in UTC) and `unattributed_count`, never a message. Read them to see which integration has been failing and since when. `first_retained` is the oldest entry the log still holds (it keeps a bounded number, and a restart empties it), not the first ever: say "since at least". A fact is a lead, not a finding: an integration's own code names its logger. A NOVA App older than 0.31 refuses the read: then go on without it. When the message itself would decide the diagnosis, ask the user to open **Settings > System > Logs** (an App's own log: **Settings > Apps > the App > Log**), search for the integration or entity, and tell you the few lines around the incident time, without passwords, keys, or addresses. Never ask for the whole log. Lines about other integrations are not evidence for this incident, and no line about it is a finding in itself, not a reason to search wider. The Core log reaches back only to the last restart: for older incidents use logbook/history windows, and say so.
 
 ## Flow
 
@@ -64,7 +64,7 @@ HA NOVA does not read Home Assistant's logs (`/api/error_log`, `system_log/list`
 ## Error Handling
 
 Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling. Diagnose specifics:
-- A refused log read is expected: ask the user instead (Logs, above).
+- A refused log read is expected: read the log facts, or ask the user (Logs, above).
 - Missing traces (empty `trace list`): traces are kept per entity with a small cap and reset on reload/restart — say so instead of guessing.
 
 ## Output Format
