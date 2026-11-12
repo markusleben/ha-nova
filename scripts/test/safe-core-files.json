@@ -163,6 +163,7 @@
   "tests/skills/time-window-honesty-contract.test.ts",
   "tests/skills/todo-contract.test.ts",
   "tests/skills/trace-contract.test.ts",
+  "tests/skills/checkup-contract.test.ts",
   "tests/skills/updates-contract.test.ts",
   "tests/skills/verification-planning-contract.test.ts",
   "tests/skills/version-claim-drift.test.ts",
