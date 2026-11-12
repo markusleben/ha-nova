@@ -242,3 +242,28 @@ func TestUpdateRisks(t *testing.T) {
 		t.Fatalf("risks %+v", risks)
 	}
 }
+
+func TestBreakingChangesUnreadableSectionsAndVersions(t *testing.T) {
+	releaseNotesServer(t, map[string]string{
+		"/changelogs/core-2026.11.markdown":          "[blog](/blog/2026/11/04/release-202611/)",
+		"/_posts/2026-11-04-release-202611.markdown": "x\n## Backward-incompatible changes\n\n{% details \"A\" %}\ntext\n{% enddetails %}\n{% details \"B\" %}\nno end\n## All changes\n",
+	})
+	if got := readReleaseMonth("2026.11"); got.err == nil || !strings.Contains(got.err.Error(), "1 of 2") {
+		t.Fatalf("a broken block passed: %+v", got)
+	}
+	f := breakingHome()
+	f.states[0]["attributes"].(map[string]any)["latest_version"] = "next"
+	got, _, _, gaps := runBreaking(t, f)
+	if got.Status != "unavailable" || !slices.Contains(codes(gaps), "breaking_changes") {
+		t.Fatalf("unreadable version %+v %+v", got, gaps)
+	}
+}
+
+func TestMajorVersionSkipsYearVersions(t *testing.T) {
+	releaseNotesServer(t, map[string]string{})
+	f := breakingHome()
+	f.states[2] = upd("update.future_update", "2025.12.0", "2026.1.0", map[string]any{"friendly_name": "Future App"})
+	if _, _, risks, _ := runBreaking(t, f); slices.Contains(codes(risks), "MAJOR_VERSION") {
+		t.Fatalf("calendar version flagged: %+v", risks)
+	}
+}

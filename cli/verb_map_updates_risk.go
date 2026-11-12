@@ -19,7 +19,7 @@ func (a *updateAdvisor) flagRisks() {
 	for _, row := range a.rows {
 		from, okFrom := majorVersion(row.Installed)
 		to, okTo := majorVersion(row.Latest)
-		if row.Kind != "core" && row.Kind != "firmware" && okFrom && okTo && to > from {
+		if row.Kind != "core" && row.Kind != "firmware" && okFrom && okTo && to > from && from < 2000 { // a year (2025.12 → 2026.1) is no major step
 			a.risk = append(a.risk, map[string]any{"code": "MAJOR_VERSION", "entity_id": row.EntityID, "name": row.Name, "from": row.Installed, "to": row.Latest})
 		}
 		if row.Kind == "firmware" && row.device != "" {

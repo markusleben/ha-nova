@@ -33,7 +33,7 @@ var releaseNotesClient = &http.Client{Timeout: 10 * time.Second,
 
 var (
 	releasePostLink = regexp.MustCompile(`\(/blog/(\d{4})/(\d{2})/(\d{2})/(release-[0-9a-z-]+)/\)`)
-	detailsBlock    = regexp.MustCompile(`(?s)\{% details "([^"]*)" %\}(.*?)\{% enddetails %\}`)
+	detailsBlock    = regexp.MustCompile(`(?s)\{% details "(.*?)" %\}(.*?)\{% enddetails %\}`)
 	integrationRef  = regexp.MustCompile(`(?m)^\[[^\]]*\]: /integrations/([a-z0-9_]+)/?\s*$`)
 	referenceLine   = regexp.MustCompile(`(?m)^\[[^\]]+\]: .*$`)
 	creditLine      = regexp.MustCompile(`(?m)^\(\[@.*$`)
@@ -67,6 +67,12 @@ func (a *updateAdvisor) scanBreaking() map[string]any {
 		return out
 	}
 	out["repairs_breaking"] = a.repairsBreaking()
+	_, okFrom := haVersion(a.coreFrom)
+	if _, okTo := haVersion(a.coreTo); !okFrom || !okTo {
+		a.gap("breaking_changes", "unreadable Core version")
+		out["status"] = "unavailable"
+		return out
+	}
 	months := releaseMonths(a.coreFrom, a.coreTo)
 	if len(months) == 0 {
 		out["status"] = "not_scanned" // a patch release: no such section
@@ -168,7 +174,12 @@ func readReleaseMonth(release string) releaseMonth {
 	if end := strings.Index(section, "\n## "); end >= 0 {
 		section = section[:end]
 	}
-	for _, block := range detailsBlock.FindAllStringSubmatch(section, -1) {
+	blocks := detailsBlock.FindAllStringSubmatch(section, -1)
+	if n := strings.Count(section, "{% details "); n == 0 || n != len(blocks) {
+		out.err = fmt.Errorf("the Backward-incompatible changes section could not be read (%d of %d changes)", len(blocks), n)
+		return out
+	}
+	for _, block := range blocks {
 		c := releaseChange{Release: release, Title: sayTextUpTo(block[1], 80, false), Link: out.link}
 		for _, ref := range integrationRef.FindAllStringSubmatch(block[2], -1) {
 			if !slices.Contains(c.Domains, ref[1]) {
@@ -270,7 +281,7 @@ func (a *updateAdvisor) repairsBreaking() []map[string]string {
 	}
 	for _, issue := range issues {
 		if later, ok := haVersionLess(a.coreTo, issue.BreaksIn); ok && !later {
-			out = append(out, map[string]string{"integration": issue.Domain, "issue_id": issue.IssueID, "breaks_in": issue.BreaksIn})
+			out = append(out, map[string]string{"integration": sayText(issue.Domain, false), "issue_id": sayText(issue.IssueID, false), "breaks_in": issue.BreaksIn})
 		}
 	}
 	return out
