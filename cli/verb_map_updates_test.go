@@ -15,13 +15,14 @@ type updatesFixture struct {
 	backups    any
 	manifests  []map[string]any
 	traces     []map[string]any
+	coreState  string
 	supervisor map[string]any // path → data; a missing path fails upstream
 }
 
 func (f updatesFixture) reply(r *http.Request, endpoint string, payload map[string]any) any {
 	switch {
 	case endpoint == "core" && payload["path"] == "/api/config":
-		return coreReply(200, map[string]any{"version": "2026.10.2", "components": f.components})
+		return coreReply(200, map[string]any{"version": "2026.10.2", "state": firstNonEmpty(f.coreState, "RUNNING"), "components": f.components})
 	case endpoint == "supervisor":
 		if data, ok := f.supervisor[payload["path"].(string)]; ok {
 			return map[string]any{"status": 200, "body": map[string]any{"result": "ok", "data": data}}

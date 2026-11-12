@@ -93,7 +93,10 @@ func afterUpdate(s *relaySession, x *homeIndex, file string) (map[string]any, er
 		return nil, err
 	}
 	if a.hassio {
-		a.readResolution()
+		_, _ = a.readResolution() // unread: rollback says unknown
+	}
+	if a.coreState != "" && a.coreState != "RUNNING" {
+		a.gap("started", "Home Assistant is still starting ("+a.coreState+"): integrations and devices may still come up; check again in a few minutes")
 	}
 	now := a.snapshot()
 	base := loadBaseline(file, s.server)

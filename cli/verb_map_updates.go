@@ -36,6 +36,7 @@ type updateAdvisor struct {
 	x                 *homeIndex
 	rows              []updateRow // pending
 	coreFrom, coreTo  string
+	coreState         string
 	hassio            bool
 	domains           map[string]bool // loaded integrations: config entries and components
 	ready, gaps, risk []map[string]any
@@ -128,6 +129,7 @@ func (a *updateAdvisor) loadPending() error {
 	}
 	var config struct {
 		Version    string   `json:"version"`
+		State      string   `json:"state"` // RUNNING once started
 		Components []string `json:"components"`
 	}
 	if err == nil {
@@ -144,7 +146,7 @@ func (a *updateAdvisor) loadPending() error {
 	for _, e := range a.x.h.entries {
 		a.domains[e.Domain] = true
 	}
-	a.hassio, a.coreFrom, a.coreTo = a.domains["hassio"], config.Version, config.Version
+	a.hassio, a.coreFrom, a.coreTo, a.coreState = a.domains["hassio"], config.Version, config.Version, config.State
 	var states []struct {
 		EntityID   string `json:"entity_id"`
 		State      string `json:"state"`

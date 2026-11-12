@@ -106,8 +106,9 @@ func TestAfterUpdateWithoutCheckOrSupervisorSaysSo(t *testing.T) {
 		t.Fatalf("rollback %+v", got.Rollback)
 	}
 	delete(f.supervisor, "/resolution/info")
+	f.coreState = "STARTING"
 	got = decodeInto[afterResult](t, run("after_update").Result)
-	if got.Rollback != "unknown" || !slices.Contains(codes(got.NotChecked), "rollback") {
+	if got.Rollback != "unknown" || !slices.Contains(codes(got.NotChecked), "rollback") || !slices.Contains(codes(got.NotChecked), "started") {
 		t.Fatalf("unreadable Supervisor %+v %+v", got.Rollback, got.NotChecked)
 	}
 }
