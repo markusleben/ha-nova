@@ -79,21 +79,52 @@ func checkHomeAssistantForRelayUpdate(paths runtimePaths, route *relayUpdateRout
 	return checked, true
 }
 
-// relayGuidedCallAllowed: true only when `ha-nova call` would plan req at
-// highest or below (computeCallPlan: call_service listeners, the targets'
-// consumers, ...), with a complete scan and its targets frozen. The session
-// reads over the guided update's own route; a failed or cut read never passes.
-func relayGuidedCallAllowed(paths runtimePaths, route *relayUpdateRoute, req planCallRequest, highest tierLevel) bool {
+// guidedRating is what `ha-nova call` would plan for one of the guided
+// update's own calls (computeCallPlan: call_service listeners, the
+// targets' consumers, ...), read over the guided update's route; err: the
+// check itself failed, so nothing goes out.
+type guidedRating struct {
+	level    tierLevel
+	complete bool // a complete scan, its targets frozen
+	err      error
+}
+
+// allows: planned at highest or below, with a complete scan and its
+// targets frozen. A failed or cut read never passes.
+func (r guidedRating) allows(highest tierLevel) bool {
+	return r.err == nil && r.complete && r.level <= highest
+}
+
+// typed: it needs a typed confirmation (relay_guided_update_typed.go).
+func (r guidedRating) typed() bool { return r.err == nil && r.level == tierTyped }
+
+// why: the check's own words when it failed, else why it isn't complete.
+func (r guidedRating) why() string {
+	if r.err != nil {
+		return r.err.Error()
+	}
+	return "some of what reacts to it couldn't be read"
+}
+
+func rateGuidedCall(paths runtimePaths, route *relayUpdateRoute, req planCallRequest) guidedRating {
+	if refusal := staticRefusal(req); refusal != nil {
+		return guidedRating{err: refuse(&verbEnvelope{}, *refusal)}
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), relaySessionOverallTimeout)
 	s := &relaySession{paths: paths, cfg: route.cfg, transport: route.relayTransportSelection,
 		server: activeServerProfile(), ctx: ctx, cancel: cancel, slots: make(chan struct{}, relaySessionMaxConcurrent), memo: map[string]*relayMemo{}}
 	defer s.close()
-	if staticRefusal(req) != nil {
-		return false
-	}
 	env := verbEnvelope{SchemaVersion: 1, Verb: "call", Server: s.server}
 	e, plan, err := computeCallPlan(s, &env, req)
-	return err == nil && e.level <= highest && e.complete && !frozeNothing(req, plan.Action)
+	if err != nil {
+		return guidedRating{err: err}
+	}
+	return guidedRating{level: e.level, complete: e.complete && !frozeNothing(req, plan.Action)}
+}
+
+// relayGuidedCallAllowed: rateGuidedCall allows req at highest or below.
+func relayGuidedCallAllowed(paths runtimePaths, route *relayUpdateRoute, req planCallRequest, highest tierLevel) bool {
+	return rateGuidedCall(paths, route, req).allows(highest)
 }
 
 // relayUpdateEntityLatest reads one update entity's latest_version when it

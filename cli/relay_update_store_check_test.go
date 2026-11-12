@@ -219,6 +219,7 @@ func TestRelayStoreCheckLooksPastAnOfferBelowTheFloor(t *testing.T) {
 	f := newFakeHA()
 	f.ent("update.nova_relay_update", "hassio", "on", nil)
 	f.full = []map[string]any{novaRegistryEntry("update.nova_relay_update")}
+	f.services = appUpdateHA().services // the check before the question plans update.install
 	f.extra = func(endpoint string, p map[string]any) (any, bool) {
 		if endpoint != "core" {
 			return nil, false
