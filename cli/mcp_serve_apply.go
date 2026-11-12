@@ -201,7 +201,7 @@ func (srv *mcpServer) chatBusy(name string, args map[string]json.RawMessage, why
 	setVerbError(&env, refusedWith("BUSY", why, next))
 	env.Say = say
 	out, _ := json.Marshal(env)
-	return toolResult(name, string(out), "", verbExitRefused, nil, false)
+	return toolResult(name, string(out), "", verbExitRefused, nil, false, srv.chat != nil)
 }
 
 // chatQueuedStop ends a queued BUSY's next_step: what to say when calling

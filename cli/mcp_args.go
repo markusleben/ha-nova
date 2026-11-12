@@ -162,8 +162,9 @@ func applyArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, erro
 }
 
 // nextStep is the instruction a model must follow after this result
-// (formsStep adjusts it where the client shows confirmation forms).
-func nextStep(envelope map[string]any) string {
+// (formsStep adjusts it where the client shows confirmation forms); chat: a
+// chat app's call (ha-nova serve).
+func nextStep(envelope map[string]any, chat bool) string {
 	plan, _ := envelope["plan"].(map[string]any)
 	errInfo, _ := envelope["error"].(map[string]any)
 	code, _ := plan["code"].(string)
@@ -183,10 +184,10 @@ func nextStep(envelope map[string]any) string {
 		return fmt.Sprintf("Show this preview in plain words (diff rows as printed) and wait for the user's own confirmation; only then call ha_apply with plan_id %v.", plan["id"]) + say
 	case errInfo != nil && errInfo["code"] == "RELAY_ERROR" && errInfo["next"] == relayAnsweredNext:
 		return relayAnsweredNext
-	case errInfo != nil && errInfo["code"] == "RELAY_ERROR" && chatCall != nil:
+	case errInfo != nil && errInfo["code"] == "RELAY_ERROR" && chat:
 		return chatRelayNext
 	case errInfo != nil && (errInfo["code"] == "SECURE_STORAGE_LOCKED" || errInfo["code"] == "SECURE_STORAGE_UNAVAILABLE"):
-		if chatCall != nil {
+		if chat {
 			return chatRelayNext
 		}
 		next, _ := errInfo["next"].(string) // the message names the fix; not a Relay problem

@@ -20,8 +20,8 @@ var gatePollTimeout = 40 * time.Second
 // Relay's worker may spend a step on each request twice and two more
 // (gate-worker.ts), within what is left of this command's wait (askWait;
 // ha-nova mcp's job: the ask's life).
-func gateOpenWait(n int) time.Duration {
-	budget := askWait()
+func (s *relaySession) gateOpenWait(n int) time.Duration {
+	budget := s.askWait()
 	if gateApproval != nil {
 		budget = gateAskLife
 	}

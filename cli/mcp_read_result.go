@@ -175,7 +175,7 @@ func runOfflineRead(call *verbCall, paths runtimePaths, endpoint string, run jqR
 // offlineVerb runs a CLI verb in process and returns its stdout; a failure
 // carries its stderr.
 func offlineVerb(run func(*verbCall) int, ok func(exit int) bool) (string, error) {
-	out, errOut, exit := runCaptured(run)
+	out, errOut, exit := runCaptured(nil, run)
 	if !ok(exit) {
 		return "", &verbFailure{exit: verbExitError, code: "READ_FAILED", message: mcpMessage(errOut, mcpMessageMax)}
 	}
