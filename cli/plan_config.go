@@ -129,8 +129,8 @@ func scriptKey(alias string) string {
 	return strings.Trim(nonScriptKey.ReplaceAllString(folded, "_"), "_")
 }
 
-func runPlanConfig(paths runtimePaths, op string, args []string) int {
-	var opts verbOptions
+func runPlanConfig(call *verbCall, paths runtimePaths, op string, args []string) int {
+	opts := verbOptions{call: call}
 	req := configRequest{Op: op}
 	fs := flag.NewFlagSet("plan "+op, flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
@@ -162,7 +162,7 @@ func runPlanConfig(paths runtimePaths, op string, args []string) int {
 		err = req.parseInput(positional, draftFile)
 	}
 	if err != nil {
-		return verbUsageError("plan", err)
+		return verbUsageError(call, "plan", err)
 	}
 	return runReadVerb(paths, "plan", opts, func(s *relaySession, env *verbEnvelope) error {
 		if req.Op == "revert" { // a named rooms record reverts as a rooms plan (plan_rooms.go), a rename's as a raw plan (plan_raw_names_undo.go)

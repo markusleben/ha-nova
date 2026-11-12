@@ -150,7 +150,7 @@ func TestRunSnapshotSaveExplainsEmptyStdin(t *testing.T) {
 
 func TestRunDiffCommandContract(t *testing.T) {
 	// Missing a required flag → exit 1.
-	if code := runDiffCommand(runtimePaths{}, []string{"--before", "only.json"}); code != 1 {
+	if code := runDiffCommand(nil, runtimePaths{}, []string{"--before", "only.json"}); code != 1 {
 		t.Fatalf("missing --after: exit = %d, want 1", code)
 	}
 
@@ -164,7 +164,7 @@ func TestRunDiffCommandContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := captureStdout(t, func() {
-		if code := runDiffCommand(runtimePaths{}, []string{"--before", before, "--after", after}); code != 0 {
+		if code := runDiffCommand(nil, runtimePaths{}, []string{"--before", before, "--after", after}); code != 0 {
 			t.Fatalf("diff: exit = %d, want 0", code)
 		}
 	})
@@ -174,7 +174,7 @@ func TestRunDiffCommandContract(t *testing.T) {
 
 	outPath := filepath.Join(dir, "diff.txt")
 	out = captureStdout(t, func() {
-		if code := runDiffCommand(runtimePaths{}, []string{"--before", before, "--after", after, "--out", outPath}); code != 0 {
+		if code := runDiffCommand(nil, runtimePaths{}, []string{"--before", before, "--after", after, "--out", outPath}); code != 0 {
 			t.Fatalf("diff --out: exit = %d, want 0", code)
 		}
 	})

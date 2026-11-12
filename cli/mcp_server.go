@@ -316,9 +316,10 @@ func (srv *mcpServer) route(req rpcRequest) (map[string]any, *rpcError) {
 
 // runLocked runs one verb under mcpVerbLock, which the caller took
 // (lockVerb), releases it, and returns its tool result. Verbs set
-// process-wide state (server selection, stdout, the channel); every run
-// starts from this server's and leaves nothing behind.
-func (srv *mcpServer) runLocked(name, answered string, forms bool, run func() int) map[string]any {
+// process-wide state (server selection, the channel); every run starts
+// from this server's and leaves nothing behind. Its output is its own
+// (runCaptured).
+func (srv *mcpServer) runLocked(name, answered string, forms bool, run func(*verbCall) int) map[string]any {
 	defer mcpVerbLock.Unlock()
 	if name == "ha_apply" { // a change: chat-app requests wait for it at most chatLockWait
 		mcpVerbLock.changing()
@@ -341,7 +342,7 @@ func (srv *mcpServer) runLocked(name, answered string, forms bool, run func() in
 		planChannel, humanAnswer, humanWhere, askedRoute, windowWait, formsShown, phoneApplied, chatCall = "", "", "", nil, cliWindowWait, false, nil, nil
 	}()
 	traceRelayVersion.Store("")
-	out, errOut, exit := captureVerb(run)
+	out, errOut, exit := runCaptured(run)
 	if name == "ha_apply" && exit == verbExitUnknown && strings.TrimSpace(out) == "" { // apply crashed after it may have sent
 		return chatStopped(name, applyCrashed(errOut))
 	}

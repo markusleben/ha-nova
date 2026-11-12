@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -223,7 +222,7 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration) (st
 	} else {
 		window, raced = s.gateWindow(ctx, deadline, page)
 	}
-	fmt.Fprintln(os.Stderr, waiting)
+	fmt.Fprintln(s.call.stderr(), waiting)
 	stopped := func() (string, string) {
 		s.gateCancel(askID)
 		if planAsks.Err() != nil {

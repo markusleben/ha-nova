@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -345,7 +344,7 @@ func confirmByPhone(paths runtimePaths, opts verbOptions, id string, noSnapshot 
 	if a == nil {
 		return env, exit, asked
 	}
-	a.wait(os.Stderr)
+	a.wait(opts.call.stderr())
 	return a.finish()
 }
 

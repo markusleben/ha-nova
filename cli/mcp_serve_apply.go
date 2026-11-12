@@ -324,7 +324,7 @@ func (srv *mcpServer) applyJob(job *chatJob, args map[string]json.RawMessage, ar
 		job.result = srv.chatBusy("ha_apply", args, err.Error())
 	} else {
 		close(job.locked)
-		job.result = srv.runLocked("ha_apply", "", false, func() int { return runApplyCommand(srv.paths, pinServer("ha_apply", argv, srv.pin)) })
+		job.result = srv.runLocked("ha_apply", "", false, func(call *verbCall) int { return applyVerb(call, srv.paths, pinServer("ha_apply", argv, srv.pin)) })
 	}
 	srv.noteChange("ha_apply", job.what, job.result)
 }

@@ -301,11 +301,11 @@ func (srv *mcpServer) phoneJob(job *chatJob, args map[string]json.RawMessage, ar
 		return
 	}
 	close(job.locked)
-	result := srv.runLocked("ha_apply", "", false, func() int {
+	result := srv.runLocked("ha_apply", "", false, func(call *verbCall) int {
 		var env verbEnvelope
 		var exit int
 		var ok, asked bool
-		if req, exit, ok = parseApplyArgs(argv); !ok {
+		if req, exit, ok = parseApplyArgs(call, argv); !ok {
 			return exit
 		}
 		if a, env, exit, asked = startPhoneAsk(srv.paths, req.opts, req.id, req.noSnapshot); a != nil {
@@ -339,7 +339,8 @@ func (srv *mcpServer) phoneJob(job *chatJob, args map[string]json.RawMessage, ar
 		}
 	}
 	mcpVerbLock.Lock() // the tap stands: as long as it takes
-	job.result = srv.runLocked("ha_apply", "", false, func() int {
+	job.result = srv.runLocked("ha_apply", "", false, func(call *verbCall) int {
+		req.opts.call = call // this run's output: the phone ask above ran in the first one
 		var env verbEnvelope
 		var exit int
 		var asked bool

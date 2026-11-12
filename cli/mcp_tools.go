@@ -2,8 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,15 +9,15 @@ import (
 )
 
 // The MCP tools are thin argv adapters over the CLI verbs: the same parsing,
-// validation, plans, codes, and envelopes, run in process with their output
-// captured (never on the protocol's stdout).
+// validation, plans, codes, and envelopes, run in process, each call with its
+// own output (runCaptured; never the protocol's stdout).
 
 type mcpTool struct {
 	name, title, description          string
 	readOnly, destructive, idempotent bool
 	schema                            map[string]any
 	argv                              func(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, error)
-	run                               func(runtimePaths, []string) int
+	run                               func(*verbCall, runtimePaths, []string) int
 }
 
 func prop(kind, description string) map[string]any {
@@ -51,31 +49,31 @@ var mcpTools = []mcpTool{mcpSkillTool,
 			"area": prop("string", "only this area_id"), "state": prop("string", "only entities currently in this state, e.g. on"),
 			"limit": prop("integer", "1-200 rows (default 20)"), "include_disabled": prop("boolean", "include disabled entities"),
 			"aliases": prop("boolean", "also match aliases when names already match (after a rejected name match)")}),
-		argv: findArgv, run: runFindCommand},
+		argv: findArgv, run: findVerb},
 	{name: "ha_get", title: "Read a device", description: "Read one entity's state, optionally its stored config and relations; or one dashboard (dashboard) or every dashboard's broken-card sweep (dashboards). Pass exactly one of entity_id, dashboard, dashboards. managed: yaml means the config is defined in YAML or a package: never edit or delete it through ha_plan; it is changed in those files.", readOnly: true, idempotent: true,
 		schema: object(nil, map[string]any{"entity_id": prop("string", "exact entity_id"),
 			"dashboard":  prop("string", "a dashboard's url_path (lovelace: the default one): its views, cards, issues, and config_digest"),
 			"dashboards": prop("boolean", "every dashboard: missing entities and unconfirmed custom card types"),
 			"config":     prop("boolean", "also read the stored automation/script/scene config, or the dashboard's full config"), "related": prop("boolean", "also read search/related"),
 			"references": prop("boolean", "also scan automations, scripts, dashboards, energy, and state attributes for the entity, its device, and the device's other entities (includes related)")}),
-		argv: getArgv, run: runGetCommand},
+		argv: getArgv, run: getVerb},
 	{name: "ha_history", title: "Read history", description: "Summarize an entity's history in a window of at most 7 days (each bound a duration ago of at most 7d or an RFC3339 time).", readOnly: true, idempotent: true,
 		schema: object([]string{"entity_id"}, map[string]any{"entity_id": prop("string", "exact entity_id"),
 			"since": prop("string", "window start: a duration ago (90m, 24h, 7d) or an RFC3339 time"),
 			"until": prop("string", "window end: a duration ago or an RFC3339 time (default now)"), "logbook": prop("boolean", "also read the logbook")}),
 		argv: func(a map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
 			return flagsThen(a, []string{"logbook"}, []string{"since", "until"}, "entity_id")
-		}, run: runHistoryCommand},
+		}, run: historyVerb},
 	{name: "ha_map", title: "Map the home", description: "Exact, computed home facts — never count by hand: areas/floors with device and entity counts, automations/scripts/scenes/helpers, integrations, unavailable entities, low batteries. section gives one full list; entity gives where-used (automations, scripts, scenes, groups, helpers, dashboard cards; not_checked names what was not searched); first_look gives the onboarding summary; insights gives ranked insights with room suggestions and one automation template that fit this home. " + mcpAnswerRules, readOnly: true, idempotent: true,
 		schema: object(nil, map[string]any{"section": map[string]any{"type": "string", "enum": []string{"areas", "integrations", "automations", "unavailable", "batteries"}},
 			"entity": prop("string", "exact entity_id: where it is used"), "first_look": prop("boolean", "the onboarding first look"),
 			"insights": prop("boolean", "stats, ranked insights, room suggestions (ha_plan kind rooms), and a template (ha_plan kind template)"),
 			"limit":    prop("integer", "1-200 rows for section or entity")}),
-		argv: mapArgv, run: runMapCommand},
+		argv: mapArgv, run: mapVerb},
 	{name: "ha_trace", title: "Read automation runs", description: "Latest trace, trace list, or one trace of an automation or script.", readOnly: true, idempotent: true,
 		schema: object([]string{"action", "entity_id"}, map[string]any{"action": map[string]any{"type": "string", "enum": []string{"latest", "list", "get"}},
 			"entity_id": prop("string", "automation.x or script.x"), "run_id": prop("string", "for action get")}),
-		argv: traceArgvChecked, run: runTraceCommand},
+		argv: traceArgvChecked, run: traceVerb},
 	mcpReadTool,
 	{name: "ha_plan", title: "Plan a change", description: "Plan without executing: kind call (a service call), write (automation/script/dashboard config), delete, revert, restore (a deleted automation/script from the snapshot its delete result named), rooms (the room suggestions of ha_map insights), template (a ready-made automation filled with this home's entities), or raw (the requests to Home Assistant's own API a skill makes, such as registry, helper, scene, and integration setup changes, files, config snapshots, App installs and settings; sent in order by ha_apply), or batch (2 to 20 automation/script write and delete plans from earlier results, in the order they run: one confirmation for all, then ha_apply sends them in order). Returns a preview; a high-consequence plan needs a confirmation code the user types (no code is returned where their app asks for it in a form). coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
 		readOnly: true,
@@ -101,14 +99,14 @@ var mcpTools = []mcpTool{mcpSkillTool,
 			"require_admin": prop("boolean", "write, new dashboard: only administrators see it"),
 			"hide_sidebar":  prop("boolean", "write, new dashboard: not shown in the sidebar"),
 			"name":          map[string]any{"type": "string", "enum": automationTemplates, "description": "template: which one"}})),
-		argv: planArgv, run: runPlanCommand},
+		argv: planArgv, run: planVerb},
 	{name: "ha_call", title: "Control a device", description: "Call a service. Ordinary calls run now and are verified; no_change: already so, nothing sent (relay say); anything else returns needs_confirmation with a plan for ha_apply. A call that timed out or returned no result is outcome unknown: read with ha_get; never call again. coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
-		schema: object([]string{"service"}, callProperties), argv: callArgv, run: runCallCommand},
+		schema: object([]string{"service"}, callProperties), argv: callArgv, run: callVerb},
 	{name: "ha_apply", title: "Run a confirmed change", description: "Run a change the user confirmed, once: a preview plan after the user agreed to its preview; a plan with a one-time code from HA NOVA only with the code the user typed for it — or, where a result has no code (a confirmation window on their computer, a notification on their phone, or a form in their app asks them), without confirm_code (a passed code is ignored). no_change: already so, nothing sent (relay say). A call that timed out or returned no result is outcome unknown: read with ha_get; never call again.",
 		destructive: true,
 		schema: object([]string{"plan_id"}, map[string]any{"plan_id": prop("string", "the plan_id from the preview (p_ + 12 hex)"),
 			"confirm_code": prop("string", "the four-digit one-time code exactly as the user typed it in chat (ignored where a window, phone, or form asks)"), "no_snapshot": prop("boolean", "deletes only, after a failed snapshot and the user's choice")}),
-		argv: applyArgv, run: runApplyCommand},
+		argv: applyArgv, run: applyVerb},
 }
 
 func merged(a, b map[string]any) map[string]any {
@@ -135,8 +133,8 @@ func mcpToolList(paths runtimePaths) []map[string]any {
 	return tools
 }
 
-// mcpVerbLock serializes tool runs: verbs share process-wide state (stdout
-// capture, server selection). A chat-app call waits for it at most
+// mcpVerbLock serializes tool runs: verbs share process-wide state (server
+// selection, the confirmation in progress). A chat-app call waits for it at most
 // chatCallWait, and chatLockWait for a running change (mcp_serve_apply.go).
 var mcpVerbLock = newVerbLock()
 
@@ -201,7 +199,7 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 			srv.noteChange(tool.name, what, busy)
 			return busy, nil
 		}
-		result := srv.runLocked(tool.name, answered, req.forms, func() int { return tool.run(srv.paths, pinServer(tool.name, argv, srv.pin)) })
+		result := srv.runLocked(tool.name, answered, req.forms, func(call *verbCall) int { return tool.run(call, srv.paths, pinServer(tool.name, argv, srv.pin)) })
 		result = withPlanSteps(result, tool.name, params.Arguments)
 		srv.noteChange(tool.name, what, result)
 		return result, nil
@@ -285,48 +283,6 @@ func toolResult(name, out, errOut string, exit int, told map[string]bool, forms 
 	text := plainResult(envelope, next, batch, told) // say, next_step, and answer_rule (mcp_plain.go)
 	return map[string]any{"content": append([]map[string]any{{"type": "text", "text": string(text)}}, images...), "structuredContent": envelope,
 		"isError": exit != 0 && exit != verbExitConfirmation}
-}
-
-// captureVerb runs a verb with stdout and stderr redirected into pipes,
-// always restores them (a panic becomes a tool error), and closes every pipe.
-func captureVerb(run func() int) (out, errOut string, exit int) {
-	outR, outW, err := os.Pipe()
-	if err != nil {
-		return "", "cannot capture verb output", verbExitError
-	}
-	errR, errW, err := os.Pipe()
-	if err != nil {
-		_, _ = outR.Close(), outW.Close()
-		return "", "cannot capture verb output", verbExitError
-	}
-	read := func(r *os.File, into *string, done chan<- struct{}) {
-		b, _ := io.ReadAll(r)
-		_ = r.Close()
-		*into = string(b)
-		close(done)
-	}
-	outDone, errDone := make(chan struct{}), make(chan struct{})
-	go read(outR, &out, outDone)
-	go read(errR, &errOut, errDone)
-	stdout, stderr := os.Stdout, os.Stderr
-	var crash string
-	func() {
-		defer func() {
-			if p := recover(); p != nil {
-				exit, crash = verbExitUnknown, fmt.Sprint("internal error: ", p) // a change may have been sent (runLocked)
-			}
-		}()
-		os.Stdout, os.Stderr = outW, errW
-		exit = run()
-	}()
-	os.Stdout, os.Stderr = stdout, stderr
-	_, _ = outW.Close(), errW.Close()
-	<-outDone
-	<-errDone
-	if crash != "" {
-		out, errOut = "", strings.TrimSpace(errOut+"\n"+crash)
-	}
-	return out, errOut, exit
 }
 
 // mcpTempFiles holds 0600 files for drafts and data passed by file.

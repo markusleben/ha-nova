@@ -46,7 +46,7 @@ func TestWindowHelperProcess(t *testing.T) {
 		fmt.Println("closed") // the window was withdrawn before the process ended
 		return windowNoAnswer
 	}
-	askWindow(context.Background(), plainWindow("en", "test"), time.Minute)
+	askWindow(context.Background(), plainWindow("en", "test"), time.Minute, os.Stderr)
 	fmt.Println("returned") // only where the signal can't end the process
 	os.Exit(0)
 }

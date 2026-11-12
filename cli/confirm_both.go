@@ -67,13 +67,13 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 	defer cancel()
 	votes := make(chan humanVote, 2) // the first vote received decides: the claim
 	go func() {
-		answer, ended := askWindowUntilSignal(ctx, asked, time.Until(a.deadline))
+		answer, ended := askWindowUntilSignal(ctx, asked, time.Until(a.deadline), a.s.call.stderr())
 		votes <- humanVote{window: answer, ended: ended}
 	}()
 	go func() {
 		a.answer = probe
 		if probe == phoneIgnored {
-			a.answer, a.reply = askPhone(ctx, a.s, a.setup, "ha-nova-"+a.plan.ID, a.ask, time.Until(a.deadline), os.Stderr)
+			a.answer, a.reply = askPhone(ctx, a.s, a.setup, "ha-nova-"+a.plan.ID, a.ask, time.Until(a.deadline), a.s.call.stderr())
 		}
 		votes <- humanVote{phone: true, answer: a.answer}
 	}()
@@ -90,7 +90,7 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 		first, decided = v, v.decisive()
 		if v.phone && (v.answer == phoneFailed || v.answer == phoneUnread) && !windowIn { // the window still asks: say why the phone is quiet
 			line, _ := phoneQuiet(v.answer == phoneUnread)
-			fmt.Fprintln(os.Stderr, line)
+			fmt.Fprintln(a.s.call.stderr(), line)
 		}
 	}
 	cancel()                    // withdraw the other: the window closes, the phone stops listening
@@ -128,11 +128,11 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 	switch {
 	case decided && first.phone:
 		if first.answer != phoneRejected && window != windowFailed {
-			fmt.Fprintln(os.Stderr, "Answered on the phone; the window on this computer is withdrawn.")
+			fmt.Fprintln(a.s.call.stderr(), "Answered on the phone; the window on this computer is withdrawn.")
 		}
 		return a.finish()
 	case decided && first.window == windowConfirmed:
-		fmt.Fprintln(os.Stderr, map[bool]string{false: "Confirmed in the window on this computer; the phone's notification is withdrawn.", true: "Confirmed in the window on this computer."}[phoneOut])
+		fmt.Fprintln(a.s.call.stderr(), map[bool]string{false: "Confirmed in the window on this computer; the phone's notification is withdrawn.", true: "Confirmed in the window on this computer."}[phoneOut])
 		humanAnswer, humanWhere, askedRoute = confirmCode(s.transport.Credential, a.idHex, a.plan.Channel, a.plan.ExpiresAt), channelWindow, s
 		withdraw(confirmT(lang, "outcome.confirmed_computer"), confirmT(lang, "outcome.line.confirmed_computer"))
 		return verbEnvelope{}, 0, false
