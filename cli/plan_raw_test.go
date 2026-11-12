@@ -313,17 +313,17 @@ func TestPlanRawEnergyTier(t *testing.T) {
 // anything the guard refuses refuses the whole plan, and nothing is sent.
 func TestPlanRawReadsAndRefusals(t *testing.T) {
 	paths, sent := rawRelay(t, nil)
-	for _, item := range []string{
-		`{"endpoint":"ws","payload":{"type":"blueprint/import","url":"https://example.com/a.yaml"}}`,
-		`{"endpoint":"ws","payload":{"type":"camera/stream","entity_id":"camera.door"}}`,
-		`{"endpoint":"ws","payload":{"type":"media_source/resolve_media","media_content_id":"media-source://x"}}`,
-		`{"endpoint":"core","payload":{"method":"GET","path":"/api/config/config_entries/flow/0123abcd"}}`,
-		`{"endpoint":"core","payload":{"method":"GET","path":"/api/config/config_entries/subentries/flow/0123abcd"}}`,
-		`{"endpoint":"core","payload":{"method":"GET","path":"/api/repairs/issues/fix/0123abcd"}}`,
-		`{"endpoint":"core","payload":{"method":"DELETE","path":"/api/config/config_entries/flow/0123abcd"}}`,
+	for item, tier := range map[string]string{
+		`{"endpoint":"ws","payload":{"type":"blueprint/import","url":"https://example.com/a.yaml"}}`:                  `preview`,
+		`{"endpoint":"ws","payload":{"type":"camera/stream","entity_id":"camera.door"}}`:                              `preview`,
+		`{"endpoint":"ws","payload":{"type":"media_source/resolve_media","media_content_id":"media-source://x"}}`:     `preview`,
+		`{"endpoint":"core","payload":{"method":"GET","path":"/api/config/config_entries/flow/0123abcd"}}`:            `preview`,
+		`{"endpoint":"core","payload":{"method":"GET","path":"/api/config/config_entries/subentries/flow/0123abcd"}}`: `typed`, // re-runs the step, rated as its POST
+		`{"endpoint":"core","payload":{"method":"GET","path":"/api/repairs/issues/fix/0123abcd"}}`:                    `typed`,
+		`{"endpoint":"core","payload":{"method":"DELETE","path":"/api/config/config_entries/flow/0123abcd"}}`:         `preview`,
 	} {
-		if exit, env := planRaw(t, paths, "["+item+"]"); exit != verbExitConfirmation || env.Tier != "preview" {
-			t.Errorf("%s: exit %d %+v", item, exit, env.Error)
+		if exit, env := planRaw(t, paths, "["+item+"]"); exit != verbExitConfirmation || env.Tier != tier {
+			t.Errorf("%s: exit %d tier %s %+v, want %s", item, exit, env.Tier, env.Error, tier)
 		}
 	}
 	for item, says := range map[string]string{
