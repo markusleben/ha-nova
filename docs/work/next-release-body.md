@@ -6,4 +6,4 @@ Unreleased claims wait here until they ship (AGENTS.md, Releases: the README des
 
 ## Fixed in 0.31
 
-- **UI thermostats no longer make everyday changes ask.** On a NOVA App with the safety check, HA NOVA now reads the heater of a thermostat or hygrostat you made in Home Assistant's UI, as it does on your computer, so changing a light beside one no longer waits for your phone. Changes that need your OK still ask.
+- **Fewer phone asks in homes with a UI thermostat.** On a NOVA App with the safety check, a thermostat or hygrostat helper you made in Home Assistant's UI, in a home where an automation reacts to service calls, made everyday changes such as a light wait for your OK on the phone. The App now reads which switch the helper turns on, as HA NOVA on your computer already did, so those changes run without an ask again. Changes that need your OK still ask.

@@ -409,11 +409,12 @@ describe("relay gate: the App's own credentials", () => {
       reply = () => verdict(v, "probe");
       expect((await viaDevice("/core", start, own)).status).toBe(422);
     }
-    expect(forwarded).toEqual([]);
     reply = () => verdict("pass", "probe");
+    expect((await viaDevice("/ws", { type: "config_entries/get" }, own)).status).toBe(422); // a probe is a core request only
+    expect(forwarded).toEqual([]);
     const read = await viaDevice("/core", start, own);
     expect(JSON.parse(read.text)).toEqual({ ok: true, data: { result: "SECRET" } });
-    expect(seen.map((s) => s.path)).toEqual(["/check", "/check", "/check"]);
+    expect(seen.map((s) => s.path)).toEqual(["/check", "/check", "/check", "/check"]);
     reply = (path, body) => (path === "/check" ? verdict("pass", "probe") : redactAll(body));
     expect(JSON.parse((await viaLaptop("/core", start)).text)).toEqual({ ok: true, data: { result: "HIDDEN" } });
     expect(forwarded).toHaveLength(2);

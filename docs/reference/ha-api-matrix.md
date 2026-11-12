@@ -38,7 +38,7 @@ Which HA operations require REST, WS, or filesystem?
 | `/api/config/config_entries/flow_handlers` | GET | List config-flow handler domains |
 | `/api/config/config_entries/flow` | POST | Start an integration/helper config flow |
 | `/api/config/config_entries/flow/{flow_id}` | GET / POST / DELETE | Read, submit, or cancel one config flow |
-| `/api/config/config_entries/options/flow` + `/{flow_id}` | POST, then DELETE | Tier engine only: a UI generic thermostat's or hygrostat's stored `heater`/`humidifier`, from the `init` form's `suggested_value`; the flow is always aborted, never submitted (`cli/tier_helper_options.go`) |
+| `/api/config/config_entries/options/flow` + `/{flow_id}` | POST, then DELETE | Tier engine only: a UI generic thermostat's or hygrostat's stored `heater`/`humidifier`, from the `init` form's `suggested_value`; the flow is aborted, never submitted (`cli/tier_helper_options.go`); on a gated App the worker sends both through the Relay as `kind: probe` (`cli/gate_verdict.go` `gateProbe`). A start whose answer is lost leaves one unsaved flow until Home Assistant restarts |
 
 **Auth:** callers go through the Relay (`ha-nova relay core`), which authenticates inbound with the Relay/device credential and injects the upstream HA credential server-side (`SUPERVISOR_TOKEN` on the App, `HA_LLAT` on the standalone container) — never send an HA token yourself. A raw `Authorization: Bearer {LONG_LIVED_TOKEN}` applies only to direct server-side use outside HA NOVA. The webhook endpoint itself is unauthenticated and treats its ID as the bearer secret; calls through HA NOVA still require Relay authentication.
 

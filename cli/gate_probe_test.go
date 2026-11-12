@@ -27,18 +27,18 @@ func TestGateProbeKind(t *testing.T) {
 		{"another domain's entry", `{"method":"POST","path":"/api/config/config_entries/options/flow","body":{"handler":"ESHELLY"}}`, nil, gatePass, "write"},
 		{"an unknown entry", `{"method":"POST","path":"/api/config/config_entries/options/flow","body":{"handler":"EMISSING"}}`, nil, gatePass, "write"},
 		{"a subentry flow", `{"method":"POST","path":"/api/config/config_entries/subentries/flow","body":{"handler":["ETHERMO","heat"]}}`, nil, gatePass, "write"},
-		{"a config flow", `{"method":"POST","path":"/api/config/config_entries/flow","body":{"handler":"generic_thermostat"}}`, nil, "", "write"},
+		{"a config flow", `{"method":"POST","path":"/api/config/config_entries/flow","body":{"handler":"generic_thermostat"}}`, nil, gatePass, "write"},
 		{"an extra body key", `{"method":"POST","path":"/api/config/config_entries/options/flow","body":{"handler":"ETHERMO","show_advanced_options":true}}`, nil, gatePass, "write"},
-		{"an extra key", `{"method":"POST","path":"/api/config/config_entries/options/flow","body":{"handler":"ETHERMO"},"headers":{}}`, nil, "", "write"},
-		{"a query", `{"method":"POST","path":"/api/config/config_entries/options/flow?x=1","body":{"handler":"ETHERMO"}}`, nil, "", "write"},
-		{"an abort with a body", `{"method":"DELETE","path":"/api/config/config_entries/options/flow/fethermo","body":{}}`, nil, "", "write"},
-		{"an abort of no flow id", `{"method":"DELETE","path":"/api/config/config_entries/options/flow/f/x"}`, nil, "", "write"},
+		{"an extra key", `{"method":"POST","path":"/api/config/config_entries/options/flow","body":{"handler":"ETHERMO"},"headers":{}}`, nil, gatePass, "write"},
+		{"a query", `{"method":"POST","path":"/api/config/config_entries/options/flow?x=1","body":{"handler":"ETHERMO"}}`, nil, gatePass, "write"},
+		{"an abort with a body", `{"method":"DELETE","path":"/api/config/config_entries/options/flow/fethermo","body":{}}`, nil, gatePass, "write"},
+		{"an abort of no flow id", `{"method":"DELETE","path":"/api/config/config_entries/options/flow/f/x"}`, nil, gateRefuse, "write"},
 		{"an entry without options", start, func(f *fakeHA) { f.entries[len(f.entries)-2]["supports_options"] = false }, gatePass, "write"},
 		{"a custom integration on the domain", start, func(f *fakeHA) {
 			f.manifests = slices.DeleteFunc(f.manifests, func(m map[string]any) bool { return m["domain"] == "generic_thermostat" })
 			f.manifests = append(f.manifests, map[string]any{"domain": "generic_thermostat", "is_built_in": false})
 		}, gatePass, "write"},
-		{"an unreadable entry list", start, func(f *fakeHA) { f.fail["config_entries/get"] = true }, "", "write"},
+		{"an unreadable entry list", start, func(f *fakeHA) { f.fail["config_entries/get"] = true }, gateTyped, "write"},
 		{"a reload that unlocks", start, func(f *fakeHA) {
 			f.automation("thermo_unlock", "thermo_unlock", map[string]any{"triggers": []any{map[string]any{"trigger": "state", "entity_id": "climate.thermo"}}, "actions": []any{step("lock.unlock", "lock.front")}})
 			f.related["entity:climate.thermo"] = []string{"automation.thermo_unlock"}
@@ -49,7 +49,7 @@ func TestGateProbeKind(t *testing.T) {
 			tc.setup(f)
 		}
 		check, err := gateVerdict("core", []byte(tc.body), func() (*relaySession, error) { return newRelaySession(h.paths, verbOptions{}) })
-		if err != nil || check.Kind != tc.kind || tc.verdict != "" && check.Verdict != tc.verdict || len(flows.starts)+len(flows.aborts) != 0 {
+		if err != nil || check.Kind != tc.kind || check.Verdict != tc.verdict || len(flows.starts)+len(flows.aborts) != 0 {
 			t.Errorf("%s: %+v %v, flows %v %v; want %s %s, no flow", tc.name, check, err, flows.starts, flows.aborts, tc.verdict, tc.kind)
 		}
 	}

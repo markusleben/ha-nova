@@ -16,12 +16,13 @@ MAR-131 bounds what a UI `generic_thermostat`/`generic_hygrostat` calls by readi
    A failed session or read leaves `write`. Everything else is unchanged: a step POST (the save), a subentry or config flow, another integration's entry, a custom integration on the domain, an extra key.
 2. `gate.ts` forwards the gate principal's request on `pass` with `read` or `probe`; `gate-worker.ts` accepts `probe`. Device verdicts don't change (that branch never reads `kind`). Worker and Relay ship in one App image; an older Relay refuses the unknown kind (fail closed).
 3. No nested flow: when `gateVerdict` rates a core POST to the start path, the session it opens is marked, and `helperOptions` refuses on a marked session before sending anything. Depth is fixed: a check, the check of its start (live reads), plain reads (no reads).
-4. Bounded cost: the start goes out only while 5 s of the session budget are left (after the entry check), on its own context with a 35 s timeout (the Relay's 20 s worker wait plus Home Assistant's 10 s), so a started flow's id arrives and is aborted even past the budget; the result of a read that outlasted the budget is not used (unknown). No retry.
+4. Bounded cost: the start goes out once (no retry), on the session budget as before, and only while 5 s of that budget are left after the entry check; the abort keeps its own 5 s context past the budget. An own, longer context for the start was built and dropped: the worker's pinned client caps every request at 20 s anyway (Codex review), and it let a cancelled computer session run on (adversarial review).
+5. Defence in depth in `gate.ts`: `probe` is forwarded only on `/core`.
 
 ## Accepted limits
 
 - The gate principal may abort any options flow by id (the Relay keeps no state): at worst it ends someone's open options dialog unsaved. Loopback-only internal principal, not a device path.
-- A start whose answer is lost (Home Assistant answered after the Relay's own 10 s timeout, or the link dropped) leaves one unsaved flow in memory until Home Assistant restarts; a failed abort likewise.
+- A start whose answer is lost (the check's budget ran out while the Relay checked or forwarded it, or the link dropped) leaves one unsaved flow in memory until Home Assistant restarts; a failed abort likewise. The 5 s reserve makes this rare.
 - A typed rating of the start (an automation on the thermostat's reload unlocks) refuses it: the set stays unknown, every listener counts (as in 0.30).
 
 ## Tests and lanes
@@ -33,4 +34,5 @@ MAR-131 bounds what a UI `generic_thermostat`/`generic_hygrostat` calls by readi
 ## Review
 
 - Scope (HANO-45): Astra and Fable, A (ship 0.30 with the limit), both prefer `probe` over `read`.
-- Build decisions (HANO-46, Astra medium): agrees with the detection, the session mark, `probe` in the gate branch only, and the abort limit. On the cost bound it disagreed with "always aborted" (a lost answer leaves a flow), so that is recorded above, and asked that a probe past the budget not be used (built).
+- Build decisions (HANO-46, Astra medium): agrees with the detection, the session mark, `probe` in the gate branch only, and the abort limit. On the cost bound it disagreed with "always aborted" (a lost answer leaves a flow), so that is recorded above.
+- Adversarial (2 lenses, Sonnet) and local Codex (gpt-6-luna): no P1. P2s fixed: the longer start context (above), the test rows now pin each verdict so the probe guards are proven, docs wording. P3 taken: `probe` on `/core` only.

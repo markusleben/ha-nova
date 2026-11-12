@@ -59,7 +59,7 @@ export function gated(
         if (check === null) {
           throw unavailable();
         }
-        if (check.verdict !== "pass" || (check.kind !== "read" && check.kind !== "probe")) {
+        if (check.verdict !== "pass" || (check.kind !== "read" && (check.kind !== "probe" || endpoint !== "core"))) {
           throw refused(check.why);
         }
       }

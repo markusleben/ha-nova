@@ -29,13 +29,11 @@ const helperOptionsEndpoint = "helper_options"
 const optionsFlowPath = "/api/config/config_entries/options/flow"
 
 // helperAbortTimeout bounds the abort on its own, past the session budget.
-// helperStartTimeout bounds the start on its own too: past the longest a
-// gated App takes to answer it (its check's 20 s worker wait, then Home
-// Assistant's 10 s), so the flow id to abort always arrives (MAR-153). A
-// start goes out only while helperStartReserve of the budget is left.
+// A start goes out only while helperStartReserve of the budget is left, so a
+// budget that ends mid-start, and loses the flow id to abort, is rare
+// (MAR-153).
 var (
 	helperAbortTimeout = 5 * time.Second
-	helperStartTimeout = 35 * time.Second
 	helperStartReserve = 5 * time.Second
 )
 
@@ -64,7 +62,7 @@ func (s *relaySession) helperOptions(body []byte) (json.RawMessage, error) {
 	}
 
 	start, _ := json.Marshal(map[string]any{"method": http.MethodPost, "path": optionsFlowPath, "body": map[string]any{"handler": req.EntryID}})
-	data, err := s.exchange(context.WithoutCancel(ctx), "core", start, helperStartTimeout, false) // once: a retry could open a second flow
+	data, err := s.exchange(ctx, "core", start, relaySessionRequestTimeout, false) // once: a retry could open a second flow
 	var core struct {
 		Status int             `json:"status"`
 		Body   json.RawMessage `json:"body"`
@@ -95,8 +93,6 @@ func (s *relaySession) helperOptions(body []byte) (json.RawMessage, error) {
 		return nil, err
 	case abort != nil:
 		return nil, fmt.Errorf("helper options: the options flow of %s was not aborted: %w", req.EntryID, abort)
-	case ctx.Err() != nil: // the start may outlast the budget, its answer never
-		return nil, fmt.Errorf("HA NOVA read budget of %s exceeded", relaySessionOverallTimeout)
 	case core.Status != http.StatusOK || form.Type != "form" || form.Handler != req.EntryID || form.StepID != "init":
 		return nil, fmt.Errorf("helper options: entry %s answered HTTP %d, %q step %q", req.EntryID, core.Status, form.Type, form.StepID)
 	}
