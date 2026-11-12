@@ -16,9 +16,15 @@
 // setting. Leaves /config/custom_components/rclane/camera.py (it must
 // survive); the bridge's home and data live in .state. On a gated Relay (0.30, /health
 // gate 1) this bridge runs on the shared token, not the App's own bridge
-// credential, so the Relay holds its typed writes: each write and delete is
-// refused with the bridge's own words, and the file stays as it was. The
-// App's chat-code path can't run on a standalone bed (one WARN line).
+// credential, as on a standalone container (0.31, MAR-154): its typed
+// changes ask the phone linked to the container, never a code. On a fresh
+// Relay (phone.mjs's fixture) with no phone linked, each write and delete is
+// refused in the bridge's own words and the file stays as it was. Then the
+// fake iPhone is linked there: a Use-the-home unlock waits for it (nothing
+// sent meanwhile), runs after the tap, and sends nothing after Cancel; the
+// level still refuses that user's file write; at Manage everything a file
+// write runs after the tap. The App's chat-code path can't run on a
+// standalone bed (one WARN line).
 // Prints PASS/FAIL/WARN lines; exits non-zero on any FAIL.
 import { execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -26,6 +32,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { answered, failures as phoneFailures, fixture, link, question, relock, resetPushes } from "./phone.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "../../..");
@@ -46,6 +53,11 @@ const health = await (await fetch(`${RELAY}/health`, { headers: { authorization:
 if (health.data?.file_access !== "readwrite") {
   console.log(`SKIP  chat-app files: the bed's Relay has file access ${health.data?.file_access ?? "unknown"} (TESTBED_FILES=1 npm run testbed:up)`);
   process.exit(0);
+}
+const gated = health.data?.gate === 1;
+if (gated) { // a fresh Relay as Testbed Relay, with no phone linked to it yet (phone.mjs)
+  await fixture();
+  await resetPushes();
 }
 
 // The bed's owner: the bridge lets in only a user Home Assistant lists.
@@ -74,7 +86,7 @@ writeFileSync(join(home, ".config/ha-nova/config.json"), JSON.stringify({ ha_url
 writeFileSync(join(home, ".test-relay-token"), RELAY_TOKEN, { mode: 0o600 });
 writeFileSync(join(base, "secret"), secret, { mode: 0o600 });
 const port = await new Promise((done) => { const s = net.createServer().listen(0, "127.0.0.1", () => { const { port } = s.address(); s.close(() => done(port)); }); });
-const bridge = spawn(bin, ["serve", "--listen", `127.0.0.1:${port}`, "--data-dir", data, "--secret-file", join(base, "secret")], {
+const bridge = spawn(bin, ["serve", "--listen", `127.0.0.1:${port}`, "--data-dir", data, "--secret-file", join(base, "secret"), "--confirm-wait", "3s"], {
   stdio: "ignore", env: { PATH: process.env.PATH, HOME: home, HA_NOVA_DEV_ROOT: ROOT, XDG_CONFIG_HOME: join(home, ".config"), XDG_CACHE_HOME: join(home, ".cache"), HA_NOVA_NO_BROWSER: "1",
     HA_NOVA_ALLOW_INSECURE_TEST_KEYRING: "1", HA_NOVA_TEST_KEYRING_FILE: join(home, ".test-relay-token"), HA_NOVA_KEYRING_SERVICE: "ha-nova-testbed-chat-files" } });
 process.on("exit", () => bridge.kill());
@@ -94,6 +106,49 @@ const code = (d) => d.plan?.code ?? d.say?.match(/\*\*(\d{4})\*\*/)?.[1];
 const fileOp = (action, path, content) => ({ endpoint: "files", payload: content === undefined ? { action, path } : { action, path, content } });
 const readFile = (path) => tool("ha_read", { endpoint: "files", payload: { action: "read_file", path } });
 const plan = (requests) => tool("ha_plan", { kind: "raw", requests });
+// ha_apply until it has an outcome (a job answers applying or waiting_for_phone first).
+async function apply(d) {
+  let out = {};
+  for (let i = 0; i < 120 && d.plan?.id; i++) {
+    out = await tool("ha_apply", code(d) ? { plan_id: d.plan.id, confirm_code: code(d) } : { plan_id: d.plan.id });
+    if (out.status !== "applying" && out.status !== "waiting_for_phone") break;
+  }
+  return out;
+}
+// The ask a typed change gets: the one-time code, or on a gated Relay the phone linked to it.
+const asks = (d) => d.tier === "typed" && (gated ? d.plan?.channel === "relay" && !code(d) : Boolean(code(d)));
+const lockState = async () => (await (await fetch(`${HA}/api/states/lock.front_door`, { headers: { authorization: `Bearer ${LLAT}` } })).json()).state;
+const containerSay = /phone linked to your NOVA Relay container|mit deinem NOVA-Relay-Container verbunden/;
+
+// The phone linked to the container (gated bed): every chat user's change
+// that needs an OK asks it, whoever asked.
+async function containerPhone(NOTE) {
+  await link("ios");
+  level("use");
+  const bounded = await plan([fileOp("write_file", NOTE, "rc lane\n")]);
+  check("use, a phone linked to the container: a file write is still refused for the level", bounded.error?.code === "CHAT_LEVEL", short(bounded));
+  for (const answer of [0, 1]) {
+    await relock();
+    const unlock = await tool("ha_call", { service: "lock.unlock", entity_ids: ["lock.front_door"] });
+    check("use: an unlock plans an ask on the container's phone, no code", unlock.plan?.channel === "relay" && !code(unlock) && containerSay.test(unlock.say ?? ""), short(unlock));
+    if (!unlock.plan?.id) continue;
+    let waiting = {};
+    for (let i = 0; i < 20 && !(waiting.status === "waiting_for_phone" && containerSay.test(waiting.say ?? "")); i++) waiting = await tool("ha_apply", { plan_id: unlock.plan.id });
+    const before = await lockState();
+    check("use: until the container's phone answers, ha_apply waits on it and nothing is sent", waiting.status === "waiting_for_phone" && before === "locked", `${short(waiting)}; lock ${before}`);
+    await answered(await question("ios", "Unlock", { unlock: false, urgent: true, answer }), answer);
+    const done = await apply(unlock), after = await lockState();
+    if (answer === 0) check("use: the tap on the container's phone applies the unlock", done.status === "verified" && after === "unlocked", `${done.status ?? short(done)}; lock ${after}`);
+    else check("use: Cancel on the container's phone sends nothing", done.error?.code === "CONFIRM_DECLINED" && after === "locked", `${short(done)}; lock ${after}`);
+  }
+  await relock();
+  level("manage");
+  const wrote = await plan([fileOp("write_file", NOTE, "rc lane phone\n")]);
+  const pending = apply(wrote);
+  if (wrote.plan?.id) await answered(await question("ios", undefined, { unlock: false, urgent: true }));
+  const done = await pending, back = await readFile(NOTE);
+  check("manage: a file write asks the container's phone; the tap writes it", asks(wrote) && !done.error && JSON.stringify(back).includes("rc lane phone"), `${short(wrote)}; apply ${done.status ?? short(done)}`);
+}
 
 try {
   level("manage");
@@ -101,9 +156,8 @@ try {
   inHA("mkdir -p /config/custom_components/rclane /config/www/rclane && printf 'pass\\n' > /config/custom_components/rclane/camera.py && printf 'not a real photo' > /config/www/rclane/door.jpg && rm -f /config/rclane-note.txt /config/rclane-run.sh && printf 'rc lane\\n' > /config/rclane-delete.txt");
   const NOTE = "/config/rclane-note.txt", DEL = "/config/rclane-delete.txt";
   const onDisk = (path) => inHA(`test -f ${path} && echo kept || echo gone`).trim();
-  const gated = health.data?.gate === 1;
-  // The bridge's refusal when the Relay holds a write (confirm_strings gate.chat_held, en or de).
-  const held = (d) => /until a person approves it, which a chat app can't do|in einer Chat-App geht das nicht/.test(words(d)) && !WRONG_CAUSE.test(words(d));
+  // The bridge's refusal when no phone is linked to the container (confirm_strings gate.chat_no_phone, en or de).
+  const held = (d) => d.error?.code === "CONFIRM_UNAVAILABLE" && /no phone is linked there|dort ist kein Handy verbunden/.test(words(d)) && !WRONG_CAUSE.test(words(d));
   if (gated) console.log("WARN  App chat-code path not covered on a standalone bed: its Relay gates this bridge's shared token");
 
   for (const name of ["ask", "use"]) {
@@ -121,21 +175,21 @@ try {
   const read = await readFile("/config/configuration.yaml");
   check("manage: a file read runs", JSON.stringify(read).includes("NOVA Testbed"), short(read));
   const wrote = await plan([fileOp("write_file", NOTE, "rc lane\n")]);
-  const wroteApplied = code(wrote) ? await tool("ha_apply", { plan_id: wrote.plan.id, confirm_code: code(wrote) }) : {};
+  const wroteApplied = asks(wrote) ? await apply(wrote) : {};
   const back = await readFile(NOTE);
   if (gated) {
     const note = onDisk(NOTE);
-    check("manage, gated Relay: a new file needs the code, then the Relay holds it: refused, naming why; nothing is written", wrote.tier === "typed" && Boolean(code(wrote)) && held(wroteApplied) && note === "gone",
+    check("manage, gated Relay, no phone linked: a new file asks the container's phone, and none is linked: refused, naming why; nothing is written", asks(wrote) && held(wroteApplied) && note === "gone",
       `plan ${wrote.tier ?? short(wrote)}, apply ${short(wroteApplied)}; file ${note}`);
   } else {
     check("manage: a new file needs the code, then is written", wrote.tier === "typed" && Boolean(code(wrote)) && !wroteApplied.error && JSON.stringify(back).includes("rc lane"),
       `plan ${wrote.tier ?? short(wrote)}, apply ${wroteApplied.status ?? short(wroteApplied)}`);
   }
   const del = await plan([{ endpoint: "backups", payload: { action: "save", category: "yaml", name: "rclane-delete", data: { path: DEL, content: "rc lane\n" } } }, fileOp("delete_file", DEL)]);
-  const delApplied = code(del) ? await tool("ha_apply", { plan_id: del.plan.id, confirm_code: code(del) }) : {};
+  const delApplied = asks(del) ? await apply(del) : {};
   const gone = onDisk(DEL);
   if (gated) {
-    check("manage, gated Relay: a delete with its copy saved first needs the code, then the Relay holds it: refused, naming why; the file stays", del.tier === "typed" && Boolean(code(del)) && held(delApplied) && gone === "kept",
+    check("manage, gated Relay, no phone linked: a delete with its copy saved first asks the container's phone: refused, naming why; the file stays", asks(del) && held(delApplied) && gone === "kept",
       `plan ${del.tier ?? short(del)}, apply ${short(delApplied)}; file ${gone}`);
   } else {
     check("manage: a delete with its copy saved first needs the code, then the file is gone", del.tier === "typed" && Boolean(code(del)) && !delApplied.error && gone === "gone",
@@ -146,12 +200,12 @@ try {
   // one; ha_read lists it, and the apply names the undo. A gated Relay holds
   // it like the other deletes: refused, naming why, and no copy is made.
   const pic = await plan([fileOp("delete_file", "/config/www/rclane/door.jpg")]);
-  const picApplied = code(pic) ? await tool("ha_apply", { plan_id: pic.plan.id, confirm_code: code(pic) }) : {};
+  const picApplied = asks(pic) ? await apply(pic) : {};
   const copies = JSON.stringify(await tool("ha_read", { endpoint: "files", payload: { action: "list_deleted" } }));
   const picGone = onDisk("/config/www/rclane/door.jpg");
-  const asked = pic.tier === "typed" && Boolean(code(pic)) && !/backups save/.test(pic.next_step ?? "");
+  const asked = asks(pic) && !/backups save/.test(pic.next_step ?? "");
   if (gated) {
-    check("manage, gated Relay: a picture in www needs the code, then the Relay holds it: refused, naming why; the picture stays, no copy",
+    check("manage, gated Relay, no phone linked: a picture in www asks the container's phone: refused, naming why; the picture stays, no copy",
       asked && held(picApplied) && picGone === "kept" && !copies.includes("/config/www/rclane/door.jpg") && /"copies"/.test(copies),
       `plan ${pic.tier ?? short(pic)}, apply ${short(picApplied)}; file ${picGone}, ${copies.slice(0, 200)}`);
   } else {
@@ -169,12 +223,13 @@ try {
   const log = await readFile("/config/home-assistant.log");
   check("manage: reading the log file is refused, naming why", words(log).includes("FILE_PATH_DENIED") && !WRONG_CAUSE.test(words(log)), short(log));
   const script = await plan([fileOp("write_file", "/config/rclane-run.sh", "#!/bin/sh\n")]);
-  const scriptApplied = code(script) ? await tool("ha_apply", { plan_id: script.plan.id, confirm_code: code(script) }) : script;
+  const scriptApplied = asks(script) ? await apply(script) : script;
   const made = inHA("test -f /config/rclane-run.sh && echo written || echo absent").trim();
-  check(`manage: writing a .sh file is refused, naming why${gated ? " (the Relay holds it first)" : ""}; nothing is written`,
+  check(`manage: writing a .sh file is refused, naming why${gated ? " (no phone linked to the container yet)" : ""}; nothing is written`,
     (gated ? held(scriptApplied) : words(scriptApplied).includes("FILE_TYPE_DENIED") && !WRONG_CAUSE.test(words(scriptApplied))) && made === "absent",
     `plan ${script.tier ?? "-"}, ${short(scriptApplied)}; ${made}`);
+  if (gated) await containerPhone(NOTE);
 } catch (err) {
   check("chat-app files check ran", false, err.message);
 }
-process.exit(failed ? 1 : 0);
+process.exit(failed || phoneFailures() ? 1 : 0);

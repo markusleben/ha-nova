@@ -208,7 +208,7 @@ func verifyConfig(s *relaySession, action configAction) (verifyRow, json.RawMess
 	switch {
 	case len(differences) > 0: // never the plan: one look for the entity, no wait
 		wait = 0
-	case gateApproval == nil: // ha-nova mcp's apply job has its own life (gateOpenWait); a spent budget still gets a short look
+	case s.approval() == nil: // an MCP or chat apply job has its own life (gateOpenWait); a spent budget still gets a short look
 		wait = min(wait, max(s.askWait(), configLoadFloor))
 	}
 	entityID, disabled, loaded, waited, registryErr := awaitLoaded(s, action, wait)

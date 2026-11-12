@@ -285,6 +285,9 @@ func (srv *mcpServer) awaitJob(key string, job *chatJob, id string) map[string]a
 	if job.phone && !job.tapped.Load() {
 		return waitingForPhone(id, job.lang, job.tap.Load(), job.sent.Load())
 	}
+	if job.outside.Load() && !job.tapped.Load() {
+		return waitingForRelay(id, job.lang, job.asking.Load() != 0)
+	}
 	return applying(id, job.lang, job.phone)
 }
 
@@ -325,7 +328,10 @@ func (srv *mcpServer) applyJob(job *chatJob, args map[string]json.RawMessage, ar
 		job.result = srv.chatBusy("ha_apply", args, err.Error())
 	} else {
 		close(job.locked)
-		job.result = srv.runLocked("ha_apply", "", false, func(call *verbCall) int { return applyVerb(call, srv.paths, pinServer("ha_apply", argv, srv.pin)) })
+		job.result = srv.runLocked("ha_apply", "", false, func(call *verbCall) int {
+			call.asking, call.outside = &job.asking, srv.askOutside(job, call) // a Relay ask waits without the lock
+			return applyVerb(call, srv.paths, pinServer("ha_apply", argv, srv.pin))
+		})
 	}
 	srv.noteChange("ha_apply", job.what, job.result)
 }

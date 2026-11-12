@@ -24,6 +24,11 @@ type verbCall struct {
 	server          string       // the profile it runs against (mcp --server); "": HA_NOVA_SERVER, else default_server
 	serial          bool         // runs under mcpVerbLock (runLocked): its loads set the process's selection, which the confirmation code reads
 	relayVersion    atomic.Value // ha_trace: the Relay version header of its last request (relay_outdated)
+	// ha-nova serve's apply job (mcp_serve_relay_ask.go): asking is the
+	// per-call twin of ha-nova mcp's gateApproval, and outside runs a Relay
+	// ask without mcpVerbLock. Both nil elsewhere.
+	asking  *atomic.Int32
+	outside func(ask func() (approved bool)) error
 }
 
 // sawRelayVersion keeps the Relay version a trace request answered with.

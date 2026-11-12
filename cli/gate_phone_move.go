@@ -24,6 +24,9 @@ const gatePhoneRoute = "gate/v1/phone"
 // itself: its linked phone counts as one it can't ask, and the Relay asks
 // for the typed requests. A gate state that can't be read keeps today's paths.
 func (s *relaySession) phoneDeaf() bool {
+	if s.gateChat() { // a chat app keeps its own asks for plans the Relay doesn't hold (gateChannel), as before
+		return false
+	}
 	on, err := s.gateOn()
 	return err == nil && on
 }

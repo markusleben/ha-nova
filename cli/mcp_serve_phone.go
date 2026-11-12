@@ -207,18 +207,20 @@ func chatStopped(name string, failure *verbFailure) map[string]any {
 
 // chatJob is one phone ask of one user's plan, run once in the background.
 type chatJob struct {
-	done   chan struct{}
-	lang   string                 // the plan's, read before its seal is checked: one this binary speaks
-	result map[string]any         // never handed out itself: each response gets its own copy (reply adds fields)
-	what   string                 // the plan's service or kind, for its activity line (noted once, by the job)
-	ended  time.Time              // under bridge.mu
-	phone  bool                   // a phone ask (phoneJob), else an apply (applyJob)
-	kind   string                 // the plan's kind: its outcome only for a user who may still apply it
-	locked chan struct{}          // closed once the job holds mcpVerbLock (never when it gave up on it)
-	tapped atomic.Bool            // the phone answered (Confirm, Cancel, someone else's tap); apply may be running
-	sent   atomic.Bool            // the question went out (askPhone): until then HA NOVA is still checking
-	tap    atomic.Pointer[string] // how to answer on the phone asked (phoneTapLine), once known
-	asking atomic.Int32           // ha-nova mcp: what of its Relay ask waits for the person; nothing was sent yet (gateApproval)
+	done    chan struct{}
+	lang    string                 // the plan's, read before its seal is checked: one this binary speaks
+	result  map[string]any         // never handed out itself: each response gets its own copy (reply adds fields)
+	what    string                 // the plan's service or kind, for its activity line (noted once, by the job)
+	ended   time.Time              // under bridge.mu
+	phone   bool                   // a phone ask (phoneJob), else an apply (applyJob)
+	relay   bool                   // a relay plan's apply: it asks the phone linked to the Relay (askOutside)
+	kind    string                 // the plan's kind: its outcome only for a user who may still apply it
+	locked  chan struct{}          // closed once the job holds mcpVerbLock (never when it gave up on it)
+	tapped  atomic.Bool            // the phone answered (Confirm, Cancel, someone else's tap), or approved the Relay's ask; apply may be running
+	sent    atomic.Bool            // the question went out (askPhone): until then HA NOVA is still checking
+	tap     atomic.Pointer[string] // how to answer on the phone asked (phoneTapLine), once known
+	asking  atomic.Int32           // what of its Relay ask waits for the person; nothing was sent yet (gateApproval, verbCall.asking)
+	outside atomic.Bool            // ha-nova serve: its Relay ask runs without mcpVerbLock (askOutside)
 }
 
 // chatApply: in a chat app, ha_apply of this user's plan starts (or joins)
@@ -255,19 +257,19 @@ func (srv *mcpServer) chatApply(name string, args map[string]json.RawMessage, ar
 			b.mu.Unlock()
 			return nil
 		}
-		phone := plan.Channel == channelPhone
+		phone, relay := plan.Channel == channelPhone, plan.Channel == channelRelay
 		for k, old := range b.jobs {
 			switch {
 			case !old.ended.IsZero() && time.Since(old.ended) > planTTL: // a result nobody came back for
 				delete(b.jobs, k)
-			case phone && old.phone && old.ended.IsZero() && strings.HasPrefix(k, c.user+"/"): // one open ask per user: never a stack of notifications
+			case (phone || relay) && (old.phone || old.relay) && old.ended.IsZero() && strings.HasPrefix(k, c.user+"/"): // one open ask per user: never a stack of notifications, nor one replacing another
 				b.mu.Unlock()
 				open, _, _ := strings.Cut(strings.TrimPrefix(k, c.user+"/"), "/")
 				return refuse(refusedWith("CONFIRM_PENDING", "another change ("+open+") is still waiting for a tap on the phone",
 					fmt.Sprintf("Tell the user nothing changed yet: their phone still has an open HA NOVA confirmation. Call ha_apply with plan_id %s right away, in this same answer, to wait for that one first (it sends no new notification), then apply this plan. You can't act once your answer ends, so never promise to do either on your own; if you end your answer first, tell the user to ask you again for this change.", open)))
 			}
 		}
-		job = &chatJob{done: make(chan struct{}), locked: make(chan struct{}), lang: confirmLanguage(plan.Lang), what: what, phone: phone, kind: plan.Kind}
+		job = &chatJob{done: make(chan struct{}), locked: make(chan struct{}), lang: confirmLanguage(plan.Lang), what: what, phone: phone, relay: relay, kind: plan.Kind}
 		b.jobs[key] = job
 		if phone {
 			go srv.phoneJob(job, args, argv)
@@ -386,6 +388,11 @@ func waitingForPhone(id, lang string, tap *string, sent bool) map[string]any {
 	if !sent {
 		say, next = sayNotRun(lang), fmt.Sprintf("Nothing has run yet: HA NOVA is still checking the user's linked phone in Home Assistant, and nothing was sent to it yet. Tell the user `say`, then call ha_apply again with plan_id %s and no confirm_code right away, in this same answer. Don't tell the user to watch their phone yet. Never ask for a code.", id)
 	}
+	return phoneWaitEnvelope(id, say, next)
+}
+
+// phoneWaitEnvelope: ha_apply's waiting_for_phone answer.
+func phoneWaitEnvelope(id, say, next string) map[string]any {
 	envelope := map[string]any{"schema_version": 1, "verb": "apply", "status": "waiting_for_phone", "plan": map[string]any{"id": id}, "say": say, "next_step": next}
 	text, _ := json.Marshal(envelope)
 	return map[string]any{"content": []map[string]any{{"type": "text", "text": string(text)}}, "structuredContent": envelope, "isError": false}

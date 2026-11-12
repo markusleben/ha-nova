@@ -30,6 +30,16 @@ func gateChannel(e *tierEngine, plan storedPlan) (string, error) {
 	return channelRelay, nil
 }
 
+// relayAskSay: where a relay plan is confirmed. A chat app's relay plan is
+// one on a standalone container (the App's bridge never makes one): only
+// the phone linked to it confirms.
+func relayAskSay(lang string, s *relaySession) string {
+	if s.gateChat() {
+		return confirmT(lang, "say.relay_ask_container")
+	}
+	return confirmT(lang, "say.relay_ask")
+}
+
 // gateBeforeSend runs before a typed plan's first write (applyPlan): a
 // profile that saw the gate refuses once it is gone, and a relay plan asks
 // for the requests it sends first and waits for the person. It answers the

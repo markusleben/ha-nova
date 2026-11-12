@@ -335,14 +335,32 @@ func (srv *mcpServer) runLocked(name, answered string, forms bool, run func(*ver
 	if srv.chat != nil {
 		windowWait = chatAskSpan // the phone ask outlives one call (mcp_serve_phone.go)
 	}
-	defer func() {
-		planChannel, humanAnswer, humanWhere, askedRoute, windowWait, formsShown, phoneApplied, chatCall = "", "", "", nil, cliWindowWait, false, nil, nil
-	}()
+	defer verbState{windowWait: cliWindowWait}.put()
 	out, errOut, exit := runCaptured(call, run)
 	if name == "ha_apply" && exit == verbExitUnknown && strings.TrimSpace(out) == "" { // apply crashed after it may have sent
 		return chatStopped(name, applyCrashed(errOut))
 	}
 	return toolResult(name, out, errOut, exit, srv.told, forms, call.chat)
+}
+
+// verbState: the process-wide confirmation state a change sets under
+// mcpVerbLock. runLocked leaves it clean; a chat app's Relay ask sets it
+// aside while it waits without the lock (askOutside) and puts it back.
+type verbState struct {
+	planChannel, humanAnswer, humanWhere string
+	askedRoute                           *relaySession
+	windowWait                           time.Duration
+	formsShown                           bool
+	phoneApplied                         func(verbEnvelope, int)
+	chatCall                             *chatPolicy
+}
+
+func takeVerbState() verbState {
+	return verbState{planChannel, humanAnswer, humanWhere, askedRoute, windowWait, formsShown, phoneApplied, chatCall}
+}
+
+func (v verbState) put() {
+	planChannel, humanAnswer, humanWhere, askedRoute, windowWait, formsShown, phoneApplied, chatCall = v.planChannel, v.humanAnswer, v.humanWhere, v.askedRoute, v.windowWait, v.formsShown, v.phoneApplied, v.chatCall
 }
 
 // newCall: a tool call's own context: its output, its check budget (in a

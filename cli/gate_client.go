@@ -67,8 +67,24 @@ var (
 	gateOpenHA = launchBrowser
 )
 
-// gateExempt: the App's chat bridge and gate worker keep their own asks (spec §1, §5).
-func (s *relaySession) gateExempt() bool { return chatCall != nil || s.cfg.bridgeCredential != "" }
+// gateExempt: the App's chat bridge and gate worker keep their own asks
+// (spec §1, §5). A chat bridge on the plain Relay token (the standalone
+// container) is gated like a computer: it asks the Relay's linked phone.
+func (s *relaySession) gateExempt() bool { return s.cfg.bridgeCredential != "" }
+
+// gateChat: a chat app's call. It asks the Relay only from its apply job,
+// outside mcpVerbLock (verbCall.outside), and never moves a phone.
+func (s *relaySession) gateChat() bool { return s.call.chatPolicy() != nil }
+
+// approval: what of a job's Relay ask waits for the person: ha-nova serve's
+// apply job's own (verbCall.asking), else ha-nova mcp's gateApproval; nil:
+// the CLI, whose ask ends with the command's wait.
+func (s *relaySession) approval() *atomic.Int32 {
+	if s.call != nil && s.call.asking != nil {
+		return s.call.asking
+	}
+	return gateApproval
+}
 
 // sendWrite sends one checked write body exactly once (sendWriteOnce), with
 // the grant an ask got for these bytes. A typed request the Relay holds
@@ -81,13 +97,7 @@ func (s *relaySession) sendWrite(endpoint string, body []byte) (json.RawMessage,
 	request := gateRequest{endpoint, body}
 	data, err := s.sendWriteOnce(endpoint, body, s.takeGrant(request))
 	var held *relayCallError
-	if !errors.As(err, &held) || held.code != "GATE_APPROVAL_REQUIRED" {
-		return data, err
-	}
-	if chatCall != nil && s.cfg.bridgeCredential == "" { // a chat bridge outside the App: the Relay gates it, and it can't ask
-		return nil, gateStop("refused", "CONFIRM_UNAVAILABLE", confirmT(confirmLanguage(s.lang), "gate.chat_held"), gateChatHeldNext)
-	}
-	if s.gateExempt() {
+	if !errors.As(err, &held) || held.code != "GATE_APPROVAL_REQUIRED" || s.gateExempt() {
 		return data, err
 	}
 	reqs := append([]gateRequest{request}, gateFollowUps(request)...)
@@ -127,6 +137,10 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 		return gateStop("refused", "GATE_ASK_TOO_LARGE", fmt.Sprintf("this change sends %d requests, more than one confirmation on the phone or in Home Assistant covers (%d); nothing was sent", len(reqs), gateAskMax),
 			"Tell the user nothing changed. Plan it again in smaller parts (a batch of at most 10 automations or scripts).")
 	}
+	chat, lang := s.gateChat(), confirmLanguage(s.lang)
+	if chat && (s.call == nil || s.call.outside == nil) { // not a chat app's apply job (ha_call): it can't wait for the phone
+		return gateStop("refused", "CONFIRM_UNAVAILABLE", confirmT(lang, "gate.chat_held"), gateChatHeldNext)
+	}
 	items := make([]map[string]string, len(reqs))
 	for i, r := range reqs {
 		items[i] = map[string]string{"endpoint": r.endpoint, "body_b64": base64.StdEncoding.EncodeToString(r.body)}
@@ -135,36 +149,44 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 		err = s.gateCall(planAsks, gateAskRoute, s.gateOpenWait(len(reqs)), map[string]any{"requests": items}, &opened)
 		return opened, err
 	}
-	if gateApproval == nil && s.askWait() <= 0 { // the check before took the time this call has to ask
+	flag := s.approval()
+	if flag == nil && s.askWait() <= 0 { // the check before took the time this call has to ask
 		return gateStop("refused", "CONFIRM_UNAVAILABLE", "checking this change took the time this call has to ask on the linked phone or in Home Assistant; nothing was sent",
 			"Tell the user nothing changed: checking this change in their home took too long to still ask them in time. They can ask again; if it keeps happening, they make the change in Home Assistant itself.")
 	}
-	opened, err := open()
-	end := time.Now().Add(s.askWait()) // the CLI: the command's wait; ha-nova mcp's job: the ask's life, a move's link included
-	if gateApproval != nil {
-		end = time.Now().Add(gateAskLife + 5*time.Second)
+	var stop error
+	var state, grant string
+	ask := func() bool { // a chat app's runs outside mcpVerbLock: it reads no process-wide state
+		opened, err := open()
+		end := time.Now().Add(gateAskLife + 5*time.Second) // a job's ask waits its life, a move's link included
+		if flag == nil {
+			end = time.Now().Add(s.askWait()) // the CLI: the command's wait
+		}
+		if !chat { // a chat app never moves a phone: the bridge host's own link isn't its user's
+			if reopen, moved := s.gateMoveFirst(opened, err, time.Until(end)/2); moved != nil {
+				stop = moved
+				return false
+			} else if reopen {
+				opened, err = open()
+			}
+		}
+		if stop = gateOpenFailure(opened, err, chat, lang); stop != nil {
+			return false
+		}
+		state, grant = s.gateWait(opened.AskID, false, time.Until(end))
+		return state == "approved" && grant != ""
 	}
-	if reopen, stop := s.gateMoveFirst(opened, err, time.Until(end)/2); stop != nil {
-		return stop
-	} else if reopen {
-		opened, err = open()
+	if !chat {
+		ask()
+	} else if err := s.call.outside(ask); err != nil { // the user's access, read again after the OK, refused it
+		return err
 	}
-	var call *relayCallError
 	switch {
-	case errors.As(err, &call) && strings.HasPrefix(call.code, "GATE_"):
-		return gateStop("refused", call.code, call.message+"; nothing was sent", gateNext[call.code])
-	case errors.As(err, &call) && call.status == http.StatusNotFound:
-		return gateRolledBack()
-	case err != nil:
-		return gateStop("refused", "CONFIRM_UNAVAILABLE", "HA NOVA couldn't ask on the linked phone or in Home Assistant ("+err.Error()+"); nothing was sent", gateNext[""])
-	case !opened.Needed:
-		return gateStop("refused", "GATE_DISAGREES", "HA NOVA's safety check in Home Assistant doesn't hold this change for a person, but this computer does; nothing was sent",
-			"Tell the user nothing changed. Update HA NOVA on this computer (ha-nova update) and the NOVA App in Home Assistant, then plan it again.")
-	case opened.AskID == "":
-		return gateStop("refused", "CONFIRM_UNAVAILABLE", "the NOVA App's answer named no ask; nothing was sent", gateNext[""])
-	}
-	state, grant := s.gateWait(opened.AskID, false, time.Until(end))
-	if state != "approved" || grant == "" {
+	case stop != nil:
+		return stop
+	case chat && state == "cancelled":
+		return gateStop("declined", "CONFIRM_DECLINED", "the change was cancelled on the phone linked to the NOVA Relay container, or another ask through that container replaced it; nothing was sent", gateChatCancelledNext)
+	case state != "approved" || grant == "":
 		return gateEnded(state)
 	}
 	s.mu.Lock()
@@ -181,6 +203,31 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 	return nil
 }
 
+// gateOpenFailure: why an open asks nobody; nil: it asks. Every one sent
+// nothing. A chat app (chat) on a container with no phone linked gets the
+// clear refusal, and other refusals in the container's words.
+func gateOpenFailure(opened gateOpened, err error, chat bool, lang string) error {
+	var call *relayCallError
+	switch {
+	case chat && errors.As(err, &call) && call.code == "GATE_NO_CHANNEL":
+		return gateStop("refused", "CONFIRM_UNAVAILABLE", confirmT(lang, "gate.chat_no_phone"), gateChatNoPhoneNext)
+	case chat && errors.As(err, &call) && gateChatNext[call.code] != "":
+		return gateStop("refused", call.code, call.message+"; nothing was sent", gateChatNext[call.code])
+	case errors.As(err, &call) && strings.HasPrefix(call.code, "GATE_"):
+		return gateStop("refused", call.code, call.message+"; nothing was sent", gateNext[call.code])
+	case errors.As(err, &call) && call.status == http.StatusNotFound:
+		return gateRolledBack()
+	case err != nil:
+		return gateStop("refused", "CONFIRM_UNAVAILABLE", "HA NOVA couldn't ask on the linked phone or in Home Assistant ("+err.Error()+"); nothing was sent", gateNext[""])
+	case !opened.Needed:
+		return gateStop("refused", "GATE_DISAGREES", "HA NOVA's safety check in Home Assistant doesn't hold this change for a person, but this computer does; nothing was sent",
+			"Tell the user nothing changed. Update HA NOVA on this computer (ha-nova update) and the NOVA App in Home Assistant, then plan it again.")
+	case opened.AskID == "":
+		return gateStop("refused", "CONFIRM_UNAVAILABLE", "the NOVA App's answer named no ask; nothing was sent", gateNext[""])
+	}
+	return nil
+}
+
 // gateWait long-polls the ask until it ends, wait runs out (gateAsk's
 // share of the command's wait, or of ha-nova mcp's ask life; a setup link's
 // own), or HA NOVA is stopped (planAsks). An end without an approval
@@ -190,7 +237,7 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 // on the phones: no window.
 func (s *relaySession) gateWait(askID string, link bool, wait time.Duration) (state, grant string) {
 	deadline := time.Now().Add(wait)
-	if flag := gateApproval; flag != nil {
+	if flag := s.approval(); flag != nil {
 		flag.Store(map[bool]int32{false: gateAsking, true: gateLinking}[link])
 		defer flag.Store(0)
 	}
@@ -294,7 +341,7 @@ func (s *relaySession) gatePageURL() string {
 // raced says false.
 func (s *relaySession) gateWindow(ctx context.Context, deadline time.Time, page string) (<-chan windowAnswer, func(<-chan windowAnswer) bool) {
 	none := func(<-chan windowAnswer) bool { return false }
-	if chatCall != nil || windowOff(s.paths) || !windowAvailable() {
+	if s.gateChat() || windowOff(s.paths) || !windowAvailable() {
 		return nil, none
 	}
 	lang := confirmLanguage(s.lang)
@@ -336,11 +383,30 @@ var gateNext = map[string]string{
 	"GATE_UNAVAILABLE": "Tell the user nothing changed: HA NOVA's safety check in Home Assistant isn't available. Try again in a minute; if it stays, they restart the NOVA App.",
 }
 
-// gateChatHeldNext: what the agent does after the Relay held a chat bridge's change (sendWrite).
-const gateChatHeldNext = "Tell the user nothing changed: this change needs a person's OK, which a chat app can't give here. They make it from a paired computer or directly in Home Assistant."
+// A chat app on the standalone container (gateChat): what the agent does
+// after its Relay held a change outside an apply job (ha_call), and after
+// an ask found no phone linked to the container; the Part variants after
+// earlier steps of a raw plan went through (plan_raw_apply.go).
+const (
+	gateChatHeldNext        = "Tell the user nothing changed yet: this change needs an OK on the phone linked to their NOVA Relay container, which HA NOVA asks only when it applies a plan. Plan it with ha_plan, then apply that plan with ha_apply."
+	gateChatHeldPartNext    = "Tell the user which steps went through; the next one needs an OK on the phone linked to their NOVA Relay container, so nothing more was sent. Plan the rest with ha_plan, then apply that plan with ha_apply."
+	gateChatNoPhoneNext     = "Tell the user nothing changed: this change needs an OK on the phone linked to their NOVA Relay container, and no phone is linked there. Whoever runs the container links one from a paired computer (ha-nova setup confirm-phone in a terminal); or they make the change in Home Assistant itself. Never ask them for a code."
+	gateChatNoPhonePartNext = "Tell the user which steps went through; the next one needs an OK on the phone linked to their NOVA Relay container, and no phone is linked there, so nothing more was sent. Whoever runs the container links one from a paired computer (ha-nova setup confirm-phone in a terminal); or they make the rest in Home Assistant itself."
+	gateChatCancelledNext   = "Tell the user nothing changed: the ask was cancelled on the phone linked to their NOVA Relay container, or someone else using that container (another chat user or a computer) asked for a change meanwhile, which replaces it. Apply this plan again only if they ask for it."
+)
 
-// gateChatHeldPartNext: the same, after earlier steps of a raw plan went through.
-const gateChatHeldPartNext = "Tell the user which steps went through; the next one needs a person's OK, which a chat app can't give here, so nothing more was sent. They make the rest from a paired computer or directly in Home Assistant."
+// gateChatPart: each chat refusal's Part variant.
+var gateChatPart = map[string]string{gateChatHeldNext: gateChatHeldPartNext, gateChatNoPhoneNext: gateChatNoPhonePartNext}
+
+// gateChatNext: gateNext in the container's words for a chat app. Everyone
+// holding the container's token asks as one: a new ask replaces the open
+// one, and three unanswered or replaced asks in a row pause the phone.
+var gateChatNext = map[string]string{
+	"GATE_PAUSED":      "Tell the user nothing changed: asks on the phone linked to their NOVA Relay container are paused for up to 15 minutes, because earlier asks there went unanswered or were replaced by newer ones (from anyone using that container, computers included). They ask again later, or make the change in Home Assistant itself.",
+	"GATE_ASK_LIMIT":   "Tell the user nothing changed: everyone using their NOVA Relay container together asked too often in the last hour. They ask again later, or make the change in Home Assistant itself.",
+	"GATE_ASK_BUSY":    "Tell the user nothing changed: another ask through their NOVA Relay container is still being prepared. They ask again in a moment.",
+	"GATE_UNAVAILABLE": "Tell the user nothing changed: HA NOVA's safety check in their NOVA Relay container isn't available. They try again in a minute; if it stays, whoever runs the container restarts it.",
+}
 
 // gateEnded: an ask that ended without an approval sent nothing.
 func gateEnded(state string) *verbFailure {

@@ -192,10 +192,15 @@ home in `.state`. The RC lane runs all three with the tag's binary
   everything; at Manage everything a read runs, a write and a delete need
   the code, and a refusal by the Relay itself (a file in `www`, the log
   file, a `.sh` write) names its real cause, never the sign-in or a
-  setting. On the gated bed this bridge runs on the shared token, so the
-  Relay holds its write, delete, and `.sh` write: each is refused in the
-  bridge's own words and the file stays as it was; the App's chat-code
-  path can't run here (one WARN line). It leaves `/config/www/rclane-mailbox.jpg`. SKIP without file
+  setting. On the gated bed this bridge runs on the shared token, as on a
+  standalone container: it recreates the Relay first (the phone lane's
+  fixture, no phone linked), so its write, delete, and `.sh` write ask
+  the container's phone, find none, and are refused in the bridge's own
+  words while the file stays as it was. Then it links the fake iPhone
+  there: a Use-the-home unlock waits for it (nothing sent meanwhile), runs
+  after the tap, and sends nothing after Cancel; that user's file write is
+  still refused for the level; at Manage everything a file write runs after
+  the tap. The App's chat-code path can't run here (one WARN line). It leaves `/config/www/rclane-mailbox.jpg`. SKIP without file
   access.
 - `node calm.mjs` adds listeners shaped like a real home's (an automation
   on every automation reload, a templated panel automation following its
