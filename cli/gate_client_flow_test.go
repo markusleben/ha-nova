@@ -41,6 +41,8 @@ func TestGateWaitingWindow(t *testing.T) {
 	savedAvailable, savedWindow, savedOpen := windowAvailable, gateWindow, gateOpenHA
 	t.Cleanup(func() { windowAvailable, gateWindow, gateOpenHA = savedAvailable, savedWindow, savedOpen })
 	windowAvailable = func() bool { return true }
+	_, restore := setCloudFeatureTestIdentity(t, cloudRemoteBuildIdentity{Development: true, AppSlug: "local_ha_nova_relay_test"})
+	defer restore()
 	panel, _ := haNOVAAppPanelURL("http://127.0.0.1:8123")
 	for name, tc := range map[string]struct {
 		answer func(ctx context.Context) windowAnswer

@@ -195,6 +195,13 @@ func TestGateAskEndsWithTheCommandsWait(t *testing.T) {
 // Without either, the button only hides the window and the text says where
 // the page is.
 func TestGateWindowPageFromTheProfile(t *testing.T) {
+	_, restore := setCloudFeatureTestIdentity(t, cloudRemoteBuildIdentity{})
+	if got := (&relaySession{cfg: runtimeConfig{HAURL: "http://homeassistant.local:8123"}}).gatePageURL("ask1"); got != "http://homeassistant.local:8123" {
+		t.Errorf("unstamped build: %q, want Home Assistant's start without an ask", got)
+	}
+	restore()
+	_, restore = setCloudFeatureTestIdentity(t, cloudRemoteBuildIdentity{Development: true, AppSlug: "local_ha_nova_relay_test"})
+	defer restore()
 	panel := func(base string) string {
 		target, _ := haNOVAAppPanelURL(base)
 		return target.URL + "?nova_ask=" + fmt.Sprintf("%x", sha256.Sum256([]byte("ask1")))

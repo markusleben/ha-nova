@@ -336,6 +336,9 @@ func (s *relaySession) gatePageURL(askID string) string {
 	if base == "" || err != nil {
 		return ""
 	}
+	if !target.Direct { // no NOVA panel to name (an unstamped build): Home Assistant's start, as before
+		return target.URL
+	}
 	return target.URL + "?nova_ask=" + fmt.Sprintf("%x", sha256.Sum256([]byte(askID)))
 }
 
