@@ -123,8 +123,13 @@ func TestQuietCheckUpdateSkipsASilentAppCheckWithinTheHour(t *testing.T) {
 	}
 	t.Setenv(serverSelectionEnvVar, "other")
 	runQuietCheckUpdate(t, paths)
-	if _, err := os.Stat(marker); err == nil {
-		t.Fatal("another server's result must not be remembered as the default's")
+	before := checks.Load()
+	if err := os.Unsetenv(serverSelectionEnvVar); err != nil {
+		t.Fatalf("unset %s: %v", serverSelectionEnvVar, err)
+	}
+	runQuietCheckUpdate(t, paths)
+	if got := checks.Load(); got != before+1 {
+		t.Fatalf("a check under another server must not answer for the default: %d App checks, want %d", got, before+1)
 	}
 }
 
