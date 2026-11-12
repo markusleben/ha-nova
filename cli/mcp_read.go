@@ -210,7 +210,7 @@ func runMCPRead(call *verbCall, paths runtimePaths, argv []string) int {
 	var run jqRun
 	switch {
 	case *filter == "":
-	case chatCall != nil: // ha-nova serve: the filter is parsed and run only in the child (mcp_read_jq.go)
+	case call.chatPolicy() != nil: // ha-nova serve: the filter is parsed and run only in the child (mcp_read_jq.go)
 		run = childJQ(*filter)
 	default:
 		program, err := mcpCompileJQ(*filter)
@@ -230,7 +230,11 @@ func runMCPRead(call *verbCall, paths runtimePaths, argv []string) int {
 	if endpoint == "camera" {
 		relayEndpoint = "core"
 	}
-	send, refusal, err := guardRawRequest(paths, verbOptions{}, relayEndpoint, []byte(*body))
+	facts := logFactsRequest(endpoint, []byte(*body)) // answered as log facts, never as the log
+	send, refusal, err := []byte(*body), error(nil), error(nil)
+	if !facts {
+		send, refusal, err = guardRawRequest(paths, verbOptions{call: call}, relayEndpoint, send)
+	}
 	if refusal == nil && err == nil {
 		refusal = mcpReadRefusal(endpoint, send)
 	}
@@ -244,7 +248,12 @@ func runMCPRead(call *verbCall, paths runtimePaths, argv []string) int {
 		if refusal := mcpDemoRefusal(activeServerIsDemo(), endpoint, send); refusal != nil { // known once the session loaded the profile
 			return &verbFailure{exit: verbExitRefused, code: "REFUSED", message: refusal.Error()}
 		}
-		data, err := s.send(relayEndpoint, send)
+		var data json.RawMessage
+		if facts {
+			data, err = readLogFacts(s)
+		} else {
+			data, err = s.send(relayEndpoint, send)
+		}
 		var call *relayCallError
 		if errors.As(err, &call) { // Home Assistant's or the Relay's answer, not a pairing problem
 			return &verbFailure{exit: verbExitError, code: "READ_FAILED", message: mcpMessage(call.Error(), mcpMessageMax),

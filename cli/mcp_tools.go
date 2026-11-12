@@ -65,7 +65,7 @@ var mcpTools = []mcpTool{mcpSkillTool,
 			return flagsThen(a, []string{"logbook"}, []string{"since", "until"}, "entity_id")
 		}, run: historyVerb},
 	{name: "ha_map", title: "Map the home", description: "Exact, computed home facts — never count by hand: areas/floors with device and entity counts, automations/scripts/scenes/helpers, integrations, unavailable entities, low batteries. section gives one full list; entity gives where-used (automations, scripts, scenes, groups, helpers, dashboard cards; not_checked names what was not searched); first_look gives the onboarding summary; insights gives ranked insights with room suggestions and one automation template that fit this home. " + mcpAnswerRules, readOnly: true, idempotent: true,
-		schema: object(nil, map[string]any{"section": map[string]any{"type": "string", "enum": []string{"areas", "integrations", "automations", "unavailable", "batteries", "updates"}},
+		schema: object(nil, map[string]any{"section": map[string]any{"type": "string", "enum": []string{"areas", "integrations", "automations", "unavailable", "batteries", "updates", "after_update"}},
 			"entity": prop("string", "exact entity_id: where it is used"), "first_look": prop("boolean", "the onboarding first look"),
 			"insights": prop("boolean", "stats, ranked insights, room suggestions (ha_plan kind rooms), and a template (ha_plan kind template)"),
 			"limit":    prop("integer", "1-200 rows for section or entity")}),
@@ -249,7 +249,8 @@ func withNotices(out string, notices []verbNotice, server string) string {
 // a client that reads only one still gets the guidance (next_step, say). isError for
 // failures, not needs_confirmation. told (nil = no memory) keeps each update
 // notice's hint to once per session. forms: the client shows forms, so no code.
-func toolResult(name, out, errOut string, exit int, told map[string]bool, forms bool) map[string]any {
+// chat: a chat app's call (ha-nova serve).
+func toolResult(name, out, errOut string, exit int, told map[string]bool, forms, chat bool) map[string]any {
 	var envelope map[string]any
 	// A verb envelope carries schema_version; anything else (trace prints
 	// plain JSON, failures print to stderr) is wrapped into one.
@@ -272,15 +273,15 @@ func toolResult(name, out, errOut string, exit int, told map[string]bool, forms 
 	own, _ := envelope["next_step"].(string)
 	own, batch := strings.CutPrefix(own, batchHint) // in tool terms before every step (plainResult)
 	own = strings.TrimPrefix(own, " Otherwise: ")
-	next := nextStep(envelope)
+	next := nextStep(envelope, chat)
 	if next == "" && own != "" { // the verb's own step, in tool terms
 		next = mcpNext(own)
 	}
 	if forms {
 		next = formsNext(envelope, next)
 	}
-	images := imageContent(envelope)                 // before the text: an image is never text
-	text := plainResult(envelope, next, batch, told) // say, next_step, and answer_rule (mcp_plain.go)
+	images := imageContent(envelope)                       // before the text: an image is never text
+	text := plainResult(envelope, next, batch, told, chat) // say, next_step, and answer_rule (mcp_plain.go)
 	return map[string]any{"content": append([]map[string]any{{"type": "text", "text": string(text)}}, images...), "structuredContent": envelope,
 		"isError": exit != 0 && exit != verbExitConfirmation}
 }

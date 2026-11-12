@@ -36,10 +36,14 @@ type updateAdvisor struct {
 	x                 *homeIndex
 	rows              []updateRow // pending
 	coreFrom, coreTo  string
+	coreState         string
 	hassio            bool
 	domains           map[string]bool // loaded integrations: config entries and components
 	ready, gaps, risk []map[string]any
 	backupStale       bool
+	versions          map[string][2]string // every update entity: installed, offered
+	resolution        []string             // Supervisor issue uuids; nil when unread
+	resolutionIssues  []resolutionIssue
 }
 
 var updateKindRank = map[string]int{"supervisor": 0, "os": 1, "core": 2, "app": 3, "integration": 4, "firmware": 5}
@@ -72,7 +76,7 @@ var (
 	manifestList   = map[string]any{"type": "manifest/list"}
 )
 
-func adviseUpdates(s *relaySession, x *homeIndex) (map[string]any, error) {
+func adviseUpdates(s *relaySession, x *homeIndex, baseline string) (map[string]any, error) {
 	prefetch([]func(){
 		func() { _, _, _ = s.coreGET("/api/config") },
 		func() { _, _ = s.ws(repairsRequest) },
@@ -111,7 +115,7 @@ func adviseUpdates(s *relaySession, x *homeIndex) (map[string]any, error) {
 	}
 	return map[string]any{"section": "updates", "ready": ready, "readiness": a.ready, "not_checked": a.gaps,
 		"core": map[string]any{"installed": a.coreFrom, "latest": a.coreTo}, "pending": a.rows,
-		"order": a.order(), "order_basis": "default", "risks": a.risk, "breaking": breaking}, nil
+		"order": a.order(), "order_basis": "default", "risks": a.risk, "breaking": breaking, "baseline": a.saveBaseline(baseline)}, nil
 }
 
 func supervisorGet(path string) map[string]any {
@@ -125,6 +129,7 @@ func (a *updateAdvisor) loadPending() error {
 	}
 	var config struct {
 		Version    string   `json:"version"`
+		State      string   `json:"state"` // RUNNING once started
 		Components []string `json:"components"`
 	}
 	if err == nil {
@@ -141,7 +146,7 @@ func (a *updateAdvisor) loadPending() error {
 	for _, e := range a.x.h.entries {
 		a.domains[e.Domain] = true
 	}
-	a.hassio, a.coreFrom, a.coreTo = a.domains["hassio"], config.Version, config.Version
+	a.hassio, a.coreFrom, a.coreTo, a.coreState = a.domains["hassio"], config.Version, config.Version, config.State
 	var states []struct {
 		EntityID   string `json:"entity_id"`
 		State      string `json:"state"`
@@ -161,11 +166,13 @@ func (a *updateAdvisor) loadPending() error {
 		reg[e.EntityID] = i
 	}
 	var running []string
+	a.versions = map[string][2]string{}
 	for _, st := range states {
 		if !inDomain(st.EntityID, "update") {
 			continue
 		}
 		at := st.Attributes
+		a.versions[st.EntityID] = [2]string{at.Installed, at.Latest}
 		inProgress := at.InProgress == true
 		if _, percent := at.InProgress.(float64); percent {
 			inProgress = true

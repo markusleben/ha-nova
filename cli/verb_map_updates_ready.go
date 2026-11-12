@@ -51,13 +51,11 @@ func (a *updateAdvisor) checkSupervisor() {
 		a.flag("SUPERVISOR_NOT_APPLICABLE", "info", nil)
 		return
 	}
-	var resolution struct {
-		Unhealthy *[]string `json:"unhealthy"`
-	}
-	if err := a.supervisorData("/resolution/info", &resolution); err != nil || resolution.Unhealthy == nil {
-		a.gap("supervisor_health", errText(err, "no unhealthy list"))
-	} else if len(*resolution.Unhealthy) > 0 {
-		a.flag("SUPERVISOR_UNHEALTHY", "blocker", map[string]any{"reasons": *resolution.Unhealthy})
+	switch unhealthy, err := a.readResolution(); {
+	case err != nil:
+		a.gap("supervisor_health", err.Error())
+	case len(unhealthy) > 0:
+		a.flag("SUPERVISOR_UNHEALTHY", "blocker", map[string]any{"reasons": unhealthy})
 	}
 	var host struct {
 		DiskFree *float64 `json:"disk_free"`
@@ -70,6 +68,35 @@ func (a *updateAdvisor) checkSupervisor() {
 	}
 }
 
+type resolutionIssue struct {
+	UUID      string `json:"uuid"`
+	Type      string `json:"type"`
+	Context   string `json:"context"`
+	Reference string `json:"reference"`
+}
+
+// readResolution: Supervisor's unhealthy reasons and its issues (a Core
+// rollback is one, update_rollback).
+func (a *updateAdvisor) readResolution() ([]string, error) {
+	var resolution struct {
+		Unhealthy *[]string          `json:"unhealthy"`
+		Issues    *[]resolutionIssue `json:"issues"`
+	}
+	if err := a.supervisorData("/resolution/info", &resolution); err != nil {
+		return nil, err
+	}
+	if resolution.Issues != nil { // else a rollback stays unknown
+		a.resolution, a.resolutionIssues = []string{}, *resolution.Issues
+		for _, issue := range a.resolutionIssues {
+			a.resolution = append(a.resolution, issue.UUID)
+		}
+	}
+	if resolution.Unhealthy == nil {
+		return nil, errors.New("the Supervisor's resolution info has no unhealthy list")
+	}
+	return *resolution.Unhealthy, nil
+}
+
 func errText(err error, missing string) string {
 	if err != nil {
 		return err.Error()
@@ -80,8 +107,9 @@ func errText(err error, missing string) string {
 func (a *updateAdvisor) checkBackups() {
 	var info struct {
 		Backups *[]struct {
-			Date   string         `json:"date"`
-			Agents map[string]any `json:"agents"`
+			Date       string         `json:"date"`
+			Agents     map[string]any `json:"agents"`
+			HAIncluded bool           `json:"homeassistant_included"`
 		} `json:"backups"`
 		State string `json:"state"`
 	}
@@ -99,8 +127,8 @@ func (a *updateAdvisor) checkBackups() {
 	}
 	var newest time.Time
 	var agents map[string]any
-	for _, b := range *info.Backups {
-		if at, err := time.Parse(time.RFC3339Nano, b.Date); err == nil && at.After(newest) {
+	for _, b := range *info.Backups { // only a backup with Home Assistant in it restores an update
+		if at, err := time.Parse(time.RFC3339Nano, b.Date); err == nil && b.HAIncluded && at.After(newest) {
 			newest, agents = at, b.Agents
 		}
 	}

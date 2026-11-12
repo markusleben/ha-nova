@@ -11,6 +11,7 @@ TESTBED_PHONE=1 npm run testbed:verify     # + the phone lane (fake phones, push
 node scripts/e2e/testbed/gate.mjs          # the gate lane: approvals on the phone (bed up with TESTBED_FILES=1)
 node scripts/e2e/testbed/www-media.mjs     # www pictures: delete, undo, community, copy limit (same bed)
 node scripts/e2e/testbed/marketplace.mjs   # Marketplace: typed install, the warning only for the App's user, gate holds and refusals
+node scripts/e2e/testbed/agent-updates.mjs # update advisor: an agent checks before installing and after (headless Claude test account)
 npm run testbed:down                       # containers, volumes, tokens, runtime config: gone
 ```
 

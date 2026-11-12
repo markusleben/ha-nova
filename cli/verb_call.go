@@ -7,13 +7,20 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 // verbCall is one verb run's own context: where it writes its result (out)
-// and its failure and progress lines (err). nil is the CLI's: the process's
-// stdout and stderr as they are when written to. The MCP servers give each
-// call its own (runCaptured), so no call swaps os.Stdout for another.
-type verbCall struct{ out, err io.Writer }
+// and its failure and progress lines (err), when it came in and must answer
+// (check_budget.go), and in ha-nova serve the chat app's user. nil is the
+// CLI's: the process's stdout and stderr as they are when written to, and
+// the command's commandStart, checkDeadline, and chatCall. The MCP servers
+// give each call its own (runLocked), so no call reads another's.
+type verbCall struct {
+	out, err        io.Writer
+	start, deadline time.Time   // zero: windowWait and the session budget alone bound it (tests)
+	chat            *chatPolicy // ha-nova serve: the user and the owner's settings at this call; nil in ha-nova mcp
+}
 
 func (c *verbCall) stdout() io.Writer {
 	if c == nil {
@@ -29,15 +36,39 @@ func (c *verbCall) stderr() io.Writer {
 	return c.err
 }
 
+func (c *verbCall) began() time.Time {
+	if c == nil {
+		return commandStart
+	}
+	return c.start
+}
+
+func (c *verbCall) answerBy() time.Time {
+	if c == nil {
+		return checkDeadline
+	}
+	return c.deadline
+}
+
+func (c *verbCall) chatPolicy() *chatPolicy {
+	if c == nil {
+		return chatCall
+	}
+	return c.chat
+}
+
 // errorf is printErr for this call.
 func (c *verbCall) errorf(format string, args ...any) {
 	fmt.Fprintf(c.stderr(), "[ha-nova] ERROR: "+format+"\n", args...)
 }
 
-// runCaptured runs a verb with its own output and returns what it wrote. A
-// panic becomes exit verbExitUnknown without output: a change may have been
-// sent (runLocked).
-func runCaptured(run func(*verbCall) int) (out, errOut string, exit int) {
+// runCaptured runs a verb as call (nil: a new one) with its own output and
+// returns what it wrote. A panic becomes exit verbExitUnknown without
+// output: a change may have been sent (runLocked).
+func runCaptured(call *verbCall, run func(*verbCall) int) (out, errOut string, exit int) {
+	if call == nil {
+		call = &verbCall{}
+	}
 	var outBuf, errBuf callBuffer
 	var crash string
 	func() {
@@ -46,7 +77,8 @@ func runCaptured(run func(*verbCall) int) (out, errOut string, exit int) {
 				exit, crash = verbExitUnknown, fmt.Sprint("internal error: ", p)
 			}
 		}()
-		exit = run(&verbCall{out: &outBuf, err: &errBuf})
+		call.out, call.err = &outBuf, &errBuf
+		exit = run(call)
 	}()
 	out, errOut = outBuf.String(), errBuf.String()
 	if crash != "" {

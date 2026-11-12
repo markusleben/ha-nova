@@ -240,6 +240,9 @@ func gateRedact(paths runtimePaths, endpoint string, request, response []byte) (
 	if !ok || payload == nil || endpoint == "core" && !plain { // the template check needs the request
 		return nil, errors.New("the request is not one JSON object with a readable path")
 	}
+	if logFactsRequest(endpoint, request) {
+		return gateLogFacts(paths, response)
+	}
 	redacted := redactRawResponse(endpoint, response)
 	if endpoint == "core" && strings.EqualFold(target, "/api/template") {
 		tokens, err := gateAccessTokens(paths)
@@ -253,6 +256,40 @@ func gateRedact(paths runtimePaths, endpoint string, request, response []byte) (
 		}
 	}
 	return map[string][]byte{"response_b64": redacted}, nil
+}
+
+// gateLogFacts answers a system_log/list reply with its log facts
+// (docs/work/2026-11-12-log-facts-spec.md), projected with this home's
+// integrations. A failed read of those is no answer, never the log.
+func gateLogFacts(paths runtimePaths, response []byte) (any, error) {
+	var envelope struct {
+		OK   bool            `json:"ok"`
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(response, &envelope); err != nil {
+		return nil, err
+	}
+	if !envelope.OK { // Home Assistant's error text could quote the log: a fixed one instead
+		return map[string][]byte{"response_b64": []byte(`{"ok":false,"error":{"code":"LOG_FACTS_FAILED","message":"HA NOVA could not read the log facts; nothing was changed"}}`)}, nil
+	}
+	s, err := newRelaySessionWithin(paths, verbOptions{}, gateCheckBudget)
+	if err != nil {
+		return nil, err
+	}
+	defer s.close()
+	domains, err := logFactsDomains(s)
+	if err != nil {
+		return nil, err
+	}
+	facts, err := projectLogFacts(envelope.Data, domains)
+	if err != nil {
+		return nil, err
+	}
+	answer, err := json.Marshal(map[string]any{"ok": true, "data": facts})
+	if err != nil {
+		return nil, err
+	}
+	return map[string][]byte{"response_b64": answer}, nil
 }
 
 // gateAccessTokens: the live access tokens of every camera and image entity.
