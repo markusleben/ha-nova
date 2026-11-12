@@ -35,6 +35,16 @@ Node >= 22.12, Go, curl, and free ports 18123 / 18791 / 11883 / 18792 on 127.0.0
   may still try the internet; analytics stay off.)
 - Tear down after every session (`npm run testbed:down`). It wipes `.state/`
   from inside a container because Home Assistant writes it as root.
+- **Only the bed's owner tears it down.** The bed is one shared instance per
+  machine. `up.sh` writes `TESTBED_OWNER` (empty when unset) to
+  `.state/owner`; `down.sh` refuses unless the running bed was started from
+  the same checkout and `TESTBED_OWNER` matches the marker. Agents set it to
+  their own name (`TESTBED_OWNER=ha-nova/HANO-52 npm run testbed:up`, the same
+  for `testbed:down`). If `up.sh` says the bed is already running, it is
+  someone else's: wait, never tear it down. `down.sh --force` skips the check,
+  for emergencies only (an orphaned bed whose owner is gone, or one started
+  before the marker existed); the hosted demo's `reset.sh` uses it because its
+  host runs only the demo's bed.
 
 ## Using it
 
