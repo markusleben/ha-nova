@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -18,9 +19,24 @@ import (
 // give each call its own (runLocked), so no call reads another's.
 type verbCall struct {
 	out, err        io.Writer
-	start, deadline time.Time   // zero: windowWait and the session budget alone bound it (tests)
-	chat            *chatPolicy // ha-nova serve: the user and the owner's settings at this call; nil in ha-nova mcp
-	server          string      // the profile it runs against (mcp --server); "": HA_NOVA_SERVER, else default_server
+	start, deadline time.Time    // zero: windowWait and the session budget alone bound it (tests)
+	chat            *chatPolicy  // ha-nova serve: the user and the owner's settings at this call; nil in ha-nova mcp
+	server          string       // the profile it runs against (mcp --server); "": HA_NOVA_SERVER, else default_server
+	serial          bool         // runs under mcpVerbLock (runLocked): its loads set the process's selection, which the confirmation code reads
+	relayVersion    atomic.Value // ha_trace: the Relay version header of its last request (relay_outdated)
+}
+
+// sawRelayVersion keeps the Relay version a trace request answered with.
+func (c *verbCall) sawRelayVersion(version string) {
+	if c != nil {
+		c.relayVersion.Store(version)
+	}
+}
+
+// relayVersionSeen: the version sawRelayVersion kept, else "".
+func (c *verbCall) relayVersionSeen() string {
+	version, _ := c.relayVersion.Load().(string)
+	return version
 }
 
 func (c *verbCall) stdout() io.Writer {
@@ -77,9 +93,9 @@ func verbConfig(paths runtimePaths, opts verbOptions) (runtimeConfig, error) {
 		pick = opts.server
 	}
 	if pick != "" {
-		return loadSelectedConfig(paths, pick, "--server")
+		return loadSelectedConfig(paths, pick, "--server", opts.call.serial)
 	}
-	return loadSelectedConfig(paths, serverSelectionFromEnv(), serverSelectionEnvVar)
+	return loadSelectedConfig(paths, serverSelectionFromEnv(), serverSelectionEnvVar, opts.call.serial)
 }
 
 // profileName: the profile cfg was loaded for, else the process's.

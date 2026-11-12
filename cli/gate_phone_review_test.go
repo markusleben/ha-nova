@@ -1,6 +1,8 @@
 package main
 
 import (
+	"io"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -197,6 +199,24 @@ func TestBatteryReminderFindsTheGatedAppsPhone(t *testing.T) {
 	if phoneLinkedHere(s) {
 		t.Fatal("a gated App's phone confirmed from this computer")
 	}
+	if phone := linkedPhone(s); phone == nil || phone.Service != "mobile_app_annas_pixel" {
+		t.Fatalf("reminder phone %+v", phone)
+	}
+}
+
+// A read finds the phone of its own call, never of the chat app a change
+// running beside it set (chatCall): ha_map runs without mcpVerbLock.
+func TestBatteryReminderReadsItsOwnCallsLinks(t *testing.T) {
+	h := gatedFamily(t, &fakeGate{}, true)
+	usePhones(t)
+	phoneDiscover = discoverPhone
+	defer func() { chatCall = nil }()
+	chatCall = &chatPolicy{user: "cccccccccccccccccccccccccccccccc", links: filepath.Join(t.TempDir(), "phone-links.json")} // another call's chat app, without a link
+	s, err := newRelaySession(h.paths, verbOptions{call: &verbCall{out: io.Discard, err: io.Discard}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.close()
 	if phone := linkedPhone(s); phone == nil || phone.Service != "mobile_app_annas_pixel" {
 		t.Fatalf("reminder phone %+v", phone)
 	}

@@ -57,8 +57,8 @@ func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
 				t.Errorf("%s (plan-only read): exit %d tier %s %+v", wsType, exit, env.Tier, env.Error)
 			}
 		case what == rawWSRead:
-			if exit != verbExitRefused || mcpReadRefusal("ws", body) != nil {
-				t.Errorf("%s (read): planned with exit %d, or ha_read refuses it: %v", wsType, exit, mcpReadRefusal("ws", body))
+			if exit != verbExitRefused || mcpReadRefusal("ws", body, false) != nil {
+				t.Errorf("%s (read): planned with exit %d, or ha_read refuses it: %v", wsType, exit, mcpReadRefusal("ws", body, false))
 			}
 		default:
 			want := map[bool]string{true: "typed", false: "preview"}[slices.Contains(wantTyped, wsType)]
@@ -164,7 +164,7 @@ func TestPlanRawBatch2FlowParity(t *testing.T) {
 				if exit != verbExitConfirmation || env.Tier != want || code != "" || chat["tier"] != want {
 					t.Errorf("%s %s typed=%v: exit %d CLI %+v chat %v", method, target, typed, exit, env, chat)
 				}
-				if mcpReadRefusal("core", mustJSON(payload)) == nil || rawRelayRead("core", mustJSON(payload)) {
+				if mcpReadRefusal("core", mustJSON(payload), false) == nil || rawRelayRead("core", mustJSON(payload)) {
 					t.Errorf("%s %s was treated as an ordinary read", method, target)
 				}
 			}
@@ -471,7 +471,7 @@ func batch3aTiersAndGuards(t *testing.T, keySaved bool) {
 		}
 	}
 	for _, read := range []string{`{"type":"labs/list"}`, `{"type":"analytics"}`, `{"type":"backup/config/info"}`} {
-		if !rawRelayRead("ws", []byte(read)) || mcpReadRefusal("ws", []byte(read)) != nil {
+		if !rawRelayRead("ws", []byte(read)) || mcpReadRefusal("ws", []byte(read), false) != nil {
 			t.Errorf("%s is not an ordinary read", read)
 		}
 	}

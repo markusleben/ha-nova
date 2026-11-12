@@ -96,7 +96,7 @@ func TestTryConnectsDemoOutsideConfigAndNeverAsDefault(t *testing.T) {
 	if err != nil || !device || token != "demo-public-token" || !strings.HasSuffix(base, "/relay") {
 		t.Fatalf("demo transport = %q %q %v %v", base, token, device, err)
 	}
-	if got := verbNotices(paths, "0.1.0"); len(got) == 0 || got[0].Kind != "demo" {
+	if got := verbNotices(paths, activeServerIsDemo(), "0.1.0"); len(got) == 0 || got[0].Kind != "demo" {
 		t.Fatalf("demo verbs must carry the demo notice: %+v", got)
 	}
 	if _, ok := relayNoticeTransport(context.Background(), cfg); ok {
@@ -120,7 +120,7 @@ func TestTryLeavesRealHomeUntouched(t *testing.T) {
 	if err != nil || activeServerProfile() != defaultServerProfileName || activeServerIsDemo() || cfg.demoToken != "" {
 		t.Fatalf("default must stay the real home: %+v %v", cfg, err)
 	}
-	if got := verbNotices(paths, ""); len(got) == 0 || got[0].Kind != "home" {
+	if got := verbNotices(paths, activeServerIsDemo(), ""); len(got) == 0 || got[0].Kind != "home" {
 		t.Fatalf("home verbs must say they are not the demo while it is connected: %+v", got)
 	}
 
@@ -242,11 +242,11 @@ func TestDemoNeverRevertsToAnUntaggedHomeSnapshot(t *testing.T) {
 	if err := writeJSONFile(undoSnapshotStackPath(paths), stack, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := selectServerUndoSnapshot(paths, defaultServerProfileName, "kitchen", "automation"); err != nil {
+	if _, err := selectServerUndoSnapshot(paths, defaultServerProfileName, activeServerIsDemo(), "kitchen", "automation"); err != nil {
 		t.Fatalf("a real home keeps its untagged records: %v", err)
 	}
 	setActiveDemoProfile()
-	if _, err := selectServerUndoSnapshot(paths, demoProfileName, "kitchen", "automation"); err == nil {
+	if _, err := selectServerUndoSnapshot(paths, demoProfileName, activeServerIsDemo(), "kitchen", "automation"); err == nil {
 		t.Fatal("the demo house must not pick an untagged record")
 	}
 }
@@ -263,7 +263,7 @@ func TestDemoCheckpointsNeverEvictTheHomes(t *testing.T) {
 	for i := 0; i < undoSnapshotStackLimit+2; i++ {
 		save(demoProfileName, "d"+string(rune('a'+i)))
 	}
-	if _, err := selectServerUndoSnapshot(paths, defaultServerProfileName, "home", "automation"); err != nil {
+	if _, err := selectServerUndoSnapshot(paths, defaultServerProfileName, activeServerIsDemo(), "home", "automation"); err != nil {
 		t.Fatalf("demo saves evicted the home's checkpoint: %v", err)
 	}
 	stack, _ := loadUndoSnapshotStack(paths)
@@ -434,7 +434,7 @@ func TestMissingDemoPlanAfterTheResetSaysWhichCase(t *testing.T) {
 	demo := verbOptions{server: demoProfileName, serverSet: true}
 	got := apply("13:05:00", demo)
 	if got.Code != "PLAN_RESET" || !strings.Contains(got.Next, "reset at 13:02:10 UTC") || !strings.Contains(got.Next, "before 13:17:10 UTC") ||
-		!strings.Contains(mcpNext(got.Next), "ha_get") {
+		!strings.Contains(mcpNext(got.Next, false), "ha_get") {
 		t.Fatalf("demo, just after :00: %+v", got)
 	}
 	if got := apply("13:18:11", demo); got.Code != "PLAN_NOT_FOUND" || got.Next != mayHaveRun {
@@ -456,5 +456,33 @@ func TestMissingDemoPlanAfterTheResetSaysWhichCase(t *testing.T) {
 	demoPlansSince = time.Time{}
 	if got := apply("13:05:00", demo); got.Code != "PLAN_NOT_FOUND" || got.Next != mayHaveRun {
 		t.Fatalf("local try: %+v", got)
+	}
+}
+
+// A read of the demo house (ha_read snapshot, a call pinned to it) picks
+// only the demo's records, also while the process's selection is the real
+// home: reads run beside a change and never set it.
+func TestDemoReadNeverShowsAnUntaggedHomeSnapshot(t *testing.T) {
+	fakeDemo(t, "")
+	paths := tryTestPaths(t, "")
+	if exit, out := runTry(t, paths); exit != 0 {
+		t.Fatalf("try: %d %s", exit, out)
+	}
+	setActiveServerProfile(defaultServerProfileName)
+	stack := undoSnapshotStack{SchemaVersion: undoSnapshotStackSchemaVersion, Snapshots: []undoSnapshot{{
+		SchemaVersion: undoSnapshotSchemaVersion, Op: "update", Domain: "automation", TargetID: "kitchen",
+		BeforeConfig: json.RawMessage(`{}`), ExpectedAfter: json.RawMessage(`{}`),
+	}}}
+	if err := writeJSONFile(undoSnapshotStackPath(paths), stack, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	show := func(call *verbCall) int {
+		return runSnapshotShow(call, paths, []string{"--target", "kitchen", "--domain", "automation"})
+	}
+	if out, _, exit := runCaptured(&verbCall{server: demoProfileName}, show); exit == 0 {
+		t.Fatalf("the demo house showed an untagged record: %s", out)
+	}
+	if activeServerIsDemo() {
+		t.Fatal("the read set the process's selection to the demo house")
 	}
 }

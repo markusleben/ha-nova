@@ -354,7 +354,7 @@ func waitForRelayVersion(paths runtimePaths, route *relayUpdateRoute, targetVers
 }
 
 func relayVersionMeetsUpdateGate(paths runtimePaths, version, targetVersion string) bool {
-	if version == "" || !checkRelayVersionValue(paths, version).empty() {
+	if version == "" || !checkRelayVersionValue(paths, version, activeServerIsDemo()).empty() {
 		return false
 	}
 	if targetVersion == "" {

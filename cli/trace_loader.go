@@ -8,13 +8,8 @@ import (
 	"net/http"
 	"sort"
 	"strings"
-	"sync/atomic"
 	"time"
 )
-
-// traceRelayVersion: the Relay version header of the last trace request, so
-// ha_trace over MCP reports relay_outdated like the typed verbs.
-var traceRelayVersion atomic.Value
 
 func loadLatestTrace(call *verbCall, paths runtimePaths, entityID, domain string) (traceLatestOutput, error) {
 	ctx, cancel := context.WithTimeout(
@@ -253,16 +248,17 @@ func relayWSJSONContext(
 	if err != nil {
 		return nil, err
 	}
+	call, _ := ctx.Value(traceCallKey{}).(*verbCall)
 	resp, err := selected.Client.Do(req)
 	if err != nil {
-		return nil, relayRequestOutcomeUnknownError(selected.BaseURL, err)
+		cfg, _ := verbConfig(paths, verbOptions{call: call})
+		return nil, relayRequestOutcomeUnknownError(selected.BaseURL, err, cfg.demoToken != "")
 	}
 	defer resp.Body.Close()
-	if version := resp.Header.Get(relayVersionHeader); version != "" {
-		traceRelayVersion.Store(version)
+	if version := resp.Header.Get(relayVersionHeader); version != "" { // ha_trace over MCP reports relay_outdated like the typed verbs
+		call.sawRelayVersion(version)
 	}
 	if selected.Via == relayViaLocal && sharedAccessEnded(resp.StatusCode, resp.Header) {
-		call, _ := ctx.Value(traceCallKey{}).(*verbCall)
 		cfg, _ := verbConfig(paths, verbOptions{call: call})
 		return nil, errors.New(sharedAccessEndedFor(cfg, cfg.profileName()))
 	}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"os"
 	"path/filepath"
 )
 
@@ -73,7 +74,7 @@ func (srv *mcpServer) configAdminFailure(name string, args map[string]json.RawMe
 // readUsers: Home Assistant's users from config/auth/list (under
 // mcpVerbLock).
 func (b *chatBridge) readUsers() ([]haUser, error) {
-	s, err := b.session(b.paths)
+	s, err := newRelaySession(b.paths, verbOptions{call: &verbCall{out: os.Stdout, err: os.Stderr, server: b.pin}}) // a call's session: beside a change, it sets nothing process-wide
 	if err != nil {
 		return nil, err
 	}

@@ -106,7 +106,7 @@ func TestMCPGetModesArgv(t *testing.T) {
 	if argv, _ := mapArgv(rawArgs(t, map[string]any{"insights": true}), nil); strings.Join(argv, " ") != "--insights" {
 		t.Errorf("ha_map insights: %v", argv)
 	}
-	if got := mcpNext("Read it again (`ha-nova get --dashboard home-main --config`) and plan again; --require-admin and --hide-sidebar go with --create."); !strings.Contains(got, "ha_get dashboard home-main config") || !strings.Contains(got, "require_admin and hide_sidebar") {
+	if got := mcpNext("Read it again (`ha-nova get --dashboard home-main --config`) and plan again; --require-admin and --hide-sidebar go with --create.", false); !strings.Contains(got, "ha_get dashboard home-main config") || !strings.Contains(got, "require_admin and hide_sidebar") {
 		t.Errorf("mcpNext: %s", got)
 	}
 }

@@ -114,6 +114,7 @@ func TestCloudRelayOutcomeUnknownHidesVirtualRoutingOrigin(t *testing.T) {
 				nil,
 			),
 		},
+		false,
 	)
 	if !strings.Contains(message, "OUTCOME_UNKNOWN") ||
 		!strings.Contains(message, "Home Assistant Link") ||

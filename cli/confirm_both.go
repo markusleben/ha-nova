@@ -184,7 +184,7 @@ func discoverInTime(s *relaySession, wait time.Duration) (setup phoneSetup, stat
 // linkedPlatform: the linked phones' one platform, for a plan's say before
 // any lookup; "" when unknown or the homes' phones differ.
 func linkedPlatform(paths runtimePaths) string {
-	links, _ := linksForCall(paths)
+	links, _ := linksForCall(paths, chatCall)
 	seen := map[string]bool{}
 	for _, entry := range links {
 		if entry.link != nil && entry.link.Service != "" {
@@ -203,16 +203,16 @@ func linkedPlatform(paths runtimePaths) string {
 // Assistant: a local read for a window plan's `say`; apply asks the phone
 // only where discovery finds it ready), and it may ask it (phoneDeaf).
 func phoneLinkedHere(s *relaySession) bool {
-	return !s.phoneDeaf() && phoneLinkedOn(s.paths)
+	return !s.phoneDeaf() && phoneLinkedOn(s)
 }
 
 // phoneLinkedOn: a phone is linked on this computer, whether or not it can
 // confirm from here (a battery reminder only notifies it).
-func phoneLinkedOn(paths runtimePaths) bool {
-	if activeServerIsDemo() {
+func phoneLinkedOn(s *relaySession) bool {
+	if s.cfg.demoToken != "" {
 		return false // a link belongs to a real home; the demo house never has one
 	}
-	links, _ := phoneLinks(paths)
+	links, _ := phoneLinks(s.paths)
 	for _, entry := range links {
 		if entry.link != nil && entry.link.Service != "" {
 			return true

@@ -29,7 +29,12 @@ func holdPost(t *testing.T, f *fakeHA, prefix string) (reached chan struct{}, re
 	defer f.mu.Unlock()
 	f.extra = func(_ string, p map[string]any) (any, bool) {
 		if p["method"] == "POST" && strings.HasPrefix(fmt.Sprint(p["path"]), prefix) {
-			once.Do(func() { close(reached); <-held })
+			once.Do(func() { // the fake calls extra under f.mu: let other requests (reads beside the change) in while held
+				close(reached)
+				f.mu.Unlock()
+				<-held
+				f.mu.Lock()
+			})
 		}
 		return nil, false
 	}
@@ -81,7 +86,8 @@ func nextOf(env map[string]any) string {
 
 // A slow apply answers applying within the bridge's wait; calling again
 // joins the same run without the lock, and its outcome is handed out once.
-// Meanwhile, another tool call answers BUSY and points to the running one.
+// Meanwhile, another change answers BUSY and points to the running one,
+// and a read answers (mcpLocklessTools).
 func TestServeSlowApplyIsAJob(t *testing.T) {
 	shortLockWait(t)
 	f := household(batchHome())
@@ -99,8 +105,11 @@ func TestServeSlowApplyIsAJob(t *testing.T) {
 		}
 		<-reached
 	}
-	if env := s.tool(userA, "ha_get", map[string]any{"entity_id": "light.kitchen"}); envCode(env) != "BUSY" ||
+	if env := s.tool(userA, "ha_call", map[string]any{"service": "light.turn_off", "entity_ids": []string{"light.kitchen"}}); envCode(env) != "BUSY" ||
 		!strings.Contains(nextOf(env), "(plan_id "+id+") is still running: call ha_apply with that plan_id") {
+		t.Fatalf("a change meanwhile: %v", env)
+	}
+	if env := s.tool(userA, "ha_get", map[string]any{"entity_id": "light.kitchen"}); env["status"] != "ok" || env["error"] != nil {
 		t.Fatalf("a read meanwhile: %v", env)
 	}
 	release()
@@ -112,14 +121,15 @@ func TestServeSlowApplyIsAJob(t *testing.T) {
 	if env := s.tool(userA, "ha_apply", apply); envCode(env) != "PLAN_NOT_FOUND" || len(s.writes()) != 1 {
 		t.Fatalf("after the outcome: %v (writes %v)", env, s.writes())
 	}
-	if lines := s.b.readActivity(); len(lines) != 2 || lines[0].What != "write" || lines[0].Result != "done" { // the job notes its change once
+	if lines := s.b.readActivity(); len(lines) != 3 || lines[0].Result != "refused" || lines[1].What != "write" || lines[1].Result != "done" { // the busy change, then the job notes its change once
 		t.Fatalf("activity: %v", lines)
 	}
 }
 
 // No chat-app call waits longer than chatLockWait for a running change:
 // past it, the call answers BUSY, and nothing it asked for runs later.
-// Requests that change nothing use Home Assistant's users as read before.
+// Requests that change nothing use Home Assistant's users as read before,
+// and a read answers beside the change.
 func TestServeBusyRunsNothingLater(t *testing.T) {
 	shortLockWait(t)
 	s := newServe(t, household(batchHome()), levels([]string{userA}, nil))
@@ -128,7 +138,6 @@ func TestServeBusyRunsNothingLater(t *testing.T) {
 	for name, args := range map[string]map[string]any{
 		"ha_call":  {"service": "light.turn_off", "entity_ids": []string{"light.kitchen"}}, // the users, read again before a change
 		"ha_apply": {"plan_id": id},
-		"ha_get":   {"entity_id": "light.kitchen"}, // the verb itself
 	} {
 		env := s.tool(userA, name, args)
 		if envCode(env) != "BUSY" || !strings.Contains(nextOf(env), "Never retry on your own") || (name == "ha_apply") != (env["say"] == confirmT("en", "say.busy")) ||
@@ -142,15 +151,17 @@ func TestServeBusyRunsNothingLater(t *testing.T) {
 		t.Fatalf("job: %v", env)
 	}
 	initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`
-	for age, want := range map[time.Duration]int{2 * time.Minute: http.StatusOK, 20 * time.Minute: http.StatusServiceUnavailable} {
+	for _, age := range []time.Duration{2 * time.Minute, 20 * time.Minute} { // read again beside the change when too old
 		s.b.mu.Lock()
 		s.b.usersAt = time.Now().Add(-age)
 		s.b.mu.Unlock()
 		start := time.Now()
-		if status, out := s.raw(http.MethodPost, s.as(userA), initialize); status != want || time.Since(start) > time.Second ||
-			(want != http.StatusOK && !strings.Contains(out, chatBusyWhy)) {
+		if status, out := s.raw(http.MethodPost, s.as(userA), initialize); status != http.StatusOK || time.Since(start) > time.Second {
 			t.Fatalf("users read %v ago: HTTP %d %q", age, status, out)
 		}
+	}
+	if env := s.tool(userA, "ha_get", map[string]any{"entity_id": "light.kitchen"}); env["status"] != "ok" || env["error"] != nil {
+		t.Fatalf("a read beside the change: %v", env)
 	}
 	done()
 	time.Sleep(300 * time.Millisecond)
@@ -336,4 +347,50 @@ func TestServePhoneTapThenApplying(t *testing.T) {
 	if env["status"] != "verified" || len(s.posts()) != 1 {
 		t.Fatalf("outcome: %v (posts %d)", env, len(s.posts()))
 	}
+}
+
+// Reads run beside a running change and beside each other (go test -race):
+// none answers BUSY or waits for the change, and none sees another call's
+// state.
+func TestServeReadsRunBesideAChange(t *testing.T) {
+	shortLockWait(t)
+	f := household(batchHome())
+	s := newServe(t, f, levels([]string{userA}, nil))
+	id := scriptPlan(t, s, userA)
+	reached, release := holdPost(t, f, "/api/config/script/config/")
+	if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": id}); env["status"] != "applying" {
+		t.Fatalf("apply: %v", env)
+	}
+	<-reached
+	reads := []struct {
+		name string
+		args map[string]any
+	}{
+		{"ha_get", map[string]any{"entity_id": "light.kitchen"}},
+		{"ha_find", map[string]any{"domain": "light"}},
+		{"ha_map", map[string]any{}},
+		{"ha_history", map[string]any{"entity_id": "light.kitchen", "start": "1h"}},
+		{"ha_trace", map[string]any{"entity_id": "automation.arrival"}},
+		{"ha_read", map[string]any{"endpoint": "core", "path": "/api/states/light.kitchen"}},
+	}
+	var wg sync.WaitGroup
+	got := make([]map[string]any, 2*len(reads))
+	for i := range got {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			got[i] = s.tool(userA, reads[i%len(reads)].name, reads[i%len(reads)].args)
+		}()
+	}
+	wg.Wait()
+	for i, env := range got {
+		if envCode(env) == "BUSY" || env["status"] == nil {
+			t.Errorf("%s beside the change: %v", reads[i%len(reads)].name, env)
+		}
+	}
+	if len(s.writes()) != 1 { // the held one; no read sends a write
+		t.Fatalf("writes beside the reads: %v", s.writes())
+	}
+	release()
+	waitFor(t, "the outcome", func() bool { return s.tool(userA, "ha_apply", map[string]any{"plan_id": id})["status"] != "applying" })
 }

@@ -98,12 +98,21 @@ func shortCallWait(t *testing.T, d time.Duration) {
 	t.Cleanup(func() { chatCallWait = old })
 }
 
-// otherRequest: a request that changes nothing holds the lock until
+// otherRequest: another change, in line before, holds the lock until
 // release (at the latest when the test ends).
 func otherRequest(t *testing.T) (release func()) {
 	mcpVerbLock.Lock()
 	var once sync.Once
 	release = func() { once.Do(mcpVerbLock.Unlock) }
+	t.Cleanup(release)
+	return release
+}
+
+// otherUsersRead holds the users read (homeUsers) as another request's would.
+func otherUsersRead(t *testing.T) (release func()) {
+	usersReadLock.Lock()
+	var once sync.Once
+	release = func() { once.Do(usersReadLock.Unlock) }
 	t.Cleanup(release)
 	return release
 }
@@ -114,8 +123,9 @@ func errMessage(env map[string]any) string {
 	return message
 }
 
-// A running change (an apply job) still makes another call answer BUSY
-// with the change's words after chatLockWait, long before chatCallWait.
+// A running change (an apply job) still makes another change answer BUSY
+// with the change's words after chatLockWait, long before chatCallWait; a
+// read answers beside it.
 func TestServeRunningChangeStillMakesCallsBusy(t *testing.T) {
 	shortLockWait(t)
 	shortCallWait(t, 5*time.Second)
@@ -128,10 +138,14 @@ func TestServeRunningChangeStillMakesCallsBusy(t *testing.T) {
 	}
 	<-reached
 	start := time.Now()
-	env := s.tool(userA, "ha_get", map[string]any{"entity_id": "light.kitchen"})
+	env := s.tool(userA, "ha_call", map[string]any{"service": "light.turn_off", "entity_ids": []string{"light.kitchen"}})
 	if took := time.Since(start); envCode(env) != "BUSY" || !strings.Contains(errMessage(env), chatBusyWhy) ||
 		!strings.Contains(nextOf(env), "Never retry on your own") || took > chatCallWait/2 {
-		t.Fatalf("a read meanwhile, after %v: %v", took, env)
+		t.Fatalf("a change meanwhile, after %v: %v", took, env)
+	}
+	start = time.Now()
+	if env := s.tool(userA, "ha_get", map[string]any{"entity_id": "light.kitchen"}); env["status"] != "ok" || time.Since(start) > chatLockWait*5 {
+		t.Fatalf("a read meanwhile, after %v: %v", time.Since(start), env)
 	}
 	release()
 	waitFor(t, "the outcome", func() bool { return s.tool(userA, "ha_apply", map[string]any{"plan_id": id})["status"] != "applying" })
@@ -147,7 +161,6 @@ func TestServeQueueCapSaysCallAgain(t *testing.T) {
 	id := scriptPlan(t, s, userA)
 	release := otherRequest(t)
 	for name, args := range map[string]map[string]any{
-		"ha_get":   {"entity_id": "light.kitchen"},                                         // the verb itself
 		"ha_call":  {"service": "light.turn_off", "entity_ids": []string{"light.kitchen"}}, // the users, read again before a change
 		"ha_apply": {"plan_id": id},
 	} {
@@ -250,9 +263,9 @@ func pending[V any](t *testing.T, what string, got <-chan V) {
 	}
 }
 
-// The read of Home Assistant's users before a request waits the same way:
-// behind other requests past chatLockWait, until chatCallWait (then 503
-// with the queue's words); behind a change chatLockWait (the change's).
+// The read of Home Assistant's users before a request waits behind another
+// users read the same way: past chatLockWait, until chatCallWait (then 503
+// with the queue's words). It never waits for a change (mcpVerbLock).
 func TestServeUsersReadWaitsLikeACall(t *testing.T) {
 	shortLockWait(t)
 	shortCallWait(t, 500*time.Millisecond)
@@ -267,9 +280,9 @@ func TestServeUsersReadWaitsLikeACall(t *testing.T) {
 		why     string
 		min     time.Duration
 	}{
-		{"behind another request, past chatLockWait", otherRequest, true, http.StatusOK, `"protocolVersion"`, 0},
-		{"behind other requests until chatCallWait", otherRequest, false, http.StatusServiceUnavailable, chatQueuedWhy + ", so nothing ran. Calling it again is safe.", chatCallWait},
-		{"behind a change", holdVerbLock, false, http.StatusServiceUnavailable, chatBusyWhy, chatLockWait},
+		{"behind another users read, past chatLockWait", otherUsersRead, true, http.StatusOK, `"protocolVersion"`, 0},
+		{"behind other users reads until chatCallWait", otherUsersRead, false, http.StatusServiceUnavailable, chatQueuedWhy + ", so nothing ran. Calling it again is safe.", chatCallWait},
+		{"beside a change", holdVerbLock, false, http.StatusOK, `"protocolVersion"`, 0},
 	} {
 		s.b.mu.Lock()
 		s.b.usersAt = time.Now().Add(-20 * time.Minute) // too old to let the request in while the lock is held
@@ -293,7 +306,7 @@ func TestServeUsersReadWaitsLikeACall(t *testing.T) {
 }
 
 // The App's control channel waits for the users read at most chatLockWait
-// in all, also behind other requests: the App gives up after 30 s.
+// in all, also behind another users read: the App gives up after 30 s.
 func TestControlUsersReadWaitsLockWaitOnly(t *testing.T) {
 	shortLockWait(t)
 	shortCallWait(t, 10*time.Second)
@@ -301,7 +314,7 @@ func TestControlUsersReadWaitsLockWaitOnly(t *testing.T) {
 	s.b.mu.Lock()
 	s.b.usersAt = time.Now().Add(-20 * time.Minute)
 	s.b.mu.Unlock()
-	otherRequest(t)
+	otherUsersRead(t)
 	start := time.Now()
 	p, code, why := s.b.policyFor(userA)
 	if took := time.Since(start); p != nil || code != http.StatusServiceUnavailable || why != chatQueuedWhy || took < chatLockWait || took > chatCallWait/2 {

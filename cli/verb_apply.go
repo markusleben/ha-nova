@@ -167,7 +167,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	}
 	defer s.close()
 	env.Server = s.server
-	defer func() { env.Notices = append(env.Notices, verbNotices(paths, s.version())...) }()
+	defer func() { env.Notices = append(env.Notices, verbNotices(paths, s.cfg.demoToken != "", s.version())...) }()
 
 	// Claim: one atomic rename; whoever loses sends nothing (I8).
 	claimed := filepath.Join(planDir(paths), fmt.Sprintf("%s.claimed-%d", id, os.Getpid()))

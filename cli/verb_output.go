@@ -160,14 +160,15 @@ func parseVerbArgs(fs *flag.FlagSet, opts *verbOptions, args []string, usage str
 func runReadVerb(paths runtimePaths, verb string, opts verbOptions, body func(*relaySession, *verbEnvelope) error) int {
 	env := verbEnvelope{SchemaVersion: 1, Verb: verb, Status: "ok"}
 	relayVersion := ""
+	demo := opts.call == nil && activeServerIsDemo() // the CLI's selection; a call's is its session's
 	session, err := newRelaySession(paths, opts)
 	if err == nil {
 		env.Server = session.server
 		err = body(session, &env)
-		relayVersion = session.version()
+		relayVersion, demo = session.version(), session.cfg.demoToken != ""
 		session.close()
 	}
-	env.Notices = append(env.Notices, verbNotices(paths, relayVersion)...)
+	env.Notices = append(env.Notices, verbNotices(paths, demo, relayVersion)...)
 	exit := env.exit
 	if err != nil {
 		exit = setVerbError(&env, err)
@@ -204,7 +205,7 @@ func setVerbError(env *verbEnvelope, err error) int {
 	if env.Status != "drift" { // only a drift result carries a stored plan to confirm
 		env.Say, env.NextStep = "", "" // a plan that failed to store has nothing to show or apply
 	}
-	if unreachable := relayUnreachableError(""); errors.As(err, &unreachable) && !activeServerIsDemo() {
+	if unreachable := relayUnreachableError(""); errors.As(err, &unreachable) { // never the demo's (relaySession.noAnswer)
 		env.Say = relayUnreachableSay
 	}
 	if failure.say != "" {
@@ -214,9 +215,9 @@ func setVerbError(env *verbEnvelope, err error) int {
 	return failure.exit
 }
 
-func verbNotices(paths runtimePaths, relayVersion string) []verbNotice {
+func verbNotices(paths runtimePaths, demo bool, relayVersion string) []verbNotice {
 	var notices []verbNotice
-	if activeServerIsDemo() {
+	if demo {
 		notices = append(notices, verbNotice{Kind: "demo", Text: demoNoticeText})
 		if text := demoResetText(verbNow()); text != "" {
 			notices = append(notices, verbNotice{Kind: "demo_reset", Text: text})
@@ -224,7 +225,7 @@ func verbNotices(paths runtimePaths, relayVersion string) []verbNotice {
 	} else if demoProfileOn(paths) {
 		notices = append(notices, verbNotice{Kind: "home", Text: "This is the user's own home, not the demo house; the demo house needs --server demo (apply follows its plan)."})
 	}
-	if n := checkRelayVersionValue(paths, relayVersion); !n.empty() {
+	if n := checkRelayVersionValue(paths, relayVersion, demo); !n.empty() {
 		notices = append(notices, verbNotice{Kind: "relay_outdated", Text: n.message})
 	}
 	if n := skillUpdateNudgeNotice(paths, false); !n.empty() {

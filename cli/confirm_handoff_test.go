@@ -145,7 +145,7 @@ func TestConfirmedButNotSentSaysWhatIsKnown(t *testing.T) {
 				strings.Contains(env.Error.Next, "retrying is safe") || env.Say != says[c.lang] || len(h.posts()) != 0 || len(h.planFiles()) != 1 {
 				t.Fatalf("exit %d env %+v posts %d plans %v", exit, env, len(h.posts()), h.planFiles())
 			}
-			if got := mcpNext(env.Error.Next + " Never run it without --server or HA_NOVA_SERVER."); strings.Contains(got, "ha_get --server") || !strings.Contains(got, "without --server or") || !strings.Contains(got, "ha_get to check") || !strings.Contains(got, "ha_apply with plan_id "+id+" again") {
+			if got := mcpNext(env.Error.Next+" Never run it without --server or HA_NOVA_SERVER.", false); strings.Contains(got, "ha_get --server") || !strings.Contains(got, "without --server or") || !strings.Contains(got, "ha_get to check") || !strings.Contains(got, "ha_apply with plan_id "+id+" again") {
 				t.Fatalf("MCP next %q", got)
 			}
 			if name == "dashboard read fails" && (len(h.lovelaceSaves()) != 0 || len(f.snapshots) != 1) {

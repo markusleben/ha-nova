@@ -132,7 +132,7 @@ func TestServePhoneLinksArePerUser(t *testing.T) {
 	file := filepath.Join(dir, "phone-links.json")
 	defer func() { chatCall = nil }()
 	chatCall = &chatPolicy{user: userA, links: file}
-	if links, ok := linksForCall(runtimePaths{}); !ok || len(links) != 0 {
+	if links, ok := linksForCall(runtimePaths{}, chatCall); !ok || len(links) != 0 {
 		t.Fatalf("missing store: %v %v", links, ok)
 	}
 	store, _ := json.Marshal(map[string]phoneLink{
@@ -141,18 +141,18 @@ func TestServePhoneLinksArePerUser(t *testing.T) {
 	if err := os.WriteFile(file, store, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	links, ok := linksForCall(runtimePaths{})
-	if !ok || len(links) != 1 || linkFor(links, "any-owner").link.DeviceID != "dev-a" {
+	links, ok := linksForCall(runtimePaths{}, chatCall)
+	if !ok || len(links) != 1 || linkFor(links, "any-owner", chatCall).link.DeviceID != "dev-a" {
 		t.Fatalf("A's links: %v", links)
 	}
 	chatCall.user = "cccccccccccccccccccccccccccccccc"
-	if links, ok := linksForCall(runtimePaths{}); !ok || len(links) != 0 {
+	if links, ok := linksForCall(runtimePaths{}, chatCall); !ok || len(links) != 0 {
 		t.Fatalf("unlinked user: %v", links)
 	}
 	if err := os.WriteFile(file, []byte(`{"`+userA+`":`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := linksForCall(runtimePaths{}); ok {
+	if _, ok := linksForCall(runtimePaths{}, chatCall); ok {
 		t.Fatal("a broken store read as readable")
 	}
 	// A linked phone whose confirmer is someone else is refused.

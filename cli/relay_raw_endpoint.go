@@ -200,11 +200,11 @@ func relayReadFailed(cause string) string {
 func printRelaySendFailure(read bool, baseURL string, err error) {
 	switch {
 	case !read:
-		printErr("%s", relayRequestOutcomeUnknownMessage(baseURL, err))
+		printErr("%s", relayRequestOutcomeUnknownMessage(baseURL, err, activeServerIsDemo()))
 	case strings.TrimRight(baseURL, "/") == cloudRelayVirtualBaseURL:
 		printErr("%s", relayReadFailed("Home Assistant Link could not complete the NOVA Relay request: "+cloudOutcomeUnknownCause(err)))
 	default:
-		printErr("%s", relayReadFailed(relayConnectErrorMessage(baseURL, err)))
+		printErr("%s", relayReadFailed(relayConnectErrorMessage(baseURL, err, activeServerIsDemo())))
 	}
 }
 

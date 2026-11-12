@@ -107,7 +107,7 @@ func TestUndoCheckpointsArePerServer(t *testing.T) {
 			t.Fatalf("%s: %+v %v (one server overwrote the other)", server, receipt, err)
 		}
 	}
-	snap, err := selectServerUndoSnapshot(paths, "home", "a1", "automation")
+	snap, err := selectServerUndoSnapshot(paths, "home", activeServerIsDemo(), "a1", "automation")
 	if err != nil || !strings.Contains(string(snap.BeforeConfig), "home") {
 		t.Fatalf("home picked %s, %v", snap.BeforeConfig, err)
 	}

@@ -329,25 +329,45 @@ func (srv *mcpServer) runLocked(name, answered string, forms bool, run func(*ver
 	setServerSelectionOverride(srv.pin)
 	// Channel and form answer come from this server only: the CLI detects
 	// the channel (confirm_window.go), a form only where no window opens.
-	call := &verbCall{start: time.Now(), chat: srv.chat.reread(), server: srv.pin} // the owner's settings as they are now
-	call.deadline = call.start.Add(mcpCheckBudget)
+	call := srv.newCall()
+	call.serial = true
 	planChannel, humanAnswer, windowWait, formsShown, chatCall = "", answered, mcpWindowWait, forms, call.chat
 	if srv.chat != nil {
 		windowWait = chatAskSpan // the phone ask outlives one call (mcp_serve_phone.go)
-		call.start, call.deadline = srv.since, chatCheckDeadline(srv.since)
 	}
 	defer func() {
 		planChannel, humanAnswer, humanWhere, askedRoute, windowWait, formsShown, phoneApplied, chatCall = "", "", "", nil, cliWindowWait, false, nil, nil
 	}()
-	traceRelayVersion.Store("")
 	out, errOut, exit := runCaptured(call, run)
 	if name == "ha_apply" && exit == verbExitUnknown && strings.TrimSpace(out) == "" { // apply crashed after it may have sent
 		return chatStopped(name, applyCrashed(errOut))
 	}
-	if name == "ha_trace" { // trace prints its own object: add the verbs' notices
-		out = withNotices(out, verbNotices(srv.paths, traceRelayVersion.Load().(string)), activeServerProfile())
+	return toolResult(name, out, errOut, exit, srv.told, forms, call.chat)
+}
+
+// newCall: a tool call's own context: its output, its check budget (in a
+// chat app from when the request came in), the owner's settings as they are
+// now, and the server's profile.
+func (srv *mcpServer) newCall() *verbCall {
+	call := &verbCall{start: time.Now(), chat: srv.chat.reread(), server: srv.pin}
+	call.deadline = call.start.Add(mcpCheckBudget)
+	if srv.chat != nil {
+		call.start, call.deadline = srv.since, chatCheckDeadline(srv.since)
 	}
-	return toolResult(name, out, errOut, exit, srv.told, forms, srv.chat != nil)
+	return call
+}
+
+// runRead runs a read tool (mcpLocklessTools) without mcpVerbLock, beside a
+// running change or other reads: it sets no process-wide state, so nothing
+// it reads is another call's.
+func (srv *mcpServer) runRead(name string, forms bool, run func(*verbCall) int) map[string]any {
+	call := srv.newCall()
+	out, errOut, exit := runCaptured(call, run)
+	if name == "ha_trace" { // trace prints its own object: add the verbs' notices
+		cfg, err := verbConfig(srv.paths, verbOptions{call: call})
+		out = withNotices(out, verbNotices(srv.paths, err == nil && cfg.demoToken != "", call.relayVersionSeen()), cfg.profileName())
+	}
+	return toolResult(name, out, errOut, exit, srv.told, forms, call.chat)
 }
 
 // scalarID: a JSON-RPC id is a string or a number.

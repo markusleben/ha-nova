@@ -164,7 +164,7 @@ func applyArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, erro
 // nextStep is the instruction a model must follow after this result
 // (formsStep adjusts it where the client shows confirmation forms); chat: a
 // chat app's call (ha-nova serve).
-func nextStep(envelope map[string]any, chat bool) string {
+func nextStep(envelope map[string]any, chat *chatPolicy) string {
 	plan, _ := envelope["plan"].(map[string]any)
 	errInfo, _ := envelope["error"].(map[string]any)
 	code, _ := plan["code"].(string)
@@ -184,10 +184,10 @@ func nextStep(envelope map[string]any, chat bool) string {
 		return fmt.Sprintf("Show this preview in plain words (diff rows as printed) and wait for the user's own confirmation; only then call ha_apply with plan_id %v.", plan["id"]) + say
 	case errInfo != nil && errInfo["code"] == "RELAY_ERROR" && errInfo["next"] == relayAnsweredNext:
 		return relayAnsweredNext
-	case errInfo != nil && errInfo["code"] == "RELAY_ERROR" && chat:
+	case errInfo != nil && errInfo["code"] == "RELAY_ERROR" && chat != nil:
 		return chatRelayNext
 	case errInfo != nil && (errInfo["code"] == "SECURE_STORAGE_LOCKED" || errInfo["code"] == "SECURE_STORAGE_UNAVAILABLE"):
-		if chat {
+		if chat != nil {
 			return chatRelayNext
 		}
 		next, _ := errInfo["next"].(string) // the message names the fix; not a Relay problem
@@ -197,7 +197,7 @@ func nextStep(envelope map[string]any, chat bool) string {
 	}
 	if restore, _ := envelope["restore"].(string); restore != "" && errInfo == nil {
 		restore, _, _ = strings.Cut(restore, " --server ") // an MCP session is pinned to one server
-		return "If the user asks to undo this delete: " + mcpNext(restore) + "."
+		return "If the user asks to undo this delete: " + mcpNext(restore, chat.isReadOnly()) + "."
 	}
 	if step := findTruncated(envelope); step != "" {
 		return step
@@ -210,11 +210,11 @@ func nextStep(envelope map[string]any, chat bool) string {
 	case "SERVER_MISMATCH":
 		return "This plan belongs to another server; plan again here."
 	case "OUTCOME_UNKNOWN": // always spelled out: the one result a model must never retry
-		return strings.TrimSpace("The outcome is unknown — it may have run: read the target with ha_get and report; never call or apply again. " + mcpNext(next))
+		return strings.TrimSpace("The outcome is unknown — it may have run: read the target with ha_get and report; never call or apply again. " + mcpNext(next, chat.isReadOnly()))
 	case "PLAN_CLAIMED", "PLAN_NOT_FOUND":
 		return mayHaveRun
 	case "CONFIRM_DECLINED", "CONFIRM_CANCELLED", "CONFIRM_UNAVAILABLE", "CONFIRM_IN_FORM", "CONFIRM_IN_WINDOW", "CONFIRM_ON_PHONE", "CONFIRM_REJECTED": // a form's, window's, or phone's outcome
-		return mcpNext(next)
+		return mcpNext(next, chat.isReadOnly())
 	}
 	if reasons, _ := envelope["reasons"].([]any); errInfo["code"] == "REFUSED" && len(reasons) == 1 { // an owned call: its skill first, no raw tail (mcpNext)
 		reason, _ := reasons[0].(map[string]any)
@@ -224,7 +224,7 @@ func nextStep(envelope map[string]any, chat bool) string {
 		}
 	}
 	if next != "" {
-		if step := mcpNext(next); step != next {
+		if step := mcpNext(next, chat.isReadOnly()); step != next {
 			return step
 		}
 	}
@@ -299,15 +299,15 @@ var mcpServerFlag = regexp.MustCompile(`(ha-nova [a-z]+) --server [a-z0-9-]+`)
 
 // mcpNext rewrites a verb's next for an MCP client: CLI commands and flags
 // become tools and arguments; a named ha-nova:* skill gets its chat route.
-func mcpNext(next string) string {
+func mcpNext(next string, readOnly bool) string {
 	out := cliCommands.Replace(mcpArgs(mcpServerFlag.ReplaceAllString(next, "$1")))
 	switch {
 	case !strings.Contains(out, "ha-nova:"):
-	case strings.Contains(out, "ha-nova:yaml-config") && chatReadOnly():
+	case strings.Contains(out, "ha-nova:yaml-config") && readOnly:
 		out += " The user edits the YAML/package file and reloads it in Developer tools → YAML."
 	case strings.Contains(out, "ha-nova:yaml-config"):
 		out += " Load it with ha_skill: with file access on in the NOVA Relay App, its file writes go through ha_plan kind raw, then ha_apply; otherwise the user edits the YAML/package file and reloads it in Developer tools → YAML."
-	case !strings.Contains(out, "Settings") && !chatReadOnly():
+	case !strings.Contains(out, "Settings") && !readOnly:
 		out += " Load that skill with ha_skill (its name without ha-nova:); its writes go through ha_plan (kind raw for its Relay requests), then ha_apply."
 	}
 	return out

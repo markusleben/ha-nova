@@ -20,7 +20,7 @@ func TestPlanLifecycleNextSteps(t *testing.T) {
 		if next := refused(code, "x").next; next != mayHaveRun || !strings.Contains(next, "Do not plan or apply again") {
 			t.Fatalf("%s next %q", code, next)
 		}
-		if step := nextStep(map[string]any{"error": map[string]any{"code": code, "next": mayHaveRun}}, chatCall != nil); step != mayHaveRun {
+		if step := nextStep(map[string]any{"error": map[string]any{"code": code, "next": mayHaveRun}}, chatCall); step != mayHaveRun {
 			t.Fatalf("%s MCP next_step %q", code, step)
 		}
 	}
@@ -231,29 +231,29 @@ func TestHistoryBounds(t *testing.T) {
 // 15: an MCP client gets tool arguments for CLI flags and a no-shell path
 // for skills; a plain next needs no rewrite.
 func TestMCPNextStep(t *testing.T) {
-	step := nextStep(map[string]any{"error": map[string]any{"next": refusalNext["CODE_REQUIRED"]}}, chatCall != nil)
+	step := nextStep(map[string]any{"error": map[string]any{"next": refusalNext["CODE_REQUIRED"]}}, chatCall)
 	if !strings.Contains(step, "confirm_code") || strings.Contains(step, "--confirm") {
 		t.Fatalf("flag next %q", step)
 	}
-	step = nextStep(map[string]any{"error": map[string]any{"next": refusalNext["REVERT_UNSUPPORTED"]}}, chatCall != nil)
+	step = nextStep(map[string]any{"error": map[string]any{"next": refusalNext["REVERT_UNSUPPORTED"]}}, chatCall)
 	if !strings.Contains(step, "ha_plan with kind revert and id <config_id>") || !strings.Contains(step, "ha_skill") || !strings.Contains(step, "kind raw") || strings.Contains(step, "shell") {
 		t.Fatalf("skill next %q", step)
 	}
-	if step := nextStep(map[string]any{"error": map[string]any{"next": refusalNext["CODE_MISMATCH"]}}, chatCall != nil); step != "" {
+	if step := nextStep(map[string]any{"error": map[string]any{"next": refusalNext["CODE_MISMATCH"]}}, chatCall); step != "" {
 		t.Fatalf("plain next rewritten: %q", step)
 	}
-	step = nextStep(map[string]any{"error": map[string]any{"next": refusalNext["CONFIG_NOT_UI_MANAGED"]}}, chatCall != nil)
+	step = nextStep(map[string]any{"error": map[string]any{"next": refusalNext["CONFIG_NOT_UI_MANAGED"]}}, chatCall)
 	if !strings.Contains(step, "Developer tools → YAML") || strings.Contains(step, "(Settings)") {
 		t.Fatalf("yaml-config next %q", step)
 	}
-	step = nextStep(map[string]any{"error": map[string]any{"next": enableNext("device")}}, chatCall != nil)
+	step = nextStep(map[string]any{"error": map[string]any{"next": enableNext("device")}}, chatCall)
 	if strings.Contains(step, "need a client with a shell") || step != "" {
 		t.Fatalf("a next already naming Settings got the fallback: %q", step)
 	}
-	if step := nextStep(map[string]any{"error": map[string]any{"code": "SERVER_MISMATCH", "next": refusalNext["SERVER_MISMATCH"]}}, chatCall != nil); step != "This plan belongs to another server; plan again here." {
+	if step := nextStep(map[string]any{"error": map[string]any{"code": "SERVER_MISMATCH", "next": refusalNext["SERVER_MISMATCH"]}}, chatCall); step != "This plan belongs to another server; plan again here." {
 		t.Fatalf("server mismatch %q", step)
 	}
-	if step := nextStep(map[string]any{"error": map[string]any{"next": configIDInUseNext("script")}}, chatCall != nil); !strings.Contains(step, "id <new> create: true") {
+	if step := nextStep(map[string]any{"error": map[string]any{"next": configIDInUseNext("script")}}, chatCall); !strings.Contains(step, "id <new> create: true") {
 		t.Fatalf("script collision %q", step)
 	}
 	temp := &mcpTempFiles{}
