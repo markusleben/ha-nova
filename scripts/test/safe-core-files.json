@@ -57,6 +57,7 @@
   "tests/http/nova-page.test.ts",
   "tests/http/chat-apps-api.test.ts",
   "tests/http/nova-page-chat-phone.test.ts",
+  "tests/http/nova-page-admins.test.ts",
   "tests/http/nova-page-chat-users.test.ts",
   "tests/http/page-texts.test.ts",
   "tests/http/pair-v2-arm.test.ts",
