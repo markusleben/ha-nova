@@ -46,6 +46,7 @@ Never call a bitmask-backed service (install/version/backup/release-notes) the m
 ## Flow
 
 ### Overview
+Asked whether they can update: `ha-nova map --section updates` (`advisor.md`) instead.
 `GET /api/states --out <result-file>` for the update entities AND WS `{"type":"config/entity_registry/list"}` for their `platform`/`unique_id` (states alone cannot classify). Filter `update.*`, report grouped, pending (`state: "on"`) first:
 - Home Assistant stack: core, operating system, supervisor
 - Apps; integrations (Marketplace/HACS components); device firmware (everything else)
@@ -54,17 +55,17 @@ NOVA Relay requires exactly `platform: hassio` plus `unique_id: 2368fcfa_ha_nova
 Per pending item: name, installed → new version, auto-update or skip. Fleets: counts per group + pending list — never dump 200 firmware rows.
 
 ### Release notes
-Bit 16 set: WS `{"type":"update/release_notes","entity_id":"update.<id>"}` → markdown in `.data`; summarize, never dump. Without bit 16, do not call it (it fails with `not_supported`) — use the entity's `release_summary`/`release_url` instead; when both are empty, say no notes are available.
+Bit 16 set: WS `{"type":"update/release_notes","entity_id":"update.<id>"}` → markdown in `.data`; summarize, never dump. Without bit 16 it fails with `not_supported`: use `release_summary`/`release_url`; both empty: say no notes are available.
 
 ### Install
-1. Feature Gate: bit 1 required. Since HA 2026.9, install, skip, and clear_skipped are admin-only: the Relay's upstream user must be an administrator (App/Supervisor system context: always; standalone container: the `HA_LLAT` owner). Preview one update: name, versions, release-notes summary or link.
+1. First `ha-nova map --section updates`, even for one update (`advisor.md`). Feature Gate: bit 1 required. Since HA 2026.9, install, skip, and clear_skipped are admin-only: the Relay's upstream user must be an administrator (App/Supervisor system context: always; standalone container: the `HA_LLAT` owner). Preview one update: name, versions, release-notes summary or link.
 2. Safety gates by kind:
    - **core / operating system**: far-reaching — offer a full safety backup first via `ha-nova:backup` and say that HA restarts during the update. Surface breaking-changes sections first; for skipped-version jumps link intermediate releases via `release_url`. Honor named OS/Supervisor prerequisites first.
    - **Apps**: with bit 8, include `"backup": true`. NOVA Relay restarts mid-call; use step 6's target/entity/ping/post-health verification. Its entity lacks bit 2: preview latest and omit `version`.
    - **supervisor**: usually updates itself (`auto_update`); an explicit install restarts the Supervisor — expect a brief entity dropout during the poll, no HA restart.
    - **integrations (Marketplace/HACS components)**: `platform: marketplace` (Home Assistant 2026.11+): installs only the latest; restart as for HACS below. Relay a `MARKETPLACE_WARNING` refusal's `say` verbatim; only when it offers the acceptance and the user wants it, hand that step to `ha-nova:hacs` (Marketplace mode), then plan the install again. `platform: hacs`: before ANY install — single or batched — read the HACS repository info: a set `selected_tag` (pin/downgrade) STOPS the install here; pin overrides are explicit per-item decisions in `ha-nova:hacs`, never an `update.install` side effect. The same stop applies to any EXPLICIT version target on a `platform: hacs` entity (older or specific version, pinned or not): hand it to `ha-nova:hacs` — a generic `update.install` with `"version"` would download once without the HACS preview/read-back and without the persistent-pin step. This skill installs only the latest for HACS entities. Surface breaking-changes sections from their release notes like core; a one-line summary is not enough. The new version loads only after a Home Assistant restart — after a verified install, report it as installed but not yet active, and offer the restart as a separate confirmed step via `ha-nova:service-call`.
    - **device firmware**: warn that firmware updates can take long, must not be interrupted, and rarely have release notes — confirm the exact device. `platform: esphome` compiles the device's current YAML: check it with `ha-nova:esphome` first.
-3. Plan it now (step 5's `ha-nova call`, exit 3); confirm its preview once (context skill → Active Preview Confirmation). One update per confirmation, one plan each. For "update everything", confirm the batch explicitly, then install sequentially, verifying each before the next. Order Apps and firmware before core/OS because a restart pauses later work.
+3. Plan it now (step 5's `ha-nova call`, exit 3); confirm its preview once (context skill → Active Preview Confirmation). One update per confirmation, one plan each. For "update everything", confirm the batch explicitly, then install sequentially, verifying each before the next.
    Since HA 2026.7 the Updates page's per-group "Update all" is ONE multi-target `update.install`: concurrent installs, NO backup flag, only the FIRST failure surfaced, never core/OS/Supervisor. This skill deliberately does NOT mirror that call shape — sequential installs with per-item verification and backup gates stay. Mirror its guardrails instead: the HA system stack is never part of the one batch confirmation (each of those stays its own confirmed step with its own gates), and skipped or `in_progress` entities never ride along. HACS integrations in a batch all stay installed-but-not-active — collect them and offer ONE restart at the end instead of one per item. Pinned HACS repositories still report as pending: per the HACS bullet above, EXCLUDE repositories with a `selected_tag` from any batch.
 4. Immediately before POST, re-read state and registry. Require the confirmed `entity_id`, `platform`, `unique_id`, `installed_version`, `latest_version`, and `supported_features`, with `in_progress` false. For NOVA Relay, re-require that exact pair. Any drift invalidates confirmation: re-plan, reconfirm.
 5. Plan: `ha-nova call update.install update.<id> --skill ha-nova:updates` (+ `--set backup=true` for App updates; for core/OS pass it ONLY when the confirmed preview explicitly included that built-in backup; + the confirmed `--set version=<v>` only with bit 2); then `ha-nova apply --plan <id>`.
@@ -79,7 +80,6 @@ Bit 16 set: WS `{"type":"update/release_notes","entity_id":"update.<id>"}` → m
 
 ## Error Handling
 
-- `not_supported` on release notes: expected without bit 16 — use `release_url`.
 - Install rejected: say plainly why, no blind retry — a running update (`in_progress`) blocks a second install.
 - Upstream permission denial on install/skip/clear_skipped — REST envelope `.ok == true` with `.data.status` 401, or `502 / UPSTREAM_WS_COMMAND_ERROR` carrying HA's `unauthorized`: the upstream user is not an administrator (HA 2026.9 admin-only actions). The App runs as the Supervisor system user and is not affected; on a standalone container the `HA_LLAT` must belong to an administrator — fix it, never retry. A top-level `401 / UNAUTHORIZED` (`.ok == false`) is the Relay's own client authentication, not this case (`../ha-nova/relay-api.md` → Error Handling).
 - Entity vanished mid-poll: re-read once; NOVA Relay uses the health-poll window above.
