@@ -72,6 +72,7 @@
   "say.about": "I'm about to {action}.",
   "say.nothing_found": "Not done: I couldn't find what you named. Nothing changed. Tell me which devices you mean.",
   "say.confirmed_not_sent": "Not done: you confirmed, but HA NOVA couldn't reach Home Assistant, so nothing changed.",
+  "say.drift_after_ok": "Not done: your OK wasn't used, so nothing was sent.",
   "say.marketplace_update": "Not done: Home Assistant installs Marketplace updates only once its warning is accepted for the user HA NOVA uses, and HA NOVA can't do that here. Nothing changed. Update it in Home Assistant: Settings → Marketplace.",
   "say.marketplace_accept": "Not done: Home Assistant installs Marketplace updates only once its warning is accepted for the user HA NOVA uses. Nothing changed. HA NOVA can accept it for that user after your own confirmation, or you update it in Home Assistant: Settings → Marketplace.",
   "say.in_area": "{name} in {area}",

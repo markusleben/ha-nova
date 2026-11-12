@@ -41,13 +41,13 @@ func newApplySession(paths runtimePaths, opts verbOptions, plan storedPlan) (*re
 }
 
 // confirmedNotSent: the human confirmed in a window, on the phone, or in a
-// form, but nothing reached Home Assistant. RELAY_ERROR would send the agent
+// form, or through the App's ask, but nothing reached Home Assistant. RELAY_ERROR would send the agent
 // to setup or to a retry that asks the human again unprompted. The read
 // names the plan's server (a read does not follow the plan). kept: the plan
 // is still open. Its say speaks the plan's language. A chat app keeps
 // RELAY_ERROR: its own step (chatRelayNext) never names a terminal command.
 func confirmedNotSent(failure *verbFailure, plan storedPlan, server string, kept bool) {
-	if humanAnswer == "" || chatCall != nil {
+	if humanAnswer == "" && humanWhere == "" || chatCall != nil {
 		return
 	}
 	again := "Run ha-nova apply --plan " + plan.ID + " again (it asks them again)."
