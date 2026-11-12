@@ -15,7 +15,7 @@
 // PASS/FAIL/SKIP lines; exits non-zero on FAIL or a broken run.
 import { agentCleanup, agentSetup, agentTurn } from "./agent.mjs";
 
-const TARGETS = { shell: ["Demo Update with Progress", "update.demo_update_with_progress"], mcp: ["Demo Update with Decimal Progress", "update.demo_update_with_decimal_progress"] };
+const TARGETS = { shell: ["Demo Update with Progress", "update.demo_update_with_progress"], mcp: ["Demo Living Room Bulb", "update.demo_living_room_bulb_update"] };
 let failed = 0;
 const line = (status, name, detail) => {
   if (status === "FAIL") failed++;
@@ -53,18 +53,22 @@ try {
     const check = await agentTurn(agent, { path, prompt: "Can I install the pending Home Assistant updates? Don't install anything yet." });
     cost += check.cost;
     const s1 = steps(check);
-    line(s1.includes("check") && !s1.includes("apply") && !s1.includes("plan") ? "PASS" : "FAIL", path + " check", s1.join(",") || "no steps");
+    const checked = s1.includes("check") && !s1.includes("apply") && !s1.includes("plan");
+    line(checked ? "PASS" : "FAIL", path + " check", s1.join(",") || "no steps");
+    if (!checked) console.log(check.calls.map((c) => c.name + " " + c.text.slice(0, 300)).join("\n") + "\nREPLY " + check.reply.slice(0, 800));
     const [name, entity] = TARGETS[path];
     const ask = await agentTurn(agent, { path, prompt: "Install the " + name + " update." });
     cost += ask.cost;
     const s2 = steps(ask);
     const ordered = s2.indexOf("check") >= 0 && (s2.indexOf("plan") < 0 || s2.indexOf("check") < s2.indexOf("plan"));
     line(ordered && !s2.includes("apply") ? "PASS" : "FAIL", path + " install asks first", s2.join(",") || "no steps");
+    if (!ordered) console.log(ask.calls.map((c) => c.name + " " + c.text.slice(0, 160)).join("\n") + "\nREPLY " + ask.reply.slice(0, 600));
     const yes = await agentTurn(agent, { path, prompt: "Yes, go ahead.", resume: ask.session });
     cost += yes.cost;
     const s3 = steps(yes);
     const after = s3.indexOf("after") > s3.indexOf("apply") && s3.includes("apply");
     line(after && (await installed(entity)) ? "PASS" : "FAIL", path + " install, then the after-update check", s3.join(",") || "no steps");
+    if (!after) console.log(yes.calls.map((c) => c.name + " " + c.text.slice(0, 300)).join("\n") + "\nREPLY " + yes.reply.slice(0, 800));
   }
 } catch (err) {
   line("FAIL", "agent-updates run", String(err.message ?? err).slice(0, 300));
