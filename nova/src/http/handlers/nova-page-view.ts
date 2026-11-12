@@ -289,7 +289,7 @@ ${formOpen}${csrfField("reset_registry")}<input type="text" name="confirm_text" 
 
 const PLATFORM: Record<string, string> = { darwin: "macOS", windows: "Windows", linux: "Linux" };
 function platformName(platform: string): string {
-  return PLATFORM[platform] ?? platform;
+  return Object.hasOwn(PLATFORM, platform) ? PLATFORM[platform]! : platform;
 }
 
 function cloudBadge(device: DeviceRecord): string {

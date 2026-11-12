@@ -235,7 +235,7 @@ describe("nova-page", () => {
     expect(r.statusCode).toBe(403);
   });
 
-  function addActiveDevice(name = "Mac", installId = "i") {
+  function addActiveDevice(name = "Mac", installId = "i", platform = "darwin") {
     const c = generateCredential();
     registry.createPending(
       {
@@ -243,7 +243,7 @@ describe("nova-page", () => {
         secretDigest: c.secretDigest,
         clientInstallId: installId,
         name,
-        platform: "darwin",
+        platform,
         client: "claude",
         createdAtMs: 1,
       },
@@ -258,6 +258,15 @@ describe("nova-page", () => {
     expect(match).not.toBeNull();
     return match![1]!;
   }
+
+  it("names a device's platform, and shows any other platform as sent, even one named like an object property", async () => {
+    addActiveDevice("Mac", "i1");
+    for (const [i, platform] of ["constructor", "__proto__", "toString"].entries()) addActiveDevice("Odd", `o${i}`, platform);
+    const r = await call(createNovaPageHandler(deps), req());
+    expect(r.statusCode).toBe(200);
+    expect(r.body).toContain("macOS · claude");
+    for (const platform of ["constructor", "__proto__", "toString"]) expect(r.body).toContain(`${platform} · claude`);
+  });
 
   it("revokes a device only through the armed confirm flow", async () => {
     const c = addActiveDevice();
