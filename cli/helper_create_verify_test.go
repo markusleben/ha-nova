@@ -115,6 +115,24 @@ func TestRelayCoreHelperVerificationReachesJQAndStdout(t *testing.T) {
 	}
 }
 
+// A template or group helper's options flow opens on its entity type's
+// step, not init: still a verified create.
+func TestRelayCoreVerifiesATemplateHelperOnItsTypeStep(t *testing.T) {
+	home := helperHome()
+	home["POST /api/config/config_entries/flow/f1"] = map[string]any{"status": 200, "body": map[string]any{"type": "create_entry", "handler": "template", "result": map[string]any{"entry_id": "e1"}}}
+	home["config_entries/get"] = []any{map[string]any{"entry_id": "e1", "domain": "template", "title": "Watts", "state": "loaded", "supports_options": true}}
+	home["manifest/list"] = []any{map[string]any{"domain": "template", "is_built_in": true}}
+	home["POST /api/config/config_entries/options/flow"] = map[string]any{"status": 200, "body": map[string]any{"type": "form", "flow_id": "o1", "handler": "e1", "step_id": "sensor", "data_schema": []any{
+		map[string]any{"name": "state", "description": map[string]any{"suggested_value": "{{ 1 }}"}},
+	}}}
+	_, output, envelope, keys := submitHelperStep(t, home, "/api/config/config_entries/flow/f1")
+	v := verificationOf(t, envelope)
+	options, _ := v["options"].(map[string]any)
+	if v["passed"] != true || options["state"] != "{{ 1 }}" || !slices.Contains(keys, "DELETE /api/config/config_entries/options/flow/o1") {
+		t.Fatalf("verification %v, requests %v\n%s", v, keys, output)
+	}
+}
+
 // An entry without options support gets no options flow, and still the
 // built-in check.
 func TestRelayCoreHelperWithoutOptionsStartsNoOptionsFlow(t *testing.T) {

@@ -68,6 +68,9 @@ func (s *relaySession) helperOptions(body []byte) (json.RawMessage, error) {
 	}
 
 	form, err := s.optionsForm(req.EntryID)
+	if err == nil && form.StepID != "init" {
+		err = fmt.Errorf("entry %s answered HTTP %d, %q step %q", req.EntryID, http.StatusOK, form.Type, form.StepID)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("helper options: %w", err)
 	}
@@ -101,7 +104,8 @@ type optionsFormAnswer struct {
 
 // optionsForm starts entryID's options flow once (a retry could open a
 // second one), aborts it whenever its answer names one, before anything is
-// checked, and returns that answer only when it is the entry's init form.
+// checked, and returns that answer only when it is a form of that entry (its
+// first step: init for most helpers, the entity type for a template or group).
 func (s *relaySession) optionsForm(entryID string) (optionsFormAnswer, error) {
 	start, _ := json.Marshal(map[string]any{"method": http.MethodPost, "path": optionsFlowPath, "body": map[string]any{"handler": entryID}})
 	s.mu.Lock()
@@ -126,7 +130,7 @@ func (s *relaySession) optionsForm(entryID string) (optionsFormAnswer, error) {
 		return form, err
 	case abort != nil:
 		return form, fmt.Errorf("the options flow of %s was not aborted: %w", entryID, abort)
-	case core.Status != http.StatusOK || form.Type != "form" || form.Handler != entryID || form.StepID != "init":
+	case core.Status != http.StatusOK || form.Type != "form" || form.Handler != entryID:
 		return form, fmt.Errorf("entry %s answered HTTP %d, %q step %q", entryID, core.Status, form.Type, form.StepID)
 	}
 	return form, nil
