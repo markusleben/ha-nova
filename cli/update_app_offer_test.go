@@ -61,10 +61,15 @@ func TestUpdateAppCheckIsBoundedAndSaysWhenItGivesUp(t *testing.T) {
 	paths := guidedUpdatePaths(t)
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
 	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(t.TempDir(), "relay-token"))
+	gone := make(chan struct{})
 	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		<-r.Context().Done() // a route that never answers
+		select { // a route that never answers
+		case <-r.Context().Done():
+		case <-gone:
+		}
 	}))
 	t.Cleanup(relay.Close)
+	t.Cleanup(func() { close(gone) }) // runs first: a kept-alive request never holds Close
 	if err := saveConfig(paths, runtimeConfig{HAHost: "127.0.0.1", HAURL: "http://127.0.0.1:8123", RelayBaseURL: relay.URL}); err != nil {
 		t.Fatalf("saveConfig() error: %v", err)
 	}
@@ -95,14 +100,19 @@ func TestUpdateAppCheckCutAfterTheVersionKeepsOnlyTheWarning(t *testing.T) {
 	paths := guidedUpdatePaths(t)
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
 	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(t.TempDir(), "relay-token"))
+	gone := make(chan struct{})
 	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/health" {
 			_, _ = w.Write([]byte(`{"ok":true,"data":{"status":"ok","version":"0.2.6"}}`)) // below the floor (0.4.0)
 			return
 		}
-		<-r.Context().Done() // Home Assistant's states never come
+		select { // Home Assistant's states never come
+		case <-r.Context().Done():
+		case <-gone:
+		}
 	}))
 	t.Cleanup(relay.Close)
+	t.Cleanup(func() { close(gone) }) // runs first: a kept-alive request never holds Close
 	if err := saveConfig(paths, runtimeConfig{HAHost: "127.0.0.1", HAURL: "http://127.0.0.1:8123", RelayBaseURL: relay.URL}); err != nil {
 		t.Fatalf("saveConfig() error: %v", err)
 	}
