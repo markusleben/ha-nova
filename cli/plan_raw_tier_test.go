@@ -73,7 +73,8 @@ func TestPlanRawTierCoversEveryAllowlistedRequest(t *testing.T) {
 		"/api/config/config_entries/flow/0123abcd", "/api/config/config_entries/options/flow/0123abcd", "/api/config/config_entries/entry/0123abcd",
 		"/api/config/config_entries/subentries/flow", "/api/config/config_entries/subentries/flow/0123abcd", "/api/repairs/issues/fix", "/api/repairs/issues/fix/0123abcd",
 		"/api/config/scene/config/evening"}
-	typedCore := []string{"DELETE /api/config/config_entries/entry/0123abcd", "DELETE /api/config/scene/config/evening"}
+	typedCore := []string{"DELETE /api/config/config_entries/entry/0123abcd", "DELETE /api/config/scene/config/evening",
+		"POST /api/config/config_entries/subentries/flow/0123abcd", "POST /api/repairs/issues/fix", "POST /api/repairs/issues/fix/0123abcd"}
 	for _, allowed := range rawCoreWrites {
 		matched := false
 		for _, sample := range samples {
@@ -150,7 +151,8 @@ func TestPlanRawBatch2FlowParity(t *testing.T) {
 				body, _ := json.Marshal(items)
 				exit, env := planRaw(t, paths, string(body))
 				chat, code := readEnvelope(c.tool("ha_plan", map[string]any{"kind": "raw", "requests": items}))
-				want := map[bool]string{false: "preview", true: "typed"}[typed]
+				flowTyped := method != "DELETE" && (strings.HasPrefix(target, "/api/repairs/") || target == "/api/config/config_entries/subentries/flow/f1") // the CLI's own rule (#1134)
+				want := map[bool]string{false: "preview", true: "typed"}[typed || flowTyped]
 				if exit != verbExitConfirmation || env.Tier != want || code != "" || chat["tier"] != want {
 					t.Errorf("%s %s typed=%v: exit %d CLI %+v chat %v", method, target, typed, exit, env, chat)
 				}

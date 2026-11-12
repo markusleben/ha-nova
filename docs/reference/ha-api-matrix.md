@@ -113,9 +113,9 @@ Raw `ha-nova relay ws` sends only the types on `cli/relay_raw_allow.go` (raw `re
 | `/core` | `GET /api/config/config_entries/options/flow/{flow_id}` | Read current options-flow step |
 | `/core` | `POST /api/config/config_entries/options/flow/{flow_id}` | Submit options-flow step |
 | `/core` | `DELETE /api/config/config_entries/options/flow/{flow_id}` | Cancel an unfinished options flow |
-| `/core` | `POST /api/config/config_entries/subentries/flow` | Start add (`handler: [entry_id, subentry_type]`) or reconfigure (also `subentry_id`); preview raw plan; an access-capable parent entry is refused |
+| `/core` | `POST /api/config/config_entries/subentries/flow` | Start add (`handler: [entry_id, subentry_type]`) or reconfigure (also `subentry_id`); an add is a preview raw plan, a reconfigure typed; an access-capable parent entry is refused |
 | `/core` | `GET /api/config/config_entries/subentries/flow/{flow_id}` | Continue subentry flow; plan-only, can finish it |
-| `/core` | `POST /api/config/config_entries/subentries/flow/{flow_id}` | Submit live subentry step; preview, typed if removing configuration |
+| `/core` | `POST /api/config/config_entries/subentries/flow/{flow_id}` | Submit live subentry step; typed (the integration decides what it changes) |
 | `/core` | `DELETE /api/config/config_entries/subentries/flow/{flow_id}` | Cancel an unfinished subentry flow; preview |
 | `/core` | `DELETE /api/config/config_entries/entry/{entry_id}` | Delete config entry; integration-setup, typed raw plan with owned device/entity counts and consumers |
 
@@ -194,9 +194,8 @@ Recurring instances add `recurrence_id`; `recurrence_range` is `""` for only tha
 
 **Repairs fix flows:** health owns `POST /api/repairs/issues/fix` with
 `handler: <issue domain>, issue_id`, then `POST /api/repairs/issues/fix/{flow_id}`
-with the live form body. Preview each step; the existing raw-item `typed: true`
-raises deletion/removal repairs, identified from the issue domain/translation
-and live description because HA declares no deletion flag. The by-id GET can
+with the live form body. The CLI types the start and every step itself (HA
+declares no deletion flag, and the gate can't tell a flow id's issue). The by-id GET can
 advance/finish a flow, so it is plan-only too. DELETE the by-id path cancels
 an unfinished agent-owned flow at preview tier. Unknown outcomes are reconciled
 against the issue and actual affected resources, never retried blindly.
