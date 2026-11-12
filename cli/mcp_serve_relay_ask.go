@@ -19,15 +19,16 @@ import (
 // state goes aside and stays clean for others while the lock is free; the
 // lock comes back, as long as it takes (an approval stands), with that
 // state, also when the ask panics. After an approval, the user's access is
-// read again first, as after a phone tap: a user the owner removed,
-// lowered, or set to read only meanwhile, or who is no longer an
-// administrator for a config plan, sends nothing, and the grant expires
-// unused. gateStillApproved then checks the plan again under the lock.
+// read again under the lock, so nothing changes it before the apply: a user
+// the owner removed, lowered, or set to read only meanwhile, or who is no
+// longer an administrator for a config plan, sends nothing, and the grant
+// expires unused. gateStillApproved then checks the plan again.
 func (srv *mcpServer) askOutside(job *chatJob, call *verbCall) func(func() bool) error {
 	return func(ask func() bool) error {
 		mine := takeVerbState()
 		verbState{windowWait: cliWindowWait}.put()
 		job.tapped.Store(false) // a later ask of this apply (an expired grant) waits for the phone again
+		job.sent.Store(false)
 		job.outside.Store(true)
 		mcpVerbLock.Unlock()
 		locked := false
@@ -43,11 +44,14 @@ func (srv *mcpServer) askOutside(job *chatJob, call *verbCall) func(func() bool)
 				relock()
 			}
 		}()
-		if !ask() {
+		approved := ask()
+		job.sent.Store(true) // the ask ended: until the lock is back, ha_apply still says the phone was asked
+		if !approved {
 			relock()
 			return nil // gateAsk says how it ended; nothing was sent
 		}
 		job.tapped.Store(true)
+		relock()
 		now, code, why := srv.chat.bridge.policyNow(srv.chat.user)
 		kind, _ := json.Marshal(job.kind) // the plan is claimed now: its kind decides, as when it was planned
 		admin := func() *verbFailure {
@@ -57,8 +61,6 @@ func (srv *mcpServer) askOutside(job *chatJob, call *verbCall) func(func() bool)
 		for demoted != nil && demoted.code == "BUSY" {
 			demoted = admin()
 		}
-		relock()
-		now = now.reread() // under the lock: the owner's settings as they are now
 		switch {
 		case now == nil && code == http.StatusServiceUnavailable:
 			return gateStop("refused", "ACCESS_UNKNOWN", why+"; nothing was sent", "Tell the user nothing changed: HA NOVA couldn't check their Home Assistant account just now. They can try again in a moment.")

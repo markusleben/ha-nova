@@ -217,7 +217,7 @@ type chatJob struct {
 	kind    string                 // the plan's kind: its outcome only for a user who may still apply it
 	locked  chan struct{}          // closed once the job holds mcpVerbLock (never when it gave up on it)
 	tapped  atomic.Bool            // the phone answered (Confirm, Cancel, someone else's tap), or approved the Relay's ask; apply may be running
-	sent    atomic.Bool            // the question went out (askPhone): until then HA NOVA is still checking
+	sent    atomic.Bool            // the question went out (askPhone), or a Relay ask ended (askOutside): until then HA NOVA is still checking
 	tap     atomic.Pointer[string] // how to answer on the phone asked (phoneTapLine), once known
 	asking  atomic.Int32           // what of its Relay ask waits for the person; nothing was sent yet (gateApproval, verbCall.asking)
 	outside atomic.Bool            // ha-nova serve: its Relay ask runs without mcpVerbLock (askOutside)
@@ -266,7 +266,7 @@ func (srv *mcpServer) chatApply(name string, args map[string]json.RawMessage, ar
 				b.mu.Unlock()
 				open, _, _ := strings.Cut(strings.TrimPrefix(k, c.user+"/"), "/")
 				return refuse(refusedWith("CONFIRM_PENDING", "another change ("+open+") is still waiting for a tap on the phone",
-					fmt.Sprintf("Tell the user nothing changed yet: their phone still has an open HA NOVA confirmation. Call ha_apply with plan_id %s right away, in this same answer, to wait for that one first (it sends no new notification), then apply this plan. You can't act once your answer ends, so never promise to do either on your own; if you end your answer first, tell the user to ask you again for this change.", open)))
+					fmt.Sprintf("Tell the user nothing changed yet: "+map[bool]string{false: "their phone", true: "the phone linked to their NOVA Relay container"}[old.relay]+" still has an open HA NOVA confirmation. Call ha_apply with plan_id %s right away, in this same answer, to wait for that one first (it sends no new notification), then apply this plan. You can't act once your answer ends, so never promise to do either on your own; if you end your answer first, tell the user to ask you again for this change.", open)))
 			}
 		}
 		job = &chatJob{done: make(chan struct{}), locked: make(chan struct{}), lang: confirmLanguage(plan.Lang), what: what, phone: phone, relay: relay, kind: plan.Kind}

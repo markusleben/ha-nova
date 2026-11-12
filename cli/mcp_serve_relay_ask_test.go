@@ -97,8 +97,10 @@ func TestServeContainerAsksItsLinkedPhone(t *testing.T) {
 
 // The clear refusals, each sending nothing: no phone linked to the
 // container (and the bridge host's own phone is never moved there), a
-// paused phone, an ask another token holder replaced, and an OK that came
-// after the owner set chat apps to read only.
+// paused phone, an ask another token holder replaced, one nobody answered
+// in time or the phone couldn't get (never pointing to a NOVA page the
+// container hasn't), and an OK that came after the owner set chat apps to
+// read only.
 func TestServeContainerAskRefusals(t *testing.T) {
 	for name, c := range map[string]struct {
 		g        *fakeGate
@@ -109,6 +111,8 @@ func TestServeContainerAskRefusals(t *testing.T) {
 		"no phone":  {&fakeGate{phones: true}, "CONFIRM_UNAVAILABLE", gateChatNoPhoneNext, false},
 		"paused":    {&fakeGate{openAnswer: fakeRelayStatus{429, "GATE_PAUSED", "Confirmations on the phone are paused"}}, "GATE_PAUSED", gateChatNext["GATE_PAUSED"], false},
 		"replaced":  {&fakeGate{state: "cancelled"}, "CONFIRM_DECLINED", gateChatCancelledNext, false},
+		"expired":   {&fakeGate{state: "expired"}, "CONFIRM_CANCELLED", gateChatEnded("expired").next, false},
+		"lost":      {&fakeGate{state: "unavailable"}, "CONFIRM_UNAVAILABLE", gateChatEnded("unavailable").next, false},
 		"read only": {&fakeGate{release: make(chan struct{})}, "READ_ONLY", "", true},
 	} {
 		t.Run(name, func(t *testing.T) {

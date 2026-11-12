@@ -4,8 +4,22 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
+
+// The App's bridge keeps ha-nova serve's waits as before: its apply job's
+// own ask flag counts only on a Relay that gates the bridge.
+func TestGateAppBridgeKeepsItsWaits(t *testing.T) {
+	var asking atomic.Int32
+	call := &verbCall{asking: &asking}
+	if s := (&relaySession{cfg: runtimeConfig{bridgeCredential: "hanova-dev-v1.x.y"}, call: call}); s.approval() != gateApproval {
+		t.Fatal("the App's bridge took its job's ask flag")
+	}
+	if s := (&relaySession{call: call}); s.approval() != &asking {
+		t.Fatal("a gated bridge's job lost its ask flag")
+	}
+}
 
 // A chat bridge outside the App (the standalone container, the hosted demo)
 // is gated like any device. It asks the container's phone only from its

@@ -77,10 +77,11 @@ func (s *relaySession) gateExempt() bool { return s.cfg.bridgeCredential != "" }
 func (s *relaySession) gateChat() bool { return s.call.chatPolicy() != nil }
 
 // approval: what of a job's Relay ask waits for the person: ha-nova serve's
-// apply job's own (verbCall.asking), else ha-nova mcp's gateApproval; nil:
-// the CLI, whose ask ends with the command's wait.
+// apply job's own (verbCall.asking) on a Relay that gates it, else ha-nova
+// mcp's gateApproval; nil: the CLI, whose ask ends with the command's wait,
+// and the App's bridge, which keeps its waits.
 func (s *relaySession) approval() *atomic.Int32 {
-	if s.call != nil && s.call.asking != nil {
+	if s.call != nil && s.call.asking != nil && !s.gateExempt() {
 		return s.call.asking
 	}
 	return gateApproval
@@ -184,8 +185,8 @@ func (s *relaySession) gateAsk(reqs []gateRequest) error {
 	switch {
 	case stop != nil:
 		return stop
-	case chat && state == "cancelled":
-		return gateStop("declined", "CONFIRM_DECLINED", "the change was cancelled on the phone linked to the NOVA Relay container, or another ask through that container replaced it; nothing was sent", gateChatCancelledNext)
+	case chat && (state != "approved" || grant == ""):
+		return gateChatEnded(state)
 	case state != "approved" || grant == "":
 		return gateEnded(state)
 	}
@@ -390,8 +391,8 @@ var gateNext = map[string]string{
 const (
 	gateChatHeldNext        = "Tell the user nothing changed yet: this change needs an OK on the phone linked to their NOVA Relay container, which HA NOVA asks only when it applies a plan. Plan it with ha_plan, then apply that plan with ha_apply."
 	gateChatHeldPartNext    = "Tell the user which steps went through; the next one needs an OK on the phone linked to their NOVA Relay container, so nothing more was sent. Plan the rest with ha_plan, then apply that plan with ha_apply."
-	gateChatNoPhoneNext     = "Tell the user nothing changed: this change needs an OK on the phone linked to their NOVA Relay container, and no phone is linked there. Whoever runs the container links one from a paired computer (ha-nova setup confirm-phone in a terminal); or they make the change in Home Assistant itself. Never ask them for a code."
-	gateChatNoPhonePartNext = "Tell the user which steps went through; the next one needs an OK on the phone linked to their NOVA Relay container, and no phone is linked there, so nothing more was sent. Whoever runs the container links one from a paired computer (ha-nova setup confirm-phone in a terminal); or they make the rest in Home Assistant itself."
+	gateChatNoPhoneNext     = "Tell the user nothing changed: this change needs an OK on the phone linked to their NOVA Relay container, and no phone is linked there. Whoever runs the container links one from a paired computer; or they make the change in Home Assistant itself. Never ask them for a code."
+	gateChatNoPhonePartNext = "Tell the user which steps went through; the next one needs an OK on the phone linked to their NOVA Relay container, and no phone is linked there, so nothing more was sent. Whoever runs the container links one from a paired computer; or they make the rest in Home Assistant itself."
 	gateChatCancelledNext   = "Tell the user nothing changed: the ask was cancelled on the phone linked to their NOVA Relay container, or someone else using that container (another chat user or a computer) asked for a change meanwhile, which replaces it. Apply this plan again only if they ask for it."
 )
 
@@ -422,6 +423,22 @@ func gateEnded(state string) *verbFailure {
 	}
 	return gateStop("refused", "CONFIRM_UNAVAILABLE", "no one could confirm it now (the linked phone can't be asked and no other place can, or the NOVA App stopped answering); nothing was sent",
 		"Tell the user nothing changed. They can confirm on the NOVA page in Home Assistant, or make this change in Home Assistant itself.")
+}
+
+// gateChatEnded: gateEnded for a chat app on a standalone Relay container,
+// whose linked phone is the only place to confirm.
+func gateChatEnded(state string) *verbFailure {
+	switch state {
+	case "cancelled":
+		return gateStop("declined", "CONFIRM_DECLINED", "the change was cancelled on the phone linked to the NOVA Relay container, or another ask through that container replaced it; nothing was sent", gateChatCancelledNext)
+	case "expired", "timeout":
+		return gateStop("cancelled", "CONFIRM_CANCELLED", "nobody confirmed it on the phone linked to the NOVA Relay container in time; nothing was sent",
+			"Tell the user nothing changed. Run the same apply again (it asks that phone again) only after they say they still want it; never ask them for a code.")
+	case "stopped":
+		return gateEnded(state)
+	}
+	return gateStop("refused", "CONFIRM_UNAVAILABLE", "the phone linked to the NOVA Relay container couldn't be asked now; nothing was sent",
+		"Tell the user nothing changed: the phone linked to their NOVA Relay container couldn't be asked just now. They can try again in a moment, or make this change in Home Assistant itself. Never ask them for a code.")
 }
 
 // gateRolledBack: a profile that saw the gate, on an App without it.

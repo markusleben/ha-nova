@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -224,11 +226,14 @@ func gateSeen(paths runtimePaths, server string) bool {
 	return err == nil && doc.servers != nil && json.Unmarshal(doc.servers[server], &profile) == nil && profile.GateSeen
 }
 
-// markGateSeen records gate_seen in the profile. A profile the settings
-// file doesn't hold has nowhere to record it (nil); any other failure is
-// an error, so a rollback can't go unnoticed (gateOn refuses).
+// markGateSeen records gate_seen in the profile. A profile no settings
+// file holds has nowhere to record it (nil); any other failure is an
+// error, so a rollback can't go unnoticed (gateOn refuses).
 func markGateSeen(paths runtimePaths, server string) error {
 	doc, err := loadConfigDocument(paths.ConfigFile)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
