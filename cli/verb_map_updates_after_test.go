@@ -132,10 +132,24 @@ func TestAfterUpdateRepeatedRollbackAndUnreadRepairs(t *testing.T) {
 	run("updates")
 	f.repairsFail = true
 	got := decodeInto[afterResult](t, run("after_update").Result)
-	if rb := got.Rollback.(map[string]any); !slices.Equal(rb["rolled_back"].([]any), []any{"2026.11.1"}) {
-		t.Fatalf("a repeated rollback was missed: %+v", rb)
+	if rb := got.Rollback.(map[string]any); len(rb["rolled_back"].([]any)) != 0 || !slices.Equal(rb["rolled_back_earlier"].([]any), []any{"2026.11.1"}) {
+		t.Fatalf("an earlier rollback of a version still offered: %+v", rb)
 	}
 	if got.NewRepairs != nil || !slices.Contains(codes(got.NotChecked), "repairs") {
 		t.Fatalf("unread repairs reported as none: %v %+v", got.NewRepairs, got.NotChecked)
+	}
+}
+
+func TestAfterUpdateOnlyNewFailuresAndSeenRecoveries(t *testing.T) {
+	f := haosHome()
+	f.states = append(f.states, st("sensor.gone", "unavailable", nil))
+	f.entries[0]["state"] = "setup_retry"
+	run := runSections(t, &f)
+	run("updates")
+	f.entries[0]["state"] = "setup_error"
+	f.states = f.states[:len(f.states)-1]
+	got := decodeInto[afterResult](t, run("after_update").Result)
+	if len(got.NewFailing) != 0 || got.AvailableAgain != 0 {
+		t.Fatalf("failing %+v back %d", got.NewFailing, got.AvailableAgain)
 	}
 }

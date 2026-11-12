@@ -204,6 +204,7 @@ describe("update advisor after the update", () => {
     expect(updatesSkill).toContain("then the after-update check.");
     expect(advisor).toContain("say plainly that the update did not happen");
     expect(advisor).toContain("`rollback: unknown`: it could not be checked; say so.");
+    expect(advisor).toContain("if it was installed again since, it rolled back again");
     expect(advisor).toContain("none in the stored runs, not that every automation works");
   });
 });

@@ -132,7 +132,8 @@ func afterUpdate(s *relaySession, x *homeIndex, file string) (map[string]any, er
 	}
 	failing := []map[string]any{}
 	for _, e := range x.h.entries {
-		if state, bad := now.Failing[e.EntryID]; bad && base.Failing[e.EntryID] != state {
+		_, before := base.Failing[e.EntryID]
+		if state, bad := now.Failing[e.EntryID]; bad && !before {
 			failing = append(failing, map[string]any{"integration": e.Domain, "state": state})
 		}
 	}
@@ -155,7 +156,7 @@ func afterUpdate(s *relaySession, x *homeIndex, file string) (map[string]any, er
 		}
 	}
 	for _, id := range base.Unavailable {
-		if !slices.Contains(now.Unavailable, id) {
+		if st := x.state[id]; st != nil && st.State != "unavailable" && slices.Contains(x.enabled, id) {
 			back++
 		}
 	}
@@ -168,9 +169,10 @@ func afterUpdate(s *relaySession, x *homeIndex, file string) (map[string]any, er
 }
 
 // rollback: Supervisor's update_rollback issues (Core went back to the
-// version before) and update_failed issues. One the check before already
-// listed counts again when it names a version offered then that is still
-// not installed (Supervisor may keep one issue for a repeated failure).
+// version before) and update_failed issues new since the check. A rollback
+// the check already listed, for a version offered then and still not
+// installed, is rolled_back_earlier: Supervisor may keep one issue for a
+// repeated failure, so a retry can't be told apart from no retry.
 // Unreadable Supervisor: unknown, never "none".
 func (a *updateAdvisor) rollback(base *updateBaseline) any {
 	if !a.hassio {
@@ -180,7 +182,7 @@ func (a *updateAdvisor) rollback(base *updateBaseline) any {
 		a.gap("rollback", "the Supervisor's issue list was not read before and after the update")
 		return "unknown"
 	}
-	retried := func(version string) bool {
+	stillOffered := func(version string) bool {
 		for id, v := range base.Versions {
 			if v[1] == version && a.versions[id][0] != version {
 				return true
@@ -188,9 +190,12 @@ func (a *updateAdvisor) rollback(base *updateBaseline) any {
 		}
 		return false
 	}
-	out := map[string]any{"rolled_back": []string{}, "failed": []string{}}
+	out := map[string]any{"rolled_back": []string{}, "failed": []string{}, "rolled_back_earlier": []string{}}
 	for _, issue := range a.resolutionIssues {
-		if base != nil && slices.Contains(base.Resolution, issue.UUID) && !(issue.Type == "update_rollback" && retried(issue.Reference)) {
+		if base != nil && slices.Contains(base.Resolution, issue.UUID) {
+			if issue.Type == "update_rollback" && stillOffered(issue.Reference) {
+				out["rolled_back_earlier"] = append(out["rolled_back_earlier"].([]string), sayText(issue.Reference, false))
+			}
 			continue
 		}
 		switch issue.Type {
