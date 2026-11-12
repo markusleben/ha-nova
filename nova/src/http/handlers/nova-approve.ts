@@ -81,16 +81,17 @@ export function createApprovePageHandler(deps: ApprovePageDeps): RouteHandler {
     if (t === null) return send(response, 503, null);
     const back = await deps.panel();
     if (!who.ok) return send(response, who.status, t, back, `<p>${t.say(who.text)}</p>`);
-    const done = DONE.get(new URLSearchParams((request.url ?? "").split("?")[1] ?? "").get("done") ?? "");
-    // An ask the worker didn't word isn't shown: nobody approves what they can't read.
-    const all = deps.page.waiting().filter((ask) => ask.body !== "" && ask.items.length > 0 && ask.items.every((item) => (item.text ?? "") !== "")).sort((a, b) => a.expiresAt - b.expiresAt);
+    const query = new URLSearchParams((request.url ?? "").split("?")[1] ?? ""), done = DONE.get(query.get("done") ?? "");
+    const named = query.get("nova_ask") ?? "", mine = /^[0-9a-f]{64}$/.test(named) ? named : ""; // a ref (askRef), never an ask id
+    // An ask the worker didn't word isn't shown: nobody approves what they can't read. The one a computer's window opened (nova_ask) comes first.
+    const all = deps.page.waiting().filter((ask) => ask.body !== "" && ask.items.length > 0 && ask.items.every((item) => (item.text ?? "") !== "")).sort((a, b) => Number(b.ref === mine) - Number(a.ref === mine) || a.expiresAt - b.expiresAt);
     const asks = all.slice(0, SHOWN);
     const more = all.length > SHOWN ? `<p class="muted">${t.say("page.more", { count: all.length - SHOWN })}</p>` : "";
     const now = deps.now();
     const root = base(request);
     const action = `${root}approve`;
     const html = asks.map((ask) => renderAsk(ask, (kind) => `<form method="post" action="${escapeHtml(action)}"><input type="hidden" name="action" value="${kind}"><input type="hidden" name="ref" value="${ask.ref}"><input type="hidden" name="csrf" value="${escapeHtml(deps.csrf.issue(who.userId, `${kind}:${ask.ref}`, now))}">`, now, t)).join("");
-    const live = ` data-live="${escapeHtml(`${root}live`)}" data-state="${liveState(deps.page)}" data-reload="${escapeHtml(action)}"`;
+    const live = ` data-live="${escapeHtml(`${root}live`)}" data-state="${liveState(deps.page)}" data-reload="${escapeHtml(mine === "" ? action : `${action}?nova_ask=${mine}`)}"`;
     send(response, 200, t, back, `${done ? `<p class="ok"><strong>${t.say(done)}</strong></p>` : ""}${html || `<section><p class="muted">${t.say("page.empty")}</p></section>`}${more}<p class="muted meta">${t.say("page.signed_in")}</p>`, live, html === "");
   };
 }

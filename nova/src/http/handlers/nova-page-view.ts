@@ -166,7 +166,7 @@ export function renderPage(m: PageModel): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">${autoRefresh}
 <title>NOVA</title>
-<style>${PAGE_CSS}</style></head><body${m.live === null ? "" : ` data-live="${escapeAttr(`${base}live`)}" data-state="${m.live}"`}>
+<style>${PAGE_CSS}</style></head><body${m.live === null ? "" : ` data-live="${escapeAttr(`${base}live`)}" data-state="${m.live}" data-ask="${escapeAttr(`${base}approve`)}"`}>
 <main>
 <h1>${star}NOVA</h1>
 <p class="intro">Let your AI app work with Home Assistant, safely.</p>
