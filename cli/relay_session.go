@@ -69,10 +69,11 @@ var readOnlyWSTypes = map[string]bool{
 	// Whether the Relay's user accepted the Marketplace warning, before an
 	// update.install on a Marketplace item (marketplace_update.go).
 	"marketplace/info": true,
-	// The update advisor's readiness (verb_map_updates_ready.go): open
-	// repairs and the backup list.
+	// The update advisor (verb_map_updates*.go): open repairs, the backup
+	// list, and automation runs after an update.
 	"repairs/list_issues": true,
 	"backup/info":         true,
+	"trace/list":          true,
 }
 
 // relaySession resolves config and transport once per invocation and

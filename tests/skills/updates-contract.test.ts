@@ -194,3 +194,14 @@ describe("update advisor breaking changes", () => {
     }
   });
 });
+
+describe("update advisor after the update", () => {
+  const advisor = readFileSync("skills/updates/advisor.md", "utf8");
+
+  it("checks after each install and says a rollback plainly", () => {
+    expect(advisor).toContain("`ha-nova map --section after_update`");
+    expect(advisor).toContain("say plainly that the update did not happen");
+    expect(advisor).toContain("`rollback: unknown`: it could not be checked; say so.");
+    expect(advisor).toContain("none in the stored runs, not that every automation works");
+  });
+});

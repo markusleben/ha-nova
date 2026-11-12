@@ -14,6 +14,7 @@ type updatesFixture struct {
 	repairs    []map[string]any
 	backups    any
 	manifests  []map[string]any
+	traces     []map[string]any
 	supervisor map[string]any // path → data; a missing path fails upstream
 }
 
@@ -34,6 +35,8 @@ func (f updatesFixture) reply(r *http.Request, endpoint string, payload map[stri
 		return f.backups
 	case "manifest/list":
 		return f.manifests
+	case "trace/list":
+		return append([]map[string]any{}, f.traces...)
 	}
 	return f.mapFixture.reply(r, endpoint, payload)
 }
