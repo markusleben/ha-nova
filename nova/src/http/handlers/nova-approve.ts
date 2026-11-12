@@ -81,8 +81,7 @@ export function createApprovePageHandler(deps: ApprovePageDeps): RouteHandler {
     if (t === null) return send(response, 503, null);
     const back = await deps.panel();
     if (!who.ok) return send(response, who.status, t, back, `<p>${t.say(who.text)}</p>`);
-    const query = new URLSearchParams((request.url ?? "").split("?")[1] ?? "");
-    const done = DONE.get(query.get("done") ?? "");
+    const query = new URLSearchParams((request.url ?? "").split("?")[1] ?? ""), done = DONE.get(query.get("done") ?? "");
     const named = query.get("nova_ask") ?? "", mine = /^[0-9a-f]{64}$/.test(named) ? named : ""; // a ref (askRef), never an ask id
     // An ask the worker didn't word isn't shown: nobody approves what they can't read. The one a computer's window opened (nova_ask) comes first.
     const all = deps.page.waiting().filter((ask) => ask.body !== "" && ask.items.length > 0 && ask.items.every((item) => (item.text ?? "") !== "")).sort((a, b) => Number(b.ref === mine) - Number(a.ref === mine) || a.expiresAt - b.expiresAt);

@@ -12,9 +12,8 @@ import type { RelayLogger } from "../server.js";
 // it changes, unless a form on the page has unsaved changes or the pointer
 // or focus is on a form (so no button moves under a click), and holds a
 // fresh page's buttons for 0.7 s. In NOVA's panel opened with ?nova_ask=<ref> (a computer's waiting window), it hands that
-// ask to the approval view top-level ([data-ask]), replacing the entry so Back doesn't loop. It also counts [data-left] seconds down
-// and fills [data-copy] buttons (selecting the text where the clipboard
-// can't be written, as on plain http). It mints no
+// ask to the approval view top-level ([data-ask]), replacing the entry so Back doesn't loop. It also counts [data-left] seconds
+// down and fills [data-copy] buttons (selecting the text where the clipboard can't be written, as on plain http). It mints no
 // token and decides nothing: every button stays a CSRF-guarded POST, and
 // both pages work without it.
 
