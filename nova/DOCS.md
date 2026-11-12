@@ -68,12 +68,12 @@ file writes, and other risky changes wait for a person's OK:
 - **On your linked phone:** a notification with the action's button. Press and
   hold it on an iPhone, or pull it down on Android, then tap the button.
 - **On the NOVA page:** open NOVA in the sidebar. Under "Waiting for your OK",
-  choose Open, then Approve or Cancel. Any Home Assistant administrator can
+  choose "Confirm or decline", then Approve or Cancel. Any Home Assistant administrator can
   approve there, except the user this App signs in as.
 
 The OK covers exactly the change shown, once. Nothing is sent before it, and a
 request no one answers ends after 3 minutes. The window on your computer only
-waits: it says where to confirm, opens Home Assistant, or cancels. It can't
+waits: it says where to confirm, opens this request on the NOVA page, or cancels. It can't
 confirm. Dashboard and room changes are the exception: they still ask on the
 computer (the window, or a four-digit code).
 

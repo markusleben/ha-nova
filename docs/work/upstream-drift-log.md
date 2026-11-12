@@ -751,3 +751,30 @@ counts only those, not ad hoc checks or corrections.
 - Next screen: before the next release cycle, or on HA 2026.11.2 or
   2026.12.0, whichever comes first. Watch Supervisor 2026.12, which turns
   the smaller App capability set on.
+
+## 2026-11-12 — pre-release screen (v0.31.0 cycle): HA 2026.11.1 + developer blog after 2026-11-10 + HACS
+
+- Window screened: Core releases after `2026.11.1` (none; `2026.11.1` of
+  2026-11-09 is still the latest, no `.2`); contributors.home-assistant.io/blog
+  after 2026-11-10 (none: the newest post is "Deprecated device info
+  constants" of 2026-11-10, screened in the v0.30.0 entry);
+  home-assistant.io/blog after the 2026.11 release post (one hardware
+  announcement, no API change); HACS releases and tags after 2.0.5 (none);
+  Supervisor releases after `2026.11.0` (none).
+- Clean pass: no new upstream change since the v0.30.0 screen, so every
+  WS/REST surface pinned in `skills/**/*.md` stands as screened then on
+  HA 2026.11.1.
+- Surfaces pinned anew this cycle were built against HA 2026.11 (see their
+  PRs), and `2026.11.1` lists no change to them:
+  `marketplace/warning/accept`, `marketplace/repository/install` and
+  `/uninstall` (#1132); `system_log/list` as log facts (#1141); the
+  Supervisor reads `/core/stats`, `/supervisor/stats`, `/addons/{slug}/stats`,
+  `/resolution/info`, `/host/info`, `/store/addons/{slug}` (#1137, #1148);
+  HA 2026.7+ purpose-specific triggers and conditions (#1151).
+- Source checked: github.com/home-assistant/core/releases (API listing);
+  developers.home-assistant.io/blog/; home-assistant.io/blog/;
+  github.com/hacs/integration/releases and tags;
+  github.com/home-assistant/supervisor/releases.
+- Next screen: before the next release cycle, or on HA 2026.11.2 or
+  2026.12.0, whichever comes first. Watch Supervisor 2026.12, which turns
+  the smaller App capability set on.
