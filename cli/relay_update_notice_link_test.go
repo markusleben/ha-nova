@@ -31,7 +31,7 @@ func TestUpdateOffersTheAppUpdateOverLink(t *testing.T) {
 
 	pending := pendingRelayUpdateEntity("update.nova_relay_update", "0.3.0", "0.4.0")
 	var installs atomic.Int32
-	app := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	app := httptest.NewServer(withTierReads(appUpdateHA(), func(w http.ResponseWriter, r *http.Request) { // the check before the question reads the rest of the home
 		if r.URL.Path == "/core" && r.Method == http.MethodPost {
 			if body, _ := io.ReadAll(r.Body); strings.Contains(string(body), "update/install") {
 				installs.Add(1)

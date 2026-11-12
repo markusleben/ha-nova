@@ -17,7 +17,7 @@ import (
 func TestGuidedRelayUpdateDeclinedTouchesNothing(t *testing.T) {
 	paths := guidedUpdatePaths(t)
 	var installCalled atomic.Bool
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(withTierReads(appUpdateHA(), func(w http.ResponseWriter, r *http.Request) { // the check before the question reads the rest of the home
 		if r.URL.Path == "/ws" {
 			w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry("update.nova_relay_update")}))
 			return
@@ -53,7 +53,7 @@ func TestGuidedRelayUpdateRejectsStateDriftAfterConfirmation(t *testing.T) {
 	paths := guidedUpdatePaths(t)
 	var statesCalls atomic.Int32
 	var installCalled atomic.Bool
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(withTierReads(appUpdateHA(), func(w http.ResponseWriter, r *http.Request) { // the check before the question reads the rest of the home
 		if r.URL.Path == "/ws" {
 			w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry("update.nova_relay_update")}))
 			return
@@ -92,7 +92,7 @@ func TestGuidedRelayUpdateRejectsRegistryDriftAfterConfirmation(t *testing.T) {
 	paths := guidedUpdatePaths(t)
 	var registryCalls atomic.Int32
 	var installCalled atomic.Bool
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(withTierReads(appUpdateHA(), func(w http.ResponseWriter, r *http.Request) { // the check before the question reads the rest of the home
 		switch r.URL.Path {
 		case "/core":
 			var req struct {
