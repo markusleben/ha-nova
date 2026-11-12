@@ -14,9 +14,9 @@ import (
 // ha-nova map: exact, CLI-computed home facts (home-map spec
 // docs/work/2026-10-16-home-map-spec.md). Read-only; the model never counts.
 
-const mapUsage = "ha-nova map [--section areas|integrations|automations|unavailable|batteries|updates|after_update] [--entity <entity_id>] [--first-look | --insights] [--limit N]"
+const mapUsage = "ha-nova map [--section areas|integrations|automations|unavailable|batteries|updates|after_update|checkup] [--entity <entity_id>] [--first-look | --insights] [--limit N]"
 
-var mapSections = map[string]bool{"areas": true, "integrations": true, "automations": true, "unavailable": true, "batteries": true, "updates": true, "after_update": true}
+var mapSections = map[string]bool{"areas": true, "integrations": true, "automations": true, "unavailable": true, "batteries": true, "updates": true, "after_update": true, "checkup": true}
 
 func runMapCommand(paths runtimePaths, args []string) int { return mapVerb(nil, paths, args) }
 
@@ -24,7 +24,7 @@ func mapVerb(call *verbCall, paths runtimePaths, args []string) int {
 	opts := verbOptions{call: call}
 	fs := flag.NewFlagSet("map", flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
-	section := fs.String("section", "", "full list of one part: areas, integrations, automations, unavailable, batteries; updates: the update advisor's check before installs; after_update: what changed since that check")
+	section := fs.String("section", "", "full list of one part: areas, integrations, automations, unavailable, batteries; updates: the update advisor's check before installs; after_update: what changed since that check; checkup: is Home Assistant OK, why slow, would its backup work")
 	entity := fs.String("entity", "", "where-used of one entity_id (automations, scripts, scenes, groups, helpers, dashboards)")
 	firstLook := fs.Bool("first-look", false, "the onboarding first look: one-line counts, up to 2 observations, prompt seeds")
 	insights := fs.Bool("insights", false, "setup step 4: stats, ranked insights with room suggestions, and one automation made for this home")
@@ -45,8 +45,8 @@ func mapVerb(call *verbCall, paths runtimePaths, args []string) int {
 	case modes > 1:
 		err = errors.New("use only one of --section, --entity, --first-look, --insights")
 	case *section != "" && !mapSections[*section]:
-		err = fmt.Errorf("unknown --section %q (areas, integrations, automations, unavailable, batteries, updates, after_update)", *section)
-	case limitSet && (*section == "updates" || *section == "after_update"):
+		err = fmt.Errorf("unknown --section %q (areas, integrations, automations, unavailable, batteries, updates, after_update, checkup)", *section)
+	case limitSet && (*section == "updates" || *section == "after_update" || *section == "checkup"):
 		err = fmt.Errorf("--limit does not apply to --section %s", *section)
 	case *entity != "" && !entityIDPattern.MatchString(*entity):
 		err = fmt.Errorf("%q is not an entity_id (domain.object_id)", *entity)
@@ -73,6 +73,8 @@ func mapVerb(call *verbCall, paths runtimePaths, args []string) int {
 			env.Result, err = adviseUpdates(s, idx, baselineFile(paths, s.server))
 		case *section == "after_update":
 			env.Result, err = afterUpdate(s, idx, baselineFile(paths, s.server))
+		case *section == "checkup":
+			env.Result, err = checkupHome(s, idx)
 		case *section != "":
 			env.Result = idx.section(*section, limitOr(*limit, 50))
 		case *entity != "":

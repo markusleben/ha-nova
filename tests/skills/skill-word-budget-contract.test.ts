@@ -546,6 +546,7 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/ha-nova/write-safety.md",
   "skills/hacs/hacs-commands.md",
   "skills/health/availability-analysis.md",
+  "skills/health/checkup.md",
   "skills/maintenance/maintenance-reference.md",
   "skills/migrate/source-mappings.md",
   "skills/organize/display-fields.md",
