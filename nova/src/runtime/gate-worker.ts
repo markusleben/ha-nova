@@ -176,17 +176,8 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
     async redact(endpoint, request, response) {
       const answer = await post("/redact", { endpoint, request_b64: request.toString("base64"), response_b64: response.toString("base64") });
       const encoded = answer?.response_b64;
-      if (typeof encoded !== "string") {
-        return null;
-      }
-      // A round trip, not a regex: V8 runs out of stack matching one against a
-      // multi-MB answer (a full entity registry), and the throw became a bare 500.
-      const decoded = Buffer.from(encoded, "base64");
-      if (decoded.toString("base64") !== encoded) {
-        deps.logger.warn("Safety-check worker answered unusably", { path: "/redact", status: "not base64" });
-        return null;
-      }
-      return decoded;
+      const decoded = typeof encoded === "string" ? Buffer.from(encoded, "base64") : null;
+      return decoded !== null && decoded.toString("base64") === encoded ? decoded : null;
     },
   };
 }
