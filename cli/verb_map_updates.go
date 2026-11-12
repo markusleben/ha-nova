@@ -100,6 +100,8 @@ func adviseUpdates(s *relaySession, x *homeIndex) (map[string]any, error) {
 	a.checkBackups()
 	a.checkRepairs()
 	a.checkAppMinimums()
+	a.flagRisks()
+	breaking := a.scanBreaking()
 	ready := "yes"
 	if len(a.gaps) > 0 || slices.ContainsFunc(a.ready, func(r map[string]any) bool { return r["level"] == "warning" }) {
 		ready = "check"
@@ -109,7 +111,7 @@ func adviseUpdates(s *relaySession, x *homeIndex) (map[string]any, error) {
 	}
 	return map[string]any{"section": "updates", "ready": ready, "readiness": a.ready, "not_checked": a.gaps,
 		"core": map[string]any{"installed": a.coreFrom, "latest": a.coreTo}, "pending": a.rows,
-		"order": a.order(), "order_basis": "default", "risks": a.risk}, nil
+		"order": a.order(), "order_basis": "default", "risks": a.risk, "breaking": breaking}, nil
 }
 
 func supervisorGet(path string) map[string]any {
