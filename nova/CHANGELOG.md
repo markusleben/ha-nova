@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.27] - 2026-11-12
+
+### Fixed
+- The safety check: fixing a repair or changing part of an integration's setup (a sub-entry) now waits for your OK, also when a step is only opened. The integration decides what such a step does, and it may remove devices or entities. Before, it was only previewed.
+
 ## [Relay 0.13.26] - 2026-11-11
 
 ### Changed

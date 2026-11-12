@@ -55,7 +55,7 @@ export function appPreview(ctx) {
       const [tagged, running] = ctx.host(`docker image inspect --format '{{.Id}} {{json .RepoDigests}}' ${want.image}:${preview}; docker inspect --format '{{.Image}}' app_${ctx.app}`).trim().split(/\s*\n\s*/);
       const ok = [
         ctx.check("a", "App preview runs the image pulled at the recorded digest", Boolean(running) && tagged.startsWith(`${running} `) && tagged.includes(`${want.image}@${want.digest}`), `${want.image}@${want.digest}`),
-        ctx.check("a", "pairing kept (device registry and TLS key unchanged)", ctx.registryHash() === registryAtStart, "paired computers pin the TLS key; only lastUsedAtMs excluded"),
+        ctx.check("a", "pairing kept (device registry and TLS key unchanged)", ctx.registryHash() === registryAtStart, "paired computers pin the TLS key; lastUsedAtMs and the App's own safety-check record (minted at start) excluded"),
       ];
       const html = await ctx.page();
       ok.push(ctx.check("a", "NOVA page: Home Assistant connected, preview version", html.includes("<h2>Home Assistant</h2><p>Connected.</p>") && html.includes(`Relay ${preview}</footer>`), preview));
