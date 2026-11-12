@@ -1,24 +1,17 @@
 # AGENTS.md
 
-Version: 0.39 (2026-11-09) — bump this header on every local amendment.
+Version: 0.40 (2026-11-12) — bump this header on every local amendment.
 
 Instructions for coding agents in this repo. "Hard rules" protect real homes, credentials, and the release path; no other section can trade them off. The other sections are the standard workflow; where two of them conflict, see Autonomy.
 
-## Working with the maintainer
-- Start: say hi + 1 motivating line (first reply of an interactive session only).
-- Work style: Be radically precise. No fluff. Pure information only (drop grammar; min tokens). User-facing replies and public texts still stay readable: outcome first, then evidence.
-- Contact: Markus Leben (@markusleben). GitHub account: `markusleben` (`GH_USERNAME` in the main checkout's `.env`; worktrees have none).
-- "Make a note" → edit this file (`AGENTS.md`; ignore `CLAUDE.md`, a symlink to it) — User Notes or the fitting section — in a `docs/agents-*` worktree off `main` (or the open AGENTS PR), and bump the header.
-- To open a file for the maintainer: `cursor <path>`.
-- "Update AGENTS.md to the latest version" → fetch `https://raw.githubusercontent.com/markusleben/agents.md/main/AGENTS.md`, merge newer upstream rules without losing local ones.
-
 ## Project
+- Maintainer: Markus Leben (@markusleben). `CLAUDE.md` is a symlink to this file; edit `AGENTS.md`.
 - ha-nova = Home Assistant AI integration: a lean Relay (`nova/`), pure-Markdown Skills (`skills/`), and a Go CLI (`cli/`). Context: `PROJECT.md`. Before Relay or Skills work, read the matching references: `docs/reference/skill-architecture.md`, `bridge-architecture.md`, `ha-api-matrix.md`, `client-integration.md`, `safety.md`, `testing.md`.
 - Relay stays dumb, Skills stay smart: no business logic in the Relay; Skills stay pure `*.md`. KISS + DRY, MVP first, modular from day one.
 - UX first: fewer manual steps beat technical purity, from onboarding to uninstall. The audience is not terminal-savvy.
 - Terminology: "App", not "Add-on" (legacy `/addons/*` paths exempt); "Home Assistant Link" (formerly Home Assistant Cloud; Nabu Casa) in user copy (technical ids like the `cloud` command, domain, config keys stay). Pairing copy says what happens (one-time six-digit code, per-device, revocable), not what is absent; technical token docs exempt.
 - Skill sources (`skills/**/*.md`, agent templates, reference docs) are English only; proper nouns and real entity IDs (`light.wohnzimmer`) are exempt. Why: output is localized at runtime per `skills/ha-nova/`; `tests/skills/skill-source-language-contract.test.ts` enforces it.
-- Public texts (commits, PRs, issues, docs, test names) name no other project and carry no comparison; required license and credit lines are exempt. Comparisons stay internal in `docs/internal/` (gitignored). Why: the repo is public, and comparisons go stale.
+- Public texts (commits, PRs, issues, docs, test names) stay readable (outcome first, then evidence), name no other project, and carry no comparison; required license and credit lines are exempt. Comparisons stay internal in `docs/internal/` (gitignored). Why: the repo is public, and comparisons go stale.
 - Active docs and their roles: `docs/reference/documentation-governance.md`. `docs/archive/` is history; add no new active docs there.
 - Fewer rules and fewer files: add process docs or scripts only for a recurring real problem.
 - Code: new files under ~400 LOC, and don't grow a file already over it unless splitting it is the topic; the simplest thing that works; new functionality small or clearly necessary. New dependency → check its health first (recent releases/commits, adoption).
@@ -44,7 +37,7 @@ Instructions for coding agents in this repo. "Hard rules" protect real homes, cr
 - Local notes: `docs/choices.md` (decisions) and `docs/breadcrumbs.md` (status) are optional, gitignored scratch files: append dated entries, never commit them (`verify-blocked-files.sh` blocks them). Where they don't exist (fresh clone, CI), use the PR body.
 
 ## Git
-- Use `gh` for GitHub (`gh issue view --comments`, `gh pr view --comments --files`), not web search. Before remote ops run `gh auth status`; if the active account isn't `GH_USERNAME`, stop and ask before any remote op (`gh auth switch --user <user>`).
+- Use `gh` for GitHub (`gh issue view --comments`, `gh pr view --comments --files`), not web search. Before remote ops run `gh auth status`; if the active account isn't the one this work should run as, stop and ask before any remote op (`gh auth switch --user <user>`).
 - Branches: conventional prefixes (`feat|fix|refactor|build|ci|chore|docs|style|perf|test`), one topic per branch, one `git worktree` per topic; keep local `main` clean. A new branch off clean `main` or the open release train, or stacked on a branch you own for the task, is pre-authorized. Switching away from uncommitted work or moving work between branches needs consent. Dirty legacy worktrees are read-only source material. `git checkout` is fine for PR review or on request; a command the maintainer types is consent for that command.
 - Push when asked, or on a branch whose PR you were asked to open or drive. Otherwise, don't push.
 - The pre-push hook (typecheck, vitest, build, `check-docs.sh`; 3-5 min) repeats CI's `verify` job: after green targeted tests plus `npm run typecheck` on the state being pushed (docs: plus `bash scripts/check-docs.sh`), push with `--no-verify`; otherwise let it run. Push timeout: retry the same push.
@@ -56,7 +49,7 @@ Instructions for coding agents in this repo. "Hard rules" protect real homes, cr
   - Open a PR (never as draft) only after the pre-PR review, with the full body written: Codex starts reviewing on open. No close/reopen.
   - Title: conventional prefix, ≤72 characters, the user-visible effect. It becomes the commit on `main` only because merge step 4 sets it explicitly.
 - No repo-wide search-and-replace scripts. Full diffs: `git --no-pager diff --color=never`. Avoid manual `git stash` (auto-stash in pull/rebase is fine).
-- Shared machine: tests and scripts remove what they create, also on failure (`t.TempDir()`, `mkdtemp` + `afterEach` rm, `trap 'rm -rf "$tmp"' EXIT`); scratch goes in a per-task path (`$TMPDIR/ha-nova-<branch>/`), never a shared fixed name. At most 3 agents build or test at once, workers capped (`go test -p 2`, `npx vitest run --maxWorkers=2`); review-only subagents run no suites. Before verify/E2E: `df -h /`; under ~10 GB free, remove your own temp dirs and merged worktrees, say so, continue with disk-free work. The test bed is one shared instance: if `testbed:up` reports it running, another agent owns it — never `testbed:down` it; skip the E2E and say so in the PR body.
+- Cleanup: tests and scripts remove what they create, also on failure (`t.TempDir()`, `mkdtemp` + `afterEach` rm, `trap 'rm -rf "$tmp"' EXIT`); scratch goes in a per-task path (`$TMPDIR/ha-nova-<branch>/`), never a shared fixed name. The test bed is one instance per machine: if `testbed:up` reports it running, someone else started it — never `testbed:down` it; skip the E2E and say so in the PR body.
 
 ## Review
 - **High-risk:** security/auth/secrets, concurrency/races, irreversible data changes, release/installer/update machinery, new cross-component contracts. **Release-bound:** bumps `version.json`/`package.json`, or touches `scripts/release/`, the install/update flow, release workflows, or Go code (skills/docs are not release-bound just because skills ship). **Behavior-changing:** everything except docs-only, tests-only, generated/lockfile, or mechanical changes; skill `.md` edits that change agent behavior count as behavior-changing.
@@ -66,7 +59,7 @@ Instructions for coding agents in this repo. "Hard rules" protect real homes, cr
   - sibling-path sweep: the same defect class in sibling files, callers, state sources, and orderings.
 - Brief reviewers to report every finding that affects correctness or the stated requirements, then triage yourself (below); style findings lead to over-engineering. Fix all surviving P1 and P2 findings in one batch, then open the PR. Repeat only if the scope or the protected invariant changes; at most two passes of the same lens. Once the PR is open, further review is the Codex round's job. Edge cases you leave uncovered go into the PR body as known limits.
 - Skill changes that alter agent behavior: verify with an end-to-end agent run on the test bed when available (start the agent from `eval "$(bash scripts/e2e/testbed/cli.sh --env)"`), not only unit tests — the skill text is the product. Word and route budgets in `tests/skills/` are ratchets: never raise one to fit your own text — trim, or move detail into a reference file; a raise needs a reason stated in the test and the PR body.
-- High-risk, or release-bound through anything but Go code alone (version bumps, `scripts/release/`, install/update flow, release workflows): also run a local Codex CLI review over the working-tree diff and fix its findings. Changes that are not high-risk and are release-bound only through Go code skip it (adversarial subagent + bot cover them). Run it read-only and tell it to run nothing: `codex -s read-only review "Review only; run no tests, builds, or ha-nova commands."`. Why: a full-access review once ran uninstall/purge Go tests on the macOS host (keychain rule).
+- Reviewers only read: they run no tests, builds, or `ha-nova` commands. Why: a full-access review once ran uninstall/purge Go tests on the macOS host (keychain rule).
 - Size: aim for at most ~400 changed production lines per PR (tests/docs/generated/lockfiles excluded). Above that, split into self-contained layers, each with its tests; above ~800 or 15 runtime files, split or say why in the PR. A contract rewrite plus a new executable oracle → two stacked PRs.
 - PR-open reply: tests run, remaining risks, and any `README.md` diff.
 - Triage, and where each fix goes:
@@ -111,8 +104,7 @@ Read by Codex Code Review and by review subagents. Only consequential, repo-spec
 ### Compatibility
 - Flag a change that breaks a shipped contract without saying so in the PR: MCP tool text (`TestMCPToolTextStable`), the plan file schema, `chat-apps.json` and `phone-links.json` fields, `min_relay_version`, and App ↔ CLI routes. A rollback to the previous App must fail closed, never open.
 
-## User Notes
-Use below list to store and recall user notes when asked to do so.
+## Notes
 
 - Release guard: Claude marketplace sync changes ship with regression coverage for plain GitHub URL, structured GitHub source, and structured source with pinned `ref`; a pinned ref equal to the floating default source is a release blocker.
 - PR hygiene: proactively check PR reviews incl. inline comments (`gh api repos/<o>/<r>/pulls/<nr>/comments`) without waiting for a reminder.
