@@ -471,6 +471,7 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 			reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest(item[0], item[1])) })
 		}
 	}
+	e.censusMoot = e.callTargetTyped(req, targets)
 	reads = append(reads, // checkManagers reads them after the walk: how far a cut walk got must not decide them
 		func() { _, _ = e.s.ws(map[string]any{"type": "config_entries/get"}) },
 		func() { _, _ = e.s.ws(map[string]any{"type": "config/entity_registry/list"}) })
