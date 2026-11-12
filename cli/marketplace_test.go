@@ -7,16 +7,27 @@ import (
 )
 
 // Home Assistant 2026.11+ ships HACS built in as the Marketplace: the HACS
-// skill's gate and inventory read it raw, and every Marketplace write stays
-// refused (installs and removals happen in Home Assistant's own UI).
-func TestRawRelayMarketplaceIsReadOnly(t *testing.T) {
+// skill's gate and inventory read it raw; accepting its warning, installing,
+// and uninstalling go only through a typed plan (ha-nova relay refuses
+// them, naming the plan), and every other Marketplace write stays refused.
+func TestRawRelayMarketplaceLifecycleIsPlanOnly(t *testing.T) {
 	for _, body := range []string{`{"type":"marketplace/info"}`, `{"type":"marketplace/repositories/list","categories":["integration"]}`} {
 		rawAllowed(t, "ws", body)
 	}
-	for _, body := range []string{`{"type":"marketplace/repository/install","repository":"123"}`,
-		`{"type":"marketplace/repository/uninstall","repository":"123"}`, `{"type":"marketplace/repository/info","repository_id":"123"}`,
-		`{"type":"marketplace/warning/accept"}`, `{"type":"marketplace/repositories/add","repository":"a/b","category":"integration"}`} {
+	for _, body := range []string{`{"type":"marketplace/repository/info","repository_id":"123"}`,
+		`{"type":"marketplace/repositories/add","repository":"a/b","category":"integration"}`} {
 		rawRefused(t, "ws", body)
+	}
+	paths, sent := marketplaceRelay(t, true)
+	for _, body := range []string{marketplaceAccept, marketplaceInstall, marketplaceUninstall} {
+		payload, _ := decodeObject([]byte(body))
+		refusal, err := relayTyped(paths, verbOptions{}, "ws", []byte(body), payload)
+		if err != nil || refusal == nil || !strings.Contains(refusal.Error(), "plan") {
+			t.Errorf("%s: refusal %v err %v", body, refusal, err)
+		}
+	}
+	if len(sent()) != 0 {
+		t.Fatalf("sent %v", sent())
 	}
 }
 

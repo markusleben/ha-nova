@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"slices"
 	"strings"
 )
 
@@ -162,6 +163,9 @@ func validateRawRequests(items []rawRequest) error {
 func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*tierEngine, storedPlan, error) {
 	if err := validateRawRequests(items); err != nil {
 		return nil, storedPlan{}, refused("PLAN_INVALID", err.Error())
+	}
+	if len(items) > 1 && slices.ContainsFunc(items, func(item rawRequest) bool { return rawAccessTarget(item.Endpoint, item.Payload).warning != "" }) {
+		return nil, storedPlan{}, refusedWith("PLAN_INVALID", "the Marketplace warning is accepted in a plan of its own; nothing was planned or sent", "Plan the acceptance alone, apply it, then plan the rest.")
 	}
 	e := newTierEngine(s)
 	n := newRawNamer(s, e)

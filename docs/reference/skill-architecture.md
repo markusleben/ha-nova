@@ -346,8 +346,10 @@ migration:
   skill owns what the entity flow cannot do
 - Home Assistant 2026.11+ builds HACS in as the Marketplace and removes
   `hacs/*`: the gate falls through to `marketplace/info`, and the skill then
-  reads the Marketplace inventory only and gives the Home Assistant steps for
-  everything else (never a "HACS is missing" answer)
+  reads the Marketplace inventory, installs and uninstalls as typed plans
+  (accepting the Marketplace warning for HA NOVA's user first, as a plan of
+  its own), and gives the Home Assistant steps for everything else (never a
+  "HACS is missing" answer)
 
 ## Calendar Architecture
 

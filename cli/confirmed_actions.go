@@ -55,6 +55,7 @@ var confirmedActions = []confirmedGroup{
 		{confirmedRawPrefix + "file_delete", "Delete a file in the config folder"},
 		{confirmedRawPrefix + "copy_delete", "Delete a saved config copy"},
 		{confirmedRawPrefix + "app_uninstall", "Remove an App"},
+		{confirmedRawPrefix + "marketplace_remove", "Uninstall something from the Marketplace"},
 	}},
 	{"Installs, reloads, and code that runs", "installs, reloads, and code that runs", []confirmedAction{
 		{reasonHACSInstall, "Install an update from HACS or the Marketplace"},
@@ -68,6 +69,8 @@ var confirmedActions = []confirmedGroup{
 		{confirmedRawPrefix + "resource_update", "Change a dashboard resource"},
 		{confirmedRawPrefix + "file_write", "Write a file in the config folder"},
 		{confirmedRawPrefix + "file_restore", "Put a deleted image or video back in the www folder"},
+		{confirmedRawPrefix + "marketplace_warning", "Accept the Marketplace warning for HA NOVA's Home Assistant user"},
+		{confirmedRawPrefix + "marketplace_install", "Install or update something from the Marketplace"},
 		{confirmedRawPrefix + "app_install", "Install an App"},
 		{confirmedRawPrefix + "app_settings", "Change an App's settings"},
 	}},

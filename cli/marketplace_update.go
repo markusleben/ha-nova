@@ -6,14 +6,20 @@ import "strings"
 // accepted the Marketplace warning (marketplace/update.py async_install;
 // update.skip and update.clear_skipped run without that check). The Relay's
 // own user can't open that warning, so HA NOVA refuses the install before
-// sending it instead of letting Home Assistant answer HTTP 500.
+// sending it instead of letting Home Assistant answer HTTP 500. On the NOVA
+// App the warning can be accepted for that user as a typed plan of its own
+// (marketplace_raw.go); the refusal offers it only when the warning is
+// known to be unaccepted and HA NOVA's user is the Supervisor user.
 const reasonMarketplaceWarning = "MARKETPLACE_WARNING"
 
 // marketplaceWarningError: Home Assistant's English text for that HTTP 500
 // (an exception's message is always the English translation).
 const marketplaceWarningError = "read the warning first"
 
-const marketplaceNext = "Tell the user exactly what say says, nothing more: nothing was installed. Never retry it, batch it, or install it another way."
+const (
+	marketplaceNext       = "Tell the user exactly what say says, nothing more: nothing was installed. Never retry it, batch it, or install it another way."
+	marketplaceNextAccept = "Tell the user exactly what say says: nothing was installed. If they want it, plan the acceptance alone (ha-nova:hacs, Marketplace mode), then plan this install again; never install it another way."
+)
 
 // marketplaceRefusal: an update.install on a Marketplace update entity is
 // refused unless marketplace/info says the Relay's user accepted the
@@ -29,7 +35,7 @@ func (e *tierEngine) marketplaceRefusal(env *verbEnvelope, req planCallRequest, 
 		var info struct {
 			WarningAccepted *bool `json:"warning_accepted"`
 		}
-		why := "the Relay's Home Assistant user has not accepted the Marketplace warning"
+		why, offer := "the Relay's Home Assistant user has not accepted the Marketplace warning", false
 		switch err := e.s.wsDecode(map[string]any{"type": "marketplace/info"}, &info, "the Marketplace info"); {
 		case err != nil:
 			why = "HA NOVA couldn't read marketplace/info: " + err.Error()
@@ -37,8 +43,14 @@ func (e *tierEngine) marketplaceRefusal(env *verbEnvelope, req planCallRequest, 
 			why = "marketplace/info has no warning_accepted"
 		case *info.WarningAccepted:
 			return nil
+		default:
+			offer, _ = marketplaceSupervisor(e.s)
 		}
-		return marketplaceRefused(env, e.s.language(), t.EntityID, why)
+		f := marketplaceRefused(env, e.s.language(), t.EntityID, why)
+		if offer {
+			f.say, f.next = confirmT(e.s.language(), "say.marketplace_accept"), marketplaceNextAccept
+		}
+		return f
 	}
 	return nil
 }
