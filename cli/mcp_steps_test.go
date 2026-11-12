@@ -77,7 +77,7 @@ func TestMCPRawPlanStepsAtTheDecision(t *testing.T) {
 		})
 	}
 	// A rule another step leads (#925's batchRule) stays, behind this one.
-	result := toolResult("ha_plan", `{"schema_version":1,"verb":"plan","status":"needs_confirmation","plan":{"id":"p1"},"say":"Delete it?","next_step":"`+batchHint+` Otherwise: Show it."}`, "", verbExitConfirmation, map[string]bool{}, false, chatCall != nil)
+	result := toolResult("ha_plan", `{"schema_version":1,"verb":"plan","status":"needs_confirmation","plan":{"id":"p1"},"say":"Delete it?","next_step":"`+batchHint+` Otherwise: Show it."}`, "", verbExitConfirmation, map[string]bool{}, false, chatCall)
 	result = withPlanSteps(result, "ha_plan", map[string]json.RawMessage{"kind": json.RawMessage(`"raw"`), "requests": json.RawMessage(`[{"endpoint":"ws","payload":{"type":"input_boolean/delete","input_boolean_id":"guest"}}]`)})
 	env, _ := result["structuredContent"].(map[string]any)
 	text, _ := result["content"].([]map[string]any)[0]["text"].(string)

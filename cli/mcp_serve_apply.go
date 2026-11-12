@@ -17,9 +17,10 @@ import (
 // minute, and a batch in a home with many automations runs for minutes.
 // ha_apply waits up to the bridge's wait, then answers applying; calling
 // it again waits on the same job, which never sends anything twice, and
-// the outcome is handed out once. A chat-app call waits for mcpVerbLock
+// the outcome is handed out once. A chat-app change waits for mcpVerbLock
 // at most chatCallWait in all, and past chatLockWait not while a change
-// holds it: then the call answers BUSY and runs nothing. Only what follows
+// holds it: then the call answers BUSY and runs nothing (a read runs
+// beside it: mcpLocklessTools). Only what follows
 // a phone tap waits for it as long as it takes.
 
 // verbLock is mcpVerbLock: a mutex a waiter can give up on, which knows
@@ -201,7 +202,7 @@ func (srv *mcpServer) chatBusy(name string, args map[string]json.RawMessage, why
 	setVerbError(&env, refusedWith("BUSY", why, next))
 	env.Say = say
 	out, _ := json.Marshal(env)
-	return toolResult(name, string(out), "", verbExitRefused, nil, false, srv.chat != nil)
+	return toolResult(name, string(out), "", verbExitRefused, nil, false, srv.chat)
 }
 
 // chatQueuedStop ends a queued BUSY's next_step: what to say when calling

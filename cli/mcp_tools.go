@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // The MCP tools are thin argv adapters over the CLI verbs: the same parsing,
@@ -133,10 +134,16 @@ func mcpToolList(paths runtimePaths) []map[string]any {
 	return tools
 }
 
-// mcpVerbLock serializes tool runs: verbs share process-wide state (server
-// selection, the confirmation in progress). A chat-app call waits for it at most
-// chatCallWait, and chatLockWait for a running change (mcp_serve_apply.go).
+// mcpVerbLock serializes the changes (ha_plan, ha_call, ha_apply): they share
+// process-wide state (the confirmation in progress). A chat-app call waits
+// for it at most chatCallWait, and chatLockWait for a running change
+// (mcp_serve_apply.go).
 var mcpVerbLock = newVerbLock()
+
+// mcpLocklessTools read without mcpVerbLock (runRead), also while a change
+// runs: each carries its own call and sets no process-wide state. A list,
+// not readOnly: only tools checked for that belong here.
+var mcpLocklessTools = map[string]bool{"ha_find": true, "ha_get": true, "ha_history": true, "ha_map": true, "ha_trace": true, "ha_read": true}
 
 func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 	var params struct {
@@ -155,7 +162,7 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		if err := checkArguments(tool.schema, params.Arguments); err != nil {
 			return invalidArguments(tool.name, err), nil
 		}
-		if srv.chat == nil { // ha-nova mcp: a running apply job's plan joins it, any other call is BUSY
+		if srv.chat == nil { // ha-nova mcp: a running apply job's plan joins it, any other change is BUSY
 			if result := srv.stdioJob(tool.name, params.Arguments); result != nil {
 				return result, nil
 			}
@@ -194,12 +201,18 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 				return waited, nil
 			}
 		}
+		run := func(call *verbCall) int { return tool.run(call, srv.paths, pinServer(tool.name, argv, srv.pin)) }
+		if mcpLocklessTools[tool.name] {
+			result := srv.runRead(tool.name, req.forms, run)
+			srv.noteChange(tool.name, what, result)
+			return result, nil
+		}
 		if err := srv.lockVerb(); err != nil { // ha-nova serve: a running change, or other requests, held the lock too long; nothing ran
 			busy := srv.chatBusy(tool.name, params.Arguments, err.Error())
 			srv.noteChange(tool.name, what, busy)
 			return busy, nil
 		}
-		result := srv.runLocked(tool.name, answered, req.forms, func(call *verbCall) int { return tool.run(call, srv.paths, pinServer(tool.name, argv, srv.pin)) })
+		result := srv.runLocked(tool.name, answered, req.forms, run)
 		result = withPlanSteps(result, tool.name, params.Arguments)
 		srv.noteChange(tool.name, what, result)
 		return result, nil
@@ -245,12 +258,18 @@ func withNotices(out string, notices []verbNotice, server string) string {
 	return string(b)
 }
 
+// toldMu guards the notice hints already given (told), which reads and a
+// change write at once.
+var toldMu sync.Mutex
+
 // toolResult: the envelope as text and as structuredContent — the same object, so
 // a client that reads only one still gets the guidance (next_step, say). isError for
 // failures, not needs_confirmation. told (nil = no memory) keeps each update
 // notice's hint to once per session. forms: the client shows forms, so no code.
-// chat: a chat app's call (ha-nova serve).
-func toolResult(name, out, errOut string, exit int, told map[string]bool, forms, chat bool) map[string]any {
+// chat: a chat app's call (ha-nova serve), nil elsewhere.
+func toolResult(name, out, errOut string, exit int, told map[string]bool, forms bool, chat *chatPolicy) map[string]any {
+	toldMu.Lock() // reads answer beside a change (runRead): one told at a time
+	defer toldMu.Unlock()
 	var envelope map[string]any
 	// A verb envelope carries schema_version; anything else (trace prints
 	// plain JSON, failures print to stderr) is wrapped into one.
@@ -275,13 +294,13 @@ func toolResult(name, out, errOut string, exit int, told map[string]bool, forms,
 	own = strings.TrimPrefix(own, " Otherwise: ")
 	next := nextStep(envelope, chat)
 	if next == "" && own != "" { // the verb's own step, in tool terms
-		next = mcpNext(own)
+		next = mcpNext(own, chat.isReadOnly())
 	}
 	if forms {
 		next = formsNext(envelope, next)
 	}
-	images := imageContent(envelope)                       // before the text: an image is never text
-	text := plainResult(envelope, next, batch, told, chat) // say, next_step, and answer_rule (mcp_plain.go)
+	images := imageContent(envelope)                              // before the text: an image is never text
+	text := plainResult(envelope, next, batch, told, chat != nil) // say, next_step, and answer_rule (mcp_plain.go)
 	return map[string]any{"content": append([]map[string]any{{"type": "text", "text": string(text)}}, images...), "structuredContent": envelope,
 		"isError": exit != 0 && exit != verbExitConfirmation}
 }

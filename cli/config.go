@@ -62,19 +62,23 @@ func loadRuntimeConfig(pathArgs ...runtimePaths) (runtimeConfig, error) {
 		return runtimeConfig{}, err
 	}
 	pick, source := requestedServerSelection()
-	return loadSelectedConfig(paths, pick, source)
+	return loadSelectedConfig(paths, pick, source, true)
 }
 
 // loadSelectedConfig is loadRuntimeConfig for the selection pick (named by
-// source; "": default_server). It makes the profile it resolves the
-// process's selected one, as loading always did.
-func loadSelectedConfig(paths runtimePaths, pick, source string) (runtimeConfig, error) {
+// source; "": default_server). process: it makes the profile it resolves
+// the process's selected one, as loading always did (the CLI, and a change
+// under mcpVerbLock, whose confirmation reads it); a read's load leaves it
+// alone, since reads run beside a change.
+func loadSelectedConfig(paths runtimePaths, pick, source string, process bool) (runtimeConfig, error) {
 	if pick == demoProfileName && !realDemoProfileExists(paths) {
 		cfg, on, err := loadDemoProfile(paths)
 		if !on {
 			return runtimeConfig{}, errors.New("The demo house is not connected. Run: ha-nova try")
 		}
-		setActiveDemoProfile()
+		if process {
+			setActiveDemoProfile()
+		}
 		cfg.profile = demoProfileName
 		return cfg, err
 	}
@@ -107,7 +111,9 @@ func loadSelectedConfig(paths runtimePaths, pick, source string) (runtimeConfig,
 		}
 		return runtimeConfig{}, err
 	}
-	setActiveServerProfile(name)
+	if process {
+		setActiveServerProfile(name)
+	}
 	cfg, ok := doc.flatProfile(name)
 	cfg.profile = name
 	if !ok {

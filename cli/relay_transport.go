@@ -37,7 +37,7 @@ func localRelayAuthRepairMessage(
 	profile string,
 	cfg runtimeConfig,
 ) string {
-	if activeServerIsDemo() {
+	if cfg.demoToken != "" {
 		if status == http.StatusForbidden {
 			return "The demo house doesn't allow this; it is a shared demo with some features turned off."
 		}
@@ -66,7 +66,7 @@ func localRelayAuthRepairMessage(
 // the Relay refusing this one request (FILE_PATH_DENIED, FILE_TYPE_DENIED,
 // FILE_ACCESS_READONLY, CORE_PATH_REFUSED, ...), and its own code and message
 // must reach the caller, never a sign-in repair.
-func localRelayRefusedCredential(status int, body []byte) bool {
+func localRelayRefusedCredential(status int, body []byte, demo bool) bool {
 	if status == http.StatusUnauthorized {
 		return true
 	}
@@ -83,7 +83,7 @@ func localRelayRefusedCredential(status int, body []byte) bool {
 	case "", "UNAUTHORIZED", "SECURE_TRANSPORT_REQUIRED", "DEVICE_REQUIRED":
 		return true
 	}
-	return activeServerIsDemo()
+	return demo
 }
 
 func relayURLSafeForCopyPaste(value string) bool {

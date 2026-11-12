@@ -239,7 +239,7 @@ func confirmStopped(status, code, message, next string) map[string]any {
 	env := verbEnvelope{SchemaVersion: 1, Verb: "apply"}
 	setVerbError(&env, &verbFailure{exit: verbExitRefused, status: status, code: code, message: message + "; nothing was sent", next: next})
 	out, _ := json.Marshal(env)
-	return toolResult("ha_apply", string(out), "", verbExitRefused, nil, true, false)
+	return toolResult("ha_apply", string(out), "", verbExitRefused, nil, true, nil)
 }
 
 // elicit sends elicitation/create inside the running tools/call (legacy

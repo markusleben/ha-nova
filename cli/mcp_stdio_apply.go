@@ -32,8 +32,7 @@ import (
 var stdioApplyWait = 50 * time.Second
 
 // stdioJob: a call while an apply job runs or holds an outcome: ha_apply of
-// that plan waits on it; any other call but ha_skill answers BUSY while one
-// runs. nil: the call runs as usual.
+// that plan waits on it; any other change answers BUSY while one runs. nil: the call runs as usual.
 func (srv *mcpServer) stdioJob(name string, args map[string]json.RawMessage) map[string]any {
 	for old, job := range srv.jobs { // an outcome nobody came back for
 		select {
@@ -48,7 +47,7 @@ func (srv *mcpServer) stdioJob(name string, args map[string]json.RawMessage) map
 	if job := srv.jobs[id]; name == "ha_apply" && job != nil {
 		return srv.stdioAwait(id, job)
 	}
-	if name == mcpSkillTool.name || srv.runningJob() == "" {
+	if name == mcpSkillTool.name || mcpLocklessTools[name] || srv.runningJob() == "" {
 		return nil
 	}
 	return srv.chatBusy(name, args, chatBusyWhy)
@@ -86,7 +85,7 @@ func (srv *mcpServer) stdioApply(args map[string]json.RawMessage, argv []string,
 	srv.jobs[id] = job
 	mcpVerbLock.Lock() // free: no job runs, and the loop holds it only inside a call
 	go func() {
-		gateApproval = &job.asking // one job at a time: every other call answers BUSY
+		gateApproval = &job.asking // one job at a time: every other change answers BUSY
 		defer func() {
 			gateApproval = nil
 			if p := recover(); p != nil { // after runLocked, which has unlocked

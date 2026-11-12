@@ -232,7 +232,7 @@ func checkRelayVersion(paths runtimePaths, healthBody []byte) humanNotice {
 	if version == "" {
 		return humanNotice{}
 	}
-	return checkRelayVersionValue(paths, version)
+	return checkRelayVersionValue(paths, version, activeServerIsDemo())
 }
 
 // parseRelayHealthVersion extracts the relay version from a /health body. A
@@ -297,7 +297,7 @@ func relayNoticeTransport(ctx context.Context, cfg config) (relayTransportSelect
 	// Non-default profiles are device-credential-only: a best-effort notice
 	// must never send the default profile's machine-wide token to another
 	// server's URL. Stay silent instead.
-	if activeServerProfile() != defaultServerProfileName {
+	if cfg.profileName() != defaultServerProfileName {
 		return relayTransportSelection{}, false
 	}
 	token, err := readRelayAuthTokenForDoctor()
@@ -382,8 +382,8 @@ func relayUpdateNoticeOverRoute(ctx context.Context, paths runtimePaths, route r
 // checkRelayVersionValue compares a bare relay version (from the /health body
 // or the relay's version response header on /ws and /core) against
 // min_relay_version.
-func checkRelayVersionValue(paths runtimePaths, relayVersion string) humanNotice {
-	if strings.TrimSpace(relayVersion) == "" || activeServerIsDemo() { // the demo's Relay is not the user's to update
+func checkRelayVersionValue(paths runtimePaths, relayVersion string, demo bool) humanNotice {
+	if strings.TrimSpace(relayVersion) == "" || demo { // the demo's Relay is not the user's to update
 		return humanNotice{}
 	}
 

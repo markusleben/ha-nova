@@ -239,7 +239,7 @@ func TestPlanRoomsRollsBackAFailureAtEachWrite(t *testing.T) {
 				if w := r.areaWrites(); len(w) != failAt+rollbacks {
 					t.Errorf("writes %v", w)
 				}
-				if _, err := selectServerUndoSnapshot(h.paths, "", "", ""); err == nil {
+				if _, err := selectServerUndoSnapshot(h.paths, "", activeServerIsDemo(), "", ""); err == nil {
 					t.Error("an undo record for nothing saved")
 				}
 			})
@@ -265,7 +265,7 @@ func TestPlanRoomsNamesWhatStayedWhenRollbackFails(t *testing.T) {
 		t.Fatalf("exit %d %+v", exit, applied.Error)
 	}
 	h.assertAreas(map[string]string{"d_guest": "guest", "d_kitchen": "", "d_radio": ""})
-	snap, err := selectServerUndoSnapshot(h.paths, "", "", "")
+	snap, err := selectServerUndoSnapshot(h.paths, "", activeServerIsDemo(), "", "")
 	compact := func(raw []byte) string { var b bytes.Buffer; _ = json.Compact(&b, raw); return b.String() }
 	if err != nil || compact(snap.BeforeConfig) != `{"d_guest":""}` || compact(snap.ExpectedAfter) != `{"d_guest":"guest"}` {
 		t.Fatalf("undo record %s %s %v", snap.BeforeConfig, snap.ExpectedAfter, err)
@@ -395,7 +395,7 @@ func TestPlanRoomsFailedUndoKeepsTheRestOfTheRecord(t *testing.T) {
 		t.Fatalf("exit %d %+v", exit, failed.Error)
 	}
 	h.assertAreas(map[string]string{"d_guest": "", "d_kitchen": "kitchen", "d_radio": "kitchen"})
-	snap, err := selectServerUndoSnapshot(h.paths, "", record, "")
+	snap, err := selectServerUndoSnapshot(h.paths, "", activeServerIsDemo(), record, "")
 	var after map[string]string
 	_ = json.Unmarshal(snap.ExpectedAfter, &after)
 	if err != nil || len(after) != 2 || after["d_kitchen"] != "kitchen" || after["d_radio"] != "kitchen" {
@@ -429,7 +429,7 @@ func TestPlanRoomsWithoutReadBackKeepsKnownOutcomes(t *testing.T) {
 		!strings.Contains(applied.Error.Message, "possibly changed: “Guest Bedroom Lamp”") || strings.Contains(applied.Error.Message, "Küchenradio") {
 		t.Fatalf("exit %d %+v", exit, applied.Error)
 	}
-	snap, err := selectServerUndoSnapshot(h.paths, "", "", "")
+	snap, err := selectServerUndoSnapshot(h.paths, "", activeServerIsDemo(), "", "")
 	var after map[string]string
 	_ = json.Unmarshal(snap.ExpectedAfter, &after)
 	if err != nil || len(after) != 1 || after["d_guest"] != "guest" {
@@ -479,7 +479,7 @@ func TestPlanRoomsBlindFailedUndoKeepsKnownOutcomes(t *testing.T) {
 	if exit, failed := h.run(runApplyCommand, "--plan", undo.Plan.ID); exit != verbExitUnknown || failed.Error.Code != "ROOMS_PARTIAL" {
 		t.Fatalf("exit %d %+v", exit, failed.Error)
 	}
-	snap, _ := selectServerUndoSnapshot(h.paths, "", record, "")
+	snap, _ := selectServerUndoSnapshot(h.paths, "", activeServerIsDemo(), record, "")
 	var after map[string]string
 	_ = json.Unmarshal(snap.ExpectedAfter, &after)
 	if _, kept := after["d_guest"]; kept || after["d_kitchen"] != "kitchen" || after["d_radio"] != "kitchen" {

@@ -191,14 +191,14 @@ func (s *relaySession) sendWriteOnce(endpoint string, body []byte, grant string)
 	}
 	resp, err := s.transport.Client.Do(req)
 	if err != nil {
-		return nil, relayRequestOutcomeUnknownError(s.transport.BaseURL, err)
+		return nil, relayRequestOutcomeUnknownError(s.transport.BaseURL, err, s.cfg.demoToken != "")
 	}
 	defer resp.Body.Close()
 	if isHTTPRedirect(resp.StatusCode) {
 		return nil, relayHTTPOutcomeUnknownError(resp.StatusCode)
 	}
 	raw, err := readAllLimited(resp.Body, maxRelayResponseBytes)
-	if s.transport.Via == relayViaLocal && localRelayRefusedCredential(resp.StatusCode, raw) {
+	if s.transport.Via == relayViaLocal && localRelayRefusedCredential(resp.StatusCode, raw, s.cfg.demoToken != "") {
 		return nil, errors.New(localRelayAuthRepairMessage(resp.StatusCode, resp.Header, s.server, s.cfg))
 	}
 	if err == nil {

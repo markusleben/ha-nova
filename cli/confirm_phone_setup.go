@@ -124,6 +124,7 @@ type phoneHome struct {
 	linked       *phoneTarget        // the linked device while it exists; Service "" when it can't be reached
 	linkedWhy    phoneWhy            // why linked can't be reached
 	confirms     func(haUser) bool   // whose phone may confirm, as lookupPhones read it (confirmer)
+	chat         *chatPolicy         // the call's chat app (relaySession.call); nil outside one
 }
 
 // confirmer: u's phone may confirm here. On a computer, an administrator's
@@ -142,9 +143,9 @@ func lookupPhones(s *relaySession, links map[string]phoneEntry) (phoneHome, erro
 	if err := s.phoneRead("ws", map[string]any{"type": "config/auth/list"}, &users); err != nil {
 		return phoneHome{}, err
 	}
-	home := phoneHome{relay: current.ID, users: map[string]haUser{}, confirms: phoneAdmin}
-	if chatCall != nil { // a chat app's user, or the one a control action acts for (asUser): bound now
-		home.confirms = chatCall.phoneAllowed
+	home := phoneHome{relay: current.ID, users: map[string]haUser{}, confirms: phoneAdmin, chat: s.call.chatPolicy()}
+	if home.chat != nil { // a chat app's user, or the one a control action acts for (asUser): bound now
+		home.confirms = home.chat.phoneAllowed
 	}
 	for _, u := range users {
 		home.users[u.ID] = u
@@ -156,7 +157,7 @@ func lookupPhones(s *relaySession, links map[string]phoneEntry) (phoneHome, erro
 		return home, errors.New("Home Assistant's owner or the Relay's user could not be read")
 	}
 	device := ""
-	if link := linkFor(links, home.owner).link; link != nil {
+	if link := linkFor(links, home.owner, home.chat).link; link != nil {
 		device = link.DeviceID
 	}
 	var devices []struct {
@@ -312,7 +313,7 @@ func (h phoneHome) status(links map[string]phoneEntry, err error) (phoneSetup, p
 		return phoneSetup{why: whyRead}, phoneMissing // a link exists on this computer; whether it is this home's can't be checked
 	}
 	entry, ok := links[h.owner]
-	if chatCall != nil {
+	if h.chat != nil {
 		entry, ok = links[chatOwner]
 	}
 	switch {

@@ -99,7 +99,7 @@ func TestOutcomeUnknownPaths(t *testing.T) {
 		}()
 		_ = run(false)
 	}()
-	step := nextStep(map[string]any{"error": map[string]any{"code": "OUTCOME_UNKNOWN", "next": "Verify the target state; never retry automatically."}}, chatCall != nil)
+	step := nextStep(map[string]any{"error": map[string]any{"code": "OUTCOME_UNKNOWN", "next": "Verify the target state; never retry automatically."}}, chatCall)
 	if !strings.Contains(step, "ha_get") || !strings.Contains(step, "never call or apply again") {
 		t.Fatalf("MCP next_step %q", step)
 	}

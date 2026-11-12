@@ -166,7 +166,7 @@ func runPlanConfig(call *verbCall, paths runtimePaths, op string, args []string)
 	}
 	return runReadVerb(paths, "plan", opts, func(s *relaySession, env *verbEnvelope) error {
 		if req.Op == "revert" { // a named rooms record reverts as a rooms plan (plan_rooms.go), a rename's as a raw plan (plan_raw_names_undo.go)
-			if snap, err := selectServerUndoSnapshot(paths, s.server, req.ConfigID, req.Domain); err == nil && snap.Op == namesUndoOp {
+			if snap, err := selectServerUndoSnapshot(paths, s.server, s.cfg.demoToken != "", req.ConfigID, req.Domain); err == nil && snap.Op == namesUndoOp {
 				return planNamesUndo(paths, s, env, snap)
 			} else if err == nil && snap.Op == "rooms" && req.ConfigID != "" {
 				return planRoomsUndo(paths, s, env, snap)
@@ -283,7 +283,7 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 		}
 	case "revert":
 		var err error
-		if snap, err = selectServerUndoSnapshot(paths, s.server, req.ConfigID, req.Domain); err != nil {
+		if snap, err = selectServerUndoSnapshot(paths, s.server, s.cfg.demoToken != "", req.ConfigID, req.Domain); err != nil {
 			return fail(refused("NO_UNDO_SNAPSHOT", err.Error()))
 		}
 		if snap.Op == "rooms" { // only by name: "undo the last update" never undoes setup's rooms

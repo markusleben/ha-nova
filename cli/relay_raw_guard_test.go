@@ -232,7 +232,7 @@ func TestRawRelayRefusesWhitespaceAndControlPaths(t *testing.T) {
 	}
 	haRead := func(path string) bool {
 		body, _ := json.Marshal(map[string]any{"method": "GET", "path": path})
-		return mcpReadRefusal("core", body) == nil
+		return mcpReadRefusal("core", body, false) == nil
 	}
 	for _, path := range []string{"/api/states/.\t./webhook/abc", "/api/states/..\\webhook/abc", " /api/webhook/abc", "/api/states/x#/../../webhook/a"} {
 		if readablePath(path) || haRead(path) {

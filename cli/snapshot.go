@@ -55,7 +55,7 @@ func runSnapshotSave(paths runtimePaths, args []string) int {
 	selected := ""
 	if serverSet { // the server must exist; it tags the record
 		var err error
-		if selected, err = snapshotServer(paths, fs, *server); err != nil {
+		if selected, _, err = snapshotServer(nil, paths, fs, *server); err != nil {
 			printErr("%s; no snapshot was written", err)
 			return 1
 		}
@@ -169,12 +169,12 @@ func runSnapshotShow(call *verbCall, paths runtimePaths, args []string) int {
 		fmt.Fprintln(call.stdout(), string(out))
 		return 0
 	}
-	selected, err := snapshotServer(paths, fs, *server)
+	selected, demo, err := snapshotServer(call, paths, fs, *server)
 	if err != nil {
 		call.errorf("%s", err)
 		return 1
 	}
-	snap, err := selectServerUndoSnapshot(paths, selected, target, domain)
+	snap, err := selectServerUndoSnapshot(paths, selected, demo, target, domain)
 	if err != nil {
 		call.errorf("%s", err)
 		return 1
@@ -232,12 +232,12 @@ func runSnapshotVerify(call *verbCall, paths runtimePaths, args []string) int {
 		call.errorf("--against <live.json> is required")
 		return 1
 	}
-	selected, err := snapshotServer(paths, fs, *server)
+	selected, demo, err := snapshotServer(call, paths, fs, *server)
 	if err != nil {
 		call.errorf("%s", err)
 		return 1
 	}
-	snap, err := selectServerUndoSnapshot(paths, selected, target, domain)
+	snap, err := selectServerUndoSnapshot(paths, selected, demo, target, domain)
 	if err != nil {
 		call.errorf("%s", err)
 		return 1
@@ -270,17 +270,21 @@ func runSnapshotVerify(call *verbCall, paths runtimePaths, args []string) int {
 // snapshotServer resolves the server whose checkpoints show/verify select:
 // --server, else the default profile like every other verb. Without any
 // configured server (nothing to filter by) every record stays eligible.
-func snapshotServer(paths runtimePaths, fs *flag.FlagSet, server string) (string, error) {
+// demo: it is the demo house (selectServerUndoSnapshot).
+func snapshotServer(call *verbCall, paths runtimePaths, fs *flag.FlagSet, server string) (string, bool, error) {
 	serverSet := false
 	fs.Visit(func(f *flag.Flag) { serverSet = serverSet || f.Name == "server" })
-	if err := selectServerFlag(fs, server); err != nil {
-		return "", err
-	}
-	if _, err := loadConfig(paths); err != nil {
-		if serverSet {
-			return "", err
+	if call == nil {
+		if err := selectServerFlag(fs, server); err != nil {
+			return "", false, err
 		}
-		return "", nil
 	}
-	return activeServerProfile(), nil
+	cfg, err := verbConfig(paths, verbOptions{call: call, server: server, serverSet: serverSet && call != nil})
+	if err != nil {
+		if serverSet {
+			return "", false, err
+		}
+		return "", false, nil
+	}
+	return cfg.profileName(), cfg.demoToken != "", nil
 }

@@ -115,16 +115,17 @@ func chatConfirmer(setup phoneSetup, status phoneStatus) (phoneSetup, phoneStatu
 // linksForCall: the CLI's links (config.json, keyed by the HA owner), or in
 // a chat app only this user's link from the bridge's own store (one Home
 // Assistant, keyed by HA user), under chatOwner; never config.json.
-// Missing file: none; unreadable: unknown (ok=false), never "none".
-func linksForCall(paths runtimePaths) (map[string]phoneEntry, bool) {
-	if chatCall == nil {
+// Missing file: none; unreadable: unknown (ok=false), never "none". chat:
+// the call's chat app (relaySession.call), nil outside one.
+func linksForCall(paths runtimePaths, chat *chatPolicy) (map[string]phoneEntry, bool) {
+	if chat == nil {
 		return phoneLinks(paths)
 	}
-	byUser, ok := readBridgeLinks(chatCall.links)
+	byUser, ok := readBridgeLinks(chat.links)
 	if !ok {
 		return nil, false
 	}
-	return bridgeEntries(byUser, chatCall.user), true
+	return bridgeEntries(byUser, chat.user), true
 }
 
 // readBridgeLinks: the bridge's store, {HA user id: phoneLink or null}.
@@ -160,8 +161,8 @@ func bridgeEntries(byUser map[string]*phoneLink, user string) map[string]phoneEn
 const chatOwner = "chat-app-user"
 
 // linkFor: the link entry for this home's owner (in a chat app, the user's).
-func linkFor(links map[string]phoneEntry, owner string) phoneEntry {
-	if chatCall != nil {
+func linkFor(links map[string]phoneEntry, owner string, chat *chatPolicy) phoneEntry {
+	if chat != nil {
 		return links[chatOwner]
 	}
 	return links[owner]
@@ -183,12 +184,15 @@ func chatReadOnlyFailure() *verbFailure {
 
 // chatReadOnly: this tool call comes from a chat app the owner set to read
 // only.
-func chatReadOnly() bool { return chatCall != nil && chatCall.readOnly }
+func chatReadOnly() bool { return chatCall.isReadOnly() }
+
+// isReadOnly: p is a chat app the owner set to read only.
+func (p *chatPolicy) isReadOnly() bool { return p != nil && p.readOnly }
 
 // mcpPlanRoute: where a change ha_read refuses goes; never to a plan in a
 // chat app set to read only.
-func mcpPlanRoute() string {
-	if chatReadOnly() {
+func mcpPlanRoute(readOnly bool) string {
+	if readOnly {
 		return "chat apps are set to read only in this home (the owner's setting on the HA NOVA page), so tell the user to make this change in Home Assistant itself"
 	}
 	return mcpPlanIt
@@ -198,7 +202,7 @@ func chatStopped(name string, failure *verbFailure) map[string]any {
 	env := verbEnvelope{SchemaVersion: 1, Verb: name[len("ha_"):]}
 	setVerbError(&env, failure)
 	out, _ := json.Marshal(env)
-	return toolResult(name, string(out), "", verbExitRefused, nil, false, false) // never a RELAY_ERROR or a code: chat changes nothing
+	return toolResult(name, string(out), "", verbExitRefused, nil, false, nil) // never a RELAY_ERROR or a code: chat changes nothing
 }
 
 // chatJob is one phone ask of one user's plan, run once in the background.

@@ -80,3 +80,18 @@ func TestVerbConfigSelectsTheCallsProfile(t *testing.T) {
 		t.Fatalf("cabin's credential: token %q err %v", token, err)
 	}
 }
+
+// A read's config load leaves the process's selection alone (it runs beside
+// a change, whose confirmation reads it); a change's load under
+// mcpVerbLock sets it, as the CLI's does.
+func TestReadLoadLeavesTheProcessSelectionAlone(t *testing.T) {
+	resetServerProfileSelection(t)
+	paths := writeTestConfigFile(t, testV2TwoProfileConfig)
+	setActiveServerProfile("cabin")
+	if cfg, err := verbConfig(paths, verbOptions{call: &verbCall{server: "default"}}); err != nil || cfg.profileName() != "default" || activeServerProfile() != "cabin" {
+		t.Fatalf("a read: %q %v, process %q", cfg.profileName(), err, activeServerProfile())
+	}
+	if cfg, err := verbConfig(paths, verbOptions{call: &verbCall{server: "default", serial: true}}); err != nil || cfg.profileName() != "default" || activeServerProfile() != "default" {
+		t.Fatalf("a change: %q %v, process %q", cfg.profileName(), err, activeServerProfile())
+	}
+}

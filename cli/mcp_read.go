@@ -31,8 +31,8 @@ const (
 // serve must never compile one in process).
 var mcpCompileJQ = compileJQFilter
 
-// mcpJQDeadline bounds a jq filter: ha_read runs under mcpVerbLock, so a
-// filter that never ends would stop every tool (a variable for tests).
+// mcpJQDeadline bounds a jq filter: a filter that never ends would hold its
+// call forever (a variable for tests).
 var mcpJQDeadline = 5 * time.Second
 
 var mcpReadArgs = map[string][]string{
@@ -222,9 +222,9 @@ func runMCPRead(call *verbCall, paths runtimePaths, argv []string) int {
 	endpoint := argv[0]
 	switch endpoint {
 	case "snapshot":
-		return runOfflineRead(call, paths, endpoint, run, func() (json.RawMessage, error) { return readSnapshot(paths, *action, fs.Args()) })
+		return runOfflineRead(call, paths, endpoint, run, func() (json.RawMessage, error) { return readSnapshot(call, paths, *action, fs.Args()) })
 	case "diff":
-		return runOfflineRead(call, paths, endpoint, run, func() (json.RawMessage, error) { return readDiff(paths, fs.Args()) })
+		return runOfflineRead(call, paths, endpoint, run, func() (json.RawMessage, error) { return readDiff(call, paths, fs.Args()) })
 	}
 	relayEndpoint := endpoint
 	if endpoint == "camera" {
@@ -236,7 +236,7 @@ func runMCPRead(call *verbCall, paths runtimePaths, argv []string) int {
 		send, refusal, err = guardRawRequest(paths, verbOptions{call: call}, relayEndpoint, send)
 	}
 	if refusal == nil && err == nil {
-		refusal = mcpReadRefusal(endpoint, send)
+		refusal = mcpReadRefusal(endpoint, send, call.chatPolicy().isReadOnly())
 	}
 	if refusal != nil {
 		err = &verbFailure{exit: verbExitRefused, code: "REFUSED", message: refusal.Error()}
@@ -277,7 +277,7 @@ func runMCPRead(call *verbCall, paths runtimePaths, argv []string) int {
 
 // mcpReadRefusal: what the guard lets `ha-nova relay` send but ha_read does
 // not (body has passed guardRawRequest).
-func mcpReadRefusal(endpoint string, body []byte) error {
+func mcpReadRefusal(endpoint string, body []byte, readOnly bool) error {
 	payload, _ := decodeObject(body)
 	switch endpoint {
 	case "core":
@@ -287,11 +287,11 @@ func mcpReadRefusal(endpoint string, body []byte) error {
 		case method == http.MethodPost && (path == "/api/template" || path == "/api/config/core/check_config"):
 			return nil
 		case method != http.MethodGet:
-			return fmt.Errorf("ha_read sends POST only to /api/template and /api/config/core/check_config; to change something, %s; nothing was sent", mcpPlanRoute())
+			return fmt.Errorf("ha_read sends POST only to /api/template and /api/config/core/check_config; to change something, %s; nothing was sent", mcpPlanRoute(readOnly))
 		case !readablePath(path):
 			return errors.New("ha_read core reads plain paths under /api/, but no webhooks, backup downloads, Supervisor requests, media proxies, or streams (a camera's image: endpoint camera); nothing was sent")
 		case flowStepPath.MatchString(strings.SplitN(path, "?", 2)[0]):
-			return fmt.Errorf("a GET on a flow step can finish the flow: %s; nothing was sent", mcpPlanRoute())
+			return fmt.Errorf("a GET on a flow step can finish the flow: %s; nothing was sent", mcpPlanRoute(readOnly))
 		case !rawRelayRead("core", body):
 			return errors.New("send the plain path (no %-escapes or dot segments); nothing was sent")
 		}
@@ -299,19 +299,19 @@ func mcpReadRefusal(endpoint string, body []byte) error {
 		message, _ := payload["message"].(map[string]any)
 		for _, wsType := range []any{payload["type"], message["type"]} {
 			if name, _ := wsType.(string); mcpPlannedReads[name] {
-				return fmt.Errorf("%s fetches a URL or hands out a live link: %s; nothing was sent", name, mcpPlanRoute())
+				return fmt.Errorf("%s fetches a URL or hands out a live link: %s; nothing was sent", name, mcpPlanRoute(readOnly))
 			}
 		}
 		if !rawRelayRead("ws", body) {
-			return fmt.Errorf("ha_read only reads; to change something, %s; nothing was sent", mcpPlanRoute())
+			return fmt.Errorf("ha_read only reads; to change something, %s; nothing was sent", mcpPlanRoute(readOnly))
 		}
 	case "files":
 		if action, _ := payload["action"].(string); action != "list_dir" && action != "read_file" && action != "list_deleted" {
-			return fmt.Errorf("ha_read reads files with list_dir, read_file, and list_deleted only; to write, delete, or put back one, %s; nothing was sent", mcpPlanRoute())
+			return fmt.Errorf("ha_read reads files with list_dir, read_file, and list_deleted only; to write, delete, or put back one, %s; nothing was sent", mcpPlanRoute(readOnly))
 		}
 	case "backups":
 		if action, _ := payload["action"].(string); action != "list" && action != "load" {
-			return fmt.Errorf("ha_read lists and loads config snapshots only; to save, delete, or prune one, %s; nothing was sent", mcpPlanRoute())
+			return fmt.Errorf("ha_read lists and loads config snapshots only; to save, delete, or prune one, %s; nothing was sent", mcpPlanRoute(readOnly))
 		}
 	}
 	return nil

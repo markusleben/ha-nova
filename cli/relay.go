@@ -438,7 +438,7 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		printRelayHTTPFailure(read, resp.StatusCode)
 		return 1
 	}
-	if notice := checkRelayVersionValue(paths, resp.Header.Get(relayVersionHeader)); !notice.empty() {
+	if notice := checkRelayVersionValue(paths, resp.Header.Get(relayVersionHeader), activeServerIsDemo()); !notice.empty() {
 		if shouldWarnRelayOutdated(paths) {
 			printHumanNotice(notice)
 		}
@@ -813,7 +813,7 @@ func runHealth(paths runtimePaths, args []string) int {
 
 	resp, err := transportClient.Do(req)
 	if err != nil {
-		printErr("%s", relayRequestOutcomeUnknownMessage(baseURL, err))
+		printErr("%s", relayRequestOutcomeUnknownMessage(baseURL, err, activeServerIsDemo()))
 		return 1
 	}
 	defer resp.Body.Close()
@@ -878,7 +878,7 @@ func printLocalRelayAuthRepair(
 	transport relayTransportSelection,
 	cfg runtimeConfig,
 ) {
-	if transport.Via != relayViaLocal || !localRelayRefusedCredential(status, body) {
+	if transport.Via != relayViaLocal || !localRelayRefusedCredential(status, body, cfg.demoToken != "") {
 		return
 	}
 	printErr(
@@ -905,8 +905,8 @@ func readAllLimited(r io.Reader, maxBytes int64) ([]byte, error) {
 	return data, nil
 }
 
-func relayConnectErrorMessage(baseURL string, err error) string {
-	if activeServerIsDemo() {
+func relayConnectErrorMessage(baseURL string, err error, demo bool) string {
+	if demo {
 		return demoUnreachableText
 	}
 	return fmt.Sprintf(
@@ -915,7 +915,7 @@ func relayConnectErrorMessage(baseURL string, err error) string {
 	)
 }
 
-func relayRequestOutcomeUnknownMessage(baseURL string, err error) string {
+func relayRequestOutcomeUnknownMessage(baseURL string, err error, demo bool) string {
 	if strings.TrimRight(baseURL, "/") == cloudRelayVirtualBaseURL {
 		return fmt.Sprintf(
 			"OUTCOME_UNKNOWN: Home Assistant Link could not complete the NOVA Relay request: %s\nThe request outcome is unknown: it may have reached the Relay. Verify the target state; do not retry automatically.",
@@ -924,7 +924,7 @@ func relayRequestOutcomeUnknownMessage(baseURL string, err error) string {
 	}
 	return fmt.Sprintf(
 		"OUTCOME_UNKNOWN: %s\nThe request outcome is unknown: it may have reached the Relay. Verify the target state; do not retry automatically.",
-		relayConnectErrorMessage(baseURL, err),
+		relayConnectErrorMessage(baseURL, err, demo),
 	)
 }
 
@@ -941,9 +941,9 @@ func (e *relayOutcomeUnknownError) Unwrap() error {
 	return e.cause
 }
 
-func relayRequestOutcomeUnknownError(baseURL string, err error) error {
+func relayRequestOutcomeUnknownError(baseURL string, err error, demo bool) error {
 	return &relayOutcomeUnknownError{
-		message: relayRequestOutcomeUnknownMessage(baseURL, err),
+		message: relayRequestOutcomeUnknownMessage(baseURL, err, demo),
 		cause:   err,
 	}
 }

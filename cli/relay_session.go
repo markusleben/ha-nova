@@ -383,7 +383,7 @@ func (s *relaySession) exchange(parent context.Context, endpoint string, body []
 		return nil, fmt.Errorf("Relay answered HTTP %d (redirect); redirects are never followed", resp.StatusCode)
 	}
 	raw, err := readAllLimited(resp.Body, maxRelayResponseBytes)
-	if s.transport.Via == relayViaLocal && localRelayRefusedCredential(resp.StatusCode, raw) {
+	if s.transport.Via == relayViaLocal && localRelayRefusedCredential(resp.StatusCode, raw, s.cfg.demoToken != "") {
 		return nil, errors.New(localRelayAuthRepairMessage(resp.StatusCode, resp.Header, s.server, s.cfg))
 	}
 	if err == nil {
@@ -415,7 +415,7 @@ func (s *relaySession) exchange(parent context.Context, endpoint string, body []
 func sendTransportError(s *relaySession, endpoint string, err error) error {
 	switch {
 	case errors.Is(err, context.DeadlineExceeded) && s.transport.Via != relayViaCloud: // no answer in time: same plain say
-		return relayUnreachableError(fmt.Sprintf("Relay %s read timed out (%s per request, %s overall); nothing was changed", endpoint, relaySessionRequestTimeout, relaySessionOverallTimeout))
+		return s.noAnswer(fmt.Sprintf("Relay %s read timed out (%s per request, %s overall); nothing was changed", endpoint, relaySessionRequestTimeout, relaySessionOverallTimeout))
 	case errors.Is(err, context.DeadlineExceeded):
 		return fmt.Errorf("Relay %s read timed out (%s per request, %s overall); nothing was changed", endpoint, relaySessionRequestTimeout, relaySessionOverallTimeout)
 	case s.transport.Via == relayViaCloud:
@@ -425,9 +425,18 @@ func sendTransportError(s *relaySession, endpoint string, err error) error {
 		return cloudProblemForError(err)
 	}
 	if relayIdentityFailure(err) { // not "is the App running": the Relay's identity needs checking
-		return errors.New(relayConnectErrorMessage(s.transport.BaseURL, err))
+		return errors.New(relayConnectErrorMessage(s.transport.BaseURL, err, s.cfg.demoToken != ""))
 	}
-	return relayUnreachableError(relayConnectErrorMessage(s.transport.BaseURL, err))
+	return s.noAnswer(relayConnectErrorMessage(s.transport.BaseURL, err, s.cfg.demoToken != ""))
+}
+
+// noAnswer: the Relay gave no answer; relayUnreachableError (the plain
+// "is the App running" say) only for the user's own home, not the demo's.
+func (s *relaySession) noAnswer(message string) error {
+	if s.cfg.demoToken != "" {
+		return errors.New(message)
+	}
+	return relayUnreachableError(message)
 }
 
 // relayIdentityFailure: something answered, but not as the pinned TLS Relay
