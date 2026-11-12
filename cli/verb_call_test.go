@@ -55,3 +55,28 @@ func TestMCPToolsLeaveProcessOutputAlone(t *testing.T) {
 		t.Fatalf("results without an envelope %v; process stdout %q; process stderr %q", missing, leakedOut, leakedErr)
 	}
 }
+
+// An MCP call loads its own profile: its --server, else the call's server,
+// beats the process's selection, and the transport reads the credential of
+// the profile its config was loaded for, not the process's.
+func TestVerbConfigSelectsTheCallsProfile(t *testing.T) {
+	resetServerProfileSelection(t)
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+	paths := writeTestConfigFile(t, testV2TwoProfileConfig)
+	setServerSelectionOverride("default")
+	if cfg, err := verbConfig(paths, verbOptions{call: &verbCall{server: "cabin"}}); err != nil || cfg.RelayBaseURL != "http://cabin:8791" || cfg.profileName() != "cabin" {
+		t.Fatalf("the call's server: %q %q %v", cfg.RelayBaseURL, cfg.profileName(), err)
+	}
+	if cfg, err := verbConfig(paths, verbOptions{call: &verbCall{server: "cabin"}, server: "default", serverSet: true}); err != nil || cfg.profileName() != "default" {
+		t.Fatalf("the call's --server: %q %v", cfg.profileName(), err)
+	}
+	setActiveServerProfile("cabin")
+	if err := writeDeviceCredential(testProfileCredentialB); err != nil {
+		t.Fatal(err)
+	}
+	setActiveServerProfile(defaultServerProfileName)
+	paired := runtimeConfig{RelayBaseURL: "http://cabin:8791", RelaySecureBaseURL: "https://cabin:18792", RelaySpkiPin: "PIN", profile: "cabin"}
+	if _, _, token, _, err := relayFunctionalTransport(paired); err != nil || token != testProfileCredentialB {
+		t.Fatalf("cabin's credential: token %q err %v", token, err)
+	}
+}

@@ -201,8 +201,8 @@ const appOfferInNewBinaryAfter = "0.28.2"
 // what the new version needs. Test seam.
 var runNewBinaryAppOffer = func(paths runtimePaths) error {
 	args := []string{"internal-offer-app-update"}
-	if serverSelectionOverride != "" { // the same server, still chosen by flag
-		args = append(args, "--server", serverSelectionOverride)
+	if override := selectionOverride(); override != "" { // the same server, still chosen by flag
+		args = append(args, "--server", override)
 	}
 	cmd := exec.Command(paths.PublicBinary, args...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr

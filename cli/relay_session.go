@@ -120,10 +120,7 @@ func newRelaySession(paths runtimePaths, opts verbOptions) (*relaySession, error
 // newRelaySessionWithin bounds the whole session (transport selection and
 // every read) by budget; setup's first look uses a shorter one.
 func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Duration) (*relaySession, error) {
-	if opts.serverSet {
-		setServerSelectionOverride(opts.server)
-	}
-	cfg, err := loadConfig(paths)
+	cfg, err := verbConfig(paths, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +150,7 @@ func relaySessionOn(paths runtimePaths, cfg runtimeConfig, transport relayTransp
 		paths:     paths,
 		cfg:       cfg,
 		transport: transport,
-		server:    activeServerProfile(),
+		server:    cfg.profileName(),
 		ctx:       ctx,
 		cancel:    cancel,
 		slots:     make(chan struct{}, relaySessionMaxConcurrent),

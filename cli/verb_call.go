@@ -20,6 +20,7 @@ type verbCall struct {
 	out, err        io.Writer
 	start, deadline time.Time   // zero: windowWait and the session budget alone bound it (tests)
 	chat            *chatPolicy // ha-nova serve: the user and the owner's settings at this call; nil in ha-nova mcp
+	server          string      // the profile it runs against (mcp --server); "": HA_NOVA_SERVER, else default_server
 }
 
 func (c *verbCall) stdout() io.Writer {
@@ -55,6 +56,38 @@ func (c *verbCall) chatPolicy() *chatPolicy {
 		return chatCall
 	}
 	return c.chat
+}
+
+// verbConfig loads the configuration a verb run uses. The CLI (nil call)
+// selects through the process, --server included; an MCP call selects its
+// own profile: its --server, else the call's server, else HA_NOVA_SERVER,
+// else default_server. The config names the profile (profileName).
+func verbConfig(paths runtimePaths, opts verbOptions) (runtimeConfig, error) {
+	if opts.call == nil {
+		if opts.serverSet {
+			setServerSelectionOverride(opts.server)
+		}
+		return loadConfig(paths)
+	}
+	if bridgeRelay != nil {
+		return *bridgeRelay, nil
+	}
+	pick := opts.call.server
+	if opts.serverSet {
+		pick = opts.server
+	}
+	if pick != "" {
+		return loadSelectedConfig(paths, pick, "--server")
+	}
+	return loadSelectedConfig(paths, serverSelectionFromEnv(), serverSelectionEnvVar)
+}
+
+// profileName: the profile cfg was loaded for, else the process's.
+func (c runtimeConfig) profileName() string {
+	if c.profile != "" {
+		return c.profile
+	}
+	return activeServerProfile()
 }
 
 // errorf is printErr for this call.

@@ -87,7 +87,7 @@ func (b *chatBridge) readUsers() ([]haUser, error) {
 // leaves the process-wide server selection as it was; the session keeps
 // what it selected.
 func (b *chatBridge) session(paths runtimePaths) (*relaySession, error) {
-	override, active := serverSelectionOverride, activeServerProfile()
+	override, active := selectionOverride(), activeServerProfile()
 	defer func() { setServerSelectionOverride(override); setActiveServerProfile(active) }()
 	return newRelaySession(paths, verbOptions{server: b.pin, serverSet: b.pin != ""})
 }

@@ -188,7 +188,7 @@ func serveMCP(paths runtimePaths, in io.Reader, out io.Writer) error {
 			}
 		}
 	}()
-	srv := &mcpServer{paths: paths, out: out, pin: serverSelectionOverride, noForms: mcpNoForms, told: map[string]bool{}, lines: lines}
+	srv := &mcpServer{paths: paths, out: out, pin: selectionOverride(), noForms: mcpNoForms, told: map[string]bool{}, lines: lines}
 	for {
 		line, open := srv.next()
 		if !open {
@@ -324,12 +324,12 @@ func (srv *mcpServer) runLocked(name, answered string, forms bool, run func(*ver
 	if name == "ha_apply" { // a change: chat-app requests wait for it at most chatLockWait
 		mcpVerbLock.changing()
 	}
-	override, active := serverSelectionOverride, activeServerProfile()
+	override, active := selectionOverride(), activeServerProfile()
 	defer func() { setServerSelectionOverride(override); setActiveServerProfile(active) }()
 	setServerSelectionOverride(srv.pin)
 	// Channel and form answer come from this server only: the CLI detects
 	// the channel (confirm_window.go), a form only where no window opens.
-	call := &verbCall{start: time.Now(), chat: srv.chat.reread()} // the owner's settings as they are now
+	call := &verbCall{start: time.Now(), chat: srv.chat.reread(), server: srv.pin} // the owner's settings as they are now
 	call.deadline = call.start.Add(mcpCheckBudget)
 	planChannel, humanAnswer, windowWait, formsShown, chatCall = "", answered, mcpWindowWait, forms, call.chat
 	if srv.chat != nil {

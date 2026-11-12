@@ -101,7 +101,7 @@ func runTraceLatest(call *verbCall, paths runtimePaths, args []string) int {
 		return 1
 	}
 
-	out, err := loadLatestTrace(paths, entityID, domain)
+	out, err := loadLatestTrace(call, paths, entityID, domain)
 	if err != nil {
 		out = traceLatestOutput{
 			SchemaVersion: 1,
@@ -149,7 +149,7 @@ func runTraceList(call *verbCall, paths runtimePaths, args []string) int {
 		return 1
 	}
 
-	out, err := loadTraceList(paths, entityID, domain)
+	out, err := loadTraceList(call, paths, entityID, domain)
 	if err != nil {
 		out = traceListOutput{
 			SchemaVersion: 1,
@@ -203,7 +203,7 @@ func runTraceGet(call *verbCall, paths runtimePaths, args []string) int {
 		call.errorf("trace get supports only automation.<id> or script.<id>")
 		return 1
 	}
-	out, err := loadTraceGet(paths, entityID, domain, runID)
+	out, err := loadTraceGet(call, paths, entityID, domain, runID)
 	if err != nil {
 		out = traceGetOutput{
 			SchemaVersion: 1,
