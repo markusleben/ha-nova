@@ -367,6 +367,9 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		return 1
 	}
 	target := verbOptions{server: opts.Server, serverSet: opts.ServerSet, via: opts.Via, viaSet: opts.ViaSet}
+	if logFactsRequest(endpoint, requestBody) { // answered as log facts, never as the log
+		return runRelayLogFacts(paths, target, compiledJQ, opts.OutputFile)
+	}
 	requestBody, refusal, err := guardRawRequest(paths, target, endpoint, requestBody)
 	if refusal == nil && err == nil {
 		refusal, err = relayRawChecks(paths, target, endpoint, requestBody)

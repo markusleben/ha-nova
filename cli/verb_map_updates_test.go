@@ -10,17 +10,20 @@ import (
 
 type updatesFixture struct {
 	mapFixture
-	components []string
-	repairs    []map[string]any
-	backups    any
-	manifests  []map[string]any
-	supervisor map[string]any // path → data; a missing path fails upstream
+	components  []string
+	repairs     []map[string]any
+	backups     any
+	manifests   []map[string]any
+	traces      []map[string]any
+	coreState   string
+	repairsFail bool
+	supervisor  map[string]any // path → data; a missing path fails upstream
 }
 
 func (f updatesFixture) reply(r *http.Request, endpoint string, payload map[string]any) any {
 	switch {
 	case endpoint == "core" && payload["path"] == "/api/config":
-		return coreReply(200, map[string]any{"version": "2026.10.2", "components": f.components})
+		return coreReply(200, map[string]any{"version": "2026.10.2", "state": firstNonEmpty(f.coreState, "RUNNING"), "components": f.components})
 	case endpoint == "supervisor":
 		if data, ok := f.supervisor[payload["path"].(string)]; ok {
 			return map[string]any{"status": 200, "body": map[string]any{"result": "ok", "data": data}}
@@ -29,11 +32,16 @@ func (f updatesFixture) reply(r *http.Request, endpoint string, payload map[stri
 	}
 	switch payload["type"] {
 	case "repairs/list_issues":
+		if f.repairsFail {
+			return fakeRelayFailure{code: "UPSTREAM_WS_COMMAND_ERROR", message: "unknown_error"}
+		}
 		return map[string]any{"issues": append([]map[string]any{}, f.repairs...)}
 	case "backup/info":
 		return f.backups
 	case "manifest/list":
 		return f.manifests
+	case "trace/list":
+		return append([]map[string]any{}, f.traces...)
 	}
 	return f.mapFixture.reply(r, endpoint, payload)
 }
@@ -105,6 +113,7 @@ type updatesResult struct {
 
 func runUpdates(t *testing.T, f updatesFixture, args ...string) (updatesResult, *fakeRelayLog) {
 	t.Helper()
+	releaseNotesServer(t, nil) // never the network
 	paths, log := setupVerbRelayTest(t, f.reply)
 	exit, env := runVerbForTest(t, func() int { return runMapCommand(paths, append([]string{"--section", "updates"}, args...)) })
 	if exit != 0 {
@@ -204,6 +213,7 @@ func TestUpdatesMissingFieldsAreNotChecked(t *testing.T) {
 }
 
 func TestUpdatesRefusesLimit(t *testing.T) {
+	releaseNotesServer(t, nil)
 	paths, log := setupVerbRelayTest(t, haosHome().reply)
 	exit, env := runVerbForTest(t, func() int { return runMapCommand(paths, []string{"--section", "updates", "--limit", "5"}) })
 	if exit == 0 || len(log.all()) != 0 || !strings.Contains(env.Error.Message, "--limit") {
