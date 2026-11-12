@@ -246,3 +246,17 @@ func TestHAVersionOrder(t *testing.T) {
 		t.Fatal("unreadable version compared")
 	}
 }
+
+func TestUpdatesOddAnswersAreNotChecked(t *testing.T) {
+	f := haosHome()
+	f.components = []string{"zwave_js"} // hassio failed to load; its update entities still say Supervisor runs
+	f.supervisor["/store/addons/core_mosquitto"] = map[string]any{"name": "Mosquitto"}
+	f.backups = map[string]any{"backups": []map[string]any{{"date": ago(time.Hour), "agents": map[string]any{}}}}
+	got, _ := runUpdates(t, f)
+	if gaps := codes(got.NotChecked); !slices.Equal(gaps, []string{"backup_running", "backup_copy", "app_minimum"}) || got.Ready != "no" {
+		t.Fatalf("gaps %v ready %s readiness %+v", gaps, got.Ready, got.Readiness)
+	}
+	if slices.Contains(codes(got.Readiness), "SUPERVISOR_NOT_APPLICABLE") {
+		t.Fatal("Supervisor's own update entities were ignored")
+	}
+}

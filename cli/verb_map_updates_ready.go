@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -89,7 +90,11 @@ func (a *updateAdvisor) checkBackups() {
 		a.backupStale = true
 		return
 	}
-	if info.State != "" && info.State != "idle" {
+	switch info.State {
+	case "":
+		a.gap("backup_running", "the backup list names no state")
+	case "idle":
+	default:
 		a.flag("BACKUP_RUNNING", "warning", map[string]any{"state": info.State})
 	}
 	var newest time.Time
@@ -108,7 +113,7 @@ func (a *updateAdvisor) checkBackups() {
 		a.flag("NO_RECENT_BACKUP", "warning", facts)
 		return
 	}
-	if agents == nil {
+	if len(agents) == 0 {
 		a.gap("backup_copy", "the backup list names no storage locations")
 		return
 	}
@@ -169,17 +174,20 @@ func (a *updateAdvisor) checkAppMinimums() {
 		if row.Kind != "app" {
 			continue
 		}
-		var store struct {
-			HomeAssistant *string `json:"homeassistant"`
+		var store map[string]json.RawMessage
+		err := a.supervisorData("/store/addons/"+row.slug, &store)
+		raw, listed := store["homeassistant"]
+		if err == nil && !listed {
+			err = errors.New("the store entry names no minimum")
 		}
-		if err := a.supervisorData("/store/addons/"+row.slug, &store); err != nil {
+		if err != nil {
 			a.gap("app_minimum", row.Name+": "+err.Error())
 			continue
 		}
-		if store.HomeAssistant == nil || *store.HomeAssistant == "" {
+		var needs string // null: no minimum
+		if json.Unmarshal(raw, &needs) != nil || needs == "" {
 			continue
 		}
-		needs := *store.HomeAssistant
 		aboveLatest, ok1 := haVersionLess(a.coreTo, needs)
 		aboveInstalled, ok2 := haVersionLess(a.coreFrom, needs)
 		switch {

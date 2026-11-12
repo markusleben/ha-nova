@@ -15,7 +15,6 @@ Lifecycle:
 - install an update (feature-gated, safety gates)
 - skip/unskip versions
 - Apps: store, install, uninstall, settings, auto-update: read `apps.md`
-- the update advisor before installs: `advisor.md`
 
 Not in scope:
 - HACS store operations beyond `update.*` entities (`ha-nova:hacs`)
@@ -47,6 +46,7 @@ Never call a bitmask-backed service (install/version/backup/release-notes) the m
 ## Flow
 
 ### Overview
+Before any install or update question: `advisor.md`.
 `GET /api/states --out <result-file>` for the update entities AND WS `{"type":"config/entity_registry/list"}` for their `platform`/`unique_id` (states alone cannot classify). Filter `update.*`, report grouped, pending (`state: "on"`) first:
 - Home Assistant stack: core, operating system, supervisor
 - Apps; integrations (Marketplace/HACS components); device firmware (everything else)

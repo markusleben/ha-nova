@@ -163,7 +163,7 @@ describe("update advisor contract", () => {
   const advisor = readFileSync("skills/updates/advisor.md", "utf8");
 
   it("runs the read-only check before every install and never confirms", () => {
-    expect(updatesSkill).toContain("- the update advisor before installs: `advisor.md`");
+    expect(updatesSkill).toContain("Before any install or update question: `advisor.md`.");
     expect(advisor).toContain("Run before every install, one update or a batch");
     expect(advisor).toContain("`ha-nova map --section updates`");
     expect(advisor).toContain("Every install keeps its own preview, gates, and confirmation");
@@ -173,7 +173,8 @@ describe("update advisor contract", () => {
   it("never turns an unchecked or default result into a promise", () => {
     expect(advisor).toContain("Never say an update is safe.");
     expect(advisor).toContain("no blockers found in the checks HA NOVA made");
-    expect(advisor).toContain("`not_checked`: say which checks could not run and why.");
+    expect(advisor).toContain("the home is not known to be ready");
+    expect(advisor).toContain("Supervisor, OS, and Core each stay their own confirmed step");
     expect(advisor).toContain("It is a default (`order_basis: default`)");
     for (const code of ["SUPERVISOR_UNHEALTHY", "DISK_LOW", "UPDATE_RUNNING", "APP_NEEDS_NEWER_CORE", "NO_RECENT_BACKUP", "BACKUP_ONLY_ON_DEVICE", "BACKUP_RUNNING", "REPAIRS_OPEN"]) {
       expect(advisor).toContain(`\`${code}\``);

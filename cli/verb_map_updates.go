@@ -188,6 +188,9 @@ func (a *updateAdvisor) loadPending() error {
 	if a.rows == nil {
 		a.rows = []updateRow{}
 	}
+	if slices.ContainsFunc(a.rows, func(r updateRow) bool { return r.Kind != "integration" && r.Kind != "firmware" }) {
+		a.hassio = true // Supervisor's update entities: its checks apply even when the hassio component failed to load
+	}
 	if len(running) > 0 {
 		a.flag("UPDATE_RUNNING", "blocker", map[string]any{"updates": running})
 	}
