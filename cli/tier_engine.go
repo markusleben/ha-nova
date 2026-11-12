@@ -115,6 +115,7 @@ type tierEngine struct {
 	callAdded    map[int]bool    // call_service listeners already consumers, by their place in the listener table
 	manifests    map[string]bool // integration → built in; nil until read
 	markTyped    bool            // a raw item is typed only by its skill's mark, which the Relay neither sees nor needs (gateChannel)
+	censusMoot   bool            // a call's own target is typed: the listener census can only raise it (callTargetTyped)
 
 	stateList func() (map[string]json.RawMessage, error) // a config check's states, one read for all (useStateList); nil: one read each
 }
@@ -156,6 +157,9 @@ func (e *tierEngine) prefetchStates(ids []string) {
 		if _, known := e.states[id]; !known && entityIDPattern.MatchString(id) {
 			reads = append(reads, func() { _, _, _ = e.rawState(id) })
 		}
+	}
+	if len(reads) > relaySessionMaxConcurrent && e.stateList == nil { // more than one round of single reads: from now on one read serves every state
+		e.useStateList()
 	}
 	prefetch(reads)
 }

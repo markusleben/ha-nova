@@ -87,6 +87,25 @@ func (e *tierEngine) eventCounts(eventType, entityID string) (*listenerTable, []
 	return table, matched
 }
 
+// callTargetTyped: a call whose own target classifies typed (an unlock, a
+// garage opening) asks whatever else it sets off, and the listener census can
+// only add reasons to it, so the call skips the census: about one read per
+// automation over Home Assistant Link. Only call plans set it; a raw item
+// keeps its own class (scopes).
+func (e *tierEngine) callTargetTyped(req planCallRequest, targets []verbTarget) bool {
+	for _, t := range targets {
+		st := e.states[t.EntityID]
+		if st == nil {
+			continue
+		}
+		domain, _ := splitID(t.EntityID)
+		if level, code := classifyOnEntity(t.EntityID, effectiveService(req.Service, domain), req.Data, st); level == tierTyped && code != reasonOwnedMember {
+			return true
+		}
+	}
+	return false
+}
+
 func baselineFor(eventType string) int {
 	if eventType == "call_service" {
 		return callServiceListenerBaseline
@@ -109,7 +128,7 @@ func sortedBoolKeys(m map[string]bool) []string {
 // within the session's request slots) and counts the event-trigger
 // listeners of the automations that are on.
 func (e *tierEngine) listenerTable() *listenerTable {
-	if e.listeners != nil {
+	if e.listeners != nil || e.censusMoot {
 		return e.listeners
 	}
 	status, body, err := e.s.coreGET("/api/states")
