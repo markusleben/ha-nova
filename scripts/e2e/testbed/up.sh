@@ -44,9 +44,11 @@ fi
 [[ -z "$OVERLAY" || "${TESTBED_FILES:-}" != 1 ]] || die "TESTBED_FILES is for the local bed, never the hosted demo"
 [[ "$OWNER_PASSWORD" =~ ^[A-Za-z0-9._-]{12,}$ ]] || die "TESTBED_OWNER_PASSWORD must be 12+ chars of [A-Za-z0-9._-]"
 command -v curl > /dev/null || die "curl is required"
-if [[ -n "$("${COMPOSE[@]}" ps -q 2> /dev/null)" ]]; then
-  die "the test bed is already running; run down.sh first (npm run testbed:down)"
-fi
+# Stopped containers count: compose would take them over from their checkout.
+bed_dirs="$(docker ps -a --filter label=com.docker.compose.project=ha-nova-testbed \
+  --format '{{.Label "com.docker.compose.project.working_dir"}}' | sort -u)" || die "cannot list Docker containers"
+[[ -z "$bed_dirs" ]] ||
+  die "the test bed is already running (started from ${bed_dirs//$'\n'/ }); it belongs to whoever started it: wait for them, never tear it down"
 # The hosted demo publishes nothing from this project (its Caddy, in another
 # project, already holds 127.0.0.1:18123).
 [[ -n "$OVERLAY" ]] || for port in 18123 18791 11883 18792; do
@@ -61,6 +63,8 @@ step "preparing runtime config in .state/config"
 # A failed boot is left running for inspection; say how to look and clean up.
 trap 'code=$?; [[ $code == 0 ]] || echo "testbed: up failed; inspect: docker compose -p ha-nova-testbed logs; clean up: npm run testbed:down" >&2' EXIT
 mkdir -p "$STATE/config"
+# Owner marker: down.sh tears the bed down only for the same TESTBED_OWNER.
+printf '%s' "${TESTBED_OWNER:-}" > "$STATE/owner"
 [[ "${TESTBED_FILES:-}" != 1 ]] || touch "$STATE/files" # phone.mjs recreates the Relay with it
 cp -R "$HERE/config/." "$STATE/config/"
 if [[ -n "$OVERLAY" ]]; then cp -R "$OVERLAY/config/." "$STATE/config/"; fi
