@@ -200,11 +200,12 @@ describe("update advisor after the update", () => {
 
   it("checks after each install and says a rollback plainly", () => {
     expect(advisor).toContain("`ha-nova map --section after_update`");
-    expect(updatesSkill).toContain("Then ALWAYS `ha-nova map --section after_update` (chat app: `ha_map`; `advisor.md`).");
+    expect(updatesSkill).toContain("Then, done or not, ALWAYS `ha-nova map --section after_update` (chat app: `ha_map`; `advisor.md`).");
     expect(updatesSkill).toContain("then the after-update check.");
     expect(advisor).toContain("say plainly that the update did not happen");
     expect(advisor).toContain("`rollback: unknown`: it could not be checked; say so.");
     expect(advisor).toContain("if it was installed again since, it rolled back again");
+    expect(advisor).toContain("After each install, verified, failed, or still pending");
     expect(advisor).toContain("none in the stored runs, not that every automation works");
   });
 });
