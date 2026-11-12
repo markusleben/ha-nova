@@ -214,6 +214,9 @@ func computeRoomsPlan(s *relaySession, env *verbEnvelope, req roomsRequest) (*ti
 	if err == nil {
 		err = roomsAccessRefusal(s, req, reg)
 	}
+	if err == nil {
+		err = roomsCarryRefusal(s, req, reg)
+	}
 	if err != nil {
 		return nil, storedPlan{}, err
 	}
@@ -241,9 +244,6 @@ func computeRoomsPlan(s *relaySession, env *verbEnvelope, req roomsRequest) (*ti
 	}
 	e := newTierEngine(s)
 	e.raise(tierPreview, tierReason{Code: reasonAreaAssign, Via: roomsUndoDomain})
-	for _, it := range req.Items { // a room whose triggers set off an unlock asks first, as the same raw write does
-		e.rawListeners("ws", deviceAreaPayload(it.DeviceID, it.To))
-	}
 	plan := storedPlan{Kind: "rooms", RoomsRequest: &req, Basis: map[string]any{"names": names, "areas": areaNames, "effective": effective}}
 	plan, err = sealPlan(e, env, plan, req)
 	lang := textLang(plan)

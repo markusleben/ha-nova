@@ -211,9 +211,9 @@ func (e *tierEngine) rawListeners(endpoint string, payload map[string]any) tierL
 		e.scopes = e.scopes[:len(e.scopes)-1]
 		e.done[key] = own
 	}
-	e.rawTakeover(endpoint, payload)
+	ran := e.rawTakeover(endpoint, payload)
 	e.rawCarry(endpoint, payload)
-	if len(e.consumers) > consumers { // a raw write calls nothing itself: only what its consumers call may set off a call_service listener (MAR-148)
+	if len(e.consumers) > consumers || ran { // a raw write calls nothing itself: only what its consumers, or the scripts a takeover hands the id to, call may set off a call_service listener (MAR-148)
 		e.callServiceListeners()
 	}
 	e.scopes = e.scopes[:len(e.scopes)-1]

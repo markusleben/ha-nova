@@ -12,4 +12,4 @@ Unreleased claims wait here until they ship (AGENTS.md, Releases: the README des
 
 ## Changed in 0.31
 
-- **Fixing a repair and changing an integration's sub-entries now ask for your OK.** What such a fix or change does is up to the integration (it may remove devices or entities), so HA NOVA asks before each step, on every route, also when an AI app sends the request directly. Renaming a device's entity onto the id of one it replaces, and moving an entity, device, or room into an area, floor, or label (also with the room suggestions), ask too when an automation triggered there does something that needs your OK, such as unlocking.
+- **Fixing a repair and changing an integration's sub-entries now ask for your OK.** What such a fix or change does is up to the integration (it may remove devices or entities), so HA NOVA asks before each step, on every route, also when an AI app sends the request directly. Renaming a device's entity onto the id of one it replaces, and moving an entity, device, or room into an area, floor, or label, ask too when an automation triggered there does something that needs your OK, such as unlocking.

@@ -39,6 +39,16 @@ func TestRawTypedParity(t *testing.T) {
 				f.relatedGroups = map[string][]string{"binary_sensor.porch": {"group.doors"}}
 				f.related["entity:group.doors"] = []string{"automation.opener"}
 			}, nil},
+		{"a takeover rename onto an id a script names, whose call an automation listens for", `{"type":"config/entity_registry/update","entity_id":"binary_sensor.side_door","new_entity_id":"binary_sensor.porch"}`,
+			func(f *fakeHA) {
+				f.script("hall", map[string]any{"wait_template": "{{ is_state('binary_sensor.porch', 'on') }}"}, step("light.turn_on", "light.hall"))
+				f.related["scripts:binary_sensor.porch"] = []string{"script.hall"}
+				listen(f, "watch", map[string]any{"domain": "light"}, step("lock.unlock", "lock.front"))
+			},
+			func(f *fakeHA) {
+				f.script("hall", map[string]any{"wait_template": "{{ is_state('binary_sensor.porch', 'on') }}"}, step("light.turn_on", "light.hall"))
+				f.related["scripts:binary_sensor.porch"] = []string{"script.hall"}
+			}},
 		{"an entity moved into an area a trigger targets", `{"type":"config/entity_registry/update","entity_id":"binary_sensor.side_door","area_id":"porch"}`,
 			func(f *fakeHA) {
 				porch(f)

@@ -18,16 +18,17 @@ import (
 
 // rawTakeover walks what search/related lists for the id a registry rename
 // takes (new_entity_id): every automation and script that names it, also
-// through a group or person that holds it, whatever their triggers.
-func (e *tierEngine) rawTakeover(endpoint string, payload map[string]any) {
+// through a group or person that holds it, whatever their triggers. ran:
+// it expanded a script, whose calls call_service listeners may hear.
+func (e *tierEngine) rawTakeover(endpoint string, payload map[string]any) (ran bool) {
 	id := rawEntityID(payload["new_entity_id"])
 	if endpoint != "ws" || payload["type"] != "config/entity_registry/update" || id == "" {
-		return
+		return false
 	}
 	related, err := e.related("entity", id)
 	if err != nil {
 		e.readFailed(id, "", "related")
-		return
+		return ran
 	}
 	automations, scripts := related["automation"], related["script"]
 	holders, seen := append(slices.Clone(related["group"]), related["person"]...), map[string]bool{id: true}
@@ -39,12 +40,12 @@ func (e *tierEngine) rawTakeover(endpoint string, payload map[string]any) {
 		seen[holder] = true
 		if e.reads++; e.reads > tierMaxConsumers {
 			e.gap(reasonLimitCut, "", "", fmt.Sprintf("more than %d consumer configs", tierMaxConsumers))
-			return
+			return ran
 		}
 		up, err := e.related("entity", holder)
 		if err != nil {
 			e.readFailed(holder, "", "related")
-			return
+			return ran
 		}
 		automations, scripts = append(automations, up["automation"]...), append(scripts, up["script"]...)
 		holders = append(append(holders, up["group"]...), up["person"]...)
@@ -60,11 +61,13 @@ func (e *tierEngine) rawTakeover(endpoint string, payload map[string]any) {
 		}
 		if e.reads++; e.reads > tierMaxConsumers {
 			e.gap(reasonLimitCut, "", "", fmt.Sprintf("more than %d consumer configs", tierMaxConsumers))
-			return
+			return ran
 		}
 		e.visited["takeover "+script] = true
 		e.expandRun(script, "script", 1)
+		ran = true
 	}
+	return ran
 }
 
 // rawCarry walks the automations whose triggers target a place a registry

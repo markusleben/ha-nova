@@ -76,3 +76,24 @@ func roomsAccessRefusal(s *relaySession, req roomsRequest, reg roomsRegistry) er
 	}
 	return nil
 }
+
+// roomsCarryRefusal: a rooms plan never makes a move the same raw device
+// update would rate typed (rawCarry: an automation whose trigger targets the
+// new room, its floor, or its labels has an action that needs confirmation,
+// or a read it needs fails). That move takes the user's own confirmation as
+// a raw device update.
+func roomsCarryRefusal(s *relaySession, req roomsRequest, reg roomsRegistry) error {
+	e := newTierEngine(s)
+	for _, it := range req.Items {
+		if e.rawListeners("ws", deviceAreaPayload(it.DeviceID, it.To)) < tierTyped {
+			continue
+		}
+		name, room := sayText(reg.devices[it.DeviceID].name, true), cmp.Or(sayText(reg.areas[it.To], true), "no room")
+		next := "Move " + name + " as a raw plan (config/device_registry/update with its area_id), which needs the user's own confirmation; plan the other devices without it."
+		if req.Undo {
+			next = "Nothing was reverted. Tell the user; they move " + name + " back in Home Assistant's own device settings, or you move it as a raw plan (config/device_registry/update with its area_id), which needs their own confirmation."
+		}
+		return &verbFailure{exit: verbExitRefused, code: "REFUSED", message: "moving " + name + " to " + room + " needs the user's own confirmation (an automation that room's triggers set off does something that needs it, or what is there could not be read); nothing was planned", next: next}
+	}
+	return nil
+}

@@ -511,10 +511,10 @@ func TestPlanRoomsUndoSkipsDevicesAlreadyBack(t *testing.T) {
 	}
 }
 
-// A room whose triggers set off an unlock: the rooms plan asks first, as the
-// same raw write does (docs/work/2026-11-12-raw-typed-parity-spec.md), and
-// planning sends nothing.
-func TestPlanRoomsAsksForARoomWhoseTriggersUnlock(t *testing.T) {
+// A room whose triggers set off an unlock: the rooms plan refuses that move,
+// which the same raw write rates typed
+// (docs/work/2026-11-12-raw-typed-parity-spec.md), and sends nothing.
+func TestPlanRoomsRefusesARoomWhoseTriggersUnlock(t *testing.T) {
 	r := newRoomsFake()
 	r.f.related = map[string]map[string][]string{"area:kitchen": {"automation": {"automation.opener"}}}
 	r.f.states = append(r.f.states, map[string]any{"entity_id": "automation.opener", "state": "on", "attributes": map[string]any{"id": "opener"}})
@@ -527,8 +527,8 @@ func TestPlanRoomsAsksForARoomWhoseTriggersUnlock(t *testing.T) {
 		return r.reply(req, endpoint, p)
 	}, true)
 	exit, env := runVerbForTest(t, func() int { return runPlanCommand(paths, []string{"rooms"}) })
-	if exit != verbExitConfirmation || env.Tier != "typed" || !strings.Contains(reasonCodes(env), reasonAccessLock) {
-		t.Fatalf("plan rooms: exit %d tier %s reasons %s %+v", exit, env.Tier, reasonCodes(env), env.Error)
+	if exit != verbExitRefused || env.Error == nil || env.Error.Code != "REFUSED" || !strings.Contains(env.Error.Next, "as a raw plan") {
+		t.Fatalf("plan rooms: exit %d %+v", exit, env.Error)
 	}
 	if w := r.areaWrites(); len(w) != 0 {
 		t.Fatalf("planning wrote %v", w)
