@@ -58,7 +58,7 @@ the step), and a reconfigure start (it names a
 integration's code, and a flow id can't be told from an add's. Repair flows
 expose no machine-readable deletion indicator, and the integration's own code
 runs from the start, so every repair fix start and step, and a GET on a step,
-is typed on every route (0.31; before, only the health skill's mark raised a deletion repair,
+is typed on every route (0.30; before, only the health skill's mark raised a deletion repair,
 which the gate couldn't see); cancelling an unfinished one stays a preview
 (`cli/plan_raw_tier_test.go`).
 
