@@ -340,6 +340,7 @@ async function chat() {
     { log: out, cwd: join(WORK, "claude-cwd"), timeoutMs: 5 * 60_000, env: { ...process.env, CLAUDE_CONFIG_DIR: config, ENABLE_CLAUDEAI_MCP_SERVERS: "false" } });
     // The person at the container's phone: every question it gets meanwhile is tapped.
     let ended = false, taps = 0;
+    const phoneBefore = phoneFailures(); // a FAIL line of the phone's own checks (question, result) fails the row
     const tapping = (async () => { while (!ended) await approve(5_000).then(() => taps++, () => {}); })();
     const { code } = await claude;
     ended = true;
@@ -351,20 +352,22 @@ async function chat() {
     const garage = batch ? (await Promise.all(GARAGES.map(haState))).find((s) => ["open", "opening"].includes(s)) ?? "closed" : "";
     const verified = applies.slice(appliesBefore).filter((d) => d.status === "verified").length;
     const strippedNow = stripped > strippedBefore;
-    const ok = code === 0 && strippedNow && taps > 0 && verified > 0 && lock === "unlocked" && garage !== "closed" && !/\*\*\d{4}\*\*/.test(reply) && DONE[name.slice(0, 2)].test(reply);
+    const ok = code === 0 && strippedNow && taps > 0 && verified > 0 && lock === "unlocked" && garage !== "closed" && !/\*\*\d{4}\*\*/.test(reply) && DONE[name.slice(0, 2)].test(reply) && phoneFailures() === phoneBefore;
     row("c", `chat bridge, the container's phone, ${name}`, ok ? "PASS" : "FAIL",
-      `${strippedNow ? "instructions stripped" : "NO instructions stripped"}, ${taps} tap(s), ${verified} verified, lock ${lock}${batch ? `, garage ${garage}` : ""}, last line ${JSON.stringify(last)}, ${Math.round((Date.now() - t) / 1000)} s`, out);
+      `${strippedNow ? "instructions stripped" : "NO instructions stripped"}, ${taps} tap(s), ${verified} verified, lock ${lock}${batch ? `, garage ${garage}` : ""}, last line ${JSON.stringify(last)}, ${Math.round((Date.now() - t) / 1000)} s${phoneFails(phoneBefore)}`, out);
   }
   await relock();
 }
 
 // ---- d: slow check (#827) -----------------------------------------------------------
 const LIGHT = "light.living_room_rgbww_lights";
+const phoneFails = (before) => (phoneFailures() > before ? `, ${phoneFailures() - before} phone check(s) FAIL above` : "");
 const cutBy = (plan) => (plan.reasons ?? []).some((r) => r.code === "LIMIT_CUT" && r.detail === "read budget");
 
 // One plan and its apply through the slow relay: the first tap on the phone b
 // linked (testbed/phone.mjs), or on an ungated Relay the first code.
 async function slowApply(name, service, entity) {
+  const phoneBefore = phoneFailures();
   let t = Date.now();
   const plan = json((await cli(["plan", "call", service, entity], join(WORK, `slow-${name}-plan.json`))).out);
   const planSecs = (Date.now() - t) / 1000;
@@ -374,8 +377,8 @@ async function slowApply(name, service, entity) {
   const applying = gated || plan.plan?.code ? cli(["apply", "--plan", plan.plan.id, ...(gated ? [] : ["--confirm", plan.plan.code])], join(WORK, `slow-${name}-apply.json`)) : null;
   const tapped = gated && applying ? await approve(180_000).then(() => true, () => false) : true;
   const applied = applying ? json((await applying).out) : {};
-  return { plan, how: gated ? "tap" : "code", applied,
-    detail: `plan ${planSecs.toFixed(1)} s${cutBy(plan) ? " LIMIT_CUT" : " (read budget NOT hit: no LIMIT_CUT)"}${tapped ? "" : ", no question reached the phone"}, apply ${((Date.now() - t) / 1000).toFixed(1)} s -> ${applied.status ?? plan.status}${applied.error ? ` ${applied.error.code}` : ""}` };
+  return { plan, how: gated ? "tap" : "code", applied, phoneOk: phoneFailures() === phoneBefore,
+    detail: `plan ${planSecs.toFixed(1)} s${cutBy(plan) ? " LIMIT_CUT" : " (read budget NOT hit: no LIMIT_CUT)"}${tapped ? "" : ", no question reached the phone"}, apply ${((Date.now() - t) / 1000).toFixed(1)} s -> ${applied.status ?? plan.status}${applied.error ? ` ${applied.error.code}` : ""}${phoneFails(phoneBefore)}` };
 }
 
 async function slow() {
@@ -415,9 +418,9 @@ async function slow() {
   writeFileSync(cfg, direct, { mode: 0o600 });
   slowRelay.close();
   const gap = (typed.plan.reasons ?? []).some((r) => r.code === "UNENUMERABLE_LISTENER");
-  row("d", `slow check: a census cut at the read budget, first ${cut.how} applies (#827)`, cutBy(cut.plan) && cut.applied.status === "verified" ? "PASS" : "FAIL",
+  row("d", `slow check: a census cut at the read budget, first ${cut.how} applies (#827)`, cutBy(cut.plan) && cut.applied.status === "verified" && cut.phoneOk ? "PASS" : "FAIL",
     `${on} automations on, relay +${SLOW_RELAY_MS} ms per chunk, light.turn_off ${LIGHT}: ${cut.detail}`, join(WORK, "slow-cut-apply.json"));
-  row("d", `slow check: a typed unlock skips the census, first ${typed.how} applies`, gap && typed.applied.status === "verified" ? "PASS" : "FAIL",
+  row("d", `slow check: a typed unlock skips the census, first ${typed.how} applies`, gap && typed.applied.status === "verified" && typed.phoneOk ? "PASS" : "FAIL",
     `${gap ? "listeners not read, said" : "NO UNENUMERABLE_LISTENER"}: ${typed.detail}`, join(WORK, "slow-unlock-apply.json"));
   row("d", "slow check over MCP: a census cut at the read budget, first tap applies", viaMCP.pass ? "PASS" : "FAIL", viaMCP.detail, join(WORK, "slow-mcp.json"));
   await relock();
@@ -457,14 +460,17 @@ async function slowMCP() {
     if (plan.plan.channel !== "relay") return { pass: false, detail: `plan channel ${plan.plan.channel ?? "-"}, want relay (a gated App asks the phone)` };
     t = Date.now();
     await resetPushes();
+    const phoneBefore = phoneFailures();
     const tapped = approve(180_000).then(() => true, () => false);
     let applied = {};
     for (let i = 0; i < 6 && [undefined, "applying", "waiting_for_approval"].includes(applied.status); i++) {
       applied = await tool("ha_apply", { plan_id: plan.plan.id });
       if (!applied.status) { applied = { status: "no answer from ha-nova mcp" }; break; }
     }
-    return { pass: limit && applied.status === "verified",
-      detail: `plan ${planSecs.toFixed(1)} s${limit ? " LIMIT_CUT" : " (no LIMIT_CUT)"}${await tapped ? "" : ", no question reached the phone"}, apply ${((Date.now() - t) / 1000).toFixed(1)} s -> ${applied.status ?? "-"}${applied.error ? ` ${applied.error.code}` : ""}` };
+    await tapped;
+    const phoneOk = phoneFailures() === phoneBefore;
+    return { pass: limit && applied.status === "verified" && phoneOk,
+      detail: `plan ${planSecs.toFixed(1)} s${limit ? " LIMIT_CUT" : " (no LIMIT_CUT)"}${await tapped ? "" : ", no question reached the phone"}, apply ${((Date.now() - t) / 1000).toFixed(1)} s -> ${applied.status ?? "-"}${applied.error ? ` ${applied.error.code}` : ""}${phoneFails(phoneBefore)}` };
   } finally {
     writeFileSync(join(WORK, "slow-mcp.json"), seen.join("\n") + "\n");
     mcp.stdin.end();
