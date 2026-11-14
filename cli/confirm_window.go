@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -228,7 +229,7 @@ func runConfirmWindowSetting(paths runtimePaths, args []string) int {
 			lang = s.homeLanguage()
 			s.close()
 		}
-		switch askWindow(context.Background(), plainWindow(lang, confirmT(lang, "settings.window_off")), cliWindowWait) {
+		switch askWindow(context.Background(), plainWindow(lang, confirmT(lang, "settings.window_off")), cliWindowWait, os.Stderr) {
 		case windowConfirmed:
 		case windowFailed:
 			printHumanInfo("The confirmation window couldn't open here, so HA NOVA asks on your linked phone, in your app's form, or with a four-digit code in chat anyway. Nothing changed.")
@@ -289,12 +290,12 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 	case phoneMissing, phoneNone, phoneLegacy: // the window still asks; a user waiting at the phone learns why it stays quiet
 		if status == phoneMissing || phoneLinkedHere(s) {
 			line, next := phoneQuiet(status == phoneMissing && setup.why == whyRead)
-			fmt.Fprintln(os.Stderr, line)
+			fmt.Fprintln(s.call.stderr(), line)
 			again += next
 		}
 	}
 	defer s.close()
-	switch askWindow(planAsks, planWindow(lang, text, false, goal.button(lang)), time.Until(deadline)) {
+	switch askWindow(planAsks, planWindow(lang, text, false, goal.button(lang)), time.Until(deadline), s.call.stderr()) {
 	case windowConfirmed:
 		humanAnswer, humanWhere, askedRoute = confirmCode(s.transport.Credential, idHex, channelWindow, plan.ExpiresAt), channelWindow, s
 		return env, 0, false
@@ -322,8 +323,8 @@ var planAsks, endPlanAsks = context.WithCancel(context.Background())
 // A signal that ends this process closes the window first, then ends the
 // process as the signal would (lane E2): a window left behind takes a
 // Confirm nothing reads.
-func askWindow(parent context.Context, w windowText, wait time.Duration) windowAnswer {
-	answer, ended := askWindowUntilSignal(parent, w, wait)
+func askWindow(parent context.Context, w windowText, wait time.Duration, progress io.Writer) windowAnswer {
+	answer, ended := askWindowUntilSignal(parent, w, wait, progress)
 	endBySignal(ended)
 	return answer
 }
@@ -335,7 +336,7 @@ func askWindow(parent context.Context, w windowText, wait time.Duration) windowA
 // the window gets Pdeathsig (confirm_window_linux.go); Windows' box lives
 // in this process. macOS: an osascript window outlives a SIGKILL until its
 // own timeout.
-func askWindowUntilSignal(parent context.Context, w windowText, wait time.Duration) (windowAnswer, os.Signal) {
+func askWindowUntilSignal(parent context.Context, w windowText, wait time.Duration, progress io.Writer) (windowAnswer, os.Signal) {
 	if parent.Err() != nil { // withdrawn before it opened: no answer, never the fallback
 		return windowNoAnswer, nil
 	}
@@ -362,7 +363,7 @@ func askWindowUntilSignal(parent context.Context, w windowText, wait time.Durati
 			}
 		case <-opened:
 			if ctx.Err() == nil {
-				fmt.Fprintln(os.Stderr, map[bool]string{false: windowOpened, true: windowOpenedBoth}[w.both])
+				fmt.Fprintln(progress, map[bool]string{false: windowOpened, true: windowOpenedBoth}[w.both])
 			}
 		case ended := <-signals:
 			cancel() // the window closes; a stuck one doesn't hold the ending up
@@ -510,5 +511,5 @@ func humanPlan(paths runtimePaths, opts verbOptions, id string, noSnapshot bool,
 	if fresh.Hash != plan.Hash { // still the confirmed plan: ask with its sealed preview, every warning kept
 		fresh.Prompt = plan.Prompt
 	}
-	return plan, fresh, s, idHex, min(askWait(), expires.Sub(verbNow())), env.ask, true
+	return plan, fresh, s, idHex, min(s.askWait(), expires.Sub(verbNow())), env.ask, true
 }

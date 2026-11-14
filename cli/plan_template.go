@@ -202,7 +202,7 @@ func (x *homeIndex) batteryReminder(phone *phoneTarget) (templateMatch, bool) {
 // now, else nil (no reminder is offered). A gated App's phone counts: the
 // reminder notifies it, nothing waits for its tap.
 func linkedPhone(s *relaySession) *phoneTarget {
-	if !phoneLinkedOn(s.paths) {
+	if !phoneLinkedOn(s) {
 		return nil
 	}
 	setup, status := findPhone(s, time.Now().Add(relaySessionOverallTimeout), false)
@@ -235,8 +235,8 @@ func templateOffered(paths runtimePaths, s *relaySession) func(templateMatch) bo
 	}
 }
 
-func runPlanTemplate(paths runtimePaths, args []string) int {
-	var opts verbOptions
+func runPlanTemplate(call *verbCall, paths runtimePaths, args []string) int {
+	opts := verbOptions{call: call}
 	fs := flag.NewFlagSet("plan template", flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
 	positional, err := parseVerbArgs(fs, &opts, args, planTemplateUsage+"\n\nRead-only: fills the template with this home's entities and stores an automation create plan (preview tier only); \"ha-nova apply\" saves it.")
@@ -244,7 +244,7 @@ func runPlanTemplate(paths runtimePaths, args []string) int {
 		err = errors.New("Usage: " + planTemplateUsage)
 	}
 	if err != nil {
-		return verbUsageError("plan", err)
+		return verbUsageError(call, "plan", err)
 	}
 	id := positional[0]
 	return runReadVerb(paths, "plan", opts, func(s *relaySession, env *verbEnvelope) error {

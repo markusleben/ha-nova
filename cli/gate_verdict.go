@@ -27,7 +27,7 @@ const (
 
 type gateCheck struct {
 	Verdict gateDecision `json:"verdict"`
-	Kind    string       `json:"kind"`          // "read" only for a recognized read that passes, else "write"
+	Kind    string       `json:"kind"`          // "read" only for a recognized read that passes, "probe" for a helper options read's own requests that pass (gateProbe), else "write"
 	Why     string       `json:"why,omitempty"` // an opaque reason id for diagnostics; it never authorizes anything
 	Item    int          `json:"-"`             // index in gateRequests of the request that set the verdict
 }
@@ -88,7 +88,22 @@ func gateVerdict(endpoint string, body []byte, session func() (*relaySession, er
 	if !ok || payload == nil || !json.Valid(body) || !slices.Contains([]string{"ws", "core", "files", "backups", "supervisor"}, endpoint) || !gateFinite(payload) || gateDuplicateKeys(body) {
 		return refused, nil
 	}
+	if logFactsRequest(endpoint, body) { // answered as log facts (/redact), never as the log
+		return gateCheck{Verdict: gatePass, Kind: "read"}, nil
+	}
 	requests := gateRequests(endpoint, payload)
+	if endpoint == "core" && payload["method"] == http.MethodPost && payload["path"] == optionsFlowPath { // a check of the start never starts a flow (MAR-153)
+		open := session
+		session = func() (*relaySession, error) {
+			s, err := open()
+			if s != nil {
+				s.mu.Lock()
+				s.startCheck = true
+				s.mu.Unlock()
+			}
+			return s, err
+		}
+	}
 	for _, request := range requests {
 		if gateDenied(endpoint, request) {
 			return refused, nil
@@ -138,10 +153,37 @@ func gateVerdict(endpoint string, body []byte, session func() (*relaySession, er
 	target, _ := payload["path"].(string)
 	target, _ = relayCorePath(target)
 	verbRead := checkReadOnlyRequest(endpoint, payload) == nil && !flowStepPath.MatchString(target)
-	if check.Verdict == gatePass && (rawRelayRead(endpoint, body) || verbRead || checkPhoneRead(endpoint, payload) == nil || storeRead) { // the phone lookup's template only renders
+	switch {
+	case check.Verdict != gatePass:
+	case rawRelayRead(endpoint, body) || verbRead || checkPhoneRead(endpoint, payload) == nil || storeRead: // the phone lookup's template only renders
 		check.Kind = "read"
+	case endpoint == "core" && gateProbe(payload, session):
+		check.Kind = "probe"
 	}
 	return check, nil
+}
+
+// gateProbe: exactly one of the two requests helperOptions sends, which the
+// App's own check may send though they aren't reads (MAR-153,
+// docs/work/2026-11-12-gate-helper-probe-spec.md): the start of an options
+// flow for an entry helperEntry allows, read live, and the bodyless abort of
+// an options flow by id. Anything else, or a failed read, is no probe.
+func gateProbe(payload map[string]any, session func() (*relaySession, error)) bool {
+	path, _ := payload["path"].(string)
+	body, _ := payload["body"].(map[string]any)
+	switch handler, _ := body["handler"].(string); {
+	case len(payload) == 2 && payload["method"] == http.MethodDelete:
+		id, found := strings.CutPrefix(path, optionsFlowPath+"/")
+		return found && flowIDPattern.MatchString(id)
+	case len(payload) == 3 && payload["method"] == http.MethodPost && path == optionsFlowPath && len(body) == 1 && flowIDPattern.MatchString(handler):
+		s, err := session()
+		if err != nil {
+			return false
+		}
+		_, err = s.helperEntry(handler)
+		return err == nil
+	}
+	return false
 }
 
 // gateLiveTier runs what a raw write's plan and `ha-nova relay` decide from
@@ -158,6 +200,8 @@ func gateLiveTier(s *relaySession, endpoint string, request map[string]any, raw 
 		refusal, err = rawSupervisorFormSecret(s, raw)
 	}
 	switch {
+	case err != nil && rawAccessTarget(endpoint, raw).warning != "": // whose warning it accepts is never left to a grant
+		return tierRefused, "access_target"
 	case err != nil:
 		return tierTyped, "unread"
 	case refusal != nil:

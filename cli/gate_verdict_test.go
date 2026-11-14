@@ -69,7 +69,8 @@ func TestGateVerdict(t *testing.T) {
 		{"App install", "supervisor", `{"method":"POST","path":"/store/addons/core_ssh/install"}`, gateCheck{Verdict: gateTyped, Kind: "write", Why: "app_install"}, false},
 		{"Supervisor log read", "supervisor", `{"method":"GET","path":"/core/logs"}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
 		{"error log read", "core", `{"method":"GET","path":"/api/error_log"}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
-		{"system log read", "ws", `{"type":"system_log/list"}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
+		{"system log read, answered as log facts", "ws", `{"type":"system_log/list"}`, gateCheck{Verdict: gatePass, Kind: "read"}, false},
+		{"system log read with another key", "ws", `{"type":"system_log/list","limit":5}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
 		{"event firing", "ws", `{"type":"fire_event","event_type":"mobile_app_notification_action"}`, gateCheck{Verdict: gateRefuse, Kind: "write"}, false},
 		{"event listener counts", "core", `{"method":"GET","path":"/api/events"}`, gateCheck{Verdict: gatePass, Kind: "read"}, false},
 		{"stored config read", "core", `{"method":"GET","path":"/api/config/automation/config/a1"}`, gateCheck{Verdict: gatePass, Kind: "read"}, false},
@@ -221,10 +222,11 @@ func TestGateConfigWriteParity(t *testing.T) {
 
 // gateRefusesOnPurpose: what a verb sends that a gated App refuses by
 // design: the CLI's own phone ask's listener (the App asks itself, spec §3)
-// and log reads (free text no redactor bounds, spec §2).
+// and log reads (free text no redactor bounds, spec §2; the log facts read
+// passes).
 func gateRefusesOnPurpose(endpoint string, payload map[string]any) bool {
 	message, _ := payload["message"].(map[string]any)
-	return endpoint == "ws" && (message["type"] == "subscribe_events" && message["event_type"] == phoneEventType || payload["type"] == "system_log/list") ||
+	return endpoint == "ws" && (message["type"] == "subscribe_events" && message["event_type"] == phoneEventType || payload["type"] == "system_log/list" && len(payload) > 1) ||
 		endpoint == "core" && payload["method"] == "GET" && payload["path"] == "/api/error_log"
 }
 

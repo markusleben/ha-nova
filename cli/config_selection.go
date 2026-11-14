@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // Server-profile selection (multi-server support, issue #343). One config file
@@ -38,24 +39,50 @@ var activeServerProfileName = defaultServerProfileName
 // try`), not a real server that happens to be called "demo".
 var activeDemo = false
 
-func activeServerProfile() string { return activeServerProfileName }
+// selectionMu guards serverSelectionOverride, activeServerProfileName, and
+// activeDemo: an MCP call reads them while another sets them.
+var selectionMu sync.Mutex
 
-func activeServerIsDemo() bool { return activeDemo }
+func activeServerProfile() string {
+	selectionMu.Lock()
+	defer selectionMu.Unlock()
+	return activeServerProfileName
+}
+
+func activeServerIsDemo() bool {
+	selectionMu.Lock()
+	defer selectionMu.Unlock()
+	return activeDemo
+}
 
 func setActiveServerProfile(name string) {
 	if strings.TrimSpace(name) == "" {
 		name = defaultServerProfileName
 	}
+	selectionMu.Lock()
+	defer selectionMu.Unlock()
 	activeServerProfileName = name
 	activeDemo = false
 }
 
 func setActiveDemoProfile() {
+	selectionMu.Lock()
+	defer selectionMu.Unlock()
 	activeServerProfileName = demoProfileName
 	activeDemo = true
 }
 
-func setServerSelectionOverride(name string) { serverSelectionOverride = name }
+func setServerSelectionOverride(name string) {
+	selectionMu.Lock()
+	defer selectionMu.Unlock()
+	serverSelectionOverride = name
+}
+
+func selectionOverride() string {
+	selectionMu.Lock()
+	defer selectionMu.Unlock()
+	return serverSelectionOverride
+}
 
 var errEmptyServerFlag = errors.New("--server requires a non-empty profile name")
 
@@ -100,8 +127,8 @@ func serverSelectionFromEnv() string { return strings.TrimSpace(os.Getenv(server
 // requestedServerSelection returns the explicit selection (flag > env) and its
 // source label, or "" when the configured default applies.
 func requestedServerSelection() (name, source string) {
-	if serverSelectionOverride != "" {
-		return serverSelectionOverride, "--server"
+	if override := selectionOverride(); override != "" {
+		return override, "--server"
 	}
 	if env := serverSelectionFromEnv(); env != "" {
 		return env, serverSelectionEnvVar
@@ -132,8 +159,14 @@ func validateServerProfileName(name string) error {
 // An unknown selection fails loud with the list of known profiles: a typo must
 // never route a mutation to the wrong house.
 func resolveSelectedServerProfile(doc *configDocument) (string, error) {
-	names := doc.profileNames()
 	pick, source := requestedServerSelection()
+	return resolveServerProfile(doc, pick, source)
+}
+
+// resolveServerProfile resolves the selection pick, named by source ("":
+// default_server).
+func resolveServerProfile(doc *configDocument, pick, source string) (string, error) {
+	names := doc.profileNames()
 	if pick == "" {
 		pick = doc.defaultServerName()
 		if err := validateServerProfileName(pick); err != nil {

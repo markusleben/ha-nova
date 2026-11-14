@@ -232,7 +232,7 @@ func TestRawRelayRefusesWhitespaceAndControlPaths(t *testing.T) {
 	}
 	haRead := func(path string) bool {
 		body, _ := json.Marshal(map[string]any{"method": "GET", "path": path})
-		return mcpReadRefusal("core", body) == nil
+		return mcpReadRefusal("core", body, false) == nil
 	}
 	for _, path := range []string{"/api/states/.\t./webhook/abc", "/api/states/..\\webhook/abc", " /api/webhook/abc", "/api/states/x#/../../webhook/a"} {
 		if readablePath(path) || haRead(path) {
@@ -295,6 +295,17 @@ func TestRawRelayAllowlistedWritesPass(t *testing.T) {
 	for _, path := range []string{"/api/config/scene/config/%31", "/api/config/scene/config/x/../../../../services/lock/unlock", "/api/config//core/check_config", "/api/config/scene/config/1/"} {
 		rawRefused(t, "core", `{"method":"POST","path":"`+path+`"}`)
 	}
+}
+
+// The 2026.7+ trigger and condition catalog for a target is a plain read.
+func TestRawRelayTargetCatalogReadsPass(t *testing.T) {
+	for _, wsType := range []string{"get_triggers_for_target", "get_conditions_for_target"} {
+		if rawWSAllowed[wsType] != rawWSRead {
+			t.Errorf("%s is not a raw read", wsType)
+		}
+		rawAllowed(t, "ws", `{"type":"`+wsType+`","target":{"area_id":["hallway"]}}`)
+	}
+	rawRefused(t, "ws", `{"type":"get_services_for_target","target":{"area_id":["hallway"]}}`)
 }
 
 // The read verbs' WS allowlist stays readable raw, and no write the guard

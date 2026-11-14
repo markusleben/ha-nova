@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Version: 0.40 (2026-11-12) — bump this header on every local amendment.
+Version: 0.41 (2026-11-12) — bump this header on every local amendment.
 
 Instructions for coding agents in this repo. "Hard rules" protect real homes, credentials, and the release path; no other section can trade them off. The other sections are the standard workflow; where two of them conflict, see Autonomy.
 
@@ -49,7 +49,7 @@ Instructions for coding agents in this repo. "Hard rules" protect real homes, cr
   - Open a PR (never as draft) only after the pre-PR review, with the full body written: Codex starts reviewing on open. No close/reopen.
   - Title: conventional prefix, ≤72 characters, the user-visible effect. It becomes the commit on `main` only because merge step 4 sets it explicitly.
 - No repo-wide search-and-replace scripts. Full diffs: `git --no-pager diff --color=never`. Avoid manual `git stash` (auto-stash in pull/rebase is fine).
-- Cleanup: tests and scripts remove what they create, also on failure (`t.TempDir()`, `mkdtemp` + `afterEach` rm, `trap 'rm -rf "$tmp"' EXIT`); scratch goes in a per-task path (`$TMPDIR/ha-nova-<branch>/`), never a shared fixed name. The test bed is one instance per machine: if `testbed:up` reports it running, someone else started it — never `testbed:down` it; skip the E2E and say so in the PR body.
+- Cleanup: tests and scripts remove what they create, also on failure (`t.TempDir()`, `mkdtemp` + `afterEach` rm, `trap 'rm -rf "$tmp"' EXIT`); scratch goes in a per-task path (`$TMPDIR/ha-nova-<branch>/`), never a shared fixed name. The test bed is one instance per machine: run `testbed:up` and `testbed:down` with `TESTBED_OWNER=<owner>`; if `testbed:up` reports it running, someone else started it — never `testbed:down` it (`down.sh` refuses; `--force` only with the maintainer's OK); skip the E2E and say so in the PR body.
 
 ## Review
 - **High-risk:** security/auth/secrets, concurrency/races, irreversible data changes, release/installer/update machinery, new cross-component contracts. **Release-bound:** bumps `version.json`/`package.json`, or touches `scripts/release/`, the install/update flow, release workflows, or Go code (skills/docs are not release-bound just because skills ship). **Behavior-changing:** everything except docs-only, tests-only, generated/lockfile, or mechanical changes; skill `.md` edits that change agent behavior count as behavior-changing.

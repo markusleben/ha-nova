@@ -38,7 +38,7 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.30.0 release-facing wording aligned to the shipped stack", () => {
+  it("keeps v0.31.0 release-facing wording aligned to the shipped stack", () => {
     const relayVersion = /^version:\s*"([^"]+)"\s*$/m.exec(readFileSync("nova/config.yaml", "utf8"))?.[1] ?? "";
     // Any App version the notes name is the App in nova/config.yaml: the App promote PR's `npm run bump -- --relay` sets both.
     const notedApps = [...(stableNotes ?? "").matchAll(/NOVA (?:Relay |App to )(\d+\.\d+\.\d+)/g)];
@@ -46,48 +46,37 @@ describe("release notes contract", () => {
     for (const [, noted] of notedApps) {
       expect(noted, "notes name the shipped NOVA Relay version").toBe(relayVersion);
     }
-    // The App update leads, with the computers' update (the safety check, #1057); the update notice shows the first New Features bullet (calm edits, #1053).
-    expect(stableNotes).toMatch(/^\*\*Update the NOVA App to \d+\.\d+\.\d+\.\*\* It now checks every change a computer sends, so update HA NOVA on every computer with it\./);
-    expect(stableNotes).toMatch(/## New Features\s+- \*\*Editing one of your own automations or scripts now runs right away when HA NOVA can put it back\.\*\*/);
+    // The App update leads; the update notice shows the first New Features bullet (the Marketplace, D2, #1132).
+    expect(stableNotes).toMatch(/^\*\*Update the NOVA App to \d+\.\d+\.\d+\.\*\* Much of this release runs in the App, so update it and HA NOVA on every computer together\./);
+    expect(stableNotes).toMatch(/## New Features\s+- \*\*HA NOVA now installs, updates, and removes Marketplace items, each after your OK \(Home Assistant 2026\.11\+\)\.\*\*/);
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
     expect(stableNotes).toContain("Settings > ⋮ (top right) > Check for updates");
     expect(stableNotes).toContain("Then run `ha-nova update` on each computer.");
-    // ha_read's description changed (#1102): Claude asks once more for that tool; ChatGPT needs a Refresh (#923 reminds in the chat and on the NOVA page).
-    expect(stableNotes).toContain('In Claude, "Advanced read" asks once more');
+    // ha_map gained the updates, after_update, and checkup sections: ChatGPT needs a Refresh to see them.
     expect(stableNotes).toContain("open chatgpt.com/plugins, choose HA NOVA, then Refresh.");
-    expect(stableNotes).toContain("**ChatGPT users hear when to refresh HA NOVA.**");
-    // The safety check (#1057, #1082, #1087, #1097): approvals on the phone or the NOVA page; the window only waits; the phone moves once.
-    expect(stableNotes).toContain("**Big changes wait for your OK on your linked phone or on the NOVA page.**");
-    expect(stableNotes).toContain("**The window on your computer only waits.**");
-    expect(stableNotes).toContain("**Your linked phone moves into Home Assistant once.**");
-    expect(stableNotes).toContain("**Going back to an older NOVA App:**");
-    expect(stableNotes).toContain("Chat apps there can't make a change that needs an OK."); // #1114
-    // The old shared access ends (#905, #1115): the re-pair step and its known limits.
-    expect(stableNotes).toMatch(/## What To Watch\s+- \*\*The NOVA App no longer accepts the old shared key\.\*\*[^\n]*run `ha-nova setup` once on it \(a `--service` install: `ha-nova pair --credential-store=file`\)/);
-    expect(stableNotes).toContain("Remove Link first, then run setup, then add Link again.");
-    expect(stableNotes).toContain("a Home Assistant backup from before this update does.");
-    expect(stableNotes).toContain('0.27 and later offer `ha-nova setup`: switch there, not "Not now". Older ones offer `ha-nova update`: run it, then setup.');
-    // Logs stay in Home Assistant (#1056); file writes and backup locations are typed (#1046).
-    expect(stableNotes).toMatch(/## What To Watch[\s\S]*- \*\*HA NOVA no longer reads Home Assistant's logs, which can hold passwords and keys\.\*\*[\s\S]*## Bug Fixes/);
-    expect(stableNotes).toContain("Settings > System > Logs");
-    expect(stableNotes).toContain("changing where backups go, now asks for the same confirmation as unlocking a door.");
-    // www media (#1116, MAR-128).
-    expect(stableNotes).toContain("**HA NOVA can now list and delete the pictures and videos in your www folder.**");
-    // 0.29 carried over (no 0.29.0 was released): renames (#1054), shopping list (#1048), setup offer (#1045), stdio apply jobs (#1047), copies first (#1042, #1044, #1049), helpers (#1051), reloads (#1055), same-item edits (#1058), the App notice over Link (#1064), file refusals (#1072), confirmation windows (#1083, #1107), Marketplace updates refused up front (#1096), room/floor/label triggers (#1094).
-    expect(stableNotes).toContain("**Renaming a device or entity now runs right away and can be undone.**");
-    expect(stableNotes).toContain("**Automations that react to a whole room, floor, or label are now checked.**");
-    expect(stableNotes).toContain("**Removing up to five items you named from the shopping list runs right away.**");
-    expect(stableNotes).toContain("**When a NOVA App update is waiting, setup in a terminal offers it once setup works.**");
-    expect(stableNotes).toContain("**Fewer prompts in Claude Code: setup can allow HA NOVA's read commands once.**");
-    expect(stableNotes).toContain("Asking again gets the result, and nothing runs twice.");
-    expect(stableNotes).toContain("only once a copy of it is saved.");
-    expect(stableNotes).toContain("**Helper and dashboard-name changes are now checked before they are saved");
-    expect(stableNotes).toContain("**Reloading an automation or your scripts is now checked like what it loads.**");
-    expect(stableNotes).toContain("**Changing the same automation or script again right away no longer asks.**");
-    expect(stableNotes).toContain("**Over Home Assistant Link, `ha-nova update` now offers the NOVA App update too.**");
-    expect(stableNotes).toContain("**When the NOVA App refuses a file (for example anything under /config/custom_components), HA NOVA now says why");
-    expect(stableNotes).toContain("**Confirmation windows are short, wide, and readable.** Same-kind steps share one line");
-    expect(stableNotes).toContain("**Updating a Marketplace item now stops before anything is sent and says where to do it.**");
+    // The update advisor (#1137–#1139), check-up (#1148), log facts (#1141), the NOVA page (#1145, #1158), the window's button (#1161), the phone first (#1163, #1166), container chat (#1155), reads beside a change (#1149), room triggers (#1151), helper creates (#1133).
+    expect(stableNotes).toContain('**Ask "Can I update now?" and get a checked answer.**');
+    expect(stableNotes).toContain("**A system check-up says whether Home Assistant is OK");
+    expect(stableNotes).toContain("**See which integration keeps failing, without HA NOVA reading the log.**");
+    expect(stableNotes).toContain("**Every Home Assistant administrator can use the NOVA page:**");
+    expect(stableNotes).toContain("**A clearer NOVA page and approval page that update on their own.**");
+    expect(stableNotes).toContain("**The window on your computer opens the request in Home Assistant.**");
+    expect(stableNotes).toContain("**Your phone asks sooner.**");
+    expect(stableNotes).toContain("nothing is sent unless both pass.");
+    expect(stableNotes).toContain("**Chat apps on the standalone container ask the phone linked to it**");
+    expect(stableNotes).toContain("**In chat apps, reading your home no longer waits for a change in progress.**");
+    // The pause (#1157) and the wider typed rating (#1134) are behavior changes.
+    expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Phone asks pause less often, and you can end a pause\.\*\*/);
+    expect(stableNotes).toMatch(/## What To Watch[\s\S]*- \*\*More changes ask when an automation would react to them\.\*\*[\s\S]*## Bug Fixes/);
+    // Fixes: large registries (#1170), UI thermostats (#1131), the guided App update (#1162), the bounded App check (#1165), Windows (#1130), the role re-read (#1160).
+    expect(stableNotes).toContain("**In homes with thousands of entities, everyday changes such as a light no longer all ask on the phone.**");
+    expect(stableNotes).toContain("**Fewer phone asks in homes with a thermostat or hygrostat made in Home Assistant's UI.**");
+    expect(stableNotes).toContain("**The guided NOVA App update now asks for your OK instead of refusing**");
+    expect(stableNotes).toContain("**After `ha-nova update`, the NOVA App check no longer hangs.**");
+    expect(stableNotes).toContain("**Windows: `ha-nova update` retries a briefly locked install folder**");
+    expect(stableNotes).toContain("**Chat apps check a user's role again right before a change their phone approved.**");
+    // Repair and sub-entry flows asking shipped in 0.30.0 (#1152): not listed again.
+    expect(stableNotes).not.toContain("Fixing a repair");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
   });
@@ -98,8 +87,11 @@ describe("release notes contract", () => {
     expect(readme).toContain("clear everyday actions run right away, like \"turn off the kitchen light\", switching a room's lights");
     expect(readme).toContain("Up to 20 automation and script changes and deletes can share one confirmation");
     // The safety check (0.30): the phone or the NOVA page approves; the window only waits.
-    expect(readme).toContain("**The window on your computer only waits.** It says where to confirm, opens Home Assistant, or cancels; it can't confirm.");
-    expect(readme).toContain('Under "Waiting for your OK", choose Open, then Approve or Cancel.');
+    expect(readme).toContain("**The window on your computer only waits.** It says where to confirm, opens this request on the NOVA page, or cancels; it can't confirm.");
+    expect(readme).toContain('Under "Waiting for your OK", choose "Confirm or decline", then Approve or Cancel.');
+    // Every administrator uses the NOVA page (0.31, #1145): codes and approvals, not only the owner.
+    expect(readme).toContain('a Home Assistant administrator clicks **"Connect a device"**');
+    expect(readme).not.toContain("Requests waiting for your OK");
     expect(readme).not.toContain("Answered on the phone, the phone shows the result");
     expect(readme).toContain("the owner picks who else may use them, at Ask only, Use the home, or Manage everything");
     expect(readme).not.toContain("Only the Home Assistant owner can turn chat apps on and use them.");

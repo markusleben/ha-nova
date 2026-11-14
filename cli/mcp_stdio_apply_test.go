@@ -19,8 +19,9 @@ func shortApplyWait(t *testing.T) {
 
 // A slow apply answers applying before the AI app gives up on the call;
 // calling again joins the same run, a cancelled call changes nothing, and
-// the outcome is handed out once. Meanwhile another call, another plan's
-// apply included, runs nothing and answers BUSY; ha_skill still answers.
+// the outcome is handed out once. Meanwhile another change, another plan's
+// apply included, runs nothing and answers BUSY; ha_skill and reads still
+// answer.
 func TestMCPSlowApplyIsAJob(t *testing.T) {
 	shortApplyWait(t)
 	f := batchHome()
@@ -39,13 +40,16 @@ func TestMCPSlowApplyIsAJob(t *testing.T) {
 		<-reached
 	}
 	c.send(`{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":1}}`)
-	for name, args := range map[string]map[string]any{"ha_get": {"entity_id": "light.kitchen"}, "ha_apply": {"plan_id": other}} {
+	for name, args := range map[string]map[string]any{"ha_call": {"service": "light.turn_off", "entity_ids": []string{"light.kitchen"}}, "ha_apply": {"plan_id": other}} {
 		if env := envelopeOf(c.tool(name, args)); envCode(env) != "BUSY" || !strings.Contains(nextOf(env), "(plan_id "+id+") is still running: call ha_apply with that plan_id") {
 			t.Fatalf("%s meanwhile: %v", name, env)
 		}
 	}
 	if result := c.tool("ha_skill", map[string]any{"name": "scene"}); envCode(envelopeOf(result)) == "BUSY" {
 		t.Fatalf("ha_skill meanwhile: %v", result)
+	}
+	if env := envelopeOf(c.tool("ha_get", map[string]any{"entity_id": "light.kitchen"})); env["status"] != "ok" || env["error"] != nil {
+		t.Fatalf("ha_get meanwhile: %v", env)
 	}
 	release()
 	var env map[string]any
@@ -102,7 +106,7 @@ func TestMCPEndOfInputWaitsForTheChange(t *testing.T) {
 // OUTCOME_UNKNOWN, never a plain tool error; another verb's crash stays one.
 func TestMCPApplyCrashIsUnknown(t *testing.T) {
 	srv := &mcpServer{paths: runtimePaths{ConfigDir: t.TempDir()}, told: map[string]bool{}}
-	crash := func() int { panic("boom") }
+	crash := func(*verbCall) int { panic("boom") }
 	mcpVerbLock.Lock()
 	if env := envelopeOf(srv.runLocked("ha_apply", "", false, crash)); envCode(env) != "OUTCOME_UNKNOWN" || !strings.Contains(nextOf(env), "Never apply this plan again") {
 		t.Fatalf("apply: %v", env)

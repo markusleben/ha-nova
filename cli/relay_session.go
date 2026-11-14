@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -69,6 +70,11 @@ var readOnlyWSTypes = map[string]bool{
 	// Whether the Relay's user accepted the Marketplace warning, before an
 	// update.install on a Marketplace item (marketplace_update.go).
 	"marketplace/info": true,
+	// The update advisor (verb_map_updates*.go): open repairs, the backup
+	// list, and automation runs after an update.
+	"repairs/list_issues": true,
+	"backup/info":         true,
+	"trace/list":          true,
 }
 
 // relaySession resolves config and transport once per invocation and
@@ -98,6 +104,9 @@ type relaySession struct {
 	census       bool             // the listener scan's config reads are running (lost)
 	gate         *relayGate       // the Relay's safety check as this session knows it (gate_client.go)
 	askCeiling   time.Time        // a cut plan's check before a person's ask ends here (recheck)
+	startCheck   bool             // the gate rates a helper's options-flow start on it: it starts no flow itself (gateProbe)
+	call         *verbCall        // the verb run it serves (nil: the CLI's): where its progress lines go
+	placeIdx     *placeIndex      // trigger targets of place-only automations (tier_place_index.go); nil until used
 }
 
 type relayMemo struct {
@@ -113,10 +122,7 @@ func newRelaySession(paths runtimePaths, opts verbOptions) (*relaySession, error
 // newRelaySessionWithin bounds the whole session (transport selection and
 // every read) by budget; setup's first look uses a shorter one.
 func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Duration) (*relaySession, error) {
-	if opts.serverSet {
-		setServerSelectionOverride(opts.server)
-	}
-	cfg, err := loadConfig(paths)
+	cfg, err := verbConfig(paths, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -134,22 +140,34 @@ func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Dur
 		}
 		return nil, errors.New(relayTransportErrorMessage(err))
 	}
+	s := relaySessionOn(paths, cfg, transport, ctx, cancel)
+	s.call = opts.call
+	return s, nil
+}
+
+// relaySessionOn: a session on a transport already selected (relay core's
+// helper-create verification uses the command's own).
+func relaySessionOn(paths runtimePaths, cfg runtimeConfig, transport relayTransportSelection, ctx context.Context, cancel context.CancelFunc) *relaySession {
 	return &relaySession{
 		paths:     paths,
 		cfg:       cfg,
 		transport: transport,
-		server:    activeServerProfile(),
+		server:    cfg.profileName(),
 		ctx:       ctx,
 		cancel:    cancel,
 		slots:     make(chan struct{}, relaySessionMaxConcurrent),
 		memo:      map[string]*relayMemo{},
-	}, nil
+	}
 }
 
-// close ends the session and drops the idle connections its reads kept.
+// close ends the session, drops the idle connections its reads kept, and
+// saves what the place index learned.
 func (s *relaySession) close() {
 	s.cancel()
 	s.transport.Client.CloseIdleConnections()
+	if s.placeIdx != nil {
+		s.placeIdx.save()
+	}
 }
 
 // coreGET reads one Home Assistant REST path and returns the upstream status
@@ -226,6 +244,10 @@ func (s *relaySession) read(endpoint string, payload map[string]any) (json.RawMe
 	return m.data, m.err
 }
 
+// readVerbSupervisorPaths: the Supervisor reads of the update advisor and the
+// check-up; App store entries and App stats are matched by route.
+var readVerbSupervisorPaths = []string{"/resolution/info", "/host/info", "/addons", "/core/stats", "/supervisor/stats"}
+
 func checkReadOnlyRequest(endpoint string, payload map[string]any) error {
 	switch endpoint {
 	case "core":
@@ -251,6 +273,14 @@ func checkReadOnlyRequest(endpoint string, payload map[string]any) error {
 			return nil
 		}
 		return errors.New("read verbs only load automation/script config snapshots from relay backups; nothing was sent")
+	case "supervisor": // the update advisor's readiness and the check-up: health, disk, Apps, their store entries and stats
+		path, _ := payload["path"].(string)
+		kind, slug := rawSupervisorMatch(http.MethodGet, path)
+		if payload["method"] == http.MethodGet && len(payload) == 2 && (slices.Contains(readVerbSupervisorPaths, path) ||
+			kind == "read" && slug != "" && (strings.HasPrefix(path, "/store/addons/") || strings.HasSuffix(path, "/stats"))) {
+			return nil
+		}
+		return errors.New("read verbs only send the update advisor's and the check-up's Supervisor reads; nothing was sent")
 	default:
 		return fmt.Errorf("read verbs never use relay %s; nothing was sent", endpoint)
 	}
@@ -353,7 +383,7 @@ func (s *relaySession) exchange(parent context.Context, endpoint string, body []
 		return nil, fmt.Errorf("Relay answered HTTP %d (redirect); redirects are never followed", resp.StatusCode)
 	}
 	raw, err := readAllLimited(resp.Body, maxRelayResponseBytes)
-	if s.transport.Via == relayViaLocal && localRelayRefusedCredential(resp.StatusCode, raw) {
+	if s.transport.Via == relayViaLocal && localRelayRefusedCredential(resp.StatusCode, raw, s.cfg.demoToken != "") {
 		return nil, errors.New(localRelayAuthRepairMessage(resp.StatusCode, resp.Header, s.server, s.cfg))
 	}
 	if err == nil {
@@ -385,7 +415,7 @@ func (s *relaySession) exchange(parent context.Context, endpoint string, body []
 func sendTransportError(s *relaySession, endpoint string, err error) error {
 	switch {
 	case errors.Is(err, context.DeadlineExceeded) && s.transport.Via != relayViaCloud: // no answer in time: same plain say
-		return relayUnreachableError(fmt.Sprintf("Relay %s read timed out (%s per request, %s overall); nothing was changed", endpoint, relaySessionRequestTimeout, relaySessionOverallTimeout))
+		return s.noAnswer(fmt.Sprintf("Relay %s read timed out (%s per request, %s overall); nothing was changed", endpoint, relaySessionRequestTimeout, relaySessionOverallTimeout))
 	case errors.Is(err, context.DeadlineExceeded):
 		return fmt.Errorf("Relay %s read timed out (%s per request, %s overall); nothing was changed", endpoint, relaySessionRequestTimeout, relaySessionOverallTimeout)
 	case s.transport.Via == relayViaCloud:
@@ -395,9 +425,18 @@ func sendTransportError(s *relaySession, endpoint string, err error) error {
 		return cloudProblemForError(err)
 	}
 	if relayIdentityFailure(err) { // not "is the App running": the Relay's identity needs checking
-		return errors.New(relayConnectErrorMessage(s.transport.BaseURL, err))
+		return errors.New(relayConnectErrorMessage(s.transport.BaseURL, err, s.cfg.demoToken != ""))
 	}
-	return relayUnreachableError(relayConnectErrorMessage(s.transport.BaseURL, err))
+	return s.noAnswer(relayConnectErrorMessage(s.transport.BaseURL, err, s.cfg.demoToken != ""))
+}
+
+// noAnswer: the Relay gave no answer; relayUnreachableError (the plain
+// "is the App running" say) only for the user's own home, not the demo's.
+func (s *relaySession) noAnswer(message string) error {
+	if s.cfg.demoToken != "" {
+		return errors.New(message)
+	}
+	return relayUnreachableError(message)
 }
 
 // relayIdentityFailure: something answered, but not as the pinned TLS Relay

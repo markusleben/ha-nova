@@ -1,6 +1,6 @@
 ---
 name: health
-description: Use when checking Home Assistant home status, ignoring or fixing repairs, system health, unavailable/unknown entities, low batteries, or component/config summaries through HA NOVA Relay.
+description: Use when checking Home Assistant home status, a system check-up (slow, backups), ignoring or fixing repairs, system health, unavailable/unknown entities, low batteries, or component/config summaries through HA NOVA Relay.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -32,7 +32,7 @@ Read `data.version` from `ha-nova relay health` when a step needs it.
 
 ## Report Modes
 
-Both dimensions are always visible; natural-language requests select them, no CLI syntax.
+Both dimensions are always visible; plain requests select them.
 Default: `Explained + Private`.
 
 - Detail: `Compact` (overall result + three highest-priority actions) ·
@@ -95,9 +95,8 @@ Low-battery detection must be structured: `attributes.device_class == "battery"`
 ## Availability Analysis
 
 Read `availability-analysis.md` before classifying config-entry states or
-availability. It owns state categories, the assignment precedence, exact
-joins, grouping and detail budgets, finding priority, privacy modes, and
-display-name rules.
+availability. It owns state categories, precedence, joins, budgets,
+priority, privacy modes, and display names.
 
 ## Report Order (table-first, cause before symptom)
 
@@ -169,6 +168,7 @@ Severity never depends on color alone: `🔴`/`🟠`/`🟡` pairs with plain-lan
 
 ## Flow
 
+0. "Is my HA OK", slow, or backup works: `checkup.md` first.
 1. Read `/api/config`, `/api/components`, and `/api/states`.
 2. Read `repairs/list_issues` and `config_entries/get` through WS.
 3. When at least one state is `unavailable` or `unknown`, attempt both full registry reads from Availability Analysis; read the area registry only when area names will be shown. If a registry source fails, continue with available evidence and state the attribution limitation.

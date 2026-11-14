@@ -1,6 +1,6 @@
 ---
 name: ha-nova
-description: Questions about the user's Home Assistant — rooms, devices, modes, where something is used — go through ha-nova, not file search. Use for reviews and multi-step or multi-target Home Assistant work through HA NOVA (App + Relay; the demo house via `--server demo`), or when no other HA NOVA skill fits. Single device actions, lookups, and single automation/script changes need only their own skill. If you can run ha-nova in a shell, use it, never a "HA NOVA…" connector.
+description: Questions about the user's Home Assistant — rooms, devices, modes, where something is used — go through ha-nova, not file search. Use for multi-step or multi-target Home Assistant work (multi-target reviews included) through HA NOVA (App + Relay; the demo house via `--server demo`), or when no other HA NOVA skill fits. Single device actions, lookups, and single automation/script changes need only their own skill. If you can run ha-nova in a shell, use it, never a "HA NOVA…" connector.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -338,7 +338,7 @@ Match user intent to exactly one skill:
 **"Install browser_mod from HACS"** → `ha-nova:hacs` (add, pin, or remove a HACS package)
 **"Update my HACS integration to the latest"** → `ha-nova:updates` (an update entity, like any other update); an explicit version or a downgrade goes to `ha-nova:hacs`
 **"HA NOVA is not connecting"** / **"relay auth error"** → `ha-nova:onboarding` (diagnostics only, never a config write)
-**"Is everything OK with my home?"** → `ha-nova:health` (current status, no concrete incident)
+**"Is everything OK?", "Why is everything slow?", "Would my backup work?"** → `ha-nova:health`
 **"Why are devices unavailable?"** → `ha-nova:health`
 **"Add milk to my shopping list"** → `ha-nova:todo`
 **"Update Home Assistant"** → `ha-nova:updates` (offers a safety backup first)

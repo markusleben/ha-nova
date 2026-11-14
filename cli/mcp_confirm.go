@@ -223,7 +223,7 @@ func confirmText(plan storedPlan, noSnapshot bool) string {
 func (srv *mcpServer) planCredential(server string) (string, error) {
 	mcpVerbLock.Lock()
 	defer mcpVerbLock.Unlock()
-	override, active := serverSelectionOverride, activeServerProfile()
+	override, active := selectionOverride(), activeServerProfile()
 	defer func() { setServerSelectionOverride(override); setActiveServerProfile(active) }()
 	s, err := newRelaySession(srv.paths, verbOptions{server: server, serverSet: true})
 	if err != nil {
@@ -239,7 +239,7 @@ func confirmStopped(status, code, message, next string) map[string]any {
 	env := verbEnvelope{SchemaVersion: 1, Verb: "apply"}
 	setVerbError(&env, &verbFailure{exit: verbExitRefused, status: status, code: code, message: message + "; nothing was sent", next: next})
 	out, _ := json.Marshal(env)
-	return toolResult("ha_apply", string(out), "", verbExitRefused, nil, true)
+	return toolResult("ha_apply", string(out), "", verbExitRefused, nil, true, nil)
 }
 
 // elicit sends elicitation/create inside the running tools/call (legacy

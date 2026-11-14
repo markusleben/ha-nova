@@ -143,7 +143,7 @@ describe("NOVA page: who can use chat apps", () => {
   it("lists every active login with its role, and only the levels that role allows", async () => {
     const html = await page();
     expect(html).toContain('<h3 id="chat-users">Who can use it</h3>');
-    expect(html).toContain("Pick who may use HA NOVA in Claude and ChatGPT. Each person signs in with their own Home Assistant account.");
+    expect(html).toContain("Each person signs in with their own Home Assistant account.");
     expect(html).toContain('<input type="checkbox" checked disabled> <strong>Markus</strong></label><span class="muted meta">Owner · Manage everything</span>');
     expect(html).not.toContain(`name="on_${OWNER}"`); // the owner can't be unticked
     const select = (id: string) => new RegExp(`<select name="level_${id}"[^>]*>(.*?)</select>`).exec(html)?.[1] ?? "";
@@ -163,7 +163,7 @@ describe("NOVA page: who can use chat apps", () => {
     for (const owner of ["Who can use it: only you", "as its owner", "Sign in as the owner"]) {
       expect(on).not.toContain(owner);
     }
-    expect(on).toContain("Then sign in with your own Home Assistant login.");
+    expect(on).toContain("then sign in with your own Home Assistant login.");
     status = { ...status, enabled: false };
     const off = await page();
     expect(off).not.toContain("Only you can use it");
@@ -209,11 +209,13 @@ describe("NOVA page: who can use chat apps", () => {
     expect(saved).toEqual([]);
   });
 
-  it("refuses a Home Assistant administrator who isn't the owner", async () => {
+  it("keeps the list with the owner: an administrator who isn't the owner can't save it or see it", async () => {
     const html = await page();
     const answer = await post({ action: "chat_users", csrf: token(html, "chat_users")!, [`on_${CLARA}`]: "1", [`level_${CLARA}`]: "manage" }, CLARA);
     expect(answer.statusCode).toBe(403);
-    expect((await run(createNovaPageHandler(deps()), request("/", CLARA))).statusCode).toBe(403);
+    const theirs = await run(createNovaPageHandler(deps()), request("/", CLARA));
+    expect(theirs.statusCode).toBe(200);
+    expect(token(theirs.body, "chat_users")).toBeUndefined();
     expect(saved).toEqual([]);
   });
 
@@ -368,9 +370,9 @@ describe("NOVA page: recent changes from chat apps", () => {
 
 describe("NOVA page: HA NOVA's tools changed", () => {
   it("asks ChatGPT users for a Refresh for 30 days after a change, and not when the bridge can't say", async () => {
-    const box = "Using HA NOVA in ChatGPT? Open chatgpt.com/plugins, choose HA NOVA, then Refresh. Claude needs nothing.";
+    const box = "Open chatgpt.com/plugins, choose HA NOVA, then Refresh.";
     toolsChangedAt = "2026-10-20T08:00:00Z"; // page time 2026-10-29T18:30:00Z
-    expect(await page()).toMatch(/HA NOVA's tools changed on 2026-10-20\. Using HA NOVA in ChatGPT\?/);
+    expect(await page()).toMatch(/HA NOVA's tools changed on 2026-10-20\. Open chatgpt\.com\/plugins, choose HA NOVA, then Refresh\.<\/p><\/div>/); // in the ChatGPT card
     for (const at of ["", "2026-09-29T18:00:00Z", "2026-10-30T08:00:00Z", "soon", null]) {
       toolsChangedAt = at;
       expect(await page()).not.toContain(box);

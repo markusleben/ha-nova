@@ -4,6 +4,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // Use the home (mcp_serve_levels.go): the allowlist on the service and
@@ -135,6 +136,48 @@ func TestServeLevelReadAgainBeforeApply(t *testing.T) {
 		demote(f)
 		ok, _ := p.buttons(t)
 		p.events <- tap(ok, userA, "REMOTE")
+		waitFor(t, "the result on the phone", func() bool { return p.sentCount() == 2 })
+		if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": plan["id"]}); envCode(env) != "CHAT_LEVEL" || len(s.posts()) != 0 {
+			t.Fatalf("after the tap: %v (sent %d)", env, len(s.posts()))
+		}
+	})
+	t.Run("phone, a restart, role lowered while the tap waits for the lock", func(t *testing.T) { // MAR-173
+		f := household(newFakeHA())
+		s := newServe(t, f, levels([]string{userA}, nil))
+		p := usePhones(t, "mobile_app_anna")
+		p.setup.confirmer = userA
+		plan, _ := s.tool(userA, "ha_plan", restart)["plan"].(map[string]any)
+		if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": plan["id"]}); env["status"] != "waiting_for_phone" {
+			t.Fatalf("before the tap: %v", env)
+		}
+		read := make(chan struct{}, 8)
+		f.mu.Lock()
+		f.extra = func(endpoint string, p map[string]any) (any, bool) {
+			if endpoint == "ws" && p["type"] == "config/auth/list" {
+				select {
+				case read <- struct{}{}:
+				default:
+				}
+			}
+			return nil, false
+		}
+		f.mu.Unlock()
+		mcpVerbLock.Lock() // another change runs while the phone answers
+		held := true
+		t.Cleanup(func() {
+			if held {
+				mcpVerbLock.Unlock()
+			}
+		})
+		ok, _ := p.buttons(t)
+		p.events <- tap(ok, userA, "REMOTE")
+		select { // a read before the lock would see the role as it was
+		case <-read:
+		case <-time.After(time.Second):
+		}
+		demote(f)
+		held = false
+		mcpVerbLock.Unlock()
 		waitFor(t, "the result on the phone", func() bool { return p.sentCount() == 2 })
 		if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": plan["id"]}); envCode(env) != "CHAT_LEVEL" || len(s.posts()) != 0 {
 			t.Fatalf("after the tap: %v (sent %d)", env, len(s.posts()))

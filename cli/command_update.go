@@ -282,14 +282,10 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 	// console is already back at the shell — the documented Windows contract
 	// is background-complete, never same-console-interactive. Point at the
 	// interactive path instead.
-	if notice := relayUpdateNotice(paths); !notice.empty() {
+	if notice, ok := checkRelayAfterUpdate(paths, false); ok && !notice.empty() {
 		printHumanNotice(notice)
-		doctor := "ha-nova doctor"
-		if name, _ := requestedServerSelection(); name != "" {
-			doctor += " --server " + name
-		}
 		if notice.appUpdate || notice.appCheck { // doctor offers an update Home Assistant has, or checks for one first
-			printHumanInfo("Or run `%s` in a terminal: it offers to update the NOVA App for you.", doctor) // the notice names the Home Assistant path
+			printHumanInfo("Or run `%s` in a terminal: it offers to update the NOVA App for you.", updateDoctorCommand()) // the notice names the Home Assistant path
 		}
 	}
 	printPostUpdateSessionInstruction(syncResult)
@@ -351,8 +347,8 @@ func buildWindowsReplaceCommand(paths runtimePaths, tempHelper, stageRoot string
 		"--self-path", tempHelper,
 	)
 	cmd.Env = append(os.Environ(), helperInstallRootEnv(paths.InstallRoot)...)
-	if serverSelectionOverride != "" { // the helper checks this server's Relay App too
-		cmd.Env = append(cmd.Env, serverSelectionEnvVar+"="+serverSelectionOverride)
+	if override := selectionOverride(); override != "" { // the helper checks this server's Relay App too
+		cmd.Env = append(cmd.Env, serverSelectionEnvVar+"="+override)
 	}
 	return cmd
 }

@@ -24,9 +24,9 @@ func runSnapshotCommand(paths runtimePaths, args []string) int {
 	case "save":
 		return runSnapshotSave(paths, args[1:])
 	case "show":
-		return runSnapshotShow(paths, args[1:])
+		return runSnapshotShow(nil, paths, args[1:])
 	case "verify":
-		return runSnapshotVerify(paths, args[1:])
+		return runSnapshotVerify(nil, paths, args[1:])
 	default:
 		printErr("Unknown snapshot command: %s", args[0])
 		return 1
@@ -55,7 +55,7 @@ func runSnapshotSave(paths runtimePaths, args []string) int {
 	selected := ""
 	if serverSet { // the server must exist; it tags the record
 		var err error
-		if selected, err = snapshotServer(paths, fs, *server); err != nil {
+		if selected, _, err = snapshotServer(nil, paths, fs, *server); err != nil {
 			printErr("%s; no snapshot was written", err)
 			return 1
 		}
@@ -106,7 +106,7 @@ func runSnapshotSave(paths runtimePaths, args []string) int {
 	return 0
 }
 
-func runSnapshotShow(paths runtimePaths, args []string) int {
+func runSnapshotShow(call *verbCall, paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("snapshot show", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	var target, domain string
@@ -119,7 +119,7 @@ func runSnapshotShow(paths runtimePaths, args []string) int {
 		if helpRequested(err, fs, "ha-nova snapshot show [--list] [--target <target_id>] [--domain <domain>] [--server <name>]") {
 			return 0
 		}
-		printErr("%s", err)
+		call.errorf("%s", err)
 		return 1
 	}
 	var targetSet, domainSet bool
@@ -132,29 +132,29 @@ func runSnapshotShow(paths runtimePaths, args []string) int {
 		}
 	})
 	if fs.NArg() != 0 {
-		printErr("snapshot show does not accept positional arguments")
+		call.errorf("snapshot show does not accept positional arguments")
 		return 1
 	}
 	if targetSet && strings.TrimSpace(target) == "" {
-		printErr("--target requires a non-empty target_id")
+		call.errorf("--target requires a non-empty target_id")
 		return 1
 	}
 	if domainSet && strings.TrimSpace(domain) == "" {
-		printErr("--domain requires a non-empty domain")
+		call.errorf("--domain requires a non-empty domain")
 		return 1
 	}
 	if domainSet && !targetSet {
-		printErr("--domain requires --target")
+		call.errorf("--domain requires --target")
 		return 1
 	}
 	if list && (targetSet || domainSet) {
-		printErr("--list cannot be combined with --target or --domain")
+		call.errorf("--list cannot be combined with --target or --domain")
 		return 1
 	}
 	if list {
 		stack, err := loadUndoSnapshotStack(paths)
 		if err != nil {
-			printErr("%s", err)
+			call.errorf("%s", err)
 			return 1
 		}
 		entries := make([]snapshotListingEntry, 0, len(stack.Snapshots))
@@ -163,32 +163,32 @@ func runSnapshotShow(paths runtimePaths, args []string) int {
 		}
 		out, err := json.MarshalIndent(entries, "", "  ")
 		if err != nil {
-			printErr("cannot render snapshot list: %s", err)
+			call.errorf("cannot render snapshot list: %s", err)
 			return 1
 		}
-		fmt.Fprintln(os.Stdout, string(out))
+		fmt.Fprintln(call.stdout(), string(out))
 		return 0
 	}
-	selected, err := snapshotServer(paths, fs, *server)
+	selected, demo, err := snapshotServer(call, paths, fs, *server)
 	if err != nil {
-		printErr("%s", err)
+		call.errorf("%s", err)
 		return 1
 	}
-	snap, err := selectServerUndoSnapshot(paths, selected, target, domain)
+	snap, err := selectServerUndoSnapshot(paths, selected, demo, target, domain)
 	if err != nil {
-		printErr("%s", err)
+		call.errorf("%s", err)
 		return 1
 	}
 	out, err := json.MarshalIndent(snap, "", "  ")
 	if err != nil {
-		printErr("cannot render snapshot: %s", err)
+		call.errorf("cannot render snapshot: %s", err)
 		return 1
 	}
-	fmt.Fprintln(os.Stdout, string(redactSecrets(out, false))) // a record saved before codes were hidden
+	fmt.Fprintln(call.stdout(), string(redactSecrets(out, false))) // a record saved before codes were hidden
 	return 0
 }
 
-func runSnapshotVerify(paths runtimePaths, args []string) int {
+func runSnapshotVerify(call *verbCall, paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("snapshot verify", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	var against, target, domain string
@@ -200,7 +200,7 @@ func runSnapshotVerify(paths runtimePaths, args []string) int {
 		if helpRequested(err, fs, "ha-nova snapshot verify --against <live.json> [--target <target_id>] [--domain <domain>] [--server <name>]") {
 			return 0
 		}
-		printErr("%s", err)
+		call.errorf("%s", err)
 		return 1
 	}
 	var targetSet, domainSet bool
@@ -213,50 +213,50 @@ func runSnapshotVerify(paths runtimePaths, args []string) int {
 		}
 	})
 	if fs.NArg() != 0 {
-		printErr("snapshot verify does not accept positional arguments")
+		call.errorf("snapshot verify does not accept positional arguments")
 		return 1
 	}
 	if targetSet && strings.TrimSpace(target) == "" {
-		printErr("--target requires a non-empty target_id")
+		call.errorf("--target requires a non-empty target_id")
 		return 1
 	}
 	if domainSet && strings.TrimSpace(domain) == "" {
-		printErr("--domain requires a non-empty domain")
+		call.errorf("--domain requires a non-empty domain")
 		return 1
 	}
 	if domainSet && !targetSet {
-		printErr("--domain requires --target")
+		call.errorf("--domain requires --target")
 		return 1
 	}
 	if strings.TrimSpace(against) == "" {
-		printErr("--against <live.json> is required")
+		call.errorf("--against <live.json> is required")
 		return 1
 	}
-	selected, err := snapshotServer(paths, fs, *server)
+	selected, demo, err := snapshotServer(call, paths, fs, *server)
 	if err != nil {
-		printErr("%s", err)
+		call.errorf("%s", err)
 		return 1
 	}
-	snap, err := selectServerUndoSnapshot(paths, selected, target, domain)
+	snap, err := selectServerUndoSnapshot(paths, selected, demo, target, domain)
 	if err != nil {
-		printErr("%s", err)
+		call.errorf("%s", err)
 		return 1
 	}
 	liveRaw, err := os.ReadFile(against)
 	if err != nil {
-		printErr("cannot read live config: %s", err)
+		call.errorf("cannot read live config: %s", err)
 		return 1
 	}
 	match, err := snapshotMatchesLive(snap, liveRaw)
 	if err != nil {
-		printErr("%s", err)
+		call.errorf("%s", err)
 		return 1
 	}
 	if match {
-		fmt.Fprintln(os.Stdout, "match")
+		fmt.Fprintln(call.stdout(), "match")
 		return 0
 	}
-	fmt.Fprintln(os.Stdout, "drift")
+	fmt.Fprintln(call.stdout(), "drift")
 	return snapshotExitDrift
 }
 
@@ -270,17 +270,21 @@ func runSnapshotVerify(paths runtimePaths, args []string) int {
 // snapshotServer resolves the server whose checkpoints show/verify select:
 // --server, else the default profile like every other verb. Without any
 // configured server (nothing to filter by) every record stays eligible.
-func snapshotServer(paths runtimePaths, fs *flag.FlagSet, server string) (string, error) {
+// demo: it is the demo house (selectServerUndoSnapshot).
+func snapshotServer(call *verbCall, paths runtimePaths, fs *flag.FlagSet, server string) (string, bool, error) {
 	serverSet := false
 	fs.Visit(func(f *flag.Flag) { serverSet = serverSet || f.Name == "server" })
-	if err := selectServerFlag(fs, server); err != nil {
-		return "", err
-	}
-	if _, err := loadConfig(paths); err != nil {
-		if serverSet {
-			return "", err
+	if call == nil {
+		if err := selectServerFlag(fs, server); err != nil {
+			return "", false, err
 		}
-		return "", nil
 	}
-	return activeServerProfile(), nil
+	cfg, err := verbConfig(paths, verbOptions{call: call, server: server, serverSet: serverSet && call != nil})
+	if err != nil {
+		if serverSet {
+			return "", false, err
+		}
+		return "", false, nil
+	}
+	return cfg.profileName(), cfg.demoToken != "", nil
 }

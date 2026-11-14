@@ -10,6 +10,7 @@ import {
   createNovaPageHandler,
   type NovaPageDeps,
 } from "../../nova/src/http/handlers/nova-page.js";
+import { LIVE_CSP, LIVE_SCRIPT } from "../../nova/src/http/handlers/nova-page-live.js";
 import { createCsrfStore } from "../../nova/src/security/csrf.js";
 import { generateCredential } from "../../nova/src/security/device-credential.js";
 import {
@@ -142,7 +143,7 @@ describe("nova-page", () => {
     expect(r.body).toContain('name="csrf"');
   });
 
-  it("auto-refreshes only while a code is active, and never uses JavaScript", async () => {
+  it("auto-refreshes only while a code is active; its only script is the hash-pinned live script", async () => {
     // Inactive: no auto-refresh.
     let r = await call(createNovaPageHandler(deps), req());
     expect(r.body).not.toContain('http-equiv="refresh"');
@@ -150,8 +151,11 @@ describe("nova-page", () => {
     pairing.generateCode();
     r = await call(createNovaPageHandler(deps), req());
     expect(r.body).toContain('http-equiv="refresh"');
-    // Still no JavaScript anywhere (CSP forbids it; refresh is pure HTML).
-    expect(r.body).not.toContain("<script");
+    // The refresh is pure HTML; the one script (live poll, countdown, copy) runs only by its hash.
+    expect(r.body.match(/<script/g)).toHaveLength(1);
+    expect(r.body).toContain(`<script>${LIVE_SCRIPT}</script>`);
+    expect(r.headers["content-security-policy"]).toContain(LIVE_CSP);
+    expect(String(r.headers["content-security-policy"])).not.toContain("unsafe-inline'; script");
   });
 
   it("denies a non-owner (403) and never renders the console", async () => {
@@ -231,7 +235,7 @@ describe("nova-page", () => {
     expect(r.statusCode).toBe(403);
   });
 
-  function addActiveDevice(name = "Mac", installId = "i") {
+  function addActiveDevice(name = "Mac", installId = "i", platform = "darwin") {
     const c = generateCredential();
     registry.createPending(
       {
@@ -239,7 +243,7 @@ describe("nova-page", () => {
         secretDigest: c.secretDigest,
         clientInstallId: installId,
         name,
-        platform: "darwin",
+        platform,
         client: "claude",
         createdAtMs: 1,
       },
@@ -254,6 +258,15 @@ describe("nova-page", () => {
     expect(match).not.toBeNull();
     return match![1]!;
   }
+
+  it("names a device's platform, and shows any other platform as sent, even one named like an object property", async () => {
+    addActiveDevice("Mac", "i1");
+    for (const [i, platform] of ["constructor", "__proto__", "toString"].entries()) addActiveDevice("Odd", `o${i}`, platform);
+    const r = await call(createNovaPageHandler(deps), req());
+    expect(r.statusCode).toBe(200);
+    expect(r.body).toContain("macOS · claude");
+    for (const platform of ["constructor", "__proto__", "toString"]) expect(r.body).toContain(`${platform} · claude`);
+  });
 
   it("revokes a device only through the armed confirm flow", async () => {
     const c = addActiveDevice();

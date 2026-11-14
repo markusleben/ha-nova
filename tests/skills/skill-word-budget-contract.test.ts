@@ -502,7 +502,8 @@ const FOLDED_INTO_BUDGET: Record<string, string[]> = {
   // measured 4252 while the skill really costs 5109, and the next split would
   // have reset it again.
   "service-call": ["domain-fields.md", "raw-routes.md", "../ha-nova/indirect-actuation.md"],
-  write: ["../ha-nova/one-shot-automations.md"],
+  // Blueprints split out of write/SKILL.md (the write route diet).
+  write: ["../ha-nova/one-shot-automations.md", "blueprints.md"],
 };
 
 // Secondary Markdown that is a standalone reference, not prose split out of
@@ -546,11 +547,13 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/ha-nova/write-safety.md",
   "skills/hacs/hacs-commands.md",
   "skills/health/availability-analysis.md",
+  "skills/health/checkup.md",
   "skills/maintenance/maintenance-reference.md",
   "skills/migrate/source-mappings.md",
   "skills/organize/display-fields.md",
   "skills/review/checks.md",
   "skills/review/checks-extended.md",
+  "skills/updates/advisor.md",
   "skills/updates/apps.md",
   "skills/yaml-config/www-media.md",
 ].map((file) => resolve(file)));
@@ -564,7 +567,7 @@ describe("skill word-budget contract", () => {
     expect(FOLDED_INTO_BUDGET).toEqual({
       fallback: ["relay-ready.md"],
       "service-call": ["domain-fields.md", "raw-routes.md", "../ha-nova/indirect-actuation.md"],
-      write: ["../ha-nova/one-shot-automations.md"],
+      write: ["../ha-nova/one-shot-automations.md", "blueprints.md"],
     });
     const folded = Object.entries(FOLDED_INTO_BUDGET).flatMap(([name, files]) => {
       const dir = dirname(subskillPath(name));

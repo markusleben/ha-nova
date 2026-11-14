@@ -318,7 +318,7 @@ func missingCloudDeviceRevocationCredential(
 		Code:        cloudProblemAuthorization,
 		Remediation: cloudRemediationSecurityStop,
 		Detail: fmt.Sprintf(
-			"the %s Cloud device credential for server %q is missing; cleanup stopped before OAuth, secure-storage, or configuration deletion. As a Home Assistant Owner, open NOVA from the sidebar, find this computer under Devices, and choose Revoke. Keep this profile checkpoint for recovery",
+			"the %s Cloud device credential for server %q is missing; cleanup stopped before OAuth, secure-storage, or configuration deletion. As a Home Assistant administrator, open NOVA from the sidebar, find this computer under Devices, and choose Revoke. Keep this profile checkpoint for recovery",
 			slot,
 			profileName,
 		),

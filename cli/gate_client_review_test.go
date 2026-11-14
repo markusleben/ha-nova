@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -62,7 +63,8 @@ func TestGateLazyAskRefusalKeepsItsWords(t *testing.T) {
 }
 
 // After the person approved, the plan is checked again right before the
-// first send: a home that changed meanwhile, or a plan that expired, sends
+// first send: a home that changed meanwhile (here: the door is already
+// unlocked, so there is nothing to do), or a plan that expired, sends
 // nothing, and the grant expires unused.
 func TestGateChecksThePlanAgainAfterTheApproval(t *testing.T) {
 	previous := verbNow
@@ -76,7 +78,7 @@ func TestGateChecksThePlanAgainAfterTheApproval(t *testing.T) {
 			f.mu.Lock()
 			defer f.mu.Unlock()
 			f.states["lock.front"]["state"] = "unlocked"
-		}, verbExitDrift, "PLAN_DRIFT"},
+		}, verbExitOK, ""},
 		"plan expired": {func(*fakeHA) { verbNow = func() time.Time { return previous().Add(planTTL + time.Minute) } }, verbExitRefused, "PLAN_EXPIRED"},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -86,7 +88,7 @@ func TestGateChecksThePlanAgainAfterTheApproval(t *testing.T) {
 			h := gatedHarness(t, f, g)
 			plan := h.plan("lock.unlock", "lock.front").Plan
 			exit, env := h.run(runApplyCommand, "--plan", plan.ID)
-			if asks, _, sends := g.snapshot(); exit != tc.exit || env.Error == nil || env.Error.Code != tc.code || len(asks) != 1 || len(sends) != 0 {
+			if asks, _, sends := g.snapshot(); exit != tc.exit || (env.Error == nil) != (tc.code == "") || env.Error != nil && env.Error.Code != tc.code || len(asks) != 1 || len(sends) != 0 {
 				t.Fatalf("exit %d %+v asks %q sends %+v", exit, env.Error, asks, sends)
 			}
 		})
@@ -188,14 +190,22 @@ func TestGateAskEndsWithTheCommandsWait(t *testing.T) {
 	}
 }
 
-// The waiting window's first button opens the NOVA page at an address from
-// the paired profile only: through Link, its Link address; else its Home
-// Assistant URL, or the Link address when it has none. Without either, the
-// button only hides the window and the text says where the page is.
+// The waiting window's first button opens the ask on the NOVA page at an
+// address from the paired profile only: through Link, its Link address;
+// else its Home Assistant URL, or the Link address when it has none.
+// Without either, the button only hides the window and the text says where
+// the page is.
 func TestGateWindowPageFromTheProfile(t *testing.T) {
+	_, restore := setCloudFeatureTestIdentity(t, cloudRemoteBuildIdentity{})
+	if got := (&relaySession{cfg: runtimeConfig{HAURL: "http://homeassistant.local:8123"}}).gatePageURL("ask1"); got != "http://homeassistant.local:8123" {
+		t.Errorf("unstamped build: %q, want Home Assistant's start without an ask", got)
+	}
+	restore()
+	_, restore = setCloudFeatureTestIdentity(t, cloudRemoteBuildIdentity{Development: true, AppSlug: "local_ha_nova_relay_test"})
+	defer restore()
 	panel := func(base string) string {
 		target, _ := haNOVAAppPanelURL(base)
-		return target.URL
+		return target.URL + "?nova_ask=" + fmt.Sprintf("%x", sha256.Sum256([]byte("ask1")))
 	}
 	link := &cloudLifecycleMetadata{Current: &cloudConnectionMetadata{CanonicalOrigin: "https://example.ui.nabu.casa"}}
 	for name, tc := range map[string]struct {
@@ -208,7 +218,7 @@ func TestGateWindowPageFromTheProfile(t *testing.T) {
 		"through Link": {runtimeConfig{HAURL: "http://homeassistant.local:8123", Cloud: link}, relayViaCloud, panel("https://example.ui.nabu.casa")},
 		"neither":      {runtimeConfig{HAURL: "homeassistant"}, relayViaLocal, ""},
 	} {
-		if got := (&relaySession{cfg: tc.cfg, transport: relayTransportSelection{Via: tc.via}}).gatePageURL(); got != tc.want {
+		if got := (&relaySession{cfg: tc.cfg, transport: relayTransportSelection{Via: tc.via}}).gatePageURL("ask1"); got != tc.want {
 			t.Errorf("%s: %q, want %q", name, got, tc.want)
 		}
 	}
@@ -234,7 +244,7 @@ func TestGateWindowPageFromTheProfile(t *testing.T) {
 // catalog: the plan's ask, the waiting window, and the terminal line.
 func TestGateGermanTexts(t *testing.T) {
 	for key, want := range map[string]string{
-		"gate.window":       "Bestätige diese Änderung auf deinem Handy oder in Home Assistant. Dieses Fenster kann sie nicht bestätigen, und noch wurde nichts gesendet.",
+		"gate.open":         "In Home Assistant öffnen",
 		"say.relay_waiting": "Ich warte auf dein OK auf deinem Handy oder in Home Assistant; dieser Schritt wurde noch nicht gesendet.",
 		"say.relay_ask":     "Bestätige auf deinem verbundenen Handy oder in Home Assistant (NOVA).",
 	} {
@@ -255,7 +265,7 @@ func TestGateGermanTexts(t *testing.T) {
 	f.config = map[string]any{"language": "de"}
 	h := gatedHarness(t, f, &fakeGate{})
 	env := h.plan("lock.unlock", "lock.front")
-	want := confirmT("de", "gate.window")
+	want := "Bestätige diese Änderung in Home Assistant: Öffne sie auf der NOVA-Seite in deinem Browser und drück dort „Genehmigen“. Oder bestätige sie auf deinem Handy. Dieses Fenster kann sie nicht bestätigen, und noch wurde nichts gesendet."
 	if runtime.GOOS == "windows" {
 		want += "\n\n" + confirmT("de", "gate.windows_ok")
 	}

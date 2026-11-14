@@ -18,7 +18,7 @@ Pick the right `mode` based on the automation's behavior:
 ## Enforcement Checklist
 
 1. `mode` is explicit.
-2. Trigger model deterministic.
+2. Trigger model deterministic; room, floor, or group needs use a purpose-specific trigger with that target (2026.7+).
 3. Prefer `entity_id` over `device_id`.
 4. Avoid templates when native primitives exist (see `template-guidelines.md` → Decision Tree).
 5. Add guard conditions for noisy sensors.
@@ -27,6 +27,44 @@ Pick the right `mode` based on the automation's behavior:
 8. Require read-back after write.
 9. Verify expected vs observed before success message.
 10. Use reload only as recovery path.
+
+## Triggers, Conditions, and Targets (HA 2026.7+)
+
+From Home Assistant 2026.7 (`get_config` `version`) the automation editor builds purpose-specific triggers and conditions, named after what happens: `motion.detected`, `door.opened`, `light.turned_on`, `temperature.crossed_threshold`; conditions `light.is_on`, `occupancy.is_detected`. Older versions: the general ones only (`state`, `numeric_state`, `time`, `sun`, `template`).
+
+- Room, floor, or group needs ("motion in the hallway", "any window upstairs"): read what the target offers, `get_triggers_for_target` / `get_conditions_for_target` (`relay-api.md` → Device Trigger Queries). A listed entry that says what the user asked for wins, with the area, floor, or label as its target: a new or swapped device there counts without an edit.
+- `state`/`numeric_state`/`template` stay right for an exact state value or an attribute, or when no entry fits.
+- An existing automation keeps its triggers: never convert them unasked (`smallest-solution.md` rule 7).
+- Polling: never a `time_pattern` for a value a trigger can watch (`automation-patterns.md`).
+
+Shape (verified on 2026.11):
+
+```yaml
+triggers:
+  - trigger: motion.detected
+    target:
+      area_id: hallway
+conditions:
+  - condition: light.is_off
+    target:
+      area_id: hallway
+      exclude:
+        label_id: night_light
+    options:
+      behavior: all
+actions:
+  - action: light.turn_on
+    target:
+      area_id: hallway
+```
+
+- Settings of the trigger or condition go under `options:` (`behavior`, `for`, `threshold`, `offset`). Beside `trigger` only `target`, `id`, `alias`, `enabled`, `variables`; Home Assistant refuses `behavior` or `for` there.
+- `behavior` for triggers: `each` (default, once per entity that changes), `first` (the first one; again only after all went back), `all` (when the last one gets there). For conditions: `any` (default) or `all`.
+- Thresholds: `options.threshold` = `type` (`above`, `below`, `between`, `outside`) plus `value` or `value_min`/`value_max`, each `{number, unit_of_measurement}` or `{entity}`; units are converted.
+- `exclude:` inside `target` takes the same keys, applies to every target, and needs a target beside it. In triggers and conditions an excluded old-style `group.` entity leaves its members in.
+- A target covers the matching entities (domain and device class) of that area (the entity's own area, else its device's), floor, label, or device; never hidden, configuration, or diagnostic ones (battery triggers excepted); `first`, `all`, and conditions skip unavailable ones. The preview names what that is today ("the 2 motion sensors in the hallway").
+
+Names (2026.11+): a shown name is the device name plus the entity's own part. Set only the entity's own part; templates use `entity_name()`, `device_name()`, `area_name()`, never `friendly_name` (`template-guidelines.md`).
 
 ## Platform Helpers vs Template Sensors
 
@@ -51,87 +89,3 @@ All the config-entry rows below — plus `template` itself when no built-in fits
 | Time-of-day binary (morning/night) | `tod` | Supports sunrise/sunset offsets |
 
 > **Relay-backed config-entry flows are supported** for the helper-owned domains listed above plus `template` through `ha-nova:helper`. Keep guidance narrow: `group`/`template` must follow the live menu/form flow instead of guessed fields.
-
-## Zigbee Button Patterns
-
-<!-- Portions adapted from homeassistant-ai/skills (MIT License)       -->
-<!-- https://github.com/homeassistant-ai/skills                        -->
-<!-- Copyright (c) Sergey Kadentsev (@sergeykad), Julien Lapointe (@julienld) -->
-
-Zigbee buttons/remotes are stateless devices — they fire events, not state changes. The trigger pattern depends on the integration.
-
-Before remapping a button, verify the gesture exists on the active integration path: `../ha-nova/input-capability-preflight.md`. The Developer-Tools discovery below stays as the manual fallback.
-
-### ZHA (Zigbee Home Automation)
-
-Use `event` trigger with `device_ieee` (persistent across re-adds):
-
-```yaml
-triggers:
-  - trigger: event
-    event_type: zha_event
-    event_data:
-      device_ieee: "00:15:8d:00:07:26:f2:8a"
-      command: "toggle"
-    id: button_toggle
-```
-
-Find `device_ieee` and `command` values: Tools → Events (named Developer Tools before HA 2026.8) → subscribe to `zha_event` → press button.
-
-### Zigbee2MQTT (Z2M)
-
-Use autodiscovered `device` trigger (acceptable despite using `device_id`, because Z2M manages the mapping):
-
-```yaml
-triggers:
-  - trigger: device
-    device_id: abc123def456
-    domain: mqtt
-    type: action
-    subtype: single
-    id: button_single
-```
-
-Alternative — explicit MQTT topic trigger:
-
-```yaml
-triggers:
-  - trigger: mqtt
-    topic: "zigbee2mqtt/Bedroom Button/action"
-    payload: "single"
-    id: button_single
-```
-
-### ZHA vs Z2M Quick Reference
-
-| Aspect | ZHA | Zigbee2MQTT |
-|--------|-----|-------------|
-| Trigger type | `event` | `device` or `mqtt` |
-| Persistent ID | `device_ieee` | `device_id` (autodiscovered) |
-| Event source | `zha_event` | MQTT device trigger |
-| Button actions | `command` field | `type` + `subtype` |
-
-## Persistence Model (restart survival)
-
-Which Home Assistant constructs survive a restart. Any save → modify → restore design with a restart-recovery path (a `homeassistant` start trigger) must keep the saved state in a persistent construct. Apply this during planning, before recommending an approach — not only during review.
-
-Persistent (survive restart):
-- `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime` (state restored from disk — UNLESS a YAML-configured `initial:` value is set; `initial:` overrides restore and resets the helper on every restart)
-- `counter` (restored; `restore: false` opts out)
-- `timer` only with `restore: true` (default does NOT restore running timers)
-- YAML/UI-defined scenes (the definition persists; activating one is still a one-shot action)
-- config-entry helpers and integration entities backed by restore state
-
-Transient (lost on restart):
-- `scene.create` runtime snapshots
-- automation/script `variables:` (execution-scoped)
-- `trigger_variables` (attach-time, see also the stale-snapshot reliability check)
-- `input_*` helpers with a YAML `initial:` value (reset to that value on boot)
-- running script/automation state, `wait_*` state, queued/parallel run backlog
-- timers without `restore: true`
-
-Rules:
-- If a restore path is reachable from a startup trigger, every value it reads must come from the persistent list.
-- Never recommend `scene.create` for snapshots that must survive a restart; use helpers instead.
-- Verify the save-target helper does not set a YAML `initial:` value when the saved value must survive restarts.
-- When proposing a save/restore design, state explicitly whether it survives a restart.

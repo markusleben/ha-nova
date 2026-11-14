@@ -4,7 +4,7 @@ import type { GateRequest, LinkWords, PageAsk, PhoneAnswer, PhoneLink, PhoneText
 import { ASK_MS, createAskTable } from "./gate-ask-table.js";
 import { HttpError } from "./errors.js";
 import { createGateGrants, gateDigest, idKey } from "./gate-grants.js";
-import { createOwnerLimits, PAUSED } from "./gate-owners.js";
+import { createOwnerLimits, PAUSED, type Miss } from "./gate-owners.js";
 import type { RelayLogger } from "./server.js";
 import type { GateClient, GateEndpoint } from "./gate.js";
 import type { RouteHandler } from "./router.js";
@@ -44,7 +44,8 @@ export interface GateAsks {
   // id's hash: it can approve or cancel, never wait), and the devices whose
   // phone asks are paused. approve and cancel: false when the ask isn't waiting.
   waiting(): PageAsk[];
-  pausedDevices(): string[];
+  pausedDevices(): PausedDevice[];
+  resume(deviceId: string): boolean; // its phone asks again at once; false: not paused
   approve(ref: string): boolean;
   cancel(ref: string): boolean;
   // Marks one occurrence used before the request is forwarded (at most once).
@@ -52,7 +53,14 @@ export interface GateAsks {
 }
 
 // The page also reads its words from the worker (page-texts.ts).
-export type GatePage = Pick<GateAsks, "waiting" | "pausedDevices" | "approve" | "cancel"> & { texts: PageTextSource };
+export type GatePage = Pick<GateAsks, "waiting" | "pausedDevices" | "approve" | "cancel" | "resume"> & { texts: PageTextSource };
+
+// A device whose phone asks are paused: until when, and the asks that paused it.
+export interface PausedDevice {
+  deviceId: string;
+  until: number;
+  misses: Miss[];
+}
 
 export const askRef = idKey; // an ask's ref on the page
 
@@ -134,7 +142,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
           grant(ask);
           deps.logger?.info?.("A typed request was approved on the linked phone", { user_id: answer.user_id });
         } else if (answer?.answer === "declined" || answer?.answer === "rejected") {
-          settle(ask, { state: "cancelled" });
+          settle(ask, { state: "cancelled" }, true);
         } else if ((answer === null || answer.answer === "unavailable") && others.length === 0) {
           settle(ask, { state: "unavailable" }); // no weaker channel: nobody can approve it now
         }
@@ -184,10 +192,10 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
         } catch (error) {
           deps.logger?.warn?.("A phone link could not be saved; nothing was set", { error: String(error) }); // the disk, not the person: it stays unlinked
         }
-        settle(ask, { state: linked ? "linked" : "cancelled" });
+        settle(ask, { state: linked ? "linked" : "cancelled" }, true);
         deps.logger?.info?.(linked ? "A device's phone link was set on the phone" : "A phone link changed meanwhile; nothing was set", { user_id: answer.user_id });
       } else if (answer?.answer === "declined" || answer?.answer === "rejected") {
-        settle(ask, { state: "cancelled" });
+        settle(ask, { state: "cancelled" }, true);
       } else if (answer === null || answer.answer === "unavailable") {
         settle(ask, { state: "unavailable" });
       }
@@ -223,10 +231,13 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     waiting() {
       prune();
       return entries().flatMap(([ref, ask]) => (ask.prepared === undefined || ask.state.state !== "waiting" ? []
-        : [{ ref, body: ask.prepared.body ?? "", items: ask.prepared.items.filter((item) => item.verdict === "typed"), expiresAt: ask.expiresAt }]));
+        : [{ ref, body: ask.prepared.body ?? "", from: ask.prepared.from ?? "", items: ask.prepared.items.filter((item) => item.verdict === "typed"), expiresAt: ask.expiresAt }]));
     },
     pausedDevices() {
-      return limits.pausedOwners().flatMap((owner) => (owner.startsWith("device:") ? [owner.slice("device:".length)] : []));
+      return limits.pauses().flatMap(({ owner, until, misses }) => (owner.startsWith("device:") ? [{ deviceId: owner.slice("device:".length), until, misses }] : []));
+    },
+    resume(deviceId) {
+      return limits.resume(`device:${deviceId}`);
     },
     approve(ref) {
       prune();
@@ -243,7 +254,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
       if (ask?.prepared === undefined || ask.state.state !== "waiting") {
         return false;
       }
-      settle(ask, { state: "cancelled" });
+      settle(ask, { state: "cancelled" }, true); // declined on the NOVA page
       return true;
     },
     consume(principal, grantId, endpoint, body) {

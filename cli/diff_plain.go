@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"unicode"
 )
 
@@ -19,10 +20,14 @@ import (
 // guard, snapshot verify) never set names, so they stay exact; nor does
 // `ha-nova diff`, which compares two local files without Home Assistant.
 
-// previewNames is set only around a preview render (withPreviewNames).
-// ponytail: a package variable, since verbs run one at a time (the MCP
-// server holds mcpVerbLock); pass it down if renders ever run concurrently.
-var previewNames *plainNames
+// previewNames is set only around a preview render (withPreviewNames), which
+// holds renderMu; a render beside it (ha_read's diff and snapshot verify,
+// which run without mcpVerbLock) holds renderMu too, so it never reads a
+// preview's names.
+var (
+	previewNames *plainNames
+	renderMu     sync.Mutex
+)
 
 type plainNames struct {
 	entity map[string]string // entity_id → “Name”, or “Name” (entity_id) when another entity has that name too
@@ -30,6 +35,8 @@ type plainNames struct {
 }
 
 func withPreviewNames(names *plainNames, render func()) {
+	renderMu.Lock()
+	defer renderMu.Unlock()
 	previewNames = names
 	defer func() { previewNames = nil }()
 	render()

@@ -42,6 +42,9 @@ type runtimeConfig struct {
 	// The NOVA App's internal device credential (`ha-nova serve
 	// --relay-file`); never saved to config.json.
 	bridgeCredential string
+	// profile: the server profile this config was loaded for (demo: the demo
+	// house); "" for one built elsewhere (profileName).
+	profile string
 }
 
 type config = runtimeConfig
@@ -58,12 +61,25 @@ func loadRuntimeConfig(pathArgs ...runtimePaths) (runtimeConfig, error) {
 	if err != nil {
 		return runtimeConfig{}, err
 	}
-	if name, _ := requestedServerSelection(); name == demoProfileName && !realDemoProfileExists(paths) {
+	pick, source := requestedServerSelection()
+	return loadSelectedConfig(paths, pick, source, true)
+}
+
+// loadSelectedConfig is loadRuntimeConfig for the selection pick (named by
+// source; "": default_server). process: it makes the profile it resolves
+// the process's selected one, as loading always did (the CLI, and a change
+// under mcpVerbLock, whose confirmation reads it); a read's load leaves it
+// alone, since reads run beside a change.
+func loadSelectedConfig(paths runtimePaths, pick, source string, process bool) (runtimeConfig, error) {
+	if pick == demoProfileName && !realDemoProfileExists(paths) {
 		cfg, on, err := loadDemoProfile(paths)
 		if !on {
 			return runtimeConfig{}, errors.New("The demo house is not connected. Run: ha-nova try")
 		}
-		setActiveDemoProfile()
+		if process {
+			setActiveDemoProfile()
+		}
+		cfg.profile = demoProfileName
 		return cfg, err
 	}
 	notSetUp := errors.New("HA NOVA is not set up yet. Run: ha-nova setup")
@@ -88,15 +104,18 @@ func loadRuntimeConfig(pathArgs ...runtimePaths) (runtimeConfig, error) {
 	if err := validateExistingServerProfileIDs(doc.servers); err != nil {
 		return runtimeConfig{}, fmt.Errorf("invalid server profile identities: %w", err)
 	}
-	name, err := resolveSelectedServerProfile(doc)
+	name, err := resolveServerProfile(doc, pick, source)
 	if err != nil {
-		if pick, _ := requestedServerSelection(); pick == "" && len(doc.servers) == 0 && errors.Is(err, errUnknownServerProfile) && demoProfileOn(paths) {
+		if pick == "" && len(doc.servers) == 0 && errors.Is(err, errUnknownServerProfile) && demoProfileOn(paths) {
 			return runtimeConfig{}, notSetUp
 		}
 		return runtimeConfig{}, err
 	}
-	setActiveServerProfile(name)
+	if process {
+		setActiveServerProfile(name)
+	}
 	cfg, ok := doc.flatProfile(name)
+	cfg.profile = name
 	if !ok {
 		if name != defaultServerProfileName {
 			return runtimeConfig{}, fmt.Errorf("server profile %q is not set up yet. Run: ha-nova pair --server %s --relay-url http://<ha-host>:8791", name, name)

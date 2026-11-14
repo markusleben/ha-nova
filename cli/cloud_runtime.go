@@ -114,8 +114,9 @@ func resolveCloudRelayTransport(
 	// Updating verified metadata here would race a separately locked reconnect:
 	// a stale reader could overwrite the newly promoted current generation after
 	// its non-atomic load/compare. Setup and reconnect own all slot mutations.
-	credential, exists, err := readDeviceCredentialWithPolicy(
+	credential, exists, err := readCredentialSlotWithPolicy(
 		ctx,
+		deviceCredentialServiceForProfile(cfg.profileName()),
 		SecretStoreForbidUI,
 	)
 	if err != nil {
@@ -238,7 +239,7 @@ func probeAutomaticLocalRelay(ctx context.Context, cfg runtimeConfig, local rela
 	} else if !isPureLocalNetworkFailure(err) {
 		return false, false, &localRelayPreflightError{
 			cause:    err,
-			profile:  activeServerProfile(),
+			profile:  cfg.profileName(),
 			relayURL: cfg.RelayBaseURL,
 		}
 	}

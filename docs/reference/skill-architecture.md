@@ -346,8 +346,10 @@ migration:
   skill owns what the entity flow cannot do
 - Home Assistant 2026.11+ builds HACS in as the Marketplace and removes
   `hacs/*`: the gate falls through to `marketplace/info`, and the skill then
-  reads the Marketplace inventory only and gives the Home Assistant steps for
-  everything else (never a "HACS is missing" answer)
+  reads the Marketplace inventory, installs and uninstalls as typed plans
+  (accepting the Marketplace warning for HA NOVA's user first, as a plan of
+  its own), and gives the Home Assistant steps for everything else (never a
+  "HACS is missing" answer)
 
 ## Calendar Architecture
 
@@ -399,7 +401,7 @@ Alarm/lock rules:
 ## Review Architecture
 
 `ha-nova:review` is a self-contained read-only reviewer:
-- Config quality: safety (S-01..S-03), reliability (R-01..R-31), performance (P-01..P-05), style (M-01..M-05; M-04 retired, moved to R-20), script-specific (F-01..F-09), helper-specific (H-01..H-15), scene (SC-01..SC-07), dashboard (D-01..D-07), cross-item (HX-01..HX-05), YAML sensors (TS-01..TS-07)
+- Config quality: safety (S-01..S-03), reliability (R-01..R-32), performance (P-01..P-05), style (M-01..M-05; M-04 retired, moved to R-20), script-specific (F-01..F-09), helper-specific (H-01..H-15), scene (SC-01..SC-07), dashboard (D-01..D-07), cross-item (HX-01..HX-05), YAML sensors (TS-01..TS-07)
 - `R-25` is pasted-YAML only (legacy template platform syntax, removed in HA 2026.6); `M-05` is a modernize advisory for pre-2024.10 automation keys
 - Collision scan: `search/related` on top 3 target entities
 - Conflict analysis: 3-step test (polarity → temporal → guard conditions)
@@ -447,7 +449,7 @@ Alarm/lock rules:
 
 `ha-nova:diagnose` is the failure-root-cause skill (read-only apart from one gated mutation):
 - traces first (`ha-nova trace latest <entity_id> --json`, plus `trace list` / `trace get`) for automation/script symptoms
-- no log reads (`system_log/list`, `/api/error_log`, Supervisor logs are refused): the user reads the few lines that matter on Settings > System > Logs
+- no log lines (`/api/error_log`, Supervisor logs, and `system_log/list` in any other shape are refused): `system_log/list` alone answers log facts (counts and times per integration and level, `cli/log_facts.go`); the user reads the few lines that matter on Settings > System > Logs
 - bounded logbook/history windows around the incident (default ±30 min)
 - `POST /api/template` to probe suspect conditions against live state
 - WS `diagnostics/list` + `/api/diagnostics/config_entry/<entry_id>` when an integration is the suspect

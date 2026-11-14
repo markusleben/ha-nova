@@ -147,6 +147,30 @@ describe("gate worker child", () => {
     }
   }, 60_000);
 
+  it("a redaction of a full entity registry (several MB) comes back intact, and one that is not base64 is no answer", async () => {
+    const registry = Buffer.from(JSON.stringify({ ok: true, data: Array.from({ length: 9000 }, (_, i) => ({ entity_id: `light.room_${i}`, name: "x".repeat(800) })) }));
+    let reply = registry.toString("base64");
+    const server = createServer((request, response) => {
+      request.resume();
+      request.on("end", () => response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ response_b64: reply })));
+    });
+    mkdirSync(join(dir, "gate"), { recursive: true, mode: 0o700 });
+    await new Promise<void>((r) => server.listen(join(dir, "gate", "worker.sock"), r));
+    try {
+      const gate = worker({ timeoutMs: 20_000 });
+      gate.start();
+      expect(registry.byteLength).toBeGreaterThan(7 << 20);
+      expect((await gate.redact("ws", Buffer.from("{}"), registry))?.equals(registry)).toBe(true);
+      for (const bad of ["e30", "e30=\n", "%%%", "e3 0=", "QR==", "e3_9"]) {
+        reply = bad;
+        expect(await gate.redact("ws", Buffer.from("{}"), Buffer.from("{}"))).toBeNull();
+      }
+    } finally {
+      server.closeAllConnections();
+      await new Promise((r) => server.close(r));
+    }
+  }, 30_000);
+
   it("caps each answer at its own route's limit: a check's is small, a redaction's is not", async () => {
     const big = Buffer.alloc(100 << 10, 0x61);
     const server = createServer((request, response) => {
@@ -186,7 +210,7 @@ describe("gate worker child", () => {
       const gate = worker();
       gate.start();
       const requests = [{ endpoint: "core" as const, body: Buffer.from('{"method":"GET","path":"/api/states"}') }];
-      const typed = { verdict: "typed", lang: "en", title: "Unlock?", body: "Requested by “Mac”.", button: "Unlock", items: [{ verdict: "typed", text: "Unlock “Front”" }] };
+      const typed = { verdict: "typed", lang: "en", title: "Unlock?", body: "Requested by “Mac”.", from: "Requested by “Mac”.", button: "Unlock", items: [{ verdict: "typed", text: "Unlock “Front”" }] };
       answer = typed;
       expect(await gate.ask!("Mac", requests)).toEqual(typed);
       expect(asked).toEqual({ device: "Mac", requests: [{ endpoint: "core", body_b64: requests[0]!.body.toString("base64") }] });
@@ -267,6 +291,7 @@ describe("gate worker child", () => {
 
   it("a nested check is answered while the outer one is still open (the worker's own read under the gate)", async () => {
     const held: (() => void)[] = [];
+    const kinds: string[] = [];
     const server = createServer((request, response) => {
       request.resume();
       request.on("end", () => {
@@ -275,7 +300,7 @@ describe("gate worker child", () => {
           held.push(answer("write")); // the outer check waits for its nested read's check
           return;
         }
-        answer("read")();
+        answer(kinds.shift() ?? "read")();
       });
     });
     mkdirSync(join(dir, "gate"), { recursive: true, mode: 0o700 });
@@ -290,6 +315,9 @@ describe("gate worker child", () => {
       }
       const inner = await gate.check({ kind: "device", deviceId: "gate", internal: "gate", peer: "127.0.0.1" }, "core", Buffer.from('{"method":"GET","path":"/api/states"}'));
       expect(inner).toEqual({ verdict: "pass", kind: "read" });
+      kinds.push("probe");
+      const probe = await gate.check({ kind: "device", deviceId: "gate", internal: "gate", peer: "127.0.0.1" }, "core", Buffer.from('{"method":"DELETE","path":"/api/config/config_entries/options/flow/f1"}'));
+      expect(probe).toEqual({ verdict: "pass", kind: "probe" });
       expect(outerDone).toBe(false);
       held[0]!();
       expect(await outer).toEqual({ verdict: "pass", kind: "write" });

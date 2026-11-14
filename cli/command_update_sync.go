@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"slices"
 	"strings"
+	"time"
 )
 
 type postUpdateSyncResult struct {
@@ -185,11 +187,47 @@ func printUpdateDone(lead string, result postUpdateSyncResult) {
 }
 
 // relayUpdateNoticeForUpdate: the App's state after the CLI update. Test seam.
-var relayUpdateNoticeForUpdate = relayUpdateNotice
+var relayUpdateNoticeForUpdate = relayUpdateNoticeWithContext
+
+// relayUpdateCheckWait bounds that check (#1156): a slow or unreachable
+// route used to keep `ha-nova update` silent for two 20 s timeouts.
+var relayUpdateCheckWait = 10 * time.Second
 
 // offerRelayUpdateAfterUpdate is the NOVA App half of `ha-nova update`.
 func offerRelayUpdateAfterUpdate(paths runtimePaths) {
-	offerRelayUpdate(paths, relayUpdateNoticeForUpdate(paths))
+	notice, ok := checkRelayAfterUpdate(paths, relayUpdateOutputIsTTY())
+	if ok {
+		offerRelayUpdate(paths, notice)
+	}
+}
+
+// checkRelayAfterUpdate reads the App's state within relayUpdateCheckWait,
+// with a progress line on a terminal. A check the deadline cut says so and
+// names doctor (ok=false); it offers nothing.
+func checkRelayAfterUpdate(paths runtimePaths, progress bool) (humanNotice, bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), relayUpdateCheckWait)
+	defer cancel()
+	check := func() (humanNotice, error) { return relayUpdateNoticeForUpdate(ctx, paths), nil }
+	var notice humanNotice
+	if progress {
+		notice, _ = runSetupSpinnerWithResult(os.Stdout, "Checking the NOVA App in Home Assistant...", setupSpinnerDebounce, check)
+	} else {
+		notice, _ = check()
+	}
+	if ctx.Err() != nil && notice.empty() {
+		printHumanInfo("HA NOVA couldn't check the NOVA App in time. To check it, run `%s`.", updateDoctorCommand())
+		return notice, false
+	}
+	return notice, true
+}
+
+// updateDoctorCommand: `ha-nova doctor` for the server this update ran on.
+func updateDoctorCommand() string {
+	doctor := "ha-nova doctor"
+	if name, _ := requestedServerSelection(); name != "" {
+		doctor += " --server " + name
+	}
+	return doctor
 }
 
 // appOfferInNewBinaryAfter: versions after it ship internal-offer-app-update;
@@ -201,8 +239,8 @@ const appOfferInNewBinaryAfter = "0.28.2"
 // what the new version needs. Test seam.
 var runNewBinaryAppOffer = func(paths runtimePaths) error {
 	args := []string{"internal-offer-app-update"}
-	if serverSelectionOverride != "" { // the same server, still chosen by flag
-		args = append(args, "--server", serverSelectionOverride)
+	if override := selectionOverride(); override != "" { // the same server, still chosen by flag
+		args = append(args, "--server", override)
 	}
 	cmd := exec.Command(paths.PublicBinary, args...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr

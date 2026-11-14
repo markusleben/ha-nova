@@ -91,11 +91,22 @@ func runGuidedRelayUpdate(paths runtimePaths, route *relayUpdateRoute, in *bufio
 		fmt.Fprintf(out, "HA NOVA updates the NOVA App only with a backup first, and this App can't make one. Nothing was installed.\n%s\n", relayUpdateManualPath)
 		return false
 	}
+	install := planCallRequest{Service: "update.install", EntityIDs: []string{candidate.EntityID}, Data: map[string]any{"backup": true}, Skill: "ha-nova:updates"}
+	rating, _ := runSetupSpinnerWithResult(out, "Checking what the update affects in your home...", setupSpinnerDebounce, func() (guidedRating, error) {
+		return rateGuidedCall(paths, route, install), nil
+	})
+	if !rating.typed() && !rating.allows(tierPreview) {
+		fmt.Fprintf(out, "HA NOVA couldn't check everything the update affects in your home, so it installs nothing (%s).\n%s\n", rating.why(), relayUpdateManualPath)
+		return false
+	}
 	fmt.Fprintf(
 		out,
 		"HA NOVA installs the newest NOVA App (now v%s), with a backup of the App first. The App restarts while it installs.\n",
 		candidate.LatestVersion,
 	)
+	if rating.typed() {
+		return runTypedGuidedRelayUpdate(paths, route, candidate, in, out)
+	}
 	yes, err := promptYesNoMenu(in, out, "Update the NOVA App now?", "Yes, update now", "Not now", true)
 	if err != nil || !yes {
 		return false
@@ -108,9 +119,8 @@ func runGuidedRelayUpdate(paths runtimePaths, route *relayUpdateRoute, in *bufio
 		return false
 	}
 	candidate = current
-	install := planCallRequest{Service: "update.install", EntityIDs: []string{candidate.EntityID}, Data: map[string]any{"backup": true}, Skill: "ha-nova:updates"}
-	if !relayGuidedCallAllowed(paths, route, install, tierPreview) {
-		fmt.Fprintf(out, "HA NOVA can't start the NOVA App update from here. Nothing was installed.\n%s\n", relayUpdateManualPath)
+	if !relayGuidedCallAllowed(paths, route, install, tierPreview) { // checked again after the yes: the home may have changed meanwhile
+		fmt.Fprintln(out, guidedHomeChanged)
 		return false
 	}
 	fmt.Fprintln(out, "Updating the NOVA App, with a backup first. The App restarts while it installs.")
@@ -128,7 +138,8 @@ func runGuidedRelayUpdate(paths runtimePaths, route *relayUpdateRoute, in *bufio
 	// service, entity (registry-proven NOVA Relay App), and payload are fixed,
 	// it runs only on an interactive terminal after the person's yes, and only
 	// when the tier engine finds it a preview at most (above), so this path
-	// skips no tier.
+	// skips no tier. A typed install goes through apply instead
+	// (relay_guided_update_typed.go).
 	installBody, marshalErr := json.Marshal(installPayload)
 	if marshalErr != nil {
 		fmt.Fprintln(out, "HA NOVA couldn't start the update. Nothing was installed.")
@@ -147,30 +158,7 @@ func runGuidedRelayUpdate(paths runtimePaths, route *relayUpdateRoute, in *bufio
 			return false
 		}
 	}
-	version, err := waitForRelayVersion(paths, route, candidate.LatestVersion)
-	if errors.Is(err, errSharedAccessEnded) {
-		fmt.Fprintf(out, "The NOVA App is updated. %s\n", sharedAccessEndedFor(route.cfg, activeServerProfile()))
-		return false
-	}
-	if err != nil {
-		fmt.Fprintf(out, "The NOVA App didn't show the new version within %s.\n%s\n", relayUpdatePollTimeout, relayUpdateManualPath)
-		return false
-	}
-	if !waitForRelayUpdateCompletion(route, candidate) {
-		fmt.Fprintf(out, "The NOVA App runs v%s now, but Home Assistant didn't say the update was done within %s.\n%s\n", version, relayUpdatePollTimeout, relayUpdateManualPath)
-		return false
-	}
-	readiness, readinessVersion := verifyUpdatedRelayReadiness(paths, route, candidate.LatestVersion)
-	if !readiness {
-		fmt.Fprintf(out, "The NOVA App runs v%s now, but HA NOVA couldn't check that it reaches Home Assistant.\n%s\n", version, relayUpdateManualPath)
-		return false
-	}
-	version = readinessVersion
-	fmt.Fprintf(out, "The NOVA App is updated and works: v%s.\n", version)
-	if ha, err := chatAppsReadHA(paths); err == nil && ha.loaded { // ChatGPT keeps the tools it took until a Refresh (#923)
-		fmt.Fprintln(out, chatGPTRefreshLine)
-	}
-	return true
+	return finishGuidedRelayUpdate(paths, route, candidate, out)
 }
 
 // chatGPTRefreshLine follows an App update while chat apps are on
@@ -354,7 +342,7 @@ func waitForRelayVersion(paths runtimePaths, route *relayUpdateRoute, targetVers
 }
 
 func relayVersionMeetsUpdateGate(paths runtimePaths, version, targetVersion string) bool {
-	if version == "" || !checkRelayVersionValue(paths, version).empty() {
+	if version == "" || !checkRelayVersionValue(paths, version, activeServerIsDemo()).empty() {
 		return false
 	}
 	if targetVersion == "" {

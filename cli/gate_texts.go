@@ -46,6 +46,7 @@ func gatePageTexts(lang, name string) map[string]string {
 		"page.more":                 confirmT(lang, "page.more", "count", "{count}"),
 		"page.signed_in":            confirmT(lang, "page.signed_in", "name", sayText(name, true)),
 		"page.back":                 confirmT(lang, "page.back"),
+		"page.returning":            confirmT(lang, "page.returning"),
 		"page.cross_site":           confirmT(lang, "page.cross_site"),
 		"page.expired":              confirmT(lang, "page.expired"),
 		"page.open_again":           confirmT(lang, "page.open_again"),
@@ -59,5 +60,8 @@ func gatePageTexts(lang, name string) map[string]string {
 		"page.paused":               confirmT(lang, "page.paused"),
 		"page.revoke_device":        confirmT(lang, "page.revoke_device"),
 		"page.link":                 confirmT(lang, "page.link"),
+		"page.paused_heading":       confirmT(lang, "page.paused_heading"),
+		"page.paused_left":          confirmT(lang, "page.paused_left", "minutes", "{minutes}"),
+		"page.resume":               confirmT(lang, "page.resume"),
 	}
 }

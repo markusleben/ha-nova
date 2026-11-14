@@ -289,7 +289,7 @@ function registerOwnerRoutes(
   const page = createNovaPageHandler(novaDeps);
   const action = createNovaActionHandler(novaDeps);
   if (deps.gatePage !== undefined) {
-    for (const [method, path, body, handler] of approveRoutes({ fetchAuthUsers, wsClient: deps.wsClient, page: deps.gatePage, now: deps.now, logger: deps.logger })) {
+    for (const [method, path, body, handler] of approveRoutes({ fetchAuthUsers, wsClient: deps.wsClient, page: deps.gatePage, slug: async () => (await deps.supervisor.getSelfInfo()).slug, now: deps.now, logger: deps.logger })) {
       registerIngressRoute(router, policies, method, path, { auth: "identity", body }, handler);
     }
   }

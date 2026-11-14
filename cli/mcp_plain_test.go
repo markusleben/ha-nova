@@ -195,14 +195,14 @@ func TestResultSayForConfigApplies(t *testing.T) {
 }
 
 func TestMCPFindTruncatedSaysSo(t *testing.T) {
-	step := nextStep(map[string]any{"verb": "find", "result": map[string]any{"returned": 2.0, "total": 9.0}})
+	step := nextStep(map[string]any{"verb": "find", "result": map[string]any{"returned": 2.0, "total": 9.0}}, chatCall)
 	if step != "Showing 2 of 9 matches: call ha_find again with limit 9 before you say what is or is not there." {
 		t.Fatalf("truncated: %q", step)
 	}
-	if step := nextStep(map[string]any{"verb": "find", "result": map[string]any{"returned": 200.0, "total": 201.0}}); step != "Showing 200 of 201 matches: narrow it by domain, area, or state; say only what is shown." {
+	if step := nextStep(map[string]any{"verb": "find", "result": map[string]any{"returned": 200.0, "total": 201.0}}, chatCall); step != "Showing 200 of 201 matches: narrow it by domain, area, or state; say only what is shown." {
 		t.Fatalf("at the ceiling: %q", step)
 	}
-	if step := nextStep(map[string]any{"verb": "find", "result": map[string]any{"returned": 9.0, "total": 9.0}}); step != "" {
+	if step := nextStep(map[string]any{"verb": "find", "result": map[string]any{"returned": 9.0, "total": 9.0}}, chatCall); step != "" {
 		t.Fatalf("complete: %q", step)
 	}
 }
@@ -238,7 +238,7 @@ func TestSayAboveCode(t *testing.T) {
 			"notices": []any{map[string]any{"kind": "demo", "text": demoNoticeText}, map[string]any{"kind": "demo_reset", "text": "Type 1234 now."}}}
 	}
 	say := func(env map[string]any, forms bool) (string, string) {
-		got := toolResult("ha_call", string(mustJSON(env)), "", verbExitConfirmation, nil, forms)["structuredContent"].(map[string]any)
+		got := toolResult("ha_call", string(mustJSON(env)), "", verbExitConfirmation, nil, forms, chatCall)["structuredContent"].(map[string]any)
 		return got["say"].(string), got["next_step"].(string)
 	}
 	got, step := say(envelope("lock.unlock", "2026-10-22T19:47:00Z"), false)
@@ -284,7 +284,7 @@ func TestChatCodeResult(t *testing.T) {
 		"notices": []any{map[string]any{"kind": "demo", "text": demoNoticeText}, map[string]any{"kind": "demo_reset", "text": "x"},
 			map[string]any{"kind": "relay_outdated", "text": "update"}, map[string]any{"kind": "draft", "text": "trigger 1 may never fire"}}}
 	told := map[string]bool{}
-	result := toolResult("ha_call", string(mustJSON(env)), "", verbExitConfirmation, told, false)
+	result := toolResult("ha_call", string(mustJSON(env)), "", verbExitConfirmation, told, false, chatCall)
 	got := result["structuredContent"].(map[string]any)
 	if want := head + "\n\nType this code within 5 minutes, before the demo house resets:  \n**8642**"; got["say"] != want {
 		t.Fatalf("say:\n%s\nwant:\n%s", got["say"], want)
@@ -310,7 +310,7 @@ func TestChatCodeResult(t *testing.T) {
 	}
 	// No code block (a phone or window ask): the usual result.
 	env["say"], env["plan"] = "Confirm on your phone.", map[string]any{"id": "p_1", "channel": "phone"}
-	if got := toolResult("ha_call", string(mustJSON(env)), "", verbExitConfirmation, told, false)["structuredContent"].(map[string]any); got["notices"] == nil || got["answer_rule"] != mcpResultRule {
+	if got := toolResult("ha_call", string(mustJSON(env)), "", verbExitConfirmation, told, false, chatCall)["structuredContent"].(map[string]any); got["notices"] == nil || got["answer_rule"] != mcpResultRule {
 		t.Fatalf("phone ask: %v", got)
 	}
 }

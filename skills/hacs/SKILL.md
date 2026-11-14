@@ -2,7 +2,7 @@
 name: hacs
 description: Use when browsing, installing, version-pinning or downgrading, redownloading, or removing HACS packages (the Marketplace since Home Assistant 2026.11), adding custom HACS repositories, or migrating to a custom integration through HA NOVA Relay.
 license: MIT
-compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core). HACS 2.x must already be installed (Home Assistant 2026.10 or older); on 2026.11+ only the Marketplace inventory is read.
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core). HACS 2.x must already be installed (Home Assistant 2026.10 or older); on 2026.11+ the Marketplace's own subset applies.
 ---
 
 # HA NOVA HACS Lifecycle
@@ -88,6 +88,9 @@ ambiguity, ask one blocking question with the candidate `full_name`s. Never
 act on a name match alone.
 
 ### Install / update / redownload / pin
+
+Marketplace mode: its install and acceptance steps in `hacs-commands.md`
+apply instead of 1–3.
 
 1. Read `hacs/repository/releases` (and `release_notes` for updates) before
    choosing. The list is DISCOVERY, not the complete chooser — it returns
@@ -180,7 +183,8 @@ HACS-specific consumer discovery FIRST and shows the result in the preview:
   dashboards and template consumers are not enumerable — name them as an
   unscanned surface, never claim "no consumers"
 Then the Delete Card, closed by the plan's `say`. On confirmation
-APPLY the uninstall — `hacs/repository/remove` (deletes the downloaded
+APPLY the uninstall — `hacs/repository/remove` (Marketplace mode:
+`marketplace/repository/uninstall`; deletes the downloaded
 files) — and read back until `installed == false` in the repository info
 (reconcile loop on timeout); only that read-back is success. Dependent
 config-entry deletion carries its own typed confirmation. For

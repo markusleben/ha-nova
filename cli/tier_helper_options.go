@@ -29,7 +29,13 @@ const helperOptionsEndpoint = "helper_options"
 const optionsFlowPath = "/api/config/config_entries/options/flow"
 
 // helperAbortTimeout bounds the abort on its own, past the session budget.
-var helperAbortTimeout = 5 * time.Second
+// A start goes out only while helperStartReserve of the budget is left, so a
+// budget that ends mid-start, and loses the flow id to abort, is rare
+// (MAR-153).
+var (
+	helperAbortTimeout = 5 * time.Second
+	helperStartReserve = 5 * time.Second
+)
 
 // helperOptions answers the pseudo-endpoint: the stored entity of one
 // allowlisted, built-in entry, as a JSON string. The flow it starts is
@@ -41,69 +47,22 @@ func (s *relaySession) helperOptions(body []byte) (json.RawMessage, error) {
 	if json.Unmarshal(body, &req) != nil || !flowIDPattern.MatchString(req.EntryID) {
 		return nil, errors.New("helper options: not an entry id; nothing was sent")
 	}
-	type entryRow struct {
-		EntryID         string `json:"entry_id"`
-		Domain          string `json:"domain"`
-		SupportsOptions bool   `json:"supports_options"`
-	}
-	type manifest struct {
-		Domain  string `json:"domain"`
-		BuiltIn bool   `json:"is_built_in"`
-	}
-	var entries []entryRow
-	if err := s.wsDecode(map[string]any{"type": "config_entries/get"}, &entries, "the config entries"); err != nil {
-		return nil, err
-	}
-	i := slices.IndexFunc(entries, func(e entryRow) bool { return e.EntryID == req.EntryID })
-	if i < 0 || helperOptionFields[entries[i].Domain] == "" || !entries[i].SupportsOptions {
-		return nil, fmt.Errorf("helper options: entry %s is not a thermostat or hygrostat helper; nothing was sent", req.EntryID)
-	}
-	domain, field := entries[i].Domain, helperOptionFields[entries[i].Domain]
-	var manifests []manifest
-	if err := s.wsDecode(map[string]any{"type": "manifest/list"}, &manifests, "the integrations"); err != nil {
-		return nil, err
-	}
-	if !slices.ContainsFunc(manifests, func(m manifest) bool { return m.Domain == domain && m.BuiltIn }) {
-		return nil, fmt.Errorf("helper options: %s is not the built-in integration; nothing was sent", domain)
-	}
-
-	start, _ := json.Marshal(map[string]any{"method": http.MethodPost, "path": optionsFlowPath, "body": map[string]any{"handler": req.EntryID}})
 	s.mu.Lock()
-	ctx := s.ctx
+	startCheck := s.startCheck
 	s.mu.Unlock()
-	data, err := s.exchange(ctx, "core", start, relaySessionRequestTimeout, false) // once: a retry could open a second flow
-	var core struct {
-		Status int             `json:"status"`
-		Body   json.RawMessage `json:"body"`
+	if startCheck {
+		return nil, errors.New("helper options: a check of an options-flow start never starts a flow itself; nothing was sent")
 	}
-	var form struct {
-		Type       string `json:"type"`
-		FlowID     string `json:"flow_id"`
-		Handler    string `json:"handler"`
-		StepID     string `json:"step_id"`
-		DataSchema []struct {
-			Name        string         `json:"name"`
-			Selector    map[string]any `json:"selector"`
-			Description struct {
-				Suggested any `json:"suggested_value"`
-			} `json:"description"`
-		} `json:"data_schema"`
-	}
-	if err == nil {
-		_ = json.Unmarshal(data, &core)
-		_ = json.Unmarshal(core.Body, &form)
-	}
-	abort := errors.New("its answer named no flow to abort")
-	if form.FlowID != "" {
-		abort = s.abortOptionsFlow(ctx, form.FlowID)
-	}
-	switch {
-	case err != nil:
+	field, err := s.helperEntry(req.EntryID)
+	if err != nil {
 		return nil, err
-	case abort != nil:
-		return nil, fmt.Errorf("helper options: the options flow of %s was not aborted: %w", req.EntryID, abort)
-	case core.Status != http.StatusOK || form.Type != "form" || form.Handler != req.EntryID || form.StepID != "init":
-		return nil, fmt.Errorf("helper options: entry %s answered HTTP %d, %q step %q", req.EntryID, core.Status, form.Type, form.StepID)
+	}
+	form, err := s.optionsForm(req.EntryID)
+	if err == nil && form.StepID != "init" {
+		err = fmt.Errorf("entry %s answered HTTP %d, %q step %q", req.EntryID, http.StatusOK, form.Type, form.StepID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("helper options: %w", err)
 	}
 	for _, f := range form.DataSchema {
 		stored, literal := f.Description.Suggested.(string)
@@ -116,6 +75,92 @@ func (s *relaySession) helperOptions(body []byte) (json.RawMessage, error) {
 		return json.Marshal(stored)
 	}
 	return nil, fmt.Errorf("helper options: entry %s shows no %s", req.EntryID, field)
+}
+
+// helperEntry: the options field of entryID, read live: an allowlisted,
+// built-in entry that has options. helperOptions checks it before its start,
+// and the gate before it lets the App's own check send that start
+// (gateProbe).
+func (s *relaySession) helperEntry(entryID string) (string, error) {
+	type entryRow struct {
+		EntryID         string `json:"entry_id"`
+		Domain          string `json:"domain"`
+		SupportsOptions bool   `json:"supports_options"`
+	}
+	type manifest struct {
+		Domain  string `json:"domain"`
+		BuiltIn bool   `json:"is_built_in"`
+	}
+	var entries []entryRow
+	if err := s.wsDecode(map[string]any{"type": "config_entries/get"}, &entries, "the config entries"); err != nil {
+		return "", err
+	}
+	i := slices.IndexFunc(entries, func(e entryRow) bool { return e.EntryID == entryID })
+	if i < 0 || helperOptionFields[entries[i].Domain] == "" || !entries[i].SupportsOptions {
+		return "", fmt.Errorf("helper options: entry %s is not a thermostat or hygrostat helper; nothing was sent", entryID)
+	}
+	domain := entries[i].Domain
+	var manifests []manifest
+	if err := s.wsDecode(map[string]any{"type": "manifest/list"}, &manifests, "the integrations"); err != nil {
+		return "", err
+	}
+	if !slices.ContainsFunc(manifests, func(m manifest) bool { return m.Domain == domain && m.BuiltIn }) {
+		return "", fmt.Errorf("helper options: %s is not the built-in integration; nothing was sent", domain)
+	}
+	return helperOptionFields[domain], nil
+}
+
+// optionsFormAnswer: the first answer of an entry's options flow.
+type optionsFormAnswer struct {
+	Type       string `json:"type"`
+	FlowID     string `json:"flow_id"`
+	Handler    string `json:"handler"`
+	StepID     string `json:"step_id"`
+	DataSchema []struct {
+		Name        string         `json:"name"`
+		Selector    map[string]any `json:"selector"`
+		Description struct {
+			Suggested any `json:"suggested_value"`
+		} `json:"description"`
+	} `json:"data_schema"`
+}
+
+// optionsForm starts entryID's options flow once (a retry could open a
+// second one), only while helperStartReserve of the budget is left, aborts
+// it whenever its answer names one, before anything is checked, and returns
+// that answer only when it is a form of that entry (its first step: init for
+// most helpers, the entity type for a template or group).
+func (s *relaySession) optionsForm(entryID string) (optionsFormAnswer, error) {
+	var form optionsFormAnswer
+	s.mu.Lock()
+	ctx := s.ctx
+	s.mu.Unlock()
+	if deadline, set := ctx.Deadline(); ctx.Err() != nil || set && time.Until(deadline) < helperStartReserve {
+		return form, errors.New("too little of the read budget is left to start and abort an options flow; nothing was sent")
+	}
+	start, _ := json.Marshal(map[string]any{"method": http.MethodPost, "path": optionsFlowPath, "body": map[string]any{"handler": entryID}})
+	data, err := s.exchange(ctx, "core", start, relaySessionRequestTimeout, false)
+	var core struct {
+		Status int             `json:"status"`
+		Body   json.RawMessage `json:"body"`
+	}
+	if err == nil {
+		_ = json.Unmarshal(data, &core)
+		_ = json.Unmarshal(core.Body, &form)
+	}
+	abort := errors.New("its answer named no flow to abort")
+	if form.FlowID != "" {
+		abort = s.abortOptionsFlow(ctx, form.FlowID)
+	}
+	switch {
+	case err != nil:
+		return form, err
+	case abort != nil:
+		return form, fmt.Errorf("the options flow of %s was not aborted: %w", entryID, abort)
+	case core.Status != http.StatusOK || form.Type != "form" || form.Handler != entryID:
+		return form, fmt.Errorf("entry %s answered HTTP %d, %q step %q", entryID, core.Status, form.Type, form.StepID)
+	}
+	return form, nil
 }
 
 // abortOptionsFlow deletes a started options flow on a context of its own,

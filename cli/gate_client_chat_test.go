@@ -1,15 +1,31 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
+// The App's bridge keeps ha-nova serve's waits as before: its apply job's
+// own ask flag counts only on a Relay that gates the bridge.
+func TestGateAppBridgeKeepsItsWaits(t *testing.T) {
+	var asking atomic.Int32
+	call := &verbCall{asking: &asking}
+	if s := (&relaySession{cfg: runtimeConfig{bridgeCredential: "hanova-dev-v1.x.y"}, call: call}); s.approval() != gateApproval {
+		t.Fatal("the App's bridge took its job's ask flag")
+	}
+	if s := (&relaySession{call: call}); s.approval() != &asking {
+		t.Fatal("a gated bridge's job lost its ask flag")
+	}
+}
+
 // A chat bridge outside the App (the standalone container, the hosted demo)
-// is gated like any device and can't ask: the Relay's hold is its own
-// refusal, sent once and never retried. The App's bridge gets the hold as it
-// is, and a computer's same hold still asks.
+// is gated like any device. It asks the container's phone only from its
+// apply job (mcp_serve_relay_ask_test.go); a chat call outside one (ha_call)
+// gets the hold as its own refusal, sent once and never retried. The App's
+// bridge gets the hold as it is, and a computer's same hold still asks.
 func TestGateChatBridgeHoldRefuses(t *testing.T) {
 	body := []byte(`{"body":{"entity_id":["light.kitchen"]},"method":"POST","path":"/api/services/light/turn_on"}`)
 	for _, who := range []string{"chat bridge", "App chat bridge", "computer"} {
@@ -92,5 +108,34 @@ func TestGateChatBridgeHoldInRawPlanAfterADoneStep(t *testing.T) {
 	if env.Error == nil || env.Error.Code != "RAW_FAILED" || env.Error.Next != gateChatHeldPartNext ||
 		!strings.Contains(env.Error.Message, "1 earlier step went through") || strings.Join(sent(), " | ") != "input_boolean/create | input_number/create" {
 		t.Fatalf("%+v %s sent %v", env.Error, env.Result, sent())
+	}
+}
+
+// On the container a chat app's raw plan typed only by a skill's mark keeps
+// the bridge's own ask (the Relay neither sees nor holds the mark): a chat
+// code at Manage everything, never the container's phone; one typed by its
+// own request asks the container's phone.
+func TestGateChatContainerKeepsLocalAsks(t *testing.T) {
+	saved := chatCall
+	chatCall = &chatPolicy{codes: true, level: levelManage}
+	t.Cleanup(func() { chatCall = saved })
+	g := &fakeGate{}
+	paths, _ := rawRelay(t, map[string]func(map[string]any) any{
+		"health <nil>":          func(map[string]any) any { return map[string]any{"status": "ok", "gate": 1} },
+		gateAskRoute + " <nil>": func(p map[string]any) any { return g.ask(context.Background(), p) },
+		"input_boolean/list": func(map[string]any) any {
+			return []any{map[string]any{"id": "guest", "name": "Guest"}}
+		},
+		"config/entity_registry/list": func(map[string]any) any {
+			return []any{map[string]any{"entity_id": "input_boolean.guest", "platform": "input_boolean", "unique_id": "guest"}}
+		},
+	})
+	_, marked := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"input_boolean/update","input_boolean_id":"guest","name":"G"},"typed":true}]`)
+	if marked.Tier != "typed" || marked.Plan == nil || marked.Plan.Channel != channelChat || marked.Plan.Code == "" {
+		t.Fatalf("skill-typed plan: %+v", marked)
+	}
+	_, typed := planRaw(t, paths, `[{"endpoint":"ws","payload":{"type":"input_boolean/delete","input_boolean_id":"guest"}}]`)
+	if typed.Tier != "typed" || typed.Plan == nil || typed.Plan.Channel != channelRelay || typed.Plan.Code != "" || !strings.Contains(typed.Say, confirmT("en", "say.relay_ask_container")) {
+		t.Fatalf("typed plan: %+v", typed)
 	}
 }

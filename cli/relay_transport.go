@@ -37,7 +37,7 @@ func localRelayAuthRepairMessage(
 	profile string,
 	cfg runtimeConfig,
 ) string {
-	if activeServerIsDemo() {
+	if cfg.demoToken != "" {
 		if status == http.StatusForbidden {
 			return "The demo house doesn't allow this; it is a shared demo with some features turned off."
 		}
@@ -66,7 +66,7 @@ func localRelayAuthRepairMessage(
 // the Relay refusing this one request (FILE_PATH_DENIED, FILE_TYPE_DENIED,
 // FILE_ACCESS_READONLY, CORE_PATH_REFUSED, ...), and its own code and message
 // must reach the caller, never a sign-in repair.
-func localRelayRefusedCredential(status int, body []byte) bool {
+func localRelayRefusedCredential(status int, body []byte, demo bool) bool {
 	if status == http.StatusUnauthorized {
 		return true
 	}
@@ -83,7 +83,7 @@ func localRelayRefusedCredential(status int, body []byte) bool {
 	case "", "UNAUTHORIZED", "SECURE_TRANSPORT_REQUIRED", "DEVICE_REQUIRED":
 		return true
 	}
-	return activeServerIsDemo()
+	return demo
 }
 
 func relayURLSafeForCopyPaste(value string) bool {
@@ -125,7 +125,7 @@ func relayFunctionalTransport(cfg runtimeConfig) (baseURL string, client *http.C
 		return cfg.RelaySecureBaseURL, spkiPinnedClient(cfg.RelaySpkiPin), cfg.bridgeCredential, true, nil
 	}
 	if cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != "" {
-		cred, ok, credErr := readDeviceCredential()
+		cred, ok, credErr := readCredentialSlot(deviceCredentialServiceForProfile(cfg.profileName()))
 		if credErr != nil {
 			return "", nil, "", false, credErr
 		}
@@ -137,7 +137,7 @@ func relayFunctionalTransport(cfg runtimeConfig) (baseURL string, client *http.C
 		// shared token over the unpinned plain port. Re-pair to recover — via setup
 		// for the default profile, via pair --server for named profiles (setup
 		// refuses those).
-		if profile := activeServerProfile(); profile != defaultServerProfileName {
+		if profile := cfg.profileName(); profile != defaultServerProfileName {
 			return "", nil, "", false, fmt.Errorf(
 				"device credential unavailable for a paired relay; re-pair with: %s",
 				namedRelayPairCommand(profile, cfg.RelayBaseURL),
@@ -145,7 +145,7 @@ func relayFunctionalTransport(cfg runtimeConfig) (baseURL string, client *http.C
 		}
 		return "", nil, "", false, errors.New("device credential unavailable for a paired relay; run 'ha-nova setup' to re-pair")
 	}
-	if profile := activeServerProfile(); profile != defaultServerProfileName {
+	if profile := cfg.profileName(); profile != defaultServerProfileName {
 		// Non-default server profiles are device-credential-only: the machine-wide
 		// legacy relay token belongs to the default profile, and a half-paired
 		// profile must never send that token to another server's URL. Fail closed.

@@ -64,10 +64,10 @@ func discoverPhone(s *relaySession, until time.Time) (phoneSetup, phoneStatus) {
 // findPhone is discoverPhone; asks=false finds a phone this computer can't
 // ask (phoneDeaf) too, for a reminder that only notifies it.
 func findPhone(s *relaySession, until time.Time, asks bool) (phoneSetup, phoneStatus) {
-	if activeServerIsDemo() {
+	if s.cfg.demoToken != "" {
 		return phoneSetup{}, phoneNone // links belong to real homes
 	}
-	links, readable := linksForCall(s.paths)
+	links, readable := linksForCall(s.paths, s.call.chatPolicy())
 	if !readable {
 		return phoneSetup{why: whyRead}, phoneMissing
 	}

@@ -129,9 +129,11 @@ func relayTyped(paths runtimePaths, opts verbOptions, endpoint string, body []by
 
 // rawLogNext: logs are free text that can hold passwords, keys, and
 // addresses no redactor bounds (relay-typed-gate spec §2; Markus,
-// 2026-11-07), so the user reads them in Home Assistant.
-const rawLogNext = "Home Assistant's logs can hold passwords, keys, and addresses, so HA NOVA doesn't read them. " +
-	"Ask the user to open Settings > System > Logs in Home Assistant (an App's own log: Settings > Apps > the App > Log), " +
+// 2026-11-07), so the user reads them in Home Assistant. The one log read
+// HA NOVA answers is log facts (log_facts.go).
+const rawLogNext = "Home Assistant's logs can hold passwords, keys, and addresses, so HA NOVA doesn't read their lines. " +
+	"Which integration has been failing since when: read WS {\"type\":\"system_log/list\"} with no other key (ha_read, or ha-nova relay ws), which answers log facts (counts and times). " +
+	"For the lines, ask the user to open Settings > System > Logs in Home Assistant (an App's own log: Settings > Apps > the App > Log), " +
 	"search for the integration or entity, and tell you the few lines that matter, without passwords, keys, or addresses; never ask for the whole log"
 
 // rawLogRefusal refuses a request that reads a log, nil otherwise.
@@ -198,11 +200,11 @@ func relayReadFailed(cause string) string {
 func printRelaySendFailure(read bool, baseURL string, err error) {
 	switch {
 	case !read:
-		printErr("%s", relayRequestOutcomeUnknownMessage(baseURL, err))
+		printErr("%s", relayRequestOutcomeUnknownMessage(baseURL, err, activeServerIsDemo()))
 	case strings.TrimRight(baseURL, "/") == cloudRelayVirtualBaseURL:
 		printErr("%s", relayReadFailed("Home Assistant Link could not complete the NOVA Relay request: "+cloudOutcomeUnknownCause(err)))
 	default:
-		printErr("%s", relayReadFailed(relayConnectErrorMessage(baseURL, err)))
+		printErr("%s", relayReadFailed(relayConnectErrorMessage(baseURL, err, activeServerIsDemo())))
 	}
 }
 

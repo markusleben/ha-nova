@@ -23,7 +23,6 @@ import { childEnv, superviseChild } from "./supervise-child.js";
 // (cli/command_gate.go, cli/gate_ask.go); a longer one is no answer.
 const MAX_ANSWER_BYTES = { "/check": 64 << 10, "/ask": 16 << 20, "/phone": 64 << 10, "/redact": 192 << 20, "/texts": 64 << 10 } as const;
 const TIMEOUT_MS = 20_000; // above the worker's own 15 s check budget (cli/command_gate.go)
-const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 export interface GateWorker extends GateClient {
   start(): void;
@@ -150,7 +149,7 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
       const answer = await post("/check", { principal: who, endpoint, body_b64: body.toString("base64") });
       const verdict = answer?.verdict;
       const kind = answer?.kind;
-      if ((verdict !== "pass" && verdict !== "typed" && verdict !== "refuse") || (kind !== "read" && kind !== "write")) {
+      if ((verdict !== "pass" && verdict !== "typed" && verdict !== "refuse") || (kind !== "read" && kind !== "write" && kind !== "probe")) {
         return null;
       }
       const result: GateCheck = { verdict, kind };
@@ -177,7 +176,8 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
     async redact(endpoint, request, response) {
       const answer = await post("/redact", { endpoint, request_b64: request.toString("base64"), response_b64: response.toString("base64") });
       const encoded = answer?.response_b64;
-      return typeof encoded === "string" && BASE64.test(encoded) ? Buffer.from(encoded, "base64") : null;
+      const decoded = typeof encoded === "string" ? Buffer.from(encoded, "base64") : null;
+      return decoded !== null && decoded.toString("base64") === encoded ? decoded : null;
     },
   };
 }
@@ -232,9 +232,9 @@ function preparedAsk(answer: Record<string, unknown> | null, count: number): Pre
   if (verdict !== "typed") {
     return { verdict, items: items as AskItem[] };
   }
-  const { lang, title, body, button } = answer as Record<string, unknown>;
+  const { lang, title, body, from, button } = answer as Record<string, unknown>;
   if (![lang, title, body, button].every((text) => typeof text === "string" && text !== "")) {
     return null;
   }
-  return { verdict, items: items as AskItem[], lang: lang as string, title: title as string, body: body as string, button: button as string };
+  return { verdict, items: items as AskItem[], lang: lang as string, title: title as string, body: body as string, ...(typeof from === "string" && from !== "" ? { from } : {}), button: button as string };
 }

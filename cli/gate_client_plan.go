@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -30,6 +32,16 @@ func gateChannel(e *tierEngine, plan storedPlan) (string, error) {
 	return channelRelay, nil
 }
 
+// relayAskSay: where a relay plan is confirmed. A chat app's relay plan is
+// one on a standalone container (the App's bridge never makes one): only
+// the phone linked to it confirms.
+func relayAskSay(lang string, s *relaySession) string {
+	if s.gateChat() {
+		return confirmT(lang, "say.relay_ask_container")
+	}
+	return confirmT(lang, "say.relay_ask")
+}
+
 // gateBeforeSend runs before a typed plan's first write (applyPlan): a
 // profile that saw the gate refuses once it is gone, and a relay plan asks
 // for the requests it sends first and waits for the person. It answers the
@@ -50,7 +62,7 @@ func gateBeforeSend(s *relaySession, channel string, fresh storedPlan, batch bat
 	if len(reqs) == 0 {
 		return nil, nil
 	}
-	if err := s.gateAsk(reqs); err != nil {
+	if err := s.gateAsk(reqs, false); err != nil {
 		return nil, err
 	}
 	humanWhere = channelRelay
@@ -214,11 +226,14 @@ func gateSeen(paths runtimePaths, server string) bool {
 	return err == nil && doc.servers != nil && json.Unmarshal(doc.servers[server], &profile) == nil && profile.GateSeen
 }
 
-// markGateSeen records gate_seen in the profile. A profile the settings
-// file doesn't hold has nowhere to record it (nil); any other failure is
-// an error, so a rollback can't go unnoticed (gateOn refuses).
+// markGateSeen records gate_seen in the profile. A profile no settings
+// file holds has nowhere to record it (nil); any other failure is an
+// error, so a rollback can't go unnoticed (gateOn refuses).
 func markGateSeen(paths runtimePaths, server string) error {
 	doc, err := loadConfigDocument(paths.ConfigFile)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}

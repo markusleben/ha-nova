@@ -40,7 +40,7 @@ func TestLocalRelayRefusalIsNotACredentialProblem(t *testing.T) {
 		{http.StatusForbidden, envelope("CORE_PATH_REFUSED"), false},
 		{http.StatusBadRequest, envelope("FILE_NOT_TEXT"), false},
 	} {
-		if got := localRelayRefusedCredential(tc.status, tc.body); got != tc.want {
+		if got := localRelayRefusedCredential(tc.status, tc.body, false); got != tc.want {
 			t.Errorf("HTTP %d %s: %v, want %v", tc.status, tc.body, got, tc.want)
 		}
 	}

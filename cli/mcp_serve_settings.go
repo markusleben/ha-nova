@@ -184,11 +184,15 @@ func readChatSettings(dataDir string) (chatSettings, error) {
 // homeUsers: Home Assistant's users (config/auth/list) through the Relay,
 // as read within the last minute, or read now (fresh: before a change). A
 // failed read fails closed; a failed cached read isn't repeated for 5 s,
-// and a failed fresh one leaves the cache as it was. While mcpVerbLock is
-// held (a running change), a request that changes nothing gets the users
-// as read within chatUsersStale instead of waiting (stale: a tool call
-// reads them again in chatGate); a read waits for the lock as w says
-// (lockChat: errBridgeBusy, errBridgeQueued).
+// and a failed fresh one leaves the cache as it was. One read runs at a time
+// (usersReadLock): while one runs, a request that changes nothing gets the
+// users as read within chatUsersStale instead of waiting (stale: a tool call
+// reads them again in chatGate); a read waits for it as w says (lockChat:
+// errBridgeQueued). It runs beside a change: its session sets nothing
+// process-wide (readUsers).
+// usersReadLock: one read of Home Assistant's users at a time (homeUsers).
+var usersReadLock = newVerbLock()
+
 func (b *chatBridge) homeUsers(fresh bool, w lockWait) (users []haUser, stale bool, err error) {
 	cached := func() ([]haUser, error, bool) {
 		b.mu.Lock()
@@ -207,16 +211,16 @@ func (b *chatBridge) homeUsers(fresh bool, w lockWait) (users []haUser, stale bo
 	b.mu.Lock()
 	users, stale = b.users, !fresh && b.users != nil && time.Since(b.usersAt) < chatUsersStale
 	b.mu.Unlock()
-	locked := stale && mcpVerbLock.TryLock() // a Relay session sets process-wide server selection
+	locked := stale && usersReadLock.TryLock()
 	switch {
 	case stale && !locked:
 		return users, true, nil
 	case !locked:
-		if err := mcpVerbLock.lockChat(w); err != nil {
+		if err := usersReadLock.lockChat(w); err != nil {
 			return nil, false, err
 		}
 	}
-	defer mcpVerbLock.Unlock()
+	defer usersReadLock.Unlock()
 	if users, err, ok := cached(); ok && !fresh { // another request read them while this one waited
 		return users, false, err
 	}

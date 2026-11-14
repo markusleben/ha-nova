@@ -45,6 +45,7 @@ The examples read as single actions, but running or saving an automation, script
 | Delete a file in the config folder | `RAW_TYPED` (file_delete) |
 | Delete a saved config copy | `RAW_TYPED` (copy_delete) |
 | Remove an App | `RAW_TYPED` (app_uninstall) |
+| Uninstall something from the Marketplace | `RAW_TYPED` (marketplace_remove) |
 
 ## Installs, reloads, and code that runs
 
@@ -61,6 +62,8 @@ The examples read as single actions, but running or saving an automation, script
 | Change a dashboard resource | `RAW_TYPED` (resource_update) |
 | Write a file in the config folder | `RAW_TYPED` (file_write) |
 | Put a deleted image or video back in the www folder | `RAW_TYPED` (file_restore) |
+| Accept the Marketplace warning for HA NOVA's Home Assistant user | `RAW_TYPED` (marketplace_warning) |
+| Install or update something from the Marketplace | `RAW_TYPED` (marketplace_install) |
 | Install an App | `RAW_TYPED` (app_install) |
 | Change an App's settings | `RAW_TYPED` (app_settings) |
 

@@ -54,15 +54,8 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 		return 1
 	}
 
-	client := httpClient
-	if *quiet && !*jsonOutput {
-		// The quiet check runs before a user's first task: a slow network
-		// must never hold that task up. On a timeout the cached release
-		// still answers; with no cache, quiet stays silent.
-		client = &http.Client{Transport: httpClient.Transport, CheckRedirect: httpClient.CheckRedirect, Timeout: quietUpdateCheckTimeout}
-	}
-	result := buildUpdateCheckResultWithClient(paths, client)
 	if *jsonOutput { // the CLI/skills result only: no server involved
+		result := buildUpdateCheckResultWithClient(paths, httpClient)
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(result); err != nil {
@@ -78,6 +71,47 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 		}
 	}
 
+	// CLI/skills freshness is only half the answer: the relay in Home
+	// Assistant has its own version, and "up to date" would be misleading
+	// below min_relay_version or while an App update is pending. The quiet
+	// first-skill-use path must include this exact check too: relay response
+	// headers prove only the compatibility floor and cannot expose a compatible
+	// above-floor App update. Stderr-only, exit code unchanged; --json returned
+	// above and stays machine-clean. It and the legacy-access probe run while
+	// the release lookup does; the quiet path's one deadline covers both.
+	// Within the hour after a quiet check that answered silently, the quiet
+	// check skips it (relay_notice_cache.go).
+	type relayCheck struct {
+		notice  humanNotice
+		checked bool
+	}
+	relayChecks, legacyNotices := make(chan relayCheck, 1), make(chan string, 1)
+	silentKey := relayNoticeSilentKey(paths)
+	client := httpClient
+	if *quiet {
+		noticeCtx, cancelNotices := context.WithTimeout(context.Background(), firstUseRelayNoticeTimeout)
+		defer cancelNotices()
+		if relayNoticeSilentRecently(paths, silentKey) {
+			relayChecks <- relayCheck{}
+		} else {
+			go func() {
+				notice, checked := checkedRelayUpdateNotice(noticeCtx, paths)
+				relayChecks <- relayCheck{notice, checked}
+			}()
+		}
+		go func() { legacyNotices <- legacyAccessNotice(noticeCtx, paths) }()
+		// The quiet check runs before a user's first task: a slow network
+		// must never hold that task up. On a timeout the cached release
+		// still answers; with no cache, quiet stays silent.
+		client = &http.Client{Transport: httpClient.Transport, CheckRedirect: httpClient.CheckRedirect, Timeout: quietUpdateCheckTimeout}
+	} else {
+		legacyCtx, cancelLegacy := context.WithTimeout(context.Background(), legacyNoticeProbeTimeout)
+		defer cancelLegacy()
+		go func() { relayChecks <- relayCheck{notice: relayUpdateNoticeWithTimeout(paths, relayUpdateCheckWait)} }() // #1156: never an unbounded wait
+		go func() { legacyNotices <- legacyAccessNotice(legacyCtx, paths) }()
+	}
+	result := buildUpdateCheckResultWithClient(paths, client)
+
 	// Human/quiet path only (the `--json` branch above stays machine-clean): every
 	// client runs `check-update` on first skill use per session, so this is the
 	// universal point to self-heal client integrations once after a version change.
@@ -90,29 +124,14 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 	defer markSessionBootstrapLayoutVerified(paths)
 
 	notice := humanNoticeFromUpdateCheckResult(result, *quiet)
-	// CLI/skills freshness is only half the answer: the relay in Home
-	// Assistant has its own version, and "up to date" would be misleading
-	// below min_relay_version or while an App update is pending. The quiet
-	// first-skill-use path must include this exact check too: relay response
-	// headers prove only the compatibility floor and cannot expose a compatible
-	// above-floor App update. Stderr-only, exit code unchanged; --json returned
-	// above and stays machine-clean.
-	// The quiet path's one deadline covers the legacy-access notice too.
-	var relayNotice humanNotice
-	var noticeCtx context.Context
-	var cancelNotices context.CancelFunc
-	if *quiet {
-		noticeCtx, cancelNotices = context.WithTimeout(context.Background(), firstUseRelayNoticeTimeout)
-		relayNotice = relayUpdateNoticeWithContext(noticeCtx, paths)
-	} else {
-		relayNotice = relayUpdateNotice(paths)
-		noticeCtx, cancelNotices = context.WithTimeout(context.Background(), legacyNoticeProbeTimeout)
+	relay := <-relayChecks
+	if *quiet && relay.checked && relay.notice.empty() {
+		rememberRelayNoticeSilent(paths, silentKey)
 	}
-	defer cancelNotices()
-	notice, relayNotice = withAppUpdateToo(notice, relayNotice)
+	notice, relayNotice := withAppUpdateToo(notice, relay.notice)
 	printHumanNotice(notice)
 	printHumanNotice(relayNotice)
-	printLegacyAccessNotice(noticeCtx, paths, *quiet)
+	printLegacyAccessNoticeText(<-legacyNotices, *quiet)
 	if *quiet {
 		deadline := time.Now()
 		if migrationContended {

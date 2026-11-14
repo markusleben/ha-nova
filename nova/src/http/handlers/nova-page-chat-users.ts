@@ -105,11 +105,12 @@ export function renderChatUsers(v: ChatUsersView): string {
   const stale = model.stale.map((n) => `<li><span class="person"><strong>${escape(n)}</strong><span class="muted meta">Turned off or removed in Home Assistant · leaves this list when you save</span></span></li>`).join("");
   const list = others.length === 0 && stale === ""
     ? `<ul>${ownerRow}</ul>${missing}`
-    : `${v.form}<ul>${ownerRow}${others.map(row).join("")}${stale}</ul><button type="submit">Save</button></form>${missing}
-<p class="muted meta"><strong>Ask only:</strong> questions about the home's devices and what they did. Can't read automations, scripts, or settings, and changes nothing.<br><strong>Use the home:</strong> controls lights, switches, fans, climate, covers, locks, the alarm, media players, vacuums, and helpers, and runs existing scenes, scripts, and automations. Unlocking a door, opening a garage door or gate, and turning off the alarm need a tap on their own linked phone; without one they're refused, never asked as a code in the chat. Can't change automations, scripts, dashboards, or device settings.<br><strong>Manage everything:</strong> what you can do. Only for Home Assistant administrators.</p>
+    : `${v.form}<ul class="people">${ownerRow}${others.map(row).join("")}${stale}</ul><div class="actions"><button type="submit">Save</button></div></form>${missing}
+<p class="muted meta">Ask only: questions, no changes. Use the home: controls devices, no settings; unlocking and the alarm need a tap on their own phone. Manage everything: what you can do.</p>
+<details><summary>More about the levels</summary><p class="muted meta"><strong>Ask only:</strong> questions about the home's devices and what they did. Can't read automations, scripts, or settings, and changes nothing.<br><strong>Use the home:</strong> controls lights, switches, fans, climate, covers, locks, the alarm, media players, vacuums, and helpers, and runs existing scenes, scripts, and automations. Unlocking a door, opening a garage door or gate, and turning off the alarm need a tap on their own linked phone; without one they're refused, never asked as a code in the chat. Can't change automations, scripts, dashboards, or device settings.<br><strong>Manage everything:</strong> what you can do. Only for Home Assistant administrators.</p>
 <p class="muted meta">A level never goes above the person's role in Home Assistant (Settings → People): users get at most Use the home, read-only users Ask only.</p>
-<p class="muted meta">With anyone besides you on this list, going back to an older NOVA App refuses every chat request until you update it again.</p>`;
-  return `<h3 id="chat-users">Who can use it</h3>${saved}${removed}<p>Pick who may use HA NOVA in Claude and ChatGPT. Each person signs in with their own Home Assistant account.</p>${list}`;
+<p class="muted meta">With anyone besides you on this list, going back to an older NOVA App refuses every chat request until you update it again.</p></details>`;
+  return `<h3 id="chat-users">Who can use it</h3>${saved}${removed}<p class="muted meta">Each person signs in with their own Home Assistant account.</p>${list}`;
 }
 
 // A listed user's row: whether they signed in yet, and their phone.
@@ -167,7 +168,7 @@ export function renderChatActivity(activity: ChatActivity[] | null, now: number)
 export function renderToolsChanged(changedAt: string | null, now: number): string {
   const at = Date.parse(changedAt ?? ""); // "": not changed, NaN
   return now - at >= 0 && now - at < 30 * 86_400_000
-    ? `<p class="ok">HA NOVA's tools changed on ${dayOf(new Date(at))}. Using HA NOVA in ChatGPT? Open chatgpt.com/plugins, choose HA NOVA, then Refresh. Claude needs nothing.</p>`
+    ? `<p class="ok meta">HA NOVA's tools changed on ${dayOf(new Date(at))}. Open chatgpt.com/plugins, choose HA NOVA, then Refresh.</p>`
     : "";
 }
 

@@ -10,6 +10,11 @@ npm run testbed:verify                     # PASS/FAIL smoke assertions, read-on
 TESTBED_PHONE=1 npm run testbed:verify     # + the phone lane (fake phones, push payloads)
 node scripts/e2e/testbed/gate.mjs          # the gate lane: approvals on the phone (bed up with TESTBED_FILES=1)
 node scripts/e2e/testbed/www-media.mjs     # www pictures: delete, undo, community, copy limit (same bed)
+node scripts/e2e/testbed/marketplace.mjs   # Marketplace: typed install, the warning only for the App's user, gate holds and refusals
+node scripts/e2e/testbed/agent-updates.mjs # update advisor: an agent checks before installing and after (headless Claude test account)
+node scripts/e2e/testbed/checkup.mjs       # system check-up: the map section on the bed (no Supervisor), log facts as counts
+node scripts/e2e/testbed/agent-checkup.mjs # system check-up: an agent answers "is my HA OK, would my backup work" and changes nothing
+node scripts/e2e/testbed/agent-authoring.mjs # HA 2026.7+ authoring: an agent creates a room-triggered automation, explains and reviews a floor-targeted one
 npm run testbed:down                       # containers, volumes, tokens, runtime config: gone
 ```
 
@@ -33,6 +38,16 @@ Node >= 22.12, Go, curl, and free ports 18123 / 18791 / 11883 / 18792 on 127.0.0
   may still try the internet; analytics stay off.)
 - Tear down after every session (`npm run testbed:down`). It wipes `.state/`
   from inside a container because Home Assistant writes it as root.
+- **Only the bed's owner tears it down.** The bed is one shared instance per
+  machine. `up.sh` writes `TESTBED_OWNER` (empty when unset) to
+  `.state/owner`; `down.sh` refuses unless the running bed was started from
+  the same checkout and `TESTBED_OWNER` matches the marker. Agents set it to
+  their own name (`TESTBED_OWNER=ha-nova/HANO-52 npm run testbed:up`, the same
+  for `testbed:down`). If `up.sh` says the bed is already running (stopped
+  containers count), it is someone else's: wait, never tear it down.
+  `down.sh --force` skips the check and needs the maintainer's OK (an orphaned
+  bed whose owner is gone, or one started before the marker existed); the
+  hosted demo's `reset.sh` uses it because its host runs only the demo's bed.
 
 ## Using it
 
@@ -177,10 +192,15 @@ home in `.state`. The RC lane runs all three with the tag's binary
   everything; at Manage everything a read runs, a write and a delete need
   the code, and a refusal by the Relay itself (a file in `www`, the log
   file, a `.sh` write) names its real cause, never the sign-in or a
-  setting. On the gated bed this bridge runs on the shared token, so the
-  Relay holds its write, delete, and `.sh` write: each is refused in the
-  bridge's own words and the file stays as it was; the App's chat-code
-  path can't run here (one WARN line). It leaves `/config/www/rclane-mailbox.jpg`. SKIP without file
+  setting. On the gated bed this bridge runs on the shared token, as on a
+  standalone container: it recreates the Relay first (the phone lane's
+  fixture, no phone linked), so its write, delete, and `.sh` write ask
+  the container's phone, find none, and are refused in the bridge's own
+  words while the file stays as it was. Then it links the fake iPhone
+  there: a Use-the-home unlock waits for it (nothing sent meanwhile), runs
+  after the tap, and sends nothing after Cancel; that user's file write is
+  still refused for the level; at Manage everything a file write runs after
+  the tap. The App's chat-code path can't run here (one WARN line). It leaves `/config/www/rclane-mailbox.jpg`. SKIP without file
   access.
 - `node calm.mjs` adds listeners shaped like a real home's (an automation
   on every automation reload, a templated panel automation following its
@@ -200,7 +220,10 @@ home in `.state`. The RC lane runs all three with the tag's binary
   thermostat's entry and state as they were (MAR-131: its options flow is
   started and aborted); setting it to heat turns the fan on through
   `homeassistant.turn_on`, a consumer; a second thermostat whose heater the
-  relay automation follows makes every listener count. It leaves its
+  relay automation follows makes every listener count. On the gated bed,
+  beside that thermostat and an unlock listener on climate calls, a light
+  call sent to the Relay passes with no ask, a call on the thermostat is
+  held, and the App's own read leaves the entry as it was (MAR-153). It leaves its
   automations on the bed, so run other checks before it.
 
 
@@ -232,13 +255,12 @@ asks the agent for a Statistics helper through all three flow steps
 sample) and checks Home Assistant: one new entry, loaded, its options read
 back from an aborted options flow, its sensor through the registry, hydrated
 from the recorder with a valid source; and in the agent's run the terminal
-`result.entry_id`, the entries read back, the new sensor's state read, and
-the sensor named in the reply. A second run hides the terminal id (the
-bed's `ha-nova` drops it), so the agent must find its helper by the
-before/after diff (#976). Two steps agents still skip report XFAIL (#1105):
-the options flow reopened and aborted, and the baseline read before the flow;
-until the baseline passes, the fixture doesn't prove the diff itself.
-It removes both helpers. About $1 per run; run it alone too, before
+`result.entry_id`, the CLI's `verification` of it (the entry and its
+options read back, #1105), no options flow submitted, the new sensor's state
+read, and the sensor named in the reply. A second run withholds that check
+(the bed's `ha-nova` turns every verification into `passed: false`), so the
+agent must leave exactly one helper, start no second create flow, and say the
+helper is unverified. It removes both helpers. About $1 per run; run it alone too, before
 `calm.mjs`.
 
 ## Determinism and versions

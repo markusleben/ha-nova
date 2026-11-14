@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   checkApprover,
   checkOwner,
+  isAdmin,
   type HaAuthUser,
 } from "../../nova/src/security/owner-check.js";
 
@@ -64,7 +65,7 @@ const fails = () => ({
 describe("owner-check", () => {
   it("allows a real active non-system owner over ingress", async () => {
     const r = await checkOwner(req({ userId: "owner-1" }), users());
-    expect(r).toEqual({ ok: true, userId: "owner-1", name: "Owner", users: USERS });
+    expect(r).toEqual({ ok: true, userId: "owner-1", name: "Owner", users: USERS, isOwner: true });
   });
 
   it("denies a plain admin (403)", async () => {
@@ -131,5 +132,37 @@ describe("approver check", () => {
     for (const [request, d, want] of cases) {
       expect(await checkApprover(request, d)).toEqual(want);
     }
+  });
+});
+
+// The NOVA page's administrators (docs/work/2026-11-12-nova-page-admins-spec.md):
+// a positive read of an active, non-system admin; any role it can't read is none.
+describe("checkOwner with admins", () => {
+  const base = { id: "a-1", name: "Anna", is_owner: false, is_active: true, system_generated: false };
+  it("admits the owner and an administrator, and tells them apart", async () => {
+    const admin = { ...base, group_ids: ["system-admin"] };
+    const both = [OWNER, admin];
+    const owner = await checkOwner(req({ userId: "owner-1" }), users(both), { admins: true });
+    const anna = await checkOwner(req({ userId: "a-1" }), users(both), { admins: true });
+    expect([owner.ok && owner.isOwner, anna.ok && anna.isOwner, anna.ok]).toEqual([true, false, true]);
+    expect((await checkOwner(req({ userId: "a-1" }), users(both))).ok).toBe(false); // owner-only routes stay owner-only
+  });
+  it("refuses every role it can't read positively", () => {
+    for (const user of [
+      { ...base, group_ids: ["system-users"] },
+      { ...base, group_ids: ["system-read-only"] },
+      { ...base, group_ids: "system-admin" as unknown as string[] },
+      { ...base },
+      { id: "a-1", is_owner: false, system_generated: false, group_ids: ["system-admin"] },
+      { ...base, is_active: false, group_ids: ["system-admin"] },
+      { ...base, system_generated: true, group_ids: ["system-admin"] },
+      { id: "o-1", is_owner: true, system_generated: false },
+    ]) {
+      expect(isAdmin(user as HaAuthUser), JSON.stringify(user)).toBe(false);
+    }
+  });
+  it("answers 503 when the users can't be read", async () => {
+    const r = await checkOwner(req({ userId: "a-1" }), { fetchAuthUsers: async () => { throw new Error("down"); } }, { admins: true });
+    expect(r).toMatchObject({ ok: false, status: 503 });
   });
 });

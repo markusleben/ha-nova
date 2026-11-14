@@ -367,6 +367,9 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		return 1
 	}
 	target := verbOptions{server: opts.Server, serverSet: opts.ServerSet, via: opts.Via, viaSet: opts.ViaSet}
+	if logFactsRequest(endpoint, requestBody) { // answered as log facts, never as the log
+		return runRelayLogFacts(paths, target, compiledJQ, opts.OutputFile)
+	}
 	requestBody, refusal, err := guardRawRequest(paths, target, endpoint, requestBody)
 	if refusal == nil && err == nil {
 		refusal, err = relayRawChecks(paths, target, endpoint, requestBody)
@@ -435,7 +438,7 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		printRelayHTTPFailure(read, resp.StatusCode)
 		return 1
 	}
-	if notice := checkRelayVersionValue(paths, resp.Header.Get(relayVersionHeader)); !notice.empty() {
+	if notice := checkRelayVersionValue(paths, resp.Header.Get(relayVersionHeader), activeServerIsDemo()); !notice.empty() {
 		if shouldWarnRelayOutdated(paths) {
 			printHumanNotice(notice)
 		}
@@ -475,6 +478,17 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		taskSucceeded = taskSucceeded && relayCoreUpstreamTaskSucceeded(bodyBytes)
 		if taskSucceeded { // as a raw plan does: a flow's form, or its end
 			relayFlowAnswered(paths, opts.Method, opts.Path, reply)
+		}
+		if handler, entryID, created := helperCreated(opts.Method, opts.Path, reply); taskSucceeded && created {
+			verification := verifyHelperCreate(paths, cfg, transport, handler, entryID)
+			if !verification.Passed {
+				printWarn("%s", verification.Problem)
+			}
+			if verified, err := withHelperVerification(bodyBytes, verification); err != nil { // the create stands: say it, keep its answer
+				printWarn("The helper was created, but HA NOVA could not add its check to the output: %v. Don't run the flow again.", err)
+			} else {
+				bodyBytes = redactRawResponse(endpoint, verified)
+			}
 		}
 	}
 
@@ -799,7 +813,7 @@ func runHealth(paths runtimePaths, args []string) int {
 
 	resp, err := transportClient.Do(req)
 	if err != nil {
-		printErr("%s", relayRequestOutcomeUnknownMessage(baseURL, err))
+		printErr("%s", relayRequestOutcomeUnknownMessage(baseURL, err, activeServerIsDemo()))
 		return 1
 	}
 	defer resp.Body.Close()
@@ -864,7 +878,7 @@ func printLocalRelayAuthRepair(
 	transport relayTransportSelection,
 	cfg runtimeConfig,
 ) {
-	if transport.Via != relayViaLocal || !localRelayRefusedCredential(status, body) {
+	if transport.Via != relayViaLocal || !localRelayRefusedCredential(status, body, cfg.demoToken != "") {
 		return
 	}
 	printErr(
@@ -891,8 +905,8 @@ func readAllLimited(r io.Reader, maxBytes int64) ([]byte, error) {
 	return data, nil
 }
 
-func relayConnectErrorMessage(baseURL string, err error) string {
-	if activeServerIsDemo() {
+func relayConnectErrorMessage(baseURL string, err error, demo bool) string {
+	if demo {
 		return demoUnreachableText
 	}
 	return fmt.Sprintf(
@@ -901,7 +915,7 @@ func relayConnectErrorMessage(baseURL string, err error) string {
 	)
 }
 
-func relayRequestOutcomeUnknownMessage(baseURL string, err error) string {
+func relayRequestOutcomeUnknownMessage(baseURL string, err error, demo bool) string {
 	if strings.TrimRight(baseURL, "/") == cloudRelayVirtualBaseURL {
 		return fmt.Sprintf(
 			"OUTCOME_UNKNOWN: Home Assistant Link could not complete the NOVA Relay request: %s\nThe request outcome is unknown: it may have reached the Relay. Verify the target state; do not retry automatically.",
@@ -910,7 +924,7 @@ func relayRequestOutcomeUnknownMessage(baseURL string, err error) string {
 	}
 	return fmt.Sprintf(
 		"OUTCOME_UNKNOWN: %s\nThe request outcome is unknown: it may have reached the Relay. Verify the target state; do not retry automatically.",
-		relayConnectErrorMessage(baseURL, err),
+		relayConnectErrorMessage(baseURL, err, demo),
 	)
 }
 
@@ -927,9 +941,9 @@ func (e *relayOutcomeUnknownError) Unwrap() error {
 	return e.cause
 }
 
-func relayRequestOutcomeUnknownError(baseURL string, err error) error {
+func relayRequestOutcomeUnknownError(baseURL string, err error, demo bool) error {
 	return &relayOutcomeUnknownError{
-		message: relayRequestOutcomeUnknownMessage(baseURL, err),
+		message: relayRequestOutcomeUnknownMessage(baseURL, err, demo),
 		cause:   err,
 	}
 }

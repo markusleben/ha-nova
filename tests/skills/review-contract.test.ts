@@ -12,7 +12,6 @@ const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8") + rea
 const architectureDoc = readFileSync("docs/reference/skill-architecture.md", "utf8");
 const contributingDoc = readFileSync("CONTRIBUTING.md", "utf8");
 const templateGuidelines = readFileSync("skills/ha-nova/template-guidelines.md", "utf8");
-const bestPractices = readFileSync("skills/ha-nova/best-practices.md", "utf8");
 const automationPatterns = readFileSync(
   "skills/ha-nova/automation-patterns.md",
   "utf8",
@@ -165,8 +164,8 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("R-16 [HIGH]");
     expect(reviewChecks).toContain("Templated event name");
     expect(reviewChecks).toContain("`event_type:` does not evaluate templates");
-    expect(reviewChecks).toContain("R-01..R-31");
-    expect(architectureDoc).toContain("R-01..R-31");
+    expect(reviewChecks).toContain("R-01..R-32");
+    expect(architectureDoc).toContain("R-01..R-32");
     expect(templateGuidelines).toContain("Event trigger names must be literal strings");
     expect(templateGuidelines).toContain("do not template `event_type:`");
   });
@@ -312,9 +311,10 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("Restart-dependent restore from transient storage");
     expect(reviewChecks).toContain("## R-22 Evidence Boundary");
     expect(reviewChecks).toContain("Persistence Model");
-    expect(bestPractices).toContain("## Persistence Model (restart survival)");
-    expect(bestPractices).toContain("`scene.create` runtime snapshots");
-    expect(bestPractices).toContain("timer` only with `restore: true");
+    expect(readFileSync("skills/ha-nova/automation-patterns.md", "utf8")).toContain("## Persistence Model (restart survival)");
+    const patterns = readFileSync("skills/ha-nova/automation-patterns.md", "utf8");
+    expect(patterns).toContain("`scene.create` runtime snapshots");
+    expect(patterns).toContain("timer` only with `restore: true");
     expect(automationPatterns).toContain("## Save / Restore Patterns");
   });
 

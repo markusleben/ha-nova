@@ -32,7 +32,7 @@ func TestRevertGuardIsOrderAware(t *testing.T) {
 		t.Fatalf("snapshot verify: exit %d %q", exit, out)
 	}
 	out = captureStdout(t, func() {
-		exit = runDiffCommand(h.paths, []string{"--before", rawDraft(t, strings.Replace(orderedDraft, "21", "22", 1)), "--after", live})
+		exit = runDiffCommand(nil, h.paths, []string{"--before", rawDraft(t, strings.Replace(orderedDraft, "21", "22", 1)), "--after", live})
 	})
 	if exit != 0 || !strings.Contains(out, "(order)") {
 		t.Fatalf("ha-nova diff: exit %d %q", exit, out)

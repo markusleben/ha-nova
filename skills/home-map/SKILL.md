@@ -39,6 +39,7 @@ answers exit 1 with `RELAY_ERROR`; then `ha-nova setup`.
   and `more` names the command for each full list
 - `ha-nova map --section areas|integrations|automations|unavailable|batteries [--limit N]`
   — one full list (default 50, max 200 rows; `total` stays exact)
+- `--section updates|after_update`: owned by `ha-nova:updates`
 - `ha-nova map --entity <entity_id> [--limit N]` — where-used; resolve a
   name first with `ha-nova find "<phrase>"`
 - `ha-nova map --first-look` — `home`, up to two `observations`, `seeds`
@@ -117,8 +118,8 @@ Deletes and renames: the owning skill.
 4. Persistent notes: the "why" belongs in the automation's or script's own
    `description` field, which later sessions read back. Offer a proposed
    description per item; saving goes through `ha-nova:write` with its usual
-   preview and confirmation. The house-wide document stays in this chat for
-   the user to keep; nothing else is stored.
+   preview and confirmation. The document stays in this chat;
+   nothing else is stored.
 
 ### First look (after pairing)
 

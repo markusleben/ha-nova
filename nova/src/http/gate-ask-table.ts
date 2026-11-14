@@ -26,7 +26,7 @@ export interface Ask {
 
 export interface AskTable {
   start(owner: string, digests: string[], prepared?: PreparedAsk): { askId: string; ask: Ask };
-  settle(ask: Ask, state: AskState): void;
+  settle(ask: Ask, state: AskState, answered?: boolean): void; // answered: a person ended it (gate-owners.ts)
   grant(ask: Ask): void;
   find(owner: string, askId: unknown): Ask; // 404 unless this owner's
   get(ref: string): Ask | undefined;
@@ -39,15 +39,15 @@ export interface AskTable {
 export function createAskTable(now: () => number, grants: GateGrants, limits: OwnerLimits, pollMs = POLL_MS): AskTable {
   const asks = new Map<string, Ask>();
 
-  // An ask ends once: its phone hangs up, and its end counts toward a pause.
-  const settle = (ask: Ask, state: AskState): void => {
+  // An ask ends once: its phone hangs up, and its end may count toward a pause.
+  const settle = (ask: Ask, state: AskState, answered = false): void => {
     if (ask.state.state !== "waiting") {
       return;
     }
     ask.state = state;
     clearTimeout(ask.timer);
     ask.stop.abort();
-    limits.ended(ask.owner, state.state);
+    limits.ended(ask.owner, state.state, answered, ask.prepared?.items.find((item) => item.verdict === "typed")?.text ?? "", now() - (ask.expiresAt - ASK_MS));
     for (const wake of ask.waiters) {
       wake();
     }
@@ -104,7 +104,7 @@ export function createAskTable(now: () => number, grants: GateGrants, limits: Ow
       prune();
       for (const ask of asks.values()) {
         if (ask.owner === owner && ask.state.state === "waiting") {
-          settle(ask, { state: "cancelled" }); // one open ask per device: a new one replaces it (and may pause the phone)
+          settle(ask, { state: "cancelled" }); // one open ask per device: a new one replaces it
         }
       }
     },

@@ -138,7 +138,7 @@ func computeDashboardPlan(paths runtimePaths, s *relaySession, env *verbEnvelope
 	var snap undoSnapshot
 	if req.Op == "revert" {
 		var err error
-		if snap, err = selectServerUndoSnapshot(paths, s.server, req.ConfigID, req.Domain); err != nil {
+		if snap, err = selectServerUndoSnapshot(paths, s.server, s.cfg.demoToken != "", req.ConfigID, req.Domain); err != nil {
 			return fail(refused("NO_UNDO_SNAPSHOT", err.Error()))
 		}
 		if req.Draft, _, err = exactConfig(snap.BeforeConfig); err != nil {

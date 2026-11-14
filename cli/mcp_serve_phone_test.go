@@ -132,7 +132,7 @@ func TestServePhoneLinksArePerUser(t *testing.T) {
 	file := filepath.Join(dir, "phone-links.json")
 	defer func() { chatCall = nil }()
 	chatCall = &chatPolicy{user: userA, links: file}
-	if links, ok := linksForCall(runtimePaths{}); !ok || len(links) != 0 {
+	if links, ok := linksForCall(runtimePaths{}, chatCall); !ok || len(links) != 0 {
 		t.Fatalf("missing store: %v %v", links, ok)
 	}
 	store, _ := json.Marshal(map[string]phoneLink{
@@ -141,18 +141,18 @@ func TestServePhoneLinksArePerUser(t *testing.T) {
 	if err := os.WriteFile(file, store, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	links, ok := linksForCall(runtimePaths{})
-	if !ok || len(links) != 1 || linkFor(links, "any-owner").link.DeviceID != "dev-a" {
+	links, ok := linksForCall(runtimePaths{}, chatCall)
+	if !ok || len(links) != 1 || linkFor(links, "any-owner", chatCall).link.DeviceID != "dev-a" {
 		t.Fatalf("A's links: %v", links)
 	}
 	chatCall.user = "cccccccccccccccccccccccccccccccc"
-	if links, ok := linksForCall(runtimePaths{}); !ok || len(links) != 0 {
+	if links, ok := linksForCall(runtimePaths{}, chatCall); !ok || len(links) != 0 {
 		t.Fatalf("unlinked user: %v", links)
 	}
 	if err := os.WriteFile(file, []byte(`{"`+userA+`":`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := linksForCall(runtimePaths{}); ok {
+	if _, ok := linksForCall(runtimePaths{}, chatCall); ok {
 		t.Fatal("a broken store read as readable")
 	}
 	// A linked phone whose confirmer is someone else is refused.
@@ -240,5 +240,40 @@ func TestServeOneOpenPhoneAskPerUser(t *testing.T) {
 	p.events <- tap(ok2, userA, "REMOTE") // cancel, so no ask outlives the test
 	if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": second}); envCode(env) != "CONFIRM_DECLINED" {
 		t.Fatalf("second after cancel: %v", env)
+	}
+}
+
+// Settings the owner saves while a tap's checks read Home Assistant's users
+// (the App writes chat-apps.json without the verb lock) still hold: read
+// only then sends nothing.
+func TestServeTapRereadsSettingsAfterTheUsers(t *testing.T) {
+	f := newFakeHA()
+	s := newServe(t, f, `{"allowed_users":["`+userA+`"]}`)
+	p := usePhones(t, "mobile_app_a")
+	p.setup.confirmer = userA
+	id := phonePlanFor(t, s, userA)
+	if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": id}); env["status"] != "waiting_for_phone" {
+		t.Fatalf("before the tap: %v", env)
+	}
+	reached, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	f.mu.Lock()
+	f.extra = func(endpoint string, p map[string]any) (any, bool) { // runs under f.mu
+		if endpoint == "ws" && p["type"] == "config/auth/list" {
+			once.Do(func() { close(reached); <-release })
+		}
+		return nil, false
+	}
+	f.mu.Unlock()
+	ok, _ := p.buttons(t)
+	p.events <- tap(ok, userA, "REMOTE")
+	<-reached // the checks after the tap read the settings, then the users
+	if err := os.WriteFile(filepath.Join(s.data, "chat-apps.json"), []byte(`{"allowed_users":["`+userA+`"],"read_only":true}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	waitFor(t, "the result on the phone", func() bool { return p.sentCount() == 2 })
+	if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": id}); envCode(env) != "READ_ONLY" || len(s.posts()) != 0 {
+		t.Fatalf("after the tap: %v (sent %d)", env, len(s.posts()))
 	}
 }

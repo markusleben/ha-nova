@@ -75,9 +75,9 @@ describe("best-practice patterns contract", () => {
       expect(content).toContain("template-guidelines.md");
     });
 
-    it("cross-references best-practices.md for Zigbee button patterns", () => {
+    it("cross-references the input preflight for Zigbee button patterns", () => {
       content ??= readFileSync(file, "utf8");
-      expect(content).toContain("best-practices.md");
+      expect(content).toContain("input-capability-preflight.md");
       expect(content).toContain("Zigbee Button Patterns");
     });
   });
@@ -262,8 +262,17 @@ describe("best-practice patterns contract", () => {
       expect(content).not.toContain("Relay support planned");
     });
 
-    it("includes Zigbee Button Patterns section", () => {
+    it("has MIT attribution for adopted sections", () => {
       content ??= readFileSync(file, "utf8");
+      expect(content).toMatch(/homeassistant-ai\/skills.*MIT License/);
+    });
+  });
+
+  describe("input-capability-preflight.md Zigbee Button Patterns", () => {
+    const preflightFile = "skills/ha-nova/input-capability-preflight.md";
+
+    it("includes Zigbee Button Patterns section", () => {
+      const content = readFileSync(preflightFile, "utf8");
       expect(content).toContain("Zigbee Button Patterns");
       expect(content).toContain("ZHA");
       expect(content).toContain("Zigbee2MQTT");
@@ -272,7 +281,7 @@ describe("best-practice patterns contract", () => {
     });
 
     it("ZHA pattern uses event trigger (not device trigger)", () => {
-      content ??= readFileSync(file, "utf8");
+      const content = readFileSync(preflightFile, "utf8");
       const zhaSection = content.match(
         /### ZHA[^]*?(?=### Zigbee2MQTT)/s,
       );
@@ -283,7 +292,7 @@ describe("best-practice patterns contract", () => {
     });
 
     it("Z2M pattern uses device or mqtt trigger", () => {
-      content ??= readFileSync(file, "utf8");
+      const content = readFileSync(preflightFile, "utf8");
       const z2mSection = content.match(/### Zigbee2MQTT[^]*/s);
       expect(z2mSection).not.toBeNull();
       expect(z2mSection![0]).toContain("trigger: device");
@@ -291,19 +300,14 @@ describe("best-practice patterns contract", () => {
     });
 
     it("includes ZHA vs Z2M comparison table", () => {
-      content ??= readFileSync(file, "utf8");
+      const content = readFileSync(preflightFile, "utf8");
       expect(content).toContain("ZHA vs Z2M Quick Reference");
       expect(content).toContain("Trigger type");
       expect(content).toContain("Persistent ID");
     });
 
-    it("has MIT attribution for adopted sections", () => {
-      content ??= readFileSync(file, "utf8");
-      // Both new sections should have attribution comments
-      const attributionCount = (
-        content.match(/homeassistant-ai\/skills.*MIT License/g) || []
-      ).length;
-      expect(attributionCount).toBeGreaterThanOrEqual(2);
+    it("has MIT attribution for the adopted section", () => {
+      expect(readFileSync(preflightFile, "utf8")).toMatch(/homeassistant-ai\/skills.*MIT License/);
     });
   });
 

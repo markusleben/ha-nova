@@ -8,21 +8,16 @@ import (
 	"net/http"
 	"sort"
 	"strings"
-	"sync/atomic"
 	"time"
 )
 
-// traceRelayVersion: the Relay version header of the last trace request, so
-// ha_trace over MCP reports relay_outdated like the typed verbs.
-var traceRelayVersion atomic.Value
-
-func loadLatestTrace(paths runtimePaths, entityID, domain string) (traceLatestOutput, error) {
+func loadLatestTrace(call *verbCall, paths runtimePaths, entityID, domain string) (traceLatestOutput, error) {
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
 		time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)),
 	)
 	defer cancel()
-	ctx = withOneRelaySelection(ctx)
+	ctx = context.WithValue(withOneRelaySelection(ctx), traceCallKey{}, call)
 	return loadLatestTraceWithContext(ctx, paths, entityID, domain)
 }
 
@@ -64,13 +59,13 @@ func loadLatestTraceWithContext(
 	}, nil
 }
 
-func loadTraceList(paths runtimePaths, entityID, domain string) (traceListOutput, error) {
+func loadTraceList(call *verbCall, paths runtimePaths, entityID, domain string) (traceListOutput, error) {
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
 		time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)),
 	)
 	defer cancel()
-	ctx = withOneRelaySelection(ctx)
+	ctx = context.WithValue(withOneRelaySelection(ctx), traceCallKey{}, call)
 	return loadTraceListWithContext(ctx, paths, entityID, domain)
 }
 
@@ -109,13 +104,13 @@ func loadTraceListWithContext(
 	}, nil
 }
 
-func loadTraceGet(paths runtimePaths, entityID, domain, runID string) (traceGetOutput, error) {
+func loadTraceGet(call *verbCall, paths runtimePaths, entityID, domain, runID string) (traceGetOutput, error) {
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
 		time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)),
 	)
 	defer cancel()
-	ctx = withOneRelaySelection(ctx)
+	ctx = context.WithValue(withOneRelaySelection(ctx), traceCallKey{}, call)
 	uniqueID, err := resolveTraceUniqueIDContext(ctx, paths, entityID)
 	if err != nil {
 		return traceGetOutput{}, err
@@ -203,6 +198,9 @@ func resolveTraceUniqueIDContext(
 
 type oneRelaySelectionKey struct{}
 
+// traceCallKey: the verb run (*verbCall) a trace reads for: its profile.
+type traceCallKey struct{}
+
 // withOneRelaySelection makes the trace calls under ctx share one transport
 // selection: a trace command logs in to Link once, not once per call.
 func withOneRelaySelection(ctx context.Context) context.Context {
@@ -214,7 +212,8 @@ func traceRelayTransport(ctx context.Context, paths runtimePaths) (relayTranspor
 	if shared != nil && shared.Client != nil {
 		return *shared, nil
 	}
-	cfg, err := loadConfig(paths)
+	call, _ := ctx.Value(traceCallKey{}).(*verbCall)
+	cfg, err := verbConfig(paths, verbOptions{call: call})
 	if err != nil {
 		return relayTransportSelection{}, err
 	}
@@ -249,17 +248,19 @@ func relayWSJSONContext(
 	if err != nil {
 		return nil, err
 	}
+	call, _ := ctx.Value(traceCallKey{}).(*verbCall)
 	resp, err := selected.Client.Do(req)
 	if err != nil {
-		return nil, relayRequestOutcomeUnknownError(selected.BaseURL, err)
+		cfg, _ := verbConfig(paths, verbOptions{call: call})
+		return nil, relayRequestOutcomeUnknownError(selected.BaseURL, err, cfg.demoToken != "")
 	}
 	defer resp.Body.Close()
-	if version := resp.Header.Get(relayVersionHeader); version != "" {
-		traceRelayVersion.Store(version)
+	if version := resp.Header.Get(relayVersionHeader); version != "" { // ha_trace over MCP reports relay_outdated like the typed verbs
+		call.sawRelayVersion(version)
 	}
 	if selected.Via == relayViaLocal && sharedAccessEnded(resp.StatusCode, resp.Header) {
-		cfg, _ := loadConfig(paths)
-		return nil, errors.New(sharedAccessEndedFor(cfg, activeServerProfile()))
+		cfg, _ := verbConfig(paths, verbOptions{call: call})
+		return nil, errors.New(sharedAccessEndedFor(cfg, cfg.profileName()))
 	}
 	return readRelayWSJSONResponse(resp, maxRelayResponseBytes)
 }

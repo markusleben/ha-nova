@@ -46,6 +46,7 @@ var rawWSAllowed = map[string]string{
 	"config/label_registry/list": rawWSRead, "config/category_registry/list": rawWSRead,
 	"search/related": rawWSRead, "trace/list": rawWSRead, "trace/get": rawWSRead,
 	"device_automation/trigger/list": rawWSRead, "device_automation/trigger/capabilities": rawWSRead,
+	"get_triggers_for_target": rawWSRead, "get_conditions_for_target": rawWSRead, // HA 2026.7+: the triggers/conditions a target can use
 	"blueprint/list": rawWSRead, "blueprint/substitute": rawWSRead, "blueprint/import": rawWSRead, // import fetches and previews, never saves
 	"automation/config": rawWSRead, "script/config": rawWSRead,
 	"lovelace/dashboards/list": rawWSRead, "lovelace/config": rawWSRead, "lovelace/resources": rawWSRead, "lovelace/info": rawWSRead,
@@ -99,6 +100,9 @@ var rawWSAllowed = map[string]string{
 	"hacs/repository/refresh":                 "re-reads a repository from GitHub",
 	"hacs/repository/ignore":                  "hides a repository's update",
 	"hacs/critical/acknowledge":               "acknowledges a HACS critical notice",
+	"marketplace/warning/accept":              "accepts the Marketplace warning for HA NOVA's own Home Assistant user, for good (with the NOVA App, the Supervisor user every App shares)",
+	"marketplace/repository/install":          "installs or updates a Marketplace repository; new integration code loads only after a restart, which is typed (replacing a built-in integration is refused below)",
+	"marketplace/repository/uninstall":        "uninstalls a Marketplace repository",
 	"config/auth/create":                      "creates an account without credentials; it cannot sign in until a person sets a password in the UI",
 	"config/auth/delete":                      "deletes an account (admin; previewed with the one-time code)",
 	"assist_pipeline/pipeline/create":         "creates a voice assistant",

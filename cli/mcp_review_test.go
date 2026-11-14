@@ -148,7 +148,7 @@ func TestMCPReviewProtocolDetails(t *testing.T) {
 	t.Cleanup(func() { mcpTools = previous })
 	mcpTools = append(append([]mcpTool{}, previous...), mcpTool{name: "ha_panic", schema: object(nil, map[string]any{}),
 		argv: func(map[string]json.RawMessage, *mcpTempFiles) ([]string, error) { return nil, nil },
-		run:  func(runtimePaths, []string) int { panic("boom") }})
+		run:  func(*verbCall, runtimePaths, []string) int { panic("boom") }})
 	stdout := os.Stdout
 	c := startMCP(t, h.paths)
 	init := c.request("initialize", map[string]any{"protocolVersion": "2025-11-25", "capabilities": map[string]any{}})
@@ -237,11 +237,11 @@ func TestMCPReapsTheUpdateRefreshChild(t *testing.T) {
 func TestMCPToolResultWrapsPlainJSONIntoTheEnvelope(t *testing.T) {
 	// ha_trace prints a plain JSON object (no schema_version): it must still
 	// arrive in the common envelope, and a failure gets the error object.
-	ok := toolResult("ha_trace", `{"run_id":"r1","steps":[]}`, "", 0, nil, false)["structuredContent"].(map[string]any)
+	ok := toolResult("ha_trace", `{"run_id":"r1","steps":[]}`, "", 0, nil, false, chatCall)["structuredContent"].(map[string]any)
 	if ok["verb"] != "trace" || ok["status"] != "ok" || ok["result"] == nil || ok["schema_version"] != 1 {
 		t.Fatalf("plain trace output not wrapped: %+v", ok)
 	}
-	bad := toolResult("ha_trace", "", "no trace for that run", 1, nil, false)["structuredContent"].(map[string]any)
+	bad := toolResult("ha_trace", "", "no trace for that run", 1, nil, false, chatCall)["structuredContent"].(map[string]any)
 	errObj, isObj := bad["error"].(map[string]any)
 	if bad["status"] != "error" || !isObj || errObj["code"] != "TOOL_ERROR" {
 		t.Fatalf("trace failure not wrapped: %+v", bad)
@@ -257,7 +257,7 @@ func TestMCPNoticeHintsOncePerSessionAndServer(t *testing.T) {
 		return `{"schema_version":1,"verb":"get","server":"` + server + `","status":"ok","notices":[{"kind":"relay_outdated","text":"Relay outdated: v0.9.0 is below minimum v0.9.1."},{"kind":"undo","text":"x"}]}`
 	}
 	step := func(server string) string {
-		s, _ := toolResult("ha_get", envelope(server), "", 0, told, false)["structuredContent"].(map[string]any)["next_step"].(string)
+		s, _ := toolResult("ha_get", envelope(server), "", 0, told, false, chatCall)["structuredContent"].(map[string]any)["next_step"].(string)
 		return s
 	}
 	if first := step("home"); !strings.Contains(first, "NOVA Relay App needs an update") || strings.Contains(first, "--") {
@@ -271,7 +271,7 @@ func TestMCPNoticeHintsOncePerSessionAndServer(t *testing.T) {
 	}
 	update := func(server string) string {
 		env := `{"schema_version":1,"verb":"get","server":"` + server + `","status":"ok","notices":[{"kind":"update","text":"HA NOVA update available"}]}`
-		s, _ := toolResult("ha_get", env, "", 0, told, false)["structuredContent"].(map[string]any)["next_step"].(string)
+		s, _ := toolResult("ha_get", env, "", 0, told, false, chatCall)["structuredContent"].(map[string]any)["next_step"].(string)
 		return s
 	}
 	if first, other := update("home"), update("cabin"); !strings.Contains(first, "newer HA NOVA") || other != "" {
@@ -279,16 +279,16 @@ func TestMCPNoticeHintsOncePerSessionAndServer(t *testing.T) {
 	}
 	told = map[string]bool{}
 	pending := `{"schema_version":1,"verb":"plan","status":"needs_confirmation","plan":{"id":"p_1"},"notices":[{"kind":"update","text":"HA NOVA update available"}]}`
-	if s := toolResult("ha_plan", pending, "", verbExitConfirmation, told, false)["structuredContent"].(map[string]any)["next_step"].(string); !strings.HasPrefix(s, "Show this preview") || !strings.Contains(s, "newer HA NOVA") {
+	if s := toolResult("ha_plan", pending, "", verbExitConfirmation, told, false, chatCall)["structuredContent"].(map[string]any)["next_step"].(string); !strings.HasPrefix(s, "Show this preview") || !strings.Contains(s, "newer HA NOVA") {
 		t.Fatalf("the hint joins the existing next_step: %q", s)
 	}
 	told = map[string]bool{}
 	differs := `{"schema_version":1,"verb":"apply","status":"unverified","next_step":"Show say.","notices":[{"kind":"update","text":"HA NOVA update available"}]}`
-	if s := toolResult("ha_apply", differs, "", verbExitUnverified, told, false)["structuredContent"].(map[string]any)["next_step"].(string); !strings.HasPrefix(s, "Show say.") || !strings.Contains(s, "newer HA NOVA") {
+	if s := toolResult("ha_apply", differs, "", verbExitUnverified, told, false, chatCall)["structuredContent"].(map[string]any)["next_step"].(string); !strings.HasPrefix(s, "Show say.") || !strings.Contains(s, "newer HA NOVA") {
 		t.Fatalf("a hint must not replace the verb's own next_step: %q", s)
 	}
 	same := `{"schema_version":1,"verb":"call","status":"no_change","next_step":"run it with ha-nova plan call instead of call"}`
-	if s := toolResult("ha_call", same, "", 0, told, false)["structuredContent"].(map[string]any)["next_step"].(string); strings.Contains(s, "ha-nova plan") || !strings.Contains(s, "ha_plan") {
+	if s := toolResult("ha_call", same, "", 0, told, false, chatCall)["structuredContent"].(map[string]any)["next_step"].(string); strings.Contains(s, "ha-nova plan") || !strings.Contains(s, "ha_plan") {
 		t.Fatalf("the verb's own next_step must name tools, not CLI commands: %q", s)
 	}
 }

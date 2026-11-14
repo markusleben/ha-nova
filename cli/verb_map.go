@@ -14,15 +14,17 @@ import (
 // ha-nova map: exact, CLI-computed home facts (home-map spec
 // docs/work/2026-10-16-home-map-spec.md). Read-only; the model never counts.
 
-const mapUsage = "ha-nova map [--section areas|integrations|automations|unavailable|batteries] [--entity <entity_id>] [--first-look | --insights] [--limit N]"
+const mapUsage = "ha-nova map [--section areas|integrations|automations|unavailable|batteries|updates|after_update|checkup] [--entity <entity_id>] [--first-look | --insights] [--limit N]"
 
-var mapSections = map[string]bool{"areas": true, "integrations": true, "automations": true, "unavailable": true, "batteries": true}
+var mapSections = map[string]bool{"areas": true, "integrations": true, "automations": true, "unavailable": true, "batteries": true, "updates": true, "after_update": true, "checkup": true}
 
-func runMapCommand(paths runtimePaths, args []string) int {
-	var opts verbOptions
+func runMapCommand(paths runtimePaths, args []string) int { return mapVerb(nil, paths, args) }
+
+func mapVerb(call *verbCall, paths runtimePaths, args []string) int {
+	opts := verbOptions{call: call}
 	fs := flag.NewFlagSet("map", flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
-	section := fs.String("section", "", "full list of one part: areas, integrations, automations, unavailable, batteries")
+	section := fs.String("section", "", "full list of one part: areas, integrations, automations, unavailable, batteries; updates: the update advisor's check before installs; after_update: what changed since that check; checkup: is Home Assistant OK, why slow, would its backup work")
 	entity := fs.String("entity", "", "where-used of one entity_id (automations, scripts, scenes, groups, helpers, dashboards)")
 	firstLook := fs.Bool("first-look", false, "the onboarding first look: one-line counts, up to 2 observations, prompt seeds")
 	insights := fs.Bool("insights", false, "setup step 4: stats, ranked insights with room suggestions, and one automation made for this home")
@@ -43,7 +45,9 @@ func runMapCommand(paths runtimePaths, args []string) int {
 	case modes > 1:
 		err = errors.New("use only one of --section, --entity, --first-look, --insights")
 	case *section != "" && !mapSections[*section]:
-		err = fmt.Errorf("unknown --section %q (areas, integrations, automations, unavailable, batteries)", *section)
+		err = fmt.Errorf("unknown --section %q (areas, integrations, automations, unavailable, batteries, updates, after_update, checkup)", *section)
+	case limitSet && (*section == "updates" || *section == "after_update" || *section == "checkup"):
+		err = fmt.Errorf("--limit does not apply to --section %s", *section)
 	case *entity != "" && !entityIDPattern.MatchString(*entity):
 		err = fmt.Errorf("%q is not an entity_id (domain.object_id)", *entity)
 	case limitSet && (*section == "" && *entity == ""):
@@ -52,7 +56,7 @@ func runMapCommand(paths runtimePaths, args []string) int {
 		err = errors.New("--limit must be between 1 and 200")
 	}
 	if err != nil {
-		return verbUsageError("map", err)
+		return verbUsageError(call, "map", err)
 	}
 	return runReadVerb(paths, "map", opts, func(s *relaySession, env *verbEnvelope) error {
 		home, err := loadHome(s)
@@ -65,6 +69,12 @@ func runMapCommand(paths runtimePaths, args []string) int {
 			env.Result = idx.firstLook()
 		case *insights:
 			env.Result = idx.insights(linkedPhone(s), templateOffered(paths, s))
+		case *section == "updates":
+			env.Result, err = adviseUpdates(s, idx, baselineFile(paths, s.server))
+		case *section == "after_update":
+			env.Result, err = afterUpdate(s, idx, baselineFile(paths, s.server))
+		case *section == "checkup":
+			env.Result, err = checkupHome(s, idx)
 		case *section != "":
 			env.Result = idx.section(*section, limitOr(*limit, 50))
 		case *entity != "":
@@ -110,6 +120,7 @@ type homeData struct {
 		DeviceID     string `json:"device_id"`
 		DisabledBy   string `json:"disabled_by"`
 		Platform     string `json:"platform"`
+		UniqueID     string `json:"unique_id"`
 		Category     string `json:"entity_category"`
 		HiddenBy     string `json:"hidden_by"`
 		ConfigEntry  string `json:"config_entry_id"`

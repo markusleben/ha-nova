@@ -267,14 +267,15 @@ func loadUndoSnapshotStack(paths runtimePaths) (undoSnapshotStack, error) {
 // selectUndoSnapshot picks the newest snapshot, or the one for an explicit
 // target (optionally narrowed by domain).
 func selectUndoSnapshot(paths runtimePaths, target, domain string) (undoSnapshot, error) {
-	return selectServerUndoSnapshot(paths, "", target, domain)
+	return selectServerUndoSnapshot(paths, "", false, target, domain)
 }
 
 // selectServerUndoSnapshot is selectUndoSnapshot restricted to one server
 // ("" = any): another server's checkpoint for the same id is never picked;
 // untagged records stay eligible (the revert drift check still compares them
 // with this server's live config).
-func selectServerUndoSnapshot(paths runtimePaths, server, target, domain string) (undoSnapshot, error) {
+// demo: server is the demo house as its config loaded (demoToken).
+func selectServerUndoSnapshot(paths runtimePaths, server string, demo bool, target, domain string) (undoSnapshot, error) {
 	stack, err := loadUndoSnapshotStack(paths)
 	if err != nil {
 		return undoSnapshot{}, err
@@ -284,7 +285,7 @@ func selectServerUndoSnapshot(paths runtimePaths, server, target, domain string)
 		// the first record per domain+target is the one a revert means.
 		// The demo house takes only its own records: an untagged one may be
 		// the user's home, and the demo is shared.
-		untagged := !(server == demoProfileName && activeServerIsDemo())
+		untagged := !(server == demoProfileName && demo)
 		var mine []undoSnapshot
 		seen := map[string]bool{}
 		for _, snap := range stack.Snapshots {

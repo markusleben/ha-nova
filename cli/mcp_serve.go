@@ -129,8 +129,8 @@ func runServeCommand(paths runtimePaths, args []string) int {
 			demoPlansSince = readPlansSince(dataDir)
 		}
 	}
-	// Verbs print to stdout and stderr, which runLocked captures; the log keeps
-	// the real stderr.
+	// Verbs write to their own output (runCaptured); anything else printed in
+	// this process goes to the log on stderr.
 	os.Stdout = os.Stderr
 	reapUpdateRefresh = true
 	// As ha-nova mcp, once: the phone jobs read it outside the verb lock.
