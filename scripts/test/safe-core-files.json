@@ -29,6 +29,7 @@
   "tests/e2e/codex-skill-write-review-live-contract.test.ts",
   "tests/e2e/testbed-owner.test.ts",
   "tests/e2e/vm-lane-app-preview.test.ts",
+  "tests/e2e/vm-lane-rc-rows.test.ts",
   "tests/e2e/vm-lane-transport.test.ts",
   "tests/ha/rest-client.test.ts",
   "tests/ha/socket.test.ts",
