@@ -8,7 +8,7 @@ const newer = (a, b) => {
   return false;
 };
 
-// ctx: { repo, app, fetch, sup, host, imageCheck, page, registryHash, check, sleep }
+// ctx: { repo, app, fetch, sup, host, imageCheck, page, registryHash, check, sleep, beforeUpdate? }
 // host runs a root shell command on the HAOS VM; imageCheck runs verify-app-image.sh <version>.
 export function appPreview(ctx) {
   const repoSlug = ctx.app.split("_")[0];
@@ -47,6 +47,10 @@ export function appPreview(ctx) {
       switched = true;
       git(`git fetch -q --depth 1 origin +refs/heads/${branch}:refs/remotes/origin/${branch} && git checkout -q -B ${branch} origin/${branch}`);
       if (!ctx.check("a", "store offers the preview after a Supervisor restart", await restartSupervisor(preview), `${branch} -> ${preview}`)) return false;
+      // Rows that need the preview offered and the stable App still running (vm-lane guided-update.mjs);
+      // they pair and revoke a computer, so pairing is judged across the update from here.
+      await ctx.beforeUpdate?.(preview);
+      const registryBefore = ctx.beforeUpdate ? ctx.registryHash() : registryAtStart;
       await ctx.sup(`/store/addons/${ctx.app}/update`, "post", { backup: false }).catch(() => null); // the answer can drop while it updates: judged below
       let info = {};
       for (let i = 0; i < 60 && !(info.state === "started" && info.version === preview); i++) { await ctx.sleep(5000); info = await ctx.sup(`/addons/${ctx.app}/info`).catch(() => ({})); }
@@ -55,10 +59,12 @@ export function appPreview(ctx) {
       const [tagged, running] = ctx.host(`docker image inspect --format '{{.Id}} {{json .RepoDigests}}' ${want.image}:${preview}; docker inspect --format '{{.Image}}' app_${ctx.app}`).trim().split(/\s*\n\s*/);
       const ok = [
         ctx.check("a", "App preview runs the image pulled at the recorded digest", Boolean(running) && tagged.startsWith(`${running} `) && tagged.includes(`${want.image}@${want.digest}`), `${want.image}@${want.digest}`),
-        ctx.check("a", "pairing kept (device registry and TLS key unchanged)", ctx.registryHash() === registryAtStart, "paired computers pin the TLS key; lastUsedAtMs and the App's own safety-check record (minted at start) excluded"),
+        ctx.check("a", "pairing kept (device registry and TLS key unchanged)", ctx.registryHash() === registryBefore, "paired computers pin the TLS key; lastUsedAtMs and the App's own safety-check record (minted at start) excluded"),
       ];
       const html = await ctx.page();
-      ok.push(ctx.check("a", "NOVA page: Home Assistant connected, preview version", html.includes("<h2>Home Assistant</h2><p>Connected.</p>") && html.includes(`Relay ${preview}</footer>`), preview));
+      // The 0.31 page (0.13.28, #1158) shows the connection as a status pill; older Apps as a paragraph.
+      const connected = html.includes("<h2>Home Assistant</h2><p>Connected.</p>") || html.includes('<span>Home Assistant</span><span class="pill good">Connected</span>');
+      ok.push(ctx.check("a", "NOVA page: Home Assistant connected, preview version", connected && html.includes(`Relay ${preview}</footer>`), preview));
       return ok.every(Boolean);
     },
     // Back to stable: a repository repair re-clones main; only a Supervisor start re-reads it. No network before the repair.

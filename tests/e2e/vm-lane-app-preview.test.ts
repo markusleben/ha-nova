@@ -20,7 +20,7 @@ const verified = (v: string) => [
   "[verify-app-image] OK: ghcr.io/markusleben/amd64-ha-nova-relay:" + v + " (linux/amd64) amd64=" + D.amd64,
 ].join("\n") + "\n";
 
-function vm({ preview = "0.14.0", digests = [IMAGE + "@" + D.aarch64] as readonly string[], running = "sha256:img", registry = "r1" } = {}) {
+function vm({ preview = "0.14.0", digests = [IMAGE + "@" + D.aarch64] as readonly string[], running = "sha256:img", registry = "r1", extra = {} as Record<string, unknown> } = {}) {
   const rows: Row[] = [], shell: string[] = [];
   let store = "main", installed = "0.13.23", offered = "0.13.24";
   const configs: Record<string, string> = { main: "0.13.24", "chore/app-0.14.0": preview };
@@ -52,7 +52,7 @@ function vm({ preview = "0.14.0", digests = [IMAGE + "@" + D.aarch64] as readonl
     check: (step: string, name: string, ok: boolean) => { rows.push({ step, name, ok }); return ok; },
     sleep: async () => {},
   };
-  return { preview: appPreview(ctx), rows, shell, state: () => ({ store, installed, offered }) };
+  return { preview: appPreview({ ...ctx, ...extra }), rows, shell, state: () => ({ store, installed, offered }) };
 }
 
 describe("vm-lane App preview (promote branch on the throwaway HAOS VM)", () => {
@@ -69,6 +69,12 @@ describe("vm-lane App preview (promote branch on the throwaway HAOS VM)", () => 
     expect(lane.state()).toEqual({ store: "chore/app-0.14.0", installed: "0.14.0", offered: "0.14.0" });
     expect(lane.shell[0]).toBe("docker exec hassio_supervisor sh -c 'cd /data/apps/git/2368fcfa && git fetch -q --depth 1 origin +refs/heads/chore/app-0.14.0:refs/remotes/origin/chore/app-0.14.0 && git checkout -q -B chore/app-0.14.0 origin/chore/app-0.14.0'");
     expect(lane.rows.find((r) => r.name.startsWith("App preview images"))).toBeTruthy();
+  });
+
+  it("reads the 0.31 NOVA page: connection as a status pill", async () => {
+    const lane = vm({ extra: { page: async () => '<ul class="facts"><li><span>Home Assistant</span><span class="pill good">Connected</span></li></ul><footer>Signed in as owner · Relay 0.14.0</footer>' } });
+    expect(await lane.preview.install("chore/app-0.14.0", "r1")).toBe(true);
+    expect(lane.rows.find((r) => r.name.startsWith("NOVA page"))?.ok).toBe(true);
   });
 
   it("refuses a preview that is not newer than main's App, before any switch", async () => {
@@ -90,6 +96,14 @@ describe("vm-lane App preview (promote branch on the throwaway HAOS VM)", () => 
       expect(await lane.preview.install("chore/app-0.14.0", "r1")).toBe(false);
       expect(lane.rows.filter((r) => !r.ok).map((r) => r.name)).toEqual([row]);
     }
+  });
+
+  it("runs beforeUpdate while the store offers the preview and the stable App runs, then judges pairing from there", async () => {
+    let seen = {}, registry = "r1";
+    const lane = vm({ extra: { registryHash: () => registry, beforeUpdate: async (v: string) => { seen = { v, ...lane.state() }; registry = "r2"; } } });
+    expect(await lane.preview.install("chore/app-0.14.0", "r1")).toBe(true);
+    expect(seen).toEqual({ v: "0.14.0", store: "chore/app-0.14.0", installed: "0.13.23", offered: "0.14.0" });
+    expect(lane.rows.every((r) => r.ok)).toBe(true);
   });
 
   it("returns the store to main and checks the offered version", async () => {

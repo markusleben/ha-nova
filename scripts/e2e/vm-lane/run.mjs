@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// npm run vm-lane -- <tag> [--from <stable>] [--wait <0..60>] [--no-ubuntu] [--app-branch chore/app-X.Y.Z]
+// npm run vm-lane -- <tag> [--from <stable>] [--wait <0..60>] [--no-ubuntu] [--no-windows] [--app-branch chore/app-X.Y.Z]
 // Throwaway UTM VMs only; every HA NOVA command runs in a guest, never on macOS.
 // Contract and limits: docs/work/2026-10-26-vm-lane-spec.md; release gate: docs/releasing.md §4.
 import { execFileSync, spawn } from "node:child_process";
@@ -13,6 +13,8 @@ import { setTimeout as pause } from "node:timers/promises";
 import { APP_BRANCH_RE, appPreview } from "./app-preview.mjs";
 import { winTransport } from "./transport.mjs";
 import { chatFileRefusal } from "./chat-files.mjs";
+import { appAsks } from "./app-asks.mjs";
+import { GUIDED_ROW, guidedAppUpdate } from "./guided-update.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const REPO = "markusleben/ha-nova";
@@ -41,9 +43,9 @@ const VMS = { win: ["HA NOVA Win11 Test", CFG.win.port], haos: ["HA NOVA HAOS Te
 const [tag, ...flags] = process.argv.slice(2);
 const opt = (name) => { const i = flags.indexOf(name); return i >= 0 ? flags[i + 1] : undefined; };
 const valued = ["--from", "--wait", "--app-branch"], appBranch = opt("--app-branch");
-const badFlag = flags.some((f, i) => !valued.includes(flags[i - 1]) && ![...valued, "--no-ubuntu"].includes(f));
+const badFlag = flags.some((f, i) => !valued.includes(flags[i - 1]) && ![...valued, "--no-ubuntu", "--no-windows"].includes(f));
 if (!TAG_RE.test(tag ?? "") || badFlag || (flags.includes("--from") && !/^v\d+\.\d+\.\d+$/.test(opt("--from") ?? "")) || (flags.includes("--wait") && (!/^\d+$/.test(opt("--wait") ?? "") || Number(opt("--wait")) > 60)) || (flags.includes("--app-branch") && !APP_BRANCH_RE.test(appBranch ?? ""))) {
-  console.error("usage: npm run vm-lane -- <vX.Y.Z[-rcN]> [--from <vX.Y.Z>] [--wait <0..60>] [--no-ubuntu] [--app-branch chore/app-X.Y.Z]");
+  console.error("usage: npm run vm-lane -- <vX.Y.Z[-rcN]> [--from <vX.Y.Z>] [--wait <0..60>] [--no-ubuntu] [--no-windows] [--app-branch chore/app-X.Y.Z]");
   process.exit(2);
 }
 const WORK = mkdtempSync(join(tmpdir(), "ha-nova-vm-lane-"));
@@ -151,6 +153,7 @@ exit $rc`, { timeoutMs: timeoutMs + 60_000, log: `win-${u}.log` }).then((result)
   });
 }
 const ubuntu = (script, o = {}) => ssh(CFG.ubuntu, CFG.ubuntu.user, "bash -s", { input: script, log: "ubuntu.log", ...o });
+const ubuntuTty = (cmd, o = {}) => ssh(CFG.ubuntu, CFG.ubuntu.user, cmd, { tty: true, log: "ubuntu.log", ...o });
 
 // ---- the throwaway Home Assistant (HAOS VM) -----------------------------------------
 let llat;
@@ -173,6 +176,7 @@ function ws(msgs, timeoutMs = 30_000) {
   });
 }
 const sup = (endpoint, method = "get", data) => ws([{ type: "supervisor/api", endpoint, method, ...(data ? { data } : {}) }], 5 * 60_000).then(([r]) => r);
+const haApi = (path, init = {}) => fetch(CFG.ha + path, { ...init, headers: { authorization: `Bearer ${llat}`, "content-type": "application/json" } });
 const states = async (ids) => Object.fromEntries((await (await fetch(`${CFG.ha}/api/states`, { headers: { authorization: `Bearer ${llat}` } })).json()).filter((s) => ids.includes(s.entity_id)).map((s) => [s.entity_id, s.state]));
 
 // The owner's NOVA page over ingress, through its own forms (as the browser uses it).
@@ -187,19 +191,28 @@ async function nova() {
     if (!html.includes("<title>NOVA</title>") || !/<footer>Signed in as [\s\S]*Relay [^<]+<\/footer>/.test(html) || /registry is damaged|Device access is disabled/.test(html)) throw new Error("NOVA owner page is unrecognized or registry recovery is required");
     return html;
   };
-  const post = async (html, action) => {
-    const form = html.match(/<form method="post" action="[^"]+">[\s\S]*?<\/form>/g)?.find((f) => f.includes(`name="action" value="${action}"`));
+  const post = async (html, action, ref) => {
+    const form = html.match(/<form method="post" action="[^"]+">[\s\S]*?<\/form>/g)?.find((f) => f.includes(`name="action" value="${action}"`) && (!ref || f.includes(`name="ref" value="${ref}"`)));
     if (!form) throw new Error(`NOVA page has no ${action} form`);
     const fields = Object.fromEntries([...form.matchAll(/name="([^"]+)" value="([^"]*)"/g)].map((m) => [m[1], m[2].replace(/&amp;/g, "&")]));
     const r = await fetch(CFG.ha + form.match(/action="([^"]+)"/)[1].replace(/&amp;/g, "&"), { method: "POST", redirect: "manual",
       headers: { cookie, "content-type": "application/x-www-form-urlencoded", origin: CFG.ha, "sec-fetch-site": "same-origin" }, body: new URLSearchParams(fields).toString() });
     if (r.status >= 400) throw new Error(`NOVA page ${action}: HTTP ${r.status}`);
   };
-  const devices = (html) => [...html.matchAll(/<li><span class="device"><strong>([^<]*)<\/strong>[\s\S]*?device=([^"&]+)"/g)].map((m) => ({ name: m[1], id: decodeURIComponent(m[2]) }));
+  const devices = (html) => [...html.matchAll(/<li><span class="device">(?:<span>)?<strong>([^<]*)<\/strong>[\s\S]*?device=([^"&]+)"/g)].map((m) => ({ name: m[1], id: decodeURIComponent(m[2]) }));
+  // The approval view (no NOVA footer), first the ask a ref names.
+  const approval = async (ref = "") => {
+    const response = await fetch(`${base.replace(/\/?$/, "/")}approve${ref ? `?nova_ask=${ref}` : ""}`, { headers: { cookie } });
+    if (!response.ok) throw new Error(`NOVA approval view HTTP ${response.status}`);
+    return response.text();
+  };
   return {
+    ingress: info.ingress_url,
+    approval,
+    cancelAsk: async (ref) => post(await approval(ref), "cancel", ref),
     devices: async () => {
       const html = await get(), list = devices(html);
-      if (!list.length && !html.includes("No devices are connected yet.")) throw new Error("NOVA device list is unrecognized; refusing an empty baseline");
+      if (!list.length && !/No (devices|computers) are connected yet\./.test(html)) throw new Error("NOVA device list is unrecognized; refusing an empty baseline");
       return list;
     },
     code: async () => {
@@ -223,7 +236,7 @@ async function waitForVms() {
   for (;;) {
     if (stopping) throw new Error("VM wait cancelled");
     const down = [];
-    for (const k of ["win", "haos"]) if (!(await up(VMS[k][1]))) down.push(k);
+    for (const k of flags.includes("--no-windows") ? ["haos"] : ["win", "haos"]) if (!(await up(VMS[k][1]))) down.push(k); // --no-windows: a pass with the Ubuntu VM instead (host memory)
     if (!down.length || Date.now() >= deadline) return down;
     say(`waiting for ${down.map((k) => `"${VMS[k][0]}"`).join(" and ")} (start it in UTM); next check in 2 min`);
     await sleep(Math.min(120_000, Math.max(1000, deadline - Date.now())));
@@ -378,9 +391,18 @@ async function windowsRun(shell, stable) {
   const d1 = await hn("doctor", { timeoutMs: 3 * 60_000 });
   check(S, `doctor on ${stable}`, d1.code === 0, tail(d1.out, 1));
 
-  const upd = await run(thenWait(`update --version ${tag}`, `(& "${HN}" version) -eq '${want}'`, `now=$(& "${HN}" version)`), { timeoutMs: 6 * 60_000 });
-  check(S, `ha-nova update --version ${tag} (from ${stable})`, upd.code === 0 && upd.out.split(/\r?\n/).includes(`rc=0 now=${want}`), tail(upd.out, 3));
+  const update = () => run(thenWait(`update --version ${tag}`, `(& "${HN}" version) -eq '${want}'`, `now=$(& "${HN}" version)`), { timeoutMs: 6 * 60_000 });
+  const updated = (u) => u.code === 0 && u.out.split(/\r?\n/).includes(`rc=0 now=${want}`);
+  const upd = await update();
+  // MAR-161: the old version's updater moves its folder aside, which a briefly locked file can refuse
+  // ("access denied"); #1130's retry runs only in updates that start from 0.31. The message says to run
+  // the update again: the lane does that once, so the later rows test the candidate, and the row says so.
+  if (!updated(upd) && /ERROR: rename \S+ \S+\.ha-nova-old-\d+: (Access is denied|Zugriff verweigert)/.test(upd.out)) {
+    const again = await update();
+    row(S, `ha-nova update --version ${tag} (from ${stable})`, updated(again) ? "WARN" : "FAIL", `first try: ${stable}'s updater hit a locked folder (MAR-161, fixed for updates from 0.31); second try: ${tail(again.out, 3)}`);
+  } else check(S, `ha-nova update --version ${tag} (from ${stable})`, updated(upd), tail(upd.out, 3));
   await core(S, hn, run, hasClaude, hasCodex, want);
+  if (shell === "ps7") await appAsks({ S, run, ws, states, nova, check, row, fetch, sleep, tag, repo: REPO, app: CFG.app, ha: CFG.ha, guestHa: CFG.guestHa });
 
   const re = await ps7(INSTALL(tag), { timeoutMs: 6 * 60_000 });
   const d3 = await hn("doctor", { timeoutMs: 3 * 60_000 });
@@ -424,14 +446,28 @@ ${hasClaude ? "claude plugin list 2>&1 | Out-String" : ""}`);
 }
 
 // ---- Ubuntu ----------------------------------------------------------------------------
-async function ubuntuRun(stable) {
-  const S = "u";
+// The runbook's effective nftables output rules: nothing may reach the maintainer's LAN.
+async function ubuntuIsolation(S) {
   const fw = await ubuntu("sudo -n nft -s list table inet hanova_isolation");
-  const output = fw.out.split("chain output {")[1]?.split("chain input {")[0]?.replace(/\}\s*$/, "").replace(/comment "[^"]*"|\bcounter\b/g, "").replace(/\s+/g, " ").trim();
-  const expected = 'type filter hook output priority filter; policy accept; oif "lo" accept udp dport 5353 drop ip daddr 10.0.2.0/24 accept ip daddr @blocked4 reject meta nfproto ipv6 icmpv6 type { nd-router-solicit, nd-neighbor-solicit, nd-neighbor-advert } accept meta nfproto ipv6 reject';
+  const output = fw.out.split("chain output {")[1]?.split("chain input {")[0]?.replace(/\}\s*$/, "").replace(/comment "[^"]*"|\bcounter\b/g, "")
+    // nft 1.1 prints a reject's default type and drops the implied "meta nfproto ipv6" before icmpv6: same rules, other words
+    .replace(/ with icmp(v6)? port-unreachable/g, "").replace(/meta nfproto ipv6 icmpv6 type/g, "icmpv6 type").replace(/\s+/g, " ").trim();
+  const expected = 'type filter hook output priority filter; policy accept; oif "lo" accept udp dport 5353 drop ip daddr 10.0.2.0/24 accept ip daddr @blocked4 reject icmpv6 type { nd-router-solicit, nd-neighbor-solicit, nd-neighbor-advert } accept meta nfproto ipv6 reject';
   const blocked = fw.out.match(/elements = \{([^}]+)\}/)?.[1].replace(/\s+/g, "").split(",").sort();
   const want = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16", "224.0.0.0/4", "255.255.255.255"].sort();
-  if (!check(S, "Ubuntu LAN isolation (effective nftables rules)", fw.code === 0 && output === expected && JSON.stringify(blocked) === JSON.stringify(want), "requires the runbook's ordered output rules and complete blocked4 set")) return;
+  return check(S, "Ubuntu LAN isolation (effective nftables rules)", fw.code === 0 && output === expected && JSON.stringify(blocked) === JSON.stringify(want), "requires the runbook's ordered output rules and complete blocked4 set");
+}
+
+// The runbook's empty-password login keyring boots locked, and ha-nova refuses a locked collection
+// (it never unlocks one), so open it as the desktop login would. A prompt means a password: stop.
+async function ubuntuKeyring(S) {
+  const k = await ubuntu("export XDG_RUNTIME_DIR=/run/user/$(id -u); busctl --user call org.freedesktop.secrets /org/freedesktop/secrets org.freedesktop.Secret.Service Unlock ao 1 /org/freedesktop/secrets/collection/login && busctl --user get-property org.freedesktop.secrets /org/freedesktop/secrets/collection/login org.freedesktop.Secret.Collection Locked");
+  return check(S, "Ubuntu login keyring open (empty password, no prompt)", k.code === 0 && k.out.includes('"/"') && /^b false$/m.test(k.out), tail(k.out, 2) || "restore the runbook's empty-password login keyring on the VM");
+}
+
+async function ubuntuRun(stable) {
+  const S = "u";
+  if (!(await ubuntuIsolation(S)) || !(await ubuntuKeyring(S))) return;
   const H = (await ubuntu("mktemp -d /tmp/vm-lane-XXXXXX")).out.trim();
   if (!/^\/tmp\/vm-lane-\w+$/.test(H)) return row(S, "throwaway HOME", "FAIL", H);
   const installed = await ubuntu('export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"; for c in opencode codex; do p=$(command -v "$c") && { printf "%s|%s" "$c" "$p"; break; }; done');
@@ -476,6 +512,18 @@ async function ubuntuRun(stable) {
   }
 }
 
+// The guided App update row (guided-update.mjs) in its own throwaway HOME, while the store
+// offers the preview and the stable App still runs (appPreview's beforeUpdate).
+async function guidedRow(preview) {
+  const S = "a";
+  if (flags.includes("--no-ubuntu")) return row(S, GUIDED_ROW, "SKIP", "--no-ubuntu: the row needs the Ubuntu VM's terminal session");
+  if (!(await up(CFG.ubuntu.port))) return row(S, GUIDED_ROW, "SKIP", `"${VMS.ubuntu[0]}" not running: the row needs its terminal session`);
+  if (!(await ubuntuIsolation(S)) || !(await ubuntuKeyring(S))) return;
+  try {
+    await guidedAppUpdate({ S, preview, app: CFG.app, tag, repo: REPO, guestRelay: CFG.guestRelay, ubuntu, tty: ubuntuTty, nova, ws, sup, ha: haApi, check, row, sleep });
+  } catch (err) { row(S, GUIDED_ROW, "FAIL", err.message); }
+}
+
 // ---- main ----------------------------------------------------------------------------------
 const started = Date.now();
 let start = null, backupSlug, users = false, preview;
@@ -508,12 +556,13 @@ try {
   start = snapshot;
   if (appBranch) {
     preview = appPreview({ repo: REPO, app: CFG.app, fetch, sup, host, page: async () => (await nova()).html(), registryHash, check, sleep,
-      imageCheck: (v) => execFileSync("bash", [join(ROOT, "scripts/release/verify-app-image.sh"), v], { encoding: "utf8", timeout: 120_000 }) });
+      imageCheck: (v) => execFileSync("bash", [join(ROOT, "scripts/release/verify-app-image.sh"), v], { encoding: "utf8", timeout: 120_000 }), beforeUpdate: guidedRow });
     if (!(await preview.install(appBranch, snapshot.registry))) throw new Error("App preview failed; no lane runs");
-  }
+  } else row("a", GUIDED_ROW, "SKIP", "no --app-branch: Home Assistant offers the lane's stable App no newer one");
   if (stopping || !(await appVersion(appBranch ? await sup(`/addons/${CFG.app}/info`) : appInfo))) throw new Error("preflight failed or interrupted");
   await chatFileRefusal({ ha: CFG.ha, llat, app: CFG.app, sup, check });
-  if (await winIdentity() && await winIsolation()) {
+  if (flags.includes("--no-windows")) row("w", "Windows", "SKIP", "--no-windows");
+  else if (await winIdentity() && await winIsolation()) {
     users = true;
     for (const shell of ["ps7", "ps51"]) {
       try { await windowsRun(shell, stable); } catch (err) { row(shell === "ps7" ? "w7" : "w5", "run", "FAIL", err.message); }
