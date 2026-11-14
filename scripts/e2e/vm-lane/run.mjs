@@ -13,6 +13,8 @@ import { setTimeout as pause } from "node:timers/promises";
 import { APP_BRANCH_RE, appPreview } from "./app-preview.mjs";
 import { winTransport } from "./transport.mjs";
 import { chatFileRefusal } from "./chat-files.mjs";
+import { appAsks } from "./app-asks.mjs";
+import { GUIDED_ROW, guidedAppUpdate } from "./guided-update.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const REPO = "markusleben/ha-nova";
@@ -151,6 +153,7 @@ exit $rc`, { timeoutMs: timeoutMs + 60_000, log: `win-${u}.log` }).then((result)
   });
 }
 const ubuntu = (script, o = {}) => ssh(CFG.ubuntu, CFG.ubuntu.user, "bash -s", { input: script, log: "ubuntu.log", ...o });
+const ubuntuTty = (cmd, o = {}) => ssh(CFG.ubuntu, CFG.ubuntu.user, cmd, { tty: true, log: "ubuntu.log", ...o });
 
 // ---- the throwaway Home Assistant (HAOS VM) -----------------------------------------
 let llat;
@@ -173,6 +176,7 @@ function ws(msgs, timeoutMs = 30_000) {
   });
 }
 const sup = (endpoint, method = "get", data) => ws([{ type: "supervisor/api", endpoint, method, ...(data ? { data } : {}) }], 5 * 60_000).then(([r]) => r);
+const haApi = (path, init = {}) => fetch(CFG.ha + path, { ...init, headers: { authorization: `Bearer ${llat}`, "content-type": "application/json" } });
 const states = async (ids) => Object.fromEntries((await (await fetch(`${CFG.ha}/api/states`, { headers: { authorization: `Bearer ${llat}` } })).json()).filter((s) => ids.includes(s.entity_id)).map((s) => [s.entity_id, s.state]));
 
 // The owner's NOVA page over ingress, through its own forms (as the browser uses it).
@@ -187,8 +191,8 @@ async function nova() {
     if (!html.includes("<title>NOVA</title>") || !/<footer>Signed in as [\s\S]*Relay [^<]+<\/footer>/.test(html) || /registry is damaged|Device access is disabled/.test(html)) throw new Error("NOVA owner page is unrecognized or registry recovery is required");
     return html;
   };
-  const post = async (html, action) => {
-    const form = html.match(/<form method="post" action="[^"]+">[\s\S]*?<\/form>/g)?.find((f) => f.includes(`name="action" value="${action}"`));
+  const post = async (html, action, ref) => {
+    const form = html.match(/<form method="post" action="[^"]+">[\s\S]*?<\/form>/g)?.find((f) => f.includes(`name="action" value="${action}"`) && (!ref || f.includes(`name="ref" value="${ref}"`)));
     if (!form) throw new Error(`NOVA page has no ${action} form`);
     const fields = Object.fromEntries([...form.matchAll(/name="([^"]+)" value="([^"]*)"/g)].map((m) => [m[1], m[2].replace(/&amp;/g, "&")]));
     const r = await fetch(CFG.ha + form.match(/action="([^"]+)"/)[1].replace(/&amp;/g, "&"), { method: "POST", redirect: "manual",
@@ -196,7 +200,16 @@ async function nova() {
     if (r.status >= 400) throw new Error(`NOVA page ${action}: HTTP ${r.status}`);
   };
   const devices = (html) => [...html.matchAll(/<li><span class="device"><strong>([^<]*)<\/strong>[\s\S]*?device=([^"&]+)"/g)].map((m) => ({ name: m[1], id: decodeURIComponent(m[2]) }));
+  // The approval view (no NOVA footer), first the ask a ref names.
+  const approval = async (ref = "") => {
+    const response = await fetch(`${base.replace(/\/?$/, "/")}approve${ref ? `?nova_ask=${ref}` : ""}`, { headers: { cookie } });
+    if (!response.ok) throw new Error(`NOVA approval view HTTP ${response.status}`);
+    return response.text();
+  };
   return {
+    ingress: info.ingress_url,
+    approval,
+    cancelAsk: async (ref) => post(await approval(ref), "cancel", ref),
     devices: async () => {
       const html = await get(), list = devices(html);
       if (!list.length && !html.includes("No devices are connected yet.")) throw new Error("NOVA device list is unrecognized; refusing an empty baseline");
@@ -381,6 +394,7 @@ async function windowsRun(shell, stable) {
   const upd = await run(thenWait(`update --version ${tag}`, `(& "${HN}" version) -eq '${want}'`, `now=$(& "${HN}" version)`), { timeoutMs: 6 * 60_000 });
   check(S, `ha-nova update --version ${tag} (from ${stable})`, upd.code === 0 && upd.out.split(/\r?\n/).includes(`rc=0 now=${want}`), tail(upd.out, 3));
   await core(S, hn, run, hasClaude, hasCodex, want);
+  if (shell === "ps7") await appAsks({ S, run, ws, states, nova, check, row, fetch, sleep, tag, repo: REPO, app: CFG.app, ha: CFG.ha, guestHa: CFG.guestHa });
 
   const re = await ps7(INSTALL(tag), { timeoutMs: 6 * 60_000 });
   const d3 = await hn("doctor", { timeoutMs: 3 * 60_000 });
@@ -424,14 +438,19 @@ ${hasClaude ? "claude plugin list 2>&1 | Out-String" : ""}`);
 }
 
 // ---- Ubuntu ----------------------------------------------------------------------------
-async function ubuntuRun(stable) {
-  const S = "u";
+// The runbook's effective nftables output rules: nothing may reach the maintainer's LAN.
+async function ubuntuIsolation(S) {
   const fw = await ubuntu("sudo -n nft -s list table inet hanova_isolation");
   const output = fw.out.split("chain output {")[1]?.split("chain input {")[0]?.replace(/\}\s*$/, "").replace(/comment "[^"]*"|\bcounter\b/g, "").replace(/\s+/g, " ").trim();
   const expected = 'type filter hook output priority filter; policy accept; oif "lo" accept udp dport 5353 drop ip daddr 10.0.2.0/24 accept ip daddr @blocked4 reject meta nfproto ipv6 icmpv6 type { nd-router-solicit, nd-neighbor-solicit, nd-neighbor-advert } accept meta nfproto ipv6 reject';
   const blocked = fw.out.match(/elements = \{([^}]+)\}/)?.[1].replace(/\s+/g, "").split(",").sort();
   const want = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16", "224.0.0.0/4", "255.255.255.255"].sort();
-  if (!check(S, "Ubuntu LAN isolation (effective nftables rules)", fw.code === 0 && output === expected && JSON.stringify(blocked) === JSON.stringify(want), "requires the runbook's ordered output rules and complete blocked4 set")) return;
+  return check(S, "Ubuntu LAN isolation (effective nftables rules)", fw.code === 0 && output === expected && JSON.stringify(blocked) === JSON.stringify(want), "requires the runbook's ordered output rules and complete blocked4 set");
+}
+
+async function ubuntuRun(stable) {
+  const S = "u";
+  if (!(await ubuntuIsolation(S))) return;
   const H = (await ubuntu("mktemp -d /tmp/vm-lane-XXXXXX")).out.trim();
   if (!/^\/tmp\/vm-lane-\w+$/.test(H)) return row(S, "throwaway HOME", "FAIL", H);
   const installed = await ubuntu('export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"; for c in opencode codex; do p=$(command -v "$c") && { printf "%s|%s" "$c" "$p"; break; }; done');
@@ -476,6 +495,18 @@ async function ubuntuRun(stable) {
   }
 }
 
+// The guided App update row (guided-update.mjs) in its own throwaway HOME, while the store
+// offers the preview and the stable App still runs (appPreview's beforeUpdate).
+async function guidedRow(preview) {
+  const S = "a";
+  if (flags.includes("--no-ubuntu")) return row(S, GUIDED_ROW, "SKIP", "--no-ubuntu: the row needs the Ubuntu VM's terminal session");
+  if (!(await up(CFG.ubuntu.port))) return row(S, GUIDED_ROW, "SKIP", `"${VMS.ubuntu[0]}" not running: the row needs its terminal session`);
+  if (!(await ubuntuIsolation(S))) return;
+  try {
+    await guidedAppUpdate({ S, preview, app: CFG.app, tag, repo: REPO, guestRelay: CFG.guestRelay, ubuntu, tty: ubuntuTty, nova, ws, sup, ha: haApi, check, row, sleep });
+  } catch (err) { row(S, GUIDED_ROW, "FAIL", err.message); }
+}
+
 // ---- main ----------------------------------------------------------------------------------
 const started = Date.now();
 let start = null, backupSlug, users = false, preview;
@@ -508,9 +539,9 @@ try {
   start = snapshot;
   if (appBranch) {
     preview = appPreview({ repo: REPO, app: CFG.app, fetch, sup, host, page: async () => (await nova()).html(), registryHash, check, sleep,
-      imageCheck: (v) => execFileSync("bash", [join(ROOT, "scripts/release/verify-app-image.sh"), v], { encoding: "utf8", timeout: 120_000 }) });
+      imageCheck: (v) => execFileSync("bash", [join(ROOT, "scripts/release/verify-app-image.sh"), v], { encoding: "utf8", timeout: 120_000 }), beforeUpdate: guidedRow });
     if (!(await preview.install(appBranch, snapshot.registry))) throw new Error("App preview failed; no lane runs");
-  }
+  } else row("a", GUIDED_ROW, "SKIP", "no --app-branch: Home Assistant offers the lane's stable App no newer one");
   if (stopping || !(await appVersion(appBranch ? await sup(`/addons/${CFG.app}/info`) : appInfo))) throw new Error("preflight failed or interrupted");
   await chatFileRefusal({ ha: CFG.ha, llat, app: CFG.app, sup, check });
   if (await winIdentity() && await winIsolation()) {
