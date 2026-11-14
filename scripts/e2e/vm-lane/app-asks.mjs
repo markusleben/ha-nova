@@ -60,18 +60,17 @@ export async function marketplaceAccept(ctx) {
   const plans = {}, was = conf.language;
   try {
     for (const lang of ["en", "de"]) { // the reason comes in Home Assistant's language: switch it, then back
-      if ((plans.lang ?? was) !== lang) await ctx.ws([{ type: "config/core/update", language: lang }]);
-      plans.lang = lang;
+      if (lang !== was) await ctx.ws([{ type: "config/core/update", language: lang }]);
       plans[lang] = await plan([ACCEPT]);
     }
     plans.bundled = await plan([ACCEPT, INSTALL]);
-  } finally {
-    if (plans.lang && plans.lang !== was) await ctx.ws([{ type: "config/core/update", language: was }]);
+  } finally { // read back, whatever happened: a switch that timed out may still have applied
+    let [after] = await ctx.ws([{ type: "get_config" }]);
+    if (after?.language !== was) { await ctx.ws([{ type: "config/core/update", language: was }]); [after] = await ctx.ws([{ type: "get_config" }]); }
+    ctx.check(ctx.S, "Home Assistant language back to " + was, after?.language === was, "now " + after?.language);
   }
-  const [after] = await ctx.ws([{ type: "get_config" }]);
   const { ok, detail } = judgeMarketplace(plans, why);
-  ctx.check(ctx.S, name, ok, detail + "; stops at the plan: Home Assistant can't withdraw an acceptance, and the App backup doesn't hold it");
-  return ctx.check(ctx.S, "Home Assistant language back to " + was, after?.language === was, "now " + after?.language);
+  return ctx.check(ctx.S, name, ok, detail + "; stops at the plan: Home Assistant can't withdraw an acceptance, and the App backup doesn't hold it");
 }
 
 // Row 2 (#1148): the check-up read every Supervisor stats path through the App.
@@ -106,6 +105,8 @@ export const DRIVER = [ // no here-string: desk() wraps the job in one
   "if ($ok -eq [IntPtr]::Zero -or -not [VmLane.Box]::IsWindowEnabled($ok)) { 'vm-lane: no HA NOVA window with OK enabled'; exit 3 }",
   "$t=New-Object System.Text.StringBuilder 4096; [void][VmLane.Box]::GetWindowTextW([VmLane.Box]::GetDlgItem($box,0xFFFF),$t,4096)",
   "\"window=$($t.ToString() -replace '\\s+',' ')\"",
+  // Only the waiting window, whose OK opens the page, is ever answered OK; any other box gets Cancel.
+  "if ($t.ToString() -notmatch 'NOVA page; Cancel stops it|NOVA-Seite; Abbrechen stoppt sie') { [void][VmLane.Box]::SendMessageW($box,0x0010,[IntPtr]::Zero,[IntPtr]::Zero); 'vm-lane: not the waiting window that opens the NOVA page; closed it unanswered'; exit 5 }",
   "[void][VmLane.Box]::SendMessageW($box,0x0111,[IntPtr]1,$ok)",
   "$url=''; $end=(Get-Date).AddSeconds(20)",
   "while (-not $url -and (Get-Date) -lt $end) { foreach ($p in @(Get-CimInstance Win32_Process -Filter \"CommandLine LIKE '%nova_ask=%'\")) { $m=[regex]::Match([string]$p.CommandLine,'https?://[^\\s\"'']+'); if ($m.Success -and $m.Value -like '*nova_ask=*') { $url=$m.Value; break } }; if (-not $url) { Start-Sleep -Milliseconds 150 } }",
@@ -145,11 +146,12 @@ export async function windowButton(ctx) {
   const S = ctx.S, lock = "lock.front_door";
   const page = await ctx.nova();
   const before = await ctx.states([lock]);
+  if (before[lock] !== "locked") return ctx.row(S, "window button: unlock planned typed, asked through the App", "FAIL", lock + " is " + before[lock] + ", not locked: lock it on the HAOS VM and rerun");
   const open = approvalAsks(await page.approval()).map((a) => a.ref);
   const p = await ctx.run("ha-nova plan call lock.unlock " + lock + " 2>$null; exit $LASTEXITCODE", { timeoutMs: 3 * 60_000 });
   const planned = envelope(p.out);
   if (!ctx.check(S, "window button: unlock planned typed, asked through the App", p.code === 3 && planned.tier === "typed" && planned.plan?.channel === "relay" && PLAN_ID.test(planned.plan?.id ?? ""), "exit " + p.code + ", tier " + planned.tier + ", channel " + planned.plan?.channel + (planned.error ? ", " + planned.error.code : ""))) return;
-  const applying = ctx.run("ha-nova apply --plan " + planned.plan.id + "; exit $LASTEXITCODE", { timeoutMs: 4 * 60_000 });
+  const applying = ctx.run("ha-nova apply --plan " + planned.plan.id + "; exit $LASTEXITCODE", { timeoutMs: 4 * 60_000 }).catch((err) => ({ code: -1, out: String(err) }));
   let judged = { ok: false, ref: "", detail: "" }, drove = { code: -1, out: "" }, cancelled = [];
   try {
     drove = await ctx.run(DRIVER, { timeoutMs: 2 * 60_000 });
@@ -161,7 +163,7 @@ export async function windowButton(ctx) {
     for (let i = 0; i < 20 && !cancelled.length; i++) { // end the asks this row opened, on the page, as a person's Cancel
       const mine = approvalAsks(await page.approval()).map((a) => a.ref).filter((r) => !open.includes(r));
       for (const r of mine) { await page.cancelAsk(r); cancelled.push(r); }
-      if (!cancelled.length) await ctx.sleep(3000);
+      if (!cancelled.length) await new Promise((done) => setTimeout(done, 3000)); // not ctx.sleep: an abort must not skip the Cancel
     }
   }
   const windowText = drove.out.match(/^window=(.*)$/m)?.[1] ?? "";

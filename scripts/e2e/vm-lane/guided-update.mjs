@@ -90,10 +90,11 @@ export async function guidedAppUpdate(ctx) {
     const { ok, detail } = judgeGuided({ out: r.out, cancelled, skipped, versionBefore, versionAfter, preview: ctx.preview });
     ctx.check(S, name, ok, detail);
   } finally {
-    if (made) await ctx.ha("/api/config/automation/config/" + AUTOMATION, { method: "DELETE" });
-    await sh(ENV + " ha-nova uninstall --yes --purge </dev/null; rm -rf " + H, { cleanup: true, timeoutMs: 3 * 60_000 });
+    // Each step on its own: one that throws must not skip the others. The DELETE goes out even if the POST's answer was lost.
+    await ctx.ha("/api/config/automation/config/" + AUTOMATION, { method: "DELETE" }).catch(() => {});
+    await sh(ENV + " ha-nova uninstall --yes --purge </dev/null; rm -rf " + H, { cleanup: true, timeoutMs: 3 * 60_000 }).catch(() => {});
     const [left] = await ctx.ws([{ type: "config/entity_registry/list" }]);
     const gone = (await ctx.ha("/api/config/automation/config/" + AUTOMATION)).status === 404 && !(left ?? []).some((e) => e.unique_id === AUTOMATION);
-    ctx.check(S, "guided App update: listener automation removed", gone, gone ? "config and registry entry gone; the throwaway HOME purged (its device revoked)" : "STILL THERE: delete automation \"" + LISTENER.alias + "\" on the HAOS VM");
+    ctx.check(S, "guided App update: listener automation removed", gone, gone ? "config and registry entry gone; the throwaway HOME purged" : "STILL THERE: delete automation \"" + LISTENER.alias + "\" on the HAOS VM");
   }
 }

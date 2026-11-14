@@ -65,8 +65,8 @@ They run in the Win11 PowerShell 7 user after its core rows
 
 1. **Marketplace warning (#1132).** `plan raw` of
    `marketplace/warning/accept` must be typed and alone, with one item.
-   It must come from the App's Supervisor user: a person's account is
-   refused. Its reason must be the full `raw.why.marketplace_warning`
+   It runs as the App's Supervisor user (the row doesn't check a
+   person's account). Its reason must be the full `raw.why.marketplace_warning`
    text of the tag in English and German, and it must fit the phone's 300
    runes. The row switches Home Assistant's language to `de` and back,
    and checks the language is restored. Bundled with an install, the plan
@@ -83,9 +83,11 @@ They run in the Win11 PowerShell 7 user after its core rows
    (typed, channel `relay`) and starts `apply`. A second job in the
    same console session waits for the HA NOVA message box. Once the CLI
    enables OK, the job clicks it (WM_COMMAND IDOK) and reads the address
-   the browser was started with. That address must be
+   the browser was started with. That address must be exactly
    `<guest HA>/app/<slug>?nova_ask=<64 hex>`, and Home Assistant must
-   serve that panel path. The NOVA page must carry
+   answer 200 for it (its app panel route). The driver answers OK only on
+   the waiting window whose text says OK opens the NOVA page; any other
+   box gets Cancel and the row fails. The lock must start locked. The NOVA page must carry
    `data-ask=<ingress>/approve` and its hand-off script. The approval
    view at `?nova_ask=<ref>` must list that unlock first and keep the
    ref in its reload URL. The lane then cancels the ask on the approval
