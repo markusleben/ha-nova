@@ -138,7 +138,7 @@ export function judgeWindowPage({ opened, guestHa, app, ingress, page, approval,
   // Supervisor's ingress_url ends in the App's ingress_entry (/home); the page's ask hangs off the ingress root.
   const want = (ingress.match(/^\/api\/hassio_ingress\/[^/]+/)?.[0] ?? ingress) + "/approve";
   if (ask !== want) bad.push("the NOVA page's data-ask is " + (ask ?? "missing") + ", not " + want);
-  if (!page?.includes('top.location.replace(b.dataset.ask+"?nova_ask="')) bad.push("the NOVA page has no hand-off script (" + ((page ?? "").match(/<script>[^<]{0,120}/)?.[0] ?? "no inline script") + ")");
+  if (!page?.includes('top.location.replace(b.dataset.ask+"?nova_ask="')) bad.push("the NOVA page has no hand-off script (" + (page?.length ?? 0) + " bytes)");
   const first = approvalAsks(approval ?? "")[0];
   if (!first || first.ref !== ref) bad.push("the approval view lists " + (first ? "another ask" : "no ask") + " first");
   else if (!/front.door/i.test(first.text)) bad.push("the approval view's ask is not the unlock: " + first.text);
