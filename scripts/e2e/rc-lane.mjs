@@ -5,21 +5,26 @@
 //
 //   a  client matrix --from <last stable> and --from v0.24.0, --to <tag>, lanes macos,linux
 //   b  phone lane (testbed/phone.mjs) with the tag's published binary for this host
-//   c  chat bridge: ha-nova serve over HTTP, server instructions stripped (as claude.ai),
-//      headless Claude, EN + DE, unlock + batch: the code(s) must come last.
-//      SKIP without `claude` or $HOME/.claude-ha-nova-test
+//   c  chat bridge on a standalone Relay: ha-nova serve over HTTP on the Relay's plain
+//      token, server instructions stripped (as claude.ai), a fresh Relay (testbed/
+//      phone.mjs). With no phone linked to the container an unlock is refused and
+//      nothing is sent; then, with a phone linked, headless Claude, EN + DE, unlock +
+//      batch: ha_apply asks that phone, the tap applies, and the reply says it's done,
+//      with no code. SKIP without `claude` or $HOME/.claude-ha-nova-test
 //   d  slow check (#827): 1,500 automations + a call_service listener, the CLI's relay
-//      behind a proxy that holds every chunk SLOW_RELAY_MS; an unlock plan hits the
-//      read budget and still applies with its first code, or on a gated Relay with
-//      the first tap on the phone b linked (testbed/phone.mjs); then the same plan
-//      through ha-nova mcp (stdio), whose ask has MCP's shorter horizon
+//      behind a proxy that holds every chunk SLOW_RELAY_MS. An ordinary call runs the
+//      listener census into the read budget (LIMIT_CUT) and still applies with its
+//      first tap on the phone b linked (testbed/phone.mjs), or its first code on an
+//      ungated Relay; a typed unlock skips the census (#1163), says so, and applies
+//      with its first tap; then the cut call through ha-nova mcp (stdio), whose ask
+//      has MCP's shorter horizon
 //   e  the bed's assertions (testbed/verify.sh) with the tag's binary
 //   f  chat-app files under /config at each level (testbed/chat-files.mjs; the bed
 //      starts with TESTBED_FILES=1)
 //   h  calm edits in a home with real-home listeners (testbed/calm.mjs)
-// Order c, e, f, g, a, b, h, d: the chat bridge runs first, while the Claude test
-// account's usage limit is fresh; e, f, and g before h's listeners, which make
-// every call on the bed ask (a known limit, docs/releasing.md); d last.
+// Order e, f, c, a, b, h, d: e and f before h's listeners, which make every call
+// on the bed ask (a known limit, docs/releasing.md); c after f, whose Relay it
+// replaces, and early, while the Claude test account's usage limit is fresh; d last.
 //
 // Throwaway only: its own test bed from this checkout (it stops when any bed is
 // running, from any tree), CLI homes inside the bed's .state or the work dir
@@ -35,7 +40,7 @@ import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { approve, relock, resetPushes } from "./testbed/phone.mjs";
+import { approve, failures as phoneFailures, fixture, link, relock, resetPushes } from "./testbed/phone.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const TESTBED = join(ROOT, "scripts/e2e/testbed");
@@ -202,24 +207,24 @@ const verify = () => bedCheck("e", "test bed assertions, tag's binary", [join(TE
 const chatFiles = () => bedCheck("f", "chat-app files under /config, each level", [join(TESTBED, "chat-files.mjs")]);
 const calm = () => bedCheck("h", "calm edits in a real-home-shaped bed", [join(TESTBED, "calm.mjs")]);
 
-// ---- c: chat bridge, code last ----------------------------------------------------
+// ---- c: chat bridge on a standalone Relay: the container's phone asks -----------------
 const PROMPTS = {
   "EN unlock": "Unlock the front door in the demo house.",
   "DE unlock": "Schließ im Demo-Haus die Front Door auf.",
   "EN batch": "In the demo house, unlock the front door and open the garage door.",
   "DE batch": "Im Demo-Haus: Schließ die Front Door auf und öffne die Garage Door.",
 };
-const TOOLS = ["ha_skill", "ha_find", "ha_get", "ha_history", "ha_map", "ha_read", "ha_trace", "ha_plan", "ha_call"].map((t) => `mcp__hanova__${t}`).join(",");
-
-// The code(s) are the last lines: every line from the first code on is a
-// ("<name>: ")**NNNN** line, one per change.
-function codeLast(text, codes) {
-  const lines = text.split("\n").filter((l) => l.trim());
-  const first = lines.findIndex((l) => /\*\*\d{4}\*\*/.test(l));
-  const tail = first < 0 ? [] : lines.slice(first);
-  const ok = tail.length === codes && tail.every((l) => /^(?:[^*\n]+: )?\*\*\d{4}\*\*\s*$/.test(l));
-  return { ok, last: (lines.at(-1) ?? "(empty)").replace(/\d{4}/g, "NNNN").slice(-60) };
-}
+const TOOLS = ["ha_skill", "ha_find", "ha_get", "ha_history", "ha_map", "ha_read", "ha_trace", "ha_plan", "ha_call", "ha_apply"].map((t) => `mcp__hanova__${t}`).join(",");
+// After the tap the reply says the change is done, in the prompt's language.
+const DONE = {
+  EN: /\bdone\b|\b(is|are) (now )?(unlocked|open)\b|\bunlocked now\b/i,
+  DE: /erledigt|\b(ist|sind) (jetzt |nun )?(aufgeschlossen|entriegelt|aufgesperrt|offen|auf|geöffnet)\b|\bjetzt (aufgeschlossen|entriegelt|aufgesperrt|offen|geöffnet)\b/i,
+};
+const GARAGES = ["cover.garage_door", "cover.testbed_garage"];
+const questions = async () => (await (await fetch("http://127.0.0.1:18792/pushes")).json()).filter((p) => p.body.data?.actions).length;
+const ha = (path, body) => fetch(`http://127.0.0.1:18123${path}`, { method: body ? "POST" : "GET", body: body && JSON.stringify(body),
+  headers: { authorization: `Bearer ${readFileSync(join(STATE, "ha-llat"), "utf8").trim()}`, "content-type": "application/json" } });
+const haState = async (id) => (await (await ha(`/api/states/${id}`)).json()).state;
 
 // testbedOwner: the id of the Home Assistant user the test bed's token belongs
 // to (its owner, an administrator). The bridge lets in only a user Home
@@ -245,14 +250,18 @@ async function chat() {
   const config = join(homedir(), ".claude-ha-nova-test");
   let hasClaude = true;
   try { execFileSync("claude", ["--version"], { stdio: "ignore" }); } catch { hasClaude = false; }
-  if (!hasClaude || !existsSync(config)) return row("c", "chat bridge code last", "SKIP", hasClaude ? `${config} missing` : "no claude on PATH");
+  if (!hasClaude || !existsSync(config)) return row("c", "chat bridge, the container's phone", "SKIP", hasClaude ? `${config} missing` : "no claude on PATH");
+  // A fresh Relay as Testbed Relay with no phone linked yet (testbed/phone.mjs); its link runs the tag's binary.
+  process.env.TESTBED_CLI_BIN = join(WORK, "bin/ha-nova");
+  await fixture();
+  await resetPushes();
   const home = join(WORK, "bridge-home"), data = join(WORK, "bridge-data"), secret = randomBytes(32).toString("hex");
   let user;
   try { user = await testbedOwner(); } catch (err) { return row("c", "chat bridge started", "FAIL", err.message); }
   mkdirSync(join(home, ".config/ha-nova"), { recursive: true, mode: 0o700 });
   mkdirSync(data, { mode: 0o700 });
-  // The local transport, as the App's bridge reaches its Relay; never the demo
-  // house's profile, which words every Relay refusal as the demo's own.
+  // The container's transport: the bridge on the Relay's plain token, which
+  // the gate holds like a computer's (no App bridge credential).
   writeFileSync(join(home, ".config/ha-nova/config.json"), JSON.stringify({ ha_url: "http://127.0.0.1:18123", relay_base_url: "http://127.0.0.1:18791" }), { mode: 0o600 });
   writeFileSync(join(home, ".test-relay-token"), readFileSync(join(STATE, "relay-token"), "utf8").trim(), { mode: 0o600 });
   writeFileSync(join(data, "chat-apps.json"), JSON.stringify({ allowed_users: [user] }), { mode: 0o600 });
@@ -265,8 +274,13 @@ async function chat() {
       HA_NOVA_ALLOW_INSECURE_TEST_KEYRING: "1", HA_NOVA_TEST_KEYRING_FILE: join(home, ".test-relay-token"), HA_NOVA_KEYRING_SERVICE: "ha-nova-rc-lane" },
   });
   // claude.ai passes the model no server instructions: drop them on the way.
+  // Every ha_apply answer that passes is kept for the row.
   let stripped = 0;
-  const strip = (m) => { if (m?.result && "instructions" in m.result) { delete m.result.instructions; stripped++; } };
+  const applies = [];
+  const pass = (m) => {
+    if (m?.result && "instructions" in m.result) { delete m.result.instructions; stripped++; }
+    try { const d = JSON.parse(m?.result?.content?.[0]?.text ?? ""); if (d.verb === "apply") applies.push(d); } catch { /* not a verb's answer */ }
+  };
   proxy = http.createServer(async (req, res) => {
     try {
       const chunks = [];
@@ -276,7 +290,7 @@ async function chat() {
       delete headers["content-length"];
       const r = await fetch(`http://127.0.0.1:${bridgePort}${req.url}`, { method: req.method, headers, body: ["GET", "HEAD"].includes(req.method) ? undefined : Buffer.concat(chunks) });
       const text = (await r.text()).replace(/^(data: )?(\{.*\})$/gm, (line, prefix = "", body) => {
-        try { const m = JSON.parse(body); [m].flat().forEach(strip); return prefix + JSON.stringify(m); } catch { return line; }
+        try { const m = JSON.parse(body); [m].flat().forEach(pass); return prefix + JSON.stringify(m); } catch { return line; }
       });
       const out = {};
       r.headers.forEach((v, k) => { if (!["content-length", "content-encoding", "transfer-encoding"].includes(k)) out[k] = v; });
@@ -289,34 +303,87 @@ async function chat() {
   let up = false;
   for (let i = 0; i < 60 && !(up = await fetch(`http://127.0.0.1:${bridgePort}/mcp`).then(() => true, () => false)); i++) await sleep(500);
   if (!up) return row("c", "chat bridge started", "FAIL", `ha-nova serve did not answer on 127.0.0.1:${bridgePort}`, log);
+
+  // No phone linked to the container: the unlock is refused, naming why, and nothing is sent.
+  const tool = async (name, args) => {
+    const res = await fetch(`http://127.0.0.1:${bridgePort}/mcp`, { method: "POST", body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
+      headers: { authorization: `Bearer ${secret}`, "x-ha-user-id": user, "content-type": "application/json", accept: "application/json, text/event-stream" } });
+    const line = (await res.text()).split("\n").map((l) => l.replace(/^data: /, "")).find((l) => l.startsWith("{")) ?? "{}";
+    try { return JSON.parse(JSON.parse(line).result?.content?.[0]?.text ?? "{}"); } catch { return {}; }
+  };
+  await relock();
+  const asked = await questions();
+  const unlock = await tool("ha_call", { service: "lock.unlock", entity_ids: ["lock.front_door"] });
+  let held = {};
+  for (let i = 0; i < 60 && unlock.plan?.id && [undefined, "applying", "waiting_for_phone"].includes(held.status) && !held.error; i++) held = await tool("ha_apply", { plan_id: unlock.plan.id });
+  const words = [held.error?.code, held.error?.message, held.say].filter(Boolean).join(" | ");
+  const [lockNow, pushed] = [await haState("lock.front_door"), (await questions()) - asked];
+  row("c", "chat bridge, no phone linked to the container: an unlock is refused, nothing sent",
+    held.error?.code === "CONFIRM_UNAVAILABLE" && /no phone is linked there/.test(words) && lockNow === "locked" && pushed === 0 ? "PASS" : "FAIL",
+    `plan ${unlock.plan?.channel ?? unlock.error?.code ?? "-"}, apply ${(words || held.status || "-").slice(0, 120)}; lock ${lockNow}, ${pushed} question(s) sent`);
+
+  const failedBefore = phoneFailures();
+  try { await link("ios"); } catch (err) { return row("c", "chat bridge: the container's phone linked", "FAIL", err.message); }
+  if (phoneFailures() > failedBefore) return row("c", "chat bridge: the container's phone linked", "FAIL", "see the FAIL lines above");
+
   const mcp = join(WORK, "mcp.json");
   writeFileSync(mcp, JSON.stringify({ mcpServers: { hanova: { type: "http", url: `http://127.0.0.1:${proxyPort}/mcp`, headers: { Authorization: `Bearer ${secret}`, "X-Ha-User-Id": user } } } }), { mode: 0o600 });
   mkdirSync(join(WORK, "claude-cwd"));
   for (const [name, prompt] of Object.entries(PROMPTS)) {
+    await relock();
+    await ha("/api/services/cover/close_cover", { entity_id: GARAGES[0] });
     const out = join(WORK, `claude-${name.replace(" ", "-")}.json`);
-    const strippedBefore = stripped; // each run's own initialize must lose its instructions
+    const [strippedBefore, appliesBefore] = [stripped, applies.length]; // each run's own initialize must lose its instructions
     const t = Date.now();
-    const { code } = await run("claude", ["-p", prompt, "--model", "sonnet", "--strict-mcp-config", "--mcp-config", mcp, "--tools", "",
-      "--allowedTools", TOOLS, "--disallowedTools", "mcp__hanova__ha_apply", "--output-format", "json", "--no-session-persistence"],
+    const claude = run("claude", ["-p", prompt, "--model", "sonnet", "--strict-mcp-config", "--mcp-config", mcp, "--tools", "",
+      "--allowedTools", TOOLS, "--output-format", "json", "--no-session-persistence"],
     { log: out, cwd: join(WORK, "claude-cwd"), timeoutMs: 5 * 60_000, env: { ...process.env, CLAUDE_CONFIG_DIR: config, ENABLE_CLAUDEAI_MCP_SERVERS: "false" } });
+    // The person at the container's phone: every question it gets meanwhile is tapped.
+    let ended = false, taps = 0;
+    const tapping = (async () => { while (!ended) await approve(5_000).then(() => taps++, () => {}); })();
+    const { code } = await claude;
+    ended = true;
+    await tapping;
     const reply = json(readFileSync(out, "utf8")).result ?? "";
-    const { ok, last } = codeLast(reply, name.endsWith("batch") ? 2 : 1);
-    const secs = Math.round((Date.now() - t) / 1000);
+    const last = (reply.split("\n").filter((l) => l.trim()).at(-1) ?? "(empty)").replace(/\d{4}/g, "NNNN").slice(-60);
+    const batch = name.endsWith("batch");
+    const lock = await haState("lock.front_door");
+    const garage = batch ? (await Promise.all(GARAGES.map(haState))).find((s) => ["open", "opening"].includes(s)) ?? "closed" : "";
+    const verified = applies.slice(appliesBefore).filter((d) => d.status === "verified").length;
     const strippedNow = stripped > strippedBefore;
-    row("c", `chat bridge code last, ${name}`, code === 0 && ok && strippedNow ? "PASS" : "FAIL",
-      `${strippedNow ? "instructions stripped" : "NO instructions stripped"}, last line ${JSON.stringify(last)}, ${secs} s`, out);
+    const ok = code === 0 && strippedNow && taps > 0 && verified > 0 && lock === "unlocked" && garage !== "closed" && !/\*\*\d{4}\*\*/.test(reply) && DONE[name.slice(0, 2)].test(reply);
+    row("c", `chat bridge, the container's phone, ${name}`, ok ? "PASS" : "FAIL",
+      `${strippedNow ? "instructions stripped" : "NO instructions stripped"}, ${taps} tap(s), ${verified} verified, lock ${lock}${batch ? `, garage ${garage}` : ""}, last line ${JSON.stringify(last)}, ${Math.round((Date.now() - t) / 1000)} s`, out);
   }
+  await relock();
 }
 
 // ---- d: slow check (#827) -----------------------------------------------------------
+const LIGHT = "light.living_room_rgbww_lights";
+const cutBy = (plan) => (plan.reasons ?? []).some((r) => r.code === "LIMIT_CUT" && r.detail === "read budget");
+
+// One plan and its apply through the slow relay: the first tap on the phone b
+// linked (testbed/phone.mjs), or on an ungated Relay the first code.
+async function slowApply(name, service, entity) {
+  let t = Date.now();
+  const plan = json((await cli(["plan", "call", service, entity], join(WORK, `slow-${name}-plan.json`))).out);
+  const planSecs = (Date.now() - t) / 1000;
+  t = Date.now();
+  const gated = plan.plan?.channel === "relay"; // no code: the Relay asks the linked phone
+  if (gated) await resetPushes();
+  const applying = gated || plan.plan?.code ? cli(["apply", "--plan", plan.plan.id, ...(gated ? [] : ["--confirm", plan.plan.code])], join(WORK, `slow-${name}-apply.json`)) : null;
+  const tapped = gated && applying ? await approve(180_000).then(() => true, () => false) : true;
+  const applied = applying ? json((await applying).out) : {};
+  return { plan, how: gated ? "tap" : "code", applied,
+    detail: `plan ${planSecs.toFixed(1)} s${cutBy(plan) ? " LIMIT_CUT" : " (read budget NOT hit: no LIMIT_CUT)"}${tapped ? "" : ", no question reached the phone"}, apply ${((Date.now() - t) / 1000).toFixed(1)} s -> ${applied.status ?? plan.status}${applied.error ? ` ${applied.error.code}` : ""}` };
+}
+
 async function slow() {
   const log = join(WORK, "slow.log");
   const fillers = Array.from({ length: 1500 }, (_, i) => `- id: rclane_filler_${i}\n  alias: RC lane filler ${i}\n  triggers:\n  - trigger: event\n    event_type: rclane_filler_${i}\n  actions:\n  - action: input_boolean.toggle\n    target:\n      entity_id: input_boolean.guest_mode\n`).join("")
     + "- id: rclane_listener\n  alias: RC lane call_service listener\n  triggers:\n  - trigger: event\n    event_type: call_service\n  conditions:\n  - condition: template\n    value_template: \"{{ false }}\"\n  actions:\n  - action: input_boolean.toggle\n    target:\n      entity_id: input_boolean.guest_mode\n";
   execFileSync("docker", ["exec", "-i", "ha-nova-testbed-ha", "sh", "-c", "printf '\\n' >> /config/automations.yaml && cat >> /config/automations.yaml"], { input: fillers });
-  const llat = readFileSync(join(STATE, "ha-llat"), "utf8").trim();
-  const ha = (path, method = "GET") => fetch(`http://127.0.0.1:18123${path}`, { method, headers: { authorization: `Bearer ${llat}`, "content-type": "application/json" }, body: method === "POST" ? "{}" : undefined });
-  await ha("/api/services/automation/reload", "POST");
+  await ha("/api/services/automation/reload", {});
   let on = 0;
   for (let i = 0; i < 120 && on < 1500; i++, await sleep(1000)) on = (await (await ha("/api/states")).json()).filter((s) => s.entity_id.startsWith("automation.") && s.state === "on").length;
   await cli(["version"], log);
@@ -336,29 +403,29 @@ async function slow() {
   }).listen(slowPort, "127.0.0.1");
   const direct = readFileSync(cfg, "utf8");
   writeFileSync(cfg, JSON.stringify({ ...JSON.parse(direct), relay_base_url: `http://127.0.0.1:${slowPort}` }), { mode: 0o600 });
-  let t = Date.now();
-  const plan = json((await cli(["plan", "call", "lock.unlock", "lock.front_door"], join(WORK, "slow-plan.json"))).out);
-  const planSecs = (Date.now() - t) / 1000;
-  const limit = (plan.reasons ?? []).some((r) => r.code === "LIMIT_CUT" && r.detail === "read budget");
-  t = Date.now();
-  const gated = plan.plan?.channel === "relay"; // no code: the Relay asks the linked phone
-  if (gated) await resetPushes();
-  const applying = gated || plan.plan?.code ? cli(["apply", "--plan", plan.plan.id, ...(gated ? [] : ["--confirm", plan.plan.code])], join(WORK, "slow-apply.json")) : null;
-  const tapped = gated && applying ? await approve(180_000).then(() => true, () => false) : true;
-  const applied = applying ? json((await applying).out) : {};
-  const applySecs = (Date.now() - t) / 1000;
+  // An ordinary call still runs the listener census, which the slow relay cuts
+  // at the read budget; the cut plan asks, and its first tap must apply.
+  await ha("/api/services/light/turn_on", { entity_id: LIGHT });
+  const cut = await slowApply("cut", "light.turn_off", LIGHT);
+  // A typed unlock skips the census (#1163) and says so; its first tap must apply.
   await relock();
+  const typed = await slowApply("unlock", "lock.unlock", "lock.front_door");
+  await ha("/api/services/light/turn_on", { entity_id: LIGHT });
   const viaMCP = await slowMCP();
   writeFileSync(cfg, direct, { mode: 0o600 });
   slowRelay.close();
-  row("d", `slow check: first ${gated ? "tap" : "code"} applies (#827)`, limit && applied.status === "verified" ? "PASS" : "FAIL",
-    `${on} automations on, relay +${SLOW_RELAY_MS} ms per chunk, plan ${planSecs.toFixed(1)} s${limit ? " LIMIT_CUT" : " (read budget NOT hit: no LIMIT_CUT)"}${tapped ? "" : ", no question reached the phone"}, apply ${applySecs.toFixed(1)} s -> ${applied.status ?? plan.status}${applied.error ? ` ${applied.error.code}` : ""}`, join(WORK, "slow-apply.json"));
-  row("d", "slow check over MCP: first tap applies", viaMCP.pass ? "PASS" : "FAIL", viaMCP.detail, join(WORK, "slow-mcp.json"));
+  const gap = (typed.plan.reasons ?? []).some((r) => r.code === "UNENUMERABLE_LISTENER");
+  row("d", `slow check: a census cut at the read budget, first ${cut.how} applies (#827)`, cutBy(cut.plan) && cut.applied.status === "verified" ? "PASS" : "FAIL",
+    `${on} automations on, relay +${SLOW_RELAY_MS} ms per chunk, light.turn_off ${LIGHT}: ${cut.detail}`, join(WORK, "slow-cut-apply.json"));
+  row("d", `slow check: a typed unlock skips the census, first ${typed.how} applies`, gap && typed.applied.status === "verified" ? "PASS" : "FAIL",
+    `${gap ? "listeners not read, said" : "NO UNENUMERABLE_LISTENER"}: ${typed.detail}`, join(WORK, "slow-unlock-apply.json"));
+  row("d", "slow check over MCP: a census cut at the read budget, first tap applies", viaMCP.pass ? "PASS" : "FAIL", viaMCP.detail, join(WORK, "slow-mcp.json"));
   await relock();
 }
 
-// d over ha-nova mcp (stdio): ha_plan, then ha_apply until its job ends; the job's
-// Relay ask is tapped on the phone. Its check before the ask leaves the ask time (#827).
+// d over ha-nova mcp (stdio): the cut call's ha_plan, then ha_apply until its
+// job ends; the job's Relay ask is tapped on the phone. Its check before the
+// ask leaves the ask time (#827).
 async function slowMCP() {
   const mcp = spawn("bash", [join(TESTBED, "cli.sh"), "mcp"], { env: { ...process.env, TESTBED_CLI_BIN: join(WORK, "bin/ha-nova"), TESTBED_CLI_HOME: join(STATE, "rc-home") }, stdio: ["pipe", "pipe", "ignore"], detached: true });
   procs.add(mcp);
@@ -383,9 +450,9 @@ async function slowMCP() {
     await rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "rc-lane", version: "1" } });
     mcp.stdin.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\n");
     let t = Date.now();
-    const plan = await tool("ha_plan", { kind: "call", service: "lock.unlock", entity_ids: ["lock.front_door"] });
+    const plan = await tool("ha_plan", { kind: "call", service: "light.turn_off", entity_ids: [LIGHT] });
     const planSecs = (Date.now() - t) / 1000;
-    const limit = (plan.reasons ?? []).some((r) => r.code === "LIMIT_CUT" && r.detail === "read budget");
+    const limit = cutBy(plan);
     if (!plan.plan?.id) return { pass: false, detail: `no plan: ${plan.status ?? "-"} ${plan.error?.code ?? ""}` };
     if (plan.plan.channel !== "relay") return { pass: false, detail: `plan channel ${plan.plan.channel ?? "-"}, want relay (a gated App asks the phone)` };
     t = Date.now();
@@ -422,7 +489,7 @@ try {
   await fetchBinary();
   setupLog = join(WORK, "testbed-up.log");
   startBed();
-  for (const [step, fn] of [["c", chat], ["e", verify], ["f", chatFiles], ["a", matrix], ["b", phone], ["h", calm], ["d", slow]]) {
+  for (const [step, fn] of [["e", verify], ["f", chatFiles], ["c", chat], ["a", matrix], ["b", phone], ["h", calm], ["d", slow]]) {
     try { await fn(); } catch (err) { row(step, "step ran", "FAIL", err.message); }
   }
 } catch (err) {

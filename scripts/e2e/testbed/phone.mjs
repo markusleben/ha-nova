@@ -117,9 +117,15 @@ process.on("exit", () => {
 
 let seen = 0;
 const lastResult = {}; // per platform: the tag of the last result shown, or of the question withdrawn last
-// From now on, only pushes sent after this call count.
+// From now on, only pushes sent after this call count. Each phone's last
+// result comes from the pushes so far, so the clear of one an earlier lane
+// left (its result or a withdrawn question) is still its own.
 export async function resetPushes() {
-  seen = (await (await fetch(`${PUSH}/pushes`)).json()).length;
+  const list = await (await fetch(`${PUSH}/pushes`)).json();
+  seen = list.length;
+  for (const { path, body } of list) {
+    if (body.message === "clear_notification" || !body.data?.actions) lastResult[path.split("/").pop()] = body.data?.tag;
+  }
 }
 
 // The next push; raw: a clear too. Since 0.27.3 a phone's last result is
@@ -205,10 +211,12 @@ export async function answered(ask, answer = 0) {
   lastResult[ask.platform] = d.tag;
 }
 
-// Taps the next question, wherever the Relay asks (rc-lane's slow check).
+// Taps the next question, wherever the Relay asks (rc-lane), and takes its
+// result, so the clear before the next question is that result's.
 export async function approve(ms) {
   const push = await nextPush({ ms });
   await tap(push);
+  await answered(push);
   return push;
 }
 

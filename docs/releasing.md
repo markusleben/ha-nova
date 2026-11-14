@@ -128,20 +128,23 @@ deploy or tag.
    ```bash
    npm run rc-lane -- vX.Y.Z-rcN
    ```
-   One command, throwaway only, about 10–15 minutes: first the chat-bridge
-   "code last" check with headless Claude, while the Claude test account's
-   usage limit is fresh (the one row that may SKIP, without `claude` and
-   `~/.claude-ha-nova-test`); then, with the tag's binary, the test bed's
-   assertions (`testbed/verify.sh`), chat-app files under `/config` at
-   Ask only, Use the home, and Manage everything (read, write, delete; a
-   refusal names its real cause, never the sign-in or a setting); then the
-   client matrix from the last stable and from v0.24.0 (published stable
+   One command, throwaway only, about 10–15 minutes: with the tag's binary,
+   the test bed's assertions (`testbed/verify.sh`) and chat-app files under
+   `/config` at Ask only, Use the home, and Manage everything (read, write,
+   delete; a refusal names its real cause, never the sign-in or a setting);
+   then the chat bridge on a standalone Relay with headless Claude, while the
+   Claude test account's usage limit is fresh (no phone linked: an unlock is
+   refused and nothing is sent; with a phone linked, its tap applies and the
+   reply says it's done; the one row that may SKIP, without `claude` and
+   `~/.claude-ha-nova-test`); then the client matrix from the last stable and from v0.24.0 (published stable
    install, then update to the RC),
    the phone lane (push payloads per platform through fake phones), calm
    edits in a bed with real-home listeners (two edits of one automation run
    without an ask and undo puts back the latest; an unlock or garage member
-   and a reload you call still ask), and the slow-check regression
-   (`scripts/e2e/testbed/README.md`, "Real-home checks"). It prints one
+   and a reload you call still ask), and the slow-check regression (a
+   census cut at the read budget still applies on the first tap; a typed
+   unlock skips the census; `scripts/e2e/testbed/README.md`, "Real-home
+   checks"). It prints one
    table and exits non-zero on any FAIL; a WARN row means the bed's Relay is
    not the tag's. Post the table as a comment on the release-prep PR. It
    starts its own test bed (with file access), so no other bed may run.
