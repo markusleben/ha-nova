@@ -449,8 +449,10 @@ ${hasClaude ? "claude plugin list 2>&1 | Out-String" : ""}`);
 // The runbook's effective nftables output rules: nothing may reach the maintainer's LAN.
 async function ubuntuIsolation(S) {
   const fw = await ubuntu("sudo -n nft -s list table inet hanova_isolation");
-  const output = fw.out.split("chain output {")[1]?.split("chain input {")[0]?.replace(/\}\s*$/, "").replace(/comment "[^"]*"|\bcounter\b/g, "").replace(/\s+/g, " ").trim();
-  const expected = 'type filter hook output priority filter; policy accept; oif "lo" accept udp dport 5353 drop ip daddr 10.0.2.0/24 accept ip daddr @blocked4 reject meta nfproto ipv6 icmpv6 type { nd-router-solicit, nd-neighbor-solicit, nd-neighbor-advert } accept meta nfproto ipv6 reject';
+  const output = fw.out.split("chain output {")[1]?.split("chain input {")[0]?.replace(/\}\s*$/, "").replace(/comment "[^"]*"|\bcounter\b/g, "")
+    // nft 1.1 prints a reject's default type and drops the implied "meta nfproto ipv6" before icmpv6: same rules, other words
+    .replace(/ with icmp(v6)? port-unreachable/g, "").replace(/meta nfproto ipv6 icmpv6 type/g, "icmpv6 type").replace(/\s+/g, " ").trim();
+  const expected = 'type filter hook output priority filter; policy accept; oif "lo" accept udp dport 5353 drop ip daddr 10.0.2.0/24 accept ip daddr @blocked4 reject icmpv6 type { nd-router-solicit, nd-neighbor-solicit, nd-neighbor-advert } accept meta nfproto ipv6 reject';
   const blocked = fw.out.match(/elements = \{([^}]+)\}/)?.[1].replace(/\s+/g, "").split(",").sort();
   const want = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16", "224.0.0.0/4", "255.255.255.255"].sort();
   return check(S, "Ubuntu LAN isolation (effective nftables rules)", fw.code === 0 && output === expected && JSON.stringify(blocked) === JSON.stringify(want), "requires the runbook's ordered output rules and complete blocked4 set");
