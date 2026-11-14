@@ -116,7 +116,9 @@ They run in the Win11 PowerShell 7 user after its core rows
    automation is deleted (config and registry entry checked) and the
    HOME purged, which revokes its device. Pairing is then judged across
    the update from that point. The row is SKIP without `--app-branch`,
-   with `--no-ubuntu`, or without the Ubuntu VM.
+   with `--no-ubuntu`, or without the Ubuntu VM. When the host can't run
+   all three VMs, a second pass with `--no-windows` runs it with HAOS and
+   Ubuntu only (the Windows rows are SKIP there).
 
 Rows 3 and 4 cancel one ask each, so they stay below the gate's pause
 and hourly limits. Every device, automation and language change they

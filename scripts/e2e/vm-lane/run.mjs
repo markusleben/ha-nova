@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// npm run vm-lane -- <tag> [--from <stable>] [--wait <0..60>] [--no-ubuntu] [--app-branch chore/app-X.Y.Z]
+// npm run vm-lane -- <tag> [--from <stable>] [--wait <0..60>] [--no-ubuntu] [--no-windows] [--app-branch chore/app-X.Y.Z]
 // Throwaway UTM VMs only; every HA NOVA command runs in a guest, never on macOS.
 // Contract and limits: docs/work/2026-10-26-vm-lane-spec.md; release gate: docs/releasing.md §4.
 import { execFileSync, spawn } from "node:child_process";
@@ -43,9 +43,9 @@ const VMS = { win: ["HA NOVA Win11 Test", CFG.win.port], haos: ["HA NOVA HAOS Te
 const [tag, ...flags] = process.argv.slice(2);
 const opt = (name) => { const i = flags.indexOf(name); return i >= 0 ? flags[i + 1] : undefined; };
 const valued = ["--from", "--wait", "--app-branch"], appBranch = opt("--app-branch");
-const badFlag = flags.some((f, i) => !valued.includes(flags[i - 1]) && ![...valued, "--no-ubuntu"].includes(f));
+const badFlag = flags.some((f, i) => !valued.includes(flags[i - 1]) && ![...valued, "--no-ubuntu", "--no-windows"].includes(f));
 if (!TAG_RE.test(tag ?? "") || badFlag || (flags.includes("--from") && !/^v\d+\.\d+\.\d+$/.test(opt("--from") ?? "")) || (flags.includes("--wait") && (!/^\d+$/.test(opt("--wait") ?? "") || Number(opt("--wait")) > 60)) || (flags.includes("--app-branch") && !APP_BRANCH_RE.test(appBranch ?? ""))) {
-  console.error("usage: npm run vm-lane -- <vX.Y.Z[-rcN]> [--from <vX.Y.Z>] [--wait <0..60>] [--no-ubuntu] [--app-branch chore/app-X.Y.Z]");
+  console.error("usage: npm run vm-lane -- <vX.Y.Z[-rcN]> [--from <vX.Y.Z>] [--wait <0..60>] [--no-ubuntu] [--no-windows] [--app-branch chore/app-X.Y.Z]");
   process.exit(2);
 }
 const WORK = mkdtempSync(join(tmpdir(), "ha-nova-vm-lane-"));
@@ -236,7 +236,7 @@ async function waitForVms() {
   for (;;) {
     if (stopping) throw new Error("VM wait cancelled");
     const down = [];
-    for (const k of ["win", "haos"]) if (!(await up(VMS[k][1]))) down.push(k);
+    for (const k of flags.includes("--no-windows") ? ["haos"] : ["win", "haos"]) if (!(await up(VMS[k][1]))) down.push(k); // --no-windows: a pass with the Ubuntu VM instead (host memory)
     if (!down.length || Date.now() >= deadline) return down;
     say(`waiting for ${down.map((k) => `"${VMS[k][0]}"`).join(" and ")} (start it in UTM); next check in 2 min`);
     await sleep(Math.min(120_000, Math.max(1000, deadline - Date.now())));
@@ -552,7 +552,8 @@ try {
   } else row("a", GUIDED_ROW, "SKIP", "no --app-branch: Home Assistant offers the lane's stable App no newer one");
   if (stopping || !(await appVersion(appBranch ? await sup(`/addons/${CFG.app}/info`) : appInfo))) throw new Error("preflight failed or interrupted");
   await chatFileRefusal({ ha: CFG.ha, llat, app: CFG.app, sup, check });
-  if (await winIdentity() && await winIsolation()) {
+  if (flags.includes("--no-windows")) row("w", "Windows", "SKIP", "--no-windows");
+  else if (await winIdentity() && await winIsolation()) {
     users = true;
     for (const shell of ["ps7", "ps51"]) {
       try { await windowsRun(shell, stable); } catch (err) { row(shell === "ps7" ? "w7" : "w5", "run", "FAIL", err.message); }
