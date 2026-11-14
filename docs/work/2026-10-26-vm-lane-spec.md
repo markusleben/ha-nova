@@ -26,6 +26,10 @@ it exceeds the usual approximate 400-line target rather than adding helpers.
   prompt, six-digit NOVA-page pairing, noninteractive setup for installed
   clients, doctor, stable-to-candidate update, a read and verified ordinary
   call, wiring, rerun, standard uninstall, stale marker, reinstall, and purge.
+  On Windows, a stable updater older than 0.31 can fail to move its folder
+  aside ("access denied", MAR-161; #1130's retry runs only from 0.31). The
+  lane then runs the update once more, as its message tells a person to, and
+  the update row is WARN when the second try works.
   No fake client qualifies for Windows onboarding. The remainder of the
   setup wizard and native confirmation-window interactions are outside this
   lane.

@@ -391,8 +391,16 @@ async function windowsRun(shell, stable) {
   const d1 = await hn("doctor", { timeoutMs: 3 * 60_000 });
   check(S, `doctor on ${stable}`, d1.code === 0, tail(d1.out, 1));
 
-  const upd = await run(thenWait(`update --version ${tag}`, `(& "${HN}" version) -eq '${want}'`, `now=$(& "${HN}" version)`), { timeoutMs: 6 * 60_000 });
-  check(S, `ha-nova update --version ${tag} (from ${stable})`, upd.code === 0 && upd.out.split(/\r?\n/).includes(`rc=0 now=${want}`), tail(upd.out, 3));
+  const update = () => run(thenWait(`update --version ${tag}`, `(& "${HN}" version) -eq '${want}'`, `now=$(& "${HN}" version)`), { timeoutMs: 6 * 60_000 });
+  const updated = (u) => u.code === 0 && u.out.split(/\r?\n/).includes(`rc=0 now=${want}`);
+  const upd = await update();
+  // MAR-161: the old version's updater moves its folder aside, which a briefly locked file can refuse
+  // ("access denied"); #1130's retry runs only in updates that start from 0.31. The message says to run
+  // the update again: the lane does that once, so the later rows test the candidate, and the row says so.
+  if (!updated(upd) && /ERROR: rename \S+ \S+\.ha-nova-old-\d+: (Access is denied|Zugriff verweigert)/.test(upd.out)) {
+    const again = await update();
+    row(S, `ha-nova update --version ${tag} (from ${stable})`, updated(again) ? "WARN" : "FAIL", `first try: ${stable}'s updater hit a locked folder (MAR-161, fixed for updates from 0.31); second try: ${tail(again.out, 3)}`);
+  } else check(S, `ha-nova update --version ${tag} (from ${stable})`, updated(upd), tail(upd.out, 3));
   await core(S, hn, run, hasClaude, hasCodex, want);
   if (shell === "ps7") await appAsks({ S, run, ws, states, nova, check, row, fetch, sleep, tag, repo: REPO, app: CFG.app, ha: CFG.ha, guestHa: CFG.guestHa });
 
