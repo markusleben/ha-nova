@@ -199,7 +199,7 @@ async function nova() {
       headers: { cookie, "content-type": "application/x-www-form-urlencoded", origin: CFG.ha, "sec-fetch-site": "same-origin" }, body: new URLSearchParams(fields).toString() });
     if (r.status >= 400) throw new Error(`NOVA page ${action}: HTTP ${r.status}`);
   };
-  const devices = (html) => [...html.matchAll(/<li><span class="device"><strong>([^<]*)<\/strong>[\s\S]*?device=([^"&]+)"/g)].map((m) => ({ name: m[1], id: decodeURIComponent(m[2]) }));
+  const devices = (html) => [...html.matchAll(/<li><span class="device">(?:<span>)?<strong>([^<]*)<\/strong>[\s\S]*?device=([^"&]+)"/g)].map((m) => ({ name: m[1], id: decodeURIComponent(m[2]) }));
   // The approval view (no NOVA footer), first the ask a ref names.
   const approval = async (ref = "") => {
     const response = await fetch(`${base.replace(/\/?$/, "/")}approve${ref ? `?nova_ask=${ref}` : ""}`, { headers: { cookie } });
@@ -212,7 +212,7 @@ async function nova() {
     cancelAsk: async (ref) => post(await approval(ref), "cancel", ref),
     devices: async () => {
       const html = await get(), list = devices(html);
-      if (!list.length && !html.includes("No devices are connected yet.")) throw new Error("NOVA device list is unrecognized; refusing an empty baseline");
+      if (!list.length && !/No (devices|computers) are connected yet\./.test(html)) throw new Error("NOVA device list is unrecognized; refusing an empty baseline");
       return list;
     },
     code: async () => {

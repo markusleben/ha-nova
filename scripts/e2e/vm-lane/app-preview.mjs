@@ -62,7 +62,9 @@ export function appPreview(ctx) {
         ctx.check("a", "pairing kept (device registry and TLS key unchanged)", ctx.registryHash() === registryBefore, "paired computers pin the TLS key; lastUsedAtMs and the App's own safety-check record (minted at start) excluded"),
       ];
       const html = await ctx.page();
-      ok.push(ctx.check("a", "NOVA page: Home Assistant connected, preview version", html.includes("<h2>Home Assistant</h2><p>Connected.</p>") && html.includes(`Relay ${preview}</footer>`), preview));
+      // The 0.31 page (0.13.28, #1158) shows the connection as a status pill; older Apps as a paragraph.
+      const connected = html.includes("<h2>Home Assistant</h2><p>Connected.</p>") || html.includes('<span>Home Assistant</span><span class="pill good">Connected</span>');
+      ok.push(ctx.check("a", "NOVA page: Home Assistant connected, preview version", connected && html.includes(`Relay ${preview}</footer>`), preview));
       return ok.every(Boolean);
     },
     // Back to stable: a repository repair re-clones main; only a Supervisor start re-reads it. No network before the repair.

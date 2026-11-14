@@ -71,6 +71,12 @@ describe("vm-lane App preview (promote branch on the throwaway HAOS VM)", () => 
     expect(lane.rows.find((r) => r.name.startsWith("App preview images"))).toBeTruthy();
   });
 
+  it("reads the 0.31 NOVA page: connection as a status pill", async () => {
+    const lane = vm({ extra: { page: async () => '<ul class="facts"><li><span>Home Assistant</span><span class="pill good">Connected</span></li></ul><footer>Signed in as owner · Relay 0.14.0</footer>' } });
+    expect(await lane.preview.install("chore/app-0.14.0", "r1")).toBe(true);
+    expect(lane.rows.find((r) => r.name.startsWith("NOVA page"))?.ok).toBe(true);
+  });
+
   it("refuses a preview that is not newer than main's App, before any switch", async () => {
     const lane = vm({ preview: "0.13.24" });
     expect(await lane.preview.install("chore/app-0.14.0", "r1")).toBe(false);
