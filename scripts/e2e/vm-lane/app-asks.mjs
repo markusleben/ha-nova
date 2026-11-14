@@ -58,9 +58,10 @@ export async function marketplaceAccept(ctx) {
     return { code: r.code, out: envelope(r.out) };
   };
   const plans = {}, was = conf.language;
+  let current = was;
   try {
     for (const lang of ["en", "de"]) { // the reason comes in Home Assistant's language: switch it, then back
-      if (lang !== was) await ctx.ws([{ type: "config/core/update", language: lang }]);
+      if (current !== lang) { current = lang; await ctx.ws([{ type: "config/core/update", language: lang }]); }
       plans[lang] = await plan([ACCEPT]);
     }
     plans.bundled = await plan([ACCEPT, INSTALL]);
@@ -134,7 +135,10 @@ export function judgeWindowPage({ opened, guestHa, app, ingress, page, approval,
   if (url.origin !== new URL(guestHa).origin || url.pathname !== "/app/" + app || [...url.searchParams.keys()].join() !== "nova_ask" || !REF.test(ref)) bad.push("opened " + url.href + ", not " + guestHa + "/app/" + app + "?nova_ask=<ref>");
   if (panelStatus !== 200) bad.push("Home Assistant answers " + panelStatus + " for /app/" + app);
   const ask = page?.match(/data-ask="([^"]+)"/)?.[1];
-  if (ask !== ingress.replace(/\/?$/, "/") + "approve" || !page.includes('top.location.replace(b.dataset.ask+"?nova_ask="')) bad.push("the NOVA page hands no ask to the approval view (data-ask " + (ask ?? "missing") + ")");
+  // Supervisor's ingress_url ends in the App's ingress_entry (/home); the page's ask hangs off the ingress root.
+  const want = (ingress.match(/^\/api\/hassio_ingress\/[^/]+/)?.[0] ?? ingress) + "/approve";
+  if (ask !== want) bad.push("the NOVA page's data-ask is " + (ask ?? "missing") + ", not " + want);
+  if (!page?.includes('top.location.replace(b.dataset.ask+"?nova_ask="')) bad.push("the NOVA page has no hand-off script (" + ((page ?? "").match(/<script>[^<]{0,120}/)?.[0] ?? "no inline script") + ")");
   const first = approvalAsks(approval ?? "")[0];
   if (!first || first.ref !== ref) bad.push("the approval view lists " + (first ? "another ask" : "no ask") + " first");
   else if (!/front.door/i.test(first.text)) bad.push("the approval view's ask is not the unlock: " + first.text);

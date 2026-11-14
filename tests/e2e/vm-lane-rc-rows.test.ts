@@ -84,7 +84,7 @@ describe("vm-lane row: the window's button opens its ask (#1161)", () => {
     registry: { list: () => [] }, pairing: { getStatus: () => ({ phase: "idle" }) }, connection: () => ({ haConnected: true }),
     update: async () => ({ version: "0.13.28", versionLatest: "0.13.28", updateAvailable: false, error: false }), relayVersion: "0.13.28",
   } as unknown as NovaPageDeps) as ReturnType<typeof createApprovePageHandler>, "/");
-  const base = { guestHa: "http://10.0.2.2:8123", app: "2368fcfa_ha_nova_relay", ingress: "/api/hassio_ingress/tok/", panelStatus: 200 };
+  const base = { guestHa: "http://10.0.2.2:8123", app: "2368fcfa_ha_nova_relay", ingress: "/api/hassio_ingress/tok//home", panelStatus: 200 }; // as Supervisor's ingress_url, with the App's ingress_entry
   const opened = "http://10.0.2.2:8123/app/2368fcfa_ha_nova_relay?nova_ask=" + mine.ref;
 
   it("reads the approval view's asks in order, with what each says", async () => {
