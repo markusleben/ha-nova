@@ -458,9 +458,16 @@ async function ubuntuIsolation(S) {
   return check(S, "Ubuntu LAN isolation (effective nftables rules)", fw.code === 0 && output === expected && JSON.stringify(blocked) === JSON.stringify(want), "requires the runbook's ordered output rules and complete blocked4 set");
 }
 
+// The runbook's empty-password login keyring boots locked, and ha-nova refuses a locked collection
+// (it never unlocks one), so open it as the desktop login would. A prompt means a password: stop.
+async function ubuntuKeyring(S) {
+  const k = await ubuntu("export XDG_RUNTIME_DIR=/run/user/$(id -u); busctl --user call org.freedesktop.secrets /org/freedesktop/secrets org.freedesktop.Secret.Service Unlock ao 1 /org/freedesktop/secrets/collection/login && busctl --user get-property org.freedesktop.secrets /org/freedesktop/secrets/collection/login org.freedesktop.Secret.Collection Locked");
+  return check(S, "Ubuntu login keyring open (empty password, no prompt)", k.code === 0 && k.out.includes('"/"') && /^b false$/m.test(k.out), tail(k.out, 2) || "restore the runbook's empty-password login keyring on the VM");
+}
+
 async function ubuntuRun(stable) {
   const S = "u";
-  if (!(await ubuntuIsolation(S))) return;
+  if (!(await ubuntuIsolation(S)) || !(await ubuntuKeyring(S))) return;
   const H = (await ubuntu("mktemp -d /tmp/vm-lane-XXXXXX")).out.trim();
   if (!/^\/tmp\/vm-lane-\w+$/.test(H)) return row(S, "throwaway HOME", "FAIL", H);
   const installed = await ubuntu('export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"; for c in opencode codex; do p=$(command -v "$c") && { printf "%s|%s" "$c" "$p"; break; }; done');
@@ -511,7 +518,7 @@ async function guidedRow(preview) {
   const S = "a";
   if (flags.includes("--no-ubuntu")) return row(S, GUIDED_ROW, "SKIP", "--no-ubuntu: the row needs the Ubuntu VM's terminal session");
   if (!(await up(CFG.ubuntu.port))) return row(S, GUIDED_ROW, "SKIP", `"${VMS.ubuntu[0]}" not running: the row needs its terminal session`);
-  if (!(await ubuntuIsolation(S))) return;
+  if (!(await ubuntuIsolation(S)) || !(await ubuntuKeyring(S))) return;
   try {
     await guidedAppUpdate({ S, preview, app: CFG.app, tag, repo: REPO, guestRelay: CFG.guestRelay, ubuntu, tty: ubuntuTty, nova, ws, sup, ha: haApi, check, row, sleep });
   } catch (err) { row(S, GUIDED_ROW, "FAIL", err.message); }

@@ -71,7 +71,9 @@ export async function guidedAppUpdate(ctx) {
     let listening = false;
     for (let i = 0; i < 10 && made && !listening; i++) { await ctx.sleep(2000); listening = (await (await ctx.ha("/api/states")).json()).some((s) => s.attributes?.id === AUTOMATION && s.state === "on"); }
     if (!ctx.check(S, "guided App update: an automation listens for update.install calls", listening, "HTTP " + saved.status + "; automation " + (listening ? "on" : "not on"))) return;
-    const open = approvalAsks(await page.approval()).map((a) => a.ref);
+    const view = await page.approval().catch((err) => err);
+    if (typeof view !== "string") return ctx.check(S, name, false, "App " + versionBefore + " has no NOVA approval view (" + view.message + "); bring the throwaway VM's App up to the stable one, 0.13.26 or later");
+    const open = approvalAsks(view).map((a) => a.ref);
     let typed = false, ended = false, skipped = false, cancelled = "";
     const session = ctx.tty(ENV + " ha-nova internal-offer-app-update", { timeoutMs: 6 * 60_000, onData: (out, child) => {
       const text = out.replace(ANSI, "");
