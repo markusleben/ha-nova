@@ -174,7 +174,7 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool) error {
 				opened, err = open()
 			}
 		}
-		if stop = gateOpenFailure(opened, err, chat, lang); stop != nil {
+		if stop = gateOpenFailure(s, opened, err, chat, lang); stop != nil {
 			return false
 		}
 		state, grant = s.gateWait(opened.AskID, false, time.Until(end))
@@ -210,7 +210,7 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool) error {
 // gateOpenFailure: why an open asks nobody; nil: it asks. Every one sent
 // nothing. A chat app (chat) on a container with no phone linked gets the
 // clear refusal, and other refusals in the container's words.
-func gateOpenFailure(opened gateOpened, err error, chat bool, lang string) error {
+func gateOpenFailure(s *relaySession, opened gateOpened, err error, chat bool, lang string) error {
 	var call *relayCallError
 	switch {
 	case chat && errors.As(err, &call) && call.code == "GATE_NO_CHANNEL":
@@ -224,8 +224,7 @@ func gateOpenFailure(opened gateOpened, err error, chat bool, lang string) error
 	case err != nil:
 		return gateStop("refused", "CONFIRM_UNAVAILABLE", "HA NOVA couldn't ask on the linked phone or in Home Assistant ("+err.Error()+"); nothing was sent", gateNext[""])
 	case !opened.Needed:
-		return gateStop("refused", "GATE_DISAGREES", "HA NOVA's safety check in Home Assistant doesn't hold this change for a person, but this computer does; nothing was sent",
-			"Tell the user nothing changed. Update HA NOVA on this computer (ha-nova update) and the NOVA App in Home Assistant, then plan it again.")
+		return gateDisagrees(s)
 	case opened.AskID == "":
 		return gateStop("refused", "CONFIRM_UNAVAILABLE", "the NOVA App's answer named no ask; nothing was sent", gateNext[""])
 	}

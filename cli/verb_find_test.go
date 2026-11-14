@@ -25,9 +25,10 @@ type fakeRelayCall struct {
 
 // fakeRelayLog records every request the fake Relay received.
 type fakeRelayLog struct {
-	mu    sync.Mutex
-	calls []fakeRelayCall
-	gate  atomic.Bool // GET /health says gate: 1 (a gated App); else an older App
+	mu      sync.Mutex
+	calls   []fakeRelayCall
+	gate    atomic.Bool // GET /health says gate: 1 (a gated App); else an older App
+	version string      // GET /health data.version when set
 }
 
 func (l *fakeRelayLog) all() []fakeRelayCall {
@@ -86,6 +87,9 @@ func setupFakeRelay(t *testing.T, reply func(r *http.Request, endpoint string, p
 			health := map[string]any{"status": "ok"}
 			if log.gate.Load() {
 				health["gate"] = 1
+			}
+			if log.version != "" {
+				health["version"] = log.version
 			}
 			w.Header().Set("content-type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": health})

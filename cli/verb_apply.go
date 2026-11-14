@@ -284,6 +284,8 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	// confirms the plan on the very bytes the person approved
 	// (gateStillApproved). A recheck before the ask would only delay it.
 	askFirst := plan.Channel == channelRelay && plan.Tier == tierTyped.String()
+	askedFirst := askFirst
+	scanGap := false
 	var asked []gateRequest
 	if askFirst {
 		if !memberIntact(plan) {
@@ -293,13 +295,17 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		for _, m := range plan.BatchMembers {
 			stored.members = append(stored.members, batchMember{stored: m, fresh: m})
 		}
-		if asked, err = gateBeforeSend(s, plan.Channel, plan, stored); err != nil {
+		asked, err = gateBeforeSend(s, plan.Channel, plan, stored)
+		if errors.Is(err, errGateScanGap) { // the App does not hold a change typed only by a failed read
+			scanGap, err, askFirst = true, nil, false
+		}
+		if err != nil {
 			return fail(release(err))
 		}
 		s.forgetReads() // the recheck reads Home Assistant as it is after the answer
 	}
 	check := recheck
-	if plan.Channel == channelRelay && !askFirst { // the gate asks the person next (gateBeforeSend)
+	if plan.Channel == channelRelay && !askedFirst { // the gate asks the person next (gateBeforeSend)
 		check = recheckBeforeAsk
 	}
 	fresh, err := check(s, &env, plan, compute)
@@ -403,6 +409,22 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		if err := gateStillApproved(plan, fresh, nil, asked, gateFirstRequests(fresh, batch), expires); err != nil {
 			return fail(err)
 		}
+	} else if scanGap && fresh.Tier == tierTyped.String() && scanGapTyped(fresh.Reasons) {
+		if err := confirmScanGap(s, fresh); err != nil { // this computer asks; the App forwards the bytes
+			return fail(release(err))
+		}
+		if planAsks.Err() != nil || !verbNow().Before(expires) {
+			return fail(release(gateStop("cancelled", "CONFIRM_CANCELLED", "the confirmation window closed before the change could be sent; nothing was sent",
+				"Tell the user nothing changed.")))
+		}
+		s.forgetReads()
+		scratch := env
+		again, err := recheck(s, &scratch, plan, compute)
+		if err != nil || !stillConfirmed(plan, again) || again.Tier != tierTyped.String() || !scanGapTyped(again.Reasons) {
+			return fail(release(gateStop("refused", "CONFIRM_UNAVAILABLE", "something changed while the window was open; nothing was sent",
+				"Tell the user nothing changed. Plan the change again only if they still want it.")))
+		}
+		fresh = again
 	} else if asked, err := gateBeforeSend(s, plan.Channel, fresh, batch); err != nil {
 		return fail(release(err))
 	} else if asked != nil { // approved minutes later, maybe: check it again right before the first send

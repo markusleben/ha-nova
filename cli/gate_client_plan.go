@@ -63,6 +63,12 @@ func gateBeforeSend(s *relaySession, channel string, fresh storedPlan, batch bat
 		return nil, nil
 	}
 	if err := s.gateAsk(reqs, false); err != nil {
+		var failure *verbFailure
+		// The terminal CLI only. A chat app has no window, and ha-nova mcp would
+		// report the change as already running while the window waited.
+		if errors.As(err, &failure) && failure.code == "GATE_DISAGREES" && scanGapTyped(fresh.Reasons) && s.call == nil && !s.gateChat() {
+			return nil, errGateScanGap // the App finished the read and does not hold it; this computer asks (gate_scan_gap.go)
+		}
 		return nil, err
 	}
 	humanWhere = channelRelay
@@ -207,11 +213,19 @@ func (s *relaySession) readGate() (bool, error) {
 	var health struct {
 		OK   bool `json:"ok"`
 		Data struct {
-			Gate int `json:"gate"`
+			Gate    int    `json:"gate"`
+			Version string `json:"version"`
 		} `json:"data"`
 	}
 	if err != nil || resp.StatusCode != http.StatusOK || json.Unmarshal(raw, &health) != nil || !health.OK {
 		return false, fmt.Errorf("the Relay's health answer (HTTP %d) can't be read", resp.StatusCode)
+	}
+	if health.Data.Version != "" {
+		s.mu.Lock()
+		if s.relayVersion == "" {
+			s.relayVersion = health.Data.Version
+		}
+		s.mu.Unlock()
 	}
 	return health.Data.Gate == 1, nil
 }
