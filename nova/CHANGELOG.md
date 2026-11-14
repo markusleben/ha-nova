@@ -4,6 +4,26 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.28] - 2026-11-14
+
+### Changed
+- Chat apps get HA NOVA 0.31.0.
+- Every Home Assistant administrator can use the NOVA page: connect a computer with a six-digit code, revoke a computer, and approve. Turning chat apps on or off, their settings, and resetting the device registry stay with the owner.
+- The NOVA page and the approval page update on their own. A request waiting for your OK sits at the top ("Confirm or decline"); the approval page shows a countdown and Approve and Cancel side by side, and goes back to the NOVA page once nothing is left.
+- The window on a computer opens its request directly on the NOVA approval page.
+- Phone asks pause only after five asks in a row go unanswered, for 5 minutes (before: three, for 15 minutes). The NOVA page shows the unanswered requests, and "Ask on the phone again" ends a pause.
+- The safety check answers HA NOVA's log reads with log facts: counts per integration and level, and since when, never the log's lines.
+- HA NOVA's system check-up can read the memory and CPU of Home Assistant, the Supervisor, and your Apps.
+- Chat apps: log facts, Marketplace installs and removals (each after your OK), the update advisor, and the system check-up.
+
+### Fixed
+- Answers of several MB, such as the entity list of a home with thousands of entities, pass the safety check. Before, they failed, and everyday changes such as a light asked on the phone.
+- The safety check reads which switch a thermostat or hygrostat made in Home Assistant's UI turns on, so in homes with such a helper, everyday changes no longer ask on the phone because of it.
+
+### Upgrade notes
+- Computers on HA NOVA 0.31.0 ask you to update this App.
+- Update HA NOVA on every computer to 0.31.0.
+
 ## [Relay 0.13.27] - 2026-11-12
 
 ### Fixed
