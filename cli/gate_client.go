@@ -224,7 +224,7 @@ func gateOpenFailure(s *relaySession, opened gateOpened, err error, chat bool, l
 	case err != nil:
 		return gateStop("refused", "CONFIRM_UNAVAILABLE", "HA NOVA couldn't ask on the linked phone or in Home Assistant ("+err.Error()+"); nothing was sent", gateNext[""])
 	case !opened.Needed:
-		return gateDisagrees(s)
+		return gateDisagrees(s, false)
 	case opened.AskID == "":
 		return gateStop("refused", "CONFIRM_UNAVAILABLE", "the NOVA App's answer named no ask; nothing was sent", gateNext[""])
 	}

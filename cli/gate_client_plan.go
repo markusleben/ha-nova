@@ -64,10 +64,8 @@ func gateBeforeSend(s *relaySession, channel string, fresh storedPlan, batch bat
 	}
 	if err := s.gateAsk(reqs, false); err != nil {
 		var failure *verbFailure
-		// The terminal CLI only. A chat app has no window, and ha-nova mcp would
-		// report the change as already running while the window waited.
-		if errors.As(err, &failure) && failure.code == "GATE_DISAGREES" && scanGapTyped(fresh.Reasons) && s.call == nil && !s.gateChat() {
-			return nil, errGateScanGap // the App finished the read and does not hold it; this computer asks (gate_scan_gap.go)
+		if errors.As(err, &failure) && failure.code == "GATE_DISAGREES" && registryReadFailed(fresh.Reasons) {
+			return nil, gateDisagrees(s, true) // the same refusal, naming the registry read
 		}
 		return nil, err
 	}
