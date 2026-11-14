@@ -27,7 +27,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { callChecks } from "./calls.mjs";
-import { answered, approve, failures, fixture, link, resetPushes } from "./phone.mjs";
+import { approve, failures, fixture, link, resetPushes } from "./phone.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const STATE = join(HERE, ".state");
@@ -75,7 +75,7 @@ async function apply(plan) {
   child.stdout.on("data", (d) => (out += d));
   const done = new Promise((resolve) => child.on("close", resolve));
   try {
-    await answered(await approve(60_000));
+    await approve(60_000);
   } catch (err) {
     child.kill();
     throw err;
