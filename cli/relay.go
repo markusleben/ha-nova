@@ -39,10 +39,9 @@ func newRelayHTTPClient(connectTimeoutSeconds, maxTimeSeconds float64) *http.Cli
 	}
 }
 
-// applyHealthTimeouts rewrites a client's dial + overall timeout in place, so the
-// paired (SPKI-pinned) transport honors the health command's explicit timeout
-// flags instead of the fixed pairing timeout baked into spkiPinnedClient. The
-// TLS pin configuration on the existing transport is preserved.
+// applyHealthTimeouts rewrites a client's dial + overall timeout in place, so
+// `ha-nova relay health` honors its flags on the paired transport. The TLS
+// pin configuration on the existing transport is preserved.
 func applyHealthTimeouts(client *http.Client, connectTimeoutSeconds, maxTimeSeconds float64) {
 	client.Timeout = time.Duration(maxTimeSeconds * float64(time.Second))
 	if transport, ok := client.Transport.(*http.Transport); ok {

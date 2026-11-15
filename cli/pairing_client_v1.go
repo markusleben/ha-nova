@@ -158,9 +158,22 @@ func pairDeviceV1(client *http.Client, bootstrapURL, code string, meta deviceMet
 
 // spkiPinnedClient trusts the relay's TLS listener ONLY when its leaf SPKI
 // SHA-256 equals expectedPin — no CA chain, no "trust anyway".
+// Its timeout is the pairing bound: activate and revoke send with no request
+// context, and a dead relay must not hang them.
 func spkiPinnedClient(expectedPin string) *http.Client {
+	return spkiPinnedClientWithTimeout(expectedPin, pairingHTTPTimeout)
+}
+
+// spkiPinnedSessionClient is that pin for functional and session calls.
+// Those already carry a request deadline. A client timeout here would cut a
+// gate wait poll (the App holds one for 25s) and the ask would be reported lost.
+func spkiPinnedSessionClient(expectedPin string) *http.Client {
+	return spkiPinnedClientWithTimeout(expectedPin, 0)
+}
+
+func spkiPinnedClientWithTimeout(expectedPin string, timeout time.Duration) *http.Client {
 	return &http.Client{
-		Timeout: pairingHTTPTimeout,
+		Timeout: timeout,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
 		},

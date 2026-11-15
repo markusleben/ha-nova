@@ -53,6 +53,8 @@ func relayCoreRequestWithTransport(
 		payload = append(payload, requestBody...)
 	}
 	payload = append(payload, '}')
+	ctx, cancel := boundRelayCall(ctx, client)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "POST", strings.TrimRight(base, "/")+"/core", bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
@@ -74,6 +76,8 @@ func relayWSRequestWithTransport(
 	credential string,
 	requestBody []byte,
 ) ([]byte, error) {
+	ctx, cancel := boundRelayCall(ctx, client)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "POST", strings.TrimRight(base, "/")+"/ws", bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, err

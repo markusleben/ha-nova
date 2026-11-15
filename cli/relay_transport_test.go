@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // F1 regression: a paired config whose device credential cannot be resolved
@@ -96,9 +97,22 @@ func TestFunctionalEndpointLegacyConfigKeepsCallerToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("legacy config must not fail: %v", err)
 	}
-	if base != cfg.RelayBaseURL || client != httpClient || credential != "legacy-token" {
-		t.Fatalf("legacy resolution wrong: base=%q credential=%q", base, credential)
+	if base != cfg.RelayBaseURL || credential != "legacy-token" || client == nil || client == httpClient || client.Timeout != 0 {
+		t.Fatalf("legacy resolution wrong: base=%q credential=%q clientTimeout=%v shared=%v", base, credential, clientTimeout(client), client == httpClient)
 	}
+	if client.Transport != httpClient.Transport {
+		t.Fatal("legacy functional client must keep the shared dial transport")
+	}
+	if httpClient.Timeout != time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)) {
+		t.Fatalf("shared relay client timeout = %v", httpClient.Timeout)
+	}
+}
+
+func clientTimeout(client *http.Client) time.Duration {
+	if client == nil {
+		return -1
+	}
+	return client.Timeout
 }
 
 // F2 regression: paired installs (which store no legacy token at all) still get

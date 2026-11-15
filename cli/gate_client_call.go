@@ -13,7 +13,8 @@ import (
 
 const gateWorkerStep = 20 * time.Second // the Relay's wait for one worker step (nova/src/runtime/gate-worker.ts)
 
-// gatePollTimeout: one wait on an ask (the Relay answers within 25 s); tests shorten it.
+// gatePollTimeout: one wait on an ask (the App answers within 25 s). The
+// functional client must not impose a shorter timeout of its own; tests shorten this.
 var gatePollTimeout = 40 * time.Second
 
 // gateOpenWait: how long opening an ask for n requests may take. The

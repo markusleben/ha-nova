@@ -313,10 +313,12 @@ func demoGET(ctx context.Context, target, token string) (int, []byte, error) {
 }
 
 // demoHTTPClient: system TLS trust, no redirects, a fresh transport per use.
-// A 503 is the demo's edge during the hourly reset: every caller sees it as
-// "can't be reached", the one plain line.
+// No client-wide timeout: demoGET and session calls already carry a deadline,
+// and a client timeout would cut a gate wait poll. A 503 is the demo's edge
+// during the hourly reset: every caller sees it as "can't be reached", the
+// one plain line.
 func demoHTTPClient() *http.Client {
-	client := newRelayHTTPClient(defaultRelayConnectTimeoutSeconds, defaultRelayMaxTimeSeconds)
+	client := newRelayHTTPClient(defaultRelayConnectTimeoutSeconds, 0)
 	client.Transport = demoTransport{client.Transport}
 	return client
 }

@@ -122,7 +122,7 @@ func relayFunctionalTransport(cfg runtimeConfig) (baseURL string, client *http.C
 		return cfg.RelayBaseURL, &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, cfg.bridgeCredential, true, nil
 	}
 	if cfg.bridgeCredential != "" { // the NOVA App's bridge: its internal device, pinned TLS
-		return cfg.RelaySecureBaseURL, spkiPinnedClient(cfg.RelaySpkiPin), cfg.bridgeCredential, true, nil
+		return cfg.RelaySecureBaseURL, spkiPinnedSessionClient(cfg.RelaySpkiPin), cfg.bridgeCredential, true, nil
 	}
 	if cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != "" {
 		cred, ok, credErr := readCredentialSlot(deviceCredentialServiceForProfile(cfg.profileName()))
@@ -130,7 +130,7 @@ func relayFunctionalTransport(cfg runtimeConfig) (baseURL string, client *http.C
 			return "", nil, "", false, credErr
 		}
 		if ok {
-			return cfg.RelaySecureBaseURL, spkiPinnedClient(cfg.RelaySpkiPin), cred, true, nil
+			return cfg.RelaySecureBaseURL, spkiPinnedSessionClient(cfg.RelaySpkiPin), cred, true, nil
 		}
 		// Paired config but the device credential is gone: fail closed. In a paired
 		// flow the device credential IS the auth, so never silently downgrade to the
@@ -159,7 +159,41 @@ func relayFunctionalTransport(cfg runtimeConfig) (baseURL string, client *http.C
 	if tokenErr != nil {
 		return "", nil, "", false, tokenErr
 	}
-	return cfg.RelayBaseURL, httpClient, relayToken, false, nil
+	return cfg.RelayBaseURL, sessionHTTPClient(), relayToken, false, nil
+}
+
+// sessionHTTPClient is the legacy functional client. It keeps httpClient's
+// dial and redirect policy and adds no client-wide timeout: session calls
+// already carry a request deadline, and a client timeout would cut a gate
+// wait poll. httpClient itself stays at defaultRelayMaxTimeSeconds for
+// `ha-nova relay health --max-time` and the other callers that use it.
+func sessionHTTPClient() *http.Client {
+	return &http.Client{
+		Transport:     httpClient.Transport,
+		CheckRedirect: httpClient.CheckRedirect,
+	}
+}
+
+// boundRelayCall ends a functional call that has neither a deadline nor a
+// client timeout. Session calls set their own, including a gate wait poll.
+// A notice or an update check that has neither still ends at the pairing
+// bound, so a dead relay cannot hang it. A client that already has a timeout
+// keeps it.
+func boundRelayCall(ctx context.Context, client *http.Client) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, hasDeadline := ctx.Deadline(); hasDeadline || (client != nil && client.Timeout > 0) {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, pairingHTTPTimeout)
+}
+
+// fetchRelayHealthBound reads /health when the caller has no request deadline.
+func fetchRelayHealthBound(client *http.Client, relayBaseURL, token string) ([]byte, error) {
+	ctx, cancel := boundRelayCall(context.Background(), client)
+	defer cancel()
+	return fetchRelayHealthWithContext(ctx, client, relayBaseURL, token)
 }
 
 // Hook for doctor/guided-update tests.
@@ -192,7 +226,7 @@ func functionalEndpoint(cfg runtimeConfig, legacyToken string) (string, *http.Cl
 			namedRelayPairCommand(profile, cfg.RelayBaseURL),
 		)
 	}
-	return cfg.RelayBaseURL, httpClient, legacyToken, nil
+	return cfg.RelayBaseURL, sessionHTTPClient(), legacyToken, nil
 }
 
 // checkRelayReadinessOverTransport runs the readiness probes over an explicit
@@ -213,6 +247,8 @@ func checkRelayReadinessOverTransportContext(
 	client *http.Client,
 	credential string,
 ) relayReadiness {
+	ctx, cancel := boundRelayCall(ctx, client)
+	defer cancel()
 	return checkRelayReadinessWithProbes(base, credential,
 		func(u, t string) ([]byte, error) {
 			return fetchRelayHealthWithContext(ctx, client, u, t)

@@ -269,7 +269,7 @@ func relayFloorNotice(paths runtimePaths) humanNotice {
 	if !ok {
 		return humanNotice{}
 	}
-	body, err := fetchRelayHealthWith(route.Client, route.BaseURL, route.Credential)
+	body, err := fetchRelayHealthBound(route.Client, route.BaseURL, route.Credential)
 	if err != nil {
 		return humanNotice{}
 	}
@@ -322,7 +322,7 @@ const (
 // reported by Home Assistant. Missing or ambiguous update-entity evidence is
 // best-effort silence so standalone Container/Core installs stay unchanged.
 func relayUpdateNotice(paths runtimePaths) humanNotice {
-	return relayUpdateNoticeWithContext(context.Background(), paths)
+	return relayUpdateNoticeWithTimeout(paths, pairingHTTPTimeout)
 }
 
 func relayUpdateNoticeWithTimeout(paths runtimePaths, timeout time.Duration) humanNotice {

@@ -33,6 +33,8 @@ func probeRelayWSPingWithContext(
 	client *http.Client,
 	relayBaseURL, token string,
 ) (relayWSPingResponse, error) {
+	ctx, cancel := boundRelayCall(ctx, client)
+	defer cancel()
 	url := strings.TrimRight(relayBaseURL, "/") + "/ws"
 	req, err := http.NewRequestWithContext(
 		ctx,

@@ -323,7 +323,7 @@ func resolveRelayUpdateCandidateWithTransport(
 func waitForRelayVersion(paths runtimePaths, route *relayUpdateRoute, targetVersion string) (string, error) {
 	deadline := time.Now().Add(relayUpdatePollTimeout)
 	for {
-		body, err := fetchRelayHealthWith(route.Client, route.BaseURL, route.Credential)
+		body, err := fetchRelayHealthBound(route.Client, route.BaseURL, route.Credential)
 		if err == nil {
 			version := parseRelayHealthVersion(body)
 			if relayVersionMeetsUpdateGate(paths, version, targetVersion) {
@@ -370,7 +370,7 @@ func verifyUpdatedRelayReadiness(paths runtimePaths, route *relayUpdateRoute, ta
 	readiness := checkRelayReadinessWithProbes(
 		route.BaseURL,
 		route.Credential,
-		func(u, t string) ([]byte, error) { return fetchRelayHealthWith(route.Client, u, t) },
+		func(u, t string) ([]byte, error) { return fetchRelayHealthBound(route.Client, u, t) },
 		func(u, t string) (relayWSPingResponse, error) { return probeRelayWSPingWith(route.Client, u, t) },
 		true,
 	)
