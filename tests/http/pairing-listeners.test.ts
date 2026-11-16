@@ -121,6 +121,17 @@ describe("pairing listeners wiring", () => {
     const info = (await res.json()).data;
     expect(info.protocol_version).toBe("v1");
     expect(info.sign_in).toBe(true);
+    expect(info.window).toBeUndefined(); // no /gate/v1/me here: no window contract
+  });
+
+  it("advertises window: 1 in /pair/v1/info where the App serves /gate/v1/me", async () => {
+    const withMe = createHttp(createBootstrapListener({ registry, pairingManager: manager, functional: { ...functional, me: echo }, relayVersion: "0.7.0", now: () => Date.now() }));
+    try {
+      const res = await fetch(`http://127.0.0.1:${await listen(withMe)}/pair/v1/info`);
+      expect((await res.json()).data).toMatchObject({ sign_in: true, window: 1 });
+    } finally {
+      withMe.close();
+    }
   });
 
   it("hides the pairing window: start while inactive returns a generic 400, not a distinct code", async () => {

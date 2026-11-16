@@ -33,6 +33,7 @@ type gateGrantKey struct{}
 // a phone-link move was tried in this session (gateMoveFirst).
 type relayGate struct {
 	checked, on, moved bool
+	window             bool // GET /health window: 1: the App has the 0.32 window contract
 	grants             map[[32]byte][]string
 	me                 *gateWindowState // gateMe, once read
 }
@@ -148,7 +149,11 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool, plan *gateConfirm)
 		items[i] = map[string]string{"endpoint": r.endpoint, "body_b64": base64.StdEncoding.EncodeToString(r.body)}
 	}
 	open := func() (opened gateOpened, err error) {
-		err = s.gateCall(planAsks, gateAskRoute, s.gateOpenWait(len(reqs)), map[string]any{"requests": items}, &opened)
+		body := map[string]any{"requests": items}
+		if presence := s.gatePresence(plan); presence != "" {
+			body["presence"] = presence
+		}
+		err = s.gateCall(planAsks, gateAskRoute, s.gateOpenWait(len(reqs)), body, &opened)
 		return opened, err
 	}
 	flag := s.approval()

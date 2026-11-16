@@ -20,8 +20,10 @@ import (
 // cancels the ask. The window confirms only a plan the App offers it for
 // (confirm, gate_window_confirm.go); otherwise it only opens Home Assistant
 // or cancels. Its answer is read before an approval counts, so a Cancel
-// that raced the approval wins. A link ask (gateMovePhone) ends linked,
-// only on the phones: no window.
+// that raced the approval wins. While the window can Confirm, the App learns
+// when the person leaves it, or it can't confirm after all (op away): the
+// phone then asks at once. A link ask (gateMovePhone) ends linked, only on
+// the phones: no window.
 func (s *relaySession) gateWait(askID string, link bool, wait time.Duration, confirm *gateConfirm) (state, grant string) {
 	deadline := time.Now().Add(wait)
 	if flag := s.approval(); flag != nil {
@@ -59,6 +61,7 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration, con
 			flag.Store(gateAsking)
 		}
 	}
+	var away <-chan struct{} // the person left the window: the phone asks now (gate_presence.go)
 	switch {
 	case link:
 		waiting = confirmT(confirmLanguage(s.lang), "gate.link_waiting")
@@ -68,6 +71,9 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration, con
 	default:
 		window, raced, confirms = s.gateWindow(ctx, deadline, page, confirm, false)
 		phase()
+		if confirms {
+			away = gateAway(ctx)
+		}
 	}
 	fmt.Fprintln(s.call.stderr(), waiting)
 	stopped := func() (string, string) {
@@ -96,14 +102,22 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration, con
 				if state, grant, ended := s.gateWindowApprove(ctx, askID); ended {
 					return state, grant
 				}
+				go s.gateGone(askID) // the App won't take Confirm here: the phone asks now
+				away = nil
 				window, raced, confirms = s.gateWindow(ctx, deadline, page, confirm, true) // still open for the phone and the page
 				phase()
 			case answer == windowConfirmed && page != "": // a waiting window's first button: open Home Assistant (or hide the window), never approve
 				_ = gateOpenHA(page)
-			default: // closed without an answer, or it never opened: the phone and the page are left
-				confirms = false
+			default: // closed without an answer, or it never opened: the phone and the page are left, the phone now
+				if confirms {
+					go s.gateGone(askID)
+				}
+				confirms, away = false, nil
 				phase()
 			}
+		case <-away:
+			away = nil
+			go s.gateGone(askID)
 		case got := <-polls:
 			switch {
 			case got.state == "lost" && ctx.Err() != nil:
