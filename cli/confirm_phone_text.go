@@ -255,11 +255,12 @@ func phoneSharedLine(name string) string {
 // note, then clears it (confirm_both.go). Only the first say or withdraw
 // counts; the zero value (nothing was sent) says nothing.
 type phoneReply struct {
-	tag    string
-	landed <-chan struct{}
-	once   *sync.Once
-	tell   func(title, body string)
-	quiet  func(title, body string)
+	tag     string
+	sending <-chan struct{}
+	landed  <-chan struct{}
+	once    *sync.Once
+	tell    func(title, body string)
+	quiet   func(title, body string)
 }
 
 func (r phoneReply) say(title, body string) {

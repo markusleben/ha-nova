@@ -15,6 +15,7 @@ var gatePhoneRef = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
 type gateWindowNotice struct {
 	AskRef   string    `json:"ask_ref"`
+	Seq      uint64    `json:"seq"`
 	Outcome  string    `json:"outcome"`
 	Link     phoneLink `json:"link"`
 	Lang     string    `json:"lang"`
@@ -27,7 +28,7 @@ type gateWindowNotice struct {
 
 func (n gateWindowNotice) valid() bool {
 	_, language := confirmCatalogs[n.Lang]
-	return gatePhoneRef.MatchString(n.AskRef) && n.Outcome == "window" && language && n.Title != "" && len(n.Title) <= 1024 &&
+	return gatePhoneRef.MatchString(n.AskRef) && n.Seq > 0 && n.Outcome == "window" && language && n.Title != "" && len(n.Title) <= 1024 &&
 		len(n.Computer.ID) > 0 && len(n.Computer.ID) <= 256 && len(n.Computer.Name) > 0 && len(n.Computer.Name) <= 256 &&
 		phoneServicePattern.MatchString(n.Link.Service) && n.Link.DeviceID != "" && n.Link.UserID != ""
 }
@@ -38,6 +39,7 @@ type gatePhoneEnd struct {
 	claimed    bool
 	notice     *gateWindowNotice
 	tag        string
+	original   phoneSetup
 	done       chan struct{}
 }
 
@@ -45,12 +47,13 @@ type gatePhoneEnds struct {
 	mu        sync.Mutex
 	entries   map[string]*gatePhoneEnd
 	computers map[string]*gateWindowQueue
-	send      func(runtimePaths, gateWindowNotice, string, bool)
+	send      func(runtimePaths, gateWindowNotice, string, bool, phoneSetup)
 }
 
 type gateWindowQueue struct {
 	mu     sync.Mutex
 	latest string
+	seq    uint64
 	at     time.Time
 }
 
@@ -100,7 +103,7 @@ func (e *gatePhoneEnds) phone(ctx context.Context, paths runtimePaths, in gatePh
 	end.registered = true
 	e.mu.Unlock()
 	defer func() {
-		notice, done := e.claim(in.AskRef, "")
+		notice, done := e.claim(in.AskRef, "", phoneSetup{})
 		done()
 		if notice != nil {
 			go e.emit(paths, *notice, "")
@@ -116,7 +119,7 @@ func (e *gatePhoneEnds) phone(ctx context.Context, paths runtimePaths, in gatePh
 	return answer, err
 }
 
-func (e *gatePhoneEnds) claim(ref, tag string) (*gateWindowNotice, func()) {
+func (e *gatePhoneEnds) claim(ref, tag string, original phoneSetup) (*gateWindowNotice, func()) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	end := e.entries[ref]
@@ -124,6 +127,8 @@ func (e *gatePhoneEnds) claim(ref, tag string) (*gateWindowNotice, func()) {
 		return nil, func() {}
 	}
 	end.claimed, end.tag = true, tag
+	original.targets = append([]phoneTarget(nil), original.targets...)
+	end.original = original
 	if end.notice != nil {
 		return end.notice, func() {}
 	}
@@ -158,7 +163,10 @@ func (e *gatePhoneEnds) handler(paths runtimePaths, w http.ResponseWriter, r *ht
 			queue = &gateWindowQueue{}
 			e.computers[in.Computer.ID] = queue
 		}
-		queue.latest, queue.at = in.AskRef, time.Now()
+		if in.Seq > queue.seq {
+			queue.latest, queue.seq = in.AskRef, in.Seq
+		}
+		queue.at = time.Now()
 		tag, done := end.tag, end.done
 		send := !end.registered || end.claimed
 		e.mu.Unlock()
@@ -186,8 +194,12 @@ func (e *gatePhoneEnds) emit(paths runtimePaths, notice gateWindowNotice, tag st
 	defer queue.mu.Unlock()
 	e.mu.Lock()
 	latest := e.computers[notice.Computer.ID] == queue && queue.latest == notice.AskRef
+	original := phoneSetup{}
+	if end := e.entries[notice.AskRef]; end != nil {
+		original = end.original
+	}
 	e.mu.Unlock()
 	if latest || tag != "" {
-		e.send(paths, notice, tag, latest)
+		e.send(paths, notice, tag, latest, original)
 	}
 }

@@ -18,10 +18,14 @@ type windowDelivery struct {
 }
 
 func windowNotice(ref string) gateWindowNotice {
-	n := gateWindowNotice{AskRef: strings.Repeat(ref, 64), Outcome: "window", Lang: "en", Title: "Unlock “Front Door”?",
+	n := gateWindowNotice{AskRef: strings.Repeat(ref, 64), Seq: uint64(ref[0]), Outcome: "window", Lang: "en", Title: "Unlock “Front Door”?",
 		Link: phoneLink{Service: "mobile_app_markuss_iphone", DeviceID: "dev-markus", UserID: "owner-id"}}
 	n.Computer.ID, n.Computer.Name = "computer-one", "Study Mac"
 	return n
+}
+
+func windowOriginal(n gateWindowNotice) phoneSetup {
+	return phoneSetup{owner: "owner-id", targets: []phoneTarget{{Service: n.Link.Service, DeviceID: n.Link.DeviceID}}}
 }
 
 func endWindow(t *testing.T, ends *gatePhoneEnds, n gateWindowNotice, supplied ...runtimePaths) {
@@ -40,7 +44,7 @@ func endWindow(t *testing.T, ends *gatePhoneEnds, n gateWindowNotice, supplied .
 
 func windowEnds() (*gatePhoneEnds, chan windowDelivery) {
 	sent := make(chan windowDelivery, 16)
-	return &gatePhoneEnds{entries: map[string]*gatePhoneEnd{}, send: func(_ runtimePaths, n gateWindowNotice, tag string, latest bool) {
+	return &gatePhoneEnds{entries: map[string]*gatePhoneEnd{}, send: func(_ runtimePaths, n gateWindowNotice, tag string, latest bool, original phoneSetup) {
 		sent <- windowDelivery{n.AskRef, tag, latest}
 	}}, sent
 }
@@ -88,7 +92,7 @@ func TestGatePhoneEndWaitsForOwnResult(t *testing.T) {
 			if when == "zero reply" {
 				tag = ""
 			}
-			notice, finish := ends.claim(n.AskRef, tag)
+			notice, finish := ends.claim(n.AskRef, tag, phoneSetup{})
 			if notice != nil {
 				t.Fatal("a window outcome existed before it was recorded")
 			}
@@ -113,7 +117,7 @@ func TestGatePhoneEndWaitsForTheAskToUnwind(t *testing.T) {
 	ends.entries[n.AskRef] = &gatePhoneEnd{at: time.Now(), registered: true}
 	endWindow(t, ends, n)
 	noWindow(t, sent)
-	notice, finish := ends.claim(n.AskRef, "question")
+	notice, finish := ends.claim(n.AskRef, "question", phoneSetup{})
 	finish()
 	if notice == nil || notice.Outcome != "window" {
 		t.Fatal("the worker lost the window outcome during a send")
@@ -130,7 +134,7 @@ func TestGatePhoneEndSerializesPerComputer(t *testing.T) {
 	started, release := make(chan struct{}), make(chan struct{})
 	var once sync.Once
 	t.Cleanup(func() { once.Do(func() { close(release) }) })
-	ends.send = func(_ runtimePaths, n gateWindowNotice, tag string, latest bool) {
+	ends.send = func(_ runtimePaths, n gateWindowNotice, tag string, latest bool, original phoneSetup) {
 		if n.AskRef == first.AskRef {
 			close(started)
 			<-release
@@ -179,6 +183,9 @@ func TestGatePhoneEndValidationAndAuthentication(t *testing.T) {
 	}
 	for _, change := range []func(map[string]any){
 		func(n map[string]any) { n["ask_ref"] = "wrong" },
+		func(n map[string]any) { n["seq"] = 0 },
+		func(n map[string]any) { n["seq"] = -1 },
+		func(n map[string]any) { n["seq"] = 1.5 },
 		func(n map[string]any) { n["outcome"] = "approved" },
 		func(n map[string]any) { n["extra"] = true },
 		func(n map[string]any) { n["lang"] = "xx" },
