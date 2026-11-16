@@ -11,6 +11,9 @@ import (
 // own and only reads. Tests shorten both.
 var configLoadPoll, configLoadWait = 500 * time.Millisecond, 15 * time.Second
 
+// configGoneWait: how long apply looks for a deleted item's entity to stop.
+var configGoneWait = 5 * time.Second
+
 // configLoadFloor: the shortest look on the CLI once the command's budget is
 // spent (a late approval, a long batch): Home Assistant reloads after its 200.
 const configLoadFloor = 3 * time.Second

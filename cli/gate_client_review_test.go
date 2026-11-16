@@ -95,17 +95,18 @@ func TestGateChecksThePlanAgainAfterTheApproval(t *testing.T) {
 	}
 }
 
-// A typed batch one ask can't cover (more than 20 requests) is refused
-// before anything is asked or sent.
+// A typed batch of the most plans is one ask, one request per delete (apply
+// sends no reload after it); an ask larger than one confirmation covers
+// (more than 20 requests) is refused before anything is asked or sent.
 func TestGateRefusesABatchTooLargeForOneAsk(t *testing.T) {
 	g := &fakeGate{}
 	f := batchHome()
-	for i := range 11 { // a delete asks with its reload: 22 requests
+	for i := range batchMaxMembers {
 		f.storeConfig(fmt.Sprint("/api/config/script/config/door_", i), map[string]any{"alias": fmt.Sprint("Door ", i), "sequence": []any{step("lock.unlock", "lock.front")}})
 	}
 	h := gatedHarness(t, f, g)
 	var ids []string
-	for i := range 11 {
+	for i := range batchMaxMembers {
 		ids = append(ids, h.member("delete", fmt.Sprint("script.door_", i)))
 	}
 	_, env := h.batch(ids...)
@@ -113,8 +114,12 @@ func TestGateRefusesABatchTooLargeForOneAsk(t *testing.T) {
 		t.Fatalf("batch plan: %+v", env)
 	}
 	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
-	if asks, _, sends := g.snapshot(); exit != verbExitRefused || applied.Error == nil || applied.Error.Code != "GATE_ASK_TOO_LARGE" || len(asks)+len(sends) != 0 {
+	if asks, _, sends := g.snapshot(); exit != 0 || len(asks) != 1 || len(asks[0]) != batchMaxMembers || len(sends) != batchMaxMembers {
 		t.Fatalf("exit %d %+v asks %d sends %d", exit, applied.Error, len(asks), len(sends))
+	}
+	var failure *verbFailure
+	if err := (&relaySession{}).gateAsk(make([]gateRequest, gateAskMax+1), false, nil); !errors.As(err, &failure) || failure.code != "GATE_ASK_TOO_LARGE" {
+		t.Fatalf("an ask of %d requests: %v", gateAskMax+1, err)
 	}
 }
 

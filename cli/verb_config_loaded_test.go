@@ -12,7 +12,8 @@ import (
 
 // Apply sends no reload after a save (Home Assistant's config view reloads
 // on its own) and waits, read-only, until Home Assistant runs the saved
-// config (awaitLoaded); a delete keeps its reload.
+// config (awaitLoaded). A delete sends none either: Home Assistant's delete
+// hook stops the item, and apply looks read-only until its entity is gone.
 
 // afterSave answers every request after the first config save with hook
 // (handled false: the fake answers as usual). Runs under f.mu.
@@ -281,8 +282,8 @@ func TestConfigBatchMembersEachWaitUntilLoaded(t *testing.T) {
 	noServiceSent(t, h)
 }
 
-// A revert and a restore are saves too; the delete before the restore
-// keeps its reload.
+// A revert and a restore are saves too, and the delete before the restore
+// sends no reload either.
 func TestConfigRevertAndRestoreWaitWithoutAReload(t *testing.T) {
 	h := nightHarness(t)
 	draft := map[string]any{"alias": "Night", "triggers": []any{}, "actions": []any{step("light.turn_off", "light.attic")}}
@@ -297,12 +298,71 @@ func TestConfigRevertAndRestoreWaitWithoutAReload(t *testing.T) {
 	noServiceSent(t, h)
 	_, env = h.run(runPlanCommand, "delete", "automation.night")
 	exit, deleted := applyAll(h, env)
-	if exit != 0 || len(h.posts()) == 0 || h.posts()[len(h.posts())-1].payload["path"] != "/api/services/automation/reload" {
+	if exit != 0 || deleted.Status != "verified" {
 		t.Fatalf("delete: exit %d env %+v posts %+v", exit, deleted, h.posts())
 	}
-	reloads := len(h.posts())
+	noServiceSent(t, h)
 	_, env = h.run(runPlanCommand, restoreArgs(t, deleted.Restore)...)
-	if exit, applied := applyAll(h, env); exit != 0 || applied.Status != "verified" || h.posts()[len(h.posts())-1].payload["path"] == "/api/services/automation/reload" || len(h.posts()) != reloads+1 {
+	if exit, applied := applyAll(h, env); exit != 0 || applied.Status != "verified" {
 		t.Fatalf("restore: exit %d env %+v posts %+v", exit, applied, h.posts())
+	}
+	noServiceSent(t, h)
+}
+
+// lingerAfterDelete answers the entity's state as still there for the first
+// reads after the config delete (forever when reads < 0), like Home
+// Assistant before its delete hook ran. Runs under f.mu.
+func lingerAfterDelete(f *fakeHA, entityID string, reads int) {
+	state := f.states[entityID]
+	deleted := false
+	f.extra = func(endpoint string, p map[string]any) (any, bool) {
+		if p["method"] == "DELETE" {
+			deleted = true
+			return nil, false
+		}
+		if !deleted || p["method"] != "GET" || p["path"] != "/api/states/"+entityID || reads == 0 {
+			return nil, false
+		}
+		reads--
+		return coreReply(200, state), true
+	}
+}
+
+// A delete waits, read-only, while Home Assistant's delete hook stops the
+// entity, and sends no reload.
+func TestConfigDeleteWaitsForTheEntityToGoWithoutAReload(t *testing.T) {
+	h := nightHarness(t)
+	lingerAfterDelete(h.f, "automation.night", 3)
+	_, env := h.run(runPlanCommand, "delete", "automation.night")
+	if exit, deleted := applyAll(h, env); exit != 0 || deleted.Status != "verified" || deleted.Restore == "" {
+		t.Fatalf("delete: exit %d env %+v", exit, deleted)
+	}
+	noServiceSent(t, h)
+}
+
+// One Home Assistant still runs after the wait is said, never reloaded: the
+// reload is offered as its own plan.
+func TestConfigDeleteStillRunningIsSaidNotReloaded(t *testing.T) {
+	h := nightHarness(t)
+	lingerAfterDelete(h.f, "automation.night", -1)
+	_, env := h.run(runPlanCommand, "delete", "automation.night")
+	exit, deleted := applyAll(h, env)
+	if exit != verbExitUnverified || deleted.Status != "unverified" || deleted.Say != sayDeletedStillRunsText || deleted.Restore == "" ||
+		!strings.HasPrefix(deleted.Verification[0].Note, stillRuns) || !strings.Contains(deleted.NextStep, "ha-nova plan call automation.reload --set id=n1 --server default`") {
+		t.Fatalf("delete: exit %d env %+v", exit, deleted)
+	}
+	noServiceSent(t, h)
+	raw, _ := json.Marshal(deleted)
+	var envelope map[string]any
+	_ = json.Unmarshal(raw, &envelope)
+	if step := nextStep(envelope, nil); !strings.HasPrefix(step, "Tell the user it is deleted from the config, but Home Assistant still runs it") ||
+		!strings.Contains(step, `data {"id": "n1"}: `+"`"+`ha_plan kind call automation.reload data id=n1`) || !strings.Contains(step, "If the user asks to undo this delete: ") {
+		t.Fatalf("MCP step: %s", step)
+	}
+	for server, want := range map[string]string{"cabin": "ha-nova plan call script.reload --server cabin`", "": "ha-nova plan call script.reload`"} {
+		next := stillRunsNext(configAction{Domain: "script", ConfigID: "s1"}, server)
+		if !strings.Contains(next, "service script.reload with no data: `"+want) || strings.Contains(mcpNext(next, false), "--server") {
+			t.Fatalf("server %q: %s / %s", server, next, mcpNext(next, false))
+		}
 	}
 }

@@ -204,7 +204,11 @@ func nextStep(envelope map[string]any, chat *chatPolicy) string {
 	}
 	if restore, _ := envelope["restore"].(string); restore != "" && errInfo == nil {
 		restore, _, _ = strings.Cut(restore, " --server ") // an MCP session is pinned to one server
-		return "If the user asks to undo this delete: " + mcpNext(restore, chat.isReadOnly()) + "."
+		undo := "If the user asks to undo this delete: " + mcpNext(restore, chat.isReadOnly()) + "."
+		if own, _ := envelope["next_step"].(string); own != "" && envelope["status"] == "unverified" { // it still runs: its step first
+			return mcpNext(own, chat.isReadOnly()) + " " + undo
+		}
+		return undo
 	}
 	if step := findTruncated(envelope); step != "" {
 		return step
@@ -275,7 +279,7 @@ var mcpFlagArgs = map[string]string{"confirm": "confirm_code", "no-snapshot": "n
 	"create": "create: true", "include-disabled": "include_disabled", "state": "state", "domain": "domain", "area": "area",
 	"config": "config", "related": "related", "since": "since", "until": "until", "logbook": "logbook", "match": "match", "device": "device",
 	"references": "references", "aliases": "aliases", "dashboard": "dashboard", "dashboards": "dashboards", "base": "base", "title": "title",
-	"icon": "icon", "require-admin": "require_admin", "hide-sidebar": "hide_sidebar", "insights": "insights", "file": "draft"}
+	"icon": "icon", "require-admin": "require_admin", "hide-sidebar": "hide_sidebar", "insights": "insights", "file": "draft", "set": "data"}
 
 var cliFlag = regexp.MustCompile("(?:^|[\\s`(/[])--([a-z][a-z-]*)")
 
@@ -302,12 +306,12 @@ var cliCommands = strings.NewReplacer("ha-nova relay core --method POST --path "
 	"ha-nova apply --plan ", "ha_apply with plan_id ")
 
 // mcpServerFlag: an MCP session is pinned to one server.
-var mcpServerFlag = regexp.MustCompile(`(ha-nova [a-z]+) --server [a-z0-9-]+`)
+var mcpServerFlag = regexp.MustCompile(` --server [a-z0-9-]+`)
 
 // mcpNext rewrites a verb's next for an MCP client: CLI commands and flags
 // become tools and arguments; a named ha-nova:* skill gets its chat route.
 func mcpNext(next string, readOnly bool) string {
-	out := cliCommands.Replace(mcpArgs(mcpServerFlag.ReplaceAllString(next, "$1")))
+	out := cliCommands.Replace(mcpArgs(mcpServerFlag.ReplaceAllString(next, "")))
 	switch {
 	case !strings.Contains(out, "ha-nova:"):
 	case strings.Contains(out, "ha-nova:yaml-config") && readOnly:

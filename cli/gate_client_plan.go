@@ -139,8 +139,9 @@ func gateFirstRequests(fresh storedPlan, batch batchReplan) []gateRequest {
 	return nil
 }
 
-// configRequests: an automation or script write, or a delete and its
-// reload; a dashboard delete's one request.
+// configRequests: an automation or script write or delete; a dashboard
+// delete's one request. Apply sends no reload after either: Home Assistant
+// reloads after a save and its delete hook stops a deleted item.
 func configRequests(action configAction) []gateRequest {
 	if action.Domain == "dashboard" && action.Op == "delete" {
 		data, _ := json.Marshal(dashboardDeletePayload(action))
@@ -149,26 +150,10 @@ func configRequests(action configAction) []gateRequest {
 	if action.Domain == "dashboard" {
 		return nil
 	}
-	write := coreRequest(http.MethodDelete, action.Path, nil)
-	if action.Op != "delete" {
-		write = coreRequest(http.MethodPost, action.Path, action.Body)
+	if action.Op == "delete" {
+		return []gateRequest{coreRequest(http.MethodDelete, action.Path, nil)}
 	}
-	return append([]gateRequest{write}, gateFollowUps(write)...)
-}
-
-// gateFollowUps: the reload apply sends after a config delete (executeConfig),
-// so one approval covers both (spec §4). A save needs none: Home Assistant
-// reloads after it on its own.
-func gateFollowUps(r gateRequest) []gateRequest {
-	var core struct {
-		Method string `json:"method"`
-		Path   string `json:"path"`
-	}
-	if r.endpoint != "core" || json.Unmarshal(r.body, &core) != nil || core.Method != http.MethodDelete || !configPathPattern.MatchString(core.Path) {
-		return nil
-	}
-	parts := strings.Split(core.Path, "/") // "", api, config, <domain>, config, <id>
-	return []gateRequest{coreRequest(http.MethodPost, servicePath(parts[3]+".reload", false), configReloadData(parts[3], parts[5]))}
+	return []gateRequest{coreRequest(http.MethodPost, action.Path, action.Body)}
 }
 
 // coreRequest: one core write as s.write sends it.

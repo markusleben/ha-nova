@@ -89,10 +89,9 @@ func (s *relaySession) approval() *atomic.Int32 {
 // sendWrite sends one checked write body exactly once (sendWriteOnce), with
 // the grant an ask got for these bytes. A typed request the Relay holds
 // (428: no grant covered it, or its grant expired, two minutes after the
-// approval) is asked for once more, with the reload a config delete needs
-// after it, and sent once more with that grant; a 428 after that is the
-// answer. An ask that ends without an approval answers its own
-// *verbFailure: nothing of this request was sent.
+// approval) is asked for once more and sent once more with that grant; a
+// 428 after that is the answer. An ask that ends without an approval
+// answers its own *verbFailure: nothing of this request was sent.
 func (s *relaySession) sendWrite(endpoint string, body []byte) (json.RawMessage, error) {
 	request := gateRequest{endpoint, body}
 	data, err := s.sendWriteOnce(endpoint, body, s.takeGrant(request))
@@ -100,15 +99,12 @@ func (s *relaySession) sendWrite(endpoint string, body []byte) (json.RawMessage,
 	if !errors.As(err, &held) || held.code != "GATE_APPROVAL_REQUIRED" || s.gateExempt() {
 		return data, err
 	}
-	reqs := append([]gateRequest{request}, gateFollowUps(request)...)
 	s.mu.Lock()
-	for _, r := range reqs { // an older grant for them expired with this one
-		if s.gate != nil {
-			delete(s.gate.grants, gateKey(r))
-		}
+	if s.gate != nil { // an older grant for it expired with this one
+		delete(s.gate.grants, gateKey(request))
 	}
 	s.mu.Unlock()
-	if err := s.gateAsk(reqs, true, nil); err != nil { // no plan text for a held write: never Confirm in the window
+	if err := s.gateAsk([]gateRequest{request}, true, nil); err != nil { // no plan text for a held write: never Confirm in the window
 		return nil, err
 	}
 	return s.sendWriteOnce(endpoint, body, s.takeGrant(request))
@@ -138,7 +134,7 @@ func (s *relaySession) takeGrant(r gateRequest) string {
 func (s *relaySession) gateAsk(reqs []gateRequest, held bool, plan *gateConfirm) error {
 	if len(reqs) > gateAskMax {
 		return gateStop("refused", "GATE_ASK_TOO_LARGE", fmt.Sprintf("this change sends %d requests, more than one confirmation on the phone or in Home Assistant covers (%d); nothing was sent", len(reqs), gateAskMax),
-			"Tell the user nothing changed. Plan it again in smaller parts (a batch of at most 10 automations or scripts).")
+			"Tell the user nothing changed. Plan it again in smaller parts.")
 	}
 	chat, lang := s.gateChat(), confirmLanguage(s.lang)
 	if chat && (s.call == nil || s.call.outside == nil) { // not a chat app's apply job (ha_call): it can't wait for the phone
