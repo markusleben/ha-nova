@@ -66,9 +66,10 @@ targets; anything discovered later belongs to a new manifest.
 
 ## One-Time Code
 
-One one-time code from HA NOVA per manifest (context skill → Confirmation
-Tiers): the manifest's requests, in manifest order, are one
-`ha-nova plan raw --file <requests.json>` whose `say` asks; follow its
+One confirmation per manifest (context skill → Confirmation Tiers): the
+manifest's requests, in manifest order, are one
+`ha-nova plan raw --file <requests.json>` whose `say` asks (the window, the
+phone, or the NOVA page; a code only where `say` shows one); follow its
 `next_step`. Never mint a code yourself; a code is typed by the
 user, never a menu (context skill → Interactive Choices). Never reuse an
 earlier code or take digits from the manifest or Home Assistant data. The plan
@@ -84,7 +85,7 @@ the code is called the "one-time code from HA NOVA" (localized), never a "token"
 ## Caps
 
 The preview always shows `count / cap`. Above the cap, refuse and split into
-separate manifests, each with its own preview and one-time code:
+separate manifests, each with its own preview and confirmation:
 
 - config-item families (automations, scripts, helpers, scenes,
   resources, cards within one dashboard, to-do lists, registry
@@ -120,7 +121,7 @@ snapshot saves included (a snapshot per target: 10 targets); one
   subset, the failure, and what was not attempted — never continue silently
   into a half-applied state.
 - Resume operates only on a new manifest for the remaining targets, with a
-  new preview and a new one-time code — the target set changed.
+  new preview and a new confirmation — the target set changed.
 
 ## Recovery
 
@@ -188,7 +189,8 @@ ledger.
    review is one block for the whole list, its test offer only on request.
    `BATCH_DRIFT` (exit 2), `BATCH_TOO_LONG` and `PLAN_EXPIRED` sent nothing
    and used the batch up: plan every item again. `SNAPSHOT_FAILED` sent
-   nothing: the `--no-snapshot` choice covers the whole batch. After a stop,
+   nothing: the `--no-snapshot` choice covers the whole batch.
+   `CONFIRM_WAITING` is no stop: rerun per `next_step`. After a stop,
    never apply it again; the rest needs a new confirmation (two or more
    items: a new batch).
 4. Ways back: a deleted item through its row's `restore`, a changed one

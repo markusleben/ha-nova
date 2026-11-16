@@ -4,7 +4,7 @@
 
 Generated from `cli/confirmed_actions.go`; do not edit by hand. **The CLI decides, not this list.** Whether a plan needs the person's own confirmation is the plan's `tier` and `plan.confirm`, and how it asks is its `say` and `next_step`: follow those. This list only helps you explain what such a confirmation is about. An action missing here can still need one, a listed one can be ordinary in a given home, and a plain "yes" in chat never stands in for one.
 
-The person confirms in a window on their computer, on their linked phone, or by typing the four-digit code from HA NOVA, as the plan's `say` asks.
+The person confirms in the window on their computer, on their linked phone, or on the NOVA page in Home Assistant, as the plan's `say` asks; a four-digit code from HA NOVA only where `say` shows one.
 
 The examples read as single actions, but running or saving an automation, script, or scene that reaches a listed action is rated the same way, and so is a read HA NOVA needs for its check that fails. If the person asks which actions need this, answer in plain words in their language; never show the reason codes or this table.
 
