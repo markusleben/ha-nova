@@ -34,6 +34,7 @@ type gateGrantKey struct{}
 type relayGate struct {
 	checked, on, moved bool
 	grants             map[[32]byte][]string
+	me                 *gateWindowState // gateMe, once read
 }
 
 type gateRequest struct {
@@ -52,8 +53,9 @@ func gateKey(r gateRequest) [32]byte {
 var gateApproval *atomic.Int32
 
 const (
-	gateAsking  int32 = 1 // the change's own ask
-	gateLinking int32 = 2 // a phone-link ask before it (gateMoveFirst)
+	gateAsking       int32 = 1 // the change's own ask
+	gateLinking      int32 = 2 // a phone-link ask before it (gateMoveFirst)
+	gateAskingWindow int32 = 3 // the change's own ask, with Confirm in this computer's window
 )
 
 // The waiting window (nativeWindow's code with other buttons) and what its

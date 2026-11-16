@@ -21,11 +21,15 @@ import (
 // (channelRelay). A raw plan with an item only a skill's typed mark makes
 // typed keeps this computer's asks (the Relay neither sees nor needs the
 // mark; an item typed by itself meets the gate when the Relay holds it, as
-// on any such plan), and so do dashboard and rooms plans, whose requests
-// apply can't name before it sends them. "" without a gate, as on an older App.
+// on any such plan), and so do rooms plans and dashboard saves, whose
+// requests apply can't name before it sends them, and a chat app's
+// dashboard delete. A computer's dashboard delete is one request
+// (dashboardDeletePayload): the Relay's ask is its only one. "" without a
+// gate, as on an older App.
 func gateChannel(e *tierEngine, plan storedPlan) (string, error) {
 	on, err := e.s.gateOn()
-	local := plan.Kind == "raw" && e.markTyped || plan.Kind == "rooms" || plan.ConfigAction != nil && plan.ConfigAction.Domain == "dashboard"
+	dashboard := plan.ConfigAction != nil && plan.ConfigAction.Domain == "dashboard"
+	local := plan.Kind == "raw" && e.markTyped || plan.Kind == "rooms" || dashboard && (plan.ConfigAction.Op != "delete" || e.s.gateChat())
 	if err != nil || !on || local {
 		return "", err
 	}
@@ -34,10 +38,18 @@ func gateChannel(e *tierEngine, plan storedPlan) (string, error) {
 
 // relayAskSay: where a relay plan is confirmed. A chat app's relay plan is
 // one on a standalone container (the App's bridge never makes one): only
-// the phone linked to it confirms.
+// the phone linked to it confirms. A computer whose window the App lets
+// confirm, and that shows one, names it first (gateMe); one waiting for
+// its old version's sign-out says how to finish it.
 func relayAskSay(lang string, s *relaySession) string {
 	if s.gateChat() {
 		return confirmT(lang, "say.relay_ask_container")
+	}
+	switch me := s.gateMe(); {
+	case me.window && s.windowHere():
+		return confirmT(lang, "say.relay_window_ask")
+	case me.why == "legacy_cleanup_pending":
+		return confirmT(lang, "say.relay_ask") + " " + gateWindowWhy(lang, me.why, s.server)
 	}
 	return confirmT(lang, "say.relay_ask")
 }
@@ -117,8 +129,13 @@ func gateFirstRequests(fresh storedPlan, batch batchReplan) []gateRequest {
 	return nil
 }
 
-// configRequests: an automation or script write, or a delete and its reload.
+// configRequests: an automation or script write, or a delete and its
+// reload; a dashboard delete's one request.
 func configRequests(action configAction) []gateRequest {
+	if action.Domain == "dashboard" && action.Op == "delete" {
+		data, _ := json.Marshal(dashboardDeletePayload(action))
+		return []gateRequest{{"ws", data}}
+	}
 	if action.Domain == "dashboard" {
 		return nil
 	}

@@ -6,9 +6,10 @@ import (
 )
 
 // On a gated App this computer asks no phone itself (phoneDeaf): the gate
-// refuses its phone-event subscriptions. A plan that keeps local asks (a
-// dashboard plan) takes the window, else a code, and the Relay asks for
-// its typed request; a phone change needs the window.
+// refuses its phone-event subscriptions. A computer's dashboard delete asks
+// the Relay once for its one request, as every relay plan does (0.32 spec
+// §6), with Confirm in the window where the App offers it; a phone change
+// needs the window.
 
 func heldWithoutGrant(send gateSend) any {
 	if send.grant == "" {
@@ -39,32 +40,35 @@ func subscribed(h *writeHarness) bool {
 
 func TestGatedLocalPlanNeverAsksThePhone(t *testing.T) {
 	deleteHome := []string{"delete", "--domain", "dashboard", "--id", "home-main"}
-	t.Run("headless: a code, then the Relay's ask", func(t *testing.T) {
+	const deleteSent = "ws " + `{"dashboard_id":"home_main","type":"lovelace/dashboards/delete"}`
+	t.Run("headless: the Relay's one ask", func(t *testing.T) {
 		g := &fakeGate{wsHeld: true, hold: heldWithoutGrant}
 		h, p := gatedDashboard(t, g)
 		exit, env := h.run(runPlanCommand, deleteHome...)
-		if exit != 3 || env.Tier != "typed" || env.Plan.Channel != channelChat || !fourDigits.MatchString(env.Plan.Code) || strings.Contains(env.Say, "phone") {
+		if exit != 3 || env.Tier != "typed" || env.Plan.Channel != channelRelay || env.Plan.Code != "" || !strings.HasSuffix(env.Say, confirmT("en", "say.relay_ask")) {
 			t.Fatalf("plan: exit %d %+v say %q", exit, env.Plan, env.Say)
-		}
-		exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID, "--confirm", env.Plan.Code)
-		asks, _, sends := g.snapshot()
-		if exit != 0 || applied.Status != "verified" || len(asks) != 1 || len(sends) != 2 || sends[0].grant != "" || sends[1].grant != "grant-ask1" ||
-			!strings.Contains(asks[0][0], "lovelace/dashboards/delete") || len(p.sent) != 0 || subscribed(h) {
-			t.Fatalf("apply: exit %d %+v asks %q sends %+v phone %v", exit, applied.Error, asks, sends, p.sent)
-		}
-	})
-	t.Run("a window, then the Relay's ask", func(t *testing.T) {
-		g := &fakeGate{wsHeld: true, hold: heldWithoutGrant}
-		h, p := gatedDashboard(t, g)
-		useWindow(t, windowConfirmed)
-		exit, env := h.run(runPlanCommand, deleteHome...)
-		if exit != 3 || env.Plan.Channel != channelWindow || !strings.HasSuffix(env.Say, sayWindowAsk("en")) || strings.Contains(env.NextStep, "phone") {
-			t.Fatalf("plan: exit %d %+v say %q next %q", exit, env.Plan, env.Say, env.NextStep)
 		}
 		exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
 		asks, _, sends := g.snapshot()
-		if exit != 0 || applied.Status != "verified" || len(asks) != 1 || len(sends) != 2 || sends[1].grant != "grant-ask1" || len(p.sent) != 0 || subscribed(h) {
+		if exit != 0 || applied.Status != "verified" || len(asks) != 1 || len(asks[0]) != 1 || asks[0][0] != deleteSent || len(sends) != 1 || sends[0].key != deleteSent || sends[0].grant != "grant-ask1" ||
+			len(p.sent) != 0 || subscribed(h) {
 			t.Fatalf("apply: exit %d %+v asks %q sends %+v phone %v", exit, applied.Error, asks, sends, p.sent)
+		}
+	})
+	t.Run("the App offers the window: Confirm there", func(t *testing.T) {
+		g := &fakeGate{wsHeld: true, hold: heldWithoutGrant, release: make(chan struct{}), phones: true, channels: []string{"window"}}
+		h, p := gatedDashboard(t, g)
+		h.log.me.Store(map[string]any{"window": true, "why": "on"})
+		shown, _ := windowConfirmStubs(t, func(windowText) windowAnswer { return windowConfirmed }, nil)
+		exit, env := h.run(runPlanCommand, deleteHome...)
+		if exit != 3 || env.Plan.Channel != channelRelay || !strings.HasSuffix(env.Say, confirmT("en", "say.relay_window_ask")) || !strings.Contains(env.NextStep, "a confirmation window on their computer") {
+			t.Fatalf("plan: exit %d %+v say %q next %q", exit, env.Plan, env.Say, env.NextStep)
+		}
+		exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
+		asks, ops, sends := g.snapshot()
+		if exit != 0 || applied.Status != "verified" || len(asks) != 1 || len(sends) != 1 || sends[0].grant != "grant-ask1" || !strings.Contains(strings.Join(ops, ","), "window") ||
+			len(*shown) != 1 || len(p.sent) != 0 || subscribed(h) {
+			t.Fatalf("apply: exit %d %+v asks %q ops %v sends %+v phone %v", exit, applied.Error, asks, ops, sends, p.sent)
 		}
 	})
 	t.Run("ungated: the phone as today", func(t *testing.T) {

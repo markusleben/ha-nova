@@ -198,6 +198,9 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 	if shownChannel == channelWindow && phoneLinkedHere(e.s) {
 		where = "a confirmation window on their computer and a notification on their linked phone (the first answer counts)"
 	}
+	if shownChannel == channelRelay && !e.s.gateChat() && e.s.gateMe().window && e.s.windowHere() {
+		where = "a confirmation window on their computer, or their linked phone or Home Assistant (the NOVA page)"
+	}
 	// A selected server tempts the agent to prefix apply too; Claude Code's
 	// allow rule (claude_apply_rule.go) matches only the bare command.
 	bare := ""
