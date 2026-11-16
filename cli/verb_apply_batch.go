@@ -122,7 +122,7 @@ func computeBatchPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, st
 		}
 	}
 	env.Result, env.ask = batchPlanResult(rp), batchPhoneGoal(rp)
-	env.Say = batchSay(s, plan, env.ask, list+"\n"+tail, len(rp.members))
+	env.Say = batchSay(s, env, plan, env.ask, list+"\n"+tail, len(rp.members))
 	env.NextStep = batchNextStep(env.NextStep, plan)
 	return rp, plan, nil
 }

@@ -91,6 +91,9 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration, con
 				phase()
 			case answer == windowConfirmed && page != "": // a waiting window's first button: open Home Assistant (or hide the window), never approve
 				_ = gateOpenHA(page)
+			default: // closed without an answer, or it never opened: the phone and the page are left
+				confirms = false
+				phase()
 			}
 		case got := <-polls:
 			switch {

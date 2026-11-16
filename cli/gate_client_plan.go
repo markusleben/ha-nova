@@ -39,19 +39,29 @@ func gateChannel(e *tierEngine, plan storedPlan) (string, error) {
 // relayAskSay: where a relay plan is confirmed. A chat app's relay plan is
 // one on a standalone container (the App's bridge never makes one): only
 // the phone linked to it confirms. A computer whose window the App lets
-// confirm, and that shows one, names it first (gateMe); one waiting for
-// its old version's sign-out says how to finish it.
-func relayAskSay(lang string, s *relaySession) string {
+// confirm, that shows one, and whose window fits the plan (prompted: its
+// Prompt set) names it first, in env's next_step too (gateMe); one waiting
+// for its old version's sign-out says how to finish it.
+func relayAskSay(lang string, s *relaySession, prompted storedPlan, env *verbEnvelope) string {
 	if s.gateChat() {
 		return confirmT(lang, "say.relay_ask_container")
 	}
 	switch me := s.gateMe(); {
-	case me.window && s.windowHere():
+	case me.window && s.windowHere() && relayPlanFits(prompted):
+		env.NextStep = strings.Replace(env.NextStep, channelAsks[channelRelay]+" asks them", "a confirmation window on their computer, or their linked phone or Home Assistant (the NOVA page), asks them", 1)
 		return confirmT(lang, "say.relay_window_ask")
 	case me.why == "legacy_cleanup_pending":
 		return confirmT(lang, "say.relay_ask") + " " + gateWindowWhy(lang, me.why, s.server)
 	}
 	return confirmT(lang, "say.relay_ask")
+}
+
+// relayPlanFits: the plan's window shows it uncut, with or without its
+// copy note (as windowTooLong measures), so it can Confirm there.
+func relayPlanFits(plan storedPlan) bool {
+	_, fits := windowFits(textLang(plan), confirmText(plan, false))
+	_, fitsBare := windowFits(textLang(plan), confirmText(plan, true))
+	return fits && fitsBare
 }
 
 // gateBeforeSend runs before a typed plan's first write (applyPlan): a

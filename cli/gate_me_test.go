@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // The agent and the waiting window say why this computer's window can't
@@ -88,5 +91,50 @@ func TestCloudGateMeEndpoint(t *testing.T) {
 	}
 	if _, ok := cloudFunctionalEndpoint("POST", gateMeRoute); ok {
 		t.Fatal("only GET")
+	}
+}
+
+// The window is named only where its Confirm can show the plan: a plan too
+// long for it keeps the phone and the page in say and next_step.
+func TestGateMeNamesTheWindowOnlyForAPlanItFits(t *testing.T) {
+	saved := windowAvailable
+	t.Cleanup(func() { windowAvailable = saved })
+	windowAvailable = func() bool { return true }
+	s := &relaySession{paths: runtimePaths{ConfigFile: filepath.Join(t.TempDir(), "none.json")},
+		gate: &relayGate{checked: true, on: true, me: &gateWindowState{window: true, why: "on"}}}
+	step := "Run apply: " + channelAsks[channelRelay] + " asks them."
+	short := storedPlan{Kind: "call", Lang: "en", Prompt: "Unlock?\n\nFront door"}
+	long := storedPlan{Kind: "call", Lang: "en", Prompt: "Turn these off?\n\n" + strings.Repeat("• light.room\n", 60)}
+	env := &verbEnvelope{NextStep: step}
+	if got := relayAskSay("en", s, short, env); got != confirmT("en", "say.relay_window_ask") || !strings.Contains(env.NextStep, "a confirmation window on their computer") {
+		t.Fatalf("fits: %q / %q", got, env.NextStep)
+	}
+	env = &verbEnvelope{NextStep: step}
+	if got := relayAskSay("en", s, long, env); got != confirmT("en", "say.relay_ask") || env.NextStep != step {
+		t.Fatalf("too long: %q / %q", got, env.NextStep)
+	}
+}
+
+// A job's waiting answer stops naming the window once it closed or never
+// opened, while the ask still waits for the phone and the page.
+func TestGateWaitingPhaseLeavesAFailedWindow(t *testing.T) {
+	saved := gateApproval
+	t.Cleanup(func() { gateApproval = saved })
+	gateApproval = &atomic.Int32{}
+	g := &fakeGate{release: make(chan struct{}), phones: true, channels: []string{"window"}}
+	var during, after int32
+	windowConfirmStubs(t, func(windowText) windowAnswer {
+		during = gateApproval.Load()
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			after = gateApproval.Load()
+			close(g.release)
+		}()
+		return windowFailed
+	}, nil)
+	h := gatedHarness(t, newFakeHA(), g)
+	plan := h.plan("lock.unlock", "lock.front").Plan
+	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 0 || during != gateAskingWindow || after != gateAsking {
+		t.Fatalf("exit %d %+v; phase %d then %d", exit, env.Error, during, after)
 	}
 }

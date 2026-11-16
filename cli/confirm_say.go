@@ -31,7 +31,9 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 	case plan.Confirm == "code" && plan.Channel == channelPhone:
 		parts = append(parts, sayPhoneAsk(lang, sayGoal(e, env, plan, subject).button(lang), linkedPlatform(e.s.paths)))
 	case plan.Confirm == "code" && plan.Channel == channelRelay:
-		parts = append(parts, relayAskSay(lang, e.s))
+		prompted := plan
+		prompted.Prompt = confirmationPrompt(e, env, plan, subject) // what its window would show
+		parts = append(parts, relayAskSay(lang, e.s, prompted, env))
 	case plan.Confirm == "code": // the code block is always last
 		text := strings.Join(parts, " ")
 		if plan.Channel == channelChat && chatCall == nil { // a chat app has no note: claude.ai moved it below the code (mcp_plain.go)
