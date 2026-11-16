@@ -148,7 +148,62 @@ func readLegacyLinkSecret(ctx context.Context, service, account string, ui Secre
 	return secret, response.Found, nil
 }
 
-func legacyCleanupSession(paths runtimePaths, cfg runtimeConfig) (*relaySession, error) {
+// purgeLegacyLinkCopiesForUninstall: a cleanup cut after its copy was kept
+// can leave a live sign-in there, so uninstall --purge revokes every copy any
+// profile holds, requires invalid_grant, and only then removes exactly that
+// copy. Any failure stops the purge with config.json kept, so running it
+// again retries. The 0.31 items themselves stay: removing them could make
+// macOS ask.
+func purgeLegacyLinkCopiesForUninstall(paths runtimePaths) error {
+	if !legacyCleanupApplies() {
+		return nil
+	}
+	doc, err := loadConfigDocumentOrEmpty(paths.ConfigFile)
+	if err != nil {
+		return err
+	}
+	backend, err := legacyCleanupBackend()
+	if err != nil {
+		return err
+	}
+	exact, ok := backend.(exactOAuthSecretBackend)
+	if !ok {
+		return errors.New("this secure storage can't remove a sign-in copy exactly")
+	}
+	ctx := context.Background()
+	for _, name := range doc.profileNames() {
+		cfg, _ := doc.flatProfile(name)
+		if cfg.ProfileID == "" {
+			continue
+		}
+		for _, service := range legacyLinkServices {
+			copyService := oauthLegacyCleanupServicePrefix + string(legacyLinkState(service))
+			value, found, err := backend.Get(ctx, copyService, cfg.ProfileID, SecretStoreForbidUI)
+			if err != nil {
+				return err
+			}
+			if !found {
+				continue
+			}
+			envelope, err := decodeOAuthSecretEnvelope(value, legacyLinkState(service), cfg.ProfileID)
+			if err != nil {
+				return err
+			}
+			revokeCtx, cancel := context.WithTimeout(ctx, legacyCleanupRevokeTimeout)
+			err = legacyLinkRevoke(revokeCtx, envelope)
+			cancel()
+			if err != nil {
+				return fmt.Errorf("server %q: %w", name, err)
+			}
+			if err := exact.DeleteExact(ctx, copyService, cfg.ProfileID, value, SecretStoreForbidUI); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+var legacyCleanupSession = func(paths runtimePaths, cfg runtimeConfig) (*relaySession, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	transport, err := selectRelayTransport(ctx, cfg, "", false)
 	if err != nil {

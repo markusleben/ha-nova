@@ -26,20 +26,22 @@ func purgeCloudAuthorizationsForUninstall(
 	if err != nil {
 		return err
 	}
-	if len(targets) == 0 {
-		return nil
+	if len(targets) != 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		executions, err := prepareCloudPurgeExecutions(
+			ctx,
+			paths,
+			targets,
+		)
+		if err != nil {
+			return err
+		}
+		if err := executeCloudPurgePlans(ctx, paths, executions, report); err != nil {
+			return err
+		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-	executions, err := prepareCloudPurgeExecutions(
-		ctx,
-		paths,
-		targets,
-	)
-	if err != nil {
-		return err
-	}
-	return executeCloudPurgePlans(ctx, paths, executions, report)
+	return purgeLegacyLinkCopiesForUninstall(paths) // every profile, Link or not
 }
 
 func collectCloudPurgeTargets(path string) ([]cloudPurgeTarget, error) {
