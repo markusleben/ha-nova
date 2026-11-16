@@ -75,6 +75,12 @@ func darwinOAuthGet(
 		return nil, false, darwinOAuthNotAvailable
 	}
 	gens, status := darwinKeychainGenerations(slot, account)
+	if status == darwinOAuthSuccess && newestDarwinKeychainGeneration(gens) < 0 {
+		// A write that lands between the two lookups (adds the next generation
+		// under the name already read, then removes the other) hides both for
+		// one pass, so an empty slot is read once more before it counts.
+		gens, status = darwinKeychainGenerations(slot, account)
+	}
 	if status != darwinOAuthSuccess {
 		return nil, false, status
 	}

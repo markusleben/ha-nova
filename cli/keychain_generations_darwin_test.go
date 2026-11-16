@@ -127,6 +127,25 @@ func TestDarwinKeychainCutBeforeRemovingTheOldGenerationReadsTheNewOne(t *testin
 	}
 }
 
+func TestDarwinKeychainReadThatRacesARewriteStillFindsTheKey(t *testing.T) {
+	fake := installFakeDarwinKeychain(t)
+	slot := darwinKeychainSlot(deviceCredentialService, "markus")
+	fake.items[slot+"#2\x00markus"] = []byte("5\nold")
+	find := darwinOAuthSecurity.findGeneric
+	lookups := 0
+	darwinOAuthSecurity.findGeneric = func(k uintptr, sl uint32, s *byte, al uint32, a *byte, length *uint32, data *unsafe.Pointer, item *uintptr) darwinOAuthOSStatus {
+		status := find(k, sl, s, al, a, length, data, item)
+		if lookups++; lookups == 1 {
+			fake.items[slot+"#1\x00markus"] = []byte("6\nnew")
+			delete(fake.items, slot+"#2\x00markus")
+		}
+		return status
+	}
+	if got := mustReadDarwinSlot(t, deviceCredentialService); got != "new" {
+		t.Fatalf("read %q, want the rewritten key", got)
+	}
+}
+
 func TestDarwinKeychainRefusesMalformedOrTiedGenerations(t *testing.T) {
 	for name, items := range map[string]map[string]string{
 		"no header": {"#1": "secret"},
