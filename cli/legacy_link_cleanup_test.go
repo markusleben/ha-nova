@@ -22,18 +22,18 @@ type legacyCleanupFixture struct {
 func newLegacyCleanupFixture(t *testing.T) *legacyCleanupFixture {
 	t.Helper()
 	f := &legacyCleanupFixture{backend: newMemoryOAuthSecretBackend(), legacy: map[string]string{}}
-	saved := []any{legacyCleanupApplies, legacyLinkSecretRead, legacyCleanupBackend, legacyLinkRevoke, legacyCleanupWindow, legacyCleanupReport}
+	saved := []any{legacyCleanupApplies, legacyLinkSecretRead, legacyCleanupBackend, legacyLinkRevoke, legacyCleanupPending, legacyCleanupReport}
 	t.Cleanup(func() {
 		legacyCleanupApplies = saved[0].(func() bool)
 		legacyLinkSecretRead = saved[1].(func(context.Context, string, string, SecretStoreUIPolicy) (string, bool, error))
 		legacyCleanupBackend = saved[2].(func() (OAuthSecretBackend, error))
 		legacyLinkRevoke = saved[3].(func(context.Context, OAuthSecretEnvelope) error)
-		legacyCleanupWindow = saved[4].(func(runtimePaths, runtimeConfig) (bool, error))
+		legacyCleanupPending = saved[4].(func(runtimePaths, runtimeConfig) (bool, error))
 		legacyCleanupReport = saved[5].(func(runtimePaths, runtimeConfig) error)
 	})
 	legacyCleanupApplies = func() bool { return true }
 	legacyCleanupBackend = func() (OAuthSecretBackend, error) { return f.backend, nil }
-	legacyCleanupWindow = func(runtimePaths, runtimeConfig) (bool, error) { return true, nil }
+	legacyCleanupPending = func(runtimePaths, runtimeConfig) (bool, error) { return true, nil }
 	legacyLinkSecretRead = func(_ context.Context, service, account string, ui SecretStoreUIPolicy) (string, bool, error) {
 		f.reads = append(f.reads, string(ui)+":"+service)
 		value, ok := f.legacy[service]
@@ -75,11 +75,11 @@ func TestLegacyLinkCleanupSkipsWhereNothingTurnsOn(t *testing.T) {
 		t.Fatalf("not a Keychain pairing: outcome %d, reported %d, reads %v", outcome, f.reported, f.reads)
 	}
 	legacyCleanupApplies = func() bool { return true }
-	legacyCleanupWindow = func(runtimePaths, runtimeConfig) (bool, error) { return false, nil }
+	legacyCleanupPending = func(runtimePaths, runtimeConfig) (bool, error) { return false, nil }
 	if outcome, _, _ := f.run(true); outcome != legacyCleanupNotNeeded || f.reported != 0 || len(f.reads) != 0 {
-		t.Fatalf("App without the window: outcome %d, reported %d, reads %v", outcome, f.reported, f.reads)
+		t.Fatalf("cleanup not pending on the App: outcome %d, reported %d, reads %v", outcome, f.reported, f.reads)
 	}
-	legacyCleanupWindow = func(runtimePaths, runtimeConfig) (bool, error) { return false, errors.New("offline") }
+	legacyCleanupPending = func(runtimePaths, runtimeConfig) (bool, error) { return false, errors.New("offline") }
 	if outcome, _, _ := f.run(true); outcome != legacyCleanupIncomplete || f.reported != 0 {
 		t.Fatalf("unreachable App: outcome %d, reported %d", outcome, f.reported)
 	}
@@ -233,14 +233,10 @@ func TestLegacyLinkCleanupFailsClosed(t *testing.T) {
 func TestLegacyLinkCleanupTellsTheRetry(t *testing.T) {
 	newLegacyCleanupFixture(t)
 	legacyCleanupReport = func(runtimePaths, runtimeConfig) error { return errors.New("offline") }
-	var shown []string
-	showLegacyLinkCleanup(func(b setupBlock) {
-		for _, line := range b.Lines {
-			shown = append(shown, line.plain())
-		}
-	}, runtimePaths{}, runtimeConfig{ProfileID: "default"}, true)
-	if len(shown) != 1 || !strings.Contains(shown[0], "run: ha-nova setup") || !strings.Contains(shown[0], "Everything else works") {
-		t.Fatalf("shown %q", shown)
+	var out strings.Builder
+	note := printLegacyLinkCleanup(&out, runtimePaths{}, runtimeConfig{ProfileID: "default"}, true)
+	if out.Len() != 0 || !strings.Contains(note, "run: ha-nova setup") || !strings.Contains(note, "Everything else works") {
+		t.Fatalf("printed %q, closing line %q", out.String(), note)
 	}
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -55,11 +56,9 @@ func completeNamedProfileClientRepair(
 	printHumanInfo(
 		"Repaired client integration using the selected server profile's verified secure connection.",
 	)
-	showLegacyLinkCleanup(func(b setupBlock) {
-		for _, line := range b.Lines {
-			printHumanInfo("%s", line.plain())
-		}
-	}, paths, cfg, isInteractiveTTY() && stdoutIsInteractiveTTY())
+	if note := printLegacyLinkCleanup(os.Stdout, paths, cfg, isInteractiveTTY() && stdoutIsInteractiveTTY()); note != "" {
+		printHumanInfo("%s", note)
+	}
 	return 0
 }
 

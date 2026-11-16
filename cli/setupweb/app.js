@@ -282,7 +282,7 @@
   // What step 3 did, on step 4 and a re-run's end: green when it went
   // through, amber when it didn't or still needs you.
   const amberNotes = ['setup.page.home.note_rule_failed', 'setup.page.home.note_link_failed', 'setup.page.home.note_chat_off_failed',
-    'setup.page.home.note_clients_failed', 'setup.page.home.note_web_off'];
+    'setup.page.home.note_clients_failed', 'setup.page.home.note_web_off', 'setup.cleanup.incomplete'];
   const note = (msg) => el('p', { class: amberNotes.includes(msg.key) ? 'note' : 'note done' }, say(msg));
   const helpers = { t, el, row, head, note, button, link, format, render, post, accepts, announce, claudeWhere, codexWhere, state: () => state };
   const { copybar, ...later } = window.novaSteps(helpers);

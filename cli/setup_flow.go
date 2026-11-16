@@ -61,6 +61,7 @@ type setupFlow struct {
 	pageControlled bool
 	pageQuit       bool
 	pageNotes      []*setupPageMsg
+	cleanupNote    setupMsg // legacy_link_cleanup.go: setup's closing line about the old version
 	pageChatLink   string
 	pageOrgLink    string
 	pageChatPhoned bool // a phone confirms for chat apps: step 4 says to allow every tool in Claude

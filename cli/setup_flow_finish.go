@@ -117,7 +117,14 @@ func (f *setupFlow) verifyDevice() setupStepResult {
 	if err := persistDeviceSetupState(f.paths, f.cfg, &f.state, f.lifecycleMarker...); err != nil {
 		return f.failErr(err)
 	}
-	showLegacyLinkCleanup(func(b setupBlock) { f.ui.show(setupView{Blocks: []setupBlock{b}}) }, f.paths, f.cfg, true)
+	f.cleanupNote = legacyLinkCleanupInSetup(func(b setupBlock) { f.ui.show(setupView{Blocks: []setupBlock{b}}) }, f.paths, f.cfg, true)
+	if !f.cleanupNote.empty() && f.page != nil && !f.page.inTerminal() {
+		note := setupPageText("setup.cleanup.done")
+		if f.cleanupNote.Key == "setup.cleanup.incomplete" {
+			note = setupPageText("setup.cleanup.incomplete", "command", gateCleanupCommand(f.cfg.profileName()))
+		}
+		f.pageNotes = append(f.pageNotes, note)
+	}
 	if f.connectionMode == setupConnectionHybrid && !f.cfg.Cloud.ready() && !f.cloudPausedAtStart {
 		f.ui.show(setupView{Blocks: []setupBlock{setupParagraph(setupText("setup.verify.adding_link"))}})
 		cfg, err := addHybridCloudAfterLocal(
@@ -233,6 +240,9 @@ func (f *setupFlow) afterSkills() setupStepResult {
 		return setupDone(exit)
 	}
 	result := f.finish()
+	if !f.cleanupNote.empty() && !onPage {
+		f.ui.note(f.cleanupNote.plain()) // after the outcome, so it stays on screen
+	}
 	if result.done && result.code == 0 {
 		f.offerAppUpdate()
 	}

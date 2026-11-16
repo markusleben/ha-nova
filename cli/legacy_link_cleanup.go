@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"time"
 )
 
@@ -44,7 +46,7 @@ var (
 	legacyLinkSecretRead = readLegacyLinkSecret
 	legacyCleanupBackend = newNativeOAuthSecretBackend
 	legacyLinkRevoke     = revokeAndVerifyCloudAuthorization
-	legacyCleanupWindow  = legacyCleanupAppHasWindow
+	legacyCleanupPending = legacyCleanupPendingOnApp
 	legacyCleanupReport  = reportLegacyCleanupComplete
 )
 
@@ -56,11 +58,11 @@ func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool,
 	if !legacyCleanupApplies() {
 		return legacyCleanupNotNeeded, 0
 	}
-	window, err := legacyCleanupWindow(paths, cfg)
+	pending, err := legacyCleanupPending(paths, cfg)
 	if err != nil {
 		return legacyCleanupIncomplete, 0
 	}
-	if !window {
+	if !pending {
 		return legacyCleanupNotNeeded, 0
 	}
 	if cfg.ProfileID != "" { // Link stored its sign-ins under the profile's id, never its name
@@ -154,16 +156,25 @@ func legacyCleanupSession(paths runtimePaths, cfg runtimeConfig) (*relaySession,
 	return relaySessionOn(paths, cfg, transport, ctx, cancel), nil
 }
 
-// legacyCleanupAppHasWindow: an App without the window contract has nothing
-// the cleanup would turn on, so setup asks nothing there.
-func legacyCleanupAppHasWindow(paths runtimePaths, cfg runtimeConfig) (bool, error) {
+// legacyCleanupPendingOnApp: the NOVA App still holds this paired computer's
+// cleanup open (/gate/v1/me). A computer whose cleanup is complete, an App
+// without the window contract, and the old shared token have nothing the
+// cleanup would turn on, so setup asks nothing there.
+func legacyCleanupPendingOnApp(paths runtimePaths, cfg runtimeConfig) (bool, error) {
 	s, err := legacyCleanupSession(paths, cfg)
 	if err != nil {
 		return false, err
 	}
 	defer s.close()
-	_, window, err := s.readGate()
-	return window, err
+	if !s.transport.DeviceMode {
+		return false, nil
+	}
+	on, window, err := s.readGate()
+	if err != nil {
+		return false, err
+	}
+	s.gate = &relayGate{checked: true, on: on, window: on && window}
+	return s.readGateMe().why == "legacy_cleanup_pending", nil
 }
 
 func reportLegacyCleanupComplete(paths runtimePaths, cfg runtimeConfig) error {
@@ -184,16 +195,28 @@ func reportLegacyCleanupComplete(paths runtimePaths, cfg runtimeConfig) error {
 	return nil
 }
 
-// showLegacyLinkCleanup runs the cleanup as setup's last step for a paired
-// computer and says what it did, or the retry when it couldn't finish.
-func showLegacyLinkCleanup(show func(setupBlock), paths runtimePaths, cfg runtimeConfig, prompt bool) {
+// legacyLinkCleanupInSetup runs the cleanup in a setup a person started,
+// showing the introduction right before macOS asks, and returns the line
+// setup ends on: what it did, or the retry when it couldn't finish (empty:
+// nothing to say).
+func legacyLinkCleanupInSetup(show func(setupBlock), paths runtimePaths, cfg runtimeConfig, prompt bool) setupMsg {
 	outcome, revoked := finishLegacyLinkCleanup(paths, cfg, prompt, func() {
 		show(setupParagraph(setupText("setup.cleanup.intro")))
 	})
 	switch {
 	case outcome == legacyCleanupIncomplete:
-		show(setupParagraph(setupText("setup.cleanup.incomplete", "command", gateCleanupCommand(cfg.profileName()))))
+		return setupText("setup.cleanup.incomplete", "command", gateCleanupCommand(cfg.profileName()))
 	case outcome == legacyCleanupComplete && revoked > 0:
-		show(setupSuccess(setupText("setup.cleanup.done")))
+		return setupText("setup.cleanup.done")
 	}
+	return setupMsg{}
+}
+
+// printLegacyLinkCleanup: the same for the terminal-only setup paths.
+func printLegacyLinkCleanup(out io.Writer, paths runtimePaths, cfg runtimeConfig, prompt bool) string {
+	return legacyLinkCleanupInSetup(func(b setupBlock) {
+		for _, line := range b.Lines {
+			fmt.Fprintln(out, "  "+line.plain())
+		}
+	}, paths, cfg, prompt).plain()
 }
