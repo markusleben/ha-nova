@@ -22,8 +22,9 @@ type legacyCleanupFixture struct {
 func newLegacyCleanupFixture(t *testing.T) *legacyCleanupFixture {
 	t.Helper()
 	f := &legacyCleanupFixture{backend: newMemoryOAuthSecretBackend(), legacy: map[string]string{}}
-	saved := []any{legacyCleanupApplies, legacyLinkSecretRead, legacyCleanupBackend, legacyLinkRevoke, legacyCleanupPending, legacyCleanupReport}
+	saved := []any{legacyCleanupApplies, legacyLinkSecretRead, legacyCleanupBackend, legacyLinkRevoke, legacyCleanupPending, legacyCleanupReport, legacyCleanupPromptContext}
 	t.Cleanup(func() {
+		legacyCleanupPromptContext = saved[6].(func() bool)
 		legacyCleanupApplies = saved[0].(func() bool)
 		legacyLinkSecretRead = saved[1].(func(context.Context, string, string, SecretStoreUIPolicy) (string, bool, error))
 		legacyCleanupBackend = saved[2].(func() (OAuthSecretBackend, error))
@@ -32,6 +33,7 @@ func newLegacyCleanupFixture(t *testing.T) *legacyCleanupFixture {
 		legacyCleanupReport = saved[5].(func(runtimePaths, runtimeConfig) error)
 	})
 	legacyCleanupApplies = func() bool { return true }
+	legacyCleanupPromptContext = func() bool { return true }
 	legacyCleanupBackend = func() (OAuthSecretBackend, error) { return f.backend, nil }
 	legacyCleanupPending = func(runtimePaths, runtimeConfig) (bool, error) { return true, nil }
 	legacyLinkSecretRead = func(_ context.Context, service, account string, ui SecretStoreUIPolicy) (string, bool, error) {
@@ -116,6 +118,21 @@ func TestLegacyLinkCleanupNeverAsksOutsideSetup(t *testing.T) {
 	for _, read := range f.reads {
 		if strings.HasPrefix(read, string(SecretStoreAllowUI)) {
 			t.Fatalf("asked macOS outside setup: %v", f.reads)
+		}
+	}
+}
+
+func TestLegacyLinkCleanupNeverAsksWithoutADesktopSession(t *testing.T) {
+	f := newLegacyCleanupFixture(t)
+	f.legacy[oauthSecretCurrentService] = legacyTestEnvelope(OAuthSecretCurrent, "default", "old-current")
+	f.locked = true
+	legacyCleanupPromptContext = func() bool { return false }
+	if outcome, _, intros := f.run(true); outcome != legacyCleanupIncomplete || intros != 0 || f.reported != 0 {
+		t.Fatalf("over SSH: outcome %d, intros %d, reported %d", outcome, intros, f.reported)
+	}
+	for _, read := range f.reads {
+		if strings.HasPrefix(read, string(SecretStoreAllowUI)) {
+			t.Fatalf("asked macOS without a desktop session: %v", f.reads)
 		}
 	}
 }

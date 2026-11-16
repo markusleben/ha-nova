@@ -42,12 +42,13 @@ const (
 const legacyCleanupRevokeTimeout = 30 * time.Second
 
 var (
-	legacyCleanupApplies = func() bool { return pairingCredentialStore() == "keychain" }
-	legacyLinkSecretRead = readLegacyLinkSecret
-	legacyCleanupBackend = newNativeOAuthSecretBackend
-	legacyLinkRevoke     = revokeAndVerifyCloudAuthorization
-	legacyCleanupPending = legacyCleanupPendingOnApp
-	legacyCleanupReport  = reportLegacyCleanupComplete
+	legacyCleanupApplies       = func() bool { return pairingCredentialStore() == "keychain" }
+	legacyLinkSecretRead       = readLegacyLinkSecret
+	legacyCleanupBackend       = newNativeOAuthSecretBackend
+	legacyLinkRevoke           = revokeAndVerifyCloudAuthorization
+	legacyCleanupPending       = legacyCleanupPendingOnApp
+	legacyCleanupPromptContext = platformNativeSecretPromptContextAvailable
+	legacyCleanupReport        = reportLegacyCleanupComplete
 )
 
 // finishLegacyLinkCleanup signs this profile's old version out of Home
@@ -58,6 +59,7 @@ func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool,
 	if !legacyCleanupApplies() {
 		return legacyCleanupNotNeeded, 0
 	}
+	prompt = prompt && legacyCleanupPromptContext() // never over SSH or without a desktop session
 	pending, err := legacyCleanupPending(paths, cfg)
 	if err != nil {
 		return legacyCleanupIncomplete, 0
@@ -170,11 +172,15 @@ func legacyCleanupPendingOnApp(paths runtimePaths, cfg runtimeConfig) (bool, err
 		return false, nil
 	}
 	on, window, err := s.readGate()
-	if err != nil {
+	if err != nil || !on || !window {
 		return false, err
 	}
-	s.gate = &relayGate{checked: true, on: on, window: on && window}
-	return s.readGateMe().why == "legacy_cleanup_pending", nil
+	s.gate = &relayGate{checked: true, on: true, window: true}
+	why := s.readGateMe().why
+	if why == "" {
+		return false, errors.New("the NOVA App's window state can't be read")
+	}
+	return why == "legacy_cleanup_pending", nil
 }
 
 func reportLegacyCleanupComplete(paths runtimePaths, cfg runtimeConfig) error {

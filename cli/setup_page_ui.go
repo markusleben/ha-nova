@@ -301,6 +301,9 @@ func (ui *setupWebUI) show(view setupView) {
 		if block.Kind == setupBlockSuccess && block.Lines[0].Key == "setup.verify.device_ok" {
 			ui.setRow("connect", "ok", nil)
 		}
+		if block.Kind == setupBlockParagraph && block.Lines[0].Key == "setup.cleanup.intro" { // shown before macOS asks (legacy_link_cleanup.go)
+			ui.setRow("connect", "run", setupPageText("setup.cleanup.intro"))
+		}
 	}
 }
 
