@@ -78,7 +78,7 @@ func selectDoctorRoute(ctx context.Context, paths runtimePaths, cfg runtimeConfi
 			return stop()
 		}
 		printHumanErr("This computer was connected, but its key is gone from the password store.")
-		printHumanErr("Connect it again with one Home Assistant sign-in: run '%s'.", rePairCommand(activeServerProfile()))
+		printHumanErr("Connect it again with one Home Assistant sign-in: run %s.", rePairNextStep(activeServerProfile(), cfg.Cloud != nil))
 		return stop()
 	}
 	if activeServerProfile() != defaultServerProfileName {

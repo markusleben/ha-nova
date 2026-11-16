@@ -95,11 +95,43 @@ func TestArmSignInPairingRefusesAMalformedPredecessor(t *testing.T) {
 }
 
 func TestDeviceNeedsRePairNamesTheProfilesSetupCommand(t *testing.T) {
-	for profile, want := range map[string]string{"": "run: ha-nova setup", defaultServerProfileName: "run: ha-nova setup", "home": "run: ha-nova setup --server home"} {
-		err := deviceNeedsRePair(profile)
-		if !errors.Is(err, errDeviceNeedsRePair) || !strings.HasSuffix(err.Error(), want) {
-			t.Errorf("%q: %v", profile, err)
+	for _, test := range []struct {
+		profile string
+		link    bool
+		want    string
+	}{
+		{"", false, "run: ha-nova setup"},
+		{defaultServerProfileName, true, "run: ha-nova setup"},
+		{"home", false, "run: ha-nova setup --server home"},
+		// pairing refuses beside Link, so a named hybrid profile removes it first
+		{"home", true, "run: ha-nova cloud remove --server home, then ha-nova setup --server home"},
+	} {
+		err := deviceNeedsRePair(test.profile, test.link)
+		if !errors.Is(err, errDeviceNeedsRePair) || !strings.HasSuffix(err.Error(), test.want) {
+			t.Errorf("%q link=%v: %v", test.profile, test.link, err)
 		}
+	}
+}
+
+// When this profile's own key still opens the named entry, it is this
+// profile's own: retired without a question, as the pairing's tail would.
+func TestSignInPredecessorOpenedByThisProfilesKeyIsRetiredWithoutAQuestion(t *testing.T) {
+	paths := setupServerCommandTest(t, predecessorConfig(true))
+	setServerSelectionOverride("home")
+	cfg, err := loadConfig(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := generateTestDeviceCredential(t)
+	if err := writeDeviceCredential(key); err != nil {
+		t.Fatal(err)
+	}
+	id := parseDeviceCredential(key).deviceID
+	var sent string
+	var out bytes.Buffer
+	got, err := signInPredecessorToRetire(nil, &out, paths, cfg, predecessorArm(t, `,"previous":{"device_id":"`+id+`","name":"Mac"}`, &sent))
+	if err != nil || got != id || out.Len() != 0 {
+		t.Fatalf("got %q, %v, said %q", got, err, out.String())
 	}
 }
 
@@ -124,7 +156,7 @@ func TestNamedProfileWithoutItsKeyIsToldToPairAgainBySignIn(t *testing.T) {
 	paths := setupServerCommandTest(t, predecessorConfig(true))
 	setServerSelectionOverride("home")
 	_, output := captureCommandOutput(t, func() int { return runDoctor(paths, []string{"--quiet"}) })
-	if !strings.Contains(output, "run 'ha-nova setup --server home'") || strings.Contains(output, "pair --server") {
+	if !strings.Contains(output, "run ha-nova setup --server home.") || strings.Contains(output, "pair --server") {
 		t.Fatalf("doctor:\n%s", output)
 	}
 	_, err := newRelaySession(paths, verbOptions{})

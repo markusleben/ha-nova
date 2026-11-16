@@ -15,6 +15,8 @@ import (
 // removed at activation only after the owner's yes to its name: another
 // computer with a copied config, or this computer's default profile, may
 // still use that id. A pairing that can't ask leaves it listed and says so.
+// Asked only when this profile's key can't vouch for the entry (on a Mac
+// after the update, its old key is out of reach).
 func signInPredecessorToRetire(
 	reader *bufio.Reader,
 	out io.Writer,
@@ -31,6 +33,11 @@ func signInPredecessorToRetire(
 	armed, err := armSignInPairingRequest(ctx, ingress, CloudEndpointPairArm, signInArmRequest{PreviousInstallID: cfg.ClientInstallID})
 	if err != nil || armed.Previous == nil {
 		return "", nil // the pairing's own arm reports a failure; an App before 0.32 names nothing
+	}
+	// This profile's own key still opens that entry: it is this profile's, and
+	// the pairing retires it after promotion anyway (retireOnSameRelay).
+	if own := parseDeviceCredential(readPreviousLocalDevice(cfg, SecretStoreForbidUI).credential); own != nil && own.deviceID == armed.Previous.DeviceID {
+		return armed.Previous.DeviceID, nil
 	}
 	name := terminalSafeName(armed.Previous.Name)
 	if reader == nil {

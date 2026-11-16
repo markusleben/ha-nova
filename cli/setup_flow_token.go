@@ -6,7 +6,7 @@ import "strings"
 // Relay Auth Token and put it into the NOVA App.
 func (f *setupFlow) stepToken() setupStepResult {
 	if profile := activeServerProfile(); profile != defaultServerProfileName {
-		return f.fail(setupText("setup.error.named_no_shared_key", "command", rePairCommand(profile)))
+		return f.fail(setupText("setup.error.named_no_shared_key", "command", rePairNextStep(profile, f.cfg.Cloud != nil)))
 	}
 	// Any route into the token step is the legacy path by definition:
 	// verify must judge the token, never a leftover device pairing.

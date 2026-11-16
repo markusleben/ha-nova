@@ -25,15 +25,21 @@ var errDeviceNeedsRePair = errors.New("this computer needs to be paired again")
 
 // deviceNeedsRePair names the one next step: setup pairs the profile again
 // with one Home Assistant sign-in.
-func deviceNeedsRePair(profile string) error {
-	return fmt.Errorf("%w (one Home Assistant sign-in, about a minute); run: %s", errDeviceNeedsRePair, rePairCommand(profile))
+func deviceNeedsRePair(profile string, link bool) error {
+	return fmt.Errorf("%w (one Home Assistant sign-in, about a minute); run: %s", errDeviceNeedsRePair, rePairNextStep(profile, link))
 }
 
-func rePairCommand(profile string) string {
-	if profile != "" && profile != defaultServerProfileName {
-		return "ha-nova setup --server " + profile
+// rePairNextStep: setup pairs a profile again by sign-in; a named profile
+// that also keeps Home Assistant Link removes it first, since pairing
+// refuses beside it (validateLocalDeviceReplacementAllowedWithPolicy).
+func rePairNextStep(profile string, link bool) string {
+	if profile == "" || profile == defaultServerProfileName {
+		return "ha-nova setup"
 	}
-	return "ha-nova setup"
+	if link {
+		return "ha-nova cloud remove --server " + profile + ", then ha-nova setup --server " + profile
+	}
+	return "ha-nova setup --server " + profile
 }
 
 func localRelayRepairCommand(
@@ -154,7 +160,7 @@ func relayFunctionalTransport(cfg runtimeConfig) (baseURL string, client *http.C
 		// 0.32 update: its new slots start empty, spec §5.3): fail closed. In a
 		// paired flow the device credential IS the auth, so never silently
 		// downgrade to the shared token over the unpinned plain port.
-		return "", nil, "", false, deviceNeedsRePair(cfg.profileName())
+		return "", nil, "", false, deviceNeedsRePair(cfg.profileName(), cfg.Cloud != nil)
 	}
 	if profile := cfg.profileName(); profile != defaultServerProfileName {
 		// Non-default server profiles are device-credential-only: the machine-wide
