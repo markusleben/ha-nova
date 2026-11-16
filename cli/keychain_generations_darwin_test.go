@@ -3,9 +3,14 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 type fakeDarwinKeychain struct {
@@ -19,6 +24,10 @@ func installFakeDarwinKeychain(t *testing.T) *fakeDarwinKeychain {
 	t.Helper()
 	t.Setenv("HA_NOVA_KEYRING_SERVICE", "")
 	fake := &fakeDarwinKeychain{items: map[string][]byte{}}
+	lockPath := darwinKeychainWriteLockPath
+	lock := filepath.Join(t.TempDir(), "keychain-write.lock")
+	darwinKeychainWriteLockPath = func() (string, error) { return lock, nil }
+	t.Cleanup(func() { darwinKeychainWriteLockPath = lockPath })
 	find, add, free, del, release := darwinOAuthSecurity.findGeneric, darwinOAuthSecurity.addGeneric,
 		darwinOAuthSecurity.freeContent, darwinOAuthSecurity.deleteItem, darwinOAuthSecurity.cfRelease
 	t.Cleanup(func() {
@@ -143,6 +152,30 @@ func TestDarwinKeychainReadThatRacesARewriteStillFindsTheKey(t *testing.T) {
 	}
 	if got := mustReadDarwinSlot(t, deviceCredentialService); got != "new" {
 		t.Fatalf("read %q, want the rewritten key", got)
+	}
+}
+
+func TestDarwinKeychainWriterWaitsForAnotherProcessWriter(t *testing.T) {
+	fake := installFakeDarwinKeychain(t)
+	path, _ := darwinKeychainWriteLockPath()
+	other, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
+	if err := unix.Flock(int(other.Fd()), unix.LOCK_EX); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan darwinOAuthOSStatus, 1)
+	go func() { done <- darwinOAuthSet(deviceCredentialService, "markus", []byte("key")) }()
+	select {
+	case status := <-done:
+		t.Fatalf("wrote while another writer held the lock: %d", status)
+	case <-time.After(150 * time.Millisecond):
+	}
+	_ = unix.Flock(int(other.Fd()), unix.LOCK_UN)
+	if status := <-done; status != darwinOAuthSuccess || len(fake.items) != 1 {
+		t.Fatalf("write after the lock was released: status=%d items=%v", status, fake.names())
 	}
 }
 
