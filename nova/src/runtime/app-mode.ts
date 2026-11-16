@@ -332,6 +332,7 @@ function buildFunctionalHandlers(
       snapshotRoot: input.snapshotRoot,
       relayInstanceId,
       gate: true,
+      window: true,
       now: input.now,
       logger: input.logger,
     }),

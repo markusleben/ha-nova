@@ -48,6 +48,9 @@ type fakeGate struct {
 	windowOps   []any            // op window's answers in turn (then approved)
 	windowSlow  time.Duration    // op window answers this late
 	waitFor     map[string]any   // one wait's answer by ask id, once (a status or a state)
+	presence    []any            // each open's presence (nil: none sent)
+	aways       int              // op away calls (kept out of ops: they come from their own goroutine)
+	onAway      func()
 }
 
 func (g *fakeGate) snapshot() (asks [][]string, ops []string, sends []gateSend) {
@@ -73,7 +76,7 @@ func (g *fakeGate) ask(ctx context.Context, p map[string]any) any {
 			keys = append(keys, fmt.Sprint(request["endpoint"], " ", string(body)))
 		}
 		g.mu.Lock()
-		g.asks, g.ops = append(g.asks, keys), append(g.ops, "open")
+		g.asks, g.ops, g.presence = append(g.asks, keys), append(g.ops, "open"), append(g.presence, p["presence"])
 		id := fmt.Sprint("ask", len(g.asks))
 		g.mu.Unlock()
 		select {
@@ -143,6 +146,15 @@ func (g *fakeGate) ask(ctx context.Context, p map[string]any) any {
 	case p["op"] == "cancel":
 		g.op("cancel")
 		return map[string]any{"state": "cancelled"}
+	case p["op"] == "away":
+		g.mu.Lock()
+		g.aways++
+		onAway := g.onAway
+		g.mu.Unlock()
+		if onAway != nil {
+			onAway()
+		}
+		return map[string]any{"state": "waiting"}
 	case p["op"] == "window":
 		g.mu.Lock()
 		defer g.mu.Unlock()

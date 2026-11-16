@@ -191,7 +191,7 @@ func (s *relaySession) gateOn() (bool, error) {
 	if known {
 		return on, nil
 	}
-	on, err := s.readGate()
+	on, window, err := s.readGate()
 	seen := gateSeen(s.paths, s.server)
 	switch {
 	case err != nil && seen:
@@ -210,38 +210,40 @@ func (s *relaySession) gateOn() (bool, error) {
 	if s.gate == nil {
 		s.gate = &relayGate{}
 	}
-	s.gate.checked, s.gate.on = true, on
+	s.gate.checked, s.gate.on, s.gate.window = true, on, on && window
 	return on, nil
 }
 
-// readGate reads the Relay's /health once: gate 1 means it gates. The read
+// readGate reads the Relay's /health once: gate 1 means it gates, window 1
+// that it has the window contract (0.32 spec §4). The read
 // has a time of its own, the reserve a check leaves (afterCheck): the checks
 // before it may have spent the session's read budget (a large home or a
 // slow Link, #827).
-func (s *relaySession) readGate() (bool, error) {
+func (s *relaySession) readGate() (on, window bool, err error) {
 	ctx, cancel := context.WithTimeout(planAsks, afterCheck)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(s.transport.BaseURL, "/")+"/health", nil)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 	req.Header.Set("Authorization", "Bearer "+s.transport.Credential)
 	resp, err := s.transport.Client.Do(req)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 	defer resp.Body.Close()
 	raw, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	var health struct {
 		OK   bool `json:"ok"`
 		Data struct {
-			Gate int `json:"gate"`
+			Gate   int `json:"gate"`
+			Window int `json:"window"`
 		} `json:"data"`
 	}
 	if err != nil || resp.StatusCode != http.StatusOK || json.Unmarshal(raw, &health) != nil || !health.OK {
-		return false, fmt.Errorf("the Relay's health answer (HTTP %d) can't be read", resp.StatusCode)
+		return false, false, fmt.Errorf("the Relay's health answer (HTTP %d) can't be read", resp.StatusCode)
 	}
-	return health.Data.Gate == 1, nil
+	return health.Data.Gate == 1, health.Data.Window == 1, nil
 }
 
 // gateSeen: this server profile once saw the gate (config.json; user-writable,

@@ -86,7 +86,7 @@ function functionalAuthorize(deps: PairingListenerDeps, transport: Transport) {
 // shared access it once served is gone, so every other request is refused.
 export function createBootstrapListener(deps: PairingListenerDeps): RequestListener {
   const router = createRouter();
-  router.register("GET", "/pair/v1/info", createPairV1InfoHandler({ manager: deps.pairingManager, relayVersion: deps.relayVersion, signIn: true }));
+  router.register("GET", "/pair/v1/info", createPairV1InfoHandler({ manager: deps.pairingManager, relayVersion: deps.relayVersion, signIn: true, window: deps.functional.me !== undefined }));
   router.register("POST", "/pair/v1/start", createPairV1StartHandler({ manager: deps.pairingManager, relayVersion: deps.relayVersion }));
   router.register("POST", "/pair/v1/finish", createPairV1FinishHandler({ manager: deps.pairingManager, relayVersion: deps.relayVersion }));
 

@@ -41,7 +41,7 @@ func (s *relaySession) gateMe() gateWindowState {
 
 func (s *relaySession) readGateMe() gateWindowState {
 	s.mu.Lock()
-	on := s.gate != nil && s.gate.checked && s.gate.on // read already (gateOn): a gated App
+	on := s.gate != nil && s.gate.checked && s.gate.window // read already (gateOn): a gated App with the window contract
 	s.mu.Unlock()
 	if !on || s.gateChat() {
 		return gateWindowState{}
