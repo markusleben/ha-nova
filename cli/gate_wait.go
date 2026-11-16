@@ -50,6 +50,13 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration, con
 	page := s.gatePageURL(askID)
 	waiting := confirmT(confirmLanguage(s.lang), "gate.waiting")
 	window, raced, confirms := (<-chan windowAnswer)(nil), func(<-chan windowAnswer) bool { return false }, false
+	phase := func() { // what a job's waiting answer names (waitingForApproval)
+		if flag := s.approval(); flag != nil && confirms {
+			flag.Store(gateAskingWindow)
+		} else if flag != nil && !link {
+			flag.Store(gateAsking)
+		}
+	}
 	switch {
 	case link:
 		waiting = confirmT(confirmLanguage(s.lang), "gate.link_waiting")
@@ -58,6 +65,7 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration, con
 		fallthrough
 	default:
 		window, raced, confirms = s.gateWindow(ctx, deadline, page, confirm, false)
+		phase()
 	}
 	fmt.Fprintln(s.call.stderr(), waiting)
 	stopped := func() (string, string) {
@@ -80,8 +88,12 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration, con
 					return state, grant
 				}
 				window, raced, confirms = s.gateWindow(ctx, deadline, page, confirm, true) // still open for the phone and the page
+				phase()
 			case answer == windowConfirmed && page != "": // a waiting window's first button: open Home Assistant (or hide the window), never approve
 				_ = gateOpenHA(page)
+			default: // closed without an answer, or it never opened: the phone and the page are left
+				confirms = false
+				phase()
 			}
 		case got := <-polls:
 			switch {
@@ -150,6 +162,11 @@ func (s *relaySession) gateWindow(ctx context.Context, deadline time.Time, page 
 	text, first, ok := confirmT(lang, "gate.window", "approve", confirmT(lang, "page.approve")), confirmT(lang, "gate.open"), confirmT(lang, "gate.windows_ok")
 	if page == "" {
 		text, first, ok = confirmT(lang, "gate.window_page"), confirmT(lang, "gate.hide"), confirmT(lang, "gate.windows_hide")
+	}
+	if confirm == nil { // why this window can't confirm
+		if why := gateWindowWhy(lang, s.gateMe().why, s.server); why != "" {
+			text = why + " " + text
+		}
 	}
 	if runtime.GOOS == "windows" {
 		text += "\n\n" + ok
