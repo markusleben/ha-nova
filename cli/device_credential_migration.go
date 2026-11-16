@@ -91,6 +91,10 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 		currentService := deviceCredentialServiceForProfile(profile)
 		pendingService := deviceCredentialPendingServiceForProfile(profile)
 		current, currentOK, currentErr := readCredentialSlot(currentService)
+		if currentErr != nil && deviceKeyNeverCopiedToFile {
+			deviceKeyStaysInKeychain = true // an unreadable slot may hold a key the switch would hide
+			return false, errDeviceKeyStaysInKeychain
+		}
 		if currentErr != nil {
 			return false, nil // keyring unreadable (locked/absent): the pairing path takes over
 		}

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+
+	"github.com/zalando/go-keyring"
 )
 
 func TestMacKeepsKeychainKeysInsteadOfCopyingThemToFiles(t *testing.T) {
@@ -42,6 +44,28 @@ func TestMacKeepsKeychainKeysInsteadOfCopyingThemToFiles(t *testing.T) {
 	setActiveServerProfile(defaultServerProfileName)
 	if got, ok, err := readDeviceCredential(); err != nil || !ok || got != defaultKey {
 		t.Fatalf("the other profile's Keychain key must stay readable: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestMacUnreadableKeychainSlotKeepsTheKeychain(t *testing.T) {
+	for _, broken := range []string{"cabin", "zulu"} { // sorted before and after the healthy default
+		withDeviceStorageTestHome(t)
+		resetKeyringDeviceSlots(t)
+		deviceKeyNeverCopiedToFile = true
+		if err := writeDeviceCredential(generateTestDeviceCredential(t)); err != nil {
+			t.Fatal(err)
+		}
+		if err := keyring.Set(deviceCredentialServiceForProfile(broken), secretUser(), "not-a-key"); err != nil {
+			t.Fatal(err)
+		}
+		setActiveServerProfile(broken)
+		migrated, err := migrateKeyringDeviceCredentialToFile()
+		if !errors.Is(err, errDeviceKeyStaysInKeychain) || migrated || !deviceKeyStaysInKeychain {
+			t.Errorf("%s: migrated=%v err=%v keychain=%v, want the Keychain kept", broken, migrated, err, deviceKeyStaysInKeychain)
+		}
+		_ = keyring.Delete(deviceCredentialServiceForProfile(broken), secretUser())
+		setActiveServerProfile(defaultServerProfileName)
+		deviceKeyNeverCopiedToFile, deviceKeyStaysInKeychain = false, false
 	}
 }
 
