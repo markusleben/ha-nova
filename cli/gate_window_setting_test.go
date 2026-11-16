@@ -73,7 +73,7 @@ func TestGateWindowOffSendsAPendingKeyOnlyToItsOwnEndpoint(t *testing.T) {
 	t.Cleanup(other.Close)
 	paths := setupServerCommandTest(t, `{"schema_version":1}`)
 	for _, pending := range []string{"", "https://127.0.0.1:1"} {
-		cfg := runtimeConfig{HAHost: "ha", HAURL: "http://ha:8123", RelaySecureBaseURL: other.URL, RelaySpkiPin: "live-pin", PendingSecureBaseURL: pending, RoutePolicy: routePolicyLocal}
+		cfg := runtimeConfig{HAHost: "ha", HAURL: "http://ha:8123", RelayBaseURL: "http://ha:8791", RelaySecureBaseURL: other.URL, RelaySpkiPin: "live-pin", PendingSecureBaseURL: pending, RoutePolicy: routePolicyLocal}
 		if pending != "" {
 			cfg.PendingSpkiPin = "pending-pin"
 		}
