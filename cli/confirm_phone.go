@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -201,6 +200,7 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 	// The result or the withdrawal waits for an ask still in flight
 	// (bounded): a late ask would land after it. The tag is kept either way,
 	// so the next question clears whatever stays (a clear iOS didn't run).
+	landed := make(chan struct{})
 	end := func(bodies ...map[string]any) {
 		until := time.Now().Add(phoneTellSpan) // one bound for all: an MCP call stays under its 60 s
 		select {
@@ -208,9 +208,10 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 		case <-time.After(phoneTellSpan):
 		}
 		notePhoneResult(s.paths, setup.owner, all, tag)
-		tellPhones(s, notify, all, bodies, until)
+		done := tellPhones(s, notify, all, bodies, until)
+		go func() { <-sending; <-done; close(landed) }()
 	}
-	reply = phoneReply{once: &sync.Once{},
+	reply = phoneReply{tag: tag, landed: landed, once: &sync.Once{},
 		tell:  func(title, body string) { end(phoneResultPayload(title, body, tag)) },
 		quiet: func(title, body string) { end(phoneWithdrawnPayloads(title, body, tag)...) },
 	}
@@ -246,67 +247,6 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 			if answer = judgePhoneEvent(ev, ok, no, setup); answer != phoneIgnored {
 				return answer, reply
 			}
-		}
-	}
-}
-
-// sendPhones sends to every phone in parallel, bounded by the wait: a
-// stalled notify service never holds apply past the confirmation deadline.
-// It returns the services that accepted it, and a channel closed once
-// every send has finished (one may outlive the wait).
-func sendPhones(ctx context.Context, s *relaySession, notify func(*relaySession, string, map[string]any) error, targets []phoneTarget, body func(phoneTarget) map[string]any) ([]string, <-chan struct{}) {
-	accepted, sending := make(chan string, len(targets)), make(chan struct{})
-	var wg sync.WaitGroup
-	wg.Add(len(targets))
-	go func() { wg.Wait(); close(sending) }()
-	for _, target := range targets {
-		go func() {
-			defer wg.Done()
-			if notify(s, target.Service, body(target)) == nil {
-				accepted <- target.Service
-				return
-			}
-			accepted <- ""
-		}()
-	}
-	var sent []string
-	for range targets {
-		select {
-		case service := <-accepted:
-			if service != "" {
-				sent = append(sent, service)
-			}
-		case <-ctx.Done():
-			return sent, sending
-		}
-	}
-	sort.Strings(sent)
-	return sent, sending
-}
-
-// tellPhones sends bodies to every phone the ask reached, in order per
-// phone, phones in parallel, for at most until (best effort: a stale ask
-// has dead buttons, since its ids died with the wait; a slow Relay never
-// delays apply).
-func tellPhones(s *relaySession, notify func(*relaySession, string, map[string]any) error, services []string, bodies []map[string]any, until time.Time) {
-	done := make(chan struct{}, len(services))
-	for _, service := range services {
-		go func() {
-			for i, body := range bodies {
-				if i > 0 && time.Now().After(until) { // the first always goes, as a single body did
-					break
-				}
-				_ = notify(s, service, body)
-			}
-			done <- struct{}{}
-		}()
-	}
-	timeout := time.After(time.Until(until))
-	for range services {
-		select {
-		case <-done:
-		case <-timeout:
-			return
 		}
 	}
 }

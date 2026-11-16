@@ -1,4 +1,6 @@
 {
+  "phone.window.title": "Confirmed in the window on {host}",
+  "phone.window.body": "{goal}",
   "chat_phone.link.body": "Unlocks and deletes from Claude and ChatGPT will then ask you first.",
   "chat_phone.link.body_use": "Unlocking, opening a garage door or gate, and turning off the alarm from Claude and ChatGPT will then ask you first.",
   "chat_phone.link.button": "Allow",

@@ -155,6 +155,7 @@ func loadGateRelay(file string) (*runtimeConfig, error) {
 }
 
 func gateHandler(paths runtimePaths, secret [32]byte) http.Handler {
+	ends := &gatePhoneEnds{entries: map[string]*gatePhoneEnd{}, send: gateWindowEmit}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Values("Authorization")
 		token, bearer := "", false
@@ -166,12 +167,16 @@ func gateHandler(paths runtimePaths, secret [32]byte) http.Handler {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if r.Method != http.MethodPost || !slices.Contains([]string{"/check", "/redact", "/ask", "/phone", "/texts"}, r.URL.Path) {
+		if r.Method != http.MethodPost || !slices.Contains([]string{"/check", "/redact", "/ask", "/phone", "/phone/end", "/texts"}, r.URL.Path) {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
 		if r.URL.Path == "/ask" || r.URL.Path == "/phone" {
-			gateAskHandler(paths, w, r)
+			gateAskHandler(paths, w, r, ends)
+			return
+		}
+		if r.URL.Path == "/phone/end" {
+			ends.handler(paths, w, r)
 			return
 		}
 		if r.URL.Path == "/texts" {
