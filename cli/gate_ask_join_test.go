@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -72,12 +74,12 @@ func TestGateJoinedAskThatEnded(t *testing.T) {
 	}
 }
 
-// A kept id for other requests (an edited file) or past the ask's life is
-// never joined: the apply asks afresh.
+// A kept id for other requests (an edited file) is never joined: the
+// apply asks afresh.
 func TestGateKeptAskOnlyForTheSameRequests(t *testing.T) {
 	for name, edit := range map[string]func(*gateKeptAsk){
 		"other requests": func(k *gateKeptAsk) { k.Digest = strings.Repeat("0", 64) },
-		"past its life":  func(k *gateKeptAsk) { k.Until = time.Now().Add(-time.Second) },
+		"no id":          func(k *gateKeptAsk) { k.AskID = "" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			g := &fakeGate{release: make(chan struct{})}
@@ -90,7 +92,9 @@ func TestGateKeptAskOnlyForTheSameRequests(t *testing.T) {
 				t.Fatalf("kept %+v %v", kept, ok)
 			}
 			edit(&kept)
-			gateKeepAsk(h.paths, plan.ID, kept)
+			if err := gateKeepAsk(h.paths, plan.ID, kept); err != nil {
+				t.Fatal(err)
+			}
 			close(g.release)
 			exit, env := h.run(runApplyCommand, "--plan", plan.ID)
 			asks, _, sends := g.snapshot()
@@ -98,5 +102,60 @@ func TestGateKeptAskOnlyForTheSameRequests(t *testing.T) {
 				t.Fatalf("exit %d %+v; asks %d sends %+v", exit, env.Error, len(asks), sends)
 			}
 		})
+	}
+}
+
+// A Cancel in the window that races the end of the command's wait wins:
+// the ask is cancelled, and nothing is kept to join.
+func TestGateWaitEndRacingACancel(t *testing.T) {
+	g := &fakeGate{release: make(chan struct{})}
+	windowConfirmStubs(t, func(windowText) windowAnswer { return windowNoAnswer }, func(ctx context.Context, _ string) windowAnswer {
+		<-ctx.Done()
+		return windowCancelled
+	})
+	h := gatedHarness(t, newFakeHA(), g)
+	plan := h.plan("lock.unlock", "lock.front").Plan
+	exit, env := gateWaitEnds(t, h, plan.ID)
+	_, ops, sends := g.snapshot()
+	if exit != verbExitRefused || env.Error == nil || env.Error.Code != "CONFIRM_DECLINED" || !slices.Contains(ops, "cancel") || len(sends) != 0 {
+		t.Fatalf("exit %d %+v; ops %v sends %+v", exit, env.Error, ops, sends)
+	}
+	if _, err := os.Stat(gateKeptPath(h.paths, plan.ID)); !os.IsNotExist(err) {
+		t.Fatalf("kept after a Cancel: %v", err)
+	}
+}
+
+// An ask that can't be kept (an unwritable plan folder) is ended, never
+// promised to the next apply.
+func TestGateAskThatCantBeKeptEnds(t *testing.T) {
+	g := &fakeGate{release: make(chan struct{})}
+	h := gatedHarness(t, newFakeHA(), g)
+	plan := h.plan("lock.unlock", "lock.front").Plan
+	if err := os.MkdirAll(filepath.Join(gateKeptPath(h.paths, plan.ID), "x"), 0o700); err != nil { // a folder where the kept ask would go
+		t.Fatal(err)
+	}
+	exit, env := gateWaitEnds(t, h, plan.ID)
+	_, ops, _ := g.snapshot()
+	if exit != verbExitRefused || env.Error == nil || env.Error.Code != "CONFIRM_CANCELLED" || !slices.Contains(ops, "cancel") {
+		t.Fatalf("exit %d %+v; ops %v", exit, env.Error, ops)
+	}
+}
+
+// A plan used up or refused for good ends the ask kept for it.
+func TestGateKeptAskEndsWithItsPlan(t *testing.T) {
+	g := &fakeGate{release: make(chan struct{})}
+	h := gatedHarness(t, newFakeHA(), g)
+	plan := h.plan("lock.unlock", "lock.front").Plan
+	gateWaitEnds(t, h, plan.ID)
+	saved := verbNow
+	t.Cleanup(func() { verbNow = saved })
+	verbNow = func() time.Time { return saved().Add(planTTL + time.Second) } // the plan expired meanwhile
+	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
+	_, ops, sends := g.snapshot()
+	if exit != verbExitRefused || env.Error == nil || env.Error.Code != "PLAN_EXPIRED" || !slices.Contains(ops, "cancel") || len(sends) != 0 {
+		t.Fatalf("exit %d %+v; ops %v sends %+v", exit, env.Error, ops, sends)
+	}
+	if _, err := os.Stat(gateKeptPath(h.paths, plan.ID)); !os.IsNotExist(err) {
+		t.Fatalf("kept ask left behind: %v", err)
 	}
 }

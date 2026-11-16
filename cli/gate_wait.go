@@ -71,6 +71,10 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration, con
 	}
 	fmt.Fprintln(s.call.stderr(), waiting)
 	stopped := func() (string, string) {
+		if raced(window) { // a Cancel that raced the end wins: nothing keeps or joins this ask
+			s.gateCancel(askID)
+			return "cancelled", ""
+		}
 		if planAsks.Err() == nil && s.approval() == nil && !link { // the CLI's own wait ended: gateAsk keeps the ask for the plan's next apply, or ends it
 			return "timeout", ""
 		}

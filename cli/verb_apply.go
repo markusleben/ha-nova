@@ -50,7 +50,8 @@ area once; when one write fails, the earlier ones are put back, and the
 result names anything that could not be. Raw plans (plan raw) send their
 items in order, each checked again right before it is sent, and stop at the
 first one that does not go through (--no-snapshot after a failed leading save).
-Exit: 0 verified/accepted, 2 drift, 4 refused/missing/expired/wrong code,
+Exit: 0 verified/accepted, 2 drift, 3 still waiting for the user's OK (run
+the same apply again: it joins the same ask), 4 refused/missing/expired/wrong code,
 5 target gone, 6 unverified/failed, 7 outcome unknown (verify; never retry).`
 
 var planIDPattern = regexp.MustCompile(`^p_[0-9a-f]{12}$`)
@@ -178,6 +179,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	defer func() {
 		if consumed {
 			_ = os.Remove(claimed)
+			s.gateDropKept(id) // an ask kept for it can't be used any more (gate_ask_join.go)
 		}
 	}()
 	plan, err := readPlanFile(claimed)
