@@ -228,6 +228,7 @@ func (e *tierEngine) consumer(automation, match, on string, depth int, fires fun
 		if firstPresent(trigger, "trigger", "platform") == "template" {
 			e.note(noteTemplates) // its dependencies are computed at runtime
 		}
+		e.lateTrigger(trigger)
 	}
 	row := len(e.consumers) // listed before the walk, so a nested repeat can upgrade its match
 	e.consumers = append(e.consumers, tierConsumer{Automation: automation})

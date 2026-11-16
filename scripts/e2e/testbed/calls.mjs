@@ -22,6 +22,7 @@
 // thermostat checks were the computer's own plans, never a gated request.
 import { execFileSync } from "node:child_process";
 import { relay } from "./phone.mjs";
+import { mRowChecks } from "./mrow.mjs";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const names = (plan) => (plan.consumers ?? []).map((c) => c.automation);
@@ -62,9 +63,11 @@ export async function callChecks({ ha, ws, cli, apply, check, watchdogID, loadAu
   const light = cli("plan", "call", "light.turn_off", "light.bed_light");
   check("an ordinary light call stays ordinary in this home", light.tier === "ordinary" && light.plan?.confirm === "none" && !names(light).includes(watchdog),
     "tier " + (light.tier ?? light.error?.code) + ", confirm " + light.plan?.confirm + ", consumers " + (names(light).join(",") || "-"));
+  // Its templated target is rated by every cover it could pick (D6): the bed's garages among them.
   const cover = cli("plan", "call", "cover.close_cover", "cover.kitchen_window");
-  check("a cover call still asks: the cover watchdog is its consumer", cover.tier === "typed" && names(cover).includes(watchdog) && codes(cover).includes("UNRESOLVED_TARGET"),
+  check("a cover call still asks: the cover watchdog is its consumer and could open a garage", cover.tier === "typed" && names(cover).includes(watchdog) && codes(cover).includes("ACCESS_COVER"),
     "tier " + (cover.tier ?? cover.error?.code) + ", consumers " + (names(cover).join(",") || "-") + ", reasons " + (codes(cover).join(",") || "-"));
+  await mRowChecks({ ha, ws, cli, check, loadAutomations, gated });
   await placeChecks({ ha, ws, cli, check, loadAutomations, planWrite });
 
   const thermostats = [], entries = [];
