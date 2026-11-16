@@ -22,6 +22,9 @@ export function openInertRegistry(): DeviceRegistry {
     revoke: () => false,
     setConfirmPhone: () => false,
     disableWindowConfirm: () => false,
+    setOwnComputer: () => "device",
+    setWindowConfirm: () => "device",
+    completeLegacyCleanup: () => false,
   };
 }
 
@@ -82,5 +85,8 @@ export function swappableRegistry(get: () => DeviceRegistry): DeviceRegistry {
     revoke: (deviceId) => get().revoke(deviceId),
     setConfirmPhone: (deviceId, link, expected) => get().setConfirmPhone(deviceId, link, expected),
     disableWindowConfirm: (deviceId) => get().disableWindowConfirm(deviceId),
+    setOwnComputer: (deviceId, ownerId, atMs) => get().setOwnComputer(deviceId, ownerId, atMs),
+    setWindowConfirm: (deviceId, on, ownerId) => get().setWindowConfirm(deviceId, on, ownerId),
+    completeLegacyCleanup: (deviceId) => get().completeLegacyCleanup(deviceId),
   };
 }

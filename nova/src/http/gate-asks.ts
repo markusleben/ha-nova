@@ -36,6 +36,7 @@ export interface GateAsksDeps {
   linkable?: (principal: Principal) => boolean; // whose link setLink keeps (default: a device's)
   window?: (principal: Principal) => Promise<boolean>;
   windowOff?: (principal: Principal) => boolean;
+  legacyCleanupComplete?: (principal: Principal) => boolean; // the caller's own Mac cleanup report (spec §5.3)
   now: () => number;
   logger?: Pick<RelayLogger, "info" | "warn">;
   pollMs?: number; // tests
@@ -255,6 +256,12 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
           throw new HttpError(404, "NOT_FOUND", "No such paired computer");
         }
         return { window: false };
+      }
+      if (body.op === "legacy_cleanup_complete") {
+        if (principal.kind !== "device" || deps.legacyCleanupComplete?.(principal) !== true) {
+          throw new HttpError(404, "NOT_FOUND", "No such paired computer");
+        }
+        return { legacy_cleanup: "complete" };
       }
       const ask = find(ownerOf(principal), body.ask_id);
       if (body.op === "wait") {

@@ -12,7 +12,9 @@ import {
   type RegistryData,
 } from "./device-registry-schema.js";
 import { withCloudDeviceRevoked } from "./device-registry-cloud.js";
-import type { ConfirmPhoneLink, DeviceRecord, DeviceRegistry } from "./device-registry-types.js";
+import type { ConfirmPhoneLink, DeviceRecord, DeviceRegistry, WindowRefusal } from "./device-registry-types.js";
+import { BRIDGE_INSTALL_ID, GATE_INSTALL_ID } from "./pairing-metadata.js";
+import { windowBlocked } from "./window-confirm.js";
 import { digestsEqual } from "./device-credential.js";
 import {
   PENDING_TTL_MS,
@@ -316,11 +318,24 @@ export function openDeviceRegistry(
       return true;
     },
     disableWindowConfirm(deviceId) {
-      const device = data.devices.find((d) => d.deviceId === deviceId && d.state === "active");
-      if (device === undefined) return false;
-      if (device.windowConfirm === false) return true;
-      persist({ ...data, devices: data.devices.map((d) => d === device ? { ...d, windowConfirm: false } : d) });
-      return true;
+      return change(deviceId, (d) => d.windowConfirm === false ? d : { ...d, windowConfirm: false }) === null;
+    },
+    setOwnComputer(deviceId, ownerId, atMs) {
+      return change(deviceId, (d) => {
+        if (ownerId === null) {
+          const { ownComputer: _, ...rest } = d;
+          return { ...rest, windowConfirm: false };
+        }
+        return windowBlocked(d, ownerId) ?? { ...d, ownComputer: { userId: ownerId, atMs }, windowConfirm: true };
+      });
+    },
+    setWindowConfirm(deviceId, on, ownerId) {
+      return change(deviceId, (d) => !on ? { ...d, windowConfirm: false }
+        : d.ownComputer?.userId !== ownerId ? "not_yours" : windowBlocked(d, ownerId) ?? { ...d, windowConfirm: true });
+    },
+    completeLegacyCleanup(deviceId) {
+      return change(deviceId, (d) => d.clientInstallId === BRIDGE_INSTALL_ID || d.clientInstallId === GATE_INSTALL_ID ? "device"
+        : d.legacyCleanup === "complete" ? d : { ...d, legacyCleanup: "complete" }) === null;
     },
     setConfirmPhone(deviceId, link, expected) {
       const same = (a?: ConfirmPhoneLink, b?: ConfirmPhoneLink): boolean =>
@@ -334,6 +349,16 @@ export function openDeviceRegistry(
       return true;
     },
   };
+
+  // One active device's window fields in one write; a refusal (or the same record) writes nothing.
+  function change(deviceId: string, next: (device: DeviceRecord) => DeviceRecord | WindowRefusal): WindowRefusal | null {
+    const device = data.devices.find((d) => d.deviceId === deviceId && d.state === "active");
+    if (device === undefined) return "device";
+    const updated = next(device);
+    if (typeof updated === "string") return updated;
+    if (updated !== device) persist({ ...data, devices: data.devices.map((d) => (d === device ? updated : d)) });
+    return null;
+  }
 
   function doActivate(
     deviceId: string,

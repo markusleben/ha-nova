@@ -95,6 +95,7 @@
   "tests/security/pairing-v1.test.ts",
   "tests/security/pairing-window.test.ts",
   "tests/security/window-confirm.test.ts",
+  "tests/security/window-ownership.test.ts",
   "tests/security/pairing.test.ts",
   "tests/security/principal.test.ts",
   "tests/security/relay-token.test.ts",
