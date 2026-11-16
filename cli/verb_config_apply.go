@@ -190,10 +190,10 @@ func verifyConfig(s *relaySession, action configAction) (verifyRow, json.RawMess
 			case err != nil || stateErr != nil: // an unanswered read is not an absence
 				row.Observed = "read failed"
 				return row, nil
-			case status != http.StatusNotFound:
-				return row, nil
-			case st == nil:
+			case status == http.StatusNotFound && st == nil:
 				row.Outcome = "verified"
+				return row, nil
+			case status != http.StatusNotFound:
 				return row, nil
 			case waited+configLoadPoll > configGoneWait:
 				row.Note = fmt.Sprintf("%sstill has it after %s; a reload stops it", stillRuns, waited.Round(time.Second))
