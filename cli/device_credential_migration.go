@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 )
 
@@ -25,6 +26,11 @@ import (
 // machine whose keyring never unlocks. The auto-detected path keeps its
 // stricter "nothing persists before promotion" contract.
 var deviceCredentialFileModeExplicit = false
+
+// deviceKeyNeverCopiedToFile: on macOS a Keychain key is never copied into a
+// file any same-user program reads (0.32 spec §5.4); the file opt-ins pair
+// this computer again into a file instead.
+var deviceKeyNeverCopiedToFile = runtime.GOOS == "darwin"
 
 const (
 	deviceCredentialKeyringCleanupMarker = ".keyring-migration-cleanup"
@@ -72,6 +78,7 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 		repairing        bool // a pending key waits beside the current one
 	}
 	var windowOffs []windowOff
+	var keyed []string
 	for _, profile := range credentialProfileNames() {
 		currentService := deviceCredentialServiceForProfile(profile)
 		pendingService := deviceCredentialPendingServiceForProfile(profile)
@@ -88,6 +95,12 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 		if pendingErr != nil {
 			return false, fmt.Errorf("cannot read the pending device credential from the keyring: %w", pendingErr)
 		}
+		if deviceKeyNeverCopiedToFile {
+			if currentOK || pendingOK {
+				keyed = append(keyed, profile)
+			}
+			continue
+		}
 		if currentOK {
 			windowOffs = append(windowOffs, windowOff{profile: profile, repairing: pendingOK})
 		}
@@ -102,6 +115,16 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 			}
 			windowOffs = append(windowOffs, windowOff{profile: profile, pending: record.Credential})
 		}
+	}
+	if len(keyed) > 0 {
+		forceDeviceCredentialFileMode()
+		printHumanInfo("On macOS this computer's key stays in the Keychain, so it pairs again to keep a new key in a private file.")
+		for _, profile := range keyed {
+			if profile != activeServerProfile() {
+				printHumanWarn("Server profile %q also uses the Keychain. Once this pairing is done, pair it again with: ha-nova pair --server %s --credential-store=file", profile, profile)
+			}
+		}
+		return false, nil
 	}
 	if len(currents) == 0 && len(pendings) == 0 {
 		return false, nil // never paired: nothing to migrate
