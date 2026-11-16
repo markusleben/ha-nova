@@ -76,7 +76,12 @@ describe("window pairing provenance and persistence", () => {
     expect(pairingWindowFields({ ...metadata, credentialStore: "file" }, owner.id, true, 1000)).not.toHaveProperty("ownComputer");
     const { credentialStore: _store, ...unknownStore } = metadata;
     expect(pairingWindowFields(unknownStore, owner.id, true, 1000)).not.toHaveProperty("ownComputer");
-    expect(decodePairingMetadata(Buffer.from(JSON.stringify({ ...metadata, client_install_id: "install", credential_store: "other" })))).toBeNull();
+    for (const credential_store of ["other", null, 3]) {
+      const future = decodePairingMetadata(Buffer.from(JSON.stringify({ ...metadata, client_install_id: "install", credential_store })))!;
+      expect(future).not.toBeNull();
+      expect(future).not.toHaveProperty("credentialStore");
+      expect(pairingWindowFields(future, owner.id, true, 1000)).not.toHaveProperty("ownComputer");
+    }
   });
 
   it("persists the new fields through activation without exposing mutable authority", () => {

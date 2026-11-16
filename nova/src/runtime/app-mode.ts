@@ -14,6 +14,7 @@ import { gated } from "../http/gate.js";
 import { gateWithAsks, type GatePage, type PhoneLink } from "../http/gate-asks.js";
 import { pageChannel } from "../http/handlers/nova-approve.js";
 import { pageTexts } from "../http/page-texts.js";
+import type { RouteHandler } from "../http/router.js";
 import { applyServerTimeouts, type RelayLogger } from "../http/server.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 import type { HaWsClient } from "../ha/ws-client.js";
@@ -302,7 +303,7 @@ function buildFunctionalHandlers(
   supervisorBase: string | undefined,
   worker: GateWorker,
   registry: DeviceRegistry,
-): { functional: FunctionalHandlers; page: GatePage } {
+): { functional: FunctionalHandlers & { me: RouteHandler }; page: GatePage } {
   const forwardCore = createCoreForwarder({ coreClient: input.coreClient });
   const { gate, ask, asks } = gateWithAsks(worker, {
     prepare: { core: parseCoreRequest },
@@ -313,7 +314,7 @@ function buildFunctionalHandlers(
     now: input.now,
     logger: input.logger,
   });
-  const functional: FunctionalHandlers = {
+  const functional: FunctionalHandlers & { me: RouteHandler } = {
     ask,
     me: createGateMeHandler(registry, () => input.wsClient.sendMessage({ type: "config/auth/list" })),
     health: createHealthHandler({

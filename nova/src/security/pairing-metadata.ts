@@ -44,7 +44,6 @@ export function decodePairingMetadata(
     platform === null ||
     client === null ||
     clientInstallId === null ||
-    (metadata.credential_store !== undefined && !isCredentialStore(metadata.credential_store)) ||
     clientInstallId === BRIDGE_INSTALL_ID ||
     clientInstallId === GATE_INSTALL_ID
   ) {
