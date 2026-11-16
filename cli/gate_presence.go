@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"math"
 	"regexp"
 	"strconv"
 	"time"
@@ -13,10 +14,14 @@ import (
 // use the computer. It only changes when the phone asks, never what is
 // approved: a lying client can only delay its own owner's phone.
 
+// gateLocked: a locked screen reads as idle for ever, so away: nobody can
+// reach the window's Confirm.
+const gateLocked = time.Duration(math.MaxInt64)
+
 var (
 	gateAwayAfter = 20 * time.Second
 	gateIdleEvery = 5 * time.Second // how often the window's wait reads it; tests shorten it
-	idleTime      = nativeIdleTime  // since the last keyboard or mouse input; ok false: no reading here
+	idleTime      = nativeIdleTime  // since the last keyboard or mouse input, gateLocked while the screen is locked; ok false: no reading here
 )
 
 // gatePresence: what an ask's open says, "" when it says nothing: an App
@@ -69,10 +74,18 @@ func gateAway(ctx context.Context) <-chan struct{} {
 	return away
 }
 
-var hidIdle = regexp.MustCompile(`"HIDIdleTime" = (\d+)`)
+var (
+	hidIdle      = regexp.MustCompile(`"HIDIdleTime" = (\d+)`)
+	screenLocked = regexp.MustCompile(`"CGSSessionScreenIsLocked"\s*=\s*Yes`)
+)
 
-// parseHIDIdle reads macOS's idle time (ioreg's HIDIdleTime, nanoseconds).
-func parseHIDIdle(out string) (time.Duration, bool) {
+// parseHIDIdle reads macOS's idle time (ioreg's HIDIdleTime, nanoseconds);
+// root: ioreg's Root entry, whose console session says when the screen is
+// locked.
+func parseHIDIdle(root, out string) (time.Duration, bool) {
+	if screenLocked.MatchString(root) {
+		return gateLocked, true
+	}
 	m := hidIdle.FindStringSubmatch(out)
 	if m == nil {
 		return 0, false

@@ -82,6 +82,9 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration, con
 			return "cancelled", ""
 		}
 		if planAsks.Err() == nil && s.approval() == nil && !link { // the CLI's own wait ended: gateAsk keeps the ask for the plan's next apply, or ends it
+			if confirms { // its window is gone: the phone asks now
+				s.gateGone(askID)
+			}
 			return "timeout", ""
 		}
 		s.gateCancel(askID)

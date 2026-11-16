@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -137,12 +138,38 @@ func TestGateWindowThatCantConfirmAsksThePhoneNow(t *testing.T) {
 	}
 }
 
+// The command's wait ends while the plan's window waits: the window goes,
+// the ask stays for the next apply, and the phone asks now instead of
+// after the rest of its delay.
+func TestGateWaitEndsAsksThePhoneNow(t *testing.T) {
+	g := &fakeGate{release: make(chan struct{}), phones: true, channels: []string{"window"}}
+	stubIdle(t, func() (time.Duration, bool) { return time.Second, true })
+	windowConfirmStubs(t, nil, nil)
+	windowRunner = func(ctx context.Context, _ windowText, _ time.Duration) windowAnswer {
+		<-ctx.Done()
+		return windowNoAnswer
+	}
+	h := gatedHarness(t, newFakeHA(), g)
+	plan := h.plan("lock.unlock", "lock.front").Plan
+	exit, env := gateWaitEnds(t, h, plan.ID)
+	_, ops, sends := g.snapshot()
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if exit != verbExitConfirmation || env.Error == nil || env.Error.Code != "CONFIRM_WAITING" || len(sends) != 0 || slices.Contains(ops, "cancel") || g.aways != 1 {
+		t.Fatalf("exit %d %+v; ops %v aways %d sends %+v", exit, env.Error, ops, g.aways, sends)
+	}
+}
+
 func TestParseHIDIdle(t *testing.T) {
 	out := "+-o IOHIDSystem  <class IOHIDSystem>\n    {\n      \"HIDIdleTime\" = 20942889708\n    }\n"
-	if got, ok := parseHIDIdle(out); !ok || got != 20942889708*time.Nanosecond {
+	root := `+-o Root  <class IORegistryEntry>\n    "IOConsoleUsers" = ({"CGSSessionOnConsoleKey"=Yes,"CGSSessionIDKey"=257})\n`
+	if got, ok := parseHIDIdle(root, out); !ok || got != 20942889708*time.Nanosecond {
 		t.Fatalf("%v %v", got, ok)
 	}
-	if _, ok := parseHIDIdle("no reading"); ok {
+	if got, ok := parseHIDIdle(strings.Replace(root, "{", `{"CGSSessionScreenIsLocked"=Yes,`, 1), out); !ok || got != gateLocked {
+		t.Fatalf("a locked screen reads %v %v", got, ok)
+	}
+	if _, ok := parseHIDIdle(root, "no reading"); ok {
 		t.Fatal("read an idle time from nothing")
 	}
 }
