@@ -112,19 +112,8 @@ type homeData struct {
 		NameByUser    string   `json:"name_by_user"`
 		EntryType     string   `json:"entry_type"` // "service": a cloud/service device, never in a room
 	}
-	entities []struct {
-		EntityID     string `json:"entity_id"`
-		Name         string `json:"name"`
-		OriginalName string `json:"original_name"`
-		AreaID       string `json:"area_id"`
-		DeviceID     string `json:"device_id"`
-		DisabledBy   string `json:"disabled_by"`
-		Platform     string `json:"platform"`
-		UniqueID     string `json:"unique_id"`
-		Category     string `json:"entity_category"`
-		HiddenBy     string `json:"hidden_by"`
-		ConfigEntry  string `json:"config_entry_id"`
-	}
+	entities               []mapEntity
+	unreadable             []string // entities whose unique_id HA NOVA couldn't read: kept, named in a section
 	entries, helperEntries []struct {
 		EntryID    string `json:"entry_id"`
 		Domain     string `json:"domain"`
@@ -133,6 +122,21 @@ type homeData struct {
 		DisabledBy string `json:"disabled_by"`
 	}
 	states []mapState
+}
+
+type mapEntity struct {
+	EntityID     string          `json:"entity_id"`
+	Name         string          `json:"name"`
+	OriginalName string          `json:"original_name"`
+	AreaID       string          `json:"area_id"`
+	DeviceID     string          `json:"device_id"`
+	DisabledBy   string          `json:"disabled_by"`
+	Platform     string          `json:"platform"`
+	RawUniqueID  json.RawMessage `json:"unique_id"` // read by loadHome: a number or text (#1184)
+	UniqueID     registryID      `json:"-"`
+	Category     string          `json:"entity_category"`
+	HiddenBy     string          `json:"hidden_by"`
+	ConfigEntry  string          `json:"config_entry_id"`
 }
 
 type floorRow struct {
@@ -194,6 +198,12 @@ func loadHome(s *relaySession) (*homeData, error) {
 		{entriesRequest, &h.entries, "the config entries"}, {helpersRequest, &h.helperEntries, "the helper config entries"}} {
 		if err := s.wsDecode(read.request, read.into, read.what); err != nil {
 			return nil, err
+		}
+	}
+	// A unique_id HA NOVA can't read leaves that one entity without it, named, never the whole map (#1184).
+	for i := range h.entities {
+		if e := &h.entities[i]; len(e.RawUniqueID) > 0 && e.UniqueID.UnmarshalJSON(e.RawUniqueID) != nil {
+			h.unreadable = append(h.unreadable, e.EntityID)
 		}
 	}
 	status, body, err := s.coreGET("/api/states")
