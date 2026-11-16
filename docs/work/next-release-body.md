@@ -11,3 +11,4 @@ Unreleased claims wait here until they ship (AGENTS.md, Releases: the README des
 ## Upgrade Notes
 
 - **Moving HA NOVA's key into a file now turns one-click confirming off first.** `ha-nova setup --service` and `ha-nova pair --credential-store=file` ask the NOVA App to turn off one-click confirming for every key they move, because any program on this computer can read a key kept in a file. If the App can't be reached, nothing is moved and HA NOVA says why. If a pairing on this computer didn't finish, they stop and say "finish it first with: ha-nova pair --server <profile>" instead of moving its key.
+- **On a Mac whose key is in the Keychain, file storage is refused.** The key is never copied into a file there. `ha-nova setup --service` keeps it in the Keychain, which HA NOVA reads without a prompt, and `ha-nova pair --credential-store=file` stops before it uses the code. A Mac with no key yet can still pair straight into a file.

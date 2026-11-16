@@ -215,7 +215,8 @@ func validateLocalDeviceReplacementAllowedWithPolicy(
 			)
 		case pending.Source == pendingDeviceCredentialSourceLocal &&
 			strings.TrimSpace(cfg.PendingSecureBaseURL) != "" &&
-			strings.TrimSpace(cfg.PendingSpkiPin) != "":
+			strings.TrimSpace(cfg.PendingSpkiPin) != "" &&
+			!keychainKeyWithoutPin(pending.Credential): // one without its pin can never resume: replace it
 			return fmt.Errorf(
 				"a local device activation is still pending; resume it before starting another local pairing (the code was not used)",
 			)

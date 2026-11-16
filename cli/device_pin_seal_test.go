@@ -156,4 +156,11 @@ func TestUnsealedKeychainPendingIsReplacedByTheNextPairing(t *testing.T) {
 	if err != nil || resumed {
 		t.Fatalf("resumed=%v err=%v, want nothing resumed so a fresh pairing runs", resumed, err)
 	}
+	if err := validateLocalDeviceReplacementAllowedWithPolicy(cfg, SecretStoreForbidUI); err != nil {
+		t.Fatalf("a fresh pairing must be allowed to replace it: %v", err)
+	}
+	rememberSealedDevicePin(pending, testSealedPinA)
+	if err := validateLocalDeviceReplacementAllowedWithPolicy(cfg, SecretStoreForbidUI); err == nil {
+		t.Fatal("a sealed pending key must be resumed, not replaced")
+	}
 }
