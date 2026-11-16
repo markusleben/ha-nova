@@ -1,4 +1,6 @@
 {
+  "phone.window.title": "Im Fenster auf {host} bestätigt",
+  "phone.window.body": "{goal}",
   "chat_phone.link.body": "Wenn Claude oder ChatGPT etwas entriegeln oder löschen wollen, wirst du dann zuerst gefragt.",
   "chat_phone.link.body_use": "Wenn Claude oder ChatGPT etwas entriegeln, ein Garagentor oder Tor öffnen oder die Alarmanlage ausschalten wollen, wirst du dann zuerst gefragt.",
   "chat_phone.link.button": "Erlauben",

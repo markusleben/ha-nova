@@ -20,8 +20,8 @@ func (in gatePhoneRequest) valid() bool {
 	}
 	_, known := confirmCatalogs[in.Lang]
 	text := known && in.Title != "" && in.Body != "" && in.Button != "" && in.Words == "" && in.Device == "" && in.Current == nil
-	words := in.Words == "link" && in.Device != "" && in.Lang+in.Title+in.Body+in.Button == "" && (in.Current == nil || link(*in.Current))
-	return (text || words) && link(in.Link) && wait >= time.Second && wait <= gatePhoneMaxWait
+	words := in.Words == "link" && in.AskRef == "" && in.Device != "" && in.Lang+in.Title+in.Body+in.Button == "" && (in.Current == nil || link(*in.Current))
+	return (text || words) && (in.AskRef == "" || gatePhoneRef.MatchString(in.AskRef)) && link(in.Link) && wait >= time.Second && wait <= gatePhoneMaxWait
 }
 
 func gatePhoneLink(ctx context.Context, paths runtimePaths, in gatePhoneRequest) (gatePhoneAnswer, error) {
@@ -83,6 +83,24 @@ func gatePhoneEligible(s *relaySession, link phoneLink) bool {
 // worker can't tell which), a quiet note and a clear withdraw it.
 func gatePhoneTap(ctx context.Context, s *relaySession, paths runtimePaths, link phoneLink, setup phoneSetup, ask phoneAsk, wait time.Duration) gatePhoneAnswer {
 	answer, reply := askPhone(ctx, s, setup, gatePhoneTag, ask, wait, nil)
+	if run, ok := ctx.Value(gatePhoneEndKey{}).(*gatePhoneRun); ok {
+		notice, done := run.ends.claim(run.ref, reply.tag)
+		defer func() {
+			reply.withdraw(confirmT(ask.lang, "outcome.ended"), confirmT(ask.lang, "outcome.line.ended_elsewhere"))
+			if reply.landed != nil {
+				<-reply.landed
+			}
+			done()
+			if notice != nil {
+				run.ends.emit(paths, *notice, "")
+			}
+		}()
+		if notice != nil {
+			title, body := notice.text()
+			reply.withdraw(title, body)
+			return gatePhoneAnswer{Answer: "none"}
+		}
+	}
 	lang := ask.lang
 	title := func(prefix string) string {
 		return confirmT(lang, "phone.result_title", "prefix", prefix, "goal", strings.TrimSuffix(ask.title, "?"))

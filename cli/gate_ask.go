@@ -274,6 +274,7 @@ func gateIDs(ids []string) string {
 }
 
 type gatePhoneRequest struct {
+	AskRef  string     `json:"ask_ref,omitempty"`
 	Lang    string     `json:"lang,omitempty"`
 	Title   string     `json:"title,omitempty"`
 	Body    string     `json:"body,omitempty"`
@@ -358,7 +359,7 @@ func gatePhoneWhy(why phoneWhy) string {
 
 // gateAskHandler answers /ask and /phone; the caller checked the bearer.
 // /ask rates up to 20 requests and words them, a check budget for each, twice.
-func gateAskHandler(paths runtimePaths, w http.ResponseWriter, r *http.Request) {
+func gateAskHandler(paths runtimePaths, w http.ResponseWriter, r *http.Request, ends *gatePhoneEnds) {
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, gateBodyLimit))
 	dec.DisallowUnknownFields()
 	var out any
@@ -382,7 +383,7 @@ func gateAskHandler(paths runtimePaths, w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(time.Duration(in.WaitMS)*time.Millisecond + time.Minute))
-		out, err = gatePhone(r.Context(), paths, in)
+		out, err = ends.phone(r.Context(), paths, in)
 	}
 	if err != nil { // nothing was asked or sent: the Relay answers 503
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
