@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
+	"runtime"
 	"time"
 )
 
@@ -176,6 +177,16 @@ func armSignInPairing(
 		return signInArmResponse{}, newCloudError(CloudErrHAProtocol, "decode sign-in pairing response", err)
 	}
 	return armed, nil
+}
+
+// pairingCredentialStore: where this install keeps its device key, as the
+// App's window approval reads it (spec §1: never a file key). "" on a
+// system HA NOVA has no store name for: the App treats it as ineligible.
+func pairingCredentialStore() string {
+	if deviceSecretFileBacked() {
+		return "file"
+	}
+	return map[string]string{"darwin": "keychain", "windows": "credential_manager", "linux": "secret_service"}[runtime.GOOS]
 }
 
 func decodeStrictJSON(data []byte, target any) error {

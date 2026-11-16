@@ -87,12 +87,7 @@ func runSecurePairingWithProvisioner(
 	}
 	previous := readPreviousLocalDevice(*cfg, pairingUI)
 
-	prov, err := provision(deviceMetadata{
-		Name:            info.name,
-		Platform:        info.platform,
-		Client:          info.client,
-		ClientInstallID: installID,
-	})
+	prov, err := provision(deviceMetadata{Name: info.name, Platform: info.platform, Client: info.client, ClientInstallID: installID, CredentialStore: pairingCredentialStore()})
 	if err != nil {
 		return "", err
 	}

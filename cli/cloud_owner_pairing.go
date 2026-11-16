@@ -34,6 +34,7 @@ func provisionRemoteCloudDeviceWithOwnerCode(
 		Platform:        defaultPairingClientInfo().platform,
 		Client:          defaultPairingClientInfo().client,
 		ClientInstallID: installID,
+		CredentialStore: pairingCredentialStore(),
 	}
 	// The Link sign-in user is the owner (auth/current_user over Link; the
 	// Relay re-checks with Home Assistant before arming): no code needed.
