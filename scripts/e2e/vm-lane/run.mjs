@@ -195,7 +195,7 @@ async function nova() {
       headers: { cookie, "content-type": "application/x-www-form-urlencoded", origin: CFG.ha, "sec-fetch-site": "same-origin" }, body: new URLSearchParams(fields).toString() });
     if (r.status >= 400) throw new Error(`NOVA page ${action}: HTTP ${r.status}`);
   };
-  const view = async () => { const response = await fetch(`${base}approve`, { headers: { cookie } }); return response.ok ? response.text() : ""; };
+  const view = async () => { const response = await fetch(`${base.replace(/\/$/, "")}/approve`, { headers: { cookie } }); return response.ok ? response.text() : ""; };
   const devices = (html) => [...html.matchAll(/<li><span class="device"><strong>([^<]*)<\/strong>[\s\S]*?device=([^"&]+)"/g)].map((m) => ({ name: m[1], id: decodeURIComponent(m[2]) }));
   return {
     devices: async () => {
