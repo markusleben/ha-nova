@@ -119,7 +119,12 @@ func TestLocalPairingResumeNeverActivatesCloudPendingCredential(t *testing.T) {
 	}
 }
 
-func TestCloudPendingProvenanceSurvivesKeyringToFileMigration(t *testing.T) {
+// An unfinished Home Assistant Link pairing isn't copied to a file (0.32;
+// Markus, 16.11.: cancel with a clear "finish the pairing first"): its key
+// may already approve in the window, and its Relay is known only through
+// Link, so nothing turns that off here. The key stays where it was, its
+// provenance intact, and the person finishes the pairing first.
+func TestCloudPendingIsNotCopiedToAFileBeforeItsPairingFinishes(t *testing.T) {
 	withDeviceStorageTestHome(t)
 	resetKeyringDeviceSlots(t)
 	credential := validCredential(24)
@@ -131,8 +136,8 @@ func TestCloudPendingProvenanceSurvivesKeyringToFileMigration(t *testing.T) {
 	}
 
 	migrated, err := migrateKeyringDeviceCredentialToFile()
-	if err != nil || !migrated {
-		t.Fatalf("migrate Cloud pending: migrated=%v err=%v", migrated, err)
+	if migrated || err == nil || !strings.Contains(err.Error(), "finish it first with: ha-nova pair --server default") || deviceFileBackendMarkerExists() {
+		t.Fatalf("migrate Cloud pending: migrated=%v err=%v marker=%v", migrated, err, deviceFileBackendMarkerExists())
 	}
 	record, exists, err := readPendingDeviceCredentialRecord()
 	if err != nil || !exists ||
