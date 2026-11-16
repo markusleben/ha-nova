@@ -1,6 +1,6 @@
 import { createServer as createHttpServer_, type Server } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 
 import type { FileAccessConfig } from "../config/file-access.js";
 import { createBackupsHandler } from "../http/handlers/backups.js";
@@ -35,6 +35,7 @@ import { loadOrCreateRelayInstanceId } from "../storage/relay-instance.js";
 import { openInertRegistry, swappableRegistry } from "./app-registry.js";
 import { chatAppFilesPresent, createChatApps, type ChatApps } from "./chat-apps.js";
 import { createGateWorker, mintGateDevice, type GateWorker } from "./gate-worker.js";
+import { openWindowLog } from "../storage/window-log.js";
 import { createIngressListener } from "./ingress-listener.js";
 import { ensureSidebarPanel } from "./sidebar-panel.js";
 import {
@@ -306,6 +307,7 @@ function buildFunctionalHandlers(
   registry: DeviceRegistry,
 ): { functional: FunctionalHandlers & { me: RouteHandler }; page: GatePage } {
   const forwardCore = createCoreForwarder({ coreClient: input.coreClient });
+  const windowLog = openWindowLog(join(dirname(input.appOptionsPath), "gate", "window-log.json"), input.logger);
   const { gate, ask, asks } = gateWithAsks(worker, {
     prepare: { core: parseCoreRequest },
     deviceName: (p) => (p.kind === "device" ? registry.list().find((d) => d.deviceId === p.deviceId)?.name : undefined) ?? "a computer that is no longer paired",
@@ -315,6 +317,7 @@ function buildFunctionalHandlers(
     window: async (p) => (await checkWindowConfirm(p, registry, () => input.wsClient.sendMessage({ type: "config/auth/list" }))).window,
     windowOff: (p) => p.kind === "device" && registry.disableWindowConfirm(p.deviceId),
     legacyCleanupComplete: (p) => p.kind === "device" && registry.completeLegacyCleanup(p.deviceId),
+    windowLog: windowLog.append,
     now: input.now,
     logger: input.logger,
   });
@@ -342,7 +345,7 @@ function buildFunctionalHandlers(
       gate,
     ),
   };
-  return { functional, page: { ...asks, texts: pageTexts((name) => worker.texts(name), input.now, input.logger) } };
+  return { functional, page: { ...asks, texts: pageTexts((name) => worker.texts(name), input.now, input.logger), recent: windowLog.list } };
 }
 
 async function listen(server: Server, port: number): Promise<void> {

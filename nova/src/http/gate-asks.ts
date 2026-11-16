@@ -6,6 +6,7 @@ import { HttpError } from "./errors.js";
 import { createGateGrants, gateDigest, idKey } from "./gate-grants.js";
 import { createOwnerLimits, PAUSED, type Miss } from "./gate-owners.js";
 import type { RelayLogger } from "./server.js";
+import type { WindowLogEntry } from "../storage/window-log.js";
 import type { GateClient, GateEndpoint } from "./gate.js";
 import type { RouteHandler } from "./router.js";
 
@@ -37,6 +38,7 @@ export interface GateAsksDeps {
   window?: (principal: Principal) => Promise<boolean>;
   windowOff?: (principal: Principal) => boolean;
   legacyCleanupComplete?: (principal: Principal) => boolean; // the caller's own Mac cleanup report (spec §5.3)
+  windowLog?: (entry: WindowLogEntry) => void; // a window win, for the NOVA page's recent list
   now: () => number;
   logger?: Pick<RelayLogger, "info" | "warn">;
   pollMs?: number; // tests
@@ -57,7 +59,7 @@ export interface GateAsks {
 }
 
 // The page also reads its words from the worker (page-texts.ts).
-export type GatePage = Pick<GateAsks, "waiting" | "pausedDevices" | "approve" | "cancel" | "resume"> & { texts: PageTextSource };
+export type GatePage = Pick<GateAsks, "waiting" | "pausedDevices" | "approve" | "cancel" | "resume"> & { texts: PageTextSource; recent?: () => WindowLogEntry[] };
 
 // A device whose phone asks are paused: until when, and the asks that paused it.
 export interface PausedDevice {
@@ -299,6 +301,11 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
         }
         if (grant(ask, true)) {
           const seq = ++windowSeq;
+          try {
+            deps.windowLog?.({ atMs: deps.now(), computer: { id: principal.deviceId, name: deps.deviceName(principal) }, title: ask.prepared.title ?? "" });
+          } catch (error) {
+            deps.logger?.warn?.("A window confirmation could not be logged; approval stands", { error: String(error) });
+          }
           if (deps.phoneEnd === undefined) ask.stop.abort();
           else void Promise.resolve().then(async () => {
             const link = deps.link(principal);

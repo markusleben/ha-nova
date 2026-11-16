@@ -13,6 +13,7 @@ export const PAGE_KEYS = [
   "page.approver_unknown", "page.approver_unavailable", "page.approver_not_admin", "page.approver_relay_user",
   "page.waiting_one", "page.waiting_many", "page.open", "page.paused", "page.revoke_device", "page.link",
   "page.paused_heading", "page.paused_left", "page.resume",
+  "page.window_on", "page.window_off", "page.window_not_yours", "page.window_file", "page.window_pair_again", "page.window_cleanup", "page.window_owner", "page.window_warning", "page.window_mine", "page.window_not_mine", "page.window_turn_on", "page.window_turn_off", "page.window_recent",
 ] as const;
 export type PageKey = (typeof PAGE_KEYS)[number];
 

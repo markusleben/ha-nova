@@ -63,5 +63,18 @@ func gatePageTexts(lang, name string) map[string]string {
 		"page.paused_heading":       confirmT(lang, "page.paused_heading"),
 		"page.paused_left":          confirmT(lang, "page.paused_left", "minutes", "{minutes}"),
 		"page.resume":               confirmT(lang, "page.resume"),
+		"page.window_on":            confirmT(lang, "page.window_on"),
+		"page.window_off":           confirmT(lang, "page.window_off"),
+		"page.window_not_yours":     confirmT(lang, "page.window_not_yours"),
+		"page.window_file":          confirmT(lang, "page.window_file"),
+		"page.window_pair_again":    confirmT(lang, "page.window_pair_again"),
+		"page.window_cleanup":       confirmT(lang, "page.window_cleanup"),
+		"page.window_owner":         confirmT(lang, "page.window_owner"),
+		"page.window_warning":       confirmT(lang, "page.window_warning"),
+		"page.window_mine":          confirmT(lang, "page.window_mine"),
+		"page.window_not_mine":      confirmT(lang, "page.window_not_mine"),
+		"page.window_turn_on":       confirmT(lang, "page.window_turn_on"),
+		"page.window_turn_off":      confirmT(lang, "page.window_turn_off"),
+		"page.window_recent":        confirmT(lang, "page.window_recent"),
 	}
 }

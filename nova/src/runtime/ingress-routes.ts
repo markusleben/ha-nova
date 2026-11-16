@@ -261,7 +261,7 @@ function registerOwnerRoutes(
   deps: IngressListenerDeps,
   fetchAuthUsers: () => Promise<HaAuthUser[]>,
 ): void {
-  const csrf = createCsrfStore();
+  const csrf = createCsrfStore(64); // device-bound buttons on every computer's row
   const novaDeps: NovaPageDeps = {
     fetchAuthUsers,
     csrf,
