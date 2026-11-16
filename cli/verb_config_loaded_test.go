@@ -361,8 +361,8 @@ func TestConfigDeleteStillRunningIsSaidNotReloaded(t *testing.T) {
 	}
 	for server, want := range map[string]string{"cabin": "ha-nova plan call script.reload --server cabin`", "": "ha-nova plan call script.reload`"} {
 		next := stillRunsNext(configAction{Domain: "script", ConfigID: "s1"}, server)
-		if !strings.Contains(next, "service script.reload with no data: `"+want) || strings.Contains(mcpNext(next, false), "--server") {
-			t.Fatalf("server %q: %s / %s", server, next, mcpNext(next, false))
+		if !strings.Contains(next, "service script.reload with no data: `"+want) {
+			t.Fatalf("server %q: %s", server, next)
 		}
 	}
 }

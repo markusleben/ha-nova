@@ -205,7 +205,8 @@ func nextStep(envelope map[string]any, chat *chatPolicy) string {
 	if restore, _ := envelope["restore"].(string); restore != "" && errInfo == nil {
 		restore, _, _ = strings.Cut(restore, " --server ") // an MCP session is pinned to one server
 		undo := "If the user asks to undo this delete: " + mcpNext(restore, chat.isReadOnly()) + "."
-		if own, _ := envelope["next_step"].(string); own != "" && envelope["status"] == "unverified" { // it still runs: its step first
+		if own, _ := envelope["next_step"].(string); own != "" && envelope["status"] == "unverified" { // it still runs: its step first, on the pinned server
+			own = strings.ReplaceAll(own, fmt.Sprintf(" --server %v`", envelope["server"]), "`")
 			return mcpNext(own, chat.isReadOnly()) + " " + undo
 		}
 		return undo
@@ -306,12 +307,12 @@ var cliCommands = strings.NewReplacer("ha-nova relay core --method POST --path "
 	"ha-nova apply --plan ", "ha_apply with plan_id ")
 
 // mcpServerFlag: an MCP session is pinned to one server.
-var mcpServerFlag = regexp.MustCompile(` --server [a-z0-9-]+`)
+var mcpServerFlag = regexp.MustCompile(`(ha-nova [a-z]+) --server [a-z0-9-]+`)
 
 // mcpNext rewrites a verb's next for an MCP client: CLI commands and flags
 // become tools and arguments; a named ha-nova:* skill gets its chat route.
 func mcpNext(next string, readOnly bool) string {
-	out := cliCommands.Replace(mcpArgs(mcpServerFlag.ReplaceAllString(next, "")))
+	out := cliCommands.Replace(mcpArgs(mcpServerFlag.ReplaceAllString(next, "$1")))
 	switch {
 	case !strings.Contains(out, "ha-nova:"):
 	case strings.Contains(out, "ha-nova:yaml-config") && readOnly:
