@@ -28,9 +28,17 @@ import (
 var deviceCredentialFileModeExplicit = false
 
 // deviceKeyNeverCopiedToFile: on macOS a Keychain key is never copied into a
-// file any same-user program reads (0.32 spec §5.4); the file opt-ins pair
-// this computer again into a file instead.
+// file any same-user program reads (0.32 spec §5.4). While any profile holds
+// one, the file opt-ins keep the Keychain: switching the whole install to
+// files would hide every other profile's key, Link ones included.
 var deviceKeyNeverCopiedToFile = runtime.GOOS == "darwin"
+
+// errDeviceKeyStaysInKeychain: this Mac keeps its keys in the Keychain.
+var errDeviceKeyStaysInKeychain = errors.New("on macOS this computer's key stays in the Keychain and is never copied into a file")
+
+// deviceKeyStaysInKeychain is set once the migration answered
+// errDeviceKeyStaysInKeychain, so setup's pairing step keeps the Keychain.
+var deviceKeyStaysInKeychain = false
 
 const (
 	deviceCredentialKeyringCleanupMarker = ".keyring-migration-cleanup"
@@ -78,7 +86,7 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 		repairing        bool // a pending key waits beside the current one
 	}
 	var windowOffs []windowOff
-	var keyed []string
+	var keyed []string // macOS: profiles holding a Keychain key
 	for _, profile := range credentialProfileNames() {
 		currentService := deviceCredentialServiceForProfile(profile)
 		pendingService := deviceCredentialPendingServiceForProfile(profile)
@@ -117,14 +125,8 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 		}
 	}
 	if len(keyed) > 0 {
-		forceDeviceCredentialFileMode()
-		printHumanInfo("On macOS this computer's key stays in the Keychain, so it pairs again to keep a new key in a private file.")
-		for _, profile := range keyed {
-			if profile != activeServerProfile() {
-				printHumanWarn("Server profile %q also uses the Keychain. Once this pairing is done, pair it again with: ha-nova pair --server %s --credential-store=file", profile, profile)
-			}
-		}
-		return false, nil
+		deviceKeyStaysInKeychain = true
+		return false, errDeviceKeyStaysInKeychain
 	}
 	if len(currents) == 0 && len(pendings) == 0 {
 		return false, nil // never paired: nothing to migrate

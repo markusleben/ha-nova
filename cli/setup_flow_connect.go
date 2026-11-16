@@ -233,7 +233,7 @@ func (f *setupFlow) stepPairing() setupStepResult {
 		f.relaySkipNote = setupMsg{}
 	}
 	f.ui.show(view)
-	if f.serviceMode {
+	if f.serviceMode && !deviceKeyStaysInKeychain {
 		// `setup --service` documents that the device credential lands in a
 		// protected file — service installs must not depend on a desktop
 		// keyring nobody unlocks. Forced here at the pairing step, not at

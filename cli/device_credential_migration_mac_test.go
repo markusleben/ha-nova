@@ -1,13 +1,17 @@
 package main
 
-import "testing"
+import (
+	"errors"
+	"path/filepath"
+	"testing"
+)
 
-func TestMacKeychainKeyIsNeverCopiedToAFile(t *testing.T) {
+func TestMacKeepsKeychainKeysInsteadOfCopyingThemToFiles(t *testing.T) {
 	withDeviceStorageTestHome(t)
 	resetKeyringDeviceSlots(t)
 	deviceKeyNeverCopiedToFile = true
 	t.Cleanup(func() {
-		deviceKeyNeverCopiedToFile = false
+		deviceKeyNeverCopiedToFile, deviceKeyStaysInKeychain = false, false
 		setActiveServerProfile(defaultServerProfileName)
 	})
 	saved := gateWindowOffForFileCopy
@@ -20,41 +24,60 @@ func TestMacKeychainKeyIsNeverCopiedToAFile(t *testing.T) {
 	if err := writeDeviceCredential(defaultKey); err != nil {
 		t.Fatal(err)
 	}
-	setActiveServerProfile("cabin")
-	if err := writeDeviceCredential(cabinKey); err != nil {
+	setActiveServerProfile("cabin") // a new profile: the other profile's Keychain key decides
+	if err := writePendingDeviceCredential(cabinKey); err != nil {
 		t.Fatal(err)
 	}
 
 	migrated, err := migrateKeyringDeviceCredentialToFile()
-	if err != nil || migrated {
-		t.Fatalf("migrated=%v err=%v, want no copy and no error", migrated, err)
+	if !errors.Is(err, errDeviceKeyStaysInKeychain) || migrated {
+		t.Fatalf("migrated=%v err=%v, want the Keychain kept", migrated, err)
 	}
-	if !deviceCredentialFileModeForced || !deviceCredentialFileModeExplicit {
-		t.Fatal("this computer must pair again into a file")
+	if !deviceKeyStaysInKeychain || deviceCredentialFileModeForced || deviceFileBackendMarkerExists() {
+		t.Fatal("the install must stay on the Keychain, so no other profile's key is hidden")
 	}
-	if deviceFileBackendMarkerExists() {
-		t.Fatal("the file backend must not commit before the new pairing lands")
+	if got, ok, err := readPendingDeviceCredential(); err != nil || !ok || got != cabinKey {
+		t.Fatalf("this profile's pending Keychain key must stay readable: ok=%v err=%v", ok, err)
 	}
-	if got, ok, err := readKeyringSlotDirect(deviceCredentialServiceForProfile("cabin")); err != nil || !ok || got != cabinKey {
-		t.Fatalf("the Keychain key must stay untouched: ok=%v err=%v", ok, err)
-	}
-	if got, ok, err := readKeyringSlotDirect(deviceCredentialServiceForProfile(defaultServerProfileName)); err != nil || !ok || got != defaultKey {
-		t.Fatalf("the other profile's Keychain key must stay untouched: ok=%v err=%v", ok, err)
-	}
-	if _, ok, _ := readDeviceCredential(); ok {
-		t.Fatal("with the file backend forced, this profile reads as not paired, so setup pairs again")
+	setActiveServerProfile(defaultServerProfileName)
+	if got, ok, err := readDeviceCredential(); err != nil || !ok || got != defaultKey {
+		t.Fatalf("the other profile's Keychain key must stay readable: ok=%v err=%v", ok, err)
 	}
 }
 
-func TestMacNeverPairedComputerHasNothingToMove(t *testing.T) {
+func TestMacPairToFileRefusesWithoutUsingTheCode(t *testing.T) {
 	withDeviceStorageTestHome(t)
 	resetKeyringDeviceSlots(t)
 	deviceKeyNeverCopiedToFile = true
-	t.Cleanup(func() { deviceKeyNeverCopiedToFile = false })
-	if migrated, err := migrateKeyringDeviceCredentialToFile(); err != nil || migrated {
-		t.Fatalf("migrated=%v err=%v", migrated, err)
+	t.Cleanup(func() { deviceKeyNeverCopiedToFile, deviceKeyStaysInKeychain = false, false })
+	if err := writeDeviceCredential(generateTestDeviceCredential(t)); err != nil {
+		t.Fatal(err)
 	}
-	if deviceCredentialFileModeForced {
-		t.Fatal("an unpaired computer keeps its storage choice to the caller")
+	configFile := filepath.Join(t.TempDir(), "config.json")
+	paths := runtimePaths{ConfigDir: filepath.Dir(configFile), ConfigFile: configFile}
+	if err := saveConfig(paths, runtimeConfig{RelayBaseURL: "http://ha:8791"}); err != nil {
+		t.Fatal(err)
+	}
+	orig := runSecurePairingForPairCmd
+	runSecurePairingForPairCmd = func(_, _ string, _ *runtimeConfig, _ func(*runtimeConfig) error, _ pairingClientInfo) (string, error) {
+		t.Error("the one-time code was used")
+		return "", nil
+	}
+	defer func() { runSecurePairingForPairCmd = orig }()
+	if rc := runPairCommand(paths, []string{"--code", "123456", "--credential-store=file"}); rc != 1 {
+		t.Fatalf("rc=%d, want a refusal", rc)
+	}
+	if deviceFileBackendMarkerExists() || deviceCredentialFileModeForced {
+		t.Fatal("a refused file pairing must leave the Keychain in charge")
+	}
+}
+
+func TestMacWithoutAKeychainKeyMayStoreItsFirstKeyInAFile(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	resetKeyringDeviceSlots(t)
+	deviceKeyNeverCopiedToFile = true
+	t.Cleanup(func() { deviceKeyNeverCopiedToFile, deviceKeyStaysInKeychain = false, false })
+	if migrated, err := migrateKeyringDeviceCredentialToFile(); err != nil || migrated || deviceKeyStaysInKeychain {
+		t.Fatalf("migrated=%v err=%v keychain=%v", migrated, err, deviceKeyStaysInKeychain)
 	}
 }

@@ -1,6 +1,9 @@
 package main
 
-import "strings"
+import (
+	"errors"
+	"strings"
+)
 
 // prepareCredentials settles where this run's credentials live (desktop
 // keyring, service file, file-backed device pairing), applies endpoint
@@ -35,7 +38,9 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 			migrated, err = migrateKeyringDeviceCredentialToFile()
 			return err
 		})
-		if migrateErr != nil {
+		if errors.Is(migrateErr, errDeviceKeyStaysInKeychain) {
+			f.ui.info(setupText("setup.service.key_stays_in_keychain"))
+		} else if migrateErr != nil {
 			return f.fail(setupText("setup.error.service_move_credential", "error", migrateErr))
 		}
 		if migrated {
