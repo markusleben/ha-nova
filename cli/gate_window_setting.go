@@ -43,6 +43,12 @@ func gateWindowOffForProfile(paths runtimePaths, profile, pending string) error 
 	case pending != "" && (cfg.PendingSecureBaseURL == "" || cfg.PendingSpkiPin == ""):
 		cancel()
 		return unfinished
+	case pending == "" && cfg.PendingSecureBaseURL != "" && cfg.PendingSecureBaseURL == cfg.RelaySecureBaseURL:
+		// A re-pairing stopped after saving the new Relay as live but before
+		// its key replaced the current one, which may be another Relay's:
+		// that key goes nowhere until the pairing is finished.
+		cancel()
+		return unfinished
 	case pending == "":
 		if transport, err = selectRelayTransport(ctx, cfg, "", false); err != nil {
 			cancel()

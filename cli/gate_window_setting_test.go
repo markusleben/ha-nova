@@ -85,4 +85,13 @@ func TestGateWindowOffSendsAPendingKeyOnlyToItsOwnEndpoint(t *testing.T) {
 			t.Fatalf("pending endpoint %q: %v; live endpoint reached %d times", pending, err, live.Load())
 		}
 	}
+	// The current key while a re-pairing stopped with the new Relay saved as
+	// live: it may be the old Relay's key, so it isn't sent.
+	cfg := runtimeConfig{HAHost: "ha", HAURL: "http://ha:8123", RelayBaseURL: "http://ha:8791", RelaySecureBaseURL: other.URL, RelaySpkiPin: "pin", PendingSecureBaseURL: other.URL, PendingSpkiPin: "pin", RoutePolicy: routePolicyLocal}
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := gateWindowOffForProfile(paths, defaultServerProfileName, ""); err == nil || !strings.Contains(err.Error(), "didn't finish") || live.Load() != 0 {
+		t.Fatalf("current key mid re-pairing: %v; endpoint reached %d times", err, live.Load())
+	}
 }
