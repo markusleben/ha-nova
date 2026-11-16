@@ -1,6 +1,6 @@
 import type { DeviceRecord } from "../../security/device-registry-types.js";
 import { isOwner, type HaAuthUser } from "../../security/owner-check.js";
-import { windowStatus } from "../../security/window-confirm.js";
+import { windowBlocked, windowStatus } from "../../security/window-confirm.js";
 import type { WindowLogEntry } from "../../storage/window-log.js";
 import type { PageKey, PageTexts } from "../page-texts.js";
 import { escapeHtml, formatWhen } from "./nova-page-view.js";
@@ -20,7 +20,10 @@ const REASONS: Record<string, PageKey> = {
 export function windowRow(d: DeviceRecord, users: HaAuthUser[], viewer: { isOwner: boolean; userId: string }, t: PageTexts, form: (action: WindowAction, deviceId: string, label: string) => string): string {
   const status = windowStatus({ kind: "device", deviceId: d.deviceId }, d);
   const declared = users.some((u) => u.id === d.ownComputer?.userId && isOwner(u)); // the Home Assistant owner today
-  const why = (status.why === "on" || status.why === "off") && !declared ? "not_yours" : status.why;
+  const owner = users.find(isOwner)?.id;
+  const open = status.why === "on" || status.why === "off" || status.why === "not_yours";
+  const why = open && owner !== undefined && windowBlocked(d, owner) === "owner" ? "owner"
+    : (status.why === "on" || status.why === "off") && !declared ? "not_yours" : status.why;
   const key = why === "on" ? "page.window_on" : why === "off" ? "page.window_off" : REASONS[why];
   if (key === undefined) return "";
   const line = `<span class="muted meta">${t.say(key)}</span>`;
@@ -33,7 +36,7 @@ export function windowRow(d: DeviceRecord, users: HaAuthUser[], viewer: { isOwne
     ...(d.ownComputer !== undefined ? [form("window_not_mine", d.deviceId, t.say("page.window_not_mine"))] : []),
   ];
   const warning = why === "on" || why === "off" || why === "not_yours" ? `<span class="muted meta">${t.say("page.window_warning")}</span>` : "";
-  return `${line}${warning}${buttons.length === 0 ? "" : `<span class="actions">${buttons.join("")}</span>`}`;
+  return `${line}${buttons.length === 0 ? "" : `<span class="actions">${buttons.join("")}</span>`}${warning}`;
 }
 
 export function recentWindowSection(entries: WindowLogEntry[], t: PageTexts): string {

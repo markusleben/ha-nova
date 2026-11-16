@@ -76,7 +76,7 @@
   "page.window_file": "Can't confirm in its window: its HA NOVA key is kept in a file.",
   "page.window_pair_again": "Can't confirm in its window: paired before 0.32. Pair it again once.",
   "page.window_cleanup": "Can't confirm in its window yet: its old HA NOVA version is still signed in to Home Assistant. To finish, run “ha-nova setup --server <profile>” on that computer.",
-  "page.window_owner": "Can't confirm in its window: it's signed in to Home Assistant as someone else.",
+  "page.window_owner": "Can't confirm in its window: it's signed in to Home Assistant as someone else. Pair it again signed in as you.",
   "page.window_warning": "Programs using this computer's key can approve without you, also from another device if the key is copied.",
   "page.window_mine": "This is my computer",
   "page.window_not_mine": "Not my computer",

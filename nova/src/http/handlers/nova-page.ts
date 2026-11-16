@@ -49,6 +49,8 @@ const ACTIONS = new Set<NovaAction>(["generate_code", "cancel_code", "revoke_dev
 const CHAT_ACTIONS = new Set<NovaAction>(["chat_apps_on", "chat_apps_off", "chat_read_only", "chat_codes", "chat_users"]);
 // What an administrator who isn't the owner may do; every other action needs the owner.
 const ADMIN_ACTIONS = new Set<string>(["generate_code", "cancel_code", "revoke_device", "resume_phone_asks"]);
+// One full page's tokens: 64 computers × (two window buttons + resume), and the page's own forms.
+export const PAGE_CSRF_PENDING = 256;
 
 export interface NovaPageDeps {
   fetchAuthUsers: () => Promise<HaAuthUser[]>;

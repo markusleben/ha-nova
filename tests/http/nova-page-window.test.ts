@@ -5,7 +5,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { createNovaActionHandler, createNovaPageHandler, type NovaPageDeps } from "../../nova/src/http/handlers/nova-page.js";
+import { createNovaActionHandler, createNovaPageHandler, PAGE_CSRF_PENDING, type NovaPageDeps } from "../../nova/src/http/handlers/nova-page.js";
 import { recentWindowSection, windowRow, type WindowAction } from "../../nova/src/http/handlers/nova-page-window.js";
 import { PAGE_KEYS, pageTexts, type PageTexts } from "../../nova/src/http/page-texts.js";
 import { createCsrfStore } from "../../nova/src/security/csrf.js";
@@ -33,11 +33,14 @@ describe("a computer's window line", () => {
     ["a Mac whose old sign-in isn't cleaned up", { ...on, legacyCleanup: "pending" }, "‹page.window_cleanup›", ["window_not_mine"]],
     ["a Mac without a cleanup report", { ...on, legacyCleanup: undefined }, "‹page.window_cleanup›", ["window_not_mine"]],
     ["signed in to Home Assistant as someone else", { ...on, cloudUserId: ADMIN.id }, "‹page.window_owner›", ["window_not_mine"]],
+    ["someone else's Link, turned off", { ...on, cloudUserId: ADMIN.id, windowConfirm: false }, "‹page.window_owner›", ["window_not_mine"]],
+    ["someone else's Link, undeclared", { ...on, cloudUserId: ADMIN.id, ownComputer: undefined }, "‹page.window_owner›", []],
   ] as const)("%s: says so; the owner gets only the buttons that apply", (_, device, line, actions) => {
     const html = row(device as DeviceRecord);
     expect(html).toContain(`<span class="muted meta">${line}</span>`);
     expect([...html.matchAll(/\[(window_\w+):mac:/g)].map((m) => m[1])).toEqual(actions);
     expect(html.includes("‹page.window_warning›")).toBe(["‹page.window_on›", "‹page.window_off›", "‹page.window_not_yours›"].includes(line));
+    if (html.includes("‹page.window_warning›")) expect(html.indexOf("‹page.window_warning›")).toBeGreaterThan(html.lastIndexOf("[window_")); // under the switch
   });
 
   it("shows an administrator the state only: no buttons, no switch", () => {
@@ -68,11 +71,11 @@ describe("recent window confirmations", () => {
   });
 });
 
-function harness(users: HaAuthUser[] = [OWNER, ADMIN], refusal: string | null = null) {
+function harness(users: HaAuthUser[] = [OWNER, ADMIN], refusal: string | null = null, devices: DeviceRecord[] = [on, { ...on, deviceId: "other", name: "Other" }]) {
   const logged: unknown[] = [];
-  const csrf = createCsrfStore(64);
+  const csrf = createCsrfStore(PAGE_CSRF_PENDING);
   const registry = {
-    list: () => [on, { ...on, deviceId: "other", name: "Other" }],
+    list: () => devices,
     setOwnComputer: vi.fn(() => refusal),
     setWindowConfirm: vi.fn(() => refusal),
   };
@@ -154,6 +157,17 @@ describe("the owner's window buttons", () => {
     const res = { statusCode: 0, body: "", setHeader: () => undefined, end(b?: string) { if (b) this.body = b; } };
     await createNovaActionHandler(noGate)({ request: { url: "/action", socket: { remoteAddress: "172.30.32.2" }, headers, rawHeaders: Object.entries(headers).flat() } as unknown as IncomingMessage, response: res as unknown as ServerResponse, path: "/action", body: { action: "window_on", csrf: h.csrf.issue(OWNER.id, "window_on:mac", 1000), device_id: "mac" } });
     expect(res.statusCode).toBe(400);
+  });
+
+  it("still work on a full page: 64 computers' buttons evict none of the page's tokens", async () => {
+    const h = harness(undefined, undefined, Array.from({ length: 64 }, (_, i) => ({ ...on, deviceId: `mac${i}`, name: `Mac ${i}` })));
+    const html = (await h.page()).body;
+    expect(html.match(/value="window_/g)).toHaveLength(128);
+    const first = h.token(html, "window_off", "mac0")!;
+    expect((await h.act(OWNER.id, { action: "window_off", csrf: first, device_id: "mac0" })).statusCode).toBe(303);
+    const code = /name="csrf" value="([^"]+)"><input type="hidden" name="action" value="generate_code"/.exec(html)?.[1];
+    expect(code).toBeDefined();
+    expect(h.csrf.consume(OWNER.id, "generate_code", code!, 1000)).toBe(true);
   });
 
   it("aren't shown at all without the worker's words", async () => {

@@ -76,7 +76,7 @@
   "page.window_file": "Kann nicht im Fenster bestätigen: sein HA-NOVA-Schlüssel liegt in einer Datei.",
   "page.window_pair_again": "Kann nicht im Fenster bestätigen: vor 0.32 gekoppelt. Einmal neu koppeln.",
   "page.window_cleanup": "Kann noch nicht im Fenster bestätigen: die alte HA-NOVA-Version ist noch bei Home Assistant angemeldet. Zum Abschließen auf diesem Computer „ha-nova setup --server <profile>“ ausführen.",
-  "page.window_owner": "Kann nicht im Fenster bestätigen: er ist bei Home Assistant als jemand anderes angemeldet.",
+  "page.window_owner": "Kann nicht im Fenster bestätigen: er ist bei Home Assistant als jemand anderes angemeldet. Mit deinem eigenen Konto neu koppeln.",
   "page.window_warning": "Programme, die den Schlüssel dieses Computers nutzen, können ohne dich bestätigen, auch von einem anderen Gerät, wenn der Schlüssel kopiert wurde.",
   "page.window_mine": "Das ist mein Computer",
   "page.window_not_mine": "Nicht mein Computer",

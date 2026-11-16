@@ -11,6 +11,7 @@ import { approveRoutes } from "../http/handlers/nova-approve.js";
 import {
   createNovaActionHandler,
   createNovaPageHandler,
+  PAGE_CSRF_PENDING,
   type NovaPageDeps,
 } from "../http/handlers/nova-page.js";
 import {
@@ -261,7 +262,7 @@ function registerOwnerRoutes(
   deps: IngressListenerDeps,
   fetchAuthUsers: () => Promise<HaAuthUser[]>,
 ): void {
-  const csrf = createCsrfStore(64); // device-bound buttons on every computer's row
+  const csrf = createCsrfStore(PAGE_CSRF_PENDING);
   const novaDeps: NovaPageDeps = {
     fetchAuthUsers,
     csrf,
