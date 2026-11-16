@@ -124,7 +124,7 @@ export interface DeviceRegistry {
   // Sets an active device's phone link only while it still is expected; false: nothing changed.
   setConfirmPhone(deviceId: string, link: ConfirmPhoneLink, expected: ConfirmPhoneLink | undefined): boolean;
   disableWindowConfirm(deviceId: string): boolean;
-  // The owner's page: "This is my computer" (also turns the switch on) or, with null, "Not my computer" (also off).
+  // The owner's page: "Turn on" an undeclared computer (also turns the switch on) or, with null, "Turn off" one that can't confirm (also off).
   setOwnComputer(deviceId: string, ownerId: string | null, atMs: number): WindowRefusal | null;
   setWindowConfirm(deviceId: string, on: boolean, ownerId: string): WindowRefusal | null;
   completeLegacyCleanup(deviceId: string): boolean; // only the cleanup field, never ownership or the switch

@@ -46,8 +46,9 @@ type signInProvisionedCredential struct {
 	SecurePort      int    `json:"secure_port"`
 }
 
-// own: the owner declares this computer theirs (setup's "Only I use this
-// account on this computer" box), so the App lets it confirm in its window.
+// own: the owner declares this computer theirs (setup's "Confirm risky
+// changes here with one click" switch), so the App lets it confirm in its
+// window.
 func pairDeviceV2Armed(
 	ctx context.Context,
 	client *CloudIngressClient,

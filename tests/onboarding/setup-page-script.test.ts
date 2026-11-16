@@ -30,12 +30,13 @@ describe("setup page step 1", () => {
     expect(p.find("b-signin")).toBeTruthy();
   });
 
-  it("asks \"Only I use this account on this computer\" with the sign-in, on by default, only when offered", async () => {
+  it("asks \"Confirm risky changes here with one click\" with the sign-in, on by default, only when offered", async () => {
     const p = page({ ...found, own: true });
     await p.settle();
     const own = p.find("b-own")!;
     expect([own.attributes.role, own.attributes["aria-checked"]]).toEqual(["switch", "true"]);
     expect(p.screen.textContent).toContain(p.catalog["setup.page.found.own"]);
+    expect(p.screen.textContent).toContain(p.catalog["setup.page.found.own_hint"]);
     p.find("b-signin")!.dispatch("click");
     expect(p.find("b-own")!.attributes.disabled).toBe(""); // frozen as sent while it posts
     p.find("b-own")!.dispatch("click");

@@ -62,7 +62,7 @@ func TestMain(m *testing.M) {
 	windowRunner = func(context.Context, windowText, time.Duration) windowAnswer {
 		panic("a test opened a real confirmation window")
 	}
-	// Setup asks "Only I use this account on this computer" only where a
+	// Setup asks "Confirm risky changes here with one click" only where a
 	// test says the App can approve in windows (setup_own_computer_test.go).
 	ownComputerAskedForSetup = func(runtimeConfig) bool { return false }
 	secretKeyringGet = keyring.Get

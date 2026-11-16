@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-// "Only I use this account on this computer: confirm risky changes here in
-// the window" (0.32 spec, "What a user sees" 1): asked once, right after
+// "Confirm risky changes (doors, alarm, deletes) here with one click in a
+// window?" (0.32 spec, "What a user sees" 1): asked once, right after
 // the owner's Home Assistant sign-in and before pairing, so the pairing
 // carries the answer (own_computer) and an interrupted setup declares
 // nothing. Re-pairing a computer asks the same question here.
@@ -37,9 +37,10 @@ func ownComputerHere() bool {
 }
 
 // askOwnComputer is the terminal's question. Enter is yes (D1); only a yes
-// declares, so no input or any other answer leaves the computer off, and
-// the owner can still turn it on with "This is my computer" on the NOVA
-// page. Back, Exit, and Ctrl+C come back as the error: nothing pairs.
+// declares, so no input or any other answer leaves the computer off (an
+// answer gets where it confirms instead), and the owner can still turn it
+// on on the NOVA page. Back, Exit, and Ctrl+C come back as the error:
+// nothing pairs.
 func askOwnComputer(reader *bufio.Reader, out io.Writer) (bool, error) {
 	renderSetupParagraph(out, setupT("setup.own.question"))
 	answer, err := promptWizardLineFromReader(reader, out, setupT("setup.own.prompt"), "")
@@ -53,6 +54,7 @@ func askOwnComputer(reader *bufio.Reader, out io.Writer) (bool, error) {
 	case "", "y", "yes":
 		return true, nil
 	}
+	renderSetupParagraph(out, setupT("setup.own.no"))
 	return false, nil
 }
 
