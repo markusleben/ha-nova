@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/zalando/go-keyring"
@@ -210,6 +211,48 @@ func TestMigrateServiceDeviceCredentialToFile(t *testing.T) {
 		}
 		if _, err := keyring.Get(deviceCredentialService, secretUser()); !errors.Is(err, keyring.ErrNotFound) {
 			t.Fatalf("keyring copy of the current credential must be removed, got err=%v", err)
+		}
+	})
+
+	t.Run("turns window approval off on the App first, and copies nothing when it can't", func(t *testing.T) {
+		saved := gateWindowOffForFileCopy
+		t.Cleanup(func() { gateWindowOffForFileCopy = saved })
+		for _, fails := range []bool{false, true} {
+			withDeviceStorageTestHome(t)
+			resetKeyringDeviceSlots(t)
+			current := generateTestDeviceCredential(t)
+			if err := writeDeviceCredential(current); err != nil {
+				t.Fatal(err)
+			}
+			var asked []string
+			gateWindowOffForFileCopy = func(profile string) error {
+				asked = append(asked, profile)
+				if deviceFileBackendMarkerExists() {
+					t.Error("a file was committed before window approval was off")
+				}
+				if fails {
+					return errors.New("Home Assistant isn't reachable")
+				}
+				return nil
+			}
+			migrated, err := migrateKeyringDeviceCredentialToFile()
+			if strings.Join(asked, ",") != defaultServerProfileName || migrated == fails || (err != nil) != fails || deviceFileBackendMarkerExists() == fails {
+				t.Fatalf("fails %v: asked %v migrated %v err %v marker %v", fails, asked, migrated, err, deviceFileBackendMarkerExists())
+			}
+			if !fails {
+				continue
+			}
+			if !strings.Contains(err.Error(), "nothing was copied") {
+				t.Fatalf("error %q", err)
+			}
+			if got, err := keyring.Get(deviceCredentialService, secretUser()); err != nil || got != current {
+				t.Fatalf("the keyring key must stay: %q %v", got, err)
+			}
+			if dir, err := deviceSecretFileDir(); err == nil {
+				if _, err := os.Stat(testSecretPath(dir, deviceCredentialService)); !os.IsNotExist(err) {
+					t.Fatalf("a file copy was written: %v", err)
+				}
+			}
 		}
 	})
 

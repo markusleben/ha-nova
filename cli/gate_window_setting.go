@@ -22,11 +22,31 @@ var gateWindowOff = func(paths runtimePaths) error {
 	if err != nil {
 		return err
 	}
+	return s.gateWindowOff()
+}
+
+// gateWindowOffForProfile: the same for one server profile's paired
+// computer, leaving the process's profile selection alone.
+var gateWindowOffForProfile = func(paths runtimePaths, profile string) error {
+	cfg, err := loadSelectedConfig(paths, profile, "--server", false)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	transport, err := selectRelayTransport(ctx, cfg, "", false)
+	if err != nil {
+		cancel()
+		return errors.New(relayTransportErrorMessage(err))
+	}
+	return relaySessionOn(paths, cfg, transport, ctx, cancel).gateWindowOff()
+}
+
+func (s *relaySession) gateWindowOff() error {
 	defer s.close()
 	var answer struct {
 		Window bool `json:"window"`
 	}
-	err = s.gateCall(context.Background(), gateAskRoute, 10*time.Second, map[string]any{"op": "window_off"}, &answer)
+	err := s.gateCall(context.Background(), gateAskRoute, 10*time.Second, map[string]any{"op": "window_off"}, &answer)
 	var call *relayCallError
 	if errors.As(err, &call) && call.status == http.StatusNotFound {
 		return nil

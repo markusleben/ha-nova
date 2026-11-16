@@ -65,6 +65,9 @@ func TestMain(m *testing.M) {
 	// Setup asks "Confirm risky changes here with one click" only where a
 	// test says the App can approve in windows (setup_own_computer_test.go).
 	ownComputerAskedForSetup = func(runtimeConfig) bool { return false }
+	// No test reaches an App to turn window approval off before a file copy;
+	// device_credential_migration_test.go checks that order with its own.
+	gateWindowOffForFileCopy = func(string) error { return nil }
 	secretKeyringGet = keyring.Get
 	secretKeyringGetWithPolicy = defaultSecretKeyringGetWithPolicy
 	secretKeyringSetWithPolicy = defaultSecretKeyringSetWithPolicy

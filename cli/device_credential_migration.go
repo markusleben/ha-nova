@@ -67,6 +67,7 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 	}
 	type slotValue struct{ service, value string }
 	var currents, pendings []slotValue
+	var profilesWithCurrent []string
 	for _, profile := range credentialProfileNames() {
 		currentService := deviceCredentialServiceForProfile(profile)
 		pendingService := deviceCredentialPendingServiceForProfile(profile)
@@ -76,6 +77,7 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 		}
 		if currentOK {
 			currents = append(currents, slotValue{currentService, current})
+			profilesWithCurrent = append(profilesWithCurrent, profile)
 		}
 		// A pending credential from an interrupted pairing must move with the
 		// install; an unreadable/malformed pending slot aborts BEFORE the flip.
@@ -89,6 +91,14 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 	}
 	if len(currents) == 0 && len(pendings) == 0 {
 		return false, nil // never paired: nothing to migrate
+	}
+	// Any same-user program reads a file key, so a copied key must not
+	// approve in its computer's window (0.32 spec §5.4): the App turns that
+	// off for every profile first, and nothing is copied when it can't.
+	for _, profile := range profilesWithCurrent {
+		if err := gateWindowOffForFileCopy(profile); err != nil {
+			return false, fmt.Errorf("couldn't turn off one-click confirming for server profile %q on the NOVA App first, so nothing was copied: %w. Try again once Home Assistant is reachable", profile, err)
+		}
 	}
 	// Copy pendings first (provisional, never commits the backend), then EVERY
 	// current file, and only then the machine-wide marker: once the marker
@@ -313,6 +323,16 @@ func keyringDeviceCredentialCleanupPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(dir, deviceCredentialKeyringCleanupMarker), nil
+}
+
+// gateWindowOffForFileCopy: window_off for one profile before its key is
+// copied to a file; tests replace it.
+var gateWindowOffForFileCopy = func(profile string) error {
+	paths, err := detectPaths()
+	if err != nil {
+		return err
+	}
+	return gateWindowOffForProfile(paths, profile)
 }
 
 // credentialProfileNames returns every server profile whose credential slots
