@@ -28,6 +28,7 @@ POST /backups
 POST /supervisor   # App mode only
 POST /gate/v1/ask  # the safety check: ask a person, wait, cancel
 POST /gate/v1/phone
+GET  /gate/v1/me   # this device's owner-window eligibility (0.32)
 ```
 
 ### Home Assistant Link routes
@@ -46,6 +47,7 @@ Supervisor-ingress-only machine surface. `nova/DOCS.md` links here.
 | GET/POST | `/chat-apps/v1/state` | Read or change the chat-app switch (owner only, through Ingress) |
 | POST | `/ws`, `/core`, `/files`, `/backups` | The same bounded functional routes through Ingress |
 | POST | `/gate/v1/ask`, `/gate/v1/phone` | The safety check's ask and phone-link routes through Ingress |
+| GET | `/gate/v1/me` | This authenticated device's owner-window eligibility, checked against the active Home Assistant owner |
 
 `POST /supervisor` is not among them: Supervisor access needs the local
 connection.
@@ -478,7 +480,7 @@ in sync; Relay and product versions must not be substituted for each other.
 - REST client uses native `fetch()` (no axios at runtime)
 - WS orchestration uses `home-assistant-js-websocket`
 - `ws` supplies the authenticated Node WebSocket transport; REST stays on native `fetch()`
-- Current scope is contract-capped at 11,850 TypeScript source lines (`scripts/check-docs.sh` [1] lists each reviewed raise). The last raise, from 11,370, is the NOVA page's household list for chat apps (who may use them and at which level, each listed user's phone, the recent changes): about 11,830 lines.
+- Current scope is contract-capped at 14,120 TypeScript source lines (`scripts/check-docs.sh` [1] records each reviewed raise). The 0.32 pairing foundation raises the previous 13,940 ceiling for owner-declared computer metadata, fresh owner eligibility checks, and `/gate/v1/me` on the authenticated device and Link listeners (about 14,065 lines). It adds no window approval channel yet; the worker remains the only classifier. Pairing preserves the predecessor's phone only after an owner-authenticated sign-in, and old pairings without store provenance stay ineligible.
 
 ## Standard Envelope
 

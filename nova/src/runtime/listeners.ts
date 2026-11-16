@@ -27,6 +27,7 @@ export interface FunctionalHandlers {
   // Device listener only: not a Home Assistant Link functional route (docs/work/2026-10-26-supervisor-role-spec.md → Decisions).
   supervisor: RouteHandler;
   ask: RouteHandler; // POST /gate/v1/ask and /gate/v1/phone (gate-asks.ts)
+  me?: RouteHandler;
 }
 
 export interface PairingListenerDeps {
@@ -62,6 +63,7 @@ function registerFunctional(router: Router, fns: FunctionalHandlers): void {
   router.register("POST", "/supervisor", fns.supervisor);
   router.register("POST", "/gate/v1/ask", fns.ask);
   router.register("POST", "/gate/v1/phone", fns.ask);
+  if (fns.me !== undefined) router.register("GET", "/gate/v1/me", fns.me);
 }
 
 // The auth hook for functional routes on a given transport: resolve a device

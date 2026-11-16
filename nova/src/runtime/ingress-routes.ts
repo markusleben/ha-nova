@@ -196,6 +196,7 @@ function registerFunctionalRoutes(
   policies: IngressRoutePolicies,
   handlers: FunctionalHandlers,
 ): void {
+  if (handlers.me !== undefined) registerIngressRoute(router, policies, "GET", "/gate/v1/me", functional("none"), handlers.me);
   registerIngressRoute(
     router,
     policies,

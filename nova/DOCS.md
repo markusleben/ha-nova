@@ -159,6 +159,7 @@ device's key gets 403, the old shared key 401 with "pair this computer again".
 | POST | `/files` | Config-file access, only when you turn it on |
 | POST | `/backups` | Saved copies of configs, for undo |
 | POST | `/gate/v1/ask`, `/gate/v1/phone` | Ask a person to approve a risky change, or to link a phone for that (the safety check) |
+| GET | `/gate/v1/me` | This computer's window-confirmation status (0.32 pairing foundation) |
 | POST | `/supervisor` | Supervisor system and App reads, from a fixed list (local ports only, not through Home Assistant Link). The HA NOVA program, on a computer and in chat apps, doesn't read the logs |
 
 For Apps and logs, this App has the Supervisor's `manager` access, which Home

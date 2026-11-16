@@ -1,3 +1,5 @@
+import type { CredentialStore } from "./device-registry-types.js";
+
 export const MAX_METADATA_BYTES = 4 * 1024;
 // The NOVA App mints its chat-app bridge and safety-check worker credentials
 // under these ids; pairing refuses them, so no device can replace or be
@@ -10,6 +12,11 @@ export interface DeviceMetadata {
   platform: string;
   client: string;
   clientInstallId: string;
+  credentialStore?: CredentialStore;
+}
+
+export function isCredentialStore(value: unknown): value is CredentialStore {
+  return value === "keychain" || value === "credential_manager" || value === "secret_service" || value === "file";
 }
 
 export function decodePairingMetadata(
@@ -42,7 +49,7 @@ export function decodePairingMetadata(
   ) {
     return null;
   }
-  return { name, platform, client, clientInstallId };
+  return { name, platform, client, clientInstallId, ...(isCredentialStore(metadata.credential_store) ? { credentialStore: metadata.credential_store } : {}) };
 }
 
 function boundedString(value: unknown, maxLength: number): string | null {
