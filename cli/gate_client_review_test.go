@@ -184,9 +184,10 @@ func TestGateAskEndsWithTheCommandsWait(t *testing.T) {
 	start := time.Now()
 	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
 	_, ops, sends := g.snapshot()
-	if exit != verbExitRefused || env.Error == nil || env.Error.Code != "CONFIRM_CANCELLED" || time.Since(start) > 15*time.Second ||
-		!slices.Contains(ops, "cancel") || len(sends) != 0 || len(h.planFiles()) != 1 {
-		t.Fatalf("exit %d %+v after %v; ops %v sends %+v", exit, env.Error, time.Since(start), ops, sends)
+	if exit != verbExitConfirmation || env.Status != "waiting_for_approval" || env.Error == nil || env.Error.Code != "CONFIRM_WAITING" || env.Say != confirmT("en", "say.relay_waiting") ||
+		!strings.Contains(env.Error.Next, "apply --plan "+plan.ID+" again") || time.Since(start) > 15*time.Second ||
+		slices.Contains(ops, "cancel") || len(sends) != 0 || len(h.planFiles()) != 2 {
+		t.Fatalf("exit %d %s %+v after %v; ops %v sends %+v files %v", exit, env.Status, env.Error, time.Since(start), ops, sends, h.planFiles())
 	}
 }
 

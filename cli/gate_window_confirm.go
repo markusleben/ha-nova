@@ -22,8 +22,8 @@ var gateWindowRetry = 5 * time.Second
 // gateConfirm: a relay plan's own window text (confirmText) in its language,
 // and whether the App asks the phone too.
 type gateConfirm struct {
-	lang, text string
-	phone      bool
+	id, lang, text string // id: the stored plan's (gate_ask_join.go)
+	phone          bool
 }
 
 // offered: the plan's window with Confirm for this ask, or nil: the App
@@ -34,7 +34,7 @@ func (c *gateConfirm) offered(s *relaySession, opened gateOpened) *gateConfirm {
 	if c == nil || c.text == "" || !slices.Contains(opened.Channels, "window") || s.gateChat() || windowOff(s.paths) || !windowAvailable() {
 		return nil
 	}
-	return &gateConfirm{lang: c.lang, text: c.text, phone: slices.Contains(opened.Channels, "phone")}
+	return &gateConfirm{id: c.id, lang: c.lang, text: c.text, phone: slices.Contains(opened.Channels, "phone")}
 }
 
 // fits: the plan's window shows it uncut (windowFits), so it can Confirm.

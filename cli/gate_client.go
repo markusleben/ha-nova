@@ -156,26 +156,45 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool, plan *gateConfirm)
 		return gateStop("refused", "CONFIRM_UNAVAILABLE", "checking this change took the time this call has to ask on the linked phone or in Home Assistant; nothing was sent",
 			"Tell the user nothing changed: checking this change in their home took too long to still ask them in time. They can ask again; if it keeps happening, they make the change in Home Assistant itself.")
 	}
+	// The CLI's ask for a stored plan may outlive the command's wait: it is
+	// kept for the plan's next apply, which joins it (gate_ask_join.go).
+	keeps := flag == nil && !chat && plan != nil && plan.id != ""
+	kept, joined := gateKeptAsk{}, false
+	if keeps {
+		kept, joined = gateTakeAsk(s.paths, plan.id, reqs)
+	}
 	var stop error
 	var state, grant string
-	ask := func() bool { // a chat app's runs outside mcpVerbLock: it reads no process-wide state
-		opened, err := open()
+	var opened gateOpened
+	var ask func() bool
+	ask = func() bool { // a chat app's runs outside mcpVerbLock: it reads no process-wide state
 		end := time.Now().Add(gateAskLife + 5*time.Second) // a job's ask waits its life, a move's link included
 		if flag == nil {
 			end = time.Now().Add(s.askWait()) // the CLI: the command's wait
 		}
-		if !chat && !plan.confirmsHere(s, opened) { // a chat app never moves a phone: the bridge host's own link isn't its user's; a window here that confirms needs none
-			if reopen, moved := s.gateMoveFirst(opened, err, time.Until(end)/2); moved != nil {
-				stop = moved
-				return false
-			} else if reopen {
-				opened, err = open()
+		var err error
+		if joined {
+			opened = gateOpened{Needed: true, AskID: kept.AskID, Channels: kept.Channels}
+		} else {
+			opened, err = open()
+			kept.Until = time.Now().Add(gateAskLife)
+			if !chat && !plan.confirmsHere(s, opened) { // a chat app never moves a phone: the bridge host's own link isn't its user's; a window here that confirms needs none
+				if reopen, moved := s.gateMoveFirst(opened, err, time.Until(end)/2); moved != nil {
+					stop = moved
+					return false
+				} else if reopen {
+					opened, err = open()
+				}
 			}
 		}
 		if stop = gateOpenFailure(opened, err, chat, lang); stop != nil {
 			return false
 		}
 		state, grant = s.gateWait(opened.AskID, false, time.Until(end), plan.offered(s, opened))
+		if joined && (state == "expired" || state == "unknown") { // the kept ask ended unanswered, or the App forgot it: ask again, as before
+			joined = false
+			return ask()
+		}
 		return state == "approved" && grant != ""
 	}
 	if !chat {
@@ -188,6 +207,12 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool, plan *gateConfirm)
 		return stop
 	case chat && (state != "approved" || grant == ""):
 		return gateChatEnded(state)
+	case keeps && state == "timeout": // the command's wait ended first: the ask stays for the next apply
+		gateKeepAsk(s.paths, plan.id, gateKeptAsk{AskID: opened.AskID, Digest: gateAskDigest(reqs), Channels: opened.Channels, Until: kept.Until})
+		return gateWaiting(plan.id, plan.lang, plan.confirmsHere(s, opened))
+	case state == "timeout" && flag == nil: // a held write's ask, which nothing joins: end it
+		s.gateCancel(opened.AskID)
+		return gateEnded(state)
 	case state != "approved" || grant == "":
 		return gateEnded(state)
 	}
