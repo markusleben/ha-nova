@@ -31,7 +31,7 @@ var gateWindowOff = func(paths runtimePaths) error {
 // active; it goes only to the pending endpoint and pin saved with it (never
 // the live one, which may be another Relay), and without them, or when the
 // App doesn't take it (not activated yet), nothing is sent or copied.
-func gateWindowOffForProfile(paths runtimePaths, profile, pending string) error {
+func gateWindowOffForProfile(paths runtimePaths, profile, pending string, repairing bool) error {
 	cfg, err := loadSelectedConfig(paths, profile, "--server", false)
 	if err != nil {
 		return err
@@ -40,10 +40,10 @@ func gateWindowOffForProfile(paths runtimePaths, profile, pending string) error 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	transport := relayTransportSelection{BaseURL: cfg.PendingSecureBaseURL, Client: spkiPinnedClient(cfg.PendingSpkiPin), Credential: pending, DeviceMode: true, Via: relayViaLocal}
 	switch {
-	case pending != "" && (cfg.PendingSecureBaseURL == "" || cfg.PendingSpkiPin == ""):
+	case pending != "" && (cfg.PendingSecureBaseURL == "" || cfg.PendingSpkiPin == "" || cfg.Cloud != nil): // as resuming it: never beside Link
 		cancel()
 		return unfinished
-	case pending == "" && cfg.PendingSecureBaseURL != "" && cfg.PendingSecureBaseURL == cfg.RelaySecureBaseURL:
+	case repairing && cfg.PendingSecureBaseURL == cfg.RelaySecureBaseURL:
 		// A re-pairing stopped after saving the new Relay as live but before
 		// its key replaced the current one, which may be another Relay's:
 		// that key goes nowhere until the pairing is finished.

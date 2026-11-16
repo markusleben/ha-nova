@@ -80,7 +80,7 @@ func TestGateWindowOffSendsAPendingKeyOnlyToItsOwnEndpoint(t *testing.T) {
 		if err := saveConfig(paths, cfg); err != nil {
 			t.Fatal(err)
 		}
-		err := gateWindowOffForProfile(paths, defaultServerProfileName, "pending-key")
+		err := gateWindowOffForProfile(paths, defaultServerProfileName, "pending-key", false)
 		if err == nil || live.Load() != 0 || (pending == "") != strings.Contains(err.Error(), "didn't finish") {
 			t.Fatalf("pending endpoint %q: %v; live endpoint reached %d times", pending, err, live.Load())
 		}
@@ -91,7 +91,12 @@ func TestGateWindowOffSendsAPendingKeyOnlyToItsOwnEndpoint(t *testing.T) {
 	if err := saveConfig(paths, cfg); err != nil {
 		t.Fatal(err)
 	}
-	if err := gateWindowOffForProfile(paths, defaultServerProfileName, ""); err == nil || !strings.Contains(err.Error(), "didn't finish") || live.Load() != 0 {
+	if err := gateWindowOffForProfile(paths, defaultServerProfileName, "", true); err == nil || !strings.Contains(err.Error(), "didn't finish") || live.Load() != 0 {
 		t.Fatalf("current key mid re-pairing: %v; endpoint reached %d times", err, live.Load())
+	}
+	// The same endpoint fields left after a pairing that finished (no pending
+	// key): not an unfinished pairing.
+	if err := gateWindowOffForProfile(paths, defaultServerProfileName, "", false); err != nil && strings.Contains(err.Error(), "didn't finish") {
+		t.Fatalf("stale endpoint fields read as an unfinished pairing: %v", err)
 	}
 }

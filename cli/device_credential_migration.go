@@ -67,7 +67,10 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 	}
 	type slotValue struct{ service, value string }
 	var currents, pendings []slotValue
-	type windowOff struct{ profile, pending string }
+	type windowOff struct {
+		profile, pending string
+		repairing        bool // a pending key waits beside the current one
+	}
 	var windowOffs []windowOff
 	for _, profile := range credentialProfileNames() {
 		currentService := deviceCredentialServiceForProfile(profile)
@@ -78,7 +81,6 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 		}
 		if currentOK {
 			currents = append(currents, slotValue{currentService, current})
-			windowOffs = append(windowOffs, windowOff{profile: profile})
 		}
 		// A pending credential from an interrupted pairing must move with the
 		// install; an unreadable/malformed pending slot aborts BEFORE the flip.
@@ -86,13 +88,19 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 		if pendingErr != nil {
 			return false, fmt.Errorf("cannot read the pending device credential from the keyring: %w", pendingErr)
 		}
+		if currentOK {
+			windowOffs = append(windowOffs, windowOff{profile: profile, repairing: pendingOK})
+		}
 		if pendingOK {
 			pendings = append(pendings, slotValue{pendingService, pending})
 			record, err := decodePendingDeviceCredentialRecord(pending)
 			if err != nil {
 				return false, fmt.Errorf("cannot read the pending device credential from the keyring: %w", err)
 			}
-			windowOffs = append(windowOffs, windowOff{profile, record.Credential})
+			if record.Source != pendingDeviceCredentialSourceLocal { // a Link pairing's key: its Relay is known only through Link, so it goes nowhere here
+				return false, fmt.Errorf("server profile %q has a pairing that didn't finish, so nothing was copied; finish it first with: ha-nova pair --server %s, then run this again", profile, profile)
+			}
+			windowOffs = append(windowOffs, windowOff{profile: profile, pending: record.Credential})
 		}
 	}
 	if len(currents) == 0 && len(pendings) == 0 {
@@ -103,7 +111,7 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 	// off for every key first, a pending one included (the App may already
 	// hold it as active), and nothing is copied when it can't.
 	for _, off := range windowOffs {
-		if err := gateWindowOffForFileCopy(off.profile, off.pending); err != nil {
+		if err := gateWindowOffForFileCopy(off.profile, off.pending, off.repairing); err != nil {
 			return false, fmt.Errorf("couldn't turn off one-click confirming for server profile %q on the NOVA App first, so nothing was copied: %w", off.profile, err)
 		}
 	}
@@ -333,14 +341,14 @@ func keyringDeviceCredentialCleanupPath() (string, error) {
 }
 
 // gateWindowOffForFileCopy: window_off for one profile's key (pending: a
-// pairing's key not yet promoted) before it is copied to a file; tests
-// replace it.
-var gateWindowOffForFileCopy = func(profile, pending string) error {
+// pairing's key not yet promoted; repairing: the current key, with such a
+// pending key beside it) before it is copied to a file; tests replace it.
+var gateWindowOffForFileCopy = func(profile, pending string, repairing bool) error {
 	paths, err := detectPaths()
 	if err != nil {
 		return err
 	}
-	return gateWindowOffForProfile(paths, profile, pending)
+	return gateWindowOffForProfile(paths, profile, pending, repairing)
 }
 
 // credentialProfileNames returns every server profile whose credential slots

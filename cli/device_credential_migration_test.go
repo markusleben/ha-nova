@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -228,8 +229,11 @@ func TestMigrateServiceDeviceCredentialToFile(t *testing.T) {
 				t.Fatal(err)
 			}
 			var asked []string
-			gateWindowOffForFileCopy = func(profile, key string) error {
+			gateWindowOffForFileCopy = func(profile, key string, repairing bool) error {
 				asked = append(asked, profile+":"+map[bool]string{true: "current", false: "pending"}[key == ""])
+				if repairing != (key == "") {
+					t.Errorf("the current key beside a pending one must say so: key %q repairing %v", key, repairing)
+				}
 				if key != "" && key != pending {
 					t.Errorf("window_off sent with %q, not the pending key", key)
 				}
@@ -260,6 +264,24 @@ func TestMigrateServiceDeviceCredentialToFile(t *testing.T) {
 					t.Fatalf("a file copy was written: %v", err)
 				}
 			}
+		}
+	})
+
+	t.Run("sends a Link pairing's pending key nowhere and copies nothing", func(t *testing.T) {
+		saved := gateWindowOffForFileCopy
+		t.Cleanup(func() { gateWindowOffForFileCopy = saved })
+		withDeviceStorageTestHome(t)
+		resetKeyringDeviceSlots(t)
+		if err := writePendingCloudDeviceCredentialWithPolicy(context.Background(), generateTestDeviceCredential(t), "hanova-relay-v1.AAAAAAAAAAAAAAAAAAAAAA", SecretStoreAllowUI); err != nil {
+			t.Fatal(err)
+		}
+		gateWindowOffForFileCopy = func(profile, key string, _ bool) error {
+			t.Errorf("window_off sent for %s with a Link pairing's key", profile)
+			return nil
+		}
+		migrated, err := migrateKeyringDeviceCredentialToFile()
+		if migrated || err == nil || !strings.Contains(err.Error(), "didn't finish") || deviceFileBackendMarkerExists() {
+			t.Fatalf("migrated %v err %v marker %v", migrated, err, deviceFileBackendMarkerExists())
 		}
 	})
 
