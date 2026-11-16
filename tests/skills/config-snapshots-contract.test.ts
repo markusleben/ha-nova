@@ -74,7 +74,7 @@ describe("config snapshots contract", () => {
     expect(reference).toContain("`config-snapshots` resource family");
     expect(reference).toContain("Snapshot categories may share one manifest");
     expect(reference).toContain("Cap the manifest at **20** files");
-    expect(reference).toContain("one one-time code for the manifest");
+    expect(reference).toContain("one confirmation for the manifest");
     expect(reference).toContain("Run an unfiltered `list` immediately before building the manifest");
     expect(reference).toContain("never expand a category, age, prefix, wildcard, or other\n  selector after the preview");
     expect(reference).toContain("the deletes are one plan raw");

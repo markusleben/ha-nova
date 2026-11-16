@@ -55,7 +55,7 @@ Proportionality (`../ha-nova/recovery-coverage.md`):
 - Create one only when the user asks or accepts, or the last full backup is stale for what the change touches; then proceed with the risky change only after the backup completed.
 
 ### Automatic settings
-`{"type":"backup/config/info"}` reads them; no saved key (`create_backup.password` empty) → first setup in the HA UI. One `backup/config/update` item, only changed keys, via `ha-nova plan raw` → `ha-nova apply`. `schedule` (`recurrence` `never`/`daily`/`custom_days`, `days`, `time`), `retention`, and `agents.<id>.retention` (`copies`, `days`) replace whole: send every field from the read. `create_backup` (`agent_ids`, `include_database`, `include_folders`, `include_all_addons`, `include_addons`, `name`) merges; name locations via `backup/agents/info`. A retention takes the one-time code: it deletes older automatic backups. Verify by re-reading.
+`{"type":"backup/config/info"}` reads them; no saved key (`create_backup.password` empty) → first setup in the HA UI. One `backup/config/update` item, only changed keys, via `ha-nova plan raw` → `ha-nova apply`. `schedule` (`recurrence` `never`/`daily`/`custom_days`, `days`, `time`), `retention`, and `agents.<id>.retention` (`copies`, `days`) replace whole: send every field from the read. `create_backup` (`agent_ids`, `include_database`, `include_folders`, `include_all_addons`, `include_addons`, `name`) merges; name locations via `backup/agents/info`. A retention takes the person's own confirmation: it deletes older automatic backups. Verify by re-reading.
 
 ### Inspect
 `{"type":"backup/details","backup_id":"<id>"}` → what is included (Home Assistant, database, Apps, folders), which locations hold it, protected (encrypted) or not.
