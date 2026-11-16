@@ -79,7 +79,7 @@ describe("legacy sign-in cleanup on a Mac pairing", () => {
 describe("the owner's window declaration and switch", () => {
   const eligible = (store: CredentialStore = "secret_service", over: Partial<DeviceRecord> = {}) => pair({ credentialStore: store, ...over });
 
-  it("This is my computer declares the clicking owner and turns the switch on in one write; Not my computer clears both", () => {
+  it("turning on an undeclared computer declares the clicking owner and turns the switch on in one write; clearing it clears both", () => {
     const { registry, deviceId, read } = eligible();
     expect(registry.setOwnComputer(deviceId, "owner", 50)).toBeNull();
     expect(read()).toMatchObject({ ownComputer: { userId: "owner", atMs: 50 }, windowConfirm: true });

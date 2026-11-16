@@ -105,7 +105,8 @@ func TestOwnComputerAskedOnlyWhereAYesCanWork(t *testing.T) {
 func TestAskOwnComputerDeclaresOnlyOnAYes(t *testing.T) {
 	for input, want := range map[string]bool{"\n": true, "y\n": true, "Yes\n": true, "no\n": false, "n\n": false, "maybe\n": false, "": false} {
 		var out bytes.Buffer
-		if got, err := askOwnComputer(bufio.NewReader(strings.NewReader(input)), &out); got != want || err != nil || !strings.Contains(out.String(), setupT("setup.own.question")) {
+		if got, err := askOwnComputer(bufio.NewReader(strings.NewReader(input)), &out); got != want || err != nil || !strings.Contains(out.String(), setupT("setup.own.question")) ||
+			strings.Contains(out.String(), setupT("setup.own.no")) != (!want && input != "") { // an answered no says where it confirms instead
 			t.Fatalf("%q: %v %v, said %q", input, got, err, out.String())
 		}
 	}

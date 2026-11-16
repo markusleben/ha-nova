@@ -58,7 +58,7 @@ type haSignInSession struct {
 	ingress  *CloudIngressClient
 	user     HACurrentUser
 	fromPage bool // signed in on the setup page: a failed pairing returns there
-	own      bool // the owner's yes to "Only I use this account on this computer" (setup_own_computer.go)
+	own      bool // the owner's yes to "Confirm risky changes here with one click" (setup_own_computer.go)
 }
 
 // parseLocalHAOrigin accepts the saved Home Assistant URL only as a plain

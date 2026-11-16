@@ -24,10 +24,10 @@ const row = (d: DeviceRecord, viewer = ownerView, users = [OWNER, ADMIN]) => win
 
 describe("a computer's window line", () => {
   it.each([
-    ["on", on, "‹page.window_on›", ["window_off", "window_not_mine"]],
-    ["off", { ...on, windowConfirm: false }, "‹page.window_off›", ["window_on", "window_not_mine"]],
-    ["undeclared", { ...on, ownComputer: undefined, windowConfirm: undefined }, "‹page.window_not_yours›", ["window_mine"]],
-    ["declared by someone who is no longer the owner", { ...on, ownComputer: { userId: ADMIN.id, atMs: 1 } }, "‹page.window_not_yours›", ["window_mine", "window_not_mine"]],
+    ["on", on, "‹page.window_on›", ["window_off"]],
+    ["off", { ...on, windowConfirm: false }, "‹page.window_off›", ["window_on"]],
+    ["undeclared", { ...on, ownComputer: undefined, windowConfirm: undefined }, "‹page.window_off›", ["window_mine"]],
+    ["declared by someone who is no longer the owner", { ...on, ownComputer: { userId: ADMIN.id, atMs: 1 } }, "‹page.window_off›", ["window_mine"]],
     ["a file key", { ...on, credentialStore: "file" }, "‹page.window_file›", ["window_not_mine"]],
     ["paired before 0.32", { ...base }, "‹page.window_pair_again›", []],
     ["a Mac whose old sign-in isn't cleaned up", { ...on, legacyCleanup: "pending" }, "‹page.window_cleanup›", ["window_not_mine"]],
@@ -39,7 +39,8 @@ describe("a computer's window line", () => {
     const html = row(device as DeviceRecord);
     expect(html).toContain(`<span class="muted meta">${line}</span>`);
     expect([...html.matchAll(/\[(window_\w+):mac:/g)].map((m) => m[1])).toEqual(actions);
-    expect(html.includes("‹page.window_warning›")).toBe(["‹page.window_on›", "‹page.window_off›", "‹page.window_not_yours›"].includes(line));
+    expect(html.includes("‹page.window_hint› ‹page.window_warning›")).toBe(["‹page.window_on›", "‹page.window_off›"].includes(line));
+    expect(html.match(/\[window_\w+:mac:([^\]]*)\]/)?.[1] ?? "").toBe(actions.length === 0 ? "" : ["window_off", "window_not_mine"].includes(actions[0]!) ? "‹page.window_turn_off›" : "‹page.window_turn_on›"); // one on/off button
     if (html.includes("‹page.window_warning›")) expect(html.indexOf("‹page.window_warning›")).toBeGreaterThan(html.lastIndexOf("[window_")); // under the switch
   });
 
@@ -162,7 +163,7 @@ describe("the owner's window buttons", () => {
   it("still work on a full page: 64 computers' buttons evict none of the page's tokens", async () => {
     const h = harness(undefined, undefined, Array.from({ length: 64 }, (_, i) => ({ ...on, deviceId: `mac${i}`, name: `Mac ${i}` })));
     const html = (await h.page()).body;
-    expect(html.match(/value="window_/g)).toHaveLength(128);
+    expect(html.match(/value="window_/g)).toHaveLength(64); // one on/off button each
     const first = h.token(html, "window_off", "mac0")!;
     expect((await h.act(OWNER.id, { action: "window_off", csrf: first, device_id: "mac0" })).statusCode).toBe(303);
     const code = /name="csrf" value="([^"]+)"><input type="hidden" name="action" value="generate_code"/.exec(html)?.[1];

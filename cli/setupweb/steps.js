@@ -67,12 +67,13 @@ window.novaSteps = (h) => {
     if (local[name]) h.announce(said ? t(said) : t('setup.page.control.signin_later', { button: finishLabel() }));
   };
   const problem = (msg) => (msg ? el('p', { class: 'problem', role: 'alert' }, say(msg)) : null);
-  // Step 2's "Only I use this account on this computer" (spec, What a user
+  // Step 2's "Confirm risky changes here with one click" (spec, What a user
   // sees 1): on by default, and its answer goes with the sign-in button.
   const ownSwitch = (shown) => (shown ? el('span', { class: 'own' }, toggle('b-own', t('setup.page.found.own'), !local.ownOff, () => {
     if (h.accepts('signin')) { local.ownOff = !local.ownOff; render(true); }
   }, !h.accepts('signin')),
-    el('span', { id: 'b-own-v' }, ` ${t('setup.page.found.own')}`)) : null);
+    el('span', { id: 'b-own-v' }, ` ${t('setup.page.found.own')}`),
+    el('span', { class: 'fine' }, ` ${t('setup.page.found.own_hint')}`)) : null);
   const ownChoice = (shown) => (shown && !local.ownOff ? 'own' : undefined);
 
   // Step 3.
