@@ -566,6 +566,7 @@
   "setup.own.question": "Confirm risky changes (doors, alarm, deletes) here with one click in a window? Only say yes if nobody else uses this computer.",
   "setup.own.prompt": "Press Enter for yes, or type 'no'",
   "setup.own.no": "OK. Risky changes on this computer are confirmed on your phone or the NOVA page.",
+  "setup.error.named_no_shared_key": "This server connects this computer with its own key, so there is no shared key to type in. Pair it with your Home Assistant sign-in or a six-digit code from NOVA: run {command}",
   "setup.retire.question": "NOVA still lists an older entry for this computer, “{name}”, from before this server had its own. Remove it?",
   "setup.retire.kept": "OK. The older entry “{name}” stays in NOVA; remove it there when you no longer need it.",
   "setup.retire.listed": "NOVA still lists an older entry for this computer, “{name}”. Remove it on the NOVA page if you no longer use it.",

@@ -151,6 +151,28 @@ func TestNamedSetupNeverReadsTheDefaultProfilesToken(t *testing.T) {
 	}
 }
 
+func TestMCPPassesThePairAgainStepThrough(t *testing.T) {
+	next := "Nothing was sent. Tell the user this computer needs to be paired again once."
+	envelope := map[string]any{"ok": false, "error": map[string]any{"code": "PAIR_AGAIN", "message": "x", "next": next}}
+	if got := nextStep(envelope, nil); got != next {
+		t.Fatalf("next_step = %q", got)
+	}
+}
+
+// No path of a named profile's setup reaches the default profile's shared
+// key: the token step refuses and persistence never writes one.
+func TestNamedSetupNeverWritesTheSharedKey(t *testing.T) {
+	paths := setupServerCommandTest(t, predecessorConfig(false))
+	setServerSelectionOverride("home")
+	setActiveServerProfile("home")
+	if result := (&setupFlow{paths: paths, ui: setupTextUI{out: io.Discard}}).stepToken(); !result.done {
+		t.Fatal("the token step must refuse a named profile")
+	}
+	if err := persistInteractiveSetupStateUnlocked(paths, runtimeConfig{}, &installState{}, "", false, "pasted"); err == nil || !strings.Contains(err.Error(), "never changes it") {
+		t.Fatal("persistence wrote the shared key for a named profile")
+	}
+}
+
 func TestNamedLocalRePairAllowedOnlyForAPairedLocalProfileWithoutOverrides(t *testing.T) {
 	resetServerProfileSelection(t)
 	paired := runtimeConfig{RelaySecureBaseURL: "https://ha:8792", RelaySpkiPin: predecessorTestPin}

@@ -12,7 +12,10 @@ import (
 func (f *setupFlow) prepareCredentials() setupStepResult {
 	restoreTokenFileOverride := func() {}
 	f.cleanups = append(f.cleanups, func() { restoreTokenFileOverride() })
-	if !f.serviceMode {
+	// The machine-wide relay token is the default profile's: setup for another
+	// server never moves, reads, or offers it (namedLocalRePairAllowed).
+	named := activeServerProfile() != defaultServerProfileName
+	if !f.serviceMode && !named {
 		var liftTokenFileSuppression func()
 		tokenFile := f.cfg.RelayTokenFile
 		f.cfg, f.formerServiceTokenFile, f.formerServiceToken, liftTokenFileSuppression = disableServiceRelayTokenFile(f.paths, f.cfg)
@@ -57,11 +60,13 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 		restoreTokenFileOverride = withRelayAuthTokenFileOverride(f.cfg.RelayTokenFile)
 	}
 
-	f.tokenStoragePreflightErr = relayAuthTokenSetupPreflightForSetup()
+	if !named {
+		f.tokenStoragePreflightErr = relayAuthTokenSetupPreflightForSetup()
+	}
 	// Service credentials stay a client-scoped deployment decision: only
 	// offer the mid-flow switch for a specific target, mirroring the
 	// explicit `--service all` rejection above.
-	if !f.serviceMode && f.target != "all" && !f.cloudPausedAtStart {
+	if !f.serviceMode && f.target != "all" && !f.cloudPausedAtStart && !named {
 		_, serviceClientID, hasServiceCredentials, serviceErr := selectedClientsServiceCredentialHint(f.paths, f.selectedClients)
 		if serviceErr != nil {
 			return f.failErr(serviceErr)
