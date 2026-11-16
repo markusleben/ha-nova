@@ -190,7 +190,7 @@ func spkiPinnedClient(expectedPin string) *http.Client {
 }
 
 func activateDeviceV1(secureBaseURL, spkiPin, credential string) error {
-	if err := requireSealedDevicePin(credential, spkiPin); err != nil {
+	if err := requireSealedDevicePin(credential, spkiPin, secureBaseURL); err != nil {
 		return err
 	}
 	client := spkiPinnedClient(spkiPin)
@@ -218,7 +218,7 @@ func activateDeviceV1(secureBaseURL, spkiPin, credential string) error {
 // revokeSelfDeviceV1 revokes the active credential. A 401 counts as success:
 // the credential is already gone (a lost prior response).
 func revokeSelfDeviceV1(secureBaseURL, spkiPin, credential string) error {
-	if err := requireSealedDevicePin(credential, spkiPin); err != nil {
+	if err := requireSealedDevicePin(credential, spkiPin, secureBaseURL); err != nil {
 		return err
 	}
 	client := spkiPinnedClient(spkiPin)

@@ -72,7 +72,7 @@ func TestGateWindowOffSendsAPendingKeyOnlyToItsOwnEndpoint(t *testing.T) {
 	other := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { live.Add(1) }))
 	t.Cleanup(other.Close)
 	paths := setupServerCommandTest(t, `{"schema_version":1}`)
-	for _, pending := range []string{"", "https://127.0.0.1:1"} {
+	for _, pending := range []string{"", "https://127.0.0.1:1", "http://127.0.0.1:1"} {
 		cfg := runtimeConfig{HAHost: "ha", HAURL: "http://ha:8123", RelayBaseURL: "http://ha:8791", RelaySecureBaseURL: other.URL, RelaySpkiPin: "live-pin", PendingSecureBaseURL: pending, RoutePolicy: routePolicyLocal}
 		if pending != "" {
 			cfg.PendingSpkiPin = "pending-pin"
@@ -81,7 +81,7 @@ func TestGateWindowOffSendsAPendingKeyOnlyToItsOwnEndpoint(t *testing.T) {
 			t.Fatal(err)
 		}
 		err := gateWindowOffForProfile(paths, defaultServerProfileName, "pending-key", false)
-		if err == nil || live.Load() != 0 || (pending == "") != strings.Contains(err.Error(), "didn't finish") {
+		if err == nil || live.Load() != 0 || (pending != "https://127.0.0.1:1") != strings.Contains(err.Error(), "didn't finish") {
 			t.Fatalf("pending endpoint %q: %v; live endpoint reached %d times", pending, err, live.Load())
 		}
 	}

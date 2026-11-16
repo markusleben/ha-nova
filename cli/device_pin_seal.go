@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"net/url"
 	"regexp"
 	"runtime"
 	"strings"
@@ -25,6 +26,18 @@ var sealedDevicePins = struct {
 	sync.Mutex
 	byKey map[string]string
 }{byKey: map[string]string{}}
+
+// keychainKeyWithoutPin: a Keychain key this process read carries no pin, so
+// it can never be sent over a pinned connection here.
+func keychainKeyWithoutPin(credential string) bool {
+	if !devicePinSealed {
+		return false
+	}
+	sealedDevicePins.Lock()
+	defer sealedDevicePins.Unlock()
+	pin, keychain := sealedDevicePins.byKey[credential]
+	return keychain && pin == ""
+}
 
 func rememberSealedDevicePin(credential, pin string) {
 	sealedDevicePins.Lock()
@@ -58,12 +71,19 @@ func unsealDeviceSecret(value string) string {
 	return key
 }
 
-var errDevicePinNotSealed = errors.New("this computer's key is only sent to the Relay it was paired with, and this connection isn't that Relay; run: ha-nova setup")
+var errDevicePinNotSealed = errors.New("this computer's key is only sent to the Relay it was paired with, and this connection isn't that Relay")
 
-// requireSealedDevicePin refuses a pinned send of a Keychain key whose sealed
-// pin differs from the connection's. Keys this process never read from the
-// Keychain (file keys, the App's own) are not sealed.
-func requireSealedDevicePin(credential, pin string) error {
+var errPinnedSendNeedsHTTPS = errors.New("a paired Relay address must start with https://, so the pin check runs before the key is sent")
+
+// requireSealedDevicePin guards every pinned send of a device key: the address
+// must be https (an http address would skip the pin check and send the key in
+// the clear), and on macOS a Keychain key goes only over the pin sealed with
+// it. Keys this process never read from the Keychain (file keys, the App's
+// own) carry no seal.
+func requireSealedDevicePin(credential, pin, baseURL string) error {
+	if u, err := url.Parse(baseURL); err != nil || u.Scheme != "https" || u.Host == "" {
+		return errPinnedSendNeedsHTTPS
+	}
 	if !devicePinSealed {
 		return nil
 	}

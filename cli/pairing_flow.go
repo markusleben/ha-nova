@@ -312,6 +312,11 @@ func resumePendingActivationWithPolicy(
 					"pending device credential belongs to Cloud setup and cannot be activated on the local pairing endpoint",
 				)
 			}
+			if keychainKeyWithoutPin(record.Credential) {
+				// Kept without its Relay's pin (an earlier 0.32 test build): it
+				// can never be sent, so the next pairing replaces it.
+				return false, nil
+			}
 			pending = record.Credential
 		case kerr != nil && !isDesktopKeyringSessionUnavailableError(kerr) && !isDesktopKeyringUnavailableError(kerr):
 			// Keyring EXISTS but is unreadable (locked/uninitialized): a real

@@ -25,7 +25,7 @@ func TestDarwinKeychainStoresTheDeviceKeyWithItsPin(t *testing.T) {
 	if err != nil || got != key {
 		t.Fatalf("read %q err=%v, want the key alone", got, err)
 	}
-	if err := requireSealedDevicePin(key, testSealedPinB); err == nil {
+	if err := requireSealedDevicePin(key, testSealedPinB, "https://relay:8792"); err == nil {
 		t.Fatal("a pin other than the sealed one must be refused after a fresh read")
 	}
 }

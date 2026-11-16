@@ -130,8 +130,8 @@ func relayFunctionalTransport(cfg runtimeConfig) (baseURL string, client *http.C
 			return "", nil, "", false, credErr
 		}
 		if ok {
-			if err := requireSealedDevicePin(cred, cfg.RelaySpkiPin); err != nil {
-				return "", nil, "", false, err
+			if err := requireSealedDevicePin(cred, cfg.RelaySpkiPin, cfg.RelaySecureBaseURL); err != nil {
+				return "", nil, "", false, fmt.Errorf("%w; pair again with: %s", err, localRelayRepairCommand(cfg.profileName(), cfg.RelayBaseURL))
 			}
 			return cfg.RelaySecureBaseURL, spkiPinnedClient(cfg.RelaySpkiPin), cred, true, nil
 		}
