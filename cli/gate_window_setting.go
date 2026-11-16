@@ -43,6 +43,9 @@ func gateWindowOffForProfile(paths runtimePaths, profile, pending string, repair
 	case pending != "" && (cfg.PendingSecureBaseURL == "" || cfg.PendingSpkiPin == "" || cfg.Cloud != nil): // as resuming it: never beside Link
 		cancel()
 		return unfinished
+	case pending != "" && requireSealedDevicePin(pending, cfg.PendingSpkiPin, cfg.PendingSecureBaseURL) != nil:
+		cancel()
+		return unfinished
 	case repairing && cfg.PendingSecureBaseURL == cfg.RelaySecureBaseURL:
 		// A re-pairing stopped after saving the new Relay as live but before
 		// its key replaced the current one, which may be another Relay's:

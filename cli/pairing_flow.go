@@ -91,6 +91,7 @@ func runSecurePairingWithProvisioner(
 	if err != nil {
 		return "", err
 	}
+	rememberSealedDevicePin(prov.Credential, prov.SpkiPin) // the Keychain keeps the pin with the key
 
 	// Local-first: persist the pending credential BEFORE activating, so a crash
 	// after activation can still resume (the credential is not lost).
@@ -214,7 +215,8 @@ func validateLocalDeviceReplacementAllowedWithPolicy(
 			)
 		case pending.Source == pendingDeviceCredentialSourceLocal &&
 			strings.TrimSpace(cfg.PendingSecureBaseURL) != "" &&
-			strings.TrimSpace(cfg.PendingSpkiPin) != "":
+			strings.TrimSpace(cfg.PendingSpkiPin) != "" &&
+			!keychainKeyWithoutPin(pending.Credential): // one without its pin can never resume: replace it
 			return fmt.Errorf(
 				"a local device activation is still pending; resume it before starting another local pairing (the code was not used)",
 			)
@@ -310,6 +312,11 @@ func resumePendingActivationWithPolicy(
 				return false, fmt.Errorf(
 					"pending device credential belongs to Cloud setup and cannot be activated on the local pairing endpoint",
 				)
+			}
+			if keychainKeyWithoutPin(record.Credential) {
+				// Kept without its Relay's pin (an earlier 0.32 test build): it
+				// can never be sent, so the next pairing replaces it.
+				return false, nil
 			}
 			pending = record.Credential
 		case kerr != nil && !isDesktopKeyringSessionUnavailableError(kerr) && !isDesktopKeyringUnavailableError(kerr):
