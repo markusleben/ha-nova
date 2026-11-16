@@ -141,7 +141,7 @@ func (f *setupFlow) stepPage() setupStepResult {
 	var blocked [2]string // host and address Link held back (link_remove)
 	for {
 		app := f.pageApp()
-		own := app.primary != "" && !f.noClient && ownComputerAskedForSetup(f.cfg) // a window here can confirm: the button asks
+		own := app.primary != "" && !f.noClient && (app.primary != "signin" && ownComputerHere() || ownComputerAskedForSetup(f.cfg)) // the button asks; an App to install is asked after (pageSignIn)
 		p.update(func(v *setupPageState) {
 			v.Screen, v.HA, v.Candidates, v.App, v.AppVersion, v.Primary, v.Own = screen, terminalSafeName(f.cfg.HAHost), found, app.state, terminalSafeName(app.version), app.primary, own
 			v.Clients, v.Problem, v.Fix, v.Links, v.AskHA, v.Typed = setupClientNames(f.selectedClients), problem, fix, links, askHA, f.pageTyped
@@ -259,6 +259,7 @@ func (f *setupFlow) stepPage() setupStepResult {
 						}
 					}
 				})
+				retry.own = f.pageOwn // Try again carries the switch as it stands now
 				setupInstalledSignIn = retry
 				f.pairingFlow, f.pairingBackStep = true, setupStepRelayInstall
 				return setupGoTo(setupStepPairing)
@@ -456,7 +457,7 @@ func (f *setupFlow) pageSignIn(app setupPageApp) (*setupPageFailure, bool) {
 	pageStop := stoppedOnPage()
 	p.navigate("")
 	if err == nil {
-		session.fromPage, session.own = true, f.pageOwn
+		session.fromPage, session.own = true, f.pageOwn && ownComputerAskedForSetup(f.cfg) // the App installed now must approve in windows too
 		setupInstalledSignIn = &session
 		return nil, false
 	}

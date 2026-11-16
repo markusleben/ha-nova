@@ -310,7 +310,11 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 	// pair with it instead of a second sign-in.
 	if secure && installed != nil {
 		if !installed.fromPage { // the page asked with its sign-in button
-			installed.own = ownComputerAskedForSetup(*cfg) && askOwnComputer(reader, out)
+			own, err := askOwnComputerForSetup(reader, out, *cfg)
+			if err != nil {
+				return "", err
+			}
+			installed.own = own
 		}
 		paired, soft, err := pairWithHASignInSession(out, paths, cfg, *installed, lifecycleMarker...)
 		if paired {

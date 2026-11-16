@@ -257,7 +257,7 @@
         const links = state.links || {};
         const webFix = state.fix === 'web' || state.fix === 'web_never';
         actions.push(el('div', { class: 'actions' },
-          fixLabels[state.fix] ? button(t(fixLabels[state.fix]), 'signin') : null,
+          fixLabels[state.fix] ? [later.ownSwitch(state.own), button(t(fixLabels[state.fix]), 'signin', 'primary', later.ownChoice(state.own))] : null,
           // Chat apps can't work here yet: set it up and sign in again, or an AI app on this computer.
           webFix ? button(t('setup.page.button.local'), 'local', state.fix === 'web' ? 'ghost' : 'primary') : null,
           link(t('setup.page.link.guide'), links.guide, fixLabels[state.fix] ? 'ghost' : 'primary', 'guide'),

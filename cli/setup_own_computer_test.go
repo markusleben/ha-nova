@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -58,6 +59,12 @@ func TestOwnComputerAskedOnlyWhereAYesCanWork(t *testing.T) {
 	t.Cleanup(relay.Close)
 	cfg := runtimeConfig{RelayBaseURL: relay.URL}
 	deviceCredentialFileModeForced = false
+	window = 1
+	if ownComputerAsked(cfg) {
+		t.Fatal("no confirmation window can open here: no question")
+	}
+	useWindow(t)
+	window = 0
 	if ownComputerAsked(cfg) {
 		t.Fatal("an App that doesn't approve in windows: no question")
 	}
@@ -78,8 +85,13 @@ func TestOwnComputerAskedOnlyWhereAYesCanWork(t *testing.T) {
 func TestAskOwnComputerDeclaresOnlyOnAYes(t *testing.T) {
 	for input, want := range map[string]bool{"\n": true, "y\n": true, "Yes\n": true, "no\n": false, "n\n": false, "maybe\n": false, "": false} {
 		var out bytes.Buffer
-		if got := askOwnComputer(bufio.NewReader(strings.NewReader(input)), &out); got != want || !strings.Contains(out.String(), setupT("setup.own.question")) {
-			t.Fatalf("%q: %v, said %q", input, got, out.String())
+		if got, err := askOwnComputer(bufio.NewReader(strings.NewReader(input)), &out); got != want || err != nil || !strings.Contains(out.String(), setupT("setup.own.question")) {
+			t.Fatalf("%q: %v %v, said %q", input, got, err, out.String())
+		}
+	}
+	for input, want := range map[string]error{"back\n": errSetupBack, "exit\n": errSetupExit} {
+		if got, err := askOwnComputer(bufio.NewReader(strings.NewReader(input)), io.Discard); got || !errors.Is(err, want) {
+			t.Fatalf("%q: %v %v", input, got, err)
 		}
 	}
 }
@@ -121,6 +133,57 @@ func TestHASignInStepAsksBeforePairing(t *testing.T) {
 		if !paired || err != nil || len(armed) != 1 || armed[0] != test.own || asked[0] != test.asked {
 			t.Fatalf("%+v: paired %v, %v, armed %v asked %v\n%s", test, paired, err, armed, asked, out.String())
 		}
+	}
+	stubOwnComputerAsked(t, true) // Back at the question: nothing pairs
+	armed = nil
+	if paired, _, err := runHASignInPairingStep(bufio.NewReader(strings.NewReader("\nback\n")), &out, runtimePaths{ConfigDir: t.TempDir()}, cfg); paired || !errors.Is(err, errSetupBack) || len(armed) != 0 {
+		t.Fatalf("back: paired %v, %v, armed %v", paired, err, armed)
+	}
+}
+
+// Try again after a pairing that didn't finish reuses the sign-in, with the
+// switch as it stands when Try again is clicked.
+func TestSetupPageTryAgainCarriesTheSwitchAsItStands(t *testing.T) {
+	withClientRuntimeAvailability(t, map[string]bool{"codex": true})
+	setupGoldenHome(t)
+	stubOwnComputerAsked(t, true)
+	ha := newFakeSignInHA(t)
+	pairs := stubSetupPageHome(t, ha.server.URL, true)
+	previousArmed := pairDeviceV2ArmedForSetup
+	t.Cleanup(func() { pairDeviceV2ArmedForSetup = previousArmed })
+	var armed []bool
+	pairDeviceV2ArmedForSetup = func(_ context.Context, _ *CloudIngressClient, _ deviceMetadata, own bool) (*provisionedCredential, error) {
+		armed = append(armed, own)
+		if len(armed) == 1 {
+			return nil, &pairingBeforeFinishError{err: context.DeadlineExceeded}
+		}
+		return &provisionedCredential{}, nil
+	}
+	signInPairForSetup = func(_ string, provision pairingProvisioner, _ *runtimeConfig, _ func(*runtimeConfig) error, _ pairingClientInfo, _ SecretStoreUIPolicy) (string, error) {
+		*pairs++
+		if _, err := provision(deviceMetadata{}); err != nil {
+			return "", err
+		}
+		return "device-1", nil
+	}
+	previousIdle := setupPageIdle
+	setupPageIdle = 2 * time.Second
+	t.Cleanup(func() { setupPageIdle = previousIdle })
+	page, stdout, done := startSetupPageFlow(t, "")
+	page.waitFor("the found screen", accepting("signin"))
+	page.click("signin", "own")
+	waiting := page.waitFor("the sign-in URL", func(s setupPageState) bool { return s.SignInURL != "" })
+	authorize, _ := url.Parse(waiting.SignInURL)
+	page.do(http.MethodGet, oauthLoopbackCallbackPath+"?"+signedInQuery(authorize.Query().Get("state")), "", nil)
+	back := page.waitFor("the pairing problem", func(s setupPageState) bool { return s.Problem != nil && len(s.Accepts) > 0 })
+	if back.Fix != "retry" || !back.Own {
+		t.Fatalf("back = %+v", back)
+	}
+	page.click("signin", "") // the switch turned off, then Try again
+	page.waitFor("step 3", accepting("finish"))
+	setupPageExit(t, done, stdout)
+	if len(armed) != 2 || !armed[0] || armed[1] {
+		t.Fatalf("armed %v", armed)
 	}
 }
 

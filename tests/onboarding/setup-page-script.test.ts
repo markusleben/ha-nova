@@ -49,6 +49,14 @@ describe("setup page step 1", () => {
     const plain = page(found);
     await plain.settle();
     expect(plain.find("b-own")).toBeUndefined();
+    const retry = page({ screen: "connect", rows: [{ id: "signed_in", state: "ok" }], links: {}, accepts: ["address", "terminal", "signin"],
+      own: true, fix: "retry", problem: { key: "setup.page.problem.timeout" } });
+    await retry.settle();
+    expect(retry.find("b-signin")!.textContent).toBe(retry.catalog["setup.page.button.retry"]);
+    retry.find("b-own")!.dispatch("click");
+    retry.find("b-signin")!.dispatch("click");
+    await retry.settle(2);
+    expect(retry.posts).toEqual([{ action: "signin" }]);
   });
 
   it("keeps the field for an address Home Assistant didn't answer at", async () => {

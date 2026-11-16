@@ -142,7 +142,9 @@ func signInAndPair(
 		return false, haSignInRetryable(err), nil
 	}
 	renderSetupSuccessLine(out, "Signed in to Home Assistant as %s (owner)", haSignInUserName(session.user))
-	session.own = ownComputerAskedForSetup(*cfg) && askOwnComputer(reader, out)
+	if session.own, err = askOwnComputerForSetup(reader, out, *cfg); err != nil {
+		return false, false, err
+	}
 	paired, soft, err := pairWithHASignInSession(out, paths, cfg, session, lifecycleMarker...)
 	return paired, errors.Is(soft, errSignInNotOwner), err
 }
