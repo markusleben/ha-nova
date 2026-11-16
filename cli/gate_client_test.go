@@ -45,6 +45,7 @@ type fakeGate struct {
 	phoneAnswer any              // the phone route's answer instead of a link ask
 	linkEnd     string           // how a link ask's wait ends ("": linked; "waiting": not yet; "lost": no answer)
 	wsHeld      bool             // WS writes are sends too (hold sees them)
+	windowOps   []any            // op window's answers in turn (then approved)
 }
 
 func (g *fakeGate) snapshot() (asks [][]string, ops []string, sends []gateSend) {
@@ -133,6 +134,16 @@ func (g *fakeGate) ask(ctx context.Context, p map[string]any) any {
 	case p["op"] == "cancel":
 		g.op("cancel")
 		return map[string]any{"state": "cancelled"}
+	case p["op"] == "window":
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		g.ops = append(g.ops, "window")
+		if len(g.windowOps) > 0 {
+			answer := g.windowOps[0]
+			g.windowOps = g.windowOps[1:]
+			return answer
+		}
+		return map[string]any{"state": "approved", "grant_id": fmt.Sprint("grant-", p["ask_id"])}
 	}
 	return fakeRelayStatus{400, "GATE_BAD_ASK", "not an ask"}
 }

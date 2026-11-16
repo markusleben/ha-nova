@@ -16,11 +16,12 @@ import (
 // gateWait long-polls the ask until it ends, wait runs out (gateAsk's
 // share of the command's wait, or of ha-nova mcp's ask life; a setup link's
 // own), or HA NOVA is stopped (planAsks). An end without an approval
-// cancels the ask. The waiting window only opens Home Assistant or
-// cancels; its answer is read before an approval counts, so a Cancel that
-// raced the approval wins. A link ask (gateMovePhone) ends linked, only
-// on the phones: no window.
-func (s *relaySession) gateWait(askID string, link bool, wait time.Duration) (state, grant string) {
+// cancels the ask. The window confirms only a plan the App offers it for
+// (confirm, gate_window_confirm.go); otherwise it only opens Home Assistant
+// or cancels. Its answer is read before an approval counts, so a Cancel
+// that raced the approval wins. A link ask (gateMovePhone) ends linked,
+// only on the phones: no window.
+func (s *relaySession) gateWait(askID string, link bool, wait time.Duration, confirm *gateConfirm) (state, grant string) {
 	deadline := time.Now().Add(wait)
 	if flag := s.approval(); flag != nil {
 		flag.Store(map[bool]int32{false: gateAsking, true: gateLinking}[link])
@@ -48,11 +49,15 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration) (st
 	}()
 	page := s.gatePageURL(askID)
 	waiting := confirmT(confirmLanguage(s.lang), "gate.waiting")
-	window, raced := (<-chan windowAnswer)(nil), func(<-chan windowAnswer) bool { return false }
-	if link {
+	window, raced, confirms := (<-chan windowAnswer)(nil), func(<-chan windowAnswer) bool { return false }, false
+	switch {
+	case link:
 		waiting = confirmT(confirmLanguage(s.lang), "gate.link_waiting")
-	} else {
-		window, raced = s.gateWindow(ctx, deadline, page)
+	case confirm != nil:
+		waiting = confirmT(confirm.lang, "gate.waiting_window")
+		fallthrough
+	default:
+		window, raced, confirms = s.gateWindow(ctx, deadline, page, confirm, false)
 	}
 	fmt.Fprintln(s.call.stderr(), waiting)
 	stopped := func() (string, string) {
@@ -66,14 +71,17 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration) (st
 		select {
 		case answer := <-window:
 			window = nil
-			switch answer {
-			case windowCancelled, windowClosed:
+			switch {
+			case answer == windowCancelled || answer == windowClosed:
 				s.gateCancel(askID)
 				return "cancelled", ""
-			case windowConfirmed: // its only button besides Cancel: open Home Assistant (or hide the window), never approve
-				if page != "" {
-					_ = gateOpenHA(page)
+			case answer == windowConfirmed && confirms:
+				if state, grant, ended := s.gateWindowApprove(ctx, askID); ended {
+					return state, grant
 				}
+				window, raced, confirms = s.gateWindow(ctx, deadline, page, confirm, true) // still open for the phone and the page
+			case answer == windowConfirmed && page != "": // a waiting window's first button: open Home Assistant (or hide the window), never approve
+				_ = gateOpenHA(page)
 			}
 		case got := <-polls:
 			switch {
@@ -123,17 +131,20 @@ func (s *relaySession) gatePageURL(askID string) string {
 	return target.URL + "?nova_ask=" + fmt.Sprintf("%x", sha256.Sum256([]byte(askID)))
 }
 
-// gateWindow shows the waiting window where one can open (as for window
-// plans): the worker-free text, a first button that opens the NOVA page
-// (without a page: one that only hides the window, and the text says
-// where the page is), and Cancel. Windows' stock OK/Cancel get a line
-// saying what OK does. raced withdraws a window still showing and reports
-// whether its last answer was a Cancel. No window: a nil channel, and
-// raced says false.
-func (s *relaySession) gateWindow(ctx context.Context, deadline time.Time, page string) (<-chan windowAnswer, func(<-chan windowAnswer) bool) {
+// gateWindow shows the window where one can open (as for window plans).
+// With confirm, the plan's own text and Confirm (confirms: its first
+// button approves); a plan too long for it, its start and where the rest
+// is, above the waiting text; cannot (Confirm found the App wouldn't take
+// it), the waiting text saying so. The waiting window: the worker-free
+// text, a first button that opens the NOVA page (without a page: one that
+// only hides the window, and the text says where the page is), and Cancel.
+// Windows' stock OK/Cancel get a line saying what OK does. raced withdraws
+// a window still showing and reports whether its last answer was a
+// Cancel. No window: a nil channel, and raced says false.
+func (s *relaySession) gateWindow(ctx context.Context, deadline time.Time, page string, confirm *gateConfirm, cannot bool) (<-chan windowAnswer, func(<-chan windowAnswer) bool, bool) {
 	none := func(<-chan windowAnswer) bool { return false }
 	if s.gateChat() || windowOff(s.paths) || !windowAvailable() {
-		return nil, none
+		return nil, none, false
 	}
 	lang := confirmLanguage(s.lang)
 	text, first, ok := confirmT(lang, "gate.window", "approve", confirmT(lang, "page.approve")), confirmT(lang, "gate.open"), confirmT(lang, "gate.windows_ok")
@@ -143,11 +154,26 @@ func (s *relaySession) gateWindow(ctx context.Context, deadline time.Time, page 
 	if runtime.GOOS == "windows" {
 		text += "\n\n" + ok
 	}
+	show := func(ctx context.Context) windowAnswer {
+		return gateWindow(ctx, text, first, confirmT(lang, "window.cancel"), time.Until(deadline))
+	}
+	confirms := false
+	if confirm != nil {
+		asked, fits := gateConfirmWindow(confirm)
+		switch {
+		case cannot:
+			text = confirmT(lang, "gate.window_cannot") + " " + text
+		case fits:
+			show, confirms = func(ctx context.Context) windowAnswer { return windowRunner(ctx, asked, time.Until(deadline)) }, true
+		default:
+			text = gateSummary(confirm.lang, confirm.text, text)
+		}
+	}
 	answers := make(chan windowAnswer, 1)
 	windowCtx, closeWindow := context.WithCancel(ctx)
 	go func() {
 		defer closeWindow()
-		answers <- gateWindow(windowCtx, text, first, confirmT(lang, "window.cancel"), time.Until(deadline))
+		answers <- show(windowCtx)
 	}()
 	return answers, func(window <-chan windowAnswer) bool {
 		if window == nil {
@@ -160,5 +186,5 @@ func (s *relaySession) gateWindow(ctx context.Context, deadline time.Time, page 
 		case <-time.After(3 * time.Second): // a window that won't close: no Cancel was read
 			return false
 		}
-	}
+	}, confirms
 }

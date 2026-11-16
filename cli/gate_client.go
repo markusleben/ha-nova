@@ -105,7 +105,7 @@ func (s *relaySession) sendWrite(endpoint string, body []byte) (json.RawMessage,
 		}
 	}
 	s.mu.Unlock()
-	if err := s.gateAsk(reqs, true); err != nil {
+	if err := s.gateAsk(reqs, true, nil); err != nil { // no plan text for a held write: never Confirm in the window
 		return nil, err
 	}
 	return s.sendWriteOnce(endpoint, body, s.takeGrant(request))
@@ -132,7 +132,7 @@ func (s *relaySession) takeGrant(r gateRequest) string {
 // write the Relay held mid-apply (sendWrite), whose basis was checked just
 // before and isn't checked again after the ask, so a chat app's wait keeps
 // mcpVerbLock: no other change of this bridge lands under it.
-func (s *relaySession) gateAsk(reqs []gateRequest, held bool) error {
+func (s *relaySession) gateAsk(reqs []gateRequest, held bool, plan *gateConfirm) error {
 	if len(reqs) > gateAskMax {
 		return gateStop("refused", "GATE_ASK_TOO_LARGE", fmt.Sprintf("this change sends %d requests, more than one confirmation on the phone or in Home Assistant covers (%d); nothing was sent", len(reqs), gateAskMax),
 			"Tell the user nothing changed. Plan it again in smaller parts (a batch of at most 10 automations or scripts).")
@@ -162,7 +162,7 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool) error {
 		if flag == nil {
 			end = time.Now().Add(s.askWait()) // the CLI: the command's wait
 		}
-		if !chat { // a chat app never moves a phone: the bridge host's own link isn't its user's
+		if !chat && plan.offered(s, opened) == nil { // a chat app never moves a phone: the bridge host's own link isn't its user's; the window here confirms without one
 			if reopen, moved := s.gateMoveFirst(opened, err, time.Until(end)/2); moved != nil {
 				stop = moved
 				return false
@@ -173,7 +173,7 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool) error {
 		if stop = gateOpenFailure(opened, err, chat, lang); stop != nil {
 			return false
 		}
-		state, grant = s.gateWait(opened.AskID, false, time.Until(end))
+		state, grant = s.gateWait(opened.AskID, false, time.Until(end), plan.offered(s, opened))
 		return state == "approved" && grant != ""
 	}
 	if !chat {

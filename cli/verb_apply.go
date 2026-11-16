@@ -293,7 +293,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		for _, m := range plan.BatchMembers {
 			stored.members = append(stored.members, batchMember{stored: m, fresh: m})
 		}
-		if asked, err = gateBeforeSend(s, plan.Channel, plan, stored); err != nil {
+		if asked, err = gateBeforeSend(s, plan.Channel, plan, stored, confirmText(plan, noSnapshot)); err != nil {
 			return fail(release(err))
 		}
 		s.forgetReads() // the recheck reads Home Assistant as it is after the answer
@@ -403,7 +403,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		if err := gateStillApproved(plan, fresh, nil, asked, gateFirstRequests(fresh, batch), expires); err != nil {
 			return fail(err)
 		}
-	} else if asked, err := gateBeforeSend(s, plan.Channel, fresh, batch); err != nil {
+	} else if asked, err := gateBeforeSend(s, plan.Channel, fresh, batch, confirmText(fresh, noSnapshot)); err != nil {
 		return fail(release(err))
 	} else if asked != nil { // approved minutes later, maybe: check it again right before the first send
 		s.forgetReads()
