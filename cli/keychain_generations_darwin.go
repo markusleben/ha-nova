@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/subtle"
 	"errors"
 	"os"
 	"os/user"
@@ -58,22 +59,21 @@ func darwinKeychainGenerations(
 	return gens, darwinOAuthSuccess
 }
 
-// darwinKeychainWriteLockPath is per login user, not per HOME: a test or lane
+// darwinKeychainLockPath is per login user, not per HOME: a test or lane
 // that moves HOME still writes the same login Keychain.
-var darwinKeychainWriteLockPath = func() (string, error) {
+var darwinKeychainLockPath = func() (string, error) {
 	account, err := user.Current()
 	if err != nil || account.HomeDir == "" {
 		return "", errors.New("no home directory for the Keychain write lock")
 	}
-	return filepath.Join(account.HomeDir, "Library", "Caches", "ha-nova", "keychain-write.lock"), nil
+	return filepath.Join(account.HomeDir, "Library", "Caches", "ha-nova", "keychain.lock"), nil
 }
 
-// withDarwinKeychainWriteLock serializes writers across processes: two
-// writers interleaving their add and cleanup steps could each remove the
-// other's new generation, and a writer's lookup could miss a generation
-// another writer is moving.
-func withDarwinKeychainWriteLock(write func() darwinOAuthOSStatus) darwinOAuthOSStatus {
-	path, err := darwinKeychainWriteLockPath()
+// withDarwinKeychainLock serializes access across processes: writers
+// (LOCK_EX) could otherwise remove each other's new generation, and a reader
+// (LOCK_SH) between a writer's add and cleanup could see neither generation.
+func withDarwinKeychainLock(how int, access func() darwinOAuthOSStatus) darwinOAuthOSStatus {
+	path, err := darwinKeychainLockPath()
 	if err != nil || os.MkdirAll(filepath.Dir(path), 0o700) != nil {
 		return darwinOAuthNotAvailable
 	}
@@ -83,7 +83,7 @@ func withDarwinKeychainWriteLock(write func() darwinOAuthOSStatus) darwinOAuthOS
 	}
 	defer file.Close()
 	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(20 * time.Millisecond) {
-		err = unix.Flock(int(file.Fd()), unix.LOCK_EX|unix.LOCK_NB)
+		err = unix.Flock(int(file.Fd()), how|unix.LOCK_NB)
 		if err == nil {
 			break
 		}
@@ -92,7 +92,7 @@ func withDarwinKeychainWriteLock(write func() darwinOAuthOSStatus) darwinOAuthOS
 		}
 	}
 	defer unix.Flock(int(file.Fd()), unix.LOCK_UN)
-	return write()
+	return access()
 }
 
 func newestDarwinKeychainGeneration(gens [2]darwinKeychainGeneration) int {
@@ -118,22 +118,23 @@ func darwinOAuthGet(
 	if slot == "" {
 		return nil, false, darwinOAuthNotAvailable
 	}
-	gens, status := darwinKeychainGenerations(slot, account)
-	if status == darwinOAuthSuccess && newestDarwinKeychainGeneration(gens) < 0 {
-		// A write that lands between the two lookups (adds the next generation
-		// under the name already read, then removes the other) hides both for
-		// one pass, so an empty slot is read once more before it counts.
-		gens, status = darwinKeychainGenerations(slot, account)
-	}
+	var value []byte
+	status := withDarwinKeychainLock(unix.LOCK_SH, func() darwinOAuthOSStatus {
+		gens, status := darwinKeychainGenerations(slot, account)
+		if status != darwinOAuthSuccess {
+			return status
+		}
+		defer zeroDarwinKeychainGenerations(gens)
+		if newest := newestDarwinKeychainGeneration(gens); newest >= 0 {
+			value = append([]byte(nil), gens[newest].value...)
+		}
+		return darwinOAuthSuccess
+	})
 	if status != darwinOAuthSuccess {
+		zeroSecretBytes(value)
 		return nil, false, status
 	}
-	defer zeroDarwinKeychainGenerations(gens)
-	newest := newestDarwinKeychainGeneration(gens)
-	if newest < 0 {
-		return nil, false, darwinOAuthSuccess
-	}
-	return append([]byte(nil), gens[newest].value...), true, darwinOAuthSuccess
+	return value, value != nil, darwinOAuthSuccess
 }
 
 func darwinOAuthSet(
@@ -144,7 +145,7 @@ func darwinOAuthSet(
 	if slot == "" {
 		return darwinOAuthNotAvailable
 	}
-	return withDarwinKeychainWriteLock(func() darwinOAuthOSStatus {
+	return withDarwinKeychainLock(unix.LOCK_EX, func() darwinOAuthOSStatus {
 		return writeDarwinKeychainGeneration(slot, account, value)
 	})
 }
@@ -184,19 +185,54 @@ func darwinOAuthDelete(service, account string) darwinOAuthOSStatus {
 	if slot == "" {
 		return darwinOAuthNotAvailable
 	}
-	return withDarwinKeychainWriteLock(func() darwinOAuthOSStatus {
-		result := darwinOAuthItemNotFound
-		for i := 1; i <= 2; i++ {
-			switch status := darwinKeychainRemove(slot+"#"+strconv.Itoa(i), account); status {
-			case darwinOAuthItemNotFound:
-			case darwinOAuthSuccess:
-				if result == darwinOAuthItemNotFound {
-					result = darwinOAuthSuccess
-				}
-			default:
-				return status
-			}
-		}
-		return result
+	return withDarwinKeychainLock(unix.LOCK_EX, func() darwinOAuthOSStatus {
+		return removeDarwinKeychainGenerations(slot, account)
 	})
+}
+
+// darwinOAuthDeleteExact removes the slot only while its newest value is
+// still expected, comparing and removing under one lock so a write landing
+// in between is never removed in its place.
+func darwinOAuthDeleteExact(service, account string, expected []byte) (darwinOAuthOSStatus, bool) {
+	slot := darwinKeychainSlot(service, account)
+	if slot == "" {
+		return darwinOAuthNotAvailable, false
+	}
+	conflict := false
+	status := withDarwinKeychainLock(unix.LOCK_EX, func() darwinOAuthOSStatus {
+		gens, status := darwinKeychainGenerations(slot, account)
+		if status != darwinOAuthSuccess {
+			return status
+		}
+		defer zeroDarwinKeychainGenerations(gens)
+		newest := newestDarwinKeychainGeneration(gens)
+		if newest < 0 {
+			return darwinOAuthSuccess
+		}
+		if subtle.ConstantTimeCompare(gens[newest].value, expected) != 1 {
+			conflict = true
+			return darwinOAuthSuccess
+		}
+		if status := removeDarwinKeychainGenerations(slot, account); status != darwinOAuthItemNotFound {
+			return status
+		}
+		return darwinOAuthSuccess
+	})
+	return status, conflict
+}
+
+func removeDarwinKeychainGenerations(slot, account string) darwinOAuthOSStatus {
+	result := darwinOAuthItemNotFound
+	for i := 1; i <= 2; i++ {
+		switch status := darwinKeychainRemove(slot+"#"+strconv.Itoa(i), account); status {
+		case darwinOAuthItemNotFound:
+		case darwinOAuthSuccess:
+			if result == darwinOAuthItemNotFound {
+				result = darwinOAuthSuccess
+			}
+		default:
+			return status
+		}
+	}
+	return result
 }
