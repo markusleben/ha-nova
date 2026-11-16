@@ -162,7 +162,7 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool, plan *gateConfirm)
 		if flag == nil {
 			end = time.Now().Add(s.askWait()) // the CLI: the command's wait
 		}
-		if !chat && plan.offered(s, opened) == nil { // a chat app never moves a phone: the bridge host's own link isn't its user's; the window here confirms without one
+		if !chat && !plan.confirmsHere(s, opened) { // a chat app never moves a phone: the bridge host's own link isn't its user's; a window here that confirms needs none
 			if reopen, moved := s.gateMoveFirst(opened, err, time.Until(end)/2); moved != nil {
 				stop = moved
 				return false

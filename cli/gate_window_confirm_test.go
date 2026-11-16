@@ -87,14 +87,22 @@ func TestGateWindowConfirmTheAppRefuses(t *testing.T) {
 		waiting bool
 	}{
 		"409":            {[]any{fakeRelayStatus{409, "GATE_WINDOW_OFF", "no"}}, time.Second, 1, true},
-		"503 stays":      {[]any{unavailable, unavailable, unavailable, unavailable}, 1500 * time.Millisecond, 3, true},
+		"503 stays":      {[]any{unavailable, unavailable, unavailable, unavailable}, 1500 * time.Millisecond, 2, true},
 		"503 then works": {[]any{unavailable}, 3 * time.Second, 2, false},
+		"slow answer":    {nil, 300 * time.Millisecond, 1, true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			g := &fakeGate{release: make(chan struct{}), phones: true, channels: []string{"window"}, windowOps: tc.answers}
+			if name == "slow answer" {
+				g.windowSlow = time.Minute
+			}
+			start := time.Now()
 			var waiting func(context.Context, string) windowAnswer
 			if tc.waiting {
 				waiting = func(ctx context.Context, _ string) windowAnswer {
+					if late := time.Since(start); late > 10*time.Second {
+						t.Errorf("the waiting window came %v late", late)
+					}
 					close(g.release) // then the phone approves
 					<-ctx.Done()
 					return windowNoAnswer
@@ -137,8 +145,12 @@ func TestGateWindowConfirmOffered(t *testing.T) {
 			t.Fatalf("%s: %+v", name, got)
 		}
 	}
+	long := &gateConfirm{lang: "en", text: "Turn these off?\n\n" + strings.Repeat("• light.room\n", 60)}
+	if !plan.confirmsHere(s, window) || long.offered(s, window) == nil || long.confirmsHere(s, window) {
+		t.Fatal("only a plan that fits confirms here (a too-long one still moves the phone)")
+	}
 	windowAvailable = func() bool { return false }
-	if got := plan.offered(s, window); got != nil {
+	if got := plan.offered(s, window); got != nil || plan.confirmsHere(s, window) {
 		t.Fatalf("no window here: %+v", got)
 	}
 }
