@@ -31,6 +31,8 @@ func darwinKeychainSlot(service, account string) string {
 		kind, profile = "link-pending", account
 	case service == oauthSecretRetiringService:
 		kind, profile = "link-retiring", account
+	case strings.HasPrefix(service, oauthLegacyCleanupServicePrefix):
+		kind, profile = "link-legacy-"+strings.TrimPrefix(service, oauthLegacyCleanupServicePrefix), account
 	case strings.HasPrefix(service, oauthSecretPreflightServicePrefix):
 		kind, profile = "link-preflight", strings.TrimPrefix(service, oauthSecretPreflightServicePrefix)
 	case service == keyringServiceName:
