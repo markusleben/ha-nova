@@ -33,6 +33,9 @@ func (x *homeIndex) section(name string, limit int) map[string]any {
 		total, out["rows"], out["counts"] = len(rows), rows[:min(len(rows), limit)], counts
 	}
 	out["total"], out["shown"] = total, min(total, limit)
+	if len(x.h.unreadable) > 0 {
+		out["unreadable"] = x.h.unreadable // registry rows HA NOVA couldn't read, left out of these counts
+	}
 	switch {
 	case (total > limit || problemsCut) && limit < 200:
 		out["more"] = "ha-nova map --section " + name + " --limit 200"

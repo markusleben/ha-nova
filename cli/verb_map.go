@@ -112,19 +112,8 @@ type homeData struct {
 		NameByUser    string   `json:"name_by_user"`
 		EntryType     string   `json:"entry_type"` // "service": a cloud/service device, never in a room
 	}
-	entities []struct {
-		EntityID     string `json:"entity_id"`
-		Name         string `json:"name"`
-		OriginalName string `json:"original_name"`
-		AreaID       string `json:"area_id"`
-		DeviceID     string `json:"device_id"`
-		DisabledBy   string `json:"disabled_by"`
-		Platform     string `json:"platform"`
-		UniqueID     string `json:"unique_id"`
-		Category     string `json:"entity_category"`
-		HiddenBy     string `json:"hidden_by"`
-		ConfigEntry  string `json:"config_entry_id"`
-	}
+	entities               []mapEntity
+	unreadable             []string // entity registry rows that couldn't be read: left out, named in a section
 	entries, helperEntries []struct {
 		EntryID    string `json:"entry_id"`
 		Domain     string `json:"domain"`
@@ -133,6 +122,20 @@ type homeData struct {
 		DisabledBy string `json:"disabled_by"`
 	}
 	states []mapState
+}
+
+type mapEntity struct {
+	EntityID     string     `json:"entity_id"`
+	Name         string     `json:"name"`
+	OriginalName string     `json:"original_name"`
+	AreaID       string     `json:"area_id"`
+	DeviceID     string     `json:"device_id"`
+	DisabledBy   string     `json:"disabled_by"`
+	Platform     string     `json:"platform"`
+	UniqueID     registryID `json:"unique_id"` // a number for an automation whose YAML id is one (#1184)
+	Category     string     `json:"entity_category"`
+	HiddenBy     string     `json:"hidden_by"`
+	ConfigEntry  string     `json:"config_entry_id"`
 }
 
 type floorRow struct {
@@ -190,11 +193,30 @@ func loadHome(s *relaySession) (*homeData, error) {
 		request map[string]any
 		into    any
 		what    string
-	}{{ws[1], &h.areas, "the area registry"}, {ws[2], &h.devices, "the device registry"}, {ws[3], &h.entities, "the entity registry"},
+	}{{ws[1], &h.areas, "the area registry"}, {ws[2], &h.devices, "the device registry"},
 		{entriesRequest, &h.entries, "the config entries"}, {helpersRequest, &h.helperEntries, "the helper config entries"}} {
 		if err := s.wsDecode(read.request, read.into, read.what); err != nil {
 			return nil, err
 		}
+	}
+	// Row by row: one entity HA NOVA can't read is left out and named, never the whole map (#1184).
+	var rows []json.RawMessage
+	if err := s.wsDecode(ws[3], &rows, "the entity registry"); err != nil {
+		return nil, err
+	}
+	for i, raw := range rows {
+		var e mapEntity
+		if json.Unmarshal(raw, &e) == nil {
+			h.entities = append(h.entities, e)
+			continue
+		}
+		var named struct {
+			EntityID string `json:"entity_id"`
+		}
+		if json.Unmarshal(raw, &named) != nil || named.EntityID == "" {
+			named.EntityID = fmt.Sprintf("entity registry row %d", i+1)
+		}
+		h.unreadable = append(h.unreadable, named.EntityID)
 	}
 	status, body, err := s.coreGET("/api/states")
 	if err == nil && status != http.StatusOK {
