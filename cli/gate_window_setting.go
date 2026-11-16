@@ -22,11 +22,53 @@ var gateWindowOff = func(paths runtimePaths) error {
 	if err != nil {
 		return err
 	}
+	return s.gateWindowOff()
+}
+
+// gateWindowOffForProfile: the same for one server profile's paired
+// computer, leaving the process's profile selection alone. pending: a
+// pairing's key not yet promoted here, which the App may already hold as
+// active; it goes only to the pending endpoint and pin saved with it (never
+// the live one, which may be another Relay), and without them, or when the
+// App doesn't take it (not activated yet), nothing is sent or copied.
+func gateWindowOffForProfile(paths runtimePaths, profile, pending string, repairing bool) error {
+	cfg, err := loadSelectedConfig(paths, profile, "--server", false)
+	if err != nil {
+		return err
+	}
+	unfinished := fmt.Errorf("its pairing didn't finish; finish it first with: ha-nova pair --server %s, then run this again", profile)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	transport := relayTransportSelection{BaseURL: cfg.PendingSecureBaseURL, Client: spkiPinnedClient(cfg.PendingSpkiPin), Credential: pending, DeviceMode: true, Via: relayViaLocal}
+	switch {
+	case pending != "" && (cfg.PendingSecureBaseURL == "" || cfg.PendingSpkiPin == "" || cfg.Cloud != nil): // as resuming it: never beside Link
+		cancel()
+		return unfinished
+	case repairing && cfg.PendingSecureBaseURL == cfg.RelaySecureBaseURL:
+		// A re-pairing stopped after saving the new Relay as live but before
+		// its key replaced the current one, which may be another Relay's:
+		// that key goes nowhere until the pairing is finished.
+		cancel()
+		return unfinished
+	case pending == "":
+		if transport, err = selectRelayTransport(ctx, cfg, "", false); err != nil {
+			cancel()
+			return errors.New(relayTransportErrorMessage(err))
+		}
+	}
+	err = relaySessionOn(paths, cfg, transport, ctx, cancel).gateWindowOff()
+	var call *relayCallError
+	if pending != "" && errors.As(err, &call) && (call.status == http.StatusUnauthorized || call.status == http.StatusForbidden) {
+		return unfinished
+	}
+	return err
+}
+
+func (s *relaySession) gateWindowOff() error {
 	defer s.close()
 	var answer struct {
 		Window bool `json:"window"`
 	}
-	err = s.gateCall(context.Background(), gateAskRoute, 10*time.Second, map[string]any{"op": "window_off"}, &answer)
+	err := s.gateCall(context.Background(), gateAskRoute, 10*time.Second, map[string]any{"op": "window_off"}, &answer)
 	var call *relayCallError
 	if errors.As(err, &call) && call.status == http.StatusNotFound {
 		return nil
