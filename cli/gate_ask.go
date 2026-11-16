@@ -301,19 +301,8 @@ type gatePhoneAnswer struct {
 // non-system administrator who is not the Relay's user, and the phone must
 // still be reachable. Tests replace it.
 var gatePhoneSetup = func(s *relaySession, link phoneLink) (phoneSetup, phoneStatus) {
-	var users []haUser
-	if err := s.phoneRead("ws", map[string]any{"type": "config/auth/list"}, &users); err != nil {
-		return phoneSetup{why: whyRead}, phoneMissing
-	}
-	owner := ""
-	for _, u := range users {
-		if u.IsOwner && u.IsActive && !u.SystemGenerated {
-			owner = u.ID
-		}
-	}
-	links := map[string]phoneEntry{owner: {link: &link}}
-	home, err := lookupPhones(s, links)
-	return home.status(links, err)
+	home, err := gatePhoneHome(s, link)
+	return home.status(map[string]phoneEntry{home.owner: {link: &link}}, err)
 }
 
 // gatePhone asks the linked phone and waits for its answer, at most the

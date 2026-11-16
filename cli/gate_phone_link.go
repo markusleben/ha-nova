@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+func gatePhoneHome(s *relaySession, link phoneLink) (phoneHome, error) {
+	var users []haUser
+	if err := s.phoneRead("ws", map[string]any{"type": "config/auth/list"}, &users); err != nil {
+		return phoneHome{}, err
+	}
+	owner := ""
+	for _, user := range users {
+		if user.IsOwner && user.IsActive && !user.SystemGenerated {
+			owner = user.ID
+		}
+	}
+	return lookupPhones(s, map[string]phoneEntry{owner: {link: &link}})
+}
+
 // A link from the Relay (POST /gate/v1/phone, docs/work/2026-11-03-relay-typed-gate-spec.md §3):
 // the phone linked now, if any, confirms the move first, then the new phone
 // confirms the link. The worker words both asks from confirm_strings in
@@ -84,24 +98,29 @@ func gatePhoneEligible(s *relaySession, link phoneLink) bool {
 func gatePhoneTap(ctx context.Context, s *relaySession, paths runtimePaths, link phoneLink, setup phoneSetup, ask phoneAsk, wait time.Duration) gatePhoneAnswer {
 	answer, reply := askPhone(ctx, s, setup, gatePhoneTag, ask, wait, nil)
 	if run, ok := ctx.Value(gatePhoneEndKey{}).(*gatePhoneRun); ok {
-		notice, done := run.ends.claim(run.ref, reply.tag)
+		notice, done := run.ends.claim(run.ref, reply.tag, setup)
 		run.detached = true
 		defer func() {
-			reply.withdraw(confirmT(ask.lang, "outcome.not_confirmed"), confirmT(ask.lang, "outcome.line.no_answer"))
+			if notice == nil {
+				reply.withdraw(confirmT(ask.lang, "outcome.not_confirmed"), confirmT(ask.lang, "outcome.line.no_answer"))
+			}
 			go func() {
 				defer s.close()
+				if notice != nil {
+					if reply.sending != nil {
+						<-reply.sending
+					}
+					run.ends.emit(paths, *notice, reply.tag)
+					done()
+					return
+				}
 				if reply.landed != nil {
 					<-reply.landed
 				}
 				done()
-				if notice != nil {
-					run.ends.emit(paths, *notice, "")
-				}
 			}()
 		}()
 		if notice != nil {
-			title, body := notice.text()
-			reply.withdraw(title, body)
 			return gatePhoneAnswer{Answer: "none"}
 		}
 	}

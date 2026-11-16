@@ -23,10 +23,10 @@ func TestGatePhoneWindowCorrectionFollowsTheActualResult(t *testing.T) {
 			p.tapBy = tapFrom(n.Link.Service, n.Link.UserID, true)
 			if delayed == "recheck" {
 				extra := h.f.extra
+				var blocked sync.Once
 				h.f.extra = func(endpoint string, payload map[string]any) (any, bool) {
 					if payload["type"] == "config/auth/list" && home.reads == 2 {
-						close(started)
-						<-release
+						blocked.Do(func() { close(started); <-release })
 					}
 					return extra(endpoint, payload)
 				}
@@ -40,8 +40,8 @@ func TestGatePhoneWindowCorrectionFollowsTheActualResult(t *testing.T) {
 					return notify(s, service, payload)
 				}
 			}
-			ends := &gatePhoneEnds{entries: map[string]*gatePhoneEnd{}, send: func(paths runtimePaths, notice gateWindowNotice, tag string, latest bool) {
-				gateWindowEmit(paths, notice, tag, latest)
+			ends := &gatePhoneEnds{entries: map[string]*gatePhoneEnd{}, send: func(paths runtimePaths, notice gateWindowNotice, tag string, latest bool, original phoneSetup) {
+				gateWindowEmit(paths, notice, tag, latest, original)
 				close(noticed)
 			}}
 			done := make(chan gatePhoneAnswer, 1)
@@ -92,8 +92,9 @@ func TestGatePhoneWindowCorrectionFollowsTheActualResult(t *testing.T) {
 			p.mu.Lock()
 			defer p.mu.Unlock()
 			if len(p.sent) != 4 || !strings.HasPrefix(p.sent[1]["title"].(string), "Approved:") ||
-				!strings.HasPrefix(p.sent[2]["data"].(map[string]any)["tag"].(string), "ha-nova-window-") ||
-				p.sent[3]["data"].(map[string]any)["tag"] != p.sent[0]["data"].(map[string]any)["tag"] || len(p.cleared) != 1 {
+				!strings.HasPrefix(p.sent[3]["data"].(map[string]any)["tag"].(string), "ha-nova-window-") ||
+				p.sent[2]["data"].(map[string]any)["tag"] != p.sent[0]["data"].(map[string]any)["tag"] ||
+				p.sent[2]["data"].(map[string]any)["channel"] != gateNoticeChannel || len(p.cleared) != 1 {
 				t.Fatalf("the actual result was not followed by a stable note and question cleanup: %v %v", p.sent, p.cleared)
 			}
 		})
@@ -112,8 +113,8 @@ func TestGatePhoneWindowEndBeforeTheTapPath(t *testing.T) {
 		<-release
 		return phoneSetup{why: whyRead}, phoneMissing
 	}
-	ends := &gatePhoneEnds{entries: map[string]*gatePhoneEnd{}, send: func(paths runtimePaths, notice gateWindowNotice, tag string, latest bool) {
-		gateWindowEmit(paths, notice, tag, latest)
+	ends := &gatePhoneEnds{entries: map[string]*gatePhoneEnd{}, send: func(paths runtimePaths, notice gateWindowNotice, tag string, latest bool, original phoneSetup) {
+		gateWindowEmit(paths, notice, tag, latest, original)
 		close(noticed)
 	}}
 	done := make(chan gatePhoneAnswer, 1)

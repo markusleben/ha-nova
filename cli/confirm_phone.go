@@ -211,7 +211,7 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 		done := tellPhones(s, notify, all, bodies, until)
 		go func() { <-sending; <-done; close(landed) }()
 	}
-	reply = phoneReply{tag: tag, landed: landed, once: &sync.Once{},
+	reply = phoneReply{tag: tag, sending: sending, landed: landed, once: &sync.Once{},
 		tell:  func(title, body string) { end(phoneResultPayload(title, body, tag)) },
 		quiet: func(title, body string) { end(phoneWithdrawnPayloads(title, body, tag)...) },
 	}

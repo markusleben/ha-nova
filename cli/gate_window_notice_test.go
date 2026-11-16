@@ -51,21 +51,23 @@ func TestGateWindowNoticeChecksItsExactTarget(t *testing.T) {
 			case "unreadable":
 				home.usersOK = false
 			}
-			gateWindowEmit(h.paths, n, "old-question", true)
+			gateWindowEmit(h.paths, n, "old-question", true, windowOriginal(n))
 			if scenario != "owner App" {
-				if len(p.sent)+len(p.cleared) != 0 {
-					t.Fatalf("unverified recipient was notified: %v", p.services)
+				if len(p.sent) != 1 || len(p.cleared) != 1 || p.sent[0]["title"] != confirmT("en", "outcome.ended") ||
+					p.sent[0]["message"] != confirmT("en", "outcome.line.ended_elsewhere") || p.sent[0]["data"].(map[string]any)["actions"] != nil ||
+					phoneLastResults(h.paths)["owner-id "+n.Link.Service] != "old-question" {
+					t.Fatalf("the original question lost neutral cleanup or an unverified recipient received audit details: %v %v", p.sent, p.services)
 				}
 				return
 			}
 			if len(p.sent) != 2 || len(p.cleared) != 1 || p.services[0] != n.Link.Service || p.services[1] != n.Link.Service ||
-				!strings.HasPrefix(p.sent[0]["data"].(map[string]any)["tag"].(string), "ha-nova-window-") ||
-				p.sent[1]["data"].(map[string]any)["tag"] != "old-question" ||
+				!strings.HasPrefix(p.sent[1]["data"].(map[string]any)["tag"].(string), "ha-nova-window-") ||
+				p.sent[0]["data"].(map[string]any)["tag"] != "old-question" ||
 				p.cleared[0] != n.Link.Service+" old-question" {
 				t.Fatalf("notice or cleanup targeted the wrong phone/tag: %v %v %v", p.services, p.sent, p.cleared)
 			}
 			p.sent, p.services, p.cleared = nil, nil, nil
-			gateWindowEmit(h.paths, n, "older-question", false)
+			gateWindowEmit(h.paths, n, "older-question", false, windowOriginal(n))
 			if len(p.sent) != 1 || p.sent[0]["data"].(map[string]any)["tag"] != "older-question" || len(p.cleared) != 1 {
 				t.Fatalf("an obsolete ask changed the stable note: %v %v", p.sent, p.cleared)
 			}
@@ -107,8 +109,8 @@ func TestGatePhoneWindowEndWinsLateTapAndZeroReply(t *testing.T) {
 				}
 			}
 			noticed := make(chan struct{})
-			ends := &gatePhoneEnds{entries: map[string]*gatePhoneEnd{}, send: func(paths runtimePaths, notice gateWindowNotice, tag string, latest bool) {
-				gateWindowEmit(paths, notice, tag, latest)
+			ends := &gatePhoneEnds{entries: map[string]*gatePhoneEnd{}, send: func(paths runtimePaths, notice gateWindowNotice, tag string, latest bool, original phoneSetup) {
+				gateWindowEmit(paths, notice, tag, latest, original)
 				close(noticed)
 			}}
 			type result struct {
@@ -143,7 +145,15 @@ func TestGatePhoneWindowEndWinsLateTapAndZeroReply(t *testing.T) {
 			}
 			p.mu.Lock()
 			defer p.mu.Unlock()
-			last := p.sent[len(p.sent)-1]
+			var last map[string]any
+			for _, payload := range p.sent {
+				if strings.HasPrefix(payload["data"].(map[string]any)["tag"].(string), "ha-nova-window-") {
+					last = payload
+				}
+			}
+			if last == nil {
+				t.Fatalf("no stable window note: %v", p.sent)
+			}
 			data := last["data"].(map[string]any)
 			if last["title"] != "Confirmed in the window on Study Mac" || data["actions"] != nil || !strings.HasPrefix(data["tag"].(string), "ha-nova-window-") {
 				t.Fatalf("window outcome was lost: %v", p.sent)
