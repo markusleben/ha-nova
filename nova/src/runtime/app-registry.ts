@@ -21,6 +21,7 @@ export function openInertRegistry(): DeviceRegistry {
     revokeCloudDevice: () => ({ ok: false, reason: "unknown" }),
     revoke: () => false,
     setConfirmPhone: () => false,
+    disableWindowConfirm: () => false,
   };
 }
 
@@ -80,5 +81,6 @@ export function swappableRegistry(get: () => DeviceRegistry): DeviceRegistry {
       ),
     revoke: (deviceId) => get().revoke(deviceId),
     setConfirmPhone: (deviceId, link, expected) => get().setConfirmPhone(deviceId, link, expected),
+    disableWindowConfirm: (deviceId) => get().disableWindowConfirm(deviceId),
   };
 }

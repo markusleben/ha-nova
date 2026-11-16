@@ -26,6 +26,7 @@ import {
   type DeviceRegistry,
 } from "../security/device-registry.js";
 import { opaqueReady } from "../security/opaque-server.js";
+import { checkWindowConfirm } from "../security/window-confirm.js";
 import type { Principal } from "../security/principal.js";
 import { createFileResponseStore } from "../security/pairing-response-store.js";
 import { createPairingV1Manager } from "../security/pairing-v1.js";
@@ -311,6 +312,8 @@ function buildFunctionalHandlers(
     channels: () => pageChannel(input.wsClient), // the approval view, while someone may approve there
     link: phoneLinkOf(registry),
     setLink: setPhoneLinkOf(registry),
+    window: async (p) => (await checkWindowConfirm(p, registry, () => input.wsClient.sendMessage({ type: "config/auth/list" }))).window,
+    windowOff: (p) => p.kind === "device" && registry.disableWindowConfirm(p.deviceId),
     now: input.now,
     logger: input.logger,
   });

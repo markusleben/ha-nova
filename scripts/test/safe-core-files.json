@@ -52,6 +52,7 @@
   "tests/http/files-www.test.ts",
   "tests/http/gate-asks.test.ts",
   "tests/http/gate-me.test.ts",
+  "tests/http/gate-window.test.ts",
   "tests/http/gate.test.ts",
   "tests/http/nova-approve.test.ts",
   "tests/http/nova-ask-handoff.test.ts",

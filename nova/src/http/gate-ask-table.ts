@@ -87,6 +87,11 @@ export function createAskTable(now: () => number, grants: GateGrants, limits: Ow
     },
     settle,
     grant(ask) {
+      if (ask.state.state !== "waiting") return;
+      if (now() >= ask.expiresAt) {
+        settle(ask, { state: "expired" });
+        return;
+      }
       const { grantId, until } = grants.issue(ask.owner, ask.digests);
       settle(ask, { state: "approved", grant_id: grantId, until });
     },

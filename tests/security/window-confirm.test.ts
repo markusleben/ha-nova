@@ -110,6 +110,18 @@ describe("window pairing provenance and persistence", () => {
     expect(registry.activate("new", 1002).confirmPhone).toEqual(active.confirmPhone);
   });
 
+  it("persists turning off only an active computer's own window", () => {
+    const registry = openDeviceRegistry(dir);
+    registry.createPending(eligible, 1000);
+    expect(registry.disableWindowConfirm(eligible.deviceId)).toBe(false);
+    registry.activate(eligible.deviceId, 1000);
+    expect(registry.disableWindowConfirm("unknown")).toBe(false);
+    expect(registry.disableWindowConfirm(eligible.deviceId)).toBe(true);
+    expect(registry.disableWindowConfirm(eligible.deviceId)).toBe(true);
+    expect(openDeviceRegistry(dir).list()[0]?.windowConfirm).toBe(false);
+    expect(registry.list()[0]?.ownComputer).toEqual(eligible.ownComputer);
+  });
+
   it.each([
     { credentialStore: "unknown" }, { ownComputer: null }, { ownComputer: { userId: 4, atMs: 1 } },
     { ownComputer: { userId: "", atMs: 1 } }, { windowConfirm: "true" }, { pairingOwnerId: "" },
