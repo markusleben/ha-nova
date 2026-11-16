@@ -1,4 +1,5 @@
 export type DeviceState = "pending" | "active";
+export type CredentialStore = "keychain" | "credential_manager" | "secret_service" | "file";
 
 // The phone that confirms this device's typed requests (relay typed gate §3);
 // set only after a tap on it (POST /gate/v1/phone, setConfirmPhone).
@@ -24,6 +25,10 @@ export interface DeviceRecord {
   cloudUserId?: string;
   cloudRelayInstanceId?: string;
   confirmPhone?: ConfirmPhoneLink;
+  credentialStore?: CredentialStore;
+  ownComputer?: { userId: string; atMs: number };
+  windowConfirm?: boolean;
+  pairingOwnerId?: string;
 }
 
 export interface PairingResponseRecord {

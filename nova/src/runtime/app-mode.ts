@@ -7,6 +7,7 @@ import { createBackupsHandler } from "../http/handlers/backups.js";
 import { createCoreForwarder, parseCoreRequest } from "../http/handlers/core-proxy.js";
 import { createFilesHandler } from "../http/handlers/files.js";
 import { createHealthHandler } from "../http/handlers/health.js";
+import { createGateMeHandler } from "../http/handlers/gate-me.js";
 import { createSupervisorProxyHandler } from "../http/handlers/supervisor-proxy.js";
 import { createWsProxyHandler } from "../http/handlers/ws-proxy.js";
 import { gated } from "../http/gate.js";
@@ -314,6 +315,7 @@ function buildFunctionalHandlers(
   });
   const functional: FunctionalHandlers = {
     ask,
+    me: createGateMeHandler(registry, () => input.wsClient.sendMessage({ type: "config/auth/list" })),
     health: createHealthHandler({
       version: input.relayVersion,
       wsClient: input.wsClient,

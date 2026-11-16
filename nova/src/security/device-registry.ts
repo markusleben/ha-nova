@@ -121,7 +121,7 @@ export function openDeviceRegistry(
 
   return {
     list() {
-      return data.devices.map((d) => ({ ...d }));
+      return structuredClone(data.devices);
     },
     resolveDeviceSecret(deviceId, secretDigest, now) {
       const device = data.devices.find(
@@ -236,7 +236,7 @@ export function openDeviceRegistry(
         target.cloudUserId === userId &&
         target.cloudRelayInstanceId === relayInstanceId
       ) {
-        return { ok: true, record: { ...target }, changed: false };
+        return { ok: true, record: structuredClone(target), changed: false };
       }
       const bound = {
         ...target,
@@ -247,7 +247,7 @@ export function openDeviceRegistry(
         ...data,
         devices: data.devices.map((d) => (d.deviceId === deviceId ? bound : d)),
       });
-      return { ok: true, record: { ...bound }, changed: true };
+      return { ok: true, record: structuredClone(bound), changed: true };
     },
     activatePendingForCloud(
       deviceId,
@@ -337,6 +337,6 @@ export function openDeviceRegistry(
     if (activated.changed) {
       persist(activated.data);
     }
-    return activated.record;
+    return structuredClone(activated.record);
   }
 }

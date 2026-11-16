@@ -33,7 +33,7 @@ export function createPairV2InfoHandler(deps: PairV2Deps): RouteHandler {
 export function createPairV2ArmHandler(
   deps: PairV2Deps & OwnerCheckDeps & { registryCorrupt: () => boolean; device: "local" | "link" },
 ): RouteHandler {
-  return async ({ request }) => {
+  return async ({ request, body }) => {
     if (request.headers["sec-fetch-site"] !== undefined) {
       throw new HttpError(
         403,
@@ -49,6 +49,10 @@ export function createPairV2ArmHandler(
         "Content-Type must be application/json",
       );
     }
+    const ownComputer = (body as { own_computer?: unknown } | null)?.own_computer;
+    if (ownComputer !== undefined && typeof ownComputer !== "boolean") {
+      throw new HttpError(400, "VALIDATION_ERROR", "own_computer must be a boolean");
+    }
     const owner = await checkOwner(request, deps);
     if (!owner.ok) {
       throw owner.status === 503
@@ -56,7 +60,7 @@ export function createPairV2ArmHandler(
         : new HttpError(403, "OWNER_REQUIRED", owner.message);
     }
     // Same gate as the NOVA page: no secret while pairing cannot finish.
-    const armed = deps.registryCorrupt() ? null : deps.manager.arm(owner.userId, deps.device);
+    const armed = deps.registryCorrupt() ? null : deps.manager.arm(owner.userId, deps.device, ownComputer === true);
     if (armed === null) {
       throw new HttpError(
         503,
