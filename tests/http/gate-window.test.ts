@@ -104,6 +104,14 @@ describe("the owner's window approves its own exact ask", () => {
     expect((await pending).state).toBe("approved");
   });
 
+  it("keeps the window available when the phone is the only other channel and fails", async () => {
+    const s = setup({ channels: () => [], link: () => link, phone: async () => ({ answer: "unavailable" }) });
+    const { ask_id } = await s.open();
+    await Promise.resolve();
+    expect(s.asks.waiting()).toHaveLength(1);
+    expect((await s.op(ask_id, "window")).state).toBe("approved");
+  });
+
   it("never approves a phone-link ask through the window", async () => {
     const s = setup({ setLink: () => true, phone: () => new Promise(() => undefined) });
     const { ask_id } = await s.asks.handler(context({ link }, principal, "/gate/v1/phone")) as { ask_id: string };

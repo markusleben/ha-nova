@@ -148,7 +148,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
           deps.logger?.info?.("A typed request was approved on the linked phone", { user_id: answer.user_id });
         } else if (answer?.answer === "declined" || answer?.answer === "rejected") {
           settle(ask, { state: "cancelled" }, true);
-        } else if ((answer === null || answer.answer === "unavailable") && others.length === 0) {
+        } else if ((answer === null || answer.answer === "unavailable") && others.length === 0 && !channels.includes("window")) {
           settle(ask, { state: "unavailable" }); // no weaker channel: nobody can approve it now
         }
       });
