@@ -291,9 +291,10 @@ type gatePhoneRequest struct {
 // time), or unavailable (the phone can't be asked; nothing was sent, or the
 // send failed). why says why it is unavailable.
 type gatePhoneAnswer struct {
-	Answer string `json:"answer"`
-	UserID string `json:"user_id,omitempty"`
-	Why    string `json:"why,omitempty"`
+	Answer   string `json:"answer"`
+	UserID   string `json:"user_id,omitempty"`
+	Why      string `json:"why,omitempty"`
+	NotAsked bool   `json:"not_asked,omitempty"`
 }
 
 // gatePhoneSetup reads the home with the Relay's own link for this device
@@ -376,7 +377,7 @@ func gateAskHandler(paths runtimePaths, w http.ResponseWriter, r *http.Request, 
 			return
 		}
 		_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(time.Duration(in.WaitMS)*time.Millisecond + time.Minute))
-		out, err = ends.phone(r.Context(), paths, in)
+		out, err = gatePhoneWithProgress(paths, w, r, in, ends)
 	}
 	if err != nil { // nothing was asked or sent: the Relay answers 503
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)

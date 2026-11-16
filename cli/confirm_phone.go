@@ -191,6 +191,10 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 	if time.Until(deadline) < windowMinWait {
 		return phoneUnread, reply
 	}
+	progress, _ := parent.Value(gatePhoneProgressKey{}).(*gatePhoneProgress)
+	if progress != nil {
+		progress.started = true
+	}
 	sent, sending := sendPhones(ctx, s, clearingFirst(phoneLastResults(s.paths), setup.owner, notify), setup.targets, func(t phoneTarget) map[string]any { return phonePayload(ask, t.platform(), tag, ok, no, deadline) })
 	all := make([]string, 0, len(setup.targets))
 	for _, target := range setup.targets {
@@ -220,6 +224,9 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 	}
 	if ask.sent != nil {
 		ask.sent.Store(true)
+	}
+	if progress != nil {
+		progress.accepted()
 	}
 	if notice != nil {
 		fmt.Fprintf(notice, phoneSentText+"\n", terminalSafeName(setup.targets[0].Name), phoneTapLine("en", setup.targets[0].platform(), ask.button))
