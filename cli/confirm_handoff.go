@@ -26,8 +26,9 @@ func newApplySession(paths runtimePaths, opts verbOptions, plan storedPlan) (*re
 		setServerSelectionOverride(opts.server)
 		if cfg, err := loadConfig(paths); err == nil && activeServerProfile() == asked.server && reflect.DeepEqual(cfg, asked.cfg) {
 			ctx, cancel := context.WithTimeout(context.Background(), relaySessionOverallTimeout)
-			return &relaySession{paths: paths, cfg: cfg, transport: asked.transport, server: asked.server, ctx: ctx, cancel: cancel,
-				slots: make(chan struct{}, relaySessionMaxConcurrent), memo: map[string]*relayMemo{}, call: opts.call}, nil
+			s := relaySessionOn(paths, cfg, asked.transport, ctx, cancel)
+			s.server, s.call = asked.server, opts.call
+			return s, nil
 		}
 	}
 	s, err := newRelaySession(paths, opts)
