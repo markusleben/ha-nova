@@ -37,6 +37,9 @@ describe("setup page step 1", () => {
     expect([own.attributes.role, own.attributes["aria-checked"]]).toEqual(["switch", "true"]);
     expect(p.screen.textContent).toContain(p.catalog["setup.page.found.own"]);
     p.find("b-signin")!.dispatch("click");
+    expect(p.find("b-own")!.attributes.disabled).toBe(""); // frozen as sent while it posts
+    p.find("b-own")!.dispatch("click");
+    expect(p.find("b-own")!.attributes["aria-checked"]).toBe("true");
     await p.settle(2);
     expect(p.posts).toEqual([{ action: "signin", value: "own" }]);
     const off = page({ ...found, own: true });

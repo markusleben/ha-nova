@@ -54,6 +54,8 @@ func pairDeviceV2Armed(
 	metadata deviceMetadata,
 	own bool,
 ) (*provisionedCredential, error) {
+	// A yes holds only for the key store this pairing really uses.
+	own = own && metadata.CredentialStore != "" && metadata.CredentialStore != "file"
 	armed, err := armSignInPairingWithin(ctx, client, own)
 	if errors.Is(err, errSignInRelayNotReady) {
 		time.Sleep(signInArmRetryDelay)

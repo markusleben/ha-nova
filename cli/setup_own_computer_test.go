@@ -42,6 +42,26 @@ func TestArmSignInPairingDeclaresTheOwnersComputerOnlyWhenAsked(t *testing.T) {
 	}
 }
 
+// A yes given before the key fell back to a file declares nothing.
+func TestPairDeviceV2ArmedDeclaresOnlyWithADesktopStore(t *testing.T) {
+	for store, want := range map[string]string{"secret_service": `{"own_computer":true}`, "file": "{}", "": "{}"} {
+		var first string
+		client := newProtocolTestCloudIngressClient(t, roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if first == "" {
+				body, _ := io.ReadAll(request.Body)
+				first = string(body)
+			}
+			return &http.Response{StatusCode: http.StatusServiceUnavailable, Header: http.Header{}, Body: io.NopCloser(strings.NewReader("{}"))}, nil
+		}))
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		_, _ = pairDeviceV2Armed(ctx, client, deviceMetadata{CredentialStore: store}, true)
+		cancel()
+		if first != want {
+			t.Fatalf("%q: sent %q", store, first)
+		}
+	}
+}
+
 // Asked only where a yes can work: the App says it approves in windows, the
 // key isn't in a file, and not on a Mac before its cleanup layer.
 func TestOwnComputerAskedOnlyWhereAYesCanWork(t *testing.T) {
