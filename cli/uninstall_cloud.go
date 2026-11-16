@@ -22,6 +22,11 @@ func purgeCloudAuthorizationsForUninstall(
 	paths runtimePaths,
 	report *uninstallReport,
 ) error {
+	// Read before anything changes, like the Cloud plans; revoked after them.
+	copies, err := legacyLinkCopiesForUninstall(paths)
+	if err != nil {
+		return fmt.Errorf("cannot safely read the old version's Home Assistant Link sign-in copies: %w", err)
+	}
 	targets, err := collectCloudPurgeTargets(paths.ConfigFile)
 	if err != nil {
 		return err
@@ -41,7 +46,7 @@ func purgeCloudAuthorizationsForUninstall(
 			return err
 		}
 	}
-	return purgeLegacyLinkCopiesForUninstall(paths) // every profile, Link or not
+	return revokeLegacyLinkCopies(copies) // legacy_link_copies.go
 }
 
 func collectCloudPurgeTargets(path string) ([]cloudPurgeTarget, error) {

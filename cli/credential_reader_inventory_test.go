@@ -146,7 +146,7 @@ var credentialReaderCallers = map[string]string{
 	"cloud_oauth_secret_store.go:load":                                                  "reader",
 	"legacy_link_cleanup.go:legacyLinkSecretRead":                                       "reader",
 	"legacy_link_cleanup.go:recoverLegacyLinkGrant":                                     "sends", // to its own Nabu Casa origin, only to revoke it
-	"legacy_link_cleanup.go:purgeLegacyLinkCopiesForUninstall":                          "sends", // to its own Nabu Casa origin, only to revoke it
+	"legacy_link_copies.go:legacyLinkCopiesOf":                                          "reader",
 }
 
 func TestEveryCredentialReaderCallerIsClassified(t *testing.T) {

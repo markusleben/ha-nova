@@ -9,8 +9,8 @@ set -euo pipefail
 
 body="${1:-docs/work/next-release-body.md}"
 warning="On macOS, 0.32 asks you to pair this computer again once."
-if [ "${GITHUB_ACTIONS:-}" != true ]; then
-  echo "Runs only on a disposable CI runner: it edits /etc/hosts." >&2
+if [ "${GITHUB_ACTIONS:-}" != true ] || [ "${RUNNER_ENVIRONMENT:-}" != github-hosted ]; then
+  echo "Runs only on a disposable GitHub-hosted runner: it edits /etc/hosts." >&2
   exit 2
 fi
 

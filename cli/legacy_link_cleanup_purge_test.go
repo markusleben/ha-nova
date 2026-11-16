@@ -54,22 +54,43 @@ func TestLegacyLinkCopiesArePurgedOnlyOnceRevoked(t *testing.T) {
 	value := legacyTestEnvelope(OAuthSecretCurrent, "default", "old-current")
 	_ = f.backend.Set(ctx, copyService, "default", value, SecretStoreForbidUI)
 
+	paths := runtimePaths{ConfigFile: config}
+	purge := func() error {
+		copies, err := legacyLinkCopiesForUninstall(paths)
+		if err != nil {
+			return err
+		}
+		return revokeLegacyLinkCopies(copies)
+	}
+	if err := requireLegacyLinkCopiesAbsent(paths); err == nil {
+		t.Fatal("final proof missed a copy")
+	}
 	revoke := legacyLinkRevoke
 	legacyLinkRevoke = func(context.Context, OAuthSecretEnvelope) error { return errors.New("Home Assistant did not answer") }
-	if err := purgeLegacyLinkCopiesForUninstall(runtimePaths{ConfigFile: config}); err == nil {
+	if err := purge(); err == nil {
 		t.Fatal("purge went on with a copy it couldn't revoke")
 	}
 	if _, kept, _ := f.backend.Get(ctx, copyService, "default", SecretStoreForbidUI); !kept {
 		t.Fatal("removed a copy whose sign-in may still be live")
 	}
 	legacyLinkRevoke = revoke
-	if err := purgeLegacyLinkCopiesForUninstall(runtimePaths{ConfigFile: config}); err != nil {
+	if err := purge(); err != nil {
 		t.Fatalf("retry: %v", err)
+	}
+	if err := requireLegacyLinkCopiesAbsent(paths); err != nil {
+		t.Fatalf("final proof after the purge: %v", err)
 	}
 	if _, kept, _ := f.backend.Get(ctx, copyService, "default", SecretStoreForbidUI); kept || strings.Join(f.revoked, ",") != "old-current" {
 		t.Fatalf("copy kept %v, revoked %v", kept, f.revoked)
 	}
 	for _, read := range f.reads {
 		t.Fatalf("purge read an old 0.31 item: %v", read)
+	}
+
+	// A copy it can't read stops the purge before anything is revoked.
+	_ = f.backend.Set(ctx, oauthLegacyCleanupServicePrefix+"pending", "default", "{", SecretStoreForbidUI)
+	f.revoked = nil
+	if _, err := legacyLinkCopiesForUninstall(paths); err == nil {
+		t.Fatal("read a corrupt copy as nothing to revoke")
 	}
 }
