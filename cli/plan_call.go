@@ -446,6 +446,7 @@ func (e *tierEngine) singleExpansion(req planCallRequest, targets []verbTarget) 
 // result is a refusal that stops before any plan is stored.
 func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierReason {
 	domain, name := splitID(req.Service)
+	e.bounding = true
 	if len(req.EntityIDs) > tierMaxExplicit {
 		e.raise(tierPreview, tierReason{Code: reasonBatch, Detail: fmt.Sprintf("%d ids", len(req.EntityIDs))})
 	}
@@ -496,5 +497,6 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 	}
 	e.checkManagers()
 	e.callServiceListeners() // last: every call above, and each listener's own, may set one off; a manager's calls aren't read
-	return e.ownApp          // a step anywhere above would stop HA NOVA's own App (latchOwnApp)
+	e.settleBounds()
+	return e.ownApp // a step anywhere above would stop HA NOVA's own App (latchOwnApp)
 }
