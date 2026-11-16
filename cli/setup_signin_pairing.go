@@ -77,7 +77,7 @@ func runHASignInPairingStep(
 		default: // six digits typed at the fallback prompt
 			return false, answer, nil
 		}
-		paired, retry, err := signInAndPair(out, paths, cfg, origin.String(), lifecycleMarker...)
+		paired, retry, err := signInAndPair(reader, out, paths, cfg, origin.String(), lifecycleMarker...)
 		if paired || err != nil {
 			return paired, "", err
 		}
@@ -128,6 +128,7 @@ func promptHASignInChoice(reader *bufio.Reader, out io.Writer, again bool) (stri
 }
 
 func signInAndPair(
+	reader *bufio.Reader,
 	out io.Writer,
 	paths runtimePaths,
 	cfg *runtimeConfig,
@@ -141,6 +142,7 @@ func signInAndPair(
 		return false, haSignInRetryable(err), nil
 	}
 	renderSetupSuccessLine(out, "Signed in to Home Assistant as %s (owner)", haSignInUserName(session.user))
+	session.own = ownComputerAskedForSetup(*cfg) && askOwnComputer(reader, out)
 	paired, soft, err := pairWithHASignInSession(out, paths, cfg, session, lifecycleMarker...)
 	return paired, errors.Is(soft, errSignInNotOwner), err
 }
@@ -169,7 +171,7 @@ func pairWithHASignInSession(
 				// From here, not from before the lock: the budget is the exchange's.
 				ctx, cancel := context.WithTimeout(context.Background(), haSignInStepTimeout+haSignInPairTimeout)
 				defer cancel()
-				provisioned, err := pairDeviceV2ArmedForSetup(ctx, session.ingress, meta)
+				provisioned, err := pairDeviceV2ArmedForSetup(ctx, session.ingress, meta, session.own)
 				if err != nil {
 					return nil, &haSignInPairingError{err: err}
 				}

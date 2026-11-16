@@ -46,15 +46,18 @@ type signInProvisionedCredential struct {
 	SecurePort      int    `json:"secure_port"`
 }
 
+// own: the owner declares this computer theirs (setup's "Only I use this
+// account on this computer" box), so the App lets it confirm in its window.
 func pairDeviceV2Armed(
 	ctx context.Context,
 	client *CloudIngressClient,
 	metadata deviceMetadata,
+	own bool,
 ) (*provisionedCredential, error) {
-	armed, err := armSignInPairingWithin(ctx, client)
+	armed, err := armSignInPairingWithin(ctx, client, own)
 	if errors.Is(err, errSignInRelayNotReady) {
 		time.Sleep(signInArmRetryDelay)
-		armed, err = armSignInPairingWithin(ctx, client)
+		armed, err = armSignInPairingWithin(ctx, client, own)
 	}
 	if err != nil {
 		return nil, &pairingBeforeFinishError{err: err}
@@ -92,10 +95,10 @@ func pairDeviceV2Armed(
 }
 
 // armSignInPairingWithin arms with a step's own time bound.
-func armSignInPairingWithin(ctx context.Context, client *CloudIngressClient) (signInArmResponse, error) {
+func armSignInPairingWithin(ctx context.Context, client *CloudIngressClient, own bool) (signInArmResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, haSignInStepTimeout)
 	defer cancel()
-	return armSignInPairing(ctx, client, CloudEndpointPairArm)
+	return armSignInPairing(ctx, client, CloudEndpointPairArm, own)
 }
 
 // pairDeviceV2LinkOwner pairs over Home Assistant Link without a code when the
@@ -110,7 +113,7 @@ func pairDeviceV2LinkOwner(
 	metadata deviceMetadata,
 	expectedRelayInstanceID string,
 ) (*cloudProvisionedCredential, error) {
-	armed, err := armSignInPairing(ctx, client, CloudEndpointPairArmLink)
+	armed, err := armSignInPairing(ctx, client, CloudEndpointPairArmLink, false)
 	if err != nil {
 		return nil, &pairingBeforeFinishError{err: err}
 	}
@@ -128,11 +131,16 @@ func armSignInPairing(
 	ctx context.Context,
 	client *CloudIngressClient,
 	endpoint CloudIngressEndpoint,
+	own bool,
 ) (signInArmResponse, error) {
 	if client == nil {
 		return signInArmResponse{}, newCloudError(CloudErrInvalidInput, "arm sign-in pairing", nil)
 	}
-	response, err := client.Do(ctx, endpoint, "", []byte("{}"))
+	body := []byte("{}")
+	if own {
+		body = []byte(`{"own_computer":true}`) // an App before 0.32 ignores it
+	}
+	response, err := client.Do(ctx, endpoint, "", body)
 	if err != nil {
 		return signInArmResponse{}, err
 	}

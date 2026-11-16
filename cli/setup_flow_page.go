@@ -141,8 +141,9 @@ func (f *setupFlow) stepPage() setupStepResult {
 	var blocked [2]string // host and address Link held back (link_remove)
 	for {
 		app := f.pageApp()
+		own := app.primary != "" && !f.noClient && ownComputerAskedForSetup(f.cfg) // a window here can confirm: the button asks
 		p.update(func(v *setupPageState) {
-			v.Screen, v.HA, v.Candidates, v.App, v.AppVersion, v.Primary = screen, terminalSafeName(f.cfg.HAHost), found, app.state, terminalSafeName(app.version), app.primary
+			v.Screen, v.HA, v.Candidates, v.App, v.AppVersion, v.Primary, v.Own = screen, terminalSafeName(f.cfg.HAHost), found, app.state, terminalSafeName(app.version), app.primary, own
 			v.Clients, v.Problem, v.Fix, v.Links, v.AskHA, v.Typed = setupClientNames(f.selectedClients), problem, fix, links, askHA, f.pageTyped
 			if screen == "found" {
 				v.Rows = nil
@@ -237,6 +238,7 @@ func (f *setupFlow) stepPage() setupStepResult {
 			f.detectRelayOnInstall = true
 			return setupGoTo(setupStepRelayInstall)
 		case "signin":
+			f.pageOwn = own && action.Value == "own"
 			if app.primary == "" {
 				app = f.pageApp() // Try again reads the App again
 			}
@@ -454,7 +456,7 @@ func (f *setupFlow) pageSignIn(app setupPageApp) (*setupPageFailure, bool) {
 	pageStop := stoppedOnPage()
 	p.navigate("")
 	if err == nil {
-		session.fromPage = true
+		session.fromPage, session.own = true, f.pageOwn
 		setupInstalledSignIn = &session
 		return nil, false
 	}
