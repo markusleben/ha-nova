@@ -33,6 +33,7 @@ export interface DeviceRecord {
   windowConfirm?: boolean;
   legacyCleanup?: LegacyCleanup;
   pairingOwnerId?: string;
+  retireDeviceId?: string; // pending only: the owner-confirmed older entry of this computer its activation removes
 }
 
 export interface PairingResponseRecord {

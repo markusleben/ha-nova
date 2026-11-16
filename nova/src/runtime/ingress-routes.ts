@@ -157,6 +157,7 @@ function registerPairingV2Routes(
     fetchAuthUsers,
     logger: deps.logger,
     registryCorrupt: deps.registryCorrupt,
+    registry: deps.registry,
   };
   registerIngressRoute(
     router,

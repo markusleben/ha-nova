@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"io"
-	"runtime"
 	"strings"
 )
 
@@ -27,13 +26,14 @@ func ownComputerAsked(cfg runtimeConfig) bool {
 	return window
 }
 
-// ownComputerHere: a confirmation window can open here, the key isn't in a
-// file, and not on a Mac before its old sign-in cleanup reports complete
-// (spec §5.3). The setup page asks on this alone before it installs the
-// App, then asks the installed App (pageSignIn).
+// ownComputerHere: a confirmation window can open here and the key isn't in a
+// file. A Mac is asked too, at its re-pair after the 0.32 update; the App
+// keeps its window off until its old sign-in cleanup reports complete (spec
+// §5.3). The setup page asks on this alone before it installs the App, then
+// asks the installed App (pageSignIn).
 func ownComputerHere() bool {
 	store := pairingCredentialStore()
-	return runtime.GOOS != "darwin" && store != "" && store != "file" && windowAvailable()
+	return store != "" && store != "file" && windowAvailable()
 }
 
 // askOwnComputer is the terminal's question. Enter is yes (D1); only a yes

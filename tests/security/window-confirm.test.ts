@@ -69,6 +69,20 @@ describe("window confirmation eligibility", () => {
 describe("window pairing provenance and persistence", () => {
   const metadata = { name: "Computer", platform: "darwin", client: "cli", clientInstallId: "install", credentialStore: "keychain" as const };
 
+  it("keeps an older entry to retire only on the owner's sign-in pairing, and persists it", () => {
+    const decoded = decodePairingMetadata(Buffer.from(JSON.stringify({ ...metadata, client_install_id: "install-home", retire_device_id: "old" })))!;
+    expect(decoded.retireDeviceId).toBe("old");
+    expect(pairingWindowFields(decoded, undefined, false, 1000)).not.toHaveProperty("retireDeviceId");
+    expect(pairingWindowFields(decoded, owner.id, false, 1000)).toMatchObject({ retireDeviceId: "old" });
+    expect(decodePairingMetadata(Buffer.from(JSON.stringify({ ...metadata, client_install_id: "install", retire_device_id: 7 })))).not.toHaveProperty("retireDeviceId");
+    const write = (retireDeviceId: unknown) =>
+      writeFileSync(join(dir, "device-registry.json"), JSON.stringify({ version: 1, devices: [{ ...eligible, state: "pending", pendingExpiresAtMs: 9_000, retireDeviceId }], legacy: null }));
+    write("old");
+    expect(openDeviceRegistry(dir).list()[0]?.retireDeviceId).toBe("old");
+    write(7);
+    expect(() => openDeviceRegistry(dir)).toThrow(RegistryCorruptError);
+  });
+
   it("does not infer ownership from client metadata, a code pairing, or a missing choice", () => {
     const decoded = decodePairingMetadata(Buffer.from(JSON.stringify({ ...metadata, client_install_id: "install", own_computer: true, credential_store: "keychain" })))!;
     expect(pairingWindowFields(decoded, undefined, true, 1000)).toEqual({ credentialStore: "keychain" });

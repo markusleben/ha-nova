@@ -14,6 +14,7 @@ export interface DeviceMetadata {
   clientInstallId: string;
   credentialStore?: CredentialStore;
   legacyCleanup?: LegacyCleanup;
+  retireDeviceId?: string;
 }
 
 export function isCredentialStore(value: unknown): value is CredentialStore {
@@ -44,6 +45,7 @@ export function decodePairingMetadata(
   const platform = boundedString(metadata.platform, 32);
   const client = boundedString(metadata.client, 32);
   const clientInstallId = boundedString(metadata.client_install_id, 128);
+  const retire = boundedString(metadata.retire_device_id, 64);
   if (
     name === null ||
     platform === null ||
@@ -55,7 +57,7 @@ export function decodePairingMetadata(
     return null;
   }
   return { name, platform, client, clientInstallId, ...(isCredentialStore(metadata.credential_store) ? { credentialStore: metadata.credential_store } : {}),
-    ...(isLegacyCleanup(metadata.legacy_cleanup) ? { legacyCleanup: metadata.legacy_cleanup } : {}) };
+    ...(isLegacyCleanup(metadata.legacy_cleanup) ? { legacyCleanup: metadata.legacy_cleanup } : {}), ...(retire !== null ? { retireDeviceId: retire } : {}) };
 }
 
 function boundedString(value: unknown, maxLength: number): string | null {

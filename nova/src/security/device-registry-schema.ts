@@ -177,6 +177,7 @@ function validateDevice(value: unknown): DeviceRecord {
     }
     record.windowConfirm = raw.windowConfirm;
   }
+  if (raw.retireDeviceId !== undefined) record.retireDeviceId = stringField("retireDeviceId");
   if (raw.pairingOwnerId !== undefined) {
     record.pairingOwnerId = stringField("pairingOwnerId");
     if (!isValidCloudUserId(record.pairingOwnerId)) {

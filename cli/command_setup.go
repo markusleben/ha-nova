@@ -274,6 +274,9 @@ func runSetup(paths runtimePaths, args []string) int {
 		*relayURL,
 		*relayToken,
 	)
+	if _, _, _, _, transportErr := relayFunctionalTransport(cfg); namedClientRepair && cfg.PendingSecureBaseURL == "" && errors.Is(transportErr, errDeviceNeedsRePair) {
+		namedClientRepair = false // its key is gone: the full setup pairs it again by sign-in
+	}
 	if namedClientRepair {
 		state, err := loadStateOrDefaultChecked(paths)
 		if err != nil {

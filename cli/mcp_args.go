@@ -193,7 +193,7 @@ func nextStep(envelope map[string]any, chat *chatPolicy) string {
 		return relayAnsweredNext
 	case errInfo != nil && errInfo["code"] == "RELAY_ERROR" && chat != nil:
 		return chatRelayNext
-	case errInfo != nil && (errInfo["code"] == "SECURE_STORAGE_LOCKED" || errInfo["code"] == "SECURE_STORAGE_UNAVAILABLE"):
+	case errInfo != nil && (errInfo["code"] == "SECURE_STORAGE_LOCKED" || errInfo["code"] == "SECURE_STORAGE_UNAVAILABLE" || errInfo["code"] == "PAIR_AGAIN"):
 		if chat != nil {
 			return chatRelayNext
 		}

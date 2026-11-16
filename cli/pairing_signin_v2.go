@@ -33,9 +33,23 @@ var signInArmRetryDelay = 2 * time.Second
 var base64URL32Pattern = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
 
 type signInArmResponse struct {
-	PairingSecret   string `json:"pairing_secret"`
-	ExpiresInS      int    `json:"expires_in_s"`
-	RelayInstanceID string `json:"relay_instance_id"`
+	PairingSecret   string             `json:"pairing_secret"`
+	ExpiresInS      int                `json:"expires_in_s"`
+	RelayInstanceID string             `json:"relay_instance_id"`
+	Previous        *signInPredecessor `json:"previous,omitempty"`
+}
+
+// signInPredecessor: the one active local entry the App still keeps under
+// the install id this computer paired a named profile with before it got
+// its own (pairingClientInstallID).
+type signInPredecessor struct {
+	DeviceID string `json:"device_id"`
+	Name     string `json:"name"`
+}
+
+type signInArmRequest struct {
+	OwnComputer       bool   `json:"own_computer,omitempty"` // an App before 0.32 ignores it
+	PreviousInstallID string `json:"previous_install_id,omitempty"`
 }
 
 type signInProvisionedCredential struct {
@@ -136,12 +150,21 @@ func armSignInPairing(
 	endpoint CloudIngressEndpoint,
 	own bool,
 ) (signInArmResponse, error) {
+	return armSignInPairingRequest(ctx, client, endpoint, signInArmRequest{OwnComputer: own})
+}
+
+func armSignInPairingRequest(
+	ctx context.Context,
+	client *CloudIngressClient,
+	endpoint CloudIngressEndpoint,
+	request signInArmRequest,
+) (signInArmResponse, error) {
 	if client == nil {
 		return signInArmResponse{}, newCloudError(CloudErrInvalidInput, "arm sign-in pairing", nil)
 	}
-	body := []byte("{}")
-	if own {
-		body = []byte(`{"own_computer":true}`) // an App before 0.32 ignores it
+	body, err := json.Marshal(request)
+	if err != nil {
+		return signInArmResponse{}, err
 	}
 	response, err := client.Do(ctx, endpoint, "", body)
 	if err != nil {
@@ -184,7 +207,8 @@ func armSignInPairing(
 		decodeStrictJSON(envelope.Data, &armed) != nil ||
 		!base64URL32Pattern.MatchString(armed.PairingSecret) ||
 		armed.ExpiresInS < 1 || armed.ExpiresInS > 600 ||
-		!validIdentifier(armed.RelayInstanceID, 256) {
+		!validIdentifier(armed.RelayInstanceID, 256) ||
+		armed.Previous != nil && !validIdentifier(armed.Previous.DeviceID, 64) {
 		return signInArmResponse{}, newCloudError(CloudErrHAProtocol, "decode sign-in pairing response", err)
 	}
 	return armed, nil

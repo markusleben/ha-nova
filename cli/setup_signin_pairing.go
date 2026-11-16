@@ -20,11 +20,12 @@ import (
 
 // Test seams.
 var (
-	openHASignInIngressForSetup   = openHASignInIngress
-	resolveHASignInOriginForSetup = resolveHASignInOrigin
-	pairDeviceV2ArmedForSetup     = pairDeviceV2Armed
-	signInPairForSetup            = runSecurePairingWithProvisioner
-	haSignInOffered               = defaultHASignInOffered
+	openHASignInIngressForSetup       = openHASignInIngress
+	resolveHASignInOriginForSetup     = resolveHASignInOrigin
+	pairDeviceV2ArmedForSetup         = pairDeviceV2Armed
+	signInPredecessorToRetireForSetup = signInPredecessorToRetire
+	signInPairForSetup                = runSecurePairingWithProvisioner
+	haSignInOffered                   = defaultHASignInOffered
 )
 
 // The pairing exchange after the sign-in: arming gets a step's bound
@@ -145,7 +146,7 @@ func signInAndPair(
 	if session.own, err = askOwnComputerForSetup(reader, out, *cfg); err != nil {
 		return false, false, err
 	}
-	paired, soft, err := pairWithHASignInSession(out, paths, cfg, session, lifecycleMarker...)
+	paired, soft, err := pairWithHASignInSession(reader, out, paths, cfg, session, lifecycleMarker...)
 	return paired, errors.Is(soft, errSignInNotOwner), err
 }
 
@@ -154,12 +155,20 @@ func signInAndPair(
 // of the ingress exchange, already said in one line; the caller decides
 // what comes next.
 func pairWithHASignInSession(
+	reader *bufio.Reader,
 	out io.Writer,
 	paths runtimePaths,
 	cfg *runtimeConfig,
 	session haSignInSession,
 	lifecycleMarker ...[]byte,
 ) (paired bool, soft error, err error) {
+	if session.fromPage {
+		reader = nil // the page asked its questions; it can't ask this one
+	}
+	retire, err := signInPredecessorToRetireForSetup(reader, out, paths, *cfg, session.ingress)
+	if err != nil {
+		return false, nil, err
+	}
 	_, pairErr := runSetupSpinnerWithResult(out, "Connecting this computer...", setupSpinnerDebounce, func() (struct{}, error) {
 		var pairErr error
 		lockErr := withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
@@ -173,6 +182,7 @@ func pairWithHASignInSession(
 				// From here, not from before the lock: the budget is the exchange's.
 				ctx, cancel := context.WithTimeout(context.Background(), haSignInStepTimeout+haSignInPairTimeout)
 				defer cancel()
+				meta.RetireDeviceID = retire
 				provisioned, err := pairDeviceV2ArmedForSetup(ctx, session.ingress, meta, session.own)
 				if err != nil {
 					return nil, &haSignInPairingError{err: err}

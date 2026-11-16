@@ -65,11 +65,13 @@ func (f *setupFlow) stepSecureStorageRecovery() setupStepResult {
 	f.tokenStorageRecoveryReadBlocked = false
 	f.savedTokenBeforeSetup = ""
 	f.hadSavedTokenBeforeSetup = false
-	if savedToken, err := readRelayAuthTokenForSetup(); err == nil && strings.TrimSpace(savedToken) != "" {
-		f.savedTokenBeforeSetup = strings.TrimSpace(savedToken)
-		f.hadSavedTokenBeforeSetup = true
-	} else if err != nil && !isMissingRelayAuthTokenError(err) {
-		return f.failErr(relayAuthTokenSetupReadError(err))
+	if activeServerProfile() == defaultServerProfileName { // the machine-wide token is the default profile's: never assessed or sent for another server
+		if savedToken, err := readRelayAuthTokenForSetup(); err == nil && strings.TrimSpace(savedToken) != "" {
+			f.savedTokenBeforeSetup = strings.TrimSpace(savedToken)
+			f.hadSavedTokenBeforeSetup = true
+		} else if err != nil && !isMissingRelayAuthTokenError(err) {
+			return f.failErr(relayAuthTokenSetupReadError(err))
+		}
 	}
 	if strings.TrimSpace(f.relayTokenFlag) == "" {
 		f.existingToken = f.savedTokenBeforeSetup

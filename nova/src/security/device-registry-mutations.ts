@@ -182,7 +182,9 @@ export function withActivated(
         }
       : {}),
   };
-  const previous = devices.find((d) => d.state === "active" && d.clientInstallId === target.clientInstallId);
+  // An owner-confirmed older entry of this computer: its plain install id before named profiles got their own (CLI pairingClientInstallID).
+  const retired = devices.find((d) => d.deviceId === target.retireDeviceId && d.state === "active" && d.cloudUserId === undefined && !appOwned(d) && target.clientInstallId.startsWith(`${d.clientInstallId}-`));
+  const previous = devices.find((d) => d.state === "active" && d.clientInstallId === target.clientInstallId) ?? retired;
   if (target.pairingOwnerId !== undefined && previous?.confirmPhone !== undefined) {
     promoted.confirmPhone = { ...previous.confirmPhone };
   }
@@ -193,7 +195,8 @@ export function withActivated(
   // mirroring the same-install cleanup revoke() already performs.
   const kept = devices.filter(
     (d) =>
-      d.deviceId !== deviceId && d.clientInstallId !== target.clientInstallId,
+      d.deviceId !== deviceId && d.clientInstallId !== target.clientInstallId &&
+      !(d.clientInstallId === retired?.clientInstallId && d.cloudUserId === undefined),
   );
   // Count AFTER retiring the same-install active record: re-pairing at the cap
   // is a replacement (net count unchanged) and must be allowed; only a

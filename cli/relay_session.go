@@ -138,6 +138,10 @@ func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Dur
 			return nil, &verbFailure{exit: verbExitError, code: code, message: relayTransportErrorMessage(err), cause: err,
 				next: "Nothing was sent. Tell the user the message in plain words (it names the fix); try again only after they say it is fixed."}
 		}
+		if errors.Is(err, errDeviceNeedsRePair) {
+			return nil, &verbFailure{exit: verbExitError, code: "PAIR_AGAIN", message: relayTransportErrorMessage(err), cause: err,
+				next: "Nothing was sent. Tell the user this computer needs to be paired again once (one Home Assistant sign-in, about a minute) and give them the command in the message to run in their own terminal; try again after they say it is done."}
+		}
 		return nil, errors.New(relayTransportErrorMessage(err))
 	}
 	s := relaySessionOn(paths, cfg, transport, ctx, cancel)

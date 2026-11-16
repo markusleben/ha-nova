@@ -53,6 +53,7 @@ type deviceMetadata struct {
 	Client          string `json:"client"`
 	ClientInstallID string `json:"client_install_id"`
 	CredentialStore string `json:"credential_store,omitempty"` // pairingCredentialStore
+	RetireDeviceID  string `json:"retire_device_id,omitempty"` // pairing_predecessor.go
 }
 
 type provisionedCredential struct {
