@@ -391,11 +391,13 @@ func runSetup(paths runtimePaths, args []string) int {
 			migrated, err = migrateKeyringDeviceCredentialToFile()
 			return err
 		})
-		if migrateErr != nil {
+		switch {
+		case errors.Is(migrateErr, errDeviceKeyStaysInKeychain):
+			printHumanInfo("%s", setupT("setup.service.key_stays_in_keychain"))
+		case migrateErr != nil:
 			printHumanErr("%s", setupT("setup.error.service_move_credential", "error", migrateErr))
 			return 1
-		}
-		if migrated {
+		case migrated:
 			printHumanInfo("%s", setupT("setup.service.credential_moved"))
 		}
 	}

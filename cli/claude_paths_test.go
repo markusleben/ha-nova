@@ -68,6 +68,7 @@ func TestMain(m *testing.M) {
 	// No test reaches an App to turn window approval off before a file copy;
 	// device_credential_migration_test.go checks that order with its own.
 	gateWindowOffForFileCopy = func(string, string, bool) error { return nil }
+	deviceKeyNeverCopiedToFile = false
 	secretKeyringGet = keyring.Get
 	secretKeyringGetWithPolicy = defaultSecretKeyringGetWithPolicy
 	secretKeyringSetWithPolicy = defaultSecretKeyringSetWithPolicy

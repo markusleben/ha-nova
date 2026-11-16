@@ -120,6 +120,7 @@
   "setup.step.skills": "Installing HA NOVA skills",
 
   "setup.service.credential_moved": "Moved this computer's key into a private file.",
+  "setup.service.key_stays_in_keychain": "On macOS this computer's key stays in the Keychain, which HA NOVA reads without a prompt. It is never copied into a file.",
 
   "setup.storage.file_backed": "HA NOVA can't use a password store here. It saves its key in a private file instead.",
   "setup.storage.warn_session_unavailable": "HA NOVA can't reach this computer's password store from this terminal (for example over SSH).",

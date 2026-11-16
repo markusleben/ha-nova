@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 )
 
@@ -25,6 +26,19 @@ import (
 // machine whose keyring never unlocks. The auto-detected path keeps its
 // stricter "nothing persists before promotion" contract.
 var deviceCredentialFileModeExplicit = false
+
+// deviceKeyNeverCopiedToFile: on macOS a Keychain key is never copied into a
+// file any same-user program reads (0.32 spec §5.4). While any profile holds
+// one, the file opt-ins keep the Keychain: switching the whole install to
+// files would hide every other profile's key, Link ones included.
+var deviceKeyNeverCopiedToFile = runtime.GOOS == "darwin"
+
+// errDeviceKeyStaysInKeychain: this Mac keeps its keys in the Keychain.
+var errDeviceKeyStaysInKeychain = errors.New("on macOS this computer's key stays in the Keychain and is never copied into a file")
+
+// deviceKeyStaysInKeychain is set once the migration answered
+// errDeviceKeyStaysInKeychain, so setup's pairing step keeps the Keychain.
+var deviceKeyStaysInKeychain = false
 
 const (
 	deviceCredentialKeyringCleanupMarker = ".keyring-migration-cleanup"
@@ -72,10 +86,15 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 		repairing        bool // a pending key waits beside the current one
 	}
 	var windowOffs []windowOff
+	var keyed []string // macOS: profiles holding a Keychain key
 	for _, profile := range credentialProfileNames() {
 		currentService := deviceCredentialServiceForProfile(profile)
 		pendingService := deviceCredentialPendingServiceForProfile(profile)
 		current, currentOK, currentErr := readCredentialSlot(currentService)
+		if currentErr != nil && deviceKeyNeverCopiedToFile {
+			deviceKeyStaysInKeychain = true // an unreadable slot may hold a key the switch would hide
+			return false, errDeviceKeyStaysInKeychain
+		}
 		if currentErr != nil {
 			return false, nil // keyring unreadable (locked/absent): the pairing path takes over
 		}
@@ -87,6 +106,12 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 		pending, pendingOK, pendingErr := readKeyringSlotDirect(pendingService)
 		if pendingErr != nil {
 			return false, fmt.Errorf("cannot read the pending device credential from the keyring: %w", pendingErr)
+		}
+		if deviceKeyNeverCopiedToFile {
+			if currentOK || pendingOK {
+				keyed = append(keyed, profile)
+			}
+			continue
 		}
 		if currentOK {
 			windowOffs = append(windowOffs, windowOff{profile: profile, repairing: pendingOK})
@@ -102,6 +127,10 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 			}
 			windowOffs = append(windowOffs, windowOff{profile: profile, pending: record.Credential})
 		}
+	}
+	if len(keyed) > 0 {
+		deviceKeyStaysInKeychain = true
+		return false, errDeviceKeyStaysInKeychain
 	}
 	if len(currents) == 0 && len(pendings) == 0 {
 		return false, nil // never paired: nothing to migrate
