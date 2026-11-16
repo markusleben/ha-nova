@@ -9,8 +9,8 @@ import (
 
 // #1184: Home Assistant keeps an automation's YAML id as a number when it was
 // written as one (id: 1700000000000), in the entity registry's unique_id and
-// in the automation's id attribute. The map reads it as text, and one
-// registry row it can't read is left out and named, never the whole section.
+// in the automation's id attribute. The map reads it as text, and an id it
+// can't read leaves that one entity without it, named, never the whole section.
 func TestMapAutomationsReadNumericIDs(t *testing.T) {
 	f := smallHome()
 	for _, e := range f.entities {
@@ -32,7 +32,7 @@ func TestMapAutomationsReadNumericIDs(t *testing.T) {
 	for _, row := range autos.Rows {
 		names = append(names, row.Name)
 	}
-	if !slices.Contains(names, "Morning") || !slices.Equal(autos.Unreadable, []string{"automation.odd"}) {
+	if !slices.Contains(names, "Morning") || !slices.Contains(names, "Odd") || !slices.Equal(autos.Unreadable, []string{"automation.odd"}) {
 		t.Fatalf("rows %v, unreadable %v", names, autos.Unreadable)
 	}
 }

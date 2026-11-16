@@ -34,7 +34,7 @@ func (x *homeIndex) section(name string, limit int) map[string]any {
 	}
 	out["total"], out["shown"] = total, min(total, limit)
 	if len(x.h.unreadable) > 0 {
-		out["unreadable"] = x.h.unreadable // registry rows HA NOVA couldn't read, left out of these counts
+		out["unreadable"] = x.h.unreadable // entities whose registry id HA NOVA couldn't read; counted, id unknown
 	}
 	switch {
 	case (total > limit || problemsCut) && limit < 200:
