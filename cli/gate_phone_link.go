@@ -85,15 +85,19 @@ func gatePhoneTap(ctx context.Context, s *relaySession, paths runtimePaths, link
 	answer, reply := askPhone(ctx, s, setup, gatePhoneTag, ask, wait, nil)
 	if run, ok := ctx.Value(gatePhoneEndKey{}).(*gatePhoneRun); ok {
 		notice, done := run.ends.claim(run.ref, reply.tag)
+		run.detached = true
 		defer func() {
-			reply.withdraw(confirmT(ask.lang, "outcome.ended"), confirmT(ask.lang, "outcome.line.ended_elsewhere"))
-			if reply.landed != nil {
-				<-reply.landed
-			}
-			done()
-			if notice != nil {
-				run.ends.emit(paths, *notice, "")
-			}
+			reply.withdraw(confirmT(ask.lang, "outcome.not_confirmed"), confirmT(ask.lang, "outcome.line.no_answer"))
+			go func() {
+				defer s.close()
+				if reply.landed != nil {
+					<-reply.landed
+				}
+				done()
+				if notice != nil {
+					run.ends.emit(paths, *notice, "")
+				}
+			}()
 		}()
 		if notice != nil {
 			title, body := notice.text()

@@ -56,8 +56,9 @@ type gateWindowQueue struct {
 
 type gatePhoneEndKey struct{}
 type gatePhoneRun struct {
-	ends *gatePhoneEnds
-	ref  string
+	ends     *gatePhoneEnds
+	ref      string
+	detached bool
 }
 
 func (e *gatePhoneEnds) entry(ref string) *gatePhoneEnd {
@@ -105,7 +106,7 @@ func (e *gatePhoneEnds) phone(ctx context.Context, paths runtimePaths, in gatePh
 			go e.emit(paths, *notice, "")
 		}
 	}()
-	answer, err := gatePhone(context.WithValue(ctx, gatePhoneEndKey{}, &gatePhoneRun{e, in.AskRef}), paths, in)
+	answer, err := gatePhone(context.WithValue(ctx, gatePhoneEndKey{}, &gatePhoneRun{ends: e, ref: in.AskRef}), paths, in)
 	e.mu.Lock()
 	windowWon := end.notice != nil
 	e.mu.Unlock()

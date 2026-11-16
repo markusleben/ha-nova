@@ -209,7 +209,7 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 		}
 		notePhoneResult(s.paths, setup.owner, all, tag)
 		done := tellPhones(s, notify, all, bodies, until)
-		go func() { <-done; close(landed) }()
+		go func() { <-sending; <-done; close(landed) }()
 	}
 	reply = phoneReply{tag: tag, landed: landed, once: &sync.Once{},
 		tell:  func(title, body string) { end(phoneResultPayload(title, body, tag)) },

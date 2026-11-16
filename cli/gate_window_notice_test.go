@@ -106,7 +106,11 @@ func TestGatePhoneWindowEndWinsLateTapAndZeroReply(t *testing.T) {
 					return nil, errors.New("phone cannot listen")
 				}
 			}
-			ends := &gatePhoneEnds{entries: map[string]*gatePhoneEnd{}, send: gateWindowEmit}
+			noticed := make(chan struct{})
+			ends := &gatePhoneEnds{entries: map[string]*gatePhoneEnd{}, send: func(paths runtimePaths, notice gateWindowNotice, tag string, latest bool) {
+				gateWindowEmit(paths, notice, tag, latest)
+				close(noticed)
+			}}
 			type result struct {
 				answer gatePhoneAnswer
 				err    error
@@ -131,6 +135,11 @@ func TestGatePhoneWindowEndWinsLateTapAndZeroReply(t *testing.T) {
 				}
 			case <-time.After(3 * time.Second):
 				t.Fatal("phone did not finish")
+			}
+			select {
+			case <-noticed:
+			case <-time.After(3 * time.Second):
+				t.Fatal("the window notice did not finish")
 			}
 			p.mu.Lock()
 			defer p.mu.Unlock()

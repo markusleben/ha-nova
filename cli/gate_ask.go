@@ -327,7 +327,11 @@ func gatePhone(ctx context.Context, paths runtimePaths, in gatePhoneRequest) (ga
 	if err != nil {
 		return gatePhoneAnswer{}, err
 	}
-	defer s.close()
+	defer func() {
+		if run, ok := ctx.Value(gatePhoneEndKey{}).(*gatePhoneRun); !ok || !run.detached {
+			s.close()
+		}
+	}()
 	setup, status := gatePhoneSetup(s, in.Link)
 	if status != phoneReady {
 		return gatePhoneAnswer{Answer: "unavailable", Why: gatePhoneWhy(setup.why)}, nil
