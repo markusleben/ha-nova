@@ -26,19 +26,34 @@ var gateWindowOff = func(paths runtimePaths) error {
 }
 
 // gateWindowOffForProfile: the same for one server profile's paired
-// computer, leaving the process's profile selection alone.
-var gateWindowOffForProfile = func(paths runtimePaths, profile string) error {
+// computer, leaving the process's profile selection alone. pending: a
+// pairing's key not yet promoted here, which the App may already hold as
+// active; it goes only to the profile's pinned secure endpoint, and an App
+// that doesn't take it (not activated yet) refuses, so nothing is copied.
+func gateWindowOffForProfile(paths runtimePaths, profile, pending string) error {
 	cfg, err := loadSelectedConfig(paths, profile, "--server", false)
 	if err != nil {
 		return err
 	}
+	unfinished := fmt.Errorf("its pairing didn't finish; finish it first with: ha-nova pair --server %s, then run this again", profile)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	transport, err := selectRelayTransport(ctx, cfg, "", false)
-	if err != nil {
+	transport := relayTransportSelection{BaseURL: cfg.RelaySecureBaseURL, Client: spkiPinnedClient(cfg.RelaySpkiPin), Credential: pending, DeviceMode: true, Via: relayViaLocal}
+	switch {
+	case pending != "" && (cfg.RelaySecureBaseURL == "" || cfg.RelaySpkiPin == ""):
 		cancel()
-		return errors.New(relayTransportErrorMessage(err))
+		return unfinished
+	case pending == "":
+		if transport, err = selectRelayTransport(ctx, cfg, "", false); err != nil {
+			cancel()
+			return errors.New(relayTransportErrorMessage(err))
+		}
 	}
-	return relaySessionOn(paths, cfg, transport, ctx, cancel).gateWindowOff()
+	err = relaySessionOn(paths, cfg, transport, ctx, cancel).gateWindowOff()
+	var call *relayCallError
+	if pending != "" && errors.As(err, &call) && (call.status == http.StatusUnauthorized || call.status == http.StatusForbidden) {
+		return unfinished
+	}
+	return err
 }
 
 func (s *relaySession) gateWindowOff() error {

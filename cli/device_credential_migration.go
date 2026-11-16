@@ -67,7 +67,8 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 	}
 	type slotValue struct{ service, value string }
 	var currents, pendings []slotValue
-	var profilesWithCurrent []string
+	type windowOff struct{ profile, pending string }
+	var windowOffs []windowOff
 	for _, profile := range credentialProfileNames() {
 		currentService := deviceCredentialServiceForProfile(profile)
 		pendingService := deviceCredentialPendingServiceForProfile(profile)
@@ -77,7 +78,7 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 		}
 		if currentOK {
 			currents = append(currents, slotValue{currentService, current})
-			profilesWithCurrent = append(profilesWithCurrent, profile)
+			windowOffs = append(windowOffs, windowOff{profile: profile})
 		}
 		// A pending credential from an interrupted pairing must move with the
 		// install; an unreadable/malformed pending slot aborts BEFORE the flip.
@@ -87,6 +88,11 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 		}
 		if pendingOK {
 			pendings = append(pendings, slotValue{pendingService, pending})
+			record, err := decodePendingDeviceCredentialRecord(pending)
+			if err != nil {
+				return false, fmt.Errorf("cannot read the pending device credential from the keyring: %w", err)
+			}
+			windowOffs = append(windowOffs, windowOff{profile, record.Credential})
 		}
 	}
 	if len(currents) == 0 && len(pendings) == 0 {
@@ -94,10 +100,11 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 	}
 	// Any same-user program reads a file key, so a copied key must not
 	// approve in its computer's window (0.32 spec §5.4): the App turns that
-	// off for every profile first, and nothing is copied when it can't.
-	for _, profile := range profilesWithCurrent {
-		if err := gateWindowOffForFileCopy(profile); err != nil {
-			return false, fmt.Errorf("couldn't turn off one-click confirming for server profile %q on the NOVA App first, so nothing was copied: %w. Try again once Home Assistant is reachable", profile, err)
+	// off for every key first, a pending one included (the App may already
+	// hold it as active), and nothing is copied when it can't.
+	for _, off := range windowOffs {
+		if err := gateWindowOffForFileCopy(off.profile, off.pending); err != nil {
+			return false, fmt.Errorf("couldn't turn off one-click confirming for server profile %q on the NOVA App first, so nothing was copied: %w", off.profile, err)
 		}
 	}
 	// Copy pendings first (provisional, never commits the backend), then EVERY
@@ -325,14 +332,15 @@ func keyringDeviceCredentialCleanupPath() (string, error) {
 	return filepath.Join(dir, deviceCredentialKeyringCleanupMarker), nil
 }
 
-// gateWindowOffForFileCopy: window_off for one profile before its key is
-// copied to a file; tests replace it.
-var gateWindowOffForFileCopy = func(profile string) error {
+// gateWindowOffForFileCopy: window_off for one profile's key (pending: a
+// pairing's key not yet promoted) before it is copied to a file; tests
+// replace it.
+var gateWindowOffForFileCopy = func(profile, pending string) error {
 	paths, err := detectPaths()
 	if err != nil {
 		return err
 	}
-	return gateWindowOffForProfile(paths, profile)
+	return gateWindowOffForProfile(paths, profile, pending)
 }
 
 // credentialProfileNames returns every server profile whose credential slots

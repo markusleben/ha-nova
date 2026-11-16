@@ -220,13 +220,19 @@ func TestMigrateServiceDeviceCredentialToFile(t *testing.T) {
 		for _, fails := range []bool{false, true} {
 			withDeviceStorageTestHome(t)
 			resetKeyringDeviceSlots(t)
-			current := generateTestDeviceCredential(t)
+			current, pending := generateTestDeviceCredential(t), generateTestDeviceCredential(t)
 			if err := writeDeviceCredential(current); err != nil {
 				t.Fatal(err)
 			}
+			if err := writePendingDeviceCredential(pending); err != nil { // an interrupted re-pairing the App may already hold as active
+				t.Fatal(err)
+			}
 			var asked []string
-			gateWindowOffForFileCopy = func(profile string) error {
-				asked = append(asked, profile)
+			gateWindowOffForFileCopy = func(profile, key string) error {
+				asked = append(asked, profile+":"+map[bool]string{true: "current", false: "pending"}[key == ""])
+				if key != "" && key != pending {
+					t.Errorf("window_off sent with %q, not the pending key", key)
+				}
 				if deviceFileBackendMarkerExists() {
 					t.Error("a file was committed before window approval was off")
 				}
@@ -236,7 +242,8 @@ func TestMigrateServiceDeviceCredentialToFile(t *testing.T) {
 				return nil
 			}
 			migrated, err := migrateKeyringDeviceCredentialToFile()
-			if strings.Join(asked, ",") != defaultServerProfileName || migrated == fails || (err != nil) != fails || deviceFileBackendMarkerExists() == fails {
+			want := map[bool]string{false: "default:current,default:pending", true: "default:current"}[fails]
+			if strings.Join(asked, ",") != want || migrated == fails || (err != nil) != fails || deviceFileBackendMarkerExists() == fails {
 				t.Fatalf("fails %v: asked %v migrated %v err %v marker %v", fails, asked, migrated, err, deviceFileBackendMarkerExists())
 			}
 			if !fails {
