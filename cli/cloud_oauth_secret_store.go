@@ -334,29 +334,39 @@ func (s *KeyringOAuthSecretStore) load(ctx context.Context, service string, stat
 	if !exists {
 		return OAuthSecretEnvelope{}, false, nil
 	}
+	envelope, err := decodeOAuthSecretEnvelope(value, state, s.account)
+	if err != nil {
+		return OAuthSecretEnvelope{}, false, err
+	}
+	return envelope, true, nil
+}
+
+// decodeOAuthSecretEnvelope reads one stored sign-in strictly: its state and
+// account must be the ones it was stored under.
+func decodeOAuthSecretEnvelope(value string, state OAuthSecretState, account string) (OAuthSecretEnvelope, error) {
 	if len(value) == 0 || len(value) > oauthSecretMaxEncodedSize {
-		return OAuthSecretEnvelope{}, false, newCloudError(CloudErrSecretCorrupt, "read OAuth secret", nil)
+		return OAuthSecretEnvelope{}, newCloudError(CloudErrSecretCorrupt, "read OAuth secret", nil)
 	}
 	decoder := json.NewDecoder(bytes.NewBufferString(value))
 	decoder.DisallowUnknownFields()
 	var envelope OAuthSecretEnvelope
 	if err := decoder.Decode(&envelope); err != nil {
-		return OAuthSecretEnvelope{}, false, newCloudError(CloudErrSecretCorrupt, "read OAuth secret", err)
+		return OAuthSecretEnvelope{}, newCloudError(CloudErrSecretCorrupt, "read OAuth secret", err)
 	}
 	if err := ensureJSONEOF(decoder); err != nil {
-		return OAuthSecretEnvelope{}, false, newCloudError(CloudErrSecretCorrupt, "read OAuth secret", err)
+		return OAuthSecretEnvelope{}, newCloudError(CloudErrSecretCorrupt, "read OAuth secret", err)
 	}
 	if envelope.State != state {
-		return OAuthSecretEnvelope{}, false, newCloudError(CloudErrSecretCorrupt, "read OAuth secret", nil)
+		return OAuthSecretEnvelope{}, newCloudError(CloudErrSecretCorrupt, "read OAuth secret", nil)
 	}
 	requireComplete := state == OAuthSecretCurrent || state == OAuthSecretRetiring
 	if err := validateOAuthSecretEnvelope(envelope, requireComplete); err != nil {
-		return OAuthSecretEnvelope{}, false, newCloudError(CloudErrSecretCorrupt, "read OAuth secret", err)
+		return OAuthSecretEnvelope{}, newCloudError(CloudErrSecretCorrupt, "read OAuth secret", err)
 	}
-	if envelope.ProfileID != s.account {
-		return OAuthSecretEnvelope{}, false, newCloudError(CloudErrSecretCorrupt, "read OAuth secret", nil)
+	if envelope.ProfileID != account {
+		return OAuthSecretEnvelope{}, newCloudError(CloudErrSecretCorrupt, "read OAuth secret", nil)
 	}
-	return envelope, true, nil
+	return envelope, nil
 }
 
 func (s *KeyringOAuthSecretStore) write(ctx context.Context, service string, envelope OAuthSecretEnvelope, ui SecretStoreUIPolicy) error {

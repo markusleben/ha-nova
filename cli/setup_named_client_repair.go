@@ -55,6 +55,11 @@ func completeNamedProfileClientRepair(
 	printHumanInfo(
 		"Repaired client integration using the selected server profile's verified secure connection.",
 	)
+	showLegacyLinkCleanup(func(b setupBlock) {
+		for _, line := range b.Lines {
+			printHumanInfo("%s", line.plain())
+		}
+	}, paths, cfg, isInteractiveTTY() && stdoutIsInteractiveTTY())
 	return 0
 }
 

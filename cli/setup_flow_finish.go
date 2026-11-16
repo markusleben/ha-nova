@@ -117,6 +117,7 @@ func (f *setupFlow) verifyDevice() setupStepResult {
 	if err := persistDeviceSetupState(f.paths, f.cfg, &f.state, f.lifecycleMarker...); err != nil {
 		return f.failErr(err)
 	}
+	showLegacyLinkCleanup(func(b setupBlock) { f.ui.show(setupView{Blocks: []setupBlock{b}}) }, f.paths, f.cfg, true)
 	if f.connectionMode == setupConnectionHybrid && !f.cfg.Cloud.ready() && !f.cloudPausedAtStart {
 		f.ui.show(setupView{Blocks: []setupBlock{setupParagraph(setupText("setup.verify.adding_link"))}})
 		cfg, err := addHybridCloudAfterLocal(

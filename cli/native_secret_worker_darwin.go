@@ -130,6 +130,16 @@ func platformRunNativeSecretWorker(
 		}
 		response.Found = found
 		response.Value = value
+	case nativeSecretLegacyGet:
+		// The 0.31 item itself, by its own name: never mapped into the new
+		// root, and read only to sign it out (legacy_link_cleanup.go).
+		value, found, status := darwinKeychainFind(request.Service, request.Account)
+		if status != darwinOAuthSuccess {
+			response.ErrorCode = darwinOAuthErrorCode(status, request.UI)
+			return response
+		}
+		response.Found = found
+		response.Value = value
 	case nativeSecretSet:
 		status := darwinOAuthSet(
 			request.Service,

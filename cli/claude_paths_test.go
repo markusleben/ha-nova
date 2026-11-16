@@ -50,6 +50,9 @@ func TestMain(m *testing.M) {
 	// No test opens a real confirmation window: typed plans use chat unless a
 	// test installs its own window (confirm_window_test.go).
 	windowAvailable = func() bool { return false }
+	// No test reads the developer's old Link items or reports a cleanup;
+	// legacy_link_cleanup_test.go installs its own.
+	legacyCleanupApplies = func() bool { return false }
 	// No test reads or writes the developer's remembered Link route; tests
 	// that need it install a temp file (cloud_link_budget_test.go).
 	linkRouteMemoryFile = func() string { return "" }
