@@ -387,7 +387,7 @@ var gateNext = map[string]string{
 	"":                 "Tell the user nothing changed; they can try again in a moment.",
 	"GATE_REFUSED":     "Tell the user HA NOVA's safety check in Home Assistant refuses this change, so nothing changed. Never try it another way.",
 	"GATE_NO_CHANNEL":  "Tell the user nothing changed: no one can confirm it now. They link their phone with `ha-nova setup confirm-phone` (in a terminal; it links it in Home Assistant too), or an administrator opens the NOVA page in Home Assistant where the App has one; `ha-nova doctor` says what is missing. Then they ask again.",
-	"GATE_PAUSED":      "Tell the user nothing changed: confirmations on their phone are paused for a few minutes after unanswered ones. They can confirm on the NOVA page in Home Assistant, or ask again later.",
+	"GATE_PAUSED":      "Tell the user nothing changed: confirmations on their phone are paused for now, after unanswered ones or many asks within an hour. They can confirm on the NOVA page in Home Assistant, or ask again later.",
 	"GATE_ASK_LIMIT":   "Tell the user nothing changed: this computer asked too often in the last hour. They can ask again later.",
 	"GATE_ASK_BUSY":    "Tell the user nothing changed: another ask from this computer is still being prepared. Try again in a moment.",
 	"GATE_UNAVAILABLE": "Tell the user nothing changed: HA NOVA's safety check in Home Assistant isn't available. Try again in a minute; if it stays, they restart the NOVA App.",

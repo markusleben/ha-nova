@@ -1,7 +1,7 @@
 import { isLoopback, type Principal } from "../security/principal.js";
 import { decodeUtf8Strict } from "../shared/utf8.js";
 import { HttpError, toErrorResponse } from "./errors.js";
-import type { GateRequest, LinkWords, PhoneAnswer, PhoneLink, PhoneText, PreparedAsk } from "./gate-asks.js";
+import type { GateRequest, LinkWords, PhoneAnswer, PhoneLink, PhoneText, PreparedAsk, WindowEnd } from "./gate-ask-types.js";
 import type { RouteContext, RouteHandler } from "./router.js";
 
 // The safety check in front of every device-facing handler
@@ -26,7 +26,8 @@ export interface GateClient {
   redact(endpoint: GateEndpoint, request: Buffer, response: Buffer): Promise<Buffer | null>;
   consume?(principal: Principal, grantId: string, endpoint: GateEndpoint, body: Buffer): boolean;
   ask?(device: string, requests: GateRequest[]): Promise<PreparedAsk | null>;
-  phone?(link: PhoneLink, text: PhoneText | LinkWords, waitMs: number, stop: AbortSignal): Promise<PhoneAnswer | null>;
+  phone?(link: PhoneLink, text: PhoneText | LinkWords, waitMs: number, stop: AbortSignal, onSent?: () => void): Promise<PhoneAnswer | null>;
+  phoneEnd?(end: WindowEnd): Promise<boolean>;
 }
 
 const APPROVAL_REQUIRED =

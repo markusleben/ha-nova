@@ -21,7 +21,7 @@ function setup(extra: Partial<GateAsksDeps> = {}) {
     link: () => undefined, phone: async () => null, now: () => time, window,
     ...extra,
   });
-  const open = async () => await asks.handler(context({ requests: [{ endpoint: "ws", body_b64: bytes.toString("base64") }] })) as { ask_id: string; channels: string[] };
+  const open = async () => await asks.handler(context({ presence: "away", requests: [{ endpoint: "ws", body_b64: bytes.toString("base64") }] })) as { ask_id: string; channels: string[] };
   const op = async (ask_id: string, op: string, who = principal) => await asks.handler(context({ ask_id, op }, who)) as { state: string; grant_id?: string };
   return { asks, window, open, op, tick: (ms: number) => { time += ms; } };
 }

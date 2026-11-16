@@ -1,17 +1,13 @@
 import { HttpError } from "./errors.js";
 import type { AskState } from "./gate-ask-types.js";
 
-// Each asker's limits (docs/work/2026-11-03-relay-typed-gate-spec.md §3,
-// Limits): at most ten asks an hour, and its phone asks paused for 5 minutes
-// after five in a row go unanswered: expired, or ended by the asker after 15 s
-// without an answer (the CLI stops waiting after 90 s, its MCP tools after
-// 40 s, and asks no phone with under 15 s left). A person's answer (on the
-// phone or the NOVA page) resets the count; a cancel or replacing ask within
-// those 15 s, or no phone to ask, neither counts nor resets it, so
-// cancelling can't dodge a pause. The NOVA
-// page shows those five and lets an administrator lift the pause. Memory only.
+// Each asker's limits: sixty computer asks an hour, ten phone dispatches,
+// and a five-minute phone pause after five unanswered exposures of at least
+// fifteen seconds. A person's answer resets the run; an unexposed phone or
+// a shorter exposure neither counts nor resets it. Memory only.
 
 const ASKS_PER_HOUR = 10;
+const COMPUTER_ASKS_PER_HOUR = 60;
 const HOUR_MS = 3_600_000;
 const PAUSE_AFTER = 5;
 const PAUSE_MS = 300_000;
@@ -32,6 +28,7 @@ export interface Pause {
 
 interface Owner {
   opened: number[]; // when it asked, in the last hour (each ask the worker rated)
+  phones: { at: number }[];
   misses: Miss[]; // its asks in a row that went unanswered; an idle hour forgets them
   pausedUntil: number; // its phone asks
   pausedBy: Miss[]; // the five that paused them
@@ -40,8 +37,10 @@ interface Owner {
 export interface OwnerLimits {
   limit(owner: string): void; // 429 past the hour's asks
   count(owner: string): void;
+  phoneAvailable(owner: string): boolean;
+  reservePhone(owner: string): (() => void) | undefined;
   paused(owner: string): boolean;
-  ended(owner: string, state: AskState["state"], answered: boolean, what: string, openMs: number): void; // answered: a person ended it
+  ended(owner: string, state: AskState["state"], answered: boolean, what: string, exposedMs: number): void; // answered: a person ended it
   pauses(): Pause[];
   resume(owner: string): boolean; // false: not paused
   prune(): void;
@@ -52,7 +51,7 @@ export function createOwnerLimits(now: () => number): OwnerLimits {
   const get = (owner: string): Owner => {
     let state = owners.get(owner);
     if (state === undefined) {
-      state = { opened: [], misses: [], pausedUntil: 0, pausedBy: [] };
+      state = { opened: [], phones: [], misses: [], pausedUntil: 0, pausedBy: [] };
       owners.set(owner, state);
     }
     return state;
@@ -60,28 +59,42 @@ export function createOwnerLimits(now: () => number): OwnerLimits {
   const prune = (): void => {
     for (const [id, owner] of owners) {
       owner.opened = owner.opened.filter((at) => now() - at < HOUR_MS);
-      if (owner.opened.length === 0 && now() >= owner.pausedUntil) {
+      owner.phones = owner.phones.filter(({ at }) => now() - at < HOUR_MS);
+      if (owner.opened.length === 0 && owner.phones.length === 0 && now() >= owner.pausedUntil) {
         owners.delete(id);
       }
     }
   };
   const paused = (owner: string): boolean => now() < (owners.get(owner)?.pausedUntil ?? 0);
+  const phoneAvailable = (owner: string): boolean => {
+    prune();
+    return !paused(owner) && (owners.get(owner)?.phones.length ?? 0) < ASKS_PER_HOUR;
+  };
   return {
     limit(owner) {
       prune();
-      if ((owners.get(owner)?.opened.length ?? 0) >= ASKS_PER_HOUR) {
-        throw new HttpError(429, "GATE_ASK_LIMIT", `This device asked ${ASKS_PER_HOUR} times in the last hour; try again later. Nothing was asked or sent`);
+      const maximum = owner.startsWith("device:") ? COMPUTER_ASKS_PER_HOUR : ASKS_PER_HOUR;
+      if ((owners.get(owner)?.opened.length ?? 0) >= maximum) {
+        throw new HttpError(429, "GATE_ASK_LIMIT", `This device asked ${maximum} times in the last hour; try again later. Nothing was asked or sent`);
       }
     },
     count(owner) {
       get(owner).opened.push(now()); // counted whatever the worker answers
     },
+    phoneAvailable,
+    reservePhone(owner) {
+      if (!phoneAvailable(owner)) return undefined;
+      const asker = get(owner);
+      const reservation = { at: now() };
+      asker.phones.push(reservation);
+      return () => { asker.phones = asker.phones.filter((entry) => entry !== reservation); };
+    },
     paused,
-    ended(owner, state, answered, what, openMs) {
+    ended(owner, state, answered, what, exposedMs) {
       const asker = get(owner);
       if (answered || state === "approved" || state === "linked") {
         asker.misses = [];
-      } else if (state === "expired" || (state === "cancelled" && openMs >= MISS_MS)) {
+      } else if ((state === "expired" || state === "cancelled") && exposedMs >= MISS_MS) {
         asker.misses.push({ at: now(), what });
         if (asker.misses.length >= PAUSE_AFTER) {
           [asker.pausedBy, asker.misses] = [asker.misses, []];
