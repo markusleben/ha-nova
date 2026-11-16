@@ -3,8 +3,11 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -56,5 +59,30 @@ func TestConfirmWindowOffTurnsTheAppsWindowApprovalOffFirst(t *testing.T) {
 	}
 	if exit := runConfirmWindowSetting(h.paths, []string{"on"}); exit != 0 || windowOff(h.paths) || *calls != 2 {
 		t.Fatalf("on: exit %d, %d calls", exit, *calls)
+	}
+}
+
+// A pending key (a pairing not yet promoted here) goes only to the endpoint
+// saved with it, never to the live one, which may be another Relay; without
+// one, nothing is sent.
+func TestGateWindowOffSendsAPendingKeyOnlyToItsOwnEndpoint(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	resetServerProfileSelection(t)
+	var live atomic.Int32
+	other := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { live.Add(1) }))
+	t.Cleanup(other.Close)
+	paths := setupServerCommandTest(t, `{"schema_version":1}`)
+	for _, pending := range []string{"", "https://127.0.0.1:1"} {
+		cfg := runtimeConfig{HAHost: "ha", HAURL: "http://ha:8123", RelaySecureBaseURL: other.URL, RelaySpkiPin: "live-pin", PendingSecureBaseURL: pending, RoutePolicy: routePolicyLocal}
+		if pending != "" {
+			cfg.PendingSpkiPin = "pending-pin"
+		}
+		if err := saveConfig(paths, cfg); err != nil {
+			t.Fatal(err)
+		}
+		err := gateWindowOffForProfile(paths, defaultServerProfileName, "pending-key")
+		if err == nil || live.Load() != 0 || (pending == "") != strings.Contains(err.Error(), "didn't finish") {
+			t.Fatalf("pending endpoint %q: %v; live endpoint reached %d times", pending, err, live.Load())
+		}
 	}
 }
