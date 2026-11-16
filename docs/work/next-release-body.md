@@ -9,7 +9,7 @@ Unreleased claims wait here until they ship (AGENTS.md, Releases: the README des
 - **On macOS, 0.32 asks you to pair this computer again once.** It's one Home Assistant sign-in, about a minute, and HA NOVA's key then stays in the Keychain where only the new HA NOVA reads it. Run `ha-nova setup` when HA NOVA says so.
 - **Confirm risky changes with one click on your own computer.** Unlocking, opening a garage door or gate, disarming, and deletes ask in a window on the computer you set up as your own, with a Confirm button, on macOS, Windows, and Linux. Your phone asks only when nobody confirms at the computer, and the NOVA page still works. Setup asks "Is this your own computer?" once (Enter is yes); turn it off per computer on the NOVA page. It needs the 0.32 NOVA App, and a computer paired before 0.32 pairs again once to use it.
 - **Fewer asks in a home with a cover watchdog.** An automation that listens to every service call and moves covers it picks with a template no longer makes every light ask, when HA NOVA can follow everything the automation does right away (no delay or wait in it) and none of the covers it could move is a garage door, gate, or door.
-- **A dashboard you delete from your computer asks once**, in the window, on your phone, or on the NOVA page.
+- **A dashboard, automation, or script you delete from your computer asks once**, in the window, on your phone, or on the NOVA page.
 
 ## Bug Fixes
 

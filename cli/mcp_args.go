@@ -204,7 +204,12 @@ func nextStep(envelope map[string]any, chat *chatPolicy) string {
 	}
 	if restore, _ := envelope["restore"].(string); restore != "" && errInfo == nil {
 		restore, _, _ = strings.Cut(restore, " --server ") // an MCP session is pinned to one server
-		return "If the user asks to undo this delete: " + mcpNext(restore, chat.isReadOnly()) + "."
+		undo := "If the user asks to undo this delete: " + mcpNext(restore, chat.isReadOnly()) + "."
+		if own, _ := envelope["next_step"].(string); own != "" && envelope["status"] == "unverified" { // it still runs: its step first, on the pinned server
+			own = strings.ReplaceAll(own, fmt.Sprintf(" --server %v`", envelope["server"]), "`")
+			return mcpNext(own, chat.isReadOnly()) + " " + undo
+		}
+		return undo
 	}
 	if step := findTruncated(envelope); step != "" {
 		return step
@@ -275,7 +280,7 @@ var mcpFlagArgs = map[string]string{"confirm": "confirm_code", "no-snapshot": "n
 	"create": "create: true", "include-disabled": "include_disabled", "state": "state", "domain": "domain", "area": "area",
 	"config": "config", "related": "related", "since": "since", "until": "until", "logbook": "logbook", "match": "match", "device": "device",
 	"references": "references", "aliases": "aliases", "dashboard": "dashboard", "dashboards": "dashboards", "base": "base", "title": "title",
-	"icon": "icon", "require-admin": "require_admin", "hide-sidebar": "hide_sidebar", "insights": "insights", "file": "draft"}
+	"icon": "icon", "require-admin": "require_admin", "hide-sidebar": "hide_sidebar", "insights": "insights", "file": "draft", "set": "data"}
 
 var cliFlag = regexp.MustCompile("(?:^|[\\s`(/[])--([a-z][a-z-]*)")
 
