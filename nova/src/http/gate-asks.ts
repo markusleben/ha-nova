@@ -112,7 +112,10 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     preparing.add(owner);
     limits.count(owner);
     const device = deps.deviceName(principal);
-    const [prepared, others] = await Promise.all([deps.ask(device, requests), deps.channels(principal)]).finally(() => preparing.delete(owner));
+    const [prepared, others, window] = await Promise.all([
+      deps.ask(device, requests), deps.channels(principal),
+      Promise.resolve().then(() => deps.window?.(principal)).catch(() => false),
+    ]).finally(() => preparing.delete(owner));
     if (prepared === null) {
       throw new HttpError(503, "GATE_UNAVAILABLE", "HA NOVA's safety check is not available; nothing was asked or sent");
     }
@@ -124,13 +127,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     }
     replaceOpen(owner);
     const link = deps.link(principal);
-    let window = false;
-    try {
-      window = await deps.window?.(principal) === true;
-    } catch {
-      window = false;
-    }
-    const channels = [...(link !== undefined && !paused(owner) ? ["phone"] : []), ...others, ...(window ? ["window"] : [])];
+    const channels = [...(link !== undefined && !paused(owner) ? ["phone"] : []), ...others, ...(principal.kind === "device" && window === true ? ["window"] : [])];
     if (channels.length === 0 && link !== undefined) {
       throw new HttpError(429, "GATE_PAUSED", PAUSED);
     }
@@ -241,18 +238,22 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
         return ask.state;
       }
       if (body.op === "window") {
-        if (ask.prepared === undefined) {
+        if (principal.kind !== "device" || ask.prepared === undefined) {
           throw new HttpError(409, "GATE_WINDOW_OFF", "A phone link must be confirmed on the phone");
         }
         if (ask.state.state !== "waiting") return ask.state;
         let allowed = false;
+        let unavailable = false;
         try {
           allowed = await deps.window?.(principal) === true;
         } catch {
-          throw new HttpError(503, "GATE_UNAVAILABLE", "The Home Assistant owner could not be checked; nothing was approved");
+          unavailable = true;
         }
         prune();
         if (ask.state.state !== "waiting") return ask.state;
+        if (unavailable) {
+          throw new HttpError(503, "GATE_UNAVAILABLE", "The Home Assistant owner could not be checked; nothing was approved");
+        }
         if (!allowed) {
           throw new HttpError(409, "GATE_WINDOW_OFF", "This computer cannot confirm in its window; use your phone or the NOVA page");
         }

@@ -480,7 +480,7 @@ in sync; Relay and product versions must not be substituted for each other.
 - REST client uses native `fetch()` (no axios at runtime)
 - WS orchestration uses `home-assistant-js-websocket`
 - `ws` supplies the authenticated Node WebSocket transport; REST stays on native `fetch()`
-- Current scope is contract-capped at 14,120 TypeScript source lines (`scripts/check-docs.sh` [1] records each reviewed raise). The 0.32 pairing foundation raises the previous 13,940 ceiling for owner-declared computer metadata, fresh owner eligibility checks, and `/gate/v1/me` on the authenticated device and Link listeners (about 14,065 lines). It adds no window approval channel yet; the worker remains the only classifier. Pairing preserves the predecessor's phone only after an owner-authenticated sign-in, and old pairings without store provenance stay ineligible.
+- Current scope is contract-capped at 14,200 TypeScript source lines (`scripts/check-docs.sh` [1] records each reviewed raise). The 0.32 pairing foundation raised the previous 13,940 ceiling for owner-declared computer metadata, fresh owner eligibility checks, and `/gate/v1/me` on the authenticated device and Link listeners. The grant layer adds `op: "window"` and `op: "window_off"` on the existing ask route, reusing exact-byte grants and the single terminal state (about 14,120 lines). The App does not advertise the complete window contract in `/health` until its phone timing and notice protocol are implemented. Pairing preserves the predecessor's phone only after an owner-authenticated sign-in; old pairings without store provenance stay ineligible. The worker remains the only classifier.
 
 ## Standard Envelope
 
