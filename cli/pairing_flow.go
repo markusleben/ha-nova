@@ -91,6 +91,7 @@ func runSecurePairingWithProvisioner(
 	if err != nil {
 		return "", err
 	}
+	rememberSealedDevicePin(prov.Credential, prov.SpkiPin) // the Keychain keeps the pin with the key
 
 	// Local-first: persist the pending credential BEFORE activating, so a crash
 	// after activation can still resume (the credential is not lost).

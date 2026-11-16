@@ -69,6 +69,7 @@ func TestMain(m *testing.M) {
 	// device_credential_migration_test.go checks that order with its own.
 	gateWindowOffForFileCopy = func(string, string, bool) error { return nil }
 	deviceKeyNeverCopiedToFile = false
+	devicePinSealed = false // device_pin_seal_test.go turns it on
 	secretKeyringGet = keyring.Get
 	secretKeyringGetWithPolicy = defaultSecretKeyringGetWithPolicy
 	secretKeyringSetWithPolicy = defaultSecretKeyringSetWithPolicy

@@ -130,6 +130,9 @@ func relayFunctionalTransport(cfg runtimeConfig) (baseURL string, client *http.C
 			return "", nil, "", false, credErr
 		}
 		if ok {
+			if err := requireSealedDevicePin(cred, cfg.RelaySpkiPin); err != nil {
+				return "", nil, "", false, err
+			}
 			return cfg.RelaySecureBaseURL, spkiPinnedClient(cfg.RelaySpkiPin), cred, true, nil
 		}
 		// Paired config but the device credential is gone: fail closed. In a paired
