@@ -47,6 +47,7 @@ type fakeGate struct {
 	wsHeld      bool             // WS writes are sends too (hold sees them)
 	windowOps   []any            // op window's answers in turn (then approved)
 	windowSlow  time.Duration    // op window answers this late
+	waitFor     map[string]any   // one wait's answer by ask id, once (a status or a state)
 }
 
 func (g *fakeGate) snapshot() (asks [][]string, ops []string, sends []gateSend) {
@@ -117,6 +118,13 @@ func (g *fakeGate) ask(ctx context.Context, p map[string]any) any {
 		g.op("wait")
 		if g.onWait != nil {
 			g.onWait()
+		}
+		g.mu.Lock()
+		once, found := g.waitFor[fmt.Sprint(p["ask_id"])]
+		delete(g.waitFor, fmt.Sprint(p["ask_id"]))
+		g.mu.Unlock()
+		if found {
+			return once
 		}
 		if g.release != nil {
 			select {

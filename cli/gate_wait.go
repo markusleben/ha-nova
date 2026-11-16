@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"net/url"
 	"runtime"
@@ -38,7 +39,8 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration, con
 				GrantID string `json:"grant_id"`
 			}
 			if err := s.gateCall(ctx, gateAskRoute, gatePollTimeout, map[string]any{"ask_id": askID, "op": "wait"}, &answer); err != nil {
-				polls <- end{state: "lost"}
+				var call *relayCallError
+				polls <- end{state: map[bool]string{false: "lost", true: "unknown"}[errors.As(err, &call) && call.code == "GATE_ASK_UNKNOWN"]} // unknown: the App doesn't hold it (any more)
 				return
 			}
 			if answer.State != "waiting" {
@@ -69,6 +71,13 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration, con
 	}
 	fmt.Fprintln(s.call.stderr(), waiting)
 	stopped := func() (string, string) {
+		if raced(window) { // a Cancel that raced the end wins: nothing keeps or joins this ask
+			s.gateCancel(askID)
+			return "cancelled", ""
+		}
+		if planAsks.Err() == nil && s.approval() == nil && !link { // the CLI's own wait ended: gateAsk keeps the ask for the plan's next apply, or ends it
+			return "timeout", ""
+		}
 		s.gateCancel(askID)
 		if planAsks.Err() != nil {
 			return "stopped", ""
