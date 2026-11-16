@@ -89,8 +89,8 @@ func TestOwnComputerAskedOnlyWhereAYesCanWork(t *testing.T) {
 		t.Fatal("an App that doesn't approve in windows: no question")
 	}
 	window = 1
-	if got, want := ownComputerAsked(cfg), runtime.GOOS != "darwin"; got != want {
-		t.Fatalf("window 1 on %s: %v", runtime.GOOS, got)
+	if !ownComputerAsked(cfg) {
+		t.Fatalf("window 1 on %s, a Mac included (its App keeps the window off until cleanup): no question", runtime.GOOS)
 	}
 	deviceCredentialFileModeForced = true
 	if ownComputerAsked(cfg) {

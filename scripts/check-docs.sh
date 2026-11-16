@@ -119,16 +119,18 @@ echo ""
 # legacy-cleanup gate (pairing report, op legacy_cleanup_complete) raise it to 14280: about 14258.
 # The NOVA page's window line, the owner's four device-bound buttons, and the recent-50
 # window confirmation log (/data/gate/window-log.json) raise it to 14400: about 14380.
+# Retiring a named profile's older entry on its owner-confirmed re-pair (the arm's
+# previous answer, retire_device_id, one activation filter) raises it to 14410: 14408.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 14400 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–14400 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 14410 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–14410 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–14400 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–14410 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──

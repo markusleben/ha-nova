@@ -195,6 +195,12 @@ var relayUpdateCheckWait = 10 * time.Second
 
 // offerRelayUpdateAfterUpdate is the NOVA App half of `ha-nova update`.
 func offerRelayUpdateAfterUpdate(paths runtimePaths) {
+	if cfg, err := loadConfig(paths); err == nil {
+		if _, _, _, _, err := relayFunctionalTransport(cfg); errors.Is(err, errDeviceNeedsRePair) {
+			fmt.Println(upperFirst(err.Error()) + ".") // a Mac after the 0.32 update (spec §5.3)
+			return
+		}
+	}
 	notice, ok := checkRelayAfterUpdate(paths, relayUpdateOutputIsTTY())
 	if ok {
 		offerRelayUpdate(paths, notice)

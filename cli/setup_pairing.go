@@ -316,7 +316,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 			}
 			installed.own = own
 		}
-		paired, soft, err := pairWithHASignInSession(out, paths, cfg, *installed, lifecycleMarker...)
+		paired, soft, err := pairWithHASignInSession(reader, out, paths, cfg, *installed, lifecycleMarker...)
 		if paired {
 			renderSetupSuccessLine(out, "This computer is connected")
 			return "", errSetupDevicePaired

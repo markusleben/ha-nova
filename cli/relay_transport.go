@@ -21,6 +21,18 @@ func namedRelayPairCommand(profile string, relayURL string) string {
 	)
 }
 
+var errDeviceNeedsRePair = errors.New("this computer needs to be paired again")
+
+// deviceNeedsRePair names the one next step: setup pairs the profile again
+// with one Home Assistant sign-in.
+func deviceNeedsRePair(profile string) error {
+	next := "ha-nova setup"
+	if profile != "" && profile != defaultServerProfileName {
+		next += " --server " + profile
+	}
+	return fmt.Errorf("%w (one Home Assistant sign-in, about a minute); run: %s", errDeviceNeedsRePair, next)
+}
+
 func localRelayRepairCommand(
 	profile string,
 	relayURL string,
@@ -135,18 +147,11 @@ func relayFunctionalTransport(cfg runtimeConfig) (baseURL string, client *http.C
 			}
 			return cfg.RelaySecureBaseURL, spkiPinnedClient(cfg.RelaySpkiPin), cred, true, nil
 		}
-		// Paired config but the device credential is gone: fail closed. In a paired
-		// flow the device credential IS the auth, so never silently downgrade to the
-		// shared token over the unpinned plain port. Re-pair to recover — via setup
-		// for the default profile, via pair --server for named profiles (setup
-		// refuses those).
-		if profile := cfg.profileName(); profile != defaultServerProfileName {
-			return "", nil, "", false, fmt.Errorf(
-				"device credential unavailable for a paired relay; re-pair with: %s",
-				namedRelayPairCommand(profile, cfg.RelayBaseURL),
-			)
-		}
-		return "", nil, "", false, errors.New("device credential unavailable for a paired relay; run 'ha-nova setup' to re-pair")
+		// Paired config but the device credential is gone (on a Mac after the
+		// 0.32 update: its new slots start empty, spec §5.3): fail closed. In a
+		// paired flow the device credential IS the auth, so never silently
+		// downgrade to the shared token over the unpinned plain port.
+		return "", nil, "", false, deviceNeedsRePair(cfg.profileName())
 	}
 	if profile := cfg.profileName(); profile != defaultServerProfileName {
 		// Non-default server profiles are device-credential-only: the machine-wide

@@ -10,6 +10,7 @@ export function pairingWindowFields(metadata: DeviceMetadata, owner: string | un
     ...(metadata.credentialStore !== undefined ? { credentialStore: metadata.credentialStore } : {}),
     ...(metadata.legacyCleanup !== undefined ? { legacyCleanup: metadata.legacyCleanup } : {}),
     ...(owner !== undefined ? { pairingOwnerId: owner } : {}),
+    ...(owner !== undefined && metadata.retireDeviceId !== undefined ? { retireDeviceId: metadata.retireDeviceId } : {}),
     ...(owner !== undefined && own && metadata.credentialStore !== undefined && metadata.credentialStore !== "file"
       ? { ownComputer: { userId: owner, atMs }, windowConfirm: true } : {}),
   };
