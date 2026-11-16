@@ -46,8 +46,9 @@ func relayAskSay(lang string, s *relaySession) string {
 // profile that saw the gate refuses once it is gone, and a relay plan asks
 // for the requests it sends first and waits for the person. It answers the
 // requests the person approved (none: nothing was asked). Later requests
-// ask when the Relay holds them (sendWrite).
-func gateBeforeSend(s *relaySession, channel string, fresh storedPlan, batch batchReplan) ([]gateRequest, error) {
+// ask when the Relay holds them (sendWrite). text: the plan's window text
+// (confirmText), shown with Confirm where the App offers the window.
+func gateBeforeSend(s *relaySession, channel string, fresh storedPlan, batch batchReplan, text string) ([]gateRequest, error) {
 	if fresh.Tier != tierTyped.String() {
 		return nil, nil
 	}
@@ -62,7 +63,7 @@ func gateBeforeSend(s *relaySession, channel string, fresh storedPlan, batch bat
 	if len(reqs) == 0 {
 		return nil, nil
 	}
-	if err := s.gateAsk(reqs, false); err != nil {
+	if err := s.gateAsk(reqs, false, &gateConfirm{lang: textLang(fresh), text: text}); err != nil {
 		return nil, err
 	}
 	humanWhere = channelRelay

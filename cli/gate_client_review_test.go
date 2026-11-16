@@ -230,7 +230,7 @@ func TestGateWindowPageFromTheProfile(t *testing.T) {
 		message, first = m, f
 		return windowConfirmed
 	}
-	window, _ := (&relaySession{paths: runtimePaths{ConfigFile: filepath.Join(t.TempDir(), "none.json")}}).gateWindow(context.Background(), time.Now().Add(time.Second), "")
+	window, _, _ := (&relaySession{paths: runtimePaths{ConfigFile: filepath.Join(t.TempDir(), "none.json")}}).gateWindow(context.Background(), time.Now().Add(time.Second), "", nil, false)
 	want := confirmT("en", "gate.window_page")
 	if runtime.GOOS == "windows" {
 		want += "\n\n" + confirmT("en", "gate.windows_hide")
