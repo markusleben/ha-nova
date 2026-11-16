@@ -44,7 +44,6 @@ var darwinOAuthSecurity struct {
 		*uintptr,
 	) darwinOAuthOSStatus
 	freeContent func(uintptr, unsafe.Pointer) darwinOAuthOSStatus
-	modifyItem  func(uintptr, uintptr, uint32, *byte) darwinOAuthOSStatus
 	deleteItem  func(uintptr) darwinOAuthOSStatus
 
 	cfRelease func(uintptr)
@@ -78,7 +77,6 @@ func loadDarwinOAuthSecurity() error {
 			{&darwinOAuthSecurity.findGeneric, security, "SecKeychainFindGenericPassword"},
 			{&darwinOAuthSecurity.addGeneric, security, "SecKeychainAddGenericPassword"},
 			{&darwinOAuthSecurity.freeContent, security, "SecKeychainItemFreeContent"},
-			{&darwinOAuthSecurity.modifyItem, security, "SecKeychainItemModifyAttributesAndData"},
 			{&darwinOAuthSecurity.deleteItem, security, "SecKeychainItemDelete"},
 			{&darwinOAuthSecurity.cfRelease, coreFoundation, "CFRelease"},
 		}
@@ -123,6 +121,9 @@ func setDarwinOAuthInteraction(ui SecretStoreUIPolicy) (uint8, error) {
 func darwinOAuthGet(
 	service, account string,
 ) ([]byte, bool, darwinOAuthOSStatus) {
+	if service = darwinKeychainSlot(service, account); service == "" {
+		return nil, false, darwinOAuthNotAvailable
+	}
 	serviceBytes, accountBytes := []byte(service), []byte(account)
 	var length uint32
 	var data unsafe.Pointer
@@ -158,6 +159,9 @@ func darwinOAuthSet(
 	service, account string,
 	value []byte,
 ) darwinOAuthOSStatus {
+	if service = darwinKeychainSlot(service, account); service == "" {
+		return darwinOAuthNotAvailable
+	}
 	serviceBytes, accountBytes := []byte(service), []byte(account)
 	var item uintptr
 	status := darwinOAuthSecurity.findGeneric(
@@ -169,17 +173,16 @@ func darwinOAuthSet(
 	runtime.KeepAlive(serviceBytes)
 	runtime.KeepAlive(accountBytes)
 	if status == darwinOAuthSuccess {
-		defer darwinOAuthSecurity.cfRelease(item)
-		status = darwinOAuthSecurity.modifyItem(
-			item,
-			0,
-			uint32(len(value)),
-			bytePointer(value),
-		)
-		runtime.KeepAlive(value)
-		return status
-	}
-	if status != darwinOAuthItemNotFound {
+		// Never write into an existing item: it keeps the access list of
+		// whoever created it. Delete it and add a fresh one, so the item
+		// trusts only this signed binary; a racing add fails as a duplicate.
+		status = darwinOAuthSecurity.deleteItem(item)
+		darwinOAuthSecurity.cfRelease(item)
+		item = 0
+		if status != darwinOAuthSuccess {
+			return status
+		}
+	} else if status != darwinOAuthItemNotFound {
 		return status
 	}
 	// Do not replace the default Keychain ACL. SecKeychainAddGenericPassword
@@ -203,6 +206,9 @@ func darwinOAuthSet(
 }
 
 func darwinOAuthDelete(service, account string) darwinOAuthOSStatus {
+	if service = darwinKeychainSlot(service, account); service == "" {
+		return darwinOAuthNotAvailable
+	}
 	serviceBytes, accountBytes := []byte(service), []byte(account)
 	var item uintptr
 	status := darwinOAuthSecurity.findGeneric(
