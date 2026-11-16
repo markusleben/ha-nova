@@ -205,9 +205,11 @@ export async function answered(ask, answer = 0) {
   lastResult[ask.platform] = d.tag;
 }
 
-// Taps the next question, wherever the Relay asks (rc-lane's slow check).
-export async function approve(ms) {
+// Taps the next question, wherever the Relay asks (rc-lane's slow check), not
+// before at (epoch ms): a person who answers late (rc-lane's late tap, #1183).
+export async function approve(ms, at = 0) {
   const push = await nextPush({ ms });
+  await sleep(at - Date.now());
   await tap(push);
   return push;
 }
