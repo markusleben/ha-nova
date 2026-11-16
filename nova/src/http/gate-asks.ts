@@ -33,6 +33,8 @@ export interface GateAsksDeps {
   // Sets the device's link while it is active and still has current; none: no link route.
   setLink?: (principal: Principal, link: PhoneLink, current: PhoneLink | undefined) => boolean;
   linkable?: (principal: Principal) => boolean; // whose link setLink keeps (default: a device's)
+  window?: (principal: Principal) => Promise<boolean>;
+  windowOff?: (principal: Principal) => boolean;
   now: () => number;
   logger?: Pick<RelayLogger, "info" | "warn">;
   pollMs?: number; // tests
@@ -122,7 +124,13 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
     }
     replaceOpen(owner);
     const link = deps.link(principal);
-    const channels = [...(link !== undefined && !paused(owner) ? ["phone"] : []), ...others];
+    let window = false;
+    try {
+      window = await deps.window?.(principal) === true;
+    } catch {
+      window = false;
+    }
+    const channels = [...(link !== undefined && !paused(owner) ? ["phone"] : []), ...others, ...(window ? ["window"] : [])];
     if (channels.length === 0 && link !== undefined) {
       throw new HttpError(429, "GATE_PAUSED", PAUSED);
     }
@@ -216,6 +224,12 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
       if (body.requests !== undefined) {
         return await open(principal, body.requests);
       }
+      if (body.op === "window_off") {
+        if (principal.kind !== "device" || deps.windowOff?.(principal) !== true) {
+          throw new HttpError(404, "NOT_FOUND", "No such paired computer");
+        }
+        return { window: false };
+      }
       const ask = find(ownerOf(principal), body.ask_id);
       if (body.op === "wait") {
         return await wait(ask, context);
@@ -224,6 +238,25 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
         if (ask.state.state === "waiting") {
           settle(ask, { state: "cancelled" });
         }
+        return ask.state;
+      }
+      if (body.op === "window") {
+        if (ask.prepared === undefined) {
+          throw new HttpError(409, "GATE_WINDOW_OFF", "A phone link must be confirmed on the phone");
+        }
+        if (ask.state.state !== "waiting") return ask.state;
+        let allowed = false;
+        try {
+          allowed = await deps.window?.(principal) === true;
+        } catch {
+          throw new HttpError(503, "GATE_UNAVAILABLE", "The Home Assistant owner could not be checked; nothing was approved");
+        }
+        prune();
+        if (ask.state.state !== "waiting") return ask.state;
+        if (!allowed) {
+          throw new HttpError(409, "GATE_WINDOW_OFF", "This computer cannot confirm in its window; use your phone or the NOVA page");
+        }
+        grant(ask);
         return ask.state;
       }
       throw new HttpError(400, "VALIDATION_ERROR", "Send requests, or ask_id with op wait or cancel");

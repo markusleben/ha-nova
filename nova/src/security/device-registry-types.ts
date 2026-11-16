@@ -119,4 +119,5 @@ export interface DeviceRegistry {
   revoke(deviceId: string): boolean;
   // Sets an active device's phone link only while it still is expected; false: nothing changed.
   setConfirmPhone(deviceId: string, link: ConfirmPhoneLink, expected: ConfirmPhoneLink | undefined): boolean;
+  disableWindowConfirm(deviceId: string): boolean;
 }

@@ -315,6 +315,13 @@ export function openDeviceRegistry(
       persist({ ...data, devices: next });
       return true;
     },
+    disableWindowConfirm(deviceId) {
+      const device = data.devices.find((d) => d.deviceId === deviceId && d.state === "active");
+      if (device === undefined) return false;
+      if (device.windowConfirm === false) return true;
+      persist({ ...data, devices: data.devices.map((d) => d === device ? { ...d, windowConfirm: false } : d) });
+      return true;
+    },
     setConfirmPhone(deviceId, link, expected) {
       const same = (a?: ConfirmPhoneLink, b?: ConfirmPhoneLink): boolean =>
         a?.service === b?.service && a?.deviceId === b?.deviceId && a?.userId === b?.userId && a?.platform === b?.platform;
