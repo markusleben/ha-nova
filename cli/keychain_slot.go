@@ -14,8 +14,15 @@ const darwinKeychainRoot = "com.markusleben.ha-nova.cli2"
 // darwinKeychainSlot is the macOS Keychain service that holds a historic
 // slot: <root>/<kind>/<profile>. Link slots name their profile by the store's
 // account. HA_NOVA_KEYRING_SERVICE only picks a relay-token slot under the
-// root, never a historic one. "" refuses a slot nobody mapped.
+// root, never a historic one, and an override that names a device or Link
+// slot is refused, so it never aliases one. "" refuses a slot nobody mapped.
 func darwinKeychainSlot(service, account string) string {
+	if override := relayAuthTokenServiceName(); override != keyringServiceName && service == override {
+		if strings.HasPrefix(override, deviceCredentialService) || strings.HasPrefix(override, "ha-nova.oauth.") {
+			return ""
+		}
+		return darwinKeychainRoot + "/relay-token/" + url.PathEscape("override-"+override)
+	}
 	kind, profile := "", defaultServerProfileName
 	switch {
 	case service == oauthSecretCurrentService:
@@ -26,11 +33,8 @@ func darwinKeychainSlot(service, account string) string {
 		kind, profile = "link-retiring", account
 	case strings.HasPrefix(service, oauthSecretPreflightServicePrefix):
 		kind, profile = "link-preflight", strings.TrimPrefix(service, oauthSecretPreflightServicePrefix)
-	case service == relayAuthTokenServiceName():
+	case service == keyringServiceName:
 		kind = "relay-token"
-		if service != keyringServiceName {
-			profile = "override-" + service
-		}
 	case service == deviceCredentialProbeService:
 		kind = "probe"
 	case service == deviceCredentialService:

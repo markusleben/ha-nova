@@ -66,17 +66,31 @@ func TestDarwinKeychainSlotRefusesUnknownAndEmptyNames(t *testing.T) {
 	}
 }
 
-func TestKeyringServiceOverrideCannotNameAHistoricSlotOnMacOS(t *testing.T) {
-	for _, override := range []string{
-		deviceCredentialService,
-		deviceCredentialPendingService + ".markus-home",
-		"ha-nova.test/../../device/default",
-	} {
+func TestKeyringServiceOverrideOnlyPicksARelayTokenSlotOnMacOS(t *testing.T) {
+	for _, override := range []string{"ha-nova.test.private-rc", "ha-nova.test/../../device/default"} {
 		t.Setenv("HA_NOVA_KEYRING_SERVICE", override)
 		got := darwinKeychainSlot(override, "markus")
 		want := darwinKeychainRoot + "/relay-token/override-"
 		if !strings.HasPrefix(got, want) || strings.Count(got, "/") != 2 {
 			t.Errorf("override %q maps to %q, want one slot under %q", override, got, want)
+		}
+		if device := darwinKeychainSlot(deviceCredentialService, "markus"); device != darwinKeychainRoot+"/device/default" {
+			t.Errorf("with override %q the device slot moved to %q", override, device)
+		}
+	}
+}
+
+func TestKeyringServiceOverrideNamingADeviceOrLinkSlotIsRefusedOnMacOS(t *testing.T) {
+	for _, override := range []string{
+		deviceCredentialService,
+		deviceCredentialPendingService + ".markus-home",
+		deviceCredentialProbeService,
+		oauthSecretCurrentService,
+		oauthSecretPreflightServicePrefix + "0123abcd",
+	} {
+		t.Setenv("HA_NOVA_KEYRING_SERVICE", override)
+		if got := darwinKeychainSlot(override, "markus"); got != "" {
+			t.Errorf("override %q maps to %q, want a refusal so it never aliases that slot", override, got)
 		}
 	}
 }
