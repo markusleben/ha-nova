@@ -26,11 +26,14 @@ var errDeviceNeedsRePair = errors.New("this computer needs to be paired again")
 // deviceNeedsRePair names the one next step: setup pairs the profile again
 // with one Home Assistant sign-in.
 func deviceNeedsRePair(profile string) error {
-	next := "ha-nova setup"
+	return fmt.Errorf("%w (one Home Assistant sign-in, about a minute); run: %s", errDeviceNeedsRePair, rePairCommand(profile))
+}
+
+func rePairCommand(profile string) string {
 	if profile != "" && profile != defaultServerProfileName {
-		next += " --server " + profile
+		return "ha-nova setup --server " + profile
 	}
-	return fmt.Errorf("%w (one Home Assistant sign-in, about a minute); run: %s", errDeviceNeedsRePair, next)
+	return "ha-nova setup"
 }
 
 func localRelayRepairCommand(

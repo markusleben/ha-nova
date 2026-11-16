@@ -35,7 +35,7 @@ func predecessorArm(t *testing.T, previous string, sent *string) *CloudIngressCl
 	}))
 }
 
-func TestSignInPredecessorIsRetiredOnlyWhenNothingHereUsesItOrTheOwnerAgrees(t *testing.T) {
+func TestSignInPredecessorIsRetiredOnlyWhenTheOwnerAgreesToItsName(t *testing.T) {
 	const old = `,"previous":{"device_id":"dev-old","name":"Markus Mac\u001b[2J"}`
 	for name, test := range map[string]struct {
 		defaultPaired bool
@@ -43,11 +43,12 @@ func TestSignInPredecessorIsRetiredOnlyWhenNothingHereUsesItOrTheOwnerAgrees(t *
 		reader        *bufio.Reader
 		want, says    string
 	}{
-		"no other profile paired: no question": {previous: old, want: "dev-old"},
-		"another profile paired, Enter":        {defaultPaired: true, previous: old, reader: bufio.NewReader(strings.NewReader("\n")), want: "dev-old", says: "setup.retire.question"},
-		"another profile paired, no":           {defaultPaired: true, previous: old, reader: bufio.NewReader(strings.NewReader("no\n")), says: "setup.retire.kept"},
-		"another profile paired, no terminal":  {defaultPaired: true, previous: old, says: "setup.retire.listed"},
-		"an App that names nothing":            {defaultPaired: true, reader: bufio.NewReader(strings.NewReader("\n"))},
+		"no other profile here, still asked": {previous: old, reader: bufio.NewReader(strings.NewReader("\n")), want: "dev-old", says: "setup.retire.question"},
+		"no other profile here, no terminal": {previous: old, says: "setup.retire.listed"},
+		"another profile paired, Enter":      {defaultPaired: true, previous: old, reader: bufio.NewReader(strings.NewReader("\n")), want: "dev-old", says: "setup.retire.question"},
+		"another profile paired, no":         {defaultPaired: true, previous: old, reader: bufio.NewReader(strings.NewReader("no\n")), says: "setup.retire.kept"},
+		"input ends before an answer: kept":  {previous: old, reader: bufio.NewReader(strings.NewReader("")), says: "setup.retire.kept"},
+		"an App that names nothing":          {defaultPaired: true, reader: bufio.NewReader(strings.NewReader("\n"))},
 	} {
 		paths := setupServerCommandTest(t, predecessorConfig(test.defaultPaired))
 		setServerSelectionOverride("home")
@@ -114,6 +115,39 @@ func TestUpdateOfferNamesTheRePairWhenThePairedKeyIsGone(t *testing.T) {
 	_, output := captureCommandOutput(t, func() int { offerRelayUpdateAfterUpdate(paths); return 0 })
 	if checked || !strings.Contains(output, "This computer needs to be paired again") || !strings.Contains(output, "run: ha-nova setup --server home") {
 		t.Fatalf("checked=%v output:\n%s", checked, output)
+	}
+}
+
+// A named profile whose key is gone gets the sign-in re-pair everywhere: in
+// doctor, and as its own failure code for agents (verbs and MCP).
+func TestNamedProfileWithoutItsKeyIsToldToPairAgainBySignIn(t *testing.T) {
+	paths := setupServerCommandTest(t, predecessorConfig(true))
+	setServerSelectionOverride("home")
+	_, output := captureCommandOutput(t, func() int { return runDoctor(paths, []string{"--quiet"}) })
+	if !strings.Contains(output, "run 'ha-nova setup --server home'") || strings.Contains(output, "pair --server") {
+		t.Fatalf("doctor:\n%s", output)
+	}
+	_, err := newRelaySession(paths, verbOptions{})
+	var failure *verbFailure
+	if !errors.As(err, &failure) || failure.code != "PAIR_AGAIN" || !strings.Contains(failure.message, "ha-nova setup --server home") {
+		t.Fatalf("session: %#v", err)
+	}
+}
+
+// The machine-wide relay token belongs to the default profile: setup for
+// another server never reads it, so it can't be assessed or sent there.
+func TestNamedSetupNeverReadsTheDefaultProfilesToken(t *testing.T) {
+	resetServerProfileSelection(t)
+	setActiveServerProfile("home")
+	saved := readRelayAuthTokenForSetup
+	t.Cleanup(func() { readRelayAuthTokenForSetup = saved })
+	readRelayAuthTokenForSetup = func() (string, error) {
+		t.Error("the default profile's token was read for a named profile")
+		return "token", nil
+	}
+	f := &setupFlow{}
+	if result := f.checkTokenStorage(); result.done || f.savedTokenBeforeSetup != "" {
+		t.Fatalf("result %+v, saved %q", result, f.savedTokenBeforeSetup)
 	}
 }
 

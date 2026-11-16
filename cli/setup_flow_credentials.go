@@ -164,6 +164,9 @@ func (f *setupFlow) checkTokenStorage() setupStepResult {
 	if f.tokenStoragePreflightErr == nil && hybridCloudSetupPending(f.cfg) {
 		return setupGoOn // a paired install with Link paused: no shared token to read
 	}
+	if activeServerProfile() != defaultServerProfileName {
+		return setupGoOn // the machine-wide token is the default profile's: never assessed or sent for another server
+	}
 	if f.tokenStoragePreflightErr == nil {
 		if savedToken, err := readRelayAuthTokenForSetup(); err == nil && strings.TrimSpace(savedToken) != "" {
 			f.savedTokenBeforeSetup = strings.TrimSpace(savedToken)
