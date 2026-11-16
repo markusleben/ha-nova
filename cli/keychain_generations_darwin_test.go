@@ -3,9 +3,14 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 type fakeDarwinKeychain struct {
@@ -19,6 +24,10 @@ func installFakeDarwinKeychain(t *testing.T) *fakeDarwinKeychain {
 	t.Helper()
 	t.Setenv("HA_NOVA_KEYRING_SERVICE", "")
 	fake := &fakeDarwinKeychain{items: map[string][]byte{}}
+	lockPath := darwinKeychainLockPath
+	lock := filepath.Join(t.TempDir(), "keychain.lock")
+	darwinKeychainLockPath = func() (string, error) { return lock, nil }
+	t.Cleanup(func() { darwinKeychainLockPath = lockPath })
 	find, add, free, del, release := darwinOAuthSecurity.findGeneric, darwinOAuthSecurity.addGeneric,
 		darwinOAuthSecurity.freeContent, darwinOAuthSecurity.deleteItem, darwinOAuthSecurity.cfRelease
 	t.Cleanup(func() {
@@ -124,6 +133,64 @@ func TestDarwinKeychainCutBeforeRemovingTheOldGenerationReadsTheNewOne(t *testin
 	}
 	if got := fake.items[slot+"#2\x00markus"]; string(got) != "9\nnewer" || len(fake.items) != 1 {
 		t.Fatalf("items after the write: %v", fake.names())
+	}
+}
+
+func TestDarwinKeychainAccessWaitsForAnotherProcessWriter(t *testing.T) {
+	for name, access := range map[string]func() darwinOAuthOSStatus{
+		"read": func() darwinOAuthOSStatus {
+			_, _, status := darwinOAuthGet(deviceCredentialService, "markus")
+			return status
+		},
+		"write": func() darwinOAuthOSStatus { return darwinOAuthSet(deviceCredentialService, "markus", []byte("key")) },
+		"delete": func() darwinOAuthOSStatus {
+			if status := darwinOAuthDelete(deviceCredentialService, "markus"); status != darwinOAuthItemNotFound {
+				return status
+			}
+			return darwinOAuthSuccess
+		},
+		"delete exact": func() darwinOAuthOSStatus {
+			status, _ := darwinOAuthDeleteExact(deviceCredentialService, "markus", []byte("key"))
+			return status
+		},
+	} {
+		installFakeDarwinKeychain(t)
+		path, _ := darwinKeychainLockPath()
+		other, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := unix.Flock(int(other.Fd()), unix.LOCK_EX); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan darwinOAuthOSStatus, 1)
+		go func() { done <- access() }()
+		select {
+		case status := <-done:
+			t.Errorf("%s ran while another process was writing: %d", name, status)
+		case <-time.After(150 * time.Millisecond):
+		}
+		_ = unix.Flock(int(other.Fd()), unix.LOCK_UN)
+		if status := <-done; status != darwinOAuthSuccess {
+			t.Errorf("%s after the writer finished: %d", name, status)
+		}
+		_ = other.Close()
+	}
+}
+
+func TestDarwinKeychainDeleteExactRemovesOnlyTheExpectedValue(t *testing.T) {
+	fake := installFakeDarwinKeychain(t)
+	if status := darwinOAuthSet(oauthSecretCurrentService, "markus", []byte("grant-2")); status != darwinOAuthSuccess {
+		t.Fatalf("write: %d", status)
+	}
+	if status, conflict := darwinOAuthDeleteExact(oauthSecretCurrentService, "markus", []byte("grant-1")); status != darwinOAuthSuccess || !conflict || len(fake.items) != 1 {
+		t.Fatalf("stale delete: status=%d conflict=%v items=%v", status, conflict, fake.names())
+	}
+	if status, conflict := darwinOAuthDeleteExact(oauthSecretCurrentService, "markus", []byte("grant-2")); status != darwinOAuthSuccess || conflict || len(fake.items) != 0 {
+		t.Fatalf("exact delete: status=%d conflict=%v items=%v", status, conflict, fake.names())
+	}
+	if status, conflict := darwinOAuthDeleteExact(oauthSecretCurrentService, "markus", []byte("grant-2")); status != darwinOAuthSuccess || conflict {
+		t.Fatalf("delete of nothing: status=%d conflict=%v", status, conflict)
 	}
 }
 
