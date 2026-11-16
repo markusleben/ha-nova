@@ -1,5 +1,8 @@
 export type DeviceState = "pending" | "active";
 export type CredentialStore = "keychain" | "credential_manager" | "secret_service" | "file";
+export type LegacyCleanup = "pending" | "complete"; // a Mac pairing's report on signing its pre-0.32 version out
+// Why a window change was refused (window-confirm.ts); null: it changed.
+export type WindowRefusal = "device" | "pair_again" | "file" | "legacy_cleanup_pending" | "not_yours" | "owner";
 
 // The phone that confirms this device's typed requests (relay typed gate §3);
 // set only after a tap on it (POST /gate/v1/phone, setConfirmPhone).
@@ -28,6 +31,7 @@ export interface DeviceRecord {
   credentialStore?: CredentialStore;
   ownComputer?: { userId: string; atMs: number };
   windowConfirm?: boolean;
+  legacyCleanup?: LegacyCleanup;
   pairingOwnerId?: string;
 }
 
@@ -120,4 +124,8 @@ export interface DeviceRegistry {
   // Sets an active device's phone link only while it still is expected; false: nothing changed.
   setConfirmPhone(deviceId: string, link: ConfirmPhoneLink, expected: ConfirmPhoneLink | undefined): boolean;
   disableWindowConfirm(deviceId: string): boolean;
+  // The owner's page: "This is my computer" (also turns the switch on) or, with null, "Not my computer" (also off).
+  setOwnComputer(deviceId: string, ownerId: string | null, atMs: number): WindowRefusal | null;
+  setWindowConfirm(deviceId: string, on: boolean, ownerId: string): WindowRefusal | null;
+  completeLegacyCleanup(deviceId: string): boolean; // only the cleanup field, never ownership or the switch
 }

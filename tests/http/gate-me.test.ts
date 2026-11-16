@@ -6,7 +6,7 @@ import type { DeviceRecord } from "../../nova/src/security/device-registry-types
 const record: DeviceRecord = {
   deviceId: "computer", secretDigest: "digest", state: "active", clientInstallId: "install",
   name: "Computer", platform: "darwin", client: "cli", createdAtMs: 1,
-  credentialStore: "keychain", ownComputer: { userId: "owner", atMs: 1 }, windowConfirm: true,
+  credentialStore: "keychain", legacyCleanup: "complete", ownComputer: { userId: "owner", atMs: 1 }, windowConfirm: true,
 };
 const context = () => ({
   request: {} as IncomingMessage,

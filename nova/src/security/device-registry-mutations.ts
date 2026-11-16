@@ -172,6 +172,7 @@ export function withActivated(
     ...(target.credentialStore !== undefined ? { credentialStore: target.credentialStore } : {}),
     ...(target.ownComputer !== undefined ? { ownComputer: { ...target.ownComputer } } : {}),
     ...(target.windowConfirm !== undefined ? { windowConfirm: target.windowConfirm } : {}),
+    ...(target.legacyCleanup !== undefined ? { legacyCleanup: target.legacyCleanup } : {}),
     // Activation is itself a use; seeds the owner console's "last used".
     lastUsedAtMs: now,
     ...(target.cloudUserId !== undefined

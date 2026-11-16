@@ -10,7 +10,7 @@ import {
   readPrivateFileSync,
 } from "../storage/atomic-file.js";
 import { isRelayInstanceId } from "../storage/relay-instance.js";
-import { isCredentialStore } from "./pairing-metadata.js";
+import { isCredentialStore, isLegacyCleanup } from "./pairing-metadata.js";
 
 export const DEVICE_REGISTRY_FILE = "device-registry.json";
 const MAX_REGISTRY_BYTES = 512 * 1024;
@@ -157,6 +157,12 @@ function validateDevice(value: unknown): DeviceRecord {
       throw new RegistryCorruptError("device.credentialStore is invalid");
     }
     record.credentialStore = raw.credentialStore;
+  }
+  if (raw.legacyCleanup !== undefined) {
+    if (!isLegacyCleanup(raw.legacyCleanup)) {
+      throw new RegistryCorruptError("device.legacyCleanup is invalid");
+    }
+    record.legacyCleanup = raw.legacyCleanup;
   }
   if (raw.ownComputer !== undefined) {
     const own = raw.ownComputer as Record<string, unknown> | null;

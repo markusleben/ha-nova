@@ -12,7 +12,7 @@ const principal = { kind: "device" as const, deviceId: "device" };
 const eligible: DeviceRecord = {
   deviceId: "device", secretDigest: "digest", state: "active", clientInstallId: "install",
   name: "Computer", platform: "darwin", client: "cli", createdAtMs: 1000,
-  credentialStore: "keychain", ownComputer: { userId: "owner", atMs: 1000 }, windowConfirm: true,
+  credentialStore: "keychain", legacyCleanup: "complete", ownComputer: { userId: "owner", atMs: 1000 }, windowConfirm: true,
 };
 let dir: string;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "ha-nova-window-confirm-")); });

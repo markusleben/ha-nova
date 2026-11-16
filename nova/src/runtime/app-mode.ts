@@ -314,6 +314,7 @@ function buildFunctionalHandlers(
     setLink: setPhoneLinkOf(registry),
     window: async (p) => (await checkWindowConfirm(p, registry, () => input.wsClient.sendMessage({ type: "config/auth/list" }))).window,
     windowOff: (p) => p.kind === "device" && registry.disableWindowConfirm(p.deviceId),
+    legacyCleanupComplete: (p) => p.kind === "device" && registry.completeLegacyCleanup(p.deviceId),
     now: input.now,
     logger: input.logger,
   });
