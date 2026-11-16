@@ -27,6 +27,7 @@ var credentialReaders = map[string]bool{
 	"readRelayAuthTokenFileOverride": true, "readSecretWithService": true,
 	"readLegacyWindowsRelayAuthToken": true,
 	"LoadCurrent":                     true, "LoadPending": true, "LoadRetiring": true,
+	"readLegacyLinkSecret": true, "decodeOAuthSecretEnvelope": true,
 }
 
 // credentialReaderCallers is every production function (or package variable)
@@ -142,6 +143,10 @@ var credentialReaderCallers = map[string]string{
 	"uninstall_purge_session.go:purgeRelayTokenRead":                                    "reader",
 	"uninstall_purge_session.go:purgeSecureStorageReadError":                            "local",
 	"version.go:relayNoticeTransport":                                                   "sends",
+	"cloud_oauth_secret_store.go:load":                                                  "reader",
+	"legacy_link_cleanup.go:legacyLinkSecretRead":                                       "reader",
+	"legacy_link_cleanup.go:recoverLegacyLinkGrant":                                     "sends", // to its own Nabu Casa origin, only to revoke it
+	"legacy_link_copies.go:legacyLinkCopiesOf":                                          "reader",
 }
 
 func TestEveryCredentialReaderCallerIsClassified(t *testing.T) {

@@ -148,7 +148,7 @@ func readLegacyLinkSecret(ctx context.Context, service, account string, ui Secre
 	return secret, response.Found, nil
 }
 
-func legacyCleanupSession(paths runtimePaths, cfg runtimeConfig) (*relaySession, error) {
+var legacyCleanupSession = func(paths runtimePaths, cfg runtimeConfig) (*relaySession, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	transport, err := selectRelayTransport(ctx, cfg, "", false)
 	if err != nil {

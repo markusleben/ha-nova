@@ -1,0 +1,28 @@
+name: Old CLI update notice
+
+# Runs the published v0.31.0 binary's update check against the draft release
+# body (scripts/release/prove-old-cli-digest.sh): the Mac re-pair warning must
+# lead its notice before anyone updates to 0.32 (0.32 spec §5.1).
+
+on:
+  pull_request:
+    paths:
+      - "docs/work/next-release-body.md"
+      - "scripts/release/prove-old-cli-digest.sh"
+      - ".github/workflows/old-cli-digest.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  old-cli-digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: The v0.31.0 notice leads with the Mac re-pair warning
+        run: bash scripts/release/prove-old-cli-digest.sh

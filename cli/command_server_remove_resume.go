@@ -133,6 +133,12 @@ func completeServerRemovalUnlocked(
 		)
 		return 1
 	}
+	if copies, err := legacyLinkCopiesOf(name, currentCfg.ProfileID); err != nil || revokeLegacyLinkCopies(copies) != nil {
+		printHumanErr(
+			"couldn't sign this server's old HA NOVA version out of Home Assistant Link; preserved the profile and checkpoint for a safe retry",
+		)
+		return 1
+	}
 	servers, err := documentServersCopy(currentDoc)
 	if err != nil {
 		printHumanErr(

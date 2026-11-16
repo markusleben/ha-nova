@@ -22,24 +22,31 @@ func purgeCloudAuthorizationsForUninstall(
 	paths runtimePaths,
 	report *uninstallReport,
 ) error {
+	// Read before anything changes, like the Cloud plans; revoked after them.
+	copies, err := legacyLinkCopiesForUninstall(paths)
+	if err != nil {
+		return fmt.Errorf("cannot safely read the old version's Home Assistant Link sign-in copies: %w", err)
+	}
 	targets, err := collectCloudPurgeTargets(paths.ConfigFile)
 	if err != nil {
 		return err
 	}
-	if len(targets) == 0 {
-		return nil
+	if len(targets) != 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		executions, err := prepareCloudPurgeExecutions(
+			ctx,
+			paths,
+			targets,
+		)
+		if err != nil {
+			return err
+		}
+		if err := executeCloudPurgePlans(ctx, paths, executions, report); err != nil {
+			return err
+		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-	executions, err := prepareCloudPurgeExecutions(
-		ctx,
-		paths,
-		targets,
-	)
-	if err != nil {
-		return err
-	}
-	return executeCloudPurgePlans(ctx, paths, executions, report)
+	return revokeLegacyLinkCopies(copies) // legacy_link_copies.go
 }
 
 func collectCloudPurgeTargets(path string) ([]cloudPurgeTarget, error) {
