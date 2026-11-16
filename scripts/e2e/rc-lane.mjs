@@ -17,8 +17,8 @@
 //   f  chat-app files under /config at each level (testbed/chat-files.mjs; the bed
 //      starts with TESTBED_FILES=1)
 //   h  calm edits in a home with real-home listeners (testbed/calm.mjs)
-//   i  late answer (#1183): an unlock tapped on the phone b linked only after the App
-//      held one wait poll (POLL_MS, 25 s) still applies; every earlier row answers fast
+//   i  late answer (#1183): an unlock tapped on the phone b linked 30 s after its question,
+//      past the App's 25 s wait poll (POLL_MS), still applies; every earlier row answers fast
 // Order c, e, f, a, b, i, h, d: the chat bridge runs first, while the Claude test
 // account's usage limit is fresh; e, f, and g before h's listeners, which make
 // every call on the bed ask (a known limit, docs/releasing.md); d last.
@@ -195,18 +195,21 @@ async function phone() {
 // 0.30.0 and 0.31.0 cut the CLI's wait on the ask at their client timeout (15 s or
 // 20 s), before the App answered its 25 s wait poll: every typed confirm answered
 // later failed with CONFIRM_UNAVAILABLE, and nothing was sent.
-const LATE_MS = 35_000;
+const LATE_MS = 30_000; // after the question reached the phone: the CLI is in its first wait poll by then
 async function late() {
+  await cli(["version"], join(WORK, "late-version.log"));
+  const cfg = join(STATE, "rc-home/.config/ha-nova/config.json");
+  writeFileSync(cfg, JSON.stringify({ ...JSON.parse(readFileSync(cfg, "utf8")), confirm_window: "off" }), { mode: 0o600 }); // no window on this desktop
   await relock();
   const plan = json((await cli(["plan", "call", "lock.unlock", "lock.front_door"], join(WORK, "late-plan.json"))).out);
   if (plan.plan?.channel !== "relay") return row("i", "late tap applies (#1183)", "FAIL", `plan channel ${plan.plan?.channel ?? "-"}, want relay (the bed's Relay asks the phone b linked)`, join(WORK, "late-plan.json"));
   await resetPushes();
   const t = Date.now();
   const applying = cli(["apply", "--plan", plan.plan.id], join(WORK, "late-apply.json"));
-  const tapped = await approve(60_000, t + LATE_MS).then(() => true, () => false);
+  const tapped = await approve(60_000, LATE_MS).then(() => true, () => false);
   const applied = json((await applying).out);
   const secs = (Date.now() - t) / 1000;
-  row("i", `late tap: tapped ${LATE_MS / 1000} s after apply, it applies (#1183)`, tapped && applied.status === "verified" ? "PASS" : "FAIL",
+  row("i", `late tap: tapped ${LATE_MS / 1000} s after the question, it applies (#1183)`, tapped && applied.status === "verified" ? "PASS" : "FAIL",
     `apply ${secs.toFixed(1)} s -> ${applied.status ?? "-"}${applied.error ? ` ${applied.error.code}` : ""}${tapped ? "" : ", no question reached the phone"}`, join(WORK, "late-apply.json"));
   await relock();
 }

@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -80,5 +83,38 @@ func TestSessionFromConfigCarriesNoClientTimeout(t *testing.T) {
 	}
 	if want := time.Duration(defaultRelayMaxTimeSeconds * float64(time.Second)); httpClient.Timeout != want {
 		t.Fatalf("shared relay client timeout %s, want %s", httpClient.Timeout, want)
+	}
+}
+
+// Only relaySessionOn builds a session, so no new constructor can skip
+// dropping the client timeout (rateGuidedCall and the Link handoff once did).
+func TestOnlyRelaySessionOnBuildsASession(t *testing.T) {
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fset := token.NewFileSet()
+	for _, name := range files {
+		if strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, name, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Name.Name == "relaySessionOn" {
+				continue
+			}
+			ast.Inspect(fn, func(n ast.Node) bool {
+				if lit, ok := n.(*ast.CompositeLit); ok {
+					if id, ok := lit.Type.(*ast.Ident); ok && id.Name == "relaySession" {
+						t.Errorf("%s: %s builds a relaySession; use relaySessionOn", fset.Position(lit.Pos()), fn.Name.Name)
+					}
+				}
+				return true
+			})
+		}
 	}
 }

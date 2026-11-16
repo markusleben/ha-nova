@@ -138,7 +138,7 @@ deploy or tag.
    client matrix from the last stable and from v0.24.0 (published stable
    install, then update to the RC),
    the phone lane (push payloads per platform through fake phones), a late
-   tap (an unlock tapped 35 s after apply, past the App's 25 s wait poll,
+   tap (an unlock tapped 30 s after its question, past the App's 25 s wait poll,
    still applies; #1183), calm
    edits in a bed with real-home listeners (two edits of one automation run
    without an ask and undo puts back the latest; an unlock or garage member
@@ -163,7 +163,7 @@ deploy or tag.
    tag's `min_relay_version`, which is still the stable App.
    The published public one-liners, pairing with a six-digit code, update
    from the last stable, doctor, a read and an ordinary call, a typed unlock
-   approved on the NOVA page 35 s after apply (#1183), client wiring,
+   approved on the NOVA page 30 s after it asked (#1183), client wiring,
    rerun, stale uninstall marker, uninstall and purge, as fresh standard
    users in PowerShell 7 and 5.1 (`docs/release-validation.md` "Windows
    Public Onboarding Lane"); and one chat-app file delete in `custom_components` through
