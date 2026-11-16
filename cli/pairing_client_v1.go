@@ -52,6 +52,7 @@ type deviceMetadata struct {
 	Platform        string `json:"platform"`
 	Client          string `json:"client"`
 	ClientInstallID string `json:"client_install_id"`
+	CredentialStore string `json:"credential_store,omitempty"` // pairingCredentialStore
 }
 
 type provisionedCredential struct {

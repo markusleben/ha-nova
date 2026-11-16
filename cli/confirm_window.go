@@ -199,62 +199,6 @@ func windowOff(paths runtimePaths) bool {
 	return err == nil && json.Unmarshal(doc.top[windowSetting], &value) == nil && value == "off"
 }
 
-const confirmWindowUsage = "ha-nova setup confirm-window on|off"
-
-// runConfirmWindowSetting turns confirmation windows on or off. Off moves
-// every typed plan to a code in chat, which the model sees too, so the
-// window itself confirms it: a model that runs this command can't click it.
-// On needs no confirmation.
-func runConfirmWindowSetting(paths runtimePaths, args []string) int {
-	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Println("Usage: " + confirmWindowUsage + "\n\nWhere a typed change (unlock, open, disarm, delete) asks you: \"on\" (default) opens a\nconfirmation window on this computer when one can open; \"off\" uses your linked phone, else your app's\nconfirmation form, or a four-digit code in chat that your AI assistant can see too. Turning it off is confirmed in that window.")
-		return 0
-	}
-	if len(args) != 1 || args[0] != "on" && args[0] != "off" {
-		printHumanErr("Usage: %s", confirmWindowUsage)
-		return 1
-	}
-	doc, err := loadConfigDocument(paths.ConfigFile)
-	if err != nil {
-		printHumanErr("cannot read the HA NOVA configuration (run ha-nova setup first): %s", err)
-		return 1
-	}
-	if args[0] == "off" && !windowOff(paths) {
-		if !windowAvailable() {
-			printHumanInfo("No confirmation window can open here, so HA NOVA already asks on your linked phone, in your app's form, or with a four-digit code in chat. Nothing changed.")
-			return 0
-		}
-		lang := "en" // Home Assistant's language, when it can be read soon
-		if s, err := newRelaySessionWithin(paths, verbOptions{}, 5*time.Second); err == nil {
-			lang = s.homeLanguage()
-			s.close()
-		}
-		switch askWindow(context.Background(), plainWindow(lang, confirmT(lang, "settings.window_off")), cliWindowWait, os.Stderr) {
-		case windowConfirmed:
-		case windowFailed:
-			printHumanInfo("The confirmation window couldn't open here, so HA NOVA asks on your linked phone, in your app's form, or with a four-digit code in chat anyway. Nothing changed.")
-			return 0
-		default:
-			printHumanErr("Nothing changed: the window was cancelled or got no answer. If no window appeared at all, set \"%s\": \"off\" in %s yourself.", windowSetting, paths.ConfigFile)
-			return 1
-		}
-	}
-	top := make(map[string]json.RawMessage, len(doc.top))
-	for key, value := range doc.top {
-		top[key] = value
-	}
-	delete(top, windowSetting)
-	if args[0] == "off" {
-		top[windowSetting] = json.RawMessage(`"off"`)
-	}
-	if err := writeJSONFileIfUnchanged(paths.ConfigFile, top, 0o600, doc.source); err != nil {
-		printHumanErr("cannot save the setting: %s", err)
-		return 1
-	}
-	printHumanInfo("Confirmation windows are %s.", args[0])
-	return 0
-}
-
 // confirmByWindow runs before apply for a window plan. It re-plans like
 // apply, shows that fresh text in the window, and on Confirm hands apply the
 // plan's code in process (humanAnswer); apply then claims, re-plans, and
