@@ -22,7 +22,7 @@
 // (else TESTBED_CLI_BIN if that is one, else a build of this checkout).
 // Prints PASS/FAIL/SKIP lines; exits non-zero on any FAIL.
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -117,9 +117,15 @@ process.on("exit", () => {
 
 let seen = 0;
 const lastResult = {}; // per platform: the tag of the last result shown, or of the question withdrawn last
-// From now on, only pushes sent after this call count.
+// From now on, only pushes sent after this call count. Each phone's last
+// result comes from the pushes so far, so the clear of one an earlier lane
+// left (its result or a withdrawn question) is still its own.
 export async function resetPushes() {
-  seen = (await (await fetch(`${PUSH}/pushes`)).json()).length;
+  const list = await (await fetch(`${PUSH}/pushes`)).json();
+  seen = list.length;
+  for (const { path, body } of list) {
+    if (body.message === "clear_notification" || !body.data?.actions) lastResult[path.split("/").pop()] = body.data?.tag;
+  }
 }
 
 // The next push; raw: a clear too. Since 0.27.3 a phone's last result is
@@ -205,12 +211,14 @@ export async function answered(ask, answer = 0) {
   lastResult[ask.platform] = d.tag;
 }
 
-// Taps the next question, wherever the Relay asks (rc-lane's slow check),
-// after ms of its own: a person who answers late (rc-lane's late tap, #1183).
+// Taps the next question, wherever the Relay asks (rc-lane), after ms of its
+// own: a person who answers late (rc-lane's late tap, #1183). It takes the
+// question's result, so the clear before the next question is that result's.
 export async function approve(ms, after = 0) {
   const push = await nextPush({ ms });
   await sleep(after);
   await tap(push);
+  await answered(push);
   return push;
 }
 
@@ -290,7 +298,7 @@ async function windowCancel(platform) {
     writeFileSync(zenity, "#!/bin/sh\nsleep 8\nexit 1\n");
     chmodSync(zenity, 0o755);
     const home = join(tmp, "home");
-    cpSync(HOME, home, { recursive: true });
+    execFileSync("cp", ["-R", HOME, home]); // Node 22's cpSync fails (EACCES) on Docker Desktop's file share: the container rc lane
     const linux = process.platform === "linux";
     const host = linux ? "127.0.0.1" : "host.docker.internal";
     const config = join(home, ".config/ha-nova/config.json");

@@ -12,9 +12,21 @@ import { relay } from "./phone.mjs";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const names = (plan) => (plan.consumers ?? []).map((c) => c.automation);
 const codes = (plan) => (plan.reasons ?? []).map((r) => r.code);
+const shown = (plan) => (plan.reasons ?? []).map((r) => r.code === "SCAN_FAILED" ? r.code + "(" + r.entity_id + " " + r.detail + ")" : r.code);
 const SAFE = new Set(["awning", "blind", "curtain", "damper", "shade", "shutter", "window"]); // cli/tier_rules.go nonAccessCoverClasses
 const WATCHDOG = "rclane_m_watchdog", SCRIPT = "rclane_m_check_group";
 const picked = { entity_id: "{{ 'none' }}" };
+
+// loaded: a script or scene the bed just wrote is there only after Home
+// Assistant's own reload. Waits for each entity (script.<id> / its config id),
+// or names the bed's reload as the failure, never HA NOVA's read.
+export async function loaded(ha, ...ids) {
+  for (let tries = 0; tries < 30; tries++, await sleep(500)) {
+    const states = await ha("GET", "/api/states");
+    if (ids.every((id) => states.some((s) => s.entity_id === id || s.attributes?.id === id.split(".")[1]))) return;
+  }
+  throw new Error(ids.join(", ") + " never loaded in Home Assistant (the bed's reload, not HA NOVA)");
+}
 
 // measure (ask-count.mjs): runs at each of the two homes, "garage" and "shutter".
 export async function mRowChecks({ ha, ws, cli, check, loadAutomations, gated, measure }) {
@@ -24,12 +36,13 @@ export async function mRowChecks({ ha, ws, cli, check, loadAutomations, gated, m
     await ha("POST", "/api/config/script/config/" + SCRIPT, { alias: "RC M check group", mode: "queued", sequence: [
       { action: "cover.open_cover", target: picked }, { action: "cover.close_cover", target: picked },
       { action: "cover.set_cover_position", target: picked, data: { position: "{{ 50 }}" } }] });
+    await loaded(ha, "script." + SCRIPT);
     await loadAutomations({ [WATCHDOG]: { alias: "RC M watchdog", mode: "queued", triggers: [{ trigger: "event", event_type: "call_service" }],
       conditions: [{ condition: "template", value_template: "{{ trigger.event.data.domain not in ['script', 'cover'] }}" }],
       actions: [{ action: "script." + SCRIPT }] } });
     const watchdog = (await ha("GET", "/api/states")).find((s) => s.attributes?.id === WATCHDOG)?.entity_id;
     const light = () => cli("plan", "call", "light.turn_off", "light.bed_light");
-    const detail = (plan) => "tier " + (plan.tier ?? plan.error?.code) + ", confirm " + plan.plan?.confirm + ", reasons " + (codes(plan).join(",") || "-") + ", consumers " + (names(plan).join(",") || "-");
+    const detail = (plan) => "tier " + (plan.tier ?? plan.error?.code) + ", confirm " + plan.plan?.confirm + ", reasons " + (shown(plan).join(",") || "-") + ", consumers " + (names(plan).join(",") || "-");
     const gate = async () => relay("/core", { method: "POST", path: "/api/services/light/turn_off", body: { entity_id: "light.bed_light" } });
 
     const risky = light();
