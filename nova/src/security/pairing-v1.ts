@@ -4,6 +4,7 @@ import { generateCredential } from "./device-credential.js";
 import { finishLogin, registerCode, startLogin } from "./opaque-server.js";
 import { deriveDirectionKeys, open, seal } from "./pairing-crypto.js";
 import { decodePairingMetadata } from "./pairing-metadata.js";
+import { pairingWindowFields } from "./window-confirm.js";
 import { createPairingRateLimiter } from "./pairing-rate-limit.js";
 import type {
   ActiveCode,
@@ -114,7 +115,7 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
       return { code, expiresAtMs: openSlot(code, PAIR_CODE_TTL_MS) };
     },
 
-    arm(userId, device = "local") {
+    arm(userId, device = "local", ownComputer = false) {
       // Home Assistant sign-in arms a 256-bit secret for exactly this ingress
       // user instead of a six-digit code (docs/work/2026-10-16-ha-sign-in-pairing-spec.md).
       // A "link" slot pairs the owner code's user-bound Cloud device instead.
@@ -123,7 +124,7 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
         return null;
       }
       const secret = randomBytes(ARM_SECRET_BYTES).toString("base64url");
-      return { secret, expiresAtMs: openSlot(secret, PAIR_ARM_TTL_MS, userId, link) };
+      return { secret, expiresAtMs: openSlot(secret, PAIR_ARM_TTL_MS, userId, link, ownComputer) };
     },
 
     cancel() {
@@ -184,7 +185,7 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
     },
   };
 
-  function openSlot(code: string, ttlMs: number, armedFor?: string, link = false): number {
+  function openSlot(code: string, ttlMs: number, armedFor?: string, link = false, ownComputer = false): number {
     const generation = ++generationCounter;
     const userIdentifier = `gen-${generation}-${randomBytes(8).toString("base64url")}`;
     active = {
@@ -195,6 +196,7 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
       expiresAtMs: now() + ttlMs,
       ...(armedFor === undefined ? {} : { armedFor }),
       ...(link ? { armedLink: true as const } : {}),
+      ...(ownComputer ? { ownComputer: true as const } : {}),
     };
     handshakes.clear();
     phase = "active";
@@ -358,12 +360,8 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
           platform: metadata.platform,
           client: metadata.client,
           createdAtMs: t,
-          ...(binding === undefined
-            ? {}
-            : {
-                cloudUserId: binding.userId,
-                cloudRelayInstanceId: binding.relayInstanceId,
-              }),
+          ...pairingWindowFields(metadata, armedFor, active.ownComputer === true, t),
+          ...(binding === undefined ? {} : { cloudUserId: binding.userId, cloudRelayInstanceId: binding.relayInstanceId }),
         },
         {
           handshakeId,

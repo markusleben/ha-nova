@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"regexp"
+	"strings"
 )
 
 // Sentinel errors the setup/uninstall flows branch on.
@@ -92,4 +94,38 @@ func decodePairInfo(raw []byte) (protocolV1 bool) {
 		return false
 	}
 	return env.Data.ProtocolVersion == "v1"
+}
+
+// relayAdvertisesSignIn reads sign_in from the GET /pair/v1/info capability
+// probe; any failure reads as "no" and the step stays the code prompt.
+func relayAdvertisesSignIn(relayURL string) bool {
+	signIn, _ := relayPairCapabilities(relayURL)
+	return signIn
+}
+
+// relayPairCapabilities: sign_in, and window (the App approves in a
+// computer's own window: spec §1), before any credential exists.
+func relayPairCapabilities(relayURL string) (signIn, window bool) {
+	request, err := http.NewRequest(http.MethodGet, strings.TrimRight(relayURL, "/")+"/pair/v1/info", nil)
+	if err != nil {
+		return false, false
+	}
+	request.URL.User = nil
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return false, false
+	}
+	defer response.Body.Close()
+	body, err := readAllLimited(response.Body, maxRelayPairingResponseBytes)
+	var info struct {
+		OK   bool `json:"ok"`
+		Data struct {
+			SignIn bool `json:"sign_in"`
+			Window int  `json:"window"`
+		} `json:"data"`
+	}
+	if response.StatusCode != http.StatusOK || err != nil || json.Unmarshal(body, &info) != nil || !info.OK {
+		return false, false
+	}
+	return info.Data.SignIn, info.Data.Window == 1
 }

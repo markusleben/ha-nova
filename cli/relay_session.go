@@ -138,6 +138,10 @@ func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Dur
 			return nil, &verbFailure{exit: verbExitError, code: code, message: relayTransportErrorMessage(err), cause: err,
 				next: "Nothing was sent. Tell the user the message in plain words (it names the fix); try again only after they say it is fixed."}
 		}
+		if errors.Is(err, errDeviceNeedsRePair) {
+			return nil, &verbFailure{exit: verbExitError, code: "PAIR_AGAIN", message: relayTransportErrorMessage(err), cause: err,
+				next: "Nothing was sent. Tell the user this computer needs to be paired again once (one Home Assistant sign-in, about a minute) and give them the command in the message to run in their own terminal; try again after they say it is done."}
+		}
 		return nil, errors.New(relayTransportErrorMessage(err))
 	}
 	s := relaySessionOn(paths, cfg, transport, ctx, cancel)
@@ -146,8 +150,14 @@ func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Dur
 }
 
 // relaySessionOn: a session on a transport already selected (relay core's
-// helper-create verification uses the command's own).
+// helper-create verification uses the command's own). Every session request
+// carries its own deadline, so the session's copy of the client drops the
+// client-wide timeout: one shorter than a request's deadline cut the gate's
+// wait poll, which the App holds for 25 s, at the pairing client's 20 s (#1183).
 func relaySessionOn(paths runtimePaths, cfg runtimeConfig, transport relayTransportSelection, ctx context.Context, cancel context.CancelFunc) *relaySession {
+	client := *transport.Client
+	client.Timeout = 0
+	transport.Client = &client
 	return &relaySession{
 		paths:     paths,
 		cfg:       cfg,

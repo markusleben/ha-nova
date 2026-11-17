@@ -59,6 +59,7 @@ type setupPageState struct {
 	App           string               `json:"app,omitempty"`     // missing, old, running
 	AppVersion    string               `json:"app_version,omitempty"`
 	Primary       string               `json:"primary,omitempty"` // install, update, signin; empty: no sign-in from the page
+	Own           bool                 `json:"own,omitempty"`     // the sign-in button carries "Confirm risky changes here with one click" (setup_own_computer.go)
 	Rows          []setupPageRow       `json:"rows,omitempty"`
 	Problem       *setupPageMsg        `json:"problem,omitempty"`
 	Fix           string               `json:"fix,omitempty"` // retry, owner, web (chat apps can't work here yet), web_never (nor after a change here)
@@ -299,6 +300,9 @@ func (ui *setupWebUI) show(view setupView) {
 	for _, block := range view.Blocks {
 		if block.Kind == setupBlockSuccess && block.Lines[0].Key == "setup.verify.device_ok" {
 			ui.setRow("connect", "ok", nil)
+		}
+		if block.Kind == setupBlockParagraph && block.Lines[0].Key == "setup.cleanup.intro" { // shown before macOS asks (legacy_link_cleanup.go)
+			ui.setRow("connect", "run", setupPageText("setup.cleanup.intro"))
 		}
 	}
 }

@@ -274,6 +274,7 @@ func gateIDs(ids []string) string {
 }
 
 type gatePhoneRequest struct {
+	AskRef  string     `json:"ask_ref,omitempty"`
 	Lang    string     `json:"lang,omitempty"`
 	Title   string     `json:"title,omitempty"`
 	Body    string     `json:"body,omitempty"`
@@ -290,9 +291,10 @@ type gatePhoneRequest struct {
 // time), or unavailable (the phone can't be asked; nothing was sent, or the
 // send failed). why says why it is unavailable.
 type gatePhoneAnswer struct {
-	Answer string `json:"answer"`
-	UserID string `json:"user_id,omitempty"`
-	Why    string `json:"why,omitempty"`
+	Answer   string `json:"answer"`
+	UserID   string `json:"user_id,omitempty"`
+	Why      string `json:"why,omitempty"`
+	NotAsked bool   `json:"not_asked,omitempty"`
 }
 
 // gatePhoneSetup reads the home with the Relay's own link for this device
@@ -300,19 +302,8 @@ type gatePhoneAnswer struct {
 // non-system administrator who is not the Relay's user, and the phone must
 // still be reachable. Tests replace it.
 var gatePhoneSetup = func(s *relaySession, link phoneLink) (phoneSetup, phoneStatus) {
-	var users []haUser
-	if err := s.phoneRead("ws", map[string]any{"type": "config/auth/list"}, &users); err != nil {
-		return phoneSetup{why: whyRead}, phoneMissing
-	}
-	owner := ""
-	for _, u := range users {
-		if u.IsOwner && u.IsActive && !u.SystemGenerated {
-			owner = u.ID
-		}
-	}
-	links := map[string]phoneEntry{owner: {link: &link}}
-	home, err := lookupPhones(s, links)
-	return home.status(links, err)
+	home, err := gatePhoneHome(s, link)
+	return home.status(map[string]phoneEntry{home.owner: {link: &link}}, err)
 }
 
 // gatePhone asks the linked phone and waits for its answer, at most the
@@ -326,7 +317,11 @@ func gatePhone(ctx context.Context, paths runtimePaths, in gatePhoneRequest) (ga
 	if err != nil {
 		return gatePhoneAnswer{}, err
 	}
-	defer s.close()
+	defer func() {
+		if run, ok := ctx.Value(gatePhoneEndKey{}).(*gatePhoneRun); !ok || !run.detached {
+			s.close()
+		}
+	}()
 	setup, status := gatePhoneSetup(s, in.Link)
 	if status != phoneReady {
 		return gatePhoneAnswer{Answer: "unavailable", Why: gatePhoneWhy(setup.why)}, nil
@@ -358,7 +353,7 @@ func gatePhoneWhy(why phoneWhy) string {
 
 // gateAskHandler answers /ask and /phone; the caller checked the bearer.
 // /ask rates up to 20 requests and words them, a check budget for each, twice.
-func gateAskHandler(paths runtimePaths, w http.ResponseWriter, r *http.Request) {
+func gateAskHandler(paths runtimePaths, w http.ResponseWriter, r *http.Request, ends *gatePhoneEnds) {
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, gateBodyLimit))
 	dec.DisallowUnknownFields()
 	var out any
@@ -382,7 +377,7 @@ func gateAskHandler(paths runtimePaths, w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(time.Duration(in.WaitMS)*time.Millisecond + time.Minute))
-		out, err = gatePhone(r.Context(), paths, in)
+		out, err = gatePhoneWithProgress(paths, w, r, in, ends)
 	}
 	if err != nil { // nothing was asked or sent: the Relay answers 503
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)

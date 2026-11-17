@@ -67,6 +67,14 @@ window.novaSteps = (h) => {
     if (local[name]) h.announce(said ? t(said) : t('setup.page.control.signin_later', { button: finishLabel() }));
   };
   const problem = (msg) => (msg ? el('p', { class: 'problem', role: 'alert' }, say(msg)) : null);
+  // Step 2's "Confirm risky changes here with one click" (spec, What a user
+  // sees 1): on by default, and its answer goes with the sign-in button.
+  const ownSwitch = (shown) => (shown ? el('span', { class: 'own' }, toggle('b-own', t('setup.page.found.own'), !local.ownOff, () => {
+    if (h.accepts('signin')) { local.ownOff = !local.ownOff; render(true); }
+  }, !h.accepts('signin')),
+    el('span', { id: 'b-own-v' }, ` ${t('setup.page.found.own')}`),
+    el('span', { class: 'fine' }, ` ${t('setup.page.found.own_hint')}`)) : null);
+  const ownChoice = (shown) => (shown && !local.ownOff ? 'own' : undefined);
 
   // Step 3.
   const hint = (os) => t({ ios: 'setup.page.control.phone_nothing_ios', android: 'setup.page.control.phone_nothing_android' }[os] || 'setup.page.control.phone_nothing');
@@ -383,5 +391,5 @@ window.novaSteps = (h) => {
     el('button', { id: `b-${id}-copy`, class: 'btn btn-ghost btn-small', type: 'button', onclick: () => (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard')))
       .then(() => toast(t(copied)), () => toast(t(failed))) }, t('setup.chat.copy')));
 
-  return { control, home, demo, copybar };
+  return { control, home, demo, copybar, ownSwitch, ownChoice };
 };

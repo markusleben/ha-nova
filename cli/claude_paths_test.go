@@ -50,6 +50,10 @@ func TestMain(m *testing.M) {
 	// No test opens a real confirmation window: typed plans use chat unless a
 	// test installs its own window (confirm_window_test.go).
 	windowAvailable = func() bool { return false }
+	// No test reads the developer's old Link items or reports a cleanup;
+	// legacy_link_cleanup_test.go installs its own.
+	legacyCleanupApplies = func() bool { return false }
+	legacyCopiesOnThisOS = false
 	// No test reads or writes the developer's remembered Link route; tests
 	// that need it install a temp file (cloud_link_budget_test.go).
 	linkRouteMemoryFile = func() string { return "" }
@@ -62,6 +66,14 @@ func TestMain(m *testing.M) {
 	windowRunner = func(context.Context, windowText, time.Duration) windowAnswer {
 		panic("a test opened a real confirmation window")
 	}
+	// Setup asks "Confirm risky changes here with one click" only where a
+	// test says the App can approve in windows (setup_own_computer_test.go).
+	ownComputerAskedForSetup = func(runtimeConfig) bool { return false }
+	// No test reaches an App to turn window approval off before a file copy;
+	// device_credential_migration_test.go checks that order with its own.
+	gateWindowOffForFileCopy = func(string, string, bool) error { return nil }
+	deviceKeyNeverCopiedToFile = false
+	devicePinSealed = false // device_pin_seal_test.go turns it on
 	secretKeyringGet = keyring.Get
 	secretKeyringGetWithPolicy = defaultSecretKeyringGetWithPolicy
 	secretKeyringSetWithPolicy = defaultSecretKeyringSetWithPolicy

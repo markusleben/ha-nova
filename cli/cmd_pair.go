@@ -295,6 +295,15 @@ func runPairCommand(paths runtimePaths, args []string) int {
 			migrated, err = migrateKeyringDeviceCredentialToFile()
 			return err
 		})
+		if errors.Is(migrateErr, errDeviceKeyStaysInKeychain) {
+			printErr("%s.", migrateErr)
+			if resumedActivation {
+				fmt.Println("Resumed the interrupted secure device activation in the Keychain.")
+				return 0
+			}
+			printErr("Nothing was paired — no code was used. Run the command without --credential-store=file to pair in the Keychain.")
+			return 1
+		}
 		if migrateErr != nil {
 			printErr("cannot move the device credential into private file storage: %s", keyringErrorText(migrateErr))
 			printErr("Nothing was paired — no code was used.")

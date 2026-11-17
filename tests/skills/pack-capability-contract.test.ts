@@ -310,7 +310,7 @@ describe("HA UI parity batch 1", () => {
     expect(integration).toContain("Same access refusals; `require_restart: true`");
     expect(integration).toContain("config_entries/get");
     const admin = read("skills/admin/SKILL.md");
-    for (const pin of ["config/auth/update", "group_ids", "is_active", "system-admin", "config/core/update", "config/core/detect", "get_config", "Time zone, units, and language take the one-time code", "the owner, a system account, and the relay's own account"]) {
+    for (const pin of ["config/auth/update", "group_ids", "is_active", "system-admin", "config/core/update", "config/core/detect", "get_config", "Time zone, units, and language take the person's own confirmation", "the owner, a system account, and the relay's own account"]) {
       expect(admin).toContain(pin);
     }
     const health = read("skills/health/SKILL.md");
@@ -335,12 +335,12 @@ describe("HA UI parity batch 1", () => {
 describe("HA UI parity batch 3a", () => {
   it("pins backup settings, Labs, analytics, and statistics import in their owning skills", () => {
     const backup = read("skills/backup/SKILL.md");
-    for (const pin of ["backup/config/update", "backup/config/info", "replace whole: send every field from the read", "A retention takes the one-time code", "the CLI refuses both", "no saved key", "ha-nova plan raw"]) {
+    for (const pin of ["backup/config/update", "backup/config/info", "replace whole: send every field from the read", "A retention takes the person's own confirmation", "the CLI refuses both", "no saved key", "ha-nova plan raw"]) {
       expect(backup).toContain(pin);
     }
     expect(backup).not.toContain("changing automatic-backup settings or encryption keys — HA UI");
     const admin = read("skills/admin/SKILL.md");
-    for (const pin of ["labs/list", "labs/update", "never `create_backup`", "analytics/preferences", "only changed keys", "takes the one-time code"]) {
+    for (const pin of ["labs/list", "labs/update", "never `create_backup`", "analytics/preferences", "only changed keys", "takes the person's own confirmation"]) {
       expect(admin).toContain(pin);
     }
     expect(read("skills/maintenance/SKILL.md")).toContain("recorder/import_statistics");

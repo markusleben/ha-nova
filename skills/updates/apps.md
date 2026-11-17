@@ -26,9 +26,9 @@ Always `ha-nova plan raw` then `ha-nova apply` (chat apps: `ha_plan` kind raw, `
 
 | Change | Path | data | Confirmation |
 |---|---|---|---|
-| Install | `/store/addons/<slug>/install` | none | one-time code |
-| Uninstall | `/addons/<slug>/uninstall` | none, or `{"remove_config":true}` to delete its config folder too | one-time code |
-| Settings | `/addons/<slug>/options` | `{"options":{<only the changed keys>}}` | one-time code |
+| Install | `/store/addons/<slug>/install` | none | own confirmation |
+| Uninstall | `/addons/<slug>/uninstall` | none, or `{"remove_config":true}` to delete its config folder too | own confirmation |
+| Settings | `/addons/<slug>/options` | `{"options":{<only the changed keys>}}` | own confirmation |
 | Auto-update | `/addons/<slug>/options` | `{"auto_update":true\|false}` | preview |
 
 - **Install**: check `available` in `/store/addons/<slug>`, then preview the name, version, description, its security `rating` (higher is safer), and what it may reach (`host_network`, `host_pid`, `full_access`, `apparmor`, `hassio_role`, `homeassistant_api`, `auth_api`, `docker_api`; say each one plainly). It installs in the background: poll `/store/addons/<slug>` until `installed` is true (every ~10 s, up to 10 minutes); if it never turns true, ask the user for the reason on Settings > System > Logs (Supervisor). It does not start the App: offer `hassio.addon_start` (`ha-nova:service-call`).

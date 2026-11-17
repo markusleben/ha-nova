@@ -27,6 +27,7 @@ export interface FunctionalHandlers {
   // Device listener only: not a Home Assistant Link functional route (docs/work/2026-10-26-supervisor-role-spec.md → Decisions).
   supervisor: RouteHandler;
   ask: RouteHandler; // POST /gate/v1/ask and /gate/v1/phone (gate-asks.ts)
+  me?: RouteHandler;
 }
 
 export interface PairingListenerDeps {
@@ -62,6 +63,7 @@ function registerFunctional(router: Router, fns: FunctionalHandlers): void {
   router.register("POST", "/supervisor", fns.supervisor);
   router.register("POST", "/gate/v1/ask", fns.ask);
   router.register("POST", "/gate/v1/phone", fns.ask);
+  if (fns.me !== undefined) router.register("GET", "/gate/v1/me", fns.me);
 }
 
 // The auth hook for functional routes on a given transport: resolve a device
@@ -84,7 +86,7 @@ function functionalAuthorize(deps: PairingListenerDeps, transport: Transport) {
 // shared access it once served is gone, so every other request is refused.
 export function createBootstrapListener(deps: PairingListenerDeps): RequestListener {
   const router = createRouter();
-  router.register("GET", "/pair/v1/info", createPairV1InfoHandler({ manager: deps.pairingManager, relayVersion: deps.relayVersion, signIn: true }));
+  router.register("GET", "/pair/v1/info", createPairV1InfoHandler({ manager: deps.pairingManager, relayVersion: deps.relayVersion, signIn: true, window: deps.functional.me !== undefined }));
   router.register("POST", "/pair/v1/start", createPairV1StartHandler({ manager: deps.pairingManager, relayVersion: deps.relayVersion }));
   router.register("POST", "/pair/v1/finish", createPairV1FinishHandler({ manager: deps.pairingManager, relayVersion: deps.relayVersion }));
 

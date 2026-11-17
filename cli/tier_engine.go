@@ -116,6 +116,9 @@ type tierEngine struct {
 	manifests    map[string]bool // integration → built in; nil until read
 	markTyped    bool            // a raw item is typed only by its skill's mark, which the Relay neither sees nor needs (gateChannel)
 	censusMoot   bool            // a call's own target is typed: the listener census can only raise it (callTargetTyped)
+	bounding     bool            // this check settles bounded targets (settleBounds); off: an unresolved target stays a gap
+	bounds       []tierReason    // unresolved targets rated by every candidate instead (boundCandidates)
+	late         bool            // a step may run after the plan's own call: a delay, a wait, a reload, a for: trigger, a timer
 
 	stateList func() (map[string]json.RawMessage, error) // a config check's states, one read for all (useStateList); nil: one read each
 }
@@ -346,6 +349,7 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 		}
 	}
 	if domain == "timer" {
+		e.late = true // what its finish starts runs later
 		e.checkEvents("timer.", id)
 	}
 	if readOnlyResponseServices[eff] { // a read changes no state: nothing reacts to it (issue #1009)

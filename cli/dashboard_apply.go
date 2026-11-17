@@ -57,9 +57,7 @@ func executeDashboard(paths runtimePaths, s *relaySession, env *verbEnvelope, ac
 	}
 	var payload map[string]any
 	if action.Op == "delete" {
-		var entry dashboardEntry
-		_ = json.Unmarshal(action.Shell, &entry)
-		payload = map[string]any{"type": "lovelace/dashboards/delete", "dashboard_id": entry.ID}
+		payload = dashboardDeletePayload(action)
 	} else {
 		payload = dashboardConfigPayload("lovelace/config/save", action.ConfigID, action.Default)
 		payload["config"] = action.Body // raw bytes: the draft as given
@@ -79,6 +77,15 @@ func executeDashboard(paths runtimePaths, s *relaySession, env *verbEnvelope, ac
 		sayReadBackDiffers(env)
 	}
 	return nil
+}
+
+// dashboardDeletePayload: a dashboard delete's one write, by the
+// dashboard's own id (its listing in action.Shell), byte for byte what the
+// Relay's ask covers (configRequests).
+func dashboardDeletePayload(action configAction) map[string]any {
+	var entry dashboardEntry
+	_ = json.Unmarshal(action.Shell, &entry)
+	return map[string]any{"type": "lovelace/dashboards/delete", "dashboard_id": entry.ID}
 }
 
 // dashboardLanded keeps the way back whenever the write may have landed: an

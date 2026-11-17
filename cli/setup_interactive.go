@@ -84,6 +84,11 @@ func maybeHandleInteractiveSetupCurrentStateLinkPaused(reader *bufio.Reader, out
 			printHumanErr("%s", setupT("setup.error.finalize_lifecycle", "error", err))
 			return true, 1
 		}
+		// A paired Mac whose old version is still signed in finishes that
+		// here (the retry gate_me.go names); its line prints after the banner.
+		if note := printLegacyLinkCleanup(out, paths, cfg, !serviceMode && isInteractiveTTY() && writerSupportsTTYForSetup(out)); note != "" {
+			defer fmt.Fprintln(out, "  "+note)
+		}
 		// Asked before the banner; the banner clears the screen, so the
 		// outcome line prints after it.
 		if !serviceMode && slices.Contains(loadStateOrDefault(paths).InstalledClients, "claude") && isInteractiveTTY() && writerSupportsTTYForSetup(out) {

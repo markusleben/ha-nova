@@ -111,8 +111,8 @@ func rateGuidedCall(paths runtimePaths, route *relayUpdateRoute, req planCallReq
 		return guidedRating{err: refuse(&verbEnvelope{}, *refusal)}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), relaySessionOverallTimeout)
-	s := &relaySession{paths: paths, cfg: route.cfg, transport: route.relayTransportSelection,
-		server: activeServerProfile(), ctx: ctx, cancel: cancel, slots: make(chan struct{}, relaySessionMaxConcurrent), memo: map[string]*relayMemo{}}
+	s := relaySessionOn(paths, route.cfg, route.relayTransportSelection, ctx, cancel)
+	s.server = activeServerProfile()
 	defer s.close()
 	env := verbEnvelope{SchemaVersion: 1, Verb: "call", Server: s.server}
 	e, plan, err := computeCallPlan(s, &env, req)

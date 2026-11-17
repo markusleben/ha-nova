@@ -132,6 +132,8 @@ func cloudFunctionalEndpoint(method, path string) (CloudIngressEndpoint, bool) {
 		return CloudEndpointGateAsk, true
 	case method == http.MethodPost && path == "/gate/v1/phone":
 		return CloudEndpointGatePhone, true
+	case method == http.MethodGet && path == gateMeRoute:
+		return CloudEndpointGateMe, true
 	default:
 		return "", false
 	}

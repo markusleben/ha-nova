@@ -13,6 +13,7 @@ import { LIVE_CSP, liveState } from "./nova-page-live.js";
 import type { RelayLogger } from "../server.js";
 import { applyChatPhoneAction, CHAT_PHONE_ACTIONS, chatPhoneErrorCode, readChatPhone, type ChatPhoneAction, type ChatPhoneModel } from "./nova-page-chat-phone.js";
 import { applyChatUsers, chatPhoneUser, readChatUsers, type ChatUsersModel } from "./nova-page-chat-users.js";
+import { recentWindowSection, WINDOW_ACTIONS, windowRow, type WindowAction } from "./nova-page-window.js";
 import {
   escapeHtml,
   parseConfirm,
@@ -48,6 +49,8 @@ const ACTIONS = new Set<NovaAction>(["generate_code", "cancel_code", "revoke_dev
 const CHAT_ACTIONS = new Set<NovaAction>(["chat_apps_on", "chat_apps_off", "chat_read_only", "chat_codes", "chat_users"]);
 // What an administrator who isn't the owner may do; every other action needs the owner.
 const ADMIN_ACTIONS = new Set<string>(["generate_code", "cancel_code", "revoke_device", "resume_phone_asks"]);
+// One full page's tokens: 64 computers × (two window buttons + resume), and the page's own forms.
+export const PAGE_CSRF_PENDING = 256;
 
 export interface NovaPageDeps {
   fetchAuthUsers: () => Promise<HaAuthUser[]>;
@@ -103,9 +106,12 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
     if (!owner.ok) return refuse(response, owner);
     const ingressPath = singleHeader(request, "x-ingress-path") ?? "/home";
     const now = deps.now();
-    // A paused device's "ask on the phone again": a POST whose token is bound to that device.
-    const resumeForm = (deviceId: string): string =>
-      `<form method="post" action="${escapeHtml(`${ingressPath.replace(/\/$/, "")}/action`)}"><input type="hidden" name="csrf" value="${escapeHtml(deps.csrf.issue(owner.userId, `resume_phone_asks:${deviceId}`, now))}"><input type="hidden" name="action" value="resume_phone_asks"><input type="hidden" name="device_id" value="${escapeHtml(deviceId)}">`;
+    // A POST about one device (a paused device's "ask on the phone again", the owner's window buttons): its token is bound to that device.
+    const deviceForm = (action: string, deviceId: string): string =>
+      `<form method="post" action="${escapeHtml(`${ingressPath.replace(/\/$/, "")}/action`)}"><input type="hidden" name="csrf" value="${escapeHtml(deps.csrf.issue(owner.userId, `${action}:${deviceId}`, now))}"><input type="hidden" name="action" value="${action}"><input type="hidden" name="device_id" value="${escapeHtml(deviceId)}">`;
+    const resumeForm = (deviceId: string): string => deviceForm("resume_phone_asks", deviceId);
+    const words = await deps.gatePage?.texts("") ?? null; // the window lines' words; none: no lines and no buttons
+    const windowButton = (action: WindowAction, deviceId: string, label: string): string => `${deviceForm(action, deviceId)}<button type="submit">${label}</button></form>`;
     // The live digest of the asks the gate section reads now, so one that
     // arrives while the page renders differs from it and the poll reloads.
     const live = deps.gatePage === undefined ? null : liveState(deps.gatePage);
@@ -163,7 +169,8 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
       chatPhoneUserGone: chatWhoGone,
       chatUsers,
       chatRestarting: query.get("chat") === "restarting",
-      gateSection,
+      gateSection: gateSection + (words === null ? "" : recentWindowSection(deps.gatePage?.recent?.() ?? [], words)),
+      windowRow: (d) => (words === null ? "" : windowRow(d, owner.users, owner, words, windowButton)),
       live,
     });
     setHeaders(response);
@@ -188,7 +195,7 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
     const action = typeof form.action === "string" ? form.action : "";
     const token = typeof form.csrf === "string" ? form.csrf : "";
     const phoneAction = CHAT_PHONE_ACTIONS.has(action);
-    if (!ACTIONS.has(action as NovaAction) && !(deps.chatApps !== undefined && (CHAT_ACTIONS.has(action as NovaAction) || phoneAction)) && !(deps.gatePage !== undefined && action === "resume_phone_asks")) {
+    if (!ACTIONS.has(action as NovaAction) && !(deps.chatApps !== undefined && (CHAT_ACTIONS.has(action as NovaAction) || phoneAction)) && !(deps.gatePage !== undefined && (action === "resume_phone_asks" || WINDOW_ACTIONS.has(action)))) {
       fail(response, 400, "Unknown action.");
       return;
     }
@@ -206,7 +213,7 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
     // A phone form names its user (the owner, or one on the list), and its token is bound to that user.
     const phoneUser = !phoneAction ? "" : typeof form.user === "string" ? form.user : owner.userId;
     const csrfAction =
-      action === "revoke_device" || action === "resume_phone_asks" ? `${action}:${deviceId}` : phoneAction ? `${action}:${phoneUser}` : action;
+      action === "revoke_device" || action === "resume_phone_asks" || WINDOW_ACTIONS.has(action) ? `${action}:${deviceId}` : phoneAction ? `${action}:${phoneUser}` : action;
     if (!deps.csrf.consume(owner.userId, csrfAction, token, deps.now())) {
       fail(response, 403, "This form expired. Reload the page and try again.");
       return;
@@ -232,10 +239,10 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
           // owner.users: Home Assistant's users as read for this request (checkOwner, never cached).
           removed = await applyChatUsers(deps.chatApps!, owner.userId, owner.users, form);
         } else {
-          restart = await applyAction(deps, action as NovaAction, form);
+          restart = await applyAction(deps, action as NovaAction, form, owner.userId);
         }
         // Who connected or revoked a computer: any administrator may, so the log names them.
-        if (ADMIN_ACTIONS.has(action)) {
+        if (ADMIN_ACTIONS.has(action) || WINDOW_ACTIONS.has(action)) {
           deps.logger?.info?.("NOVA page action", { action, user_id: owner.userId, ...(deviceId ? { device_id: deviceId } : {}) });
         }
       } catch (error) {
@@ -277,7 +284,7 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
 }
 
 // Returns whether Home Assistant must restart (turning chat apps on).
-async function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<string, unknown>): Promise<boolean> {
+async function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<string, unknown>, ownerId: string): Promise<boolean> {
   const chat = deps.chatApps!;
   switch (action as Exclude<NovaAction, ChatPhoneAction | "chat_users">) {
     case "chat_apps_on":
@@ -302,6 +309,17 @@ async function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<
     case "cancel_code":
       deps.pairing.cancel();
       return false;
+    case "window_mine":
+    case "window_not_mine":
+    case "window_on":
+    case "window_off": {
+      const deviceId = typeof form.device_id === "string" ? form.device_id : "";
+      const refused = action === "window_mine" || action === "window_not_mine"
+        ? deps.registry.setOwnComputer(deviceId, action === "window_mine" ? ownerId : null, deps.now())
+        : deps.registry.setWindowConfirm(deviceId, action === "window_on", ownerId);
+      if (refused !== null) throw new Error(`that computer can't confirm in its window (${refused}); nothing changed`);
+      return false;
+    }
     case "revoke_device": {
       const deviceId = typeof form.device_id === "string" ? form.device_id : "";
       const device = deps.registry.list().find((d) => d.deviceId === deviceId);
