@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 )
 
 // A cleanup copy (legacy_link_cleanup.go) is kept before its old sign-in is
@@ -19,9 +20,32 @@ type legacyLinkCopy struct {
 	envelope                        OAuthSecretEnvelope
 }
 
+// legacyCopiesOnThisOS: copies live in the macOS Keychain whatever store the
+// device key uses now (a Mac may have moved to a file after a cut cleanup).
+var legacyCopiesOnThisOS = runtime.GOOS == "darwin"
+
+// legacyLinkCopyKeep writes a copy under the client mutation lock, and only
+// while a profile still holds account. Purge and server remove hold that
+// lock while they inventory copies and remove the profile, so a copy is
+// either seen by them or never written.
+var legacyLinkCopyKeep = func(paths runtimePaths, account string, write func() error) error {
+	return withClientMutationLock(paths, func() error {
+		doc, err := loadConfigDocumentOrEmpty(paths.ConfigFile)
+		if err != nil {
+			return err
+		}
+		for _, name := range doc.profileNames() {
+			if cfg, _ := doc.flatProfile(name); cfg.ProfileID == account {
+				return write()
+			}
+		}
+		return errors.New("this server was removed meanwhile; no sign-in copy is kept")
+	})
+}
+
 // legacyLinkCopiesOf reads, without a prompt, every copy one profile holds.
 func legacyLinkCopiesOf(server, account string) ([]legacyLinkCopy, error) {
-	if !legacyCleanupApplies() || account == "" {
+	if !legacyCopiesOnThisOS && !legacyCleanupApplies() || account == "" {
 		return nil, nil
 	}
 	backend, err := legacyCleanupBackend()
