@@ -73,7 +73,7 @@ func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool,
 			return legacyCleanupIncomplete, 0
 		}
 		for _, service := range legacyLinkServices {
-			envelope, found, err := recoverLegacyLinkGrant(backend, service, cfg.ProfileID, prompt, &intro)
+			envelope, found, err := recoverLegacyLinkGrant(paths, backend, service, cfg.ProfileID, prompt, &intro)
 			if err != nil {
 				return legacyCleanupIncomplete, revoked
 			}
@@ -99,7 +99,7 @@ func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool,
 // copy an earlier attempt kept, else the old item, read without asking when
 // macOS allows it and otherwise (prompt only) with one macOS prompt. The copy
 // is kept before anything is revoked. An absent item asks nothing.
-func recoverLegacyLinkGrant(backend OAuthSecretBackend, service, account string, prompt bool, intro *func()) (OAuthSecretEnvelope, bool, error) {
+func recoverLegacyLinkGrant(paths runtimePaths, backend OAuthSecretBackend, service, account string, prompt bool, intro *func()) (OAuthSecretEnvelope, bool, error) {
 	ctx, state := context.Background(), legacyLinkState(service)
 	copyService := oauthLegacyCleanupServicePrefix + string(state)
 	value, found, err := backend.Get(ctx, copyService, account, SecretStoreForbidUI)
@@ -122,7 +122,7 @@ func recoverLegacyLinkGrant(backend OAuthSecretBackend, service, account string,
 	if err != nil {
 		return OAuthSecretEnvelope{}, false, err
 	}
-	if err := backend.Set(ctx, copyService, account, value, SecretStoreForbidUI); err != nil {
+	if err := legacyLinkCopyKeep(paths, account, func() error { return backend.Set(ctx, copyService, account, value, SecretStoreForbidUI) }); err != nil {
 		return OAuthSecretEnvelope{}, false, err
 	}
 	return envelope, true, nil

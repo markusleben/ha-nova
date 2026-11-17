@@ -53,6 +53,7 @@ func TestMain(m *testing.M) {
 	// No test reads the developer's old Link items or reports a cleanup;
 	// legacy_link_cleanup_test.go installs its own.
 	legacyCleanupApplies = func() bool { return false }
+	legacyCopiesOnThisOS = false
 	// No test reads or writes the developer's remembered Link route; tests
 	// that need it install a temp file (cloud_link_budget_test.go).
 	linkRouteMemoryFile = func() string { return "" }

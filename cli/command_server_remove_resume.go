@@ -77,6 +77,15 @@ func completeServerRemovalUnlocked(
 			"The relay could not confirm revocation of the removed pending device credential. Check the NOVA Devices page in Home Assistant for its stale device entry.",
 		)
 	}
+	// Before the pairing goes: a copy that can't be read or revoked (a locked
+	// Keychain) stops here with the pairing intact. No copy appears later:
+	// copies are kept only under the lock this removal holds.
+	if copies, err := legacyLinkCopiesOf(name, cfg.ProfileID); err != nil || revokeLegacyLinkCopies(copies) != nil {
+		printHumanErr(
+			"couldn't sign this server's old HA NOVA version out of Home Assistant Link; preserved the profile and checkpoint for a safe retry",
+		)
+		return 1
+	}
 	if err := purgeProfileDeviceCredentialWithReport(
 		purgeTarget,
 		report,
@@ -130,12 +139,6 @@ func completeServerRemovalUnlocked(
 		printHumanErr(
 			"server credentials reappeared after cleanup: %v; preserved the profile and checkpoint",
 			err,
-		)
-		return 1
-	}
-	if copies, err := legacyLinkCopiesOf(name, currentCfg.ProfileID); err != nil || revokeLegacyLinkCopies(copies) != nil {
-		printHumanErr(
-			"couldn't sign this server's old HA NOVA version out of Home Assistant Link; preserved the profile and checkpoint for a safe retry",
 		)
 		return 1
 	}

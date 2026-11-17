@@ -23,7 +23,10 @@ func newLegacyCleanupFixture(t *testing.T) *legacyCleanupFixture {
 	t.Helper()
 	f := &legacyCleanupFixture{backend: newMemoryOAuthSecretBackend(), legacy: map[string]string{}}
 	saved := []any{legacyCleanupApplies, legacyLinkSecretRead, legacyCleanupBackend, legacyLinkRevoke, legacyCleanupPending, legacyCleanupReport, legacyCleanupPromptContext}
+	keep, onOS := legacyLinkCopyKeep, legacyCopiesOnThisOS
+	legacyLinkCopyKeep = func(_ runtimePaths, _ string, write func() error) error { return write() } // its guard: TestLegacyLinkCopyIsKeptOnlyForALiveProfile
 	t.Cleanup(func() {
+		legacyLinkCopyKeep, legacyCopiesOnThisOS = keep, onOS
 		legacyCleanupPromptContext = saved[6].(func() bool)
 		legacyCleanupApplies = saved[0].(func() bool)
 		legacyLinkSecretRead = saved[1].(func(context.Context, string, string, SecretStoreUIPolicy) (string, bool, error))
