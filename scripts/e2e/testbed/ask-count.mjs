@@ -234,17 +234,21 @@ async function columns(row, c, { window, phone, on, silent }) {
   record(row, "risky", await measure(c, ["call", "lock.unlock", "lock.front_door"], { window, phone }), want(1));
   const dash = "lane-ask-" + row.toLowerCase();
   await ws("lovelace/dashboards/create", { url_path: dash, title: "Lane " + row, mode: "storage" });
+  created.dashboards.push(dash);
   record(row, "dashboard delete", await measure(c, ["delete", "--domain", "dashboard", "--id", dash], { window, phone }), want(1));
   const auto = "lane_ask_" + row.toLowerCase();
+  created.automations.push(auto);
   await loadAutomations({ [auto]: { alias: "Lane ask " + row, triggers: [], conditions: [], actions: [] } });
   const entity = (await ha("GET", "/api/states")).find((s) => s.attributes?.id === auto)?.entity_id;
   record(row, "delete", await measure(c, ["delete", entity ?? "automation." + auto], { window, phone }), want(1));
 }
 
-let owner;
+let owner, owned = false; // the bed is this tree's (fixture checked it); only then is anything cleaned up
+const created = { dashboards: [], automations: [] }; // what this run made, and only that is removed
 try {
   if (Number(execFileSync("df", ["-k", tmpdir()], { encoding: "utf8" }).trim().split("\n").at(-1).split(/\s+/)[3]) < 12 * 1024 * 1024) throw new Error("less than 12 GB free disk");
   await fixture(); // the fake phones, their users, and the push service
+  owned = true;
   const fx = JSON.parse(readFileSync(join(HERE, ".state/phone.json"), "utf8"));
   const users = await ws("config/auth/list");
   owner = users.find((u) => u.is_owner);
@@ -300,11 +304,11 @@ try {
 } catch (err) {
   report("ask count ran to the end", [err.stack ?? err.message]);
 } finally {
-  for (const row of ["s1", "s2", "s3", "s4", "s5"]) {
-    await ws("lovelace/dashboards/list").then((all) => Promise.all(all.filter((d) => d.url_path === "lane-ask-" + row).map((d) => ws("lovelace/dashboards/delete", { dashboard_id: d.id })))).catch(() => {});
-    await ha("DELETE", "/api/config/automation/config/lane_ask_" + row).catch(() => {});
+  if (owned) {
+    await ws("lovelace/dashboards/list").then((all) => Promise.all(all.filter((d) => created.dashboards.includes(d.url_path)).map((d) => ws("lovelace/dashboards/delete", { dashboard_id: d.id })))).catch(() => {});
+    for (const id of created.automations) await ha("DELETE", "/api/config/automation/config/" + id).catch(() => {});
+    await relock().catch(() => {});
   }
-  await relock().catch(() => {});
 }
 
 console.log("\nAsk count (stages a person answers per action; 0.32 targets: everyday 0, bigger change 1, risky / dashboard delete / delete 1)\n");
