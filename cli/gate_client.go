@@ -238,9 +238,9 @@ func gateOpenFailure(opened gateOpened, err error, chat bool, lang string) error
 	case chat && errors.As(err, &call) && call.code == "GATE_NO_CHANNEL":
 		return gateStop("refused", "CONFIRM_UNAVAILABLE", confirmT(lang, "gate.chat_no_phone"), gateChatNoPhoneNext)
 	case chat && errors.As(err, &call) && gateChatNext[call.code] != "":
-		return gateStop("refused", call.code, call.message+"; nothing was sent", gateChatNext[call.code])
+		return gateStop("refused", call.code, gateRefusalMessage(call.message), gateChatNext[call.code])
 	case errors.As(err, &call) && strings.HasPrefix(call.code, "GATE_"):
-		return gateStop("refused", call.code, call.message+"; nothing was sent", gateNext[call.code])
+		return gateStop("refused", call.code, gateRefusalMessage(call.message), gateNext[call.code])
 	case errors.As(err, &call) && call.status == http.StatusNotFound:
 		return gateRolledBack()
 	case err != nil:
@@ -252,6 +252,15 @@ func gateOpenFailure(opened gateOpened, err error, chat bool, lang string) error
 		return gateStop("refused", "CONFIRM_UNAVAILABLE", "the NOVA App's answer named no ask; nothing was sent", gateNext[""])
 	}
 	return nil
+}
+
+// gateRefusalMessage: the App's refusal, which says nothing was sent on
+// current Apps, and with that added where an older App's doesn't.
+func gateRefusalMessage(message string) string {
+	if strings.Contains(strings.ToLower(message), "nothing was sent") {
+		return message
+	}
+	return message + "; nothing was sent"
 }
 
 // gateNext: what the agent does after the Relay refused an ask ("": no answer).

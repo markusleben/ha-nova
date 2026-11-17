@@ -292,6 +292,22 @@ func TestGateRefusalsSendNothing(t *testing.T) {
 	}
 }
 
+// The App's refusal says nothing was sent once, whether the App already
+// says it (current Apps) or not (older ones).
+func TestGateRefusalSaysNothingWasSentOnce(t *testing.T) {
+	for message, want := range map[string]string{
+		"No one can confirm this now: no linked administrator's phone answers, and no approval page is available here; nothing was sent": "No one can confirm this now: no linked administrator's phone answers, and no approval page is available here; nothing was sent",
+		"No one can confirm this now": "No one can confirm this now; nothing was sent",
+	} {
+		g := &fakeGate{openAnswer: fakeRelayStatus{409, "GATE_NO_CHANNEL", message}}
+		h := gatedHarness(t, newFakeHA(), g)
+		plan := h.plan("lock.unlock", "lock.front").Plan
+		if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != verbExitRefused || env.Error == nil || env.Error.Message != want {
+			t.Fatalf("exit %d %+v, want message %q", exit, env.Error, want)
+		}
+	}
+}
+
 // A profile that saw the gate refuses typed plans once the App lost it:
 // nothing is asked or sent, and no new typed plan is made.
 func TestGateGoneAfterItWasSeenRefuses(t *testing.T) {
