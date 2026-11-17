@@ -4,15 +4,15 @@
 # (scripts/e2e/pairing-harness.mjs; functional calls are stubs), and the
 # published binaries. It proves, without a person:
 #   - the rc binary is signed as com.markusleben.ha-nova.cli2;
-#   - v0.31.0 pairs into the keychain, `ha-nova update` reaches the rc, and the
-#     rc says the computer needs pairing again, with no keychain prompt and
-#     the 0.31 items left untouched;
-#   - the rc pairs again into the new cli2 slots, reads its key without a
-#     prompt, and a second pairing writes a new generation that it reads;
+#   - the rc pairs into the cli2 slots, reads its key without a prompt, and a
+#     second pairing writes a new generation that it reads;
 #   - the key goes only to its paired Relay: a changed pin or an http address
 #     in config.json is refused;
 #   - `uninstall --purge` removes every cli2 item.
-# Left to a person: the old-item "Allow" dialog and the native window.
+# Left to a person: the old-item "Allow" dialog and the native window. Not
+# here: the update from v0.31.0, which never allows keychain UI and can't
+# pair on a hosted runner (SECRET_UI_FORBIDDEN); the rc's "needs to be paired
+# again" is proven by its Go tests and the Linux container lane instead.
 set -euo pipefail
 
 tag="${1:?usage: rc-macos-lane.sh <vX.Y.Z-rcN> <pairing-harness.mjs of that tag>}"
@@ -62,24 +62,12 @@ bin="$HOME/.local/bin/ha-nova"
 export HA_NOVA_NO_SETUP=1
 call() { bounded "$bin" relay core --method GET --path /api/ </dev/null; }
 
-curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/v0.31.0/install.sh | HA_NOVA_VERSION=v0.31.0 bash
-bounded "$bin" pair --relay-url "$relay" --code "$first_code" </dev/null || fail "v0.31.0 didn't pair"
-call >/dev/null || fail "v0.31.0 couldn't use its key"
-old_items="$(items)"
-[ -n "$old_items" ] && ! grep -q '^com.markusleben.ha-nova.cli2/' <<<"$old_items" || fail "v0.31.0 wrote no keychain item, or a cli2 one: $old_items"
-pass "v0.31.0 paired into the keychain"
-
-bounded "$bin" update --version "${tag#v}" </dev/null || fail "v0.31.0 couldn't update to $tag"
+curl -fsSL "https://raw.githubusercontent.com/markusleben/ha-nova/$tag/install.sh" | HA_NOVA_VERSION="$tag" bash
 bounded "$bin" version | grep -qF "${tag#v}" || fail "the installed binary isn't $tag"
 bash scripts/release/verify-macos-signature.sh "$(readlink -f "$bin" 2>/dev/null || echo "$bin")"
-pass "v0.31.0 updated to the cli2-signed $tag"
+pass "$tag installed, signed as com.markusleben.ha-nova.cli2"
 
-if out="$(call 2>&1)"; then fail "$tag used a 0.31 key: $out"; fi
-grep -qi "paired again" <<<"$out" || fail "$tag didn't say it needs pairing again: $out"
-[ "$(items)" = "$old_items" ] || fail "$tag changed the 0.31 keychain items"
-pass "$tag says to pair again, with no prompt, and leaves the 0.31 items"
-
-bounded "$bin" pair --code "$(next_code)" </dev/null || fail "$tag didn't pair again"
+bounded "$bin" pair --relay-url "$relay" --code "$first_code" </dev/null || fail "$tag didn't pair"
 call >/dev/null || fail "$tag couldn't read its new key without a prompt"
 first_gen="$(items | grep '^com.markusleben.ha-nova.cli2/device/' || true)"
 [ -n "$first_gen" ] || fail "$tag kept no device key in a cli2 slot: $(items)"
