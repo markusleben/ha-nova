@@ -16,7 +16,8 @@ const SAFE = new Set(["awning", "blind", "curtain", "damper", "shade", "shutter"
 const WATCHDOG = "rclane_m_watchdog", SCRIPT = "rclane_m_check_group";
 const picked = { entity_id: "{{ 'none' }}" };
 
-export async function mRowChecks({ ha, ws, cli, check, loadAutomations, gated }) {
+// measure (ask-count.mjs): runs at each of the two homes, "garage" and "shutter".
+export async function mRowChecks({ ha, ws, cli, check, loadAutomations, gated, measure }) {
   const classed = [], disabled = [];
   const covers = async () => (await ha("GET", "/api/states")).filter((s) => s.entity_id.startsWith("cover."));
   try {
@@ -37,6 +38,7 @@ export async function mRowChecks({ ha, ws, cli, check, loadAutomations, gated })
       const held = await gate();
       check("M: the gated Relay holds that light call", held.status === 428 && held.error?.code === "GATE_APPROVAL_REQUIRED", "HTTP " + held.status + " " + (held.error?.code ?? ""));
     }
+    await measure?.("garage");
 
     const entries = await ws("config/entity_registry/list", {});
     for (const state of await covers()) {
@@ -60,6 +62,7 @@ export async function mRowChecks({ ha, ws, cli, check, loadAutomations, gated })
       const passed = await gate();
       check("M (release gate): the gated Relay passes that light call with no ask", passed.status === 200, "HTTP " + passed.status + " " + (passed.error?.code ?? ""));
     }
+    await measure?.("shutter");
   } finally { // every step on its own; then the bed must read as before
     const failed = [];
     const attempt = async (what, step) => { try { await step(); } catch (err) { failed.push(what + ": " + err.message); } };
