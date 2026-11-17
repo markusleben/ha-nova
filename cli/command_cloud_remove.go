@@ -97,6 +97,11 @@ func runCloudRemove(paths runtimePaths, options cloudCommandFlags) int {
 		); err != nil {
 			return err
 		}
+		if options.rePairLifecycle != nil { // setup's re-pair: only while the profile is as setup read it
+			if err := ensureSetupLifecycleCurrent(paths, options.rePairLifecycle...); err != nil {
+				return err
+			}
+		}
 		snapshot, err := loadCloudRecoverySnapshotUnchecked(paths)
 		if err != nil {
 			return err
@@ -113,6 +118,9 @@ func runCloudRemove(paths runtimePaths, options cloudCommandFlags) int {
 		cloudSource := current
 		current.Cloud = nil
 		current.RoutePolicy = routePolicyLocal
+		if options.rePairLifecycle == nil { // a removed Link is never added back by setup
+			current.LinkRePair, current.LinkRePairOrigin = "", ""
+		}
 		if strings.TrimSpace(current.RelaySecureBaseURL) == "" ||
 			strings.TrimSpace(current.RelaySpkiPin) == "" {
 			// A Cloud-only profile cannot prove that a later app installation is
@@ -221,7 +229,7 @@ func runCloudRemove(paths runtimePaths, options cloudCommandFlags) int {
 				nil,
 				checkpointDeviceRevocation,
 			)
-		} else {
+		} else if options.rePairLifecycle == nil { // setup's re-pair keeps the device: its replacement retires it and keeps the phone link
 			deviceRemoved, err = revokeRemoteOnlyCloudDeviceBeforeOAuth(
 				ctx,
 				cloudSource,

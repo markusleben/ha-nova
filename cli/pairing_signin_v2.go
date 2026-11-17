@@ -130,7 +130,9 @@ func pairDeviceV2LinkOwner(
 	metadata deviceMetadata,
 	expectedRelayInstanceID string,
 ) (*cloudProvisionedCredential, error) {
-	armed, err := armSignInPairing(ctx, client, CloudEndpointPairArmLink, false)
+	own, _ := ctx.Value(ownComputerContextKey{}).(bool)
+	own = own && metadata.CredentialStore != "" && metadata.CredentialStore != "file"
+	armed, err := armSignInPairing(ctx, client, CloudEndpointPairArmLink, own)
 	if err != nil {
 		return nil, &pairingBeforeFinishError{err: err}
 	}
@@ -142,6 +144,14 @@ func pairDeviceV2LinkOwner(
 		return nil, err
 	}
 	return decodeCloudProvisionedCredential(plaintext, expectedRelayInstanceID)
+}
+
+type ownComputerContextKey struct{}
+
+// withOwnComputer carries setup's one-click answer into a Link owner
+// pairing (setup_link_repair.go); without it the pairing declares nothing.
+func withOwnComputer(ctx context.Context, own bool) context.Context {
+	return context.WithValue(ctx, ownComputerContextKey{}, own)
 }
 
 func armSignInPairing(

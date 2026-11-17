@@ -78,7 +78,7 @@ release:
 
     ## New Features
 
-    - **On macOS, 0.32 asks you to pair this computer again once.** It's one Home Assistant sign-in, about a minute. Run `ha-nova setup` when HA NOVA says so.
+    - **On macOS, 0.32 asks you to pair this computer again once.** It's one Home Assistant sign-in, about a minute (with Home Assistant Link at home, a second one for Link). Run `ha-nova setup` when HA NOVA says so.
     - **Confirm risky changes with one click on your own computer.** Unlocks, doors, gates, the alarm, and deletes ask in a window there, and your phone asks only when nobody confirms. Setup asks once (Enter is yes).
     - **Fewer asks in a home with a cover watchdog.** A light no longer asks when the watchdog acts right away (no delay or wait) and none of the covers it could move is a garage door, gate, or door.
     - **A dashboard, automation, or script you delete from your computer asks once**, in the window, on your phone, or on the NOVA page.
