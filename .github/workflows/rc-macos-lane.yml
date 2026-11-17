@@ -1,8 +1,7 @@
 name: macOS rc lane
 
-# The macOS part of an rc's checks on a disposable GitHub-hosted runner
-# (scripts/release/rc-macos-lane.sh): the update from v0.31.0, the cli2
-# Keychain slots and generations, the pin, and purge. Never on a person's Mac.
+# Installs an rc on a disposable GitHub-hosted macOS runner and checks its
+# signing identity (scripts/release/rc-macos-lane.sh). Never on a person's Mac.
 
 on:
   pull_request:
@@ -21,30 +20,13 @@ permissions:
 jobs:
   rc-macos-lane:
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Check out the rc's own Relay (for the pairing harness)
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.tag || 'v0.32.0-rc1' }}
-          path: rc
-          persist-credentials: false
-
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: "22"
-
-      - name: Build the rc's Relay
-        working-directory: rc/nova
-        run: |
-          npm ci
-          npm run build
-
-      - name: Run the macOS rc lane
+      - name: Install the rc and check its signature
         env:
           TAG: ${{ inputs.tag || 'v0.32.0-rc1' }}
-        run: bash scripts/release/rc-macos-lane.sh "$TAG" rc/scripts/e2e/pairing-harness.mjs
+        run: bash scripts/release/rc-macos-lane.sh "$TAG"

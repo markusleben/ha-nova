@@ -130,6 +130,13 @@ fi
 # --- lanes --------------------------------------------------------------------
 run_macos() {
   [[ "$(uname -s)" == Darwin ]] || { echo "macos|-|lane|SKIP|not a macOS host" >>"$RESULTS"; return; }
+  # From 0.32, every HA NOVA command on macOS looks up its key in the login
+  # Keychain, which belongs to the OS user, not to HOME: never run it in a
+  # person's session. Only a disposable runner may.
+  if [[ "${GITHUB_ACTIONS:-}" != true || "${RUNNER_ENVIRONMENT:-}" != github-hosted ]]; then
+    echo "macos|-|lane|FAIL|refused: this Mac's login Keychain belongs to a person; run the macOS lane on a disposable runner, and the rc lane through scripts/e2e/rc-lane-container.sh" >>"$RESULTS"
+    return
+  fi
   local claude=""
   if command -v claude >/dev/null; then claude="$(cd -P "$(dirname "$(command -v claude)")" && pwd -P)/$(basename "$(command -v claude)")"; fi
   LANE=macos FROM="$FROM" TO="$TO" TO_VERSION="$TO_VERSION" RELAY_TOKEN="$RELAY_TOKEN" \
