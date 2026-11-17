@@ -118,10 +118,34 @@ They run in the Win11 PowerShell 7 user after its core rows
    the update from that point. The row is SKIP without `--app-branch`,
    with `--no-ubuntu`, or without the Ubuntu VM. When the host can't run
    all three VMs, a second pass with `--no-windows` runs it with HAOS and
-   Ubuntu only (the Windows rows are SKIP there).
+   Ubuntu only (the Windows rows are SKIP there), or `--container` runs
+   it in the HAOS-only pass below.
 
 Rows 3 and 4 cancel one ask each, so they stay below the gate's pause
 and hourly limits. Every device, automation and language change they
 make is undone in the row. The lane's cleanup (devices revoked, entity
 states as found, App backup restored, registry hash) still runs after
 them.
+
+## HAOS-only pass (`--container`)
+
+When this host can't hold a second VM next to HAOS, `--container` runs the
+lane with the HAOS VM alone (`scripts/e2e/vm-lane/container.mjs`). It refuses
+below 30 % free memory. The rows that need a computer paired with the App run
+in a throwaway `ubuntu:24.04` container on the host instead of the Win11 or
+Ubuntu VM, as an unprivileged user with a file credential store. The
+container's outbound rules allow only the HAOS VM's two loopback forwards
+(through `host.docker.internal`), DNS, and the internet, and a LAN probe must
+be refused before any row runs. It runs:
+- the stable one-liner, pairing with a six-digit code, headless setup,
+  `update --version <tag>`, doctor, a read, and an ordinary call;
+- the typed unlock approved on the NOVA page 30 s after it asked (#1183);
+- the check-up's stats reads (row 2);
+- the guided App update (row 4), with `--app-branch`, in a pseudo-terminal;
+- `uninstall --purge`, which revokes its device.
+
+The Windows rows are SKIP. Their onboarding is covered by release.yml's
+Windows bundle and post-publish smokes plus the client matrix. Rows 1 and 3
+(the Marketplace warning and the window button) need the Win11 VM and don't
+run here. The container is removed at the end, and the HAOS cleanup is
+unchanged.

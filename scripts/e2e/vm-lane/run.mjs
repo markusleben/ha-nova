@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// npm run vm-lane -- <tag> [--from <stable>] [--wait <0..60>] [--no-ubuntu] [--no-windows] [--app-branch chore/app-X.Y.Z]
+// npm run vm-lane -- <tag> [--from <stable>] [--wait <0..60>] [--no-ubuntu] [--no-windows] [--container] [--app-branch chore/app-X.Y.Z]
 // Throwaway UTM VMs only; every HA NOVA command runs in a guest, never on macOS.
 // Contract and limits: docs/work/2026-10-26-vm-lane-spec.md; release gate: docs/releasing.md §4.
 import { execFileSync, spawn } from "node:child_process";
@@ -13,7 +13,8 @@ import { setTimeout as pause } from "node:timers/promises";
 import { APP_BRANCH_RE, appPreview } from "./app-preview.mjs";
 import { winTransport } from "./transport.mjs";
 import { chatFileRefusal } from "./chat-files.mjs";
-import { appAsks } from "./app-asks.mjs";
+import { appAsks, lateApproval } from "./app-asks.mjs";
+import { CONTAINER_RELAY, containerRun, linuxBox } from "./container.mjs";
 import { GUIDED_ROW, guidedAppUpdate } from "./guided-update.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -43,9 +44,10 @@ const VMS = { win: ["HA NOVA Win11 Test", CFG.win.port], haos: ["HA NOVA HAOS Te
 const [tag, ...flags] = process.argv.slice(2);
 const opt = (name) => { const i = flags.indexOf(name); return i >= 0 ? flags[i + 1] : undefined; };
 const valued = ["--from", "--wait", "--app-branch"], appBranch = opt("--app-branch");
-const badFlag = flags.some((f, i) => !valued.includes(flags[i - 1]) && ![...valued, "--no-ubuntu", "--no-windows"].includes(f));
+const HAOS_ONLY = flags.includes("--no-windows") || flags.includes("--container"); // a pass without the Win11 VM (host memory)
+const badFlag = flags.some((f, i) => !valued.includes(flags[i - 1]) && ![...valued, "--no-ubuntu", "--no-windows", "--container"].includes(f));
 if (!TAG_RE.test(tag ?? "") || badFlag || (flags.includes("--from") && !/^v\d+\.\d+\.\d+$/.test(opt("--from") ?? "")) || (flags.includes("--wait") && (!/^\d+$/.test(opt("--wait") ?? "") || Number(opt("--wait")) > 60)) || (flags.includes("--app-branch") && !APP_BRANCH_RE.test(appBranch ?? ""))) {
-  console.error("usage: npm run vm-lane -- <vX.Y.Z[-rcN]> [--from <vX.Y.Z>] [--wait <0..60>] [--no-ubuntu] [--no-windows] [--app-branch chore/app-X.Y.Z]");
+  console.error("usage: npm run vm-lane -- <vX.Y.Z[-rcN]> [--from <vX.Y.Z>] [--wait <0..60>] [--no-ubuntu] [--no-windows] [--container] [--app-branch chore/app-X.Y.Z]");
   process.exit(2);
 }
 const WORK = mkdtempSync(join(tmpdir(), "ha-nova-vm-lane-"));
@@ -77,6 +79,7 @@ const verLt = (a, b) => { // vX.Y.Z-rcN sorts before vX.Y.Z
 const clean = (s) => Object.values(PASSWORDS).reduce((text, secret) => text.replaceAll(secret, "[redacted]"), s).replace(/#< CLIXML\r?\n?|<\/?Objs[^>]*>/g, "").replace(/<S S="\w+">([\s\S]*?)<\/S>/g, "$1").replace(/_x000D__x000A_/g, "\n")
   .replace(/_x001B_\[[0-9;]*m/g, "").replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&amp;/g, "&").replace(/\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07/g, "");
 const tail = (s, n = 2) => clean(s).split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(-n).join(" | ");
+const box = flags.includes("--container") ? linuxBox({ work: WORK, children, clean }) : null; // container.mjs
 
 // ---- ssh into a VM -------------------------------------------------------------------
 // Resolves {code, out}; out also lands in WORK/<log>. tty: an interactive session whose onData sees
@@ -177,6 +180,7 @@ function ws(msgs, timeoutMs = 30_000) {
 }
 const sup = (endpoint, method = "get", data) => ws([{ type: "supervisor/api", endpoint, method, ...(data ? { data } : {}) }], 5 * 60_000).then(([r]) => r);
 const haApi = (path, init = {}) => fetch(CFG.ha + path, { ...init, headers: { authorization: `Bearer ${llat}`, "content-type": "application/json" } });
+const lock = (service) => fetch(`${CFG.ha}/api/services/lock/${service}`, { method: "POST", headers: { authorization: `Bearer ${llat}`, "content-type": "application/json" }, body: JSON.stringify({ entity_id: "lock.front_door" }) });
 const states = async (ids) => Object.fromEntries((await (await fetch(`${CFG.ha}/api/states`, { headers: { authorization: `Bearer ${llat}` } })).json()).filter((s) => ids.includes(s.entity_id)).map((s) => [s.entity_id, s.state]));
 
 // The owner's NOVA page over ingress, through its own forms (as the browser uses it).
@@ -245,7 +249,7 @@ async function waitForVms() {
   for (;;) {
     if (stopping) throw new Error("VM wait cancelled");
     const down = [];
-    for (const k of flags.includes("--no-windows") ? ["haos"] : ["win", "haos"]) if (!(await up(VMS[k][1]))) down.push(k); // --no-windows: a pass with the Ubuntu VM instead (host memory)
+    for (const k of HAOS_ONLY ? ["haos"] : ["win", "haos"]) if (!(await up(VMS[k][1]))) down.push(k);
     if (!down.length || Date.now() >= deadline) return down;
     say(`waiting for ${down.map((k) => `"${VMS[k][0]}"`).join(" and ")} (start it in UTM); next check in 2 min`);
     await sleep(Math.min(120_000, Math.max(1000, deadline - Date.now())));
@@ -258,6 +262,7 @@ function hostNote() {
   const [total, used] = (sh("sysctl -n vm.swapusage").match(/total = ([\d.]+)M\s+used = ([\d.]+)M/) ?? []).slice(1).map(Number);
   const ok = free >= 30 && (!total || used / total < 0.5);
   row("p", "host memory/disk (note only)", ok ? "PASS" : "WARN", `memory free ${free}%, swap ${used ?? "?"}/${total ?? "?"} MB, disk free ${sh("df -h / | awk 'NR==2{print $4}'")}; VM start rule: free >= 30% and swap < 50%`);
+  return free;
 }
 
 async function haosIdentity() {
@@ -442,26 +447,7 @@ async function core(S, hn, run, hasClaude, hasCodex, want) {
   const off = await hn("call light.turn_off light.bed_light");
   const st = (r) => r.out.match(/"status"\s*:\s*"([^"]+)"/)?.[1] ?? `exit ${r.code}`;
   check(S, "ordinary call: light.turn_on / turn_off bed light", on.code === 0 && off.code === 0 && st(on) === "verified" && st(off) === "verified", `${st(on)} / ${st(off)}`);
-  // A typed unlock approved on the NOVA page 30 s after its ask appeared, past
-  // the App's 25 s wait poll: 0.30.0 and 0.31.0 lost it at the CLI's 20 s client timeout (#1183).
-  const lock = (service) => fetch(`${CFG.ha}/api/services/lock/${service}`, { method: "POST", headers: { authorization: `Bearer ${llat}`, "content-type": "application/json" }, body: JSON.stringify({ entity_id: "lock.front_door" }) });
-  const LATE = "typed unlock approved on the NOVA page 30 s after it asked (#1183)";
-  await lock("lock");
-  const plan = await hn("plan call lock.unlock lock.front_door");
-  let id;
-  try { id = JSON.parse(plan.out.split(/\r?\n/).find((l) => l.startsWith("{")) ?? "{}").plan?.id; } catch { /* no plan: reported below */ }
-  if (!id) check(S, LATE, false, `no plan: ${tail(plan.out, 1)}`);
-  else {
-    const applying = hn(`apply --plan ${id}`, { timeoutMs: 3 * 60_000 });
-    let asked = false;
-    for (let i = 0; i < 30 && !asked; i++) asked = (await (await nova()).waiting()) || (await sleep(2000), false);
-    const t = Date.now();
-    if (asked) await sleep(30_000);
-    const approved = asked && (await (await nova()).approve());
-    const done = await applying;
-    check(S, LATE, approved && done.code === 0 && st(done) === "verified", `${asked ? (approved ? "approved" : "ask gone before the approval") : "no ask on the page within 60 s"}, apply ${((Date.now() - t) / 1000).toFixed(0)} s after it asked -> ${st(done)}`);
-  }
-  await lock("lock");
+  await lateApproval({ S, hn, nova, lock, check, sleep });
   const w = await run(`$b=Get-ChildItem "$env:LOCALAPPDATA\\Programs\\ha-nova" -Recurse -Filter SKILL.md | Where-Object { $_.Directory.Name -eq 'ha-nova' } | Select-Object -First 1
 $c=Join-Path $HOME '.agents\\skills\\ha-nova\\ha-nova\\SKILL.md'
 "codex=$([bool]((Test-Path $c) -and $b -and ((Get-FileHash $c).Hash -eq (Get-FileHash $b.FullName).Hash)))"
@@ -545,6 +531,14 @@ async function ubuntuRun(stable) {
 // offers the preview and the stable App still runs (appPreview's beforeUpdate).
 async function guidedRow(preview) {
   const S = "a";
+  if (box) {
+    const ready = await box.start();
+    if (!check(S, "Linux container: no LAN, the HAOS VM's forwards reachable", ready.ok, ready.detail)) return;
+    try {
+      await guidedAppUpdate({ S, preview, app: CFG.app, tag, repo: REPO, guestRelay: CONTAINER_RELAY, ubuntu: box.sh, tty: box.tty, nova, ws, sup, ha: haApi, check, row, sleep });
+    } catch (err) { row(S, GUIDED_ROW, "FAIL", err.message); }
+    return;
+  }
   if (flags.includes("--no-ubuntu")) return row(S, GUIDED_ROW, "SKIP", "--no-ubuntu: the row needs the Ubuntu VM's terminal session");
   if (!(await up(CFG.ubuntu.port))) return row(S, GUIDED_ROW, "SKIP", `"${VMS.ubuntu[0]}" not running: the row needs its terminal session`);
   if (!(await ubuntuIsolation(S)) || !(await ubuntuKeyring(S))) return;
@@ -560,7 +554,7 @@ try {
   await new Promise((done, fail) => { lease.once("error", () => fail(new Error("VM lane lock 127.0.0.1:4557 is busy; do not run two lanes against the same VMs"))); lease.listen(4557, "127.0.0.1", done); });
   say(`candidate ${tag}; VM tools ${TOOLS}; work dir ${WORK}`);
   for (const f of [CFG.creds, CFG.win.key]) if (!existsSync(f)) throw new Error(`missing ${f} (VM_LANE_* overrides the paths)`);
-  hostNote();
+  if (hostNote() < 30 && box) throw new Error("--container: less than 30% memory free; no lane writes");
   const down = await waitForVms();
   if (stopping) throw new Error("VM lane cancelled before preflight");
   if (down.length) throw new Error(`not running: ${down.map((k) => `"${VMS[k][0]}"`).join(", ")}. Start it in UTM, then rerun (or pass --wait 60)`);
@@ -590,14 +584,17 @@ try {
   } else row("a", GUIDED_ROW, "SKIP", "no --app-branch: Home Assistant offers the lane's stable App no newer one");
   if (stopping || !(await appVersion(appBranch ? await sup(`/addons/${CFG.app}/info`) : appInfo))) throw new Error("preflight failed or interrupted");
   await chatFileRefusal({ ha: CFG.ha, llat, app: CFG.app, sup, check });
-  if (flags.includes("--no-windows")) row("w", "Windows", "SKIP", "--no-windows");
+  if (box) row("w", "Windows", "SKIP", "--container: release.yml's Windows bundle and post-publish smokes and the client matrix cover the onboarding rows");
+  else if (flags.includes("--no-windows")) row("w", "Windows", "SKIP", "--no-windows");
   else if (await winIdentity() && await winIsolation()) {
     users = true;
     for (const shell of ["ps7", "ps51"]) {
       try { await windowsRun(shell, stable); } catch (err) { row(shell === "ps7" ? "w7" : "w5", "run", "FAIL", err.message); }
     }
   }
-  if (flags.includes("--no-ubuntu")) row("u", "Ubuntu", "SKIP", "--no-ubuntu");
+  if (box) {
+    try { await containerRun({ S: "l", box, tag, stable, repo: REPO, nova, lock, check, sleep }); } catch (err) { row("l", "run", "FAIL", err.message); }
+  } else if (flags.includes("--no-ubuntu")) row("u", "Ubuntu", "SKIP", "--no-ubuntu");
   else if (!(await up(CFG.ubuntu.port))) row("u", "Ubuntu", "SKIP", `"${VMS.ubuntu[0]}" not running (optional)`);
   else try { await ubuntuRun(stable); } catch (err) { row("u", "run", "FAIL", err.message); }
 } catch (err) {
@@ -649,6 +646,10 @@ if (backupSlug) {
       check("c", "lane backup removed after verified restoration", Array.isArray(listing.backups) && !listing.backups.some((b) => b.slug === backupSlug), backupSlug);
     }
   } catch (err) { row("c", "HAOS NOVA App backup restore", "FAIL", `${err.message}; recovery backup ${backupSlug}`); }
+}
+if (box) {
+  const r = await box.stop();
+  check("c", "Linux container removed", r.code === 0, tail(r.out, 1));
 }
 say("the lane never starts or stops a VM: the running ones stay running (the maintainer stops them in UTM)");
 const w = (k) => Math.max(k.length, ...rows.map((r) => String(r[k]).length));

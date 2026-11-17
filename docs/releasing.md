@@ -158,6 +158,11 @@ deploy or tag.
    ```bash
    npm run vm-lane -- vX.Y.Z-rcN
    ```
+   When the host can't hold the Win11 VM next to HAOS, add `--container`
+   (the vm-lane spec's HAOS-only pass): the App rows run in a throwaway Linux
+   container and the Windows rows are SKIP. Say in the release PR that
+   release.yml's Windows bundle and post-publish smokes plus the client
+   matrix cover them.
    For a train that changes the App, add
    `--app-branch chore/app-<app-version>`: the lane switches the HAOS VM's
    store to the App promote PR, updates the App in place, runs every lane on
