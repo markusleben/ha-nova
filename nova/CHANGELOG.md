@@ -4,6 +4,23 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.29] - 2026-11-17
+
+### Changed
+- Chat apps get HA NOVA 0.32.0.
+- One-click confirming on your own computer: on a computer you marked as yours (when pairing or on the NOVA page) with confirming in its window on, unlocking, opening a door, gate, or garage, turning off the alarm, and deletes can be confirmed with Confirm in the window there. This App accepts that click once, for exactly the change shown. Your linked phone then asks only when nobody confirms at the computer; after a click there it gets a quiet note instead, and a question it already showed goes away.
+- The NOVA page shows for each computer whether it can confirm with one click, with one button for the owner to turn it on or off, and lists the recent changes confirmed in a window.
+- Each computer may ask up to 60 times an hour; its phone still asks at most 10 times an hour.
+- A computer paired again through your Home Assistant sign-in can replace its older entry on the NOVA page and keep its linked phone.
+
+### Fixed
+- Fewer asks in a home with a cover watchdog: a light no longer asks when the watchdog acts right away (no delay or wait) and none of the covers it could move is a garage door, gate, or door.
+- Chat apps read automations whose ID is a number (as written in YAML); before, such an ID broke the automation list.
+
+### Upgrade notes
+- Computers on HA NOVA 0.32.0 ask you to update this App.
+- Update HA NOVA on every computer to 0.32.0. A computer paired before 0.32.0 pairs again once to confirm with one click; until then its window only waits.
+
 ## [Relay 0.13.28] - 2026-11-14
 
 ### Changed
