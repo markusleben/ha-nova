@@ -210,7 +210,7 @@ func pairWithHASignInSession(
 		renderSetupErrorLine(out, "The relay's secure identity did not match. Try again; if it repeats, someone may be intercepting the connection.")
 		return false, nil, pairErr
 	default:
-		renderSetupErrorLine(out, "Could not finish connecting this computer. Make sure the NOVA App is running, then run ha-nova setup again.")
+		renderSetupErrorLine(out, "Could not finish connecting this computer. Make sure the NOVA App is running, then run %s again.", rePairNextStep(activeServerProfile(), false))
 		return false, nil, pairErr
 	}
 }

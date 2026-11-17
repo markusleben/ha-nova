@@ -128,6 +128,9 @@ func runDoctor(paths runtimePaths, args []string) int {
 		status = 1
 	}
 	printDoctorLinkLine(cfg, !route.linkShown)
+	if !*quiet {
+		printHomeRouteHint(paths, cfg)
+	}
 	transport, token, deviceMode := route.transport, route.token, route.deviceMode
 	transportBase, transportClient := transport.BaseURL, transport.Client
 

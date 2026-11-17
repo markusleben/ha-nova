@@ -189,6 +189,9 @@ func validateLocalDeviceReplacementAllowedWithPolicy(
 	cfg runtimeConfig,
 	ui SecretStoreUIPolicy,
 ) error {
+	if cfg.Cloud != nil && linkRePairNeeded(cfg) {
+		return fmt.Errorf("Home Assistant Link access is configured, so this computer pairs again through setup (the code was not used): run %s", rePairNextStep(cfg.profileName(), true))
+	}
 	if cfg.Cloud != nil {
 		return fmt.Errorf(
 			"Home Assistant Link access is configured; remove it before replacing the local device pairing (the code was not used): run ha-nova cloud remove, then ha-nova setup again",
