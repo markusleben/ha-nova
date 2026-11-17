@@ -64,7 +64,7 @@ func TestAReplayThatCannotReadAConsumerStillDrifts(t *testing.T) {
 	h, planned := cutHallPlan(t)
 	h.hangFirst("hw", 2) // apply's first pass and its replay
 	exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID, "--confirm", planned.Plan.Code)
-	if exit != verbExitDrift || len(h.posts()) != 0 {
-		t.Fatalf("exit %d posts %d say %q", exit, len(h.posts()), env.Say)
+	if exit != verbExitDrift || len(h.posts()) != 0 || h.configReads("hw") != 3 {
+		t.Fatalf("exit %d posts %d consumer reads %d say %q", exit, len(h.posts()), h.configReads("hw"), env.Say)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -104,14 +105,18 @@ func (s *relaySession) replaying() bool {
 func (s *relaySession) replayReads(made map[string]bool, compute func() (storedPlan, error)) (storedPlan, error) {
 	s.forgetFailed()
 	defer s.ownBudget(time.Now().Add(replayBudget))()
-	// The budget goes first where the walk stands: every read but an
-	// automation's config, then the configs of the automations those reads
-	// relate (the consumers it may walk), then the rest, mostly the listener
-	// scan's. The order only moves where the budget goes: a read the walk
-	// needs that still gets no answer diverges the replay (lost), as before.
-	var first, related []func()
+	// The budget goes first where the walk stands: as many workers as the
+	// session has request slots take every read but an automation's config,
+	// then, once the search/related reads are back, the configs of the
+	// automations they name (the consumers the walk may need), then the rest,
+	// mostly the listener scan's. A read that hangs holds one worker, never
+	// the reads behind it. The order only moves where the budget goes: a read
+	// the walk needs that still gets no answer diverges the replay (lost).
+	var reads []func()
+	var related sync.WaitGroup
+	relates := map[string]bool{} // the automations search/related answered
+	var mu sync.Mutex
 	configs := map[string]func(){} // an automation's entity id → its config read
-	consumers := map[string]bool{}
 	for key, answered := range made {
 		endpoint, body, _ := strings.Cut(key, " ")
 		var payload map[string]any
@@ -124,31 +129,49 @@ func (s *relaySession) replayReads(made map[string]bool, compute func() (storedP
 			configs[fmt.Sprint(payload["entity_id"])] = read
 			continue
 		case "search/related":
-			related = append(related, func() { // answered from the memo once first ran
+			related.Add(1)
+			read = func() {
+				defer related.Done()
 				var out struct{ Automation []string }
 				if data, err := s.read(endpoint, payload); err == nil && json.Unmarshal(data, &out) == nil {
+					mu.Lock()
 					for _, id := range out.Automation {
-						consumers[id] = true
+						relates[id] = true
 					}
+					mu.Unlock()
 				}
-			})
+			}
 		}
-		first = append(first, read)
+		reads = append(reads, read)
 	}
-	prefetch(first)
-	for _, collect := range related {
-		collect()
-	}
-	var second, rest []func()
-	for id, read := range configs {
-		if consumers[id] {
-			second = append(second, read)
-		} else {
-			rest = append(rest, read)
+	queue := make(chan func())
+	go func() {
+		defer close(queue)
+		for _, read := range reads {
+			queue <- read
+		}
+		related.Wait()
+		var rest []func()
+		for id, read := range configs {
+			if relates[id] {
+				queue <- read
+			} else {
+				rest = append(rest, read)
+			}
+		}
+		for _, read := range rest {
+			queue <- read
+		}
+	}()
+	workers := make([]func(), relaySessionMaxConcurrent)
+	for i := range workers {
+		workers[i] = func() {
+			for read := range queue {
+				read()
+			}
 		}
 	}
-	prefetch(second)
-	prefetch(rest)
+	prefetch(workers)
 	s.mu.Lock()
 	s.replay, s.diverged = made, false
 	s.mu.Unlock()
