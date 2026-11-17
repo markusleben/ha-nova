@@ -12,6 +12,10 @@
 set -euo pipefail
 
 root="$(git rev-parse --show-toplevel)"
+# A worktree's .git points into the main checkout: mount that read-only.
+common="$(cd "$root" && cd "$(git rev-parse --git-common-dir)" && pwd -P)"
+mounts=(-v "$root:$root")
+case "$common" in "$root"/*) ;; *) mounts+=(-v "$common:$common:ro") ;; esac
 image=ha-nova-rc-lane
 work="$root/scripts/e2e/.rc-lane-container"
 rm -rf "$work"
@@ -27,12 +31,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
  && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
  && echo "deb [signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bookworm stable" >/etc/apt/sources.list.d/docker.list \
  && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
- && apt-get install -y --no-install-recommends nodejs docker-ce-cli docker-compose-plugin \
+ && apt-get install -y --no-install-recommends nodejs docker-ce-cli docker-buildx-plugin docker-compose-plugin \
  && rm -rf /var/lib/apt/lists/*
 DOCKERFILE
 
 docker run --rm --network host \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v "$root:$root" -w "$root" \
+  "${mounts[@]}" -w "$root" \
   -e HOME="$work/home" -e TMPDIR="$work/tmp" -e GOCACHE="$work/home/.cache/go" \
-  "$image" bash -c 'git config --global --add safe.directory "$PWD" && npm run rc-lane -- "$@"' rc-lane "$@"
+  "$image" bash -c 'git config --global --add safe.directory "*" && npm run rc-lane -- "$@"' rc-lane "$@"
