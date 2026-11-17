@@ -134,11 +134,12 @@ lane with the HAOS VM alone (`scripts/e2e/vm-lane/container.mjs`). It refuses
 below 30 % free memory. The rows that need a computer paired with the App run
 in a throwaway `ubuntu:24.04` container on the host instead of the Win11 or
 Ubuntu VM, as an unprivileged user with a file credential store. The
-container's outbound rules allow only the HAOS VM's two loopback forwards
+container's outbound rules allow only the HAOS VM's loopback forwards (8123, 8791, 8792)
 (through `host.docker.internal`), DNS, and the internet, and a LAN probe must
 be refused before any row runs. It runs:
-- the stable one-liner, pairing with a six-digit code, headless setup,
-  `update --version <tag>`, doctor, a read, and an ordinary call;
+- the stable one-liner, pairing with a six-digit code, `update --version
+  <tag>`, doctor, a read, and an ordinary call (no AI app runs there, so
+  setup and client wiring stay with the client matrix);
 - the typed unlock approved on the NOVA page 30 s after it asked (#1183);
 - the check-up's stats reads (row 2);
 - the guided App update (row 4), with `--app-branch`, in a pseudo-terminal;

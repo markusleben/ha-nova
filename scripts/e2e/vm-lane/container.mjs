@@ -1,6 +1,7 @@
 // The HAOS-only pass (--container): when this host can't hold a second VM,
 // the rows that need a computer paired with the App run in a throwaway Linux
-// container here instead of the Win11 or Ubuntu VM: install, pair, update,
+// container here instead of the Win11 or Ubuntu VM (with an unlocked login
+// keyring, as on a desktop; no AI app, so no setup or client wiring): install, pair, update,
 // a read and a call, the late approval on the NOVA page (#1183), the
 // check-up's stats reads, and the guided App update (with --app-branch).
 // Spec: docs/work/2026-10-26-vm-lane-spec.md → "HAOS-only pass".
@@ -9,19 +10,20 @@ import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { judgeCheckup, lateApproval } from "./app-asks.mjs";
 
-// The container reaches the HAOS VM's forwards on this host's loopback.
+// The container reaches the HAOS VM's forwards on this host's loopback (8123, 8791, and
+// 8792, where pairing activates the device over TLS).
 export const CONTAINER_HA = "http://host.docker.internal:8123";
 export const CONTAINER_RELAY = "http://host.docker.internal:8791";
 const IMAGE = "ubuntu:24.04";
 const USER = "lane";
 
-// Out: only the host's two forwards, DNS, and the internet (the installers). No
+// Out: only the host's forwards (Home Assistant, the Relay and its TLS port), DNS, and the internet (the installers). No
 // LAN and no multicast, so nothing finds a real Home Assistant.
 const ISOLATE = `H=$(getent ahostsv4 host.docker.internal | awk 'NR==1{print $1}')
 D=$(awk '/^nameserver/{print $2; exit}' /etc/resolv.conf)
 [ -n "$H" ] && [ -n "$D" ]
 iptables -A OUTPUT -o lo -j ACCEPT
-iptables -A OUTPUT -d "$H" -p tcp -m multiport --dports 8123,8791 -j ACCEPT
+iptables -A OUTPUT -d "$H" -p tcp -m multiport --dports 8123,8791,8792 -j ACCEPT
 iptables -A OUTPUT -d "$D" -p udp --dport 53 -j ACCEPT
 iptables -A OUTPUT -d "$D" -p tcp --dport 53 -j ACCEPT
 for n in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 169.254.0.0/16 224.0.0.0/4 255.255.255.255; do iptables -A OUTPUT -d "$n" -j REJECT; done
@@ -55,12 +57,16 @@ export function linuxBox({ work, children, clean }) {
       if (up.code !== 0) return { ok: false, detail: up.out.trim().split("\n").slice(-1)[0] };
       const r = await exec("root", ["bash", "-s"], { timeoutMs: 6 * 60_000, input: `set -e
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq && apt-get install -y -qq --no-install-recommends curl ca-certificates iptables >/dev/null
+apt-get update -qq && apt-get install -y -qq --no-install-recommends curl ca-certificates iptables dbus gnome-keyring >/dev/null
 useradd -m ${USER}
+install -d -o ${USER} -m 700 /run/user/$(id -u ${USER})
 ${ISOLATE}` });
+      // The user's session bus where HA NOVA looks for it (/run/user/<uid>/bus), with an
+      // unlocked login keyring on it: pairing needs one, as on a desktop.
+      const k = r.code === 0 ? await exec(USER, ["sh", "-c", "export XDG_RUNTIME_DIR=/run/user/$(id -u); B=$XDG_RUNTIME_DIR/bus; dbus-daemon --session --fork --address=unix:path=$B && printf lane | DBUS_SESSION_BUS_ADDRESS=unix:path=$B gnome-keyring-daemon --unlock --components=secrets >/dev/null && echo keyring=open"], { timeoutMs: 60_000 }) : { out: "" };
       const m = r.out.match(/rules=(\d+) lan=(\d+) ha=(\d+) relay=(\d+)/);
-      const ok = r.code === 0 && Number(m?.[1]) >= 11 && m?.[2] === "000" && m?.[3] === "401" && m?.[4] !== "000";
-      return { ok, detail: m ? `${IMAGE}, ${m[1]} outbound rules, LAN probe ${m[2] === "000" ? "refused" : "HTTP " + m[2]}, HAOS forward HTTP ${m[3]}, Relay forward HTTP ${m[4]}` : r.out.trim().split("\n").slice(-2).join(" | ") };
+      const ok = r.code === 0 && k.out.includes("keyring=open") && Number(m?.[1]) >= 11 && m?.[2] === "000" && m?.[3] === "401" && m?.[4] !== "000";
+      return { ok, detail: m ? `${IMAGE}, ${m[1]} outbound rules, LAN probe ${m[2] === "000" ? "refused" : "HTTP " + m[2]}, HAOS forward HTTP ${m[3]}, Relay forward HTTP ${m[4]}, login keyring ${k.out.includes("keyring=open") ? "open" : "NOT OPEN"}` : r.out.trim().split("\n").slice(-2).join(" | ") };
     })()),
     sh: (script, o = {}) => exec(USER, ["bash", "-s"], { input: script, ...o }),
     tty: (cmd, o = {}) => exec(USER, ["script", "-qfec", cmd, "/dev/null"], { tty: true, ...o }),
@@ -84,8 +90,6 @@ export async function containerRun(ctx) {
   if (!ctx.check(S, `${stable} one-liner (no terminal): installs`, i1.code === 0 && v1.out.trim() === stable.slice(1), `${last(i1.out)}; version ${last(v1.out)}`)) return;
   const p = await hn(`pair --relay-url ${CONTAINER_RELAY} --code ${await (await ctx.nova()).code()} --credential-store=file`, { timeoutMs: 3 * 60_000 });
   if (!ctx.check(S, "pair with a six-digit code from the NOVA page", p.code === 0, last(p.out, 2))) return;
-  const s = await hn(`setup --non-interactive --ha-url ${CONTAINER_HA}`, { timeoutMs: 5 * 60_000 });
-  ctx.check(S, "setup (headless, paired device, no AI app)", s.code === 0, last(s.out, 2));
   const u = await hn(`update --version ${tag}`, { timeoutMs: 5 * 60_000 });
   const v2 = await hn("version");
   ctx.check(S, `ha-nova update --version ${tag} (from ${stable})`, u.code === 0 && v2.out.trim() === tag.slice(1), `${last(u.out)}; now ${last(v2.out)}`);
