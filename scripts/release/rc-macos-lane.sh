@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The macOS rc lane on a disposable GitHub-hosted runner (never a person's
-# Mac): a throwaway login keychain, the real relay pairing listeners
+# Mac): the runner's own throwaway login keychain, the real relay pairing listeners
 # (scripts/e2e/pairing-harness.mjs; functional calls are stubs), and the
 # published binaries. It proves, without a person:
 #   - the rc binary is signed as com.markusleben.ha-nova.cli2;
@@ -35,13 +35,8 @@ pass() { echo "PASS: $*"; }
 # A keychain prompt never answers on a runner, so a hang is a prompt.
 bounded() { perl -e 'alarm shift; exec @ARGV or die "exec: $!"' 90 "$@"; }
 
-kc="$tmp/lane.keychain-db"
-security create-keychain -p lane "$kc"
-security set-keychain-settings "$kc"
-security unlock-keychain -p lane "$kc"
-security list-keychains -d user -s "$kc"
-security default-keychain -d user -s "$kc"
-items() { security dump-keychain "$kc" 2>/dev/null | grep -o '"svce"<blob>="[^"]*"' | sed 's/.*="//;s/"$//' | sort; }
+# The runner's own login keychain, unlocked, and thrown away with the runner.
+items() { security dump-keychain 2>/dev/null | grep -o '"svce"<blob>="[^"]*"' | sed 's/.*="//;s/"$//' | sort; }
 
 mkfifo "$tmp/in" "$tmp/out"
 node "$harness" "$tmp/relay" <"$tmp/in" >"$tmp/out" &
@@ -80,9 +75,9 @@ first_gen="$(items | grep '^com.markusleben.ha-nova.cli2/device/' || true)"
 [ -n "$first_gen" ] || fail "$tag kept no device key in a cli2 slot: $(items)"
 pass "$tag paired into $(sort -u <<<"$first_gen" | tr '\n' ' ')and read it"
 
-before="$(security dump-keychain "$kc" 2>/dev/null | grep -A12 'com.markusleben.ha-nova.cli2/device/' | grep -o '"acct"<blob>="[^"]*"' | sort)"
+before="$(security dump-keychain 2>/dev/null | grep -A12 'com.markusleben.ha-nova.cli2/device/' | grep -o '"acct"<blob>="[^"]*"' | sort)"
 bounded "$bin" pair --code "$(next_code)" </dev/null || fail "$tag didn't pair a second time"
-after="$(security dump-keychain "$kc" 2>/dev/null | grep -A12 'com.markusleben.ha-nova.cli2/device/' | grep -o '"acct"<blob>="[^"]*"' | sort)"
+after="$(security dump-keychain 2>/dev/null | grep -A12 'com.markusleben.ha-nova.cli2/device/' | grep -o '"acct"<blob>="[^"]*"' | sort)"
 [ "$before" != "$after" ] || fail "a second pairing wrote no new generation"
 call >/dev/null || fail "$tag couldn't read the second generation"
 pass "a second pairing wrote a new generation, read without a prompt"
