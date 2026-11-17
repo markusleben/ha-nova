@@ -26,6 +26,10 @@ it exceeds the usual approximate 400-line target rather than adding helpers.
   prompt, six-digit NOVA-page pairing, noninteractive setup for installed
   clients, doctor, stable-to-candidate update, a read and verified ordinary
   call, wiring, rerun, standard uninstall, stale marker, reinstall, and purge.
+  On Windows, a stable updater older than 0.31 can fail to move its folder
+  aside ("access denied", MAR-161; #1130's retry runs only from 0.31). The
+  lane then runs the update once more, as its message tells a person to, and
+  the update row is WARN when the second try works.
   No fake client qualifies for Windows onboarding. The remainder of the
   setup wizard and native confirmation-window interactions are outside this
   lane.
@@ -54,3 +58,70 @@ Run the lane against published `v0.28.0-rc1`, starting from `v0.27.3`.
 Run syntax, TypeScript and documentation checks, plus read-only adversarial
 and local CLI reviews. Record the real VM table and limits with the branch
 handoff; do not open a PR for this task.
+
+## 0.31 rows (MAR-144)
+
+Four rows check 0.31 fixes on the throwaway VMs against the App preview
+(`--app-branch`). Each row fails on the defect it guards and passes on the
+fix. `tests/e2e/vm-lane-rc-rows.test.ts` judges recorded shapes of both.
+They run in the Win11 PowerShell 7 user after its core rows
+(`app-asks.mjs`), except row 4 (`guided-update.mjs`).
+
+1. **Marketplace warning (#1132).** `plan raw` of
+   `marketplace/warning/accept` must be typed and alone, with one item.
+   It runs as the App's Supervisor user (the row doesn't check a
+   person's account). Its reason must be the full `raw.why.marketplace_warning`
+   text of the tag in English and German, and it must fit the phone's 300
+   runes. The row switches Home Assistant's language to `de` and back,
+   and checks the language is restored. Bundled with an install, the plan
+   must be refused. The row stops at the plan: Home Assistant can't
+   withdraw an acceptance, and the App backup doesn't hold it. Before
+   Home Assistant 2026.11 (no Marketplace) the row is SKIP.
+2. **Check-up stats (#1148).** `ha-nova map --section checkup` must leave
+   neither `resources` nor `cpu` unchecked. It must report CPU and
+   memory for Home Assistant and the top users. The check-up reads
+   `/core/stats`, `/supervisor/stats` and each running App's
+   `/addons/{slug}/stats`, and any failed read leaves `resources`
+   unchecked.
+3. **Window button (#1161).** It plans `lock.unlock lock.front_door`
+   (typed, channel `relay`) and starts `apply`. A second job in the
+   same console session waits for the HA NOVA message box. Once the CLI
+   enables OK, the job clicks it (WM_COMMAND IDOK) and reads the address
+   the browser was started with. That address must be exactly
+   `<guest HA>/app/<slug>?nova_ask=<64 hex>`, and Home Assistant must
+   answer 200 for it (its app panel route). The driver answers OK only on
+   the waiting window whose text says OK opens the NOVA page; any other
+   box gets Cancel and the row fails. The lock must start locked. The NOVA page must carry
+   `data-ask=<ingress>/approve` and its hand-off script. The approval
+   view at `?nova_ask=<ref>` must list that unlock first and keep the
+   ref in its reload URL. The lane then cancels the ask on the approval
+   view, as a person would. `apply` must end `CONFIRM_DECLINED`, and
+   the lock's state must be unchanged. Not proven: Home Assistant's
+   frontend framing the panel and running the hand-off script in a
+   browser (no browser is driven).
+4. **Guided App update (#1162).** This row needs a terminal and a newer
+   App offered. So it runs inside the App preview step after the store
+   offers the preview and before the lane installs it
+   (`appPreview`'s `beforeUpdate`). It runs on the Ubuntu VM: a
+   terminal session over SSH with a file credential store, in its own
+   throwaway HOME and after its isolation check. Home Assistant must show
+   the App's update entity offering the preview. An automation listening
+   for `call_service` with `domain: update, service: install` (action:
+   unlock the demo front door) is created. `ha-nova
+   internal-offer-app-update` (the App step of `ha-nova update`) then
+   runs in a pty. It must never show the yes question or the refusal. It
+   must print the typed ask. The lane cancels that ask on the approval
+   view (or skips the code an ungated App shows). The CLI must then say
+   nothing was installed, and the App version must be unchanged. The
+   automation is deleted (config and registry entry checked) and the
+   HOME purged, which revokes its device. Pairing is then judged across
+   the update from that point. The row is SKIP without `--app-branch`,
+   with `--no-ubuntu`, or without the Ubuntu VM. When the host can't run
+   all three VMs, a second pass with `--no-windows` runs it with HAOS and
+   Ubuntu only (the Windows rows are SKIP there).
+
+Rows 3 and 4 cancel one ask each, so they stay below the gate's pause
+and hourly limits. Every device, automation and language change they
+make is undone in the row. The lane's cleanup (devices revoked, entity
+states as found, App backup restored, registry hash) still runs after
+them.

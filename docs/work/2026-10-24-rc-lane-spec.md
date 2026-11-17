@@ -85,8 +85,8 @@ Runs in order, prints one summary table, exits non-zero on any FAIL:
 |---|---|
 | a | client matrix `--from <last stable>` and `--from v0.24.0`, `--to <tag>`, lanes `macos,linux` |
 | b | phone lane with the tag's published binary for this host |
-| c | chat bridge: `ha-nova serve --server demo` over HTTP, a proxy that strips `instructions` (as claude.ai), headless Claude with only HA NOVA tools and `ha_apply` denied; EN + DE × unlock + batch of two; the code(s) must be the last lines. SKIP when `claude` or `$HOME/.claude-ha-nova-test` is missing |
-| d | slow check (#827): 1,500 filler automations + one `call_service` listener; a lock unlock plan must hit the read budget and still apply with its first code (`verified`) |
+| c | chat bridge on a standalone Relay (0.31, #1155): `ha-nova serve` over HTTP on the Relay's plain token, a proxy that strips `instructions` (as claude.ai). No phone linked: an unlock is refused (`CONFIRM_UNAVAILABLE`) and no question is sent. Then a phone linked, headless Claude with only HA NOVA tools; EN + DE × unlock + batch of two: `ha_apply` asks the phone, the tap applies (`verified`), and the reply says it's done, with no code. SKIP when `claude` or `$HOME/.claude-ha-nova-test` is missing |
+| d | slow check (#827): 1,500 filler automations + one `call_service` listener; an ordinary call's listener census hits the read budget (`LIMIT_CUT`) and still applies with its first tap or code (`verified`), on the CLI and over MCP. Since #1163 a typed unlock skips the census, so it can't hit the cut: its own row checks that it says so (`UNENUMERABLE_LISTENER`) and applies with its first tap |
 
 Safety and cleanup:
 - It starts its own test bed from this checkout and fails fast when any
