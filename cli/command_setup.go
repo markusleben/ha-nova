@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"flag"
 	"io"
@@ -264,6 +265,13 @@ func runSetup(paths runtimePaths, args []string) int {
 		) {
 		renderNamedSetupRequestError()
 		return 1
+	}
+	if !*nonInteractive && unconstrainedCloudReuse && linkRePairNeeded(cfg) {
+		if target != "" {
+			renderSetupParagraph(os.Stdout, setupT("setup.relink.client_first", "command", rePairNextStep(activeServerProfile(), true)))
+			return 1
+		}
+		return runLinkRePair(bufio.NewReader(os.Stdin), os.Stdout, paths, cfg, setupLifecycle)
 	}
 	namedClientRepair := namedClientRepairRequested(
 		cfg,
