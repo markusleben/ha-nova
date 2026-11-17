@@ -430,7 +430,10 @@ async function slow() {
     for (const sock of [client, relay]) sock.on("error", () => { client.destroy(); relay.destroy(); });
   }).listen(slowPort, "127.0.0.1");
   const direct = readFileSync(cfg, "utf8");
-  writeFileSync(cfg, JSON.stringify({ ...JSON.parse(direct), relay_base_url: `http://127.0.0.1:${slowPort}` }), { mode: 0o600 });
+  // A CLI that saved its config since (row i's gate marker) reads its profile in servers: slow that one too.
+  const slowCfg = JSON.parse(direct);
+  for (const profile of [slowCfg, ...Object.values(slowCfg.servers ?? {})]) profile.relay_base_url = `http://127.0.0.1:${slowPort}`;
+  writeFileSync(cfg, JSON.stringify(slowCfg), { mode: 0o600 });
   // An ordinary call still runs the listener census, which the slow relay cuts
   // at the read budget; the cut plan asks, and its first tap must apply.
   await ha("/api/services/light/turn_on", { entity_id: LIGHT });

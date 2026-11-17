@@ -22,7 +22,7 @@
 // (else TESTBED_CLI_BIN if that is one, else a build of this checkout).
 // Prints PASS/FAIL/SKIP lines; exits non-zero on any FAIL.
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -298,7 +298,7 @@ async function windowCancel(platform) {
     writeFileSync(zenity, "#!/bin/sh\nsleep 8\nexit 1\n");
     chmodSync(zenity, 0o755);
     const home = join(tmp, "home");
-    cpSync(HOME, home, { recursive: true });
+    execFileSync("cp", ["-R", HOME, home]); // Node 22's cpSync fails (EACCES) on Docker Desktop's file share: the container rc lane
     const linux = process.platform === "linux";
     const host = linux ? "127.0.0.1" : "host.docker.internal";
     const config = join(home, ".config/ha-nova/config.json");
