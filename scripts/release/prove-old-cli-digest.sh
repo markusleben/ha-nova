@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Runs the published v0.31.0 Linux binary's update check against a release
-# body served as api.github.com's latest release, and requires the Mac re-pair
-# warning as its headline and first action item (0.32 spec §5.1): the 0.31
-# CLI already installed can't learn a new pre-update check, so its own notice
-# must carry the warning. Disposable CI runners only: it points
+# Runs the published v0.31.0 Linux binary's update check against the body
+# GoReleaser publishes for v0.32.0 (.goreleaser.yml's stable release header
+# and footer), served as api.github.com's latest release, and requires the
+# Mac re-pair warning as its headline and first action item (0.32 spec §5.1):
+# the 0.31 CLI already installed can't learn a new pre-update check, so its
+# own notice must carry the warning. Disposable CI runners only: it points
 # api.github.com at this machine for the run.
 set -euo pipefail
 
-body="${1:-docs/work/next-release-body.md}"
 warning="On macOS, 0.32 asks you to pair this computer again once."
 if [ "${GITHUB_ACTIONS:-}" != true ] || [ "${RUNNER_ENVIRONMENT:-}" != github-hosted ]; then
   echo "Runs only on a disposable GitHub-hosted runner: it edits /etc/hosts." >&2
@@ -31,10 +31,25 @@ chmod +x "$tmp/ha-nova-linux-amd64"
 openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=api.github.com \
   -addext subjectAltName=DNS:api.github.com \
   -keyout "$tmp/key.pem" -out "$tmp/cert.pem" 2>/dev/null
-python3 - "$body" >"$tmp/latest.json" <<'PY'
+python3 - .goreleaser.yml >"$tmp/latest.json" <<'PY'
 import json, sys
+yml = open(sys.argv[1], encoding="utf-8").read()
+def block(key):
+    rest = yml.split("\nrelease:\n", 1)[1].split("\n  " + key + ": |\n", 1)[1]
+    lines = []
+    for line in rest.split("\n"):
+        if line and not line.startswith("    "):
+            break
+        lines.append(line[4:])
+    return "\n".join(lines).rstrip("\n") + "\n"
+header = block("header")
+if not header.startswith("{{ if .Prerelease }}") or header.count("{{ else }}") != 1 or not header.rstrip().endswith("{{ end }}"):
+    sys.exit("release.header isn't {{ if .Prerelease }}…{{ else }}…{{ end }}")
+stable = header.split("{{ else }}", 1)[1].rstrip()[: -len("{{ end }}")].replace("{{ .Tag }}", "v0.32.0")
+if "{{" in stable or "## New Features" not in stable:
+    sys.exit("the stable release header has a template this proof can't render, or no New Features section")
 print(json.dumps({"tag_name": "v0.32.0", "html_url": "https://github.com/markusleben/ha-nova/releases/tag/v0.32.0",
-                  "body": open(sys.argv[1], encoding="utf-8").read(), "published_at": "2026-11-20T00:00:00Z", "assets": []}))
+                  "body": stable + "\n" + block("footer"), "published_at": "2026-11-20T00:00:00Z", "assets": []}))
 PY
 sudo python3 - "$tmp" <<'PY' &
 import http.server, os, ssl, sys
