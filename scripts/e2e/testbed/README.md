@@ -9,6 +9,7 @@ npm run testbed:cli -- find "Leselampe"     # the CLI built from this checkout, 
 npm run testbed:verify                     # PASS/FAIL smoke assertions, read-only
 TESTBED_PHONE=1 npm run testbed:verify     # + the phone lane (fake phones, push payloads)
 node scripts/e2e/testbed/gate.mjs          # the gate lane: approvals on the phone (bed up with TESTBED_FILES=1)
+node scripts/e2e/testbed/ask-count.mjs     # how often a person answers per action, per friction-table row (needs Docker)
 node scripts/e2e/testbed/www-media.mjs     # www pictures: delete, undo, community, copy limit (same bed)
 node scripts/e2e/testbed/marketplace.mjs   # Marketplace: typed install, the warning only for the App's user, gate holds and refusals
 node scripts/e2e/testbed/agent-updates.mjs # update advisor: an agent checks before installing and after (headless Claude test account)
@@ -163,6 +164,22 @@ or grant carries over).
   lane's slow check approves there). The Relay stays on the second user until
   `testbed:down`; the other verify checks pass either way.
 
+## Ask count (opt-in)
+
+`node scripts/e2e/testbed/ask-count.mjs` on a running bed counts how many
+answers a person gives before an action is done, per row of the 0.32 friction table and per column (everyday, bigger
+change, risky, dashboard delete, delete) for S1–S5, and M's everyday
+column with and without a garage cover, with the words they read (setup's
+words from its catalog). It runs the real Linux CLI in a throwaway container
+(`ha-nova-testbed-keyring`: gnome-keyring and a fake zenity) against the
+bed's Relay image started as a NOVA App (`app-relay.mjs` stands in for the
+Supervisor's self-API and ingress) and the phone lane's fake phones, and
+answers every surface that asks until the command ends, so a second ask for
+one action shows as a second stage. It fails when a count differs from the
+table, when the owner's phone sounds while the window is answered, or when
+a computer that must not confirm in its window offers Confirm. The image
+stays only with `ASK_COUNT_KEEP_IMAGE=1`.
+
 ## Gate lane (opt-in)
 
 `node scripts/e2e/testbed/gate.mjs` on a bed started with
@@ -298,7 +315,7 @@ red opens a "Test bed fails on Home Assistant <version>" issue.
 `.state/config` per run; command-running platforms live in
 `packages/commands.yaml`), `up.sh`, `seed.mjs` (LLAT, MQTT config entry,
 floors/areas/labels, registry edits, summary, phone fixture), `cli.sh`,
-`verify.sh`, `phone.mjs` + `push.py` (phone lane), `gate.mjs` (gate lane), `www-media.mjs` (www pictures), `chat-files.mjs` +
+`verify.sh`, `phone.mjs` + `push.py` (phone lane), `gate.mjs` (gate lane), `ask-count.mjs` + `app-relay.mjs` (ask count), `www-media.mjs` (www pictures), `chat-files.mjs` +
 `docker-compose.files.yml`, `calm.mjs` (real-home checks), `agent.mjs` +
 `agent-unlock.mjs`, `agent-statistics.mjs` (agent runs),
 `down.sh`.
