@@ -75,36 +75,27 @@ release:
     - No Update button yet? In Home Assistant: Settings > ⋮ (top right) > Check for updates. Or, at home, run `ha-nova doctor`: it does that for you and offers the update.
     - Then run `ha-nova update` on each computer.
     - Standalone container: pull the new image and recreate the container.
-    - Using HA NOVA in ChatGPT? After the update, open chatgpt.com/plugins, choose HA NOVA, then Refresh.
 
     ## New Features
 
-    - **HA NOVA now installs, updates, and removes Marketplace items, each after your OK (Home Assistant 2026.11+).** With the NOVA App, it first asks you to accept Home Assistant's Marketplace notice for the App's user.
-    - **Ask "Can I update now?" and get a checked answer.** HA NOVA checks that your home is ready, suggests an order, matches Home Assistant's breaking changes to your integrations, and says afterwards what changed.
-    - **A system check-up says whether Home Assistant is OK, why it is slow, and whether your backup would work.** It only reads, and says what it couldn't check.
-    - **See which integration keeps failing, without HA NOVA reading the log.** It counts the log entries per integration and level, and since when; the lines stay in Home Assistant.
-    - **Every Home Assistant administrator can use the NOVA page:** connect a computer with a code, revoke one, and approve. Chat-app settings stay with the owner.
-    - **A clearer NOVA page and approval page that update on their own.** A waiting request sits on top; the approval page shows a countdown, with Approve and Cancel side by side.
-    - **The window on your computer opens the request in Home Assistant.** Its button opens exactly this request on the NOVA approval page, where you approve it.
-    - **Your phone asks sooner.** An unlock rings your phone before HA NOVA's full check of your home; the check runs right after your OK, and nothing is sent unless both pass.
-    - **Chat apps on the standalone container ask the phone linked to it** instead of refusing a change that needs an OK. With no phone linked there, it is still refused.
-    - **In chat apps, reading your home no longer waits for a change in progress.**
-    - **New automations use Home Assistant's newer room, floor, and label triggers.**
-    - **A helper made through its setup form is now checked by HA NOVA itself:** that it loaded, its entities, and its settings.
+    - **On macOS, 0.32 asks you to pair this computer again once.** It's one Home Assistant sign-in, about a minute. Run `ha-nova setup` when HA NOVA says so.
+    - **Confirm risky changes with one click on your own computer.** Unlocks, doors, gates, the alarm, and deletes ask in a window there, and your phone asks only when nobody confirms. Setup asks once (Enter is yes).
+    - **Fewer asks in a home with a cover watchdog.** A light no longer asks when the watchdog acts right away (no delay or wait) and none of the covers it could move is a garage door, gate, or door.
+    - **A dashboard, automation, or script you delete from your computer asks once**, in the window, on your phone, or on the NOVA page.
 
     ## What To Watch
 
-    - **Phone asks pause less often, and you can end a pause.** They pause after five unanswered asks in a row, for 5 minutes (before: three, for 15). "Ask on the phone again" on the NOVA page ends it.
-    - **More changes ask when an automation would react to them.** Renaming an entity onto a replaced one's id, or moving something into an area, floor, or label, asks when such an automation unlocks something.
+    - **On macOS, 0.32 asks you to pair this computer again once.** The first command that needs it names the step: `ha-nova setup`, or `ha-nova setup --server <name>` for another server.
+    - **On a Mac that used Home Assistant Link, setup signs the old version out of Link.** macOS asks for your password once per old sign-in: choose "Allow", not "Always Allow".
+    - **One-click confirming trusts that computer.** On Windows and Linux, any program running as you could confirm without a click. On a shared computer, say no in setup or turn it off on the NOVA page.
+    - **A computer paired before 0.32 pairs again once to confirm with one click.** Until then, its window only waits, as in 0.31.
+    - **Moving HA NOVA's key into a file turns one-click confirming off first.** On a Mac whose key is in the Keychain, file storage is refused.
+    - **After you delete an automation or script, HA NOVA checks that it stopped.** If Home Assistant still runs it, HA NOVA says so and offers the reload as a separate step.
 
     ## Bug Fixes
 
-    - **In homes with thousands of entities, everyday changes such as a light no longer all ask on the phone.** The NOVA App's safety check now reads the full entity list of a large home.
-    - **Fewer phone asks in homes with a thermostat or hygrostat made in Home Assistant's UI.** Everyday changes such as a light run without an ask again.
-    - **The guided NOVA App update now asks for your OK instead of refusing** in homes with automations that react to actions.
-    - **After `ha-nova update`, the NOVA App check no longer hangs.** It shows progress and gives up after 10 seconds, pointing to `ha-nova doctor`.
-    - **Windows: `ha-nova update` retries a briefly locked install folder** instead of failing with "access denied".
-    - **Chat apps check a user's role again right before a change their phone approved.**
+    - **A change that needs your OK waits for your answer again.** Since 0.30.0, HA NOVA gave up after about 20 seconds while the NOVA page or your linked phone could still confirm it.
+    - **Waiting no longer asks twice.** Running the same saved plan again picks up the open ask instead of asking again.
 
     Stable install commands are release-pinned for this tag.
 

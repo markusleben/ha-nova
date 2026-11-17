@@ -18,6 +18,7 @@ export interface HealthHandlerOptions {
   snapshotRoot: string;
   relayInstanceId?: string;
   gate?: boolean; // the safety check fronts this Relay (gate spec, Compatibility)
+  window?: boolean; // a paired computer may confirm in its window (0.32 spec §4)
   now?: () => number;
   logger?: RelayLogger;
 }
@@ -36,6 +37,7 @@ export interface HealthPayload {
   snapshots: { files: number; bytes: number };
   relay_instance_id?: string;
   gate?: 1;
+  window?: 1;
 }
 
 export function createHealthHandler(
@@ -84,5 +86,6 @@ export async function readHealthPayload(
       ? { relay_instance_id: options.relayInstanceId }
       : {}),
     ...(options.gate === true ? { gate: 1 as const } : {}),
+    ...(options.window === true ? { window: 1 as const } : {}),
   };
 }

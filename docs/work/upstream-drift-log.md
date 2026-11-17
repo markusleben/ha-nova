@@ -778,3 +778,30 @@ counts only those, not ad hoc checks or corrections.
 - Next screen: before the next release cycle, or on HA 2026.11.2 or
   2026.12.0, whichever comes first. Watch Supervisor 2026.12, which turns
   the smaller App capability set on.
+
+## 2026-11-17 — pre-release screen (v0.32.0 cycle): HA 2026.11.2 + developer blog after 2026-11-10 + HACS
+
+- Window screened: Core releases after `2026.11.1` (`2026.11.2` of
+  2026-11-16); contributors.home-assistant.io/blog after 2026-11-10 (none:
+  "Deprecated device info constants" of 2026-11-10 is still the newest
+  post); home-assistant.io/blog after the 2026.11 release post (one
+  hardware announcement, no API change); HACS releases and tags after 2.0.5
+  (none); Supervisor releases after `2026.11.0` (none).
+- Hit, no change needed: `2026.11.2` rejects `input_text.set_value` values
+  that violate the helper's pattern. The skills never set a value outside a
+  helper's pattern on purpose; such a call now fails in Home Assistant, and
+  HA NOVA reports the service error as it does for any refused call.
+- Clean pass otherwise: the other `2026.11.2` items are integration fixes
+  and dependency bumps. None changes a WS command, REST route, or service
+  that `skills/**/*.md` pins, so every pinned surface stands as screened on
+  HA 2026.11.1.
+- The 0.32 train pins no new upstream surface: its changes are between HA
+  NOVA, its App, and the computer (window approval, the Mac key, Link
+  sign-out through Home Assistant's existing OAuth token revoke).
+- Source checked: github.com/home-assistant/core/releases (API listing);
+  developers.home-assistant.io/blog/; home-assistant.io/blog/;
+  github.com/hacs/integration/releases and tags;
+  github.com/home-assistant/supervisor/releases.
+- Next screen: before the next release cycle, or on HA 2026.11.3 or
+  2026.12.0, whichever comes first. Watch Supervisor 2026.12, which turns
+  the smaller App capability set on.

@@ -51,6 +51,7 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 					f.pageGeneration = f.lifecycleMarker[0]
 				}
 				f.lifecycleMarker = marker
+				f.legacyCleanup() // the retry gate_me.go names, on the page
 				return f.afterSkills(), true
 			}
 			f.pageRepairing("teach")

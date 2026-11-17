@@ -117,6 +117,7 @@ func (f *setupFlow) verifyDevice() setupStepResult {
 	if err := persistDeviceSetupState(f.paths, f.cfg, &f.state, f.lifecycleMarker...); err != nil {
 		return f.failErr(err)
 	}
+	f.legacyCleanup()
 	if f.connectionMode == setupConnectionHybrid && !f.cfg.Cloud.ready() && !f.cloudPausedAtStart {
 		f.ui.show(setupView{Blocks: []setupBlock{setupParagraph(setupText("setup.verify.adding_link"))}})
 		cfg, err := addHybridCloudAfterLocal(
@@ -141,6 +142,24 @@ func (f *setupFlow) verifyDevice() setupStepResult {
 		f.ui.show(setupView{Blocks: []setupBlock{setupSuccess(setupText("setup.verify.link_ok"))}})
 	}
 	return setupGoTo(setupStepSkills)
+}
+
+// legacyCleanup: setup's last step for a paired Mac (legacy_link_cleanup.go).
+// macOS may ask only in a setup a person watches: the page, whose connect
+// row shows the introduction, or an interactive terminal.
+func (f *setupFlow) legacyCleanup() {
+	onPage := f.page != nil && !f.page.inTerminal()
+	prompt := !f.serviceMode && (onPage || f.ui.interactive())
+	f.cleanupNote = legacyLinkCleanupInSetup(func(b setupBlock) { f.ui.show(setupView{Blocks: []setupBlock{b}}) }, f.paths, f.cfg, prompt)
+	if !onPage || f.cleanupNote.empty() {
+		return
+	}
+	f.page.setRow("connect", "ok", setupPageText("setup.page.row.connect"))
+	note := setupPageText("setup.cleanup.done")
+	if f.cleanupNote.Key == "setup.cleanup.incomplete" {
+		note = setupPageText("setup.cleanup.incomplete", "command", gateCleanupCommand(f.cfg.profileName()))
+	}
+	f.pageNotes = append(f.pageNotes, note)
 }
 
 // stepSkills installs the skills, then finishes: the Home Assistant Link
@@ -232,6 +251,9 @@ func (f *setupFlow) afterSkills() setupStepResult {
 		return setupDone(exit)
 	}
 	result := f.finish()
+	if !f.cleanupNote.empty() && !onPage {
+		f.ui.note(f.cleanupNote.plain()) // after the outcome, so it stays on screen
+	}
 	if result.done && result.code == 0 {
 		f.offerAppUpdate()
 	}

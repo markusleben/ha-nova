@@ -20,11 +20,12 @@ import (
 
 // Test seams.
 var (
-	openHASignInIngressForSetup   = openHASignInIngress
-	resolveHASignInOriginForSetup = resolveHASignInOrigin
-	pairDeviceV2ArmedForSetup     = pairDeviceV2Armed
-	signInPairForSetup            = runSecurePairingWithProvisioner
-	haSignInOffered               = defaultHASignInOffered
+	openHASignInIngressForSetup       = openHASignInIngress
+	resolveHASignInOriginForSetup     = resolveHASignInOrigin
+	pairDeviceV2ArmedForSetup         = pairDeviceV2Armed
+	signInPredecessorToRetireForSetup = signInPredecessorToRetire
+	signInPairForSetup                = runSecurePairingWithProvisioner
+	haSignInOffered                   = defaultHASignInOffered
 )
 
 // The pairing exchange after the sign-in: arming gets a step's bound
@@ -77,7 +78,7 @@ func runHASignInPairingStep(
 		default: // six digits typed at the fallback prompt
 			return false, answer, nil
 		}
-		paired, retry, err := signInAndPair(out, paths, cfg, origin.String(), lifecycleMarker...)
+		paired, retry, err := signInAndPair(reader, out, paths, cfg, origin.String(), lifecycleMarker...)
 		if paired || err != nil {
 			return paired, "", err
 		}
@@ -128,6 +129,7 @@ func promptHASignInChoice(reader *bufio.Reader, out io.Writer, again bool) (stri
 }
 
 func signInAndPair(
+	reader *bufio.Reader,
 	out io.Writer,
 	paths runtimePaths,
 	cfg *runtimeConfig,
@@ -141,7 +143,10 @@ func signInAndPair(
 		return false, haSignInRetryable(err), nil
 	}
 	renderSetupSuccessLine(out, "Signed in to Home Assistant as %s (owner)", haSignInUserName(session.user))
-	paired, soft, err := pairWithHASignInSession(out, paths, cfg, session, lifecycleMarker...)
+	if session.own, err = askOwnComputerForSetup(reader, out, *cfg); err != nil {
+		return false, false, err
+	}
+	paired, soft, err := pairWithHASignInSession(reader, out, paths, cfg, session, lifecycleMarker...)
 	return paired, errors.Is(soft, errSignInNotOwner), err
 }
 
@@ -150,12 +155,20 @@ func signInAndPair(
 // of the ingress exchange, already said in one line; the caller decides
 // what comes next.
 func pairWithHASignInSession(
+	reader *bufio.Reader,
 	out io.Writer,
 	paths runtimePaths,
 	cfg *runtimeConfig,
 	session haSignInSession,
 	lifecycleMarker ...[]byte,
 ) (paired bool, soft error, err error) {
+	if session.fromPage {
+		reader = nil // the page asked its questions; it can't ask this one
+	}
+	retire, err := signInPredecessorToRetireForSetup(reader, out, paths, *cfg, session.ingress)
+	if err != nil {
+		return false, nil, err
+	}
 	_, pairErr := runSetupSpinnerWithResult(out, "Connecting this computer...", setupSpinnerDebounce, func() (struct{}, error) {
 		var pairErr error
 		lockErr := withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
@@ -169,7 +182,8 @@ func pairWithHASignInSession(
 				// From here, not from before the lock: the budget is the exchange's.
 				ctx, cancel := context.WithTimeout(context.Background(), haSignInStepTimeout+haSignInPairTimeout)
 				defer cancel()
-				provisioned, err := pairDeviceV2ArmedForSetup(ctx, session.ingress, meta)
+				meta.RetireDeviceID = retire
+				provisioned, err := pairDeviceV2ArmedForSetup(ctx, session.ingress, meta, session.own)
 				if err != nil {
 					return nil, &haSignInPairingError{err: err}
 				}

@@ -1,18 +1,20 @@
 import { createServer as createHttpServer_, type Server } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 
 import type { FileAccessConfig } from "../config/file-access.js";
 import { createBackupsHandler } from "../http/handlers/backups.js";
 import { createCoreForwarder, parseCoreRequest } from "../http/handlers/core-proxy.js";
 import { createFilesHandler } from "../http/handlers/files.js";
 import { createHealthHandler } from "../http/handlers/health.js";
+import { createGateMeHandler } from "../http/handlers/gate-me.js";
 import { createSupervisorProxyHandler } from "../http/handlers/supervisor-proxy.js";
 import { createWsProxyHandler } from "../http/handlers/ws-proxy.js";
 import { gated } from "../http/gate.js";
 import { gateWithAsks, type GatePage, type PhoneLink } from "../http/gate-asks.js";
 import { pageChannel } from "../http/handlers/nova-approve.js";
 import { pageTexts } from "../http/page-texts.js";
+import type { RouteHandler } from "../http/router.js";
 import { applyServerTimeouts, type RelayLogger } from "../http/server.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 import type { HaWsClient } from "../ha/ws-client.js";
@@ -24,6 +26,7 @@ import {
   type DeviceRegistry,
 } from "../security/device-registry.js";
 import { opaqueReady } from "../security/opaque-server.js";
+import { checkWindowConfirm } from "../security/window-confirm.js";
 import type { Principal } from "../security/principal.js";
 import { createFileResponseStore } from "../security/pairing-response-store.js";
 import { createPairingV1Manager } from "../security/pairing-v1.js";
@@ -32,6 +35,7 @@ import { loadOrCreateRelayInstanceId } from "../storage/relay-instance.js";
 import { openInertRegistry, swappableRegistry } from "./app-registry.js";
 import { chatAppFilesPresent, createChatApps, type ChatApps } from "./chat-apps.js";
 import { createGateWorker, mintGateDevice, type GateWorker } from "./gate-worker.js";
+import { openWindowLog } from "../storage/window-log.js";
 import { createIngressListener } from "./ingress-listener.js";
 import { ensureSidebarPanel } from "./sidebar-panel.js";
 import {
@@ -301,19 +305,25 @@ function buildFunctionalHandlers(
   supervisorBase: string | undefined,
   worker: GateWorker,
   registry: DeviceRegistry,
-): { functional: FunctionalHandlers; page: GatePage } {
+): { functional: FunctionalHandlers & { me: RouteHandler }; page: GatePage } {
   const forwardCore = createCoreForwarder({ coreClient: input.coreClient });
+  const windowLog = openWindowLog(join(dirname(input.appOptionsPath), "gate", "window-log.json"), input.logger);
   const { gate, ask, asks } = gateWithAsks(worker, {
     prepare: { core: parseCoreRequest },
     deviceName: (p) => (p.kind === "device" ? registry.list().find((d) => d.deviceId === p.deviceId)?.name : undefined) ?? "a computer that is no longer paired",
     channels: () => pageChannel(input.wsClient), // the approval view, while someone may approve there
     link: phoneLinkOf(registry),
     setLink: setPhoneLinkOf(registry),
+    window: async (p) => (await checkWindowConfirm(p, registry, () => input.wsClient.sendMessage({ type: "config/auth/list" }))).window,
+    windowOff: (p) => p.kind === "device" && registry.disableWindowConfirm(p.deviceId),
+    legacyCleanupComplete: (p) => p.kind === "device" && registry.completeLegacyCleanup(p.deviceId),
+    windowLog: windowLog.append,
     now: input.now,
     logger: input.logger,
   });
-  const functional: FunctionalHandlers = {
+  const functional: FunctionalHandlers & { me: RouteHandler } = {
     ask,
+    me: createGateMeHandler(registry, () => input.wsClient.sendMessage({ type: "config/auth/list" })),
     health: createHealthHandler({
       version: input.relayVersion,
       wsClient: input.wsClient,
@@ -322,6 +332,7 @@ function buildFunctionalHandlers(
       snapshotRoot: input.snapshotRoot,
       relayInstanceId,
       gate: true,
+      window: true,
       now: input.now,
       logger: input.logger,
     }),
@@ -335,7 +346,7 @@ function buildFunctionalHandlers(
       gate,
     ),
   };
-  return { functional, page: { ...asks, texts: pageTexts((name) => worker.texts(name), input.now, input.logger) } };
+  return { functional, page: { ...asks, texts: pageTexts((name) => worker.texts(name), input.now, input.logger), recent: windowLog.list } };
 }
 
 async function listen(server: Server, port: number): Promise<void> {

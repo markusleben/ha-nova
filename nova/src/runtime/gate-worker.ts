@@ -21,7 +21,7 @@ import { childEnv, superviseChild } from "./supervise-child.js";
 // its Unix socket too: no other listener can answer in the worker's place.
 // Each route's answer is capped at the largest the worker gives
 // (cli/command_gate.go, cli/gate_ask.go); a longer one is no answer.
-const MAX_ANSWER_BYTES = { "/check": 64 << 10, "/ask": 16 << 20, "/phone": 64 << 10, "/redact": 192 << 20, "/texts": 64 << 10 } as const;
+const MAX_ANSWER_BYTES = { "/check": 64 << 10, "/ask": 16 << 20, "/phone": 64 << 10, "/phone/end": 1 << 10, "/redact": 192 << 20, "/texts": 64 << 10 } as const;
 const TIMEOUT_MS = 20_000; // above the worker's own 15 s check budget (cli/command_gate.go)
 
 export interface GateWorker extends GateClient {
@@ -88,7 +88,7 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
   const worker = superviseChild({ name: "Safety-check worker", logger: deps.logger, launch, respawnMs: deps.respawnMs });
 
   // stop hangs up: no answer, and the worker reads it as the Relay gone.
-  const post = (path: keyof typeof MAX_ANSWER_BYTES, payload: unknown, timeoutMs = deps.timeoutMs ?? TIMEOUT_MS, stop?: AbortSignal): Promise<Record<string, unknown> | null> => {
+  const post = (path: keyof typeof MAX_ANSWER_BYTES, payload: unknown, timeoutMs = deps.timeoutMs ?? TIMEOUT_MS, stop?: AbortSignal, onSent?: () => void): Promise<Record<string, unknown> | null> => {
     const asked = worker.current();
     if (asked === null || stop?.aborted === true) {
       return Promise.resolve(null);
@@ -110,6 +110,9 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
       const req = request(
         { socketPath: socket, path, method: "POST", headers: { authorization: `Bearer ${secret}`, "content-type": "application/json", "content-length": Buffer.byteLength(body) } },
         (response) => {
+          if (response.statusCode === 200 && response.headers["x-ha-nova-phone-sent"] === "1" && worker.current() === asked && stop?.aborted !== true) {
+            onSent?.();
+          }
           const chunks: Buffer[] = [];
           let size = 0;
           response.on("data", (chunk: Buffer) => {
@@ -166,9 +169,14 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
       return preparedAsk(answer, requests.length);
     },
     // The worker asks the linked phone and waits up to waitMs for a tap.
-    async phone(link, text, waitMs, stop) {
-      const answer = await post("/phone", { ...text, link, wait_ms: waitMs }, waitMs + (deps.timeoutMs ?? TIMEOUT_MS), stop);
+    async phone(link, text, waitMs, stop, onSent) {
+      const answer = await post("/phone", { ...text, link, wait_ms: waitMs }, waitMs + (deps.timeoutMs ?? TIMEOUT_MS), stop, onSent);
       return phoneAnswer(answer);
+    },
+    async phoneEnd(end) {
+      const recorded = (await post("/phone/end", end, 3_000))?.recorded === true;
+      if (!recorded) deps.logger.warn("A window confirmation could not be recorded on the phone; approval stands");
+      return recorded;
     },
     async texts(name) {
       return await post("/texts", { name });
@@ -206,11 +214,13 @@ function askItem(item: unknown, worded: boolean): AskItem | null {
 // phoneAnswer: the worker's /phone answer, or null for any other shape.
 function phoneAnswer(answer: Record<string, unknown> | null): PhoneAnswer | null {
   const value = answer?.answer;
+  const notAsked = answer?.not_asked;
+  if (notAsked !== undefined && (notAsked !== true || (value !== "none" && value !== "unavailable"))) return null;
   if (value === "approved") {
     const user = answer?.user_id;
     return typeof user === "string" && user !== "" ? { answer: value, user_id: user } : null;
   }
-  return value === "declined" || value === "rejected" || value === "none" || value === "unavailable" ? { answer: value } : null;
+  return value === "declined" || value === "rejected" || value === "none" || value === "unavailable" ? { answer: value, ...(notAsked === true ? { not_asked: true } : {}) } : null;
 }
 
 // preparedAsk: the worker's /ask answer, or null for any other shape: each

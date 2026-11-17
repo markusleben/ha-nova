@@ -11,6 +11,7 @@ import { approveRoutes } from "../http/handlers/nova-approve.js";
 import {
   createNovaActionHandler,
   createNovaPageHandler,
+  PAGE_CSRF_PENDING,
   type NovaPageDeps,
 } from "../http/handlers/nova-page.js";
 import {
@@ -156,6 +157,7 @@ function registerPairingV2Routes(
     fetchAuthUsers,
     logger: deps.logger,
     registryCorrupt: deps.registryCorrupt,
+    registry: deps.registry,
   };
   registerIngressRoute(
     router,
@@ -196,6 +198,7 @@ function registerFunctionalRoutes(
   policies: IngressRoutePolicies,
   handlers: FunctionalHandlers,
 ): void {
+  if (handlers.me !== undefined) registerIngressRoute(router, policies, "GET", "/gate/v1/me", functional("none"), handlers.me);
   registerIngressRoute(
     router,
     policies,
@@ -260,7 +263,7 @@ function registerOwnerRoutes(
   deps: IngressListenerDeps,
   fetchAuthUsers: () => Promise<HaAuthUser[]>,
 ): void {
-  const csrf = createCsrfStore();
+  const csrf = createCsrfStore(PAGE_CSRF_PENDING);
   const novaDeps: NovaPageDeps = {
     fetchAuthUsers,
     csrf,

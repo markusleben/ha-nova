@@ -34,7 +34,7 @@ This skill needs a Relay with file access AND file access enabled. Both are the 
 
 - `ha-nova relay files --data-file <payload-file>` — reads: `list_dir`, `read_file`. Images and videos in `/config/www`: `www-media.md`. `write_file` (`content`, `backup` defaults to true) and `delete_file` only through `ha-nova plan raw`, then `ha-nova apply`.
 - `ha-nova relay core --method POST --path /api/config/core/check_config` — validate the configuration BEFORE reloading.
-- `ha-nova call <domain>.reload` — apply the reload from Flow step 5 (`template.reload`, `frontend.reload_themes`, ...). `<domain>.reload` is typed (one-time code); `frontend.reload_themes` is not.
+- `ha-nova call <domain>.reload` — apply the reload from Flow step 5 (`template.reload`, `frontend.reload_themes`, ...). `<domain>.reload` is typed (the person's own confirmation); `frontend.reload_themes` is not.
 - `ha-nova relay core --method GET --path /api/states/<entity_id>` — verify the entity actually exists afterwards.
 
 ## Flow

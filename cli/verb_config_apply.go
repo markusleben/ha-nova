@@ -9,12 +9,14 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // Config execution (typed-verbs spec §2.3 config writes): one write, a
 // read-back compared with the plan, the wait for Home Assistant's own reload
 // (awaitLoaded), the registry entity and its state. A delete is preceded by
-// a pre-delete config snapshot and followed by a reload.
+// a pre-delete config snapshot and sends no reload: Home Assistant's own
+// delete hook removes the registry entry, which stops the entity.
 
 // errSnapshotFailed: nothing was deleted or saved, so apply releases the
 // plan (a typed code stays valid for --no-snapshot).
@@ -94,9 +96,6 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 		}
 		return failure
 	}
-	if action.Op == "delete" { // Home Assistant's own hook after a delete only drops the registry entry
-		_, _ = s.postService(action.Domain+".reload", configReloadData(action.Domain, action.ConfigID), false)
-	}
 	s.renewBudget()
 	row, readback := verifyConfig(s, action)
 	if alreadyGone && row.Outcome == "verified" {
@@ -109,6 +108,9 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 	switch {
 	case strings.HasPrefix(row.Note, readBackDiffers):
 		sayReadBackDiffers(env)
+	case strings.HasPrefix(row.Note, stillRuns):
+		env.Say = sayDeletedStillRunsText
+		env.NextStep = stillRunsNext(action, s.server)
 	case strings.HasPrefix(row.Note, notLoaded):
 		env.NextStep = "Tell the user it is saved but not yet confirmed running. Read it once more in a moment (`ha-nova get " + row.EntityID + " --config` and its state); never apply it again."
 	}
@@ -125,14 +127,6 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 		}
 	}
 	return nil
-}
-
-// configReloadData: the scope Home Assistant's own config hook reloads.
-func configReloadData(domain, configID string) map[string]any {
-	if domain == "automation" {
-		return map[string]any{"id": configID}
-	}
-	return map[string]any{}
 }
 
 // saveCheckpoint puts an update (a revert is one too, as in update-revert.md)
@@ -179,21 +173,34 @@ func writeFailure(env *verbEnvelope, result serviceResult, err error, createdID 
 
 // verifyConfig: a write is verified only when the read-back equals the
 // planned body (normalized), Home Assistant has loaded it (awaitLoaded), and
-// its registry entity has a state; a delete when config and entity are gone.
+// its registry entity has a state; a delete when config and entity are gone,
+// looking read-only for up to configGoneWait while Home Assistant's delete
+// hook stops the entity. One still there after that is said, never reloaded.
 func verifyConfig(s *relaySession, action configAction) (verifyRow, json.RawMessage) {
 	row := verifyRow{EntityID: action.EntityID, Outcome: "unverified"}
 	status, readback, err := coreGETFresh(s, action.Path)
 	if action.Op == "delete" {
 		row.Expect = "config and entity gone"
-		st, stateErr := s.stateFresh(action.EntityID, relaySessionRequestTimeout)
-		row.Observed = fmt.Sprintf("config HTTP %d, entity present: %v", status, st != nil)
-		if err != nil || stateErr != nil { // an unanswered read is not an absence
-			row.Observed = "read failed"
+		start := time.Now()
+		for {
+			st, stateErr := s.stateFresh(action.EntityID, relaySessionRequestTimeout)
+			row.Observed = fmt.Sprintf("config HTTP %d, entity present: %v", status, st != nil)
+			waited := time.Since(start)
+			switch {
+			case err != nil || stateErr != nil: // an unanswered read is not an absence
+				row.Observed = "read failed"
+				return row, nil
+			case status == http.StatusNotFound && st == nil:
+				row.Outcome = "verified"
+				return row, nil
+			case status != http.StatusNotFound:
+				return row, nil
+			case waited+configLoadPoll > configGoneWait:
+				row.Note = fmt.Sprintf("%sstill has it after %s; a reload stops it", stillRuns, waited.Round(time.Second))
+				return row, nil
+			}
+			time.Sleep(configLoadPoll)
 		}
-		if err == nil && stateErr == nil && status == http.StatusNotFound && st == nil {
-			row.Outcome = "verified"
-		}
-		return row, nil
 	}
 	row.Expect = "read-back equals the plan, loaded by Home Assistant, entity present"
 	differences, parseErr := configChanges(action.Body, readback)
@@ -247,6 +254,23 @@ const readBackDiffers = "the read-back differs: "
 
 // notLoaded: saved, but not seen running (awaitLoaded); never applied again.
 const notLoaded = "saved, but "
+
+// stillRuns opens the note of a delete whose entity Home Assistant still runs.
+const stillRuns = "deleted from the config, but Home Assistant "
+
+// stillRunsNext: the reload that stops it, offered as its own plan (asked
+// for on its own when it rates typed), never sent by apply.
+func stillRunsNext(action configAction, server string) string {
+	payload, flags := "no data", ""
+	if action.Domain == "automation" {
+		payload, flags = fmt.Sprintf("data {\"id\": %q}", action.ConfigID), " --set id="+action.ConfigID
+	}
+	if server != "" {
+		flags += " --server " + server
+	}
+	return "Tell the user it is deleted from the config, but Home Assistant still runs it; never call it gone. Offer the reload that stops it as its own plan, service " +
+		action.Domain + ".reload with " + payload + ": `ha-nova plan call " + action.Domain + ".reload" + flags + "`, which asks for a confirmation on its own when it needs one."
+}
 
 // sayReadBackDiffers: what Home Assistant kept is not what the user
 // approved. Equivalent spellings never get here (configChanges), so this is

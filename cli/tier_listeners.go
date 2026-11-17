@@ -140,7 +140,7 @@ func (e *tierEngine) listenerTable() *listenerTable {
 		EntityID   string `json:"entity_id"`
 		State      string `json:"state"`
 		Attributes struct {
-			ID string `json:"id"`
+			ID registryID `json:"id"`
 		} `json:"attributes"`
 	}
 	if err == nil && status != http.StatusOK {
@@ -161,7 +161,7 @@ func (e *tierEngine) listenerTable() *listenerTable {
 	var rows []*autoRow
 	for _, st := range states {
 		if strings.HasPrefix(st.EntityID, "automation.") && st.State == "on" { // off automations hold no listeners
-			rows = append(rows, &autoRow{entityID: st.EntityID, configID: st.Attributes.ID})
+			rows = append(rows, &autoRow{entityID: st.EntityID, configID: string(st.Attributes.ID)})
 		}
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].entityID < rows[j].entityID })

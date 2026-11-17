@@ -72,10 +72,13 @@ file writes, and other risky changes wait for a person's OK:
   approve there, except the user this App signs in as.
 
 The OK covers exactly the change shown, once. Nothing is sent before it, and a
-request no one answers ends after 3 minutes. The window on your computer only
-waits: it says where to confirm, opens this request on the NOVA page, or cancels. It can't
-confirm. Dashboard and room changes are the exception: they still ask on the
-computer (the window, or a four-digit code).
+request no one answers ends after 3 minutes. On a computer you marked as your
+own (when pairing or on the NOVA page) with confirmation in its window on, you can also click
+Confirm in the window there; your phone then asks only when nobody confirms
+at the computer. On other computers the window only waits: it says where to
+confirm, opens this request on the NOVA page, or cancels. Dashboard edits and
+room changes are the exception: they still ask on the computer (the window, or
+a four-digit code); a dashboard delete asks here.
 
 While a change waits, your AI app may say it is waiting for your OK
 (`waiting_for_approval`): the change hasn't been sent yet. Approve it, then
@@ -92,8 +95,8 @@ safety check isn't running, nothing that needs it is sent; restart this App.
 
 Good to know:
 
-- Each computer asks at most 10 times an hour. After five of its requests in a
-  row go unanswered, its phone asks pause for 5 minutes. The NOVA page still
+- Each computer asks at most 60 times an hour, its phone at most 10. After five
+  of its requests in a row go unanswered, its phone asks pause for 5 minutes. The NOVA page still
   works, shows those requests, and can ask on the phone again right away.
 - Whoever holds your linked phone can answer the open request; its buttons
   don't need an unlocked phone.
@@ -159,6 +162,7 @@ device's key gets 403, the old shared key 401 with "pair this computer again".
 | POST | `/files` | Config-file access, only when you turn it on |
 | POST | `/backups` | Saved copies of configs, for undo |
 | POST | `/gate/v1/ask`, `/gate/v1/phone` | Ask a person to approve a risky change, or to link a phone for that (the safety check) |
+| GET | `/gate/v1/me` | This computer's window-confirmation status (0.32 pairing foundation) |
 | POST | `/supervisor` | Supervisor system and App reads, from a fixed list (local ports only, not through Home Assistant Link). The HA NOVA program, on a computer and in chat apps, doesn't read the logs |
 
 For Apps and logs, this App has the Supervisor's `manager` access, which Home

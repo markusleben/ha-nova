@@ -34,6 +34,15 @@ func namedSetupRequestAllowed(
 		strings.TrimSpace(relayToken) == ""
 }
 
+// namedLocalRePairAllowed: an interactive setup of a named profile paired with
+// a local Relay pairs it again by sign-in, as setup does for the default
+// profile (spec §5.3), with no address or token override.
+func namedLocalRePairAllowed(cfg runtimeConfig, serviceMode bool, overrides ...string) bool {
+	return activeServerProfile() != defaultServerProfileName && cfg.Cloud == nil &&
+		strings.TrimSpace(cfg.RelaySecureBaseURL) != "" && strings.TrimSpace(cfg.RelaySpkiPin) != "" &&
+		!serviceMode && strings.TrimSpace(strings.Join(overrides, "")) == ""
+}
+
 func namedClientRepairTransportConfigured(
 	cfg runtimeConfig,
 	target string,

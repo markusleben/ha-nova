@@ -111,6 +111,9 @@ func persistInteractiveSetupStateUnlocked(paths runtimePaths, cfg runtimeConfig,
 	}
 
 	tokenChanged := token != previousToken
+	if tokenChanged && activeServerProfile() != defaultServerProfileName {
+		return errors.New("the shared relay key belongs to the default server; setup for another server never changes it")
+	}
 	if tokenChanged {
 		previousToken, hadPreviousToken, err =
 			snapshotRelayAuthTokenForSetupPersistence(

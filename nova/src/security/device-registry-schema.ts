@@ -10,6 +10,7 @@ import {
   readPrivateFileSync,
 } from "../storage/atomic-file.js";
 import { isRelayInstanceId } from "../storage/relay-instance.js";
+import { isCredentialStore, isLegacyCleanup } from "./pairing-metadata.js";
 
 export const DEVICE_REGISTRY_FILE = "device-registry.json";
 const MAX_REGISTRY_BYTES = 512 * 1024;
@@ -150,6 +151,38 @@ function validateDevice(value: unknown): DeviceRecord {
   }
   if (raw.confirmPhone !== undefined) {
     record.confirmPhone = validateConfirmPhone(raw.confirmPhone);
+  }
+  if (raw.credentialStore !== undefined) {
+    if (!isCredentialStore(raw.credentialStore)) {
+      throw new RegistryCorruptError("device.credentialStore is invalid");
+    }
+    record.credentialStore = raw.credentialStore;
+  }
+  if (raw.legacyCleanup !== undefined) {
+    if (!isLegacyCleanup(raw.legacyCleanup)) {
+      throw new RegistryCorruptError("device.legacyCleanup is invalid");
+    }
+    record.legacyCleanup = raw.legacyCleanup;
+  }
+  if (raw.ownComputer !== undefined) {
+    const own = raw.ownComputer as Record<string, unknown> | null;
+    if (typeof own !== "object" || own === null || typeof own.userId !== "string" || !isValidCloudUserId(own.userId) || typeof own.atMs !== "number" || !Number.isFinite(own.atMs)) {
+      throw new RegistryCorruptError("device.ownComputer is invalid");
+    }
+    record.ownComputer = { userId: own.userId, atMs: own.atMs };
+  }
+  if (raw.windowConfirm !== undefined) {
+    if (typeof raw.windowConfirm !== "boolean") {
+      throw new RegistryCorruptError("device.windowConfirm is invalid");
+    }
+    record.windowConfirm = raw.windowConfirm;
+  }
+  if (raw.retireDeviceId !== undefined) record.retireDeviceId = stringField("retireDeviceId");
+  if (raw.pairingOwnerId !== undefined) {
+    record.pairingOwnerId = stringField("pairingOwnerId");
+    if (!isValidCloudUserId(record.pairingOwnerId)) {
+      throw new RegistryCorruptError("device.pairingOwnerId is invalid");
+    }
   }
   if (record.state === "pending" && record.pendingExpiresAtMs === undefined) {
     throw new RegistryCorruptError("pending device without pendingExpiresAtMs");

@@ -154,8 +154,8 @@ Current mapping:
    and preview only; a changed draft needs a new plan.
 3. Apply + Verify — `ha-nova apply --plan <id>` re-plans (exit 2 on drift),
    takes the pre-delete config snapshot, sends the body byte-exactly once
-   (no reload of its own after a save: Home Assistant reloads; a delete
-   reloads), and verifies the read-back (content and the order of
+   (no reload of its own: Home Assistant reloads after a save, and its
+   delete hook stops a deleted item), and verifies the read-back (content and the order of
    `variables`/`trigger_variables`/`fields`), that Home Assistant loaded
    it (read-only), and the live entity.
 4. Review (inline, never `ha-nova:review`) — post-write checks, collision

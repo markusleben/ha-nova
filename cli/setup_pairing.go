@@ -309,7 +309,14 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 	// "Sign in and install NOVA" already holds the owner's ingress session:
 	// pair with it instead of a second sign-in.
 	if secure && installed != nil {
-		paired, soft, err := pairWithHASignInSession(out, paths, cfg, *installed, lifecycleMarker...)
+		if !installed.fromPage { // the page asked with its sign-in button
+			own, err := askOwnComputerForSetup(reader, out, *cfg)
+			if err != nil {
+				return "", err
+			}
+			installed.own = own
+		}
+		paired, soft, err := pairWithHASignInSession(reader, out, paths, cfg, *installed, lifecycleMarker...)
 		if paired {
 			renderSetupSuccessLine(out, "This computer is connected")
 			return "", errSetupDevicePaired

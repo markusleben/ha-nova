@@ -251,6 +251,13 @@ func finishInteractiveCloudOnlySetup(
 		printHumanErr("client installation failed: %s", err)
 		return 1
 	}
+	note := ""
+	if cfg, err := loadRuntimeConfig(paths); err == nil { // Link-only Mac: the cleanup ends setup here too
+		note = printLegacyLinkCleanup(out, paths, cfg, isInteractiveTTY() && writerSupportsTTYForSetup(out))
+	}
 	renderSetupCompleteBanner(out, selectedClients, nil)
+	if note != "" {
+		fmt.Fprintln(out, "  "+note)
+	}
 	return 0
 }

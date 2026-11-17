@@ -195,6 +195,7 @@ async function nova() {
       headers: { cookie, "content-type": "application/x-www-form-urlencoded", origin: CFG.ha, "sec-fetch-site": "same-origin" }, body: new URLSearchParams(fields).toString() });
     if (r.status >= 400) throw new Error(`NOVA page ${action}: HTTP ${r.status}`);
   };
+  const view = async () => { const response = await fetch(`${base.replace(/\/$/, "")}/approve`, { headers: { cookie } }); return response.ok ? response.text() : ""; };
   const devices = (html) => [...html.matchAll(/<li><span class="device"><strong>([^<]*)<\/strong>[\s\S]*?device=([^"&]+)"/g)].map((m) => ({ name: m[1], id: decodeURIComponent(m[2]) }));
   return {
     devices: async () => {
@@ -212,6 +213,14 @@ async function nova() {
     },
     html: () => get(),
     cancelCode: async () => { const html = await get(); if (html.includes('value="cancel_code"')) await post(html, "cancel_code"); },
+    // The approval view: whether an ask waits there; approve: its Approve on the first one.
+    waiting: async () => (await view()).includes('name="action" value="approve"'),
+    approve: async () => {
+      const html = await view();
+      if (!html.includes('name="action" value="approve"')) return false;
+      await post(html, "approve");
+      return true;
+    },
     revoke: async (id) => post(await get(`?confirm=revoke_device&device=${encodeURIComponent(id)}`), "revoke_device"),
   };
 }
@@ -411,6 +420,26 @@ async function core(S, hn, run, hasClaude, hasCodex, want) {
   const off = await hn("call light.turn_off light.bed_light");
   const st = (r) => r.out.match(/"status"\s*:\s*"([^"]+)"/)?.[1] ?? `exit ${r.code}`;
   check(S, "ordinary call: light.turn_on / turn_off bed light", on.code === 0 && off.code === 0 && st(on) === "verified" && st(off) === "verified", `${st(on)} / ${st(off)}`);
+  // A typed unlock approved on the NOVA page 30 s after its ask appeared, past
+  // the App's 25 s wait poll: 0.30.0 and 0.31.0 lost it at the CLI's 20 s client timeout (#1183).
+  const lock = (service) => fetch(`${CFG.ha}/api/services/lock/${service}`, { method: "POST", headers: { authorization: `Bearer ${llat}`, "content-type": "application/json" }, body: JSON.stringify({ entity_id: "lock.front_door" }) });
+  const LATE = "typed unlock approved on the NOVA page 30 s after it asked (#1183)";
+  await lock("lock");
+  const plan = await hn("plan call lock.unlock lock.front_door");
+  let id;
+  try { id = JSON.parse(plan.out.split(/\r?\n/).find((l) => l.startsWith("{")) ?? "{}").plan?.id; } catch { /* no plan: reported below */ }
+  if (!id) check(S, LATE, false, `no plan: ${tail(plan.out, 1)}`);
+  else {
+    const applying = hn(`apply --plan ${id}`, { timeoutMs: 3 * 60_000 });
+    let asked = false;
+    for (let i = 0; i < 30 && !asked; i++) asked = (await (await nova()).waiting()) || (await sleep(2000), false);
+    const t = Date.now();
+    if (asked) await sleep(30_000);
+    const approved = asked && (await (await nova()).approve());
+    const done = await applying;
+    check(S, LATE, approved && done.code === 0 && st(done) === "verified", `${asked ? (approved ? "approved" : "ask gone before the approval") : "no ask on the page within 60 s"}, apply ${((Date.now() - t) / 1000).toFixed(0)} s after it asked -> ${st(done)}`);
+  }
+  await lock("lock");
   const w = await run(`$b=Get-ChildItem "$env:LOCALAPPDATA\\Programs\\ha-nova" -Recurse -Filter SKILL.md | Where-Object { $_.Directory.Name -eq 'ha-nova' } | Select-Object -First 1
 $c=Join-Path $HOME '.agents\\skills\\ha-nova\\ha-nova\\SKILL.md'
 "codex=$([bool]((Test-Path $c) -and $b -and ((Get-FileHash $c).Hash -eq (Get-FileHash $b.FullName).Hash)))"

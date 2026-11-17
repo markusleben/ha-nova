@@ -178,16 +178,18 @@ describe("app mode: the safety check fronts every device-facing handler", () => 
     expect(upstream).toEqual([]);
   });
 
-  it("leaves /health ungated", async () => {
+  it("leaves /health ungated and advertises the window contract", async () => {
     const { local } = await build();
-    const response = await new Promise<number>((resolve, reject) => {
+    const response = await new Promise<{ status: number; text: string }>((resolve, reject) => {
       const request = httpsRequest({ host: "127.0.0.1", port: ports.device, path: "/health", ...deviceTls(), headers: { authorization: `Bearer ${local}` } }, (res) => {
-        res.resume();
-        resolve(res.statusCode ?? 0);
+        let text = "";
+        res.on("data", (chunk: Buffer) => (text += chunk.toString("utf8")));
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, text }));
       });
       request.on("error", reject);
       request.end();
     });
-    expect(response).toBe(200);
+    expect(response.status).toBe(200);
+    expect(JSON.parse(response.text).data).toMatchObject({ gate: 1, window: 1 });
   });
 });

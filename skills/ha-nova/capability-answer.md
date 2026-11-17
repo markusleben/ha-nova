@@ -88,9 +88,9 @@ never decides: the CLI rates every action.
   need you to confirm yourself: for example unlocking or opening a lock, door,
   gate, or garage, disarming the alarm, or restarting Home Assistant, also
   when a scene, script, or automation would do it. Locking, closing, and
-  arming need no extra step. A plain "yes" in chat is never enough. Often a window on your computer or
-  your linked phone asks you. Otherwise you type a four-digit one-time code
-  from HA NOVA.
+  arming need no extra step. A plain "yes" in chat is never enough. Usually you click Confirm in a window
+  on your computer, or your linked phone or the NOVA page asks you. Only where
+  none can, you type a four-digit one-time code from HA NOVA.
 - Automation, script, dashboard-content, and storage-helper updates keep a revert path; deleted
   items in snapshot-covered families restore from automatic config snapshots.
 - Reads are bounded; pairing and authentication secrets never appear in

@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+func gatePhoneHome(s *relaySession, link phoneLink) (phoneHome, error) {
+	var users []haUser
+	if err := s.phoneRead("ws", map[string]any{"type": "config/auth/list"}, &users); err != nil {
+		return phoneHome{}, err
+	}
+	owner := ""
+	for _, user := range users {
+		if user.IsOwner && user.IsActive && !user.SystemGenerated {
+			owner = user.ID
+		}
+	}
+	return lookupPhones(s, map[string]phoneEntry{owner: {link: &link}})
+}
+
 // A link from the Relay (POST /gate/v1/phone, docs/work/2026-11-03-relay-typed-gate-spec.md §3):
 // the phone linked now, if any, confirms the move first, then the new phone
 // confirms the link. The worker words both asks from confirm_strings in
@@ -20,8 +34,8 @@ func (in gatePhoneRequest) valid() bool {
 	}
 	_, known := confirmCatalogs[in.Lang]
 	text := known && in.Title != "" && in.Body != "" && in.Button != "" && in.Words == "" && in.Device == "" && in.Current == nil
-	words := in.Words == "link" && in.Device != "" && in.Lang+in.Title+in.Body+in.Button == "" && (in.Current == nil || link(*in.Current))
-	return (text || words) && link(in.Link) && wait >= time.Second && wait <= gatePhoneMaxWait
+	words := in.Words == "link" && in.AskRef == "" && in.Device != "" && in.Lang+in.Title+in.Body+in.Button == "" && (in.Current == nil || link(*in.Current))
+	return (text || words) && (in.AskRef == "" || gatePhoneRef.MatchString(in.AskRef)) && link(in.Link) && wait >= time.Second && wait <= gatePhoneMaxWait
 }
 
 func gatePhoneLink(ctx context.Context, paths runtimePaths, in gatePhoneRequest) (gatePhoneAnswer, error) {
@@ -83,6 +97,33 @@ func gatePhoneEligible(s *relaySession, link phoneLink) bool {
 // worker can't tell which), a quiet note and a clear withdraw it.
 func gatePhoneTap(ctx context.Context, s *relaySession, paths runtimePaths, link phoneLink, setup phoneSetup, ask phoneAsk, wait time.Duration) gatePhoneAnswer {
 	answer, reply := askPhone(ctx, s, setup, gatePhoneTag, ask, wait, nil)
+	if run, ok := ctx.Value(gatePhoneEndKey{}).(*gatePhoneRun); ok {
+		notice, done := run.ends.claim(run.ref, reply.tag, setup)
+		run.detached = true
+		defer func() {
+			if notice == nil {
+				reply.withdraw(confirmT(ask.lang, "outcome.not_confirmed"), confirmT(ask.lang, "outcome.line.no_answer"))
+			}
+			go func() {
+				defer s.close()
+				if notice != nil {
+					if reply.sending != nil {
+						<-reply.sending
+					}
+					run.ends.emit(paths, *notice, reply.tag)
+					done()
+					return
+				}
+				if reply.landed != nil {
+					<-reply.landed
+				}
+				done()
+			}()
+		}()
+		if notice != nil {
+			return gatePhoneAnswer{Answer: "none"}
+		}
+	}
 	lang := ask.lang
 	title := func(prefix string) string {
 		return confirmT(lang, "phone.result_title", "prefix", prefix, "goal", strings.TrimSuffix(ask.title, "?"))

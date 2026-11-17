@@ -113,7 +113,7 @@ func (srv *mcpServer) stdioAwait(id string, job *chatJob) map[string]any {
 		case <-job.done: // ended as the wait did
 		default:
 			if phase := job.asking.Load(); phase != 0 {
-				return waitingForApproval(id, job.lang, phase == gateLinking)
+				return waitingForApproval(id, job.lang, phase)
 			}
 			return applying(id, job.lang, false)
 		}
@@ -122,11 +122,16 @@ func (srv *mcpServer) stdioAwait(id string, job *chatJob) map[string]any {
 	return maps.Clone(job.result)
 }
 
-// waitingForApproval: the job's Relay ask waits for the person (link: the
-// phone-link ask before it); nothing of this step was sent (gate_client.go).
-func waitingForApproval(id, lang string, link bool) map[string]any {
+// waitingForApproval: the job's Relay ask waits for the person (phase:
+// gateAsking, gateAskingWindow with Confirm in this computer's window, or
+// gateLinking for the phone-link ask before it); nothing of this step was
+// sent (gate_client.go).
+func waitingForApproval(id, lang string, phase int32) map[string]any {
 	wait, say := "HA NOVA waits for the user's OK on their linked phone or in Home Assistant (the NOVA page)", confirmT(lang, "say.relay_waiting")
-	if link {
+	switch phase {
+	case gateAskingWindow:
+		wait, say = "HA NOVA waits for the user's OK in the confirmation window on their computer, on their linked phone, or in Home Assistant (the NOVA page)", confirmT(lang, "say.relay_window_waiting")
+	case gateLinking:
 		wait, say = "the user's phone first asks whether it gets HA NOVA's confirmations; the change itself is confirmed after that, and a no there stops it", confirmT(lang, "say.relay_link_waiting")
 	}
 	next := fmt.Sprintf("Nothing of this step was sent yet: %s. Tell the user `say`, then call ha_apply again with plan_id %s and no confirm_code right away, in this same answer: it joins the same run, and nothing is sent twice. You can't act once your answer ends, so never tell the user you will report back on your own; if you end your answer before the outcome, tell them to ask you again once they confirmed. Never ask for a code.", wait, id)

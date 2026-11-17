@@ -41,7 +41,7 @@ func (f *setupFlow) start() setupStepResult {
 		f.haURLFlag,
 		f.relayURLFlag,
 		f.relayTokenFlag,
-	)
+	) || namedLocalRePairAllowed(f.cfg, f.serviceMode, f.hostFlag, f.haURLFlag, f.relayURLFlag, f.relayTokenFlag)
 	f.explicitLocalSetup = f.serviceMode ||
 		strings.TrimSpace(f.hostFlag) != "" ||
 		strings.TrimSpace(f.haURLFlag) != "" ||

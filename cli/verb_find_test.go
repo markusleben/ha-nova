@@ -27,7 +27,10 @@ type fakeRelayCall struct {
 type fakeRelayLog struct {
 	mu    sync.Mutex
 	calls []fakeRelayCall
-	gate  atomic.Bool // GET /health says gate: 1 (a gated App); else an older App
+	gate  atomic.Bool  // GET /health says gate: 1 (a gated App); else an older App
+	noWin atomic.Bool  // a gated App without window: 1 (before 0.32)
+	me    atomic.Value // GET /gate/v1/me's data (a map); unset: 404, as an App without it
+	meGot atomic.Int32 // GET /gate/v1/me reads
 }
 
 func (l *fakeRelayLog) all() []fakeRelayCall {
@@ -87,8 +90,22 @@ func setupFakeRelay(t *testing.T, reply func(r *http.Request, endpoint string, p
 			if log.gate.Load() {
 				health["gate"] = 1
 			}
+			if log.gate.Load() && !log.noWin.Load() {
+				health["window"] = 1
+			}
 			w.Header().Set("content-type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": health})
+			return
+		}
+		if r.Method == http.MethodGet && endpoint == strings.TrimPrefix(gateMeRoute, "/") { // this computer's window (gate_me.go)
+			log.meGot.Add(1)
+			w.Header().Set("content-type", "application/json")
+			if me := log.me.Load(); me != nil {
+				_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": me})
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": map[string]any{"code": "NOT_FOUND", "message": "no route"}})
 			return
 		}
 		raw, _ := io.ReadAll(r.Body)

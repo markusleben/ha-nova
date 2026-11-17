@@ -198,11 +198,11 @@ func resolveConfigID(s *relaySession, entityID, domain string, state json.RawMes
 	if domain == "automation" && state != nil {
 		var parsed struct {
 			Attributes struct {
-				ID string `json:"id"`
+				ID registryID `json:"id"`
 			} `json:"attributes"`
 		}
 		_ = json.Unmarshal(state, &parsed) // readEntityState already validated this JSON
-		configID = parsed.Attributes.ID
+		configID = string(parsed.Attributes.ID)
 	} else {
 		var entry struct {
 			UniqueID registryID `json:"unique_id"`

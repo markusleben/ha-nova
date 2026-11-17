@@ -47,7 +47,7 @@ name as written.
   Home Assistant offers it (for example `door`, `window`, `garage_door`,
   `motion`, `occupancy`, `moisture`); `null` brings back the original. A
   cover's "Show as" is refused by the CLI because it decides whether opening
-  needs the one-time code: send the user to the entity's settings in Home
+  needs the person's own confirmation: send the user to the entity's settings in Home
   Assistant. A switch shown as a light, lock, or cover is a new helper
   entity, not this field: `ha-nova:helper` (`switch_as_x`).
 - **`options_domain` is the entity's own domain, and only `sensor` or

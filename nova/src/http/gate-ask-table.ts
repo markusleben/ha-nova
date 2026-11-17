@@ -22,12 +22,15 @@ export interface Ask {
   waiters: Set<() => void>;
   stop: AbortController; // its phone request, if any, hangs up when it ends
   timer: ReturnType<typeof setTimeout>;
+  phoneAt?: number;
+  phoneTimer?: ReturnType<typeof setTimeout>;
+  sendPhone?: () => void;
 }
 
 export interface AskTable {
   start(owner: string, digests: string[], prepared?: PreparedAsk): { askId: string; ask: Ask };
-  settle(ask: Ask, state: AskState, answered?: boolean): void; // answered: a person ended it (gate-owners.ts)
-  grant(ask: Ask): void;
+  settle(ask: Ask, state: AskState, answered?: boolean, hold?: boolean): boolean; // answered: a person ended it (gate-owners.ts)
+  grant(ask: Ask, hold?: boolean): boolean;
   find(owner: string, askId: unknown): Ask; // 404 unless this owner's
   get(ref: string): Ask | undefined;
   entries(): [string, Ask][];
@@ -40,18 +43,20 @@ export function createAskTable(now: () => number, grants: GateGrants, limits: Ow
   const asks = new Map<string, Ask>();
 
   // An ask ends once: its phone hangs up, and its end may count toward a pause.
-  const settle = (ask: Ask, state: AskState, answered = false): void => {
+  const settle = (ask: Ask, state: AskState, answered = false, hold = false): boolean => {
     if (ask.state.state !== "waiting") {
-      return;
+      return false;
     }
     ask.state = state;
     clearTimeout(ask.timer);
-    ask.stop.abort();
-    limits.ended(ask.owner, state.state, answered, ask.prepared?.items.find((item) => item.verdict === "typed")?.text ?? "", now() - (ask.expiresAt - ASK_MS));
+    clearTimeout(ask.phoneTimer);
+    if (!hold) ask.stop.abort();
+    limits.ended(ask.owner, state.state, answered, ask.prepared?.items.find((item) => item.verdict === "typed")?.text ?? "", ask.phoneAt === undefined ? 0 : now() - ask.phoneAt);
     for (const wake of ask.waiters) {
       wake();
     }
     ask.waiters.clear();
+    return true;
   };
   const prune = (): void => {
     const at = now();
@@ -86,9 +91,14 @@ export function createAskTable(now: () => number, grants: GateGrants, limits: Ow
       return { askId, ask };
     },
     settle,
-    grant(ask) {
+    grant(ask, hold = false) {
+      if (ask.state.state !== "waiting") return false;
+      if (now() >= ask.expiresAt) {
+        settle(ask, { state: "expired" });
+        return false;
+      }
       const { grantId, until } = grants.issue(ask.owner, ask.digests);
-      settle(ask, { state: "approved", grant_id: grantId, until });
+      return settle(ask, { state: "approved", grant_id: grantId, until }, true, hold);
     },
     find(owner, askId) {
       prune();

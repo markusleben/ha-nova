@@ -5,13 +5,14 @@ import type { DeviceRecord } from "../../security/device-registry.js";
 import { chatPhoneLine, chatPhoneWaiting, renderChatPhone, renderChatPhoneError, type ChatPhoneAction, type ChatPhoneModel } from "./nova-page-chat-phone.js";
 import { renderChatActivity, renderChatUsers, renderToolsChanged, type ChatPhoneUser, type ChatUsersModel } from "./nova-page-chat-users.js";
 import { liveScript } from "./nova-page-live.js";
+import type { WindowAction } from "./nova-page-window.js";
 import { PAGE_CSS } from "./nova-page-style.js";
 
 // Presentation layer of the NOVA console: page model, HTML/CSS rendering,
 // the armed confirm section, and formatting helpers. The HTTP/action/CSRF
 // handling lives in nova-page.ts; this module never touches the request.
 
-export type NovaAction = "generate_code" | "cancel_code" | "revoke_device" | "reset_registry" | "resume_phone_asks" | ChatAction | ChatPhoneAction;
+export type NovaAction = "generate_code" | "cancel_code" | "revoke_device" | "reset_registry" | "resume_phone_asks" | WindowAction | ChatAction | ChatPhoneAction;
 export type ChatAction = "chat_apps_on" | "chat_apps_off" | "chat_read_only" | "chat_codes" | "chat_users";
 
 export interface ConnectionStatus {
@@ -70,6 +71,7 @@ export interface PageModel {
   chatUsers: ChatUsersModel | null; // null: chat apps are off
   chatRestarting: boolean;
   gateSection: string; // nova-approve.ts renderGateSection; "" without a gate
+  windowRow: (device: DeviceRecord) => string; // nova-page-window.ts; "" without its words
   live: string | null; // nova-page-live.ts liveState; null without a gate
 }
 
@@ -146,7 +148,7 @@ export function renderPage(m: PageModel): string {
       : `<ul>${activeDevices
           .map(
             (d) =>
-              `<li><span class="device"><span><strong>${escapeHtml(d.name)}</strong>${cloudBadge(d)}</span><span class="muted meta">${escapeHtml(platformName(d.platform))} · ${escapeHtml(d.client)}</span><span class="muted meta">added ${escapeHtml(formatWhen(d.createdAtMs))} · last used ${escapeHtml(formatLastUsed(d.lastUsedAtMs))}</span></span>${armLink(`confirm=revoke_device&device=${encodeURIComponent(d.deviceId)}`, "Revoke…")}</li>`
+              `<li><span class="device"><span><strong>${escapeHtml(d.name)}</strong>${cloudBadge(d)}</span><span class="muted meta">${escapeHtml(platformName(d.platform))} · ${escapeHtml(d.client)}</span><span class="muted meta">added ${escapeHtml(formatWhen(d.createdAtMs))} · last used ${escapeHtml(formatLastUsed(d.lastUsedAtMs))}</span>${m.windowRow(d)}</span>${armLink(`confirm=revoke_device&device=${encodeURIComponent(d.deviceId)}`, "Revoke…")}</li>`
           )
           .join("")}</ul>`;
 
@@ -300,7 +302,7 @@ function cloudBadge(device: DeviceRecord): string {
 // household's timezone, and an absolute stamp is what makes two same-named
 // pairings distinguishable. Hand-formatted so the output does not depend on
 // the Node build's ICU data.
-function formatWhen(ms: number): string {
+export function formatWhen(ms: number): string {
   const d = new Date(ms);
   const pad = (n: number): string => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;

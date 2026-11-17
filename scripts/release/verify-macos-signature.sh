@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EXPECTED_IDENTIFIER="com.markusleben.ha-nova.cli"
+EXPECTED_IDENTIFIER="com.markusleben.ha-nova.cli2"
 EXPECTED_TEAM_ID="CTF9J94274"
 EXPECTED_AUTHORITY="Developer ID Application: Markus Leben (${EXPECTED_TEAM_ID})"
 

@@ -1,3 +1,5 @@
+import type { CredentialStore, LegacyCleanup } from "./device-registry-types.js";
+
 export const MAX_METADATA_BYTES = 4 * 1024;
 // The NOVA App mints its chat-app bridge and safety-check worker credentials
 // under these ids; pairing refuses them, so no device can replace or be
@@ -10,6 +12,17 @@ export interface DeviceMetadata {
   platform: string;
   client: string;
   clientInstallId: string;
+  credentialStore?: CredentialStore;
+  legacyCleanup?: LegacyCleanup;
+  retireDeviceId?: string;
+}
+
+export function isCredentialStore(value: unknown): value is CredentialStore {
+  return value === "keychain" || value === "credential_manager" || value === "secret_service" || value === "file";
+}
+
+export function isLegacyCleanup(value: unknown): value is LegacyCleanup {
+  return value === "pending" || value === "complete";
 }
 
 export function decodePairingMetadata(
@@ -32,6 +45,7 @@ export function decodePairingMetadata(
   const platform = boundedString(metadata.platform, 32);
   const client = boundedString(metadata.client, 32);
   const clientInstallId = boundedString(metadata.client_install_id, 128);
+  const retire = boundedString(metadata.retire_device_id, 64);
   if (
     name === null ||
     platform === null ||
@@ -42,7 +56,8 @@ export function decodePairingMetadata(
   ) {
     return null;
   }
-  return { name, platform, client, clientInstallId };
+  return { name, platform, client, clientInstallId, ...(isCredentialStore(metadata.credential_store) ? { credentialStore: metadata.credential_store } : {}),
+    ...(isLegacyCleanup(metadata.legacy_cleanup) ? { legacyCleanup: metadata.legacy_cleanup } : {}), ...(retire !== null ? { retireDeviceId: retire } : {}) };
 }
 
 function boundedString(value: unknown, maxLength: number): string | null {
