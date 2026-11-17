@@ -137,23 +137,22 @@ func TestCloudRemoveForTheRePairKeepsItsCheckpoint(t *testing.T) {
 	}
 }
 
-// At home, setup paired but couldn't add Link; away now, it goes through
-// the saved Link address. Without one, only setup at home can finish.
-func TestLinkRePairAddLinkCheckpointAwayUsesTheSavedLinkAddress(t *testing.T) {
-	cfg := relinkHybridConfig(t)
-	cfg.Cloud, cfg.RoutePolicy, cfg.LinkRePair, cfg.LinkRePairOrigin = nil, routePolicyLocal, linkRePairAddLink, relinkOrigin(t).InputOrigin
-	f := newRelinkFixture(t, defaultServerProfileName, false, cfg)
-	code, output := f.run("\n")
-	if after := f.config(); code != 0 || len(f.coord.owns) != 1 || !after.Cloud.ready() || after.LinkRePair != linkRePairLinkOnly || after.LinkRePairOrigin != "" {
-		t.Fatalf("code %d, config %+v\n%s", code, after, output)
+// At home, setup paired but couldn't add Link; away now, the local pairing
+// stays as it is and only setup at home finishes (Link can't take over that
+// key: its Relay identity isn't known), with or without a saved Link address.
+func TestLinkRePairAddLinkCheckpointAwayKeepsTheLocalPairing(t *testing.T) {
+	for _, origin := range []string{relinkOrigin(t).InputOrigin, ""} {
+		cfg := relinkHybridConfig(t)
+		cfg.Cloud, cfg.RoutePolicy, cfg.LinkRePair, cfg.LinkRePairOrigin = nil, routePolicyLocal, linkRePairAddLink, origin
+		f := newRelinkFixture(t, defaultServerProfileName, false, cfg)
+		before, _ := os.ReadFile(f.paths.ConfigFile)
+		code, output := f.run("\n")
+		after, _ := os.ReadFile(f.paths.ConfigFile)
+		if code != 1 || len(f.coord.owns) != 0 || string(before) != string(after) {
+			t.Fatalf("origin %q: code %d, changed %v\n%s", origin, code, string(before) != string(after), output)
+		}
+		requireOneStep(t, output, setupT("setup.relink.home_needed", "command", "ha-nova setup"))
 	}
-	cfg.LinkRePairOrigin = ""
-	f = newRelinkFixture(t, defaultServerProfileName, false, cfg)
-	code, output = f.run("\n")
-	if code != 1 || len(f.coord.owns) != 0 {
-		t.Fatalf("no address: code %d\n%s", code, output)
-	}
-	requireOneStep(t, output, setupT("setup.relink.home_needed", "command", "ha-nova setup"))
 }
 
 func TestLinkRePairFailureWithALinkHoldNamesTheHoldsSteps(t *testing.T) {

@@ -121,7 +121,9 @@ func runLinkRePair(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg 
 	switch {
 	case homeRelayReachable(cfg):
 		return r.atHome()
-	case cfg.Cloud == nil && cfg.LinkRePairOrigin == "": // no Link address to sign in through from here
+	case cfg.Cloud == nil && (cfg.LinkRePair == linkRePairAddLink || cfg.LinkRePairOrigin == ""):
+		// Paired at home, Link not back yet: Link can't take over that key, so
+		// only setup at home finishes. Without a Link address, likewise.
 		renderSetupParagraph(out, setupT("setup.relink.home_needed", "command", r.command()))
 		return 1
 	case (cfg.LinkRePair == linkRePairLinkOnly || cfg.LinkRePair == linkRePairLinkOnlyHinted) && cfg.Cloud.ready():
