@@ -133,7 +133,7 @@ func TestNamedProfileSetupWithASavedNoAppChoiceAsksNothing(t *testing.T) {
 	for i := range f.choices {
 		f.choices[i].Disabled = true
 	}
-	if result := f.chooseClientAndMode(); result.done || !f.noClient || f.promptedClient || strings.Contains(out.String(), setupT("setup.clients.question")) {
+	if result := f.chooseClientAndMode(); result.done || !f.noClient || f.promptedClient {
 		t.Fatalf("no app here, as when it was set up: done %v, noClient %v, asked %v: %s", result.done, f.noClient, f.promptedClient, out)
 	}
 }

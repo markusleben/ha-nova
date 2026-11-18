@@ -184,6 +184,7 @@
   "tests/storage/relay-instance.test.ts",
   "tests/storage/window-log.test.ts",
   "tests/onboarding/setup-page-script.test.ts",
+  "tests/onboarding/setup-page-server.test.ts",
   "tests/onboarding/setup-page-overview.test.ts",
   "tests/onboarding/setup-page-chat-advice.test.ts",
   "tests/onboarding/setup-page-chat-move.test.ts",
