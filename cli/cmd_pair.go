@@ -394,6 +394,11 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		return 1
 	}
 	fmt.Printf("Paired securely. This device is connected (id %s).\n", deviceID)
+	var reader *bufio.Reader
+	if isInteractiveTTY() && stdoutIsInteractiveTTY() {
+		reader = bufio.NewReader(os.Stdin)
+	}
+	offerPhoneLink(reader, os.Stdout, paths, true, true)
 	return 0
 }
 

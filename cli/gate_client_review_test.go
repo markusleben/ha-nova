@@ -252,7 +252,7 @@ func TestGateGermanTexts(t *testing.T) {
 	for key, want := range map[string]string{
 		"gate.open":         "In Home Assistant öffnen",
 		"say.relay_waiting": "Ich warte auf dein OK auf deinem Handy oder in Home Assistant; dieser Schritt wurde noch nicht gesendet.",
-		"say.relay_ask":     "Bestätige auf deinem verbundenen Handy oder in Home Assistant (NOVA).",
+		"say.relay_ask":     "Bestätige auf deinem Handy, falls eines mit diesem Computer verbunden ist, oder auf der NOVA-Seite in Home Assistant.",
 	} {
 		if got := confirmT("de", key); got != want {
 			t.Errorf("%s = %q", key, got)
