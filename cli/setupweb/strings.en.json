@@ -201,6 +201,8 @@
   "setup.page.found.owner_away": "The owner can't come to this computer? Any Home Assistant administrator can make a six-digit code: open NOVA, then Connect a device.",
   "setup.page.found.fine_access": "Home Assistant will say “You're about to give {client} access”. That is this page.",
   "setup.page.ha.key": "Home Assistant",
+  "setup.page.server": "Setting up “{server}”",
+  "setup.page.server_at": "Setting up “{server}” · {ha}",
   "setup.page.ha.change": "Change",
   "setup.page.ha.several": "Several found. Which one is yours?",
   "setup.page.ha.field": "Home Assistant address",
