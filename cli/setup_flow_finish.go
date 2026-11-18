@@ -160,6 +160,9 @@ func (f *setupFlow) legacyCleanup() {
 		note = setupPageText("setup.cleanup.incomplete", "reason", f.cleanupNote.Args[1], "command", f.cleanupNote.Args[3]) // legacyLinkCleanupInSetup's order
 	}
 	f.pageNotes = append(f.pageNotes, note)
+	if f.pageRerunOK { // the re-run screen shows it now, not only once it's done
+		f.page.update(func(v *setupPageState) { v.Home = &setupPageHome{Notes: f.pageNotes} })
+	}
 }
 
 // stepSkills installs the skills, then finishes: the Home Assistant Link

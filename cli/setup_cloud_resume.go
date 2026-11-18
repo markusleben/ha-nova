@@ -252,7 +252,9 @@ func finishInteractiveCloudOnlySetup(
 		return 1
 	}
 	note := ""
-	if cfg, err := loadRuntimeConfig(paths); err == nil { // Link-only Mac: the cleanup ends setup here too
+	if cfg, err := loadRuntimeConfig(paths); err != nil {
+		printHumanWarn("The old version's sign-in cleanup was skipped: the configuration couldn't be read again (%s). Run ha-nova setup again to finish it.", err)
+	} else { // Link-only Mac: the cleanup ends setup here too
 		note = printLegacyLinkCleanup(out, paths, cfg, isInteractiveTTY() && writerSupportsTTYForSetup(out)).plain()
 	}
 	renderSetupCompleteBanner(out, selectedClients, nil)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -19,6 +20,7 @@ const gateMeRoute = "/gate/v1/me"
 type gateWindowState struct {
 	window bool
 	why    string
+	err    error // why it couldn't be read; never the credential
 }
 
 // gateMe reads it once per session, within afterCheck, as readGate does.
@@ -50,15 +52,21 @@ func (s *relaySession) readGateMe() gateWindowState {
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(s.transport.BaseURL, "/")+gateMeRoute, nil)
 	if err != nil {
-		return gateWindowState{}
+		return gateWindowState{err: err}
 	}
 	req.Header.Set("Authorization", "Bearer "+s.transport.Credential)
 	resp, err := s.transport.Client.Do(req)
 	if err != nil {
-		return gateWindowState{}
+		return gateWindowState{err: err}
 	}
 	defer resp.Body.Close()
 	raw, err := readAllLimited(resp.Body, maxRelayResponseBytes)
+	if err != nil {
+		return gateWindowState{err: err}
+	}
+	if resp.StatusCode != http.StatusOK {
+		return gateWindowState{err: fmt.Errorf("%s answered HTTP %d", gateMeRoute, resp.StatusCode)}
+	}
 	var me struct {
 		OK   bool `json:"ok"`
 		Data struct {
@@ -66,14 +74,17 @@ func (s *relaySession) readGateMe() gateWindowState {
 			Why    string `json:"why"`
 		} `json:"data"`
 	}
-	if err != nil || resp.StatusCode != http.StatusOK || json.Unmarshal(raw, &me) != nil || !me.OK {
-		return gateWindowState{}
+	if err := json.Unmarshal(raw, &me); err != nil {
+		return gateWindowState{err: fmt.Errorf("%s: %w", gateMeRoute, err)}
+	}
+	if !me.OK {
+		return gateWindowState{err: fmt.Errorf("%s answered ok: false", gateMeRoute)}
 	}
 	switch me.Data.Why { // a closed set: anything else reads as unread
 	case "on", "off", "device", "pair_again", "file", "legacy_cleanup_pending", "not_yours", "owner":
 		return gateWindowState{window: me.Data.Window && me.Data.Why == "on", why: me.Data.Why}
 	}
-	return gateWindowState{}
+	return gateWindowState{err: fmt.Errorf("%s answered an unknown state", gateMeRoute)}
 }
 
 // windowHere: this invocation can show a window (not a chat app, windows

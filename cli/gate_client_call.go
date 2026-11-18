@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -92,8 +93,12 @@ func (s *relaySession) gateCall(parent context.Context, route string, wait time.
 		return err
 	case json.Unmarshal(data, &envelope) != nil || envelope.OK == nil:
 		return &relayCallError{endpoint: "gate", status: resp.StatusCode, message: "not a result envelope"}
-	case !*envelope.OK:
-		return &relayCallError{endpoint: "gate", status: resp.StatusCode, code: envelope.Error.Code, message: envelope.Error.Message}
+	case !*envelope.OK || resp.StatusCode < 200 || resp.StatusCode > 299: // only a 2xx with ok: true is a result
+		code := envelope.Error.Code
+		if code == "" {
+			code = fmt.Sprintf("HTTP_%d", resp.StatusCode)
+		}
+		return &relayCallError{endpoint: "gate", status: resp.StatusCode, code: code, message: envelope.Error.Message}
 	}
 	return json.Unmarshal(envelope.Data, into)
 }

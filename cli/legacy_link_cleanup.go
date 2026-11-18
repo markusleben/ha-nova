@@ -139,8 +139,6 @@ func recoverLegacyLinkGrant(paths runtimePaths, backend OAuthSecretBackend, serv
 	return envelope, true, nil
 }
 
-// readLegacyLinkSecret reads one 0.31 Link item by its own name through the
-// native secret worker (macOS only).
 // legacyCleanupPromptContextAvailable: macOS may ask only a person at a
 // terminal on this Mac's own desktop (never an agent's or a script's run,
 // whose input is no terminal, nor over SSH).
@@ -148,6 +146,8 @@ func legacyCleanupPromptContextAvailable() bool {
 	return term.IsTerminal(int(os.Stdin.Fd())) && platformNativeSecretPromptContextAvailable()
 }
 
+// readLegacyLinkSecret reads one 0.31 Link item by its own name through the
+// native secret worker (macOS only).
 func readLegacyLinkSecret(ctx context.Context, service, account string, ui SecretStoreUIPolicy) (string, bool, error) {
 	operationCtx, cancel := boundedNativeOAuthSecretContext(ctx, ui)
 	defer cancel()
@@ -202,11 +202,11 @@ func appWindowWhy(paths runtimePaths, cfg runtimeConfig) (string, error) {
 		return "", err
 	}
 	s.gate = &relayGate{checked: true, on: true, window: true}
-	why := s.readGateMe().why
-	if why == "" {
-		return "", errors.New("the NOVA App's window state can't be read")
+	me := s.readGateMe()
+	if me.why == "" {
+		return "", fmt.Errorf("the NOVA App's window state can't be read (%w)", me.err)
 	}
-	return why, nil
+	return me.why, nil
 }
 
 func reportLegacyCleanupComplete(paths runtimePaths, cfg runtimeConfig) error {
