@@ -127,10 +127,10 @@ func (srv *mcpServer) stdioAwait(id string, job *chatJob) map[string]any {
 // gateLinking for the phone-link ask before it); nothing of this step was
 // sent (gate_client.go).
 func waitingForApproval(id, lang string, phase int32) map[string]any {
-	wait, say := "HA NOVA waits for the user's OK on their linked phone or in Home Assistant (the NOVA page)", confirmT(lang, "say.relay_waiting")
+	wait, say := "HA NOVA waits for the user's OK on their phone if one is linked to this computer, or on the NOVA page in Home Assistant", confirmT(lang, "say.relay_waiting")
 	switch phase {
 	case gateAskingWindow:
-		wait, say = "HA NOVA waits for the user's OK in the confirmation window on their computer, on their linked phone, or in Home Assistant (the NOVA page)", confirmT(lang, "say.relay_window_waiting")
+		wait, say = "HA NOVA waits for the user's OK in the confirmation window on their computer, on their phone if one is linked, or on the NOVA page in Home Assistant", confirmT(lang, "say.relay_window_waiting")
 	case gateLinking:
 		wait, say = "the user's phone first asks whether it gets HA NOVA's confirmations; the change itself is confirmed after that, and a no there stops it", confirmT(lang, "say.relay_link_waiting")
 	}

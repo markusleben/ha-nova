@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"runtime"
+	"slices"
 	"time"
 )
 
@@ -24,7 +25,7 @@ import (
 // when the person leaves it, or it can't confirm after all (op away): the
 // phone then asks at once. A link ask (gateMovePhone) ends linked, only on
 // the phones: no window.
-func (s *relaySession) gateWait(askID string, link bool, wait time.Duration, confirm *gateConfirm) (state, grant string) {
+func (s *relaySession) gateWait(askID string, link bool, wait time.Duration, confirm *gateConfirm, channels []string) (state, grant string) {
 	deadline := time.Now().Add(wait)
 	if flag := s.approval(); flag != nil {
 		flag.Store(map[bool]int32{false: gateAsking, true: gateLinking}[link])
@@ -52,7 +53,7 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration, con
 		}
 	}()
 	page := s.gatePageURL(askID)
-	waiting := confirmT(confirmLanguage(s.lang), "gate.waiting")
+	waiting := gateWaitingText(confirmLanguage(s.lang), channels)
 	window, raced, confirms := (<-chan windowAnswer)(nil), func(<-chan windowAnswer) bool { return false }, false
 	phase := func() { // what a job's waiting answer names (waitingForApproval)
 		if flag := s.approval(); flag != nil && confirms {
@@ -230,4 +231,17 @@ func (s *relaySession) gateWindow(ctx context.Context, deadline time.Time, page 
 			return false
 		}
 	}, confirms
+}
+
+// gateWaitingText names only where the ask's channels let the person
+// confirm (MAR-244): the phone when the App asks it, the NOVA page when an
+// administrator can confirm there (the App leaves it out otherwise).
+func gateWaitingText(lang string, channels []string) string {
+	switch {
+	case slices.Contains(channels, "phone") && slices.Contains(channels, "page"):
+		return confirmT(lang, "gate.waiting_phone")
+	case slices.Contains(channels, "phone"):
+		return confirmT(lang, "gate.waiting_phone_only")
+	}
+	return confirmT(lang, "gate.waiting_page", "command", confirmPhoneCommand(activeServerProfile()))
 }

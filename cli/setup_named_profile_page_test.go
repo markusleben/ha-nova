@@ -123,7 +123,7 @@ func TestNamedSetupPageKeepsLinkInTheTerminalAndRetriesOnItsProfile(t *testing.T
 	if got := confirmPhoneCommand(activeServerProfile()); got != "ha-nova setup confirm-phone --server markus-home" {
 		t.Fatalf("named retry: %q", got)
 	}
-	if got := confirmPhoneCommand(defaultServerProfileName); got != "ha-nova setup confirm-phone" {
+	if got := confirmPhoneCommand(defaultServerProfileName); got != "ha-nova setup confirm-phone --server default" { // the bare command would follow the pick
 		t.Fatalf("default retry: %q", got)
 	}
 }

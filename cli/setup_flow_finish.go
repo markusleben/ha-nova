@@ -308,8 +308,13 @@ func (f *setupFlow) finish() setupStepResult {
 	if interactive && !f.cloudSetupPaused && (f.pairedThisRun || slices.Contains(f.selectedClients, "claude") && claudeRulesToOffer(f.paths)) {
 		f.showExtras() // never while Link is paused: its steps stay on screen
 	}
-	if f.pairedThisRun && !f.cloudSetupPaused && interactive {
-		offerPhoneLink(f.ui.termIn(), f.ui.termOut(), f.paths)
+	device := strings.TrimSpace(f.cfg.RelaySecureBaseURL) != "" && strings.TrimSpace(f.cfg.RelaySpkiPin) != ""
+	switch {
+	case f.cloudSetupPaused || f.serviceMode:
+	case interactive:
+		offerPhoneLink(f.ui.termIn(), f.ui.termOut(), f.paths, f.pairedThisRun, device)
+	default:
+		offerPhoneLink(nil, f.ui.termOut(), f.paths, f.pairedThisRun, device)
 	}
 	if f.noClient { // connected, but no AI app to try it in yet (lane D1)
 		web := f.page != nil && f.page.snapshot().Web // Claude or ChatGPT in the browser, handed over to the terminal

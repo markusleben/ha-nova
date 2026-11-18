@@ -190,7 +190,7 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool, plan *gateConfirm)
 		if stop = gateOpenFailure(opened, err, chat, lang); stop != nil {
 			return false
 		}
-		state, grant = s.gateWait(opened.AskID, false, time.Until(end), plan.offered(s, opened))
+		state, grant = s.gateWait(opened.AskID, false, time.Until(end), plan.offered(s, opened), opened.Channels)
 		if joined && (state == "expired" || state == "unknown") { // the kept ask ended unanswered, or the App forgot it: ask again, as before
 			joined = false
 			return ask()
