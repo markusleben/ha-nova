@@ -200,6 +200,9 @@ func linkPhone(s *relaySession, reader *bufio.Reader, out io.Writer, run phoneLi
 			fmt.Fprintln(out, "  No phone linked. You can link one later: "+confirmPhoneCommand(activeServerProfile()))
 			if run.pageOnly {
 				fmt.Fprintln(out, "  Without a phone, risky changes from this computer wait for the NOVA page in Home Assistant.")
+				if s.gate != nil && s.gate.code {
+					fmt.Fprintln(out, "  Or the Home Assistant owner can let this computer confirm with a four-digit code in your AI chat, on the NOVA page. Your AI assistant sees that code too.")
+				}
 			}
 			return 0
 		}

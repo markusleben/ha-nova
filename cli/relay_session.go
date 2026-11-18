@@ -97,6 +97,7 @@ type relaySession struct {
 	answered     bool             // the Relay has answered at least one request
 	unreachable  error            // transport failure before the Relay ever answered
 	lang         string           // a sealed typed plan's language while it is re-planned (replanStored, apply)
+	gateCode     string           // apply --confirm: the chat code the person typed, for the plan's kept ask (gate_code.go)
 	words        haWords          // and its Home Assistant words (confirm_words.go)
 	flowForms    map[string]error // flow step path → why its form could not be kept: the plan sends it nothing more (formSecretSet, noteFlowForms)
 	replay       map[string]bool  // a cut preview's reads while it is replayed (replayReads); nil otherwise

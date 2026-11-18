@@ -24,7 +24,8 @@ const gateMeRoute = "/gate/v1/me"
 type gateWindowState struct {
 	window bool
 	why    string
-	err    error // why it couldn't be read; never the credential
+	code   string // MAR-244: "on" where the owner chose the chat code for this computer
+	err    error  // why it couldn't be read; never the credential
 }
 
 // gateMe reads it once per session, within afterCheck, as readGate does.
@@ -79,6 +80,7 @@ func (s *relaySession) readGateMe() gateWindowState {
 		Data struct {
 			Window bool   `json:"window"`
 			Why    string `json:"why"`
+			Code   string `json:"code"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &me); err != nil {
@@ -89,7 +91,7 @@ func (s *relaySession) readGateMe() gateWindowState {
 	}
 	switch me.Data.Why { // a closed set: anything else reads as unread
 	case "on", "off", "device", "pair_again", "file", "legacy_cleanup_pending", "not_yours", "owner":
-		return gateWindowState{window: me.Data.Window && me.Data.Why == "on", why: me.Data.Why}
+		return gateWindowState{window: me.Data.Window && me.Data.Why == "on", why: me.Data.Why, code: me.Data.Code}
 	}
 	return gateWindowState{err: fmt.Errorf("%s answered an unknown state", gateMeRoute)}
 }

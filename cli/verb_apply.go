@@ -274,9 +274,15 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		}
 		return err
 	}
-	if plan.Channel == channelRelay && (code != "" || humanAnswer != "") { // no code exists: the gate's ask confirms it (gateBeforeSend)
+	typed, chatCode := typedCode(code), plan.Channel == channelRelay && code != "" && humanAnswer == "" && gateKeptCode(paths, id)
+	if chatCode && fourDigits.MatchString(typed) {
+		s.gateCode = typed // the App's chat code for this plan's kept ask, which only the App checks (gate_code.go)
+	} else if plan.Channel == channelRelay && (code != "" || humanAnswer != "") { // no code exists: the gate's ask confirms it (gateBeforeSend)
 		if os.Rename(claimed, open) == nil {
 			consumed = false
+		}
+		if chatCode { // not four digits: it can never match, so the App counts no try
+			return fail(refused("CODE_REQUIRED", "this step needs the four digits of the one-time code HA NOVA showed, typed by the user"))
 		}
 		return fail(refusedWith("CONFIRM_IN_HOME_ASSISTANT", "plan "+id+" is confirmed on the linked phone or in Home Assistant, not with a typed code",
 			"Run ha-nova apply --plan "+id+" again without --confirm: HA NOVA asks the user on their linked phone or in Home Assistant. Never ask the user for a code."))

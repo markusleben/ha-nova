@@ -203,7 +203,7 @@ func appWindowWhy(paths runtimePaths, cfg runtimeConfig) (string, error) {
 	if !s.transport.DeviceMode {
 		return "", nil
 	}
-	on, window, err := s.readGate()
+	on, window, _, err := s.readGate()
 	if err != nil || !on || !window {
 		return "", err
 	}
