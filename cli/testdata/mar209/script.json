@@ -1,0 +1,194 @@
+{
+  "alias": "Shutter watchdog - check a cover group",
+  "description": "Checks a cover group after 60 seconds. In dry run it only reports; it moves covers only when dry run is off.",
+  "fields": {
+    "group_entity": {
+      "name": "Cover group",
+      "required": true,
+      "selector": {
+        "entity": {
+          "domain": "cover"
+        }
+      }
+    },
+    "members_json": {
+      "name": "Group members as JSON",
+      "required": true,
+      "selector": {
+        "text": {}
+      }
+    },
+    "expected_position": {
+      "name": "Expected position",
+      "required": true,
+      "selector": {
+        "number": {
+          "min": 0,
+          "max": 100,
+          "step": 1
+        }
+      }
+    },
+    "service_name": {
+      "name": "Original service",
+      "required": true,
+      "selector": {
+        "text": {}
+      }
+    },
+    "command_token": {
+      "name": "Watchdog Token",
+      "required": true,
+      "selector": {
+        "text": {}
+      }
+    }
+  },
+  "sequence": [
+    {
+      "delay": "00:01:00"
+    },
+    {
+      "condition": "template",
+      "value_template": "{{ states('input_text.shutter_watchdog_token') == command_token }}"
+    },
+    {
+      "variables": {
+        "members": "{{ members_json | from_json([]) }}",
+        "group_live_members": "{{ state_attr(group_entity, 'entity_id') or [] }}",
+        "target_position": "{{ expected_position | int }}",
+        "tolerance": 5,
+        "excluded_covers": [
+          "cover.pool_cover_a",
+          "cover.garage_door",
+          "cover.pool_cover_b",
+          "cover.window_drive_a",
+          "cover.window_drive_b"
+        ]
+      }
+    },
+    {
+      "condition": "template",
+      "value_template": "{{ members | count > 0 and (group_live_members | sort) == (members | sort) }}"
+    },
+    {
+      "variables": {
+        "failed_members": "{% set ns = namespace(out=[]) %}\n{% for member in members %}\n  {% set dev = state_attr(member, 'device_class') %}\n  {% set fname = state_attr(member, 'friendly_name') or '' %}\n  {% set key = (member ~ ' ' ~ fname) | lower %}\n  {% set st = states(member) %}\n  {% set pos = state_attr(member, 'current_position') %}\n  {% set posi = pos | int(-999) %}\n  {% set unsafe = member in excluded_covers or dev in ['garage', 'window'] or 'pool' in key or 'pool_cover' in key or 'garage' in key or 'window_drive' in key %}\n  {% if (member | string).startswith('cover.') and not unsafe and st not in ['opening', 'closing', 'unknown', 'unavailable'] and pos is not none and posi != -999 and ((posi - target_position) | abs > tolerance) %}\n    {% set ns.out = ns.out + [member] %}\n  {% endif %}\n{% endfor %}\n{{ ns.out | unique | list }}"
+      }
+    },
+    {
+      "condition": "template",
+      "value_template": "{{ failed_members | count > 0 }}"
+    },
+    {
+      "if": [
+        {
+          "condition": "state",
+          "entity_id": "input_boolean.shutter_watchdog_dry_run",
+          "state": "on"
+        }
+      ],
+      "then": [
+        {
+          "action": "persistent_notification.create",
+          "data": {
+            "title": "Shutter watchdog dry run",
+            "message": "{{ group_entity }} should be at {{ target_position }}%. Off: {{ failed_members | join(', ') }}. Dry run, nothing moved.",
+            "notification_id": "shutter_watchdog_dry_run"
+          }
+        },
+        {
+          "action": "logbook.log",
+          "data": {
+            "name": "Shutter watchdog",
+            "message": "Dry run: {{ group_entity }} target {{ target_position }}%, off: {{ failed_members | join(', ') }}"
+          }
+        },
+        {
+          "stop": "Dry run on"
+        }
+      ]
+    },
+    {
+      "action": "input_boolean.turn_on",
+      "target": {
+        "entity_id": "input_boolean.shutter_watchdog_retry_active"
+      }
+    },
+    {
+      "repeat": {
+        "for_each": "{{ failed_members }}",
+        "sequence": [
+          {
+            "choose": [
+              {
+                "conditions": [
+                  {
+                    "condition": "template",
+                    "value_template": "{{ service_name == 'open_cover' }}"
+                  }
+                ],
+                "sequence": [
+                  {
+                    "action": "cover.open_cover",
+                    "continue_on_error": true,
+                    "target": {
+                      "entity_id": "{{ repeat.item }}"
+                    }
+                  }
+                ]
+              },
+              {
+                "conditions": [
+                  {
+                    "condition": "template",
+                    "value_template": "{{ service_name == 'close_cover' }}"
+                  }
+                ],
+                "sequence": [
+                  {
+                    "action": "cover.close_cover",
+                    "continue_on_error": true,
+                    "target": {
+                      "entity_id": "{{ repeat.item }}"
+                    }
+                  }
+                ]
+              }
+            ],
+            "default": [
+              {
+                "action": "cover.set_cover_position",
+                "continue_on_error": true,
+                "target": {
+                  "entity_id": "{{ repeat.item }}"
+                },
+                "data": {
+                  "position": "{{ target_position | int }}"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "delay": "00:00:03"
+    },
+    {
+      "action": "input_boolean.turn_off",
+      "target": {
+        "entity_id": "input_boolean.shutter_watchdog_retry_active"
+      }
+    },
+    {
+      "action": "logbook.log",
+      "data": {
+        "name": "Shutter watchdog",
+        "message": "Moved {{ failed_members | join(', ') }} of {{ group_entity }} to {{ target_position }}%."
+      }
+    }
+  ],
+  "mode": "parallel",
+  "max": 10
+}

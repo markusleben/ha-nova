@@ -115,10 +115,10 @@ func TestPlanCallTierGoldenCases(t *testing.T) {
 				}
 			}},
 		{name: "unexplained call_service surplus keeps the attributed unlock typed",
-			setup: listener(2), args: []string{"light.turn_on", "light.kitchen"}, exit: 3, tier: "typed", reasons: []string{reasonAccessLock, reasonListenerUnexpl}},
-		{name: "unexplained call_service listener (logbook stream) is preview",
+			setup: listener(2), args: []string{"light.turn_on", "light.kitchen"}, exit: 3, tier: "typed", reasons: []string{reasonAccessLock}, check: hasNote(noteUnexplainedListener)},
+		{name: "unexplained call_service listener (logbook stream) is a note",
 			setup: func(f *fakeHA) { f.events = []map[string]any{{"event": "call_service", "listener_count": 1}} },
-			args:  []string{"light.turn_on", "light.kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonListenerUnexpl}},
+			args:  []string{"light.turn_on", "light.kitchen"}, exit: 0, tier: "ordinary", check: hasNote(noteUnexplainedListener)},
 		{name: "no call_service row at all reads as 0 listeners",
 			setup: func(f *fakeHA) { f.events = []map[string]any{{"event": "state_changed", "listener_count": 40}} },
 			args:  []string{"light.turn_on", "light.kitchen"}, exit: 0, tier: "ordinary"},

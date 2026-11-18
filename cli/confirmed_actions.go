@@ -113,11 +113,11 @@ var confirmedActions = []confirmedGroup{
 var confirmedNotTyped = map[string]bool{
 	reasonDisruptive: true, reasonOwnedService: true, reasonOwnedMember: true, reasonSelector: true,
 	reasonCodeRequired: true, reasonFeature: true, reasonExpanded: true, reasonBatch: true, reasonStoredMembers: true,
-	reasonNoRegistryRow: true, reasonSceneUnread: true, reasonListenerUnexpl: true, reasonRunListenerUnexpl: true,
+	reasonNoRegistryRow: true, reasonSceneUnread: true,
 	reasonResponseOnly: true, reasonTargetRequired: true, reasonServiceNotFound: true,
 	reasonConfigWrite: true, reasonConfigRevert: true, reasonConfigRestore: true, reasonAreaAssign: true,
 	reasonManager: true, reasonIntegrationSvc: true, reasonRawWrite: true, reasonMarketplaceWarning: true,
-	noteTemplates: true, noteNoManager: true, noteSkippedTargets: true, noteFilteredTargets: true,
+	noteTemplates: true, noteNoManager: true, noteSkippedTargets: true, noteFilteredTargets: true, noteUnexplainedListener: true,
 }
 
 // confirmedActionsSummary: the groups' one-line summaries, for the MCP
