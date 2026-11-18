@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.30] - 2026-11-19
+
+### Changed
+- Chat apps get HA NOVA 0.33.0.
+- A chat code for a computer nobody sits at: on the NOVA page, the owner can let a computer confirm unlocks, doors, gates, garages, the alarm, and deletes with a four-digit code in the AI chat ("Confirm with a chat code instead"). It is off by default, replaces one-click confirming on that computer, and a linked phone ends it. This App draws the code for one ask only, accepts it once for exactly the change shown, and cancels the ask after three wrong codes. The assistant sees the code too, so a linked phone stays the safer choice. "Turn off the chat code" ends waiting code asks, and the NOVA page lists these approvals as confirmed with a chat code.
+- HA NOVA 0.33 learns from this App whether a phone is linked for its computer, so it points you to the NOVA page when only the page can confirm.
+
+### Fixed
+- An open logbook or an entity's history no longer makes an everyday action ask. The safety check and chat apps rate each call by what it does.
+
+### Upgrade notes
+- Computers on HA NOVA 0.33.0 ask you to update this App.
+- Update HA NOVA on every computer to 0.33.0. HA NOVA 0.32 refuses a change it would ask for but this App wouldn't, and says to update; nothing is sent. The chat code needs both updated.
+
 ## [Relay 0.13.29] - 2026-11-17
 
 ### Changed
