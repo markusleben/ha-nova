@@ -25,6 +25,7 @@ type gateWindowState struct {
 	window bool
 	why    string
 	code   string // MAR-244: "on" where the owner chose the chat code for this computer
+	noLink bool   // MAR-244: the App says no phone is linked for this computer (an older App says nothing)
 	err    error  // why it couldn't be read; never the credential
 }
 
@@ -81,6 +82,7 @@ func (s *relaySession) readGateMe() gateWindowState {
 			Window bool   `json:"window"`
 			Why    string `json:"why"`
 			Code   string `json:"code"`
+			Phone  *bool  `json:"phone"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &me); err != nil {
@@ -91,7 +93,7 @@ func (s *relaySession) readGateMe() gateWindowState {
 	}
 	switch me.Data.Why { // a closed set: anything else reads as unread
 	case "on", "off", "device", "pair_again", "file", "legacy_cleanup_pending", "not_yours", "owner":
-		return gateWindowState{window: me.Data.Window && me.Data.Why == "on", why: me.Data.Why, code: me.Data.Code}
+		return gateWindowState{window: me.Data.Window && me.Data.Why == "on", why: me.Data.Why, code: me.Data.Code, noLink: me.Data.Phone != nil && !*me.Data.Phone}
 	}
 	return gateWindowState{err: fmt.Errorf("%s answered an unknown state", gateMeRoute)}
 }

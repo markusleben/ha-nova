@@ -24,7 +24,10 @@
 // Rows: S1 owner's own computer declared on the NOVA page, phone linked; S2
 // the same before the phone is linked; S5 the same with no display
 // (headless); S3 the same after the owner turned it off on the NOVA page;
-// S4 a computer nobody declared (a second administrator's), its own phone.
+// S4 a computer nobody declared (a second administrator's), its own phone;
+// S5H a bot's host (MAR-244): no display and no Secret Service, paired with a
+// code, its key in a private file; without a phone, with the owner's chat
+// code, then with a phone, which ends the code.
 // M: Markus's home (MAR-209) on S1, through mrow.mjs, without and with a
 // logbook open (everyday, shutter, garage). Not staged here, and
 // printed so: S1L (Home Assistant Link transport), S6-S8 (chat apps,
@@ -117,18 +120,18 @@ process.on("exit", () => {
 });
 for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => process.exit(130));
 let bin, n = 0;
-function boxArgs(home, args, display) {
+function boxArgs(home, args, display, keyring = true) {
   const id = "ha-nova-testbed-ask-" + process.pid + "-" + n++;
   boxes.add(id);
   const env = { HOME: "/h", XDG_CONFIG_HOME: "/h/.config", XDG_CACHE_HOME: "/h/.cache", XDG_DATA_HOME: "/h/.local/share", HA_NOVA_ALLOW_INSECURE_TEST_KEYRING: "1", HA_NOVA_TEST_KEYRING_FILE: "/h/.test-relay-token", HA_NOVA_NO_BROWSER: "1", ...(display ? { DISPLAY: ":99" } : {}) };
   const net = linux ? ["--network", "host"] : ["--add-host=host.docker.internal:host-gateway"];
   return [id, ["run", "--rm", "--name", id, "--user", process.getuid() + ":" + process.getgid(), ...net, ...Object.entries(env).flatMap(([k, v]) => ["-e", k + "=" + v]),
     "-v", home + ":/h", "-v", join(tmp, "zenity") + ":/usr/bin/zenity:ro", "-v", bin + ":/usr/local/bin/ha-nova:ro", KEYRING,
-    // A real Secret Service (gnome-keyring, its login keyring in the home): pairing keeps the device key there, as on a desktop.
-    "dbus-run-session", "--", "sh", "-c", "printf lane | gnome-keyring-daemon --unlock --components=secrets >/dev/null 2>&1; exec ha-nova \"$@\"", "sh", ...args]];
+    // A real Secret Service (gnome-keyring, its login keyring in the home): pairing keeps the device key there, as on a desktop. Without one (S5H), no session bus at all.
+    ...(keyring ? ["dbus-run-session", "--", "sh", "-c", "printf lane | gnome-keyring-daemon --unlock --components=secrets >/dev/null 2>&1; exec ha-nova \"$@\"", "sh"] : ["ha-nova"]), ...args]];
 }
-function box(home, args, { display = true } = {}) {
-  const [id, argv] = boxArgs(home, args, display);
+function box(home, args, { display = true, keyring = true } = {}) {
+  const [id, argv] = boxArgs(home, args, display, keyring);
   const child = spawn("docker", argv, { stdio: ["ignore", "pipe", "pipe"] });
   let stdout = "", stderr = "";
   child.stdout.on("data", (d) => (stdout += d));
@@ -152,7 +155,7 @@ async function pair(c, admin) {
   const code = /<p class="code">([^<]+)<\/p>/.exec(await page(admin))?.[1]?.replace(/\D/g, "");
   if (!code) throw new Error("the NOVA page shows no pairing code");
   const before = new Set((await registry()).map((d) => d.id));
-  const done = await box(c.home, ["pair", "--code", code]);
+  const done = await box(c.home, ["pair", "--code", code], c);
   if (done.code !== 0) throw new Error("pair " + c.name + ": exit " + done.code + ": " + (done.stdout + done.stderr).slice(0, 400));
   c.id = (await registry()).find((d) => !before.has(d.id))?.id;
   if (!c.id) throw new Error("pair " + c.name + ": no new computer on the NOVA page");
@@ -165,7 +168,7 @@ async function registry() {
 async function linkPhone(c, platform, name) {
   writeFileSync(join(c.home, "zenity.answer"), "confirm"); // a window that asks about the link itself is the link's, not an action's
   await newPushes();
-  const run = box(c.home, ["setup", "confirm-phone", name]);
+  const run = box(c.home, ["setup", "confirm-phone", name], c);
   let asked;
   for (let i = 0; i < 60 && !asked; i++, await sleep(500)) asked = (await newPushes()).find((p) => p.question && p.path.endsWith("/" + platform));
   if (!asked) throw new Error("linking " + name + " to " + c.name + ": no question on the phone");
@@ -307,6 +310,7 @@ try {
   await pair(other, fx.tester_user);
   await linkPhone(other, "android", fx.phones.find((p) => p.platform === "android").name);
   await columns("S4", other, { window: "wait", phone: true, on: "phone" });
+  await headless(fx);
 } catch (err) {
   report("ask count ran to the end", [err.stack ?? err.message]);
 } finally {
@@ -320,11 +324,46 @@ try {
 console.log("\nAsk count (stages a person answers per action; 0.32 targets: everyday 0, bigger change 1, risky / dashboard delete / delete 1)\n");
 console.log("| Row | Column | Plan (tier / confirm) | Asks | Where | Phone pushes with sound | Notes | Windows shown |\n|---|---|---|---|---|---|---|---|");
 for (const r of results) console.log("| " + [r.row, r.column, r.plan, r.stages, r.how, r.sound, r.notes, r.windowsShown].join(" | ") + " |");
+console.log("\nS5H: the code column counts the one code the person types back; the other S5H checks print above as PASS or FAIL.");
 console.log("\nNot staged here: S1L (Home Assistant Link transport; Relay side in tests/security/pairing-window.test.ts), S6-S8 (chat apps, unchanged in 0.32: the chat acceptance lane and the maintainer's client lane for permission prompts), a computer paired before 0.32 (tests/security/window-confirm.test.ts).");
 console.log("\nWords, verbatim:\n");
 for (const key of ["setup.own.no", "setup.own.prompt", "setup.own.question", "setup.page.found.own_hint", "setup.page.found.own"]) words.unshift(["setup (" + (key.startsWith("setup.page") ? "page" : "terminal") + ", catalog) " + key, setupText(key)]);
 for (const [where, said] of words) console.log("- " + where + ": " + said.replace(/\n+/g, " / "));
 process.exit(failures() ? 1 : 0);
+
+// S5H (MAR-244): a bot's host, with no display and no Secret Service, paired
+// with a code. Pairing puts its key in a private file; without a phone or a
+// code the plan names the NOVA page and never a linked phone; with the owner's
+// chat code apply shows the App's code at once, a wrong one keeps the step, the
+// right one sends it; a linked phone then ends the code and the phone asks.
+async function headless(fx) {
+  const bot = { ...computer("bot"), display: false, keyring: false };
+  await pair(bot, owner.id);
+  report("S5H: pairing without a Secret Service keeps the key in a private file", existsSync(join(bot.home, ".config/ha-nova/secrets/ha-nova.device-credential")) ? [] : ["no private key file after pairing"]);
+  record("S5H", "everyday", await measure(bot, ["call", "light.turn_on", "light.bed_light"], { window: "wait", phone: false }), { stages: 0 });
+  await relock();
+  const unlock = ["plan", "call", "lock.unlock", "lock.front_door"], cli = async (args) => envelope((await box(bot.home, args, bot)).stdout);
+  const none = await cli(unlock);
+  report("S5H: without a phone or a code the plan names the NOVA page and confirm-phone, never a linked phone", /NOVA page/.test(none.say ?? "") && /confirm-phone/.test(none.say ?? "") && !/if one is linked/.test(none.say ?? "") ? [] : [JSON.stringify(none).slice(0, 400)]);
+  words.push(["S5H no phone: plan say", none.say ?? ""]);
+  await act(owner.id, await page(owner.id), "code_on", bot.id);
+  words.push(["S5H NOVA page row, code on", rowText(await page(owner.id), bot.id)]);
+  const planned = await cli(unlock), id = planned.plan?.id ?? "-";
+  const shown = await cli(["apply", "--plan", id]), code = /\b(\d{4})\b/.exec(shown.say ?? "")?.[1];
+  const wrong = await cli(["apply", "--confirm", code === "0000" ? "1111" : "0000", "--plan", id]), held = (await ha("GET", "/api/states/lock.front_door")).state;
+  const right = await cli(["apply", "--confirm", code ?? "", "--plan", id]), after = (await ha("GET", "/api/states/lock.front_door")).state;
+  report("S5H code: apply shows the App's code at once, a wrong one keeps the step, the right one sends it", [
+    shown.error?.code !== "CONFIRM_CODE" || !code ? "no code shown: " + JSON.stringify(shown).slice(0, 300) : "",
+    wrong.error?.code !== "CODE_MISMATCH" || held !== "locked" ? "wrong code: " + wrong.error?.code + ", lock " + held : "",
+    right.status !== "verified" || after === "locked" ? "right code: " + JSON.stringify(right).slice(0, 300) + ", lock " + after : ""].filter(Boolean));
+  results.push({ row: "S5H", column: "risky (chat code)", plan: (planned.tier ?? "-") + " / " + (planned.plan?.confirm ?? "-"), stages: 1, how: "code", sound: 0, notes: 0, windowsShown: 0 });
+  words.push(["S5H code: plan say", planned.say ?? ""], ["S5H code: apply say", shown.say ?? ""], ["S5H code: wrong code", wrong.say ?? wrong.error?.message ?? ""]);
+  await relock();
+  await linkPhone(bot, "ios", fx.phones.find((p) => p.platform === "ios").name);
+  const row = rowText(await page(owner.id), bot.id);
+  report("S5H: a linked phone ends the chat code", row.includes("four-digit code in the AI chat") ? [row] : []);
+  record("S5H", "risky (phone)", await measure(bot, ["call", "lock.unlock", "lock.front_door"], { window: "wait", phone: true }), { stages: 1, on: "phone" });
+}
 
 function setupText(key) {
   for (const file of ["cli/setupweb/strings.en.json"]) {

@@ -177,7 +177,12 @@ Supervisor's self-API and ingress) and the phone lane's fake phones, and
 answers every surface that asks until the command ends, so a second ask for
 one action shows as a second stage. It fails when a count differs from the
 table, when the owner's phone sounds while the window is answered, or when
-a computer that must not confirm in its window offers Confirm. The image
+a computer that must not confirm in its window offers Confirm. Row S5H
+(0.33, MAR-244) is a bot's host: no display and no Secret Service, paired
+with a code, so its key sits in a private file. It checks the plan without a
+phone (the NOVA page and confirm-phone), the owner's chat code (shown at once,
+a wrong one keeps the step, the right one sends it), and that a linked phone
+ends the code and asks instead. The image
 stays only with `ASK_COUNT_KEEP_IMAGE=1`.
 
 ## Gate lane (opt-in)
