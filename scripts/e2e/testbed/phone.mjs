@@ -35,6 +35,7 @@ const HA = "http://127.0.0.1:18123";
 const PUSH = "http://127.0.0.1:18792";
 const PHONES = { ios: "Testbed iPhone", android: "Testbed Pixel" };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const RELAY_ASK = JSON.parse(readFileSync(join(ROOT, "cli/confirm_strings.en.json"), "utf8"))["say.relay_ask"];
 export const read = (name) => readFileSync(join(STATE, name), "utf8").trim();
 let failed = 0;
 export const failures = () => failed;
@@ -261,7 +262,7 @@ export async function confirmUnlock(platform, answer = 0) {
   report("the door is locked before the unlock", before === "locked" ? [] : [`lock ${before}`]);
   const planned = await cli(["plan", "call", "lock.unlock", "lock.front_door"]).done;
   const plan = JSON.parse(planned.stdout || "{}");
-  report("unlock plan asks through the Relay, no code", plan.plan?.channel === "relay" && plan.plan.code === undefined && (plan.say ?? "").includes("Confirm on your linked phone or in Home Assistant (NOVA).")
+  report("unlock plan asks through the Relay, no code", plan.plan?.channel === "relay" && plan.plan.code === undefined && (plan.say ?? "").includes(RELAY_ASK)
     ? [] : [`channel ${plan.plan?.channel}, say ${JSON.stringify(plan.say)}`]);
   if (!plan.plan?.id) return;
   const run = cli(["apply", "--plan", plan.plan.id]);

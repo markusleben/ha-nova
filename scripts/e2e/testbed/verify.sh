@@ -13,6 +13,8 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE="$HERE/.state"
 CLI="$HERE/cli.sh"
+# The relay plan's say comes from the CLI's catalog, so a wording change can't strand this assertion.
+RELAY_ASK_JS="$(node -p 'JSON.stringify(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))["say.relay_ask"])' "$HERE/../../../cli/confirm_strings.en.json")"
 [[ -f "$STATE/relay-token" ]] || { echo "testbed: not running; npm run testbed:up first" >&2; exit 1; }
 start_ts=$(date +%s)
 TMP="$(mktemp -d)"
@@ -71,7 +73,7 @@ expect 'device_class override (kitchen_window -> shutter) makes open ordinary' 0
 # window asks and no code is shown; elsewhere the four-digit code ends `say`.
 # On a gated Relay the linked phone or Home Assistant asks.
 expect 'registry-less demo lock unlock is typed: the Relay, else the window, else a four-digit one-time code asks' 3 \
-  "d.tier === 'typed' && $reasons.includes('ACCESS_LOCK') && $reasons.includes('UNREGISTERED_ACTUATOR') && ($gated ? d.plan.channel === 'relay' && d.plan.code === undefined && d.say.includes('Confirm on your linked phone or in Home Assistant (NOVA).') : d.plan.channel === 'window' ? d.plan.code === undefined && d.say.endsWith('Confirm in the window on this computer.') : /^[0-9]{4}$/.test(d.plan.code) && d.say.endsWith('\n\nTo go ahead, type this code:  \n**' + d.plan.code + '**'))" -- plan call lock.unlock lock.front_door
+  "d.tier === 'typed' && $reasons.includes('ACCESS_LOCK') && $reasons.includes('UNREGISTERED_ACTUATOR') && ($gated ? d.plan.channel === 'relay' && d.plan.code === undefined && d.say.includes($RELAY_ASK_JS) : d.plan.channel === 'window' ? d.plan.code === undefined && d.say.endsWith('Confirm in the window on this computer.') : /^[0-9]{4}$/.test(d.plan.code) && d.say.endsWith('\n\nTo go ahead, type this code:  \n**' + d.plan.code + '**'))" -- plan call lock.unlock lock.front_door
 expect '"Plug factory reset" press is typed (DESTRUCTIVE_BUTTON)' 3 \
   "d.tier === 'typed' && $reasons.includes('DESTRUCTIVE_BUTTON')" -- plan call button.press button.plug_factory_reset
 expect 'restart-class button (demo, non-user-authored) press is preview' 3 \
