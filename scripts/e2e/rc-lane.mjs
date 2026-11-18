@@ -242,8 +242,8 @@ const PROMPTS = {
 const TOOLS = ["ha_skill", "ha_find", "ha_get", "ha_history", "ha_map", "ha_read", "ha_trace", "ha_plan", "ha_call", "ha_apply"].map((t) => `mcp__hanova__${t}`).join(",");
 // After the tap the reply says the change is done, in the prompt's language.
 const DONE = {
-  EN: /\bdone\b|\b(is|are) (now )?(unlocked|open)\b|\bunlocked now\b/i,
-  DE: /erledigt|\b(ist|sind) (jetzt |nun )?(aufgeschlossen|entriegelt|aufgesperrt|offen|auf|geöffnet)\b|\bjetzt (aufgeschlossen|entriegelt|aufgesperrt|offen|geöffnet)\b/i,
+  EN: /\bdone\b|\b(is|are) (now )?(unlocked|open)\b|\bunlocked now\b|\bI(?: have|'ve)? (unlocked|opened)\b/i,
+  DE: /erledigt|\b(ist|sind) (jetzt |nun )?(aufgeschlossen|entriegelt|aufgesperrt|offen|auf|geöffnet)\b|\bjetzt (aufgeschlossen|entriegelt|aufgesperrt|offen|geöffnet)\b|\b(habe|hab) (?![^.\n]*\b(nicht|kein)\b)[^.\n]{0,80}(aufgeschlossen|entriegelt|aufgesperrt|geöffnet)\b/i,
 };
 const GARAGES = ["cover.garage_door", "cover.testbed_garage"];
 const questions = async () => (await (await fetch("http://127.0.0.1:18792/pushes")).json()).filter((p) => p.body.data?.actions).length;
