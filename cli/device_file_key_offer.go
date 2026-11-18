@@ -58,15 +58,9 @@ func useFileKeyStore() (moved bool, err error) {
 	moved, err = migrateKeyringDeviceCredentialToFile()
 	if err == nil {
 		forceDeviceCredentialFileMode()
-		deviceKeyFileChosen = true
 	}
 	return moved, err
 }
-
-// deviceKeyFileChosen: this process switched the device key to the private
-// file because the keyring can't be used here, so the legacy shared token
-// (which needs that keyring) can't be stored either (setup's pairing step).
-var deviceKeyFileChosen bool
 
 // keyStoreFirst: the pairing guard couldn't read the keyring from here (no
 // desktop session, no Secret Service, or a locked keyring), so the store is

@@ -225,7 +225,7 @@ func probePairingV1Context(ctx context.Context, relayBaseURL string) bool {
 func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg *runtimeConfig, legacyTokenStoreUnavailable bool, lifecycleMarker ...[]byte) (string, error) {
 	// A named profile never keeps the legacy shared token: refuse that
 	// exchange before a one-time code is spent, as the add-server flow does.
-	legacyTokenStoreUnavailable = legacyTokenStoreUnavailable || activeServerProfile() != defaultServerProfileName || deviceKeyFileChosen
+	legacyTokenStoreUnavailable = legacyTokenStoreUnavailable || activeServerProfile() != defaultServerProfileName
 	installed := setupInstalledSignIn // taken once, used or not
 	setupInstalledSignIn = nil
 	guardPairingMutation := func() error {
@@ -255,7 +255,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 			defer cancel()
 			return probeDeviceCredentialStorageWithPolicy(ctx, SecretStoreForbidUI)
 		}) {
-		legacyTokenStoreUnavailable = true // the legacy shared token needs the keyring this run can't use (deviceKeyFileChosen on a later try)
+		legacyTokenStoreUnavailable = true // the legacy shared token needs the keyring this run can't use
 		guardErr = withSetupLifecycleGuard(paths, lifecycleMarker, guard)
 	}
 	if guardErr != nil {

@@ -73,7 +73,7 @@ func TestKeyStoreFirstWhereTheGuardCantReachTheKeyring(t *testing.T) {
 	unreachable := fmt.Errorf("cannot inspect the pending device credential before local pairing: %w", fmt.Errorf("%w: exec dbus-launch not found", errDesktopKeyringSessionUnavailable))
 	locked := func(step func() error) error { return step() }
 	reset := func() {
-		deviceCredentialFileModeForced, deviceCredentialFileModeExplicit, deviceKeyFileChosen = false, false, false
+		deviceCredentialFileModeForced, deviceCredentialFileModeExplicit = false, false
 	}
 	t.Cleanup(reset)
 	for _, c := range []struct {
@@ -109,7 +109,7 @@ func TestKeyStoreFirstWhereTheGuardCantReachTheKeyring(t *testing.T) {
 func TestKeyStoreFirstHonorsTheMutationGuard(t *testing.T) {
 	withDeviceStorageTestHome(t)
 	t.Cleanup(func() {
-		deviceCredentialFileModeForced, deviceCredentialFileModeExplicit, deviceKeyFileChosen = false, false, false
+		deviceCredentialFileModeForced, deviceCredentialFileModeExplicit = false, false
 	})
 	unreachable := fmt.Errorf("%w: exec dbus-launch not found", errDesktopKeyringSessionUnavailable)
 	var out bytes.Buffer
