@@ -138,3 +138,19 @@ func TestGateWaitingPhaseLeavesAFailedWindow(t *testing.T) {
 		t.Fatalf("exit %d %+v; phase %d then %d", exit, env.Error, during, after)
 	}
 }
+
+// MAR-244 §2: where the App says no phone is linked, the plan names the NOVA
+// page and how to link a phone, never a phone it doesn't have.
+func TestRelayPlanWithoutAPhoneNamesThePage(t *testing.T) {
+	h := gatedHarness(t, newFakeHA(), &fakeGate{})
+	h.log.me.Store(map[string]any{"window": false, "why": "off", "phone": false, "code": "off"})
+	env := h.plan("lock.unlock", "lock.front")
+	if !strings.HasSuffix(env.Say, confirmT("en", "say.relay_ask_page", "command", confirmPhoneCommand(activeServerProfile()))) || !strings.Contains(env.NextStep, "the NOVA page in Home Assistant asks them") {
+		t.Fatalf("say %q next %q", env.Say, env.NextStep)
+	}
+	older := gatedHarness(t, newFakeHA(), &fakeGate{})
+	older.log.me.Store(map[string]any{"window": false, "why": "off"}) // an App before 0.33 says nothing about the phone
+	if env := older.plan("lock.unlock", "lock.front"); !strings.HasSuffix(env.Say, confirmT("en", "say.relay_ask")) {
+		t.Fatalf("older App: say %q", env.Say)
+	}
+}
