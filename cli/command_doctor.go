@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"slices"
 	"strings"
 	"time"
 )
@@ -71,6 +73,13 @@ func runDoctor(paths runtimePaths, args []string) int {
 		return 1
 	}
 	status, appBelowFloor := 0, false
+	// What to do goes last, each step once, after every check (printNextSteps).
+	var steps []string
+	nextStep := func(step string) {
+		if step != "" && !slices.Contains(steps, step) {
+			steps = append(steps, step)
+		}
+	}
 
 	if cfgErr == nil {
 		doctorInfo("Settings file found: %s", paths.ConfigFile)
@@ -140,8 +149,8 @@ func runDoctor(paths runtimePaths, args []string) int {
 	if usingCloud {
 		doctorInfo("Using Home Assistant Link, so HA NOVA skips the home address check")
 		haReachable = true
-	} else if route.unchecked && remoteOnlyCloudSetup(cfg) {
-		// Link only, and Link failed: the reason is above.
+	} else if route.unchecked && (remoteOnlyCloudSetup(cfg) || route.nextStep != "") {
+		// Link only and Link failed, or the re-pair explains it: the reason is above.
 	} else if !haURLKnown {
 		// A pair-only setup (`ha-nova pair --relay-url ...`) has no saved HA
 		// address yet. The relay's WS state still proves the connection; the
@@ -202,13 +211,12 @@ func runDoctor(paths runtimePaths, args []string) int {
 	// Over Home Assistant Link, a turned-down computer is Link's to explain.
 	printNotAccepted := func() {
 		if usingCloud {
-			printHumanErr("Home Assistant Link didn't let this computer in. Run 'ha-nova cloud status --server %s'. It says what to do next.", activeServerProfile())
+			printHumanErr("Home Assistant Link didn't let this computer in.")
+			nextStep(fmt.Sprintf("run 'ha-nova cloud status --server %s'. It says what to do", activeServerProfile()))
 			return
 		}
-		printHumanErr(
-			"The NOVA App doesn't know this computer anymore. Maybe it was removed on the NOVA page. Connect it again: run '%s'.",
-			localRelayRepairCommand(activeServerProfile(), cfg.RelayBaseURL),
-		)
+		printHumanErr("The NOVA App doesn't know this computer anymore. Maybe it was removed on the NOVA page.")
+		nextStep(fmt.Sprintf("connect it again: run '%s'", localRelayRepairCommand(activeServerProfile(), cfg.RelayBaseURL)))
 	}
 	if route.unchecked {
 		// No way to reach the App: the reason is above.
@@ -223,7 +231,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 			printHumanErr("HA NOVA can't reach the NOVA App either.")
 		default:
 			printHumanErr("HA NOVA couldn't check the NOVA App. Details: %s", readiness.HealthErr)
-			printHumanErr("Is the NOVA App running? In Home Assistant: Settings → Apps → NOVA Relay.")
+			nextStep("check that the NOVA App is running. In Home Assistant: Settings → Apps → NOVA Relay")
 		}
 		status = 1
 	} else {
@@ -269,22 +277,25 @@ func runDoctor(paths runtimePaths, args []string) int {
 				doctorInfo("Connected to Home Assistant")
 			case readiness.UpstreamAuthIssue:
 				printHumanErr("The NOVA App can't talk to Home Assistant: Home Assistant turned down its login.")
-				printHumanErr("Restart or update the NOVA App in Home Assistant. NOVA Relay in your own container? Give it a new Home Assistant token (HA_LLAT).")
+				nextStep("restart or update the NOVA App in Home Assistant. NOVA Relay in your own container? Give it a new Home Assistant token (HA_LLAT)")
 				status = 1
 			case readiness.RelayAuthIssue:
 				if deviceMode {
 					printNotAccepted()
 				} else {
-					printHumanErr(`The NOVA App turned down this computer's shared key. In the NOVA App's Configuration tab, check the "Relay Auth Token" field.`)
+					printHumanErr("The NOVA App turned down this computer's shared key.")
+					nextStep(`in the NOVA App's Configuration tab, check the "Relay Auth Token" field`)
 				}
 				status = 1
 			default:
 				printHumanErr("The NOVA App isn't connected to Home Assistant yet.")
-				printHumanErr("Wait a minute, then run 'ha-nova doctor' again. Still not working? Restart the NOVA App in Home Assistant.")
+				nextStep("wait a minute, then run 'ha-nova doctor' again. Still not working? Restart the NOVA App in Home Assistant")
 				status = 1
 			}
 		}
-		status = max(status, doctorGate(paths, route.diagnosticOnly, readiness.HealthBody, cfg.Cloud != nil && cfg.Cloud.Current != nil, deviceMode, doctorInfo))
+		gateStatus, windowStep := doctorGate(paths, route.diagnosticOnly, readiness.HealthBody, cfg.Cloud != nil && cfg.Cloud.Current != nil, deviceMode, doctorInfo)
+		status = max(status, gateStatus)
+		nextStep(windowStep)
 	}
 	if legacyNotice != "" {
 		printHumanWarn("%s", legacyNotice)
@@ -341,11 +352,11 @@ func runDoctor(paths runtimePaths, args []string) int {
 				}
 			case !client.RuntimeDetected:
 				printHumanWarn("HA NOVA is set up for %s, but can't find %s on this computer right now", client.Label, client.Label)
-				printHumanWarn("%s", doctorClientRepairHint(client, installSource))
+				nextStep(doctorClientRepairHint(client, installSource))
 				status = 1
 			case !client.Attached:
 				printHumanWarn("%s", doctorClientNotLoaded(client))
-				printHumanWarn("%s", doctorClientRepairHint(client, installSource))
+				nextStep(doctorClientRepairHint(client, installSource))
 				status = 1
 			}
 			if client.ID != "codex" {
@@ -354,7 +365,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 			for _, problem := range codexSkillProblems(paths) {
 				warning, fix := doctorCodexSkillProblem(problem)
 				printHumanWarn("%s", warning)
-				printHumanWarn("%s", fix)
+				nextStep(fix)
 				status = 1
 			}
 		}
@@ -371,7 +382,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 				continue
 			}
 			printHumanWarn("%s still uses HA NOVA files from an update that didn't finish", client.Label)
-			printHumanWarn("%s", doctorClientRepairHint(clientStatus{ID: client.ID, Label: client.Label, RuntimeDetected: client.RuntimeDetected}, installStatus.InstallSource))
+			nextStep(doctorClientRepairHint(clientStatus{ID: client.ID, Label: client.Label, RuntimeDetected: client.RuntimeDetected}, installStatus.InstallSource))
 			status = 1
 		}
 		for _, artifact := range installStatus.InactiveArtifacts {
@@ -379,12 +390,30 @@ func runDoctor(paths runtimePaths, args []string) int {
 		}
 	}
 	if appBelowFloor { // the App notice is plain words; this says it failed
-		printHumanErr("To fix: update the NOVA App (see above).")
+		nextStep("update the NOVA App (see above)")
 	}
 	if status == 0 {
 		doctorInfo("All checks passed")
 	}
+	if !slices.Contains(steps, route.nextStep) { // the blocking re-pair goes last
+		steps = append(steps, route.nextStep)
+	}
+	printNextSteps(steps...)
 	return status
+}
+
+// printNextSteps ends the output with what to do, set apart by an empty line:
+// the one action is the last thing the user reads, not lost among the checks.
+// They go to stderr with the warnings they answer, so stdout stays clean.
+func printNextSteps(steps ...string) {
+	steps = slices.DeleteFunc(slices.Clone(steps), func(step string) bool { return step == "" })
+	if len(steps) == 0 {
+		return
+	}
+	fmt.Fprintln(os.Stderr)
+	for _, step := range steps {
+		printHumanNotice(humanNotice{level: humanNoticeNote, message: "Next step: " + step + "."})
+	}
 }
 
 func fetchRelayHealthWith(client *http.Client, relayBaseURL, token string) ([]byte, error) {

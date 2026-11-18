@@ -197,7 +197,7 @@ var relayUpdateCheckWait = 10 * time.Second
 func offerRelayUpdateAfterUpdate(paths runtimePaths) {
 	if cfg, err := loadConfig(paths); err == nil {
 		if _, _, _, _, err := relayFunctionalTransport(cfg); errors.Is(err, errDeviceNeedsRePair) {
-			fmt.Println(upperFirst(err.Error()) + ".") // a Mac after the 0.32 update (spec §5.3)
+			printNextSteps(rePairStep(cfg.profileName(), cfg.Cloud != nil)) // a Mac after the 0.32 update (spec §5.3)
 			return
 		}
 	}
