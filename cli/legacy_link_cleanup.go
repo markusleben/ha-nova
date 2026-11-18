@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"time"
+
+	"golang.org/x/term"
 )
 
 // A Mac updated from 0.31 keeps its Home Assistant Link sign-ins in the old
@@ -47,7 +50,7 @@ var (
 	legacyCleanupBackend       = newNativeOAuthSecretBackend
 	legacyLinkRevoke           = revokeAndVerifyCloudAuthorization
 	legacyCleanupPending       = legacyCleanupPendingOnApp
-	legacyCleanupPromptContext = platformNativeSecretPromptContextAvailable
+	legacyCleanupPromptContext = legacyCleanupPromptContextAvailable
 	legacyCleanupReport        = reportLegacyCleanupComplete
 )
 
@@ -77,7 +80,9 @@ func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool,
 			envelope, found, err := recoverLegacyLinkGrant(paths, backend, service, cfg.ProfileID, prompt && desktop, &intro)
 			switch {
 			case err != nil && prompt && !desktop:
-				return legacyCleanupIncomplete, revoked, errors.New("macOS asks for the old sign-in only in a terminal on this Mac's own desktop, not over SSH")
+				return legacyCleanupIncomplete, revoked, fmt.Errorf("macOS asks for the old sign-in only in a terminal on this Mac's own desktop, not over SSH (%w)", err)
+			case IsCloudErrorCode(err, CloudErrSecretPromptCanceled):
+				return legacyCleanupIncomplete, revoked, errors.New("the macOS password prompt was canceled")
 			case err != nil:
 				return legacyCleanupIncomplete, revoked, fmt.Errorf("macOS didn't hand over the old sign-in (%w)", err)
 			case !found:
@@ -136,6 +141,13 @@ func recoverLegacyLinkGrant(paths runtimePaths, backend OAuthSecretBackend, serv
 
 // readLegacyLinkSecret reads one 0.31 Link item by its own name through the
 // native secret worker (macOS only).
+// legacyCleanupPromptContextAvailable: macOS may ask only a person at a
+// terminal on this Mac's own desktop (never an agent's or a script's run,
+// whose input is no terminal, nor over SSH).
+func legacyCleanupPromptContextAvailable() bool {
+	return term.IsTerminal(int(os.Stdin.Fd())) && platformNativeSecretPromptContextAvailable()
+}
+
 func readLegacyLinkSecret(ctx context.Context, service, account string, ui SecretStoreUIPolicy) (string, bool, error) {
 	operationCtx, cancel := boundedNativeOAuthSecretContext(ctx, ui)
 	defer cancel()

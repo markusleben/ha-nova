@@ -317,6 +317,12 @@ func TestLegacyLinkCleanupNamesWhatStoppedIt(t *testing.T) {
 			f.legacy[oauthSecretCurrentService] = legacyTestEnvelope(OAuthSecretCurrent, "default", "old")
 			legacyLinkRevoke = func(context.Context, OAuthSecretEnvelope) error { return errors.New("offline") }
 		}, "Home Assistant didn't confirm the old sign-in is signed out (offline)"},
+		"canceled": {func(f *legacyCleanupFixture) {
+			f.legacy[oauthSecretCurrentService] = legacyTestEnvelope(OAuthSecretCurrent, "default", "old")
+			legacyLinkSecretRead = func(context.Context, string, string, SecretStoreUIPolicy) (string, bool, error) {
+				return "", false, newCloudError(CloudErrSecretPromptCanceled, "read", nil)
+			}
+		}, "the macOS password prompt was canceled"},
 	}
 	for name, c := range cases {
 		f := newLegacyCleanupFixture(t)
