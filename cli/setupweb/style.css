@@ -88,6 +88,7 @@ body::after {
 .brand { display: flex; align-items: center; gap: 12px; }
 .brand img { width: 34px; height: 34px; }
 .word { font-weight: 600; letter-spacing: .34em; font-size: 1rem; }
+.server { margin: 6px 0 0; font-size: .8125rem; color: var(--ink-soft); }
 .dots { display: flex; gap: 8px; align-items: center; font-size: .8125rem; color: var(--ink-soft); letter-spacing: .08em; }
 .dots b { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--ink-soft); display: inline-block; }
 .dots b.on { background: var(--cyan); border-color: var(--cyan); }

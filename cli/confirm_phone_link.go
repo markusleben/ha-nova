@@ -28,6 +28,14 @@ var phoneLinkBudget = cliWindowWait
 
 const confirmPhoneUsage = `ha-nova setup confirm-phone ["<phone name>" | list | off]`
 
+// confirmPhoneCommand names the profile a page-shown retry acts on.
+func confirmPhoneCommand(profile string) string {
+	if profile == "" || profile == defaultServerProfileName {
+		return "ha-nova setup confirm-phone"
+	}
+	return "ha-nova setup confirm-phone --server " + profile
+}
+
 const (
 	phoneNoneFound  = "No phone with the Home Assistant app was found for a Home Assistant administrator here. To confirm on your phone: install the Home Assistant app, sign in with your own Home Assistant account, then run ha-nova setup confirm-phone. If your account isn't an administrator, ask the Home Assistant owner to make it one. Until then HA NOVA asks in a window on this computer, in your AI app's form, or with a four-digit code in chat."
 	phoneOwnerToken = "This NOVA App signs in to Home Assistant as the owner, so a tap on a phone can't be told apart from HA NOVA itself. Phone confirmation isn't available with this App. Nothing changed."

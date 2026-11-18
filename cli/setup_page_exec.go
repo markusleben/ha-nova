@@ -126,12 +126,16 @@ func openClaudeTerminal(paths runtimePaths) error {
 	if err != nil {
 		return err
 	}
-	profile := ""
+	var vars []string // its Claude profile, and a named server the skill then acts on (MAR-241)
 	if strings.TrimSpace(os.Getenv("CLAUDE_CONFIG_DIR")) != "" {
-		profile, err = filepath.Abs(claudeConfigRoot(paths.Home))
+		profile, err := filepath.Abs(claudeConfigRoot(paths.Home))
 		if err != nil {
 			return err
 		}
+		vars = append(vars, "CLAUDE_CONFIG_DIR="+profile)
+	}
+	if server := activeServerProfile(); server != defaultServerProfileName {
+		vars = append(vars, serverSelectionEnvVar+"="+server)
 	}
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
@@ -140,8 +144,12 @@ func openClaudeTerminal(paths runtimePaths) error {
 		// page then shows its hint.
 		replacer := strings.NewReplacer(`\`, `\\`, `"`, `\"`)
 		command := `quoted form of "` + replacer.Replace(claude) + `"`
-		if profile != "" {
-			command = `"env " & quoted form of "CLAUDE_CONFIG_DIR=` + replacer.Replace(profile) + `" & " " & ` + command
+		if len(vars) > 0 {
+			assignments := ""
+			for _, v := range vars {
+				assignments += `quoted form of "` + replacer.Replace(v) + `" & " " & `
+			}
+			command = `"env " & ` + assignments + command
 		}
 		run := exec.Command("osascript", "-e", `tell application "Terminal" to do script "cd " & quoted form of "`+replacer.Replace(dir)+`" & " && " & `+command, "-e", `tell application "Terminal" to activate`)
 		run.Dir = dir
@@ -166,11 +174,11 @@ func openClaudeTerminal(paths runtimePaths) error {
 		return errors.New("no terminal to open")
 	}
 	cmd.Dir = dir
-	if profile != "" {
+	if len(vars) > 0 {
 		if cmd.Env == nil {
 			cmd.Env = os.Environ()
 		}
-		cmd.Env = append(cmd.Env, "CLAUDE_CONFIG_DIR="+profile)
+		cmd.Env = append(cmd.Env, vars...)
 	}
 	if err := cmd.Start(); err != nil {
 		return err
