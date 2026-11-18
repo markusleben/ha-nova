@@ -57,19 +57,23 @@ describe("release notes contract", () => {
     expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Updating a Mac from 0\.31\? HA NOVA asks you to pair it again once\.\*\*/);
     expect(stableNotes).toContain('choose "Allow", not "Always Allow"');
     // Decision A (#1235), the phone offer (#1239, #1240), the chat code (#1241, #1242), the file key (#1243), setup --server (#1237).
-    expect(stableNotes).toContain("**A light no longer asks while a logbook is open somewhere.**");
+    expect(stableNotes).toContain("**An open logbook no longer makes an everyday call ask.**");
     expect(stableNotes).toContain("**Your phone is offered wherever this computer can't confirm in its window.**");
-    expect(stableNotes).toContain("**A computer nobody sits at can confirm with a four-digit code in your AI chat.** The Home Assistant owner turns it on for that computer on the NOVA page.");
-    expect(stableNotes).toContain("**A computer with no screen pairs in one run.**");
+    expect(stableNotes).toContain("**A computer nobody sits at can confirm with a four-digit code in your AI chat.** The Home Assistant owner turns it on per computer on the NOVA page, instead of one-click.");
+    expect(stableNotes).toContain("**A computer whose keyring can't be unlocked pairs without starting over.**");
     expect(stableNotes).toContain("**`ha-nova setup --server <name>` opens the setup page**");
     // The trade-offs a user must know: who sees the chat code, the version mix, the unnamed listener, file keys.
-    expect(stableNotes).toContain("**Your AI assistant sees the chat code too.**");
-    expect(stableNotes).toContain("**Update the NOVA App and HA NOVA together.** A computer still on 0.32 refuses a change the new App runs without asking");
-    expect(stableNotes).toContain("**An extra listener HA NOVA can't name no longer makes a call ask.**");
+    expect(stableNotes).toContain("**Your AI assistant sees the chat code too, and HA NOVA can't tell who typed it.**");
+    expect(stableNotes).toContain("**The chat code needs the new App and HA NOVA, and works where your AI runs `ha-nova apply`.**");
+    // 0.32's trade-offs still reach a 0.31 computer that updates straight to 0.33.
+    expect(stableNotes).toContain("**A computer paired before 0.32 pairs again once to confirm with one click.**");
+    expect(stableNotes).toContain("**One-click confirming trusts that computer.** On Windows and Linux, any program running as you could confirm without a click.");
+    expect(stableNotes).toContain("**Update the NOVA App and HA NOVA together.** HA NOVA 0.32 refuses a change it would ask for but the new App wouldn't");
+    expect(stableNotes).toContain("**A listener HA NOVA can't name on the logbook's events no longer makes a call ask.**");
     expect(stableNotes).toContain("**A key kept in a file trusts every program running as you.**");
     // Fixes: the waiting text (#1239, #1244) and the 0.32 follow-ups (#1238).
-    expect(stableNotes).toContain("**Waiting no longer points to a phone that isn't linked.**");
-    expect(stableNotes).toContain("**The old Link sign-in's copy goes once its sign-out is confirmed.**");
+    expect(stableNotes).toContain("**When the NOVA page is the only place to confirm, HA NOVA points you there**");
+    expect(stableNotes).toContain("**Setup removes the old Link sign-in's Keychain copy once the App records the sign-out.**");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
   });
@@ -102,13 +106,13 @@ describe("release notes contract", () => {
     expect(readme).toContain("ha-nova setup confirm-window off");
     expect(readme).toContain("You OK them with one click in a window on your own computer, on the NOVA page in Home Assistant, or with a tap on your iPhone or Android phone.");
     // The Mac re-pair and Link sign-out (0.32 spec §5).
-    expect(readme).toContain("On macOS, 0.32 asks you to pair this computer again once: run `ha-nova setup` when HA NOVA says so");
+    expect(readme).toContain("Coming from 0.31 on macOS? HA NOVA asks you to pair this computer again once: run `ha-nova setup` when HA NOVA says so");
     expect(readme).toContain("You pair with a six-digit code:");
     // 0.33: the chat code for a computer nobody sits at, the phone offer, and setup --server on the page.
     expect(readme).toContain("**On a computer nobody sits at**, with no phone, the Home Assistant owner can turn on a chat code for it on the NOVA page.");
     expect(readme).toContain("Your AI assistant sees that code too, and so does any program using this computer's key");
-    expect(readme).toContain("offer a phone on every run until one is linked");
-    expect(readme).toContain("`ha-nova setup --server <name>` opens the setup page for it");
+    expect(readme).toContain("in a terminal offer a phone until one is linked");
+    expect(readme).toContain("`ha-nova setup --server <name>` sets it up again, on the setup page where a browser can open");
     // Chat apps: "Always allow" by phone; only setting up HA NOVA itself stays on a computer; Link sign-in (0.28).
     expect(readme).toContain('With a linked phone, set every tool to "Always allow"');
     expect(readme).toContain('No phone? Set every tool to "Always allow", except "Run a confirmed change"');
