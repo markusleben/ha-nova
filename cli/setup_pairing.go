@@ -250,7 +250,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 	// credential backend would burn. Headless systems switch to the private-file
 	// fallback here, with a visible note.
 	var probe deviceStorageProbe
-	probeErr := withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
+	probeOnce := func() error {
 		ui := explicitPairingSecretStoreUIPolicy()
 		ctx, cancel := boundedNativeOAuthSecretContext(
 			context.Background(),
@@ -263,7 +263,23 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 			ui,
 		)
 		return err
-	})
+	}
+	probeErr := withSetupLifecycleGuard(paths, lifecycleMarker, probeOnce)
+	if yes, err := askFileKeyStore(map[bool]*bufio.Reader{true: reader}[terminalReader() != nil], out, probeErr); err != nil { // only a person at a terminal answers it
+		return "", err
+	} else if yes { // the owner's opt-in, as pair --credential-store=file
+		probeErr = withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
+			if err := guardPairingMutation(); err != nil {
+				return err
+			}
+			if moved, err := useFileKeyStore(); err != nil {
+				return err
+			} else if moved {
+				renderSetupParagraph(out, "Moved this install's device credential into private file storage.")
+			}
+			return probeOnce()
+		})
+	}
 	if probeErr != nil {
 		return "", fmt.Errorf("device credential storage unavailable: %w",
 			renderSetupSecureStorageFailure(out, "This system cannot store the device credential yet", probeErr))

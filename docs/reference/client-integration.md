@@ -39,7 +39,7 @@ This enables `ha-nova setup --service <client>` and lets interactive setup offer
 
 The service token file stores only the Relay Auth Token. It never stores upstream Home Assistant credentials: the App keeps `SUPERVISOR_TOKEN` process-local and standalone relays keep `HA_LLAT` server-side.
 
-The paired **device credential** has its own file-backend equivalent: `setup --service` forces it, and `ha-nova pair --credential-store=file` opts in without a full setup. Both route the device credential to a private 0600 file under `~/.config/ha-nova/secrets/` — the explicit answer for machines whose desktop keyring exists but is never unlocked (headless VMs, autologin boxes, systemd user services). A present-but-locked keyring without one of these opt-ins stays a hard error by design; the storage never downgrades silently.
+The paired **device credential** has its own file-backend equivalent: `setup --service` forces it, and `ha-nova pair --credential-store=file` opts in without a full setup. Both route the device credential to a private 0600 file under `~/.config/ha-nova/secrets/` — the explicit answer for machines whose desktop keyring exists but is never unlocked (headless VMs, autologin boxes, systemd user services). A present-but-locked keyring without one of these opt-ins stays a hard error by design; the storage never downgrades silently. Where no desktop session here can unlock it (or a named server profile can't reach the keyring), setup and `ha-nova pair` in a terminal ask for that opt-in in the same run (Enter is no) and say what the file means: any program running as your user can read it, and this computer never confirms in its window (0.33; `cli/device_file_key_offer.go`). A Mac's Keychain key is never copied into the file.
 
 ## OS Overrides
 
