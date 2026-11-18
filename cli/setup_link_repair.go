@@ -32,10 +32,12 @@ var errLinkKept = errors.New("Home Assistant Link was not removed")
 
 // Test seams.
 var (
-	linkRePairApplies                                     = func() bool { return pairingCredentialStore() == "keychain" }
-	homeRelayAnswers                                      = probePairingV1Context
-	linkRePairOwnAskedAway                                = ownComputerHere
-	linkRePairPairingCode  cloudRemotePairingCodeProvider = interactiveRemotePairingCode
+	linkRePairApplies                                      = func() bool { return pairingCredentialStore() == "keychain" }
+	homeRelayAnswers                                       = probePairingV1Context
+	linkRePairOwnAskedAway                                 = ownComputerHere
+	linkRePairPairingCode   cloudRemotePairingCodeProvider = interactiveRemotePairingCode
+	windowPairAgainForSetup                                = windowPairAgain
+	macWindowHere                                          = func() bool { return linkRePairApplies() && ownComputerHere() }
 	// The removal setup runs for itself: only while setup's snapshot holds,
 	// and it keeps the re-pair checkpoint.
 	linkRePairRemoveLink = func(paths runtimePaths, lifecycle [][]byte) int {
@@ -100,15 +102,28 @@ func homeRelayReachable(cfg runtimeConfig) bool {
 	return homeRelayAnswers(ctx, cfg.RelayBaseURL)
 }
 
+// windowPairAgain: a Mac profile paired while its NOVA App didn't know the
+// window yet (the App answers pair_again) runs the re-pair once more, so
+// one-click confirming and the old version's cleanup can finish. An App
+// answer that can't be read is no reason.
+func windowPairAgain(paths runtimePaths, cfg runtimeConfig) bool {
+	if !macWindowHere() || linkRePairBlocked(cfg) || strings.TrimSpace(cfg.HAURL) == "" || strings.TrimSpace(cfg.RelayBaseURL) == "" {
+		return false
+	}
+	why, err := appWindowWhy(paths, cfg)
+	return err == nil && why == "pair_again"
+}
+
 type linkRePair struct {
 	reader    *bufio.Reader
 	out       io.Writer
 	paths     runtimePaths
 	cfg       runtimeConfig
 	lifecycle [][]byte
+	force     bool // windowPairAgain: pair again although this computer's key works
 }
 
-func runLinkRePair(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, lifecycle [][]byte) int {
+func runLinkRePair(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, lifecycle [][]byte, force bool) int {
 	if err := resumeSetupDeviceCredentialRetirement(paths, cfg); err != nil {
 		printHumanErr("%s", setupT("setup.error.finish_retirement", "error", err))
 		return 1
@@ -117,7 +132,7 @@ func runLinkRePair(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg 
 		printPendingActivationResumeError(err)
 		return 1
 	}
-	r := &linkRePair{reader: reader, out: out, paths: paths, cfg: cfg, lifecycle: lifecycle}
+	r := &linkRePair{reader: reader, out: out, paths: paths, cfg: cfg, lifecycle: lifecycle, force: force}
 	switch {
 	case homeRelayReachable(cfg):
 		return r.atHome()
@@ -132,26 +147,35 @@ func runLinkRePair(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg 
 			printHumanErr("%s", cloudProblemForCommandError(err).humanText())
 			return 1
 		}
-		if present { // paired away before: only the cleanup is left
+		if present { // paired away before: only the cleanup is left (and pairing again waits for home)
 			return r.finish("", setupT("setup.relink.link_only", "command", r.command()))
 		}
+	case force: // a working key pairs again only at home, never by reusing it over Link
+		renderSetupParagraph(out, setupT("setup.relink.home_needed", "command", r.command()))
+		return 1
 	}
 	return r.away()
 }
 
 // atHome: the local sign-in pairs this computer (unless an earlier run did),
-// then Link is added again for the new key.
+// then Link is added again for the new key. A profile without Link only
+// pairs again (windowPairAgain).
 func (r *linkRePair) atHome() int {
 	_, _, _, device, err := relayFunctionalTransport(r.cfg)
-	pair := err != nil || !device
+	pair := r.force || err != nil || !device
+	link := r.cfg.Cloud != nil || r.cfg.LinkRePair != ""
 	var session haSignInSession
 	if pair {
-		renderSetupParagraph(r.out, setupT("setup.relink.home"))
+		if link {
+			renderSetupParagraph(r.out, setupT("setup.relink.home"))
+		} else {
+			renderSetupParagraph(r.out, setupT("setup.relink.window"))
+		}
 		own, err := askOwnComputerForSetup(r.reader, r.out, r.cfg)
 		if err != nil {
 			return r.stopped(err)
 		}
-		if !r.linkUsable() {
+		if link && !r.linkUsable() {
 			return 1
 		}
 		origin, err := resolveHASignInOriginForSetup(context.Background(), r.cfg.HAURL)
@@ -167,8 +191,10 @@ func (r *linkRePair) atHome() int {
 	} else if !r.linkUsable() {
 		return 1
 	}
-	if err := r.dropLink(linkRePairAddLink); err != nil {
-		return r.failed(err)
+	if link {
+		if err := r.dropLink(linkRePairAddLink); err != nil {
+			return r.failed(err)
+		}
 	}
 	if pair {
 		if paired, _, fatal := pairWithHASignInSession(r.reader, r.out, r.paths, &r.cfg, session, r.lifecycle...); !paired || fatal != nil {
@@ -177,6 +203,9 @@ func (r *linkRePair) atHome() int {
 			}
 			return r.again()
 		}
+	}
+	if !link {
+		return r.finish(setupT("setup.relink.connected"), "")
 	}
 	cfg, err := addHybridCloudAfterLocal(r.paths, r.cfg, r.lifecycle...)
 	if err != nil {

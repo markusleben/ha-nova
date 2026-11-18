@@ -20,7 +20,8 @@ type doctorRoute struct {
 	// safety check, an identity, or Link), so doctor only reads /health:
 	// no WebSocket check, no update offer, nothing functional.
 	diagnosticOnly bool
-	linkShown      bool // the route problem already named the Link commands
+	linkShown      bool   // the route problem already named the Link commands
+	nextStep       string // the re-pair, said once at the end of doctor
 }
 
 // selectDoctorRoute picks the route functional commands use. The choice
@@ -37,6 +38,11 @@ func selectDoctorRoute(ctx context.Context, paths runtimePaths, cfg runtimeConfi
 	var localCredential *localRelayCredentialError
 	if transportErr != nil && effectiveRoutePolicy(cfg.RoutePolicy) != routePolicyLocal &&
 		!errors.As(transportErr, &localCredential) { // a key-read problem: the home route has it too
+		if errors.Is(transportErr, errDeviceNeedsRePair) { // a Mac with Link after the 0.32 update: the one cause
+			printHumanErr("This computer needs to be paired again.")
+			route.nextStep = rePairStep(activeServerProfile(), true)
+			return stop()
+		}
 		route.linkShown = printDoctorRouteProblem(cfg, transportErr)
 		route.failed, route.diagnosticOnly = true, true
 		if remoteOnlyCloudSetup(cfg) {
@@ -77,12 +83,8 @@ func selectDoctorRoute(ctx context.Context, paths runtimePaths, cfg runtimeConfi
 			printHumanErr("%s", doctorTransportErrorMessage(transportErr))
 			return stop()
 		}
-		printHumanErr("This computer was connected, but its key is gone from the password store.")
-		how := "Connect it again with one Home Assistant sign-in"
-		if cfg.Cloud != nil && linkRePairApplies() {
-			how = "Connect it again" // with Link, a second sign-in at home (setup_link_repair.go)
-		}
-		printHumanErr("%s: run %s.", how, rePairNextStep(activeServerProfile(), cfg.Cloud != nil))
+		printHumanErr("This computer was connected, but its key is gone from the password store, so it needs to be paired again.")
+		route.nextStep = rePairStep(activeServerProfile(), cfg.Cloud != nil)
 		return stop()
 	}
 	if activeServerProfile() != defaultServerProfileName {

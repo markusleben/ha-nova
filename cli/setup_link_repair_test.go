@@ -182,7 +182,7 @@ func (f *relinkFixture) run(input string) (int, string) {
 	}
 	lifecycle := setupLifecycleOf(f.t, f.paths)
 	return captureCommandOutput(f.t, func() int {
-		return runLinkRePair(bufio.NewReader(strings.NewReader(input)), os.Stdout, f.paths, cfg, lifecycle)
+		return runLinkRePair(bufio.NewReader(strings.NewReader(input)), os.Stdout, f.paths, cfg, lifecycle, false)
 	})
 }
 

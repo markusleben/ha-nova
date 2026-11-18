@@ -13,27 +13,29 @@ import (
 // device key (deviceMode false) the Relay runs on its own: no NOVA page.
 // The Relay's own phone link can't be read (no route), so doctor never
 // claims one.
-func doctorGate(paths runtimePaths, skip bool, health []byte, linkSignIn, deviceMode bool, info func(string, ...any)) int {
+// step: what a Mac does so its window can confirm (doctorWindowStep).
+func doctorGate(paths runtimePaths, skip bool, health []byte, linkSignIn, deviceMode bool, info func(string, ...any)) (int, string) {
 	var h struct {
 		Data struct {
-			Gate int `json:"gate"`
+			Gate   int `json:"gate"`
+			Window int `json:"window"`
 		} `json:"data"`
 	}
 	_ = json.Unmarshal(health, &h)
 	switch {
 	case skip:
-		return 0
+		return 0, ""
 	case h.Data.Gate != 1 && gateSeen(paths, activeServerProfile()):
 		printHumanErr("Safety check in Home Assistant: off. The NOVA App was rolled back to a version without it, so HA NOVA sends no unlocks, deletes, or other big changes. Update the NOVA App in Home Assistant (Settings → Apps → NOVA Relay).")
-		return 1
+		return 1, ""
 	case h.Data.Gate != 1:
 		printHumanWarn("Safety check in Home Assistant: not on. The NOVA App is too old for it; update it in Home Assistant (Settings → Apps → NOVA Relay).")
-		return 0
+		return 0, ""
 	}
 	s, err := newRelaySession(paths, verbOptions{})
 	if err != nil {
 		printHumanWarn("Safety check in Home Assistant: on, but HA NOVA couldn't check who can confirm (%s).", err)
-		return 0
+		return 0, ""
 	}
 	defer s.close()
 	links, _ := phoneLinks(paths)
@@ -42,7 +44,7 @@ func doctorGate(paths runtimePaths, skip bool, health []byte, linkSignIn, device
 	switch {
 	case errors.As(err, &call) && call.code == "GATE_UNAVAILABLE":
 		printHumanErr("Safety check in Home Assistant: on, but not running, so no one can confirm unlocks, deletes, or other big changes. Restart the NOVA App in Home Assistant (Settings → Apps → NOVA Relay).")
-		return 1
+		return 1, ""
 	case err != nil:
 		printHumanWarn("Safety check in Home Assistant: on, but HA NOVA couldn't check that it runs and who can confirm (%s). Run ha-nova doctor again in a moment.", err)
 	default:
@@ -70,7 +72,34 @@ func doctorGate(paths runtimePaths, skip bool, health []byte, linkSignIn, device
 	case status == phoneNone: // the Relay's own link can't be read, and `off` leaves it there
 		printHumanWarn("No phone is linked for confirmations on this computer; your NOVA Relay may still have one (HA NOVA can't read it there). It runs on its own, without a NOVA page, so without a linked phone nothing can confirm unlocks, deletes, or other big changes. To link one: ha-nova setup confirm-phone.")
 	}
-	return 0
+	if deviceMode && h.Data.Window == 1 {
+		return 0, doctorWindowStep(s, linkSignIn)
+	}
+	return 0, ""
+}
+
+// doctorWindowStep: on a Mac, the setup step that lets its window confirm,
+// when the App says this computer was paired before it knew the window
+// (setup pairs again) or its old version isn't signed out yet. Any other or
+// unreadable answer names nothing.
+func doctorWindowStep(s *relaySession, link bool) string {
+	if !macWindowHere() {
+		return ""
+	}
+	s.gate = &relayGate{checked: true, on: true, window: true}
+	profile := activeServerProfile()
+	switch s.readGateMe().why {
+	case "pair_again":
+		printHumanWarn("One-click confirming is off: this computer was paired before the NOVA App supported it.")
+		return rePairStep(profile, link)
+	case "legacy_cleanup_pending":
+		if profile != defaultServerProfileName { // a named profile's retry is the App's own text
+			return ""
+		}
+		printHumanWarn("One-click confirming waits until this computer's old HA NOVA version is signed out of Home Assistant.")
+		return "run ha-nova setup to sign the old version out (macOS may ask once to use its Keychain item)"
+	}
+	return ""
 }
 
 func fetchRelayHealth(relayBaseURL, token string) ([]byte, error) {
