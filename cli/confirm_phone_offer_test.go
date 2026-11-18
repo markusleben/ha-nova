@@ -68,6 +68,27 @@ func TestPhoneOfferOnAGatedAppRecordsTheGate(t *testing.T) {
 	}
 }
 
+// A computer the App lets confirm in its window still gets the offer on a
+// re-run where no window can open here (SSH); with a window, it doesn't.
+func TestPhoneOfferWhereTheWindowCantOpenHere(t *testing.T) {
+	g := &fakeGate{phones: true}
+	h := gatedFamily(t, g, false)
+	usePhones(t)
+	phoneDiscover = discoverPhone
+	h.log.me.Store(map[string]any{"window": true, "why": "on"})
+	saved := windowAvailable
+	t.Cleanup(func() { windowAvailable = saved })
+	enter := "\n"
+	windowAvailable = func() bool { return true }
+	if out := runPhoneOffer(t, h, &enter, false); out != "" {
+		t.Fatalf("window here: %q", out)
+	}
+	windowAvailable = func() bool { return false }
+	if out := runPhoneOffer(t, h, &enter, false); !strings.Contains(out, "Confirm risky changes (doors, alarm, deletes) on your phone?") || len(g.links) != 0 {
+		t.Fatalf("over SSH: links %v\n%s", g.links, out)
+	}
+}
+
 func TestPhoneNextStepNamesTheProfile(t *testing.T) {
 	if got := phoneNextStep("cabin"); got != `No phone linked to this computer yet? To confirm risky changes on a phone, run ha-nova setup confirm-phone --server cabin list, then ha-nova setup confirm-phone --server cabin "<phone name>" and tap the button in the notification on that phone.` {
 		t.Fatalf("%q", got)

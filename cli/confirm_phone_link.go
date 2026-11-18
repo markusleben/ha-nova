@@ -101,7 +101,7 @@ func offerPhoneLink(reader *bufio.Reader, out io.Writer, paths runtimePaths, pai
 	defer s.close()
 	on, _ := s.gateOn() // as a gated send reads it: the first answer records that this App gates (gate_seen)
 	confirms := false
-	if on && s.gate.window {
+	if on && s.gate.window && s.windowHere() { // the App's permission isn't a window here (SSH, window off)
 		confirms = s.gateMe().window
 	}
 	if confirms && !pairedNow {
