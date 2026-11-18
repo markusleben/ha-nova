@@ -100,6 +100,16 @@ func TestUnexplainedListenerIsANote(t *testing.T) {
 			mar209Home(t, true)(f)
 			f.ent("light.porch", "custom_lights", "off", nil)
 		}, args: []string{"light.turn_on", "light.porch"}, exit: 3, tier: "typed", check: reachesWatchdog(true)},
+		{name: "a YAML thermostat keeps every listener (the maintainer's home at rc1; MAR-245)", setup: func(f *fakeHA) {
+			mar209Home(t, true)(f)
+			f.config["components"] = append(f.config["components"].([]string), "generic_thermostat.climate", "template.switch")
+			f.extra = func(endpoint string, p map[string]any) (any, bool) {
+				if endpoint == "ws" && p["type"] == "entity/source" {
+					return map[string]any{"climate.bath": map[string]any{"domain": "generic_thermostat"}, "switch.bath_heater_safe": map[string]any{"domain": "template"}}, true
+				}
+				return nil, false
+			}
+		}, args: light, exit: 3, tier: "typed", reasons: []string{reasonUnresolvedTarget}, check: both(hasNote(noteUnexplainedListener), reachesWatchdog(true))},
 		{name: "a loaded reactor keeps every listener", setup: func(f *fakeHA) {
 			mar209Home(t, true)(f)
 			f.config["components"] = append(f.config["components"].([]string), "alert")
