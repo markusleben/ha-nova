@@ -2,8 +2,8 @@ name: Old CLI update notice
 
 # Runs the published v0.31.0 binary's update check against the release body
 # GoReleaser publishes from .goreleaser.yml (scripts/release/prove-old-cli-digest.sh):
-# the Mac re-pair warning must lead its notice before anyone updates to 0.32
-# (0.32 spec §5.1).
+# the Mac re-pair warning must lead its notice before a 0.31 Mac updates to
+# 0.32 or later (0.32 spec §5.1).
 
 on:
   pull_request:

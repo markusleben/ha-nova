@@ -7,25 +7,25 @@ import (
 	"text/template"
 )
 
-// The 0.31 CLI already on a Mac can't learn new update checks, so the 0.32
-// release notes carry the re-pair warning where its notice reads them: the
-// headline (first new feature) and the action item (first What To Watch
-// item). cli/release.go and cli/release_digest.go are unchanged since
+// The 0.31 CLI already on a Mac can't learn new update checks, so the
+// release notes it reads (0.32's, and the latest stable's after it) carry the
+// re-pair warning where its notice reads them: the headline (first new
+// feature) and the action item (first What To Watch item). cli/release.go and cli/release_digest.go are unchanged since
 // v0.31.0, so this is the 0.31 logic, run on the body GoReleaser publishes
 // for a stable tag: .goreleaser.yml's release header and footer.
 // scripts/release/prove-old-cli-digest.sh runs the real v0.31.0 binary on
 // the same body. A direct `ha-nova update` on 0.31 prints no highlights, so
 // only check-update and the agent's pre-update advice carry the warning.
 func TestMacRepairWarningLeadsTheOldCLIUpdateNotice(t *testing.T) {
-	const warning = "On macOS, 0.32 asks you to pair this computer again once."
-	highlights := deriveReleaseHighlights(publishedStableReleaseBody(t, "v0.32.0"))
+	const warning = "Updating a Mac from 0.31? HA NOVA asks you to pair it again once."
+	highlights := deriveReleaseHighlights(publishedStableReleaseBody(t, "v0.33.0"))
 	if got := releaseHeadline(highlights); got != warning {
 		t.Fatalf("headline %q, want %q", got, warning)
 	}
 	if len(highlights) == 0 || highlights[0].Kind != releaseHighlightKindAction || !strings.HasPrefix(highlights[0].Text, warning) {
 		t.Fatalf("first action item %+v, want it to start with %q", highlights, warning)
 	}
-	if text := updateReadyText("0.31.0", "0.32.0", "", highlights, ""); !strings.Contains(text, "New: "+warning) {
+	if text := updateReadyText("0.31.0", "0.33.0", "", highlights, ""); !strings.Contains(text, "New: "+warning) {
 		t.Fatalf("notice %q lacks the warning", text)
 	}
 }
