@@ -211,8 +211,6 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `INTEGRATION_SCENE_UNREAD` | preview | unread integration scene on a platform without access entities (same section) |
 | `RELOAD_UNENUMERATED` | typed | any `<domain>.reload` or `homeassistant.reload_*`; v1 proves no reload side-effect-free (Expanding the members, reloads) |
 | `UNENUMERABLE_LISTENER` | typed | live listener count ≠ enumerated automation listeners (step 5b) |
-| `CALL_SERVICE_LISTENER_UNEXPLAINED` | preview | `call_service` listeners beyond the enumerated automations (frontend streams; step 5b) |
-| `RUN_EVENT_LISTENER_UNEXPLAINED` | preview | `script_started`/`automation_triggered` listeners beyond the enumerated automations (step 5b) |
 | `DEVICE_ACCESS` | typed | integration service on an entity whose device has a lock, alarm panel, or access cover (step 2) |
 | `DEVICE_ACCESS_SIBLING` | typed | press, switch on/toggle, or cover open on an entity whose device has a lock, alarm panel, or access cover (step 2) |
 | `CONFIG_WRITE` | preview | `plan write` (create or update); typed when the config's actions reach a typed action (PR5 notes). An update that only inserts steps (triggers, conditions, mode, variables, and the live steps unchanged and in order) weighs the steps from the first inserted one to the end; any other change weighs the whole draft (#1009) |
@@ -229,6 +227,7 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `SCAN_FAILED` | typed | any failed read inside the traversal (Limits you imposed) |
 | `LIMIT_CUT` | typed | any budget cut (Limits you imposed) |
 | `TEMPLATES_NOT_CHECKABLE` | note | the instance has template entities (step 5d) |
+| `UNEXPLAINED_LISTENER` | note | `call_service`, `script_started`, or `automation_triggered` listeners beyond the enumerated automations, as an open logbook adds: a listener that doesn't act; each automation's own filter still decides (step 5b; decision A, `docs/work/2026-11-18-0.33-spec.md` §1.2) |
 | `NO_LOCAL_CONSUMER_MANAGER` | note | none installed locally — informational, not a gap: the presence check found no Node-RED/AppDaemon/pyscript here (an external one cannot be seen) (step 5c) |
 | `INTEGRATION_SERVICE` | preview | service of a non-core domain, targetless or on a device without access entities (step 2) |
 | `USER_AUTHORED_SERVICE` | typed | `esphome.*` API service defined in device YAML (rules 2 and 3) |
@@ -397,7 +396,7 @@ Decisions (maintainer, 2026-10-14)
 - **Q1 → yes.** Consumer hits whose actions are fully read and ordinary keep the fast path; the result lists them.
 - **Q2 → preview.** A present but unreadable consumer manager (Node-RED, AppDaemon) puts ordinary device control at preview, with a coverage note.
 - **Q3 → typed.** An open-capable cover without `device_class` is typed (fail closed).
-- **Call-service surplus → preview** (maintainer default 2026-10-14, analogous to Q2). An unexplained `call_service` listener surplus is preview with `CALL_SERVICE_LISTENER_UNEXPLAINED`; a surplus listener the full scan attributes to an automation reaching a typed action stays typed.
+- **Call-service surplus → preview** (maintainer default 2026-10-14, analogous to Q2), replaced on 2026-11-18 by decision A (`docs/work/2026-11-18-0.33-spec.md` §1.2): an unexplained surplus on `call_service`, `script_started`, or `automation_triggered` is the note `UNEXPLAINED_LISTENER`; a surplus listener the full scan attributes to an automation reaching a typed action stays typed.
 - **ESPHome/MQTT entities stay ordinary** (maintainer default 2026-10-14). Only their buttons are user-authored typed; switches, lights, and covers are real devices, and escalating them would put every zigbee2mqtt switch on typed.
 - **Q4 → change with an explicit exception.** Public wording: "Unambiguous everyday actions run immediately and are verified afterwards; everything else shows a preview first; locks, gates, alarm, and deletes need a code." `docs/reference/safety.md` and the Safety Core change with PR4; README only in the release-prep PR.
 

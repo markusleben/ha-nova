@@ -25,7 +25,8 @@
 // the same before the phone is linked; S5 the same with no display
 // (headless); S3 the same after the owner turned it off on the NOVA page;
 // S4 a computer nobody declared (a second administrator's), its own phone.
-// M: Markus's home (MAR-209) on S1, through mrow.mjs. Not staged here, and
+// M: Markus's home (MAR-209) on S1, through mrow.mjs, without and with a
+// logbook open (everyday, shutter, garage). Not staged here, and
 // printed so: S1L (Home Assistant Link transport), S6-S8 (chat apps,
 // unchanged in 0.32: the chat acceptance lane), a computer paired before
 // 0.32 (its Relay side: tests/security/window-confirm.test.ts).
@@ -286,10 +287,15 @@ try {
   await columns("S2", own, { window: "confirm", phone: false, on: "window", silent: true });
   await linkPhone(own, "ios", fx.phones.find((p) => p.platform === "ios").name);
   await columns("S1", own, { window: "confirm", phone: true, on: "window", silent: true });
-  // M on S1: the light call beside the watchdog copy, applied where mrow.mjs stages it.
+  // M on S1: beside the watchdog, without and with a logbook open, applied where mrow.mjs stages it.
   const sync = (...args) => envelope(spawnSync("docker", boxArgs(own.home, args, true)[1], { encoding: "utf8" }).stdout ?? "");
   await mRowChecks({ ha, ws, cli: sync, loadAutomations, gated: false, check: (name, ok, detail) => report(name, ok ? [] : [detail]),
-    measure: async (stage) => record("M (" + stage + ")", "everyday", await measure(own, ["call", "light.turn_off", "light.bed_light"], { window: "confirm", phone: true }), { stages: stage === "garage" ? 1 : 0, on: stage === "garage" ? "window" : undefined, silent: true }) });
+    measure: async (stage) => {
+      const row = "M (" + stage + ")", at = { window: "confirm", phone: true };
+      record(row, "everyday", await measure(own, ["call", "light.turn_off", "light.bed_light"], at), { stages: 0, silent: true });
+      record(row, "shutter", await measure(own, ["call", "cover.close_cover", "cover.kitchen_window"], at), { stages: 1, on: "window", silent: true });
+      record(row, "garage", await measure(own, ["call", "cover.open_cover", "cover.garage_door"], at), { stages: 1, on: "window", silent: true });
+    } });
   own.display = false;
   await columns("S5", own, { window: "confirm", phone: true, on: "phone" });
   own.display = true;
