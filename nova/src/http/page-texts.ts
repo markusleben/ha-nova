@@ -14,6 +14,7 @@ export const PAGE_KEYS = [
   "page.waiting_one", "page.waiting_many", "page.open", "page.paused", "page.revoke_device", "page.link",
   "page.paused_heading", "page.paused_left", "page.resume",
   "page.window_on", "page.window_off", "page.window_file", "page.window_pair_again", "page.window_cleanup", "page.window_owner", "page.window_warning", "page.window_hint", "page.window_turn_on", "page.window_turn_off", "page.window_recent",
+  "page.code_on", "page.code_turn_on", "page.code_turn_off", "page.code_warning", "page.code_recent",
 ] as const;
 export type PageKey = (typeof PAGE_KEYS)[number];
 

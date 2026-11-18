@@ -57,7 +57,7 @@ describe("legacy sign-in cleanup on a Mac pairing", () => {
     const before = read();
     expect(registry.completeLegacyCleanup(deviceId)).toBe(true);
     expect(registry.completeLegacyCleanup(deviceId)).toBe(true);
-    expect(read()).toEqual({ ...before, legacyCleanup: "complete" });
+    expect(read()).toEqual({ ...before, legacyCleanup: "complete", confirmRev: 1 }); // it changes what may confirm: the chat code's revision rises (MAR-244)
     expect(read().ownComputer).toBeUndefined();
     expect(registry.completeLegacyCleanup("unknown")).toBe(false);
     const bridge = pair({}, BRIDGE_INSTALL_ID);

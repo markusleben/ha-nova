@@ -19,6 +19,7 @@ export interface HealthHandlerOptions {
   relayInstanceId?: string;
   gate?: boolean; // the safety check fronts this Relay (gate spec, Compatibility)
   window?: boolean; // a paired computer may confirm in its window (0.32 spec §4)
+  code?: boolean; // a paired computer's ask may take a chat code (MAR-244)
   now?: () => number;
   logger?: RelayLogger;
 }
@@ -38,6 +39,7 @@ export interface HealthPayload {
   relay_instance_id?: string;
   gate?: 1;
   window?: 1;
+  code?: 1;
 }
 
 export function createHealthHandler(
@@ -87,5 +89,6 @@ export async function readHealthPayload(
       : {}),
     ...(options.gate === true ? { gate: 1 as const } : {}),
     ...(options.window === true ? { window: 1 as const } : {}),
+    ...(options.code === true ? { code: 1 as const } : {}),
   };
 }

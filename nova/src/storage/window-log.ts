@@ -11,6 +11,7 @@ export interface WindowLogEntry {
   atMs: number;
   computer: { id: string; name: string };
   title: string;
+  code?: true; // confirmed with a chat code (MAR-244)
 }
 
 export interface WindowLog {
@@ -22,7 +23,7 @@ const KEEP = 50;
 
 function isEntry(value: unknown): value is WindowLogEntry {
   const e = value as Partial<WindowLogEntry> | null;
-  return typeof e === "object" && e !== null && typeof e.atMs === "number" && Number.isFinite(e.atMs) && typeof e.title === "string" && e.title.length <= 1024
+  return typeof e === "object" && e !== null && typeof e.atMs === "number" && Number.isFinite(e.atMs) && typeof e.title === "string" && e.title.length <= 1024 && (e.code === undefined || e.code === true)
     && typeof e.computer?.id === "string" && e.computer.id.length <= 256 && typeof e.computer.name === "string" && e.computer.name.length <= 256;
 }
 

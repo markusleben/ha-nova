@@ -326,12 +326,16 @@ export function openDeviceRegistry(
           const { ownComputer: _, ...rest } = d;
           return { ...rest, windowConfirm: false };
         }
-        return windowBlocked(d, ownerId) ?? { ...d, ownComputer: { userId: ownerId, atMs }, windowConfirm: true };
+        return windowBlocked(d, ownerId) ?? { ...noCode(d), ownComputer: { userId: ownerId, atMs }, windowConfirm: true };
       });
     },
     setWindowConfirm(deviceId, on, ownerId) {
       return change(deviceId, (d) => !on ? { ...d, windowConfirm: false }
-        : d.ownComputer?.userId !== ownerId ? "not_yours" : windowBlocked(d, ownerId) ?? { ...d, windowConfirm: true });
+        : d.ownComputer?.userId !== ownerId ? "not_yours" : windowBlocked(d, ownerId) ?? { ...noCode(d), windowConfirm: true });
+    },
+    setCodeConfirm(deviceId, ownerId, atMs) { // exclusive with the window; a linked phone comes first
+      return change(deviceId, (d) => ownerId === null ? (d.codeConfirm === undefined ? d : noCode(d))
+        : windowBlocked(d, ownerId, true) ?? (d.confirmPhone !== undefined ? "phone" : { ...d, codeConfirm: { userId: ownerId, atMs }, windowConfirm: false }));
     },
     completeLegacyCleanup(deviceId) {
       return change(deviceId, (d) => d.clientInstallId === BRIDGE_INSTALL_ID || d.clientInstallId === GATE_INSTALL_ID ? "device"
@@ -345,10 +349,14 @@ export function openDeviceRegistry(
         return false;
       }
       const confirmPhone = validateConfirmPhone(link);
-      persist({ ...data, devices: data.devices.map((d) => (d === device ? { ...d, confirmPhone } : d)) });
+      persist({ ...data, devices: data.devices.map((d) => (d === device ? { ...d, confirmPhone, confirmRev: (d.confirmRev ?? 0) + 1 } : d)) });
       return true;
     },
   };
+
+  function noCode({ codeConfirm: _, ...rest }: DeviceRecord): DeviceRecord {
+    return rest;
+  }
 
   // One active device's window fields in one write; a refusal (or the same record) writes nothing.
   function change(deviceId: string, next: (device: DeviceRecord) => DeviceRecord | WindowRefusal): WindowRefusal | null {
@@ -356,7 +364,7 @@ export function openDeviceRegistry(
     if (device === undefined) return "device";
     const updated = next(device);
     if (typeof updated === "string") return updated;
-    if (updated !== device) persist({ ...data, devices: data.devices.map((d) => (d === device ? updated : d)) });
+    if (updated !== device) persist({ ...data, devices: data.devices.map((d) => (d === device ? { ...updated, confirmRev: (device.confirmRev ?? 0) + 1 } : d)) });
     return null;
   }
 

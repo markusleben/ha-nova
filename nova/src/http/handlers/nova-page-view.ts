@@ -133,7 +133,7 @@ export function renderPage(m: PageModel): string {
     : m.pairing.phase === "active" && m.pairing.code
       ? `<div class="field"><p class="muted">On your computer, run <code>ha-nova setup</code> and enter this code when asked. It works once and expires in 10 minutes. Click the code to select it for copying.</p>
          <p class="code">${escapeHtml(formatCode(m.pairing.code))}</p>
-         <p class="muted waiting">Waiting for the device… this page updates on its own once it connects.</p>
+         <p class="muted waiting">Waiting for the device… this page updates on its own once it connects. After pairing, choose here how this computer confirms.</p>
          <div class="actions">${cancelCode}</div></div>`
       : m.pairing.phase === "armed"
         ? `<p class="muted waiting">A computer is connecting through Home Assistant sign-in… this page updates on its own once it connects. If your computer asks for a code instead, click “Connect a device”.</p>

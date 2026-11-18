@@ -74,5 +74,10 @@ func gatePageTexts(lang, name string) map[string]string {
 		"page.window_turn_on":       confirmT(lang, "page.window_turn_on"),
 		"page.window_turn_off":      confirmT(lang, "page.window_turn_off"),
 		"page.window_recent":        confirmT(lang, "page.window_recent"),
+		"page.code_on":              confirmT(lang, "page.code_on"),
+		"page.code_turn_on":         confirmT(lang, "page.code_turn_on"),
+		"page.code_turn_off":        confirmT(lang, "page.code_turn_off"),
+		"page.code_warning":         confirmT(lang, "page.code_warning"),
+		"page.code_recent":          confirmT(lang, "page.code_recent"),
 	}
 }

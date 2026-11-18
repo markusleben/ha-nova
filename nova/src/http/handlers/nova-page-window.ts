@@ -1,6 +1,6 @@
 import type { DeviceRecord } from "../../security/device-registry-types.js";
 import { isOwner, type HaAuthUser } from "../../security/owner-check.js";
-import { windowBlocked, windowStatus } from "../../security/window-confirm.js";
+import { codeState, windowBlocked, windowStatus } from "../../security/window-confirm.js";
 import type { WindowLogEntry } from "../../storage/window-log.js";
 import type { PageKey, PageTexts } from "../page-texts.js";
 import { escapeHtml, formatWhen } from "./nova-page-view.js";
@@ -11,8 +11,8 @@ import { escapeHtml, formatWhen } from "./nova-page-view.js";
 // owner's (window_mine); turning off one that can't confirm anyway clears
 // that (window_not_mine).
 
-export type WindowAction = "window_mine" | "window_not_mine" | "window_on" | "window_off";
-export const WINDOW_ACTIONS = new Set<string>(["window_mine", "window_not_mine", "window_on", "window_off"]);
+export type WindowAction = "window_mine" | "window_not_mine" | "window_on" | "window_off" | "code_on" | "code_off";
+export const WINDOW_ACTIONS = new Set<string>(["window_mine", "window_not_mine", "window_on", "window_off", "code_on", "code_off"]);
 
 const REASONS: Record<string, PageKey> = {
   on: "page.window_on", off: "page.window_off", not_yours: "page.window_off", file: "page.window_file", pair_again: "page.window_pair_again",
@@ -40,8 +40,19 @@ export function windowRow(d: DeviceRecord, users: HaAuthUser[], viewer: { isOwne
   return `${line}${button === "" ? "" : `<span class="actions">${button}</span>`}${warning}`;
 }
 
+// Its chat code (MAR-244): only the owner turns it on, for a computer nobody
+// sits at; turning it on turns the window off, and a linked phone ends it.
+export function codeRow(d: DeviceRecord, users: HaAuthUser[], viewer: { isOwner: boolean; userId: string }, t: PageTexts, form: (action: WindowAction, deviceId: string, label: string) => string): string {
+  const on = codeState({ kind: "device", deviceId: d.deviceId }, d).mode === "on" && users.some((u) => u.id === d.codeConfirm?.userId && isOwner(u));
+  const kept = d.codeConfirm !== undefined; // a stored choice, effective or not, can always be turned off
+  if (!on && !kept && (!viewer.isOwner || d.confirmPhone !== undefined || windowBlocked(d, viewer.userId, true) !== null)) return "";
+  const line = on ? `<span class="muted meta">${t.say("page.code_on")}</span>` : "";
+  if (!viewer.isOwner) return line;
+  return `${line}<span class="actions">${form(kept ? "code_off" : "code_on", d.deviceId, t.say(kept ? "page.code_turn_off" : "page.code_turn_on"))}</span>${kept ? "" : `<span class="muted meta">${t.say("page.code_warning")}</span>`}`;
+}
+
 export function recentWindowSection(entries: WindowLogEntry[], t: PageTexts): string {
   if (entries.length === 0) return "";
-  const rows = [...entries].reverse().map((e) => `<li><span>${escapeHtml(formatWhen(e.atMs))} · <strong>${escapeHtml(e.computer.name)}</strong> · ${escapeHtml(e.title)}</span></li>`).join("");
+  const rows = [...entries].reverse().map((e) => `<li><span>${escapeHtml(formatWhen(e.atMs))} · <strong>${escapeHtml(e.computer.name)}</strong> · ${escapeHtml(e.title)}${e.code ? ` · ${t.say("page.code_recent")}` : ""}</span></li>`).join("");
   return `<section><h2>${t.say("page.window_recent")}</h2><ul class="facts">${rows}</ul></section>`;
 }

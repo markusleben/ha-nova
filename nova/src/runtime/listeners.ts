@@ -114,6 +114,7 @@ export function createDeviceListener(deps: PairingListenerDeps): RequestListener
     router,
     version: deps.relayVersion,
     ...(deps.logger ? { logger: deps.logger } : {}),
+    noStorePaths: new Set(["/gate/v1/ask"]), // an open's answer may hold a chat code (MAR-244)
     authorize: (request, routeKey) => (SELF_AUTHENTICATED.has(routeKey) ? { ok: true } : functionalAuth(request)),
     bodyPolicy: () => ({ type: "json", maxBytes: DEFAULT_MAX_JSON_BODY_BYTES }),
   });
