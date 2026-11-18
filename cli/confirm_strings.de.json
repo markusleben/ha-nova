@@ -142,6 +142,7 @@
   "say.relay_ask": "Bestätige auf deinem Handy, falls eines mit diesem Computer verbunden ist, oder auf der NOVA-Seite in Home Assistant.",
   "say.relay_ask_page": "Bestätige auf der NOVA-Seite in Home Assistant. Um stattdessen auf deinem Handy zu bestätigen, verbinde es mit {command} auf diesem Computer.",
   "say.relay_window_ask": "Bestätige im Fenster auf diesem Computer. Nicht am Computer? Bestätige auf deinem Handy oder auf der NOVA-Seite.",
+  "say.relay_window_ask_page": "Bestätige im Fenster auf diesem Computer. Nicht am Computer? Bestätige auf der NOVA-Seite.",
   "say.relay_ask_container": "Bestätige auf dem Handy, das mit deinem NOVA-Relay-Container verbunden ist.",
   "say.relay_code_ask": "Zum Bestätigen sag mir, dass ich loslegen soll; HA NOVA zeigt dann hier einen vierstelligen Code, den du zurücktippst. Dein KI-Assistent sieht diesen Code auch.",
   "say.relay_code": "Um die {count} oben gezeigten Schritte zu bestätigen, tippe diesen Code in den Chat: {code}. Er gilt noch {seconds} Sekunden. Dein KI-Assistent sieht ihn auch.",

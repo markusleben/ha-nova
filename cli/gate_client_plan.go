@@ -47,6 +47,9 @@ func relayAskSay(lang string, s *relaySession, prompted storedPlan, env *verbEnv
 		return confirmT(lang, "say.relay_ask_container")
 	}
 	switch me := s.gateMe(); {
+	case me.window && s.windowHere() && relayPlanFits(prompted) && me.noLink: // no phone to name (MAR-244 §2)
+		env.NextStep = strings.Replace(env.NextStep, channelAsks[channelRelay]+" asks them", "a confirmation window on their computer, or the NOVA page in Home Assistant, asks them", 1)
+		return confirmT(lang, "say.relay_window_ask_page")
 	case me.window && s.windowHere() && relayPlanFits(prompted):
 		env.NextStep = strings.Replace(env.NextStep, channelAsks[channelRelay]+" asks them", "a confirmation window on their computer, or their phone if one is linked, or the NOVA page in Home Assistant, asks them", 1)
 		return confirmT(lang, "say.relay_window_ask")

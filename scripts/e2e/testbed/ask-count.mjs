@@ -35,7 +35,7 @@
 // 0.32 (its Relay side: tests/security/window-confirm.test.ts).
 // Prints the table and the words; exits non-zero on any FAIL.
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -185,7 +185,7 @@ async function measure(c, args, { window, phone }) {
   await newPushes();
   const planned = envelope((await box(c.home, ["plan", ...args], c)).stdout);
   const id = planned.plan?.id;
-  const out = { plan: planned, tier: planned.tier ?? planned.error?.code, preview: planned.tier === "preview" ? 1 : 0, code: 0, taps: 0, sound: 0, notes: 0, windows: [], say: planned.say ?? "" };
+  const out = { plan: planned, tier: planned.tier ?? planned.error?.code, preview: planned.tier === "preview" ? 1 : 0, code: 0, taps: 0, sound: 0, notes: 0, windows: [], buttons: [], say: planned.say ?? "" };
   if (!id) return { ...out, clicks: 0, stranded: 0, stages: out.preview, failed: "no plan: " + JSON.stringify(planned).slice(0, 300) };
   const apply = ["apply", "--plan", id];
   if (planned.plan?.code !== undefined) { out.code = 1; apply.splice(1, 0, "--confirm", String(planned.plan.code)); }
@@ -196,6 +196,7 @@ async function measure(c, args, { window, phone }) {
   for (const end = Date.now() + 120_000; !finished && Date.now() < end; await sleep(300)) {
     for (const p of await newPushes()) {
       count(p);
+      if (p.question) out.buttons.push(p.data.actions[0]?.title ?? "");
       if (p.question && phone) { await tap(p); out.taps++; }
     }
   }
@@ -317,7 +318,7 @@ try {
   if (owned) {
     await ws("lovelace/dashboards/list").then((all) => Promise.all(all.filter((d) => created.dashboards.includes(d.url_path)).map((d) => ws("lovelace/dashboards/delete", { dashboard_id: d.id })))).catch(() => {});
     for (const id of created.automations) await ha("DELETE", "/api/config/automation/config/" + id).catch(() => {});
-    await relock().catch(() => {});
+    await relock().then((state) => report("the bed's lock is locked again", state === "locked" ? [] : ["lock " + state]), (err) => report("the bed's lock is locked again", [err.message]));
   }
 }
 
@@ -339,7 +340,8 @@ process.exit(failures() ? 1 : 0);
 async function headless(fx) {
   const bot = { ...computer("bot"), display: false, keyring: false };
   await pair(bot, owner.id);
-  report("S5H: pairing without a Secret Service keeps the key in a private file", existsSync(join(bot.home, ".config/ha-nova/secrets/ha-nova.device-credential")) ? [] : ["no private key file after pairing"]);
+  const key = join(bot.home, ".config/ha-nova/secrets/ha-nova.device-credential");
+  report("S5H: pairing without a Secret Service keeps the key in a private file (0600)", existsSync(key) && (statSync(key).mode & 0o777) === 0o600 ? [] : [existsSync(key) ? "mode " + (statSync(key).mode & 0o777).toString(8) : "no private key file after pairing"]);
   record("S5H", "everyday", await measure(bot, ["call", "light.turn_on", "light.bed_light"], { window: "wait", phone: false }), { stages: 0 });
   await relock();
   const unlock = ["plan", "call", "lock.unlock", "lock.front_door"], cli = async (args) => envelope((await box(bot.home, args, bot)).stdout);
@@ -349,20 +351,25 @@ async function headless(fx) {
   await act(owner.id, await page(owner.id), "code_on", bot.id);
   words.push(["S5H NOVA page row, code on", rowText(await page(owner.id), bot.id)]);
   const planned = await cli(unlock), id = planned.plan?.id ?? "-";
-  const shown = await cli(["apply", "--plan", id]), code = /\b(\d{4})\b/.exec(shown.say ?? "")?.[1];
+  const asked = Date.now(), shown = await cli(["apply", "--plan", id]), seconds = (Date.now() - asked) / 1000, code = /\b(\d{4})\b/.exec(shown.say ?? "")?.[1];
+  const before = (await ha("GET", "/api/states/lock.front_door")).state;
   const wrong = await cli(["apply", "--confirm", code === "0000" ? "1111" : "0000", "--plan", id]), held = (await ha("GET", "/api/states/lock.front_door")).state;
   const right = await cli(["apply", "--confirm", code ?? "", "--plan", id]), after = (await ha("GET", "/api/states/lock.front_door")).state;
   report("S5H code: apply shows the App's code at once, a wrong one keeps the step, the right one sends it", [
-    shown.error?.code !== "CONFIRM_CODE" || !code ? "no code shown: " + JSON.stringify(shown).slice(0, 300) : "",
+    shown.error?.code !== "CONFIRM_CODE" || !code ? "no code shown: " + JSON.stringify(shown).slice(0, 300).replace(/\b\d{4}\b/g, "####") : "",
+    seconds > 20 || before !== "locked" ? "apply took " + seconds.toFixed(1) + " s to show the code (it must not wait), lock " + before : "",
     wrong.error?.code !== "CODE_MISMATCH" || held !== "locked" ? "wrong code: " + wrong.error?.code + ", lock " + held : "",
     right.status !== "verified" || after === "locked" ? "right code: " + JSON.stringify(right).slice(0, 300) + ", lock " + after : ""].filter(Boolean));
   results.push({ row: "S5H", column: "risky (chat code)", plan: (planned.tier ?? "-") + " / " + (planned.plan?.confirm ?? "-"), stages: 1, how: "code", sound: 0, notes: 0, windowsShown: 0 });
-  words.push(["S5H code: plan say", planned.say ?? ""], ["S5H code: apply say", shown.say ?? ""], ["S5H code: wrong code", wrong.say ?? wrong.error?.message ?? ""]);
+  words.push(["S5H code: plan say", planned.say ?? ""], ["S5H code: apply say (digits hidden)", (shown.say ?? "").replace(/\b\d{4}\b/g, "####")], ["S5H code: wrong code", wrong.say ?? wrong.error?.message ?? ""]);
   await relock();
   await linkPhone(bot, "ios", fx.phones.find((p) => p.platform === "ios").name);
   const row = rowText(await page(owner.id), bot.id);
   report("S5H: a linked phone ends the chat code", row.includes("four-digit code in the AI chat") ? [row] : []);
-  record("S5H", "risky (phone)", await measure(bot, ["call", "lock.unlock", "lock.front_door"], { window: "wait", phone: true }), { stages: 1, on: "phone" });
+  const tapped = await measure(bot, ["call", "lock.unlock", "lock.front_door"], { window: "wait", phone: true });
+  record("S5H", "risky (phone)", tapped, { stages: 1, on: "phone" });
+  report("S5H: the phone's button names the action", tapped.buttons.length && tapped.buttons.every((b) => /unlock/i.test(b)) ? [] : ["buttons " + JSON.stringify(tapped.buttons)]);
+  words.push(["S5H phone: button", tapped.buttons.join(" | ")]);
 }
 
 function setupText(key) {

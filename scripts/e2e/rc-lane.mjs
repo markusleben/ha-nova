@@ -24,7 +24,10 @@
 //   h  calm edits in a home with real-home listeners (testbed/calm.mjs)
 //   i  late answer (#1183): an unlock tapped on the phone b linked 30 s after its question,
 //      past the App's 25 s wait poll (POLL_MS), still applies; every earlier row answers fast
-// Order e, f, c, a, b, i, h, d: e and f before h's listeners, which make every call
+//   j  ask count per friction row (testbed/ask-count.mjs) with the tag's Linux binary,
+//      MAR-209's M row and the headless S5H row (MAR-244: no display, no Secret Service,
+//      a private key file, the chat code, then the phone) included
+// Order e, f, c, a, b, i, j, h, d: e, f and j before h's listeners, which make every call
 // on the bed ask (a known limit, docs/releasing.md); c after f, whose Relay it
 // replaces, and early, while the Claude test account's usage limit is fresh; d last.
 //
@@ -227,9 +230,9 @@ async function late() {
 }
 
 // ---- e-h: the bed's own checks with the tag's binary (PASS/FAIL lines) ------------
-async function bedCheck(step, check, args) {
+async function bedCheck(step, check, args, env = {}) {
   const log = join(WORK, `${step}.log`);
-  const { code, out } = await run(args[0].endsWith(".sh") ? "bash" : "node", args, { log, env: { ...process.env, TESTBED_CLI_BIN: join(WORK, "bin/ha-nova") } });
+  const { code, out } = await run(args[0].endsWith(".sh") ? "bash" : "node", args, { log, env: { ...process.env, TESTBED_CLI_BIN: join(WORK, "bin/ha-nova"), ...env } });
   const n = (r) => (out.match(new RegExp(`^${r}  `, "gm")) ?? []).length;
   const failing = out.split("\n").filter((l) => l.startsWith("FAIL  ")).map((l) => l.slice(6, 70));
   const result = code === 0 && n("PASS") && !n("FAIL") && !n("SKIP") ? "PASS" : "FAIL";
@@ -238,6 +241,8 @@ async function bedCheck(step, check, args) {
 const verify = () => bedCheck("e", "test bed assertions, tag's binary", [join(TESTBED, "verify.sh")]);
 const chatFiles = () => bedCheck("f", "chat-app files under /config, each level", [join(TESTBED, "chat-files.mjs")]);
 const calm = () => bedCheck("h", "calm edits in a real-home-shaped bed", [join(TESTBED, "calm.mjs")]);
+const askCount = () => bedCheck("j", "ask count per friction row, M and headless S5H included", [join(TESTBED, "ask-count.mjs")],
+  existsSync(join(WORK, "bin/ha-nova-linux")) ? { TESTBED_CLI_BIN_LINUX: join(WORK, "bin/ha-nova-linux") } : {});
 
 // ---- c: chat bridge on a standalone Relay: the container's phone asks -----------------
 const PROMPTS = {
@@ -530,7 +535,7 @@ try {
   await fetchBinary();
   setupLog = join(WORK, "testbed-up.log");
   startBed();
-  for (const [step, fn] of [["e", verify], ["f", chatFiles], ["c", chat], ["a", matrix], ["b", phone], ["i", late], ["h", calm], ["d", slow]]) {
+  for (const [step, fn] of [["e", verify], ["f", chatFiles], ["c", chat], ["a", matrix], ["b", phone], ["i", late], ["j", askCount], ["h", calm], ["d", slow]]) {
     try { await fn(); } catch (err) { row(step, "step ran", "FAIL", err.message); }
   }
 } catch (err) {

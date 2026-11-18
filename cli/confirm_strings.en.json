@@ -142,6 +142,7 @@
   "say.relay_ask": "Confirm on your phone if one is linked to this computer, or on the NOVA page in Home Assistant.",
   "say.relay_ask_page": "Confirm on the NOVA page in Home Assistant. To confirm on your phone instead, link it with {command} on this computer.",
   "say.relay_window_ask": "Confirm in the window on this computer. Not at the computer? Confirm on your phone or on the NOVA page.",
+  "say.relay_window_ask_page": "Confirm in the window on this computer. Not at the computer? Confirm on the NOVA page.",
   "say.relay_ask_container": "Confirm on the phone linked to your NOVA Relay container.",
   "say.relay_code_ask": "To confirm, tell me to go ahead; HA NOVA then shows a four-digit code here for you to type back. Your AI assistant sees that code too.",
   "say.relay_code": "To confirm the {count} step(s) shown above, type this code in the chat: {code}. It works for {seconds} more seconds. Your AI assistant sees it too.",
