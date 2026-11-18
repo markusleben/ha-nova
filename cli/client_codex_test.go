@@ -314,7 +314,7 @@ func TestCodexSkillProblemsFindsOldAndSecondCopies(t *testing.T) {
 		withCodexPlatform(t, osName)
 		for _, problem := range problems {
 			warning, fix := doctorCodexSkillProblem(problem)
-			if !strings.Contains(warning, problem.Path) || !strings.HasPrefix(fix, "To fix: ") {
+			if !strings.Contains(warning, problem.Path) || strings.HasPrefix(fix, "To fix") {
 				t.Fatalf("%s: %q / %q", problem.Kind, warning, fix)
 			}
 			if (problem.Kind == "legacy") != strings.Contains(fix, "ha-nova setup codex") {

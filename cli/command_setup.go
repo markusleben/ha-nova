@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"flag"
 	"io"
@@ -265,6 +266,20 @@ func runSetup(paths runtimePaths, args []string) int {
 		renderNamedSetupRequestError()
 		return 1
 	}
+	// pairAgain: a person at this Mac's terminal, and its App answers pair_again.
+	pairAgain := func() bool {
+		return target == "" && isInteractiveTTY() && stdoutIsInteractiveTTY() && windowPairAgainForSetup(paths, cfg)
+	}
+	if !*nonInteractive && unconstrainedCloudReuse && linkRePairNeeded(cfg) {
+		if target != "" {
+			renderSetupParagraph(os.Stdout, setupT("setup.relink.client_first", "command", rePairNextStep(activeServerProfile(), true)))
+			return 1
+		}
+		return runLinkRePair(bufio.NewReader(os.Stdin), os.Stdout, paths, cfg, setupLifecycle, pairAgain())
+	}
+	if !*nonInteractive && unconstrainedCloudReuse && pairAgain() {
+		return runLinkRePair(bufio.NewReader(os.Stdin), os.Stdout, paths, cfg, setupLifecycle, true)
+	}
 	namedClientRepair := namedClientRepairRequested(
 		cfg,
 		target,
@@ -289,6 +304,7 @@ func runSetup(paths runtimePaths, args []string) int {
 			cfg,
 			state,
 			target,
+			!*nonInteractive && !*serviceMode,
 			setupLifecycle...,
 		)
 	}

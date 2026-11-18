@@ -379,6 +379,11 @@ func validateLoadedRuntimeConfig(cfg *runtimeConfig) error {
 		return err
 	}
 	cfg.RoutePolicy = policy
+	switch cfg.LinkRePair {
+	case "", linkRePairAddLink, linkRePairLinkOnly, linkRePairLinkOnlyHinted:
+	default:
+		return fmt.Errorf("invalid link_repair %q", cfg.LinkRePair)
+	}
 	if policy == routePolicyAutomatic &&
 		(strings.TrimSpace(cfg.RelaySecureBaseURL) == "" || strings.TrimSpace(cfg.RelaySpkiPin) == "") {
 		return errors.New("automatic route policy requires a completed local device pairing")

@@ -177,6 +177,30 @@ export async function windowButton(ctx) {
   return ctx.check(S, "window ask cancelled on the NOVA page: nothing sent", cancelled.length === 1 && cancelled[0] === (judged.ref || cancelled[0]) && applied.code !== 0 && /CONFIRM_DECLINED/.test(applied.out) && after[lock] === before[lock], "cancelled " + cancelled.length + " ask(s); apply exit " + applied.code + " " + (envelope(applied.out).error?.code ?? "") + "; " + lock + " " + before[lock] + " -> " + after[lock]);
 }
 
+// #1183: a typed unlock approved on the NOVA page 30 s after its ask appeared,
+// past the App's 25 s wait poll; 0.30.0 and 0.31.0 lost it at the CLI's 20 s
+// client timeout. ctx: { S, hn(args, o), nova, lock(service), check, sleep }.
+export const LATE_ROW = "typed unlock approved on the NOVA page 30 s after it asked (#1183)";
+export async function lateApproval(ctx) {
+  const st = (r) => r.out.match(/"status"\s*:\s*"([^"]+)"/)?.[1] ?? "exit " + r.code;
+  await ctx.lock("lock");
+  try {
+    const plan = await ctx.hn("plan call lock.unlock lock.front_door");
+    const id = envelope(plan.out).plan?.id;
+    if (!id) return ctx.check(ctx.S, LATE_ROW, false, "no plan: " + plan.out.trim().split(/\r?\n/).slice(-1)[0]);
+    const applying = ctx.hn("apply --plan " + id, { timeoutMs: 3 * 60_000 });
+    let asked = false;
+    for (let i = 0; i < 30 && !asked; i++) asked = (await (await ctx.nova()).waiting()) || (await ctx.sleep(2000), false);
+    const t = Date.now();
+    if (asked) await ctx.sleep(30_000);
+    const approved = asked && (await (await ctx.nova()).approve());
+    const done = await applying;
+    return ctx.check(ctx.S, LATE_ROW, approved && done.code === 0 && st(done) === "verified", (asked ? (approved ? "approved" : "ask gone before the approval") : "no ask on the page within 60 s") + ", apply " + ((Date.now() - t) / 1000).toFixed(0) + " s after it asked -> " + st(done));
+  } finally {
+    await ctx.lock("lock");
+  }
+}
+
 // The three rows in order; one that throws fails alone.
 export async function appAsks(ctx) {
   for (const [name, fn] of [["Marketplace warning", marketplaceAccept], ["check-up stats", checkupStats], ["window button", windowButton]]) {
