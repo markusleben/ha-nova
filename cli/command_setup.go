@@ -304,6 +304,7 @@ func runSetup(paths runtimePaths, args []string) int {
 			cfg,
 			state,
 			target,
+			!*nonInteractive && !*serviceMode,
 			setupLifecycle...,
 		)
 	}

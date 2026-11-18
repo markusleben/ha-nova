@@ -351,11 +351,11 @@ func (r *linkRePair) finish(done, next string) int {
 		renderSetupSuccessLine(r.out, "%s", done)
 	}
 	note := printLegacyLinkCleanup(r.out, r.paths, r.cfg, isInteractiveTTY() && writerSupportsTTYForSetup(r.out))
-	if next != "" && note != setupT("setup.cleanup.incomplete", "command", gateCleanupCommand(r.cfg.profileName())) {
+	if next != "" && note.Key != "setup.cleanup.incomplete" {
 		renderSetupParagraph(r.out, next)
 	}
-	if note != "" {
-		renderSetupParagraph(r.out, note)
+	if !note.empty() {
+		renderSetupParagraph(r.out, note.plain())
 	}
 	return 0
 }

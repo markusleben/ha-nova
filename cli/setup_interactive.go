@@ -86,7 +86,7 @@ func maybeHandleInteractiveSetupCurrentStateLinkPaused(reader *bufio.Reader, out
 		}
 		// A paired Mac whose old version is still signed in finishes that
 		// here (the retry gate_me.go names); its line prints after the banner.
-		if note := printLegacyLinkCleanup(out, paths, cfg, !serviceMode && isInteractiveTTY() && writerSupportsTTYForSetup(out)); note != "" {
+		if note := printLegacyLinkCleanup(out, paths, cfg, !serviceMode && isInteractiveTTY() && writerSupportsTTYForSetup(out)).plain(); note != "" {
 			defer fmt.Fprintln(out, "  "+note)
 		}
 		// Asked before the banner; the banner clears the screen, so the
