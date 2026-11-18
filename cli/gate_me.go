@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -56,6 +58,9 @@ func (s *relaySession) readGateMe() gateWindowState {
 	}
 	req.Header.Set("Authorization", "Bearer "+s.transport.Credential)
 	resp, err := s.transport.Client.Do(req)
+	if urlErr := (*url.Error)(nil); errors.As(err, &urlErr) {
+		err = fmt.Errorf("%s %s: %w", urlErr.Op, gateMeRoute, urlErr.Err) // never the address, which can carry a secret
+	}
 	if err != nil {
 		return gateWindowState{err: err}
 	}

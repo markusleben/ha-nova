@@ -415,7 +415,7 @@ func (s *relaySession) exchange(parent context.Context, endpoint string, body []
 	if json.Unmarshal(raw, &envelope) != nil || envelope.OK == nil {
 		return nil, fmt.Errorf("Relay %s response (HTTP %d) is not a valid result envelope", endpoint, resp.StatusCode)
 	}
-	if !*envelope.OK {
+	if !*envelope.OK || resp.StatusCode < 200 || resp.StatusCode > 299 { // only a 2xx with ok: true is a result
 		return nil, &relayCallError{endpoint: endpoint, status: resp.StatusCode, code: envelope.Error.Code, message: envelope.Error.Message}
 	}
 	return envelope.Data, nil

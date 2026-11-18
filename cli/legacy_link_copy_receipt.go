@@ -2,22 +2,27 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 )
 
 // Once Home Assistant answered invalid_grant for a cleanup copy's sign-in and
 // the NOVA App recorded the cleanup (legacy_cleanup_complete), setup removes
-// exactly that copy, without a prompt (MAR-242). Before that record the copy
-// stays: a retry resumes from it. A copy setup can't remove leaves a receipt
-// (its item's name and that its sign-in is revoked, never a secret); every
-// later setup retries it, and doctor names it.
+// exactly the copy bytes it verified, without a prompt (MAR-242). Before that
+// record the copy stays: a retry resumes from it. A verified copy setup can't
+// remove leaves a receipt: its item's name and the digest of those exact
+// bytes, never the copy. Every later setup removes the copy while it still
+// matches that digest, and doctor names it. Nothing else is delete authority.
 
 type legacyCopyReceipt struct {
 	Service string `json:"service"`
+	Digest  string `json:"digest"` // sha256 of the copy proven revoked and recorded
 	Revoked bool   `json:"revoked"`
 }
 
@@ -25,9 +30,17 @@ func legacyCopyReceiptsFile(paths runtimePaths) string {
 	return filepath.Join(paths.ConfigDir, "legacy-link-copy-receipts.json")
 }
 
+func legacyCopyDigest(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
+}
+
 // legacyCopyReceipts: each profile id's copies still to remove.
 func legacyCopyReceipts(paths runtimePaths) (map[string][]legacyCopyReceipt, error) {
 	receipts := map[string][]legacyCopyReceipt{}
+	if paths.ConfigDir == "" {
+		return receipts, nil
+	}
 	raw, err := os.ReadFile(legacyCopyReceiptsFile(paths))
 	if errors.Is(err, os.ErrNotExist) {
 		return receipts, nil
@@ -35,50 +48,74 @@ func legacyCopyReceipts(paths runtimePaths) (map[string][]legacyCopyReceipt, err
 	if err != nil {
 		return nil, err
 	}
-	return receipts, json.Unmarshal(raw, &receipts)
+	if err := json.Unmarshal(raw, &receipts); err != nil {
+		return nil, fmt.Errorf("%s: %w", legacyCopyReceiptsFile(paths), err)
+	}
+	if receipts == nil { // null
+		receipts = map[string][]legacyCopyReceipt{}
+	}
+	return receipts, nil
 }
 
-// removeRevokedLegacyLinkCopies removes exactly each of this profile's
-// copies, signing each out again first (invalid_grant required) unless this
-// run or a receipt already proved it; what's left becomes the receipt.
-func removeRevokedLegacyLinkCopies(paths runtimePaths, cfg runtimeConfig, signOutFirst bool) error {
-	if cfg.ProfileID == "" { // Link kept its sign-ins under the profile's id
-		return nil
-	}
-	copies, err := legacyLinkCopiesOf(cfg.profileName(), cfg.ProfileID)
-	switch {
-	case err == nil && signOutFirst:
-		err = revokeLegacyLinkCopies(copies)
-	case err == nil && len(copies) > 0:
-		err = deleteLegacyLinkCopies(copies)
+// deleteProvenLegacyLinkCopies removes exactly each copy (its verified bytes);
+// the ones it can't remove become account's receipt.
+func deleteProvenLegacyLinkCopies(paths runtimePaths, account string, proven []legacyLinkCopy) error {
+	backend, err := legacyCleanupBackend()
+	exact, ok := backend.(exactOAuthSecretBackend)
+	if err == nil && !ok {
+		err = errors.New("this secure storage can't remove a sign-in copy exactly")
 	}
 	var left []legacyCopyReceipt
-	if err != nil {
-		for _, service := range legacyLinkServices {
-			left = append(left, legacyCopyReceipt{Service: oauthLegacyCleanupServicePrefix + string(legacyLinkState(service)), Revoked: true})
+	var failed []error
+	for _, c := range proven {
+		deleteErr := err
+		if deleteErr == nil {
+			deleteErr = exact.DeleteExact(context.Background(), c.service, c.account, c.value, SecretStoreForbidUI)
+		}
+		if deleteErr != nil {
+			left = append(left, legacyCopyReceipt{Service: c.service, Digest: legacyCopyDigest(c.value), Revoked: true})
+			failed = append(failed, fmt.Errorf("%s: %w", c.service, deleteErr))
 		}
 	}
-	return errors.Join(err, saveLegacyCopyReceipt(paths, cfg.ProfileID, left))
+	return errors.Join(append(failed, saveLegacyCopyReceipt(paths, account, left))...)
 }
 
-func deleteLegacyLinkCopies(copies []legacyLinkCopy) error {
+// retryLegacyCopyReceipts removes each receipt's copy while it still holds
+// the bytes the receipt names; a copy changed or gone since only drops it.
+func retryLegacyCopyReceipts(paths runtimePaths, account string) error {
+	receipts, err := legacyCopyReceipts(paths)
+	if err != nil || len(receipts[account]) == 0 {
+		return err
+	}
 	backend, err := legacyCleanupBackend()
 	if err != nil {
 		return err
 	}
-	exact, ok := backend.(exactOAuthSecretBackend)
-	if !ok {
-		return errors.New("this secure storage can't remove a sign-in copy exactly")
-	}
-	for _, c := range copies {
-		if err := exact.DeleteExact(context.Background(), c.service, c.account, c.value, SecretStoreForbidUI); err != nil {
-			return fmt.Errorf("server %q: %w", c.server, err)
+	var proven []legacyLinkCopy
+	for _, r := range receipts[account] {
+		if !r.Revoked || r.Digest == "" || !slices.ContainsFunc(legacyLinkServices, func(s string) bool {
+			return r.Service == oauthLegacyCleanupServicePrefix+string(legacyLinkState(s))
+		}) {
+			continue
+		}
+		value, found, err := backend.Get(context.Background(), r.Service, account, SecretStoreForbidUI)
+		if err != nil {
+			return err
+		}
+		if found && legacyCopyDigest(value) == r.Digest {
+			proven = append(proven, legacyLinkCopy{account: account, service: r.Service, value: value})
 		}
 	}
-	return nil
+	return deleteProvenLegacyLinkCopies(paths, account, proven)
 }
 
+// saveLegacyCopyReceipt replaces account's receipt with left, under the
+// client mutation lock and only while a profile still holds account (purge
+// and server remove hold that lock while they remove one).
 func saveLegacyCopyReceipt(paths runtimePaths, account string, left []legacyCopyReceipt) error {
+	if paths.ConfigDir == "" {
+		return errors.New("no configuration folder for the receipt")
+	}
 	return withClientMutationLock(paths, func() error {
 		receipts, err := legacyCopyReceipts(paths)
 		if err != nil {
@@ -89,10 +126,19 @@ func saveLegacyCopyReceipt(paths runtimePaths, account string, left []legacyCopy
 		}
 		delete(receipts, account)
 		if len(left) > 0 {
-			receipts[account] = left
+			doc, err := loadConfigDocumentOrEmpty(paths.ConfigFile)
+			if err != nil {
+				return err
+			}
+			if slices.ContainsFunc(doc.profileNames(), func(name string) bool { cfg, _ := doc.flatProfile(name); return cfg.ProfileID == account }) {
+				receipts[account] = left
+			}
 		}
 		if len(receipts) == 0 {
-			return os.Remove(legacyCopyReceiptsFile(paths))
+			if err := os.Remove(legacyCopyReceiptsFile(paths)); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			return nil
 		}
 		raw, err := json.MarshalIndent(receipts, "", "  ")
 		if err != nil {

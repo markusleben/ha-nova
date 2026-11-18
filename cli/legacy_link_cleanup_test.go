@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -24,7 +25,11 @@ type legacyCleanupFixture struct {
 
 func newLegacyCleanupFixture(t *testing.T) *legacyCleanupFixture {
 	t.Helper()
-	f := &legacyCleanupFixture{paths: runtimePaths{ConfigDir: t.TempDir()}, backend: newMemoryOAuthSecretBackend(), legacy: map[string]string{}}
+	dir := t.TempDir()
+	f := &legacyCleanupFixture{paths: runtimePaths{ConfigDir: dir, ConfigFile: filepath.Join(dir, "config.json")}, backend: newMemoryOAuthSecretBackend(), legacy: map[string]string{}}
+	if err := os.WriteFile(f.paths.ConfigFile, []byte(`{"schema_version":1,"profile_id":"default"}`), 0o600); err != nil { // a receipt is kept only for a live profile
+		t.Fatal(err)
+	}
 	saved := []any{legacyCleanupApplies, legacyLinkSecretRead, legacyCleanupBackend, legacyLinkRevoke, legacyCleanupPending, legacyCleanupReport, legacyCleanupPromptContext}
 	keep, onOS := legacyLinkCopyKeep, legacyCopiesOnThisOS
 	legacyLinkCopyKeep = func(_ runtimePaths, _ string, write func() error) error { return write() } // its guard: TestLegacyLinkCopyIsKeptOnlyForALiveProfile
@@ -178,8 +183,8 @@ func TestLegacyLinkCleanupRetryAfterAFailedRevocationAsksNothing(t *testing.T) {
 	f.locked = true
 	revoke := legacyLinkRevoke
 	legacyLinkRevoke = func(context.Context, OAuthSecretEnvelope) error { return errors.New("Home Assistant did not answer") }
-	if outcome, _, intros := f.run(true); outcome != legacyCleanupIncomplete || intros != 1 || f.reported != 0 {
-		t.Fatalf("failed revoke: outcome %d, intros %d, reported %d", outcome, intros, f.reported)
+	if outcome, _, intros := f.run(true); outcome != legacyCleanupIncomplete || intros != 1 || f.reported != 0 || f.receipt() || f.copies() != 1 {
+		t.Fatalf("failed revoke: outcome %d, intros %d, reported %d, receipt %v, copies %d", outcome, intros, f.reported, f.receipt(), f.copies())
 	}
 	legacyLinkRevoke = revoke
 	f.reads = nil
@@ -416,13 +421,50 @@ func TestLegacyLinkCleanupLeavesAReceiptAndRetriesWhateverTheAppSays(t *testing.
 	}
 }
 
-func TestLegacyLinkCleanupRemovesTheCopiesARecordedCleanupKept(t *testing.T) {
+// Only a receipt for the exact bytes proven revoked removes a copy: one
+// changed since, one not revoked, or another item removes nothing.
+func TestLegacyLinkCopyReceiptIsNoOtherDeleteAuthority(t *testing.T) {
+	f := newLegacyCleanupFixture(t)
+	current := oauthLegacyCleanupServicePrefix + string(OAuthSecretCurrent)
+	if err := f.backend.Set(context.Background(), current, "default", legacyTestEnvelope(OAuthSecretCurrent, "default", "live"), SecretStoreForbidUI); err != nil {
+		t.Fatal(err)
+	}
+	for name, receipt := range map[string]legacyCopyReceipt{
+		"changed":     {Service: current, Digest: legacyCopyDigest("other bytes"), Revoked: true},
+		"not revoked": {Service: current, Digest: legacyCopyDigest(legacyTestEnvelope(OAuthSecretCurrent, "default", "live"))},
+		"other item":  {Service: "ha-nova.oauth.home-assistant-cloud.current", Digest: legacyCopyDigest(legacyTestEnvelope(OAuthSecretCurrent, "default", "live")), Revoked: true},
+	} {
+		raw, _ := json.Marshal(map[string][]legacyCopyReceipt{"default": {receipt}})
+		if err := os.WriteFile(legacyCopyReceiptsFile(f.paths), raw, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := retryLegacyCopyReceipts(f.paths, "default"); err != nil || f.copies() != 1 {
+			t.Fatalf("%s: err %v, copies %d", name, err, f.copies())
+		}
+	}
+	if err := os.WriteFile(legacyCopyReceiptsFile(f.paths), []byte("null"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveLegacyCopyReceipt(f.paths, "default", []legacyCopyReceipt{{Service: current, Digest: "d", Revoked: true}}); err != nil || !f.receipt() {
+		t.Fatalf("a null receipts file: %v", err)
+	}
+	if err := saveLegacyCopyReceipt(f.paths, "removed-profile", []legacyCopyReceipt{{Service: current, Digest: "d", Revoked: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if receipts, _ := legacyCopyReceipts(f.paths); len(receipts["removed-profile"]) != 0 {
+		t.Fatal("a receipt was kept for a profile that is gone")
+	}
+}
+
+// The App not asking for the cleanup isn't its record (an App rolled back
+// says the same): the copy stays and nothing is signed out again.
+func TestLegacyLinkCleanupKeepsCopiesWhenTheAppDoesNotAsk(t *testing.T) {
 	f := newLegacyCleanupFixture(t)
 	if err := f.backend.Set(context.Background(), oauthLegacyCleanupServicePrefix+string(OAuthSecretCurrent), "default", legacyTestEnvelope(OAuthSecretCurrent, "default", "old-current"), SecretStoreForbidUI); err != nil {
 		t.Fatal(err)
 	}
-	legacyCleanupPending = func(runtimePaths, runtimeConfig) (bool, error) { return false, nil } // 0.32 recorded it and kept the copy
-	if outcome, _, intros := f.run(true); outcome != legacyCleanupNotNeeded || intros != 0 || f.copies() != 0 || strings.Join(f.revoked, ",") != "old-current" {
-		t.Fatalf("outcome %d, intros %d, copies %d, revoked %v", outcome, intros, f.copies(), f.revoked)
+	legacyCleanupPending = func(runtimePaths, runtimeConfig) (bool, error) { return false, nil }
+	if outcome, _, _ := f.run(true); outcome != legacyCleanupNotNeeded || f.copies() != 1 || len(f.revoked) != 0 || f.receipt() {
+		t.Fatalf("outcome %d, copies %d, revoked %v, receipt %v", outcome, f.copies(), f.revoked, f.receipt())
 	}
 }

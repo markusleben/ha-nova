@@ -34,6 +34,8 @@ func TestGateCallTakesOnlyA2xxOKAsAResult(t *testing.T) {
 		{500, `{"ok":true,"data":{}}`, "HTTP_500"},
 		{409, `{"ok":true,"error":{"code":"GATE_BUSY"}}`, "GATE_BUSY"},
 		{502, `{"ok":false}`, "HTTP_502"},
+		{502, `<html>Bad gateway</html>`, "HTTP_502"},
+		{500, `{"error":{"code":"GATE_UNAVAILABLE"}}`, "GATE_UNAVAILABLE"},
 	} {
 		var into struct{}
 		err := gateFollowupSession(t, c.status, c.body).gateCall(context.Background(), gateAskRoute, 5*time.Second, map[string]any{"op": "wait"}, &into)
@@ -67,5 +69,16 @@ func TestGateMeKeepsWhyItCouldNotBeRead(t *testing.T) {
 		if me.why != "" || me.err == nil || !strings.Contains(me.err.Error(), c.want) || strings.Contains(me.err.Error(), "secret-token") {
 			t.Fatalf("HTTP %d %s: why %q, err %v", c.status, c.body, me.why, me.err)
 		}
+	}
+}
+
+func TestGateMeTransportCauseNamesNoAddress(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	s := relaySessionOn(runtimePaths{}, runtimeConfig{}, relayTransportSelection{BaseURL: "http://127.0.0.1:1/x?key=secret-in-url", Client: &http.Client{}, Credential: "secret-token", Via: relayViaLocal}, ctx, cancel)
+	t.Cleanup(s.close)
+	s.gate = &relayGate{checked: true, on: true, window: true}
+	me := s.readGateMe()
+	if me.err == nil || !strings.Contains(me.err.Error(), gateMeRoute) || strings.Contains(me.err.Error(), "secret") {
+		t.Fatalf("cause %v", me.err)
 	}
 }
