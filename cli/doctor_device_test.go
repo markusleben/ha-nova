@@ -75,7 +75,7 @@ func TestRunDoctorDeviceModeRevokedGuidesRepair(t *testing.T) {
 	if exitCode == 0 {
 		t.Fatalf("expected doctor to fail on a revoked device credential:\n%s", output)
 	}
-	if !strings.Contains(output, "The NOVA App doesn't know this computer anymore. Maybe it was removed on the NOVA page. Connect it again: run 'ha-nova setup'.") {
+	if !strings.Contains(output, "The NOVA App doesn't know this computer anymore. Maybe it was removed on the NOVA page.") || !strings.Contains(output, "Next step: connect it again: run 'ha-nova setup'.") {
 		t.Fatalf("expected re-pair guidance:\n%s", output)
 	}
 }
@@ -150,7 +150,7 @@ func TestRunDoctorPairedButMissingCredentialGuidesRepair(t *testing.T) {
 	if exitCode == 0 {
 		t.Fatalf("expected doctor to fail on a missing device credential:\n%s", output)
 	}
-	if !strings.Contains(output, "This computer was connected, but its key is gone from the password store.") {
+	if !strings.Contains(output, "This computer was connected, but its key is gone from the password store, so it needs to be paired again.") {
 		t.Fatalf("expected paired-but-missing guidance:\n%s", output)
 	}
 }
@@ -187,7 +187,7 @@ func TestRunDoctorPairedMissingCredentialNotMaskedByLegacyToken(t *testing.T) {
 	if exitCode == 0 {
 		t.Fatalf("expected doctor to fail on a missing device credential:\n%s", output)
 	}
-	if !strings.Contains(output, "This computer was connected, but its key is gone from the password store.") {
+	if !strings.Contains(output, "This computer was connected, but its key is gone from the password store, so it needs to be paired again.") {
 		t.Fatalf("expected paired-but-missing guidance, not a legacy fallback:\n%s", output)
 	}
 	if strings.Contains(output, "This computer's shared key is saved in") {

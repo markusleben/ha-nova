@@ -50,15 +50,19 @@ func legacyAccessNoticeFor(cfg runtimeConfig) string {
 
 // sharedAccessEndedFor: how this computer pairs again. A service install's
 // setup keeps its token, so it pairs file-backed; a named server pairs with
-// pair --server; pairing waits until Home Assistant Link is removed, and Link
-// is added again after it.
+// pair --server. With Home Assistant Link, setup on a Mac pairs and keeps
+// Link (setup_link_repair.go); elsewhere pairing waits until Link is removed,
+// and Link is added again after it.
 func sharedAccessEndedFor(cfg runtimeConfig, profile string) string {
 	command := localRelayRepairCommand(profile, cfg.RelayBaseURL)
 	if strings.TrimSpace(cfg.RelayTokenFile) != "" {
 		command = "ha-nova pair --credential-store=file"
 	}
+	if cfg.Cloud != nil && linkRePairApplies() {
+		command = rePairNextStep(profile, true)
+	}
 	next := fmt.Sprintf("Run %s in a terminal once (takes a minute) to pair this computer again.", command)
-	if cfg.Cloud != nil {
+	if cfg.Cloud != nil && !linkRePairApplies() {
 		next = fmt.Sprintf("Remove Home Assistant Link first (%s), then run %s in a terminal to pair this computer again. Add Link again afterwards if you use it (%s).", cloudProfileCommandFor("remove", profile), command, cloudProfileCommandFor("add", profile))
 	}
 	return fmt.Sprintf(sharedAccessEndedFormat, next)

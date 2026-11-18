@@ -192,5 +192,8 @@ func relayTransportErrorMessage(err error) string {
 	if errors.As(err, &cloudErr) {
 		return cloudProblemForError(err).humanText()
 	}
+	if errors.Is(err, errDeviceNeedsRePair) {
+		return upperFirst(err.Error()) + "."
+	}
 	return relayAuthTokenProblemMessage(err)
 }

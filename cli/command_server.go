@@ -120,7 +120,7 @@ func runServerList(paths runtimePaths, args []string) int {
 		// this into a misleading "unknown"; issue #419). Named profiles are
 		// device-credential-only, so a bare "no" there is accurate.
 		paired := "no"
-		if cfg, okCfg := doc.flatProfile(name); okCfg && name == defaultServerProfileName && cfg.RelaySecureBaseURL == "" && cfg.RelayBaseURL != "" {
+		if cfg, okCfg := doc.flatProfile(name); okCfg && name == defaultServerProfileName && cfg.RelaySecureBaseURL == "" && cfg.RelayBaseURL != "" && cfg.Cloud == nil { // paired through Link only: its key is in the slot
 			paired = "no (legacy token)"
 		} else if _, ok, err := readCredentialSlot(deviceCredentialServiceForProfile(name)); err != nil {
 			// Slot presence only — a local read, never a relay round-trip.

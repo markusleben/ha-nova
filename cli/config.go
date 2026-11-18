@@ -36,6 +36,10 @@ type runtimeConfig struct {
 	PendingSecureBaseURL string                   `json:"pending_secure_base_url,omitempty"`
 	PendingSpkiPin       string                   `json:"pending_spki_pin,omitempty"`
 	ServerRemoval        *serverRemovalCheckpoint `json:"server_removal,omitempty"`
+	// Where the one-command Link re-pair stands (setup_link_repair.go).
+	LinkRePair linkRePairState `json:"link_repair,omitempty"`
+	// The Link address an away re-pair dropped, so a failed run can retry away.
+	LinkRePairOrigin string `json:"link_repair_origin,omitempty"`
 	// The demo house's public relay token (`ha-nova try`); set only on the
 	// config loaded from demo.json, never saved to config.json.
 	demoToken string
