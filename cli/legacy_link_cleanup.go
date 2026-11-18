@@ -63,12 +63,20 @@ func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool,
 	if !legacyCleanupApplies() {
 		return legacyCleanupNotNeeded, 0, nil
 	}
+	receipts, _ := legacyCopyReceipts(paths)
+	retried := len(receipts[cfg.ProfileID]) > 0
+	if retried { // whatever the App answers now (legacy_link_copy_receipt.go)
+		_ = removeRevokedLegacyLinkCopies(paths, cfg, false)
+	}
 	desktop := legacyCleanupPromptContext() // never over SSH or without a desktop session
 	pending, err := legacyCleanupPending(paths, cfg)
 	if err != nil {
 		return legacyCleanupIncomplete, 0, fmt.Errorf("the NOVA App's answer couldn't be read (%w)", err)
 	}
 	if !pending {
+		if !retried { // recorded before; 0.32 kept its copies
+			_ = removeRevokedLegacyLinkCopies(paths, cfg, true)
+		}
 		return legacyCleanupNotNeeded, 0, nil
 	}
 	if cfg.ProfileID != "" { // Link stored its sign-ins under the profile's id, never its name
@@ -100,6 +108,7 @@ func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool,
 	if err := legacyCleanupReport(paths, cfg); err != nil {
 		return legacyCleanupIncomplete, revoked, fmt.Errorf("the NOVA App didn't record it (%w)", err)
 	}
+	_ = removeRevokedLegacyLinkCopies(paths, cfg, false) // revoked above; a copy left keeps a receipt for the next setup
 	return legacyCleanupComplete, revoked, nil
 }
 

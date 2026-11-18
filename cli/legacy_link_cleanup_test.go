@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
 )
 
 type legacyCleanupFixture struct {
+	paths    runtimePaths // its receipts (legacy_link_copy_receipt.go)
 	backend  *memoryOAuthSecretBackend
 	legacy   map[string]string // 0.31 items by service
 	locked   bool              // reading an old item needs a macOS prompt
@@ -22,7 +24,7 @@ type legacyCleanupFixture struct {
 
 func newLegacyCleanupFixture(t *testing.T) *legacyCleanupFixture {
 	t.Helper()
-	f := &legacyCleanupFixture{backend: newMemoryOAuthSecretBackend(), legacy: map[string]string{}}
+	f := &legacyCleanupFixture{paths: runtimePaths{ConfigDir: t.TempDir()}, backend: newMemoryOAuthSecretBackend(), legacy: map[string]string{}}
 	saved := []any{legacyCleanupApplies, legacyLinkSecretRead, legacyCleanupBackend, legacyLinkRevoke, legacyCleanupPending, legacyCleanupReport, legacyCleanupPromptContext}
 	keep, onOS := legacyLinkCopyKeep, legacyCopiesOnThisOS
 	legacyLinkCopyKeep = func(_ runtimePaths, _ string, write func() error) error { return write() } // its guard: TestLegacyLinkCopyIsKeptOnlyForALiveProfile
@@ -70,7 +72,7 @@ func legacyTestEnvelope(state OAuthSecretState, account, token string) string {
 
 func (f *legacyCleanupFixture) run(prompt bool) (legacyCleanupOutcome, int, int) {
 	intros := 0
-	outcome, revoked, cause := finishLegacyLinkCleanup(runtimePaths{}, runtimeConfig{ProfileID: "default"}, prompt, func() { intros++ })
+	outcome, revoked, cause := finishLegacyLinkCleanup(f.paths, runtimeConfig{ProfileID: "default"}, prompt, func() { intros++ })
 	f.cause = cause
 	return outcome, revoked, intros
 }
@@ -107,7 +109,7 @@ func TestLegacyLinkCleanupReportsAProfileWithoutOldSignInsWithoutAsking(t *testi
 		t.Fatalf("reads %v, want the three old Link items", f.reads)
 	}
 	f.reads = nil
-	if outcome, _, _ := finishLegacyLinkCleanup(runtimePaths{}, runtimeConfig{}, false, nil); outcome != legacyCleanupComplete || len(f.reads) != 0 {
+	if outcome, _, _ := finishLegacyLinkCleanup(f.paths, runtimeConfig{}, false, nil); outcome != legacyCleanupComplete || len(f.reads) != 0 {
 		t.Fatalf("a profile that never had Link: outcome %d, reads %v", outcome, f.reads)
 	}
 }
@@ -142,7 +144,7 @@ func TestLegacyLinkCleanupNeverAsksWithoutADesktopSession(t *testing.T) {
 	}
 }
 
-func TestLegacyLinkCleanupRevokesEveryOldSignInOnceAndKeepsCopies(t *testing.T) {
+func TestLegacyLinkCleanupRevokesEveryOldSignInOnceAndRemovesItsCopyOnceRecorded(t *testing.T) {
 	f := newLegacyCleanupFixture(t)
 	f.legacy[oauthSecretCurrentService] = legacyTestEnvelope(OAuthSecretCurrent, "default", "old-current")
 	f.legacy[oauthSecretRetiringService] = legacyTestEnvelope(OAuthSecretRetiring, "default", "old-retiring")
@@ -164,17 +166,9 @@ func TestLegacyLinkCleanupRevokesEveryOldSignInOnceAndKeepsCopies(t *testing.T) 
 		t.Fatalf("prompts %d, want one per present item: %v", prompts, f.reads)
 	}
 
-	// A later setup verifies the kept copies again and never asks for the
-	// old items, which stay where they are.
-	f.reads, f.revoked = nil, nil
-	outcome, revoked, intros = f.run(true)
-	if outcome != legacyCleanupComplete || revoked != 2 || intros != 0 {
-		t.Fatalf("rerun: outcome %d, revoked %d, intros %d", outcome, revoked, intros)
-	}
-	for _, read := range f.reads {
-		if read != string(SecretStoreForbidUI)+":"+oauthSecretPendingService {
-			t.Fatalf("rerun read an old item that has a copy: %v", f.reads)
-		}
+	// Recorded by the App: the copies go, and no receipt is left.
+	if f.copies() != 0 || f.receipt() {
+		t.Fatalf("copies %d, receipt %v after the App recorded the cleanup", f.copies(), f.receipt())
 	}
 }
 
@@ -253,10 +247,10 @@ func TestLegacyLinkCleanupFailsClosed(t *testing.T) {
 }
 
 func TestLegacyLinkCleanupTellsTheRetry(t *testing.T) {
-	newLegacyCleanupFixture(t)
+	f := newLegacyCleanupFixture(t)
 	legacyCleanupReport = func(runtimePaths, runtimeConfig) error { return errors.New("offline") }
 	var out strings.Builder
-	note := printLegacyLinkCleanup(&out, runtimePaths{}, runtimeConfig{ProfileID: "default"}, true).plain()
+	note := printLegacyLinkCleanup(&out, f.paths, runtimeConfig{ProfileID: "default"}, true).plain()
 	if out.Len() != 0 || !strings.Contains(note, "run: ha-nova setup") || !strings.Contains(note, "Everything else works") ||
 		!strings.Contains(note, "What stopped it: the NOVA App didn't record it (offline).") {
 		t.Fatalf("printed %q, closing line %q", out.String(), note)
@@ -365,5 +359,70 @@ func TestLegacyLinkCleanupCopiesLiveInTheNewRoot(t *testing.T) {
 	}
 	if validOAuthSecretBackendService(oauthLegacyCleanupServicePrefix + "other") {
 		t.Fatal("an unknown copy accepted")
+	}
+}
+
+func (f *legacyCleanupFixture) copies() int {
+	n := 0
+	for _, service := range legacyLinkServices {
+		if _, found, _ := f.backend.Get(context.Background(), oauthLegacyCleanupServicePrefix+string(legacyLinkState(service)), "default", SecretStoreForbidUI); found {
+			n++
+		}
+	}
+	return n
+}
+
+func (f *legacyCleanupFixture) receipt() bool {
+	receipts, err := legacyCopyReceipts(f.paths)
+	return err != nil || len(receipts["default"]) > 0
+}
+
+func TestLegacyLinkCleanupKeepsTheCopyUntilTheAppRecordsIt(t *testing.T) {
+	f := newLegacyCleanupFixture(t)
+	f.legacy[oauthSecretCurrentService] = legacyTestEnvelope(OAuthSecretCurrent, "default", "old-current")
+	legacyCleanupReport = func(runtimePaths, runtimeConfig) error { return errors.New("the NOVA App did not answer") }
+	if outcome, _, _ := f.run(true); outcome != legacyCleanupIncomplete || f.copies() != 1 || f.receipt() {
+		t.Fatalf("outcome %d, copies %d, receipt %v: a retry resumes from the copy", outcome, f.copies(), f.receipt())
+	}
+}
+
+type failingDeleteBackend struct{ *memoryOAuthSecretBackend }
+
+func (failingDeleteBackend) DeleteExact(context.Context, string, string, string, SecretStoreUIPolicy) error {
+	return errors.New("the Keychain is locked")
+}
+
+func TestLegacyLinkCleanupLeavesAReceiptAndRetriesWhateverTheAppSays(t *testing.T) {
+	f := newLegacyCleanupFixture(t)
+	f.legacy[oauthSecretCurrentService] = legacyTestEnvelope(OAuthSecretCurrent, "default", "old-current")
+	legacyCleanupBackend = func() (OAuthSecretBackend, error) { return failingDeleteBackend{f.backend}, nil }
+	if outcome, _, _ := f.run(true); outcome != legacyCleanupComplete || f.copies() != 1 || !f.receipt() {
+		t.Fatalf("outcome %d, copies %d, receipt %v: a copy setup couldn't remove leaves a receipt", outcome, f.copies(), f.receipt())
+	}
+	raw, _ := os.ReadFile(legacyCopyReceiptsFile(f.paths))
+	if strings.Contains(string(raw), "old-current") || !strings.Contains(string(raw), oauthLegacyCleanupServicePrefix+string(OAuthSecretCurrent)) {
+		t.Fatalf("the receipt names the item, never its secret: %s", raw)
+	}
+	legacyCleanupBackend = func() (OAuthSecretBackend, error) { return f.backend, nil }
+	legacyCleanupPending = func(runtimePaths, runtimeConfig) (bool, error) {
+		return false, errors.New("the NOVA App did not answer")
+	}
+	f.revoked = nil
+	if f.run(true); f.copies() != 0 || f.receipt() || len(f.revoked) != 0 {
+		t.Fatalf("copies %d, receipt %v, revoked again %v after the retry", f.copies(), f.receipt(), f.revoked)
+	}
+	if _, err := os.Stat(legacyCopyReceiptsFile(f.paths)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("an empty receipts file stayed: %v", err)
+	}
+}
+
+func TestLegacyLinkCleanupRemovesTheCopiesARecordedCleanupKept(t *testing.T) {
+	f := newLegacyCleanupFixture(t)
+	if err := f.backend.Set(context.Background(), oauthLegacyCleanupServicePrefix+string(OAuthSecretCurrent), "default", legacyTestEnvelope(OAuthSecretCurrent, "default", "old-current"), SecretStoreForbidUI); err != nil {
+		t.Fatal(err)
+	}
+	legacyCleanupPending = func(runtimePaths, runtimeConfig) (bool, error) { return false, nil } // 0.32 recorded it and kept the copy
+	if outcome, _, intros := f.run(true); outcome != legacyCleanupNotNeeded || intros != 0 || f.copies() != 0 || strings.Join(f.revoked, ",") != "old-current" {
+		t.Fatalf("outcome %d, intros %d, copies %d, revoked %v", outcome, intros, f.copies(), f.revoked)
 	}
 }

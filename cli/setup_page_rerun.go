@@ -374,7 +374,7 @@ func (f *setupFlow) pageFinish() setupStepResult {
 	exit := f.pageControl()
 	if f.pageQuit && f.pageRerunOK {
 		f.page.update(func(v *setupPageState) { v.Home = &setupPageHome{Notes: f.pageNotes} }) // what the re-run did, the cleanup included
-		f.page.end("saved") // nothing changed
+		f.page.end("saved")                                                                    // nothing changed
 		return setupDone(exit)
 	}
 	if f.pageQuit {

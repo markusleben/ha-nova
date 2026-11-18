@@ -881,3 +881,12 @@ describe("setup page: status colors", () => {
     expect(p.find("b-phone-recheck")!.textContent).toBe(p.catalog["setup.page.button.recheck"]);
   });
 });
+
+describe("setup page re-run: the old sign-in cleanup", () => {
+  it("shows its result on the re-run screen as soon as it is known", async () => {
+    const p = page({ screen: "rerun", rows: [], accepts: ["finish"], control: { window: true, phone: "none" }, home: { notes: [{ key: "setup.cleanup.done" }] } });
+    await p.settle();
+    expect(p.catalog["setup.cleanup.done"]).toBeTruthy();
+    expect(p.screen.textContent).toContain(p.catalog["setup.cleanup.done"]);
+  });
+});

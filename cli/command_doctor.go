@@ -297,6 +297,9 @@ func runDoctor(paths runtimePaths, args []string) int {
 		status = max(status, gateStatus)
 		nextStep(windowStep)
 	}
+	if receipts, _ := legacyCopyReceipts(paths); len(receipts[cfg.ProfileID]) > 0 { // legacy_link_copy_receipt.go
+		printHumanWarn("A signed-out copy of the old version's Home Assistant Link sign-in is still in this Mac's Keychain. Run %s to remove it.", rePairNextStep(activeServerProfile(), false))
+	}
 	if legacyNotice != "" {
 		printHumanWarn("%s", legacyNotice)
 	}

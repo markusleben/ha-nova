@@ -1,10 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 	"time"
