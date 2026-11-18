@@ -134,7 +134,7 @@ func TestGateWaitingPhaseLeavesAFailedWindow(t *testing.T) {
 	}, nil)
 	h := gatedHarness(t, newFakeHA(), g)
 	plan := h.plan("lock.unlock", "lock.front").Plan
-	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 0 || during != gateAskingWindow || after != gateAsking {
+	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 0 || during != gateAskingWindowOnly || after != gateAsking { // the ask's only channel is the window
 		t.Fatalf("exit %d %+v; phase %d then %d", exit, env.Error, during, after)
 	}
 }

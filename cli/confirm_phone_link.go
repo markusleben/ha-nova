@@ -180,6 +180,9 @@ func linkPhone(s *relaySession, reader *bufio.Reader, out io.Writer, run phoneLi
 		if len(home.shared) == 0 {
 			fmt.Fprintln(out, "  "+phoneNoneFound)
 		}
+		if run.pageOnly {
+			phoneSkippedLines(out, s)
+		}
 		return 1
 	}
 	var chosen phoneTarget
@@ -199,7 +202,7 @@ func linkPhone(s *relaySession, reader *bufio.Reader, out io.Writer, run phoneLi
 		if chosen, ok = choosePhone(reader, out, home); !ok {
 			fmt.Fprintln(out, "  No phone linked. You can link one later: "+confirmPhoneCommand(activeServerProfile()))
 			if run.pageOnly {
-				fmt.Fprintln(out, "  Without a phone, risky changes from this computer wait for the NOVA page in Home Assistant.")
+				phoneSkippedLines(out, s)
 			}
 			return 0
 		}
@@ -434,5 +437,14 @@ func listPhones(out io.Writer, phones []phoneTarget, shared []string, button str
 	}
 	for _, name := range shared {
 		fmt.Fprintln(out, "  "+phoneSharedLine(name))
+	}
+}
+
+// phoneSkippedLines: where risky changes from a computer without a phone
+// or a window are confirmed, the owner's chat code included (MAR-244).
+func phoneSkippedLines(out io.Writer, s *relaySession) {
+	fmt.Fprintln(out, "  Without a phone, risky changes from this computer wait for the NOVA page in Home Assistant.")
+	if s.gate != nil && s.gate.code {
+		fmt.Fprintln(out, "  Or the Home Assistant owner can let this computer confirm with a four-digit code in your AI chat, on the NOVA page. Your AI assistant sees that code too.")
 	}
 }

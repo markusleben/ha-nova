@@ -55,9 +55,11 @@ func gateRefusalPeek(body io.ReadCloser) (io.ReadCloser, bool) {
 
 // gateOpened: the ask route's answer to an open.
 type gateOpened struct {
-	Needed   bool     `json:"needed"`
-	AskID    string   `json:"ask_id"`
-	Channels []string `json:"channels"`
+	Needed    bool     `json:"needed"`
+	AskID     string   `json:"ask_id"`
+	Channels  []string `json:"channels"`
+	Code      string   `json:"code"`       // the chat code, only where this open asked for one (gate_code.go)
+	ExpiresAt int64    `json:"expires_at"` // the ask's end, Unix milliseconds
 }
 
 // gateCall sends one request to route (the ask route, or the phone route)

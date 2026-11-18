@@ -34,6 +34,7 @@ type gateGrantKey struct{}
 type relayGate struct {
 	checked, on, moved bool
 	window             bool // GET /health window: 1: the App has the 0.32 window contract
+	code               bool // GET /health code: 1: the App draws a chat code where its owner chose one (MAR-244)
 	grants             map[[32]byte][]string
 	me                 *gateWindowState // gateMe, once read
 }
@@ -54,9 +55,12 @@ func gateKey(r gateRequest) [32]byte {
 var gateApproval *atomic.Int32
 
 const (
-	gateAsking       int32 = 1 // the change's own ask
-	gateLinking      int32 = 2 // a phone-link ask before it (gateMoveFirst)
-	gateAskingWindow int32 = 3 // the change's own ask, with Confirm in this computer's window
+	gateAsking           int32 = 1 // the change's own ask
+	gateLinking          int32 = 2 // a phone-link ask before it (gateMoveFirst)
+	gateAskingWindow     int32 = 3 // the change's own ask, with Confirm in this computer's window
+	gateAskingPhone      int32 = 4 // the change's own ask, which only the linked phone confirms
+	gateAskingPage       int32 = 5 // the change's own ask, which only the NOVA page confirms
+	gateAskingWindowOnly int32 = 6 // the change's own ask, which only this computer's window confirms
 )
 
 // The waiting window (nativeWindow's code with other buttons) and what its
@@ -144,8 +148,13 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool, plan *gateConfirm)
 	for i, r := range reqs {
 		items[i] = map[string]string{"endpoint": r.endpoint, "body_b64": base64.StdEncoding.EncodeToString(r.body)}
 	}
+	keeps := s.approval() == nil && !chat && plan != nil && plan.id != ""
+	acceptCode := keeps && !held && s.gateCodeHere() // the shell's first ask only (gate_code.go)
 	open := func() (opened gateOpened, err error) {
 		body := map[string]any{"requests": items}
+		if acceptCode {
+			body["accept_code"] = true
+		}
 		if presence := s.gatePresence(plan); presence != "" {
 			body["presence"] = presence
 		}
@@ -159,7 +168,6 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool, plan *gateConfirm)
 	}
 	// The CLI's ask for a stored plan may outlive the command's wait: it is
 	// kept for the plan's next apply, which joins it (gate_ask_join.go).
-	keeps := flag == nil && !chat && plan != nil && plan.id != ""
 	kept, joined := gateKeptAsk{}, false
 	if keeps {
 		kept, joined = gateTakeAsk(s.paths, plan.id, reqs)
@@ -174,11 +182,21 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool, plan *gateConfirm)
 			end = time.Now().Add(s.askWait()) // the CLI: the command's wait
 		}
 		var err error
+		if s.gateCode != "" && !(joined && kept.Code) { // a typed code answers only the kept code ask it was shown for, never a new one
+			s.gateCode = ""
+			stop = gateStop("cancelled", "CONFIRM_CANCELLED", "the ask this code was shown for has ended or no longer matches the plan; nothing was sent",
+				"Tell the user nothing changed. Only after they say they still want it, run the same ha-nova apply --plan command again without --confirm: HA NOVA then asks where they can confirm now. Never type a code yourself.")
+			return false
+		}
 		if joined {
 			opened = gateOpened{Needed: true, AskID: kept.AskID, Channels: kept.Channels}
+			if s.gateCode != "" { // apply --confirm: the person typed the chat code back
+				state, grant, stop = s.gateSendCode(plan.id, kept)
+				return stop == nil && state == "approved" && grant != ""
+			}
 		} else {
 			opened, err = open()
-			if !chat && !plan.confirmsHere(s, opened) { // a chat app never moves a phone: the bridge host's own link isn't its user's; a window here that confirms needs none
+			if !chat && opened.Code == "" && !plan.confirmsHere(s, opened) { // a chat app never moves a phone: the bridge host's own link isn't its user's; a window here that confirms needs none
 				if reopen, moved := s.gateMoveFirst(opened, err, time.Until(end)/2); moved != nil {
 					stop = moved
 					return false
@@ -188,6 +206,10 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool, plan *gateConfirm)
 			}
 		}
 		if stop = gateOpenFailure(opened, err, chat, lang); stop != nil {
+			return false
+		}
+		if opened.Code != "" && acceptCode { // nothing waits here: the person types it back in the chat
+			stop = s.gateCodeShown(plan, opened, reqs)
 			return false
 		}
 		state, grant = s.gateWait(opened.AskID, false, time.Until(end), plan.offered(s, opened), opened.Channels)
@@ -207,8 +229,8 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool, plan *gateConfirm)
 		return stop
 	case chat && (state != "approved" || grant == ""):
 		return gateChatEnded(state)
-	case keeps && state == "timeout" && gateKeepAsk(s.paths, plan.id, gateKeptAsk{AskID: opened.AskID, Digest: gateAskDigest(reqs), Channels: opened.Channels}) == nil:
-		return gateWaiting(plan.id, plan.lang, plan.confirmsHere(s, opened)) // the command's wait ended first: the ask stays for the next apply
+	case keeps && state == "timeout" && gateKeepAsk(s.paths, plan.id, gateKeptAsk{AskID: opened.AskID, Digest: gateAskDigest(reqs), Channels: opened.Channels, Code: joined && kept.Code}) == nil:
+		return gateWaiting(plan.id, plan.lang, plan.confirmsHere(s, opened), opened.Channels) // the command's wait ended first: the ask stays for the next apply
 	case state == "timeout" && flag == nil: // a held write's ask, or one that couldn't be kept: nothing joins it, so end it
 		s.gateCancel(opened.AskID)
 		return gateEnded(state)
