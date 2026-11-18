@@ -60,6 +60,9 @@ var (
 // sign-ins verified revoked in this run; cause says why an incomplete run
 // stopped.
 func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool, intro func()) (outcome legacyCleanupOutcome, revoked int, cause error) {
+	if cfg.ProfileID != "" && (legacyCopiesOnThisOS || legacyCleanupApplies()) {
+		_ = retryLegacyCopyReceipts(paths, cfg.ProfileID) // whatever the App or the device key's store is now; doctor names a receipt left
+	}
 	if !legacyCleanupApplies() {
 		return legacyCleanupNotNeeded, 0, nil
 	}
@@ -71,13 +74,14 @@ func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool,
 	if !pending {
 		return legacyCleanupNotNeeded, 0, nil
 	}
-	if cfg.ProfileID != "" { // Link stored its sign-ins under the profile's id, never its name
+	var proven []legacyLinkCopy // the exact copy bytes Home Assistant answered invalid_grant for
+	if cfg.ProfileID != "" {    // Link stored its sign-ins under the profile's id, never its name
 		backend, err := legacyCleanupBackend()
 		if err != nil {
 			return legacyCleanupIncomplete, 0, fmt.Errorf("this Mac's Keychain couldn't be opened (%w)", err)
 		}
 		for _, service := range legacyLinkServices {
-			envelope, found, err := recoverLegacyLinkGrant(paths, backend, service, cfg.ProfileID, prompt && desktop, &intro)
+			envelope, value, found, err := recoverLegacyLinkGrant(paths, backend, service, cfg.ProfileID, prompt && desktop, &intro)
 			switch {
 			case err != nil && prompt && !desktop:
 				return legacyCleanupIncomplete, revoked, fmt.Errorf("macOS asks for the old sign-in only in a terminal on this Mac's own desktop, not over SSH (%w)", err)
@@ -95,11 +99,13 @@ func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool,
 				return legacyCleanupIncomplete, revoked, fmt.Errorf("Home Assistant didn't confirm the old sign-in is signed out (%w)", err)
 			}
 			revoked++
+			proven = append(proven, legacyLinkCopy{server: cfg.profileName(), account: cfg.ProfileID, service: oauthLegacyCleanupServicePrefix + string(legacyLinkState(service)), value: value})
 		}
 	}
 	if err := legacyCleanupReport(paths, cfg); err != nil {
 		return legacyCleanupIncomplete, revoked, fmt.Errorf("the NOVA App didn't record it (%w)", err)
 	}
+	_ = deleteProvenLegacyLinkCopies(paths, cfg.ProfileID, proven) // a copy left keeps a receipt for the next setup
 	return legacyCleanupComplete, revoked, nil
 }
 
@@ -107,13 +113,13 @@ func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool,
 // copy an earlier attempt kept, else the old item, read without asking when
 // macOS allows it and otherwise (prompt only) with one macOS prompt. The copy
 // is kept before anything is revoked. An absent item asks nothing.
-func recoverLegacyLinkGrant(paths runtimePaths, backend OAuthSecretBackend, service, account string, prompt bool, intro *func()) (OAuthSecretEnvelope, bool, error) {
+func recoverLegacyLinkGrant(paths runtimePaths, backend OAuthSecretBackend, service, account string, prompt bool, intro *func()) (OAuthSecretEnvelope, string, bool, error) {
 	ctx, state := context.Background(), legacyLinkState(service)
 	copyService := oauthLegacyCleanupServicePrefix + string(state)
 	value, found, err := backend.Get(ctx, copyService, account, SecretStoreForbidUI)
 	if err != nil || found {
 		envelope, decodeErr := decodeOAuthSecretEnvelope(value, state, account)
-		return envelope, found, errors.Join(err, decodeErr)
+		return envelope, value, found, errors.Join(err, decodeErr)
 	}
 	value, found, err = legacyLinkSecretRead(ctx, service, account, SecretStoreForbidUI)
 	// macOS answers an item the old version's signature owns with a refusal,
@@ -127,20 +133,18 @@ func recoverLegacyLinkGrant(paths runtimePaths, backend OAuthSecretBackend, serv
 		value, found, err = legacyLinkSecretRead(ctx, service, account, SecretStoreAllowUI)
 	}
 	if err != nil || !found {
-		return OAuthSecretEnvelope{}, false, err
+		return OAuthSecretEnvelope{}, "", false, err
 	}
 	envelope, err := decodeOAuthSecretEnvelope(value, state, account)
 	if err != nil {
-		return OAuthSecretEnvelope{}, false, err
+		return OAuthSecretEnvelope{}, "", false, err
 	}
 	if err := legacyLinkCopyKeep(paths, account, func() error { return backend.Set(ctx, copyService, account, value, SecretStoreForbidUI) }); err != nil {
-		return OAuthSecretEnvelope{}, false, err
+		return OAuthSecretEnvelope{}, "", false, err
 	}
-	return envelope, true, nil
+	return envelope, value, true, nil
 }
 
-// readLegacyLinkSecret reads one 0.31 Link item by its own name through the
-// native secret worker (macOS only).
 // legacyCleanupPromptContextAvailable: macOS may ask only a person at a
 // terminal on this Mac's own desktop (never an agent's or a script's run,
 // whose input is no terminal, nor over SSH).
@@ -148,6 +152,8 @@ func legacyCleanupPromptContextAvailable() bool {
 	return term.IsTerminal(int(os.Stdin.Fd())) && platformNativeSecretPromptContextAvailable()
 }
 
+// readLegacyLinkSecret reads one 0.31 Link item by its own name through the
+// native secret worker (macOS only).
 func readLegacyLinkSecret(ctx context.Context, service, account string, ui SecretStoreUIPolicy) (string, bool, error) {
 	operationCtx, cancel := boundedNativeOAuthSecretContext(ctx, ui)
 	defer cancel()
@@ -202,11 +208,11 @@ func appWindowWhy(paths runtimePaths, cfg runtimeConfig) (string, error) {
 		return "", err
 	}
 	s.gate = &relayGate{checked: true, on: true, window: true}
-	why := s.readGateMe().why
-	if why == "" {
-		return "", errors.New("the NOVA App's window state can't be read")
+	me := s.readGateMe()
+	if me.why == "" {
+		return "", fmt.Errorf("the NOVA App's window state can't be read (%w)", me.err)
 	}
-	return why, nil
+	return me.why, nil
 }
 
 func reportLegacyCleanupComplete(paths runtimePaths, cfg runtimeConfig) error {

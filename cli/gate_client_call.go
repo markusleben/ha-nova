@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -87,15 +88,21 @@ func (s *relaySession) gateCall(parent context.Context, route string, wait time.
 			Message string `json:"message"`
 		} `json:"error"`
 	}
-	switch {
-	case err != nil:
+	if err != nil {
 		return err
-	case json.Unmarshal(data, &envelope) != nil || envelope.OK == nil:
-		return &relayCallError{endpoint: "gate", status: resp.StatusCode, message: "not a result envelope"}
-	case !*envelope.OK:
-		return &relayCallError{endpoint: "gate", status: resp.StatusCode, code: envelope.Error.Code, message: envelope.Error.Message}
 	}
-	return json.Unmarshal(envelope.Data, into)
+	parseErr := json.Unmarshal(data, &envelope)
+	if parseErr == nil && envelope.OK != nil && *envelope.OK && resp.StatusCode >= 200 && resp.StatusCode <= 299 { // only a 2xx with ok: true is a result
+		return json.Unmarshal(envelope.Data, into)
+	}
+	code, message := envelope.Error.Code, envelope.Error.Message
+	if parseErr != nil || envelope.OK == nil { // a code from a broken envelope is no refusal to act on
+		code, message = "", "not a result envelope"
+	}
+	if code == "" {
+		code = fmt.Sprintf("HTTP_%d", resp.StatusCode)
+	}
+	return &relayCallError{endpoint: "gate", status: resp.StatusCode, code: code, message: message}
 }
 
 // gateCancel ends the ask on the Relay, best effort (planAsks may be done).
