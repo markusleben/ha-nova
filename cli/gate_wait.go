@@ -57,7 +57,7 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration, con
 	window, raced, confirms := (<-chan windowAnswer)(nil), func(<-chan windowAnswer) bool { return false }, false
 	phase := func() { // what a job's waiting answer names (waitingForApproval)
 		if flag := s.approval(); flag != nil && confirms {
-			flag.Store(gateAskingWindow)
+			flag.Store(gateWindowPhase(channels))
 		} else if flag != nil && !link {
 			flag.Store(gateAskingOn(channels))
 		}
@@ -66,6 +66,7 @@ func (s *relaySession) gateWait(askID string, link bool, wait time.Duration, con
 	switch {
 	case link:
 		waiting = confirmT(confirmLanguage(s.lang), "gate.link_waiting")
+	case slices.Contains(channels, "code"): // the chat code's ask: typed back in the chat, so no window here
 	case confirm != nil:
 		waiting = confirmT(confirm.lang, "gate.waiting_window")
 		fallthrough
@@ -260,4 +261,12 @@ func gateAskingOn(channels []string) int32 {
 		return gateAskingPage
 	}
 	return gateAsking
+}
+
+// gateWindowPhase: the phase of an ask this computer's window confirms.
+func gateWindowPhase(channels []string) int32 {
+	if len(channels) > 0 && !slices.Contains(channels, "phone") && !slices.Contains(channels, "page") {
+		return gateAskingWindowOnly
+	}
+	return gateAskingWindow
 }

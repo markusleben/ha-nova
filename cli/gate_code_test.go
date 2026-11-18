@@ -88,12 +88,13 @@ func TestChatCodeOnlyWhereTheAppOffersIt(t *testing.T) {
 // show one in and waits for the phone or the NOVA page.
 func TestChatCodeNeverFromTheMCPServer(t *testing.T) {
 	h, g := codeHarness(t)
-	gateApproval = &atomic.Int32{}
-	t.Cleanup(func() { gateApproval = nil })
+	mcpStdio = true // its ha_plan runs outside the apply job
+	t.Cleanup(func() { mcpStdio, gateApproval = false, nil })
 	plan := h.plan("lock.unlock", "lock.front")
-	if strings.Contains(plan.Say, confirmT("en", "say.relay_code_ask")) {
+	if strings.Contains(plan.Say, confirmT("en", "say.relay_code_ask")) || strings.Contains(plan.NextStep, "one-time code") {
 		t.Fatalf("plan promised a code: %q", plan.Say)
 	}
+	gateApproval = &atomic.Int32{}
 	exit, applied := h.run(runApplyCommand, "--plan", plan.Plan.ID)
 	_, ops, _ := g.snapshot()
 	if exit != 0 || applied.Status != "verified" || g.accepts[0] != nil || strings.Join(ops, ",") != "open,wait" {
@@ -113,6 +114,7 @@ func TestWaitingNamesOnlyTheAsksChannels(t *testing.T) {
 		{[]string{"phone", "page"}, false, confirmT("en", "say.relay_waiting")},
 		{nil, false, confirmT("en", "say.relay_waiting")},
 		{[]string{"page", "window"}, true, confirmT("en", "say.relay_window_waiting")},
+		{[]string{"window"}, true, confirmT("en", "say.relay_window_only_waiting")},
 		{[]string{"page", "code"}, false, confirmT("en", "say.relay_code_waiting")},
 		{[]string{"code"}, false, confirmT("en", "say.relay_code_waiting")},
 	} {
@@ -127,5 +129,39 @@ func TestWaitingNamesOnlyTheAsksChannels(t *testing.T) {
 	}
 	if gateWaitingText("en", []string{"page", "code"}) != confirmT("en", "gate.waiting_code") {
 		t.Errorf("terminal line for a code ask: %q", gateWaitingText("en", []string{"page", "code"}))
+	}
+}
+
+// A typed code answers only the kept code ask it was shown for: where that
+// can't be joined, nothing opens a new ask a phone could approve instead.
+func TestTypedCodeNeverOpensANewAsk(t *testing.T) {
+	h, g := codeHarness(t)
+	plan := h.plan("lock.unlock", "lock.front").Plan
+	if exit, _ := h.run(runApplyCommand, "--plan", plan.ID); exit != verbExitConfirmation {
+		t.Fatalf("shown: exit %d", exit)
+	}
+	gateApproval = &atomic.Int32{} // ha-nova mcp's ha_apply with confirm_code: it never joins the shell's ask
+	t.Cleanup(func() { gateApproval = nil })
+	exit, env := h.run(runApplyCommand, "--confirm", "4821", "--plan", plan.ID)
+	_, ops, sends := g.snapshot()
+	if exit == 0 || env.Error == nil || env.Error.Code != "CONFIRM_CANCELLED" || strings.Join(ops, ",") != "open" || len(sends) != 0 {
+		t.Fatalf("not joined: exit %d %+v; ops %v sends %v", exit, env.Error, ops, sends)
+	}
+}
+
+// An ask that ended before the code came back says how it ended.
+func TestChatCodeAskEndedSaysHow(t *testing.T) {
+	for state, want := range map[string]string{"expired": "CONFIRM_EXPIRED", "cancelled": "CONFIRM_CANCELLED"} {
+		h, g := codeHarness(t)
+		plan := h.plan("lock.unlock", "lock.front").Plan
+		if exit, _ := h.run(runApplyCommand, "--plan", plan.ID); exit != verbExitConfirmation {
+			t.Fatalf("shown: exit %d", exit)
+		}
+		g.codeOps = []any{map[string]any{"state": state}}
+		exit, env := h.run(runApplyCommand, "--confirm", "4821", "--plan", plan.ID)
+		_, _, sends := g.snapshot()
+		if exit == 0 || env.Error == nil || env.Error.Code != want || len(sends) != 0 || strings.Contains(env.NextStep, "shows a new code") {
+			t.Fatalf("%s: exit %d %+v next %q", state, exit, env.Error, env.NextStep)
+		}
 	}
 }

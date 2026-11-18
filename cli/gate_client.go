@@ -55,11 +55,12 @@ func gateKey(r gateRequest) [32]byte {
 var gateApproval *atomic.Int32
 
 const (
-	gateAsking       int32 = 1 // the change's own ask
-	gateLinking      int32 = 2 // a phone-link ask before it (gateMoveFirst)
-	gateAskingWindow int32 = 3 // the change's own ask, with Confirm in this computer's window
-	gateAskingPhone  int32 = 4 // the change's own ask, which only the linked phone confirms
-	gateAskingPage   int32 = 5 // the change's own ask, which only the NOVA page confirms
+	gateAsking           int32 = 1 // the change's own ask
+	gateLinking          int32 = 2 // a phone-link ask before it (gateMoveFirst)
+	gateAskingWindow     int32 = 3 // the change's own ask, with Confirm in this computer's window
+	gateAskingPhone      int32 = 4 // the change's own ask, which only the linked phone confirms
+	gateAskingPage       int32 = 5 // the change's own ask, which only the NOVA page confirms
+	gateAskingWindowOnly int32 = 6 // the change's own ask, which only this computer's window confirms
 )
 
 // The waiting window (nativeWindow's code with other buttons) and what its
@@ -148,7 +149,7 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool, plan *gateConfirm)
 		items[i] = map[string]string{"endpoint": r.endpoint, "body_b64": base64.StdEncoding.EncodeToString(r.body)}
 	}
 	keeps := s.approval() == nil && !chat && plan != nil && plan.id != ""
-	acceptCode := keeps && !held && s.gate != nil && s.gate.code // the shell's first ask only (gate_code.go)
+	acceptCode := keeps && !held && s.gateCodeHere() // the shell's first ask only (gate_code.go)
 	open := func() (opened gateOpened, err error) {
 		body := map[string]any{"requests": items}
 		if acceptCode {
@@ -181,6 +182,12 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool, plan *gateConfirm)
 			end = time.Now().Add(s.askWait()) // the CLI: the command's wait
 		}
 		var err error
+		if s.gateCode != "" && !(joined && kept.Code) { // a typed code answers only the kept code ask it was shown for, never a new one
+			s.gateCode = ""
+			stop = gateStop("cancelled", "CONFIRM_CANCELLED", "the ask this code was shown for has ended or no longer matches the plan; nothing was sent",
+				"Tell the user nothing changed. Only after they say they still want it, run the same ha-nova apply --plan command again without --confirm: HA NOVA then asks where they can confirm now. Never type a code yourself.")
+			return false
+		}
 		if joined {
 			opened = gateOpened{Needed: true, AskID: kept.AskID, Channels: kept.Channels}
 			if s.gateCode != "" { // apply --confirm: the person typed the chat code back
@@ -189,7 +196,7 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool, plan *gateConfirm)
 			}
 		} else {
 			opened, err = open()
-			if !chat && !plan.confirmsHere(s, opened) { // a chat app never moves a phone: the bridge host's own link isn't its user's; a window here that confirms needs none
+			if !chat && opened.Code == "" && !plan.confirmsHere(s, opened) { // a chat app never moves a phone: the bridge host's own link isn't its user's; a window here that confirms needs none
 				if reopen, moved := s.gateMoveFirst(opened, err, time.Until(end)/2); moved != nil {
 					stop = moved
 					return false

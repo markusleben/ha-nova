@@ -50,7 +50,7 @@ func relayAskSay(lang string, s *relaySession, prompted storedPlan, env *verbEnv
 	case me.window && s.windowHere() && relayPlanFits(prompted):
 		env.NextStep = strings.Replace(env.NextStep, channelAsks[channelRelay]+" asks them", "a confirmation window on their computer, or their phone if one is linked, or the NOVA page in Home Assistant, asks them", 1)
 		return confirmT(lang, "say.relay_window_ask")
-	case me.code == "on" && s.gate != nil && s.gate.code && s.approval() == nil && !s.gateChat(): // as gateAsk's acceptCode: the shell's apply answers with the App's chat code (gate_code.go)
+	case me.code == "on" && s.gateCodeHere(): // the shell's apply answers with the App's chat code (gate_code.go)
 		env.NextStep = strings.Replace(env.NextStep, channelAsks[channelRelay]+" asks them", "the NOVA App answers with a one-time code for the user to type back (its `say` shows it), or the NOVA page asks them", 1)
 		return confirmT(lang, "say.relay_code_ask")
 	case me.why == "legacy_cleanup_pending":

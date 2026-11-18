@@ -165,6 +165,7 @@
   "say.relay_waiting_page": "Ich warte auf dein OK auf der NOVA-Seite in Home Assistant; dieser Schritt wurde noch nicht gesendet.",
   "say.relay_code_waiting": "Dieser Schritt wartet noch auf den Einmalcode, den HA NOVA in diesem Chat gezeigt hat; er wurde noch nicht gesendet.",
   "say.relay_window_waiting": "Ich warte auf dein OK im Fenster auf diesem Computer, auf deinem Handy oder auf der NOVA-Seite; dieser Schritt wurde noch nicht gesendet.",
+  "say.relay_window_only_waiting": "Ich warte auf dein OK im Fenster auf diesem Computer; dieser Schritt wurde noch nicht gesendet.",
   "say.relay_container_waiting": "Ich warte auf ein OK auf dem Handy, das mit deinem NOVA-Relay-Container verbunden ist (vielleicht das Handy der Person, die ihn betreibt). Gesendet wurde noch nichts.",
   "say.relay_link_waiting": "Dein Handy fragt zuerst, ob es die Bestätigungen von HA NOVA bekommen soll; erlaube es dort. Danach bestätigst du die Änderung selbst. Sagst du dort nein, ändert sich nichts; gesendet wurde noch nichts.",
   "say.busy": "HA NOVA ist noch mit einer anderen Änderung beschäftigt. Es ist noch nichts passiert. Versuch es gleich noch einmal.",

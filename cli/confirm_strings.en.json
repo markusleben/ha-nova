@@ -165,6 +165,7 @@
   "say.relay_waiting_page": "I'm waiting for your OK on the NOVA page in Home Assistant; this step hasn't been sent yet.",
   "say.relay_code_waiting": "This step still waits for the one-time code HA NOVA showed in this chat; it hasn't been sent yet.",
   "say.relay_window_waiting": "I'm waiting for your OK in the window on this computer, on your phone, or on the NOVA page; this step hasn't been sent yet.",
+  "say.relay_window_only_waiting": "I'm waiting for your OK in the window on this computer; this step hasn't been sent yet.",
   "say.relay_container_waiting": "I'm waiting for an OK on the phone linked to your NOVA Relay container (it may be the phone of whoever runs it). Nothing has been sent yet.",
   "say.relay_link_waiting": "Your phone first asks whether it should get HA NOVA's confirmations; allow it there. Then you confirm the change itself. If you say no there, nothing changes; nothing has been sent yet.",
   "say.busy": "HA NOVA is still busy with another change, so nothing has happened yet. Try again in a moment.",

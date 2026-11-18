@@ -91,7 +91,7 @@ func (s *relaySession) gateDropKept(planID string) {
 func gateWaiting(planID, lang string, window bool, channels []string) *verbFailure {
 	phase := gateAskingOn(channels)
 	if window {
-		phase = gateAskingWindow
+		phase = gateWindowPhase(channels)
 	}
 	say, next := relayWaitingSay(lang, phase), fmt.Sprintf("Tell the user `say`. Run ha-nova apply --plan %s again right away (give the command up to 2 minutes): it waits for the same ask and doesn't ask again, and an OK given meanwhile counts. Never ask for a code.", planID)
 	if slices.Contains(channels, "code") { // the App's chat code (gate_code.go): the person types it back
@@ -109,6 +109,8 @@ func relayWaitingSay(lang string, phase int32) string {
 	switch phase {
 	case gateAskingWindow:
 		return confirmT(lang, "say.relay_window_waiting")
+	case gateAskingWindowOnly:
+		return confirmT(lang, "say.relay_window_only_waiting")
 	case gateLinking:
 		return confirmT(lang, "say.relay_link_waiting")
 	case gateAskingPhone:

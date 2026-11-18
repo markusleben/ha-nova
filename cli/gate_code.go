@@ -36,33 +36,52 @@ func gateKeptCode(paths runtimePaths, planID string) bool {
 	return err == nil && json.Unmarshal(data, &kept) == nil && kept.Code
 }
 
+// mcpStdio: this process is ha-nova mcp, whose apply never asks for a code
+// (it has no chat to show one in; runMCPCommand).
+var mcpStdio bool
+
+// gateCodeHere: the shell's own ha-nova apply on an App that offers the code,
+// the only one that asks for it (not ha-nova mcp, serve, or a chat app).
+func (s *relaySession) gateCodeHere() bool {
+	return s.gate != nil && s.gate.code && s.approval() == nil && !s.gateChat() && !mcpStdio
+}
+
 // gateSendCode sends the typed code to the kept ask, once. A wrong code or
 // a retryable failure keeps the plan and its ask; the App counts the tries
 // and cancels the ask on the third wrong one.
 func (s *relaySession) gateSendCode(planID string, kept gateKeptAsk) (state, grant string, stop error) {
+	code := s.gateCode
+	s.gateCode = "" // one ask, once: a later step the App holds asks anew
 	var answer struct {
 		State   string `json:"state"`
 		GrantID string `json:"grant_id"`
 	}
-	err := s.gateCall(planAsks, gateAskRoute, afterCheck, map[string]any{"ask_id": kept.AskID, "op": "code", "code": s.gateCode}, &answer)
-	keep := func() { _ = gateKeepAsk(s.paths, planID, kept) }
+	err := s.gateCall(planAsks, gateAskRoute, afterCheck, map[string]any{"ask_id": kept.AskID, "op": "code", "code": code}, &answer)
 	again := "Only if the user types the code again in their next message, run ha-nova apply --confirm <those digits> --plan " + planID + ". Never type or guess a code yourself."
+	anew := "Tell the user nothing changed. Only after they say they still want it, run ha-nova apply --plan " + planID + " again without --confirm: HA NOVA then asks where they can confirm now. Never type a code yourself."
+	keep := func(code, message, next string) (string, string, error) {
+		if err := gateKeepAsk(s.paths, planID, kept); err != nil {
+			s.gateCancel(kept.AskID) // nothing could join it
+			return "", "", gateStop("refused", "CONFIRM_UNAVAILABLE", "HA NOVA couldn't keep the step's ask on this computer ("+err.Error()+"); nothing was sent", anew)
+		}
+		return "", "", gateStop("refused", code, message, next)
+	}
 	var call *relayCallError
 	switch {
-	case err == nil:
+	case err == nil && answer.State == "approved":
 		return answer.State, answer.GrantID, nil
+	case err == nil && answer.State == "expired":
+		return "", "", gateStop("cancelled", "CONFIRM_EXPIRED", "the one-time code expired before it was typed back (it works for 3 minutes); nothing was sent", anew)
+	case err == nil:
+		return "", "", gateStop("cancelled", "CONFIRM_CANCELLED", "the step's ask was cancelled (three wrong codes, or a cancel on the NOVA page or on this computer); nothing was sent", anew)
 	case errors.As(err, &call) && call.code == "GATE_CODE_WRONG":
-		keep()
-		return "", "", gateStop("refused", "CODE_MISMATCH", "the one-time code doesn't match; a third wrong one cancels this step. Nothing was sent", "Tell the user the code didn't match. "+again)
+		return keep("CODE_MISMATCH", "the one-time code doesn't match; a third wrong one cancels this step. Nothing was sent", "Tell the user the code didn't match. "+again)
 	case errors.As(err, &call) && call.code == "GATE_CODE_OFF":
 		s.gateCancel(kept.AskID)
-		return "", "", gateStop("refused", "CONFIRM_CODE_OFF", "this computer no longer confirms with a chat code (the Home Assistant owner changed it, or a phone was linked); nothing was sent",
-			"Tell the user nothing changed. Run ha-nova apply --plan "+planID+" again without --confirm: HA NOVA then asks where they can confirm now. Never ask them for a code.")
+		return "", "", gateStop("refused", "CONFIRM_CODE_OFF", "this computer no longer confirms with a chat code (the Home Assistant owner changed it, or a phone was linked); nothing was sent", anew)
 	case errors.As(err, &call) && call.code == "GATE_ASK_UNKNOWN":
-		return "", "", gateStop("cancelled", "CONFIRM_CANCELLED", "the step's ask has ended (it lasts 3 minutes, or the NOVA App restarted); nothing was sent",
-			"Tell the user nothing changed. Only after they say they still want it, run ha-nova apply --plan "+planID+" again without --confirm: it shows a new code.")
+		return "", "", gateStop("cancelled", "CONFIRM_CANCELLED", "the step's ask has ended (it lasts 3 minutes, or the NOVA App restarted); nothing was sent", anew)
 	}
-	keep() // the App's answer is unknown or it can't check now: the next apply reads how the ask ended
-	return "", "", gateStop("refused", "CONFIRM_UNAVAILABLE", "HA NOVA couldn't check the code with the NOVA App just now ("+gateRefusalMessage(err.Error())+")",
+	return keep("CONFIRM_UNAVAILABLE", "HA NOVA couldn't check the code with the NOVA App just now ("+gateRefusalMessage(err.Error())+")",
 		"Tell the user nothing was sent yet. "+again+" It reads how the step ended and never sends it twice.")
 }

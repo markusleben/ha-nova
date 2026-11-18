@@ -131,6 +131,8 @@ func waitingForApproval(id, lang string, phase int32) map[string]any {
 	switch phase {
 	case gateAskingWindow:
 		wait = "HA NOVA waits for the user's OK in the confirmation window on their computer, on their phone if one is linked, or on the NOVA page in Home Assistant"
+	case gateAskingWindowOnly:
+		wait = "HA NOVA waits for the user's OK in the confirmation window on their computer"
 	case gateAskingPhone:
 		wait = "HA NOVA waits for the user's OK on their linked phone"
 	case gateAskingPage:
