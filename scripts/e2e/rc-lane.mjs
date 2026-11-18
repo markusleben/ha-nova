@@ -242,7 +242,7 @@ const verify = () => bedCheck("e", "test bed assertions, tag's binary", [join(TE
 const chatFiles = () => bedCheck("f", "chat-app files under /config, each level", [join(TESTBED, "chat-files.mjs")]);
 const calm = () => bedCheck("h", "calm edits in a real-home-shaped bed", [join(TESTBED, "calm.mjs")]);
 const askCount = () => bedCheck("j", "ask count per friction row, M and headless S5H included", [join(TESTBED, "ask-count.mjs")],
-  existsSync(join(WORK, "bin/ha-nova-linux")) ? { TESTBED_CLI_BIN_LINUX: join(WORK, "bin/ha-nova-linux") } : {});
+  { TESTBED_CLI_BIN_LINUX: join(WORK, process.platform === "linux" ? "bin/ha-nova" : "bin/ha-nova-linux") }); // the tag's Linux binary (fetchBinary), never a local build
 
 // ---- c: chat bridge on a standalone Relay: the container's phone asks -----------------
 const PROMPTS = {
