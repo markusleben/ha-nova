@@ -128,6 +128,13 @@ deploy or tag.
    ```bash
    npm run rc-lane -- vX.Y.Z-rcN
    ```
+   On a Mac, run it as `bash scripts/e2e/rc-lane-container.sh vX.Y.Z-rcN`
+   instead: from 0.32 every HA NOVA command on macOS looks up its key in the
+   login Keychain, so rc-lane and the client matrix's macOS lane refuse to
+   run in a person's session. The container runs every row with the tag's
+   Linux binary; row c SKIPs there. The macOS binary's signing identity is
+   checked by `rc-macos-lane.yml` on a hosted runner
+   (`gh workflow run rc-macos-lane.yml -f tag=vX.Y.Z-rcN`).
    One command, throwaway only, about 10–15 minutes: with the tag's binary,
    the test bed's assertions (`testbed/verify.sh`) and chat-app files under
    `/config` at Ask only, Use the home, and Manage everything (read, write,

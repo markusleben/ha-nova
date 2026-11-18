@@ -54,6 +54,13 @@ if (!TAG_RE.test(tag ?? "") || flags.some((f) => f !== "--keep")) {
   console.error("usage: npm run rc-lane -- <vX.Y.Z[-rcN]> [--keep]");
   process.exit(2);
 }
+// From 0.32, every HA NOVA command on macOS looks up its key in the login
+// Keychain, which HOME doesn't isolate: on a Mac, run this lane in a Linux
+// container instead (scripts/e2e/rc-lane-container.sh).
+if (process.platform === "darwin") {
+  console.error("rc-lane refuses to run on macOS: its rows would reach this user's login Keychain. Run: bash scripts/e2e/rc-lane-container.sh " + tag);
+  process.exit(2);
+}
 const KEEP = flags.includes("--keep");
 const WORK = mkdtempSync(join(tmpdir(), "ha-nova-rc-lane-"));
 const rows = [];
