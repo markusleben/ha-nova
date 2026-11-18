@@ -105,7 +105,7 @@ func humanChannel(channel string) bool {
 
 // channelAsks: who asks the human for a plan of that channel (next_step).
 var channelAsks = map[string]string{channelWindow: "a confirmation window on their computer", channelPhone: "a notification on their phone",
-	channelRelay: "their linked phone or Home Assistant (the NOVA page)"}
+	channelRelay: "their phone if one is linked to this computer, or the NOVA page in Home Assistant,"}
 
 // planChannel is set only by the MCP server, from the client's handshake,
 // for the verb it runs; empty means the CLI detects it (detectChannel).

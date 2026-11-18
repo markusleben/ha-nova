@@ -234,10 +234,14 @@ func (s *relaySession) gateWindow(ctx context.Context, deadline time.Time, page 
 }
 
 // gateWaitingText names only where the ask's channels let the person
-// confirm (MAR-244): the phone when the App asks it, else the NOVA page.
+// confirm (MAR-244): the phone when the App asks it, the NOVA page when an
+// administrator can confirm there (the App leaves it out otherwise).
 func gateWaitingText(lang string, channels []string) string {
-	if slices.Contains(channels, "phone") {
+	switch {
+	case slices.Contains(channels, "phone") && slices.Contains(channels, "page"):
 		return confirmT(lang, "gate.waiting_phone")
+	case slices.Contains(channels, "phone"):
+		return confirmT(lang, "gate.waiting_phone_only")
 	}
 	return confirmT(lang, "gate.waiting_page", "command", confirmPhoneCommand(activeServerProfile()))
 }

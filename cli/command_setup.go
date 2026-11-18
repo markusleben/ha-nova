@@ -694,7 +694,11 @@ func completeNonInteractivePairedSetup(paths runtimePaths, cfg runtimeConfig, st
 		printHumanErr("client installation or state save failed: %s", err)
 		return 1
 	}
-	return runDoctor(paths, nil)
+	code := runDoctor(paths, nil)
+	if code == 0 {
+		offerPhoneLink(nil, os.Stdout, paths, false, true)
+	}
+	return code
 }
 
 func restoreRelayAuthToken(previousToken string, hadPreviousToken, tokenChanged bool) error {

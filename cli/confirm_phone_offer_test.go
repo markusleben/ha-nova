@@ -47,16 +47,56 @@ func TestPhoneOfferOnEveryRunUntilAPhoneIsLinked(t *testing.T) {
 	}
 }
 
+// The offer on a window-capable App reads the gate as a gated send does: a
+// phone linked there records that this App gates (gate_seen), so a rollback
+// after it still refuses.
+func TestPhoneOfferOnAGatedAppRecordsTheGate(t *testing.T) {
+	g := &fakeGate{phones: true}
+	h := gatedFamily(t, g, false)
+	usePhones(t)
+	phoneDiscover = discoverPhone
+	if gateSeen(h.paths, activeServerProfile()) {
+		t.Fatal("gate seen before the offer")
+	}
+	one := "1\n"
+	if out := runPhoneOffer(t, h, &one, true); linked(t, h) == nil || len(g.links) != 1 || !gateSeen(h.paths, activeServerProfile()) {
+		t.Fatalf("offer: links %v seen %v\n%s", g.links, gateSeen(h.paths, activeServerProfile()), out)
+	}
+	h.log.gate.Store(false) // the App was rolled back
+	if _, env := h.run(runPlanCommand, "call", "lock.unlock", "lock.front"); env.Error == nil || env.Error.Code != "GATE_ROLLED_BACK" {
+		t.Fatalf("after a rollback: %+v", env)
+	}
+}
+
 func TestPhoneNextStepNamesTheProfile(t *testing.T) {
-	if got := phoneNextStep("cabin"); got != `To confirm risky changes on a phone, run ha-nova setup confirm-phone --server cabin list, then ha-nova setup confirm-phone --server cabin "<phone name>" and tap Allow on that phone.` {
+	if got := phoneNextStep("cabin"); got != `No phone linked to this computer yet? To confirm risky changes on a phone, run ha-nova setup confirm-phone --server cabin list, then ha-nova setup confirm-phone --server cabin "<phone name>" and tap the button in the notification on that phone.` {
 		t.Fatalf("%q", got)
+	}
+}
+
+// An explicit pick of the default profile stays in the retry: a different
+// default_server would reroute the bare command.
+func TestConfirmPhoneCommandKeepsAnExplicitDefaultPick(t *testing.T) {
+	saved := selectionOverride()
+	t.Cleanup(func() { setServerSelectionOverride(saved) })
+	setServerSelectionOverride("")
+	t.Setenv("HA_NOVA_SERVER", "")
+	if got := confirmPhoneCommand(defaultServerProfileName); got != "ha-nova setup confirm-phone" {
+		t.Fatalf("no pick: %q", got)
+	}
+	t.Setenv("HA_NOVA_SERVER", defaultServerProfileName)
+	if got := confirmPhoneCommand(defaultServerProfileName); got != "ha-nova setup confirm-phone --server default" {
+		t.Fatalf("picked: %q", got)
 	}
 }
 
 // MAR-244: the waiting line names the phone only when the App asks it.
 func TestGateWaitingTextFollowsTheAsksChannels(t *testing.T) {
-	if got := gateWaitingText("en", []string{"phone", "page"}); !strings.Contains(got, "notification on your phone") {
+	if got := gateWaitingText("en", []string{"phone", "page"}); !strings.Contains(got, "notification on your phone") || !strings.Contains(got, "NOVA page") {
 		t.Fatalf("phone: %q", got)
+	}
+	if got := gateWaitingText("en", []string{"phone"}); !strings.Contains(got, "notification on your phone") || strings.Contains(got, "NOVA page") {
+		t.Fatalf("phone only: %q", got)
 	}
 	got := gateWaitingText("en", []string{"page"})
 	if strings.Contains(got, "linked phone") || !strings.Contains(got, "NOVA page") || !strings.Contains(got, "ha-nova setup confirm-phone") {

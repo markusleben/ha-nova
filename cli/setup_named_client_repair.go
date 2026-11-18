@@ -60,6 +60,11 @@ func completeNamedProfileClientRepair(
 	if note := printLegacyLinkCleanup(os.Stdout, paths, cfg, prompt && isInteractiveTTY() && stdoutIsInteractiveTTY()).plain(); note != "" {
 		printHumanInfo("%s", note)
 	}
+	reader := terminalReader()
+	if !prompt {
+		reader = nil
+	}
+	offerPhoneLink(reader, os.Stdout, paths, false, true)
 	return 0
 }
 

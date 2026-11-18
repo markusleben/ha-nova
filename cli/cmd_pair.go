@@ -226,6 +226,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 	}
 	if resumedActivation && credentialStore != "file" {
 		fmt.Println("Resumed the interrupted secure device activation.")
+		offerPhoneLink(terminalReader(), os.Stdout, paths, true, true)
 		return 0
 	}
 	if resumedActivation {
@@ -299,6 +300,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 			printErr("%s.", migrateErr)
 			if resumedActivation {
 				fmt.Println("Resumed the interrupted secure device activation in the Keychain.")
+				offerPhoneLink(terminalReader(), os.Stdout, paths, true, true)
 				return 0
 			}
 			printErr("Nothing was paired — no code was used. Run the command without --credential-store=file to pair in the Keychain.")
@@ -316,6 +318,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 	}
 	if resumedActivation {
 		fmt.Println("Resumed the interrupted secure device activation.")
+		offerPhoneLink(terminalReader(), os.Stdout, paths, true, true)
 		return 0
 	}
 	// Verify credential storage BEFORE asking for (or spending) a code: a broken
@@ -394,11 +397,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		return 1
 	}
 	fmt.Printf("Paired securely. This device is connected (id %s).\n", deviceID)
-	var reader *bufio.Reader
-	if isInteractiveTTY() && stdoutIsInteractiveTTY() {
-		reader = bufio.NewReader(os.Stdin)
-	}
-	offerPhoneLink(reader, os.Stdout, paths, true, true)
+	offerPhoneLink(terminalReader(), os.Stdout, paths, true, true)
 	return 0
 }
 

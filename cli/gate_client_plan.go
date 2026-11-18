@@ -48,7 +48,7 @@ func relayAskSay(lang string, s *relaySession, prompted storedPlan, env *verbEnv
 	}
 	switch me := s.gateMe(); {
 	case me.window && s.windowHere() && relayPlanFits(prompted):
-		env.NextStep = strings.Replace(env.NextStep, channelAsks[channelRelay]+" asks them", "a confirmation window on their computer, or their linked phone or Home Assistant (the NOVA page), asks them", 1)
+		env.NextStep = strings.Replace(env.NextStep, channelAsks[channelRelay]+" asks them", "a confirmation window on their computer, or their phone if one is linked, or the NOVA page in Home Assistant, asks them", 1)
 		return confirmT(lang, "say.relay_window_ask")
 	case me.why == "legacy_cleanup_pending":
 		return confirmT(lang, "say.relay_ask") + " " + gateWindowWhy(lang, me.why, s.server)

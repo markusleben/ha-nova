@@ -28,19 +28,21 @@ var phoneLinkBudget = cliWindowWait
 
 const confirmPhoneUsage = `ha-nova setup confirm-phone ["<phone name>" | list | off]`
 
-// confirmPhoneCommand names the profile a page-shown retry acts on.
+// confirmPhoneCommand names the profile a retry acts on; the bare command
+// only where it resolves to the same profile (no --server or HA_NOVA_SERVER
+// pick, which a different default_server would otherwise reroute).
 func confirmPhoneCommand(profile string) string {
-	if profile == "" || profile == defaultServerProfileName {
+	if pick, _ := requestedServerSelection(); profile == "" || profile == defaultServerProfileName && pick == "" {
 		return "ha-nova setup confirm-phone"
 	}
 	return "ha-nova setup confirm-phone --server " + profile
 }
 
 const (
-	phoneNoneFound  = "No phone with the Home Assistant app was found for a Home Assistant administrator here. To confirm on your phone: install the Home Assistant app, sign in with your own Home Assistant account, then run ha-nova setup confirm-phone. If your account isn't an administrator, ask the Home Assistant owner to make it one. Until then HA NOVA asks in a window on this computer, in your AI app's form, or with a four-digit code in chat."
+	phoneNoneFound  = "No phone with the Home Assistant app was found for a Home Assistant administrator here. To confirm on your phone: install the Home Assistant app, sign in with your own Home Assistant account, then run ha-nova setup confirm-phone. If your account isn't an administrator, ask the Home Assistant owner to make it one. Until then, HA NOVA's answer to a risky change says where to confirm it."
 	phoneOwnerToken = "This NOVA App signs in to Home Assistant as the owner, so a tap on a phone can't be told apart from HA NOVA itself. Phone confirmation isn't available with this App. Nothing changed."
 	phoneReadFailed = "HA NOVA can't read this Home Assistant's phones right now. Nothing changed; try again in a moment."
-	phoneLostLine   = "Lost that phone? Changing the link asks it first, so the Home Assistant owner removes this computer on the NOVA page instead; pair it again with a new code, and setup then offers the new phone."
+	phoneLostLine   = "Lost that phone? Changing the link asks it first, so the Home Assistant owner removes this computer on the NOVA page instead. Pair it again with a new code, then run ha-nova setup confirm-phone \"<new phone>\"."
 )
 
 func runConfirmPhoneSetting(paths runtimePaths, args []string) int {
@@ -93,13 +95,13 @@ func offerPhoneLink(reader *bufio.Reader, out io.Writer, paths runtimePaths, pai
 	}
 	s, err := newRelaySession(paths, verbOptions{})
 	if err != nil {
+		fmt.Fprintln(out, "  HA NOVA can't reach the NOVA App right now to offer a phone. Later: "+confirmPhoneCommand(activeServerProfile()))
 		return
 	}
 	defer s.close()
-	on, window, _ := s.readGate()
+	on, _ := s.gateOn() // as a gated send reads it: the first answer records that this App gates (gate_seen)
 	confirms := false
-	if on && window {
-		s.gate = &relayGate{checked: true, on: true, window: true}
+	if on && s.gate.window {
 		confirms = s.gateMe().window
 	}
 	if confirms && !pairedNow {
@@ -108,9 +110,18 @@ func offerPhoneLink(reader *bufio.Reader, out io.Writer, paths runtimePaths, pai
 	linkPhone(s, reader, out, phoneLinkRun{interactive: true, offer: true, quiet: !pairedNow, pageOnly: on && !confirms})
 }
 
+// terminalReader: stdin when a person answers in this terminal, else nil
+// (offerPhoneLink then only names the commands).
+func terminalReader() *bufio.Reader {
+	if isInteractiveTTY() && stdoutIsInteractiveTTY() {
+		return bufio.NewReader(os.Stdin)
+	}
+	return nil
+}
+
 // phoneNextStep: the commands a bot passes on, word for word.
 func phoneNextStep(profile string) string {
-	return "To confirm risky changes on a phone, run " + confirmPhoneCommand(profile) + " list, then " + confirmPhoneCommand(profile) + " \"<phone name>\" and tap Allow on that phone."
+	return "No phone linked to this computer yet? To confirm risky changes on a phone, run " + confirmPhoneCommand(profile) + " list, then " + confirmPhoneCommand(profile) + " \"<phone name>\" and tap the button in the notification on that phone."
 }
 
 type phoneLinkRun struct {
@@ -159,7 +170,7 @@ func linkPhone(s *relaySession, reader *bufio.Reader, out io.Writer, run phoneLi
 	case status == phoneLegacy && run.listOnly:
 		fmt.Fprintln(out, "  HA NOVA now asks on one phone you choose, and none is chosen on this computer yet.")
 	case run.offer:
-		renderSetupParagraph(out, "Confirm risky changes (doors, alarm, deletes) on your phone? HA NOVA sends one notification to the phone you pick; tap Allow there.")
+		renderSetupParagraph(out, "Confirm risky changes (doors, alarm, deletes) on your phone? HA NOVA sends one notification to the phone you pick; tap “"+phoneLinkButton(lang)+"” there.")
 	}
 	all := home.eligible("")
 	if len(all) == 0 {
