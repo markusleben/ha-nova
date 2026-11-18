@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 )
@@ -63,5 +64,41 @@ func TestFileKeyOfferNeedsATerminalAndAKeyStoreProblem(t *testing.T) {
 	}
 	if yes, err := askFileKeyStore(bufio.NewReader(strings.NewReader("y\n")), &out, errors.New("disk full")); yes || err != nil || out.Len() != 0 {
 		t.Fatalf("other error: yes %v err %v out %q", yes, err, out.String())
+	}
+}
+
+// The pairing guard reads the keyring's pending slot first: where it can't
+// be reached from here, the store is chosen first, then the guard runs again.
+func TestKeyStoreFirstWhereTheGuardCantReachTheKeyring(t *testing.T) {
+	unreachable := fmt.Errorf("cannot inspect the pending device credential before local pairing: %w", fmt.Errorf("%w: exec dbus-launch not found", errDesktopKeyringSessionUnavailable))
+	locked := func(step func() error) error { return step() }
+	reset := func() { deviceCredentialFileModeForced, deviceCredentialFileModeExplicit = false, false }
+	t.Cleanup(reset)
+	for _, c := range []struct {
+		name, profile, typed string
+		explicit, want       bool
+	}{
+		{"default profile falls back with its note", defaultServerProfileName, "", false, true},
+		{"explicit --credential-store=file", "cabin", "", true, true},
+		{"named profile, yes", "cabin", "yes\n", false, true},
+		{"named profile, Enter", "cabin", "\n", false, false},
+		{"named profile, not a plain yes", "cabin", "yes?\n", false, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			withDeviceStorageTestHome(t)
+			stubStorageCanaries(t, fmt.Errorf("%w: exec dbus-launch not found", errDesktopKeyringSessionUnavailable))
+			resetServerProfileSelection(t)
+			setActiveServerProfile(c.profile)
+			reset()
+			var out bytes.Buffer
+			got := keyStoreFirst(unreachable, c.explicit, bufio.NewReader(strings.NewReader(c.typed)), &out, locked, probeDeviceCredentialStorage)
+			if got != c.want || got != deviceSecretFileBacked() {
+				t.Fatalf("switched %v (file-backed %v), want %v; out %q", got, deviceSecretFileBacked(), c.want, out.String())
+			}
+		})
+	}
+	reset()
+	if keyStoreFirst(errors.New("Home Assistant Link access is configured"), true, nil, io.Discard, locked, probeDeviceCredentialStorage) || deviceCredentialFileModeForced {
+		t.Fatal("another guard error switched the store")
 	}
 }

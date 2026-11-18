@@ -264,7 +264,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 			activeServerProfile(),
 		)
 	}
-	guardErr := withClientMutationLock(paths, func() error {
+	guard := func() error {
 		if err := guardPairMutation(); err != nil {
 			return err
 		}
@@ -272,7 +272,14 @@ func runPairCommand(paths runtimePaths, args []string) int {
 			cfg,
 			pairCommandUI,
 		)
-	})
+	}
+	guardErr := withClientMutationLock(paths, guard)
+	if keyStoreFirst(guardErr, credentialStore == "file", terminalReader(), os.Stdout,
+		func(step func() error) error { return withClientMutationLock(paths, step) },
+		func() (deviceStorageProbe, error) { return probePairCommandDeviceStorage(SecretStoreForbidUI) }) {
+		pairCommandUI = SecretStoreForbidUI
+		guardErr = withClientMutationLock(paths, guard)
+	}
 	if guardErr != nil {
 		printErr("Pairing cannot start: %s", keyringErrorText(guardErr))
 		if secureStorageSessionProblem(guardErr) {

@@ -234,7 +234,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 			activeServerProfile(),
 		)
 	}
-	guardErr := withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
+	guard := func() error {
 		if err := guardPairingMutation(); err != nil {
 			return err
 		}
@@ -242,7 +242,22 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 			*cfg,
 			explicitPairingSecretStoreUIPolicy(),
 		)
-	})
+	}
+	guardErr := withSetupLifecycleGuard(paths, lifecycleMarker, guard)
+	var terminal *bufio.Reader // only a person at a terminal answers the key store question
+	if terminalReader() != nil {
+		terminal = reader
+	}
+	if keyStoreFirst(guardErr, false, terminal, out,
+		func(step func() error) error { return withSetupLifecycleGuard(paths, lifecycleMarker, step) },
+		func() (deviceStorageProbe, error) {
+			ctx, cancel := boundedNativeOAuthSecretContext(context.Background(), SecretStoreForbidUI)
+			defer cancel()
+			return probeDeviceCredentialStorageWithPolicy(ctx, SecretStoreForbidUI)
+		}) {
+		legacyTokenStoreUnavailable = true // the legacy shared token needs the keyring this run can't use
+		guardErr = withSetupLifecycleGuard(paths, lifecycleMarker, guard)
+	}
 	if guardErr != nil {
 		return "", renderSetupSecureStorageFailure(out, "Local pairing cannot start", guardErr)
 	}
@@ -265,9 +280,10 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		return err
 	}
 	probeErr := withSetupLifecycleGuard(paths, lifecycleMarker, probeOnce)
-	if yes, err := askFileKeyStore(map[bool]*bufio.Reader{true: reader}[terminalReader() != nil], out, probeErr); err != nil { // only a person at a terminal answers it
+	if yes, err := askFileKeyStore(terminal, out, probeErr); err != nil {
 		return "", err
 	} else if yes { // the owner's opt-in, as pair --credential-store=file
+		legacyTokenStoreUnavailable = true
 		probeErr = withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
 			if err := guardPairingMutation(); err != nil {
 				return err
