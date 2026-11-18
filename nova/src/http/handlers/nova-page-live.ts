@@ -28,7 +28,7 @@ export function liveState(page: GatePage): string {
   const asks = page.waiting().map((ask) => ask.ref).sort();
   const paused = page.pausedDevices().map((p) => `${p.deviceId}:${p.until}`).sort();
   const recent = page.recent?.().at(-1)?.atMs ?? 0; // a window win between polls
-  const devices = page.devices?.().sort() ?? []; // a computer paired from this page shows its row (MAR-244)
+  const devices = page.devices?.().sort() ?? []; // a computer paired from this page, or its confirm mode changed (MAR-244)
   return createHash("sha256").update(JSON.stringify([asks, paused, recent, devices])).digest("hex").slice(0, 16);
 }
 

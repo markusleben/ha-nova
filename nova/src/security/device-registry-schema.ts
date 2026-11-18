@@ -188,6 +188,7 @@ function validateDevice(value: unknown): DeviceRecord {
     }
     record.windowConfirm = raw.windowConfirm;
   }
+  if (record.codeConfirm !== undefined && (!(record.confirmRev! > 0) || record.windowConfirm === true)) throw new RegistryCorruptError("device.codeConfirm is inconsistent");
   if (raw.retireDeviceId !== undefined) record.retireDeviceId = stringField("retireDeviceId");
   if (raw.pairingOwnerId !== undefined) {
     record.pairingOwnerId = stringField("pairingOwnerId");

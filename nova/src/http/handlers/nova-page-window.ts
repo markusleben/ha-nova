@@ -44,10 +44,11 @@ export function windowRow(d: DeviceRecord, users: HaAuthUser[], viewer: { isOwne
 // sits at; turning it on turns the window off, and a linked phone ends it.
 export function codeRow(d: DeviceRecord, users: HaAuthUser[], viewer: { isOwner: boolean; userId: string }, t: PageTexts, form: (action: WindowAction, deviceId: string, label: string) => string): string {
   const on = codeState({ kind: "device", deviceId: d.deviceId }, d).mode === "on" && users.some((u) => u.id === d.codeConfirm?.userId && isOwner(u));
-  if (!on && (!viewer.isOwner || d.confirmPhone !== undefined || windowBlocked(d, viewer.userId, true) !== null)) return "";
+  const kept = d.codeConfirm !== undefined; // a stored choice, effective or not, can always be turned off
+  if (!on && !kept && (!viewer.isOwner || d.confirmPhone !== undefined || windowBlocked(d, viewer.userId, true) !== null)) return "";
   const line = on ? `<span class="muted meta">${t.say("page.code_on")}</span>` : "";
   if (!viewer.isOwner) return line;
-  return `${line}<span class="actions">${form(on ? "code_off" : "code_on", d.deviceId, t.say(on ? "page.code_turn_off" : "page.code_turn_on"))}</span>${on ? "" : `<span class="muted meta">${t.say("page.code_warning")}</span>`}`;
+  return `${line}<span class="actions">${form(kept ? "code_off" : "code_on", d.deviceId, t.say(kept ? "page.code_turn_off" : "page.code_turn_on"))}</span>${kept ? "" : `<span class="muted meta">${t.say("page.code_warning")}</span>`}`;
 }
 
 export function recentWindowSection(entries: WindowLogEntry[], t: PageTexts): string {

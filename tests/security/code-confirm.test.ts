@@ -95,7 +95,7 @@ describe("the owner's chat-code choice", () => {
     const { registry, deviceId } = pair();
     registry.setCodeConfirm(deviceId, "owner", 4);
     const file = join(dir, DEVICE_REGISTRY_FILE);
-    for (const [field, bad] of [["codeConfirm", { userId: "", atMs: 1 }], ["codeConfirm", "on"], ["confirmRev", -1], ["confirmRev", 1.5]] as const) {
+    for (const [field, bad] of [["codeConfirm", { userId: "", atMs: 1 }], ["codeConfirm", "on"], ["confirmRev", -1], ["confirmRev", 1.5], ["confirmRev", undefined], ["windowConfirm", true]] as const) {
       const data = JSON.parse(readFileSync(file, "utf8")) as { devices: Record<string, unknown>[] };
       const saved = data.devices[0]![field];
       data.devices[0]![field] = bad;
@@ -136,6 +136,9 @@ describe("the NOVA page's chat-code line", () => {
     expect(codeRow(on, [OWNER], owner, words, button)).toBe("<span class=\"muted meta\">‹page.code_on›</span><span class=\"actions\">[code_off:pi:‹page.code_turn_off›]</span>");
     expect(codeRow(on, [OWNER], { isOwner: false, userId: "anna" }, words, button)).toBe("<span class=\"muted meta\">‹page.code_on›</span>");
     expect(codeRow({ ...base, confirmPhone: link }, [OWNER], owner, words, button)).toBe("");
+    for (const kept of [{ ...on, confirmPhone: link }, { ...on, codeConfirm: { userId: "former-owner", atMs: 1 } }]) { // a stored choice that doesn't apply now
+      expect(codeRow(kept, [OWNER], owner, words, button)).toBe('<span class="actions">[code_off:pi:‹page.code_turn_off›]</span>');
+    }
     expect(codeRow({ ...base, credentialStore: "keychain" }, [OWNER], owner, words, button)).toBe("");
   });
 

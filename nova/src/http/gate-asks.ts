@@ -39,6 +39,7 @@ export interface GateAsksDeps {
   setLink?: (principal: Principal, link: PhoneLink, current: PhoneLink | undefined) => boolean;
   linkable?: (principal: Principal) => boolean; // whose link setLink keeps (default: a device's)
   window?: (principal: Principal) => Promise<boolean>;
+  windowNow?: (principal: Principal) => boolean; // the record still lets its window confirm, read with no wait before a grant
   windowOff?: (principal: Principal) => boolean;
   code?: (principal: Principal) => { mode: CodeMode; rev: number; userId: string }; // its chat code, read fresh (window-confirm.ts)
   codeOwner?: (userId: string) => Promise<boolean>; // still the owner; throws when unread
@@ -317,7 +318,7 @@ export function createGateAsks(deps: GateAsksDeps): GateAsks {
           throw new HttpError(503, "GATE_UNAVAILABLE", "The Home Assistant owner could not be checked; nothing was approved");
         }
         const fresh = viaCode ? deps.code?.(principal) : undefined; // no wait from here to the grant
-        if (!allowed || viaCode && (fresh?.mode !== "on" || fresh.rev !== code!.rev || fresh.userId !== code!.userId)) {
+        if (!allowed || (viaCode ? fresh?.mode !== "on" || fresh.rev !== code!.rev || fresh.userId !== code!.userId : deps.windowNow?.(principal) === false)) {
           throw new HttpError(409, off, viaCode ? "This computer no longer confirms with a chat code; nothing was approved" : "This computer cannot confirm in its window; use your phone or the NOVA page");
         }
         if (grant(ask, true)) {

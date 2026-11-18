@@ -26,7 +26,7 @@ import {
   type DeviceRegistry,
 } from "../security/device-registry.js";
 import { opaqueReady } from "../security/opaque-server.js";
-import { checkWindowConfirm, codeOwner, codeState } from "../security/window-confirm.js";
+import { checkWindowConfirm, codeOwner, codeState, windowStatus } from "../security/window-confirm.js";
 import type { Principal } from "../security/principal.js";
 import { createFileResponseStore } from "../security/pairing-response-store.js";
 import { createPairingV1Manager } from "../security/pairing-v1.js";
@@ -316,6 +316,7 @@ function buildFunctionalHandlers(
     setLink: setPhoneLinkOf(registry),
     window: async (p) => (await checkWindowConfirm(p, registry, () => input.wsClient.sendMessage({ type: "config/auth/list" }))).window,
     windowOff: (p) => p.kind === "device" && registry.disableWindowConfirm(p.deviceId),
+    windowNow: (p) => windowStatus(p, p.kind === "device" ? registry.list().find((d) => d.deviceId === p.deviceId) : undefined).window,
     code: (p) => codeState(p, p.kind === "device" ? registry.list().find((d) => d.deviceId === p.deviceId) : undefined),
     codeOwner: (userId) => codeOwner(userId, () => input.wsClient.sendMessage({ type: "config/auth/list" })),
     legacyCleanupComplete: (p) => p.kind === "device" && registry.completeLegacyCleanup(p.deviceId),
@@ -350,7 +351,7 @@ function buildFunctionalHandlers(
     ),
   };
   return { functional, page: { ...asks, texts: pageTexts((name) => worker.texts(name), input.now, input.logger), recent: windowLog.list,
-    devices: () => registry.list().filter((d) => d.state === "active").map((d) => d.deviceId) } };
+    devices: () => registry.list().filter((d) => d.state === "active").map((d) => `${d.deviceId}:${d.confirmRev ?? 0}`) } };
 }
 
 async function listen(server: Server, port: number): Promise<void> {

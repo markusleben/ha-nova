@@ -160,6 +160,14 @@ describe("the chat code on an ask", () => {
     expect((await s.op(ask_id, "wait")).state).toBe("cancelled");
   });
 
+  it("a window approval doesn't land once the record no longer lets the window confirm", async () => {
+    let windowNow = true;
+    const s = setup({ window: async () => { windowNow = false; return true; }, windowNow: () => windowNow }); // switched to the code meanwhile
+    const { ask_id } = await s.open(false);
+    await expect(s.op(ask_id, "window")).rejects.toMatchObject({ status: 409, code: "GATE_WINDOW_OFF" });
+    expect(s.asks.waiting()).toHaveLength(1);
+  });
+
   it("never draws one for the shared token or the App's own connections", async () => {
     const s = setup();
     expect(await s.open(true, { kind: "shared" })).not.toHaveProperty("code");
