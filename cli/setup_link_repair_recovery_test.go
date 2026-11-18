@@ -129,6 +129,8 @@ func TestCloudRemoveForTheRePairKeepsItsCheckpoint(t *testing.T) {
 		key, _, _ := readCredentialSlot(deviceCredentialServiceForProfile(remoteOnlyCloudTestProfile))
 		switch {
 		case mode == "re-pair" && (code != 0 || after.Cloud != nil || !kept || revoked != 0 || key != credential),
+			mode == "re-pair" && strings.Contains(output, "Link access was removed"), // setup says what its re-pair did, once done
+			mode == "cloud remove" && !strings.Contains(output, "Link access was removed"),
 			mode == "cloud remove" && revoked != 1,
 			mode == "changed meanwhile" && (code == 0 || after.Cloud == nil || !kept),
 			mode == "cloud remove" && (code != 0 || after.Cloud != nil || after.LinkRePair != "" || after.LinkRePairOrigin != ""):
@@ -203,7 +205,7 @@ func TestLinkRePairAwaySaysConnectedFirstAndTheCleanupLast(t *testing.T) {
 	f = newRelinkFixture(t, defaultServerProfileName, false, relinkHybridConfig(t))
 	legacyCleanupReport = func(runtimePaths, runtimeConfig) error { return errors.New("denied") }
 	code, output := f.run("\n")
-	incomplete := strings.Index(output, setupT("setup.cleanup.incomplete", "command", "ha-nova setup"))
+	incomplete := strings.Index(output, setupT("setup.cleanup.incomplete", "reason", "the NOVA App didn't record it (denied)", "command", "ha-nova setup"))
 	if code != 0 || incomplete < strings.Index(output, setupT("setup.relink.connected")) || strings.Contains(output, "fast local route") {
 		t.Fatalf("cleanup incomplete: its retry is the only next step:\n%s", output)
 	}

@@ -383,7 +383,7 @@ func TestLinkRePairAtHomeFailsClosedWithOneStep(t *testing.T) {
 		f := newRelinkFixture(t, defaultServerProfileName, true, relinkHybridConfig(t))
 		legacyCleanupReport = func(runtimePaths, runtimeConfig) error { return errors.New("denied") }
 		code, output := f.run("\n")
-		if code != 0 || !f.config().Cloud.ready() || !strings.Contains(output, setupT("setup.cleanup.incomplete", "command", "ha-nova setup")) {
+		if code != 0 || !f.config().Cloud.ready() || !strings.Contains(output, setupT("setup.cleanup.incomplete", "reason", "the NOVA App didn't record it (denied)", "command", "ha-nova setup")) {
 			t.Fatalf("code %d\n%s", code, output)
 		}
 	})
