@@ -190,8 +190,9 @@ func runUpdate(paths runtimePaths, args []string) int {
 	// The freshly installed version.json may raise min_relay_version, and Home
 	// Assistant may expose a newer compatible App update. The update moment is
 	// where the user can still act instead of being interrupted later.
-	offerRelayUpdateAfterInstall(paths, targetVersion)
+	// The session step first: what the App half says (an update, a re-pair) ends the output.
 	printPostUpdateSessionInstruction(syncResult)
+	offerRelayUpdateAfterInstall(paths, targetVersion)
 	return 0
 }
 
@@ -322,10 +323,10 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 	// "Already have" is misleading while the relay is below the required floor
 	// or Home Assistant exposes a newer App update — say so where the user is
 	// looking.
-	offerRelayUpdateAfterUpdate(paths)
 	if unverified && syncResult.FullySynced || claudeOlder { // else nothing new went in: no "start a new chat" step
 		printPostUpdateSessionInstruction(syncResult)
 	}
+	offerRelayUpdateAfterUpdate(paths)
 	return 0
 }
 

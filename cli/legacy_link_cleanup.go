@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"time"
+
+	"golang.org/x/term"
 )
 
 // A Mac updated from 0.31 keeps its Home Assistant Link sign-ins in the old
@@ -47,52 +50,57 @@ var (
 	legacyCleanupBackend       = newNativeOAuthSecretBackend
 	legacyLinkRevoke           = revokeAndVerifyCloudAuthorization
 	legacyCleanupPending       = legacyCleanupPendingOnApp
-	legacyCleanupPromptContext = platformNativeSecretPromptContextAvailable
+	legacyCleanupPromptContext = legacyCleanupPromptContextAvailable
 	legacyCleanupReport        = reportLegacyCleanupComplete
 )
 
 // finishLegacyLinkCleanup signs this profile's old version out of Home
 // Assistant and reports it. Only a person-started setup passes prompt;
 // intro runs once, right before macOS first asks. revoked counts the old
-// sign-ins verified revoked in this run.
-func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool, intro func()) (outcome legacyCleanupOutcome, revoked int) {
+// sign-ins verified revoked in this run; cause says why an incomplete run
+// stopped.
+func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool, intro func()) (outcome legacyCleanupOutcome, revoked int, cause error) {
 	if !legacyCleanupApplies() {
-		return legacyCleanupNotNeeded, 0
+		return legacyCleanupNotNeeded, 0, nil
 	}
-	prompt = prompt && legacyCleanupPromptContext() // never over SSH or without a desktop session
+	desktop := legacyCleanupPromptContext() // never over SSH or without a desktop session
 	pending, err := legacyCleanupPending(paths, cfg)
 	if err != nil {
-		return legacyCleanupIncomplete, 0
+		return legacyCleanupIncomplete, 0, fmt.Errorf("the NOVA App's answer couldn't be read (%w)", err)
 	}
 	if !pending {
-		return legacyCleanupNotNeeded, 0
+		return legacyCleanupNotNeeded, 0, nil
 	}
 	if cfg.ProfileID != "" { // Link stored its sign-ins under the profile's id, never its name
 		backend, err := legacyCleanupBackend()
 		if err != nil {
-			return legacyCleanupIncomplete, 0
+			return legacyCleanupIncomplete, 0, fmt.Errorf("this Mac's Keychain couldn't be opened (%w)", err)
 		}
 		for _, service := range legacyLinkServices {
-			envelope, found, err := recoverLegacyLinkGrant(paths, backend, service, cfg.ProfileID, prompt, &intro)
-			if err != nil {
-				return legacyCleanupIncomplete, revoked
-			}
-			if !found {
+			envelope, found, err := recoverLegacyLinkGrant(paths, backend, service, cfg.ProfileID, prompt && desktop, &intro)
+			switch {
+			case err != nil && prompt && !desktop:
+				return legacyCleanupIncomplete, revoked, fmt.Errorf("macOS asks for the old sign-in only in a terminal on this Mac's own desktop, not over SSH (%w)", err)
+			case IsCloudErrorCode(err, CloudErrSecretPromptCanceled):
+				return legacyCleanupIncomplete, revoked, errors.New("the macOS password prompt was canceled")
+			case err != nil:
+				return legacyCleanupIncomplete, revoked, fmt.Errorf("macOS didn't hand over the old sign-in (%w)", err)
+			case !found:
 				continue
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), legacyCleanupRevokeTimeout)
 			err = legacyLinkRevoke(ctx, envelope)
 			cancel()
 			if err != nil {
-				return legacyCleanupIncomplete, revoked
+				return legacyCleanupIncomplete, revoked, fmt.Errorf("Home Assistant didn't confirm the old sign-in is signed out (%w)", err)
 			}
 			revoked++
 		}
 	}
-	if legacyCleanupReport(paths, cfg) != nil {
-		return legacyCleanupIncomplete, revoked
+	if err := legacyCleanupReport(paths, cfg); err != nil {
+		return legacyCleanupIncomplete, revoked, fmt.Errorf("the NOVA App didn't record it (%w)", err)
 	}
-	return legacyCleanupComplete, revoked
+	return legacyCleanupComplete, revoked, nil
 }
 
 // recoverLegacyLinkGrant returns the old sign-in held under service: the
@@ -108,7 +116,10 @@ func recoverLegacyLinkGrant(paths runtimePaths, backend OAuthSecretBackend, serv
 		return envelope, found, errors.Join(err, decodeErr)
 	}
 	value, found, err = legacyLinkSecretRead(ctx, service, account, SecretStoreForbidUI)
-	if IsCloudErrorCode(err, CloudErrSecretUIForbidden) && prompt {
+	// macOS answers an item the old version's signature owns with a refusal,
+	// whatever its code (not only "interaction not allowed"): in a person's
+	// setup, the one prompt follows.
+	if err != nil && prompt {
 		if *intro != nil {
 			(*intro)()
 			*intro = nil
@@ -130,6 +141,13 @@ func recoverLegacyLinkGrant(paths runtimePaths, backend OAuthSecretBackend, serv
 
 // readLegacyLinkSecret reads one 0.31 Link item by its own name through the
 // native secret worker (macOS only).
+// legacyCleanupPromptContextAvailable: macOS may ask only a person at a
+// terminal on this Mac's own desktop (never an agent's or a script's run,
+// whose input is no terminal, nor over SSH).
+func legacyCleanupPromptContextAvailable() bool {
+	return term.IsTerminal(int(os.Stdin.Fd())) && platformNativeSecretPromptContextAvailable()
+}
+
 func readLegacyLinkSecret(ctx context.Context, service, account string, ui SecretStoreUIPolicy) (string, bool, error) {
 	operationCtx, cancel := boundedNativeOAuthSecretContext(ctx, ui)
 	defer cancel()
@@ -163,24 +181,32 @@ var legacyCleanupSession = func(paths runtimePaths, cfg runtimeConfig) (*relaySe
 // without the window contract, and the old shared token have nothing the
 // cleanup would turn on, so setup asks nothing there.
 func legacyCleanupPendingOnApp(paths runtimePaths, cfg runtimeConfig) (bool, error) {
+	why, err := appWindowWhy(paths, cfg)
+	return why == "legacy_cleanup_pending", err
+}
+
+// appWindowWhy: why the NOVA App keeps this paired computer's window off, as
+// /gate/v1/me says ("" for a shared-token install or an App without the
+// window contract). An answer that can't be read is an error, never a reason.
+func appWindowWhy(paths runtimePaths, cfg runtimeConfig) (string, error) {
 	s, err := legacyCleanupSession(paths, cfg)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	defer s.close()
 	if !s.transport.DeviceMode {
-		return false, nil
+		return "", nil
 	}
 	on, window, err := s.readGate()
 	if err != nil || !on || !window {
-		return false, err
+		return "", err
 	}
 	s.gate = &relayGate{checked: true, on: true, window: true}
 	why := s.readGateMe().why
 	if why == "" {
-		return false, errors.New("the NOVA App's window state can't be read")
+		return "", errors.New("the NOVA App's window state can't be read")
 	}
-	return why == "legacy_cleanup_pending", nil
+	return why, nil
 }
 
 func reportLegacyCleanupComplete(paths runtimePaths, cfg runtimeConfig) error {
@@ -206,12 +232,12 @@ func reportLegacyCleanupComplete(paths runtimePaths, cfg runtimeConfig) error {
 // setup ends on: what it did, or the retry when it couldn't finish (empty:
 // nothing to say).
 func legacyLinkCleanupInSetup(show func(setupBlock), paths runtimePaths, cfg runtimeConfig, prompt bool) setupMsg {
-	outcome, revoked := finishLegacyLinkCleanup(paths, cfg, prompt, func() {
+	outcome, revoked, cause := finishLegacyLinkCleanup(paths, cfg, prompt, func() {
 		show(setupParagraph(setupText("setup.cleanup.intro")))
 	})
 	switch {
 	case outcome == legacyCleanupIncomplete:
-		return setupText("setup.cleanup.incomplete", "command", gateCleanupCommand(cfg.profileName()))
+		return setupText("setup.cleanup.incomplete", "reason", cause.Error(), "command", gateCleanupCommand(cfg.profileName()))
 	case outcome == legacyCleanupComplete && revoked > 0:
 		return setupText("setup.cleanup.done")
 	}
@@ -219,10 +245,10 @@ func legacyLinkCleanupInSetup(show func(setupBlock), paths runtimePaths, cfg run
 }
 
 // printLegacyLinkCleanup: the same for the terminal-only setup paths.
-func printLegacyLinkCleanup(out io.Writer, paths runtimePaths, cfg runtimeConfig, prompt bool) string {
+func printLegacyLinkCleanup(out io.Writer, paths runtimePaths, cfg runtimeConfig, prompt bool) setupMsg {
 	return legacyLinkCleanupInSetup(func(b setupBlock) {
 		for _, line := range b.Lines {
 			fmt.Fprintln(out, "  "+line.plain())
 		}
-	}, paths, cfg, prompt).plain()
+	}, paths, cfg, prompt)
 }

@@ -157,7 +157,7 @@ func (f *setupFlow) legacyCleanup() {
 	f.page.setRow("connect", "ok", setupPageText("setup.page.row.connect"))
 	note := setupPageText("setup.cleanup.done")
 	if f.cleanupNote.Key == "setup.cleanup.incomplete" {
-		note = setupPageText("setup.cleanup.incomplete", "command", gateCleanupCommand(f.cfg.profileName()))
+		note = setupPageText("setup.cleanup.incomplete", "reason", f.cleanupNote.Args[1], "command", f.cleanupNote.Args[3]) // legacyLinkCleanupInSetup's order
 	}
 	f.pageNotes = append(f.pageNotes, note)
 }

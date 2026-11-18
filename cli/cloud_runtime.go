@@ -71,6 +71,9 @@ func resolveCloudRelayTransport(
 		return relayTransportSelection{}, err
 	}
 	if !exists {
+		if linkRePairOffered(cfg) { // a Mac after the 0.32 update: setup pairs again (setup_link_repair.go)
+			return relayTransportSelection{}, deviceNeedsRePair(cfg.profileName(), true)
+		}
 		return relayTransportSelection{}, newCloudError(
 			CloudErrSecretNotFound,
 			"load Cloud authorization",
@@ -123,6 +126,9 @@ func resolveCloudRelayTransport(
 		return relayTransportSelection{}, err
 	}
 	if !exists {
+		if linkRePairOffered(cfg) {
+			return relayTransportSelection{}, deviceNeedsRePair(cfg.profileName(), true)
+		}
 		return relayTransportSelection{}, newCloudError(
 			CloudErrDeviceRejected,
 			"load Cloud device credential",

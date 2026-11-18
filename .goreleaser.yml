@@ -69,7 +69,7 @@ release:
     ```
 
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`; if it reports that it needs admin rights, rerun the stable Windows install command instead.
-    {{ else }}**Update the NOVA App to 0.13.28.** Much of this release runs in the App, so update it and HA NOVA on every computer together. Claude and ChatGPT get this release's changes through the App.
+    {{ else }}**Update the NOVA App to 0.13.29.** Much of this release runs in the App, so update it and HA NOVA on every computer together. Claude and ChatGPT get this release's changes through the App.
 
     - In Home Assistant: Settings > Apps > NOVA Relay > Update.
     - No Update button yet? In Home Assistant: Settings > ⋮ (top right) > Check for updates. Or, at home, run `ha-nova doctor`: it does that for you and offers the update.
@@ -78,7 +78,7 @@ release:
 
     ## New Features
 
-    - **On macOS, 0.32 asks you to pair this computer again once.** It's one Home Assistant sign-in, about a minute. Run `ha-nova setup` when HA NOVA says so.
+    - **On macOS, 0.32 asks you to pair this computer again once.** It's one Home Assistant sign-in, about a minute (with Home Assistant Link at home, a second one for Link). Run `ha-nova setup` when HA NOVA says so.
     - **Confirm risky changes with one click on your own computer.** Unlocks, doors, gates, the alarm, and deletes ask in a window there, and your phone asks only when nobody confirms. Setup asks once (Enter is yes).
     - **Fewer asks in a home with a cover watchdog.** A light no longer asks when the watchdog acts right away (no delay or wait) and none of the covers it could move is a garage door, gate, or door.
     - **A dashboard, automation, or script you delete from your computer asks once**, in the window, on your phone, or on the NOVA page.

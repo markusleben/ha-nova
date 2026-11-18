@@ -125,6 +125,7 @@ var credentialReaderCallers = map[string]string{
 	"setup_flow_credentials.go:checkTokenStorage":                                       "sends",
 	"setup_flow_credentials.go:prepareCredentials":                                      "sends",
 	"setup_interactive.go:readRelayAuthTokenForSetup":                                   "reader",
+	"setup_link_repair.go:linkCredentialsPresent":                                       "local",
 	"setup_service_credentials.go:disableServiceRelayTokenFile":                         "local",
 	"setup_state.go:detectSetupState":                                                   "local",
 	"uninstall_device.go:deviceCredentialExistsForUninstall":                            "local",

@@ -169,7 +169,7 @@ func TestRunDoctorReportsActiveDriftButDoesNotFailInactiveArtifacts(t *testing.T
 	if !strings.Contains(output, "Hermes Agent still uses HA NOVA files from an update that didn't finish") {
 		t.Fatalf("expected active drift warning:\n%s", output)
 	}
-	if !strings.Contains(output, "To fix: run `ha-nova setup hermes`.") {
+	if !strings.Contains(output, "Next step: run `ha-nova setup hermes`.") {
 		t.Fatalf("expected repair hint:\n%s", output)
 	}
 	if !strings.Contains(output, "Ignoring an old, unused HA NOVA file:") {

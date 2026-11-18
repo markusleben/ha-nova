@@ -145,7 +145,7 @@ func TestUpdateOfferNamesTheRePairWhenThePairedKeyIsGone(t *testing.T) {
 	t.Cleanup(func() { relayUpdateNoticeForUpdate = saved })
 	relayUpdateNoticeForUpdate = func(context.Context, runtimePaths) humanNotice { checked = true; return humanNotice{} }
 	_, output := captureCommandOutput(t, func() int { offerRelayUpdateAfterUpdate(paths); return 0 })
-	if checked || !strings.Contains(output, "This computer needs to be paired again") || !strings.Contains(output, "run: ha-nova setup --server home") {
+	if checked || !strings.HasSuffix(strings.TrimSpace(output), "Next step: run ha-nova setup --server home to pair this computer again (one Home Assistant sign-in, about a minute).") {
 		t.Fatalf("checked=%v output:\n%s", checked, output)
 	}
 }
@@ -156,7 +156,7 @@ func TestNamedProfileWithoutItsKeyIsToldToPairAgainBySignIn(t *testing.T) {
 	paths := setupServerCommandTest(t, predecessorConfig(true))
 	setServerSelectionOverride("home")
 	_, output := captureCommandOutput(t, func() int { return runDoctor(paths, []string{"--quiet"}) })
-	if !strings.Contains(output, "run ha-nova setup --server home.") || strings.Contains(output, "pair --server") {
+	if !strings.Contains(output, "run ha-nova setup --server home to pair this computer again") || strings.Contains(output, "pair --server") {
 		t.Fatalf("doctor:\n%s", output)
 	}
 	_, err := newRelaySession(paths, verbOptions{})

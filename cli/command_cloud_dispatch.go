@@ -16,7 +16,8 @@ type cloudCommandFlags struct {
 	yes                        bool
 	remoteResume               bool
 	confirmRemoteAccessRevoked string
-	confirmed                  bool // remove: a person already chose it in setup; never a flag
+	confirmed                  bool     // remove: a person already chose it in setup; never a flag
+	rePairLifecycle            [][]byte // remove: setup's Link re-pair (setup_link_repair.go); never a flag
 }
 
 func runCloudCommand(paths runtimePaths, args []string) int {
