@@ -121,16 +121,20 @@ echo ""
 # window confirmation log (/data/gate/window-log.json) raise it to 14400: about 14380.
 # Retiring a named profile's older entry on its owner-confirmed re-pair (the arm's
 # previous answer, retire_device_id, one activation filter) raises it to 14410: 14408.
+# The owner-chosen chat code for a computer nobody sits at (MAR-244, approved by the
+# Captain for this contract only: consent record bound to the owner with a revision,
+# exclusive with the window, eligibility, the code on the ask and op code, /gate/v1/me
+# phone and code, /health code) raises it to 14530: about 14510.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 14410 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–14410 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 14530 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–14530 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–14410 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–14530 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──

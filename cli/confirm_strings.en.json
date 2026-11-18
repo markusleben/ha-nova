@@ -94,6 +94,11 @@
   "page.window_turn_on": "Turn on",
   "page.window_turn_off": "Turn off",
   "page.window_recent": "Recent window confirmations",
+  "page.code_on": "Confirms with a four-digit code in the AI chat. Turning it off ends waiting code asks; a step already confirmed still runs within 2 minutes.",
+  "page.code_turn_on": "Confirm with a chat code instead",
+  "page.code_turn_off": "Turn off the chat code",
+  "page.code_warning": "For a computer nobody sits at. The code appears in your AI chat, so the assistant sees it too: HA NOVA can't tell whether you typed it, the assistant did, or another program using this computer's key. Use a private chat only you can write in. A linked phone is safer.",
+  "page.code_recent": "with a chat code",
 
   "say.about": "I'm about to {action}.",
   "say.nothing_found": "Not done: I couldn't find what you named. Nothing changed. Tell me which devices you mean.",

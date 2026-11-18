@@ -171,6 +171,17 @@ function validateDevice(value: unknown): DeviceRecord {
     }
     record.ownComputer = { userId: own.userId, atMs: own.atMs };
   }
+  if (raw.codeConfirm !== undefined) {
+    const code = raw.codeConfirm as Record<string, unknown> | null;
+    if (typeof code !== "object" || code === null || typeof code.userId !== "string" || !isValidCloudUserId(code.userId) || typeof code.atMs !== "number" || !Number.isFinite(code.atMs)) {
+      throw new RegistryCorruptError("device.codeConfirm is invalid");
+    }
+    record.codeConfirm = { userId: code.userId, atMs: code.atMs };
+  }
+  if (raw.confirmRev !== undefined) {
+    if (!Number.isSafeInteger(raw.confirmRev) || (raw.confirmRev as number) < 0) throw new RegistryCorruptError("device.confirmRev is invalid");
+    record.confirmRev = raw.confirmRev as number;
+  }
   if (raw.windowConfirm !== undefined) {
     if (typeof raw.windowConfirm !== "boolean") {
       throw new RegistryCorruptError("device.windowConfirm is invalid");

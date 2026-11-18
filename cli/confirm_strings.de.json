@@ -94,6 +94,11 @@
   "page.window_turn_on": "Einschalten",
   "page.window_turn_off": "Ausschalten",
   "page.window_recent": "Letzte Bestätigungen im Fenster",
+  "page.code_on": "Bestätigt mit einem vierstelligen Code im KI-Chat. Ausschalten beendet wartende Code-Anfragen; ein schon bestätigter Schritt läuft noch innerhalb von 2 Minuten.",
+  "page.code_turn_on": "Stattdessen mit Chat-Code bestätigen",
+  "page.code_turn_off": "Chat-Code ausschalten",
+  "page.code_warning": "Für einen Computer, an dem niemand sitzt. Der Code erscheint in deinem KI-Chat, also sieht ihn auch der Assistent: HA NOVA kann nicht erkennen, ob du ihn eingegeben hast, der Assistent oder ein anderes Programm, das den Schlüssel dieses Computers nutzt. Nutze einen privaten Chat, in dem nur du schreiben kannst. Ein verbundenes Handy ist sicherer.",
+  "page.code_recent": "mit einem Chat-Code",
 
   "say.about": "Ich werde gleich {action}.",
   "say.nothing_found": "Nicht erledigt: Ich habe nicht gefunden, was du genannt hast. Es wurde nichts geändert. Sag mir, welche Geräte du meinst.",
