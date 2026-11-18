@@ -17,6 +17,7 @@ type legacyCleanupFixture struct {
 	revoked  []string          // refresh tokens, in order
 	reported int
 	events   []string
+	cause    error // why the last run stopped
 }
 
 func newLegacyCleanupFixture(t *testing.T) *legacyCleanupFixture {
@@ -69,7 +70,8 @@ func legacyTestEnvelope(state OAuthSecretState, account, token string) string {
 
 func (f *legacyCleanupFixture) run(prompt bool) (legacyCleanupOutcome, int, int) {
 	intros := 0
-	outcome, revoked := finishLegacyLinkCleanup(runtimePaths{}, runtimeConfig{ProfileID: "default"}, prompt, func() { intros++ })
+	outcome, revoked, cause := finishLegacyLinkCleanup(runtimePaths{}, runtimeConfig{ProfileID: "default"}, prompt, func() { intros++ })
+	f.cause = cause
 	return outcome, revoked, intros
 }
 
@@ -105,7 +107,7 @@ func TestLegacyLinkCleanupReportsAProfileWithoutOldSignInsWithoutAsking(t *testi
 		t.Fatalf("reads %v, want the three old Link items", f.reads)
 	}
 	f.reads = nil
-	if outcome, _ := finishLegacyLinkCleanup(runtimePaths{}, runtimeConfig{}, false, nil); outcome != legacyCleanupComplete || len(f.reads) != 0 {
+	if outcome, _, _ := finishLegacyLinkCleanup(runtimePaths{}, runtimeConfig{}, false, nil); outcome != legacyCleanupComplete || len(f.reads) != 0 {
 		t.Fatalf("a profile that never had Link: outcome %d, reads %v", outcome, f.reads)
 	}
 }
@@ -254,9 +256,74 @@ func TestLegacyLinkCleanupTellsTheRetry(t *testing.T) {
 	newLegacyCleanupFixture(t)
 	legacyCleanupReport = func(runtimePaths, runtimeConfig) error { return errors.New("offline") }
 	var out strings.Builder
-	note := printLegacyLinkCleanup(&out, runtimePaths{}, runtimeConfig{ProfileID: "default"}, true)
-	if out.Len() != 0 || !strings.Contains(note, "run: ha-nova setup") || !strings.Contains(note, "Everything else works") {
+	note := printLegacyLinkCleanup(&out, runtimePaths{}, runtimeConfig{ProfileID: "default"}, true).plain()
+	if out.Len() != 0 || !strings.Contains(note, "run: ha-nova setup") || !strings.Contains(note, "Everything else works") ||
+		!strings.Contains(note, "What stopped it: the NOVA App didn't record it (offline).") {
 		t.Fatalf("printed %q, closing line %q", out.String(), note)
+	}
+}
+
+// macOS refuses the old version's item without a prompt by more than one
+// code (errSecAuthFailed maps to a locked store): in a person's setup, the
+// one prompt follows any refusal, after the introduction (rc4 on a real Mac
+// stopped silently here).
+func TestLegacyLinkCleanupAsksAfterAnyRefusalWithoutUI(t *testing.T) {
+	for _, refusal := range []CloudErrorCode{CloudErrSecretStoreLocked, CloudErrTimeout, CloudErrSecretStore, CloudErrSecretUIForbidden} {
+		f := newLegacyCleanupFixture(t)
+		f.legacy[oauthSecretCurrentService] = legacyTestEnvelope(OAuthSecretCurrent, "default", "old-current")
+		read := legacyLinkSecretRead
+		legacyLinkSecretRead = func(ctx context.Context, service, account string, ui SecretStoreUIPolicy) (string, bool, error) {
+			if ui == SecretStoreForbidUI && f.legacy[service] != "" {
+				f.reads = append(f.reads, string(ui)+":"+service)
+				return "", false, newCloudError(refusal, "read", nil)
+			}
+			return read(ctx, service, account, ui)
+		}
+		outcome, revoked, intros := f.run(true)
+		if outcome != legacyCleanupComplete || revoked != 1 || intros != 1 || f.reported != 1 {
+			t.Fatalf("%s: outcome %d, revoked %d, intros %d, reported %d, reads %v", refusal, outcome, revoked, intros, f.reported, f.reads)
+		}
+		if outcome, _, intros := f.runFresh(t, refusal, false); outcome != legacyCleanupIncomplete || intros != 0 ||
+			!strings.Contains(f.cause.Error(), "macOS didn't hand over the old sign-in") {
+			t.Fatalf("%s outside setup: outcome %d, intros %d, cause %v", refusal, outcome, intros, f.cause)
+		}
+	}
+}
+
+// runFresh: a new run on the same fixture whose old item macOS refuses with code.
+func (f *legacyCleanupFixture) runFresh(t *testing.T, code CloudErrorCode, prompt bool) (legacyCleanupOutcome, int, int) {
+	t.Helper()
+	_ = f.backend.Delete(context.Background(), oauthLegacyCleanupServicePrefix+string(OAuthSecretCurrent), "default", SecretStoreForbidUI)
+	legacyLinkSecretRead = func(context.Context, string, string, SecretStoreUIPolicy) (string, bool, error) {
+		return "", false, newCloudError(code, "read", nil)
+	}
+	return f.run(prompt)
+}
+
+// Every incomplete run names what stopped it.
+func TestLegacyLinkCleanupNamesWhatStoppedIt(t *testing.T) {
+	cases := map[string]struct {
+		setup func(*legacyCleanupFixture)
+		want  string
+	}{
+		"App answer": {func(*legacyCleanupFixture) {
+			legacyCleanupPending = func(runtimePaths, runtimeConfig) (bool, error) { return false, errors.New("timeout") }
+		}, "the NOVA App's answer couldn't be read (timeout)"},
+		"no desktop": {func(f *legacyCleanupFixture) {
+			f.legacy[oauthSecretCurrentService], f.locked = legacyTestEnvelope(OAuthSecretCurrent, "default", "old"), true
+			legacyCleanupPromptContext = func() bool { return false }
+		}, "only in a terminal on this Mac's own desktop"},
+		"revocation": {func(f *legacyCleanupFixture) {
+			f.legacy[oauthSecretCurrentService] = legacyTestEnvelope(OAuthSecretCurrent, "default", "old")
+			legacyLinkRevoke = func(context.Context, OAuthSecretEnvelope) error { return errors.New("offline") }
+		}, "Home Assistant didn't confirm the old sign-in is signed out (offline)"},
+	}
+	for name, c := range cases {
+		f := newLegacyCleanupFixture(t)
+		c.setup(f)
+		if outcome, _, _ := f.run(true); outcome != legacyCleanupIncomplete || f.cause == nil || !strings.Contains(f.cause.Error(), c.want) {
+			t.Fatalf("%s: outcome %d, cause %v", name, outcome, f.cause)
+		}
 	}
 }
 

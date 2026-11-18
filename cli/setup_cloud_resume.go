@@ -253,7 +253,7 @@ func finishInteractiveCloudOnlySetup(
 	}
 	note := ""
 	if cfg, err := loadRuntimeConfig(paths); err == nil { // Link-only Mac: the cleanup ends setup here too
-		note = printLegacyLinkCleanup(out, paths, cfg, isInteractiveTTY() && writerSupportsTTYForSetup(out))
+		note = printLegacyLinkCleanup(out, paths, cfg, isInteractiveTTY() && writerSupportsTTYForSetup(out)).plain()
 	}
 	renderSetupCompleteBanner(out, selectedClients, nil)
 	if note != "" {

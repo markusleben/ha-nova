@@ -386,6 +386,9 @@ func runCloudRemove(paths runtimePaths, options cloudCommandFlags) int {
 		}
 		return 0
 	}
+	if options.rePairLifecycle != nil { // setup's re-pair says what it did, once it's done
+		return 0
+	}
 	removed := "Home Assistant Link access was removed."
 	if unfinishedSignInOnly {
 		removed = unfinishedSignInRemovedText

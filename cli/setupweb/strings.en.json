@@ -159,7 +159,7 @@
   "setup.verify.device_ok": "Connection works",
   "setup.cleanup.intro": "Next, macOS asks for your password so HA NOVA can sign its old version out of Home Assistant. Choose “Allow”, not “Always Allow”.",
   "setup.cleanup.done": "Signed the old HA NOVA version out of Home Assistant",
-  "setup.cleanup.incomplete": "HA NOVA couldn't finish signing its old version out of Home Assistant, so one-click confirming stays off on this computer. Everything else works. To finish, run: {command}",
+  "setup.cleanup.incomplete": "HA NOVA couldn't finish signing its old version out of Home Assistant, so one-click confirming stays off on this computer. Everything else works. What stopped it: {reason}. To finish, run: {command}",
   "setup.verify.adding_link": "HA NOVA works at home now. Next: Home Assistant Link, for when you're away.",
   "setup.verify.link_ok": "Home Assistant Link works",
 

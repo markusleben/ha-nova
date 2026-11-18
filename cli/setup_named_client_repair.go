@@ -56,7 +56,7 @@ func completeNamedProfileClientRepair(
 	printHumanInfo(
 		"Repaired client integration using the selected server profile's verified secure connection.",
 	)
-	if note := printLegacyLinkCleanup(os.Stdout, paths, cfg, isInteractiveTTY() && stdoutIsInteractiveTTY()); note != "" {
+	if note := printLegacyLinkCleanup(os.Stdout, paths, cfg, isInteractiveTTY() && stdoutIsInteractiveTTY()).plain(); note != "" {
 		printHumanInfo("%s", note)
 	}
 	return 0
