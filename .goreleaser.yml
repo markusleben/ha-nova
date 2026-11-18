@@ -95,6 +95,7 @@ release:
     - **The chat code needs the new App and HA NOVA, and works where your AI runs `ha-nova apply`.** Other routes, and a later step of the same change, ask on the phone or the NOVA page.
     - **Update the NOVA App and HA NOVA together.** HA NOVA 0.32 refuses a change it would ask for but the new App wouldn't; the old App still asks for one the new HA NOVA wouldn't. Update both, then retry.
     - **A listener HA NOVA can't name on the logbook's events no longer makes a call ask.** A logbook view is one. A custom integration or an outside script that answers device calls with calls of its own isn't followed.
+    - **A thermostat or hygrostat set up in YAML keeps calls asking.** HA NOVA can't read what it switches, so every automation that listens for service calls still counts, with or without a logbook open.
     - **A key kept in a file trusts every program running as you.** Any of them can read it, and this computer then never confirms in its window. A Mac's Keychain key is never copied into the file.
 
     ## Bug Fixes
