@@ -72,7 +72,9 @@ func TestFileKeyOfferNeedsATerminalAndAKeyStoreProblem(t *testing.T) {
 func TestKeyStoreFirstWhereTheGuardCantReachTheKeyring(t *testing.T) {
 	unreachable := fmt.Errorf("cannot inspect the pending device credential before local pairing: %w", fmt.Errorf("%w: exec dbus-launch not found", errDesktopKeyringSessionUnavailable))
 	locked := func(step func() error) error { return step() }
-	reset := func() { deviceCredentialFileModeForced, deviceCredentialFileModeExplicit = false, false }
+	reset := func() {
+		deviceCredentialFileModeForced, deviceCredentialFileModeExplicit, deviceKeyFileChosen = false, false, false
+	}
 	t.Cleanup(reset)
 	for _, c := range []struct {
 		name, profile, typed string
@@ -91,14 +93,27 @@ func TestKeyStoreFirstWhereTheGuardCantReachTheKeyring(t *testing.T) {
 			setActiveServerProfile(c.profile)
 			reset()
 			var out bytes.Buffer
-			got := keyStoreFirst(unreachable, c.explicit, bufio.NewReader(strings.NewReader(c.typed)), &out, locked, probeDeviceCredentialStorage)
+			got := keyStoreFirst(unreachable, c.explicit, bufio.NewReader(strings.NewReader(c.typed)), &out, locked, func() error { return nil }, probeDeviceCredentialStorage)
 			if got != c.want || got != deviceSecretFileBacked() {
 				t.Fatalf("switched %v (file-backed %v), want %v; out %q", got, deviceSecretFileBacked(), c.want, out.String())
 			}
 		})
 	}
 	reset()
-	if keyStoreFirst(errors.New("Home Assistant Link access is configured"), true, nil, io.Discard, locked, probeDeviceCredentialStorage) || deviceCredentialFileModeForced {
+	if keyStoreFirst(errors.New("Home Assistant Link access is configured"), true, nil, io.Discard, locked, func() error { return nil }, probeDeviceCredentialStorage) || deviceCredentialFileModeForced {
 		t.Fatal("another guard error switched the store")
+	}
+}
+
+// A switch runs only after the caller's mutation guard passes under its lock.
+func TestKeyStoreFirstHonorsTheMutationGuard(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	t.Cleanup(func() {
+		deviceCredentialFileModeForced, deviceCredentialFileModeExplicit, deviceKeyFileChosen = false, false, false
+	})
+	unreachable := fmt.Errorf("%w: exec dbus-launch not found", errDesktopKeyringSessionUnavailable)
+	var out bytes.Buffer
+	if keyStoreFirst(unreachable, true, nil, &out, func(step func() error) error { return step() }, func() error { return errors.New("a retirement is unsettled") }, probeDeviceCredentialStorage) || deviceSecretFileBacked() {
+		t.Fatalf("switched past the guard; out %q", out.String())
 	}
 }

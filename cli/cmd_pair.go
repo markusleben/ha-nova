@@ -275,7 +275,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 	}
 	guardErr := withClientMutationLock(paths, guard)
 	if keyStoreFirst(guardErr, credentialStore == "file", terminalReader(), os.Stdout,
-		func(step func() error) error { return withClientMutationLock(paths, step) },
+		func(step func() error) error { return withClientMutationLock(paths, step) }, guardPairMutation,
 		func() (deviceStorageProbe, error) { return probePairCommandDeviceStorage(SecretStoreForbidUI) }) {
 		pairCommandUI = SecretStoreForbidUI
 		guardErr = withClientMutationLock(paths, guard)
