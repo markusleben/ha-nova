@@ -27,11 +27,19 @@ var errDeviceNeedsRePair = errors.New("this computer needs to be paired again")
 // on a Mac with Home Assistant Link a second sign-in at home
 // (setup_link_repair.go).
 func deviceNeedsRePair(profile string, link bool) error {
-	effort := "one Home Assistant sign-in, about a minute"
+	return fmt.Errorf("%w (%s); run: %s", errDeviceNeedsRePair, rePairEffort(link), rePairNextStep(profile, link))
+}
+
+func rePairEffort(link bool) string {
 	if link && linkRePairApplies() {
-		effort = "one or two Home Assistant sign-ins, about two minutes"
+		return "one or two Home Assistant sign-ins, about two minutes"
 	}
-	return fmt.Errorf("%w (%s); run: %s", errDeviceNeedsRePair, effort, rePairNextStep(profile, link))
+	return "one Home Assistant sign-in, about a minute"
+}
+
+// rePairStep: the re-pair as the one next step doctor and update end with.
+func rePairStep(profile string, link bool) string {
+	return fmt.Sprintf("run %s to pair this computer again (%s)", rePairNextStep(profile, link), rePairEffort(link))
 }
 
 // rePairNextStep: setup pairs a profile again by sign-in, on a Mac with Link

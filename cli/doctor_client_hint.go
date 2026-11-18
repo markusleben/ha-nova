@@ -26,17 +26,17 @@ func doctorClientRepairHint(client clientStatus, installSource string) string {
 	switch {
 	case !client.RuntimeDetected:
 		return fmt.Sprintf(
-			"To fix: install or open %s, then run `%s`.",
+			"install or open %s, then run `%s`",
 			client.Label,
 			setupCommand,
 		)
 	case installSource == installSourceDev:
 		return fmt.Sprintf(
-			"To fix: run `npm run dev:sync` or `%s`.",
+			"run `npm run dev:sync` or `%s`",
 			setupCommand,
 		)
 	default:
-		return fmt.Sprintf("To fix: run `%s`.", setupCommand)
+		return fmt.Sprintf("run `%s`", setupCommand)
 	}
 }
 

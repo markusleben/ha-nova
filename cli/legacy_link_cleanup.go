@@ -163,24 +163,32 @@ var legacyCleanupSession = func(paths runtimePaths, cfg runtimeConfig) (*relaySe
 // without the window contract, and the old shared token have nothing the
 // cleanup would turn on, so setup asks nothing there.
 func legacyCleanupPendingOnApp(paths runtimePaths, cfg runtimeConfig) (bool, error) {
+	why, err := appWindowWhy(paths, cfg)
+	return why == "legacy_cleanup_pending", err
+}
+
+// appWindowWhy: why the NOVA App keeps this paired computer's window off, as
+// /gate/v1/me says ("" for a shared-token install or an App without the
+// window contract). An answer that can't be read is an error, never a reason.
+func appWindowWhy(paths runtimePaths, cfg runtimeConfig) (string, error) {
 	s, err := legacyCleanupSession(paths, cfg)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	defer s.close()
 	if !s.transport.DeviceMode {
-		return false, nil
+		return "", nil
 	}
 	on, window, err := s.readGate()
 	if err != nil || !on || !window {
-		return false, err
+		return "", err
 	}
 	s.gate = &relayGate{checked: true, on: true, window: true}
 	why := s.readGateMe().why
 	if why == "" {
-		return false, errors.New("the NOVA App's window state can't be read")
+		return "", errors.New("the NOVA App's window state can't be read")
 	}
-	return why == "legacy_cleanup_pending", nil
+	return why, nil
 }
 
 func reportLegacyCleanupComplete(paths runtimePaths, cfg runtimeConfig) error {
