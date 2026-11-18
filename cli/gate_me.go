@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
+	"syscall"
 )
 
 // What the App says of this computer's window (GET /gate/v1/me, 0.32 spec
@@ -59,7 +61,7 @@ func (s *relaySession) readGateMe() gateWindowState {
 	req.Header.Set("Authorization", "Bearer "+s.transport.Credential)
 	resp, err := s.transport.Client.Do(req)
 	if urlErr := (*url.Error)(nil); errors.As(err, &urlErr) {
-		err = fmt.Errorf("%s %s: %w", urlErr.Op, gateMeRoute, urlErr.Err) // never the address, which can carry a secret
+		err = fmt.Errorf("%s %s: %s", urlErr.Op, gateMeRoute, safeTransportCause(urlErr)) // never the error's own text: it can quote an address or a redirect
 	}
 	if err != nil {
 		return gateWindowState{err: err}
@@ -125,4 +127,20 @@ func gateCleanupCommand(server string) string {
 		return "ha-nova setup --server " + server
 	}
 	return "ha-nova setup"
+}
+
+// safeTransportCause names a request that got no answer by its kind only.
+func safeTransportCause(err *url.Error) string {
+	var dns *net.DNSError
+	switch {
+	case err.Timeout():
+		return "timed out"
+	case errors.Is(err, syscall.ECONNREFUSED):
+		return "connection refused"
+	case errors.As(err, &dns):
+		return "address not found"
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	}
+	return "no answer"
 }

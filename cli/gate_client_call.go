@@ -96,11 +96,11 @@ func (s *relaySession) gateCall(parent context.Context, route string, wait time.
 		return json.Unmarshal(envelope.Data, into)
 	}
 	code, message := envelope.Error.Code, envelope.Error.Message
+	if parseErr != nil || envelope.OK == nil { // a code from a broken envelope is no refusal to act on
+		code, message = "", "not a result envelope"
+	}
 	if code == "" {
 		code = fmt.Sprintf("HTTP_%d", resp.StatusCode)
-	}
-	if parseErr != nil || envelope.OK == nil {
-		message = "not a result envelope"
 	}
 	return &relayCallError{endpoint: "gate", status: resp.StatusCode, code: code, message: message}
 }

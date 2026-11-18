@@ -116,7 +116,7 @@ func saveLegacyCopyReceipt(paths runtimePaths, account string, left []legacyCopy
 	if paths.ConfigDir == "" {
 		return errors.New("no configuration folder for the receipt")
 	}
-	return withClientMutationLock(paths, func() error {
+	return withClientMutationLockWaiting(paths, func() error {
 		receipts, err := legacyCopyReceipts(paths)
 		if err != nil {
 			return err

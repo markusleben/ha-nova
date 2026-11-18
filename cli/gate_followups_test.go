@@ -35,7 +35,8 @@ func TestGateCallTakesOnlyA2xxOKAsAResult(t *testing.T) {
 		{409, `{"ok":true,"error":{"code":"GATE_BUSY"}}`, "GATE_BUSY"},
 		{502, `{"ok":false}`, "HTTP_502"},
 		{502, `<html>Bad gateway</html>`, "HTTP_502"},
-		{500, `{"error":{"code":"GATE_UNAVAILABLE"}}`, "GATE_UNAVAILABLE"},
+		{500, `{"error":{"code":"GATE_UNAVAILABLE"}}`, "HTTP_500"},
+		{409, `{"ok":"no","error":{"code":"GATE_NO_CHANNEL"}}`, "HTTP_409"},
 	} {
 		var into struct{}
 		err := gateFollowupSession(t, c.status, c.body).gateCall(context.Background(), gateAskRoute, 5*time.Second, map[string]any{"op": "wait"}, &into)
