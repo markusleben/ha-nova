@@ -122,6 +122,15 @@ func TestUnexplainedListenerIsANote(t *testing.T) {
 		{name: "a running automation waiting on service calls keeps every listener", setup: waitsOn(t, "call_service", true), args: light, exit: 3, tier: "typed", reasons: []string{reasonListener}},
 		{name: "an automation that isn't running holds no wait", setup: waitsOn(t, "call_service", false), args: light, exit: 0, tier: "ordinary", check: hasNote(noteUnexplainedListener)},
 		{name: "a running wait on a templated event keeps every listener", setup: waitsOn(t, "{{ which }}", true), args: light, exit: 3, tier: "typed", reasons: []string{reasonListener}},
+		{name: "a turned-off automation whose run still waits keeps every listener", setup: func(f *fakeHA) {
+			waitsOn(t, "call_service", true)(f)
+			f.states["automation.door"]["state"] = "off"
+		}, args: light, exit: 3, tier: "typed", reasons: []string{reasonListener}},
+		{name: "another entity's current attribute is not a run count", setup: func(f *fakeHA) {
+			mar209Home(t, true)(f)
+			f.ent("sensor.washer_current", "template", "0.25", map[string]any{"current": "0.25 A"})
+			f.ent("sensor.dryer_current", "template", "0.5", map[string]any{"current": 0.5})
+		}, args: light, exit: 0, tier: "ordinary", check: hasNote(noteUnexplainedListener)},
 		{name: "a running wait on a state change is no service-call listener", setup: func(f *fakeHA) {
 			mar209Home(t, true)(f)
 			f.automation("motion", "m1", map[string]any{"actions": []any{map[string]any{"wait_for_trigger": map[string]any{"trigger": "state", "entity_id": "binary_sensor.hall"}}, step("light.turn_off", "light.hall")}})

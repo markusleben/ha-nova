@@ -146,7 +146,7 @@ func (e *tierEngine) listenerTable() *listenerTable {
 		State      string `json:"state"`
 		Attributes struct {
 			ID      registryID `json:"id"`
-			Current int        `json:"current"`
+			Current any        `json:"current"` // an automation's run count; any other entity's attribute may be anything
 		} `json:"attributes"`
 	}
 	if err == nil && status != http.StatusOK {
@@ -161,17 +161,18 @@ func (e *tierEngine) listenerTable() *listenerTable {
 	}
 	type autoRow struct {
 		entityID, configID string
-		running            bool
+		running, waitsOnly bool
 		raw                json.RawMessage
 		err                error
 	}
 	var rows []*autoRow
 	for _, st := range states {
+		runs, _ := st.Attributes.Current.(float64)
 		switch domain, _ := splitID(st.EntityID); {
-		case domain == "automation" && st.State == "on": // off automations hold no listeners
-			rows = append(rows, &autoRow{entityID: st.EntityID, configID: string(st.Attributes.ID), running: st.Attributes.Current > 0})
+		case domain == "automation" && (st.State == "on" || runs > 0): // an off automation's triggers hold no listeners, but a run it didn't stop may still wait
+			rows = append(rows, &autoRow{entityID: st.EntityID, configID: string(st.Attributes.ID), running: runs > 0, waitsOnly: st.State != "on"})
 		case domain == "script" && st.State == "on": // a script runs while it is on
-			rows = append(rows, &autoRow{entityID: st.EntityID, running: true})
+			rows = append(rows, &autoRow{entityID: st.EntityID, running: true, waitsOnly: true})
 		}
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].entityID < rows[j].entityID })
@@ -237,7 +238,7 @@ func (e *tierEngine) listenerTable() *listenerTable {
 		if row.running {
 			collectWaits(cfg, table.waits)
 		}
-		if domain == "script" {
+		if row.waitsOnly {
 			continue
 		}
 		for _, trigger := range flattenTriggers(firstPresent(cfg, "triggers", "trigger")) {
