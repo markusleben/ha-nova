@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 )
 
 var resolveHAURLBaseForSetup = resolveHomeAssistantURLBase
@@ -120,6 +121,13 @@ func maybeHandleInteractiveSetupCurrentStateLinkPaused(reader *bufio.Reader, out
 					return true, 1
 				}
 			}
+		}
+		if !serviceMode && linkPaused == nil {
+			var offerReader *bufio.Reader
+			if isInteractiveTTY() && writerSupportsTTYForSetup(out) {
+				offerReader = reader
+			}
+			offerPhoneLink(offerReader, out, paths, false, strings.TrimSpace(cfg.RelaySecureBaseURL) != "" && strings.TrimSpace(cfg.RelaySpkiPin) != "")
 		}
 		return true, 0
 	}

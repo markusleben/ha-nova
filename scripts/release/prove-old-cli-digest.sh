@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs the published v0.31.0 Linux binary's update check against the body
-# GoReleaser publishes for v0.32.0 (.goreleaser.yml's stable release header
+# GoReleaser publishes for v0.33.0 (.goreleaser.yml's stable release header
 # and footer), served as api.github.com's latest release, and requires the
 # Mac re-pair warning as its headline and first action item (0.32 spec §5.1):
 # the 0.31 CLI already installed can't learn a new pre-update check, so its
@@ -8,7 +8,7 @@
 # api.github.com at this machine for the run.
 set -euo pipefail
 
-warning="On macOS, 0.32 asks you to pair this computer again once."
+warning="Updating a Mac from 0.31? HA NOVA asks you to pair it again once."
 if [ "${GITHUB_ACTIONS:-}" != true ] || [ "${RUNNER_ENVIRONMENT:-}" != github-hosted ]; then
   echo "Runs only on a disposable GitHub-hosted runner: it edits /etc/hosts." >&2
   exit 2
@@ -45,10 +45,10 @@ def block(key):
 header = block("header")
 if not header.startswith("{{ if .Prerelease }}") or header.count("{{ else }}") != 1 or not header.rstrip().endswith("{{ end }}"):
     sys.exit("release.header isn't {{ if .Prerelease }}…{{ else }}…{{ end }}")
-stable = header.split("{{ else }}", 1)[1].rstrip()[: -len("{{ end }}")].replace("{{ .Tag }}", "v0.32.0")
+stable = header.split("{{ else }}", 1)[1].rstrip()[: -len("{{ end }}")].replace("{{ .Tag }}", "v0.33.0")
 if "{{" in stable or "## New Features" not in stable:
     sys.exit("the stable release header has a template this proof can't render, or no New Features section")
-print(json.dumps({"tag_name": "v0.32.0", "html_url": "https://github.com/markusleben/ha-nova/releases/tag/v0.32.0",
+print(json.dumps({"tag_name": "v0.33.0", "html_url": "https://github.com/markusleben/ha-nova/releases/tag/v0.33.0",
                   "body": stable + "\n" + block("footer"), "published_at": "2026-11-20T00:00:00Z", "assets": []}))
 PY
 sudo python3 - "$tmp" <<'PY' &

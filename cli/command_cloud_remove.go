@@ -375,7 +375,9 @@ func runCloudRemove(paths runtimePaths, options cloudCommandFlags) int {
 			paths,
 			activeServerProfile(),
 		); needsRecovery {
-		printHumanInfo("Home Assistant Link access was removed.")
+		if options.rePairLifecycle == nil { // setup's re-pair says what it did, once it's done
+			printHumanInfo("Home Assistant Link access was removed.")
+		}
 		if nextCommand != "" {
 			printHumanInfo("Continue recovery with: %s", nextCommand)
 		} else if recoveryErr != nil {

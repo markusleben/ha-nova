@@ -88,7 +88,7 @@ func TestTheListenerScanReadsLoadedConfigs(t *testing.T) {
 	f.automation("listen", "l1", map[string]any{"triggers": []any{map[string]any{"trigger": "event", "event_type": "call_service"}}, "actions": []any{step("light.turn_on", "light.kitchen")}})
 	f.fail["/api/config/automation/config/l1"] = true // the stored view is never asked
 	h := newWriteHarness(t, f)
-	if planned := h.plan(appInstall...); strings.Contains(reasonCodes(planned), reasonScanFailed) || strings.Contains(reasonCodes(planned), reasonListenerUnexpl) {
+	if planned := h.plan(appInstall...); strings.Contains(reasonCodes(planned), reasonScanFailed) || planned.Coverage != nil && slices.Contains(planned.Coverage.Notes, noteUnexplainedListener) {
 		t.Fatalf("reasons %v: the loaded config explains the listener", reasonCodes(planned))
 	}
 	f.mu.Lock()

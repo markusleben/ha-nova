@@ -152,6 +152,7 @@ func runMCPCommand(paths runtimePaths, args []string) int {
 	if opts.serverSet {
 		setServerSelectionOverride(opts.server) // every tool call uses this profile
 	}
+	mcpStdio = true
 	phoneTellSpan = 2 * time.Second // once, never per verb (serve's phone jobs read it unlocked): a result still lands; a call stays under 60 s
 	// stdout carries JSON-RPC only: anything else printed in this process
 	// (warnings, a stray fmt.Print) goes to stderr instead.

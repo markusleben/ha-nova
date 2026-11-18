@@ -54,6 +54,7 @@ type setupPageRow struct {
 type setupPageState struct {
 	Screen        string               `json:"screen"` // looking, found, connect, noclient, control, home, terminal, done, closed, incomplete, failed, stopped
 	HA            string               `json:"ha,omitempty"`
+	Server        string               `json:"server,omitempty"` // a named server profile: the header names it
 	Candidates    []setupPageCandidate `json:"candidates,omitempty"`
 	Clients       []string             `json:"clients,omitempty"` // product names
 	App           string               `json:"app,omitempty"`     // missing, old, running

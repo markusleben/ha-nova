@@ -268,9 +268,9 @@ func runSetup(paths runtimePaths, args []string) int {
 	}
 	// pairAgain: a person at this Mac's terminal, and its App answers pair_again.
 	pairAgain := func() bool {
-		return target == "" && isInteractiveTTY() && stdoutIsInteractiveTTY() && windowPairAgainForSetup(paths, cfg)
+		return target == "" && !namedSetupIsRetirementOnly(cfg, retirementPending) && isInteractiveTTY() && stdoutIsInteractiveTTY() && windowPairAgainForSetup(paths, cfg)
 	}
-	if !*nonInteractive && unconstrainedCloudReuse && linkRePairNeeded(cfg) {
+	if !*nonInteractive && unconstrainedCloudReuse && !namedSetupIsRetirementOnly(cfg, retirementPending) && linkRePairNeeded(cfg) {
 		if target != "" {
 			renderSetupParagraph(os.Stdout, setupT("setup.relink.client_first", "command", rePairNextStep(activeServerProfile(), true)))
 			return 1
@@ -694,7 +694,11 @@ func completeNonInteractivePairedSetup(paths runtimePaths, cfg runtimeConfig, st
 		printHumanErr("client installation or state save failed: %s", err)
 		return 1
 	}
-	return runDoctor(paths, nil)
+	code := runDoctor(paths, nil)
+	if code == 0 {
+		offerPhoneLink(nil, os.Stdout, paths, false, true)
+	}
+	return code
 }
 
 func restoreRelayAuthToken(previousToken string, hadPreviousToken, tokenChanged bool) error {
