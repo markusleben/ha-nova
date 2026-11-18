@@ -119,7 +119,35 @@ func TestUnexplainedListenerIsANote(t *testing.T) {
 			f.services = append(f.services, map[string]any{"domain": "shopping_list", "services": map[string]any{"add_item": map[string]any{}}})
 			f.events = append(f.events, map[string]any{"event": "shopping_list_updated", "listener_count": 1.0})
 		}, args: []string{"shopping_list.add_item", "--set", "name=milk"}, exit: 3, tier: "typed", reasons: []string{reasonListener}},
+		{name: "a running automation waiting on service calls keeps every listener", setup: waitsOn(t, "call_service", true), args: light, exit: 3, tier: "typed", reasons: []string{reasonListener}},
+		{name: "an automation that isn't running holds no wait", setup: waitsOn(t, "call_service", false), args: light, exit: 0, tier: "ordinary", check: hasNote(noteUnexplainedListener)},
+		{name: "a running wait on a templated event keeps every listener", setup: waitsOn(t, "{{ which }}", true), args: light, exit: 3, tier: "typed", reasons: []string{reasonListener}},
+		{name: "a running wait on a state change is no service-call listener", setup: func(f *fakeHA) {
+			mar209Home(t, true)(f)
+			f.automation("motion", "m1", map[string]any{"actions": []any{map[string]any{"wait_for_trigger": map[string]any{"trigger": "state", "entity_id": "binary_sensor.hall"}}, step("light.turn_off", "light.hall")}})
+			f.states["automation.motion"]["attributes"].(map[string]any)["current"] = 1.0
+		}, args: light, exit: 0, tier: "ordinary", check: hasNote(noteUnexplainedListener)},
+		{name: "a running script waiting on service calls keeps every listener", setup: func(f *fakeHA) {
+			mar209Home(t, true)(f)
+			f.script("wait_then_unlock", map[string]any{"wait_for_trigger": []any{map[string]any{"trigger": "event", "event_type": "call_service"}}}, step("lock.unlock", "lock.front"))
+			f.states["script.wait_then_unlock"]["state"] = "on"
+		}, args: light, exit: 3, tier: "typed", reasons: []string{reasonListener}},
 	})
+}
+
+// waitsOn: the MAR-209 home with an open logbook, and an automation whose run
+// waits for an event of eventType and then unlocks the front door.
+func waitsOn(t *testing.T, eventType string, running bool) func(*fakeHA) {
+	return func(f *fakeHA) {
+		mar209Home(t, true)(f)
+		f.automation("door", "d1", map[string]any{"actions": []any{
+			map[string]any{"wait_for_trigger": []any{map[string]any{"trigger": "event", "event_type": eventType}}},
+			step("lock.unlock", "lock.front"),
+		}})
+		if running {
+			f.states["automation.door"]["attributes"].(map[string]any)["current"] = 1.0
+		}
+	}
 }
 
 // A census the read budget cuts keeps today's fallback, logbook or not.
@@ -128,7 +156,9 @@ func TestACutCensusBesideAnUnexplainedListenerStillAsks(t *testing.T) {
 	mar209Home(t, true)(f)
 	h := newSlowHarness(t, f, 0, 300*time.Millisecond)
 	h.hangFirst("shutter_watchdog_cover_groups", 100)
-	if env := h.plan("call", "light.turn_on", "light.kitchen"); env.Tier != "typed" || !strings.Contains(reasonCodes(env), reasonLimitCut) {
+	env := h.plan("call", "light.turn_on", "light.kitchen")
+	if env.Tier != "typed" || !strings.Contains(reasonCodes(env), reasonLimitCut) {
 		t.Fatalf("tier %s reasons %s: want the cut census typed", env.Tier, reasonCodes(env))
 	}
+	assertGateParity(t, h.paths, env)
 }
