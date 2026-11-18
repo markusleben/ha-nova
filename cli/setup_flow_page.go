@@ -90,7 +90,7 @@ func (f *setupFlow) runWithPage(page *setupWebUI) int {
 	defer page.server.close()
 	f.ui, f.page, f.target = page, page, "all" // the page sets up every AI assistant it finds (spec §7.3)
 	if profile := activeServerProfile(); profile != defaultServerProfileName {
-		page.update(func(v *setupPageState) { v.Server = profile }) // the header names it (MAR-241)
+		page.update(func(v *setupPageState) { v.Server, v.HA = profile, terminalSafeName(f.cfg.HAHost) }) // the header names it (MAR-241)
 	}
 	code := f.run()
 	if !setupPageEnded(page.snapshot().Screen) {

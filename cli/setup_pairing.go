@@ -223,6 +223,9 @@ func probePairingV1Context(ctx context.Context, relayBaseURL string) bool {
 // missing AND no service-token file is configured, so the legacy /pair token
 // (which needs one of those) cannot be stored on this box.
 func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg *runtimeConfig, legacyTokenStoreUnavailable bool, lifecycleMarker ...[]byte) (string, error) {
+	// A named profile never keeps the legacy shared token: refuse that
+	// exchange before a one-time code is spent, as the add-server flow does.
+	legacyTokenStoreUnavailable = legacyTokenStoreUnavailable || activeServerProfile() != defaultServerProfileName
 	installed := setupInstalledSignIn // taken once, used or not
 	setupInstalledSignIn = nil
 	guardPairingMutation := func() error {

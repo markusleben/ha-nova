@@ -38,13 +38,19 @@ func (f *setupFlow) pageFitsWithoutLink() bool {
 		f.pageProfileFits() && setupPageAvailable()
 }
 
-// pageProfileFits: the default profile, or a named one paired with a local
-// Relay and no interrupted retirement (MAR-241). Link, Link recovery, and a
-// retirement keep the terminal for a named profile, as before.
+// pageProfileFits: the default profile, or a named one picked by --server or
+// HA_NOVA_SERVER, paired with a local Relay and with no interrupted
+// retirement (MAR-241). A named default_server keeps the terminal: the page's
+// actions re-read the selection, and that saved default can change while the
+// page waits. Link, Link recovery, and a retirement keep the terminal for a
+// named profile, as before.
 func (f *setupFlow) pageProfileFits() bool {
 	profile := activeServerProfile()
 	if profile == defaultServerProfileName {
 		return true
+	}
+	if requested, _ := requestedServerSelection(); requested != profile {
+		return false
 	}
 	pending, err := deviceCredentialRetirementCheckpointExistsForProfile(f.paths, profile)
 	return err == nil && !pending && namedLocalRePairAllowed(f.cfg, f.serviceMode, f.hostFlag, f.haURLFlag, f.relayURLFlag, f.relayTokenFlag)

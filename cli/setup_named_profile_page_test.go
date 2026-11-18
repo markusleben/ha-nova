@@ -2,9 +2,13 @@ package main
 
 import (
 	"bufio"
+	"os"
+	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // MAR-241: `ha-nova setup --server <name>` for an existing profile paired
@@ -93,4 +97,78 @@ func TestNamedProfileSetupReusesTheAIAppsOfThisComputer(t *testing.T) {
 	if f.chooseClientAndMode(); !strings.Contains(out.String(), question) {
 		t.Fatalf("the default profile skipped the question: %s", out)
 	}
+}
+
+func TestSetupPageOnlyForAnExplicitlySelectedNamedProfile(t *testing.T) {
+	previous := setupPageAvailable
+	setupPageAvailable = func() bool { return true }
+	t.Cleanup(func() { setupPageAvailable = previous })
+	f := &setupFlow{paths: namedPairedProfile(t), cfg: namedPaired}
+	setServerSelectionOverride("")
+	t.Setenv(serverSelectionEnvVar, "markus-home")
+	if !f.usesSetupPage() {
+		t.Fatal("HA_NOVA_SERVER: no page")
+	}
+	t.Setenv(serverSelectionEnvVar, "")
+	if f.usesSetupPage() {
+		t.Fatal("a named default_server uses the page; a changed default would move its actions to another home")
+	}
+}
+
+func TestNamedSetupPageKeepsLinkInTheTerminalAndRetriesOnItsProfile(t *testing.T) {
+	namedPairedProfile(t)
+	if (&setupFlow{cfg: namedPaired}).pageLinkOffered() {
+		t.Fatal("a named page offered Link, which only the terminal sets up for it")
+	}
+	if got := confirmPhoneCommand(activeServerProfile()); got != "ha-nova setup confirm-phone --server markus-home" {
+		t.Fatalf("named retry: %q", got)
+	}
+	if got := confirmPhoneCommand(defaultServerProfileName); got != "ha-nova setup confirm-phone" {
+		t.Fatalf("default retry: %q", got)
+	}
+}
+
+func TestNamedProfileSetupWithASavedNoAppChoiceAsksNothing(t *testing.T) {
+	f, out := namedClientFlow(t, nil, "")
+	for i := range f.choices {
+		f.choices[i].Disabled = true
+	}
+	if result := f.chooseClientAndMode(); result.done || !f.noClient || f.promptedClient || strings.Contains(out.String(), setupT("setup.clients.question")) {
+		t.Fatalf("no app here, as when it was set up: done %v, noClient %v, asked %v: %s", result.done, f.noClient, f.promptedClient, out)
+	}
+}
+
+func TestOpenClaudeCodeActsOnTheNamedProfile(t *testing.T) {
+	home := desktopClaudeTestHome(t)
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux terminal handoff")
+	}
+	claudeDesktopPlatformOS = "linux"
+	resetServerProfileSelection(t)
+	setActiveServerProfile("markus-home")
+	local := filepath.Join(home, ".local", "bin", "claude")
+	if err := os.MkdirAll(filepath.Dir(local), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(local, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	log := filepath.Join(home, "terminal.log")
+	stub := "#!/bin/sh\nprintf '%s\\n' \"$HA_NOVA_SERVER\" > " + shellQuote(log) + "\n"
+	if err := os.WriteFile(filepath.Join(os.Getenv("PATH"), "x-terminal-emulator"), []byte(stub), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := openClaudeTerminal(paths); err != nil {
+		t.Fatal(err)
+	}
+	for start := time.Now(); time.Since(start) < 2*time.Second; time.Sleep(10 * time.Millisecond) {
+		if got := mockInvocations(t, log); got == "markus-home\n" {
+			return
+		}
+	}
+	t.Fatalf("Claude Code would act on the default home: %q", mockInvocations(t, log))
 }
