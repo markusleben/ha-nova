@@ -78,24 +78,29 @@ release:
 
     ## New Features
 
-    - **On macOS, 0.32 asks you to pair this computer again once.** It's one Home Assistant sign-in, about a minute (with Home Assistant Link at home, a second one for Link). Run `ha-nova setup` when HA NOVA says so.
-    - **Confirm risky changes with one click on your own computer.** Unlocks, doors, gates, the alarm, and deletes ask in a window there, and your phone asks only when nobody confirms. Setup asks once (Enter is yes).
-    - **Fewer asks in a home with a cover watchdog.** A light no longer asks when the watchdog acts right away (no delay or wait) and none of the covers it could move is a garage door, gate, or door.
-    - **A dashboard, automation, or script you delete from your computer asks once**, in the window, on your phone, or on the NOVA page.
+    - **Updating a Mac from 0.31? HA NOVA asks you to pair it again once.** It's one Home Assistant sign-in, about a minute (with Home Assistant Link at home, a second one for Link). Run `ha-nova setup` when HA NOVA says so.
+    - **A light no longer asks while a logbook is open somewhere.** A logbook or an entity's history open on a tablet or in the app made every device call ask. Now each call is rated by what it does.
+    - **Your phone is offered wherever this computer can't confirm in its window.** Over SSH, with no screen, or after a no to one-click confirming, setup and `ha-nova pair` offer it on every run until one is linked.
+    - **A computer nobody sits at can confirm with a four-digit code in your AI chat.** The Home Assistant owner turns it on for that computer on the NOVA page. It's off by default, and linking a phone ends it.
+    - **A computer with no screen pairs in one run.** Where no keyring can be unlocked, setup and `ha-nova pair` offer to keep HA NOVA's key in a private file right away.
+    - **`ha-nova setup --server <name>` opens the setup page** for a server you already added, and doesn't ask for your AI apps again.
 
     ## What To Watch
 
-    - **On macOS, 0.32 asks you to pair this computer again once.** The first command that needs it names the step: `ha-nova setup`, or `ha-nova setup --server <name>` for another server.
+    - **Updating a Mac from 0.31? HA NOVA asks you to pair it again once.** The first command that needs it names the step: `ha-nova setup`, or `ha-nova setup --server <name>` for another server.
     - **On a Mac that used Home Assistant Link, setup signs the old version out of Link.** macOS asks for your password once per old sign-in: choose "Allow", not "Always Allow".
-    - **One-click confirming trusts that computer.** On Windows and Linux, any program running as you could confirm without a click. On a shared computer, say no in setup or turn it off on the NOVA page.
-    - **A computer paired before 0.32 pairs again once to confirm with one click.** Until then, its window only waits, as in 0.31.
-    - **Moving HA NOVA's key into a file turns one-click confirming off first.** On a Mac whose key is in the Keychain, file storage is refused.
-    - **After you delete an automation or script, HA NOVA checks that it stopped.** If Home Assistant still runs it, HA NOVA says so and offers the reload as a separate step.
+    - **Your AI assistant sees the chat code too.** So does any program using this computer's key, and anyone who can write in that chat. Use a private chat only you can write in; a linked phone is safer.
+    - **Update the NOVA App and HA NOVA together.** A computer still on 0.32 refuses a change the new App runs without asking and says to update HA NOVA. Nothing is sent.
+    - **An extra listener HA NOVA can't name no longer makes a call ask.** A logbook view is one. A custom integration or an outside script that answers device calls with calls of its own isn't followed.
+    - **A key kept in a file trusts every program running as you.** Any of them can read it, and this computer then never confirms in its window. A Mac's Keychain key is never copied into the file.
 
     ## Bug Fixes
 
-    - **A change that needs your OK waits for your answer again.** Since 0.30.0, HA NOVA gave up after about 20 seconds while the NOVA page or your linked phone could still confirm it.
-    - **Waiting no longer asks twice.** Running the same saved plan again picks up the open ask instead of asking again.
+    - **Waiting no longer points to a phone that isn't linked.** HA NOVA names your phone only when one is linked, else the NOVA page, and says how to link one.
+    - **The old Link sign-in's copy goes once its sign-out is confirmed.** On a Mac, setup removes the copy it kept in the Keychain. If that fails, setup tries again and `ha-nova doctor` says so.
+    - **The browser setup re-run shows the Link sign-out's result right away**, and keeps it when you quit.
+    - **`ha-nova cloud remove` no longer says Link access was removed during a re-pair.**
+    - **A failed answer from the NOVA App is never read as success**, and a failed check names its cause.
 
     Stable install commands are release-pinned for this tag.
 
