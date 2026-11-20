@@ -19,11 +19,16 @@ import (
 // remove leaves a receipt: its item's name and the digest of those exact
 // bytes, never the copy. Every later setup removes the copy while it still
 // matches that digest, and doctor names it. Nothing else is delete authority.
+// Before the report, each copy's receipt is written awaiting the App's
+// record: no delete authority until the App answers that it holds it, so a
+// report that landed never leaves a copy with neither removal nor receipt.
 
 type legacyCopyReceipt struct {
 	Service string `json:"service"`
 	Digest  string `json:"digest"` // sha256 of the copy proven revoked and recorded
 	Revoked bool   `json:"revoked"`
+	// AwaitingApp: the report wasn't confirmed when this was written.
+	AwaitingApp bool `json:"awaiting_app,omitempty"`
 }
 
 func legacyCopyReceiptsFile(paths runtimePaths) string {
@@ -58,14 +63,14 @@ func legacyCopyReceipts(paths runtimePaths) (map[string][]legacyCopyReceipt, err
 }
 
 // deleteProvenLegacyLinkCopies removes exactly each copy (its verified bytes);
-// the ones it can't remove become account's receipt.
-func deleteProvenLegacyLinkCopies(paths runtimePaths, account string, proven []legacyLinkCopy) error {
+// the ones it can't remove, and keep, become account's receipt.
+func deleteProvenLegacyLinkCopies(paths runtimePaths, account string, proven []legacyLinkCopy, keep []legacyCopyReceipt) error {
 	backend, err := legacyCleanupBackend()
 	exact, ok := backend.(exactOAuthSecretBackend)
 	if err == nil && !ok {
 		err = errors.New("this secure storage can't remove a sign-in copy exactly")
 	}
-	var left []legacyCopyReceipt
+	left := slices.Clone(keep)
 	var failed []error
 	for _, c := range proven {
 		deleteErr := err
@@ -92,7 +97,12 @@ func retryLegacyCopyReceipts(paths runtimePaths, account string) error {
 		return err
 	}
 	var proven []legacyLinkCopy
+	var awaiting []legacyCopyReceipt
 	for _, r := range receipts[account] {
+		if r.AwaitingApp {
+			awaiting = append(awaiting, r)
+			continue
+		}
 		if !r.Revoked || r.Digest == "" || !slices.ContainsFunc(legacyLinkServices, func(s string) bool {
 			return r.Service == oauthLegacyCleanupServicePrefix+string(legacyLinkState(s))
 		}) {
@@ -106,7 +116,42 @@ func retryLegacyCopyReceipts(paths runtimePaths, account string) error {
 			proven = append(proven, legacyLinkCopy{account: account, service: r.Service, value: value})
 		}
 	}
-	return deleteProvenLegacyLinkCopies(paths, account, proven)
+	return deleteProvenLegacyLinkCopies(paths, account, proven, awaiting)
+}
+
+// awaitLegacyCopyRecord replaces account's receipt with one awaiting the
+// App's record for each copy proven revoked.
+func awaitLegacyCopyRecord(paths runtimePaths, account string, proven []legacyLinkCopy) error {
+	if len(proven) == 0 {
+		return nil
+	}
+	awaiting := make([]legacyCopyReceipt, len(proven))
+	for i, c := range proven {
+		awaiting[i] = legacyCopyReceipt{Service: c.service, Digest: legacyCopyDigest(c.value), Revoked: true, AwaitingApp: true}
+	}
+	return saveLegacyCopyReceipt(paths, account, awaiting)
+}
+
+// confirmAwaitedLegacyCopies: once the App, no longer holding the cleanup
+// open, answers the report again with its record (legacy_cleanup_complete is
+// idempotent there), the receipts awaiting it become delete authority and
+// their copies go. An App that can't answer (one rolled back) keeps them.
+func confirmAwaitedLegacyCopies(paths runtimePaths, cfg runtimeConfig) error {
+	receipts, err := legacyCopyReceipts(paths)
+	if err != nil || !slices.ContainsFunc(receipts[cfg.ProfileID], func(r legacyCopyReceipt) bool { return r.AwaitingApp }) {
+		return err
+	}
+	if err := legacyCleanupReport(paths, cfg); err != nil {
+		return err
+	}
+	confirmed := slices.Clone(receipts[cfg.ProfileID])
+	for i := range confirmed {
+		confirmed[i].AwaitingApp = false
+	}
+	if err := saveLegacyCopyReceipt(paths, cfg.ProfileID, confirmed); err != nil {
+		return err
+	}
+	return retryLegacyCopyReceipts(paths, cfg.ProfileID)
 }
 
 // saveLegacyCopyReceipt replaces account's receipt with left, under the

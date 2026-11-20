@@ -386,8 +386,8 @@ func TestLegacyLinkCleanupKeepsTheCopyUntilTheAppRecordsIt(t *testing.T) {
 	f := newLegacyCleanupFixture(t)
 	f.legacy[oauthSecretCurrentService] = legacyTestEnvelope(OAuthSecretCurrent, "default", "old-current")
 	legacyCleanupReport = func(runtimePaths, runtimeConfig) error { return errors.New("the NOVA App did not answer") }
-	if outcome, _, _ := f.run(true); outcome != legacyCleanupIncomplete || f.copies() != 1 || f.receipt() {
-		t.Fatalf("outcome %d, copies %d, receipt %v: a retry resumes from the copy", outcome, f.copies(), f.receipt())
+	if outcome, _, _ := f.run(true); outcome != legacyCleanupIncomplete || f.copies() != 1 || !f.awaiting() {
+		t.Fatalf("outcome %d, copies %d, awaiting %v: a retry resumes from the copy, no receipt deletes it", outcome, f.copies(), f.awaiting())
 	}
 }
 
@@ -433,6 +433,7 @@ func TestLegacyLinkCopyReceiptIsNoOtherDeleteAuthority(t *testing.T) {
 		"changed":     {Service: current, Digest: legacyCopyDigest("other bytes"), Revoked: true},
 		"not revoked": {Service: current, Digest: legacyCopyDigest(legacyTestEnvelope(OAuthSecretCurrent, "default", "live"))},
 		"other item":  {Service: "ha-nova.oauth.home-assistant-cloud.current", Digest: legacyCopyDigest(legacyTestEnvelope(OAuthSecretCurrent, "default", "live")), Revoked: true},
+		"awaiting":    {Service: current, Digest: legacyCopyDigest(legacyTestEnvelope(OAuthSecretCurrent, "default", "live")), Revoked: true, AwaitingApp: true},
 	} {
 		raw, _ := json.Marshal(map[string][]legacyCopyReceipt{"default": {receipt}})
 		if err := os.WriteFile(legacyCopyReceiptsFile(f.paths), raw, 0o600); err != nil {

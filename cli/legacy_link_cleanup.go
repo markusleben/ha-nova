@@ -59,6 +59,9 @@ var (
 // intro runs once, right before macOS first asks. revoked counts the old
 // sign-ins verified revoked in this run; cause says why an incomplete run
 // stopped.
+// A complete run whose cause is set signed out but left a copy here: its
+// receipt (or, if that couldn't be written, its note from before the
+// report) removes it in a later setup.
 func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool, intro func()) (outcome legacyCleanupOutcome, revoked int, cause error) {
 	if cfg.ProfileID != "" && (legacyCopiesOnThisOS || legacyCleanupApplies()) {
 		_ = retryLegacyCopyReceipts(paths, cfg.ProfileID) // whatever the App or the device key's store is now; doctor names a receipt left
@@ -72,6 +75,9 @@ func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool,
 		return legacyCleanupIncomplete, 0, fmt.Errorf("the NOVA App's answer couldn't be read (%w)", err)
 	}
 	if !pending {
+		if cfg.ProfileID != "" {
+			_ = confirmAwaitedLegacyCopies(paths, cfg) // doctor names a copy still waiting
+		}
 		return legacyCleanupNotNeeded, 0, nil
 	}
 	var proven []legacyLinkCopy // the exact copy bytes Home Assistant answered invalid_grant for
@@ -102,10 +108,15 @@ func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool,
 			proven = append(proven, legacyLinkCopy{server: cfg.profileName(), account: cfg.ProfileID, service: oauthLegacyCleanupServicePrefix + string(legacyLinkState(service)), value: value})
 		}
 	}
+	if err := awaitLegacyCopyRecord(paths, cfg.ProfileID, proven); err != nil {
+		return legacyCleanupIncomplete, revoked, fmt.Errorf("this computer couldn't note the old sign-in's copy for removal (%w)", err)
+	}
 	if err := legacyCleanupReport(paths, cfg); err != nil {
 		return legacyCleanupIncomplete, revoked, fmt.Errorf("the NOVA App didn't record it (%w)", err)
 	}
-	_ = deleteProvenLegacyLinkCopies(paths, cfg.ProfileID, proven) // a copy left keeps a receipt for the next setup
+	if err := deleteProvenLegacyLinkCopies(paths, cfg.ProfileID, proven, nil); err != nil {
+		return legacyCleanupComplete, revoked, err
+	}
 	return legacyCleanupComplete, revoked, nil
 }
 
@@ -244,6 +255,8 @@ func legacyLinkCleanupInSetup(show func(setupBlock), paths runtimePaths, cfg run
 	switch {
 	case outcome == legacyCleanupIncomplete:
 		return setupText("setup.cleanup.incomplete", "reason", cause.Error(), "command", gateCleanupCommand(cfg.profileName()))
+	case outcome == legacyCleanupComplete && cause != nil:
+		return setupText("setup.cleanup.copy_left", "reason", cause.Error())
 	case outcome == legacyCleanupComplete && revoked > 0:
 		return setupText("setup.cleanup.done")
 	}
