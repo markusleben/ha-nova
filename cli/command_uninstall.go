@@ -508,7 +508,7 @@ func finalizeWindowsUninstall(
 	if err := updateWindowsUninstallStatusProgress(paths, status); err != nil {
 		return fmt.Errorf("cannot persist Windows uninstall recovery state: %w", err)
 	}
-	_, statErr := os.Stat(paths.InstallRoot)
+	_, statErr := os.Lstat(paths.InstallRoot)
 	if err := discardInstallRoot(paths.InstallRoot); err != nil {
 		return failWindowsUninstallStatus(paths, status, "bundle_runtime_cleanup", err)
 	}

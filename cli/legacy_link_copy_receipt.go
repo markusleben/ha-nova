@@ -99,9 +99,7 @@ func retryLegacyCopyReceipts(paths runtimePaths, account string) error {
 	var awaiting []legacyCopyReceipt
 	for _, r := range receipts[account] {
 		switch {
-		case r.Digest == "" || !slices.ContainsFunc(legacyLinkServices, func(s string) bool {
-			return r.Service == oauthLegacyCleanupServicePrefix+string(legacyLinkState(s))
-		}):
+		case !legacyCopyReceiptNamesACopy(r):
 			continue
 		case !r.Revoked:
 			awaiting = append(awaiting, r)
@@ -116,6 +114,13 @@ func retryLegacyCopyReceipts(paths runtimePaths, account string) error {
 		}
 	}
 	return deleteProvenLegacyLinkCopies(paths, account, proven, awaiting)
+}
+
+// legacyCopyReceiptNamesACopy: a digest of a cleanup copy's item, nothing else.
+func legacyCopyReceiptNamesACopy(r legacyCopyReceipt) bool {
+	return cloudReleaseSHA256Pattern.MatchString(r.Digest) && slices.ContainsFunc(legacyLinkServices, func(s string) bool {
+		return r.Service == oauthLegacyCleanupServicePrefix+string(legacyLinkState(s))
+	})
 }
 
 // awaitLegacyCopyRecord replaces account's receipt with one awaiting the
@@ -138,7 +143,7 @@ func awaitLegacyCopyRecord(paths runtimePaths, account string, proven []legacyLi
 // recorded counts them. An App that can't answer (one rolled back) keeps them.
 func confirmAwaitedLegacyCopies(paths runtimePaths, cfg runtimeConfig) (recorded int, err error) {
 	receipts, err := legacyCopyReceipts(paths)
-	awaiting := slices.ContainsFunc(receipts[cfg.ProfileID], func(r legacyCopyReceipt) bool { return !r.Revoked })
+	awaiting := slices.ContainsFunc(receipts[cfg.ProfileID], func(r legacyCopyReceipt) bool { return !r.Revoked && legacyCopyReceiptNamesACopy(r) })
 	if err != nil || !awaiting {
 		return 0, err
 	}
@@ -189,10 +194,6 @@ func saveLegacyCopyReceipt(paths runtimePaths, account string, left []legacyCopy
 			}
 			return nil
 		}
-		raw, err := json.MarshalIndent(receipts, "", "  ")
-		if err != nil {
-			return err
-		}
-		return writeFileAtomic(legacyCopyReceiptsFile(paths), append(raw, '\n'), 0o600)
+		return writeJSONFile(legacyCopyReceiptsFile(paths), receipts, 0o600) // synced: the note before a report must outlive a crash
 	})
 }
