@@ -40,47 +40,55 @@ func verifyCloudAccess(
 	}
 	defer socket.Close()
 
-	user, err := socket.CurrentUser(ctx)
-	if err != nil {
-		return cloudVerifiedSession{}, err
+	// The four reads share one round trip and are checked in this order, each
+	// as soon as it and every earlier one have answered, all before the
+	// Ingress session is created.
+	var user HACurrentUser
+	var tokens []HARefreshTokenMetadata
+	var refreshMetadata HARefreshTokenMetadata
+	var status HACloudStatus
+	var app HAAddonInfo
+	calls := []haCall{
+		{"auth/current_user", nil, &user, func(err error) error {
+			if user, err = checkCurrentUser(user, err); err == nil && envelope.HAUserID != "" && envelope.HAUserID != user.ID {
+				return newCloudError(CloudErrIdentityMismatch, "verify Home Assistant Link user", nil)
+			}
+			return err
+		}},
+		{"auth/refresh_tokens", nil, &tokens, func(err error) error {
+			if tokens, err = checkRefreshTokens(tokens, err); err != nil {
+				return err
+			}
+			if refreshMetadata, err = VerifyCurrentOAuthRefreshToken(tokens, envelope.ClientID, time.Now()); err != nil {
+				return err
+			}
+			if envelope.RefreshTokenID != "" && envelope.RefreshTokenID != refreshMetadata.ID {
+				return newCloudError(CloudErrOAuthInvalidGrant, "verify Home Assistant Link refresh token identity", nil)
+			}
+			return nil
+		}},
+		{"cloud/status", nil, &status, func(err error) error {
+			if err != nil {
+				return err
+			}
+			return status.ValidateForOrigin(origin)
+		}},
 	}
-	if envelope.HAUserID != "" && envelope.HAUserID != user.ID {
-		return cloudVerifiedSession{}, newCloudError(
-			CloudErrIdentityMismatch,
-			"verify Home Assistant Link user",
-			nil,
-		)
+	appCall, appErr := novaAppInfoCall(&app)
+	if appErr == nil {
+		appCall.check = func(err error) error {
+			app, err = checkNOVAAppInfo(app, err)
+			return err
+		}
+		calls = append(calls, appCall)
 	}
-	tokens, err := socket.RefreshTokens(ctx)
-	if err != nil {
-		return cloudVerifiedSession{}, err
+	for _, err := range socket.CallAll(ctx, calls) {
+		if err != nil {
+			return cloudVerifiedSession{}, err
+		}
 	}
-	refreshMetadata, err := VerifyCurrentOAuthRefreshToken(
-		tokens,
-		envelope.ClientID,
-		time.Now(),
-	)
-	if err != nil {
-		return cloudVerifiedSession{}, err
-	}
-	if envelope.RefreshTokenID != "" &&
-		envelope.RefreshTokenID != refreshMetadata.ID {
-		return cloudVerifiedSession{}, newCloudError(
-			CloudErrOAuthInvalidGrant,
-			"verify Home Assistant Link refresh token identity",
-			nil,
-		)
-	}
-	status, err := socket.CloudStatus(ctx)
-	if err != nil {
-		return cloudVerifiedSession{}, err
-	}
-	if err := status.ValidateForOrigin(origin); err != nil {
-		return cloudVerifiedSession{}, err
-	}
-	app, err := socket.NOVAAppInfo(ctx)
-	if err != nil {
-		return cloudVerifiedSession{}, err
+	if appErr != nil {
+		return cloudVerifiedSession{}, appErr
 	}
 	ingressRoot, err := app.MachineIngressRoot()
 	if err != nil {

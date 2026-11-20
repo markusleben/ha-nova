@@ -63,7 +63,12 @@ var supervisorIngressSessionPattern = regexp.MustCompile(`^[a-f0-9]{128}$`)
 
 func (c *HAWebSocketClient) CurrentUser(ctx context.Context) (HACurrentUser, error) {
 	var user HACurrentUser
-	if err := c.Call(ctx, "auth/current_user", nil, &user); err != nil {
+	err := c.Call(ctx, "auth/current_user", nil, &user)
+	return checkCurrentUser(user, err)
+}
+
+func checkCurrentUser(user HACurrentUser, err error) (HACurrentUser, error) {
+	if err != nil {
 		return HACurrentUser{}, err
 	}
 	if !validIdentifier(user.ID, 256) ||
@@ -75,7 +80,12 @@ func (c *HAWebSocketClient) CurrentUser(ctx context.Context) (HACurrentUser, err
 
 func (c *HAWebSocketClient) RefreshTokens(ctx context.Context) ([]HARefreshTokenMetadata, error) {
 	var tokens []HARefreshTokenMetadata
-	if err := c.Call(ctx, "auth/refresh_tokens", nil, &tokens); err != nil {
+	err := c.Call(ctx, "auth/refresh_tokens", nil, &tokens)
+	return checkRefreshTokens(tokens, err)
+}
+
+func checkRefreshTokens(tokens []HARefreshTokenMetadata, err error) ([]HARefreshTokenMetadata, error) {
+	if err != nil {
 		return nil, err
 	}
 	if len(tokens) > 10000 {
@@ -156,21 +166,31 @@ func (status HACloudStatus) ValidateForOrigin(origin CloudOrigin) error {
 }
 
 func (c *HAWebSocketClient) NOVAAppInfo(ctx context.Context) (HAAddonInfo, error) {
+	var info HAAddonInfo
+	call, err := novaAppInfoCall(&info)
+	if err == nil {
+		err = c.Call(ctx, call.commandType, call.fields, call.result)
+	}
+	return checkNOVAAppInfo(info, err)
+}
+
+// novaAppInfoCall: the App-info read into info. Home Assistant Core's
+// WS_NO_ADMIN_ENDPOINTS explicitly permits this exact App-info endpoint
+// for non-admin users. Do not broaden the path.
+func novaAppInfoCall(info *HAAddonInfo) (haCall, error) {
 	appSlug, err := selectedCloudNOVAAppSlug()
 	if err != nil {
-		return HAAddonInfo{}, newCloudError(
+		return haCall{}, newCloudError(
 			CloudErrInvalidInput,
 			"select HA NOVA App",
 			err,
 		)
 	}
-	var info HAAddonInfo
-	// Home Assistant Core's WS_NO_ADMIN_ENDPOINTS explicitly permits this
-	// exact App-info endpoint for non-admin users. Do not broaden the path.
-	if err := c.Call(ctx, "supervisor/api", map[string]any{
-		"endpoint": "/addons/" + appSlug + "/info",
-		"method":   "get",
-	}, &info); err != nil {
+	return haCall{"supervisor/api", map[string]any{"endpoint": "/addons/" + appSlug + "/info", "method": "get"}, info, nil}, nil
+}
+
+func checkNOVAAppInfo(info HAAddonInfo, err error) (HAAddonInfo, error) {
+	if err != nil {
 		return HAAddonInfo{}, err
 	}
 	if _, err := info.MachineIngressRoot(); err != nil {
