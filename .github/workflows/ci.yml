@@ -14,8 +14,8 @@ permissions:
 
 # Shard counts of go-test-N and go-race-N (.github/scripts/go-test-shard.sh).
 env:
-  GO_TEST_SHARDS: 3
-  GO_RACE_SHARDS: 2
+  GO_TEST_SHARDS: 4
+  GO_RACE_SHARDS: 3
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -64,9 +64,11 @@ jobs:
               "go-test-1": ["go", "relay", "skills", "docs"],
               "go-test-2": ["go", "relay", "skills", "docs"],
               "go-test-3": ["go", "relay", "skills", "docs"],
+              "go-test-4": ["go", "relay", "skills", "docs"],
               "go-build": ["go"],
               "go-race-1": ["go"],
               "go-race-2": ["go"],
+              "go-race-3": ["go"],
               "govulncheck": ["go"],
               "macos-native-secret-boundary": ["go"],
               "windows-native-secret-boundary": ["go"],
@@ -99,46 +101,6 @@ jobs:
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Blocked files check
-        run: |
-          set -euo pipefail
-          BLOCKED=(
-            ".env"
-            ".env.local"
-            "docs/breadcrumbs.md"
-            "docs/choices.md"
-          )
-          FOUND=()
-          for f in "${BLOCKED[@]}"; do
-            if git ls-files --error-unmatch "$f" &>/dev/null; then
-              FOUND+=("$f")
-            fi
-          done
-          if [[ ${#FOUND[@]} -gt 0 ]]; then
-            echo "::error::Blocked files tracked in git: ${FOUND[*]}"
-            exit 1
-          fi
-          echo "No blocked files found."
-
-  test-inventory:
-    name: test-inventory
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: "22"
-          cache: npm
-
-      - name: Install
-        run: npm ci
-
-      - name: Verify test inventory registration
-        run: npm run test:safe -- tests/onboarding/safe-test-system-contract.test.ts
 
   # The ha_nova Home Assistant integration (nova/integration/ha_nova) against
   # the Home Assistant version pinned in tests/ha_integration/requirements.txt.
@@ -184,7 +146,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.11"
+          go-version-file: cli/go.mod
           cache-dependency-path: cli/go.sum
 
       - name: Scan the Go CLI
@@ -203,7 +165,6 @@ jobs:
   # skill-text, docs, and onboarding contracts and costs about 2 minutes.
   verify:
     name: verify
-    needs: test-inventory
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -220,7 +181,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.11"
+          go-version-file: cli/go.mod
           cache-dependency-path: cli/go.sum
 
       # The dev-sync tests shell out to `go build` under a restricted PATH
@@ -252,7 +213,7 @@ jobs:
         run: npm run verify:node
 
   # The Go suite (npm run test:cli), the rest of npm run verify, in
-  # GO_TEST_SHARDS shards. go-test-1..3 run the same steps and differ only in
+  # GO_TEST_SHARDS shards. go-test-1..4 run the same steps and differ only in
   # SHARD_INDEX: each lists every test, deals them out, fails unless every
   # test is in exactly one shard (.github/scripts/go-test-shard.sh), and runs
   # its own. Separate jobs, not a matrix: ci-gate then sees each shard's own
@@ -261,7 +222,7 @@ jobs:
   # GO_TEST_SHARDS, and list it in JOB_AREAS and ci-gate.needs.
   go-test-1:
     name: go-test-1
-    needs: [changes, test-inventory]
+    needs: changes
     if: ${{ fromJSON(needs.changes.outputs.run)['go-test-1'] }}
     runs-on: ubuntu-latest
     env:
@@ -281,7 +242,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.11"
+          go-version-file: cli/go.mod
           cache-dependency-path: cli/go.sum
 
       - name: Prepare Go like the verify job
@@ -299,7 +260,7 @@ jobs:
 
   go-test-2:
     name: go-test-2
-    needs: [changes, test-inventory]
+    needs: changes
     if: ${{ fromJSON(needs.changes.outputs.run)['go-test-2'] }}
     runs-on: ubuntu-latest
     env:
@@ -308,11 +269,20 @@ jobs:
 
   go-test-3:
     name: go-test-3
-    needs: [changes, test-inventory]
+    needs: changes
     if: ${{ fromJSON(needs.changes.outputs.run)['go-test-3'] }}
     runs-on: ubuntu-latest
     env:
       SHARD_INDEX: 2
+    steps: *go-test-steps
+
+  go-test-4:
+    name: go-test-4
+    needs: changes
+    if: ${{ fromJSON(needs.changes.outputs.run)['go-test-4'] }}
+    runs-on: ubuntu-latest
+    env:
+      SHARD_INDEX: 3
     steps: *go-test-steps
 
   # The required check. A skipped required check counts as passed, so this
@@ -321,7 +291,7 @@ jobs:
   # marks it false. Anything unexpected fails.
   ci-gate:
     name: ci-gate
-    needs: [changes, test-inventory, verify, go-test-1, go-test-2, go-test-3, go-build, go-race-1, go-race-2, ha-integration, govulncheck]
+    needs: [changes, repo-hygiene, verify, go-test-1, go-test-2, go-test-3, go-test-4, go-build, go-race-1, go-race-2, go-race-3, ha-integration, govulncheck, macos-native-secret-boundary, windows-native-secret-boundary, windows-powershell-unicode]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -355,7 +325,7 @@ jobs:
 
   go-build:
     name: go-build
-    needs: [changes, test-inventory]
+    needs: changes
     if: ${{ fromJSON(needs.changes.outputs.run)['go-build'] }}
     runs-on: ubuntu-latest
     steps:
@@ -365,7 +335,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.11"
+          go-version-file: cli/go.mod
           cache-dependency-path: cli/go.sum
 
       - name: Build (cross-target)
@@ -383,7 +353,7 @@ jobs:
   # package under -race takes far longer than this slice.
   go-race-1:
     name: go-race-1
-    needs: [changes, test-inventory]
+    needs: changes
     if: ${{ fromJSON(needs.changes.outputs.run)['go-race-1'] }}
     runs-on: ubuntu-latest
     env:
@@ -395,7 +365,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.11"
+          go-version-file: cli/go.mod
           cache-dependency-path: cli/go.sum
 
       - name: Race detector (setup, confirm, and gate)
@@ -403,16 +373,25 @@ jobs:
 
   go-race-2:
     name: go-race-2
-    needs: [changes, test-inventory]
+    needs: changes
     if: ${{ fromJSON(needs.changes.outputs.run)['go-race-2'] }}
     runs-on: ubuntu-latest
     env:
       SHARD_INDEX: 1
     steps: *go-race-steps
 
+  go-race-3:
+    name: go-race-3
+    needs: changes
+    if: ${{ fromJSON(needs.changes.outputs.run)['go-race-3'] }}
+    runs-on: ubuntu-latest
+    env:
+      SHARD_INDEX: 2
+    steps: *go-race-steps
+
   macos-native-secret-boundary:
     name: macos-native-secret-boundary
-    needs: [changes, test-inventory]
+    needs: changes
     if: ${{ fromJSON(needs.changes.outputs.run)['macos-native-secret-boundary'] }}
     runs-on: macos-latest
     steps:
@@ -422,7 +401,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.11"
+          go-version-file: cli/go.mod
           cache-dependency-path: cli/go.sum
 
       - name: Verify macOS Keychain no-UI policy
@@ -454,12 +433,12 @@ jobs:
             "${RUNNER_TEMP}/ha-nova-cli.test"
           /usr/bin/codesign --verify --strict "${RUNNER_TEMP}/ha-nova-cli.test"
           "${RUNNER_TEMP}/ha-nova-cli.test" \
-            -test.run '^(TestDarwinNativeSecretWorkerVerifiesSameExecutableParent|TestDarwinOAuthSecurityBindingLoads|TestDarwinOAuthBackendStopsBeforeNativeAccessWhenCanceled)$' \
+            -test.run '^(TestDarwinNativeSecretWorkerVerifiesSameExecutableParent|TestDarwinOAuthSecurityBindingLoads|TestDarwinOAuthBackendStopsBeforeNativeAccessWhenCanceled|TestDarwinOAuthNativeOperationsHonorHardDeadline)$' \
             -test.v
 
   windows-native-secret-boundary:
     name: windows-native-secret-boundary
-    needs: [changes, test-inventory]
+    needs: changes
     if: ${{ fromJSON(needs.changes.outputs.run)['windows-native-secret-boundary'] }}
     runs-on: windows-latest
     steps:
@@ -469,7 +448,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.11"
+          go-version-file: cli/go.mod
           cache-dependency-path: cli/go.sum
 
       - name: Verify native worker boundaries
@@ -486,7 +465,7 @@ jobs:
 
   windows-powershell-unicode:
     name: windows-powershell-unicode
-    needs: [changes, test-inventory]
+    needs: changes
     if: ${{ fromJSON(needs.changes.outputs.run)['windows-powershell-unicode'] }}
     runs-on: windows-latest
     steps:
@@ -496,7 +475,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.11"
+          go-version-file: cli/go.mod
           cache-dependency-path: cli/go.sum
 
       - name: Verify PowerShell 5.1 UTF-8 round trip

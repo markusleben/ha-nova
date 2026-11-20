@@ -1,5 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -80,62 +79,26 @@ function expectFragmentsInOrder(haystack: string, fragments: string[]) {
   }
 }
 
-function expectNoFullVitestSweep(verifyScript: string) {
-  expect(verifyScript).not.toMatch(/(^|&& )npm run test:safe($| &&)/);
-}
-
 describe("safe test system contract", () => {
-  // Every test file must actually RUN in `npm run verify`. A test file that no
-  // script references is worse than no test: it looks like coverage and proves
-  // nothing. This guard exists because 50 /files security tests and the skill
-  // linter silently never ran in CI — they were simply missing from the
-  // manifest.
-  it("runs every test file through verify", () => {
-    const manifest = new Set(
-      JSON.parse(readFileSync("scripts/test/safe-core-files.json", "utf8")) as string[]
-    );
-    // Only scripts REACHABLE FROM `verify` count. Matching against every
-    // script would let a file referenced solely by, say, `test:bulk:fast`
-    // satisfy a check whose stated invariant is "runs in npm run verify"
-    // (#515).
-    const allScripts = (
-      JSON.parse(readFileSync("package.json", "utf8")) as {
-        scripts: Record<string, string>;
-      }
-    ).scripts;
-    const reachable = new Set<string>();
-    const visit = (name: string): void => {
-      if (reachable.has(name) || !allScripts[name]) return;
-      reachable.add(name);
-      for (const ref of allScripts[name].matchAll(/npm run ([\w:-]+)/g)) {
-        visit(ref[1] as string);
-      }
-      // npm runs pre<script>/post<script> hooks implicitly.
-      for (const hook of [`pre${name}`, `post${name}`]) visit(hook);
-    };
-    visit("verify");
-    const scripts = [...reachable].map((n) => allScripts[n]).join(" ");
-
+  // npm test and verify:node run one plain `vitest run`, so a test runs exactly
+  // when Vitest's include matches it. A suite can still silently never run in
+  // two ways: a test file whose suffix the include misses, and a
+  // `*-behavior.ts` module (no test suffix) that no running file imports, or
+  // whose register*Tests() nothing calls (#515).
+  it("runs every test file and behavior module in the Vitest sweep", () => {
+    expect(readFileSync("vitest.config.ts", "utf8")).toContain('include: ["tests/**/*.test.ts"]');
+    const isEntrypoint = (file: string) => /^tests\/.+\.test\.ts$/.test(file);
     const testFiles = collectTestFiles("tests");
     expect(testFiles.length).toBeGreaterThan(50);
-    expect(reachable.size).toBeGreaterThan(5);
+    expect(collectTestFiles("nova/src"), "test files belong under tests/, which is all Vitest runs").toEqual([]);
+    const missed = testFiles.filter((file) => !isEntrypoint(file));
+    expect(
+      missed,
+      `vitest only includes tests/**/*.test.ts, so these never run — rename them:\n  ${missed.join("\n  ")}`
+    ).toEqual([]);
 
-    // Tokenize the scripts: a substring test makes `foo.test.ts` look
-    // executed because it is a prefix of `foo.test.tsx` in some other script.
-    const scriptedPaths = new Set(
-      scripts.split(/[\s'"]+/).filter((token) => token.startsWith("tests/")),
-    );
-    const orphans = testFiles.filter(
-      (file) => !manifest.has(file) && !scriptedPaths.has(file)
-    );
-
-    // Unsuffixed behavior modules: this repo splits some suites into
-    // `*-behavior.ts` files that import vitest and are pulled in by a wrapper.
-    // They carry real assertions, so an unimported one is silently dead — the
-    // same failure the suffix check exists to prevent, one indirection over.
     const vitestModules = collectVitestModules("tests");
     const allModules = collectModules("tests");
-    const isEntrypoint = (file: string) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(file);
     const behaviorModules = vitestModules.filter((file) => !isEntrypoint(file));
 
     // Resolve real module specifiers, not basename occurrences: a name left
@@ -146,13 +109,10 @@ describe("safe test system contract", () => {
       const body = readFileSync(file, "utf8");
       return [...body.matchAll(/(?:from|import)\s+["'](\.[^"']+)["']/g)]
         // Normalize the SAME suffix set on both sides: an import written as
-        // "./suite.mjs" must match a candidate stripped of .mjs, or a
-        // perfectly reachable module reports as orphaned.
+        // "./suite.mjs" must match a candidate stripped of .mjs.
         .map((m) => (m[1] as string).replace(/\.[cm]?[jt]sx?$/, ""))
         .map((spec) => {
-          const base = spec.startsWith("./") || spec.startsWith("../")
-            ? join(dir, spec).split("\\").join("/")
-            : spec;
+          const base = join(dir, spec).split("\\").join("/");
           return allModules.find(
             (candidate) => candidate.replace(/\.[cm]?[jt]sx?$/, "") === base,
           );
@@ -168,34 +128,26 @@ describe("safe test system contract", () => {
         walk(dep);
       }
     };
-    // Only entrypoints that actually run seed the traversal, so a cycle among
-    // behavior modules cannot make itself reachable. Seed from ALL modules: a
-    // wrapper whose body is nothing but side-effect imports of self-
-    // registering suites never imports vitest itself, and Vitest still runs it.
-    for (const entry of allModules.filter(isEntrypoint)) {
-      if (manifest.has(entry) || scriptedPaths.has(entry)) walk(entry);
-    }
+    // Only entrypoints Vitest runs seed the traversal, so a cycle among
+    // behavior modules cannot make itself reachable. A wrapper whose body is
+    // nothing but side-effect imports never imports vitest itself, so seed
+    // from every entrypoint.
+    for (const entry of allModules.filter(isEntrypoint)) walk(entry);
     // Reaching a module is not running it: these export a register*Tests()
-    // function the wrapper must CALL. An import whose call was deleted leaves
-    // the file imported and its describe blocks unregistered.
+    // function the wrapper must CALL. Search only the code that RUNS, with
+    // comments removed: a commented-out `// registerFooTests()` is exactly the
+    // deletion this guard exists to catch.
     const registrarsOf = (file: string): string[] =>
       [...stripComments(readFileSync(file, "utf8")).matchAll(/export\s+(?:async\s+)?function\s+(register\w+)/g)]
         .map((m) => m[1] as string);
-    // Search only the code that RUNS, with comments removed. A commented-out
-    // `// registerFooTests()` is exactly the deletion this guard exists to
-    // catch, and a call sitting in a module nothing reaches never executes.
-    // Search every RUNNING module, vitest-importing or not: a reachable
-    // aggregator is where the register*Tests() call often lives.
     const runningSources = allModules
-      .filter((file) => reachableModules.has(file) || manifest.has(file) || scriptedPaths.has(file))
+      .filter((file) => reachableModules.has(file) || isEntrypoint(file))
       .map((file) => stripComments(readFileSync(file, "utf8")))
       .join("\n");
     const uncalled = behaviorModules.filter((file) =>
       registrarsOf(file).some(
-        // A registrar invocation is a STATEMENT, so it begins its line. The
-        // same name inside an assertion message or diagnostic string never
-        // does — and blanking string literals instead would need a JS parser,
-        // since one stray backtick in a fixture swallows the rest of a file.
+        // A registrar invocation is a STATEMENT, so it begins its line; the
+        // same name inside an assertion message never does.
         (name) => !new RegExp(`^\\s*(await\\s+)?${name}\\s*\\(`, "m").test(
           runningSources.replace(new RegExp(`export\\s+(?:async\\s+)?function\\s+${name}`, "g"), ""),
         ),
@@ -211,10 +163,16 @@ describe("safe test system contract", () => {
       unreachable,
       `these vitest modules are imported by nothing and therefore never run:\n  ${unreachable.join("\n  ")}`
     ).toEqual([]);
-    expect(
-      orphans,
-      `these test files are never executed by npm run verify — add them to scripts/test/safe-core-files.json or to an explicit verify step:\n  ${orphans.join("\n  ")}`
-    ).toEqual([]);
+  });
+
+  // The Go suite runs in the go-test shards; a Vitest file that spawns
+  // the Go suite repeats it and compiles the CLI on every local npm test.
+  it("never re-runs Go tests from Vitest", () => {
+    const spawnsGoTest = collectModules("tests").filter((file) => {
+      const source = readFileSync(file, "utf8");
+      return /["']go["'],\s*\[[^\]]*["']test["']/.test(source) || /\bgo\s+(?:-C\s+\S+\s+)?test\b/.test(source);
+    });
+    expect(spawnsGoTest).toEqual([]);
   });
 
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
@@ -222,7 +180,6 @@ describe("safe test system contract", () => {
   };
   const platform = readFileSync("cli/platform.go", "utf8");
   const keyringService = readFileSync("cli/keyring_service.go", "utf8");
-  const safeCoreFiles = JSON.parse(readFileSync("scripts/test/safe-core-files.json", "utf8")) as string[];
   const helpers = readFileSync("tests/onboarding/_helpers.ts", "utf8");
   const contributing = readFileSync("CONTRIBUTING.md", "utf8");
   const releasing = `${readFileSync("docs/releasing.md", "utf8")}\n${readFileSync("docs/release-validation.md", "utf8")}`;
@@ -245,27 +202,7 @@ describe("safe test system contract", () => {
     }>;
   };
 
-  it("runs the test inventory guard before expensive CI work", () => {
-    const guardCommand =
-      "npm run test:safe -- tests/onboarding/safe-test-system-contract.test.ts";
-    const inventoryJob = ci.jobs["test-inventory"];
-    const inventorySteps = inventoryJob?.steps ?? [];
-    expectFragmentsInOrder(
-      inventorySteps.map((step) => step.name ?? "").join("\n"),
-      ["Checkout", "Setup Node", "Install", "Verify test inventory registration"],
-    );
-    expect(inventorySteps.find((step) => step.name === "Install")?.run).toBe("npm ci");
-
-    const guardSteps = Object.values(ci.jobs)
-      .flatMap((job) => job.steps ?? [])
-      .filter((step) => step.run?.includes("safe-test-system-contract.test.ts"));
-    expect(guardSteps).toHaveLength(1);
-    expect(guardSteps[0]).toMatchObject({ name: "Verify test inventory registration", run: guardCommand });
-    expect(guardSteps[0]?.if).toBeUndefined();
-    expect(guardSteps[0]?.["continue-on-error"]).toBeUndefined();
-    expect(inventoryJob?.["continue-on-error"]).toBeUndefined();
-    expect(inventoryJob?.if).toBeUndefined();
-
+  it("gates every CI job through ci-gate", () => {
     // npm run verify runs in two jobs: verify (everything but the Go suite)
     // and go-test (the Go suite).
     expect(pkg.scripts?.verify).toBe("npm run verify:node && npm run test:cli");
@@ -285,7 +222,7 @@ describe("safe test system contract", () => {
       expect(total).toBeGreaterThan(1);
       expect(Object.keys(ci.jobs).filter((job) => job.startsWith(`${kind}-`)).sort()).toEqual(jobs);
       for (const [i, job] of jobs.entries()) {
-        expect(ci.jobs[job]).toMatchObject({ name: job, needs: ["changes", "test-inventory"] });
+        expect(ci.jobs[job]).toMatchObject({ name: job, needs: "changes" });
         expect(ci.jobs[job]?.env).toEqual({ SHARD_INDEX: i });
         expect(ci.jobs[job]?.strategy).toBeUndefined();
         expect(ci.jobs[job]?.steps).toEqual(ci.jobs[`${kind}-1`]?.steps);
@@ -302,10 +239,24 @@ describe("safe test system contract", () => {
     expect(ci.jobs["go-race-1"]?.steps?.find((step) => step.name === "Race detector (setup, confirm, and gate)")?.run).toMatch(
       /^bash \.github\/scripts\/go-test-shard\.sh "\$SHARD_INDEX" "\$GO_RACE_SHARDS" '[^']+' -race -count=1$/,
     );
-    expect(ci.jobs["verify"]?.needs).toBe("test-inventory");
+    expect(ci.jobs["verify"]?.needs).toBeUndefined();
 
-    // ci-gate is the required check and waits for every gating job.
-    const gated = ["changes", "test-inventory", "verify", ...goTests, "go-build", ...goRaces, "ha-integration", "govulncheck"];
+    // ci-gate is the required check and waits for every job, the secret scan
+    // and the native macOS and Windows jobs included.
+    const gated = [
+      "changes",
+      "repo-hygiene",
+      "verify",
+      ...goTests,
+      "go-build",
+      ...goRaces,
+      "ha-integration",
+      "govulncheck",
+      "macos-native-secret-boundary",
+      "windows-native-secret-boundary",
+      "windows-powershell-unicode",
+    ];
+    expect(Object.keys(ci.jobs).filter((job) => job !== "ci-gate").sort()).toEqual([...gated].sort());
     expect(ci.jobs["ci-gate"]?.needs).toEqual(gated);
     // A skipped required check counts as passed: ci-gate always runs and fails
     // unless the changes job succeeded and every needed job succeeded.
@@ -326,7 +277,7 @@ describe("safe test system contract", () => {
       }).status;
     const results = (run: string, changes: string, scoped: string, rest = "success") => ({
       changes: { result: changes, outputs: { run } },
-      "test-inventory": { result: rest, outputs: {} },
+      "repo-hygiene": { result: rest, outputs: {} },
       verify: { result: rest, outputs: {} },
       "go-test-1": { result: scoped, outputs: {} },
     });
@@ -393,72 +344,30 @@ describe("safe test system contract", () => {
       "windows-native-secret-boundary",
       "windows-powershell-unicode",
     ]) {
-      expect(ci.jobs[job]?.needs).toEqual(["changes", "test-inventory"]);
+      expect(ci.jobs[job]?.needs).toBe("changes");
     }
   });
 
   it("keeps npm test and verify host-safe", () => {
     expect(pkg.scripts?.["test:safe"]).toBe("vitest run");
-    expect(pkg.scripts?.["test:safe:core"]).toBe("node scripts/test/run-safe-core.mjs");
-    expect(safeCoreFiles.length).toBeGreaterThan(0);
-    expect(safeCoreFiles).toContain("tests/http/health.test.ts");
     expect(pkg.scripts?.test).toBe("npm run test:safe");
     expect(pkg.scripts?.["test:watch"]).toBe("vitest");
     expect(pkg.scripts?.["verify:security"]).toBe("bash scripts/release/verify-npm-audit.sh");
-    expect(pkg.scripts?.["preverify:docs"]).toBe("node scripts/test/assert-vitest-files-exist.mjs verify:docs");
-    expect(pkg.scripts?.["verify:docs"]).toContain("scripts/check-docs.sh");
-    expect(pkg.scripts?.["preverify:installers"]).toBe("node scripts/test/assert-vitest-files-exist.mjs verify:installers");
-    expect(pkg.scripts?.["verify:installers"]).toBe(
-      "npx vitest run tests/onboarding/installer-contract.test.ts tests/onboarding/windows-installer-contract.test.ts tests/onboarding/windows-installer-preflight.test.ts",
-    );
-    expect(pkg.scripts?.["preverify:onboarding"]).toBe("node scripts/test/assert-vitest-files-exist.mjs verify:onboarding");
-    expect(pkg.scripts?.["verify:onboarding"]).toContain("tests/onboarding/install-skills-per-client.test.ts");
-    expect(pkg.scripts?.["verify:onboarding"]).toContain("npm run verify:installers");
-    expect(pkg.scripts?.["preverify:release-contracts"]).toBe("node scripts/test/assert-vitest-files-exist.mjs verify:release-contracts");
-    expect(pkg.scripts?.["verify:release-contracts"]).toContain("tests/onboarding/release-contract.test.ts");
-    expect(pkg.scripts?.["verify:release-contracts"]).toContain("tests/onboarding/desktop-validation-behavior.test.ts");
-    const verify = `${pkg.scripts?.["verify:node"] ?? ""} && ${pkg.scripts?.verify ?? ""}`;
     expect(pkg.scripts?.verify).toBe("npm run verify:node && npm run test:cli");
-    expectFragmentsInOrder(verify, [
+    // verify:node is the half that is safe on any host: one Vitest sweep and
+    // no Go suite.
+    const verifyNode = pkg.scripts?.["verify:node"] ?? "";
+    expectFragmentsInOrder(verifyNode, [
       "npm run verify:security",
       "bash scripts/release/verify-blocked-files.sh",
+      "npm run verify:release-metadata",
       "npm run typecheck",
-      "npm run verify:docs",
-      "npm run test:safe:core",
-      "npm run verify:onboarding",
+      "bash scripts/check-docs.sh",
       "npm run build",
-      "npm run verify:release-contracts",
-      "npm run test:cli",
+      "npm run test:safe",
     ]);
-    expectNoFullVitestSweep(verify);
-    expect(verify).not.toContain("test:desktop");
-  });
-
-  it("fails scripted Vitest runs before missing files can be skipped", () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-test-guard-"));
-    try {
-      mkdirSync(join(tempDir, "tests"), { recursive: true });
-      writeFileSync(
-        join(tempDir, "package.json"),
-        JSON.stringify({
-          scripts: {
-            broken: "npx vitest run tests/missing.test.ts",
-            valid: "npx vitest run tests/present.test.ts",
-          },
-        }),
-      );
-      writeFileSync(join(tempDir, "tests/present.test.ts"), "import { it } from 'vitest'; it('passes', () => {});\n");
-
-      const guardPath = join(process.cwd(), "scripts/test/assert-vitest-files-exist.mjs");
-      const broken = spawnSync(process.execPath, [guardPath, "broken"], { cwd: tempDir, encoding: "utf8" });
-      expect(broken.status).toBe(1);
-      expect(broken.stderr).toContain("references missing test files: tests/missing.test.ts");
-
-      const valid = spawnSync(process.execPath, [guardPath, "valid"], { cwd: tempDir, encoding: "utf8" });
-      expect(valid.status).toBe(0);
-    } finally {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
+    expect(verifyNode.match(/vitest|test:safe/g)).toEqual(["test:safe"]);
+    expect(verifyNode).not.toMatch(/test:cli|go\stest|test:desktop/);
   });
 
   it("defines an explicit macOS desktop validation command instead of mixing it into npm test", () => {
@@ -488,11 +397,9 @@ describe("safe test system contract", () => {
 
   it("documents host-safe defaults and explicit desktop validation", () => {
     expect(contributing).toContain("host-safe");
-    expect(contributing).toContain("verify:docs");
-    expect(contributing).toContain("verify:installers");
-    expect(contributing).toContain("verify:onboarding");
-    expect(contributing).toContain("verify:release-contracts");
-    expect(contributing).toContain("test:safe:core");
+    expect(contributing).toContain("npm run verify:node");
+    // The Go suite pairs and purges: on a Mac only in isolation (AGENTS.md).
+    expect(contributing).toContain("on macOS, run the Go suite only in a Linux container or a separate macOS user");
     expect(contributing).toContain("test:desktop:macos");
     expect(contributing).toContain("test:desktop:windows:headless");
     expect(contributing).toContain("test:desktop:windows:rdp");
@@ -500,11 +407,9 @@ describe("safe test system contract", () => {
     expect(contributing).toContain("dev:validation:harness");
     expect(contributing).toContain("pkill -f");
     expect(releasing).toContain("host-safe");
-    expect(releasing).toContain("verify:installers");
     expect(releasing).toContain("test:desktop:macos");
     expect(releasing).toContain("test:desktop:windows:headless");
     expect(releasing).toContain("test:desktop:windows:rdp");
-    expect(releasing).toContain("test:safe:core");
     expect(releasing).toContain("start-local-validation-harness");
     expect(releasing).toContain("dev:validation:harness");
     expect(releasing).toContain("pkill -f");

@@ -22,7 +22,7 @@
 
 ## Verification
 
-- [ ] `npm run verify`
+- [ ] `npm run verify:node` (Go changes: the Go suite in CI, a Linux container, or a separate macOS user)
 - [ ] Extra targeted validation added/run if this change needs more than the host-safe default gate
 - [ ] Docs updated (if needed)
 - [ ] Release-facing support/validation claims updated (if needed)

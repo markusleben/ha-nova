@@ -4,7 +4,7 @@ Four layers, cheapest first. Use the smallest one that covers your change.
 
 | Layer | Proves | Needs | Command |
 | --- | --- | --- | --- |
-| 1. Host-safe checks | Types, contracts, unit + Go behaviour | Nothing (never touches real secure stores or a browser) | `npm run verify` |
+| 1. Host-safe checks | Types, contracts, unit + Go behaviour | Nothing (never touches real secure stores or a browser); on macOS the Go suite needs a Linux container or a separate macOS user | `npm run verify:node`, then the Go suite (`npm run test:cli`) |
 | 2. Disposable-HA E2E | The relay against a **real** Home Assistant | Docker + Python 3 (`pip install websockets`) — **no HA of your own** | `bash scripts/e2e/disposable-ha/run.sh` |
 | 3. Live local against your own HA | The local onboarding wizard + device pairing on real hardware | An HA instance you control | See [Live against your own HA](#3-live-against-your-own-ha) |
 | 4. Home Assistant Link remote Beta gate | OAuth, native storage, Supervisor Ingress, user binding, routing, and lifecycle on real services | Home Assistant OS/Supervised, active Home Assistant Link (formerly Home Assistant Cloud) remote access, and supported desktop OSes | See [Home Assistant Link Beta real-device gate](#4-home-assistant-link-remote-beta-real-device-gate) |
@@ -13,7 +13,7 @@ Layer 1 is documented in [CONTRIBUTING.md → Verification Matrix](../../CONTRIB
 
 ## 1. Host-safe checks
 
-`npm run verify` is the canonical gate: dependency audit, blocked-file checks, typecheck, docs contracts, the core Vitest slice, onboarding contracts, the host-safe build, the Go CLI tests, and release contracts. It must never open a browser or touch a real OS keyring. Pick the smallest matching slice (`verify:docs`, `verify:onboarding`, `verify:release-contracts`, …) from the Verification Matrix; fall back to `npm run verify` when a change crosses boundaries.
+`npm run verify:node` is the host-safe gate on any machine: dependency audit, blocked-file checks, release metadata, typecheck, the docs fact-check, the build, and every Vitest test in one sweep. It never opens a browser or touches a real OS keyring. `npm run verify` adds the Go CLI suite; its pairing, setup, purge, and server-removal tests run on a Mac only in a Linux container or a separate macOS user (see the Keychain note below), so on a Mac with real credentials leave them to CI.
 
 ## 2. Disposable-HA E2E (no HA of your own)
 
