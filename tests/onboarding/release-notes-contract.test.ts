@@ -56,12 +56,11 @@ describe("release notes contract", () => {
     expect(stableNotes).toMatch(/## New Features\s+- \*\*Updating a Mac from 0\.31\? HA NOVA asks you to pair it again once\.\*\*/);
     expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Updating a Mac from 0\.31\? HA NOVA asks you to pair it again once\.\*\*/);
     expect(stableNotes).toContain('choose "Allow", not "Always Allow"');
-    // 0.34: YAML thermostats (MAR-245), the speed work, the smaller App, the one Safety Core (F10).
-    expect(stableNotes).toContain("**A thermostat or hygrostat set up in YAML no longer makes everyday calls ask.**");
+    // 0.34: YAML thermostats (MAR-245), the speed work, the smaller App.
+    expect(stableNotes).toContain("**A generic thermostat or hygrostat set up in YAML no longer makes everyday calls ask.**");
     expect(stableNotes).toContain("**YAML thermostats need this release's NOVA App with file access on.**");
     expect(stableNotes).toContain("**HA NOVA answers faster.**");
     expect(stableNotes).toContain("**The NOVA App is smaller and starts faster.**");
-    expect(stableNotes).toContain("**Your AI reads less for each change.**");
     // The standalone container's token-only pairing (R10, #1263) is a behavior change a container user must know.
     expect(stableNotes).toContain("**The standalone container connects with its token only.**");
     expect(stableNotes).toContain("RELAY_AUTH_TOKEN");
