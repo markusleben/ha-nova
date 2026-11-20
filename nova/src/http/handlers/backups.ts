@@ -1,3 +1,4 @@
+import type { Stats } from "node:fs";
 import { lstat, mkdir, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -226,8 +227,10 @@ function stampToIso(stamp: string): string {
   return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}.${m[7]}Z`;
 }
 
-async function collectEntries(root: string, category?: string): Promise<SnapshotEntry[]> {
-  const entries: SnapshotEntry[] = [];
+// Leaf metadata reads in flight at once: a full store is up to 500 lstat calls.
+const LEAF_READS = 8;
+
+async function collectEntries(root: string, category?: string, sorted = true): Promise<SnapshotEntry[]> {
   let categories: string[];
   try {
     const dirents = await readdir(root, { withFileTypes: true });
@@ -242,42 +245,38 @@ async function collectEntries(root: string, category?: string): Promise<Snapshot
     throw error;
   }
 
-  for (const cat of categories) {
-    let files: string[];
-    try {
-      files = await readdir(join(root, cat));
-    } catch (error) {
-      if (isEnoent(error)) {
-        continue;
-      }
-      throw error;
-    }
-    for (const fname of files) {
-      const ref = `${cat}/${fname}`;
-      const match = FILE_PATTERN.exec(ref);
-      if (!match) {
-        continue;
-      }
-      // lstat, not stat: a leaf symlink must neither leak outside metadata
-      // into list results nor count its target's size toward the caps. A
-      // file deleted or pruned between readdir and lstat is simply gone.
-      const info = await lstat(join(root, cat, fname)).catch((error: unknown) =>
+  const listed = await Promise.all(
+    categories.map((cat) =>
+      readdir(join(root, cat)).then(
+        (files) => files.map((fname) => ({ cat, fname, match: FILE_PATTERN.exec(`${cat}/${fname}`) })),
+        (error: unknown) => (isEnoent(error) ? [] : Promise.reject(error)),
+      ),
+    ),
+  );
+  const candidates = listed.flat().filter((c) => c.match !== null);
+  // lstat, not stat: a leaf symlink must neither leak outside metadata into
+  // list results nor count its target's size toward the caps. A file deleted
+  // or pruned between readdir and lstat is simply gone.
+  const infos: (Stats | null)[] = new Array(candidates.length).fill(null);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    for (let i = next++; i < candidates.length; i = next++) {
+      const { cat, fname } = candidates[i]!;
+      infos[i] = await lstat(join(root, cat, fname)).catch((error: unknown) =>
         isEnoent(error) ? null : Promise.reject(error),
       );
-      if (!info?.isFile()) {
-        continue;
-      }
-      entries.push({
-        file: ref,
-        category: cat,
-        name: match[2] ?? "",
-        bytes: info.size,
-        created_at: stampToIso(match[3] ?? "")
-      });
     }
-  }
+  };
+  await Promise.all(Array.from({ length: Math.min(LEAF_READS, candidates.length) }, worker));
 
-  entries.sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
+  const entries = candidates.flatMap(({ cat, fname, match }, i) =>
+    infos[i]?.isFile()
+      ? [{ file: `${cat}/${fname}`, category: cat, name: match?.[2] ?? "", bytes: infos[i]!.size, created_at: stampToIso(match?.[3] ?? "") }]
+      : [],
+  );
+  if (sorted) {
+    entries.sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
+  }
   return entries;
 }
 
@@ -290,9 +289,8 @@ async function saveSnapshot(
 ): Promise<{ file: string; bytes: number; created_at: string }> {
   const compressed = await gzipAsync(Buffer.from(JSON.stringify(data), "utf8"));
 
-  const existing = await collectEntries(root);
-  const totalBytes = existing.reduce((sum, entry) => sum + entry.bytes, 0);
-  if (existing.length + 1 > MAX_SNAPSHOT_FILES || totalBytes + compressed.length > MAX_TOTAL_BYTES) {
+  const existing = await summarizeSnapshotStore(root);
+  if (existing.files + 1 > MAX_SNAPSHOT_FILES || existing.bytes + compressed.length > MAX_TOTAL_BYTES) {
     throw new HttpError(
       400,
       "SNAPSHOT_STORE_FULL",
@@ -354,7 +352,7 @@ async function loadSnapshot(
 export async function summarizeSnapshotStore(
   root: string
 ): Promise<{ files: number; bytes: number }> {
-  const entries = await collectEntries(root);
+  const entries = await collectEntries(root, undefined, false);
   return {
     files: entries.length,
     bytes: entries.reduce((sum, entry) => sum + entry.bytes, 0)
