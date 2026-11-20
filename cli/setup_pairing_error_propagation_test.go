@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"io"
-	"net/http"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -152,15 +151,13 @@ func TestSetupSecurePairingPreparesInstallIDBeforeRetry(t *testing.T) {
 	}
 }
 
-func TestSetupSecurePairingFallbackUsesPreparedInstallID(t *testing.T) {
+func TestSetupSecurePairingTokenOnlyRelayKeepsPreparedInstallID(t *testing.T) {
 	originalProbe := probePairingV1ForSetup
 	originalPair := securePairForSetup
-	originalExchange := exchangeRelayPairingCodeForSetup
 	probePairingV1ForSetup = func(string) bool { return true }
 	t.Cleanup(func() {
 		probePairingV1ForSetup = originalProbe
 		securePairForSetup = originalPair
-		exchangeRelayPairingCodeForSetup = originalExchange
 	})
 
 	dir := t.TempDir()
@@ -190,12 +187,6 @@ func TestSetupSecurePairingFallbackUsesPreparedInstallID(t *testing.T) {
 		}
 		return "", errRelayNotV1
 	}
-	exchangeRelayPairingCodeForSetup = func(
-		_ *http.Client,
-		_, _ string,
-	) (string, error) {
-		return "legacy-token", nil
-	}
 
 	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
 	token, err := runSetupPairingFlow(
@@ -206,8 +197,8 @@ func TestSetupSecurePairingFallbackUsesPreparedInstallID(t *testing.T) {
 		false,
 		lifecycle...,
 	)
-	if err != nil || token != "legacy-token" {
-		t.Fatalf("fallback after install-id write token=%q err=%v", token, err)
+	if !errors.Is(err, errSetupRelayTokenStep) || token != "" {
+		t.Fatalf("token-only Relay after install-id write token=%q err=%v", token, err)
 	}
 }
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,20 +14,15 @@ import (
 )
 
 const maxRelayPairingResponseBytes = 32 << 10
-const maxRelayPairingTokenBytes = 4_096
-
-var errRelayPairingRejected = errors.New("relay pairing code rejected")
-var errRelayPairingUnsupported = errors.New("relay pairing unsupported")
-var exchangeRelayPairingCodeForSetup = exchangeRelayPairingCode
 
 // errSetupDevicePaired signals the wizard that the secure (v1) pairing already
 // stored a device credential + the secure endpoint; there is no relay token to
 // persist, and the connection is already proven by activation.
 var errSetupDevicePaired = errors.New("device paired securely")
 
-// Test hooks: default to the real implementations. The wizard tries the secure
-// v1 flow first and falls back to the legacy code exchange, so a relay without
-// /pair/v1 (or a test with no v1 endpoint) transparently uses the old path.
+// Test hooks: default to the real implementations. The wizard pairs through
+// secure v1; a reachable Relay without /pair/v1 is a standalone container,
+// which connects with its token only.
 var probePairingV1ForSetup = probePairingV1
 var securePairForSetup = runSecurePairingAfterInteractivePreflight
 var probePairingV1DetailedForSetup = probePairingV1Detailed
@@ -57,84 +51,6 @@ func normalizeRelayPairingCode(input string) (string, error) {
 		}
 	}
 	return code, nil
-}
-
-func exchangeRelayPairingCode(client *http.Client, relayBaseURL, code string) (string, error) {
-	normalizedCode, err := normalizeRelayPairingCode(code)
-	if err != nil {
-		return "", err
-	}
-	payload, err := json.Marshal(struct {
-		Code string `json:"code"`
-	}{Code: normalizedCode})
-	if err != nil {
-		return "", err
-	}
-
-	url := strings.TrimRight(relayBaseURL, "/") + "/pair"
-	request, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payload))
-	if err != nil {
-		return "", err
-	}
-	request.URL.User = nil
-	request.Header.Set("Content-Type", "application/json")
-
-	pairingClient := *client
-	pairingClient.Jar = nil
-	pairingClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-	response, err := pairingClient.Do(request)
-	if err != nil {
-		return "", fmt.Errorf("pairing request failed: %w", err)
-	}
-	defer response.Body.Close()
-
-	body, err := io.ReadAll(io.LimitReader(response.Body, maxRelayPairingResponseBytes+1))
-	if err != nil {
-		return "", errors.New("cannot read pairing response")
-	}
-	if len(body) > maxRelayPairingResponseBytes {
-		return "", errors.New("pairing response exceeded the size limit")
-	}
-
-	switch response.StatusCode {
-	case http.StatusUnauthorized:
-		switch relayPairingErrorCode(body) {
-		case "PAIRING_FAILED":
-			return "", errRelayPairingRejected
-		case "UNAUTHORIZED":
-			// Relay versions from before pairing protect /pair with the normal
-			// bearer middleware. Route those users to update/manual-token help
-			// instead of asking them to retry a valid NOVA code forever.
-			return "", errRelayPairingUnsupported
-		default:
-			return "", errors.New("relay returned an invalid pairing error response")
-		}
-	case http.StatusTooManyRequests:
-		return "", &relayPairingRateLimitError{
-			retryAfterSeconds: pairingRetryAfterSeconds(response.Header.Get("Retry-After")),
-		}
-	case http.StatusNotFound:
-		return "", errRelayPairingUnsupported
-	case http.StatusOK:
-		var envelope struct {
-			OK   bool `json:"ok"`
-			Data struct {
-				RelayToken string `json:"relay_token"`
-			} `json:"data"`
-		}
-		if err := json.Unmarshal(body, &envelope); err != nil || !envelope.OK {
-			return "", errors.New("relay returned an invalid pairing response")
-		}
-		token := strings.TrimSpace(envelope.Data.RelayToken)
-		if token == "" || len(token) > maxRelayPairingTokenBytes || strings.IndexFunc(token, unicode.IsControl) >= 0 {
-			return "", errors.New("relay returned an invalid pairing response")
-		}
-		return token, nil
-	default:
-		return "", fmt.Errorf("relay pairing failed with HTTP %d", response.StatusCode)
-	}
 }
 
 func relayPairingErrorCode(body []byte) string {
@@ -220,8 +136,8 @@ func probePairingV1Context(ctx context.Context, relayBaseURL string) bool {
 }
 
 // legacyTokenStoreUnavailable is set by the caller when the OS keyring is
-// missing AND no service-token file is configured, so the legacy /pair token
-// (which needs one of those) cannot be stored on this box.
+// missing AND no service-token file is configured, so a standalone Relay's
+// shared token (which needs one of those) cannot be stored on this box.
 func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg *runtimeConfig, legacyTokenStoreUnavailable bool, lifecycleMarker ...[]byte) (string, error) {
 	// A named profile never keeps the legacy shared token: refuse that
 	// exchange before a one-time code is spent, as the add-server flow does.
@@ -304,29 +220,26 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		renderSetupParagraph(out, probe.note)
 	}
 
-	// Determine the pairing mode up front (the relay URL is known here). Secure v1
-	// pairing stores a file-backed device credential and needs no keyring. The
-	// legacy /pair fallback instead returns a SHARED token that must go into the
-	// OS keyring or a service-token file — so on a keyless box with neither AND a
-	// pre-v1 relay, fail NOW, before the pairing UI prompts for and consumes a
-	// one-time code, rather than after the exchange fails to store the token.
+	// Determine the pairing mode up front, before any one-time code is spent.
+	// probePairingV1 returns false for ANY failure — a Relay without secure
+	// pairing, one still starting, OR an unreachable one. Re-probe with a
+	// detailed result so the cases are told apart: recovered v1 → pair;
+	// reachable without v1 → a standalone Relay, token only; unreachable → the
+	// code prompt still offers 'manual', and a code gets the retry hint.
 	secure := probePairingV1ForSetup(cfg.RelayBaseURL)
-	if !secure && legacyTokenStoreUnavailable {
-		// probePairingV1 returns false for ANY failure — a genuine pre-v1 relay, a
-		// transient one (still starting), OR an unreachable one. Re-probe with a
-		// detailed result so the three cases are distinguished: recovered v1 →
-		// proceed securely; reachable-but-pre-v1 → "too old" (no legacy store);
-		// unreachable → retry hint. No one-time code is spent in any case.
+	if !secure {
 		supported, reachable := probePairingV1DetailedForSetup(cfg.RelayBaseURL)
 		switch {
 		case supported:
-			secure = true // a transient first probe recovered — v1 is available now
+			secure = true // a transient first probe recovered
+		case installed != nil && installed.fromPage:
+			// The page's sign-in can't pair yet: step 2 says the App isn't ready,
+			// instead of a code prompt the page never hands over.
+			return "", &setupPagePairingError{cause: &pairingBeforeFinishError{err: errSignInRelayNotReady}, session: *installed}
 		case reachable:
-			renderSetupErrorLine(out, "This NOVA App is too old for secure device pairing, and this system has no key store for the legacy shared token. Update the NOVA App to enable secure pairing.")
-			return "", fmt.Errorf("relay predates secure pairing and no store is available for the legacy token")
-		default:
-			renderSetupErrorLine(out, "Could not reach the NOVA App to check secure pairing support. Make sure it is running, then run setup again.")
-			return "", fmt.Errorf("relay not reachable to determine secure pairing support")
+			return "", setupRelayTokenOnly(out, legacyTokenStoreUnavailable)
+		case legacyTokenStoreUnavailable:
+			return "", setupRelayUnreachable(out)
 		}
 	}
 
@@ -336,11 +249,6 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		}
 	}
 
-	// The page's sign-in can't pair without secure pairing: step 2 says the
-	// App isn't ready, instead of a code prompt the page never hands over.
-	if !secure && installed != nil && installed.fromPage {
-		return "", &setupPagePairingError{cause: &pairingBeforeFinishError{err: errSignInRelayNotReady}, session: *installed}
-	}
 	// "Sign in and install NOVA" already holds the owner's ingress session:
 	// pair with it instead of a second sign-in.
 	if secure && installed != nil {
@@ -403,83 +311,67 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 			renderSetupErrorLine(out, "%s", err)
 			continue
 		}
-
-		if secure {
-			var perr error
-			lockErr := withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
-				if err := guardPairingMutation(); err != nil {
-					return err
-				}
-				save := func(c *runtimeConfig) error {
-					return saveSetupConfigIfCurrent(
-						paths,
-						*c,
-						lifecycleMarker,
-					)
-				}
-				_, perr = securePairForSetup(cfg.RelayBaseURL, code, cfg, save, defaultPairingClientInfo())
-				return perr
-			})
-			if lockErr != nil {
-				perr = lockErr
-			}
-			switch {
-			case perr == nil:
-				renderSetupSuccessLine(out, "This computer is connected")
-				return "", errSetupDevicePaired
-			case errors.Is(perr, errPairingCodeRejected):
-				renderSetupErrorLine(out, "That code was not accepted. Click \"Connect a device\" in NOVA for a fresh code.")
-				continue
-			case errors.Is(perr, errPairingInactive):
-				renderSetupErrorLine(out, "No active code. In NOVA, click \"Connect a device\" first, then enter the code shown.")
-				continue
-			case errors.Is(perr, errPinMismatch):
-				renderSetupErrorLine(out, "The relay's secure identity did not match. Try again; if it repeats, someone may be intercepting the connection.")
-				return "", perr
-			case errors.Is(perr, errRelayNotV1):
-				// The relay turned out not to support v1 mid-flow. Falling through to
-				// the legacy /pair exchange needs a keyring for its shared token; on a
-				// box without one, fail now (same guard as up front) rather than
-				// consuming another code that could never be persisted.
-				if legacyTokenStoreUnavailable {
-					renderSetupErrorLine(out, "This NOVA App is too old for secure device pairing, and this system has no key store for the legacy shared token. Update the NOVA App to enable secure pairing.")
-					return "", fmt.Errorf("relay predates secure pairing mid-flow and no store is available for the legacy token")
-				}
-				secure = false // relay changed under us; fall through to legacy
-			default:
-				var rateLimit *relayPairingRateLimitError
-				if errors.As(perr, &rateLimit) {
-					renderSetupErrorLine(out, "Too many attempts. Wait at least %d seconds, then use the current code.", rateLimit.retryAfterSeconds)
-					continue
-				}
-				return "", renderSetupSecureStorageFailure(out, "Could not pair", perr)
-			}
+		if !secure {
+			return "", setupRelayUnreachable(out)
 		}
 
-		var token string
-		err = withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
+		var perr error
+		lockErr := withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
 			if err := guardPairingMutation(); err != nil {
 				return err
 			}
-			var exchangeErr error
-			token, exchangeErr = exchangeRelayPairingCodeForSetup(httpClient, cfg.RelayBaseURL, code)
-			return exchangeErr
+			save := func(c *runtimeConfig) error {
+				return saveSetupConfigIfCurrent(
+					paths,
+					*c,
+					lifecycleMarker,
+				)
+			}
+			_, perr = securePairForSetup(cfg.RelayBaseURL, code, cfg, save, defaultPairingClientInfo())
+			return perr
 		})
+		if lockErr != nil {
+			perr = lockErr
+		}
 		switch {
-		case err == nil:
+		case perr == nil:
 			renderSetupSuccessLine(out, "This computer is connected")
-			return token, nil
-		case errors.Is(err, errRelayPairingRejected):
-			renderSetupErrorLine(out, "That code was not accepted. Refresh NOVA and enter the current code.")
-		case errors.Is(err, errRelayPairingUnsupported):
-			renderSetupErrorLine(out, "This NOVA App version does not support pairing yet. Update the App, or type 'manual' to use an explicit relay token.")
+			return "", errSetupDevicePaired
+		case errors.Is(perr, errPairingCodeRejected):
+			renderSetupErrorLine(out, "That code was not accepted. Click \"Connect a device\" in NOVA for a fresh code.")
+			continue
+		case errors.Is(perr, errPairingInactive):
+			renderSetupErrorLine(out, "No active code. In NOVA, click \"Connect a device\" first, then enter the code shown.")
+			continue
+		case errors.Is(perr, errPinMismatch):
+			renderSetupErrorLine(out, "The relay's secure identity did not match. Try again; if it repeats, someone may be intercepting the connection.")
+			return "", perr
+		case errors.Is(perr, errRelayNotV1):
+			return "", setupRelayTokenOnly(out, legacyTokenStoreUnavailable)
 		default:
 			var rateLimit *relayPairingRateLimitError
-			if errors.As(err, &rateLimit) {
-				renderSetupErrorLine(out, "Too many pairing attempts. Wait at least %d seconds, then use the current NOVA code.", rateLimit.retryAfterSeconds)
+			if errors.As(perr, &rateLimit) {
+				renderSetupErrorLine(out, "Too many attempts. Wait at least %d seconds, then use the current code.", rateLimit.retryAfterSeconds)
 				continue
 			}
-			return "", renderSetupSecureStorageFailure(out, "Could not pair with the NOVA App", err)
+			return "", renderSetupSecureStorageFailure(out, "Could not pair", perr)
 		}
 	}
+}
+
+func setupRelayUnreachable(out io.Writer) error {
+	renderSetupErrorLine(out, "Could not reach the NOVA App to check secure pairing support. Make sure it is running, then run setup again.")
+	return errors.New("relay not reachable to determine secure pairing support")
+}
+
+// setupRelayTokenOnly: a reachable Relay without secure pairing is a
+// standalone container, which connects with its token only (the manual token
+// step), or fails here when this run can't store that token.
+func setupRelayTokenOnly(out io.Writer, tokenStoreUnavailable bool) error {
+	if tokenStoreUnavailable {
+		renderSetupErrorLine(out, "This NOVA Relay is a standalone container and connects only with its token, which this setup can't store here. Set it up as the default server on a computer with a key store.")
+		return errors.New("standalone relay connects with its token only and no store is available for it")
+	}
+	renderSetupParagraph(out, "This NOVA Relay is a standalone container: it connects with its token only, with no pairing code. Next, paste its token (RELAY_AUTH_TOKEN).")
+	return errSetupRelayTokenStep
 }

@@ -76,12 +76,15 @@ func setupGoldenHAServer(t *testing.T) *httptest.Server {
 	return server
 }
 
-func setupGoldenRelayServer(t *testing.T, pairedToken string) *httptest.Server {
+// setupGoldenRelayServer fakes a NOVA App, or with app false a standalone
+// container, which has no secure pairing.
+func setupGoldenRelayServer(t *testing.T, app bool) *httptest.Server {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if app && serveAppPairInfo(w, r) {
+			return
+		}
 		switch r.URL.Path {
-		case "/pair":
-			_, _ = w.Write([]byte(`{"ok":true,"data":{"relay_token":"` + pairedToken + `"}}`))
 		case "/health":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"status":"ok","data":{"ha_ws_connected":true}}`))
@@ -106,7 +109,7 @@ func setupGoldenRelayServer(t *testing.T, pairedToken string) *httptest.Server {
 func TestSetupGoldenFreshLocal(t *testing.T) {
 	home := setupGoldenHome(t)
 	haServer := setupGoldenHAServer(t)
-	relayServer := setupGoldenRelayServer(t, "unused")
+	relayServer := setupGoldenRelayServer(t, true)
 	paths, err := detectPaths()
 	if err != nil {
 		t.Fatal(err)
@@ -129,17 +132,17 @@ func TestSetupGoldenFreshLocal(t *testing.T) {
 	)
 }
 
-func TestSetupGoldenCodePath(t *testing.T) {
+func TestSetupGoldenStandaloneToken(t *testing.T) {
 	withClientRuntimeAvailability(t, map[string]bool{"codex": true})
 	home := setupGoldenHome(t)
 	haServer := setupGoldenHAServer(t)
-	relayServer := setupGoldenRelayServer(t, "paired-token-never-render")
+	relayServer := setupGoldenRelayServer(t, false)
 	paths, err := detectPaths()
 	if err != nil {
 		t.Fatal(err)
 	}
 	code := -1
-	stdout, stderr := captureInteractiveSetupIO(t, joinSetupInputs(setupWizardPairingPrompts("123 456")), func() int {
+	stdout, stderr := captureInteractiveSetupIO(t, joinSetupInputs([]string{"", "", "", "", "1", "relay-token-never-render"}), func() int {
 		code = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "codex",
 			normalizeHostInput(haServer.URL), haServer.URL, relayServer.URL, "", false)
 		return code
@@ -147,7 +150,7 @@ func TestSetupGoldenCodePath(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit = %d\n%s%s", code, stdout, stderr)
 	}
-	assertSetupGolden(t, "code-path", "exit 0\n--- stdout\n"+stdout+"--- stderr\n"+stderr,
+	assertSetupGolden(t, "standalone-token", "exit 0\n--- stdout\n"+stdout+"--- stderr\n"+stderr,
 		haServer.URL, "<ha-url>", relayServer.URL, "<relay-url>", home, "<home>",
 		normalizeHostInput(haServer.URL), "<ha-host>",
 	)
@@ -160,7 +163,7 @@ func TestSetupGoldenAlreadyInstalled(t *testing.T) {
 	previousExecutable := executablePathForInstallSource
 	executablePathForInstallSource = func() (string, error) { return filepath.Join(home, "ha-nova"), nil }
 	t.Cleanup(func() { executablePathForInstallSource = previousExecutable })
-	relayServer := setupGoldenRelayServer(t, "unused")
+	relayServer := setupGoldenRelayServer(t, true)
 	paths, err := detectPaths()
 	if err != nil {
 		t.Fatal(err)
@@ -216,7 +219,7 @@ func TestSetupGoldenNonInteractive(t *testing.T) {
 	withClientRuntimeAvailability(t, map[string]bool{"antigravity": true})
 	home := setupGoldenHome(t)
 	haServer := setupGoldenHAServer(t)
-	relayServer := setupGoldenRelayServer(t, "unused")
+	relayServer := setupGoldenRelayServer(t, false)
 	paths, err := detectPaths()
 	if err != nil {
 		t.Fatal(err)

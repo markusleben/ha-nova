@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"io"
-	"net/http"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -42,147 +40,87 @@ func TestSetupPairingPrefersSecureV1(t *testing.T) {
 	}
 }
 
-// Without v1 support the wizard falls back to the legacy code exchange.
-func TestSetupPairingFallsBackToLegacyExchange(t *testing.T) {
-	origProbe, origExchange := probePairingV1ForSetup, exchangeRelayPairingCodeForSetup
-	defer func() { probePairingV1ForSetup, exchangeRelayPairingCodeForSetup = origProbe, origExchange }()
-
-	probePairingV1ForSetup = func(string) bool { return false }
-	exchangeRelayPairingCodeForSetup = func(_ *http.Client, _, code string) (string, error) {
-		return "legacy-token-for-" + code, nil
-	}
-
-	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
-	cfg := &runtimeConfig{
-		RelayBaseURL:    "http://relay:8791",
-		ClientInstallID: "inst-test",
-	}
-	token, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{ConfigDir: t.TempDir()}, cfg, false)
-	if err != nil {
-		t.Fatalf("legacy exchange should succeed: %v", err)
-	}
-	if token != "legacy-token-for-473921" {
-		t.Fatalf("unexpected legacy token %q", token)
-	}
-}
-
-func TestSetupPairingLegacyExchangeRejectsStaleLifecycle(t *testing.T) {
-	origProbe, origExchange := probePairingV1ForSetup, exchangeRelayPairingCodeForSetup
-	defer func() { probePairingV1ForSetup, exchangeRelayPairingCodeForSetup = origProbe, origExchange }()
-
-	paths := runtimePaths{ConfigDir: filepath.Join(t.TempDir(), "ha-nova")}
-	if err := rotateInstallLifecycleGeneration(paths); err != nil {
-		t.Fatalf("seed install lifecycle: %v", err)
-	}
-	lifecycleMarker := [][]byte{captureInstallLifecycleGeneration(paths)}
-	probePairingV1ForSetup = func(string) bool {
-		if err := rotateInstallLifecycleGeneration(paths); err != nil {
-			t.Fatalf("supersede setup lifecycle: %v", err)
-		}
-		return false
-	}
-	exchangeCalled := false
-	exchangeRelayPairingCodeForSetup = func(_ *http.Client, _, _ string) (string, error) {
-		exchangeCalled = true
-		return "legacy-token", nil
-	}
-
-	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
-	cfg := &runtimeConfig{
-		RelayBaseURL:    "http://relay:8791",
-		ClientInstallID: "inst-test",
-	}
-	var out strings.Builder
-	_, err := runSetupPairingFlow(reader, &out, paths, cfg, false, lifecycleMarker...)
-	if err == nil ||
-		!strings.Contains(err.Error(), "setup was superseded by an uninstall") {
-		t.Fatalf("expected the stale lifecycle error immediately, got %v", err)
-	}
-	if exchangeCalled {
-		t.Fatal("legacy /pair exchange consumed a code after the setup lifecycle changed")
-	}
-	if !strings.Contains(out.String(), "setup was superseded by an uninstall") {
-		t.Fatalf("missing stale-lifecycle error:\n%s", out.String())
-	}
-}
-
-// A relay that advertises v1 but then rejects it mid-flow must not fall through to
-// the legacy /pair exchange on a box with no legacy token store — that would spend
-// the one-time code and only fail later at token persistence.
-func TestSetupPairingMidFlowRelayNotV1FailsSafeWithoutTokenStore(t *testing.T) {
-	origProbe, origSecure, origExchange := probePairingV1ForSetup, securePairForSetup, exchangeRelayPairingCodeForSetup
+// A reachable Relay without secure pairing is a standalone container: setup
+// sends the person to its token, before any code is asked for or spent.
+func TestSetupPairingStandaloneRelayGoesToItsToken(t *testing.T) {
+	origProbe, origDetailed, origSecure := probePairingV1ForSetup, probePairingV1DetailedForSetup, securePairForSetup
 	defer func() {
-		probePairingV1ForSetup, securePairForSetup, exchangeRelayPairingCodeForSetup = origProbe, origSecure, origExchange
+		probePairingV1ForSetup, probePairingV1DetailedForSetup, securePairForSetup = origProbe, origDetailed, origSecure
 	}()
-	probePairingV1ForSetup = func(string) bool { return true } // v1 at first
+	probePairingV1ForSetup = func(string) bool { return false }
+	probePairingV1DetailedForSetup = func(string) (bool, bool) { return false, true }
 	securePairForSetup = func(_, _ string, _ *runtimeConfig, _ func(*runtimeConfig) error, _ pairingClientInfo) (string, error) {
-		return "", errRelayNotV1 // relay turns out pre-v1 mid-flow
-	}
-	exchangeCalled := false
-	exchangeRelayPairingCodeForSetup = func(_ *http.Client, _, _ string) (string, error) {
-		exchangeCalled = true
-		return "legacy-token", nil
+		t.Fatal("a standalone Relay must not be paired with a code")
+		return "", nil
 	}
 
-	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
-	cfg := &runtimeConfig{
-		RelayBaseURL:    "http://relay:8791",
-		ClientInstallID: "inst-test",
+	for _, storeUnavailable := range []bool{false, true} {
+		var out strings.Builder
+		reader := bufio.NewReader(strings.NewReader("\n473921\n"))
+		cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791", ClientInstallID: "inst-test"}
+		_, err := runSetupPairingFlow(reader, &out, runtimePaths{ConfigDir: t.TempDir()}, cfg, storeUnavailable)
+		if strings.Contains(out.String(), "Six-digit code") {
+			t.Fatalf("store unavailable=%v: asked for a code:\n%s", storeUnavailable, out.String())
+		}
+		if !strings.Contains(out.String(), "standalone container") {
+			t.Fatalf("store unavailable=%v: missing the token-only guidance:\n%s", storeUnavailable, out.String())
+		}
+		if storeUnavailable == errors.Is(err, errSetupRelayTokenStep) {
+			t.Fatalf("store unavailable=%v: err = %v (token step only when the token can be stored)", storeUnavailable, err)
+		}
 	}
-	var out strings.Builder
-	_, err := runSetupPairingFlow(reader, &out, runtimePaths{ConfigDir: t.TempDir()}, cfg, true) // legacyTokenStoreUnavailable
-	if err == nil {
-		t.Fatal("expected a fail-safe error on mid-flow errRelayNotV1 with no legacy token store")
+}
+
+// A Relay that stops offering secure pairing mid-flow is treated the same way.
+func TestSetupPairingMidFlowRelayNotV1GoesToItsToken(t *testing.T) {
+	origProbe, origSecure := probePairingV1ForSetup, securePairForSetup
+	defer func() { probePairingV1ForSetup, securePairForSetup = origProbe, origSecure }()
+	probePairingV1ForSetup = func(string) bool { return true }
+	securePairForSetup = func(_, _ string, _ *runtimeConfig, _ func(*runtimeConfig) error, _ pairingClientInfo) (string, error) {
+		return "", errRelayNotV1
 	}
-	if !strings.Contains(err.Error(), "relay predates secure pairing") ||
-		!strings.Contains(out.String(), "too old for secure device pairing") {
-		t.Fatalf("wrong fail-safe error: %v\n%s", err, out.String())
-	}
-	if exchangeCalled {
-		t.Fatal("legacy /pair exchange was reached — a one-time code could be consumed with no store to persist the token")
+
+	for _, storeUnavailable := range []bool{false, true} {
+		var out strings.Builder
+		reader := bufio.NewReader(strings.NewReader("\n473921\n"))
+		cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791", ClientInstallID: "inst-test"}
+		_, err := runSetupPairingFlow(reader, &out, runtimePaths{ConfigDir: t.TempDir()}, cfg, storeUnavailable)
+		if storeUnavailable == errors.Is(err, errSetupRelayTokenStep) || err == nil {
+			t.Fatalf("store unavailable=%v: err = %v", storeUnavailable, err)
+		}
+		if !strings.Contains(out.String(), "standalone container") {
+			t.Fatalf("store unavailable=%v: missing the token-only guidance:\n%s", storeUnavailable, out.String())
+		}
 	}
 }
 
 // A transient v1 probe failure (relay still starting / momentarily unreachable)
-// must NOT be reported as a too-old relay, and must not spend a code — the user
-// should be told to retry once the relay is up.
-func TestSetupPairingTransientV1ProbeFailureDoesNotDeclareOldRelay(t *testing.T) {
-	origProbe, origDetailed, origExchange := probePairingV1ForSetup, probePairingV1DetailedForSetup, exchangeRelayPairingCodeForSetup
-	defer func() {
-		probePairingV1ForSetup, probePairingV1DetailedForSetup, exchangeRelayPairingCodeForSetup = origProbe, origDetailed, origExchange
-	}()
-	probePairingV1ForSetup = func(string) bool { return false }                        // probe returns false...
-	probePairingV1DetailedForSetup = func(string) (bool, bool) { return false, false } // ...and the relay is unreachable
-	exchangeCalled := false
-	exchangeRelayPairingCodeForSetup = func(_ *http.Client, _, _ string) (string, error) {
-		exchangeCalled = true
-		return "legacy-token", nil
-	}
+// must NOT be reported as a standalone Relay: a code gets the retry hint, and
+// 'manual' stays available at the prompt.
+func TestSetupPairingUnreachableRelayIsNotCalledStandalone(t *testing.T) {
+	origProbe, origDetailed := probePairingV1ForSetup, probePairingV1DetailedForSetup
+	defer func() { probePairingV1ForSetup, probePairingV1DetailedForSetup = origProbe, origDetailed }()
+	probePairingV1ForSetup = func(string) bool { return false }
+	probePairingV1DetailedForSetup = func(string) (bool, bool) { return false, false }
 
+	var out strings.Builder
 	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
-	cfg := &runtimeConfig{
-		RelayBaseURL:    "http://relay:8791",
-		ClientInstallID: "inst-test",
+	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791", ClientInstallID: "inst-test"}
+	_, err := runSetupPairingFlow(reader, &out, runtimePaths{ConfigDir: t.TempDir()}, cfg, false)
+	if err == nil || errors.Is(err, errSetupRelayTokenStep) || strings.Contains(out.String(), "standalone container") {
+		t.Fatalf("an unreachable Relay must get the retry hint, got %v\n%s", err, out.String())
 	}
-	_, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{ConfigDir: t.TempDir()}, cfg, true)
-	if err == nil {
-		t.Fatal("expected an error when the relay is unreachable")
-	}
-	if strings.Contains(err.Error(), "predates secure pairing") {
-		t.Fatalf("a transient probe failure must not be reported as a too-old relay: %v", err)
-	}
-	if exchangeCalled {
-		t.Fatal("legacy /pair exchange reached despite an unreachable relay (a code could be consumed)")
+	if !strings.Contains(out.String(), "Could not reach the NOVA App") {
+		t.Fatalf("missing the retry hint:\n%s", out.String())
 	}
 }
 
 // If the first v1 probe fails transiently but the second (detailed) probe finds
-// v1 support (relay finished starting), setup proceeds with secure pairing rather
-// than declaring the relay too old.
+// v1 support (relay finished starting), setup proceeds with secure pairing.
 func TestSetupPairingRecoversWhenSecondV1ProbeSucceeds(t *testing.T) {
-	origProbe, origDetailed, origSecure, origExchange := probePairingV1ForSetup, probePairingV1DetailedForSetup, securePairForSetup, exchangeRelayPairingCodeForSetup
+	origProbe, origDetailed, origSecure := probePairingV1ForSetup, probePairingV1DetailedForSetup, securePairForSetup
 	defer func() {
-		probePairingV1ForSetup, probePairingV1DetailedForSetup, securePairForSetup, exchangeRelayPairingCodeForSetup = origProbe, origDetailed, origSecure, origExchange
+		probePairingV1ForSetup, probePairingV1DetailedForSetup, securePairForSetup = origProbe, origDetailed, origSecure
 	}()
 	probePairingV1ForSetup = func(string) bool { return false }                      // transient miss...
 	probePairingV1DetailedForSetup = func(string) (bool, bool) { return true, true } // ...v1 is up on the retry
@@ -191,11 +129,6 @@ func TestSetupPairingRecoversWhenSecondV1ProbeSucceeds(t *testing.T) {
 		securePaired = true
 		return "device-id", nil
 	}
-	exchangeCalled := false
-	exchangeRelayPairingCodeForSetup = func(_ *http.Client, _, _ string) (string, error) {
-		exchangeCalled = true
-		return "legacy-token", nil
-	}
 
 	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
 	cfg := &runtimeConfig{
@@ -203,10 +136,7 @@ func TestSetupPairingRecoversWhenSecondV1ProbeSucceeds(t *testing.T) {
 		ClientInstallID: "inst-test",
 	}
 	_, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{ConfigDir: t.TempDir()}, cfg, true)
-	if !errors.Is(err, errSetupDevicePaired) {
-		t.Fatalf("expected secure pairing to proceed after the v1 probe recovered, got %v", err)
-	}
-	if !securePaired || exchangeCalled {
-		t.Fatalf("expected secure pairing, not the legacy exchange; securePaired=%v exchangeCalled=%v", securePaired, exchangeCalled)
+	if !errors.Is(err, errSetupDevicePaired) || !securePaired {
+		t.Fatalf("expected secure pairing to proceed after the v1 probe recovered, got %v (paired=%v)", err, securePaired)
 	}
 }

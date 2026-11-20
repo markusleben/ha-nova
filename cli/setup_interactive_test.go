@@ -391,6 +391,9 @@ func TestInteractiveSetupFreshInstallCanPasteExistingRelayToken(t *testing.T) {
 	defer haServer.Close()
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveAppPairInfo(w, r) {
+			return
+		}
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return
@@ -453,6 +456,9 @@ func TestInteractiveSetupFreshInstallManualTokenFallbackRunsAppSetupBeforeVerify
 	defer haServer.Close()
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveAppPairInfo(w, r) {
+			return
+		}
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return
@@ -766,7 +772,7 @@ func TestInteractiveSetupBackFromVerifyDoesNotPersistConfig(t *testing.T) {
 	input := joinSetupInputs(
 		[]string{"4", haServer.URL},
 		setupWizardRelayInstallPrompts(),
-		setupWizardPasteRelayTokenPrompts("relay-token-from-other-device"),
+		[]string{"1", "relay-token-from-other-device"}, // a standalone Relay: straight to its token
 		[]string{"back", "exit"},
 	)
 
