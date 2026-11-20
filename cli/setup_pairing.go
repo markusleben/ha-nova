@@ -91,7 +91,7 @@ const (
 // envelope) from any other answer, so setup asks for the Relay token only
 // where a NOVA Relay asked for it.
 func probeRelayPairing(relayBaseURL string) relayPairingAnswer {
-	info := readPairInfo(context.Background(), relayBaseURL)
+	info := readPairInfo(context.Background(), relayBaseURL, true)
 	switch {
 	case !info.answered:
 		return relayAnswerNone
@@ -104,8 +104,8 @@ func probeRelayPairing(relayBaseURL string) relayPairingAnswer {
 }
 
 // probePairingV1 reports whether the relay supports secure device pairing
-// (GET /pair/v1/info). Any failure or non-v1 answer is false; setup then
-// reads the answer again in detail (probeRelayPairing).
+// (GET /pair/v1/info). Any failure or non-v1 answer is false; the pairing
+// step then reads the answer again in detail (probeRelayPairing).
 func probePairingV1(relayBaseURL string) bool {
 	return probePairingV1Context(context.Background(), relayBaseURL)
 }
@@ -115,7 +115,7 @@ func probePairingV1(relayBaseURL string) bool {
 var probePairingV1ForNotice = probePairingV1Context
 
 func probePairingV1Context(ctx context.Context, relayBaseURL string) bool {
-	return readPairInfo(ctx, relayBaseURL).v1
+	return readPairInfo(ctx, relayBaseURL, false).v1
 }
 
 // legacyTokenStoreUnavailable is set by the caller when the OS keyring is

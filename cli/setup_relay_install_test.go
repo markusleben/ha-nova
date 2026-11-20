@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -249,5 +250,61 @@ func TestInteractiveSetupBackFromPairingAfterSkipReturnsToAddress(t *testing.T) 
 	}
 	if strings.Contains(output, "Your browser opens the NOVA App") {
 		t.Fatalf("back must not land on install steps that were never shown:\n%s", output)
+	}
+}
+
+// Each caller's fields decode on their own: a malformed version doesn't hide
+// v1, and a malformed protocol doesn't hide the sign-in capabilities.
+func TestPairInfoDecodesEachFieldGroupOnItsOwn(t *testing.T) {
+	serve := func(body string) string {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(body))
+		}))
+		t.Cleanup(server.Close)
+		return server.URL
+	}
+	badVersion := serve(`{"ok":true,"data":{"protocol_version":"v1","relay_version":42}}`)
+	if running, version := probeInstalledRelay(badVersion); !running || version != "" {
+		t.Fatalf("installed = %v %q, want running without a version", running, version)
+	}
+	if answer := probeRelayPairing(badVersion); answer != relayAnswerSecure {
+		t.Fatalf("answer = %v, want secure", answer)
+	}
+	badProtocol := serve(`{"ok":true,"data":{"protocol_version":1,"sign_in":true,"window":1}}`)
+	if signIn, window := relayPairCapabilities(badProtocol); !signIn || !window {
+		t.Fatalf("capabilities = %v %v, want both", signIn, window)
+	}
+	if probePairingV1(badProtocol) {
+		t.Fatal("a non-string protocol read as v1")
+	}
+}
+
+// A proxy that sends an error status and never finishes the body doesn't hold
+// the probes that only need the status.
+func TestPairInfoDoesNotWaitForAnErrorBody(t *testing.T) {
+	for _, status := range []int{http.StatusBadGateway, http.StatusUnauthorized} {
+		release := make(chan struct{})
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(status)
+			w.(http.Flusher).Flush()
+			<-release
+		}))
+		t.Cleanup(server.Close)
+		t.Cleanup(func() { close(release) })
+		started := time.Now()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if probePairingV1Context(ctx, server.URL) {
+			t.Fatalf("%d read as v1", status)
+		}
+		cancel()
+		if running, _ := probeInstalledRelay(server.URL); running {
+			t.Fatalf("%d read as running", status)
+		}
+		if signIn, window := relayPairCapabilities(server.URL); signIn || window {
+			t.Fatalf("%d advertised capabilities", status)
+		}
+		if elapsed := time.Since(started); elapsed > 2*time.Second {
+			t.Fatalf("%d: probes waited %v for the body", status, elapsed)
+		}
 	}
 }

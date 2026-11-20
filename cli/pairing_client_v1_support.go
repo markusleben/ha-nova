@@ -83,9 +83,10 @@ func pairingStatusError(status int, body []byte, retryAfter string) error {
 }
 
 // pairInfo is one read of the App's unauthenticated GET /pair/v1/info.
-// answered: any HTTP reply came; body is nil when none came or it couldn't
-// be read. The rest is what a 200 with the App's ok envelope says; any
-// other answer leaves it all false.
+// answered: any HTTP reply came. body holds a 200's body, and a 401's for
+// a caller that asked for it; nil otherwise or when it couldn't be read.
+// v1, the two capabilities, and the version are decoded independently,
+// so a malformed field in one group never hides another.
 type pairInfo struct {
 	answered       bool
 	status         int
@@ -96,8 +97,9 @@ type pairInfo struct {
 }
 
 // readPairInfo is every caller's one read of the pairing capabilities; each
-// asks what it needs of the same answer.
-func readPairInfo(ctx context.Context, relayURL string) pairInfo {
+// asks what it needs of the same answer. Only a caller telling a standalone
+// container's token gate apart waits for a 401's body (unauthorizedBody).
+func readPairInfo(ctx context.Context, relayURL string, unauthorizedBody bool) pairInfo {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(relayURL, "/")+"/pair/v1/info", nil)
 	if err != nil {
 		return pairInfo{}
@@ -109,37 +111,52 @@ func readPairInfo(ctx context.Context, relayURL string) pairInfo {
 	}
 	defer resp.Body.Close()
 	info := pairInfo{answered: true, status: resp.StatusCode}
+	if resp.StatusCode != http.StatusOK && !(unauthorizedBody && resp.StatusCode == http.StatusUnauthorized) {
+		return info
+	}
 	if info.body, err = readAllLimited(resp.Body, maxRelayPairingResponseBytes); err != nil {
 		info.body = nil
 		return info
 	}
-	var envelope struct {
+	if resp.StatusCode != http.StatusOK {
+		return info
+	}
+	var protocol struct {
 		OK   bool `json:"ok"`
 		Data struct {
 			ProtocolVersion string `json:"protocol_version"`
-			RelayVersion    string `json:"relay_version"`
-			SignIn          bool   `json:"sign_in"`
-			Window          int    `json:"window"`
 		} `json:"data"`
 	}
-	if resp.StatusCode != http.StatusOK || json.Unmarshal(info.body, &envelope) != nil || !envelope.OK {
-		return info
+	info.v1 = json.Unmarshal(info.body, &protocol) == nil && protocol.OK && protocol.Data.ProtocolVersion == "v1"
+	var capabilities struct {
+		OK   bool `json:"ok"`
+		Data struct {
+			SignIn bool `json:"sign_in"`
+			Window int  `json:"window"`
+		} `json:"data"`
 	}
-	info.v1 = envelope.Data.ProtocolVersion == "v1"
-	info.signIn, info.window = envelope.Data.SignIn, envelope.Data.Window == 1
-	info.relayVersion = strings.TrimSpace(envelope.Data.RelayVersion)
+	if json.Unmarshal(info.body, &capabilities) == nil && capabilities.OK {
+		info.signIn, info.window = capabilities.Data.SignIn, capabilities.Data.Window == 1
+	}
+	var version struct {
+		Data struct {
+			RelayVersion string `json:"relay_version"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(info.body, &version) // best effort: a bad version reads as unknown
+	info.relayVersion = strings.TrimSpace(version.Data.RelayVersion)
 	return info
 }
 
 // relayAdvertisesSignIn reads sign_in from the pairing capabilities; any
 // failure reads as "no" and the step stays the code prompt.
 func relayAdvertisesSignIn(relayURL string) bool {
-	return readPairInfo(context.Background(), relayURL).signIn
+	return readPairInfo(context.Background(), relayURL, false).signIn
 }
 
 // relayPairCapabilities: sign_in, and window (the App approves in a
 // computer's own window: spec §1), before any credential exists.
 func relayPairCapabilities(relayURL string) (signIn, window bool) {
-	info := readPairInfo(context.Background(), relayURL)
+	info := readPairInfo(context.Background(), relayURL, false)
 	return info.signIn, info.window
 }

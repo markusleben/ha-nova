@@ -22,7 +22,7 @@ var probeInstalledRelayForSetup = probeInstalledRelay
 func probeInstalledRelay(relayURL string) (bool, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), installedRelayProbeTimeout)
 	defer cancel()
-	info := readPairInfo(ctx, relayURL)
+	info := readPairInfo(ctx, relayURL, false)
 	if !info.v1 {
 		return false, ""
 	}
