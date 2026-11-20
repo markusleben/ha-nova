@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { loadEnv } from "../../nova/src/config/env.js";
@@ -101,6 +105,26 @@ describe("loadEnv", () => {
     });
 
     expect(env.haUrl).toBe("http://custom-supervisor/core");
+  });
+
+  it("reads the Cloud gate from the App image's version file when the env leaves it unset", () => {
+    const dir = mkdtempSync(join(tmpdir(), "nova-env-"));
+    try {
+      const file = join(dir, "version.json");
+      const base = { SUPERVISOR_TOKEN: "supervisor-token" };
+      expect(loadEnv(base, join(dir, "absent.json")).cloudRemoteEnabled).toBe(false);
+      for (const value of [true, false]) {
+        writeFileSync(file, JSON.stringify({ cloud_remote_enabled: value }));
+        expect(loadEnv(base, file).cloudRemoteEnabled).toBe(value);
+        expect(loadEnv({ ...base, CLOUD_REMOTE_ENABLED: String(!value) }, file).cloudRemoteEnabled).toBe(!value);
+      }
+      for (const invalid of ['{"cloud_remote_enabled":"true"}', "{}", "not json"]) {
+        writeFileSync(file, invalid);
+        expect(() => loadEnv(base, file)).toThrowError();
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("accepts only exact Cloud gate booleans and defaults disabled", () => {
