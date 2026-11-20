@@ -426,10 +426,14 @@ func waitForParentExit(parentPID int) {
 	}
 }
 
-var installRootRemoveRetry = 250 * time.Millisecond
+var (
+	installRootRemoveRetry = 250 * time.Millisecond
+	installRootLstat       = os.Lstat
+)
 
 // discardInstallRoot retries the removal while Windows may still hold the
-// folder; only a final stat that finds it gone proves the removal.
+// folder; only a final look that finds nothing there, not even a link,
+// proves the removal.
 func discardInstallRoot(installRoot string) error {
 	var removeErr error
 	for i := 0; i < 20; i++ {
@@ -438,7 +442,7 @@ func discardInstallRoot(installRoot string) error {
 		}
 		time.Sleep(installRootRemoveRetry)
 	}
-	_, statErr := os.Stat(installRoot)
+	_, statErr := installRootLstat(installRoot)
 	switch {
 	case isNotExist(statErr):
 		return nil

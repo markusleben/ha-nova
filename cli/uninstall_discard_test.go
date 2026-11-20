@@ -1,29 +1,42 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 )
 
-// CLI-05: only absence proves an install root removed; a root whose removal
-// can't be checked fails the uninstall instead of passing it.
+// CLI-05: only a final look that finds nothing proves an install root
+// removed. A dangling link is removed, not taken for absence, and a root
+// whose removal can't be checked fails the uninstall instead of passing it.
 func TestDiscardInstallRootSucceedsOnlyWhenTheRootIsGone(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows answers a path under a file as missing")
-	}
-	saved := installRootRemoveRetry
-	t.Cleanup(func() { installRootRemoveRetry = saved })
+	saved, lstat := installRootRemoveRetry, installRootLstat
+	t.Cleanup(func() { installRootRemoveRetry, installRootLstat = saved, lstat })
 	installRootRemoveRetry = 0
-	file := filepath.Join(t.TempDir(), "not-a-folder")
-	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+	dir := t.TempDir()
+
+	link := filepath.Join(dir, "dangling")
+	if err := os.Symlink(filepath.Join(dir, "missing"), link); err != nil {
+		t.Skipf("no symlinks here: %v", err)
+	}
+	if err := discardInstallRoot(link); err != nil {
+		t.Fatalf("a dangling link: %v", err)
+	}
+	if _, err := os.Lstat(link); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("the dangling link stayed: %v", err)
+	}
+
+	root := filepath.Join(dir, "ha-nova")
+	if err := os.MkdirAll(root, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := discardInstallRoot(filepath.Join(file, "ha-nova")); err == nil {
-		t.Fatal("an install root that can't be checked passed as removed")
+	installRootLstat = func(string) (os.FileInfo, error) { return nil, os.ErrPermission }
+	if err := discardInstallRoot(root); err == nil || !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("a removal that can't be checked: %v", err)
 	}
-	if err := discardInstallRoot(filepath.Join(t.TempDir(), "never-there")); err != nil {
+	installRootLstat = os.Lstat
+	if err := discardInstallRoot(filepath.Join(dir, "never-there")); err != nil {
 		t.Fatalf("an absent install root: %v", err)
 	}
 }

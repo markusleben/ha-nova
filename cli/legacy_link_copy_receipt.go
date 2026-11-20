@@ -19,16 +19,15 @@ import (
 // remove leaves a receipt: its item's name and the digest of those exact
 // bytes, never the copy. Every later setup removes the copy while it still
 // matches that digest, and doctor names it. Nothing else is delete authority.
-// Before the report, each copy's receipt is written awaiting the App's
-// record: no delete authority until the App answers that it holds it, so a
-// report that landed never leaves a copy with neither removal nor receipt.
+// Before the report, each copy's receipt is written with revoked false,
+// awaiting the App's record: no delete authority until the App answers that
+// it holds the record, so a report that landed never leaves a copy with
+// neither removal nor receipt.
 
 type legacyCopyReceipt struct {
 	Service string `json:"service"`
-	Digest  string `json:"digest"` // sha256 of the copy proven revoked and recorded
-	Revoked bool   `json:"revoked"`
-	// AwaitingApp: the report wasn't confirmed when this was written.
-	AwaitingApp bool `json:"awaiting_app,omitempty"`
+	Digest  string `json:"digest"`  // sha256 of the copy proven revoked and recorded
+	Revoked bool   `json:"revoked"` // false: awaiting the App's record
 }
 
 func legacyCopyReceiptsFile(paths runtimePaths) string {
@@ -99,13 +98,13 @@ func retryLegacyCopyReceipts(paths runtimePaths, account string) error {
 	var proven []legacyLinkCopy
 	var awaiting []legacyCopyReceipt
 	for _, r := range receipts[account] {
-		if r.AwaitingApp {
-			awaiting = append(awaiting, r)
-			continue
-		}
-		if !r.Revoked || r.Digest == "" || !slices.ContainsFunc(legacyLinkServices, func(s string) bool {
+		switch {
+		case r.Digest == "" || !slices.ContainsFunc(legacyLinkServices, func(s string) bool {
 			return r.Service == oauthLegacyCleanupServicePrefix+string(legacyLinkState(s))
-		}) {
+		}):
+			continue
+		case !r.Revoked:
+			awaiting = append(awaiting, r)
 			continue
 		}
 		value, found, err := backend.Get(context.Background(), r.Service, account, SecretStoreForbidUI)
@@ -127,31 +126,36 @@ func awaitLegacyCopyRecord(paths runtimePaths, account string, proven []legacyLi
 	}
 	awaiting := make([]legacyCopyReceipt, len(proven))
 	for i, c := range proven {
-		awaiting[i] = legacyCopyReceipt{Service: c.service, Digest: legacyCopyDigest(c.value), Revoked: true, AwaitingApp: true}
+		awaiting[i] = legacyCopyReceipt{Service: c.service, Digest: legacyCopyDigest(c.value)}
 	}
 	return saveLegacyCopyReceipt(paths, account, awaiting)
 }
 
-// confirmAwaitedLegacyCopies: once the App, no longer holding the cleanup
-// open, answers the report again with its record (legacy_cleanup_complete is
-// idempotent there), the receipts awaiting it become delete authority and
-// their copies go. An App that can't answer (one rolled back) keeps them.
-func confirmAwaitedLegacyCopies(paths runtimePaths, cfg runtimeConfig) error {
+// confirmAwaitedLegacyCopies reports again a sign-out an earlier setup proved
+// (each copy awaiting the App's record was revoked before it was written;
+// legacy_cleanup_complete is idempotent on the App). Once the App answers with
+// its record, those receipts become delete authority and their copies go;
+// recorded counts them. An App that can't answer (one rolled back) keeps them.
+func confirmAwaitedLegacyCopies(paths runtimePaths, cfg runtimeConfig) (recorded int, err error) {
 	receipts, err := legacyCopyReceipts(paths)
-	if err != nil || !slices.ContainsFunc(receipts[cfg.ProfileID], func(r legacyCopyReceipt) bool { return r.AwaitingApp }) {
-		return err
+	awaiting := slices.ContainsFunc(receipts[cfg.ProfileID], func(r legacyCopyReceipt) bool { return !r.Revoked })
+	if err != nil || !awaiting {
+		return 0, err
 	}
 	if err := legacyCleanupReport(paths, cfg); err != nil {
-		return err
+		return 0, err
 	}
 	confirmed := slices.Clone(receipts[cfg.ProfileID])
 	for i := range confirmed {
-		confirmed[i].AwaitingApp = false
+		if !confirmed[i].Revoked {
+			confirmed[i].Revoked = true
+			recorded++
+		}
 	}
 	if err := saveLegacyCopyReceipt(paths, cfg.ProfileID, confirmed); err != nil {
-		return err
+		return recorded, err
 	}
-	return retryLegacyCopyReceipts(paths, cfg.ProfileID)
+	return recorded, retryLegacyCopyReceipts(paths, cfg.ProfileID)
 }
 
 // saveLegacyCopyReceipt replaces account's receipt with left, under the

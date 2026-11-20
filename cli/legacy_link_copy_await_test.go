@@ -10,13 +10,14 @@ import (
 // awaiting: every receipt for the profile still waits for the App's record.
 func (f *legacyCleanupFixture) awaiting() bool {
 	receipts, _ := legacyCopyReceipts(f.paths)
-	return len(receipts["default"]) > 0 && !slices.ContainsFunc(receipts["default"], func(r legacyCopyReceipt) bool { return !r.AwaitingApp })
+	return len(receipts["default"]) > 0 && !slices.ContainsFunc(receipts["default"], func(r legacyCopyReceipt) bool { return r.Revoked })
 }
 
 // CLI-04: the App recorded the sign-out, then neither the copy's removal nor
 // its receipt landed. The note written before the report keeps the retry:
-// setup says the copy is left, a rolled-back App keeps it, and once the App
-// answers the report again the copy goes, with nothing signed out again.
+// setup says the removal didn't finish, an App that can't answer keeps the
+// note, and once the App answers the report again the copy goes, with
+// nothing signed out again, even after the computer left the Keychain.
 func TestLegacyLinkCleanupKeepsItsRetryWhenNeitherRemovalNorReceiptLands(t *testing.T) {
 	f := newLegacyCleanupFixture(t)
 	f.legacy[oauthSecretCurrentService] = legacyTestEnvelope(OAuthSecretCurrent, "default", "old-current")
@@ -46,10 +47,11 @@ func TestLegacyLinkCleanupKeepsItsRetryWhenNeitherRemovalNorReceiptLands(t *test
 		t.Fatalf("an App that can't answer: outcome %d, copies %d, awaiting %v", outcome, f.copies(), f.awaiting())
 	}
 
+	legacyCleanupApplies, legacyCopiesOnThisOS = func() bool { return false }, true // now a file credential on this Mac
 	legacyCleanupReport = func(runtimePaths, runtimeConfig) error { f.reported++; return nil }
 	f.revoked, f.reported = nil, 0
-	if outcome, _, _ := f.run(true); outcome != legacyCleanupNotNeeded || f.copies() != 0 || f.receipt() || f.reported != 1 || len(f.revoked) != 0 {
-		t.Fatalf("outcome %d, copies %d, receipt %v, reported %d, revoked again %v", outcome, f.copies(), f.receipt(), f.reported, f.revoked)
+	if outcome, recorded, _ := f.run(true); outcome != legacyCleanupComplete || recorded != 1 || f.copies() != 0 || f.receipt() || f.reported != 1 || len(f.revoked) != 0 {
+		t.Fatalf("outcome %d, recorded %d, copies %d, receipt %v, reported %d, revoked again %v", outcome, recorded, f.copies(), f.receipt(), f.reported, f.revoked)
 	}
 }
 

@@ -300,7 +300,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 	if receipts, err := legacyCopyReceipts(paths); err != nil { // legacy_link_copy_receipt.go
 		printHumanWarn("HA NOVA can't read its list of old sign-in copies to remove (%s).", err)
 	} else if len(receipts[cfg.ProfileID]) > 0 {
-		printHumanWarn("A signed-out copy of the old version's Home Assistant Link sign-in is still in this Mac's Keychain. Run %s to remove it.", rePairNextStep(activeServerProfile(), false))
+		printHumanWarn("Removing a signed-out copy of the old version's Home Assistant Link sign-in from this Mac's Keychain isn't finished. Run %s to finish it.", rePairNextStep(activeServerProfile(), false))
 	}
 	if legacyNotice != "" {
 		printHumanWarn("%s", legacyNotice)

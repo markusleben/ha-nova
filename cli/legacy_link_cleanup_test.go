@@ -433,7 +433,6 @@ func TestLegacyLinkCopyReceiptIsNoOtherDeleteAuthority(t *testing.T) {
 		"changed":     {Service: current, Digest: legacyCopyDigest("other bytes"), Revoked: true},
 		"not revoked": {Service: current, Digest: legacyCopyDigest(legacyTestEnvelope(OAuthSecretCurrent, "default", "live"))},
 		"other item":  {Service: "ha-nova.oauth.home-assistant-cloud.current", Digest: legacyCopyDigest(legacyTestEnvelope(OAuthSecretCurrent, "default", "live")), Revoked: true},
-		"awaiting":    {Service: current, Digest: legacyCopyDigest(legacyTestEnvelope(OAuthSecretCurrent, "default", "live")), Revoked: true, AwaitingApp: true},
 	} {
 		raw, _ := json.Marshal(map[string][]legacyCopyReceipt{"default": {receipt}})
 		if err := os.WriteFile(legacyCopyReceiptsFile(f.paths), raw, 0o600); err != nil {

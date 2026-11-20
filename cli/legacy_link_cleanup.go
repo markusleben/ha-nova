@@ -59,12 +59,14 @@ var (
 // intro runs once, right before macOS first asks. revoked counts the old
 // sign-ins verified revoked in this run; cause says why an incomplete run
 // stopped.
-// A complete run whose cause is set signed out but left a copy here: its
-// receipt (or, if that couldn't be written, its note from before the
-// report) removes it in a later setup.
+// A complete run whose cause is set signed out but couldn't finish removing a
+// copy here; a later setup does (legacy_link_copy_receipt.go).
 func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool, intro func()) (outcome legacyCleanupOutcome, revoked int, cause error) {
 	if cfg.ProfileID != "" && (legacyCopiesOnThisOS || legacyCleanupApplies()) {
 		_ = retryLegacyCopyReceipts(paths, cfg.ProfileID) // whatever the App or the device key's store is now; doctor names a receipt left
+		if recorded, err := confirmAwaitedLegacyCopies(paths, cfg); recorded > 0 {
+			return legacyCleanupComplete, recorded, err
+		}
 	}
 	if !legacyCleanupApplies() {
 		return legacyCleanupNotNeeded, 0, nil
@@ -75,9 +77,6 @@ func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool,
 		return legacyCleanupIncomplete, 0, fmt.Errorf("the NOVA App's answer couldn't be read (%w)", err)
 	}
 	if !pending {
-		if cfg.ProfileID != "" {
-			_ = confirmAwaitedLegacyCopies(paths, cfg) // doctor names a copy still waiting
-		}
 		return legacyCleanupNotNeeded, 0, nil
 	}
 	var proven []legacyLinkCopy // the exact copy bytes Home Assistant answered invalid_grant for
