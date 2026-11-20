@@ -30,10 +30,10 @@ echo ""
 # in the release-prep PR — README describes the STABLE release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 14530 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–14530 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 13600 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–13600 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–14530 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–13600 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──
