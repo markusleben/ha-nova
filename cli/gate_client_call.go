@@ -81,6 +81,7 @@ func (s *relaySession) gateCall(parent context.Context, route string, wait time.
 		return err
 	}
 	defer resp.Body.Close()
+	s.noteVersion(resp.Header) // a refusal's advice needs it (gateDisagrees)
 	data, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	var envelope struct {
 		OK    *bool           `json:"ok"`

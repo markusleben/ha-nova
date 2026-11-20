@@ -189,13 +189,14 @@ func TestRelayStoreCheckSkipsAnUpdateAlreadyInstalling(t *testing.T) {
 		switch r.URL.Path {
 		case "/core":
 			var req struct {
-				Path string `json:"path"`
+				Method string `json:"method"`
+				Path   string `json:"path"`
 			}
 			json.NewDecoder(r.Body).Decode(&req)
-			if req.Path != "/api/states" {
+			if !statesRead(req.Method, req.Path) {
 				checks.Add(1)
 			}
-			w.Write(statesEnvelope(t, []map[string]interface{}{installing}))
+			w.Write(statesReply(t, req.Path, []map[string]interface{}{installing}))
 		case "/ws":
 			writeRegistryOrPingResponse(t, w, r, "update.nova_relay_update")
 		}
