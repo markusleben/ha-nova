@@ -1,17 +1,26 @@
 ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.21
-FROM $BUILD_FROM
 
+# npm, the TypeScript sources and source maps are needed only to build.
+FROM $BUILD_FROM AS build
 WORKDIR /app
-
 RUN apk add --no-cache nodejs npm
-
 COPY package.json package-lock.json tsconfig.json ./
-COPY version.json ./version.json
 COPY src ./src
 RUN npm ci \
   && npm run build \
   && npm prune --omit=dev \
-  && npm cache clean --force
+  && find dist -name '*.map' -delete
+
+FROM $BUILD_FROM
+
+WORKDIR /app
+
+RUN apk add --no-cache nodejs
+
+COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY version.json ./version.json
 
 COPY run /run.sh
 RUN chmod a+x /run.sh
