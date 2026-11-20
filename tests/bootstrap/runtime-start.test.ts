@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { GateWorker } from "../../nova/src/runtime/gate-worker.js";
+import { fileAccessOption } from "../../nova/src/runtime/start-support.js";
 import { bootstrapRuntime, startRelay } from "../../nova/src/runtime/start.js";
 
 // A worker that passes everything and redacts nothing: these tests cover the
@@ -317,6 +318,14 @@ describe("runtime bootstrap", () => {
     expect(infoLogs.map(({ message }) => message)).not.toContain("Pairing code ready");
     expect(JSON.stringify(infoLogs)).not.toContain("relay-token");
     expect(warnLogs).toEqual([]);
+  });
+
+  it("reads file access from the App option first and treats a blank or null FILE_ACCESS as unset", () => {
+    expect(fileAccessOption({ file_access: "read" }, { FILE_ACCESS: "readwrite" })).toBe("read");
+    expect(fileAccessOption({}, { FILE_ACCESS: " readwrite " })).toBe("readwrite");
+    for (const unset of [undefined, "", "  ", "null"]) {
+      expect(fileAccessOption({}, { FILE_ACCESS: unset })).toBeUndefined();
+    }
   });
 });
 

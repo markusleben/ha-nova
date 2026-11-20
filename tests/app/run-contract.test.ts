@@ -18,10 +18,11 @@ describe("app run contract", () => {
 
     expect(content).toContain('RELAY_VERSION="$(bashio::addon.version');
     expect(content).toContain("export RELAY_VERSION");
+    expect(content).toContain('export RELAY_AUTH_TOKEN_FILE="/data/relay_auth_token"');
     for (const moved of [
       "HA_URL",
       "HA_LLAT",
-      "RELAY_AUTH_TOKEN",
+      "RELAY_AUTH_TOKEN=",
       "MIN_RELAY_VERSION",
       "CLOUD_REMOTE_ENABLED",
       "FILE_ACCESS",

@@ -3,4 +3,6 @@
 # (nova/src/config/env.ts).
 RELAY_VERSION="$(bashio::addon.version 2>/dev/null || echo "dev-local")"
 export RELAY_VERSION
+# Without a Supervisor, the image keeps its shared token here.
+export RELAY_AUTH_TOKEN_FILE="/data/relay_auth_token"
 exec node /app/dist/src/runtime/main.js

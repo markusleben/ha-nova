@@ -107,7 +107,7 @@ describe("loadEnv", () => {
     expect(env.haUrl).toBe("http://custom-supervisor/core");
   });
 
-  it("reads the Cloud gate from the App image's version file when the env leaves it unset", () => {
+  it("takes the Cloud gate from the App image's version file over the env", () => {
     const dir = mkdtempSync(join(tmpdir(), "nova-env-"));
     try {
       const file = join(dir, "version.json");
@@ -116,7 +116,7 @@ describe("loadEnv", () => {
       for (const value of [true, false]) {
         writeFileSync(file, JSON.stringify({ cloud_remote_enabled: value }));
         expect(loadEnv(base, file).cloudRemoteEnabled).toBe(value);
-        expect(loadEnv({ ...base, CLOUD_REMOTE_ENABLED: String(!value) }, file).cloudRemoteEnabled).toBe(!value);
+        expect(loadEnv({ ...base, CLOUD_REMOTE_ENABLED: String(!value) }, file).cloudRemoteEnabled).toBe(value);
       }
       for (const invalid of ['{"cloud_remote_enabled":"true"}', "{}", "not json"]) {
         writeFileSync(file, invalid);
@@ -128,17 +128,18 @@ describe("loadEnv", () => {
   });
 
   it("accepts only exact Cloud gate booleans and defaults disabled", () => {
+    const absent = join(tmpdir(), "nova-env-absent", "version.json");
     const base = {
       RELAY_AUTH_TOKEN: "relay-token",
       SUPERVISOR_TOKEN: "supervisor-token",
     };
 
-    expect(loadEnv(base).cloudRemoteEnabled).toBe(false);
+    expect(loadEnv(base, absent).cloudRemoteEnabled).toBe(false);
     expect(
-      loadEnv({ ...base, CLOUD_REMOTE_ENABLED: "true" }).cloudRemoteEnabled,
+      loadEnv({ ...base, CLOUD_REMOTE_ENABLED: "true" }, absent).cloudRemoteEnabled,
     ).toBe(true);
     expect(
-      loadEnv({ ...base, CLOUD_REMOTE_ENABLED: "false" }).cloudRemoteEnabled,
+      loadEnv({ ...base, CLOUD_REMOTE_ENABLED: "false" }, absent).cloudRemoteEnabled,
     ).toBe(false);
 
     for (const invalid of [
@@ -152,7 +153,7 @@ describe("loadEnv", () => {
       "false ",
     ]) {
       expect(() =>
-        loadEnv({ ...base, CLOUD_REMOTE_ENABLED: invalid }),
+        loadEnv({ ...base, CLOUD_REMOTE_ENABLED: invalid }, absent),
       ).toThrowError("CLOUD_REMOTE_ENABLED must be exactly true or false");
     }
   });

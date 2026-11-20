@@ -54,10 +54,10 @@ export function loadEnv(
     source.RELAY_VERSION,
     DEFAULT_RELAY_VERSION,
   );
+  // The App image's own flag is the release gate and wins over the env.
   const cloudRemoteEnabled =
-    source.CLOUD_REMOTE_ENABLED === undefined
-      ? cloudRemoteEnabledFromImage(versionFile)
-      : parseCloudRemoteEnabled(source.CLOUD_REMOTE_ENABLED);
+    cloudRemoteEnabledFromImage(versionFile) ??
+    parseCloudRemoteEnabled(source.CLOUD_REMOTE_ENABLED);
   const appOptionsPath = parseRequiredLike(
     source.APP_OPTIONS_PATH,
     DEFAULT_APP_OPTIONS_PATH,
@@ -116,13 +116,13 @@ function parseRequiredLike(
   return value;
 }
 
-function cloudRemoteEnabledFromImage(path: string): boolean {
+function cloudRemoteEnabledFromImage(path: string): boolean | undefined {
   let raw: string;
   try {
     raw = readFileSync(path, "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return false;
+      return undefined;
     }
     throw error;
   }
@@ -133,7 +133,10 @@ function cloudRemoteEnabledFromImage(path: string): boolean {
   return value;
 }
 
-function parseCloudRemoteEnabled(input: string): boolean {
+function parseCloudRemoteEnabled(input: string | undefined): boolean {
+  if (input === undefined) {
+    return false;
+  }
   if (input === "true") {
     return true;
   }
