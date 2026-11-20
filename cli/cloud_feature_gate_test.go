@@ -323,6 +323,7 @@ func setCloudFeatureTestIdentity(
 	previousIdentity := cloudRemoteBuildIdentityForRuntime
 	previousEnabled := cloudRemoteReleaseEnabled
 	previousPlatforms := cloudRemoteReleasePlatforms
+	previousProof := cloudRemoteReleaseProof
 	previousVersion := Version
 	previousExecutable := executablePathForInstallSource
 	current := identity
@@ -333,6 +334,7 @@ func setCloudFeatureTestIdentity(
 		cloudRemoteBuildIdentityForRuntime = previousIdentity
 		cloudRemoteReleaseEnabled = previousEnabled
 		cloudRemoteReleasePlatforms = previousPlatforms
+		cloudRemoteReleaseProof = previousProof
 		Version = previousVersion
 		executablePathForInstallSource = previousExecutable
 	}

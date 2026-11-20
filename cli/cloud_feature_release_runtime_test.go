@@ -80,6 +80,11 @@ func TestCloudReleaseSignerMatchesRuntimeVerifier(t *testing.T) {
 	defer func() {
 		cloudReleaseEvidencePublicKey = previousKey
 	}()
+	binary, err := os.Open(binaryPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer binary.Close()
 	if !verifyCloudReleaseProvenance(
 		bundleMetadata{
 			Version:      "2.0.0-rc1",
@@ -89,7 +94,7 @@ func TestCloudReleaseSignerMatchesRuntimeVerifier(t *testing.T) {
 			CloudRelease: &evidence,
 		},
 		versionJSON{CloudRemotePlatforms: []string{runtime.GOOS}},
-		binaryPath,
+		binary,
 	) {
 		t.Fatal("runtime rejected evidence emitted by the release signer")
 	}
