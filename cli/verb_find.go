@@ -75,6 +75,7 @@ func findVerb(call *verbCall, paths runtimePaths, args []string) int {
 		return verbUsageError(call, "find", err)
 	}
 	return runReadVerb(paths, "find", opts, func(s *relaySession, env *verbEnvelope) error {
+		warmFind(s, query)
 		result, err := findEntities(s, query)
 		if err != nil {
 			return err
@@ -116,7 +117,6 @@ func findVerb(call *verbCall, paths runtimePaths, args []string) int {
 // survives a failed states read on the registry alone (statesUnread); a
 // listing (--state, or no phrase) cannot.
 func findEntities(s *relaySession, q findQuery) (findResult, error) {
-	prefetchFind(s, q)
 	areas, deviceAreas, err := loadAreaContext(s)
 	if err != nil {
 		return findResult{}, err

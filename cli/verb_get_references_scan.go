@@ -11,16 +11,16 @@ import (
 
 // The holder families get --references reads (device-replace spec §1).
 
-// prefetchReferences sends the reads that need no answer first in one wave
-// (session memo), get's related check included; scanReferences then decodes
-// them in its order, with its errors.
-func prefetchReferences(s *relaySession, entityID string) {
+// warmReferences starts the reads that need no answer first together
+// (session memo), get's related check included; scanReferences still waits
+// for them in its order, so its first error stops it as soon as it comes.
+func warmReferences(s *relaySession, entityID string) {
 	reads := []func(){func() { _, _, _ = s.coreGET("/api/states") }}
 	for _, request := range []map[string]any{{"type": "config/entity_registry/list"}, {"type": "get_panels"}, {"type": "lovelace/dashboards/list"},
 		{"type": "energy/get_prefs"}, {"type": "search/related", "item_type": "entity", "item_id": entityID}} {
 		reads = append(reads, func() { _, _ = s.ws(request) })
 	}
-	prefetch(reads)
+	warm(reads)
 }
 
 // scanHolders reads the dashboards alongside the automation and script

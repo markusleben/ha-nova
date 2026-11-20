@@ -115,7 +115,7 @@ type refState struct {
 // scanReferences builds the needles for entityID (registry row or none) and
 // scans every readable holder for them.
 func scanReferences(s *relaySession, entityID string) (*referencesResult, error) {
-	prefetchReferences(s, entityID)
+	warmReferences(s, entityID)
 	var registry []refRegistryRow
 	if err := s.wsDecode(map[string]any{"type": "config/entity_registry/list"}, &registry, "the entity registry"); err != nil {
 		return nil, err

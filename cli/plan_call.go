@@ -190,10 +190,6 @@ func planCall(paths runtimePaths, s *relaySession, env *verbEnvelope, req planCa
 // call, call, and apply's recompute (I3) all run exactly this.
 func computeCallPlan(s *relaySession, env *verbEnvelope, req planCallRequest) (*tierEngine, storedPlan, error) {
 	e := newTierEngine(s)
-	prefetch([]func(){ // both are read first in any case: one wave, not two
-		func() { _, _ = s.ws(map[string]any{"type": "config/entity_registry/list_for_display"}) },
-		func() { _, _, _ = s.coreGET("/api/services") },
-	})
 	e.loadRegistry()
 	// A Relay that never answered is an outage, not a scan gap: nothing is
 	// planned or stored (exit 1). Failures after a first answer stay typed.
