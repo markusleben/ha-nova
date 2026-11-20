@@ -1,6 +1,6 @@
 # Change or stop the chat-app phone (2026-10-24)
 
-Status: active
+Status: shipped
 
 Target: 0.28. Parents: `docs/work/2026-10-19-chat-bridge-contract.md`, `docs/work/2026-10-17-human-confirmation-channels-spec.md` §7.9 (the computer's link, move, and stop). Used by `docs/work/2026-10-24-chat-apps-household-spec.md` for every user's phone.
 

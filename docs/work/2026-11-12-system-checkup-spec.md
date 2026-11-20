@@ -1,6 +1,6 @@
 # System check-up and backup confidence
 
-Status: active
+Status: shipped
 
 Date: 2026-11-12. Target: 0.31 (release/0.31). Owner: `ha-nova map --section checkup` (`cli/verb_map_checkup.go`, `cli/verb_map_checkup_home.go`), the health skill (`skills/health/checkup.md`), three Supervisor stats reads in the Relay's table. Read-only. Source: plan 0.31 #7.
 

@@ -1,6 +1,6 @@
 # Migrate skill: move rules from another platform into Home Assistant — Spec (2026-10-17)
 
-Status: active
+Status: shipped
 
 ## Problem
 

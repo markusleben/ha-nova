@@ -1,6 +1,6 @@
 # Fewer asks for everyday things: media, the shopping list, and room lights
 
-Status: active
+Status: shipped
 
 Date: 2026-11-02. Owner: tier engine (`cli/tier_fewer_asks.go`, called from `cli/tier_rules.go`, `cli/tier_engine.go`, `cli/plan_call.go`); skills `media`, `todo`, `service-call`. Target: 0.28.0 (App 0.13.10). Changes the shipped tier contract of the typed-verbs spec (`docs/work/2026-10-14-typed-verbs-spec.md`, I5 and §4) and `docs/reference/safety.md`.
 

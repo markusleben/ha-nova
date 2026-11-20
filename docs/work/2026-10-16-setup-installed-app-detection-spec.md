@@ -1,6 +1,6 @@
 # Setup: installed-App detection, one install link, uninstall guard — Spec (2026-10-16)
 
-Status: active
+Status: shipped
 
 ## Problem
 

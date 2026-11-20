@@ -1,6 +1,6 @@
 # The NOVA page for Home Assistant administrators
 
-Status: active (built for 0.31, Markus D5 "Ja, in 0.31")
+Status: shipped (0.31)
 
 Date: 2026-11-12. Owner: the Relay's NOVA page (`nova/src/http/handlers/nova-page.ts`, `nova-page-view.ts`, `nova/src/security/owner-check.ts`). High-risk: authorization of the App's management page. Source: HANO-37 J2 friction (2), plan 0.31 #9.
 

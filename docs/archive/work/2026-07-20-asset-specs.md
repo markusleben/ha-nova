@@ -13,8 +13,8 @@
 >
 > The AI-generated background rasters referenced by the composite SVGs
 > (`howitworks-bg-nostar.png`, `pairing-bg-noglow.png`,
-> `skillsvstools-bg-v2.png`) are committed alongside them in this directory, so
-> `rsvg-convert` reproduces every committed asset from a fresh checkout.
+> `skillsvstools-bg-v2.png`) were removed from this directory in 0.34; git history
+> keeps them, and the rendered `assets/*.png` are the published result.
 
 ## Shared visual system (all four images)
 

@@ -1,6 +1,6 @@
 # Confirmation texts in the household's language and in everyday words
 
-Status: active
+Status: shipped
 
 Date: 2026-10-28, updated 2026-10-29. Owner: CLI confirmation (`cli/confirm_*.go`, `cli/say_lines.go`, `cli/plan_raw*.go`, `cli/mcp_confirm.go`). Target: 0.28.0 (first candidate v0.28.0-rc5).
 

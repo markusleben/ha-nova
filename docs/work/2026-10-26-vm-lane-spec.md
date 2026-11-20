@@ -1,6 +1,6 @@
 # Automated VM release lane (2026-10-26)
 
-Status: active
+Status: shipped
 
 `npm run vm-lane -- <tag>` replaces the Windows 11 manual onboarding
 proof. It uses the maintainer-started throwaway Win11 and HAOS UTM VMs;

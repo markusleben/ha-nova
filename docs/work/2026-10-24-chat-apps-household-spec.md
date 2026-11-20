@@ -1,6 +1,6 @@
 # Chat apps for more Home Assistant users (2026-10-24)
 
-Status: active
+Status: shipped
 
 Target: 0.28. Parents: `docs/work/2026-10-19-chat-bridge-contract.md` (the bridge), `docs/work/2026-10-18-onboarding-0.27-spec.md` §11.3–11.4. Needs the phone control channel from `docs/work/2026-10-24-chat-app-phone-move-spec.md` (land that first).
 

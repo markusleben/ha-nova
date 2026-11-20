@@ -1,6 +1,6 @@
 # Typed Verbs + MCP Adapter
 
-Status: active
+Status: shipped
 
 ## 0. Problem (measured, grounded)
 
@@ -359,7 +359,7 @@ Every PR is release-bound because it contains Go code. PR2, PR3 and PR5 are high
 **PR4 (skills + hook; ~50 LOC Go): migrate service-call and entity-discovery.**
 - Session-start index, bootstrap via notices, output-rules split, Safety Core amendment, `safety.md` rows.
 - Oracle: add a `service-call` row to `route-context-budget-contract.test.ts` (≤ 3,000 words); skill-template test updated.
-- Behavioral e2e: a Codex scenario "turn off the bed light" in `scripts/e2e/codex-ha-nova-scenarios.json` must contain `ha-nova call` and forbid `relay core`.
+- Behavioral e2e: a Codex scenario "turn off the bed light" in `tests/fixtures/review-scenarios/scenarios.json` must contain `ha-nova call` and forbid `relay core`.
 
 **PR5 (~700 LOC): `plan write|delete|revert` + `apply` config path.**
 - Oracle: Go tests for drift on an external edit (normalized compare), read-back mismatch reported as `unverified`, an undo receipt on update, a pre-delete snapshot, and delete typed-only.

@@ -1,6 +1,6 @@
 # HA NOVA v0.22 launch rollout
 
-Status: active — live publication URLs are not yet recorded
+Status: shipped
 
 > Publication-ready source copy for `u/w0nk1` and `markusleben`. Verified
 > against stable v0.22.0. Apply each channel's moderation gate before posting.
