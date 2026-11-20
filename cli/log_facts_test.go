@@ -278,14 +278,14 @@ func TestLogFactsReadPaths(t *testing.T) {
 	exit, out = captureCommandOutput(t, func() int {
 		return runRelayProxy(paths, "ws", []string{"--data", `{"type":"system_log/list"}`})
 	})
-	if exit != 1 || strings.Contains(out, "hunter2") || !strings.Contains(out, "could not read the log facts") || strings.Contains(out, "older than 0.31") {
+	if exit != 1 || strings.Contains(out, "hunter2") || !strings.Contains(out, "could not read the log facts") || strings.Contains(out, "older than 0.13.28") {
 		t.Fatalf("relay ws error: %d %s", exit, out)
 	}
 	answer = fakeRelayStatus{422, "GATE_REFUSED", "HA NOVA's safety check refused this request; nothing was sent."} // a 0.30 App
 	exit, out = captureCommandOutput(t, func() int {
 		return runRelayProxy(paths, "ws", []string{"--data", `{"type":"system_log/list"}`})
 	})
-	if exit != rawRefusedExit || !strings.Contains(out, "older than 0.31") || !strings.Contains(out, "Settings > System > Logs") {
+	if exit != rawRefusedExit || !strings.Contains(out, "older than 0.13.28") || !strings.Contains(out, "Settings > System > Logs") {
 		t.Fatalf("relay ws on a 0.30 App: %d %s", exit, out)
 	}
 
