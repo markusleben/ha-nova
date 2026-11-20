@@ -64,7 +64,7 @@ To undo this change, just say so.
 
 **Test Plan Card** (test offer after create/update — feasibility logic, option
 selection, and post-run follow-up live in `../ha-nova/test-run.md`; menu
-mechanics: context skill → Interactive Choices):
+mechanics: `../ha-nova/confirmation.md` → Interactive Choices):
 
 ```
 📝 Test: automation "Morning lights" (saved — not run yet)
@@ -76,7 +76,7 @@ skip — test later
 Recommended option first and marked; at most 3 options plus `skip`; the option
 choice is the single confirmation bound to that exact card.
 
-Menu rules: context skill → Interactive Choices (restate a bare number's
+Menu rules: `../ha-nova/confirmation.md` → Interactive Choices (restate a bare number's
 effect before acting; destructive confirmation is never a menu).
 
 Card coverage — every mutation and restore flow maps onto these cards; no
@@ -91,7 +91,7 @@ write flow renders outside this system:
 | Grouped change set (non-destructive, one logical task) | Preview Cards without options → one final action block → Result Card (`../ha-nova/grouped-change-set.md`) |
 | Snapshot restore (`../ha-nova/config-snapshots.md`) | Preview Card → Result Card |
 | Post-write test offer | Test Plan Card |
-| Runtime action (service call, experimental write) | CLI fast path (`tier: ordinary`): no preview, the result's `say` (`output-rules.md` → Verb Results). Otherwise a preview closing with the plan's `say` (high-consequence actions escalate to the typed tier — context skill → Confirmation Tiers) → the result's `say` (an experimental write without `say`: Result Card) |
+| Runtime action (service call, experimental write) | CLI fast path (`tier: ordinary`): no preview, the result's `say` (`output-rules.md` → Verb Results). Otherwise a preview closing with the plan's `say` (high-consequence actions escalate to the typed tier — `../ha-nova/confirmation.md` → Confirmation Tiers) → the result's `say` (an experimental write without `say`: Result Card) |
 
 ## Report Shape (Read & Analysis Results)
 
@@ -153,11 +153,11 @@ items. Caps: unsolicited improvement suggestions max 2, smallest intervention
 first, none when the requested solution is already complete
 (`../ha-nova/smallest-solution.md`). Helper defaults already merged into
 a preview are not offers: `ha-nova:helper` lists them its own way.
-Item shape: short title + what it does + why it helps. Menu mechanics follow context skill →
+Item shape: short title + what it does + why it helps. Menu mechanics follow `../ha-nova/confirmation.md` →
 Interactive Choices; skip/decline is always valid; omit the block entirely
 when there is nothing to offer; never post-write — with ONE named exception,
 the Replication Line below. Numeric acceptance resolves
-per context skill → Interactive Choices: name the accepted items before
+per `../ha-nova/confirmation.md` → Interactive Choices: name the accepted items before
 applying — a suggestion choice edits the pending draft where one exists, and
 in a standalone review it only hands the item to the owning write skill's
 normal preview flow; it never runs anything. Review's Suggestions section

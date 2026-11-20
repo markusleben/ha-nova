@@ -167,7 +167,7 @@ describe("cross-family destructive cleanup (issue #583)", () => {
     expect(doc).toContain("only, each with a canonical preview and verification path");
   });
   it("opts the owning contracts into the cross-family tier", () => {
-    expect(flat(read("skills/ha-nova/SKILL.md"))).toContain(
+    expect(flat(read("skills/ha-nova/confirmation.md"))).toContain(
       "and the cross-family destructive cleanup manifest: `../ha-nova/grouped-change-set.md`",
     );
     expect(flat(read("skills/organize/SKILL.md"))).toContain(
@@ -178,7 +178,7 @@ describe("cross-family destructive cleanup (issue #583)", () => {
     );
   });
   it("names the cleanup code in the canonical confirmation tiers", () => {
-    expect(flat(read("skills/ha-nova/SKILL.md"))).toContain(
+    expect(flat(read("skills/ha-nova/confirmation.md"))).toContain(
       "Cross-family destructive cleanup takes its own manifest's confirmation",
     );
   });

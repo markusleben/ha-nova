@@ -66,9 +66,9 @@ describe("smallest complete solution contract (#452)", () => {
       .filter((entry) => entry.isDirectory())
       .map((entry) => `skills/${entry.name}/SKILL.md`)
       .filter((path) => existsSync(path));
-    const writeFlowSkills = skillFiles.filter((path) =>
+    const writeFlowSkills = skillFiles.filter((path) => path !== "skills/ha-nova/SKILL.md" &&
       readFileSync(path, "utf8").includes(
-        "never confirms it; only a reply to the preview does",
+        "`../ha-nova/safety-core.md`",
       ),
     );
     expect(writeFlowSkills.length).toBeGreaterThanOrEqual(23);

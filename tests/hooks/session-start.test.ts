@@ -2,7 +2,7 @@
  * S-6: SessionStart hook (4 variants)
  * Tests the hooks/session-start script output in various configurations.
  */
-import { cpSync, existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readFileSync, readdirSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -44,7 +44,10 @@ describe("S-6: session-start hook", () => {
     expect(json.additional_context).toContain("ha-nova check-update --quiet");
     expect(json.additional_context).toContain("`notices[]`");
     // Typed-verbs PR4 budget: ~700 words (was ~6.1k with the full router).
-    expect(json.additional_context.split(/\s+/).length).toBeLessThan(760);
+    // F10: the full Safety Core (safety-core.md) replaced the index's short
+    // summary; it left 28 skills, each of which now loads 143-150 words lighter.
+    expect(json.additional_context).toContain("# Safety Core");
+    expect(json.additional_context.split(/\s+/).length).toBeLessThan(880);
   });
 
   // A copied plugin root, so the hook can run against a broken or hostile tree.
@@ -53,7 +56,7 @@ describe("S-6: session-start hook", () => {
     mkdirSync(join(root, "hooks"));
     mkdirSync(join(root, "skills", "ha-nova"), { recursive: true });
     writeFileSync(join(root, "hooks", "session-start"), readFileSync("hooks/session-start", "utf8"), { mode: 0o755 });
-    for (const file of ["SKILL.md", "session-bootstrap.md"]) {
+    for (const file of ["SKILL.md", "safety-core.md", "session-bootstrap.md"]) {
       writeFileSync(join(root, "skills", "ha-nova", file), readFileSync(`skills/ha-nova/${file}`, "utf8"));
     }
     if (index !== null) writeFileSync(join(root, "skills", "ha-nova", "index.md"), index);
@@ -167,6 +170,22 @@ describe("S-6: session-start hook", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Missing HA NOVA file: skills/ha-nova/index.md");
     expect(result.stdout).toBe("");
+  });
+
+  it("fails loud on a missing, empty, or partial Safety Core", () => {
+    const full = readFileSync("skills/ha-nova/safety-core.md", "utf8");
+    const missingRule = full.split("\n").filter((line) => !line.startsWith("- Anything before the preview")).join("\n");
+    const truncated = full.slice(0, full.lastIndexOf("once."));
+    for (const core of [null, "", "# Safety Core\n", "# Safety Core\n\n- The CLI rates every action\n- ha-nova:fallback\n", missingRule, truncated]) {
+      const root = pluginCopy(readFileSync("skills/ha-nova/index.md", "utf8"));
+      const file = join(root, "skills", "ha-nova", "safety-core.md");
+      if (core === null) rmSync(file);
+      else writeFileSync(file, core);
+      const result = spawnSync("bash", [join(root, "hooks", "session-start")], { encoding: "utf8", timeout: 15000, env: isolatedEnv() });
+      expect(result.status, JSON.stringify(core)).toBe(1);
+      expect(result.stderr).toMatch(/(Missing|Incomplete) HA NOVA file: skills\/ha-nova\/safety-core\.md/);
+      expect(result.stdout).toBe("");
+    }
   });
 
   it("escapes every control character into valid JSON", () => {

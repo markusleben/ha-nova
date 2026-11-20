@@ -13,7 +13,7 @@ by `ha-nova:write` and `ha-nova:helper` (do not duplicate them):
 Skill source stays English. Localize headings and labels at runtime per
 `../ha-nova/output-rules.md`.
 
-Confirmation validity is owned by `../ha-nova/SKILL.md` → Safety Baseline →
+Confirmation validity is owned by `../ha-nova/confirmation.md` →
 Active Preview Confirmation. This file only defines preview/diff/revert
 mechanics.
 
@@ -92,7 +92,7 @@ nested change at the depth needed to understand its effect ("the new choose
 branch skips heating when a window is open") — container counts alone never
 qualify, and echoing diff type names ("condition state", "platform: time") is
 not a description. A preview that explains a touched collection only as a
-count or type change is not a valid confirmation basis (context skill →
+count or type change is not a valid confirmation basis (`../ha-nova/confirmation.md` →
 Active Preview Confirmation) — fix the draft or the narrative before asking.
 If you cannot explain the behavioral effect of your own draft, stop and
 re-derive it — never ask for confirmation of a change you cannot describe.

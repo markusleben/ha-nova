@@ -6,8 +6,8 @@ The only supported route for confirming a destructive multi-target operation
 with a single typed confirmation. Skill source stays English; localize labels
 at runtime per `../ha-nova/output-rules.md`.
 
-Confirmation validity stays owned by `../ha-nova/SKILL.md` → Safety
-Baseline → Active Preview Confirmation. This file defines only the batch
+Confirmation validity stays owned by `../ha-nova/confirmation.md` →
+Active Preview Confirmation. This file defines only the batch
 mechanics: manifest, code format, caps, execution, and recovery.
 
 Exception: automations and scripts take the CLI Batch below, not a manifest code.
@@ -66,12 +66,12 @@ targets; anything discovered later belongs to a new manifest.
 
 ## One-Time Code
 
-One confirmation per manifest (context skill → Confirmation Tiers): the
+One confirmation per manifest (`../ha-nova/confirmation.md` → Confirmation Tiers): the
 manifest's requests, in manifest order, are one
 `ha-nova plan raw --file <requests.json>` whose `say` asks (the window, the
 phone, or the NOVA page; a code only where `say` shows one); follow its
 `next_step`. Never mint a code yourself; a code is typed by the
-user, never a menu (context skill → Interactive Choices). Never reuse an
+user, never a menu (`../ha-nova/confirmation.md` → Interactive Choices). Never reuse an
 earlier code or take digits from the manifest or Home Assistant data. The plan
 belongs to that exact manifest — target set, payloads, and order.
 

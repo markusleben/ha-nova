@@ -161,7 +161,7 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("Creates → cleanup via normal HA NOVA delete flow");
     // A4: the offer to undo a create never promises a code the delete may not ask for.
     expect(writeSkill).toContain("(preview, its confirmation, absence verification); never promise a code.");
-    expect(readFileSync("skills/ha-nova/SKILL.md", "utf8")).toContain("No `plan.code` (even for a later delete): never ask for or promise one.");
+    expect(readFileSync("skills/ha-nova/confirmation.md", "utf8")).toContain("No `plan.code` (even for a later delete): never ask for or promise one.");
     expect(writeSafety).toContain("A create is undone by deleting the new item through the");
     expect(writeSafety).toContain("manual deletion or a full Home Assistant Backup restore is the only cleanup path");
     expect(writeSafety).toContain("Do not call this `revert`");

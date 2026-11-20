@@ -9,7 +9,7 @@ stays English; localize labels at runtime per
 
 Execution rules and confirmation validity stay owned by
 `ha-nova:service-call` → Automation And Script Runtime Calls and
-`../ha-nova/SKILL.md` → Safety Baseline → Active Preview Confirmation.
+`../ha-nova/confirmation.md` → Active Preview Confirmation.
 This file defines only how the test plan is chosen, presented, and verified.
 
 ## Purpose & Invariants
@@ -35,7 +35,7 @@ This file defines only how the test plan is chosen, presented, and verified.
   the choice and requires a fresh card. High-consequence members (locks,
   alarm panels, garage/gate/entry-door covers by `device_class`, and
   physically irreversible actions) keep their typed confirmation from the
-  context skill's high-consequence tier — the single card confirmation never
+  high-consequence rung (`../ha-nova/confirmation.md` → Confirmation Tiers) — the single card confirmation never
   replaces it.
 
 ## Feasibility & Recommendation
@@ -56,7 +56,7 @@ gate, or entry door exposed as `cover.*` and any heating/cooling setpoint
 change belong in the high-consequence row.
 
 This row is the test-planning risk class, a deliberate superset of the
-context skill's high-consequence confirmation tier. Members that grant
+high-consequence confirmation rung (`../ha-nova/confirmation.md` → Confirmation Tiers). Members that grant
 physical access still take the typed tier; merely disruptive
 members such as `homeassistant.restart`/`stop` now take the typed tier.
 Plan them alike, confirm them by their own tier.
@@ -229,7 +229,7 @@ it without asking again:
 ## Offer Format (Test Plan Card)
 
 This is the Test Plan Card of `../ha-nova/output-cards.md` → Cards; menu
-mechanics follow `../ha-nova/SKILL.md` → Interactive Choices (labels
+mechanics follow `../ha-nova/confirmation.md` → Interactive Choices (labels
 localized at runtime):
 
 - Recommended option first and marked; at most 3 options plus `skip`.

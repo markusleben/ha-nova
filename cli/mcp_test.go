@@ -168,7 +168,8 @@ func TestMCPLegacySessionEndToEnd(t *testing.T) {
 	}
 	prompt := c.request("prompts/get", map[string]any{"name": "ha-nova-service-call"})["result"].(map[string]any)
 	text := prompt["messages"].([]any)[0].(map[string]any)["content"].(map[string]any)["text"].(string)
-	if !strings.HasPrefix(text, "You are running HA NOVA through MCP tools") || !strings.Contains(text, "name: service-call") {
+	if !strings.HasPrefix(text, "You are running HA NOVA through MCP tools") || !strings.Contains(text, "name: service-call") ||
+		!strings.Contains(text, "# Safety Core\n") || strings.Index(text, "# Safety Core\n") > strings.Index(text, "name: service-call") {
 		t.Fatalf("prompt text %.200q", text)
 	}
 	resource := c.request("resources/read", map[string]any{"uri": "ha-nova://skills/ha-nova/relay-api.md"})["result"].(map[string]any)

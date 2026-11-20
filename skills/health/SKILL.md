@@ -184,7 +184,7 @@ Resolve `domain` and `issue_id` from `repairs/list_issues`. One WS item `{"type"
 
 Resolve `domain`, `issue_id`, `is_fixable:true`. Follow `../ha-nova/live-schema-preflight.md` repair-description lookup: POST `{"handler":"<domain>","issue_id":"<id>"}` to `/api/repairs/issues/fix`; GET/POST at `/api/repairs/issues/fix/<flow_id>`. Each uses `plan raw` + `apply`, including GET/empty submits. Inspect domain/translation and live schema BEFORE start/EVERY step. Delete/remove: request `typed:true` onward; new destruction needs fresh typed confirmation. Unknown effects/boundaries: UI.
 
-Secrets/external/progress: hand off to **Settings > System > Repairs**, never collect secrets. Declared exception to the core delete rule above: cancel only this skill's unfinished flow (ephemeral DELETE on cancel/UI restart). `abort` is not success. After `create_entry`, re-read issue AND affected resource: absence proves dismissal, not remediation; missing effect evidence means unverified. Uncertainty/`next_flow`: shared preflight, never blind retries.
+Secrets/external/progress: hand off to **Settings > System > Repairs**, never collect secrets. Declared exception to the Safety Core's delete rule (`../ha-nova/confirmation.md` → Confirmation Tiers): cancel only this skill's unfinished flow (ephemeral DELETE on cancel/UI restart). `abort` is not success. After `create_entry`, re-read issue AND affected resource: absence proves dismissal, not remediation; missing effect evidence means unverified. Uncertainty/`next_flow`: shared preflight, never blind retries.
 
 ## Output Format
 
@@ -222,13 +222,7 @@ does not separate candidates, break ties in this order:
 
 ## Safety
 
-- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `"typed":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
-- Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
-- Relay a plan's `say` in full, localized; never drop or shorten sentences.
-- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
-- Never guess entity, service, or config IDs — resolve them or ask.
-- Home Assistant is reached exclusively through the `ha-nova` CLI.
-- Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
+- Safety Core: before any write, apply `../ha-nova/safety-core.md`; not yet in this conversation → read it first; unreadable or incomplete → stop and write nothing.
 
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 - Never call delete issue commands.

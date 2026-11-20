@@ -54,8 +54,8 @@ describe("write delete safety contract", () => {
     expect(writeSafety).toContain("not a description");
     expect(writeSafety).toContain("is not a valid confirmation basis");
     expect(writeSafety).toContain("it may run longer when per-entry coverage requires it");
-    // The gate lives with the confirmation owner in the context skill.
-    const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    // The gate lives with the confirmation owner in confirmation.md.
+    const contextSkill = readFileSync("skills/ha-nova/confirmation.md", "utf8");
     expect(contextSkill).toContain(
       "A preview is a valid confirmation basis only if it explains the behavioral effect of every collection it touches.",
     );

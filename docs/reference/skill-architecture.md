@@ -643,16 +643,10 @@ Scope → Bootstrap (once per session) → Relay Contract → [domain] → Flow 
 
 ### Safety Core (canonical text)
 
-Every mutation-capable sub-skill opens its `## Safety` section with this block, byte-identical (linter-enforced; the linter extracts this fenced block as the SSOT). It carries the bootstrap-independent guarantees — preview binding, the CLI-decided confirmation (a person's own for deletes and high-consequence actions), and the fallback write gate — so a bare agent that never auto-loads the context skill still gets them:
+Every mutation-capable sub-skill opens its `## Safety` section with this pointer, byte-identical (linter-enforced; the linter extracts this fenced block as the SSOT). The Safety Core itself lives once, in `skills/ha-nova/safety-core.md`: the Claude Code session hook injects it into every session, `ha_skill` and `prompts/get` put it ahead of every skill that carries this pointer (a missing or malformed file fails the call), and any other agent reads it before its first write. It carries the bootstrap-independent guarantees — preview binding, the CLI-decided confirmation (a person's own for deletes and high-consequence actions), relaying `say` in full, and the fallback write gate. Their detail (what a preview must show, the tiers, menus) is `skills/ha-nova/confirmation.md`.
 
 ```text
-- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `"typed":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
-- Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
-- Relay a plan's `say` in full, localized; never drop or shorten sentences.
-- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
-- Never guess entity, service, or config IDs — resolve them or ask.
-- Home Assistant is reached exclusively through the `ha-nova` CLI.
-- Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
+- Safety Core: before any write, apply `../ha-nova/safety-core.md`; not yet in this conversation → read it first; unreadable or incomplete → stop and write nothing.
 ```
 
 Read-only sub-skills open `## Safety` with this block instead:
@@ -662,9 +656,9 @@ Read-only sub-skills open `## Safety` with this block instead:
 - For write intent, hand off to the owning skill; unfamiliar writes go through `ha-nova:fallback` first.
 ```
 
-Skill-specific safety bullets follow the core block; bullets that merely restate a core line are removed, domain nuances (confirmation tiering, no-revert notes, session-cleanup rules) stay.
+Skill-specific safety bullets follow the pointer; bullets that merely restate a core line are removed, domain nuances (confirmation tiering, no-revert notes, session-cleanup rules) stay. The router (`skills/ha-nova/SKILL.md`, for its snapshot deletes) and the `config-snapshots.md` write recipe carry the same pointer; MCP prepends the Core to anything that carries it, the dispatch table included.
 
-A skill may declare an explicit, named exception to a single core bullet directly below the core block — it must reference the core rule it narrows ("Declared exception to the core ... rule above") so a bare agent never sees two contradicting instructions. Current declared exceptions: `todo` item removes (`todo.remove_item`, `todo.remove_completed_items`) stay at natural preview confirmation (the CLI runs up to 5 listed items off the built-in shopping list at once) while list deletion keeps the one-time code; `integration-setup` and `health` may cancel only their own unfinished transient flows at preview tier, never an entry, subentry, or issue.
+A skill may declare an explicit, named exception to a single core rule directly below the pointer — it must name the rule it narrows ("Declared exception to the Safety Core's delete rule (`../ha-nova/confirmation.md` → Confirmation Tiers)") so a bare agent never sees two contradicting instructions. Current declared exceptions: `helper` may abandon its own unfinished create flow; `todo` item removes (`todo.remove_item`, `todo.remove_completed_items`) stay at natural preview confirmation (the CLI runs up to 5 listed items off the built-in shopping list at once) while list deletion keeps the one-time code; `integration-setup` and `health` may cancel only their own unfinished transient flows at preview tier, never an entry, subentry, or issue.
 
 ## Post-Write Review Standard
 

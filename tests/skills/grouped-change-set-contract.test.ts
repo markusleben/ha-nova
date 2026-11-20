@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const grouped = readFileSync("skills/ha-nova/grouped-change-set.md", "utf8");
 const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+const confirmation = readFileSync("skills/ha-nova/confirmation.md", "utf8");
 const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8") + readFileSync("skills/ha-nova/output-cards.md", "utf8");
 const writeSafety = (readFileSync("skills/ha-nova/write-safety.md", "utf8") + readFileSync("skills/ha-nova/recovery-coverage.md", "utf8") + readFileSync("skills/ha-nova/update-revert.md", "utf8"));
 const batchSafety = readFileSync("skills/ha-nova/batch-safety.md", "utf8");
@@ -18,8 +19,8 @@ const OPTED_IN_SKILLS = [
 ];
 
 describe("grouped change set contract (issue #391)", () => {
-  it("is referenced by the context skill, output-rules, write-safety, batch-safety, and every opted-in skill", () => {
-    expect(contextSkill).toContain("../ha-nova/grouped-change-set.md");
+  it("is referenced by the confirmation contract, output-rules, write-safety, batch-safety, and every opted-in skill", () => {
+    expect(confirmation).toContain("../ha-nova/grouped-change-set.md");
     expect(outputRules).toContain("../ha-nova/grouped-change-set.md");
     expect(writeSafety).toContain("../ha-nova/grouped-change-set.md");
     expect(batchSafety).toContain("../ha-nova/grouped-change-set.md");
@@ -56,7 +57,7 @@ describe("grouped change set contract (issue #391)", () => {
   it("caps the group at ten operations", () => {
     expect(grouped).toContain("**Cap: 10 operations.**");
     expect(grouped).toContain("split into explicit separate groups");
-    expect(contextSkill).toContain("max 10 operations");
+    expect(confirmation).toContain("max 10 operations");
   });
 
   it("rejects destructive operations from the group", () => {
@@ -65,7 +66,7 @@ describe("grouped change set contract (issue #391)", () => {
       "Anything that requires a one-time code",
     );
     expect(grouped).toContain("keeps its own flow");
-    expect(contextSkill).toContain(
+    expect(confirmation).toContain(
       "one-time-code operations follow that contract's exclusions and duration-pair exception",
     );
   });

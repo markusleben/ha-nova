@@ -63,8 +63,12 @@ func (srv *mcpServer) getPrompt(raw json.RawMessage) (map[string]any, *rpcError)
 	if !known || err != nil {
 		return nil, &rpcError{Code: rpcInvalidParams, Message: "unknown prompt: " + params.Name}
 	}
+	core, err := skillSafetyCore(srv.paths, string(body))
+	if err != nil {
+		return nil, &rpcError{Code: rpcInvalidParams, Message: mcpNoSafetyCore + "; reinstall HA NOVA on this computer to repair it"}
+	}
 	return map[string]any{"description": "HA NOVA skill " + params.Name, "messages": []map[string]any{
-		{"role": "user", "content": map[string]any{"type": "text", "text": mcpSkillHeader + string(body)}},
+		{"role": "user", "content": map[string]any{"type": "text", "text": mcpSkillHeader + core + string(body)}},
 	}}, nil
 }
 
@@ -115,5 +119,9 @@ func (srv *mcpServer) readResource(raw json.RawMessage, modern bool) (map[string
 	if err != nil {
 		return nil, notFound
 	}
-	return map[string]any{"contents": []map[string]any{{"uri": params.URI, "mimeType": "text/markdown", "text": string(body)}}}, nil
+	core, err := skillSafetyCore(srv.paths, string(body))
+	if err != nil {
+		return nil, &rpcError{Code: rpcInvalidParams, Message: mcpNoSafetyCore + "; reinstall HA NOVA on this computer to repair it"}
+	}
+	return map[string]any{"contents": []map[string]any{{"uri": params.URI, "mimeType": "text/markdown", "text": core + string(body)}}}, nil
 }

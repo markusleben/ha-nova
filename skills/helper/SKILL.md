@@ -116,7 +116,7 @@ While `truncated` is true the list proves neither absence nor uniqueness — nar
    - A dropped item changes the payload: re-preview.
    - No useful defaults inferable → silently skip.
 3. Preview the payload with the shared write-preview shape: compact summary, pre-write check when applicable, explicit not-saved-yet line, and the save question: the plan's `say`.
-4. End the turn with this preview; only the user's reply to it confirms, never the request (context skill → Active Preview Confirmation).
+4. End the turn with this preview; only the user's reply to it confirms, never the request (`../ha-nova/confirmation.md` → Active Preview Confirmation).
    - for unobserved `group` or `template` subtypes, this first confirmation authorizes only the non-persisting menu-step submit, not the final subtype-specific payload
 5. Execute: `ha-nova apply --plan <id>`.
 6. Verify — list back and confirm new item exists.
@@ -128,7 +128,7 @@ While `truncated` is true the list proves neither absence nor uniqueness — nar
 1. Resolve target from `{type}/list` by `name` or internal `id`.
 2. Extract `id` from the list response (this is the `{type}_id` for the update command).
 3. Validate the merged current+proposed fields against the same cross-field constraints as create (Creating step 1) — an update can break `min`/`max`, `minimum`/`maximum`, `initial` ∈ `options`, or datetime/timer constraints just as easily. Then preview current vs proposed in the Changes slot with `ha-nova diff` (see `../ha-nova/write-safety.md` → Pre-Write Diff) plus the behavior narrative (write-safety → Behavior narrative) — a count-only diff row never stands alone. Then run a pre-write impact check — `search/related` on this helper entity (max 3 related configs) — and surface affected automations/scripts as an advisory. Advisory only; never block. Include an explicit not-saved-yet line and the save question: the plan's `say`. REMOVING `input_select` options or `schedule` blocks (moved or changed too) puts the auto config snapshot first.
-4. End the turn with this preview; only the user's reply to it confirms (context skill → Active Preview Confirmation).
+4. End the turn with this preview; only the user's reply to it confirms (`../ha-nova/confirmation.md` → Active Preview Confirmation).
 5. If the conversation paused since the preview, re-read the list item; a changed basis expires the confirmation (`write-safety.md` → Drift check before apply).
 6. Execute: `ha-nova apply --plan <id>`.
 7. Verify by re-reading the same list item.
@@ -252,7 +252,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    form step persists nothing — only the terminal submit does), then re-render
    the preview from the LIVE form: label every field live-confirmed or
    draft-only, and end the turn with that live preview for confirmation
-   (context skill → Active Preview Confirmation;
+   (`../ha-nova/confirmation.md` → Active Preview Confirmation;
    `../ha-nova/live-schema-preflight.md`). On cancel or expiry, abandon
    the transient flow without submitting (DELETE the `flow_id`).
 5. Start the flow:
@@ -317,7 +317,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - for `history_stats`, if the requested change switches to a different valid window pair, drop the old third key explicitly so the submit body still contains exactly two of `start`, `end`, and `duration`
    - for `template`, when the change touches the `state` template, resolve every entity ID referenced in the NEW template before submitting (entity registry, then `/api/states/<entity_id>` fallback — YAML/manual entities are absent from the registry but valid) — a typo like `is_state('binary_sensor.typo','on')` renders a clean boolean, so the post-write rendered-state read cannot catch it; a reference missing from both is a blocking question, not a submit
 7. For a `threshold` helper whose `lower`, `upper`, or `hysteresis` changes against a physical-process sensor — or whose compared `entity_id` is swapped while boundaries stay — run the calibration preflight per `../ha-nova/threshold-calibration.md` first and carry its findings into the preview. Then preview current vs proposed in the Changes slot with `ha-nova diff` (see `../ha-nova/write-safety.md` → Pre-Write Diff) plus the behavior narrative (write-safety → Behavior narrative). Include an explicit not-saved-yet line and the save question.
-8. End the turn with this preview; only the user's reply to it confirms (context skill → Active Preview Confirmation).
+8. End the turn with this preview; only the user's reply to it confirms (`../ha-nova/confirmation.md` → Active Preview Confirmation).
 9. Submit the current step:
    ```text
    ha-nova relay core --method POST --path /api/config/config_entries/options/flow/{flow_id} --body-file <submit-payload-file>
@@ -442,17 +442,11 @@ Never show raw JSON to the user.
 
 ## Safety
 
-- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `"typed":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
-- Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
-- Relay a plan's `say` in full, localized; never drop or shorten sentences.
-- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
-- Never guess entity, service, or config IDs — resolve them or ask.
-- Home Assistant is reached exclusively through the `ha-nova` CLI.
-- Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
+- Safety Core: before any write, apply `../ha-nova/safety-core.md`; not yet in this conversation → read it first; unreadable or incomplete → stop and write nothing.
 - `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`../ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
 - `entry_id` is the canonical write identity for the config-entry family
 - Destructive cleanup keeps its full confirmation (the plan's `say`), even for helpers created earlier in the same session.
-- Declared exception to the core delete rule above: abandoning an unfinished create flow this skill started (cancel or expired confirmation) DELETEs only that ephemeral `flow_id` — transient flow state, never a config entry; the user's cancel is sufficient, and this exception never applies to anything already created.
+- Declared exception to the Safety Core's delete rule (`../ha-nova/confirmation.md` → Confirmation Tiers): abandoning an unfinished create flow this skill started (cancel or expired confirmation) DELETEs only that ephemeral `flow_id` — transient flow state, never a config entry; the user's cancel is sufficient, and this exception never applies to anything already created.
 - Every write MUST end with the Post-Write Review slot; use terminal-friendly labels where Markdown headings add noise.
 
 ## Guardrails

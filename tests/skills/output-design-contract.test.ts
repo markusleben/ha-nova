@@ -45,7 +45,7 @@ describe("output design system (Cards)", () => {
   it("names the typed code the one-time code from HA NOVA toward users, never a bare code, PIN, or token", () => {
     expect(outputRules).toContain('is the "one-time code from HA NOVA" (localized');
     expect(outputRules).toContain('Never call it a bare "code", "PIN", or "token" in user-facing output');
-    const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    const contextSkill = readFileSync("skills/ha-nova/confirmation.md", "utf8");
     expect(contextSkill).toContain('Call it the "one-time code from HA NOVA" (localized;');
   });
 
