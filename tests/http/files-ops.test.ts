@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -57,6 +57,24 @@ describe("files handler — operations", () => {
     const names = result.entries.map((e) => e.name);
     expect(names).toContain("configuration.yaml");
     expect(result.entries.find((e) => e.name === ".storage")?.type).toBe("dir");
+  });
+
+  it("reports each entry's inode change time, which a rename moves", async () => {
+    const list = async () =>
+      ((await call("read", { action: "list_dir", path: "/config" })) as { entries: Array<{ name: string; changed: string | null }> }).entries;
+    const before = (await list()).find((e) => e.name === "configuration.yaml")?.changed;
+    expect(before).toBe(statSync(join(root, "configuration.yaml")).ctime.toISOString());
+    writeFileSync(join(root, "old.yaml"), "homeassistant: {}\n");
+    utimesSync(join(root, "old.yaml"), new Date("2020-01-01"), new Date("2020-01-01"));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    renameSync(join(root, "old.yaml"), join(root, "configuration.yaml"));
+    const after = (await list()).find((e) => e.name === "configuration.yaml");
+    expect(after?.changed).not.toBe(before);
+    expect(Date.parse(after?.changed ?? "")).toBeGreaterThan(Date.parse("2020-01-02"));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    linkSync(join(root, "configuration.yaml"), join(root, "configuration.link"));
+    const linked = (await list()).find((e) => e.name === "configuration.yaml");
+    expect(linked?.changed).not.toBe(after?.changed);
   });
 
   // stat() follows symlinks; lstat() does not. Listing a directory that holds a

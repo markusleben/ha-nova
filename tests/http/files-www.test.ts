@@ -54,7 +54,7 @@ afterEach(() => {
 describe("www: list, never read or write", () => {
   it("lists www with size and time", async () => {
     const result = (await call({ action: "list_dir", path: "/config/www/snapshots" }, { mode: "read" })) as { entries: Array<Record<string, unknown>> };
-    expect(result.entries).toEqual([{ name: "door.jpg", type: "file", size: 5, modified: statSync(www("snapshots", "door.jpg")).mtime.toISOString() }]);
+    expect(result.entries).toEqual([{ name: "door.jpg", type: "file", size: 5, modified: statSync(www("snapshots", "door.jpg")).mtime.toISOString(), changed: statSync(www("snapshots", "door.jpg")).ctime.toISOString() }]);
   });
 
   it("never reads or writes in www", async () => {
