@@ -1,5 +1,5 @@
 {
-  "skill_version": "0.33.0",
+  "skill_version": "0.34.0",
   "min_relay_version": "0.13.30",
   "cloud_remote_enabled": true,
   "cloud_remote_platforms": [
