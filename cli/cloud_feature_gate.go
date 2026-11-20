@@ -67,7 +67,7 @@ func configureCloudRemoteFeature(paths runtimePaths) {
 		}
 		platforms[platform] = struct{}{}
 	}
-	if len(platforms) == 0 {
+	if _, listed := platforms[runtime.GOOS]; !listed {
 		return
 	}
 	proof, matches := cloudRemoteReleaseRuntimeMatches(paths, metadata)
@@ -109,6 +109,9 @@ func cloudRemoteReleaseRuntimeMatches(
 	executablePath, err := executablePathForInstallSource()
 	if err != nil {
 		return nil, false
+	}
+	if executable, err := os.Stat(executablePath); err != nil || !executable.Mode().IsRegular() {
+		return nil, false // never open a pipe or device: it could block the start
 	}
 	file, err := os.Open(executablePath)
 	if err != nil {
