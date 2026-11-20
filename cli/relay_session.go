@@ -82,7 +82,8 @@ var readOnlyWSTypes = map[string]bool{
 // refuses anything not provably read-only before sending (I1). The one
 // exception is fixed in code: a thermostat or hygrostat helper's options
 // flow, started and aborted unsubmitted, which saves nothing
-// (helperOptionsEndpoint).
+// (helperOptionsEndpoint). Its YAML twin only reads files
+// (yamlHelpersEndpoint).
 type relaySession struct {
 	paths        runtimePaths
 	cfg          runtimeConfig
@@ -244,9 +245,12 @@ func (s *relaySession) read(endpoint string, payload map[string]any) (json.RawMe
 	if ok {
 		<-m.done
 	} else {
-		if endpoint == helperOptionsEndpoint {
+		switch endpoint {
+		case helperOptionsEndpoint:
 			m.data, m.err = s.helperOptions(body)
-		} else {
+		case yamlHelpersEndpoint:
+			m.data, m.err = s.yamlHelpers(body)
+		default:
 			m.data, m.err = s.send(endpoint, body)
 		}
 		close(m.done)
@@ -279,6 +283,11 @@ func checkReadOnlyRequest(endpoint string, payload map[string]any) error {
 			return nil
 		}
 		return errors.New("helper options take exactly one entry_id; nothing was sent")
+	case yamlHelpersEndpoint: // the YAML helpers Home Assistant runs, read from /config (tier_yaml.go)
+		if len(payload) == 0 {
+			return nil
+		}
+		return errors.New("yaml helpers take an empty payload; nothing was sent")
 	case "backups": // plan restore: loading one automation/script snapshot
 		if file, _ := payload["file"].(string); payload["action"] == "load" && len(payload) == 2 && restoreDomain(file) != "" {
 			return nil

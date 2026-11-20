@@ -11,6 +11,7 @@ require (
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/itchyny/gojq v0.12.19
 	github.com/zalando/go-keyring v0.2.8
+	go.yaml.in/yaml/v3 v3.0.6
 	golang.org/x/crypto v0.58.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/term v0.47.0
