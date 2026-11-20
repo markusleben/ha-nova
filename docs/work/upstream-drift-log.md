@@ -91,3 +91,47 @@ standing recheck stay here.
   github.com/home-assistant/supervisor/releases.
 - Next screen: before the next release cycle, or on HA 2026.11.3 or
   2026.12.0, whichever comes first.
+
+## 2026-11-20 — pre-release screen (v0.34.0 cycle): HA after 2026.11.2 + developer blog after 2026-11-18 + HACS + Supervisor
+
+- Window screened: Core releases after `2026.11.2` of 2026-11-16
+  (none; no `2026.11.3` or `2026.12.0` beta); contributors.home-assistant.io/blog
+  after 2026-11-18 (none; “The multicast plugin is being deprecated” of
+  2026-11-17 is still the newest post, covered in the last screen);
+  home-assistant.io/blog since the last screen (one post, “Community Day
+  2026: You knocked it out of the park!” of 2026-11-19, no API change);
+  HACS releases and tags after `2.0.5` of 2025-01-28 (none); Supervisor
+  releases after `2026.11.0` of 2026-11-06 (none). The beta channel still
+  lists Core `2026.11.2` and Supervisor `2026.11.0`.
+- Clean pass: nothing new changes a WS command, REST route, or service
+  pinned in `skills/**/*.md` or `cli/*.go`, including the registry commands,
+  `system_log/list`, `manifest/list`, the Core `/api/` routes, and the
+  Supervisor `/addons` and `/store` routes.
+- The 0.34 train adds a filesystem dependency (MAR-245), not a new
+  upstream WS command or REST route. The NOVA App's own `list_dir` and
+  `read_file` use the existing `homeassistant_config` mount at `/config`;
+  `list_dir` now reports change time from `lstat`. Against Core `2026.11.2`,
+  the run lock still records `start_ts`, the YAML loader still uses
+  `annotatedyaml`, and the generic thermostat `heater`, generic hygrostat
+  `humidifier`, and template switch `unique_id` and `turn_on`/`turn_off`
+  shapes still match. No change needed. The announced Supervisor 2026.12
+  capability reduction does not remove a capability used by these reads.
+- Source checked: [Core releases (API listing)](https://api.github.com/repos/home-assistant/core/releases?per_page=1),
+  [Core tags](https://github.com/home-assistant/core/tags), and the
+  [2026.11 patch notes](https://www.home-assistant.io/blog/2026/11/04/release-202611/#patch-releases);
+  [contributors blog](https://contributors.home-assistant.io/blog/);
+  [home-assistant.io/blog](https://www.home-assistant.io/blog/);
+  [HACS releases](https://github.com/hacs/integration/releases) and [tags](https://github.com/hacs/integration/tags);
+  [Supervisor releases](https://github.com/home-assistant/supervisor/releases) and
+  the [beta channel](https://version.home-assistant.io/beta.json);
+  Core `2026.11.2` [runner](https://github.com/home-assistant/core/blob/2026.11.2/homeassistant/runner.py),
+  [YAML loader](https://github.com/home-assistant/core/blob/2026.11.2/homeassistant/util/yaml/loader.py),
+  [generic thermostat](https://github.com/home-assistant/core/blob/2026.11.2/homeassistant/components/generic_thermostat/climate.py),
+  [generic hygrostat](https://github.com/home-assistant/core/blob/2026.11.2/homeassistant/components/generic_hygrostat/__init__.py),
+  [template helpers](https://github.com/home-assistant/core/blob/2026.11.2/homeassistant/components/template/helpers.py)
+  and [switch](https://github.com/home-assistant/core/blob/2026.11.2/homeassistant/components/template/switch.py);
+  [App mount configuration](https://contributors.home-assistant.io/docs/apps/configuration/)
+  and the [Supervisor capability announcement](https://contributors.home-assistant.io/blog/2026/11/06/apps-fewer-default-capabilities/).
+- Next screen: before the next release cycle, or on HA `2026.11.3` or
+  the `2026.12.0` beta, whichever comes first. Watch Supervisor 2026.12
+  for the smaller App capability set and multicast rollout.

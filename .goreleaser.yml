@@ -79,15 +79,16 @@ release:
     ## New Features
 
     - **Updating a Mac from 0.31? HA NOVA asks you to pair it again once.** It's one Home Assistant sign-in, about a minute (with Home Assistant Link at home, a second one for Link). Run `ha-nova setup` when HA NOVA says so.
-    - **An open logbook no longer makes an everyday call ask.** A logbook or an entity's history open on a tablet or in the app made every device call ask. Now each call is rated by what it does.
-    - **Your phone is offered wherever this computer can't confirm in its window.** Over SSH, with no screen, or after a no to one-click confirming, setup and `ha-nova pair` in a terminal offer it until one is linked.
-    - **A computer nobody sits at can confirm with a four-digit code in your AI chat.** The Home Assistant owner turns it on per computer on the NOVA page, instead of one-click. It's off by default; a linked phone ends it.
-    - **A computer whose keyring can't be unlocked pairs without starting over.** Setup and `ha-nova pair` in a terminal offer a private key file in the same run (Enter is no).
-    - **`ha-nova setup --server <name>` opens the setup page** for a server already paired on this computer, where setup can open a browser, and keeps your AI app choices.
+    - **A thermostat or hygrostat set up in YAML no longer makes everyday calls ask.** With the App's file access on, HA NOVA reads the YAML Home Assistant runs, including a template switch as the heater.
+    - **HA NOVA answers faster.** Commands that don't use Home Assistant Link skip a large file check, the App update check reads one entity instead of every state, and `find` and Link commands wait for fewer round trips.
+    - **The NOVA App is smaller and starts faster.** Its image is about 10 MB smaller, and each start runs two fewer helper processes.
+    - **Your AI reads less for each change.** HA NOVA's safety rules now live in one place instead of in every skill, so each skill that changes something is about 150 words shorter.
 
     ## What To Watch
 
     - **Updating a Mac from 0.31? HA NOVA asks you to pair it again once.** The first command that needs it names the step: `ha-nova setup`, or `ha-nova setup --server <name>` for another server.
+    - **The standalone container connects with its token only.** It no longer logs a six-digit code at startup, and `ha-nova setup` asks for its token (`RELAY_AUTH_TOKEN`). The NOVA Relay App still pairs as before.
+    - **YAML thermostats need this release's NOVA App with file access on.** If a YAML file changed since Home Assistant started, the plan names the thermostat it couldn't read; a restart clears it.
     - **On a Mac that used Home Assistant Link, setup signs the old version out of Link.** macOS asks for your password once per old sign-in: choose "Allow", not "Always Allow".
     - **A computer paired before 0.32 pairs again once to confirm with one click.** Until then, its window only waits.
     - **One-click confirming trusts that computer.** On Windows and Linux, any program running as you could confirm without a click.
@@ -99,11 +100,10 @@ release:
 
     ## Bug Fixes
 
-    - **When the NOVA page is the only place to confirm, HA NOVA points you there**, not to a phone that isn't linked, and says how to link one.
-    - **Setup removes the old Link sign-in's Keychain copy once the App records the sign-out.** If that fails, setup tries again and `ha-nova doctor` says so. A copy left by 0.32 stays.
-    - **The browser setup re-run shows the Link sign-out's result right away**, and keeps it when you quit.
-    - **Setup no longer says Link access was removed while it reconnects Link.**
-    - **A failed answer from the NOVA App is never read as success**, and a failed Link sign-out check names its cause.
+    - **After a call on several devices, HA NOVA checks every one.** Over a slow connection, the last devices were sometimes reported as unverified although the change worked.
+    - **When removing the old Link sign-in's Keychain copy fails, setup says so and tries again**, even after the sign-out itself worked. `ha-nova doctor` says the same.
+    - **A Windows uninstall no longer reports success when it can't check that its folder is gone.** It lists what it couldn't prove removed.
+    - **When the NOVA App's safety check and HA NOVA disagree, the message names an App update only when the App is older** than this HA NOVA needs. Otherwise it says to plan the change again.
 
     Stable install commands are release-pinned for this tag.
 
