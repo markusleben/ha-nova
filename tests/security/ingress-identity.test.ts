@@ -50,6 +50,15 @@ describe("Supervisor ingress identity", () => {
     expect(resolveIngressIdentity(request({ peer: "192.0.2.50" })).ok).toBe(
       false,
     );
+    expect(resolveIngressIdentity(request({ peer: "172.30.32.3" })).ok).toBe(
+      false,
+    );
+  });
+
+  it("accepts the Supervisor peer in its IPv4-mapped IPv6 forms", () => {
+    for (const peer of ["::ffff:172.30.32.2", "::ffff:ac1e:2002"]) {
+      expect(resolveIngressIdentity(request({ peer })).ok, peer).toBe(true);
+    }
   });
 
   it("rejects missing, joined, array, padded, or control-bearing user identities", () => {
