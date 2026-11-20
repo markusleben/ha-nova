@@ -269,7 +269,9 @@ try {
   // The App: the bed's Relay image, its /data in memory (a bind mount can't hold the worker's socket on macOS).
   const image = execFileSync("docker", ["inspect", "-f", "{{.Image}}", "ha-nova-testbed-relay"], { encoding: "utf8" }).trim();
   const network = execFileSync("docker", ["inspect", "-f", "{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}", "ha-nova-testbed-relay"], { encoding: "utf8" }).trim();
-  execFileSync("docker", ["run", "-d", "--name", RELAY, "--network", network, "--user", process.getuid() + ":" + process.getgid(),
+  // A bed with file access (TESTBED_FILES=1) gives the App the same /config to read: its YAML thermostat (up.sh) is read there, as in a home with the App's file access on (MAR-245).
+  const files = existsSync(join(HERE, ".state/files")) ? ["-v", join(HERE, ".state/config") + ":/config:ro", "-e", "FILE_ACCESS=read"] : [];
+  execFileSync("docker", ["run", "-d", "--name", RELAY, "--network", network, "--user", process.getuid() + ":" + process.getgid(), ...files,
     "-e", "SUPERVISOR_TOKEN=" + fx.relay_llat, "-e", "HA_URL=http://homeassistant:8123", "-e", "LANE_SECURE_HOST_PORT=" + SECURE,
     "--tmpfs", "/data:rw,uid=" + process.getuid() + ",gid=" + process.getgid() + ",mode=0700", "-v", join(HERE, "app-relay.mjs") + ":/lane/app-relay.mjs:ro",
     "-p", "127.0.0.1:" + BOOT + ":8791", "-p", "127.0.0.1:" + SECURE + ":8792", "-p", "127.0.0.1:" + FRONT + ":8794", image, "node", "/lane/app-relay.mjs"], { stdio: ["ignore", "ignore", "inherit"] });

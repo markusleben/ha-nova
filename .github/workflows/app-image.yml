@@ -99,7 +99,7 @@ jobs:
 
       # The chat-app bridge (ha-nova CLI) is cross-compiled per arch from this
       # tree and staged into nova/bridge (scripts/release/stage-app-bridge.sh).
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: cli/go.mod
           cache: false
