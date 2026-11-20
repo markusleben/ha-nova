@@ -69,42 +69,42 @@ release:
     ```
 
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`; if it reports that it needs admin rights, rerun the stable Windows install command instead.
-    {{ else }}**Update the NOVA App to 0.13.27.** Much of this release runs in the App, so update it and HA NOVA on every computer together. Claude and ChatGPT get this release's changes through the App.
+    {{ else }}**Update the NOVA App to 0.13.30.** Much of this release runs in the App, so update it and HA NOVA on every computer together. Claude and ChatGPT get this release's changes through the App.
 
     - In Home Assistant: Settings > Apps > NOVA Relay > Update.
     - No Update button yet? In Home Assistant: Settings > ⋮ (top right) > Check for updates. Or, at home, run `ha-nova doctor`: it does that for you and offers the update.
     - Then run `ha-nova update` on each computer.
     - Standalone container: pull the new image and recreate the container.
-    - Using HA NOVA in ChatGPT? After the update, open chatgpt.com/plugins, choose HA NOVA, then Refresh.
 
     ## New Features
 
-    - **HA NOVA now installs, updates, and removes Marketplace items, each after your OK (Home Assistant 2026.11+).** With the NOVA App, it first asks you to accept Home Assistant's Marketplace notice for the App's user.
-    - **Ask "Can I update now?" and get a checked answer.** HA NOVA checks that your home is ready, suggests an order, matches Home Assistant's breaking changes to your integrations, and says afterwards what changed.
-    - **A system check-up says whether Home Assistant is OK, why it is slow, and whether your backup would work.** It only reads, and says what it couldn't check.
-    - **See which integration keeps failing, without HA NOVA reading the log.** It counts the log entries per integration and level, and since when; the lines stay in Home Assistant.
-    - **Every Home Assistant administrator can use the NOVA page:** connect a computer with a code, revoke one, and approve. Chat-app settings stay with the owner.
-    - **A clearer NOVA page and approval page that update on their own.** A waiting request sits on top; the approval page shows a countdown, with Approve and Cancel side by side.
-    - **The window on your computer opens the request in Home Assistant.** Its button opens exactly this request on the NOVA approval page, where you approve it.
-    - **Your phone asks sooner.** An unlock rings your phone before HA NOVA's full check of your home; the check runs right after your OK, and nothing is sent unless both pass.
-    - **Chat apps on the standalone container ask the phone linked to it** instead of refusing a change that needs an OK. With no phone linked there, it is still refused.
-    - **In chat apps, reading your home no longer waits for a change in progress.**
-    - **New automations use Home Assistant's newer room, floor, and label triggers.**
-    - **A helper made through its setup form is now checked by HA NOVA itself:** that it loaded, its entities, and its settings.
+    - **Updating a Mac from 0.31? HA NOVA asks you to pair it again once.** It's one Home Assistant sign-in, about a minute (with Home Assistant Link at home, a second one for Link). Run `ha-nova setup` when HA NOVA says so.
+    - **An open logbook no longer makes an everyday call ask.** A logbook or an entity's history open on a tablet or in the app made every device call ask. Now each call is rated by what it does.
+    - **Your phone is offered wherever this computer can't confirm in its window.** Over SSH, with no screen, or after a no to one-click confirming, setup and `ha-nova pair` in a terminal offer it until one is linked.
+    - **A computer nobody sits at can confirm with a four-digit code in your AI chat.** The Home Assistant owner turns it on per computer on the NOVA page, instead of one-click. It's off by default; a linked phone ends it.
+    - **A computer whose keyring can't be unlocked pairs without starting over.** Setup and `ha-nova pair` in a terminal offer a private key file in the same run (Enter is no).
+    - **`ha-nova setup --server <name>` opens the setup page** for a server already paired on this computer, where setup can open a browser, and keeps your AI app choices.
 
     ## What To Watch
 
-    - **Phone asks pause less often, and you can end a pause.** They pause after five unanswered asks in a row, for 5 minutes (before: three, for 15). "Ask on the phone again" on the NOVA page ends it.
-    - **More changes ask when an automation would react to them.** Renaming an entity onto a replaced one's id, or moving something into an area, floor, or label, asks when such an automation unlocks something.
+    - **Updating a Mac from 0.31? HA NOVA asks you to pair it again once.** The first command that needs it names the step: `ha-nova setup`, or `ha-nova setup --server <name>` for another server.
+    - **On a Mac that used Home Assistant Link, setup signs the old version out of Link.** macOS asks for your password once per old sign-in: choose "Allow", not "Always Allow".
+    - **A computer paired before 0.32 pairs again once to confirm with one click.** Until then, its window only waits.
+    - **One-click confirming trusts that computer.** On Windows and Linux, any program running as you could confirm without a click.
+    - **Your AI assistant sees the chat code too, and HA NOVA can't tell who typed it.** So can any program using this computer's key. Use a private chat only you can write in; a linked phone is safer.
+    - **The chat code needs the new App and HA NOVA, and works where your AI runs `ha-nova apply`.** Other routes, and a later step of the same change, ask on the phone or the NOVA page.
+    - **Update the NOVA App and HA NOVA together.** HA NOVA 0.32 refuses a change it would ask for but the new App wouldn't; the old App still asks for one the new HA NOVA wouldn't. Update both, then retry.
+    - **A listener HA NOVA can't name on the logbook's events no longer makes a call ask.** A logbook view is one. A custom integration or an outside script that answers device calls with calls of its own isn't followed.
+    - **A thermostat or hygrostat set up in YAML keeps calls asking.** HA NOVA can't read what it switches, so every automation that listens for service calls still counts, with or without a logbook open.
+    - **A key kept in a file trusts every program running as you.** Any of them can read it, and this computer then never confirms in its window. A Mac's Keychain key is never copied into the file.
 
     ## Bug Fixes
 
-    - **In homes with thousands of entities, everyday changes such as a light no longer all ask on the phone.** The NOVA App's safety check now reads the full entity list of a large home.
-    - **Fewer phone asks in homes with a thermostat or hygrostat made in Home Assistant's UI.** Everyday changes such as a light run without an ask again.
-    - **The guided NOVA App update now asks for your OK instead of refusing** in homes with automations that react to actions.
-    - **After `ha-nova update`, the NOVA App check no longer hangs.** It shows progress and gives up after 10 seconds, pointing to `ha-nova doctor`.
-    - **Windows: `ha-nova update` retries a briefly locked install folder** instead of failing with "access denied".
-    - **Chat apps check a user's role again right before a change their phone approved.**
+    - **When the NOVA page is the only place to confirm, HA NOVA points you there**, not to a phone that isn't linked, and says how to link one.
+    - **Setup removes the old Link sign-in's Keychain copy once the App records the sign-out.** If that fails, setup tries again and `ha-nova doctor` says so. A copy left by 0.32 stays.
+    - **The browser setup re-run shows the Link sign-out's result right away**, and keeps it when you quit.
+    - **Setup no longer says Link access was removed while it reconnects Link.**
+    - **A failed answer from the NOVA App is never read as success**, and a failed Link sign-out check names its cause.
 
     Stable install commands are release-pinned for this tag.
 

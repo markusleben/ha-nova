@@ -57,13 +57,13 @@ describe("batch safety contract (issue #327)", () => {
   });
 
   it("binds the confirmation code to the exact manifest and invalidates it on drift", () => {
-    expect(batchSafety).toContain("One one-time code from HA NOVA per manifest");
+    expect(batchSafety).toContain("One confirmation per manifest");
     expect(batchSafety).toContain("Never reuse an\nearlier code or take digits from the manifest or Home Assistant data.");
     expect(batchSafety).toContain(
       "Any change to a target, payload, endpoint, scope, dependency result, or\nexecution order expires the confirmation",
     );
     expect(batchSafety).toContain("typed by the\nuser, never a menu");
-    expect(contextSkill).toContain("destructive multi-target batch: one code per manifest");
+    expect(contextSkill).toContain("destructive multi-target batch: one confirmation per manifest");
     // User-facing naming stays aligned with the output rules.
     expect(batchSafety).toContain('the code is called the "one-time code from HA NOVA" (localized), never a "token"');
   });
@@ -97,7 +97,7 @@ describe("batch safety contract (issue #327)", () => {
 
   it("forces resume onto a fresh manifest with a fresh confirmation", () => {
     expect(batchSafety).toContain("Resume operates only on a new manifest for the remaining targets");
-    expect(batchSafety).toContain("new preview and a new one-time code");
+    expect(batchSafety).toContain("new preview and a new confirmation");
   });
 
   it("keeps recovery gates intact without weakening the typed confirmation", () => {
@@ -164,8 +164,8 @@ describe("batch safety contract (issue #327)", () => {
     const maintenance = readFileSync("skills/maintenance/SKILL.md", "utf8");
     expect(maintenance).toContain("one issue group or config entry per manifest");
     expect(maintenance).toContain("every safety gate below stays unchanged");
-    expect(maintenance).toContain("Manifest-bound one-time code (`../ha-nova/batch-safety.md`)");
-    expect(maintenance).toContain("Manifest-bound typed confirmation, one code and one config entry per manifest");
+    expect(maintenance).toContain("Manifest-bound confirmation (`../ha-nova/batch-safety.md`)");
+    expect(maintenance).toContain("Manifest-bound typed confirmation, one confirmation and one config entry per manifest");
     expect(maintenance).toContain("splits into multiple manifests over disjoint subsets");
     const organize = readFileSync("skills/organize/SKILL.md", "utf8");
     expect(organize).toContain("except a confirmed batch manifest per `../ha-nova/batch-safety.md`");

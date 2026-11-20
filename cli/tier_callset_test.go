@@ -53,8 +53,10 @@ func TestCallServiceListenersByFilter(t *testing.T) {
 	if _, env := h.run(runPlanCommand, "call", "light.turn_off", "light.kitchen"); env.Tier != "ordinary" || slices.Contains(consumerList(env), "automation.watchdog") {
 		t.Errorf("a light call beside a cover watchdog: tier %q (reasons %s), consumers %v", env.Tier, reasonCodes(env), consumerList(env))
 	}
-	if _, env := h.run(runPlanCommand, "call", "cover.close_cover", "cover.blind"); env.Tier != "typed" || !slices.Contains(consumerList(env), "automation.watchdog") || !slices.Contains(reasonList(env), reasonUnresolvedTarget) {
-		t.Errorf("a cover call: tier %q (reasons %s), consumers %v; want typed by the watchdog", env.Tier, reasonCodes(env), consumerList(env))
+	// The watchdog's templated cover is rated by every cover here: one blind
+	// (D6; tier_bound_test.go has the covers that keep it typed).
+	if _, env := h.run(runPlanCommand, "call", "cover.close_cover", "cover.blind"); env.Tier != "ordinary" || !slices.Contains(consumerList(env), "automation.watchdog") {
+		t.Errorf("a cover call: tier %q (reasons %s), consumers %v; want ordinary, the watchdog a consumer", env.Tier, reasonCodes(env), consumerList(env))
 	}
 
 	for name, setup := range map[string]func(*fakeHA){
@@ -97,7 +99,7 @@ func TestCallServiceListenersByFilter(t *testing.T) {
 			return []string{"call", "script.turn_on", "script.say"}
 		},
 		"a listener that calls a templated target": func(f *fakeHA) []string {
-			listen(f, "follow", map[string]any{"domain": "light", "service": "turn_off"}, step("light.turn_off", "{{ states('input_text.lamp') }}"))
+			listen(f, "follow", map[string]any{"domain": "light", "service": "turn_off"}, step("homeassistant.turn_off", "{{ states('input_text.lamp') }}"))
 			return []string{"call", "light.turn_off", "light.kitchen"}
 		},
 		"alert in the home": func(f *fakeHA) []string {

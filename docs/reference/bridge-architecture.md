@@ -28,6 +28,7 @@ POST /backups
 POST /supervisor   # App mode only
 POST /gate/v1/ask  # the safety check: ask a person, wait, cancel
 POST /gate/v1/phone
+GET  /gate/v1/me   # this device's owner-window eligibility (0.32)
 ```
 
 ### Home Assistant Link routes
@@ -46,6 +47,7 @@ Supervisor-ingress-only machine surface. `nova/DOCS.md` links here.
 | GET/POST | `/chat-apps/v1/state` | Read or change the chat-app switch (owner only, through Ingress) |
 | POST | `/ws`, `/core`, `/files`, `/backups` | The same bounded functional routes through Ingress |
 | POST | `/gate/v1/ask`, `/gate/v1/phone` | The safety check's ask and phone-link routes through Ingress |
+| GET | `/gate/v1/me` | This authenticated device's owner-window eligibility, checked against the active Home Assistant owner |
 
 `POST /supervisor` is not among them: Supervisor access needs the local
 connection.
@@ -478,7 +480,7 @@ in sync; Relay and product versions must not be substituted for each other.
 - REST client uses native `fetch()` (no axios at runtime)
 - WS orchestration uses `home-assistant-js-websocket`
 - `ws` supplies the authenticated Node WebSocket transport; REST stays on native `fetch()`
-- Current scope is contract-capped at 11,850 TypeScript source lines (`scripts/check-docs.sh` [1] lists each reviewed raise). The last raise, from 11,370, is the NOVA page's household list for chat apps (who may use them and at which level, each listed user's phone, the recent changes): about 11,830 lines.
+- Current scope is contract-capped at 14,530 TypeScript source lines (`scripts/check-docs.sh` [1] records each reviewed raise). The 0.32 pairing foundation raised the previous 13,940 ceiling for owner-declared computer metadata, fresh owner eligibility checks, and `/gate/v1/me` on the authenticated device and Link listeners. The grant layer adds `op: "window"` and `op: "window_off"` on the existing ask route, reusing exact-byte grants and the single terminal state (about 14,120 lines). The owner's page declaration and switch are single registry writes that refuse what pairing would refuse, and a Mac pairing stays ineligible until its CLI reports the old sign-in cleanup complete, in its pairing metadata or later through its own authenticated `op: "legacy_cleanup_complete"` (about 14,260 lines). The NOVA page words each computer's window state from the worker's catalog, gives only the owner its device-bound buttons, and lists the last 50 window approvals from `/data/gate/window-log.json`, whose failed write never blocks an approval (about 14,380 lines). The App does not advertise the complete window contract in `/health` until its phone timing and notice protocol are implemented. Pairing preserves the predecessor's phone only after an owner-authenticated sign-in; old pairings without store provenance stay ineligible. On that sign-in the arm may name the one local entry still under the computer's older plain install id (from before named profiles had their own), and only an owner-armed pairing whose own id extends it can retire that exact entry at activation, with its pending rows, after the person agreed (about 14,408 lines). The owner-chosen chat code (MAR-244) adds one registry choice bound to the consenting owner, exclusive with the window and ended by a linked phone, with a revision that rises on every confirm-mode or link write; on an open that asks for it (`accept_code`), the App draws four digits for that ask alone and answers them only in that open (`no-store`), and `op: "code"` re-reads the owner, then the record and revision with no wait before the existing grant (about 14,510 lines). The worker remains the only classifier.
 
 ## Standard Envelope
 

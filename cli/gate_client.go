@@ -1,16 +1,12 @@
 package main
 
 import (
-	"cmp"
-	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
-	"runtime"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -37,7 +33,10 @@ type gateGrantKey struct{}
 // a phone-link move was tried in this session (gateMoveFirst).
 type relayGate struct {
 	checked, on, moved bool
+	window             bool // GET /health window: 1: the App has the 0.32 window contract
+	code               bool // GET /health code: 1: the App draws a chat code where its owner chose one (MAR-244)
 	grants             map[[32]byte][]string
+	me                 *gateWindowState // gateMe, once read
 }
 
 type gateRequest struct {
@@ -56,8 +55,12 @@ func gateKey(r gateRequest) [32]byte {
 var gateApproval *atomic.Int32
 
 const (
-	gateAsking  int32 = 1 // the change's own ask
-	gateLinking int32 = 2 // a phone-link ask before it (gateMoveFirst)
+	gateAsking           int32 = 1 // the change's own ask
+	gateLinking          int32 = 2 // a phone-link ask before it (gateMoveFirst)
+	gateAskingWindow     int32 = 3 // the change's own ask, with Confirm in this computer's window
+	gateAskingPhone      int32 = 4 // the change's own ask, which only the linked phone confirms
+	gateAskingPage       int32 = 5 // the change's own ask, which only the NOVA page confirms
+	gateAskingWindowOnly int32 = 6 // the change's own ask, which only this computer's window confirms
 )
 
 // The waiting window (nativeWindow's code with other buttons) and what its
@@ -90,10 +93,9 @@ func (s *relaySession) approval() *atomic.Int32 {
 // sendWrite sends one checked write body exactly once (sendWriteOnce), with
 // the grant an ask got for these bytes. A typed request the Relay holds
 // (428: no grant covered it, or its grant expired, two minutes after the
-// approval) is asked for once more, with the reload a config delete needs
-// after it, and sent once more with that grant; a 428 after that is the
-// answer. An ask that ends without an approval answers its own
-// *verbFailure: nothing of this request was sent.
+// approval) is asked for once more and sent once more with that grant; a
+// 428 after that is the answer. An ask that ends without an approval
+// answers its own *verbFailure: nothing of this request was sent.
 func (s *relaySession) sendWrite(endpoint string, body []byte) (json.RawMessage, error) {
 	request := gateRequest{endpoint, body}
 	data, err := s.sendWriteOnce(endpoint, body, s.takeGrant(request))
@@ -101,15 +103,12 @@ func (s *relaySession) sendWrite(endpoint string, body []byte) (json.RawMessage,
 	if !errors.As(err, &held) || held.code != "GATE_APPROVAL_REQUIRED" || s.gateExempt() {
 		return data, err
 	}
-	reqs := append([]gateRequest{request}, gateFollowUps(request)...)
 	s.mu.Lock()
-	for _, r := range reqs { // an older grant for them expired with this one
-		if s.gate != nil {
-			delete(s.gate.grants, gateKey(r))
-		}
+	if s.gate != nil { // an older grant for it expired with this one
+		delete(s.gate.grants, gateKey(request))
 	}
 	s.mu.Unlock()
-	if err := s.gateAsk(reqs, true); err != nil {
+	if err := s.gateAsk([]gateRequest{request}, true, nil); err != nil { // no plan text for a held write: never Confirm in the window
 		return nil, err
 	}
 	return s.sendWriteOnce(endpoint, body, s.takeGrant(request))
@@ -136,10 +135,10 @@ func (s *relaySession) takeGrant(r gateRequest) string {
 // write the Relay held mid-apply (sendWrite), whose basis was checked just
 // before and isn't checked again after the ask, so a chat app's wait keeps
 // mcpVerbLock: no other change of this bridge lands under it.
-func (s *relaySession) gateAsk(reqs []gateRequest, held bool) error {
+func (s *relaySession) gateAsk(reqs []gateRequest, held bool, plan *gateConfirm) error {
 	if len(reqs) > gateAskMax {
 		return gateStop("refused", "GATE_ASK_TOO_LARGE", fmt.Sprintf("this change sends %d requests, more than one confirmation on the phone or in Home Assistant covers (%d); nothing was sent", len(reqs), gateAskMax),
-			"Tell the user nothing changed. Plan it again in smaller parts (a batch of at most 10 automations or scripts).")
+			"Tell the user nothing changed. Plan it again in smaller parts.")
 	}
 	chat, lang := s.gateChat(), confirmLanguage(s.lang)
 	if chat && (s.call == nil || s.call.outside == nil) { // not a chat app's apply job (ha_call): it can't wait for the phone
@@ -149,8 +148,17 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool) error {
 	for i, r := range reqs {
 		items[i] = map[string]string{"endpoint": r.endpoint, "body_b64": base64.StdEncoding.EncodeToString(r.body)}
 	}
+	keeps := s.approval() == nil && !chat && plan != nil && plan.id != ""
+	acceptCode := keeps && !held && s.gateCodeHere() // the shell's first ask only (gate_code.go)
 	open := func() (opened gateOpened, err error) {
-		err = s.gateCall(planAsks, gateAskRoute, s.gateOpenWait(len(reqs)), map[string]any{"requests": items}, &opened)
+		body := map[string]any{"requests": items}
+		if acceptCode {
+			body["accept_code"] = true
+		}
+		if presence := s.gatePresence(plan); presence != "" {
+			body["presence"] = presence
+		}
+		err = s.gateCall(planAsks, gateAskRoute, s.gateOpenWait(len(reqs)), body, &opened)
 		return opened, err
 	}
 	flag := s.approval()
@@ -158,26 +166,57 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool) error {
 		return gateStop("refused", "CONFIRM_UNAVAILABLE", "checking this change took the time this call has to ask on the linked phone or in Home Assistant; nothing was sent",
 			"Tell the user nothing changed: checking this change in their home took too long to still ask them in time. They can ask again; if it keeps happening, they make the change in Home Assistant itself.")
 	}
+	// The CLI's ask for a stored plan may outlive the command's wait: it is
+	// kept for the plan's next apply, which joins it (gate_ask_join.go).
+	kept, joined := gateKeptAsk{}, false
+	if keeps {
+		kept, joined = gateTakeAsk(s.paths, plan.id, reqs)
+	}
 	var stop error
 	var state, grant string
-	ask := func() bool { // a chat app's runs outside mcpVerbLock: it reads no process-wide state
-		opened, err := open()
+	var opened gateOpened
+	var ask func() bool
+	ask = func() bool { // a chat app's runs outside mcpVerbLock: it reads no process-wide state
 		end := time.Now().Add(gateAskLife + 5*time.Second) // a job's ask waits its life, a move's link included
 		if flag == nil {
 			end = time.Now().Add(s.askWait()) // the CLI: the command's wait
 		}
-		if !chat { // a chat app never moves a phone: the bridge host's own link isn't its user's
-			if reopen, moved := s.gateMoveFirst(opened, err, time.Until(end)/2); moved != nil {
-				stop = moved
-				return false
-			} else if reopen {
-				opened, err = open()
+		var err error
+		if s.gateCode != "" && !(joined && kept.Code) { // a typed code answers only the kept code ask it was shown for, never a new one
+			s.gateCode = ""
+			stop = gateStop("cancelled", "CONFIRM_CANCELLED", "the ask this code was shown for has ended or no longer matches the plan; nothing was sent",
+				"Tell the user nothing changed. Only after they say they still want it, run the same ha-nova apply --plan command again without --confirm: HA NOVA then asks where they can confirm now. Never type a code yourself.")
+			return false
+		}
+		if joined {
+			opened = gateOpened{Needed: true, AskID: kept.AskID, Channels: kept.Channels}
+			if s.gateCode != "" { // apply --confirm: the person typed the chat code back
+				state, grant, stop = s.gateSendCode(plan.id, kept)
+				return stop == nil && state == "approved" && grant != ""
+			}
+		} else {
+			opened, err = open()
+			if !chat && opened.Code == "" && !plan.confirmsHere(s, opened) { // a chat app never moves a phone: the bridge host's own link isn't its user's; a window here that confirms needs none
+				if reopen, moved := s.gateMoveFirst(opened, err, time.Until(end)/2); moved != nil {
+					stop = moved
+					return false
+				} else if reopen {
+					opened, err = open()
+				}
 			}
 		}
 		if stop = gateOpenFailure(opened, err, chat, lang); stop != nil {
 			return false
 		}
-		state, grant = s.gateWait(opened.AskID, false, time.Until(end))
+		if opened.Code != "" && acceptCode { // nothing waits here: the person types it back in the chat
+			stop = s.gateCodeShown(plan, opened, reqs)
+			return false
+		}
+		state, grant = s.gateWait(opened.AskID, false, time.Until(end), plan.offered(s, opened), opened.Channels)
+		if joined && (state == "expired" || state == "unknown") { // the kept ask ended unanswered, or the App forgot it: ask again, as before
+			joined = false
+			return ask()
+		}
 		return state == "approved" && grant != ""
 	}
 	if !chat {
@@ -190,6 +229,11 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool) error {
 		return stop
 	case chat && (state != "approved" || grant == ""):
 		return gateChatEnded(state)
+	case keeps && state == "timeout" && gateKeepAsk(s.paths, plan.id, gateKeptAsk{AskID: opened.AskID, Digest: gateAskDigest(reqs), Channels: opened.Channels, Code: joined && kept.Code}) == nil:
+		return gateWaiting(plan.id, plan.lang, plan.confirmsHere(s, opened), opened.Channels) // the command's wait ended first: the ask stays for the next apply
+	case state == "timeout" && flag == nil: // a held write's ask, or one that couldn't be kept: nothing joins it, so end it
+		s.gateCancel(opened.AskID)
+		return gateEnded(state)
 	case state != "approved" || grant == "":
 		return gateEnded(state)
 	}
@@ -216,9 +260,9 @@ func gateOpenFailure(opened gateOpened, err error, chat bool, lang string) error
 	case chat && errors.As(err, &call) && call.code == "GATE_NO_CHANNEL":
 		return gateStop("refused", "CONFIRM_UNAVAILABLE", confirmT(lang, "gate.chat_no_phone"), gateChatNoPhoneNext)
 	case chat && errors.As(err, &call) && gateChatNext[call.code] != "":
-		return gateStop("refused", call.code, call.message+"; nothing was sent", gateChatNext[call.code])
+		return gateStop("refused", call.code, gateRefusalMessage(call.message), gateChatNext[call.code])
 	case errors.As(err, &call) && strings.HasPrefix(call.code, "GATE_"):
-		return gateStop("refused", call.code, call.message+"; nothing was sent", gateNext[call.code])
+		return gateStop("refused", call.code, gateRefusalMessage(call.message), gateNext[call.code])
 	case errors.As(err, &call) && call.status == http.StatusNotFound:
 		return gateRolledBack()
 	case err != nil:
@@ -232,154 +276,13 @@ func gateOpenFailure(opened gateOpened, err error, chat bool, lang string) error
 	return nil
 }
 
-// gateWait long-polls the ask until it ends, wait runs out (gateAsk's
-// share of the command's wait, or of ha-nova mcp's ask life; a setup link's
-// own), or HA NOVA is stopped (planAsks). An end without an approval
-// cancels the ask. The waiting window only opens Home Assistant or
-// cancels; its answer is read before an approval counts, so a Cancel that
-// raced the approval wins. A link ask (gateMovePhone) ends linked, only
-// on the phones: no window.
-func (s *relaySession) gateWait(askID string, link bool, wait time.Duration) (state, grant string) {
-	deadline := time.Now().Add(wait)
-	if flag := s.approval(); flag != nil {
-		flag.Store(map[bool]int32{false: gateAsking, true: gateLinking}[link])
-		defer flag.Store(0)
+// gateRefusalMessage: the App's refusal, which says nothing was sent on
+// current Apps, and with that added where an older App's doesn't.
+func gateRefusalMessage(message string) string {
+	if strings.Contains(strings.ToLower(message), "nothing was sent") {
+		return message
 	}
-	ctx, cancel := context.WithDeadline(planAsks, deadline)
-	defer cancel()
-	type end struct{ state, grant string }
-	polls := make(chan end, 1)
-	go func() {
-		for {
-			var answer struct {
-				State   string `json:"state"`
-				GrantID string `json:"grant_id"`
-			}
-			if err := s.gateCall(ctx, gateAskRoute, gatePollTimeout, map[string]any{"ask_id": askID, "op": "wait"}, &answer); err != nil {
-				polls <- end{state: "lost"}
-				return
-			}
-			if answer.State != "waiting" {
-				polls <- end{answer.State, answer.GrantID}
-				return
-			}
-		}
-	}()
-	page := s.gatePageURL(askID)
-	waiting := confirmT(confirmLanguage(s.lang), "gate.waiting")
-	window, raced := (<-chan windowAnswer)(nil), func(<-chan windowAnswer) bool { return false }
-	if link {
-		waiting = confirmT(confirmLanguage(s.lang), "gate.link_waiting")
-	} else {
-		window, raced = s.gateWindow(ctx, deadline, page)
-	}
-	fmt.Fprintln(s.call.stderr(), waiting)
-	stopped := func() (string, string) {
-		s.gateCancel(askID)
-		if planAsks.Err() != nil {
-			return "stopped", ""
-		}
-		return "timeout", ""
-	}
-	for {
-		select {
-		case answer := <-window:
-			window = nil
-			switch answer {
-			case windowCancelled, windowClosed:
-				s.gateCancel(askID)
-				return "cancelled", ""
-			case windowConfirmed: // its only button besides Cancel: open Home Assistant (or hide the window), never approve
-				if page != "" {
-					_ = gateOpenHA(page)
-				}
-			}
-		case got := <-polls:
-			switch {
-			case got.state == "lost" && ctx.Err() != nil:
-				return stopped()
-			case got.state == "approved" && raced(window):
-				s.gateCancel(askID)
-				return "cancelled", ""
-			case got.state != "approved" && got.state != "cancelled" && got.state != "expired" && got.state != "linked":
-				s.gateCancel(askID) // lost or unavailable: end it there too
-			}
-			return got.state, got.grant
-		case <-ctx.Done():
-			return stopped()
-		}
-	}
-}
-
-// gatePageURL: the NOVA page from the paired profile only, never Home
-// Assistant's own internal or external URL: through Link, the Link
-// connection's address first; else the profile's Home Assistant URL first.
-// "" when the profile holds neither. nova_ask names the ask by its ref (the
-// id's hash, as on the approval page), so the NOVA page opens it there
-// top-level; the ref can't wait for the grant, and approving still takes
-// the person's Home Assistant session and the page's button.
-func (s *relaySession) gatePageURL(askID string) string {
-	local, link := "", ""
-	if u, err := url.Parse(s.cfg.HAURL); err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" {
-		local = s.cfg.HAURL
-	}
-	if s.cfg.Cloud != nil && s.cfg.Cloud.Current != nil {
-		if origin, err := ParseCanonicalNabuOrigin(s.cfg.Cloud.Current.CanonicalOrigin); err == nil {
-			link = origin.String()
-		}
-	}
-	base := cmp.Or(local, link)
-	if s.transport.Via == relayViaCloud {
-		base = cmp.Or(link, local)
-	}
-	target, err := haNOVAAppPanelURL(base)
-	if base == "" || err != nil {
-		return ""
-	}
-	if !target.Direct { // no NOVA panel to name (an unstamped build): Home Assistant's start, as before
-		return target.URL
-	}
-	return target.URL + "?nova_ask=" + fmt.Sprintf("%x", sha256.Sum256([]byte(askID)))
-}
-
-// gateWindow shows the waiting window where one can open (as for window
-// plans): the worker-free text, a first button that opens the NOVA page
-// (without a page: one that only hides the window, and the text says
-// where the page is), and Cancel. Windows' stock OK/Cancel get a line
-// saying what OK does. raced withdraws a window still showing and reports
-// whether its last answer was a Cancel. No window: a nil channel, and
-// raced says false.
-func (s *relaySession) gateWindow(ctx context.Context, deadline time.Time, page string) (<-chan windowAnswer, func(<-chan windowAnswer) bool) {
-	none := func(<-chan windowAnswer) bool { return false }
-	if s.gateChat() || windowOff(s.paths) || !windowAvailable() {
-		return nil, none
-	}
-	lang := confirmLanguage(s.lang)
-	text, first, ok := confirmT(lang, "gate.window", "approve", confirmT(lang, "page.approve")), confirmT(lang, "gate.open"), confirmT(lang, "gate.windows_ok")
-	if page == "" {
-		text, first, ok = confirmT(lang, "gate.window_page"), confirmT(lang, "gate.hide"), confirmT(lang, "gate.windows_hide")
-	}
-	if runtime.GOOS == "windows" {
-		text += "\n\n" + ok
-	}
-	answers := make(chan windowAnswer, 1)
-	windowCtx, closeWindow := context.WithCancel(ctx)
-	go func() {
-		defer closeWindow()
-		answers <- gateWindow(windowCtx, text, first, confirmT(lang, "window.cancel"), time.Until(deadline))
-	}()
-	return answers, func(window <-chan windowAnswer) bool {
-		if window == nil {
-			return false
-		}
-		closeWindow()
-		select {
-		case answer := <-window:
-			return answer == windowCancelled || answer == windowClosed
-		case <-time.After(3 * time.Second): // a window that won't close: no Cancel was read
-			return false
-		}
-	}
+	return message + "; nothing was sent"
 }
 
 // gateNext: what the agent does after the Relay refused an ask ("": no answer).
@@ -387,7 +290,7 @@ var gateNext = map[string]string{
 	"":                 "Tell the user nothing changed; they can try again in a moment.",
 	"GATE_REFUSED":     "Tell the user HA NOVA's safety check in Home Assistant refuses this change, so nothing changed. Never try it another way.",
 	"GATE_NO_CHANNEL":  "Tell the user nothing changed: no one can confirm it now. They link their phone with `ha-nova setup confirm-phone` (in a terminal; it links it in Home Assistant too), or an administrator opens the NOVA page in Home Assistant where the App has one; `ha-nova doctor` says what is missing. Then they ask again.",
-	"GATE_PAUSED":      "Tell the user nothing changed: confirmations on their phone are paused for a few minutes after unanswered ones. They can confirm on the NOVA page in Home Assistant, or ask again later.",
+	"GATE_PAUSED":      "Tell the user nothing changed: confirmations on their phone are paused for now, after unanswered ones or many asks within an hour. They can confirm on the NOVA page in Home Assistant, or ask again later.",
 	"GATE_ASK_LIMIT":   "Tell the user nothing changed: this computer asked too often in the last hour. They can ask again later.",
 	"GATE_ASK_BUSY":    "Tell the user nothing changed: another ask from this computer is still being prepared. Try again in a moment.",
 	"GATE_UNAVAILABLE": "Tell the user nothing changed: HA NOVA's safety check in Home Assistant isn't available. Try again in a minute; if it stays, they restart the NOVA App.",

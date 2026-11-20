@@ -21,11 +21,15 @@ import (
 // (channelRelay). A raw plan with an item only a skill's typed mark makes
 // typed keeps this computer's asks (the Relay neither sees nor needs the
 // mark; an item typed by itself meets the gate when the Relay holds it, as
-// on any such plan), and so do dashboard and rooms plans, whose requests
-// apply can't name before it sends them. "" without a gate, as on an older App.
+// on any such plan), and so do rooms plans and dashboard saves, whose
+// requests apply can't name before it sends them, and a chat app's
+// dashboard delete. A computer's dashboard delete is one request
+// (dashboardDeletePayload): the Relay's ask is its only one. "" without a
+// gate, as on an older App.
 func gateChannel(e *tierEngine, plan storedPlan) (string, error) {
 	on, err := e.s.gateOn()
-	local := plan.Kind == "raw" && e.markTyped || plan.Kind == "rooms" || plan.ConfigAction != nil && plan.ConfigAction.Domain == "dashboard"
+	dashboard := plan.ConfigAction != nil && plan.ConfigAction.Domain == "dashboard"
+	local := plan.Kind == "raw" && e.markTyped || plan.Kind == "rooms" || dashboard && (plan.ConfigAction.Op != "delete" || e.s.gateChat())
 	if err != nil || !on || local {
 		return "", err
 	}
@@ -34,20 +38,48 @@ func gateChannel(e *tierEngine, plan storedPlan) (string, error) {
 
 // relayAskSay: where a relay plan is confirmed. A chat app's relay plan is
 // one on a standalone container (the App's bridge never makes one): only
-// the phone linked to it confirms.
-func relayAskSay(lang string, s *relaySession) string {
+// the phone linked to it confirms. A computer whose window the App lets
+// confirm, that shows one, and whose window fits the plan (prompted: its
+// Prompt set) names it first, in env's next_step too (gateMe); one waiting
+// for its old version's sign-out says how to finish it.
+func relayAskSay(lang string, s *relaySession, prompted storedPlan, env *verbEnvelope) string {
 	if s.gateChat() {
 		return confirmT(lang, "say.relay_ask_container")
 	}
+	switch me := s.gateMe(); {
+	case me.window && s.windowHere() && relayPlanFits(prompted) && me.noLink: // no phone to name (MAR-244 §2)
+		env.NextStep = strings.Replace(env.NextStep, channelAsks[channelRelay]+" asks them", "a confirmation window on their computer, or the NOVA page in Home Assistant, asks them", 1)
+		return confirmT(lang, "say.relay_window_ask_page")
+	case me.window && s.windowHere() && relayPlanFits(prompted):
+		env.NextStep = strings.Replace(env.NextStep, channelAsks[channelRelay]+" asks them", "a confirmation window on their computer, or their phone if one is linked, or the NOVA page in Home Assistant, asks them", 1)
+		return confirmT(lang, "say.relay_window_ask")
+	case me.code == "on" && s.gateCodeHere(): // the shell's apply answers with the App's chat code (gate_code.go)
+		env.NextStep = strings.Replace(env.NextStep, channelAsks[channelRelay]+" asks them", "the NOVA App answers with a one-time code for the user to type back (its `say` shows it), or the NOVA page asks them", 1)
+		return confirmT(lang, "say.relay_code_ask")
+	case me.why == "legacy_cleanup_pending":
+		return confirmT(lang, "say.relay_ask") + " " + gateWindowWhy(lang, me.why, s.server)
+	case me.noLink: // no phone to name: the page, and how to link one (MAR-244 §2)
+		env.NextStep = strings.Replace(env.NextStep, channelAsks[channelRelay]+" asks them", "the NOVA page in Home Assistant asks them", 1)
+		return confirmT(lang, "say.relay_ask_page", "command", confirmPhoneCommand(activeServerProfile()))
+	}
 	return confirmT(lang, "say.relay_ask")
+}
+
+// relayPlanFits: the plan's window shows it uncut, with or without its
+// copy note (as windowTooLong measures), so it can Confirm there.
+func relayPlanFits(plan storedPlan) bool {
+	_, fits := windowFits(textLang(plan), confirmText(plan, false))
+	_, fitsBare := windowFits(textLang(plan), confirmText(plan, true))
+	return fits && fitsBare
 }
 
 // gateBeforeSend runs before a typed plan's first write (applyPlan): a
 // profile that saw the gate refuses once it is gone, and a relay plan asks
 // for the requests it sends first and waits for the person. It answers the
 // requests the person approved (none: nothing was asked). Later requests
-// ask when the Relay holds them (sendWrite).
-func gateBeforeSend(s *relaySession, channel string, fresh storedPlan, batch batchReplan) ([]gateRequest, error) {
+// ask when the Relay holds them (sendWrite). text: the plan's window text
+// (confirmText), shown with Confirm where the App offers the window.
+func gateBeforeSend(s *relaySession, channel string, fresh storedPlan, batch batchReplan, text string) ([]gateRequest, error) {
 	if fresh.Tier != tierTyped.String() {
 		return nil, nil
 	}
@@ -62,7 +94,7 @@ func gateBeforeSend(s *relaySession, channel string, fresh storedPlan, batch bat
 	if len(reqs) == 0 {
 		return nil, nil
 	}
-	if err := s.gateAsk(reqs, false); err != nil {
+	if err := s.gateAsk(reqs, false, &gateConfirm{id: fresh.ID, lang: textLang(fresh), text: text}); err != nil {
 		return nil, err
 	}
 	humanWhere = channelRelay
@@ -116,31 +148,21 @@ func gateFirstRequests(fresh storedPlan, batch batchReplan) []gateRequest {
 	return nil
 }
 
-// configRequests: an automation or script write, or a delete and its reload.
+// configRequests: an automation or script write or delete; a dashboard
+// delete's one request. Apply sends no reload after either: Home Assistant
+// reloads after a save and its delete hook stops a deleted item.
 func configRequests(action configAction) []gateRequest {
+	if action.Domain == "dashboard" && action.Op == "delete" {
+		data, _ := json.Marshal(dashboardDeletePayload(action))
+		return []gateRequest{{"ws", data}}
+	}
 	if action.Domain == "dashboard" {
 		return nil
 	}
-	write := coreRequest(http.MethodDelete, action.Path, nil)
-	if action.Op != "delete" {
-		write = coreRequest(http.MethodPost, action.Path, action.Body)
+	if action.Op == "delete" {
+		return []gateRequest{coreRequest(http.MethodDelete, action.Path, nil)}
 	}
-	return append([]gateRequest{write}, gateFollowUps(write)...)
-}
-
-// gateFollowUps: the reload apply sends after a config delete (executeConfig),
-// so one approval covers both (spec §4). A save needs none: Home Assistant
-// reloads after it on its own.
-func gateFollowUps(r gateRequest) []gateRequest {
-	var core struct {
-		Method string `json:"method"`
-		Path   string `json:"path"`
-	}
-	if r.endpoint != "core" || json.Unmarshal(r.body, &core) != nil || core.Method != http.MethodDelete || !configPathPattern.MatchString(core.Path) {
-		return nil
-	}
-	parts := strings.Split(core.Path, "/") // "", api, config, <domain>, config, <id>
-	return []gateRequest{coreRequest(http.MethodPost, servicePath(parts[3]+".reload", false), configReloadData(parts[3], parts[5]))}
+	return []gateRequest{coreRequest(http.MethodPost, action.Path, action.Body)}
 }
 
 // coreRequest: one core write as s.write sends it.
@@ -163,7 +185,7 @@ func (s *relaySession) gateOn() (bool, error) {
 	if known {
 		return on, nil
 	}
-	on, err := s.readGate()
+	on, window, code, err := s.readGate()
 	seen := gateSeen(s.paths, s.server)
 	switch {
 	case err != nil && seen:
@@ -182,38 +204,41 @@ func (s *relaySession) gateOn() (bool, error) {
 	if s.gate == nil {
 		s.gate = &relayGate{}
 	}
-	s.gate.checked, s.gate.on = true, on
+	s.gate.checked, s.gate.on, s.gate.window, s.gate.code = true, on, on && window, on && code
 	return on, nil
 }
 
-// readGate reads the Relay's /health once: gate 1 means it gates. The read
+// readGate reads the Relay's /health once: gate 1 means it gates, window 1
+// that it has the window contract (0.32 spec §4). The read
 // has a time of its own, the reserve a check leaves (afterCheck): the checks
 // before it may have spent the session's read budget (a large home or a
 // slow Link, #827).
-func (s *relaySession) readGate() (bool, error) {
+func (s *relaySession) readGate() (on, window, code bool, err error) {
 	ctx, cancel := context.WithTimeout(planAsks, afterCheck)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(s.transport.BaseURL, "/")+"/health", nil)
 	if err != nil {
-		return false, err
+		return false, false, false, err
 	}
 	req.Header.Set("Authorization", "Bearer "+s.transport.Credential)
 	resp, err := s.transport.Client.Do(req)
 	if err != nil {
-		return false, err
+		return false, false, false, err
 	}
 	defer resp.Body.Close()
 	raw, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	var health struct {
 		OK   bool `json:"ok"`
 		Data struct {
-			Gate int `json:"gate"`
+			Gate   int `json:"gate"`
+			Window int `json:"window"`
+			Code   int `json:"code"`
 		} `json:"data"`
 	}
 	if err != nil || resp.StatusCode != http.StatusOK || json.Unmarshal(raw, &health) != nil || !health.OK {
-		return false, fmt.Errorf("the Relay's health answer (HTTP %d) can't be read", resp.StatusCode)
+		return false, false, false, fmt.Errorf("the Relay's health answer (HTTP %d) can't be read", resp.StatusCode)
 	}
-	return health.Data.Gate == 1, nil
+	return health.Data.Gate == 1, health.Data.Window == 1, health.Data.Code == 1, nil
 }
 
 // gateSeen: this server profile once saw the gate (config.json; user-writable,

@@ -41,8 +41,9 @@ time and the first answer counts; if the window can't open, the phone alone
 decides, else apply returns a new plan. One with "channel": "phone" sends
 Confirm/Cancel to the phone linked to HA NOVA (Companion app) and waits the
 same way. After apply, "plan.channel" says where the user confirmed.
-Config plans (plan write/delete/revert) save the config once (a delete also
-reloads), wait read-only until Home Assistant has loaded it, and verify; an update lands on the undo stack, and a delete (and
+Config plans (plan write/delete/revert) save the config once and send no
+reload, wait read-only until Home Assistant has loaded it (a delete: until
+it stopped), and verify; an update lands on the undo stack, and a delete (and
 every dashboard save) takes a config snapshot first (--no-snapshot only
 after that snapshot failed and the user chose to proceed without one).
 Rooms plans (plan rooms, or plan revert of a rooms record) set each device's
@@ -50,7 +51,8 @@ area once; when one write fails, the earlier ones are put back, and the
 result names anything that could not be. Raw plans (plan raw) send their
 items in order, each checked again right before it is sent, and stop at the
 first one that does not go through (--no-snapshot after a failed leading save).
-Exit: 0 verified/accepted, 2 drift, 4 refused/missing/expired/wrong code,
+Exit: 0 verified/accepted, 2 drift, 3 still waiting for the user's OK (run
+the same apply again: it joins the same ask), 4 refused/missing/expired/wrong code,
 5 target gone, 6 unverified/failed, 7 outcome unknown (verify; never retry).`
 
 var planIDPattern = regexp.MustCompile(`^p_[0-9a-f]{12}$`)
@@ -178,6 +180,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	defer func() {
 		if consumed {
 			_ = os.Remove(claimed)
+			s.gateDropKept(id) // an ask kept for it can't be used any more (gate_ask_join.go)
 		}
 	}()
 	plan, err := readPlanFile(claimed)
@@ -271,9 +274,15 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		}
 		return err
 	}
-	if plan.Channel == channelRelay && (code != "" || humanAnswer != "") { // no code exists: the gate's ask confirms it (gateBeforeSend)
+	typed, chatCode := typedCode(code), plan.Channel == channelRelay && code != "" && humanAnswer == "" && gateKeptCode(paths, id)
+	if chatCode && fourDigits.MatchString(typed) {
+		s.gateCode = typed // the App's chat code for this plan's kept ask, which only the App checks (gate_code.go)
+	} else if plan.Channel == channelRelay && (code != "" || humanAnswer != "") { // no code exists: the gate's ask confirms it (gateBeforeSend)
 		if os.Rename(claimed, open) == nil {
 			consumed = false
+		}
+		if chatCode { // not four digits: it can never match, so the App counts no try
+			return fail(refused("CODE_REQUIRED", "this step needs the four digits of the one-time code HA NOVA showed, typed by the user"))
 		}
 		return fail(refusedWith("CONFIRM_IN_HOME_ASSISTANT", "plan "+id+" is confirmed on the linked phone or in Home Assistant, not with a typed code",
 			"Run ha-nova apply --plan "+id+" again without --confirm: HA NOVA asks the user on their linked phone or in Home Assistant. Never ask the user for a code."))
@@ -293,7 +302,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		for _, m := range plan.BatchMembers {
 			stored.members = append(stored.members, batchMember{stored: m, fresh: m})
 		}
-		if asked, err = gateBeforeSend(s, plan.Channel, plan, stored); err != nil {
+		if asked, err = gateBeforeSend(s, plan.Channel, plan, stored, confirmText(plan, noSnapshot)); err != nil {
 			return fail(release(err))
 		}
 		s.forgetReads() // the recheck reads Home Assistant as it is after the answer
@@ -403,7 +412,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		if err := gateStillApproved(plan, fresh, nil, asked, gateFirstRequests(fresh, batch), expires); err != nil {
 			return fail(err)
 		}
-	} else if asked, err := gateBeforeSend(s, plan.Channel, fresh, batch); err != nil {
+	} else if asked, err := gateBeforeSend(s, plan.Channel, fresh, batch, confirmText(fresh, noSnapshot)); err != nil {
 		return fail(release(err))
 	} else if asked != nil { // approved minutes later, maybe: check it again right before the first send
 		s.forgetReads()

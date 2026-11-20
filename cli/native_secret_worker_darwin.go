@@ -130,6 +130,16 @@ func platformRunNativeSecretWorker(
 		}
 		response.Found = found
 		response.Value = value
+	case nativeSecretLegacyGet:
+		// The 0.31 item itself, by its own name: never mapped into the new
+		// root, and read only to sign it out (legacy_link_cleanup.go).
+		value, found, status := darwinKeychainFind(request.Service, request.Account)
+		if status != darwinOAuthSuccess {
+			response.ErrorCode = darwinOAuthErrorCode(status, request.UI)
+			return response
+		}
+		response.Found = found
+		response.Value = value
 	case nativeSecretSet:
 		status := darwinOAuthSet(
 			request.Service,
@@ -146,32 +156,15 @@ func platformRunNativeSecretWorker(
 			response.ErrorCode = darwinOAuthErrorCode(status, request.UI)
 		}
 	case nativeSecretDeleteExact:
-		value, found, status := darwinOAuthGet(
+		status, conflict := darwinOAuthDeleteExact(
 			request.Service,
 			request.Account,
+			request.Value,
 		)
 		if status != darwinOAuthSuccess {
-			zeroSecretBytes(value)
 			response.ErrorCode = darwinOAuthErrorCode(status, request.UI)
-			return response
-		}
-		if !found {
-			zeroSecretBytes(value)
-			return response
-		}
-		matches := subtle.ConstantTimeCompare(
-			value,
-			request.Value,
-		) == 1
-		zeroSecretBytes(value)
-		if !matches {
+		} else if conflict {
 			response.ErrorCode = CloudErrSecretConflict
-			return response
-		}
-		status = darwinOAuthDelete(request.Service, request.Account)
-		if status != darwinOAuthSuccess &&
-			status != darwinOAuthItemNotFound {
-			response.ErrorCode = darwinOAuthErrorCode(status, request.UI)
 		}
 	default:
 		response.ErrorCode = CloudErrSecretStore

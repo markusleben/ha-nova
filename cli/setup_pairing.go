@@ -223,6 +223,9 @@ func probePairingV1Context(ctx context.Context, relayBaseURL string) bool {
 // missing AND no service-token file is configured, so the legacy /pair token
 // (which needs one of those) cannot be stored on this box.
 func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg *runtimeConfig, legacyTokenStoreUnavailable bool, lifecycleMarker ...[]byte) (string, error) {
+	// A named profile never keeps the legacy shared token: refuse that
+	// exchange before a one-time code is spent, as the add-server flow does.
+	legacyTokenStoreUnavailable = legacyTokenStoreUnavailable || activeServerProfile() != defaultServerProfileName
 	installed := setupInstalledSignIn // taken once, used or not
 	setupInstalledSignIn = nil
 	guardPairingMutation := func() error {
@@ -231,7 +234,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 			activeServerProfile(),
 		)
 	}
-	guardErr := withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
+	guard := func() error {
 		if err := guardPairingMutation(); err != nil {
 			return err
 		}
@@ -239,7 +242,22 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 			*cfg,
 			explicitPairingSecretStoreUIPolicy(),
 		)
-	})
+	}
+	guardErr := withSetupLifecycleGuard(paths, lifecycleMarker, guard)
+	var terminal *bufio.Reader // only a person at a terminal answers the key store question
+	if terminalReader() != nil {
+		terminal = reader
+	}
+	if keyStoreFirst(guardErr, false, terminal, out,
+		func(step func() error) error { return withSetupLifecycleGuard(paths, lifecycleMarker, step) }, guardPairingMutation,
+		func() (deviceStorageProbe, error) {
+			ctx, cancel := boundedNativeOAuthSecretContext(context.Background(), SecretStoreForbidUI)
+			defer cancel()
+			return probeDeviceCredentialStorageWithPolicy(ctx, SecretStoreForbidUI)
+		}) {
+		legacyTokenStoreUnavailable = true // the legacy shared token needs the keyring this run can't use
+		guardErr = withSetupLifecycleGuard(paths, lifecycleMarker, guard)
+	}
 	if guardErr != nil {
 		return "", renderSetupSecureStorageFailure(out, "Local pairing cannot start", guardErr)
 	}
@@ -247,7 +265,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 	// credential backend would burn. Headless systems switch to the private-file
 	// fallback here, with a visible note.
 	var probe deviceStorageProbe
-	probeErr := withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
+	probeOnce := func() error {
 		ui := explicitPairingSecretStoreUIPolicy()
 		ctx, cancel := boundedNativeOAuthSecretContext(
 			context.Background(),
@@ -260,7 +278,24 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 			ui,
 		)
 		return err
-	})
+	}
+	probeErr := withSetupLifecycleGuard(paths, lifecycleMarker, probeOnce)
+	if yes, err := askFileKeyStore(terminal, out, probeErr); err != nil {
+		return "", err
+	} else if yes { // the owner's opt-in, as pair --credential-store=file
+		legacyTokenStoreUnavailable = true
+		probeErr = withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
+			if err := guardPairingMutation(); err != nil {
+				return err
+			}
+			if moved, err := useFileKeyStore(); err != nil {
+				return err
+			} else if moved {
+				renderSetupParagraph(out, "Moved this install's device credential into private file storage.")
+			}
+			return probeOnce()
+		})
+	}
 	if probeErr != nil {
 		return "", fmt.Errorf("device credential storage unavailable: %w",
 			renderSetupSecureStorageFailure(out, "This system cannot store the device credential yet", probeErr))
@@ -309,7 +344,14 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 	// "Sign in and install NOVA" already holds the owner's ingress session:
 	// pair with it instead of a second sign-in.
 	if secure && installed != nil {
-		paired, soft, err := pairWithHASignInSession(out, paths, cfg, *installed, lifecycleMarker...)
+		if !installed.fromPage { // the page asked with its sign-in button
+			own, err := askOwnComputerForSetup(reader, out, *cfg)
+			if err != nil {
+				return "", err
+			}
+			installed.own = own
+		}
+		paired, soft, err := pairWithHASignInSession(reader, out, paths, cfg, *installed, lifecycleMarker...)
 		if paired {
 			renderSetupSuccessLine(out, "This computer is connected")
 			return "", errSetupDevicePaired

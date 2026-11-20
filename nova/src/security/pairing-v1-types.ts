@@ -66,6 +66,7 @@ export interface ActiveCode {
   armedFor?: string;
   // Armed through Home Assistant Link sign-in: pairs a user-bound Cloud device.
   armedLink?: true;
+  ownComputer?: true;
 }
 
 export interface Handshake {
@@ -80,7 +81,7 @@ export interface PairingV1Manager {
   getStatus(): PairingV1Status;
   generateCode(): { code: string; expiresAtMs: number };
   // Null without a secure endpoint ("local") or Cloud remote ("link").
-  arm(userId: string, device?: "local" | "link"): { secret: string; expiresAtMs: number } | null;
+  arm(userId: string, device?: "local" | "link", ownComputer?: boolean): { secret: string; expiresAtMs: number } | null;
   cancel(): void;
   start(ke1: string, peer: string): StartResult;
   finish(

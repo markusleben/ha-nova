@@ -40,7 +40,7 @@ export class FakeNode {
 // each post. ctl.down: /api/state no longer answers (setup closed the page).
 export function page(before: object, ...afterPost: object[]) {
   const ctl = { down: false };
-  const nodes = { screen: new FakeNode("main"), dots: new FakeNode("div"), status: new FakeNode("div") };
+  const nodes = { screen: new FakeNode("main"), dots: new FakeNode("div"), server: new FakeNode("p"), status: new FakeNode("div") };
   const posts: unknown[] = [];
   const timers: (() => void)[] = [];
   const held: (() => void)[] = []; // 30 s and longer: run only when a test says so
@@ -88,7 +88,7 @@ export function page(before: object, ...afterPost: object[]) {
     }
   };
   const find = (id: string) => nodes.screen.all().find((n) => n.id === id);
-  return { screen: nodes.screen, body: document.body, navigator: context.navigator, posts, settle, find, catalog, timers, held, ctl };
+  return { screen: nodes.screen, server: nodes.server, body: document.body, navigator: context.navigator, posts, settle, find, catalog, timers, held, ctl };
 }
 
 // Chat apps on: this home's connector address, its Add to Claude links, and step 3 with that row.

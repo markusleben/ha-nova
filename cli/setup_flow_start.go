@@ -1,6 +1,9 @@
 package main
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // start detects where setup stands and asks for the client and the
 // connection mode: interrupted retirements and activations, Cloud
@@ -41,7 +44,7 @@ func (f *setupFlow) start() setupStepResult {
 		f.haURLFlag,
 		f.relayURLFlag,
 		f.relayTokenFlag,
-	)
+	) || namedLocalRePairAllowed(f.cfg, f.serviceMode, f.hostFlag, f.haURLFlag, f.relayURLFlag, f.relayTokenFlag)
 	f.explicitLocalSetup = f.serviceMode ||
 		strings.TrimSpace(f.hostFlag) != "" ||
 		strings.TrimSpace(f.haURLFlag) != "" ||
@@ -131,6 +134,15 @@ func (f *setupFlow) chooseClientAndMode() setupStepResult {
 		}
 	}
 	clientsResolved := false
+	// The AI apps belong to this computer, not to a server profile: a named
+	// profile reuses those set up before, and asks only when none are (MAR-241).
+	reused := f.target == "" && activeServerProfile() != defaultServerProfileName && len(f.state.InstalledClients) > 0
+	if reused {
+		f.target = "all"
+		if len(f.state.InstalledClients) == 1 {
+			f.target = f.state.InstalledClients[0]
+		}
+	}
 	for {
 		if f.target == "" {
 			answer, selectErr := chooseSetupClient(f.ui, f.choices, "claude")
@@ -165,6 +177,15 @@ func (f *setupFlow) chooseClientAndMode() setupStepResult {
 				f.choices,
 				f.target,
 			)
+			if reused {
+				reused = false
+				f.selectedClients = slices.DeleteFunc(f.selectedClients, func(c string) bool { return !slices.Contains(f.state.InstalledClients, c) })
+				if err != nil || len(f.selectedClients) == 0 { // none of them can be set up now: ask, as on a first run
+					f.target, f.selectedClients, f.skippedClients = "", nil, nil
+					continue
+				}
+				f.skippedClients = nil
+			}
 			if err != nil {
 				return f.failErr(err)
 			}

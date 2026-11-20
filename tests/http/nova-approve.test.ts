@@ -27,15 +27,15 @@ const TEXTS: Record<string, string> = { ...Object.fromEntries(PAGE_KEYS.map((key
 const words = (lang = "en", over: Record<string, unknown> = {}) => async (name: string): Promise<unknown> => ({ lang, texts: { ...TEXTS, "page.signed_in": `‹signed in› “${name}” <b>`, ...over } });
 const typed: PreparedAsk = { verdict: "typed", lang: "en", title: "Unlock?", body: "Requested by <Mac> through HA NOVA.", from: "Requested by “Markus' <MacBook>” through HA NOVA.", button: "Unlock", items: [{ verdict: "typed", text: "Unlock <Front>", detail: "lock", entity_ids: ["lock.front"] }] };
 
-function bed(users: HaAuthUser[] = [OWNER, ADMIN, USER, RELAY], relay: () => Promise<string> = async () => RELAY.id, load = words()) {
+function bed(users: HaAuthUser[] = [OWNER, ADMIN, USER, RELAY], relay: () => Promise<string> = async () => RELAY.id, load = words(), phoned = false) {
   let now = 1_000;
   const asks = createGateAsks({
     ask: async () => typed,
     prepare: {},
     deviceName: () => "Markus' <MacBook>",
     channels: () => ["page"],
-    link: () => undefined,
-    phone: async () => null,
+    link: () => (phoned ? { service: "mobile_app_phone", device_id: "phone", user_id: OWNER.id } : undefined),
+    phone: (_link, _text, _wait, _stop, onSent) => (phoned ? (onSent?.(), new Promise<null>(() => undefined)) : Promise.resolve(null)), // phoned: delivered, never answered
     now: () => now,
     pollMs: 5,
   });
@@ -244,7 +244,7 @@ describe("owner page: waiting asks and paused devices", () => {
   const device = { deviceId: "laptop", name: "Laptop <1>" } as DeviceRecord;
 
   it("links the view top-level, says what waits, and shows a paused device with its five asks, a way to ask again, and revoke", async () => {
-    const t = bed();
+    const t = bed(undefined, undefined, undefined, true);
     for (let i = 0; i < 5; i++) {
       await t.open();
       t.tick(181_000);
@@ -270,7 +270,7 @@ describe("owner page: waiting asks and paused devices", () => {
   });
 
   it("asks on the phone again only from an administrator's page, with a token bound to that device, and logs who", async () => {
-    const t = bed();
+    const t = bed(undefined, undefined, undefined, true);
     for (let i = 0; i < 5; i++) {
       await t.open();
       t.tick(181_000);

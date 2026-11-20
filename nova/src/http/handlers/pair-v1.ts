@@ -13,6 +13,7 @@ export interface PairV1Deps {
   // Home Assistant sign-in pairing (/pair/v2/arm) is served (App mode); lets
   // the CLI offer sign-in before the user opens a browser for nothing.
   signIn?: boolean;
+  window?: boolean; // the owner's computer may confirm in its window: setup asks before pairing (0.32 spec §1)
 }
 
 export function createPairV1InfoHandler(deps: PairV1Deps): RouteHandler {
@@ -21,6 +22,7 @@ export function createPairV1InfoHandler(deps: PairV1Deps): RouteHandler {
     protocol_version: "v1",
     available: true,
     sign_in: deps.signIn === true,
+    ...(deps.window === true ? { window: 1 } : {}),
   });
 }
 

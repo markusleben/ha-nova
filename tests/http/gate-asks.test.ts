@@ -61,8 +61,8 @@ const link: PhoneLink = { service: "mobile_app_iphone", device_id: "ha-iphone", 
 // phones: each phone ask waits until the test answers it.
 function phones() {
   const calls: { link: PhoneLink; text: PhoneText | LinkWords; waitMs: number; stop: AbortSignal; answer: (a: PhoneAnswer | null) => void }[] = [];
-  const phone = (l: PhoneLink, text: PhoneText | LinkWords, waitMs: number, stop: AbortSignal) =>
-    new Promise<PhoneAnswer | null>((answer) => calls.push({ link: l, text, waitMs, stop, answer }));
+  const phone = (l: PhoneLink, text: PhoneText | LinkWords, waitMs: number, stop: AbortSignal, onSent?: () => void) =>
+    new Promise<PhoneAnswer | null>((answer) => { onSent?.(); calls.push({ link: l, text, waitMs, stop, answer }); });
   return { calls, phone };
 }
 
@@ -219,13 +219,13 @@ describe("gate asks", () => {
     }
   });
 
-  it("a device opens at most 10 asks an hour", async () => {
+  it("a device opens at most 60 asks an hour", async () => {
     const t = setup();
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 60; i++) {
       await t.ask(laptop, [unlock]);
     }
     expect(await failure(() => t.ask(laptop, [unlock]))).toEqual({ status: 429, code: "GATE_ASK_LIMIT" });
-    expect(t.seen).toHaveLength(10); // refused before the worker rates it
+    expect(t.seen).toHaveLength(60); // refused before the worker rates it
     expect(await t.ask(phone, [unlock])).toMatchObject({ needed: true });
     t.tick(3_600_000);
     expect(await t.ask(laptop, [unlock])).toMatchObject({ needed: true });
@@ -297,7 +297,7 @@ describe("gate asks", () => {
 
   it("asks the worker rated count toward the hour, whatever it answered", async () => {
     const t = setup({ verdict: "pass", items: [{ verdict: "pass" }] });
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 60; i++) {
       expect(await t.ask(laptop, [unlock])).toEqual({ needed: false });
     }
     expect(await failure(() => t.ask(laptop, [unlock]))).toEqual({ status: 429, code: "GATE_ASK_LIMIT" });
@@ -403,7 +403,7 @@ describe("gate asks", () => {
       p.calls.at(-1)!.answer({ answer: "approved", user_id: "markus" });
       await settled();
     }
-    expect(await failure(() => t.linkTo(laptop, link))).toEqual({ status: 429, code: "GATE_ASK_LIMIT" });
+    expect(await failure(() => t.linkTo(laptop, link))).toEqual({ status: 429, code: "GATE_PAUSED" }); // the phone's hourly cap pauses it; the computer may still ask elsewhere
     expect(p.calls).toHaveLength(15);
   });
 

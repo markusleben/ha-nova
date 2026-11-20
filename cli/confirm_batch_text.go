@@ -162,7 +162,7 @@ func batchGroupGoal(lang string, members []batchMember) string {
 }
 
 // batchSay: the list and the plan's ask, as a single plan's say ends.
-func batchSay(s *relaySession, plan storedPlan, goal actionGoal, text string, n int) string {
+func batchSay(s *relaySession, env *verbEnvelope, plan storedPlan, goal actionGoal, text string, n int) string {
 	lang := textLang(plan)
 	switch {
 	case plan.Confirm == "code" && plan.Channel == channelWindow && phoneLinkedHere(s):
@@ -172,7 +172,7 @@ func batchSay(s *relaySession, plan storedPlan, goal actionGoal, text string, n 
 	case plan.Confirm == "code" && plan.Channel == channelPhone:
 		return demoPrefix(lang, text+" "+sayPhoneAsk(lang, goal.button(lang), linkedPlatform(s.paths)))
 	case plan.Confirm == "code" && plan.Channel == channelRelay:
-		return demoPrefix(lang, text+" "+relayAskSay(lang, s))
+		return demoPrefix(lang, text+" "+relayAskSay(lang, s, plan, env))
 	case plan.Confirm == "code":
 		if plan.Channel == channelChat && chatCall == nil {
 			text += "\n" + sayChatNote(lang)

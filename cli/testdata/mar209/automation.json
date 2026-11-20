@@ -1,0 +1,99 @@
+{
+  "id": "shutter_watchdog_cover_groups",
+  "alias": "Shutter watchdog - dynamic cover groups",
+  "description": "Finds cover groups from service calls and checks their members after 60 seconds.",
+  "triggers": [
+    {
+      "trigger": "event",
+      "event_type": "call_service",
+      "event_data": {
+        "domain": "cover"
+      }
+    }
+  ],
+  "conditions": [
+    {
+      "condition": "state",
+      "entity_id": "input_boolean.shutter_watchdog_enabled",
+      "state": "on"
+    },
+    {
+      "condition": "state",
+      "entity_id": "input_boolean.shutter_watchdog_retry_active",
+      "state": "off"
+    },
+    {
+      "condition": "template",
+      "value_template": "{{ trigger.event.data.service in ['set_cover_position', 'open_cover', 'close_cover', 'stop_cover'] }}"
+    }
+  ],
+  "actions": [
+    {
+      "variables": {
+        "service_name": "{{ trigger.event.data.service }}",
+        "command_token": "{{ trigger.event.context.id ~ '|' ~ trigger.event.data.service ~ '|' ~ now().timestamp() }}",
+        "expected_position": "{% set sd = trigger.event.data.service_data | default({}, true) %}\n{% if trigger.event.data.service == 'set_cover_position' and sd.get('position') is not none %}\n  {{ sd.get('position') | int }}\n{% elif trigger.event.data.service == 'open_cover' %}\n  100\n{% elif trigger.event.data.service == 'close_cover' %}\n  0\n{% else %}\n  {{ none }}\n{% endif %}",
+        "raw_entities": "{% set sd = trigger.event.data.service_data | default({}, true) %}\n{% set raw = sd.get('entity_id', none) %}\n{% if raw is string %}\n  {{ [raw] }}\n{% elif raw is iterable and raw is not mapping %}\n  {{ raw | list }}\n{% else %}\n  {{ [] }}\n{% endif %}"
+      }
+    },
+    {
+      "condition": "template",
+      "value_template": "{{ raw_entities | count > 0 }}"
+    },
+    {
+      "action": "input_text.set_value",
+      "target": {
+        "entity_id": "input_text.shutter_watchdog_token"
+      },
+      "data": {
+        "value": "{{ command_token }}"
+      }
+    },
+    {
+      "if": [
+        {
+          "condition": "template",
+          "value_template": "{{ service_name == 'stop_cover' or expected_position is none }}"
+        }
+      ],
+      "then": [
+        {
+          "stop": "A cover command only cancels running checks"
+        }
+      ]
+    },
+    {
+      "variables": {
+        "group_targets": "{% set ns = namespace(out=[]) %}\n{% for e in raw_entities %}\n  {% set members = state_attr(e, 'entity_id') %}\n  {% if (e | string).startswith('cover.') and members is iterable and members is not string and members is not mapping and (members | list | count > 0) %}\n    {% set ns.out = ns.out + [e] %}\n  {% endif %}\n{% endfor %}\n{{ ns.out | unique | list }}"
+      }
+    },
+    {
+      "condition": "template",
+      "value_template": "{{ group_targets | count > 0 }}"
+    },
+    {
+      "repeat": {
+        "for_each": "{{ group_targets }}",
+        "sequence": [
+          {
+            "variables": {
+              "group_members": "{{ state_attr(repeat.item, 'entity_id') or [] }}"
+            }
+          },
+          {
+            "action": "script.shutter_watchdog_check_group",
+            "data": {
+              "group_entity": "{{ repeat.item }}",
+              "members_json": "{{ group_members | to_json }}",
+              "expected_position": "{{ expected_position | int }}",
+              "service_name": "{{ service_name }}",
+              "command_token": "{{ command_token }}"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "mode": "parallel",
+  "max": 20
+}

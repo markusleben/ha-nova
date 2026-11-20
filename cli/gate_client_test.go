@@ -45,6 +45,15 @@ type fakeGate struct {
 	phoneAnswer any              // the phone route's answer instead of a link ask
 	linkEnd     string           // how a link ask's wait ends ("": linked; "waiting": not yet; "lost": no answer)
 	wsHeld      bool             // WS writes are sends too (hold sees them)
+	windowOps   []any            // op window's answers in turn (then approved)
+	windowSlow  time.Duration    // op window answers this late
+	waitFor     map[string]any   // one wait's answer by ask id, once (a status or a state)
+	presence    []any            // each open's presence (nil: none sent)
+	aways       int              // op away calls (kept out of ops: they come from their own goroutine)
+	onAway      func()
+	code        string // an open with accept_code: true answers it (the chat code, gate_code_test.go)
+	accepts     []any  // each open's accept_code
+	codeOps     []any  // op code's answers in turn (then approved)
 }
 
 func (g *fakeGate) snapshot() (asks [][]string, ops []string, sends []gateSend) {
@@ -70,7 +79,7 @@ func (g *fakeGate) ask(ctx context.Context, p map[string]any) any {
 			keys = append(keys, fmt.Sprint(request["endpoint"], " ", string(body)))
 		}
 		g.mu.Lock()
-		g.asks, g.ops = append(g.asks, keys), append(g.ops, "open")
+		g.asks, g.ops, g.presence, g.accepts = append(g.asks, keys), append(g.ops, "open"), append(g.presence, p["presence"]), append(g.accepts, p["accept_code"])
 		id := fmt.Sprint("ask", len(g.asks))
 		g.mu.Unlock()
 		select {
@@ -93,7 +102,20 @@ func (g *fakeGate) ask(ctx context.Context, p map[string]any) any {
 			}
 			return map[string]any{"needed": !g.notNeeded, "ask_id": id, "channels": channels}
 		}
+		if p["accept_code"] == true && g.code != "" {
+			return map[string]any{"needed": !g.notNeeded, "ask_id": id, "channels": []string{"code"}, "code": g.code, "expires_at": time.Now().Add(3 * time.Minute).UnixMilli()}
+		}
 		return map[string]any{"needed": !g.notNeeded, "ask_id": id}
+	case p["op"] == "code":
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		g.ops = append(g.ops, "code "+fmt.Sprint(p["code"]))
+		if len(g.codeOps) > 0 {
+			answer := g.codeOps[0]
+			g.codeOps = g.codeOps[1:]
+			return answer
+		}
+		return map[string]any{"state": "approved", "grant_id": fmt.Sprint("grant-", p["ask_id"])}
 	case p["op"] == "wait" && strings.HasPrefix(fmt.Sprint(p["ask_id"]), "link"):
 		g.mu.Lock()
 		defer g.mu.Unlock()
@@ -116,6 +138,13 @@ func (g *fakeGate) ask(ctx context.Context, p map[string]any) any {
 		if g.onWait != nil {
 			g.onWait()
 		}
+		g.mu.Lock()
+		once, found := g.waitFor[fmt.Sprint(p["ask_id"])]
+		delete(g.waitFor, fmt.Sprint(p["ask_id"]))
+		g.mu.Unlock()
+		if found {
+			return once
+		}
 		if g.release != nil {
 			select {
 			case <-g.release:
@@ -133,6 +162,33 @@ func (g *fakeGate) ask(ctx context.Context, p map[string]any) any {
 	case p["op"] == "cancel":
 		g.op("cancel")
 		return map[string]any{"state": "cancelled"}
+	case p["op"] == "away":
+		g.mu.Lock()
+		g.aways++
+		onAway := g.onAway
+		g.mu.Unlock()
+		if onAway != nil {
+			onAway()
+		}
+		return map[string]any{"state": "waiting"}
+	case p["op"] == "window":
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		g.ops = append(g.ops, "window")
+		if g.windowSlow > 0 {
+			g.mu.Unlock()
+			select {
+			case <-time.After(g.windowSlow):
+			case <-ctx.Done():
+			}
+			g.mu.Lock()
+		}
+		if len(g.windowOps) > 0 {
+			answer := g.windowOps[0]
+			g.windowOps = g.windowOps[1:]
+			return answer
+		}
+		return map[string]any{"state": "approved", "grant_id": fmt.Sprint("grant-", p["ask_id"])}
 	}
 	return fakeRelayStatus{400, "GATE_BAD_ASK", "not an ask"}
 }
@@ -199,10 +255,9 @@ func TestGateTypedPlanAsksTheRelayBeforeItSends(t *testing.T) {
 	}
 }
 
-// A config write and the reload sent after it are one ask; both go out with
-// its grant, byte for byte as asked.
-// A save asks for the save alone (Home Assistant reloads after it on its
-// own); a delete asks with the reload apply sends after it.
+// A config save or delete is one ask for that one request, sent with its
+// grant byte for byte as asked; apply sends no reload after either (Home
+// Assistant reloads after a save, and its delete hook stops the item).
 func TestGateConfigWriteAsksForWhatIsSent(t *testing.T) {
 	g := &fakeGate{}
 	h := gatedHarness(t, batchHome(), g)
@@ -215,10 +270,10 @@ func TestGateConfigWriteAsksForWhatIsSent(t *testing.T) {
 	_, env := h.run(runPlanCommand, "delete", "script.old_arrival")
 	exit, applied = h.run(runApplyCommand, "--plan", env.Plan.ID)
 	asks, _, sends = g.snapshot()
-	if exit != 0 || len(asks) != 2 || len(asks[1]) != 2 || len(sends) != 3 || !strings.Contains(asks[1][0], `"method":"DELETE"`) || !strings.Contains(asks[1][1], `"path":"/api/services/script/reload"`) {
+	if exit != 0 || applied.Status != "verified" || len(asks) != 2 || len(asks[1]) != 1 || len(sends) != 2 || !strings.Contains(asks[1][0], `"method":"DELETE"`) {
 		t.Fatalf("delete: exit %d %+v; asks %q sends %+v", exit, applied.Error, asks, sends)
 	}
-	for i, want := range []gateSend{{asks[0][0], "grant-ask1"}, {asks[1][0], "grant-ask2"}, {asks[1][1], "grant-ask2"}} {
+	for i, want := range []gateSend{{asks[0][0], "grant-ask1"}, {asks[1][0], "grant-ask2"}} {
 		if sends[i] != want {
 			t.Fatalf("send %d %+v, want %+v", i, sends[i], want)
 		}
@@ -250,6 +305,22 @@ func TestGateRefusalsSendNothing(t *testing.T) {
 				t.Fatalf("exit %d %+v sends %+v plans %v", exit, env.Error, sends, h.planFiles())
 			}
 		})
+	}
+}
+
+// The App's refusal says nothing was sent once, whether the App already
+// says it (current Apps) or not (older ones).
+func TestGateRefusalSaysNothingWasSentOnce(t *testing.T) {
+	for message, want := range map[string]string{
+		"No one can confirm this now: no linked administrator's phone answers, and no approval page is available here; nothing was sent": "No one can confirm this now: no linked administrator's phone answers, and no approval page is available here; nothing was sent",
+		"No one can confirm this now": "No one can confirm this now; nothing was sent",
+	} {
+		g := &fakeGate{openAnswer: fakeRelayStatus{409, "GATE_NO_CHANNEL", message}}
+		h := gatedHarness(t, newFakeHA(), g)
+		plan := h.plan("lock.unlock", "lock.front").Plan
+		if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != verbExitRefused || env.Error == nil || env.Error.Message != want {
+			t.Fatalf("exit %d %+v, want message %q", exit, env.Error, want)
+		}
 	}
 }
 

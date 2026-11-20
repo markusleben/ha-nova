@@ -113,11 +113,11 @@ var confirmedActions = []confirmedGroup{
 var confirmedNotTyped = map[string]bool{
 	reasonDisruptive: true, reasonOwnedService: true, reasonOwnedMember: true, reasonSelector: true,
 	reasonCodeRequired: true, reasonFeature: true, reasonExpanded: true, reasonBatch: true, reasonStoredMembers: true,
-	reasonNoRegistryRow: true, reasonSceneUnread: true, reasonListenerUnexpl: true, reasonRunListenerUnexpl: true,
+	reasonNoRegistryRow: true, reasonSceneUnread: true,
 	reasonResponseOnly: true, reasonTargetRequired: true, reasonServiceNotFound: true,
 	reasonConfigWrite: true, reasonConfigRevert: true, reasonConfigRestore: true, reasonAreaAssign: true,
 	reasonManager: true, reasonIntegrationSvc: true, reasonRawWrite: true, reasonMarketplaceWarning: true,
-	noteTemplates: true, noteNoManager: true, noteSkippedTargets: true, noteFilteredTargets: true,
+	noteTemplates: true, noteNoManager: true, noteSkippedTargets: true, noteFilteredTargets: true, noteUnexplainedListener: true,
 }
 
 // confirmedActionsSummary: the groups' one-line summaries, for the MCP
@@ -139,7 +139,7 @@ func renderConfirmedActionsDoc() string {
 		"Whether a plan needs the person's own confirmation is the plan's `tier` and `plan.confirm`, and how it asks is its `say` and `next_step`: follow those. " +
 		"This list only helps you explain what such a confirmation is about. " +
 		"An action missing here can still need one, a listed one can be ordinary in a given home, and a plain \"yes\" in chat never stands in for one.\n\n" +
-		"The person confirms in a window on their computer, on their linked phone, or by typing the four-digit code from HA NOVA, as the plan's `say` asks.\n\n" +
+		"The person confirms in the window on their computer, on their linked phone, or on the NOVA page in Home Assistant, as the plan's `say` asks; a four-digit code from HA NOVA only where `say` shows one.\n\n" +
 		"The examples read as single actions, but running or saving an automation, script, or scene that reaches a listed action is rated the same way, and so is a read HA NOVA needs for its check that fails. " +
 		"If the person asks which actions need this, answer in plain words in their language; never show the reason codes or this table.\n")
 	for _, group := range confirmedActions {

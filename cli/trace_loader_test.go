@@ -45,7 +45,7 @@ func TestRelayWSJSONRoutesThroughPairedTransport(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected trace to fail closed on a paired config with no credential")
 	}
-	if msg := err.Error(); !strings.Contains(msg, "re-pair") && !strings.Contains(msg, "device credential") {
+	if msg := err.Error(); !strings.Contains(msg, "paired again") || !strings.Contains(msg, "run: ha-nova setup") {
 		t.Fatalf("trace did not route through the paired transport: %v", err)
 	}
 }

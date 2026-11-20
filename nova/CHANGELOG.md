@@ -4,6 +4,57 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.30] - 2026-11-19
+
+### Changed
+- Chat apps get HA NOVA 0.33.0.
+- A chat code for a computer nobody sits at: on the NOVA page, the owner can let a computer confirm unlocks, doors, gates, garages, the alarm, and deletes with a four-digit code in the AI chat ("Confirm with a chat code instead"). It is off by default, replaces one-click confirming on that computer, and a linked phone ends it. This App draws the code for one ask only, accepts it once for exactly the change shown, and cancels the ask after three wrong codes. It works when the AI runs `ha-nova apply` in a terminal, for the first confirmation of a change; other routes and later steps ask on the phone or the NOVA page. The assistant sees the code too and can type it itself, so a linked phone stays the safer choice. After pairing a computer with a code, the NOVA page shows it right away, so the owner can choose there how it confirms. "Turn off the chat code" ends waiting code asks, and the NOVA page lists these approvals as confirmed with a chat code.
+- HA NOVA 0.33 learns from this App whether a phone is linked for its computer, so it points you to the NOVA page when only the page can confirm.
+
+### Fixed
+- An open logbook or an entity's history no longer makes an everyday action ask on its own, in the safety check and in chat apps. Running automations and scripts that may react to the call still count.
+
+### Upgrade notes
+- Computers on HA NOVA 0.33.0 ask you to update this App.
+- Update HA NOVA on every computer to 0.33.0. HA NOVA 0.32 refuses a change it would ask for but this App wouldn't, and says to update; nothing is sent. The chat code needs both updated, and a computer paired before 0.32 pairs again first; a Mac also finishes the old Link sign-out HA NOVA asks for.
+
+## [Relay 0.13.29] - 2026-11-17
+
+### Changed
+- Chat apps get HA NOVA 0.32.0.
+- One-click confirming on your own computer: on a computer you marked as yours (when pairing or on the NOVA page) with confirming in its window on, unlocking, opening a door, gate, or garage, turning off the alarm, and deletes can be confirmed with Confirm in the window there. This App accepts that click once, for exactly the change shown. Your linked phone then asks only when nobody confirms at the computer; after a click there it gets a quiet note instead, and a question it already showed goes away.
+- The NOVA page shows for each computer whether it can confirm with one click, with one button for the owner to turn it on or off, and lists the recent changes confirmed in a window.
+- Each computer may ask up to 60 times an hour; its phone still asks at most 10 times an hour.
+- A computer paired again through your Home Assistant sign-in can replace its older entry on the NOVA page and keep its linked phone.
+
+### Fixed
+- Fewer asks in a home with a cover watchdog: a light no longer asks when the watchdog acts right away (no delay or wait) and none of the covers it could move is a garage door, gate, or door.
+- Chat apps read automations whose ID is a number (as written in YAML); before, such an ID broke the automation list.
+
+### Upgrade notes
+- Computers on HA NOVA 0.32.0 ask you to update this App.
+- Update HA NOVA on every computer to 0.32.0. A computer paired before 0.32.0 pairs again once to confirm with one click; until then its window only waits.
+
+## [Relay 0.13.28] - 2026-11-14
+
+### Changed
+- Chat apps get HA NOVA 0.31.0.
+- Every Home Assistant administrator can use the NOVA page: connect a computer with a six-digit code, revoke a computer, and approve. Turning chat apps on or off, their settings, and resetting the device registry stay with the owner.
+- The NOVA page and the approval page update on their own. A request waiting for your OK sits at the top ("Confirm or decline"); the approval page shows a countdown and Approve and Cancel side by side, and goes back to the NOVA page once nothing is left.
+- The window on a computer opens its request directly on the NOVA approval page.
+- Phone asks pause only after five asks in a row go unanswered, for 5 minutes (before: three, for 15 minutes). The NOVA page shows the unanswered requests, and "Ask on the phone again" ends a pause.
+- The safety check answers HA NOVA's log reads with log facts: counts per integration and level, and since when, never the log's lines.
+- HA NOVA's system check-up can read the memory and CPU of Home Assistant, the Supervisor, and your Apps.
+- Chat apps: log facts, Marketplace installs and removals (each after your OK), the update advisor, and the system check-up.
+
+### Fixed
+- Answers of several MB, such as the entity list of a home with thousands of entities, pass the safety check. Before, they failed, and everyday changes such as a light asked on the phone.
+- The safety check reads which switch a thermostat or hygrostat made in Home Assistant's UI turns on, so in homes with such a helper, everyday changes no longer ask on the phone because of it.
+
+### Upgrade notes
+- Computers on HA NOVA 0.31.0 ask you to update this App.
+- Update HA NOVA on every computer to 0.31.0.
+
 ## [Relay 0.13.27] - 2026-11-12
 
 ### Fixed

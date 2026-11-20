@@ -196,7 +196,8 @@ func TestDoctorGateStates(t *testing.T) {
 	run := func(h *writeHarness, health []byte, link, device bool) (bool, string) {
 		var ok bool
 		_, out := captureCommandOutput(t, func() int {
-			ok = doctorGate(h.paths, false, health, link, device, func(f string, a ...any) { printHumanInfo(f, a...) }) == 0
+			code, _ := doctorGate(h.paths, false, health, link, device, func(f string, a ...any) { printHumanInfo(f, a...) })
+			ok = code == 0
 			return 0
 		})
 		return ok, out

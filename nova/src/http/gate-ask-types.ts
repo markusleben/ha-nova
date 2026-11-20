@@ -48,6 +48,7 @@ export interface PhoneLink {
 }
 
 export interface PhoneText {
+  ask_ref?: string;
   lang: string;
   title: string;
   body: string;
@@ -63,7 +64,10 @@ export interface LinkWords {
 }
 
 // The worker's /phone answer: approved names the administrator who tapped.
-export type PhoneAnswer = { answer: "approved"; user_id: string } | { answer: "declined" | "rejected" | "none" | "unavailable" };
+export type PhoneAnswer = ({ answer: "approved"; user_id: string } | { answer: "declined" | "rejected" | "none" | "unavailable" }) & { not_asked?: true };
+
+// A window win for the worker's quiet phone note (POST /phone/end, cli/gate_phone_end.go).
+export type WindowEnd = { ask_ref: string; seq: number; outcome: "window"; link: PhoneLink; lang: string; title: string; computer: { id: string; name: string } };
 
 export type AskState =
   | { state: "waiting"; expires_at: number }

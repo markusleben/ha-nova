@@ -196,6 +196,46 @@ describe("POST /pair/v2/arm", () => {
   });
 });
 
+describe("a named profile's older entry on its owner's re-pair", () => {
+  const PLAIN = META.client_install_id;
+  const armWith = async (base: string, body: object) =>
+    ((await (await arm(base, "owner-1", {}, "/pair/v2/arm", JSON.stringify(body))).json()) as {
+      data: { pairing_secret: string; previous?: { device_id: string; name: string } };
+    }).data;
+  const pairActive = async (base: string, meta: Record<string, unknown>) => {
+    const { pairing_secret } = await armWith(base, {});
+    const provisioned = await pairThroughIngress(base, pairing_secret, "owner-1", meta);
+    registry.activate(provisioned.device_id as string, 1_000_001);
+    return provisioned.device_id as string;
+  };
+
+  it("names the one active local entry under the older install id, and retires it only when the new id extends it", async () => {
+    const base = await start();
+    const old = await pairActive(base, META);
+    const armed = await armWith(base, { previous_install_id: PLAIN });
+    expect(armed.previous).toEqual({ device_id: old, name: META.name });
+    expect((await armWith(base, { previous_install_id: "someone-else" })).previous).toBeUndefined();
+
+    await pairActive(base, { ...META, client_install_id: "unrelated-home", retire_device_id: old });
+    expect(registry.list().some((d) => d.deviceId === old && d.state === "active")).toBe(true);
+
+    const fresh = await pairActive(base, { ...META, client_install_id: `${PLAIN}-home`, retire_device_id: old });
+    const ids = registry.list().map((d) => d.deviceId);
+    expect(ids).toContain(fresh);
+    expect(ids).not.toContain(old);
+    expect(registry.list().find((d) => d.deviceId === fresh)?.retireDeviceId).toBeUndefined();
+  });
+
+  it("names nothing on the Link arm", async () => {
+    const base = await start();
+    await pairActive(base, META);
+    const linkArm = (await (await arm(base, "owner-1", {}, "/pair/v2/arm/link", JSON.stringify({ previous_install_id: PLAIN }))).json()) as {
+      data: { previous?: unknown };
+    };
+    expect(linkArm.data.previous).toBeUndefined();
+  });
+});
+
 describe("POST /pair/v2/arm/link", () => {
   const link = (base: string, userId: string, headers: Record<string, string> = {}) =>
     arm(base, userId, headers, "/pair/v2/arm/link");
@@ -316,6 +356,7 @@ async function pairThroughIngress(
   base: string,
   secret: string,
   userId = "owner-1",
+  meta: Record<string, unknown> = META,
 ): Promise<Record<string, unknown>> {
   const login = opaque.client.startLogin({ password: secret });
   const started = await call(base, "POST", "/pair/v2/start", userId, {
@@ -344,7 +385,7 @@ async function pairThroughIngress(
       keys.c2s,
       handshake,
       "c2s",
-      Buffer.from(JSON.stringify(META)),
+      Buffer.from(JSON.stringify(meta)),
     ).toString("base64url"),
   });
   expect(finished.status).toBe(200);
@@ -375,6 +416,7 @@ function arm(
   userId: string,
   headers: Record<string, string> = {},
   path = "/pair/v2/arm",
+  body = "{}",
 ): Promise<Response> {
   return fetch(`${base}${path}`, {
     method: "POST",
@@ -384,7 +426,7 @@ function arm(
       "content-type": "application/json",
       ...headers,
     },
-    body: "{}",
+    body,
   });
 }
 

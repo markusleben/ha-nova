@@ -12,7 +12,9 @@ import {
   type RegistryData,
 } from "./device-registry-schema.js";
 import { withCloudDeviceRevoked } from "./device-registry-cloud.js";
-import type { ConfirmPhoneLink, DeviceRecord, DeviceRegistry } from "./device-registry-types.js";
+import type { ConfirmPhoneLink, DeviceRecord, DeviceRegistry, WindowRefusal } from "./device-registry-types.js";
+import { BRIDGE_INSTALL_ID, GATE_INSTALL_ID } from "./pairing-metadata.js";
+import { windowBlocked } from "./window-confirm.js";
 import { digestsEqual } from "./device-credential.js";
 import {
   PENDING_TTL_MS,
@@ -121,7 +123,7 @@ export function openDeviceRegistry(
 
   return {
     list() {
-      return data.devices.map((d) => ({ ...d }));
+      return structuredClone(data.devices);
     },
     resolveDeviceSecret(deviceId, secretDigest, now) {
       const device = data.devices.find(
@@ -236,7 +238,7 @@ export function openDeviceRegistry(
         target.cloudUserId === userId &&
         target.cloudRelayInstanceId === relayInstanceId
       ) {
-        return { ok: true, record: { ...target }, changed: false };
+        return { ok: true, record: structuredClone(target), changed: false };
       }
       const bound = {
         ...target,
@@ -247,7 +249,7 @@ export function openDeviceRegistry(
         ...data,
         devices: data.devices.map((d) => (d.deviceId === deviceId ? bound : d)),
       });
-      return { ok: true, record: { ...bound }, changed: true };
+      return { ok: true, record: structuredClone(bound), changed: true };
     },
     activatePendingForCloud(
       deviceId,
@@ -315,6 +317,30 @@ export function openDeviceRegistry(
       persist({ ...data, devices: next });
       return true;
     },
+    disableWindowConfirm(deviceId) {
+      return change(deviceId, (d) => d.windowConfirm === false ? d : { ...d, windowConfirm: false }) === null;
+    },
+    setOwnComputer(deviceId, ownerId, atMs) {
+      return change(deviceId, (d) => {
+        if (ownerId === null) {
+          const { ownComputer: _, ...rest } = d;
+          return { ...rest, windowConfirm: false };
+        }
+        return windowBlocked(d, ownerId) ?? { ...noCode(d), ownComputer: { userId: ownerId, atMs }, windowConfirm: true };
+      });
+    },
+    setWindowConfirm(deviceId, on, ownerId) {
+      return change(deviceId, (d) => !on ? { ...d, windowConfirm: false }
+        : d.ownComputer?.userId !== ownerId ? "not_yours" : windowBlocked(d, ownerId) ?? { ...noCode(d), windowConfirm: true });
+    },
+    setCodeConfirm(deviceId, ownerId, atMs) { // exclusive with the window; a linked phone comes first
+      return change(deviceId, (d) => ownerId === null ? (d.codeConfirm === undefined ? d : noCode(d))
+        : windowBlocked(d, ownerId, true) ?? (d.confirmPhone !== undefined ? "phone" : { ...d, codeConfirm: { userId: ownerId, atMs }, windowConfirm: false }));
+    },
+    completeLegacyCleanup(deviceId) {
+      return change(deviceId, (d) => d.clientInstallId === BRIDGE_INSTALL_ID || d.clientInstallId === GATE_INSTALL_ID ? "device"
+        : d.legacyCleanup === "complete" ? d : { ...d, legacyCleanup: "complete" }) === null;
+    },
     setConfirmPhone(deviceId, link, expected) {
       const same = (a?: ConfirmPhoneLink, b?: ConfirmPhoneLink): boolean =>
         a?.service === b?.service && a?.deviceId === b?.deviceId && a?.userId === b?.userId && a?.platform === b?.platform;
@@ -323,10 +349,24 @@ export function openDeviceRegistry(
         return false;
       }
       const confirmPhone = validateConfirmPhone(link);
-      persist({ ...data, devices: data.devices.map((d) => (d === device ? { ...d, confirmPhone } : d)) });
+      persist({ ...data, devices: data.devices.map((d) => (d === device ? { ...d, confirmPhone, confirmRev: (d.confirmRev ?? 0) + 1 } : d)) });
       return true;
     },
   };
+
+  function noCode({ codeConfirm: _, ...rest }: DeviceRecord): DeviceRecord {
+    return rest;
+  }
+
+  // One active device's window fields in one write; a refusal (or the same record) writes nothing.
+  function change(deviceId: string, next: (device: DeviceRecord) => DeviceRecord | WindowRefusal): WindowRefusal | null {
+    const device = data.devices.find((d) => d.deviceId === deviceId && d.state === "active");
+    if (device === undefined) return "device";
+    const updated = next(device);
+    if (typeof updated === "string") return updated;
+    if (updated !== device) persist({ ...data, devices: data.devices.map((d) => (d === device ? { ...updated, confirmRev: (device.confirmRev ?? 0) + 1 } : d)) });
+    return null;
+  }
 
   function doActivate(
     deviceId: string,
@@ -337,6 +377,6 @@ export function openDeviceRegistry(
     if (activated.changed) {
       persist(activated.data);
     }
-    return activated.record;
+    return structuredClone(activated.record);
   }
 }

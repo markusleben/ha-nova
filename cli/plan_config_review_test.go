@@ -182,8 +182,8 @@ func TestNoSnapshotOnlyAfterAFailure(t *testing.T) {
 	}
 }
 
-// 8-11: scoped reload, unavailable entities, raw snapshot payload, a delete
-// that finds the item already gone.
+// 8-11: no reload of its own, unavailable entities, raw snapshot payload, a
+// delete that finds the item already gone.
 func TestConfigApplyDetails(t *testing.T) {
 	f := newFakeHA()
 	f.storeConfig("/api/config/automation/config/a1", hallDraft("light.turn_on"))
@@ -221,10 +221,5 @@ func TestConfigApplyDetails(t *testing.T) {
 			t.Fatalf("snapshot payload lost the exact number: %s", c.raw)
 		}
 	}
-	for _, c := range h.posts() {
-		if c.payload["path"] == "/api/services/automation/reload" && strings.Contains(string(c.raw), `"body":{"id":"a1"}`) {
-			return
-		}
-	}
-	t.Fatalf("the delete's automation reload not scoped to a1: %+v", h.posts())
+	noServiceSent(t, h)
 }
