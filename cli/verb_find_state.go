@@ -112,3 +112,19 @@ func mergeStates(states []stateRow, friendly map[string]string, matches, hits []
 	sort.Slice(kept, func(i, j int) bool { return kept[i].EntityID < kept[j].EntityID })
 	return kept, seen
 }
+
+// prefetchFind sends the reads every search makes together (session memo);
+// findEntities' checks then keep their order and error priority. The full
+// registry joins them only where the search reads it in any case.
+func prefetchFind(s *relaySession, q findQuery) {
+	reads := []func(){
+		func() { _, _ = s.ws(map[string]any{"type": "config/area_registry/list"}) },
+		func() { _, _ = s.ws(map[string]any{"type": "config/device_registry/list"}) },
+		func() { _, _, _ = s.coreGET("/api/states") },
+		func() { _, _ = s.ws(map[string]any{"type": "config/entity_registry/list_for_display"}) },
+	}
+	if q.includeDisabled || q.completeAliases {
+		reads = append(reads, func() { _, _ = s.ws(map[string]any{"type": "config/entity_registry/list"}) })
+	}
+	prefetch(reads)
+}

@@ -116,6 +116,7 @@ func findVerb(call *verbCall, paths runtimePaths, args []string) int {
 // survives a failed states read on the registry alone (statesUnread); a
 // listing (--state, or no phrase) cannot.
 func findEntities(s *relaySession, q findQuery) (findResult, error) {
+	prefetchFind(s, q)
 	areas, deviceAreas, err := loadAreaContext(s)
 	if err != nil {
 		return findResult{}, err
