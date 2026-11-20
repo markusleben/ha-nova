@@ -236,6 +236,13 @@ func (s *relaySession) sendWriteOnce(endpoint string, body []byte, grant string)
 // must observe the state after the write — under the same allowlist (I1),
 // bounded by timeout.
 func (s *relaySession) readFresh(endpoint string, payload map[string]any, timeout time.Duration) (json.RawMessage, error) {
+	s.mu.Lock() // renewBudget may swap it
+	ctx := s.ctx
+	s.mu.Unlock()
+	return s.readFreshIn(ctx, endpoint, payload, timeout)
+}
+
+func (s *relaySession) readFreshIn(parent context.Context, endpoint string, payload map[string]any, timeout time.Duration) (json.RawMessage, error) {
 	if err := checkReadOnlyRequest(endpoint, payload); err != nil {
 		return nil, err
 	}
@@ -243,11 +250,19 @@ func (s *relaySession) readFresh(endpoint string, payload map[string]any, timeou
 	if err != nil {
 		return nil, err
 	}
-	return s.sendWithin(endpoint, body, timeout)
+	return s.sendIn(parent, endpoint, body, timeout)
 }
 
-func (s *relaySession) stateFresh(entityID string, timeout time.Duration) (*entityState, error) {
-	data, err := s.readFresh("core", map[string]any{"method": http.MethodGet, "path": "/api/states/" + entityID}, timeout)
+// stateFresh reads one state by the absolute deadline by, which also bounds
+// the wait for a send slot: a probe queued behind others never outlives its
+// verification window.
+func (s *relaySession) stateFresh(entityID string, by time.Time) (*entityState, error) {
+	s.mu.Lock()
+	parent := s.ctx
+	s.mu.Unlock()
+	ctx, cancel := context.WithDeadline(parent, by)
+	defer cancel()
+	data, err := s.readFreshIn(ctx, "core", map[string]any{"method": http.MethodGet, "path": "/api/states/" + entityID}, time.Until(by))
 	if err != nil {
 		return nil, err
 	}
