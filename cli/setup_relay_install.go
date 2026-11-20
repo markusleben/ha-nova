@@ -3,9 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"io"
-	"net/http"
 	"strings"
 	"time"
 )
@@ -24,30 +22,11 @@ var probeInstalledRelayForSetup = probeInstalledRelay
 func probeInstalledRelay(relayURL string) (bool, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), installedRelayProbeTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(relayURL, "/")+"/pair/v1/info", nil)
-	if err != nil {
+	info := readPairInfo(ctx, relayURL, false)
+	if !info.v1 {
 		return false, ""
 	}
-	req.URL.User = nil // never forward copied URL userinfo as Basic auth
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return false, ""
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return false, ""
-	}
-	body, err := readAllLimited(resp.Body, maxRelayPairingResponseBytes)
-	if err != nil || !decodePairInfo(body) {
-		return false, ""
-	}
-	var info struct {
-		Data struct {
-			RelayVersion string `json:"relay_version"`
-		} `json:"data"`
-	}
-	_ = json.Unmarshal(body, &info) // decodePairInfo already proved valid JSON
-	return true, strings.TrimSpace(info.Data.RelayVersion)
+	return true, info.relayVersion
 }
 
 type installedRelayResult struct {

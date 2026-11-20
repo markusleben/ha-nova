@@ -91,31 +91,21 @@ const (
 // envelope) from any other answer, so setup asks for the Relay token only
 // where a NOVA Relay asked for it.
 func probeRelayPairing(relayBaseURL string) relayPairingAnswer {
-	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(relayBaseURL, "/")+"/pair/v1/info", nil)
-	if err != nil {
-		return relayAnswerNone
-	}
-	req.URL.User = nil
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return relayAnswerNone
-	}
-	defer resp.Body.Close()
-	body, err := readAllLimited(resp.Body, maxRelayPairingResponseBytes)
+	info := readPairInfo(context.Background(), relayBaseURL, true)
 	switch {
-	case err != nil:
-		return relayAnswerOther
-	case resp.StatusCode == http.StatusOK && decodePairInfo(body):
+	case !info.answered:
+		return relayAnswerNone
+	case info.v1:
 		return relayAnswerSecure
-	case resp.StatusCode == http.StatusUnauthorized && relayPairingErrorCode(body) == "UNAUTHORIZED":
+	case info.status == http.StatusUnauthorized && relayPairingErrorCode(info.body) == "UNAUTHORIZED":
 		return relayAnswerStandalone
 	}
 	return relayAnswerOther
 }
 
 // probePairingV1 reports whether the relay supports secure device pairing
-// (GET /pair/v1/info). Any error or non-v1 answer returns false so the wizard
-// falls back to the legacy code exchange.
+// (GET /pair/v1/info). Any failure or non-v1 answer is false; the pairing
+// step then reads the answer again in detail (probeRelayPairing).
 func probePairingV1(relayBaseURL string) bool {
 	return probePairingV1Context(context.Background(), relayBaseURL)
 }
@@ -125,24 +115,7 @@ func probePairingV1(relayBaseURL string) bool {
 var probePairingV1ForNotice = probePairingV1Context
 
 func probePairingV1Context(ctx context.Context, relayBaseURL string) bool {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(relayBaseURL, "/")+"/pair/v1/info", nil)
-	if err != nil {
-		return false
-	}
-	req.URL.User = nil // do not forward copied URL userinfo as a Basic auth header
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return false
-	}
-	body, err := readAllLimited(resp.Body, maxRelayPairingResponseBytes)
-	if err != nil {
-		return false
-	}
-	return decodePairInfo(body)
+	return readPairInfo(ctx, relayBaseURL, false).v1
 }
 
 // legacyTokenStoreUnavailable is set by the caller when the OS keyring is
