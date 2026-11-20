@@ -1,6 +1,6 @@
 # Tool texts and demo limits for the Claude directory (2026-10-24)
 
-Status: shipped
+Status: active
 
 Target: 0.28 (one batch). Parents: `docs/work/2026-10-19-chat-bridge-contract.md`, `docs/work/2026-10-20-demo-add-to-claude-spec.md`, `docs/reference/hosted-demo.md`.
 

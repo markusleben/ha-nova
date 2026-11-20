@@ -39,7 +39,7 @@ const WORD_BUDGETS: Record<string, number> = {
   write: 5600, // folds one-shot automations and blueprints; test offer, batch safety
   hacs: 2330, // Marketplace lifecycle: schema guard, reconcile, migration backup
   device: 1990, // swap, onboard, retire across eight owning skills
-  diagnose: 1850, // log-filter safety, trigger predicate, log facts
+  diagnose: 1850, // log facts, trigger predicate, script branch
   health: 2130, // report modes, repairs, child-device fields
   mqtt: 1670, // device verification, capture readiness, Z2M bridge topics
   scene: 1900, // snapshots, test offer, consumer checks, restore services
@@ -50,11 +50,11 @@ const WORD_BUDGETS: Record<string, number> = {
   dashboard: 1710, // merged saves, drift checks, card templates
   updates: 1750, // update-all guardrails and update-state drift gate
   maintenance: 1550, // batch cap split, purge quantification
-  fallback: 4680, // folds relay-ready; custom integration and blueprint APIs
+  fallback: 4680, // folds relay-ready; custom integration configuration APIs
   helper: 4540, // cross-field checks, flows, group members, re-confirm
   read: 1210, // fail-closed truncation envelopes
   review: 5070, // quick-fix cards and deep-read rules
-  calendar: 1330, // verify-before-flag gate, series verification
+  calendar: 1330, // recurring series and their verification
   "integration-setup": 2050, // credential recovery, options and reconfigure flows
   assist: 1540, // pipeline create and custom sentences
   onboarding: 690,
