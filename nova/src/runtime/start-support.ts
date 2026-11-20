@@ -81,7 +81,8 @@ export function fileAccessOption(
   if (typeof fromApp === "string" && fromApp.trim() !== "") {
     return fromApp;
   }
-  return env.FILE_ACCESS;
+  const fromEnv = env.FILE_ACCESS?.trim();
+  return fromEnv && fromEnv !== "null" ? fromEnv : undefined;
 }
 
 // Probes what the relay can really do with a candidate config root. A mount can
