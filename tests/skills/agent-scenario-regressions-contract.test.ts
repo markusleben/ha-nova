@@ -46,7 +46,7 @@ describe("agent scenario regressions (2026-10-15)", () => {
     expect(rules).toContain("A plan's `say` is the reason, localized (names, code literal; states plain); add none of your own.");
     // Suite r101: agents shortened `say` and dropped the chat-code note
     // (4 of 18 runs); the Safety Core now carries "in full" to every skill.
-    expect(readFileSync("docs/reference/skill-architecture.md", "utf8")).toContain(
+    expect(readFileSync("skills/ha-nova/safety-core.md", "utf8")).toContain(
       "- Relay a plan's `say` in full, localized; never drop or shorten sentences.",
     );
     // The fallback reason has the CLI's confirmation shape (cli/say_lines.go).
@@ -76,7 +76,7 @@ describe("agent scenario regressions (2026-10-15)", () => {
     // 0.27 recheck lane: a prefixed apply misses Claude Code's `ha-nova apply --plan *`
     // allow rule, so auto mode denied the unlock; apply follows its plan's server.
     expect(router).toContain("add `--server <name>` to every `ha-nova` command but `apply` (it follows its plan).");
-    for (const file of ["skills/service-call/SKILL.md", "skills/write/SKILL.md", "skills/entity-discovery/SKILL.md", "skills/ha-nova/index.md"]) {
+    for (const file of ["skills/service-call/SKILL.md", "skills/write/SKILL.md", "skills/entity-discovery/SKILL.md", "skills/ha-nova/safety-core.md"]) {
       expect(flat(file)).toContain("`--server <name>` on every command but `apply`;");
     }
     // A `HA_NOVA_SERVER=<name> cmd` prefix is POSIX-only and fails in
@@ -98,11 +98,11 @@ describe("agent scenario regressions (2026-10-15)", () => {
 describe("agent scenario regressions (2026-10-16)", () => {
   it("never treats an answer to a clarifying question as confirmation", () => {
     const core = '- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.';
-    expect(readFileSync("docs/reference/skill-architecture.md", "utf8")).toContain(core);
+    expect(readFileSync("skills/ha-nova/safety-core.md", "utf8")).toContain(core);
     expect(flat("skills/write/SKILL.md")).toContain(
       "An answer to a clarifying question is never a confirmation: end the turn with each new or changed plan's preview (except Phase 3 step 4's natural-confirmation duration call re-plan with action and tier unchanged).",
     );
-    expect(flat("skills/ha-nova/SKILL.md")).toContain(
+    expect(flat("skills/ha-nova/confirmation.md")).toContain(
       "Neither is an answer to a clarifying question; only a reply to the preview confirms.",
     );
   });
@@ -159,7 +159,7 @@ describe("agent scenario regressions (2026-10-20)", () => {
     expect(index).toContain('Any request about the user\'s Home Assistant — rooms, devices, sensors ("room temperature"), lights, locks, modes or toggles ("guest mode"), automations, dashboards, or "where is X used / why didn\'t X happen" — is a Home Assistant task unless it is about files or code in the open folder');
     expect(index).toContain("not file search");
     expect(index).toContain("## Say it (Home Assistant tasks)");
-    expect(index).toContain("The CLI rates every action; relay its `say`.");
+    expect(readFileSync("skills/ha-nova/safety-core.md", "utf8")).toContain("The CLI rates every action; relay its `say`; never lower or skip its ask");
     expect(index).not.toContain("For Home Assistant tasks only");
     expect(index).toContain("`ha-nova:service-call` — control now: devices, toggles, modes");
     expect(index).toContain('`ha-nova:home-map` — home inventory, "where is X used"');
@@ -173,7 +173,7 @@ describe("agent scenario regressions (2026-10-20)", () => {
     expect(index).toContain("Relay a CLI `say` (ask or result) verbatim, only translated, line breaks kept; add no other result line.");
     // Only the CLI issues a code, inside its `say`; an agent never makes one up.
     expect(index).not.toContain("code you mint");
-    const context = flat("skills/ha-nova/SKILL.md");
+    const context = flat("skills/ha-nova/confirmation.md");
     expect(context).not.toContain("four random digits you mint");
     expect(context).toContain("A typed write without a CLI plan becomes a `ha-nova plan raw` item");
     expect(context).toContain("never make up a code");

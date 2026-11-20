@@ -13,6 +13,7 @@ const read = (relative: string): string =>
 
 const skillDoc = read("skills/service-call/SKILL.md");
 const contextSkill = read("skills/ha-nova/SKILL.md");
+const confirmation = read("skills/ha-nova/confirmation.md");
 const reviewSkill = read("skills/review/SKILL.md");
 const mqttSkill = read("skills/mqtt/SKILL.md");
 const adminSkill = read("skills/admin/SKILL.md");
@@ -62,7 +63,7 @@ describe("indirect actuation and tier classification (#513)", () => {
       expect(mqttSkill).toContain(
         "Retained publishes and command/`set` topics take the one-time code",
       );
-      expect(contextSkill).toContain("retained and command/`set` MQTT publishes");
+      expect(confirmation).toContain("retained and command/`set` MQTT publishes");
     });
 
     it("elevates user-account creation above the ordinary create tier", () => {
@@ -70,7 +71,7 @@ describe("indirect actuation and tier classification (#513)", () => {
         "Creating a user account grants durable system access",
       );
       expect(adminSkill).toContain("not the ordinary create tier");
-      expect(contextSkill).toContain("user-account creation");
+      expect(confirmation).toContain("user-account creation");
     });
   });
   it("reads a Template button's own action instead of trusting search/related", () => {

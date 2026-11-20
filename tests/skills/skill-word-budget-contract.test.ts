@@ -29,37 +29,39 @@ const ALL_SKILL_MD_FILES = ((): string[] => {
 // and in the PR body (AGENTS.md → Review), the history stays in git. Above the
 // default, each entry names what its skill carries.
 const WORD_BUDGETS: Record<string, number> = {
-  backup: 1210, // typed-verb fast path in the Safety Core
-  notify: 1590, // platform payloads, household routing, delivery honesty
+  backup: 1050,
+  notify: 1420, // platform payloads, household routing, delivery honesty
   "entity-discovery": 2460, // state snapshots, alias fallback, device siblings
-  energy: 1360, // preference drift checks and snapshot recovery
-  admin: 1300, // consumer checks, snapshots, tag and person lifecycle
-  organize: 1580, // sibling re-enable, bulk target resolution
-  camera: 1290, // verification frames and restart pointers
-  write: 5600, // folds one-shot automations and blueprints; test offer, batch safety
-  hacs: 2330, // Marketplace lifecycle: schema guard, reconcile, migration backup
-  device: 1990, // swap, onboard, retire across eight owning skills
-  diagnose: 1850, // log facts, trigger predicate, script branch
-  health: 2130, // report modes, repairs, child-device fields
-  mqtt: 1670, // device verification, capture readiness, Z2M bridge topics
-  scene: 1900, // snapshots, test offer, consumer checks, restore services
-  media: 1630, // search before browse, queue, settle window
-  "service-call": 8030, // folds domain fields, raw routes, indirect actuation
-  "yaml-config": 1720, // the canonical File-Change Preview example
-  todo: 1560, // grouped item operations with pre-apply revalidation
-  dashboard: 1710, // merged saves, drift checks, card templates
-  updates: 1750, // update-all guardrails and update-state drift gate
-  maintenance: 1550, // batch cap split, purge quantification
-  fallback: 4680, // folds relay-ready; custom integration configuration APIs
-  helper: 4540, // cross-field checks, flows, group members, re-confirm
+  energy: 1190, // preference drift checks and snapshot recovery
+  admin: 1140, // consumer checks, snapshots, tag and person lifecycle
+  organize: 1420, // sibling re-enable, bulk target resolution
+  camera: 1130, // verification frames and restart pointers
+  write: 5450, // folds one-shot automations and blueprints; test offer, batch safety
+  hacs: 2170, // Marketplace lifecycle: schema guard, reconcile, migration backup
+  device: 1840, // swap, onboard, retire across eight owning skills
+  diagnose: 1680, // log facts, trigger predicate, script branch
+  health: 1980, // report modes, repairs, child-device fields
+  mqtt: 1510, // device verification, capture readiness, Z2M bridge topics
+  scene: 1740, // snapshots, test offer, consumer checks, restore services
+  media: 1460, // search before browse, queue, settle window
+  "service-call": 7860, // folds domain fields, raw routes, indirect actuation
+  "yaml-config": 1570, // the canonical File-Change Preview example
+  todo: 1400, // grouped item operations with pre-apply revalidation
+  dashboard: 1560, // merged saves, drift checks, card templates
+  updates: 1600, // update-all guardrails and update-state drift gate
+  maintenance: 1400, // batch cap split, purge quantification
+  fallback: 4430, // folds relay-ready; custom integration configuration APIs
+  helper: 4330, // cross-field checks, flows, group members, re-confirm
   read: 1210, // fail-closed truncation envelopes
-  review: 5070, // quick-fix cards and deep-read rules
-  calendar: 1330, // recurring series and their verification
-  "integration-setup": 2050, // credential recovery, options and reconfigure flows
-  assist: 1540, // pipeline create and custom sentences
+  review: 4920, // quick-fix cards and deep-read rules
+  calendar: 1170, // recurring series and their verification
+  "integration-setup": 1910, // credential recovery, options and reconfigure flows
+  assist: 1380, // pipeline create and custom sentences
   onboarding: 690,
   "external-sources": 990,
   history: 1060,
+  esphome: 990,
+  migrate: 1000,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 
@@ -90,6 +92,7 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/ha-nova/bulk-patterns.md",
   "skills/ha-nova/capability-answer.md",
   "skills/ha-nova/config-snapshots.md",
+  "skills/ha-nova/confirmation.md",
   "skills/ha-nova/confirmed-actions.md",
   "skills/ha-nova/consumer-discovery-preflight.md",
   "skills/ha-nova/grouped-change-set.md",
@@ -108,6 +111,7 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/ha-nova/recovery-workflows.md",
   "skills/ha-nova/relay-api.md",
   "skills/ha-nova/safe-refactoring.md",
+  "skills/ha-nova/safety-core.md",
   "skills/ha-nova/session-bootstrap.md",
   "skills/ha-nova/smallest-solution.md",
   "skills/ha-nova/starter-proposals.md",

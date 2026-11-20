@@ -58,14 +58,13 @@ describe("the CLI decides how a change is confirmed", () => {
   it("states the one rule where confirmation comes up", () => {
     const rule = "`plan.confirm` none → apply; natural → show the preview and wait for the user's reply; code → follow `say`/`next_step` (window, phone, form, or chat code)";
     for (const file of [
-      "skills/ha-nova/index.md",
       "skills/ha-nova/SKILL.md",
       "skills/write/SKILL.md",
       "skills/dashboard/SKILL.md",
     ]) {
       expect(flat(file), file).toContain(rule);
     }
-    expect(flat("skills/ha-nova/index.md")).toContain("The CLI rates every action; relay its `say`.");
+    expect(flat("skills/ha-nova/safety-core.md")).toContain("The CLI rates every action; relay its `say`; never lower or skip its ask");
   });
 
   it("keeps one example list of what a person confirms, for explaining only", () => {

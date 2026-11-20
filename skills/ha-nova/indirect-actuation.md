@@ -5,7 +5,7 @@ Canonical path: `../ha-nova/indirect-actuation.md`
 Some runtime calls actuate entities the request never names. The confirmation
 tier must follow the action that actually gets performed, not the service that
 was called — otherwise a scene, script, automation, or spoken utterance becomes
-a natural-confirmation bypass of the high-consequence tier (context skill →
+a natural-confirmation bypass of the high-consequence tier (`../ha-nova/confirmation.md` →
 Confirmation Tiers).
 
 Read this before previewing any call in the trigger list below.

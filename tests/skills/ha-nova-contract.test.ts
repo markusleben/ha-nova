@@ -178,7 +178,7 @@ describe("ha-nova contract", () => {
     expect(dashboard).toContain(
       "Removing views or cards inside a save is previewed (natural confirmation) because every save is recoverable",
     );
-    expect(dashboard).toContain("Active Preview Confirmation");
+    expect(dashboard).toContain("`../ha-nova/safety-core.md`");
     expect(dashboard).toContain(
       "Never use `lovelace/config/delete` as the dashboard delete path.",
     );
@@ -231,7 +231,7 @@ describe("ha-nova contract", () => {
     expect(organize).toContain(
       "A delete keeps its full confirmation (the plan's `say`), even for cleanup of items created earlier in the same session.",
     );
-    expect(organize).toContain("Active Preview Confirmation");
+    expect(organize).toContain("`../ha-nova/safety-core.md`");
     expect(organize).toContain("One category scope at a time.");
   });
 
@@ -287,7 +287,7 @@ describe("ha-nova contract", () => {
       "If shell is not bash-compatible, stop and ask user to switch shell.",
     );
     expect(context).toContain("Safety Baseline");
-    expect(context).toContain("- `delete`/destructive: the person's own confirmation (`plan.confirm: code`).");
+    expect(readFileSync("skills/ha-nova/confirmation.md", "utf8")).toContain("- `delete`/destructive: the person's own confirmation (`plan.confirm: code`).");
     expect(context).toContain("Do not ask user to paste tokens in chat.");
   });
 
@@ -1032,16 +1032,9 @@ describe("ha-nova contract", () => {
     expect(fallback).toContain(
       "| Dashboard / Lovelace (storage lifecycle, cards, resources) | Covered | dashboard |",
     );
-    expect(fallback).toContain("| History Queries | Covered | history |");
+    expect(fallback).toContain("| History / Logbook / Statistics queries | Covered | history |");
     expect(fallback).toContain(
-      "| Statistics / Trend Queries | Covered | history |",
-    );
-    expect(fallback).toContain("| Area / Floor CRUD | Covered | organize |");
-    expect(fallback).toContain(
-      "| Label CRUD / Rich label metadata | Covered | organize |",
-    );
-    expect(fallback).toContain(
-      "| Category CRUD / Entity category assignment | Covered | organize |",
+      "| Areas, floors, labels, categories (CRUD, entity category assignment), entity / device metadata | Covered | organize |",
     );
     expect(fallback).toContain(
       "| Statistics repair / import / Purge / Entity registry remove | Covered | maintenance |",
@@ -1190,7 +1183,7 @@ describe("ha-nova contract", () => {
   });
 
   it("defines a portable menu-or-numbered convention for choices, with typed deletes", () => {
-    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    const context = readFileSync("skills/ha-nova/confirmation.md", "utf8");
     expect(context).toContain("Interactive Choices");
     // Progressive enhancement: native menu where available, numbered fallback otherwise.
     expect(context).toContain("AskUserQuestion");
@@ -1203,7 +1196,7 @@ describe("ha-nova contract", () => {
   });
 
   it("resolves bare numbers to named effects and separates effect classes (#394)", () => {
-    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    const context = readFileSync("skills/ha-nova/confirmation.md", "utf8");
     expect(context).toContain(
       "Every option label opens with its concrete effect",
     );

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SessionStart hook for ha-nova plugin
-# Injects the compact HA NOVA index and session bootstrap into every Claude
+# Injects the compact HA NOVA index, Safety Core, and session bootstrap into every Claude
 # Code session; the full context skill loads on demand.
 
 set -euo pipefail
@@ -13,13 +13,28 @@ PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # context skill (skills/ha-nova/SKILL.md) stays the single source of truth and
 # loads on demand as `ha-nova:ha-nova`. Claude receives this text from
 # arbitrary project directories, so inject the shared files themselves.
-for required in skills/ha-nova/SKILL.md skills/ha-nova/index.md skills/ha-nova/session-bootstrap.md; do
+for required in skills/ha-nova/SKILL.md skills/ha-nova/index.md skills/ha-nova/safety-core.md skills/ha-nova/session-bootstrap.md; do
   [[ -f "${PLUGIN_ROOT}/${required}" ]] || {
     echo "Missing HA NOVA file: ${required}" >&2
     exit 1
   }
 done
-context_skill_content="$(cat "${PLUGIN_ROOT}/skills/ha-nova/index.md")"$'\n\n'"$(cat "${PLUGIN_ROOT}/skills/ha-nova/session-bootstrap.md")"
+index_content="$(cat "${PLUGIN_ROOT}/skills/ha-nova/index.md")"
+safety_core="$(cat "${PLUGIN_ROOT}/skills/ha-nova/safety-core.md")"
+bootstrap_content="$(cat "${PLUGIN_ROOT}/skills/ha-nova/session-bootstrap.md")"
+# The Safety Core binds every write: never start a session with a partial one.
+# Its rules, the last line included (cli/mcp_skill.go mcpSafetyCoreRules checks the same).
+incomplete() {
+  echo "Incomplete HA NOVA file: skills/ha-nova/safety-core.md" >&2
+  exit 1
+}
+[[ "${safety_core}" == "# Safety Core"* ]] || incomplete
+for rule in "The CLI rates every action" "Confirmation binds to the displayed preview" "Relay a plan's \`say\` in full" \
+  "Anything before the preview" "Never guess entity, service, or config IDs" "exclusively through the \`ha-nova\` CLI" \
+  "invoke \`ha-nova:fallback\` first" "name a non-default one once."; do
+  [[ "${safety_core}" == *"${rule}"* ]] || incomplete
+done
+context_skill_content="${index_content}"$'\n\n'"${safety_core}"$'\n\n'"${bootstrap_content}"
 
 # Escape string for JSON embedding
 escape_for_json() {

@@ -72,18 +72,12 @@ Render the Report shape (output-cards.md). For an utterance test: the exact resp
 
 ## Safety
 
-- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `"typed":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
-- Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
-- Relay a plan's `say` in full, localized; never drop or shorten sentences.
-- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
-- Never guess entity, service, or config IDs — resolve them or ask.
-- Home Assistant is reached exclusively through the `ha-nova` CLI.
-- Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
+- Safety Core: before any write, apply `../ha-nova/safety-core.md`; not yet in this conversation → read it first; unreadable or incomplete → stop and write nothing.
 
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 
 - **A test utterance is a live command.** `conversation/process` executes what it understands. Anything that could change state gets a preview and confirmation, exactly like a service call.
-- An utterance is the least enumerable indirect actuation there is: what it reaches is decided by the conversation agent at runtime. When the utterance plausibly reaches a lock, alarm panel, or access cover — the words themselves, or the exposed entity set makes it reachable — it takes the person's own confirmation (context skill → Confirmation Tiers), including the re-run proof after an exposure fix.
+- An utterance is the least enumerable indirect actuation there is: what it reaches is decided by the conversation agent at runtime. When the utterance plausibly reaches a lock, alarm panel, or access cover — the words themselves, or the exposed entity set makes it reachable — it takes the person's own confirmation (`../ha-nova/confirmation.md` → Confirmation Tiers), including the re-run proof after an exposure fix.
 - Pipeline updates resend every settings field: read first, or you silently drop settings.
 - No change here has a `revert`: restore exposure by re-toggling, restore a pipeline by resending its prior fields. A deleted pipeline recreates with a new `pipeline_id` — satellites pointing at the old one must be re-pointed.
 

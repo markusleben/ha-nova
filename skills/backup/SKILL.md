@@ -39,7 +39,7 @@ WS response body: `.data` (`../ha-nova/relay-api.md` → Standard Envelope).
 
 ### Create
 1. Read Status first; if `state` is not `idle`, a backup is already running — poll instead of starting another.
-2. Preview it — estimate size and duration from the newest full backup — and ask natural confirmation (context skill → Active Preview Confirmation).
+2. Preview it — estimate size and duration from the newest full backup — and ask natural confirmation (`../ha-nova/confirmation.md` → Active Preview Confirmation).
 3. Primary path — the user's own settings (encryption, locations, scope): `{"type":"backup/generate_with_automatic_settings"}`.
 4. Fallback when that fails because automatic settings are not configured: `{"type":"backup/generate","name":"<name>","agent_ids":["<local-agent>"],"include_homeassistant":true,"include_database":true}`:
    - discover the local agent via `{"type":"backup/agents/info"}`: Supervised installs register `hassio.local`, Core installs `backup.local` — never hardcode
@@ -88,13 +88,7 @@ Use stable localized slot labels in this order; omit empty slots. Status renders
 
 ## Safety
 
-- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `"typed":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
-- Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
-- Relay a plan's `say` in full, localized; never drop or shorten sentences.
-- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
-- Never guess entity, service, or config IDs — resolve them or ask.
-- Home Assistant is reached exclusively through the `ha-nova` CLI.
-- Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
+- Safety Core: before any write, apply `../ha-nova/safety-core.md`; not yet in this conversation → read it first; unreadable or incomplete → stop and write nothing.
 
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 

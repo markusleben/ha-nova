@@ -77,7 +77,7 @@ No service: `ha-nova plan raw --file <requests.json>` with `[{"endpoint":"ws","p
 
 ### Create a list (Local To-do)
 1. Start the flow: POST `/api/config/config_entries/flow` with `{"handler":"local_todo"}` — the single step asks for `todo_list_name`.
-2. Preview the name and end the turn with it (see context skill → Active Preview Confirmation).
+2. Preview the name and end the turn with it (see `../ha-nova/confirmation.md` → Active Preview Confirmation).
 3. Submit: POST `/api/config/config_entries/flow/<flow_id>` with `{"todo_list_name":"<name>"}` → `create_entry` with `entry_id`.
 4. Resolve the new `todo.*` entity from the entity registry by matching `config_entry_id` to the returned `entry_id` — never derive the entity_id by slugifying the name (registry lag: retry once).
 Other providers configure lists in their own integration — point there instead of guessing flows.
@@ -113,18 +113,12 @@ Use stable localized slot labels in this order; omit empty slots. Item lists: th
 
 ## Safety
 
-- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `"typed":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
-- Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
-- Relay a plan's `say` in full, localized; never drop or shorten sentences.
-- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
-- Never guess entity, service, or config IDs — resolve them or ask.
-- Home Assistant is reached exclusively through the `ha-nova` CLI.
-- Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
+- Safety Core: before any write, apply `../ha-nova/safety-core.md`; not yet in this conversation → read it first; unreadable or incomplete → stop and write nothing.
 
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 - `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`../ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
 
-- Declared exception to the core delete rule above: item removes (`todo.remove_item`, `todo.remove_completed_items`) are re-addable data edits, deliberately below the destructive one-time-code tier — they use natural confirmation bound to the compact preview, unless `ha-nova call` ran them as `tier: ordinary` (up to 5 shopping-list items): name each one removed. List deletion stays at the one-time code.
+- Declared exception to the Safety Core's delete rule (`../ha-nova/confirmation.md` → Confirmation Tiers): item removes (`todo.remove_item`, `todo.remove_completed_items`) are re-addable data edits, deliberately below the destructive one-time-code tier — they use natural confirmation bound to the compact preview, unless `ha-nova call` ran them as `tier: ordinary` (up to 5 shopping-list items): name each one removed. List deletion stays at the one-time code.
 - Item operations have no `revert`; removed items are gone — bulk removals list what will be removed in the preview.
 - Never guess uids or entry_ids; resolve via Read items / registry first.
 - Item operations on ONE list — adds, completes, renames, updates, up to 10 — may confirm as a single grouped change set (`../ha-nova/grouped-change-set.md`): one manifest listing every item with its duplicate check and one natural confirmation. Adds and updates that `ha-nova call` runs at once (exit 0) are never grouped or previewed; group only calls that preview. Re-read the list before EACH operation, not once before the batch, and compare it to the manifest: another client can change the list between your own operations. A post-write read-back does not close this either — it only confirms what this batch wrote, never what someone else did. The read before operation N doubles as the read-back for operation N-1, so this is one read per item, not two — plus one final read after the LAST operation, which has no successor to verify it. Skipping that one lets a provider silently drop the last mutation while the ledger reports the whole batch applied. Any drift stops the batch there and re-previews the rest. A provider that silently ignores the first update must stop the batch there (fail-fast ledger). Four items should not cost four rounds. List deletes keep `batch-safety.md` unchanged. One list per mutation; verify by reading back, not by service success alone.

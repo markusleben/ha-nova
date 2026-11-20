@@ -41,8 +41,7 @@ For every Relay-Ready call in this skill:
 
 | Feature | Status | Skill |
 |---------|--------|-------|
-| Automations CRUD | Covered | read / write |
-| Scripts CRUD | Covered | read / write |
+| Automations / Scripts CRUD | Covered | read / write |
 | Config Review | Covered | review |
 | Helpers (9 storage + 16 config-entry) | Covered | helper |
 | Entity Search | Covered | entity-discovery |
@@ -50,34 +49,26 @@ For every Relay-Ready call in this skill:
 | Relay Setup | Covered | onboarding |
 | Dashboard / Lovelace (storage lifecycle, cards, resources) | Covered | dashboard |
 | Scenes (storage CRUD) | Covered | scene |
-| History Queries | Covered | history |
-| Logbook Queries | Covered | history |
-| Statistics / Trend Queries | Covered | history |
+| History / Logbook / Statistics queries | Covered | history |
 | System Health / Repairs | Covered | health |
-| Logs / diagnostics (why a specific automation/script/device/integration failed: traces, history, root cause) | Covered | diagnose |
+| Logs / diagnostics (why something specific failed: traces, history, root cause) | Covered | diagnose |
 | Host / Supervisor / App logs | Covered | diagnose (the user reads them in Home Assistant: diagnose → Logs) |
 | Media players (transport, volume, source, grouping, browsing, TTS announce) | Covered | media |
 | Notifications (targets, mobile-app sends, persistent notifications) | Covered | notify |
 | Actionable-notification callbacks (waiting for a button press) | Covered for the durable path | write (an automation on `mobile_app_notification_action`) |
 | Cameras (snapshot, stream URL, record) | Covered | camera |
 | MQTT (bounded topic listening, discovery/debug info, publish) | Covered | mqtt |
-| Voice / Assist (utterance testing, pipelines, pipeline debug runs, entity exposure, engine inventory) | Covered | assist |
-| Persons / Zones / Tags | Covered | admin |
-| User accounts (list, create, edit, delete — with owner/system guards) | Covered | admin |
-| System general settings (name, location, units, time zone, currency, language, URLs) | Covered | admin |
+| Voice / Assist (utterance tests, pipelines and their debug runs, entity exposure, engines) | Covered | assist |
+| Persons, zones, tags; user accounts (list, create, edit, delete — with owner/system guards); system general settings (name, location, units, time zone, currency, language, URLs) | Covered | admin |
 | Labs features, analytics sharing | Covered | admin |
 | YAML-only configuration (template/REST/command-line sensors, packages, themes) | Covered | yaml-config |
-| Frontend themes | Covered | yaml-config |
-| External data stores (InfluxDB long-term history, Prometheus, ...) | Covered | external-sources |
+| External data stores (InfluxDB, Prometheus, ...) | Covered | external-sources |
 | Weather forecasts (`weather.get_forecasts`) | Covered | service-call |
 | Calendar Events (read / create / update / delete) | Covered | calendar |
 | Custom events / known JSON webhooks | Covered (raw firing refused: `automation.trigger`) | service-call |
 | Alarm / lock runtime control | Covered | service-call |
 | To-do Lists (items + Local To-do lifecycle) | Covered | todo |
-| Area / Floor CRUD | Covered | organize |
-| Label CRUD / Rich label metadata | Covered | organize |
-| Category CRUD / Entity category assignment | Covered | organize |
-| Entity / Device metadata updates | Covered | organize |
+| Areas, floors, labels, categories (CRUD, entity category assignment), entity / device metadata | Covered | organize |
 | Device replacement (re-point consumers), onboarding, retirement | Covered | device |
 | Blueprints (import, save, instantiate, delete) | Covered | write |
 | Energy (analysis + source/device config) | Covered | energy |
@@ -88,7 +79,7 @@ For every Relay-Ready call in this skill:
 | Event capture — bounded window (a button's event, a short watch after an action) | Relay-Ready | this skill; `mqtt` for MQTT topics |
 | Event streaming — continuous | Roadmap Phase 1c | -- |
 | Backups (status, create, inspect, delete, automatic settings) | Covered | backup |
-| Config snapshots (targeted capture/restore of automations, scripts, scenes, dashboards, helpers, energy prefs, metadata, YAML files) | Covered | the owning family skill (see `../ha-nova/config-snapshots.md`) |
+| Config snapshots (targeted capture/restore per item family) | Covered | the owning family skill (see `../ha-nova/config-snapshots.md`) |
 | Updates (pending, release notes, install, skip) | Covered | updates |
 | Apps / Supervisor: store, install, uninstall, settings, auto-update, system and storage info (`../updates/apps.md`; start/stop/restart and host reboot: `service-call`; repositories, DNS, network, OS, and Supervisor settings stay in the HA UI: Settings > Apps, Settings > System) | Covered | updates |
 | HACS (registration, download, version switching, uninstall, migration) | Covered | hacs |
@@ -130,7 +121,7 @@ permissive matching row (External over Relay-Ready).
    a. FIRST: Search web using the provided Search query — understand current payload schema before any call
    b. Show experimental relay call examples informed by search results
    c. If the endpoint matches a row in Write Safety by Endpoint Type (below), classify it BEFORE drafting: full-document writes need read-merge-verify, never partial payloads. Endpoints the table does not cover split by where their schema comes from. For response-driven flows, submit exactly the fields the LIVE response named, never the fields the research step suggested — research is how you understand the flow, the response is what you answer. Standard config-entry flows belong to `integration-setup` or `helper`, blueprints to `write`. Other writes require a researched current schema and full-payload preview; never guess fields.
-   d. Execute only after user confirms that exact preview (see context skill → Active Preview Confirmation)
+   d. Execute only after user confirms that exact preview (see `../ha-nova/confirmation.md` → Active Preview Confirmation)
 4. If "Roadmap":
    a. Explain which phase and what blocks it
    b. Search web for manual workaround or alternative approach
@@ -203,13 +194,7 @@ Every experimental call result carries the plain caution line where required and
 
 ## Safety
 
-- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `"typed":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
-- Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
-- Relay a plan's `say` in full, localized; never drop or shorten sentences.
-- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
-- Never guess entity, service, or config IDs — resolve them or ask.
-- Home Assistant is reached exclusively through the `ha-nova` CLI.
-- Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
+- Safety Core: before any write, apply `../ha-nova/safety-core.md`; not yet in this conversation → read it first; unreadable or incomplete → stop and write nothing.
 
 Premise handling:
 - Correct invalid Home Assistant premises explicitly.
