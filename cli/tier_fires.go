@@ -65,7 +65,7 @@ func triggerMatch(cfg map[string]any, id string, needles []string, d stateDelta)
 		}
 		raw, _ := json.Marshal(trigger)
 		for _, needle := range needles {
-			if strings.Contains(string(raw), needle) {
+			if strings.Contains(strings.ToLower(string(raw)), needle) { // Home Assistant lowercases entity ids
 				verdict = strongest(verdict, stateTriggerFires(trigger, id, d))
 			}
 		}

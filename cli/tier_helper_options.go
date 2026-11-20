@@ -180,11 +180,11 @@ func (s *relaySession) abortOptionsFlow(parent context.Context, flowID string) e
 	return err
 }
 
-// helperCalls bounds what the UI thermostats and hygrostats in this home
-// call (the reactor rule, tierEngine.reactorCalls): homeassistant.turn_on
-// and turn_off on the plain switch or fan each one's options name, when
-// nothing reacts to the helper's state or that entity's. Anything else
-// makes the set unknown.
+// helperCalls bounds what the thermostats and hygrostats in this home call
+// (the reactor rule, tierEngine.reactorCalls): homeassistant.turn_on and
+// turn_off on the plain switch or fan each one's options name (UI) or its
+// YAML names (yamlHelperCalls), when nothing reacts to the helper's state or
+// that entity's. Anything else makes the set unknown.
 func (e *tierEngine) helperCalls() {
 	if e.calls.unknown {
 		return
@@ -203,11 +203,12 @@ func (e *tierEngine) helperCalls() {
 		e.calls.unknown = true
 		return
 	}
-	entryOf := map[string]string{}
+	rowOf := map[string]fullRegistryRow{}
 	for _, row := range rows {
-		entryOf[row.EntityID] = row.ConfigEntryID
+		rowOf[row.EntityID] = row
 	}
 	var helpers, entries []string
+	yamlHelpers := map[string][]string{} // integration → its YAML entities (no config entry)
 	for id, source := range sources {
 		if helperOptionFields[source.Domain] != "" {
 			helpers = append(helpers, id)
@@ -215,11 +216,22 @@ func (e *tierEngine) helperCalls() {
 	}
 	slices.Sort(helpers)
 	for _, id := range helpers {
-		if entryOf[id] == "" || !e.quiet(id) { // YAML: no options to read
+		entry := rowOf[id].ConfigEntryID
+		if !e.quiet(id) {
 			e.calls.unknown = true
+			if entry == "" {
+				e.helperCause = tierReason{Code: reasonHelperCalls, EntityID: id, Detail: "helper_listened"}
+			}
 			return
 		}
-		entries = append(entries, entryOf[id])
+		if entry == "" {
+			yamlHelpers[sources[id].Domain] = append(yamlHelpers[sources[id].Domain], id)
+			continue
+		}
+		entries = append(entries, entry)
+	}
+	if len(yamlHelpers) > 0 && !e.yamlHelperCalls(yamlHelpers, rowOf) {
+		return
 	}
 	slices.Sort(entries)
 	for _, entry := range slices.Compact(entries) {
@@ -259,7 +271,8 @@ func (e *tierEngine) plainSwitched(id string) bool {
 // search/related ties to it or its device, no script there or where it sits
 // (a wait on its state), no automation tied to it or its device whose
 // triggers match either (a thermostat sits on its heater's device:
-// automations that only set it don't count), none where it sits whose
+// automations that only set it don't count, nor one that only syncs it
+// after a reconnect, quietSync), none where it sits whose
 // triggers target that place (as scanConsumers), and no automation on
 // state_changed events, which search/related doesn't index.
 func (e *tierEngine) quiet(id string) bool {
@@ -277,7 +290,7 @@ func (e *tierEngine) quiet(id string) bool {
 		}
 		for _, automation := range related["automation"] {
 			cfg := e.warmConfig(automation)
-			if cfg == nil || i < direct && triggerMatch(cfg, id, e.needles(id), stateDelta{}) != "" || i >= direct && targetsPlace(cfg, items[direct:]) {
+			if cfg == nil || i < direct && triggerMatch(cfg, id, e.needles(id), stateDelta{}) != "" && !e.quietSync(cfg, automation, id) || i >= direct && targetsPlace(cfg, items[direct:]) {
 				return false
 			}
 		}
