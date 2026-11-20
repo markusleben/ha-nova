@@ -24,111 +24,10 @@ echo "=== Documentation Fact-Check ==="
 echo ""
 
 # ── 1. LOC count ──
-# The relay must stay small enough that a person can read it. The ceiling moved
-# from 2000 to 2800 across relay 0.4.0 (opt-in file transport: containment,
-# deny rules, code-execution boundary) and to 3200 across relay 0.5.0 (the
-# generic config-snapshot store, ~330 lines of validation, caps and prune;
-# and to 3300 for the diagnosability wave: disconnect reasons, request
-# logging, server timeouts; and to 3700 for Wave 6's bounded pairing manager,
-# persisted App credential, and code-authenticated transport endpoint; and to
-# 3900 for Home Base's static status renderer and Supervisor ingress gate; and
-# to 7000 for the secure device-pairing wave (relay 0.7): the OPAQUE (RFC 9807)
-# server, a persistent self-signed TLS identity with SPKI pinning, durable
-# atomic-file storage, the versioned fail-closed device registry, the pairing
-# state machine, per-device auth, three listeners, legacy migration, and the
-# NOVA owner console with CSRF-protected form actions including legacy-access
-# revocation and corrupt-registry owner recovery; and to 9000 for the reviewed
-# Cloud ingress/security wave: persistent Relay identity, HA-user-bound device
-# credentials and revocation, ingress-only OPAQUE pairing v2, strict shared
-# ingress identity and principal gates, bounded request bodies, atomic
-# pairing-response persistence with replay protection, and cleanup-only routes
-# while Cloud is disabled; and to 9200 for the #482 owner-console safety
-# rework: the armed two-step confirm flow with device-bound CSRF tokens, the
-# typed registry-reset gate, and throttled last-used tracking with disk-failure
-# fallback in the device auth path; and to 9400 for the 2026-09-10 audit fixes
-# (bounded WS handshake, closed abandoned connections, private-file repair,
-# fail-fast upstream parsing, serialized snapshot quota): about 9300 lines;
-# and to 9500 for Home Assistant sign-in pairing (the owner-checked,
-# machine-only ingress arm route, the armed one-time slot, and its capability
-# flag on GET /pair/v1/info): about 9450 lines; and to 10250 for chat apps
-# (spec 2026-10-18 §11, PR train B2): the owner-only on/off action (NOVA page
-# and machine-only ingress API), the bridge secret, the internal device
-# credential, Supervisor discovery, the custom_components/ha_nova writer, and
-# the `ha-nova serve` child, dormant behind HA_NOVA_CHAT_APPS, with its review fixes: about 10225;
-# and to 10300 for the NOVA page's connector address and "Add to Claude" link
-# (read from cloud/status, else get_config; claude.ai only, the address only): about 10295;
-# and to 10410 for the chat-app cleanup after a backup restore (0.27 lane R1):
-# off, boot (retried until Home Assistant answers), and turn-on find the
-# discovery message and every ha_nova entry in Home Assistant instead of
-# /data, the integration folder's owner mark, and the split into
-# chat-apps-ha.ts that keeps chat-apps.ts under its size: about 10400;
-# and to 10450 for removing the empty custom_components the App made (0.27
-# lane C7): the made_custom_components mark in /data, a non-recursive rmdir
-# only while empty, logged, never blocking turn-off: about 10442;
-# and to 10970 for the Supervisor route (docs/work/2026-10-26-supervisor-role-spec.md,
-# Decisions 2026-10-27): the static POST /supervisor allowlist, App-option
-# redaction, the merge that keeps stored App credentials in the Relay, bounded
-# log reads, and the Relay's own /ws and /core Supervisor deny, with its review fixes and the per-App write queue: about 10957;
-# and to 11370 for the chat-app phone (docs/work/2026-10-24-chat-app-phone-move-spec.md): the App's
-# loopback client for the bridge's control channel with its own secret, owner_phone through the bridge,
-# the machine API's move and its last job, and the NOVA page's Link, Change, and Stop, whose forms alone
-# send override, with its review fixes (a lost answer to a change kept apart from "nothing changed",
-# the bridge's answers checked, a first phone tried again right after a turn-on): about 11353;
-# and to 11850 for household levels on the NOVA page (docs/work/2026-10-24-chat-apps-household-spec.md):
-# the list of who may use chat apps and at which level, saved whole from the owner's session against
-# Home Assistant's users with the rollback guard, each listed user's phone with tokens bound to that user,
-# a removed user's link dropped, the phone's own button quoted, and the recent changes, with its review
-# fixes (a re-added user's old link dropped before the save, removals with an unreadable links file,
-# turned-off users the next save clears, one way back on a listed user's phone panel): about 11830;
-# and to 12300 for the Relay safety check, layer 3 (docs/work/2026-11-03-relay-typed-gate-spec.md):
-# the `ha-nova gate` worker child and its owner-only socket client with bounded answers, the socket peer on the principal, the App's
-# own credentials from loopback only, the worker's internal principal and its three allowances, and
-# the gate with redaction in front of every device-facing handler on all three App listeners and the
-# standalone container's one (its shared token a legacy principal, the worker's own token), and the
-# credential checked again before forwarding: about 12254;
-# and to 12650 for layer 4b: asks and grants in memory (one open ask per device, three minutes; a
-# grant of the asked bytes' digests, each usable once by that device for two minutes), the ask route
-# on the App's functional listeners, and the grant checked before a typed request is forwarded: about 12565;
-# and to 12800 for layer 4c: the device's linked phone in the registry, the phone asked through the
-# worker for each ask and hung up when the ask ends, 10 asks an hour per device, and the phone paused
-# for 15 minutes after three asks in a row end cancelled or unanswered: about 12766;
-# and to 12920 for layer 4d: the phone link route (POST /gate/v1/phone, a link ask under the same
-# limits that sets the link only after the taps the worker asks for) and the registry's
-# compare-and-set write of a device's link: about 12888;
-# and to 13020 for layer 4e: the standalone container's asks and phone link (the same ask
-# routes, its one link in /data/gate-phone.json read never through a link, and /files refusing
-# the Relay's data folder by identity, so a bind mount can't show it under another name): about 13008;
-# and to 13320 for layer 5: the approval view (any active, non-system administrator except the
-# Relay's own user approves or cancels, each button single-use and bound to that person and ask,
-# never framed), the owner page's "Waiting for your OK" and paused devices, the per-asker limits
-# moved to their own file, and /health's gate flag: about 13295;
-# and to 13400 for the gate tidy-up before landing: the two children's shared supervision
-# (supervise-child.ts), the ask table and grants split out of gate-asks.ts, and the registry
-# facades out of app-mode.ts, each new file's imports and interfaces, no new behavior: about 13384;
-# and to 13500 for the approval page's words from cli/confirm_strings.*.json (page-texts.ts,
-# the worker's /texts, every page literal replaced by a catalog key, kept a minute per name): about 13491;
-# and to 13520 for the ChatGPT refresh note (#923): the bridge's GET /control/v1/tools read and
-# the NOVA page's dated note for 30 days after HA NOVA's tools changed: about 13512.
-# and to 13940 for media files in /config/www (MAR-128): listing it, deleting a picture only
-# after its exact bytes are kept outside www (files-www.ts: the copy store, its quota, lock, and
-# put-back), restoring only that copy, and community refused by identity: about 13922.
-# The 0.32 owner-window pairing foundation raises this to 14120 for authenticated
-# device eligibility, pairing provenance, and persistence: about 14065.
-# Its window grant and disable transitions bring the ceiling to 14200.
-# The owner's window declaration and switch (one registry write each) and the Mac
-# legacy-cleanup gate (pairing report, op legacy_cleanup_complete) raise it to 14280: about 14258.
-# The NOVA page's window line, the owner's four device-bound buttons, and the recent-50
-# window confirmation log (/data/gate/window-log.json) raise it to 14400: about 14380.
-# Retiring a named profile's older entry on its owner-confirmed re-pair (the arm's
-# previous answer, retire_device_id, one activation filter) raises it to 14410: 14408.
-# The owner-chosen chat code for a computer nobody sits at (MAR-244, approved by the
-# Captain for this contract only: consent record bound to the owner with a revision,
-# exclusive with the window, eligibility, the code on the ask and op code, /gate/v1/me
-# phone and code, /health code) raises it to 14530: about 14510.
-# Further unreviewed Relay growth still fails.
-# Growth here is security surface, and it is reviewed as such. The README's own
-# number is updated in the release-prep PR — README describes the STABLE
-# release, not main.
+# The relay must stay small enough that a person can read it in one sitting.
+# Growth here is security surface: raise the ceiling only with the reason in
+# the PR body (git log keeps every raise). The README's own number is updated
+# in the release-prep PR — README describes the STABLE release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
 if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 14530 )); then
@@ -332,16 +231,14 @@ else
   fail "Found ${TELEMETRY_HITS} telemetry-related patterns — HA NOVA promises no usage data collection."
 fi
 
-# ── 13. Work docs stay temporary and genuinely active ──
+# ── 13. Work docs declare whether they are in progress or shipped ──
 echo "[13] Work-document lifecycle"
 while IFS= read -r work_doc_path; do
   declared_status_line=$(grep -m1 '^Status:' "$work_doc_path" || true)
-  if [[ ! "$declared_status_line" =~ ^Status:\ (active|merged|superseded|abandoned)($|[[:space:]]) ]]; then
-    fail "${work_doc_path#"$REPO_ROOT/"} must declare Status: active, merged, superseded, or abandoned"
-  elif [[ ! "$declared_status_line" =~ ^Status:\ active($|[[:space:]]) ]]; then
-    fail "${work_doc_path#"$REPO_ROOT/"} is not active — move it to docs/archive/work or delete it"
+  if [[ "$declared_status_line" =~ ^Status:\ (active|shipped)($|[[:space:]]) ]]; then
+    pass "${work_doc_path#"$REPO_ROOT/"} declares ${BASH_REMATCH[1]} status"
   else
-    pass "${work_doc_path#"$REPO_ROOT/"} declares active status"
+    fail "${work_doc_path#"$REPO_ROOT/"} must declare Status: active or shipped — move superseded or abandoned work to docs/archive/work"
   fi
 done < <(
   find "$REPO_ROOT/docs/work" -maxdepth 1 -type f -name '*.md' \

@@ -1,6 +1,6 @@
 # Omission checks for raw writes that replace a whole value
 
-Status: active
+Status: shipped
 
 Date: 2026-11-03. Issue #926 (follow-up to the scene guard, #931). Owner: raw plans (`cli/plan_raw*.go`) and `ha-nova relay core|ws` (`cli/relay.go`). Target: 0.28.1 (App 0.13.16, placeholder).
 

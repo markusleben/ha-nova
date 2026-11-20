@@ -58,8 +58,6 @@ const allow: { rule: string; file: string; line: string; reason: string }[] = [
   { rule: "add-on", file: "cli/testdata/setup-golden/", line: "(older Home Assistant: Settings > Add-ons)", reason: "old on-screen menu name" },
   { rule: "add-on", file: "docs/reference/update-guide.md", line: "Apps are still called Add-ons", reason: "old on-screen menu name" },
   { rule: "add-on", file: "nova/DOCS.md", line: "renamed Add-ons to Apps", reason: "explains the rename" },
-  { rule: "add-on", file: "docs/reference/ha-doc-gate-2026-02-26.md", line: "Apps (formerly add-ons)", reason: "dated record; explains the rename" },
-  { rule: "add-on", file: "docs/reference/ha-doc-gate-2026-02-26.md", line: "### 2) Apps / Add-ons", reason: "dated record; explains the rename" },
   { rule: "add-on", file: "docs/reference/hosted-demo.md", line: 'the "Demo add-on" device', reason: "Home Assistant's own demo device name, quoted" },
   { rule: "link-old-name", file: "cli/setup_cloud_mode.go", line: "used to be called Home Assistant Cloud", reason: "explains the rename" },
   { rule: "link-old-name", file: "cli/testdata/setup-golden/", line: "used to be called Home Assistant Cloud", reason: "explains the rename" },

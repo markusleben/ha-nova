@@ -15,36 +15,27 @@ HA NOVA is still early. Small, focused improvements help most.
 Prerequisites:
 - Node.js `>=22.12`
 - Go `>=1.26.11` (the `go` line in `cli/go.mod`)
+- `jq` (a contract test calls it)
 
 ```bash
 npm ci
-npm run verify
+npm run verify:node
 ```
 
-`npm run verify` is the canonical host-safe gate. It covers production dependency audit, blocked-file checks, typecheck, docs contracts, the core safe Vitest slice, onboarding contracts, the host-safe build path, Go CLI tests, and release-contract verification. It must not open browsers or touch real secure stores on a maintainer machine. `npm run test:safe` remains the full Vitest sweep.
+`npm run verify:node` is the host-safe gate: production dependency audit, blocked-file checks, release metadata, typecheck, the docs fact-check, the build, and every Vitest test in one `vitest run` (`npm test` runs the same sweep alone). It never opens a browser or touches a real secure store. CI runs it on every pull request.
+
+`npm run verify` adds the Go CLI suite (`npm run test:cli`, `go test ./...`). Its pairing, setup, purge, and server-removal tests read and can delete stored HA NOVA credentials, and on macOS a temporary `HOME` does not isolate the login Keychain: on macOS, run the Go suite only in a Linux container or a separate macOS user, or leave it to CI ([docs/reference/testing.md](docs/reference/testing.md)). On Linux and in CI `npm run verify` is host-safe.
 
 ## Verification Matrix
 
-`npm run verify` and its slices below are the host-safe unit/contract layer. For live, headless, and cross-platform testing against a real (or disposable) Home Assistant — including the isolation env vars and safety rules — see [docs/reference/testing.md](docs/reference/testing.md).
+`npm run verify:node` and the Go suite are the unit/contract layer. For live, headless, and cross-platform testing against a real (or disposable) Home Assistant — including the isolation env vars and safety rules — see [docs/reference/testing.md](docs/reference/testing.md).
 
-Use the smallest verify slice that matches your change. If the change crosses boundaries, fall back to `npm run verify`.
+While iterating, run the tests you touched (`npx vitest run tests/skills`, `cd cli && go test -run TestName .` under the rule above); before a pull request, run the row that matches your change.
 
 | Change type | Minimum verification |
 | --- | --- |
-| Docs-only (`README.md`, `CONTRIBUTING.md`, client overlays, governance docs) | `npm run verify:docs` |
-| Skill-only Markdown / prompt logic | `npm run test:safe` |
-| Installer, onboarding, local dev helpers, client-install flow | `npm run verify:onboarding` |
-| Relay runtime or Go CLI | `npm run verify` |
-| Release metadata, release docs, workflow/release policy | `npm run verify:release-contracts` |
-
-Canonical verify entrypoints:
-- `npm run verify:docs`
-- `npm run verify:installers`
-- `npm run verify:onboarding`
-- `npm run verify:release-contracts`
-- `npm run verify`
-
-Implementation detail: `npm run verify` uses `test:safe:core` between the docs and onboarding slices so those owned contract tests do not rerun twice. `test:safe:core` is a closed allowlist in `scripts/test/safe-core-files.json`, and `npm run verify:onboarding` starts with `npm run verify:installers` so the committed public installers are checked directly before the wider onboarding contract slice runs.
+| Docs, skills, installers, onboarding, release metadata, Relay runtime | `npm run verify:node` |
+| Go CLI | `npm run verify:node` and the Go suite (CI, a Linux container, or a separate macOS user) |
 
 ## Test Without Your Own Home Assistant
 

@@ -1,6 +1,6 @@
 # Place-trigger index: room automations without a config read each
 
-Status: active
+Status: shipped
 
 Date: 2026-11-12. Issue MAR-149 (follows MAR-142, #1094). Owner: tier engine (`cli/tier_places.go`, `cli/tier_scan.go`, `cli/tier_ahead.go`, `cli/tier_raw_takeover.go`), new `cli/tier_place_index.go`. Target: 0.31 (release/0.31). High-risk: typed-tier path; a wrong skip under-asks.
 

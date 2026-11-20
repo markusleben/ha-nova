@@ -1,8 +1,8 @@
-# Superpowers Archive
+# Early Plans Archive
 
 This directory is historical only.
 
-It contains old superpowers plans and specs that are kept for archive/reference purposes.
+It contains plans and specs from early development, kept for archive/reference purposes.
 
 Rules:
 - do not add new active product docs here

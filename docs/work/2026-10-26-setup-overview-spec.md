@@ -1,6 +1,6 @@
 # Setup re-run overview
 
-Status: active
+Status: shipped (the overview, 0.28; the sign-out section is not built)
 
 ## Before
 

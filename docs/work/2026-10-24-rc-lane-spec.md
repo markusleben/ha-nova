@@ -1,6 +1,6 @@
 # One-command release-candidate check and test-bed phone lane (2026-10-24)
 
-Status: active
+Status: shipped
 
 ## Why
 

@@ -1,6 +1,6 @@
 # "Clean up for me" for a stale Home Assistant Link sign-in (2026-10-24)
 
-Status: active
+Status: shipped
 
 Target: 0.28. Follow-up to #813 (its known limits: "A one-click 'clean up for me' … is out of scope; planned for 0.28").
 

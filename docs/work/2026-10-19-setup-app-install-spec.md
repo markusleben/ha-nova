@@ -1,6 +1,6 @@
 # Setup: install the NOVA App after sign-in — Spec (2026-10-19)
 
-Status: active
+Status: shipped
 
 Part of the 0.27 onboarding train (PR A3, text path first). The browser setup page (A6) reuses this engine.
 

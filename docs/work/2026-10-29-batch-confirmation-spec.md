@@ -1,6 +1,6 @@
 # Batch confirmation: one confirmation for up to 20 automation and script changes
 
-Status: active
+Status: shipped
 
 Date: 2026-10-29. Owner: CLI plans and apply (`cli/plan_batch.go`, `cli/verb_apply_batch.go`, `cli/confirm_batch_text.go`); skills `write` and `ha-nova` (`batch-safety.md`, `grouped-change-set.md`). Target: 0.28.0.
 

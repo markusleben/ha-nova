@@ -183,7 +183,7 @@ func verifyConfig(s *relaySession, action configAction) (verifyRow, json.RawMess
 		row.Expect = "config and entity gone"
 		start := time.Now()
 		for {
-			st, stateErr := s.stateFresh(action.EntityID, relaySessionRequestTimeout)
+			st, stateErr := s.stateFresh(action.EntityID, time.Now().Add(relaySessionRequestTimeout))
 			row.Observed = fmt.Sprintf("config HTTP %d, entity present: %v", status, st != nil)
 			waited := time.Since(start)
 			switch {
@@ -223,7 +223,7 @@ func verifyConfig(s *relaySession, action configAction) (verifyRow, json.RawMess
 	var st *entityState
 	var stateErr error
 	if loaded {
-		st, stateErr = s.stateFresh(entityID, relaySessionRequestTimeout)
+		st, stateErr = s.stateFresh(entityID, time.Now().Add(relaySessionRequestTimeout))
 	}
 	present := fmt.Sprint(st != nil)
 	switch {

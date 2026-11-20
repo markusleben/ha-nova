@@ -1,6 +1,6 @@
 # Skill text fixes from the 2026-10-16 agent scenario suite — Spec
 
-Status: active
+Status: shipped
 
 ## Problem
 

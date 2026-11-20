@@ -1,6 +1,6 @@
 # Chat apps can do everything the CLI can (2026-10-25)
 
-Status: active
+Status: shipped
 
 Target: 0.28 (with the directory-readiness tool texts, so "Always allow" resets once). Parents: `docs/work/2026-10-19-chat-bridge-contract.md`, `docs/work/2026-10-17-confirmation-hardening-spec.md` (follow-ups: "a CLI plan for raw writes (`plan raw`)", the HACS/resource residual), `docs/work/2026-10-24-directory-readiness-spec.md`, `docs/work/2026-10-24-chat-apps-household-spec.md`.
 

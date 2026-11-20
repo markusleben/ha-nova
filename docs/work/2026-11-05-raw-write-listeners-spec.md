@@ -1,6 +1,6 @@
 # Raw writes check what listens to them
 
-Status: active
+Status: shipped
 
 Date: 2026-11-05. Issue #946 (found by the sibling sweep for #928, fixed in #940). Owner: tier engine (`cli/tier_raw_listeners.go`, `cli/tier_scan.go`), raw plans (`cli/plan_raw.go`), `ha-nova relay ws` (`cli/relay_raw_endpoint.go`). Target: 0.28.2. High-risk: typed tier.
 

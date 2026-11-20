@@ -1,6 +1,6 @@
 # Confirmation simplification for 0.32: the owner's own computer confirms in its window
 
-Status: active (built only after the maintainer's go)
+Status: shipped (0.32)
 
 Date: 2026-11-16. Owner: the Relay's safety check (`nova/src/http/gate-asks.ts`, `nova/src/http/gate-owners.ts`, `nova/src/http/handlers/nova-approve.ts`, `nova/src/http/handlers/nova-page*.ts`, `nova/src/security/device-registry*.ts`, pairing v1/v2), the CLI's gate client and window (`cli/gate_client*.go`, `cli/confirm_window*.go`, `cli/confirm_strings.*.json`), pairing and setup (`cli/pairing_*.go`, `cli/setup_*pairing*.go`), macOS key storage (`cli/keyring_darwin*.go`, `cli/native_secret_worker*.go`, `cli/device_credential_migration.go`), the update (`cli/command_update.go`), the tier engine for MAR-209 (`cli/tier_*.go`), the skills' confirmation wording, and the macOS release signing (`scripts/release/build-sign-darwin-binaries.sh`, `scripts/release/verify-macos-signature.sh`). Target: the 0.32 train. High-risk: security, a change to the 0.30 gate's contract, release machinery.
 

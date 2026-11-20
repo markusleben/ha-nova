@@ -1,6 +1,6 @@
 # ESPHome skill: explain, check, and edit ESPHome device YAML — Spec (2026-10-17)
 
-Status: active
+Status: shipped
 
 ## Problem
 
