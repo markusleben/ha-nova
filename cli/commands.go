@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 )
 
@@ -15,7 +14,6 @@ var waitForParentReleaseForReplace = waitForParentRelease
 var applyStagedBundleWithRollbackForReplace = applyStagedBundleWithRollback
 var postUpdateSyncForReplace = func(paths runtimePaths) postUpdateSyncResult { return postUpdateSyncWithResultUnlocked(paths, false) }
 var scheduleWindowsSelfDeleteForUpdate = scheduleWindowsSelfDelete
-var execLookPathForLifecycle = exec.LookPath
 var copyToClipboardForSetup = copyToClipboard
 var openBrowserForSetup = openBrowser
 var writeRelayAuthTokenForSetup = writeRelayAuthToken

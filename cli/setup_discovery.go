@@ -49,21 +49,6 @@ type setupDiscoveryProbe struct {
 	Via string
 }
 
-func detectDefaultHAHost(cfg runtimeConfig) string {
-	host, _, _ := detectDefaultHAHostChoice(cfg)
-	return host
-}
-
-// detectDefaultHAHostChoice preserves the single-result helper used by focused
-// discovery tests while sharing the production all-candidate implementation.
-func detectDefaultHAHostChoice(cfg runtimeConfig) (string, string, bool) {
-	found, fallback := discoverReachableHAHosts(cfg)
-	if len(found) == 0 {
-		return fallback, "", false
-	}
-	return found[0].Host, found[0].Via, true
-}
-
 // discoverReachableHAHosts probes every bounded candidate instead of silently
 // stopping at the first reachable Home Assistant. Results retain candidate
 // priority and are deduplicated after .local names are resolved to a confirmed

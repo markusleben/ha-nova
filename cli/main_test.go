@@ -138,9 +138,9 @@ func TestParseVersionJSON(t *testing.T) {
 	content := `{"skill_version":"0.1.11","min_relay_version":"0.1.0"}`
 	os.WriteFile(filepath.Join(dir, "version.json"), []byte(content), 0o644)
 
-	minV := readMinRelayVersion(dir)
-	if minV != "0.1.0" {
-		t.Errorf("minRelayVersion = %q, want %q", minV, "0.1.0")
+	v, err := readVersionJSON(filepath.Join(dir, "version.json"))
+	if err != nil || v.MinRelayVersion != "0.1.0" {
+		t.Errorf("minRelayVersion = %q (%v), want %q", v.MinRelayVersion, err, "0.1.0")
 	}
 }
 
