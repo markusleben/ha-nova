@@ -220,7 +220,17 @@ func (c *HAWebSocketClient) CallAll(ctx context.Context, calls []haCall) []error
 		}
 		return true
 	}
+	sent := make(map[int64]int, len(calls))
+	closeIfPending := func() { // replies still on the way: no later call may read them as its own
+		for _, i := range sent {
+			if !answered[i] {
+				_ = c.conn.Close()
+				return
+			}
+		}
+	}
 	end := func(err error) []error { // every unanswered call fails with err; the earliest failure is judged first
+		closeIfPending()
 		for i := range calls {
 			if !answered[i] {
 				answered[i], errs[i] = true, err
@@ -229,7 +239,6 @@ func (c *HAWebSocketClient) CallAll(ctx context.Context, calls []haCall) []error
 		judge()
 		return errs
 	}
-	sent := make(map[int64]int, len(calls))
 	var writeErr error
 	for i, call := range calls {
 		c.nextID++
@@ -276,12 +285,7 @@ func (c *HAWebSocketClient) CallAll(ctx context.Context, calls []haCall) []error
 		answered[i] = true
 		errs[i] = decodeHAWebSocketResult(*response.Success, response.Error != nil, code, response.Result, calls[i].result)
 		if !judge() {
-			for _, j := range sent {
-				if !answered[j] { // replies still on the way: no later call may read them as its own
-					_ = c.conn.Close()
-					break
-				}
-			}
+			closeIfPending()
 			return errs
 		}
 	}
