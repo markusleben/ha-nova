@@ -84,11 +84,17 @@ When the YAML path leaves the set unknown, the engine keeps that cause at the he
 3. Engine wiring, the cause reason, the MAR-209 row, the bed row; Sol reviews the whole build again with the security/fail-open lens (Captain, 2026-11-20).
 4. After the read-only real-home check: `docs/reference/safety.md` drops the 2026-11-19 limit and states the new bound, `.goreleaser.yml` drops the What To Watch bullet, `docs/work/next-release-body.md` names the fix.
 
-Each PR stays under about 400 production lines. The Relay grows by a few lines, under its 13,600 ceiling.
+Step 2 is about 690 code lines in one layer (Captain, 2026-11-20): the proof chain and the grammar that rejects must be reviewed together, and a split would ship an endpoint with no consumer. Step 3 stays under 400. The Relay grows by a few lines, under its 13,600 ceiling.
 
 ## Review (before build)
 
 Sol (gpt-6.2-sol, high), security/fail-open and KISS lenses, on the first draft. Taken: ctime instead of mtime, with the Relay field (Captain decision A); one internal pseudo-endpoint instead of raw `files` reads; literal include paths and ancestor symlink checks; collisions, aliases, merge keys, and extra documents unknown; the built-in check for all three integrations; the narrow heater action shape; the command and device-access checks on targets; the template exception only on the helper edge; node, directory, and entry caps; the bed proof of a same-count, same-id replacement; cause naming at the helper boundary with the existing sentence instead of an all-sites rewrite and a new schema field; legacy template switches only checked for duplicates. Kept: `quiet` at MAR-131's level (Captain); every planning level makes the read, as MAR-131's options read does, because the code picks every path and the answer is a projection with no configuration text.
+
+## Review (build) and decisions
+
+Sol (gpt-6.2-sol, high), security/fail-open lens, on the finished build. Fixed, each with a test: a directory on the way to a used file must predate the start too (renaming a directory keeps its files' ctime); a path the Relay would decode or refuse (`%`, `\`, control characters), found or written, is unknown; a template `use_blueprint` makes template switches unreadable; a domain key Home Assistant may split differently (`template\tx`) is unknown, and labeled `generic_hygrostat` keys are ignored as Home Assistant ignores them; a walk of `/config` itself is unknown; listings must carry entries and not be truncated, walked directories need a valid mtime, and sizes are compared; include depth carries across mappings and lists.
+
+`quiet` (Captain, 2026-11-20, decision A; UI helpers too): a heater's switch or fan stays quiet beside an automation whose every trigger, disabled ones included, is a state trigger on it alone from only `unavailable` (`to` unset or `on`/`off`, a literal `for`, nothing else) and whose every action is a literal delay, a choose or if on conditions, or a literal `turn_on`/`turn_off` of that entity with no data (`reconnectSync`), when nothing reacts to that automation running: no automation on `automation_triggered`, no wait that could be one, nothing search/related ties to its entity (`quietSync`). A turn_on/turn_off leaves an available entity on or off, never unavailable; should the call itself take it away, the automation only sends calls the set already holds. Sol's check of the rule (security lens): `unknown` dropped (an optimistic entity can be available and unknown), the run's own event and state, disabled triggers with `options`, exact `triggers` wrappers, and templated durations; the same pass made trigger matching case-insensitive and stopped skipping a disabled trigger that carries `options`, everywhere. Open, pre-existing: a state trigger naming its entity by registry id isn't matched by the raw-config search (follow-up).
 
 ## Known limits
 
@@ -96,4 +102,5 @@ Sol (gpt-6.2-sol, high), security/fail-open and KISS lenses, on the first draft.
 - Any edit, restore, reload, or new file in a used directory since the last start stays unknown until the next restart.
 - A YAML template heater without `unique_id`, a legacy template switch as heater, a UI template switch as heater, a heater behind a group or `switch_as_x`, and a heater action beyond plain `turn_on`/`turn_off` on plain switches stay unknown.
 - A disabled YAML thermostat fails the count: unknown.
+- The start comes from Home Assistant's own run lock (Captain, 2026-11-20, decision A): a deliberately rewritten `/config/.ha_run.lock` (every file write through HA NOVA asks first) or a clock that steps back after the start could make an edited file look loaded.
 - A filesystem that doesn't move ctime on rename would defeat §1; Home Assistant OS uses ext4, which does, and the bed proof checks it on the shipped image.
