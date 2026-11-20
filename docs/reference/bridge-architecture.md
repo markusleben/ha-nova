@@ -450,7 +450,7 @@ in sync; Relay and product versions must not be substituted for each other.
 - REST client uses native `fetch()` (no axios at runtime)
 - WS orchestration uses `home-assistant-js-websocket`
 - `ws` supplies the authenticated Node WebSocket transport; REST stays on native `fetch()`
-- Current scope is contract-capped at 14,530 TypeScript source lines (`scripts/check-docs.sh` [1]). Relay growth is security surface: each raise is reviewed as such, and its reason lives in its PR.
+- Current scope is contract-capped at 13,600 TypeScript source lines (`scripts/check-docs.sh` [1]). Relay growth is security surface: each raise is reviewed as such, and its reason lives in its PR.
 
 ## Standard Envelope
 
