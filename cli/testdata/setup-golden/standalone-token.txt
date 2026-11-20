@@ -18,26 +18,33 @@ exit 0
 
   [2/4] Step 2 of 4 – Connect this computer
 
-  In NOVA (Home Assistant sidebar), click "Connect a device" for a one-time six-digit code.
-  Each computer gets its own connection; remove it in NOVA anytime.
+  HA NOVA Setup
+  -------------
 
-  This will open:
-      <ha-url>/app/local_ha_nova_test
+  [2/4] Step 2 of 4 – Set up the shared key
 
-  Press Enter to open NOVA:   Opening in your browser...
+  HA NOVA keeps two kinds of access apart:
+    a) This key lets this computer talk to the NOVA App
+    b) The NOVA App gets its own Home Assistant access by itself
 
-  Six-digit code from NOVA (or type 'manual'):   [!!] pairing code must contain exactly six digits
+  NOVA Relay in your own container? Its Home Assistant token (HA_LLAT) stays there. Setup never asks for it.
 
-  Six-digit code from NOVA (or type 'manual'):   [!!] pairing code must contain exactly six digits
+  This NOVA Relay is a standalone container: it connects with its token only, with no pairing code. Use the token it was started with (RELAY_AUTH_TOKEN).
 
-  Six-digit code from NOVA (or type 'manual'):   [!!] pairing code must contain exactly six digits
+  How do you want to set up the shared key (Relay Auth Token)?
 
-  Six-digit code from NOVA (or type 'manual'):   [ok] This computer is connected
+    1) Paste the container's token (RELAY_AUTH_TOKEN)
+
+  Enter [1-1] (default 1, or type 'back'/'exit'): 
+
+  Paste the key (Relay Auth Token): 
+  If this key already works on another computer, the next check should pass. Nothing needs to change in Home Assistant.
 
   HA NOVA Setup
   -------------
 
   [3/4] Step 3 of 4 – Verifying connection
+  Using Home Assistant address: <ha-url>
   [ok] Home Assistant answers
   [ok] NOVA App answers
   [ok] Connected to Home Assistant

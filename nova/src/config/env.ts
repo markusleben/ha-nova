@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { resolveRelayAuthToken } from "./relay-token.js";
 
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error";
@@ -8,7 +10,6 @@ export interface EnvConfig {
   haLlat?: string;
   haUrl: string;
   relayVersion: string;
-  minRelayVersion?: string;
   cloudRemoteEnabled: boolean;
   appOptionsPath: string;
   relayPort: number;
@@ -22,6 +23,8 @@ const DEFAULT_HA_URL = "http://homeassistant:8123";
 const DEFAULT_SUPERVISOR_HA_URL = "http://supervisor/core";
 const DEFAULT_RELAY_VERSION = "dev";
 const DEFAULT_APP_OPTIONS_PATH = "/data/options.json";
+// Only the App image carries it; the standalone image has none (Cloud off).
+const APP_VERSION_FILE = "/app/version.json";
 // Lives inside the App data dir so Supervised full backups sweep it up; the
 // standalone container overrides via SNAPSHOT_DIR (mount a volume to persist).
 const DEFAULT_SNAPSHOT_DIR = "/data/ha_nova_snapshots";
@@ -33,7 +36,10 @@ const ALLOWED_LOG_LEVELS = new Set<LogLevel>([
   "error",
 ]);
 
-export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
+export function loadEnv(
+  source: NodeJS.ProcessEnv = process.env,
+  versionFile = APP_VERSION_FILE,
+): EnvConfig {
   const relayAuthToken = resolveRelayAuthToken(source);
   const supervisorToken = parseOptionalToken(source.SUPERVISOR_TOKEN);
   const haLlat = parseOptionalToken(source.HA_LLAT);
@@ -48,13 +54,10 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
     source.RELAY_VERSION,
     DEFAULT_RELAY_VERSION,
   );
-  const minRelayVersion = parseRequiredLike(
-    source.MIN_RELAY_VERSION,
-    relayVersion,
-  );
-  const cloudRemoteEnabled = parseCloudRemoteEnabled(
-    source.CLOUD_REMOTE_ENABLED,
-  );
+  // The App image's own flag is the release gate and wins over the env.
+  const cloudRemoteEnabled =
+    cloudRemoteEnabledFromImage(versionFile) ??
+    parseCloudRemoteEnabled(source.CLOUD_REMOTE_ENABLED);
   const appOptionsPath = parseRequiredLike(
     source.APP_OPTIONS_PATH,
     DEFAULT_APP_OPTIONS_PATH,
@@ -84,7 +87,6 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
     ...(haLlat ? { haLlat } : {}),
     haUrl,
     relayVersion,
-    minRelayVersion,
     cloudRemoteEnabled,
     appOptionsPath,
     relayPort,
@@ -111,6 +113,23 @@ function parseRequiredLike(
     return fallback;
   }
 
+  return value;
+}
+
+function cloudRemoteEnabledFromImage(path: string): boolean | undefined {
+  let raw: string;
+  try {
+    raw = readFileSync(path, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return undefined;
+    }
+    throw error;
+  }
+  const value = (JSON.parse(raw) as { cloud_remote_enabled?: unknown }).cloud_remote_enabled;
+  if (typeof value !== "boolean") {
+    throw new Error(`cloud_remote_enabled must be a boolean in ${path}`);
+  }
   return value;
 }
 

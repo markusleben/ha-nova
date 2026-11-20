@@ -19,8 +19,7 @@ Cloud) and Supervisor Ingress.
 
 ```
 GET  /health
-GET  /home
-POST /pair
+GET  /home     (App only: the NOVA owner page, through Supervisor ingress)
 POST /ws
 POST /core
 POST /files
@@ -130,37 +129,6 @@ request; that pre-request state is not a connection failure. To prove
 WebSocket readiness, issue `POST /ws` with `{"type":"ping"}` and then re-read
 health. Require both a successful Relay envelope and
 `ha_ws_connected: true`.
-
-### `POST /pair` — Pairing Credential Exchange
-
-This is the only route that does not accept the relay bearer token. Its
-six-digit, ten-minute, single-use pairing code is the credential.
-
-```json
-Request:  { "code": "123456" }
-Response: { "ok": true, "data": { "relay_token": "<opaque token>" } }
-```
-
-Malformed shapes return `400 VALIDATION_ERROR`. Wrong, expired, and replayed
-codes share `401 PAIRING_FAILED`. Five failures per socket peer per minute or
-30 globally per five minutes block further attempts with
-`429 PAIRING_RATE_LIMITED` and `Retry-After`. The Relay ignores forwarded IP
-headers, compares fixed digests in constant time, and sets
-`Cache-Control: no-store` on every `/pair` response. Pairing contains no Home
-Assistant call or domain logic.
-
-### `GET /home` — Home Base
-
-Home Base is a read-only HTML rendering of the same snapshot as `/health`, plus
-the current pairing code, expiry, compatibility floor, and latest-stable
-installer commands. It is bearer-exempt because Home Assistant Supervisor
-ingress supplies the authenticated browser session instead.
-
-The handler still requires the exact Supervisor ingress socket peer
-(`172.30.32.2`, including IPv4-mapped IPv6 forms) plus `X-Ingress-Path` and
-`X-Remote-User-Id`. Direct port access returns `403 INGRESS_REQUIRED` even when
-the headers are spoofed. The response is non-cacheable, script-free, and ships
-a restrictive CSP plus `nosniff`; the App sidebar panel is admin-only.
 
 ### `POST /ws` — Generic WS Proxy
 ```json
@@ -378,8 +346,8 @@ The Relay keeps inbound client authentication separate from upstream Home Assist
 Authorization: Bearer {RELAY_AUTH_TOKEN}
 ```
 Validated via a constant-time fixed-digest comparison. On failure:
-`401 UNAUTHORIZED`. Exact `POST /pair` uses the one-time pairing code instead
-and returns the same relay token after a successful exchange.
+`401 UNAUTHORIZED`. The standalone Relay pairs with this token only: every route
+needs it, and it has no code exchange (removed in 0.34).
 
 The normal App path uses an OPAQUE-derived per-device credential over SPKI-pinned
 TLS. Cloud sends it through a process-local Supervisor Ingress session. Pairing
@@ -428,10 +396,10 @@ The interactive CLI's normal App path never asks the user to copy the relay
 token. In a local desktop terminal it first offers Home Assistant sign-in: the
 owner signs in through the browser, the CLI opens a process-local ingress
 session, revokes the Home Assistant session, and pairs through `/pair/v2/arm`
-plus pair v2. Otherwise, or after any sign-in failure, it asks for the current
-Home Base code, sends it only in the JSON body of
-`POST /pair`, stores the returned token in the existing OS credential backend,
-and verifies both `/health` and `/ws`. Pairing requests do not follow redirects;
+plus pair v2. Otherwise, or after any sign-in failure, it asks for the
+six-digit code the NOVA page shows, pairs through OPAQUE pair v1
+(`/pair/v1/*` on the local pairing port), stores the device credential, and
+verifies both `/health` and `/ws`. Pairing requests do not follow redirects;
 the code is not accepted through argv and is not persisted in normal config.
 Saved credentials, `--relay-token`, service token files, and standalone
 Container/Core setups retain their explicit-token paths; against the App they
@@ -451,8 +419,9 @@ through `POST /supervisor` only.
 
 ## Configuration
 
-All configuration is via environment variables. The `run` entrypoint script
-resolves values from HA app options and sets them before starting Node.
+All configuration is via environment variables. In the App, the `run`
+entrypoint passes only the App version; Node reads `file_access` from
+`/data/options.json` and the Cloud flag from the image's `/app/version.json`.
 
 ```yaml
 # Standalone only (the App reads neither): RELAY_AUTH_TOKEN, else a token
@@ -461,7 +430,6 @@ RELAY_AUTH_TOKEN: "<operator-chosen-secret>"   # Inbound client auth override
 RELAY_AUTH_TOKEN_FILE: "/data/relay_auth_token" # Persistent token file
 SUPERVISOR_TOKEN: "<injected-by-supervisor>"   # App upstream auth; never configured by the user
 HA_LLAT: "<ha-long-lived-access-token>"        # Standalone upstream auth fallback
-MIN_RELAY_VERSION: "<from nova/version.json>" # Required Relay floor shown in Home Base
 
 # Optional (with defaults)
 HA_URL: "http://supervisor/core"               # App default; standalone default: http://homeassistant:8123
@@ -471,8 +439,8 @@ RELAY_VERSION: "dev"                           # Injected by run script from bas
 APP_OPTIONS_PATH: "/data/options.json"         # HA app options file path
 ```
 
-`MIN_RELAY_VERSION` is loaded from `nova/version.json`, a generated mirror of
-the root `version.json` SSOT. The bump script and its contract keep the mirror
+`min_relay_version` in `nova/version.json`, a generated mirror of the root
+`version.json` SSOT, is the CLI's compatibility floor; the Relay doesn't read it. The bump script and its contract keep the mirror
 in sync; Relay and product versions must not be substituted for each other.
 
 ## Tech Stack
@@ -482,7 +450,7 @@ in sync; Relay and product versions must not be substituted for each other.
 - REST client uses native `fetch()` (no axios at runtime)
 - WS orchestration uses `home-assistant-js-websocket`
 - `ws` supplies the authenticated Node WebSocket transport; REST stays on native `fetch()`
-- Current scope is contract-capped at 14,530 TypeScript source lines (`scripts/check-docs.sh` [1]). Relay growth is security surface: each raise is reviewed as such, and its reason lives in its PR.
+- Current scope is contract-capped at 13,600 TypeScript source lines (`scripts/check-docs.sh` [1]). Relay growth is security surface: each raise is reviewed as such, and its reason lives in its PR.
 
 ## Standard Envelope
 

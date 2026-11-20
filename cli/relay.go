@@ -569,11 +569,6 @@ func newRelayRequest(
 	return req, nil
 }
 
-func relayEnvelopeOK(body []byte) bool {
-	_, ok := relayEnvelopeResult(body)
-	return ok
-}
-
 func relayEnvelopeResult(body []byte) (bool, bool) {
 	var envelope struct {
 		OK *bool `json:"ok"`

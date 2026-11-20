@@ -385,11 +385,7 @@ func (s *relaySession) exchange(parent context.Context, endpoint string, body []
 	s.answered = true
 	s.mu.Unlock()
 	defer resp.Body.Close()
-	if version := resp.Header.Get(relayVersionHeader); version != "" {
-		s.mu.Lock()
-		s.relayVersion = version
-		s.mu.Unlock()
-	}
+	s.noteVersion(resp.Header)
 	if isHTTPRedirect(resp.StatusCode) {
 		return nil, fmt.Errorf("Relay answered HTTP %d (redirect); redirects are never followed", resp.StatusCode)
 	}
@@ -478,6 +474,15 @@ func (s *relaySession) unreachableError() error {
 		return nil
 	}
 	return s.unreachable
+}
+
+// noteVersion keeps the Relay version a response header names.
+func (s *relaySession) noteVersion(header http.Header) {
+	if version := header.Get(relayVersionHeader); version != "" {
+		s.mu.Lock()
+		s.relayVersion = version
+		s.mu.Unlock()
+	}
 }
 
 // version returns the Relay version seen in any response header, or "".

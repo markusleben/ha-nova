@@ -156,8 +156,11 @@ func (f *setupFlow) legacyCleanup() {
 	}
 	f.page.setRow("connect", "ok", setupPageText("setup.page.row.connect"))
 	note := setupPageText("setup.cleanup.done")
-	if f.cleanupNote.Key == "setup.cleanup.incomplete" {
-		note = setupPageText("setup.cleanup.incomplete", "reason", f.cleanupNote.Args[1], "command", f.cleanupNote.Args[3]) // legacyLinkCleanupInSetup's order
+	switch f.cleanupNote.Key { // legacyLinkCleanupInSetup's argument order
+	case "setup.cleanup.incomplete":
+		note = setupPageText("setup.cleanup.incomplete", "reason", f.cleanupNote.Args[1], "command", f.cleanupNote.Args[3])
+	case "setup.cleanup.copy_left":
+		note = setupPageText("setup.cleanup.copy_left", "reason", f.cleanupNote.Args[1])
 	}
 	f.pageNotes = append(f.pageNotes, note)
 	if f.pageRerunOK { // the re-run screen shows it now, not only once it's done

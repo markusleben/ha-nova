@@ -150,7 +150,7 @@ func newRelinkFixture(t *testing.T, profile string, home bool, cfg runtimeConfig
 		return &provisionedCredential{}, nil
 	}
 	signInPairForSetup = func(_ string, provision pairingProvisioner, cfg *runtimeConfig, save func(*runtimeConfig) error, _ pairingClientInfo, _ SecretStoreUIPolicy) (string, error) {
-		if err := validateLocalDeviceReplacementAllowed(*cfg); err != nil { // the guard, unchanged
+		if err := validateLocalDeviceReplacementAllowedWithPolicy(*cfg, SecretStoreForbidUI); err != nil { // the guard, unchanged
 			return "", err
 		}
 		if _, err := provision(deviceMetadata{CredentialStore: "keychain"}); err != nil {
@@ -507,7 +507,7 @@ func TestRePairTextsNameOneStepOnAMacWithLink(t *testing.T) {
 		t.Fatalf("effort: %s", text)
 	}
 	resetServerProfileSelection(t)
-	err := validateLocalDeviceReplacementAllowed(relinkHybridConfig(t))
+	err := validateLocalDeviceReplacementAllowedWithPolicy(relinkHybridConfig(t), SecretStoreForbidUI)
 	if err == nil {
 		t.Fatal("the guard let a pairing beside Link through")
 	}

@@ -19,11 +19,15 @@ import (
 // remove leaves a receipt: its item's name and the digest of those exact
 // bytes, never the copy. Every later setup removes the copy while it still
 // matches that digest, and doctor names it. Nothing else is delete authority.
+// Before the report, each copy's receipt is written with revoked false,
+// awaiting the App's record: no delete authority until the App answers that
+// it holds the record, so a report that landed never leaves a copy with
+// neither removal nor receipt.
 
 type legacyCopyReceipt struct {
 	Service string `json:"service"`
-	Digest  string `json:"digest"` // sha256 of the copy proven revoked and recorded
-	Revoked bool   `json:"revoked"`
+	Digest  string `json:"digest"`  // sha256 of the copy proven revoked and recorded
+	Revoked bool   `json:"revoked"` // false: awaiting the App's record
 }
 
 func legacyCopyReceiptsFile(paths runtimePaths) string {
@@ -58,14 +62,14 @@ func legacyCopyReceipts(paths runtimePaths) (map[string][]legacyCopyReceipt, err
 }
 
 // deleteProvenLegacyLinkCopies removes exactly each copy (its verified bytes);
-// the ones it can't remove become account's receipt.
-func deleteProvenLegacyLinkCopies(paths runtimePaths, account string, proven []legacyLinkCopy) error {
+// the ones it can't remove, and keep, become account's receipt.
+func deleteProvenLegacyLinkCopies(paths runtimePaths, account string, proven []legacyLinkCopy, keep []legacyCopyReceipt) error {
 	backend, err := legacyCleanupBackend()
 	exact, ok := backend.(exactOAuthSecretBackend)
 	if err == nil && !ok {
 		err = errors.New("this secure storage can't remove a sign-in copy exactly")
 	}
-	var left []legacyCopyReceipt
+	left := slices.Clone(keep)
 	var failed []error
 	for _, c := range proven {
 		deleteErr := err
@@ -92,10 +96,13 @@ func retryLegacyCopyReceipts(paths runtimePaths, account string) error {
 		return err
 	}
 	var proven []legacyLinkCopy
+	var awaiting []legacyCopyReceipt
 	for _, r := range receipts[account] {
-		if !r.Revoked || r.Digest == "" || !slices.ContainsFunc(legacyLinkServices, func(s string) bool {
-			return r.Service == oauthLegacyCleanupServicePrefix+string(legacyLinkState(s))
-		}) {
+		switch {
+		case !legacyCopyReceiptNamesACopy(r):
+			continue
+		case !r.Revoked:
+			awaiting = append(awaiting, r)
 			continue
 		}
 		value, found, err := backend.Get(context.Background(), r.Service, account, SecretStoreForbidUI)
@@ -106,7 +113,54 @@ func retryLegacyCopyReceipts(paths runtimePaths, account string) error {
 			proven = append(proven, legacyLinkCopy{account: account, service: r.Service, value: value})
 		}
 	}
-	return deleteProvenLegacyLinkCopies(paths, account, proven)
+	return deleteProvenLegacyLinkCopies(paths, account, proven, awaiting)
+}
+
+// legacyCopyReceiptNamesACopy: a digest of a cleanup copy's item, nothing else.
+func legacyCopyReceiptNamesACopy(r legacyCopyReceipt) bool {
+	return cloudReleaseSHA256Pattern.MatchString(r.Digest) && slices.ContainsFunc(legacyLinkServices, func(s string) bool {
+		return r.Service == oauthLegacyCleanupServicePrefix+string(legacyLinkState(s))
+	})
+}
+
+// awaitLegacyCopyRecord replaces account's receipt with one awaiting the
+// App's record for each copy proven revoked.
+func awaitLegacyCopyRecord(paths runtimePaths, account string, proven []legacyLinkCopy) error {
+	if len(proven) == 0 {
+		return nil
+	}
+	awaiting := make([]legacyCopyReceipt, len(proven))
+	for i, c := range proven {
+		awaiting[i] = legacyCopyReceipt{Service: c.service, Digest: legacyCopyDigest(c.value)}
+	}
+	return saveLegacyCopyReceipt(paths, account, awaiting)
+}
+
+// confirmAwaitedLegacyCopies reports again a sign-out an earlier setup proved
+// (each copy awaiting the App's record was revoked before it was written;
+// legacy_cleanup_complete is idempotent on the App). Once the App answers with
+// its record, those receipts become delete authority and their copies go;
+// recorded counts them. An App that can't answer (one rolled back) keeps them.
+func confirmAwaitedLegacyCopies(paths runtimePaths, cfg runtimeConfig) (recorded int, err error) {
+	receipts, err := legacyCopyReceipts(paths)
+	awaiting := slices.ContainsFunc(receipts[cfg.ProfileID], func(r legacyCopyReceipt) bool { return !r.Revoked && legacyCopyReceiptNamesACopy(r) })
+	if err != nil || !awaiting {
+		return 0, err
+	}
+	if err := legacyCleanupReport(paths, cfg); err != nil {
+		return 0, err
+	}
+	confirmed := slices.Clone(receipts[cfg.ProfileID])
+	for i := range confirmed {
+		if !confirmed[i].Revoked {
+			confirmed[i].Revoked = true
+			recorded++
+		}
+	}
+	if err := saveLegacyCopyReceipt(paths, cfg.ProfileID, confirmed); err != nil {
+		return recorded, err
+	}
+	return recorded, retryLegacyCopyReceipts(paths, cfg.ProfileID)
 }
 
 // saveLegacyCopyReceipt replaces account's receipt with left, under the
@@ -140,10 +194,6 @@ func saveLegacyCopyReceipt(paths runtimePaths, account string, left []legacyCopy
 			}
 			return nil
 		}
-		raw, err := json.MarshalIndent(receipts, "", "  ")
-		if err != nil {
-			return err
-		}
-		return writeFileAtomic(legacyCopyReceiptsFile(paths), append(raw, '\n'), 0o600)
+		return writeJSONFile(legacyCopyReceiptsFile(paths), receipts, 0o600) // synced: the note before a report must outlive a crash
 	})
 }

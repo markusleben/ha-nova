@@ -116,26 +116,6 @@ func secretServiceCollectionLocked(conn *dbus.Conn, collection dbus.ObjectPath) 
 	return value, nil
 }
 
-func openSecretServiceSession(conn *dbus.Conn) (dbus.ObjectPath, func(), error) {
-	ctx, cancel := context.WithTimeout(context.Background(), relayAuthTokenPreflightTimeout)
-	var output dbus.Variant
-	var session dbus.ObjectPath
-	err := conn.Object(secretServiceDBusName, dbus.ObjectPath(secretServiceDBusPath)).
-		CallWithContext(ctx, secretServiceDBusInterface+".OpenSession", 0, "plain", dbus.MakeVariant("")).
-		Store(&output, &session)
-	cancel()
-	if err != nil {
-		return "", func() {}, normalizeLinuxKeyringErrorWithoutAmbiguousClassification(err)
-	}
-
-	closeSession := func() {
-		closeCtx, closeCancel := context.WithTimeout(context.Background(), relayAuthTokenPreflightTimeout)
-		defer closeCancel()
-		_ = conn.Object(secretServiceDBusName, session).CallWithContext(closeCtx, "org.freedesktop.Secret.Session.Close", 0).Err
-	}
-	return session, closeSession, nil
-}
-
 func newSecretServiceSecret(session dbus.ObjectPath, secret []byte) secretServiceSecret {
 	return secretServiceSecret{
 		Session:     session,

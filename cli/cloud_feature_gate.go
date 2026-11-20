@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 )
 
 const HAOfficialNOVAAppSlug = "2368fcfa_ha_nova_relay"
@@ -29,6 +30,9 @@ var cloudRemoteSecureStorageBoundaryAvailable = platformCloudRemoteSecureStorage
 var (
 	cloudRemoteReleaseEnabled   bool
 	cloudRemoteReleasePlatforms map[string]struct{}
+	// cloudRemoteReleaseProof hashes the executable this process started
+	// from, once, on the first question whether Link may run.
+	cloudRemoteReleaseProof = func() bool { return false }
 )
 
 var cloudRemoteDevAppSlugPattern = regexp.MustCompile(
@@ -38,9 +42,13 @@ var cloudRemoteReleaseVersionPattern = regexp.MustCompile(
 	`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-rc[1-9]\d*)?$`,
 )
 
+// configureCloudRemoteFeature runs before dispatch: it reads the release
+// metadata and opens the executable this process started from, so a later
+// update can't change what the deferred digest check reads.
 func configureCloudRemoteFeature(paths runtimePaths) {
 	cloudRemoteReleaseEnabled = false
 	cloudRemoteReleasePlatforms = nil
+	cloudRemoteReleaseProof = func() bool { return false }
 	identity := cloudRemoteBuildIdentityForRuntime()
 	if identity.Development || identity.Disabled || !identity.Official {
 		return
@@ -59,23 +67,33 @@ func configureCloudRemoteFeature(paths runtimePaths) {
 		}
 		platforms[platform] = struct{}{}
 	}
-	if len(platforms) == 0 {
+	if _, listed := platforms[runtime.GOOS]; !listed {
 		return
 	}
-	if !cloudRemoteReleaseRuntimeMatches(paths, metadata) {
+	proof, matches := cloudRemoteReleaseRuntimeMatches(paths, metadata)
+	if !matches {
 		return
 	}
 	cloudRemoteReleaseEnabled = true
 	cloudRemoteReleasePlatforms = platforms
+	cloudRemoteReleaseProof = sync.OnceValue(proof)
 }
 
+// cloudRemoteReleaseVerified: an official release whose executable matches
+// its signed digest (the first call checks it).
+func cloudRemoteReleaseVerified() bool {
+	return cloudRemoteReleaseEnabled && cloudRemoteReleaseProof()
+}
+
+// cloudRemoteReleaseRuntimeMatches checks the metadata and the files now and
+// returns the digest check of the opened executable for later.
 func cloudRemoteReleaseRuntimeMatches(
 	paths runtimePaths,
 	metadata versionJSON,
-) bool {
+) (func() bool, bool) {
 	baseVersion, validVersion := cloudRemoteReleaseBaseVersion(Version)
 	if !validVersion || metadata.SkillVersion != baseVersion {
-		return false
+		return nil, false
 	}
 
 	bundle, err := loadBundleMetadata(paths)
@@ -85,24 +103,35 @@ func cloudRemoteReleaseRuntimeMatches(
 		bundle.OS != bundlePlatformOS() ||
 		bundle.Arch != bundlePlatformArch() ||
 		bundle.BinaryName != publicBinaryName() {
-		return false
+		return nil, false
 	}
 
 	executablePath, err := executablePathForInstallSource()
 	if err != nil {
-		return false
+		return nil, false
 	}
-	executable, err := os.Stat(executablePath)
-	if err != nil || !executable.Mode().IsRegular() {
-		return false
+	if executable, err := os.Stat(executablePath); err != nil || !executable.Mode().IsRegular() {
+		return nil, false // never open a pipe or device: it could block the start
 	}
-	installed, err := os.Stat(
+	file, err := os.Open(executablePath)
+	if err != nil {
+		return nil, false
+	}
+	executable, err := file.Stat()
+	installed, installedErr := os.Stat(
 		filepath.Join(paths.InstallRoot, publicBinaryName()),
 	)
-	return err == nil &&
-		installed.Mode().IsRegular() &&
-		os.SameFile(executable, installed) &&
-		verifyCloudReleaseProvenance(bundle, metadata, executablePath)
+	if err != nil || installedErr != nil ||
+		!executable.Mode().IsRegular() ||
+		!installed.Mode().IsRegular() ||
+		!os.SameFile(executable, installed) {
+		file.Close()
+		return nil, false
+	}
+	return func() bool {
+		defer file.Close()
+		return verifyCloudReleaseProvenance(bundle, metadata, file)
+	}, true
 }
 
 func cloudRemoteReleaseBaseVersion(version string) (string, bool) {
@@ -130,11 +159,8 @@ func cloudRemoteFeatureAvailable() bool {
 	if !identity.Official {
 		return false
 	}
-	if !cloudRemoteReleaseEnabled {
-		return false
-	}
 	_, enabled := cloudRemoteReleasePlatforms[runtime.GOOS]
-	return enabled
+	return enabled && cloudRemoteReleaseVerified()
 }
 
 func cloudRemotePlatformSupported(platform string) bool {

@@ -30,10 +30,10 @@ echo ""
 # in the release-prep PR — README describes the STABLE release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 14530 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–14530 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 13600 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–13600 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–14530 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–13600 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──
@@ -173,47 +173,39 @@ echo "[9] Relay route count"
 # The standalone listener's routes. 7 until layer 4e, then 9: the two ask routes
 # (POST /gate/v1/ask, POST /gate/v1/phone) without which a standalone container
 # could never approve a typed request; the App's listeners have them already.
+# 7 again since 0.34 dropped the standalone GET /home and POST /pair.
 ROUTE_COUNT=$(grep -c "router.register" "$REPO_ROOT/nova/src/index.ts" 2>/dev/null || true)
-if (( ROUTE_COUNT <= 9 )); then
-  pass "Relay has ${ROUTE_COUNT} routes (≤9 — still minimal)"
+if (( ROUTE_COUNT <= 7 )); then
+  pass "Relay has ${ROUTE_COUNT} routes (≤7 — still minimal)"
 else
   fail "Relay has ${ROUTE_COUNT} routes — growing beyond 'minimal'. Review architecture claims."
 fi
 
-echo "[9c] Home Base stays read-only and Supervisor-ingress-only"
-HOME_HITS=$(count_matches "ha/rest-client\|ha/ws-client\|coreClient\|sendMessage\|entity_id\|service_data" \
-  "$REPO_ROOT/nova/src/http/handlers/home.ts")
-if (( HOME_HITS == 0 )); then
-  pass "Home Base has no HA client or mutation imports"
-else
-  fail "Home Base contains ${HOME_HITS} HA client/mutation hits — it must remain read-only status."
-fi
+echo "[9c] The App's owner page and Cloud routes stay Supervisor-ingress-only"
 if grep -q 'panel_admin: true' "$REPO_ROOT/nova/config.yaml" \
   && grep -q 'ingress_entry: /home' "$REPO_ROOT/nova/config.yaml" \
   && grep -q 'SUPERVISOR_INGRESS_PEERS' "$REPO_ROOT/nova/src/security/ingress-identity.ts" \
-  && grep -q 'resolveIngressIdentity' "$REPO_ROOT/nova/src/http/handlers/home.ts" \
+  && grep -q '"GET", "/home", { auth: "identity"' "$REPO_ROOT/nova/src/runtime/ingress-routes.ts" \
   && grep -q 'resolveIngressIdentity' "$REPO_ROOT/nova/src/http/handlers/cloud.ts" \
-  && grep -q 'resolveIngressIdentity' "$REPO_ROOT/nova/src/runtime/ingress-listener.ts" \
-  && grep -q 'HOME_CONTENT_SECURITY_POLICY' "$REPO_ROOT/nova/src/http/handlers/home.ts"; then
-  pass "Home Base and Cloud routes share the strict Supervisor ingress gate; Home Base keeps admin-panel ingress and CSP"
+  && grep -q 'resolveIngressIdentity' "$REPO_ROOT/nova/src/runtime/ingress-listener.ts"; then
+  pass "Owner page and Cloud routes share the strict Supervisor ingress gate behind the admin-only panel"
 else
-  fail "Home Base and Cloud routes must share the strict Supervisor ingress gate; Home Base must keep admin-only ingress and CSP."
+  fail "Owner page and Cloud routes must share the strict Supervisor ingress gate behind the admin-only panel."
 fi
 
 # Pairing is a generic credential exchange, never a second HA API surface.
-echo "[9b] Pairing stays transport-only and narrowly bearer-exempt"
-PAIR_HITS=$(count_matches "ha/rest-client\|ha/ws-client\|coreClient\|wsClient\|entity_id\|service_data" \
-  "$REPO_ROOT/nova/src/http/handlers/pair.ts" "$REPO_ROOT/nova/src/security/pairing.ts")
+echo "[9b] Pairing stays transport-only; the standalone Relay has no bearer exemption"
+PAIR_HITS=$(count_matches "ha/rest-client\|ha/ws-client\|coreClient\|entity_id\|service_data" \
+  "$REPO_ROOT/nova/src/security/pairing-v1.ts" "$REPO_ROOT/nova/src/http/handlers/pair-v1.ts")
 if (( PAIR_HITS == 0 )); then
   pass "Pairing has no HA client or domain imports"
 else
   fail "Pairing contains ${PAIR_HITS} HA client/domain hits — it must remain a generic credential exchange."
 fi
-if grep -q 'const PAIR_PATH = "/pair"' "$REPO_ROOT/nova/src/index.ts" \
-  && grep -q 'bearerExemptRoutes: new Set(\[PAIR_ROUTE, HOME_ROUTE\])' "$REPO_ROOT/nova/src/index.ts"; then
-  pass "Only POST /pair and ingress-gated GET /home bypass relay bearer auth"
+if ! grep -q 'bearerExempt' "$REPO_ROOT/nova/src/http/server.ts" "$REPO_ROOT/nova/src/index.ts"; then
+  pass "Every standalone route needs the relay token"
 else
-  fail "Bearer exemptions must stay pinned to POST /pair and ingress-gated GET /home."
+  fail "The standalone Relay must not exempt a route from relay token auth."
 fi
 
 # ── 10. Keychain usage exists ──

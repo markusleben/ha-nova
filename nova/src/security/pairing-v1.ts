@@ -17,7 +17,6 @@ import type {
 } from "./pairing-v1-types.js";
 
 export type {
-  ConsumedResponseStore,
   FinishResult,
   PairingPhase,
   PairingV1Deps,
@@ -56,7 +55,6 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
   // Armed starts keep their own budget: LAN noise cannot spend it, and the
   // owner's ingress session still cannot flood handshakes.
   const armedRateLimiter = createPairingRateLimiter();
-  const legacyResponseStore = deps.legacyResponseStore;
 
   let phase: PairingPhase = "inactive";
   let active: ActiveCode | null = null;
@@ -272,9 +270,7 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
     );
     // Idempotent retry (survives restart): a matching handshake id + identical
     // KE3 returns the exact persisted ciphertext; a divergent retry is generic.
-    const persisted =
-      deps.registry.getPairingResponse(handshakeId, contextKey, now()) ??
-      legacyResponseStore?.get(handshakeId, contextKey);
+    const persisted = deps.registry.getPairingResponse(handshakeId, contextKey, now());
     if (persisted) {
       return persisted.ke3Digest === digest(ke3)
         ? { ok: true, responseB64: persisted.ciphertextB64 }

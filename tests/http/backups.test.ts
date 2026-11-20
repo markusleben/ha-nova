@@ -24,7 +24,8 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 
 import {
   createBackupsHandler,
-  MAX_SNAPSHOT_FILES
+  MAX_SNAPSHOT_FILES,
+  summarizeSnapshotStore
 } from "../../nova/src/http/handlers/backups.js";
 import { HttpError } from "../../nova/src/http/errors.js";
 
@@ -96,6 +97,52 @@ describe("backups handler", () => {
     const scenes = (await call({ action: "list", category: "scenes" })) as Array<{ file: string }>;
     expect(scenes).toHaveLength(1);
     expect(scenes[0]?.file).toContain("movie");
+  });
+
+  it("summarizes the store exactly as the list counts it", async () => {
+    const outside = mkdtempSync(join(tmpdir(), "nova-backups-outside-"));
+    try {
+      writeFileSync(join(outside, "big.json.gz"), Buffer.alloc(4096));
+      for (const [c, category] of ["automations", "scenes", "scripts"].entries()) {
+        mkdirSync(join(root, category));
+        for (let i = 0; i < 12; i += 1) {
+          const stamp = `20260714T12${String(c).padStart(2, "0")}${String(i).padStart(2, "0")}000Z`;
+          writeFileSync(join(root, category, `n${i}-${stamp}.json.gz`), Buffer.alloc(10 + i * 7 + c));
+        }
+      }
+      writeFileSync(join(root, "scenes", "notes.txt"), "not a snapshot");
+      symlinkSync(join(outside, "big.json.gz"), join(root, "scenes", "leak-20260714T130000000Z.json.gz"));
+
+      const listed = (await call({ action: "list" })) as Array<{ bytes: number; created_at: string }>;
+      expect(listed).toHaveLength(36);
+      expect(listed.map((e) => e.created_at)).toEqual([...listed.map((e) => e.created_at)].sort().reverse());
+      expect(await summarizeSnapshotStore(root)).toEqual({
+        files: 36,
+        bytes: listed.reduce((sum, e) => sum + e.bytes, 0),
+      });
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("stops reading leaves after a failed one and reports the failure", async () => {
+    mkdirSync(join(root, "automations"));
+    for (let i = 0; i < 40; i += 1) {
+      writeFileSync(join(root, "automations", `n${i}-20260714T120000000Z.json.gz`), "x");
+    }
+    let reads = 0;
+    lstatHook.beforeLstat = () => {
+      reads += 1;
+      if (reads === 1) {
+        throw Object.assign(new Error("disk fault"), { code: "EIO" });
+      }
+    };
+    try {
+      await expect(summarizeSnapshotStore(root)).rejects.toThrow("disk fault");
+      expect(reads).toBeLessThanOrEqual(8);
+    } finally {
+      lstatHook.beforeLstat = undefined;
+    }
   });
 
   it("returns an empty list when the store does not exist yet", async () => {

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -261,7 +262,7 @@ func TestFindReadsAliasesOnlyAfterCompactMiss(t *testing.T) {
 	if exit != 0 || result.Total != 1 || result.Matches[0].By != "alias" {
 		t.Fatalf("exit %d, result %+v", exit, result)
 	}
-	got := strings.Join(log.wsTypes(), ",")
+	got := strings.Join(slices.DeleteFunc(log.wsTypes(), func(t string) bool { return !strings.HasPrefix(t, "config/entity_registry/") }), ",") // area and device go out with the compact registry
 	if !strings.HasSuffix(got, "config/entity_registry/list_for_display,config/entity_registry/list,config/entity_registry/get_entries") {
 		t.Fatalf("ws order = %s, want compact, then full, then aliases", got)
 	}

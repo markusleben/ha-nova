@@ -343,7 +343,7 @@ func collectWindowsUninstallRemainingPaths(paths runtimePaths, mode uninstallMod
 		if strings.TrimSpace(candidate) == "" {
 			continue
 		}
-		if _, err := os.Stat(candidate); err == nil {
+		if _, err := os.Lstat(candidate); !isNotExist(err) { // one that can't be checked stays listed
 			remaining = append(remaining, candidate)
 		}
 	}

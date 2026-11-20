@@ -169,7 +169,7 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		}
 		identity := cloudRemoteBuildIdentityForRuntime()
 		_, platformEnabled := cloudRemoteReleasePlatforms[runtime.GOOS]
-		if !identity.Official || !cloudRemoteReleaseEnabled || !platformEnabled {
+		if !identity.Official || !cloudRemoteReleaseVerified() || !platformEnabled {
 			printErr("official Cloud release provenance is not enabled")
 			return 1
 		}

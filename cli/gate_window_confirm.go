@@ -24,6 +24,7 @@ var gateWindowRetry = 5 * time.Second
 type gateConfirm struct {
 	id, lang, text string // id: the stored plan's (gate_ask_join.go)
 	phone          bool
+	registry       bool // the plan is typed because the entity registry couldn't be read
 }
 
 // offered: the plan's window with Confirm for this ask, or nil: the App

@@ -38,14 +38,15 @@ func quietAppCheckSetup(t *testing.T, relayVersion string, registryFails bool, o
 			_, _ = w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry("update.nova_relay_update")}))
 		case "/core":
 			var req struct {
-				Path string `json:"path"`
+				Method string `json:"method"`
+				Path   string `json:"path"`
 			}
 			_ = json.NewDecoder(r.Body).Decode(&req)
-			if req.Path != "/api/states" {
+			if !statesRead(req.Method, req.Path) {
 				http.NotFound(w, r)
 				return
 			}
-			_, _ = w.Write(statesEnvelope(t, []map[string]interface{}{relayUpdateEntity("update.nova_relay_update", "NOVA Relay")}))
+			_, _ = w.Write(statesReply(t, req.Path, []map[string]interface{}{relayUpdateEntity("update.nova_relay_update", "NOVA Relay")}))
 		default:
 			http.NotFound(w, r)
 		}
