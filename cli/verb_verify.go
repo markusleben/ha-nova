@@ -258,94 +258,76 @@ func sceneProbes(e *tierEngine, sceneID string) ([]probe, bool) {
 	return probes, true
 }
 
-// pollProbes reads every pending probe at once, every verifyInterval, until
-// all its checks hold in a settled state or its window closes; every read,
-// its wait for a send slot included, ends by its window's absolute deadline,
-// so probe order never costs a target its reads. Results fold in input
-// order. A slow device still moving at the end is accepted (in progress),
-// not unverified.
+// pollProbes polls every probe on its own, at once, under the session's cap
+// on sends (verifyProbe), so neither probe order nor a slow target costs
+// another its reads. Rows keep the input order.
 func pollProbes(s *relaySession, probes []probe) []verifyRow {
 	rows := make([]verifyRow, len(probes))
-	last := make([]*entityState, len(probes))
-	late := make([]string, len(probes)) // what went wrong after a good read
 	start := time.Now()
-	window := func(p probe) time.Duration {
-		if p.slow {
-			return verifyWindowSlow
-		}
-		return verifyWindowFast
-	}
+	var wg sync.WaitGroup
 	for i, p := range probes {
-		rows[i] = verifyRow{EntityID: p.entityID, Expect: describeChecks(p.checks), Outcome: "unverified"}
+		wg.Go(func() { rows[i] = verifyProbe(s, p, start) })
 	}
-	type read struct {
-		st  *entityState
-		err error
-	}
-	for {
-		reads := make([]*read, len(probes))
-		var wg sync.WaitGroup
-		for i, p := range probes {
-			by := start.Add(window(p))
-			if rows[i].Outcome != "unverified" || !time.Now().Before(by) {
-				continue
-			}
-			if floor := time.Now().Add(100 * time.Millisecond); by.Before(floor) {
-				by = floor
-			}
-			reads[i] = &read{}
-			wg.Go(func() { reads[i].st, reads[i].err = s.stateFresh(p.entityID, by) })
-		}
-		wg.Wait()
-		pending := false
-		for i, p := range probes {
-			if reads[i] == nil {
-				continue
-			}
-			st, err := reads[i].st, reads[i].err
-			switch {
-			case (err != nil || st == nil) && last[i] != nil:
-				// keep the last good observation: a slow read is not a failed device
-				late[i] = map[bool]string{true: "failed", false: "found the entity missing"}[err != nil]
-			case err != nil:
-				rows[i].Observed = "read failed"
-			case st == nil:
-				rows[i].Observed = "missing"
-			default:
-				last[i], late[i] = st, ""
-				rows[i].Observed = describeObserved(p.checks, st)
-				if st.State == "jammed" {
-					rows[i].Outcome = "failed"
-					continue
-				}
-				if !transitionalStates[st.State] && checksHold(p.checks, st) {
-					rows[i].Outcome = "verified"
-					continue
-				}
-			}
-			pending = true
-		}
-		if !pending {
-			break
-		}
-		time.Sleep(verifyInterval)
-	}
-	for i, p := range probes {
-		switch {
-		case rows[i].Outcome != "unverified" || last[i] == nil:
-		case late[i] != "": // the final read failed: never accepted on an older answer
-			rows[i].Note = fmt.Sprintf("last read %q; later reads %s", rows[i].Observed, late[i])
-		case p.slow && transitionalStates[last[i].State]:
-			rows[i].Outcome, rows[i].Note = "accepted", fmt.Sprintf("still %q when the window closed", last[i].State)
-		default: // the device answered, it just did not get there
-			verb := "ended"
-			if unchanged(p, last[i]) {
-				verb = "still"
-			}
-			rows[i].Note = fmt.Sprintf("%s %q after %s (expected %q)", verb, rows[i].Observed, window(p), rows[i].Expect)
-		}
-	}
+	wg.Wait()
 	return rows
+}
+
+// verifyProbe reads p every verifyInterval until all its checks hold in a
+// settled state or its window, counted from start, closes. Every read, its
+// wait for a send slot included, ends with the window (a last one gets at
+// least 100 ms), and no pause outlasts it. A slow
+// device still moving at the end is accepted (in progress), not unverified.
+func verifyProbe(s *relaySession, p probe, start time.Time) verifyRow {
+	window := verifyWindowFast
+	if p.slow {
+		window = verifyWindowSlow
+	}
+	by := start.Add(window)
+	row := verifyRow{EntityID: p.entityID, Expect: describeChecks(p.checks), Outcome: "unverified"}
+	var last *entityState
+	late := "" // what went wrong after a good read
+	for time.Now().Before(by) {
+		readBy := by
+		if floor := time.Now().Add(100 * time.Millisecond); readBy.Before(floor) {
+			readBy = floor // a last read near the end still gets an answer's time
+		}
+		st, err := s.stateFresh(p.entityID, readBy)
+		switch {
+		case (err != nil || st == nil) && last != nil:
+			// keep the last good observation: a slow read is not a failed device
+			late = map[bool]string{true: "failed", false: "found the entity missing"}[err != nil]
+		case err != nil:
+			row.Observed = "read failed"
+		case st == nil:
+			row.Observed = "missing"
+		default:
+			last, late = st, ""
+			row.Observed = describeObserved(p.checks, st)
+			if st.State == "jammed" {
+				row.Outcome = "failed"
+				return row
+			}
+			if !transitionalStates[st.State] && checksHold(p.checks, st) {
+				row.Outcome = "verified"
+				return row
+			}
+		}
+		time.Sleep(min(verifyInterval, time.Until(by)))
+	}
+	switch {
+	case last == nil:
+	case late != "": // the final read failed: never accepted on an older answer
+		row.Note = fmt.Sprintf("last read %q; later reads %s", row.Observed, late)
+	case p.slow && transitionalStates[last.State]:
+		row.Outcome, row.Note = "accepted", fmt.Sprintf("still %q when the window closed", last.State)
+	default: // the device answered, it just did not get there
+		verb := "ended"
+		if unchanged(p, last) {
+			verb = "still"
+		}
+		row.Note = fmt.Sprintf("%s %q after %s (expected %q)", verb, row.Observed, window, row.Expect)
+	}
+	return row
 }
 
 // unchanged: every checked field reads exactly what it read before the
