@@ -177,7 +177,8 @@ window.novaSteps = (h) => {
     if (c.chat && local.chatFlip && (c.chat.state === 'page_on' || c.chat.state === 'page_off')) choices.push(c.chat.state === 'page_on' ? 'chat_off' : 'chat_on');
     // A switch that signs in on the button says so on it too.
     const finish = choices.some((choice) => choice !== 'rule') ? t(status ? 'setup.page.rerun.done_signin' : 'setup.page.control.finish_signin') : finishLabel();
-    return [...(status ? [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.title'), t('setup.page.rerun.lead')), overview ? null : status]
+    return [...(status ? [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.title'), t('setup.page.rerun.lead')), overview ? null : status,
+      ...((h.state().home || {}).notes || []).map(h.note)]
       : head(t('setup.page.control.eyebrow'), t('setup.page.control.title'), t('setup.page.control.lead'))),
       ...(overview ? overview({ window: rows[1], phone: rows[2], chat, link: linkRow }, ruleRows) : [el('ul', { class: 'rows tall' }, rows)]),
       el('div', { class: 'actions' }, asking

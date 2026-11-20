@@ -97,6 +97,7 @@ type relaySession struct {
 	answered     bool             // the Relay has answered at least one request
 	unreachable  error            // transport failure before the Relay ever answered
 	lang         string           // a sealed typed plan's language while it is re-planned (replanStored, apply)
+	gateCode     string           // apply --confirm: the chat code the person typed, for the plan's kept ask (gate_code.go)
 	words        haWords          // and its Home Assistant words (confirm_words.go)
 	flowForms    map[string]error // flow step path → why its form could not be kept: the plan sends it nothing more (formSecretSet, noteFlowForms)
 	replay       map[string]bool  // a cut preview's reads while it is replayed (replayReads); nil otherwise
@@ -140,7 +141,7 @@ func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Dur
 		}
 		if errors.Is(err, errDeviceNeedsRePair) {
 			return nil, &verbFailure{exit: verbExitError, code: "PAIR_AGAIN", message: relayTransportErrorMessage(err), cause: err,
-				next: "Nothing was sent. Tell the user this computer needs to be paired again once (one Home Assistant sign-in, about a minute) and give them the command in the message to run in their own terminal; try again after they say it is done."}
+				next: "Nothing was sent. Tell the user this computer needs to be paired again once (the message says what it takes) and give them the command in the message to run in their own terminal; try again after they say it is done."}
 		}
 		return nil, errors.New(relayTransportErrorMessage(err))
 	}
@@ -415,7 +416,7 @@ func (s *relaySession) exchange(parent context.Context, endpoint string, body []
 	if json.Unmarshal(raw, &envelope) != nil || envelope.OK == nil {
 		return nil, fmt.Errorf("Relay %s response (HTTP %d) is not a valid result envelope", endpoint, resp.StatusCode)
 	}
-	if !*envelope.OK {
+	if !*envelope.OK || resp.StatusCode < 200 || resp.StatusCode > 299 { // only a 2xx with ok: true is a result
 		return nil, &relayCallError{endpoint: endpoint, status: resp.StatusCode, code: envelope.Error.Code, message: envelope.Error.Message}
 	}
 	return envelope.Data, nil

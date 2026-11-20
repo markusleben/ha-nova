@@ -31,6 +31,8 @@ type serverProfileConfig struct {
 	PendingSecureBaseURL string                   `json:"pending_secure_base_url,omitempty"`
 	PendingSpkiPin       string                   `json:"pending_spki_pin,omitempty"`
 	ServerRemoval        *serverRemovalCheckpoint `json:"server_removal,omitempty"`
+	LinkRePair           linkRePairState          `json:"link_repair,omitempty"`
+	LinkRePairOrigin     string                   `json:"link_repair_origin,omitempty"`
 }
 
 // serverProfileFieldKeys are replaced inside one profile while unknown sibling
@@ -39,7 +41,7 @@ var serverProfileFieldKeys = []string{
 	"ha_host", "ha_url", "relay_base_url", "relay_token_file",
 	"profile_id", "relay_instance_id", "route_policy", "cloud",
 	"relay_secure_base_url", "relay_spki_pin", "pending_secure_base_url", "pending_spki_pin",
-	"server_removal",
+	"server_removal", "link_repair", "link_repair_origin",
 }
 
 // Only pre-v3 fields are mirrored at the top level. Cloud and stable profile
@@ -191,6 +193,8 @@ func (d *configDocument) flatProfile(name string) (runtimeConfig, bool) {
 		PendingSecureBaseURL: fields.PendingSecureBaseURL,
 		PendingSpkiPin:       fields.PendingSpkiPin,
 		ServerRemoval:        fields.ServerRemoval,
+		LinkRePair:           fields.LinkRePair,
+		LinkRePairOrigin:     fields.LinkRePairOrigin,
 	}, true
 }
 
@@ -209,6 +213,8 @@ func serverProfileFromRuntime(cfg runtimeConfig) serverProfileConfig {
 		PendingSecureBaseURL: cfg.PendingSecureBaseURL,
 		PendingSpkiPin:       cfg.PendingSpkiPin,
 		ServerRemoval:        cfg.ServerRemoval,
+		LinkRePair:           cfg.LinkRePair,
+		LinkRePairOrigin:     cfg.LinkRePairOrigin,
 	}
 }
 
@@ -246,6 +252,8 @@ func loadRawDefaultProfileConfig(path string) (runtimeConfig, error) {
 		PendingSecureBaseURL: doc.flat.PendingSecureBaseURL,
 		PendingSpkiPin:       doc.flat.PendingSpkiPin,
 		ServerRemoval:        doc.flat.ServerRemoval,
+		LinkRePair:           doc.flat.LinkRePair,
+		LinkRePairOrigin:     doc.flat.LinkRePairOrigin,
 	}
 	return cfg, nil
 }

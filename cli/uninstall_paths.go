@@ -157,7 +157,7 @@ func managedConfigArtifactPaths(paths runtimePaths, purge bool) []string {
 		demoProfilePath(paths),
 	}
 	if purge {
-		pathsList = append(pathsList, paths.ConfigFile)
+		pathsList = append(pathsList, legacyCopyReceiptsFile(paths), paths.ConfigFile)
 	}
 	return pathsList
 }

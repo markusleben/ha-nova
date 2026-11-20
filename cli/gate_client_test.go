@@ -51,6 +51,9 @@ type fakeGate struct {
 	presence    []any            // each open's presence (nil: none sent)
 	aways       int              // op away calls (kept out of ops: they come from their own goroutine)
 	onAway      func()
+	code        string // an open with accept_code: true answers it (the chat code, gate_code_test.go)
+	accepts     []any  // each open's accept_code
+	codeOps     []any  // op code's answers in turn (then approved)
 }
 
 func (g *fakeGate) snapshot() (asks [][]string, ops []string, sends []gateSend) {
@@ -76,7 +79,7 @@ func (g *fakeGate) ask(ctx context.Context, p map[string]any) any {
 			keys = append(keys, fmt.Sprint(request["endpoint"], " ", string(body)))
 		}
 		g.mu.Lock()
-		g.asks, g.ops, g.presence = append(g.asks, keys), append(g.ops, "open"), append(g.presence, p["presence"])
+		g.asks, g.ops, g.presence, g.accepts = append(g.asks, keys), append(g.ops, "open"), append(g.presence, p["presence"]), append(g.accepts, p["accept_code"])
 		id := fmt.Sprint("ask", len(g.asks))
 		g.mu.Unlock()
 		select {
@@ -99,7 +102,20 @@ func (g *fakeGate) ask(ctx context.Context, p map[string]any) any {
 			}
 			return map[string]any{"needed": !g.notNeeded, "ask_id": id, "channels": channels}
 		}
+		if p["accept_code"] == true && g.code != "" {
+			return map[string]any{"needed": !g.notNeeded, "ask_id": id, "channels": []string{"code"}, "code": g.code, "expires_at": time.Now().Add(3 * time.Minute).UnixMilli()}
+		}
 		return map[string]any{"needed": !g.notNeeded, "ask_id": id}
+	case p["op"] == "code":
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		g.ops = append(g.ops, "code "+fmt.Sprint(p["code"]))
+		if len(g.codeOps) > 0 {
+			answer := g.codeOps[0]
+			g.codeOps = g.codeOps[1:]
+			return answer
+		}
+		return map[string]any{"state": "approved", "grant_id": fmt.Sprint("grant-", p["ask_id"])}
 	case p["op"] == "wait" && strings.HasPrefix(fmt.Sprint(p["ask_id"]), "link"):
 		g.mu.Lock()
 		defer g.mu.Unlock()

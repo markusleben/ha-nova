@@ -47,11 +47,20 @@ func relayAskSay(lang string, s *relaySession, prompted storedPlan, env *verbEnv
 		return confirmT(lang, "say.relay_ask_container")
 	}
 	switch me := s.gateMe(); {
+	case me.window && s.windowHere() && relayPlanFits(prompted) && me.noLink: // no phone to name (MAR-244 §2)
+		env.NextStep = strings.Replace(env.NextStep, channelAsks[channelRelay]+" asks them", "a confirmation window on their computer, or the NOVA page in Home Assistant, asks them", 1)
+		return confirmT(lang, "say.relay_window_ask_page")
 	case me.window && s.windowHere() && relayPlanFits(prompted):
-		env.NextStep = strings.Replace(env.NextStep, channelAsks[channelRelay]+" asks them", "a confirmation window on their computer, or their linked phone or Home Assistant (the NOVA page), asks them", 1)
+		env.NextStep = strings.Replace(env.NextStep, channelAsks[channelRelay]+" asks them", "a confirmation window on their computer, or their phone if one is linked, or the NOVA page in Home Assistant, asks them", 1)
 		return confirmT(lang, "say.relay_window_ask")
+	case me.code == "on" && s.gateCodeHere(): // the shell's apply answers with the App's chat code (gate_code.go)
+		env.NextStep = strings.Replace(env.NextStep, channelAsks[channelRelay]+" asks them", "the NOVA App answers with a one-time code for the user to type back (its `say` shows it), or the NOVA page asks them", 1)
+		return confirmT(lang, "say.relay_code_ask")
 	case me.why == "legacy_cleanup_pending":
 		return confirmT(lang, "say.relay_ask") + " " + gateWindowWhy(lang, me.why, s.server)
+	case me.noLink: // no phone to name: the page, and how to link one (MAR-244 §2)
+		env.NextStep = strings.Replace(env.NextStep, channelAsks[channelRelay]+" asks them", "the NOVA page in Home Assistant asks them", 1)
+		return confirmT(lang, "say.relay_ask_page", "command", confirmPhoneCommand(activeServerProfile()))
 	}
 	return confirmT(lang, "say.relay_ask")
 }
@@ -176,7 +185,7 @@ func (s *relaySession) gateOn() (bool, error) {
 	if known {
 		return on, nil
 	}
-	on, window, err := s.readGate()
+	on, window, code, err := s.readGate()
 	seen := gateSeen(s.paths, s.server)
 	switch {
 	case err != nil && seen:
@@ -195,7 +204,7 @@ func (s *relaySession) gateOn() (bool, error) {
 	if s.gate == nil {
 		s.gate = &relayGate{}
 	}
-	s.gate.checked, s.gate.on, s.gate.window = true, on, on && window
+	s.gate.checked, s.gate.on, s.gate.window, s.gate.code = true, on, on && window, on && code
 	return on, nil
 }
 
@@ -204,17 +213,17 @@ func (s *relaySession) gateOn() (bool, error) {
 // has a time of its own, the reserve a check leaves (afterCheck): the checks
 // before it may have spent the session's read budget (a large home or a
 // slow Link, #827).
-func (s *relaySession) readGate() (on, window bool, err error) {
+func (s *relaySession) readGate() (on, window, code bool, err error) {
 	ctx, cancel := context.WithTimeout(planAsks, afterCheck)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(s.transport.BaseURL, "/")+"/health", nil)
 	if err != nil {
-		return false, false, err
+		return false, false, false, err
 	}
 	req.Header.Set("Authorization", "Bearer "+s.transport.Credential)
 	resp, err := s.transport.Client.Do(req)
 	if err != nil {
-		return false, false, err
+		return false, false, false, err
 	}
 	defer resp.Body.Close()
 	raw, err := readAllLimited(resp.Body, maxRelayResponseBytes)
@@ -223,12 +232,13 @@ func (s *relaySession) readGate() (on, window bool, err error) {
 		Data struct {
 			Gate   int `json:"gate"`
 			Window int `json:"window"`
+			Code   int `json:"code"`
 		} `json:"data"`
 	}
 	if err != nil || resp.StatusCode != http.StatusOK || json.Unmarshal(raw, &health) != nil || !health.OK {
-		return false, false, fmt.Errorf("the Relay's health answer (HTTP %d) can't be read", resp.StatusCode)
+		return false, false, false, fmt.Errorf("the Relay's health answer (HTTP %d) can't be read", resp.StatusCode)
 	}
-	return health.Data.Gate == 1, health.Data.Window == 1, nil
+	return health.Data.Gate == 1, health.Data.Window == 1, health.Data.Code == 1, nil
 }
 
 // gateSeen: this server profile once saw the gate (config.json; user-writable,

@@ -13,6 +13,7 @@
   const lists = typeof Intl.ListFormat === 'function' ? new Intl.ListFormat(language, { type: 'conjunction' }) : null;
   const screenEl = document.getElementById('screen');
   const dotsEl = document.getElementById('dots');
+  const serverEl = document.getElementById('server');
   const statusEl = document.getElementById('status');
   const finalScreens = ['done', 'closed', 'saved', 'skipped', 'demo', 'incomplete', 'finished', 'failed', 'stopped', 'idle', 'lost', 'elsewhere'];
   const steps = { looking: 1, found: 1, noclient: 1, connect: 2, control: 3, home: 4, done: 4, closed: 4, skipped: 3, incomplete: 4 };
@@ -312,6 +313,8 @@
     screenEl.classList.toggle('enter', changed);
     lastScreen = state.screen;
     renderDots(state.screen);
+    serverEl.hidden = !state.server; // a named server profile (MAR-241)
+    serverEl.textContent = !state.server ? '' : state.ha ? t('setup.page.server_at', { server: state.server, ha: state.ha }) : t('setup.page.server', { server: state.server });
     screenEl.replaceChildren(...(screens[state.screen] || screens.failed)().filter(Boolean));
     if (changed) {
       // A new screen: say its title once and move focus to it.

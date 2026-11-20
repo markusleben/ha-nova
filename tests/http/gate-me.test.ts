@@ -19,7 +19,7 @@ describe("this computer's window status", () => {
   it("returns only status and never caches it", async () => {
     const c = context();
     const handler = createGateMeHandler({ list: () => [record] }, async () => [{ id: "owner", is_owner: true, is_active: true }]);
-    expect(await handler(c)).toEqual({ window: true, why: "on" });
+    expect(await handler(c)).toEqual({ window: true, why: "on", phone: false, code: "off" });
     expect(c.response.setHeader).toHaveBeenCalledWith("cache-control", "no-store");
   });
 
@@ -33,7 +33,7 @@ describe("this computer's window status", () => {
   it("gives a shared principal no window and no owner lookup", async () => {
     const users = vi.fn();
     const handler = createGateMeHandler({ list: () => [record] }, users);
-    expect(await handler({ ...context(), principal: { kind: "shared" } })).toEqual({ window: false, why: "device" });
+    expect(await handler({ ...context(), principal: { kind: "shared" } })).toEqual({ window: false, why: "device", phone: false, code: "off" });
     expect(users).not.toHaveBeenCalled();
   });
 });

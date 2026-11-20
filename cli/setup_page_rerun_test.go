@@ -332,3 +332,26 @@ func TestSetupPageRerunSendsAnOldAppToTheAppPage(t *testing.T) {
 		t.Fatalf("exit %d\n%s", code, stdout)
 	}
 }
+
+// MAR-242: the re-run screen shows the old sign-in cleanup's result as soon
+// as it is known, not only once setup ends.
+func TestSetupPageRerunShowsTheCleanupNoteRightAway(t *testing.T) {
+	paths, cfg, state, marker := setupCompletedInstallFixture(t)
+	stubRerunApp(t, true, chatAppsHA{version: "2026.10.1", appVersion: "0.11.0", present: true}, nil)
+	applies, pending := legacyCleanupApplies, legacyCleanupPending
+	t.Cleanup(func() { legacyCleanupApplies, legacyCleanupPending = applies, pending })
+	legacyCleanupApplies = func() bool { return true }
+	legacyCleanupPending = func(runtimePaths, runtimeConfig) (bool, error) {
+		return false, errors.New("the NOVA App did not answer")
+	}
+	page, stdout, done := startSetupPageFlowWith(t, "", rerunFlow(paths, cfg, state, marker))
+
+	rerun := page.waitFor("the re-run screen", accepting("finish"))
+	if rerun.Screen != "rerun" || rerun.Home == nil || len(rerun.Home.Notes) != 1 || rerun.Home.Notes[0].Key != "setup.cleanup.incomplete" {
+		t.Fatalf("re-run = %s, home %+v", rerun.Screen, rerun.Home)
+	}
+	page.click("finish", "")
+	if code := setupPageExit(t, done, stdout); code != 0 || page.ui.snapshot().Home == nil || len(page.ui.snapshot().Home.Notes) != 1 {
+		t.Fatalf("exit %d, home %+v", code, page.ui.snapshot().Home)
+	}
+}

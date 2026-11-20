@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
 
 type legacyCleanupFixture struct {
+	paths    runtimePaths // its receipts (legacy_link_copy_receipt.go)
 	backend  *memoryOAuthSecretBackend
 	legacy   map[string]string // 0.31 items by service
 	locked   bool              // reading an old item needs a macOS prompt
@@ -17,11 +20,16 @@ type legacyCleanupFixture struct {
 	revoked  []string          // refresh tokens, in order
 	reported int
 	events   []string
+	cause    error // why the last run stopped
 }
 
 func newLegacyCleanupFixture(t *testing.T) *legacyCleanupFixture {
 	t.Helper()
-	f := &legacyCleanupFixture{backend: newMemoryOAuthSecretBackend(), legacy: map[string]string{}}
+	dir := t.TempDir()
+	f := &legacyCleanupFixture{paths: runtimePaths{ConfigDir: dir, ConfigFile: filepath.Join(dir, "config.json")}, backend: newMemoryOAuthSecretBackend(), legacy: map[string]string{}}
+	if err := os.WriteFile(f.paths.ConfigFile, []byte(`{"schema_version":1,"profile_id":"default"}`), 0o600); err != nil { // a receipt is kept only for a live profile
+		t.Fatal(err)
+	}
 	saved := []any{legacyCleanupApplies, legacyLinkSecretRead, legacyCleanupBackend, legacyLinkRevoke, legacyCleanupPending, legacyCleanupReport, legacyCleanupPromptContext}
 	keep, onOS := legacyLinkCopyKeep, legacyCopiesOnThisOS
 	legacyLinkCopyKeep = func(_ runtimePaths, _ string, write func() error) error { return write() } // its guard: TestLegacyLinkCopyIsKeptOnlyForALiveProfile
@@ -69,7 +77,8 @@ func legacyTestEnvelope(state OAuthSecretState, account, token string) string {
 
 func (f *legacyCleanupFixture) run(prompt bool) (legacyCleanupOutcome, int, int) {
 	intros := 0
-	outcome, revoked := finishLegacyLinkCleanup(runtimePaths{}, runtimeConfig{ProfileID: "default"}, prompt, func() { intros++ })
+	outcome, revoked, cause := finishLegacyLinkCleanup(f.paths, runtimeConfig{ProfileID: "default"}, prompt, func() { intros++ })
+	f.cause = cause
 	return outcome, revoked, intros
 }
 
@@ -105,7 +114,7 @@ func TestLegacyLinkCleanupReportsAProfileWithoutOldSignInsWithoutAsking(t *testi
 		t.Fatalf("reads %v, want the three old Link items", f.reads)
 	}
 	f.reads = nil
-	if outcome, _ := finishLegacyLinkCleanup(runtimePaths{}, runtimeConfig{}, false, nil); outcome != legacyCleanupComplete || len(f.reads) != 0 {
+	if outcome, _, _ := finishLegacyLinkCleanup(f.paths, runtimeConfig{}, false, nil); outcome != legacyCleanupComplete || len(f.reads) != 0 {
 		t.Fatalf("a profile that never had Link: outcome %d, reads %v", outcome, f.reads)
 	}
 }
@@ -140,7 +149,7 @@ func TestLegacyLinkCleanupNeverAsksWithoutADesktopSession(t *testing.T) {
 	}
 }
 
-func TestLegacyLinkCleanupRevokesEveryOldSignInOnceAndKeepsCopies(t *testing.T) {
+func TestLegacyLinkCleanupRevokesEveryOldSignInOnceAndRemovesItsCopyOnceRecorded(t *testing.T) {
 	f := newLegacyCleanupFixture(t)
 	f.legacy[oauthSecretCurrentService] = legacyTestEnvelope(OAuthSecretCurrent, "default", "old-current")
 	f.legacy[oauthSecretRetiringService] = legacyTestEnvelope(OAuthSecretRetiring, "default", "old-retiring")
@@ -162,17 +171,9 @@ func TestLegacyLinkCleanupRevokesEveryOldSignInOnceAndKeepsCopies(t *testing.T) 
 		t.Fatalf("prompts %d, want one per present item: %v", prompts, f.reads)
 	}
 
-	// A later setup verifies the kept copies again and never asks for the
-	// old items, which stay where they are.
-	f.reads, f.revoked = nil, nil
-	outcome, revoked, intros = f.run(true)
-	if outcome != legacyCleanupComplete || revoked != 2 || intros != 0 {
-		t.Fatalf("rerun: outcome %d, revoked %d, intros %d", outcome, revoked, intros)
-	}
-	for _, read := range f.reads {
-		if read != string(SecretStoreForbidUI)+":"+oauthSecretPendingService {
-			t.Fatalf("rerun read an old item that has a copy: %v", f.reads)
-		}
+	// Recorded by the App: the copies go, and no receipt is left.
+	if f.copies() != 0 || f.receipt() {
+		t.Fatalf("copies %d, receipt %v after the App recorded the cleanup", f.copies(), f.receipt())
 	}
 }
 
@@ -182,8 +183,8 @@ func TestLegacyLinkCleanupRetryAfterAFailedRevocationAsksNothing(t *testing.T) {
 	f.locked = true
 	revoke := legacyLinkRevoke
 	legacyLinkRevoke = func(context.Context, OAuthSecretEnvelope) error { return errors.New("Home Assistant did not answer") }
-	if outcome, _, intros := f.run(true); outcome != legacyCleanupIncomplete || intros != 1 || f.reported != 0 {
-		t.Fatalf("failed revoke: outcome %d, intros %d, reported %d", outcome, intros, f.reported)
+	if outcome, _, intros := f.run(true); outcome != legacyCleanupIncomplete || intros != 1 || f.reported != 0 || f.receipt() || f.copies() != 1 {
+		t.Fatalf("failed revoke: outcome %d, intros %d, reported %d, receipt %v, copies %d", outcome, intros, f.reported, f.receipt(), f.copies())
 	}
 	legacyLinkRevoke = revoke
 	f.reads = nil
@@ -251,12 +252,83 @@ func TestLegacyLinkCleanupFailsClosed(t *testing.T) {
 }
 
 func TestLegacyLinkCleanupTellsTheRetry(t *testing.T) {
-	newLegacyCleanupFixture(t)
+	f := newLegacyCleanupFixture(t)
 	legacyCleanupReport = func(runtimePaths, runtimeConfig) error { return errors.New("offline") }
 	var out strings.Builder
-	note := printLegacyLinkCleanup(&out, runtimePaths{}, runtimeConfig{ProfileID: "default"}, true)
-	if out.Len() != 0 || !strings.Contains(note, "run: ha-nova setup") || !strings.Contains(note, "Everything else works") {
+	note := printLegacyLinkCleanup(&out, f.paths, runtimeConfig{ProfileID: "default"}, true).plain()
+	if out.Len() != 0 || !strings.Contains(note, "run: ha-nova setup") || !strings.Contains(note, "Everything else works") ||
+		!strings.Contains(note, "What stopped it: the NOVA App didn't record it (offline).") {
 		t.Fatalf("printed %q, closing line %q", out.String(), note)
+	}
+}
+
+// macOS refuses the old version's item without a prompt by more than one
+// code (errSecAuthFailed maps to a locked store): in a person's setup, the
+// one prompt follows any refusal, after the introduction (rc4 on a real Mac
+// stopped silently here).
+func TestLegacyLinkCleanupAsksAfterAnyRefusalWithoutUI(t *testing.T) {
+	for _, refusal := range []CloudErrorCode{CloudErrSecretStoreLocked, CloudErrTimeout, CloudErrSecretStore, CloudErrSecretUIForbidden} {
+		f := newLegacyCleanupFixture(t)
+		f.legacy[oauthSecretCurrentService] = legacyTestEnvelope(OAuthSecretCurrent, "default", "old-current")
+		read := legacyLinkSecretRead
+		legacyLinkSecretRead = func(ctx context.Context, service, account string, ui SecretStoreUIPolicy) (string, bool, error) {
+			if ui == SecretStoreForbidUI && f.legacy[service] != "" {
+				f.reads = append(f.reads, string(ui)+":"+service)
+				return "", false, newCloudError(refusal, "read", nil)
+			}
+			return read(ctx, service, account, ui)
+		}
+		outcome, revoked, intros := f.run(true)
+		if outcome != legacyCleanupComplete || revoked != 1 || intros != 1 || f.reported != 1 {
+			t.Fatalf("%s: outcome %d, revoked %d, intros %d, reported %d, reads %v", refusal, outcome, revoked, intros, f.reported, f.reads)
+		}
+		if outcome, _, intros := f.runFresh(t, refusal, false); outcome != legacyCleanupIncomplete || intros != 0 ||
+			!strings.Contains(f.cause.Error(), "macOS didn't hand over the old sign-in") {
+			t.Fatalf("%s outside setup: outcome %d, intros %d, cause %v", refusal, outcome, intros, f.cause)
+		}
+	}
+}
+
+// runFresh: a new run on the same fixture whose old item macOS refuses with code.
+func (f *legacyCleanupFixture) runFresh(t *testing.T, code CloudErrorCode, prompt bool) (legacyCleanupOutcome, int, int) {
+	t.Helper()
+	_ = f.backend.Delete(context.Background(), oauthLegacyCleanupServicePrefix+string(OAuthSecretCurrent), "default", SecretStoreForbidUI)
+	legacyLinkSecretRead = func(context.Context, string, string, SecretStoreUIPolicy) (string, bool, error) {
+		return "", false, newCloudError(code, "read", nil)
+	}
+	return f.run(prompt)
+}
+
+// Every incomplete run names what stopped it.
+func TestLegacyLinkCleanupNamesWhatStoppedIt(t *testing.T) {
+	cases := map[string]struct {
+		setup func(*legacyCleanupFixture)
+		want  string
+	}{
+		"App answer": {func(*legacyCleanupFixture) {
+			legacyCleanupPending = func(runtimePaths, runtimeConfig) (bool, error) { return false, errors.New("timeout") }
+		}, "the NOVA App's answer couldn't be read (timeout)"},
+		"no desktop": {func(f *legacyCleanupFixture) {
+			f.legacy[oauthSecretCurrentService], f.locked = legacyTestEnvelope(OAuthSecretCurrent, "default", "old"), true
+			legacyCleanupPromptContext = func() bool { return false }
+		}, "only in a terminal on this Mac's own desktop"},
+		"revocation": {func(f *legacyCleanupFixture) {
+			f.legacy[oauthSecretCurrentService] = legacyTestEnvelope(OAuthSecretCurrent, "default", "old")
+			legacyLinkRevoke = func(context.Context, OAuthSecretEnvelope) error { return errors.New("offline") }
+		}, "Home Assistant didn't confirm the old sign-in is signed out (offline)"},
+		"canceled": {func(f *legacyCleanupFixture) {
+			f.legacy[oauthSecretCurrentService] = legacyTestEnvelope(OAuthSecretCurrent, "default", "old")
+			legacyLinkSecretRead = func(context.Context, string, string, SecretStoreUIPolicy) (string, bool, error) {
+				return "", false, newCloudError(CloudErrSecretPromptCanceled, "read", nil)
+			}
+		}, "the macOS password prompt was canceled"},
+	}
+	for name, c := range cases {
+		f := newLegacyCleanupFixture(t)
+		c.setup(f)
+		if outcome, _, _ := f.run(true); outcome != legacyCleanupIncomplete || f.cause == nil || !strings.Contains(f.cause.Error(), c.want) {
+			t.Fatalf("%s: outcome %d, cause %v", name, outcome, f.cause)
+		}
 	}
 }
 
@@ -292,5 +364,107 @@ func TestLegacyLinkCleanupCopiesLiveInTheNewRoot(t *testing.T) {
 	}
 	if validOAuthSecretBackendService(oauthLegacyCleanupServicePrefix + "other") {
 		t.Fatal("an unknown copy accepted")
+	}
+}
+
+func (f *legacyCleanupFixture) copies() int {
+	n := 0
+	for _, service := range legacyLinkServices {
+		if _, found, _ := f.backend.Get(context.Background(), oauthLegacyCleanupServicePrefix+string(legacyLinkState(service)), "default", SecretStoreForbidUI); found {
+			n++
+		}
+	}
+	return n
+}
+
+func (f *legacyCleanupFixture) receipt() bool {
+	receipts, err := legacyCopyReceipts(f.paths)
+	return err != nil || len(receipts["default"]) > 0
+}
+
+func TestLegacyLinkCleanupKeepsTheCopyUntilTheAppRecordsIt(t *testing.T) {
+	f := newLegacyCleanupFixture(t)
+	f.legacy[oauthSecretCurrentService] = legacyTestEnvelope(OAuthSecretCurrent, "default", "old-current")
+	legacyCleanupReport = func(runtimePaths, runtimeConfig) error { return errors.New("the NOVA App did not answer") }
+	if outcome, _, _ := f.run(true); outcome != legacyCleanupIncomplete || f.copies() != 1 || f.receipt() {
+		t.Fatalf("outcome %d, copies %d, receipt %v: a retry resumes from the copy", outcome, f.copies(), f.receipt())
+	}
+}
+
+type failingDeleteBackend struct{ *memoryOAuthSecretBackend }
+
+func (failingDeleteBackend) DeleteExact(context.Context, string, string, string, SecretStoreUIPolicy) error {
+	return errors.New("the Keychain is locked")
+}
+
+func TestLegacyLinkCleanupLeavesAReceiptAndRetriesWhateverTheAppSays(t *testing.T) {
+	f := newLegacyCleanupFixture(t)
+	f.legacy[oauthSecretCurrentService] = legacyTestEnvelope(OAuthSecretCurrent, "default", "old-current")
+	legacyCleanupBackend = func() (OAuthSecretBackend, error) { return failingDeleteBackend{f.backend}, nil }
+	if outcome, _, _ := f.run(true); outcome != legacyCleanupComplete || f.copies() != 1 || !f.receipt() {
+		t.Fatalf("outcome %d, copies %d, receipt %v: a copy setup couldn't remove leaves a receipt", outcome, f.copies(), f.receipt())
+	}
+	raw, _ := os.ReadFile(legacyCopyReceiptsFile(f.paths))
+	if strings.Contains(string(raw), "old-current") || !strings.Contains(string(raw), oauthLegacyCleanupServicePrefix+string(OAuthSecretCurrent)) {
+		t.Fatalf("the receipt names the item, never its secret: %s", raw)
+	}
+	legacyCleanupBackend = func() (OAuthSecretBackend, error) { return f.backend, nil }
+	legacyCleanupPending = func(runtimePaths, runtimeConfig) (bool, error) {
+		return false, errors.New("the NOVA App did not answer")
+	}
+	f.revoked = nil
+	if f.run(true); f.copies() != 0 || f.receipt() || len(f.revoked) != 0 {
+		t.Fatalf("copies %d, receipt %v, revoked again %v after the retry", f.copies(), f.receipt(), f.revoked)
+	}
+	if _, err := os.Stat(legacyCopyReceiptsFile(f.paths)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("an empty receipts file stayed: %v", err)
+	}
+}
+
+// Only a receipt for the exact bytes proven revoked removes a copy: one
+// changed since, one not revoked, or another item removes nothing.
+func TestLegacyLinkCopyReceiptIsNoOtherDeleteAuthority(t *testing.T) {
+	f := newLegacyCleanupFixture(t)
+	current := oauthLegacyCleanupServicePrefix + string(OAuthSecretCurrent)
+	if err := f.backend.Set(context.Background(), current, "default", legacyTestEnvelope(OAuthSecretCurrent, "default", "live"), SecretStoreForbidUI); err != nil {
+		t.Fatal(err)
+	}
+	for name, receipt := range map[string]legacyCopyReceipt{
+		"changed":     {Service: current, Digest: legacyCopyDigest("other bytes"), Revoked: true},
+		"not revoked": {Service: current, Digest: legacyCopyDigest(legacyTestEnvelope(OAuthSecretCurrent, "default", "live"))},
+		"other item":  {Service: "ha-nova.oauth.home-assistant-cloud.current", Digest: legacyCopyDigest(legacyTestEnvelope(OAuthSecretCurrent, "default", "live")), Revoked: true},
+	} {
+		raw, _ := json.Marshal(map[string][]legacyCopyReceipt{"default": {receipt}})
+		if err := os.WriteFile(legacyCopyReceiptsFile(f.paths), raw, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := retryLegacyCopyReceipts(f.paths, "default"); err != nil || f.copies() != 1 {
+			t.Fatalf("%s: err %v, copies %d", name, err, f.copies())
+		}
+	}
+	if err := os.WriteFile(legacyCopyReceiptsFile(f.paths), []byte("null"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveLegacyCopyReceipt(f.paths, "default", []legacyCopyReceipt{{Service: current, Digest: "d", Revoked: true}}); err != nil || !f.receipt() {
+		t.Fatalf("a null receipts file: %v", err)
+	}
+	if err := saveLegacyCopyReceipt(f.paths, "removed-profile", []legacyCopyReceipt{{Service: current, Digest: "d", Revoked: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if receipts, _ := legacyCopyReceipts(f.paths); len(receipts["removed-profile"]) != 0 {
+		t.Fatal("a receipt was kept for a profile that is gone")
+	}
+}
+
+// The App not asking for the cleanup isn't its record (an App rolled back
+// says the same): the copy stays and nothing is signed out again.
+func TestLegacyLinkCleanupKeepsCopiesWhenTheAppDoesNotAsk(t *testing.T) {
+	f := newLegacyCleanupFixture(t)
+	if err := f.backend.Set(context.Background(), oauthLegacyCleanupServicePrefix+string(OAuthSecretCurrent), "default", legacyTestEnvelope(OAuthSecretCurrent, "default", "old-current"), SecretStoreForbidUI); err != nil {
+		t.Fatal(err)
+	}
+	legacyCleanupPending = func(runtimePaths, runtimeConfig) (bool, error) { return false, nil }
+	if outcome, _, _ := f.run(true); outcome != legacyCleanupNotNeeded || f.copies() != 1 || len(f.revoked) != 0 || f.receipt() {
+		t.Fatalf("outcome %d, copies %d, revoked %v, receipt %v", outcome, f.copies(), f.revoked, f.receipt())
 	}
 }

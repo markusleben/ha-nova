@@ -58,8 +58,6 @@ const (
 	reasonSceneUnread          = "INTEGRATION_SCENE_UNREAD"
 	reasonReload               = "RELOAD_UNENUMERATED"
 	reasonListener             = "UNENUMERABLE_LISTENER"
-	reasonListenerUnexpl       = "CALL_SERVICE_LISTENER_UNEXPLAINED"
-	reasonRunListenerUnexpl    = "RUN_EVENT_LISTENER_UNEXPLAINED"
 	reasonDeviceAccess         = "DEVICE_ACCESS"
 	reasonDeviceAccessSibling  = "DEVICE_ACCESS_SIBLING"
 	reasonSwitchAsX            = "SWITCH_AS_X_ACCESS"
@@ -81,6 +79,7 @@ const (
 	noteNoManager              = "NO_LOCAL_CONSUMER_MANAGER" // informational: none installed locally
 	noteSkippedTargets         = "EXPANDED_TARGET_WITHOUT_STATE"
 	noteFilteredTargets        = "EXPANDED_TARGET_FILTERED"
+	noteUnexplainedListener    = "UNEXPLAINED_LISTENER" // a logbook-listened event has a listener no automation explains
 )
 
 // Engine limits (spec §2.2 "Caching and limits"); any cut is LIMIT_CUT.
@@ -162,11 +161,10 @@ var unreadCommandDomains = map[string]bool{
 // Platforms whose entity behaviour is a user-written command or request.
 var userCommandPlatforms = map[string]bool{"command_line": true, "rest": true, "telnet": true, "tcp": true, "serial": true}
 
-// Event types a frontend logbook stream or raw subscription also listens to:
-// an unexplained surplus there is preview, not typed (maintainer default).
-var frontendListenedEvents = map[string]string{
-	"call_service": reasonListenerUnexpl, "automation_triggered": reasonRunListenerUnexpl, "script_started": reasonRunListenerUnexpl,
-}
+// Event types an open logbook stream also listens to: an unexplained
+// surplus there is a listener that doesn't act, a note (maintainer decision
+// A, 2026-11-18, docs/work/2026-11-18-0.33-spec.md §1.2).
+var frontendListenedEvents = map[string]bool{"call_service": true, "automation_triggered": true, "script_started": true}
 
 // Home Assistant's own entity and core service domains. A service of any
 // other domain belongs to an integration: on an access entity it is typed,

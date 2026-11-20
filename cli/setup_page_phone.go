@@ -162,7 +162,7 @@ func (f *setupFlow) pageMovePhone(ctl *setupPageControl, deviceID string) bool {
 	case !asked:
 		ctl.PhoneProblem = setupPageText("setup.page.control.phone_problem", "phone", name)
 	case !allowed:
-		ctl.PhoneProblem = setupPageText("setup.page.control.move_refused", "phone", old)
+		ctl.PhoneProblem = setupPageText("setup.page.control.move_refused", "phone", old, "command", confirmPhoneCommand(activeServerProfile()))
 	default:
 		ctl.PhoneProblem = pagePhoneProblem(result, name, person, buttons.Allow)
 	}

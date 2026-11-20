@@ -177,7 +177,12 @@ Supervisor's self-API and ingress) and the phone lane's fake phones, and
 answers every surface that asks until the command ends, so a second ask for
 one action shows as a second stage. It fails when a count differs from the
 table, when the owner's phone sounds while the window is answered, or when
-a computer that must not confirm in its window offers Confirm. The image
+a computer that must not confirm in its window offers Confirm. Row S5H
+(0.33, MAR-244) is a bot's host: no display and no Secret Service, paired
+with a code, so its key sits in a private file. It checks the plan without a
+phone (the NOVA page and confirm-phone), the owner's chat code (shown at once,
+a wrong one keeps the step, the right one sends it), and that a linked phone
+ends the code and asks instead. The image
 stays only with `ASK_COUNT_KEEP_IMAGE=1`.
 
 ## Gate lane (opt-in)
@@ -229,11 +234,14 @@ home in `.state`. The RC lane runs all three with the tag's binary
   fresh Relay and taps every typed apply there). Then (`calls.mjs`)
   a light call stays ordinary beside the cover watchdog, a cover call still
   asks (its templated target could pick a garage), and the M row
-  (`mrow.mjs`, MAR-209, a release gate): beside a watchdog on every
-  `call_service` whose script moves covers it picks by template, a light
-  call asks while a garage cover exists, and asks nothing, in the CLI and
-  the gated Relay, once every cover is a shutter (the template pool cover
-  disabled, the others classed shutter, all put back after). Then an oracle applies calls through a scene with a climate member, a
+  (`mrow.mjs`, MAR-209, a release gate): beside the sanitized copy of the
+  watchdog from the home behind MAR-209 (`cli/testdata/mar209`, on
+  `call_service` filtered to cover, whose script moves covers it picks by
+  template), with no logbook stream and with one held open (one more
+  `call_service` listener no automation explains), a light call asks
+  nothing, in the CLI and the gated Relay, and notes the open stream
+  (`UNEXPLAINED_LISTENER`, decision A); a shutter call and the garage still
+  ask once. It removes the watchdog and its script after. Then an oracle applies calls through a scene with a climate member, a
   light group in a script, `switch_as_x` lights on a template switch and on a
   relay with an automation, and a chain of service-call listeners: every
   automation that really ran (Home Assistant's traces) must be among the
@@ -298,7 +306,7 @@ Pinned images (reproducible by default, override per run):
 
 | Image | Pin | Override |
 | --- | --- | --- |
-| Home Assistant | `homeassistant/home-assistant:2026.11.0` | `TESTBED_HA_IMAGE=… npm run testbed:up` |
+| Home Assistant | `homeassistant/home-assistant:2026.11.2` | `TESTBED_HA_IMAGE=… npm run testbed:up` |
 | Mosquitto | `eclipse-mosquitto:2.0.22` | `TESTBED_MQTT_IMAGE=…` |
 | Relay | built from `nova/Dockerfile.standalone` at this checkout | — |
 

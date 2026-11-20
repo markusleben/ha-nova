@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 )
 
 // An ask the command's wait left open (0.32 spec §6): ha-nova apply waits
@@ -21,6 +22,7 @@ type gateKeptAsk struct {
 	AskID    string   `json:"ask_id"`
 	Digest   string   `json:"digest"` // the asked requests (gateAskDigest)
 	Channels []string `json:"channels"`
+	Code     bool     `json:"code,omitempty"` // it takes the chat code the person saw; never the digits
 }
 
 func gateKeptPath(paths runtimePaths, planID string) string {
@@ -86,13 +88,35 @@ func (s *relaySession) gateDropKept(planID string) {
 
 // gateWaiting: the command's wait ended while the person can still
 // confirm; nothing was sent, and the plan stays (applyPlan's release).
-func gateWaiting(planID, lang string, window bool) *verbFailure {
-	say := confirmT(lang, "say.relay_waiting")
+func gateWaiting(planID, lang string, window bool, channels []string) *verbFailure {
+	phase := gateAskingOn(channels)
 	if window {
-		say = confirmT(lang, "say.relay_window_waiting")
+		phase = gateWindowPhase(channels)
+	}
+	say, next := relayWaitingSay(lang, phase), fmt.Sprintf("Tell the user `say`. Run ha-nova apply --plan %s again right away (give the command up to 2 minutes): it waits for the same ask and doesn't ask again, and an OK given meanwhile counts. Never ask for a code.", planID)
+	if slices.Contains(channels, "code") { // the App's chat code (gate_code.go): the person types it back
+		say, next = confirmT(lang, "say.relay_code_waiting"), fmt.Sprintf("Tell the user `say` and end your turn. Only if their next message is exactly the four digits HA NOVA showed, run ha-nova apply --confirm <those digits> --plan %s. Never type, guess, or reuse a code yourself.", planID)
 	}
 	return &verbFailure{exit: verbExitConfirmation, status: "waiting_for_approval", code: "CONFIRM_WAITING", say: say,
 		message: "the user hasn't confirmed yet, and the ask stays open for a few minutes; nothing was sent",
-		next:    fmt.Sprintf("Tell the user `say`. Run ha-nova apply --plan %s again right away (give the command up to 2 minutes): it waits for the same ask and doesn't ask again, and an OK given meanwhile counts. Never ask for a code.", planID),
+		next:    next,
 		cause:   errNothingSent}
+}
+
+// relayWaitingSay: what a waiting answer tells the person, by the phase
+// that names where they confirm (gateAskingOn).
+func relayWaitingSay(lang string, phase int32) string {
+	switch phase {
+	case gateAskingWindow:
+		return confirmT(lang, "say.relay_window_waiting")
+	case gateAskingWindowOnly:
+		return confirmT(lang, "say.relay_window_only_waiting")
+	case gateLinking:
+		return confirmT(lang, "say.relay_link_waiting")
+	case gateAskingPhone:
+		return confirmT(lang, "say.relay_waiting_phone")
+	case gateAskingPage:
+		return confirmT(lang, "say.relay_waiting_page")
+	}
+	return confirmT(lang, "say.relay_waiting")
 }

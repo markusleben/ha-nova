@@ -29,6 +29,7 @@ type fakeRelayLog struct {
 	calls []fakeRelayCall
 	gate  atomic.Bool  // GET /health says gate: 1 (a gated App); else an older App
 	noWin atomic.Bool  // a gated App without window: 1 (before 0.32)
+	code  atomic.Bool  // GET /health says code: 1 (the 0.33 App's chat code, MAR-244)
 	me    atomic.Value // GET /gate/v1/me's data (a map); unset: 404, as an App without it
 	meGot atomic.Int32 // GET /gate/v1/me reads
 }
@@ -92,6 +93,9 @@ func setupFakeRelay(t *testing.T, reply func(r *http.Request, endpoint string, p
 			}
 			if log.gate.Load() && !log.noWin.Load() {
 				health["window"] = 1
+			}
+			if log.gate.Load() && log.code.Load() {
+				health["code"] = 1
 			}
 			w.Header().Set("content-type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": health})

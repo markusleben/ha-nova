@@ -1,0 +1,32 @@
+name: macOS rc lane
+
+# Installs an rc on a disposable GitHub-hosted macOS runner and checks its
+# signing identity (scripts/release/rc-macos-lane.sh). Never on a person's Mac.
+
+on:
+  pull_request:
+    paths:
+      - "scripts/release/rc-macos-lane.sh"
+      - ".github/workflows/rc-macos-lane.yml"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release candidate tag, e.g. v0.32.0-rc1"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  rc-macos-lane:
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the rc and check its signature
+        env:
+          TAG: ${{ inputs.tag || 'v0.32.0-rc1' }}
+        run: bash scripts/release/rc-macos-lane.sh "$TAG"

@@ -13,7 +13,7 @@ import { LIVE_CSP, liveState } from "./nova-page-live.js";
 import type { RelayLogger } from "../server.js";
 import { applyChatPhoneAction, CHAT_PHONE_ACTIONS, chatPhoneErrorCode, readChatPhone, type ChatPhoneAction, type ChatPhoneModel } from "./nova-page-chat-phone.js";
 import { applyChatUsers, chatPhoneUser, readChatUsers, type ChatUsersModel } from "./nova-page-chat-users.js";
-import { recentWindowSection, WINDOW_ACTIONS, windowRow, type WindowAction } from "./nova-page-window.js";
+import { codeRow, recentWindowSection, WINDOW_ACTIONS, windowRow, type WindowAction } from "./nova-page-window.js";
 import {
   escapeHtml,
   parseConfirm,
@@ -170,7 +170,7 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
       chatUsers,
       chatRestarting: query.get("chat") === "restarting",
       gateSection: gateSection + (words === null ? "" : recentWindowSection(deps.gatePage?.recent?.() ?? [], words)),
-      windowRow: (d) => (words === null ? "" : windowRow(d, owner.users, owner, words, windowButton)),
+      windowRow: (d) => (words === null ? "" : windowRow(d, owner.users, owner, words, windowButton) + codeRow(d, owner.users, owner, words, windowButton)),
       live,
     });
     setHeaders(response);
@@ -312,12 +312,16 @@ async function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<
     case "window_mine":
     case "window_not_mine":
     case "window_on":
-    case "window_off": {
+    case "window_off":
+    case "code_on":
+    case "code_off": {
       const deviceId = typeof form.device_id === "string" ? form.device_id : "";
-      const refused = action === "window_mine" || action === "window_not_mine"
-        ? deps.registry.setOwnComputer(deviceId, action === "window_mine" ? ownerId : null, deps.now())
-        : deps.registry.setWindowConfirm(deviceId, action === "window_on", ownerId);
-      if (refused !== null) throw new Error(`that computer can't confirm in its window (${refused}); nothing changed`);
+      const refused = action === "code_on" || action === "code_off" ? deps.registry.setCodeConfirm(deviceId, action === "code_on" ? ownerId : null, deps.now())
+        : action === "window_mine" || action === "window_not_mine"
+          ? deps.registry.setOwnComputer(deviceId, action === "window_mine" ? ownerId : null, deps.now())
+          : deps.registry.setWindowConfirm(deviceId, action === "window_on", ownerId);
+      if (refused !== null) throw new Error(`that computer can't change how it confirms (${refused}); nothing changed`);
+      if (action === "code_off" || action === "window_on" || action === "window_mine") deps.gatePage?.endCode?.(deviceId); // waiting code asks end with it
       return false;
     }
     case "revoke_device": {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -48,7 +49,7 @@ func TestATypedTargetSkipsTheListenerCensus(t *testing.T) {
 	reads := countReads(f)
 	exit, env, _, _ := runPlanForTest(t, f, "lock.unlock", "lock.front")
 	codes := reasonCodes(env)
-	if exit != 3 || env.Tier != "typed" || !strings.Contains(codes, reasonAccessLock) || !strings.Contains(codes, reasonListener) || strings.Contains(codes, reasonListenerUnexpl) || env.Coverage.Complete {
+	if exit != 3 || env.Tier != "typed" || !strings.Contains(codes, reasonAccessLock) || !strings.Contains(codes, reasonListener) || slices.Contains(env.Coverage.Notes, noteUnexplainedListener) || env.Coverage.Complete {
 		t.Fatalf("exit %d tier %s reasons %s coverage %+v: want the unread listeners said, as after a cut census", exit, env.Tier, codes, env.Coverage)
 	}
 	if n := countPrefix(reads(), "ws automation/config"); n != 0 {
@@ -61,7 +62,7 @@ func TestAnOrdinaryTargetStillRunsTheListenerCensus(t *testing.T) {
 	unexplainedCallService(f)
 	reads := countReads(f)
 	exit, env, _, _ := runPlanForTest(t, f, "light.turn_on", "light.kitchen")
-	if exit != 3 || !strings.Contains(reasonCodes(env), reasonListenerUnexpl) {
+	if exit != 0 || env.Tier != "ordinary" || !slices.Contains(env.Coverage.Notes, noteUnexplainedListener) {
 		t.Fatalf("exit %d tier %s reasons %s", exit, env.Tier, reasonCodes(env))
 	}
 	if countPrefix(reads(), "ws automation/config") == 0 {

@@ -25,6 +25,7 @@ export interface Ask {
   phoneAt?: number;
   phoneTimer?: ReturnType<typeof setTimeout>;
   sendPhone?: () => void;
+  code?: { digits: string; rev: number; userId: string; wrong: number }; // the chat code (MAR-244), never sent again
 }
 
 export interface AskTable {
@@ -48,6 +49,7 @@ export function createAskTable(now: () => number, grants: GateGrants, limits: Ow
       return false;
     }
     ask.state = state;
+    delete ask.code;
     clearTimeout(ask.timer);
     clearTimeout(ask.phoneTimer);
     if (!hold) ask.stop.abort();
