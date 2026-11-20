@@ -80,7 +80,7 @@ release:
 
     - **Updating a Mac from 0.31? HA NOVA asks you to pair it again once.** It's one Home Assistant sign-in, about a minute (with Home Assistant Link at home, a second one for Link). Run `ha-nova setup` when HA NOVA says so.
     - **A generic thermostat or hygrostat set up in YAML no longer makes everyday calls ask.** With the App's file access on, HA NOVA reads the YAML Home Assistant runs, including a template switch as the heater.
-    - **HA NOVA answers faster.** Commands that don't use Home Assistant Link skip a large file check, the App update check fetches one entity's state instead of every state, and `find` and Link commands wait for fewer round trips.
+    - **HA NOVA answers faster.** Commands without Home Assistant Link skip a large file check, the App update check fetches one entity's state instead of every state, and `find` and Link commands wait for fewer round trips.
     - **The NOVA App is smaller and starts faster.** Once installed, its image is about 10 MB smaller, and each start runs two fewer helper processes.
 
     ## What To Watch
