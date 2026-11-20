@@ -48,7 +48,7 @@ type signInPredecessor struct {
 }
 
 type signInArmRequest struct {
-	OwnComputer       bool   `json:"own_computer,omitempty"` // an App before 0.32 ignores it
+	OwnComputer       bool   `json:"own_computer,omitempty"` // an App before 0.13.29 ignores it
 	PreviousInstallID string `json:"previous_install_id,omitempty"`
 }
 
