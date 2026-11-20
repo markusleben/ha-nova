@@ -26,7 +26,7 @@ func withTierReads(f *fakeHA, next http.HandlerFunc) http.Handler {
 		var p map[string]any
 		_ = json.Unmarshal(raw, &p)
 		endpoint := strings.TrimPrefix(r.URL.Path, "/")
-		own := p["path"] == "/api/states" || p["type"] == "config/entity_registry/list"
+		own := p["path"] == "/api/states" || p["path"] == "/api/states/update.nova_relay_update" || p["type"] == "config/entity_registry/list"
 		if p["method"] == "POST" {
 			wrote.Store(true)
 		}
