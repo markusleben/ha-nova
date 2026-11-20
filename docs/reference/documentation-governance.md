@@ -99,11 +99,11 @@ Active paths:
 
 Archive paths:
 - `docs/archive/**`
-- `docs/archive/superpowers/**`
+- `docs/archive/early-plans/**`
 
 Legacy archive:
-- `docs/archive/superpowers/` contains historical superpowers plans/specs only
-- do not create new active docs under `docs/archive/superpowers/`
+- `docs/archive/early-plans/` contains historical plans/specs from early development only
+- do not create new active docs under `docs/archive/early-plans/`
 - archive content there is historical only, not active product documentation
 
 Historical journals:
