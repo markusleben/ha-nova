@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -257,10 +258,12 @@ func sceneProbes(e *tierEngine, sceneID string) ([]probe, bool) {
 	return probes, true
 }
 
-// pollProbes reads each pending probe every verifyInterval until all its
-// checks hold in a settled state or its window closes; every read is bounded
-// by what is left of the window. A slow device still moving at the end is
-// accepted (in progress), not unverified.
+// pollProbes reads every pending probe at once, every verifyInterval, until
+// all its checks hold in a settled state or its window closes; every read,
+// its wait for a send slot included, ends by its window's absolute deadline,
+// so probe order never costs a target its reads. Results fold in input
+// order. A slow device still moving at the end is accepted (in progress),
+// not unverified.
 func pollProbes(s *relaySession, probes []probe) []verifyRow {
 	rows := make([]verifyRow, len(probes))
 	last := make([]*entityState, len(probes))
@@ -275,14 +278,31 @@ func pollProbes(s *relaySession, probes []probe) []verifyRow {
 	for i, p := range probes {
 		rows[i] = verifyRow{EntityID: p.entityID, Expect: describeChecks(p.checks), Outcome: "unverified"}
 	}
+	type read struct {
+		st  *entityState
+		err error
+	}
 	for {
-		pending := false
+		reads := make([]*read, len(probes))
+		var wg sync.WaitGroup
 		for i, p := range probes {
-			remaining := window(p) - time.Since(start)
-			if rows[i].Outcome != "unverified" || remaining <= 0 {
+			by := start.Add(window(p))
+			if rows[i].Outcome != "unverified" || !time.Now().Before(by) {
 				continue
 			}
-			st, err := s.stateFresh(p.entityID, max(remaining, 100*time.Millisecond))
+			if floor := time.Now().Add(100 * time.Millisecond); by.Before(floor) {
+				by = floor
+			}
+			reads[i] = &read{}
+			wg.Go(func() { reads[i].st, reads[i].err = s.stateFresh(p.entityID, by) })
+		}
+		wg.Wait()
+		pending := false
+		for i, p := range probes {
+			if reads[i] == nil {
+				continue
+			}
+			st, err := reads[i].st, reads[i].err
 			switch {
 			case (err != nil || st == nil) && last[i] != nil:
 				// keep the last good observation: a slow read is not a failed device
