@@ -1,0 +1,14 @@
+# MAR-245, files mode only (up.sh): the thermostat's heater, around the demo
+# fan nothing in the bed listens to (calls.mjs relies on that too).
+- switch:
+    - name: Bath Heater Safe
+      unique_id: bath_heater_safe
+      state: "{{ is_state('fan.ceiling_fan', 'on') }}"
+      turn_on:
+        - action: fan.turn_on
+          target:
+            entity_id: fan.ceiling_fan
+      turn_off:
+        - action: fan.turn_off
+          target:
+            entity_id: fan.ceiling_fan

@@ -116,7 +116,7 @@ var confirmedNotTyped = map[string]bool{
 	reasonNoRegistryRow: true, reasonSceneUnread: true,
 	reasonResponseOnly: true, reasonTargetRequired: true, reasonServiceNotFound: true,
 	reasonConfigWrite: true, reasonConfigRevert: true, reasonConfigRestore: true, reasonAreaAssign: true,
-	reasonManager: true, reasonIntegrationSvc: true, reasonRawWrite: true, reasonMarketplaceWarning: true,
+	reasonManager: true, reasonIntegrationSvc: true, reasonRawWrite: true, reasonMarketplaceWarning: true, reasonHelperCalls: true,
 	noteTemplates: true, noteNoManager: true, noteSkippedTargets: true, noteFilteredTargets: true, noteUnexplainedListener: true,
 }
 

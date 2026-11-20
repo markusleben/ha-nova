@@ -1,0 +1,8 @@
+# MAR-245, files mode only (up.sh): a YAML thermostat whose heater is a YAML
+# template switch around a plug, the shape of the maintainer's home. Off, so
+# it never switches during a lane.
+- platform: generic_thermostat
+  name: Bath Thermostat
+  heater: switch.bath_heater_safe
+  target_sensor: sensor.testbed_temperature
+  initial_hvac_mode: "off"

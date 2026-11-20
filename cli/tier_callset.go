@@ -188,4 +188,7 @@ func (e *tierEngine) callServiceListeners() {
 			}
 		}
 	}
+	if e.calls.unknown && e.helperCause.Code != "" && len(e.callAdded) > 0 {
+		e.raise(tierOrdinary, e.helperCause) // the plan names the helper behind those listeners
+	}
 }

@@ -360,7 +360,7 @@ func sayAgo(d time.Duration) string {
 	}
 }
 
-var sayUnseenCodes = map[string]bool{reasonUnregisteredActuator: true, reasonTemplateAction: true, reasonUserButton: true, reasonUnreadCommand: true}
+var sayUnseenCodes = map[string]bool{reasonUnregisteredActuator: true, reasonTemplateAction: true, reasonUserButton: true, reasonUnreadCommand: true, reasonHelperCalls: true}
 
 // sayPlainDomains: what these do is plain from the kind (a lock locks, a
 // garage door opens); what HA NOVA can't check is how it does it.

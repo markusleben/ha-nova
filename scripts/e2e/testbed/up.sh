@@ -68,6 +68,10 @@ printf '%s' "${TESTBED_OWNER:-}" > "$STATE/owner"
 [[ "${TESTBED_FILES:-}" != 1 ]] || touch "$STATE/files" # phone.mjs recreates the Relay with it
 cp -R "$HERE/config/." "$STATE/config/"
 if [[ -n "$OVERLAY" ]]; then cp -R "$OVERLAY/config/." "$STATE/config/"; fi
+if [[ "${TESTBED_FILES:-}" == 1 ]]; then # MAR-245: a YAML thermostat and its template heater, read from /config (yaml-heater.mjs)
+  cp "$HERE"/yaml-heater/*.yaml "$STATE/config/"
+  printf 'climate mar245: !include yaml_heater_climate.yaml\ntemplate mar245: !include yaml_heater_switch.yaml\n' >> "$STATE/config/configuration.yaml"
+fi
 # Automation D uses the built-in motion_light blueprint. HA copies built-ins
 # into /config/blueprints only after automations first load, so seed it from
 # the pinned image itself (version-matched, no network).
