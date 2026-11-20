@@ -41,11 +41,11 @@ func quietAppCheckSetup(t *testing.T, relayVersion string, registryFails bool, o
 				Path string `json:"path"`
 			}
 			_ = json.NewDecoder(r.Body).Decode(&req)
-			if req.Path != "/api/states" {
+			if !statesRead(req.Path) {
 				http.NotFound(w, r)
 				return
 			}
-			_, _ = w.Write(statesEnvelope(t, []map[string]interface{}{relayUpdateEntity("update.nova_relay_update", "NOVA Relay")}))
+			_, _ = w.Write(statesReply(t, req.Path, []map[string]interface{}{relayUpdateEntity("update.nova_relay_update", "NOVA Relay")}))
 		default:
 			http.NotFound(w, r)
 		}
