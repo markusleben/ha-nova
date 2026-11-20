@@ -26,6 +26,7 @@ type listenerHit struct {
 type listenerTable struct {
 	counts map[string]int
 	hits   map[string][]listenerHit
+	waits  map[string]bool // event types a running automation or script may wait on; "" for a templated one
 }
 
 // checkEvents compares enumerated automation listeners with the live count
@@ -77,13 +78,17 @@ func (e *tierEngine) eventCounts(eventType, entityID string) (*listenerTable, []
 	for _, t := range matched {
 		enumerated := table.counts[t] + baselineFor(t)
 		switch detail := fmt.Sprintf("%s: %d live, %d enumerated", t, live[t], table.counts[t]); {
-		case frontendListenedEvents[t] != "" && live[t] > enumerated:
-			// An open logbook stream or a raw event subscription listens here
-			// too: not an automation, not enumerable — preview, like Q2
-			// (maintainer default 2026-10-14). Attributed automations still
-			// classify below and keep their own (typed) class.
-			e.complete = false
-			e.raise(tierPreview, tierReason{Code: frontendListenedEvents[t], Detail: detail})
+		case frontendListenedEvents[t] && live[t] > enumerated && (table.waits[t] || table.waits[""]):
+			// A running automation or script waits on this event: what it
+			// does after the wait is outside the census, so every listener
+			// counts, as before decision A.
+			e.gap(reasonListener, entityID, "", detail+", a running wait_for_trigger listens")
+		case frontendListenedEvents[t] && live[t] > enumerated:
+			// An open logbook stream listens here too: a listener that
+			// doesn't act, so a note, and the census stays complete, so each
+			// automation's own filter decides (maintainer decision A,
+			// 2026-11-18). Attributed automations still classify below.
+			e.note(noteUnexplainedListener)
 		case enumerated != live[t]:
 			e.gap(reasonListener, entityID, "", detail)
 		}
@@ -140,7 +145,8 @@ func (e *tierEngine) listenerTable() *listenerTable {
 		EntityID   string `json:"entity_id"`
 		State      string `json:"state"`
 		Attributes struct {
-			ID string `json:"id"`
+			ID      registryID `json:"id"`
+			Current any        `json:"current"` // an automation's run count; any other entity's attribute may be anything
 		} `json:"attributes"`
 	}
 	if err == nil && status != http.StatusOK {
@@ -155,13 +161,18 @@ func (e *tierEngine) listenerTable() *listenerTable {
 	}
 	type autoRow struct {
 		entityID, configID string
+		running, waitsOnly bool
 		raw                json.RawMessage
 		err                error
 	}
 	var rows []*autoRow
 	for _, st := range states {
-		if strings.HasPrefix(st.EntityID, "automation.") && st.State == "on" { // off automations hold no listeners
-			rows = append(rows, &autoRow{entityID: st.EntityID, configID: st.Attributes.ID})
+		runs, _ := st.Attributes.Current.(float64)
+		switch domain, _ := splitID(st.EntityID); {
+		case domain == "automation" && (st.State == "on" || runs > 0): // an off automation's triggers hold no listeners, but a run it didn't stop may still wait
+			rows = append(rows, &autoRow{entityID: st.EntityID, configID: string(st.Attributes.ID), running: runs > 0, waitsOnly: st.State != "on"})
+		case domain == "script" && st.State == "on": // a script runs while it is on
+			rows = append(rows, &autoRow{entityID: st.EntityID, running: true, waitsOnly: true})
 		}
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].entityID < rows[j].entityID })
@@ -175,7 +186,8 @@ func (e *tierEngine) listenerTable() *listenerTable {
 		wg.Add(1)
 		go func(row *autoRow) {
 			defer wg.Done()
-			loaded, ok, err := loadedConfig(e.s, row.entityID, "automation") // what runs, so what holds the listeners
+			domain, _ := splitID(row.entityID)
+			loaded, ok, err := loadedConfig(e.s, row.entityID, domain) // what runs, so what holds the listeners
 			switch {
 			case err != nil: // a failed read: typed below, never "no config"
 				row.err = err
@@ -183,18 +195,22 @@ func (e *tierEngine) listenerTable() *listenerTable {
 				row.err = &verbFailure{code: "CONFIG_NOT_FOUND"}
 			default:
 				row.raw = loaded
-				e.warmBlueprint("automation", row.raw) // parseConfig below reads it from the memo
+				e.warmBlueprint(domain, row.raw) // parseConfig below reads it from the memo
 			}
 		}(row)
 	}
 	wg.Wait()
 	e.s.censusReads(false)
-	table := &listenerTable{counts: map[string]int{}, hits: map[string][]listenerHit{}}
+	table := &listenerTable{counts: map[string]int{}, hits: map[string][]listenerHit{}, waits: map[string]bool{}}
 	for _, row := range rows {
+		domain, _ := splitID(row.entityID)
 		// An enabled automation this scan cannot read may hold exactly the
 		// listener the live count shows: unread is typed, never "unexplained".
 		var notFound *verbFailure
 		switch {
+		case errors.As(row.err, &notFound) && domain == "script": // a running script it can't read may be waiting
+			table.waits[""] = true
+			continue
 		case errors.As(row.err, &notFound) && row.configID == "":
 			e.gap(reasonYAMLNoID, row.entityID, viaListenerScan, "")
 			continue
@@ -213,11 +229,17 @@ func (e *tierEngine) listenerTable() *listenerTable {
 			if key == "" {
 				key = loadedConfigKey(row.entityID)
 			}
-			if cfg, ok = e.parseConfig(row.entityID, "automation", key, row.raw, viaListenerScan); !ok {
+			if cfg, ok = e.parseConfig(row.entityID, domain, key, row.raw, viaListenerScan); !ok {
 				return nil
 			}
 		} else if cfg == nil {
 			return nil // already flagged by an earlier read of this automation
+		}
+		if row.running {
+			collectWaits(cfg, table.waits)
+		}
+		if row.waitsOnly {
+			continue
 		}
 		for _, trigger := range flattenTriggers(firstPresent(cfg, "triggers", "trigger")) {
 			if firstPresent(trigger, "trigger", "platform") != "event" {
@@ -245,4 +267,35 @@ func (e *tierEngine) listenerTable() *listenerTable {
 	}
 	e.listeners = table
 	return table
+}
+
+// collectWaits adds the event types of every event trigger inside a
+// wait_for_trigger of node, the listeners a run holds while it waits.
+func collectWaits(node any, waits map[string]bool) {
+	switch n := node.(type) {
+	case []any:
+		for _, item := range n {
+			collectWaits(item, waits)
+		}
+	case map[string]any:
+		for _, trigger := range flattenTriggers(n["wait_for_trigger"]) {
+			if firstPresent(trigger, "trigger", "platform") != "event" {
+				continue
+			}
+			types, isList := trigger["event_type"].([]any)
+			if !isList {
+				types = []any{trigger["event_type"]}
+			}
+			for _, t := range types {
+				name, isString := t.(string)
+				if !isString || isTemplated(name) {
+					name = ""
+				}
+				waits[name] = true
+			}
+		}
+		for _, value := range n {
+			collectWaits(value, waits)
+		}
+	}
 }

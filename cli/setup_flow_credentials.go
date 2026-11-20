@@ -1,6 +1,9 @@
 package main
 
-import "strings"
+import (
+	"errors"
+	"strings"
+)
 
 // prepareCredentials settles where this run's credentials live (desktop
 // keyring, service file, file-backed device pairing), applies endpoint
@@ -9,7 +12,10 @@ import "strings"
 func (f *setupFlow) prepareCredentials() setupStepResult {
 	restoreTokenFileOverride := func() {}
 	f.cleanups = append(f.cleanups, func() { restoreTokenFileOverride() })
-	if !f.serviceMode {
+	// The machine-wide relay token is the default profile's: setup for another
+	// server never moves, reads, or offers it (namedLocalRePairAllowed).
+	named := activeServerProfile() != defaultServerProfileName
+	if !f.serviceMode && !named {
 		var liftTokenFileSuppression func()
 		tokenFile := f.cfg.RelayTokenFile
 		f.cfg, f.formerServiceTokenFile, f.formerServiceToken, liftTokenFileSuppression = disableServiceRelayTokenFile(f.paths, f.cfg)
@@ -35,7 +41,9 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 			migrated, err = migrateKeyringDeviceCredentialToFile()
 			return err
 		})
-		if migrateErr != nil {
+		if errors.Is(migrateErr, errDeviceKeyStaysInKeychain) {
+			f.ui.info(setupText("setup.service.key_stays_in_keychain"))
+		} else if migrateErr != nil {
 			return f.fail(setupText("setup.error.service_move_credential", "error", migrateErr))
 		}
 		if migrated {
@@ -52,11 +60,13 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 		restoreTokenFileOverride = withRelayAuthTokenFileOverride(f.cfg.RelayTokenFile)
 	}
 
-	f.tokenStoragePreflightErr = relayAuthTokenSetupPreflightForSetup()
+	if !named {
+		f.tokenStoragePreflightErr = relayAuthTokenSetupPreflightForSetup()
+	}
 	// Service credentials stay a client-scoped deployment decision: only
 	// offer the mid-flow switch for a specific target, mirroring the
 	// explicit `--service all` rejection above.
-	if !f.serviceMode && f.target != "all" && !f.cloudPausedAtStart {
+	if !f.serviceMode && f.target != "all" && !f.cloudPausedAtStart && !named {
 		_, serviceClientID, hasServiceCredentials, serviceErr := selectedClientsServiceCredentialHint(f.paths, f.selectedClients)
 		if serviceErr != nil {
 			return f.failErr(serviceErr)
@@ -158,6 +168,9 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 func (f *setupFlow) checkTokenStorage() setupStepResult {
 	if f.tokenStoragePreflightErr == nil && hybridCloudSetupPending(f.cfg) {
 		return setupGoOn // a paired install with Link paused: no shared token to read
+	}
+	if activeServerProfile() != defaultServerProfileName {
+		return setupGoOn // the machine-wide token is the default profile's: never assessed or sent for another server
 	}
 	if f.tokenStoragePreflightErr == nil {
 		if savedToken, err := readRelayAuthTokenForSetup(); err == nil && strings.TrimSpace(savedToken) != "" {

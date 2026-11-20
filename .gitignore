@@ -44,3 +44,5 @@ scripts/dev/own-activity.local.json
 
 # HA NOVA test bed runtime state (tokens, HA runtime config, CLI home)
 scripts/e2e/testbed/.state/
+# rc-lane-container.sh's work dir (HOME and TMPDIR of the container)
+scripts/e2e/.rc-lane-container/

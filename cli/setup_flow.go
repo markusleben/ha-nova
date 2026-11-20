@@ -51,6 +51,7 @@ type setupFlow struct {
 	pageRetry      *haSignInSession
 	pageRetryUntil time.Time
 	pageTyped      bool // the user typed Home Assistant's address on the page
+	pageOwn        bool // the sign-in button's "Confirm risky changes here with one click" was on
 	pageAskHA      bool // a re-run's "Use another Home Assistant": step 1 opens the address field
 	// pageControlled: step 3 runs on the page; pageQuit: setup ended there
 	// (Ctrl+C or idle); pageNotes: what step 3 did, for step 4, and
@@ -60,6 +61,7 @@ type setupFlow struct {
 	pageControlled bool
 	pageQuit       bool
 	pageNotes      []*setupPageMsg
+	cleanupNote    setupMsg // legacy_link_cleanup.go: setup's closing line about the old version
 	pageChatLink   string
 	pageOrgLink    string
 	pageChatPhoned bool // a phone confirms for chat apps: step 4 says to allow every tool in Claude

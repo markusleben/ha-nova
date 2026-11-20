@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -10,6 +11,7 @@ func completeNamedProfileClientRepair(
 	cfg runtimeConfig,
 	state installState,
 	target string,
+	prompt bool,
 	lifecycleMarker ...[]byte,
 ) int {
 	selectedClients, _, err := resolveSetupClientsWithState(
@@ -55,6 +57,14 @@ func completeNamedProfileClientRepair(
 	printHumanInfo(
 		"Repaired client integration using the selected server profile's verified secure connection.",
 	)
+	if note := printLegacyLinkCleanup(os.Stdout, paths, cfg, prompt && isInteractiveTTY() && stdoutIsInteractiveTTY()).plain(); note != "" {
+		printHumanInfo("%s", note)
+	}
+	reader := terminalReader()
+	if !prompt {
+		reader = nil
+	}
+	offerPhoneLink(reader, os.Stdout, paths, false, true)
 	return 0
 }
 

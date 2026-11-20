@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"runtime"
 )
 
@@ -230,7 +232,10 @@ func revokeAndVerifyCloudAuthorizationWithClient(
 		return err
 	}
 	_, err := oauth.Refresh(ctx, refreshToken, clientID)
-	if IsCloudErrorCode(err, CloudErrOAuthInvalidGrant) {
+	// Only Home Assistant's definitive OAuth answer proves it: 400
+	// invalid_grant, never one a failing server sends.
+	var cloudErr *CloudError
+	if errors.As(err, &cloudErr) && cloudErr.Code == CloudErrOAuthInvalidGrant && cloudErr.StatusCode == http.StatusBadRequest {
 		return nil
 	}
 	if err == nil {

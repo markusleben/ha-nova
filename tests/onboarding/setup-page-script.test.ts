@@ -30,6 +30,39 @@ describe("setup page step 1", () => {
     expect(p.find("b-signin")).toBeTruthy();
   });
 
+  it("asks \"Confirm risky changes here with one click\" with the sign-in, on by default, only when offered", async () => {
+    const p = page({ ...found, own: true });
+    await p.settle();
+    const own = p.find("b-own")!;
+    expect([own.attributes.role, own.attributes["aria-checked"]]).toEqual(["switch", "true"]);
+    expect(p.screen.textContent).toContain(p.catalog["setup.page.found.own"]);
+    expect(p.screen.textContent).toContain(p.catalog["setup.page.found.own_hint"]);
+    p.find("b-signin")!.dispatch("click");
+    expect(p.find("b-own")!.attributes.disabled).toBe(""); // frozen as sent while it posts
+    p.find("b-own")!.dispatch("click");
+    expect(p.find("b-own")!.attributes["aria-checked"]).toBe("true");
+    await p.settle(2);
+    expect(p.posts).toEqual([{ action: "signin", value: "own" }]);
+    const off = page({ ...found, own: true });
+    await off.settle();
+    off.find("b-own")!.dispatch("click");
+    expect(off.find("b-own")!.attributes["aria-checked"]).toBe("false");
+    off.find("b-signin")!.dispatch("click");
+    await off.settle(2);
+    expect(off.posts).toEqual([{ action: "signin" }]);
+    const plain = page(found);
+    await plain.settle();
+    expect(plain.find("b-own")).toBeUndefined();
+    const retry = page({ screen: "connect", rows: [{ id: "signed_in", state: "ok" }], links: {}, accepts: ["address", "terminal", "signin"],
+      own: true, fix: "retry", problem: { key: "setup.page.problem.timeout" } });
+    await retry.settle();
+    expect(retry.find("b-signin")!.textContent).toBe(retry.catalog["setup.page.button.retry"]);
+    retry.find("b-own")!.dispatch("click");
+    retry.find("b-signin")!.dispatch("click");
+    await retry.settle(2);
+    expect(retry.posts).toEqual([{ action: "signin" }]);
+  });
+
   it("keeps the field for an address Home Assistant didn't answer at", async () => {
     const wrong = { ...found, ask_ha: true, problem: { key: "setup.page.problem.address", args: { address: "nope" } } };
     const p = page(found, wrong);
@@ -846,5 +879,14 @@ describe("setup page: status colors", () => {
     await p.settle();
     expect(p.find("b-chat-recheck")!.textContent).toBe(p.catalog["setup.page.button.checking"]);
     expect(p.find("b-phone-recheck")!.textContent).toBe(p.catalog["setup.page.button.recheck"]);
+  });
+});
+
+describe("setup page re-run: the old sign-in cleanup", () => {
+  it("shows its result on the re-run screen as soon as it is known", async () => {
+    const p = page({ screen: "rerun", rows: [], accepts: ["finish"], control: { window: true, phone: "none" }, home: { notes: [{ key: "setup.cleanup.done" }] } });
+    await p.settle();
+    expect(p.catalog["setup.cleanup.done"]).toBeTruthy();
+    expect(p.screen.textContent).toContain(p.catalog["setup.cleanup.done"]);
   });
 });

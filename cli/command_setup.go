@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"flag"
 	"io"
@@ -265,6 +266,20 @@ func runSetup(paths runtimePaths, args []string) int {
 		renderNamedSetupRequestError()
 		return 1
 	}
+	// pairAgain: a person at this Mac's terminal, and its App answers pair_again.
+	pairAgain := func() bool {
+		return target == "" && !namedSetupIsRetirementOnly(cfg, retirementPending) && isInteractiveTTY() && stdoutIsInteractiveTTY() && windowPairAgainForSetup(paths, cfg)
+	}
+	if !*nonInteractive && unconstrainedCloudReuse && !namedSetupIsRetirementOnly(cfg, retirementPending) && linkRePairNeeded(cfg) {
+		if target != "" {
+			renderSetupParagraph(os.Stdout, setupT("setup.relink.client_first", "command", rePairNextStep(activeServerProfile(), true)))
+			return 1
+		}
+		return runLinkRePair(bufio.NewReader(os.Stdin), os.Stdout, paths, cfg, setupLifecycle, pairAgain())
+	}
+	if !*nonInteractive && unconstrainedCloudReuse && pairAgain() {
+		return runLinkRePair(bufio.NewReader(os.Stdin), os.Stdout, paths, cfg, setupLifecycle, true)
+	}
 	namedClientRepair := namedClientRepairRequested(
 		cfg,
 		target,
@@ -274,6 +289,9 @@ func runSetup(paths runtimePaths, args []string) int {
 		*relayURL,
 		*relayToken,
 	)
+	if _, _, _, _, transportErr := relayFunctionalTransport(cfg); namedClientRepair && cfg.PendingSecureBaseURL == "" && errors.Is(transportErr, errDeviceNeedsRePair) {
+		namedClientRepair = false // its key is gone: the full setup pairs it again by sign-in
+	}
 	if namedClientRepair {
 		state, err := loadStateOrDefaultChecked(paths)
 		if err != nil {
@@ -286,6 +304,7 @@ func runSetup(paths runtimePaths, args []string) int {
 			cfg,
 			state,
 			target,
+			!*nonInteractive && !*serviceMode,
 			setupLifecycle...,
 		)
 	}
@@ -391,11 +410,13 @@ func runSetup(paths runtimePaths, args []string) int {
 			migrated, err = migrateKeyringDeviceCredentialToFile()
 			return err
 		})
-		if migrateErr != nil {
+		switch {
+		case errors.Is(migrateErr, errDeviceKeyStaysInKeychain):
+			printHumanInfo("%s", setupT("setup.service.key_stays_in_keychain"))
+		case migrateErr != nil:
 			printHumanErr("%s", setupT("setup.error.service_move_credential", "error", migrateErr))
 			return 1
-		}
-		if migrated {
+		case migrated:
 			printHumanInfo("%s", setupT("setup.service.credential_moved"))
 		}
 	}
@@ -673,7 +694,11 @@ func completeNonInteractivePairedSetup(paths runtimePaths, cfg runtimeConfig, st
 		printHumanErr("client installation or state save failed: %s", err)
 		return 1
 	}
-	return runDoctor(paths, nil)
+	code := runDoctor(paths, nil)
+	if code == 0 {
+		offerPhoneLink(nil, os.Stdout, paths, false, true)
+	}
+	return code
 }
 
 func restoreRelayAuthToken(previousToken string, hadPreviousToken, tokenChanged bool) error {

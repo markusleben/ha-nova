@@ -78,10 +78,10 @@ func TestPlanCallFailOpenRegressionsRound2(t *testing.T) {
 			})
 			f.events = append(f.events, map[string]any{"event": "automation_triggered", "listener_count": 1})
 		}, args: helper, exit: 3, tier: "typed", reasons: []string{reasonAccessLock}},
-		{name: "H unexplained script_started listener is preview", setup: func(f *fakeHA) {
+		{name: "H unexplained script_started listener is a note", setup: func(f *fakeHA) {
 			f.script("leave", step("light.turn_off", "light.hall"))
 			f.events = []map[string]any{{"event": "script_started", "listener_count": 1}}
-		}, args: []string{"script.turn_on", "script.leave"}, exit: 3, tier: "preview", reasons: []string{reasonRunListenerUnexpl}},
+		}, args: []string{"script.turn_on", "script.leave"}, exit: 3, tier: "preview", reasons: []string{reasonStoredMembers}, check: hasNote(noteUnexplainedListener)},
 		{name: "I custom cover device_class is access-capable", setup: func(f *fakeHA) {
 			f.ent("cover.gate", "custom_gate", "closed", map[string]any{"device_class": "garage_door"})
 		}, args: []string{"cover.open_cover", "cover.gate"}, exit: 3, tier: "typed", reasons: []string{reasonAccessCover}},
@@ -171,7 +171,7 @@ func TestPlanCallCodexP1Regressions(t *testing.T) {
 			surplus(f)
 			f.automation("off_pkg", "op1", nil)
 			f.states["automation.off_pkg"]["state"] = "off"
-		}, args: []string{"light.turn_on", "light.kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonListenerUnexpl}, absent: []string{reasonUnreadConfig}},
+		}, args: []string{"light.turn_on", "light.kitchen"}, exit: 0, tier: "ordinary", absent: []string{reasonUnreadConfig}, check: hasNote(noteUnexplainedListener)},
 	}
 	runTierCases(t, cases)
 }

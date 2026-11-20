@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/zalando/go-keyring"
@@ -210,6 +212,76 @@ func TestMigrateServiceDeviceCredentialToFile(t *testing.T) {
 		}
 		if _, err := keyring.Get(deviceCredentialService, secretUser()); !errors.Is(err, keyring.ErrNotFound) {
 			t.Fatalf("keyring copy of the current credential must be removed, got err=%v", err)
+		}
+	})
+
+	t.Run("turns window approval off on the App first, and copies nothing when it can't", func(t *testing.T) {
+		saved := gateWindowOffForFileCopy
+		t.Cleanup(func() { gateWindowOffForFileCopy = saved })
+		for _, fails := range []bool{false, true} {
+			withDeviceStorageTestHome(t)
+			resetKeyringDeviceSlots(t)
+			current, pending := generateTestDeviceCredential(t), generateTestDeviceCredential(t)
+			if err := writeDeviceCredential(current); err != nil {
+				t.Fatal(err)
+			}
+			if err := writePendingDeviceCredential(pending); err != nil { // an interrupted re-pairing the App may already hold as active
+				t.Fatal(err)
+			}
+			var asked []string
+			gateWindowOffForFileCopy = func(profile, key string, repairing bool) error {
+				asked = append(asked, profile+":"+map[bool]string{true: "current", false: "pending"}[key == ""])
+				if repairing != (key == "") {
+					t.Errorf("the current key beside a pending one must say so: key %q repairing %v", key, repairing)
+				}
+				if key != "" && key != pending {
+					t.Errorf("window_off sent with %q, not the pending key", key)
+				}
+				if deviceFileBackendMarkerExists() {
+					t.Error("a file was committed before window approval was off")
+				}
+				if fails {
+					return errors.New("Home Assistant isn't reachable")
+				}
+				return nil
+			}
+			migrated, err := migrateKeyringDeviceCredentialToFile()
+			want := map[bool]string{false: "default:current,default:pending", true: "default:current"}[fails]
+			if strings.Join(asked, ",") != want || migrated == fails || (err != nil) != fails || deviceFileBackendMarkerExists() == fails {
+				t.Fatalf("fails %v: asked %v migrated %v err %v marker %v", fails, asked, migrated, err, deviceFileBackendMarkerExists())
+			}
+			if !fails {
+				continue
+			}
+			if !strings.Contains(err.Error(), "nothing was copied") {
+				t.Fatalf("error %q", err)
+			}
+			if got, err := keyring.Get(deviceCredentialService, secretUser()); err != nil || got != current {
+				t.Fatalf("the keyring key must stay: %q %v", got, err)
+			}
+			if dir, err := deviceSecretFileDir(); err == nil {
+				if _, err := os.Stat(testSecretPath(dir, deviceCredentialService)); !os.IsNotExist(err) {
+					t.Fatalf("a file copy was written: %v", err)
+				}
+			}
+		}
+	})
+
+	t.Run("sends a Link pairing's pending key nowhere and copies nothing", func(t *testing.T) {
+		saved := gateWindowOffForFileCopy
+		t.Cleanup(func() { gateWindowOffForFileCopy = saved })
+		withDeviceStorageTestHome(t)
+		resetKeyringDeviceSlots(t)
+		if err := writePendingCloudDeviceCredentialWithPolicy(context.Background(), generateTestDeviceCredential(t), "hanova-relay-v1.AAAAAAAAAAAAAAAAAAAAAA", SecretStoreAllowUI); err != nil {
+			t.Fatal(err)
+		}
+		gateWindowOffForFileCopy = func(profile, key string, _ bool) error {
+			t.Errorf("window_off sent for %s with a Link pairing's key", profile)
+			return nil
+		}
+		migrated, err := migrateKeyringDeviceCredentialToFile()
+		if migrated || err == nil || !strings.Contains(err.Error(), "didn't finish") || deviceFileBackendMarkerExists() {
+			t.Fatalf("migrated %v err %v marker %v", migrated, err, deviceFileBackendMarkerExists())
 		}
 	})
 

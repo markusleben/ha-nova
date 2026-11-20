@@ -24,7 +24,7 @@ func TestSignInArmedPairingEndToEnd(t *testing.T) {
 	meta := deviceMetadata{Name: "signin-e2e", Platform: "linux", Client: "cli", ClientInstallID: "install-signin-e2e"}
 
 	// The armed secret is useless on the LAN pairing port.
-	armed, err := armSignInPairing(context.Background(), ingress, CloudEndpointPairArm)
+	armed, err := armSignInPairing(context.Background(), ingress, CloudEndpointPairArm, false)
 	if err != nil {
 		t.Fatalf("arm: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestSignInArmedPairingEndToEnd(t *testing.T) {
 	// Full sign-in pairing through ingress plus the shared local tail.
 	cfg := &runtimeConfig{}
 	provision := func(m deviceMetadata) (*provisionedCredential, error) {
-		return pairDeviceV2Armed(context.Background(), ingress, m)
+		return pairDeviceV2Armed(context.Background(), ingress, m, false)
 	}
 	deviceID, err := runSecurePairingWithProvisioner(
 		bootstrapURL,
@@ -76,7 +76,7 @@ func TestLinkOwnerPairingEndToEnd(t *testing.T) {
 	meta := deviceMetadata{Name: "link-e2e", Platform: "linux", Client: "cli", ClientInstallID: "install-link-e2e"}
 
 	// The Link secret is useless on the LAN pairing port.
-	armed, err := armSignInPairing(ctx, ingress, CloudEndpointPairArmLink)
+	armed, err := armSignInPairing(ctx, ingress, CloudEndpointPairArmLink, false)
 	if err != nil {
 		t.Fatalf("arm link: %v", err)
 	}

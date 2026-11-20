@@ -69,7 +69,7 @@ func darwinDeviceSecretGet(
 		if !found {
 			return "", keyring.ErrNotFound
 		}
-		return decodeDarwinGoKeyringValue(value)
+		return unsealDarwinDeviceValue(decodeDarwinGoKeyringValue(value))
 	}
 	value, found, err := readDarwinSecretThroughBoundary(
 		ctx,
@@ -84,7 +84,14 @@ func darwinDeviceSecretGet(
 	if !found {
 		return "", keyring.ErrNotFound
 	}
-	return decodeDarwinGoKeyringValue(value)
+	return unsealDarwinDeviceValue(decodeDarwinGoKeyringValue(value))
+}
+
+func unsealDarwinDeviceValue(value string, err error) (string, error) {
+	if err != nil {
+		return "", err
+	}
+	return unsealDeviceSecret(value), nil
 }
 
 func darwinDeviceSecretSet(
@@ -92,6 +99,7 @@ func darwinDeviceSecretSet(
 	service, account, value string,
 	ui SecretStoreUIPolicy,
 ) error {
+	value = sealDeviceSecret(value)
 	if ui == SecretStoreAllowUI {
 		if err := darwinDeviceSecretDelete(
 			ctx,

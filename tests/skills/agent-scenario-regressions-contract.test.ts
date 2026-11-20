@@ -175,7 +175,7 @@ describe("agent scenario regressions (2026-10-20)", () => {
     expect(index).not.toContain("code you mint");
     const context = flat("skills/ha-nova/SKILL.md");
     expect(context).not.toContain("four random digits you mint");
-    expect(context).toContain("A typed write without a CLI plan gets one: a `ha-nova plan raw` item");
+    expect(context).toContain("A typed write without a CLI plan becomes a `ha-nova plan raw` item");
     expect(context).toContain("never make up a code");
     // One undo line: a `say` already names the way back, so the index adds it only without one.
     expect(index).toContain('Verified raw write (no `say`): `✅ Saved: <type> "<name>"`, what was checked, and, if undoable, "To undo this change, just say so."');

@@ -325,20 +325,20 @@ func readSkillTree(root string) (map[string][]byte, error) {
 	return files, err
 }
 
-// doctorCodexSkillProblem: the warning and its fix for one stale copy.
+// doctorCodexSkillProblem: the warning and its fix (doctor's next step) for one stale copy.
 func doctorCodexSkillProblem(problem codexSkillProblem) (string, string) {
 	setupCommand := doctorClientSetupCommand("codex")
 	switch problem.Kind {
 	case "outdated":
 		return fmt.Sprintf("Codex loads an older version of HA NOVA from %s", problem.Path),
-			fmt.Sprintf("To fix: run \x60%s\x60, then start a new chat in Codex.", setupCommand)
+			fmt.Sprintf("run \x60%s\x60, then start a new chat in Codex", setupCommand)
 	case "legacy":
 		return fmt.Sprintf("Codex also loads an old copy of HA NOVA from %s", problem.Path),
-			fmt.Sprintf("To fix: run \x60%s\x60. It moves the old copy into a backup folder.", setupCommand)
+			fmt.Sprintf("run \x60%s\x60. It moves the old copy into a backup folder", setupCommand)
 	default:
-		fix := "To fix: delete that folder (move anything of yours out first), then start a new chat in Codex."
+		fix := fmt.Sprintf("delete %s (move anything of yours out first), then start a new chat in Codex", problem.Path)
 		if codexPlatformOS == "darwin" {
-			fix += " In Finder, press Cmd+Shift+. to show hidden folders."
+			fix += ". In Finder, press Cmd+Shift+. to show hidden folders"
 		}
 		return fmt.Sprintf("Codex also loads a second copy of HA NOVA from %s, which HA NOVA leaves alone", problem.Path), fix
 	}

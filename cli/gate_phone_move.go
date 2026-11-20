@@ -58,7 +58,7 @@ func (s *relaySession) gateMovePhone(link phoneLink, wait time.Duration) (string
 	if opened.AskID == "" {
 		return "", errors.New("the NOVA App's answer named no ask")
 	}
-	state, _ := s.gateWait(opened.AskID, true, wait-time.Since(start))
+	state, _ := s.gateWait(opened.AskID, true, wait-time.Since(start), nil, nil)
 	return state, nil
 }
 

@@ -214,8 +214,8 @@ var tracesRequest = map[string]any{"type": "trace/list", "domain": "automation"}
 // the check. Home Assistant keeps only a few runs per automation.
 func (a *updateAdvisor) automationErrors(since time.Time) ([]map[string]any, int) {
 	var traces []struct {
-		ItemID    string `json:"item_id"`
-		Error     string `json:"error"`
+		ItemID    registryID `json:"item_id"`
+		Error     string     `json:"error"`
 		Timestamp struct {
 			Start time.Time `json:"start"`
 		} `json:"timestamp"`
@@ -227,7 +227,7 @@ func (a *updateAdvisor) automationErrors(since time.Time) ([]map[string]any, int
 	var states []struct {
 		EntityID   string `json:"entity_id"`
 		Attributes struct {
-			ID string `json:"id"`
+			ID registryID `json:"id"`
 		} `json:"attributes"`
 	}
 	_, body, _ := a.s.coreGET("/api/states")
@@ -235,7 +235,7 @@ func (a *updateAdvisor) automationErrors(since time.Time) ([]map[string]any, int
 	entity := map[string]string{}
 	for _, st := range states {
 		if inDomain(st.EntityID, "automation") && st.Attributes.ID != "" {
-			entity[st.Attributes.ID] = st.EntityID
+			entity[string(st.Attributes.ID)] = st.EntityID
 		}
 	}
 	counts, last, lastAt := map[string]int{}, map[string]string{}, map[string]time.Time{}
@@ -243,7 +243,7 @@ func (a *updateAdvisor) automationErrors(since time.Time) ([]map[string]any, int
 		if t.Error == "" || !t.Timestamp.Start.After(since) {
 			continue
 		}
-		id := firstNonEmpty(entity[t.ItemID], "automation."+t.ItemID)
+		id := firstNonEmpty(entity[string(t.ItemID)], "automation."+string(t.ItemID))
 		counts[id]++
 		if !t.Timestamp.Start.Before(lastAt[id]) {
 			last[id], lastAt[id] = sayTextUpTo(t.Error, 200, false), t.Timestamp.Start

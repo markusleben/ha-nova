@@ -59,17 +59,19 @@ func leaveDraft() map[string]any {
 // slowHarness answers every read after latency; hangFirst makes the next n
 // reads of an automation's loaded config hang until their request ends (the
 // read budget); hung takes a core path, "related:" + an entity id, or
-// "automation/config " + an entity id.
+// "automation/config " + an entity id, and lag adds to the latency of the
+// reads it names the same way.
 type slowHarness struct {
 	*writeHarness
 	mu   sync.Mutex
 	hung map[string]int
+	lag  map[string]time.Duration
 }
 
 func newSlowHarness(t *testing.T, f *fakeHA, latency, budget time.Duration) *slowHarness {
 	fastVerify(t)
 	f.service = applies
-	h := &slowHarness{hung: map[string]int{}}
+	h := &slowHarness{hung: map[string]int{}, lag: map[string]time.Duration{}}
 	paths, log := setupFakeRelay(t, func(r *http.Request, endpoint string, p map[string]any) any {
 		h.mu.Lock()
 		path := fmt.Sprint(p["path"])
@@ -79,7 +81,7 @@ func newSlowHarness(t *testing.T, f *fakeHA, latency, budget time.Duration) *slo
 		case "automation/config":
 			path = "automation/config " + fmt.Sprint(p["entity_id"])
 		}
-		n := h.hung[path]
+		n, lag := h.hung[path], h.lag[path]
 		if n > 0 {
 			h.hung[path] = n - 1
 		}
@@ -88,7 +90,7 @@ func newSlowHarness(t *testing.T, f *fakeHA, latency, budget time.Duration) *slo
 			<-r.Context().Done()
 			return nil
 		}
-		time.Sleep(latency)
+		time.Sleep(latency + lag)
 		return f.reply(r, endpoint, p)
 	}, true)
 	h.writeHarness = &writeHarness{t: t, f: f, paths: paths, log: log}

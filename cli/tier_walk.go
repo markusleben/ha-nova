@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,6 +27,9 @@ func (e *tierEngine) walk(node any, via string, depth int) {
 		}
 		domain, _ := n["domain"].(string)
 		actionType, _ := n["type"].(string)
+		if n["delay"] != nil || n["wait_template"] != nil || n["wait_for_trigger"] != nil {
+			e.late = true
+		}
 		switch {
 		case name != "":
 			e.storedCall(name, n, via, depth, false)
@@ -94,6 +98,9 @@ var walkSkipKeys = map[string]bool{
 func (e *tierEngine) storedCall(name string, step map[string]any, via string, depth int, deviceForm bool) {
 	name = strings.ToLower(name) // as Home Assistant reads it (cv.service)
 	e.called(name)
+	if _, service := splitID(name); service == "reload" || strings.HasPrefix(service, "reload_") || lateServices[name] {
+		e.late = true // entities it loads or creates exist only afterwards, or it holds the run
+	}
 	if isTemplated(name) || !entityIDPattern.MatchString(name) {
 		e.gap(reasonTemplatedAction, "", via, name)
 		return
@@ -109,12 +116,17 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 	data, dataKnown := stepData(step)
 	targets, targetsKnown, all := collectTargets(step)
 	resolved := dataKnown && targetsKnown
+	var candidates []string
 	if !resolved { // what it names literally is still followed below
-		e.calls.unknown = true // and what the rest is, and calls in turn, isn't known
-		if all {
-			e.everySwitch(name, via)
+		if candidates = e.boundCandidates(name, dataKnown, all, via); candidates != nil {
+			e.bounds = append(e.bounds, tierReason{Code: reasonUnresolvedTarget, Via: via, Detail: name})
+		} else {
+			e.calls.unknown = true // and what the rest is, and calls in turn, isn't known
+			if all {
+				e.everySwitch(name, via)
+			}
+			defer e.gap(reasonUnresolvedTarget, "", via, name)
 		}
-		defer e.gap(reasonUnresolvedTarget, "", via, name)
 	}
 	if name == "scene.apply" {
 		e.sceneMembers(data["entities"], via, depth)
@@ -127,7 +139,7 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 	if len(targets["floor_id"])+len(targets["label_id"]) > 0 {
 		e.gap(reasonStoredSelector, "", via, name)
 	}
-	ids := targets["entity_id"]
+	ids := append(slices.Clone(targets["entity_id"]), candidates...)
 	var devices []string
 	for _, area := range targets["area_id"] {
 		ids = append(ids, e.areaEntities(area, domain, via)...)

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -59,6 +58,7 @@ type haSignInSession struct {
 	ingress  *CloudIngressClient
 	user     HACurrentUser
 	fromPage bool // signed in on the setup page: a failed pairing returns there
+	own      bool // the owner's yes to "Confirm risky changes here with one click" (setup_own_computer.go)
 }
 
 // parseLocalHAOrigin accepts the saved Home Assistant URL only as a plain
@@ -102,30 +102,6 @@ func haSignInPossible(out io.Writer, cfg runtimeConfig) bool {
 	}
 	_, err := parseLocalHAOrigin(cfg.HAURL)
 	return err == nil
-}
-
-// relayAdvertisesSignIn reads sign_in from the GET /pair/v1/info capability
-// probe; any failure reads as "no" and the step stays the code prompt.
-func relayAdvertisesSignIn(relayURL string) bool {
-	request, err := http.NewRequest(http.MethodGet, strings.TrimRight(relayURL, "/")+"/pair/v1/info", nil)
-	if err != nil {
-		return false
-	}
-	request.URL.User = nil
-	response, err := httpClient.Do(request)
-	if err != nil {
-		return false
-	}
-	defer response.Body.Close()
-	body, err := readAllLimited(response.Body, maxRelayPairingResponseBytes)
-	var info struct {
-		OK   bool `json:"ok"`
-		Data struct {
-			SignIn bool `json:"sign_in"`
-		} `json:"data"`
-	}
-	return response.StatusCode == http.StatusOK && err == nil &&
-		json.Unmarshal(body, &info) == nil && info.OK && info.Data.SignIn
 }
 
 // resolveHASignInOrigin proves, before any browser opens, that this computer

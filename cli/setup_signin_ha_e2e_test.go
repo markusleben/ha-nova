@@ -90,7 +90,7 @@ func TestHASignInAgainstThrowawayHomeAssistant(t *testing.T) {
 		}
 		// The relay refuses on its own too: arm through a real ingress session
 		// of the same non-owner, skipping the CLI's friendly pre-check.
-		if _, err := armSignInPairing(context.Background(), nonOwnerIngress(t, haURL), CloudEndpointPairArm); !errors.Is(err, errSignInNotOwner) {
+		if _, err := armSignInPairing(context.Background(), nonOwnerIngress(t, haURL), CloudEndpointPairArm, false); !errors.Is(err, errSignInNotOwner) {
 			t.Fatalf("relay armed pairing for a non-owner: %v", err)
 		}
 		return
@@ -105,7 +105,7 @@ func TestHASignInAgainstThrowawayHomeAssistant(t *testing.T) {
 	deviceID, err := runSecurePairingWithProvisioner(
 		os.Getenv("HA_NOVA_SIGNIN_E2E_RELAY_URL"),
 		func(meta deviceMetadata) (*provisionedCredential, error) {
-			return pairDeviceV2Armed(context.Background(), session.ingress, meta)
+			return pairDeviceV2Armed(context.Background(), session.ingress, meta, false)
 		},
 		cfg,
 		func(*runtimeConfig) error { return nil },

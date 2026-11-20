@@ -96,6 +96,9 @@ func (inventory fullPurgeInventory) verifyFinalConfigAndTargets(
 	); err != nil {
 		return nil, err
 	}
+	if err := requireLegacyLinkCopiesAbsent(paths); err != nil {
+		return nil, err
+	}
 	return deviceTargets, nil
 }
 

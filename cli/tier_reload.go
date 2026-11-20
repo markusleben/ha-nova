@@ -47,10 +47,10 @@ func (e *tierEngine) configReloadTier(service string, data map[string]any) (leve
 		for entityID, raw := range states {
 			var st struct {
 				Attributes struct {
-					ID string `json:"id"`
+					ID registryID `json:"id"`
 				} `json:"attributes"`
 			}
-			if strings.HasPrefix(entityID, "automation.") && json.Unmarshal(raw, &st) == nil && st.Attributes.ID == id {
+			if strings.HasPrefix(entityID, "automation.") && json.Unmarshal(raw, &st) == nil && string(st.Attributes.ID) == id {
 				entities = append(entities, entityID)
 			}
 		}

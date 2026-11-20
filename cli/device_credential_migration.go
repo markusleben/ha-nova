@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 )
 
@@ -25,6 +26,19 @@ import (
 // machine whose keyring never unlocks. The auto-detected path keeps its
 // stricter "nothing persists before promotion" contract.
 var deviceCredentialFileModeExplicit = false
+
+// deviceKeyNeverCopiedToFile: on macOS a Keychain key is never copied into a
+// file any same-user program reads (0.32 spec §5.4). While any profile holds
+// one, the file opt-ins keep the Keychain: switching the whole install to
+// files would hide every other profile's key, Link ones included.
+var deviceKeyNeverCopiedToFile = runtime.GOOS == "darwin"
+
+// errDeviceKeyStaysInKeychain: this Mac keeps its keys in the Keychain.
+var errDeviceKeyStaysInKeychain = errors.New("on macOS this computer's key stays in the Keychain and is never copied into a file")
+
+// deviceKeyStaysInKeychain is set once the migration answered
+// errDeviceKeyStaysInKeychain, so setup's pairing step keeps the Keychain.
+var deviceKeyStaysInKeychain = false
 
 const (
 	deviceCredentialKeyringCleanupMarker = ".keyring-migration-cleanup"
@@ -67,10 +81,20 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 	}
 	type slotValue struct{ service, value string }
 	var currents, pendings []slotValue
+	type windowOff struct {
+		profile, pending string
+		repairing        bool // a pending key waits beside the current one
+	}
+	var windowOffs []windowOff
+	var keyed []string // macOS: profiles holding a Keychain key
 	for _, profile := range credentialProfileNames() {
 		currentService := deviceCredentialServiceForProfile(profile)
 		pendingService := deviceCredentialPendingServiceForProfile(profile)
 		current, currentOK, currentErr := readCredentialSlot(currentService)
+		if currentErr != nil && deviceKeyNeverCopiedToFile {
+			deviceKeyStaysInKeychain = true // an unreadable slot may hold a key the switch would hide
+			return false, errDeviceKeyStaysInKeychain
+		}
 		if currentErr != nil {
 			return false, nil // keyring unreadable (locked/absent): the pairing path takes over
 		}
@@ -83,12 +107,42 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 		if pendingErr != nil {
 			return false, fmt.Errorf("cannot read the pending device credential from the keyring: %w", pendingErr)
 		}
+		if deviceKeyNeverCopiedToFile {
+			if currentOK || pendingOK {
+				keyed = append(keyed, profile)
+			}
+			continue
+		}
+		if currentOK {
+			windowOffs = append(windowOffs, windowOff{profile: profile, repairing: pendingOK})
+		}
 		if pendingOK {
 			pendings = append(pendings, slotValue{pendingService, pending})
+			record, err := decodePendingDeviceCredentialRecord(pending)
+			if err != nil {
+				return false, fmt.Errorf("cannot read the pending device credential from the keyring: %w", err)
+			}
+			if record.Source != pendingDeviceCredentialSourceLocal { // a Link pairing's key: its Relay is known only through Link, so it goes nowhere here
+				return false, fmt.Errorf("server profile %q has a pairing that didn't finish, so nothing was copied; finish it first with: ha-nova pair --server %s, then run this again", profile, profile)
+			}
+			windowOffs = append(windowOffs, windowOff{profile: profile, pending: record.Credential})
 		}
+	}
+	if len(keyed) > 0 {
+		deviceKeyStaysInKeychain = true
+		return false, errDeviceKeyStaysInKeychain
 	}
 	if len(currents) == 0 && len(pendings) == 0 {
 		return false, nil // never paired: nothing to migrate
+	}
+	// Any same-user program reads a file key, so a copied key must not
+	// approve in its computer's window (0.32 spec §5.4): the App turns that
+	// off for every key first, a pending one included (the App may already
+	// hold it as active), and nothing is copied when it can't.
+	for _, off := range windowOffs {
+		if err := gateWindowOffForFileCopy(off.profile, off.pending, off.repairing); err != nil {
+			return false, fmt.Errorf("couldn't turn off one-click confirming for server profile %q on the NOVA App first, so nothing was copied: %w", off.profile, err)
+		}
 	}
 	// Copy pendings first (provisional, never commits the backend), then EVERY
 	// current file, and only then the machine-wide marker: once the marker
@@ -313,6 +367,17 @@ func keyringDeviceCredentialCleanupPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(dir, deviceCredentialKeyringCleanupMarker), nil
+}
+
+// gateWindowOffForFileCopy: window_off for one profile's key (pending: a
+// pairing's key not yet promoted; repairing: the current key, with such a
+// pending key beside it) before it is copied to a file; tests replace it.
+var gateWindowOffForFileCopy = func(profile, pending string, repairing bool) error {
+	paths, err := detectPaths()
+	if err != nil {
+		return err
+	}
+	return gateWindowOffForProfile(paths, profile, pending, repairing)
 }
 
 // credentialProfileNames returns every server profile whose credential slots

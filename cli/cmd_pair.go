@@ -226,6 +226,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 	}
 	if resumedActivation && credentialStore != "file" {
 		fmt.Println("Resumed the interrupted secure device activation.")
+		offerPhoneLink(terminalReader(), os.Stdout, paths, true, true)
 		return 0
 	}
 	if resumedActivation {
@@ -263,7 +264,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 			activeServerProfile(),
 		)
 	}
-	guardErr := withClientMutationLock(paths, func() error {
+	guard := func() error {
 		if err := guardPairMutation(); err != nil {
 			return err
 		}
@@ -271,7 +272,14 @@ func runPairCommand(paths runtimePaths, args []string) int {
 			cfg,
 			pairCommandUI,
 		)
-	})
+	}
+	guardErr := withClientMutationLock(paths, guard)
+	if keyStoreFirst(guardErr, credentialStore == "file", terminalReader(), os.Stdout,
+		func(step func() error) error { return withClientMutationLock(paths, step) }, guardPairMutation,
+		func() (deviceStorageProbe, error) { return probePairCommandDeviceStorage(SecretStoreForbidUI) }) {
+		pairCommandUI = SecretStoreForbidUI
+		guardErr = withClientMutationLock(paths, guard)
+	}
 	if guardErr != nil {
 		printErr("Pairing cannot start: %s", keyringErrorText(guardErr))
 		if secureStorageSessionProblem(guardErr) {
@@ -292,9 +300,19 @@ func runPairCommand(paths runtimePaths, args []string) int {
 				return err
 			}
 			var err error
-			migrated, err = migrateKeyringDeviceCredentialToFile()
+			migrated, err = useFileKeyStore()
 			return err
 		})
+		if errors.Is(migrateErr, errDeviceKeyStaysInKeychain) {
+			printErr("%s.", migrateErr)
+			if resumedActivation {
+				fmt.Println("Resumed the interrupted secure device activation in the Keychain.")
+				offerPhoneLink(terminalReader(), os.Stdout, paths, true, true)
+				return 0
+			}
+			printErr("Nothing was paired — no code was used. Run the command without --credential-store=file to pair in the Keychain.")
+			return 1
+		}
 		if migrateErr != nil {
 			printErr("cannot move the device credential into private file storage: %s", keyringErrorText(migrateErr))
 			printErr("Nothing was paired — no code was used.")
@@ -303,10 +321,10 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		if migrated {
 			fmt.Println("Moved this install's device credential into private file storage.")
 		}
-		forceDeviceCredentialFileMode()
 	}
 	if resumedActivation {
 		fmt.Println("Resumed the interrupted secure device activation.")
+		offerPhoneLink(terminalReader(), os.Stdout, paths, true, true)
 		return 0
 	}
 	// Verify credential storage BEFORE asking for (or spending) a code: a broken
@@ -321,6 +339,22 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		probe, err = probePairCommandDeviceStorage(pairCommandUI)
 		return err
 	})
+	if yes, err := askFileKeyStore(terminalReader(), os.Stdout, probeErr); err == nil && yes { // the owner's opt-in, as --credential-store=file
+		pairCommandUI = SecretStoreForbidUI
+		probeErr = withClientMutationLock(paths, func() error {
+			if err := guardPairMutation(); err != nil {
+				return err
+			}
+			if moved, err := useFileKeyStore(); err != nil {
+				return err
+			} else if moved {
+				fmt.Println("Moved this install's device credential into private file storage.")
+			}
+			var err error
+			probe, err = probePairCommandDeviceStorage(pairCommandUI)
+			return err
+		})
+	}
 	if probeErr != nil {
 		if text := plainKeyringProblem(probeErr); text != "" {
 			printErr("This computer can't store the device key yet. %s", text)
@@ -385,6 +419,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		return 1
 	}
 	fmt.Printf("Paired securely. This device is connected (id %s).\n", deviceID)
+	offerPhoneLink(terminalReader(), os.Stdout, paths, true, true)
 	return 0
 }
 

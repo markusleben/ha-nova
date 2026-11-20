@@ -29,13 +29,31 @@ var (
 )
 
 // pageFitsWithoutLink: everything the setup page needs except Link. Flags,
-// service installs, named profiles, and a custom Relay address keep the
-// text wizard.
+// service installs, a custom Relay address, and a named profile that isn't
+// an existing local pairing keep the text wizard.
 func (f *setupFlow) pageFitsWithoutLink() bool {
 	return f.target == "" && !f.serviceMode &&
 		f.hostFlag == "" && f.haURLFlag == "" && f.relayURLFlag == "" && f.relayTokenFlag == "" &&
 		(f.cfg.RelayBaseURL == "" || f.cfg.RelayBaseURL == deriveRelayURLFromHA(f.cfg.HAURL, f.cfg.HAHost)) && // a custom Relay address: the terminal keeps it
-		activeServerProfile() == defaultServerProfileName && setupPageAvailable()
+		f.pageProfileFits() && setupPageAvailable()
+}
+
+// pageProfileFits: the default profile, or a named one picked by --server or
+// HA_NOVA_SERVER, paired with a local Relay and with no interrupted
+// retirement (MAR-241). A named default_server keeps the terminal: the page's
+// actions re-read the selection, and that saved default can change while the
+// page waits. Link, Link recovery, and a retirement keep the terminal for a
+// named profile, as before.
+func (f *setupFlow) pageProfileFits() bool {
+	profile := activeServerProfile()
+	if profile == defaultServerProfileName {
+		return true
+	}
+	if requested, _ := requestedServerSelection(); requested != profile {
+		return false
+	}
+	pending, err := deviceCredentialRetirementCheckpointExistsForProfile(f.paths, profile)
+	return err == nil && !pending && namedLocalRePairAllowed(f.cfg, f.serviceMode, f.hostFlag, f.haURLFlag, f.relayURLFlag, f.relayTokenFlag)
 }
 
 // settleLeftoverLink runs before handleInteractiveCloudRecoveryBeforeClients

@@ -543,7 +543,7 @@ func TestSetupPagePairingWithASlowHomeAssistant(t *testing.T) {
 	// three.
 	haSignInStepTimeout, haSignInPairTimeout = 100*time.Millisecond, 300*time.Millisecond
 	attempts := 0
-	pairDeviceV2ArmedForSetup = func(ctx context.Context, ingress *CloudIngressClient, _ deviceMetadata) (*provisionedCredential, error) {
+	pairDeviceV2ArmedForSetup = func(ctx context.Context, ingress *CloudIngressClient, _ deviceMetadata, _ bool) (*provisionedCredential, error) {
 		attempts++
 		calls := 3
 		if attempts == 1 {

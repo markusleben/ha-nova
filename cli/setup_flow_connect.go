@@ -65,11 +65,13 @@ func (f *setupFlow) stepSecureStorageRecovery() setupStepResult {
 	f.tokenStorageRecoveryReadBlocked = false
 	f.savedTokenBeforeSetup = ""
 	f.hadSavedTokenBeforeSetup = false
-	if savedToken, err := readRelayAuthTokenForSetup(); err == nil && strings.TrimSpace(savedToken) != "" {
-		f.savedTokenBeforeSetup = strings.TrimSpace(savedToken)
-		f.hadSavedTokenBeforeSetup = true
-	} else if err != nil && !isMissingRelayAuthTokenError(err) {
-		return f.failErr(relayAuthTokenSetupReadError(err))
+	if activeServerProfile() == defaultServerProfileName { // the machine-wide token is the default profile's: never assessed or sent for another server
+		if savedToken, err := readRelayAuthTokenForSetup(); err == nil && strings.TrimSpace(savedToken) != "" {
+			f.savedTokenBeforeSetup = strings.TrimSpace(savedToken)
+			f.hadSavedTokenBeforeSetup = true
+		} else if err != nil && !isMissingRelayAuthTokenError(err) {
+			return f.failErr(relayAuthTokenSetupReadError(err))
+		}
 	}
 	if strings.TrimSpace(f.relayTokenFlag) == "" {
 		f.existingToken = f.savedTokenBeforeSetup
@@ -233,7 +235,7 @@ func (f *setupFlow) stepPairing() setupStepResult {
 		f.relaySkipNote = setupMsg{}
 	}
 	f.ui.show(view)
-	if f.serviceMode {
+	if f.serviceMode && !deviceKeyStaysInKeychain {
 		// `setup --service` documents that the device credential lands in a
 		// protected file — service installs must not depend on a desktop
 		// keyring nobody unlocks. Forced here at the pairing step, not at

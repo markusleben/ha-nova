@@ -51,6 +51,7 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 					f.pageGeneration = f.lifecycleMarker[0]
 				}
 				f.lifecycleMarker = marker
+				f.legacyCleanup() // the retry gate_me.go names, on the page
 				return f.afterSkills(), true
 			}
 			f.pageRepairing("teach")
@@ -372,7 +373,8 @@ func (f *setupFlow) pageFinish() setupStepResult {
 	}
 	exit := f.pageControl()
 	if f.pageQuit && f.pageRerunOK {
-		f.page.end("saved") // nothing changed
+		f.page.update(func(v *setupPageState) { v.Home = &setupPageHome{Notes: f.pageNotes} }) // what the re-run did, the cleanup included
+		f.page.end("saved")                                                                    // nothing changed
 		return setupDone(exit)
 	}
 	if f.pageQuit {

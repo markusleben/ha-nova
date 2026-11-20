@@ -282,6 +282,9 @@ var plainStates = map[string]string{"on": "on", "off": "off", "locked": "locked"
 // sayReadBackDiffersText: saved, but not what the user approved.
 const sayReadBackDiffersText = "Not sure: it was saved, but Home Assistant kept something different from what you approved. Let's look at what changed before you count on it."
 
+// sayDeletedStillRunsText: the config is gone, the entity still runs.
+const sayDeletedStillRunsText = "Partly done: it's deleted from the config, but Home Assistant still runs it. Reloading stops it; I can do that as a separate step."
+
 // sayPast: a config plan's goal in the past for its result line, which
 // stays English (the agent words results in the user's language): "deleted
 // the automation “Night”". A verb without a past stays as it is.

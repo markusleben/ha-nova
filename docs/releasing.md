@@ -128,20 +128,32 @@ deploy or tag.
    ```bash
    npm run rc-lane -- vX.Y.Z-rcN
    ```
-   One command, throwaway only, about 10–15 minutes: first the chat-bridge
-   "code last" check with headless Claude, while the Claude test account's
-   usage limit is fresh (the one row that may SKIP, without `claude` and
-   `~/.claude-ha-nova-test`); then, with the tag's binary, the test bed's
-   assertions (`testbed/verify.sh`), chat-app files under `/config` at
-   Ask only, Use the home, and Manage everything (read, write, delete; a
-   refusal names its real cause, never the sign-in or a setting); then the
-   client matrix from the last stable and from v0.24.0 (published stable
+   On a Mac, run it as `bash scripts/e2e/rc-lane-container.sh vX.Y.Z-rcN`
+   instead: from 0.32 every HA NOVA command on macOS looks up its key in the
+   login Keychain, so rc-lane and the client matrix's macOS lane refuse to
+   run in a person's session. The container runs every row with the tag's
+   Linux binary; row c SKIPs there. The macOS binary's signing identity is
+   checked by `rc-macos-lane.yml` on a hosted runner
+   (`gh workflow run rc-macos-lane.yml -f tag=vX.Y.Z-rcN`).
+   One command, throwaway only, about 10–15 minutes: with the tag's binary,
+   the test bed's assertions (`testbed/verify.sh`) and chat-app files under
+   `/config` at Ask only, Use the home, and Manage everything (read, write,
+   delete; a refusal names its real cause, never the sign-in or a setting);
+   then the chat bridge on a standalone Relay with headless Claude, while the
+   Claude test account's usage limit is fresh (no phone linked: an unlock is
+   refused and nothing is sent; with a phone linked, its tap applies and the
+   reply says it's done; the one row that may SKIP, without `claude` and
+   `~/.claude-ha-nova-test`); then the client matrix from the last stable and from v0.24.0 (published stable
    install, then update to the RC),
-   the phone lane (push payloads per platform through fake phones), calm
+   the phone lane (push payloads per platform through fake phones), a late
+   tap (an unlock tapped 30 s after its question, past the App's 25 s wait poll,
+   still applies; #1183), calm
    edits in a bed with real-home listeners (two edits of one automation run
    without an ask and undo puts back the latest; an unlock or garage member
-   and a reload you call still ask), and the slow-check regression
-   (`scripts/e2e/testbed/README.md`, "Real-home checks"). It prints one
+   and a reload you call still ask), and the slow-check regression (a
+   census cut at the read budget still applies on the first tap; a typed
+   unlock skips the census; `scripts/e2e/testbed/README.md`, "Real-home
+   checks"). It prints one
    table and exits non-zero on any FAIL; a WARN row means the bed's Relay is
    not the tag's. Post the table as a comment on the release-prep PR. It
    starts its own test bed (with file access), so no other bed may run.
@@ -153,6 +165,11 @@ deploy or tag.
    ```bash
    npm run vm-lane -- vX.Y.Z-rcN
    ```
+   When the host can't hold the Win11 VM next to HAOS, add `--container`
+   (the vm-lane spec's HAOS-only pass): the App rows run in a throwaway Linux
+   container and the Windows rows are SKIP. Say in the release PR that
+   release.yml's Windows bundle and post-publish smokes plus the client
+   matrix cover them.
    For a train that changes the App, add
    `--app-branch chore/app-<app-version>`: the lane switches the HAOS VM's
    store to the App promote PR, updates the App in place, runs every lane on
@@ -160,7 +177,8 @@ deploy or tag.
    `main` (App Images → App proof). Without it the lane only checks the
    tag's `min_relay_version`, which is still the stable App.
    The published public one-liners, pairing with a six-digit code, update
-   from the last stable, doctor, a read and an ordinary call, client wiring,
+   from the last stable, doctor, a read and an ordinary call, a typed unlock
+   approved on the NOVA page 30 s after it asked (#1183), client wiring,
    rerun, stale uninstall marker, uninstall and purge, as fresh standard
    users in PowerShell 7 and 5.1 (`docs/release-validation.md` "Windows
    Public Onboarding Lane"); and one chat-app file delete in `custom_components` through

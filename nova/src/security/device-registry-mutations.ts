@@ -86,7 +86,7 @@ export function withPending(
     ...data,
     devices: [
       ...devices,
-      { ...record, state: "pending", pendingExpiresAtMs: now + PENDING_TTL_MS },
+      { ...structuredClone(record), state: "pending", pendingExpiresAtMs: now + PENDING_TTL_MS },
     ],
   };
 }
@@ -169,6 +169,10 @@ export function withActivated(
     platform: target.platform,
     client: target.client,
     createdAtMs: target.createdAtMs,
+    ...(target.credentialStore !== undefined ? { credentialStore: target.credentialStore } : {}),
+    ...(target.ownComputer !== undefined ? { ownComputer: { ...target.ownComputer } } : {}),
+    ...(target.windowConfirm !== undefined ? { windowConfirm: target.windowConfirm } : {}),
+    ...(target.legacyCleanup !== undefined ? { legacyCleanup: target.legacyCleanup } : {}),
     // Activation is itself a use; seeds the owner console's "last used".
     lastUsedAtMs: now,
     ...(target.cloudUserId !== undefined
@@ -178,6 +182,12 @@ export function withActivated(
         }
       : {}),
   };
+  // An owner-confirmed older entry of this computer: its plain install id before named profiles got their own (CLI pairingClientInstallID).
+  const retired = devices.find((d) => d.deviceId === target.retireDeviceId && d.state === "active" && d.cloudUserId === undefined && !appOwned(d) && target.clientInstallId.startsWith(`${d.clientInstallId}-`));
+  const previous = devices.find((d) => d.state === "active" && d.clientInstallId === target.clientInstallId) ?? retired;
+  if (target.pairingOwnerId !== undefined && previous?.confirmPhone !== undefined) {
+    promoted.confirmPhone = { ...previous.confirmPhone };
+  }
   // Drop the old active credential AND any older pending re-pair from the same
   // install. Leaving a stale same-install pending behind would let someone still
   // holding that older provisional credential activate it moments later and
@@ -185,7 +195,8 @@ export function withActivated(
   // mirroring the same-install cleanup revoke() already performs.
   const kept = devices.filter(
     (d) =>
-      d.deviceId !== deviceId && d.clientInstallId !== target.clientInstallId,
+      d.deviceId !== deviceId && d.clientInstallId !== target.clientInstallId &&
+      !(d.clientInstallId === retired?.clientInstallId && d.cloudUserId === undefined),
   );
   // Count AFTER retiring the same-install active record: re-pairing at the cap
   // is a replacement (net count unchanged) and must be allowed; only a

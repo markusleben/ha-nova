@@ -108,7 +108,7 @@ func sayReason(lang string, e *tierEngine, env *verbEnvelope, plan storedPlan, r
 		return confirmT(lang, "reason.no_registry", "name", name), false
 	case reasonSceneUnread:
 		return confirmT(lang, "reason.scene_unread", "name", name), false
-	case reasonListenerUnexpl, reasonRunListenerUnexpl, reasonManager:
+	case reasonManager:
 		return confirmT(lang, "reason.listener"), false
 	case reasonIntegrationSvc:
 		return confirmT(lang, "reason.integration_service"), false

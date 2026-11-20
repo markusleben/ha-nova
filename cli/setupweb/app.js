@@ -13,6 +13,7 @@
   const lists = typeof Intl.ListFormat === 'function' ? new Intl.ListFormat(language, { type: 'conjunction' }) : null;
   const screenEl = document.getElementById('screen');
   const dotsEl = document.getElementById('dots');
+  const serverEl = document.getElementById('server');
   const statusEl = document.getElementById('status');
   const finalScreens = ['done', 'closed', 'saved', 'skipped', 'demo', 'incomplete', 'finished', 'failed', 'stopped', 'idle', 'lost', 'elsewhere'];
   const steps = { looking: 1, found: 1, noclient: 1, connect: 2, control: 3, home: 4, done: 4, closed: 4, skipped: 3, incomplete: 4 };
@@ -210,9 +211,9 @@
       const primary = asking ? '' : state.primary;
       // Who signs in, said above the button: a family member may not know. On a
       // computer, that one sign-in connects it for anyone using this login on it.
-      const owner = primary ? el('p', { class: 'owner' }, t('setup.page.found.owner'), state.web ? null : ` ${t('setup.page.found.owner_once')}`) : null;
+      const owner = primary ? el('p', { class: 'owner' }, t('setup.page.found.owner'), state.web ? null : ` ${t('setup.page.found.owner_once')}`, later.ownSwitch(state.own)) : null;
       const actions = el('div', { class: 'actions' },
-        primary ? button(t(primaryLabels[primary]), 'signin')
+        primary ? button(t(primaryLabels[primary]), 'signin', 'primary', later.ownChoice(state.own))
           : button(t('setup.page.button.terminal'), 'terminal', asking ? 'ghost' : 'primary'));
       let fine = [];
       if (primary) {
@@ -257,7 +258,7 @@
         const links = state.links || {};
         const webFix = state.fix === 'web' || state.fix === 'web_never';
         actions.push(el('div', { class: 'actions' },
-          fixLabels[state.fix] ? button(t(fixLabels[state.fix]), 'signin') : null,
+          fixLabels[state.fix] ? [later.ownSwitch(state.own), button(t(fixLabels[state.fix]), 'signin', 'primary', later.ownChoice(state.own))] : null,
           // Chat apps can't work here yet: set it up and sign in again, or an AI app on this computer.
           webFix ? button(t('setup.page.button.local'), 'local', state.fix === 'web' ? 'ghost' : 'primary') : null,
           link(t('setup.page.link.guide'), links.guide, fixLabels[state.fix] ? 'ghost' : 'primary', 'guide'),
@@ -282,7 +283,7 @@
   // What step 3 did, on step 4 and a re-run's end: green when it went
   // through, amber when it didn't or still needs you.
   const amberNotes = ['setup.page.home.note_rule_failed', 'setup.page.home.note_link_failed', 'setup.page.home.note_chat_off_failed',
-    'setup.page.home.note_clients_failed', 'setup.page.home.note_web_off'];
+    'setup.page.home.note_clients_failed', 'setup.page.home.note_web_off', 'setup.cleanup.incomplete'];
   const note = (msg) => el('p', { class: amberNotes.includes(msg.key) ? 'note' : 'note done' }, say(msg));
   const helpers = { t, el, row, head, note, button, link, format, render, post, accepts, announce, claudeWhere, codexWhere, state: () => state };
   const { copybar, ...later } = window.novaSteps(helpers);
@@ -312,6 +313,8 @@
     screenEl.classList.toggle('enter', changed);
     lastScreen = state.screen;
     renderDots(state.screen);
+    serverEl.hidden = !state.server; // a named server profile (MAR-241)
+    serverEl.textContent = !state.server ? '' : state.ha ? t('setup.page.server_at', { server: state.server, ha: state.ha }) : t('setup.page.server', { server: state.server });
     screenEl.replaceChildren(...(screens[state.screen] || screens.failed)().filter(Boolean));
     if (changed) {
       // A new screen: say its title once and move focus to it.

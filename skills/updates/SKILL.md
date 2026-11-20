@@ -109,7 +109,7 @@ Use stable localized slot labels in this order; omit empty slots. The overview: 
 
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 
-- Installs: natural confirmation per update after preview (HACS: one-time code); batches need an explicitly confirmed plan.
+- Installs: natural confirmation per update after preview (HACS: own confirmation); batches need an explicitly confirmed plan.
 - Updates are irreversible — for core/OS name the safety-backup offer before, not after.
 - Never install anything the user did not ask about or confirm; `auto_update: true` items update themselves — say so instead of installing them unprompted; an explicit, confirmed user request may still install.
 - Verify by re-reading the entity, then the after-update check.

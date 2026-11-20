@@ -1,3 +1,4 @@
+import type { DeviceRegistry } from "../../security/device-registry.js";
 import { checkOwner, type OwnerCheckDeps } from "../../security/owner-check.js";
 import {
   PAIR_ARM_TTL_MS,
@@ -31,9 +32,9 @@ export function createPairV2InfoHandler(deps: PairV2Deps): RouteHandler {
 // a CORS preflight, so no web page can arm a pairing for a signed-in owner.
 // POST /pair/v2/arm/link: same, pairs a Link device bound to the owner (older Apps: 404).
 export function createPairV2ArmHandler(
-  deps: PairV2Deps & OwnerCheckDeps & { registryCorrupt: () => boolean; device: "local" | "link" },
+  deps: PairV2Deps & OwnerCheckDeps & { registryCorrupt: () => boolean; device: "local" | "link"; registry?: Pick<DeviceRegistry, "list"> },
 ): RouteHandler {
-  return async ({ request }) => {
+  return async ({ request, body }) => {
     if (request.headers["sec-fetch-site"] !== undefined) {
       throw new HttpError(
         403,
@@ -49,6 +50,10 @@ export function createPairV2ArmHandler(
         "Content-Type must be application/json",
       );
     }
+    const ownComputer = (body as { own_computer?: unknown } | null)?.own_computer;
+    if (ownComputer !== undefined && typeof ownComputer !== "boolean") {
+      throw new HttpError(400, "VALIDATION_ERROR", "own_computer must be a boolean");
+    }
     const owner = await checkOwner(request, deps);
     if (!owner.ok) {
       throw owner.status === 503
@@ -56,7 +61,7 @@ export function createPairV2ArmHandler(
         : new HttpError(403, "OWNER_REQUIRED", owner.message);
     }
     // Same gate as the NOVA page: no secret while pairing cannot finish.
-    const armed = deps.registryCorrupt() ? null : deps.manager.arm(owner.userId, deps.device);
+    const armed = deps.registryCorrupt() ? null : deps.manager.arm(owner.userId, deps.device, ownComputer === true);
     if (armed === null) {
       throw new HttpError(
         503,
@@ -64,10 +69,14 @@ export function createPairV2ArmHandler(
         "Pairing is unavailable; open NOVA in Home Assistant for details",
       );
     }
+    // The one local entry still under the install id this computer paired with before (a re-pair can remove it).
+    const prior = (body as { previous_install_id?: unknown } | null)?.previous_install_id;
+    const old = typeof prior === "string" && deps.device === "local" ? (deps.registry?.list() ?? []).filter((d) => d.state === "active" && d.clientInstallId === prior && d.cloudUserId === undefined) : [];
     return {
       pairing_secret: armed.secret,
       expires_in_s: PAIR_ARM_TTL_MS / 1_000,
       relay_instance_id: deps.relayInstanceId,
+      ...(old.length === 1 ? { previous: { device_id: old[0]!.deviceId, name: old[0]!.name } } : {}),
     };
   };
 }

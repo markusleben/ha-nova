@@ -352,8 +352,9 @@ func pageFinishChoices(value string) (pageFinish, bool) {
 
 // pageLinkOffered: Home Assistant Link can be added now, as the terminal's
 // offer would (pageControl also needs its remote access on for this home).
+// Never for a named profile, whose Link setup stays in the terminal (MAR-241).
 func (f *setupFlow) pageLinkOffered() bool {
-	return f.setupLinkOffered(f.page.text.out)
+	return activeServerProfile() == defaultServerProfileName && f.setupLinkOffered(f.page.text.out)
 }
 
 func (f *setupFlow) setupLinkOffered(out io.Writer) bool {

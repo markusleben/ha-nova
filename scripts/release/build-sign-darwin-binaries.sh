@@ -7,7 +7,7 @@ ROOT_DIR="$(cd -- "${HA_NOVA_SOURCE_ROOT:-${TRUSTED_ROOT}}" && pwd)"
 DIST_DIR="${DIST_DIR:-${ROOT_DIR}/dist}"
 RAW_TAG="${1:-}"
 EXPECTED_IDENTITY="Developer ID Application: Markus Leben (CTF9J94274)"
-SIGNING_IDENTIFIER="com.markusleben.ha-nova.cli"
+SIGNING_IDENTIFIER="com.markusleben.ha-nova.cli2"
 
 fail() {
   echo "[build-sign-darwin-binaries] ERROR: $*" >&2

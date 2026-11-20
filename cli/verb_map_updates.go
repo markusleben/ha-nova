@@ -186,7 +186,7 @@ func (a *updateAdvisor) loadPending() error {
 		row := updateRow{EntityID: st.EntityID, Name: a.x.name(st.EntityID), Kind: "firmware", Installed: at.Installed, Latest: at.Latest, AutoUpdate: at.AutoUpdate, InProgress: inProgress}
 		if i, ok := reg[st.EntityID]; ok {
 			e := a.x.h.entities[i]
-			row.Kind, row.slug = updateKind(e.Platform, e.UniqueID)
+			row.Kind, row.slug = updateKind(e.Platform, string(e.UniqueID))
 			row.device = e.DeviceID
 		}
 		if row.Kind == "core" {

@@ -24,6 +24,7 @@ const (
 	nativeSecretSet         nativeSecretOperation = "set"
 	nativeSecretDelete      nativeSecretOperation = "delete"
 	nativeSecretDeleteExact nativeSecretOperation = "delete_exact"
+	nativeSecretLegacyGet   nativeSecretOperation = "legacy_get" // legacy_link_cleanup.go
 )
 
 type nativeSecretWorkerRequest struct {
@@ -230,6 +231,10 @@ func validateNativeSecretWorkerRequest(request nativeSecretWorkerRequest) error 
 		return invalidNativeSecretWorkerRequest()
 	}
 	switch request.Operation {
+	case nativeSecretLegacyGet:
+		if len(request.Value) != 0 || legacyLinkState(request.Service) == "" {
+			return invalidNativeSecretWorkerRequest()
+		}
 	case nativeSecretGet, nativeSecretDelete:
 		if len(request.Value) != 0 {
 			return invalidNativeSecretWorkerRequest()
@@ -296,7 +301,7 @@ func validateNativeSecretWorkerResponse(
 		}
 		return nil
 	}
-	if operation == nativeSecretGet {
+	if operation == nativeSecretGet || operation == nativeSecretLegacyGet {
 		if response.Found {
 			if len(response.Value) == 0 ||
 				len(response.Value) > oauthSecretMaxEncodedSize {

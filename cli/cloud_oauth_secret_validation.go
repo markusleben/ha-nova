@@ -92,6 +92,9 @@ func validOAuthSecretBackendService(service string) bool {
 		oauthSecretRetiringService:
 		return true
 	}
+	if state := OAuthSecretState(strings.TrimPrefix(service, oauthLegacyCleanupServicePrefix)); string(state) != service {
+		return state == OAuthSecretCurrent || state == OAuthSecretPending || state == OAuthSecretRetiring
+	}
 	generation := strings.TrimPrefix(service, oauthSecretPreflightServicePrefix)
 	return generation != service &&
 		oauthSecretGenerationPattern.MatchString(generation)

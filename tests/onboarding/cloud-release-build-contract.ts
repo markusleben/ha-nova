@@ -80,7 +80,8 @@ export function registerCloudReleaseBuildContractTests(): void {
     expect(darwinBuilder.indexOf('security list-keychains -d user -s "${original_keychains[@]}"')).toBeLessThan(
       darwinBuilder.indexOf("security delete-keychain"),
     );
-    expect(darwinVerifier).toContain('EXPECTED_IDENTIFIER="com.markusleben.ha-nova.cli"');
+    expect(darwinBuilder).toContain('SIGNING_IDENTIFIER="com.markusleben.ha-nova.cli2"');
+    expect(darwinVerifier).toContain('EXPECTED_IDENTIFIER="com.markusleben.ha-nova.cli2"');
     expect(darwinVerifier).toContain('EXPECTED_TEAM_ID="CTF9J94274"');
   });
 }

@@ -89,6 +89,9 @@ func (f *setupFlow) runOnPage() int {
 func (f *setupFlow) runWithPage(page *setupWebUI) int {
 	defer page.server.close()
 	f.ui, f.page, f.target = page, page, "all" // the page sets up every AI assistant it finds (spec §7.3)
+	if profile := activeServerProfile(); profile != defaultServerProfileName {
+		page.update(func(v *setupPageState) { v.Server, v.HA = profile, terminalSafeName(f.cfg.HAHost) }) // the header names it (MAR-241)
+	}
 	code := f.run()
 	if !setupPageEnded(page.snapshot().Screen) {
 		// Ended without an outcome (a terminal step finished it).
@@ -141,8 +144,9 @@ func (f *setupFlow) stepPage() setupStepResult {
 	var blocked [2]string // host and address Link held back (link_remove)
 	for {
 		app := f.pageApp()
+		own := app.primary != "" && !f.noClient && (app.primary != "signin" && ownComputerHere() || ownComputerAskedForSetup(f.cfg)) // the button asks; an App to install is asked after (pageSignIn)
 		p.update(func(v *setupPageState) {
-			v.Screen, v.HA, v.Candidates, v.App, v.AppVersion, v.Primary = screen, terminalSafeName(f.cfg.HAHost), found, app.state, terminalSafeName(app.version), app.primary
+			v.Screen, v.HA, v.Candidates, v.App, v.AppVersion, v.Primary, v.Own = screen, terminalSafeName(f.cfg.HAHost), found, app.state, terminalSafeName(app.version), app.primary, own
 			v.Clients, v.Problem, v.Fix, v.Links, v.AskHA, v.Typed = setupClientNames(f.selectedClients), problem, fix, links, askHA, f.pageTyped
 			if screen == "found" {
 				v.Rows = nil
@@ -237,6 +241,7 @@ func (f *setupFlow) stepPage() setupStepResult {
 			f.detectRelayOnInstall = true
 			return setupGoTo(setupStepRelayInstall)
 		case "signin":
+			f.pageOwn = own && action.Value == "own"
 			if app.primary == "" {
 				app = f.pageApp() // Try again reads the App again
 			}
@@ -257,6 +262,7 @@ func (f *setupFlow) stepPage() setupStepResult {
 						}
 					}
 				})
+				retry.own = f.pageOwn // Try again carries the switch as it stands now
 				setupInstalledSignIn = retry
 				f.pairingFlow, f.pairingBackStep = true, setupStepRelayInstall
 				return setupGoTo(setupStepPairing)
@@ -454,7 +460,7 @@ func (f *setupFlow) pageSignIn(app setupPageApp) (*setupPageFailure, bool) {
 	pageStop := stoppedOnPage()
 	p.navigate("")
 	if err == nil {
-		session.fromPage = true
+		session.fromPage, session.own = true, f.pageOwn && ownComputerAskedForSetup(f.cfg) // the App installed now must approve in windows too
 		setupInstalledSignIn = &session
 		return nil, false
 	}
