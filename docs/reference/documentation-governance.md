@@ -54,21 +54,21 @@ Rules:
 
 ### 2. Work
 
-Temporary planning/spec files for currently active work only.
+Planning/spec files for work in progress, and the specs of work that shipped.
 
 Rules:
-- keep active work docs under `docs/work/`
+- keep work docs under `docs/work/`
 - one work doc per topic by default
 - avoid parallel `plan` + `spec` pairs unless there is a strong reason
 - every work doc must declare status:
-  - `active`
-  - `merged`
-  - `superseded`
-  - `abandoned`
+  - `active` while the work is in progress
+  - `shipped` (optionally with the version) once it is released
 - same PR that lands the behavior must:
   - update the active SSOT
   - update tests/contracts where needed
-  - archive or delete the work doc
+- the release that ships it marks the work doc `shipped`; it stays in place as the
+  record of why (code comments cite it), and the SSOT stays normative
+- superseded or abandoned work docs move to `docs/archive/work/`
 
 ### 3. Archive
 
@@ -116,10 +116,3 @@ Historical journals:
 - Release/install/support/platform truth must not be duplicated across multiple active docs.
 - Only active docs get contract tests.
 - Historical journals such as long breadcrumb logs must not keep growing as active SSOT surfaces.
-
-## Preferred Cleanup Direction
-
-- shrink `PROJECT.md` to internal context only
-- keep `SUPPORT.md` as a thin routing page or fold it away later
-- reduce `nova/README.md` to a pointer stub or fold it into `nova/DOCS.md`
-- move old plans/specs/research into `docs/archive/`

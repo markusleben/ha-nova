@@ -1,6 +1,6 @@
 # Device skill: replace, onboard, retire a device — Spec (2026-10-16)
 
-Status: active
+Status: shipped
 
 ## Problem
 

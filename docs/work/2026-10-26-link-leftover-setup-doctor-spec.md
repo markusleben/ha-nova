@@ -1,6 +1,6 @@
 # A leftover Home Assistant Link: setup explains it, doctor runs anyway (2026-10-26)
 
-Status: active
+Status: shipped
 
 Follow-up to #813 (Link paused in setup). Works with `2026-10-24-link-cleanup-for-me-spec.md` (0.28): this spec covers what setup and doctor say and offer; that spec covers what `cloud remove` does when it can't check the sign-in.
 

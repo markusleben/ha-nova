@@ -1,6 +1,6 @@
 # MCP: skills over one read-only tool (`ha_skill`) — Spec (2026-10-16)
 
-Status: active
+Status: shipped
 
 ## Problem
 

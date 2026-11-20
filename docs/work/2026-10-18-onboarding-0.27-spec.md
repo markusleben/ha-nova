@@ -1,6 +1,6 @@
 # 0.27: setup in the browser, HA NOVA in chat apps
 
-Status: active
+Status: shipped
 
 Direction and prototype approved by the maintainer (2026-10-18). Implementation runs as the PR train in §13 (A1 #740, A2 #739, A3 #741 merged).
 **UX baseline:** the approved clickable prototype `docs/work/2026-10-18-onboarding-0.27-prototype.html`. Its screens and copy are the reference; §16 lists where this spec still deviates.

@@ -1,6 +1,6 @@
 # Spec: the NOVA App stops accepting the old shared access (#905)
 
-Status: active (0.30 train). Decision: Markus, 10.11. (D3): remove it in 0.30. Breaking: a computer still on the old shared access pairs again.
+Status: shipped (0.30 train). Decision: Markus, 10.11. (D3): remove it in 0.30. Breaking: a computer still on the old shared access pairs again.
 
 ## Problem
 

@@ -1,6 +1,6 @@
 # Relay refuses code-tier writes; skills send them through a plan
 
-Status: active
+Status: shipped
 
 Date: 2026-11-03. Owner: CLI raw route (`cli/relay_raw_endpoint.go` `relayTyped`, `cli/plan_raw_tier.go`, `cli/plan_raw_person.go`) and the skills that write raw. Target: 0.28.2 (held back from 0.28.1). Shipped as two PRs, each safe alone: the skills first, then the CLI.
 

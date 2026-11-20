@@ -1,6 +1,6 @@
 # The CLI and the gate rate skill-typed raw writes themselves (raw-write typed parity)
 
-Status: active (built for 0.31, plan item 1)
+Status: shipped (0.31)
 
 Date: 2026-11-12. Owner: the raw tier (`cli/tier_raw_takeover.go`, `cli/tier_raw_listeners.go`, `cli/plan_raw_tier.go`), which `ha-nova plan raw`, `ha-nova relay`, and the App's gate (`gateVerdict` → `gateLiveTier`) share. High-risk: tiers on every raw route.
 

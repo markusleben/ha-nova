@@ -1,6 +1,6 @@
 # Marketplace lifecycle through HA NOVA (0.31, #1099)
 
-Status: active
+Status: shipped
 
 Follows the 0.30 refusal (#1096, `MARKETPLACE_WARNING`). Maintainer decision D2 (2026-11-10): accepting the Marketplace warning for the system user only as a typed step with a fixed text that names the system user and the lasting effect; check first whether other Apps share that user; install, uninstall, and restart typed, at the Relay's gate too.
 

@@ -1,6 +1,6 @@
 # Sign in with Home Assistant: owner-armed ingress pairing — Spec (2026-10-16)
 
-Status: active
+Status: shipped
 
 ## Goal
 
