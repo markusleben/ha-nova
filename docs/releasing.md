@@ -57,9 +57,9 @@ npm run verify
 
 The host-safe default gate: release metadata sync, production `npm audit` on
 both lockfiles (`bash scripts/release/verify-npm-audit.sh`), blocked files,
-TypeScript, docs contracts, `test:safe:core` (pinned by
-`scripts/test/safe-core-files.json`), the onboarding slice (starting with
-`npm run verify:installers`), build, Go CLI tests, and release contracts.
+TypeScript, the docs fact-check, build, every Vitest test in one sweep, and Go
+CLI tests. On a Mac, run `npm run verify:node` and leave the Go suite to CI
+(`docs/reference/testing.md`).
 
 ## 3. Release Candidate Gate
 
