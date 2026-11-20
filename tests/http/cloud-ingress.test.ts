@@ -1,5 +1,5 @@
 import { createServer, type Server } from "node:http";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -86,18 +86,10 @@ describe("Cloud ingress listener", () => {
   });
 
   it("applies an explicit fail-closed policy to every registered ingress route", async () => {
-    const iconPath = join(dir, "icon.png");
-    writeFileSync(iconPath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    const direct = await start(false);
+    expect((await request(direct, "GET", "/cloud/v1/info", "user-1")).status).toBe(403);
 
-    const direct = await start(false, iconPath);
-    expect((await request(direct, "GET", "/icon", "user-1")).status).toBe(403);
-
-    const ingress = await start(true, iconPath);
-    const icon = await request(ingress, "GET", "/icon", "user-1");
-    expect(icon.status).toBe(200);
-    expect(Buffer.from(await icon.arrayBuffer())).toEqual(
-      Buffer.from([0x89, 0x50, 0x4e, 0x47]),
-    );
+    const ingress = await start(true);
 
     const unknown = await request(
       ingress,
@@ -231,14 +223,8 @@ function activeDevice() {
   return credential;
 }
 
-async function start(
-  asSupervisorIngress: boolean,
-  iconPath?: string,
-): Promise<string> {
-  const listener = createIngressListener({
-    ...deps(),
-    ...(iconPath === undefined ? {} : { iconPath }),
-  });
+async function start(asSupervisorIngress: boolean): Promise<string> {
+  const listener = createIngressListener(deps());
   const server = createServer((request, response) => {
     if (asSupervisorIngress) {
       Object.defineProperty(request.socket, "remoteAddress", {

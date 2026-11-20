@@ -72,11 +72,11 @@ class HaNovaView(HomeAssistantView):
         return await self._forward(request)
 
     async def get(self, request: web.Request) -> web.StreamResponse:
-        """Pass on (the 0.27 bridge answers 405)."""
+        """Pass on (the bridge answers 405)."""
         return await self._forward(request)
 
     async def delete(self, request: web.Request) -> web.StreamResponse:
-        """Pass on (the 0.27 bridge answers 405)."""
+        """Pass on (the bridge answers 405)."""
         return await self._forward(request)
 
     async def _forward(self, request: web.Request) -> web.StreamResponse:

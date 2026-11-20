@@ -1,17 +1,11 @@
 import { HaRestClientError } from "../../ha/rest-client.js";
 import type { CoreProxyMethod, CoreProxyRequest, CoreProxyResponse } from "../../types/api.js";
 import { HttpError } from "../errors.js";
-import type { RouteContext, RouteHandler } from "../router.js";
 
 export interface CoreProxyHandlerOptions {
   coreClient: {
     request(input: CoreProxyRequest): Promise<CoreProxyResponse>;
   };
-}
-
-export function createCoreProxyHandler(options: CoreProxyHandlerOptions): RouteHandler {
-  const forward = createCoreForwarder(options);
-  return async ({ body }: RouteContext) => await forward(parseCoreRequest(body));
 }
 
 // The safety check rates the parsed, normalized request, and then exactly that

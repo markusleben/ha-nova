@@ -37,7 +37,6 @@ export interface IngressListenerDeps {
   resetRegistry: () => void;
   now: () => number;
   logger: RelayLogger;
-  iconPath?: string;
   chatApps?: ChatApps; // only with HA_NOVA_CHAT_APPS=1
   gatePage?: GatePage; // the approval view; none: no gate
 }

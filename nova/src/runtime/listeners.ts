@@ -54,16 +54,24 @@ const DEVICE_REVOKE = "POST /auth/device/revoke-self";
 const PAIRING = new Set([PAIR_INFO, PAIR_START, PAIR_FINISH]);
 const SELF_AUTHENTICATED = new Set([...PAIRING, DEVICE_ACTIVATE, DEVICE_REVOKE]);
 
+// The functional routes the device listener and the Home Assistant Link
+// (ingress) listener share. The device listener adds /supervisor on its own.
+export function functionalRoutes(fns: FunctionalHandlers): Array<["GET" | "POST", string, RouteHandler]> {
+  return [
+    ["GET", "/health", fns.health],
+    ["POST", "/ws", fns.ws],
+    ["POST", "/core", fns.core],
+    ["POST", "/files", fns.files],
+    ["POST", "/backups", fns.backups],
+    ["POST", "/gate/v1/ask", fns.ask],
+    ["POST", "/gate/v1/phone", fns.ask],
+    ...(fns.me !== undefined ? [["GET", "/gate/v1/me", fns.me] as ["GET", string, RouteHandler]] : []),
+  ];
+}
+
 function registerFunctional(router: Router, fns: FunctionalHandlers): void {
-  router.register("GET", "/health", fns.health);
-  router.register("POST", "/ws", fns.ws);
-  router.register("POST", "/core", fns.core);
-  router.register("POST", "/files", fns.files);
-  router.register("POST", "/backups", fns.backups);
+  for (const [method, path, handler] of functionalRoutes(fns)) router.register(method, path, handler);
   router.register("POST", "/supervisor", fns.supervisor);
-  router.register("POST", "/gate/v1/ask", fns.ask);
-  router.register("POST", "/gate/v1/phone", fns.ask);
-  if (fns.me !== undefined) router.register("GET", "/gate/v1/me", fns.me);
 }
 
 // The auth hook for functional routes on a given transport: resolve a device

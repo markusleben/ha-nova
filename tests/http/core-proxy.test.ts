@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createCoreProxyHandler } from "../../nova/src/http/handlers/core-proxy.js";
-import { createRouter } from "../../nova/src/http/router.js";
+import { createCoreForwarder, parseCoreRequest, type CoreProxyHandlerOptions } from "../../nova/src/http/handlers/core-proxy.js";
+import { createRouter, type RouteHandler } from "../../nova/src/http/router.js";
 import { createHttpServer } from "../../nova/src/http/server.js";
 
 const TEST_AUTH_TOKEN = "secret";
@@ -33,7 +33,7 @@ describe("core proxy endpoint", () => {
     router.register(
       "POST",
       "/core",
-      createCoreProxyHandler({
+      coreHandler({
         coreClient: {
           request: async (input) => ({
             status: 201,
@@ -81,7 +81,7 @@ describe("core proxy endpoint", () => {
     router.register(
       "POST",
       "/core",
-      createCoreProxyHandler({
+      coreHandler({
         coreClient: {
           request: async (input) => ({
             status: 200,
@@ -126,7 +126,7 @@ describe("core proxy endpoint", () => {
     router.register(
       "POST",
       "/core",
-      createCoreProxyHandler({
+      coreHandler({
         coreClient: {
           request: async () => ({
             status: 200,
@@ -165,7 +165,7 @@ describe("core proxy endpoint", () => {
     router.register(
       "POST",
       "/core",
-      createCoreProxyHandler({
+      coreHandler({
         coreClient: {
           request: async () => ({
             status: 200,
@@ -204,7 +204,7 @@ describe("core proxy endpoint", () => {
     router.register(
       "POST",
       "/core",
-      createCoreProxyHandler({
+      coreHandler({
         coreClient: {
           request: async () => ({
             status: 200,
@@ -243,7 +243,7 @@ describe("core proxy endpoint", () => {
     router.register(
       "POST",
       "/core",
-      createCoreProxyHandler({
+      coreHandler({
         coreClient: {
           request: async () => ({
             status: 200,
@@ -282,7 +282,7 @@ describe("core proxy endpoint", () => {
     router.register(
       "POST",
       "/core",
-      createCoreProxyHandler({
+      coreHandler({
         coreClient: {
           request: async () => {
             throw new Error("upstream unavailable");
@@ -352,7 +352,7 @@ describe("core proxy endpoint", () => {
     router.register(
       "POST",
       "/core",
-      createCoreProxyHandler({
+      coreHandler({
         coreClient: {
           request: async (input) => ({
             status: 200,
@@ -427,4 +427,10 @@ function jsonBodyWithPad(prefix: string, suffix: string, targetBytes: number): s
     throw new Error("targetBytes is smaller than fixed JSON body");
   }
   return `${prefix}${"x".repeat(padBytes)}${suffix}`;
+}
+
+// The production composition: parse and normalize, then forward (app-mode.ts).
+function coreHandler(options: CoreProxyHandlerOptions): RouteHandler {
+  const forward = createCoreForwarder(options);
+  return async ({ body }) => await forward(parseCoreRequest(body));
 }
