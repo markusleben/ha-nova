@@ -73,7 +73,6 @@ const pages = [
   ...readdirSync("cli/setupweb").filter((f) => f.endsWith(".js")).map((f) => `cli/setupweb/${f}`),
   "nova/src/http/handlers/nova-page-view.ts",
   "nova/src/http/handlers/nova-page.ts",
-  "nova/src/http/handlers/home.ts",
 ];
 const docs = [
   "README.md",

@@ -12,7 +12,6 @@ import { createBackupsHandler } from "./http/handlers/backups.js";
 import { createCoreForwarder, parseCoreRequest } from "./http/handlers/core-proxy.js";
 import { createFilesHandler } from "./http/handlers/files.js";
 import { createHealthHandler } from "./http/handlers/health.js";
-import { createHomeHandler } from "./http/handlers/home.js";
 import { createPairHandler } from "./http/handlers/pair.js";
 import { createWsProxyHandler } from "./http/handlers/ws-proxy.js";
 import { gated, type GateClient } from "./http/gate.js";
@@ -24,8 +23,6 @@ import type { PhoneLinkStore } from "./runtime/gate-phone-store.js";
 
 const PAIR_PATH = "/pair";
 const PAIR_ROUTE = `POST ${PAIR_PATH}`;
-const HOME_PATH = "/home";
-const HOME_ROUTE = `GET ${HOME_PATH}`;
 
 export interface AppOptions {
   authToken: string;
@@ -51,7 +48,6 @@ export interface AppOptions {
   startedAtMs?: number;
   now?: () => number;
   pairingManager?: PairingManager;
-  requiredRelayVersion?: string;
   // The safety check (nova/src/http/gate.ts); without one every device-facing
   // request is refused as unavailable.
   gate?: GateClient;
@@ -104,17 +100,6 @@ export function createApp(options: AppOptions): App {
 
   router.register("POST", PAIR_PATH, createPairHandler(pairing));
 
-  router.register(
-    "GET",
-    HOME_PATH,
-    createHomeHandler({
-      health: options.now ? { ...healthOptions, now: options.now } : healthOptions,
-      pairing,
-      requiredRelayVersion: options.requiredRelayVersion ?? options.version,
-      ...(options.now ? { now: options.now } : {})
-    })
-  );
-
   // No Supervisor ingress, so no NOVA page: the linked phone is the only channel.
   const phoneLink = options.phoneLink;
   const { gate, ask } = gateWithAsks(options.gate ?? NO_GATE, {
@@ -142,8 +127,8 @@ export function createApp(options: AppOptions): App {
     authToken: options.authToken,
     router,
     version: options.version,
-    bearerExemptRoutes: new Set([PAIR_ROUTE, HOME_ROUTE]),
-    noStorePaths: new Set([PAIR_PATH, HOME_PATH]),
+    bearerExemptRoutes: new Set([PAIR_ROUTE]),
+    noStorePaths: new Set([PAIR_PATH]),
     ...(options.gateToken ? { gateToken: options.gateToken } : {}),
     ...(options.logger ? { logger: options.logger } : {})
   });

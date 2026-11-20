@@ -281,24 +281,16 @@ else
   fail "Relay has ${ROUTE_COUNT} routes — growing beyond 'minimal'. Review architecture claims."
 fi
 
-echo "[9c] Home Base stays read-only and Supervisor-ingress-only"
-HOME_HITS=$(count_matches "ha/rest-client\|ha/ws-client\|coreClient\|sendMessage\|entity_id\|service_data" \
-  "$REPO_ROOT/nova/src/http/handlers/home.ts")
-if (( HOME_HITS == 0 )); then
-  pass "Home Base has no HA client or mutation imports"
-else
-  fail "Home Base contains ${HOME_HITS} HA client/mutation hits — it must remain read-only status."
-fi
+echo "[9c] The App's owner page and Cloud routes stay Supervisor-ingress-only"
 if grep -q 'panel_admin: true' "$REPO_ROOT/nova/config.yaml" \
   && grep -q 'ingress_entry: /home' "$REPO_ROOT/nova/config.yaml" \
   && grep -q 'SUPERVISOR_INGRESS_PEERS' "$REPO_ROOT/nova/src/security/ingress-identity.ts" \
-  && grep -q 'resolveIngressIdentity' "$REPO_ROOT/nova/src/http/handlers/home.ts" \
+  && grep -q '"GET", "/home", { auth: "identity"' "$REPO_ROOT/nova/src/runtime/ingress-routes.ts" \
   && grep -q 'resolveIngressIdentity' "$REPO_ROOT/nova/src/http/handlers/cloud.ts" \
-  && grep -q 'resolveIngressIdentity' "$REPO_ROOT/nova/src/runtime/ingress-listener.ts" \
-  && grep -q 'HOME_CONTENT_SECURITY_POLICY' "$REPO_ROOT/nova/src/http/handlers/home.ts"; then
-  pass "Home Base and Cloud routes share the strict Supervisor ingress gate; Home Base keeps admin-panel ingress and CSP"
+  && grep -q 'resolveIngressIdentity' "$REPO_ROOT/nova/src/runtime/ingress-listener.ts"; then
+  pass "Owner page and Cloud routes share the strict Supervisor ingress gate behind the admin-only panel"
 else
-  fail "Home Base and Cloud routes must share the strict Supervisor ingress gate; Home Base must keep admin-only ingress and CSP."
+  fail "Owner page and Cloud routes must share the strict Supervisor ingress gate behind the admin-only panel."
 fi
 
 # Pairing is a generic credential exchange, never a second HA API surface.
@@ -311,10 +303,10 @@ else
   fail "Pairing contains ${PAIR_HITS} HA client/domain hits — it must remain a generic credential exchange."
 fi
 if grep -q 'const PAIR_PATH = "/pair"' "$REPO_ROOT/nova/src/index.ts" \
-  && grep -q 'bearerExemptRoutes: new Set(\[PAIR_ROUTE, HOME_ROUTE\])' "$REPO_ROOT/nova/src/index.ts"; then
-  pass "Only POST /pair and ingress-gated GET /home bypass relay bearer auth"
+  && grep -q 'bearerExemptRoutes: new Set(\[PAIR_ROUTE\])' "$REPO_ROOT/nova/src/index.ts"; then
+  pass "Only POST /pair bypasses relay bearer auth"
 else
-  fail "Bearer exemptions must stay pinned to POST /pair and ingress-gated GET /home."
+  fail "Bearer exemptions must stay pinned to POST /pair."
 fi
 
 # ── 10. Keychain usage exists ──
