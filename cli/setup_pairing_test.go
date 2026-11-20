@@ -344,7 +344,7 @@ func TestInteractiveSetupPairedDeviceReRunVerifiesWithoutNewCode(t *testing.T) {
 	cfg := runtimeConfig{
 		HAHost:             normalizeHostInput(haServer.URL),
 		HAURL:              haServer.URL,
-		RelayBaseURL:       "http://192.168.1.5:18791",
+		RelayBaseURL:       "http://127.0.0.1:1",
 		RelaySecureBaseURL: secureServer.URL,
 		RelaySpkiPin:       "pin",
 		ClientInstallID:    "inst-rerun",
@@ -451,8 +451,8 @@ func TestInteractiveSetupDeviceVerifyRetryPromptHonorsBackAndExit(t *testing.T) 
 	cfg := runtimeConfig{
 		HAHost:             normalizeHostInput(haServer.URL),
 		HAURL:              haServer.URL,
-		RelayBaseURL:       "http://192.168.1.5:18791",
-		RelaySecureBaseURL: "https://192.168.1.5:18792",
+		RelayBaseURL:       "http://127.0.0.1:1",
+		RelaySecureBaseURL: "https://127.0.0.1:2",
 		RelaySpkiPin:       "pin",
 	}
 	if err := saveConfig(paths, cfg); err != nil {
@@ -461,7 +461,7 @@ func TestInteractiveSetupDeviceVerifyRetryPromptHonorsBackAndExit(t *testing.T) 
 
 	originalTransport := relayFunctionalTransportForDoctor
 	relayFunctionalTransportForDoctor = func(runtimeConfig) (string, *http.Client, string, bool, error) {
-		return "https://192.168.1.5:18792", httpClient, credential, true, nil
+		return "https://127.0.0.1:2", httpClient, credential, true, nil
 	}
 	originalVerify := verifyDeviceHealth
 	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceDown }
@@ -574,7 +574,7 @@ func TestInteractiveSetupManualEscapeFromPairingVerifiesTheToken(t *testing.T) {
 		HAHost:             normalizeHostInput(haServer.URL),
 		HAURL:              haServer.URL,
 		RelayBaseURL:       relayServer.URL,
-		RelaySecureBaseURL: "https://192.168.1.5:18792",
+		RelaySecureBaseURL: "https://127.0.0.1:2",
 		RelaySpkiPin:       "pin",
 	}
 	if err := saveConfig(paths, cfg); err != nil {
@@ -583,7 +583,7 @@ func TestInteractiveSetupManualEscapeFromPairingVerifiesTheToken(t *testing.T) {
 
 	originalTransport := relayFunctionalTransportForDoctor
 	relayFunctionalTransportForDoctor = func(runtimeConfig) (string, *http.Client, string, bool, error) {
-		return "https://192.168.1.5:18792", httpClient, credential, true, nil
+		return "https://127.0.0.1:2", httpClient, credential, true, nil
 	}
 	// The pairing is dead: device verify always fails.
 	originalVerify := verifyDeviceHealth
@@ -670,7 +670,7 @@ func TestInteractiveSetupManualEscapeRetiresTheDeadPairing(t *testing.T) {
 		HAHost:             normalizeHostInput(haServer.URL),
 		HAURL:              haServer.URL,
 		RelayBaseURL:       relayServer.URL,
-		RelaySecureBaseURL: "https://192.168.1.5:18792",
+		RelaySecureBaseURL: "https://127.0.0.1:2",
 		RelaySpkiPin:       "pin",
 	}
 	if err := saveConfig(paths, cfg); err != nil {
@@ -679,7 +679,7 @@ func TestInteractiveSetupManualEscapeRetiresTheDeadPairing(t *testing.T) {
 
 	originalTransport := relayFunctionalTransportForDoctor
 	relayFunctionalTransportForDoctor = func(runtimeConfig) (string, *http.Client, string, bool, error) {
-		return "https://192.168.1.5:18792", httpClient, credential, true, nil
+		return "https://127.0.0.1:2", httpClient, credential, true, nil
 	}
 	originalVerify := verifyDeviceHealth
 	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceDown }
