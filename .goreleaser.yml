@@ -69,7 +69,7 @@ release:
     ```
 
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`; if it reports that it needs admin rights, rerun the stable Windows install command instead.
-    {{ else }}**Update the NOVA App to 0.13.30.** Much of this release runs in the App, so update it and HA NOVA on every computer together. Claude and ChatGPT get this release's changes through the App.
+    {{ else }}**Update the NOVA App to 0.13.31.** Much of this release runs in the App, so update it and HA NOVA on every computer together. Claude and ChatGPT get this release's changes through the App.
 
     - In Home Assistant: Settings > Apps > NOVA Relay > Update.
     - No Update button yet? In Home Assistant: Settings > ⋮ (top right) > Check for updates. Or, at home, run `ha-nova doctor`: it does that for you and offers the update.
@@ -81,13 +81,13 @@ release:
     - **Updating a Mac from 0.31? HA NOVA asks you to pair it again once.** It's one Home Assistant sign-in, about a minute (with Home Assistant Link at home, a second one for Link). Run `ha-nova setup` when HA NOVA says so.
     - **A generic thermostat or hygrostat set up in YAML no longer makes everyday calls ask.** With the App's file access on, HA NOVA reads the YAML Home Assistant runs, including a template switch as the heater.
     - **HA NOVA answers faster.** Commands without Home Assistant Link skip a large file check, the App update check fetches one entity's state instead of every state, and `find` and Link commands wait for fewer round trips.
-    - **The NOVA App is smaller and starts faster.** Once installed, its image is about 10 MB smaller, and each start runs two fewer helper processes.
+    - **The NOVA App is smaller and starts faster.** Its image no longer ships npm, TypeScript sources, or source maps, and each start runs two fewer helper processes.
 
     ## What To Watch
 
     - **Updating a Mac from 0.31? HA NOVA asks you to pair it again once.** The first command that needs it names the step: `ha-nova setup`, or `ha-nova setup --server <name>` for another server.
     - **The standalone container connects with its token only.** It no longer logs a six-digit code at startup, and `ha-nova setup` asks for its token (`RELAY_AUTH_TOKEN`). The NOVA Relay App still pairs as before.
-    - **YAML thermostats need this release's NOVA App with file access on.** If a YAML file changed since Home Assistant started, the plan names the thermostat it couldn't read; a restart clears it.
+    - **YAML thermostats need this release's NOVA App with file access on.** Where HA NOVA can't verify one or its heater, calls still ask and the plan names it; a restart clears a changed file.
     - **On a Mac that used Home Assistant Link, setup signs the old version out of Link.** macOS asks for your password once per old sign-in: choose "Allow", not "Always Allow".
     - **A computer paired before 0.32 pairs again once to confirm with one click.** Until then, its window only waits.
     - **One-click confirming trusts that computer.** On Windows and Linux, any program running as you could confirm without a click.

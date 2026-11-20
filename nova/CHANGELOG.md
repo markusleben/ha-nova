@@ -4,6 +4,24 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.31] - 2026-11-21
+
+### Changed
+- Chat apps get HA NOVA 0.34.0.
+- A generic thermostat or hygrostat set up in YAML no longer makes everyday calls ask where HA NOVA can verify it and its heater, a template switch included, in the safety check and in chat apps. This needs this App's file access on. A file changed since Home Assistant started, or anything HA NOVA can't verify, keeps the call asking and names the helper; restarting Home Assistant clears a changed file. For this, listing files now also reports each entry's change time, without reading any content.
+- For a thermostat or hygrostat set up in YAML or in the UI, an automation that only turns its heater back on or off after the heater reconnects no longer makes a call ask on its own, as long as nothing reacts to that automation running.
+- The App starts faster: it no longer starts two helper processes before the Relay. Its image no longer ships npm, TypeScript sources, or source maps.
+- `/health` counts snapshots faster.
+
+### Removed
+- The standalone container connects with its relay token (`RELAY_AUTH_TOKEN`) only: it no longer logs a six-digit pairing code at startup and has no code exchange (`POST /pair`). This App is unchanged: computers still pair with a sign-in or a six-digit code from the NOVA page.
+- The standalone container's Home Base page, which could never load there; the App's own NOVA page is unchanged.
+- This App no longer retries pairing replies saved by an App from before July 2026. Updating straight from such an App in the middle of a pairing means starting that pairing again; paired computers are unaffected.
+
+### Upgrade notes
+- Computers on HA NOVA 0.34.0 ask you to update this App.
+- Standalone container: pull the new image and recreate the container with the same `RELAY_AUTH_TOKEN` and data volume. Existing connections keep working; a new computer connects with that token.
+
 ## [Relay 0.13.30] - 2026-11-19
 
 ### Changed
