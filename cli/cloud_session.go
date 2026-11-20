@@ -40,7 +40,19 @@ func verifyCloudAccess(
 	}
 	defer socket.Close()
 
-	user, err := socket.CurrentUser(ctx)
+	// The four reads share one round trip; they are checked in this order,
+	// all before the Ingress session is created.
+	var user HACurrentUser
+	var tokens []HARefreshTokenMetadata
+	var status HACloudStatus
+	var app HAAddonInfo
+	calls := []haCall{{"auth/current_user", nil, &user}, {"auth/refresh_tokens", nil, &tokens}, {"cloud/status", nil, &status}}
+	appCall, appErr := novaAppInfoCall(&app)
+	if appErr == nil {
+		calls = append(calls, appCall)
+	}
+	results := socket.CallAll(ctx, calls)
+	user, err = checkCurrentUser(user, results[0])
 	if err != nil {
 		return cloudVerifiedSession{}, err
 	}
@@ -51,7 +63,7 @@ func verifyCloudAccess(
 			nil,
 		)
 	}
-	tokens, err := socket.RefreshTokens(ctx)
+	tokens, err = checkRefreshTokens(tokens, results[1])
 	if err != nil {
 		return cloudVerifiedSession{}, err
 	}
@@ -71,14 +83,16 @@ func verifyCloudAccess(
 			nil,
 		)
 	}
-	status, err := socket.CloudStatus(ctx)
-	if err != nil {
+	if err := results[2]; err != nil {
 		return cloudVerifiedSession{}, err
 	}
 	if err := status.ValidateForOrigin(origin); err != nil {
 		return cloudVerifiedSession{}, err
 	}
-	app, err := socket.NOVAAppInfo(ctx)
+	if appErr != nil {
+		return cloudVerifiedSession{}, appErr
+	}
+	app, err = checkNOVAAppInfo(app, results[3])
 	if err != nil {
 		return cloudVerifiedSession{}, err
 	}
