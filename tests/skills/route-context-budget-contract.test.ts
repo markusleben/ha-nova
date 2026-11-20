@@ -21,10 +21,15 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
     // A single-item review now skips the router (Evidence and the Quick-Fix
     // confirmation are inline in review/SKILL.md), and checks-extended.md is
     // read per boundary or family as checks.md says (measured 12765).
-    limit: 12766,
+    // F10: the Safety Core is one file now (safety-core.md, counted here: a client
+    // without the Claude Code hook reads it once per session) instead of 143-150 inline
+    // words in the skill; confirmation.md stays on demand on this row (a
+    // suggestion menu or preview detail reads it, as the router row counts) (measured 12825).
+    limit: 12826,
     noRouter: true,
     files: [
       "skills/ha-nova/session-bootstrap.md",
+      "skills/ha-nova/safety-core.md",
       "skills/ha-nova/output-rules.md",
       "skills/ha-nova/output-cards.md",
       "skills/review/SKILL.md",
@@ -34,11 +39,17 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // A multi-target or whole-setup review loads the context skill (index.md,
   // router description). Kept as its own honest row (measured 18630).
   "review-multi-step": {
-    limit: 18631,
+    // F10: Active Preview Confirmation, Confirmation Tiers, and Interactive
+    // Choices moved to confirmation.md, which the router reads before any
+    // preview; with the Safety Core counted as its own file the row grows by
+    // the two headers and pointers (measured 18795).
+    limit: 18796,
     skill: "review",
     files: [
       "skills/ha-nova/SKILL.md",
       "skills/ha-nova/session-bootstrap.md",
+      "skills/ha-nova/confirmation.md",
+      "skills/ha-nova/safety-core.md",
       "skills/ha-nova/output-rules.md",
       "skills/ha-nova/output-cards.md",
       "skills/review/SKILL.md",
@@ -70,10 +81,15 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
     // model moved to on-demand reads; HA 2026.7+ triggers and targets joined
     // best-practices.md, and write/SKILL.md names the trigger choice itself
     // (measured 14114).
-    limit: 14115,
+    // F10: the Safety Core is one file now (safety-core.md, counted here: a client
+    // without the Claude Code hook reads it once per session) instead of 143-150 inline
+    // words in the skill; confirmation.md stays on demand on this row (a
+    // suggestion menu or preview detail reads it, as the router row counts) (measured 14167).
+    limit: 14168,
     noRouter: true,
     files: [
       "skills/ha-nova/session-bootstrap.md",
+      "skills/ha-nova/safety-core.md",
       "skills/ha-nova/output-rules.md",
       "skills/ha-nova/output-cards.md",
       "skills/write/SKILL.md",
@@ -89,11 +105,16 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   "write-multi-step": {
     // The ha-nova:device dispatch row and its one example (measured 21385);
     // home-map's routing rows (measured 21400).
-    limit: 19980, // the write row's on-demand moves (measured 19979)
+    // F10: the router's confirmation sections moved to confirmation.md, which
+    // the router reads before any preview; with the Safety Core counted as its
+    // own file the row grows by the headers and pointers (measured 20137).
+    limit: 20138,
     skill: "write",
     files: [
       "skills/ha-nova/SKILL.md",
       "skills/ha-nova/session-bootstrap.md",
+      "skills/ha-nova/confirmation.md",
+      "skills/ha-nova/safety-core.md",
       "skills/ha-nova/output-rules.md",
       "skills/ha-nova/output-cards.md",
       "skills/write/SKILL.md",
@@ -115,10 +136,15 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // services, App/host control, events, webhooks), indirect-actuation.md.
   // Measured 2672 (bootstrap 309 + output-rules 668 + skill 1695).
   "service-call": {
-    limit: 2872, // spec target <= 3000; Confirmation Reasons + PR-review narrowing; `say` replaced the inline sentences; find/get syntax inline (measured 2871)
+    // F10: the Safety Core is one file now (safety-core.md, counted here: a client
+    // without the Claude Code hook reads it once per session) instead of 143-150 inline
+    // words in the skill; confirmation.md stays on demand on this row (a
+    // suggestion menu or preview detail reads it, as the router row counts) (measured 2915).
+    limit: 2916, // spec target <= 3000; Confirmation Reasons + PR-review narrowing; `say` replaced the inline sentences; find/get syntax inline (measured 2871)
     verbRoute: true,
     files: [
       "skills/ha-nova/session-bootstrap.md",
+      "skills/ha-nova/safety-core.md",
       "skills/ha-nova/output-rules.md",
       "skills/service-call/SKILL.md",
     ],
@@ -127,12 +153,17 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // bit the agent is unsure of (common for brightness, temperature, modes):
   // domain-fields.md joins. Kept as its own honest row.
   "service-call-with-fields": {
-    limit: 3890, // Confirmation Reasons + PR-review narrowing; `say` replaced the inline sentences; find/get syntax inline (measured 3889)
+    // F10: the Safety Core is one file now (safety-core.md, counted here: a client
+    // without the Claude Code hook reads it once per session) instead of 143-150 inline
+    // words in the skill; confirmation.md stays on demand on this row (a
+    // suggestion menu or preview detail reads it, as the router row counts) (measured 3933).
+    limit: 3934, // Confirmation Reasons + PR-review narrowing; `say` replaced the inline sentences; find/get syntax inline (measured 3889)
     verbRoute: true,
     skill: "service-call",
     extra: ["skills/service-call/domain-fields.md"],
     files: [
       "skills/ha-nova/session-bootstrap.md",
+      "skills/ha-nova/safety-core.md",
       "skills/ha-nova/output-rules.md",
       "skills/service-call/SKILL.md",
       "skills/service-call/domain-fields.md",
@@ -146,16 +177,22 @@ const VERB_ROUTE_MANDATORY = [
   "skills/ha-nova/output-rules.md",
 ];
 
+// Every route here is a mutation skill: its Safety section points to the one
+// Safety Core, which a client without the Claude Code hook reads before its
+// first write (the hook injects it; tests/hooks caps that injection).
+const SAFETY_CORE = "skills/ha-nova/safety-core.md";
+
 // Write and review render Cards, which live in the on-demand part of the
 // output rules; output-rules.md tells every card-rendering route to read it.
 const CARDS = "skills/ha-nova/output-cards.md";
 
-// The three files every route reads before its own SKILL.md: the router
+// The files every router route reads before its own SKILL.md: the router
 // itself, the session bootstrap it mandates, and the output rules.
 const ROUTER_MANDATORY = [
   "skills/ha-nova/SKILL.md",
   "skills/ha-nova/session-bootstrap.md",
   "skills/ha-nova/output-rules.md",
+  "skills/ha-nova/confirmation.md",
 ];
 
 // Paths a route declares as unconditional reads: the `Always load:` block
@@ -204,7 +241,8 @@ describe("route context ratchet (#521)", () => {
         : noRouter
           ? [...VERB_ROUTE_MANDATORY, CARDS]
           : [...ROUTER_MANDATORY, CARDS];
-      const expected = new Set([...mandatory, `skills/${route}/SKILL.md`, ...declaredAlwaysLoads(route), ...extra]);
+      expect(text).toContain("`../ha-nova/safety-core.md`");
+      const expected = new Set([...mandatory, SAFETY_CORE, `skills/${route}/SKILL.md`, ...declaredAlwaysLoads(route), ...extra]);
       if (route === "review") {
         // The checks catalog is read on every review (Verify-before-flag rule).
         expect(text).toContain("`../review/checks.md`");

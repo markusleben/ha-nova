@@ -10,22 +10,6 @@ export interface SecureEndpoint {
   securePort: number;
 }
 
-// Legacy standalone response store retained as a read fallback for upgrades
-// from versions that persisted responses separately from the device registry.
-export interface ConsumedResponseStore {
-  get(
-    handshakeId: string,
-    contextKey?: string,
-  ): { ke3Digest: string; ciphertextB64: string } | null;
-  put(
-    handshakeId: string,
-    ke3Digest: string,
-    ciphertextB64: string,
-    now: number,
-    contextKey?: string,
-  ): void;
-}
-
 export interface PairingV1Deps {
   registry: DeviceRegistry;
   // Effective secure endpoint (TLS pin + mapped host port). Null means the
@@ -35,7 +19,6 @@ export interface PairingV1Deps {
   now: () => number;
   generateCodeNumber?: () => number;
   rateLimiter?: PairingRateLimiter;
-  legacyResponseStore?: ConsumedResponseStore;
   cloudPairing?: boolean;
   // Operator signal for persistence failures; the pairing reply stays generic.
   logger?: RelayLogger;

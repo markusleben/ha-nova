@@ -8,6 +8,7 @@ const read = (relative: string): string =>
 
 const skillDoc = read("skills/service-call/SKILL.md");
 const contextSkill = read("skills/ha-nova/SKILL.md");
+const confirmation = read("skills/ha-nova/confirmation.md");
 const testRunDoc = read("skills/ha-nova/test-run.md");
 const assistSkill = read("skills/assist/SKILL.md");
 const indirectActuation = read("skills/ha-nova/indirect-actuation.md");
@@ -68,7 +69,7 @@ describe("indirect actuation and tier classification (#513)", () => {
       expect(skillDoc).toContain(
         "The CLI rates every action, also what a scene, script, or automation run reaches; relay its `say` and never predict a tier.",
       );
-      expect(contextSkill).toContain("The CLI rates every action, members and consumers included");
+      expect(confirmation).toContain("The CLI rates every action, members and consumers included");
       expect(flat(readFileSync("skills/ha-nova/capability-answer.md", "utf8"))).toContain("Locking, closing, and arming need no extra step.");
     });
 
@@ -78,7 +79,7 @@ describe("indirect actuation and tier classification (#513)", () => {
       expect(tierRules).toContain('"siren.turn_on": true, "siren.toggle": true');
       expect(tierRules).toContain('service == "homeassistant.restart" || service == "homeassistant.stop"');
       expect(flat(testRunDoc)).toContain(
-        "a deliberate superset of the context skill's high-consequence confirmation tier",
+        "a deliberate superset of the high-consequence confirmation rung (`../ha-nova/confirmation.md` → Confirmation Tiers)",
       );
       expect(flat(testRunDoc)).toContain(
         "Members that grant physical access still take the typed tier",

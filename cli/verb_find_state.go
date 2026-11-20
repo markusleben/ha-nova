@@ -112,3 +112,29 @@ func mergeStates(states []stateRow, friendly map[string]string, matches, hits []
 	sort.Slice(kept, func(i, j int) bool { return kept[i].EntityID < kept[j].EntityID })
 	return kept, seen
 }
+
+// warmFind starts the reads a search makes together (session memo);
+// findEntities still waits for them in its own order, so a first failure
+// stops it as soon as it comes. The full registry joins them only where the
+// search reads it in any case. Only the find verb warms: plan --match and
+// get's suggestions stay serial, so a plan's reads stay exactly its own.
+func warmFind(s *relaySession, q findQuery) {
+	reads := []func(){
+		func() { _, _ = s.ws(map[string]any{"type": "config/area_registry/list"}) },
+		func() { _, _ = s.ws(map[string]any{"type": "config/device_registry/list"}) },
+		func() { _, _, _ = s.coreGET("/api/states") },
+		func() { _, _ = s.ws(map[string]any{"type": "config/entity_registry/list_for_display"}) },
+	}
+	if q.includeDisabled || q.completeAliases {
+		reads = append(reads, func() { _, _ = s.ws(map[string]any{"type": "config/entity_registry/list"}) })
+	}
+	warm(reads)
+}
+
+// warm starts reads without waiting for them: each consumer waits for its
+// own answer (session memo), in its own order; slots still bound them.
+func warm(reads []func()) {
+	for _, read := range reads {
+		go read()
+	}
+}

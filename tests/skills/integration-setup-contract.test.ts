@@ -50,7 +50,7 @@ describe("integration setup skill contract", () => {
     expect(skill).toContain("never build or submit its body");
     expect(skill).toContain("Never delete a pre-existing reauth flow");
     expect(skill).toContain("Never request, echo, persist, or submit credentials from chat");
-    expect(skill).toContain("Declared exception to the core delete rule above");
+    expect(skill).toContain("Declared exception to the Safety Core's delete rule");
   });
 
   it("verifies config entries without entity-first guesses", () => {

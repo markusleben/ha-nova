@@ -48,9 +48,9 @@ func logFactsRequest(endpoint string, body []byte) bool {
 	return endpoint == "ws" && ok && json.Valid(body) && len(payload) == 1 && payload["type"] == "system_log/list"
 }
 
-// readLogFacts reads the log on s and answers its facts. A 0.31 App's gate
-// already answers facts; the chat bridge and an App without the gate get the
-// list and project it here. Every failure is worded here: Home Assistant's
+// readLogFacts reads the log on s and answers its facts. The gate of an App
+// from 0.13.28 on already answers facts; the chat bridge and an App without
+// the gate get the list and project it here. Every failure is worded here: Home Assistant's
 // own error text could quote the log, so none of it passes.
 func readLogFacts(s *relaySession) (json.RawMessage, error) {
 	data, err := s.send("ws", []byte(logFactsBody))
@@ -79,8 +79,8 @@ func logFactsFailure(err error) error {
 		code = call.code
 	}
 	message := "HA NOVA could not read the log facts; nothing was changed"
-	if code == "GATE_REFUSED" { // the 0.30 gate refuses every log read
-		message += ". This NOVA App is older than 0.31 and refuses them: update it, or ask the user to read Settings > System > Logs"
+	if code == "GATE_REFUSED" { // a gate before App 0.13.28 refuses every log read
+		message += ". This NOVA App is older than 0.13.28 and refuses them: update it, or ask the user to read Settings > System > Logs"
 	}
 	return &relayCallError{endpoint: "ws", status: call.status, code: code, message: message}
 }

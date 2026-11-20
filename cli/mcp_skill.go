@@ -152,10 +152,14 @@ func (srv *mcpServer) callSkill(args map[string]json.RawMessage) map[string]any 
 		if label == "" || err != nil {
 			return skillError("UNKNOWN_SKILL", "no HA NOVA skill or cited file named "+quoteShort(name)+"; nothing was read", pick)
 		}
-		if !isSkill { // the skill's response carried the header already
-			return skillText("# HA NOVA " + label + " (CLI commands map to the MCP tools as in the skill's header)\n\n" + string(body))
+		core, err := skillSafetyCore(srv.paths, string(body))
+		if err != nil {
+			return skillError("UNKNOWN_SKILL", mcpNoSafetyCore+"; nothing was read", "Reinstall HA NOVA on this computer to repair it.")
 		}
-		out := mcpSkillHeader + "# HA NOVA skill " + label + "\n\n" + string(body)
+		if !isSkill { // the skill's response carried the header already
+			return skillText(core + "# HA NOVA " + label + " (CLI commands map to the MCP tools as in the skill's header)\n\n" + string(body))
+		}
+		out := mcpSkillHeader + core + "# HA NOVA skill " + label + "\n\n" + string(body)
 		if strings.Contains(string(body), mcpOutputRules) {
 			extra, err := readReference(srv.paths, mcpOutputRules)
 			cited := "\n\n---\n\n# Cited file skills/" + mcpOutputRules + " (included)\n\n" + string(extra)
@@ -169,9 +173,47 @@ func (srv *mcpServer) callSkill(args map[string]json.RawMessage) map[string]any 
 		if err != nil {
 			return skillError("UNKNOWN_SKILL", "the dispatch table is missing from this HA NOVA install", pick)
 		}
-		return skillText(mcpSkillHeader + "Pick the task skill whose Dispatch line matches the task, then call ha_skill with name set to its id (the ha-nova: prefix is optional); the index says when the context skill (name ha-nova) loads beside it. Device control and lookups need no skill.\n\n" + string(index))
+		core, err := skillSafetyCore(srv.paths, mcpSafetyCorePointer) // device control runs on these rules without a skill
+		if err != nil {
+			return skillError("UNKNOWN_SKILL", mcpNoSafetyCore+"; nothing was read", "Reinstall HA NOVA on this computer to repair it.")
+		}
+		return skillText(mcpSkillHeader + core + "Pick the task skill whose Dispatch line matches the task, then call ha_skill with name set to its id (the ha-nova: prefix is optional); the index says when the context skill (name ha-nova) loads beside it. Device control and lookups need no skill.\n\n" + string(index))
 	}
 	return skillError("INVALID_ARGUMENTS", "ha_skill needs name or task; nothing was read", pick)
+}
+
+// mcpSafetyCorePointer is the line every mutation skill (and a write recipe
+// such as config-snapshots.md) carries in place of the Safety Core; ha_skill,
+// prompts/get, and resources/read put that file ahead of such a text, so the
+// rules arrive before the body.
+const mcpSafetyCorePointer = "- Safety Core: before any write, apply `../ha-nova/safety-core.md`"
+
+// mcpSafetyCoreRules are the Safety Core's rules, its last line included: a
+// file missing any of them is incomplete (hooks/session-start checks the same).
+var mcpSafetyCoreRules = []string{"The CLI rates every action", "Confirmation binds to the displayed preview", "Relay a plan's `say` in full",
+	"Anything before the preview", "Never guess entity, service, or config IDs", "exclusively through the `ha-nova` CLI",
+	"invoke `ha-nova:fallback` first", "name a non-default one once."}
+
+const mcpNoSafetyCore = "this HA NOVA install lacks a complete Safety Core (skills/ha-nova/safety-core.md)"
+
+// skillSafetyCore returns the Safety Core a skill body needs: empty for a
+// skill without the pointer, an error when the file is missing or malformed
+// (fail closed: never serve a mutation skill without its rules).
+func skillSafetyCore(paths runtimePaths, body string) (string, error) {
+	if !strings.Contains(body, mcpSafetyCorePointer) {
+		return "", nil
+	}
+	raw, err := readReference(paths, "ha-nova/safety-core.md")
+	core := strings.ReplaceAll(string(raw), "\r\n", "\n")
+	if err != nil || !strings.HasPrefix(core, "# Safety Core\n") {
+		return "", os.ErrNotExist
+	}
+	for _, rule := range mcpSafetyCoreRules {
+		if !strings.Contains(core, rule) {
+			return "", os.ErrNotExist
+		}
+	}
+	return core + "\n---\n\n", nil
 }
 
 func skillText(markdown string) map[string]any {

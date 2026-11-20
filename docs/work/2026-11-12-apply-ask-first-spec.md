@@ -1,6 +1,6 @@
 # Apply asks first on the App's safety check, then checks the plan again
 
-Status: active (built for 0.31, HANO-58 lever 1)
+Status: shipped (0.31)
 
 Date: 2026-11-12. Owner: `ha-nova apply` (`cli/verb_apply.go`), the gate client (`cli/gate_client_plan.go`). High-risk: it reorders the confirmation flow of typed plans.
 

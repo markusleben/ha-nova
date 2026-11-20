@@ -1,6 +1,6 @@
 # Device deletion through HA NOVA
 
-Status: active
+Status: shipped
 
 Date: 2026-10-26. Owner: `ha-nova:organize`.
 

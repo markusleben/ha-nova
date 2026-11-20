@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { GateWorker } from "../../nova/src/runtime/gate-worker.js";
+import { fileAccessOption } from "../../nova/src/runtime/start-support.js";
 import { bootstrapRuntime, startRelay } from "../../nova/src/runtime/start.js";
 
 // A worker that passes everything and redacts nothing: these tests cover the
@@ -164,7 +165,6 @@ describe("runtime bootstrap", () => {
     });
 
     expect(runtime.upstreamAuth.source).toBe("env_ha_llat");
-    expect(runtime.upstreamAuth.capability).toBe("full");
     expect(ws.status).toBe(200);
     await expect(ws.json()).resolves.toEqual({
       ok: true,
@@ -264,7 +264,7 @@ describe("runtime bootstrap", () => {
     }> = [];
     let listenCalledWithPort: number | null = null;
 
-    const result = await startRelay({
+    await startRelay({
       loadEnv: () => ({
         relayAuthToken: "relay-token",
         haLlat: "env-llat",
@@ -302,8 +302,6 @@ describe("runtime bootstrap", () => {
       },
     });
 
-    expect(result.upstreamAuth.source).toBe("env_ha_llat");
-    expect(result.upstreamAuth.capability).toBe("full");
     expect(listenCalledWithPort).toBe(8791);
     expect(infoLogs).toContainEqual({
       message: "Relay bootstrap",
@@ -312,19 +310,22 @@ describe("runtime bootstrap", () => {
         relay_port: 8791,
         app_options_path: "/data/options.json",
         auth_source: "env_ha_llat",
-        auth_capability: "full",
         file_access: "off",
         config_root: null,
         snapshot_dir: "/tmp/nova-snapshots-test",
       },
     });
-    const pairingLog = infoLogs.find(
-      ({ message }) => message === "Pairing code ready",
-    );
-    expect(pairingLog?.context?.pairing_code).toMatch(/^\d{6}$/);
-    expect(pairingLog?.context?.expires_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(infoLogs.map(({ message }) => message)).not.toContain("Pairing code ready");
     expect(JSON.stringify(infoLogs)).not.toContain("relay-token");
     expect(warnLogs).toEqual([]);
+  });
+
+  it("reads file access from the App option first and treats a blank or null FILE_ACCESS as unset", () => {
+    expect(fileAccessOption({ file_access: "read" }, { FILE_ACCESS: "readwrite" })).toBe("read");
+    expect(fileAccessOption({}, { FILE_ACCESS: " readwrite " })).toBe("readwrite");
+    for (const unset of [undefined, "", "  ", "null"]) {
+      expect(fileAccessOption({}, { FILE_ACCESS: unset })).toBeUndefined();
+    }
   });
 });
 

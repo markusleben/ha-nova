@@ -32,7 +32,7 @@ func signInPredecessorToRetire(
 	defer cancel()
 	armed, err := armSignInPairingRequest(ctx, ingress, CloudEndpointPairArm, signInArmRequest{PreviousInstallID: cfg.ClientInstallID})
 	if err != nil || armed.Previous == nil {
-		return "", nil // the pairing's own arm reports a failure; an App before 0.32 names nothing
+		return "", nil // the pairing's own arm reports a failure; an App before 0.13.29 names nothing
 	}
 	// This profile's own key still opens that entry: it is this profile's, and
 	// the pairing retires it after promotion anyway (retireOnSameRelay).

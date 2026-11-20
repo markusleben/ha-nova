@@ -1,6 +1,6 @@
 # MCP Registry listing
 
-Status: active
+Status: shipped
 
 Date: 2026-11-03. Owner: release metadata (`server.json`, `scripts/bump-version.sh`, `scripts/release/verify-release-metadata.sh`, `.github/workflows/release.yml`). Issue: MAR-24.
 

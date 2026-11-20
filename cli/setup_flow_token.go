@@ -40,6 +40,9 @@ func (f *setupFlow) stepToken() setupStepResult {
 			setupParagraph(setupText("setup.token.standalone")),
 		},
 	})
+	if f.standaloneRelay {
+		f.ui.show(setupView{Blocks: []setupBlock{setupParagraph(setupText("setup.token.standalone_only"))}})
+	}
 	switch {
 	case f.relayTokenFlag != "":
 		f.ui.show(setupView{Blocks: []setupBlock{setupTight(setupText("setup.token.using_flag"))}})
@@ -66,8 +69,13 @@ func (f *setupFlow) askToken() (result setupStepResult, again bool) {
 		f.ui.show(setupView{Blocks: []setupBlock{setupTight(setupText("setup.token.found_saved", "hint", maskSecretHint(f.existingToken)))}})
 	}
 
-	choice, err := f.ui.choose(setupTokenAsk(f.existingToken != ""))
+	choice, err := f.ui.choose(setupTokenAsk(f.existingToken != "", f.standaloneRelay))
 	if err == errSetupBack {
+		if f.standaloneRelay {
+			// Pairing would only find the same container again: back to the address.
+			f.standaloneRelay = false
+			return setupGoTo(setupStepHost), true
+		}
 		if f.pairingFlow {
 			return setupGoTo(setupStepPairing), true
 		}

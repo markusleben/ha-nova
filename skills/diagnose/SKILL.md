@@ -45,7 +45,7 @@ Diagnostics redaction is integration-controlled, so downloads are potentially se
 
 ### Logs
 
-HA NOVA never reads log lines (`/api/error_log`, Core, Supervisor, host, and App logs are refused, exit 4): they can hold passwords, keys, and addresses. It reads **log facts** instead: WS `{"type":"system_log/list"}` with no other key answers `log_facts` (per integration `domain` and `level`: `count`, `first_retained`, `last`, in UTC) and `unattributed_count`, never a message. Read them to see which integration has been failing and since when. `first_retained` is the oldest entry the log still holds (it keeps a bounded number, and a restart empties it), not the first ever: say "since at least". A fact is a lead, not a finding: an integration's own code names its logger. A NOVA App older than 0.31 refuses the read: then go on without it. When the message itself would decide the diagnosis, ask the user to open **Settings > System > Logs** (an App's own log: **Settings > Apps > the App > Log**), search for the integration or entity, and tell you the few lines around the incident time, without passwords, keys, or addresses. Never ask for the whole log. Lines about other integrations are not evidence for this incident, and no line about it is a finding in itself, not a reason to search wider. The Core log reaches back only to the last restart: for older incidents use logbook/history windows, and say so.
+HA NOVA never reads log lines (`/api/error_log`, Core, Supervisor, host, and App logs are refused, exit 4): they can hold passwords, keys, and addresses. It reads **log facts** instead: WS `{"type":"system_log/list"}` with no other key answers `log_facts` (per integration `domain` and `level`: `count`, `first_retained`, `last`, in UTC) and `unattributed_count`, never a message. Read them to see which integration has been failing and since when. `first_retained` is the oldest entry the log still holds (it keeps a bounded number, and a restart empties it), not the first ever: say "since at least". A fact is a lead, not a finding: an integration's own code names its logger. If the App refuses the read, go on without it. When the message itself would decide the diagnosis, ask the user to open **Settings > System > Logs** (an App's own log: **Settings > Apps > the App > Log**), search for the integration or entity, and tell you the few lines around the incident time, without passwords, keys, or addresses. Never ask for the whole log. Lines about other integrations are not evidence for this incident, and no line about it is a finding in itself, not a reason to search wider. The Core log reaches back only to the last restart: for older incidents use logbook/history windows, and say so.
 
 ## Flow
 
@@ -75,13 +75,7 @@ Render the Report shape, Diagnosis specialization (output-cards.md → Report Sh
 
 ## Safety
 
-- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `"typed":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
-- Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
-- Relay a plan's `say` in full, localized; never drop or shorten sentences.
-- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
-- Never guess entity, service, or config IDs — resolve them or ask.
-- Home Assistant is reached exclusively through the `ha-nova` CLI.
-- Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
+- Safety Core: before any write, apply `../ha-nova/safety-core.md`; not yet in this conversation → read it first; unreadable or incomplete → stop and write nothing.
 
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 

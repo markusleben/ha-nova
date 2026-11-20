@@ -1,6 +1,6 @@
 # Typed Verbs + MCP Adapter
 
-Status: active
+Status: shipped
 
 ## 0. Problem (measured, grounded)
 
@@ -228,6 +228,7 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `LIMIT_CUT` | typed | any budget cut (Limits you imposed) |
 | `TEMPLATES_NOT_CHECKABLE` | note | the instance has template entities (step 5d) |
 | `UNEXPLAINED_LISTENER` | note | `call_service`, `script_started`, or `automation_triggered` listeners beyond the enumerated automations, as an open logbook adds: a listener that doesn't act; each automation's own filter still decides (step 5b; decision A, `docs/work/2026-11-18-0.33-spec.md` §1.2) |
+| `HELPER_CALLS_UNREAD` | note | a YAML generic thermostat or hygrostat whose service calls couldn't be bounded from `/config` (file access off, a file changed since Home Assistant started, a count mismatch, a heater that isn't a plain switch, or template heater actions that aren't plain `turn_on`/`turn_off`) while a `call_service` listener counted: names the helper (entity) and why (detail), and raises no tier (MAR-245, `docs/work/2026-11-20-yaml-helper-read-spec.md`) |
 | `NO_LOCAL_CONSUMER_MANAGER` | note | none installed locally — informational, not a gap: the presence check found no Node-RED/AppDaemon/pyscript here (an external one cannot be seen) (step 5c) |
 | `INTEGRATION_SERVICE` | preview | service of a non-core domain, targetless or on a device without access entities (step 2) |
 | `USER_AUTHORED_SERVICE` | typed | `esphome.*` API service defined in device YAML (rules 2 and 3) |
@@ -359,7 +360,7 @@ Every PR is release-bound because it contains Go code. PR2, PR3 and PR5 are high
 **PR4 (skills + hook; ~50 LOC Go): migrate service-call and entity-discovery.**
 - Session-start index, bootstrap via notices, output-rules split, Safety Core amendment, `safety.md` rows.
 - Oracle: add a `service-call` row to `route-context-budget-contract.test.ts` (≤ 3,000 words); skill-template test updated.
-- Behavioral e2e: a Codex scenario "turn off the bed light" in `scripts/e2e/codex-ha-nova-scenarios.json` must contain `ha-nova call` and forbid `relay core`.
+- Behavioral e2e: a Codex scenario "turn off the bed light" in `tests/fixtures/review-scenarios/scenarios.json` must contain `ha-nova call` and forbid `relay core`.
 
 **PR5 (~700 LOC): `plan write|delete|revert` + `apply` config path.**
 - Oracle: Go tests for drift on an external edit (normalized compare), read-back mismatch reported as `unverified`, an undo receipt on update, a pre-delete snapshot, and delete typed-only.

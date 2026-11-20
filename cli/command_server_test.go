@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"os"
 	"strings"
@@ -64,17 +63,6 @@ func stubServerRevoke(t *testing.T) *[]string {
 	}
 	t.Cleanup(func() { revokeSelfDeviceV1ForUninstall = original })
 	return &revokedAt
-}
-
-// compactTestJSON normalizes whitespace: the document save path re-indents
-// raw sibling entries without changing their content.
-func compactTestJSON(t *testing.T, raw json.RawMessage) string {
-	t.Helper()
-	var buf bytes.Buffer
-	if err := json.Compact(&buf, raw); err != nil {
-		t.Fatalf("compact %s: %v", raw, err)
-	}
-	return buf.String()
 }
 
 func serverListRow(t *testing.T, output, name string) []string {

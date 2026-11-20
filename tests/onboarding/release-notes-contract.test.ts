@@ -38,7 +38,7 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.33.0 release-facing wording aligned to the shipped stack", () => {
+  it("keeps v0.34.0 release-facing wording aligned to the shipped stack", () => {
     const relayVersion = /^version:\s*"([^"]+)"\s*$/m.exec(readFileSync("nova/config.yaml", "utf8"))?.[1] ?? "";
     // Any App version the notes name is the App in nova/config.yaml: the App promote PR's `npm run bump -- --relay` sets both.
     const notedApps = [...(stableNotes ?? "").matchAll(/NOVA (?:Relay |App to )(\d+\.\d+\.\d+)/g)];
@@ -46,34 +46,37 @@ describe("release notes contract", () => {
     for (const [, noted] of notedApps) {
       expect(noted, "notes name the shipped NOVA Relay version").toBe(relayVersion);
     }
-    // Decision A (#1235) and the chat code (#1241) run in the App's check, so the App update leads.
+    // YAML thermostats (MAR-245) need the App's list_dir field, and the App's check runs the bundled CLI, so the App update leads.
     expect(stableNotes).toMatch(/^\*\*Update the NOVA App to \d+\.\d+\.\d+\.\*\* Much of this release runs in the App, so update it and HA NOVA on every computer together\./);
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
     expect(stableNotes).toContain("Then run `ha-nova update` on each computer.");
-    // No MCP tool text changed in 0.33, so ChatGPT needs no Refresh.
+    // No MCP tool text changed in 0.34, so ChatGPT needs no Refresh.
     expect(stableNotes).not.toContain("chatgpt.com/plugins");
     // A 0.31 Mac that skipped 0.32 still re-pairs once, and its CLI's notice shows the first New Features bullet and its JSON the first action item (0.32 spec §5.1); cli/release_digest_mac_repair_test.go proves it.
     expect(stableNotes).toMatch(/## New Features\s+- \*\*Updating a Mac from 0\.31\? HA NOVA asks you to pair it again once\.\*\*/);
     expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Updating a Mac from 0\.31\? HA NOVA asks you to pair it again once\.\*\*/);
     expect(stableNotes).toContain('choose "Allow", not "Always Allow"');
-    // Decision A (#1235), the phone offer (#1239, #1240), the chat code (#1241, #1242), the file key (#1243), setup --server (#1237).
-    expect(stableNotes).toContain("**An open logbook no longer makes an everyday call ask.**");
-    expect(stableNotes).toContain("**Your phone is offered wherever this computer can't confirm in its window.**");
-    expect(stableNotes).toContain("**A computer nobody sits at can confirm with a four-digit code in your AI chat.** The Home Assistant owner turns it on per computer on the NOVA page, instead of one-click.");
-    expect(stableNotes).toContain("**A computer whose keyring can't be unlocked pairs without starting over.**");
-    expect(stableNotes).toContain("**`ha-nova setup --server <name>` opens the setup page**");
-    // The trade-offs a user must know: who sees the chat code, the version mix, the unnamed listener, file keys.
-    expect(stableNotes).toContain("**Your AI assistant sees the chat code too, and HA NOVA can't tell who typed it.**");
-    expect(stableNotes).toContain("**The chat code needs the new App and HA NOVA, and works where your AI runs `ha-nova apply`.**");
-    // 0.32's trade-offs still reach a 0.31 computer that updates straight to 0.33.
+    // 0.34: YAML thermostats (MAR-245), the speed work, the smaller App.
+    expect(stableNotes).toContain("**A generic thermostat or hygrostat set up in YAML no longer makes everyday calls ask.**");
+    expect(stableNotes).toContain("**YAML thermostats need this release's NOVA App with file access on.**");
+    expect(stableNotes).toContain("**HA NOVA answers faster.**");
+    expect(stableNotes).toContain("**The NOVA App is smaller and starts faster.**");
+    // The standalone container's token-only pairing (R10, #1263) is a behavior change a container user must know.
+    expect(stableNotes).toContain("**The standalone container connects with its token only.**");
+    expect(stableNotes).toContain("RELAY_AUTH_TOKEN");
+    // Earlier trade-offs still reach a computer that updates straight from 0.31, 0.32, or 0.33.
     expect(stableNotes).toContain("**A computer paired before 0.32 pairs again once to confirm with one click.**");
     expect(stableNotes).toContain("**One-click confirming trusts that computer.** On Windows and Linux, any program running as you could confirm without a click.");
+    expect(stableNotes).toContain("**Your AI assistant sees the chat code too, and HA NOVA can't tell who typed it.**");
+    expect(stableNotes).toContain("**The chat code needs the new App and HA NOVA, and works where your AI runs `ha-nova apply`.**");
     expect(stableNotes).toContain("**Update the NOVA App and HA NOVA together.** HA NOVA 0.32 refuses a change it would ask for but the new App wouldn't");
     expect(stableNotes).toContain("**A listener HA NOVA can't name on the logbook's events no longer makes a call ask.**");
     expect(stableNotes).toContain("**A key kept in a file trusts every program running as you.**");
-    // Fixes: the waiting text (#1239, #1244) and the 0.32 follow-ups (#1238).
-    expect(stableNotes).toContain("**When the NOVA page is the only place to confirm, HA NOVA points you there**");
-    expect(stableNotes).toContain("**Setup removes the old Link sign-in's Keychain copy once the App records the sign-out.**");
+    // Fixes: verify reads every target (#1256), Link cleanup retry and Windows uninstall proof (#1257), GATE_DISAGREES (#1260).
+    expect(stableNotes).toContain("**After a call on several devices, HA NOVA checks every one.**");
+    expect(stableNotes).toContain("**When removing the old Link sign-in's Keychain copy fails, setup says so and tries again**");
+    expect(stableNotes).toContain("**A Windows uninstall no longer reports success when it can't check that its folder is gone.**");
+    expect(stableNotes).toContain("the message names an App update only when the App is older");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
   });

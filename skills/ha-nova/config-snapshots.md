@@ -17,6 +17,8 @@ the payload sits under `.data`, errors under `.error`.
 - Delete: `{"action":"delete","file":...}` — only as a `ha-nova plan raw --file <requests.json>` item `{"endpoint":"backups","payload":…}`, then `ha-nova apply`; its `say` asks
 - Prune: `{"action":"prune"}` (defaults: 30 days / 100 files, named snapshots exempt) → `.data.deleted[]`. Offer prune when a save fails `SNAPSHOT_STORE_FULL` or the user asks; preview count + age range of the affected auto-snapshots, natural confirmation (they are expendable copies), `keep_named` stays true unless the user explicitly says otherwise.
 
+- Safety Core: before any write, apply `../ha-nova/safety-core.md`; not yet in this conversation → read it first; unreadable or incomplete → stop and write nothing.
+
 ## Batch delete (explicit opt-in)
 
 The `ha-nova` context skill explicitly supports destructive batch deletion for

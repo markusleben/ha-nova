@@ -113,6 +113,7 @@ type tierEngine struct {
 	reloading    bool            // configReloadTier walks a reload's configs: a reload inside them is a cycle, typed
 	calls        callSet         // the service calls the cascade makes (tier_callset.go)
 	callAdded    map[int]bool    // call_service listeners already consumers, by their place in the listener table
+	helperCause  tierReason      // why a YAML thermostat or hygrostat left calls unknown (yamlHelperCalls)
 	manifests    map[string]bool // integration → built in; nil until read
 	markTyped    bool            // a raw item is typed only by its skill's mark, which the Relay neither sees nor needs (gateChannel)
 	censusMoot   bool            // a call's own target is typed: the listener census can only raise it (callTargetTyped)

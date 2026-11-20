@@ -331,11 +331,6 @@ func verifyClaudeMarketplaceRegistration(home, desiredSource string) error {
 	return nil
 }
 
-func claudeMarketplaceRegistered(home string) bool {
-	_, hasCurrentSource, err := readClaudeMarketplaceSource(home)
-	return err == nil && hasCurrentSource
-}
-
 func clearClaudeMarketplaceRegistration(home string) error {
 	if output, err := claudeOutput("plugin", "marketplace", "remove", "ha-nova"); err != nil {
 		text := strings.ToLower(strings.TrimSpace(string(output)))

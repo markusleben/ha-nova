@@ -95,7 +95,8 @@ describe("helper contract", () => {
     });
 
     it("binds helper writes to active-preview confirmation", () => {
-      expect(skillDoc).toContain("Active Preview Confirmation");
+      expect(skillDoc).toContain("`../ha-nova/confirmation.md` → Active Preview Confirmation");
+      expect(skillDoc).toContain("`../ha-nova/safety-core.md`");
       // Suite r101 H1: a create ran in the request's own turn, no preview.
       expect(skillDoc).toContain("4. End the turn with this preview; only the user's reply to it confirms, never the request");
       expect(skillDoc).not.toContain("bound to this exact preview");

@@ -39,7 +39,10 @@ export async function listDir(absolute: string, logicalPath: string): Promise<un
         name: entry.name,
         type: entry.isSymbolicLink() ? "symlink" : entry.isDirectory() ? "dir" : "file",
         size: info?.size ?? null,
-        modified: info === null ? null : info.mtime.toISOString()
+        modified: info === null ? null : info.mtime.toISOString(),
+        // ctime: a rename, link, or copy moves it, so the CLI can tell a file
+        // Home Assistant loaded at start from one moved into place since.
+        changed: info === null ? null : info.ctime.toISOString()
       };
     })
   );

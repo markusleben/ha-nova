@@ -1,6 +1,6 @@
 # Chat-app bridge contract: `ha-nova serve` (2026-10-19)
 
-Status: active
+Status: shipped
 
 Parent spec: `docs/work/2026-10-18-onboarding-0.27-spec.md` §11. Scope: the contract between `ha-nova serve` (the bridge, PR train B1), the NOVA App that runs it and writes its files (B2), and the Home Assistant integration that forwards to it (B3). Behaviour beyond this contract is the code in `cli/mcp_serve.go` and `cli/mcp_serve_phone.go`.
 

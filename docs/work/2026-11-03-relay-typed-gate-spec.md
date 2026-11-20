@@ -1,6 +1,6 @@
 # Relay gate for typed-tier actions
 
-Status: active
+Status: shipped
 
 Date: 2026-11-03. Owner: Relay (`nova/src/http/`, `nova/src/runtime/`, `nova/src/security/`), the bundled CLI (`cli/`), the NOVA page. Builds on `docs/work/2026-11-03-relay-refuses-code-writes-spec.md` (branch `fix/relay-refuses-code-writes-cli`: `relayTyped`, `rawItemTier`, `personFollows`), which must merge first. High-risk: security, new cross-component contract, release-bound.
 

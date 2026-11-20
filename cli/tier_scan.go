@@ -185,7 +185,7 @@ func flattenTriggers(node any) []map[string]any {
 			out = append(out, flattenTriggers(child)...)
 		}
 	case map[string]any:
-		if n["enabled"] == false {
+		if n["enabled"] == false && n["options"] == nil { // Home Assistant overlays options before it reads enabled
 			return nil
 		}
 		if nested, present := n["triggers"]; present {

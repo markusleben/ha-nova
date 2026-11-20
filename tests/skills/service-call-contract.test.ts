@@ -97,7 +97,7 @@ describe("service call contract", () => {
     });
 
     it("binds confirmation to the shown preview and never lets the agent mint a code", () => {
-      expect(skillDoc).toContain("Active Preview Confirmation");
+      expect(skillDoc).toContain("`../ha-nova/safety-core.md`");
       expect(skillDoc).toContain("Earlier planning consent is draft-only");
       expect(skillDoc).toContain("No one-time code needed for ordinary service calls");
       expect(skillDoc).toContain("A code counts only as a reply that is only the code, after the preview; \"yes\" is invalid.");

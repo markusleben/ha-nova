@@ -1,6 +1,6 @@
 # Confirmation hardening: typed-tier actions need the human (2026-10-17)
 
-Status: active
+Status: shipped
 
 Implemented on `fix/close-confirmation-bypasses`. Maintainer decision 2026-10-17: the paths around a typed plan's confirmation must not work; breaking the raw service, event, and webhook routes is approved.
 

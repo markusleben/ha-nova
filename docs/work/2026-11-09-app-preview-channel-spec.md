@@ -1,6 +1,6 @@
 # Preview channel for the NOVA App (2026-11-09)
 
-Status: active
+Status: shipped
 
 ## Why
 

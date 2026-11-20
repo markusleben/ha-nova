@@ -7,7 +7,7 @@ The NOVA Relay ships two ways from **one** codebase:
 | **HA OS / Supervised** | The **NOVA Relay App** (Settings > Apps). `ha-nova setup` walks you through it. |
 | **HA Container / HA Core** | This **standalone container** — those installs have no Supervisor, so they cannot install Apps. |
 
-Same source, same endpoints, same version line (`nova/config.yaml`). There is no second implementation to drift. The pairing endpoint therefore exists in this image too, but Container/Core setup remains explicit-token-first: without Supervisor ingress there is no NOVA console page, and `RELAY_AUTH_TOKEN` stays required.
+Same source, same version line (`nova/config.yaml`). There is no second implementation to drift. The container connects with its token only: there is no pairing code, no NOVA console page (that needs Supervisor ingress), and `RELAY_AUTH_TOKEN` stays required.
 
 One difference worth knowing: file access (`/files`) needs the Home Assistant configuration directory mounted. The App does that for you; for the container, mount it yourself and set `FILE_ACCESS` — see Environment below. Without a mount it stays off, whatever the setting says.
 
@@ -62,7 +62,7 @@ If Home Assistant runs in the same Compose project, `HA_URL` can use its service
 | `FILE_ACCESS` | no | `off` | `off` / `read` / `readwrite`. Enables the `/files` endpoint for YAML-only configuration. Requires the Home Assistant config directory to be mounted (see below); without it, the relay stays `off` and says so in its log. |
 | `CONFIG_ROOT` | no | auto | Where the config directory is mounted inside the container. Only needed if you mount it somewhere other than `/config`. |
 
-At startup the shared relay emits one short-lived pairing code. That is useful to pairing-capable clients, but it does not replace the required `RELAY_AUTH_TOKEN` environment variable for this distribution. Codes and rate-limit state are in memory and rotate on restart.
+Since 0.34 the container no longer logs a pairing code at startup and has no `POST /pair` code exchange: every computer connects with the relay token, as in Setup order below.
 
 ## Setup order
 
@@ -82,7 +82,7 @@ The interactive wizard is built around the Supervisor App (it walks you through 
                  --relay-url http://<docker-host>:8791 \
                  --relay-token '<the same relay token>'
    ```
-   `--non-interactive` is required: without it the CLI runs the interactive wizard, which walks you through the Supervisor App screens you do not have.
+   Use `--non-interactive`: without it the CLI runs the interactive wizard, which walks you through the Supervisor App screens you do not have. If the wizard reaches the container anyway, it says so and asks only for this token.
    The CLI stores the relay token in your OS keychain, verifies the connection, and installs the skills for your AI clients.
 6. **Check it**: `ha-nova doctor`.
 

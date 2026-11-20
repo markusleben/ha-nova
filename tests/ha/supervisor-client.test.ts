@@ -105,10 +105,9 @@ describe("supervisor-client", () => {
     ).rejects.toThrow("unexpected supervisor response shape");
   });
 
-  it("keeps getSelfInfo lenient so the sidebar and update card survive a bad port entry", async () => {
+  it("keeps getSelfInfo working so the sidebar and update card survive a bad port entry", async () => {
     mockFetch(() => ({ body: infoBody({ "8792/tcp": "18792" } as unknown as Record<string, number | null>) }));
-    const info = await createSupervisorClient("tok").getSelfInfo();
-    expect(info.network).toEqual({ "8792/tcp": null });
+    await expect(createSupervisorClient("tok").getSelfInfo()).resolves.toMatchObject({ updateAvailable: false });
   });
 
   it("throws on a non-object network map", async () => {

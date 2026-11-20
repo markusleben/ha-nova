@@ -105,7 +105,7 @@ grant: "lock the door for an hour" is an ordinary `lock.lock` now and a
 SCHEDULED, UNATTENDED `lock.unlock` later, and the same holds for "close the
 garage until 7" and "arm the alarm until 6". Classify both halves and take the
 maximum. Same tier as calling the service directly
-(`../ha-nova/SKILL.md` → confirmation tiers) — and `ha-nova:write` applies
+(`../ha-nova/confirmation.md` → Confirmation Tiers) — and `ha-nova:write` applies
 that tier here even though its own create flow is otherwise natural
 confirmation: the duration request is the exception, because its first half is
 a runtime access grant rather than a config change.

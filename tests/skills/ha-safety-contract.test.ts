@@ -8,22 +8,23 @@ describe("ha safety contract", () => {
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 
     expect(router).toContain("Never guess entity IDs, service names, or config IDs.");
-    expect(router).toContain("- config writes (`plan write|delete|revert|raw`): the CLI decides");
-    expect(router).toContain("high-consequence runtime action (grants physical access or is physically irreversible): the person's own confirmation");
+    expect(readFileSync("skills/ha-nova/confirmation.md", "utf8")).toContain("- config writes (`plan write|delete|revert|raw`): the CLI decides");
+    expect(readFileSync("skills/ha-nova/confirmation.md", "utf8")).toContain("high-consequence runtime action (grants physical access or is physically irreversible): the person's own confirmation");
     expect(writeSkill).toContain("Confirmation: the CLI decides — `plan.confirm` none → apply");
-    // Safety Core wording (A3): the no-guessing rule now arrives via the
-    // byte-identical core block in every mutation-capable skill.
-    expect(writeSkill).toContain("Never guess entity, service, or config IDs — resolve them or ask.");
+    // Safety Core wording (A3): the no-guessing rule arrives via the one
+    // Safety Core in safety-core.md, which every mutation-capable skill points to.
+    expect(readFileSync("skills/ha-nova/safety-core.md", "utf8")).toContain("Never guess entity, service, or config IDs — resolve them or ask");
+    expect(writeSkill).toContain("`../ha-nova/safety-core.md`");
   });
 
   it("rejects pre-preview blanket approval for live writes", () => {
-    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    const context = readFileSync("skills/ha-nova/confirmation.md", "utf8");
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
     const applyVerb = readFileSync("cli/verb_apply.go", "utf8");
     const architecture = readFileSync("docs/reference/skill-architecture.md", "utf8");
     const relayApi = readFileSync("skills/ha-nova/relay-api.md", "utf8");
 
-    expect(context).toContain("### Active Preview Confirmation");
+    expect(context).toContain("## Active Preview Confirmation");
     expect(context).toContain("A user instruction given before the preview exists is never valid write confirmation.");
     for (const phrase of ["implement the plan", "do it", "go ahead", "make the changes", "apply the plan"]) {
       expect(context).toContain(`"${phrase}"`);
@@ -38,7 +39,7 @@ describe("ha safety contract", () => {
     expect(writeSkill).toContain("Pre-preview consent is draft-only; a changed draft needs a new plan and preview.");
     // Calmer confirmations: a skill skips the preview only on the CLI's own
     // verdict, never on the kind of change.
-    expect(architecture).toContain("Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`");
+    expect(readFileSync("skills/ha-nova/safety-core.md", "utf8")).toContain("Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`");
     expect(writeSkill).toContain("Exit 0 (`none`): no preview or ask; apply per `next_step`.");
     expect(writeSkill).toContain("A code counts only as a reply that is only the code, after the preview");
     expect(applyVerb).toContain('refused("CODE_REQUIRED", "this plan needs the four digits of its one-time code from HA NOVA, typed by the user")');
@@ -66,7 +67,7 @@ describe("ha safety contract", () => {
 
     for (const file of mutationDocs) {
       const content = readFileSync(file, "utf8");
-      expect(content, file).toContain("Active Preview Confirmation");
+      expect(content, file).toContain("`../ha-nova/safety-core.md`");
     }
   });
 

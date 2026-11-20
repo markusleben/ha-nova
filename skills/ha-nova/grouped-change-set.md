@@ -9,7 +9,7 @@ a grouped set never carries a destructive operation. The one destructive
 workflow defined in this file is Cross-Family Destructive Cleanup below — a
 separate typed-confirmation tier, never part of a grouped set.
 
-Confirmation validity stays owned by `../ha-nova/SKILL.md` → Safety Baseline
+Confirmation validity stays owned by `../ha-nova/confirmation.md`
 → Active Preview Confirmation. This file defines only the grouping mechanics:
 scope, preview protocol, the single final action block, execution, and the
 ledger.

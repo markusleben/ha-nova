@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -32,16 +33,23 @@ func TestUpdateOffersTheAppUpdateOverLink(t *testing.T) {
 	pending := pendingRelayUpdateEntity("update.nova_relay_update", "0.3.0", "0.4.0")
 	var installs atomic.Int32
 	app := httptest.NewServer(withTierReads(appUpdateHA(), func(w http.ResponseWriter, r *http.Request) { // the check before the question reads the rest of the home
+		var corePath string
 		if r.URL.Path == "/core" && r.Method == http.MethodPost {
-			if body, _ := io.ReadAll(r.Body); strings.Contains(string(body), "update/install") {
+			body, _ := io.ReadAll(r.Body)
+			if strings.Contains(string(body), "update/install") {
 				installs.Add(1)
 			}
+			var req struct {
+				Path string `json:"path"`
+			}
+			_ = json.Unmarshal(body, &req)
+			corePath = req.Path
 		}
 		switch r.URL.Path {
 		case "/health":
 			fmt.Fprint(w, `{"ok":true,"data":{"status":"ok","version":"0.3.0"}}`)
 		case "/core":
-			w.Write(statesEnvelope(t, []map[string]interface{}{pending}))
+			w.Write(statesReply(t, corePath, []map[string]interface{}{pending}))
 		case "/ws":
 			w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry("update.nova_relay_update")}))
 		default:

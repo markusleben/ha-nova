@@ -27,6 +27,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { callChecks } from "./calls.mjs";
+import { yamlHeaterChecks } from "./yaml-heater.mjs";
 import { approve, failures, fixture, link, resetPushes } from "./phone.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -182,6 +183,7 @@ try {
   const reload = cli("plan", "call", "automation.reload", "--set", `id=${TARGET}`);
   check("a reload you call is still rated by what it sets off: asks a person", asksPerson(reload), `tier ${reload.tier ?? reload.error?.code}, channel ${reload.plan?.channel ?? "-"}, reasons ${reasons(reload)}`);
   await callChecks({ ha, ws, cli, apply, check, watchdogID: "rclane_home_cover_watchdog", loadAutomations, planWrite, gated });
+  await yamlHeaterChecks({ ha, cli, check });
 } catch (err) {
   check("calm check ran", false, err.message);
 } finally {

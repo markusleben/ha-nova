@@ -1,6 +1,6 @@
 # Images and videos in /config/www: list, delete with a kept copy, restore
 
-Status: active
+Status: shipped
 
 Date: 2026-11-10. Issue MAR-128 (Markus, 09.11.: "Warum ist der denn gesperrt? Das macht doch keinen Sinn" → "Wie oben, aber erst in 0.30"). Owner: Relay `/files` (`nova/src/http/handlers/files*.ts`, new `files-www.ts`), raw plans (`cli/plan_raw_files.go`, `plan_raw.go`, `plan_raw_tier.go`, `plan_raw_say.go`, `plan_raw_apply.go`), the gate worker (`cli/gate_verdict.go`). Target: 0.30 (release/0.30). High-risk: a new delete path in a folder every browser is served from, and a binary copy store in the App. The App changes.
 

@@ -75,6 +75,7 @@ const (
 	reasonLimitCut             = "LIMIT_CUT"
 	reasonIntegrationSvc       = "INTEGRATION_SERVICE"
 	reasonUserService          = "USER_AUTHORED_SERVICE"
+	reasonHelperCalls          = "HELPER_CALLS_UNREAD"
 	noteTemplates              = "TEMPLATES_NOT_CHECKABLE"
 	noteNoManager              = "NO_LOCAL_CONSUMER_MANAGER" // informational: none installed locally
 	noteSkippedTargets         = "EXPANDED_TARGET_WITHOUT_STATE"

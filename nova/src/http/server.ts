@@ -179,8 +179,6 @@ export interface HttpServerOptions {
   router: Router;
   maxJsonBodyBytes?: number;
   version?: string;
-  bearerExemptRoutes?: ReadonlySet<string>;
-  noStorePaths?: ReadonlySet<string>;
   logger?: RelayLogger;
   // The safety-check worker's current token: its principal, from loopback only.
   gateToken?: () => string | null;
@@ -194,12 +192,8 @@ export function createHttpServer(options: HttpServerOptions): Server {
   const listener = createRequestListener({
     router: options.router,
     ...(options.version !== undefined ? { version: options.version } : {}),
-    ...(options.noStorePaths ? { noStorePaths: options.noStorePaths } : {}),
     ...(options.logger ? { logger: options.logger } : {}),
-    authorize: (request, routeKey) => {
-      if (options.bearerExemptRoutes?.has(routeKey)) {
-        return { ok: true };
-      }
+    authorize: (request) => {
       const peer = request.socket.remoteAddress;
       const presented = bearerToken(request.headers.authorization);
       const gateToken = options.gateToken?.() ?? null;

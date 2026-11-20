@@ -178,13 +178,6 @@ func runSecurePairingWithProvisioner(
 	return prov.DeviceID, nil
 }
 
-func validateLocalDeviceReplacementAllowed(cfg runtimeConfig) error {
-	return validateLocalDeviceReplacementAllowedWithPolicy(
-		cfg,
-		SecretStoreForbidUI,
-	)
-}
-
 func validateLocalDeviceReplacementAllowedWithPolicy(
 	cfg runtimeConfig,
 	ui SecretStoreUIPolicy,

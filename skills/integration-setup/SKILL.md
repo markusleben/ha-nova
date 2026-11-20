@@ -64,7 +64,7 @@ This iteration follows the shared `../ha-nova/live-schema-preflight.md` contract
 
 Treat every response as authoritative:
 
-- `menu`: returned options only; selection is the bound confirmation for `{"next_step_id":"<choice>"}`. Resolve a bare number: name the selected option before submitting it (Interactive Choices).
+- `menu`: returned options only; selection is the bound confirmation for `{"next_step_id":"<choice>"}`. Resolve a bare number: name the selected option before submitting it (`../ha-nova/confirmation.md` → Interactive Choices).
 - `form`: use only fields returned by the live `data_schema`; preview the full body before submitting. For secrets, never build or submit its body.
 - validation errors: show the returned field errors and stop; never guess a replacement.
 - `external`, `progress`, or a form requesting a password, PIN/code, OAuth grant, key, token, certificate, or private key: DELETE an agent-started transient flow; restart at **Settings > Devices & services**, using the entry's Configure/Reconfigure or subentry control as appropriate. Preserve pre-existing reauth flows and point at their in-progress card. User-started flows are omitted from `config_entries/flow/progress`; the Relay lacks the frontend-origin header for OAuth redirects. Never ask for or echo the secret; never claim completion.
@@ -165,17 +165,11 @@ Use the Preview Card for flow start, menu selection, each non-secret form submit
 
 ## Safety
 
-- The CLI rates every action; relay its `say`; never lower or skip its ask (a skill may only raise it with `"typed":true`). Apply without a preview only what the CLI ran itself or planned with `plan.confirm: none`; `natural` (or no CLI plan) → show the preview and wait for the user's reply; `code` → follow `say`/`next_step`: the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
-- Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
-- Relay a plan's `say` in full, localized; never drop or shorten sentences.
-- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
-- Never guess entity, service, or config IDs — resolve them or ask.
-- Home Assistant is reached exclusively through the `ha-nova` CLI.
-- Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
+- Safety Core: before any write, apply `../ha-nova/safety-core.md`; not yet in this conversation → read it first; unreadable or incomplete → stop and write nothing.
 
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 
-- Declared exception to the core delete rule above: canceling this skill's unfinished add/options/reconfigure/subentry flow removes only ephemeral state. Explicit cancel or required UI restart suffices, never for an entry or subentry.
+- Declared exception to the Safety Core's delete rule (`../ha-nova/confirmation.md` → Confirmation Tiers): canceling this skill's unfinished add/options/reconfigure/subentry flow removes only ephemeral state. Explicit cancel or required UI restart suffices, never for an entry or subentry.
 - Never request, echo, persist, or submit credentials from chat; finish credential-bearing steps in the Home Assistant UI.
 
 ## Guardrails

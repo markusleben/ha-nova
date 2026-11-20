@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"os"
+	"io"
 	"regexp"
 )
 
@@ -39,7 +39,7 @@ type cloudReleaseSignedPayload struct {
 func verifyCloudReleaseProvenance(
 	bundle bundleMetadata,
 	metadata versionJSON,
-	executablePath string,
+	executable io.Reader,
 ) bool {
 	evidence := bundle.CloudRelease
 	if evidence == nil ||
@@ -50,12 +50,11 @@ func verifyCloudReleaseProvenance(
 		return false
 	}
 
-	executable, err := os.ReadFile(executablePath)
-	if err != nil {
+	hash := sha256.New()
+	if _, err := io.Copy(hash, executable); err != nil {
 		return false
 	}
-	digest := sha256.Sum256(executable)
-	if hex.EncodeToString(digest[:]) != evidence.BinarySHA256 {
+	if hex.EncodeToString(hash.Sum(nil)) != evidence.BinarySHA256 {
 		return false
 	}
 	signature, err := base64.StdEncoding.Strict().DecodeString(evidence.Signature)

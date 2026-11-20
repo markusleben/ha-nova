@@ -5,6 +5,7 @@ import { gunzip, gzip } from "node:zlib";
 
 import { decodeUtf8Strict } from "../../shared/utf8.js";
 import { HttpError } from "../errors.js";
+import { isEnoent, lstatLeaves } from "./backups-leaves.js";
 import type { RouteContext, RouteHandler } from "../router.js";
 
 const gzipAsync = promisify(gzip);
@@ -252,29 +253,13 @@ async function collectEntries(root: string, category?: string): Promise<Snapshot
       }
       throw error;
     }
-    for (const fname of files) {
-      const ref = `${cat}/${fname}`;
-      const match = FILE_PATTERN.exec(ref);
-      if (!match) {
-        continue;
+    const leaves = files.map((fname) => ({ fname, match: FILE_PATTERN.exec(`${cat}/${fname}`) })).filter((l) => l.match);
+    const infos = await lstatLeaves(join(root, cat), leaves.map((l) => l.fname));
+    leaves.forEach(({ fname, match }, i) => {
+      if (infos[i]?.isFile()) {
+        entries.push({ file: `${cat}/${fname}`, category: cat, name: match?.[2] ?? "", bytes: infos[i]!.size, created_at: stampToIso(match?.[3] ?? "") });
       }
-      // lstat, not stat: a leaf symlink must neither leak outside metadata
-      // into list results nor count its target's size toward the caps. A
-      // file deleted or pruned between readdir and lstat is simply gone.
-      const info = await lstat(join(root, cat, fname)).catch((error: unknown) =>
-        isEnoent(error) ? null : Promise.reject(error),
-      );
-      if (!info?.isFile()) {
-        continue;
-      }
-      entries.push({
-        file: ref,
-        category: cat,
-        name: match[2] ?? "",
-        bytes: info.size,
-        created_at: stampToIso(match[3] ?? "")
-      });
-    }
+    });
   }
 
   entries.sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
@@ -290,9 +275,8 @@ async function saveSnapshot(
 ): Promise<{ file: string; bytes: number; created_at: string }> {
   const compressed = await gzipAsync(Buffer.from(JSON.stringify(data), "utf8"));
 
-  const existing = await collectEntries(root);
-  const totalBytes = existing.reduce((sum, entry) => sum + entry.bytes, 0);
-  if (existing.length + 1 > MAX_SNAPSHOT_FILES || totalBytes + compressed.length > MAX_TOTAL_BYTES) {
+  const existing = await summarizeSnapshotStore(root);
+  if (existing.files + 1 > MAX_SNAPSHOT_FILES || existing.bytes + compressed.length > MAX_TOTAL_BYTES) {
     throw new HttpError(
       400,
       "SNAPSHOT_STORE_FULL",
@@ -408,10 +392,6 @@ async function pruneSnapshots(
     await rm(snapshotPath(root, file), { force: true });
   }
   return { deleted };
-}
-
-function isEnoent(error: unknown): boolean {
-  return Boolean(error && typeof error === "object" && (error as { code?: string }).code === "ENOENT");
 }
 
 function isEexist(error: unknown): boolean {

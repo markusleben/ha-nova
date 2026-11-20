@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ var (
 	errPinMismatch           = errors.New("relay TLS identity did not match the pinned fingerprint")
 	errDeviceUnauthorized    = errors.New("device credential was rejected")
 	errRelayNotV1            = errors.New("this relay does not support secure device pairing; update the NOVA Relay App")
+	errRelayStandalone       = errors.New("this NOVA Relay is a standalone container and connects with its token only")
 	errPairingOutcomeUnknown = errors.New(
 		"pairing finish may have reached NOVA Relay; do not submit another code",
 	)
@@ -80,52 +82,81 @@ func pairingStatusError(status int, body []byte, retryAfter string) error {
 	}
 }
 
-// probePairingV1 checks GET /pair/v1/info so an old relay is detected before a
-// pairing attempt, letting the CLI guide an App update instead of failing deep
-// in the handshake.
-func decodePairInfo(raw []byte) (protocolV1 bool) {
-	var env struct {
+// pairInfo is one read of the App's unauthenticated GET /pair/v1/info.
+// answered: any HTTP reply came. body holds a 200's body, and a 401's for
+// a caller that asked for it; nil otherwise or when it couldn't be read.
+// v1, the two capabilities, and the version are decoded independently,
+// so a malformed field in one group never hides another.
+type pairInfo struct {
+	answered       bool
+	status         int
+	body           []byte
+	v1             bool
+	signIn, window bool
+	relayVersion   string
+}
+
+// readPairInfo is every caller's one read of the pairing capabilities; each
+// asks what it needs of the same answer. Only a caller telling a standalone
+// container's token gate apart waits for a 401's body (unauthorizedBody).
+func readPairInfo(ctx context.Context, relayURL string, unauthorizedBody bool) pairInfo {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(relayURL, "/")+"/pair/v1/info", nil)
+	if err != nil {
+		return pairInfo{}
+	}
+	req.URL.User = nil // never forward copied URL userinfo as Basic auth
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return pairInfo{}
+	}
+	defer resp.Body.Close()
+	info := pairInfo{answered: true, status: resp.StatusCode}
+	if resp.StatusCode != http.StatusOK && !(unauthorizedBody && resp.StatusCode == http.StatusUnauthorized) {
+		return info
+	}
+	if info.body, err = readAllLimited(resp.Body, maxRelayPairingResponseBytes); err != nil {
+		info.body = nil
+		return info
+	}
+	if resp.StatusCode != http.StatusOK {
+		return info
+	}
+	var protocol struct {
 		OK   bool `json:"ok"`
 		Data struct {
 			ProtocolVersion string `json:"protocol_version"`
 		} `json:"data"`
 	}
-	if err := json.Unmarshal(raw, &env); err != nil || !env.OK {
-		return false
-	}
-	return env.Data.ProtocolVersion == "v1"
-}
-
-// relayAdvertisesSignIn reads sign_in from the GET /pair/v1/info capability
-// probe; any failure reads as "no" and the step stays the code prompt.
-func relayAdvertisesSignIn(relayURL string) bool {
-	signIn, _ := relayPairCapabilities(relayURL)
-	return signIn
-}
-
-// relayPairCapabilities: sign_in, and window (the App approves in a
-// computer's own window: spec §1), before any credential exists.
-func relayPairCapabilities(relayURL string) (signIn, window bool) {
-	request, err := http.NewRequest(http.MethodGet, strings.TrimRight(relayURL, "/")+"/pair/v1/info", nil)
-	if err != nil {
-		return false, false
-	}
-	request.URL.User = nil
-	response, err := httpClient.Do(request)
-	if err != nil {
-		return false, false
-	}
-	defer response.Body.Close()
-	body, err := readAllLimited(response.Body, maxRelayPairingResponseBytes)
-	var info struct {
+	info.v1 = json.Unmarshal(info.body, &protocol) == nil && protocol.OK && protocol.Data.ProtocolVersion == "v1"
+	var capabilities struct {
 		OK   bool `json:"ok"`
 		Data struct {
 			SignIn bool `json:"sign_in"`
 			Window int  `json:"window"`
 		} `json:"data"`
 	}
-	if response.StatusCode != http.StatusOK || err != nil || json.Unmarshal(body, &info) != nil || !info.OK {
-		return false, false
+	if json.Unmarshal(info.body, &capabilities) == nil && capabilities.OK {
+		info.signIn, info.window = capabilities.Data.SignIn, capabilities.Data.Window == 1
 	}
-	return info.Data.SignIn, info.Data.Window == 1
+	var version struct {
+		Data struct {
+			RelayVersion string `json:"relay_version"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(info.body, &version) // best effort: a bad version reads as unknown
+	info.relayVersion = strings.TrimSpace(version.Data.RelayVersion)
+	return info
+}
+
+// relayAdvertisesSignIn reads sign_in from the pairing capabilities; any
+// failure reads as "no" and the step stays the code prompt.
+func relayAdvertisesSignIn(relayURL string) bool {
+	return readPairInfo(context.Background(), relayURL, false).signIn
+}
+
+// relayPairCapabilities: sign_in, and window (the App approves in a
+// computer's own window: spec §1), before any credential exists.
+func relayPairCapabilities(relayURL string) (signIn, window bool) {
+	info := readPairInfo(context.Background(), relayURL, false)
+	return info.signIn, info.window
 }

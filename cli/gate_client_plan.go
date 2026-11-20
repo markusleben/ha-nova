@@ -94,11 +94,18 @@ func gateBeforeSend(s *relaySession, channel string, fresh storedPlan, batch bat
 	if len(reqs) == 0 {
 		return nil, nil
 	}
-	if err := s.gateAsk(reqs, false, &gateConfirm{id: fresh.ID, lang: textLang(fresh), text: text}); err != nil {
+	if err := s.gateAsk(reqs, false, &gateConfirm{id: fresh.ID, lang: textLang(fresh), text: text, registry: registryUnread(fresh)}); err != nil {
 		return nil, err
 	}
 	humanWhere = channelRelay
 	return reqs, nil
+}
+
+// registryUnread: the plan, or one of a batch's members, is typed because
+// the entity registry couldn't be read (tierEngine.readFailed).
+func registryUnread(p storedPlan) bool {
+	return slices.ContainsFunc(p.Reasons, func(r tierReason) bool { return r.Code == reasonScanFailed && r.Detail == "registry" }) ||
+		slices.ContainsFunc(p.BatchMembers, registryUnread)
 }
 
 // gateStillApproved: after the person approved (which may take minutes),

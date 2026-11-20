@@ -1,6 +1,6 @@
 # Home Assistant Link route: its own budget, one bounded retry, a remembered route
 
-Status: active
+Status: shipped
 
 Date: 2026-11-03. Owner: CLI transport (`cli/relay.go` health and `relay ws|core`, `cli/cloud_runtime.go`, `cli/cloud_ingress.go`, `cli/cloud_link_budget.go`, `cli/relay_session.go`, `cli/trace_loader.go`). Target: 0.28.1. Changes the routing rules of `docs/work/2026-07-25-home-assistant-cloud-remote-spec.md` (§Routing, Non-goals) and `docs/reference/safety.md` (a service call is sent once).
 

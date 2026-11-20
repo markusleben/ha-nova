@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const batchSafety = readFileSync("skills/ha-nova/batch-safety.md", "utf8");
 const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+const confirmation = readFileSync("skills/ha-nova/confirmation.md", "utf8");
 const writeSafety = (readFileSync("skills/ha-nova/write-safety.md", "utf8") + readFileSync("skills/ha-nova/recovery-coverage.md", "utf8") + readFileSync("skills/ha-nova/update-revert.md", "utf8"));
 const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8") + readFileSync("skills/ha-nova/output-cards.md", "utf8");
 
@@ -35,8 +36,8 @@ const MATRIX_SKILLS = [
 ];
 
 describe("batch safety contract (issue #327)", () => {
-  it("is referenced by the context skill, write-safety, output-rules, and every opted-in skill", () => {
-    expect(contextSkill).toContain("../ha-nova/batch-safety.md");
+  it("is referenced by the confirmation contract, write-safety, output-rules, and every opted-in skill", () => {
+    expect(confirmation).toContain("../ha-nova/batch-safety.md");
     expect(writeSafety).toContain("../ha-nova/batch-safety.md");
     expect(outputRules).toContain("../ha-nova/batch-safety.md");
     for (const skill of OPTED_IN_SKILLS) {
@@ -63,7 +64,7 @@ describe("batch safety contract (issue #327)", () => {
       "Any change to a target, payload, endpoint, scope, dependency result, or\nexecution order expires the confirmation",
     );
     expect(batchSafety).toContain("typed by the\nuser, never a menu");
-    expect(contextSkill).toContain("destructive multi-target batch: one confirmation per manifest");
+    expect(confirmation).toContain("destructive multi-target batch: one confirmation per manifest");
     // User-facing naming stays aligned with the output rules.
     expect(batchSafety).toContain('the code is called the "one-time code from HA NOVA" (localized), never a "token"');
   });
@@ -129,7 +130,7 @@ describe("batch safety contract (issue #327)", () => {
     for (const [name, text] of Object.entries({ batchSafety, contextSkill, writeSafety })) {
       expect(text, name).not.toMatch(/CLI code per item|CLI-minted code per item|never mixed\)/);
     }
-    expect(contextSkill).toContain("(automations/scripts: one CLI batch, see there)");
+    expect(confirmation).toContain("(automations/scripts: one CLI batch, see there)");
   });
 
   it("keeps the v1 exclusions single-target", () => {

@@ -59,9 +59,14 @@ var (
 // intro runs once, right before macOS first asks. revoked counts the old
 // sign-ins verified revoked in this run; cause says why an incomplete run
 // stopped.
+// A complete run whose cause is set signed out but couldn't finish removing a
+// copy here; a later setup does (legacy_link_copy_receipt.go).
 func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool, intro func()) (outcome legacyCleanupOutcome, revoked int, cause error) {
 	if cfg.ProfileID != "" && (legacyCopiesOnThisOS || legacyCleanupApplies()) {
 		_ = retryLegacyCopyReceipts(paths, cfg.ProfileID) // whatever the App or the device key's store is now; doctor names a receipt left
+		if recorded, err := confirmAwaitedLegacyCopies(paths, cfg); recorded > 0 {
+			return legacyCleanupComplete, recorded, err
+		}
 	}
 	if !legacyCleanupApplies() {
 		return legacyCleanupNotNeeded, 0, nil
@@ -102,10 +107,15 @@ func finishLegacyLinkCleanup(paths runtimePaths, cfg runtimeConfig, prompt bool,
 			proven = append(proven, legacyLinkCopy{server: cfg.profileName(), account: cfg.ProfileID, service: oauthLegacyCleanupServicePrefix + string(legacyLinkState(service)), value: value})
 		}
 	}
+	if err := awaitLegacyCopyRecord(paths, cfg.ProfileID, proven); err != nil {
+		return legacyCleanupIncomplete, revoked, fmt.Errorf("this computer couldn't note the old sign-in's copy for removal (%w)", err)
+	}
 	if err := legacyCleanupReport(paths, cfg); err != nil {
 		return legacyCleanupIncomplete, revoked, fmt.Errorf("the NOVA App didn't record it (%w)", err)
 	}
-	_ = deleteProvenLegacyLinkCopies(paths, cfg.ProfileID, proven) // a copy left keeps a receipt for the next setup
+	if err := deleteProvenLegacyLinkCopies(paths, cfg.ProfileID, proven, nil); err != nil {
+		return legacyCleanupComplete, revoked, err
+	}
 	return legacyCleanupComplete, revoked, nil
 }
 
@@ -244,6 +254,8 @@ func legacyLinkCleanupInSetup(show func(setupBlock), paths runtimePaths, cfg run
 	switch {
 	case outcome == legacyCleanupIncomplete:
 		return setupText("setup.cleanup.incomplete", "reason", cause.Error(), "command", gateCleanupCommand(cfg.profileName()))
+	case outcome == legacyCleanupComplete && cause != nil:
+		return setupText("setup.cleanup.copy_left", "reason", cause.Error())
 	case outcome == legacyCleanupComplete && revoked > 0:
 		return setupText("setup.cleanup.done")
 	}

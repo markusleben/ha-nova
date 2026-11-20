@@ -1,6 +1,6 @@
 # Supervisor access for HA NOVA (security spec)
 
-Status: active
+Status: shipped
 
 Date: 2026-10-26. Parent: `docs/work/2026-10-26-ha-ui-parity-spec.md` (batch 3b, Decision 3: a role change for the App is a separate security spec). Built 2026-10-27 as option B, narrow: see Decisions below.
 

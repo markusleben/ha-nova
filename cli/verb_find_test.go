@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -123,7 +124,7 @@ func setupFakeRelay(t *testing.T, reply func(r *http.Request, endpoint string, p
 		// and the tier engine starts and aborts a helper's options flow; the
 		// check-up reads the log facts (answered as facts only, log_facts.go).
 		asking := endpoint == gateAskRoute || endpoint == gatePhoneRoute // the Relay's ask routes, not requests to Home Assistant
-		if err := checkReadOnlyRequest(endpoint, payload); err != nil && !asking && !(allowServiceWrites && checkWriteRequest(endpoint, payload) == nil) && checkPhoneRead(endpoint, payload) != nil && !helperFlowRequest(endpoint, payload) && !logFactsRequest(endpoint, raw) {
+		if err := checkReadOnlyRequest(endpoint, payload); err != nil && !asking && !(allowServiceWrites && checkWriteRequest(endpoint, payload) == nil) && checkPhoneRead(endpoint, payload) != nil && !helperFlowRequest(endpoint, payload) && !yamlFilesRequest(endpoint, payload) && !logFactsRequest(endpoint, raw) {
 			t.Errorf("read verb sent a non-read request: %v", err)
 		}
 		// Gate oracle (relay-typed-gate spec → Contract): the Relay's gate
@@ -261,7 +262,7 @@ func TestFindReadsAliasesOnlyAfterCompactMiss(t *testing.T) {
 	if exit != 0 || result.Total != 1 || result.Matches[0].By != "alias" {
 		t.Fatalf("exit %d, result %+v", exit, result)
 	}
-	got := strings.Join(log.wsTypes(), ",")
+	got := strings.Join(slices.DeleteFunc(log.wsTypes(), func(t string) bool { return !strings.HasPrefix(t, "config/entity_registry/") }), ",") // area and device go out with the compact registry
 	if !strings.HasSuffix(got, "config/entity_registry/list_for_display,config/entity_registry/list,config/entity_registry/get_entries") {
 		t.Fatalf("ws order = %s, want compact, then full, then aliases", got)
 	}
