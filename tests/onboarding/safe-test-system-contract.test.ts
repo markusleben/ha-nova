@@ -90,6 +90,7 @@ describe("safe test system contract", () => {
     const isEntrypoint = (file: string) => /^tests\/.+\.test\.ts$/.test(file);
     const testFiles = collectTestFiles("tests");
     expect(testFiles.length).toBeGreaterThan(50);
+    expect(collectTestFiles("nova/src"), "test files belong under tests/, which is all Vitest runs").toEqual([]);
     const missed = testFiles.filter((file) => !isEntrypoint(file));
     expect(
       missed,
@@ -165,11 +166,12 @@ describe("safe test system contract", () => {
   });
 
   // The Go suite runs in the go-test shards; a Vitest file that spawns
-  // `go test` repeats it and compiles the CLI on every local npm test.
+  // the Go suite repeats it and compiles the CLI on every local npm test.
   it("never re-runs Go tests from Vitest", () => {
-    const spawnsGoTest = collectModules("tests").filter((file) =>
-      /["']go["'],\s*\[\s*["']test["']/.test(readFileSync(file, "utf8")),
-    );
+    const spawnsGoTest = collectModules("tests").filter((file) => {
+      const source = readFileSync(file, "utf8");
+      return /["']go["'],\s*\[[^\]]*["']test["']/.test(source) || /\bgo\s+(?:-C\s+\S+\s+)?test\b/.test(source);
+    });
     expect(spawnsGoTest).toEqual([]);
   });
 
@@ -365,7 +367,7 @@ describe("safe test system contract", () => {
       "npm run test:safe",
     ]);
     expect(verifyNode.match(/vitest|test:safe/g)).toEqual(["test:safe"]);
-    expect(verifyNode).not.toMatch(/test:cli|go test|test:desktop/);
+    expect(verifyNode).not.toMatch(/test:cli|go\stest|test:desktop/);
   });
 
   it("defines an explicit macOS desktop validation command instead of mixing it into npm test", () => {
@@ -397,7 +399,7 @@ describe("safe test system contract", () => {
     expect(contributing).toContain("host-safe");
     expect(contributing).toContain("npm run verify:node");
     // The Go suite pairs and purges: on a Mac only in isolation (AGENTS.md).
-    expect(contributing).toContain("run the Go suite only in a Linux container or a separate macOS user");
+    expect(contributing).toContain("on macOS, run the Go suite only in a Linux container or a separate macOS user");
     expect(contributing).toContain("test:desktop:macos");
     expect(contributing).toContain("test:desktop:windows:headless");
     expect(contributing).toContain("test:desktop:windows:rdp");

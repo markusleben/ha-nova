@@ -1,6 +1,6 @@
 # Early Test Inventory Preflight
 
-Status: active
+Status: superseded (the test-inventory job was removed in 0.34: one Vitest sweep runs every test)
 
 ## Goal
 

@@ -15,6 +15,7 @@ HA NOVA is still early. Small, focused improvements help most.
 Prerequisites:
 - Node.js `>=22.12`
 - Go `>=1.26.11` (the `go` line in `cli/go.mod`)
+- `jq` and Python 3 (a few contract tests call them)
 
 ```bash
 npm ci
@@ -23,7 +24,7 @@ npm run verify:node
 
 `npm run verify:node` is the host-safe gate: production dependency audit, blocked-file checks, release metadata, typecheck, the docs fact-check, the build, and every Vitest test in one `vitest run` (`npm test` runs the same sweep alone). It never opens a browser or touches a real secure store. CI runs it on every pull request.
 
-`npm run verify` adds the Go CLI suite (`npm run test:cli`, `go test ./...`). Its pairing, setup, purge, and server-removal tests are only safe where no real HA NOVA credentials live: on macOS a temporary `HOME` does not isolate the login Keychain, so on a Mac that holds real credentials run the Go suite only in a Linux container or a separate macOS user, or leave it to CI ([docs/reference/testing.md](docs/reference/testing.md)). On Linux and in CI `npm run verify` is host-safe.
+`npm run verify` adds the Go CLI suite (`npm run test:cli`, `go test ./...`). Its pairing, setup, purge, and server-removal tests read and can delete stored HA NOVA credentials, and on macOS a temporary `HOME` does not isolate the login Keychain: on macOS, run the Go suite only in a Linux container or a separate macOS user, or leave it to CI ([docs/reference/testing.md](docs/reference/testing.md)). On Linux and in CI `npm run verify` is host-safe.
 
 ## Verification Matrix
 

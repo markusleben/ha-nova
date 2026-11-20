@@ -44,8 +44,12 @@ export function registerWorkflowPinsContractTests(): void {
   it("builds and scans with the Go that cli/go.mod names in every workflow", () => {
     // A Go security bump in cli/go.mod must reach every CI, release, and
     // App-image build, so every setup-go reads it and none pins its own.
-    const go = readFileSync("cli/go.mod", "utf8").match(/^go (\d+\.\d+\.\d+)$/m)?.[1];
+    const goMod = readFileSync("cli/go.mod", "utf8");
+    const go = goMod.match(/^go (\d+\.\d+\.\d+)$/m)?.[1];
     expect(go).toBeTruthy();
+    // setup-go prefers a toolchain line over the go line; the go line alone
+    // is the one version every workflow and CONTRIBUTING.md name.
+    expect(goMod).not.toMatch(/^toolchain /m);
     const workflowDir = ".github/workflows";
     const setups = readdirSync(workflowDir)
       .filter((name) => /\.ya?ml$/.test(name))

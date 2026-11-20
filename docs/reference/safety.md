@@ -126,8 +126,8 @@ These are guarantees about what HA NOVA *says*, which matter as much as what it 
 ## Reproduce it
 
 ```bash
-npm run verify                            # typecheck + full test suite + build + documentation fact-check
-(cd cli && go test ./...)                 # CLI: keyring, snapshot/revert, uninstall teardown, update nudges
+npm run verify:node                       # typecheck + every Vitest test + build + documentation fact-check
+(cd cli && go test ./...)                 # CLI: keyring, snapshot/revert, uninstall teardown (on macOS only in a Linux container or a separate macOS user)
 bash scripts/e2e/disposable-ha/run.sh     # boots a REAL Home Assistant and verifies the relay against it
 ```
 

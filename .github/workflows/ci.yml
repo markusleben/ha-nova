@@ -433,7 +433,7 @@ jobs:
             "${RUNNER_TEMP}/ha-nova-cli.test"
           /usr/bin/codesign --verify --strict "${RUNNER_TEMP}/ha-nova-cli.test"
           "${RUNNER_TEMP}/ha-nova-cli.test" \
-            -test.run '^(TestDarwinNativeSecretWorkerVerifiesSameExecutableParent|TestDarwinOAuthSecurityBindingLoads|TestDarwinOAuthBackendStopsBeforeNativeAccessWhenCanceled)$' \
+            -test.run '^(TestDarwinNativeSecretWorkerVerifiesSameExecutableParent|TestDarwinOAuthSecurityBindingLoads|TestDarwinOAuthBackendStopsBeforeNativeAccessWhenCanceled|TestDarwinOAuthNativeOperationsHonorHardDeadline)$' \
             -test.v
 
   windows-native-secret-boundary:

@@ -52,14 +52,15 @@ npm run verify:next-release-version -- v<version>
 ## 2. Verify
 
 ```bash
-npm run verify
+npm run verify:node
 ```
 
-The host-safe default gate: release metadata sync, production `npm audit` on
-both lockfiles (`bash scripts/release/verify-npm-audit.sh`), blocked files,
-TypeScript, the docs fact-check, build, every Vitest test in one sweep, and Go
-CLI tests. On a Mac, run `npm run verify:node` and leave the Go suite to CI
-(`docs/reference/testing.md`).
+The host-safe gate: release metadata sync, production `npm audit` on both
+lockfiles (`bash scripts/release/verify-npm-audit.sh`), blocked files,
+TypeScript, the docs fact-check, build, and every Vitest test in one sweep.
+`npm run verify` adds the Go CLI tests; `release.yml` and
+`release-candidate.yml` run it on Linux. On macOS, run the Go suite only in a
+Linux container or a separate macOS user (`docs/reference/testing.md`).
 
 ## 3. Release Candidate Gate
 
