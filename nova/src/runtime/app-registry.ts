@@ -31,64 +31,11 @@ export function openInertRegistry(): DeviceRegistry {
 
 // A stable DeviceRegistry facade that always delegates to the current store, so
 // a corrupt-registry reset can swap the underlying registry without rebuilding
-// the listeners and pairing manager that captured this reference.
+// the listeners and pairing manager that captured this reference. The inert
+// registry's literal must name every method, so its keys are the full list.
 export function swappableRegistry(get: () => DeviceRegistry): DeviceRegistry {
-  return {
-    list: () => get().list(),
-    resolveDeviceSecret: (deviceId, secretDigest, now) =>
-      get().resolveDeviceSecret(deviceId, secretDigest, now),
-    resolveCloudDeviceSecret: (
-      deviceId,
-      secretDigest,
-      userId,
-      relayInstanceId,
-      now,
-    ) =>
-      get().resolveCloudDeviceSecret(
-        deviceId,
-        secretDigest,
-        userId,
-        relayInstanceId,
-        now,
-      ),
-    getPairingResponse: (handshakeId, contextKey, now) =>
-      get().getPairingResponse(handshakeId, contextKey, now),
-    createPending: (record, now) => get().createPending(record, now),
-    createPendingWithResponse: (record, response, now) =>
-      get().createPendingWithResponse(record, response, now),
-    activate: (deviceId, now) => get().activate(deviceId, now),
-    activatePending: (deviceId, secretDigest, now) =>
-      get().activatePending(deviceId, secretDigest, now),
-    bindCloudUser: (deviceId, secretDigest, userId, relayInstanceId) =>
-      get().bindCloudUser(deviceId, secretDigest, userId, relayInstanceId),
-    activatePendingForCloud: (
-      deviceId,
-      secretDigest,
-      userId,
-      relayInstanceId,
-      now,
-    ) =>
-      get().activatePendingForCloud(
-        deviceId,
-        secretDigest,
-        userId,
-        relayInstanceId,
-        now,
-      ),
-    revokeCloudDevice: (deviceId, secretDigest, userId, relayInstanceId, now) =>
-      get().revokeCloudDevice(
-        deviceId,
-        secretDigest,
-        userId,
-        relayInstanceId,
-        now,
-      ),
-    revoke: (deviceId) => get().revoke(deviceId),
-    setConfirmPhone: (deviceId, link, expected) => get().setConfirmPhone(deviceId, link, expected),
-    disableWindowConfirm: (deviceId) => get().disableWindowConfirm(deviceId),
-    setOwnComputer: (deviceId, ownerId, atMs) => get().setOwnComputer(deviceId, ownerId, atMs),
-    setWindowConfirm: (deviceId, on, ownerId) => get().setWindowConfirm(deviceId, on, ownerId),
-    setCodeConfirm: (deviceId, ownerId, atMs) => get().setCodeConfirm(deviceId, ownerId, atMs),
-    completeLegacyCleanup: (deviceId) => get().completeLegacyCleanup(deviceId),
-  };
+  const methods = Object.keys(openInertRegistry()) as Array<keyof DeviceRegistry>;
+  return Object.fromEntries(
+    methods.map((name) => [name, (...args: unknown[]) => (get()[name] as (...a: unknown[]) => unknown)(...args)]),
+  ) as unknown as DeviceRegistry;
 }

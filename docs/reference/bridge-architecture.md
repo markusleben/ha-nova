@@ -60,7 +60,8 @@ not accepted through Ingress.
 
 When Cloud Remote is disabled, `/cloud/v1/info` advertises cleanup-only
 capabilities and `/cloud/v1/device/revoke-self` remains registered. Setup,
-pairing, and functional machine routes are absent.
+Cloud-device activation, and functional machine routes are absent; sign-in
+pairing (`/pair/v2/*`) stays, because it yields local devices.
 
 `automatic` routing prefers the pinned local device transport. It selects Cloud
 only when a short authenticated local health preflight ends in a pure network
@@ -349,7 +350,8 @@ before anything is sent. Routes, write bodies, and tiers:
 { "method": "POST", "path": "/addons/core_mosquitto/options", "data": { "options": { "logins": [] } } }
 ```
 
-- Registered on the bootstrap and device listeners only, not on the Home
+- Registered on the paired device's pinned-TLS listener only (the pairing
+  listener refuses it like every functional route), not on the Home
   Assistant Link (Ingress) routes, and App mode only: a standalone container
   has no such route (`404 NOT_FOUND`).
 - JSON replies hide secret-like values and App options marked
@@ -484,7 +486,7 @@ in sync; Relay and product versions must not be substituted for each other.
 
 ## Standard Envelope
 
-All responses follow the same JSON envelope (defined in `types/api.ts`):
+All JSON API responses follow the same envelope (written by `http/server.ts`; errors in `http/errors.ts`); the owner and approval pages answer HTML:
 
 ```typescript
 // Success

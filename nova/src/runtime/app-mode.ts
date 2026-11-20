@@ -38,6 +38,7 @@ import { createGateWorker, mintGateDevice, type GateWorker } from "./gate-worker
 import { openWindowLog } from "../storage/window-log.js";
 import { createIngressListener } from "./ingress-listener.js";
 import { ensureSidebarPanel } from "./sidebar-panel.js";
+import { listenServer } from "./start-support.js";
 import {
   createBootstrapListener,
   createDeviceListener,
@@ -68,7 +69,6 @@ export interface AppModeInput {
   startedAtMs: number;
   now: () => number;
   logger: RelayLogger;
-  iconPath?: string;
 }
 
 export interface AppModeRuntime {
@@ -252,7 +252,6 @@ export async function buildAppMode(
       resetRegistry,
       now: input.now,
       logger: input.logger,
-      ...(input.iconPath !== undefined ? { iconPath: input.iconPath } : {}),
       ...(chatApps !== undefined ? { chatApps } : {}),
     }),
   );
@@ -267,9 +266,9 @@ export async function buildAppMode(
     registryCorrupt,
     async listen() {
       await Promise.all([
-        listen(bootstrap, BOOTSTRAP_PORT),
-        listen(device, SECURE_PORT),
-        listen(ingress, INGRESS_PORT),
+        listenServer(bootstrap, BOOTSTRAP_PORT),
+        listenServer(device, SECURE_PORT),
+        listenServer(ingress, INGRESS_PORT),
       ]);
       input.logger.info?.("Relay listening (app mode)", {
         bootstrap: BOOTSTRAP_PORT,
@@ -352,11 +351,4 @@ function buildFunctionalHandlers(
   };
   return { functional, page: { ...asks, texts: pageTexts((name) => worker.texts(name), input.now, input.logger), recent: windowLog.list,
     devices: () => registry.list().filter((d) => d.state === "active").map((d) => `${d.deviceId}:${d.confirmRev ?? 0}`) } };
-}
-
-async function listen(server: Server, port: number): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    server.listen(port, "0.0.0.0", () => resolve());
-    server.on("error", reject);
-  });
 }
