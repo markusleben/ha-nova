@@ -32,7 +32,7 @@ const CFG = {
   guestHa: env("VM_LANE_GUEST_HA_URL", "http://10.0.2.2:8123"),
   guestRelay: env("VM_LANE_GUEST_RELAY_URL", "http://10.0.2.2:8791"),
   location: env("VM_LANE_HAOS_LOCATION", "Home"),
-  haVersion: env("VM_LANE_HA_VERSION", "2026.10.2"),
+  haVersion: env("VM_LANE_HA_VERSION", "2026.11.1"),
   osVersion: env("VM_LANE_HAOS_VERSION", "18.3"),
   app: env("VM_LANE_APP_SLUG", "2368fcfa_ha_nova_relay"),
   win: { port: env("VM_LANE_WIN_PORT", "2222"), user: env("VM_LANE_WIN_ADMIN", "tester"), key: env("VM_LANE_WIN_KEY", join(TOOLS, "win11/vmkey")), knownHosts: env("VM_LANE_WIN_KNOWN_HOSTS", join(TOOLS, "win11/known_hosts")) },
@@ -278,7 +278,7 @@ async function haosIdentity() {
   const [conf, entries, appInfo, os] = await ws([{ type: "get_config" }, { type: "config_entries/get", domain: "demo" },
     { type: "supervisor/api", endpoint: `/addons/${CFG.app}/info`, method: "get" }, { type: "supervisor/api", endpoint: "/os/info", method: "get" }]);
   const ok = isQemu && conf.location_name === CFG.location && conf.version === CFG.haVersion && os?.version === CFG.osVersion && conf.time_zone === "Europe/Berlin" && entries?.length > 0 && Boolean(appInfo?.version);
-  check("p", "HAOS VM is the throwaway one", ok, `127.0.0.1:8123 owner ${isQemu ? "QEMU" : "NOT QEMU"}, creds token ok, location "${conf.location_name}", ${conf.time_zone}, HA ${conf.version}, HAOS ${os?.version ?? "?"}, demo entry ${entries?.length ? "yes" : "NO"}, App ${appInfo?.version ?? "missing"} ${appInfo?.state ?? ""}`);
+  check("p", "HAOS VM is the throwaway one", ok, `127.0.0.1:8123 owner ${isQemu ? "QEMU" : "NOT QEMU"}, creds token ok, location "${conf.location_name}", ${conf.time_zone}, HA ${conf.version}, HAOS ${os?.version ?? "?"}, demo entry ${entries?.length ? "yes" : "NO"}, App ${appInfo?.version ?? "missing"} ${appInfo?.state ?? ""}${ok ? "" : `; expected HA ${CFG.haVersion}, HAOS ${CFG.osVersion} (after a deliberate VM update set VM_LANE_HA_VERSION / VM_LANE_HAOS_VERSION)`}`);
   return ok ? appInfo : null;
 }
 const host = (cmd, t = 60) => execFileSync("python3", [join(TOOLS, "haos/sh.py"), cmd, String(t)], { encoding: "utf8", timeout: (t + 15) * 1000 });

@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
-## [Relay 0.13.31] - 2026-11-21
+## [Relay 0.13.31] - 2026-11-20
 
 ### Changed
 - Chat apps get HA NOVA 0.34.0.
