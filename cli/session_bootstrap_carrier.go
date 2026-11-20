@@ -195,10 +195,6 @@ func finalizeSessionBootstrapCarrier(paths runtimePaths, claimValue string, dead
 	return writeFileAtomic(marker, []byte(version+"\n"), 0o644) == nil
 }
 
-func finalizePendingSessionBootstrapCarrier(paths runtimePaths) bool {
-	return finalizePendingSessionBootstrapCarrierUntil(paths, time.Now())
-}
-
 func finalizePendingSessionBootstrapCarrierUntil(paths runtimePaths, deadline time.Time) bool {
 	version := localVersion(paths)
 	if version == "" || version == "dev" {

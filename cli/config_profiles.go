@@ -285,17 +285,6 @@ func (d *configDocument) withProfile(name string, cfg runtimeConfig) (map[string
 	return d.withProfileDocument(name, cfg, true, false)
 }
 
-// withProfilePreservingSiblings is reserved for security cleanup. Revoking one
-// profile's Cloud authorization must not be blocked by an unrelated sibling's
-// invalid route/lifecycle fields, but profile identities still must parse,
-// validate, and remain unique so the cleanup cannot target a shared account.
-func (d *configDocument) withProfilePreservingSiblings(
-	name string,
-	cfg runtimeConfig,
-) (map[string]json.RawMessage, error) {
-	return d.withProfileDocument(name, cfg, false, false)
-}
-
 func (d *configDocument) withProfileDocument(
 	name string,
 	cfg runtimeConfig,

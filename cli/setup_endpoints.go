@@ -94,10 +94,6 @@ func resolveHomeAssistantURLBaseWithinTimeout(input string, timeout time.Duratio
 	return "", fmt.Errorf("could not reach Home Assistant at %s: %w", input, firstErr)
 }
 
-func promptValidHAHost(in io.Reader, out io.Writer, defaultHost string) (string, string, error) {
-	return promptValidHAHostFromReader(bufio.NewReader(in), out, defaultHost)
-}
-
 func promptValidHAHostFromReader(reader *bufio.Reader, out io.Writer, defaultHost string) (string, string, error) {
 	currentDefault := defaultHost
 	for {

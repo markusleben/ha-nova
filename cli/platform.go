@@ -46,10 +46,6 @@ func promptLine(label, defaultValue string) (string, error) {
 	return line, nil
 }
 
-func printInfo(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stdout, "[ha-nova] "+format+"\n", args...)
-}
-
 func printWarn(format string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, "[ha-nova] WARNING: "+format+"\n", args...)
 }

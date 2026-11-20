@@ -80,10 +80,6 @@ func buildWindowsDetachedHelperCommandWithEnv(helperPath string, statusPath stri
 	)
 }
 
-func launchWindowsDetachedHelper(helperPath string, statusPath string, statusTicks int64, args ...string) error {
-	return launchWindowsDetachedHelperWithEnv(helperPath, statusPath, statusTicks, nil, args...)
-}
-
 func launchWindowsDetachedHelperWithEnv(helperPath string, statusPath string, statusTicks int64, extraEnv []string, args ...string) error {
 	cmd := buildWindowsDetachedHelperCommandWithEnv(helperPath, statusPath, statusTicks, extraEnv, args...)
 	if len(extraEnv) > 0 {
