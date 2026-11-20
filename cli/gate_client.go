@@ -205,7 +205,7 @@ func (s *relaySession) gateAsk(reqs []gateRequest, held bool, plan *gateConfirm)
 				}
 			}
 		}
-		if stop = gateOpenFailure(opened, err, chat, lang, func() error { return gateDisagrees(s.paths, s.version(), plan != nil && plan.registry) }); stop != nil {
+		if stop = gateOpenFailure(opened, err, chat, lang, func() error { return gateDisagrees(s.paths, s.version(), chat, plan != nil && plan.registry) }); stop != nil {
 			return false
 		}
 		if opened.Code != "" && acceptCode { // nothing waits here: the person types it back in the chat
@@ -279,13 +279,17 @@ func gateOpenFailure(opened gateOpened, err error, chat bool, lang string, disag
 // gateDisagrees: the App needs no ask for a change this computer holds for
 // a person, so nothing is sent; the App keeps the last word. Only an App
 // older than min_relay_version is told to update (an unknown version is
-// not); registry: this computer held it because it couldn't read the
-// entity registry, which it then says.
-func gateDisagrees(paths runtimePaths, relayVersion string, registry bool) error {
+// not); registry: this computer held it because it couldn't read a Home
+// Assistant registry, which it then says. A chat app's user has no
+// terminal here: the change is theirs to make in Home Assistant.
+func gateDisagrees(paths runtimePaths, relayVersion string, chat, registry bool) error {
 	message, next := "HA NOVA's safety check in Home Assistant doesn't hold this change for a person, but this computer does", "Tell the user nothing changed. Update HA NOVA on this computer (ha-nova update), then plan it again; if it happens again, they make the change in Home Assistant itself."
 	if registry {
-		message += " because it couldn't read Home Assistant's entity registry"
-		next = "Tell the user nothing changed: this computer couldn't read Home Assistant's entity registry, so it held the change for a person. Plan it again; if it happens again, they make the change in Home Assistant itself."
+		message += " because it couldn't read a Home Assistant registry"
+		next = "Tell the user nothing changed: this computer couldn't read a Home Assistant registry, so it held the change for a person. Plan it again; if it happens again, they make the change in Home Assistant itself."
+	}
+	if chat {
+		next = "Tell the user nothing changed: HA NOVA and its safety check in Home Assistant disagree about this change. They make it in Home Assistant itself, or ask whoever runs HA NOVA's container to update it."
 	}
 	if v, err := readVersionJSON(paths.VersionFile); err == nil && v.MinRelayVersion != "" && relayVersion != "" {
 		if cmp, err := compareReleaseVersions(relayVersion, v.MinRelayVersion); err == nil && cmp < 0 {

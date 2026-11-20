@@ -2,6 +2,10 @@ package main
 
 import (
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,11 +33,11 @@ func TestGateDisagreesNamesAppUpdateOnlyWhenOlder(t *testing.T) {
 		{"0.13.29", true, true},
 	} {
 		var stop *verbFailure
-		if !errors.As(gateDisagrees(paths, tc.version, tc.registry), &stop) || stop.code != "GATE_DISAGREES" || stop.exit != verbExitRefused || !errors.Is(stop.cause, errNothingSent) {
+		if !errors.As(gateDisagrees(paths, tc.version, false, tc.registry), &stop) || stop.code != "GATE_DISAGREES" || stop.exit != verbExitRefused || !errors.Is(stop.cause, errNothingSent) {
 			t.Fatalf("%+v: %+v", tc, stop)
 		}
 		update := strings.Contains(stop.next, relayAppUpdatePath) && strings.Contains(stop.next, "it has "+tc.version)
-		registry := strings.Contains(stop.message, "entity registry")
+		registry := strings.Contains(stop.message, "couldn't read a Home Assistant registry")
 		if update != tc.update || registry != tc.registry || !strings.HasSuffix(stop.message, "; nothing was sent") || tc.update == strings.Contains(stop.next, "it again; if it happens again") {
 			t.Fatalf("%+v: message %q next %q", tc, stop.message, stop.next)
 		}
@@ -63,7 +67,44 @@ func TestGateDisagreesNamesUnreadRegistry(t *testing.T) {
 	}
 	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
 	if _, _, sends := g.snapshot(); exit != verbExitRefused || applied.Error == nil || applied.Error.Code != "GATE_DISAGREES" || len(sends) != 0 || len(h.planFiles()) != 1 ||
-		!strings.Contains(applied.Error.Message, "couldn't read Home Assistant's entity registry") || strings.Contains(applied.Error.Next, relayAppUpdatePath) {
+		!strings.Contains(applied.Error.Message, "couldn't read a Home Assistant registry") || strings.Contains(applied.Error.Next, relayAppUpdatePath) {
 		t.Fatalf("exit %d %+v sends %+v", exit, applied.Error, sends)
+	}
+}
+
+// Through apply, the App's version comes from the ask's own answer: an
+// older App is told to update, though apply asks before any other read.
+func TestGateDisagreesThroughApplyNamesOlderApp(t *testing.T) {
+	g := &fakeGate{notNeeded: true}
+	h := gatedHarness(t, newFakeHA(), g)
+	plan := h.plan("lock.unlock", "lock.front").Plan
+	cfg, err := loadConfig(h.paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := url.Parse(cfg.RelayBaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy.ModifyResponse = func(r *http.Response) error {
+		r.Header.Set(relayVersionHeader, "0.13.29")
+		return nil
+	}
+	server := httptest.NewServer(proxy)
+	t.Cleanup(server.Close)
+	if err := saveConfig(h.paths, runtimeConfig{HAHost: "127.0.0.1", HAURL: "http://127.0.0.1:8123", RelayBaseURL: server.URL}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(h.paths.VersionFile), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(h.paths.VersionFile, []byte(`{"skill_version":"0.34.0","min_relay_version":"0.13.30"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
+	if _, _, sends := g.snapshot(); exit != verbExitRefused || env.Error == nil || env.Error.Code != "GATE_DISAGREES" || len(sends) != 0 ||
+		!strings.Contains(env.Error.Next, "it has 0.13.29") || !strings.Contains(env.Error.Next, relayAppUpdatePath) {
+		t.Fatalf("exit %d %+v sends %+v", exit, env.Error, sends)
 	}
 }
