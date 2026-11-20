@@ -71,7 +71,7 @@ func TestRelayAvailableUpdateNoticeRequiresExactPendingEvidence(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
 				case "/core":
-					w.Write(statesEnvelope(t, tc.states))
+					w.Write(coreStatesReply(t, r, tc.states))
 				case "/ws":
 					registry := []map[string]interface{}{}
 					for _, state := range tc.states {
@@ -148,7 +148,7 @@ func TestRelayUpdateNoticeClassifiesBelowFloorAppBeforeOfferingGuidedUpdate(t *t
 				case "/health":
 					fmt.Fprint(w, `{"ok":true,"data":{"status":"ok","version":"0.3.0"}}`)
 				case "/core":
-					w.Write(statesEnvelope(t, tc.states))
+					w.Write(coreStatesReply(t, r, tc.states))
 				case "/ws":
 					registry := []map[string]interface{}{}
 					for _, state := range tc.states {
@@ -213,19 +213,20 @@ func TestGuidedRelayUpdateWaitsForOfferedAboveFloorVersion(t *testing.T) {
 			fmt.Fprintf(w, `{"ok":true,"data":{"version":%q,"ha_ws_connected":%t}}`, version, version == "0.6.0")
 		case "/core":
 			var req struct {
-				Path string `json:"path"`
+				Method string `json:"method"`
+				Path   string `json:"path"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				t.Errorf("decode core payload: %v", err)
 			}
-			if req.Path == "/api/states" {
+			if statesRead(req.Method, req.Path) {
 				if installed.Load() {
-					w.Write(statesEnvelope(t, []map[string]interface{}{
+					w.Write(statesReply(t, req.Path, []map[string]interface{}{
 						completedRelayUpdateEntity("update.nova_relay_update", "0.6.0"),
 					}))
 					return
 				}
-				w.Write(statesEnvelope(t, []map[string]interface{}{
+				w.Write(statesReply(t, req.Path, []map[string]interface{}{
 					pendingRelayUpdateEntity("update.nova_relay_update", "0.4.1", "0.6.0"),
 				}))
 				return
@@ -288,7 +289,7 @@ func TestRunDoctorReportsAboveFloorRelayUpdateWithoutFailing(t *testing.T) {
 	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/core":
-			w.Write(statesEnvelope(t, []map[string]interface{}{
+			w.Write(coreStatesReply(t, r, []map[string]interface{}{
 				pendingRelayUpdateEntity("update.nova_relay_update", "0.4.1", "0.6.0"),
 			}))
 		case "/ws":
@@ -344,7 +345,7 @@ func TestRunCheckUpdateQuietReportsHANOVAAndAboveFloorRelayUpdates(t *testing.T)
 		case "/health":
 			fmt.Fprint(w, `{"ok":true,"data":{"status":"ok","version":"0.4.1"}}`)
 		case "/core":
-			w.Write(statesEnvelope(t, []map[string]interface{}{
+			w.Write(coreStatesReply(t, r, []map[string]interface{}{
 				pendingRelayUpdateEntity("update.nova_relay_update", "0.4.1", "0.6.0"),
 			}))
 		case "/ws":
@@ -402,7 +403,7 @@ func TestRunDoctorBelowFloorUsesCheckUpdateWords(t *testing.T) {
 		case "/health":
 			fmt.Fprint(w, health)
 		case "/core":
-			w.Write(statesEnvelope(t, []map[string]interface{}{currentApp}))
+			w.Write(coreStatesReply(t, r, []map[string]interface{}{currentApp}))
 		case "/ws":
 			w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry("update.nova_relay_update")}))
 		default:
