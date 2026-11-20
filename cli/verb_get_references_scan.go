@@ -11,6 +11,29 @@ import (
 
 // The holder families get --references reads (device-replace spec §1).
 
+// prefetchReferences sends the reads that need no answer first in one wave
+// (session memo), get's related check included; scanReferences then decodes
+// them in its order, with its errors.
+func prefetchReferences(s *relaySession, entityID string) {
+	reads := []func(){func() { _, _, _ = s.coreGET("/api/states") }}
+	for _, request := range []map[string]any{{"type": "config/entity_registry/list"}, {"type": "get_panels"}, {"type": "lovelace/dashboards/list"},
+		{"type": "energy/get_prefs"}, {"type": "search/related", "item_type": "entity", "item_id": entityID}} {
+		reads = append(reads, func() { _, _ = s.ws(request) })
+	}
+	prefetch(reads)
+}
+
+// scanHolders reads the dashboards alongside the automation and script
+// configs, then scans them, and energy, in the same order as ever.
+func (sc *refScanner) scanHolders(s *relaySession, registry []refRegistryRow, states []refState) {
+	var boards []lovelaceBoard
+	var boardGaps []refGap
+	var boardsErr error
+	prefetch([]func(){func() { sc.scanConfigs(s, registry, states) }, func() { boards, boardGaps, boardsErr = readLovelacePanels(s) }})
+	sc.scanDashboards(boards, boardGaps, boardsErr)
+	sc.scanEnergy(s)
+}
+
 // scanConfigs reads every automation and script config concurrently: the
 // stored config by registry unique_id (registry-disabled items included),
 // else the loaded config of a YAML or package item.
@@ -152,10 +175,9 @@ func readLovelacePanels(s *relaySession) ([]lovelaceBoard, []refGap, error) {
 	return boards, gaps, nil
 }
 
-// scanDashboards scans every readable dashboard; an auto-generated one has
-// nothing to re-point.
-func (sc *refScanner) scanDashboards(s *relaySession) {
-	boards, gaps, err := readLovelacePanels(s)
+// scanDashboards scans every dashboard readLovelacePanels read; an
+// auto-generated one has nothing to re-point.
+func (sc *refScanner) scanDashboards(boards []lovelaceBoard, gaps []refGap, err error) {
 	if err != nil {
 		sc.gap("dashboard", "", err.Error())
 		return
