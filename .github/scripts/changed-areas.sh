@@ -9,7 +9,7 @@
 # run=<JSON object, job id -> true|false>.
 set -euo pipefail
 
-areas=(go relay integration skills docs workflows)
+areas=(go relay integration skills docs workflows node)
 hits=" "
 all=false
 
@@ -21,6 +21,12 @@ classify() {
     nova/* | package.json | package-lock.json) hits+="relay " ;;
     skills/* | tests/skills/*) hits+="skills " ;;
     docs/*) hits+="docs " ;;
+    # Read only by the Vitest sweep in verify, which runs for every change.
+    # tests/fixtures/ and scripts/release/ stay out: the Go tests read them.
+    scripts/demo/* | scripts/dev/* | scripts/e2e/* | scripts/onboarding/* | scripts/smoke/* \
+      | tests/app/* | tests/bootstrap/* | tests/config/* | tests/docs/* | tests/e2e/* | tests/ha/* \
+      | tests/helpers/* | tests/hooks/* | tests/http/* | tests/onboarding/* | tests/runtime/* \
+      | tests/security/* | tests/storage/*) hits+="node " ;;
     */*) echo "unknown path, running every job: $1"; all=true ;;
     *.md) hits+="docs " ;;
     *) echo "unknown path, running every job: $1"; all=true ;;

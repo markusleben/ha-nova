@@ -245,9 +245,6 @@ async function startAppModeRelay(
     startedAtMs: Date.now(),
     now: () => Date.now(),
     logger,
-    ...(process.env.NOVA_ICON_PATH
-      ? { iconPath: process.env.NOVA_ICON_PATH }
-      : {}),
   });
   await appMode.listen();
 

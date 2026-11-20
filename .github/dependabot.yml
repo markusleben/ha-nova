@@ -2,7 +2,8 @@ version: 2
 updates:
   # Root and relay share their runtime dependencies, and
   # tests/app/dev-contract.test.ts requires both to resolve the same versions,
-  # so one entry covers both directories and each group lands as one PR.
+  # so one entry covers both directories and group-by moves each dependency in
+  # both of them in one PR.
   - package-ecosystem: npm
     directories:
       - "/"
@@ -10,8 +11,15 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # The types follow the Node runtime (node:22 images), so a major bump is
+      # a deliberate change, not a weekly one.
+      - dependency-name: "@types/node"
+        update-types:
+          - version-update:semver-major
     groups:
       npm-minor-patch:
+        group-by: dependency-name
         patterns:
           - "*"
         exclude-patterns:
