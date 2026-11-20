@@ -11,6 +11,7 @@ var errSetupBack = errors.New("setup back")
 var errSetupExit = errors.New("setup exit")
 var errSetupClientPrerequisite = errors.New("setup client prerequisite")
 var errSetupRelayTokenStep = errors.New("setup relay token step")
+var errSetupStandaloneToken = errors.New("setup standalone relay token step")
 
 // setupPagePairingError: pairing with the setup page's sign-in didn't work;
 // step 2 says why (cause), and its Try again may reuse the session.

@@ -173,9 +173,10 @@ echo "[9] Relay route count"
 # The standalone listener's routes. 7 until layer 4e, then 9: the two ask routes
 # (POST /gate/v1/ask, POST /gate/v1/phone) without which a standalone container
 # could never approve a typed request; the App's listeners have them already.
+# 7 again since 0.34 dropped the standalone GET /home and POST /pair.
 ROUTE_COUNT=$(grep -c "router.register" "$REPO_ROOT/nova/src/index.ts" 2>/dev/null || true)
-if (( ROUTE_COUNT <= 9 )); then
-  pass "Relay has ${ROUTE_COUNT} routes (≤9 — still minimal)"
+if (( ROUTE_COUNT <= 7 )); then
+  pass "Relay has ${ROUTE_COUNT} routes (≤7 — still minimal)"
 else
   fail "Relay has ${ROUTE_COUNT} routes — growing beyond 'minimal'. Review architecture claims."
 fi
@@ -193,19 +194,18 @@ else
 fi
 
 # Pairing is a generic credential exchange, never a second HA API surface.
-echo "[9b] Pairing stays transport-only and narrowly bearer-exempt"
-PAIR_HITS=$(count_matches "ha/rest-client\|ha/ws-client\|coreClient\|wsClient\|entity_id\|service_data" \
-  "$REPO_ROOT/nova/src/http/handlers/pair.ts" "$REPO_ROOT/nova/src/security/pairing.ts")
+echo "[9b] Pairing stays transport-only; the standalone Relay has no bearer exemption"
+PAIR_HITS=$(count_matches "ha/rest-client\|ha/ws-client\|coreClient\|entity_id\|service_data" \
+  "$REPO_ROOT/nova/src/security/pairing-v1.ts" "$REPO_ROOT/nova/src/http/handlers/pair-v1.ts")
 if (( PAIR_HITS == 0 )); then
   pass "Pairing has no HA client or domain imports"
 else
   fail "Pairing contains ${PAIR_HITS} HA client/domain hits — it must remain a generic credential exchange."
 fi
-if grep -q 'const PAIR_PATH = "/pair"' "$REPO_ROOT/nova/src/index.ts" \
-  && grep -q 'bearerExemptRoutes: new Set(\[PAIR_ROUTE\])' "$REPO_ROOT/nova/src/index.ts"; then
-  pass "Only POST /pair bypasses relay bearer auth"
+if ! grep -q 'bearerExempt' "$REPO_ROOT/nova/src/http/server.ts" "$REPO_ROOT/nova/src/index.ts"; then
+  pass "Every standalone route needs the relay token"
 else
-  fail "Bearer exemptions must stay pinned to POST /pair."
+  fail "The standalone Relay must not exempt a route from relay token auth."
 fi
 
 # ── 10. Keychain usage exists ──

@@ -219,14 +219,6 @@ func readVersionJSON(path string) (versionJSON, error) {
 	return v, nil
 }
 
-func readMinRelayVersion(dir string) string {
-	v, err := readVersionJSON(filepath.Join(dir, "version.json"))
-	if err != nil {
-		return ""
-	}
-	return v.MinRelayVersion
-}
-
 func checkRelayVersion(paths runtimePaths, healthBody []byte) humanNotice {
 	version := parseRelayHealthVersion(healthBody)
 	if version == "" {

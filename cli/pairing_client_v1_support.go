@@ -16,6 +16,7 @@ var (
 	errPinMismatch           = errors.New("relay TLS identity did not match the pinned fingerprint")
 	errDeviceUnauthorized    = errors.New("device credential was rejected")
 	errRelayNotV1            = errors.New("this relay does not support secure device pairing; update the NOVA Relay App")
+	errRelayStandalone       = errors.New("this NOVA Relay is a standalone container and connects with its token only")
 	errPairingOutcomeUnknown = errors.New(
 		"pairing finish may have reached NOVA Relay; do not submit another code",
 	)

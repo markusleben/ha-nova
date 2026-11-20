@@ -9,12 +9,6 @@ import (
 	"runtime"
 )
 
-func installClients(paths runtimePaths, state *installState, clients []string) error {
-	return withClientMutationLock(paths, func() error {
-		return installClientsWithPolicy(paths, state, clients, false)
-	})
-}
-
 func installClientsAndSaveState(
 	paths runtimePaths,
 	state *installState,

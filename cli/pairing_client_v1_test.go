@@ -19,6 +19,29 @@ import (
 	"time"
 )
 
+// A standalone container's token gate on /pair/v1/start is not a refused code:
+// the person needs its token, not a fresh code.
+func TestPairDeviceV1StandaloneGateIsNotARejectedCode(t *testing.T) {
+	for _, tc := range []struct {
+		body string
+		want error
+	}{
+		{`{"ok":false,"error":{"code":"UNAUTHORIZED","message":"Missing authorization header"}}`, errRelayStandalone},
+		{`{"ok":false,"error":{"code":"PAIRING_FAILED","message":"Pairing could not be completed"}}`, errPairingCodeRejected},
+	} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(tc.body))
+		}))
+		_, err := pairDeviceV1(srv.Client(), srv.URL, "123456",
+			deviceMetadata{Name: "t", Platform: "p", Client: "c", ClientInstallID: "i"})
+		srv.Close()
+		if !errors.Is(err, tc.want) {
+			t.Fatalf("body %s: err = %v, want %v", tc.body, err, tc.want)
+		}
+	}
+}
+
 // Regression: a trailing slash on the relay URL must not produce //pair/v1/start
 // (which the relay serves as 404), so the v1 request path stays well-formed.
 func TestPairDeviceV1NormalizesTrailingSlash(t *testing.T) {

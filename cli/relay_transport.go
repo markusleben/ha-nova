@@ -226,18 +226,6 @@ func functionalEndpoint(cfg runtimeConfig, legacyToken string) (string, *http.Cl
 	return cfg.RelayBaseURL, httpClient, legacyToken, nil
 }
 
-// checkRelayReadinessOverTransport runs the readiness probes over an explicit
-// transport (the paired device path); the legacy path keeps checkRelayReadiness
-// with its test-hookable probe variables.
-func checkRelayReadinessOverTransport(base string, client *http.Client, credential string) relayReadiness {
-	return checkRelayReadinessOverTransportContext(
-		context.Background(),
-		base,
-		client,
-		credential,
-	)
-}
-
 func checkRelayReadinessOverTransportContext(
 	ctx context.Context,
 	base string,

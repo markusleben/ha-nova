@@ -11,7 +11,6 @@ import (
 	"time"
 )
 
-const canonicalNabuSuffix = ".ui.nabu.casa"
 const cloudOriginResolutionTimeout = 15 * time.Second
 
 var canonicalNabuHostPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.ui\.nabu\.casa$`)

@@ -23,8 +23,6 @@ type setupOverviewItem struct {
 	More    bool          `json:"more,omitempty"`
 }
 
-var setupOverviewSections = []string{"home", "apps", "confirm", "chat"}
-
 func setupOverviewSection(id string) string {
 	switch id {
 	case "ha", "app", "computer", "link":
