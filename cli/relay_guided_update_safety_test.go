@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -23,10 +24,11 @@ func TestGuidedRelayUpdateDeclinedTouchesNothing(t *testing.T) {
 			return
 		}
 		var req struct {
-			Path string `json:"path"`
+			Method string `json:"method"`
+			Path   string `json:"path"`
 		}
 		json.NewDecoder(r.Body).Decode(&req)
-		if statesRead(req.Path) {
+		if statesRead(req.Method, req.Path) {
 			w.Write(statesReply(t, req.Path, []map[string]interface{}{
 				relayUpdateEntity("update.nova_relay_update", "NOVA Relay"),
 			}))
@@ -51,20 +53,20 @@ func TestGuidedRelayUpdateDeclinedTouchesNothing(t *testing.T) {
 
 func TestGuidedRelayUpdateRejectsStateDriftAfterConfirmation(t *testing.T) {
 	paths := guidedUpdatePaths(t)
-	var statesCalls atomic.Int32
-	var installCalled atomic.Bool
+	var confirmed, installCalled atomic.Bool
 	server := httptest.NewServer(withTierReads(appUpdateHA(), func(w http.ResponseWriter, r *http.Request) { // the check before the question reads the rest of the home
 		if r.URL.Path == "/ws" {
 			w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry("update.nova_relay_update")}))
 			return
 		}
 		var req struct {
-			Path string `json:"path"`
+			Method string `json:"method"`
+			Path   string `json:"path"`
 		}
 		json.NewDecoder(r.Body).Decode(&req)
-		if statesRead(req.Path) {
+		if statesRead(req.Method, req.Path) {
 			entity := relayUpdateEntity("update.nova_relay_update", "NOVA Relay")
-			if statesCalls.Add(1) > 1 {
+			if confirmed.Load() { // the update changes once the person answered
 				entity["state"] = "off"
 			}
 			w.Write(statesReply(t, req.Path, []map[string]interface{}{entity}))
@@ -76,7 +78,7 @@ func TestGuidedRelayUpdateRejectsStateDriftAfterConfirmation(t *testing.T) {
 	defer server.Close()
 
 	var out bytes.Buffer
-	if runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader("y\n")), &out) {
+	if runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(readFlags{strings.NewReader("y\n"), &confirmed}), &out) {
 		t.Fatal("changed update state must not report success")
 	}
 	if installCalled.Load() {
@@ -90,16 +92,16 @@ func TestGuidedRelayUpdateRejectsStateDriftAfterConfirmation(t *testing.T) {
 
 func TestGuidedRelayUpdateRejectsRegistryDriftAfterConfirmation(t *testing.T) {
 	paths := guidedUpdatePaths(t)
-	var registryCalls atomic.Int32
-	var installCalled atomic.Bool
+	var confirmed, installCalled atomic.Bool
 	server := httptest.NewServer(withTierReads(appUpdateHA(), func(w http.ResponseWriter, r *http.Request) { // the check before the question reads the rest of the home
 		switch r.URL.Path {
 		case "/core":
 			var req struct {
-				Path string `json:"path"`
+				Method string `json:"method"`
+				Path   string `json:"path"`
 			}
 			json.NewDecoder(r.Body).Decode(&req)
-			if statesRead(req.Path) {
+			if statesRead(req.Method, req.Path) {
 				w.Write(statesReply(t, req.Path, []map[string]interface{}{
 					relayUpdateEntity("update.nova_relay_update", "NOVA Relay"),
 				}))
@@ -109,7 +111,7 @@ func TestGuidedRelayUpdateRejectsRegistryDriftAfterConfirmation(t *testing.T) {
 			t.Errorf("registry drift must stop before install, got %q", req.Path)
 		case "/ws":
 			uniqueID := relayUpdateUniqueID
-			if registryCalls.Add(1) > 1 {
+			if confirmed.Load() { // the entity changes hands once the person answered
 				uniqueID = "different_slug_ha_nova_relay_version_latest"
 			}
 			w.Write(registryEnvelope(t, []map[string]interface{}{
@@ -122,7 +124,7 @@ func TestGuidedRelayUpdateRejectsRegistryDriftAfterConfirmation(t *testing.T) {
 	defer server.Close()
 
 	var out bytes.Buffer
-	if runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(strings.NewReader("y\n")), &out) {
+	if runGuidedRelayUpdate(paths, homeUpdateRoute(config{RelayBaseURL: server.URL}, "token"), bufio.NewReader(readFlags{strings.NewReader("y\n"), &confirmed}), &out) {
 		t.Fatal("changed registry provenance must not report success")
 	}
 	if installCalled.Load() {
@@ -165,10 +167,11 @@ func TestGuidedRelayUpdateRequiresIdleInstallAndBackupSupport(t *testing.T) {
 				switch r.URL.Path {
 				case "/core":
 					var req struct {
-						Path string `json:"path"`
+						Method string `json:"method"`
+						Path   string `json:"path"`
 					}
 					json.NewDecoder(r.Body).Decode(&req)
-					if statesRead(req.Path) {
+					if statesRead(req.Method, req.Path) {
 						w.Write(statesReply(t, req.Path, []map[string]interface{}{entity}))
 						return
 					}
@@ -294,7 +297,7 @@ func TestRunDoctorClassifiesBelowFloorRelayBeforeAnyInstallPrompt(t *testing.T) 
 						w.Write([]byte(`{"ok":true,"data":{"status":200,"body":{"state":"off","attributes":{}}}}`))
 						return
 					}
-					if statesRead(req.Path) {
+					if statesRead(req.Method, req.Path) {
 						w.Write(statesReply(t, req.Path, tc.states))
 						return
 					}
@@ -363,4 +366,15 @@ func TestMaybeOfferGuidedRelayUpdateIgnoresOtherNoticeKinds(t *testing.T) {
 	maybeOfferGuidedRelayUpdate(paths, humanNotice{kind: humanNoticeKindUpdateAvailable, level: humanNoticeWarning})
 	maybeOfferGuidedRelayUpdate(paths, humanNotice{kind: humanNoticeKindRelayOutdated, level: humanNoticeWarning})
 	maybeOfferGuidedRelayUpdate(paths, humanNotice{kind: humanNoticeKindRelayUpdateAvailable, level: humanNoticeWarning})
+}
+
+// readFlags sets read once the flow reads the person's answer.
+type readFlags struct {
+	io.Reader
+	read *atomic.Bool
+}
+
+func (r readFlags) Read(p []byte) (int, error) {
+	r.read.Store(true)
+	return r.Reader.Read(p)
 }

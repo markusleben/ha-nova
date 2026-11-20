@@ -50,9 +50,10 @@ func statesEnvelope(t *testing.T, states []map[string]interface{}) []byte {
 	return body
 }
 
-// statesRead: a core read of every state or of one.
-func statesRead(path string) bool {
-	return path == "/api/states" || strings.HasPrefix(path, "/api/states/")
+// statesRead: a core GET of every state or of one; any other method on
+// those paths is a write the test still sees.
+func statesRead(method, path string) bool {
+	return method == "GET" && (path == "/api/states" || strings.HasPrefix(path, "/api/states/"))
 }
 
 // statesReply answers a states read like Home Assistant: the list, or one
@@ -80,10 +81,14 @@ func statesReply(t *testing.T, path string, states []map[string]interface{}) []b
 func coreStatesReply(t *testing.T, r *http.Request, states []map[string]interface{}) []byte {
 	t.Helper()
 	var req struct {
-		Path string `json:"path"`
+		Method string `json:"method"`
+		Path   string `json:"path"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		t.Errorf("decode core payload: %v", err)
+	}
+	if !statesRead(req.Method, req.Path) {
+		t.Errorf("unexpected core request %s %s", req.Method, req.Path)
 	}
 	return statesReply(t, req.Path, states)
 }
@@ -285,8 +290,9 @@ func TestGuidedRelayUpdateInstallsThroughTheRestartAndVerifies(t *testing.T) {
 			fmt.Fprintf(w, `{"ok":true,"data":{"version":%q,"ha_ws_connected":%t}}`, version, installed.Load())
 		case "/core":
 			var req struct {
-				Path string `json:"path"`
-				Body struct {
+				Method string `json:"method"`
+				Path   string `json:"path"`
+				Body   struct {
 					EntityID string `json:"entity_id"`
 					Backup   bool   `json:"backup"`
 					Version  string `json:"version"`
@@ -295,7 +301,7 @@ func TestGuidedRelayUpdateInstallsThroughTheRestartAndVerifies(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				t.Errorf("decode core payload: %v", err)
 			}
-			if statesRead(req.Path) {
+			if statesRead(req.Method, req.Path) {
 				if installed.Load() {
 					w.Write(statesReply(t, req.Path, []map[string]interface{}{
 						completedRelayUpdateEntity("update.nova_relay_update", "0.4.0"),
@@ -359,10 +365,11 @@ func TestGuidedRelayUpdatePollTimeoutStaysHonest(t *testing.T) {
 			fmt.Fprint(w, `{"ok":true,"data":{"version":"0.2.6"}}`)
 		case "/core":
 			var req struct {
-				Path string `json:"path"`
+				Method string `json:"method"`
+				Path   string `json:"path"`
 			}
 			json.NewDecoder(r.Body).Decode(&req)
-			if statesRead(req.Path) {
+			if statesRead(req.Method, req.Path) {
 				w.Write(statesReply(t, req.Path, []map[string]interface{}{
 					relayUpdateEntity("update.nova_relay_update", "NOVA Relay"),
 				}))
@@ -400,10 +407,11 @@ func TestGuidedRelayUpdateRejectedInstallSkipsTheWait(t *testing.T) {
 			return
 		}
 		var req struct {
-			Path string `json:"path"`
+			Method string `json:"method"`
+			Path   string `json:"path"`
 		}
 		json.NewDecoder(r.Body).Decode(&req)
-		if statesRead(req.Path) {
+		if statesRead(req.Method, req.Path) {
 			w.Write(statesReply(t, req.Path, []map[string]interface{}{
 				relayUpdateEntity("update.nova_relay_update", "NOVA Relay"),
 			}))
@@ -446,10 +454,11 @@ func TestGuidedRelayUpdateRelayTimeoutEnvelopeStillPolls(t *testing.T) {
 			return
 		}
 		var req struct {
-			Path string `json:"path"`
+			Method string `json:"method"`
+			Path   string `json:"path"`
 		}
 		json.NewDecoder(r.Body).Decode(&req)
-		if statesRead(req.Path) {
+		if statesRead(req.Method, req.Path) {
 			if installed.Load() {
 				w.Write(statesReply(t, req.Path, []map[string]interface{}{
 					completedRelayUpdateEntity("update.nova_relay_update", "0.4.0"),
@@ -492,12 +501,13 @@ func TestGuidedRelayUpdateRejectsTargetVersionWhileEntityRemainsPending(t *testi
 			fmt.Fprintf(w, `{"ok":true,"data":{"version":%q,"ha_ws_connected":true}}`, version)
 		case "/core":
 			var req struct {
-				Path string `json:"path"`
+				Method string `json:"method"`
+				Path   string `json:"path"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				t.Errorf("decode core payload: %v", err)
 			}
-			if statesRead(req.Path) {
+			if statesRead(req.Method, req.Path) {
 				w.Write(statesReply(t, req.Path, []map[string]interface{}{
 					relayUpdateEntity("update.nova_relay_update", "NOVA Relay"),
 				}))
@@ -539,12 +549,13 @@ func TestGuidedRelayUpdateRejectsSuccessfulInstallWithoutWSReadiness(t *testing.
 			fmt.Fprintf(w, `{"ok":true,"data":{"version":%q,"ha_ws_connected":false}}`, version)
 		case "/core":
 			var req struct {
-				Path string `json:"path"`
+				Method string `json:"method"`
+				Path   string `json:"path"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				t.Errorf("decode core payload: %v", err)
 			}
-			if statesRead(req.Path) {
+			if statesRead(req.Method, req.Path) {
 				entity := relayUpdateEntity("update.nova_relay_update", "NOVA Relay")
 				if installed.Load() {
 					entity = completedRelayUpdateEntity("update.nova_relay_update", "0.4.0")

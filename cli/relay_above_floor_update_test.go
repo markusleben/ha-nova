@@ -213,12 +213,13 @@ func TestGuidedRelayUpdateWaitsForOfferedAboveFloorVersion(t *testing.T) {
 			fmt.Fprintf(w, `{"ok":true,"data":{"version":%q,"ha_ws_connected":%t}}`, version, version == "0.6.0")
 		case "/core":
 			var req struct {
-				Path string `json:"path"`
+				Method string `json:"method"`
+				Path   string `json:"path"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				t.Errorf("decode core payload: %v", err)
 			}
-			if statesRead(req.Path) {
+			if statesRead(req.Method, req.Path) {
 				if installed.Load() {
 					w.Write(statesReply(t, req.Path, []map[string]interface{}{
 						completedRelayUpdateEntity("update.nova_relay_update", "0.6.0"),

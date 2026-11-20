@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 )
 
@@ -21,8 +22,23 @@ func (route *relayUpdateRoute) core(method, path string, requestBody []byte) ([]
 	return relayCoreRequestWithTransport(context.Background(), route.BaseURL, route.Client, route.Credential, method, path, requestBody)
 }
 
+// candidate: the App's update entity for a refresh or an install. The
+// registry is read again after the state, so an entity_id handed to another
+// integration meanwhile is never joined with the NOVA row read before it.
 func (route *relayUpdateRoute) candidate() (relayUpdateCandidate, string) {
-	return resolveRelayUpdateCandidateWithTransport(context.Background(), route.BaseURL, route.Client, route.Credential)
+	ctx := context.Background()
+	candidate, reason := resolveRelayUpdateCandidateWithTransport(ctx, route.BaseURL, route.Client, route.Credential)
+	if reason != "" {
+		return candidate, reason
+	}
+	rows, reason := relayNOVAUpdateRows(ctx, route.BaseURL, route.Client, route.Credential)
+	if reason != "" {
+		return relayUpdateCandidate{}, reason
+	}
+	if !slices.Contains(rows, relayNOVAUpdateRow{candidate.EntityID, candidate.Platform, candidate.UniqueID}) {
+		return relayUpdateCandidate{}, "the NOVA Relay App update entity changed while it was read — not guessing"
+	}
+	return candidate, ""
 }
 
 // reopenAfter: over Link, a request Home Assistant turned down because the

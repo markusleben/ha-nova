@@ -220,52 +220,36 @@ func relayRegistryEntryMatchesNOVA(uniqueID string) bool {
 // entity-registry provenance. States alone cannot distinguish the Supervisor
 // App entity from a custom/MQTT update entity carrying the same title. The
 // registry comes first, so only the matching entities' states are read, not
-// every state of the home.
+// every state of the home; each once, while every matching row counts.
 func resolveRelayUpdateCandidateWithTransport(
 	ctx context.Context,
 	base string,
 	client *http.Client,
 	credential string,
 ) (relayUpdateCandidate, string) {
-	registryBody, err := relayWSRequestWithTransport(
-		ctx,
-		base,
-		client,
-		credential,
-		[]byte(`{"type":"config/entity_registry/list"}`),
-	)
-	if err != nil {
-		return relayUpdateCandidate{}, fmt.Sprintf("could not read Home Assistant entity registry (%s)", err)
+	rows, reason := relayNOVAUpdateRows(ctx, base, client, credential)
+	if reason != "" {
+		return relayUpdateCandidate{}, reason
 	}
-	var registryEnvelope struct {
-		OK   bool            `json:"ok"`
-		Data json.RawMessage `json:"data"`
+	type read struct {
+		candidate relayUpdateCandidate
+		found     bool
 	}
-	if err := json.Unmarshal(registryBody, &registryEnvelope); err != nil || !registryEnvelope.OK {
-		return relayUpdateCandidate{}, "could not read Home Assistant entity registry"
-	}
-	var registryEntries []struct {
-		EntityID string     `json:"entity_id"`
-		Platform string     `json:"platform"`
-		UniqueID registryID `json:"unique_id"`
-	}
-	if err := json.Unmarshal(registryEnvelope.Data, &registryEntries); err != nil {
-		return relayUpdateCandidate{}, "could not read Home Assistant entity registry"
-	}
+	reads := map[string]read{}
 	var matches []relayUpdateCandidate
-	for _, entry := range registryEntries {
-		if entry.Platform != "hassio" || !strings.HasPrefix(entry.EntityID, "update.") ||
-			!relayRegistryEntryMatchesNOVA(string(entry.UniqueID)) {
-			continue
+	for _, row := range rows {
+		got, ok := reads[row.EntityID]
+		if !ok {
+			candidate, found, err := relayUpdateStateWithTransport(ctx, base, client, credential, row.EntityID)
+			if err != nil {
+				return relayUpdateCandidate{}, err.Error()
+			}
+			got = read{candidate, found}
+			reads[row.EntityID] = got
 		}
-		candidate, found, err := relayUpdateStateWithTransport(ctx, base, client, credential, entry.EntityID)
-		if err != nil {
-			return relayUpdateCandidate{}, err.Error()
-		}
-		if found {
-			candidate.Platform = entry.Platform
-			candidate.UniqueID = string(entry.UniqueID)
-			matches = append(matches, candidate)
+		if got.found {
+			got.candidate.Platform, got.candidate.UniqueID = row.Platform, row.UniqueID
+			matches = append(matches, got.candidate)
 		}
 	}
 	switch len(matches) {
@@ -276,6 +260,53 @@ func resolveRelayUpdateCandidateWithTransport(
 	default:
 		return relayUpdateCandidate{}, "several registry-proven NOVA Relay App update entities were found — not guessing"
 	}
+}
+
+type relayNOVAUpdateRow struct {
+	EntityID, Platform, UniqueID string
+}
+
+// relayNOVAUpdateRows: the entity registry's rows that prove the NOVA App's
+// update entity (Supervisor platform, NOVA's unique_id). A matching row with
+// a malformed entity_id fails closed: it never becomes a request path.
+func relayNOVAUpdateRows(ctx context.Context, base string, client *http.Client, credential string) ([]relayNOVAUpdateRow, string) {
+	registryBody, err := relayWSRequestWithTransport(
+		ctx,
+		base,
+		client,
+		credential,
+		[]byte(`{"type":"config/entity_registry/list"}`),
+	)
+	if err != nil {
+		return nil, fmt.Sprintf("could not read Home Assistant entity registry (%s)", err)
+	}
+	var registryEnvelope struct {
+		OK   bool            `json:"ok"`
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(registryBody, &registryEnvelope); err != nil || !registryEnvelope.OK {
+		return nil, "could not read Home Assistant entity registry"
+	}
+	var registryEntries []struct {
+		EntityID string     `json:"entity_id"`
+		Platform string     `json:"platform"`
+		UniqueID registryID `json:"unique_id"`
+	}
+	if err := json.Unmarshal(registryEnvelope.Data, &registryEntries); err != nil {
+		return nil, "could not read Home Assistant entity registry"
+	}
+	var rows []relayNOVAUpdateRow
+	for _, entry := range registryEntries {
+		if entry.Platform != "hassio" || !strings.HasPrefix(entry.EntityID, "update.") ||
+			!relayRegistryEntryMatchesNOVA(string(entry.UniqueID)) {
+			continue
+		}
+		if !entityIDPattern.MatchString(entry.EntityID) {
+			return nil, "a registry-proven NOVA Relay App update entity has a malformed entity_id — not guessing"
+		}
+		rows = append(rows, relayNOVAUpdateRow{entry.EntityID, entry.Platform, string(entry.UniqueID)})
+	}
+	return rows, ""
 }
 
 // relayUpdateStateWithTransport reads one update entity's state; found is

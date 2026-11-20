@@ -189,10 +189,11 @@ func TestRelayStoreCheckSkipsAnUpdateAlreadyInstalling(t *testing.T) {
 		switch r.URL.Path {
 		case "/core":
 			var req struct {
-				Path string `json:"path"`
+				Method string `json:"method"`
+				Path   string `json:"path"`
 			}
 			json.NewDecoder(r.Body).Decode(&req)
-			if !statesRead(req.Path) {
+			if !statesRead(req.Method, req.Path) {
 				checks.Add(1)
 			}
 			w.Write(statesReply(t, req.Path, []map[string]interface{}{installing}))
