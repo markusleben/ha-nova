@@ -268,7 +268,7 @@ func TestPairedLinkPausedEndsOnPausedOutcome(t *testing.T) {
 		t.Fatal(err)
 	}
 	pending := cloudMetadataForTest(strings.Repeat("a", 32))
-	cfg.RelaySecureBaseURL, cfg.RelaySpkiPin = "https://192.168.1.5:8792", "PIN"
+	cfg.RelaySecureBaseURL, cfg.RelaySpkiPin = "https://127.0.0.1:1", "PIN" // loopback, closed: nothing answers, at once
 	cfg.Cloud = &cloudLifecycleMetadata{State: cloudStateTokenStored, Pending: &pending}
 	if err := saveConfig(paths, cfg); err != nil {
 		t.Fatal(err)
