@@ -75,6 +75,7 @@ func findVerb(call *verbCall, paths runtimePaths, args []string) int {
 		return verbUsageError(call, "find", err)
 	}
 	return runReadVerb(paths, "find", opts, func(s *relaySession, env *verbEnvelope) error {
+		warmFind(s, query)
 		result, err := findEntities(s, query)
 		if err != nil {
 			return err
