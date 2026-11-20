@@ -1,6 +1,6 @@
 # Log facts: which integration has been failing since when
 
-Status: active (built for 0.31, Markus D4 "Ja, in 0.31")
+Status: shipped (0.31)
 
 Date: 2026-11-12. Owner: the CLI (`cli/log_facts.go`), the gate worker (`cli/command_gate.go` `/redact`, `cli/gate_verdict.go`), the `diagnose` skill. High-risk: it opens a read the gate refuses today. Source: HANO-34 F4 (narrowed after review C2).
 

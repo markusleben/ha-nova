@@ -1,6 +1,6 @@
 # Chat apps: tools version and the ChatGPT refresh hint (#923)
 
-Status: active
+Status: shipped
 
 ## Problem
 

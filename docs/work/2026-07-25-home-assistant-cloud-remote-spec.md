@@ -1,6 +1,6 @@
 # Home Assistant Cloud Remote Transport
 
-Status: active
+Status: shipped
 
 ## Goal
 

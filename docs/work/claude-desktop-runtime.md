@@ -1,6 +1,6 @@
 # Claude Desktop runtime fallback
 
-Status: active
+Status: shipped
 
 Follow-up to #869. Scope: macOS Desktop-only setup, without changing which
 Claude profile an existing terminal installation uses.

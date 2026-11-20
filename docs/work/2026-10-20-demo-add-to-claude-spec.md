@@ -1,6 +1,6 @@
 # Add to Claude for the hosted demo house (2026-10-20)
 
-Status: active
+Status: shipped
 
 Goal: a visitor with a free claude.ai account adds the demo house (`https://demo.hanova.app`) as a custom connector and talks to it, with nothing to install. Works in Claude on the web and the desktop app, then in the phone apps (connectors added on the web show up there). Claude Free allows one custom connector; this one uses it. ChatGPT is out of scope (its free plan can't add MCP servers).
 

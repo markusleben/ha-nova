@@ -1,6 +1,6 @@
 # Typed Verbs + MCP Adapter
 
-Status: active
+Status: shipped
 
 ## 0. Problem (measured, grounded)
 

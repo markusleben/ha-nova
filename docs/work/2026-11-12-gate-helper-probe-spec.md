@@ -1,6 +1,6 @@
 # The App's own check reads a UI thermostat's heater (kind `probe`)
 
-Status: active (built for 0.31, MAR-153)
+Status: shipped (0.31)
 
 Date: 2026-11-12. Owner: the gate worker (`cli/gate_verdict.go` `gateProbe`), the helper read (`cli/tier_helper_options.go`), the Relay (`nova/src/http/gate.ts`). High-risk: it widens what the App's own gate principal may send through the Relay.
 

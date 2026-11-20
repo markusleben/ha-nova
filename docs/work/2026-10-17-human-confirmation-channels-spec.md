@@ -1,6 +1,6 @@
 # Human confirmation channels: the confirmation window (part 1) and the phone (part 2) (2026-10-17)
 
-Status: active
+Status: shipped
 
 Inputs: `docs/internal/2026-10-17-human-confirmation-channels.md` (matrix, hands-on results), `docs/work/2026-10-17-confirmation-hardening-spec.md` (#716: plan secret, channel binding, fallback E), `docs/work/2026-10-16-mcp-human-confirmation-spec.md` (form C).
 

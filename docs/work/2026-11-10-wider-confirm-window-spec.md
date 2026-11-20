@@ -1,6 +1,6 @@
 # Wider, clearer confirmation window (MAR-135)
 
-Status: active
+Status: shipped
 
 Date: 2026-11-10. Owner: CLI confirmation window (`cli/confirm_window.go`, `cli/confirm_window_darwin.go`, `cli/confirm_say.go`, `cli/confirm_batch_text.go`). Target: 0.30.
 

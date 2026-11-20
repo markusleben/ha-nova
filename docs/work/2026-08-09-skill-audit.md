@@ -1,6 +1,6 @@
 # Skill Audit 2026-08 — six-charter deep-dive over all 31 skills
 
-Status: active
+Status: shipped
 
 Audited commit: `3d26b72` (main, v0.23.0). All `file:line` references are relative to that commit.
 

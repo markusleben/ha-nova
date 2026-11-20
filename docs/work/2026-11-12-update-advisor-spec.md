@@ -1,6 +1,6 @@
 # Update advisor (phases 1 and 2)
 
-Status: active
+Status: shipped
 
 Date: 2026-11-12. Target: 0.31 (release/0.31). Owner: `ha-nova map` (new `cli/verb_map_updates*.go`), the updates skill (`skills/updates/SKILL.md`, new `advisor.md`). Reads only, and every install keeps today's confirmation; the read-verb allowlist grows by three Supervisor GETs and two WS reads, so the review treats that boundary as security-sensitive.
 

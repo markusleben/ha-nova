@@ -1,6 +1,6 @@
 # The tier engine reads a UI thermostat helper's heater
 
-Status: active
+Status: shipped
 
 Date: 2026-11-10. Issue MAR-131. Owner: tier engine (`cli/tier_callset.go`, new `cli/tier_helper_options.go`), relay session (`cli/relay_session.go`). Target: 0.30 (release/0.30). High-risk: a new Home Assistant dialog read in the typed-tier path.
 

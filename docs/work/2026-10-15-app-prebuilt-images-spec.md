@@ -1,6 +1,6 @@
 # Prebuilt App Images — Spec (2026-10-15)
 
-Status: active
+Status: shipped
 
 ## Problem
 
