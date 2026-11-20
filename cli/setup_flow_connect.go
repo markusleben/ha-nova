@@ -248,11 +248,13 @@ func (f *setupFlow) stepPairing() setupStepResult {
 	switch {
 	case err == errSetupBack:
 		return setupGoTo(f.pairingBackStep)
-	case err == errSetupRelayTokenStep:
-		// The user explicitly left the device path: verify must judge
-		// the token they are about to provide, not the old pairing.
+	case err == errSetupRelayTokenStep, err == errSetupStandaloneToken:
+		// The user explicitly left the device path, or the Relay is a
+		// standalone container: verify must judge the token they are about
+		// to provide, not the old pairing.
 		f.devicePaired = false
 		f.manualCredentialFlow = true
+		f.standaloneRelay = err == errSetupStandaloneToken
 		return setupGoTo(setupStepToken)
 	case err == errSetupExit:
 		return f.cancelled()

@@ -165,18 +165,25 @@ func setupInstallableClientLabels(paths runtimePaths) ([]string, error) {
 }
 
 func promptSetupTokenChoiceInteractive(reader *bufio.Reader, out io.Writer, hasExistingLocal bool) (string, error) {
-	return promptSetupChoice(reader, out, setupTokenAsk(hasExistingLocal))
+	return promptSetupChoice(reader, out, setupTokenAsk(hasExistingLocal, false))
 }
 
-func setupTokenAsk(hasExistingLocal bool) setupAsk {
+// setupTokenAsk: a standalone container's token is the one it was started
+// with, so it offers no new key.
+func setupTokenAsk(hasExistingLocal, standalone bool) setupAsk {
 	ask := setupAsk{Title: setupText("setup.token.question"), AllowBack: true, Default: "generate"}
+	paste := setupChoice{Value: "paste", Label: setupText("setup.token.paste")}
+	if standalone {
+		ask.Default = "paste"
+		paste.Label = setupText("setup.token.paste_standalone")
+	}
 	if hasExistingLocal {
 		ask.Choices = append(ask.Choices, setupChoice{Value: "keep", Label: setupText("setup.token.keep")})
 		ask.Default = "keep"
 	}
-	ask.Choices = append(ask.Choices,
-		setupChoice{Value: "paste", Label: setupText("setup.token.paste")},
-		setupChoice{Value: "generate", Label: setupText("setup.token.generate")},
-	)
+	ask.Choices = append(ask.Choices, paste)
+	if !standalone {
+		ask.Choices = append(ask.Choices, setupChoice{Value: "generate", Label: setupText("setup.token.generate")})
+	}
 	return ask
 }

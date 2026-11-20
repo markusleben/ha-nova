@@ -50,6 +50,9 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 	defer haServer.Close()
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveAppPairInfo(w, r) {
+			return
+		}
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return
@@ -173,6 +176,9 @@ func TestInteractiveSetupWithoutAvailableClientConnectsAndSaysWhatToInstall(t *t
 	}))
 	defer haServer.Close()
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveAppPairInfo(w, r) {
+			return
+		}
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return
@@ -240,6 +246,9 @@ func TestInteractiveSetupFreshInstallCanTargetHermes(t *testing.T) {
 	defer haServer.Close()
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveAppPairInfo(w, r) {
+			return
+		}
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return
@@ -307,6 +316,9 @@ func TestInteractiveSetupOffersServiceCredentialsForHermesWhenKeyringLocked(t *t
 	defer haServer.Close()
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveAppPairInfo(w, r) {
+			return
+		}
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return
@@ -391,6 +403,9 @@ func TestInteractiveSetupFreshInstallCanPasteExistingRelayToken(t *testing.T) {
 	defer haServer.Close()
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveAppPairInfo(w, r) {
+			return
+		}
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return
@@ -453,6 +468,9 @@ func TestInteractiveSetupFreshInstallManualTokenFallbackRunsAppSetupBeforeVerify
 	defer haServer.Close()
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveAppPairInfo(w, r) {
+			return
+		}
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return
@@ -600,6 +618,9 @@ func TestInteractiveSetupRecoversSecureStorageBeforeHostStep(t *testing.T) {
 	defer haServer.Close()
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveAppPairInfo(w, r) {
+			return
+		}
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return
@@ -749,6 +770,9 @@ func TestInteractiveSetupBackFromVerifyDoesNotPersistConfig(t *testing.T) {
 	defer haServer.Close()
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveStandaloneTokenGate(w, r) {
+			return
+		}
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return
@@ -766,7 +790,7 @@ func TestInteractiveSetupBackFromVerifyDoesNotPersistConfig(t *testing.T) {
 	input := joinSetupInputs(
 		[]string{"4", haServer.URL},
 		setupWizardRelayInstallPrompts(),
-		setupWizardPasteRelayTokenPrompts("relay-token-from-other-device"),
+		[]string{"1", "relay-token-from-other-device"}, // a standalone Relay: straight to its token
 		[]string{"back", "exit"},
 	)
 
@@ -808,6 +832,9 @@ func TestInteractiveSetupBackFromRelayInstallLetsUserChangeHost(t *testing.T) {
 	defer secondHAServer.Close()
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveAppPairInfo(w, r) {
+			return
+		}
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return
@@ -1123,6 +1150,9 @@ func TestInteractiveSetupExitAtTokenChoiceCancelsCleanly(t *testing.T) {
 	defer haServer.Close()
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveAppPairInfo(w, r) {
+			return
+		}
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return
@@ -1183,6 +1213,9 @@ func TestInteractiveSetupInitialClientPageAllowsRepeatedBack(t *testing.T) {
 	defer haServer.Close()
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveAppPairInfo(w, r) {
+			return
+		}
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return
@@ -2585,6 +2618,9 @@ func TestInteractiveSetupPastedTokenFreshHostChangeRoutesThroughInstallSteps(t *
 	defer goodHAServer.Close()
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveAppPairInfo(w, r) {
+			return
+		}
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return

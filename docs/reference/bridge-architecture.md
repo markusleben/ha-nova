@@ -20,7 +20,6 @@ Cloud) and Supervisor Ingress.
 ```
 GET  /health
 GET  /home     (App only: the NOVA owner page, through Supervisor ingress)
-POST /pair
 POST /ws
 POST /core
 POST /files
@@ -130,24 +129,6 @@ request; that pre-request state is not a connection failure. To prove
 WebSocket readiness, issue `POST /ws` with `{"type":"ping"}` and then re-read
 health. Require both a successful Relay envelope and
 `ha_ws_connected: true`.
-
-### `POST /pair` — Pairing Credential Exchange
-
-This is the only route that does not accept the relay bearer token. Its
-six-digit, ten-minute, single-use pairing code is the credential.
-
-```json
-Request:  { "code": "123456" }
-Response: { "ok": true, "data": { "relay_token": "<opaque token>" } }
-```
-
-Malformed shapes return `400 VALIDATION_ERROR`. Wrong, expired, and replayed
-codes share `401 PAIRING_FAILED`. Five failures per socket peer per minute or
-30 globally per five minutes block further attempts with
-`429 PAIRING_RATE_LIMITED` and `Retry-After`. The Relay ignores forwarded IP
-headers, compares fixed digests in constant time, and sets
-`Cache-Control: no-store` on every `/pair` response. Pairing contains no Home
-Assistant call or domain logic.
 
 ### `POST /ws` — Generic WS Proxy
 ```json
@@ -365,8 +346,8 @@ The Relay keeps inbound client authentication separate from upstream Home Assist
 Authorization: Bearer {RELAY_AUTH_TOKEN}
 ```
 Validated via a constant-time fixed-digest comparison. On failure:
-`401 UNAUTHORIZED`. Exact `POST /pair` uses the one-time pairing code instead
-and returns the same relay token after a successful exchange.
+`401 UNAUTHORIZED`. The standalone Relay pairs with this token only: every route
+needs it, and it has no code exchange (removed in 0.34).
 
 The normal App path uses an OPAQUE-derived per-device credential over SPKI-pinned
 TLS. Cloud sends it through a process-local Supervisor Ingress session. Pairing

@@ -215,3 +215,20 @@ describe("standalone Relay: the safety check", () => {
     });
   });
 });
+
+describe("standalone Relay: token only", () => {
+  it("refuses /pair and the pairing probe before the token and has no /pair behind it", async () => {
+    const app = createApp({ authToken: "relay-token", version: "0.29.0", fileAccess: { mode: "readwrite", configRoot: dir, warnings: [] }, snapshotRoot: join(dir, "snapshots"), ...upstream });
+    const base = await listen(app.server);
+
+    const anonymousPair = await fetch(`${base}/pair`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: "123456" }) });
+    expect(anonymousPair.status).toBe(401);
+    const probe = await fetch(`${base}/pair/v1/info`);
+    expect(probe.status).toBe(401);
+    expect(await probe.json()).toMatchObject({ ok: false, error: { code: "UNAUTHORIZED" } });
+
+    const withToken = await post(base, "/pair", { code: "123456" }, "relay-token");
+    expect(withToken.status).toBe(404);
+    expect(forwarded).toEqual([]);
+  });
+});
