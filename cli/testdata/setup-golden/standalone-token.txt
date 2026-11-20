@@ -18,8 +18,6 @@ exit 0
 
   [2/4] Step 2 of 4 – Connect this computer
 
-  This NOVA Relay is a standalone container: it connects with its token only, with no pairing code. Next, paste its token (RELAY_AUTH_TOKEN).
-
   HA NOVA Setup
   -------------
 
@@ -31,31 +29,22 @@ exit 0
 
   NOVA Relay in your own container? Its Home Assistant token (HA_LLAT) stays there. Setup never asks for it.
 
+  This NOVA Relay is a standalone container: it connects with its token only, with no pairing code. Use the token it was started with (RELAY_AUTH_TOKEN).
+
   How do you want to set up the shared key (Relay Auth Token)?
 
-    1) Paste a key from another computer or from Home Assistant
-    2) Make a new key
+    1) Paste the container's token (RELAY_AUTH_TOKEN)
 
-  Enter [1-2] (default 2, or type 'back'/'exit'): 
-  Here is your new key:
-    <token>
+  Enter [1-1] (default 1, or type 'back'/'exit'): 
 
-  Next, on the NOVA App page:
-    1. Open the "Configuration" tab
-    2. Paste the key into the "Relay Auth Token" field
-    3. Click Save
-    4. Restart the App so it uses the new key
+  Paste the key (Relay Auth Token): 
+  If this key already works on another computer, the next check should pass. Nothing needs to change in Home Assistant.
 
-  This will open:
-      <ha-url>/_my_redirect/supervisor_addon?addon=2368fcfa_ha_nova_relay
-
-  Press Enter to open your browser:   Opening in your browser...
-
-  Press Enter after you saved the key and restarted the NOVA App: 
   HA NOVA Setup
   -------------
 
   [3/4] Step 3 of 4 – Verifying connection
+  Using Home Assistant address: <ha-url>
   [ok] Home Assistant answers
   [ok] NOVA App answers
   [ok] Connected to Home Assistant

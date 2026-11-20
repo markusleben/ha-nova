@@ -138,6 +138,8 @@
   "setup.token.separate_relay": "a) This key lets this computer talk to the NOVA App",
   "setup.token.separate_app": "b) The NOVA App gets its own Home Assistant access by itself",
   "setup.token.standalone": "NOVA Relay in your own container? Its Home Assistant token (HA_LLAT) stays there. Setup never asks for it.",
+  "setup.token.standalone_only": "This NOVA Relay is a standalone container: it connects with its token only, with no pairing code. Use the token it was started with (RELAY_AUTH_TOKEN).",
+  "setup.token.paste_standalone": "Paste the container's token (RELAY_AUTH_TOKEN)",
   "setup.token.using_flag": "Using the key you gave.",
   "setup.token.using_saved": "Using the saved key: {hint}",
   "setup.token.found_saved": "Found a saved key: {hint}",

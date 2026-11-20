@@ -21,11 +21,10 @@ const maxRelayPairingResponseBytes = 32 << 10
 var errSetupDevicePaired = errors.New("device paired securely")
 
 // Test hooks: default to the real implementations. The wizard pairs through
-// secure v1; a reachable Relay without /pair/v1 is a standalone container,
-// which connects with its token only.
+// secure v1; a standalone container connects with its token only.
 var probePairingV1ForSetup = probePairingV1
 var securePairForSetup = runSecurePairingAfterInteractivePreflight
-var probePairingV1DetailedForSetup = probePairingV1Detailed
+var probeRelayPairingForSetup = probeRelayPairing
 
 type relayPairingRateLimitError struct {
 	retryAfterSeconds int
@@ -77,30 +76,41 @@ func pairingRetryAfterSeconds(header string) int {
 	return seconds
 }
 
-// probePairingV1Detailed probes GET /pair/v1/info and reports both whether the
-// relay supports secure device pairing (supported) and whether it answered at
-// all (reachable). This tells three cases apart that probePairingV1's bool
-// collapses: v1 supported, reachable-but-pre-v1 (e.g. 404), and unreachable
-// (connection failure). Any HTTP response — even 404 — counts as reachable.
-func probePairingV1Detailed(relayBaseURL string) (supported bool, reachable bool) {
+// relayPairingAnswer: what GET /pair/v1/info says about the Relay behind an
+// address.
+type relayPairingAnswer int
+
+const (
+	relayAnswerNone       relayPairingAnswer = iota // no HTTP answer at all
+	relayAnswerSecure                               // a NOVA App with secure pairing
+	relayAnswerStandalone                           // the standalone container's own token gate
+	relayAnswerOther                                // a proxy, redirect, or another service
+)
+
+// probeRelayPairing tells a standalone container (its own 401 UNAUTHORIZED
+// envelope) from any other answer, so setup asks for the Relay token only
+// where a NOVA Relay asked for it.
+func probeRelayPairing(relayBaseURL string) relayPairingAnswer {
 	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(relayBaseURL, "/")+"/pair/v1/info", nil)
 	if err != nil {
-		return false, false
+		return relayAnswerNone
 	}
 	req.URL.User = nil
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return false, false
+		return relayAnswerNone
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return false, true
-	}
 	body, err := readAllLimited(resp.Body, maxRelayPairingResponseBytes)
-	if err != nil {
-		return false, true
+	switch {
+	case err != nil:
+		return relayAnswerOther
+	case resp.StatusCode == http.StatusOK && decodePairInfo(body):
+		return relayAnswerSecure
+	case resp.StatusCode == http.StatusUnauthorized && relayPairingErrorCode(body) == "UNAUTHORIZED":
+		return relayAnswerStandalone
 	}
-	return decodePairInfo(body), true
+	return relayAnswerOther
 }
 
 // probePairingV1 reports whether the relay supports secure device pairing
@@ -224,20 +234,23 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 	// probePairingV1 returns false for ANY failure — a Relay without secure
 	// pairing, one still starting, OR an unreachable one. Re-probe with a
 	// detailed result so the cases are told apart: recovered v1 → pair;
-	// reachable without v1 → a standalone Relay, token only; unreachable → the
-	// code prompt still offers 'manual', and a code gets the retry hint.
+	// the standalone container's token gate → token only; any other answer →
+	// check the address; unreachable → the code prompt still offers 'manual',
+	// and a code gets the retry hint.
 	secure := probePairingV1ForSetup(cfg.RelayBaseURL)
 	if !secure {
-		supported, reachable := probePairingV1DetailedForSetup(cfg.RelayBaseURL)
+		answer := probeRelayPairingForSetup(cfg.RelayBaseURL)
 		switch {
-		case supported:
+		case answer == relayAnswerSecure:
 			secure = true // a transient first probe recovered
 		case installed != nil && installed.fromPage:
 			// The page's sign-in can't pair yet: step 2 says the App isn't ready,
 			// instead of a code prompt the page never hands over.
 			return "", &setupPagePairingError{cause: &pairingBeforeFinishError{err: errSignInRelayNotReady}, session: *installed}
-		case reachable:
+		case answer == relayAnswerStandalone:
 			return "", setupRelayTokenOnly(out, legacyTokenStoreUnavailable)
+		case answer == relayAnswerOther:
+			return "", setupRelayNotNova(out)
 		case legacyTokenStoreUnavailable:
 			return "", setupRelayUnreachable(out)
 		}
@@ -346,8 +359,10 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		case errors.Is(perr, errPinMismatch):
 			renderSetupErrorLine(out, "The relay's secure identity did not match. Try again; if it repeats, someone may be intercepting the connection.")
 			return "", perr
-		case errors.Is(perr, errRelayNotV1):
+		case errors.Is(perr, errRelayStandalone):
 			return "", setupRelayTokenOnly(out, legacyTokenStoreUnavailable)
+		case errors.Is(perr, errRelayNotV1):
+			return "", setupRelayNotNova(out)
 		default:
 			var rateLimit *relayPairingRateLimitError
 			if errors.As(perr, &rateLimit) {
@@ -364,14 +379,18 @@ func setupRelayUnreachable(out io.Writer) error {
 	return errors.New("relay not reachable to determine secure pairing support")
 }
 
-// setupRelayTokenOnly: a reachable Relay without secure pairing is a
-// standalone container, which connects with its token only (the manual token
-// step), or fails here when this run can't store that token.
+func setupRelayNotNova(out io.Writer) error {
+	renderSetupErrorLine(out, "This address answered, but not as a NOVA Relay. Check the Relay address, or wait until the NOVA App has started, then run setup again.")
+	return errors.New("relay address did not answer as a NOVA Relay")
+}
+
+// setupRelayTokenOnly: a standalone container connects with its token only
+// (the token step explains it), or fails here when this run can't store that
+// token.
 func setupRelayTokenOnly(out io.Writer, tokenStoreUnavailable bool) error {
 	if tokenStoreUnavailable {
 		renderSetupErrorLine(out, "This NOVA Relay is a standalone container and connects only with its token, which this setup can't store here. Set it up as the default server on a computer with a key store.")
 		return errors.New("standalone relay connects with its token only and no store is available for it")
 	}
-	renderSetupParagraph(out, "This NOVA Relay is a standalone container: it connects with its token only, with no pairing code. Next, paste its token (RELAY_AUTH_TOKEN).")
-	return errSetupRelayTokenStep
+	return errSetupStandaloneToken
 }

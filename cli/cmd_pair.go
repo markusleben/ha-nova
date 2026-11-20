@@ -409,6 +409,8 @@ func runPairCommand(paths runtimePaths, args []string) int {
 			printErr("That code was not accepted. Generate a fresh one in NOVA and try again.")
 		case errors.Is(err, errPairingInactive):
 			printErr("No active code. Open NOVA in the sidebar and click \"Connect a device\" first.")
+		case errors.Is(err, errRelayStandalone):
+			printErr("This NOVA Relay is a standalone container: it connects with its token (RELAY_AUTH_TOKEN), not a code. Nothing was paired; see the Relay container guide for setup --relay-token.")
 		case errors.Is(err, errRelayNotV1):
 			printErr("This relay does not support secure pairing yet. Update the NOVA App.")
 		case errors.Is(err, errPinMismatch):

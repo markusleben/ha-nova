@@ -95,8 +95,10 @@ func TestInteractiveSetupStaysFatalOnHeadlessStandaloneRelay(t *testing.T) {
 	}))
 	defer haServer.Close()
 
-	// Standalone relay: /health only, /pair/v1/info 404.
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveStandaloneTokenGate(w, r) {
+			return
+		}
 		if r.URL.Path == "/health" {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"status":"ok","data":{"ha_ws_connected":true}}`))
@@ -151,6 +153,9 @@ func TestInteractiveSetupStandaloneRelayStoresItsTokenAndVerifies(t *testing.T) 
 	var healthCalls atomic.Int32
 	var wsCalls, firstLookCalls atomic.Int32
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		if serveStandaloneTokenGate(w, request) {
+			return
+		}
 		switch request.URL.Path {
 		case "/pair":
 			pairCalls.Add(1) // the code exchange is gone: a standalone Relay never sees it
@@ -214,6 +219,9 @@ func TestInteractiveSetupStandaloneRelayStoresItsTokenAndVerifies(t *testing.T) 
 	if strings.Contains(output, pairedToken) || strings.Contains(output, "Six-digit code") {
 		t.Fatalf("wizard output leaked the token or asked for a code:\n%s", output)
 	}
+	if strings.Contains(output, "Make a new key") {
+		t.Fatalf("a standalone container's token is the one it was started with; no new key:\n%s", output)
+	}
 	if pairCalls.Load() != 0 || healthCalls.Load() == 0 {
 		t.Fatalf("calls pair/health = %d/%d, want 0/>0", pairCalls.Load(), healthCalls.Load())
 	}
@@ -245,6 +253,9 @@ func TestInteractiveSetupManualPairingFallbackKeepsTokenRepair(t *testing.T) {
 	}))
 	defer haServer.Close()
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		if serveAppPairInfo(w, request) {
+			return
+		}
 		if request.URL.Path != "/health" {
 			http.NotFound(w, request)
 			return

@@ -55,8 +55,19 @@ func setupWizardPairingPrompts(code string) []string {
 	}
 }
 
-// serveAppPairInfo answers GET /pair/v1/info as a NOVA App does. A fake Relay
-// without it is a standalone container, which connects with its token only.
+// serveStandaloneTokenGate answers GET /pair/v1/info as a standalone container
+// does: its token gate refuses the unauthenticated probe.
+func serveStandaloneTokenGate(w http.ResponseWriter, r *http.Request) bool {
+	if r.URL.Path != "/pair/v1/info" {
+		return false
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+	_, _ = w.Write([]byte(`{"ok":false,"error":{"code":"UNAUTHORIZED","message":"Missing authorization header"}}`))
+	return true
+}
+
+// serveAppPairInfo answers GET /pair/v1/info as a NOVA App does.
 func serveAppPairInfo(w http.ResponseWriter, r *http.Request) bool {
 	if r.URL.Path != "/pair/v1/info" {
 		return false

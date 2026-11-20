@@ -363,6 +363,10 @@ func pairPostJSONEncoded(
 	}
 	defer resp.Body.Close()
 	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, maxPairingBodyBytes))
+	if resp.StatusCode == http.StatusUnauthorized && relayPairingErrorCode(raw) == "UNAUTHORIZED" {
+		// The standalone container's token gate, not a refused code.
+		return false, errRelayStandalone
+	}
 	if resp.StatusCode != http.StatusOK {
 		statusErr := pairingStatusError(
 			resp.StatusCode,

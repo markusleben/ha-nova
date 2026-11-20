@@ -295,6 +295,9 @@ func TestInteractiveSetupRecoveryBackDoesNotBypassGate(t *testing.T) {
 	defer haServer.Close()
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveAppPairInfo(w, r) {
+			return
+		}
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return
@@ -384,6 +387,9 @@ func TestInteractiveSetupRecoversWhenSavedTokenReadNeedsRecovery(t *testing.T) {
 	defer haServer.Close()
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveAppPairInfo(w, r) {
+			return
+		}
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return
@@ -616,6 +622,9 @@ func TestInteractiveSetupRetriesSaveTimeRecoveryInline(t *testing.T) {
 	defer haServer.Close()
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveAppPairInfo(w, r) {
+			return
+		}
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return
@@ -712,6 +721,9 @@ func TestInteractiveSetupRetriesSaveTimeInitializationRecoveryInline(t *testing.
 	defer haServer.Close()
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveAppPairInfo(w, r) {
+			return
+		}
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return

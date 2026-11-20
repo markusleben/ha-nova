@@ -62,7 +62,7 @@ If Home Assistant runs in the same Compose project, `HA_URL` can use its service
 | `FILE_ACCESS` | no | `off` | `off` / `read` / `readwrite`. Enables the `/files` endpoint for YAML-only configuration. Requires the Home Assistant config directory to be mounted (see below); without it, the relay stays `off` and says so in its log. |
 | `CONFIG_ROOT` | no | auto | Where the config directory is mounted inside the container. Only needed if you mount it somewhere other than `/config`. |
 
-Since 0.34 the container no longer logs a pairing code at startup and has no `POST /pair` code exchange: every computer connects with the relay token, as in Setup order below. `ha-nova setup` pointed at the container says so and asks for the token.
+Since 0.34 the container no longer logs a pairing code at startup and has no `POST /pair` code exchange: every computer connects with the relay token, as in Setup order below.
 
 ## Setup order
 
@@ -82,7 +82,7 @@ The interactive wizard is built around the Supervisor App (it walks you through 
                  --relay-url http://<docker-host>:8791 \
                  --relay-token '<the same relay token>'
    ```
-   `--non-interactive` is required: without it the CLI runs the interactive wizard, which walks you through the Supervisor App screens you do not have.
+   Use `--non-interactive`: without it the CLI runs the interactive wizard, which walks you through the Supervisor App screens you do not have. If the wizard reaches the container anyway, it says so and asks only for this token.
    The CLI stores the relay token in your OS keychain, verifies the connection, and installs the skills for your AI clients.
 6. **Check it**: `ha-nova doctor`.
 

@@ -81,7 +81,7 @@ func setupGoldenHAServer(t *testing.T) *httptest.Server {
 func setupGoldenRelayServer(t *testing.T, app bool) *httptest.Server {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if app && serveAppPairInfo(w, r) {
+		if app && serveAppPairInfo(w, r) || !app && serveStandaloneTokenGate(w, r) {
 			return
 		}
 		switch r.URL.Path {
@@ -142,7 +142,7 @@ func TestSetupGoldenStandaloneToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	code := -1
-	stdout, stderr := captureInteractiveSetupIO(t, joinSetupInputs([]string{"", "", "", "", "1", "relay-token-never-render"}), func() int {
+	stdout, stderr := captureInteractiveSetupIO(t, joinSetupInputs([]string{"", "relay-token-never-render"}), func() int {
 		code = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "codex",
 			normalizeHostInput(haServer.URL), haServer.URL, relayServer.URL, "", false)
 		return code

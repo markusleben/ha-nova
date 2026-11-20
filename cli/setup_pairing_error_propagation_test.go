@@ -185,7 +185,7 @@ func TestSetupSecurePairingTokenOnlyRelayKeepsPreparedInstallID(t *testing.T) {
 		if cfg.ClientInstallID == "" {
 			t.Fatal("install ID was not persisted before the code")
 		}
-		return "", errRelayNotV1
+		return "", errRelayStandalone
 	}
 
 	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
@@ -197,7 +197,7 @@ func TestSetupSecurePairingTokenOnlyRelayKeepsPreparedInstallID(t *testing.T) {
 		false,
 		lifecycle...,
 	)
-	if !errors.Is(err, errSetupRelayTokenStep) || token != "" {
+	if !errors.Is(err, errSetupStandaloneToken) || token != "" {
 		t.Fatalf("token-only Relay after install-id write token=%q err=%v", token, err)
 	}
 }
