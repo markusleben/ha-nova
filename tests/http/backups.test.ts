@@ -125,6 +125,26 @@ describe("backups handler", () => {
     }
   });
 
+  it("stops reading leaves after a failed one and reports the failure", async () => {
+    mkdirSync(join(root, "automations"));
+    for (let i = 0; i < 40; i += 1) {
+      writeFileSync(join(root, "automations", `n${i}-20260714T120000000Z.json.gz`), "x");
+    }
+    let reads = 0;
+    lstatHook.beforeLstat = () => {
+      reads += 1;
+      if (reads === 1) {
+        throw Object.assign(new Error("disk fault"), { code: "EIO" });
+      }
+    };
+    try {
+      await expect(summarizeSnapshotStore(root)).rejects.toThrow("disk fault");
+      expect(reads).toBeLessThanOrEqual(8);
+    } finally {
+      lstatHook.beforeLstat = undefined;
+    }
+  });
+
   it("returns an empty list when the store does not exist yet", async () => {
     rmSync(root, { recursive: true, force: true });
     expect(await call({ action: "list" })).toEqual([]);
