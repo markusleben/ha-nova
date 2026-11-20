@@ -8,7 +8,6 @@ export interface EnvConfig {
   haLlat?: string;
   haUrl: string;
   relayVersion: string;
-  minRelayVersion?: string;
   cloudRemoteEnabled: boolean;
   appOptionsPath: string;
   relayPort: number;
@@ -48,10 +47,6 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
     source.RELAY_VERSION,
     DEFAULT_RELAY_VERSION,
   );
-  const minRelayVersion = parseRequiredLike(
-    source.MIN_RELAY_VERSION,
-    relayVersion,
-  );
   const cloudRemoteEnabled = parseCloudRemoteEnabled(
     source.CLOUD_REMOTE_ENABLED,
   );
@@ -84,7 +79,6 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
     ...(haLlat ? { haLlat } : {}),
     haUrl,
     relayVersion,
-    minRelayVersion,
     cloudRemoteEnabled,
     appOptionsPath,
     relayPort,

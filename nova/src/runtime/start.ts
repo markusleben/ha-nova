@@ -137,7 +137,6 @@ export function bootstrapRuntime(
     phoneLink: createPhoneLinkStore(join(dirname(env.appOptionsPath), "gate-phone.json")),
     authToken: env.relayAuthToken,
     version: env.relayVersion,
-    requiredRelayVersion: env.minRelayVersion ?? env.relayVersion,
     wsClient,
     fileAccess,
     snapshotRoot: env.snapshotDir,

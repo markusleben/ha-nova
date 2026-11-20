@@ -19,7 +19,7 @@ Cloud) and Supervisor Ingress.
 
 ```
 GET  /health
-GET  /home
+GET  /home     (App only: the NOVA owner page, through Supervisor ingress)
 POST /pair
 POST /ws
 POST /core
@@ -148,19 +148,6 @@ codes share `401 PAIRING_FAILED`. Five failures per socket peer per minute or
 headers, compares fixed digests in constant time, and sets
 `Cache-Control: no-store` on every `/pair` response. Pairing contains no Home
 Assistant call or domain logic.
-
-### `GET /home` — Home Base
-
-Home Base is a read-only HTML rendering of the same snapshot as `/health`, plus
-the current pairing code, expiry, compatibility floor, and latest-stable
-installer commands. It is bearer-exempt because Home Assistant Supervisor
-ingress supplies the authenticated browser session instead.
-
-The handler still requires the exact Supervisor ingress socket peer
-(`172.30.32.2`, including IPv4-mapped IPv6 forms) plus `X-Ingress-Path` and
-`X-Remote-User-Id`. Direct port access returns `403 INGRESS_REQUIRED` even when
-the headers are spoofed. The response is non-cacheable, script-free, and ships
-a restrictive CSP plus `nosniff`; the App sidebar panel is admin-only.
 
 ### `POST /ws` — Generic WS Proxy
 ```json
@@ -428,10 +415,10 @@ The interactive CLI's normal App path never asks the user to copy the relay
 token. In a local desktop terminal it first offers Home Assistant sign-in: the
 owner signs in through the browser, the CLI opens a process-local ingress
 session, revokes the Home Assistant session, and pairs through `/pair/v2/arm`
-plus pair v2. Otherwise, or after any sign-in failure, it asks for the current
-Home Base code, sends it only in the JSON body of
-`POST /pair`, stores the returned token in the existing OS credential backend,
-and verifies both `/health` and `/ws`. Pairing requests do not follow redirects;
+plus pair v2. Otherwise, or after any sign-in failure, it asks for the
+six-digit code the NOVA page shows, pairs through OPAQUE pair v1
+(`/pair/v1/*` on the local pairing port), stores the device credential, and
+verifies both `/health` and `/ws`. Pairing requests do not follow redirects;
 the code is not accepted through argv and is not persisted in normal config.
 Saved credentials, `--relay-token`, service token files, and standalone
 Container/Core setups retain their explicit-token paths; against the App they
@@ -461,7 +448,6 @@ RELAY_AUTH_TOKEN: "<operator-chosen-secret>"   # Inbound client auth override
 RELAY_AUTH_TOKEN_FILE: "/data/relay_auth_token" # Persistent token file
 SUPERVISOR_TOKEN: "<injected-by-supervisor>"   # App upstream auth; never configured by the user
 HA_LLAT: "<ha-long-lived-access-token>"        # Standalone upstream auth fallback
-MIN_RELAY_VERSION: "<from nova/version.json>" # Required Relay floor shown in Home Base
 
 # Optional (with defaults)
 HA_URL: "http://supervisor/core"               # App default; standalone default: http://homeassistant:8123
@@ -471,8 +457,8 @@ RELAY_VERSION: "dev"                           # Injected by run script from bas
 APP_OPTIONS_PATH: "/data/options.json"         # HA app options file path
 ```
 
-`MIN_RELAY_VERSION` is loaded from `nova/version.json`, a generated mirror of
-the root `version.json` SSOT. The bump script and its contract keep the mirror
+`min_relay_version` in `nova/version.json`, a generated mirror of the root
+`version.json` SSOT, is the CLI's compatibility floor; the Relay doesn't read it. The bump script and its contract keep the mirror
 in sync; Relay and product versions must not be substituted for each other.
 
 ## Tech Stack

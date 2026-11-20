@@ -59,8 +59,8 @@ export async function readHealthPayload(
     ? options.wsClient.getConnectionStatus()
     : { connected: options.wsClient.isConnected(), disconnect_reason: null };
 
-  // Counting a ≤500-file store is cheap; a broken store must not take either
-  // /health or Home Base down with it — report zeros, but never silently: an
+  // Counting a ≤500-file store is cheap; a broken store must not take
+  // /health down with it — report zeros, but never silently: an
   // unreadable store is an I/O fault, not an empty store.
   let snapshots = { files: 0, bytes: 0 };
   try {

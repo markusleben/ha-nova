@@ -28,7 +28,6 @@ import {
 import { opaqueReady } from "../security/opaque-server.js";
 import { checkWindowConfirm, codeOwner, codeState, windowStatus } from "../security/window-confirm.js";
 import type { Principal } from "../security/principal.js";
-import { createFileResponseStore } from "../security/pairing-response-store.js";
 import { createPairingV1Manager } from "../security/pairing-v1.js";
 import { loadOrCreateTlsIdentity } from "../security/tls-identity.js";
 import { loadOrCreateRelayInstanceId } from "../storage/relay-instance.js";
@@ -175,13 +174,6 @@ export async function buildAppMode(
       }
       return { spkiPin: tls.spkiPin, securePort: secureHostPort };
     },
-    // Upgrade-only fallback for finish responses written by older versions.
-    // New responses commit atomically with their pending registry credential.
-    legacyResponseStore: createFileResponseStore(
-      dataDir,
-      input.now,
-      input.logger,
-    ),
     cloudPairing: input.cloudRemoteEnabled,
     logger: input.logger,
   });

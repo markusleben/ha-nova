@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -425,23 +426,32 @@ func waitForParentExit(parentPID int) {
 	}
 }
 
+var (
+	installRootRemoveRetry = 250 * time.Millisecond
+	installRootLstat       = os.Lstat
+)
+
+// discardInstallRoot retries the removal while Windows may still hold the
+// folder; only a final look that finds nothing there, not even a link,
+// proves the removal.
 func discardInstallRoot(installRoot string) error {
-	if _, err := os.Stat(installRoot); err != nil {
-		if isNotExist(err) {
-			return nil
-		}
-		return err
-	}
+	var removeErr error
 	for i := 0; i < 20; i++ {
-		if err := os.RemoveAll(installRoot); err == nil || isNotExist(err) {
-			return nil
+		if removeErr = os.RemoveAll(installRoot); removeErr == nil {
+			break
 		}
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(installRootRemoveRetry)
 	}
-	if _, err := os.Stat(installRoot); err == nil {
-		return fmt.Errorf("could not remove install root: %s", installRoot)
+	_, statErr := installRootLstat(installRoot)
+	switch {
+	case isNotExist(statErr):
+		return nil
+	case statErr != nil:
+		return fmt.Errorf("could not confirm the install root is removed: %s: %w", installRoot, errors.Join(removeErr, statErr))
+	case removeErr != nil:
+		return fmt.Errorf("could not remove install root: %s: %w", installRoot, removeErr)
 	}
-	return nil
+	return fmt.Errorf("could not remove install root: %s", installRoot)
 }
 
 func finalizeWindowsUninstall(
@@ -451,7 +461,6 @@ func finalizeWindowsUninstall(
 	status *windowsUninstallStatus,
 	removedRelays uninstallRelayRemovalEvidence,
 ) error {
-	state := loadStateOrDefault(paths)
 	configDirExisted := fileExists(paths.ConfigDir)
 	cleanupConfigDir := false
 	var configCleanupErr error
@@ -479,7 +488,7 @@ func finalizeWindowsUninstall(
 		}
 	}
 	defer releaseMutationOnce()
-	state = loadStateOrDefault(paths)
+	state := loadStateOrDefault(paths)
 	if err := finalizeLocalUninstallWithProgressUnlocked(
 		paths,
 		state,
@@ -499,11 +508,12 @@ func finalizeWindowsUninstall(
 	if err := updateWindowsUninstallStatusProgress(paths, status); err != nil {
 		return fmt.Errorf("cannot persist Windows uninstall recovery state: %w", err)
 	}
-	if _, err := os.Stat(paths.InstallRoot); err == nil {
-		report.addRemoved(paths.InstallRoot)
-	}
+	_, statErr := os.Lstat(paths.InstallRoot)
 	if err := discardInstallRoot(paths.InstallRoot); err != nil {
 		return failWindowsUninstallStatus(paths, status, "bundle_runtime_cleanup", err)
+	}
+	if statErr == nil {
+		report.addRemoved(paths.InstallRoot)
 	}
 	if err := removePathWithReport(paths.PublicBinary, report); err != nil && !isNotExist(err) {
 		return failWindowsUninstallStatus(paths, status, "bundle_runtime_cleanup", err)
