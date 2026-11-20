@@ -419,8 +419,9 @@ through `POST /supervisor` only.
 
 ## Configuration
 
-All configuration is via environment variables. The `run` entrypoint script
-resolves values from HA app options and sets them before starting Node.
+All configuration is via environment variables. In the App, the `run`
+entrypoint passes only the App version; Node reads `file_access` from
+`/data/options.json` and the Cloud flag from the image's `/app/version.json`.
 
 ```yaml
 # Standalone only (the App reads neither): RELAY_AUTH_TOKEN, else a token

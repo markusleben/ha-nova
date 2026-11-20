@@ -1,55 +1,8 @@
 #!/usr/bin/with-contenv bashio
-set -euo pipefail
-
-normalize_token() {
-  local value="${1:-}"
-  value="${value#"${value%%[![:space:]]*}"}"
-  value="${value%"${value##*[![:space:]]}"}"
-  if [[ -z "$value" || "$value" == "null" ]]; then
-    printf ''
-    return
-  fi
-
-  printf '%s' "$value"
-}
-
-export APP_OPTIONS_PATH="/data/options.json"
+# Only the App's version needs the Supervisor; the Relay reads the rest itself
+# (nova/src/config/env.ts).
+RELAY_VERSION="$(bashio::addon.version 2>/dev/null || echo "dev-local")"
+export RELAY_VERSION
+# Without a Supervisor, the image keeps its shared token here.
 export RELAY_AUTH_TOKEN_FILE="/data/relay_auth_token"
-export MIN_RELAY_VERSION="$(node -p 'JSON.parse(require("node:fs").readFileSync("/app/version.json", "utf8")).min_relay_version')"
-if [[ -z "$MIN_RELAY_VERSION" ]]; then
-  echo "[ha-nova] Version metadata is missing." >&2
-  exit 1
-fi
-CLOUD_REMOTE_ENABLED="$(
-  node -e '
-    const metadata = JSON.parse(require("node:fs").readFileSync("/app/version.json", "utf8"));
-    if (metadata.cloud_remote_enabled !== true && metadata.cloud_remote_enabled !== false) {
-      process.stderr.write("[ha-nova] cloud_remote_enabled must be a boolean in /app/version.json.\n");
-      process.exit(1);
-    }
-    process.stdout.write(String(metadata.cloud_remote_enabled));
-  '
-)"
-export CLOUD_REMOTE_ENABLED
-if [[ -z "${HA_URL:-}" ]]; then
-  if [[ -n "${SUPERVISOR_TOKEN:-}" ]]; then
-    export HA_URL="http://supervisor/core"
-  else
-    export HA_URL="http://homeassistant:8123"
-  fi
-fi
-export RELAY_VERSION="$(bashio::addon.version 2>/dev/null || echo "dev-local")"
-
-export RELAY_AUTH_TOKEN="$(normalize_token "${RELAY_AUTH_TOKEN:-}")"
-
-export HA_LLAT="$(normalize_token "${HA_LLAT:-}")"
-
-if [[ -z "${FILE_ACCESS:-}" ]]; then
-  export FILE_ACCESS="$(bashio::config 'file_access' 2>/dev/null || echo "off")"
-fi
-export FILE_ACCESS="$(normalize_token "${FILE_ACCESS:-}")"
-if [[ -z "${FILE_ACCESS:-}" ]]; then
-  export FILE_ACCESS="off"
-fi
-
 exec node /app/dist/src/runtime/main.js

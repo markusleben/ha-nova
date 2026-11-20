@@ -28,11 +28,6 @@ import {
 } from "../ha/ws-client.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 import {
-  resolveUpstreamToken,
-  type ResolveUpstreamTokenInput,
-  type UpstreamTokenResolution,
-} from "../security/token-resolver.js";
-import {
   createConsoleLogger,
   fileAccessOption,
   levelAtLeast,
@@ -43,84 +38,89 @@ import {
 
 export { createConsoleLogger, levelAtLeast } from "./start-support.js";
 
+export interface UpstreamAuth {
+  token: string;
+  source: "supervisor_token" | "env_ha_llat";
+}
+
 export interface RuntimeBootstrapResult {
   app: App;
-  gate?: GateWorker; // standalone only; started once the Relay listens
+  gate: GateWorker; // started once the Relay listens
   env: EnvConfig;
   appOptions: AppOptions;
   fileAccess: FileAccessConfig;
-  upstreamAuth: UpstreamTokenResolution;
+  upstreamAuth: UpstreamAuth;
 }
 
 export interface RuntimeDependencies {
   loadEnv?: () => EnvConfig;
   readAppOptions?: (path: string) => AppOptions;
-  createWsClient?: (input: RuntimeWsClientInput) => HaWsClient;
-  createRestClient?: (input: RuntimeRestClientInput) => HaRestClient;
+  createWsClient?: (input: RuntimeClientInput) => HaWsClient;
+  createRestClient?: (input: RuntimeClientInput) => HaRestClient;
   createGate?: (deps: GateWorkerDeps) => GateWorker;
   logger?: Logger;
   listen?: (server: Server, port: number) => Promise<void>;
 }
 
-export interface RuntimeWsClientInput {
+export interface RuntimeClientInput {
   env: EnvConfig;
   appOptions: AppOptions;
-  upstreamAuth: UpstreamTokenResolution;
+  upstreamAuth: UpstreamAuth;
 }
 
-export interface RuntimeRestClientInput {
-  env: EnvConfig;
-  appOptions: AppOptions;
-  upstreamAuth: UpstreamTokenResolution;
+// What both modes share: options, the upstream credential, the HA clients,
+// and file access.
+interface RuntimePrelude extends RuntimeClientInput {
+  wsClient: HaWsClient;
+  coreClient: HaRestClient;
+  fileAccess: FileAccessConfig;
+  logger: Logger;
 }
 
-export interface StartRelayResult extends RuntimeBootstrapResult {
-  port: number;
+function prepareRuntime(env: EnvConfig, dependencies: RuntimeDependencies): RuntimePrelude {
+  const appOptions = (dependencies.readAppOptions ?? readAppOptions)(env.appOptionsPath);
+  const input = { env, appOptions, upstreamAuth: resolveUpstreamAuth(env) };
+  return {
+    ...input,
+    wsClient: (dependencies.createWsClient ?? createDefaultWsClient)(input),
+    coreClient: (dependencies.createRestClient ?? createDefaultRestClient)(input),
+    // File access is opt-in and defaults to off. The App option (or FILE_ACCESS
+    // for the standalone container) is the only way to enable it, and it stays
+    // off when no config directory is mounted — reporting a mode the relay
+    // cannot serve would be a lie.
+    fileAccess: resolveFileAccess(
+      {
+        mode: fileAccessOption(appOptions, process.env),
+        configRootOverride: process.env.CONFIG_ROOT,
+        dataDir: dirname(env.appOptionsPath),
+      },
+      (path: string) => probeConfigRoot(path),
+    ),
+    logger: dependencies.logger ?? createConsoleLogger(env.logLevel),
+  };
 }
 
+function resolveUpstreamAuth(env: EnvConfig): UpstreamAuth {
+  if (env.supervisorToken) {
+    return { token: env.supervisorToken, source: "supervisor_token" };
+  }
+  const haLlat = env.haLlat?.trim();
+  if (haLlat) {
+    return { token: haLlat, source: "env_ha_llat" };
+  }
+  throw new Error("SUPERVISOR_TOKEN or HA_LLAT is required for runtime startup.");
+}
+
+// The standalone container: one listener, the shared relay token, and the
+// safety-check worker.
 export function bootstrapRuntime(
   dependencies: RuntimeDependencies = {},
+  env: EnvConfig = (dependencies.loadEnv ?? loadEnv)(),
 ): RuntimeBootstrapResult {
-  const env = (dependencies.loadEnv ?? loadEnv)();
-  const appOptions = (dependencies.readAppOptions ?? readAppOptions)(
-    env.appOptionsPath,
-  );
-
-  const upstreamAuth = resolveUpstreamToken(buildTokenResolutionInput(env));
-  if (upstreamAuth.capability !== "full" || !upstreamAuth.token) {
-    throw new Error(
-      "SUPERVISOR_TOKEN or HA_LLAT is required for runtime startup.",
-    );
-  }
-
-  const wsClient = (dependencies.createWsClient ?? createDefaultWsClient)({
-    env,
-    appOptions,
-    upstreamAuth,
-  });
-  const coreClient = (dependencies.createRestClient ?? createDefaultRestClient)(
-    {
-      env,
-      appOptions,
-      upstreamAuth,
-    },
-  );
-
-  // File access is opt-in and defaults to off. The App option (or FILE_ACCESS
-  // for the standalone container) is the only way to enable it, and it stays
-  // off when no config directory is mounted — reporting a mode the relay cannot
-  // serve would be a lie.
-  const fileAccess = resolveFileAccess(
-    {
-      mode: fileAccessOption(appOptions, process.env),
-      configRootOverride: process.env.CONFIG_ROOT,
-      dataDir: dirname(env.appOptionsPath),
-    },
-    (path: string) => probeConfigRoot(path),
-  );
-  const serverLogger = dependencies.logger ?? createConsoleLogger(env.logLevel);
-  // The standalone safety-check worker reaches this one listener over loopback
-  // with its own random token, replaced on every start.
+  const { appOptions, upstreamAuth, wsClient, coreClient, fileAccess, logger } =
+    prepareRuntime(env, dependencies);
+  // The safety-check worker reaches this one listener over loopback with its
+  // own random token, replaced on every start.
   let gateToken: string | null = null;
   const gate = (dependencies.createGate ?? createGateWorker)({
     dataDir: dirname(env.appOptionsPath),
@@ -129,7 +129,7 @@ export function bootstrapRuntime(
       gateToken = randomBytes(32).toString("base64url");
       return { relay_url: `http://127.0.0.1:${env.relayPort}`, credential: gateToken };
     },
-    logger: serverLogger,
+    logger,
   });
   const app = createApp({
     gate,
@@ -140,100 +140,58 @@ export function bootstrapRuntime(
     wsClient,
     fileAccess,
     snapshotRoot: env.snapshotDir,
-    logger: serverLogger,
+    logger,
     coreClient: {
       request: async (input: CoreProxyRequest): Promise<CoreProxyResponse> =>
         coreClient.request(input),
     },
   });
 
-  return {
-    app,
-    gate,
-    env,
-    appOptions,
-    fileAccess,
-    upstreamAuth,
-  };
+  return { app, gate, env, appOptions, fileAccess, upstreamAuth };
 }
 
-export async function startRelay(
-  dependencies: RuntimeDependencies = {},
-): Promise<StartRelayResult> {
+export async function startRelay(dependencies: RuntimeDependencies = {}): Promise<void> {
   const env = (dependencies.loadEnv ?? loadEnv)();
 
   // App mode (a real HA App, SUPERVISOR_TOKEN present) runs the three-listener
-  // secure-pairing stack. Standalone Container/Core keeps the single-listener
-  // path below. The startup pairing-code log is gone in app mode: no code is
-  // generated at startup anymore, and codes are never logged.
+  // secure-pairing stack; the standalone container runs one listener.
   if (env.supervisorToken) {
-    return await startAppModeRelay(env, dependencies);
+    await startAppModeRelay(env, dependencies);
+    return;
   }
 
-  const runtime = bootstrapRuntime(dependencies);
-  const logger =
-    dependencies.logger ?? createConsoleLogger(runtime.env.logLevel);
-
-  logStartup(logger, runtime);
-
-  const listen = dependencies.listen ?? listenServer;
-  await listen(runtime.app.server, runtime.env.relayPort);
-
-  logger.info("Relay listening", {
-    port: runtime.env.relayPort,
+  const runtime = bootstrapRuntime(dependencies, env);
+  const logger = dependencies.logger ?? createConsoleLogger(env.logLevel);
+  logger.info("Relay bootstrap", {
+    ha_url: env.haUrl,
+    relay_port: env.relayPort,
+    app_options_path: env.appOptionsPath,
+    auth_source: runtime.upstreamAuth.source,
+    // Visible in the log so an operator can always see whether file access
+    // is on, and at which level — it is the one capability worth stating.
+    file_access: runtime.fileAccess.mode,
+    config_root: runtime.fileAccess.configRoot || null,
+    snapshot_dir: env.snapshotDir,
   });
-  runtime.gate?.start(); // the worker reaches the listener just started
+  logFileAccessWarnings(logger, runtime.fileAccess);
 
-  return {
-    ...runtime,
-    port: runtime.env.relayPort,
-  };
+  await (dependencies.listen ?? listenServer)(runtime.app.server, env.relayPort);
+  logger.info("Relay listening", { port: env.relayPort });
+  runtime.gate.start(); // the worker reaches the listener just started
 }
 
-async function startAppModeRelay(
-  env: EnvConfig,
-  dependencies: RuntimeDependencies,
-): Promise<StartRelayResult> {
-  const logger = dependencies.logger ?? createConsoleLogger(env.logLevel);
-  const appOptions = (dependencies.readAppOptions ?? readAppOptions)(
-    env.appOptionsPath,
-  );
-  const upstreamAuth = resolveUpstreamToken(buildTokenResolutionInput(env));
-  if (upstreamAuth.capability !== "full" || !upstreamAuth.token) {
-    throw new Error(
-      "SUPERVISOR_TOKEN or HA_LLAT is required for runtime startup.",
-    );
-  }
-
-  const wsClient = (dependencies.createWsClient ?? createDefaultWsClient)({
-    env,
-    appOptions,
-    upstreamAuth,
-  });
-  const coreClient = (dependencies.createRestClient ?? createDefaultRestClient)(
-    { env, appOptions, upstreamAuth },
-  );
-  const fileAccess = resolveFileAccess(
-    {
-      mode: fileAccessOption(appOptions, process.env),
-      configRootOverride: process.env.CONFIG_ROOT,
-      dataDir: dirname(env.appOptionsPath),
-    },
-    (path: string) => probeConfigRoot(path),
-  );
-
+async function startAppModeRelay(env: EnvConfig, dependencies: RuntimeDependencies): Promise<void> {
+  const { upstreamAuth, wsClient, coreClient, fileAccess, logger } = prepareRuntime(env, dependencies);
   logger.info("Relay bootstrap (app mode)", {
     ha_url: env.haUrl,
     auth_source: upstreamAuth.source,
     file_access: fileAccess.mode,
     snapshot_dir: env.snapshotDir,
   });
-  for (const warning of fileAccess.warnings) {
-    logger.warn(warning);
-  }
+  logFileAccessWarnings(logger, fileAccess);
 
   const appMode = await buildAppMode({
-    supervisorToken: env.supervisorToken!,
+    supervisorToken: upstreamAuth.token,
     relayVersion: env.relayVersion,
     cloudRemoteEnabled: env.cloudRemoteEnabled,
     wsClient: wsClient as never,
@@ -246,46 +204,18 @@ async function startAppModeRelay(
     logger,
   });
   await appMode.listen();
-
-  // The bootstrap port is the liveness/watchdog signal, reported as the port.
-  const runtime = bootstrapRuntimeForResult(
-    env,
-    appOptions,
-    fileAccess,
-    upstreamAuth,
-    appMode.servers.bootstrap,
-  );
-  return { ...runtime, port: env.relayPort };
 }
 
-// A minimal RuntimeBootstrapResult for the app-mode return value; the three
-// servers live in the app-mode runtime, and callers only read env/options.
-function bootstrapRuntimeForResult(
-  env: EnvConfig,
-  appOptions: AppOptions,
-  fileAccess: FileAccessConfig,
-  upstreamAuth: UpstreamTokenResolution,
-  bootstrapServer: Server,
-): RuntimeBootstrapResult {
-  return {
-    app: {
-      version: env.relayVersion,
-      server: bootstrapServer,
-    } as unknown as App,
-    env,
-    appOptions,
-    fileAccess,
-    upstreamAuth,
-  };
-}
-
-export function createDefaultWsClient(input: RuntimeWsClientInput): HaWsClient {
-  const token = input.upstreamAuth.token;
-  if (!token || input.upstreamAuth.capability !== "full") {
-    throw new Error(
-      "Upstream Home Assistant authentication is required for runtime startup.",
-    );
+// A degraded file-access mode must be visible in the log: the user set an
+// option and got something less, and they deserve to know why.
+function logFileAccessWarnings(logger: Logger, fileAccess: FileAccessConfig): void {
+  for (const warning of fileAccess.warnings) {
+    logger.warn(warning);
   }
+}
+
+export function createDefaultWsClient(input: RuntimeClientInput): HaWsClient {
+  const token = input.upstreamAuth.token;
 
   return createHaWsClient({
     createConnection: async () => {
@@ -327,56 +257,6 @@ export function createDefaultWsClient(input: RuntimeWsClientInput): HaWsClient {
   });
 }
 
-export function createDefaultRestClient(
-  input: RuntimeRestClientInput,
-): HaRestClient {
-  const token = input.upstreamAuth.token;
-  if (!token || input.upstreamAuth.capability !== "full") {
-    throw new Error(
-      "Upstream Home Assistant authentication is required for runtime startup.",
-    );
-  }
-
-  return createHaRestClient({
-    baseUrl: input.env.haUrl,
-    token,
-  });
-}
-
-function buildTokenResolutionInput(env: EnvConfig): ResolveUpstreamTokenInput {
-  const input: ResolveUpstreamTokenInput = {};
-
-  if (env.supervisorToken) {
-    input.supervisorToken = env.supervisorToken;
-  }
-  if (env.haLlat) {
-    input.envHaLlat = env.haLlat;
-  }
-
-  return input;
-}
-
-function logStartup(logger: Logger, runtime: RuntimeBootstrapResult): void {
-  logger.info("Relay bootstrap", {
-    ha_url: runtime.env.haUrl,
-    relay_port: runtime.env.relayPort,
-    app_options_path: runtime.env.appOptionsPath,
-    auth_source: runtime.upstreamAuth.source,
-    auth_capability: runtime.upstreamAuth.capability,
-    // Visible in the App log so an operator can always see whether file access
-    // is on, and at which level — it is the one capability worth stating.
-    file_access: runtime.fileAccess.mode,
-    config_root: runtime.fileAccess.configRoot || null,
-    snapshot_dir: runtime.env.snapshotDir,
-  });
-
-  for (const warning of runtime.upstreamAuth.warnings) {
-    logger.warn(warning);
-  }
-
-  // A degraded file-access mode must be visible in the App log: the user set an
-  // option and got something less, and they deserve to know why.
-  for (const warning of runtime.fileAccess.warnings) {
-    logger.warn(warning);
-  }
+export function createDefaultRestClient(input: RuntimeClientInput): HaRestClient {
+  return createHaRestClient({ baseUrl: input.env.haUrl, token: input.upstreamAuth.token });
 }

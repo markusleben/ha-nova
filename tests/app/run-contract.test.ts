@@ -13,33 +13,25 @@ describe("app run contract", () => {
     expect(content).toContain("exec node /app/dist/src/runtime/main.js");
   });
 
-  it("maps options to env without re-implementing token precedence logic", () => {
+  it("passes only the App version; the Relay reads everything else itself", () => {
     const content = readFileSync("nova/run", "utf8");
 
-    expect(content).toContain("normalize_token()");
-    expect(content).toContain('"$value" == "null"');
-    expect(content).toContain('HA_URL="http://supervisor/core"');
-    expect(content).toContain('HA_URL="http://homeassistant:8123"');
-    expect(content).toContain("RELAY_AUTH_TOKEN");
-    expect(content).toContain('RELAY_AUTH_TOKEN_FILE="/data/relay_auth_token"');
-    expect(content).not.toContain("PRODUCT_VERSION");
-    expect(content).toContain("MIN_RELAY_VERSION");
-    expect(content).toContain("/app/version.json");
-    expect(content).toContain("Version metadata is missing");
-    expect(content).toContain("metadata.cloud_remote_enabled !== true");
-    expect(content).toContain("metadata.cloud_remote_enabled !== false");
-    expect(content).toContain(
-      "process.stdout.write(String(metadata.cloud_remote_enabled))",
-    );
-    expect(content).toContain("export CLOUD_REMOTE_ENABLED");
-    expect(content).toContain("HA_LLAT");
-    expect(content).not.toContain("bashio::config 'relay_auth_token'");
-    expect(content).not.toContain("bashio::config 'ha_llat'");
-    expect(content).not.toContain("RELAY_AUTH_TOKEN is required");
-
-    expect(content).not.toContain("resolveUpstreamToken");
-    expect(content).toContain("SUPERVISOR_TOKEN");
-    expect(content).not.toContain("WS_ALLOWLIST_APPEND");
+    expect(content).toContain('RELAY_VERSION="$(bashio::addon.version');
+    expect(content).toContain("export RELAY_VERSION");
+    expect(content).toContain('export RELAY_AUTH_TOKEN_FILE="/data/relay_auth_token"');
+    for (const moved of [
+      "HA_URL",
+      "HA_LLAT",
+      "RELAY_AUTH_TOKEN=",
+      "MIN_RELAY_VERSION",
+      "CLOUD_REMOTE_ENABLED",
+      "FILE_ACCESS",
+      "APP_OPTIONS_PATH",
+      "node -e",
+      "node -p",
+    ]) {
+      expect(content).not.toContain(moved);
+    }
   });
 
   it("uses explicit run.sh entrypoint in Dockerfile", () => {
