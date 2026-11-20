@@ -186,7 +186,7 @@ func novaAppInfoCall(info *HAAddonInfo) (haCall, error) {
 			err,
 		)
 	}
-	return haCall{"supervisor/api", map[string]any{"endpoint": "/addons/" + appSlug + "/info", "method": "get"}, info}, nil
+	return haCall{"supervisor/api", map[string]any{"endpoint": "/addons/" + appSlug + "/info", "method": "get"}, info, nil}, nil
 }
 
 func checkNOVAAppInfo(info HAAddonInfo, err error) (HAAddonInfo, error) {

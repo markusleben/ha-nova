@@ -151,24 +151,32 @@ func (c *HAWebSocketClient) Close() error {
 	return c.conn.Close()
 }
 
-// haCall is one command of a CallAll wave and where its result decodes.
+// haCall is one command of a CallAll wave, where its result decodes, and
+// check, which judges that outcome (nil: the outcome as it is).
 type haCall struct {
 	commandType string
 	fields      map[string]any
 	result      any
+	check       func(error) error
 }
 
 func (c *HAWebSocketClient) Call(ctx context.Context, commandType string, fields map[string]any, result any) error {
-	return c.CallAll(ctx, []haCall{{commandType, fields, result}})[0]
+	return c.CallAll(ctx, []haCall{{commandType, fields, result, nil}})[0]
 }
+
+var errHACallNotJudged = newCloudError(CloudErrHAProtocol, "call Home Assistant WebSocket after an earlier command failed", nil)
 
 // CallAll writes every command, then reads one result per command, matched
 // by its id: reads that don't depend on each other share one round trip.
-// Each outcome is judged as Call judges one; a broken or ambiguous stream
-// fails every call it left unanswered.
+// Results are judged (as Call judges one, then check) in the calls' order as
+// soon as every earlier one is judged, and the first failure ends the wave at
+// once: a later call can't delay it or speak over it. Calls after a failure
+// are never judged (errHACallNotJudged); a connection left with unread
+// replies is closed.
 func (c *HAWebSocketClient) CallAll(ctx context.Context, calls []haCall) []error {
 	errs, answered := make([]error, len(calls)), make([]bool, len(calls))
-	unanswered := func(err error) []error {
+	invalid := newCloudError(CloudErrInvalidInput, "call Home Assistant WebSocket", nil)
+	fill := func(err error) []error {
 		for i := range errs {
 			if !answered[i] {
 				errs[i] = err
@@ -176,47 +184,76 @@ func (c *HAWebSocketClient) CallAll(ctx context.Context, calls []haCall) []error
 		}
 		return errs
 	}
-	invalid := newCloudError(CloudErrInvalidInput, "call Home Assistant WebSocket", nil)
 	if c == nil || c.conn == nil || c.gate == nil {
-		return unanswered(invalid)
+		return fill(invalid)
 	}
 	for _, call := range calls {
 		if call.commandType == "" || len(call.commandType) > 128 || strings.ContainsAny(call.commandType, "\x00\r\n") {
-			return unanswered(invalid)
+			return fill(invalid)
+		}
+		for key := range call.fields {
+			if key == "id" || key == "type" || key == "" {
+				return fill(invalid)
+			}
 		}
 	}
 	select {
 	case <-ctx.Done():
-		return unanswered(newCloudError(CloudErrTimeout, "call Home Assistant WebSocket", ctx.Err()))
+		return fill(newCloudError(CloudErrTimeout, "call Home Assistant WebSocket", ctx.Err()))
 	case <-c.gate:
 	}
 	defer func() { c.gate <- struct{}{} }()
 
+	judged := 0
+	judge := func() bool { // the answered prefix, in order; false at its first failure
+		for judged < len(calls) && answered[judged] {
+			if check := calls[judged].check; check != nil {
+				errs[judged] = check(errs[judged])
+			}
+			if errs[judged] != nil {
+				for i := judged + 1; i < len(calls); i++ {
+					errs[i] = errHACallNotJudged
+				}
+				return false
+			}
+			judged++
+		}
+		return true
+	}
+	end := func(err error) []error { // every unanswered call fails with err; the earliest failure is judged first
+		for i := range calls {
+			if !answered[i] {
+				answered[i], errs[i] = true, err
+			}
+		}
+		judge()
+		return errs
+	}
 	sent := make(map[int64]int, len(calls))
+	var writeErr error
 	for i, call := range calls {
 		c.nextID++
 		request := make(map[string]any, len(call.fields)+2)
 		request["id"] = c.nextID
 		request["type"] = call.commandType
 		for key, value := range call.fields {
-			if key == "id" || key == "type" || key == "" {
-				return unanswered(invalid)
-			}
 			request[key] = value
 		}
 		data, err := json.Marshal(request)
 		if err != nil || len(data) > haWebSocketMaxCommandBytes {
-			return unanswered(newCloudError(CloudErrHAProtocol, "encode Home Assistant WebSocket command", err))
+			writeErr = newCloudError(CloudErrHAProtocol, "encode Home Assistant WebSocket command", err)
+			break
 		}
 		if err := c.conn.Write(ctx, data); err != nil {
-			return unanswered(cloudRequestError("write Home Assistant WebSocket command", err))
+			writeErr = cloudRequestError("write Home Assistant WebSocket command", err)
+			break
 		}
 		sent[c.nextID] = i
 	}
-	for range calls {
+	for range sent {
 		responseData, err := c.conn.Read(ctx)
 		if err != nil {
-			return unanswered(cloudHAWebSocketReadError("read Home Assistant WebSocket result", err))
+			return end(cloudHAWebSocketReadError("read Home Assistant WebSocket result", err))
 		}
 		var response struct {
 			ID      int64           `json:"id"`
@@ -230,14 +267,26 @@ func (c *HAWebSocketClient) CallAll(ctx context.Context, calls []haCall) []error
 		err = json.Unmarshal(responseData, &response)
 		i, ok := sent[response.ID]
 		if err != nil || !ok || answered[i] || response.Type != "result" || response.Success == nil {
-			return unanswered(newCloudError(CloudErrHAProtocol, "decode Home Assistant WebSocket result", err))
+			return end(newCloudError(CloudErrHAProtocol, "decode Home Assistant WebSocket result", err))
 		}
-		answered[i] = true
 		code := ""
 		if response.Error != nil {
 			code = response.Error.Code
 		}
+		answered[i] = true
 		errs[i] = decodeHAWebSocketResult(*response.Success, response.Error != nil, code, response.Result, calls[i].result)
+		if !judge() {
+			for _, j := range sent {
+				if !answered[j] { // replies still on the way: no later call may read them as its own
+					_ = c.conn.Close()
+					break
+				}
+			}
+			return errs
+		}
+	}
+	if writeErr != nil {
+		return end(writeErr)
 	}
 	return errs
 }
