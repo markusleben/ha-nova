@@ -15,7 +15,7 @@ HA NOVA is still early. Small, focused improvements help most.
 Prerequisites:
 - Node.js `>=22.12`
 - Go `>=1.26.11` (the `go` line in `cli/go.mod`)
-- `jq` and Python 3 (a few contract tests call them)
+- `jq` (a contract test calls it)
 
 ```bash
 npm ci

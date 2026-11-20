@@ -114,9 +114,9 @@ describe("project docs contract", () => {
     }
   });
 
-  it("treats superpowers docs as archive-only history", () => {
-    expect(governance).toContain("`docs/archive/superpowers/` contains historical superpowers plans/specs only");
-    expect(governance).toContain("do not create new active docs under `docs/archive/superpowers/`");
+  it("treats early plans as archive-only history", () => {
+    expect(governance).toContain("`docs/archive/early-plans/` contains historical plans/specs from early development only");
+    expect(governance).toContain("do not create new active docs under `docs/archive/early-plans/`");
     expect(governance).not.toContain("do not create new active docs under `docs/superpowers/`");
   });
 
