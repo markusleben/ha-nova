@@ -224,6 +224,55 @@ func TestHelperOptionsFailClosed(t *testing.T) {
 	}
 }
 
+// A UI thermostat that leaves the calls unbounded is named in the plan, as a
+// YAML one is: the helper, the check, and what failed it.
+func TestHelperOptionsNameTheCause(t *testing.T) {
+	heaterLight := func(f *fakeHA, fl *thermoFlows) {
+		fl.form = func(e string) any { return coreReply(200, thermoForm(e, "heater", "light.hall")) }
+	}
+	for name, tc := range map[string]struct {
+		setup          func(*fakeHA, *thermoFlows)
+		entity, detail string
+		exact          bool // no quiet check failed: nothing follows the detail
+	}{
+		"an automation on the thermostat's state": {func(f *fakeHA, fl *thermoFlows) {
+			f.automation("thermo_follow", "thermo_follow", map[string]any{"triggers": []any{map[string]any{"trigger": "state", "entity_id": "climate.thermo"}}, "actions": []any{step("cover.stop_cover", "cover.blind")}})
+			f.related["entity:climate.thermo"] = []string{"automation.thermo_follow"}
+		}, "climate.thermo", "helper_listened: climate.thermo: ", false},
+		"the start answers 400": {func(f *fakeHA, fl *thermoFlows) {
+			fl.form = func(e string) any { return coreReply(400, thermoForm(e, "heater", "switch.heater")) }
+		}, "climate.thermo", "options_unread", true},
+		"a light as heater": {heaterLight, "climate.thermo", "heater_not_plain", true},
+		"an automation on its heater": {func(f *fakeHA, fl *thermoFlows) {
+			f.automation("heater_follow", "heater_follow", map[string]any{"triggers": []any{map[string]any{"trigger": "state", "entity_id": "switch.heater"}}, "actions": []any{step("cover.stop_cover", "cover.blind")}})
+			f.related["entity:switch.heater"] = []string{"automation.heater_follow"}
+		}, "climate.thermo", "heater_not_plain: switch.heater: ", false},
+		"the second thermostat's read fails": {func(f *fakeHA, fl *thermoFlows) {
+			f.ent("climate.second", "generic_thermostat", "heat", nil)
+			f.full = append(f.full, map[string]any{"entity_id": "climate.second", "platform": "generic_thermostat", "config_entry_id": "ESECOND"})
+			f.entries = append(f.entries, map[string]any{"entry_id": "ESECOND", "domain": "generic_thermostat", "supports_options": true})
+			fl.sources["climate.second"] = map[string]any{"domain": "generic_thermostat"}
+			fl.form = func(e string) any {
+				if e == "ESECOND" {
+					return coreReply(500, thermoForm(e, "heater", "switch.heater"))
+				}
+				return coreReply(200, thermoForm(e, "heater", "switch.heater"))
+			}
+		}, "climate.second", "options_unread", true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h, f, flows := thermoHome(t)
+			tc.setup(f, flows)
+			_, env := h.run(runPlanCommand, "call", "light.turn_off", "light.kitchen")
+			if !slices.ContainsFunc(env.Reasons, func(r tierReason) bool {
+				return r.Code == reasonHelperCalls && r.EntityID == tc.entity && (r.Detail == tc.detail || !tc.exact && strings.HasPrefix(r.Detail, tc.detail))
+			}) {
+				t.Errorf("reasons %+v lack %s on %s with detail %q", env.Reasons, reasonHelperCalls, tc.entity, tc.detail)
+			}
+		})
+	}
+}
+
 // Once one heater leaves the calls unbounded, no further flow is started.
 func TestHelperOptionsStopOnceUnbounded(t *testing.T) {
 	h, f, flows := thermoHome(t)

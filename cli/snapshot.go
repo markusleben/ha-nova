@@ -106,6 +106,14 @@ func runSnapshotSave(paths runtimePaths, args []string) int {
 	return 0
 }
 
+// snapshotListElsewhere ends `snapshot show --list` on stderr: it lists update
+// checkpoints only, and an agent looking for what a delete kept must ask the
+// Relay (MAR-267).
+const snapshotListElsewhere = `This list holds update checkpoints only. The copy a delete kept, if any, is a config snapshot in the server's Relay: ha-nova relay backups -d '{"action":"list"}' (add --server <name> for another server)`
+
+// snapshotListNextStep is the same pointer for ha_read's snapshot list.
+const snapshotListNextStep = `This list holds update checkpoints only. The copy a delete kept, if any, is a config snapshot in the Relay: call ha_read with endpoint backups and payload {"action":"list"}.`
+
 func runSnapshotShow(call *verbCall, paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("snapshot show", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -167,6 +175,7 @@ func runSnapshotShow(call *verbCall, paths runtimePaths, args []string) int {
 			return 1
 		}
 		fmt.Fprintln(call.stdout(), string(out))
+		fmt.Fprintln(call.stderr(), "[ha-nova] "+snapshotListElsewhere)
 		return 0
 	}
 	selected, demo, err := snapshotServer(call, paths, fs, *server)

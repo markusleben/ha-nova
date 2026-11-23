@@ -251,7 +251,7 @@ normal HA NOVA delete flow; that delete requires a delete preview, its
 confirmation, and absence verification, even when the item was created earlier in the same session.
 Do not call this `revert`, and do not imply that manual deletion or a full Home Assistant Backup restore is the only cleanup path.
 A delete has no HA NOVA `revert`; a snapshot-covered delete restores from its
-auto config snapshot (`../ha-nova/config-snapshots.md`) — that is the
+auto config snapshot (Relay backups `list`; `../ha-nova/config-snapshots.md`) — the
 first rollback path. When no config snapshot was captured, rollback requires
 restoring a suitable existing Home Assistant Backup (Settings > System >
 Backups), or recreating the item.
