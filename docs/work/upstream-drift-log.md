@@ -135,3 +135,39 @@ standing recheck stay here.
 - Next screen: before the next release cycle, or on HA `2026.11.3` or
   the `2026.12.0` beta, whichever comes first. Watch Supervisor 2026.12
   for the smaller App capability set and multicast rollout.
+
+## 2026-11-23 — pre-release screen (v0.35.0 cycle): HA after 2026.11.2 + developer blog after 2026-11-18 + HACS + Supervisor
+
+- Window screened: Core releases after `2026.11.2` of 2026-11-16
+  (none; no `2026.11.3` or `2026.12.0` beta); contributors.home-assistant.io/blog
+  after 2026-11-18 (one post, “Dict-style access to device info is
+  deprecated” of 2026-11-19, which changes the Python `DeviceInfo` API for
+  integrations, not a WS command or REST route); HACS releases after
+  `2.0.5` of 2025-01-28 (none); Supervisor releases after `2026.11.0` of
+  2026-11-06 (none). The beta channel still lists Core `2026.11.2` and
+  Supervisor `2026.11.0`.
+- Clean pass: nothing new changes a WS command, REST route, or service
+  pinned in `skills/**/*.md` or `cli/*.go`.
+- The 0.35 train adds no upstream WS command or REST route. It relies on
+  these existing shapes, all unchanged in Core `2026.11.2`:
+  - batched reads (MAR-180) send the same `automation/config` and
+    `script/config` messages one after another over the existing WS
+    connection;
+  - the event trigger (`components/homeassistant/triggers/event.py`)
+    renders `event_data` once with the trigger variables and matches it
+    key by key (MAR-262);
+  - the state trigger accepts entity registry ids (`cv.entity_ids_or_uuids`,
+    resolved by `er.async_validate_entity_ids`; MAR-263);
+  - the Companion app notification data `url` (iOS), `clickAction`
+    (Android, including `noAction`), `sticky`, and `push.sound` (MAR-266).
+- Source checked: [Core releases (API listing)](https://api.github.com/repos/home-assistant/core/releases?per_page=3),
+  [contributors blog](https://contributors.home-assistant.io/blog/),
+  [HACS releases](https://github.com/hacs/integration/releases),
+  [Supervisor releases](https://github.com/home-assistant/supervisor/releases) and
+  the [beta channel](https://version.home-assistant.io/beta.json);
+  Core `2026.11.2` [event trigger](https://github.com/home-assistant/core/blob/2026.11.2/homeassistant/components/homeassistant/triggers/event.py)
+  and [state trigger](https://github.com/home-assistant/core/blob/2026.11.2/homeassistant/components/homeassistant/triggers/state.py);
+  [Companion app notifications](https://companion.home-assistant.io/docs/notifications/notifications-basic/).
+- Next screen: before the next release cycle, or on HA `2026.11.3` or
+  the `2026.12.0` beta, whichever comes first. Watch Supervisor 2026.12
+  for the smaller App capability set and multicast rollout.
