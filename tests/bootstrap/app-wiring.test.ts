@@ -67,7 +67,8 @@ describe("app wiring", () => {
         uptime_s: 4,
         file_access: "off",
         snapshots: { files: 0, bytes: 0 },
-        gate: 1
+        gate: 1,
+        ws_batch: 1
       }
     });
 

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"slices"
 	"strconv"
@@ -91,6 +92,9 @@ func gateVerdict(endpoint string, body []byte, session func() (*relaySession, er
 	if logFactsRequest(endpoint, body) { // answered as log facts (/redact), never as the log
 		return gateCheck{Verdict: gatePass, Kind: "read"}, nil
 	}
+	if _, isBatch := payload["batch"]; endpoint == "ws" && isBatch {
+		return gateBatch(payload), nil
+	}
 	requests := gateRequests(endpoint, payload)
 	if endpoint == "core" && payload["method"] == http.MethodPost && payload["path"] == optionsFlowPath { // a check of the start never starts a flow (MAR-153)
 		open := session
@@ -161,6 +165,32 @@ func gateVerdict(endpoint string, body []byte, session func() (*relaySession, er
 		check.Kind = "probe"
 	}
 	return check, nil
+}
+
+// gateBatch: a batch of loaded-config reads (MAR-180,
+// docs/work/2026-11-20-ws-batch-reads-spec.md) passes as a read only when it
+// is exactly that shape and every item passes as a read sent alone, rated
+// without a session; anything else is refused.
+func gateBatch(payload map[string]any) gateCheck {
+	refused := gateCheck{Verdict: gateRefuse, Kind: "write", Why: "batch"}
+	items, _ := payload["batch"].([]any)
+	if len(payload) != 1 || len(items) == 0 || len(items) > wsBatchMax {
+		return refused
+	}
+	noSession := func() (*relaySession, error) {
+		return nil, errors.New("a batch item is rated without reading Home Assistant")
+	}
+	for _, item := range items {
+		request, _ := item.(map[string]any)
+		raw, err := json.Marshal(request)
+		if !wsBatchItem(request) || err != nil {
+			return refused
+		}
+		if check, err := gateVerdict("ws", raw, noSession); err != nil || check.Verdict != gatePass || check.Kind != "read" {
+			return refused
+		}
+	}
+	return gateCheck{Verdict: gatePass, Kind: "read"}
 }
 
 // gateProbe: exactly one of the two requests helperOptions sends, which the

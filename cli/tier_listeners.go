@@ -187,6 +187,12 @@ func (e *tierEngine) listenerTable() *listenerTable {
 	}
 	var wg sync.WaitGroup
 	e.s.censusReads(true)
+	requests := make([]map[string]any, len(rows))
+	for i, row := range rows {
+		domain, _ := splitID(row.entityID)
+		requests[i] = loadedConfigRequest(row.entityID, domain)
+	}
+	e.s.readBatched(requests) // over Link: a few round trips, not one per eight configs
 	for _, row := range rows {
 		wg.Add(1)
 		go func(row *autoRow) {

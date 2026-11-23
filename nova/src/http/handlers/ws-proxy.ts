@@ -4,6 +4,7 @@ import {
   type HaWsEventCollectionOptions,
   type HaWsRequest,
 } from "../../ha/ws-client.js";
+import { TimeoutError, withTimeout } from "../../shared/timeout.js";
 import { HttpError } from "../errors.js";
 import type { RouteContext, RouteHandler } from "../router.js";
 
@@ -15,6 +16,7 @@ export interface WsProxyHandlerOptions {
       options?: HaWsEventCollectionOptions
     ): Promise<HaWsEventCollection<unknown>>;
   };
+  batchDeadlineMs?: number;
 }
 
 interface ParsedWsProxyRequest {
@@ -24,9 +26,36 @@ interface ParsedWsProxyRequest {
 
 const MAX_COLLECT_EVENTS = 100;
 const MAX_COLLECT_TIMEOUT_MS = 10_000;
+const MAX_BATCH_ITEMS = 16;
+const BATCH_DEADLINE_MS = 10_000;
+
+// prepareWsBody: a batch's envelope is checked before the safety check rates
+// it; the worker owns the item shape (docs/work/2026-11-20-ws-batch-reads-spec.md).
+export function prepareWsBody(body: unknown): unknown {
+  if (isBatch(body)) {
+    batchItems(body);
+  }
+  return body;
+}
+
+export function isBatch(body: unknown): body is Record<string, unknown> {
+  return !!body && typeof body === "object" && !Array.isArray(body) && "batch" in body;
+}
+
+function batchItems(body: Record<string, unknown>): HaWsRequest[] {
+  const items = body.batch;
+  if (Object.keys(body).length !== 1 || !Array.isArray(items) || items.length < 1 || items.length > MAX_BATCH_ITEMS ||
+    !items.every((item) => isWsMessageLike(item))) {
+    throw new HttpError(400, "VALIDATION_ERROR", `batch must be the only key and hold 1 to ${MAX_BATCH_ITEMS} WS messages`);
+  }
+  return items as HaWsRequest[];
+}
 
 export function createWsProxyHandler(options: WsProxyHandlerOptions): RouteHandler {
-  return async ({ body }: RouteContext) => {
+  return async ({ body, response }: RouteContext) => {
+    if (isBatch(body)) {
+      return { results: await sendBatch(options.wsClient, batchItems(body), response, options.batchDeadlineMs ?? BATCH_DEADLINE_MS) };
+    }
     const request = parseWsRequestBody(body);
 
     try {
@@ -45,14 +74,47 @@ export function createWsProxyHandler(options: WsProxyHandlerOptions): RouteHandl
 
       return await options.wsClient.sendMessage(request.message);
     } catch (error) {
-      if (error instanceof HaWsClientError) {
-        throw new HttpError(502, error.code, error.message);
-      }
-
-      const message = error instanceof Error && error.message ? error.message : "WS upstream request failed";
-      throw new HttpError(502, "UPSTREAM_WS_ERROR", message);
+      throw upstreamError(error);
     }
   };
+}
+
+function upstreamError(error: unknown): HttpError {
+  if (error instanceof HaWsClientError) {
+    return new HttpError(502, error.code, error.message);
+  }
+  const message = error instanceof Error && error.message ? error.message : "WS upstream request failed";
+  return new HttpError(502, "UPSTREAM_WS_ERROR", message);
+}
+
+// sendBatch sends the items one after another, as one client's reads, and
+// answers each as POST /ws answers it alone. Once the batch's time is up or
+// the client is gone, an item still waiting is not sent.
+async function sendBatch(
+  wsClient: WsProxyHandlerOptions["wsClient"],
+  items: HaWsRequest[],
+  response: RouteContext["response"] | undefined,
+  deadlineMs: number,
+): Promise<unknown[]> {
+  const deadline = Date.now() + deadlineMs;
+  let gone = false;
+  response?.once("close", () => { gone = true; });
+  const results: unknown[] = [];
+  for (const item of items) {
+    const left = deadline - Date.now();
+    try {
+      if (gone || left <= 0) {
+        throw new HaWsClientError("UPSTREAM_WS_TIMEOUT", "The batch ran out of time; this read was not sent");
+      }
+      results.push({ ok: true, data: (await withTimeout(wsClient.sendMessage(item), left)) ?? null });
+    } catch (error) {
+      const failure = upstreamError(error instanceof TimeoutError
+        ? new HaWsClientError("UPSTREAM_WS_TIMEOUT", "The batch ran out of time waiting for this read")
+        : error);
+      results.push({ ok: false, error: { code: failure.code, message: failure.message } });
+    }
+  }
+  return results;
 }
 
 function parseWsRequestBody(body: unknown): ParsedWsProxyRequest {

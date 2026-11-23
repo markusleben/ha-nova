@@ -9,7 +9,7 @@ import { createFilesHandler } from "../http/handlers/files.js";
 import { createHealthHandler } from "../http/handlers/health.js";
 import { createGateMeHandler } from "../http/handlers/gate-me.js";
 import { createSupervisorProxyHandler } from "../http/handlers/supervisor-proxy.js";
-import { createWsProxyHandler } from "../http/handlers/ws-proxy.js";
+import { createWsProxyHandler, prepareWsBody } from "../http/handlers/ws-proxy.js";
 import { gated } from "../http/gate.js";
 import { gateWithAsks, type GatePage, type PhoneLink } from "../http/gate-asks.js";
 import { pageChannel } from "../http/handlers/nova-approve.js";
@@ -331,7 +331,7 @@ function buildFunctionalHandlers(
       now: input.now,
       logger: input.logger,
     }),
-    ws: gated("ws", createWsProxyHandler({ wsClient: input.wsClient }), gate),
+    ws: gated("ws", createWsProxyHandler({ wsClient: input.wsClient }), gate, prepareWsBody),
     core: gated("core", async ({ body }) => await forwardCore(body as CoreProxyRequest), gate, parseCoreRequest),
     files: gated("files", createFilesHandler({ fileAccess: input.fileAccess }), gate),
     backups: gated("backups", createBackupsHandler({ snapshotRoot: input.snapshotRoot, now: input.now }), gate),

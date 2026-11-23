@@ -26,14 +26,22 @@ type fakeRelayCall struct {
 
 // fakeRelayLog records every request the fake Relay received.
 type fakeRelayLog struct {
-	mu    sync.Mutex
-	calls []fakeRelayCall
-	gate  atomic.Bool  // GET /health says gate: 1 (a gated App); else an older App
-	noWin atomic.Bool  // a gated App without window: 1 (before 0.32)
-	code  atomic.Bool  // GET /health says code: 1 (the 0.33 App's chat code, MAR-244)
-	me    atomic.Value // GET /gate/v1/me's data (a map); unset: 404, as an App without it
-	meGot atomic.Int32 // GET /gate/v1/me reads
+	mu      sync.Mutex
+	calls   []fakeRelayCall
+	gate    atomic.Bool  // GET /health says gate: 1 (a gated App); else an older App
+	noWin   atomic.Bool  // a gated App without window: 1 (before 0.32)
+	code    atomic.Bool  // GET /health says code: 1 (the 0.33 App's chat code, MAR-244)
+	me      atomic.Value // GET /gate/v1/me's data (a map); unset: 404, as an App without it
+	meGot   atomic.Int32 // GET /gate/v1/me reads
+	batches atomic.Int32 // POST /ws batches (relay_batch.go); their items are logged as calls
 }
+
+// fakeRelayBatch: GET /health says ws_batch: 1 and POST /ws answers batches as
+// the Relay does (relay_batch.go); off: an App before batches.
+var fakeRelayBatch atomic.Bool
+
+// fakeRelayBatchFails: a batch is answered 503 GATE_UNAVAILABLE as a whole.
+var fakeRelayBatchFails atomic.Bool
 
 func (l *fakeRelayLog) all() []fakeRelayCall {
 	l.mu.Lock()
@@ -98,6 +106,9 @@ func setupFakeRelay(t *testing.T, reply func(r *http.Request, endpoint string, p
 			if log.gate.Load() && log.code.Load() {
 				health["code"] = 1
 			}
+			if fakeRelayBatch.Load() {
+				health["ws_batch"] = 1
+			}
 			w.Header().Set("content-type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": health})
 			return
@@ -118,6 +129,10 @@ func setupFakeRelay(t *testing.T, reply func(r *http.Request, endpoint string, p
 		var payload map[string]any
 		if err := json.Unmarshal(raw, &payload); err != nil {
 			t.Errorf("decode payload: %v", err)
+		}
+		if items, isBatch := payload["batch"].([]any); isBatch && endpoint == "ws" {
+			serveFakeBatch(t, w, r, log, raw, items, reply)
+			return
 		}
 		// Invariant I1 oracle: every verb test fails on a non-read request.
 		// Typed plans also look for the owner's phone (its own fixed allowlist),

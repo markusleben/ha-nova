@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createWsProxyHandler } from "../../nova/src/http/handlers/ws-proxy.js";
+import { HaWsClientError } from "../../nova/src/ha/ws-client.js";
+import { createWsProxyHandler, prepareWsBody } from "../../nova/src/http/handlers/ws-proxy.js";
 import { createRouter } from "../../nova/src/http/router.js";
 import { createHttpServer } from "../../nova/src/http/server.js";
 
@@ -599,3 +600,78 @@ function jsonBodyWithPad(prefix: string, suffix: string, targetBytes: number): s
   }
   return `${prefix}${"x".repeat(padBytes)}${suffix}`;
 }
+
+describe("ws proxy: batched reads", () => {
+  const servers: Array<ReturnType<typeof createHttpServer>> = [];
+  afterEach(async () => {
+    await Promise.all(servers.map((server) => new Promise<void>((resolve) => server.close(() => resolve()))));
+    servers.length = 0;
+  });
+
+  async function postBatch(sendMessage: (message: { type: string; entity_id?: string }) => Promise<unknown>, batch: unknown, batchDeadlineMs?: number) {
+    const router = createRouter();
+    router.register("POST", "/ws", createWsProxyHandler({ wsClient: { sendMessage }, ...(batchDeadlineMs ? { batchDeadlineMs } : {}) }));
+    const { baseUrl } = await startServer(servers, router);
+    const response = await fetch(`${baseUrl}/ws`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${TEST_AUTH_TOKEN}`, "content-type": "application/json" },
+      body: JSON.stringify({ batch }),
+    });
+    return { status: response.status, body: (await response.json()) as { data: { results: unknown[] } } };
+  }
+
+  it("answers each item in order as POST /ws answers it alone, one after another", async () => {
+    let inFlight = 0;
+    let most = 0;
+    const res = await postBatch(async (message) => {
+      most = Math.max(most, ++inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      inFlight--;
+      if (message.entity_id === "automation.gone") {
+        throw new HaWsClientError("UPSTREAM_WS_COMMAND_ERROR", "not_found: Entity not found");
+      }
+      if (message.entity_id === "script.odd") {
+        throw new Error("socket closed");
+      }
+      return message.entity_id === "script.empty" ? undefined : { config: { id: message.entity_id } };
+    }, [
+      { type: "automation/config", entity_id: "automation.a" },
+      { type: "automation/config", entity_id: "automation.gone" },
+      { type: "script/config", entity_id: "script.odd" },
+      { type: "script/config", entity_id: "script.empty" },
+    ]);
+    expect(res.status).toBe(200);
+    expect(res.body.data.results).toEqual([
+      { ok: true, data: { config: { id: "automation.a" } } },
+      { ok: false, error: { code: "UPSTREAM_WS_COMMAND_ERROR", message: "not_found: Entity not found" } },
+      { ok: false, error: { code: "UPSTREAM_WS_ERROR", message: "socket closed" } },
+      { ok: true, data: null },
+    ]);
+    expect(most).toBe(1);
+  });
+
+  it("sends no item once the batch's time is up", async () => {
+    const sent: string[] = [];
+    const res = await postBatch(async (message) => {
+      sent.push(message.entity_id!);
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      return { config: {} };
+    }, [
+      { type: "automation/config", entity_id: "automation.a" },
+      { type: "automation/config", entity_id: "automation.b" },
+      { type: "automation/config", entity_id: "automation.c" },
+    ], 100);
+    expect(sent).toEqual(["automation.a", "automation.b"]);
+    expect(res.body.data.results.map((r) => (r as { ok: boolean; error?: { code: string } }).error?.code ?? "ok")).toEqual(["ok", "UPSTREAM_WS_TIMEOUT", "UPSTREAM_WS_TIMEOUT"]);
+  });
+
+  it("refuses a batch envelope it can't read before anything is rated", () => {
+    const item = { type: "automation/config", entity_id: "automation.a" };
+    for (const body of [{ batch: [] }, { batch: Array(17).fill(item) }, { batch: [item], type: "ping" }, { batch: item }, { batch: [{ entity_id: "automation.a" }] }]) {
+      expect(() => prepareWsBody(body)).toThrow(expect.objectContaining({ status: 400, code: "VALIDATION_ERROR" }));
+    }
+    expect(prepareWsBody({ batch: Array(16).fill(item) })).toEqual({ batch: Array(16).fill(item) });
+    expect(prepareWsBody({ type: "ping" })).toEqual({ type: "ping" });
+  });
+});
+
