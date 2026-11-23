@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.32] - 2026-11-23
+
+### Changed
+- Chat apps get HA NOVA 0.35.0.
+- HA NOVA 0.35 reads automation and script settings in batches of up to 16 per request (`POST /ws` with `batch`; `/health` reports `ws_batch: 1`), so planning a change waits for fewer round trips, most of all over Home Assistant Link. A batch may carry only automation and script config reads, the safety check rates every item, the whole batch has 10 seconds, and the App's own keys can't send one.
+- A phone question this App holds for a computer now carries the NOVA page path: a plain tap opens that request on the NOVA page, where approving still needs the page's own button. The NOVA page opened this way shows that request alone and says so once it has ended.
+- The safety check counts scripts and automations near a thermostat's heater only when they could react: a script nearby counts while it runs, and an automation listening to every state change counts only when its filter could name the heater. Triggers that name an entity by its registry id now count.
+
+### Security
+- The WebSocket library is updated to a release that fixes a remote memory-exhaustion issue (ws 8.23.0).
+
+### Upgrade notes
+- Computers on HA NOVA 0.35.0 ask you to update this App. HA NOVA 0.35 on an older App reads one at a time, and its phone questions carry no NOVA page link.
+
 ## [Relay 0.13.31] - 2026-11-20
 
 ### Changed
