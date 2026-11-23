@@ -87,7 +87,10 @@ func (e *tierEngine) readAhead(ids []string, depth int) {
 		prefetch(reads)
 		ids = nil
 		for i, automation := range automations {
-			if (named[automation] || targetsPlace(configs[i], places[automation])) && slices.ContainsFunc(on[automation], func(id string) bool { return triggerMatch(configs[i], id, e.needles(id), stateDelta{}) != "" }) {
+			if (named[automation] || targetsPlace(configs[i], places[automation])) && slices.ContainsFunc(on[automation], func(id string) bool {
+				verdict, read := e.triggerMatch(configs[i], id, stateDelta{})
+				return !read || verdict != ""
+			}) {
 				ids = append(ids, actionTargets(literalActions(configs[i]))...)
 			}
 		}
@@ -96,12 +99,40 @@ func (e *tierEngine) readAhead(ids []string, depth int) {
 	}
 }
 
-// needles: what a consumer's trigger names when it reacts to id.
-func (e *tierEngine) needles(id string) []string {
-	if device := e.reg[id].di; device != "" {
-		return []string{id, device}
+// triggerMatch matches cfg's triggers against what one names when it reacts
+// to id: the id, its device, and, when a trigger names an entity by its
+// registry entry id (an id without a dot; Home Assistant resolves it when
+// it attaches, MAR-263), id's entry id, read from the full entity registry
+// only then. read is false when that registry is needed and unreadable.
+func (e *tierEngine) triggerMatch(cfg map[string]any, id string, d stateDelta) (verdict string, read bool) {
+	needles := []string{id}
+	if device := e.deviceOf(id); device != "" {
+		needles = append(needles, device)
 	}
-	return []string{id}
+	if namesEntryID(cfg) {
+		rows, err := e.fullRegistry()
+		if err != nil {
+			return "", false
+		}
+		for _, row := range rows {
+			if row.EntityID == id && row.ID != "" {
+				needles = append(needles, strings.ToLower(row.ID))
+			}
+		}
+	}
+	return triggerMatch(cfg, id, needles, d), true
+}
+
+// namesEntryID: a trigger names an entity by something that isn't an
+// entity id, in its entity_id or its target's.
+func namesEntryID(cfg map[string]any) bool {
+	for _, trigger := range flattenTriggers(firstPresent(cfg, "triggers", "trigger")) {
+		target, _ := trigger["target"].(map[string]any)
+		if slices.ContainsFunc(append(literalIDs(trigger["entity_id"]), literalIDs(target["entity_id"])...), func(s string) bool { return s != "" && !strings.Contains(s, ".") }) {
+			return true
+		}
+	}
+	return false
 }
 
 // warmConfig reads an automation's config as runConfig does (the one Home

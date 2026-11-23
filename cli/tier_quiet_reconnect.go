@@ -9,10 +9,11 @@ import (
 // quietSync: an automation that only puts a heater's switch or fan back in
 // step after it reconnects (MAR-245) doesn't make that entity loud, when
 // nothing reacts to the sync running either: no automation on
-// automation_triggered, no wait that could be one, and nothing search/related
-// ties to the sync's own entity.
+// automation_triggered, no wait that could be one, no state_changed listener
+// that may name the sync's own entity (its last_triggered changes), and
+// nothing search/related ties to that entity.
 func (e *tierEngine) quietSync(cfg map[string]any, automation, id string) bool {
-	if !reconnectSync(cfg, id) || len(e.listeners.hits["automation_triggered"]) > 0 || e.listeners.waits["automation_triggered"] || e.listeners.waits[""] {
+	if !reconnectSync(cfg, id) || len(e.listeners.hits["automation_triggered"]) > 0 || e.listeners.waits["automation_triggered"] || e.listeners.waits[""] || e.listeners.stateChanged(automation) != "" {
 		return false
 	}
 	related, err := e.related("entity", automation)

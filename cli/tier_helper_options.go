@@ -220,7 +220,7 @@ func (e *tierEngine) helperCalls() {
 		if !e.quiet(id) {
 			e.calls.unknown = true
 			if entry == "" {
-				e.helperCause = tierReason{Code: reasonHelperCalls, EntityID: id, Detail: "helper_listened"}
+				e.helperCause = tierReason{Code: reasonHelperCalls, EntityID: id, Detail: "helper_listened: " + e.loudWhy}
 			}
 			return
 		}
@@ -267,33 +267,75 @@ func (e *tierEngine) plainSwitched(id string) bool {
 	return e.quiet(id)
 }
 
-// quiet: nothing reacts to id's state, which would call more: no group that
-// search/related ties to it or its device, no script there or where it sits
-// (a wait on its state), no automation tied to it or its device whose
-// triggers match either (a thermostat sits on its heater's device:
-// automations that only set it don't count, nor one that only syncs it
-// after a reconnect, quietSync), none where it sits whose
-// triggers target that place (as scanConsumers), and no automation on
-// state_changed events, which search/related doesn't index.
+// quiet: nothing reacts to id's state, which would call more (loud); the
+// last check that failed stays in e.loudWhy for the plan's reason detail.
 func (e *tierEngine) quiet(id string) bool {
-	if e.listeners == nil || len(e.listeners.hits["state_changed"]) > 0 {
-		return false
+	e.loudWhy = e.loud(id)
+	return e.loudWhy == ""
+}
+
+// loud names the first check that fails, "" when none does: no
+// state_changed listener that may name id (search/related doesn't index
+// them), no group that search/related ties to it or its device, no running
+// script or automation tied to it or where it sits (one at rest reacts only
+// through its triggers; an unread state counts as running), no automation
+// tied to it or its device whose triggers match either (a thermostat sits on
+// its heater's device: automations that only set it don't count, nor one
+// that only syncs it after a reconnect, quietSync), and none where it sits
+// whose triggers target that place (as scanConsumers).
+func (e *tierEngine) loud(id string) string {
+	if e.listeners == nil {
+		return id + ": listeners unread"
+	}
+	if why := e.listeners.stateChanged(id); why != "" {
+		return id + ": " + why
 	}
 	items, direct, ok := e.relatedItems(id)
 	if !ok {
-		return false
+		return id + ": registry unread"
 	}
 	for i, item := range items {
 		related, err := e.related(item[0], item[1])
-		if err != nil || len(related["script"]) > 0 || i < direct && len(related["group"]) > 0 {
-			return false
+		if err != nil {
+			return id + ": related unread for " + item[0] + " " + item[1]
+		}
+		where := " (" + item[0] + " " + item[1] + ")"
+		if i < direct && len(related["group"]) > 0 {
+			return id + ": group " + related["group"][0]
+		}
+		e.prefetchStates(slices.Concat(related["script"], related["automation"]))
+		for _, script := range related["script"] {
+			st, err := e.state(script)
+			switch {
+			case err != nil || st == nil:
+				return id + ": state unread of " + script + where
+			case st.State != "off":
+				return id + ": running script " + script + where
+			}
 		}
 		for _, automation := range related["automation"] {
-			cfg := e.warmConfig(automation)
-			if cfg == nil || i < direct && triggerMatch(cfg, id, e.needles(id), stateDelta{}) != "" && !e.quietSync(cfg, automation, id) || i >= direct && targetsPlace(cfg, items[direct:]) {
-				return false
+			st, err := e.state(automation)
+			switch cfg := e.warmConfig(automation); {
+			case err != nil || st == nil:
+				return id + ": state unread of " + automation + where
+			case st.attr("current") != float64(0):
+				return id + ": running automation " + automation + where
+			case cfg == nil:
+				return id + ": config unread of " + automation
+			case i >= direct:
+				if targetsPlace(cfg, items[direct:]) {
+					return id + ": place trigger of " + automation + where
+				}
+			default:
+				verdict, read := e.triggerMatch(cfg, id, stateDelta{})
+				if !read {
+					return id + ": registry unread"
+				}
+				if verdict != "" && !e.quietSync(cfg, automation, id) {
+					return id + ": trigger of " + automation
+				}
 			}
 		}
 	}
-	return true
+	return ""
 }

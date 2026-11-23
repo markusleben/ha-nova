@@ -21,6 +21,8 @@ const viaListenerScan = "listener scan"
 type listenerHit struct {
 	automation, entityFilter string
 	filter                   map[string]any // the trigger's event_data
+	entity                   string         // the entity_id its event_data provably names (literalEntity)
+	literal                  bool
 }
 
 type listenerTable struct {
@@ -155,6 +157,9 @@ func (e *tierEngine) listenerTable() *listenerTable {
 	if err == nil {
 		err = json.Unmarshal(body, &states)
 	}
+	if err == nil && states == nil {
+		err = errors.New("Home Assistant answered null for /api/states")
+	}
 	if err != nil {
 		e.readFailed("", "", "automation scan")
 		return nil
@@ -245,14 +250,15 @@ func (e *tierEngine) listenerTable() *listenerTable {
 			if firstPresent(trigger, "trigger", "platform") != "event" {
 				continue
 			}
-			filter, _ := trigger["event_data"].(map[string]any)
+			filter, _ := rendered(trigger["event_data"]).(map[string]any)
+			entity, literal := literalEntity(filter, cfg["trigger_variables"])
 			entityFilter, _ := filter["entity_id"].(string)
 			if isTemplated(entityFilter) {
 				entityFilter = "" // a runtime filter may match anything: count it as matching
 			}
-			types, isList := trigger["event_type"].([]any)
+			types, isList := rendered(trigger["event_type"]).([]any)
 			if !isList {
-				types = []any{trigger["event_type"]}
+				types = []any{rendered(trigger["event_type"])}
 			}
 			for _, t := range types {
 				name, isString := t.(string)
@@ -261,7 +267,7 @@ func (e *tierEngine) listenerTable() *listenerTable {
 					continue
 				}
 				table.counts[name]++
-				table.hits[name] = append(table.hits[name], listenerHit{automation: row.entityID, entityFilter: entityFilter, filter: filter})
+				table.hits[name] = append(table.hits[name], listenerHit{automation: row.entityID, entityFilter: entityFilter, filter: filter, entity: entity, literal: literal})
 			}
 		}
 	}
@@ -282,9 +288,9 @@ func collectWaits(node any, waits map[string]bool) {
 			if firstPresent(trigger, "trigger", "platform") != "event" {
 				continue
 			}
-			types, isList := trigger["event_type"].([]any)
+			types, isList := rendered(trigger["event_type"]).([]any)
 			if !isList {
-				types = []any{trigger["event_type"]}
+				types = []any{rendered(trigger["event_type"])}
 			}
 			for _, t := range types {
 				name, isString := t.(string)

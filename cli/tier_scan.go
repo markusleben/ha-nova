@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"sort"
@@ -15,6 +16,7 @@ import (
 // fullRegistryRow: config/entity_registry/list carries no device_class and
 // no aliases; device classes always come from state attributes.
 type fullRegistryRow struct {
+	ID            string     `json:"id"` // the entry id a trigger may name instead of entity_id
 	EntityID      string     `json:"entity_id"`
 	Platform      string     `json:"platform"`
 	UniqueID      registryID `json:"unique_id"`
@@ -30,6 +32,9 @@ func (e *tierEngine) fullRegistry() ([]fullRegistryRow, error) {
 		if err := e.s.wsDecode(map[string]any{"type": "config/entity_registry/list"}, &e.full, "the entity registry"); err != nil {
 			return nil, err
 		}
+		if e.full == nil {
+			return nil, fmt.Errorf("the entity registry answered null")
+		}
 		e.fullRead = true
 	}
 	return e.full, nil
@@ -40,6 +45,9 @@ func (e *tierEngine) fullRegistry() ([]fullRegistryRow, error) {
 func (e *tierEngine) related(itemType, itemID string) (map[string][]string, error) {
 	var out map[string][]string
 	err := e.s.wsDecode(e.relatedRequest(itemType, itemID), &out, "search/related for "+itemID)
+	if err == nil && out == nil {
+		err = fmt.Errorf("search/related for %s answered null", itemID)
+	}
 	for _, list := range out {
 		sort.Strings(list)
 	}
@@ -90,14 +98,18 @@ func filterDomain(ids []string, domain string) []string {
 // reference it are read and classified;
 // d (the entity's planned change) only words the consumer list.
 func (e *tierEngine) scanConsumers(id string, depth int, d stateDelta) {
-	needles := []string{id}
-	if device := e.deviceOf(id); device != "" {
-		needles = append(needles, device)
+	match := func(cfg map[string]any) string {
+		verdict, read := e.triggerMatch(cfg, id, d)
+		if !read {
+			e.readFailed(id, "", "registry")
+			return firesMay
+		}
+		return verdict
 	}
 	if slices.Contains(e.acted, id) { // scanned already: this change may fire what the first did not
 		for automation, ons := range e.firedOn {
 			if cfg := e.configs[automation]; cfg != nil && slices.ContainsFunc(ons, func(f fired) bool { return f.on == id }) {
-				e.matchConsumer(automation, triggerMatch(cfg, id, needles, d), id)
+				e.matchConsumer(automation, match(cfg), id)
 			}
 		}
 		return
@@ -167,7 +179,7 @@ func (e *tierEngine) scanConsumers(id string, depth int, d stateDelta) {
 			if !named[automation] && !targetsPlace(cfg, places) {
 				return ""
 			}
-			return triggerMatch(cfg, id, needles, d)
+			return match(cfg)
 		})
 	}
 	for _, group := range slices.Compact(containers) {
@@ -185,7 +197,12 @@ func flattenTriggers(node any) []map[string]any {
 			out = append(out, flattenTriggers(child)...)
 		}
 	case map[string]any:
-		if n["enabled"] == false && n["options"] == nil { // Home Assistant overlays options before it reads enabled
+		if options, isMap := n["options"].(map[string]any); isMap { // Home Assistant moves options to the top before it reads the trigger (move_options_fields_to_top_level)
+			n = maps.Clone(n)
+			delete(n, "options")
+			maps.Copy(n, options)
+		}
+		if n["enabled"] == false && n["options"] == nil {
 			return nil
 		}
 		if nested, present := n["triggers"]; present {
@@ -267,6 +284,9 @@ func (e *tierEngine) liveEvents() map[string]int {
 	}
 	if err == nil {
 		err = json.Unmarshal(body, &rows)
+	}
+	if err == nil && rows == nil {
+		err = fmt.Errorf("Home Assistant answered null for /api/events")
 	}
 	if err != nil {
 		e.readFailed("", "", "event listeners")

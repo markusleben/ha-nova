@@ -2,6 +2,7 @@ package main
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -121,7 +122,7 @@ func helperCause(detail string) func(*testing.T, verbTestEnvelope) {
 	return func(t *testing.T, env verbTestEnvelope) {
 		t.Helper()
 		if !slices.ContainsFunc(env.Reasons, func(r tierReason) bool {
-			return r.Code == reasonHelperCalls && r.EntityID == "climate.bath_thermostat" && r.Detail == detail
+			return r.Code == reasonHelperCalls && r.EntityID == "climate.bath_thermostat" && (r.Detail == detail || strings.HasPrefix(r.Detail, detail+": "))
 		}) {
 			t.Fatalf("reasons %+v lack %s %s", env.Reasons, reasonHelperCalls, detail)
 		}
