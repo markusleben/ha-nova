@@ -93,7 +93,7 @@ func gateVerdict(endpoint string, body []byte, session func() (*relaySession, er
 		return gateCheck{Verdict: gatePass, Kind: "read"}, nil
 	}
 	if _, isBatch := payload["batch"]; endpoint == "ws" && isBatch {
-		return gateBatch(payload), nil
+		return gateBatch(payload, body), nil
 	}
 	requests := gateRequests(endpoint, payload)
 	if endpoint == "core" && payload["method"] == http.MethodPost && payload["path"] == optionsFlowPath { // a check of the start never starts a flow (MAR-153)
@@ -169,21 +169,22 @@ func gateVerdict(endpoint string, body []byte, session func() (*relaySession, er
 
 // gateBatch: a batch of loaded-config reads (MAR-180,
 // docs/work/2026-11-20-ws-batch-reads-spec.md) passes as a read only when it
-// is exactly that shape and every item passes as a read sent alone, rated
-// without a session; anything else is refused.
-func gateBatch(payload map[string]any) gateCheck {
+// is exactly that shape and every item, its own bytes as sent, passes as a
+// read sent alone, rated without a session; anything else is refused.
+func gateBatch(payload map[string]any, body []byte) gateCheck {
 	refused := gateCheck{Verdict: gateRefuse, Kind: "write", Why: "batch"}
-	items, _ := payload["batch"].([]any)
-	if len(payload) != 1 || len(items) == 0 || len(items) > wsBatchMax {
+	var envelope struct {
+		Batch []json.RawMessage `json:"batch"`
+	}
+	if len(payload) != 1 || json.Unmarshal(body, &envelope) != nil || len(envelope.Batch) == 0 || len(envelope.Batch) > wsBatchMax {
 		return refused
 	}
 	noSession := func() (*relaySession, error) {
 		return nil, errors.New("a batch item is rated without reading Home Assistant")
 	}
-	for _, item := range items {
-		request, _ := item.(map[string]any)
-		raw, err := json.Marshal(request)
-		if !wsBatchItem(request) || err != nil {
+	for _, raw := range envelope.Batch {
+		request, ok := decodeObject(raw)
+		if !ok || !wsBatchItem(request) {
 			return refused
 		}
 		if check, err := gateVerdict("ws", raw, noSession); err != nil || check.Verdict != gatePass || check.Kind != "read" {
