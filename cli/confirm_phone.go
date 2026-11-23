@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -36,6 +37,7 @@ const (
 	cliPhoneTellSpan = 10 * time.Second
 	phoneEventType   = "mobile_app_notification_action"
 	phoneWindowSpan  = 10 * time.Second // the Relay's collect_events cap; two lanes overlap by half
+	phoneTapSetting  = "Optional, for change requests (not linking or moving the phone) on an iPhone with the Home Assistant app 2026.9.3 or later: in the app's Settings → Companion app → Notifications, “Show actions when tapped” makes a plain tap show the buttons."
 )
 
 var (
@@ -43,6 +45,7 @@ var (
 	phoneTellSpan     = cliPhoneTellSpan               // the result reaches a slow Relay before the process exits
 	phoneSettle       = time.Second                    // a failing subscription returns at once; a working one has acked by then
 	phoneNothingAfter = 30 * time.Second               // no answer yet: the terminal says where notifications turn on
+	phoneRemindAfter  = 25 * time.Second               // no answer yet: an iPhone gets the question once more
 	// The Relay calls; tests replace them.
 	phoneDiscover = discoverPhone
 	phoneNotify   = func(s *relaySession, service string, body map[string]any) error {
@@ -195,11 +198,26 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 	if progress != nil {
 		progress.started = true
 	}
-	sent, sending := sendPhones(ctx, s, clearingFirst(phoneLastResults(s.paths), setup.owner, notify), setup.targets, func(t phoneTarget) map[string]any { return phonePayload(ask, t.platform(), tag, ok, no, deadline) })
+	payload := func(t phoneTarget) map[string]any { return phonePayload(ask, t.platform(), tag, ok, no, deadline) }
+	sent, first := sendPhones(ctx, s, clearingFirst(phoneLastResults(s.paths), setup.owner, notify), setup.targets, payload)
 	all := make([]string, 0, len(setup.targets))
+	var iPhones []phoneTarget
 	for _, target := range setup.targets {
 		all = append(all, target.Service)
+		if target.platform() == phoneIOS && ask.page == "" {
+			iPhones = append(iPhones, target)
+		}
 	}
+	// sending closes once the question and its reminder (if one went out)
+	// have landed or failed: the result never overtakes either.
+	sending, reminded := make(chan struct{}), make(chan struct{})
+	go func() { <-first; <-reminded; close(sending) }()
+	reminding := false
+	defer func() {
+		if !reminding {
+			close(reminded)
+		}
+	}()
 	// Every phone: a send still in flight at the deadline may land later.
 	// The result or the withdrawal waits for an ask still in flight
 	// (bounded): a late ask would land after it. The tag is kept either way,
@@ -231,15 +249,28 @@ func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag str
 	if notice != nil {
 		fmt.Fprintf(notice, phoneSentText+"\n", terminalSafeName(setup.targets[0].Name), phoneTapLine("en", setup.targets[0].platform(), ask.button))
 	}
-	var quiet <-chan time.Time
+	var quiet, again <-chan time.Time
 	if notice != nil {
 		quiet = time.After(phoneNothingAfter)
+	}
+	if len(iPhones) > 0 && slices.Contains(sent, iPhones[0].Service) {
+		again = time.After(phoneRemindAfter)
 	}
 	seen := map[string]bool{}
 	for {
 		select {
 		case <-ctx.Done():
 			return phoneNoAnswer, reply
+		case <-again: // once: a plain tap on an iPhone removed the question without a word to Home Assistant
+			if ctx.Err() != nil || time.Until(deadline) < windowMinWait {
+				continue
+			}
+			reminding = true
+			go func() {
+				_, landed := sendPhones(ctx, s, notify, iPhones, func(t phoneTarget) map[string]any { return phoneReminder(payload(t)) })
+				<-landed
+				close(reminded)
+			}()
 		case <-quiet:
 			fmt.Fprintln(notice, phoneNothingHint(setup.targets[0].platform()))
 		case <-failed:
@@ -345,7 +376,7 @@ func (a *phoneAsking) wait(notice io.Writer) {
 // phone hears that nothing changed.
 func (a *phoneAsking) refuse(code, message, next string) (verbEnvelope, int, bool) {
 	s, reply, lang := a.s, a.reply, textLang(a.plan)
-	prefix, line := phoneNothing(lang, phoneConfirmed) // their tap arrived; the chat says why it stopped
+	prefix, line := phoneNothing(lang, phoneConfirmed, "") // their tap arrived; the chat says why it stopped
 	phoneApplied = func(verbEnvelope, int) { reply.say(phoneResultTitle(lang, prefix, a.goal), line); s.close() }
 	return windowStopped(s, "refused", code, message, next)
 }
@@ -358,7 +389,7 @@ func (a *phoneAsking) finish() (env verbEnvelope, exit int, asked bool) {
 	handed := false
 	defer func() {
 		if !handed {
-			prefix, line := phoneNothing(lang, a.answer)
+			prefix, line := phoneNothing(lang, a.answer, a.setup.targets[0].platform())
 			phoneApplied = func(verbEnvelope, int) { reply.say(phoneResultTitle(lang, prefix, a.goal), line); s.close() }
 		}
 	}()
@@ -389,7 +420,7 @@ func (a *phoneAsking) finish() (env verbEnvelope, exit int, asked bool) {
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", why, next)
 	}
 	return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "the phone confirmation got no answer in time",
-		fmt.Sprintf("Tell the user nothing changed: “%s” was not tapped in time. Next time: %s A plain tap only opens the app.%s Run ha-nova apply --plan %s again (a new notification goes to their phone) only after they say they still want it; never ask them for a code. %s They can also make this change in Home Assistant itself.", a.ask.button, a.tapLine("en"), a.watchLine(), id, a.nothingLine()))
+		fmt.Sprintf("Tell the user nothing changed: “%s” was not tapped in time. Next time: %s%s Run ha-nova apply --plan %s again (a new notification goes to their phone) only after they say they still want it; never ask them for a code. %s They can also make this change in Home Assistant itself.", a.ask.button, a.tapLine("en"), a.watchLine(), id, a.nothingLine()))
 }
 
 // tapLine: how to answer on the phone asked (startPhoneAsk asks only a ready one), in lang.
@@ -402,10 +433,11 @@ func (a *phoneAsking) nothingLine() string {
 	return "If nothing showed on their phone, tell them where to turn on its notifications: " + phoneNothingSteps(a.setup.targets[0].platform())
 }
 
-// watchLine: an Apple Watch hears a tap only once its app has opened.
+// watchLine: on an iPhone, the optional app setting that turns a plain tap
+// into the buttons; an Apple Watch hears a tap only once its app has opened.
 func (a *phoneAsking) watchLine() string {
 	if a.setup.targets[0].platform() == phoneAndroid {
 		return ""
 	}
-	return " If they tapped on an Apple Watch, they open the Home Assistant app on the watch once."
+	return " " + phoneTapSetting + " If they tapped on an Apple Watch, they open the Home Assistant app on the watch once."
 }

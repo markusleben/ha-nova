@@ -35,7 +35,8 @@ func (in gatePhoneRequest) valid() bool {
 	_, known := confirmCatalogs[in.Lang]
 	text := known && in.Title != "" && in.Body != "" && in.Button != "" && in.Words == "" && in.Device == "" && in.Current == nil
 	words := in.Words == "link" && in.AskRef == "" && in.Device != "" && in.Lang+in.Title+in.Body+in.Button == "" && (in.Current == nil || link(*in.Current))
-	return (text || words) && (in.AskRef == "" || gatePhoneRef.MatchString(in.AskRef)) && link(in.Link) && wait >= time.Second && wait <= gatePhoneMaxWait
+	page := in.Panel == "" || in.AskRef != "" && gatePhonePanel.MatchString(in.Panel)
+	return (text || words) && page && (in.AskRef == "" || gatePhoneRef.MatchString(in.AskRef)) && link(in.Link) && wait >= time.Second && wait <= gatePhoneMaxWait
 }
 
 func gatePhoneLink(ctx context.Context, paths runtimePaths, in gatePhoneRequest) (gatePhoneAnswer, error) {
@@ -65,7 +66,7 @@ func gatePhoneLink(ctx context.Context, paths runtimePaths, in gatePhoneRequest)
 			return answer, nil
 		}
 	}
-	link := phoneAsk{lang: lang, title: phoneLinkTitle(lang), body: requested, button: phoneLinkButton(lang), unlock: true}
+	link := phoneAsk{lang: lang, title: phoneLinkTitle(lang), body: requested, button: phoneLinkButton(lang), unlock: true, teach: true}
 	answer := gatePhoneTap(ctx, s, paths, in.Link, setup, link, time.Until(deadline))
 	if answer.Answer != "approved" {
 		return answer, nil
@@ -148,7 +149,7 @@ func gatePhoneTap(ctx context.Context, s *relaySession, paths runtimePaths, link
 			reply.withdraw(title(confirmT(lang, "outcome.ended")), confirmT(lang, "outcome.line.ended_elsewhere"))
 			return gatePhoneAnswer{Answer: "none"}
 		}
-		reply.say(title(confirmT(lang, "outcome.not_confirmed")), confirmT(lang, "outcome.line.no_answer"))
+		reply.say(title(confirmT(lang, "outcome.not_confirmed")), phoneNoAnswerLine(lang, setup.targets[0].platform(), ask.page != ""))
 		return gatePhoneAnswer{Answer: "none"}
 	}
 	return gatePhoneAnswer{Answer: "unavailable", Why: "send"}

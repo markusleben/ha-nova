@@ -236,7 +236,7 @@ func TestGatePhoneSaysHowItEnded(t *testing.T) {
 		{"approved, then demoted", "unavailable", "Not done: Unlock “Front”", "Nothing changed.", tapFrom(link.Service, "anna-id", true), true, false},
 		{"declined", "declined", "Cancelled: Unlock “Front”", "Nothing changed.", tapFrom(link.Service, "anna-id", false), false, false},
 		{"another user's tap", "rejected", "Cancelled: Unlock “Front”", "The tap came from another Home Assistant user. Nothing changed.", tapFrom(link.Service, "kid-id", true), false, false},
-		{"the wait elapsed", "none", "Not confirmed: Unlock “Front”", "No answer reached Home Assistant. Nothing changed.", nil, false, false},
+		{"the wait elapsed", "none", "Not confirmed: Unlock “Front”", confirmT("en", "outcome.line.no_answer_android"), nil, false, false},
 		{"the Relay hung up", "none", "Ended: Unlock “Front”", "Answered or stopped somewhere else; the computer shows the result.", nil, false, true},
 	} {
 		ctx, hangUp := context.WithCancel(context.Background())

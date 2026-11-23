@@ -13,6 +13,9 @@ import (
 
 var gatePhoneRef = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
+// gatePhonePanel: NOVA's panel as the App names it (nova-approve.ts novaPanel).
+var gatePhonePanel = regexp.MustCompile(`^/app/[a-z0-9_]{1,64}$`)
+
 type gateWindowNotice struct {
 	AskRef   string    `json:"ask_ref"`
 	Seq      uint64    `json:"seq"`

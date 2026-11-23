@@ -90,7 +90,7 @@ describe("vm-lane row: the window's button opens its ask (#1161)", () => {
   it("reads the approval view's asks in order, with what each says", async () => {
     expect(asks.approvalAsks(await approval("")).map((a) => a.ref)).toEqual([decoy.ref, mine.ref]);
     const named = asks.approvalAsks(await approval("?nova_ask=" + mine.ref));
-    expect(named.map((a) => a.ref)).toEqual([mine.ref, decoy.ref]);
+    expect(named.map((a) => a.ref)).toEqual([mine.ref]); // the named ask alone
     expect(named[0]!.text).toContain("Front Door");
   });
 

@@ -33,9 +33,10 @@ func TestPhonePayloadPerPlatform(t *testing.T) {
 		data := link["data"].(map[string]any)
 		actions := data["actions"].([]any)
 		confirm := actions[0].(map[string]any)
-		want := phoneRequested("en") + " " + c.hint
-		if c.platform == phoneAndroid { // a collapsed Android notification shows one line: the hint first
-			want = c.hint + " " + phoneRequested("en")
+		teach := confirmT("en", "phone.teach."+map[string]string{phoneIOS: "ios", phoneAndroid: "android", "": "other"}[c.platform], "button", "Allow")
+		want := teach + " " + phoneRequested("en") // the link ask teaches how to answer, in place of the hint
+		if c.platform == phoneAndroid {            // a collapsed Android notification shows one line: the hint first
+			want = c.hint + " " + teach + " " + phoneRequested("en")
 		}
 		if link["message"] != want || confirm["authenticationRequired"] != c.unlock || len(actions) != 2 ||
 			actions[1].(map[string]any)["authenticationRequired"] != nil || data["priority"] != "high" || data["tag"] != "tag-1" {
@@ -77,7 +78,7 @@ func TestPhonePayloadPerPlatform(t *testing.T) {
 // How to show the buttons, said on the computer and in the chat.
 func TestPhoneTapLinePerPlatform(t *testing.T) {
 	for platform, want := range map[string]string{
-		phoneIOS:     "Press and hold the notification, then tap “Allow”.",
+		phoneIOS:     "Press and hold the notification, then tap “Allow”. Tapping the notification itself doesn't confirm.",
 		phoneAndroid: "Tap “Allow” in the notification. No button? Pull it down, or tap its arrow.",
 		"":           "Tap “Allow” in the notification. To see the buttons, press and hold the notification on an iPhone, or pull it down on Android.",
 	} {
@@ -85,7 +86,7 @@ func TestPhoneTapLinePerPlatform(t *testing.T) {
 			t.Errorf("%q: %q", platform, got)
 		}
 	}
-	if got := sayPhoneAsk("en", "Unlock", phoneIOS); got != "Confirm on your phone. Press and hold the notification, then tap “Unlock”." {
+	if got := sayPhoneAsk("en", "Unlock", phoneIOS); got != "Confirm on your phone. Press and hold the notification, then tap “Unlock”. Tapping the notification itself doesn't confirm." {
 		t.Errorf("say: %q", got)
 	}
 	if got := sayWindowPhoneAsk("en", "Unlock", phoneAndroid); got != "Confirm in the window on this computer or on your phone. On the phone: Tap “Unlock” in the notification. No button? Pull it down, or tap its arrow. The first answer counts." {
