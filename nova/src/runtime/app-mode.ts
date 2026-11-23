@@ -300,7 +300,7 @@ function buildFunctionalHandlers(
   const forwardCore = createCoreForwarder({ coreClient: input.coreClient });
   const windowLog = openWindowLog(join(dirname(input.appOptionsPath), "gate", "window-log.json"), input.logger);
   const { gate, ask, asks } = gateWithAsks(worker, {
-    prepare: { core: parseCoreRequest },
+    prepare: { core: parseCoreRequest, ws: prepareWsBody },
     deviceName: (p) => (p.kind === "device" ? registry.list().find((d) => d.deviceId === p.deviceId)?.name : undefined) ?? "a computer that is no longer paired",
     channels: () => pageChannel(input.wsClient), // the approval view, while someone may approve there
     link: phoneLinkOf(registry),

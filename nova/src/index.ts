@@ -89,7 +89,7 @@ export function createApp(options: AppOptions): App {
   // No Supervisor ingress, so no NOVA page: the linked phone is the only channel.
   const phoneLink = options.phoneLink;
   const { gate, ask } = gateWithAsks(options.gate ?? NO_GATE, {
-    prepare: { core: parseCoreRequest },
+    prepare: { core: parseCoreRequest, ws: prepareWsBody },
     deviceName: () => "your HA NOVA container",
     channels: () => [],
     link: (p) => (p.kind === "shared" ? phoneLink?.link() : undefined),

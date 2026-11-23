@@ -28,6 +28,7 @@ const MAX_COLLECT_EVENTS = 100;
 const MAX_COLLECT_TIMEOUT_MS = 10_000;
 const MAX_BATCH_ITEMS = 16;
 const BATCH_DEADLINE_MS = 10_000;
+const MAX_BATCH_BYTES = 16 << 20;
 
 // prepareWsBody: a batch's envelope is checked before the safety check rates
 // it; the worker owns the item shape (docs/work/2026-11-20-ws-batch-reads-spec.md).
@@ -89,7 +90,8 @@ function upstreamError(error: unknown): HttpError {
 
 // sendBatch sends the items one after another, as one client's reads, and
 // answers each as POST /ws answers it alone. Once the batch's time is up or
-// the client is gone, an item still waiting is not sent.
+// the client is gone, an item still waiting is not sent; answers past
+// MAX_BATCH_BYTES fail the whole batch.
 async function sendBatch(
   wsClient: WsProxyHandlerOptions["wsClient"],
   items: HaWsRequest[],
@@ -97,21 +99,29 @@ async function sendBatch(
   deadlineMs: number,
 ): Promise<unknown[]> {
   const deadline = Date.now() + deadlineMs;
-  let gone = false;
+  let gone = response?.destroyed === true;
   response?.once("close", () => { gone = true; });
   const results: unknown[] = [];
+  let bytes = 0;
+  let late = false;
   for (const item of items) {
     const left = deadline - Date.now();
     try {
-      if (gone || left <= 0) {
+      if (gone || late || left <= 0) {
         throw new HaWsClientError("UPSTREAM_WS_TIMEOUT", "The batch ran out of time; this read was not sent");
       }
-      results.push({ ok: true, data: (await withTimeout(wsClient.sendMessage(item), left)) ?? null });
+      const data = (await withTimeout(wsClient.sendMessage(item), left)) ?? null;
+      bytes += JSON.stringify(data).length;
+      results.push({ ok: true, data });
     } catch (error) {
+      late ||= error instanceof TimeoutError;
       const failure = upstreamError(error instanceof TimeoutError
         ? new HaWsClientError("UPSTREAM_WS_TIMEOUT", "The batch ran out of time waiting for this read")
         : error);
       results.push({ ok: false, error: { code: failure.code, message: failure.message } });
+    }
+    if (bytes > MAX_BATCH_BYTES) {
+      throw new HttpError(502, "UPSTREAM_WS_ERROR", "The batch's answers are too large; read them one by one");
     }
   }
   return results;

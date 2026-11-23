@@ -665,6 +665,16 @@ describe("ws proxy: batched reads", () => {
     expect(res.body.data.results.map((r) => (r as { ok: boolean; error?: { code: string } }).error?.code ?? "ok")).toEqual(["ok", "UPSTREAM_WS_TIMEOUT", "UPSTREAM_WS_TIMEOUT"]);
   });
 
+  it("fails the whole batch once its answers grow too large", async () => {
+    const big = "x".repeat(9 << 20);
+    const res = await postBatch(async () => big, [
+      { type: "automation/config", entity_id: "automation.a" },
+      { type: "automation/config", entity_id: "automation.b" },
+      { type: "automation/config", entity_id: "automation.c" },
+    ]);
+    expect(res.status).toBe(502);
+  });
+
   it("refuses a batch envelope it can't read before anything is rated", () => {
     const item = { type: "automation/config", entity_id: "automation.a" };
     for (const body of [{ batch: [] }, { batch: Array(17).fill(item) }, { batch: [item], type: "ping" }, { batch: item }, { batch: [{ entity_id: "automation.a" }] }]) {
