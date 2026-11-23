@@ -110,9 +110,7 @@ async function sendBatch(
       if (gone || late || left <= 0) {
         throw new HaWsClientError("UPSTREAM_WS_TIMEOUT", "The batch ran out of time; this read was not sent");
       }
-      const data = (await withTimeout(wsClient.sendMessage(item), left)) ?? null;
-      bytes += JSON.stringify(data).length;
-      results.push({ ok: true, data });
+      results.push({ ok: true, data: (await withTimeout(wsClient.sendMessage(item), left)) ?? null });
     } catch (error) {
       late ||= error instanceof TimeoutError;
       const failure = upstreamError(error instanceof TimeoutError
@@ -120,6 +118,7 @@ async function sendBatch(
         : error);
       results.push({ ok: false, error: { code: failure.code, message: failure.message } });
     }
+    bytes += Buffer.byteLength(JSON.stringify(results.at(-1)));
     if (bytes > MAX_BATCH_BYTES) {
       throw new HttpError(502, "UPSTREAM_WS_ERROR", "The batch's answers are too large; read them one by one");
     }

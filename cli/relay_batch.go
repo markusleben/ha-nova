@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // Batched loaded-config reads (MAR-180,
@@ -17,6 +18,10 @@ import (
 // configs. Only on a Relay whose /health says ws_batch: 1; else single reads.
 
 const wsBatchMax = 16
+
+// wsBatchProbeTimeout: how long the census waits to learn whether it may
+// batch before it reads one by one, as on an older App.
+const wsBatchProbeTimeout = 5 * time.Second
 
 var wsBatchEntityID = regexp.MustCompile(`^(automation|script)\.[a-z0-9_]+$`)
 
@@ -30,13 +35,13 @@ func wsBatchItem(request map[string]any) bool {
 }
 
 // wsBatch: whether the Relay takes batches (GET /health ws_batch: 1), read
-// once per session. A failed read means no.
+// once per session. A failed or slow read means no.
 func (s *relaySession) wsBatch() bool {
 	s.batchOnce.Do(func() {
 		s.mu.Lock()
 		parent := s.ctx
 		s.mu.Unlock()
-		ctx, cancel := context.WithTimeout(parent, relaySessionRequestTimeout)
+		ctx, cancel := context.WithTimeout(parent, wsBatchProbeTimeout)
 		defer cancel()
 		var health struct {
 			WSBatch int `json:"ws_batch"`
@@ -101,7 +106,7 @@ func (s *relaySession) sendBatch(items []json.RawMessage, memos []*relayMemo) {
 		}
 	}
 	for _, result := range answer.Results {
-		if err == nil && result.OK == nil {
+		if err == nil && (result.OK == nil || *result.OK && result.Data == nil) {
 			err = errors.New("Relay ws batch answer holds a result that is not a result envelope")
 		}
 	}
