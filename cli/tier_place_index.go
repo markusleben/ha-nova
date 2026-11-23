@@ -22,7 +22,7 @@ import (
 // ever skips a read; everything it can't vouch for is read live, as before.
 
 const (
-	placeIndexVersion    = 1
+	placeIndexVersion    = 2
 	placeIndexMaxEntries = tierMaxAutomations
 	placeIndexMaxBytes   = 4 << 20
 )

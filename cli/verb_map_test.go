@@ -27,15 +27,15 @@ type mapFixture struct {
 
 func (f mapFixture) reply(_ *http.Request, endpoint string, payload map[string]any) any {
 	if endpoint == "core" && payload["path"] == "/api/states" {
-		return coreReply(200, f.states)
+		return coreReply(200, append([]map[string]any{}, f.states...))
 	}
 	switch payload["type"] {
 	case "config/floor_registry/list":
 		return f.floors
 	case "config/area_registry/list":
-		return f.areas
+		return append([]map[string]any{}, f.areas...)
 	case "config/device_registry/list":
-		return f.devices
+		return append([]map[string]any{}, f.devices...)
 	case "config/entity_registry/list":
 		return f.entities
 	case "config_entries/get":
@@ -43,8 +43,11 @@ func (f mapFixture) reply(_ *http.Request, endpoint string, payload map[string]a
 			return f.helpers
 		}
 		return f.entries
-	case "search/related":
-		return f.related[fmt.Sprint(payload["item_type"], ":", payload["item_id"])]
+	case "search/related": // Home Assistant answers {} for an item nothing relates to
+		if related, ok := f.related[fmt.Sprint(payload["item_type"], ":", payload["item_id"])]; ok {
+			return related
+		}
+		return map[string][]string{}
 	}
 	return nil
 }

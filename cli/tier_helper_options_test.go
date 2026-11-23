@@ -173,9 +173,16 @@ func TestHelperOptionsFailClosed(t *testing.T) {
 			f.related["area-automation:bad"] = []string{"automation.room_heat"}
 		}, true},
 		"a script that waits on it": {func(f *fakeHA, fl *thermoFlows) { fl.scripts = []string{"script.heater_wait"} }, true},
-		"an automation on state_changed events": {func(f *fakeHA, fl *thermoFlows) {
+		"an automation on state_changed events of its heater": {func(f *fakeHA, fl *thermoFlows) { // the heater is read, then isn't quiet (MAR-262)
 			f.automation("state_watch", "state_watch", map[string]any{
 				"triggers": []any{map[string]any{"trigger": "event", "event_type": "state_changed", "event_data": map[string]any{"entity_id": "switch.heater"}}},
+				"actions":  []any{step("cover.stop_cover", "cover.blind")},
+			})
+			f.events = append(f.events, map[string]any{"event": "state_changed", "listener_count": 1.0})
+		}, true},
+		"an automation on every state_changed event": {func(f *fakeHA, fl *thermoFlows) {
+			f.automation("state_watch", "state_watch", map[string]any{
+				"triggers": []any{map[string]any{"trigger": "event", "event_type": "state_changed"}},
 				"actions":  []any{step("cover.stop_cover", "cover.blind")},
 			})
 			f.events = append(f.events, map[string]any{"event": "state_changed", "listener_count": 1.0})

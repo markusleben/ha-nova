@@ -241,7 +241,15 @@ home in `.state`. The RC lane runs all three with the tag's binary
   `call_service` listener no automation explains), a light call asks
   nothing, in the CLI and the gated Relay, and notes the open stream
   (`UNEXPLAINED_LISTENER`, decision A); a shutter call and the garage still
-  ask once. It removes the watchdog and its script after. Then an oracle applies calls through a scene with a climate member, a
+  ask once. It removes the watchdog and its script after. With file access
+  (`TESTBED_FILES=1`), `quiet-pattern.mjs` then adds the heater pattern of
+  the home behind MAR-262 beside the YAML thermostat (scripts in the heater's
+  area and floor, a valve automation, a panel blueprint on `state_changed`
+  with literal and empty inputs, the watchdog): a light call asks nothing, a
+  shutter, the garage, and an unlock still ask, and a running area script, a
+  panel relay from a device template, or a state trigger naming the heater by
+  its registry entry id (MAR-263) each make the light ask with the plan's
+  detail naming it; everything it adds is removed after. Then an oracle applies calls through a scene with a climate member, a
   light group in a script, `switch_as_x` lights on a template switch and on a
   relay with an automation, and a chain of service-call listeners: every
   automation that really ran (Home Assistant's traces) must be among the

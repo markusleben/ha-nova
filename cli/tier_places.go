@@ -31,7 +31,7 @@ func (e *tierEngine) placeRows(kind string) map[string]placeRow {
 	}
 	var list []placeRow
 	var rows map[string]placeRow
-	if e.s.wsDecode(map[string]any{"type": "config/" + kind + "_registry/list"}, &list, "the "+kind+" registry") == nil {
+	if e.s.wsDecode(map[string]any{"type": "config/" + kind + "_registry/list"}, &list, "the "+kind+" registry") == nil && list != nil { // null is no answer
 		rows = map[string]placeRow{}
 		for _, row := range list {
 			if kind == "area" {
