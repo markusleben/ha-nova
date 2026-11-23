@@ -203,7 +203,12 @@ export async function question(platform, button, { unlock, urgent, answer = 0 })
 const OUTCOME = [["Approved: ", "Nothing more to do; the computer shows the result."], ["Cancelled: ", "Nothing changed."]];
 export async function answered(ask, answer = 0) {
   const [prefix, message] = OUTCOME[answer];
-  const push = await nextPush();
+  let push = await nextPush();
+  // An iPhone question unanswered for 25 s comes back once, quietly (#1289): a tap after that finds the reminder first.
+  if (ask.platform === "ios" && push.data.tag === ask.data.tag && push.data.actions && push.body.title === ask.body.title) {
+    report(`reminder on ${PHONES.ios}: the same question once more, quietly`, push.body.message === ask.body.message && push.data.push?.sound === "none" ? [] : [`message ${JSON.stringify(push.body.message)}, sound ${push.data.push?.sound}`]);
+    push = await nextPush();
+  }
   const { body: b, data: d } = push, p = [];
   const want = (ok, why) => ok || p.push(why);
   want(push.platform === ask.platform, `went to ${push.platform}`);
