@@ -12,7 +12,7 @@ import { createBackupsHandler } from "./http/handlers/backups.js";
 import { createCoreForwarder, parseCoreRequest } from "./http/handlers/core-proxy.js";
 import { createFilesHandler } from "./http/handlers/files.js";
 import { createHealthHandler } from "./http/handlers/health.js";
-import { createWsProxyHandler } from "./http/handlers/ws-proxy.js";
+import { createWsProxyHandler, prepareWsBody } from "./http/handlers/ws-proxy.js";
 import { gated, type GateClient } from "./http/gate.js";
 import { gateWithAsks } from "./http/gate-asks.js";
 import { createRouter, type Router } from "./http/router.js";
@@ -89,7 +89,7 @@ export function createApp(options: AppOptions): App {
   // No Supervisor ingress, so no NOVA page: the linked phone is the only channel.
   const phoneLink = options.phoneLink;
   const { gate, ask } = gateWithAsks(options.gate ?? NO_GATE, {
-    prepare: { core: parseCoreRequest },
+    prepare: { core: parseCoreRequest, ws: prepareWsBody },
     deviceName: () => "your HA NOVA container",
     channels: () => [],
     link: (p) => (p.kind === "shared" ? phoneLink?.link() : undefined),
@@ -100,7 +100,7 @@ export function createApp(options: AppOptions): App {
   router.register("POST", "/gate/v1/ask", ask);
   router.register("POST", "/gate/v1/phone", ask);
   const forwardCore = createCoreForwarder({ coreClient: options.coreClient });
-  router.register("POST", "/ws", gated("ws", createWsProxyHandler({ wsClient: options.wsClient }), gate));
+  router.register("POST", "/ws", gated("ws", createWsProxyHandler({ wsClient: options.wsClient }), gate, prepareWsBody));
   router.register("POST", "/core", gated("core", async ({ body }) => await forwardCore(body as CoreProxyRequest), gate, parseCoreRequest));
   router.register("POST", "/files", gated("files", createFilesHandler({ fileAccess: options.fileAccess }), gate));
   router.register(

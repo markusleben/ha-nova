@@ -190,6 +190,6 @@ describe("app mode: the safety check fronts every device-facing handler", () => 
       request.end();
     });
     expect(response.status).toBe(200);
-    expect(JSON.parse(response.text).data).toMatchObject({ gate: 1, window: 1 });
+    expect(JSON.parse(response.text).data).toMatchObject({ gate: 1, ws_batch: 1, window: 1 });
   });
 });

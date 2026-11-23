@@ -152,6 +152,7 @@ describe("runtime bootstrap", () => {
         file_access: "off",
         snapshots: { files: 0, bytes: 0 },
         gate: 1,
+        ws_batch: 1,
       },
     });
 

@@ -38,6 +38,7 @@ export interface HealthPayload {
   snapshots: { files: number; bytes: number };
   relay_instance_id?: string;
   gate?: 1;
+  ws_batch?: 1; // POST /ws takes a batch of reads (docs/work/2026-11-20-ws-batch-reads-spec.md)
   window?: 1;
   code?: 1;
 }
@@ -87,7 +88,7 @@ export async function readHealthPayload(
     ...(options.relayInstanceId !== undefined
       ? { relay_instance_id: options.relayInstanceId }
       : {}),
-    ...(options.gate === true ? { gate: 1 as const } : {}),
+    ...(options.gate === true ? { gate: 1 as const, ws_batch: 1 as const } : {}),
     ...(options.window === true ? { window: 1 as const } : {}),
     ...(options.code === true ? { code: 1 as const } : {}),
   };
