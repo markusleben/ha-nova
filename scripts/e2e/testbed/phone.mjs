@@ -35,7 +35,8 @@ const HA = "http://127.0.0.1:18123";
 const PUSH = "http://127.0.0.1:18792";
 const PHONES = { ios: "Testbed iPhone", android: "Testbed Pixel" };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const RELAY_ASK = JSON.parse(readFileSync(join(ROOT, "cli/confirm_strings.en.json"), "utf8"))["say.relay_ask"];
+const STRINGS = JSON.parse(readFileSync(join(ROOT, "cli/confirm_strings.en.json"), "utf8"));
+const RELAY_ASK = STRINGS["say.relay_ask"];
 export const read = (name) => readFileSync(join(STATE, name), "utf8").trim();
 let failed = 0;
 export const failures = () => failed;
@@ -181,8 +182,10 @@ export async function question(platform, button, { unlock, urgent, answer = 0 })
   else want(auth === "true", `authenticationRequired ${JSON.stringify(auth)}, Android needs the string "true"`);
   if (platform === "android") want(a.every((x) => Object.entries(x).every(([k, v]) => k === "destructive" || typeof v === "string")), "an action value is not a string (FCM data takes strings only)");
   // The hint: last on iOS, first on Android (a collapsed notification shows one line).
+  // The link question teaches the gesture instead (phone.teach.ios, #1289): first on iOS, with no hint.
   const m = b.message ?? "", pull = m.indexOf("Pull down");
-  want(platform === "ios" ? m.endsWith("Press and hold to answer.") : pull >= 0 && pull < m.indexOf("Requested") && !m.includes("Press and hold"), `message ${JSON.stringify(m)}`);
+  const iosTeach = STRINGS["phone.teach.ios"].replace("{button}", button ?? "");
+  want(platform === "ios" ? m.endsWith("Press and hold to answer.") || (m.startsWith(iosTeach) && !m.includes("Press and hold to answer.")) : pull >= 0 && pull < m.indexOf("Requested") && !m.includes("Press and hold"), `message ${JSON.stringify(m)}`);
   want(b.title && [...b.title].length <= 80, `title ${JSON.stringify(b.title)}`);
   want(d.channel === "HA NOVA" && d.importance === "high" && d.priority === "high", `channel/importance/priority ${d.channel}/${d.importance}/${d.priority}`);
   want(d.push?.["interruption-level"] === (urgent ? "time-sensitive" : "active"), `interruption-level ${d.push?.["interruption-level"]}`);
