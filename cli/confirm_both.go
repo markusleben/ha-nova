@@ -141,15 +141,15 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 		return windowStopped(s, "declined", "CONFIRM_DECLINED", "the confirmation window was cancelled",
 			"Tell the user nothing changed. Apply this plan again only if they ask for it.")
 	case window == windowFailed && unread:
-		tell(phoneNothing(lang, a.answer))
+		tell(phoneNothing(lang, a.answer, ""))
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and "+phoneUnreadWhy, phoneUnreadNext)
 	case window == windowFailed && phoneOut:
-		tell(phoneNothing(lang, a.answer))
+		tell(phoneNothing(lang, a.answer, ""))
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and HA NOVA can't reach the linked phone either", phoneMissingStep())
 	case window == windowFailed: // it never showed: the phone's own outcome
 		return a.finish()
 	}
-	tell(phoneNothing(lang, a.answer))
+	tell(phoneNothing(lang, a.answer, a.setup.targets[0].platform()))
 	if phoneOut {
 		why := "the confirmation window got no answer in time"
 		if window == windowClosed {
@@ -164,7 +164,7 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 		why = "the confirmation window was closed, and the phone got no answer in time"
 	}
 	return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", why,
-		fmt.Sprintf("Tell the user nothing changed: neither the window on this computer nor their phone was answered in time. On the phone: %s A plain tap only opens the app. Run ha-nova apply --plan %s again (the window opens and a new notification goes to their phone) only after they say they still want it; never ask them for a code. %s They can also make this change in Home Assistant itself.", a.tapLine("en"), a.id, a.nothingLine()))
+		fmt.Sprintf("Tell the user nothing changed: neither the window on this computer nor their phone was answered in time. On the phone: %s%s Run ha-nova apply --plan %s again (the window opens and a new notification goes to their phone) only after they say they still want it; never ask them for a code. %s They can also make this change in Home Assistant itself.", a.tapLine("en"), a.watchLine(), a.id, a.nothingLine()))
 }
 
 // discoverInTime finds the linked phone's setup within wait, which the

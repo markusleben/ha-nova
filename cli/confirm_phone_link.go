@@ -266,7 +266,7 @@ func sendPhoneLink(s *relaySession, out io.Writer, lang string, home phoneHome, 
 	retry := " Run ha-nova setup confirm-phone again to retry."
 	answer, reply := askPhone(context.Background(), s, ask, "ha-nova-link", phoneLinkAsk(lang), wait, os.Stderr)
 	defer func() { // only the first say counts: "Linked" below wins
-		_, line := phoneNothing(lang, answer)
+		_, line := phoneNothing(lang, answer, chosen.platform())
 		reply.say(confirmT(lang, "outcome.not_linked"), line)
 	}()
 	say := func(result phoneLinkResult, line string) phoneLinkResult {
@@ -323,7 +323,7 @@ func allowPhoneChange(s *relaySession, out io.Writer, lang string, home phoneHom
 		fmt.Fprintf(out, "  First confirm on the phone linked now, “%s”.\n", old)
 		answer, reply := askPhone(context.Background(), s, current, "ha-nova-setting", phoneChangeAsk(lang, newPhone), wait, os.Stderr)
 		defer func() {
-			prefix, line := phoneNothing(lang, answer)
+			prefix, line := phoneNothing(lang, answer, current.targets[0].platform())
 			reply.say(prefix, line)
 		}()
 		if answer == phoneConfirmed {

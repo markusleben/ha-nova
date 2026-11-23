@@ -1,7 +1,9 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
+	"maps"
 	"os"
 	"strconv"
 	"strings"
@@ -13,21 +15,28 @@ import (
 // The phone's notification (Companion app): a short question as the title,
 // never naming the device it shows on (a watch shows it too),
 // one line naming the computer that asked, and the hint last (first on
-// Android, whose collapsed notification shows one line) — a plain tap
-// only opens the app; the buttons show once it is opened up: press and hold
-// on an iPhone (a watch shows them at once); on Android a pop-up or an
-// opened one shows them, a collapsed one needs a pull down (a long-press
-// there opens settings), so its hint is true either way, and where the text
-// says more than who asked, it asks to read it all before a tap from the
-// pop-up. Android's pop-up cuts a title after about 30 characters: the
-// fixed titles fit. Everything else (what it means, "only if you started
-// this") is in the terminal, not on the lock screen.
+// Android, whose collapsed notification shows one line). The buttons show
+// once it is opened up: press and hold on an iPhone (a watch shows them at
+// once); on Android a pop-up or an opened one shows them, a collapsed one
+// needs a pull down (a long-press there opens settings), so its hint is true
+// either way, and where the text says more than who asked, it asks to read
+// it all before a tap from the pop-up. A plain tap never answers, and never
+// dead-ends: an ask the NOVA page can approve opens there (page); any other
+// does nothing on Android (the notification stays), and on an iPhone, which
+// removes a tapped notification without telling Home Assistant, it comes
+// back once, quietly (askPhone's reminder). The link ask teaches the gesture
+// (teach): its Allow needs it, so a link is the practice run. Android's
+// pop-up cuts a title after about 30 characters: the fixed titles fit.
+// Everything else (what it means, "only if you started this") is in the
+// terminal, not on the lock screen.
 
 type phoneAsk struct {
 	lang                string // the texts' language (phonePayload's hint and Cancel speak it too)
 	title, body, button string
 	urgent              bool         // a pending action: iOS time-sensitive; else active
 	unlock              bool         // the phone must be unlocked to answer (link, move, stop)
+	teach               bool         // the link ask: its text teaches how to answer
+	page                string       // the NOVA page showing this ask (Home Assistant-relative), "" if none
 	sent                *atomic.Bool // set once the question went out (a chat app's job: chatJob.sent)
 }
 
@@ -58,7 +67,7 @@ func phoneLinkQuestion(lang, phone string) string {
 }
 
 func phoneLinkAsk(lang string) phoneAsk {
-	return phoneAsk{lang: lang, title: phoneLinkTitle(lang), body: phoneRequested(lang), button: phoneLinkButton(lang), unlock: true}
+	return phoneAsk{lang: lang, title: phoneLinkTitle(lang), body: phoneRequested(lang), button: phoneLinkButton(lang), unlock: true, teach: true}
 }
 
 // phoneChangeAsk goes to the phone linked now: stop (newPhone "") or move
@@ -102,9 +111,13 @@ func phoneRequestedBy(lang string, chat bool) string {
 // showed 39); with more to read than who asked (a hidden effect, "Can't be
 // undone.", the new phone), it asks to read that first, as the pop-up shows
 // the buttons but one line.
-func phoneHint(lang, platform, button string, more bool) string {
+// On an iPhone, an ask the NOVA page shows also opens there with a tap.
+func phoneHint(lang, platform, button string, more, page bool) string {
 	switch platform {
 	case phoneIOS:
+		if page {
+			return confirmT(lang, "phone.hint.ios_page")
+		}
 		return confirmT(lang, "phone.hint.ios")
 	case phoneAndroid:
 		if more {
@@ -196,12 +209,19 @@ func phonePayload(ask phoneAsk, platform, tag, ok, no string, deadline time.Time
 	case ask.unlock:
 		confirm["authenticationRequired"] = true
 	}
-	hint := phoneHint(ask.lang, platform, ask.button, ask.body != phoneRequestedBy(ask.lang, true) && ask.body != phoneRequestedBy(ask.lang, false)) // never chatCall: ha-nova serve sends outside the verb lock
-	message := ask.body + " " + hint
-	if platform == phoneAndroid { // a collapsed Android notification shows one line of text: the hint first
-		message = hint + " " + ask.body
+	hint := phoneHint(ask.lang, platform, ask.button, ask.body != phoneRequestedBy(ask.lang, true) && ask.body != phoneRequestedBy(ask.lang, false), ask.page != "") // never chatCall: ha-nova serve sends outside the verb lock
+	body := ask.body
+	if ask.teach { // the how first; on Android after the hint, which stays the collapsed line
+		body = confirmT(ask.lang, "phone.teach."+cmp.Or(platform, "other"), "button", ask.button) + " " + body
+		if platform != phoneAndroid {
+			hint = ""
+		}
 	}
-	return map[string]any{"title": ask.title, "message": message, "data": map[string]any{
+	message := strings.TrimSpace(body + " " + hint)
+	if platform == phoneAndroid { // a collapsed Android notification shows one line of text: the hint first
+		message = hint + " " + body
+	}
+	data := map[string]any{
 		"tag": tag,
 		"actions": []any{
 			confirm,
@@ -210,7 +230,40 @@ func phonePayload(ask phoneAsk, platform, tag, ok, no string, deadline time.Time
 		"push":         map[string]any{"interruption-level": level},
 		"apns_headers": map[string]any{"apns-expiration": strconv.FormatInt(deadline.Unix(), 10)},
 		"priority":     "high", "ttl": left.Milliseconds(), "channel": "HA NOVA", "importance": "high", "timeout": int(left.Seconds()),
-	}}
+	}
+	// A plain tap: the NOVA page on this ask (iOS reads url, Android
+	// clickAction, and sticky keeps it in the shade), where approving still
+	// takes that page's own button and checks. Else nothing on Android (no
+	// content intent: it stays). iOS would open clickAction as a URL too, so
+	// an iPhone or an unknown phone gets none.
+	switch {
+	case ask.page != "":
+		data["url"], data["clickAction"], data["sticky"] = ask.page, ask.page, "true"
+	case platform == phoneAndroid:
+		data["clickAction"] = "noAction"
+	}
+	return map[string]any{"title": ask.title, "message": message, "data": data}
+}
+
+// phoneReminder: the same ask again, for an iPhone, quiet (no sound; the
+// level stays, so a time-sensitive ask still shows through Focus). Same
+// tag: it replaces the question where it still shows, and brings it back
+// where a plain tap removed it.
+func phoneReminder(payload map[string]any) map[string]any {
+	data := maps.Clone(payload["data"].(map[string]any))
+	push := maps.Clone(data["push"].(map[string]any))
+	push["sound"] = "none"
+	data["push"] = push
+	return map[string]any{"title": payload["title"], "message": payload["message"], "data": data}
+}
+
+// phoneNoAnswerLine: the phone's result when no answer came, with how to
+// answer next time where a plain tap could have lost the question.
+func phoneNoAnswerLine(lang, platform string, page bool) string {
+	if page || platform == "" {
+		return confirmT(lang, "outcome.line.no_answer")
+	}
+	return confirmT(lang, "outcome.line.no_answer_"+platform)
 }
 
 func phoneHost(lang string) string {
@@ -301,8 +354,8 @@ func phoneWithdrawnPayloads(title, body, tag string) []map[string]any {
 }
 
 // phoneNothing: the result of an ask that changed nothing (a title
-// prefix and the line).
-func phoneNothing(lang string, answer phoneAnswer) (string, string) {
+// prefix and the line); no answer says how to answer on platform next time.
+func phoneNothing(lang string, answer phoneAnswer, platform string) (string, string) {
 	switch answer {
 	case phoneDeclined:
 		return confirmT(lang, "outcome.cancelled"), confirmT(lang, "outcome.line.nothing_changed")
@@ -313,7 +366,7 @@ func phoneNothing(lang string, answer phoneAnswer) (string, string) {
 	case phoneFailed, phoneUnread:
 		return confirmT(lang, "outcome.not_asked"), confirmT(lang, "outcome.line.not_asked")
 	}
-	return confirmT(lang, "outcome.not_confirmed"), confirmT(lang, "outcome.line.no_answer")
+	return confirmT(lang, "outcome.not_confirmed"), phoneNoAnswerLine(lang, platform, false)
 }
 
 // phoneApplyResult: how a confirmed plan ended, for the phone (a title

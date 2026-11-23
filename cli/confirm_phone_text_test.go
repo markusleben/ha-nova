@@ -27,7 +27,8 @@ func TestPhoneAskTexts(t *testing.T) {
 		{phonePlanAsk("en", actionGoal{label: "Cancel", names: []string{"“Timer”"}}, false), "Cancel “Timer”?", requested, "Confirm", true},
 	}
 	for _, c := range cases {
-		if c.got != (phoneAsk{"en", c.title, c.body, c.button, c.urgent, !c.urgent, nil}) { // link, move, stop need the unlocked phone
+		want := phoneAsk{lang: "en", title: c.title, body: c.body, button: c.button, urgent: c.urgent, unlock: !c.urgent, teach: c.title == phoneLinkTitle("en")} // link, move, stop need the unlocked phone; the link teaches
+		if c.got != want {
 			t.Errorf("ask %+v, want %q %q %q %v", c.got, c.title, c.body, c.button, c.urgent)
 		}
 	}
@@ -66,11 +67,11 @@ func TestPhoneTextsFitAndroid(t *testing.T) {
 		"Turn off":        "Tap “Turn off”. No button? Pull down.",
 		"Set temperature": "No buttons? Pull down to answer.", // a long verb would cut "Pull down"
 	} {
-		if got := phoneHint("en", phoneAndroid, button, false); got != want || len([]rune(got)) > 38 {
+		if got := phoneHint("en", phoneAndroid, button, false, false); got != want || len([]rune(got)) > 38 {
 			t.Errorf("android hint %q: %q", button, got)
 		}
 	}
-	if got := android(phoneLinkAsk("en")); got != "Tap “Allow”. No button? Pull down. "+phoneRequested("en") {
+	if got := android(phoneLinkAsk("en")); got != "Tap “Allow”. No button? Pull down. "+confirmT("en", "phone.teach.android", "button", "Allow")+" "+phoneRequested("en") {
 		t.Errorf("link %q", got)
 	}
 	// More to read (a hidden effect, no undo, the new phone): read it before a tap from the pop-up.
@@ -80,7 +81,7 @@ func TestPhoneTextsFitAndroid(t *testing.T) {
 			t.Errorf("%q: %q", ask.title, got)
 		}
 	}
-	if got := phoneHint("en", phoneIOS, "Allow", true); got != "Press and hold to answer." {
+	if got := phoneHint("en", phoneIOS, "Allow", true, false); got != "Press and hold to answer." {
 		t.Errorf("ios hint %q", got)
 	}
 	// The move's new phone is in the text, so the old phone sees where it goes.
@@ -109,7 +110,7 @@ func TestPhonePlanNamesTheHiddenEffect(t *testing.T) {
 		t.Fatalf("plan %+v exit %d %+v", plan, exit, env.Error)
 	}
 	if p.sent[0]["title"] != "Turn on “Guest mode”?" ||
-		p.sent[0]["message"] != "This also unlocks “Entrance Door” through the automation “Guest mode unlocks”. Requested by “"+phoneHost("en")+"” through HA NOVA. "+phoneHint("en", "", "Turn on", true) {
+		p.sent[0]["message"] != "This also unlocks “Entrance Door” through the automation “Guest mode unlocks”. Requested by “"+phoneHost("en")+"” through HA NOVA. "+phoneHint("en", "", "Turn on", true, false) {
 		t.Fatalf("notification %q / %q", p.sent[0]["title"], p.sent[0]["message"])
 	}
 }
@@ -140,7 +141,7 @@ func TestPhonePlanSkipsTheTargetsOwnReason(t *testing.T) {
 	plan := h.plan("lock.unlock", "lock.yaml").Plan
 	p.answer = func(_, no string) []phoneEvent { return []phoneEvent{tap(no, "owner-id", "REMOTE")} }
 	if exit, _ := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || len(p.sent) == 0 ||
-		p.sent[0]["title"] != "Unlock “Front Door”?" || p.sent[0]["message"] != "Requested by “"+phoneHost("en")+"” through HA NOVA. "+phoneHint("en", "", "Unlock", false) {
+		p.sent[0]["title"] != "Unlock “Front Door”?" || p.sent[0]["message"] != "Requested by “"+phoneHost("en")+"” through HA NOVA. "+phoneHint("en", "", "Unlock", false, false) {
 		t.Fatalf("exit %d sent %v", exit, p.sent)
 	}
 }
@@ -177,7 +178,7 @@ func TestPhoneStopSaysWhereWhyShows(t *testing.T) {
 		want string
 	}{{nil, "The computer says why."}, {&chatPolicy{codes: true}, "The chat says why."}} {
 		chatCall = c.chat
-		_, tapped := phoneNothing("en", phoneConfirmed)
+		_, tapped := phoneNothing("en", phoneConfirmed, "")
 		_, refused := phoneApplyResult("en", verbEnvelope{}, verbExitRefused)
 		for _, line := range []string{tapped, refused} {
 			if !strings.HasSuffix(line, "Nothing changed. "+c.want) {

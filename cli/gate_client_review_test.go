@@ -251,7 +251,7 @@ func TestGateWindowPageFromTheProfile(t *testing.T) {
 func TestGateGermanTexts(t *testing.T) {
 	for key, want := range map[string]string{
 		"gate.open":         "In Home Assistant öffnen",
-		"say.relay_waiting": "Ich warte auf dein OK auf deinem Handy, falls eines mit diesem Computer verbunden ist, oder auf der NOVA-Seite in Home Assistant; dieser Schritt wurde noch nicht gesendet.",
+		"say.relay_waiting": "Ich warte auf dein OK auf deinem Handy, falls eines mit diesem Computer verbunden ist, oder auf der NOVA-Seite in Home Assistant; dieser Schritt wurde noch nicht gesendet. Halte die Benachrichtigung auf dem Handy gedrückt (iPhone) oder zieh sie nach unten, wenn du keine Knöpfe siehst (Android).",
 		"say.relay_ask":     "Bestätige auf deinem Handy, falls eines mit diesem Computer verbunden ist, oder auf der NOVA-Seite in Home Assistant.",
 	} {
 		if got := confirmT("de", key); got != want {

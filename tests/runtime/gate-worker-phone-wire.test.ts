@@ -10,7 +10,7 @@ const link = { service: "mobile_app_phone", device_id: "phone", user_id: "owner"
 const text = { ask_ref: "a".repeat(64), lang: "en", title: "Unlock Front?", body: "Front door", button: "Unlock" };
 const end = { ask_ref: text.ask_ref, seq: 1, outcome: "window" as const, link, lang: "en", title: text.title, computer: { id: "computer", name: "Study computer" } };
 
-async function setup(handler: (request: IncomingMessage, response: ServerResponse, body: unknown) => void) {
+async function setup(handler: (request: IncomingMessage, response: ServerResponse, body: unknown) => void, panel?: () => Promise<string>) {
   const dir = mkdtempSync(join(process.platform === "win32" ? tmpdir() : "/tmp", "hn-gp-"));
   mkdirSync(join(dir, "gate"));
   const server = createServer((request, response) => {
@@ -22,7 +22,7 @@ async function setup(handler: (request: IncomingMessage, response: ServerRespons
   const warn = vi.fn();
   const gate = createGateWorker({
     dataDir: dir, binary: process.execPath, mint: () => ({ relay_url: "https://fixture.invalid", credential: "fixture" }),
-    logger: { warn, error: vi.fn() }, respawnMs: 1,
+    logger: { warn, error: vi.fn() }, respawnMs: 1, ...(panel ? { panel } : {}),
     spawn: (() => {
       const child = Object.assign(new EventEmitter(), { exitCode: null, signalCode: null as string | null,
         kill: () => { child.signalCode = "SIGTERM"; child.emit("exit", null, "SIGTERM"); return true; } });
@@ -64,6 +64,18 @@ describe("the worker phone wire", () => {
       expect(await pending).toEqual({ answer: "declined" });
       expect(body).toEqual({ ...text, link, wait_ms: 5_000 });
     } finally { await s.close(); }
+  });
+
+  // A tap on the notification opens the ask on NOVA's panel: named only for an ask with a ref, and only a known one.
+  it("names NOVA's panel for an ask's ref, never for a link or an unknown panel", async () => {
+    for (const [known, words, want] of [["/app/x_ha_nova", false, "/app/x_ha_nova"], ["/", false, undefined], ["/app/x_ha_nova", true, undefined]] as const) {
+      const bodies: unknown[] = [];
+      const s = await setup((_request, reply, value) => { bodies.push(value); reply.writeHead(200, { "content-type": "application/json" }).end('{"answer":"none"}'); }, async () => known);
+      try {
+        await s.gate.phone!(link, words ? { words: "link", device: "Study computer" } : text, 5_000, new AbortController().signal);
+        expect((bodies[0] as { panel?: string }).panel).toBe(want);
+      } finally { await s.close(); }
+    }
   });
 
   it("ignores an exposure header and answer from a worker that was replaced", async () => {

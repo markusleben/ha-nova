@@ -119,7 +119,7 @@ func (b *chatBridge) runPhoneJob(job *controlJob, look *controlLook, chosen *pho
 	if look.status == phoneReady {
 		answer, reply := askPhone(context.Background(), look.s, look.current, "ha-nova-chat-setting", chatPhoneChangeAsk(lang, chosen, codes, use), controlAskWait, nil)
 		if answer != phoneConfirmed {
-			reply.say(phoneNothing(lang, answer))
+			reply.say(phoneNothing(lang, answer, look.current.targets[0].platform()))
 			end(controlAnswer[answer])
 			return
 		}
@@ -157,7 +157,7 @@ func (b *chatBridge) runPhoneJob(job *controlJob, look *controlLook, chosen *pho
 	ask := phoneSetup{owner: look.home.owner, relayUser: look.home.relay, confirmer: chosen.UserID, targets: []phoneTarget{*chosen}}
 	answer, reply := askPhone(context.Background(), look.s, ask, "ha-nova-chat-link", link, controlAskWait, nil)
 	if answer != phoneConfirmed {
-		reply.say(phoneNothing(lang, answer))
+		reply.say(phoneNothing(lang, answer, chosen.platform()))
 		end(controlAnswer[answer])
 		return
 	}
@@ -227,5 +227,5 @@ func chatPhoneLinkAsk(lang string, use bool) phoneAsk {
 		body = confirmT(lang, "chat_phone.link.body_use")
 	}
 	return phoneAsk{lang: lang, title: confirmT(lang, "chat_phone.link.title"), body: body + " " + confirmT(lang, "chat_phone.requested"),
-		button: confirmT(lang, "chat_phone.link.button"), unlock: true}
+		button: confirmT(lang, "chat_phone.link.button"), unlock: true, teach: true}
 }

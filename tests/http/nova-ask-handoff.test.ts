@@ -49,13 +49,19 @@ function run(top: { search?: string; throws?: boolean } | "self", dataset: Recor
 describe("the window's ask on the NOVA page", () => {
   const approve = "/api/hassio_ingress/tok/approve";
 
-  it("the approval view shows the named ask first, keeps it on a live reload, and ignores anything but a ref", async () => {
+  it("the approval view shows the named ask alone, keeps it on a live reload, and ignores anything but a ref", async () => {
     const deps: ApprovePageDeps = { fetchAuthUsers: async () => [OWNER, ADMIN, RELAY], relayUserId: async () => RELAY.id, csrf: createCsrfStore(), page, panel: async () => "/app/x_ha_nova", now: () => 1_000 };
     const named = await get(createApprovePageHandler(deps), `/approve?nova_ask=${asks[4]!.ref}`);
     expect(named.body).toContain("Unlock door 4");
-    expect(named.body.indexOf("Unlock door 4")).toBeLessThan(named.body.indexOf("Unlock door 0"));
-    expect(named.body).not.toContain("Unlock door 2"); // three shown: the named one, then the soonest
+    for (const i of [0, 1, 2, 3]) expect(named.body).not.toContain(`Unlock door ${i}`); // the others only behind a link
+    expect(named.body).toContain(`<a href="${approve}">‹page.show_others›</a>`);
     expect(named.body).toContain(`data-reload="${approve}?nova_ask=${asks[4]!.ref}"`);
+    // Ended (answered, cancelled, expired): it says so, and no other ask takes its place.
+    const gone = await get(createApprovePageHandler(deps), `/approve?nova_ask=${ref("ask9")}`);
+    expect(gone.body).toContain("‹page.ask_ended›");
+    for (const i of [0, 1, 2, 3, 4]) expect(gone.body).not.toContain(`Unlock door ${i}`);
+    expect(gone.body).not.toContain('name="action"');
+    expect(gone.body).not.toContain('http-equiv="refresh"'); // it stays on screen
     for (const bad of ["ask4", asks[4]!.ref.toUpperCase(), `${asks[4]!.ref}"><script>`]) {
       const plain = await get(createApprovePageHandler(deps), `/approve?nova_ask=${encodeURIComponent(bad)}`);
       expect(plain.body).not.toContain("Unlock door 4");

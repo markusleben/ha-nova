@@ -43,6 +43,8 @@ func gatePageTexts(lang, name string) map[string]string {
 		"page.approve":              confirmT(lang, "page.approve"),
 		"window.cancel":             confirmT(lang, "window.cancel"),
 		"page.empty":                confirmT(lang, "page.empty"),
+		"page.ask_ended":            confirmT(lang, "page.ask_ended"),
+		"page.show_others":          confirmT(lang, "page.show_others"),
 		"page.more":                 confirmT(lang, "page.more", "count", "{count}"),
 		"page.signed_in":            confirmT(lang, "page.signed_in", "name", sayText(name, true)),
 		"page.back":                 confirmT(lang, "page.back"),

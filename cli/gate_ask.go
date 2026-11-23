@@ -280,6 +280,7 @@ type gatePhoneRequest struct {
 	Body    string     `json:"body,omitempty"`
 	Button  string     `json:"button,omitempty"`
 	Words   string     `json:"words,omitempty"` // "link": the worker words a link ask itself (gate_phone_link.go)
+	Panel   string     `json:"panel,omitempty"` // NOVA's panel in Home Assistant (/app/<slug>), for an ask the NOVA page shows
 	Device  string     `json:"device,omitempty"`
 	Current *phoneLink `json:"current,omitempty"`
 	Link    phoneLink  `json:"link"`
@@ -326,8 +327,20 @@ func gatePhone(ctx context.Context, paths runtimePaths, in gatePhoneRequest) (ga
 	if status != phoneReady {
 		return gatePhoneAnswer{Answer: "unavailable", Why: gatePhoneWhy(setup.why)}, nil
 	}
-	ask := phoneAsk{lang: in.Lang, title: phoneCut(in.Title, phoneTitleLimit), body: in.Body, button: in.Button, urgent: true}
+	ask := phoneAsk{lang: in.Lang, title: phoneCut(in.Title, phoneTitleLimit), body: in.Body, button: in.Button, urgent: true, page: gatePhonePage(in.AskRef, in.Panel)}
 	return gatePhoneTap(ctx, s, paths, in.Link, setup, ask, time.Duration(in.WaitMS)*time.Millisecond), nil
+}
+
+// gatePhonePage: the NOVA page showing the ask ref names, on the panel the
+// App named (its own slug), relative to Home Assistant (the phone's app
+// opens it on the home that asked), as a computer's window opens it
+// (gatePageURL); "" without both. Opening it approves nothing: the page's
+// own button does, for a signed-in administrator who is not the App's user.
+func gatePhonePage(ref, panel string) string {
+	if !gatePhoneRef.MatchString(ref) || !gatePhonePanel.MatchString(panel) {
+		return ""
+	}
+	return panel + "?nova_ask=" + ref
 }
 
 // gatePhoneStill: a tap counts only if, read again after it on a fresh
