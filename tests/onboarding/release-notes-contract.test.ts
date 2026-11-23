@@ -38,7 +38,7 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.34.0 release-facing wording aligned to the shipped stack", () => {
+  it("keeps v0.35.0 release-facing wording aligned to the shipped stack", () => {
     const relayVersion = /^version:\s*"([^"]+)"\s*$/m.exec(readFileSync("nova/config.yaml", "utf8"))?.[1] ?? "";
     // Any App version the notes name is the App in nova/config.yaml: the App promote PR's `npm run bump -- --relay` sets both.
     const notedApps = [...(stableNotes ?? "").matchAll(/NOVA (?:Relay |App to )(\d+\.\d+\.\d+)/g)];
@@ -46,25 +46,28 @@ describe("release notes contract", () => {
     for (const [, noted] of notedApps) {
       expect(noted, "notes name the shipped NOVA Relay version").toBe(relayVersion);
     }
-    // YAML thermostats (MAR-245) need the App's list_dir field, and the App's check runs the bundled CLI, so the App update leads.
+    // Batched reads (MAR-180, ws_batch) and the NOVA page link in the phone question (MAR-266) come from the App, and the App's check runs the bundled CLI, so the App update leads.
     expect(stableNotes).toMatch(/^\*\*Update the NOVA App to \d+\.\d+\.\d+\.\*\* Much of this release runs in the App, so update it and HA NOVA on every computer together\./);
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
     expect(stableNotes).toContain("Then run `ha-nova update` on each computer.");
-    // No MCP tool text changed in 0.34, so ChatGPT needs no Refresh.
+    // No MCP tool text changed in 0.35, so ChatGPT needs no Refresh.
     expect(stableNotes).not.toContain("chatgpt.com/plugins");
     // A 0.31 Mac that skipped 0.32 still re-pairs once, and its CLI's notice shows the first New Features bullet and its JSON the first action item (0.32 spec §5.1); cli/release_digest_mac_repair_test.go proves it.
     expect(stableNotes).toMatch(/## New Features\s+- \*\*Updating a Mac from 0\.31\? HA NOVA asks you to pair it again once\.\*\*/);
     expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Updating a Mac from 0\.31\? HA NOVA asks you to pair it again once\.\*\*/);
     expect(stableNotes).toContain('choose "Allow", not "Always Allow"');
-    // 0.34: YAML thermostats (MAR-245), the speed work, the smaller App.
-    expect(stableNotes).toContain("**A generic thermostat or hygrostat set up in YAML no longer makes everyday calls ask.**");
-    expect(stableNotes).toContain("**YAML thermostats need this release's NOVA App with file access on.**");
-    expect(stableNotes).toContain("**HA NOVA answers faster.**");
-    expect(stableNotes).toContain("**The NOVA App is smaller and starts faster.**");
+    // 0.35: the plain tap (MAR-266, #1289) and batched reads (MAR-180, #1287).
+    expect(stableNotes).toContain("**A plain tap on a phone question no longer loses it.**");
+    expect(stableNotes).toContain("**Planning a change waits for fewer round trips.** With this release's NOVA App");
+    // The plan hash changed (#1288): a plan made before the update asks for a fresh preview.
+    expect(stableNotes).toContain("**Some saved plans need a fresh preview after updating.**");
+    // A live-template trigger still asks, and the plan names it (#1286, decision A).
+    expect(stableNotes).toContain("**Near a thermostat's heater, an automation whose trigger picks its entity with a live template still makes calls ask.**");
     // The standalone container's token-only pairing (R10, #1263) is a behavior change a container user must know.
     expect(stableNotes).toContain("**The standalone container connects with its token only.**");
     expect(stableNotes).toContain("RELAY_AUTH_TOKEN");
-    // Earlier trade-offs still reach a computer that updates straight from 0.31, 0.32, or 0.33.
+    // Earlier trade-offs still reach a computer that updates straight from 0.31 to 0.34.
+    expect(stableNotes).toContain("**YAML thermostat checks need the NOVA App's file access on.**");
     expect(stableNotes).toContain("**A computer paired before 0.32 pairs again once to confirm with one click.**");
     expect(stableNotes).toContain("**One-click confirming trusts that computer.** On Windows and Linux, any program running as you could confirm without a click.");
     expect(stableNotes).toContain("**Your AI assistant sees the chat code too, and HA NOVA can't tell who typed it.**");
@@ -72,11 +75,10 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain("**Update the NOVA App and HA NOVA together.** HA NOVA 0.32 refuses a change it would ask for but the new App wouldn't");
     expect(stableNotes).toContain("**A listener HA NOVA can't name on the logbook's events no longer makes a call ask.**");
     expect(stableNotes).toContain("**A key kept in a file trusts every program running as you.**");
-    // Fixes: verify reads every target (#1256), Link cleanup retry and Windows uninstall proof (#1257), GATE_DISAGREES (#1260).
-    expect(stableNotes).toContain("**After a call on several devices, HA NOVA checks every one.**");
-    expect(stableNotes).toContain("**When removing the old Link sign-in's Keychain copy fails, setup says so and tries again**");
-    expect(stableNotes).toContain("**A Windows uninstall no longer reports success when it can't check that its folder is gone.**");
-    expect(stableNotes).toContain("the message names an App update only when the App is older");
+    // Fixes: heater checks (MAR-262, #1286), registry-id triggers (MAR-263, #1286), delete copies (MAR-267, #1288).
+    expect(stableNotes).toContain("**Scripts and automations near a thermostat's heater count only when they could react.**");
+    expect(stableNotes).toContain("**HA NOVA now sees triggers that name an entity by its registry id.**");
+    expect(stableNotes).toContain("**A copy kept by a delete is easier to find.**");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
   });
