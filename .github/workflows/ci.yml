@@ -256,7 +256,18 @@ jobs:
 
       # -count=1: a restored cache must never replay a cached test pass.
       - name: Go tests
+        env:
+          GO_TEST_DURATIONS_OUT: ${{ runner.temp }}/go-test-durations.txt
         run: bash .github/scripts/go-test-shard.sh "$SHARD_INDEX" "$GO_TEST_SHARDS" . -count=1
+
+      # This shard's test times, for refreshing .github/go-test-durations.txt.
+      - name: Upload test durations
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: go-test-durations-${{ env.SHARD_INDEX }}
+          path: ${{ runner.temp }}/go-test-durations.txt
+          if-no-files-found: ignore
+          retention-days: 30
 
   go-test-2:
     name: go-test-2

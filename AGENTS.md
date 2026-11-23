@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Version: 0.41 (2026-11-12) — bump this header on every local amendment.
+Version: 0.42 (2026-11-23) — bump this header on every local amendment.
 
 Instructions for coding agents in this repo. "Hard rules" protect real homes, credentials, and the release path; no other section can trade them off. The other sections are the standard workflow; where two of them conflict, see Autonomy.
 
@@ -78,7 +78,7 @@ Instructions for coding agents in this repo. "Hard rules" protect real homes, cr
 ## Merge steps (required for agent-authored PRs)
 1. Review steps above done; `gh pr create`.
 2. Codex (above): its review is `completed` (or timed out) and every bot thread is answered.
-3. Every PR: `gh pr checks <nr> --watch` until `ci-gate`, `analyze`, and `dependency-review` are green on the current head; `release/*` has no branch protection, so this is the train's only gate (`app-image-verify` gates PRs into `main` only). Into `main`: if the branch is behind, `gh pr update-branch <nr>` right before your own merge, never on every move of `main`, one PR at a time in the merge window; then every required check, `app-image-verify` included, green on the current head (an App promote PR: an update-branch rebuilds its images, so its App proof runs again; `docs/releasing.md` → App Images). Why: `main` requires up-to-date branches, and `--admin` would skip that, landing an untested combination.
+3. Every PR: `gh pr checks <nr> --watch` until `ci-gate`, `analyze`, and `dependency-review` are green on the current head, and no other check (the CodeQL code-scanning result included) is still queued or running; `ci-gate` registers late, so the watch can end before it exists: confirm a `ci-gate` run passed on that head; `release/*` has no branch protection, so this is the train's only gate (`app-image-verify` gates PRs into `main` only). Into `main`: if the branch is behind, `gh pr update-branch <nr>` right before your own merge, never on every move of `main`, one PR at a time in the merge window; then every required check, `app-image-verify` included, green on the current head (an App promote PR: an update-branch rebuilds its images, so its App proof runs again; `docs/releasing.md` → App Images). Why: `main` requires up-to-date branches, and `--admin` would skip that, landing an untested combination.
 4. Resolve the answered threads (`gh api graphql` `reviewThreads`, then `resolveReviewThread` per id). Retarget any PR stacked on this branch (PR hygiene). Then `gh pr merge <nr> --squash --delete-branch --match-head-commit <checked head> --subject "<PR title> (#<nr>)" --body ""` (the repo default would paste every branch commit into the message). The train landing PR merges with `--rebase --match-head-commit <checked head>` instead (each reviewed squash commit lands as is); if GitHub refuses the rebase, stop and ask (no `--admin`, no settings change). `--admin` only after a merge without it failed with the self-approval requirement as the sole blocker: every required check (`ci-gate`, `analyze`, `dependency-review`, `app-image-verify`) `success` on that head, not behind, no unanswered thread.
 
 ## Releases

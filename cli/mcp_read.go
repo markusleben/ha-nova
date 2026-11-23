@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 )
@@ -222,9 +223,13 @@ func runMCPRead(call *verbCall, paths runtimePaths, argv []string) int {
 	endpoint := argv[0]
 	switch endpoint {
 	case "snapshot":
-		return runOfflineRead(call, paths, endpoint, run, func() (json.RawMessage, error) { return readSnapshot(call, paths, *action, fs.Args()) })
+		next := ""
+		if *action == "show" && slices.Contains(fs.Args(), "--list") {
+			next = snapshotListNextStep
+		}
+		return runOfflineRead(call, paths, endpoint, run, next, func() (json.RawMessage, error) { return readSnapshot(call, paths, *action, fs.Args()) })
 	case "diff":
-		return runOfflineRead(call, paths, endpoint, run, func() (json.RawMessage, error) { return readDiff(call, paths, fs.Args()) })
+		return runOfflineRead(call, paths, endpoint, run, "", func() (json.RawMessage, error) { return readDiff(call, paths, fs.Args()) })
 	}
 	relayEndpoint := endpoint
 	if endpoint == "camera" {

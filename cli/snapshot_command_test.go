@@ -311,6 +311,20 @@ func TestRunSnapshotSavePrintsReceiptJSON(t *testing.T) {
 	}
 }
 
+// --list holds update checkpoints only; its last line, on stderr so stdout
+// stays the JSON list, says where a delete's copies are listed (MAR-267).
+func TestSnapshotListSaysWhereDeleteCopiesAre(t *testing.T) {
+	paths := runtimePaths{ConfigDir: t.TempDir()}
+	out, errOut, exit := runCaptured(nil, func(call *verbCall) int { return runSnapshotShow(call, paths, []string{"--list"}) })
+	var entries []snapshotListingEntry
+	if exit != 0 || json.Unmarshal([]byte(out), &entries) != nil || len(entries) != 0 {
+		t.Fatalf("exit %d, stdout %q", exit, out)
+	}
+	if errOut != "[ha-nova] "+snapshotListElsewhere+"\n" || !strings.Contains(errOut, "ha-nova relay backups -d '{\"action\":\"list\"}'") {
+		t.Fatalf("stderr %q", errOut)
+	}
+}
+
 func TestSnapshotStackPreFieldStoreLoadsAndLists(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	paths, err := detectPaths()

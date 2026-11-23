@@ -84,6 +84,17 @@ fi
 echo "go-test-shard: shard $((index + 1)) of $total runs $(($(wc -l <"$work/shard-$index"))) of $((count)) tests"
 status=0
 while read -r pkg regexp; do
-  go test ${flags[@]+"${flags[@]}"} -run "$regexp" "$pkg" </dev/null || status=1
+  if [[ -z "${GO_TEST_DURATIONS_OUT:-}" ]]; then
+    go test ${flags[@]+"${flags[@]}"} -run "$regexp" "$pkg" </dev/null || status=1
+    continue
+  fi
+  # GO_TEST_DURATIONS_OUT: run as -json, print what plain go test prints
+  # (package lines, build output, and only the failed tests' output), and
+  # append each top-level test of 0.5 s or more to the file, in the format
+  # of go-test-durations.txt.
+  go test ${flags[@]+"${flags[@]}"} -json -run "$regexp" "$pkg" </dev/null >"$work/json" || status=1
+  failed="$(jq -s -c '[.[] | select(.Action == "fail" and .Test != null) | .Test]' "$work/json")"
+  jq -j --argjson failed "$failed" 'select(.Action == "build-output" or (.Action == "output" and (.Test == null or (.Test as $t | $failed | index($t) != null)))) | .Output' "$work/json"
+  jq -r 'select(.Action == "pass" and .Test != null and (.Test | contains("/") | not) and .Elapsed >= 0.5) | "\(.Package) \(.Test) \(.Elapsed)"' "$work/json" >>"$GO_TEST_DURATIONS_OUT"
 done <"$work/run-$index"
 exit "$status"

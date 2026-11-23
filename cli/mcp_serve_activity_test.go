@@ -175,7 +175,7 @@ func TestServeActivityNotesChangesOnly(t *testing.T) {
 	s.tool(userB, "ha_call", map[string]any{"service": "homeassistant.restart"})
 	s.tool(userB, "ha_plan", map[string]any{"kind": "write", "domain": "script", "id": "s1", "draft": map[string]any{}})
 	plan, _ := s.tool(userA, "ha_plan", map[string]any{"kind": "call", "service": "lock.unlock", "entity_ids": []string{"lock.front"}})["plan"].(map[string]any)
-	s.tool(userA, "ha_apply", map[string]any{"plan_id": plan["id"], "confirm_code": plan["code"]})
+	s.outcome(t, userA, map[string]any{"plan_id": plan["id"], "confirm_code": plan["code"]})
 	raw, err := os.ReadFile(filepath.Join(s.data, "activity.jsonl"))
 	info, _ := os.Stat(filepath.Join(s.data, "activity.jsonl"))
 	if err != nil || info.Mode().Perm() != 0o600 || strings.Contains(string(raw), `"`+plan["code"].(string)+`"`) || strings.Contains(string(raw), `"code":`) ||

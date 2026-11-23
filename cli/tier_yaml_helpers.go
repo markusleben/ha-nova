@@ -21,11 +21,7 @@ func (e *tierEngine) yamlHelperCalls(yaml map[string][]string, rowOf map[string]
 		named = append(named, ids...)
 	}
 	fail := func(detail string) bool {
-		if e.loudWhy != "" { // a heater or its target that isn't quiet: which check
-			detail += ": " + e.loudWhy
-		}
-		e.calls.unknown = true
-		e.helperCause = tierReason{Code: reasonHelperCalls, EntityID: slices.Min(named), Detail: detail}
+		e.helperUnbounded(slices.Min(named), detail)
 		return false
 	}
 	for integration := range yaml {

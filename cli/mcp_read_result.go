@@ -152,8 +152,8 @@ func readResult(endpoint string, input []byte, run jqRun) (json.RawMessage, erro
 }
 
 // runOfflineRead runs a read that needs no Relay (snapshot, diff) into the
-// verb envelope.
-func runOfflineRead(call *verbCall, paths runtimePaths, endpoint string, run jqRun, read func() (json.RawMessage, error)) int {
+// verb envelope; next is a successful read's next_step.
+func runOfflineRead(call *verbCall, paths runtimePaths, endpoint string, run jqRun, next string, read func() (json.RawMessage, error)) int {
 	env := verbEnvelope{SchemaVersion: 1, Verb: "read", Status: "ok"}
 	result, err := read()
 	if err == nil {
@@ -165,7 +165,7 @@ func runOfflineRead(call *verbCall, paths runtimePaths, endpoint string, run jqR
 	if err != nil {
 		exit = setVerbError(&env, err)
 	} else {
-		env.Result = result
+		env.Result, env.NextStep = result, next
 	}
 	if !printVerbEnvelope(call, env) {
 		return verbExitError

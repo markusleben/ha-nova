@@ -189,6 +189,9 @@ func TestMCPReadSnapshotAndDiff(t *testing.T) {
 	if rows, _ := list.([]any); code != "" || len(rows) != 1 || rows[0].(map[string]any)["target_id"] != "1" {
 		t.Fatalf("show list: %v %s", list, code)
 	}
+	if env, _ := readEnvelope(c.tool("ha_read", map[string]any{"endpoint": "snapshot", "action": "show", "list": true})); env["next_step"] != snapshotListNextStep { // where a delete's copy is (MAR-267)
+		t.Fatalf("show list next_step: %v", env["next_step"])
+	}
 	if target, code := result(map[string]any{"endpoint": "snapshot", "action": "show", "target": "1", "jq": ".expected_after.mode"}); code != "" || target != "single" {
 		t.Fatalf("show target: %v %s", target, code)
 	}

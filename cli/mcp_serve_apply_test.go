@@ -169,7 +169,7 @@ func TestServeBusyRunsNothingLater(t *testing.T) {
 		t.Fatalf("ran later: posts %d plans %d", len(s.posts()), len(s.userPlans(userA)))
 	}
 	mcpVerbLock.Unlock()
-	if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": id}); env["status"] != "verified" {
+	if env := s.outcome(t, userA, map[string]any{"plan_id": id}); env["status"] != "verified" {
 		t.Fatalf("asked again: %v", env)
 	}
 }

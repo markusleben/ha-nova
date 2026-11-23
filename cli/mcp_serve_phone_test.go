@@ -36,6 +36,16 @@ func waitFor(t *testing.T, what string, cond func() bool) {
 	}
 }
 
+// outcome calls ha_apply as user until it answers something other than
+// applying, as its next_step tells a chat app: the bridge's wait is short
+// here, so a slow runner may still be applying when the first call answers.
+func (s *serveHarness) outcome(t *testing.T, user string, args map[string]any) map[string]any {
+	t.Helper()
+	var env map[string]any
+	waitFor(t, "the outcome", func() bool { env = s.tool(user, "ha_apply", args); return env["status"] != "applying" })
+	return env
+}
+
 func phonePlanFor(t *testing.T, s *serveHarness, user string) string {
 	t.Helper()
 	env := s.tool(user, "ha_plan", map[string]any{"kind": "call", "service": "lock.unlock", "entity_ids": []string{"lock.front"}})
@@ -72,7 +82,7 @@ func TestServeWaitsForThePhoneAndNeverRenotifies(t *testing.T) {
 	p.events <- tap(ok, userA, "REMOTE")
 	waitFor(t, "the apply after the tap", func() bool { return len(s.posts()) == 1 })
 	waitFor(t, "the result on the phone", func() bool { return p.sentCount() == 2 })
-	if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": id}); env["status"] != "verified" {
+	if env := s.outcome(t, userA, map[string]any{"plan_id": id}); env["status"] != "verified" {
 		t.Fatalf("after the tap: %v", env)
 	}
 	if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": id}); envCode(env) != "PLAN_NOT_FOUND" || p.sentCount() != 2 || len(s.posts()) != 1 {

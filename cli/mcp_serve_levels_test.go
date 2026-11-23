@@ -325,7 +325,7 @@ func TestServeUseTheHomeMediaSkill(t *testing.T) {
 	call := func(s *serveHarness, user string, args map[string]any) map[string]any { // a preview: applied as the model would
 		env := s.tool(user, "ha_call", args)
 		if plan, _ := env["plan"].(map[string]any); env["status"] == "needs_confirmation" && plan != nil {
-			env = s.tool(user, "ha_apply", map[string]any{"plan_id": plan["id"]})
+			env = s.outcome(t, user, map[string]any{"plan_id": plan["id"]})
 		}
 		return env
 	}
@@ -374,7 +374,7 @@ func TestServeUseTheHomeMediaSkill(t *testing.T) {
 		s := newServe(t, f, levels([]string{userA}, nil))
 		media, light := planned(s, volume), planned(s, map[string]any{"service": "light.turn_off", "entity_ids": []string{"light.kitchen"}, "skill": "ha-nova:media"})
 		demote(f)
-		if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": media}); envCode(env) != "" || !sent(s, "media_player.volume_set") {
+		if env := s.outcome(t, userA, map[string]any{"plan_id": media}); envCode(env) != "" || !sent(s, "media_player.volume_set") {
 			t.Fatalf("the media player at Use the home: %v", env)
 		}
 		if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": light}); envCode(env) != "CHAT_LEVEL" || sent(s, "light.turn_off") {
@@ -394,7 +394,7 @@ func TestServeUseTheHomeMediaSkill(t *testing.T) {
 		ok, _ := p.buttons(t)
 		p.events <- tap(ok, userA, "REMOTE")
 		waitFor(t, "the result on the phone", func() bool { return p.sentCount() == 2 })
-		if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": id}); envCode(env) != "CHAT_LEVEL" || len(s.posts()) != 0 {
+		if env := s.outcome(t, userA, map[string]any{"plan_id": id}); envCode(env) != "CHAT_LEVEL" || len(s.posts()) != 0 {
 			t.Fatalf("after the tap: %v (sent %d)", env, len(s.posts()))
 		}
 	})

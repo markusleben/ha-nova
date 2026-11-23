@@ -8,7 +8,8 @@
   revertible (alias, saved time, server).
 - **Config snapshot** (`../ha-nova/config-snapshots.md`): captured before
   covered destructive HA NOVA operations; restores the deleted/overwritten
-  item itself.
+  item itself. A delete's copy is one: the Relay's backups `list` shows it,
+  never `ha-nova snapshot show --list`.
 - **Home Assistant Backup**: full system recovery, the safety net when
   neither targeted layer covers the case.
 
