@@ -60,14 +60,14 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain("**A plain tap on a phone question no longer loses it.**");
     expect(stableNotes).toContain("**Planning a change waits for fewer round trips.** With this release's NOVA App");
     // The plan hash changed (#1288): a plan made before the update asks for a fresh preview.
-    expect(stableNotes).toContain("**A plan made before the update asks for a fresh preview.**");
+    expect(stableNotes).toContain("**Some saved plans need a fresh preview after updating.**");
     // A live-template trigger still asks, and the plan names it (#1286, decision A).
-    expect(stableNotes).toContain("**When an automation's trigger picks its entity with a live template, calls it might react to still ask.**");
+    expect(stableNotes).toContain("**Near a thermostat's heater, an automation whose trigger picks its entity with a live template still makes calls ask.**");
     // The standalone container's token-only pairing (R10, #1263) is a behavior change a container user must know.
     expect(stableNotes).toContain("**The standalone container connects with its token only.**");
     expect(stableNotes).toContain("RELAY_AUTH_TOKEN");
     // Earlier trade-offs still reach a computer that updates straight from 0.31 to 0.34.
-    expect(stableNotes).toContain("**YAML thermostats need this release's NOVA App with file access on.**");
+    expect(stableNotes).toContain("**YAML thermostat checks need the NOVA App's file access on.**");
     expect(stableNotes).toContain("**A computer paired before 0.32 pairs again once to confirm with one click.**");
     expect(stableNotes).toContain("**One-click confirming trusts that computer.** On Windows and Linux, any program running as you could confirm without a click.");
     expect(stableNotes).toContain("**Your AI assistant sees the chat code too, and HA NOVA can't tell who typed it.**");
@@ -77,8 +77,8 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain("**A key kept in a file trusts every program running as you.**");
     // Fixes: heater checks (MAR-262, #1286), registry-id triggers (MAR-263, #1286), delete copies (MAR-267, #1288).
     expect(stableNotes).toContain("**Scripts and automations near a thermostat's heater count only when they could react.**");
-    expect(stableNotes).toContain("**A trigger that names an entity by its Home Assistant registry id now counts like one that names the entity.**");
-    expect(stableNotes).toContain("**Your AI finds the copy a delete kept.**");
+    expect(stableNotes).toContain("**HA NOVA now sees triggers that name an entity by its registry id.**");
+    expect(stableNotes).toContain("**A copy kept by a delete is easier to find.**");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
   });

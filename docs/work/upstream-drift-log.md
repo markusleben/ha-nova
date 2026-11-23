@@ -148,17 +148,23 @@ standing recheck stay here.
   Supervisor `2026.11.0`.
 - Clean pass: nothing new changes a WS command, REST route, or service
   pinned in `skills/**/*.md` or `cli/*.go`.
-- The 0.35 train adds no upstream WS command or REST route. It relies on
-  these existing shapes, all unchanged in Core `2026.11.2`:
-  - batched reads (MAR-180) send the same `automation/config` and
-    `script/config` messages one after another over the existing WS
-    connection;
-  - the event trigger (`components/homeassistant/triggers/event.py`)
-    renders `event_data` once with the trigger variables and matches it
-    key by key (MAR-262);
-  - the state trigger accepts entity registry ids (`cv.entity_ids_or_uuids`,
-    resolved by `er.async_validate_entity_ids`; MAR-263);
-  - the Companion app notification data `url` (iOS), `clickAction`
+- The 0.35 train adds no upstream WS command or REST route. Batching
+  (`POST /ws` with `batch`, `ws_batch` in `/health`) is a NOVA route;
+  the App sends the same `automation/config` and `script/config`
+  messages one after another (MAR-180). It relies on these existing
+  shapes, all unchanged:
+  - Core `2026.11.2`: the event trigger
+    (`components/homeassistant/triggers/event.py`) renders `event_data`
+    once with the trigger variables and matches it key by key (MAR-262);
+    `search/related` still returns the scripts and automations of an area
+    or floor (MAR-262); the state trigger accepts entity registry ids
+    (`cv.entity_ids_or_uuids`, resolved by `er.async_validate_entity_ids`),
+    matched against the `id` field of `config/entity_registry/list`
+    (MAR-263).
+  - Supervisor `2026.11.0` and the frontend: `/addons/self/info` still
+    reports the App's `slug`, and the App panel lives at `/app/<slug>`
+    (MAR-266).
+  - Companion apps: notification data `url` (iOS), `clickAction`
     (Android, including `noAction`), `sticky`, and `push.sound` (MAR-266).
 - Source checked: [Core releases (API listing)](https://api.github.com/repos/home-assistant/core/releases?per_page=3),
   [contributors blog](https://contributors.home-assistant.io/blog/),
