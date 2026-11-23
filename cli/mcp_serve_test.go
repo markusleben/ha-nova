@@ -336,7 +336,7 @@ func TestServePlansAreBoundToTheirUser(t *testing.T) {
 	if len(s.posts()) != 0 {
 		t.Fatal("another user's apply sent")
 	}
-	if own := s.tool(userA, "ha_apply", map[string]any{"plan_id": plan["id"], "confirm_code": code}); own["status"] != "verified" || len(s.posts()) != 1 {
+	if own := s.outcome(t, userA, map[string]any{"plan_id": plan["id"], "confirm_code": code}); own["status"] != "verified" || len(s.posts()) != 1 {
 		t.Fatalf("own apply: %v posts %d", own, len(s.posts()))
 	}
 	if strings.Contains(s.logs.String(), code) {

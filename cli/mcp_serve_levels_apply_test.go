@@ -77,7 +77,7 @@ func TestServeUseTheHomeStaysInsideTheAllowlist(t *testing.T) {
 	if env["status"] != "needs_confirmation" || plan == nil {
 		t.Fatalf("a script: %v", env)
 	}
-	if env := s.tool(userB, "ha_apply", map[string]any{"plan_id": plan["id"]}); envCode(env) != "" || len(s.posts()) != 4 {
+	if env := s.outcome(t, userB, map[string]any{"plan_id": plan["id"]}); envCode(env) != "" || len(s.posts()) != 4 {
 		t.Fatalf("a script, applied: %v (sent %d)", env, len(s.posts()))
 	}
 	env = s.tool(userB, "ha_call", map[string]any{"service": "lock.unlock", "entity_ids": []string{"lock.front"}})
@@ -104,7 +104,7 @@ func TestServeUseTheHomeConfirmsOnItsOwnPhone(t *testing.T) {
 	ok, _ := p.buttons(t)
 	p.events <- tap(ok, userB, "REMOTE")
 	waitFor(t, "the result on the phone", func() bool { return p.sentCount() == 2 })
-	if env := s.tool(userB, "ha_apply", map[string]any{"plan_id": plan["id"]}); env["status"] != "verified" || len(s.posts()) != 1 {
+	if env := s.outcome(t, userB, map[string]any{"plan_id": plan["id"]}); env["status"] != "verified" || len(s.posts()) != 1 {
 		t.Fatalf("after the tap: %v", env)
 	}
 	if _, answer := s.b.controlActivity(); answer["changes"].([]activityLine)[0].Result != "phone" {
@@ -137,7 +137,7 @@ func TestServeLevelReadAgainBeforeApply(t *testing.T) {
 		ok, _ := p.buttons(t)
 		p.events <- tap(ok, userA, "REMOTE")
 		waitFor(t, "the result on the phone", func() bool { return p.sentCount() == 2 })
-		if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": plan["id"]}); envCode(env) != "CHAT_LEVEL" || len(s.posts()) != 0 {
+		if env := s.outcome(t, userA, map[string]any{"plan_id": plan["id"]}); envCode(env) != "CHAT_LEVEL" || len(s.posts()) != 0 {
 			t.Fatalf("after the tap: %v (sent %d)", env, len(s.posts()))
 		}
 	})
@@ -179,7 +179,7 @@ func TestServeLevelReadAgainBeforeApply(t *testing.T) {
 		held = false
 		mcpVerbLock.Unlock()
 		waitFor(t, "the result on the phone", func() bool { return p.sentCount() == 2 })
-		if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": plan["id"]}); envCode(env) != "CHAT_LEVEL" || len(s.posts()) != 0 {
+		if env := s.outcome(t, userA, map[string]any{"plan_id": plan["id"]}); envCode(env) != "CHAT_LEVEL" || len(s.posts()) != 0 {
 			t.Fatalf("after the tap: %v (sent %d)", env, len(s.posts()))
 		}
 	})
@@ -195,7 +195,7 @@ func TestServeLevelReadAgainBeforeApply(t *testing.T) {
 		ok, _ := p.buttons(t)
 		p.events <- tap(ok, userA, "REMOTE")
 		waitFor(t, "the result on the phone", func() bool { return p.sentCount() == 2 })
-		if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": id}); envCode(env) != "CHAT_LEVEL" || len(s.writes()) != 0 {
+		if env := s.outcome(t, userA, map[string]any{"plan_id": id}); envCode(env) != "CHAT_LEVEL" || len(s.writes()) != 0 {
 			t.Fatalf("after the tap: %v (writes %d)", env, len(s.writes()))
 		}
 		p.mu.Lock()
@@ -221,7 +221,7 @@ func TestServeLevelReadAgainBeforeApply(t *testing.T) {
 		ok, _ := p.buttons(t)
 		p.events <- tap(ok, userA, "REMOTE")
 		waitFor(t, "the result on the phone", func() bool { return p.sentCount() == 2 })
-		if env := s.tool(userA, "ha_apply", map[string]any{"plan_id": plan["id"]}); envCode(env) != "ACCESS_UNKNOWN" || len(s.posts()) != 0 {
+		if env := s.outcome(t, userA, map[string]any{"plan_id": plan["id"]}); envCode(env) != "ACCESS_UNKNOWN" || len(s.posts()) != 0 {
 			t.Fatalf("after the tap: %v (sent %d)", env, len(s.posts()))
 		}
 	})

@@ -13,7 +13,7 @@ Layer 1 is documented in [CONTRIBUTING.md → Verification Matrix](../../CONTRIB
 
 ## 1. Host-safe checks
 
-`npm run verify:node` is the host-safe gate on any machine: dependency audit, blocked-file checks, release metadata, typecheck, the docs fact-check, the build, and every Vitest test in one sweep. It never opens a browser or touches a real OS keyring. `npm run verify` adds the Go CLI suite; its pairing, setup, purge, and server-removal tests run on a Mac only in a Linux container or a separate macOS user (see the Keychain note below), so on a Mac with real credentials leave them to CI.
+`npm run verify:node` is the host-safe gate on any machine: dependency audit, blocked-file checks, release metadata, typecheck, the docs fact-check, the build, and every Vitest test in one sweep. It never opens a browser or touches a real OS keyring. `npm run verify` adds the Go CLI suite; its pairing, setup, purge, and server-removal tests run on a Mac only in a Linux container or a separate macOS user (see the Keychain note below), so on a Mac with real credentials leave them to CI. In a container, run the suite as a non-root user, as CI's runner is, with the whole repository mounted: root writes into a directory a test made read-only, and some tests read `nova/` and `skills/`.
 
 ## 2. Disposable-HA E2E (no HA of your own)
 

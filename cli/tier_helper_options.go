@@ -209,6 +209,7 @@ func (e *tierEngine) helperCalls() {
 	}
 	var helpers, entries []string
 	yamlHelpers := map[string][]string{} // integration → its YAML entities (no config entry)
+	helperOf := map[string]string{}      // config entry → its first helper
 	for id, source := range sources {
 		if helperOptionFields[source.Domain] != "" {
 			helpers = append(helpers, id)
@@ -218,15 +219,15 @@ func (e *tierEngine) helperCalls() {
 	for _, id := range helpers {
 		entry := rowOf[id].ConfigEntryID
 		if !e.quiet(id) {
-			e.calls.unknown = true
-			if entry == "" {
-				e.helperCause = tierReason{Code: reasonHelperCalls, EntityID: id, Detail: "helper_listened: " + e.loudWhy}
-			}
+			e.helperUnbounded(id, "helper_listened")
 			return
 		}
 		if entry == "" {
 			yamlHelpers[sources[id].Domain] = append(yamlHelpers[sources[id].Domain], id)
 			continue
+		}
+		if helperOf[entry] == "" {
+			helperOf[entry] = id
 		}
 		entries = append(entries, entry)
 	}
@@ -235,19 +236,35 @@ func (e *tierEngine) helperCalls() {
 	}
 	slices.Sort(entries)
 	for _, entry := range slices.Compact(entries) {
+		e.loudWhy = ""
 		var stored string
 		data, err := e.s.read(helperOptionsEndpoint, map[string]any{"entry_id": entry})
-		if err != nil || json.Unmarshal(data, &stored) != nil || !e.plainSwitched(stored) {
-			e.calls.unknown = true
+		switch {
+		case err != nil || json.Unmarshal(data, &stored) != nil:
+			e.helperUnbounded(helperOf[entry], "options_unread")
+			return
+		case !e.plainSwitched(stored):
+			e.helperUnbounded(helperOf[entry], "heater_not_plain")
 			return
 		}
 		e.calls.add("homeassistant.turn_on")
 		e.calls.add("homeassistant.turn_off")
-		e.calledOn(stored)
-		if e.calls.unknown {
+		if e.calledOn(stored); e.calls.unknown {
+			e.helperUnbounded(helperOf[entry], "heater_not_plain")
 			return
 		}
 	}
+}
+
+// helperUnbounded leaves the calls unknown and keeps why for the plan
+// (reasonHelperCalls): the helper, detail, and the quiet check that failed,
+// if one did.
+func (e *tierEngine) helperUnbounded(id, detail string) {
+	if e.loudWhy != "" {
+		detail += ": " + e.loudWhy
+	}
+	e.calls.unknown = true
+	e.helperCause = tierReason{Code: reasonHelperCalls, EntityID: id, Detail: detail}
 }
 
 // plainSwitched: id is a switch or fan that only switches, as the helpers'
