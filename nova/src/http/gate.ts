@@ -1,6 +1,7 @@
 import { isLoopback, type Principal } from "../security/principal.js";
 import { decodeUtf8Strict } from "../shared/utf8.js";
 import { HttpError, toErrorResponse } from "./errors.js";
+import { isBatch } from "./handlers/ws-proxy.js";
 import type { GateRequest, LinkWords, PhoneAnswer, PhoneLink, PhoneText, PreparedAsk, WindowEnd } from "./gate-ask-types.js";
 import type { RouteContext, RouteHandler } from "./router.js";
 
@@ -48,8 +49,9 @@ export function gated(
     }
     const bytes = Buffer.from(JSON.stringify(prepare(context.body) ?? null));
     const send: RouteContext = { ...context, body: JSON.parse(bytes.toString("utf8")) as unknown };
+    const batch = endpoint === "ws" && isBatch(send.body); // goes out only as a rated read, redacted
     if (principal.kind === "device" && principal.internal !== undefined) {
-      if (!isLoopback(principal.peer)) {
+      if (!isLoopback(principal.peer) || batch) {
         throw refused();
       }
       if (principal.internal === "chat-bridge") {
@@ -72,7 +74,7 @@ export function gated(
     if (check === null) {
       throw unavailable();
     }
-    if (check.verdict === "refuse") {
+    if (check.verdict === "refuse" || batch && (check.verdict !== "pass" || check.kind !== "read")) {
       throw refused(check.why);
     }
     if (check.verdict === "typed") {

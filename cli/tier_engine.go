@@ -492,7 +492,7 @@ func loadedConfig(s *relaySession, entityID, domain string) (json.RawMessage, bo
 	var loaded struct {
 		Config json.RawMessage `json:"config"`
 	}
-	err := s.wsDecode(map[string]any{"type": domain + "/config", "entity_id": entityID}, &loaded, "the loaded config of "+entityID)
+	err := s.wsDecode(loadedConfigRequest(entityID, domain), &loaded, "the loaded config of "+entityID)
 	switch trimmed := strings.TrimSpace(string(loaded.Config)); {
 	case isUpstreamNotFound(err):
 		return nil, false, nil
@@ -502,6 +502,12 @@ func loadedConfig(s *relaySession, entityID, domain string) (json.RawMessage, bo
 		return nil, false, nil
 	}
 	return loaded.Config, true, nil
+}
+
+// loadedConfigRequest: the WS read of the config Home Assistant runs for an
+// automation or script (one memo key for loadedConfig and readBatched).
+func loadedConfigRequest(entityID, domain string) map[string]any {
+	return map[string]any{"type": domain + "/config", "entity_id": entityID}
 }
 
 // loadedConfigKey names a loaded config without a config id in the plan

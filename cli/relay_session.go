@@ -109,6 +109,8 @@ type relaySession struct {
 	startCheck   bool             // the gate rates a helper's options-flow start on it: it starts no flow itself (gateProbe)
 	call         *verbCall        // the verb run it serves (nil: the CLI's): where its progress lines go
 	placeIdx     *placeIndex      // trigger targets of place-only automations (tier_place_index.go); nil until used
+	batchOnce    sync.Once        // wsBatch reads /health once
+	batchOn      bool             // the Relay takes batched reads (relay_batch.go)
 }
 
 type relayMemo struct {

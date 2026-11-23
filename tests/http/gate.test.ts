@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { HttpError } from "../../nova/src/http/errors.js";
 import { gated, type GateEndpoint } from "../../nova/src/http/gate.js";
 import { parseCoreRequest } from "../../nova/src/http/handlers/core-proxy.js";
+import { prepareWsBody } from "../../nova/src/http/handlers/ws-proxy.js";
 import type { RouteHandler } from "../../nova/src/http/router.js";
 import { createGateWorker, mintGateDevice, type GateWorker } from "../../nova/src/runtime/gate-worker.js";
 import { createBootstrapListener, createDeviceListener } from "../../nova/src/runtime/listeners.js";
@@ -116,7 +117,7 @@ beforeEach(async () => {
   gate.start();
   const functional = {
     health: () => ({}),
-    ws: gated("ws", upstream("ws"), gate),
+    ws: gated("ws", upstream("ws"), gate, prepareWsBody),
     core: gated("core", upstream("core"), gate, parseCoreRequest),
     files: gated("files", upstream("files"), gate),
     backups: gated("backups", upstream("backups"), gate),
@@ -455,3 +456,41 @@ describe("relay gate: the App's own credentials", () => {
     expect(forwarded).toEqual([]);
   });
 });
+
+describe("relay gate: batched reads", () => {
+  const batch = { batch: [{ type: "automation/config", entity_id: "automation.a" }, { type: "script/config", entity_id: "script.b" }] };
+
+  it("goes out only as a passed read, redacted once; any other verdict is refused, never a grant", async () => {
+    reply = (path, body) => (path === "/check" ? verdict("pass", "read") : redactAll(body));
+    const res = await viaLaptop("/ws", batch);
+    expect(res.status).toBe(200);
+    expect(JSON.parse(res.text)).toEqual({ ok: true, data: { result: "HIDDEN" } });
+    expect(forwarded).toEqual([{ endpoint: "ws", body: batch }]);
+    expect(seen.map((s) => s.path)).toEqual(["/check", "/redact"]);
+    for (const [v, kind] of [["pass", "write"], ["pass", "probe"], ["typed", "read"], ["typed", "write"], ["refuse", "read"]]) {
+      reply = () => verdict(v!, kind);
+      expect((await viaLaptop("/ws", batch)).status).toBe(422);
+    }
+    expect(forwarded).toHaveLength(1);
+  });
+
+  it("a batch envelope the Relay can't read: 400 before the check", async () => {
+    const res = await viaLaptop("/ws", { ...batch, type: "automation/config" });
+    expect(res.status).toBe(400);
+    expect(code(res.text)).toBe("VALIDATION_ERROR");
+    expect(seen).toEqual([]);
+    expect(forwarded).toEqual([]);
+  });
+
+  it("the App's own credentials never send one", async () => {
+    reply = () => verdict("pass", "read");
+    for (const own of [device(BRIDGE_INSTALL_ID), device(GATE_INSTALL_ID)]) {
+      const res = await viaDevice("/ws", batch, own);
+      expect(res.status).toBe(422);
+      expect(code(res.text)).toBe("GATE_REFUSED");
+    }
+    expect(seen).toEqual([]);
+    expect(forwarded).toEqual([]);
+  });
+});
+

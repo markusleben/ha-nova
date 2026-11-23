@@ -223,29 +223,39 @@ func (s *relaySession) gateOn() (bool, error) {
 func (s *relaySession) readGate() (on, window, code bool, err error) {
 	ctx, cancel := context.WithTimeout(planAsks, afterCheck)
 	defer cancel()
+	var health struct {
+		Gate   int `json:"gate"`
+		Window int `json:"window"`
+		Code   int `json:"code"`
+	}
+	if err := s.readHealth(ctx, &health); err != nil {
+		return false, false, false, err
+	}
+	return health.Gate == 1, health.Window == 1, health.Code == 1, nil
+}
+
+// readHealth reads the data of the Relay's GET /health into into, on the
+// session's transport.
+func (s *relaySession) readHealth(ctx context.Context, into any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(s.transport.BaseURL, "/")+"/health", nil)
 	if err != nil {
-		return false, false, false, err
+		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+s.transport.Credential)
 	resp, err := s.transport.Client.Do(req)
 	if err != nil {
-		return false, false, false, err
+		return err
 	}
 	defer resp.Body.Close()
 	raw, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	var health struct {
-		OK   bool `json:"ok"`
-		Data struct {
-			Gate   int `json:"gate"`
-			Window int `json:"window"`
-			Code   int `json:"code"`
-		} `json:"data"`
+		OK   bool            `json:"ok"`
+		Data json.RawMessage `json:"data"`
 	}
-	if err != nil || resp.StatusCode != http.StatusOK || json.Unmarshal(raw, &health) != nil || !health.OK {
-		return false, false, false, fmt.Errorf("the Relay's health answer (HTTP %d) can't be read", resp.StatusCode)
+	if err != nil || resp.StatusCode != http.StatusOK || json.Unmarshal(raw, &health) != nil || !health.OK || json.Unmarshal(health.Data, into) != nil {
+		return fmt.Errorf("the Relay's health answer (HTTP %d) can't be read", resp.StatusCode)
 	}
-	return health.Data.Gate == 1, health.Data.Window == 1, health.Data.Code == 1, nil
+	return nil
 }
 
 // gateSeen: this server profile once saw the gate (config.json; user-writable,

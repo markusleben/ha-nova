@@ -185,10 +185,17 @@ A *bare* subscription (no envelope) is still rejected with
 `400 UNSUPPORTED_WS_TYPE`, because the relay could neither deliver its events
 nor bound its lifetime.
 
-Batch mode (array request bodies) is NOT supported: the WS proxy validates a
-single object with a string `type` and rejects arrays with
-`400 VALIDATION_ERROR` (`nova/src/http/handlers/ws-proxy.ts`). Callers loop
-client-side, one command per request.
+Array request bodies are rejected with `400 VALIDATION_ERROR`. One batch shape
+exists (0.35, `GET /health` `ws_batch: 1`, spec
+`docs/work/2026-11-20-ws-batch-reads-spec.md`): `{"batch": [...]}` with 1 to
+16 loaded-config reads (`automation/config`, `script/config` by `entity_id`)
+and no other key. The safety check rates the batch once and the Relay forwards
+it only when that check passes it as a read; the App's own keys never send one.
+The Relay sends the items one after another and answers
+`{"results": [...]}` in item order, each result exactly as `POST /ws` answers
+that item alone; an item not sent within 10 s answers `UPSTREAM_WS_TIMEOUT`.
+The CLI's listener census uses it; every other caller sends one command per
+request.
 
 ### `POST /core` — REST Core Proxy
 
