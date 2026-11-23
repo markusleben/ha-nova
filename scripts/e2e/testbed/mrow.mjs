@@ -47,7 +47,7 @@ async function openLogbook() {
     socket.onmessage = (event) => {
       const m = JSON.parse(event.data);
       if (m.type === "auth_required") socket.send(JSON.stringify({ type: "auth", access_token: read("ha-llat") }));
-      else if (m.type === "auth_ok") socket.send(JSON.stringify({ id: 1, type: "logbook/event_stream", start_time: new Date().toISOString() }));
+      else if (m.type === "auth_ok") socket.send(JSON.stringify({ id: 1, type: "logbook/event_stream", start_time: new Date(Date.now() - 60_000).toISOString() })); // a minute back: Home Assistant refuses a start after its own clock, and Docker's clock can trail the host's
       else if (m.id === 1 && m.type === "result") m.success ? resolve() : reject(new Error("logbook/event_stream: " + JSON.stringify(m.error)));
     };
   });

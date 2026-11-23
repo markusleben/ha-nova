@@ -95,7 +95,7 @@ func (f *fakeHA) script(object string, sequence ...any) *fakeHA {
 }
 
 func (f *fakeHA) automation(object, id string, cfg map[string]any) *fakeHA {
-	attrs := map[string]any{}
+	attrs := map[string]any{"current": 0}
 	if id != "" {
 		attrs["id"] = id
 		f.configs["/api/config/automation/config/"+id] = cfg
@@ -158,7 +158,7 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 		case "search/related":
 			items := f.related[fmt.Sprint(p["item_type"])+":"+fmt.Sprint(p["item_id"])]
 			if p["item_type"] == "area" {
-				return map[string]any{"entity": items, "device": f.related["area-devices:"+fmt.Sprint(p["item_id"])], "automation": f.related["area-automation:"+fmt.Sprint(p["item_id"])]}
+				return map[string]any{"entity": items, "device": f.related["area-devices:"+fmt.Sprint(p["item_id"])], "automation": f.related["area-automation:"+fmt.Sprint(p["item_id"])], "script": f.related["scripts:"+fmt.Sprint(p["item_id"])]}
 			}
 			return map[string]any{"automation": items, "group": f.relatedGroups[fmt.Sprint(p["item_id"])], "script": f.related["scripts:"+fmt.Sprint(p["item_id"])], "person": f.related["persons:"+fmt.Sprint(p["item_id"])]}
 		case "config/entity_registry/get_entries":
@@ -236,7 +236,7 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 	case path == "/api/config" && f.config != nil:
 		return coreReply(200, f.config)
 	case path == "/api/states":
-		var all []any
+		all := []any{}
 		for _, st := range f.states {
 			all = append(all, st)
 		}

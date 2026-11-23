@@ -23,6 +23,7 @@
 import { execFileSync } from "node:child_process";
 import { relay } from "./phone.mjs";
 import { loaded, mRowChecks } from "./mrow.mjs";
+import { quietPatternChecks } from "./quiet-pattern.mjs";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const names = (plan) => (plan.consumers ?? []).map((c) => c.automation);
@@ -68,6 +69,7 @@ export async function callChecks({ ha, ws, cli, apply, check, watchdogID, loadAu
   check("a cover call still asks: the cover watchdog is its consumer and could open a garage", cover.tier === "typed" && names(cover).includes(watchdog) && codes(cover).includes("ACCESS_COVER"),
     "tier " + (cover.tier ?? cover.error?.code) + ", consumers " + (names(cover).join(",") || "-") + ", reasons " + (codes(cover).join(",") || "-"));
   await mRowChecks({ ha, ws, cli, check, loadAutomations, gated });
+  await quietPatternChecks({ ha, ws, cli, check, loadAutomations }); // before the oracles below, which make a light call ask for their own reasons
   await placeChecks({ ha, ws, cli, check, loadAutomations, planWrite });
 
   const thermostats = [], entries = [];
