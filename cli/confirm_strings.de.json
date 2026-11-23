@@ -690,7 +690,7 @@
   "phone.tap.android": "Tippe in der Benachrichtigung auf „{button}“. Kein Knopf? Zieh sie nach unten oder tippe auf ihren Pfeil.",
   "phone.tap.other": "Tippe in der Benachrichtigung auf „{button}“. {buttons}",
   "phone.buttons_line": "Um die Knöpfe zu sehen, halte die Benachrichtigung auf einem iPhone gedrückt oder zieh sie auf Android nach unten.",
-  "phone.teach.android": "Einfaches Antippen beantwortet Fragen von HA NOVA nicht: Nutze ihre Knöpfe und zieh die Benachrichtigung nach unten, wenn du keine siehst. Entsperre, falls gefragt.",
+  "phone.teach.android": "Einfaches Antippen beantwortet Fragen von HA NOVA nicht: Tippe auf „{button}“ und zieh die Benachrichtigung nach unten, wenn du den Knopf nicht siehst. Entsperre, falls gefragt.",
   "phone.teach.ios": "Halte diese Benachrichtigung gedrückt und tippe dann auf „{button}“ (entsperren, falls gefragt). Einfaches Antippen beantwortet Fragen von HA NOVA nicht.",
   "phone.teach.other": "Halte diese Benachrichtigung gedrückt (iPhone) oder zieh sie nach unten (Android) und tippe dann auf „{button}“. Einfaches Antippen beantwortet Fragen von HA NOVA nicht.",
   "phone.link.title": "HA NOVA hier bestätigen?",

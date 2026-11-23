@@ -78,7 +78,7 @@ func TestPhonePayloadPerPlatform(t *testing.T) {
 // How to show the buttons, said on the computer and in the chat.
 func TestPhoneTapLinePerPlatform(t *testing.T) {
 	for platform, want := range map[string]string{
-		phoneIOS:     "Press and hold the notification, then tap “Allow”. A plain tap only opens the app.",
+		phoneIOS:     "Press and hold the notification, then tap “Allow”. Tapping the notification itself doesn't confirm.",
 		phoneAndroid: "Tap “Allow” in the notification. No button? Pull it down, or tap its arrow.",
 		"":           "Tap “Allow” in the notification. To see the buttons, press and hold the notification on an iPhone, or pull it down on Android.",
 	} {
@@ -86,7 +86,7 @@ func TestPhoneTapLinePerPlatform(t *testing.T) {
 			t.Errorf("%q: %q", platform, got)
 		}
 	}
-	if got := sayPhoneAsk("en", "Unlock", phoneIOS); got != "Confirm on your phone. Press and hold the notification, then tap “Unlock”. A plain tap only opens the app." {
+	if got := sayPhoneAsk("en", "Unlock", phoneIOS); got != "Confirm on your phone. Press and hold the notification, then tap “Unlock”. Tapping the notification itself doesn't confirm." {
 		t.Errorf("say: %q", got)
 	}
 	if got := sayWindowPhoneAsk("en", "Unlock", phoneAndroid); got != "Confirm in the window on this computer or on your phone. On the phone: Tap “Unlock” in the notification. No button? Pull it down, or tap its arrow. The first answer counts." {

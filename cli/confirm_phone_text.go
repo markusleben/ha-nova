@@ -1,7 +1,6 @@
 package main
 
 import (
-	"cmp"
 	"fmt"
 	"maps"
 	"os"
@@ -212,7 +211,14 @@ func phonePayload(ask phoneAsk, platform, tag, ok, no string, deadline time.Time
 	hint := phoneHint(ask.lang, platform, ask.button, ask.body != phoneRequestedBy(ask.lang, true) && ask.body != phoneRequestedBy(ask.lang, false), ask.page != "") // never chatCall: ha-nova serve sends outside the verb lock
 	body := ask.body
 	if ask.teach { // the how first; on Android after the hint, which stays the collapsed line
-		body = confirmT(ask.lang, "phone.teach."+cmp.Or(platform, "other"), "button", ask.button) + " " + body
+		teach := confirmT(ask.lang, "phone.teach.other", "button", ask.button)
+		switch platform {
+		case phoneIOS:
+			teach = confirmT(ask.lang, "phone.teach.ios", "button", ask.button)
+		case phoneAndroid:
+			teach = confirmT(ask.lang, "phone.teach.android", "button", ask.button)
+		}
+		body = teach + " " + body
 		if platform != phoneAndroid {
 			hint = ""
 		}
@@ -260,10 +266,14 @@ func phoneReminder(payload map[string]any) map[string]any {
 // phoneNoAnswerLine: the phone's result when no answer came, with how to
 // answer next time where a plain tap could have lost the question.
 func phoneNoAnswerLine(lang, platform string, page bool) string {
-	if page || platform == "" {
-		return confirmT(lang, "outcome.line.no_answer")
+	switch {
+	case page:
+	case platform == phoneIOS:
+		return confirmT(lang, "outcome.line.no_answer_ios")
+	case platform == phoneAndroid:
+		return confirmT(lang, "outcome.line.no_answer_android")
 	}
-	return confirmT(lang, "outcome.line.no_answer_"+platform)
+	return confirmT(lang, "outcome.line.no_answer")
 }
 
 func phoneHost(lang string) string {

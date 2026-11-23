@@ -693,7 +693,7 @@
   "phone.tap.android": "Tap “{button}” in the notification. No button? Pull it down, or tap its arrow.",
   "phone.tap.other": "Tap “{button}” in the notification. {buttons}",
   "phone.buttons_line": "To see the buttons, press and hold the notification on an iPhone, or pull it down on Android.",
-  "phone.teach.android": "A plain tap doesn't answer HA NOVA's questions: use their buttons, and pull the notification down if you don't see them. Unlock if asked.",
+  "phone.teach.android": "A plain tap doesn't answer HA NOVA's questions: tap “{button}”, and pull the notification down if you don't see it. Unlock if asked.",
   "phone.teach.ios": "Press and hold this notification, then tap “{button}” (unlock if asked). A plain tap doesn't answer HA NOVA's questions.",
   "phone.teach.other": "Press and hold this notification (iPhone) or pull it down (Android), then tap “{button}”. A plain tap doesn't answer HA NOVA's questions.",
   "phone.link.title": "Get HA NOVA confirmations?",
