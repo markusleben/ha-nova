@@ -79,15 +79,16 @@ release:
     ## New Features
 
     - **Updating a Mac from 0.31? HA NOVA asks you to pair it again once.** It's one Home Assistant sign-in, about a minute (with Home Assistant Link at home, a second one for Link). Run `ha-nova setup` when HA NOVA says so.
-    - **A generic thermostat or hygrostat set up in YAML no longer makes everyday calls ask.** With the App's file access on, HA NOVA reads the YAML Home Assistant runs, including a template switch as the heater.
-    - **HA NOVA answers faster.** Commands without Home Assistant Link skip a large file check, the App update check fetches one entity's state instead of every state, and `find` and Link commands wait for fewer round trips.
-    - **The NOVA App is smaller and starts faster.** Its image no longer ships npm, TypeScript sources, or source maps, and each start runs two fewer helper processes.
+    - **A plain tap on a phone question no longer loses it.** One the NOVA App holds for a computer opens on the NOVA page. Otherwise Android keeps the notification, and an iPhone can ask once more, quietly.
+    - **Planning a change waits for fewer round trips.** With this release's NOVA App, HA NOVA reads automation and script settings in batches. On a slow test connection, a light call's plan took 7.7 s instead of 13.6 s.
 
     ## What To Watch
 
     - **Updating a Mac from 0.31? HA NOVA asks you to pair it again once.** The first command that needs it names the step: `ha-nova setup`, or `ha-nova setup --server <name>` for another server.
+    - **Some saved plans need a fresh preview after updating.** Plan the change again and review the new preview before you confirm.
+    - **Near a thermostat's heater, an automation whose trigger picks its entity with a live template still makes calls ask.** The plan names that automation.
     - **The standalone container connects with its token only.** It no longer logs a six-digit code at startup, and `ha-nova setup` asks for its token (`RELAY_AUTH_TOKEN`). The NOVA Relay App still pairs as before.
-    - **YAML thermostats need this release's NOVA App with file access on.** Where HA NOVA can't verify one or its heater, calls still ask and the plan names it; a restart clears a changed file.
+    - **YAML thermostat checks need the NOVA App's file access on.** Where HA NOVA can't verify one or its heater, calls still ask and the plan names it; restart Home Assistant to load edited YAML.
     - **On a Mac that used Home Assistant Link, setup signs the old version out of Link.** macOS asks for your password once per old sign-in: choose "Allow", not "Always Allow".
     - **A computer paired before 0.32 pairs again once to confirm with one click.** Until then, its window only waits.
     - **One-click confirming trusts that computer.** On Windows and Linux, any program running as you could confirm without a click.
@@ -99,10 +100,9 @@ release:
 
     ## Bug Fixes
 
-    - **After a call on several devices, HA NOVA checks every one.** Over a slow connection, the last devices were sometimes reported as unverified although the change worked.
-    - **When removing the old Link sign-in's Keychain copy fails, setup says so and tries again**, even after the sign-out itself worked. `ha-nova doctor` says the same.
-    - **A Windows uninstall no longer reports success when it can't check that its folder is gone.** It lists what it couldn't prove removed.
-    - **When the NOVA App's safety check and HA NOVA disagree, the message names an App update only when the App is older** than this HA NOVA needs. Otherwise it says to plan the change again.
+    - **Scripts and automations near a thermostat's heater count only when they could react.** A script nearby counts only while it runs. When a call still asks for this, the plan names what it found, for UI thermostats too.
+    - **HA NOVA now sees triggers that name an entity by its registry id.** A call such an automation may react to can now ask where it used to run right away.
+    - **A copy kept by a delete is easier to find.** `ha-nova snapshot show --list` now says where those copies are listed.
 
     Stable install commands are release-pinned for this tag.
 
