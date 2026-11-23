@@ -234,7 +234,7 @@ func TestSettingsAsksSpeakTheHomesLanguageNow(t *testing.T) {
 	h.f.config = map[string]any{"language": "de"}
 	p.tapBy = tapFrom("mobile_app_annas_pixel", "anna-id", true)
 	if exit, out := runLink(t, h, "1\n", phoneLinkRun{interactive: true, offer: true}); exit != 0 || len(p.sent) != 2 || p.sent[0]["title"] != "HA NOVA hier bestätigen?" ||
-		p.sent[0]["message"] != "„Erlauben“ tippen. Sonst runterziehen. Angefordert von „"+phoneHost("de")+"“ über HA NOVA." || p.sent[1]["title"] != "Mit HA NOVA verbunden" ||
+		p.sent[0]["message"] != "„Erlauben“ tippen. Sonst runterziehen. "+confirmT("de", "phone.teach.android", "button", "Erlauben")+" Angefordert von „"+phoneHost("de")+"“ über HA NOVA." || p.sent[1]["title"] != "Mit HA NOVA verbunden" ||
 		!strings.Contains(out, "Only “Anna’s Pixel” gets HA NOVA confirmations") {
 		t.Fatalf("link: exit %d %v %q", exit, p.sent, out)
 	}

@@ -83,16 +83,20 @@ export function createApprovePageHandler(deps: ApprovePageDeps): RouteHandler {
     if (!who.ok) return send(response, who.status, t, back, `<p>${t.say(who.text)}</p>`);
     const query = new URLSearchParams((request.url ?? "").split("?")[1] ?? ""), done = DONE.get(query.get("done") ?? "");
     const named = query.get("nova_ask") ?? "", mine = /^[0-9a-f]{64}$/.test(named) ? named : ""; // a ref (askRef), never an ask id
-    // An ask the worker didn't word isn't shown: nobody approves what they can't read. The one a computer's window opened (nova_ask) comes first.
-    const all = deps.page.waiting().filter((ask) => ask.body !== "" && ask.items.length > 0 && ask.items.every((item) => (item.text ?? "") !== "")).sort((a, b) => Number(b.ref === mine) - Number(a.ref === mine) || a.expiresAt - b.expiresAt);
+    // An ask the worker didn't word isn't shown: nobody approves what they can't read. One named (nova_ask: a computer's window,
+    // a tap on the phone's notification) is shown alone, and once it ended no other takes its place.
+    const waiting = deps.page.waiting().filter((ask) => ask.body !== "" && ask.items.length > 0 && ask.items.every((item) => (item.text ?? "") !== "")).sort((a, b) => a.expiresAt - b.expiresAt);
+    const all = mine === "" ? waiting : waiting.filter((ask) => ask.ref === mine);
     const asks = all.slice(0, SHOWN);
-    const more = all.length > SHOWN ? `<p class="muted">${t.say("page.more", { count: all.length - SHOWN })}</p>` : "";
     const now = deps.now();
     const root = base(request);
     const action = `${root}approve`;
+    const others = waiting.length - asks.length;
+    const more = others > 0 ? `<p class="muted">${t.say("page.more", { count: others })}${mine === "" ? "" : ` <a href="${escapeHtml(action)}">${t.say("page.show_others")}</a>`}</p>` : "";
+    const none = `<section><p class="muted">${t.say(mine === "" ? "page.empty" : "page.ask_ended")}</p></section>`;
     const html = asks.map((ask) => renderAsk(ask, (kind) => `<form method="post" action="${escapeHtml(action)}"><input type="hidden" name="action" value="${kind}"><input type="hidden" name="ref" value="${ask.ref}"><input type="hidden" name="csrf" value="${escapeHtml(deps.csrf.issue(who.userId, `${kind}:${ask.ref}`, now))}">`, now, t)).join("");
     const live = ` data-live="${escapeHtml(`${root}live`)}" data-state="${liveState(deps.page)}" data-reload="${escapeHtml(mine === "" ? action : `${action}?nova_ask=${mine}`)}"`;
-    send(response, 200, t, back, `${done ? `<p class="ok"><strong>${t.say(done)}</strong></p>` : ""}${html || `<section><p class="muted">${t.say("page.empty")}</p></section>`}${more}<p class="muted meta">${t.say("page.signed_in")}</p>`, live, html === "");
+    send(response, 200, t, back, `${done ? `<p class="ok"><strong>${t.say(done)}</strong></p>` : ""}${html || none}${more}<p class="muted meta">${t.say("page.signed_in")}</p>`, live, html === "" && mine === ""); // an ended named ask stays on screen
   };
 }
 

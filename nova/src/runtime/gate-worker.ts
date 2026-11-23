@@ -56,6 +56,7 @@ export interface GateWorkerDeps {
   spawn?: typeof spawnChild;
   respawnMs?: number;
   timeoutMs?: number;
+  panel?: () => Promise<string>; // NOVA's panel in Home Assistant ("/" unknown): a tap on an ask's notification opens it there
 }
 
 export function createGateWorker(deps: GateWorkerDeps): GateWorker {
@@ -170,7 +171,8 @@ export function createGateWorker(deps: GateWorkerDeps): GateWorker {
     },
     // The worker asks the linked phone and waits up to waitMs for a tap.
     async phone(link, text, waitMs, stop, onSent) {
-      const answer = await post("/phone", { ...text, link, wait_ms: waitMs }, waitMs + (deps.timeoutMs ?? TIMEOUT_MS), stop, onSent);
+      const panel = "ask_ref" in text && text.ask_ref !== undefined ? await deps.panel?.() : undefined;
+      const answer = await post("/phone", { ...text, ...(panel?.startsWith("/app/") ? { panel } : {}), link, wait_ms: waitMs }, waitMs + (deps.timeoutMs ?? TIMEOUT_MS), stop, onSent);
       return phoneAnswer(answer);
     },
     async phoneEnd(end) {

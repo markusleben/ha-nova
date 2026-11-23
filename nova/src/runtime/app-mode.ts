@@ -12,7 +12,7 @@ import { createSupervisorProxyHandler } from "../http/handlers/supervisor-proxy.
 import { createWsProxyHandler, prepareWsBody } from "../http/handlers/ws-proxy.js";
 import { gated } from "../http/gate.js";
 import { gateWithAsks, type GatePage, type PhoneLink } from "../http/gate-asks.js";
-import { pageChannel } from "../http/handlers/nova-approve.js";
+import { novaPanel, pageChannel } from "../http/handlers/nova-approve.js";
 import { pageTexts } from "../http/page-texts.js";
 import type { RouteHandler } from "../http/router.js";
 import { applyServerTimeouts, type RelayLogger } from "../http/server.js";
@@ -204,6 +204,7 @@ export async function buildAppMode(
     binary: "/opt/ha-nova/ha-nova",
     mint: mintGateDevice(registry, input.now, `https://127.0.0.1:${SECURE_PORT}`, tls.spkiPin),
     logger: input.logger,
+    panel: novaPanel(async () => (await supervisor.getSelfInfo()).slug, input.logger),
   });
   const { functional, page: gatePage } = buildFunctionalHandlers(input, relayInstanceId, supervisorBase, gate, registry);
   const listenerDeps = {
