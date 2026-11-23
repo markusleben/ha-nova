@@ -262,7 +262,6 @@ jobs:
 
       # This shard's test times, for refreshing .github/go-test-durations.txt.
       - name: Upload test durations
-        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: go-test-durations-${{ env.SHARD_INDEX }}
