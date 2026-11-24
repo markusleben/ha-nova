@@ -220,13 +220,29 @@ func (srv *mcpServer) chatGate(tool mcpTool, args map[string]json.RawMessage) ma
 	if srv.chat == nil {
 		return nil
 	}
-	if srv.chat.stale && tool.name != mcpSkillTool.name { // a change reads them again under the lock (chatLocked)
+	stale := srv.chat.stale && tool.name != mcpSkillTool.name
+	if stale {
 		fresh, refusal := srv.chatFresh(tool.name, args)
 		if refusal != nil {
 			return refusal
 		}
 		srv.chat = fresh
 	}
+	refusal := srv.chatChecks(tool, args)
+	if refusal != nil && !stale && chatLockedTool(tool.name, args) { // the users as read within the last minute refuse: read them now, so a user promoted meanwhile isn't refused (allowed, chatLocked reads them under the lock)
+		fresh, failed := srv.chatFresh(tool.name, args)
+		if failed != nil {
+			return failed
+		}
+		srv.chat = fresh
+		refusal = srv.chatChecks(tool, args)
+	}
+	return refusal
+}
+
+// chatChecks: the owner's read-only switch, config plans for
+// administrators, and this user's level, on srv.chat.
+func (srv *mcpServer) chatChecks(tool mcpTool, args map[string]json.RawMessage) map[string]any {
 	if refusal := srv.chatRefusal(tool); refusal != nil {
 		return refusal
 	}
@@ -234,6 +250,13 @@ func (srv *mcpServer) chatGate(tool mcpTool, args map[string]json.RawMessage) ma
 		return refusal
 	}
 	return srv.chatLevelRefusal(tool, args)
+}
+
+// chatLockedTool: a change (ha_call, ha_apply) or a config plan (its preview
+// shows live config; configAdminFailure's scope), which reads the user's
+// access again under the lock (chatLocked).
+func chatLockedTool(name string, args map[string]json.RawMessage) bool {
+	return name == "ha_call" || name == "ha_apply" || name == "ha_plan" && text(args, "kind") != "call"
 }
 
 // chatFresh: this user's policy with Home Assistant's users read now, or
@@ -253,8 +276,7 @@ func (srv *mcpServer) chatFresh(name string, args map[string]json.RawMessage) (*
 	return fresh, nil
 }
 
-// chatLocked (ha-nova serve): a change (ha_call, ha_apply), or a config
-// plan (its preview shows live config; configAdminFailure's scope), reads this
+// chatLocked (ha-nova serve): a chatLockedTool call reads this
 // user's access again under mcpVerbLock, right before it runs, with Home
 // Assistant's users read now and then the owner's settings (reread: the
 // App writes them without this lock), and checks its switches and level
@@ -264,8 +286,7 @@ func (srv *mcpServer) chatFresh(name string, args map[string]json.RawMessage) (*
 // it). A refusal, or nil to run.
 func (srv *mcpServer) chatLocked(call *verbCall, name string, args map[string]json.RawMessage) map[string]any {
 	i := slices.IndexFunc(mcpTools, func(t mcpTool) bool { return t.name == name })
-	config := name == "ha_plan" && text(args, "kind") != "call"
-	if srv.chat == nil || name != "ha_call" && name != "ha_apply" && !config || i < 0 {
+	if srv.chat == nil || !chatLockedTool(name, args) || i < 0 {
 		return nil
 	}
 	fresh, refusal := srv.chatFresh(name, args)

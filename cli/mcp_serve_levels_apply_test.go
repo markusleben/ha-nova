@@ -1,6 +1,8 @@
 package main
 
 import (
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -222,8 +224,11 @@ func TestServeLevelReadAgainBeforeApply(t *testing.T) {
 			case <-read:
 			case <-time.After(time.Second):
 			}
-			f.mu.Lock()
-			f.users[1]["group_ids"] = []string{"system-read-only"}
+			f.mu.Lock() // a new list: the read that signalled may still be encoding the old one
+			users := slices.Clone(f.users)
+			users[1] = maps.Clone(users[1])
+			users[1]["group_ids"] = []string{"system-read-only"}
+			f.users = users
 			f.mu.Unlock()
 			held = false
 			mcpVerbLock.Unlock()

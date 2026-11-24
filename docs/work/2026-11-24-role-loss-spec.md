@@ -1,6 +1,8 @@
 # Role loss takes effect at once (MAR-170, MAR-181)
 
-Status: 0.36, shaped for KISS by openai/gpt-6.2-sol (high). Both fixes close a
+Status: active
+
+0.36, shaped for KISS by openai/gpt-6.2-sol (high). Both fixes close a
 window in which a person who lost a Home Assistant role keeps acting with it.
 Both fail closed when the role can't be read.
 
@@ -73,7 +75,7 @@ to 30 s for `mcpVerbLock`; under the lock only `chat-apps.json` is read again
   read only → `READ_ONLY`; nothing is sent.
 - Speed: the fresh read moves from arrival to under the lock for `ha_call` and
   `ha_apply` (arrival uses the users as read within the last minute, as every
-  other tool does), so a change still costs one users read. The arrival admin
+  other tool does), so a change still costs one users read. Only when those cached users refuse a change or a config plan does the arrival check read them now and check again, so a user promoted within the last minute is not refused (found by the Go suite: TestServeConfigPlansNeedAnAdministrator). The arrival admin
   check for config plans (`chatAdminRefusal`) stays: it answers
   `ADMIN_ONLY` early with its own words.
 
